@@ -1,0 +1,38 @@
+# =========================================================================
+# ElfieNest Git 忽略规则配置 (.gitignore)
+# =========================================================================
+
+# 1. 用户要求屏蔽的设计与规格文档目录
+/docs/
+
+# 2. 算力底座本地敏感配置与托管二进制 (安全防泄漏)
+/runtime/runtime_config.json
+/runtime/bin/
+
+# 3. 敏感环境变量与密钥
+.env
+.env.*
+!.env.example
+
+# 4. Python 标准临时文件与缓存
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+ENV/
+env/
+
+# 5. macOS 系统与 IDE 编辑器垃圾文件
+.DS_Store
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*~

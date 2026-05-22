@@ -1,0 +1,26 @@
+# ⚙️ Elfie 系统硬性阀值与运行限制配置
+
+limits:
+  # 能量与疲劳参数
+  energy:
+    max_value: 100.0
+    initial_value: 100.0
+    depletion_rate_per_sec: 0.005  # 常规时间流逝每秒自然消耗的精力
+    depletion_per_remote_chat: 2.5 # 进行一次深度云端推理消耗的能量
+    depletion_per_local_chat: 0.5  # 本地 Ollama 闲聊消耗的能量
+    recovery_rate_sleep_per_sec: 0.05 # 睡觉时每秒能量恢复速率
+    
+  # 疲劳度（腺苷累积值）
+  fatigue:
+    initial_value: 0.0
+    max_value: 100.0
+    accumulation_rate_per_sec: 0.003 # 清醒时每秒腺苷自然累积量
+    decay_rate_sleep_per_sec: 0.04   # 睡觉时每秒疲劳度消退速率
+    hibernation_threshold: 95.0     # 疲劳度达到 95% 时，强制休眠熔断
+    wakeup_threshold: 15.0          # 疲劳度消退到 15% 以下时，允许被唤醒
+    
+  # 灵币（算力 Token 预算）
+  lingbi:
+    daily_budget: 10000             # 每日灵币上限（Token 限制）
+    cost_per_local_token: 0         # 本地 Ollama 不花钱
+    cost_per_remote_token: 1        # 深度云端模型单次交互扣减灵币数

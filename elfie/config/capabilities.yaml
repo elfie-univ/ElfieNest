@@ -1,0 +1,28 @@
+# 🐾 Elfie 载体物理能力清单 (Physical Hardware/Virtual Boundaries)
+
+carrier_type: "smart_plush_toy" # 硬件类型：毛绒智能玩具（或 "virtual_avatar" 虚拟形象）
+
+# 动作输出能力上限 (如果大脑皮层决策的动作不在此列表中，将被 physical_limits 拦截)
+actuators:
+  speech:
+    enabled: true
+    max_words_per_minute: 120
+    tts_provider: "local_system"  # 或 "edge_tts"
+    
+  motion:
+    enabled: true
+    supported_actions:
+      - "wag_tail"         # 摇尾巴
+      - "wiggle_ears"       # 动耳朵
+      - "nod_head"          # 点头
+      - "shake_head"        # 摇头
+      - "blink_eyes"        # 眨眼
+      - "mutter"            # 碎碎念
+    speed_limits:
+      max_servo_angle_speed: 60.0 # 舵机最大角速度 (度/秒)
+
+  physics_limits:
+    can_fly: false          # 无法飞天
+    can_swim: false         # 无法下水
+    max_height_jump: 0.0    # 无法跳跃
+    requires_power_plug: false
