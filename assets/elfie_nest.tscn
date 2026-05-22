@@ -1,0 +1,24 @@
+[gd_scene format=3 uid="uid://cikaapit8gms5"]
+
+[ext_resource type="Script" uid="uid://gy4hxir7kp44" path="res://elfie_nest.gd" id="1_lhawk"]
+[ext_resource type="PackedScene" uid="uid://ds2tysikfay76" path="res://low_poly_room/scene.gltf" id="2_j6esm"]
+[ext_resource type="PackedScene" uid="uid://baf3fumcv6eip" path="res://character/eflie_3d.tscn" id="3_7qbbu"]
+
+[node name="ElfieNest" type="Node3D" unique_id=332225688]
+script = ExtResource("1_lhawk")
+
+[node name="Sketchfab_Scene" parent="." unique_id=427200218 instance=ExtResource("2_j6esm")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.05601859, -0.034521103, 1.9754984)
+
+[node name="Node3D" parent="." unique_id=1164168289 instance=ExtResource("3_7qbbu")]
+transform = Transform3D(0.3941986, 0, -0.9190253, 0, 1, 0, 0.9190253, 0, 0.3941986, 0.85583544, 0, 1.6919539)
+visible = false
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=1360762746]
+transform = Transform3D(1, 0, 0, 0, 0.89592105, 0.44421303, 0, -0.4442131, 0.8959211, 0, 3, 5)
+current = true
+fov = 75.3
+near = 0.001
+far = 1000.0
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=810040347]

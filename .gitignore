@@ -36,3 +36,9 @@ env/
 *.sln
 *.swp
 *~
+
+# 6. Godot 4+ 虚拟空间本地编译与导入缓存 (防止二进制资产及缓存进入仓库)
+/assets/.godot/
+/assets/android/
+
+

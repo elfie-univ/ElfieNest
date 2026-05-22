@@ -1,37 +1,47 @@
+# -*- coding: utf-8 -*-
 import logging
 from typing import Dict, Any
+from elfie.body.anatomy.base import SomaticAnatomy
+from elfie.body.anatomy.biped import BipedAnatomy
+from elfie.body.anatomy.quadruped import QuadrupedAnatomy
 
 logger = logging.getLogger("elfie.interface.physical_limits")
 
 class PhysicalLimitsReflex:
-    """底层：躯体安全反射弧 (校验皮层行为决策是否超出硬件承受能力边界)"""
+    """神经交互总线：躯体物理限位与形态学拦截反射 (形态学硬拦截，防止大脑运动幻觉)"""
 
     def __init__(self, capabilities_config: Dict[str, Any] = None):
-        caps = capabilities_config.get("actuators", {}) if capabilities_config else {}
-        self.allowed_motions = caps.get("motion", {}).get("supported_actions", ["mutter"])
-        self.physics = capabilities_config.get("physics_limits", {}) if capabilities_config else {}
+        # 兼容旧版本初始化
+        pass
 
-    def intercept_and_validate(self, action_name: str) -> Dict[str, Any]:
+    def intercept_and_validate(self, action_name: str, anatomy: SomaticAnatomy) -> Dict[str, Any]:
         """
-        拦截并校验动作名称是否可行
-        :param action_name: 顶层大脑做出的动作选择
+        根据精灵当前具身的 3D 骨架形态，硬性拦截违背形态学规律的大脑行为指令
+        :param action_name: 大脑皮层做出的高阶动作选择
+        :param anatomy: 当前精灵的 3D 解剖身体形态
         :return: {"allowed": bool, "feedback_error": str}
         """
-        # 1. 允许静默/空动作
-        if not action_name or action_name == "blink_eyes":
+        if not action_name or action_name in ["blink_eyes", "idle", "nod_head"]:
             return {"allowed": True, "feedback_error": ""}
 
-        # 2. 检查是否有企图飞天、潜水的物理幻觉
+        # 1. 拦截违背重力的飞天幻觉
         if "fly" in action_name.lower() or "jump" in action_name.lower():
-            if not self.physics.get("can_fly", False):
-                err = "【反射拦截】 躯体能力警报！本物理毛绒玩具不具备抗重力飞行器，无法起飞！"
-                logger.error(err)
-                return {"allowed": False, "feedback_error": err}
-                
-        # 3. 校验肢体电机动作是否在注册清单中
-        if action_name not in self.allowed_motions:
-            err = f"【反射拦截】 肢体约束警告！舵机控制器不支持 '{action_name}' 这一复杂物理动作，无法执行。"
-            logger.error(err)
+            err = "【物理重力限制】 哎呀！宿舍重力常数是 9.8m/s²，本精灵没有反重力推进器，无法飞起来哒！"
+            logger.warning(err)
             return {"allowed": False, "feedback_error": err}
+
+        # 2. 针对双足形态 BipedAnatomy 的物理约束校验
+        if isinstance(anatomy, BipedAnatomy):
+            if action_name == "wag_tail":
+                err = "【形态学限制】 呜呜... 艾菲现在是【双足直立形象】，并没有长出毛茸茸的尾巴，无法执行摇尾巴动作哒！"
+                logger.warning(err)
+                return {"allowed": False, "feedback_error": err}
+
+        # 3. 针对四足形态 QuadrupedAnatomy 的物理约束校验
+        elif isinstance(anatomy, QuadrupedAnatomy):
+            if action_name == "wave_hands":
+                err = "【形态学限制】 哎呦... 艾菲当前是【四足小狗形象】，四条腿都在地上支撑身体，没有双手可以用来挥手打招呼哒！"
+                logger.warning(err)
+                return {"allowed": False, "feedback_error": err}
 
         return {"allowed": True, "feedback_error": ""}

@@ -1,23 +1,30 @@
+# -*- coding: utf-8 -*-
 import logging
 from typing import Dict, Any
 
 logger = logging.getLogger("elfie.interface.sensors.audio")
 
 class AudioSensor:
-    """底层：感官输入 - 耳朵 (听觉语音传感器)"""
+    """神经交互总线：耳朵 (空间与虚拟听觉语音传感器)"""
 
     def __init__(self):
-        self.last_heard_text = ""
+        self.last_heard_audio = ""
+        self.last_audio_source = "ambient"
 
-    def hear_voice(self, speech_text: str) -> str:
+    def receive_virtual_audio(self, audio_event: str, source: str = "ambient") -> str:
         """
-        接收到外界的语音输入 (经过 ASR 语音识别后转化为文本)
-        :param speech_text: 语音听写出的文本内容
-        :return: 经过归一化处理后的文本
+        接收来自虚拟房间/空间中的声音，或者从外部输入（比如主人的语音微信 ASR）得到的听觉输入
+        :param audio_event: 听到的声音转化成文本或语音大纲 (如 "轰隆隆！窗外打雷了哒！" 或 "小精灵，过来吃饭啦！")
+        :param source: 声音源 ("spatial_audio_broadcaster", "user_voice_message", "elfie_buddy")
+        :return: 听觉文本
         """
-        logger.info(f"👂 [听觉感官捕获语音]: '{speech_text}'")
-        self.last_heard_text = speech_text.strip()
-        return self.last_heard_text
+        logger.info(f"👂 [神经听觉总线] 接收到听觉音频 (来源: {source}): '{audio_event}'")
+        self.last_heard_audio = audio_event.strip()
+        self.last_audio_source = source
+        return self.last_heard_audio
 
     def get_last_heard(self) -> str:
-        return self.last_heard_text
+        return self.last_heard_audio
+
+    def get_last_source(self) -> str:
+        return self.last_audio_source

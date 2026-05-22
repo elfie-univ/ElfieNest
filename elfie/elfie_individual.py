@@ -1,65 +1,80 @@
+# -*- coding: utf-8 -*-
 import logging
 from typing import Dict, Any
 
 from elfie.cognition import NeocortexBrain
 from elfie.core_systems import ThalamusContextBuilder, HypothalamusEnergy, AmygdalaEmotionalState, EmotionDecayCalculator, EpisodeMemoryManager
 from elfie.interface import SpeechActuator, MotionActuator, MutterActuator, SensoryDamSignalFilter, PhysicalLimitsReflex
+from elfie.body import BipedAnatomy, QuadrupedAnatomy, SomaticReflexArc
 
 logger = logging.getLogger("elfie.elfie_individual")
 
 class ElfieIndividual:
-    """精灵本体核心管理器 (生命全层架构聚合)"""
+    """精灵本体核心管理器 (具身四层生命架构聚合器)"""
 
-    def __init__(self, config_dir: str = None):
-        # 1. 顶层：大脑皮层 (认知决策层)
+    def __init__(self, config_dir: str = None, anatomy_type: str = "biped"):
+        """
+        初始化生命管理器
+        :param config_dir: 配置目录
+        :param anatomy_type: 身体形态学类型 ("biped" 双足, "quadruped" 四足)
+        """
+        # 1. 🧠 【大脑认知层】 (Cognition)
         self.brain = NeocortexBrain(config_dir)
         
-        # 从 profile 获取基础 limits 字典
         limits_dict = self.brain.profile.system_limits
         caps_dict = self.brain.profile.capabilities
 
-        # 2. 中层：生理与情感核心 (边缘系统中枢)
+        # 2. 🧬 【情绪与边缘系统】 (Core Systems)
         self.thalamus = ThalamusContextBuilder()
         self.hypothalamus = HypothalamusEnergy(limits_dict)
         self.amygdala = AmygdalaEmotionalState()
         self.emotion_decay = EmotionDecayCalculator()
         self.hippocampus = EpisodeMemoryManager()
 
-        # 3. 底层：感知与动力外设 (爬行动物脑)
+        # 3. 🔌 【神经交互总线层】 (Interface)
         self.speech_actuator = SpeechActuator()
         self.motion_actuator = MotionActuator()
         self.mutter_actuator = MutterActuator()
-        
         self.signal_filter = SensoryDamSignalFilter()
         self.safety_reflex = PhysicalLimitsReflex(caps_dict)
 
+        # 4. 🧱 【具身身体物理层】 (Body - 数字孪生躯体)
+        self.anatomy_type = anatomy_type
+        if anatomy_type == "quadruped":
+            self.anatomy = QuadrupedAnatomy()
+        else:
+            self.anatomy = BipedAnatomy()
+            
+        # 脑干自律避险反射弧
+        self.brainstem_reflex = SomaticReflexArc()
+        
+        # 仿真内的时间相角累加器
+        self.elapsed_time = 0.0
+
     def tick(self, dt: float):
         """
-        由世界引擎（或主周期）定时驱动的精灵生理 Tick
+        由世界引擎（或主周期）定时驱动的精灵生理与时间相角 Tick
         :param dt: 过去的时间步长 (秒)
         """
+        self.elapsed_time += dt
+        
         # (A) 下丘脑生理钟时钟钟摆 Tick 衰减
         self.hypothalamus.update_clock(dt)
         
-        # (B) 杏仁核情绪荷尔蒙自然半衰期扩散衰减
+        # (B) 杏仁核情绪自然半衰期衰减
         self.emotion_decay.decay_emotions(self.amygdala, dt)
-        
-        # (C) 睡觉时的碎碎念和夜间离线记忆固化，在 scheduler 中通过 get_fatigue 配合调用
 
     def perceive_and_respond(self, raw_sensor_data: Dict[str, Any], runtime_agent: Any) -> Dict[str, Any]:
         """
-        外界事件/消息输入的感知与反思响应完整闭环流程 (The Somatic Loop)
-        1. 信号过滤器(感知大坝)噪点拦截
-        2. 丘脑拉取多方状态拼装 Context
-        3. 大脑皮层分析并决策
-        4. 物理反射弧拦截违规超载动作
-        5. 输出肢体、语言执行，触发碎碎念
-        6. 海马体情景经历记忆录入
-        :param raw_sensor_data: 底层瞬间采样到的传感器信号
-        :param runtime_agent: 大模型底座 RuntimeAgent 实例
-        :return: 包含交互执行反馈的响应字典
+        具身认知与反馈 Somatic Loop 闭环主神经冲动链路：
+        1. 脑干反射弧检测：瞬间响应强碰撞避险/抚摸打呼（毫秒级自律反射，绕过大脑皮层）
+        2. 底层感知大坝噪点过滤
+        3. 中层丘脑拼装具身 Context (视觉 Viewport、空间听觉与触觉)
+        4. 顶层大脑皮层多模态大模型思考
+        5. 交互总线形态学动作硬拦截 (形态学限制，防动作幻觉)
+        6. 下发小脑进行关节角度时序转换，声学合成发音，写入海马体
         """
-        # 如果当前精灵在睡眠休眠，拦截任何输入，强制打哈欠睡觉 (熔断机制)
+        # A. 睡眠熔断机制
         if self.hypothalamus.is_sleeping:
             sleep_mutter = self.mutter_actuator.mutter("sleeping")
             return {
@@ -70,50 +85,98 @@ class ElfieIndividual:
                 "mutter": sleep_mutter
             }
 
-        # 1. 底层感知大坝噪点过滤
+        # B. 【脑干自律物理反射弧】 瞬间检测
+        # 从原始传感器中捕获触觉信号 (通常来自 Godot Collision/Area3D)
+        tactile_data = {
+            "impact_force": raw_sensor_data.get("impact_force", 0.0),
+            "impact_direction": raw_sensor_data.get("impact_direction", "none"),
+            "gentle_stroke": raw_sensor_data.get("gentle_stroke", 0.0)
+        }
+        
+        override_joints, reflex_event = self.brainstem_reflex.process_sensory_impact(
+            anatomy=self.anatomy,
+            tactile_sensor=tactile_data,
+            amygdala=self.amygdala
+        )
+        
+        if reflex_event["triggered"]:
+            # 反射触发：绕过大脑皮层，直接产生肢体避险动作与情绪变动
+            logger.warning(f"⚡ [脑干自律反射生效] 触发反射类型: {reflex_event['type']}")
+            
+            # 发声和碎碎念表达触觉受刺激
+            speech_text = reflex_event["msg"]
+            mutter_msg = f"(触发了 {reflex_event['type']} 的自主神经反射弧哒！)"
+            
+            self.speech_actuator.synthesize_speech(speech_text, self.anatomy.voice_profile)
+            
+            # 将紧急反射记录进海马体
+            self.hippocampus.record_episode(
+                event_description=f"【脑干反射】 遭遇外界刺激: {speech_text}",
+                emotion_tag=self.amygdala.get_dominant_mood()
+            )
+            
+            return {
+                "success": True,
+                "speech": speech_text,
+                "action": "reflex_avoidance" if reflex_event["type"] == "shock_avoidance" else "reflex_soothing",
+                "mutter": mutter_msg,
+                "joint_angles": {k: round(v, 3) for k, v in override_joints.items()}
+            }
+
+        # 1. 交互总线感知大坝过滤
         has_valuable_change = self.signal_filter.filter_noise(raw_sensor_data)
         if not has_valuable_change:
             return {"success": True, "filtered": True, "reason": "No sensory changes, skipped."}
 
-        # 2. 中层丘脑拼装 Context
+        # 2. 中层丘脑组装具身 Context
         context = self.thalamus.assemble(
             raw_sensors=raw_sensor_data,
             energy_system=self.hypothalamus,
             emotion_engine=self.amygdala,
             memory_system=self.hippocampus
         )
+        
+        # 额外将具身形态描述注入 context 以利于大模型认知自己的物理形态
+        context["embodied_anatomy"] = self.anatomy.get_anatomy_descriptor()
 
-        # 3. 顶层大脑皮层认知决策
+        # 3. 顶层大脑皮层大模型思考
         decision = self.brain.think_and_decide(context, runtime_agent)
         
         action = decision.get("action", "")
         speech_text = decision.get("speech_text", "")
         mutter_msg = decision.get("mutter", "")
 
-        # 4. 底层躯体安全反射校验 (物理约束拦截防幻觉)
-        reflex_result = self.safety_reflex.intercept_and_validate(action)
+        # 4. 交互总线躯体物理安全拦截 (形态学限制校验)
+        reflex_result = self.safety_reflex.intercept_and_validate(action, self.anatomy)
         if not reflex_result["allowed"]:
-            # 反射拦截，动作强制变为点头，并在语言中提示痛觉，触发负面情绪
-            logger.warning("物理反射拦截警报生效！重新注入报错回馈信号。")
+            # 形态学干涉生效：强制更改为点头，并引发轻微焦虑情绪与物理报错痛感
+            logger.warning("❌ [交互总线] 形态学物理硬拦截生效！拦截非法肢体指令。")
             action = "nod_head"
-            speech_text = f"哎呦！我的小毛爪撞到坚硬的物理定律墙壁了哒！疼... {reflex_result['feedback_error']}"
-            self.amygdala.update_emotion("anxiety", 15.0) # 焦虑度上升
-            self.amygdala.update_emotion("happiness", -10.0) # 快乐度下降
-            mutter_msg = "(物理能力拦截警告，艾菲眼眶湿润了哒...)"
+            speech_text = f"哎呦！我的小毛爪撞到形态学物理定律墙壁了哒！{reflex_result['feedback_error']}"
+            self.amygdala.update_emotion("anxiety", 15.0)
+            self.amygdala.update_emotion("happiness", -10.0)
+            mutter_msg = "(动作因形态学不兼容被强行拦截了哒...)"
 
         # 5. 执行具体物理驱动
-        self.speech_actuator.speak(speech_text)
-        self.motion_actuator.execute_action(action)
+        # (A) 声学发声合成
+        self.speech_actuator.synthesize_speech(speech_text, self.anatomy.voice_profile)
+        # (B) 小脑时域步态解算与驱动
+        actual_joints = self.motion_actuator.translate_and_drive(
+            anatomy=self.anatomy,
+            action_intent=action,
+            speed=1.0,
+            elapsed_time=self.elapsed_time
+        )
         
-        # 扣减下丘脑动作能耗
+        # 扣减下丘脑能耗
         is_remote = runtime_agent.config.remote_api_key != ""
         self.hypothalamus.consume_energy_by_action(is_remote)
         
-        # 成功响应增加主人亲近感，无聊度降低，快乐度增加
+        # 快乐正反馈
         self.amygdala.update_emotion("boredom", -15.0)
         self.amygdala.update_emotion("happiness", 5.0)
 
-        # 6. 将今日经历存入海马体情景记录
+        # 6. 将经历记入海马体
         if raw_sensor_data.get("has_new_message"):
             user_msg = raw_sensor_data.get("user_message", "")
             self.hippocampus.record_episode(
@@ -125,5 +188,6 @@ class ElfieIndividual:
             "success": True,
             "speech": speech_text,
             "action": action,
-            "mutter": mutter_msg
+            "mutter": mutter_msg,
+            "joint_angles": {k: round(v, 3) for k, v in actual_joints.items()}
         }
