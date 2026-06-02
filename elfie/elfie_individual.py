@@ -3,7 +3,7 @@ import logging
 from typing import Dict, Any
 
 from elfie.cognition import NeocortexBrain
-from elfie.core_systems import ThalamusContextBuilder, HypothalamusEnergy, AmygdalaEmotionalState, EmotionDecayCalculator, EpisodeMemoryManager
+from elfie.brain import ThalamusContextBuilder, HypothalamusEnergy, AmygdalaEmotionalState, EmotionDecayCalculator, EpisodeMemoryManager
 from elfie.interface import SpeechActuator, MotionActuator, MutterActuator, SensoryDamSignalFilter, PhysicalLimitsReflex
 from elfie.body import BipedAnatomy, QuadrupedAnatomy, SomaticReflexArc
 

@@ -4,7 +4,7 @@ import logging
 import math
 from typing import List, Dict, Any
 
-logger = logging.getLogger("elfie.core_systems.memory.vector_storage")
+logger = logging.getLogger("elfie.brain.memory.vector_storage")
 
 class TinyVectorStorage:
     """中层：海马体 (轻量级纯 Python 向量/关键词语义记忆索引数据库)"""

@@ -1,7 +1,7 @@
 import logging
 from typing import Dict, Any
 
-logger = logging.getLogger("elfie.core_systems.context_builder")
+logger = logging.getLogger("elfie.brain.context_builder")
 
 class ThalamusContextBuilder:
     """中层：丘脑 (上下文拼装总线 - Context Bus)"""

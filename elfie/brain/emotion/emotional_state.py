@@ -1,7 +1,7 @@
 import logging
 from typing import Dict
 
-logger = logging.getLogger("elfie.core_systems.emotion.emotional_state")
+logger = logging.getLogger("elfie.brain.emotion.emotional_state")
 
 class AmygdalaEmotionalState:
     """中层：杏仁核 (实时情绪状态机)"""

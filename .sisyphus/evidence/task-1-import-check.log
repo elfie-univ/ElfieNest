@@ -1,0 +1,34 @@
+=== TASK 1: FIX BROKEN IMPORTS - EVIDENCE LOG ===
+Date: 2026-06-02 19:19:25
+
+OBJECTIVE: Fix all elfie.core_systems to elfie.brain imports
+
+=== 1. VERIFICATION: No elfie.core_systems references remain ===
+✓ PASSED: No elfie.core_systems references found
+
+=== 2. FILES MODIFIED (11 files, 16 references fixed) ===
+1. elfie/brain/emotion/__init__.py - 2 imports
+2. elfie/brain/emotion/decay_calculator.py - 1 import + 1 logger
+3. elfie/brain/emotion/emotional_state.py - 1 logger
+4. elfie/brain/context_builder.py - 1 logger
+5. elfie/brain/energy/energy.py - 1 logger
+6. elfie/brain/memory/vector_storage.py - 1 logger
+7. elfie/brain/memory/episode_manager.py - 1 import + 1 logger
+8. elfie/brain/memory/night_consolidator.py - 1 import + 1 logger
+9. elfie/brain/memory/__init__.py - 3 imports
+10. elfie/elfie_individual.py - 1 import
+11. elfie/brain/__init__.py - CREATED (new file to export classes)
+
+=== 3. SYNTAX COMPILATION TEST ===
+✓ PASSED: All modified files compile successfully
+
+=== 4. IMPORT TEST (individual modules) ===
+Note: Direct module imports work. Full elfie package has separate elfie.cognition issue outside scope.
+
+=== 5. EVIDENCE SUMMARY ===
+- All 16 references to elfie.core_systems → elfie.brain FIXED
+- All modified files compile without syntax errors
+- New elfie/brain/__init__.py created to export required classes
+
+=== RESULT ===
+✓ TASK COMPLETED: All elfie.core_systems imports fixed to elfie.brain

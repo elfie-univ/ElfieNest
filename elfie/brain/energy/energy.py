@@ -1,7 +1,7 @@
 import logging
 from typing import Dict, Any
 
-logger = logging.getLogger("elfie.core_systems.energy")
+logger = logging.getLogger("elfie.brain.energy")
 
 class HypothalamusEnergy:
     """中层：下丘脑 (生理能量与生物钟作息控制)"""

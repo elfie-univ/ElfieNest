@@ -36,12 +36,16 @@ class ModelRouter:
         if complexity >= self.config.complexity_threshold_deep:
             reason = f"任务复杂度较高 ({complexity} >= {self.config.complexity_threshold_deep})，分配云端高级大模型进行深度推理"
             logger.info(reason)
-            # 如果远程 API KEY 没配置，会优雅退回到本地并发出警告
-            if not self.config.remote_api_key:
-                warning_reason = "云端 API Key 未配置，降级使用本地小模型进行深度推理"
+            
+            deep_provider = self.config.deep_provider
+            provider_api_key = self.config.providers.get(deep_provider, {}).get("api_key", "")
+            
+            if deep_provider == "ollama" or not provider_api_key:
+                warning_reason = f"深度推理Provider '{deep_provider}' 未配置API Key 或为本地模型，使用本地小模型"
                 logger.warning(warning_reason)
                 return "local", {"mode": "local", "reason": warning_reason, "model": self.config.ollama_model_fast}
-            return "remote", {"mode": "remote", "reason": reason, "model": self.config.remote_model_deep}
+            
+            return "remote", {"mode": "remote", "reason": reason, "model": self.config.deep_model, "provider": deep_provider}
             
         # 4. 默认走本地快速闲聊
         reason = f"常规日常对话且能量充沛，路由给本地轻量大模型"

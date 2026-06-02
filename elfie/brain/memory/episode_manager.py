@@ -1,8 +1,8 @@
 import logging
 from typing import List, Dict, Any
-from elfie.core_systems.memory.vector_storage import TinyVectorStorage
+from elfie.brain.memory.vector_storage import TinyVectorStorage
 
-logger = logging.getLogger("elfie.core_systems.memory.episode_manager")
+logger = logging.getLogger("elfie.brain.memory.episode_manager")
 
 class EpisodeMemoryManager:
     """中层：海马体情景记忆管理器 (Episode Memory Manager)"""

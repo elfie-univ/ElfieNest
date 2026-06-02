@@ -1,8 +1,8 @@
 import math
 import logging
-from elfie.core_systems.emotion.emotional_state import AmygdalaEmotionalState
+from elfie.brain.emotion.emotional_state import AmygdalaEmotionalState
 
-logger = logging.getLogger("elfie.core_systems.emotion.decay_calculator")
+logger = logging.getLogger("elfie.brain.emotion.decay_calculator")
 
 class EmotionDecayCalculator:
     """中层：杏仁核情绪化学衰减计算器 (基于化学半衰期半指数衰减算法)"""

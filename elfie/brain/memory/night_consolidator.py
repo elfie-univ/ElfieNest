@@ -1,8 +1,8 @@
 import logging
 from typing import Any
-from elfie.core_systems.memory.episode_manager import EpisodeMemoryManager
+from elfie.brain.memory.episode_manager import EpisodeMemoryManager
 
-logger = logging.getLogger("elfie.core_systems.memory.night_consolidator")
+logger = logging.getLogger("elfie.brain.memory.night_consolidator")
 
 class NightMemoryConsolidator:
     """中层：海马体夜间整理系统 (睡时记忆压缩与长期记忆固化 Worker)"""
