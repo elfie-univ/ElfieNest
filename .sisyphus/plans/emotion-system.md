@@ -611,7 +611,7 @@ Max Concurrent: 5 (Wave 2)
   - Files: emotion_state.py, accumulator/, fusion/
   - Pre-commit: `python -m pytest test/`
 
-- [ ] 10. 更新decay_calculator.py
+- [x] 10. 更新decay_calculator.py
 
   **What to do**:
   - 更新 `decay_calculator.py` 使用新的分阶段衰减

@@ -36,6 +36,15 @@
       "agent": "Sisyphus-Junior",
       "category": "deep",
       "updated_at": "2026-06-02T12:20:33.262Z"
+    },
+    "todo:10": {
+      "task_key": "todo:10",
+      "task_label": "10",
+      "task_title": "更新decay_calculator.py",
+      "session_id": "ses_177b3d477ffeEjOb0jJXTJe2rd",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-06-02T12:27:03.502Z"
     }
   }
 }
