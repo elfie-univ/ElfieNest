@@ -45,6 +45,15 @@
       "agent": "Sisyphus-Junior",
       "category": "quick",
       "updated_at": "2026-06-02T12:27:03.502Z"
+    },
+    "todo:11": {
+      "task_key": "todo:11",
+      "task_label": "11",
+      "task_title": "更新现有调用方",
+      "session_id": "ses_177b233c9ffep8DNw4QGDQLAcK",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-06-02T12:32:50.037Z"
     }
   }
 }

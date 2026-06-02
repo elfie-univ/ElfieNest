@@ -1,0 +1,72 @@
+2026-06-02 20:32:07,755 - main                           - INFO     - =========================================================================
+2026-06-02 20:32:07,755 - main                           - INFO     - 🦊 唤醒仪式：正在读取大脑皮层及算力底座驱动，唤醒仿生生命体 Elfie...
+2026-06-02 20:32:07,755 - main                           - INFO     - =========================================================================
+2026-06-02 20:32:07,755 - main                           - INFO     - ⚡ [底座算力底座就绪] 本地快速大模型及云端路由检测完毕。
+2026-06-02 20:32:07,755 - elfie.cognition.profile        - WARNING  - 配置文件未找到: /Users/zhenli/git-code/ElfieNest/elfie/brain/config/personality.yaml，将采用内存默认项。
+2026-06-02 20:32:07,755 - elfie.cognition.profile        - WARNING  - 配置文件未找到: /Users/zhenli/git-code/ElfieNest/elfie/brain/config/capabilities.yaml，将采用内存默认项。
+2026-06-02 20:32:07,755 - elfie.cognition.profile        - WARNING  - 配置文件未找到: /Users/zhenli/git-code/ElfieNest/elfie/brain/config/system_limits.yaml，将采用内存默认项。
+2026-06-02 20:32:07,755 - elfie.brain.emotion.emotion_system - INFO     - 情绪系统初始化完成，8种情绪已加载
+2026-06-02 20:32:07,756 - elfie.brain.memory.vector_storage - INFO     - 💾 [记忆读取完毕] 成功加载 74 条历史情景索引。
+2026-06-02 20:32:07,756 - main                           - INFO     - ✨ [灵魂注入完成] 艾菲 (Elfie) 的顶层认知、中层边缘化学、底层感觉神经融合完毕！
+2026-06-02 20:32:07,756 - elfienest.godot_api            - INFO     - 🔌 [通信网关] 已成功注册事件 'register_scene' 的监听回调
+2026-06-02 20:32:07,756 - elfienest.godot_api            - INFO     - 🔌 [通信网关] 已成功注册事件 'arrived_at' 的监听回调
+2026-06-02 20:32:07,756 - elfienest.room                 - INFO     - ✨ [房间容器] 精灵 '艾菲' 已成功注册并入住精灵仓！
+2026-06-02 20:32:07,757 - main                           - INFO     - 
+[世界物理交互] 模拟主人轻轻揉了揉艾菲的尾巴 (触发物理社交)...
+2026-06-02 20:32:07,757 - elfienest.engine               - INFO     - 💥 [物理刺激] 触发来自 '艾菲' 针对 '艾菲' 的 collision 交互
+2026-06-02 20:32:07,757 - elfienest.godot_api            - WARNING  - ⚠️ [通信网关] 服务未启动，发送命令取消。
+2026-06-02 20:32:07,757 - main                           - INFO     - 
+======================== 🚀 启动物理盒子时间流动 ========================
+2026-06-02 20:32:07,757 - elfienest.engine               - INFO     - 🎵 [语音服务] 静态音频分发服务器已在 http://127.0.0.1:8000 成功挂载！映射目录: /Users/zhenli/git-code/ElfieNest/assets/temp
+Exception in thread ElfieNest_WS_Thread:
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/threading.py", line 973, in _bootstrap_inner
+    self.run()
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/threading.py", line 910, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/zhenli/git-code/ElfieNest/elfienest/godot_api.py", line 80, in _run_event_loop
+    start_server = websockets.serve(self._handle_client, self.host, self.port)
+  File "/Users/zhenli/Library/Python/3.9/lib/python/site-packages/websockets/asyncio/server.py", line 743, in __init__
+    self.server = Server(
+  File "/Users/zhenli/Library/Python/3.9/lib/python/site-packages/websockets/asyncio/server.py", line 284, in __init__
+    self.loop = asyncio.get_running_loop()
+RuntimeError: no running event loop
+2026-06-02 20:32:10,807 - elfienest.godot_api            - ERROR    - ❌ [通信网关] 后台通信线程启动超时！
+2026-06-02 20:32:10,807 - elfienest.godot_api            - INFO     - 🚀 [通信网关] 后台通信线程就绪，正在 127.0.0.1:8765 监听连接...
+2026-06-02 20:32:10,808 - elfienest.engine               - INFO     - ⏳ [时间盒子] 物理仿真启动。总计运行 3 个 Tick 周期，每个周期阻尼间歇 1.5 秒...
+2026-06-02 20:32:10,808 - elfienest.engine               - INFO     - 
+====================== 🌀 PHYSICS TICK 1/3 ======================
+2026-06-02 20:32:10,808 - elfienest.engine               - INFO     - 👀 [具身感知] 精灵 '艾菲' 正在感知环境: {'has_new_message': False, 'user_message': '', 'impact_force': 1.5, 'impact_direction': 'back', 'gentle_stroke': 1.0}
+2026-06-02 20:32:10,808 - elfie.body.reflex.reflex_arc   - INFO     - ❤️ [脑干反射弧] 接收到频率为 1.0Hz 的舒适抚摸脉冲
+2026-06-02 20:32:10,808 - elfie.brain.emotion.emotion_system - INFO     - 🎭 [情绪微调] fear: 10.0 -> 0.0
+2026-06-02 20:32:10,808 - elfie.brain.emotion.emotion_system - INFO     - 🎭 [情绪微调] boredom: 20.0 -> 0.0
+2026-06-02 20:32:10,808 - elfie.brain.emotion.emotion_system - INFO     - 🎭 [情绪微调] happiness: 50.0 -> 65.0
+2026-06-02 20:32:10,808 - elfie.elfie_individual         - WARNING  - ⚡ [脑干自律反射生效] 触发反射类型: stroke_soothing
+2026-06-02 20:32:10,808 - elfie.interface.actuators.speech - INFO     - 🗣️ [神经声音合成] 合成波形中 -> 音色风格: 'cute', 音高: 1.0x, 语速: 1.0x
+   [频段共鸣图谱 (前4频段)]: [100Hz, 120Hz, 150Hz, 130Hz...]
+   >>> 艾菲发出萌音: "呼噜噜~ 主人的手抚摸得艾菲超级舒服，尾巴自己都不听话地摇摆起来了哒！"
+2026-06-02 20:32:10,808 - elfie.brain.memory.episode_manager - INFO     - 💾 [海马体录入经历]: '【脑干反射】 遭遇外界刺激: 呼噜噜~ 主人的手抚摸得艾菲超级舒服，尾巴自己都不听话地摇摆起来了哒！' (情绪: happiness)
+2026-06-02 20:32:10,810 - elfie.brain.memory.vector_storage - INFO     - 💾 [记忆保存成功] 海马体记忆已安全落盘持久化。
+2026-06-02 20:32:10,810 - elfienest.engine               - INFO     - 💬 [具身响应] 精灵 '艾菲' 发言: "呼噜噜~ 主人的手抚摸得艾菲超级舒服，尾巴自己都不听话地摇摆起来了哒！" (碎碎念: (触发了 stroke_soothing 的自主神经反射弧哒！))
+2026-06-02 20:32:10,810 - elfienest.engine               - INFO     - 🏃 [具身响应] 精灵 '艾菲' 执行物理意图: reflex_soothing
+2026-06-02 20:32:10,811 - elfienest.engine               - WARNING  - ⚠️ [语音服务] edge-tts 合成失败 (可能是网络超时或包未完全安装)，优雅降级为空音频: No module named 'edge_tts'
+2026-06-02 20:32:12,316 - elfienest.engine               - INFO     - 
+====================== 🌀 PHYSICS TICK 2/3 ======================
+2026-06-02 20:32:12,316 - elfienest.engine               - INFO     - 👀 [具身感知] 精灵 '艾菲' 正在感知环境: {'has_new_message': False, 'user_message': '', 'impact_force': 0.0, 'impact_direction': 'none', 'gentle_stroke': 0.0}
+2026-06-02 20:32:12,316 - elfie.brain.context_builder    - INFO     - 丘脑十字路口：正在捕获外部感官、情感化学值、体能作息与海马体记忆切片...
+2026-06-02 20:32:12,316 - elfie.brain.context_builder    - INFO     - 丘脑拼装完成，已投递至 Neocortex 大脑皮层。
+2026-06-02 20:32:12,316 - elfie.cognition.brain          - INFO     - 🧠 [皮层脑网络激活]: DMN 模式。
+2026-06-02 20:32:12,316 - elfie.interface.actuators.motion - INFO     - 🐾 [神经关节总线] 高阶动作 'blink_eyes' -> 计算产生 8 个关节驱动信号发往 Godot. 当前驱动角示例: {'head_yaw': 0.0, 'neck_pitch': 0.0, 'left_shoulder': 0.0}
+2026-06-02 20:32:12,316 - elfienest.godot_api            - INFO     - 🛑 [通信网关] 服务端已彻底关闭。
+2026-06-02 20:32:12,767 - elfienest.engine               - INFO     - 🌈 [时间盒子] 仿真主循环已平稳落地退出。
+Traceback (most recent call last):
+  File "/Users/zhenli/git-code/ElfieNest/main.py", line 60, in <module>
+    main()
+  File "/Users/zhenli/git-code/ElfieNest/main.py", line 53, in main
+    engine.start_loop(runtime_agent=runtime_agent, ticks_to_run=3, interval_sec=1.5)
+  File "/Users/zhenli/git-code/ElfieNest/elfienest/engine.py", line 205, in start_loop
+    response = elfie.perceive_and_respond(raw_sensor_data, runtime_agent)
+  File "/Users/zhenli/git-code/ElfieNest/elfie/elfie_individual.py", line 172, in perceive_and_respond
+    is_remote = runtime_agent.config.remote_api_key != ""
+AttributeError: 'LLMRuntimeConfig' object has no attribute 'remote_api_key'
+/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/asyncio/base_events.py:667: RuntimeWarning: coroutine 'GodotAPIServer._async_broadcast' was never awaited

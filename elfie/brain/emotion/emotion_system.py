@@ -145,6 +145,14 @@ class EmotionSystem:
         items = [f"{name}:{value:.1f}" for name, value in self.emotions.items()]
         return ", ".join(items)
     
+    def get_current_emotion_summary(self) -> str:
+        """获取当前情绪摘要（向后兼容的旧API）
+        
+        Returns:
+            格式化的情绪状态字符串
+        """
+        return self.get_emotion_summary()
+    
     def get_emotion_value(self, name: str) -> float:
         """获取指定情绪的当前值
         

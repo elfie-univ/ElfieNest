@@ -2,8 +2,8 @@
 import logging
 from typing import Dict, Any
 
-from elfie.cognition import NeocortexBrain
-from elfie.brain import ThalamusContextBuilder, HypothalamusEnergy, AmygdalaEmotionalState, EmotionDecayCalculator, EpisodeMemoryManager
+from elfie.brain.cognition import NeocortexBrain
+from elfie.brain import ThalamusContextBuilder, HypothalamusEnergy, EmotionSystem, EmotionDecayCalculator, EpisodeMemoryManager
 from elfie.interface import SpeechActuator, MotionActuator, MutterActuator, SensoryDamSignalFilter, PhysicalLimitsReflex
 from elfie.body import BipedAnatomy, QuadrupedAnatomy, SomaticReflexArc
 
@@ -27,7 +27,7 @@ class ElfieIndividual:
         # 2. 🧬 【情绪与边缘系统】 (Core Systems)
         self.thalamus = ThalamusContextBuilder()
         self.hypothalamus = HypothalamusEnergy(limits_dict)
-        self.amygdala = AmygdalaEmotionalState()
+        self.amygdala = EmotionSystem()
         self.emotion_decay = EmotionDecayCalculator()
         self.hippocampus = EpisodeMemoryManager()
 

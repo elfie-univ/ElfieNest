@@ -660,7 +660,7 @@ Max Concurrent: 5 (Wave 2)
 
   **Commit**: NO (groups with Task 11-13)
 
-- [ ] 11. 更新现有调用方
+- [x] 11. 更新现有调用方
 
   **What to do**:
   - 搜索所有使用 `amygdala.update_emotion()` 的地方
@@ -704,7 +704,7 @@ Max Concurrent: 5 (Wave 2)
 
   **Commit**: NO (groups with Task 10, 12-13)
 
-- [ ] 12. 实现主导情绪算法
+- [x] 12. 实现主导情绪算法
 
   **What to do**:
   - 更新 `get_dominant_mood()` 方法
@@ -752,7 +752,7 @@ Max Concurrent: 5 (Wave 2)
 
   **Commit**: NO (groups with Task 10-11, 13)
 
-- [ ] 13. 编写单元测试
+- [x] 13. 编写单元测试
 
   **What to do**:
   - 创建 `test/test_emotion_system.py`
