@@ -27,6 +27,15 @@
       "agent": "Sisyphus-Junior",
       "category": "quick",
       "updated_at": "2026-06-02T11:24:25.198Z"
+    },
+    "todo:9": {
+      "task_key": "todo:9",
+      "task_label": "9",
+      "task_title": "重构情绪状态管理",
+      "session_id": "ses_177d43483ffe8kM17Am0savGUK",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-06-02T12:20:33.262Z"
     }
   }
 }
