@@ -800,7 +800,7 @@ Max Concurrent: 5 (Wave 2)
   - Files: decay_calculator.py, 所有调用方, test_emotion_system.py
   - Pre-commit: `python -m pytest test/`
 
-- [ ] 14. 实现文本情绪检测器（可选）
+- [x] 14. 实现文本情绪检测器（可选）
 
   **What to do**:
   - 创建 `elfie/brain/emotion/detector/text_detector.py`
@@ -847,7 +847,7 @@ Max Concurrent: 5 (Wave 2)
 
   **Commit**: NO (groups with Task 15-17)
 
-- [ ] 15. 实现图像情绪检测器（可选）
+- [x] 15. 实现图像情绪检测器（可选）
 
   **What to do**:
   - 创建 `elfie/brain/emotion/detector/image_detector.py`
@@ -894,7 +894,7 @@ Max Concurrent: 5 (Wave 2)
 
   **Commit**: NO (groups with Task 14, 16-17)
 
-- [ ] 16. 实现语音情绪检测器（可选）
+- [x] 16. 实现语音情绪检测器（可选）
 
   **What to do**:
   - 创建 `elfie/brain/emotion/detector/audio_detector.py`
@@ -941,7 +941,7 @@ Max Concurrent: 5 (Wave 2)
 
   **Commit**: NO (groups with Task 14-15, 17)
 
-- [ ] 17. 统一检测接口（可选）
+- [x] 17. 统一检测接口（可选）
 
   **What to do**:
   - 创建 `elfie/brain/emotion/detector/__init__.py`

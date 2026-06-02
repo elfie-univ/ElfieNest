@@ -1,0 +1,39 @@
+# Task 16: Audio Emotion Detector Implementation
+
+## Created File
+elfie/brain/emotion/detector/audio_detector.py
+
+## Verification Command
+python3 -c "from elfie.brain.emotion.detector.audio_detector import AudioEmotionDetector; d = AudioEmotionDetector(); print(d.detect('fake.wav'))"
+
+## Verification Output
+librosa未安装，语音检测将使用fallback
+pyworld未安装，语音检测将使用fallback
+('calm', 0.3)
+
+## Implementation Details
+
+### AudioEmotionDetector Class
+- Location: elfie/brain/emotion.detector.audio_detector
+- Features:
+  * Dependency checking (librosa, pyworld)
+  * Graceful fallback when dependencies unavailable
+  * Audio feature extraction: energy, f0 (pitch), tempo
+  * Rule-based emotion classification
+
+### Classification Rules
+1. anger: energy > 0.1 AND f0_std > 50 AND tempo > 120
+2. sadness: energy < 0.03 AND f0_std < 30
+3. happiness: energy > 0.08 AND tempo > 100
+4. calm: default case
+
+### Audio Features
+- energy (RMS): 振幅/响度
+- f0_mean/f0_std: 基频/音高及其变化
+- tempo: 语速 (通过onset检测)
+
+## Status
+✅ File created
+✅ Import verified
+✅ Fallback mechanism working
+✅ Return type: Tuple[str, float]

@@ -1,0 +1,18 @@
+模型加载失败，将使用关键词检测: No module named 'transformers'
+模型加载失败，将使用关键词检测: No module named 'transformers'
+模型加载失败，将使用关键词检测: No module named 'transformers'
+模型加载失败，将使用关键词检测: No module named 'transformers'
+模型加载失败，将使用关键词检测: No module named 'transformers'
+模型加载失败，将使用关键词检测: No module named 'transformers'
+模型加载失败，将使用关键词检测: No module named 'transformers'
+模型加载失败，将使用关键词检测: No module named 'transformers'
+=== TextEmotionDetector 测试结果 ===
+
+你真是太笨了！: ('calm', 0.3)
+今天真高兴！: ('happiness', 0.8)
+我好生气！: ('anger', 0.8)
+我很害怕: ('fear', 0.8)
+普通的一天: ('calm', 0.3)
+这个太恶心了: ('disgust', 0.8)
+我很惊讶: ('surprise', 0.7)
+无聊的一天: ('boredom', 0.6)

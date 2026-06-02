@@ -54,6 +54,24 @@
       "agent": "Sisyphus-Junior",
       "category": "unspecified-high",
       "updated_at": "2026-06-02T12:32:50.037Z"
+    },
+    "todo:14": {
+      "task_key": "todo:14",
+      "task_label": "14",
+      "task_title": "实现文本情绪检测器（可选）",
+      "session_id": "ses_177a96439ffehNhObUBBsM4l4j",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-06-02T12:39:56.178Z"
+    },
+    "todo:17": {
+      "task_key": "todo:17",
+      "task_label": "17",
+      "task_title": "统一检测接口（可选）",
+      "session_id": "ses_177a4c8aeffev8lOR9rYSKluUC",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-06-02T12:42:51.389Z"
     }
   }
 }
