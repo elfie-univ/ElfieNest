@@ -207,7 +207,7 @@ Max Concurrent: 5 (Wave 2)
   - Message: `fix(emotion): repair broken imports from core_systems to brain`
   - Files: All files with import errors
 
-- [ ] 2. 定义情绪类型和配置
+- [x] 2. 定义情绪类型和配置
 
   **What to do**:
   - 创建 `elfie/brain/emotion/emotion_types.py`
@@ -255,7 +255,7 @@ Max Concurrent: 5 (Wave 2)
 
   **Commit**: NO (groups with Task 3, 4)
 
-- [ ] 3. 创建EmotionInput数据结构
+- [x] 3. 创建EmotionInput数据结构
 
   **What to do**:
   - 创建 `elfie/brain/emotion/emotion_input.py`
@@ -302,7 +302,7 @@ Max Concurrent: 5 (Wave 2)
 
   **Commit**: NO (groups with Task 2, 4)
 
-- [ ] 4. 设计迁移策略
+- [x] 4. 设计迁移策略
 
   **What to do**:
   - 分析当前emotion状态数据（如果有persisted state）

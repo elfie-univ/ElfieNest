@@ -8,5 +8,16 @@
     "ses_178871f3effeqlmLkEfqcsBpHt": "direct"
   },
   "plan_name": "emotion-system",
-  "agent": "atlas"
+  "agent": "atlas",
+  "task_sessions": {
+    "todo:2": {
+      "task_key": "todo:2",
+      "task_label": "2",
+      "task_title": "定义情绪类型和配置",
+      "session_id": "ses_177eed327ffeuYeoplQY3BfP1I",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-06-02T11:21:59.974Z"
+    }
+  }
 }
