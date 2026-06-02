@@ -18,6 +18,15 @@
       "agent": "Sisyphus-Junior",
       "category": "quick",
       "updated_at": "2026-06-02T11:21:59.974Z"
+    },
+    "todo:5": {
+      "task_key": "todo:5",
+      "task_label": "5",
+      "task_title": "实现饱和增长公式",
+      "session_id": "ses_177ecf9fbffe5nPKm06J0JweeT",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-06-02T11:24:25.198Z"
     }
   }
 }

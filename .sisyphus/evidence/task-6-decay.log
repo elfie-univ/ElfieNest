@@ -1,0 +1,30 @@
+# Task 6: Decay Function Verification Log
+
+## File Created
+- `elfie/brain/emotion/accumulator/decay.py`
+
+## Test Results
+
+### Test 1: High Value Decay (value=80 > threshold=50)
+- Input: value=80, dt=60, baseline=0, half_life=100, threshold=50
+- Effective half-life: 100 * 0.3 = 30
+- Decay factor: 0.5^(60/30) = 0.5^2 = 0.25
+- Output: 20.00
+- **Status: PASS** (fast decay verified: 80 -> 20, change of 60)
+
+### Test 2: Low Value Decay (value=20 <= threshold=50)
+- Input: value=20, dt=60, baseline=0, half_life=100, threshold=50
+- Effective half-life: 100 * 3.0 = 300
+- Decay factor: 0.5^(60/300) = 0.5^0.2 ≈ 0.87
+- Output: 17.41
+- **Status: PASS** (slow decay verified: 20 -> 17.41, change of 2.59)
+
+### Test 3: Threshold Boundary Test
+- value=50 (at threshold): uses slow path (3x half-life) -> 43.53
+- value=51 (above threshold): uses fast path (0.3x half-life) -> 12.75
+- **Status: PASS** (threshold boundary works correctly)
+
+## Conclusion
+- High value decays ~23x faster than low value (60 vs 2.59 change)
+- Formula: decay_factor = 0.5 ^ (dt / effective_half_life)
+- Phase switching at threshold=50 works correctly

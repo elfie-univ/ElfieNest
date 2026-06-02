@@ -353,7 +353,7 @@ Max Concurrent: 5 (Wave 2)
   - Message: `feat(emotion): define emotion types and migration strategy`
   - Files: emotion_types.py, emotion_input.py, migration相关代码
 
-- [ ] 5. 实现饱和增长公式
+- [x] 5. 实现饱和增长公式
 
   **What to do**:
   - 在 `emotion_state.py` 中实现饱和增长公式
@@ -400,7 +400,7 @@ Max Concurrent: 5 (Wave 2)
 
   **Commit**: NO (groups with Task 6-9)
 
-- [ ] 6. 实现分阶段衰减公式
+- [x] 6. 实现分阶段衰减公式
 
   **What to do**:
   - 重构 `decay_calculator.py`
@@ -452,7 +452,7 @@ Max Concurrent: 5 (Wave 2)
 
   **Commit**: NO (groups with Task 5, 7-9)
 
-- [ ] 7. 实现频率信息维护
+- [x] 7. 实现频率信息维护
 
   **What to do**:
   - 在 `EmotionState` 中添加 `expire_times: deque`
@@ -500,7 +500,7 @@ Max Concurrent: 5 (Wave 2)
 
   **Commit**: NO (groups with Task 5-6, 8-9)
 
-- [ ] 8. 实现融合去重机制
+- [x] 8. 实现融合去重机制
 
   **What to do**:
   - 创建 `elfie/brain/emotion/fusion/deduplicator.py`

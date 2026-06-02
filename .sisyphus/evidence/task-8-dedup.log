@@ -1,0 +1,28 @@
+============================================================
+TASK-8: EventDeduplicator Test Evidence
+============================================================
+
+[TEST 1] Basic Deduplication
+  First check for event_001: is_new=True (expected: True)
+  Second check for event_001: is_new=False (expected: False)
+  ✓ PASSED
+
+[TEST 2] TTL Expiration
+  At T=1050 (50s later): is_new=False (expected: False)
+  At T=1061 (61s later): is_new=True (expected: True)
+  ✓ PASSED
+
+[TEST 3] Weighted Average Fusion
+  Equal weights [1,2,3]: 2.0 (expected: 2.0)
+  Weights [1,2,1] on [1,2,3]: 2.0 (expected: 2.0)
+  Weights [3,1] on [5,10]: 6.25 (expected: 6.25)
+  ✓ PASSED
+
+[TEST 4] Error Handling
+  Empty list raises ValueError: intensities list cannot be empty (expected)
+  Mismatched lengths raises ValueError: intensities and weights must have same length (expected)
+  ✓ PASSED
+
+============================================================
+ALL TESTS PASSED!
+============================================================
