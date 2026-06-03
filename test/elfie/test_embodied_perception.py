@@ -67,8 +67,8 @@ class TestEmbodiedPerception(unittest.TestCase):
         self.assertIn("形态学限制", response["speech"])
         self.assertIn("动作因形态学不兼容被强行拦截了", response["mutter"])
         
-        # 验证杏仁核情绪扰动 (焦虑值上升)
-        self.assertGreater(biped_elfie.amygdala.emotions["anxiety"], 10.0)
+        # 验证杏仁核情绪扰动 (焦虑值上升，anxiety -> fear)
+        self.assertGreater(biped_elfie.amygdala.emotions["fear"], 10.0)
         
         # (B) 实例化四足爬行精灵
         quad_elfie = ElfieIndividual(anatomy_type="quadruped")
@@ -140,8 +140,8 @@ class TestEmbodiedPerception(unittest.TestCase):
         self.assertEqual(response["joint_angles"]["front_left_leg"], -0.5)
         self.assertEqual(response["joint_angles"]["front_right_leg"], -0.5)
         
-        # 验证情绪系统受到警报：焦虑度 (anxiety) 瞬间暴涨，快乐度骤降
-        self.assertGreater(elfie.amygdala.emotions["anxiety"], 20.0)
+        # 验证情绪系统受到警报：焦虑度 (anxiety->fear) 瞬间暴涨，快乐度骤降
+        self.assertGreater(elfie.amygdala.emotions["fear"], 20.0)
         self.assertLess(elfie.amygdala.emotions["happiness"], 50.0)
         
         # 验证海马体成功载入紧急痛觉反射事件
@@ -171,8 +171,8 @@ class TestEmbodiedPerception(unittest.TestCase):
         # 验证关节成功摇尾巴 (tail_wag = 0.8)
         self.assertEqual(response["joint_angles"]["tail_wag"], 0.8)
         
-        # 验证杏仁核情绪池极度舒缓：焦虑值清零，快乐值暴涨
-        self.assertEqual(elfie.amygdala.emotions["anxiety"], 0.0)
+        # 验证杏仁核情绪池极度舒缓：焦虑值(anxiety->fear)清零，快乐值暴涨
+        self.assertEqual(elfie.amygdala.emotions["fear"], 0.0)
         self.assertGreater(elfie.amygdala.emotions["happiness"], 50.0)
 
     def test_vision_viewport_perception(self):
