@@ -2,7 +2,7 @@
 
 import logging
 import os
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import yaml
 
@@ -142,7 +142,9 @@ class ExpressionMapper:
         if not emotions:
             return self._get_default_expression()
 
-        emotion_configs = self._config.get("emotions", {})
+        assert self._config is not None, "Config should be loaded in __new__"
+        config: Dict[str, Any] = self._config
+        emotion_configs: Dict[str, Any] = config.get("emotions", {})
 
         dominant_emotion = None
         dominant_value = 0.0
@@ -177,6 +179,7 @@ class ExpressionMapper:
 
     def _get_default_expression(self) -> dict:
         """获取默认表达"""
+        assert self._config is not None, "Config should be loaded in __new__"
         default = self._config.get("default_expression", {})
         return {
             "expression": default.get("expression", "neutral_face"),

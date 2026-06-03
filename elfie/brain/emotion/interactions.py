@@ -171,7 +171,8 @@ class EmotionInteractionSystem:
 
             if config["type"] == "inhibition":
                 # 抑制：source存在时，target增长降低
-                rate = config["rate"]
+                rate_val = config.get("rate", 0.0)
+                rate = rate_val if isinstance(rate_val, (int, float)) else 0.0
                 source_modifier = get_inhibition_modifier(
                     emotions, source, rate, max_value
                 )
@@ -179,7 +180,8 @@ class EmotionInteractionSystem:
 
             elif config["type"] == "enhancement":
                 # 增强：source存在时，target增长提高
-                rate = config["rate"]
+                rate_val = config.get("rate", 0.0)
+                rate = rate_val if isinstance(rate_val, (int, float)) else 0.0
                 source_modifier = get_enhancement_modifier(
                     emotions, source, rate, max_value
                 )

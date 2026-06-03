@@ -26,7 +26,7 @@ class FrequencyTracker:
             window_size: 时间窗口大小（秒），默认60秒
         """
         self.window_size = window_size
-        self.expire_times = deque()  # 存储每个输入的过期时间
+        self.expire_times: deque = deque()  # 存储每个输入的过期时间
 
     def record_input(self, current_time=None):
         """记录一次输入

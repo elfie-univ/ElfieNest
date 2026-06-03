@@ -41,10 +41,9 @@ class EmotionSystem:
         self.deduplicator = EventDeduplicator()
 
         # 性格调节器（可选）
+        self.personality_modifier: Optional[PersonalityModifier] = None
         if personality is not None:
             self.personality_modifier = PersonalityModifier(personality)
-        else:
-            self.personality_modifier = None
 
         # 情绪交互系统
         self.interaction_system = EmotionInteractionSystem()
