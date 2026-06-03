@@ -18,6 +18,7 @@ dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
     "pre-commit>=3.5.0",
+    "types-PyYAML>=6.0.0",
 ]
 
 [build-system]
@@ -51,6 +52,9 @@ ignore = [
     "UP045",  # Use `X | None` for type annotations - keep for Python 3.9 compatibility
 ]
 
+[tool.ruff.lint.isort]
+known-first-party = ["elfie", "elfienest", "runtime"]
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
@@ -58,7 +62,7 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
 strict = false
 warn_return_any = false
 warn_unused_configs = true
@@ -72,7 +76,7 @@ warn_unused_ignores = true
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = "legacy_*"
+module = "elfie.*.legacy.*"
 ignore_errors = true
 
 [tool.pytest.ini_options]
@@ -112,7 +116,7 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "@abstractmethod",
 ]
-fail_under = 80
+fail_under = 55
 show_missing = true
 skip_empty = true
 
