@@ -5,6 +5,7 @@
 
 import logging
 from pathlib import Path
+from typing import Union
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ class ImageEmotionDetector:
             logger.warning(f"DeepFace加载失败: {e}")
             self._model_loaded = False
 
-    def detect(self, image_path: str | Path) -> tuple[str, float]:
+    def detect(self, image_path: Union[str, Path]) -> tuple[str, float]:
         """检测图像中的面部表情情绪
 
         Args:

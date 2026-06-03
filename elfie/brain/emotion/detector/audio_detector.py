@@ -1,6 +1,7 @@
 import importlib.util
 import logging
 from pathlib import Path
+from typing import Union
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ class AudioEmotionDetector:
         else:
             logger.warning("pyworld未安装，语音检测将使用fallback")
 
-    def detect(self, audio_path: str | Path) -> tuple[str, float]:
+    def detect(self, audio_path: Union[str, Path]) -> tuple[str, float]:
         """
         检测语音情绪
 

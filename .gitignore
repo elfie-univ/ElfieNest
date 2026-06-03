@@ -25,7 +25,10 @@ htmlcov/
 venv/
 ENV/
 env/
-
+*.egg-info/
+*.egg
+build/
+dist/
 # 5. macOS 系统与 IDE 编辑器垃圾文件
 .DS_Store
 .vscode/

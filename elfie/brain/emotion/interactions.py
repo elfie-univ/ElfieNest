@@ -187,7 +187,9 @@ class EmotionInteractionSystem:
 
         return modifier
 
-    def get_interaction_info(self, source: str, target: str) -> Optional[Dict[str, Any]]:
+    def get_interaction_info(
+        self, source: str, target: str
+    ) -> Optional[Dict[str, Any]]:
         """
         获取两个情绪之间的交互信息。
 

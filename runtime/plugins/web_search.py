@@ -34,7 +34,9 @@ class WebSearchPlugin:
                 return self._format_results(results)
         except Exception as e:
             logger.error(f"真实联网检索失败: {e}")
-            raise RuntimeError(f"【网络层异常】联网搜索检索失败 (可能无网络): {str(e)}") from e
+            raise RuntimeError(
+                f"【网络层异常】联网搜索检索失败 (可能无网络): {str(e)}"
+            ) from e
 
         raise RuntimeError(f"【检索空状态】未找到关于 '{query}' 的有效网络检索结果")
 

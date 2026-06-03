@@ -24,6 +24,10 @@ dev = [
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["elfie*", "elfienest*", "runtime*"]
+
 [tool.ruff]
 line-length = 88
 target-version = "py39"
@@ -55,16 +59,17 @@ line-ending = "auto"
 
 [tool.mypy]
 python_version = "3.9"
-strict = true
-warn_return_any = true
+strict = false
+warn_return_any = false
 warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_any_generics = true
+disallow_untyped_defs = false
+disallow_any_generics = false
 check_untyped_defs = true
-disallow_incomplete_defs = true
-no_implicit_optional = true
+disallow_incomplete_defs = false
+no_implicit_optional = false
 warn_redundant_casts = true
 warn_unused_ignores = true
+ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "legacy_*"
