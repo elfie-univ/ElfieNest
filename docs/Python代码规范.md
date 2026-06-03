@@ -107,26 +107,64 @@ def calculate_emotion_intensity(
 - ✅ **推荐**：Tests outside application code（独立`test/`目录）
 - ✅ 测试结构应**镜像应用代码结构**
 - ✅ 统一使用`test/`目录，**禁止根目录测试文件**
-- ⚠️ **现有问题**：`test_deduplicator.py`在根目录 → **需移动到`test/`**
+- ✅ **每个测试目录必须有`__init__.py`文件**
+- ✅ **测试文件使用绝对导入**（`from elfie.brain.emotion import ...`）
 
+**当前测试结构**（已重组，镜像源代码）：
 ```
-elfie/
-    brain/
-        emotion/
-            emotion_system.py      # 被测代码
-            detector/
-                audio_detector.py
 test/
-    test_embodied_perception.py
-    test_emotion_system.py         # 对应 emotion/emotion_system.py
-    test_interactions.py
-    test_personality.py
-    test_nest_room.py
-    brain/
-        emotion/
-            detector/
-                test_audio_detector.py  # 可选：更细粒度测试
+├── __init__.py
+├── elfie/
+│   ├── __init__.py
+│   ├── brain/
+│   │   ├── __init__.py
+│   │   ├── emotion/
+│   │   │   ├── __init__.py
+│   │   │   ├── test_emotion_system.py      # 对应 elfie/brain/emotion/emotion_system.py
+│   │   │   ├── test_expression_mapper.py   # 对应 elfie/brain/emotion/expression_mapper.py
+│   │   │   ├── test_personality.py         # 对应 elfie/brain/emotion/personality.py
+│   │   │   ├── test_interactions.py        # 对应 elfie/brain/emotion/interactions.py
+│   │   │   └── test_deduplicator.py        # 对应 elfie/brain/emotion/fusion/deduplicator.py
+│   │   ├── cognition/
+│   │   │   ├── __init__.py
+│   │   │   └── test_cognition.py           # 对应 elfie/brain/cognition/*.py
+│   │   ├── memory/
+│   │   │   ├── __init__.py
+│   │   │   └── test_memory.py              # 对应 elfie/brain/memory/*.py
+│   │   └── energy/
+│   │       ├── __init__.py
+│   │       └── test_energy.py              # 对应 elfie/brain/energy/energy.py
+│   ├── body/
+│   │   ├── __init__.py
+│   │   ├── anatomy/
+│   │   │   ├── __init__.py
+│   │   │   └── test_anatomy.py             # 对应 elfie/body/anatomy/*.py
+│   │   └── reflex/
+│   │       ├── __init__.py
+│   │       └── test_reflex_arc.py          # 对应 elfie/body/reflex/reflex_arc.py
+│   ├── interface/
+│   │   ├── __init__.py
+│   │   ├── actuators/
+│   │   │   ├── __init__.py
+│   │   │   └── test_actuators.py           # 对应 elfie/interface/actuators/*.py
+│   │   └── sensors/
+│   │       ├── __init__.py
+│   │       └── test_sensors.py             # 对应 elfie/interface/sensors/*.py
+│   └── test_embodied_perception.py         # 对应 elfie/elfie_individual.py
+├── elfienest/
+│   ├── __init__.py
+│   ├── test_engine.py                      # 对应 elfienest/engine.py
+│   └── test_nest_room.py                   # 对应 elfienest/room.py
+└── runtime/
+    ├── __init__.py
+    └── test_runtime_agent.py               # 对应 runtime/agent.py
 ```
+
+**新增测试文件的规则**：
+1. ✅ **必须放在对应包路径**：例如测试`elfie/brain/emotion/new_feature.py`，测试文件应为`test/elfie/brain/emotion/test_new_feature.py`
+2. ✅ **必须创建`__init__.py`**：如果测试目录不存在，创建目录并添加`__init__.py`
+3. ✅ **使用绝对导入**：`from elfie.brain.emotion import ...`（不需要相对导入）
+4. ❌ **禁止扁平结构**：不要在`test/`根目录直接放置测试文件
 
 ### 2.2 "什么时候写测试"决策矩阵
 

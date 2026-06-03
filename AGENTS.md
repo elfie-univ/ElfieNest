@@ -54,12 +54,45 @@ ElfieNest/
 ## Running Tests
 
 ```bash
+# Run all tests
 python -m pytest test/
-# or run individual test file
-python test/test_embodied_perception.py
+
+# Run specific test file
+python -m pytest test/elfie/brain/emotion/test_emotion_system.py
+
+# Run with verbose output
+python -m pytest test/ -v
 ```
 
 Tests require no external services - they use mock agents.
+
+### Test Structure
+
+测试文件按照源代码包结构组织，镜像源代码目录：
+
+```
+test/
+├── elfie/
+│   ├── brain/
+│   │   ├── emotion/         # 情绪系统测试
+│   │   ├── cognition/       # 认知测试
+│   │   ├── memory/          # 记忆测试
+│   │   └── energy/          # 能量测试
+│   ├── body/
+│   │   ├── anatomy/         # 解剖学测试
+│   │   └── reflex/          # 反射弧测试
+│   └── interface/
+│       ├── actuators/       # 执行器测试
+│       └── sensors/         # 传感器测试
+├── elfienest/               # 引擎测试
+└── runtime/                 # 运行时测试
+```
+
+**新增测试规则**：
+- 测试文件必须放在对应包路径（镜像源代码结构）
+- 每个测试目录必须有`__init__.py`
+- 使用绝对导入：`from elfie.brain.emotion import ...`
+- 禁止在`test/`根目录直接放置测试文件
 
 ## Configuration
 
