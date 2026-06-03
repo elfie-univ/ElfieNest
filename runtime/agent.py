@@ -87,7 +87,7 @@ class RuntimeAgent:
     def generate(
         self,
         model_key: str,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         images: List[str] = None,
         audio: str = None,
         temperature: float = None,
@@ -302,11 +302,11 @@ class RuntimeAgent:
 
     def _assemble_multimodal_payload(
         self,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         images: List[str] = None,
         audio: str = None,
         provider: str = "ollama",
-    ) -> List[Dict[str, str]]:
+    ) -> List[Dict[str, Any]]:
         """拼装多模态媒体载荷 (Base64 转码与格式适配)"""
         # 获取最新的一条 User Message
         user_msg_idx = -1
@@ -385,8 +385,8 @@ class RuntimeAgent:
             return messages
 
     def _inject_skills_system_prompt(
-        self, messages: List[Dict[str, str]], allowed_skills: List[str]
-    ) -> List[Dict[str, str]]:
+        self, messages: List[Dict[str, Any]], allowed_skills: List[str]
+    ) -> List[Dict[str, Any]]:
         """动态在大脑指令最前端或 System Prompt 中注入允许调用的防幻觉标记说明"""
         rules = ["\n⚠️ 【物理底座算力注入规则约束】:"]
 
@@ -437,10 +437,10 @@ class RuntimeAgent:
         max_tokens: int,
     ) -> str:
         """底层物理 API 交互，拒绝 Mock，网络异常直接抛出"""
-        headers = {"Content-Type": "application/json"}
+        headers: Dict[str, str] = {"Content-Type": "application/json"}
 
         # 0. 动态解析此 provider 的专属 API Key 与 Base 节点
-        provider_cfg = self.config.providers.get(provider, {})
+        provider_cfg: Dict[str, Any] = self.config.providers.get(provider, {})
         api_key = provider_cfg.get("api_key", "")
         api_base = provider_cfg.get("api_base", "")
 

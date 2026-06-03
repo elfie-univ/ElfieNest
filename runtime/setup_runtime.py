@@ -8,6 +8,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from typing import Any, Dict, List
 
 # 项目基准路径
 RUNTIME_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -18,7 +19,7 @@ OLLAMA_PATH = os.path.join(BIN_DIR, "ollama")
 MODELS_TO_PULL = ["qwen3.5:0.8b", "moondream"]
 
 # 经典大模型预设元数据（多级高中低三档候选库）
-PROVIDER_METADATA = {
+PROVIDER_METADATA: Dict[str, Dict[str, Any]] = {
     "openai": {
         "name": "OpenAI 官方",
         "api_base": "https://api.openai.com/v1",
@@ -260,7 +261,7 @@ def setup_code_plan_interactive():
     print("=" * 70)
 
     # 初始化配置容器
-    providers = {
+    providers: Dict[str, Dict[str, Any]] = {
         "deepseek": {
             "api_key": "",
             "api_base": PROVIDER_METADATA["deepseek"]["api_base"],
@@ -358,12 +359,12 @@ def setup_code_plan_interactive():
     print("=" * 70)
 
     # 收集当前已激活的服务商
-    active_providers = [
+    active_providers: List[str] = [
         k for k, v in providers.items() if k == "ollama" or v["api_key"]
     ]
 
     # 构建高中低三档的精选库菜单
-    routing = {"cheap": {}, "deep": {}, "multimodal": {}}
+    routing: Dict[str, Dict[str, str]] = {"cheap": {}, "deep": {}, "multimodal": {}}
 
     for tier in ["cheap", "deep", "multimodal"]:
         tier_title = {
