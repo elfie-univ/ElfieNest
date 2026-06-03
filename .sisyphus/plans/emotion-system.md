@@ -71,10 +71,10 @@
 - 单元测试和集成测试
 
 ### Definition of Done
-- [ ] 所有单元测试通过（包括mock ML模型的测试）
-- [ ] 现有代码兼容性保持（不破坏现有调用）
-- [ ] `python main.py` 运行10个ticks无错误
-- [ ] 性能测试：1000次情绪更新 < 100ms
+- [x] 所有单元测试通过（包括mock ML模型的测试）
+- [x] 现有代码兼容性保持（不破坏现有调用）
+- [x] `python main.py` 运行10个ticks无错误
+- [x] 性能测试：1000次情绪更新 < 100ms
 
 ### Must Have
 - 8种情绪类型完整实现
@@ -995,10 +995,10 @@ Max Concurrent: 5 (Wave 2)
 
 ## Final Verification Wave
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
-- [ ] F2. **Code Quality Review** — `unspecified-high`
-- [ ] F3. **Real Manual QA** — `unspecified-high`
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F1. **Plan Compliance Audit** — `oracle`
+- [x] F2. **Code Quality Review** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
+- [x] F4. **Scope Fidelity Check** — `deep`
 
 ---
 
@@ -1034,7 +1034,7 @@ print(f'1000 updates: {time.time()-start:.3f}s')
 ```
 
 ### Final Checklist
-- [ ] All "Must Have" present
-- [ ] All "Must NOT Have" absent
-- [ ] All tests pass
-- [ ] Performance < 100ms for 1000 updates
+- [x] All "Must Have" present
+- [x] All "Must NOT Have" absent
+- [x] All tests pass
+- [x] Performance < 100ms for 1000 updates
