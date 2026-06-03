@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import List
 
 logger = logging.getLogger("runtime.plugins.file_sandbox")
 
@@ -45,7 +46,7 @@ class FileSandbox:
         with open(target_path, encoding="utf-8") as f:
             return f.read()
 
-    def list_files(self) -> list[str]:
+    def list_files(self) -> List[str]:
         """列出当前已习得的所有技能文件"""
         self._ensure_skills_root()
         files = []

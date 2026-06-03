@@ -1,3 +1,4 @@
+import importlib.util
 import logging
 from pathlib import Path
 
@@ -14,18 +15,14 @@ class AudioEmotionDetector:
 
     def _check_dependencies(self):
         """检查依赖库"""
-        try:
-            import librosa
-
+        if importlib.util.find_spec("librosa") is not None:
             self._libsora_available = True
-        except ImportError:
+        else:
             logger.warning("librosa未安装，语音检测将使用fallback")
 
-        try:
-            import pyworld
-
+        if importlib.util.find_spec("pyworld") is not None:
             self._pyworld_available = True
-        except ImportError:
+        else:
             logger.warning("pyworld未安装，语音检测将使用fallback")
 
     def detect(self, audio_path: str | Path) -> tuple[str, float]:

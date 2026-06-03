@@ -485,7 +485,7 @@ def main():
     print("=========================================================================")
 
     # 1. 确保 Ollama CLI 存在
-    download_success = download_ollama_macos()
+    _ = download_ollama_macos()
 
     # 检查系统自带的 ollama
     system_ollama = shutil.which("ollama")

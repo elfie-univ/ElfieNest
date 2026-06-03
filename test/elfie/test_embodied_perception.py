@@ -94,7 +94,6 @@ class TestEmbodiedPerception(unittest.TestCase):
     def test_cerebellar_gait_cpg(self):
         """测试 3：小脑时域步态协同正弦解算 (Cerebellar Gait Engine CPG Generator)"""
         # 以双足精灵直立行走为例
-        anatomy = BipedAnatomy()
         elfie = ElfieIndividual(anatomy_type="biped")
 
         # 模拟在 0.5s 时大腿和肩膀的关节相位
@@ -185,7 +184,7 @@ class TestEmbodiedPerception(unittest.TestCase):
         mock_image_path = "/tmp/dormitory_door_viewport.png"
 
         # 1. 神经总线 Vision 传感器接收这张 3D 视口照片，并做解析
-        analysis = elfie.speech_actuator.synthesize_speech(
+        _ = elfie.speech_actuator.synthesize_speech(
             "眼前的红木门紧闭着哒", elfie.anatomy.voice_profile
         )
 

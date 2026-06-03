@@ -1,4 +1,5 @@
 import logging
+from typing import Dict, List
 
 from elfie import ElfieIndividual
 
@@ -13,7 +14,7 @@ class ElfieNestRoom:
 
     def __init__(self):
         # 1. 灵魂容器：保存注册进来的小精灵实例 {elfie_id: ElfieIndividual}
-        self.elfies: dict[str, ElfieIndividual] = {}
+        self.elfies: Dict[str, ElfieIndividual] = {}
 
         # 2. 动态语义状态看板，仅记录“谁在什么家具上做什么”，不涉及任何坐标
         self.room_state = {
@@ -22,7 +23,7 @@ class ElfieNestRoom:
         }
 
         # 3. 待分发给各精灵的群聊感知消息缓冲 {elfie_id: [messages]}
-        self.sensory_buffers: dict[str, list[str]] = {}
+        self.sensory_buffers: Dict[str, List[str]] = {}
 
     def register_elfie(self, elfie_id: str, elfie_instance: ElfieIndividual):
         """
@@ -37,7 +38,7 @@ class ElfieNestRoom:
         self.sensory_buffers[elfie_id] = []
         logger.info(f"✨ [房间容器] 精灵 '{elfie_id}' 已成功注册并入住精灵仓！")
 
-    def register_scene_furniture(self, furniture_list: list[str]):
+    def register_scene_furniture(self, furniture_list: List[str]):
         """
         根据 Godot 客户端上报的 3D 家具节点，动态更新家具状态看板，实现零硬编码。
         """

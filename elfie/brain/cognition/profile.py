@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any
+from typing import Any, Dict, List
 
 import yaml
 
@@ -22,7 +22,7 @@ class ElfieProfile:
         self.capabilities = self._load_yaml("capabilities.yaml")
         self.system_limits = self._load_yaml("system_limits.yaml")
 
-    def _load_yaml(self, filename: str) -> dict[str, Any]:
+    def _load_yaml(self, filename: str) -> Dict[str, Any]:
         path = os.path.join(self.config_dir, filename)
         if not os.path.exists(path):
             logger.warning(f"配置文件未找到: {path}，将采用内存默认项。")
@@ -60,7 +60,7 @@ class ElfieProfile:
         )
         return segment
 
-    def get_mutter_templates(self, mood: str) -> list[str]:
+    def get_mutter_templates(self, mood: str) -> List[str]:
         """根据心情返回好玩的碎碎念模板列表"""
         speech = self.personality.get("speech_style", {})
         mutter_map = speech.get("mutter_templates", {})

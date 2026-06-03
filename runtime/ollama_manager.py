@@ -61,7 +61,7 @@ class OllamaManager:
         try:
             # 静默拉起后台守护进程
             # preexec_fn 用于在 Unix 下使子进程脱离终端控制，防止 main 退出时被误杀
-            process = subprocess.Popen(
+            subprocess.Popen(
                 [ollama_exec, "serve"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -69,7 +69,7 @@ class OllamaManager:
             )
 
             # 快速自旋等待 (每次等 200ms，共 25 次，上限 5 秒)
-            for attempt in range(25):
+            for _ in range(25):
                 time.sleep(0.2)
                 if self.check_health():
                     logger.info("✅ Ollama 算力自愈成功，服务已在后台运行！")
@@ -83,4 +83,4 @@ class OllamaManager:
         except Exception as e:
             if isinstance(e, OllamaNotReadyError):
                 raise e
-            raise OllamaNotReadyError(f"❌ 自愈拉起 Ollama 子进程异常: {e}")
+            raise OllamaNotReadyError(f"❌ 自愈拉起 Ollama 子进程异常: {e}") from e

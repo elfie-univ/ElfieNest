@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, Dict, Tuple
 
 from runtime.config import LLMRuntimeConfig
 
@@ -14,7 +14,7 @@ class ModelRouter:
 
     def route_request(
         self, prompt: str, energy: float, task_complexity: int = 1
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> Tuple[str, Dict[str, Any]]:
         """
         进行智能模型路由选择
         :param prompt: 任务 prompt 文本

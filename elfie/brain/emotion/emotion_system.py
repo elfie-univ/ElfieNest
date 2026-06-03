@@ -4,6 +4,7 @@
 """
 
 import logging
+from typing import Dict, Optional
 
 from elfie.brain.emotion.accumulator.decay import decay
 from elfie.brain.emotion.accumulator.frequency import FrequencyTracker
@@ -20,19 +21,19 @@ logger = logging.getLogger("elfie.brain.emotion.emotion_system")
 class EmotionSystem:
     """情绪系统 - 整合所有情绪处理组件"""
 
-    def __init__(self, personality: dict[str, float] | None = None):
+    def __init__(self, personality: Optional[Dict[str, float]] = None):
         """初始化情绪系统
 
         Args:
             personality: 可选的Big Five性格特征字典，用于调节情绪反应
         """
         # 初始化8种情绪为baseline值
-        self.emotions: dict[str, float] = {
+        self.emotions: Dict[str, float] = {
             name: config["baseline"] for name, config in EMOTION_CONFIGS.items()
         }
 
         # 为每种情绪创建频率追踪器
-        self.frequency_trackers: dict[str, FrequencyTracker] = {
+        self.frequency_trackers: Dict[str, FrequencyTracker] = {
             name: FrequencyTracker() for name in EMOTION_CONFIGS
         }
 

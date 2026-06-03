@@ -179,7 +179,7 @@ class TestHypothalamusEnergy:
 
     def test_negative_delta_time(self, energy_system):
         """测试负时间步长（边界情况）"""
-        initial_energy = energy_system.energy
+        _ = energy_system.energy
         energy_system.update_clock(-10.0)
         # 负时间可能导致异常行为，这是边界测试
         assert energy_system.energy is not None

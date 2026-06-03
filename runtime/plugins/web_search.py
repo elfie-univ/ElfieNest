@@ -1,6 +1,7 @@
 import logging
 import urllib.parse
 import urllib.request
+from typing import Dict, List
 
 logger = logging.getLogger("runtime.plugins.web_search")
 
@@ -33,11 +34,11 @@ class WebSearchPlugin:
                 return self._format_results(results)
         except Exception as e:
             logger.error(f"真实联网检索失败: {e}")
-            raise RuntimeError(f"【网络层异常】联网搜索检索失败 (可能无网络): {str(e)}")
+            raise RuntimeError(f"【网络层异常】联网搜索检索失败 (可能无网络): {str(e)}") from e
 
         raise RuntimeError(f"【检索空状态】未找到关于 '{query}' 的有效网络检索结果")
 
-    def _real_ddg_search(self, query: str, max_results: int) -> list[dict[str, str]]:
+    def _real_ddg_search(self, query: str, max_results: int) -> List[Dict[str, str]]:
         """调用 DuckDuckGo html 版本的真实搜索 (无 API Key 免费限制)"""
         # 注意：在受限沙箱中，真实网络抓取可能受阻，本段代码结构标准，失败会安全触发 exception
         headers = {
@@ -51,7 +52,6 @@ class WebSearchPlugin:
 
         # 使用极简规则从 HTML 中解析标题和 Snippet（避免引入 bs4 额外依赖）
         # 这里仅作底层真实联网流程演示，如果解析失败或超时会自动回退到本地
-        results = []
         from html.parser import HTMLParser
 
         class DDGParser(HTMLParser):
@@ -99,7 +99,7 @@ class WebSearchPlugin:
         parser.feed(html)
         return parser.results[:max_results]
 
-    def _format_results(self, results: list[dict[str, str]]) -> str:
+    def _format_results(self, results: List[Dict[str, str]]) -> str:
         formatted = []
         for i, res in enumerate(results, 1):
             formatted.append(

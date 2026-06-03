@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any
+from typing import Any, Dict
 
 logger = logging.getLogger("elfie.interface.sensors.vision")
 
@@ -12,7 +12,7 @@ class VisionSensor:
         self.last_viewport_image_path = ""
         self.last_analysis_results = {}
 
-    def receive_viewport_snapshot(self, image_path: str) -> dict[str, Any]:
+    def receive_viewport_snapshot(self, image_path: str) -> Dict[str, Any]:
         """
         接收来自 Godot 精灵主观视角 Camera3D 渲染的视口截图
         :param image_path: 视口图片在本地磁盘的路径 (如 /tmp/elfie_viewport.png)
@@ -55,5 +55,5 @@ class VisionSensor:
         self.last_analysis_results = analysis
         return analysis
 
-    def get_last_seen(self) -> dict[str, Any]:
+    def get_last_seen(self) -> Dict[str, Any]:
         return self.last_analysis_results

@@ -3,8 +3,7 @@
 提供文本、图像、语音情绪的统一检测接口。
 """
 
-from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Any, Dict
 
 from elfie.brain.emotion.detector.audio_detector import AudioEmotionDetector
 from elfie.brain.emotion.detector.image_detector import ImageEmotionDetector
@@ -38,7 +37,7 @@ class EmotionDetector:
             self._audio_detector = AudioEmotionDetector()
         return self._audio_detector
 
-    def detect(self, input_data: dict[str, Any]) -> EmotionInput:
+    def detect(self, input_data: Dict[str, Any]) -> EmotionInput:
         """
         检测情绪
 

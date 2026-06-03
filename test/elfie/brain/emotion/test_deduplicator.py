@@ -1,4 +1,5 @@
 import importlib.util
+import os
 
 spec = importlib.util.spec_from_file_location(
     "deduplicator",
@@ -28,13 +29,13 @@ dedup = EventDeduplicator(ttl=60.0)
 event_id = "event_001"
 result1 = dedup.is_new(event_id, current_time=1000.0)
 log(f"  First check for {event_id}: is_new={result1} (expected: True)")
-assert result1 == True, "First occurrence should be new"
+assert result1, "First occurrence should be new"
 
 dedup.mark_processed(event_id, current_time=1000.0)
 
 result2 = dedup.is_new(event_id, current_time=1000.0)
 log(f"  Second check for {event_id}: is_new={result2} (expected: False)")
-assert result2 == False, "Second occurrence should be duplicate"
+assert not result2, "Second occurrence should be duplicate"
 
 log("  ✓ PASSED")
 
@@ -46,11 +47,11 @@ dedup2.mark_processed(event_a, current_time=1000.0)
 
 result_within_ttl = dedup2.is_new(event_a, current_time=1050.0)
 log(f"  At T=1050 (50s later): is_new={result_within_ttl} (expected: False)")
-assert result_within_ttl == False, "Should still be within TTL"
+assert not result_within_ttl, "Should still be within TTL"
 
 result_expired = dedup2.is_new(event_a, current_time=1061.0)
 log(f"  At T=1061 (61s later): is_new={result_expired} (expected: True)")
-assert result_expired == True, "Should have expired"
+assert result_expired, "Should have expired"
 
 log("  ✓ PASSED")
 
@@ -75,14 +76,14 @@ log("\n[TEST 4] Error Handling")
 try:
     fuse_intensities([])
     log("  ERROR: Should have raised ValueError for empty list")
-    assert False
+    raise AssertionError()
 except ValueError as e:
     log(f"  Empty list raises ValueError: {e} (expected)")
 
 try:
     fuse_intensities([1.0, 2.0], [1.0])
     log("  ERROR: Should have raised ValueError for mismatched lengths")
-    assert False
+    raise AssertionError()
 except ValueError as e:
     log(f"  Mismatched lengths raises ValueError: {e} (expected)")
 
@@ -91,8 +92,6 @@ log("  ✓ PASSED")
 log("\n" + "=" * 60)
 log("ALL TESTS PASSED!")
 log("=" * 60)
-
-import os
 
 os.makedirs(".sisyphus/evidence", exist_ok=True)
 with open(".sisyphus/evidence/task-8-dedup.log", "w") as f:

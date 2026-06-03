@@ -5,7 +5,7 @@ import os
 import socketserver
 import threading
 import time
-from typing import Any
+from typing import Any, Dict, Optional
 
 from elfie import ElfieIndividual
 
@@ -35,7 +35,7 @@ class ElfieNestCoordinator:
         self.api_server = api_server
 
         # 缓存每个精灵积压的物理触觉感官包
-        self.pending_tactile: dict[str, dict[str, Any]] = {}
+        self.pending_tactile: Dict[str, Dict[str, Any]] = {}
 
     def register_elfie(self, elfie_id: str, elfie: ElfieIndividual):
         """兼容 main.py 接口：在房间中注册精灵"""
@@ -66,7 +66,7 @@ class ElfieNestCoordinator:
                 {"elfie_id": receiver_id, "impact_type": "gentle_stroke"},
             )
 
-    def consume_tactile(self, elfie_id: str) -> dict[str, Any]:
+    def consume_tactile(self, elfie_id: str) -> Dict[str, Any]:
         """消费并返回针对该精灵的物理触觉，消费后清空"""
         default_tactile = {
             "impact_force": 0.0,
@@ -98,8 +98,8 @@ class ElfieNestEngine:
         )
         os.makedirs(self.temp_audio_dir, exist_ok=True)
 
-        self.httpd: socketserver.TCPServer | None = None
-        self._http_thread: threading.Thread | None = None
+        self.httpd: Optional[socketserver.TCPServer] = None
+        self._http_thread: Optional[threading.Thread] = None
 
         # 3. 注册 Godot 事件回调以驱动 Python 看板
         self.api_server.register_callback(
@@ -110,9 +110,12 @@ class ElfieNestEngine:
     def _start_http_server(self):
         """在独立线程中拉起极简语音静态分发服务器"""
         try:
-            handler = lambda *args, **kwargs: QuietHTTPRequestHandler(
-                *args, directory=self.temp_audio_dir, **kwargs
-            )
+
+            def handler(*args, **kwargs):
+                return QuietHTTPRequestHandler(
+                    *args, directory=self.temp_audio_dir, **kwargs
+                )
+
             # 允许端口快速重用，避开 TIME_WAIT
             socketserver.TCPServer.allow_reuse_address = True
             self.httpd = socketserver.TCPServer(("127.0.0.1", self.http_port), handler)
@@ -129,12 +132,12 @@ class ElfieNestEngine:
         except Exception as e:
             logger.error(f"❌ [语音服务] 启动 HTTP 服务失败，无法播放高品质语音: {e}")
 
-    def _on_godot_scene_registered(self, payload: dict[str, Any]):
+    def _on_godot_scene_registered(self, payload: Dict[str, Any]):
         """Godot 场景握手回调：动态注册家具"""
         furniture = payload.get("furniture", [])
         self.room.register_scene_furniture(furniture)
 
-    def _on_godot_elfie_arrived(self, payload: dict[str, Any]):
+    def _on_godot_elfie_arrived(self, payload: Dict[str, Any]):
         """Godot 精灵移动到达回调：锁定物理姿态"""
         elfie_id = payload.get("elfie_id")
         target = payload.get("target")
@@ -159,7 +162,7 @@ class ElfieNestEngine:
         communicate = edge_tts.Communicate(text, voice)
         await communicate.save(output_path)
 
-    def _synthesize_voice(self, elfie_id: str, text: str) -> str | None:
+    def _synthesize_voice(self, elfie_id: str, text: str) -> Optional[str]:
         """
         线程安全地同步调用 edge-tts，生成 MP3 文件并返回可供 Godot 拉取的本地静态服务 URL。
         """

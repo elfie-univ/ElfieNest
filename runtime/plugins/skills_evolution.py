@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any
+from typing import Any, Dict
 
 from runtime.plugins.code_sandbox import CodeSandboxPlugin
 from runtime.plugins.file_sandbox import FileSandbox
@@ -48,7 +48,7 @@ class SkillsSelfEvolutionPlugin:
         )
         return feedback
 
-    def run_skill(self, filename: str, args: str = "") -> dict[str, Any]:
+    def run_skill(self, filename: str, args: str = "") -> Dict[str, Any]:
         """
         拦截 [RUN_SKILL] 语法并运行已保存的技能
         """

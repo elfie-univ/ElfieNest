@@ -1,10 +1,10 @@
 import json
 import os
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict
 
 # 🌟 大模型跨服务商算力预设与精选推荐清单
-PROVIDER_RECOMMENDS: dict[str, dict[str, Any]] = {
+PROVIDER_RECOMMENDS: Dict[str, Dict[str, Any]] = {
     "deepseek": {
         "name": "DeepSeek",
         "api_base": "https://api.deepseek.com/v1",
@@ -48,7 +48,7 @@ class LLMRuntimeConfig:
     """大模型运行时跨服务商混合算力网格配置"""
 
     # 1. 多订阅源字典：存储各个 Provider 的 API Key 与 Base 节点 (支持从环境变量加载默认值)
-    providers: dict[str, dict[str, str]] = field(
+    providers: Dict[str, Dict[str, str]] = field(
         default_factory=lambda: {
             "deepseek": {
                 "api_key": os.getenv("DEEPSEEK_API_KEY", ""),
@@ -138,7 +138,7 @@ class LLMRuntimeConfig:
         if self.ollama_host:
             self.providers["ollama"]["api_base"] = self.ollama_host
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         """将当前混配配置全量转化为字典格式以供持久化保存"""
         return {
             "providers": self.providers,

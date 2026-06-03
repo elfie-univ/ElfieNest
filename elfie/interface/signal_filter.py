@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, Dict
 
 logger = logging.getLogger("elfie.interface.signal_filter")
 
@@ -11,7 +11,7 @@ class SensoryDamSignalFilter:
         self.last_temperature = None
         self.last_user_message = ""
 
-    def filter_noise(self, raw_sensors: dict[str, Any]) -> bool:
+    def filter_noise(self, raw_sensors: Dict[str, Any]) -> bool:
         """
         判断传感器捕获到的信号是否是无价值背景噪音，是否应该过滤掉
         :param raw_sensors: 瞬时裸感官数据

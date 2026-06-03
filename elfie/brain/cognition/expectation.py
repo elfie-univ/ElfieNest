@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, Dict
 
 logger = logging.getLogger("elfie.cognition.expectation")
 
@@ -13,7 +13,7 @@ class ExpectationManager:
         self.expected_user_active = False  # 预期主人在忙别的
         self.prediction_error_threshold = 30.0  # 预期误差阈值，超出该值则强行驱动行为
 
-    def update_and_calculate_error(self, real_sensors: dict[str, Any]) -> float:
+    def update_and_calculate_error(self, real_sensors: Dict[str, Any]) -> float:
         """
         根据现实世界的传感器反馈，对比脑内预期，算出预测误差
         :param real_sensors: 底层传入的真实传感器数值 (如温度、光线、电量、主人消息状态)

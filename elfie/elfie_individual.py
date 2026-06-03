@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, Dict
 
 from elfie.body import BipedAnatomy, QuadrupedAnatomy, SomaticReflexArc
 from elfie.brain import (
@@ -110,8 +110,8 @@ class ElfieIndividual:
             self._last_expression = expression
 
     def perceive_and_respond(
-        self, raw_sensor_data: dict[str, Any], runtime_agent: Any
-    ) -> dict[str, Any]:
+        self, raw_sensor_data: Dict[str, Any], runtime_agent: Any
+    ) -> Dict[str, Any]:
         """
         具身认知与反馈 Somatic Loop 闭环主神经冲动链路：
         1. 脑干反射弧检测：瞬间响应强碰撞避险/抚摸打呼（毫秒级自律反射，绕过大脑皮层）

@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Dict
 
 
 class ModelRegistry:
@@ -14,7 +14,7 @@ class ModelRegistry:
         provider_info = self.config.providers.get(provider, {})
         return bool(provider_info.get("api_key"))
 
-    def get_catalog(self) -> dict[str, dict[str, Any]]:
+    def get_catalog(self) -> Dict[str, Dict[str, Any]]:
         """
         获取动态算力注册池清单
         依据当前的 config 动态展示模型的激活状态
@@ -85,14 +85,14 @@ class ModelRegistry:
             },
         }
 
-    def list_available_models(self) -> dict[str, dict[str, Any]]:
+    def list_available_models(self) -> Dict[str, Dict[str, Any]]:
         """
         列出当前所有激活并可供上游大脑调配的模型
         """
         catalog = self.get_catalog()
         return {key: val for key, val in catalog.items() if val["active"]}
 
-    def get_model_info(self, model_key: str) -> dict[str, Any]:
+    def get_model_info(self, model_key: str) -> Dict[str, Any]:
         """
         获取指定模型 key 的能力元数据
         """

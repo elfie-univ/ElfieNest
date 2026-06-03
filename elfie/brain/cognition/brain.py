@@ -1,6 +1,6 @@
 import logging
 import random
-from typing import Any
+from typing import Any, Dict
 
 from elfie.brain.cognition.attention_manager import AttentionManager
 from elfie.brain.cognition.expectation import ExpectationManager
@@ -18,8 +18,8 @@ class NeocortexBrain:
         self.expectation = ExpectationManager()
 
     def think_and_decide(
-        self, context: dict[str, Any], runtime_agent: Any
-    ) -> dict[str, Any]:
+        self, context: Dict[str, Any], runtime_agent: Any
+    ) -> Dict[str, Any]:
         """
         根据中层丘脑拼装的 Context，进行大脑决策
         :param context: 拼装好的全方位上下文 (包含主人消息、生理体力、杏仁核实时情绪、海马体记忆切片、底层环境感官)

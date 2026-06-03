@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 from elfie.body.anatomy.base import VoiceProfile
 
@@ -12,7 +13,7 @@ class SpeechActuator:
         pass
 
     def synthesize_speech(
-        self, text: str, voice_profile: VoiceProfile | None = None
+        self, text: str, voice_profile: Optional[VoiceProfile] = None
     ) -> str:
         """
         根据小精灵的独属声音曲线，合成特定频率的具身音频波形

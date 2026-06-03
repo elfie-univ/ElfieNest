@@ -5,6 +5,7 @@ Emotion Fusion Deduplicator Module
 """
 
 import time
+from typing import Dict, List, Optional
 
 
 class EventDeduplicator:
@@ -22,9 +23,9 @@ class EventDeduplicator:
             ttl: 事件保留时间（秒），默认60秒
         """
         self.ttl = ttl
-        self.processed_events: dict[str, float] = {}  # event_id -> timestamp
+        self.processed_events: Dict[str, float] = {}  # event_id -> timestamp
 
-    def is_new(self, event_id: str, current_time: float | None = None) -> bool:
+    def is_new(self, event_id: str, current_time: Optional[float] = None) -> bool:
         """
         检查事件是否为新事件（未处理过）
 
@@ -40,7 +41,7 @@ class EventDeduplicator:
         self._clean_expired(current_time)
         return event_id not in self.processed_events
 
-    def mark_processed(self, event_id: str, current_time: float | None = None):
+    def mark_processed(self, event_id: str, current_time: Optional[float] = None):
         """
         标记事件为已处理
 
@@ -77,7 +78,7 @@ class EventDeduplicator:
 
 
 def fuse_intensities(
-    intensities: list[float], weights: list[float] | None = None
+    intensities: List[float], weights: Optional[List[float]] = None
 ) -> float:
     """
     加权平均融合多个强度值

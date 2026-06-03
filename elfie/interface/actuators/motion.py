@@ -1,4 +1,5 @@
 import logging
+from typing import Dict
 
 from elfie.body.actuators.gait import GaitEngine
 from elfie.body.anatomy.base import SomaticAnatomy
@@ -19,7 +20,7 @@ class MotionActuator:
         action_intent: str,
         speed: float = 1.0,
         elapsed_time: float = 0.0,
-    ) -> dict[str, float]:
+    ) -> Dict[str, float]:
         """
         核心物理驱动：将大脑做出的宏观动作决策 (高阶意图) 翻译为具体多关节角度，并安全驱动 Body 关节点
         :param anatomy: 精灵的具身数字孪生躯壳描述 (SomaticAnatomy)

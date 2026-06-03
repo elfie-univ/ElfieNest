@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, Dict
 
 logger = logging.getLogger("elfie.brain.context_builder")
 
@@ -12,11 +12,11 @@ class ThalamusContextBuilder:
 
     def assemble(
         self,
-        raw_sensors: dict[str, Any],
+        raw_sensors: Dict[str, Any],
         energy_system: Any,
         emotion_engine: Any,
         memory_system: Any,
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         """
         拉取多方状态，进行相关性拼接与噪点剥离，形成大脑皮层消费的 Context 字典
         :param raw_sensors: 底层爬行动物脑感觉器官捕获的瞬时裸数据

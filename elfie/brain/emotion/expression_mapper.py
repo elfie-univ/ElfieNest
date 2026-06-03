@@ -2,7 +2,7 @@
 
 import logging
 import os
-from typing import Optional
+from typing import Dict, Optional
 
 import yaml
 
@@ -13,7 +13,7 @@ class ExpressionMapper:
     """情绪表达映射器 - 单例模式缓存配置"""
 
     _instance: Optional["ExpressionMapper"] = None
-    _config: dict | None = None
+    _config: Optional[Dict] = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -124,7 +124,7 @@ class ExpressionMapper:
         else:
             return "high"
 
-    def get_expression_for_emotions(self, emotions: dict[str, float]) -> dict:
+    def get_expression_for_emotions(self, emotions: Dict[str, float]) -> dict:
         """根据情绪字典获取表达参数
 
         Args:

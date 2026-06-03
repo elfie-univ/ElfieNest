@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, Dict, List
 
 logger = logging.getLogger("elfie.body.anatomy.base")
 
@@ -12,7 +12,7 @@ class VoiceProfile:
         pitch: float = 1.0,
         speed: float = 1.0,
         timbre: str = "cute",
-        frequency_curve: list[float] = None,
+        frequency_curve: List[float] = None,
     ):
         self.pitch = pitch  # 音高倍率 (0.5 - 2.0)
         self.speed = speed  # 语速倍率 (0.5 - 2.0)
@@ -31,7 +31,7 @@ class VoiceProfile:
             1.0,
         ]
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "pitch": self.pitch,
             "speed": self.speed,
@@ -61,7 +61,7 @@ class JointLimit:
             self.current_angle = angle
         return self.current_angle
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "name": self.name,
             "min_angle": self.min_angle,
@@ -76,7 +76,7 @@ class SomaticAnatomy:
     def __init__(self, gltf_path: str, voice_profile: VoiceProfile = None):
         self.gltf_path = gltf_path  # Godot 项目中 3D 模型的加载资源路径，例如 res://assets/models/elfie.gltf
         self.voice_profile = voice_profile or VoiceProfile()
-        self.joints: dict[str, JointLimit] = {}
+        self.joints: Dict[str, JointLimit] = {}
         self.setup_skeleton()
 
     def setup_skeleton(self):
@@ -88,10 +88,10 @@ class SomaticAnatomy:
     ):
         self.joints[name] = JointLimit(name, min_angle, max_angle, current_angle)
 
-    def get_joint_angles(self) -> dict[str, float]:
+    def get_joint_angles(self) -> Dict[str, float]:
         return {name: joint.current_angle for name, joint in self.joints.items()}
 
-    def apply_joint_angles(self, angles: dict[str, float]) -> dict[str, float]:
+    def apply_joint_angles(self, angles: Dict[str, float]) -> Dict[str, float]:
         """将外界/小脑计算的角度序列安全灌入关节，并限制在安全范围内"""
         actual_angles = {}
         for name, angle in angles.items():
@@ -99,7 +99,7 @@ class SomaticAnatomy:
                 actual_angles[name] = self.joints[name].set_angle(angle)
         return actual_angles
 
-    def get_anatomy_descriptor(self) -> dict[str, Any]:
+    def get_anatomy_descriptor(self) -> Dict[str, Any]:
         """输出形态学完整描述字典，用于向 Godot 精灵盒发送实例化参数"""
         return {
             "gltf_path": self.gltf_path,

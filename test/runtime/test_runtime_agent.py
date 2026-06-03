@@ -267,7 +267,7 @@ class TestToolCalling:
                 with patch.object(agent.sandbox_plugin, "execute") as mock_exec:
                     mock_exec.return_value = {"stdout": "56088", "stderr": ""}
 
-                    result = agent.generate(
+                    _ = agent.generate(
                         "remote_deep",
                         [{"role": "user", "content": "Calculate 123*456"}],
                         allowed_skills=["code_sandbox"],
@@ -297,7 +297,7 @@ class TestToolCalling:
                 ) as mock_write:
                     mock_write.return_value = "Skill my_math created!"
 
-                    result = agent.generate(
+                    _ = agent.generate(
                         "remote_deep",
                         [{"role": "user", "content": "Create a math skill"}],
                         allowed_skills=["skills_evolution"],
@@ -331,7 +331,7 @@ class TestToolCalling:
                         "stderr": "",
                     }
 
-                    result = agent.generate(
+                    _ = agent.generate(
                         "remote_deep",
                         [{"role": "user", "content": "Run my_math with 1,2"}],
                         allowed_skills=["skills_evolution"],
@@ -361,7 +361,7 @@ class TestToolCalling:
                 ) as mock_list:
                     mock_list.return_value = "Skill1, Skill2"
 
-                    result = agent.generate(
+                    _ = agent.generate(
                         "remote_deep",
                         [{"role": "user", "content": "List skills"}],
                         allowed_skills=["skills_evolution"],

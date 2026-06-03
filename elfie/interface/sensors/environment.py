@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, Dict
 
 logger = logging.getLogger("elfie.interface.sensors.environment")
 
@@ -18,8 +18,8 @@ class EnvironmentSensor:
         }
 
     def update_from_godot_world(
-        self, godot_world_state: dict[str, Any]
-    ) -> dict[str, Any]:
+        self, godot_world_state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         从 Godot 虚拟世界同步环境温湿度、天气、重力等宏观物理指标
         :param godot_world_state: 仿真器发送的物理世界字典
@@ -61,10 +61,10 @@ class EnvironmentSensor:
             "gentle_stroke": 0.0,
         }
 
-    def get_tactile_data(self) -> dict[str, Any]:
+    def get_tactile_data(self) -> Dict[str, Any]:
         return self.tactile_buffer
 
-    def get_environment_report(self) -> dict[str, Any]:
+    def get_environment_report(self) -> Dict[str, Any]:
         return {
             "temperature": self.ambient_temperature,
             "gravity": self.gravity,

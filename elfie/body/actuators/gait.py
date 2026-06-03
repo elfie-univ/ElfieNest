@@ -1,5 +1,6 @@
 import logging
 import math
+from typing import Dict
 
 from elfie.body.anatomy.base import SomaticAnatomy
 from elfie.body.anatomy.biped import BipedAnatomy
@@ -17,7 +18,7 @@ class GaitEngine:
 
     def generate_step_angles(
         self, anatomy: SomaticAnatomy, gait_type: str, speed: float, elapsed_time: float
-    ) -> dict[str, float]:
+    ) -> Dict[str, float]:
         """
         根据当前步态类型、速度和累计时间，计算各关节的目标旋转弧度序列
         :param anatomy: 精灵形态解剖实例 (SomaticAnatomy)

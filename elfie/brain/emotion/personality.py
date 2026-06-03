@@ -4,9 +4,11 @@ This module provides personality-based modifiers for emotion accumulation and de
 implementing the Wave 2 Task 3 requirements.
 """
 
+from typing import Dict, Optional
+
 
 def calculate_personality_modifier(
-    personality: dict[str, float], emotion: str
+    personality: Dict[str, float], emotion: str
 ) -> float:
     """Calculate personality-based modifier for an emotion.
 
@@ -51,7 +53,7 @@ class PersonalityModifier:
     - Extraversion: High = faster happiness growth
     """
 
-    def __init__(self, personality: dict[str, float] | None = None):
+    def __init__(self, personality: Optional[Dict[str, float]] = None):
         """Initialize PersonalityModifier with Big Five personality traits.
 
         Args:

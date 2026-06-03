@@ -3,7 +3,7 @@ import os
 import subprocess
 import sys
 import tempfile
-from typing import Any
+from typing import Any, Dict
 
 logger = logging.getLogger("runtime.plugins.code_sandbox")
 
@@ -14,7 +14,7 @@ class CodeSandboxPlugin:
     def __init__(self, timeout_seconds: float = 5.0):
         self.timeout_seconds = timeout_seconds
 
-    def execute(self, code: str) -> dict[str, Any]:
+    def execute(self, code: str) -> Dict[str, Any]:
         """
         在子进程中安全执行 Python 代码，并捕获标准输出、标准错误和退出码
         :param code: 待执行的 Python 源代码
@@ -62,14 +62,14 @@ class CodeSandboxPlugin:
             raise RuntimeError(
                 f"【Python 沙箱执行超时】\n"
                 f"代码执行时间超限，强行终止（上限 {self.timeout_seconds} 秒）"
-            )
+            ) from None
         except Exception as e:
             if isinstance(e, RuntimeError):
                 raise e
             logger.error(f"沙箱启动异常: {e}")
             raise RuntimeError(
                 f"【沙箱物理引擎故障】启动或运行 Python 隔离子进程失败: {e}"
-            )
+            ) from e
         finally:
             # 清理临时文件
             if temp_file_path and os.path.exists(temp_file_path):

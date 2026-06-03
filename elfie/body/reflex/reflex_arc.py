@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, Dict, Tuple
 
 from elfie.body.anatomy.base import SomaticAnatomy
 
@@ -13,8 +13,8 @@ class SomaticReflexArc:
         pass
 
     def process_sensory_impact(
-        self, anatomy: SomaticAnatomy, tactile_sensor: dict[str, Any], amygdala: Any
-    ) -> tuple[dict[str, float], dict[str, Any]]:
+        self, anatomy: SomaticAnatomy, tactile_sensor: Dict[str, Any], amygdala: Any
+    ) -> Tuple[Dict[str, float], Dict[str, Any]]:
         """
         在极短的时间（毫秒级）内处理身体传入的具身刺激脉冲。如触发避险反射，直接越过大脑皮层改写关节角度与情绪！
         :param anatomy: 精灵形态学解剖结构

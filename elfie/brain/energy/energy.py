@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, Dict
 
 logger = logging.getLogger("elfie.brain.energy")
 
@@ -7,7 +7,7 @@ logger = logging.getLogger("elfie.brain.energy")
 class HypothalamusEnergy:
     """中层：下丘脑 (生理能量与生物钟作息控制)"""
 
-    def __init__(self, limits_config: dict[str, Any] = None):
+    def __init__(self, limits_config: Dict[str, Any] = None):
         # 默认阈值与参数设定 (防配置文件加载失败 fallback)
         config = limits_config.get("limits", {}) if limits_config else {}
         self.energy_config = config.get("energy", {})

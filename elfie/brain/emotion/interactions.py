@@ -7,13 +7,13 @@
 - Enhancement (增强): source情绪增强target情绪的增长
 """
 
-from typing import Any
+from typing import Any, Dict, Optional, Tuple
 
 from elfie.brain.emotion.emotion_types import EMOTION_INTERACTIONS
 
 
 def apply_transfer(
-    emotions: dict[str, float], source: str, target: str, config: dict
+    emotions: Dict[str, float], source: str, target: str, config: dict
 ) -> float:
     """
     应用转移交互。
@@ -47,7 +47,7 @@ def apply_transfer(
 
 
 def get_inhibition_modifier(
-    emotions: dict[str, float], source: str, rate: float, max_value: float = 100.0
+    emotions: Dict[str, float], source: str, rate: float, max_value: float = 100.0
 ) -> float:
     """
     计算抑制系数。
@@ -70,7 +70,7 @@ def get_inhibition_modifier(
 
 
 def get_enhancement_modifier(
-    emotions: dict[str, float], source: str, rate: float, max_value: float = 100.0
+    emotions: Dict[str, float], source: str, rate: float, max_value: float = 100.0
 ) -> float:
     """
     计算增强系数。
@@ -111,7 +111,7 @@ class EmotionInteractionSystem:
     """
 
     def __init__(
-        self, interactions: dict[tuple[str, str], dict[str, Any]] | None = None
+        self, interactions: Optional[Dict[Tuple[str, str], Dict[str, Any]]] = None
     ):
         """
         初始化情绪交互系统。
@@ -124,8 +124,8 @@ class EmotionInteractionSystem:
         )
 
     def apply_transfer_interactions(
-        self, emotions: dict[str, float]
-    ) -> dict[tuple[str, str], float]:
+        self, emotions: Dict[str, float]
+    ) -> Dict[Tuple[str, str], float]:
         """
         应用所有转移交互（在tick中调用）。
 
@@ -148,7 +148,7 @@ class EmotionInteractionSystem:
         return results
 
     def get_accumulate_modifier(
-        self, target_emotion: str, emotions: dict[str, float], max_value: float = 100.0
+        self, target_emotion: str, emotions: Dict[str, float], max_value: float = 100.0
     ) -> float:
         """
         获取目标情绪的累积调节系数（在accumulate中调用）。
@@ -187,7 +187,7 @@ class EmotionInteractionSystem:
 
         return modifier
 
-    def get_interaction_info(self, source: str, target: str) -> dict[str, Any] | None:
+    def get_interaction_info(self, source: str, target: str) -> Optional[Dict[str, Any]]:
         """
         获取两个情绪之间的交互信息。
 

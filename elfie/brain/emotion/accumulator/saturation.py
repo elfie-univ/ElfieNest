@@ -52,7 +52,6 @@ def accumulate(value, delta, intensity, config):
         新的情感值
     """
     max_value = config.get("max_value", 100.0)
-    accumulate_rate = config.get("accumulate_rate", 0.5)
 
     actual_delta = calculate_accumulation_delta(
         current_value=value,

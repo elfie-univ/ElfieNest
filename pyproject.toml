@@ -2,7 +2,7 @@
 name = "elfienest"
 version = "0.1.0"
 description = "ElfieNest - Embodied AI creature simulation with three-layer brain architecture"
-requires-python = ">=3.11"
+requires-python = ">=3.9"
 authors = [
     {name = "ElfieNest Team"},
 ]
@@ -26,7 +26,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.ruff]
 line-length = 88
-target-version = "py311"
+target-version = "py39"
 indent-width = 4
 
 [tool.ruff.lint]
@@ -41,6 +41,10 @@ select = [
 ]
 ignore = [
     "E501",
+    "UP006",  # Use `dict` instead of `Dict` - keep for Python 3.9 compatibility
+    "UP007",  # Use `X | None` instead of `Optional[X]` - keep for Python 3.9 compatibility
+    "UP035",  # `typing.Dict` is deprecated - keep for Python 3.9 compatibility
+    "UP045",  # Use `X | None` for type annotations - keep for Python 3.9 compatibility
 ]
 
 [tool.ruff.format]
@@ -50,7 +54,7 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.9"
 strict = true
 warn_return_any = true
 warn_unused_configs = true

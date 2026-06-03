@@ -5,7 +5,7 @@ import mimetypes
 import os
 import urllib.error
 import urllib.request
-from typing import Any
+from typing import Any, Dict, List
 
 from runtime.config import LLMRuntimeConfig
 from runtime.model_registry import ModelRegistry
@@ -51,7 +51,7 @@ class RuntimeAgent:
         prompt: str,
         energy: float = 100.0,
         task_complexity: int = 1,
-        allowed_skills: list[str] = None,
+        allowed_skills: List[str] = None,
     ) -> str:
         """
         向后兼容旧的脑皮层 ask 接口，内部自动调度 ModelRouter 进行智能模型与算力路由
@@ -87,12 +87,12 @@ class RuntimeAgent:
     def generate(
         self,
         model_key: str,
-        messages: list[dict[str, str]],
-        images: list[str] = None,
+        messages: List[Dict[str, str]],
+        images: List[str] = None,
         audio: str = None,
         temperature: float = None,
         max_tokens: int = None,
-        allowed_skills: list[str] = None,
+        allowed_skills: List[str] = None,
         max_loops: int = 1,
         admin_token: str = None,
     ) -> str:
@@ -302,11 +302,11 @@ class RuntimeAgent:
 
     def _assemble_multimodal_payload(
         self,
-        messages: list[dict[str, str]],
-        images: list[str] = None,
+        messages: List[Dict[str, str]],
+        images: List[str] = None,
         audio: str = None,
         provider: str = "ollama",
-    ) -> list[dict[str, str]]:
+    ) -> List[Dict[str, str]]:
         """拼装多模态媒体载荷 (Base64 转码与格式适配)"""
         # 获取最新的一条 User Message
         user_msg_idx = -1
@@ -385,8 +385,8 @@ class RuntimeAgent:
             return messages
 
     def _inject_skills_system_prompt(
-        self, messages: list[dict[str, str]], allowed_skills: list[str]
-    ) -> list[dict[str, str]]:
+        self, messages: List[Dict[str, str]], allowed_skills: List[str]
+    ) -> List[Dict[str, str]]:
         """动态在大脑指令最前端或 System Prompt 中注入允许调用的防幻觉标记说明"""
         rules = ["\n⚠️ 【物理底座算力注入规则约束】:"]
 
@@ -432,7 +432,7 @@ class RuntimeAgent:
         self,
         provider: str,
         model_name: str,
-        messages: list[dict[str, Any]],
+        messages: List[Dict[str, Any]],
         temperature: float,
         max_tokens: int,
     ) -> str:
@@ -469,7 +469,7 @@ class RuntimeAgent:
                 logger.error(f"本地 Ollama 调用异常: {e}")
                 raise OllamaNotReadyError(
                     f"❌ 物理层无法连通本地 Ollama 算力服务 (Ollama host: {ollama_host})，错误信息: {e}"
-                )
+                ) from e
 
         # 2. 远程多模态大模型兼容 OpenAI 格式接口调用
         else:
@@ -502,7 +502,7 @@ class RuntimeAgent:
                     err_msg = e.read().decode("utf-8", errors="ignore")
                     raise RuntimeError(
                         f"❌ 云端大模型接口 ({provider}) 返回 HTTP {e.code} 错误。响应详情: {err_msg}"
-                    )
+                    ) from e
                 raise RuntimeError(
                     f"❌ 物理层无法连通云端大模型服务接口 ({provider}): {e}"
-                )
+                ) from e

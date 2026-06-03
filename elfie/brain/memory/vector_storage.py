@@ -2,7 +2,7 @@ import json
 import logging
 import math
 import os
-from typing import Any
+from typing import Any, Dict, List
 
 logger = logging.getLogger("elfie.brain.memory.vector_storage")
 
@@ -22,7 +22,7 @@ class TinyVectorStorage:
         else:
             self.storage_path = storage_path
 
-        self.memories: list[dict[str, Any]] = []
+        self.memories: List[Dict[str, Any]] = []
         self._load_from_disk()
 
     def _load_from_disk(self):
@@ -48,7 +48,7 @@ class TinyVectorStorage:
         except Exception as e:
             logger.error(f"保存记忆文件异常: {e}")
 
-    def add_memory(self, text: str, tags: dict[str, Any] = None):
+    def add_memory(self, text: str, tags: Dict[str, Any] = None):
         """
         向海马体存入一条新记忆
         :param text: 记忆陈述句
@@ -64,7 +64,7 @@ class TinyVectorStorage:
         self.memories.append(entry)
         self.save_to_disk()
 
-    def retrieve_relevant_memories(self, query: str, top_k: int = 2) -> list[str]:
+    def retrieve_relevant_memories(self, query: str, top_k: int = 2) -> List[str]:
         """
         检索语义最相关的 k 条记忆 (采用高效率的 TF-IDF 关键词语义相似打分，模拟向量距离)
         :param query: 检索 Prompt 或句子
@@ -112,7 +112,7 @@ class TinyVectorStorage:
 
         return results[:top_k]
 
-    def _tokenize(self, text: str) -> list[str]:
+    def _tokenize(self, text: str) -> List[str]:
         """对中文和英文混合句子进行简易提取关键词分词"""
         import re
 

@@ -3,7 +3,7 @@ import json
 import logging
 import threading
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Dict, List, Set
 
 import websockets
 
@@ -23,10 +23,10 @@ class GodotAPIServer:
         self.port = port
 
         # 所有的活跃客户端连接
-        self.clients: set[websockets.WebSocketServerProtocol] = set()
+        self.clients: Set[websockets.WebSocketServerProtocol] = set()
 
         # 事件回调映射表 { "event_name": [callback_fn] }
-        self.event_callbacks: dict[str, list[Callable[[dict[str, Any]], None]]] = {}
+        self.event_callbacks: Dict[str, List[Callable[[Dict[str, Any]], None]]] = {}
 
         # 后台通信线程与 asyncio 事件循环
         self._loop: asyncio.AbstractEventLoop = None
@@ -35,7 +35,7 @@ class GodotAPIServer:
         self._running = False
 
     def register_callback(
-        self, event_name: str, callback: Callable[[dict[str, Any]], None]
+        self, event_name: str, callback: Callable[[Dict[str, Any]], None]
     ):
         """注册针对 Godot 事件的监听回调"""
         if event_name not in self.event_callbacks:
@@ -145,7 +145,7 @@ class GodotAPIServer:
         finally:
             self.clients.discard(websocket)
 
-    def _trigger_callbacks(self, event_name: str, payload: dict[str, Any]):
+    def _trigger_callbacks(self, event_name: str, payload: Dict[str, Any]):
         """在主/回调线程中触发注册的回调函数，带有防御性异常处理"""
         callbacks = self.event_callbacks.get(event_name, [])
         for cb in callbacks:
@@ -157,7 +157,7 @@ class GodotAPIServer:
                     exc_info=True,
                 )
 
-    def send_action(self, action: str, payload: dict[str, Any]):
+    def send_action(self, action: str, payload: Dict[str, Any]):
         """
         向所有已连接的 Godot 客户端发送语义命令（线程安全接口）。
         由同步主 Tick 线程调用，内部将其打包分发给 asyncio 后台线程。
@@ -173,7 +173,7 @@ class GodotAPIServer:
             self._async_broadcast(message_dict), self._loop
         )
 
-    async def _async_broadcast(self, message_dict: dict[str, Any]):
+    async def _async_broadcast(self, message_dict: Dict[str, Any]):
         """异步广播消息给所有 Godot 客户端"""
         if not self.clients:
             logger.debug("⚠️ [通信网关] 暂无已连接的 Godot 客户端，指令已暂存入虚空。")

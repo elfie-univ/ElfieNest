@@ -371,7 +371,7 @@ class TestEdgeCases:
     def test_brain_with_none_runtime(self):
         """runtime_agent为None时的边界情况"""
         brain = NeocortexBrain()
-        context = {
+        _ = {
             "sensors": {
                 "has_new_message": False,
                 "salience_score": 0.0,

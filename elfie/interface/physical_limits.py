@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, Dict
 
 from elfie.body.anatomy.base import SomaticAnatomy
 from elfie.body.anatomy.biped import BipedAnatomy
@@ -11,13 +11,13 @@ logger = logging.getLogger("elfie.interface.physical_limits")
 class PhysicalLimitsReflex:
     """神经交互总线：躯体物理限位与形态学拦截反射 (形态学硬拦截，防止大脑运动幻觉)"""
 
-    def __init__(self, capabilities_config: dict[str, Any] = None):
+    def __init__(self, capabilities_config: Dict[str, Any] = None):
         # 兼容旧版本初始化
         pass
 
     def intercept_and_validate(
         self, action_name: str, anatomy: SomaticAnatomy
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         """
         根据精灵当前具身的 3D 骨架形态，硬性拦截违背形态学规律的大脑行为指令
         :param action_name: 大脑皮层做出的高阶动作选择
