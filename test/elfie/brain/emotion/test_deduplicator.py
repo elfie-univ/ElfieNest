@@ -1,4 +1,5 @@
 import os
+
 from elfie.brain.emotion.fusion.deduplicator import EventDeduplicator, fuse_intensities
 
 log_lines = []
