@@ -8,6 +8,8 @@ from elfie.brain.emotion.emotion_types import (
     EMOTION_ALIASES,
     resolve_emotion_name,
 )
+from elfie.brain.emotion.personality import PersonalityModifier, calculate_personality_modifier
+from elfie.brain.emotion.interactions import EmotionInteractionSystem
 
 __all__ = [
     "AmygdalaEmotionalState",
@@ -18,4 +20,7 @@ __all__ = [
     "EMOTION_CONFIGS",
     "EMOTION_ALIASES",
     "resolve_emotion_name",
+    "PersonalityModifier",
+    "calculate_personality_modifier",
+    "EmotionInteractionSystem",
 ]

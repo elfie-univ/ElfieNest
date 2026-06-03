@@ -68,19 +68,27 @@ class FrequencyTracker:
         self._clean_expired(current_time)
         return len(self.expire_times)
     
-    def get_slow_factor(self, current_time=None):
+    def get_slow_factor(self, current_time=None, config=None):
         """获取减速因子
         
-        公式: slow_factor = 1.0 + recent_count * 0.5
+        公式: slow_factor = 1.0 + recent_count * coefficient
         
         Args:
             current_time: 当前时间戳，默认使用time.time()
+            config: 配置字典，需包含:
+                - frequency_slow_coefficient: 频率减缓系数 (可选，默认0.5)
         
         Returns:
             减速因子（输入越多，因子越大）
         """
+        # 从config读取参数，保持向后兼容
+        if config is not None:
+            coefficient = config.get('frequency_slow_coefficient', 0.5)
+        else:
+            coefficient = 0.5
+        
         recent_count = self.get_recent_count(current_time)
-        return 1.0 + recent_count * 0.5
+        return 1.0 + recent_count * coefficient
     
     def reset(self):
         """重置所有记录"""

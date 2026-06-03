@@ -162,3 +162,11 @@ class GodotAPIServer:
         
         send_tasks = [client.send(msg_str) for client in self.clients]
         await asyncio.gather(*send_tasks, return_exceptions=True)
+
+    def send_expression(self, expression_data: dict):
+        """发送情绪表达事件到Godot
+
+        Args:
+            expression_data: 表达参数，包含expression, actions, voice_modifier等
+        """
+        self.send_action("emotion_expression", expression_data)

@@ -4,7 +4,7 @@
 """
 
 import logging
-from typing import Dict
+from typing import Dict, Optional
 
 from elfie.brain.emotion.emotion_types import EMOTION_CONFIGS, resolve_emotion_name
 from elfie.brain.emotion.emotion_input import EmotionInput
@@ -12,6 +12,8 @@ from elfie.brain.emotion.accumulator.saturation import calculate_accumulation_de
 from elfie.brain.emotion.accumulator.decay import decay
 from elfie.brain.emotion.accumulator.frequency import FrequencyTracker
 from elfie.brain.emotion.fusion.deduplicator import EventDeduplicator
+from elfie.brain.emotion.personality import PersonalityModifier
+from elfie.brain.emotion.interactions import EmotionInteractionSystem
 
 logger = logging.getLogger("elfie.brain.emotion.emotion_system")
 
@@ -19,8 +21,12 @@ logger = logging.getLogger("elfie.brain.emotion.emotion_system")
 class EmotionSystem:
     """情绪系统 - 整合所有情绪处理组件"""
     
-    def __init__(self):
-        """初始化情绪系统"""
+    def __init__(self, personality: Optional[Dict[str, float]] = None):
+        """初始化情绪系统
+        
+        Args:
+            personality: 可选的Big Five性格特征字典，用于调节情绪反应
+        """
         # 初始化8种情绪为baseline值
         self.emotions: Dict[str, float] = {
             name: config['baseline']
@@ -35,6 +41,15 @@ class EmotionSystem:
         
         # 全局事件去重器
         self.deduplicator = EventDeduplicator()
+        
+        # 性格调节器（可选）
+        if personality is not None:
+            self.personality_modifier = PersonalityModifier(personality)
+        else:
+            self.personality_modifier = None
+        
+        # 情绪交互系统
+        self.interaction_system = EmotionInteractionSystem()
         
         logger.info("情绪系统初始化完成，8种情绪已加载")
     
@@ -64,16 +79,34 @@ class EmotionSystem:
         
         # 记录频率
         self.frequency_trackers[emotion].record_input()
-        slow_factor = self.frequency_trackers[emotion].get_slow_factor()
         
         # 计算增量（使用饱和增长公式）
         config = EMOTION_CONFIGS[emotion]
+        slow_factor = self.frequency_trackers[emotion].get_slow_factor(config=config)
+        
+        # 获取基础累积速率
+        base_accumulate_rate = config.get('accumulate_rate', 0.5)
+        
+        # 应用频率慢化
+        frequency_adjusted_rate = base_accumulate_rate / slow_factor
+        
+        # 应用性格调节
+        if self.personality_modifier:
+            personality_factor = self.personality_modifier.get_accumulate_modifier(emotion)
+            effective_accumulate_rate = frequency_adjusted_rate * personality_factor
+        else:
+            effective_accumulate_rate = frequency_adjusted_rate
+        
+        interaction_modifier = self.interaction_system.get_accumulate_modifier(emotion, self.emotions)
+        effective_accumulate_rate *= interaction_modifier
+        
+        adjusted_config = {**config, 'accumulate_rate': effective_accumulate_rate}
+        
         actual_delta = calculate_accumulation_delta(
             current_value=self.emotions[emotion],
             base_delta=config['base_delta'],
             intensity=emotion_input.intensity,
-            accumulate_rate=0.5 / slow_factor,  # 频率高时增长慢
-            max_value=config['max_value']
+            config=adjusted_config
         )
         
         # 更新情绪值
@@ -114,17 +147,30 @@ class EmotionSystem:
         for emotion, value in self.emotions.items():
             config = EMOTION_CONFIGS[emotion]
             old_value = value
+            
+            # 获取基础半衰期
+            base_half_life = config.get('half_life', 10.0)
+            
+            # 应用性格调节到半衰期
+            if self.personality_modifier:
+                decay_modifier = self.personality_modifier.get_decay_modifier(emotion)
+                effective_half_life = base_half_life / decay_modifier
+            else:
+                effective_half_life = base_half_life
+            
             self.emotions[emotion] = decay(
                 current_value=value,
                 dt=dt,
+                config=config,
                 baseline=config['baseline'],
-                half_life=config['half_life'],
-                threshold=50.0
+                half_life=effective_half_life
             )
             
             # 只在有显著变化时记录日志
             if abs(self.emotions[emotion] - old_value) > 0.1:
                 logger.debug(f"⏱️ [情绪衰减] {emotion}: {old_value:.1f} -> {self.emotions[emotion]:.1f}")
+        
+        self.interaction_system.apply_transfer_interactions(self.emotions)
     
     def get_dominant_mood(self) -> str:
         """获取主导情绪
@@ -164,3 +210,19 @@ class EmotionSystem:
         """
         emotion = resolve_emotion_name(name)
         return self.emotions.get(emotion, 0.0)
+
+    def get_expression(self) -> dict:
+        """获取当前情绪的表达参数
+
+        Returns:
+            dict: {
+                "expression": str,
+                "actions": list,
+                "voice_modifier": str,
+                "intensity": float,
+                "emotion": str
+            }
+        """
+        from elfie.brain.emotion.expression_mapper import ExpressionMapper
+        mapper = ExpressionMapper()
+        return mapper.get_expression_for_emotions(self.emotions)

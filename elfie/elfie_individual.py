@@ -12,11 +12,12 @@ logger = logging.getLogger("elfie.elfie_individual")
 class ElfieIndividual:
     """精灵本体核心管理器 (具身四层生命架构聚合器)"""
 
-    def __init__(self, config_dir: str = None, anatomy_type: str = "biped"):
+    def __init__(self, config_dir: str = None, anatomy_type: str = "biped", godot_api=None):
         """
         初始化生命管理器
         :param config_dir: 配置目录
         :param anatomy_type: 身体形态学类型 ("biped" 双足, "quadruped" 四足)
+        :param godot_api: Godot API服务器实例（可选）
         """
         # 1. 🧠 【大脑认知层】 (Cognition)
         self.brain = NeocortexBrain(config_dir)
@@ -51,6 +52,10 @@ class ElfieIndividual:
         # 仿真内的时间相角累加器
         self.elapsed_time = 0.0
 
+        # Godot API 引用（用于发送表达事件）
+        self.godot_api = godot_api
+        self._last_expression = None
+
     def tick(self, dt: float):
         """
         由世界引擎（或主周期）定时驱动的精灵生理与时间相角 Tick
@@ -63,6 +68,31 @@ class ElfieIndividual:
         
         # (B) 杏仁核情绪自然半衰期衰减
         self.emotion_decay.decay_emotions(self.amygdala, dt)
+
+        # (C) 检查情绪变化，发送表达事件到 Godot
+        self._send_emotion_expression()
+
+    def _send_emotion_expression(self):
+        """检查情绪表达变化并发送事件到 Godot"""
+        if not self.godot_api:
+            return
+
+        expression = self.amygdala.get_expression()
+        if not expression:
+            return
+
+        # 检查表达是否发生变化
+        if self._last_expression is None:
+            should_send = True
+        elif (self._last_expression.get("expression") != expression.get("expression") or
+              self._last_expression.get("emotion") != expression.get("emotion")):
+            should_send = True
+        else:
+            should_send = False
+
+        if should_send:
+            self.godot_api.send_expression(expression)
+            self._last_expression = expression
 
     def perceive_and_respond(self, raw_sensor_data: Dict[str, Any], runtime_agent: Any) -> Dict[str, Any]:
         """
