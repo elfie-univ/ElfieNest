@@ -1,15 +1,5 @@
-import importlib.util
 import os
-
-spec = importlib.util.spec_from_file_location(
-    "deduplicator",
-    "/Users/zhenli/git-code/ElfieNest/elfie/brain/emotion/fusion/deduplicator.py",
-)
-deduplicator_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(deduplicator_module)
-
-EventDeduplicator = deduplicator_module.EventDeduplicator
-fuse_intensities = deduplicator_module.fuse_intensities
+from elfie.brain.emotion.fusion.deduplicator import EventDeduplicator, fuse_intensities
 
 log_lines = []
 
