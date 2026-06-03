@@ -1,1 +1,1 @@
-from .saturation import calculate_accumulation_delta, accumulate, DEFAULT_CONFIG
+from .saturation import DEFAULT_CONFIG, accumulate, calculate_accumulation_delta

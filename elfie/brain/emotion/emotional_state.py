@@ -1,7 +1,7 @@
 import logging
-from typing import Dict
 
 logger = logging.getLogger("elfie.brain.emotion.emotional_state")
+
 
 class AmygdalaEmotionalState:
     """中层：杏仁核 (实时情绪状态机)"""
@@ -9,10 +9,10 @@ class AmygdalaEmotionalState:
     def __init__(self):
         # 初始情绪状态指数 (范围 0.0 - 100.0)
         self.emotions = {
-            "happiness": 50.0,   # 快乐
-            "anxiety": 10.0,     # 焦虑
-            "jealousy": 0.0,     # 吃醋/嫉妒
-            "boredom": 20.0      # 无聊/孤独
+            "happiness": 50.0,  # 快乐
+            "anxiety": 10.0,  # 焦虑
+            "jealousy": 0.0,  # 吃醋/嫉妒
+            "boredom": 20.0,  # 无聊/孤独
         }
 
     def update_emotion(self, name: str, change_value: float):
@@ -23,8 +23,12 @@ class AmygdalaEmotionalState:
         """
         if name in self.emotions:
             old_val = self.emotions[name]
-            self.emotions[name] = max(min(self.emotions[name] + change_value, 100.0), 0.0)
-            logger.info(f"🎭 [情绪微调] {name}: {old_val:.1f} -> {self.emotions[name]:.1f}")
+            self.emotions[name] = max(
+                min(self.emotions[name] + change_value, 100.0), 0.0
+            )
+            logger.info(
+                f"🎭 [情绪微调] {name}: {old_val:.1f} -> {self.emotions[name]:.1f}"
+            )
         else:
             logger.warning(f"未知情绪类型: '{name}'")
 

@@ -1,11 +1,12 @@
-# -*- coding: utf-8 -*-
 """
 解剖学模块测试
 测试 VoiceProfile, JointLimit, SomaticAnatomy, BipedAnatomy, QuadrupedAnatomy
 """
-import unittest
+
 import math
-from elfie.body.anatomy.base import VoiceProfile, JointLimit, SomaticAnatomy
+import unittest
+
+from elfie.body.anatomy.base import JointLimit, SomaticAnatomy, VoiceProfile
 from elfie.body.anatomy.biped import BipedAnatomy
 from elfie.body.anatomy.quadruped import QuadrupedAnatomy
 
@@ -25,7 +26,9 @@ class TestVoiceProfile(unittest.TestCase):
     def test_custom_initialization(self):
         """测试自定义参数初始化"""
         freq_curve = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4]
-        vp = VoiceProfile(pitch=1.5, speed=0.8, timbre="deep", frequency_curve=freq_curve)
+        vp = VoiceProfile(
+            pitch=1.5, speed=0.8, timbre="deep", frequency_curve=freq_curve
+        )
         self.assertEqual(vp.pitch, 1.5)
         self.assertEqual(vp.speed, 0.8)
         self.assertEqual(vp.timbre, "deep")
@@ -97,6 +100,7 @@ class TestSomaticAnatomy(unittest.TestCase):
 
     def test_default_initialization(self):
         """测试默认初始化"""
+
         class TestAnatomy(SomaticAnatomy):
             def setup_skeleton(self):
                 self.add_joint("test_joint", -1.0, 1.0)
@@ -122,6 +126,7 @@ class TestSomaticAnatomy(unittest.TestCase):
 
     def test_get_joint_angles(self):
         """测试获取所有关节角度"""
+
         class TestAnatomy(SomaticAnatomy):
             def setup_skeleton(self):
                 self.add_joint("joint_a", -1.0, 1.0, 0.3)
@@ -134,28 +139,30 @@ class TestSomaticAnatomy(unittest.TestCase):
 
     def test_apply_joint_angles(self):
         """测试应用关节角度并验证限位"""
+
         class TestAnatomy(SomaticAnatomy):
             def setup_skeleton(self):
                 self.add_joint("joint_a", -1.0, 1.0)
                 self.add_joint("joint_b", -0.5, 0.5)
 
         anatomy = TestAnatomy("res://test.gltf")
-        
+
         # 正常值
         actual = anatomy.apply_joint_angles({"joint_a": 0.5, "joint_b": 0.3})
         self.assertEqual(actual["joint_a"], 0.5)
         self.assertEqual(actual["joint_b"], 0.3)
-        
+
         # 超出上限 - 应被截断
         actual = anatomy.apply_joint_angles({"joint_a": 2.0, "joint_b": 0.3})
         self.assertEqual(actual["joint_a"], 1.0)  # 被截断到 max
-        
+
         # 超出下限 - 应被截断
         actual = anatomy.apply_joint_angles({"joint_a": -2.0, "joint_b": 0.3})
         self.assertEqual(actual["joint_a"], -1.0)  # 被截断到 min
 
     def test_apply_joint_angles_unknown_joint(self):
         """测试应用未知关节角度 - 应被忽略"""
+
         class TestAnatomy(SomaticAnatomy):
             def setup_skeleton(self):
                 self.add_joint("joint_a", -1.0, 1.0)
@@ -166,13 +173,14 @@ class TestSomaticAnatomy(unittest.TestCase):
 
     def test_get_anatomy_descriptor(self):
         """测试获取完整解剖学描述"""
+
         class TestAnatomy(SomaticAnatomy):
             def setup_skeleton(self):
                 self.add_joint("joint_a", -1.0, 1.0)
 
         anatomy = TestAnatomy("res://test.gltf")
         descriptor = anatomy.get_anatomy_descriptor()
-        
+
         self.assertIn("gltf_path", descriptor)
         self.assertIn("voice_profile", descriptor)
         self.assertIn("joints", descriptor)
@@ -196,15 +204,15 @@ class TestBipedAnatomy(unittest.TestCase):
     def test_setup_skeleton(self):
         """测试骨骼初始化 - 验证所有关节存在"""
         anatomy = BipedAnatomy()
-        
+
         # 头部关节
         self.assertIn("head_yaw", anatomy.joints)
         self.assertIn("neck_pitch", anatomy.joints)
-        
+
         # 上肢关节
         self.assertIn("left_shoulder", anatomy.joints)
         self.assertIn("right_shoulder", anatomy.joints)
-        
+
         # 下肢关节
         self.assertIn("left_hip", anatomy.joints)
         self.assertIn("right_hip", anatomy.joints)
@@ -214,11 +222,15 @@ class TestBipedAnatomy(unittest.TestCase):
     def test_joint_limits(self):
         """测试关节限位值正确"""
         anatomy = BipedAnatomy()
-        
+
         # head_yaw: -1.57 ~ 1.57 (90度)
-        self.assertAlmostEqual(anatomy.joints["head_yaw"].min_angle, -math.pi/2, places=2)
-        self.assertAlmostEqual(anatomy.joints["head_yaw"].max_angle, math.pi/2, places=2)
-        
+        self.assertAlmostEqual(
+            anatomy.joints["head_yaw"].min_angle, -math.pi / 2, places=2
+        )
+        self.assertAlmostEqual(
+            anatomy.joints["head_yaw"].max_angle, math.pi / 2, places=2
+        )
+
         # knee: 0 ~ 2.3 (只能向后弯曲)
         self.assertEqual(anatomy.joints["left_knee"].min_angle, 0.0)
         self.assertEqual(anatomy.joints["left_knee"].max_angle, 2.3)
@@ -246,14 +258,14 @@ class TestQuadrupedAnatomy(unittest.TestCase):
     def test_setup_skeleton(self):
         """测试骨骼初始化 - 验证所有关节存在"""
         anatomy = QuadrupedAnatomy()
-        
+
         # 头部关节
         self.assertIn("head_yaw", anatomy.joints)
         self.assertIn("neck_pitch", anatomy.joints)
-        
+
         # 尾巴关节 (四足特有)
         self.assertIn("tail_wag", anatomy.joints)
-        
+
         # 四肢关节
         self.assertIn("front_left_leg", anatomy.joints)
         self.assertIn("front_right_leg", anatomy.joints)
@@ -263,11 +275,11 @@ class TestQuadrupedAnatomy(unittest.TestCase):
     def test_joint_limits(self):
         """测试关节限位值正确"""
         anatomy = QuadrupedAnatomy()
-        
+
         # tail_wag: -1.0 ~ 1.0
         self.assertEqual(anatomy.joints["tail_wag"].min_angle, -1.0)
         self.assertEqual(anatomy.joints["tail_wag"].max_angle, 1.0)
-        
+
         # 四肢限位
         self.assertEqual(anatomy.joints["front_left_leg"].min_angle, -1.2)
         self.assertEqual(anatomy.joints["front_left_leg"].max_angle, 1.2)
@@ -292,15 +304,15 @@ class TestAnatomyInheritance(unittest.TestCase):
     def test_biped_inherits_base_methods(self):
         """验证双足类继承基类方法"""
         anatomy = BipedAnatomy()
-        
+
         # 测试继承的 get_joint_angles
         angles = anatomy.get_joint_angles()
         self.assertIsInstance(angles, dict)
-        
+
         # 测试继承的 apply_joint_angles
         actual = anatomy.apply_joint_angles({"head_yaw": 0.5})
         self.assertIn("head_yaw", actual)
-        
+
         # 测试继承的 get_anatomy_descriptor
         descriptor = anatomy.get_anatomy_descriptor()
         self.assertIn("gltf_path", descriptor)
@@ -309,15 +321,15 @@ class TestAnatomyInheritance(unittest.TestCase):
     def test_quadruped_inherits_base_methods(self):
         """验证四足类继承基类方法"""
         anatomy = QuadrupedAnatomy()
-        
+
         # 测试继承的 get_joint_angles
         angles = anatomy.get_joint_angles()
         self.assertIsInstance(angles, dict)
-        
+
         # 测试继承的 apply_joint_angles
         actual = anatomy.apply_joint_angles({"tail_wag": 0.5})
         self.assertIn("tail_wag", actual)
-        
+
         # 测试继承的 get_anatomy_descriptor
         descriptor = anatomy.get_anatomy_descriptor()
         self.assertIn("gltf_path", descriptor)

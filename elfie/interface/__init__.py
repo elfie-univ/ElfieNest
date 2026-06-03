@@ -1,8 +1,8 @@
-from elfie.interface.sensors import VisionSensor, AudioSensor, EnvironmentSensor
-from elfie.interface.actuators import SpeechActuator, MotionActuator, MutterActuator
-from elfie.interface.social_connectors import WeChatConnector, TelegramConnector
-from elfie.interface.signal_filter import SensoryDamSignalFilter
+from elfie.interface.actuators import MotionActuator, MutterActuator, SpeechActuator
 from elfie.interface.physical_limits import PhysicalLimitsReflex
+from elfie.interface.sensors import AudioSensor, EnvironmentSensor, VisionSensor
+from elfie.interface.signal_filter import SensoryDamSignalFilter
+from elfie.interface.social_connectors import TelegramConnector, WeChatConnector
 
 __all__ = [
     "VisionSensor",
@@ -14,5 +14,5 @@ __all__ = [
     "WeChatConnector",
     "TelegramConnector",
     "SensoryDamSignalFilter",
-    "PhysicalLimitsReflex"
+    "PhysicalLimitsReflex",
 ]

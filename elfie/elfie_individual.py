@@ -1,18 +1,32 @@
-# -*- coding: utf-8 -*-
 import logging
-from typing import Dict, Any
+from typing import Any
 
-from elfie.brain.cognition import NeocortexBrain
-from elfie.brain import ThalamusContextBuilder, HypothalamusEnergy, EmotionSystem, EmotionDecayCalculator, EpisodeMemoryManager
-from elfie.interface import SpeechActuator, MotionActuator, MutterActuator, SensoryDamSignalFilter, PhysicalLimitsReflex
 from elfie.body import BipedAnatomy, QuadrupedAnatomy, SomaticReflexArc
+from elfie.brain import (
+    EmotionDecayCalculator,
+    EmotionSystem,
+    EpisodeMemoryManager,
+    HypothalamusEnergy,
+    ThalamusContextBuilder,
+)
+from elfie.brain.cognition import NeocortexBrain
+from elfie.interface import (
+    MotionActuator,
+    MutterActuator,
+    PhysicalLimitsReflex,
+    SensoryDamSignalFilter,
+    SpeechActuator,
+)
 
 logger = logging.getLogger("elfie.elfie_individual")
+
 
 class ElfieIndividual:
     """精灵本体核心管理器 (具身四层生命架构聚合器)"""
 
-    def __init__(self, config_dir: str = None, anatomy_type: str = "biped", godot_api=None):
+    def __init__(
+        self, config_dir: str = None, anatomy_type: str = "biped", godot_api=None
+    ):
         """
         初始化生命管理器
         :param config_dir: 配置目录
@@ -21,7 +35,7 @@ class ElfieIndividual:
         """
         # 1. 🧠 【大脑认知层】 (Cognition)
         self.brain = NeocortexBrain(config_dir)
-        
+
         limits_dict = self.brain.profile.system_limits
         caps_dict = self.brain.profile.capabilities
 
@@ -45,10 +59,10 @@ class ElfieIndividual:
             self.anatomy = QuadrupedAnatomy()
         else:
             self.anatomy = BipedAnatomy()
-            
+
         # 脑干自律避险反射弧
         self.brainstem_reflex = SomaticReflexArc()
-        
+
         # 仿真内的时间相角累加器
         self.elapsed_time = 0.0
 
@@ -62,10 +76,10 @@ class ElfieIndividual:
         :param dt: 过去的时间步长 (秒)
         """
         self.elapsed_time += dt
-        
+
         # (A) 下丘脑生理钟时钟钟摆 Tick 衰减
         self.hypothalamus.update_clock(dt)
-        
+
         # (B) 杏仁核情绪自然半衰期衰减
         self.emotion_decay.decay_emotions(self.amygdala, dt)
 
@@ -84,8 +98,9 @@ class ElfieIndividual:
         # 检查表达是否发生变化
         if self._last_expression is None:
             should_send = True
-        elif (self._last_expression.get("expression") != expression.get("expression") or
-              self._last_expression.get("emotion") != expression.get("emotion")):
+        elif self._last_expression.get("expression") != expression.get(
+            "expression"
+        ) or self._last_expression.get("emotion") != expression.get("emotion"):
             should_send = True
         else:
             should_send = False
@@ -94,7 +109,9 @@ class ElfieIndividual:
             self.godot_api.send_expression(expression)
             self._last_expression = expression
 
-    def perceive_and_respond(self, raw_sensor_data: Dict[str, Any], runtime_agent: Any) -> Dict[str, Any]:
+    def perceive_and_respond(
+        self, raw_sensor_data: dict[str, Any], runtime_agent: Any
+    ) -> dict[str, Any]:
         """
         具身认知与反馈 Somatic Loop 闭环主神经冲动链路：
         1. 脑干反射弧检测：瞬间响应强碰撞避险/抚摸打呼（毫秒级自律反射，绕过大脑皮层）
@@ -112,7 +129,7 @@ class ElfieIndividual:
                 "reason": "Elfie is sleeping",
                 "speech": "",
                 "action": "blink_eyes",
-                "mutter": sleep_mutter
+                "mutter": sleep_mutter,
             }
 
         # B. 【脑干自律物理反射弧】 瞬间检测
@@ -120,58 +137,66 @@ class ElfieIndividual:
         tactile_data = {
             "impact_force": raw_sensor_data.get("impact_force", 0.0),
             "impact_direction": raw_sensor_data.get("impact_direction", "none"),
-            "gentle_stroke": raw_sensor_data.get("gentle_stroke", 0.0)
+            "gentle_stroke": raw_sensor_data.get("gentle_stroke", 0.0),
         }
-        
+
         override_joints, reflex_event = self.brainstem_reflex.process_sensory_impact(
-            anatomy=self.anatomy,
-            tactile_sensor=tactile_data,
-            amygdala=self.amygdala
+            anatomy=self.anatomy, tactile_sensor=tactile_data, amygdala=self.amygdala
         )
-        
+
         if reflex_event["triggered"]:
             # 反射触发：绕过大脑皮层，直接产生肢体避险动作与情绪变动
-            logger.warning(f"⚡ [脑干自律反射生效] 触发反射类型: {reflex_event['type']}")
-            
+            logger.warning(
+                f"⚡ [脑干自律反射生效] 触发反射类型: {reflex_event['type']}"
+            )
+
             # 发声和碎碎念表达触觉受刺激
             speech_text = reflex_event["msg"]
             mutter_msg = f"(触发了 {reflex_event['type']} 的自主神经反射弧哒！)"
-            
-            self.speech_actuator.synthesize_speech(speech_text, self.anatomy.voice_profile)
-            
+
+            self.speech_actuator.synthesize_speech(
+                speech_text, self.anatomy.voice_profile
+            )
+
             # 将紧急反射记录进海马体
             self.hippocampus.record_episode(
                 event_description=f"【脑干反射】 遭遇外界刺激: {speech_text}",
-                emotion_tag=self.amygdala.get_dominant_mood()
+                emotion_tag=self.amygdala.get_dominant_mood(),
             )
-            
+
             return {
                 "success": True,
                 "speech": speech_text,
-                "action": "reflex_avoidance" if reflex_event["type"] == "shock_avoidance" else "reflex_soothing",
+                "action": "reflex_avoidance"
+                if reflex_event["type"] == "shock_avoidance"
+                else "reflex_soothing",
                 "mutter": mutter_msg,
-                "joint_angles": {k: round(v, 3) for k, v in override_joints.items()}
+                "joint_angles": {k: round(v, 3) for k, v in override_joints.items()},
             }
 
         # 1. 交互总线感知大坝过滤
         has_valuable_change = self.signal_filter.filter_noise(raw_sensor_data)
         if not has_valuable_change:
-            return {"success": True, "filtered": True, "reason": "No sensory changes, skipped."}
+            return {
+                "success": True,
+                "filtered": True,
+                "reason": "No sensory changes, skipped.",
+            }
 
         # 2. 中层丘脑组装具身 Context
         context = self.thalamus.assemble(
             raw_sensors=raw_sensor_data,
             energy_system=self.hypothalamus,
             emotion_engine=self.amygdala,
-            memory_system=self.hippocampus
+            memory_system=self.hippocampus,
         )
-        
+
         # 额外将具身形态描述注入 context 以利于大模型认知自己的物理形态
         context["embodied_anatomy"] = self.anatomy.get_anatomy_descriptor()
 
         # 3. 顶层大脑皮层大模型思考
         decision = self.brain.think_and_decide(context, runtime_agent)
-        
+
         action = decision.get("action", "")
         speech_text = decision.get("speech_text", "")
         mutter_msg = decision.get("mutter", "")
@@ -195,13 +220,13 @@ class ElfieIndividual:
             anatomy=self.anatomy,
             action_intent=action,
             speed=1.0,
-            elapsed_time=self.elapsed_time
+            elapsed_time=self.elapsed_time,
         )
-        
+
         # 扣减下丘脑能耗
         is_remote = runtime_agent.config.remote_api_key != ""
         self.hypothalamus.consume_energy_by_action(is_remote)
-        
+
         # 快乐正反馈
         self.amygdala.update_emotion("boredom", -15.0)
         self.amygdala.update_emotion("happiness", 5.0)
@@ -211,7 +236,7 @@ class ElfieIndividual:
             user_msg = raw_sensor_data.get("user_message", "")
             self.hippocampus.record_episode(
                 event_description=f"主人对我说: '{user_msg}'。我回答了: '{speech_text}'，并做了动作 '{action}'。",
-                emotion_tag=self.amygdala.get_dominant_mood()
+                emotion_tag=self.amygdala.get_dominant_mood(),
             )
 
         return {
@@ -219,5 +244,5 @@ class ElfieIndividual:
             "speech": speech_text,
             "action": action,
             "mutter": mutter_msg,
-            "joint_angles": {k: round(v, 3) for k, v in actual_joints.items()}
+            "joint_angles": {k: round(v, 3) for k, v in actual_joints.items()},
         }

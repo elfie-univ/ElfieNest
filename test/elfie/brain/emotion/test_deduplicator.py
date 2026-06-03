@@ -1,9 +1,8 @@
-import sys
 import importlib.util
 
 spec = importlib.util.spec_from_file_location(
-    "deduplicator", 
-    "/Users/zhenli/git-code/ElfieNest/elfie/brain/emotion/fusion/deduplicator.py"
+    "deduplicator",
+    "/Users/zhenli/git-code/ElfieNest/elfie/brain/emotion/fusion/deduplicator.py",
 )
 deduplicator_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(deduplicator_module)
@@ -12,9 +11,12 @@ EventDeduplicator = deduplicator_module.EventDeduplicator
 fuse_intensities = deduplicator_module.fuse_intensities
 
 log_lines = []
+
+
 def log(msg):
     log_lines.append(msg)
     print(msg)
+
 
 log("=" * 60)
 log("TASK-8: EventDeduplicator Test Evidence")
@@ -91,9 +93,10 @@ log("ALL TESTS PASSED!")
 log("=" * 60)
 
 import os
-os.makedirs('.sisyphus/evidence', exist_ok=True)
-with open('.sisyphus/evidence/task-8-dedup.log', 'w') as f:
-    f.write('\n'.join(log_lines))
-    f.write('\n')
 
-log(f"\nEvidence saved to: .sisyphus/evidence/task-8-dedup.log")
+os.makedirs(".sisyphus/evidence", exist_ok=True)
+with open(".sisyphus/evidence/task-8-dedup.log", "w") as f:
+    f.write("\n".join(log_lines))
+    f.write("\n")
+
+log("\nEvidence saved to: .sisyphus/evidence/task-8-dedup.log")

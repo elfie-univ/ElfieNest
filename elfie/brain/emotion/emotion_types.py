@@ -24,13 +24,13 @@ EMOTION_ALIASES = {
 def resolve_emotion_name(name: str) -> str:
     """
     将旧情绪名称解析为新情绪名称。
-    
+
     Args:
         name: 情绪名称（旧名称或新名称）
-    
+
     Returns:
         解析后的标准情绪名称
-    
+
     Example:
         >>> resolve_emotion_name('anxiety')
         'fear'
@@ -164,23 +164,21 @@ EMOTION_CONFIGS = {
 EMOTION_INTERACTIONS = {
     # 转移：恐惧 → 愤怒（自卫本能）
     # 当fear超过70时，超过部分的10%转移到anger
-    ('fear', 'anger'): {
-        'type': 'transfer',
-        'threshold': 70,
-        'rate': 0.1,
+    ("fear", "anger"): {
+        "type": "transfer",
+        "threshold": 70,
+        "rate": 0.1,
     },
-
     # 抑制：快乐 → 愤怒（情绪缓冲）
     # happiness存在时，anger的增长降低30%
-    ('happiness', 'anger'): {
-        'type': 'inhibition',
-        'rate': 0.3,
+    ("happiness", "anger"): {
+        "type": "inhibition",
+        "rate": 0.3,
     },
-
     # 增强：悲伤 → 依恋（寻求安慰）
     # sadness存在时，attachment的增长增强20%
-    ('sadness', 'attachment'): {
-        'type': 'enhancement',
-        'rate': 0.2,
+    ("sadness", "attachment"): {
+        "type": "enhancement",
+        "rate": 0.2,
     },
 }

@@ -1,16 +1,16 @@
-# -*- coding: utf-8 -*-
 """测试执行器模块 (SpeechActuator 和 MotionActuator)"""
-import pytest
+
 import sys
-import math
+
+import pytest
 
 sys.path.insert(0, "/Users/zhenli/git-code/ElfieNest")
 
-from elfie.interface.actuators.speech import SpeechActuator
-from elfie.interface.actuators.motion import MotionActuator
-from elfie.body.anatomy.base import VoiceProfile, SomaticAnatomy
+from elfie.body.anatomy.base import VoiceProfile
 from elfie.body.anatomy.biped import BipedAnatomy
 from elfie.body.anatomy.quadruped import QuadrupedAnatomy
+from elfie.interface.actuators.motion import MotionActuator
+from elfie.interface.actuators.speech import SpeechActuator
 
 
 class TestSpeechActuator:
@@ -48,7 +48,7 @@ class TestSpeechActuator:
             pitch=1.5,
             speed=0.8,
             timbre="gentle",
-            frequency_curve=[0.8, 0.9, 1.0, 1.1, 1.2, 1.1, 1.0, 0.9, 0.8, 0.9]
+            frequency_curve=[0.8, 0.9, 1.0, 1.1, 1.2, 1.1, 1.0, 0.9, 0.8, 0.9],
         )
         text = "测试语音"
         result = actuator.synthesize_speech(text, voice_profile=profile)
@@ -96,10 +96,7 @@ class TestMotionActuator:
         anatomy = BipedAnatomy()
 
         result = actuator.translate_and_drive(
-            anatomy=anatomy,
-            action_intent="nod_head",
-            speed=1.0,
-            elapsed_time=0.0
+            anatomy=anatomy, action_intent="nod_head", speed=1.0, elapsed_time=0.0
         )
 
         assert "neck_pitch" in result
@@ -112,10 +109,7 @@ class TestMotionActuator:
         anatomy = BipedAnatomy()
 
         result = actuator.translate_and_drive(
-            anatomy=anatomy,
-            action_intent="blink_eyes",
-            speed=1.0,
-            elapsed_time=0.0
+            anatomy=anatomy, action_intent="blink_eyes", speed=1.0, elapsed_time=0.0
         )
 
         # 所有关节应该被置零
@@ -131,7 +125,7 @@ class TestMotionActuator:
             anatomy=anatomy,
             action_intent="",  # 空字符串
             speed=1.0,
-            elapsed_time=0.0
+            elapsed_time=0.0,
         )
 
         # 应该与 blink_eyes 行为一致
@@ -144,10 +138,7 @@ class TestMotionActuator:
         anatomy = BipedAnatomy()
 
         result = actuator.translate_and_drive(
-            anatomy=anatomy,
-            action_intent="walk",
-            speed=1.0,
-            elapsed_time=0.5
+            anatomy=anatomy, action_intent="walk", speed=1.0, elapsed_time=0.5
         )
 
         # 验证 biped 行走关节存在
@@ -164,17 +155,11 @@ class TestMotionActuator:
         anatomy = BipedAnatomy()
 
         walk_result = actuator.translate_and_drive(
-            anatomy=anatomy,
-            action_intent="walk",
-            speed=1.0,
-            elapsed_time=0.5
+            anatomy=anatomy, action_intent="walk", speed=1.0, elapsed_time=0.5
         )
 
         run_result = actuator.translate_and_drive(
-            anatomy=anatomy,
-            action_intent="run",
-            speed=1.0,
-            elapsed_time=0.5
+            anatomy=anatomy, action_intent="run", speed=1.0, elapsed_time=0.5
         )
 
         # 奔跑幅度应该更大
@@ -188,10 +173,7 @@ class TestMotionActuator:
         anatomy = BipedAnatomy()
 
         result = actuator.translate_and_drive(
-            anatomy=anatomy,
-            action_intent="idle",
-            speed=1.0,
-            elapsed_time=1.0
+            anatomy=anatomy, action_intent="idle", speed=1.0, elapsed_time=1.0
         )
 
         # idle 应该有呼吸起伏
@@ -205,10 +187,7 @@ class TestMotionActuator:
         anatomy = BipedAnatomy()
 
         result = actuator.translate_and_drive(
-            anatomy=anatomy,
-            action_intent="wave_hands",
-            speed=1.0,
-            elapsed_time=0.0
+            anatomy=anatomy, action_intent="wave_hands", speed=1.0, elapsed_time=0.0
         )
 
         # 应该有肩膀关节动作
@@ -220,10 +199,7 @@ class TestMotionActuator:
         anatomy = QuadrupedAnatomy()
 
         result = actuator.translate_and_drive(
-            anatomy=anatomy,
-            action_intent="walk",
-            speed=1.0,
-            elapsed_time=0.5
+            anatomy=anatomy, action_intent="walk", speed=1.0, elapsed_time=0.5
         )
 
         # 验证 quadruped 行走关节
@@ -238,10 +214,7 @@ class TestMotionActuator:
         anatomy = QuadrupedAnatomy()
 
         result = actuator.translate_and_drive(
-            anatomy=anatomy,
-            action_intent="wag_tail",
-            speed=1.0,
-            elapsed_time=0.5
+            anatomy=anatomy, action_intent="wag_tail", speed=1.0, elapsed_time=0.5
         )
 
         assert "tail_wag" in result
@@ -252,17 +225,11 @@ class TestMotionActuator:
         anatomy = BipedAnatomy()
 
         slow_result = actuator.translate_and_drive(
-            anatomy=anatomy,
-            action_intent="walk",
-            speed=0.5,
-            elapsed_time=1.0
+            anatomy=anatomy, action_intent="walk", speed=0.5, elapsed_time=1.0
         )
 
         fast_result = actuator.translate_and_drive(
-            anatomy=anatomy,
-            action_intent="walk",
-            speed=2.0,
-            elapsed_time=1.0
+            anatomy=anatomy, action_intent="walk", speed=2.0, elapsed_time=1.0
         )
 
         # 不同速度应该产生不同的关节角度
@@ -277,18 +244,16 @@ class TestMotionActuator:
 
         # 多次调用累积，验证限位正确
         result = actuator.translate_and_drive(
-            anatomy=anatomy,
-            action_intent="walk",
-            speed=1.0,
-            elapsed_time=0.0
+            anatomy=anatomy, action_intent="walk", speed=1.0, elapsed_time=0.0
         )
 
         # 验证所有关节角度都在有效范围内
         for joint_name, angle in result.items():
             if joint_name in anatomy.joints:
                 joint = anatomy.joints[joint_name]
-                assert joint.min_angle <= angle <= joint.max_angle, \
+                assert joint.min_angle <= angle <= joint.max_angle, (
                     f"关节 {joint_name} 角度 {angle} 超出范围 [{joint.min_angle}, {joint.max_angle}]"
+                )
 
     def test_last_action_intent_updated(self):
         """测试 last_action_intent 被正确更新"""

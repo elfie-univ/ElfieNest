@@ -1,5 +1,7 @@
 """测试 elfie.brain.energy.energy 模块"""
+
 import pytest
+
 from elfie.brain.energy.energy import HypothalamusEnergy
 
 
@@ -26,7 +28,7 @@ class TestHypothalamusEnergy:
                     "decay_rate_sleep_per_sec": 0.04,
                     "hibernation_threshold": 95.0,
                     "wakeup_threshold": 15.0,
-                }
+                },
             }
         }
 
@@ -64,7 +66,9 @@ class TestHypothalamusEnergy:
         energy_system.update_clock(dt)
         expected_depletion = energy_system.depletion_rate * dt
         assert energy_system.is_sleeping is False
-        assert energy_system.energy == pytest.approx(initial_energy - expected_depletion, rel=1e-5)
+        assert energy_system.energy == pytest.approx(
+            initial_energy - expected_depletion, rel=1e-5
+        )
 
     def test_fatigue_accumulates_when_awake(self, energy_system):
         """测试清醒状态疲劳累积"""
@@ -72,7 +76,9 @@ class TestHypothalamusEnergy:
         dt = 10.0
         energy_system.update_clock(dt)
         expected_accumulation = energy_system.accumulation_rate * dt
-        assert energy_system.fatigue == pytest.approx(initial_fatigue + expected_accumulation, rel=1e-5)
+        assert energy_system.fatigue == pytest.approx(
+            initial_fatigue + expected_accumulation, rel=1e-5
+        )
 
     def test_consume_energy_local_action(self, energy_system):
         """测试本地动作能量消耗"""
@@ -107,8 +113,12 @@ class TestHypothalamusEnergy:
         dt = 10.0
         initial_energy = energy_system.energy
         energy_system.update_clock(dt)
-        recovery = energy_system.energy_config.get("recovery_rate_sleep_per_sec", 0.05) * dt
-        assert energy_system.energy == pytest.approx(initial_energy + recovery, rel=1e-5)
+        recovery = (
+            energy_system.energy_config.get("recovery_rate_sleep_per_sec", 0.05) * dt
+        )
+        assert energy_system.energy == pytest.approx(
+            initial_energy + recovery, rel=1e-5
+        )
 
     def test_fatigue_decays_when_sleeping(self, energy_system):
         """测试睡眠状态疲劳消退"""
@@ -146,7 +156,10 @@ class TestHypothalamusEnergy:
         for _ in range(20):
             energy_system.update_clock(10.0)
         # 最终应该唤醒
-        assert energy_system.fatigue <= energy_system.wakeup_threshold or energy_system.is_sleeping is False
+        assert (
+            energy_system.fatigue <= energy_system.wakeup_threshold
+            or energy_system.is_sleeping is False
+        )
 
     def test_hibernation_trigger(self, energy_system):
         """测试疲劳达到阈值触发休眠"""

@@ -1,14 +1,13 @@
-# -*- coding: utf-8 -*-
 """反射弧模块测试 (Reflex Arc Module Tests)"""
+
 import sys
 import unittest
 
 sys.path.insert(0, "/Users/zhenli/git-code/ElfieNest")
 
-from elfie.body.reflex.reflex_arc import SomaticReflexArc
-from elfie.body.anatomy.base import SomaticAnatomy
 from elfie.body.anatomy.biped import BipedAnatomy
 from elfie.body.anatomy.quadruped import QuadrupedAnatomy
+from elfie.body.reflex.reflex_arc import SomaticReflexArc
 from elfie.brain.emotion.emotional_state import AmygdalaEmotionalState
 
 
@@ -34,7 +33,7 @@ class TestSomaticReflexArc(unittest.TestCase):
         tactile_sensor = {
             "impact_force": 20.0,
             "impact_direction": "front",
-            "gentle_stroke": 0.0
+            "gentle_stroke": 0.0,
         }
 
         override_joints, reflex_event = self.reflex_arc.process_sensory_impact(
@@ -50,7 +49,7 @@ class TestSomaticReflexArc(unittest.TestCase):
         tactile_sensor = {
             "impact_force": 0.0,
             "impact_direction": "none",
-            "gentle_stroke": 1.5
+            "gentle_stroke": 1.5,
         }
 
         override_joints, reflex_event = self.reflex_arc.process_sensory_impact(
@@ -66,7 +65,7 @@ class TestSomaticReflexArc(unittest.TestCase):
         tactile_sensor = {
             "impact_force": 5.0,
             "impact_direction": "none",
-            "gentle_stroke": 0.0
+            "gentle_stroke": 0.0,
         }
 
         override_joints, reflex_event = self.reflex_arc.process_sensory_impact(
@@ -83,7 +82,7 @@ class TestSomaticReflexArc(unittest.TestCase):
         tactile_sensor = {
             "impact_force": 25.0,
             "impact_direction": "back",
-            "gentle_stroke": 0.0
+            "gentle_stroke": 0.0,
         }
 
         override_joints, reflex_event = self.reflex_arc.process_sensory_impact(
@@ -94,14 +93,14 @@ class TestSomaticReflexArc(unittest.TestCase):
         self.assertIn("neck_pitch", override_joints)
         self.assertIn("head_yaw", override_joints)
         self.assertEqual(override_joints["neck_pitch"], 0.5)  # 低头
-        self.assertEqual(override_joints["head_yaw"], 0.0)    # 摆正
+        self.assertEqual(override_joints["head_yaw"], 0.0)  # 摆正
 
     def test_shock_joints_override_quadruped(self):
         """测试 6: 验证 quadruped 形态撞击时四肢收缩"""
         tactile_sensor = {
             "impact_force": 16.0,
             "impact_direction": "left",
-            "gentle_stroke": 0.0
+            "gentle_stroke": 0.0,
         }
 
         override_joints, reflex_event = self.reflex_arc.process_sensory_impact(
@@ -109,7 +108,12 @@ class TestSomaticReflexArc(unittest.TestCase):
         )
 
         # quadruped 形态: 四条腿都应收缩
-        for leg in ["front_left_leg", "front_right_leg", "back_left_leg", "back_right_leg"]:
+        for leg in [
+            "front_left_leg",
+            "front_right_leg",
+            "back_left_leg",
+            "back_right_leg",
+        ]:
             self.assertIn(leg, override_joints)
             self.assertEqual(override_joints[leg], -0.5)
 
@@ -118,7 +122,7 @@ class TestSomaticReflexArc(unittest.TestCase):
         tactile_sensor = {
             "impact_force": 0.0,
             "impact_direction": "none",
-            "gentle_stroke": 1.2
+            "gentle_stroke": 1.2,
         }
 
         override_joints, reflex_event = self.reflex_arc.process_sensory_impact(
@@ -136,7 +140,7 @@ class TestSomaticReflexArc(unittest.TestCase):
         tactile_sensor = {
             "impact_force": 15.1,
             "impact_direction": "front",
-            "gentle_stroke": 0.0
+            "gentle_stroke": 0.0,
         }
 
         override_joints, reflex_event = self.reflex_arc.process_sensory_impact(
@@ -150,7 +154,7 @@ class TestSomaticReflexArc(unittest.TestCase):
         tactile_sensor = {
             "impact_force": 14.9,
             "impact_direction": "front",
-            "gentle_stroke": 0.0
+            "gentle_stroke": 0.0,
         }
 
         override_joints, reflex_event = self.reflex_arc.process_sensory_impact(
@@ -165,7 +169,7 @@ class TestSomaticReflexArc(unittest.TestCase):
         tactile_sensor_low = {
             "impact_force": 0.0,
             "impact_direction": "none",
-            "gentle_stroke": 0.5
+            "gentle_stroke": 0.5,
         }
 
         override_joints, reflex_event = self.reflex_arc.process_sensory_impact(
@@ -178,7 +182,7 @@ class TestSomaticReflexArc(unittest.TestCase):
         tactile_sensor_high = {
             "impact_force": 0.0,
             "impact_direction": "none",
-            "gentle_stroke": 2.5
+            "gentle_stroke": 2.5,
         }
 
         override_joints, reflex_event = self.reflex_arc.process_sensory_impact(
@@ -193,7 +197,7 @@ class TestSomaticReflexArc(unittest.TestCase):
         tactile_sensor_low = {
             "impact_force": 0.0,
             "impact_direction": "none",
-            "gentle_stroke": 0.3
+            "gentle_stroke": 0.3,
         }
 
         override_joints, reflex_event = self.reflex_arc.process_sensory_impact(
@@ -206,7 +210,7 @@ class TestSomaticReflexArc(unittest.TestCase):
         tactile_sensor_high = {
             "impact_force": 0.0,
             "impact_direction": "none",
-            "gentle_stroke": 3.0
+            "gentle_stroke": 3.0,
         }
 
         override_joints, reflex_event = self.reflex_arc.process_sensory_impact(
@@ -223,7 +227,7 @@ class TestSomaticReflexArc(unittest.TestCase):
         tactile_sensor = {
             "impact_force": 30.0,
             "impact_direction": "right",
-            "gentle_stroke": 0.0
+            "gentle_stroke": 0.0,
         }
 
         self.reflex_arc.process_sensory_impact(
@@ -241,7 +245,7 @@ class TestSomaticReflexArc(unittest.TestCase):
         tactile_sensor = {
             "impact_force": 0.0,
             "impact_direction": "none",
-            "gentle_stroke": 1.0
+            "gentle_stroke": 1.0,
         }
 
         self.reflex_arc.process_sensory_impact(
@@ -268,7 +272,7 @@ class TestSomaticReflexArc(unittest.TestCase):
         tactile_sensor = {
             "impact_force": 20.0,
             "impact_direction": "front",
-            "gentle_stroke": 0.0
+            "gentle_stroke": 0.0,
         }
 
         # 不应该抛出异常
@@ -285,7 +289,7 @@ class TestSomaticReflexArc(unittest.TestCase):
         tactile_sensor = {
             "impact_force": 0.0,
             "impact_direction": "none",
-            "gentle_stroke": 1.5
+            "gentle_stroke": 1.5,
         }
 
         override_joints, reflex_event = self.reflex_arc.process_sensory_impact(
@@ -302,7 +306,7 @@ class TestSomaticReflexArc(unittest.TestCase):
         tactile_sensor = {
             "impact_force": 20.0,
             "impact_direction": "front",
-            "gentle_stroke": 0.0
+            "gentle_stroke": 0.0,
         }
 
         self.reflex_arc.process_sensory_impact(
@@ -321,13 +325,13 @@ class TestSomaticReflexArc(unittest.TestCase):
         tactile_shock = {
             "impact_force": 20.0,
             "impact_direction": "front",
-            "gentle_stroke": 0.0
+            "gentle_stroke": 0.0,
         }
 
         tactile_stroke = {
             "impact_force": 0.0,
             "impact_direction": "none",
-            "gentle_stroke": 1.5
+            "gentle_stroke": 1.5,
         }
 
         # 第一次调用影响 amygdala1
@@ -342,8 +346,7 @@ class TestSomaticReflexArc(unittest.TestCase):
 
         # 两者应该有不同的情绪状态
         self.assertNotEqual(
-            amygdala1.emotions["anxiety"],
-            amygdala2.emotions["anxiety"]
+            amygdala1.emotions["anxiety"], amygdala2.emotions["anxiety"]
         )
 
 
@@ -360,7 +363,7 @@ class TestReflexArcEdgeCases(unittest.TestCase):
         tactile_sensor = {
             "impact_force": 1000.0,
             "impact_direction": "back",
-            "gentle_stroke": 0.0
+            "gentle_stroke": 0.0,
         }
 
         override_joints, reflex_event = self.reflex_arc.process_sensory_impact(
@@ -376,7 +379,7 @@ class TestReflexArcEdgeCases(unittest.TestCase):
         tactile_sensor = {
             "impact_force": 20.0,
             "impact_direction": "front",
-            "gentle_stroke": 1.5  # 满足抚摸条件
+            "gentle_stroke": 1.5,  # 满足抚摸条件
         }
 
         override_joints, reflex_event = self.reflex_arc.process_sensory_impact(
@@ -392,7 +395,7 @@ class TestReflexArcEdgeCases(unittest.TestCase):
         tactile_sensor = {
             "impact_force": 0.0,
             "impact_direction": "none",
-            "gentle_stroke": 0.0
+            "gentle_stroke": 0.0,
         }
 
         override_joints, reflex_event = self.reflex_arc.process_sensory_impact(
@@ -403,10 +406,7 @@ class TestReflexArcEdgeCases(unittest.TestCase):
 
     def test_default_impact_direction(self):
         """测试默认撞击方向"""
-        tactile_sensor = {
-            "impact_force": 20.0,
-            "gentle_stroke": 0.0
-        }
+        tactile_sensor = {"impact_force": 20.0, "gentle_stroke": 0.0}
 
         override_joints, reflex_event = self.reflex_arc.process_sensory_impact(
             self.anatomy, tactile_sensor, self.amygdala

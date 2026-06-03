@@ -1,8 +1,9 @@
 """情绪表达映射引擎 - Expression Mapper"""
 
-import os
 import logging
-from typing import Dict, List, Optional
+import os
+from typing import Optional
+
 import yaml
 
 logger = logging.getLogger("elfie.brain.emotion.expression_mapper")
@@ -11,8 +12,8 @@ logger = logging.getLogger("elfie.brain.emotion.expression_mapper")
 class ExpressionMapper:
     """情绪表达映射器 - 单例模式缓存配置"""
 
-    _instance: Optional['ExpressionMapper'] = None
-    _config: Optional[Dict] = None
+    _instance: Optional["ExpressionMapper"] = None
+    _config: dict | None = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -27,12 +28,12 @@ class ExpressionMapper:
 
         config_path = os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            'config',
-            'emotion_expressions.yaml'
+            "config",
+            "emotion_expressions.yaml",
         )
 
         try:
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, encoding="utf-8") as f:
                 self._config = yaml.safe_load(f)
             logger.info(f"情绪表达映射配置已加载: {config_path}")
         except FileNotFoundError:
@@ -42,52 +43,76 @@ class ExpressionMapper:
             logger.error(f"YAML解析错误: {e}，使用默认配置")
             self._config = self._get_default_config()
 
-    def _get_default_config(self) -> Dict:
+    def _get_default_config(self) -> dict:
         """获取默认配置"""
         return {
             "emotions": {
                 "happiness": {
                     "expression": "happy_face",
-                    "actions": {"low": ["wag_tail"], "medium": ["wiggle_ears"], "high": ["jump", "wag_tail"]},
+                    "actions": {
+                        "low": ["wag_tail"],
+                        "medium": ["wiggle_ears"],
+                        "high": ["jump", "wag_tail"],
+                    },
                     "voice_modifier": "cheerful",
-                    "threshold": 30
+                    "threshold": 30,
                 },
                 "sadness": {
                     "expression": "sad_face",
-                    "actions": {"low": ["droop_head"], "medium": ["slow_movement"], "high": ["droop_head", "slow_movement"]},
+                    "actions": {
+                        "low": ["droop_head"],
+                        "medium": ["slow_movement"],
+                        "high": ["droop_head", "slow_movement"],
+                    },
                     "voice_modifier": "sorrowful",
-                    "threshold": 40
+                    "threshold": 40,
                 },
                 "anger": {
                     "expression": "angry_face",
-                    "actions": {"low": ["shake_head"], "medium": ["stomp"], "high": ["shake_head", "stomp"]},
+                    "actions": {
+                        "low": ["shake_head"],
+                        "medium": ["stomp"],
+                        "high": ["shake_head", "stomp"],
+                    },
                     "voice_modifier": "firm",
-                    "threshold": 40
+                    "threshold": 40,
                 },
                 "fear": {
                     "expression": "fearful_face",
-                    "actions": {"low": ["tremble"], "medium": ["hide"], "high": ["tremble", "hide"]},
+                    "actions": {
+                        "low": ["tremble"],
+                        "medium": ["hide"],
+                        "high": ["tremble", "hide"],
+                    },
                     "voice_modifier": "nervous",
-                    "threshold": 35
+                    "threshold": 35,
                 },
                 "surprise": {
                     "expression": "surprised_face",
-                    "actions": {"low": ["blink_eyes"], "medium": ["jump"], "high": ["jump", "blink_eyes"]},
+                    "actions": {
+                        "low": ["blink_eyes"],
+                        "medium": ["jump"],
+                        "high": ["jump", "blink_eyes"],
+                    },
                     "voice_modifier": "excited",
-                    "threshold": 30
+                    "threshold": 30,
                 },
                 "disgust": {
                     "expression": "disgusted_face",
-                    "actions": {"low": ["shake_head"], "medium": ["step_back"], "high": ["shake_head", "step_back"]},
+                    "actions": {
+                        "low": ["shake_head"],
+                        "medium": ["step_back"],
+                        "high": ["shake_head", "step_back"],
+                    },
                     "voice_modifier": "disgusted",
-                    "threshold": 45
-                }
+                    "threshold": 45,
+                },
             },
             "default_expression": {
                 "expression": "neutral_face",
                 "actions": [],
-                "voice_modifier": "neutral"
-            }
+                "voice_modifier": "neutral",
+            },
         }
 
     def _get_intensity_level(self, value: float) -> str:
@@ -99,7 +124,7 @@ class ExpressionMapper:
         else:
             return "high"
 
-    def get_expression_for_emotions(self, emotions: Dict[str, float]) -> Dict:
+    def get_expression_for_emotions(self, emotions: dict[str, float]) -> dict:
         """根据情绪字典获取表达参数
 
         Args:
@@ -147,10 +172,10 @@ class ExpressionMapper:
             "actions": intensity_actions,
             "voice_modifier": config.get("voice_modifier", "neutral"),
             "intensity": dominant_value,
-            "emotion": dominant_emotion
+            "emotion": dominant_emotion,
         }
 
-    def _get_default_expression(self) -> Dict:
+    def _get_default_expression(self) -> dict:
         """获取默认表达"""
         default = self._config.get("default_expression", {})
         return {
@@ -158,5 +183,5 @@ class ExpressionMapper:
             "actions": default.get("actions", []),
             "voice_modifier": default.get("voice_modifier", "neutral"),
             "intensity": 0.0,
-            "emotion": "neutral"
+            "emotion": "neutral",
         }

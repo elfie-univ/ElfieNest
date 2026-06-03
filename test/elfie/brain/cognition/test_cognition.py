@@ -3,14 +3,13 @@
 Test Brain (NeocortexBrain), AttentionManager, and ExpectationManager.
 """
 
-import pytest
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from elfie.brain.cognition.brain import NeocortexBrain
 from elfie.brain.cognition.attention_manager import AttentionManager
+from elfie.brain.cognition.brain import NeocortexBrain
 from elfie.brain.cognition.expectation import ExpectationManager
 
 
@@ -85,14 +84,22 @@ class TestExpectationManager:
     def test_update_and_calculate_error_normal(self):
         """正常温度无预测误差"""
         em = ExpectationManager()
-        sensors = {"temperature": 24.0, "has_new_message": False, "is_network_online": True}
+        sensors = {
+            "temperature": 24.0,
+            "has_new_message": False,
+            "is_network_online": True,
+        }
         error = em.update_and_calculate_error(sensors)
         assert error == 0.0
 
     def test_update_and_calculate_error_temperature_high(self):
         """温度偏高产生误差"""
         em = ExpectationManager()
-        sensors = {"temperature": 30.0, "has_new_message": False, "is_network_online": True}
+        sensors = {
+            "temperature": 30.0,
+            "has_new_message": False,
+            "is_network_online": True,
+        }
         error = em.update_and_calculate_error(sensors)
         assert error > 0
         assert error <= 40.0  # 最高40分
@@ -100,35 +107,55 @@ class TestExpectationManager:
     def test_update_and_calculate_error_temperature_low(self):
         """温度偏低产生误差"""
         em = ExpectationManager()
-        sensors = {"temperature": 18.0, "has_new_message": False, "is_network_online": True}
+        sensors = {
+            "temperature": 18.0,
+            "has_new_message": False,
+            "is_network_online": True,
+        }
         error = em.update_and_calculate_error(sensors)
         assert error > 0
 
     def test_update_and_calculate_error_temperature_small_diff(self):
         """温度变化小于2度不计误差"""
         em = ExpectationManager()
-        sensors = {"temperature": 25.0, "has_new_message": False, "is_network_online": True}
+        sensors = {
+            "temperature": 25.0,
+            "has_new_message": False,
+            "is_network_online": True,
+        }
         error = em.update_and_calculate_error(sensors)
         assert error == 0.0
 
     def test_update_and_calculate_error_new_message(self):
         """新消息产生大误差"""
         em = ExpectationManager()
-        sensors = {"temperature": 24.0, "has_new_message": True, "is_network_online": True}
+        sensors = {
+            "temperature": 24.0,
+            "has_new_message": True,
+            "is_network_online": True,
+        }
         error = em.update_and_calculate_error(sensors)
         assert error >= 50.0
 
     def test_update_and_calculate_error_network_offline(self):
         """断网产生误差"""
         em = ExpectationManager()
-        sensors = {"temperature": 24.0, "has_new_message": False, "is_network_online": False}
+        sensors = {
+            "temperature": 24.0,
+            "has_new_message": False,
+            "is_network_online": False,
+        }
         error = em.update_and_calculate_error(sensors)
         assert error >= 35.0
 
     def test_update_and_calculate_error_multiple(self):
         """多重误差叠加"""
         em = ExpectationManager()
-        sensors = {"temperature": 35.0, "has_new_message": True, "is_network_online": False}
+        sensors = {
+            "temperature": 35.0,
+            "has_new_message": True,
+            "is_network_online": False,
+        }
         error = em.update_and_calculate_error(sensors)
         assert error > 50.0  # 40 + 50 + 35
 
@@ -173,7 +200,7 @@ class TestNeocortexBrain:
 
         context = {
             "sensors": {"has_new_message": False, "salience_score": 80.0},
-            "energy": 100.0
+            "energy": 100.0,
         }
         result = brain.think_and_decide(context, MockRuntime())
 
@@ -190,10 +217,14 @@ class TestNeocortexBrain:
                 return "你好呀！主人！"
 
         context = {
-            "sensors": {"has_new_message": True, "salience_score": 0.0, "user_message": "在吗？"},
+            "sensors": {
+                "has_new_message": True,
+                "salience_score": 0.0,
+                "user_message": "在吗？",
+            },
             "energy": 100.0,
             "emotion_state": "平静",
-            "history_episodes": "无相关记忆"
+            "history_episodes": "无相关记忆",
         }
         result = brain.think_and_decide(context, MockRuntime())
 
@@ -209,10 +240,14 @@ class TestNeocortexBrain:
                 return "好呀！[ACTION]wag_tail[/ACTION]"
 
         context = {
-            "sensors": {"has_new_message": True, "salience_score": 0.0, "user_message": "来"},
+            "sensors": {
+                "has_new_message": True,
+                "salience_score": 0.0,
+                "user_message": "来",
+            },
             "energy": 100.0,
             "emotion_state": "平静",
-            "history_episodes": ""
+            "history_episodes": "",
         }
         result = brain.think_and_decide(context, MockRuntime())
 
@@ -228,9 +263,13 @@ class TestNeocortexBrain:
                 return "今天天气不错呀！"
 
         context = {
-            "sensors": {"has_new_message": False, "salience_score": 0.0, "temperature": 40.0},
+            "sensors": {
+                "has_new_message": False,
+                "salience_score": 0.0,
+                "temperature": 40.0,
+            },
             "energy": 100.0,
-            "emotion_mood": "bored"
+            "emotion_mood": "bored",
         }
         result = brain.think_and_decide(context, MockRuntime())
 
@@ -246,9 +285,13 @@ class TestNeocortexBrain:
                 return "不应被调用"
 
         context = {
-            "sensors": {"has_new_message": False, "salience_score": 0.0, "temperature": 24.0},
+            "sensors": {
+                "has_new_message": False,
+                "salience_score": 0.0,
+                "temperature": 24.0,
+            },
             "energy": 100.0,
-            "emotion_mood": "bored"
+            "emotion_mood": "bored",
         }
         result = brain.think_and_decide(context, MockRuntime())
 
@@ -264,11 +307,7 @@ class TestNeocortexBrain:
             def ask(self, prompt, energy, task_complexity):
                 return "回复"
 
-        context = {
-            "sensors": {},
-            "energy": 100.0,
-            "emotion_mood": "bored"
-        }
+        context = {"sensors": {}, "energy": 100.0, "emotion_mood": "bored"}
         result = brain.think_and_decide(context, MockRuntime())
 
         # 应该有默认值，不崩溃
@@ -284,7 +323,11 @@ class TestNeocortexBrain:
                 return "回复"
 
         context = {
-            "sensors": {"has_new_message": True, "salience_score": 0.0, "user_message": "Hi"}
+            "sensors": {
+                "has_new_message": True,
+                "salience_score": 0.0,
+                "user_message": "Hi",
+            }
         }
         result = brain.think_and_decide(context, MockRuntime())
 
@@ -309,7 +352,11 @@ class TestEdgeCases:
     def test_expectation_manager_extreme_temperature(self):
         """极端温度值"""
         em = ExpectationManager()
-        sensors = {"temperature": 100.0, "has_new_message": False, "is_network_online": True}
+        sensors = {
+            "temperature": 100.0,
+            "has_new_message": False,
+            "is_network_online": True,
+        }
         error = em.update_and_calculate_error(sensors)
         assert error == 40.0  # 封顶40
 
@@ -325,9 +372,13 @@ class TestEdgeCases:
         """runtime_agent为None时的边界情况"""
         brain = NeocortexBrain()
         context = {
-            "sensors": {"has_new_message": False, "salience_score": 0.0, "temperature": 24.0},
+            "sensors": {
+                "has_new_message": False,
+                "salience_score": 0.0,
+                "temperature": 24.0,
+            },
             "energy": 100.0,
-            "emotion_mood": "bored"
+            "emotion_mood": "bored",
         }
         # 不调用think_and_decide，只测初始化
         assert brain.attention is not None

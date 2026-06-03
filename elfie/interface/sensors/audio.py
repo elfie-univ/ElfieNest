@@ -1,8 +1,7 @@
-# -*- coding: utf-8 -*-
 import logging
-from typing import Dict, Any
 
 logger = logging.getLogger("elfie.interface.sensors.audio")
+
 
 class AudioSensor:
     """神经交互总线：耳朵 (空间与虚拟听觉语音传感器)"""
@@ -18,7 +17,9 @@ class AudioSensor:
         :param source: 声音源 ("spatial_audio_broadcaster", "user_voice_message", "elfie_buddy")
         :return: 听觉文本
         """
-        logger.info(f"👂 [神经听觉总线] 接收到听觉音频 (来源: {source}): '{audio_event}'")
+        logger.info(
+            f"👂 [神经听觉总线] 接收到听觉音频 (来源: {source}): '{audio_event}'"
+        )
         self.last_heard_audio = audio_event.strip()
         self.last_audio_source = source
         return self.last_heard_audio

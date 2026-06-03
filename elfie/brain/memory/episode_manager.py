@@ -1,8 +1,10 @@
 import logging
-from typing import List, Dict, Any
+from typing import Any
+
 from elfie.brain.memory.vector_storage import TinyVectorStorage
 
 logger = logging.getLogger("elfie.brain.memory.episode_manager")
+
 
 class EpisodeMemoryManager:
     """中层：海马体情景记忆管理器 (Episode Memory Manager)"""
@@ -17,15 +19,12 @@ class EpisodeMemoryManager:
         :param emotion_tag: 经历关联的情绪标签
         """
         logger.info(f"💾 [海马体录入经历]: '{event_description}' (情绪: {emotion_tag})")
-        self.storage.add_memory(
-            text=event_description,
-            tags={"emotion": emotion_tag}
-        )
+        self.storage.add_memory(text=event_description, tags={"emotion": emotion_tag})
 
-    def retrieve_relevant_memories(self, query: str) -> List[str]:
+    def retrieve_relevant_memories(self, query: str) -> list[str]:
         """检索出语义高度关联的前 2 条情景经历"""
         return self.storage.retrieve_relevant_memories(query, top_k=2)
 
-    def get_all_episodes(self) -> List[Dict[str, Any]]:
+    def get_all_episodes(self) -> list[dict[str, Any]]:
         """获取所有存盘的经历索引数据"""
         return self.storage.memories

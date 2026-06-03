@@ -1,7 +1,8 @@
 import logging
-from typing import Dict, Any
+from typing import Any
 
 logger = logging.getLogger("elfie.brain.context_builder")
+
 
 class ThalamusContextBuilder:
     """中层：丘脑 (上下文拼装总线 - Context Bus)"""
@@ -9,11 +10,13 @@ class ThalamusContextBuilder:
     def __init__(self):
         pass
 
-    def assemble(self, 
-                 raw_sensors: Dict[str, Any], 
-                 energy_system: Any, 
-                 emotion_engine: Any, 
-                 memory_system: Any) -> Dict[str, Any]:
+    def assemble(
+        self,
+        raw_sensors: dict[str, Any],
+        energy_system: Any,
+        emotion_engine: Any,
+        memory_system: Any,
+    ) -> dict[str, Any]:
         """
         拉取多方状态，进行相关性拼接与噪点剥离，形成大脑皮层消费的 Context 字典
         :param raw_sensors: 底层爬行动物脑感觉器官捕获的瞬时裸数据
@@ -22,7 +25,9 @@ class ThalamusContextBuilder:
         :param memory_system: 海马体记忆检索实例
         :return: 精密组合的 Context 字典
         """
-        logger.info("丘脑十字路口：正在捕获外部感官、情感化学值、体能作息与海马体记忆切片...")
+        logger.info(
+            "丘脑十字路口：正在捕获外部感官、情感化学值、体能作息与海马体记忆切片..."
+        )
 
         # 1. 过滤背景噪音（噪点剥离由 interface/signal_filter.py 或丘脑自身轻量策略完成）
         # 这里简单保留必要的感官通道信息
@@ -31,7 +36,7 @@ class ThalamusContextBuilder:
             "is_network_online": raw_sensors.get("is_network_online", True),
             "salience_score": raw_sensors.get("salience_score", 0.0),
             "has_new_message": raw_sensors.get("has_new_message", False),
-            "user_message": raw_sensors.get("user_message", "")
+            "user_message": raw_sensors.get("user_message", ""),
         }
 
         # 2. 获取实时生理能耗参数与作息状态
@@ -59,8 +64,8 @@ class ThalamusContextBuilder:
             "is_sleeping": is_sleeping,
             "emotion_state": realtime_emotion,
             "emotion_mood": dominant_mood,
-            "history_episodes": memory_slices
+            "history_episodes": memory_slices,
         }
-        
+
         logger.info("丘脑拼装完成，已投递至 Neocortex 大脑皮层。")
         return assembled_context

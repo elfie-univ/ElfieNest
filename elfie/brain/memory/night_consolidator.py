@@ -1,8 +1,10 @@
 import logging
 from typing import Any
+
 from elfie.brain.memory.episode_manager import EpisodeMemoryManager
 
 logger = logging.getLogger("elfie.brain.memory.night_consolidator")
+
 
 class NightMemoryConsolidator:
     """中层：海马体夜间整理系统 (睡时记忆压缩与长期记忆固化 Worker)"""
@@ -22,10 +24,15 @@ class NightMemoryConsolidator:
             logger.info("海马体空闲：白天的流水经历记录过少，无需触发离线整理。")
             return "No consolidation needed."
 
-        logger.info(f"😴 [海马体夜间离线固化中...] 正在打包压缩 {len(all_episodes)} 条流水经历记录...")
-        
+        logger.info(
+            f"😴 [海马体夜间离线固化中...] 正在打包压缩 {len(all_episodes)} 条流水经历记录..."
+        )
+
         # 1. 抽提所有的白天流水账
-        raw_events = [f"- [{e['metadata'].get('timestamp', '')}] {e['content']}" for e in all_episodes]
+        raw_events = [
+            f"- [{e['metadata'].get('timestamp', '')}] {e['content']}"
+            for e in all_episodes
+        ]
         events_block = "\n".join(raw_events)
 
         # 2. 调用外挂算力底座，智能抽提长期设定与特征
@@ -44,19 +51,19 @@ class NightMemoryConsolidator:
             # 3. 清理掉过去大量的原始流水经历碎片 (释放内存)
             # 在实际运行中，我们可以将压缩后的核心词重新存入 vector_storage，并把原来的多条流水账打上 is_consolidated 标记或者删除
             # 这里我们把提取出来的核心浓缩句写入，同时保持海马体的清洁
-            self.mgr.storage.memories = [] # 清空流水
-            
+            self.mgr.storage.memories = []  # 清空流水
+
             for line in condensed.splitlines():
                 if line.strip():
                     cleaned_line = line.strip().lstrip("-* ").strip()
                     self.mgr.record_episode(
                         event_description=f"【长期固化记忆】 {cleaned_line}",
-                        emotion_tag="happy"
+                        emotion_tag="happy",
                     )
-            
+
             self.mgr.storage.save_to_disk()
             return condensed
-            
+
         except Exception as e:
             logger.error(f"夜间记忆固化失败: {e}，将在下一个休眠周期重试。")
             return f"Error during consolidation: {e}"

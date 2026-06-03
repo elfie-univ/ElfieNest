@@ -1,13 +1,12 @@
-# -*- coding: utf-8 -*-
+from typing import Any
 
-from typing import Dict, Any
 
 class ModelRegistry:
     """大模型算力池注册中心，维护模型类型、多模态能力与计费等级元数据"""
-    
+
     def __init__(self, config):
         self.config = config
-        
+
     def _is_provider_active(self, provider: str) -> bool:
         """检查特定提供商的 API 密钥是否已录入或是否为本地 Ollama"""
         if provider == "ollama":
@@ -15,7 +14,7 @@ class ModelRegistry:
         provider_info = self.config.providers.get(provider, {})
         return bool(provider_info.get("api_key"))
 
-    def get_catalog(self) -> Dict[str, Dict[str, Any]]:
+    def get_catalog(self) -> dict[str, dict[str, Any]]:
         """
         获取动态算力注册池清单
         依据当前的 config 动态展示模型的激活状态
@@ -23,16 +22,25 @@ class ModelRegistry:
         cheap_active = self._is_provider_active(self.config.cheap_provider)
         deep_active = self._is_provider_active(self.config.deep_provider)
         multimodal_active = self._is_provider_active(self.config.multimodal_provider)
-        
+
         # 探测是否支持原生音频：目前仅 OpenAI 和 Gemini 平台对某些模型开启原生音频多模态
         cheap_audio = self.config.cheap_provider in ["openai", "gemini"]
         deep_audio = self.config.deep_provider in ["openai", "gemini"]
         multimodal_audio = self.config.multimodal_provider in ["openai", "gemini"]
-        
+
         # 探测是否支持视觉 (云端主流提供商默认开放视觉多模态，以提供最大兼容包容性)
-        cheap_vision = self.config.cheap_provider in ["openai", "gemini", "qwen"] or "vl" in self.config.cheap_model.lower()
-        deep_vision = self.config.deep_provider in ["openai", "gemini", "qwen"] or "vl" in self.config.deep_model.lower()
-        multimodal_vision = self.config.multimodal_provider in ["openai", "gemini", "qwen"] or "vl" in self.config.multimodal_model.lower()
+        cheap_vision = (
+            self.config.cheap_provider in ["openai", "gemini", "qwen"]
+            or "vl" in self.config.cheap_model.lower()
+        )
+        deep_vision = (
+            self.config.deep_provider in ["openai", "gemini", "qwen"]
+            or "vl" in self.config.deep_model.lower()
+        )
+        multimodal_vision = (
+            self.config.multimodal_provider in ["openai", "gemini", "qwen"]
+            or "vl" in self.config.multimodal_model.lower()
+        )
 
         return {
             "local_fast": {
@@ -41,7 +49,7 @@ class ModelRegistry:
                 "is_vision": False,
                 "is_audio": False,
                 "cost_tier": 0,  # 免费
-                "active": True
+                "active": True,
             },
             "local_vision": {
                 "name": self.config.ollama_model_vision,
@@ -49,7 +57,7 @@ class ModelRegistry:
                 "is_vision": True,
                 "is_audio": False,
                 "cost_tier": 0,
-                "active": True
+                "active": True,
             },
             "remote_cheap": {
                 "name": self.config.cheap_model,
@@ -57,7 +65,7 @@ class ModelRegistry:
                 "is_vision": cheap_vision,
                 "is_audio": cheap_audio,
                 "cost_tier": 1,  # 极低
-                "active": cheap_active
+                "active": cheap_active,
             },
             "remote_deep": {
                 "name": self.config.deep_model,
@@ -65,7 +73,7 @@ class ModelRegistry:
                 "is_vision": deep_vision,
                 "is_audio": deep_audio,
                 "cost_tier": 3,  # 高难推理
-                "active": deep_active
+                "active": deep_active,
             },
             "remote_multimodal": {
                 "name": self.config.multimodal_model,
@@ -73,18 +81,18 @@ class ModelRegistry:
                 "is_vision": multimodal_vision,
                 "is_audio": multimodal_audio,
                 "cost_tier": 2,  # 多模态
-                "active": multimodal_active
-            }
+                "active": multimodal_active,
+            },
         }
 
-    def list_available_models(self) -> Dict[str, Dict[str, Any]]:
+    def list_available_models(self) -> dict[str, dict[str, Any]]:
         """
         列出当前所有激活并可供上游大脑调配的模型
         """
         catalog = self.get_catalog()
         return {key: val for key, val in catalog.items() if val["active"]}
 
-    def get_model_info(self, model_key: str) -> Dict[str, Any]:
+    def get_model_info(self, model_key: str) -> dict[str, Any]:
         """
         获取指定模型 key 的能力元数据
         """

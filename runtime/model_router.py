@@ -1,8 +1,10 @@
 import logging
-from typing import Tuple, Dict, Any
+from typing import Any
+
 from runtime.config import LLMRuntimeConfig
 
 logger = logging.getLogger("runtime.model_router")
+
 
 class ModelRouter:
     """智能模型动态路由（平时用本地小模型，深度思考与工具调用切云端大模型）"""
@@ -10,7 +12,9 @@ class ModelRouter:
     def __init__(self, config: LLMRuntimeConfig):
         self.config = config
 
-    def route_request(self, prompt: str, energy: float, task_complexity: int = 1) -> Tuple[str, Dict[str, Any]]:
+    def route_request(
+        self, prompt: str, energy: float, task_complexity: int = 1
+    ) -> tuple[str, dict[str, Any]]:
         """
         进行智能模型路由选择
         :param prompt: 任务 prompt 文本
@@ -19,35 +23,63 @@ class ModelRouter:
         :return: (选用的模型模式 - "local" 或 "remote", 路由决策的详细上下文信息)
         """
         logger.info(f"进行大模型路由评定 - 精力: {energy}%, 复杂度: {task_complexity}")
-        
+
         # 1. 强制精力保护：精力不足时只走本地，避免大量能耗和 API 费用
         if energy < self.config.energy_threshold_fast:
             reason = f"精力过低 ({energy}% < {self.config.energy_threshold_fast}%)，触发快速本地大模型保护机制"
             logger.info(reason)
-            return "local", {"mode": "local", "reason": reason, "model": self.config.ollama_model_fast}
-            
+            return "local", {
+                "mode": "local",
+                "reason": reason,
+                "model": self.config.ollama_model_fast,
+            }
+
         # 2. 检查是否有强烈的“计算”、“搜索”词汇
         complexity = task_complexity
-        intent_keywords_deep = ["计算", "算出", "帮我算", "搜索", "查一下", "最新", "账单", "代码"]
+        intent_keywords_deep = [
+            "计算",
+            "算出",
+            "帮我算",
+            "搜索",
+            "查一下",
+            "最新",
+            "账单",
+            "代码",
+        ]
         if any(kw in prompt for kw in intent_keywords_deep):
             complexity = max(complexity, 4)  # 强行拉升复杂度
-            
+
         # 3. 基于任务复杂度进行路由决策
         if complexity >= self.config.complexity_threshold_deep:
             reason = f"任务复杂度较高 ({complexity} >= {self.config.complexity_threshold_deep})，分配云端高级大模型进行深度推理"
             logger.info(reason)
-            
+
             deep_provider = self.config.deep_provider
-            provider_api_key = self.config.providers.get(deep_provider, {}).get("api_key", "")
-            
+            provider_api_key = self.config.providers.get(deep_provider, {}).get(
+                "api_key", ""
+            )
+
             if deep_provider == "ollama" or not provider_api_key:
                 warning_reason = f"深度推理Provider '{deep_provider}' 未配置API Key 或为本地模型，使用本地小模型"
                 logger.warning(warning_reason)
-                return "local", {"mode": "local", "reason": warning_reason, "model": self.config.ollama_model_fast}
-            
-            return "remote", {"mode": "remote", "reason": reason, "model": self.config.deep_model, "provider": deep_provider}
-            
+                return "local", {
+                    "mode": "local",
+                    "reason": warning_reason,
+                    "model": self.config.ollama_model_fast,
+                }
+
+            return "remote", {
+                "mode": "remote",
+                "reason": reason,
+                "model": self.config.deep_model,
+                "provider": deep_provider,
+            }
+
         # 4. 默认走本地快速闲聊
-        reason = f"常规日常对话且能量充沛，路由给本地轻量大模型"
+        reason = "常规日常对话且能量充沛，路由给本地轻量大模型"
         logger.info(reason)
-        return "local", {"mode": "local", "reason": reason, "model": self.config.ollama_model_fast}
+        return "local", {
+            "mode": "local",
+            "reason": reason,
+            "model": self.config.ollama_model_fast,
+        }

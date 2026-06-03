@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
 import logging
 
 logger = logging.getLogger("elfie.interface.social_connectors.telegram")
+
 
 class TelegramConnector:
     """平台社交总线：Telegram 对接驱动 (Telegram Embodied Observer Channel)"""
@@ -19,7 +19,7 @@ class TelegramConnector:
         if not self.is_connected:
             logger.warning("Telegram 未连接，发送消息失败")
             return False
-        logger.info(f"🔵 [Telegram -> {chat_id}]: \"{text}\"")
+        logger.info(f'🔵 [Telegram -> {chat_id}]: "{text}"')
         return True
 
     def send_viewport_image(self, chat_id: str, image_path: str) -> bool:
@@ -28,5 +28,7 @@ class TelegramConnector:
         """
         if not self.is_connected:
             return False
-        logger.info(f"🔵 [Telegram 图像推送 -> {chat_id}] 宿舍 Camera3D 主观视角截图 '{image_path}' 已安全送达。")
+        logger.info(
+            f"🔵 [Telegram 图像推送 -> {chat_id}] 宿舍 Camera3D 主观视角截图 '{image_path}' 已安全送达。"
+        )
         return True

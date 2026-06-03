@@ -5,8 +5,6 @@ Defines the input structure for emotion events.
 
 import time
 from dataclasses import dataclass, field
-from typing import Optional
-
 
 VALID_SOURCES = {"text", "image", "audio", "physical", "brain"}
 
@@ -23,12 +21,13 @@ class EmotionInput:
         timestamp: Unix timestamp when the event occurred
         metadata: Optional additional data
     """
+
     emotion: str
     intensity: float
     source: str
     event_id: str
     timestamp: float = field(default_factory=time.time)
-    metadata: Optional[dict] = None
+    metadata: dict | None = None
 
     def validate(self) -> bool:
         """Validate the emotion input.

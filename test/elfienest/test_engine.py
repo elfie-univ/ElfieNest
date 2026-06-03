@@ -1,13 +1,14 @@
-# -*- coding: utf-8 -*-
 """
 引擎模块测试
 测试 ElfieNestEngine, ElfieNestRoom, ElfieNestCoordinator
 """
-import pytest
+
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from elfie import ElfieIndividual
-from elfienest.engine import ElfieNestEngine, ElfieNestCoordinator
+from elfienest.engine import ElfieNestCoordinator, ElfieNestEngine
 from elfienest.room import ElfieNestRoom
 
 
@@ -22,7 +23,7 @@ class TestElfieNestEngine:
             "success": True,
             "speech": "你好！",
             "action": "",
-            "mutter": ""
+            "mutter": "",
         }
         elfie.amygdala = MagicMock()
         elfie.amygdala.get_dominant_mood.return_value = "happy"
@@ -85,9 +86,9 @@ class TestElfieNestRoom:
         """测试广播排除发送者"""
         room.register_elfie("elf1", mock_elfie)
         room.register_elfie("elf2", MagicMock(spec=ElfieIndividual))
-        
+
         room.broadcast_speech("elf1", "Hello")
-        
+
         assert len(room.sensory_buffers["elf1"]) == 0
         assert len(room.sensory_buffers["elf2"]) == 1
 
@@ -96,9 +97,9 @@ class TestElfieNestRoom:
         room.register_elfie("elf1", mock_elfie)
         room.broadcast_speech("elf2", "消息1")
         room.broadcast_speech("elf3", "消息2")
-        
+
         result = room.consume_pending_sensory_input("elf1")
-        
+
         assert "消息1" in result
         assert "消息2" in result
         assert len(room.sensory_buffers["elf1"]) == 0
@@ -107,13 +108,13 @@ class TestElfieNestRoom:
         """测试姿态更新和家具绑定"""
         room.register_elfie("elf1", mock_elfie)
         room.register_scene_furniture(["bed_1", "chair_1"])
-        
+
         room.update_elfie_posture("elf1", "lying", "bed_1")
-        
+
         assert room.room_state["furniture"]["bed_1"]["occupant"] == "elf1"
-        
+
         room.update_elfie_posture("elf1", "sitting", "chair_1")
-        
+
         assert room.room_state["furniture"]["bed_1"]["occupant"] is None
         assert room.room_state["furniture"]["chair_1"]["occupant"] == "elf1"
 
@@ -121,18 +122,18 @@ class TestElfieNestRoom:
         """测试 Tick 跳过非活跃精灵"""
         room.register_elfie("elf1", mock_elfie)
         room.room_state["elfies_status"]["elf1"]["active"] = False
-        
+
         room.tick(1.0)
-        
+
         mock_elfie.tick.assert_not_called()
 
     def test_tick_skips_away_elfies(self, room, mock_elfie):
         """测试 Tick 跳过离开的精灵"""
         room.register_elfie("elf1", mock_elfie)
         room.room_state["elfies_status"]["elf1"]["posture"] = "away"
-        
+
         room.tick(1.0)
-        
+
         mock_elfie.tick.assert_not_called()
 
 
@@ -144,25 +145,22 @@ class TestEdgeCases:
         room = ElfieNestRoom()
         room.register_elfie("elf1", MagicMock(spec=ElfieIndividual))
         room.register_elfie("elf2", MagicMock(spec=ElfieIndividual))
-        
+
         room.broadcast_speech("elf1", "")
-        
+
         assert len(room.sensory_buffers["elf2"]) == 0
 
     def test_update_nonexistent_elfie_posture(self):
         """测试更新不存在的精灵姿态"""
         room = ElfieNestRoom()
         room.update_elfie_posture("ghost", "lying", "bed_1")
-        
+
         assert "ghost" not in room.room_state["elfies_status"]
 
     def test_consume_tactile_default(self):
         """测试消费默认触觉"""
-        coordinator = ElfieNestCoordinator(
-            MagicMock(),
-            MagicMock()
-        )
+        coordinator = ElfieNestCoordinator(MagicMock(), MagicMock())
         tactile = coordinator.consume_tactile("unknown")
-        
+
         assert tactile["gentle_stroke"] == 0.0
         assert tactile["impact_force"] == 0.0

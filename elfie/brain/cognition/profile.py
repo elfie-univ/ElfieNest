@@ -1,9 +1,11 @@
-import os
-import yaml
 import logging
-from typing import Dict, Any, List
+import os
+from typing import Any
+
+import yaml
 
 logger = logging.getLogger("elfie.cognition.profile")
+
 
 class ElfieProfile:
     """精灵性格与载体物理设定的管理模块 (自我认知系统)"""
@@ -20,13 +22,13 @@ class ElfieProfile:
         self.capabilities = self._load_yaml("capabilities.yaml")
         self.system_limits = self._load_yaml("system_limits.yaml")
 
-    def _load_yaml(self, filename: str) -> Dict[str, Any]:
+    def _load_yaml(self, filename: str) -> dict[str, Any]:
         path = os.path.join(self.config_dir, filename)
         if not os.path.exists(path):
             logger.warning(f"配置文件未找到: {path}，将采用内存默认项。")
             return {}
         try:
-            with open(path, 'r', encoding='utf-8') as f:
+            with open(path, encoding="utf-8") as f:
                 return yaml.safe_load(f) or {}
         except Exception as e:
             logger.error(f"加载 {filename} 失败: {e}")
@@ -58,7 +60,7 @@ class ElfieProfile:
         )
         return segment
 
-    def get_mutter_templates(self, mood: str) -> List[str]:
+    def get_mutter_templates(self, mood: str) -> list[str]:
         """根据心情返回好玩的碎碎念模板列表"""
         speech = self.personality.get("speech_style", {})
         mutter_map = speech.get("mutter_templates", {})

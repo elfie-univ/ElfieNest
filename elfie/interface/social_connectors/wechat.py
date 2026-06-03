@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
 import logging
 
 logger = logging.getLogger("elfie.interface.social_connectors.wechat")
+
 
 class WeChatConnector:
     """平台社交总线：微信对接驱动 (WeChat Embodied Observer Channel)"""
@@ -11,7 +11,9 @@ class WeChatConnector:
         self.is_connected = False
 
     def connect(self) -> bool:
-        logger.info("📱 [微信社交接口] 神经网络握手成功。已准备好接收外部用户观察脉冲。")
+        logger.info(
+            "📱 [微信社交接口] 神经网络握手成功。已准备好接收外部用户观察脉冲。"
+        )
         self.is_connected = True
         return True
 
@@ -19,7 +21,7 @@ class WeChatConnector:
         if not self.is_connected:
             logger.warning("微信未连接，发送消息失败")
             return False
-        logger.info(f"🟢 [WeChat 消息推送]: \"{text}\"")
+        logger.info(f'🟢 [WeChat 消息推送]: "{text}"')
         return True
 
     def send_viewport_image(self, image_path: str) -> bool:
@@ -29,7 +31,9 @@ class WeChatConnector:
         """
         if not self.is_connected:
             return False
-        logger.info(f"🟢 [WeChat 图像推送] 成功将精灵的虚拟宿舍视角图片 '{image_path}' 发送给主人手机微信端！")
+        logger.info(
+            f"🟢 [WeChat 图像推送] 成功将精灵的虚拟宿舍视角图片 '{image_path}' 发送给主人手机微信端！"
+        )
         return True
 
     def receive_user_command(self) -> str:

@@ -1,7 +1,7 @@
 import logging
-from typing import Dict, Any
 
 logger = logging.getLogger("elfie.cognition.attention_manager")
+
 
 class AttentionManager:
     """注意力调度网络 (DMN / CEN / SN 脑网络管理)"""
@@ -19,26 +19,32 @@ class AttentionManager:
         :return: 当前激活的脑网络类型
         """
         old_network = self.current_network
-        
+
         # 1. 突发威胁/重大环境变动 (突显网络 SN 优先强行拦截打断)
         if salience_score >= 70.0:
             self.current_network = "SN"
             if old_network != "SN":
-                logger.warning(f"🚨 [脑网络触发 SN 突显拦截] 检测到高突显度信号 ({salience_score})！强行打断当前发呆！")
+                logger.warning(
+                    f"🚨 [脑网络触发 SN 突显拦截] 检测到高突显度信号 ({salience_score})！强行打断当前发呆！"
+                )
                 self._interrupted = True
-                
+
         # 2. 主人直接任务下达 (中央执行网络 CEN 专注干活)
         elif has_new_user_message:
             self.current_network = "CEN"
             if old_network != "CEN":
-                logger.info("🎯 [脑网络切换 CEN] 主人下达任务，大脑进入深度专注执行状态。")
-                
+                logger.info(
+                    "🎯 [脑网络切换 CEN] 主人下达任务，大脑进入深度专注执行状态。"
+                )
+
         # 3. 闲置状态下回退至默认网络 (DMN 发呆/消耗多余电能整理三观)
         else:
             self.current_network = "DMN"
             if old_network != "DMN":
-                logger.info("💭 [脑网络切换 DMN] 大脑进入静默发呆、自言自语及整理历史记忆的离线模式。")
-                
+                logger.info(
+                    "💭 [脑网络切换 DMN] 大脑进入静默发呆、自言自语及整理历史记忆的离线模式。"
+                )
+
         return self.current_network
 
     def is_interrupted(self) -> bool:

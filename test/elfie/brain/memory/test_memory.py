@@ -3,11 +3,12 @@
 Test EpisodeMemoryManager and TinyVectorStorage for episodic memory management.
 """
 
-import pytest
-import sys
-import os
-import tempfile
 import json
+import os
+import sys
+import tempfile
+
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -16,10 +17,9 @@ from elfie.brain.memory.vector_storage import TinyVectorStorage
 
 
 class TestTinyVectorStorage:
-
     @pytest.fixture
     def temp_storage_path(self):
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             temp_path = f.name
         yield temp_path
         if os.path.exists(temp_path):
@@ -37,10 +37,8 @@ class TestTinyVectorStorage:
 
     def test_init_load_existing(self, temp_storage_path):
         # 预先写入一些数据
-        test_data = [
-            {"content": "test memory", "metadata": {"emotion": "happy"}}
-        ]
-        with open(temp_storage_path, 'w', encoding='utf-8') as f:
+        test_data = [{"content": "test memory", "metadata": {"emotion": "happy"}}]
+        with open(temp_storage_path, "w", encoding="utf-8") as f:
             json.dump(test_data, f)
 
         storage = TinyVectorStorage(temp_storage_path)
@@ -58,8 +56,7 @@ class TestTinyVectorStorage:
     def test_add_memory_with_tags(self, temp_storage_path):
         storage = TinyVectorStorage(temp_storage_path)
         storage.add_memory(
-            "主人表扬了我",
-            tags={"emotion": "happy", "location": "home"}
+            "主人表扬了我", tags={"emotion": "happy", "location": "home"}
         )
 
         assert len(storage.memories) == 1
@@ -147,16 +144,15 @@ class TestTinyVectorStorage:
 
         # 验证文件已创建且包含数据
         assert os.path.exists(temp_storage_path)
-        with open(temp_storage_path, 'r', encoding='utf-8') as f:
+        with open(temp_storage_path, encoding="utf-8") as f:
             data = json.load(f)
         assert len(data) == 1
 
 
 class TestEpisodeMemoryManager:
-
     @pytest.fixture
     def temp_storage_path(self):
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             temp_path = f.name
         yield temp_path
         if os.path.exists(temp_path):

@@ -1,14 +1,12 @@
-# -*- coding: utf-8 -*-
-
-import os
 import logging
-from typing import List
+import os
 
 logger = logging.getLogger("runtime.plugins.file_sandbox")
 
+
 class FileSandbox:
     """技能文件专用安全沙箱，物理隔离防路径穿梭"""
-    
+
     def __init__(self):
         # 技能库根目录设定在 runtime/custom_skills
         self.runtime_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -20,7 +18,9 @@ class FileSandbox:
             os.makedirs(self.skills_root)
             # 自动生成一个简单的 __init__.py 方便做包导入 (如果需要)
             with open(os.path.join(self.skills_root, "__init__.py"), "w") as f:
-                f.write("# -*- coding: utf-8 -*-\n# Elfie custom evolved skills package\n")
+                f.write(
+                    "# -*- coding: utf-8 -*-\n# Elfie custom evolved skills package\n"
+                )
 
     def _safe_path(self, filename: str) -> str:
         """安全路径校验，杜绝任何 ../ 注入"""
@@ -42,10 +42,10 @@ class FileSandbox:
         target_path = self._safe_path(filename)
         if not os.path.exists(target_path):
             raise FileNotFoundError(f"❌ 技能库未找到文件: '{filename}'")
-        with open(target_path, "r", encoding="utf-8") as f:
+        with open(target_path, encoding="utf-8") as f:
             return f.read()
 
-    def list_files(self) -> List[str]:
+    def list_files(self) -> list[str]:
         """列出当前已习得的所有技能文件"""
         self._ensure_skills_root()
         files = []
