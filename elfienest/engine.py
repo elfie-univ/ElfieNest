@@ -139,19 +139,19 @@ class ElfieNestEngine:
 
     def _on_godot_elfie_arrived(self, payload: Dict[str, Any]):
         """Godot 精灵移动到达回调：锁定物理姿态"""
-        elfie_id = payload.get("elfie_id")
-        target = payload.get("target")
+        elfie_id = payload.get("elfie_id", "")
+        target = payload.get("target", "")
 
         # 解析预期的姿势。如果是床则躺下，椅子坐下，传送门消散
         posture = "standing"
-        if "bed" in target.lower():
+        if target and "bed" in target.lower():
             posture = "lying"
-        elif "chair" in target.lower():
+        elif target and "chair" in target.lower():
             posture = "sitting"
-        elif "door" in target.lower():
+        elif target and "door" in target.lower():
             posture = "away"
 
-        self.room.update_elfie_posture(elfie_id, posture, target)
+        self.room.update_elfie_posture(elfie_id, posture, target or None)
 
     async def _async_generate_tts(
         self, text: str, output_path: str, voice: str = "zh-CN-XiaoxiaoNeural"

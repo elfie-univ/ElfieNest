@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from elfie import ElfieIndividual
 
@@ -17,7 +17,7 @@ class ElfieNestRoom:
         self.elfies: Dict[str, ElfieIndividual] = {}
 
         # 2. 动态语义状态看板，仅记录“谁在什么家具上做什么”，不涉及任何坐标
-        self.room_state = {
+        self.room_state: Dict[str, Any] = {
             "furniture": {},  # 由 Godot 动态注册，格式: { "bed_1": {"occupant": "艾菲"} }
             "elfies_status": {},  # 格式: { "elfie_id": { "posture": "standing", "target_furniture": None, "active": True } }
         }

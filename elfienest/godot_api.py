@@ -6,6 +6,7 @@ from collections.abc import Callable
 from typing import Any, Dict, List, Set
 
 import websockets
+import websockets.asyncio.server
 
 logger = logging.getLogger("elfienest.godot_api")
 
@@ -23,15 +24,15 @@ class GodotAPIServer:
         self.port = port
 
         # 所有的活跃客户端连接
-        self.clients: Set[websockets.WebSocketServerProtocol] = set()
+        self.clients: Set[Any] = set()
 
         # 事件回调映射表 { "event_name": [callback_fn] }
         self.event_callbacks: Dict[str, List[Callable[[Dict[str, Any]], None]]] = {}
 
         # 后台通信线程与 asyncio 事件循环
-        self._loop: asyncio.AbstractEventLoop = None
-        self._thread: threading.Thread = None
-        self._server = None
+        self._loop: Any = None
+        self._thread: Any = None
+        self._server: Any = None
         self._running = False
 
     def register_callback(
@@ -87,7 +88,7 @@ class GodotAPIServer:
         asyncio.set_event_loop(self._loop)
 
         # 启动 WebSocket 服务器
-        start_server = websockets.serve(self._handle_client, self.host, self.port)
+        start_server = websockets.serve(self._handle_client, self.host, self.port)  # type: ignore[arg-type]
         self._server = self._loop.run_until_complete(start_server)
 
         try:
@@ -111,9 +112,7 @@ class GodotAPIServer:
 
         self._loop.stop()
 
-    async def _handle_client(
-        self, websocket: websockets.WebSocketServerProtocol, path: str
-    ):
+    async def _handle_client(self, websocket: Any, path: str):
         """处理来自 Godot 的新连接以及接收到的 JSON 消息"""
         logger.info(
             f"🤝 [通信网关] 收到来自 Godot 的连接握手: {websocket.remote_address}"
