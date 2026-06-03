@@ -1,7 +1,8 @@
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from elfie.body import BipedAnatomy, QuadrupedAnatomy, SomaticReflexArc
+from elfie.body.anatomy.base import SomaticAnatomy
 from elfie.brain import (
     EmotionDecayCalculator,
     EmotionSystem,
@@ -55,6 +56,7 @@ class ElfieIndividual:
 
         # 4. 🧱 【具身身体物理层】 (Body - 数字孪生躯体)
         self.anatomy_type = anatomy_type
+        self.anatomy: SomaticAnatomy
         if anatomy_type == "quadruped":
             self.anatomy = QuadrupedAnatomy()
         else:
@@ -68,7 +70,7 @@ class ElfieIndividual:
 
         # Godot API 引用（用于发送表达事件）
         self.godot_api = godot_api
-        self._last_expression = None
+        self._last_expression: Optional[Dict[str, Any]] = None
 
     def tick(self, dt: float):
         """
