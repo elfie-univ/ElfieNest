@@ -255,7 +255,7 @@ class GraphStorage:
     ) -> List[Tuple[str, float]]:
         """TF-IDF查询nodes表content字段，返回(node_id, score)列表
 
-        从vector_storage.py迁移的TF-IDF余弦相似度逻辑：
+        从旧vector_storage.py迁移的TF-IDF余弦相似度逻辑：
         1. tokenize查询词
         2. 遍历nodes表（可选按type过滤）
         3. tokenize每条content

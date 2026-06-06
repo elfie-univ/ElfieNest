@@ -1,4 +1,4 @@
-"""TF-IDF分词模块 - 从vector_storage.py迁移而来"""
+"""TF-IDF分词模块"""
 
 import re
 from typing import List
@@ -7,7 +7,7 @@ from typing import List
 def tokenize(text: str) -> List[str]:
     """对中文和英文混合句子进行简易提取关键词分词
 
-    保留与vector_storage.py._tokenize完全相同的逻辑：
+    保留与旧vector_storage.py._tokenize完全相同的逻辑：
     1. 去掉非字符，只留下汉字、英文和数字
     2. 中文字符逐字拆解作为简单词袋
     3. 英文字符按空格切分，转小写

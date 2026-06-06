@@ -58,27 +58,14 @@ class ThalamusContextBuilder:
         user_message = filtered_sensors["user_message"]
         active_memory = self.memory_system or memory_system
         if user_message and active_memory:
-            # 优先使用 MemorySystem.get_context() 获取5区域上下文
-            if hasattr(active_memory, "get_context"):
-                emotion_intensity = getattr(
-                    emotion_engine, "get_emotion_value", lambda _: 0.0
-                )(dominant_mood)
-                memory_slices = active_memory.get_context(
-                    query=user_message,
-                    emotion=dominant_mood,
-                    intensity=emotion_intensity,
-                )
-            else:
-                # 回退旧API：EpisodeMemoryManager
-                retrieved = active_memory.retrieve_relevant_memories(
-                    user_message,
-                    current_emotion=dominant_mood,
-                )
-                memory_slices = (
-                    "\n".join(f"- {m}" for m in retrieved)
-                    if retrieved
-                    else "无相关历史情景记忆。"
-                )
+            emotion_intensity = getattr(
+                emotion_engine, "get_emotion_value", lambda _: 0.0
+            )(dominant_mood)
+            memory_slices = active_memory.get_context(
+                query=user_message,
+                emotion=dominant_mood,
+                intensity=emotion_intensity,
+            )
         else:
             memory_slices = "无相关历史情景记忆。"
 

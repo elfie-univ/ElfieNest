@@ -14,11 +14,6 @@ from elfie.brain.memory.sensory_index import SensoryIndexer
 from elfie.brain.memory.spreading_activation import SpreadingActivation
 from elfie.brain.memory.tokenizer import tokenize
 
-# 保留旧类以兼容（Task 20做清理）
-from elfie.brain.memory.episode_manager import EpisodeMemoryManager
-from elfie.brain.memory.night_consolidator import NightMemoryConsolidator
-from elfie.brain.memory.vector_storage import TinyVectorStorage
-
 __all__ = [
     "MemorySystem",
     "GraphStorage",
@@ -39,8 +34,4 @@ __all__ = [
     "SensoryIndexer",
     "tokenize",
     "migrate_from_json",
-    # 旧类兼容
-    "EpisodeMemoryManager",
-    "NightMemoryConsolidator",
-    "TinyVectorStorage",
 ]

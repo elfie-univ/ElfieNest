@@ -12,8 +12,11 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from elfie.brain.memory.episode_manager import EpisodeMemoryManager
-from elfie.brain.memory.night_consolidator import NightMemoryConsolidator
+try:
+    from elfie.brain.memory.episode_manager import EpisodeMemoryManager
+    from elfie.brain.memory.night_consolidator import NightMemoryConsolidator
+except ImportError:
+    pytest.skip("旧记忆模块已移除（Task 20），请使用 MemorySystem", allow_module_level=True)
 
 
 class MockRuntimeSuccess:
