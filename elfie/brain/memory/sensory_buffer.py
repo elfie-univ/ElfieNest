@@ -46,9 +46,7 @@ class SensoryBuffer:
             "timestamp": datetime.now(),
         }
         self._buffer.append(event)
-        logger.debug(
-            f"感知事件已写入缓冲: [{emotion}] {event_content[:30]}..."
-        )
+        logger.debug(f"感知事件已写入缓冲: [{emotion}] {event_content[:30]}...")
 
         # 写入后检查容量，超过上限时淘汰最旧事件
         if len(self._buffer) > self.max_size:
@@ -112,9 +110,7 @@ class SensoryBuffer:
         """
         candidates = []
         for event in self._buffer:
-            if event.get("intensity", 0) > threshold_intensity or event.get(
-                "stimulus"
-            ):
+            if event.get("intensity", 0) > threshold_intensity or event.get("stimulus"):
                 candidates.append(event)
         return candidates
 
@@ -125,8 +121,7 @@ class SensoryBuffer:
         self._buffer = [
             event
             for event in self._buffer
-            if (now - event.get("timestamp", now)).total_seconds()
-            < self.window_seconds
+            if (now - event.get("timestamp", now)).total_seconds() < self.window_seconds
         ]
         evicted_count = before_count - len(self._buffer)
         if evicted_count > 0:

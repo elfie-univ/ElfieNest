@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 from .graph_storage import GraphStorage
 from .node_types import EdgeTypes, MemoryNode, NodeTypes
 from .sensory_buffer import SensoryBuffer
+from .sensory_index import SensoryIndexer
 
 logger = logging.getLogger("elfie.brain.memory.encoding")
 
@@ -37,9 +38,15 @@ class MemoryEncoder:
         "球": "toy",
     }
 
-    def __init__(self, storage: GraphStorage, sensory_buffer: SensoryBuffer):
+    def __init__(
+        self,
+        storage: GraphStorage,
+        sensory_buffer: SensoryBuffer,
+        sensory_indexer: SensoryIndexer = None,
+    ):
         self.storage = storage
         self.sensory_buffer = sensory_buffer
+        self.sensory_indexer = sensory_indexer
 
     def encode(
         self,
@@ -79,11 +86,13 @@ class MemoryEncoder:
                 sensory=sensory,
             )
 
+            # 感官索引：将感官关键词持久化到 sensory_index 表
+            if sensory and self.sensory_indexer:
+                self.sensory_indexer.index_sensory(node_id, sensory)
+
             # 提取实体名称 → 转换为节点ID
             entity_names = self.extract_entities(event_content, runtime_agent)
-            entity_ids = [
-                self.create_or_get_entity(name) for name in entity_names
-            ]
+            entity_ids = [self.create_or_get_entity(name) for name in entity_names]
 
             # 建立编码边
             self.build_encoding_edges(node_id, entity_ids, prev_node_id, emotion)
@@ -94,9 +103,7 @@ class MemoryEncoder:
             return node_id
 
         # 3. 低强度且无刺激源 → 不进长期存储
-        logger.debug(
-            f"低强度事件仅写入缓冲区: [{emotion}] {event_content[:40]}..."
-        )
+        logger.debug(f"低强度事件仅写入缓冲区: [{emotion}] {event_content[:40]}...")
         return ""
 
     def create_episodic_node(
@@ -188,15 +195,11 @@ class MemoryEncoder:
                             weight=weight,
                         )
                     except (ValueError, TypeError):
-                        logger.warning(
-                            f"解析前驱节点时间戳失败: {prev_node_id}"
-                        )
+                        logger.warning(f"解析前驱节点时间戳失败: {prev_node_id}")
 
         # emotional 边：最近同情绪 episodic → 当前 episodic
         if emotion:
-            similar_id = self.get_similar_emotion_episodic(
-                emotion, exclude_id=node_id
-            )
+            similar_id = self.get_similar_emotion_episodic(emotion, exclude_id=node_id)
             if similar_id:
                 self.storage.add_edge(
                     source_id=similar_id,
@@ -246,15 +249,12 @@ class MemoryEncoder:
         matching = [
             n
             for n in episodic_nodes
-            if n.metadata.get("emotion") == emotion
-            and n.id != exclude_id
+            if n.metadata.get("emotion") == emotion and n.id != exclude_id
         ]
         matching.sort(key=lambda n: n.created_at or "", reverse=True)
         return matching[0].id if matching else None
 
-    def extract_entities(
-        self, content: str, runtime_agent=None
-    ) -> List[str]:
+    def extract_entities(self, content: str, runtime_agent=None) -> List[str]:
         """提取实体名称（规则优先+LLM兜底）
 
         1. 先用内置词典匹配内容中的关键词
@@ -328,9 +328,7 @@ class MemoryEncoder:
         row = cursor.fetchone()
         return row["id"] if row else None
 
-    def create_or_get_entity(
-        self, entity_name: str, properties: dict = None
-    ) -> str:
+    def create_or_get_entity(self, entity_name: str, properties: dict = None) -> str:
         """创建或获取实体节点（去重）
 
         如果已存在同名实体节点，返回现有node_id。
@@ -370,5 +368,7 @@ class MemoryEncoder:
         )
 
         self.storage.add_node(node)
-        logger.info(f"✨ 新实体已创建: {entity_name} ({metadata['entity_type']}) → {node_id}")
+        logger.info(
+            f"✨ 新实体已创建: {entity_name} ({metadata['entity_type']}) → {node_id}"
+        )
         return node_id

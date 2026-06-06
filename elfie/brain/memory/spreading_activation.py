@@ -11,8 +11,13 @@ class SpreadingActivation:
     def __init__(self, storage: GraphStorage):
         self.storage = storage
 
-    def spread(self, seed_node_ids: List[str], max_hops: int = 2,
-               decay: float = 0.5, threshold: float = 0.1) -> Dict[str, float]:
+    def spread(
+        self,
+        seed_node_ids: List[str],
+        max_hops: int = 2,
+        decay: float = 0.5,
+        threshold: float = 0.1,
+    ) -> Dict[str, float]:
         """扩散激活算法
 
         参数：
@@ -38,7 +43,7 @@ class SpreadingActivation:
         for nid in seed_node_ids:
             activation[nid] = 1.0
 
-        current_frontier: Dict[str, float] = {nid: 1.0 for nid in seed_node_ids}
+        current_frontier: Dict[str, float] = dict.fromkeys(seed_node_ids, 1.0)
 
         for _ in range(max_hops):
             next_frontier: Dict[str, float] = {}
@@ -70,5 +75,5 @@ class SpreadingActivation:
 
         返回 [(neighbor_id, edge_weight), ...]
         """
-        edges = self.storage.get_edges(node_id, direction='both')
+        edges = self.storage.get_edges(node_id, direction="both")
         return [(edge.target, edge.weight) for edge in edges]

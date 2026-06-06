@@ -19,10 +19,10 @@ class EbbinghausDecay:
 
     # 半衰期配置（天）
     HALF_LIVES = {
-        "episodic": 7,       # 情景记忆7天半衰期
-        "entity": 365,       # 实体记忆365天半衰期
-        "knowledge": 30,     # 知识记忆30天半衰期
-        "pattern": 60,       # 模式记忆60天半衰期
+        "episodic": 7,  # 情景记忆7天半衰期
+        "entity": 365,  # 实体记忆365天半衰期
+        "knowledge": 30,  # 知识记忆30天半衰期
+        "pattern": 60,  # 模式记忆60天半衰期
     }
 
     # 鬼影底线
@@ -111,7 +111,9 @@ class EbbinghausDecay:
         """
         return 1.0 + 0.2 * recall_count
 
-    def _time_diff_days(self, created_at: Optional[str], current_time: Optional[str] = None) -> float:
+    def _time_diff_days(
+        self, created_at: Optional[str], current_time: Optional[str] = None
+    ) -> float:
         """计算时间差（天）。
 
         自动处理 timezone-naive 和 timezone-aware 的混合输入：

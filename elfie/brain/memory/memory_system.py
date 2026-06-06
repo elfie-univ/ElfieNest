@@ -39,8 +39,9 @@ logger = logging.getLogger("elfie.brain.memory.memory_system")
 class MemorySystem:
     """记忆系统门面：组合所有子系统，提供统一API"""
 
-    def __init__(self, db_path: Optional[str] = None,
-                 personality_path: Optional[str] = None):
+    def __init__(
+        self, db_path: Optional[str] = None, personality_path: Optional[str] = None
+    ):
         """初始化所有组件
 
         Args:
@@ -50,17 +51,23 @@ class MemorySystem:
         self.storage = GraphStorage(db_path)
         self.sensory_buffer = SensoryBuffer()
         self.core_cognition = CoreCognition(db_path, personality_path)
-        self.encoder = MemoryEncoder(self.storage, self.sensory_buffer)
+        self.sensory_indexer = SensoryIndexer(self.storage)
+        self.encoder = MemoryEncoder(
+            self.storage, self.sensory_buffer, self.sensory_indexer
+        )
         self.retriever = MemoryRetriever(self.storage)
         self.spreading = SpreadingActivation(self.storage)
         self.decay = EbbinghausDecay()
         self.weighting = EmotionWeighting()
         self.consolidator = MemoryConsolidator(self.storage, self.core_cognition)
         self.context_assembler = ContextAssembler(
-            self.storage, self.retriever, self.spreading,
-            self.decay, self.weighting, self.core_cognition,
+            self.storage,
+            self.retriever,
+            self.spreading,
+            self.decay,
+            self.weighting,
+            self.core_cognition,
         )
-        self.sensory_indexer = SensoryIndexer(self.storage)
 
     def record_episode(
         self,
@@ -96,7 +103,9 @@ class MemorySystem:
         emo = emotion_tag if emotion_tag is not None else emotion
         inte = emotion_intensity if emotion_intensity is not None else intensity
         if event is None:
-            raise TypeError("record_episode() missing required argument: 'content' or 'event_description'")
+            raise TypeError(
+                "record_episode() missing required argument: 'content' or 'event_description'"
+            )
         return self.encoder.encode(event, emo, inte, stimulus, sensory, runtime_agent)
 
     def retrieve_relevant_memories(
@@ -157,14 +166,18 @@ class MemorySystem:
         nodes = self.storage.get_nodes_by_type("episodic", limit=1000)
         episodes = []
         for node in nodes:
-            episodes.append({
-                "content": node.content,
-                "metadata": {
-                    "emotion": node.metadata.get("emotion", ""),
-                    "timestamp": node.metadata.get("timestamp", node.created_at or ""),
-                    "intensity": node.metadata.get("emotion_intensity", 0.0),
-                },
-            })
+            episodes.append(
+                {
+                    "content": node.content,
+                    "metadata": {
+                        "emotion": node.metadata.get("emotion", ""),
+                        "timestamp": node.metadata.get(
+                            "timestamp", node.created_at or ""
+                        ),
+                        "intensity": node.metadata.get("emotion_intensity", 0.0),
+                    },
+                }
+            )
         return episodes
 
     def get_context(

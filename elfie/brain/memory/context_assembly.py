@@ -21,9 +21,15 @@ logger = logging.getLogger("elfie.brain.memory.context_assembly")
 class ContextAssembler:
     """5区域上下文组装：将检索结果组装为LLM prompt注入的上下文"""
 
-    def __init__(self, storage: GraphStorage, retriever: MemoryRetriever,
-                 spreading: SpreadingActivation, decay: EbbinghausDecay,
-                 weighting: EmotionWeighting, core_cognition: CoreCognition):
+    def __init__(
+        self,
+        storage: GraphStorage,
+        retriever: MemoryRetriever,
+        spreading: SpreadingActivation,
+        decay: EbbinghausDecay,
+        weighting: EmotionWeighting,
+        core_cognition: CoreCognition,
+    ):
         self.storage = storage
         self.retriever = retriever
         self.spreading = spreading
@@ -86,9 +92,7 @@ class ContextAssembler:
         if zone3:
             zones.append(zone3)
 
-        zone4 = self._assemble_prediction_zone(
-            query.recent_events, entities
-        )
+        zone4 = self._assemble_prediction_zone(query.recent_events, entities)
         if zone4:
             zones.append(zone4)
 
@@ -129,9 +133,7 @@ class ContextAssembler:
             NodeTypes.ENTITY.value, limit=1000
         )
         for entity_name in entities:
-            matched = [
-                n for n in all_entity_nodes if entity_name in n.content
-            ]
+            matched = [n for n in all_entity_nodes if entity_name in n.content]
             if matched:
                 for node in matched:
                     lines.append(f"  - {node.content}")
@@ -153,14 +155,8 @@ class ContextAssembler:
 
         lines = ["最近相关经历："]
         for node in nodes[:5]:
-            strength = self.decay.compute_strength(
-                node, query.current_time
-            )
-            timestamp = (
-                node.metadata.get("timestamp")
-                or node.created_at
-                or ""
-            )
+            strength = self.decay.compute_strength(node, query.current_time)
+            timestamp = node.metadata.get("timestamp") or node.created_at or ""
             time_part = f"{timestamp} " if timestamp else ""
             lines.append(f"  - {time_part}{node.content}({strength:.1f})")
 
@@ -180,9 +176,7 @@ class ContextAssembler:
             return ""
 
         lines = ["联想到："]
-        sorted_items = sorted(
-            activation.items(), key=lambda x: x[1], reverse=True
-        )
+        sorted_items = sorted(activation.items(), key=lambda x: x[1], reverse=True)
         for node_id, _act_score in sorted_items[:5]:
             node = self.storage.get_node(node_id)
             if node:
@@ -243,12 +237,8 @@ class ContextAssembler:
 
         if intensity > 0.7:
             if emotion in ("happy", "calm"):
-                lines.append(
-                    "  - 强烈的正面情绪让你更容易想起愉快的事"
-                )
+                lines.append("  - 强烈的正面情绪让你更容易想起愉快的事")
             elif emotion in ("fear", "sadness", "anger"):
-                lines.append(
-                    "  - 强烈的负面情绪让你更容易想起相似经历"
-                )
+                lines.append("  - 强烈的负面情绪让你更容易想起相似经历")
 
         return "\n".join(lines)

@@ -7,7 +7,13 @@ from elfie.brain.memory.encoding import MemoryEncoder
 from elfie.brain.memory.graph_storage import GraphStorage
 from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.memory.migration import migrate_from_json
-from elfie.brain.memory.node_types import Edge, EdgeTypes, MemoryNode, NodeTypes, RetrievalQuery
+from elfie.brain.memory.node_types import (
+    Edge,
+    EdgeTypes,
+    MemoryNode,
+    NodeTypes,
+    RetrievalQuery,
+)
 from elfie.brain.memory.retrieval import MemoryRetriever
 from elfie.brain.memory.sensory_buffer import SensoryBuffer
 from elfie.brain.memory.sensory_index import SensoryIndexer

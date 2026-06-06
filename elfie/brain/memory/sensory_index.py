@@ -38,7 +38,9 @@ class SensoryIndexer:
             )
         self.storage.conn.commit()
 
-    def search_by_sensory(self, sense_type: str, keyword: str, top_k: int = 5) -> List[Tuple[str, float]]:
+    def search_by_sensory(
+        self, sense_type: str, keyword: str, top_k: int = 5
+    ) -> List[Tuple[str, float]]:
         """按感官类型和关键词检索节点
 
         返回 [(node_id, weight), ...] 按weight降序

@@ -22,6 +22,7 @@ logger = logging.getLogger("elfie.brain.memory.core_cognition")
 # 人格维度 → 文本片段的模板函数
 # ---------------------------------------------------------------------------
 
+
 def _trait_level(value: float) -> str:
     """将0~1的人格维度值分为低/中/高三档"""
     if value < 0.33:
@@ -31,7 +32,9 @@ def _trait_level(value: float) -> str:
     return "high"
 
 
-def _generate_identity(big_five: Dict[str, float], name: str, verbal_tick: str = "") -> str:
+def _generate_identity(
+    big_five: Dict[str, float], name: str, verbal_tick: str = ""
+) -> str:
     """生成身份认知：基于开放性、外向性、宜人性、尽责性、神经质"""
     parts = [f"我是{name}，一只小狐狸。"]
     descs = []
@@ -70,7 +73,9 @@ def _generate_identity(big_five: Dict[str, float], name: str, verbal_tick: str =
     return "".join(parts)
 
 
-def _generate_relation(big_five: Dict[str, float], name: str, verbal_tick: str = "") -> str:
+def _generate_relation(
+    big_five: Dict[str, float], name: str, verbal_tick: str = ""
+) -> str:
     """生成关系认知：基于宜人性、尽责性、神经质、外向性"""
     a = big_five.get("agreeableness", 0.5)
     c = big_five.get("conscientiousness", 0.5)
@@ -99,7 +104,9 @@ def _generate_relation(big_five: Dict[str, float], name: str, verbal_tick: str =
     return "".join(sentences)
 
 
-def _generate_world(big_five: Dict[str, float], name: str, verbal_tick: str = "") -> str:
+def _generate_world(
+    big_five: Dict[str, float], name: str, verbal_tick: str = ""
+) -> str:
     """生成世界观：基于开放性、神经质、外向性"""
     o = big_five.get("openness", 0.5)
     n = big_five.get("neuroticism", 0.5)
@@ -124,7 +131,9 @@ def _generate_world(big_five: Dict[str, float], name: str, verbal_tick: str = ""
     return "".join(sentences)
 
 
-def _generate_tendency(big_five: Dict[str, float], name: str, verbal_tick: str = "") -> str:
+def _generate_tendency(
+    big_five: Dict[str, float], name: str, verbal_tick: str = ""
+) -> str:
     """生成行为倾向：基于外向性、开放性、神经质、宜人性、尽责性"""
     e = big_five.get("extraversion", 0.5)
     o = big_five.get("openness", 0.5)
@@ -166,6 +175,7 @@ _CORE_GENERATORS: Dict[str, Any] = {
 # CoreCognition 主类
 # ---------------------------------------------------------------------------
 
+
 class CoreCognition:
     """核心认知：4段核心信念，持久化到SQLite，注入LLM prompt"""
 
@@ -181,12 +191,15 @@ class CoreCognition:
         if cls._DEFAULT_PERSONALITY_PATH is None:
             cls._DEFAULT_PERSONALITY_PATH = str(
                 Path(__file__).resolve().parent.parent.parent.parent
-                / "elfie" / "config" / "personality.yaml"
+                / "elfie"
+                / "config"
+                / "personality.yaml"
             )
         return cls._DEFAULT_PERSONALITY_PATH
 
-    def __init__(self, db_path: str = ":memory:",
-                 personality_path: Optional[str] = None):
+    def __init__(
+        self, db_path: str = ":memory:", personality_path: Optional[str] = None
+    ):
         """从SQLite加载核心认知，如不存在则从personality.yaml初始化。
 
         Args:
@@ -241,17 +254,14 @@ class CoreCognition:
             node_id = f"core_{core_key}"
             meta = {
                 "core_key": core_key,
-                "trait_levels": {
-                    k: _trait_level(v) for k, v in big_five.items()
-                },
+                "trait_levels": {k: _trait_level(v) for k, v in big_five.items()},
             }
 
             self.storage.conn.execute(
                 """INSERT OR REPLACE INTO nodes
                    (id, type, content, metadata, edges, created_at, updated_at)
                    VALUES (?, 'core', ?, ?, '[]', ?, ?)""",
-                (node_id, text, json.dumps(meta, ensure_ascii=False),
-                 now, now),
+                (node_id, text, json.dumps(meta, ensure_ascii=False), now, now),
             )
 
             self._core_text[core_key] = text
@@ -278,8 +288,9 @@ class CoreCognition:
     # 巩固更新
     # ------------------------------------------------------------------
 
-    def update(self, consolidation_results: Optional[dict] = None,
-               runtime_agent=None) -> None:
+    def update(
+        self, consolidation_results: Optional[dict] = None, runtime_agent=None
+    ) -> None:
         """巩固时更新核心认知。
 
         增量更新：每次巩固更新entity属性到核心认知
@@ -321,17 +332,22 @@ class CoreCognition:
                 except (json.JSONDecodeError, TypeError):
                     meta = {}
 
-                meta.setdefault("consolidation_updates", []).append({
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "update_number": self._update_count,
-                })
+                meta.setdefault("consolidation_updates", []).append(
+                    {
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "update_number": self._update_count,
+                    }
+                )
                 # 保留最近10条
                 meta["consolidation_updates"] = meta["consolidation_updates"][-10:]
 
                 self.storage.conn.execute(
                     "UPDATE nodes SET metadata = ?, updated_at = ? WHERE id = ?",
-                    (json.dumps(meta, ensure_ascii=False),
-                     datetime.now(timezone.utc).isoformat(), node_id),
+                    (
+                        json.dumps(meta, ensure_ascii=False),
+                        datetime.now(timezone.utc).isoformat(),
+                        node_id,
+                    ),
                 )
 
         # --- 周期性全量重写 ---
@@ -372,9 +388,7 @@ class CoreCognition:
             node_id = f"core_{core_key}"
             meta = {
                 "core_key": core_key,
-                "trait_levels": {
-                    k: _trait_level(v) for k, v in big_five.items()
-                },
+                "trait_levels": {k: _trait_level(v) for k, v in big_five.items()},
                 "rewritten_at": now,
                 "rewrite_count": self._update_count,
             }
@@ -390,15 +404,12 @@ class CoreCognition:
                 """INSERT OR REPLACE INTO nodes
                    (id, type, content, metadata, edges, created_at, updated_at)
                    VALUES (?, 'core', ?, ?, '[]', ?, ?)""",
-                (node_id, text, json.dumps(meta, ensure_ascii=False),
-                 created_at, now),
+                (node_id, text, json.dumps(meta, ensure_ascii=False), created_at, now),
             )
 
             self._core_text[core_key] = text
 
-        logger.info(
-            "🧠 [核心认知] 全量重写完成（第%d次巩固）", self._update_count
-        )
+        logger.info("🧠 [核心认知] 全量重写完成（第%d次巩固）", self._update_count)
 
     # ------------------------------------------------------------------
     # 增量entity属性更新
@@ -442,9 +453,7 @@ class CoreCognition:
 
         # 增量更新文本：追加属性描述（不重写整段）
         for prop_name, prop_value in properties.items():
-            desc = self._format_entity_property(
-                entity_name, prop_name, prop_value
-            )
+            desc = self._format_entity_property(entity_name, prop_name, prop_value)
             if desc not in current_text:
                 current_text += desc
 
@@ -457,8 +466,7 @@ class CoreCognition:
         self._core_text[target_key] = current_text
 
     @staticmethod
-    def _format_entity_property(entity_name: str, prop_name: str,
-                                 prop_value) -> str:
+    def _format_entity_property(entity_name: str, prop_name: str, prop_value) -> str:
         """格式化entity属性为简短中文描述。"""
         if prop_value is True:
             return f"{entity_name}很{prop_name}。"
@@ -477,9 +485,7 @@ class CoreCognition:
 
         try:
             if runtime_agent is not None:
-                logger.info(
-                    "🧠 [核心认知] LLM全量重写——待实现，当前使用模板回退"
-                )
+                logger.info("🧠 [核心认知] LLM全量重写——待实现，当前使用模板回退")
             self._rewrite_all()
         except Exception as exc:
             logger.error("🧠 [核心认知] 全量重写失败，回滚: %s", exc)
@@ -552,9 +558,7 @@ class CoreCognition:
             实际保存的文件路径
         """
         if filepath is None:
-            project_root = (
-                Path(__file__).resolve().parent.parent.parent.parent
-            )
+            project_root = Path(__file__).resolve().parent.parent.parent.parent
             filepath = str(project_root / ".elfie_core_cognition.json")
 
         data = {
@@ -590,13 +594,9 @@ class CoreCognition:
                 if core_key in self.CORE_KEYS:
                     self._core_text[core_key] = row["content"]
             self._update_count = 0
-            logger.info(
-                "🧠 [核心认知] 从数据库加载%d条核心认知", len(rows)
-            )
+            logger.info("🧠 [核心认知] 从数据库加载%d条核心认知", len(rows))
         elif self.personality_path and os.path.exists(self.personality_path):
-            logger.info(
-                "🧠 [核心认知] 数据库为空，从personality.yaml自动初始化"
-            )
+            logger.info("🧠 [核心认知] 数据库为空，从personality.yaml自动初始化")
             self.initialize_from_personality()
 
     def close(self) -> None:

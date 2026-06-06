@@ -1,7 +1,5 @@
 import logging
-from typing import Any, Dict, Optional
-
-from elfie.brain.memory.memory_system import MemorySystem
+from typing import Any, Dict
 
 logger = logging.getLogger("elfie.brain.context_builder")
 
@@ -9,12 +7,9 @@ logger = logging.getLogger("elfie.brain.context_builder")
 class ThalamusContextBuilder:
     """中层：丘脑 (上下文拼装总线 - Context Bus)"""
 
-    def __init__(self, memory_system: Optional[MemorySystem] = None):
-        """初始化丘脑上下文拼装总线
-
-        :param memory_system: 记忆系统门面实例（注入后替代旧海马体直连）
-        """
-        self.memory_system = memory_system
+    def __init__(self):
+        """初始化丘脑上下文拼装总线"""
+        pass
 
     def assemble(
         self,
@@ -56,7 +51,7 @@ class ThalamusContextBuilder:
 
         # 4. 使用记忆系统门面检索并组装5区域上下文
         user_message = filtered_sensors["user_message"]
-        active_memory = self.memory_system or memory_system
+        active_memory = memory_system
         if user_message and active_memory:
             emotion_intensity = getattr(
                 emotion_engine, "get_emotion_value", lambda _: 0.0

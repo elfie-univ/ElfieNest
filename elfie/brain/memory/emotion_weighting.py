@@ -5,7 +5,7 @@
 """
 
 from datetime import datetime, timedelta
-from typing import Dict, Optional
+from typing import Dict
 
 from elfie.brain.memory.node_types import NodeTypes
 
@@ -15,11 +15,11 @@ class EmotionWeighting:
 
     # 5种情绪权重配置（来自设计文档）
     EMOTION_WEIGHTS: Dict[str, Dict[str, float]] = {
-        "calm":    {"semantic": 0.55, "mood": 0.15, "recency": 0.20, "spread": 0.10},
-        "happy":   {"semantic": 0.40, "mood": 0.30, "recency": 0.15, "spread": 0.15},
-        "fear":    {"semantic": 0.25, "mood": 0.45, "recency": 0.10, "spread": 0.20},
+        "calm": {"semantic": 0.55, "mood": 0.15, "recency": 0.20, "spread": 0.10},
+        "happy": {"semantic": 0.40, "mood": 0.30, "recency": 0.15, "spread": 0.15},
+        "fear": {"semantic": 0.25, "mood": 0.45, "recency": 0.10, "spread": 0.20},
         "sadness": {"semantic": 0.30, "mood": 0.40, "recency": 0.15, "spread": 0.15},
-        "anger":   {"semantic": 0.25, "mood": 0.40, "recency": 0.10, "spread": 0.25},
+        "anger": {"semantic": 0.25, "mood": 0.40, "recency": 0.10, "spread": 0.25},
     }
 
     # 类型增强系数
@@ -31,7 +31,10 @@ class EmotionWeighting:
     }
 
     DEFAULT_WEIGHTS: Dict[str, float] = {
-        "semantic": 0.40, "mood": 0.25, "recency": 0.20, "spread": 0.15,
+        "semantic": 0.40,
+        "mood": 0.25,
+        "recency": 0.20,
+        "spread": 0.15,
     }
 
     def get_weights(self, emotion: str) -> Dict[str, float]:

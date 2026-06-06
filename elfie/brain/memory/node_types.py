@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 
 class NodeTypes(str, Enum):
     """节点类型枚举"""
+
     EPISODIC = "episodic"
     ENTITY = "entity"
     KNOWLEDGE = "knowledge"
@@ -18,6 +19,7 @@ class NodeTypes(str, Enum):
 
 class EdgeTypes(str, Enum):
     """边类型枚举"""
+
     INVOLVES = "involves"
     TEMPORAL = "temporal"
     EMOTIONAL = "emotional"
@@ -30,16 +32,18 @@ class EdgeTypes(str, Enum):
 @dataclass
 class Edge:
     """边：连接两个记忆节点的有向关系"""
-    target: str          # 目标节点ID
-    rel: str             # 边类型（EdgeTypes值）
+
+    target: str  # 目标节点ID
+    rel: str  # 边类型（EdgeTypes值）
     weight: float = 0.5  # 边权重（0~1）
 
 
 @dataclass
 class MemoryNode:
     """记忆节点：图中的顶点，代表一条记忆"""
+
     id: str
-    type: str            # NodeTypes值
+    type: str  # NodeTypes值
     content: str
     metadata: Dict[str, Any] = field(default_factory=dict)
     edges: List[Edge] = field(default_factory=list)
@@ -50,6 +54,7 @@ class MemoryNode:
 @dataclass
 class RetrievalQuery:
     """检索查询：描述当前上下文，用于检索相关记忆"""
+
     text_query: str = ""
     current_emotion: str = ""
     current_intensity: float = 0.0

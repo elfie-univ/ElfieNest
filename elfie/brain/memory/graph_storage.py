@@ -10,11 +10,10 @@ import math
 import sqlite3
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-
-from .tokenizer import tokenize
+from typing import List, Optional, Tuple
 
 from .node_types import Edge, MemoryNode
+from .tokenizer import tokenize
 
 logger = logging.getLogger("elfie.brain.memory.graph_storage")
 
@@ -66,11 +65,19 @@ class GraphStorage:
         # 建索引
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_nodes_type ON nodes(type)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_nodes_content ON nodes(content)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_edges_source ON edges(source_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_edges_target ON edges(target_id)")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_edges_source ON edges(source_id)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_edges_target ON edges(target_id)"
+        )
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_edges_rel ON edges(rel)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sense_key ON sensory_index(sense_key)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sense_type ON sensory_index(sense_type)")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sense_key ON sensory_index(sense_key)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sense_type ON sensory_index(sense_type)"
+        )
         self.conn.commit()
         logger.info(f"💾 [图存储] 数据库schema初始化完成: {self.db_path}")
 
@@ -100,15 +107,25 @@ class GraphStorage:
         """
         metadata_json = json.dumps(node.metadata, ensure_ascii=False)
         edges_json = json.dumps(
-            [{"target": e.target, "rel": e.rel, "weight": e.weight} for e in node.edges],
+            [
+                {"target": e.target, "rel": e.rel, "weight": e.weight}
+                for e in node.edges
+            ],
             ensure_ascii=False,
         )
         now = datetime.now().isoformat()
         self.conn.execute(
             """INSERT OR REPLACE INTO nodes (id, type, content, metadata, edges, created_at, updated_at)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (node.id, node.type, node.content, metadata_json, edges_json,
-             node.created_at or now, node.updated_at or now),
+            (
+                node.id,
+                node.type,
+                node.content,
+                metadata_json,
+                edges_json,
+                node.created_at or now,
+                node.updated_at or now,
+            ),
         )
         self.conn.commit()
         return node.id
@@ -143,7 +160,10 @@ class GraphStorage:
         node.updated_at = datetime.now().isoformat()
         metadata_json = json.dumps(node.metadata, ensure_ascii=False)
         edges_json = json.dumps(
-            [{"target": e.target, "rel": e.rel, "weight": e.weight} for e in node.edges],
+            [
+                {"target": e.target, "rel": e.rel, "weight": e.weight}
+                for e in node.edges
+            ],
             ensure_ascii=False,
         )
         self.conn.execute(
@@ -166,7 +186,10 @@ class GraphStorage:
         node.updated_at = datetime.now().isoformat()
         metadata_json = json.dumps(node.metadata, ensure_ascii=False)
         edges_json = json.dumps(
-            [{"target": e.target, "rel": e.rel, "weight": e.weight} for e in node.edges],
+            [
+                {"target": e.target, "rel": e.rel, "weight": e.weight}
+                for e in node.edges
+            ],
             ensure_ascii=False,
         )
         self.conn.execute(
@@ -176,7 +199,9 @@ class GraphStorage:
         self.conn.commit()
         return True
 
-    def add_edge(self, source_id: str, target_id: str, rel: str, weight: float = 0.5) -> int:
+    def add_edge(
+        self, source_id: str, target_id: str, rel: str, weight: float = 0.5
+    ) -> int:
         """添加边，返回edge id"""
         cursor = self.conn.execute(
             "INSERT INTO edges (source_id, target_id, rel, weight) VALUES (?, ?, ?, ?)",
@@ -185,7 +210,7 @@ class GraphStorage:
         self.conn.commit()
         return cursor.lastrowid
 
-    def get_edges(self, node_id: str, direction: str = 'outgoing') -> List[Edge]:
+    def get_edges(self, node_id: str, direction: str = "outgoing") -> List[Edge]:
         """获取节点的出/入边
 
         direction='outgoing': 查询source_id=node_id
@@ -193,18 +218,24 @@ class GraphStorage:
         direction='both': 查询两者
         返回List[Edge]
         """
-        if direction == 'outgoing':
+        if direction == "outgoing":
             cursor = self.conn.execute(
                 "SELECT target_id, rel, weight FROM edges WHERE source_id=?", (node_id,)
             )
             rows = cursor.fetchall()
-            return [Edge(target=r["target_id"], rel=r["rel"], weight=r["weight"]) for r in rows]
-        elif direction == 'incoming':
+            return [
+                Edge(target=r["target_id"], rel=r["rel"], weight=r["weight"])
+                for r in rows
+            ]
+        elif direction == "incoming":
             cursor = self.conn.execute(
                 "SELECT source_id, rel, weight FROM edges WHERE target_id=?", (node_id,)
             )
             rows = cursor.fetchall()
-            return [Edge(target=r["source_id"], rel=r["rel"], weight=r["weight"]) for r in rows]
+            return [
+                Edge(target=r["source_id"], rel=r["rel"], weight=r["weight"])
+                for r in rows
+            ]
         else:  # 'both'
             cursor = self.conn.execute(
                 "SELECT source_id, target_id, rel, weight FROM edges WHERE source_id=? OR target_id=?",
@@ -214,19 +245,24 @@ class GraphStorage:
             edges = []
             for r in rows:
                 if r["source_id"] == node_id:
-                    edges.append(Edge(target=r["target_id"], rel=r["rel"], weight=r["weight"]))
+                    edges.append(
+                        Edge(target=r["target_id"], rel=r["rel"], weight=r["weight"])
+                    )
                 else:
-                    edges.append(Edge(target=r["source_id"], rel=r["rel"], weight=r["weight"]))
+                    edges.append(
+                        Edge(target=r["source_id"], rel=r["rel"], weight=r["weight"])
+                    )
             return edges
 
     def get_nodes_by_type(self, node_type: str, limit: int = 100) -> List[MemoryNode]:
         """按类型查询节点"""
         cursor = self.conn.execute(
-            "SELECT * FROM nodes WHERE type=? LIMIT ?", (node_type, limit),
+            "SELECT * FROM nodes WHERE type=? LIMIT ?",
+            (node_type, limit),
         )
         return [self._row_to_node(row) for row in cursor.fetchall()]
 
-    def get_unconsolidated_nodes(self, node_type: str = 'episodic') -> List[MemoryNode]:
+    def get_unconsolidated_nodes(self, node_type: str = "episodic") -> List[MemoryNode]:
         """获取未巩固节点（metadata.consolidated != True）
 
         在Python中过滤JSON metadata，确保consolidated字段判断准确。
@@ -245,7 +281,9 @@ class GraphStorage:
         如果node_type指定，按类型计数；否则返回总节点数。
         """
         if node_type:
-            cursor = self.conn.execute("SELECT COUNT(*) FROM nodes WHERE type=?", (node_type,))
+            cursor = self.conn.execute(
+                "SELECT COUNT(*) FROM nodes WHERE type=?", (node_type,)
+            )
         else:
             cursor = self.conn.execute("SELECT COUNT(*) FROM nodes")
         return cursor.fetchone()[0]

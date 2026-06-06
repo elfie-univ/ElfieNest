@@ -38,7 +38,7 @@ def migrate_from_json(json_path: str, db_path: str) -> int:
         logger.warning(f"记忆文件不存在: {json_path}，跳过迁移")
         return 0
 
-    with open(json_file, "r", encoding="utf-8") as f:
+    with open(json_file, encoding="utf-8") as f:
         try:
             old_memories: List[Dict[str, Any]] = json.load(f)
         except json.JSONDecodeError as e:

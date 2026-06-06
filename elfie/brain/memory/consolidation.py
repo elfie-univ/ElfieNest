@@ -19,10 +19,10 @@
 import logging
 from collections import Counter
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from elfie.brain.memory.graph_storage import GraphStorage
-from elfie.brain.memory.node_types import Edge, MemoryNode, NodeTypes, EdgeTypes
+from elfie.brain.memory.node_types import EdgeTypes, MemoryNode, NodeTypes
 
 logger = logging.getLogger("elfie.brain.memory.consolidation")
 
@@ -34,7 +34,7 @@ class MemoryConsolidator:
         self.storage = storage
         self.core_cognition = core_cognition
         self._consolidation_count = 0  # 巩固次数计数
-        self._knowledge_counter = 0    # 知识节点ID计数器
+        self._knowledge_counter = 0  # 知识节点ID计数器
         self._llm_calls_this_cycle = 0
         self._max_llm_calls = 4
 
@@ -84,7 +84,9 @@ class MemoryConsolidator:
 
             # 步骤3：知识提炼（LLM优先，失败降级为规则提取）
             knowledge_items = self._extract_knowledge_with_llm(
-                group_nodes, entity_name, runtime_agent,
+                group_nodes,
+                entity_name,
+                runtime_agent,
             )
             if not knowledge_items:
                 continue
@@ -94,24 +96,28 @@ class MemoryConsolidator:
             all_knowledge_ids.extend(knowledge_ids)
 
             # 步骤5：建语义边
-            entity_ids_for_edges = (
-                [entity_id] if entity_id != "_ungrouped_" else []
-            )
+            entity_ids_for_edges = [entity_id] if entity_id != "_ungrouped_" else []
             edge_count = self._build_semantic_edges(
-                knowledge_ids, source_ids, entity_ids_for_edges,
+                knowledge_ids,
+                source_ids,
+                entity_ids_for_edges,
             )
             result["edges_created"] += edge_count
 
             # 步骤6：提取因果边（LLM依赖，无LLM时跳过）
             causal_count = self._extract_causal_edges(
-                group_nodes, runtime_agent,
+                group_nodes,
+                runtime_agent,
             )
             result["edges_created"] += causal_count
 
             # 步骤7：更新entity属性（基于提取的知识）
             if entity_id != "_ungrouped_" and entity_node is not None:
                 self._update_entity_properties(
-                    entity_id, entity_node, knowledge_items, group_nodes,
+                    entity_id,
+                    entity_node,
+                    knowledge_items,
+                    group_nodes,
                 )
 
         # 步骤8：标记原始episodic为consolidated=True
@@ -152,7 +158,8 @@ class MemoryConsolidator:
     # ------------------------------------------------------------------
 
     def _group_by_entity(
-        self, episodic_nodes: List[MemoryNode],
+        self,
+        episodic_nodes: List[MemoryNode],
     ) -> Dict[str, Dict[str, Any]]:
         """步骤2：按entity分组（通过involves边）
 
@@ -168,26 +175,30 @@ class MemoryConsolidator:
         for node in episodic_nodes:
             # 从内存中的 edges 列表查找 involves 边
             involved_entities = [
-                e.target
-                for e in node.edges
-                if e.rel == EdgeTypes.INVOLVES.value
+                e.target for e in node.edges if e.rel == EdgeTypes.INVOLVES.value
             ]
 
             # 也查relational edges表（补充可能未同步到JSON列的数据）
             try:
                 outgoing = self.storage.get_edges(node.id, direction="outgoing")
                 for e in outgoing:
-                    if e.rel == EdgeTypes.INVOLVES.value and e.target not in involved_entities:
+                    if (
+                        e.rel == EdgeTypes.INVOLVES.value
+                        and e.target not in involved_entities
+                    ):
                         involved_entities.append(e.target)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("实体分组查询失败: %s", e)
 
             if not involved_entities:
                 # 没有关联实体的节点归入未分组
-                groups.setdefault("_ungrouped_", {
-                    "entity_node": None,
-                    "nodes": [],
-                })["nodes"].append(node)
+                groups.setdefault(
+                    "_ungrouped_",
+                    {
+                        "entity_node": None,
+                        "nodes": [],
+                    },
+                )["nodes"].append(node)
             else:
                 for entity_id in involved_entities:
                     if entity_id not in groups:
@@ -226,7 +237,9 @@ class MemoryConsolidator:
             try:
                 prompt = self._build_extraction_prompt(group, entity_name)
                 response = runtime_agent.ask(
-                    prompt, energy=50.0, task_complexity=2,
+                    prompt,
+                    energy=50.0,
+                    task_complexity=2,
                 )
                 self._llm_calls_this_cycle += 1
                 if response and response.strip():
@@ -240,12 +253,13 @@ class MemoryConsolidator:
         return self._rule_based_extraction(group, entity_name)
 
     def _build_extraction_prompt(
-        self, group: List[MemoryNode], entity_name: str,
+        self,
+        group: List[MemoryNode],
+        entity_name: str,
     ) -> str:
         """构建LLM知识提取提示"""
         episodes_text = "\n".join(
-            f"- [{n.metadata.get('timestamp', 'unknown')}] {n.content}"
-            for n in group
+            f"- [{n.metadata.get('timestamp', 'unknown')}] {n.content}" for n in group
         )
         return (
             f"你是一个记忆巩固系统。以下是精灵小狐狸艾菲关于「{entity_name}」的多条经历：\n"
@@ -258,22 +272,27 @@ class MemoryConsolidator:
         )
 
     def _parse_llm_response(
-        self, response: str,
+        self,
+        response: str,
     ) -> List[Dict[str, Any]]:
         """解析LLM返回的知识项"""
         items = []
         for line in response.strip().split("\n"):
             line = line.strip().lstrip("-* ").strip()
             if line and len(line) > 3:
-                items.append({
-                    "content": line,
-                    "type": "knowledge",
-                    "confidence": 0.8,
-                })
+                items.append(
+                    {
+                        "content": line,
+                        "type": "knowledge",
+                        "confidence": 0.8,
+                    }
+                )
         return items
 
     def _rule_based_extraction(
-        self, group: List[MemoryNode], entity_name: str,
+        self,
+        group: List[MemoryNode],
+        entity_name: str,
     ) -> List[Dict[str, Any]]:
         """基于规则的知识提取（LLM不可用时的降级方案）
 
@@ -289,21 +308,25 @@ class MemoryConsolidator:
 
         # 频率模式：如果经历>=3次，提取为pattern
         if len(group) >= 3:
-            knowledge_items.append({
-                "content": f"与「{entity_name}」相关的经历出现{len(group)}次，是重要的互动对象",
-                "type": "pattern",
-                "confidence": min(0.9, 0.3 + len(group) * 0.1),
-            })
+            knowledge_items.append(
+                {
+                    "content": f"与「{entity_name}」相关的经历出现{len(group)}次，是重要的互动对象",
+                    "type": "pattern",
+                    "confidence": min(0.9, 0.3 + len(group) * 0.1),
+                }
+            )
 
         # 提取各条episodic中的情绪信息
         for node in group:
             emotion = node.metadata.get("emotion", "")
             if emotion:
-                knowledge_items.append({
-                    "content": f"涉及「{entity_name}」时情绪为{emotion}",
-                    "type": "knowledge",
-                    "confidence": 0.6,
-                })
+                knowledge_items.append(
+                    {
+                        "content": f"涉及「{entity_name}」时情绪为{emotion}",
+                        "type": "knowledge",
+                        "confidence": 0.6,
+                    }
+                )
 
         # 如果有重复情绪模式（所有记录情绪一致）
         emotions = [
@@ -312,11 +335,13 @@ class MemoryConsolidator:
             if n.metadata.get("emotion", "")
         ]
         if len(set(emotions)) == 1 and emotions:
-            knowledge_items.append({
-                "content": f"与「{entity_name}」互动时总是感到{emotions[0]}",
-                "type": "knowledge",
-                "confidence": 0.7,
-            })
+            knowledge_items.append(
+                {
+                    "content": f"与「{entity_name}」互动时总是感到{emotions[0]}",
+                    "type": "knowledge",
+                    "confidence": 0.7,
+                }
+            )
 
         # 去重（基于content去重）
         seen_contents: set = set()
@@ -348,8 +373,7 @@ class MemoryConsolidator:
         for item in knowledge_items:
             self._knowledge_counter += 1
             node_id = (
-                f"knowledge_c{self._consolidation_count}"
-                f"_n{self._knowledge_counter}"
+                f"knowledge_c{self._consolidation_count}_n{self._knowledge_counter}"
             )
             node = MemoryNode(
                 id=node_id,
@@ -395,14 +419,20 @@ class MemoryConsolidator:
             # supports边：knowledge → 原始episodic
             for sid in source_ids:
                 self.storage.add_edge(
-                    kid, sid, EdgeTypes.SUPPORTS.value, weight=0.8,
+                    kid,
+                    sid,
+                    EdgeTypes.SUPPORTS.value,
+                    weight=0.8,
                 )
                 edge_count += 1
 
             # about边：knowledge → entity
             for eid in entity_ids:
                 self.storage.add_edge(
-                    kid, eid, EdgeTypes.ABOUT.value, weight=0.9,
+                    kid,
+                    eid,
+                    EdgeTypes.ABOUT.value,
+                    weight=0.9,
                 )
                 edge_count += 1
 
@@ -437,7 +467,9 @@ class MemoryConsolidator:
             try:
                 prompt = self._build_causal_prompt(group)
                 response = runtime_agent.ask(
-                    prompt, energy=50.0, task_complexity=2,
+                    prompt,
+                    energy=50.0,
+                    task_complexity=2,
                 )
                 self._llm_calls_this_cycle += 1
                 if response and response.strip():
@@ -449,10 +481,14 @@ class MemoryConsolidator:
                         if len(parts) == 2:
                             cause_id = parts[0].strip()
                             effect_id = parts[1].strip()
-                            if cause_id.startswith("ep_") or effect_id.startswith("ep_"):
+                            if cause_id.startswith("ep_") or effect_id.startswith(
+                                "ep_"
+                            ):
                                 self.storage.add_edge(
-                                    cause_id, effect_id,
-                                    EdgeTypes.CAUSAL.value, weight=0.7,
+                                    cause_id,
+                                    effect_id,
+                                    EdgeTypes.CAUSAL.value,
+                                    weight=0.7,
                                 )
                                 edge_count += 1
             except Exception as e:
@@ -467,8 +503,10 @@ class MemoryConsolidator:
                 next_emotion = next_.metadata.get("emotion", "")
                 if curr_emotion and next_emotion and curr_emotion != next_emotion:
                     self.storage.add_edge(
-                        curr.id, next_.id,
-                        EdgeTypes.CAUSAL.value, weight=0.5,
+                        curr.id,
+                        next_.id,
+                        EdgeTypes.CAUSAL.value,
+                        weight=0.5,
                     )
                     edge_count += 1
 
@@ -515,12 +553,16 @@ class MemoryConsolidator:
         # 构建更新
         update_meta = {
             "consolidationInteractions": entity_node.metadata.get(
-                "consolidationInteractions", 0,
-            ) + len(group),
+                "consolidationInteractions",
+                0,
+            )
+            + len(group),
             "consolidationEmotions": emotion_counts,
             "knowledgeCount": entity_node.metadata.get(
-                "knowledgeCount", 0,
-            ) + len(knowledge_items),
+                "knowledgeCount",
+                0,
+            )
+            + len(knowledge_items),
             "lastConsolidatedAt": datetime.now(timezone.utc).isoformat(),
         }
 
@@ -529,7 +571,8 @@ class MemoryConsolidator:
         if backup is None:
             update_meta["consolidationBackup"] = {
                 "interactions": entity_node.metadata.get(
-                    "consolidationInteractions", 0,
+                    "consolidationInteractions",
+                    0,
                 ),
                 "knowledgeCount": entity_node.metadata.get("knowledgeCount", 0),
             }

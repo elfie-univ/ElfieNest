@@ -34,22 +34,16 @@ class MemoryRetriever:
             result_lists.append(self.retrieve_by_text(query.text_query, top_k))
 
         if query.current_entities:
-            result_lists.append(
-                self.retrieve_by_entity(query.current_entities, top_k)
-            )
+            result_lists.append(self.retrieve_by_entity(query.current_entities, top_k))
 
         if query.current_time:
             result_lists.append(self.retrieve_by_time(query.current_time, top_k))
 
         if query.current_emotion:
-            result_lists.append(
-                self.retrieve_by_emotion(query.current_emotion, top_k)
-            )
+            result_lists.append(self.retrieve_by_emotion(query.current_emotion, top_k))
 
         if query.current_sensory:
-            result_lists.append(
-                self.retrieve_by_sensory(query.current_sensory, top_k)
-            )
+            result_lists.append(self.retrieve_by_sensory(query.current_sensory, top_k))
 
         return self._merge_and_deduplicate(result_lists, top_k)
 
@@ -100,9 +94,7 @@ class MemoryRetriever:
                     node.metadata["_retrieval_dimension"] = "entity"
                     related.append(node)
 
-        related.sort(
-            key=lambda n: n.metadata.get("_retrieval_score", 0), reverse=True
-        )
+        related.sort(key=lambda n: n.metadata.get("_retrieval_score", 0), reverse=True)
         return related[:top_k]
 
     def retrieve_by_time(self, current_time: str, top_k: int = 5) -> List[MemoryNode]:
@@ -138,9 +130,7 @@ class MemoryRetriever:
             except (ValueError, TypeError):
                 continue
 
-        scored.sort(
-            key=lambda n: n.metadata.get("_retrieval_score", 0), reverse=True
-        )
+        scored.sort(key=lambda n: n.metadata.get("_retrieval_score", 0), reverse=True)
         return scored[:top_k]
 
     def retrieve_by_emotion(self, emotion: str, top_k: int = 5) -> List[MemoryNode]:
@@ -167,9 +157,7 @@ class MemoryRetriever:
             node.metadata["_retrieval_dimension"] = "emotion"
             matched.append(node)
 
-        matched.sort(
-            key=lambda n: n.metadata.get("_retrieval_score", 0), reverse=True
-        )
+        matched.sort(key=lambda n: n.metadata.get("_retrieval_score", 0), reverse=True)
         return matched[:top_k]
 
     def retrieve_by_sensory(
