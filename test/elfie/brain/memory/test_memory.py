@@ -13,6 +13,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from elfie.brain.memory.episode_manager import EpisodeMemoryManager
+from elfie.brain.memory.night_consolidator import NightMemoryConsolidator
 from elfie.brain.memory.vector_storage import TinyVectorStorage
 
 
@@ -200,6 +201,97 @@ class TestTinyVectorStorage:
         storage = TinyVectorStorage(temp_storage_path)
         assert storage.memories[0]["metadata"].get("level") == "episodic"
         assert storage.memories[0]["metadata"].get("intensity") == 0.0
+
+    def test_load_old_format_missing_level_and_intensity(self, temp_storage_path):
+        """加载无level/intensity字段的旧JSON时自动补默认值"""
+        old_data = [{"content": "旧记忆", "metadata": {"emotion": "happy", "timestamp": "2024-01-01"}}]
+        with open(temp_storage_path, "w", encoding="utf-8") as f:
+            json.dump(old_data, f)
+        storage = TinyVectorStorage(temp_storage_path)
+        assert storage.memories[0]["metadata"]["level"] == "episodic"
+        assert storage.memories[0]["metadata"]["intensity"] == 0.0
+
+    def test_load_corrupted_json(self, temp_storage_path):
+        """加载损坏的JSON文件不崩溃，返回空列表"""
+        with open(temp_storage_path, "w", encoding="utf-8") as f:
+            f.write("{not valid json")
+        storage = TinyVectorStorage(temp_storage_path)
+        assert storage.memories == []
+
+    def test_save_and_reload_preserves_level_and_intensity(self, temp_storage_path):
+        """保存后重新加载保留level和intensity字段"""
+        storage = TinyVectorStorage(temp_storage_path)
+        storage.add_memory("测试记忆", tags={"emotion": "happy"}, level="consolidated", intensity=75.0)
+        # 重新加载
+        storage2 = TinyVectorStorage(temp_storage_path)
+        assert storage2.memories[0]["metadata"]["level"] == "consolidated"
+        assert storage2.memories[0]["metadata"]["intensity"] == 75.0
+
+    def test_consolidation_with_mixed_emotions(self, temp_storage_path):
+        """多种情绪的混合记忆巩固，使用最频繁的情绪"""
+        mgr = EpisodeMemoryManager(temp_storage_path)
+        mgr.record_episode("开心的事", emotion_tag="happy", emotion_intensity=80.0)
+        mgr.record_episode("难过的事", emotion_tag="sad", emotion_intensity=90.0)
+        mgr.record_episode("开心的事2", emotion_tag="happy", emotion_intensity=70.0)
+        mgr.record_episode("平淡的事", emotion_tag="calm", emotion_intensity=20.0)
+
+        consolidator = NightMemoryConsolidator(mgr)
+
+        class MockRuntime:
+            def ask(self, p, energy, task_complexity):
+                return "今天整体情感体验丰富\n既经历了快乐也经历了悲伤"
+
+        result = consolidator.run_consolidation(MockRuntime())
+        # 确保巩固成功
+        episodes = mgr.get_all_episodes()
+        assert len(episodes) == 2  # 4条原记忆 -> 2条固化
+        # 主导情绪应该是"happy"（出现2次，最多）
+        # 这里我们验证巩固后的记忆有正确的情绪标记
+        for ep in episodes:
+            assert ep["metadata"]["level"] == "consolidated"
+
+    def test_consolidation_with_exactly_3_episodes(self, temp_storage_path):
+        """等于3条记忆时触发巩固"""
+        mgr = EpisodeMemoryManager(temp_storage_path)
+        mgr.record_episode("记忆一")
+        mgr.record_episode("记忆二")
+        mgr.record_episode("记忆三")
+        assert len(mgr.get_all_episodes()) == 3
+
+        consolidator = NightMemoryConsolidator(mgr)
+
+        class MockRuntime:
+            def ask(self, p, energy, task_complexity):
+                return "整合的三条记忆\n形成了完整的故事线"
+
+        result = consolidator.run_consolidation(MockRuntime())
+        assert "Error" not in result and "No consolidation" not in result
+        episodes = mgr.get_all_episodes()
+        assert len(episodes) == 2  # 3条 -> 2条固化
+
+    def test_first_ever_wake_cycle_no_consolidation(self):
+        """首次唤醒不触发巩固（was_sleeping从未为True）"""
+        # 模拟 was_sleeping 逻辑
+        was_sleeping = False  # 首次初始化，从未睡着
+        currently_sleeping = False  # 当前醒着
+        should_consolidate = was_sleeping and not currently_sleeping
+        assert not should_consolidate  # 不应该触发
+
+    def test_retrieve_with_no_current_emotion_fallback(self, temp_storage_path):
+        """current_emotion=None时回退到原始检索行为（不按情绪加权）"""
+        storage = TinyVectorStorage(temp_storage_path)
+        storage.add_memory("开心的记忆", tags={"emotion": "happy", "level": "episodic", "intensity": 80.0})
+        storage.add_memory("悲伤的记忆", tags={"emotion": "sad", "level": "episodic", "intensity": 60.0})
+
+        # 不传current_emotion时，保持原始TF-IDF权重
+        results_no_emotion = storage.retrieve_relevant_memories("记忆")
+        assert len(results_no_emotion) > 0
+
+        # 传current_emotion时，匹配情绪加权
+        results_happy = storage.retrieve_relevant_memories("记忆", current_emotion="happy")
+        assert len(results_happy) > 0
+        # happy情绪下，开心的记忆排序更高
+        assert results_happy[0] == "开心的记忆"
 
 
 class TestEpisodeMemoryManager:

@@ -58,7 +58,13 @@ class TinyVectorStorage:
         except Exception as e:
             logger.error(f"保存记忆文件异常: {e}")
 
-    def add_memory(self, text: str, tags: Dict[str, Any] = None, level: str = "episodic", intensity: float = 0.0):
+    def add_memory(
+        self,
+        text: str,
+        tags: Dict[str, Any] = None,
+        level: str = "episodic",
+        intensity: float = 0.0,
+    ):
         """
         向海马体存入一条新记忆
         :param text: 记忆陈述句
@@ -78,12 +84,16 @@ class TinyVectorStorage:
         self.memories.append(entry)
 
         if len(self.memories) > 100:
-            logger.warning(f"海马体记忆容量超过100条({len(self.memories)}条)，建议触发夜间巩固。")
+            logger.warning(
+                f"海马体记忆容量超过100条({len(self.memories)}条)，建议触发夜间巩固。"
+            )
             self.memories = self.memories[-100:]
 
         self.save_to_disk()
 
-    def retrieve_relevant_memories(self, query: str, top_k: int = 2, current_emotion: str = None, level: str = None) -> List[str]:
+    def retrieve_relevant_memories(
+        self, query: str, top_k: int = 2, current_emotion: str = None, level: str = None
+    ) -> List[str]:
         """
         检索语义最相关的 k 条记忆 (采用高效率的 TF-IDF 关键词语义相似打分，模拟向量距离)
         :param query: 检索 Prompt 或句子
@@ -103,7 +113,9 @@ class TinyVectorStorage:
         # 先根据 level 过滤（如果有指定）
         candidate_memories = self.memories
         if level:
-            candidate_memories = [m for m in self.memories if m.get("metadata", {}).get("level") == level]
+            candidate_memories = [
+                m for m in self.memories if m.get("metadata", {}).get("level") == level
+            ]
             if not candidate_memories:
                 return []
 
