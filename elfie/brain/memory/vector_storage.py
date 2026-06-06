@@ -143,7 +143,10 @@ class TinyVectorStorage:
             else:
                 if meta.get("emotion") == current_emotion:
                     intensity = meta.get("intensity", 0.0)
+                    # 乘法加成：语义匹配分数乘以情绪权重（最高1.5x）
                     score *= 1.0 + (intensity / 100.0) * 0.5
+                    # 加法加成：即使语义匹配为0，情绪匹配也提供最低权重
+                    score += (intensity / 100.0) * 0.6
 
             # consolidated 级别额外权重
             if meta.get("level") == "consolidated":
