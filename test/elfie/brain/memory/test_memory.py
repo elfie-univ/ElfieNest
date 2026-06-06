@@ -148,6 +148,59 @@ class TestTinyVectorStorage:
             data = json.load(f)
         assert len(data) == 1
 
+    def test_add_memory_with_level_episodic(self, temp_storage_path):
+        storage = TinyVectorStorage(temp_storage_path)
+        storage.add_memory("测试", tags={"emotion": "happy"}, level="episodic")
+        assert storage.memories[0]["metadata"]["level"] == "episodic"
+
+    def test_add_memory_with_level_consolidated(self, temp_storage_path):
+        storage = TinyVectorStorage(temp_storage_path)
+        storage.add_memory("测试", tags={"emotion": "happy"}, level="consolidated")
+        assert storage.memories[0]["metadata"]["level"] == "consolidated"
+
+    def test_add_memory_with_intensity(self, temp_storage_path):
+        storage = TinyVectorStorage(temp_storage_path)
+        storage.add_memory("测试", tags={"emotion": "happy"}, intensity=75.0)
+        assert storage.memories[0]["metadata"]["intensity"] == 75.0
+
+    def test_add_memory_default_intensity_zero(self, temp_storage_path):
+        storage = TinyVectorStorage(temp_storage_path)
+        storage.add_memory("测试", tags={"emotion": "happy"})
+        assert storage.memories[0]["metadata"]["intensity"] == 0.0
+
+    def test_retrieve_with_level_preference(self, temp_storage_path):
+        storage = TinyVectorStorage(temp_storage_path)
+        storage.add_memory("日常记忆", tags={"emotion": "calm"})
+        storage.memories[0]["metadata"]["level"] = "episodic"
+        storage.add_memory("长期记忆", tags={"emotion": "calm"})
+        storage.memories[1]["metadata"]["level"] = "consolidated"
+        results = storage.retrieve_relevant_memories("记忆")
+        assert results[0] == "长期记忆"
+
+    def test_retrieve_with_emotion_weighting(self, temp_storage_path):
+        storage = TinyVectorStorage(temp_storage_path)
+        storage.add_memory("悲伤的记忆", tags={"emotion": "sad"})
+        storage.add_memory("快乐的记忆", tags={"emotion": "happy"})
+        results = storage.retrieve_relevant_memories("记忆", current_emotion="sad")
+        assert results[0] == "悲伤的记忆"
+
+    def test_capacity_limit_episodic(self, temp_storage_path):
+        storage = TinyVectorStorage(temp_storage_path)
+        for i in range(101):
+            storage.add_memory(f"记忆{i}", tags={"emotion": "calm"})
+        assert len(storage.memories) <= 100
+
+    def test_backward_compatible_load(self, temp_storage_path):
+        old_data = [
+            {"content": "旧记忆", "metadata": {"emotion": "happy", "timestamp": "2024-01-01"}},
+            {"content": "新记忆", "metadata": {"emotion": "sad", "timestamp": "2024-01-02", "level": "episodic", "intensity": 50.0}},
+        ]
+        with open(temp_storage_path, "w", encoding="utf-8") as f:
+            json.dump(old_data, f)
+        storage = TinyVectorStorage(temp_storage_path)
+        assert storage.memories[0]["metadata"].get("level") == "episodic"
+        assert storage.memories[0]["metadata"].get("intensity") == 0.0
+
 
 class TestEpisodeMemoryManager:
     @pytest.fixture
