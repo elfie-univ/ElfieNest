@@ -52,7 +52,10 @@ class ThalamusContextBuilder:
         user_message = filtered_sensors["user_message"]
         memory_slices = "无相关历史情景记忆。"
         if user_message and memory_system:
-            retrieved = memory_system.retrieve_relevant_memories(user_message)
+            retrieved = memory_system.retrieve_relevant_memories(
+                user_message,
+                current_emotion=dominant_mood,
+            )
             if retrieved:
                 memory_slices = "\n".join(f"- {m}" for m in retrieved)
 
