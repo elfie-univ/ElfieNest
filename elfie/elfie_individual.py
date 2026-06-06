@@ -8,6 +8,7 @@ from elfie.brain import (
     EmotionSystem,
     EpisodeMemoryManager,
     HypothalamusEnergy,
+    NightMemoryConsolidator,
     ThalamusContextBuilder,
 )
 from elfie.brain.cognition import NeocortexBrain
@@ -46,6 +47,8 @@ class ElfieIndividual:
         self.amygdala = EmotionSystem()
         self.emotion_decay = EmotionDecayCalculator()
         self.hippocampus = EpisodeMemoryManager()
+        self._was_sleeping = False
+        self.night_consolidator = NightMemoryConsolidator(self.hippocampus)
 
         # 3. 🔌 【神经交互总线层】 (Interface)
         self.speech_actuator = SpeechActuator()
@@ -123,6 +126,11 @@ class ElfieIndividual:
         5. 交互总线形态学动作硬拦截 (形态学限制，防动作幻觉)
         6. 下发小脑进行关节角度时序转换，声学合成发音，写入海马体
         """
+        # A0. 睡眠→唤醒边沿检测（在早期 return 之前更新状态）
+        currently_sleeping = self.hypothalamus.is_sleeping
+        should_consolidate = self._was_sleeping and not currently_sleeping
+        self._was_sleeping = currently_sleeping
+
         # A. 睡眠熔断机制
         if self.hypothalamus.is_sleeping:
             sleep_mutter = self.mutter_actuator.mutter("sleeping")
@@ -133,6 +141,11 @@ class ElfieIndividual:
                 "action": "blink_eyes",
                 "mutter": sleep_mutter,
             }
+
+        # A1. 刚刚唤醒 → 执行夜间记忆巩固（在 pass-through 路径上）
+        if should_consolidate:
+            if runtime_agent:
+                self.night_consolidator.run_consolidation(runtime_agent)
 
         # B. 【脑干自律物理反射弧】 瞬间检测
         # 从原始传感器中捕获触觉信号 (通常来自 Godot Collision/Area3D)
@@ -161,9 +174,11 @@ class ElfieIndividual:
             )
 
             # 将紧急反射记录进海马体
+            dominant_mood = self.amygdala.get_dominant_mood()
             self.hippocampus.record_episode(
                 event_description=f"【脑干反射】 遭遇外界刺激: {speech_text}",
-                emotion_tag=self.amygdala.get_dominant_mood(),
+                emotion_tag=dominant_mood,
+                emotion_intensity=self.amygdala.get_emotion_value(dominant_mood),
             )
 
             return {
@@ -236,9 +251,11 @@ class ElfieIndividual:
         # 6. 将经历记入海马体
         if raw_sensor_data.get("has_new_message"):
             user_msg = raw_sensor_data.get("user_message", "")
+            dominant_mood = self.amygdala.get_dominant_mood()
             self.hippocampus.record_episode(
                 event_description=f"主人对我说: '{user_msg}'。我回答了: '{speech_text}'，并做了动作 '{action}'。",
-                emotion_tag=self.amygdala.get_dominant_mood(),
+                emotion_tag=dominant_mood,
+                emotion_intensity=self.amygdala.get_emotion_value(dominant_mood),
             )
 
         return {
