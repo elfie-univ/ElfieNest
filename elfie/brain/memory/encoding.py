@@ -23,6 +23,20 @@ logger = logging.getLogger("elfie.brain.memory.encoding")
 class MemoryEncoder:
     """编码引擎：将感知事件编码为记忆节点和边"""
 
+    # 内置实体词典（规则优先，不依赖外部配置文件）
+    ENTITY_DICT = {
+        "主人": "person",
+        "食物": "food",
+        "鱼味": "food",
+        "鸡肉": "food",
+        "厨房": "place",
+        "客厅": "place",
+        "花园": "place",
+        "猫": "animal",
+        "狗": "animal",
+        "球": "toy",
+    }
+
     def __init__(self, storage: GraphStorage, sensory_buffer: SensoryBuffer):
         self.storage = storage
         self.sensory_buffer = sensory_buffer
@@ -65,11 +79,14 @@ class MemoryEncoder:
                 sensory=sensory,
             )
 
-            # 提取实体（Task 8 实现，当前返回空列表）
-            entities = self.extract_entities(event_content, runtime_agent)
+            # 提取实体名称 → 转换为节点ID
+            entity_names = self.extract_entities(event_content, runtime_agent)
+            entity_ids = [
+                self.create_or_get_entity(name) for name in entity_names
+            ]
 
             # 建立编码边
-            self.build_encoding_edges(node_id, entities, prev_node_id, emotion)
+            self.build_encoding_edges(node_id, entity_ids, prev_node_id, emotion)
 
             logger.info(
                 f"感知事件已编码: [{emotion}] {event_content[:40]}... → {node_id}"
@@ -238,5 +255,120 @@ class MemoryEncoder:
     def extract_entities(
         self, content: str, runtime_agent=None
     ) -> List[str]:
-        """提取实体名称（Task 8实现，现在返回空列表作为降级）"""
-        return []
+        """提取实体名称（规则优先+LLM兜底）
+
+        1. 先用内置词典匹配内容中的关键词
+        2. 如果runtime_agent可用且词典匹配不足，用LLM提取更多实体
+        3. LLM失败时降级为纯规则匹配
+        4. 返回实体名称列表（去重，保留出现顺序）
+
+        Args:
+            content: 待提取实体的文本内容
+            runtime_agent: 可选的LLM运行时代理，为None时只使用规则匹配
+
+        Returns:
+            实体名称列表
+        """
+        if not content:
+            return []
+
+        # 1. 规则匹配：扫描内容中出现的关键词，按出现位置排序
+        matched_entities = []
+        for keyword in self.ENTITY_DICT:
+            if keyword in content:
+                pos = content.find(keyword)
+                matched_entities.append((pos, keyword))
+        # 按出现位置升序排列，保持内容中的自然顺序
+        matched_entities.sort(key=lambda x: x[0])
+        matched_entities = [kw for _, kw in matched_entities]
+
+        # 2. 如果runtime_agent可用，尝试LLM提取补充实体
+        if runtime_agent is not None:
+            try:
+                prompt = (
+                    "从以下文本中提取出所有实体名称（人名、地名、物品名等），"
+                    "只返回实体名称，每行一个，不要序号和额外说明：\n\n"
+                    f"{content}"
+                )
+                response = runtime_agent.ask(prompt)
+                if response and response.strip():
+                    # 解析LLM返回的实体（按行分割，去空格）
+                    llm_entities = [
+                        line.strip()
+                        for line in response.strip().split("\n")
+                        if line.strip()
+                    ]
+                    # 合并规则匹配和LLM提取结果
+                    combined = list(dict.fromkeys(matched_entities + llm_entities))
+                    # 幻觉防护：只保留确实出现在原文中的实体名称
+                    result = [e for e in combined if e in content]
+                    return result
+            except Exception:
+                logger.warning("LLM实体提取失败，降级为纯规则匹配")
+
+        # 3. 降级：纯规则匹配结果
+        return matched_entities
+
+    def check_entity_exists(self, entity_name: str) -> Optional[str]:
+        """检查SQLite是否已有该实体节点
+
+        按content精确匹配查询已有entity类型节点。
+        如果已存在返回node_id，否则返回None。
+
+        Args:
+            entity_name: 实体名称
+
+        Returns:
+            节点ID或None
+        """
+        cursor = self.storage.conn.execute(
+            "SELECT id FROM nodes WHERE type=? AND content=? LIMIT 1",
+            (NodeTypes.ENTITY.value, entity_name),
+        )
+        row = cursor.fetchone()
+        return row["id"] if row else None
+
+    def create_or_get_entity(
+        self, entity_name: str, properties: dict = None
+    ) -> str:
+        """创建或获取实体节点（去重）
+
+        如果已存在同名实体节点，返回现有node_id。
+        如果不存在，创建新的entity类型节点并返回node_id。
+        新节点自动从ENTITY_DICT获取实体类型标签。
+
+        Args:
+            entity_name: 实体名称
+            properties: 额外属性（可选，会合并到metadata中）
+
+        Returns:
+            节点ID
+        """
+        # 检查是否已存在同名实体
+        existing_id = self.check_entity_exists(entity_name)
+        if existing_id:
+            logger.debug(f"实体已存在: {entity_name} → {existing_id}")
+            return existing_id
+
+        # 创建新实体节点
+        timestamp = datetime.now().isoformat()
+        node_id = f"entity_{datetime.now().timestamp()}"
+
+        metadata: Dict[str, Any] = {
+            "entity_type": self.ENTITY_DICT.get(entity_name, "unknown"),
+        }
+        if properties:
+            metadata.update(properties)
+
+        node = MemoryNode(
+            id=node_id,
+            type=NodeTypes.ENTITY.value,
+            content=entity_name,
+            metadata=metadata,
+            created_at=timestamp,
+            updated_at=timestamp,
+        )
+
+        self.storage.add_node(node)
+        logger.info(f"✨ 新实体已创建: {entity_name} ({metadata['entity_type']}) → {node_id}")
+        return node_id

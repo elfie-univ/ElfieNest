@@ -346,3 +346,208 @@ class TestMemoryEncoder:
         """数据库为空时返回None"""
         result = encoder.get_previous_episodic()
         assert result is None
+
+    # ───── 实体提取测试 ─────
+
+    def test_extract_entities_rule_based(self, encoder):
+        """词典匹配提取实体：内容中的关键词被正确识别"""
+        entities = encoder.extract_entities("主人把猫和球带到了厨房")
+        assert "主人" in entities
+        assert "猫" in entities
+        assert "球" in entities
+        assert "厨房" in entities
+        # 验证有序且不重复
+        assert entities == ["主人", "猫", "球", "厨房"]
+
+    def test_extract_entities_empty_content(self, encoder):
+        """空内容返回空列表"""
+        assert encoder.extract_entities("") == []
+        assert encoder.extract_entities(None) == []
+
+    def test_extract_entities_no_match(self, encoder):
+        """无匹配实体返回空列表"""
+        entities = encoder.extract_entities("今天天气真好，阳光明媚")
+        assert entities == []
+
+    def test_extract_entities_llm_fallback(self, encoder):
+        """LLM降级：runtime_agent=None时只返回规则匹配，不抛异常"""
+        # 有规则匹配时的正常行为
+        entities_with_agent_none = encoder.extract_entities(
+            "花园里有只猫", runtime_agent=None
+        )
+        assert "花园" in entities_with_agent_none
+        assert "猫" in entities_with_agent_none
+        # 无规则匹配时返回空列表（即使内容非空）
+        entities_no_match = encoder.extract_entities(
+            "今天心情不错", runtime_agent=None
+        )
+        assert entities_no_match == []
+
+    def test_check_entity_exists(self, encoder, storage):
+        """检查实体是否存在：已有实体返回node_id，不存在返回None"""
+        from elfie.brain.memory.node_types import MemoryNode
+
+        # 尚无实体 → 返回None
+        assert encoder.check_entity_exists("猫") is None
+
+        # 手动创建实体节点
+        storage.add_node(
+            MemoryNode(
+                id="entity_cat_001",
+                type=NodeTypes.ENTITY.value,
+                content="猫",
+                metadata={"entity_type": "animal"},
+            )
+        )
+
+        # 存在后返回node_id
+        node_id = encoder.check_entity_exists("猫")
+        assert node_id == "entity_cat_001"
+
+    def test_create_or_get_entity_new(self, encoder, storage):
+        """创建新实体：返回新节点ID，节点正确存入存储"""
+        node_id = encoder.create_or_get_entity("猫")
+
+        assert node_id is not None
+        assert node_id.startswith("entity_")
+
+        # 验证节点已存入
+        node = storage.get_node(node_id)
+        assert node is not None
+        assert node.type == NodeTypes.ENTITY.value
+        assert node.content == "猫"
+        assert node.metadata.get("entity_type") == "animal"
+
+    def test_create_or_get_entity_dedup(self, encoder, storage):
+        """同名实体去重：两次创建返回相同node_id，不重复插入"""
+        first_id = encoder.create_or_get_entity("厨房")
+
+        # 第二次创建同名实体
+        second_id = encoder.create_or_get_entity("厨房")
+
+        # 两个ID必须相同（去重）
+        assert first_id == second_id
+
+        # 数据库中也只有一条记录
+        nodes = storage.get_nodes_by_type(NodeTypes.ENTITY.value)
+        matching = [n for n in nodes if n.content == "厨房"]
+        assert len(matching) == 1
+
+    def test_build_encoding_edges_temporal_short(self, encoder, storage):
+        """temporal边：<5分钟 → weight=0.9"""
+        # 创建前驱节点（2分钟前）
+        prev_ts = (datetime.now() - timedelta(minutes=2)).isoformat()
+        prev_id = "episodic_temporal_short_prev"
+        storage.add_node(
+            MemoryNode(
+                id=prev_id,
+                type=NodeTypes.EPISODIC.value,
+                content="前驱事件",
+                metadata={
+                    "emotion": "平静",
+                    "emotion_intensity": 30.0,
+                    "timestamp": prev_ts,
+                },
+                created_at=(datetime.now() - timedelta(minutes=2)).isoformat(),
+            )
+        )
+
+        # 创建当前节点
+        current_id = encoder.create_episodic_node(
+            content="当前事件", emotion="平静", intensity=40.0
+        )
+
+        # 构建边
+        encoder.build_encoding_edges(
+            node_id=current_id, prev_node_id=prev_id
+        )
+
+        # 验证 temporal 边权重
+        edges = storage.get_edges(prev_id, direction="outgoing")
+        temporal_edges = [e for e in edges if e.rel == EdgeTypes.TEMPORAL.value]
+        assert len(temporal_edges) == 1
+        assert temporal_edges[0].target == current_id
+        assert temporal_edges[0].weight == 0.9
+
+    def test_build_encoding_edges_temporal_medium(self, encoder, storage):
+        """temporal边：<30分钟 → weight=0.7"""
+        prev_ts = (datetime.now() - timedelta(minutes=15)).isoformat()
+        prev_id = "episodic_temporal_medium_prev"
+        storage.add_node(
+            MemoryNode(
+                id=prev_id,
+                type=NodeTypes.EPISODIC.value,
+                content="前驱事件",
+                metadata={
+                    "emotion": "平静",
+                    "emotion_intensity": 30.0,
+                    "timestamp": prev_ts,
+                },
+                created_at=(datetime.now() - timedelta(minutes=15)).isoformat(),
+            )
+        )
+
+        current_id = encoder.create_episodic_node(
+            content="当前事件", emotion="平静", intensity=40.0
+        )
+
+        encoder.build_encoding_edges(
+            node_id=current_id, prev_node_id=prev_id
+        )
+
+        edges = storage.get_edges(prev_id, direction="outgoing")
+        temporal_edges = [e for e in edges if e.rel == EdgeTypes.TEMPORAL.value]
+        assert len(temporal_edges) == 1
+        assert temporal_edges[0].target == current_id
+        assert temporal_edges[0].weight == 0.7
+
+    def test_build_encoding_edges_temporal_long(self, encoder, storage):
+        """temporal边：>2小时 → weight=0.3"""
+        prev_ts = (datetime.now() - timedelta(hours=3)).isoformat()
+        prev_id = "episodic_temporal_long_prev"
+        storage.add_node(
+            MemoryNode(
+                id=prev_id,
+                type=NodeTypes.EPISODIC.value,
+                content="前驱事件",
+                metadata={
+                    "emotion": "平静",
+                    "emotion_intensity": 30.0,
+                    "timestamp": prev_ts,
+                },
+                created_at=(datetime.now() - timedelta(hours=3)).isoformat(),
+            )
+        )
+
+        current_id = encoder.create_episodic_node(
+            content="当前事件", emotion="平静", intensity=40.0
+        )
+
+        encoder.build_encoding_edges(
+            node_id=current_id, prev_node_id=prev_id
+        )
+
+        edges = storage.get_edges(prev_id, direction="outgoing")
+        temporal_edges = [e for e in edges if e.rel == EdgeTypes.TEMPORAL.value]
+        assert len(temporal_edges) == 1
+        assert temporal_edges[0].target == current_id
+        assert temporal_edges[0].weight == 0.3
+
+    def test_build_encoding_edges_no_previous(self, encoder, storage):
+        """无前驱节点时不建temporal边"""
+        # 创建当前节点
+        current_id = encoder.create_episodic_node(
+            content="首次事件", emotion="平静", intensity=40.0
+        )
+
+        # 不传入prev_node_id，测试无前驱的情况
+        encoder.build_encoding_edges(node_id=current_id)
+
+        # 验证无 temporal 边
+        outgoing = storage.get_edges(current_id, direction="outgoing")
+        temporal_out = [e for e in outgoing if e.rel == EdgeTypes.TEMPORAL.value]
+        assert len(temporal_out) == 0
+
+        incoming = storage.get_edges(current_id, direction="incoming")
+        temporal_in = [e for e in incoming if e.rel == EdgeTypes.TEMPORAL.value]
+        assert len(temporal_in) == 0

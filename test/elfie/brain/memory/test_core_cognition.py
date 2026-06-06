@@ -203,6 +203,112 @@ class TestCoreCognition:
                 f"节点 {row['id']} 缺少 rewritten_at"
             )
 
+    def test_update_entity_properties(self):
+        """增量更新entity属性到核心认知"""
+        cc = _make_cc()
+        original_text = dict(cc.get_core_text())
+
+        # 更新entity属性
+        cc.update(consolidation_results={
+            "entity_updates": [
+                {"name": "主人", "properties": {"温柔": True}},
+            ],
+        })
+
+        # relation段文本应包含属性描述
+        relation_text = cc.get_core_text()["relation"]
+        assert "主人很温柔" in relation_text, (
+            f"relation段应包含'主人很温柔'，实际: {relation_text}"
+        )
+
+        # 其他段文本不应变化
+        for key in ["identity", "world", "tendency"]:
+            assert cc.get_core_text()[key] == original_text[key], (
+                f"{key}段不应变化"
+            )
+
+        # metadata应包含entity_properties
+        cursor = cc.storage.conn.execute(
+            "SELECT metadata FROM nodes WHERE id='core_relation'"
+        )
+        meta = json.loads(cursor.fetchone()["metadata"])
+        assert "entity_properties" in meta
+        assert "主人" in meta["entity_properties"]
+        assert meta["entity_properties"]["主人"]["温柔"] is True
+
+    def test_update_full_rewrite(self):
+        """每7次巩固触发全量重写，metadata包含rewritten_at"""
+        cc = _make_cc()
+
+        # 执行6次update（不触发全量重写）
+        for i in range(6):
+            cc.update(consolidation_results={"tick": i})
+
+        assert cc._update_count == 6
+
+        # 第7次update应触发全量重写
+        cc.update(consolidation_results={"tick": 6})
+        assert cc._update_count == 7
+
+        # 全量重写后，metadata应包含rewritten_at
+        cursor = cc.storage.conn.execute(
+            "SELECT metadata FROM nodes WHERE id='core_identity'"
+        )
+        row = cursor.fetchone()
+        assert row is not None
+        meta = json.loads(row["metadata"])
+        assert "rewritten_at" in meta, (
+            f"第7次update应触发全量重写，metadata: {meta}"
+        )
+        assert meta.get("rewrite_count") == 7
+
+        # 所有core节点都应包含rewrite标记
+        cursor = cc.storage.conn.execute(
+            "SELECT id, metadata FROM nodes WHERE type='core'"
+        )
+        for row in cursor.fetchall():
+            meta = json.loads(row["metadata"])
+            assert "rewritten_at" in meta, (
+                f"节点 {row['id']} 缺少 rewritten_at"
+            )
+
+    def test_update_rollback(self):
+        """全量重写失败时回滚到旧版本"""
+        cc = _make_cc()
+
+        # 先做一次entity更新，使核心认知有变化
+        cc.update(consolidation_results={
+            "entity_updates": [
+                {"name": "主人", "properties": {"温柔": True}},
+            ],
+        })
+        assert "主人很温柔" in cc.get_core_text()["relation"]
+
+        # 执行5次普通update
+        for i in range(5):
+            cc.update(consolidation_results={"tick": i})
+
+        # 记录重写前的核心认知文本
+        text_before_rewrite = dict(cc._core_text)
+
+        # 模拟_rewrite_all抛出异常
+        from unittest import mock
+        with mock.patch.object(
+            cc, "_rewrite_all", side_effect=RuntimeError("模拟重写失败")
+        ):
+            # 第7次update触发全量重写并失败
+            cc.update(consolidation_results={"tick": 6})
+
+        # 回滚后，核心认知应恢复到重写前的状态
+        assert cc._update_count == 7
+        for key in CoreCognition.CORE_KEYS:
+            assert cc._core_text[key] == text_before_rewrite[key], (
+                f"回滚后{key}段应与重写前一致"
+            )
+
+        # entity属性应保留（回滚到重写前状态，包含entity更新）
+        assert "主人很温柔" in cc._core_text["relation"]
+
     def test_save_to_file(self):
         """保存到JSON缓存文件"""
         cc = _make_cc()

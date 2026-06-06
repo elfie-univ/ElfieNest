@@ -282,14 +282,25 @@ class CoreCognition:
                runtime_agent=None) -> None:
         """巩固时更新核心认知。
 
-        每次调用执行增量属性更新（metadata），
-        每 FULL_REWRITE_INTERVAL 次触发一次全量模板重写。
+        增量更新：每次巩固更新entity属性到核心认知
+        全量重写：每 FULL_REWRITE_INTERVAL 次巩固触发一次全量重写
 
         Args:
-            consolidation_results: 巩固结果（情感、模式等），用于增量元数据更新
+            consolidation_results: 巩固结果，格式：
+                {
+                    "consolidated_count": int,
+                    "knowledge_created": int,
+                    "edges_created": int,
+                    "entity_updates": [{"name": "主人", "properties": {"温柔": True}}],
+                }
             runtime_agent: LLM运行时代理（预留，暂未实现LLM重写）
         """
         self._update_count += 1
+
+        # --- 增量更新：更新entity属性到核心认知 ---
+        if consolidation_results and "entity_updates" in consolidation_results:
+            for entity_update in consolidation_results["entity_updates"]:
+                self._update_entity_in_core(entity_update)
 
         # --- 增量更新：在metadata中记录巩固时间戳 ---
         if self._core_text and consolidation_results:
@@ -325,16 +336,10 @@ class CoreCognition:
 
         # --- 周期性全量重写 ---
         if self._update_count % self.FULL_REWRITE_INTERVAL == 0:
-            if runtime_agent is not None:
-                logger.info(
-                    "🧠 [核心认知] LLM全量重写——待实现，当前使用模板回退"
-                )
-                self._rewrite_all()
-            else:
-                self._rewrite_all()
+            self._full_rewrite(runtime_agent)
 
-        if self._update_count % self.FULL_REWRITE_INTERVAL == 0:
-            self.storage.conn.commit()
+        # --- 保存到SQLite ---
+        self._save_core_to_db()
 
     def _rewrite_all(self) -> None:
         """从personality.yaml重新生成所有核心认知。"""
@@ -396,7 +401,145 @@ class CoreCognition:
         )
 
     # ------------------------------------------------------------------
+    # 增量entity属性更新
+    # ------------------------------------------------------------------
+
+    def _update_entity_in_core(self, entity_update: dict) -> None:
+        """增量更新entity属性到核心认知，不重写整段。
+
+        将entity属性追加到relation段文本，并在metadata中记录属性。
+
+        Args:
+            entity_update: {"name": "主人", "properties": {"温柔": True}}
+        """
+        entity_name = entity_update.get("name", "")
+        properties = entity_update.get("properties", {})
+        if not entity_name or not properties:
+            return
+
+        # 默认更新relation段
+        target_key = "relation"
+        node_id = f"core_{target_key}"
+
+        cursor = self.storage.conn.execute(
+            "SELECT content, metadata FROM nodes WHERE id = ?", (node_id,)
+        )
+        row = cursor.fetchone()
+        if not row:
+            return
+
+        current_text = row["content"]
+        try:
+            meta = json.loads(row["metadata"])
+        except (json.JSONDecodeError, TypeError):
+            meta = {}
+
+        # 更新metadata中的entity_properties
+        entity_props = meta.setdefault("entity_properties", {})
+        if entity_name not in entity_props:
+            entity_props[entity_name] = {}
+        entity_props[entity_name].update(properties)
+
+        # 增量更新文本：追加属性描述（不重写整段）
+        for prop_name, prop_value in properties.items():
+            desc = self._format_entity_property(
+                entity_name, prop_name, prop_value
+            )
+            if desc not in current_text:
+                current_text += desc
+
+        # 更新数据库和内存
+        now = datetime.now(timezone.utc).isoformat()
+        self.storage.conn.execute(
+            "UPDATE nodes SET content = ?, metadata = ?, updated_at = ? WHERE id = ?",
+            (current_text, json.dumps(meta, ensure_ascii=False), now, node_id),
+        )
+        self._core_text[target_key] = current_text
+
+    @staticmethod
+    def _format_entity_property(entity_name: str, prop_name: str,
+                                 prop_value) -> str:
+        """格式化entity属性为简短中文描述。"""
+        if prop_value is True:
+            return f"{entity_name}很{prop_name}。"
+        elif prop_value is False:
+            return f"{entity_name}不{prop_name}。"
+        else:
+            return f"{entity_name}{prop_name}{prop_value}。"
+
+    # ------------------------------------------------------------------
+    # 全量重写（含备份与回滚）
+    # ------------------------------------------------------------------
+
+    def _full_rewrite(self, runtime_agent=None) -> None:
+        """全量重写核心认知，先保存旧版本以支持回滚。"""
+        backup = self._backup_core()
+
+        try:
+            if runtime_agent is not None:
+                logger.info(
+                    "🧠 [核心认知] LLM全量重写——待实现，当前使用模板回退"
+                )
+            self._rewrite_all()
+        except Exception as exc:
+            logger.error("🧠 [核心认知] 全量重写失败，回滚: %s", exc)
+            self._restore_core(backup)
+
+    def _backup_core(self) -> dict:
+        """备份当前核心认知，用于回滚。"""
+        backup = {
+            "core_text": dict(self._core_text),
+            "nodes": {},
+        }
+        for core_key in self.CORE_KEYS:
+            node_id = f"core_{core_key}"
+            cursor = self.storage.conn.execute(
+                "SELECT content, metadata, created_at, updated_at FROM nodes WHERE id = ?",
+                (node_id,),
+            )
+            row = cursor.fetchone()
+            if row:
+                backup["nodes"][core_key] = {
+                    "content": row["content"],
+                    "metadata": row["metadata"],
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                }
+        return backup
+
+    def _restore_core(self, backup: dict) -> None:
+        """从备份恢复核心认知（回滚）。"""
+        self._core_text = backup["core_text"]
+        now = datetime.now(timezone.utc).isoformat()
+        for core_key, node_data in backup["nodes"].items():
+            node_id = f"core_{core_key}"
+            self.storage.conn.execute(
+                """UPDATE nodes SET content = ?, metadata = ?, updated_at = ?
+                   WHERE id = ?""",
+                (node_data["content"], node_data["metadata"], now, node_id),
+            )
+        self.storage.conn.commit()
+        logger.info("🧠 [核心认知] 已回滚到上一版本")
+
+    # ------------------------------------------------------------------
     # 持久化
+    # ------------------------------------------------------------------
+
+    def _save_core_to_db(self) -> None:
+        """将当前核心认知同步到SQLite并提交。"""
+        now = datetime.now(timezone.utc).isoformat()
+        for core_key in self.CORE_KEYS:
+            if core_key not in self._core_text:
+                continue
+            node_id = f"core_{core_key}"
+            self.storage.conn.execute(
+                "UPDATE nodes SET content = ?, updated_at = ? WHERE id = ?",
+                (self._core_text[core_key], now, node_id),
+            )
+        self.storage.conn.commit()
+
+    # ------------------------------------------------------------------
+    # 文件缓存
     # ------------------------------------------------------------------
 
     def save_to_file(self, filepath: Optional[str] = None) -> str:
