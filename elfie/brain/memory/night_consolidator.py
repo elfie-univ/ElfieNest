@@ -69,11 +69,9 @@ class NightMemoryConsolidator:
                 cleaned_line = line.strip().lstrip("-* ").strip()
                 self.mgr.storage.add_memory(
                     text=f"【长期固化记忆】 {cleaned_line}",
-                    tags={
-                        "emotion": dominant_emotion,
-                        "level": "consolidated",
-                        "intensity": max_intensity,
-                    },
+                    tags={"emotion": dominant_emotion},
+                    level="consolidated",
+                    intensity=max_intensity,
                 )
 
         # 清除原始流水记忆（仅保留已固化的新记忆）
