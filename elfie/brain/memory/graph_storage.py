@@ -6,10 +6,13 @@ CRUD 操作将在后续任务中实现。
 
 import json
 import logging
+import math
 import sqlite3
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+from .tokenizer import tokenize
 
 from .node_types import Edge, MemoryNode
 
@@ -246,6 +249,53 @@ class GraphStorage:
         else:
             cursor = self.conn.execute("SELECT COUNT(*) FROM nodes")
         return cursor.fetchone()[0]
+
+    def search_by_content(
+        self, query: str, top_k: int = 5, node_type: str = None
+    ) -> List[Tuple[str, float]]:
+        """TF-IDF查询nodes表content字段，返回(node_id, score)列表
+
+        从vector_storage.py迁移的TF-IDF余弦相似度逻辑：
+        1. tokenize查询词
+        2. 遍历nodes表（可选按type过滤）
+        3. tokenize每条content
+        4. 计算余弦相似度
+        5. 返回top_k个(node_id, score)元组，按score降序
+        """
+        if not query:
+            return []
+
+        query_words = tokenize(query)
+        if not query_words:
+            return []
+
+        # 构建SQL查询
+        if node_type:
+            cursor = self.conn.execute(
+                "SELECT id, content FROM nodes WHERE type=?", (node_type,)
+            )
+        else:
+            cursor = self.conn.execute("SELECT id, content FROM nodes")
+
+        scored: List[Tuple[str, float]] = []
+        for row in cursor.fetchall():
+            content_words = tokenize(row["content"])
+
+            # 计算余弦相似度 / 词频交集
+            intersection = set(query_words) & set(content_words)
+            if not intersection:
+                score = 0.0
+            else:
+                score = len(intersection) / (
+                    math.sqrt(len(query_words)) * math.sqrt(len(content_words))
+                )
+
+            if score > 0.0:
+                scored.append((row["id"], score))
+
+        # 按得分降序排列，返回top_k
+        scored.sort(key=lambda x: x[1], reverse=True)
+        return scored[:top_k]
 
     def close(self):
         """关闭数据库连接"""

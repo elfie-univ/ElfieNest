@@ -481,3 +481,64 @@ class TestGraphStorageCRUD:
         assert storage.count_nodes("episodic") == 3
         assert storage.count_nodes("entity") == 2
         assert storage.count_nodes("knowledge") == 0
+
+
+class TestGraphStorageTFIDFSearch:
+    """测试 GraphStorage 的 TF-IDF 内容搜索"""
+
+    @pytest.fixture
+    def storage(self):
+        """创建内存 SQLite GraphStorage 实例"""
+        gs = GraphStorage(db_path=":memory:")
+        # 插入测试数据
+        nodes = [
+            MemoryNode(id="n1", type="episodic", content="今天天气很好适合出去玩"),
+            MemoryNode(id="n2", type="episodic", content="下雨了记得带伞"),
+            MemoryNode(id="n3", type="episodic", content="周末去公园散步"),
+            MemoryNode(id="n4", type="knowledge", content="Python是一种编程语言"),
+            MemoryNode(id="n5", type="knowledge", content="机器学习需要大量数据"),
+            MemoryNode(id="n6", type="entity", content="天气"),
+        ]
+        for node in nodes:
+            gs.add_node(node)
+        yield gs
+
+    def test_search_by_content_chinese(self, storage):
+        """中文关键词查询，返回最相关的节点"""
+        results = storage.search_by_content("天气", top_k=3)
+        # 按分数降序排列，最相关的应该是包含"天气"的节点
+        assert len(results) > 0
+        assert results[0][0] in ("n1", "n6")  # 包含"天气"的节点
+        # 所有结果的score都应大于0
+        for node_id, score in results:
+            assert score > 0.0
+
+    def test_search_by_content_type_filter(self, storage):
+        """按类型过滤查询"""
+        # 只查询knowledge类型
+        results = storage.search_by_content("数据", top_k=5, node_type="knowledge")
+        assert len(results) > 0
+        # 所有结果都应是knowledge类型
+        for node_id, score in results:
+            assert node_id in ("n4", "n5")
+            assert score > 0.0
+
+        # 查询不存在的类型应返回空
+        results = storage.search_by_content("天气", top_k=5, node_type="nonexistent")
+        assert results == []
+
+    def test_search_by_content_empty_result(self, storage):
+        """空结果查询"""
+        # 搜索不相关的内容
+        results = storage.search_by_content("xyzxyz", top_k=5)
+        assert results == []
+
+    def test_search_by_content_top_k(self, storage):
+        """验证top_k参数生效"""
+        results = storage.search_by_content("天气", top_k=1)
+        assert len(results) == 1
+
+    def test_search_by_content_empty_query(self, storage):
+        """空查询返回空列表"""
+        assert storage.search_by_content("") == []
+        assert storage.search_by_content("   ") == []
