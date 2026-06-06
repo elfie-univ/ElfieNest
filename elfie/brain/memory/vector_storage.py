@@ -30,6 +30,16 @@ class TinyVectorStorage:
             try:
                 with open(self.storage_path, encoding="utf-8") as f:
                     self.memories = json.load(f)
+                # 向后兼容：为旧记录补默认字段
+                for entry in self.memories:
+                    meta = entry.get("metadata")
+                    if meta is None:
+                        meta = {}
+                        entry["metadata"] = meta
+                    if "level" not in meta:
+                        meta["level"] = "episodic"
+                    if "intensity" not in meta:
+                        meta["intensity"] = 0.0
                 logger.info(
                     f"💾 [记忆读取完毕] 成功加载 {len(self.memories)} 条历史情景索引。"
                 )
@@ -48,27 +58,38 @@ class TinyVectorStorage:
         except Exception as e:
             logger.error(f"保存记忆文件异常: {e}")
 
-    def add_memory(self, text: str, tags: Dict[str, Any] = None):
+    def add_memory(self, text: str, tags: Dict[str, Any] = None, level: str = "episodic", intensity: float = 0.0):
         """
         向海马体存入一条新记忆
         :param text: 记忆陈述句
         :param tags: 记忆的辅助元数据（如 time, emotion_tag, location 等）
+        :param level: 记忆层级（episodic/consolidated）
+        :param intensity: 记忆强度 (0-100)
         """
         from datetime import datetime
 
         meta_tags = tags or {}
         if "timestamp" not in meta_tags:
             meta_tags["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        meta_tags["level"] = level
+        meta_tags["intensity"] = intensity
 
         entry = {"content": text, "metadata": meta_tags}
         self.memories.append(entry)
+
+        if len(self.memories) > 100:
+            logger.warning(f"海马体记忆容量超过100条({len(self.memories)}条)，建议触发夜间巩固。")
+            self.memories = self.memories[-100:]
+
         self.save_to_disk()
 
-    def retrieve_relevant_memories(self, query: str, top_k: int = 2) -> List[str]:
+    def retrieve_relevant_memories(self, query: str, top_k: int = 2, current_emotion: str = None, level: str = None) -> List[str]:
         """
         检索语义最相关的 k 条记忆 (采用高效率的 TF-IDF 关键词语义相似打分，模拟向量距离)
         :param query: 检索 Prompt 或句子
         :param top_k: 获取多少条相关记忆
+        :param current_emotion: 当前情绪（用于情绪加权）
+        :param level: 记忆层级过滤
         :return: 相关的记忆文本列表
         """
         if not self.memories or not query:
@@ -79,9 +100,16 @@ class TinyVectorStorage:
         if not query_words:
             return [m["content"] for m in self.memories[:top_k]]
 
+        # 先根据 level 过滤（如果有指定）
+        candidate_memories = self.memories
+        if level:
+            candidate_memories = [m for m in self.memories if m.get("metadata", {}).get("level") == level]
+            if not candidate_memories:
+                return []
+
         scored_memories = []
 
-        for entry in self.memories:
+        for entry in candidate_memories:
             content = entry["content"]
             content_words = self._tokenize(content)
 
@@ -95,10 +123,19 @@ class TinyVectorStorage:
                     math.sqrt(len(query_words)) * math.sqrt(len(content_words))
                 )
 
-            # 附加情绪和时间热度加权：如果带有主人喜欢的情绪标签，权重提升
-            meta = entry.get("metadata", {})
-            if meta.get("emotion") == "happy":
-                score *= 1.2
+            # 情绪加权
+            meta = entry.get("metadata") or {}
+            if current_emotion is None:
+                if meta.get("emotion") == "happy":
+                    score *= 1.2
+            else:
+                if meta.get("emotion") == current_emotion:
+                    intensity = meta.get("intensity", 0.0)
+                    score *= 1.0 + (intensity / 100.0) * 0.5
+
+            # consolidated 级别额外权重
+            if meta.get("level") == "consolidated":
+                score *= 1.3
 
             scored_memories.append((entry, score))
 
@@ -108,7 +145,7 @@ class TinyVectorStorage:
 
         # 如果相似度没有满足要求的，兜底返回最近的两条记忆
         if not results:
-            results = [m["content"] for m in self.memories[-top_k:]]
+            results = [m["content"] for m in candidate_memories[-top_k:]]
 
         return results[:top_k]
 
