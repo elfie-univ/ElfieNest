@@ -6,12 +6,11 @@ from elfie.body.anatomy.base import SomaticAnatomy
 from elfie.brain import (
     EmotionDecayCalculator,
     EmotionSystem,
-    EpisodeMemoryManager,
     HypothalamusEnergy,
-    NightMemoryConsolidator,
     ThalamusContextBuilder,
 )
 from elfie.brain.cognition import NeocortexBrain
+from elfie.brain.memory import MemorySystem
 from elfie.interface import (
     MotionActuator,
     MutterActuator,
@@ -46,9 +45,8 @@ class ElfieIndividual:
         self.hypothalamus = HypothalamusEnergy(limits_dict)
         self.amygdala = EmotionSystem()
         self.emotion_decay = EmotionDecayCalculator()
-        self.hippocampus = EpisodeMemoryManager()
+        self.memory = MemorySystem()
         self._was_sleeping = False
-        self.night_consolidator = NightMemoryConsolidator(self.hippocampus)
 
         # 3. 🔌 【神经交互总线层】 (Interface)
         self.speech_actuator = SpeechActuator()
@@ -70,6 +68,14 @@ class ElfieIndividual:
 
         # 仿真内的时间相角累加器
         self.elapsed_time = 0.0
+
+    @property
+    def hippocampus(self):
+        """向后兼容：旧代码通过 self.hippocampus 访问记忆系统
+
+        Task 20 将移除此属性
+        """
+        return self.memory
 
         # Godot API 引用（用于发送表达事件）
         self.godot_api = godot_api
@@ -145,7 +151,7 @@ class ElfieIndividual:
         # A1. 刚刚唤醒 → 执行夜间记忆巩固（在 pass-through 路径上）
         if should_consolidate:
             if runtime_agent:
-                self.night_consolidator.run_consolidation(runtime_agent)
+                self.memory.run_consolidation(runtime_agent)
 
         # B. 【脑干自律物理反射弧】 瞬间检测
         # 从原始传感器中捕获触觉信号 (通常来自 Godot Collision/Area3D)
@@ -175,10 +181,10 @@ class ElfieIndividual:
 
             # 将紧急反射记录进海马体
             dominant_mood = self.amygdala.get_dominant_mood()
-            self.hippocampus.record_episode(
-                event_description=f"【脑干反射】 遭遇外界刺激: {speech_text}",
-                emotion_tag=dominant_mood,
-                emotion_intensity=self.amygdala.get_emotion_value(dominant_mood),
+            self.memory.record_episode(
+                content=f"【脑干反射】 遭遇外界刺激: {speech_text}",
+                emotion=dominant_mood,
+                intensity=self.amygdala.get_emotion_value(dominant_mood),
             )
 
             return {
@@ -205,7 +211,7 @@ class ElfieIndividual:
             raw_sensors=raw_sensor_data,
             energy_system=self.hypothalamus,
             emotion_engine=self.amygdala,
-            memory_system=self.hippocampus,
+            memory_system=self.memory,
         )
 
         # 额外将具身形态描述注入 context 以利于大模型认知自己的物理形态
@@ -252,10 +258,10 @@ class ElfieIndividual:
         if raw_sensor_data.get("has_new_message"):
             user_msg = raw_sensor_data.get("user_message", "")
             dominant_mood = self.amygdala.get_dominant_mood()
-            self.hippocampus.record_episode(
-                event_description=f"主人对我说: '{user_msg}'。我回答了: '{speech_text}'，并做了动作 '{action}'。",
-                emotion_tag=dominant_mood,
-                emotion_intensity=self.amygdala.get_emotion_value(dominant_mood),
+            self.memory.record_episode(
+                content=f"主人对我说: '{user_msg}'。我回答了: '{speech_text}'，并做了动作 '{action}'。",
+                emotion=dominant_mood,
+                intensity=self.amygdala.get_emotion_value(dominant_mood),
             )
 
         return {

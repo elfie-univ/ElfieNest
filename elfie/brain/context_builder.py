@@ -1,5 +1,7 @@
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
+
+from elfie.brain.memory.memory_system import MemorySystem
 
 logger = logging.getLogger("elfie.brain.context_builder")
 
@@ -7,8 +9,12 @@ logger = logging.getLogger("elfie.brain.context_builder")
 class ThalamusContextBuilder:
     """中层：丘脑 (上下文拼装总线 - Context Bus)"""
 
-    def __init__(self):
-        pass
+    def __init__(self, memory_system: Optional[MemorySystem] = None):
+        """初始化丘脑上下文拼装总线
+
+        :param memory_system: 记忆系统门面实例（注入后替代旧海马体直连）
+        """
+        self.memory_system = memory_system
 
     def assemble(
         self,
@@ -48,16 +54,33 @@ class ThalamusContextBuilder:
         realtime_emotion = emotion_engine.get_current_emotion_summary()
         dominant_mood = emotion_engine.get_dominant_mood()
 
-        # 4. 检索海马体中的相关记忆片段 (根据主人发送的话进行关键词或向量索引)
+        # 4. 使用记忆系统门面检索并组装5区域上下文
         user_message = filtered_sensors["user_message"]
-        memory_slices = "无相关历史情景记忆。"
-        if user_message and memory_system:
-            retrieved = memory_system.retrieve_relevant_memories(
-                user_message,
-                current_emotion=dominant_mood,
-            )
-            if retrieved:
-                memory_slices = "\n".join(f"- {m}" for m in retrieved)
+        active_memory = self.memory_system or memory_system
+        if user_message and active_memory:
+            # 优先使用 MemorySystem.get_context() 获取5区域上下文
+            if hasattr(active_memory, "get_context"):
+                emotion_intensity = getattr(
+                    emotion_engine, "get_emotion_value", lambda _: 0.0
+                )(dominant_mood)
+                memory_slices = active_memory.get_context(
+                    query=user_message,
+                    emotion=dominant_mood,
+                    intensity=emotion_intensity,
+                )
+            else:
+                # 回退旧API：EpisodeMemoryManager
+                retrieved = active_memory.retrieve_relevant_memories(
+                    user_message,
+                    current_emotion=dominant_mood,
+                )
+                memory_slices = (
+                    "\n".join(f"- {m}" for m in retrieved)
+                    if retrieved
+                    else "无相关历史情景记忆。"
+                )
+        else:
+            memory_slices = "无相关历史情景记忆。"
 
         # 5. 拼装总线包投递给大脑皮层
         assembled_context = {

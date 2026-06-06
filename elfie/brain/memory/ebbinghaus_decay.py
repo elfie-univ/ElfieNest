@@ -114,6 +114,9 @@ class EbbinghausDecay:
     def _time_diff_days(self, created_at: Optional[str], current_time: Optional[str] = None) -> float:
         """计算时间差（天）。
 
+        自动处理 timezone-naive 和 timezone-aware 的混合输入：
+        如果 t_start 有时区信息而 t_end 没有（或反之），将两者都转为 naive。
+
         Args:
             created_at: 创建时间（ISO格式）
             current_time: 当前时间（ISO格式），None则用实际当前时间
@@ -128,5 +131,12 @@ class EbbinghausDecay:
             t_end = datetime.fromisoformat(current_time)
         else:
             t_end = datetime.now()
+
+        # 统一时区：如果两者时区不一致，都转为 naive
+        if t_start.tzinfo is not None and t_end.tzinfo is None:
+            t_start = t_start.replace(tzinfo=None)
+        elif t_end.tzinfo is not None and t_start.tzinfo is None:
+            t_end = t_end.replace(tzinfo=None)
+
         delta = t_end - t_start
         return max(0.0, delta.total_seconds() / 86400.0)
