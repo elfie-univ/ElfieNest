@@ -1,6 +1,6 @@
 """巩固引擎：将episodic记忆提炼为knowledge和entity属性更新。
 
-8步骤巩固流程：
+8.5步骤巩固流程（含Pattern发现）：
 1. 收集未巩固episodic节点（consolidated=False）
 2. 按entity分组（通过involves边）
 3. LLM知识提炼（每组经历总结规律/因果/偏好）→ ≤4次LLM调用
@@ -8,6 +8,7 @@
 5. 建语义边（supports: knowledge→episodic, about: knowledge→entity）
 6. 提取因果边和entity间关系边（LLM）
 7. 更新entity属性（新发现的信息更新到entity.properties）
+7.5 从knowledge中发现pattern，创建PATTERN节点，建implies边
 8. 标记原始episodic为consolidated=True
 
 安全性：
@@ -23,6 +24,7 @@ from typing import Any, Dict, List
 
 from elfie.brain.memory.graph_storage import GraphStorage
 from elfie.brain.memory.node_types import EdgeTypes, MemoryNode, NodeTypes
+from elfie.brain.memory.tokenizer import tokenize
 
 logger = logging.getLogger("elfie.brain.memory.consolidation")
 
@@ -35,23 +37,31 @@ class MemoryConsolidator:
         self.core_cognition = core_cognition
         self._consolidation_count = 0  # 巩固次数计数
         self._knowledge_counter = 0  # 知识节点ID计数器
+        self._pattern_counter = 0  # pattern节点ID计数器
         self._llm_calls_this_cycle = 0
         self._max_llm_calls = 4
 
     def run_consolidation(self, runtime_agent=None) -> Dict[str, Any]:
-        """执行巩固流程（8步骤）
+        """执行巩固流程（8.5步骤，含pattern发现）
+
+        Steps:
+        1-7: 同基础巩固流程
+        7.5: 从knowledge节点中发现pattern，创建PATTERN节点，建implies边
+        8:   标记consolidated
 
         Args:
             runtime_agent: 可选LLM运行时代理，提供ask()接口
 
         Returns:
-            {"consolidated_count": int, "knowledge_created": int, "edges_created": int}
+            {"consolidated_count": int, "knowledge_created": int,
+             "edges_created": int, "patterns_created": int}
         """
         self._llm_calls_this_cycle = 0
         result = {
             "consolidated_count": 0,
             "knowledge_created": 0,
             "edges_created": 0,
+            "patterns_created": 0,
         }
 
         # 步骤1：收集未巩固episodic节点
@@ -120,6 +130,11 @@ class MemoryConsolidator:
                     group_nodes,
                 )
 
+        # 步骤7.5：从knowledge节点中发现pattern（规律抽象）
+        if all_knowledge_ids:
+            pattern_ids = self._discover_patterns(all_knowledge_ids, runtime_agent)
+            result["patterns_created"] = len(pattern_ids)
+
         # 步骤8：标记原始episodic为consolidated=True
         self._mark_consolidated(all_source_ids)
 
@@ -138,9 +153,10 @@ class MemoryConsolidator:
                 logger.error("核心认知更新失败: %s", e)
 
         logger.info(
-            "巩固完成：处理%d条episodic，创建%d个knowledge节点，%d条边",
+            "巩固完成：处理%d条episodic，创建%d个knowledge节点，%d个pattern，%d条边",
             result["consolidated_count"],
             result["knowledge_created"],
+            result["patterns_created"],
             result["edges_created"],
         )
         return result
@@ -597,3 +613,206 @@ class MemoryConsolidator:
                     "consolidated_at": datetime.now(timezone.utc).isoformat(),
                 },
             )
+
+    # ------------------------------------------------------------------
+    # 步骤7.5：Pattern发现
+    # ------------------------------------------------------------------
+
+    _STOP_CHARS = frozenset(
+        "的了一是在有和就不人都到说要去你会着没看好自己"
+        "这那什么怎么谁哪几多少时候地得以为对吧吗啊"
+        "呢哦呀哈哇嗯嘿啦呗嘛"
+    )
+
+    def _discover_patterns(
+        self, knowledge_ids: List[str], runtime_agent=None
+    ) -> List[str]:
+        """步骤7.5：从knowledge节点中发现pattern（更高层次的规律抽象）
+
+        Pattern是比knowledge更高层的抽象：
+        - knowledge: "主人每天8点喂我"（具体规律）
+        - pattern: "固定时间=好事"（抽象信念）
+
+        策略：
+        1. 收集所有knowledge节点
+        2. 至少需要2个knowledge节点才触发
+        3. 优先用LLM发现共同模式（未超限时）
+        4. LLM失败时降级为规则匹配（找共同关键词）
+        5. 创建pattern节点（含pattern_confidence）
+        6. 建implies边：knowledge → pattern
+
+        Returns:
+            创建的pattern节点ID列表
+        """
+        if len(knowledge_ids) < 2:
+            return []
+
+        # 收集所有knowledge节点
+        knowledge_nodes = []
+        for kid in knowledge_ids:
+            node = self.storage.get_node(kid)
+            if node:
+                knowledge_nodes.append(node)
+
+        if len(knowledge_nodes) < 2:
+            return []
+
+        patterns: List[Dict[str, Any]] = []
+
+        # 优先用LLM发现共同模式
+        if (
+            runtime_agent is not None
+            and hasattr(runtime_agent, "ask")
+            and self._llm_calls_this_cycle < self._max_llm_calls
+        ):
+            try:
+                prompt = self._build_pattern_prompt(knowledge_nodes)
+                response = runtime_agent.ask(
+                    prompt,
+                    energy=50.0,
+                    task_complexity=2,
+                )
+                self._llm_calls_this_cycle += 1
+                if response and response.strip():
+                    for line in response.strip().split("\n"):
+                        line = line.strip().lstrip("-* ").strip()
+                        if line and len(line) > 3:
+                            patterns.append({"content": line, "confidence": 0.7})
+            except Exception as e:
+                logger.warning("LLM pattern发现失败: %s，降级为规则匹配", e)
+
+        # LLM失败或不可用时降级为规则匹配
+        if not patterns:
+            patterns = self._rule_based_pattern_discovery(knowledge_nodes)
+
+        if not patterns:
+            return []
+
+        # 创建pattern节点
+        pattern_ids = self._create_pattern_nodes(patterns, knowledge_ids)
+
+        # 建implies边
+        self._build_pattern_edges(pattern_ids, knowledge_ids)
+
+        if pattern_ids:
+            logger.info(
+                "Pattern发现：从%d个knowledge节点中发现%d个pattern",
+                len(knowledge_ids),
+                len(pattern_ids),
+            )
+
+        return pattern_ids
+
+    def _build_pattern_prompt(self, knowledge_nodes: List[MemoryNode]) -> str:
+        """构建LLM pattern发现提示"""
+        knowledge_text = "\n".join(f"- {n.content}" for n in knowledge_nodes)
+        return (
+            "你是一个记忆抽象系统。以下是精灵小狐狸艾菲学到的知识：\n"
+            f"{knowledge_text}\n\n"
+            "请从中发现更高层次的抽象规律/信念，每行输出一条。\n"
+            "这些规律应该是跨知识的通用模式，而非具体事实。\n"
+            "示例：\n"
+            "- 固定时间发生的事通常是好事\n"
+            "- 主人的行为有规律性\n"
+            "- 陌生环境需要谨慎\n"
+        )
+
+    def _rule_based_pattern_discovery(
+        self, knowledge_nodes: List[MemoryNode]
+    ) -> List[Dict[str, Any]]:
+        """基于规则的模式发现（LLM不可用时的降级方案）
+
+        提取所有knowledge节点的关键词，找到出现在多个knowledge中的
+        共同关键词。如果有共同关键词，生成pattern描述。
+        """
+        patterns: List[Dict[str, Any]] = []
+
+        # 提取每个knowledge节点的关键词（去重后）
+        all_token_sets = []
+        for node in knowledge_nodes:
+            tokens = tokenize(node.content)
+            meaningful = [t for t in tokens if t not in self._STOP_CHARS]
+            all_token_sets.append(set(meaningful))
+
+        if len(all_token_sets) < 2:
+            return patterns
+
+        # 找到出现在多个knowledge中的共同关键词
+        token_counter: Counter = Counter()
+        for token_set in all_token_sets:
+            token_counter.update(token_set)
+
+        common_keywords = [word for word, count in token_counter.items() if count >= 2]
+
+        if common_keywords:
+            keywords_str = "、".join(common_keywords[:3])
+            patterns.append(
+                {
+                    "content": f"关于「{keywords_str}」的多个知识表明这是重要的模式",
+                    "confidence": 0.6,
+                }
+            )
+
+        return patterns
+
+    def _create_pattern_nodes(
+        self,
+        patterns: List[Dict[str, Any]],
+        source_knowledge_ids: List[str],
+    ) -> List[str]:
+        """创建PATTERN类型节点
+
+        metadata包含：
+        - pattern_confidence: 置信度
+        - source_knowledge_ids: 来源knowledge节点ID列表
+        - consolidation_round: 巩固轮次
+        """
+        pattern_ids: List[str] = []
+        now = datetime.now(timezone.utc).isoformat()
+
+        for item in patterns:
+            self._pattern_counter += 1
+            node_id = f"pattern_c{self._consolidation_count}_n{self._pattern_counter}"
+            node = MemoryNode(
+                id=node_id,
+                type=NodeTypes.PATTERN.value,
+                content=item["content"],
+                metadata={
+                    "pattern_confidence": item.get("confidence", 0.5),
+                    "source_knowledge_ids": source_knowledge_ids,
+                    "consolidation_round": self._consolidation_count,
+                    "created_in_consolidation": True,
+                },
+                created_at=now,
+                updated_at=now,
+            )
+            self.storage.add_node(node)
+            pattern_ids.append(node_id)
+
+        return pattern_ids
+
+    def _build_pattern_edges(
+        self, pattern_ids: List[str], knowledge_ids: List[str]
+    ) -> int:
+        """建implies边：knowledge → pattern
+
+        每个knowledge节点都implies它来源的pattern节点。
+        weight从pattern节点metadata的pattern_confidence获取。
+        """
+        edge_count = 0
+        for pid in pattern_ids:
+            pattern_node = self.storage.get_node(pid)
+            weight = (
+                pattern_node.metadata.get("pattern_confidence", 0.5)
+                if pattern_node
+                else 0.5
+            )
+            for kid in knowledge_ids:
+                self.storage.add_edge(
+                    kid,
+                    pid,
+                    EdgeTypes.IMPLIES.value,
+                    weight=weight,
+                )
+                edge_count += 1
+        return edge_count

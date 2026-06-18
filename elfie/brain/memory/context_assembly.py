@@ -193,15 +193,31 @@ class ContextAssembler:
     def _assemble_prediction_zone(
         self, recent_events: List[str], entities: List[str]
     ) -> str:
-        """区域4：基于最近事件和已知实体推测可能发展"""
+        """区域4：基于pattern节点和最近事件推测可能发展
+
+        优先查询PATTERN类型节点，用pattern的content生成预测灵感。
+        如果没有pattern节点，降级为原来的模板填充。
+        """
         if not recent_events and not entities:
             return ""
 
+        # 尝试从pattern节点获取预测灵感
+        pattern_nodes = self.storage.get_nodes_by_type(NodeTypes.PATTERN.value, limit=5)
+
         lines = ["预测灵感："]
-        for event in recent_events[:3]:
-            lines.append(f"  - 根据「{event}」推断后续发展")
-        for entity in entities[:2]:
-            lines.append(f"  - 与{entity}相关的可能事件")
+
+        # 优先使用pattern节点
+        if pattern_nodes:
+            for node in pattern_nodes[:3]:
+                confidence = node.metadata.get("pattern_confidence", 0.5)
+                lines.append(f"  - {node.content}（置信度{confidence:.0%}）")
+
+        # 降级：如果没有pattern节点，用原来的模板
+        if len(lines) == 1:
+            for event in recent_events[:3]:
+                lines.append(f"  - 根据「{event}」推断后续发展")
+            for entity in entities[:2]:
+                lines.append(f"  - 与{entity}相关的可能事件")
 
         if len(lines) == 1:
             return ""

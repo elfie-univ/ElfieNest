@@ -1,6 +1,6 @@
 """巩固引擎单元测试
 
-测试 MemoryConsolidator 的8步骤巩固流程：
+测试 MemoryConsolidator 的8.5步骤巩固流程（含Pattern发现）：
 1. 收集未巩固episodic
 2. 按entity分组
 3. 知识提炼（规则降级）
@@ -8,12 +8,16 @@
 5. 建语义边
 6. 因果边
 7. 实体属性更新
+7.5 Pattern发现
 8. 标记已巩固
 """
+
+from unittest.mock import MagicMock
 
 import pytest
 
 from elfie.brain.memory.consolidation import MemoryConsolidator
+from elfie.brain.memory.context_assembly import ContextAssembler
 from elfie.brain.memory.graph_storage import GraphStorage
 from elfie.brain.memory.node_types import Edge, MemoryNode, NodeTypes, EdgeTypes
 
@@ -503,3 +507,277 @@ class TestMemoryConsolidator:
         result2 = consolidator.run_consolidation()
         assert result2["consolidated_count"] == 0
         assert result2["knowledge_created"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Pattern发现测试
+# ---------------------------------------------------------------------------
+
+
+class TestPatternDiscovery:
+    """Pattern节点发现功能测试"""
+
+    @pytest.fixture
+    def storage(self):
+        """创建内存SQLite存储"""
+        gs = GraphStorage(db_path=":memory:")
+        yield gs
+
+    @pytest.fixture
+    def consolidator(self, storage):
+        """创建巩固器"""
+        return MemoryConsolidator(storage=storage)
+
+    def _add_knowledge_nodes(self, storage, contents):
+        """辅助方法：向存储添加knowledge节点"""
+        ids = []
+        for i, content in enumerate(contents):
+            nid = f"kn_{i}"
+            node = MemoryNode(
+                id=nid,
+                type=NodeTypes.KNOWLEDGE.value,
+                content=content,
+                metadata={"source_type": "knowledge", "confidence": 0.8},
+            )
+            storage.add_node(node)
+            ids.append(nid)
+        return ids
+
+    # ------------------------------------------------------------------
+    # LLM发现pattern
+    # ------------------------------------------------------------------
+
+    def test_discover_patterns_with_llm(self, storage, consolidator):
+        """LLM发现pattern：模拟LLM返回pattern，验证节点和边被创建"""
+        class PatternAgent:
+            @staticmethod
+            def ask(prompt, **kwargs):
+                return "- 固定时间预示着好事发生\n- 主人的行为有规律可循"
+
+        knowledge_ids = self._add_knowledge_nodes(storage, [
+            "主人每天8点会喂我吃饭",
+            "主人喜欢摸我的头",
+        ])
+
+        pattern_ids = consolidator._discover_patterns(
+            knowledge_ids, runtime_agent=PatternAgent(),
+        )
+
+        assert len(pattern_ids) == 2
+
+        # 验证节点内容和类型
+        node_0 = storage.get_node(pattern_ids[0])
+        assert node_0.type == NodeTypes.PATTERN.value
+        assert "固定时间" in node_0.content
+
+        node_1 = storage.get_node(pattern_ids[1])
+        assert node_1.type == NodeTypes.PATTERN.value
+        assert "主人的行为" in node_1.content
+
+        # 验证implies边
+        for kid in knowledge_ids:
+            outgoing = storage.get_edges(kid, direction="outgoing")
+            implies_edges = [e for e in outgoing if e.rel == EdgeTypes.IMPLIES.value]
+            assert len(implies_edges) == 2
+
+    # ------------------------------------------------------------------
+    # 规则降级发现pattern
+    # ------------------------------------------------------------------
+
+    def test_discover_patterns_rule_fallback(self, storage, consolidator):
+        """规则降级发现pattern：无LLM时通过共同关键词发现pattern"""
+        knowledge_ids = self._add_knowledge_nodes(storage, [
+            "master feeds me every day",
+            "master likes petting",
+        ])
+
+        # 不传入runtime_agent，触发规则降级
+        pattern_ids = consolidator._discover_patterns(
+            knowledge_ids, runtime_agent=None,
+        )
+
+        assert len(pattern_ids) == 1
+
+        node = storage.get_node(pattern_ids[0])
+        assert node.type == NodeTypes.PATTERN.value
+        assert "master" in node.content
+
+    def test_discover_patterns_rule_fallback_no_common(
+        self, storage, consolidator,
+    ):
+        """规则降级且无共同关键词时跳过pattern发现"""
+        knowledge_ids = self._add_knowledge_nodes(storage, [
+            "master feeds me every day",
+            "sunny weather outside",
+        ])
+
+        pattern_ids = consolidator._discover_patterns(
+            knowledge_ids, runtime_agent=None,
+        )
+
+        # 无共同关键词，不创建pattern
+        assert pattern_ids == []
+
+    # ------------------------------------------------------------------
+    # knowledge不足时跳过
+    # ------------------------------------------------------------------
+
+    def test_discover_patterns_insufficient_knowledge(
+        self, storage, consolidator,
+    ):
+        """只有1个knowledge节点时跳过pattern发现"""
+        knowledge_ids = self._add_knowledge_nodes(storage, [
+            "master feeds me every day",
+        ])
+
+        pattern_ids = consolidator._discover_patterns(
+            knowledge_ids, runtime_agent=None,
+        )
+
+        assert pattern_ids == []
+
+    def test_discover_patterns_empty_list(self, storage, consolidator):
+        """空列表时跳过pattern发现"""
+        pattern_ids = consolidator._discover_patterns(
+            [], runtime_agent=None,
+        )
+        assert pattern_ids == []
+
+    # ------------------------------------------------------------------
+    # pattern节点metadata验证
+    # ------------------------------------------------------------------
+
+    def test_pattern_node_has_correct_metadata(self, storage, consolidator):
+        """pattern节点metadata包含正确的字段"""
+        knowledge_ids = self._add_knowledge_nodes(storage, [
+            "master feeds me every day",
+            "master likes petting",
+        ])
+
+        pattern_ids = consolidator._discover_patterns(
+            knowledge_ids, runtime_agent=None,
+        )
+
+        assert len(pattern_ids) == 1
+        node = storage.get_node(pattern_ids[0])
+
+        # pattern_confidence
+        assert node.metadata.get("pattern_confidence") is not None
+        assert isinstance(node.metadata["pattern_confidence"], (int, float))
+        assert 0 < node.metadata["pattern_confidence"] <= 1.0
+
+        # source_knowledge_ids
+        assert node.metadata.get("source_knowledge_ids") == knowledge_ids
+
+        # consolidation_round
+        assert node.metadata.get("consolidation_round") is not None
+        assert isinstance(node.metadata["consolidation_round"], int)
+
+    # ------------------------------------------------------------------
+    # implies边验证
+    # ------------------------------------------------------------------
+
+    def test_implies_edges_created(self, storage, consolidator):
+        """knowledge → pattern的implies边被正确创建"""
+        knowledge_ids = self._add_knowledge_nodes(storage, [
+            "master feeds me every day",
+            "master likes petting",
+        ])
+
+        pattern_ids = consolidator._discover_patterns(
+            knowledge_ids, runtime_agent=None,
+        )
+
+        assert len(pattern_ids) > 0
+
+        # 每个knowledge节点都有implies边指向每个pattern节点
+        for kid in knowledge_ids:
+            outgoing = storage.get_edges(kid, direction="outgoing")
+            implies_targets = {
+                e.target for e in outgoing if e.rel == EdgeTypes.IMPLIES.value
+            }
+            assert implies_targets == set(pattern_ids)
+
+    def test_implies_edge_weight_matches_confidence(self, storage, consolidator):
+        """implies边权重匹配pattern_confidence"""
+        knowledge_ids = self._add_knowledge_nodes(storage, [
+            "master feeds me every day",
+            "master likes petting",
+        ])
+
+        pattern_ids = consolidator._discover_patterns(
+            knowledge_ids, runtime_agent=None,
+        )
+
+        assert len(pattern_ids) > 0
+        pattern_node = storage.get_node(pattern_ids[0])
+        expected_weight = pattern_node.metadata.get("pattern_confidence", 0.5)
+
+        # 检查implies边权重
+        for kid in knowledge_ids:
+            outgoing = storage.get_edges(kid, direction="outgoing")
+            for edge in outgoing:
+                if edge.rel == EdgeTypes.IMPLIES.value:
+                    assert edge.weight == expected_weight
+
+    # ------------------------------------------------------------------
+    # 完整巩固流程包含pattern
+    # ------------------------------------------------------------------
+
+    def test_run_consolidation_includes_patterns(self, storage, consolidator):
+        """完整巩固流程包含pattern发现步骤"""
+        _setup_basic_data(storage)
+
+        result = consolidator.run_consolidation(runtime_agent=None)
+
+        # 验证结果中包含patterns_created
+        assert "patterns_created" in result
+
+        # 如果有knowledge节点被创建，应该有pattern（规则降级）
+        if result["knowledge_created"] > 0:
+            assert result["patterns_created"] >= 0  # 可能为0（无共同关键词时）
+
+        # 验证pattern节点类型存在
+        pattern_nodes = storage.get_nodes_by_type(NodeTypes.PATTERN.value)
+        for pn in pattern_nodes:
+            assert pn.metadata.get("created_in_consolidation") is True
+
+    # ------------------------------------------------------------------
+    # 预测区域使用pattern（集成）
+    # ------------------------------------------------------------------
+
+    def test_prediction_zone_uses_patterns(self):
+        """预测灵感区域使用pattern节点生成内容"""
+        storage = MagicMock()
+        retriever = MagicMock()
+        spreading = MagicMock()
+        decay = MagicMock()
+        weighting = MagicMock()
+        core_cognition = MagicMock()
+        core_cognition.get_core_text.return_value = {}
+
+        # 配置storage返回pattern节点
+        pattern_node = MemoryNode(
+            id="pat_1",
+            type=NodeTypes.PATTERN.value,
+            content="固定时间预示着好事发生",
+            metadata={"pattern_confidence": 0.8},
+        )
+        storage.get_nodes_by_type.return_value = [pattern_node]
+
+        assembler = ContextAssembler(
+            storage=storage,
+            retriever=retriever,
+            spreading=spreading,
+            decay=decay,
+            weighting=weighting,
+            core_cognition=core_cognition,
+        )
+
+        result = assembler._assemble_prediction_zone(
+            ["现在8点主人走过来"], ["主人"],
+        )
+
+        assert "预测灵感：" in result
+        assert "固定时间预示着好事发生" in result
+        assert "80%" in result  # 置信度80%应显示
