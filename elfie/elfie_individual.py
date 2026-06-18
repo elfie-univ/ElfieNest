@@ -69,6 +69,10 @@ class ElfieIndividual:
         # 仿真内的时间相角累加器
         self.elapsed_time = 0.0
 
+        # Godot API 引用（用于发送表达事件）
+        self.godot_api = godot_api
+        self._last_expression: Optional[Dict[str, Any]] = None
+
     @property
     def hippocampus(self):
         """向后兼容：旧代码通过 self.hippocampus 访问记忆系统
@@ -76,10 +80,6 @@ class ElfieIndividual:
         Task 20 将移除此属性
         """
         return self.memory
-
-        # Godot API 引用（用于发送表达事件）
-        self.godot_api = godot_api
-        self._last_expression: Optional[Dict[str, Any]] = None
 
     def tick(self, dt: float):
         """
