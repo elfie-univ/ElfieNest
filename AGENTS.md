@@ -114,6 +114,45 @@ The engine runs dual servers:
 
 When Godot connects, actions are sent as `go_to`, `speak_event` events. Without Godot, runs in terminal-only mode.
 
+## Security: 密钥与敏感信息管理（强制规则）
+
+> **绝对禁止将 API Key、Secret、Token、密码等敏感信息以明文形式写入代码或配置文件中并提交到 Git。**
+
+### 强制规则
+
+1. **禁止明文密钥**：任何 API Key（如 `sk-xxx`、`pk-xxx`、`AIzaxxx`、`AKIAxxx`、`ghp_xxx` 等）不得以字符串字面量出现在 `.py`、`.yaml`、`.yml`、`.json`、`.md` 等任何被 Git 跟踪的文件中。
+2. **使用环境变量**：所有密钥必须通过环境变量读取（`os.environ.get("API_KEY")`），或从已 gitignore 的本地配置文件加载（如 `runtime/runtime_config.json`、`.env`）。
+3. **配置文件占位符**：示例配置中使用占位符（如 `<your-api-key-here>`、`${API_KEY}`），不得填写真实密钥。
+4. **已 gitignore 的敏感文件**：`config.yaml`、`.env`、`runtime/runtime_config.json` 已在 `.gitignore` 中，不得移除。
+5. **Pre-commit 钩子**：项目已安装 `.git/hooks/pre-commit`，提交前自动扫描密钥模式。如检测到疑似密钥，提交将被阻止。不要使用 `--no-verify` 绕过。
+
+### 正确做法
+
+```python
+# ✅ 正确：从环境变量读取
+api_key = os.environ.get("OPENAI_API_KEY", "")
+
+# ✅ 正确：从 gitignored 配置文件加载
+config = load_config("runtime/runtime_config.json")  # 该文件已被 gitignore
+```
+
+```yaml
+# ✅ 正确：使用占位符
+api_key: ${OPENAI_API_KEY}  # 从环境变量注入
+```
+
+### 错误做法
+
+```python
+# ❌ 错误：明文硬编码
+api_key = "sk-xxxxxxxxxxxxxxxxxxxxxxxx"
+```
+
+```yaml
+# ❌ 错误：明文写在配置文件中
+api_key: pk-5aefbf35-0a22-4485-9b1b-f2cac89f7c1b
+```
+
 ## Notes
 
 - Comments and config files are in Chinese
