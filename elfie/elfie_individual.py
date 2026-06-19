@@ -215,14 +215,14 @@ class ElfieIndividual:
         )
 
         # 额外将具身形态描述注入 context 以利于大模型认知自己的物理形态
-        context["embodied_anatomy"] = self.anatomy.get_anatomy_descriptor()
+        context.embodied_anatomy = self.anatomy.get_anatomy_descriptor()
 
         # 3. 顶层大脑皮层大模型思考
         decision = self.brain.think_and_decide(context, runtime_agent)
 
-        action = decision.get("action", "")
-        speech_text = decision.get("speech_text", "")
-        mutter_msg = decision.get("mutter", "")
+        action = decision.action
+        speech_text = decision.speech_text
+        mutter_msg = decision.mutter
 
         # 4. 交互总线躯体物理安全拦截 (形态学限制校验)
         reflex_result = self.safety_reflex.intercept_and_validate(action, self.anatomy)

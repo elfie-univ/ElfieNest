@@ -8,6 +8,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from elfie.brain import BrainContext, BrainDecision, SensorData
 from elfie.brain.cognition.attention_manager import AttentionManager
 from elfie.brain.cognition.brain import NeocortexBrain
 from elfie.brain.cognition.expectation import ExpectationManager
@@ -84,22 +85,22 @@ class TestExpectationManager:
     def test_update_and_calculate_error_normal(self):
         """正常温度无预测误差"""
         em = ExpectationManager()
-        sensors = {
-            "temperature": 24.0,
-            "has_new_message": False,
-            "is_network_online": True,
-        }
+        sensors = SensorData(
+            temperature=24.0,
+            has_new_message=False,
+            is_network_online=True,
+        )
         error = em.update_and_calculate_error(sensors)
         assert error == 0.0
 
     def test_update_and_calculate_error_temperature_high(self):
         """温度偏高产生误差"""
         em = ExpectationManager()
-        sensors = {
-            "temperature": 30.0,
-            "has_new_message": False,
-            "is_network_online": True,
-        }
+        sensors = SensorData(
+            temperature=30.0,
+            has_new_message=False,
+            is_network_online=True,
+        )
         error = em.update_and_calculate_error(sensors)
         assert error > 0
         assert error <= 40.0  # 最高40分
@@ -107,55 +108,55 @@ class TestExpectationManager:
     def test_update_and_calculate_error_temperature_low(self):
         """温度偏低产生误差"""
         em = ExpectationManager()
-        sensors = {
-            "temperature": 18.0,
-            "has_new_message": False,
-            "is_network_online": True,
-        }
+        sensors = SensorData(
+            temperature=18.0,
+            has_new_message=False,
+            is_network_online=True,
+        )
         error = em.update_and_calculate_error(sensors)
         assert error > 0
 
     def test_update_and_calculate_error_temperature_small_diff(self):
         """温度变化小于2度不计误差"""
         em = ExpectationManager()
-        sensors = {
-            "temperature": 25.0,
-            "has_new_message": False,
-            "is_network_online": True,
-        }
+        sensors = SensorData(
+            temperature=25.0,
+            has_new_message=False,
+            is_network_online=True,
+        )
         error = em.update_and_calculate_error(sensors)
         assert error == 0.0
 
     def test_update_and_calculate_error_new_message(self):
         """新消息产生大误差"""
         em = ExpectationManager()
-        sensors = {
-            "temperature": 24.0,
-            "has_new_message": True,
-            "is_network_online": True,
-        }
+        sensors = SensorData(
+            temperature=24.0,
+            has_new_message=True,
+            is_network_online=True,
+        )
         error = em.update_and_calculate_error(sensors)
         assert error >= 50.0
 
     def test_update_and_calculate_error_network_offline(self):
         """断网产生误差"""
         em = ExpectationManager()
-        sensors = {
-            "temperature": 24.0,
-            "has_new_message": False,
-            "is_network_online": False,
-        }
+        sensors = SensorData(
+            temperature=24.0,
+            has_new_message=False,
+            is_network_online=False,
+        )
         error = em.update_and_calculate_error(sensors)
         assert error >= 35.0
 
     def test_update_and_calculate_error_multiple(self):
         """多重误差叠加"""
         em = ExpectationManager()
-        sensors = {
-            "temperature": 35.0,
-            "has_new_message": True,
-            "is_network_online": False,
-        }
+        sensors = SensorData(
+            temperature=35.0,
+            has_new_message=True,
+            is_network_online=False,
+        )
         error = em.update_and_calculate_error(sensors)
         assert error > 50.0  # 40 + 50 + 35
 
@@ -198,15 +199,15 @@ class TestNeocortexBrain:
             def ask(self, prompt, energy, task_complexity):
                 return "哎呀！吓我一跳！[ACTION]wiggle_ears[/ACTION]"
 
-        context = {
-            "sensors": {"has_new_message": False, "salience_score": 80.0},
-            "energy": 100.0,
-        }
+        context = BrainContext(
+            sensors=SensorData(has_new_message=False, salience_score=80.0),
+            energy=100.0,
+        )
         result = brain.think_and_decide(context, MockRuntime())
 
-        assert result["attention_mode"] == "SN"
-        assert result["action"] == "wiggle_ears"
-        assert "speech_text" in result
+        assert result.attention_mode == "SN"
+        assert result.action == "wiggle_ears"
+        assert result.speech_text != ""
 
     def test_think_and_decide_cen_mode(self):
         """CEN模式决策测试"""
@@ -216,20 +217,20 @@ class TestNeocortexBrain:
             def ask(self, prompt, energy, task_complexity):
                 return "你好呀！主人！"
 
-        context = {
-            "sensors": {
-                "has_new_message": True,
-                "salience_score": 0.0,
-                "user_message": "在吗？",
-            },
-            "energy": 100.0,
-            "emotion_state": "平静",
-            "history_episodes": "无相关记忆",
-        }
+        context = BrainContext(
+            sensors=SensorData(
+                has_new_message=True,
+                salience_score=0.0,
+                user_message="在吗？",
+            ),
+            energy=100.0,
+            emotion_state="平静",
+            history_episodes="无相关记忆",
+        )
         result = brain.think_and_decide(context, MockRuntime())
 
-        assert result["attention_mode"] == "CEN"
-        assert result["action"] == "nod_head"
+        assert result.attention_mode == "CEN"
+        assert result.action == "nod_head"
 
     def test_think_and_decide_cen_with_action_tag(self):
         """CEN模式解析动作标签"""
@@ -239,20 +240,20 @@ class TestNeocortexBrain:
             def ask(self, prompt, energy, task_complexity):
                 return "好呀！[ACTION]wag_tail[/ACTION]"
 
-        context = {
-            "sensors": {
-                "has_new_message": True,
-                "salience_score": 0.0,
-                "user_message": "来",
-            },
-            "energy": 100.0,
-            "emotion_state": "平静",
-            "history_episodes": "",
-        }
+        context = BrainContext(
+            sensors=SensorData(
+                has_new_message=True,
+                salience_score=0.0,
+                user_message="来",
+            ),
+            energy=100.0,
+            emotion_state="平静",
+            history_episodes="",
+        )
         result = brain.think_and_decide(context, MockRuntime())
 
-        assert result["action"] == "wag_tail"
-        assert "wag_tail" not in result["speech_text"]  # 动作标签被移除
+        assert result.action == "wag_tail"
+        assert "wag_tail" not in result.speech_text  # 动作标签被移除
 
     def test_think_and_decide_dmn_active_mode(self):
         """DMN主动模式（高预测误差）"""
@@ -262,19 +263,19 @@ class TestNeocortexBrain:
             def ask(self, prompt, energy, task_complexity):
                 return "今天天气不错呀！"
 
-        context = {
-            "sensors": {
-                "has_new_message": False,
-                "salience_score": 0.0,
-                "temperature": 40.0,
-            },
-            "energy": 100.0,
-            "emotion_mood": "bored",
-        }
+        context = BrainContext(
+            sensors=SensorData(
+                has_new_message=False,
+                salience_score=0.0,
+                temperature=40.0,
+            ),
+            energy=100.0,
+            emotion_mood="bored",
+        )
         result = brain.think_and_decide(context, MockRuntime())
 
-        assert result["attention_mode"] == "DMN_ACTIVE"
-        assert result["action"] == "wag_tail"
+        assert result.attention_mode == "DMN_ACTIVE"
+        assert result.action == "wag_tail"
 
     def test_think_and_decide_dmn_idle_mode(self):
         """DMN空闲模式（低预测误差）"""
@@ -284,20 +285,20 @@ class TestNeocortexBrain:
             def ask(self, prompt, energy, task_complexity):
                 return "不应被调用"
 
-        context = {
-            "sensors": {
-                "has_new_message": False,
-                "salience_score": 0.0,
-                "temperature": 24.0,
-            },
-            "energy": 100.0,
-            "emotion_mood": "bored",
-        }
+        context = BrainContext(
+            sensors=SensorData(
+                has_new_message=False,
+                salience_score=0.0,
+                temperature=24.0,
+            ),
+            energy=100.0,
+            emotion_mood="bored",
+        )
         result = brain.think_and_decide(context, MockRuntime())
 
-        assert result["attention_mode"] == "DMN_IDLE"
-        assert result["mutter"] is not None  # 有碎碎念
-        assert result["action"] == "blink_eyes"
+        assert result.attention_mode == "DMN_IDLE"
+        assert result.mutter is not None  # 有碎碎念
+        assert result.action == "blink_eyes"
 
     def test_think_and_decide_missing_sensors(self):
         """缺少sensors字段的边界情况"""
@@ -307,12 +308,16 @@ class TestNeocortexBrain:
             def ask(self, prompt, energy, task_complexity):
                 return "回复"
 
-        context = {"sensors": {}, "energy": 100.0, "emotion_mood": "bored"}
+        context = BrainContext(
+            sensors=SensorData(),
+            energy=100.0,
+            emotion_mood="bored",
+        )
         result = brain.think_and_decide(context, MockRuntime())
 
         # 应该有默认值，不崩溃
         assert result is not None
-        assert "attention_mode" in result
+        assert result.attention_mode is not None
 
     def test_think_and_decide_missing_context_fields(self):
         """缺少context中部分字段"""
@@ -322,13 +327,13 @@ class TestNeocortexBrain:
             def ask(self, prompt, energy, task_complexity):
                 return "回复"
 
-        context = {
-            "sensors": {
-                "has_new_message": True,
-                "salience_score": 0.0,
-                "user_message": "Hi",
-            }
-        }
+        context = BrainContext(
+            sensors=SensorData(
+                has_new_message=True,
+                salience_score=0.0,
+                user_message="Hi",
+            )
+        )
         result = brain.think_and_decide(context, MockRuntime())
 
         assert result is not None
@@ -352,18 +357,18 @@ class TestEdgeCases:
     def test_expectation_manager_extreme_temperature(self):
         """极端温度值"""
         em = ExpectationManager()
-        sensors = {
-            "temperature": 100.0,
-            "has_new_message": False,
-            "is_network_online": True,
-        }
+        sensors = SensorData(
+            temperature=100.0,
+            has_new_message=False,
+            is_network_online=True,
+        )
         error = em.update_and_calculate_error(sensors)
         assert error == 40.0  # 封顶40
 
     def test_expectation_manager_empty_sensors(self):
         """空传感器数据"""
         em = ExpectationManager()
-        sensors = {}
+        sensors = SensorData()
         error = em.update_and_calculate_error(sensors)
         # 使用默认值24.0，无误差
         assert error == 0.0
@@ -371,14 +376,6 @@ class TestEdgeCases:
     def test_brain_with_none_runtime(self):
         """runtime_agent为None时的边界情况"""
         brain = NeocortexBrain()
-        _ = {
-            "sensors": {
-                "has_new_message": False,
-                "salience_score": 0.0,
-                "temperature": 24.0,
-            },
-            "energy": 100.0,
-            "emotion_mood": "bored",
-        }
+        _ = BrainContext()
         # 不调用think_and_decide，只测初始化
         assert brain.attention is not None
