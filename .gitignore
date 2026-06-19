@@ -13,6 +13,8 @@
 .env
 .env.*
 !.env.example
+config.yaml
+.elfie_memory.db
 
 # 4. Python 标准临时文件与缓存
 __pycache__/
