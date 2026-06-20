@@ -1,9 +1,15 @@
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from elfie import ElfieIndividual
 
 logger = logging.getLogger("elfienest.room")
+
+
+class RoomFullError(Exception):
+    """房间已满异常。"""
+
+    pass
 
 
 class ElfieNestRoom:
@@ -12,11 +18,22 @@ class ElfieNestRoom:
     维护所有精灵实例，动态看板，并实现精灵间的群聊广播机制。
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        max_elfies_per_room: Optional[int] = None,
+    ):
+        """初始化房间。
+
+        Args:
+            max_elfies_per_room: 房间最大精灵数，None 表示无限制
+        """
+        # 0. 房间容量限制
+        self.max_elfies_per_room = max_elfies_per_room
+
         # 1. 灵魂容器：保存注册进来的小精灵实例 {elfie_id: ElfieIndividual}
         self.elfies: Dict[str, ElfieIndividual] = {}
 
-        # 2. 动态语义状态看板，仅记录“谁在什么家具上做什么”，不涉及任何坐标
+        # 2. 动态语义状态看板，仅记录"谁在什么家具上做什么"，不涉及任何坐标
         self.room_state: Dict[str, Any] = {
             "furniture": {},  # 由 Godot 动态注册，格式: { "bed_1": {"occupant": "艾菲"} }
             "elfies_status": {},  # 格式: { "elfie_id": { "posture": "standing", "target_furniture": None, "active": True } }
@@ -26,9 +43,17 @@ class ElfieNestRoom:
         self.sensory_buffers: Dict[str, List[str]] = {}
 
     def register_elfie(self, elfie_id: str, elfie_instance: ElfieIndividual):
+        """将精灵实例注入并注册到该宿舍房间中。
+
+        Raises:
+            RoomFullError: 房间已满
         """
-        将精灵实例注入并注册到该宿舍房间中
-        """
+        if self.max_elfies_per_room is not None:
+            if len(self.elfies) >= self.max_elfies_per_room:
+                raise RoomFullError(
+                    f"房间已满 ({len(self.elfies)}/{self.max_elfies_per_room})"
+                )
+
         self.elfies[elfie_id] = elfie_instance
         self.room_state["elfies_status"][elfie_id] = {
             "posture": "standing",

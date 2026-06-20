@@ -19,8 +19,9 @@ from .auth import (
     create_session,
     delete_session,
     generate_csrf_token,
+    get_rate_limiter,
+    get_session_ttl_seconds,
     hash_password,
-    rate_limiter,
     verify_csrf_token,
     verify_password,
     verify_session,
@@ -216,15 +217,16 @@ def create_app(
 
         client_ip = request.client.host if request.client else "unknown"
 
-        # 速率限制
-        if rate_limiter.is_limited(client_ip, username):
+        # 速率限制（从配置动态读取）
+        db = request.app.state.db_path
+        limiter = get_rate_limiter(db)
+        if limiter.is_limited(client_ip, username):
             raise HTTPException(
                 status_code=429,
                 detail="登录尝试过于频繁，请稍后再试",
             )
 
         # 验证凭据
-        db = request.app.state.db_path
         with get_db(db) as conn:
             cursor = conn.execute(
                 "SELECT id, username, password_hash, role FROM users WHERE username = ?",
@@ -233,11 +235,11 @@ def create_app(
             row = cursor.fetchone()
 
         if row is None or not verify_password(password, row["password_hash"]):
-            rate_limiter.record_failure(client_ip, username)
+            limiter.record_failure(client_ip, username)
             raise HTTPException(status_code=401, detail="用户名或密码错误")
 
         # 登录成功 — 清零速率限制，创建 session
-        rate_limiter.clear(client_ip, username)
+        limiter.clear(client_ip, username)
         session_token = create_session(row["id"], db)
         csrf_token = generate_csrf_token(session_token)
 
@@ -257,7 +259,7 @@ def create_app(
             value=session_token,
             httponly=True,
             samesite="lax",
-            max_age=7 * 86400,
+            max_age=get_session_ttl_seconds(db),
         )
         resp.headers["X-CSRF-Token"] = csrf_token
         return resp

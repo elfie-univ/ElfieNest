@@ -203,6 +203,11 @@ class LLMRuntimeConfig:
         if self.ollama_host:
             self.providers["ollama"]["api_base"] = self.ollama_host
 
+    @classmethod
+    def load(cls) -> "LLMRuntimeConfig":
+        """加载当前运行时配置（每次调用重新读取）。"""
+        return cls()
+
     def to_dict(self) -> Dict[str, Any]:
         """将当前混配配置全量转化为字典格式以供持久化保存"""
         return {

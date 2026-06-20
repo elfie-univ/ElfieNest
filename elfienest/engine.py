@@ -20,10 +20,29 @@ class ElfieNestEngine:
     """
 
     def __init__(
-        self, ws_host: str = "127.0.0.1", ws_port: int = 8765, http_port: int = 8000
+        self,
+        ws_host: str = "127.0.0.1",
+        ws_port: int = 8765,
+        http_port: int = 8000,
+        tick_interval_sec: float = 1.5,
+        tts_enabled: bool = True,
+        max_elfies_per_room: Optional[int] = None,
     ):
+        """初始化引擎。
+
+        Args:
+            ws_host: WebSocket 主机地址
+            ws_port: WebSocket 端口
+            http_port: HTTP 端口
+            tick_interval_sec: 每个 tick 的间隔秒数
+            tts_enabled: 是否启用 TTS
+            max_elfies_per_room: 房间最大精灵数
+        """
+        self.tick_interval_sec = tick_interval_sec
+        self.tts_enabled = tts_enabled
+
         # 1. 实例化核心组件
-        self.room = ElfieNestRoom()
+        self.room = ElfieNestRoom(max_elfies_per_room=max_elfies_per_room)
         self.api_server = GodotAPIServer(host=ws_host, port=ws_port)
         self.coordinator = ElfieNestCoordinator(self.room, self.api_server)
 
@@ -96,6 +115,10 @@ class ElfieNestEngine:
         if not text:
             return None
 
+        if not self.tts_enabled:
+            logger.debug("TTS disabled, skipping voice synthesis for %s", elfie_id)
+            return None
+
         filename = f"voice_{elfie_id}_{int(time.time() * 1000)}.mp3"
         output_path = os.path.join(self.temp_audio_dir, filename)
 
@@ -118,13 +141,23 @@ class ElfieNestEngine:
             return None
 
     def start_loop(
-        self, runtime_agent: Any, ticks_to_run: int = 3, interval_sec: float = 1.5
+        self,
+        runtime_agent: Any,
+        ticks_to_run: int = 3,
+        interval_sec: Optional[float] = None,
     ):
         """
         启动世界物理 Tick 仿真循环。
         兼容 main.py，并能够极其自适应地运行。如果检测到 Godot 客户端连入，
         将支持长效通信与 3D 群聊联动；若无连接，则优雅回退至本地终端仿真。
+
+        Args:
+            runtime_agent: 运行时 LLM 代理
+            ticks_to_run: 运行周期数
+            interval_sec: 间隔秒数，None 则使用 self.tick_interval_sec
         """
+        if interval_sec is None:
+            interval_sec = self.tick_interval_sec
         # 1. 启动 HTTP 语音服务器与 WebSocket 网络总线
         self._start_http_server()
         self.api_server.start()

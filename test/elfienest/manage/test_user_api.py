@@ -6,13 +6,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
 from elfienest.manage.app import create_app
 from elfienest.manage.store import init_db
+from elfienest.room import RoomFullError
 
 from ._helpers import create_test_admin
 
@@ -420,3 +421,40 @@ class TestAdopt:
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 400
+
+
+class TestAdoptRoomFull:
+    def test_adopt_room_full(self, client: TestClient, app, db_path: str) -> None:
+        """房间满 → POST /api/user/adopt → 409 detail 包含 '房间已满'。"""
+        from elfie import ElfieIndividual  # noqa: PLC0415
+        from elfienest.engine import ElfieNestEngine  # noqa: PLC0415
+
+        _create_user_via_admin(client, "alice")
+        tokens = _login_user(client, "alice")
+
+        # 创建一个已满的房间引擎（上限 1，已注册 1 只）
+        with patch("elfienest.engine.GodotAPIServer"):
+            engine = ElfieNestEngine(
+                max_elfies_per_room=1,
+                ws_port=18772,
+                http_port=18007,
+                tts_enabled=False,
+            )
+        engine.room.register_elfie("existing", MagicMock(spec=ElfieIndividual))
+
+        # 注入到 app.state
+        app.state.engine = engine
+
+        resp = client.post(
+            "/api/user/adopt",
+            json={
+                "name": "新精灵",
+                "anatomy_type": "biped",
+                "personality_style": "好奇探索",
+                "height": "standard",
+                "build": "standard",
+            },
+            headers=_headers(tokens["csrf_token"]),
+        )
+        assert resp.status_code == 409
+        assert "房间已满" in resp.text

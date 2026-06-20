@@ -220,6 +220,12 @@ def main():
             ollama_model_fast="qwen2.5:1.5b",
         )
 
+        # 读取 engine 配置
+        engine_config = config.system.get("engine", {})
+        tick_interval_sec = engine_config.get("tick_interval_sec", 1.5)
+        tts_enabled = engine_config.get("tts_enabled", True)
+        max_elfies_per_room = engine_config.get("max_elfies_per_room")
+
         runtime_agent = None
         if args.fallback:
             runtime_agent = FallbackAgent()
@@ -264,13 +270,17 @@ def main():
             )
 
         # 音频服务器使用 8767 端口，避免与 uvicorn HTTP 端口冲突
-        engine = ElfieNestEngine(http_port=8767)
+        engine = ElfieNestEngine(
+            http_port=8767,
+            tick_interval_sec=tick_interval_sec,
+            tts_enabled=tts_enabled,
+            max_elfies_per_room=max_elfies_per_room,
+        )
         engine_holder["engine"] = engine
         engine_ready.set()
         engine.start_loop(
             runtime_agent=runtime_agent,
             ticks_to_run=100000,
-            interval_sec=3.0,
         )
 
     engine_thread = threading.Thread(target=engine_worker, daemon=True)
@@ -290,10 +300,22 @@ def main():
 
         with get_db(db_path) as conn:
             cursor = conn.execute(
+                "SELECT COUNT(*) AS cnt FROM elfie_registry"
+            )
+            count_row = cursor.fetchone()
+            existing_count = count_row["cnt"] if count_row else 0
+
+            cursor = conn.execute(
                 "SELECT elfie_id, config_dir, anatomy_type, name "
                 "FROM elfie_registry"
             )
             rows = cursor.fetchall()
+
+        # 检查上限警告（现有精灵超过新限制时仍全部加载）
+        if max_elfies_per_room is not None and existing_count > max_elfies_per_room:
+            print(
+                f"  ⚠️  现有 {existing_count} 只精灵超过新上限 {max_elfies_per_room}，仍全部加载"
+            )
 
         for row in rows:
             elfie_id = row["elfie_id"]
@@ -304,7 +326,7 @@ def main():
                 elfie = ElfieIndividual(
                     config_dir=config_dir, anatomy_type=anatomy_type
                 )
-                engine.coordinator.register_elfie(elfie_id, elfie)
+                engine.room.register_elfie(elfie_id, elfie)
                 loaded_elfies.append({"id": elfie_id, "name": name})
             except Exception as e:
                 print(f"  ⚠️  加载精灵 {name} ({elfie_id}) 失败: {e}")

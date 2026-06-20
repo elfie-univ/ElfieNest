@@ -14,11 +14,11 @@ import yaml
 
 from elfienest.manage.adoption import (
     PERSONALITY_PRESETS,
-    VALID_ANATOMY_TYPES,
     VALID_BUILDS,
     VALID_HEIGHTS,
     ElfieGenerator,
 )
+from elfienest.manage.adoption_config import get_allowed_anatomy_types
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -242,7 +242,7 @@ class TestConstants:
         assert "nod_head" in ElfieGenerator.ACTION_POOL
 
     def test_valid_values_constants(self) -> None:
-        """VALID 常量定义正确。"""
+        """VALID 常量定义正确，adoption 配置默认值匹配旧硬编码。"""
         assert VALID_HEIGHTS == ("short", "standard", "tall")
         assert VALID_BUILDS == ("slim", "standard", "plump")
-        assert VALID_ANATOMY_TYPES == ("biped", "quadruped")
+        assert get_allowed_anatomy_types() == ("biped", "quadruped")

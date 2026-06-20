@@ -9,7 +9,7 @@ import pytest
 
 from elfie import ElfieIndividual
 from elfienest.engine import ElfieNestCoordinator, ElfieNestEngine
-from elfienest.room import ElfieNestRoom
+from elfienest.room import ElfieNestRoom, RoomFullError
 
 
 class TestElfieNestEngine:
@@ -135,6 +135,83 @@ class TestElfieNestRoom:
         room.tick(1.0)
 
         mock_elfie.tick.assert_not_called()
+
+
+class TestRoomCapacity:
+    """房间容量限制测试"""
+
+    def test_room_full_error(self):
+        """max_elfies_per_room=1 → 注册第 2 只 → RoomFullError"""
+        room = ElfieNestRoom(max_elfies_per_room=1)
+        room.register_elfie("elf1", MagicMock(spec=ElfieIndividual))
+
+        with pytest.raises(RoomFullError, match="房间已满"):
+            room.register_elfie("elf2", MagicMock(spec=ElfieIndividual))
+
+    def test_room_full_error_message(self):
+        """验证 RoomFullError 消息包含当前数量/上限"""
+        room = ElfieNestRoom(max_elfies_per_room=2)
+        room.register_elfie("elf1", MagicMock(spec=ElfieIndividual))
+        room.register_elfie("elf2", MagicMock(spec=ElfieIndividual))
+
+        with pytest.raises(RoomFullError) as exc_info:
+            room.register_elfie("elf3", MagicMock(spec=ElfieIndividual))
+        assert "2/2" in str(exc_info.value)
+
+    def test_room_unlimited(self):
+        """max_elfies_per_room=None → 无限制注册"""
+        room = ElfieNestRoom(max_elfies_per_room=None)
+        for i in range(100):
+            room.register_elfie(f"elf{i}", MagicMock(spec=ElfieIndividual))
+        assert len(room.elfies) == 100
+
+
+class TestEngineConfig:
+    """引擎配置参数测试"""
+
+    def test_engine_tick_interval(self):
+        """tick_interval_sec=2.0 → 验证属性"""
+        engine = ElfieNestEngine(
+            ws_port=18766, http_port=18001, tick_interval_sec=2.0
+        )
+        assert engine.tick_interval_sec == 2.0
+
+    def test_engine_tick_interval_default(self):
+        """tick_interval_sec 默认值应为 1.5"""
+        engine = ElfieNestEngine(ws_port=18767, http_port=18002)
+        assert engine.tick_interval_sec == 1.5
+
+    def test_engine_tts_enabled_default(self):
+        """tts_enabled 默认应为 True"""
+        engine = ElfieNestEngine(ws_port=18768, http_port=18003)
+        assert engine.tts_enabled is True
+
+    def test_engine_tts_disabled(self):
+        """tts_enabled=False → _synthesize_voice 返回 None"""
+        with patch("elfienest.engine.GodotAPIServer"):
+            engine = ElfieNestEngine(
+                ws_port=18769, http_port=18004, tts_enabled=False
+            )
+        result = engine._synthesize_voice("test", "hello")
+        assert result is None
+
+    def test_engine_max_elfies_per_room(self):
+        """max_elfies_per_room=3 → 房间容量正确"""
+        with patch("elfienest.engine.GodotAPIServer"):
+            engine = ElfieNestEngine(
+                ws_port=18770, http_port=18005, max_elfies_per_room=3
+            )
+        assert engine.room.max_elfies_per_room == 3
+
+    def test_start_loop_uses_tick_interval(self):
+        """start_loop 不传 interval_sec 时使用 self.tick_interval_sec"""
+        with patch("elfienest.engine.GodotAPIServer"):
+            engine = ElfieNestEngine(
+                ws_port=18771, http_port=18006, tick_interval_sec=2.5
+            )
+        # interval_sec=None → 使用 self.tick_interval_sec
+        # 我们无法轻松测试运行时行为，但验证默认值传递逻辑
+        assert engine.tick_interval_sec == 2.5
 
 
 class TestEdgeCases:

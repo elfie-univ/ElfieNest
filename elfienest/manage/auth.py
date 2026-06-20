@@ -57,17 +57,47 @@ def verify_csrf_token(session_token: str, csrf_token: str) -> bool:
 # Session 管理
 # ---------------------------------------------------------------------------
 
-_SESSION_EXPIRY_SECONDS: int = 7 * 86_400  # 7 天
+_session_config: Dict[str, int] = {"ttl_seconds": 7 * 86_400}
+
+
+def get_session_ttl_seconds(db_path: Optional[str] = None) -> int:
+    """获取 session TTL（秒），从 system.security 读取并缓存。
+
+    Args:
+        db_path: 数据库路径（用于可能的扩展）
+
+    Returns:
+        TTL 秒数
+    """
+    from runtime.config import LLMRuntimeConfig  # noqa: PLC0415
+
+    config = LLMRuntimeConfig()
+    ttl_days = config.system.get("security", {}).get("session_ttl_days", 7)
+    ttl_seconds = ttl_days * 86400
+
+    # 更新缓存
+    _session_config["ttl_seconds"] = ttl_seconds
+
+    return ttl_seconds
+
+
+def invalidate_session_cache() -> None:
+    """清除 session TTL 缓存（配置更新后调用）。
+
+    下次调用 ``get_session_ttl_seconds`` 会重新读取配置。
+    """
+    # 缓存下次调用时自动更新，此函数为外部触发接口
+    pass
 
 
 def create_session(user_id: int, db_path: str = "data/nest.db") -> str:
     """为 *user_id* 创建新 session，返回 64 字符 hex token。
 
     生成 32 字节随机 token（secrets.token_hex），插入 ``sessions`` 表，
-    ``expires_at`` 设为当前时间 + 7 天（Unix 时间戳浮点数）。
+    ``expires_at`` 设为当前时间 + ``system.security.session_ttl_days`` 天。
     """
     token = secrets.token_hex(32)
-    expires_at = time.time() + _SESSION_EXPIRY_SECONDS
+    expires_at = time.time() + get_session_ttl_seconds(db_path)
 
     with get_db(db_path) as conn:
         conn.execute(
@@ -228,5 +258,39 @@ class RateLimiter:
         self._records.pop(key, None)
 
 
-# 全局默认速率限制器实例（单例）
-rate_limiter: RateLimiter = RateLimiter()
+# 全局速率限制器缓存（按配置参数缓存）
+_rate_limiter_cache: Dict[str, RateLimiter] = {}
+
+
+def get_rate_limiter(db_path: Optional[str] = None) -> RateLimiter:
+    """获取 RateLimiter 实例（按配置缓存）。
+
+    Args:
+        db_path: 数据库路径（用于缓存键，保留作扩展用）
+
+    Returns:
+        RateLimiter 实例
+    """
+    from runtime.config import LLMRuntimeConfig  # noqa: PLC0415
+
+    config = LLMRuntimeConfig()
+    security = config.system.get("security", {})
+    rate_config = security.get("rate_limit", {})
+
+    max_attempts = rate_config.get("max_attempts", 5)
+    window_seconds = rate_config.get("window_seconds", 300)
+
+    # 使用配置参数作为缓存键
+    cache_key = f"{max_attempts}:{window_seconds}"
+
+    if cache_key not in _rate_limiter_cache:
+        _rate_limiter_cache[cache_key] = RateLimiter(
+            max_attempts=max_attempts, window_seconds=window_seconds
+        )
+
+    return _rate_limiter_cache[cache_key]
+
+
+def invalidate_rate_limiter_cache() -> None:
+    """清除 RateLimiter 缓存（配置更新后调用）。"""
+    _rate_limiter_cache.clear()

@@ -158,7 +158,6 @@ GREETINGS_POOLS: Dict[str, List[str]] = {
 
 VALID_HEIGHTS: Tuple[str, ...] = ("short", "standard", "tall")
 VALID_BUILDS: Tuple[str, ...] = ("slim", "standard", "plump")
-VALID_ANATOMY_TYPES: Tuple[str, ...] = ("biped", "quadruped")
 
 
 # ===================================================================
@@ -367,12 +366,18 @@ class ElfieGenerator:
             ValueError: 任意参数超出允许范围。
         """
         # ------------------------------------------------------------------
-        # 参数校验
+        # 参数校验（使用共享配置模块读取动态配置）
         # ------------------------------------------------------------------
-        if personality_style not in PERSONALITY_PRESETS:
+        from .adoption_config import (  # noqa: PLC0415
+            get_allowed_anatomy_types,
+            get_allowed_personality_styles,
+        )
+
+        allowed_styles = get_allowed_personality_styles()
+        if personality_style not in allowed_styles:
             raise ValueError(
                 f"未知 personality_style: {personality_style!r}。"
-                f" 可选: {', '.join(PERSONALITY_PRESETS)}"
+                f" 可选: {', '.join(allowed_styles)}"
             )
         if height not in VALID_HEIGHTS:
             raise ValueError(
@@ -382,9 +387,10 @@ class ElfieGenerator:
             raise ValueError(
                 f"无效 build: {build!r}。可选: {', '.join(VALID_BUILDS)}"
             )
-        if anatomy_type not in VALID_ANATOMY_TYPES:
+        allowed_anatomy = get_allowed_anatomy_types()
+        if anatomy_type not in allowed_anatomy:
             raise ValueError(
-                f"无效 anatomy_type: {anatomy_type!r}。可选: {', '.join(VALID_ANATOMY_TYPES)}"
+                f"无效 anatomy_type: {anatomy_type!r}。可选: {', '.join(allowed_anatomy)}"
             )
 
         # ------------------------------------------------------------------

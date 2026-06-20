@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import shutil
@@ -221,7 +222,7 @@ def _validate_range(section: str, data: Dict[str, Any]) -> None:
 
 def _read_system_section(section: str) -> Dict[str, Any]:
     """从 ``runtime_config.json`` 读取指定 section，与默认值深层合并后返回。"""
-    base = DEFAULT_SYSTEM_SETTINGS.get(section, {}).copy()
+    base = copy.deepcopy(DEFAULT_SYSTEM_SETTINGS.get(section, {}))
     if not _RUNTIME_CONFIG_PATH.exists():
         return base
 
@@ -331,4 +332,16 @@ async def update_system_section(
     _validate_section_fields(section, body)
 
     # 持久化并返回更新后的完整 section
-    return _write_system_section(section, body)
+    result = _write_system_section(section, body)
+
+    # 如果是 security section，清除 auth 缓存使新配置即时生效
+    if section == "security":
+        from .auth import (  # noqa: PLC0415
+            invalidate_rate_limiter_cache,
+            invalidate_session_cache,
+        )
+
+        invalidate_session_cache()
+        invalidate_rate_limiter_cache()
+
+    return result

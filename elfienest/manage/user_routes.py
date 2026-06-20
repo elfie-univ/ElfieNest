@@ -16,7 +16,14 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from .adoption import ElfieGenerator
+from .adoption_config import (
+    get_allowed_anatomy_types,
+    get_allowed_personality_styles,
+    get_max_elfies_per_user,
+)
 from .store import count_elfies_by_owner, get_db
+
+from elfienest.room import RoomFullError
 
 logger = logging.getLogger("elfienest.manage.user_routes")
 
@@ -27,7 +34,6 @@ router = APIRouter(prefix="/api/user", tags=["user"])
 # ---------------------------------------------------------------------------
 
 PERSONALITY_STYLES: tuple = tuple(ElfieGenerator.PERSONALITY_PRESETS.keys())
-ANATOMY_TYPES: tuple = ("biped", "quadruped")
 HEIGHTS: tuple = ("short", "standard", "tall")
 BUILDS: tuple = ("slim", "standard", "plump")
 
@@ -226,15 +232,20 @@ async def adopt_elfie(
             status_code=400,
             detail="名字长度必须在 1-20 字之间",
         )
-    if anatomy_type not in ANATOMY_TYPES:
+    db = request.app.state.db_path
+
+    allowed_anatomy = get_allowed_anatomy_types(db)
+    if anatomy_type not in allowed_anatomy:
         raise HTTPException(
             status_code=400,
-            detail=f"anatomy_type 必须是 {ANATOMY_TYPES}",
+            detail=f"anatomy_type 必须是 {allowed_anatomy}",
         )
-    if personality_style not in PERSONALITY_STYLES:
+
+    allowed_styles = get_allowed_personality_styles(db)
+    if personality_style not in allowed_styles:
         raise HTTPException(
             status_code=400,
-            detail=f"personality_style 必须是 {list(PERSONALITY_STYLES)}",
+            detail=f"personality_style 必须是 {list(allowed_styles)}",
         )
     if height not in HEIGHTS:
         raise HTTPException(
@@ -247,14 +258,13 @@ async def adopt_elfie(
             detail=f"build 必须是 {BUILDS}",
         )
 
-    db = request.app.state.db_path
-
     # 领养上限检查
+    max_per_user = get_max_elfies_per_user(db)
     current_count = count_elfies_by_owner(user["id"], db)
-    if current_count >= 3:
+    if current_count >= max_per_user:
         raise HTTPException(
             status_code=409,
-            detail="每用户最多领养 3 只精灵",
+            detail=f"每用户最多领养 {max_per_user} 只精灵",
         )
 
     # ------------------------------------------------------------------
@@ -308,6 +318,8 @@ async def adopt_elfie(
             logger.info(
                 "Elfie %s (%s) registered to room via engine", elfie_id, name,
             )
+        except RoomFullError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from None
         except Exception as exc:
             logger.warning(
                 "Failed to register elfie %s to engine: %s", elfie_id, exc,
@@ -325,12 +337,17 @@ async def adopt_elfie(
 
 @router.get("/adoption-info")
 async def adoption_info(
+    request: Request,
     user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
 ):
-    """返回领养可选项（性格风格列表、体型列表、身高/体型选项）。"""
+    """返回领养可选项（性格风格列表、体型列表、身高/体型选项）。
+
+    性格风格和 anatomy_type 从 ``system.adoption`` 动态读取。
+    """
+    db = request.app.state.db_path
     return {
-        "personality_styles": list(PERSONALITY_STYLES),
-        "anatomy_types": list(ANATOMY_TYPES),
+        "personality_styles": list(get_allowed_personality_styles(db)),
+        "anatomy_types": list(get_allowed_anatomy_types(db)),
         "heights": list(HEIGHTS),
         "builds": list(BUILDS),
     }
