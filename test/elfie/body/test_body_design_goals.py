@@ -14,6 +14,13 @@ class MockRuntimeAgent:
     """Mock LLM runtime agent，仅用于构造签名（反射路径不会调用）"""
     class MockConfig:
         remote_api_key = ""
+        providers = {
+            "deepseek": {"api_key": "", "api_base": ""},
+            "openai": {"api_key": "", "api_base": ""},
+            "gemini": {"api_key": "", "api_base": ""},
+            "qwen": {"api_key": "", "api_base": ""},
+            "ollama": {"api_key": "", "api_base": "http://localhost:11434"},
+        }
     config = MockConfig()
     def ask(self, prompt: str, energy: float, task_complexity: int) -> str:
         return ""

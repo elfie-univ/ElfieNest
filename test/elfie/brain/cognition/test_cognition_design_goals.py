@@ -16,6 +16,13 @@ class MockRuntimeAgent:
     """Mock LLM runtime agent，不调用真实大模型"""
     class MockConfig:
         remote_api_key = ""
+        providers = {
+            "deepseek": {"api_key": "", "api_base": ""},
+            "openai": {"api_key": "", "api_base": ""},
+            "gemini": {"api_key": "", "api_base": ""},
+            "qwen": {"api_key": "", "api_base": ""},
+            "ollama": {"api_key": "", "api_base": "http://localhost:11434"},
+        }
     config = MockConfig()
 
     def __init__(self, response: str = "你好呀主人！ [ACTION]wag_tail[/ACTION]"):

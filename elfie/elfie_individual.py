@@ -247,7 +247,11 @@ class ElfieIndividual:
         )
 
         # 扣减下丘脑能耗
-        is_remote = runtime_agent.config.remote_api_key != ""
+        config = runtime_agent.config
+        is_remote = any(
+            provider != "ollama" and info.get("api_key", "")
+            for provider, info in config.providers.items()
+        )
         self.hypothalamus.consume_energy_by_action(is_remote)
 
         # 快乐正反馈
