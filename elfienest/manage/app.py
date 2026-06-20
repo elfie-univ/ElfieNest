@@ -61,6 +61,7 @@ def verify_csrf_for_session(request: Request) -> None:
 def create_app(
     engine: Any = None,
     db_path: str = "data/nest.db",
+    ws_port: int = 8766,
 ) -> FastAPI:
     """Create and configure the FastAPI application.
 
@@ -69,6 +70,7 @@ def create_app(
             health endpoint reports ``engine_ready: true`` and routes that need
             engine access (adoption, config, etc.) become functional.
         db_path: Path to the SQLite database file.
+        ws_port: Port for the authenticated WebSocket gateway (default 8766).
 
     Returns:
         A fully configured :class:`FastAPI` instance.
@@ -79,8 +81,8 @@ def create_app(
         init_db(db_path)
         seed_admin(db_path)
 
-        # 创建鉴权 WS 网关（独立端口 8766，不与 Godot 8765 冲突）
-        ws_manager = AuthenticatedWSManager(port=8766, db_path=db_path)
+        # 创建鉴权 WS 网关（独立端口，不与 Godot 8765 冲突）
+        ws_manager = AuthenticatedWSManager(port=ws_port, db_path=db_path)
         if engine is not None:
             engine.ws_manager = ws_manager
             ws_manager.coordinator = engine.coordinator

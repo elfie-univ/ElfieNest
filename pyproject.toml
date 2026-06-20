@@ -52,6 +52,9 @@ ignore = [
     "UP045",  # Use `X | None` for type annotations - keep for Python 3.9 compatibility
 ]
 
+[tool.ruff.lint.per-file-ignores]
+"scripts/*" = ["E402"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["elfie", "elfienest", "runtime"]
 

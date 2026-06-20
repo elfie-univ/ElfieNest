@@ -1,26 +1,43 @@
 #!/usr/bin/env python3
-"""ElfieNest 后端服务 — 启动引擎，供浏览器聊天页面连接"""
+"""ElfieNest 后端服务 — FastAPI + 引擎后台线程共存 + DB 驱动动态精灵加载。
+
+启动流程:
+    1. 初始化 DB + seed admin 账号
+    2. 可选项: 为 admin seed 初始精灵"艾菲" (--seed-elfie，默认开启)
+    3. 引擎后台线程: RuntimeAgent → ElfieNestEngine (不硬编码精灵)
+    4. 从 DB 查询 elfie_registry → 实例化 ElfieIndividual → 注册到引擎
+    5. 创建 FastAPI app → uvicorn 阻塞主线程
+
+命令行参数:
+    --fallback      使用内置对话引擎（不连 Ollama）
+    --port          HTTP 端口（默认 8000）
+    --ws-port       鉴权 WebSocket 端口（默认 8766）
+    --no-seed-elfie 不自动 seed 初始精灵
+"""
 import argparse
+import logging
 import os
 import sys
 import threading
 import time
-import logging
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# 只显示 WARNING 以上日志，终端保持干净
 logging.basicConfig(level=logging.WARNING, format="%(message)s")
 
-from elfie import ElfieIndividual
-from elfienest import ElfieNestEngine
-from runtime import LLMRuntimeConfig, RuntimeAgent
+from elfienest.engine import ElfieNestEngine
+from elfienest.manage.adoption import ElfieGenerator
+from elfienest.manage.app import create_app
+from elfienest.manage.store import get_db, init_db, seed_admin
+from runtime import LLMRuntimeConfig
 
 
 class LocalRuntimeAgent:
-    """RuntimeAgent 包装器 — 禁用工具调用，只返回纯文本回复，避免小模型幻觉搜网"""
+    """RuntimeAgent 包装器 — 禁用工具调用，只返回纯文本回复，避免小模型幻觉搜网。"""
 
     def __init__(self, config):
+        from runtime import RuntimeAgent  # noqa: PLC0415
+
         self._agent = RuntimeAgent(config)
         self.config = self._agent.config
 
@@ -34,7 +51,7 @@ class LocalRuntimeAgent:
 
 
 class FallbackAgent:
-    """Ollama 不可用时的轻量模拟对话引擎"""
+    """Ollama 不可用时的轻量模拟对话引擎。"""
 
     class MockConfig:
         remote_api_key = ""
@@ -48,26 +65,47 @@ class FallbackAgent:
 
     config = MockConfig()
 
-
     def ask(self, prompt, energy=100, task_complexity=1):
-        """返回模拟回复（毫秒级）"""
-        import random
+        import random  # noqa: PLC0415
 
         prompt_lower = prompt.lower()
         if any(kw in prompt_lower for kw in ["你好", "嗨", "hello", "hi", "hey"]):
-            return "你好呀！我是艾菲，一只可爱的小狐狸！今天想跟我聊什么呢？ [ACTION]nod_head[/ACTION]"
+            return (
+                "你好呀！我是艾菲，一只可爱的小狐狸！"
+                "今天想跟我聊什么呢？ [ACTION]nod_head[/ACTION]"
+            )
         if any(kw in prompt_lower for kw in ["名字", "叫什么", "你是谁"]):
-            return "我叫艾菲！是一只生活在 ElfieNest 里的小狐狸精灵。我有一身橙红色的毛皮，最喜欢主人摸我的尾巴啦！ [ACTION]nod_head[/ACTION]"
+            return (
+                "我叫艾菲！是一只生活在 ElfieNest 里的小狐狸精灵。"
+                "我有一身橙红色的毛皮，最喜欢主人摸我的尾巴啦！"
+                " [ACTION]nod_head[/ACTION]"
+            )
         if any(kw in prompt_lower for kw in ["天气", "今天"]):
-            return "唔...我这边天气挺好的！阳光透过窗户照进来，暖洋洋的。不过我没有窗户，只是感觉到的~ [ACTION]stretch[/ACTION]"
+            return (
+                "唔...我这边天气挺好的！"
+                "阳光透过窗户照进来，暖洋洋的。"
+                "不过我没有窗户，只是感觉到的~ [ACTION]stretch[/ACTION]"
+            )
         if any(kw in prompt_lower for kw in ["开心", "高兴", "快乐"]):
-            return "当然开心啦！主人来找我聊天，我就超开心的！ [ACTION]waggle_ears[/ACTION]"
+            return (
+                "当然开心啦！主人来找我聊天，我就超开心的！"
+                " [ACTION]waggle_ears[/ACTION]"
+            )
         if any(kw in prompt_lower for kw in ["吃", "饿", "食物", "零食"]):
-            return "吃的！我最喜欢小饼干和水果了！不过作为精灵，我好像不太需要吃东西...但是看到好吃的还是会馋！ [ACTION]lick_lips[/ACTION]"
+            return (
+                "吃的！我最喜欢小饼干和水果了！"
+                "不过作为精灵，我好像不太需要吃东西..."
+                "但是看到好吃的还是会馋！ [ACTION]lick_lips[/ACTION]"
+            )
         if any(kw in prompt_lower for kw in ["睡", "困", "晚安"]):
-            return "哈欠~~~有点困了呢...但我还想再陪主人聊一会儿！ [ACTION]yawn[/ACTION]"
+            return (
+                "哈欠~~~有点困了呢..."
+                "但我还想再陪主人聊一会儿！ [ACTION]yawn[/ACTION]"
+            )
         if any(kw in prompt_lower for kw in ["再见", "拜拜", "bye", "quit", "exit"]):
-            return "嗯！主人再见！随时来找我玩哦！ [ACTION]wave[/ACTION]"
+            return (
+                "嗯！主人再见！随时来找我玩哦！ [ACTION]wave[/ACTION]"
+            )
 
         replies = [
             "嗯嗯，我在听呢！继续继续说~ [ACTION]nod_head[/ACTION]",
@@ -79,20 +117,103 @@ class FallbackAgent:
         return random.choice(replies)
 
 
+def seed_single_elfie(db_path: str) -> bool:
+    """如果 elfie_registry 为空，为 admin 用户 seed 一只精灵"艾菲"。
+
+    Returns:
+        True 表示成功 seed 了一只新精灵，False 表示已有精灵无需操作。
+    """
+    with get_db(db_path) as conn:
+        cursor = conn.execute("SELECT COUNT(*) AS cnt FROM elfie_registry")
+        row = cursor.fetchone()
+        if row and row["cnt"] > 0:
+            return False
+
+        cursor = conn.execute(
+            "SELECT id FROM users WHERE username = ?", ("admin",)
+        )
+        admin_row = cursor.fetchone()
+        if admin_row is None:
+            return False
+
+    admin_id = admin_row["id"]
+    elfie_id = "艾菲"
+    config_dir = f"data/elfies/{elfie_id}"
+
+    ElfieGenerator().generate(
+        name="艾菲",
+        anatomy_type="biped",
+        personality_style="活泼好动",
+        height="tall",
+        build="plump",
+        config_dir=config_dir,
+        elfie_id=elfie_id,
+    )
+
+    with get_db(db_path) as conn:
+        conn.execute(
+            """INSERT INTO elfie_registry
+               (elfie_id, name, owner_user_id, anatomy_type, config_dir,
+                personality_style, height, build)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                elfie_id,
+                "艾菲",
+                admin_id,
+                "biped",
+                config_dir,
+                "活泼好动",
+                "tall",
+                "plump",
+            ),
+        )
+        conn.commit()
+
+    return True
+
+
 def main():
     parser = argparse.ArgumentParser(description="ElfieNest 后端服务")
     parser.add_argument(
-        "--fallback", action="store_true",
-        help="使用内置对话引擎（不连 Ollama）"
+        "--fallback",
+        action="store_true",
+        help="使用内置对话引擎（不连 Ollama）",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="HTTP 端口（默认 8000）",
+    )
+    parser.add_argument(
+        "--ws-port",
+        type=int,
+        default=8766,
+        help="鉴权 WebSocket 端口（默认 8766）",
+    )
+    parser.add_argument(
+        "--no-seed-elfie",
+        action="store_true",
+        help="不自动 seed 初始精灵",
     )
     args = parser.parse_args()
 
-    # 使用线程内共享容器，让精灵和引擎在同一线程中创建，避免 SQLite 跨线程报错
+    db_path = "data/nest.db"
+
+    # 1. 初始化数据库 + seed admin 账号
+    init_db(db_path)
+    seed_admin(db_path)
+
+    # 2. 可选：为 admin seed 初始精灵（默认开启）
+    if not args.no_seed_elfie:
+        if seed_single_elfie(db_path):
+            print("  🌱 已为 admin 自动 seed 精灵「艾菲」(--seed-elfie)")
+
+    # 3. 启动引擎后台线程（容器 + 就绪事件不变）
     engine_holder: dict = {}
     engine_ready = threading.Event()
 
     def engine_worker():
-        # 1. 装配服务（全部在同一线程内完成）
         config = LLMRuntimeConfig(
             ollama_host="http://localhost:11434",
             ollama_model_fast="qwen2.5:1.5b",
@@ -103,22 +224,32 @@ def main():
             runtime_agent = FallbackAgent()
             print("  ⚡ 使用内置对话引擎（--fallback 模式）")
         else:
-            # 默认尝试连接本地 Ollama（qwen2.5:1.5b 预热后约 3-4 秒回复）
             try:
-                import urllib.request
-                resp = urllib.request.urlopen("http://localhost:11434/api/tags", timeout=2.0)
+                import urllib.request  # noqa: PLC0415
+
+                resp = urllib.request.urlopen(
+                    "http://localhost:11434/api/tags", timeout=2.0
+                )
                 if resp.status == 200:
+                    from runtime import RuntimeAgent  # noqa: PLC0415
+
                     raw_agent = RuntimeAgent(config)
                     runtime_agent = LocalRuntimeAgent(config)
                     print("  ✅ Ollama 已连接，使用本地大模型 qwen2.5:1.5b")
-                    # 预热：发一条查询让模型加载到内存，后续对话更快
                     print("  ⏳ 正在预热模型（首次加载需 10-15 秒）...")
+
                     def _warmup():
                         try:
-                            raw_agent.ask("你好", energy=100, task_complexity=1, allowed_skills=[])
+                            raw_agent.ask(
+                                "你好",
+                                energy=100,
+                                task_complexity=1,
+                                allowed_skills=[],
+                            )
                             print("  ✅ 模型预热完成，可以开始聊天了！")
                         except Exception as e:
                             print(f"  ⚠️  模型预热异常: {e}")
+
                     threading.Thread(target=_warmup, daemon=True).start()
             except Exception:
                 pass
@@ -126,22 +257,24 @@ def main():
         if runtime_agent is None:
             runtime_agent = FallbackAgent()
             print("  ⚡ Ollama 未检测到，使用内置对话引擎")
-            print("  💡 如需真实 AI 回复: python3 scripts/serve.py （确保 Ollama 已运行）")
+            print(
+                "  💡 如需真实 AI 回复: "
+                "python3 scripts/serve.py （确保 Ollama 已运行）"
+            )
 
-        elfie = ElfieIndividual()
-        engine = ElfieNestEngine()
-        engine.coordinator.register_elfie("艾菲", elfie)
+        # 音频服务器使用 8767 端口，避免与 uvicorn HTTP 端口冲突
+        engine = ElfieNestEngine(http_port=8767)
         engine_holder["engine"] = engine
         engine_ready.set()
-        # 2. 启动引擎主循环（阻塞）
         engine.start_loop(
-            runtime_agent=runtime_agent, ticks_to_run=100000, interval_sec=3.0
+            runtime_agent=runtime_agent,
+            ticks_to_run=100000,
+            interval_sec=3.0,
         )
 
     engine_thread = threading.Thread(target=engine_worker, daemon=True)
     engine_thread.start()
 
-    # 等待引擎线程把 engine 实例准备好
     engine_ready.wait(timeout=5.0)
     if "engine" not in engine_holder:
         print("❌ 引擎未能在 5 秒内就绪")
@@ -149,29 +282,70 @@ def main():
     engine = engine_holder["engine"]
     time.sleep(2.0)  # 等服务就绪
 
-    # 3. 打印引导信息
+    # 4. 从 DB 动态加载所有精灵
+    loaded_elfies: list[dict] = []
+    try:
+        from elfie import ElfieIndividual  # noqa: PLC0415
+
+        with get_db(db_path) as conn:
+            cursor = conn.execute(
+                "SELECT elfie_id, config_dir, anatomy_type, name "
+                "FROM elfie_registry"
+            )
+            rows = cursor.fetchall()
+
+        for row in rows:
+            elfie_id = row["elfie_id"]
+            config_dir = row["config_dir"]
+            anatomy_type = row["anatomy_type"]
+            name = row["name"]
+            try:
+                elfie = ElfieIndividual(
+                    config_dir=config_dir, anatomy_type=anatomy_type
+                )
+                engine.coordinator.register_elfie(elfie_id, elfie)
+                loaded_elfies.append({"id": elfie_id, "name": name})
+            except Exception as e:
+                print(f"  ⚠️  加载精灵 {name} ({elfie_id}) 失败: {e}")
+    except Exception as e:
+        print(f"  ⚠️  查询精灵列表失败: {e}")
+
+    # 5. 打印启动信息
     print()
     print("=" * 56)
     print("  🦊 ElfieNest 仿生生命体服务")
     print("=" * 56)
-    print("  🌐 HTTP:    http://127.0.0.1:8000")
-    print("  🔌 WebSocket: ws://127.0.0.1:8765")
+    print(f"  🌐 HTTP:    http://127.0.0.1:{args.port}")
+    print(f"  🔌 WebSocket(管理): ws://127.0.0.1:{args.ws_port}")
+    print("  🔌 WebSocket(Godot): ws://127.0.0.1:8765")
+    if loaded_elfies:
+        names_str = ", ".join(e["name"] for e in loaded_elfies)
+        print(f"  ✨ 已加载 {len(loaded_elfies)} 只精灵: {names_str}")
+    else:
+        print("  ✨ 暂未加载精灵（请登录后领养）")
     print()
-    print("  📖 浏览器打开: http://127.0.0.1:8000/chat.html")
+    print(
+        f"  📖 浏览器打开: http://127.0.0.1:{args.port}/static/login.html"
+    )
     print("  ⌨️  Ctrl+C 停止服务")
     print("=" * 56)
     print()
 
-    # 4. 保持进程存活
+    # 6. 创建 FastAPI app 并启动 uvicorn（阻塞主线程）
+    app = create_app(
+        engine=engine, db_path=db_path, ws_port=args.ws_port
+    )
+
+    import uvicorn  # noqa: PLC0415
+
     try:
-        while True:
-            time.sleep(1)
+        uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")
     except KeyboardInterrupt:
         print("\n正在关闭服务...")
+    finally:
         engine.api_server.stop()
-        if engine.httpd:
-            engine.httpd.shutdown()
-            engine.httpd.server_close()
+        if engine.audio_server:
+            engine.audio_server.stop()
         print("服务已关闭。")
 
 
