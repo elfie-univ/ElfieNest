@@ -224,7 +224,11 @@ def create_app(
             "role": row["role"],
         }
 
-        resp = JSONResponse(content={"user": user_data, "csrf_token": csrf_token})
+        resp = JSONResponse(content={
+            "user": user_data,
+            "csrf_token": csrf_token,
+            "session_token": session_token,
+        })
         resp.set_cookie(
             key="session_token",
             value=session_token,
@@ -250,9 +254,16 @@ def create_app(
         return resp
 
     @app.get("/api/auth/me")
-    async def me(user: Dict[str, Any] = Depends(get_current_user)):  # noqa: B008
-        """返回当前登录用户信息。"""
-        return user
+    async def me(
+        request: Request,
+        user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+    ) -> Dict[str, Any]:
+        """返回当前登录用户信息（含 CSRF token）。"""
+        session_token = request.cookies.get("session_token", "")
+        csrf_token = (
+            generate_csrf_token(session_token) if session_token else ""
+        )
+        return dict(user, csrf_token=csrf_token)
 
     # -------------------------------------------------------------------
     # Admin REST API 路由
