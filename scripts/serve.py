@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """ElfieNest 后端服务 — 启动引擎，供浏览器聊天页面连接"""
+import argparse
 import os
 import sys
 import threading
@@ -62,6 +63,14 @@ class FallbackAgent:
 
 
 def main():
+    parser = argparse.ArgumentParser(description="ElfieNest 后端服务")
+    parser.add_argument(
+        "--real", action="store_true",
+        help="使用真实 Ollama AI（需已运行 ollama serve）"
+    )
+    args = parser.parse_args()
+    use_real = args.real
+
     # 使用线程内共享容器，让精灵和引擎在同一线程中创建，避免 SQLite 跨线程报错
     engine_holder: dict = {}
     engine_ready = threading.Event()
@@ -73,22 +82,25 @@ def main():
             ollama_model_fast="qwen3.5:0.8b",
         )
 
-        runtime_agent = None
-        try:
-            import urllib.request
+        runtime_agent: RuntimeAgent | None = None
+        if use_real:
+            try:
+                import urllib.request
 
-            resp = urllib.request.urlopen("http://localhost:11434/api/tags", timeout=2.0)
-            if resp.status == 200:
-                runtime_agent = RuntimeAgent(config)
-        except Exception:
-            pass
+                resp = urllib.request.urlopen("http://localhost:11434/api/tags", timeout=2.0)
+                if resp.status == 200:
+                    runtime_agent = RuntimeAgent(config)
+                    print("  ✅ Ollama 已连接，使用真实 LLM")
+            except Exception:
+                pass
 
         if runtime_agent is None:
             runtime_agent = FallbackAgent()
-            print("  ⚡ 使用内置对话引擎（Ollama 未运行）")
-            print("  💡 如需真实 AI 回复，运行: ollama run qwen3.5:0.8b")
-        else:
-            print("  ✅ Ollama 已连接，使用真实 LLM")
+            print("  ⚡ 使用内置对话引擎（毫秒级响应）")
+            if use_real:
+                print("  ⚠️  Ollama 不可用，已降级到内置引擎")
+            else:
+                print("  💡 如需真实 AI 回复: python3 scripts/serve.py --real")
 
         elfie = ElfieIndividual()
         engine = ElfieNestEngine()
