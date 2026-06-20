@@ -19,6 +19,7 @@ from .auth import (
     create_session,
     delete_session,
     generate_csrf_token,
+    hash_password,
     rate_limiter,
     verify_csrf_token,
     verify_password,
@@ -27,7 +28,26 @@ from .auth import (
 from .store import get_db, init_db, migrate_db_if_needed, seed_initial_admin_if_env_set
 from .ws_gateway import AuthenticatedWSManager
 
+from pydantic import BaseModel, Field  # noqa: E402
+from typing import Optional  # noqa: E402
+
 logger = logging.getLogger("elfienest.manage.app")
+
+
+# ---------------------------------------------------------------------------
+# Pydantic 模型（profile / password 请求体）
+# ---------------------------------------------------------------------------
+
+
+class ProfileUpdate(BaseModel):
+    nickname: Optional[str] = Field(None, max_length=32)
+    avatar_color: Optional[int] = Field(None, ge=0, le=7)
+    avatar_kind: Optional[str] = Field(None, pattern="^(initials|emoji)$")
+
+
+class PasswordChange(BaseModel):
+    old_password: str
+    new_password: str = Field(..., min_length=6)
 
 # ---------------------------------------------------------------------------
 # CSRF 校验依赖
@@ -261,12 +281,146 @@ def create_app(
         request: Request,
         user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
     ) -> Dict[str, Any]:
-        """返回当前登录用户信息（含 CSRF token）。"""
+        """返回当前登录用户完整信息（含 CSRF token, profile, elfie_count）。"""
+        db_path = request.app.state.db_path
+        with get_db(db_path) as conn:
+            cursor = conn.execute(
+                "SELECT id, username, role, nickname, avatar_color, avatar_kind, "
+                "created_at FROM users WHERE id = ?",
+                (user["id"],),
+            )
+            row = cursor.fetchone()
+
+            cursor = conn.execute(
+                "SELECT COUNT(*) FROM elfie_registry WHERE owner_user_id = ?",
+                (user["id"],),
+            )
+            elfie_count = cursor.fetchone()[0]
+
         session_token = request.cookies.get("session_token", "")
         csrf_token = (
             generate_csrf_token(session_token) if session_token else ""
         )
-        return dict(user, csrf_token=csrf_token)
+
+        return {
+            "id": row["id"],
+            "username": row["username"],
+            "role": row["role"],
+            "nickname": row["nickname"],
+            "avatar_color": row["avatar_color"],
+            "avatar_kind": row["avatar_kind"],
+            "created_at": row["created_at"],
+            "elfie_count": elfie_count,
+            "csrf_token": csrf_token,
+        }
+
+    # -------------------------------------------------------------------
+    # Profile routes (GET/PUT /api/auth/me/profile)
+    # -------------------------------------------------------------------
+
+    @app.get("/api/auth/me/profile")
+    async def get_profile(
+        request: Request,
+        user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+    ) -> Dict[str, Any]:
+        """返回当前用户 profile 子集（username, nickname, avatar_color, avatar_kind）。"""
+        db_path = request.app.state.db_path
+        with get_db(db_path) as conn:
+            cursor = conn.execute(
+                "SELECT username, nickname, avatar_color, avatar_kind "
+                "FROM users WHERE id = ?",
+                (user["id"],),
+            )
+            row = cursor.fetchone()
+
+        return {
+            "username": row["username"],
+            "nickname": row["nickname"],
+            "avatar_color": row["avatar_color"],
+            "avatar_kind": row["avatar_kind"],
+        }
+
+    @app.put("/api/auth/me/profile")
+    async def update_profile(
+        body: ProfileUpdate,
+        request: Request,
+        user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+    ) -> Dict[str, Any]:
+        """更新当前用户 profile（nickname, avatar_color, avatar_kind）。"""
+        db_path = request.app.state.db_path
+
+        updates: list[str] = []
+        params: list[Any] = []
+
+        if body.nickname is not None:
+            updates.append("nickname = ?")
+            params.append(body.nickname or None)
+
+        if body.avatar_color is not None:
+            updates.append("avatar_color = ?")
+            params.append(body.avatar_color)
+
+        if body.avatar_kind is not None:
+            updates.append("avatar_kind = ?")
+            params.append(body.avatar_kind)
+
+        if not updates:
+            raise HTTPException(status_code=400, detail="没有提供要更新的字段")
+
+        params.append(user["id"])
+
+        with get_db(db_path) as conn:
+            conn.execute(
+                f"UPDATE users SET {', '.join(updates)} WHERE id = ?",
+                params,
+            )
+            conn.commit()
+
+            cursor = conn.execute(
+                "SELECT username, nickname, avatar_color, avatar_kind "
+                "FROM users WHERE id = ?",
+                (user["id"],),
+            )
+            row = cursor.fetchone()
+
+        return {
+            "username": row["username"],
+            "nickname": row["nickname"],
+            "avatar_color": row["avatar_color"],
+            "avatar_kind": row["avatar_kind"],
+        }
+
+    @app.post("/api/auth/me/password")
+    async def change_password(
+        body: PasswordChange,
+        request: Request,
+        user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+    ) -> Dict[str, Any]:
+        """修改当前用户密码。需要旧密码校验。"""
+        db_path = request.app.state.db_path
+
+        with get_db(db_path) as conn:
+            cursor = conn.execute(
+                "SELECT password_hash FROM users WHERE id = ?",
+                (user["id"],),
+            )
+            row = cursor.fetchone()
+
+        if not verify_password(body.old_password, row["password_hash"]):
+            raise HTTPException(status_code=400, detail="旧密码错误")
+
+        if body.old_password == body.new_password:
+            raise HTTPException(status_code=400, detail="新密码不能与旧密码相同")
+
+        new_hash = hash_password(body.new_password)
+        with get_db(db_path) as conn:
+            conn.execute(
+                "UPDATE users SET password_hash = ? WHERE id = ?",
+                (new_hash, user["id"]),
+            )
+            conn.commit()
+
+        return {"detail": "密码已更新"}
 
     # -------------------------------------------------------------------
     # Setup Wizard 路由（首启向导 — 在 admin 路由之前注册）
