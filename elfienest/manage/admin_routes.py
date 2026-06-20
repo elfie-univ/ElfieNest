@@ -54,7 +54,7 @@ def get_current_user(request: Request) -> Dict[str, Any]:
     return user
 
 
-def require_admin(user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+def require_admin(user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:  # noqa: B008
     """要求当前用户为管理员。
 
     FastAPI 依赖链：``require_admin`` → ``get_current_user`` → 解析 cookie。
@@ -74,7 +74,7 @@ def require_admin(user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str,
 async def create_user(
     body: Dict[str, Any],
     request: Request,
-    admin: Dict[str, Any] = Depends(require_admin),
+    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
 ) -> Dict[str, Any]:
     """创建新用户。
 
@@ -124,7 +124,7 @@ async def create_user(
 @router.get("/users")
 async def list_users(
     request: Request,
-    admin: Dict[str, Any] = Depends(require_admin),
+    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
 ) -> list:
     """列出所有用户（id, username, role, created_at, elfie_count）。
 
@@ -161,7 +161,7 @@ async def update_user(
     user_id: int,
     body: Dict[str, Any],
     request: Request,
-    admin: Dict[str, Any] = Depends(require_admin),
+    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
 ) -> Dict[str, Any]:
     """修改用户信息。
 
@@ -241,7 +241,7 @@ async def update_user(
 async def delete_user(
     user_id: int,
     request: Request,
-    admin: Dict[str, Any] = Depends(require_admin),
+    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
 ) -> Dict[str, Any]:
     """删除用户。
 
@@ -292,7 +292,7 @@ async def delete_user(
 @router.get("/elfies")
 async def list_elfies(
     request: Request,
-    admin: Dict[str, Any] = Depends(require_admin),
+    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
 ) -> list:
     """列出所有精灵。
 
@@ -334,7 +334,7 @@ async def update_elfie(
     elfie_id: str,
     body: Dict[str, Any],
     request: Request,
-    admin: Dict[str, Any] = Depends(require_admin),
+    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
 ) -> Dict[str, Any]:
     """修改精灵信息。
 
@@ -423,7 +423,7 @@ async def update_elfie(
 async def delete_elfie(
     elfie_id: str,
     request: Request,
-    admin: Dict[str, Any] = Depends(require_admin),
+    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
 ) -> Dict[str, Any]:
     """从 registry 删除精灵。
 
@@ -461,7 +461,7 @@ async def delete_elfie(
 
 @router.get("/config")
 async def get_config(
-    admin: Dict[str, Any] = Depends(require_admin),
+    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
 ) -> Dict[str, Any]:
     """读取 ``runtime_config.json``。
 
@@ -481,7 +481,7 @@ async def get_config(
 @router.put("/config")
 async def update_config(
     body: Dict[str, Any],
-    admin: Dict[str, Any] = Depends(require_admin),
+    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
 ) -> Dict[str, Any]:
     """写入 ``runtime_config.json``。
 

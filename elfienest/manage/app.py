@@ -240,17 +240,13 @@ def create_app(
         return user
 
     # -------------------------------------------------------------------
-    # Routers
+    # Admin REST API 路由
     # -------------------------------------------------------------------
-    try:
-        from .admin_routes import router as admin_router  # noqa: PLC0415
-        app.include_router(admin_router)
-    except ImportError:
-        pass
-    try:
-        from .user_routes import router as user_router  # noqa: PLC0415
-        app.include_router(user_router)
-    except ImportError:
-        pass
+    from .admin_routes import router as admin_router  # noqa: PLC0415
+
+    app.include_router(admin_router)
+    from .user_routes import router as user_router  # noqa: PLC0415
+
+    app.include_router(user_router)
 
     return app
