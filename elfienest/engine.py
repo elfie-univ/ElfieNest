@@ -45,6 +45,9 @@ class ElfieNestEngine:
         self.api_server.register_callback("arrived_at", self._on_godot_elfie_arrived)
         self.api_server.register_callback("user_message", self._on_user_message)
 
+        # 4. 可选的鉴权 WebSocket 管理网关（由 app.py 注入，None 则不启用）
+        self.ws_manager: Optional[Any] = None
+
     def _start_http_server(self):
         """在独立线程中拉起极简语音静态分发服务器"""
         self.audio_server.start()
@@ -125,6 +128,8 @@ class ElfieNestEngine:
         # 1. 启动 HTTP 语音服务器与 WebSocket 网络总线
         self._start_http_server()
         self.api_server.start()
+        if self.ws_manager:
+            self.ws_manager.start()
 
         logger.info(
             f"⏳ [时间盒子] 物理仿真启动。总计运行 {ticks_to_run} 个 Tick 周期，每个周期阻尼间歇 {interval_sec} 秒..."
@@ -201,6 +206,23 @@ class ElfieNestEngine:
                                 },
                             )
 
+                            # 通过鉴权 WS 网关只向该精灵的 owner + 管理员推送
+                            if self.ws_manager:
+                                self.ws_manager.broadcast_to_owners(
+                                    elfie_id,
+                                    {
+                                        "action": "speak_event",
+                                        "payload": {
+                                            "elfie_id": elfie_id,
+                                            "text": speech_text,
+                                            "audio_url": audio_url or "",
+                                            "emotion": str(
+                                                elfie.amygdala.get_dominant_mood()
+                                            ),
+                                        },
+                                    },
+                                )
+
                         # 6. 转译并下发物理语义动作
                         if (
                             action
@@ -271,4 +293,6 @@ class ElfieNestEngine:
             # 清理套接字和服务线程，防止端口占用死锁
             self.api_server.stop()
             self.audio_server.stop()
+            if self.ws_manager:
+                self.ws_manager.stop()
             logger.info("🌈 [时间盒子] 仿真主循环已平稳落地退出。")

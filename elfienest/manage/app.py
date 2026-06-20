@@ -25,6 +25,7 @@ from .auth import (
     verify_session,
 )
 from .store import get_db, init_db, seed_admin
+from .ws_gateway import AuthenticatedWSManager
 
 logger = logging.getLogger("elfienest.manage.app")
 
@@ -77,8 +78,20 @@ def create_app(
     async def lifespan(app: FastAPI):
         init_db(db_path)
         seed_admin(db_path)
-        logger.info("App startup complete (db=%s)", db_path)
+
+        # 创建鉴权 WS 网关（独立端口 8766，不与 Godot 8765 冲突）
+        ws_manager = AuthenticatedWSManager(port=8766, db_path=db_path)
+        if engine is not None:
+            engine.ws_manager = ws_manager
+            ws_manager.coordinator = engine.coordinator
+        ws_manager.start()
+        app.state.ws_manager = ws_manager
+
+        logger.info("App startup complete (db=%s, ws=%d)", db_path, ws_manager.port)
         yield
+
+        ws_manager.stop()
+        logger.info("App shutdown complete")
 
     app = FastAPI(title="ElfieNest Management Dashboard", lifespan=lifespan)
 
