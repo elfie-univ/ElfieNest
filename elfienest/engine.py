@@ -37,6 +37,9 @@ class ElfieNestCoordinator:
         # 缓存每个精灵积压的物理触觉感官包
         self.pending_tactile: Dict[str, Dict[str, Any]] = {}
 
+        # 用户消息缓冲（WebSocket 入站）
+        self.pending_messages: Dict[str, str] = {}
+
     def register_elfie(self, elfie_id: str, elfie: ElfieIndividual):
         """兼容 main.py 接口：在房间中注册精灵"""
         self.room.register_elfie(elfie_id, elfie)
@@ -65,6 +68,15 @@ class ElfieNestCoordinator:
                 "physical_impact_event",
                 {"elfie_id": receiver_id, "impact_type": "gentle_stroke"},
             )
+
+    def send_user_message(self, elfie_id: str, message: str):
+        """接收来自 WebSocket 客户端的用户消息，缓存到下一个 tick"""
+        self.pending_messages[elfie_id] = message
+        logger.info(f"💬 [用户消息] 收到给 '{elfie_id}' 的消息: {message}")
+
+    def consume_user_message(self, elfie_id: str) -> str:
+        """消费并返回该精灵的用户消息，消费后清空"""
+        return self.pending_messages.pop(elfie_id, "")
 
     def consume_tactile(self, elfie_id: str) -> Dict[str, Any]:
         """消费并返回针对该精灵的物理触觉，消费后清空"""
@@ -106,6 +118,7 @@ class ElfieNestEngine:
             "register_scene", self._on_godot_scene_registered
         )
         self.api_server.register_callback("arrived_at", self._on_godot_elfie_arrived)
+        self.api_server.register_callback("user_message", self._on_user_message)
 
     def _start_http_server(self):
         """在独立线程中拉起极简语音静态分发服务器"""
@@ -152,6 +165,13 @@ class ElfieNestEngine:
             posture = "away"
 
         self.room.update_elfie_posture(elfie_id, posture, target or None)
+
+    def _on_user_message(self, payload: Dict[str, Any]):
+        """处理用户通过 WebSocket 发送的消息"""
+        elfie_id = payload.get("elfie_id", "")
+        message = payload.get("message", "")
+        if elfie_id and message:
+            self.coordinator.send_user_message(elfie_id, message)
 
     async def _async_generate_tts(
         self, text: str, output_path: str, voice: str = "zh-CN-XiaoxiaoNeural"
@@ -226,13 +246,14 @@ class ElfieNestEngine:
                     ):
                         continue
 
-                    # 1. 组装感官输入：包含群聊听到的话 + Coordinator 注入的物理碰撞触觉
+                    # 1. 组装感官输入：包含群聊听到的话 + 用户消息 + Coordinator 注入的物理碰撞触觉
                     pending_speech = self.room.consume_pending_sensory_input(elfie_id)
                     tactile_sensory = self.coordinator.consume_tactile(elfie_id)
+                    user_msg = self.coordinator.consume_user_message(elfie_id)
 
                     raw_sensor_data = {
-                        "has_new_message": bool(pending_speech),
-                        "user_message": pending_speech if pending_speech else "",
+                        "has_new_message": bool(pending_speech) or bool(user_msg),
+                        "user_message": pending_speech if pending_speech else user_msg,
                         **tactile_sensory,
                     }
 
