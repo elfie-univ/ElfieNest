@@ -19,6 +19,7 @@ class ThalamusContextBuilder:
         energy_system: Any,
         emotion_engine: Any,
         memory_system: Any,
+        is_local: bool = False,
     ) -> BrainContext:
         """
         拉取多方状态，进行相关性拼接与噪点剥离，形成大脑皮层消费的 BrainContext
@@ -26,6 +27,7 @@ class ThalamusContextBuilder:
         :param energy_system: 下丘脑能量作息系统实例
         :param emotion_engine: 杏仁核情绪引擎实例
         :param memory_system: 海马体记忆检索实例
+        :param is_local: 是否本地模型（本地→top_k=1缩短提示词）
         :return: 精密组合的 BrainContext
         """
         logger.info(
@@ -58,10 +60,12 @@ class ThalamusContextBuilder:
         user_message = sensor_data.user_message
         active_memory = memory_system
         if user_message and active_memory:
+            top_k = 1 if is_local else 5
             memory_slices = active_memory.get_context(
                 query=user_message,
                 emotion=dominant_mood,
                 intensity=emotion_intensity,
+                top_k=top_k,
             )
         else:
             memory_slices = "无相关历史情景记忆。"

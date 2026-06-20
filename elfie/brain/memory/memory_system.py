@@ -187,6 +187,7 @@ class MemorySystem:
         intensity: float = 0.0,
         entities: Optional[List[str]] = None,
         current_time: Optional[str] = None,
+        top_k: int = 5,
     ) -> str:
         """获取5区域上下文文本
 
@@ -199,6 +200,7 @@ class MemorySystem:
             intensity: 当前情绪强度
             entities: 当前涉及的实体列表
             current_time: 当前时间（ISO格式）
+            top_k: 返回记忆条数（本地模型=1，远程API=5）
 
         Returns:
             结构化上下文文本
@@ -210,4 +212,4 @@ class MemorySystem:
             current_entities=entities or [],
             current_time=current_time or "",
         )
-        return self.context_assembler.assemble(retrieval_query)
+        return self.context_assembler.assemble(retrieval_query, top_k=top_k)

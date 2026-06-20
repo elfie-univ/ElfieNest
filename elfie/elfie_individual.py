@@ -206,12 +206,20 @@ class ElfieIndividual:
                 "reason": "No sensory changes, skipped.",
             }
 
+        # 检测是否本地模型（没有配置任何远程 API Key）
+        config = runtime_agent.config
+        is_local = not any(
+            provider != "ollama" and info.get("api_key", "")
+            for provider, info in config.providers.items()
+        )
+
         # 2. 中层丘脑组装具身 Context
         context = self.thalamus.assemble(
             raw_sensors=raw_sensor_data,
             energy_system=self.hypothalamus,
             emotion_engine=self.amygdala,
             memory_system=self.memory,
+            is_local=is_local,
         )
 
         # 额外将具身形态描述注入 context 以利于大模型认知自己的物理形态
