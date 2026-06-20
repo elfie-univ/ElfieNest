@@ -19,9 +19,11 @@ from elfienest.manage.auth import (
     verify_password,
     verify_session,
 )
-from elfienest.manage.store import get_db, init_db, seed_admin
+from elfienest.manage.store import get_db, init_db
 from elfienest.manage.store import hash_password as store_hash
 from elfienest.manage.store import verify_password as store_verify
+
+from ._helpers import create_test_admin
 
 # ===================================================================
 # 密码哈希
@@ -83,10 +85,7 @@ class TestVerifyPassword:
 def _ensure_admin_user(db_path: str) -> int:
     """确保 DB 有 admin 用户，返回其 id。"""
     init_db(db_path)
-    seed_admin(db_path)
-    with get_db(db_path) as conn:
-        row = conn.execute("SELECT id FROM users WHERE username='admin'").fetchone()
-        return row["id"] if row else 1
+    return create_test_admin(db_path)
 
 
 class TestCreateSession:

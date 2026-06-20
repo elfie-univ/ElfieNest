@@ -6,6 +6,7 @@
 
 import hashlib
 import logging
+import os
 import secrets
 import sqlite3
 from contextlib import contextmanager
@@ -170,44 +171,52 @@ def migrate_db_if_needed(db_path: str = "data/nest.db") -> None:
         conn.commit()
 
 
-def seed_admin(db_path: Optional[str] = None) -> None:
-    """Insert the default admin account if the ``users`` table is empty.
+def seed_initial_admin_if_env_set(
+    db_path: str = "data/nest.db",
+    username_env: str = "ADMIN_USERNAME",
+    password_env: str = "ADMIN_PASSWORD",
+) -> bool:
+    """如果环境变量设置了管理员凭据，则创建初始管理员。
 
-    The account is created with username ``admin`` and password
-    ``adminchangeme`` (PBKDF2 hashed).  A prominent warning is printed to
-    stdout.
-
-    Args:
-        db_path: Path to the SQLite database file.  Defaults to ``data/nest.db``.
+    Returns:
+        True 如果创建了管理员，False 如果环境变量未设置或用户已存在。
     """
-    if db_path is None:
-        db_path = "data/nest.db"
+    username = os.environ.get(username_env, "")
+    password = os.environ.get(password_env, "")
 
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
+    if not username or not password:
+        return False
 
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) AS cnt FROM users")
-    row = cursor.fetchone()
-    count: int = row["cnt"] if row else 0
+    with get_db(db_path) as conn:
+        # 检查是否已存在
+        cursor = conn.execute("SELECT id FROM users WHERE username = ?", (username,))
+        if cursor.fetchone() is not None:
+            return False
 
-    if count == 0:
-        pw_hash = hash_password("adminchangeme")
-        cursor.execute(
-            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
-            ("admin", pw_hash, "admin"),
+        pw_hash = hash_password(password)
+        conn.execute(
+            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'admin')",
+            (username, pw_hash),
         )
         conn.commit()
-        print("=" * 60)
-        print("  WARNING: Default admin account created!")
-        print("   Username: admin")
-        print("   Password: adminchangeme")
-        print("   Please change the password immediately.")
-        print("=" * 60)
-        logger.warning("Default admin account seeded (admin / adminchangeme)")
+        logger.info("从环境变量创建了初始管理员: %s", username)
+        return True
 
-    conn.close()
+
+def seed_admin(db_path: Optional[str] = None) -> None:
+    """已弃用: 请使用 :func:`seed_initial_admin_if_env_set`。
+
+    旧版函数保留用于向后兼容。现在内部调用
+    ``seed_initial_admin_if_env_set``，不再硬编码管理员凭据。
+    """
+    import warnings  # noqa: PLC0415
+
+    warnings.warn(
+        "seed_admin 已弃用，请使用 seed_initial_admin_if_env_set",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    seed_initial_admin_if_env_set(db_path=db_path or "data/nest.db")
 
 
 # ---------------------------------------------------------------------------

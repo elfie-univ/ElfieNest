@@ -24,7 +24,7 @@ from .auth import (
     verify_password,
     verify_session,
 )
-from .store import get_db, init_db, seed_admin
+from .store import get_db, init_db, migrate_db_if_needed, seed_initial_admin_if_env_set
 from .ws_gateway import AuthenticatedWSManager
 
 logger = logging.getLogger("elfienest.manage.app")
@@ -79,7 +79,8 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         init_db(db_path)
-        seed_admin(db_path)
+        migrate_db_if_needed(db_path)
+        seed_initial_admin_if_env_set(db_path)
 
         # 创建鉴权 WS 网关（独立端口，不与 Godot 8765 冲突）
         ws_manager = AuthenticatedWSManager(port=ws_port, db_path=db_path)
@@ -140,7 +141,7 @@ def create_app(
     async def csrf_middleware(request: Request, call_next):
         if request.method in ("POST", "PUT", "DELETE"):
             path = request.url.path
-            if not path.startswith("/api/auth/login"):
+            if path != "/api/auth/login" and path != "/api/auth/setup":
                 try:
                     verify_csrf_for_session(request)
                 except HTTPException as exc:
@@ -266,6 +267,13 @@ def create_app(
             generate_csrf_token(session_token) if session_token else ""
         )
         return dict(user, csrf_token=csrf_token)
+
+    # -------------------------------------------------------------------
+    # Setup Wizard 路由（首启向导 — 在 admin 路由之前注册）
+    # -------------------------------------------------------------------
+    from .setup_routes import router as setup_router  # noqa: PLC0415
+
+    app.include_router(setup_router)
 
     # -------------------------------------------------------------------
     # Admin REST API 路由

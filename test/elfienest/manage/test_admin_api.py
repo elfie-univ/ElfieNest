@@ -13,6 +13,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from elfienest.manage.app import create_app
+from elfienest.manage.store import init_db
+
+from ._helpers import create_test_admin
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -36,6 +39,10 @@ def runtime_config_path(tmp_path: Path) -> Path:
 @pytest.fixture
 def app(db_path: str, runtime_config_path: Path):
     """创建 FastAPI 应用，mock WS 网关和 runtime_config 路径。"""
+    # 预填充 admin 用户（ lifespan 不再硬编码 admin/adminchangeme ）
+    init_db(db_path)
+    create_test_admin(db_path)
+
     with (
         patch("elfienest.manage.app.AuthenticatedWSManager.start"),
         patch("elfienest.manage.app.AuthenticatedWSManager.stop"),

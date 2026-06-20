@@ -169,6 +169,22 @@ def main() -> None:
 
     try:
         # ==================================================================
+        # Step 0: 首启设置（如无用户，先创建 admin）
+        # ==================================================================
+        print("  [Step 0/5] 检查首启状态")
+        status, data, raw = admin.get("/api/auth/setup-status")
+        if status == 200 and data.get("need_setup"):
+            print("    ⚡ 系统无用户，执行首启设置...")
+            status, data, raw, _ = admin.post_json(
+                "/api/auth/setup",
+                {"username": "admin", "password": "adminchangeme"},
+            )
+            aok = status == 201
+            print(f"    {'✅' if aok else '❌'} 首启设置 {'成功' if aok else f'失败: {status} {raw[:200]}'}")
+        else:
+            print("    ✅ 系统已有用户，跳过首启设置")
+
+        # ==================================================================
         # Step 1: Admin 登录 → 创建用户 alice
         # ==================================================================
         print("  [Step 1/5] Admin 登录 → 创建用户 alice")

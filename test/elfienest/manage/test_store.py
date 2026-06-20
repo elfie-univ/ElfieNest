@@ -1,10 +1,11 @@
-"""测试 store.py — init_db / seed_admin / get_db / count_elfies_by_owner
+"""测试 store.py — init_db / seed_initial_admin_if_env_set / get_db / count_elfies_by_owner
 
 使用 tmp_path 隔离每个测试的 DB 文件。
 """
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from pathlib import Path
 
@@ -14,8 +15,10 @@ from elfienest.manage.store import (
     count_elfies_by_owner,
     get_db,
     init_db,
-    seed_admin,
+    seed_initial_admin_if_env_set,
 )
+
+from ._helpers import create_test_admin
 
 
 def _table_names(db_path: str) -> set[str]:
@@ -71,40 +74,74 @@ class TestInitDb:
         assert "users" in tables
 
 
-class TestSeedAdmin:
-    def test_creates_admin_when_empty(self, tmp_path: Path) -> None:
-        """seed_admin 在空表时插入 admin 用户。"""
+class TestSeedInitialAdminIfEnvSet:
+    def test_creates_admin_when_env_set(self, tmp_path: Path) -> None:
+        """环境变量设置时 seed_initial_admin_if_env_set 创建 admin。"""
         db = str(tmp_path / "nest.db")
         init_db(db)
-        seed_admin(db)
+        os.environ["ADMIN_USERNAME"] = "testadmin"
+        os.environ["ADMIN_PASSWORD"] = "testpass123"
+        try:
+            result = seed_initial_admin_if_env_set(db)
+            assert result is True
+        finally:
+            del os.environ["ADMIN_USERNAME"]
+            del os.environ["ADMIN_PASSWORD"]
 
         conn = sqlite3.connect(db)
         conn.row_factory = sqlite3.Row
-        row = conn.execute("SELECT * FROM users WHERE username = ?", ("admin",)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM users WHERE username = ?", ("testadmin",)
+        ).fetchone()
         conn.close()
 
         assert row is not None
-        assert row["username"] == "admin"
+        assert row["username"] == "testadmin"
         assert row["role"] == "admin"
-        # 密码是 PBKDF2 格式: pbkdf2_sha256$260000$...$...
         pw_hash: str = row["password_hash"]
         assert pw_hash.startswith("pbkdf2_sha256$260000$")
         parts = pw_hash.split("$")
         assert len(parts) == 4
-        assert len(parts[2]) == 32  # 16 字节 hex salt
-        assert len(parts[3]) == 64  # SHA256 → 32 字节 hex
+        assert len(parts[2]) == 32
+        assert len(parts[3]) == 64
 
-    def test_does_not_reinsert_when_not_empty(self, tmp_path: Path) -> None:
-        """seed_admin 在非空表时不重复插入。"""
+    def test_returns_false_when_env_not_set(self, tmp_path: Path) -> None:
+        """环境变量未设置时返回 False。"""
         db = str(tmp_path / "nest.db")
         init_db(db)
-        seed_admin(db)
-        seed_admin(db)  # 第二次
+        result = seed_initial_admin_if_env_set(db)
+        assert result is False
+
+    def test_returns_false_when_env_partial(self, tmp_path: Path) -> None:
+        """部分环境变量设置时返回 False。"""
+        db = str(tmp_path / "nest.db")
+        init_db(db)
+        os.environ["ADMIN_USERNAME"] = "partial"
+        try:
+            result = seed_initial_admin_if_env_set(db)
+            assert result is False
+        finally:
+            del os.environ["ADMIN_USERNAME"]
+
+    def test_does_not_reinsert_when_user_exists(self, tmp_path: Path) -> None:
+        """用户已存在时不重复插入。"""
+        db = str(tmp_path / "nest.db")
+        init_db(db)
+        create_test_admin(db, "testadmin", "testpass123")
+
+        os.environ["ADMIN_USERNAME"] = "testadmin"
+        os.environ["ADMIN_PASSWORD"] = "testpass123"
+        try:
+            result = seed_initial_admin_if_env_set(db)
+            assert result is False
+        finally:
+            del os.environ["ADMIN_USERNAME"]
+            del os.environ["ADMIN_PASSWORD"]
 
         conn = sqlite3.connect(db)
         count = conn.execute("SELECT COUNT(*) AS cnt FROM users").fetchone()[0]
         conn.close()
-        assert count == 1  # 只有一个 admin
+        assert count == 1
 
 
 class TestGetDb:
@@ -143,14 +180,7 @@ class TestCountElfiesByOwner:
         """无精灵时返回 0。"""
         db = str(tmp_path / "nest.db")
         init_db(db)
-        seed_admin(db)
-
-        # 获取 admin id
-        conn = sqlite3.connect(db)
-        admin_id = conn.execute(
-            "SELECT id FROM users WHERE username='admin'"
-        ).fetchone()[0]
-        conn.close()
+        admin_id = create_test_admin(db)
 
         assert count_elfies_by_owner(admin_id, db) == 0
 
@@ -158,20 +188,15 @@ class TestCountElfiesByOwner:
         """一个精灵时返回 1。"""
         db = str(tmp_path / "nest.db")
         init_db(db)
-        seed_admin(db)
+        admin_id = create_test_admin(db)
 
-        conn = sqlite3.connect(db)
-        admin_id = conn.execute(
-            "SELECT id FROM users WHERE username='admin'"
-        ).fetchone()[0]
-
-        conn.execute(
-            "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) "
-            "VALUES (?, ?, ?)",
-            ("elfie_001", "小白", admin_id),
-        )
-        conn.commit()
-        conn.close()
+        with get_db(db) as conn:
+            conn.execute(
+                "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) "
+                "VALUES (?, ?, ?)",
+                ("elfie_001", "小白", admin_id),
+            )
+            conn.commit()
 
         assert count_elfies_by_owner(admin_id, db) == 1
 
@@ -179,24 +204,19 @@ class TestCountElfiesByOwner:
         """两个精灵时返回 2。"""
         db = str(tmp_path / "nest.db")
         init_db(db)
-        seed_admin(db)
+        admin_id = create_test_admin(db)
 
-        conn = sqlite3.connect(db)
-        admin_id = conn.execute(
-            "SELECT id FROM users WHERE username='admin'"
-        ).fetchone()[0]
-
-        conn.execute(
-            "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) "
-            "VALUES (?, ?, ?)",
-            ("elfie_001", "小白", admin_id),
-        )
-        conn.execute(
-            "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) "
-            "VALUES (?, ?, ?)",
-            ("elfie_002", "小黑", admin_id),
-        )
-        conn.commit()
-        conn.close()
+        with get_db(db) as conn:
+            conn.execute(
+                "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) "
+                "VALUES (?, ?, ?)",
+                ("elfie_001", "小白", admin_id),
+            )
+            conn.execute(
+                "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) "
+                "VALUES (?, ?, ?)",
+                ("elfie_002", "小黑", admin_id),
+            )
+            conn.commit()
 
         assert count_elfies_by_owner(admin_id, db) == 2

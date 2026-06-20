@@ -28,7 +28,7 @@ logging.basicConfig(level=logging.WARNING, format="%(message)s")
 from elfienest.engine import ElfieNestEngine
 from elfienest.manage.adoption import ElfieGenerator
 from elfienest.manage.app import create_app
-from elfienest.manage.store import get_db, init_db, seed_admin
+from elfienest.manage.store import get_db, init_db, migrate_db_if_needed, seed_initial_admin_if_env_set
 from runtime import LLMRuntimeConfig
 
 
@@ -200,9 +200,10 @@ def main():
 
     db_path = "data/nest.db"
 
-    # 1. 初始化数据库 + seed admin 账号
+    # 1. 初始化数据库 + 迁移 + 从环境变量 seed admin
     init_db(db_path)
-    seed_admin(db_path)
+    migrate_db_if_needed(db_path)
+    seed_initial_admin_if_env_set(db_path)
 
     # 2. 可选：为 admin seed 初始精灵（默认开启）
     if not args.no_seed_elfie:

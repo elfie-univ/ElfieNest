@@ -12,6 +12,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from elfienest.manage.app import create_app
+from elfienest.manage.store import init_db
+
+from ._helpers import create_test_admin
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -25,6 +28,10 @@ def db_path(tmp_path: Path) -> str:
 
 @pytest.fixture
 def app(db_path: str):
+    # 预填充 admin 用户（ lifespan 不再硬编码 admin/adminchangeme ）
+    init_db(db_path)
+    create_test_admin(db_path)
+
     with (
         patch("elfienest.manage.app.AuthenticatedWSManager.start"),
         patch("elfienest.manage.app.AuthenticatedWSManager.stop"),

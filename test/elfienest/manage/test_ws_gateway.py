@@ -8,8 +8,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from elfienest.manage.auth import create_session, hash_password, verify_session
-from elfienest.manage.store import get_db, init_db, seed_admin
+from elfienest.manage.store import get_db, init_db
 from elfienest.manage.ws_gateway import AuthenticatedWSManager
+
+from ._helpers import create_test_admin
 
 # ===================================================================
 # Helpers
@@ -17,12 +19,9 @@ from elfienest.manage.ws_gateway import AuthenticatedWSManager
 
 
 def _init_db_with_admin(db_path: str) -> int:
-    """初始化 DB 并 seed admin，返回 admin 的 user_id。"""
+    """初始化 DB 并创建测试 admin，返回 admin 的 user_id。"""
     init_db(db_path)
-    seed_admin(db_path)
-    with get_db(db_path) as conn:
-        row = conn.execute("SELECT id FROM users WHERE username='admin'").fetchone()
-        return row["id"] if row else 1
+    return create_test_admin(db_path)
 
 
 # ===================================================================
