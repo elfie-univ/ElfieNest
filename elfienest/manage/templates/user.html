@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ElfieNest - 我的精灵</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg-primary:#0f0f1a;
+--bg-secondary:#1a1a2e;
+--bg-input:#16162a;
+--bg-bubble-user:#4a6cf7;
+--bg-bubble-elfie:#2d2d44;
+--accent:#6c7cf7;
+--accent-hover:#5a6ae0;
+--text-primary:#e8e8f0;
+--text-secondary:#9898b0;
+--text-bubble-user:#ffffff;
+--text-bubble-elfie:#e0e0f0;
+--border-subtle:#2a2a40;
+--shadow-sm:0 1px 3px rgba(0,0,0,0.3);
+--shadow-md:0 4px 12px rgba(0,0,0,0.4);
+--radius:12px;
+--radius-sm:8px;
+--error:#ef4444;
+--success:#4ade80;
+--warning:#fbbf24;
+}
+body{
+font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+background:var(--bg-primary);
+color:var(--text-primary);
+min-height:100vh;
+display:flex;
+flex-direction:column;
+overflow:hidden;
+}
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border-subtle);border-radius:4px}
+/* ── Nav Bar ── */
+.nav-bar{
+display:flex;
+align-items:center;
+gap:12px;
+padding:12px 20px;
+background:var(--bg-secondary);
+border-bottom:1px solid var(--border-subtle);
+flex-shrink:0;
+}
+.nav-logo{font-size:22px;flex-shrink:0}
+.nav-title{font-size:16px;font-weight:700;letter-spacing:-0.3px}
+.nav-user{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:13px}
+.nav-username{color:var(--text-primary)}
+.nav-badge{
+font-size:11px;
+padding:2px 8px;
+border-radius:10px;
+background:var(--accent);
+color:#fff;
+font-weight:500;
+}
+.nav-btn{
+background:var(--bg-input);
+border:1px solid var(--border-subtle);
+color:var(--text-secondary);
+padding:5px 12px;
+border-radius:var(--radius-sm);
+cursor:pointer;
+font-size:12px;
+transition:all .2s;
+}
+.nav-btn:hover{color:var(--text-primary);border-color:var(--accent)}
+/* ── Views ── */
+.view{display:none;flex:1;overflow-y:auto;padding:24px 20px}
+.view.active{display:block}
+/* ── Toast ── */
+#toastContainer{
+position:fixed;
+top:16px;
+right:16px;
+z-index:9999;
+display:flex;
+flex-direction:column;
+gap:8px;
+pointer-events:none;
+}
+.toast{
+pointer-events:auto;
+padding:12px 18px;
+border-radius:var(--radius-sm);
+font-size:13px;
+font-weight:500;
+animation:toastIn .3s ease-out;
+box-shadow:var(--shadow-md);
+max-width:360px;
+word-break:break-word;
+}
+.toast.success{background:rgba(74,222,128,.15);border:1px solid rgba(74,222,128,.3);color:#4ade80}
+.toast.error{background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);color:#ef4444}
+.toast.info{background:rgba(108,124,247,.15);border:1px solid rgba(108,124,247,.3);color:var(--accent)}
+@keyframes toastIn{
+from{opacity:0;transform:translateX(30px)}
+to{opacity:1;transform:translateX(0)}
+}
+.toast.out{animation:toastOut .25s ease-in forwards}
+@keyframes toastOut{
+from{opacity:1;transform:translateX(0)}
+to{opacity:0;transform:translateX(30px)}
+}
+/* ── View A: Elfie List ── */
+.card-grid{
+display:grid;
+grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+gap:16px;
+padding:4px 0;
+}
+.elfie-card{
+background:var(--bg-secondary);
+border:1px solid var(--border-subtle);
+border-radius:var(--radius);
+padding:20px;
+transition:border-color .2s,box-shadow .2s;
+cursor:default;
+position:relative;
+}
+.elfie-card:hover{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.elfie-card-avatar{
+width:56px;height:56px;
+border-radius:50%;
+background:linear-gradient(135deg,#6c7cf7,#a78bfa);
+display:flex;
+align-items:center;
+justify-content:center;
+font-size:28px;
+margin-bottom:12px;
+}
+.elfie-card-name{
+font-size:18px;
+font-weight:700;
+margin-bottom:4px;
+}
+.elfie-card-tags{
+display:flex;
+flex-wrap:wrap;
+gap:6px;
+margin:8px 0 12px;
+}
+.tag{
+font-size:11px;
+padding:2px 8px;
+border-radius:8px;
+background:var(--bg-input);
+border:1px solid var(--border-subtle);
+color:var(--text-secondary);
+}
+.tag-anatomy{background:rgba(108,124,247,.15);border-color:rgba(108,124,247,.3);color:var(--accent)}
+.tag-personality{background:rgba(167,139,250,.12);border-color:rgba(167,139,250,.25);color:#a78bfa}
+.tag-appearance{background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.2);color:var(--warning)}
+.elfie-card-time{font-size:11px;color:var(--text-secondary);margin-bottom:14px}
+.elfie-card-actions{
+display:flex;
+gap:8px;
+}
+.card-btn{
+flex:1;
+padding:8px 12px;
+border-radius:var(--radius-sm);
+border:none;
+font-size:13px;
+font-weight:500;
+cursor:pointer;
+transition:all .2s;
+text-align:center;
+}
+.card-btn-chat{background:var(--accent);color:#fff}
+.card-btn-chat:hover{background:var(--accent-hover)}
+.card-btn-config{background:var(--bg-input);color:var(--text-secondary);border:1px solid var(--border-subtle)}
+.card-btn-config:hover{color:var(--text-primary);border-color:var(--accent)}
+/* ── Adoption Card ── */
+.adopt-card{
+background:var(--bg-secondary);
+border:2px dashed var(--border-subtle);
+border-radius:var(--radius);
+padding:20px;
+display:flex;
+flex-direction:column;
+align-items:center;
+justify-content:center;
+min-height:200px;
+cursor:pointer;
+transition:all .2s;
+gap:12px;
+}
+.adopt-card:hover{border-color:var(--accent);background:rgba(108,124,247,.05)}
+.adopt-card-icon{font-size:40px;opacity:.6}
+.adopt-card-text{font-size:14px;color:var(--text-secondary);font-weight:500}
+.adopt-card.disabled{cursor:not-allowed;opacity:.5}
+.adopt-card.disabled:hover{border-color:var(--border-subtle);background:var(--bg-secondary)}
+/* ── Back button ── */
+.back-btn{
+display:inline-flex;
+align-items:center;
+gap:4px;
+background:var(--bg-input);
+border:1px solid var(--border-subtle);
+color:var(--text-secondary);
+padding:6px 14px;
+border-radius:var(--radius-sm);
+cursor:pointer;
+font-size:13px;
+transition:all .2s;
+margin-bottom:20px;
+}
+.back-btn:hover{color:var(--text-primary);border-color:var(--accent)}
+/* ── View D: Adoption ── */
+.adopt-form{
+max-width:520px;
+margin:0 auto;
+}
+.adopt-form h2{font-size:20px;margin-bottom:6px}
+.adopt-form .subtitle{font-size:13px;color:var(--text-secondary);margin-bottom:24px}
+.form-group{margin-bottom:20px}
+.form-group label{display:block;font-size:13px;font-weight:500;color:var(--text-secondary);margin-bottom:6px}
+.form-group input[type="text"]{
+width:100%;
+background:var(--bg-input);
+border:1px solid var(--border-subtle);
+border-radius:var(--radius-sm);
+padding:10px 14px;
+color:var(--text-primary);
+font-size:14px;
+outline:none;
+transition:border-color .2s;
+}
+.form-group input[type="text"]:focus{border-color:var(--accent)}
+.form-group input[type="text"]::placeholder{color:var(--text-secondary)}
+.radio-group{display:flex;gap:12px;flex-wrap:wrap}
+.radio-card{
+flex:1;
+min-width:100px;
+padding:12px 16px;
+background:var(--bg-input);
+border:2px solid var(--border-subtle);
+border-radius:var(--radius-sm);
+cursor:pointer;
+text-align:center;
+font-size:14px;
+transition:all .2s;
+user-select:none;
+}
+.radio-card:hover{border-color:var(--accent)}
+.radio-card.selected{border-color:var(--accent);background:rgba(108,124,247,.1);color:var(--accent)}
+/* ── Style cards (personality) ── */
+.style-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.style-card{
+padding:10px 14px;
+background:var(--bg-input);
+border:2px solid var(--border-subtle);
+border-radius:var(--radius-sm);
+cursor:pointer;
+text-align:center;
+font-size:13px;
+font-weight:500;
+transition:all .2s;
+user-select:none;
+}
+.style-card:hover{border-color:var(--accent)}
+.style-card.selected{border-color:var(--accent);background:rgba(108,124,247,.1);color:var(--accent)}
+/* ── Appearance options (height/build) ── */
+.appearance-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.appearance-card{
+padding:10px 14px;
+background:var(--bg-input);
+border:2px solid var(--border-subtle);
+border-radius:var(--radius-sm);
+cursor:pointer;
+text-align:center;
+font-size:13px;
+font-weight:500;
+transition:all .2s;
+user-select:none;
+}
+.appearance-card:hover{border-color:var(--accent)}
+.appearance-card.selected{border-color:var(--accent);background:rgba(108,124,247,.1);color:var(--accent)}
+/* ── Submit button ── */
+.submit-btn{
+width:100%;
+padding:12px;
+background:var(--accent);
+color:#fff;
+border:none;
+border-radius:var(--radius-sm);
+font-size:15px;
+font-weight:600;
+cursor:pointer;
+transition:background .2s;
+margin-top:8px;
+}
+.submit-btn:hover{background:var(--accent-hover)}
+.submit-btn:disabled{opacity:.5;cursor:not-allowed}
+/* ── View B: Chat ── */
+.chat-container{display:flex;flex-direction:column;height:calc(100vh - 56px);padding:0}
+.chat-header{
+display:flex;
+align-items:center;
+gap:12px;
+padding:14px 20px;
+background:var(--bg-secondary);
+border-bottom:1px solid var(--border-subtle);
+flex-shrink:0;
+}
+.chat-header .back-btn{margin-bottom:0}
+.chat-elfie-info{display:flex;align-items:center;gap:10px;flex:1}
+.chat-elfie-avatar{
+width:36px;height:36px;
+border-radius:50%;
+background:linear-gradient(135deg,#6c7cf7,#a78bfa);
+display:flex;
+align-items:center;
+justify-content:center;
+font-size:18px;
+flex-shrink:0;
+}
+.chat-elfie-name{font-size:15px;font-weight:600}
+.chat-status{font-size:12px;color:var(--text-secondary);display:flex;align-items:center;gap:5px}
+.chat-status-dot{width:7px;height:7px;border-radius:50%;background:#555;transition:background .3s}
+.chat-status-dot.connected{background:var(--success)}
+.chat-status-dot.connecting{background:var(--warning);animation:pulse 1.2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.chat-messages{
+flex:1;
+overflow-y:auto;
+padding:20px 16px;
+display:flex;
+flex-direction:column;
+gap:14px;
+scroll-behavior:smooth;
+}
+.chat-msg{display:flex;gap:10px;max-width:85%;animation:fadeIn .25s ease-out}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.chat-msg.user{align-self:flex-end;flex-direction:row-reverse}
+.chat-msg.elfie{align-self:flex-start}
+.chat-msg-avatar{
+width:32px;height:32px;border-radius:50%;
+display:flex;align-items:center;justify-content:center;
+font-size:15px;flex-shrink:0;margin-top:2px;
+}
+.chat-msg.elfie .chat-msg-avatar{background:linear-gradient(135deg,#6c7cf7,#a78bfa)}
+.chat-msg.user .chat-msg-avatar{background:#3a3a55}
+.chat-msg-bubble{
+padding:10px 14px;border-radius:var(--radius);
+line-height:1.55;font-size:14px;word-break:break-word;
+}
+.chat-msg.elfie .chat-msg-bubble{background:var(--bg-bubble-elfie);color:var(--text-bubble-elfie);border-bottom-left-radius:4px}
+.chat-msg.user .chat-msg-bubble{background:var(--bg-bubble-user);color:var(--text-bubble-user);border-bottom-right-radius:4px}
+.chat-typing{
+display:none;align-self:flex-start;gap:10px;max-width:85%;animation:fadeIn .25s ease-out
+}
+.chat-typing.visible{display:flex}
+.chat-typing .chat-msg-avatar{
+width:32px;height:32px;border-radius:50%;
+background:linear-gradient(135deg,#6c7cf7,#a78bfa);
+display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;
+}
+.typing-dots{
+background:var(--bg-bubble-elfie);padding:10px 16px;
+border-radius:var(--radius);border-bottom-left-radius:4px;
+display:flex;gap:4px;align-items:center;
+}
+.typing-dots span{
+width:7px;height:7px;border-radius:50%;
+background:var(--text-secondary);animation:bounce 1.4s infinite;
+}
+.typing-dots span:nth-child(2){animation-delay:.2s}
+.typing-dots span:nth-child(3){animation-delay:.4s}
+@keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}
+.chat-input-bar{
+display:flex;align-items:center;gap:10px;
+padding:12px 16px;background:var(--bg-secondary);
+border-top:1px solid var(--border-subtle);flex-shrink:0;
+}
+.chat-input-bar input{
+flex:1;background:var(--bg-input);border:1px solid var(--border-subtle);
+border-radius:var(--radius-sm);padding:10px 14px;color:var(--text-primary);
+font-size:14px;outline:none;transition:border-color .2s;
+}
+.chat-input-bar input::placeholder{color:var(--text-secondary)}
+.chat-input-bar input:focus{border-color:var(--accent)}
+.chat-input-bar button{
+background:var(--accent);color:#fff;border:none;
+border-radius:var(--radius-sm);padding:10px 18px;
+font-size:14px;font-weight:500;cursor:pointer;transition:background .2s;white-space:nowrap;
+}
+.chat-input-bar button:hover{background:var(--accent-hover)}
+.chat-input-bar button:disabled{opacity:.4;cursor:not-allowed}
+.chat-system-msg{text-align:center;font-size:12px;color:var(--text-secondary);padding:6px 0}
+/* ── View C: Config ── */
+.config-container{max-width:800px;margin:0 auto}
+.config-header{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.config-header .back-btn{margin-bottom:0}
+.config-name{font-size:18px;font-weight:700}
+.config-tabs{display:flex;gap:4px;margin-bottom:16px;background:var(--bg-input);border-radius:var(--radius-sm);padding:4px}
+.config-tab{
+flex:1;padding:8px 12px;text-align:center;font-size:13px;font-weight:500;
+border-radius:6px;cursor:pointer;transition:all .2s;color:var(--text-secondary);
+border:none;background:transparent;
+}
+.config-tab:hover{color:var(--text-primary)}
+.config-tab.active{background:var(--accent);color:#fff}
+.config-textarea{
+width:100%;min-height:360px;
+background:var(--bg-input);border:1px solid var(--border-subtle);
+border-radius:var(--radius-sm);padding:14px;
+color:var(--text-primary);font-size:13px;font-family:'SF Mono','Menlo','Monaco','Courier New',monospace;
+line-height:1.5;resize:vertical;outline:none;transition:border-color .2s;
+}
+.config-textarea:focus{border-color:var(--accent)}
+.config-save-btn{
+margin-top:12px;padding:10px 24px;
+background:var(--accent);color:#fff;border:none;
+border-radius:var(--radius-sm);font-size:14px;font-weight:600;cursor:pointer;transition:background .2s;
+}
+.config-save-btn:hover{background:var(--accent-hover)}
+.config-save-btn:disabled{opacity:.5;cursor:not-allowed}
+.config-file-label{font-size:12px;color:var(--text-secondary);margin-bottom:6px;font-family:monospace}
+/* ── Empty state ── */
+.empty-state{text-align:center;padding:60px 20px}
+.empty-state-icon{font-size:48px;margin-bottom:12px;opacity:.4}
+.empty-state-text{font-size:15px;color:var(--text-secondary)}
+/* ── Hidden ── */
+.hidden{display:none!important}
+/* ── Loading spinner ── */
+.loading-spinner{display:flex;align-items:center;justify-content:center;padding:40px}
+.spinner{
+width:24px;height:24px;
+border:2px solid var(--border-subtle);border-top-color:var(--accent);
+border-radius:50%;animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* ── Responsive ── */
+@media(max-width:600px){
+.card-grid{grid-template-columns:1fr}
+.style-grid{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}
+.appearance-grid{grid-template-columns:repeat(3,1fr)}
+.chat-msg{max-width:92%}
+.chat-msg-avatar{width:28px;height:28px;font-size:13px}
+.chat-msg-bubble{font-size:13px;padding:8px 12px}
+.view{padding:16px 12px}
+}
+</style>
+</head>
+<body>
+
+<!-- ─── Nav Bar ─── -->
+<div class="nav-bar">
+    <span class="nav-logo">🦊</span>
+    <span class="nav-title">ElfieNest</span>
+    <div class="nav-user">
+        <span class="nav-username" id="navUsername">-</span>
+        <span class="nav-badge">普通用户</span>
+        <button class="nav-btn" id="logoutBtn">退出</button>
+    </div>
+</div>
+
+<!-- ─── Toast Container ─── -->
+<div id="toastContainer"></div>
+
+<!-- ─── View A: 精灵列表 ─── -->
+<div class="view active" id="viewList">
+    <div id="elfieListContent">
+        <div class="loading-spinner"><div class="spinner"></div></div>
+    </div>
+</div>
+
+<!-- ─── View D: 领养 ─── -->
+<div class="view" id="viewAdopt">
+    <button class="back-btn" onclick="switchView('viewList')">← 返回列表</button>
+    <div class="adopt-form">
+        <h2>✨ 领养新精灵</h2>
+        <p class="subtitle">为你的新精灵伙伴设定偏好，系统将按偏好随机生成独一无二的性格和能力</p>
+
+        <div class="form-group">
+            <label for="adoptName">名字</label>
+            <input type="text" id="adoptName" placeholder="给精灵取个名字（最长 20 字）" maxlength="20" required />
+        </div>
+
+        <div class="form-group">
+            <label>体型</label>
+            <div class="radio-group" id="adoptAnatomy">
+                <div class="radio-card selected" data-value="biped" onclick="selectAnatomy(this)">🦊 双足</div>
+                <div class="radio-card" data-value="quadruped" onclick="selectAnatomy(this)">🐾 四足</div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>性格风格</label>
+            <div class="style-grid" id="adoptStyle"></div>
+        </div>
+
+        <div class="form-group">
+            <label>身高</label>
+            <div class="appearance-grid" id="adoptHeight"></div>
+        </div>
+
+        <div class="form-group">
+            <label>体型</label>
+            <div class="appearance-grid" id="adoptBuild"></div>
+        </div>
+
+        <button class="submit-btn" id="adoptBtn" onclick="submitAdoption()">✨ 领养</button>
+    </div>
+</div>
+
+<!-- ─── View B: 聊天 ─── -->
+<div class="view chat-container" id="viewChat">
+    <div class="chat-header">
+        <button class="back-btn" onclick="closeChat()">← 返回列表</button>
+        <div class="chat-elfie-info">
+            <div class="chat-elfie-avatar" id="chatAvatar">🦊</div>
+            <div>
+                <div class="chat-elfie-name" id="chatElfieName">-</div>
+                <div class="chat-status">
+                    <span class="chat-status-dot" id="chatStatusDot"></span>
+                    <span id="chatStatusText">正在连接...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="chat-messages" id="chatMessages">
+        <div class="chat-system-msg">ElfieNest 仿生生命体 · 聊天</div>
+    </div>
+    <div class="chat-typing" id="chatTyping">
+        <div class="chat-msg-avatar" id="chatTypingAvatar">🦊</div>
+        <div class="typing-dots"><span></span><span></span><span></span></div>
+    </div>
+    <div class="chat-input-bar">
+        <input type="text" id="chatInput" placeholder="输入消息..." autocomplete="off" />
+        <button id="chatSendBtn" disabled>发送</button>
+    </div>
+</div>
+
+<!-- ─── View C: 配置 ─── -->
+<div class="view" id="viewConfig">
+    <div class="config-container">
+        <div class="config-header">
+            <button class="back-btn" onclick="switchView('viewList')">← 返回列表</button>
+            <span class="config-name" id="configElfieName">-</span>
+            <span style="font-size:12px;color:var(--text-secondary)">配置</span>
+        </div>
+        <div class="config-tabs" id="configTabs">
+            <button class="config-tab active" data-file="personality.yaml" onclick="switchConfigTab(this)">personality.yaml</button>
+            <button class="config-tab" data-file="capabilities.yaml" onclick="switchConfigTab(this)">capabilities.yaml</button>
+            <button class="config-tab" data-file="system_limits.yaml" onclick="switchConfigTab(this)">system_limits.yaml</button>
+        </div>
+        <div class="config-file-label" id="configFileLabel">personality.yaml</div>
+        <textarea class="config-textarea" id="configTextarea" spellcheck="false"></textarea>
+        <button class="config-save-btn" id="configSaveBtn" onclick="saveConfig()">💾 保存</button>
+    </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ─────────────── State ───────────────
+let currentUser = null;
+let currentElfies = [];
+let adoptionInfo = null;
+let currentChatElfie = null;
+let chatWs = null;
+let chatConnected = false;
+let currentConfigElfieId = null;
+let currentConfigFile = 'personality.yaml';
+let configData = {};
+
+// ─────────────── DOM refs ───────────────
+const navUsername = document.getElementById('navUsername');
+const logoutBtn = document.getElementById('logoutBtn');
+const toastContainer = document.getElementById('toastContainer');
+const elfieListContent = document.getElementById('elfieListContent');
+const viewList = document.getElementById('viewList');
+const viewAdopt = document.getElementById('viewAdopt');
+const viewChat = document.getElementById('viewChat');
+const viewConfig = document.getElementById('viewConfig');
+
+// ─────────────── Toast ───────────────
+function showToast(msg, type) {
+    type = type || 'info';
+    const el = document.createElement('div');
+    el.className = 'toast ' + type;
+    el.textContent = msg;
+    toastContainer.appendChild(el);
+    setTimeout(() => {
+        el.classList.add('out');
+        setTimeout(() => el.remove(), 300);
+    }, 3000);
+}
+
+// ─────────────── Auth / CSRF helpers ───────────────
+function getCsrfToken() {
+    return localStorage.getItem('csrf_token') || '';
+}
+function getSessionToken() {
+    return localStorage.getItem('session_token') || '';
+}
+function apiFetch(url, opts) {
+    opts = opts || {};
+    opts.credentials = 'include';
+    opts.headers = opts.headers || {};
+    const method = (opts.method || 'GET').toUpperCase();
+    if (method !== 'GET' && method !== 'HEAD') {
+        opts.headers['X-CSRF-Token'] = getCsrfToken();
+    }
+    return fetch(url, opts);
+}
+
+// ─────────────── Check auth on load ───────────────
+async function checkAuth() {
+    try {
+        const resp = await apiFetch('/api/auth/me');
+        if (!resp.ok) {
+            window.location.href = '/static/login.html';
+            return null;
+        }
+        const data = await resp.json();
+        currentUser = data;
+        navUsername.textContent = data.username || '-';
+        return data;
+    } catch(e) {
+        showToast('无法连接到服务', 'error');
+        return null;
+    }
+}
+
+// ─────────────── View switching ───────────────
+function switchView(viewId) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById(viewId).classList.add('active');
+}
+
+// ─────────────── View A: Elfie List ───────────────
+async function loadElfies() {
+    try {
+        const resp = await apiFetch('/api/user/elfies');
+        if (!resp.ok) { showToast('加载精灵列表失败', 'error'); return []; }
+        currentElfies = await resp.json();
+        renderElfieList();
+    } catch(e) {
+        showToast('网络错误', 'error');
+        currentElfies = [];
+        renderElfieList();
+    }
+}
+
+function anatomyEmoji(type) {
+    return type === 'quadruped' ? '🐾' : '🦊';
+}
+function heightLabel(h) {
+    const map = {short:'矮小', standard:'标准', tall:'高大'};
+    return map[h] || h;
+}
+function buildLabel(b) {
+    const map = {slim:'纤细', standard:'标准', plump:'圆润'};
+    return map[b] || b;
+}
+function personalityLabel(s) {
+    return s || '未知';
+}
+
+function renderElfieList() {
+    const count = currentElfies.length;
+
+    let html = '<div class="card-grid">';
+
+    // Elfie cards
+    for (const e of currentElfies) {
+        const emoji = anatomyEmoji(e.anatomy_type);
+        const anatomyLabel = e.anatomy_type === 'quadruped' ? '四足' : '双足';
+        const appearance = (heightLabel(e.height) || '标准') + ' ' + (buildLabel(e.build) || '标准');
+        const created = e.created_at ? e.created_at.slice(0, 10) : '';
+
+        html += '<div class="elfie-card">';
+        html += '<div class="elfie-card-avatar">' + emoji + '</div>';
+        html += '<div class="elfie-card-name">' + escapeHtml(e.name) + '</div>';
+        html += '<div class="elfie-card-tags">';
+        html += '<span class="tag tag-anatomy">' + anatomyLabel + '</span>';
+        html += '<span class="tag tag-personality">' + escapeHtml(personalityLabel(e.personality_style)) + '</span>';
+        html += '<span class="tag tag-appearance">' + appearance + '</span>';
+        html += '</div>';
+        html += '<div class="elfie-card-time">' + created + '</div>';
+        html += '<div class="elfie-card-actions">';
+        html += '<button class="card-btn card-btn-chat" onclick="openChat(\'' + e.elfie_id + '\')">💬 聊天</button>';
+        html += '<button class="card-btn card-btn-config" onclick="openConfig(\'' + e.elfie_id + '\')">⚙ 配置</button>';
+        html += '</div></div>';
+    }
+
+    // Adoption card
+    if (count < 3) {
+        html += '<div class="adopt-card" onclick="openAdopt()">';
+        html += '<div class="adopt-card-icon">➕</div>';
+        html += '<div class="adopt-card-text">领养新精灵</div>';
+        html += '<div style="font-size:11px;color:var(--text-secondary)">已领养 ' + count + ' / 3 只</div>';
+        html += '</div>';
+    } else {
+        html += '<div class="adopt-card disabled">';
+        html += '<div class="adopt-card-icon" style="opacity:.3">🚫</div>';
+        html += '<div class="adopt-card-text" style="color:var(--text-secondary)">已达上限（3 只）</div>';
+        html += '</div>';
+    }
+
+    html += '</div>';
+
+    if (count === 0) {
+        html += '<div class="empty-state"><div class="empty-state-icon">🦊</div><div class="empty-state-text">你还没有领养任何精灵<br/>点击「领养新精灵」卡片开始</div></div>';
+        // If there's an adopt card already shown, keep it; otherwise the empty-state covers it
+    }
+
+    elfieListContent.innerHTML = html;
+}
+
+function escapeHtml(s) {
+    if (!s) return '';
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─────────────── View D: Adoption ───────────────
+function selectAnatomy(el) {
+    document.querySelectorAll('#adoptAnatomy .radio-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+}
+
+async function fetchAdoptionInfo() {
+    try {
+        const resp = await apiFetch('/api/user/adoption-info');
+        if (resp.ok) {
+            adoptionInfo = await resp.json();
+        }
+    } catch(e) {}
+}
+
+function openAdopt() {
+    switchView('viewAdopt');
+    renderAdoptionForm();
+}
+
+function renderAdoptionForm() {
+    if (!adoptionInfo) return;
+
+    // Anatomy - already rendered in HTML
+
+    // Personality styles
+    const styleContainer = document.getElementById('adoptStyle');
+    styleContainer.innerHTML = '';
+    for (const s of adoptionInfo.personality_styles) {
+        const div = document.createElement('div');
+        div.className = 'style-card' + (s === '好奇探索' ? ' selected' : '');
+        div.dataset.value = s;
+        div.textContent = s;
+        div.onclick = function() {
+            styleContainer.querySelectorAll('.style-card').forEach(c => c.classList.remove('selected'));
+            this.classList.add('selected');
+        };
+        styleContainer.appendChild(div);
+    }
+
+    // Height
+    const heightContainer = document.getElementById('adoptHeight');
+    heightContainer.innerHTML = '';
+    const heightLabels = {short:'矮小', standard:'标准', tall:'高大'};
+    for (const h of adoptionInfo.heights) {
+        const div = document.createElement('div');
+        div.className = 'appearance-card' + (h === 'standard' ? ' selected' : '');
+        div.dataset.value = h;
+        div.textContent = heightLabels[h] || h;
+        div.onclick = function() {
+            heightContainer.querySelectorAll('.appearance-card').forEach(c => c.classList.remove('selected'));
+            this.classList.add('selected');
+        };
+        heightContainer.appendChild(div);
+    }
+
+    // Build
+    const buildContainer = document.getElementById('adoptBuild');
+    buildContainer.innerHTML = '';
+    const buildLabels = {slim:'纤细', standard:'标准', plump:'圆润'};
+    for (const b of adoptionInfo.builds) {
+        const div = document.createElement('div');
+        div.className = 'appearance-card' + (b === 'standard' ? ' selected' : '');
+        div.dataset.value = b;
+        div.textContent = buildLabels[b] || b;
+        div.onclick = function() {
+            buildContainer.querySelectorAll('.appearance-card').forEach(c => c.classList.remove('selected'));
+            this.classList.add('selected');
+        };
+        buildContainer.appendChild(div);
+    }
+}
+
+async function submitAdoption() {
+    const nameInput = document.getElementById('adoptName');
+    const name = nameInput.value.trim();
+    if (!name) { showToast('请输入精灵名字', 'error'); nameInput.focus(); return; }
+    if (name.length > 20) { showToast('名字最长 20 个字', 'error'); return; }
+
+    const anatomyEl = document.querySelector('#adoptAnatomy .radio-card.selected');
+    const anatomyType = anatomyEl ? anatomyEl.dataset.value : 'biped';
+
+    const styleEl = document.querySelector('#adoptStyle .style-card.selected');
+    const personalityStyle = styleEl ? styleEl.dataset.value : '活泼好动';
+
+    const heightEl = document.querySelector('#adoptHeight .appearance-card.selected');
+    const height = heightEl ? heightEl.dataset.value : 'standard';
+
+    const buildEl = document.querySelector('#adoptBuild .appearance-card.selected');
+    const build = buildEl ? buildEl.dataset.value : 'standard';
+
+    const btn = document.getElementById('adoptBtn');
+    btn.disabled = true;
+    btn.textContent = '领养中...';
+
+    try {
+        const resp = await apiFetch('/api/user/adopt', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                name: name,
+                anatomy_type: anatomyType,
+                personality_style: personalityStyle,
+                height: height,
+                build: build,
+            }),
+        });
+
+        if (resp.status === 201) {
+            showToast('🎉 领养成功！', 'success');
+            nameInput.value = '';
+            // Reset form selections to defaults
+            document.querySelectorAll('#adoptAnatomy .radio-card').forEach((c,i) => c.classList.toggle('selected', i===0));
+            // Reload list and switch back
+            await loadElfies();
+            switchView('viewList');
+        } else if (resp.status === 409) {
+            const err = await resp.json();
+            showToast(err.detail || '最多 3 只精灵', 'error');
+        } else if (resp.status === 400) {
+            const err = await resp.json();
+            showToast(err.detail || '参数错误', 'error');
+        } else {
+            showToast('领养失败，请重试', 'error');
+        }
+    } catch(e) {
+        showToast('网络错误', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '✨ 领养';
+    }
+}
+
+// ─────────────── View B: Chat ───────────────
+function openChat(elfieId) {
+    const elfie = currentElfies.find(e => e.elfie_id === elfieId);
+    if (!elfie) { showToast('精灵不存在', 'error'); return; }
+
+    currentChatElfie = elfie;
+    switchView('viewChat');
+
+    // Set up header
+    const emoji = anatomyEmoji(elfie.anatomy_type);
+    document.getElementById('chatAvatar').textContent = emoji;
+    document.getElementById('chatTypingAvatar').textContent = emoji;
+    document.getElementById('chatElfieName').textContent = elfie.name;
+
+    // Clear messages
+    const msgContainer = document.getElementById('chatMessages');
+    msgContainer.innerHTML = '<div class="chat-system-msg">ElfieNest 仿生生命体 · ' + escapeHtml(elfie.name) + '</div>';
+
+    // Connect WS
+    connectChatWS(elfie);
+}
+
+function closeChat() {
+    disconnectChatWS();
+    currentChatElfie = null;
+    switchView('viewList');
+}
+
+function setChatStatus(state) {
+    const dot = document.getElementById('chatStatusDot');
+    const text = document.getElementById('chatStatusText');
+    const sendBtn = document.getElementById('chatSendBtn');
+    dot.className = 'chat-status-dot';
+    if (state === 'connected') {
+        dot.classList.add('connected');
+        text.textContent = '已连接';
+        chatConnected = true;
+        sendBtn.disabled = false;
+    } else if (state === 'connecting') {
+        dot.classList.add('connecting');
+        text.textContent = '正在连接...';
+        chatConnected = false;
+        sendBtn.disabled = true;
+    } else {
+        text.textContent = '已断开';
+        chatConnected = false;
+        sendBtn.disabled = true;
+    }
+}
+
+function addChatMessage(role, text) {
+    const container = document.getElementById('chatMessages');
+    const div = document.createElement('div');
+    div.className = 'chat-msg ' + role;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'chat-msg-avatar';
+    avatar.textContent = role === 'elfie' ? (currentChatElfie ? anatomyEmoji(currentChatElfie.anatomy_type) : '🦊') : '👤';
+
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-msg-bubble';
+    bubble.textContent = text;
+
+    div.appendChild(avatar);
+    div.appendChild(bubble);
+    container.appendChild(div);
+    scrollChatToBottom();
+}
+
+function addChatSystemMsg(text) {
+    const container = document.getElementById('chatMessages');
+    const div = document.createElement('div');
+    div.className = 'chat-system-msg';
+    div.textContent = text;
+    container.appendChild(div);
+    scrollChatToBottom();
+}
+
+function showChatTyping(show) {
+    const el = document.getElementById('chatTyping');
+    el.classList.toggle('visible', show);
+    if (show) scrollChatToBottom();
+}
+
+function scrollChatToBottom() {
+    requestAnimationFrame(() => {
+        const container = document.getElementById('chatMessages');
+        container.scrollTop = container.scrollHeight;
+    });
+}
+
+function connectChatWS(elfie) {
+    disconnectChatWS();
+
+    const sessionToken = getSessionToken();
+    if (!sessionToken) {
+        setChatStatus('disconnected');
+        addChatSystemMsg('⚠️ 无法连接聊天：缺少会话 token，请重新登录');
+        return;
+    }
+
+    setChatStatus('connecting');
+
+    try {
+        chatWs = new WebSocket('ws://127.0.0.1:8766');
+    } catch(e) {
+        setChatStatus('disconnected');
+        addChatSystemMsg('❌ WebSocket 连接失败：' + e.message);
+        return;
+    }
+
+    chatWs.onopen = function() {
+        // Send auth frame
+        chatWs.send(JSON.stringify({
+            event: 'auth',
+            payload: { token: sessionToken },
+        }));
+    };
+
+    chatWs.onmessage = function(event) {
+        let data;
+        try { data = JSON.parse(event.data); } catch { return; }
+
+        if (data.event === 'auth_ok') {
+            setChatStatus('connected');
+            addChatSystemMsg('已连接到服务');
+            return;
+        }
+
+        // Handle speak_event for this elfie
+        if (data.action === 'speak_event' && data.payload) {
+            if (data.payload.elfie_id === currentChatElfie.elfie_id) {
+                showChatTyping(false);
+                addChatMessage('elfie', data.payload.text || '');
+            }
+            return;
+        }
+
+        // Handle speak_event from the new format (event field)
+        if (data.event === 'speak_event' && data.payload) {
+            if (data.payload.elfie_id === currentChatElfie.elfie_id) {
+                showChatTyping(false);
+                addChatMessage('elfie', data.payload.text || '');
+            }
+            return;
+        }
+    };
+
+    chatWs.onclose = function() {
+        setChatStatus('disconnected');
+        showChatTyping(false);
+        if (currentChatElfie) {
+            addChatSystemMsg('连接已断开');
+        }
+    };
+
+    chatWs.onerror = function() {
+        // onclose will fire after this
+    };
+}
+
+function disconnectChatWS() {
+    if (chatWs) {
+        chatWs.onclose = null; // prevent reconnect logic
+        chatWs.close();
+        chatWs = null;
+    }
+    chatConnected = false;
+}
+
+function sendChatMessage() {
+    const input = document.getElementById('chatInput');
+    const text = input.value.trim();
+    if (!text || !chatConnected || !currentChatElfie || !chatWs) return;
+
+    addChatMessage('user', text);
+    chatWs.send(JSON.stringify({
+        event: 'user_message',
+        payload: {
+            elfie_id: currentChatElfie.elfie_id,
+            message: text,
+        },
+    }));
+    input.value = '';
+    showChatTyping(true);
+}
+
+// Chat input handlers
+document.getElementById('chatInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendChatMessage();
+    }
+});
+document.getElementById('chatSendBtn').addEventListener('click', sendChatMessage);
+
+// ─────────────── View C: Config ───────────────
+async function openConfig(elfieId) {
+    const elfie = currentElfies.find(e => e.elfie_id === elfieId);
+    if (!elfie) { showToast('精灵不存在', 'error'); return; }
+
+    currentConfigElfieId = elfieId;
+    currentConfigFile = 'personality.yaml';
+    document.getElementById('configElfieName').textContent = elfie.name;
+
+    switchView('viewConfig');
+
+    // Reset tabs
+    document.querySelectorAll('#configTabs .config-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector('#configTabs .config-tab[data-file="personality.yaml"]').classList.add('active');
+
+    // Load config data
+    const btn = document.getElementById('configSaveBtn');
+    btn.disabled = true;
+    btn.textContent = '加载中...';
+
+    try {
+        const resp = await apiFetch('/api/user/elfies/' + encodeURIComponent(elfieId));
+        if (!resp.ok) { showToast('加载配置失败', 'error'); btn.disabled = false; btn.textContent = '💾 保存'; return; }
+        configData = await resp.json();
+
+        // Show current file
+        showConfigFile('personality.yaml');
+        btn.disabled = false;
+        btn.textContent = '💾 保存';
+    } catch(e) {
+        showToast('网络错误', 'error');
+        btn.disabled = false;
+        btn.textContent = '💾 保存';
+    }
+}
+
+function switchConfigTab(tab) {
+    document.querySelectorAll('#configTabs .config-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentConfigFile = tab.dataset.file;
+    showConfigFile(currentConfigFile);
+}
+
+function showConfigFile(filename) {
+    const label = document.getElementById('configFileLabel');
+    label.textContent = filename;
+
+    const textarea = document.getElementById('configTextarea');
+    const configs = configData.configs || {};
+    textarea.value = configs[filename] || '# 无内容';
+}
+
+async function saveConfig() {
+    if (!currentConfigElfieId) return;
+
+    const textarea = document.getElementById('configTextarea');
+    const content = textarea.value;
+
+    const btn = document.getElementById('configSaveBtn');
+    btn.disabled = true;
+    btn.textContent = '保存中...';
+
+    try {
+        const resp = await apiFetch('/api/user/elfies/' + encodeURIComponent(currentConfigElfieId) + '/config', {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                filename: currentConfigFile,
+                content: content,
+            }),
+        });
+
+        if (resp.ok) {
+            showToast(currentConfigFile + ' 已保存', 'success');
+        } else {
+            const err = await resp.json();
+            showToast(err.detail || '保存失败', 'error');
+        }
+    } catch(e) {
+        showToast('网络错误', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '💾 保存';
+    }
+}
+
+// ─────────────── Logout ───────────────
+async function logout() {
+    try {
+        await apiFetch('/api/auth/logout', { method: 'POST' });
+    } catch(e) {}
+    localStorage.removeItem('csrf_token');
+    localStorage.removeItem('session_token');
+    window.location.href = '/static/login.html';
+}
+logoutBtn.addEventListener('click', logout);
+
+// ─────────────── Init ───────────────
+async function init() {
+    const user = await checkAuth();
+    if (!user) return;
+
+    // If csrf_token missing from localStorage, try to get from me response
+    if (!getCsrfToken() && user.csrf_token) {
+        localStorage.setItem('csrf_token', user.csrf_token);
+    }
+
+    await fetchAdoptionInfo();
+    await loadElfies();
+}
+
+// Expose functions to global scope for inline onclick handlers
+window.switchView = switchView;
+window.openChat = openChat;
+window.closeChat = closeChat;
+window.openConfig = openConfig;
+window.submitAdoption = submitAdoption;
+window.saveConfig = saveConfig;
+window.switchConfigTab = switchConfigTab;
+window.openAdopt = openAdopt;
+window.selectAnatomy = selectAnatomy;
+
+init();
+
+})();
+</script>
+</body>
+</html>

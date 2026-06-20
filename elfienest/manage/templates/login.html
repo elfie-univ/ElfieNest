@@ -272,6 +272,10 @@
                     });
                     if (resp.ok) {
                         const data = await resp.json();
+                        // 存储 CSRF token（已有 session 时后端也会返回）
+                        if (data.csrf_token) {
+                            localStorage.setItem('csrf_token', data.csrf_token);
+                        }
                         checkSessionSpinner.classList.remove('visible');
                         // Already logged in, redirect
                         loginCard.style.display = 'none';
