@@ -195,6 +195,16 @@ def create_app(
         """根路径重定向到登录页"""
         return RedirectResponse(url="/static/login.html", status_code=302)
 
+    @app.get("/setup.html")
+    async def setup_page():
+        """首启向导页面"""
+        return RedirectResponse(url="/static/setup.html", status_code=302)
+
+    @app.get("/login.html")
+    async def login_page():
+        """登录页面"""
+        return RedirectResponse(url="/static/login.html", status_code=302)
+
     @app.get("/api/health")
     async def health():
         """健康检查"""

@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ElfieNest - 首次设置</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-primary: #0f0f1a;
+            --bg-secondary: #1a1a2e;
+            --bg-input: #16162a;
+            --text-primary: #e8e8f0;
+            --text-secondary: #9898b0;
+            --border-subtle: #2a2a40;
+            --accent: #6c7cf7;
+            --accent-hover: #5a6ae0;
+            --error: #ef4444;
+            --success: #22c55e;
+            --radius: 12px;
+            --radius-sm: 8px;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .setup-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius);
+            padding: 40px 36px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        .logo-icon {
+            font-size: 48px;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .logo h1 {
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+
+        .logo p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        /* Step indicator */
+        .step-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 24px;
+        }
+
+        .step-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--border-subtle);
+            transition: background 0.3s;
+        }
+
+        .step-dot.active {
+            background: var(--accent);
+        }
+
+        .step-dot.completed {
+            background: var(--success);
+        }
+
+        .step-line {
+            width: 32px;
+            height: 2px;
+            background: var(--border-subtle);
+            transition: background 0.3s;
+        }
+
+        .step-line.completed {
+            background: var(--success);
+        }
+
+        .step-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        /* Form groups */
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+
+        .form-group input {
+            width: 100%;
+            background: var(--bg-input);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            padding: 12px 14px;
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .form-group input:focus {
+            border-color: var(--accent);
+        }
+
+        .form-group input.invalid {
+            border-color: var(--error);
+        }
+
+        .field-error {
+            font-size: 12px;
+            color: var(--error);
+            margin-top: 4px;
+            display: none;
+        }
+
+        .field-error.visible {
+            display: block;
+        }
+
+        /* Avatar color picker */
+        .avatar-picker {
+            margin-bottom: 18px;
+        }
+
+        .avatar-picker label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+
+        .avatar-colors {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .avatar-color-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: border-color 0.2s, transform 0.15s;
+            position: relative;
+        }
+
+        .avatar-color-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .avatar-color-btn.selected {
+            border-color: #fff;
+            transform: scale(1.15);
+        }
+
+        .avatar-color-btn.selected::after {
+            content: '\2713';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-size: 16px;
+            font-weight: 700;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Buttons */
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 24px;
+        }
+
+        .btn-primary {
+            flex: 1;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-sm);
+            padding: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            flex: 1;
+            background: var(--bg-input);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            padding: 12px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: color 0.2s, border-color 0.2s;
+        }
+
+        .btn-secondary:hover {
+            color: var(--text-primary);
+            border-color: var(--accent);
+        }
+
+        /* Error message */
+        .error-msg {
+            display: none;
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: var(--radius-sm);
+            padding: 10px 14px;
+            font-size: 13px;
+            color: var(--error);
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .error-msg.visible {
+            display: block;
+        }
+
+        /* Success state */
+        .success-state {
+            display: none;
+            text-align: center;
+            padding: 20px 0;
+        }
+
+        .success-state.visible {
+            display: block;
+        }
+
+        .success-icon {
+            font-size: 56px;
+            margin-bottom: 16px;
+        }
+
+        .success-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .success-desc {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+        }
+
+        /* Loading spinner */
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .loading-spinner.visible {
+            display: block;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-subtle);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Redirecting overlay */
+        .redirecting {
+            display: none;
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .redirecting.visible {
+            display: block;
+        }
+
+        .redirecting .spinner {
+            width: 32px;
+            height: 32px;
+            border-width: 3px;
+            margin-bottom: 16px;
+        }
+
+        .redirecting p {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* Step panels */
+        .step-panel {
+            display: none;
+        }
+
+        .step-panel.active {
+            display: block;
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 12px;
+                align-items: flex-start;
+                padding-top: 60px;
+            }
+
+            .setup-card {
+                padding: 28px 20px;
+            }
+
+            .logo-icon {
+                font-size: 40px;
+            }
+
+            .logo h1 {
+                font-size: 20px;
+            }
+
+            .avatar-color-btn {
+                width: 36px;
+                height: 36px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="setup-card" id="setupCard">
+        <!-- Redirecting state (shown when need_setup=false) -->
+        <div class="redirecting" id="redirectAway">
+            <div class="spinner"></div>
+            <p>系统已初始化，正在跳转登录页...</p>
+        </div>
+
+        <!-- Loading state -->
+        <div class="loading-spinner" id="loadingSpinner">
+            <div class="spinner"></div>
+        </div>
+
+        <!-- Wizard content -->
+        <div id="wizardContent" style="display:none;">
+            <div class="logo">
+                <span class="logo-icon">🦊</span>
+                <h1>ElfieNest</h1>
+                <p>创建管理员账号以开始使用</p>
+            </div>
+
+            <div class="step-indicator">
+                <div class="step-dot active" id="dot1"></div>
+                <div class="step-line" id="line1"></div>
+                <div class="step-dot" id="dot2"></div>
+            </div>
+
+            <div class="error-msg" id="errorMsg"></div>
+
+            <!-- Step 1: Account -->
+            <div class="step-panel active" id="step1">
+                <div class="step-title">设置管理员账号</div>
+
+                <div class="form-group">
+                    <label for="username">用户名</label>
+                    <input type="text" id="username" name="username" placeholder="至少 6 个字符" autocomplete="off" />
+                    <div class="field-error" id="usernameError">用户名至少需要 6 个字符</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">密码</label>
+                    <input type="password" id="password" name="password" placeholder="至少 6 个字符" autocomplete="new-password" />
+                    <div class="field-error" id="passwordError">密码至少需要 6 个字符</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="confirmPassword">确认密码</label>
+                    <input type="password" id="confirmPassword" name="confirmPassword" placeholder="再次输入密码" autocomplete="new-password" />
+                    <div class="field-error" id="confirmError">两次输入的密码不一致</div>
+                </div>
+
+                <div class="btn-row">
+                    <button type="button" class="btn-primary" id="nextBtn">下一步</button>
+                </div>
+            </div>
+
+            <!-- Step 2: Profile (optional) -->
+            <div class="step-panel" id="step2">
+                <div class="step-title">个人资料（可选）</div>
+
+                <div class="avatar-picker">
+                    <label>选择头像颜色</label>
+                    <div class="avatar-colors" id="avatarColors"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="nickname">昵称</label>
+                    <input type="text" id="nickname" name="nickname" placeholder="可跳过，默认使用用户名" autocomplete="off" />
+                </div>
+
+                <div class="btn-row">
+                    <button type="button" class="btn-secondary" id="backBtn">返回</button>
+                    <button type="button" class="btn-primary" id="submitBtn">创建管理员</button>
+                </div>
+            </div>
+
+            <!-- Success state -->
+            <div class="success-state" id="successState">
+                <div class="success-icon">&#x2705;</div>
+                <div class="success-title">管理员账号已创建</div>
+                <div class="success-desc">正在跳转到登录页...</div>
+                <div class="spinner" style="margin:0 auto;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            // 8 avatar colors (indices 0-7)
+            const AVATAR_COLORS = [
+                '#6c7cf7', // 0 - 紫蓝 (accent)
+                '#ef4444', // 1 - 红
+                '#22c55e', // 2 - 绿
+                '#f59e0b', // 3 - 琥珀
+                '#a78bfa', // 4 - 紫
+                '#f472b6', // 5 - 粉
+                '#06b6d4', // 6 - 青
+                '#f97316', // 7 - 橙
+            ];
+
+            let selectedColor = 0;
+            let currentStep = 1;
+
+            // DOM refs
+            const setupCard = document.getElementById('setupCard');
+            const wizardContent = document.getElementById('wizardContent');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            const redirectAway = document.getElementById('redirectAway');
+            const errorMsg = document.getElementById('errorMsg');
+
+            const step1 = document.getElementById('step1');
+            const step2 = document.getElementById('step2');
+            const dot1 = document.getElementById('dot1');
+            const dot2 = document.getElementById('dot2');
+            const line1 = document.getElementById('line1');
+
+            const usernameInput = document.getElementById('username');
+            const passwordInput = document.getElementById('password');
+            const confirmPasswordInput = document.getElementById('confirmPassword');
+            const nicknameInput = document.getElementById('nickname');
+
+            const usernameError = document.getElementById('usernameError');
+            const passwordError = document.getElementById('passwordError');
+            const confirmError = document.getElementById('confirmError');
+
+            const nextBtn = document.getElementById('nextBtn');
+            const backBtn = document.getElementById('backBtn');
+            const submitBtn = document.getElementById('submitBtn');
+            const successState = document.getElementById('successState');
+
+            // Build avatar color picker
+            const avatarColorsContainer = document.getElementById('avatarColors');
+            AVATAR_COLORS.forEach(function (color, idx) {
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'avatar-color-btn' + (idx === 0 ? ' selected' : '');
+                btn.style.background = color;
+                btn.setAttribute('data-color-idx', idx);
+                btn.setAttribute('aria-label', '头像颜色 ' + (idx + 1));
+                btn.addEventListener('click', function () {
+                    selectedColor = idx;
+                    document.querySelectorAll('.avatar-color-btn').forEach(function (b) {
+                        b.classList.remove('selected');
+                    });
+                    btn.classList.add('selected');
+                });
+                avatarColorsContainer.appendChild(btn);
+            });
+
+            function showError(msg) {
+                errorMsg.textContent = msg;
+                errorMsg.classList.add('visible');
+            }
+
+            function hideError() {
+                errorMsg.classList.remove('visible');
+            }
+
+            function clearFieldErrors() {
+                usernameError.classList.remove('visible');
+                passwordError.classList.remove('visible');
+                confirmError.classList.remove('visible');
+                usernameInput.classList.remove('invalid');
+                passwordInput.classList.remove('invalid');
+                confirmPasswordInput.classList.remove('invalid');
+            }
+
+            function goToStep(step) {
+                currentStep = step;
+                hideError();
+                clearFieldErrors();
+
+                step1.classList.toggle('active', step === 1);
+                step2.classList.toggle('active', step === 2);
+
+                dot1.className = 'step-dot' + (step >= 1 ? ' active' : '') + (step > 1 ? ' completed' : '');
+                line1.className = 'step-line' + (step > 1 ? ' completed' : '');
+                dot2.className = 'step-dot' + (step >= 2 ? ' active' : '');
+            }
+
+            // Validate step 1
+            function validateStep1() {
+                var valid = true;
+                clearFieldErrors();
+
+                var username = usernameInput.value.trim();
+                var password = passwordInput.value;
+                var confirm = confirmPasswordInput.value;
+
+                if (username.length < 6) {
+                    usernameError.classList.add('visible');
+                    usernameInput.classList.add('invalid');
+                    valid = false;
+                }
+
+                if (password.length < 6) {
+                    passwordError.classList.add('visible');
+                    passwordInput.classList.add('invalid');
+                    valid = false;
+                }
+
+                if (password.length >= 6 && confirm !== password) {
+                    confirmError.classList.add('visible');
+                    confirmPasswordInput.classList.add('invalid');
+                    valid = false;
+                }
+
+                return valid;
+            }
+
+            // Next button → go to step 2
+            nextBtn.addEventListener('click', function () {
+                if (validateStep1()) {
+                    goToStep(2);
+                }
+            });
+
+            // Back button → go to step 1
+            backBtn.addEventListener('click', function () {
+                goToStep(1);
+            });
+
+            // Submit
+            submitBtn.addEventListener('click', async function () {
+                hideError();
+                submitBtn.disabled = true;
+                submitBtn.textContent = '创建中...';
+
+                var payload = {
+                    username: usernameInput.value.trim(),
+                    password: passwordInput.value,
+                    avatar_color: selectedColor
+                };
+
+                var nickname = nicknameInput.value.trim();
+                if (nickname) {
+                    payload.nickname = nickname;
+                }
+
+                try {
+                    var resp = await fetch('/api/auth/setup', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (resp.ok) {
+                        var data = await resp.json();
+                        // Store CSRF token
+                        if (data.csrf_token) {
+                            localStorage.setItem('csrf_token', data.csrf_token);
+                        }
+                        // Show success
+                        step2.classList.remove('active');
+                        successState.classList.add('visible');
+                        // Auto-redirect to login page
+                        setTimeout(function () {
+                            window.location.href = '/static/login.html';
+                        }, 1500);
+                    } else {
+                        var errData = null;
+                        try { errData = await resp.json(); } catch (e) { /* ignore */ }
+                        var msg = (errData && errData.detail) || '创建失败，请重试';
+                        if (resp.status === 409) {
+                            msg = '系统已有用户，无法执行首启设置';
+                        }
+                        showError(msg);
+                    }
+                } catch (e) {
+                    showError('无法连接到服务，请检查网络');
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = '创建管理员';
+                }
+            });
+
+            // Enter key navigation
+            usernameInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') { e.preventDefault(); passwordInput.focus(); }
+            });
+            passwordInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') { e.preventDefault(); confirmPasswordInput.focus(); }
+            });
+            confirmPasswordInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') { e.preventDefault(); nextBtn.click(); }
+            });
+            nicknameInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') { e.preventDefault(); submitBtn.click(); }
+            });
+
+            // On page load: check setup status
+            async function checkSetupStatus() {
+                loadingSpinner.classList.add('visible');
+                try {
+                    var resp = await fetch('/api/auth/setup-status', { credentials: 'include' });
+                    if (resp.ok) {
+                        var data = await resp.json();
+                        if (!data.need_setup) {
+                            // Already has users, redirect to login
+                            loadingSpinner.classList.remove('visible');
+                            redirectAway.classList.add('visible');
+                            setupCard.querySelector('.logo') && (setupCard.querySelector('.logo').style.display = 'none');
+                            wizardContent.style.display = 'none';
+                            window.location.href = '/static/login.html';
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    // Network error — show wizard anyway
+                }
+                loadingSpinner.classList.remove('visible');
+                wizardContent.style.display = 'block';
+            }
+
+            // Start
+            checkSetupStatus();
+        })();
+    </script>
+</body>
+</html>

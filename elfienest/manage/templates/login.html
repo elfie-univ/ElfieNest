@@ -177,6 +177,23 @@
             color: var(--text-secondary);
         }
 
+        .setup-redirect {
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .setup-redirect .spinner {
+            width: 32px;
+            height: 32px;
+            border-width: 3px;
+            margin-bottom: 16px;
+        }
+
+        .setup-redirect p {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
         @media (max-width: 480px) {
             body {
                 padding: 12px;
@@ -215,6 +232,11 @@
             <p>已登录，正在跳转...</p>
         </div>
 
+        <div class="setup-redirect" id="setupRedirectMsg" style="display:none;">
+            <div class="spinner"></div>
+            <p>需要创建管理员账号，正在跳转...</p>
+        </div>
+
         <div class="error-msg" id="errorMsg">用户名或密码错误</div>
 
         <form id="loginForm" autocomplete="off">
@@ -240,6 +262,7 @@
             const errorMsg = document.getElementById('errorMsg');
             const checkSessionSpinner = document.getElementById('checkSessionSpinner');
             const autoRedirectMsg = document.getElementById('autoRedirectMsg');
+            const setupRedirectMsg = document.getElementById('setupRedirectMsg');
 
             function showError(msg) {
                 errorMsg.textContent = msg || '用户名或密码错误';
@@ -263,9 +286,29 @@
                 }
             }
 
-            // Check if already logged in on page load
+            // Check if setup is needed first, then check session
             async function checkSession() {
                 checkSessionSpinner.classList.add('visible');
+
+                // First: check if setup wizard is needed (no users exist)
+                try {
+                    var setupResp = await fetch('/api/auth/setup-status', { credentials: 'include' });
+                    if (setupResp.ok) {
+                        var setupData = await setupResp.json();
+                        if (setupData.need_setup) {
+                            // No users yet — redirect to setup wizard
+                            checkSessionSpinner.classList.remove('visible');
+                            loginCard.style.display = 'none';
+                            setupRedirectMsg.style.display = 'block';
+                            window.location.href = '/static/setup.html';
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    // Network error checking setup status — continue to session check
+                }
+
+                // Then: check if already logged in
                 try {
                     const resp = await fetch('/api/auth/me', {
                         credentials: 'include'
