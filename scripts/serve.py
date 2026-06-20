@@ -38,13 +38,13 @@ class FallbackAgent:
 
         prompt_lower = prompt.lower()
         if any(kw in prompt_lower for kw in ["你好", "嗨", "hello", "hi", "hey"]):
-            return "你好呀！我是艾菲，一只可爱的小狐狸！今天想跟我聊什么呢？ [ACTION]wag_tail[/ACTION]"
+            return "你好呀！我是艾菲，一只可爱的小狐狸！今天想跟我聊什么呢？ [ACTION]nod_head[/ACTION]"
         if any(kw in prompt_lower for kw in ["名字", "叫什么", "你是谁"]):
-            return "我叫艾菲！是一只生活在 ElfieNest 里的小狐狸精灵。我有一身橙红色的毛皮，最喜欢主人摸我的尾巴啦！ [ACTION]wag_tail[/ACTION]"
+            return "我叫艾菲！是一只生活在 ElfieNest 里的小狐狸精灵。我有一身橙红色的毛皮，最喜欢主人摸我的尾巴啦！ [ACTION]nod_head[/ACTION]"
         if any(kw in prompt_lower for kw in ["天气", "今天"]):
             return "唔...我这边天气挺好的！阳光透过窗户照进来，暖洋洋的。不过我没有窗户，只是感觉到的~ [ACTION]stretch[/ACTION]"
         if any(kw in prompt_lower for kw in ["开心", "高兴", "快乐"]):
-            return "当然开心啦！主人来找我聊天，我就超开心的！ [ACTION]jump[/ACTION]"
+            return "当然开心啦！主人来找我聊天，我就超开心的！ [ACTION]waggle_ears[/ACTION]"
         if any(kw in prompt_lower for kw in ["吃", "饿", "食物", "零食"]):
             return "吃的！我最喜欢小饼干和水果了！不过作为精灵，我好像不太需要吃东西...但是看到好吃的还是会馋！ [ACTION]lick_lips[/ACTION]"
         if any(kw in prompt_lower for kw in ["睡", "困", "晚安"]):
@@ -53,11 +53,11 @@ class FallbackAgent:
             return "嗯！主人再见！随时来找我玩哦！ [ACTION]wave[/ACTION]"
 
         replies = [
-            "嗯嗯，我在听呢！继续继续说~ [ACTION]listen[/ACTION]",
+            "嗯嗯，我在听呢！继续继续说~ [ACTION]nod_head[/ACTION]",
             "原来是这样啊！艾菲明白了！ [ACTION]nod_head[/ACTION]",
             "有意思！主人再多讲点嘛！ [ACTION]tilt_head[/ACTION]",
-            "诶？这个我不太懂，但是我会努力去理解的！ [ACTION]think[/ACTION]",
-            "好哒好哒！你说什么我都爱听！ [ACTION]wag_tail[/ACTION]",
+            "诶？这个我不太懂，但是我会努力去理解的！ [ACTION]nod_head[/ACTION]",
+            "好哒好哒！你说什么我都爱听！ [ACTION]nod_head[/ACTION]",
         ]
         return random.choice(replies)
 
