@@ -131,10 +131,43 @@ def init_db(db_path: Optional[str] = None) -> str:
         )
     """)
 
+    # --- Schema migration tracking ---
+    version = conn.execute("PRAGMA user_version").fetchone()[0]
+    if version < 1:
+        conn.execute("PRAGMA user_version = 1")
+    if version < 2:
+        # v1 → v2: add profile fields
+        _migrate_v1_to_v2(conn)
+
     conn.commit()
     conn.close()
     logger.info("Database initialized at %s", resolved)
     return str(resolved)
+
+
+def _migrate_v1_to_v2(conn: sqlite3.Connection) -> None:
+    """Apply v1→v2 schema migration (add profile columns) with per-statement error handling."""
+    for stmt in [
+        "ALTER TABLE users ADD COLUMN nickname TEXT DEFAULT NULL",
+        "ALTER TABLE users ADD COLUMN avatar_color INTEGER DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN avatar_kind TEXT DEFAULT 'initials'",
+    ]:
+        try:
+            conn.execute(stmt)
+        except sqlite3.OperationalError:
+            pass
+    conn.execute("PRAGMA user_version = 2")
+
+
+def migrate_db_if_needed(db_path: str = "data/nest.db") -> None:
+    """检查并执行必要的数据库迁移。使用 PRAGMA user_version 跟踪版本。"""
+    with get_db(db_path) as conn:
+        version = conn.execute("PRAGMA user_version").fetchone()[0]
+        if version < 1:
+            conn.execute("PRAGMA user_version = 1")
+        if version < 2:
+            _migrate_v1_to_v2(conn)
+        conn.commit()
 
 
 def seed_admin(db_path: Optional[str] = None) -> None:
