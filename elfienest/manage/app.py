@@ -185,8 +185,10 @@ def create_app(
         请求体为 form-data（username, password）。login 端点豁免 CSRF 校验。
         """
         body = await request.form()
-        username = (body.get("username") or "").strip()
-        password = body.get("password") or ""
+        username_raw = body.get("username")
+        password_raw = body.get("password")
+        username = (username_raw if isinstance(username_raw, str) else "").strip()
+        password = password_raw if isinstance(password_raw, str) else ""
 
         if not username or not password:
             raise HTTPException(status_code=422, detail="用户名和密码不能为空")

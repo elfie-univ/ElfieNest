@@ -77,8 +77,8 @@ def _check_ownership(conn, elfie_id: str, user_id: int) -> bool:
 
 @router.get("/elfies")
 async def list_my_elfies(
+    request: Request,
     user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
-    request: Request = None,
 ):
     """返回当前用户名下所有精灵（id, name, anatomy_type, personality_style, height, build, created_at）。"""
     db = request.app.state.db_path
@@ -109,8 +109,8 @@ async def list_my_elfies(
 @router.get("/elfies/{elfie_id}")
 async def get_elfie_detail(
     elfie_id: str,
+    request: Request,
     user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
-    request: Request = None,
 ):
     """返回单精灵详情 + 当前配置 YAML 内容（personality / capabilities / system_limits）。"""
     db = request.app.state.db_path
@@ -154,9 +154,9 @@ async def get_elfie_detail(
 @router.put("/elfies/{elfie_id}/config")
 async def update_elfie_config(
     elfie_id: str,
+    request: Request,
     body: Dict[str, Any],
     user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
-    request: Request = None,
 ):
     """更新单精灵配置 YAML 文件。
 
@@ -203,9 +203,9 @@ async def update_elfie_config(
 
 @router.post("/adopt")
 async def adopt_elfie(
+    request: Request,
     body: Dict[str, Any],
     user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
-    request: Request = None,
 ):
     """核心领养端点 — 创建新精灵并分配至当前用户。
 
