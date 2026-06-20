@@ -82,8 +82,9 @@ def create_app(
 
     app = FastAPI(title="ElfieNest Management Dashboard", lifespan=lifespan)
 
-    # 将 db_path 存入 app.state 供依赖注入使用
+    # 将 db_path 与 engine 存入 app.state 供依赖注入使用
     app.state.db_path = db_path
+    app.state.engine = engine
 
     # -------------------------------------------------------------------
     # CORS — 允许 127.0.0.1 和 localhost
@@ -239,18 +240,17 @@ def create_app(
         return user
 
     # -------------------------------------------------------------------
-    # Router 预留占位（T4 admin_routes / T5 user_routes）
+    # Routers
     # -------------------------------------------------------------------
-    # 待对应文件创建后取消注释：
-    # try:
-    #     from .admin_routes import router as admin_router
-    #     app.include_router(admin_router, prefix="/api/admin")
-    # except ImportError:
-    #     pass
-    # try:
-    #     from .user_routes import router as user_router
-    #     app.include_router(user_router, prefix="/api/user")
-    # except ImportError:
-    #     pass
+    try:
+        from .admin_routes import router as admin_router  # noqa: PLC0415
+        app.include_router(admin_router)
+    except ImportError:
+        pass
+    try:
+        from .user_routes import router as user_router  # noqa: PLC0415
+        app.include_router(user_router)
+    except ImportError:
+        pass
 
     return app
