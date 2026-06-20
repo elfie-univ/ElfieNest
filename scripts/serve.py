@@ -17,24 +17,37 @@ from runtime import LLMRuntimeConfig, RuntimeAgent
 
 
 def main():
-    # 1. 装配
-    config = LLMRuntimeConfig(
-        ollama_host="http://localhost:11434",
-        ollama_model_fast="qwen3.5:0.8b",
-    )
-    runtime_agent = RuntimeAgent(config)
-    elfie = ElfieIndividual()
-    engine = ElfieNestEngine()
-    engine.coordinator.register_elfie("艾菲", elfie)
+    # 使用线程内共享容器，让精灵和引擎在同一线程中创建，避免 SQLite 跨线程报错
+    engine_holder: dict = {}
+    engine_ready = threading.Event()
 
-    # 2. 后台启动引擎
-    thread = threading.Thread(
-        target=engine.start_loop,
-        args=(runtime_agent,),
-        kwargs={"ticks_to_run": 100000, "interval_sec": 3.0},
-        daemon=True,
-    )
-    thread.start()
+    def engine_worker():
+        # 1. 装配服务（全部在同一线程内完成）
+        config = LLMRuntimeConfig(
+            ollama_host="http://localhost:11434",
+            ollama_model_fast="qwen3.5:0.8b",
+        )
+        runtime_agent = RuntimeAgent(config)
+        elfie = ElfieIndividual()
+        engine = ElfieNestEngine()
+        engine.coordinator.register_elfie("艾菲", elfie)
+        engine_holder["engine"] = engine
+        engine_ready.set()
+        # 2. 启动引擎主循环（阻塞）
+        engine.start_loop(
+            runtime_agent=runtime_agent, ticks_to_run=100000, interval_sec=3.0
+        )
+
+    engine_thread = threading.Thread(target=engine_worker, daemon=True)
+    engine_thread.start()
+
+    # 等待引擎线程把 engine 实例准备好
+    engine_ready.wait(timeout=5.0)
+    if "engine" not in engine_holder:
+        print("❌ 引擎未能在 5 秒内就绪")
+        sys.exit(1)
+    engine = engine_holder["engine"]
+    time.sleep(2.0)  # 等服务就绪
 
     # 3. 打印引导信息
     print()
