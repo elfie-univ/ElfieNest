@@ -459,9 +459,7 @@ border-radius:50%;animation:spin .7s linear infinite;
     <span class="nav-logo">🦊</span>
     <span class="nav-title">ElfieNest</span>
     <div class="nav-user">
-        <span class="nav-username" id="navUsername">-</span>
-        <span class="nav-badge">普通用户</span>
-        <button class="nav-btn" id="logoutBtn">退出</button>
+        <div id="profileDropdown"></div>
     </div>
 </div>
 
@@ -561,6 +559,7 @@ border-radius:50%;animation:spin .7s linear infinite;
     </div>
 </div>
 
+<script src="/static/assets/profile-dropdown.js"></script>
 <script>
 (function(){
 'use strict';
@@ -577,8 +576,6 @@ let currentConfigFile = 'personality.yaml';
 let configData = {};
 
 // ─────────────── DOM refs ───────────────
-const navUsername = document.getElementById('navUsername');
-const logoutBtn = document.getElementById('logoutBtn');
 const toastContainer = document.getElementById('toastContainer');
 const elfieListContent = document.getElementById('elfieListContent');
 const viewList = document.getElementById('viewList');
@@ -627,7 +624,14 @@ async function checkAuth() {
         }
         const data = await resp.json();
         currentUser = data;
-        navUsername.textContent = data.username || '-';
+        // Mount shared profile dropdown (T13)
+        ProfileDropdown.mount(document.getElementById('profileDropdown'), {
+            userData: data,
+            onLogout: function(){
+                localStorage.removeItem('csrf_token');
+                localStorage.removeItem('session_token');
+            },
+        });
         return data;
     } catch(e) {
         showToast('无法连接到服务', 'error');
@@ -1140,17 +1144,6 @@ async function saveConfig() {
         btn.textContent = '💾 保存';
     }
 }
-
-// ─────────────── Logout ───────────────
-async function logout() {
-    try {
-        await apiFetch('/api/auth/logout', { method: 'POST' });
-    } catch(e) {}
-    localStorage.removeItem('csrf_token');
-    localStorage.removeItem('session_token');
-    window.location.href = '/static/login.html';
-}
-logoutBtn.addEventListener('click', logout);
 
 // ─────────────── Init ───────────────
 async function init() {
