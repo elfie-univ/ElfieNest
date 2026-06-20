@@ -1,8 +1,9 @@
-"""管理员 REST API — 用户 CRUD + 精灵查看/编辑/删除（无创建）+ LLM 配置读写。
+"""管理员 REST API — 用户 CRUD + LLM 配置读写。
 
 所有端点通过 ``Depends(require_admin)`` 保护，密码字段永不出现于响应中。
 
-精灵**不能由管理员创建**（领养系统已替代），因此不实现 ``POST /api/admin/elfies``。
+**注意**: 精灵管理端点 (GET/PUT/DELETE /api/admin/elfies) 已移除。
+管理员通过 /api/user/elfies 管理自己的精灵，不能跨用户操作。
 """
 
 from __future__ import annotations
@@ -126,13 +127,13 @@ async def list_users(
     request: Request,
     admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
 ) -> list:
-    """列出所有用户（id, username, role, created_at, elfie_count）。
+    """列出所有用户（排除当前登录的管理员自己）。
 
     ``elfie_count`` 通过子查询 ``SELECT COUNT(*) FROM elfie_registry WHERE owner_user_id = u.id``
     计算每个用户名下精灵数。
     """
-    _ = admin
     db_path: str = request.app.state.db_path
+    current_user_id = admin["id"]
     with get_db(db_path) as conn:
         cursor = conn.execute("""
             SELECT u.id, u.username, u.role, u.created_at,
@@ -140,8 +141,9 @@ async def list_users(
                     FROM elfie_registry
                     WHERE owner_user_id = u.id) AS elfie_count
             FROM users u
+            WHERE u.id != ?
             ORDER BY u.id
-        """)
+        """, (current_user_id,))
         rows = cursor.fetchall()
 
     return [
@@ -245,7 +247,9 @@ async def delete_user(
 ) -> Dict[str, Any]:
     """删除用户。
 
-    级联操作：将该用户名下精灵的 ``owner_user_id`` 置为 ``NULL``（精灵保留，变为未分配）。
+    级联删除该用户名下的精灵（从 elfie_registry 删除记录）。
+    精灵配置目录 ``data/elfies/<elfie_id>/`` 保留以便恢复。
+
     约束：**不能删除唯一的 admin 用户**。
     """
     _ = admin
@@ -272,9 +276,9 @@ async def delete_user(
                     status_code=400, detail="不能删除唯一的管理员"
                 )
 
-        # 级联清空精灵 owner + 删除用户
+        # 级联删除精灵 + 删除用户
         conn.execute(
-            "UPDATE elfie_registry SET owner_user_id = NULL WHERE owner_user_id = ?",
+            "DELETE FROM elfie_registry WHERE owner_user_id = ?",
             (user_id,),
         )
         conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
@@ -282,178 +286,6 @@ async def delete_user(
 
     logger.info("Admin deleted user %s (id=%d)", row["username"], user_id)
     return {"detail": f"用户 {row['username']} 已删除"}
-
-
-# ===================================================================
-# 精灵管理（不支持创建）
-# ===================================================================
-
-
-@router.get("/elfies")
-async def list_elfies(
-    request: Request,
-    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
-) -> list:
-    """列出所有精灵。
-
-    通过 ``LEFT JOIN users`` 获取 ``owner_username``。
-    返回字段包含所有 registry 信息及外观属性（personality_style, height, build）。
-    """
-    _ = admin
-    db_path: str = request.app.state.db_path
-    with get_db(db_path) as conn:
-        cursor = conn.execute("""
-            SELECT e.id, e.elfie_id, e.name, e.owner_user_id, e.anatomy_type,
-                   e.personality_style, e.height, e.build, e.created_at,
-                   u.username AS owner_username
-            FROM elfie_registry e
-            LEFT JOIN users u ON e.owner_user_id = u.id
-            ORDER BY e.id
-        """)
-        rows = cursor.fetchall()
-
-    return [
-        {
-            "id": r["id"],
-            "elfie_id": r["elfie_id"],
-            "name": r["name"],
-            "owner_user_id": r["owner_user_id"],
-            "owner_username": r["owner_username"],
-            "anatomy_type": r["anatomy_type"],
-            "personality_style": r["personality_style"],
-            "height": r["height"],
-            "build": r["build"],
-            "created_at": r["created_at"],
-        }
-        for r in rows
-    ]
-
-
-@router.put("/elfies/{elfie_id}")
-async def update_elfie(
-    elfie_id: str,
-    body: Dict[str, Any],
-    request: Request,
-    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
-) -> Dict[str, Any]:
-    """修改精灵信息。
-
-    可修改字段: ``name``, ``owner_user_id``。
-    **不可修改 ``anatomy_type``**（领养时确定，不可变）。
-    """
-    _ = admin
-    db_path: str = request.app.state.db_path
-
-    # 检查精灵存在性
-    with get_db(db_path) as conn:
-        cursor = conn.execute(
-            """SELECT id, elfie_id, name, owner_user_id, anatomy_type,
-                      personality_style, height, build, created_at
-               FROM elfie_registry WHERE elfie_id = ?""",
-            (elfie_id,),
-        )
-        row = cursor.fetchone()
-    if row is None:
-        raise HTTPException(status_code=404, detail="精灵不存在")
-
-    # 禁止修改 anatomy_type
-    if "anatomy_type" in body:
-        raise HTTPException(
-            status_code=400,
-            detail="不可修改 anatomy_type（领养时确定，不可变）",
-        )
-
-    # 构建动态 UPDATE
-    updates: list[str] = []
-    params: list[Any] = []
-
-    name = body.get("name")
-    if name is not None:
-        name = str(name).strip()
-        if not name:
-            raise HTTPException(status_code=422, detail="名字不能为空")
-        updates.append("name = ?")
-        params.append(name)
-
-    owner_user_id = body.get("owner_user_id")
-    if owner_user_id is not None:
-        # 验证目标 owner 存在
-        with get_db(db_path) as conn:
-            cursor = conn.execute(
-                "SELECT id FROM users WHERE id = ?",
-                (owner_user_id,),
-            )
-            if cursor.fetchone() is None:
-                raise HTTPException(status_code=404, detail="目标用户不存在")
-        updates.append("owner_user_id = ?")
-        params.append(owner_user_id)
-
-    if not updates:
-        raise HTTPException(status_code=400, detail="没有提供要更新的字段")
-
-    params.append(elfie_id)
-    with get_db(db_path) as conn:
-        conn.execute(
-            f"UPDATE elfie_registry SET {', '.join(updates)} WHERE elfie_id = ?",
-            params,
-        )
-        conn.commit()
-        cursor = conn.execute(
-            """SELECT id, elfie_id, name, owner_user_id, anatomy_type,
-                      personality_style, height, build, created_at
-               FROM elfie_registry WHERE elfie_id = ?""",
-            (elfie_id,),
-        )
-        row = cursor.fetchone()
-
-    return {
-        "id": row["id"],
-        "elfie_id": row["elfie_id"],
-        "name": row["name"],
-        "owner_user_id": row["owner_user_id"],
-        "anatomy_type": row["anatomy_type"],
-        "personality_style": row["personality_style"],
-        "height": row["height"],
-        "build": row["build"],
-        "created_at": row["created_at"],
-    }
-
-
-@router.delete("/elfies/{elfie_id}")
-async def delete_elfie(
-    elfie_id: str,
-    request: Request,
-    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
-) -> Dict[str, Any]:
-    """从 registry 删除精灵。
-
-    OWNER 级别事务：仅从 ``elfie_registry`` 表删除记录，
-    不删除精灵的配置目录 ``data/elfies/<id>/``。
-    （配置目录保留以便日后恢复。）
-    """
-    _ = admin
-    db_path: str = request.app.state.db_path
-
-    with get_db(db_path) as conn:
-        cursor = conn.execute(
-            "SELECT id, name FROM elfie_registry WHERE elfie_id = ?",
-            (elfie_id,),
-        )
-        row = cursor.fetchone()
-    if row is None:
-        raise HTTPException(status_code=404, detail="精灵不存在")
-
-    with get_db(db_path) as conn:
-        conn.execute(
-            "DELETE FROM elfie_registry WHERE elfie_id = ?",
-            (elfie_id,),
-        )
-        conn.commit()
-
-    logger.info("Admin deleted elfie %s (%s)", elfie_id, row["name"])
-    return {"detail": f"精灵 {row['name']} 已删除"}
-
-
 # ===================================================================
 # LLM 配置管理
 # ===================================================================

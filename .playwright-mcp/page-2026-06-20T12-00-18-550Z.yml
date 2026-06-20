@@ -1,0 +1,36 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]: 🦊
+    - generic [ref=e4]: ElfieNest
+    - generic [ref=e5]:
+      - generic [ref=e6]: alice
+      - generic [ref=e7]: 普通用户
+      - button "退出" [ref=e8] [cursor=pointer]
+  - generic [ref=e11]:
+    - generic [ref=e12]:
+      - generic [ref=e13]: 🦊
+      - generic [ref=e14]: 小宝
+      - generic [ref=e15]:
+        - generic [ref=e16]: 双足
+        - generic [ref=e17]: 活泼好动
+        - generic [ref=e18]: 高大 圆润
+      - generic [ref=e19]: 2026-06-20
+      - generic [ref=e20]:
+        - button "💬 聊天" [ref=e21] [cursor=pointer]
+        - button "⚙ 配置" [ref=e22] [cursor=pointer]
+    - generic [ref=e23] [cursor=pointer]:
+      - generic [ref=e24]: ➕
+      - generic [ref=e25]: 领养新精灵
+      - generic [ref=e26]: 已领养 1 / 3 只
+  - generic [ref=e27]:
+    - generic [ref=e28]:
+      - button "← 返回列表" [ref=e29] [cursor=pointer]
+      - generic [ref=e30]:
+        - generic [ref=e31]: 🦊
+        - generic [ref=e32]:
+          - generic [ref=e33]: "-"
+          - generic [ref=e36]: 正在连接...
+    - generic [ref=e38]: ElfieNest 仿生生命体 · 聊天
+    - generic [ref=e39]:
+      - textbox "输入消息..." [ref=e40]
+      - button "发送" [disabled] [ref=e41]

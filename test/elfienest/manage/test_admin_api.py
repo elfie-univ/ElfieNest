@@ -99,12 +99,12 @@ class TestUserCRUD:
         assert "id" in user
         assert "password_hash" not in user  # 密码永不返回
 
-        # 列表
+        # 列表（admin 不会看到自己）
         resp = client.get("/api/admin/users", headers=_headers(tokens["csrf_token"]))
         assert resp.status_code == 200
         usernames = [u["username"] for u in resp.json()]
         assert "alice" in usernames
-        assert "admin" in usernames
+        assert "admin" not in usernames  # 自己被过滤
 
     def test_duplicate_username_409(self, client: TestClient) -> None:
         """重复 username → 409。"""
@@ -183,13 +183,9 @@ class TestUserCRUD:
     def test_cannot_delete_last_admin(self, client: TestClient) -> None:
         """不能删除唯一 admin → 400。"""
         tokens = _login_admin(client)
-        resp = client.get("/api/admin/users", headers=_headers(tokens["csrf_token"]))
-        users = resp.json()
-        admin_ids = [u["id"] for u in users if u["role"] == "admin"]
-        assert len(admin_ids) == 1
-
+        # 当前 admin（id=1）是唯一管理员，删除应被拒绝
         resp = client.delete(
-            f"/api/admin/users/{admin_ids[0]}",
+            "/api/admin/users/1",
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 400
@@ -204,8 +200,8 @@ class TestUserCRUD:
         )
         assert resp.status_code == 404
 
-    def test_delete_user_cascades_elfie_owner(self, client: TestClient, db_path: str) -> None:
-        """删除用户 → 级联清空精灵 owner。"""
+    def test_delete_user_destroys_elfies(self, client: TestClient, db_path: str) -> None:
+        """删除用户 → 级联删除其精灵（registry 记录）。"""
         tokens = _login_admin(client)
         # 创建用户 → 给用户分配一个精灵
         resp = client.post(
@@ -215,7 +211,7 @@ class TestUserCRUD:
         )
         alice_id = resp.json()["id"]
 
-        # 手动插入精灵（admin API 不提供创建精灵）
+        # 手动插入精灵
         from elfienest.manage.store import get_db
         with get_db(db_path) as conn:
             conn.execute(
@@ -231,12 +227,36 @@ class TestUserCRUD:
             headers=_headers(tokens["csrf_token"]),
         )
 
-        # 验证精灵 owner 被置空
+        # 验证精灵已被完全删除（不再是 NULL，而是记录不存在）
         with get_db(db_path) as conn:
-            row = conn.execute(
-                "SELECT owner_user_id FROM elfie_registry WHERE elfie_id='test_elfie'"
-            ).fetchone()
-        assert row is None or row[0] is None
+            cursor = conn.execute(
+                "SELECT * FROM elfie_registry WHERE owner_user_id = ?",
+                (alice_id,),
+            )
+            assert cursor.fetchone() is None
+
+    def test_admin_list_users_excludes_self(self, client: TestClient) -> None:
+        """管理员列表不包含自己。"""
+        tokens = _login_admin(client)
+        resp = client.get("/api/admin/users", headers=_headers(tokens["csrf_token"]))
+        assert resp.status_code == 200
+
+        usernames = [u["username"] for u in resp.json()]
+        assert "admin" not in usernames
+
+    def test_admin_list_users_shows_other_admins(self, client: TestClient, db_path: str) -> None:
+        """管理员可以看到其他管理员。"""
+        tokens = _login_admin(client)
+        from ._helpers import create_test_user
+
+        create_test_user(db_path, "other_admin", "pass", role="admin")
+
+        resp = client.get("/api/admin/users", headers=_headers(tokens["csrf_token"]))
+        assert resp.status_code == 200
+
+        usernames = [u["username"] for u in resp.json()]
+        assert "admin" not in usernames
+        assert "other_admin" in usernames
 
 
 # ===================================================================
@@ -265,9 +285,6 @@ class TestAuthorization:
         resp = client.get("/api/admin/users", headers=_headers(alice_csrf))
         assert resp.status_code == 403
 
-        resp = client.get("/api/admin/elfies", headers=_headers(alice_csrf))
-        assert resp.status_code == 403
-
         resp = client.get("/api/admin/config", headers=_headers(alice_csrf))
         assert resp.status_code == 403
 
@@ -282,140 +299,24 @@ class TestAuthorization:
 # ===================================================================
 
 
-class TestElfieManagement:
-    def test_list_elfies_empty(self, client: TestClient) -> None:
-        """GET /api/admin/elfies 返回空列表。"""
+class TestElfieEndpointsRemoved:
+    """验证 admin cross-user elfie 端点已移除，返回 404。"""
+
+    def test_admin_elfies_endpoints_removed(self, client: TestClient) -> None:
+        """GET/PUT/DELETE /api/admin/elfies → 404。"""
         tokens = _login_admin(client)
-        resp = client.get("/api/admin/elfies", headers=_headers(tokens["csrf_token"]))
-        assert resp.status_code == 200
-        assert resp.json() == []
+        headers = _headers(tokens["csrf_token"])
 
-    def test_list_elfies_with_data(self, client: TestClient, db_path: str) -> None:
-        """GET /api/admin/elfies 返回精灵数据。"""
-        tokens = _login_admin(client)
-        from elfienest.manage.store import get_db
-        with get_db(db_path) as conn:
-            conn.execute(
-                "INSERT INTO elfie_registry "
-                "(elfie_id, name, owner_user_id, anatomy_type, personality_style, height, build) "
-                "VALUES (?, ?, (SELECT id FROM users WHERE username='admin'), ?, ?, ?, ?)",
-                ("e1", "小白", "biped", "好奇探索", "tall", "slim"),
-            )
-            conn.commit()
+        # GET
+        resp = client.get("/api/admin/elfies", headers=headers)
+        assert resp.status_code == 404
 
-        resp = client.get("/api/admin/elfies", headers=_headers(tokens["csrf_token"]))
-        assert resp.status_code == 200
-        data = resp.json()
-        assert len(data) == 1
-        assert data[0]["name"] == "小白"
-        assert data[0]["anatomy_type"] == "biped"
-        assert data[0]["personality_style"] == "好奇探索"
-        assert data[0]["height"] == "tall"
-        assert data[0]["build"] == "slim"
+        # PUT
+        resp = client.put("/api/admin/elfies/test-id", json={"name": "test"}, headers=headers)
+        assert resp.status_code == 404
 
-    def test_post_elfies_405(self, client: TestClient) -> None:
-        """POST /api/admin/elfies → 405 Method Not Allowed。"""
-        tokens = _login_admin(client)
-        resp = client.post(
-            "/api/admin/elfies",
-            json={"name": "test"},
-            headers=_headers(tokens["csrf_token"]),
-        )
-        assert resp.status_code == 405
-
-    def test_update_elfie_name(self, client: TestClient, db_path: str) -> None:
-        """PUT 改精灵 name。"""
-        tokens = _login_admin(client)
-        from elfienest.manage.store import get_db
-        with get_db(db_path) as conn:
-            conn.execute(
-                "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) "
-                "VALUES (?, ?, (SELECT id FROM users WHERE username='admin'))",
-                ("e1", "小白"),
-            )
-            conn.commit()
-
-        resp = client.put(
-            "/api/admin/elfies/e1",
-            json={"name": "大白"},
-            headers=_headers(tokens["csrf_token"]),
-        )
-        assert resp.status_code == 200
-        assert resp.json()["name"] == "大白"
-
-    def test_update_elfie_owner(self, client: TestClient, db_path: str) -> None:
-        """PUT 改精灵 owner。"""
-        tokens = _login_admin(client)
-        from elfienest.manage.store import get_db
-        with get_db(db_path) as conn:
-            conn.execute(
-                "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) "
-                "VALUES (?, ?, (SELECT id FROM users WHERE username='admin'))",
-                ("e1", "小白"),
-            )
-            # 创建另一个用户
-            from elfienest.manage.store import hash_password
-            conn.execute(
-                "INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'user')",
-                ("alice", hash_password("pass")),
-            )
-            conn.commit()
-
-        resp = client.put(
-            "/api/admin/elfies/e1",
-            json={"owner_user_id": 2},
-            headers=_headers(tokens["csrf_token"]),
-        )
-        assert resp.status_code == 200
-        assert resp.json()["owner_user_id"] == 2
-
-    def test_update_elfie_anatomy_type_400(self, client: TestClient, db_path: str) -> None:
-        """PUT 改 anatomy_type → 400（不可变）。"""
-        tokens = _login_admin(client)
-        from elfienest.manage.store import get_db
-        with get_db(db_path) as conn:
-            conn.execute(
-                "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) "
-                "VALUES (?, ?, (SELECT id FROM users WHERE username='admin'))",
-                ("e1", "小白"),
-            )
-            conn.commit()
-
-        resp = client.put(
-            "/api/admin/elfies/e1",
-            json={"anatomy_type": "quadruped"},
-            headers=_headers(tokens["csrf_token"]),
-        )
-        assert resp.status_code == 400
-
-    def test_delete_elfie(self, client: TestClient, db_path: str) -> None:
-        """DELETE 精灵 → 从 registry 删除。"""
-        tokens = _login_admin(client)
-        from elfienest.manage.store import get_db
-        with get_db(db_path) as conn:
-            conn.execute(
-                "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) "
-                "VALUES (?, ?, (SELECT id FROM users WHERE username='admin'))",
-                ("e1", "小白"),
-            )
-            conn.commit()
-
-        resp = client.delete(
-            "/api/admin/elfies/e1",
-            headers=_headers(tokens["csrf_token"]),
-        )
-        assert resp.status_code == 200
-
-        resp = client.get("/api/admin/elfies", headers=_headers(tokens["csrf_token"]))
-        assert len(resp.json()) == 0
-
-    def test_delete_nonexistent_elfie_404(self, client: TestClient) -> None:
-        """删除不存在的精灵 → 404。"""
-        tokens = _login_admin(client)
-        resp = client.delete(
-            "/api/admin/elfies/nonexistent",
-            headers=_headers(tokens["csrf_token"]),
-        )
+        # DELETE
+        resp = client.delete("/api/admin/elfies/test-id", headers=headers)
         assert resp.status_code == 404
 
 
