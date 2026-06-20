@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 from dataclasses import dataclass, field
@@ -39,6 +40,62 @@ PROVIDER_RECOMMENDS: Dict[str, Dict[str, Any]] = {
         "cheap_models": ["qwen3.5:0.8b", "qwen2.5:0.5b", "llama3.2:1b"],
         "deep_models": ["qwen3.5:4b", "qwen2.5:7b", "llama3:8b"],
         "multimodal_models": ["moondream", "llava"],
+    },
+}
+
+
+# ---------------------------------------------------------------------------
+# 系统设置默认值 & 深层合并工具
+# ---------------------------------------------------------------------------
+
+
+def deep_update(base: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+    """递归合并 ``updates`` 到 ``base``（就地修改）。
+
+    对于嵌套字典键，递归合并；否则直接覆盖。
+    """
+    for k, v in updates.items():
+        if k in base and isinstance(base[k], dict) and isinstance(v, dict):
+            deep_update(base[k], v)
+        else:
+            base[k] = v
+    return base
+
+
+DEFAULT_SYSTEM_SETTINGS: Dict[str, Dict[str, Any]] = {
+    "llm": {
+        "default_cheap_model": "qwen3.5:0.8b",
+        "default_cheap_provider": "ollama",
+        "default_deep_model": "qwen3.5:0.8b",
+        "default_deep_provider": "ollama",
+        "default_multimodal_model": "moondream",
+        "default_multimodal_provider": "ollama",
+        "temperature": 0.7,
+        "max_tokens": 1500,
+        "energy_threshold_fast": 30,
+        "complexity_threshold_deep": 4,
+    },
+    "adoption": {
+        "max_elfies_per_user": 3,
+        "allowed_anatomy_types": ["biped", "quadruped"],
+        "personality_presets_enabled": {
+            "活泼好动": True,
+            "安静温顺": True,
+            "好奇探索": True,
+            "胆小害羞": True,
+            "傲娇独立": True,
+            "完全随机": True,
+        },
+    },
+    "engine": {
+        "tick_interval_sec": 1.5,
+        "tts_enabled": True,
+        "max_elfies_per_room": None,
+        "default_tts_voice": "zh-CN-XiaoxiaoNeural",
+    },
+    "security": {
+        "session_ttl_days": 7,
+        "rate_limit": {"max_attempts": 5, "window_seconds": 300},
     },
 }
 
@@ -108,6 +165,11 @@ class LLMRuntimeConfig:
     temperature: float = 0.7
     max_tokens: int = 1500
 
+    # 6. 系统设置（深层合并持久化文件中保存的部分）
+    system: Dict[str, Dict[str, Any]] = field(
+        default_factory=lambda: copy.deepcopy(DEFAULT_SYSTEM_SETTINGS)
+    )
+
     def __post_init__(self):
         # 尝试自检测并热加载持久化的本地 JSON 算力配置文件
         json_path = os.path.join(os.path.dirname(__file__), "runtime_config.json")
@@ -127,10 +189,13 @@ class LLMRuntimeConfig:
                             if "api_base" in info:
                                 self.providers[provider]["api_base"] = info["api_base"]
 
-                # 更新其他字段属性
+                # 更新其他字段属性（system 键深层合并，其余直接覆盖）
                 for k, v in saved_cfg.items():
                     if k != "providers" and hasattr(self, k) and v is not None:
-                        setattr(self, k, v)
+                        if k == "system" and isinstance(v, dict):
+                            deep_update(self.system, v)
+                        else:
+                            setattr(self, k, v)
             except Exception:
                 pass
 
@@ -155,4 +220,5 @@ class LLMRuntimeConfig:
             "complexity_threshold_deep": self.complexity_threshold_deep,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
+            "system": self.system,
         }

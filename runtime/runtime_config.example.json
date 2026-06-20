@@ -13,6 +13,10 @@
     "llm": {
       "default_cheap_model": "qwen3.5:0.8b",
       "default_cheap_provider": "ollama",
+      "default_deep_model": "qwen3.5:0.8b",
+      "default_deep_provider": "ollama",
+      "default_multimodal_model": "moondream",
+      "default_multimodal_provider": "ollama",
       "temperature": 0.7,
       "max_tokens": 1500,
       "energy_threshold_fast": 30,

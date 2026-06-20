@@ -430,6 +430,13 @@ def create_app(
     app.include_router(setup_router)
 
     # -------------------------------------------------------------------
+    # System Settings 路由
+    # -------------------------------------------------------------------
+    from .system_routes import router as system_router  # noqa: PLC0415
+
+    app.include_router(system_router)
+
+    # -------------------------------------------------------------------
     # Admin REST API 路由
     # -------------------------------------------------------------------
     from .admin_routes import router as admin_router  # noqa: PLC0415
