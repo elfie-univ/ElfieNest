@@ -42,7 +42,10 @@ dist/
 *.swp
 *~
 
-# 6. Sisyphus/OpenCode 工作目录 (本地状态，不提交)
+# 6. 运行时数据（DB、精灵配置等）
+data/
+
+# 7. Sisyphus/OpenCode 工作目录 (本地状态，不提交)
 .omo/
 .sisyphus/
 ElfieNest.worktree/
