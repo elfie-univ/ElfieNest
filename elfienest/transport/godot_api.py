@@ -8,13 +8,13 @@ from typing import Any, Dict, List, Set
 import websockets
 import websockets.asyncio.server
 
-logger = logging.getLogger("elfienest.godot_api")
+logger = logging.getLogger("elfienest.transport.godot_api")
 
 
 class GodotAPIServer:
     """
     Godot WebSocket API 通信网关。
-    采用“同步主线程 + 异步IO通信线程”的黄金架构设计。
+    采用"同步主线程 + 异步IO通信线程"的黄金架构设计。
     在独立的后台线程中运行 asyncio 事件循环，确保主游戏 Tick 循环绝对不被网络 IO 阻塞，
     同时提供线程安全的同步接口供外部调用。
     """

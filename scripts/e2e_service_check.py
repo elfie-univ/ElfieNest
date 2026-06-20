@@ -23,12 +23,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger("e2e_check")
 
+import websockets
+
 from elfie import ElfieIndividual
 from elfienest import ElfieNestEngine
-from elfienest.godot_api import GodotAPIServer
+from elfienest.transport.godot_api import GodotAPIServer
 from runtime import LLMRuntimeConfig, RuntimeAgent
-
-import websockets
 
 # ---------------------------------------------------------------------------
 # Monkey-patch: websockets >= 14 的 serve() 要求事件循环已运行，

@@ -1,91 +1,15 @@
 import asyncio
-import http.server
 import logging
 import os
-import socketserver
-import threading
 import time
 from typing import Any, Dict, Optional
 
-from elfie import ElfieIndividual
-
-from .godot_api import GodotAPIServer
+from .coordinator import ElfieNestCoordinator
 from .room import ElfieNestRoom
+from .transport.audio_server import AudioServer
+from .transport.godot_api import GodotAPIServer
 
 logger = logging.getLogger("elfienest.engine")
-
-
-class QuietHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
-    """压制大量 HTTP 静态请求日志的极简 RequestHandler"""
-
-    def log_message(self, format, *args):
-        # 保持控制台日志干练清爽，仅在 Debug 时记录 HTTP 请求
-        logger.debug(f"[语音服务器] 请求: {format % args}")
-
-
-class ElfieNestCoordinator:
-    """
-    生态协调器兼物理触觉反射分配中心。
-    兼容 main.py 现有接口，并在 Tick 发生时，将外界干预、碰撞等物理刺激转换为具身感官数据流，
-    进而激活脑干自律物理反射弧或注入大脑丘脑。
-    """
-
-    def __init__(self, room: ElfieNestRoom, api_server: GodotAPIServer):
-        self.room = room
-        self.api_server = api_server
-
-        # 缓存每个精灵积压的物理触觉感官包
-        self.pending_tactile: Dict[str, Dict[str, Any]] = {}
-
-        # 用户消息缓冲（WebSocket 入站）
-        self.pending_messages: Dict[str, str] = {}
-
-    def register_elfie(self, elfie_id: str, elfie: ElfieIndividual):
-        """兼容 main.py 接口：在房间中注册精灵"""
-        self.room.register_elfie(elfie_id, elfie)
-
-    def trigger_elfie_interaction(
-        self, sender_id: str, receiver_id: str, event_type: str
-    ):
-        """
-        兼容 main.py 接口：模拟一个物理碰撞/揉尾巴事件，
-        将该刺激投递到对应精灵的具身触觉缓冲区中，以在下一个 Tick 激活脑干反射！
-        """
-        logger.info(
-            f"💥 [物理刺激] 触发来自 '{sender_id}' 针对 '{receiver_id}' 的 {event_type} 交互"
-        )
-
-        if event_type == "collision":
-            # 揉揉尾巴/拍一拍，完美对接 elfie_individual.py 的 Somatic Reflex
-            self.pending_tactile[receiver_id] = {
-                "impact_force": 1.5,
-                "impact_direction": "back",
-                "gentle_stroke": 1.0,
-            }
-
-            # 如果有 Godot 在线，将碰撞状态发送给 Godot 端同步播动作
-            self.api_server.send_action(
-                "physical_impact_event",
-                {"elfie_id": receiver_id, "impact_type": "gentle_stroke"},
-            )
-
-    def send_user_message(self, elfie_id: str, message: str):
-        """接收来自 WebSocket 客户端的用户消息，缓存到下一个 tick"""
-        self.pending_messages[elfie_id] = message
-        logger.info(f"💬 [用户消息] 收到给 '{elfie_id}' 的消息: {message}")
-
-    def consume_user_message(self, elfie_id: str) -> str:
-        """消费并返回该精灵的用户消息，消费后清空"""
-        return self.pending_messages.pop(elfie_id, "")
-
-    def consume_tactile(self, elfie_id: str) -> Dict[str, Any]:
-        """消费并返回针对该精灵的物理触觉，消费后清空"""
-        default_tactile = {
-            "impact_force": 0.0,
-            "impact_direction": "none",
-            "gentle_stroke": 0.0,
-        }
-        return self.pending_tactile.pop(elfie_id, default_tactile)
 
 
 class ElfieNestEngine:
@@ -110,8 +34,9 @@ class ElfieNestEngine:
         )
         os.makedirs(self.temp_audio_dir, exist_ok=True)
 
-        self.httpd: Optional[socketserver.TCPServer] = None
-        self._http_thread: Optional[threading.Thread] = None
+        self.audio_server = AudioServer(
+            directory=self.temp_audio_dir, port=self.http_port
+        )
 
         # 3. 注册 Godot 事件回调以驱动 Python 看板
         self.api_server.register_callback(
@@ -122,28 +47,7 @@ class ElfieNestEngine:
 
     def _start_http_server(self):
         """在独立线程中拉起极简语音静态分发服务器"""
-        try:
-
-            def handler(*args, **kwargs):
-                return QuietHTTPRequestHandler(
-                    *args, directory=self.temp_audio_dir, **kwargs
-                )
-
-            # 允许端口快速重用，避开 TIME_WAIT
-            socketserver.TCPServer.allow_reuse_address = True
-            self.httpd = socketserver.TCPServer(("127.0.0.1", self.http_port), handler)
-
-            self._http_thread = threading.Thread(
-                target=self.httpd.serve_forever,
-                daemon=True,
-                name="ElfieNest_HTTP_Thread",
-            )
-            self._http_thread.start()
-            logger.info(
-                f"🎵 [语音服务] 静态音频分发服务器已在 http://127.0.0.1:{self.http_port} 成功挂载！映射目录: {self.temp_audio_dir}"
-            )
-        except Exception as e:
-            logger.error(f"❌ [语音服务] 启动 HTTP 服务失败，无法播放高品质语音: {e}")
+        self.audio_server.start()
 
     def _on_godot_scene_registered(self, payload: Dict[str, Any]):
         """Godot 场景握手回调：动态注册家具"""
@@ -366,7 +270,5 @@ class ElfieNestEngine:
         finally:
             # 清理套接字和服务线程，防止端口占用死锁
             self.api_server.stop()
-            if self.httpd:
-                self.httpd.shutdown()
-                self.httpd.server_close()
+            self.audio_server.stop()
             logger.info("🌈 [时间盒子] 仿真主循环已平稳落地退出。")
