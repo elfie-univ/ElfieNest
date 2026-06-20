@@ -258,11 +258,152 @@
             padding: 6px 0;
         }
 
+        /* ── Mode toggle ── */
+        .mode-toggle {
+            margin-left: auto;
+            flex-shrink: 0;
+        }
+
+        .mode-btn {
+            background: var(--bg-input);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            padding: 5px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s;
+        }
+
+        .mode-btn:hover { border-color: var(--accent); color: var(--text-primary); }
+        body.debug-mode .mode-btn { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+        /* ── Chat layout ── */
+        .chat-layout {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .chat-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .debug-panel {
+            display: none;
+        }
+
+        body.debug-mode .chat-layout {
+            flex-direction: row;
+        }
+
+        body.debug-mode .chat-main {
+            width: 50%;
+            flex: none;
+        }
+
+        body.debug-mode .debug-panel {
+            display: flex;
+            flex-direction: column;
+            width: 50%;
+            border-left: 1px solid var(--border-subtle);
+            background: var(--bg-primary);
+            overflow: hidden;
+        }
+
+        /* ── Debug panel ── */
+        .debug-header {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .debug-events {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+            font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
+            font-size: 11px;
+        }
+
+        .debug-events::-webkit-scrollbar { width: 5px; }
+        .debug-events::-webkit-scrollbar-track { background: transparent; }
+        .debug-events::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 4px; }
+
+        .debug-event {
+            padding: 6px 8px;
+            margin-bottom: 4px;
+            border-radius: 6px;
+            background: var(--bg-secondary);
+            border-left: 3px solid #6b7280;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .debug-event:hover { background: var(--bg-input); }
+
+        .debug-event .ev-header {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .debug-event .ev-time { color: var(--text-secondary); }
+        .debug-event .ev-action { font-weight: 600; color: var(--text-primary); }
+
+        .debug-event .ev-payload {
+            display: none;
+            margin-top: 4px;
+            padding: 6px;
+            background: #0a0a15;
+            border-radius: 4px;
+            font-size: 10px;
+            line-height: 1.4;
+            color: #a0a0c0;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .debug-event.expanded .ev-payload { display: block; }
+
+        /* ── Event type colors ── */
+        .debug-event.type-speak_event { border-left-color: #4ade80; }
+        .debug-event.type-physical_impact_event { border-left-color: #fb923c; }
+        .debug-event.type-go_to { border-left-color: #60a5fa; }
+        .debug-event.type-emotion_expression { border-left-color: #a78bfa; }
+        .debug-event.type-register_scene { border-left-color: #fbbf24; }
+        .debug-event.type-arrived_at { border-left-color: #34d399; }
+        .debug-event.type-default { border-left-color: #6b7280; }
+
         /* ── Responsive ── */
         @media (max-width: 480px) {
             .msg { max-width: 92%; }
             .msg-avatar { width: 28px; height: 28px; font-size: 13px; }
             .msg-bubble { font-size: 13px; padding: 8px 12px; }
+        }
+
+        @media (max-width: 768px) {
+            body.debug-mode .chat-layout { flex-direction: column; }
+            body.debug-mode .chat-main { width: 100%; flex: 1; }
+            body.debug-mode .debug-panel {
+                width: 100%;
+                max-height: 40vh;
+                border-left: none;
+                border-top: 1px solid var(--border-subtle);
+            }
         }
     </style>
 </head>
@@ -278,25 +419,43 @@
                 <span id="statusText">正在连接...</span>
             </div>
         </div>
-    </div>
-
-    <!-- Messages -->
-    <div class="messages" id="messages">
-        <div class="system-msg">ElfieNest 仿生生命体 · 浏览器聊天界面</div>
-    </div>
-
-    <!-- Typing indicator -->
-    <div class="typing" id="typingIndicator">
-        <div class="msg-avatar">🦊</div>
-        <div class="typing-dots">
-            <span></span><span></span><span></span>
+        <div class="mode-toggle">
+            <button id="modeToggle" class="mode-btn" title="切换调试模式">
+                <span class="mode-icon">🔍</span>
+                <span class="mode-label">详情</span>
+            </button>
         </div>
     </div>
 
-    <!-- Input bar -->
-    <div class="input-bar">
-        <input type="text" id="userInput" placeholder="输入消息跟艾菲聊天..." autocomplete="off" />
-        <button id="sendBtn" disabled>发送</button>
+    <!-- Chat layout -->
+    <div class="chat-layout">
+        <!-- Left / top: chat main area -->
+        <div class="chat-main">
+            <!-- Messages -->
+            <div class="messages" id="messages">
+                <div class="system-msg">ElfieNest 仿生生命体 · 浏览器聊天界面</div>
+            </div>
+
+            <!-- Typing indicator -->
+            <div class="typing" id="typingIndicator">
+                <div class="msg-avatar">🦊</div>
+                <div class="typing-dots">
+                    <span></span><span></span><span></span>
+                </div>
+            </div>
+
+            <!-- Input bar -->
+            <div class="input-bar">
+                <input type="text" id="userInput" placeholder="输入消息跟艾菲聊天..." autocomplete="off" />
+                <button id="sendBtn" disabled>发送</button>
+            </div>
+        </div>
+
+        <!-- Right / bottom: debug panel -->
+        <div class="debug-panel">
+            <div class="debug-header">📋 事件流</div>
+            <div class="debug-events" id="debugEvents"></div>
+        </div>
     </div>
 
     <script>
@@ -306,9 +465,20 @@
         const sendBtn = document.getElementById('sendBtn');
         const statusDot = document.getElementById('statusDot');
         const statusText = document.getElementById('statusText');
+        const modeToggle = document.getElementById('modeToggle');
+        const debugEventsEl = document.getElementById('debugEvents');
 
         let ws = null;
         let connected = false;
+        let debugMode = false;
+
+        // ── Mode toggle ──
+        modeToggle.addEventListener('click', () => {
+            debugMode = !debugMode;
+            document.body.classList.toggle('debug-mode', debugMode);
+            modeToggle.querySelector('.mode-label').textContent = debugMode ? '简洁' : '详情';
+            modeToggle.querySelector('.mode-icon').textContent = debugMode ? '💬' : '🔍';
+        });
 
         function setStatus(state) {
             statusDot.className = 'status-dot';
@@ -366,6 +536,40 @@
             });
         }
 
+        // ── Debug panel ──
+        function addDebugEvent(action, payload) {
+            if (!debugEventsEl) return;
+
+            const now = new Date();
+            const time = now.toLocaleTimeString('zh-CN', { hour12: false });
+
+            const div = document.createElement('div');
+            const typeClass = 'type-' + action.replace(/[^a-zA-Z0-9_]/g, '_');
+            div.className = 'debug-event ' + typeClass;
+            div.innerHTML =
+                '<div class="ev-header">' +
+                    '<span class="ev-time">' + time + '</span>' +
+                    '<span class="ev-action">' + action + '</span>' +
+                '</div>' +
+                '<div class="ev-payload">' + JSON.stringify(payload, null, 2) + '</div>';
+
+            div.addEventListener('click', () => {
+                div.classList.toggle('expanded');
+                div.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            });
+
+            debugEventsEl.appendChild(div);
+            scrollDebugToBottom();
+        }
+
+        function scrollDebugToBottom() {
+            if (debugEventsEl) {
+                requestAnimationFrame(() => {
+                    debugEventsEl.scrollTop = debugEventsEl.scrollHeight;
+                });
+            }
+        }
+
         function sendMessage() {
             const text = inputEl.value.trim();
             if (!text || !connected) return;
@@ -385,7 +589,6 @@
 
             ws.onopen = () => {
                 setStatus('connected');
-                // Register scene so the engine knows we're here
                 ws.send(JSON.stringify({
                     event: 'register_scene',
                     payload: { furniture: ['bed_1', 'chair_1'] }
@@ -397,14 +600,17 @@
                 let data;
                 try { data = JSON.parse(event.data); } catch { return; }
 
-                const action = data.action;
+                const action = data.action || '?';
                 const payload = data.payload || {};
 
+                // Show chat bubble for speak_event (all modes)
                 if (action === 'speak_event' && payload.elfie_id === '艾菲') {
                     showTyping(false);
                     addMessage('elfie', payload.text || '');
                 }
-                // Ignore other events (physical_impact_event, go_to, emotion_expression, etc.)
+
+                // Log all events to debug panel
+                addDebugEvent(action, payload);
             };
 
             ws.onclose = () => {
