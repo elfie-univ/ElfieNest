@@ -112,7 +112,7 @@ class GodotAPIServer:
 
         self._loop.stop()
 
-    async def _handle_client(self, websocket: Any, path: str):
+    async def _handle_client(self, websocket: Any):
         """处理来自 Godot 的新连接以及接收到的 JSON 消息"""
         logger.info(
             f"🤝 [通信网关] 收到来自 Godot 的连接握手: {websocket.remote_address}"
