@@ -88,8 +88,12 @@ class GodotAPIServer:
         asyncio.set_event_loop(self._loop)
 
         # 启动 WebSocket 服务器
-        start_server = websockets.serve(self._handle_client, self.host, self.port)  # type: ignore[arg-type]
-        self._server = self._loop.run_until_complete(start_server)
+        # websockets v16+ 中 serve 是类，__init__ 要求事件循环已运行，
+        # 因此包装在 async 函数中通过 run_until_complete 启动，确保 await 时 loop 已运行
+        async def _start_server():
+            return await websockets.serve(self._handle_client, self.host, self.port)  # type: ignore[arg-type]
+
+        self._server = self._loop.run_until_complete(_start_server())
 
         try:
             self._loop.run_forever()
