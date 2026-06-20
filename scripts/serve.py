@@ -17,6 +17,22 @@ from elfienest import ElfieNestEngine
 from runtime import LLMRuntimeConfig, RuntimeAgent
 
 
+class LocalRuntimeAgent:
+    """RuntimeAgent 包装器 — 禁用工具调用，只返回纯文本回复，避免小模型幻觉搜网"""
+
+    def __init__(self, config):
+        self._agent = RuntimeAgent(config)
+        self.config = self._agent.config
+
+    def ask(self, prompt, energy=100, task_complexity=1):
+        return self._agent.ask(
+            prompt=prompt,
+            energy=energy,
+            task_complexity=task_complexity,
+            allowed_skills=[],
+        )
+
+
 class FallbackAgent:
     """Ollama 不可用时的轻量模拟对话引擎"""
 
@@ -31,6 +47,7 @@ class FallbackAgent:
         }
 
     config = MockConfig()
+
 
     def ask(self, prompt, energy=100, task_complexity=1):
         """返回模拟回复（毫秒级）"""
@@ -65,11 +82,10 @@ class FallbackAgent:
 def main():
     parser = argparse.ArgumentParser(description="ElfieNest 后端服务")
     parser.add_argument(
-        "--real", action="store_true",
-        help="使用真实 Ollama AI（需已运行 ollama serve）"
+        "--fallback", action="store_true",
+        help="使用内置对话引擎（不连 Ollama）"
     )
     args = parser.parse_args()
-    use_real = args.real
 
     # 使用线程内共享容器，让精灵和引擎在同一线程中创建，避免 SQLite 跨线程报错
     engine_holder: dict = {}
@@ -79,28 +95,38 @@ def main():
         # 1. 装配服务（全部在同一线程内完成）
         config = LLMRuntimeConfig(
             ollama_host="http://localhost:11434",
-            ollama_model_fast="qwen3.5:0.8b",
+            ollama_model_fast="qwen2.5:1.5b",
         )
 
-        runtime_agent: RuntimeAgent | None = None
-        if use_real:
+        runtime_agent = None
+        if args.fallback:
+            runtime_agent = FallbackAgent()
+            print("  ⚡ 使用内置对话引擎（--fallback 模式）")
+        else:
+            # 默认尝试连接本地 Ollama（qwen2.5:1.5b 预热后约 3-4 秒回复）
             try:
                 import urllib.request
-
                 resp = urllib.request.urlopen("http://localhost:11434/api/tags", timeout=2.0)
                 if resp.status == 200:
-                    runtime_agent = RuntimeAgent(config)
-                    print("  ✅ Ollama 已连接，使用真实 LLM")
+                    raw_agent = RuntimeAgent(config)
+                    runtime_agent = LocalRuntimeAgent(config)
+                    print("  ✅ Ollama 已连接，使用本地大模型 qwen2.5:1.5b")
+                    # 预热：发一条查询让模型加载到内存，后续对话更快
+                    print("  ⏳ 正在预热模型（首次加载需 10-15 秒）...")
+                    def _warmup():
+                        try:
+                            raw_agent.ask("你好", energy=100, task_complexity=1, allowed_skills=[])
+                            print("  ✅ 模型预热完成，可以开始聊天了！")
+                        except Exception as e:
+                            print(f"  ⚠️  模型预热异常: {e}")
+                    threading.Thread(target=_warmup, daemon=True).start()
             except Exception:
                 pass
 
         if runtime_agent is None:
             runtime_agent = FallbackAgent()
-            print("  ⚡ 使用内置对话引擎（毫秒级响应）")
-            if use_real:
-                print("  ⚠️  Ollama 不可用，已降级到内置引擎")
-            else:
-                print("  💡 如需真实 AI 回复: python3 scripts/serve.py --real")
+            print("  ⚡ Ollama 未检测到，使用内置对话引擎")
+            print("  💡 如需真实 AI 回复: python3 scripts/serve.py （确保 Ollama 已运行）")
 
         elfie = ElfieIndividual()
         engine = ElfieNestEngine()
