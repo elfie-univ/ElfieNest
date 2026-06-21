@@ -1817,14 +1817,17 @@ document.getElementById('confirmEditProfileBtn').addEventListener('click', async
   try{
     showLoading();
     var result = await apiFetch('/api/auth/me/profile', 'PUT', body);
-    currentUser.nickname = result.nickname;
-    currentUser.avatar_color = result.avatar_color;
-    currentUser.avatar_kind = result.avatar_kind;
-    ProfileDropdown.mount(document.getElementById('profileDropdown'), {
-      userData: currentUser,
-      onLogout: function(){},
-    });
-    showToast('✅ 资料已更新', 'success');
+     currentUser.nickname = result.nickname;
+     currentUser.avatar_color = result.avatar_color;
+     currentUser.avatar_kind = result.avatar_kind;
+     // Refresh profile dropdown instead of re-mounting
+     var pdContainer = document.getElementById('profileDropdown');
+     pdContainer.innerHTML = ''; // Clear previous content
+     ProfileDropdown.mount(document.getElementById('profileDropdown'), {
+       userData: currentUser,
+       onLogout: function(){},
+     });
+     showToast('✅ 资料已更新', 'success');
     closeModal('editProfileModal');
   }catch(e){
     showToast('更新失败: ' + e.message, 'error');
