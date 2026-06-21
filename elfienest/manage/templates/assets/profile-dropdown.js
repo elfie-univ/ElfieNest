@@ -100,6 +100,9 @@
     options = options || {};
     injectStyles();
 
+    // Clear any existing content to prevent duplicates
+    container.innerHTML = '';
+
     // Wrapper for relative positioning of the menu
     var wrap = document.createElement('div');
     wrap.style.position = 'relative';
