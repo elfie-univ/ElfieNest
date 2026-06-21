@@ -324,6 +324,7 @@ def create_app(
             "created_at": row["created_at"],
             "elfie_count": elfie_count,
             "csrf_token": csrf_token,
+            "session_token": session_token,
         }
 
     # -------------------------------------------------------------------
