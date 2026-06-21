@@ -293,6 +293,14 @@ def main():
     engine = engine_holder["engine"]
     time.sleep(2.0)  # 等服务就绪
 
+    # 读取 engine 配置（用于检查房间上限）
+    config = LLMRuntimeConfig(
+        ollama_host="http://localhost:11434",
+        ollama_model_fast="qwen2.5:1.5b",
+    )
+    engine_config = config.system.get("engine", {})
+    max_elfies_per_room = engine_config.get("max_elfies_per_room")
+
     # 4. 从 DB 动态加载所有精灵
     loaded_elfies: list[dict] = []
     try:
