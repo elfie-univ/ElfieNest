@@ -14,9 +14,14 @@
 .env.*
 !.env.example
 config.yaml
-.elfie_memory.db
 
-# 4. Python 标准临时文件与缓存
+# 4. 数据库文件（已统一迁移到 data/ 目录）
+.elfie_memory.db
+.elfie_memory.db-shm
+.elfie_memory.db-wal
+.elfie_memory.db.backup
+
+# 5. Python 标准临时文件与缓存
 __pycache__/
 *.py[cod]
 *$py.class
@@ -31,7 +36,8 @@ env/
 *.egg
 build/
 dist/
-# 5. macOS 系统与 IDE 编辑器垃圾文件
+
+# 6. IDE/编辑器/工具缓存与日志
 .DS_Store
 .vscode/
 .idea/
@@ -41,6 +47,9 @@ dist/
 *.sln
 *.swp
 *~
+.mypy_cache/
+.ruff_cache/
+.playwright-mcp/
 
 # 6. 运行时数据（DB、精灵配置等）
 data/

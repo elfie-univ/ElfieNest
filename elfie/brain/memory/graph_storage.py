@@ -23,12 +23,14 @@ class GraphStorage:
 
     def __init__(self, db_path: Optional[str] = None):
         if db_path is None:
-            # 默认保存在项目根目录的 .elfie_memory.db
+            # 默认保存在 data/ 目录下的 graph_memory.db
             current_dir = Path(__file__).resolve().parent
             project_root = current_dir.parent.parent.parent
-            db_path = str(project_root / ".elfie_memory.db")
+            data_dir = project_root / "data"
+            data_dir.mkdir(exist_ok=True)
+            db_path = str(data_dir / "graph_memory.db")
         self.db_path = db_path
-        self.conn = sqlite3.connect(db_path)
+        self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         # 启用WAL模式（内存数据库不支持WAL，跳过）
         if db_path != ":memory:":

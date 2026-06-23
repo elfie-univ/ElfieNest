@@ -67,159 +67,35 @@ display:flex;
 align-items:center;
 gap:12px;
 }
-/* Profile dropdown */
-.profile-dropdown{
-position:relative;
-display:flex;
-align-items:center;
-gap:8px;
-cursor:pointer;
-padding:4px 8px;
-border-radius:var(--radius-sm);
-transition:background .15s;
-}
-.profile-dropdown:hover{
-background:rgba(255,255,255,0.04);
-}
-.profile-avatar{
-width:28px;height:28px;
-border-radius:50%;
-display:flex;align-items:center;justify-content:center;
-font-size:13px;font-weight:700;
-color:#fff;
-flex-shrink:0;
-}
-.profile-info{
-display:flex;flex-direction:column;line-height:1.3;
-}
-.profile-nickname{
-font-size:13px;font-weight:500;color:var(--text-primary);
-}
-.profile-role{
-font-size:11px;color:var(--text-secondary);
-}
-.profile-caret{
-font-size:10px;color:var(--text-secondary);margin-left:2px;
-transition:transform .15s;
-}
-.profile-dropdown.open .profile-caret{
-transform:rotate(180deg);
-}
-.profile-menu{
-display:none;
-position:absolute;
-top:calc(100% + 6px);
-right:0;
-background:var(--bg-secondary);
-border:1px solid var(--border-subtle);
-border-radius:var(--radius);
-box-shadow:var(--shadow-md);
-min-width:180px;
-z-index:100;
-overflow:hidden;
-}
-.profile-dropdown.open .profile-menu{
-display:block;
-}
-.profile-menu-item{
-display:flex;align-items:center;gap:8px;
-padding:10px 14px;
+.navbar-user{
 font-size:13px;
 color:var(--text-secondary);
-cursor:pointer;
-transition:background .12s,color .12s;
 }
-.profile-menu-item:hover{
-background:rgba(255,255,255,0.04);
-color:var(--text-primary);
-}
-.profile-menu-item.danger{
-color:var(--error);
-}
-.profile-menu-item.danger:hover{
-background:rgba(239,68,68,0.1);
-}
-.profile-menu-divider{
-height:1px;
-background:var(--border-subtle);
-margin:4px 0;
-}
-/* Avatar color picker */
-.avatar-color-picker{
-display:flex;
-gap:8px;
-flex-wrap:wrap;
-margin-top:4px;
-}
-.avatar-color-opt{
-width:36px;height:36px;
-border-radius:50%;
-border:2px solid transparent;
-cursor:pointer;
-transition:border-color .15s,transform .12s;
-position:relative;
-display:flex;align-items:center;justify-content:center;
-}
-.avatar-color-opt:hover{
-transform:scale(1.1);
-}
-.avatar-color-opt.selected{
-border-color:#fff;
-transform:scale(1.1);
-}
-.avatar-color-opt.selected::after{
-content:'✓';
-color:#fff;
-font-size:14px;
-font-weight:700;
-text-shadow:0 1px 2px rgba(0,0,0,0.5);
-}
-/* Avatar kind radio */
-.avatar-kind-group{
-display:flex;gap:10px;margin-top:4px;
-}
-.avatar-kind-opt{
-flex:1;
-padding:8px 12px;
-background:var(--bg-input);
-border:2px solid var(--border-subtle);
-border-radius:var(--radius-sm);
-cursor:pointer;
-text-align:center;
-font-size:13px;
-transition:all .15s;
-user-select:none;
-}
-.avatar-kind-opt:hover{
-border-color:var(--accent);
-}
-.avatar-kind-opt.selected{
-border-color:var(--accent);
-background:rgba(108,124,247,0.1);
+.role-badge{
+display:inline-block;
+font-size:11px;
+font-weight:600;
+padding:2px 8px;
+border-radius:99px;
+background:rgba(108,124,247,0.15);
 color:var(--accent);
+border:1px solid rgba(108,124,247,0.25);
+margin-left:6px;
 }
-/* Password field toggle */
-.pw-field-wrap{
-position:relative;
-}
-.pw-field-wrap input{
-padding-right:36px;
-}
-.pw-toggle{
-position:absolute;
-right:8px;
-top:50%;
-transform:translateY(-50%);
+.logout-btn{
 background:none;
-border:none;
+border:1px solid var(--border-subtle);
 color:var(--text-secondary);
+padding:5px 12px;
+border-radius:var(--radius-sm);
+font-size:13px;
 cursor:pointer;
-font-size:14px;
-padding:2px;
-line-height:1;
+transition:all .15s;
 }
-.pw-toggle:hover{
-color:var(--text-primary);
+.logout-btn:hover{
+background:rgba(239,68,68,0.1);
+border-color:rgba(239,68,68,0.3);
+color:var(--error);
 }
 /* ── Body row: sidebar + content ── */
 .body-row{
@@ -492,98 +368,29 @@ font-size:12px;
 color:var(--text-secondary);
 margin-top:10px;
 }
-/* Sub-tab form elements */
+/* Sub-tab form skeleton (T12 fills full logic) */
+.subform-section{
+margin-bottom:20px;
+}
+.subform-section label{
+display:block;
+font-size:12px;
+font-weight:500;
+color:var(--text-secondary);
+margin-bottom:6px;
+}
 .subform-hint{
 font-size:12px;
 color:var(--text-secondary);
-margin-top:4px;
+margin-top:6px;
 }
-.restart-warn{
-color:var(--error);
-font-size:11px;
-font-weight:600;
-margin-left:6px;
-}
-.checkbox-group{
-display:flex;
-gap:16px;
-margin-top:4px;
-}
-.checkbox-label{
-display:flex;
-align-items:center;
-gap:6px;
-font-size:13px;
-color:var(--text-primary);
-cursor:pointer;
-}
-.checkbox-label input[type="checkbox"]{
-accent-color:var(--accent);
-width:16px;
-height:16px;
-cursor:pointer;
-}
-.toggle-group{
-display:flex;
-flex-direction:column;
-gap:10px;
-margin-top:4px;
-}
-.toggle-row{
-display:flex;
-align-items:center;
-gap:10px;
-}
-.toggle-switch{
-position:relative;
-display:inline-block;
-width:40px;
-height:22px;
-flex-shrink:0;
-}
-.toggle-switch input{
-opacity:0;
-width:0;
-height:0;
-}
-.toggle-slider{
-position:absolute;
-cursor:pointer;
-inset:0;
-background:var(--border-subtle);
-border-radius:22px;
-transition:background .2s;
-}
-.toggle-slider::before{
-content:"";
-position:absolute;
-height:16px;
-width:16px;
-left:3px;
-bottom:3px;
-background:#fff;
-border-radius:50%;
-transition:transform .2s;
-}
-.toggle-switch input:checked+.toggle-slider{
-background:var(--accent);
-}
-.toggle-switch input:checked+.toggle-slider::before{
-transform:translateX(18px);
-}
-.toggle-switch-wrap{
-display:flex;
-align-items:center;
-gap:8px;
-}
-.toggle-label{
-font-size:13px;
+.subform-placeholder{
+padding:32px 20px;
+text-align:center;
 color:var(--text-secondary);
-}
-input[type="range"]{
-width:100%;
-accent-color:var(--accent);
-margin-top:4px;
+font-size:13px;
+border:1px dashed var(--border-subtle);
+border-radius:var(--radius-sm);
 }
 /* Toast */
 .toast-container{
@@ -688,7 +495,11 @@ color:var(--text-secondary);
     <span class="navbar-logo">🦊 ElfieNest</span>
   </div>
   <div class="navbar-right">
-    <div id="profileDropdown"></div>
+    <span class="navbar-user">
+      <span id="navUsername">admin</span>
+      <span class="role-badge">管理员</span>
+    </span>
+    <button class="logout-btn" id="logoutBtn">退出</button>
   </div>
 </nav>
 
@@ -768,148 +579,59 @@ color:var(--text-secondary);
         </div>
         <div class="config-card">
           <div class="form-group">
-            <label for="llmCheapModel">轻量模型 (default_cheap_model)</label>
-            <input type="text" id="llmCheapModel" placeholder="qwen3.5:0.8b" />
-          </div>
-          <div class="form-group">
-            <label for="llmCheapProvider">轻量模型服务商 (default_cheap_provider)</label>
-            <select id="llmCheapProvider"></select>
-          </div>
-          <div class="form-group">
-            <label for="llmDeepModel">深度模型 (default_deep_model)</label>
-            <input type="text" id="llmDeepModel" placeholder="qwen3.5:0.8b" />
-          </div>
-          <div class="form-group">
-            <label for="llmDeepProvider">深度模型服务商 (default_deep_provider)</label>
-            <select id="llmDeepProvider"></select>
-          </div>
-          <div class="form-group">
-            <label for="llmMultimodalModel">多模态模型 (default_multimodal_model)</label>
-            <input type="text" id="llmMultimodalModel" placeholder="moondream" />
-          </div>
-          <div class="form-group">
-            <label for="llmMultimodalProvider">多模态服务商 (default_multimodal_provider)</label>
-            <select id="llmMultimodalProvider"></select>
-          </div>
-          <div class="form-group">
-            <label for="llmTemperature">Temperature (0.0 ~ 2.0)</label>
-            <input type="number" id="llmTemperature" step="0.1" min="0" max="2" />
-          </div>
-          <div class="form-group">
-            <label for="llmMaxTokens">Max Tokens</label>
-            <input type="number" id="llmMaxTokens" min="1" />
-          </div>
-          <div class="form-group">
-            <label for="llmEnergyThreshold">能耗阈值 · 快速降级 (energy_threshold_fast)</label>
-            <input type="number" id="llmEnergyThreshold" min="0" />
-          </div>
-          <div class="form-group">
-            <label for="llmComplexityThreshold">复杂度阈值 · 深度模型 (complexity_threshold_deep)</label>
-            <input type="number" id="llmComplexityThreshold" min="0" />
+            <label for="configEditor">runtime_config.json (providers)</label>
+            <textarea id="configEditor" placeholder='{\n  "providers": {}\n}'></textarea>
           </div>
           <div class="config-actions">
-            <button class="btn btn-primary" id="saveLlmBtn">保存</button>
-            <button class="btn btn-ghost" id="resetLlmBtn">重置</button>
+            <button class="btn btn-primary" id="saveConfigBtn">保存</button>
+            <button class="btn btn-ghost" id="resetConfigBtn">重置</button>
           </div>
           <div class="config-info">⚠️ 修改 LLM 配置将影响所有精灵的对话行为。</div>
         </div>
       </div>
     </div>
 
-    <!-- ───────────── Panel: 系统配置 → 精灵策略 ───────────── -->
+    <!-- ───────────── Panel: 系统配置 → 精灵策略 (skeleton, T12 fills logic) ───────────── -->
     <div class="panel" id="panelSysAdoption">
       <div class="panel-scroll">
         <div class="page-header">
           <h2>系统配置 · 精灵策略</h2>
         </div>
         <div class="config-card">
-          <div class="form-group">
-            <label for="adoptionMaxElfies">每用户最大精灵数 (max_elfies_per_user)</label>
-            <input type="number" id="adoptionMaxElfies" min="1" max="10" value="3" />
-          </div>
-          <div class="form-group">
-            <label>允许的体型 (allowed_anatomy_types)</label>
-            <div class="checkbox-group">
-              <label class="checkbox-label"><input type="checkbox" id="anatomyBiped" checked /> 双足 (biped)</label>
-              <label class="checkbox-label"><input type="checkbox" id="anatomyQuadruped" checked /> 四足 (quadruped)</label>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>性格预设开关 (personality_presets_enabled)</label>
-            <div class="toggle-group" id="personalityToggles"></div>
-          </div>
-          <div class="config-actions">
-            <button class="btn btn-primary" id="saveAdoptionBtn">保存</button>
-            <button class="btn btn-ghost" id="resetAdoptionBtn">重置</button>
+          <div class="subform-placeholder">
+            精灵策略表单（max_elfies_per_user / allowed_anatomy_types / personality_presets_enabled）<br>
+            完整表单逻辑由 T12 实现，保存至 <code>PUT /api/admin/system/adoption</code>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- ───────────── Panel: 系统配置 → 引擎 ───────────── -->
+    <!-- ───────────── Panel: 系统配置 → 引擎 (skeleton, T12 fills logic) ───────────── -->
     <div class="panel" id="panelSysEngine">
       <div class="panel-scroll">
         <div class="page-header">
           <h2>系统配置 · 引擎</h2>
         </div>
         <div class="config-card">
-          <div class="form-group">
-            <label for="engineTickInterval">Tick 间隔秒数 (tick_interval_sec): <span id="tickValue">1.5</span>s</label>
-            <input type="range" id="engineTickInterval" min="0.1" max="5.0" step="0.1" value="1.5" />
-            <span class="restart-warn">⚠️ 需重启 serve.py</span>
-          </div>
-          <div class="form-group">
-            <label>TTS 开关 (tts_enabled)</label>
-            <div class="toggle-switch-wrap">
-              <label class="toggle-switch">
-                <input type="checkbox" id="engineTtsEnabled" checked />
-                <span class="toggle-slider"></span>
-              </label>
-              <span class="toggle-label" id="ttsStatusLabel">已开启</span>
-              <span class="restart-warn">⚠️ 需重启</span>
-            </div>
-          </div>
-          <div class="form-group">
-            <label for="engineMaxElfiesPerRoom">每房间最大精灵数 (max_elfies_per_room)</label>
-            <input type="number" id="engineMaxElfiesPerRoom" min="1" placeholder="留空 = 不限" />
-            <span class="restart-warn">⚠️ 需重启</span>
-            <div class="subform-hint">留空或设为 null 表示不限制</div>
-          </div>
-          <div class="form-group">
-            <label for="engineDefaultTtsVoice">默认 TTS 语音 (default_tts_voice)</label>
-            <input type="text" id="engineDefaultTtsVoice" placeholder="zh-CN-XiaoxiaoNeural" />
-            <span class="restart-warn">⚠️ 需重启</span>
-          </div>
-          <div class="config-actions">
-            <button class="btn btn-primary" id="saveEngineBtn">保存</button>
-            <button class="btn btn-ghost" id="resetEngineBtn">重置</button>
+          <div class="subform-placeholder">
+            引擎表单（tick_interval_sec / tts_enabled / max_elfies_per_room / default_tts_voice）<br>
+            <span style="color:var(--error)">⚠️ 部分设置需重启 serve.py 生效</span><br>
+            完整表单逻辑由 T12 实现，保存至 <code>PUT /api/admin/system/engine</code>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- ───────────── Panel: 系统配置 → 安全 ───────────── -->
+    <!-- ───────────── Panel: 系统配置 → 安全 (skeleton, T12 fills logic) ───────────── -->
     <div class="panel" id="panelSysSecurity">
       <div class="panel-scroll">
         <div class="page-header">
           <h2>系统配置 · 安全</h2>
         </div>
         <div class="config-card">
-          <div class="form-group">
-            <label for="securitySessionTtl">会话有效期天数 (session_ttl_days)</label>
-            <input type="number" id="securitySessionTtl" min="1" max="30" value="7" />
-          </div>
-          <div class="form-group">
-            <label for="securityMaxAttempts">速率限制 · 最大尝试次数 (rate_limit.max_attempts)</label>
-            <input type="number" id="securityMaxAttempts" min="1" max="20" value="5" />
-          </div>
-          <div class="form-group">
-            <label for="securityWindowSeconds">速率限制 · 窗口秒数 (rate_limit.window_seconds)</label>
-            <input type="number" id="securityWindowSeconds" min="60" max="3600" value="300" />
-          </div>
-          <div class="config-actions">
-            <button class="btn btn-primary" id="saveSecurityBtn">保存</button>
-            <button class="btn btn-ghost" id="resetSecurityBtn">重置</button>
+          <div class="subform-placeholder">
+            安全表单（session_ttl_days / rate_limit.max_attempts / rate_limit.window_seconds）<br>
+            完整表单逻辑由 T12 实现，保存至 <code>PUT /api/admin/system/security</code>
           </div>
         </div>
       </div>
@@ -981,62 +703,14 @@ color:var(--text-secondary);
   </div>
 </div>
 
-<!-- Modal: Change Password -->
-<div class="modal-overlay" id="changePwModal">
-  <div class="modal-card">
-    <h3>修改密码</h3>
-    <p class="desc">更新你的登录密码</p>
-    <div class="form-group">
-      <label for="oldPw">旧密码</label>
-      <div class="pw-field-wrap">
-        <input type="password" id="oldPw" placeholder="请输入旧密码" autocomplete="current-password" />
-        <button type="button" class="pw-toggle" data-target="oldPw" aria-label="显示密码">👁</button>
-      </div>
-    </div>
-    <div class="form-group">
-      <label for="newPw">新密码</label>
-      <div class="pw-field-wrap">
-        <input type="password" id="newPw" placeholder="至少 6 个字符" autocomplete="new-password" />
-        <button type="button" class="pw-toggle" data-target="newPw" aria-label="显示密码">👁</button>
-      </div>
-    </div>
-    <div class="form-group">
-      <label for="confirmPw">确认新密码</label>
-      <div class="pw-field-wrap">
-        <input type="password" id="confirmPw" placeholder="再次输入新密码" autocomplete="new-password" />
-        <button type="button" class="pw-toggle" data-target="confirmPw" aria-label="显示密码">👁</button>
-      </div>
-    </div>
+<!-- Modal: Save Config Confirm -->
+<div class="modal-overlay" id="saveConfigModal">
+  <div class="modal-card confirm-modal">
+    <h3>⚠️ 确认保存</h3>
+    <p class="desc">修改 LLM 配置将影响所有精灵的对话行为和模型选择。确定要保存吗？</p>
     <div class="modal-actions">
-      <button class="btn btn-ghost modal-close" data-modal="changePwModal">取消</button>
-      <button class="btn btn-primary" id="confirmChangePwBtn">确认修改</button>
-    </div>
-  </div>
-</div>
-
-<!-- Modal: Edit Profile -->
-<div class="modal-overlay" id="editProfileModal">
-  <div class="modal-card">
-    <h3>编辑资料</h3>
-    <p class="desc">修改你的昵称和头像颜色</p>
-    <div class="form-group">
-      <label for="editNickname">昵称</label>
-      <input type="text" id="editNickname" placeholder="输入昵称（最多 32 字）" maxlength="32" />
-    </div>
-    <div class="form-group">
-      <label>头像颜色</label>
-      <div class="avatar-color-picker" id="avatarColorPicker"></div>
-    </div>
-    <div class="form-group">
-      <label>头像类型</label>
-      <div class="avatar-kind-group" id="avatarKindGroup">
-        <div class="avatar-kind-opt selected" data-value="initials">首字母</div>
-        <div class="avatar-kind-opt" data-value="emoji">表情</div>
-      </div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost modal-close" data-modal="editProfileModal">取消</button>
-      <button class="btn btn-primary" id="confirmEditProfileBtn">保存</button>
+      <button class="btn btn-ghost modal-close" data-modal="saveConfigModal">取消</button>
+      <button class="btn btn-warning" id="confirmSaveConfigBtn">确认保存</button>
     </div>
   </div>
 </div>
@@ -1049,7 +723,6 @@ color:var(--text-secondary);
   <div class="loading-spinner"></div>
 </div>
 
-<script src="/static/assets/profile-dropdown.js"></script>
 <script>
 (function(){
 'use strict';
@@ -1079,13 +752,7 @@ async function checkAuth(){
     }
     currentUser = data;
     csrfToken = data.csrf_token || '';
-    // Mount shared profile dropdown (T13)
-    ProfileDropdown.mount(document.getElementById('profileDropdown'), {
-      userData: data,
-      onLogout: function(){
-        // 清理本地状态（cookie 由后端清除）
-      },
-    });
+    document.getElementById('navUsername').textContent = data.username;
   }catch(e){
     window.location.href = '/static/login.html';
   }
@@ -1172,10 +839,7 @@ function showPanel(panelId){
   if(!loadedPanels.has(panelId)){
     loadedPanels.add(panelId);
     if(panelId === 'users') loadUsers();
-    else if(panelId === 'sysLlm') loadLlmConfig();
-    else if(panelId === 'sysAdoption') loadAdoptionConfig();
-    else if(panelId === 'sysEngine') loadEngineConfig();
-    else if(panelId === 'sysSecurity') loadSecurityConfig();
+    else if(panelId === 'sysLlm') loadConfig();
   }
 }
 
@@ -1354,486 +1018,72 @@ document.getElementById('confirmDeleteUserBtn').addEventListener('click', async 
 });
 
 // ============================================================
-// Panel: 系统配置 → 大模型 (LLM)
+// Panel: 系统配置 → 大模型 (LLM providers config)
 // ============================================================
-let llmData = null;
-let providersData = null;
+let currentConfig = null;
 
-const LLM_FIELDS = [
-  'default_cheap_model','default_cheap_provider',
-  'default_deep_model','default_deep_provider',
-  'default_multimodal_model','default_multimodal_provider',
-  'temperature','max_tokens',
-  'energy_threshold_fast','complexity_threshold_deep',
-];
-
-const LLM_FIELD_IDS = {
-  default_cheap_model: 'llmCheapModel',
-  default_cheap_provider: 'llmCheapProvider',
-  default_deep_model: 'llmDeepModel',
-  default_deep_provider: 'llmDeepProvider',
-  default_multimodal_model: 'llmMultimodalModel',
-  default_multimodal_provider: 'llmMultimodalProvider',
-  temperature: 'llmTemperature',
-  max_tokens: 'llmMaxTokens',
-  energy_threshold_fast: 'llmEnergyThreshold',
-  complexity_threshold_deep: 'llmComplexityThreshold',
-};
-
-function populateProviderSelects(providers){
-  const providerNames = Object.keys(providers || {});
-  ['llmCheapProvider','llmDeepProvider','llmMultimodalProvider'].forEach(id => {
-    const sel = document.getElementById(id);
-    sel.innerHTML = providerNames.map(p =>
-      '<option value="'+p+'">'+(providers[p].name || p)+'</option>'
-    ).join('');
-  });
-}
-
-async function loadLlmConfig(){
+async function loadConfig(){
   try{
     showLoading();
-    const [llmResp, configResp] = await Promise.all([
-      apiFetch('/api/admin/system/llm'),
-      apiFetch('/api/admin/config'),
-    ]);
-    llmData = llmResp;
-    providersData = configResp.providers || {};
-    populateProviderSelects(providersData);
-    LLM_FIELDS.forEach(field => {
-      const el = document.getElementById(LLM_FIELD_IDS[field]);
-      if(!el || llmData[field] === undefined) return;
-      if(el.tagName === 'SELECT'){
-        el.value = llmData[field];
-      } else {
-        el.value = llmData[field];
-      }
+    currentConfig = await apiFetch('/api/admin/config');
+    document.getElementById('configEditor').value = JSON.stringify(currentConfig, null, 2);
+  }catch(e){
+    showToast('加载配置失败: ' + e.message, 'error');
+  }finally{
+    hideLoading();
+  }
+}
+
+document.getElementById('resetConfigBtn').addEventListener('click', function(){
+  document.getElementById('configEditor').value = JSON.stringify(currentConfig, null, 2);
+  showToast('已重置为当前服务端配置', 'info');
+});
+
+document.getElementById('saveConfigBtn').addEventListener('click', function(){
+  // Validate JSON
+  const raw = document.getElementById('configEditor').value.trim();
+  let parsed;
+  try{
+    parsed = JSON.parse(raw);
+  }catch(e){
+    showToast('JSON 格式错误: ' + e.message, 'error');
+    return;
+  }
+  if(!parsed.providers || typeof parsed.providers !== 'object'){
+    showToast('配置必须包含 providers 字典结构', 'error');
+    return;
+  }
+  openModal('saveConfigModal');
+});
+
+document.getElementById('confirmSaveConfigBtn').addEventListener('click', async function(){
+  try{
+    const raw = document.getElementById('configEditor').value.trim();
+    const parsed = JSON.parse(raw);
+    showLoading();
+    await apiFetch('/api/admin/config', 'PUT', parsed);
+    showToast('配置已保存', 'success');
+    closeModal('saveConfigModal');
+    currentConfig = parsed;
+  }catch(e){
+    showToast('保存失败: ' + e.message, 'error');
+  }finally{
+    hideLoading();
+  }
+});
+
+// ============================================================
+// Logout
+// ============================================================
+document.getElementById('logoutBtn').addEventListener('click', async function(){
+  try{
+    await fetch('/api/auth/logout', {
+      method:'POST',
+      credentials:'include',
+      headers:{'X-CSRF-Token': getCsrfToken()},
     });
-  }catch(e){
-    showToast('加载 LLM 配置失败: ' + e.message, 'error');
-  }finally{
-    hideLoading();
-  }
-}
-
-document.getElementById('resetLlmBtn').addEventListener('click', function(){
-  if(!llmData) return;
-  LLM_FIELDS.forEach(field => {
-    const el = document.getElementById(LLM_FIELD_IDS[field]);
-    if(!el || llmData[field] === undefined) return;
-    el.value = llmData[field];
-  });
-  showToast('已重置为当前服务端配置', 'info');
-});
-
-document.getElementById('saveLlmBtn').addEventListener('click', async function(){
-  const body = {};
-  LLM_FIELDS.forEach(field => {
-    const el = document.getElementById(LLM_FIELD_IDS[field]);
-    if(!el) return;
-    let val = el.value.trim();
-    if(field === 'temperature') val = parseFloat(val);
-    else if(field === 'max_tokens' || field === 'energy_threshold_fast' || field === 'complexity_threshold_deep') val = parseInt(val, 10);
-    body[field] = val;
-  });
-  try{
-    showLoading();
-    const result = await apiFetch('/api/admin/system/llm', 'PUT', body);
-    llmData = result;
-    showToast('✅ LLM 配置已保存', 'success');
-  }catch(e){
-    showToast('保存失败: ' + e.message, 'error');
-  }finally{
-    hideLoading();
-  }
-});
-
-// ============================================================
-// Panel: 系统配置 → 精灵策略 (Adoption)
-// ============================================================
-let adoptionData = null;
-
-const PERSONALITY_PRESETS = ['活泼好动','安静温顺','好奇探索','胆小害羞','傲娇独立','完全随机'];
-
-function renderPersonalityToggles(enabled){
-  const container = document.getElementById('personalityToggles');
-  container.innerHTML = '';
-  PERSONALITY_PRESETS.forEach(name => {
-    const isOn = enabled ? !!enabled[name] : true;
-    const row = document.createElement('div');
-    row.className = 'toggle-row';
-    row.innerHTML =
-      '<label class="toggle-switch"><input type="checkbox" data-preset="'+name+'" '+(isOn?'checked':'')+' /><span class="toggle-slider"></span></label>'+
-      '<span class="toggle-label">'+name+'</span>';
-    container.appendChild(row);
-  });
-}
-
-async function loadAdoptionConfig(){
-  try{
-    showLoading();
-    adoptionData = await apiFetch('/api/admin/system/adoption');
-    document.getElementById('adoptionMaxElfies').value = adoptionData.max_elfies_per_user || 3;
-    const types = adoptionData.allowed_anatomy_types || ['biped','quadruped'];
-    document.getElementById('anatomyBiped').checked = types.includes('biped');
-    document.getElementById('anatomyQuadruped').checked = types.includes('quadruped');
-    renderPersonalityToggles(adoptionData.personality_presets_enabled);
-  }catch(e){
-    showToast('加载精灵策略配置失败: ' + e.message, 'error');
-  }finally{
-    hideLoading();
-  }
-}
-
-document.getElementById('resetAdoptionBtn').addEventListener('click', function(){
-  if(!adoptionData) return;
-  document.getElementById('adoptionMaxElfies').value = adoptionData.max_elfies_per_user || 3;
-  const types = adoptionData.allowed_anatomy_types || ['biped','quadruped'];
-  document.getElementById('anatomyBiped').checked = types.includes('biped');
-  document.getElementById('anatomyQuadruped').checked = types.includes('quadruped');
-  renderPersonalityToggles(adoptionData.personality_presets_enabled);
-  showToast('已重置为当前服务端配置', 'info');
-});
-
-document.getElementById('saveAdoptionBtn').addEventListener('click', async function(){
-  const maxElfies = parseInt(document.getElementById('adoptionMaxElfies').value, 10);
-  if(isNaN(maxElfies) || maxElfies < 1 || maxElfies > 10){
-    showToast('每用户最大精灵数应在 1~10 之间', 'error');
-    return;
-  }
-  const allowedTypes = [];
-  if(document.getElementById('anatomyBiped').checked) allowedTypes.push('biped');
-  if(document.getElementById('anatomyQuadruped').checked) allowedTypes.push('quadruped');
-  if(allowedTypes.length === 0){
-    showToast('至少需要选择一种体型', 'error');
-    return;
-  }
-  const presetsEnabled = {};
-  document.querySelectorAll('#personalityToggles input[type="checkbox"]').forEach(cb => {
-    presetsEnabled[cb.dataset.preset] = cb.checked;
-  });
-  const body = {
-    max_elfies_per_user: maxElfies,
-    allowed_anatomy_types: allowedTypes,
-    personality_presets_enabled: presetsEnabled,
-  };
-  try{
-    showLoading();
-    const result = await apiFetch('/api/admin/system/adoption', 'PUT', body);
-    adoptionData = result;
-    showToast('✅ 精灵策略已保存', 'success');
-  }catch(e){
-    showToast('保存失败: ' + e.message, 'error');
-  }finally{
-    hideLoading();
-  }
-});
-
-// ============================================================
-// Panel: 系统配置 → 引擎 (Engine)
-// ============================================================
-let engineData = null;
-
-const tickSlider = document.getElementById('engineTickInterval');
-const tickValue = document.getElementById('tickValue');
-tickSlider.addEventListener('input', function(){
-  tickValue.textContent = this.value;
-});
-
-const ttsToggle = document.getElementById('engineTtsEnabled');
-const ttsLabel = document.getElementById('ttsStatusLabel');
-ttsToggle.addEventListener('change', function(){
-  ttsLabel.textContent = this.checked ? '已开启' : '已关闭';
-});
-
-async function loadEngineConfig(){
-  try{
-    showLoading();
-    engineData = await apiFetch('/api/admin/system/engine');
-    tickSlider.value = engineData.tick_interval_sec || 1.5;
-    tickValue.textContent = engineData.tick_interval_sec || 1.5;
-    ttsToggle.checked = engineData.tts_enabled !== false;
-    ttsLabel.textContent = ttsToggle.checked ? '已开启' : '已关闭';
-    const maxPerRoom = engineData.max_elfies_per_room;
-    document.getElementById('engineMaxElfiesPerRoom').value = maxPerRoom === null ? '' : maxPerRoom;
-    document.getElementById('engineDefaultTtsVoice').value = engineData.default_tts_voice || '';
-  }catch(e){
-    showToast('加载引擎配置失败: ' + e.message, 'error');
-  }finally{
-    hideLoading();
-  }
-}
-
-document.getElementById('resetEngineBtn').addEventListener('click', function(){
-  if(!engineData) return;
-  tickSlider.value = engineData.tick_interval_sec || 1.5;
-  tickValue.textContent = engineData.tick_interval_sec || 1.5;
-  ttsToggle.checked = engineData.tts_enabled !== false;
-  ttsLabel.textContent = ttsToggle.checked ? '已开启' : '已关闭';
-  const maxPerRoom = engineData.max_elfies_per_room;
-  document.getElementById('engineMaxElfiesPerRoom').value = maxPerRoom === null ? '' : maxPerRoom;
-  document.getElementById('engineDefaultTtsVoice').value = engineData.default_tts_voice || '';
-  showToast('已重置为当前服务端配置', 'info');
-});
-
-document.getElementById('saveEngineBtn').addEventListener('click', async function(){
-  const tickVal = parseFloat(tickSlider.value);
-  if(isNaN(tickVal) || tickVal < 0.1 || tickVal > 5.0){
-    showToast('Tick 间隔应在 0.1~5.0 之间', 'error');
-    return;
-  }
-  const maxPerRoomRaw = document.getElementById('engineMaxElfiesPerRoom').value.trim();
-  const maxPerRoom = maxPerRoomRaw === '' ? null : parseInt(maxPerRoomRaw, 10);
-  if(maxPerRoom !== null && (isNaN(maxPerRoom) || maxPerRoom < 1)){
-    showToast('每房间最大精灵数应 ≥ 1 或留空不限', 'error');
-    return;
-  }
-  const body = {
-    tick_interval_sec: tickVal,
-    tts_enabled: ttsToggle.checked,
-    max_elfies_per_room: maxPerRoom,
-    default_tts_voice: document.getElementById('engineDefaultTtsVoice').value.trim() || 'zh-CN-XiaoxiaoNeural',
-  };
-  try{
-    showLoading();
-    const result = await apiFetch('/api/admin/system/engine', 'PUT', body);
-    engineData = result;
-    showToast('✅ 引擎配置已保存（部分设置需重启生效）', 'success');
-  }catch(e){
-    showToast('保存失败: ' + e.message, 'error');
-  }finally{
-    hideLoading();
-  }
-});
-
-// ============================================================
-// Panel: 系统配置 → 安全 (Security)
-// ============================================================
-let securityData = null;
-
-async function loadSecurityConfig(){
-  try{
-    showLoading();
-    securityData = await apiFetch('/api/admin/system/security');
-    document.getElementById('securitySessionTtl').value = securityData.session_ttl_days || 7;
-    const rl = securityData.rate_limit || {};
-    document.getElementById('securityMaxAttempts').value = rl.max_attempts || 5;
-    document.getElementById('securityWindowSeconds').value = rl.window_seconds || 300;
-  }catch(e){
-    showToast('加载安全配置失败: ' + e.message, 'error');
-  }finally{
-    hideLoading();
-  }
-}
-
-document.getElementById('resetSecurityBtn').addEventListener('click', function(){
-  if(!securityData) return;
-  document.getElementById('securitySessionTtl').value = securityData.session_ttl_days || 7;
-  const rl = securityData.rate_limit || {};
-  document.getElementById('securityMaxAttempts').value = rl.max_attempts || 5;
-  document.getElementById('securityWindowSeconds').value = rl.window_seconds || 300;
-  showToast('已重置为当前服务端配置', 'info');
-});
-
-document.getElementById('saveSecurityBtn').addEventListener('click', async function(){
-  const ttl = parseInt(document.getElementById('securitySessionTtl').value, 10);
-  const maxAttempts = parseInt(document.getElementById('securityMaxAttempts').value, 10);
-  const windowSec = parseInt(document.getElementById('securityWindowSeconds').value, 10);
-  if(isNaN(ttl) || ttl < 1 || ttl > 30){
-    showToast('会话有效期应在 1~30 天之间', 'error');
-    return;
-  }
-  if(isNaN(maxAttempts) || maxAttempts < 1 || maxAttempts > 20){
-    showToast('最大尝试次数应在 1~20 之间', 'error');
-    return;
-  }
-  if(isNaN(windowSec) || windowSec < 60 || windowSec > 3600){
-    showToast('窗口秒数应在 60~3600 之间', 'error');
-    return;
-  }
-  const body = {
-    session_ttl_days: ttl,
-    rate_limit: {
-      max_attempts: maxAttempts,
-      window_seconds: windowSec,
-    },
-  };
-  try{
-    showLoading();
-    const result = await apiFetch('/api/admin/system/security', 'PUT', body);
-    securityData = result;
-    showToast('✅ 安全配置已保存', 'success');
-  }catch(e){
-    showToast('保存失败: ' + e.message, 'error');
-  }finally{
-    hideLoading();
-  }
-});
-
-// ============================================================
-// Change Password Modal
-// ============================================================
-const AVATAR_COLORS = [
-  '#ef4444', '#f97316', '#eab308', '#22c55e',
-  '#06b6d4', '#3b82f6', '#a855f7', '#ec4899',
-];
-
-document.querySelectorAll('.pw-toggle').forEach(function(btn){
-  btn.addEventListener('click', function(){
-    var input = document.getElementById(this.dataset.target);
-    if(!input) return;
-    if(input.type === 'password'){
-      input.type = 'text';
-      this.textContent = '🔒';
-    }else{
-      input.type = 'password';
-      this.textContent = '👁';
-    }
-  });
-});
-
-var profileDropdownEl = document.getElementById('profileDropdown');
-profileDropdownEl.addEventListener('profile-dropdown:change-password', function(){
-  document.getElementById('oldPw').value = '';
-  document.getElementById('newPw').value = '';
-  document.getElementById('confirmPw').value = '';
-  document.querySelectorAll('.pw-toggle').forEach(function(b){
-    var t = document.getElementById(b.dataset.target);
-    if(t) t.type = 'password';
-    b.textContent = '👁';
-  });
-  openModal('changePwModal');
-  document.getElementById('oldPw').focus();
-});
-
-document.getElementById('confirmChangePwBtn').addEventListener('click', async function(){
-  var oldPw = document.getElementById('oldPw').value;
-  var newPw = document.getElementById('newPw').value;
-  var confirmPw = document.getElementById('confirmPw').value;
-
-  if(!oldPw || !newPw || !confirmPw){
-    showToast('请填写所有密码字段', 'error');
-    return;
-  }
-  if(newPw.length < 6){
-    showToast('新密码至少需要 6 个字符', 'error');
-    return;
-  }
-  if(newPw === oldPw){
-    showToast('新密码不能与旧密码相同', 'error');
-    return;
-  }
-  if(newPw !== confirmPw){
-    showToast('两次输入的新密码不一致', 'error');
-    return;
-  }
-
-  try{
-    showLoading();
-    await apiFetch('/api/auth/me/password', 'POST', {
-      old_password: oldPw,
-      new_password: newPw,
-    });
-    showToast('✅ 密码已更新', 'success');
-    closeModal('changePwModal');
-  }catch(e){
-    if(e.message === '旧密码错误' || e.message.indexOf('旧密码') >= 0){
-      showToast('旧密码错误', 'error');
-    }else if(e.message.indexOf('新密码') >= 0 || e.message.indexOf('不合规') >= 0){
-      showToast('新密码不合规', 'error');
-    }else{
-      showToast('修改失败: ' + e.message, 'error');
-    }
-  }finally{
-    hideLoading();
-  }
-});
-
-// ============================================================
-// Edit Profile Modal
-// ============================================================
-var selectedAvatarColor = 0;
-var selectedAvatarKind = 'initials';
-
-function buildAvatarColorPicker(activeIdx){
-  var container = document.getElementById('avatarColorPicker');
-  container.innerHTML = '';
-  AVATAR_COLORS.forEach(function(color, idx){
-    var opt = document.createElement('div');
-    opt.className = 'avatar-color-opt' + (idx === activeIdx ? ' selected' : '');
-    opt.style.background = color;
-    opt.setAttribute('data-idx', idx);
-    opt.setAttribute('title', '颜色 ' + (idx + 1));
-    opt.addEventListener('click', function(){
-      selectedAvatarColor = idx;
-      container.querySelectorAll('.avatar-color-opt').forEach(function(o){ o.classList.remove('selected'); });
-      opt.classList.add('selected');
-    });
-    container.appendChild(opt);
-  });
-}
-
-document.querySelectorAll('#avatarKindGroup .avatar-kind-opt').forEach(function(opt){
-  opt.addEventListener('click', function(){
-    selectedAvatarKind = this.dataset.value;
-    document.querySelectorAll('#avatarKindGroup .avatar-kind-opt').forEach(function(o){ o.classList.remove('selected'); });
-    this.classList.add('selected');
-  });
-});
-
-profileDropdownEl.addEventListener('profile-dropdown:edit-profile', function(){
-  if(!currentUser) return;
-  var nickname = currentUser.nickname || currentUser.username || '';
-  document.getElementById('editNickname').value = nickname;
-  selectedAvatarColor = (typeof currentUser.avatar_color === 'number') ? currentUser.avatar_color : 0;
-  selectedAvatarKind = currentUser.avatar_kind || 'initials';
-  buildAvatarColorPicker(selectedAvatarColor);
-  document.querySelectorAll('#avatarKindGroup .avatar-kind-opt').forEach(function(o){
-    o.classList.toggle('selected', o.dataset.value === selectedAvatarKind);
-  });
-  openModal('editProfileModal');
-  document.getElementById('editNickname').focus();
-});
-
-document.getElementById('confirmEditProfileBtn').addEventListener('click', async function(){
-  var nickname = document.getElementById('editNickname').value.trim();
-  if(!nickname){
-    showToast('昵称不能为空', 'error');
-    return;
-  }
-  if(nickname.length > 32){
-    showToast('昵称最多 32 个字符', 'error');
-    return;
-  }
-
-  var body = {
-    nickname: nickname,
-    avatar_color: selectedAvatarColor,
-  };
-  if(selectedAvatarKind !== 'initials'){
-    body.avatar_kind = selectedAvatarKind;
-  }
-
-  try{
-    showLoading();
-    var result = await apiFetch('/api/auth/me/profile', 'PUT', body);
-     currentUser.nickname = result.nickname;
-     currentUser.avatar_color = result.avatar_color;
-     currentUser.avatar_kind = result.avatar_kind;
-     // Refresh profile dropdown instead of re-mounting
-     var pdContainer = document.getElementById('profileDropdown');
-     pdContainer.innerHTML = ''; // Clear previous content
-     ProfileDropdown.mount(document.getElementById('profileDropdown'), {
-       userData: currentUser,
-       onLogout: function(){},
-     });
-     showToast('✅ 资料已更新', 'success');
-    closeModal('editProfileModal');
-  }catch(e){
-    showToast('更新失败: ' + e.message, 'error');
-  }finally{
-    hideLoading();
-  }
+  }catch(_){}
+  window.location.href = '/static/login.html';
 });
 
 // ============================================================
