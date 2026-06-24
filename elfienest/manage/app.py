@@ -29,6 +29,8 @@ from .auth import (
 from .store import get_db, init_db, migrate_db_if_needed, seed_initial_admin_if_env_set
 from .ws_gateway import AuthenticatedWSManager
 
+from runtime.data_home import get_db_path as _get_db_path
+
 from pydantic import BaseModel, Field  # noqa: E402
 from typing import Optional  # noqa: E402
 
@@ -81,7 +83,7 @@ def verify_csrf_for_session(request: Request) -> None:
 
 def create_app(
     engine: Any = None,
-    db_path: str = "data/nest.db",
+    db_path: str = None,
     ws_port: int = 8766,
 ) -> FastAPI:
     """Create and configure the FastAPI application.
@@ -96,6 +98,8 @@ def create_app(
     Returns:
         A fully configured :class:`FastAPI` instance.
     """
+    if db_path is None:
+        db_path = str(_get_db_path())
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -458,5 +462,18 @@ def create_app(
     from .user_routes import router as user_router  # noqa: PLC0415
 
     app.include_router(user_router)
+
+    # -------------------------------------------------------------------
+    # LLM Config 路由 (Provider/Model/Route 管理)
+    # -------------------------------------------------------------------
+    from .provider_routes import router as provider_router  # noqa: PLC0415
+
+    app.include_router(provider_router)
+    from .model_admin_routes import router as model_admin_router  # noqa: PLC0415
+
+    app.include_router(model_admin_router)
+    from .route_routes import router as route_router  # noqa: PLC0415
+
+    app.include_router(route_router)
 
     return app
