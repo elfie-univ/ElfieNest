@@ -13,6 +13,16 @@
     --port          HTTP 端口（默认 8000）
     --ws-port       鉴权 WebSocket 端口（默认 8766）
     --no-seed-elfie 不自动 seed 初始精灵
+    --force         强制重启（杀死占用端口的进程）
+
+CLI 工具:
+    python3 scripts/elfie.py config    打开配置 TUI
+    python3 scripts/elfie.py models    列出可用模型
+    python3 scripts/elfie.py providers 管理 providers
+    python3 scripts/elfie.py status    查看服务状态
+    python3 scripts/elfie.py setup     首次设置向导
+    python3 scripts/elfie.py restart   重启服务
+    python3 scripts/elfie.py stop      停止服务
 """
 import argparse
 import logging
@@ -196,7 +206,83 @@ def main():
         action="store_true",
         help="不自动 seed 初始精灵",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="强制重启：杀死占用端口的进程",
+    )
     args = parser.parse_args()
+
+    # 检测端口是否被占用
+    import socket
+    import subprocess
+    
+    def is_port_in_use(port):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            return s.connect_ex(('127.0.0.1', port)) == 0
+    
+    def kill_process_on_port(port):
+        """杀死占用指定端口的进程"""
+        try:
+            result = subprocess.run(
+                ['lsof', '-ti', f':{port}'],
+                capture_output=True,
+                text=True
+            )
+            pids = result.stdout.strip().split('\n')
+            killed = []
+            for pid in pids:
+                if pid:
+                    try:
+                        subprocess.run(['kill', '-9', pid], check=True)
+                        killed.append(pid)
+                    except:
+                        pass
+            return killed
+        except:
+            return []
+    
+    ports_to_check = [
+        (args.port, "HTTP"),
+        (args.ws_port, "WebSocket"),
+        (8765, "Godot WebSocket"),
+        (8767, "音频服务器"),
+    ]
+    
+    occupied = []
+    for port, name in ports_to_check:
+        if is_port_in_use(port):
+            occupied.append((port, name))
+    
+    if occupied:
+        if args.force:
+            print("\n" + "=" * 56)
+            print("  🔄 强制重启模式：正在终止占用端口的进程...")
+            print("=" * 56)
+            for port, name in occupied:
+                pids = kill_process_on_port(port)
+                if pids:
+                    print(f"  ✓ 端口 {port} ({name}): 已终止进程 PID {', '.join(pids)}")
+                else:
+                    print(f"  ⚠ 端口 {port} ({name}): 无法终止")
+            print()
+            time.sleep(1)
+        else:
+            print("\n" + "=" * 56)
+            print("  ⚠️  端口冲突，无法启动服务")
+            print("=" * 56)
+            for port, name in occupied:
+                print(f"  ❌ 端口 {port} ({name}) 已被占用")
+            print("\n  💡 解决方法:")
+            print("     1. 强制重启（自动杀死占用进程）:")
+            print("        ./dev.sh --force")
+            print("        或")
+            print("        elfie --force")
+            print("     2. 手动关闭后重试")
+            print("     3. 使用其他端口:")
+            print("        ./dev.sh --port 8001 --ws-port 8767")
+            print("=" * 56 + "\n")
+            sys.exit(1)
 
     db_path = "data/nest.db"
 
@@ -232,41 +318,38 @@ def main():
             print("  ⚡ 使用内置对话引擎（--fallback 模式）")
         else:
             try:
-                import urllib.request  # noqa: PLC0415
+                from runtime import RuntimeAgent  # noqa: PLC0415
 
-                resp = urllib.request.urlopen(
-                    "http://localhost:11434/api/tags", timeout=2.0
-                )
-                if resp.status == 200:
-                    from runtime import RuntimeAgent  # noqa: PLC0415
+                raw_agent = RuntimeAgent(config)
+                # 调用自愈拉起机制：若已运行直接通过，若没运行则尝试后台启动它
+                raw_agent.ollama_manager.ensure_service_started()
 
-                    raw_agent = RuntimeAgent(config)
-                    runtime_agent = LocalRuntimeAgent(config)
-                    print("  ✅ Ollama 已连接，使用本地大模型 qwen2.5:1.5b")
-                    print("  ⏳ 正在预热模型（首次加载需 10-15 秒）...")
+                runtime_agent = LocalRuntimeAgent(config)
+                print("  ✅ Ollama 已连接，使用本地大模型 qwen2.5:1.5b")
+                print("  ⏳ 正在预热模型（首次加载需 10-15 秒）...")
 
-                    def _warmup():
-                        try:
-                            raw_agent.ask(
-                                "你好",
-                                energy=100,
-                                task_complexity=1,
-                                allowed_skills=[],
-                            )
-                            print("  ✅ 模型预热完成，可以开始聊天了！")
-                        except Exception as e:
-                            print(f"  ⚠️  模型预热异常: {e}")
+                def _warmup():
+                    try:
+                        raw_agent.ask(
+                            "你好",
+                            energy=100,
+                            task_complexity=1,
+                            allowed_skills=[],
+                        )
+                        print("  ✅ 模型预热完成，可以开始聊天了！")
+                    except Exception as e:
+                        print(f"  ⚠️  模型预热异常: {e}")
 
-                    threading.Thread(target=_warmup, daemon=True).start()
+                threading.Thread(target=_warmup, daemon=True).start()
             except Exception:
                 pass
 
         if runtime_agent is None:
             runtime_agent = FallbackAgent()
-            print("  ⚡ Ollama 未检测到，使用内置对话引擎")
+            print("  ⚡ Ollama 自动拉起失败或未安装，使用内置对话引擎")
             print(
-                "  💡 如需真实 AI 回复: "
-                "python3 scripts/serve.py （确保 Ollama 已运行）"
+                "  💡 如需真实 AI 回复，请确认本地已安装 Ollama：\n"
+                "     安装引导: python runtime/setup_runtime.py"
             )
 
         # 音频服务器使用 8767 端口，避免与 uvicorn HTTP 端口冲突

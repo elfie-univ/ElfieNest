@@ -440,6 +440,117 @@ border:2px solid var(--border-subtle);border-top-color:var(--accent);
 border-radius:50%;animation:spin .7s linear infinite;
 }
 @keyframes spin{to{transform:rotate(360deg)}}
+/* ── Modals (T14) ── */
+.modal-overlay{
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.6);
+  z-index:200;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+}
+.modal-overlay.visible{display:flex}
+.modal-card{
+  background:var(--bg-secondary);
+  border:1px solid var(--border-subtle);
+  border-radius:var(--radius);
+  padding:28px;
+  width:100%;
+  max-width:460px;
+  box-shadow:var(--shadow-md);
+  max-height:90vh;
+  overflow-y:auto;
+}
+.modal-card h3{
+  font-size:16px;
+  font-weight:600;
+  margin-bottom:4px;
+}
+.modal-card p.desc{
+  font-size:13px;
+  color:var(--text-secondary);
+  margin-bottom:20px;
+}
+.modal-actions{
+  display:flex;
+  gap:10px;
+  justify-content:flex-end;
+  margin-top:20px;
+}
+.pw-field-wrap{
+  position:relative;
+}
+.pw-field-wrap input:not([type]){padding-right:36px}
+.pw-field-wrap input[type="text"]{padding-right:36px}
+.pw-field-wrap input[type="password"]{padding-right:36px}
+.pw-toggle{
+  position:absolute;
+  right:8px;
+  top:50%;
+  transform:translateY(-50%);
+  background:none;
+  border:none;
+  color:var(--text-secondary);
+  cursor:pointer;
+  font-size:14px;
+  padding:2px;
+  line-height:1;
+}
+.pw-toggle:hover{color:var(--text-primary)}
+.avatar-color-picker{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:4px;
+}
+.avatar-color-opt{
+  width:36px;height:36px;
+  border-radius:50%;
+  border:2px solid transparent;
+  cursor:pointer;
+  transition:border-color .15s,transform .12s;
+  position:relative;
+  display:flex;align-items:center;justify-content:center;
+}
+.avatar-color-opt:hover{transform:scale(1.1)}
+.avatar-color-opt.selected{
+  border-color:#fff;
+  transform:scale(1.1);
+}
+.avatar-color-opt.selected::after{
+  content:'✓';
+  color:#fff;
+  font-size:14px;
+  font-weight:700;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  height:100%;
+  text-shadow:0 1px 2px rgba(0,0,0,0.5);
+}
+.avatar-kind-group{
+  display:flex;gap:10px;margin-top:4px;
+}
+.avatar-kind-opt{
+  flex:1;
+  padding:8px 12px;
+  background:var(--bg-input);
+  border:2px solid var(--border-subtle);
+  border-radius:var(--radius-sm);
+  cursor:pointer;
+  text-align:center;
+  font-size:13px;
+  transition:all .15s;
+  user-select:none;
+}
+.avatar-kind-opt:hover{border-color:var(--accent)}
+.avatar-kind-opt.selected{
+  border-color:var(--accent);
+  background:rgba(108,124,247,0.1);
+  color:var(--accent);
+}
 /* ── Responsive ── */
 @media(max-width:600px){
 .card-grid{grid-template-columns:1fr}
@@ -560,6 +671,67 @@ border-radius:50%;animation:spin .7s linear infinite;
 </div>
 
 <script src="/static/assets/profile-dropdown.js"></script>
+
+<!-- ─── T14: Change Password Modal ─── -->
+<div class="modal-overlay" id="changePwModal">
+  <div class="modal-card">
+    <h3>修改密码</h3>
+    <p class="desc">更新你的登录密码</p>
+    <div class="form-group">
+      <label for="oldPw">旧密码</label>
+      <div class="pw-field-wrap">
+        <input type="password" id="oldPw" placeholder="请输入旧密码" autocomplete="current-password" />
+        <button type="button" class="pw-toggle" data-target="oldPw" aria-label="显示密码">👁</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="newPw">新密码</label>
+      <div class="pw-field-wrap">
+        <input type="password" id="newPw" placeholder="至少 6 个字符" autocomplete="new-password" />
+        <button type="button" class="pw-toggle" data-target="newPw" aria-label="显示密码">👁</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="confirmPw">确认新密码</label>
+      <div class="pw-field-wrap">
+        <input type="password" id="confirmPw" placeholder="再次输入新密码" autocomplete="new-password" />
+        <button type="button" class="pw-toggle" data-target="confirmPw" aria-label="显示密码">👁</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="card-btn card-btn-config modal-close" data-modal="changePwModal">取消</button>
+      <button class="card-btn card-btn-chat" id="confirmChangePwBtn">确认修改</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── T14: Edit Profile Modal ─── -->
+<div class="modal-overlay" id="editProfileModal">
+  <div class="modal-card">
+    <h3>编辑资料</h3>
+    <p class="desc">修改你的昵称和头像颜色</p>
+    <div class="form-group">
+      <label for="editNickname">昵称</label>
+      <input type="text" id="editNickname" placeholder="输入昵称（最多 32 字）" maxlength="32" />
+    </div>
+    <div class="form-group">
+      <label>头像颜色</label>
+      <div class="avatar-color-picker" id="avatarColorPicker"></div>
+    </div>
+    <div class="form-group">
+      <label>头像类型</label>
+      <div class="avatar-kind-group" id="avatarKindGroup">
+        <div class="avatar-kind-opt selected" data-value="initials">首字母</div>
+        <div class="avatar-kind-opt" data-value="emoji">表情</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="card-btn card-btn-config modal-close" data-modal="editProfileModal">取消</button>
+      <button class="card-btn card-btn-chat" id="confirmEditProfileBtn">保存</button>
+    </div>
+  </div>
+</div>
+
 <script>
 (function(){
 'use strict';
@@ -1145,6 +1317,187 @@ async function saveConfig() {
     }
 }
 
+// ─────────────── T14: Modal Helpers ───────────────
+const AVATAR_COLORS = [
+  '#ef4444','#f97316','#eab308','#22c55e',
+  '#06b6d4','#3b82f6','#a855f7','#ec4899',
+];
+
+function openModal(id){ document.getElementById(id).classList.add('visible'); }
+function closeModal(id){ document.getElementById(id).classList.remove('visible'); }
+document.querySelectorAll('.modal-close').forEach(function(btn){
+  btn.addEventListener('click', function(){ closeModal(this.dataset.modal); });
+});
+document.querySelectorAll('.modal-overlay').forEach(function(overlay){
+  overlay.addEventListener('click', function(e){
+    if(e.target === this) this.classList.remove('visible');
+  });
+});
+
+// ─────────────── T14: Password toggle ───────────────
+document.querySelectorAll('.pw-toggle').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var input = document.getElementById(this.dataset.target);
+    if(!input) return;
+    if(input.type === 'password'){
+      input.type = 'text';
+      this.textContent = '🔒';
+    }else{
+      input.type = 'password';
+      this.textContent = '👁';
+    }
+  });
+});
+
+// ─────────────── T14: Change Password Modal ───────────────
+var profileDropdownEl = document.getElementById('profileDropdown');
+profileDropdownEl.addEventListener('profile-dropdown:change-password', function(){
+  document.getElementById('oldPw').value = '';
+  document.getElementById('newPw').value = '';
+  document.getElementById('confirmPw').value = '';
+  document.querySelectorAll('.pw-toggle').forEach(function(b){
+    var t = document.getElementById(b.dataset.target);
+    if(t) t.type = 'password';
+    b.textContent = '👁';
+  });
+  openModal('changePwModal');
+  document.getElementById('oldPw').focus();
+});
+
+document.getElementById('confirmChangePwBtn').addEventListener('click', async function(){
+  var oldPw = document.getElementById('oldPw').value;
+  var newPw = document.getElementById('newPw').value;
+  var confirmPw = document.getElementById('confirmPw').value;
+
+  if(!oldPw || !newPw || !confirmPw){
+    showToast('请填写所有密码字段', 'error');
+    return;
+  }
+  if(newPw.length < 6){
+    showToast('新密码至少需要 6 个字符', 'error');
+    return;
+  }
+  if(newPw === oldPw){
+    showToast('新密码不能与旧密码相同', 'error');
+    return;
+  }
+  if(newPw !== confirmPw){
+    showToast('两次输入的新密码不一致', 'error');
+    return;
+  }
+
+  try{
+    var resp = await apiFetch('/api/auth/me/password', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ old_password: oldPw, new_password: newPw }),
+    });
+    if(!resp.ok){
+      var errData = await resp.json();
+      throw new Error(errData.detail || 'HTTP ' + resp.status);
+    }
+    showToast('✅ 密码已更新', 'success');
+    closeModal('changePwModal');
+  }catch(e){
+    var msg = e.message;
+    if(msg.indexOf('旧密码') >= 0){
+      showToast('旧密码错误', 'error');
+    }else if(msg.indexOf('新密码') >= 0 || msg.indexOf('不合规') >= 0){
+      showToast('新密码不合规', 'error');
+    }else{
+      showToast('修改失败: ' + msg, 'error');
+    }
+  }
+});
+
+// ─────────────── T14: Edit Profile Modal ───────────────
+var selectedAvatarColor = 0;
+var selectedAvatarKind = 'initials';
+
+function buildAvatarColorPicker(activeIdx){
+  var container = document.getElementById('avatarColorPicker');
+  container.innerHTML = '';
+  AVATAR_COLORS.forEach(function(color, idx){
+    var opt = document.createElement('div');
+    opt.className = 'avatar-color-opt' + (idx === activeIdx ? ' selected' : '');
+    opt.style.background = color;
+    opt.setAttribute('data-idx', idx);
+    opt.setAttribute('title', '颜色 ' + (idx + 1));
+    opt.addEventListener('click', function(){
+      selectedAvatarColor = idx;
+      container.querySelectorAll('.avatar-color-opt').forEach(function(o){ o.classList.remove('selected'); });
+      opt.classList.add('selected');
+    });
+    container.appendChild(opt);
+  });
+}
+
+document.querySelectorAll('#avatarKindGroup .avatar-kind-opt').forEach(function(opt){
+  opt.addEventListener('click', function(){
+    selectedAvatarKind = this.dataset.value;
+    document.querySelectorAll('#avatarKindGroup .avatar-kind-opt').forEach(function(o){ o.classList.remove('selected'); });
+    this.classList.add('selected');
+  });
+});
+
+profileDropdownEl.addEventListener('profile-dropdown:edit-profile', function(){
+  if(!currentUser) return;
+  var nickname = currentUser.nickname || currentUser.username || '';
+  document.getElementById('editNickname').value = nickname;
+  selectedAvatarColor = (typeof currentUser.avatar_color === 'number') ? currentUser.avatar_color : 0;
+  selectedAvatarKind = currentUser.avatar_kind || 'initials';
+  buildAvatarColorPicker(selectedAvatarColor);
+  document.querySelectorAll('#avatarKindGroup .avatar-kind-opt').forEach(function(o){
+    o.classList.toggle('selected', o.dataset.value === selectedAvatarKind);
+  });
+  openModal('editProfileModal');
+  document.getElementById('editNickname').focus();
+});
+
+document.getElementById('confirmEditProfileBtn').addEventListener('click', async function(){
+  var nickname = document.getElementById('editNickname').value.trim();
+  if(!nickname){
+    showToast('昵称不能为空', 'error');
+    return;
+  }
+  if(nickname.length > 32){
+    showToast('昵称最多 32 个字符', 'error');
+    return;
+  }
+
+  var body = { nickname: nickname, avatar_color: selectedAvatarColor };
+  if(selectedAvatarKind !== 'initials'){
+    body.avatar_kind = selectedAvatarKind;
+  }
+
+  try{
+    var resp = await apiFetch('/api/auth/me/profile', {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    if(!resp.ok){
+      var errData = await resp.json();
+      throw new Error(errData.detail || 'HTTP ' + resp.status);
+    }
+    var result = await resp.json();
+    currentUser.nickname = result.nickname;
+    currentUser.avatar_color = result.avatar_color;
+    currentUser.avatar_kind = result.avatar_kind;
+    ProfileDropdown.mount(document.getElementById('profileDropdown'), {
+      userData: currentUser,
+      onLogout: function(){
+        localStorage.removeItem('csrf_token');
+        localStorage.removeItem('session_token');
+      },
+    });
+    showToast('✅ 资料已更新', 'success');
+    closeModal('editProfileModal');
+  }catch(e){
+    showToast('更新失败: ' + e.message, 'error');
+  }
+});
+
 // ─────────────── Init ───────────────
 async function init() {
     const user = await checkAuth();
@@ -1169,6 +1522,11 @@ window.saveConfig = saveConfig;
 window.switchConfigTab = switchConfigTab;
 window.openAdopt = openAdopt;
 window.selectAnatomy = selectAnatomy;
+
+// 检查是否在 iframe 中嵌入，隐藏 nav-bar
+if (window.location.search.includes('embed=1') || window !== window.top) {
+    document.querySelector('.nav-bar').style.display = 'none';
+}
 
 init();
 

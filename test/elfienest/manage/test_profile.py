@@ -85,7 +85,7 @@ class TestMe:
         assert set(data.keys()) == {
             "id", "username", "role", "nickname",
             "avatar_color", "avatar_kind", "csrf_token",
-            "created_at", "elfie_count",
+            "created_at", "elfie_count", "session_token",
         }
         assert data["id"] == 1
         assert data["username"] == "admin"
