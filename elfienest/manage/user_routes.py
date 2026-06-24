@@ -15,6 +15,8 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from runtime.data_home import get_elfie_config_dir
+
 from .adoption import ElfieGenerator
 from .adoption_config import (
     get_allowed_anatomy_types,
@@ -271,7 +273,7 @@ async def adopt_elfie(
     # 生成 elfie_id & config_dir
     # ------------------------------------------------------------------
     elfie_id = f"elfie_{int(time.time())}_{secrets.token_hex(2)}"
-    config_dir = f"data/elfies/{elfie_id}"
+    config_dir = str(get_elfie_config_dir(elfie_id))
 
     # 调用 ElfieGenerator 生成 3 个 YAML 配置文件
     try:

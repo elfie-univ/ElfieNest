@@ -18,6 +18,8 @@ import websockets.asyncio.server
 from .auth import verify_session
 from .store import get_db
 
+from runtime.data_home import get_db_path as _get_db_path
+
 logger = logging.getLogger("elfienest.manage.ws_gateway")
 
 
@@ -35,11 +37,11 @@ class AuthenticatedWSManager:
         self,
         host: str = "127.0.0.1",
         port: int = 8766,
-        db_path: str = "data/nest.db",
+        db_path: str = None,
     ) -> None:
         self.host = host
         self.port = port
-        self.db_path = db_path
+        self.db_path = db_path if db_path is not None else str(_get_db_path())
 
         # user_id -> Set[websocket] 映射
         self.connections: Dict[int, Set[Any]] = {}

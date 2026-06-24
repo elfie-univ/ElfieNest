@@ -12,6 +12,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+from runtime.data_home import get_elfie_home
+
 from .node_types import Edge, MemoryNode
 from .tokenizer import tokenize
 
@@ -23,12 +25,7 @@ class GraphStorage:
 
     def __init__(self, db_path: Optional[str] = None):
         if db_path is None:
-            # 默认保存在 data/ 目录下的 graph_memory.db
-            current_dir = Path(__file__).resolve().parent
-            project_root = current_dir.parent.parent.parent
-            data_dir = project_root / "data"
-            data_dir.mkdir(exist_ok=True)
-            db_path = str(data_dir / "graph_memory.db")
+            db_path = str(get_elfie_home() / "graph_memory.db")
         self.db_path = db_path
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row

@@ -248,7 +248,7 @@ async def delete_user(
     """删除用户。
 
     级联删除该用户名下的精灵（从 elfie_registry 删除记录）。
-    精灵配置目录 ``data/elfies/<elfie_id>/`` 保留以便恢复。
+    精灵配置目录 ``~/.elfienest/elfies/<elfie_id>/`` 保留以便恢复。
 
     约束：**不能删除唯一的 admin 用户**。
     """

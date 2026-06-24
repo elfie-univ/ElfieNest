@@ -1,6 +1,6 @@
 """SQLite 持久化层 — users/sessions/elfie_registry 表 + seed admin。
 
-首次启动自动创建 data/nest.db，含 3 张表。
+首次启动自动创建 nest.db，含 3 张表。
 提供 get_db() 上下文管理器保证线程安全连接。
 """
 
@@ -12,6 +12,8 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator, Optional
+
+from runtime.data_home import get_db_path as _get_db_path
 
 logger = logging.getLogger("elfienest.manage.store")
 
@@ -86,7 +88,7 @@ def init_db(db_path: Optional[str] = None) -> str:
         The resolved absolute path of the database file.
     """
     if db_path is None:
-        db_path = "data/nest.db"
+        db_path = str(_get_db_path())
 
     resolved = Path(db_path).resolve()
     resolved.parent.mkdir(parents=True, exist_ok=True)
@@ -160,8 +162,10 @@ def _migrate_v1_to_v2(conn: sqlite3.Connection) -> None:
     conn.execute("PRAGMA user_version = 2")
 
 
-def migrate_db_if_needed(db_path: str = "data/nest.db") -> None:
+def migrate_db_if_needed(db_path: str = None) -> None:
     """检查并执行必要的数据库迁移。使用 PRAGMA user_version 跟踪版本。"""
+    if db_path is None:
+        db_path = str(_get_db_path())
     with get_db(db_path) as conn:
         version = conn.execute("PRAGMA user_version").fetchone()[0]
         if version < 1:
@@ -172,7 +176,7 @@ def migrate_db_if_needed(db_path: str = "data/nest.db") -> None:
 
 
 def seed_initial_admin_if_env_set(
-    db_path: str = "data/nest.db",
+    db_path: str = None,
     username_env: str = "ADMIN_USERNAME",
     password_env: str = "ADMIN_PASSWORD",
 ) -> bool:
@@ -181,6 +185,8 @@ def seed_initial_admin_if_env_set(
     Returns:
         True 如果创建了管理员，False 如果环境变量未设置或用户已存在。
     """
+    if db_path is None:
+        db_path = str(_get_db_path())
     username = os.environ.get(username_env, "")
     password = os.environ.get(password_env, "")
 
@@ -216,7 +222,7 @@ def seed_admin(db_path: Optional[str] = None) -> None:
         DeprecationWarning,
         stacklevel=2,
     )
-    seed_initial_admin_if_env_set(db_path=db_path or "data/nest.db")
+    seed_initial_admin_if_env_set(db_path=db_path or str(_get_db_path()))
 
 
 # ---------------------------------------------------------------------------
@@ -239,7 +245,7 @@ def get_db(db_path: Optional[str] = None) -> Iterator[sqlite3.Connection]:
         :class:`sqlite3.Row` and ``PRAGMA foreign_keys = ON``.
     """
     if db_path is None:
-        db_path = "data/nest.db"
+        db_path = str(_get_db_path())
 
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
@@ -262,7 +268,7 @@ def count_elfies_by_owner(user_id: int, db_path: Optional[str] = None) -> int:
 
     Args:
         user_id: The user's database ``id``.
-        db_path: Path to the SQLite database file.  Defaults to ``data/nest.db``.
+        db_path: Path to the SQLite database file.  Defaults to ``~/.elfienest/nest.db``.
 
     Returns:
         Elfie count for the given owner.

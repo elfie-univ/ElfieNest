@@ -40,6 +40,7 @@ from elfienest.manage.adoption import ElfieGenerator
 from elfienest.manage.app import create_app
 from elfienest.manage.store import get_db, init_db, migrate_db_if_needed, seed_initial_admin_if_env_set
 from runtime import LLMRuntimeConfig
+from runtime.data_home import get_db_path, get_elfie_config_dir
 
 
 class LocalRuntimeAgent:
@@ -148,7 +149,7 @@ def seed_single_elfie(db_path: str) -> bool:
 
     admin_id = admin_row["id"]
     elfie_id = "艾菲"
-    config_dir = f"data/elfies/{elfie_id}"
+    config_dir = str(get_elfie_config_dir(elfie_id))
 
     ElfieGenerator().generate(
         name="艾菲",
@@ -284,7 +285,7 @@ def main():
             print("=" * 56 + "\n")
             sys.exit(1)
 
-    db_path = "data/nest.db"
+    db_path = str(get_db_path())
 
     # 1. 初始化数据库 + 迁移 + 从环境变量 seed admin
     init_db(db_path)

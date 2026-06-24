@@ -70,10 +70,12 @@ class TestWsGatewayInstantiation:
 
     def test_default_params(self) -> None:
         """默认参数实例化。"""
+        from runtime.data_home import get_db_path
+
         m = AuthenticatedWSManager()
         assert m.host == "127.0.0.1"
         assert m.port == 8766
-        assert m.db_path == "data/nest.db"
+        assert m.db_path == str(get_db_path())
         assert hasattr(m, "connections")
         assert isinstance(m.connections, dict)
         assert not m._running

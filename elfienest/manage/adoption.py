@@ -3,6 +3,7 @@
 Usage::
 
     from elfienest.manage.adoption import ElfieGenerator
+    from runtime.data_home import get_elfie_config_dir
 
     gen = ElfieGenerator()
     result = gen.generate(
@@ -11,7 +12,7 @@ Usage::
         personality_style="好奇探索",
         height="tall",
         build="plump",
-        config_dir="data/elfies/elfie_001",
+        config_dir=str(get_elfie_config_dir("elfie_001")),
         elfie_id="elfie_001",
     )
 """

@@ -19,6 +19,8 @@ from .store import get_db
 from .store import hash_password as hash_password  # noqa: F401
 from .store import verify_password as verify_password  # noqa: F401
 
+from runtime.data_home import get_db_path as _get_db_path
+
 logger = logging.getLogger("elfienest.manage.auth")
 
 # ---------------------------------------------------------------------------
@@ -90,12 +92,14 @@ def invalidate_session_cache() -> None:
     pass
 
 
-def create_session(user_id: int, db_path: str = "data/nest.db") -> str:
+def create_session(user_id: int, db_path: str = None) -> str:
     """为 *user_id* 创建新 session，返回 64 字符 hex token。
 
     生成 32 字节随机 token（secrets.token_hex），插入 ``sessions`` 表，
     ``expires_at`` 设为当前时间 + ``system.security.session_ttl_days`` 天。
     """
+    if db_path is None:
+        db_path = str(_get_db_path())
     token = secrets.token_hex(32)
     expires_at = time.time() + get_session_ttl_seconds(db_path)
 
@@ -110,7 +114,7 @@ def create_session(user_id: int, db_path: str = "data/nest.db") -> str:
     return token
 
 
-def verify_session(token: str, db_path: str = "data/nest.db") -> Optional[Dict[str, Any]]:
+def verify_session(token: str, db_path: str = None) -> Optional[Dict[str, Any]]:
     """验证 *token* 对应的 session 是否有效且未过期。
 
     检查 sessions 表 + JOIN users 表获取用户信息。
@@ -137,8 +141,10 @@ def verify_session(token: str, db_path: str = "data/nest.db") -> Optional[Dict[s
     return {"id": row["id"], "username": row["username"], "role": row["role"]}
 
 
-def delete_session(token: str, db_path: str = "data/nest.db") -> None:
+def delete_session(token: str, db_path: str = None) -> None:
     """从 ``sessions`` 表中删除 *token* 对应的 session。"""
+    if db_path is None:
+        db_path = str(_get_db_path())
     with get_db(db_path) as conn:
         conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
         conn.commit()
