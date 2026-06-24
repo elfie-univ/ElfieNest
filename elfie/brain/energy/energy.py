@@ -63,15 +63,33 @@ class HypothalamusEnergy:
                     f"💤 [生理钟休眠熔断] 疲劳度达到临界值 {self.fatigue:.1f}%，精灵强制闭眼休眠！"
                 )
 
-    def consume_energy_by_action(self, is_remote: bool):
-        """执行大脑思考动作会额外扣减精力"""
-        cost = (
-            self.energy_config.get("depletion_per_remote_chat", 2.5)
-            if is_remote
-            else self.energy_config.get("depletion_per_local_chat", 0.5)
-        )
+    def consume_energy_by_action(
+        self, is_remote: bool = False, token_count: int = 0, cost_tier: int = 1
+    ):
+        """执行大脑思考动作会额外扣减精力
+        
+        支持两种调用方式：
+        1. 旧方式: consume_energy_by_action(is_remote=True)  — 向后兼容
+        2. 新方式: consume_energy_by_action(token_count=1500, cost_tier=3)  — 基于 token 精确计算
+        
+        Args:
+            is_remote: 是否使用云端模型（旧方式）
+            token_count: 本次消耗的 token 数量（新方式）
+            cost_tier: 消费层级 (1=低成本本地, 2=中等成本, 3=高成本云端)
+        """
+        if token_count > 0:
+            # 基于 token 精确计算消耗
+            base_cost = self.energy_config.get("depletion_per_remote_chat", 2.5)
+            cost = base_cost * (token_count / 1000.0) * (cost_tier / 2.0)
+        else:
+            # 旧方式：固定消耗
+            cost = (
+                self.energy_config.get("depletion_per_remote_chat", 2.5)
+                if is_remote
+                else self.energy_config.get("depletion_per_local_chat", 0.5)
+            )
         self.energy = max(self.energy - cost, 0.0)
-        logger.info(f"⚡ [动作耗能] 消耗 {cost} 能量，当前精力剩余: {self.energy:.1f}%")
+        logger.info(f"⚡ [动作耗能] 消耗 {cost:.2f} 能量，当前精力剩余: {self.energy:.1f}%")
 
     def get_energy(self) -> float:
         return self.energy
