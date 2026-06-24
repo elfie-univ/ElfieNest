@@ -12,11 +12,381 @@ from runtime.model_registry import ModelRegistry
 from runtime.model_router import ModelRouter
 from runtime.ollama_manager import OllamaManager, OllamaNotReadyError
 from runtime.permission_manager import PermissionManager
+from runtime.token_tracker import get_token_tracker
 from runtime.plugins.code_sandbox import CodeSandboxPlugin
 from runtime.plugins.skills_evolution import SkillsSelfEvolutionPlugin
 from runtime.plugins.web_search import WebSearchPlugin
 
 logger = logging.getLogger("runtime.agent")
+
+
+# ============================================================================
+# API Mode Detection & Dispatch Functions
+# ============================================================================
+
+
+def _detect_api_mode_for_url(base_url: str) -> str:
+    """根据 base_url 自动检测 API 模式。
+
+    参考 Hermes _detect_api_mode_for_url 模式。
+    """
+    url = base_url.lower().rstrip("/")
+    if "anthropic.com" in url:
+        return "anthropic_messages"
+    if "localhost:11434" in url or "/api/chat" in url:
+        return "ollama"
+    # 默认为 OpenAI chat_completions 兼容格式
+    return "chat_completions"
+
+
+def _call_ollama_api(
+    ollama_host: str,
+    model_name: str,
+    messages: List[Dict[str, Any]],
+    temperature: float,
+    max_tokens: int,
+) -> tuple[str, dict]:
+    """Ollama /api/chat 调用
+    
+    Returns:
+        (response_text, usage_dict) 元组
+        usage_dict 格式: {"prompt_tokens": N, "completion_tokens": N}
+    """
+    headers: Dict[str, str] = {"Content-Type": "application/json"}
+    url = f"{ollama_host}/api/chat"
+    payload = {
+        "model": model_name,
+        "messages": messages,
+        "stream": False,
+        "options": {
+            "temperature": temperature,
+            "num_predict": max_tokens,
+            "think": False,  # ⚠️ 锁死思考模式参数以防止太慢与啰嗦
+        },
+    }
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+
+    try:
+        with urllib.request.urlopen(req, timeout=300) as response:
+            res_data = json.loads(response.read().decode("utf-8"))
+            # Ollama 通常不返回 usage，从 eval_count 估算
+            usage = {}
+            if "eval_count" in res_data:
+                usage = {
+                    "prompt_tokens": res_data.get("prompt_eval_count", 0),
+                    "completion_tokens": res_data.get("eval_count", 0),
+                }
+            return res_data["message"]["content"], usage
+    except Exception as e:
+        logger.error(f"本地 Ollama 调用异常: {e}")
+        raise OllamaNotReadyError(
+            f"❌ 物理层无法连通本地 Ollama 算力服务 (Ollama host: {ollama_host})，错误信息: {e}"
+        ) from e
+
+
+def _call_openai_compatible_api(
+    api_base: str,
+    api_key: str,
+    model_name: str,
+    messages: List[Dict[str, Any]],
+    temperature: float,
+    max_tokens: int,
+    provider: str = "unknown",
+) -> tuple[str, dict]:
+    """OpenAI chat/completions 兼容格式调用
+    
+    Returns:
+        (response_text, usage_dict) 元组
+        usage_dict 格式: {"prompt_tokens": N, "completion_tokens": N, "total_tokens": N}
+    """
+    if not api_base:
+        raise ValueError(
+            f"❌ 未找到大模型服务商 '{provider}' 的有效 API Base 配置！"
+        )
+
+    headers: Dict[str, str] = {"Content-Type": "application/json"}
+    url = f"{api_base}/chat/completions"
+    payload = {
+        "model": model_name,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+
+    try:
+        with urllib.request.urlopen(req, timeout=60) as response:
+            res_data = json.loads(response.read().decode("utf-8"))
+            usage = res_data.get("usage", {})
+            return res_data["choices"][0]["message"]["content"], usage
+    except Exception as e:
+        logger.error(f"云端大模型 API 调用异常: {e}")
+        # 捕获 HTTP 401 等具体报错状态码
+        if isinstance(e, urllib.error.HTTPError):
+            err_msg = e.read().decode("utf-8", errors="ignore")
+            raise RuntimeError(
+                f"❌ 云端大模型接口 ({provider}) 返回 HTTP {e.code} 错误。响应详情: {err_msg}"
+            ) from e
+        raise RuntimeError(
+            f"❌ 物理层无法连通云端大模型服务接口 ({provider}): {e}"
+        ) from e
+
+
+def _call_anthropic_api(
+    api_base: str,
+    api_key: str,
+    model_name: str,
+    messages: List[Dict[str, Any]],
+    temperature: float,
+    max_tokens: int,
+) -> tuple[str, dict]:
+    """Anthropic Messages API 调用
+
+    关键差异：
+    1. x-api-key header（非 Authorization Bearer）
+    2. anthropic-version header（必需）
+    3. system prompt 从 messages 提取为顶层参数
+    4. max_tokens 为必需参数
+    5. 响应格式: response["content"][0]["text"]
+    
+    Returns:
+        (response_text, usage_dict) 元组
+        usage_dict 格式: {"input_tokens": N, "output_tokens": N}
+    """
+    url = f"{api_base.rstrip('/')}/messages"
+
+    # 提取 system prompt
+    system_prompt = ""
+    filtered_messages = []
+    for msg in messages:
+        if msg.get("role") == "system":
+            system_prompt += msg.get("content", "") + "\n"
+        else:
+            filtered_messages.append(msg)
+
+    headers = {
+        "Content-Type": "application/json",
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+    }
+
+    payload = {
+        "model": model_name,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "messages": filtered_messages,
+    }
+    if system_prompt.strip():
+        payload["system"] = system_prompt.strip()
+
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+
+    try:
+        with urllib.request.urlopen(req, timeout=60) as response:
+            res_data = json.loads(response.read().decode("utf-8"))
+            usage = res_data.get("usage", {})
+            return res_data["content"][0]["text"], usage
+    except urllib.error.HTTPError as e:
+        err_msg = e.read().decode("utf-8", errors="ignore")
+        raise RuntimeError(
+            f"❌ Anthropic API 返回 HTTP {e.code} 错误。响应详情: {err_msg}"
+        ) from e
+    except Exception as e:
+        raise RuntimeError(
+            f"❌ 物理层无法连通 Anthropic 服务: {e}"
+        ) from e
+
+
+# API 分发表
+_API_DISPATCH = {
+    "ollama": _call_ollama_api,
+    "chat_completions": _call_openai_compatible_api,
+    "anthropic_messages": _call_anthropic_api,
+}
+
+
+# ============================================================================
+# SSE Streaming API Functions (使用 httpx)
+# ============================================================================
+
+
+def _stream_ollama_api(
+    ollama_host: str,
+    model_name: str,
+    messages: List[Dict[str, Any]],
+    temperature: float,
+    max_tokens: int,
+):
+    """Ollama 流式 API — yield 文本 chunk
+    
+    使用 httpx.stream 进行 SSE 流式响应。
+    每行是一个独立的 JSON 对象。
+    """
+    import httpx
+    
+    url = f"{ollama_host.rstrip('/')}/api/chat"
+    payload = {
+        "model": model_name,
+        "messages": messages,
+        "stream": True,
+        "options": {
+            "temperature": temperature,
+            "num_predict": max_tokens,
+            "think": False,  # ⚠️ 锁死思考模式参数
+        },
+    }
+    
+    try:
+        with httpx.stream("POST", url, json=payload, timeout=300) as response:
+            for line in response.iter_lines():
+                if line:
+                    try:
+                        chunk = json.loads(line)
+                        content = chunk.get("message", {}).get("content", "")
+                        if content:
+                            yield content
+                    except json.JSONDecodeError:
+                        # 忽略无法解析的行
+                        continue
+    except Exception as e:
+        logger.error(f"Ollama 流式调用异常: {e}")
+        raise OllamaNotReadyError(
+            f"❌ 物理层无法连通本地 Ollama 算力服务 (Ollama host: {ollama_host})，错误信息: {e}"
+        ) from e
+
+
+def _stream_openai_compatible_api(
+    api_base: str,
+    api_key: str,
+    model_name: str,
+    messages: List[Dict[str, Any]],
+    temperature: float,
+    max_tokens: int,
+    provider: str = "unknown",
+):
+    """OpenAI chat/completions SSE 流式 API — yield 文本 chunk
+    
+    使用 httpx.stream 进行 SSE 流式响应。
+    格式: data: {...}\n\n，最后是 data: [DONE]
+    """
+    import httpx
+    
+    if not api_base:
+        raise ValueError(
+            f"❌ 未找到大模型服务商 '{provider}' 的有效 API Base 配置！"
+        )
+    
+    url = f"{api_base.rstrip('/')}/chat/completions"
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    
+    payload = {
+        "model": model_name,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "stream": True,
+    }
+    
+    try:
+        with httpx.stream("POST", url, json=payload, headers=headers, timeout=60) as response:
+            for line in response.iter_lines():
+                if line.startswith("data: "):
+                    data_str = line[6:]  # 去掉 "data: " 前缀
+                    if data_str.strip() == "[DONE]":
+                        break
+                    try:
+                        chunk = json.loads(data_str)
+                        delta = chunk.get("choices", [{}])[0].get("delta", {})
+                        content = delta.get("content", "")
+                        if content:
+                            yield content
+                    except json.JSONDecodeError:
+                        # 忽略无法解析的行
+                        continue
+    except Exception as e:
+        logger.error(f"云端大模型流式 API 调用异常: {e}")
+        raise RuntimeError(
+            f"❌ 物理层无法连通云端大模型服务接口 ({provider}): {e}"
+        ) from e
+
+
+def _stream_anthropic_api(
+    api_base: str,
+    api_key: str,
+    model_name: str,
+    messages: List[Dict[str, Any]],
+    temperature: float,
+    max_tokens: int,
+):
+    """Anthropic Messages SSE 流式 API — yield 文本 chunk
+    
+    使用 httpx.stream 进行 SSE 流式响应。
+    关键事件类型: content_block_delta，其中 delta.text 包含文本内容。
+    """
+    import httpx
+    
+    url = f"{api_base.rstrip('/')}/messages"
+    
+    # 提取 system prompt
+    system_prompt = ""
+    filtered_messages = []
+    for msg in messages:
+        if msg.get("role") == "system":
+            system_prompt += msg.get("content", "") + "\n"
+        else:
+            filtered_messages.append(msg)
+    
+    headers = {
+        "Content-Type": "application/json",
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+    }
+    
+    payload = {
+        "model": model_name,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "messages": filtered_messages,
+        "stream": True,
+    }
+    if system_prompt.strip():
+        payload["system"] = system_prompt.strip()
+    
+    try:
+        with httpx.stream("POST", url, json=payload, headers=headers, timeout=60) as response:
+            for line in response.iter_lines():
+                if line.startswith("data: "):
+                    data_str = line[6:]  # 去掉 "data: " 前缀
+                    try:
+                        chunk = json.loads(data_str)
+                        if chunk.get("type") == "content_block_delta":
+                            text = chunk.get("delta", {}).get("text", "")
+                            if text:
+                                yield text
+                    except json.JSONDecodeError:
+                        # 忽略无法解析的行
+                        continue
+    except Exception as e:
+        logger.error(f"Anthropic 流式 API 调用异常: {e}")
+        raise RuntimeError(
+            f"❌ 物理层无法连通 Anthropic 服务: {e}"
+        ) from e
+
+
+# SSE 流式 API 分发表
+_STREAM_DISPATCH = {
+    "ollama": _stream_ollama_api,
+    "chat_completions": _stream_openai_compatible_api,
+    "anthropic_messages": _stream_anthropic_api,
+}
 
 
 class UnsupportedModalError(Exception):
@@ -300,6 +670,132 @@ class RuntimeAgent:
             "❌ 算力底座在防幻觉与自进化迭代循环中超出了迭代轮数上限，请精简您的 Prompt 语境。"
         )
 
+    def generate_stream(
+        self,
+        model_key: str,
+        messages: List[Dict[str, Any]],
+        images: List[str] = None,
+        audio: str = None,
+        temperature: float = None,
+        max_tokens: int = None,
+        allowed_skills: List[str] = None,
+        max_loops: int = 1,
+        admin_token: str = None,
+    ):
+        """SSE 流式生成 — yield 文本 chunk，流结束后检查 skill tag
+        
+        与 generate() 完全独立，不影响同步调用链。
+        使用 httpx.stream 进行 SSE 流式响应。
+        
+        ⚠️ 注意：流式模式下不支持多轮推理循环（max_loops 固定为 1），
+        因为流式响应需要实时 yield，无法进行工具回调后的二次请求。
+        """
+        # 1. 校验模型激活状态与多模态兼容性
+        model_info = self.registry.get_model_info(model_key)
+        if not model_info["active"]:
+            raise ValueError(
+                f"❌ 目标模型 Key '{model_key}' 未激活，请核对云端 API Key 或本地配置。"
+            )
+
+        model_name = model_info["name"]
+        provider = model_info["provider"]
+
+        # 检查多模态支持
+        if images and not model_info["is_vision"]:
+            raise UnsupportedModalError(
+                f"❌ 模型 '{model_name}' 不支持处理视觉(图片)多模态输入！"
+            )
+        if audio and not model_info["is_audio"]:
+            raise UnsupportedModalError(
+                f"❌ 模型 '{model_name}' 不支持原生处理音频(语音)多模态输入！"
+            )
+
+        # 2. 运行期快速拉起保障 (如果是本地模型)
+        if provider == "ollama":
+            self.ollama_manager.ensure_service_started()
+
+        # 拷贝 messages 避免外部入参篡改
+        local_messages = [dict(m) for m in messages]
+
+        # 3. 拼装多模态媒体载荷至最新的一条 User Message
+        if images or audio:
+            local_messages = self._assemble_multimodal_payload(
+                local_messages, images, audio, provider
+            )
+
+        # 4. 根据允许的技能，动态向上下文顶部注入防幻觉指令规约
+        if allowed_skills:
+            local_messages = self._inject_skills_system_prompt(
+                local_messages, allowed_skills
+            )
+
+        # 5. 流式生成参数准备
+        temp = temperature if temperature is not None else self.config.temperature
+        tokens = max_tokens if max_tokens is not None else self.config.max_tokens
+
+        # 6. 获取 API 配置与分发函数
+        provider_cfg: Dict[str, Any] = self.config.providers.get(provider, {})
+        api_key = provider_cfg.get("api_key", "")
+        api_base = provider_cfg.get("api_base", "")
+        api_mode = provider_cfg.get("api_mode", "") or _detect_api_mode_for_url(api_base)
+
+        stream_fn = _STREAM_DISPATCH.get(api_mode, _stream_openai_compatible_api)
+
+        logger.info(f"⚡ 大模型底座 SSE 流式交互 (Model: {model_name})...")
+
+        # 7. 流式生成并 yield chunk
+        full_response = ""
+        try:
+            if api_mode == "ollama":
+                stream_generator = stream_fn(
+                    api_base or self.config.ollama_host,
+                    model_name,
+                    local_messages,
+                    temp,
+                    tokens,
+                )
+            elif api_mode == "anthropic_messages":
+                stream_generator = stream_fn(
+                    api_base, api_key, model_name, local_messages, temp, tokens
+                )
+            else:
+                stream_generator = stream_fn(
+                    api_base, api_key, model_name, local_messages, temp, tokens, provider
+                )
+
+            # Yield 每个 chunk 并累积完整响应
+            for chunk in stream_generator:
+                full_response += chunk
+                yield chunk
+
+        except Exception as e:
+            # 流超时或异常：返回部分文本 + 警告
+            if full_response:
+                yield f"\n⚠️ [流式生成中断] 已返回部分响应，错误: {e}"
+            else:
+                yield f"❌ 流式生成失败: {e}"
+            return
+
+        # 8. 流结束后检查 skill tag（仅检测，不执行回调）
+        # ⚠️ 流式模式下不支持工具回调，因为无法进行二次流式请求
+        detected_skills = []
+        if allowed_skills:
+            if "web_search" in allowed_skills and "[SEARCH]" in full_response:
+                detected_skills.append("web_search")
+            if "code_sandbox" in allowed_skills and "[CODE]" in full_response:
+                detected_skills.append("code_sandbox")
+            if "skills_evolution" in allowed_skills:
+                if "[WRITE_SKILL]" in full_response:
+                    detected_skills.append("write_skill")
+                if "[RUN_SKILL]" in full_response:
+                    detected_skills.append("run_skill")
+                if "[LIST_SKILLS]" in full_response:
+                    detected_skills.append("list_skills")
+
+        # 如果检测到技能标签，追加提示信息
+        if detected_skills:
+            yield f"\n⚠️ [流式模式提示] 检测到技能标签: {', '.join(detected_skills)}。流式模式下不支持自动回调执行，请使用 generate() 进行完整工具调用。"
+
     def _assemble_multimodal_payload(
         self,
         messages: List[Dict[str, Any]],
@@ -436,73 +932,25 @@ class RuntimeAgent:
         temperature: float,
         max_tokens: int,
     ) -> str:
-        """底层物理 API 交互，拒绝 Mock，网络异常直接抛出"""
-        headers: Dict[str, str] = {"Content-Type": "application/json"}
-
-        # 0. 动态解析此 provider 的专属 API Key 与 Base 节点
+        """底层 API 分发入口 — 按 api_mode 路由到对应函数
+        
+        内部追踪 token usage 到 TokenTracker，对外仍返回 str（向后兼容）。
+        """
         provider_cfg: Dict[str, Any] = self.config.providers.get(provider, {})
         api_key = provider_cfg.get("api_key", "")
         api_base = provider_cfg.get("api_base", "")
+        api_mode = provider_cfg.get("api_mode", "") or _detect_api_mode_for_url(api_base)
 
-        # 1. 本地 Ollama 算力调用
-        if provider == "ollama":
-            ollama_host = api_base or self.config.ollama_host
-            url = f"{ollama_host}/api/chat"
-            payload = {
-                "model": model_name,
-                "messages": messages,
-                "stream": False,
-                "options": {
-                    "temperature": temperature,
-                    "num_predict": max_tokens,
-                    "think": False,  # ⚠️ 锁死思考模式参数以防止太慢与啰嗦
-                },
-            }
-            data = json.dumps(payload).encode("utf-8")
-            req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        dispatch_fn = _API_DISPATCH.get(api_mode, _call_openai_compatible_api)
 
-            try:
-                with urllib.request.urlopen(req, timeout=300) as response:
-                    res_data = json.loads(response.read().decode("utf-8"))
-                    return res_data["message"]["content"]
-            except Exception as e:
-                logger.error(f"本地 Ollama 调用异常: {e}")
-                raise OllamaNotReadyError(
-                    f"❌ 物理层无法连通本地 Ollama 算力服务 (Ollama host: {ollama_host})，错误信息: {e}"
-                ) from e
-
-        # 2. 远程多模态大模型兼容 OpenAI 格式接口调用
+        if api_mode == "ollama":
+            response_text, usage = dispatch_fn(api_base or self.config.ollama_host, model_name, messages, temperature, max_tokens)
+        elif api_mode == "anthropic_messages":
+            response_text, usage = dispatch_fn(api_base, api_key, model_name, messages, temperature, max_tokens)
         else:
-            if not api_base:
-                raise ValueError(
-                    f"❌ 未找到大模型服务商 '{provider}' 的有效 API Base 配置！"
-                )
+            response_text, usage = dispatch_fn(api_base, api_key, model_name, messages, temperature, max_tokens, provider)
 
-            url = f"{api_base}/chat/completions"
-            payload = {
-                "model": model_name,
-                "messages": messages,
-                "temperature": temperature,
-                "max_tokens": max_tokens,
-            }
-            if api_key:
-                headers["Authorization"] = f"Bearer {api_key}"
+        # 记录 token 使用量
+        get_token_tracker().record(provider, usage)
 
-            data = json.dumps(payload).encode("utf-8")
-            req = urllib.request.Request(url, data=data, headers=headers, method="POST")
-
-            try:
-                with urllib.request.urlopen(req, timeout=60) as response:
-                    res_data = json.loads(response.read().decode("utf-8"))
-                    return res_data["choices"][0]["message"]["content"]
-            except Exception as e:
-                logger.error(f"云端大模型 API 调用异常: {e}")
-                # 捕获 HTTP 401 等具体报错状态码
-                if isinstance(e, urllib.error.HTTPError):
-                    err_msg = e.read().decode("utf-8", errors="ignore")
-                    raise RuntimeError(
-                        f"❌ 云端大模型接口 ({provider}) 返回 HTTP {e.code} 错误。响应详情: {err_msg}"
-                    ) from e
-                raise RuntimeError(
-                    f"❌ 物理层无法连通云端大模型服务接口 ({provider}): {e}"
-                ) from e
+        return response_text
