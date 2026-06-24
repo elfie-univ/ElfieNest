@@ -4,6 +4,11 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Dict
 
+import yaml
+
+from .data_home import get_config_path
+from .provider_profiles import get_default_api_mode
+
 # 🌟 大模型跨服务商算力预设与精选推荐清单
 PROVIDER_RECOMMENDS: Dict[str, Dict[str, Any]] = {
     "deepseek": {
@@ -104,7 +109,7 @@ DEFAULT_SYSTEM_SETTINGS: Dict[str, Dict[str, Any]] = {
 class LLMRuntimeConfig:
     """大模型运行时跨服务商混合算力网格配置"""
 
-    # 1. 多订阅源字典：存储各个 Provider 的 API Key 与 Base 节点 (支持从环境变量加载默认值)
+    # 1. 多订阅源字典：存储各个 Provider 的 API Key、Base 节点、API 模式与状态
     providers: Dict[str, Dict[str, str]] = field(
         default_factory=lambda: {
             "deepseek": {
@@ -112,30 +117,35 @@ class LLMRuntimeConfig:
                 "api_base": os.getenv(
                     "DEEPSEEK_API_BASE", PROVIDER_RECOMMENDS["deepseek"]["api_base"]
                 ),
+                "api_mode": "chat_completions",
             },
             "openai": {
                 "api_key": os.getenv("OPENAI_API_KEY", ""),
                 "api_base": os.getenv(
                     "OPENAI_API_BASE", PROVIDER_RECOMMENDS["openai"]["api_base"]
                 ),
+                "api_mode": "chat_completions",
             },
             "gemini": {
                 "api_key": os.getenv("GEMINI_API_KEY", ""),
                 "api_base": os.getenv(
                     "GEMINI_API_BASE", PROVIDER_RECOMMENDS["gemini"]["api_base"]
                 ),
+                "api_mode": "chat_completions",
             },
             "qwen": {
                 "api_key": os.getenv("QWEN_API_KEY", ""),
                 "api_base": os.getenv(
                     "QWEN_API_BASE", PROVIDER_RECOMMENDS["qwen"]["api_base"]
                 ),
+                "api_mode": "chat_completions",
             },
             "ollama": {
                 "api_key": "",
                 "api_base": os.getenv(
                     "OLLAMA_HOST", PROVIDER_RECOMMENDS["ollama"]["api_base"]
                 ),
+                "api_mode": "ollama",
             },
         }
     )
@@ -171,13 +181,29 @@ class LLMRuntimeConfig:
     )
 
     def __post_init__(self):
-        # 尝试自检测并热加载持久化的本地 JSON 算力配置文件
-        json_path = os.path.join(os.path.dirname(__file__), "runtime_config.json")
-        if os.path.exists(json_path):
+        # 尝试自检测并热加载持久化的本地 YAML 配置文件
+        saved_cfg = None
+        yaml_path = get_config_path()
+        if os.path.exists(yaml_path):
             try:
-                with open(json_path, encoding="utf-8") as f:
-                    saved_cfg = json.load(f)
+                with open(yaml_path, encoding="utf-8") as f:
+                    saved_cfg = yaml.safe_load(f)
+            except Exception:
+                pass
 
+        # 向后兼容：如果 YAML 不存在，尝试加载旧版 JSON 配置
+        if saved_cfg is None:
+            json_path = os.path.join(os.path.dirname(__file__), "runtime_config.json")
+            if os.path.exists(json_path):
+                try:
+                    with open(json_path, encoding="utf-8") as f:
+                        saved_cfg = json.load(f)
+                except Exception:
+                    pass
+
+        # 合并配置到当前实例
+        if saved_cfg is not None:
+            try:
                 # 递归更新 providers 字典以防止局部 key 缺失
                 if "providers" in saved_cfg and isinstance(
                     saved_cfg["providers"], dict
@@ -188,6 +214,11 @@ class LLMRuntimeConfig:
                                 self.providers[provider]["api_key"] = info["api_key"]
                             if "api_base" in info:
                                 self.providers[provider]["api_base"] = info["api_base"]
+                            if "api_mode" in info:
+                                self.providers[provider]["api_mode"] = info["api_mode"]
+                            # status 只有明确设置时才覆盖，否则后面根据 api_key 重新计算
+                            if "status" in info and info["status"] in ("active", "inactive"):
+                                self.providers[provider]["status"] = info["status"]
 
                 # 更新其他字段属性（system 键深层合并，其余直接覆盖）
                 for k, v in saved_cfg.items():
@@ -198,6 +229,23 @@ class LLMRuntimeConfig:
                             setattr(self, k, v)
             except Exception:
                 pass
+
+        # 确保 providers 字典中所有条目都有 api_mode 和 status
+        for provider in self.providers:
+            # api_mode: 从 BUILTIN_PROFILES 获取，未知服务商默认 chat_completions
+            if "api_mode" not in self.providers[provider]:
+                self.providers[provider]["api_mode"] = get_default_api_mode(provider)
+            # status: 如果 saved_cfg 中显式设置了 status，则使用它；否则根据 api_key 计算
+            saved_status = None
+            if saved_cfg and "providers" in saved_cfg:
+                saved_info = saved_cfg["providers"].get(provider, {})
+                if "status" in saved_info and saved_info["status"] in ("active", "inactive"):
+                    saved_status = saved_info["status"]
+            if saved_status:
+                self.providers[provider]["status"] = saved_status
+            else:
+                api_key = self.providers[provider].get("api_key", "")
+                self.providers[provider]["status"] = "active" if api_key or provider == "ollama" else "inactive"
 
         # 同步本地 ollama_host 的最新变更到 providers 字典中
         if self.ollama_host:
