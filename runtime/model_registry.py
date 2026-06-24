@@ -1,4 +1,15 @@
+"""大模型算力池注册中心。
+
+维护模型类型、多模态能力与计费等级元数据。
+
+向后兼容：
+- get_catalog() 返回 5 槽位格式（local_fast, local_vision, remote_cheap, remote_deep, remote_multimodal）
+- 内部使用 ModelCatalog 获取丰富模型元数据
+"""
+
 from typing import Any, Dict
+
+from .model_catalog import ModelCatalog
 
 
 class ModelRegistry:
@@ -6,6 +17,8 @@ class ModelRegistry:
 
     def __init__(self, config):
         self.config = config
+        # 使用新的 ModelCatalog 系统
+        self._catalog = ModelCatalog(config)
 
     def _is_provider_active(self, provider: str) -> bool:
         """检查特定提供商的 API 密钥是否已录入或是否为本地 Ollama"""
@@ -18,6 +31,8 @@ class ModelRegistry:
         """
         获取动态算力注册池清单
         依据当前的 config 动态展示模型的激活状态
+
+        向后兼容：返回 5 槽位格式
         """
         cheap_active = self._is_provider_active(self.config.cheap_provider)
         deep_active = self._is_provider_active(self.config.deep_provider)
@@ -100,3 +115,37 @@ class ModelRegistry:
         if model_key not in catalog:
             raise KeyError(f"模型注册中心未找到指定算力 Key: '{model_key}'")
         return catalog[model_key]
+
+    # ---------------------------------------------------------------
+    # 新增：ModelCatalog 代理方法
+    # ---------------------------------------------------------------
+
+    def get_full_catalog(self) -> "ModelCatalog":
+        """获取完整的 ModelCatalog 实例。
+
+        用于访问所有模型的详细元数据。
+
+        Returns:
+            ModelCatalog 实例
+        """
+        return self._catalog
+
+    def get_visible_models(self) -> Dict[str, Any]:
+        """获取所有可见模型。
+
+        代理到 ModelCatalog.get_visible_models()
+
+        Returns:
+            可见模型字典
+        """
+        return self._catalog.get_visible_models()
+
+    def get_active_models_full(self) -> Dict[str, Any]:
+        """获取所有可用模型（完整元数据）。
+
+        代理到 ModelCatalog.get_active_models()
+
+        Returns:
+            可用模型字典
+        """
+        return self._catalog.get_active_models()
