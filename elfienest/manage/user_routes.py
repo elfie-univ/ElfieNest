@@ -92,11 +92,22 @@ async def list_my_elfies(
     db = request.app.state.db_path
     with get_db(db) as conn:
         cursor = conn.execute(
-            """SELECT elfie_id, name, anatomy_type, personality_style,
-                      height, build, created_at
-               FROM elfie_registry
-               WHERE owner_user_id = ?
-               ORDER BY created_at DESC""",
+            """SELECT e.elfie_id,
+                      e.name,
+                      e.anatomy_type,
+                      e.personality_style,
+                      e.height,
+                      e.build,
+                      e.bed_id,
+                      b.name AS bed_name,
+                      r.id AS room_id,
+                      r.name AS room_name,
+                      e.created_at
+               FROM elfie_registry e
+               LEFT JOIN beds b ON b.id = e.bed_id
+               LEFT JOIN rooms r ON r.id = b.room_id
+               WHERE e.owner_user_id = ?
+               ORDER BY e.created_at DESC""",
             (user["id"],),
         )
         rows = cursor.fetchall()
@@ -108,6 +119,10 @@ async def list_my_elfies(
             "personality_style": r["personality_style"],
             "height": r["height"],
             "build": r["build"],
+            "bed_id": r["bed_id"],
+            "bed_name": r["bed_name"],
+            "room_id": r["room_id"],
+            "room_name": r["room_name"],
             "created_at": r["created_at"],
         }
         for r in rows

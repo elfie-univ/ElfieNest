@@ -2,8 +2,7 @@
 
 所有端点通过 ``Depends(require_admin)`` 保护，密码字段永不出现于响应中。
 
-**注意**: 精灵管理端点 (GET/PUT/DELETE /api/admin/elfies) 已移除。
-管理员通过 /api/user/elfies 管理自己的精灵，不能跨用户操作。
+管理员精灵端点只提供公开元信息列表，不暴露私密聊天与配置内容。
 """
 
 from __future__ import annotations
@@ -155,6 +154,58 @@ async def list_users(
             "elfie_count": r["elfie_count"],
         }
         for r in rows
+    ]
+
+
+@router.get("/elfies")
+async def list_all_elfies(
+    request: Request,
+    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
+) -> list:
+    _ = admin
+    db_path: str = request.app.state.db_path
+    with get_db(db_path) as conn:
+        cursor = conn.execute(
+            """
+            SELECT e.elfie_id,
+                   e.name,
+                   e.owner_user_id,
+                   u.username AS owner_username,
+                   e.anatomy_type,
+                   e.personality_style,
+                   e.height,
+                   e.build,
+                   e.bed_id,
+                   b.name AS bed_name,
+                   r.id AS room_id,
+                   r.name AS room_name,
+                   e.created_at
+            FROM elfie_registry e
+            LEFT JOIN users u ON u.id = e.owner_user_id
+            LEFT JOIN beds b ON b.id = e.bed_id
+            LEFT JOIN rooms r ON r.id = b.room_id
+            ORDER BY e.created_at DESC
+            """,
+        )
+        rows = cursor.fetchall()
+
+    return [
+        {
+            "elfie_id": row["elfie_id"],
+            "name": row["name"],
+            "owner_user_id": row["owner_user_id"],
+            "owner_username": row["owner_username"],
+            "anatomy_type": row["anatomy_type"],
+            "personality_style": row["personality_style"],
+            "height": row["height"],
+            "build": row["build"],
+            "bed_id": row["bed_id"],
+            "bed_name": row["bed_name"],
+            "room_id": row["room_id"],
+            "room_name": row["room_name"],
+            "created_at": row["created_at"],
+        }
+        for row in rows
     ]
 
 

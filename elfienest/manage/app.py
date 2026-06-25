@@ -146,6 +146,7 @@ def create_app(
     # -------------------------------------------------------------------
     templates_dir = Path(__file__).parent / "templates"
     templates_dir.mkdir(parents=True, exist_ok=True)
+
     app.mount("/static", StaticFiles(directory=str(templates_dir)), name="static")
 
     # -------------------------------------------------------------------
@@ -196,18 +197,8 @@ def create_app(
 
     @app.get("/")
     async def root_redirect():
-        """根路径重定向到登录页"""
-        return RedirectResponse(url="/static/login.html", status_code=302)
-
-    @app.get("/setup.html")
-    async def setup_page():
-        """首启向导页面"""
-        return RedirectResponse(url="/static/setup.html", status_code=302)
-
-    @app.get("/login.html")
-    async def login_page():
-        """登录页面"""
-        return RedirectResponse(url="/static/login.html", status_code=302)
+        """根路径重定向到单页应用入口"""
+        return RedirectResponse(url="/static/index.html?v=2", status_code=302)
 
     @app.get("/api/health")
     async def health():
@@ -457,8 +448,12 @@ def create_app(
     # Admin REST API 路由
     # -------------------------------------------------------------------
     from .admin_routes import router as admin_router  # noqa: PLC0415
+    from .nest_routes import router as nest_router  # noqa: PLC0415
+    from .nest_routes import user_router as user_nest_router  # noqa: PLC0415
 
     app.include_router(admin_router)
+    app.include_router(nest_router)
+    app.include_router(user_nest_router)
     from .user_routes import router as user_router  # noqa: PLC0415
 
     app.include_router(user_router)

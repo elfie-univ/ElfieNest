@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="ElfieNest 本地 Agent 精灵管理系统前端控制台原型"
+    />
+    <title>ElfieNest 控制台</title>
+    <link rel="stylesheet" href="/static/elfienest-console.css" />
+    <style>
+      #login-view {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(23, 33, 29, 0.4);
+        backdrop-filter: blur(8px);
+      }
+      .login-card {
+        padding: var(--space-6);
+        width: 100%;
+        max-width: 360px;
+        background: var(--surface-elevated);
+        border: 1px solid var(--border-default);
+        border-radius: var(--radius-3);
+        box-shadow: var(--shadow-overlay);
+      }
+      .login-card h1 { margin-bottom: var(--space-2); font-size: var(--font-h2); text-align: center; }
+      .login-card p { color: var(--text-secondary); margin-bottom: var(--space-5); font-size: var(--font-sm); text-align: center; }
+      .form-group { margin-bottom: var(--space-4); }
+      .form-group label { display: block; margin-bottom: var(--space-2); font-size: var(--font-sm); color: var(--text-secondary); }
+      .form-group input { width: 100%; padding: var(--space-2) var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius-2); background: var(--surface-primary); color: var(--text-primary); }
+      .form-group input:focus { outline: 2px solid var(--accent-primary); outline-offset: -1px; }
+      #login-error { color: var(--status-error); margin-top: 12px; font-size: 14px; display: none; text-align: center; }
+    </style>
+  </head>
+  <body>
+    <div id="login-view">
+        <div class="login-card">
+            <h1>ElfieNest</h1>
+            <p>本地精灵控制台</p>
+            <form id="login-form">
+                <div class="form-group">
+                    <label>用户名</label>
+                    <input type="text" id="username" required>
+                </div>
+                <div class="form-group">
+                    <label>密码</label>
+                    <input type="password" id="password" required>
+                </div>
+                <button type="submit" class="primary-button full">登录</button>
+                <div id="login-error"></div>
+            </form>
+        </div>
+    </div>
+
+    <div class="app-shell" data-role="admin">
+      <aside class="sidebar" aria-label="主导航">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" role="img">
+              <path d="M16 4.5 25.4 10v12L16 27.5 6.6 22V10L16 4.5Z" />
+              <path d="M11.5 13.4 16 10.8l4.5 2.6v5.2L16 21.2l-4.5-2.6v-5.2Z" />
+            </svg>
+          </div>
+          <div>
+            <strong>ElfieNest</strong>
+            <span>本地精灵控制台</span>
+          </div>
+        </div>
+
+        <nav class="nav-list">
+          <span class="nav-group-label">业务管理</span>
+          <button class="nav-item" type="button" data-view="elves">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 3.5 19 7.5v9L12 20.5 5 16.5v-9L12 3.5Z" />
+                <path d="M8.7 9.7 12 7.8l3.3 1.9v4.6L12 16.2l-3.3-1.9V9.7Z" />
+              </svg>
+            </span>
+            精灵管理
+          </button>
+          <button class="nav-item" type="button" data-view="rooms">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M4 10.5 12 5l8 5.5v8H4v-8Z" />
+                <path d="M8 18.5v-5h8v5" />
+                <path d="M9.5 10.8h5" />
+              </svg>
+            </span>
+            精灵巢管理
+          </button>
+          <button class="nav-item admin-only" type="button" data-view="users">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M8 11.4a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" />
+                <path d="M16.5 10.7a2.7 2.7 0 1 0 0-5.4 2.7 2.7 0 0 0 0 5.4Z" />
+                <path d="M3.5 19.2c.6-3 2.2-4.8 4.5-4.8s3.9 1.8 4.5 4.8" />
+                <path d="M13.6 17.8c.7-2 1.8-3.1 3.2-3.1 1.8 0 3.1 1.4 3.7 3.9" />
+              </svg>
+            </span>
+            用户管理
+          </button>
+
+          <span class="nav-group-label admin-only">大模型与粮食</span>
+          <button class="nav-item admin-only" type="button" data-view="providers">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M4 7h16" />
+                <path d="M4 12h16" />
+                <path d="M4 17h10" />
+              </svg>
+            </span>
+            供应商管理
+          </button>
+          <button class="nav-item admin-only" type="button" data-view="models">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
+                <path d="M7 8h10" />
+                <path d="M7 12h10" />
+                <path d="M7 16h6" />
+              </svg>
+            </span>
+            模型管理
+          </button>
+          <button class="nav-item admin-only" type="button" data-view="food">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M4 19h16" />
+                <path d="M6 16l4-4 3 3 5-7" />
+                <path d="M18 8h-4" />
+                <path d="M18 8v4" />
+              </svg>
+            </span>
+            粮食策略
+          </button>
+
+          <span class="nav-group-label admin-only">运行维护</span>
+          <button class="nav-item admin-only" type="button" data-view="overview">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M4 19V5" />
+                <path d="M4 19h16" />
+                <path d="M8 16v-5" />
+                <path d="M12 16V8" />
+                <path d="M16 16v-7" />
+              </svg>
+            </span>
+            综合监控
+          </button>
+          <button class="nav-item admin-only" type="button" data-view="logs">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M5 5h14v14H5z" />
+                <path d="M8 9h8" />
+                <path d="M8 13h8" />
+                <path d="M8 17h5" />
+              </svg>
+            </span>
+            运行日志
+          </button>
+
+          <span class="nav-group-label admin-only">系统设置</span>
+          <button class="nav-item admin-only" type="button" data-view="config">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z" />
+                <path d="M19.2 12a6.9 6.9 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a8.4 8.4 0 0 0-1.7-1L14.7 3h-5.4L9 6.1a8.4 8.4 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.5a6.9 6.9 0 0 0 0 2l-2 1.5 2 3.4 2.4-1a8.4 8.4 0 0 0 1.7 1l.3 3.1h5.4l.3-3.1a8.4 8.4 0 0 0 1.7-1l2.4 1 2-3.4-2-1.5c.1-.3.1-.7.1-1Z" />
+              </svg>
+            </span>
+            系统配置
+          </button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <span>本机服务</span>
+          <strong>HTTP 8000 · WS 8765</strong>
+        </div>
+      </aside>
+
+      <div class="workspace">
+        <header class="topbar">
+          <div>
+            <span class="eyebrow">LOCAL INSTANCE</span>
+            <h1 id="page-title">综合监控</h1>
+          </div>
+          <div class="topbar-actions">
+            <label class="search">
+              <span class="visually-hidden">搜索精灵、用户、配置</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M10.8 18.1a7.3 7.3 0 1 0 0-14.6 7.3 7.3 0 0 0 0 14.6Z" />
+                <path d="m16.2 16.2 4.3 4.3" />
+              </svg>
+              <input id="global-search" type="search" placeholder="搜索精灵、用户、配置" />
+            </label>
+            <button class="icon-button" type="button" title="系统提醒" aria-label="系统提醒" data-open-alerts>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M18 9.8a6 6 0 1 0-12 0c0 7-2.2 7.4-2.2 7.4h16.4S18 16.8 18 9.8Z" />
+                <path d="M9.8 20.1a2.4 2.4 0 0 0 4.4 0" />
+              </svg>
+            </button>
+            <button class="profile-button" type="button" aria-haspopup="menu" data-open-profile-menu>
+              <span class="avatar" id="profile-avatar">林</span>
+              <span>
+                <strong id="profile-name">林澈</strong>
+                <small id="profile-role">管理员</small>
+              </span>
+            </button>
+          </div>
+        </header>
+
+        <main class="main" id="main-content">
+          <section class="view" data-view-panel="overview" aria-labelledby="overview-heading">
+            <div class="section-heading">
+              <div>
+                <h2 id="overview-heading">综合监控</h2>
+                <p>管理员默认入口，用来判断这台机器上的 ElfieNest 是否健康。</p>
+              </div>
+              <button class="ghost-button" type="button" id="refresh-overview">刷新状态</button>
+            </div>
+
+            <div class="metric-row" aria-label="系统概览">
+              <article class="metric-card">
+                <span>CPU 负载</span>
+                <strong>42%</strong>
+                <small>温度 64°C · 正常</small>
+              </article>
+              <article class="metric-card">
+                <span>在线精灵</span>
+                <strong id="metric-overview-active">0</strong>
+                  <small id="metric-overview-total">总计 0 只</small>
+              </article>
+              <article class="metric-card">
+                <span>Godot 连接</span>
+                <strong>1</strong>
+                <small>WebSocket 心跳正常</small>
+              </article>
+            </div>
+
+            <div class="overview-grid">
+              <section class="config-card">
+                <h3>模型服务</h3>
+                <div class="health-list" id="overview-models-list">
+                  <div><span>正在加载</span><mark class="status info">检查中</mark></div>
+                </div>
+              </section>
+              <section class="config-card">
+                <h3>系统提醒</h3>
+                <div class="alert-list">
+                  <article>
+                    <strong>系统运行正常</strong>
+                    <span>各项指标平稳。</span>
+                  </article>
+                </div>
+              </section>
+              <section class="config-card wide">
+                <div class="config-card-head">
+                  <h3>最近运行日志</h3>
+                  <button class="text-button" type="button" data-view-shortcut="logs">查看全部</button>
+                </div>
+                <div class="log-list" id="overview-log-list">
+                  <span>正在读取运行状态。</span>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section class="view" data-view-panel="elves" aria-labelledby="elves-heading">
+            <div class="section-heading">
+              <div>
+                <h2 id="elves-heading">精灵管理</h2>
+                <p id="elves-copy">管理员可看全部精灵卡片；只有拥有者能进入详情、配置和聊天。</p>
+              </div>
+              <button class="primary-button" type="button" data-open-adoption>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5v14" />
+                  <path d="M5 12h14" />
+                </svg>
+                领养新精灵
+              </button>
+            </div>
+
+            <div class="metric-row" aria-label="精灵概览">
+              <article class="metric-card">
+                <span>我的额度</span>
+                <strong>3 / 8</strong>
+                <small>额度内可直接领养，无需审批</small>
+              </article>
+              <article class="metric-card">
+                <span>活跃精灵</span>
+                <strong id="metric-active">0</strong>
+                <small>正在响应或在线待命</small>
+              </article>
+              <article class="metric-card">
+                <span>未分配床位</span>
+                <strong id="metric-unassigned">0</strong>
+                <small>可在精灵巢管理中处理</small>
+              </article>
+            </div>
+
+            <div class="toolbar">
+              <label class="select-wrap filter-admin">
+                <span>范围</span>
+                <select id="scope-filter">
+                  <option value="all">全部</option>
+                  <option value="mine">我的</option>
+                  <option value="others">其他用户</option>
+                </select>
+              </label>
+              <label class="select-wrap filter-admin">
+                <span>拥有者</span>
+                <select id="owner-filter">
+                  <option value="all">全部用户</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="elf-grid" id="elf-grid" aria-live="polite"></div>
+          </section>
+
+          <section class="view detail-view" data-view-panel="elf-detail" aria-labelledby="elf-detail-heading">
+            <div class="section-heading">
+              <div>
+                <button class="text-button" type="button" data-back-to-elves>返回精灵管理</button>
+                <h2 id="elf-detail-heading">精灵详情</h2>
+                <p id="elf-detail-copy">仅主人可查看并管理该精灵的配置与主人聊天记录。</p>
+              </div>
+              <button class="primary-button" type="button">保存配置</button>
+            </div>
+            <div id="elf-detail-content"></div>
+          </section>
+
+          <section class="view" data-view-panel="rooms" aria-labelledby="rooms-heading">
+            <div class="section-heading">
+              <div>
+                <h2 id="rooms-heading">精灵巢管理</h2>
+                <p id="rooms-copy">管理员管理房间布局、床位分配、家具配置和 Godot 视角。</p>
+              </div>
+              <button class="primary-button admin-action" type="button" id="refresh-rooms">刷新房间数据</button>
+            </div>
+
+            <div class="room-shell">
+              <section class="room-map-panel">
+                <div class="config-card-head">
+                  <div>
+                <h3 id="room-map-title">主房间 · 俯视布局</h3>
+                    <p>二维平面图显示床位、桌子、互动热点和精灵当前位置。</p>
+                  </div>
+                  <mark class="status success" id="room-sync-status">Godot 场景可查看</mark>
+                </div>
+                <div class="room-map" aria-label="房间二维布局" id="room-map-render">
+                  <!-- JS injected content -->
+                </div>
+              </section>
+
+              <aside class="room-side">
+                <section class="config-card">
+                  <h3>实时摄像头</h3>
+                  <div class="camera-preview">
+                    <span>Godot Camera · MainRoom</span>
+                    <strong>当前 3D 房间画面</strong>
+                  </div>
+                </section>
+                <section class="config-card">
+                  <h3 id="bed-panel-title">床位分配</h3>
+                  <div class="health-list" id="unassigned-elfies-list">
+                    <!-- JS injected content -->
+                  </div>
+                </section>
+              </aside>
+            </div>
+          </section>
+
+          <section class="view" data-view-panel="providers" aria-labelledby="providers-heading">
+            <div class="section-heading">
+              <div>
+                <h2 id="providers-heading">供应商管理</h2>
+                <p>管理大模型供应商的连通性、API 地址和密钥状态；Ollama 作为本地免费兜底。</p>
+              </div>
+              <button class="ghost-button" type="button" id="refresh-providers">刷新供应商</button>
+            </div>
+            <div class="metric-row" aria-label="供应商概览">
+              <article class="metric-card">
+                <span>已启用供应商</span>
+                <strong id="metric-provider-active">0</strong>
+                <small>包含本地 Ollama</small>
+              </article>
+              <article class="metric-card">
+                <span>需要配置</span>
+                <strong id="metric-provider-missing">0</strong>
+                <small>未填写 API Key 或不可用</small>
+              </article>
+              <article class="metric-card">
+                <span>本地兜底</span>
+                <strong id="metric-provider-local">Ollama</strong>
+                <small>云端故障时继续工作</small>
+              </article>
+            </div>
+            <div class="provider-grid" id="provider-management-grid"></div>
+          </section>
+
+          <section class="view" data-view-panel="models" aria-labelledby="models-heading">
+            <div class="section-heading">
+              <div>
+                <h2 id="models-heading">模型管理</h2>
+                <p>列出所有模型、来源供应商、能力、上下文窗口、成本等级和启用状态。</p>
+              </div>
+              <button class="ghost-button" type="button" id="refresh-models">刷新模型</button>
+            </div>
+            <div class="toolbar">
+              <label class="select-wrap">
+                <span>供应商</span>
+                <select id="model-provider-filter">
+                  <option value="all">全部供应商</option>
+                </select>
+              </label>
+              <label class="select-wrap">
+                <span>状态</span>
+                <select id="model-status-filter">
+                  <option value="all">全部模型</option>
+                  <option value="active">当前可用</option>
+                  <option value="visible">已启用</option>
+                  <option value="hidden">已隐藏</option>
+                </select>
+              </label>
+            </div>
+            <div class="table-panel model-table" id="models-table"></div>
+          </section>
+
+          <section class="view" data-view-panel="food" aria-labelledby="food-heading">
+            <div class="section-heading">
+              <div>
+                <h2 id="food-heading">粮食策略</h2>
+                <p>把底层模型配对到精灵实际消耗的粮食层级：轻量、深度、多模态和本地兜底。</p>
+              </div>
+              <button class="ghost-button" type="button" id="refresh-food">重新读取策略</button>
+            </div>
+            <div class="food-layout">
+              <section class="config-card">
+                <h3>当前配对</h3>
+                <div class="strategy-grid" id="food-strategy-grid"></div>
+              </section>
+              <section class="config-card">
+                <h3>路由参数</h3>
+                <div class="config-grid" id="food-route-grid"></div>
+              </section>
+            </div>
+          </section>
+
+          <section class="view" data-view-panel="logs" aria-labelledby="logs-heading">
+            <div class="section-heading">
+              <div>
+                <h2 id="logs-heading">运行日志</h2>
+                <p>显示 Web 管理服务、模型服务、精灵巢连接和最近告警。完整日志仍以本机脚本为准。</p>
+              </div>
+              <button class="ghost-button" type="button" id="refresh-logs">刷新日志</button>
+            </div>
+            <div class="log-console" id="runtime-log-console"></div>
+          </section>
+
+          <section class="view" data-view-panel="users" aria-labelledby="users-heading">
+            <div class="section-heading">
+              <div>
+                <h2 id="users-heading">用户管理</h2>
+                <p>查看本机用户，管理角色、状态和精灵额度。</p>
+              </div>
+              <button class="primary-button" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5v14" />
+                  <path d="M5 12h14" />
+                </svg>
+                创建用户
+              </button>
+            </div>
+
+            <div class="table-panel">
+              <div class="table-row table-head">
+                <span>用户</span>
+                <span>角色</span>
+                <span>状态</span>
+                <span>最近登录</span>
+                <span>操作</span>
+              </div>
+              <div id="users-table-body">
+                <!-- JS injected content -->
+              </div>
+            </div>
+          </section>
+
+          <section class="view" data-view-panel="config" aria-labelledby="config-heading">
+            <div class="section-heading">
+              <div>
+                <h2 id="config-heading">系统配置</h2>
+                <p>全局底层配置。房间布局已移到精灵巢管理，这里只处理系统能力。</p>
+              </div>
+              <button class="primary-button" type="button" id="refresh-config">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 12.5 9.2 17 19 7" />
+                </svg>
+                重新加载
+              </button>
+            </div>
+
+            <div class="settings-layout">
+              <aside class="settings-tabs" aria-label="系统配置分类">
+                <button class="settings-tab active" type="button" data-config-tab="adoption">领养策略</button>
+                <button class="settings-tab" type="button" data-config-tab="engine">引擎配置</button>
+                <button class="settings-tab" type="button" data-config-tab="security">安全设置</button>
+              </aside>
+
+              <div class="settings-content">
+                <section class="settings-panel active" data-config-panel="adoption" id="config-adoption-panel">
+                  <h3>领养策略</h3>
+                  <div class="provider-grid">
+                    <p>正在加载。</p>
+                  </div>
+                </section>
+                <section class="settings-panel" data-config-panel="engine" id="config-engine-panel">
+                  <h3>引擎设置</h3>
+                  <div class="config-grid">
+                    <p>正在加载。</p>
+                  </div>
+                </section>
+                <section class="settings-panel" data-config-panel="security" id="config-security-panel">
+                  <h3>安全设置</h3>
+                  <div class="config-grid">
+                    <p>正在加载。</p>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <div class="popover profile-menu" id="profile-menu" hidden>
+      <button type="button" data-open-profile>个人信息</button>
+      <button type="button" data-open-profile>修改密码</button>
+      <button type="button">偏好设置</button>
+      <button type="button" class="danger" id="logout-btn">退出登录</button>
+    </div>
+
+    <div class="popover alerts-menu" id="alerts-menu" hidden>
+      <strong>系统提醒</strong>
+      <p>暂无阻断性故障。</p>
+      <div class="alert-list compact">
+      </div>
+    </div>
+
+    <div class="drawer-backdrop" data-close-drawer hidden></div>
+
+    <aside class="drawer" id="adoption-drawer" aria-hidden="true" aria-label="领养新精灵">
+      <div class="drawer-head">
+        <div>
+          <span class="eyebrow">ADOPTION FLOW</span>
+          <h2>领养新精灵</h2>
+        </div>
+        <button class="icon-button" type="button" title="关闭" aria-label="关闭" data-close-drawer>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 6l12 12" />
+            <path d="M18 6 6 18" />
+          </svg>
+        </button>
+      </div>
+      <form class="drawer-body" id="adoption-form">
+        <div class="callout">
+          额度内可直接领养。新精灵会进入你的精灵管理列表，床位可在精灵巢管理中查看。
+        </div>
+        <label class="form-row">
+          <span>名字</span>
+          <input id="adopt-name" type="text" maxlength="20" placeholder="新精灵" />
+        </label>
+        <div class="config-grid">
+          <label class="form-row">
+            <span>体型</span>
+            <select id="adopt-species">
+              <option value="biped">双足</option>
+              <option value="quadruped">四足</option>
+            </select>
+          </label>
+          <label class="form-row">
+            <span>性格</span>
+            <select id="adopt-personality">
+              <option value="活泼好动">活泼好动</option>
+              <option value="温顺乖巧">温顺乖巧</option>
+              <option value="高冷傲娇">高冷傲娇</option>
+              <option value="憨厚老实">憨厚老实</option>
+              <option value="机灵古怪">机灵古怪</option>
+            </select>
+          </label>
+          <label class="form-row">
+            <span>身高</span>
+            <select id="adopt-height">
+              <option value="short">矮小</option>
+              <option value="standard" selected>标准</option>
+              <option value="tall">高大</option>
+            </select>
+          </label>
+          <label class="form-row">
+            <span>体态</span>
+            <select id="adopt-build">
+              <option value="slim">纤细</option>
+              <option value="standard" selected>标准</option>
+              <option value="plump">圆润</option>
+            </select>
+          </label>
+        </div>
+        <div class="preview-stage" aria-label="精灵预览示意">
+          <div class="elfie-figure">
+            <span class="antenna"></span>
+            <span class="head"></span>
+            <span class="body"></span>
+            <span class="shadow"></span>
+          </div>
+          <div class="preview-meta">
+            <strong>创建后默认未分配床位</strong>
+            <span>房间位置由精灵巢管理展示，管理员可做床位分配。</span>
+          </div>
+        </div>
+        <p class="form-message" id="adoption-message" aria-live="polite"></p>
+        <div class="drawer-footer">
+          <button class="ghost-button" type="button" data-close-drawer>取消</button>
+          <button class="primary-button" type="submit">确认领养</button>
+        </div>
+      </form>
+    </aside>
+
+    <aside class="drawer compact" id="profile-drawer" aria-hidden="true" aria-label="个人信息">
+      <div class="drawer-head">
+        <div>
+          <span class="eyebrow">PROFILE</span>
+          <h2>个人信息</h2>
+        </div>
+        <button class="icon-button" type="button" title="关闭" aria-label="关闭" data-close-drawer>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 6l12 12" />
+            <path d="M18 6 6 18" />
+          </svg>
+        </button>
+      </div>
+      <div class="drawer-body">
+        <label class="form-row">
+          <span>显示名称</span>
+          <input type="text" id="profile-edit-name" />
+        </label>
+        <button class="primary-button full" type="button">保存个人信息</button>
+      </div>
+    </aside>
+
+    <script src="/static/elfienest-console.js"></script>
+  </body>
+</html>
