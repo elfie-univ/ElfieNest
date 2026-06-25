@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Callable
 
 from elfienest.config.user_config import read_user_config
-from elfienest.tui.common import clear_screen, print_banner
+from elfienest.tui.common import clear_screen, print_banner, print_tui_panel
 from elfienest.tui.config_editors import (
     config_adoption,
     config_engine,
@@ -22,8 +22,9 @@ def run_config_tui(provider_login: ProviderLogin) -> None:
         print_banner()
         config = read_user_config()
 
-        print("  📋 配置菜单")
-        print("  " + "=" * 45)
+        if not print_tui_panel("配置菜单"):
+            print("  📋 配置菜单")
+            print("  " + "=" * 45)
         print("  1. 查看当前配置")
         print("  2. 配置大模型 (LLM)")
         print("  3. 配置服务商 (Providers)")

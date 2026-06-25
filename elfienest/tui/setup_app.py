@@ -15,7 +15,15 @@ from elfienest.setup.service import (
     create_first_admin_account,
     needs_setup,
 )
-from elfienest.tui.common import clear_screen, input_password, input_text, print_banner
+from elfienest.tui.common import (
+    clear_screen,
+    input_password,
+    input_text,
+    print_banner,
+    print_success_panel,
+    print_tui_panel,
+    rich_console,
+)
 from runtime.data_home import get_db_path
 from runtime.provider_profiles import BUILTIN_PROFILES
 
@@ -23,8 +31,13 @@ from runtime.provider_profiles import BUILTIN_PROFILES
 def run_setup_wizard() -> None:
     clear_screen()
     print_banner()
-    print("  ✨ 欢迎使用 ElfieNest 设置向导")
-    print("  " + "=" * 45)
+    console = rich_console()
+    if not print_tui_panel(
+        "ElfieNest Setup Wizard",
+        "Welcome to the Embodied AI Creature Simulation Setup",
+    ):
+        print("  ✨ 欢迎使用 ElfieNest 设置向导")
+        print("  " + "=" * 45)
     print()
 
     db_path = str(get_db_path())
@@ -38,13 +51,19 @@ def run_setup_wizard() -> None:
     print("  让我们开始配置你的 ElfieNest 系统...")
     print()
 
-    print("  【步骤 1/4】创建管理员账号")
+    if console:
+        console.print("[bold magenta]【步骤 1/4】创建管理员账号[/bold magenta]")
+    else:
+        print("  【步骤 1/4】创建管理员账号")
     print()
     username = input_text("  管理员用户名", "admin") or "admin"
     password = input_text("  管理员密码", "admin123") or "admin123"
     print()
 
-    print("  【步骤 2/4】配置大模型服务商")
+    if console:
+        console.print("[bold magenta]【步骤 2/4】配置大模型服务商[/bold magenta]")
+    else:
+        print("  【步骤 2/4】配置大模型服务商")
     print()
     _print_ollama_status()
     print()
@@ -66,7 +85,10 @@ def run_setup_wizard() -> None:
         _configure_optional_providers(providers)
 
     print()
-    print("  【步骤 3/4】初始化数据库")
+    if console:
+        console.print("[bold magenta]【步骤 3/4】初始化数据库[/bold magenta]")
+    else:
+        print("  【步骤 3/4】初始化数据库")
     print()
 
     try:
@@ -76,13 +98,24 @@ def run_setup_wizard() -> None:
         print(f"  ⚠️  管理员已存在或创建失败: {e}")
 
     print()
-    print("  【步骤 4/4】完成设置")
+    if console:
+        console.print("[bold magenta]【步骤 4/4】完成设置[/bold magenta]")
+    else:
+        print("  【步骤 4/4】完成设置")
     print()
-    print("  " + "=" * 45)
-    print("  ✅ 设置完成！")
-    print()
-    print("  启动服务: elfie")
-    print(f"  登录信息: {username} / {password}")
+    if not print_success_panel(
+        [
+            "[green]设置完成！[/green]",
+            "",
+            "[bold]启动服务:[/bold] elfie",
+            f"[bold]登录信息:[/bold] {username} / {password}",
+        ]
+    ):
+        print("  " + "=" * 45)
+        print("  ✅ 设置完成！")
+        print()
+        print("  启动服务: elfie")
+        print(f"  登录信息: {username} / {password}")
     print()
 
 

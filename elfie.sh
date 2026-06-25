@@ -1,6 +1,10 @@
 #!/bin/bash
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
+PYTHON_BIN="$SCRIPT_DIR/.venv/bin/python3"
+if [ ! -x "$PYTHON_BIN" ]; then
+    PYTHON_BIN="python3"
+fi
 
 show_logo() {
     clear
@@ -68,20 +72,20 @@ interactive_mode() {
         case "$cmd" in
             ""|exit|quit|q) echo ""; echo "  再见！🦊"; echo ""; exit 0 ;;
             help|h|?) show_help ;;
-            serve) python3 scripts/serve.py $args ;;
-            config) python3 scripts/elfie.py config ;;
-            status) python3 scripts/elfie.py status ;;
-            models) python3 scripts/elfie.py models ;;
-            stats) python3 scripts/elfie.py stats ;;
-            logs) python3 scripts/elfie.py logs ;;
-            db) python3 scripts/elfie.py db $args ;;
-            providers) python3 scripts/elfie.py providers ;;
-            session) python3 scripts/elfie.py session ;;
-            version|v) python3 scripts/elfie.py version ;;
-            restart) python3 scripts/elfie.py restart ;;
-            stop) python3 scripts/elfie.py stop ;;
-            setup) python3 scripts/elfie.py setup ;;
-            web) python3 scripts/elfie.py web ;;
+            serve) "$PYTHON_BIN" scripts/serve.py $args ;;
+            config) "$PYTHON_BIN" scripts/elfie.py config ;;
+            status) "$PYTHON_BIN" scripts/elfie.py status ;;
+            models) "$PYTHON_BIN" scripts/elfie.py models ;;
+            stats) "$PYTHON_BIN" scripts/elfie.py stats ;;
+            logs) "$PYTHON_BIN" scripts/elfie.py logs ;;
+            db) "$PYTHON_BIN" scripts/elfie.py db $args ;;
+            providers) "$PYTHON_BIN" scripts/elfie.py providers ;;
+            session) "$PYTHON_BIN" scripts/elfie.py session ;;
+            version|v) "$PYTHON_BIN" scripts/elfie.py version ;;
+            restart) "$PYTHON_BIN" scripts/elfie.py restart ;;
+            stop) "$PYTHON_BIN" scripts/elfie.py stop ;;
+            setup) "$PYTHON_BIN" scripts/elfie.py setup ;;
+            web) "$PYTHON_BIN" scripts/elfie.py web ;;
             *)
                 echo ""
                 echo "  ❌ 未知命令: $cmd"
@@ -104,8 +108,8 @@ else
         fi
     done
     if [ "$has_serve_arg" = true ]; then
-        python3 scripts/serve.py "$@"
+        "$PYTHON_BIN" scripts/serve.py "$@"
     else
-        python3 scripts/elfie.py "$@"
+        "$PYTHON_BIN" scripts/elfie.py "$@"
     fi
 fi
