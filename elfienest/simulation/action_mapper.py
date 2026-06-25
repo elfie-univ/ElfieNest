@@ -39,4 +39,3 @@ def map_action_to_world(action: str) -> WorldAction | None:
             animation="walk_loop",
         )
     return None
-
