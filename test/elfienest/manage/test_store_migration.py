@@ -11,8 +11,6 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-import pytest
-
 from elfienest.manage.store import init_db, migrate_db_if_needed
 
 
@@ -45,13 +43,12 @@ class TestMigrationV1ToV2:
         assert "avatar_color" in cols
         assert "avatar_kind" in cols
 
-    def test_user_version_becomes_2(self, tmp_path: Path) -> None:
-        """迁移后 PRAGMA user_version 为 2。"""
+    def test_user_version_becomes_3(self, tmp_path: Path) -> None:
         db = str(tmp_path / "nest.db")
         init_db(db)
         migrate_db_if_needed(db)
 
-        assert _user_version(db) == 2
+        assert _user_version(db) == 3
 
     def test_migration_idempotent(self, tmp_path: Path) -> None:
         """重复执行 migrate_db_if_needed 不报错。"""
@@ -62,7 +59,7 @@ class TestMigrationV1ToV2:
 
         cols = _table_info_columns(db)
         assert "nickname" in cols
-        assert _user_version(db) == 2
+        assert _user_version(db) == 3
 
     def test_preserves_existing_data(self, tmp_path: Path) -> None:
         """迁移前插入的用户，迁移后数据保持完整。"""
@@ -115,11 +112,26 @@ class TestMigrationV1ToV2:
         assert cols[:5] == ["id", "username", "password_hash", "role", "created_at"]
         assert cols[5:] == ["nickname", "avatar_color", "avatar_kind"]
 
-    def test_init_db_sets_version_2(self, tmp_path: Path) -> None:
-        """新数据库上 init_db 直接设置 user_version 为 2。"""
+    def test_init_db_sets_version_3(self, tmp_path: Path) -> None:
         db = str(tmp_path / "nest.db")
         init_db(db)
 
         cols = _table_info_columns(db)
         assert "nickname" in cols
-        assert _user_version(db) == 2
+        assert _user_version(db) == 3
+
+    def test_adds_nest_tables_and_bed_id(self, tmp_path: Path) -> None:
+        db = str(tmp_path / "nest.db")
+        init_db(db)
+        migrate_db_if_needed(db)
+
+        room_cols = _table_info_columns(db, "rooms")
+        bed_cols = _table_info_columns(db, "beds")
+        elfie_cols = _table_info_columns(db, "elfie_registry")
+
+        assert "name" in room_cols
+        assert "max_capacity" in room_cols
+        assert "room_id" in bed_cols
+        assert "grid_x" in bed_cols
+        assert "grid_y" in bed_cols
+        assert "bed_id" in elfie_cols

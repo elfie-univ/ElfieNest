@@ -44,8 +44,7 @@ def _index_names(db_path: str) -> set[str]:
 
 
 class TestInitDb:
-    def test_creates_three_tables(self, tmp_path: Path) -> None:
-        """init_db 创建 users / sessions / elfie_registry 三张表。"""
+    def test_creates_core_tables(self, tmp_path: Path) -> None:
         db = str(tmp_path / "nest.db")
         init_db(db)
 
@@ -53,8 +52,9 @@ class TestInitDb:
         assert "users" in tables
         assert "sessions" in tables
         assert "elfie_registry" in tables
-        # 自动创建的 sqlite_* 表不计
-        assert len(tables) >= 3
+        assert "rooms" in tables
+        assert "beds" in tables
+        assert len(tables) >= 5
 
     def test_creates_indices(self, tmp_path: Path) -> None:
         """init_db 创建必要的索引（至少 users.username 有 UNIQUE 索引）。"""

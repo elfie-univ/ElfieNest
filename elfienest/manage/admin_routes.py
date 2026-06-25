@@ -7,13 +7,13 @@
 
 from __future__ import annotations
 
-import json
 import logging
-import shutil
 from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+
+from elfienest.config.runtime_store import read_runtime_config, write_runtime_config
 
 from .auth import hash_password, verify_session
 from .store import get_db
@@ -352,13 +352,7 @@ async def get_config(
     解析失败（非法 JSON）同样返回 ``{}``。
     """
     _ = admin
-    if not _RUNTIME_CONFIG_PATH.exists():
-        return {}
-    try:
-        with open(_RUNTIME_CONFIG_PATH, encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return {}
+    return read_runtime_config(_RUNTIME_CONFIG_PATH)
 
 
 @router.put("/config")
@@ -384,18 +378,6 @@ async def update_config(
             detail="配置必须包含 providers 字典结构",
         )
 
-    # 备份旧文件
-    if _RUNTIME_CONFIG_PATH.exists():
-        backup_path = _RUNTIME_CONFIG_PATH.with_suffix(".json.bak")
-        shutil.copy2(str(_RUNTIME_CONFIG_PATH), str(backup_path))
-        logger.info("Config backed up to %s", backup_path)
-
-    # 确保 runtime/ 目录存在
-    _RUNTIME_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-    # 写入
-    with open(_RUNTIME_CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(body, f, ensure_ascii=False, indent=2)
-
+    write_runtime_config(_RUNTIME_CONFIG_PATH, body)
     logger.info("Runtime config updated by admin")
     return {"detail": "配置已更新"}

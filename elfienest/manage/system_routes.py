@@ -8,16 +8,13 @@
 
 from __future__ import annotations
 
-import copy
-import json
 import logging
-import shutil
 from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from runtime.config import DEFAULT_SYSTEM_SETTINGS, deep_update
+from elfienest.config.runtime_store import read_system_section, write_system_section
 
 from .admin_routes import require_admin
 
@@ -222,20 +219,7 @@ def _validate_range(section: str, data: Dict[str, Any]) -> None:
 
 def _read_system_section(section: str) -> Dict[str, Any]:
     """从 ``runtime_config.json`` 读取指定 section，与默认值深层合并后返回。"""
-    base = copy.deepcopy(DEFAULT_SYSTEM_SETTINGS.get(section, {}))
-    if not _RUNTIME_CONFIG_PATH.exists():
-        return base
-
-    try:
-        with open(_RUNTIME_CONFIG_PATH, encoding="utf-8") as f:
-            saved = json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return base
-
-    saved_section = saved.get("system", {}).get(section, {})
-    if isinstance(saved_section, dict):
-        deep_update(base, saved_section)
-    return base
+    return read_system_section(_RUNTIME_CONFIG_PATH, section)
 
 
 def _write_system_section(section: str, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -244,38 +228,9 @@ def _write_system_section(section: str, data: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         写入后的完整 section 字典（已合并默认值）。
     """
-    # 读取当前文件
-    if _RUNTIME_CONFIG_PATH.exists():
-        try:
-            with open(_RUNTIME_CONFIG_PATH, encoding="utf-8") as f:
-                full_config = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            full_config = {}
-    else:
-        full_config = {}
-
-    if "system" not in full_config or not isinstance(full_config["system"], dict):
-        full_config["system"] = {}
-
-    # 深层合并指定 section
-    current_section = full_config["system"].get(section, {})
-    deep_update(current_section, data)
-    full_config["system"][section] = current_section
-
-    # 备份旧文件
-    if _RUNTIME_CONFIG_PATH.exists():
-        backup_path = _RUNTIME_CONFIG_PATH.with_suffix(".json.bak")
-        shutil.copy2(str(_RUNTIME_CONFIG_PATH), str(backup_path))
-
-    # 写入
-    _RUNTIME_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(_RUNTIME_CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(full_config, f, ensure_ascii=False, indent=2)
-
+    result = write_system_section(_RUNTIME_CONFIG_PATH, section, data)
     logger.info("System section '%s' updated", section)
-
-    # 返回合并默认值后的完整 section
-    return _read_system_section(section)
+    return result
 
 
 # ===================================================================

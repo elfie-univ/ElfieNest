@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 import time
@@ -6,6 +5,8 @@ from typing import Any, Dict, Optional
 
 from .coordinator import ElfieNestCoordinator
 from .room import ElfieNestRoom
+from .simulation.action_mapper import map_action_to_world
+from .simulation.tts import async_generate_tts, synthesize_voice
 from .transport.audio_server import AudioServer
 from .transport.godot_api import GodotAPIServer
 
@@ -103,42 +104,19 @@ class ElfieNestEngine:
         self, text: str, output_path: str, voice: str = "zh-CN-XiaoxiaoNeural"
     ):
         """异步调用 edge-tts 生成高品质微软 MP3 语音"""
-        import edge_tts
-
-        communicate = edge_tts.Communicate(text, voice)
-        await communicate.save(output_path)
+        await async_generate_tts(text, output_path, voice)
 
     def _synthesize_voice(self, elfie_id: str, text: str) -> Optional[str]:
         """
         线程安全地同步调用 edge-tts，生成 MP3 文件并返回可供 Godot 拉取的本地静态服务 URL。
         """
-        if not text:
-            return None
-
-        if not self.tts_enabled:
-            logger.debug("TTS disabled, skipping voice synthesis for %s", elfie_id)
-            return None
-
-        filename = f"voice_{elfie_id}_{int(time.time() * 1000)}.mp3"
-        output_path = os.path.join(self.temp_audio_dir, filename)
-
-        try:
-            # 优雅地在新事件循环中驱动异步 edge-tts 保存
-            loop = asyncio.new_event_loop()
-            loop.run_until_complete(self._async_generate_tts(text, output_path))
-            loop.close()
-
-            # 返回 HTTP 静态文件服务的下载链接
-            audio_url = f"http://127.0.0.1:{self.http_port}/{filename}"
-            logger.info(
-                f"🎤 [语音服务] 精灵 '{elfie_id}' 发言音频合成成功 -> {audio_url}"
-            )
-            return audio_url
-        except Exception as e:
-            logger.warning(
-                f"⚠️ [语音服务] edge-tts 合成失败 (可能是网络超时或包未完全安装)，优雅降级为空音频: {e}"
-            )
-            return None
+        return synthesize_voice(
+            elfie_id=elfie_id,
+            text=text,
+            temp_audio_dir=self.temp_audio_dir,
+            http_port=self.http_port,
+            tts_enabled=self.tts_enabled,
+        )
 
     def start_loop(
         self,
@@ -262,44 +240,14 @@ class ElfieNestEngine:
                             and action != "reflex_avoidance"
                             and action != "reflex_soothing"
                         ):
-                            # 将大模型动作映射到语义家具目标
-                            target_furniture = None
-                            animation = "idle_loop"
-                            posture = "standing"
+                            world_action = map_action_to_world(action)
 
-                            # 动作词模糊匹配语义化家具
-                            action_lower = action.lower()
-                            if "sleep" in action_lower or "bed" in action_lower:
-                                target_furniture = (
-                                    "bed_1"  # 默认床 1，后续可实现动态选空闲床
-                                )
-                                posture = "lying"
-                                animation = "sleep_loop"
-                            elif (
-                                "sit" in action_lower
-                                or "chair" in action_lower
-                                or "chat" in action_lower
-                            ):
-                                target_furniture = (
-                                    "chair_1"  # 默认椅子 1，后续可实现动态选空闲椅
-                                )
-                                posture = "sitting"
-                                animation = "chat_look"
-                            elif (
-                                "door" in action_lower
-                                or "away" in action_lower
-                                or "leave" in action_lower
-                            ):
-                                target_furniture = "wormhole_door"
-                                posture = "away"
-                                animation = "walk_loop"
-
-                            if target_furniture:
+                            if world_action:
                                 # 更新房间被动意向状态
                                 self.room.update_elfie_posture(
                                     elfie_id,
-                                    f"moving_to_{target_furniture}",
-                                    target_furniture,
+                                    f"moving_to_{world_action.target_furniture}",
+                                    world_action.target_furniture,
                                 )
 
                                 # 下发给 Godot 去进行 3D 寻路与寻路到达 Area 的碰撞反馈
@@ -307,9 +255,9 @@ class ElfieNestEngine:
                                     "go_to",
                                     {
                                         "elfie_id": elfie_id,
-                                        "target": target_furniture,
-                                        "posture": posture,
-                                        "animation": animation,
+                                        "target": world_action.target_furniture,
+                                        "posture": world_action.posture,
+                                        "animation": world_action.animation,
                                     },
                                 )
                     else:

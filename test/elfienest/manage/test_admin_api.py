@@ -13,7 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from elfienest.manage.app import create_app
-from elfienest.manage.store import init_db
+from elfienest.manage.store import get_db, init_db
 
 from ._helpers import create_test_admin
 
@@ -299,23 +299,44 @@ class TestAuthorization:
 # ===================================================================
 
 
-class TestElfieEndpointsRemoved:
-    """验证 admin cross-user elfie 端点已移除，返回 404。"""
-
-    def test_admin_elfies_endpoints_removed(self, client: TestClient) -> None:
-        """GET/PUT/DELETE /api/admin/elfies → 404。"""
+class TestAdminElfieList:
+    def test_admin_elfies_list_available(self, client: TestClient, db_path: str) -> None:
         tokens = _login_admin(client)
         headers = _headers(tokens["csrf_token"])
 
-        # GET
-        resp = client.get("/api/admin/elfies", headers=headers)
-        assert resp.status_code == 404
+        with get_db(db_path) as conn:
+            admin_id = conn.execute(
+                "SELECT id FROM users WHERE username = ?",
+                ("admin",),
+            ).fetchone()["id"]
+            conn.execute(
+                "INSERT INTO rooms (name, max_capacity) VALUES (?, ?)",
+                ("主精灵巢", 4),
+            )
+            room_id = conn.execute("SELECT id FROM rooms").fetchone()["id"]
+            cursor = conn.execute(
+                "INSERT INTO beds (room_id, name, grid_x, grid_y) VALUES (?, ?, ?, ?)",
+                (room_id, "Bed 1", 0, 0),
+            )
+            bed_id = cursor.lastrowid
+            conn.execute(
+                "INSERT INTO elfie_registry "
+                "(elfie_id, name, owner_user_id, anatomy_type, bed_id) "
+                "VALUES (?, ?, ?, ?, ?)",
+                ("elfie_001", "小白", admin_id, "biped", bed_id),
+            )
+            conn.commit()
 
-        # PUT
+        resp = client.get("/api/admin/elfies", headers=headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data[0]["elfie_id"] == "elfie_001"
+        assert data[0]["bed_id"] == bed_id
+        assert data[0]["room_name"] == "主精灵巢"
+
         resp = client.put("/api/admin/elfies/test-id", json={"name": "test"}, headers=headers)
         assert resp.status_code == 404
 
-        # DELETE
         resp = client.delete("/api/admin/elfies/test-id", headers=headers)
         assert resp.status_code == 404
 

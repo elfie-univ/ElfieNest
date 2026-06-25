@@ -7,25 +7,22 @@
 from __future__ import annotations
 
 import logging
-import secrets
-import time
 from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from runtime.data_home import get_elfie_config_dir
+from elfienest.adoption.service import (
+    AdoptionRequest,
+    AdoptionValidationError,
+    adopt_elfie_for_user,
+    adoption_options,
+)
+from elfienest.room import RoomFullError
 
 from .adoption import ElfieGenerator
-from .adoption_config import (
-    get_allowed_anatomy_types,
-    get_allowed_personality_styles,
-    get_max_elfies_per_user,
-)
-from .store import count_elfies_by_owner, get_db
-
-from elfienest.room import RoomFullError
+from .store import get_db
 
 logger = logging.getLogger("elfienest.manage.user_routes")
 
@@ -235,119 +232,33 @@ async def adopt_elfie(
     前置检查：上限 3 只、名字长度、anatomy_type、personality_style、height、build。
     通过后：生成 elfie_id → 调用 ElfieGenerator → 插入 elfie_registry → 可选注册到 engine。
     """
-    name = (body.get("name") or "").strip()
-    anatomy_type = (body.get("anatomy_type") or "").strip()
-    personality_style = (body.get("personality_style") or "").strip()
-    height = (body.get("height") or "").strip()
-    build = (body.get("build") or "").strip()
-
-    # ------------------------------------------------------------------
-    # 前置检查
-    # ------------------------------------------------------------------
-    if not name or len(name) > 20:
-        raise HTTPException(
-            status_code=400,
-            detail="名字长度必须在 1-20 字之间",
-        )
     db = request.app.state.db_path
-
-    allowed_anatomy = get_allowed_anatomy_types(db)
-    if anatomy_type not in allowed_anatomy:
-        raise HTTPException(
-            status_code=400,
-            detail=f"anatomy_type 必须是 {allowed_anatomy}",
-        )
-
-    allowed_styles = get_allowed_personality_styles(db)
-    if personality_style not in allowed_styles:
-        raise HTTPException(
-            status_code=400,
-            detail=f"personality_style 必须是 {list(allowed_styles)}",
-        )
-    if height not in HEIGHTS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"height 必须是 {HEIGHTS}",
-        )
-    if build not in BUILDS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"build 必须是 {BUILDS}",
-        )
-
-    # 领养上限检查
-    max_per_user = get_max_elfies_per_user(db)
-    current_count = count_elfies_by_owner(user["id"], db)
-    if current_count >= max_per_user:
-        raise HTTPException(
-            status_code=409,
-            detail=f"每用户最多领养 {max_per_user} 只精灵",
-        )
-
-    # ------------------------------------------------------------------
-    # 生成 elfie_id & config_dir
-    # ------------------------------------------------------------------
-    elfie_id = f"elfie_{int(time.time())}_{secrets.token_hex(2)}"
-    config_dir = str(get_elfie_config_dir(elfie_id))
-
-    # 调用 ElfieGenerator 生成 3 个 YAML 配置文件
-    try:
-        ElfieGenerator().generate(
-            name=name,
-            anatomy_type=anatomy_type,
-            personality_style=personality_style,
-            height=height,
-            build=build,
-            config_dir=config_dir,
-            elfie_id=elfie_id,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from None
-
-    # 插入 elfie_registry 表
-    with get_db(db) as conn:
-        conn.execute(
-            """INSERT INTO elfie_registry
-               (elfie_id, name, owner_user_id, anatomy_type, config_dir,
-                personality_style, height, build)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                elfie_id,
-                name,
-                user["id"],
-                anatomy_type,
-                config_dir,
-                personality_style,
-                height,
-                build,
-            ),
-        )
-        conn.commit()
-
-    # 如果 engine 实例存在，尝试实例化 ElfieIndividual 并注册到房间
+    adoption_request = AdoptionRequest(
+        name=(body.get("name") or "").strip(),
+        anatomy_type=(body.get("anatomy_type") or "").strip(),
+        personality_style=(body.get("personality_style") or "").strip(),
+        height=(body.get("height") or "").strip(),
+        build=(body.get("build") or "").strip(),
+    )
     engine = getattr(request.app.state, "engine", None)
-    if engine is not None:
-        try:
-            from elfie.elfie_individual import ElfieIndividual  # noqa: PLC0415
-
-            elfie = ElfieIndividual(config_dir=config_dir, anatomy_type=anatomy_type)
-            engine.coordinator.register_elfie(elfie_id, elfie)
-            logger.info(
-                "Elfie %s (%s) registered to room via engine", elfie_id, name,
-            )
-        except RoomFullError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from None
-        except Exception as exc:
-            logger.warning(
-                "Failed to register elfie %s to engine: %s", elfie_id, exc,
-            )
+    try:
+        result = adopt_elfie_for_user(
+            db,
+            user_id=user["id"],
+            request=adoption_request,
+            engine=engine,
+        )
+    except AdoptionValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+    except RoomFullError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
 
     return JSONResponse(
         status_code=201,
         content={
-            "elfie_id": elfie_id,
-            "name": name,
-            "config_dir": config_dir,
+            "elfie_id": result.elfie_id,
+            "name": result.name,
+            "config_dir": result.config_dir,
         },
     )
 
@@ -361,10 +272,4 @@ async def adoption_info(
 
     性格风格和 anatomy_type 从 ``system.adoption`` 动态读取。
     """
-    db = request.app.state.db_path
-    return {
-        "personality_styles": list(get_allowed_personality_styles(db)),
-        "anatomy_types": list(get_allowed_anatomy_types(db)),
-        "heights": list(HEIGHTS),
-        "builds": list(BUILDS),
-    }
+    return adoption_options(request.app.state.db_path)

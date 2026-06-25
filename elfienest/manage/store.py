@@ -118,6 +118,8 @@ def init_db(db_path: Optional[str] = None) -> str:
         )
     """)
 
+    _ensure_nest_tables(conn)
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS elfie_registry (
             id INTEGER PRIMARY KEY,
@@ -129,8 +131,10 @@ def init_db(db_path: Optional[str] = None) -> str:
             personality_style TEXT,
             height TEXT DEFAULT 'standard',
             build TEXT DEFAULT 'standard',
+            bed_id INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(owner_user_id) REFERENCES users(id)
+            FOREIGN KEY(owner_user_id) REFERENCES users(id),
+            FOREIGN KEY(bed_id) REFERENCES beds(id)
         )
     """)
 
@@ -141,6 +145,8 @@ def init_db(db_path: Optional[str] = None) -> str:
     if version < 2:
         # v1 → v2: add profile fields
         _migrate_v1_to_v2(conn)
+    if version < 3:
+        _migrate_v2_to_v3(conn)
 
     conn.commit()
     conn.close()
@@ -162,6 +168,37 @@ def _migrate_v1_to_v2(conn: sqlite3.Connection) -> None:
     conn.execute("PRAGMA user_version = 2")
 
 
+def _ensure_nest_tables(conn: sqlite3.Connection) -> None:
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS rooms (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            max_capacity INTEGER NOT NULL DEFAULT 4,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS beds (
+            id INTEGER PRIMARY KEY,
+            room_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            grid_x INTEGER DEFAULT 0,
+            grid_y INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(room_id) REFERENCES rooms(id)
+        )
+    """)
+
+
+def _migrate_v2_to_v3(conn: sqlite3.Connection) -> None:
+    _ensure_nest_tables(conn)
+    try:
+        conn.execute("ALTER TABLE elfie_registry ADD COLUMN bed_id INTEGER")
+    except sqlite3.OperationalError:
+        pass
+    conn.execute("PRAGMA user_version = 3")
+
+
 def migrate_db_if_needed(db_path: str = None) -> None:
     """检查并执行必要的数据库迁移。使用 PRAGMA user_version 跟踪版本。"""
     if db_path is None:
@@ -172,6 +209,8 @@ def migrate_db_if_needed(db_path: str = None) -> None:
             conn.execute("PRAGMA user_version = 1")
         if version < 2:
             _migrate_v1_to_v2(conn)
+        if version < 3:
+            _migrate_v2_to_v3(conn)
         conn.commit()
 
 

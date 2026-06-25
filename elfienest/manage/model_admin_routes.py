@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import logging
-import shutil
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -16,6 +15,7 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from elfienest.config.runtime_store import read_runtime_config, write_runtime_config
 from runtime.config import LLMRuntimeConfig
 from runtime.model_catalog import BUILTIN_MODEL_CATALOG, ModelCatalog, ModelEntry
 from runtime.provider_profiles import get_profile
@@ -41,24 +41,12 @@ _RUNTIME_CONFIG_PATH: Path = _PROJECT_ROOT / "runtime" / "runtime_config.json"
 
 def _read_runtime_config() -> Dict[str, Any]:
     """读取 runtime_config.json，不存在时返回空 dict。"""
-    if not _RUNTIME_CONFIG_PATH.exists():
-        return {}
-    try:
-        with open(_RUNTIME_CONFIG_PATH, encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return {}
+    return read_runtime_config(_RUNTIME_CONFIG_PATH)
 
 
 def _write_runtime_config(config: Dict[str, Any]) -> None:
     """写入 runtime_config.json（先备份）。"""
-    if _RUNTIME_CONFIG_PATH.exists():
-        backup_path = _RUNTIME_CONFIG_PATH.with_suffix(".json.bak")
-        shutil.copy2(str(_RUNTIME_CONFIG_PATH), str(backup_path))
-
-    _RUNTIME_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(_RUNTIME_CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
+    write_runtime_config(_RUNTIME_CONFIG_PATH, config)
 
 
 def _build_model_response(entry: ModelEntry, overrides: Dict[str, Any]) -> Dict[str, Any]:
