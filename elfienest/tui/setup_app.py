@@ -15,7 +15,15 @@ from elfienest.setup.service import (
     create_first_admin_account,
     needs_setup,
 )
-from elfienest.tui.common import clear_screen, input_password, input_text, print_banner
+from elfienest.tui.common import (
+    clear_screen,
+    input_password,
+    input_text,
+    print_banner,
+    print_success_panel,
+    print_tui_panel,
+    rich_console,
+)
 from runtime.data_home import get_db_path
 from runtime.provider_profiles import BUILTIN_PROFILES
 
@@ -23,9 +31,7 @@ from runtime.provider_profiles import BUILTIN_PROFILES
 def run_setup_wizard() -> None:
     clear_screen()
     print_banner()
-    print("  ✨ 欢迎使用 ElfieNest 设置向导")
-    print("  " + "=" * 45)
-    print()
+    print_tui_panel("ElfieNest Setup Wizard", "首次启动前完成管理员、模型服务商与数据库初始化")
 
     db_path = str(get_db_path())
     init_db(db_path)
@@ -38,14 +44,12 @@ def run_setup_wizard() -> None:
     print("  让我们开始配置你的 ElfieNest 系统...")
     print()
 
-    print("  【步骤 1/4】创建管理员账号")
-    print()
+    _print_step("1/4", "创建管理员账号")
     username = input_text("  管理员用户名", "admin") or "admin"
     password = input_text("  管理员密码", "admin123") or "admin123"
     print()
 
-    print("  【步骤 2/4】配置大模型服务商")
-    print()
+    _print_step("2/4", "配置大模型服务商")
     _print_ollama_status()
     print()
 
@@ -66,8 +70,7 @@ def run_setup_wizard() -> None:
         _configure_optional_providers(providers)
 
     print()
-    print("  【步骤 3/4】初始化数据库")
-    print()
+    _print_step("3/4", "初始化数据库")
 
     try:
         create_first_admin_account(db_path, username=username, password=password)
@@ -76,13 +79,23 @@ def run_setup_wizard() -> None:
         print(f"  ⚠️  管理员已存在或创建失败: {e}")
 
     print()
-    print("  【步骤 4/4】完成设置")
-    print()
-    print("  " + "=" * 45)
-    print("  ✅ 设置完成！")
-    print()
-    print("  启动服务: elfie")
-    print(f"  登录信息: {username} / {password}")
+    _print_step("4/4", "完成设置")
+    print_success_panel(
+        [
+            "设置完成！",
+            "启动服务: elfie",
+            f"登录信息: {username} / {password}",
+        ]
+    )
+
+
+def _print_step(step: str, title: str) -> None:
+    console = rich_console()
+    if console is None:
+        print(f"  【步骤 {step}】{title}")
+        print()
+        return
+    console.print(f"  [bold magenta]步骤 {step}[/] [white]{title}[/]")
     print()
 
 
