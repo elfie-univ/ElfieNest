@@ -16,6 +16,11 @@ from elfienest.config.runtime_store import read_runtime_config, write_runtime_co
 from runtime.config import LLMRuntimeConfig
 from runtime.models.catalog import verify_provider
 from runtime.providers.profiles import BUILTIN_PROFILES, get_profile
+from runtime.usage.observer import (
+    ProviderVerifyObservation,
+    RuntimeEventStatus,
+    get_runtime_observer,
+)
 
 from .admin_routes import require_admin
 
@@ -280,6 +285,21 @@ async def verify_provider_endpoint(
 
     runtime_config = LLMRuntimeConfig()
     result = verify_provider(provider_id, runtime_config)
+    provider_status = str(result.get("status", "unverified"))
+    event_status = (
+        RuntimeEventStatus.OK
+        if provider_status == "active"
+        else RuntimeEventStatus.ERROR
+    )
+    get_runtime_observer().record_provider_verify(
+        ProviderVerifyObservation(
+            provider_id=provider_id,
+            status=event_status,
+            provider_status=provider_status,
+            latency_ms=float(result.get("latency_ms") or 0.0),
+            error=str(result.get("error") or ""),
+        )
+    )
 
     logger.info(
         "Provider '%s' verification: %s (%.2fms)",

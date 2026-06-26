@@ -96,7 +96,7 @@ def test_runtime_tool_loop_runs_code_sandbox_with_permission_check():
 
     assert result == "Final answer"
     assert sandbox_plugin.code == "print(2 + 2)"
-    assert permission_manager.action == "RUN_SKILL"
+    assert permission_manager.action == "RUN_CODE"
 
 
 def test_runtime_tool_loop_times_out_when_model_keeps_requesting_tools():

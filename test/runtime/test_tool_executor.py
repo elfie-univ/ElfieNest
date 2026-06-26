@@ -119,7 +119,7 @@ def test_tool_executor_handles_code_with_permission_and_feedback_text():
     assert result.tool_name == "code_sandbox"
     assert result.ok is True
     assert sandbox_plugin.code == "print(2 + 2)"
-    assert permission_manager.action == "RUN_SKILL"
+    assert permission_manager.action == "RUN_CODE"
     assert permission_manager.file_path == "code_sandbox"
     assert "标准输出: 4" in result.content
     assert "去掉 [CODE] 标签" in result.content

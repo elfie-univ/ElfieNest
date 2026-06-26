@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any, Dict
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
+from elfienest.config.runtime_store import read_runtime_config, write_runtime_config
 from runtime.models.catalog import BUILTIN_MODEL_CATALOG
-from runtime.models.groups import DEFAULT_MODEL_GROUPS
+from runtime.models.groups import load_model_groups, model_groups_to_payload
+from runtime.policy.food_policy import RuntimeTaskType, load_food_policy
+from runtime.safety.permissions import DEFAULT_TOOL_PERMISSIONS
 from runtime.usage.observer import RuntimeEvent, get_runtime_observer
 from runtime.usage.token_tracker import get_token_tracker
 
@@ -20,20 +22,18 @@ _RUNTIME_CONFIG_PATH: Path = _PROJECT_ROOT / "runtime" / "runtime_config.json"
 
 
 def _read_runtime_config() -> Dict[str, Any]:
-    if not _RUNTIME_CONFIG_PATH.exists():
-        return {}
-    try:
-        with _RUNTIME_CONFIG_PATH.open(encoding="utf-8") as handle:
-            data = json.load(handle)
-    except (json.JSONDecodeError, OSError):
-        return {}
-    return data if isinstance(data, dict) else {}
+    return read_runtime_config(_RUNTIME_CONFIG_PATH)
+
+
+def _write_runtime_config(config: Dict[str, Any]) -> None:
+    write_runtime_config(_RUNTIME_CONFIG_PATH, config)
 
 
 def build_runtime_status() -> Dict[str, Any]:
     config = _read_runtime_config()
     providers = _dict_field(config, "providers")
     model_overrides = _dict_field(config, "models")
+    runtime_policy = _dict_field(config, "runtime_policy")
     observer_events = get_runtime_observer().snapshot()
 
     provider_total = len(providers)
@@ -68,7 +68,7 @@ def build_runtime_status() -> Dict[str, Any]:
             "total": model_total,
             "visible": max(model_total - len(hidden_models), 0),
             "hidden": len(hidden_models),
-            "groups": _model_groups_payload(),
+            "groups": _model_groups_list_payload(runtime_policy),
         },
         "fallback": {
             "provider": "ollama",
@@ -97,6 +97,46 @@ async def get_runtime_status(
     return build_runtime_status()
 
 
+@router.get("/policy")
+async def get_runtime_policy(
+    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
+) -> Dict[str, Any]:
+    _ = admin
+    config = _read_runtime_config()
+    runtime_policy = _dict_field(config, "runtime_policy")
+    return _runtime_policy_payload(runtime_policy)
+
+
+@router.put("/policy")
+async def update_runtime_policy(
+    body: Dict[str, Any],
+    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
+) -> Dict[str, Any]:
+    _ = admin
+    current_config = _read_runtime_config()
+    existing_policy = _dict_field(current_config, "runtime_policy")
+    merged_policy = _merge_runtime_policy(existing_policy, body)
+    _validate_runtime_policy(merged_policy)
+    current_config["runtime_policy"] = merged_policy
+    _write_runtime_config(current_config)
+    return _runtime_policy_payload(merged_policy)
+
+
+@router.get("/audit")
+async def get_runtime_audit(
+    limit: int = 100,
+    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
+) -> Dict[str, Any]:
+    _ = admin
+    bounded_limit = min(max(limit, 1), 500)
+    events = get_runtime_observer().snapshot()
+    recent_events = events[-bounded_limit:]
+    return {
+        "event_count": len(events),
+        "events": [_event_payload(event) for event in recent_events],
+    }
+
+
 def _provider_is_active(provider_id: str, info: Any) -> bool:
     if provider_id == "ollama":
         return True
@@ -110,15 +150,102 @@ def _dict_field(data: Dict[str, Any], field_name: str) -> Dict[str, Any]:
     return field_value if isinstance(field_value, dict) else {}
 
 
-def _model_groups_payload() -> list[Dict[str, Any]]:
+def _model_groups_list_payload(runtime_policy: Dict[str, Any]) -> list[Dict[str, Any]]:
     return [
         {
             "key": group.key,
             "display_name": group.display_name,
             "model_keys": list(group.model_keys),
         }
-        for group in DEFAULT_MODEL_GROUPS.values()
+        for group in load_model_groups(runtime_policy).values()
     ]
+
+
+def _runtime_policy_payload(runtime_policy: Dict[str, Any]) -> Dict[str, Any]:
+    food_policy = load_food_policy(runtime_policy)
+    return {
+        "task_routes": {
+            task_type.value: group_key
+            for task_type, group_key in food_policy.task_groups.items()
+        },
+        "model_groups": model_groups_to_payload(load_model_groups(runtime_policy)),
+        "tool_permissions": _tool_permissions_payload(runtime_policy),
+    }
+
+
+def _tool_permissions_payload(runtime_policy: Dict[str, Any]) -> Dict[str, Any]:
+    permissions = {
+        action: {
+            "mode": rule.mode.value,
+            "reason": rule.reason,
+        }
+        for action, rule in DEFAULT_TOOL_PERMISSIONS.items()
+    }
+    raw_permissions = runtime_policy.get("tool_permissions", {})
+    if not isinstance(raw_permissions, dict):
+        return permissions
+    for action, rule in raw_permissions.items():
+        if isinstance(action, str) and isinstance(rule, dict):
+            permissions[action] = {
+                "mode": str(rule.get("mode", "")),
+                "reason": str(rule.get("reason", "")),
+            }
+    return permissions
+
+
+def _merge_runtime_policy(
+    existing_policy: Dict[str, Any],
+    updates: Dict[str, Any],
+) -> Dict[str, Any]:
+    if not isinstance(updates, dict):
+        raise HTTPException(status_code=422, detail="runtime policy body 必须是对象")
+
+    merged = dict(existing_policy)
+    for field_name in ("task_routes", "model_groups", "tool_permissions"):
+        if field_name in updates:
+            value = updates[field_name]
+            if not isinstance(value, dict):
+                raise HTTPException(status_code=422, detail=f"{field_name} 必须是对象")
+            current_value = merged.get(field_name, {})
+            current_mapping = current_value if isinstance(current_value, dict) else {}
+            merged[field_name] = {**current_mapping, **value}
+    return merged
+
+
+def _validate_runtime_policy(runtime_policy: Dict[str, Any]) -> None:
+    valid_modes = {"allow", "ask", "deny", "admin"}
+    valid_task_types = {task_type.value for task_type in RuntimeTaskType}
+    routes = runtime_policy.get("task_routes", {})
+    if isinstance(routes, dict):
+        for task_type, group_key in routes.items():
+            if task_type not in valid_task_types or not isinstance(group_key, str):
+                raise HTTPException(status_code=422, detail="task_routes 格式错误")
+
+    permissions = runtime_policy.get("tool_permissions", {})
+    if isinstance(permissions, dict):
+        for action, rule in permissions.items():
+            if not isinstance(action, str) or not isinstance(rule, dict):
+                raise HTTPException(status_code=422, detail="tool_permissions 格式错误")
+            mode = rule.get("mode")
+            if mode not in valid_modes:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"权限模式必须是 {sorted(valid_modes)} 之一",
+                )
+
+    groups = runtime_policy.get("model_groups", {})
+    if isinstance(groups, dict):
+        for group_key, group in groups.items():
+            if not isinstance(group_key, str) or not isinstance(group, dict):
+                raise HTTPException(status_code=422, detail="model_groups 格式错误")
+            model_keys = group.get("model_keys", [])
+            if not isinstance(model_keys, list) or not all(
+                isinstance(model_key, str) for model_key in model_keys
+            ) or not model_keys:
+                raise HTTPException(
+                    status_code=422,
+                    detail="model_groups.*.model_keys 必须是非空字符串数组",
+                )
 
 
 def _event_payload(event: RuntimeEvent) -> Dict[str, Any]:

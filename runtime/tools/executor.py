@@ -86,6 +86,9 @@ class ToolExecutor:
 
     def _execute_search(self, response_text: str) -> ToolResult:
         query = _extract_tag(response_text, "SEARCH")
+        self.context.permission_manager.verify_action(
+            "WEB_SEARCH", file_path=query[:120]
+        )
         search_result = self.context.search_plugin.search(query)
         logger.info("已成功回调联网检索数据。")
         return ToolResult(
@@ -102,7 +105,7 @@ class ToolExecutor:
     def _execute_code(self, response_text: str) -> ToolResult:
         code = _extract_tag(response_text, "CODE")
         self.context.permission_manager.verify_action(
-            "RUN_SKILL", file_path="code_sandbox"
+            "RUN_CODE", file_path="code_sandbox"
         )
         execution_result = self.context.sandbox_plugin.execute(code)
         logger.info("已成功回调沙箱算术运算结果。")
@@ -180,6 +183,7 @@ class ToolExecutor:
         )
 
     def _execute_list_skills(self) -> ToolResult:
+        self.context.permission_manager.verify_action("LIST_SKILLS", file_path="skills")
         feedback = self.context.skills_evolution_plugin.list_skills()
         logger.info("已完成技能库检索与回调。")
         return ToolResult(

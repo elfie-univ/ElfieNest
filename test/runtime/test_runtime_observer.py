@@ -8,7 +8,10 @@ from runtime.config import LLMRuntimeConfig
 from runtime.gateway.llm_api import API_DISPATCH, call_llm_api
 from runtime.tools.executor import ToolExecutionContext, ToolExecutor
 from runtime.usage.observer import (
+    FallbackObservation,
     ModelCallObservation,
+    PermissionDecisionObservation,
+    ProviderVerifyObservation,
     RuntimeEventStatus,
     RuntimeEventType,
     RuntimeObserver,
@@ -73,6 +76,51 @@ def test_runtime_observer_records_model_and_tool_events():
     assert events[0].metadata["provider"] == "deepseek"
     assert events[1].event_type == RuntimeEventType.TOOL_CALL
     assert events[1].subject == "web_search"
+
+
+def test_runtime_observer_records_permission_fallback_and_provider_events():
+    observer = RuntimeObserver()
+
+    observer.record_permission_decision(
+        PermissionDecisionObservation(
+            action="RUN_SKILL",
+            resource="code_sandbox",
+            allowed=False,
+            mode="deny",
+            reason="policy denied",
+        )
+    )
+    observer.record_fallback(
+        FallbackObservation(
+            from_model_key="remote_deep",
+            from_provider="openai",
+            to_model_key="local_fast",
+            to_provider="ollama",
+            reason="remote unavailable",
+        )
+    )
+    observer.record_provider_verify(
+        ProviderVerifyObservation(
+            provider_id="ollama",
+            status=RuntimeEventStatus.OK,
+            provider_status="active",
+            latency_ms=12.5,
+        )
+    )
+
+    events = observer.snapshot()
+
+    assert events[0].event_type == RuntimeEventType.PERMISSION_DECISION
+    assert events[0].status == RuntimeEventStatus.ERROR
+    assert events[0].subject == "RUN_SKILL"
+    assert events[0].metadata["resource"] == "code_sandbox"
+    assert events[0].metadata["allowed"] is False
+    assert events[1].event_type == RuntimeEventType.FALLBACK
+    assert events[1].subject == "local_fast"
+    assert events[1].metadata["from_model_key"] == "remote_deep"
+    assert events[2].event_type == RuntimeEventType.PROVIDER_VERIFY
+    assert events[2].subject == "ollama"
+    assert events[2].metadata["latency_ms"] == 12.5
 
 
 def test_runtime_observer_flushes_jsonl_and_resets(tmp_path: Path):

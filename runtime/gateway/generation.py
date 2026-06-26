@@ -10,6 +10,7 @@ from runtime.gateway.loop import RuntimeToolLoop, ToolLoopContext
 from runtime.gateway.model_guard import ensure_model_ready
 from runtime.gateway.multimodal import assemble_multimodal_payload
 from runtime.gateway.skills_prompt import inject_skills_system_prompt
+from runtime.usage.observer import FallbackObservation, get_runtime_observer
 
 logger = logging.getLogger("runtime.gateway.generation")
 
@@ -152,6 +153,15 @@ def generate_with_local_fallback(
             "to_model_key": plan.model_key,
             "reason": plan.reason,
         }
+    )
+    get_runtime_observer().record_fallback(
+        FallbackObservation(
+            from_model_key=failed_model_key,
+            from_provider=failed_provider,
+            to_model_key=plan.model_key,
+            to_provider=plan.provider,
+            reason=plan.reason,
+        )
     )
 
     target = ensure_model_ready(

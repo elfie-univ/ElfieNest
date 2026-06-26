@@ -9,12 +9,15 @@ from runtime.storage.data_home import get_elfie_home
 
 logger = logging.getLogger("runtime.usage.observer")
 
-RuntimeMetadataValue: TypeAlias = str | int | bool
+RuntimeMetadataValue: TypeAlias = str | int | float | bool
 
 
 class RuntimeEventType(str, Enum):
     MODEL_CALL = "model_call"
     TOOL_CALL = "tool_call"
+    PERMISSION_DECISION = "permission_decision"
+    FALLBACK = "fallback"
+    PROVIDER_VERIFY = "provider_verify"
 
 
 class RuntimeEventStatus(str, Enum):
@@ -78,6 +81,75 @@ class ToolCallObservation:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class PermissionDecisionObservation:
+    action: str
+    resource: str
+    allowed: bool
+    mode: str
+    reason: str = ""
+
+    def to_event(self) -> RuntimeEvent:
+        metadata: dict[str, RuntimeMetadataValue] = {
+            "resource": self.resource,
+            "allowed": self.allowed,
+            "mode": self.mode,
+        }
+        if self.reason:
+            metadata["reason"] = self.reason
+        return RuntimeEvent(
+            event_type=RuntimeEventType.PERMISSION_DECISION,
+            status=RuntimeEventStatus.OK if self.allowed else RuntimeEventStatus.ERROR,
+            subject=self.action,
+            metadata=metadata,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class FallbackObservation:
+    from_model_key: str
+    from_provider: str
+    to_model_key: str
+    to_provider: str
+    reason: str
+
+    def to_event(self) -> RuntimeEvent:
+        return RuntimeEvent(
+            event_type=RuntimeEventType.FALLBACK,
+            status=RuntimeEventStatus.OK,
+            subject=self.to_model_key,
+            metadata={
+                "from_model_key": self.from_model_key,
+                "from_provider": self.from_provider,
+                "to_provider": self.to_provider,
+                "reason": self.reason,
+            },
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderVerifyObservation:
+    provider_id: str
+    status: RuntimeEventStatus
+    provider_status: str
+    latency_ms: float = 0.0
+    error: str = ""
+
+    def to_event(self) -> RuntimeEvent:
+        metadata: dict[str, RuntimeMetadataValue] = {
+            "provider_status": self.provider_status,
+            "latency_ms": self.latency_ms,
+        }
+        if self.error:
+            metadata["error"] = self.error
+        return RuntimeEvent(
+            event_type=RuntimeEventType.PROVIDER_VERIFY,
+            status=self.status,
+            subject=self.provider_id,
+            metadata=metadata,
+        )
+
+
 class RuntimeObserver:
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -87,6 +159,17 @@ class RuntimeObserver:
         self._record(observation.to_event())
 
     def record_tool_call(self, observation: ToolCallObservation) -> None:
+        self._record(observation.to_event())
+
+    def record_permission_decision(
+        self, observation: PermissionDecisionObservation
+    ) -> None:
+        self._record(observation.to_event())
+
+    def record_fallback(self, observation: FallbackObservation) -> None:
+        self._record(observation.to_event())
+
+    def record_provider_verify(self, observation: ProviderVerifyObservation) -> None:
         self._record(observation.to_event())
 
     def snapshot(self) -> tuple[RuntimeEvent, ...]:

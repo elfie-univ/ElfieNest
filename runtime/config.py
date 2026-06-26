@@ -179,6 +179,7 @@ class LLMRuntimeConfig:
     system: Dict[str, Dict[str, Any]] = field(
         default_factory=lambda: copy.deepcopy(DEFAULT_SYSTEM_SETTINGS)
     )
+    runtime_policy: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         # 尝试自检测并热加载持久化的本地 YAML 配置文件
@@ -274,4 +275,5 @@ class LLMRuntimeConfig:
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
             "system": self.system,
+            "runtime_policy": self.runtime_policy,
         }

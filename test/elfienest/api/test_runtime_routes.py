@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from elfienest.api.app import create_app
 from elfienest.persistence.store import init_db
 from runtime.usage.observer import (
+    FallbackObservation,
     RuntimeEventStatus,
     RuntimeObserver,
     ToolCallObservation,
@@ -43,6 +44,21 @@ def runtime_config_path(tmp_path: Path) -> Path:
                 "models": {
                     "openai/gpt-4o-mini": {"visible": False, "cost_tier": 2}
                 },
+                "runtime_policy": {
+                    "task_routes": {"reasoning": "premium"},
+                    "model_groups": {
+                        "premium": {
+                            "display_name": "精粮",
+                            "model_keys": ["remote_deep", "local_fast"],
+                        }
+                    },
+                    "tool_permissions": {
+                        "RUN_SKILL": {
+                            "mode": "allow",
+                            "reason": "技能运行允许",
+                        }
+                    },
+                },
             },
             ensure_ascii=False,
         ),
@@ -59,6 +75,15 @@ def runtime_observer() -> RuntimeObserver:
             tool_name="web_search",
             status=RuntimeEventStatus.OK,
             metadata={"query": "ElfieNest"},
+        )
+    )
+    observer.record_fallback(
+        FallbackObservation(
+            from_model_key="remote_deep",
+            from_provider="openai",
+            to_model_key="local_fast",
+            to_provider="ollama",
+            reason="remote unavailable",
         )
     )
     return observer
@@ -122,8 +147,8 @@ def test_admin_runtime_status_returns_diagnostic_snapshot(client: TestClient) ->
     assert payload["tools"]["web_search"]["available"] is True
     assert payload["tools"]["code_sandbox"]["available"] is True
     assert payload["usage"]["deepseek"]["total_tokens"] == 15
-    assert payload["observer"]["event_count"] == 1
-    assert payload["observer"]["last_event"]["subject"] == "web_search"
+    assert payload["observer"]["event_count"] == 2
+    assert payload["observer"]["last_event"]["subject"] == "local_fast"
     assert payload["notes"]
 
 
@@ -164,3 +189,116 @@ def test_non_admin_cannot_read_runtime_status(client: TestClient) -> None:
     )
 
     assert response.status_code == 403
+
+
+def test_admin_runtime_policy_returns_configured_strategy(client: TestClient) -> None:
+    tokens = _login(client, "admin", "adminchangeme")
+
+    response = client.get(
+        "/api/admin/runtime/policy",
+        headers={"X-CSRF-Token": tokens["csrf_token"]},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["task_routes"]["reasoning"] == "premium"
+    assert payload["model_groups"]["premium"]["model_keys"] == [
+        "remote_deep",
+        "local_fast",
+    ]
+    assert payload["tool_permissions"]["RUN_SKILL"]["mode"] == "allow"
+    assert payload["tool_permissions"]["DELETE_SKILL"]["mode"] == "admin"
+
+
+def test_admin_runtime_policy_put_persists_strategy(
+    client: TestClient,
+    runtime_config_path: Path,
+) -> None:
+    tokens = _login(client, "admin", "adminchangeme")
+
+    response = client.put(
+        "/api/admin/runtime/policy",
+        json={
+            "task_routes": {"reasoning": "standard"},
+            "model_groups": {
+                "standard": {
+                    "display_name": "标准粮",
+                    "model_keys": ["remote_cheap", "local_fast"],
+                }
+            },
+            "tool_permissions": {
+                "RUN_SKILL": {
+                    "mode": "ask",
+                    "reason": "需要人工确认",
+                }
+            },
+        },
+        headers={"X-CSRF-Token": tokens["csrf_token"]},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["task_routes"]["reasoning"] == "standard"
+    assert payload["tool_permissions"]["RUN_SKILL"]["mode"] == "ask"
+
+    saved = json.loads(runtime_config_path.read_text(encoding="utf-8"))
+    assert saved["runtime_policy"]["task_routes"]["reasoning"] == "standard"
+
+
+def test_admin_runtime_policy_rejects_invalid_permission_mode(
+    client: TestClient,
+) -> None:
+    tokens = _login(client, "admin", "adminchangeme")
+
+    response = client.put(
+        "/api/admin/runtime/policy",
+        json={"tool_permissions": {"RUN_SKILL": {"mode": "unknown"}}},
+        headers={"X-CSRF-Token": tokens["csrf_token"]},
+    )
+
+    assert response.status_code == 422
+
+
+def test_admin_runtime_policy_rejects_invalid_task_route(
+    client: TestClient,
+) -> None:
+    tokens = _login(client, "admin", "adminchangeme")
+
+    response = client.put(
+        "/api/admin/runtime/policy",
+        json={"task_routes": {"unknown": "premium"}},
+        headers={"X-CSRF-Token": tokens["csrf_token"]},
+    )
+
+    assert response.status_code == 422
+
+
+def test_admin_runtime_audit_returns_recent_events(client: TestClient) -> None:
+    tokens = _login(client, "admin", "adminchangeme")
+
+    response = client.get(
+        "/api/admin/runtime/audit",
+        headers={"X-CSRF-Token": tokens["csrf_token"]},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["event_count"] == 2
+    assert payload["events"][0]["event_type"] == "tool_call"
+    assert payload["events"][1]["event_type"] == "fallback"
+
+
+def test_non_admin_cannot_read_runtime_policy_or_audit(client: TestClient) -> None:
+    tokens = _login(client, "alice", "pass123")
+
+    policy_response = client.get(
+        "/api/admin/runtime/policy",
+        headers={"X-CSRF-Token": tokens["csrf_token"]},
+    )
+    audit_response = client.get(
+        "/api/admin/runtime/audit",
+        headers={"X-CSRF-Token": tokens["csrf_token"]},
+    )
+
+    assert policy_response.status_code == 403
+    assert audit_response.status_code == 403

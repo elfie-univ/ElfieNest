@@ -9,8 +9,9 @@ from runtime.gateway.multimodal import assemble_multimodal_payload
 from runtime.gateway.request import RuntimeRequest, RuntimeResult
 from runtime.gateway.skills_prompt import inject_skills_system_prompt
 from runtime.gateway.streaming import RuntimeStreamRequest, stream_runtime_response
+from runtime.models.groups import load_model_groups
 from runtime.models.registry import ModelRegistry
-from runtime.policy.food_policy import resolve_food_policy
+from runtime.policy.food_policy import load_food_policy, resolve_food_policy
 from runtime.policy.router import ModelRouter
 from runtime.providers.ollama import OllamaManager
 from runtime.safety.permissions import PermissionManager
@@ -72,7 +73,13 @@ class RuntimeAgent:
         task_type = metadata.get("task_type")
         if task_type is not None:
             available_model_keys = set(self.registry.list_available_models())
-            food_decision = resolve_food_policy(str(task_type), available_model_keys)
+            runtime_policy = self.config.runtime_policy
+            food_decision = resolve_food_policy(
+                str(task_type),
+                available_model_keys,
+                food_policy=load_food_policy(runtime_policy),
+                model_groups=load_model_groups(runtime_policy),
+            )
             model_key = food_decision.model_key
             mode = "local" if model_key.startswith("local_") else "remote"
             decision = {

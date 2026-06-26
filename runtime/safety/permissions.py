@@ -1,5 +1,13 @@
 import logging
 import os
+from dataclasses import dataclass
+from enum import Enum
+from typing import Any, Mapping, assert_never
+
+from runtime.usage.observer import (
+    PermissionDecisionObservation,
+    get_runtime_observer,
+)
 
 logger = logging.getLogger("runtime.safety.permissions")
 
@@ -8,6 +16,30 @@ class PermissionDeniedError(Exception):
     """大模型进行越权或高危敏感操作被底层物理防御阻断的异常"""
 
     pass
+
+
+class PermissionMode(str, Enum):
+    ALLOW = "allow"
+    ASK = "ask"
+    DENY = "deny"
+    ADMIN = "admin"
+
+
+@dataclass(frozen=True, slots=True)
+class ToolPermissionRule:
+    mode: PermissionMode
+    reason: str
+
+
+DEFAULT_TOOL_PERMISSIONS: Mapping[str, ToolPermissionRule] = {
+    "WEB_SEARCH": ToolPermissionRule(PermissionMode.ALLOW, "联网检索工具自动放行"),
+    "RUN_CODE": ToolPermissionRule(PermissionMode.ALLOW, "代码沙箱只在隔离环境运行，默认放行并审计"),
+    "READ": ToolPermissionRule(PermissionMode.ALLOW, "只读工具自动放行"),
+    "RUN_SKILL": ToolPermissionRule(PermissionMode.ALLOW, "运行已登记技能自动放行"),
+    "LIST_SKILLS": ToolPermissionRule(PermissionMode.ALLOW, "读取技能清单自动放行"),
+    "CREATE_SKILL": ToolPermissionRule(PermissionMode.ALLOW, "新增技能允许，但文件名必须留在技能根目录"),
+    "DELETE_SKILL": ToolPermissionRule(PermissionMode.ADMIN, "技能删除或覆盖需要管理员令牌"),
+}
 
 
 class PermissionManager:
@@ -31,34 +63,124 @@ class PermissionManager:
         :param token: 操作时携带的特权令牌
         :return: True (审计通过)；失败则直接抛出 PermissionDeniedError
         """
-        logger.info(f"🛡️ 权限安全审计中... 行为: {action}, 资源: {file_path}")
+        resource = file_path or ""
+        logger.info("🛡️ 权限安全审计中... 行为: %s, 资源: %s", action, resource)
 
-        # 1. 普通安全行为自动放行
-        if action in ("READ", "RUN_SKILL"):
-            return True
+        if action == "CREATE_SKILL" and _has_path_escape(resource):
+            reason = f"路径审计拦截，不允许跨越自定义技能根目录：'{resource}'"
+            self._record_decision(action, resource, allowed=False, mode="deny", reason=reason)
+            raise PermissionDeniedError(f"❌ {reason}")
 
-        # 2. 追加新技能 (Tool Synthesis 自进化) 自动放行
-        if action == "CREATE_SKILL":
-            # 强化审计：防止文件名注入攻击（如带有 ../ 等路径穿越）
-            if file_path and (
-                ".." in file_path or "/" in file_path or "\\" in file_path
-            ):
-                raise PermissionDeniedError(
-                    f"❌ 路径审计拦截！不允许跨越自定义技能根目录：'{file_path}'"
+        rule = self._rule_for(action)
+        match rule.mode:
+            case PermissionMode.ALLOW:
+                self._record_decision(
+                    action,
+                    resource,
+                    allowed=True,
+                    mode=rule.mode.value,
+                    reason=rule.reason,
                 )
-            return True
-
-        # 3. 敏感的删除/优化重写 (清理冗余) 必须校验特权令牌
-        if action == "DELETE_SKILL":
-            if token == self._admin_token:
-                logger.info("🔑 [特权令牌校验通过] 允许执行离线技能库代谢与去重操作")
                 return True
-            else:
-                reason = "日常运行中，大模型无权删除或覆盖已有的稳定技能脚本！"
-                logger.error(f"❌ 越权拦截：{reason}")
+            case PermissionMode.ADMIN:
+                if token == self._admin_token:
+                    logger.info("🔑 [特权令牌校验通过] 允许执行离线技能库代谢与去重操作")
+                    self._record_decision(
+                        action,
+                        resource,
+                        allowed=True,
+                        mode=rule.mode.value,
+                        reason=rule.reason,
+                    )
+                    return True
+                reason = rule.reason or "该操作需要管理员令牌"
+                self._record_decision(
+                    action,
+                    resource,
+                    allowed=False,
+                    mode=rule.mode.value,
+                    reason=reason,
+                )
                 raise PermissionDeniedError(
                     f"❌ 越权执行被物理阻断！原因：{reason}\n"
                     f"💡 技能代谢只允许在精灵 N3 深度睡眠模式下，由高特权整理模型（携带 admin_token）执行。"
                 )
+            case PermissionMode.ASK:
+                reason = rule.reason or "该操作需要人工确认，当前运行链路未提供交互式审批"
+                self._record_decision(
+                    action,
+                    resource,
+                    allowed=False,
+                    mode=rule.mode.value,
+                    reason=reason,
+                )
+                raise PermissionDeniedError(f"❌ 操作需要人工确认：{reason}")
+            case PermissionMode.DENY:
+                reason = rule.reason or "策略禁止该操作"
+                self._record_decision(
+                    action,
+                    resource,
+                    allowed=False,
+                    mode=rule.mode.value,
+                    reason=reason,
+                )
+                raise PermissionDeniedError(f"❌ 策略禁止执行：{reason}")
+            case unreachable:
+                assert_never(unreachable)
 
-        raise PermissionDeniedError(f"❌ 未知高危行为 '{action}'，底座自动阻断。")
+    def _rule_for(self, action: str) -> ToolPermissionRule:
+        runtime_policy = getattr(self.config, "runtime_policy", {})
+        if isinstance(runtime_policy, Mapping):
+            raw_permissions = runtime_policy.get("tool_permissions", {})
+        else:
+            raw_permissions = {}
+
+        if isinstance(raw_permissions, Mapping):
+            raw_rule = raw_permissions.get(action, {})
+            if isinstance(raw_rule, Mapping):
+                raw_mode = raw_rule.get("mode", "")
+                reason = raw_rule.get("reason", "")
+                mode = _parse_permission_mode(raw_mode)
+                if mode is not None:
+                    return ToolPermissionRule(
+                        mode=mode,
+                        reason=reason if isinstance(reason, str) else "",
+                    )
+
+        default_rule = DEFAULT_TOOL_PERMISSIONS.get(action)
+        if default_rule is not None:
+            return default_rule
+        return ToolPermissionRule(PermissionMode.DENY, "未知高危行为，底座自动阻断")
+
+    def _record_decision(
+        self,
+        action: str,
+        resource: str,
+        allowed: bool,
+        mode: str,
+        reason: str,
+    ) -> None:
+        get_runtime_observer().record_permission_decision(
+            PermissionDecisionObservation(
+                action=action,
+                resource=resource,
+                allowed=allowed,
+                mode=mode,
+                reason=reason,
+            )
+        )
+
+
+def _has_path_escape(file_path: str) -> bool:
+    return bool(file_path) and (
+        ".." in file_path or "/" in file_path or "\\" in file_path
+    )
+
+
+def _parse_permission_mode(raw_mode: Any) -> PermissionMode | None:
+    if not isinstance(raw_mode, str):
+        return None
+    try:
+        return PermissionMode(raw_mode)
+    except ValueError:
+        return None
