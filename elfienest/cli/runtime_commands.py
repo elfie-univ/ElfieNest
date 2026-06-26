@@ -4,6 +4,8 @@ import os
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 import webbrowser
 
 from elfienest.operations.service import (
@@ -17,6 +19,9 @@ from elfienest.operations.service import (
 )
 
 VERSION = "1.0.0"
+WEB_URL = "http://localhost:8000/"
+WEB_HEALTH_URL = "http://localhost:8000/api/health"
+WEB_START_TIMEOUT_SECONDS = 10.0
 
 
 def show_status() -> None:
@@ -44,17 +49,33 @@ def start_web() -> None:
     print("  🌐 启动服务并打开浏览器...")
     print()
 
-    subprocess.Popen(
-        [sys.executable, "scripts/serve.py", "--fallback"],
+    process = subprocess.Popen(
+        [sys.executable, "scripts/serve.py", "--fallback", "--force"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
 
-    time.sleep(3)
+    deadline = time.monotonic() + WEB_START_TIMEOUT_SECONDS
+    service_ready = False
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            break
+        try:
+            with urllib.request.urlopen(WEB_HEALTH_URL, timeout=0.5) as response:
+                service_ready = response.status == 200
+        except (OSError, TimeoutError, urllib.error.URLError):
+            time.sleep(0.5)
+            continue
+        if service_ready:
+            break
 
-    url = "http://localhost:8000/static/login.html"
-    print(f"  打开浏览器: {url}")
-    webbrowser.open(url)
+    if not service_ready:
+        print("  ❌ 服务启动失败，请运行 ./elfie.sh serve --force 查看错误")
+        print()
+        return
+
+    print(f"  打开浏览器: {WEB_URL}")
+    webbrowser.open(WEB_URL)
 
     print("  ✅ 服务已启动")
     print()

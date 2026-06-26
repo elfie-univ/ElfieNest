@@ -2,13 +2,14 @@ import os
 
 # 确保 Python 能够正确寻址父目录
 import sys
+import tempfile
 import unittest
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from elfie import ElfieIndividual
 from elfienest import ElfieNestEngine
-from elfienest.room import ElfieNestRoom
+from elfienest.core.room import ElfieNestRoom
 
 
 class TestElfieNestSimulation(unittest.TestCase):
@@ -16,6 +17,18 @@ class TestElfieNestSimulation(unittest.TestCase):
     针对精灵仓 3D 宿舍宿舍物理容器进行的高阶链路冒烟测试。
     测试群聊广播路由、家具动态注册、脑干碰撞反射与 Godot 姿态状态反馈合拢。
     """
+
+    def setUp(self):
+        self._old_elfie_home = os.environ.get("ELFIE_HOME")
+        self._elfie_home = tempfile.TemporaryDirectory()
+        os.environ["ELFIE_HOME"] = self._elfie_home.name
+
+    def tearDown(self):
+        if self._old_elfie_home is None:
+            os.environ.pop("ELFIE_HOME", None)
+        else:
+            os.environ["ELFIE_HOME"] = self._old_elfie_home
+        self._elfie_home.cleanup()
 
     def test_room_logic_and_broadcast(self):
         """测试 ElfieNestRoom 本身的核心逻辑、动态注册和广播路由"""

@@ -19,9 +19,9 @@ from elfienest.cli.runtime_commands import (
     start_web,
     stop_service,
 )
-from elfienest.tui.common import print_banner
-from elfienest.tui.config_app import run_config_tui
-from elfienest.tui.setup_app import run_setup_wizard
+from elfienest.cli.tui.common import print_banner
+from elfienest.cli.tui.config_app import run_config_tui
+from elfienest.cli.tui.setup_app import run_setup_wizard
 
 
 def main() -> None:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+from elfienest.cli.tui.common import input_password, input_text
 from elfienest.config.provider_service import (
     get_known_profile,
     list_provider_rows,
@@ -14,7 +15,6 @@ from elfienest.config.user_config import (
     write_env_file,
     write_user_config,
 )
-from elfienest.tui.common import input_password, input_text
 from runtime.config import LLMRuntimeConfig
 from runtime.model_catalog import verify_provider
 from runtime.provider_profiles import BUILTIN_PROFILES, get_profile
