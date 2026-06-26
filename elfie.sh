@@ -1,15 +1,38 @@
 #!/bin/bash
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
-PYTHON_BIN="$SCRIPT_DIR/.venv/bin/python3"
-if [ ! -x "$PYTHON_BIN" ]; then
-    PYTHON_BIN="python3"
-fi
+WEB_DEPENDENCY_CHECK='import fastapi, uvicorn, multipart'
 
-PYTHON_BIN="$SCRIPT_DIR/.venv/bin/python3"
-if [ ! -x "$PYTHON_BIN" ]; then
-    PYTHON_BIN="python3"
-fi
+python_has_web_dependencies() {
+    "$1" -c "$WEB_DEPENDENCY_CHECK" >/dev/null 2>&1
+}
+
+select_python() {
+    local venv_python="$SCRIPT_DIR/.venv/bin/python3"
+
+    if [ -x "$venv_python" ] && python_has_web_dependencies "$venv_python"; then
+        echo "$venv_python"
+        return
+    fi
+
+    if python_has_web_dependencies "python3"; then
+        if [ -x "$venv_python" ]; then
+            echo "  ⚠️  .venv 缺少 Web 依赖，临时使用系统 python3。" >&2
+            echo "  💡 修复 .venv: $venv_python -m pip install -r requirements.txt" >&2
+            echo "" >&2
+        fi
+        echo "python3"
+        return
+    fi
+
+    if [ -x "$venv_python" ]; then
+        echo "$venv_python"
+    else
+        echo "python3"
+    fi
+}
+
+PYTHON_BIN="$(select_python)"
 
 show_logo() {
     clear
@@ -106,12 +129,18 @@ if [ $# -eq 0 ]; then
 else
     SERVE_ARGS="--fallback --force --port --ws-port --no-seed-elfie"
     has_serve_arg=false
-    for arg in "$@"; do
-        if [[ " $SERVE_ARGS " =~ " $arg " ]] || [[ "$arg" == --port=* ]] || [[ "$arg" == --ws-port=* ]]; then
-            has_serve_arg=true
-            break
-        fi
-    done
+    command="$1"
+    if [ "$command" = "serve" ]; then
+        shift
+        has_serve_arg=true
+    else
+        for arg in "$@"; do
+            if [[ " $SERVE_ARGS " =~ " $arg " ]] || [[ "$arg" == --port=* ]] || [[ "$arg" == --ws-port=* ]]; then
+                has_serve_arg=true
+                break
+            fi
+        done
+    fi
     if [ "$has_serve_arg" = true ]; then
         "$PYTHON_BIN" scripts/serve.py "$@"
     else
