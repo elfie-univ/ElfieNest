@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from runtime.data_home import get_db_path as _get_db_path
+from runtime.storage.data_home import get_db_path as _get_db_path
 
 from .auth import (
     create_session,

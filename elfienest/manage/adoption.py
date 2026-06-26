@@ -3,7 +3,7 @@
 Usage::
 
     from elfienest.manage.adoption import ElfieGenerator
-    from runtime.data_home import get_elfie_config_dir
+    from runtime.storage.data_home import get_elfie_config_dir
 
     gen = ElfieGenerator()
     result = gen.generate(

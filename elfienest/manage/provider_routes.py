@@ -14,8 +14,8 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from elfienest.config.runtime_store import read_runtime_config, write_runtime_config
 from runtime.config import LLMRuntimeConfig
-from runtime.model_catalog import verify_provider
-from runtime.provider_profiles import BUILTIN_PROFILES, get_profile
+from runtime.models.catalog import verify_provider
+from runtime.providers.profiles import BUILTIN_PROFILES, get_profile
 
 from .admin_routes import require_admin
 

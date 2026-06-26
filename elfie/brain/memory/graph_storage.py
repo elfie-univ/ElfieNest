@@ -5,7 +5,7 @@ import sqlite3
 from pathlib import Path
 from typing import Optional
 
-from runtime.data_home import get_elfie_home
+from runtime.storage.data_home import get_elfie_home
 
 from .graph_content_search import GraphContentSearchMixin
 from .graph_edge_store import GraphEdgeStoreMixin

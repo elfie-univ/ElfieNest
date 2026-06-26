@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from runtime.model_route import SCENE_SLOTS, load_model_route
+from runtime.policy.model_route import SCENE_SLOTS, load_model_route
 
 
 def dispatch_route(subcmd: Optional[str], elfie_id: Optional[str]) -> None:

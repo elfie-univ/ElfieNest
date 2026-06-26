@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from elfienest.config.user_config import UserConfig, write_user_config
 from elfienest.tui.common import clear_screen, input_text, print_banner
-from runtime.provider_profiles import BUILTIN_PROFILES
+from runtime.providers.profiles import BUILTIN_PROFILES
 
 
 def config_llm(config: UserConfig) -> None:

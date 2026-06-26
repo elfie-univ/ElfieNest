@@ -9,8 +9,8 @@ from elfienest.config.provider_service import (
 from elfienest.config.user_config import UserConfig, read_user_config
 from elfienest.tui.common import clear_screen, print_banner
 from runtime.config import LLMRuntimeConfig
-from runtime.model_catalog import verify_provider
-from runtime.provider_profiles import BUILTIN_PROFILES, get_profile
+from runtime.models.catalog import verify_provider
+from runtime.providers.profiles import BUILTIN_PROFILES, get_profile
 
 ProviderLogin = Callable[[str], None]
 

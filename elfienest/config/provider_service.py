@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 from elfienest.config.user_config import EnvVars, UserConfig
-from runtime.model_catalog import BUILTIN_MODEL_CATALOG
-from runtime.provider_profiles import BUILTIN_PROFILES, ProviderProfile, get_profile
+from runtime.models.catalog import BUILTIN_MODEL_CATALOG
+from runtime.providers.profiles import BUILTIN_PROFILES, ProviderProfile, get_profile
 
 
 @dataclass(frozen=True)

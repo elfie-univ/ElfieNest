@@ -16,8 +16,8 @@ from elfienest.config.user_config import (
 )
 from elfienest.tui.common import input_password, input_text
 from runtime.config import LLMRuntimeConfig
-from runtime.model_catalog import verify_provider
-from runtime.provider_profiles import BUILTIN_PROFILES, get_profile
+from runtime.models.catalog import verify_provider
+from runtime.providers.profiles import BUILTIN_PROFILES, get_profile
 
 
 def login_provider(provider_id: str) -> None:

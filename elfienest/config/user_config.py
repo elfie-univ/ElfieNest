@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 import yaml
 
-from runtime.data_home import get_config_path, get_env_path
+from runtime.storage.data_home import get_config_path, get_env_path
 
 UserConfig = Dict[str, Any]
 EnvVars = Dict[str, str]

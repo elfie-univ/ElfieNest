@@ -19,7 +19,7 @@ from .store import get_db
 from .store import hash_password as hash_password  # noqa: F401
 from .store import verify_password as verify_password  # noqa: F401
 
-from runtime.data_home import get_db_path as _get_db_path
+from runtime.storage.data_home import get_db_path as _get_db_path
 
 logger = logging.getLogger("elfienest.manage.auth")
 

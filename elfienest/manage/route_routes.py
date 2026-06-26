@@ -12,7 +12,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from elfienest.manage.store import get_db
-from runtime.model_route import (
+from runtime.policy.model_route import (
     SCENE_SLOTS,
     SceneRoute,
     load_model_route,

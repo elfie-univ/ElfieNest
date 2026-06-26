@@ -18,7 +18,7 @@ import websockets.asyncio.server
 from .auth import verify_session
 from .store import get_db
 
-from runtime.data_home import get_db_path as _get_db_path
+from runtime.storage.data_home import get_db_path as _get_db_path
 
 logger = logging.getLogger("elfienest.manage.ws_gateway")
 

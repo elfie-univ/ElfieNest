@@ -24,8 +24,8 @@ from elfienest.tui.common import (
     print_tui_panel,
     rich_console,
 )
-from runtime.data_home import get_db_path
-from runtime.provider_profiles import BUILTIN_PROFILES
+from runtime.storage.data_home import get_db_path
+from runtime.providers.profiles import BUILTIN_PROFILES
 
 
 def run_setup_wizard() -> None:

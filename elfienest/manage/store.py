@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator, Optional
 
-from runtime.data_home import get_db_path as _get_db_path
+from runtime.storage.data_home import get_db_path as _get_db_path
 
 logger = logging.getLogger("elfienest.manage.store")
 

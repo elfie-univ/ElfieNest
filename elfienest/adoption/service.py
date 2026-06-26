@@ -14,7 +14,7 @@ from elfienest.manage.adoption_config import (
 )
 from elfienest.manage.store import count_elfies_by_owner, get_db
 from elfienest.room import RoomFullError
-from runtime.data_home import get_elfie_config_dir
+from runtime.storage.data_home import get_elfie_config_dir
 
 logger = logging.getLogger("elfienest.adoption.service")
 

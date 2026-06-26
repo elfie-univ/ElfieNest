@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
-from runtime.data_home import get_db_path
+from runtime.storage.data_home import get_db_path
 
 
 class DatabaseUnavailableError(Exception):

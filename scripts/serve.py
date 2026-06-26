@@ -40,7 +40,7 @@ from elfienest.manage.adoption import ElfieGenerator
 from elfienest.manage.app import create_app
 from elfienest.manage.store import get_db, init_db, migrate_db_if_needed, seed_initial_admin_if_env_set
 from runtime import LLMRuntimeConfig
-from runtime.data_home import get_db_path, get_elfie_config_dir
+from runtime.storage.data_home import get_db_path, get_elfie_config_dir
 
 
 class LocalRuntimeAgent:

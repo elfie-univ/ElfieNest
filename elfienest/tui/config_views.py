@@ -10,9 +10,9 @@ from elfienest.config.user_config import UserConfig, read_user_config, write_use
 from elfienest.operations.service import DatabaseUnavailableError, collect_usage_stats
 from elfienest.tui.common import clear_screen, print_banner
 from runtime.config import LLMRuntimeConfig
-from runtime.data_home import get_config_path
-from runtime.model_catalog import verify_provider
-from runtime.provider_profiles import get_profile
+from runtime.storage.data_home import get_config_path
+from runtime.models.catalog import verify_provider
+from runtime.providers.profiles import get_profile
 
 CONFIG_FILE: Final = str(get_config_path())
 
