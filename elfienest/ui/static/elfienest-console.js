@@ -9,6 +9,12 @@ let rooms = [];
 let providers = [];
 let models = [];
 let systemConfig = {};
+let globalQuery = "";
+let ws = null;
+let wsState = "offline";
+let wsReconnectTimer = null;
+const chatHistory = new Map();
+const MAX_CHAT_ITEMS = 80;
 
 const USER_VIEWS = new Set(["elves", "rooms", "elf-detail"]);
 const shell = document.querySelector(".app-shell");
@@ -21,6 +27,7 @@ const scopeFilter = document.querySelector("#scope-filter");
 const ownerFilter = document.querySelector("#owner-filter");
 const backdrop = document.querySelector(".drawer-backdrop");
 const adoptionDrawer = document.querySelector("#adoption-drawer");
+const profileDrawer = document.querySelector("#profile-drawer");
 const profileMenu = document.querySelector("#profile-menu");
 const detailContent = document.querySelector("#elf-detail-content");
 const detailHeading = document.querySelector("#elf-detail-heading");
@@ -43,11 +50,223 @@ function setText(id, value) {
   if (node) node.textContent = value;
 }
 
+function nowLabel() {
+  return new Date().toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
+function addChatItem(elfieId, item) {
+  if (!elfieId) return;
+  const items = chatHistory.get(elfieId) || [];
+  items.push({ time: nowLabel(), ...item });
+  if (items.length > MAX_CHAT_ITEMS) items.splice(0, items.length - MAX_CHAT_ITEMS);
+  chatHistory.set(elfieId, items);
+  if (activeView === "elf-detail" && byId("elf-chat-history")?.dataset.elfieId === elfieId) {
+    renderChatHistory(elfieId);
+  }
+  renderLogs();
+}
+
+function wsStatusLabel() {
+  if (wsState === "online") return "WebSocket 已连接";
+  if (wsState === "connecting") return "WebSocket 连接中";
+  if (wsState === "error") return "WebSocket 连接异常";
+  return "WebSocket 未连接";
+}
+
+function updateWsIndicators() {
+  setText("ws-status-label", wsStatusLabel());
+  setText("room-sync-status", wsState === "online" ? "WebSocket 在线" : "WebSocket 待连接");
+  const sendButton = byId("chat-send-button");
+  if (sendButton) sendButton.disabled = wsState !== "online";
+}
+
 function statusClass(status) {
   if (["online", "active", "ok", "success", true].includes(status)) return "success";
   if (["inactive", "missing", "warning", false].includes(status)) return "warning";
   if (["error", "failed"].includes(status)) return "error";
   return "info";
+}
+
+function wsUrl() {
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${window.location.hostname}:8766`;
+}
+
+function connectRealtime() {
+  if (!currentUser?.session_token || wsState === "connecting" || wsState === "online") return;
+  if (wsReconnectTimer) {
+    clearTimeout(wsReconnectTimer);
+    wsReconnectTimer = null;
+  }
+  wsState = "connecting";
+  updateWsIndicators();
+  ws = new WebSocket(wsUrl());
+
+  ws.addEventListener("open", () => {
+    ws.send(JSON.stringify({
+      event: "auth",
+      payload: { token: currentUser.session_token },
+    }));
+  });
+
+  ws.addEventListener("message", (event) => {
+    handleRealtimeMessage(event.data);
+  });
+
+  ws.addEventListener("close", () => {
+    wsState = currentUser ? "offline" : "closed";
+    updateWsIndicators();
+    if (currentUser) {
+      wsReconnectTimer = setTimeout(connectRealtime, 3000);
+    }
+  });
+
+  ws.addEventListener("error", () => {
+    wsState = "error";
+    updateWsIndicators();
+  });
+}
+
+function disconnectRealtime(reconnect = false) {
+  if (wsReconnectTimer) {
+    clearTimeout(wsReconnectTimer);
+    wsReconnectTimer = null;
+  }
+  if (ws) {
+    ws.close(1000, "logout");
+    ws = null;
+  }
+  wsState = "offline";
+  updateWsIndicators();
+  if (reconnect) {
+    connectRealtime();
+  }
+}
+
+function handleRealtimeMessage(raw) {
+  let message;
+  try {
+    message = JSON.parse(raw);
+  } catch {
+    return;
+  }
+  const event = message.event || message.action;
+  const payload = message.payload || {};
+  if (event === "auth_ok") {
+    wsState = "online";
+    updateWsIndicators();
+    return;
+  }
+  if (event === "speak_event") {
+    const elfieId = payload.elfie_id || "";
+    addChatItem(elfieId, {
+      sender: "elfie",
+      text: payload.text || "精灵发出了一条空消息。",
+      meta: payload.emotion ? `情绪：${payload.emotion}` : "实时回复",
+    });
+    return;
+  }
+  if (event) {
+    addSystemNotice(`收到实时事件：${event}`);
+  }
+}
+
+function sendUserMessage(elfieId, message) {
+  if (!ws || wsState !== "online") {
+    throw new Error("WebSocket 未连接");
+  }
+  ws.send(JSON.stringify({
+    event: "user_message",
+    payload: { elfie_id: elfieId, message },
+  }));
+}
+
+function addSystemNotice(text) {
+  const list = byId("alerts-list");
+  if (!list) return;
+  const node = document.createElement("article");
+  node.innerHTML = `<strong>${escapeHtml(nowLabel())}</strong><span>${escapeHtml(text)}</span>`;
+  list.prepend(node);
+}
+
+function matchesQuery(values) {
+  if (!globalQuery) return true;
+  const haystack = values.map((value) => String(value ?? "").toLowerCase()).join(" ");
+  return haystack.includes(globalQuery);
+}
+
+function applySearchShortcut() {
+  if (!globalQuery) return;
+  const viewMatches = [
+    ["elves", ["精灵", "elf", "elfie"]],
+    ["rooms", ["房间", "床位", "精灵巢", "room", "nest"]],
+    ["users", ["用户", "user"]],
+    ["providers", ["供应商", "provider", "api"]],
+    ["models", ["模型", "model"]],
+    ["food", ["粮食", "路由", "food", "route"]],
+    ["config", ["配置", "系统", "config"]],
+    ["logs", ["日志", "提醒", "log", "alert"]],
+  ];
+  const match = viewMatches.find(([, words]) => words.some((word) => word.includes(globalQuery) || globalQuery.includes(word)));
+  if (match) setView(match[0]);
+}
+
+function setFormMessage(id, text, kind = "info") {
+  const node = byId(id);
+  if (!node) return;
+  node.textContent = text;
+  node.style.color = kind === "error" ? "var(--status-error)" : kind === "success" ? "var(--status-success)" : "var(--text-secondary)";
+}
+
+function fillProfileForm() {
+  const nameInput = byId("profile-edit-name");
+  const colorSelect = byId("profile-edit-color");
+  if (nameInput) nameInput.value = currentUser?.nickname || currentUser?.username || "";
+  if (colorSelect) colorSelect.value = String(currentUser?.avatar_color ?? 0);
+  setFormMessage("profile-message", "");
+  setFormMessage("password-message", "");
+  const oldPassword = byId("profile-old-password");
+  const newPassword = byId("profile-new-password");
+  if (oldPassword) oldPassword.value = "";
+  if (newPassword) newPassword.value = "";
+}
+
+function updateProfileHeader(user) {
+  currentUser = { ...(currentUser || {}), ...user };
+  setText("profile-name", currentUser.nickname || currentUser.username);
+  setText("profile-avatar", (currentUser.nickname || currentUser.username || "U").charAt(0).toUpperCase());
+}
+
+function systemPayload(section, form) {
+  const data = new FormData(form);
+  if (section === "adoption") {
+    return {
+      max_elfies_per_user: Number(data.get("max_elfies_per_user") || 3),
+      default_personality_style: String(data.get("default_personality_style") || "活泼好动").trim(),
+      allowed_personality_styles: String(data.get("allowed_personality_styles") || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    };
+  }
+  if (section === "engine") {
+    const maxRoom = String(data.get("max_elfies_per_room") || "").trim();
+    return {
+      tick_interval_sec: Number(data.get("tick_interval_sec") || 1.5),
+      tts_enabled: data.get("tts_enabled") === "on",
+      max_elfies_per_room: maxRoom ? Number(maxRoom) : null,
+    };
+  }
+  return {
+    session_ttl_days: Number(data.get("session_ttl_days") || 7),
+    max_login_attempts: Number(data.get("max_login_attempts") || 5),
+    rate_limit_window_seconds: Number(data.get("rate_limit_window_seconds") || 300),
+  };
 }
 
 function apiHeaders(method = "GET") {
@@ -95,8 +314,10 @@ async function checkAuth() {
 
     const loginView = byId("login-view");
     if (loginView) loginView.style.display = "none";
+    connectRealtime();
     await loadDashboardData();
   } catch {
+    disconnectRealtime();
     const loginView = byId("login-view");
     if (loginView) loginView.style.display = "flex";
   }
@@ -136,6 +357,7 @@ if (logoutButton) {
       await fetchJson("/api/auth/logout", { method: "POST" });
     } catch {
     } finally {
+      disconnectRealtime();
       currentUser = null;
       const loginView = byId("login-view");
       if (loginView) loginView.style.display = "flex";
@@ -266,7 +488,7 @@ async function loadUsers() {
         current: true,
       },
       ...(Array.isArray(users) ? users : []),
-    ];
+    ].filter((user) => matchesQuery([user.username, user.role, user.id]));
     body.innerHTML = rows.map((user) => `
       <div class="table-row user-row">
         <span><strong>${escapeHtml(user.username)}</strong><small>${user.current ? "当前登录" : `ID ${user.id}`}</small></span>
@@ -405,6 +627,15 @@ function renderElves() {
   if (scopeFilter?.value === "others") {
     list = elves.filter((elf) => !elf.owned);
   }
+  list = list.filter((elf) => matchesQuery([
+    elf.name,
+    elf.owner,
+    elf.role,
+    elf.anatomy,
+    elf.room,
+    elf.bed,
+    elf.mood,
+  ]));
 
   if (!list.length) {
     elfGrid.innerHTML = emptyPanel("没有匹配的精灵", "普通用户只会看到自己领养的精灵。");
@@ -492,6 +723,11 @@ function renderRooms() {
     if (role === "user") {
       node.disabled = true;
       node.title = "普通用户只能查看床位";
+    } else {
+      node.dataset.editBed = String(bed.id);
+      node.dataset.gridX = String(bed.grid_x ?? 0);
+      node.dataset.gridY = String(bed.grid_y ?? 0);
+      node.title = "点击编辑床位坐标";
     }
     mapRender.appendChild(node);
   });
@@ -521,8 +757,19 @@ function renderRoomSide() {
   }
   setText("bed-panel-title", "床位分配");
   const unassigned = elves.filter((elf) => !elf.raw.bed_id);
+  const room = rooms[0];
+  const emptyBeds = (room?.beds || []).filter((bed) => !bed.occupant_id);
   unassignedList.innerHTML = unassigned.length
-    ? unassigned.map((elf) => `<div><span>未分配</span><strong>${escapeHtml(elf.name)}</strong></div>`).join("")
+    ? unassigned.map((elf) => `
+      <div>
+        <span>未分配</span>
+        <strong>${escapeHtml(elf.name)}</strong>
+        <select data-assign-bed="${escapeHtml(elf.id)}">
+          <option value="">选择床位</option>
+          ${emptyBeds.map((bed) => `<option value="${escapeHtml(bed.id)}">${escapeHtml(bed.name || `床位 ${bed.id}`)}</option>`).join("")}
+        </select>
+      </div>
+    `).join("")
     : "<div><span>床位</span><strong>没有未分配的精灵</strong></div>";
 }
 
@@ -534,12 +781,19 @@ function renderProviders() {
   setText("metric-provider-active", String(activeCount));
   setText("metric-provider-missing", String(Math.max(0, missingCount)));
 
-  if (!providers.length) {
+  const visibleProviders = providers.filter((provider) => matchesQuery([
+    provider.name,
+    provider.provider_id,
+    provider.api_mode,
+    provider.api_base,
+    provider.status,
+  ]));
+  if (!visibleProviders.length) {
     grid.innerHTML = emptyPanel("暂无供应商数据", "检查 /api/admin/providers/ 是否可用。");
     return;
   }
 
-  grid.innerHTML = providers.map((provider) => `
+  grid.innerHTML = visibleProviders.map((provider) => `
     <article class="provider-card ${provider.status === "active" ? "active" : "muted"}">
       <div class="card-inline-head">
         <strong>${escapeHtml(provider.name || provider.provider_id)}</strong>
@@ -577,6 +831,13 @@ function renderModels() {
   } else if (statusFilter === "hidden") {
     list = list.filter((model) => !model.visible);
   }
+  list = list.filter((model) => matchesQuery([
+    model.display_name,
+    model.model_id,
+    model.provider,
+    (model.capabilities || []).join(" "),
+    model.context_window,
+  ]));
 
   if (!list.length) {
     table.innerHTML = emptyPanel("没有匹配的模型", "换一个供应商或状态筛选。");
@@ -655,31 +916,37 @@ function renderSystemConfig() {
     const styles = adoption.allowed_personality_styles || adoption.personality_styles || [];
     adoptionPanel.innerHTML = `
       <h3>领养策略</h3>
-      <div class="provider-grid">
-        <article class="provider-card active"><strong>每用户上限</strong><span>${escapeHtml(adoption.max_elfies_per_user || 3)} 只精灵</span></article>
-        <article class="provider-card"><strong>默认性格</strong><span>${escapeHtml(adoption.default_personality_style || "活泼好动")}</span></article>
-        <article class="provider-card"><strong>可选性格</strong><span>${escapeHtml(styles.length ? styles.join("、") : "使用系统默认")}</span></article>
-      </div>
+      <form class="config-grid system-config-form" data-system-section="adoption">
+        <label class="form-row"><span>每用户上限</span><input name="max_elfies_per_user" type="number" min="1" max="99" value="${escapeHtml(adoption.max_elfies_per_user || 3)}" /></label>
+        <label class="form-row"><span>默认性格</span><input name="default_personality_style" type="text" value="${escapeHtml(adoption.default_personality_style || "活泼好动")}" /></label>
+        <label class="form-row"><span>可选性格（逗号分隔）</span><input name="allowed_personality_styles" type="text" value="${escapeHtml(styles.join(", "))}" /></label>
+        <p class="form-message" data-system-message="adoption"></p>
+        <button class="primary-button full" type="submit">保存领养策略</button>
+      </form>
     `;
   }
   if (enginePanel) {
     enginePanel.innerHTML = `
       <h3>引擎设置</h3>
-      <div class="provider-grid">
-        <article class="provider-card"><strong>Tick 间隔</strong><span>${escapeHtml(engine.tick_interval_sec ?? "默认")} 秒</span></article>
-        <article class="provider-card"><strong>TTS</strong><span>${engine.tts_enabled === false ? "关闭" : "开启"}</span></article>
-        <article class="provider-card"><strong>房间容量</strong><span>${escapeHtml(engine.max_elfies_per_room || "不限")} / 房间</span></article>
-      </div>
+      <form class="config-grid system-config-form" data-system-section="engine">
+        <label class="form-row"><span>Tick 间隔（秒）</span><input name="tick_interval_sec" type="number" min="0.2" max="60" step="0.1" value="${escapeHtml(engine.tick_interval_sec ?? 1.5)}" /></label>
+        <label class="check-row"><input name="tts_enabled" type="checkbox" ${engine.tts_enabled === false ? "" : "checked"} /><span>TTS 语音开启</span></label>
+        <label class="form-row"><span>房间容量</span><input name="max_elfies_per_room" type="number" min="1" max="99" value="${escapeHtml(engine.max_elfies_per_room || "")}" placeholder="不限" /></label>
+        <p class="form-message" data-system-message="engine"></p>
+        <button class="primary-button full" type="submit">保存引擎设置</button>
+      </form>
     `;
   }
   if (securityPanel) {
     securityPanel.innerHTML = `
       <h3>安全设置</h3>
-      <div class="provider-grid">
-        <article class="provider-card"><strong>会话有效期</strong><span>${escapeHtml(security.session_ttl_days || security.session_ttl_hours || "默认")}</span></article>
-        <article class="provider-card"><strong>登录尝试</strong><span>${escapeHtml(security.max_login_attempts || "默认")}</span></article>
-        <article class="provider-card"><strong>限流窗口</strong><span>${escapeHtml(security.rate_limit_window_seconds || security.rate_limit_per_minute || "默认")}</span></article>
-      </div>
+      <form class="config-grid system-config-form" data-system-section="security">
+        <label class="form-row"><span>会话有效期（天）</span><input name="session_ttl_days" type="number" min="1" max="90" value="${escapeHtml(security.session_ttl_days || 7)}" /></label>
+        <label class="form-row"><span>最大登录尝试</span><input name="max_login_attempts" type="number" min="1" max="30" value="${escapeHtml(security.max_login_attempts || 5)}" /></label>
+        <label class="form-row"><span>限流窗口（秒）</span><input name="rate_limit_window_seconds" type="number" min="10" max="3600" value="${escapeHtml(security.rate_limit_window_seconds || 300)}" /></label>
+        <p class="form-message" data-system-message="security"></p>
+        <button class="primary-button full" type="submit">保存安全设置</button>
+      </form>
     `;
   }
 }
@@ -710,8 +977,17 @@ function renderLogs() {
   const items = buildLogItems();
   const overviewLog = byId("overview-log-list");
   const consoleNode = byId("runtime-log-console");
+  const alertsList = byId("alerts-list");
   if (overviewLog) {
     overviewLog.innerHTML = items.slice(0, 3).map((item) => `<span>${escapeHtml(item)}</span>`).join("");
+  }
+  if (alertsList && !alertsList.children.length) {
+    alertsList.innerHTML = items.slice(0, 4).map((item) => `
+      <article>
+        <strong>状态</strong>
+        <span>${escapeHtml(item)}</span>
+      </article>
+    `).join("");
   }
   if (consoleNode) {
     consoleNode.innerHTML = items.map((item, index) => `
@@ -724,12 +1000,34 @@ function renderLogs() {
   }
 }
 
+function renderChatHistory(elfieId) {
+  const historyNode = byId("elf-chat-history");
+  if (!historyNode) return;
+  historyNode.dataset.elfieId = elfieId;
+  const items = chatHistory.get(elfieId) || [];
+  if (!items.length) {
+    historyNode.innerHTML = `
+      <div class="history-divider">还没有对话。发送第一句话后，精灵会在下一次 tick 响应。</div>
+    `;
+    return;
+  }
+  historyNode.innerHTML = items.map((item) => `
+    <article class="chat-bubble ${item.sender === "user" ? "user" : ""}">
+      <span>${escapeHtml(item.sender === "user" ? "你" : "精灵")} · ${escapeHtml(item.time)}</span>
+      <p>${escapeHtml(item.text)}</p>
+      ${item.meta ? `<small>${escapeHtml(item.meta)}</small>` : ""}
+    </article>
+  `).join("");
+  historyNode.scrollTop = historyNode.scrollHeight;
+}
+
 function renderElfDetail(id) {
   const elf = elves.find((item) => item.id === id);
   if (!elf || !detailContent) return;
   detailHeading.textContent = `精灵详情：${elf.name}`;
+  const canChat = elf.owned;
   detailContent.innerHTML = `
-    <div class="elf-detail-layout detail-single">
+    <div class="elf-detail-layout">
       <section class="config-card detail-config">
         <div class="elf-detail-head">
           <div class="elf-avatar large" aria-hidden="true"></div>
@@ -752,8 +1050,30 @@ function renderElfDetail(id) {
         </label>
         <div class="callout privacy">${elf.owned ? "你可以在用户工作台继续聊天和管理配置。" : "管理员只能查看公开元信息，不能读取主人聊天或私密配置。"}</div>
       </section>
+      <section class="chat-panel">
+        <div class="chat-toolbar">
+          <div>
+            <h3>主人聊天</h3>
+            <p id="ws-status-label">${escapeHtml(wsStatusLabel())}</p>
+          </div>
+          <button class="ghost-button" type="button" id="chat-reconnect-button">重新连接</button>
+        </div>
+        <div class="chat-history" id="elf-chat-history" data-elfie-id="${escapeHtml(elf.id)}"></div>
+        <form class="chat-input-row" id="elf-chat-form" data-elfie-id="${escapeHtml(elf.id)}">
+          <input
+            id="elf-chat-input"
+            type="text"
+            maxlength="240"
+            placeholder="${canChat ? "输入要对精灵说的话" : "只有精灵主人可以聊天"}"
+            ${canChat ? "" : "disabled"}
+          />
+          <button class="primary-button" type="submit" id="chat-send-button" ${canChat ? "" : "disabled"}>发送</button>
+        </form>
+      </section>
     </div>
   `;
+  renderChatHistory(elf.id);
+  updateWsIndicators();
   setView("elf-detail");
 }
 
@@ -782,6 +1102,31 @@ document.addEventListener("click", (event) => {
   if (target.matches("[data-open-profile-menu]")) {
     togglePopover(profileMenu, target);
   }
+  if (target.matches("[data-open-profile]")) {
+    fillProfileForm();
+    openDrawer(profileDrawer);
+  }
+  if (target.matches("[data-open-alerts]")) {
+    togglePopover(byId("alerts-menu"), target);
+  }
+  if (target.id === "chat-reconnect-button") {
+    disconnectRealtime(true);
+  }
+  if (target.matches("[data-edit-bed]")) {
+    const bedId = target.dataset.editBed;
+    const nextX = prompt("床位 grid_x", target.dataset.gridX || "0");
+    if (nextX === null) return;
+    const nextY = prompt("床位 grid_y", target.dataset.gridY || "0");
+    if (nextY === null) return;
+    fetchJson(`/api/admin/nest/beds/${bedId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ grid_x: Number(nextX), grid_y: Number(nextY) }),
+    })
+      .then(loadRooms)
+      .then(() => addSystemNotice(`床位 ${bedId} 坐标已更新。`))
+      .catch((error) => addSystemNotice(error.message || "床位更新失败"));
+  }
   if (target.matches("[data-close-drawer]")) {
     closeDrawers();
   }
@@ -802,6 +1147,34 @@ scopeFilter?.addEventListener("change", renderElves);
 ownerFilter?.addEventListener("change", renderElves);
 byId("model-provider-filter")?.addEventListener("change", renderModels);
 byId("model-status-filter")?.addEventListener("change", renderModels);
+byId("global-search")?.addEventListener("input", (event) => {
+  globalQuery = (event.target.value || "").trim().toLowerCase();
+  applySearchShortcut();
+  renderElves();
+  renderProviders();
+  renderModels();
+  loadUsers();
+});
+
+document.addEventListener("change", async (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLSelectElement) || !target.matches("[data-assign-bed]")) return;
+  const elfieId = target.dataset.assignBed || "";
+  const bedId = target.value ? Number(target.value) : null;
+  if (!elfieId || !bedId) return;
+  try {
+    await fetchJson(`/api/admin/nest/elfies/${encodeURIComponent(elfieId)}/bed`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bed_id: bedId }),
+    });
+    await loadElves();
+    await loadRooms();
+    addSystemNotice(`已为 ${elfieId} 分配床位。`);
+  } catch (error) {
+    addSystemNotice(error.message || "床位分配失败");
+  }
+});
 
 const adoptionForm = byId("adoption-form");
 if (adoptionForm) {
@@ -848,6 +1221,131 @@ if (adoptionForm) {
     }
   });
 }
+
+const roomCreateForm = byId("room-create-form");
+if (roomCreateForm) {
+  roomCreateForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    setFormMessage("room-message", "正在创建...");
+    try {
+      await fetchJson("/api/admin/nest/rooms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: (byId("room-create-name")?.value || "New Room").trim(),
+          max_capacity: Number(byId("room-create-capacity")?.value || 4),
+        }),
+      });
+      setFormMessage("room-message", "房间已创建", "success");
+      await loadRooms();
+    } catch (error) {
+      setFormMessage("room-message", error.message || "创建失败", "error");
+    }
+  });
+}
+
+const profileForm = byId("profile-form");
+if (profileForm) {
+  profileForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    setFormMessage("profile-message", "正在保存...");
+    try {
+      const updated = await fetchJson("/api/auth/me/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nickname: (byId("profile-edit-name")?.value || "").trim(),
+          avatar_color: Number(byId("profile-edit-color")?.value || 0),
+        }),
+      });
+      updateProfileHeader(updated);
+      setFormMessage("profile-message", "个人信息已保存", "success");
+      addSystemNotice("个人信息已更新。");
+    } catch (error) {
+      setFormMessage("profile-message", error.message || "保存失败", "error");
+    }
+  });
+}
+
+const passwordForm = byId("password-form");
+if (passwordForm) {
+  passwordForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const oldPassword = byId("profile-old-password")?.value || "";
+    const newPassword = byId("profile-new-password")?.value || "";
+    if (!oldPassword || !newPassword) {
+      setFormMessage("password-message", "请填写旧密码和新密码", "error");
+      return;
+    }
+    setFormMessage("password-message", "正在修改...");
+    try {
+      await fetchJson("/api/auth/me/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+      });
+      byId("profile-old-password").value = "";
+      byId("profile-new-password").value = "";
+      setFormMessage("password-message", "密码已更新", "success");
+      addSystemNotice("登录密码已更新。");
+    } catch (error) {
+      setFormMessage("password-message", error.message || "修改失败", "error");
+    }
+  });
+}
+
+document.addEventListener("submit", (event) => {
+  const form = event.target;
+  if (!(form instanceof HTMLFormElement) || form.id !== "elf-chat-form") return;
+  event.preventDefault();
+  const elfieId = form.dataset.elfieId || "";
+  const input = byId("elf-chat-input");
+  const text = (input?.value || "").trim();
+  if (!text) return;
+  try {
+    sendUserMessage(elfieId, text);
+    addChatItem(elfieId, {
+      sender: "user",
+      text,
+      meta: "已投递到下一次 tick",
+    });
+    input.value = "";
+  } catch (error) {
+    addChatItem(elfieId, {
+      sender: "system",
+      text: error.message || "消息发送失败",
+      meta: "连接状态",
+    });
+  }
+});
+
+document.addEventListener("submit", async (event) => {
+  const form = event.target;
+  if (!(form instanceof HTMLFormElement) || !form.matches(".system-config-form")) return;
+  event.preventDefault();
+  const section = form.dataset.systemSection || "";
+  const message = document.querySelector(`[data-system-message="${section}"]`);
+  if (message) {
+    message.textContent = "正在保存...";
+    message.style.color = "var(--text-secondary)";
+  }
+  try {
+    const saved = await fetchJson(`/api/admin/system/${section}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(systemPayload(section, form)),
+    });
+    systemConfig[section] = saved;
+    renderSystemConfig();
+    renderFoodStrategy();
+    addSystemNotice(`系统配置已保存：${section}`);
+  } catch (error) {
+    if (message) {
+      message.textContent = error.message || "保存失败";
+      message.style.color = "var(--status-error)";
+    }
+  }
+});
 
 document.querySelectorAll("[data-config-tab]").forEach((tab) => {
   tab.addEventListener("click", () => {

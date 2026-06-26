@@ -359,6 +359,21 @@
               </section>
 
               <aside class="room-side">
+                <section class="config-card admin-only">
+                  <h3>创建房间</h3>
+                  <form class="config-grid" id="room-create-form">
+                    <label class="form-row">
+                      <span>房间名称</span>
+                      <input id="room-create-name" type="text" placeholder="New Room" />
+                    </label>
+                    <label class="form-row">
+                      <span>床位数量</span>
+                      <input id="room-create-capacity" type="number" min="1" max="12" value="4" />
+                    </label>
+                    <p class="form-message" id="room-message" aria-live="polite"></p>
+                    <button class="primary-button full" type="submit">创建房间</button>
+                  </form>
+                </section>
                 <section class="config-card">
                   <h3>实时摄像头</h3>
                   <div class="camera-preview">
@@ -549,7 +564,7 @@
     <div class="popover alerts-menu" id="alerts-menu" hidden>
       <strong>系统提醒</strong>
       <p>暂无阻断性故障。</p>
-      <div class="alert-list compact">
+      <div class="alert-list compact" id="alerts-list">
       </div>
     </div>
 
@@ -645,11 +660,40 @@
         </button>
       </div>
       <div class="drawer-body">
+        <form id="profile-form">
         <label class="form-row">
           <span>显示名称</span>
           <input type="text" id="profile-edit-name" />
         </label>
-        <button class="primary-button full" type="button">保存个人信息</button>
+          <label class="form-row">
+            <span>头像颜色</span>
+            <select id="profile-edit-color">
+              <option value="0">松石绿</option>
+              <option value="1">莓果红</option>
+              <option value="2">深海蓝</option>
+              <option value="3">琥珀橙</option>
+              <option value="4">鸢尾紫</option>
+              <option value="5">薄荷青</option>
+              <option value="6">石墨灰</option>
+              <option value="7">樱草黄</option>
+            </select>
+          </label>
+          <p class="form-message" id="profile-message" aria-live="polite"></p>
+          <button class="primary-button full" type="submit">保存个人信息</button>
+        </form>
+        <form id="password-form">
+          <div class="callout">修改密码后请使用新密码登录。</div>
+          <label class="form-row">
+            <span>旧密码</span>
+            <input type="password" id="profile-old-password" autocomplete="current-password" />
+          </label>
+          <label class="form-row">
+            <span>新密码</span>
+            <input type="password" id="profile-new-password" autocomplete="new-password" minlength="6" />
+          </label>
+          <p class="form-message" id="password-message" aria-live="polite"></p>
+          <button class="ghost-button full" type="submit">修改密码</button>
+        </form>
       </div>
     </aside>
 
