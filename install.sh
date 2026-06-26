@@ -28,6 +28,45 @@ echo ""
 # 创建目录
 mkdir -p "$INSTALL_DIR"
 
+configure_user_path() {
+    local shell_name
+    local profile_file
+    local path_line
+
+    shell_name="$(basename "${SHELL:-}")"
+    if [ "$shell_name" = "bash" ]; then
+        profile_file="$HOME/.bashrc"
+    else
+        profile_file="$HOME/.zshrc"
+    fi
+
+    path_line='export PATH="$HOME/bin:$PATH"'
+
+    if [[ ":$PATH:" == *":$HOME/bin:"* ]]; then
+        echo "✅ ~/bin 已在当前 PATH 中"
+        return
+    fi
+
+    touch "$profile_file"
+    if grep -Fq "$path_line" "$profile_file"; then
+        echo "✅ $profile_file 已包含 ~/bin PATH 配置"
+    else
+        {
+            echo ""
+            echo "# ElfieNest CLI"
+            echo "$path_line"
+        } >> "$profile_file"
+        echo "✅ 已写入 PATH 配置: $profile_file"
+    fi
+
+    echo ""
+    echo "⚠️  当前终端尚未重新加载 PATH。请执行:"
+    echo "    source \"$profile_file\""
+    echo ""
+    echo "或者本次直接运行:"
+    echo "    $INSTALL_DIR/elfie"
+}
+
 # 创建 elfie 命令（指向 elfie.sh）
 cat > "$INSTALL_DIR/elfie" << INNER_EOF
 #!/bin/bash
@@ -42,16 +81,7 @@ echo ""
 
 # 检查 PATH
 if [ "$EUID" -ne 0 ]; then
-    if [[ ":$PATH:" != *":$HOME/bin:"* ]]; then
-        echo "⚠️  ~/bin 不在 PATH 中"
-        echo ""
-        echo "请添加以下内容到 ~/.zshrc 或 ~/.bashrc:"
-        echo '    export PATH="$HOME/bin:$PATH"'
-        echo ""
-        echo "然后执行:"
-        echo "    source ~/.zshrc"
-        echo ""
-    fi
+    configure_user_path
 fi
 
 echo "🎉 安装完成！"
