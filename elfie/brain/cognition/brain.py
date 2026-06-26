@@ -1,6 +1,6 @@
 import logging
 import random
-from typing import Any, Optional
+from typing import Any
 
 from elfie.brain.brain_types import BrainContext, BrainDecision
 from elfie.brain.cognition.attention_manager import AttentionManager
@@ -71,7 +71,7 @@ class NeocortexBrain:
                 f"【系统性格与机体边界设定】:\n{personality_prompt}\n\n"
                 f"【当前的生理与情绪状态】:\n"
                 f"- 杏仁核情绪状态: {context.emotion_state}\n"
-                f"- 下丘脑体能值: {context.energy}% (灵币充沛度)\n\n"
+                f"- 下丘脑体能值: {context.energy}% (运行体能)\n\n"
                 f"【海马体历史情景记忆】:\n{context.history_episodes}\n\n"
                 f"【主人发送的信息】:\n{user_msg}\n\n"
                 f"请结合你的性格、情感与记忆，给主人做出最符合艾菲傲娇个性的回复。\n"

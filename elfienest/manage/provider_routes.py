@@ -55,7 +55,7 @@ def _build_provider_response(provider_id: str, provider_info: Dict[str, Any]) ->
 
     # 基础信息从 profile 获取
     name = profile.name if profile else provider_id
-    api_mode = profile.api_mode if profile else "chat_completions"
+    api_mode = provider_info.get("api_mode") or (profile.api_mode if profile else "chat_completions")
     auth_type = profile.auth_type if profile else "bearer"
 
     # 用户配置覆盖默认值
@@ -157,6 +157,7 @@ async def add_provider(
     config["providers"][provider_id] = {
         "api_base": api_base,
         "api_key": api_key,
+        "api_mode": api_mode,
     }
 
     _write_runtime_config(config)
@@ -198,6 +199,15 @@ async def update_provider(
         providers[provider_id]["api_key"] = body["api_key"] or ""
     if "api_base" in body:
         providers[provider_id]["api_base"] = (body["api_base"] or "").strip()
+    if "api_mode" in body:
+        api_mode = body["api_mode"]
+        valid_modes = ["ollama", "chat_completions", "anthropic_messages"]
+        if api_mode not in valid_modes:
+            raise HTTPException(
+                status_code=422,
+                detail=f"api_mode 必须是 {valid_modes} 之一",
+            )
+        providers[provider_id]["api_mode"] = api_mode
 
     config["providers"] = providers
     _write_runtime_config(config)

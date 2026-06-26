@@ -20,7 +20,7 @@ class MutterActuator:
 
         # 本地映射策略 (若大模型崩塌时也可以 100% 响应)
         if "energy" in log_lower and "20" in log_lower:
-            translated = "(咕噜噜...肚皮在报警哒！艾菲肚子饿扁了啦，急需灵币充电哒！)"
+            translated = "(咕噜噜...肚皮在报警哒！艾菲体能快见底了，急需休息恢复哒！)"
         elif "temperature" in log_lower and "30" in log_lower:
             translated = (
                 "(热呼呼...耳朵尖发烫哒！盒子温度太高了，艾菲感觉像在蒸桑拿哒...)"

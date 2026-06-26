@@ -327,10 +327,9 @@ class ElfieGenerator:
                     "hibernation_threshold": 95.0,
                     "wakeup_threshold": round(random.uniform(10.0, 20.0), 1),
                 },
-                "lingbi": {
-                    "daily_budget": random.randint(8000, 12000),
-                    "cost_per_local_token": 0,
-                    "cost_per_remote_token": 1,
+                "runtime_usage": {
+                    "daily_token_soft_limit": random.randint(8000, 12000),
+                    "observe_only": True,
                 },
             },
         }

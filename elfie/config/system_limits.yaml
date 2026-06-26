@@ -19,8 +19,6 @@ limits:
     hibernation_threshold: 95.0     # 疲劳度达到 95% 时，强制休眠熔断
     wakeup_threshold: 15.0          # 疲劳度消退到 15% 以下时，允许被唤醒
     
-  # 灵币（算力 Token 预算）
-  lingbi:
-    daily_budget: 10000             # 每日灵币上限（Token 限制）
-    cost_per_local_token: 0         # 本地 Ollama 不花钱
-    cost_per_remote_token: 1        # 深度云端模型单次交互扣减灵币数
+  runtime_usage:
+    daily_token_soft_limit: 10000
+    observe_only: true
