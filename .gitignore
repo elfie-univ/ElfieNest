@@ -4,9 +4,11 @@
 
 # 1. 用户要求屏蔽的设计与规格文档目录
 /docs/
+/Docs/
 
 # 2. 算力底座本地敏感配置与托管二进制 (安全防泄漏)
 /runtime/runtime_config.json
+/runtime/runtime_config*.bak
 /runtime/bin/
 
 # 3. 敏感环境变量与密钥
@@ -62,5 +64,4 @@ ElfieNest.worktree/
 # 7. Godot 4+ 虚拟空间本地编译与导入缓存 (防止二进制资产及缓存进入仓库)
 /assets/.godot/
 /assets/android/
-
 
