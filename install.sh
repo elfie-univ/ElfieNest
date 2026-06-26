@@ -13,25 +13,64 @@ echo ""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
 
-# 检测安装位置
-if [ "$EUID" -eq 0 ]; then
-    INSTALL_DIR="/usr/local/bin"
-    echo "📦 安装模式: 系统安装 (需要 root 权限)"
-else
-    INSTALL_DIR="$HOME/bin"
-    echo "📦 安装模式: 用户安装"
-fi
+path_contains_dir() {
+    local dir="$1"
+    [[ ":$PATH:" == *":$dir:"* ]]
+}
 
-echo "📍 安装位置: $INSTALL_DIR"
-echo ""
+ensure_writable_dir() {
+    local dir="$1"
+    mkdir -p "$dir" 2>/dev/null || return 1
+    [ -w "$dir" ]
+}
 
-# 创建目录
-mkdir -p "$INSTALL_DIR"
+choose_install_dir() {
+    local dir
+
+    if [ "$EUID" -eq 0 ]; then
+        echo "/usr/local/bin"
+        return
+    fi
+
+    for dir in "$HOME/.local/bin" "$HOME/bin" "/usr/local/bin"; do
+        if path_contains_dir "$dir" && ensure_writable_dir "$dir"; then
+            echo "$dir"
+            return
+        fi
+    done
+
+    IFS=":" read -ra path_dirs <<< "$PATH"
+    for dir in "${path_dirs[@]}"; do
+        if [[ "$dir" == "$HOME"/* ]] && ensure_writable_dir "$dir"; then
+            echo "$dir"
+            return
+        fi
+    done
+
+    echo "$HOME/.local/bin"
+}
+
+path_line_for_dir() {
+    local dir="$1"
+    if [ "$dir" = "$HOME/.local/bin" ]; then
+        echo 'export PATH="$HOME/.local/bin:$PATH"'
+    elif [ "$dir" = "$HOME/bin" ]; then
+        echo 'export PATH="$HOME/bin:$PATH"'
+    else
+        echo "export PATH=\"$dir:\$PATH\""
+    fi
+}
 
 configure_user_path() {
+    local install_dir="$1"
     local shell_name
     local profile_file
     local path_line
+
+    if path_contains_dir "$install_dir"; then
+        echo "✅ $install_dir 已在当前 PATH 中，本终端可直接使用 elfie"
+        return
+    fi
 
     shell_name="$(basename "${SHELL:-}")"
     if [ "$shell_name" = "bash" ]; then
@@ -40,16 +79,11 @@ configure_user_path() {
         profile_file="$HOME/.zshrc"
     fi
 
-    path_line='export PATH="$HOME/bin:$PATH"'
-
-    if [[ ":$PATH:" == *":$HOME/bin:"* ]]; then
-        echo "✅ ~/bin 已在当前 PATH 中"
-        return
-    fi
+    path_line="$(path_line_for_dir "$install_dir")"
 
     touch "$profile_file"
     if grep -Fq "$path_line" "$profile_file"; then
-        echo "✅ $profile_file 已包含 ~/bin PATH 配置"
+        echo "✅ $profile_file 已包含 PATH 配置"
     else
         {
             echo ""
@@ -60,12 +94,40 @@ configure_user_path() {
     fi
 
     echo ""
-    echo "⚠️  当前终端尚未重新加载 PATH。请执行:"
-    echo "    source \"$profile_file\""
-    echo ""
-    echo "或者本次直接运行:"
-    echo "    $INSTALL_DIR/elfie"
+    echo "✅ 新打开的终端可直接使用 elfie"
+    echo "ℹ️  当前终端如果还找不到 elfie，可直接运行: $install_dir/elfie"
 }
+
+remove_old_wrapper_if_same_project() {
+    local old_path="$1"
+    if [ "$old_path" = "$INSTALL_DIR/elfie" ] || [ ! -f "$old_path" ]; then
+        return
+    fi
+    if grep -Fq "cd \"$PROJECT_ROOT\"" "$old_path" 2>/dev/null; then
+        rm -f "$old_path"
+        echo "🧹 已清理旧安装: $old_path"
+    fi
+}
+
+# 检测安装位置
+if [ "$EUID" -eq 0 ]; then
+    echo "📦 安装模式: 系统安装"
+else
+    echo "📦 安装模式: 用户安装"
+fi
+
+INSTALL_DIR="$(choose_install_dir)"
+echo "📍 安装位置: $INSTALL_DIR"
+echo ""
+
+# 创建目录
+mkdir -p "$INSTALL_DIR"
+
+if [ -x "$INSTALL_DIR/elfie" ]; then
+    INSTALL_ACTION="更新"
+else
+    INSTALL_ACTION="安装"
+fi
 
 # 创建 elfie 命令（指向 elfie.sh）
 cat > "$INSTALL_DIR/elfie" << INNER_EOF
@@ -76,12 +138,15 @@ INNER_EOF
 
 chmod +x "$INSTALL_DIR/elfie"
 
-echo "✅ 已安装 elfie 命令"
+remove_old_wrapper_if_same_project "$HOME/bin/elfie"
+remove_old_wrapper_if_same_project "$HOME/.local/bin/elfie"
+
+echo "✅ 已${INSTALL_ACTION} elfie 命令"
 echo ""
 
 # 检查 PATH
 if [ "$EUID" -ne 0 ]; then
-    configure_user_path
+    configure_user_path "$INSTALL_DIR"
 fi
 
 echo "🎉 安装完成！"
