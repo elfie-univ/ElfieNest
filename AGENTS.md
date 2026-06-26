@@ -66,6 +66,22 @@ python -m pytest test/ -v
 
 Tests require no external services - they use mock agents.
 
+## Worktree Completion Workflow
+
+When working from a Git worktree, do not leave completed work only in the
+worktree branch. After a feature is finished, verified, and confirmed by the
+user:
+
+1. Commit the completed work in the worktree branch.
+2. Push the branch to the remote repository.
+3. Merge or otherwise sync the confirmed changes back to the original main
+   branch so other branches and worktrees can see them.
+4. Report the commit, branch, push status, and merge/sync status to the user.
+
+If the user has not confirmed the result yet, keep the changes local and state
+that they are not merged back. Do not assume worktree-only changes are visible
+from the main checkout.
+
 ### Test Structure
 
 测试文件按照源代码包结构组织，镜像源代码目录：
