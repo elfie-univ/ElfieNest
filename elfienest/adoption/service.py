@@ -4,17 +4,17 @@ import logging
 import secrets
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
-from elfienest.manage.adoption import ElfieGenerator
-from elfienest.manage.adoption_config import (
+from elfienest.adoption.config import (
     get_allowed_anatomy_types,
     get_allowed_personality_styles,
     get_max_elfies_per_user,
 )
-from elfienest.manage.store import count_elfies_by_owner, get_db
-from elfienest.room import RoomFullError
-from runtime.storage.data_home import get_elfie_config_dir
+from elfienest.adoption.generator import ElfieGenerator
+from elfienest.core.room import RoomFullError
+from elfienest.persistence.store import count_elfies_by_owner, get_db
 
 logger = logging.getLogger("elfienest.adoption.service")
 
@@ -61,7 +61,7 @@ def adopt_elfie_for_user(
     _validate_adoption_request(db_path, user_id=user_id, request=request)
 
     elfie_id = f"elfie_{int(time.time())}_{secrets.token_hex(2)}"
-    config_dir = str(get_elfie_config_dir(elfie_id))
+    config_dir = str(_get_elfie_config_dir(db_path, elfie_id))
 
     try:
         ElfieGenerator().generate(
@@ -96,7 +96,7 @@ def adopt_elfie_for_user(
         conn.commit()
 
     if engine is not None:
-        _register_with_engine(engine, elfie_id, request)
+        _register_with_engine(engine, elfie_id, request, config_dir, db_path)
 
     return AdoptionResult(
         elfie_id=elfie_id,
@@ -138,12 +138,15 @@ def _register_with_engine(
     engine: Any,
     elfie_id: str,
     request: AdoptionRequest,
+    config_dir: str,
+    db_path: str,
 ) -> None:
     try:
         from elfie.elfie_individual import ElfieIndividual  # noqa: PLC0415
 
+        _ensure_room_has_capacity(engine)
         elfie = ElfieIndividual(
-            config_dir=str(get_elfie_config_dir(elfie_id)),
+            config_dir=config_dir,
             anatomy_type=request.anatomy_type,
         )
         engine.coordinator.register_elfie(elfie_id, elfie)
@@ -156,3 +159,14 @@ def _register_with_engine(
         raise
     except Exception as exc:  # noqa: BLE001 - adapter boundary keeps adoption persisted.
         logger.warning("Failed to register elfie %s to engine: %s", elfie_id, exc)
+
+
+def _ensure_room_has_capacity(engine: Any) -> None:
+    room = getattr(engine, "room", None)
+    max_count = getattr(room, "max_elfies_per_room", None)
+    if max_count is not None and len(getattr(room, "elfies", {})) >= max_count:
+        raise RoomFullError(f"房间已满 ({len(room.elfies)}/{max_count})")
+
+
+def _get_elfie_config_dir(db_path: str, elfie_id: str) -> Path:
+    return Path(db_path).expanduser().parent / "elfies" / elfie_id

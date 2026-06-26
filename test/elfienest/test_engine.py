@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from elfie import ElfieIndividual
-from elfienest.engine import ElfieNestCoordinator, ElfieNestEngine
-from elfienest.room import ElfieNestRoom, RoomFullError
+from elfienest.core.room import ElfieNestRoom, RoomFullError
+from elfienest.simulation.engine import ElfieNestCoordinator, ElfieNestEngine
 
 
 class TestElfieNestEngine:
@@ -33,7 +33,7 @@ class TestElfieNestEngine:
     @pytest.fixture
     def engine(self):
         """创建引擎实例"""
-        with patch("elfienest.engine.GodotAPIServer"):
+        with patch("elfienest.transport.godot_api.GodotAPIServer"):
             eng = ElfieNestEngine(ws_port=18765, http_port=18000)
             return eng
 
@@ -188,7 +188,7 @@ class TestEngineConfig:
 
     def test_engine_tts_disabled(self):
         """tts_enabled=False → _synthesize_voice 返回 None"""
-        with patch("elfienest.engine.GodotAPIServer"):
+        with patch("elfienest.transport.godot_api.GodotAPIServer"):
             engine = ElfieNestEngine(
                 ws_port=18769, http_port=18004, tts_enabled=False
             )
@@ -197,7 +197,7 @@ class TestEngineConfig:
 
     def test_engine_max_elfies_per_room(self):
         """max_elfies_per_room=3 → 房间容量正确"""
-        with patch("elfienest.engine.GodotAPIServer"):
+        with patch("elfienest.transport.godot_api.GodotAPIServer"):
             engine = ElfieNestEngine(
                 ws_port=18770, http_port=18005, max_elfies_per_room=3
             )
@@ -205,7 +205,7 @@ class TestEngineConfig:
 
     def test_start_loop_uses_tick_interval(self):
         """start_loop 不传 interval_sec 时使用 self.tick_interval_sec"""
-        with patch("elfienest.engine.GodotAPIServer"):
+        with patch("elfienest.transport.godot_api.GodotAPIServer"):
             engine = ElfieNestEngine(
                 ws_port=18771, http_port=18006, tick_interval_sec=2.5
             )

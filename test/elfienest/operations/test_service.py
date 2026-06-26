@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from elfienest.manage.store import get_db, init_db
 from elfienest.operations.service import (
     backup_database,
     collect_usage_stats,
@@ -10,8 +9,9 @@ from elfienest.operations.service import (
     list_table_counts,
     reset_database,
 )
+from elfienest.persistence.store import get_db, init_db
 
-from ..manage._helpers import create_test_admin
+from ..api._helpers import create_test_admin
 
 
 def test_collect_usage_stats_reads_core_counts(tmp_path: Path) -> None:

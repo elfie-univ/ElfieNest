@@ -35,10 +35,15 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 logging.basicConfig(level=logging.WARNING, format="%(message)s")
 
-from elfienest.engine import ElfieNestEngine
-from elfienest.manage.adoption import ElfieGenerator
-from elfienest.manage.app import create_app
-from elfienest.manage.store import get_db, init_db, migrate_db_if_needed, seed_initial_admin_if_env_set
+from elfienest.adoption.generator import ElfieGenerator
+from elfienest.api.app import create_app
+from elfienest.persistence.store import (
+    get_db,
+    init_db,
+    migrate_db_if_needed,
+    seed_initial_admin_if_env_set,
+)
+from elfienest.simulation.engine import ElfieNestEngine
 from runtime import LLMRuntimeConfig
 from runtime.storage.data_home import get_db_path, get_elfie_config_dir
 
@@ -217,44 +222,44 @@ def main():
     # 检测端口是否被占用
     import socket
     import subprocess
-    
+
     def is_port_in_use(port):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            return s.connect_ex(('127.0.0.1', port)) == 0
-    
+            return s.connect_ex(("127.0.0.1", port)) == 0
+
     def kill_process_on_port(port):
         """杀死占用指定端口的进程"""
         try:
             result = subprocess.run(
-                ['lsof', '-ti', f':{port}'],
+                ["lsof", "-ti", f":{port}"],
                 capture_output=True,
-                text=True
+                text=True,
             )
-            pids = result.stdout.strip().split('\n')
+            pids = result.stdout.strip().split("\n")
             killed = []
             for pid in pids:
                 if pid:
                     try:
-                        subprocess.run(['kill', '-9', pid], check=True)
+                        subprocess.run(["kill", "-9", pid], check=True)
                         killed.append(pid)
-                    except:
+                    except (OSError, subprocess.SubprocessError):
                         pass
             return killed
-        except:
+        except (OSError, subprocess.SubprocessError):
             return []
-    
+
     ports_to_check = [
         (args.port, "HTTP"),
         (args.ws_port, "WebSocket"),
         (8765, "Godot WebSocket"),
         (8767, "音频服务器"),
     ]
-    
+
     occupied = []
     for port, name in ports_to_check:
         if is_port_in_use(port):
             occupied.append((port, name))
-    
+
     if occupied:
         if args.force:
             print("\n" + "=" * 56)
@@ -439,9 +444,7 @@ def main():
     else:
         print("  ✨ 暂未加载精灵（请登录后领养）")
     print()
-    print(
-        f"  📖 浏览器打开: http://127.0.0.1:{args.port}/static/login.html"
-    )
+    print(f"  📖 浏览器打开: http://127.0.0.1:{args.port}/")
     print("  ⌨️  Ctrl+C 停止服务")
     print("=" * 56)
     print()

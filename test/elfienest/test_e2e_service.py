@@ -14,20 +14,15 @@
 import asyncio
 import json
 import os
-import sys
+import tempfile
 import threading
 import time
 import urllib.request
 
-import pytest
 import websockets
 
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-sys.path.insert(0, PROJECT_ROOT)
-
 from elfie import ElfieIndividual
-from elfienest.engine import ElfieNestEngine
-
+from elfienest.simulation.engine import ElfieNestEngine
 
 # ---------------------------------------------------------------------------
 # Mock 辅助类
@@ -125,14 +120,12 @@ class TestE2EServiceFlow:
             assert speak_found, "应在合理时间内收到 speak_event"
 
             # ---------- 4. go_to 事件（可选，不强制） ----------
-            go_to_found = False
             deadline = time.time() + 4.0
             while time.time() < deadline:
                 try:
                     msg_raw = await asyncio.wait_for(ws.recv(), timeout=1.5)
                     data = json.loads(msg_raw)
                     if data.get("action") == "go_to":
-                        go_to_found = True
                         if data["payload"].get("target") == "bed_1":
                             break
                 except (asyncio.TimeoutError, websockets.exceptions.ConnectionClosed):
@@ -158,21 +151,29 @@ class TestE2EServiceFlow:
 
     def test_full_e2e_service_flow(self):
         """端到端服务测试 — 真实 Engine + 真实 WS 客户端 + 真实 HTTP"""
+        old_elfie_home = os.environ.get("ELFIE_HOME")
         engine = ElfieNestEngine(ws_port=18766, http_port=18001)
         mock_agent = MockRuntimeAgent()
 
-        # 将精灵创建与引擎启动封装在同一线程内，避免 SQLite 跨线程访问异常
-        def _run_engine():
-            elfie = ElfieIndividual()
-            engine.coordinator.register_elfie("艾菲", elfie)
-            engine._synthesize_voice = lambda elfie_id, text: f"http://127.0.0.1:{engine.http_port}/dummy.mp3"
-            engine.start_loop(mock_agent, ticks_to_run=20, interval_sec=0.3)
+        with tempfile.TemporaryDirectory() as elfie_home:
+            os.environ["ELFIE_HOME"] = elfie_home
 
-        engine_thread = threading.Thread(target=_run_engine, daemon=True)
-        engine_thread.start()
+            # 将精灵创建与引擎启动封装在同一线程内，避免 SQLite 跨线程访问异常
+            def _run_engine():
+                elfie = ElfieIndividual()
+                engine.coordinator.register_elfie("艾菲", elfie)
+                engine._synthesize_voice = lambda elfie_id, text: f"http://127.0.0.1:{engine.http_port}/dummy.mp3"
+                engine.start_loop(mock_agent, ticks_to_run=20, interval_sec=0.3)
 
-        try:
-            time.sleep(1.0)
-            asyncio.run(self._async_client_test(engine))
-        finally:
-            engine_thread.join(timeout=15)
+            engine_thread = threading.Thread(target=_run_engine, daemon=True)
+            engine_thread.start()
+
+            try:
+                time.sleep(1.0)
+                asyncio.run(self._async_client_test(engine))
+            finally:
+                engine_thread.join(timeout=15)
+                if old_elfie_home is None:
+                    os.environ.pop("ELFIE_HOME", None)
+                else:
+                    os.environ["ELFIE_HOME"] = old_elfie_home

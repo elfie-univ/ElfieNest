@@ -6,6 +6,11 @@ if [ ! -x "$PYTHON_BIN" ]; then
     PYTHON_BIN="python3"
 fi
 
+PYTHON_BIN="$SCRIPT_DIR/.venv/bin/python3"
+if [ ! -x "$PYTHON_BIN" ]; then
+    PYTHON_BIN="python3"
+fi
+
 show_logo() {
     clear
     CYAN=$'\e[1;36m'

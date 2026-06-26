@@ -9,8 +9,7 @@
 """
 
 import logging
-import os
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -126,12 +125,14 @@ DEFAULT_SCENE_ROUTES: Dict[str, SceneRoute] = {
 # 路由配置加载/保存
 # ---------------------------------------------------------------------------
 
-def _get_model_route_path(elfie_id: str) -> Path:
+def _get_model_route_path(elfie_id: str, config_dir: str | Path | None = None) -> Path:
     """获取精灵路由配置文件路径"""
+    if config_dir is not None:
+        return Path(config_dir) / "model_route.yaml"
     return get_elfie_config_dir(elfie_id) / "model_route.yaml"
 
 
-def load_model_route(elfie_id: str) -> ModelRoute:
+def load_model_route(elfie_id: str, config_dir: str | Path | None = None) -> ModelRoute:
     """加载精灵的路由配置，如果不存在则返回系统默认配置。
 
     Args:
@@ -140,7 +141,7 @@ def load_model_route(elfie_id: str) -> ModelRoute:
     Returns:
         ModelRoute 实例，包含该精灵的所有场景路由
     """
-    route_path = _get_model_route_path(elfie_id)
+    route_path = _get_model_route_path(elfie_id, config_dir)
 
     if not route_path.exists():
         logger.info(f"精灵 '{elfie_id}' 无自定义路由配置，使用系统默认路由")
@@ -159,7 +160,7 @@ def load_model_route(elfie_id: str) -> ModelRoute:
         return create_default_route(elfie_id)
 
 
-def save_model_route(route: ModelRoute) -> None:
+def save_model_route(route: ModelRoute, config_dir: str | Path | None = None) -> None:
     """保存精灵的路由配置到 YAML 文件。
 
     Args:
@@ -169,11 +170,15 @@ def save_model_route(route: ModelRoute) -> None:
     route.updated_at = datetime.now().isoformat()
 
     # 确保目录存在
-    config_dir = get_elfie_config_dir(route.elfie_id)
-    config_dir.mkdir(parents=True, exist_ok=True)
+    route_config_dir = (
+        Path(config_dir)
+        if config_dir is not None
+        else get_elfie_config_dir(route.elfie_id)
+    )
+    route_config_dir.mkdir(parents=True, exist_ok=True)
 
     # 写入文件
-    route_path = _get_model_route_path(route.elfie_id)
+    route_path = _get_model_route_path(route.elfie_id, route_config_dir)
     with open(route_path, "w", encoding="utf-8") as f:
         yaml.dump(route.to_dict(), f, allow_unicode=True, default_flow_style=False)
 
