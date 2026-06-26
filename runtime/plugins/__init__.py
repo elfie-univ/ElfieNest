@@ -1,4 +1,4 @@
-from runtime.plugins.code_sandbox import CodeSandboxPlugin
-from runtime.plugins.web_search import WebSearchPlugin
+from runtime.tools.code import CodeSandboxPlugin
+from runtime.tools.search import WebSearchPlugin
 
 __all__ = ["WebSearchPlugin", "CodeSandboxPlugin"]

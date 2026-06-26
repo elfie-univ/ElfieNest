@@ -9,7 +9,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 from runtime.agent import RuntimeAgent, UnsupportedModalError
 from runtime.config import LLMRuntimeConfig

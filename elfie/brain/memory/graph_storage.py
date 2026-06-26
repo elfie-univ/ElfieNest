@@ -27,6 +27,8 @@ class GraphStorage:
         if db_path is None:
             db_path = str(get_elfie_home() / "graph_memory.db")
         self.db_path = db_path
+        if db_path != ":memory:":
+            Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         # 启用WAL模式（内存数据库不支持WAL，跳过）

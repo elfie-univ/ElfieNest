@@ -124,6 +124,34 @@ class TestProviderRoutes:
         assert provider["provider_id"] == "custom_provider"
         assert provider["api_base"] == "https://api.custom.com/v1"
         assert provider["has_api_key"] is True
+        assert provider["api_mode"] == "chat_completions"
+
+        saved = json.loads(runtime_config_path.read_text())
+        assert saved["providers"]["custom_provider"]["api_mode"] == "chat_completions"
+
+    def test_post_providers_persists_custom_api_mode(self, client: TestClient, runtime_config_path: Path) -> None:
+        tokens = _login_admin(client)
+
+        resp = client.post(
+            "/api/admin/providers",
+            json={
+                "provider_id": "custom_anthropic",
+                "api_base": "https://api.custom-anthropic.com/v1",
+                "api_key": "test-key-123",
+                "api_mode": "anthropic_messages",
+            },
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert resp.status_code == 201, resp.text
+        assert resp.json()["api_mode"] == "anthropic_messages"
+
+        saved = json.loads(runtime_config_path.read_text())
+        assert saved["providers"]["custom_anthropic"]["api_mode"] == "anthropic_messages"
+
+        list_resp = client.get("/api/admin/providers", headers=_headers(tokens["csrf_token"]))
+        provider = next(p for p in list_resp.json() if p["provider_id"] == "custom_anthropic")
+        assert provider["api_mode"] == "anthropic_messages"
 
     def test_put_providers_updates_provider(self, client: TestClient, runtime_config_path: Path) -> None:
         """PUT /api/admin/providers/{id} 更新 provider。"""
@@ -141,15 +169,19 @@ class TestProviderRoutes:
             headers=_headers(tokens["csrf_token"]),
         )
         
-        # 更新 api_key
         resp = client.put(
             "/api/admin/providers/test_provider",
-            json={"api_key": "new-key-456"},
+            json={"api_key": "new-key-456", "api_mode": "anthropic_messages"},
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 200
         provider = resp.json()
         assert provider["has_api_key"] is True
+        assert provider["api_mode"] == "anthropic_messages"
+
+        saved = json.loads(runtime_config_path.read_text())
+        assert saved["providers"]["test_provider"]["api_key"] == "new-key-456"
+        assert saved["providers"]["test_provider"]["api_mode"] == "anthropic_messages"
 
     def test_delete_providers_removes_provider(self, client: TestClient, runtime_config_path: Path) -> None:
         """DELETE /api/admin/providers/{id} 删除 provider。"""

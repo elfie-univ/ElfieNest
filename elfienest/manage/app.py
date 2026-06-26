@@ -8,12 +8,15 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+
+from runtime.data_home import get_db_path as _get_db_path
 
 from .auth import (
     create_session,
@@ -28,11 +31,6 @@ from .auth import (
 )
 from .store import get_db, init_db, migrate_db_if_needed, seed_initial_admin_if_env_set
 from .ws_gateway import AuthenticatedWSManager
-
-from runtime.data_home import get_db_path as _get_db_path
-
-from pydantic import BaseModel, Field  # noqa: E402
-from typing import Optional  # noqa: E402
 
 logger = logging.getLogger("elfienest.manage.app")
 
@@ -472,6 +470,9 @@ def create_app(
     from .model_admin_routes import router as model_admin_router  # noqa: PLC0415
 
     app.include_router(model_admin_router)
+    from .runtime_routes import router as runtime_router  # noqa: PLC0415
+
+    app.include_router(runtime_router)
     from .route_routes import router as route_router  # noqa: PLC0415
 
     app.include_router(route_router)

@@ -6,8 +6,8 @@ from typing import Any, Dict
 
 import yaml
 
-from .data_home import get_config_path
-from .provider_profiles import get_default_api_mode
+from .providers.profiles import get_default_api_mode
+from .storage.data_home import get_config_path
 
 # 🌟 大模型跨服务商算力预设与精选推荐清单
 PROVIDER_RECOMMENDS: Dict[str, Dict[str, Any]] = {

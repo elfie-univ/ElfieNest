@@ -3,7 +3,9 @@
 测试 GraphStorage 的 SQLite 初始化、表结构、索引和 WAL 模式。
 """
 
+import os
 import sqlite3
+import tempfile
 
 import pytest
 
@@ -246,9 +248,6 @@ class TestGraphStorage:
 
     def test_db_path_string(self):
         """验证 db_path 为字符串时创建文件数据库"""
-        import tempfile
-        import os
-
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             db_path = f.name
 
@@ -259,6 +258,19 @@ class TestGraphStorage:
         finally:
             if os.path.exists(db_path):
                 os.remove(db_path)
+
+    def test_default_db_path_creates_elfie_home(self, monkeypatch, tmp_path):
+        elfie_home = tmp_path / "fresh_home"
+        monkeypatch.setenv("ELFIE_HOME", str(elfie_home))
+
+        gs = GraphStorage()
+
+        try:
+            assert elfie_home.exists()
+            assert (elfie_home / "graph_memory.db").exists()
+            assert gs.conn.execute("SELECT COUNT(*) FROM nodes").fetchone()[0] == 0
+        finally:
+            gs.close()
 
 
 class TestGraphStorageCRUD:
@@ -510,7 +522,7 @@ class TestGraphStorageTFIDFSearch:
         assert len(results) > 0
         assert results[0][0] in ("n1", "n6")  # 包含"天气"的节点
         # 所有结果的score都应大于0
-        for node_id, score in results:
+        for _node_id, score in results:
             assert score > 0.0
 
     def test_search_by_content_type_filter(self, storage):

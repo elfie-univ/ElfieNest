@@ -34,6 +34,13 @@
       escapeHtml(initial) + '</text></svg>';
   }
 
+  var ICONS = {
+    password: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11V8a5 5 0 0 1 10 0v3"></path><path d="M6 11h12v9H6z"></path><path d="M12 15v2"></path></svg>',
+    edit: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z"></path><path d="m14 7 3 3"></path></svg>',
+    logout: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l5-5-5-5"></path><path d="M15 12H3"></path><path d="M14 4h5v16h-5"></path></svg>',
+    caret: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg>',
+  };
+
   function escapeHtml(s) {
     if (s == null) return '';
     return String(s)
@@ -64,13 +71,14 @@
       '.pd-name{font-size:13px;font-weight:600;color:var(--text-primary,#e8e8f0);',
       'max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
       '.pd-role{font-size:10px;font-weight:600;padding:1px 7px;border-radius:99px;',
-      'border:1px solid transparent;letter-spacing:.3px;text-transform:uppercase;line-height:1.4}',
+      'border:1px solid transparent;letter-spacing:0;text-transform:uppercase;line-height:1.4}',
       '.pd-role.admin{background:rgba(239,68,68,.15);color:var(--error,#ef4444);',
       'border-color:rgba(239,68,68,.3)}',
       '.pd-role.user{background:rgba(108,124,247,.15);color:var(--accent,#6c7cf7);',
       'border-color:rgba(108,124,247,.3)}',
-      '.pd-caret{margin-left:2px;font-size:10px;color:var(--text-secondary,#9898b0);',
-      'transition:transform .15s;flex-shrink:0}',
+      '.pd-caret{margin-left:2px;color:var(--text-secondary,#9898b0);',
+      'transition:transform .15s;flex-shrink:0;line-height:0}',
+      '.pd-caret svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:2}',
       '.pd-trigger.open .pd-caret{transform:rotate(180deg)}',
       '.pd-menu{',
       'display:none;position:absolute;min-width:180px;',
@@ -85,6 +93,7 @@
       'color:var(--text-primary,#e8e8f0);font-size:13px;font-family:inherit;',
       'cursor:pointer;border-radius:6px;transition:background .12s;text-align:left;',
       '}',
+      '.pd-menu-item svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:2;flex-shrink:0}',
       '.pd-menu-item:hover{background:rgba(255,255,255,.06)}',
       '.pd-menu-item.danger{color:var(--error,#ef4444)}',
       '.pd-menu-item.danger:hover{background:rgba(239,68,68,.1)}',
@@ -156,13 +165,13 @@
           '<span class="pd-name">' + escapeHtml(displayName) + '</span>' +
           '<span class="pd-role ' + roleClass + '">' + escapeHtml(roleLabel) + '</span>' +
         '</span>' +
-        '<span class="pd-caret">▾</span>';
+        '<span class="pd-caret">' + ICONS.caret + '</span>';
 
       menu.innerHTML =
-        '<button class="pd-menu-item" data-action="change-password" role="menuitem">🔑 改密码</button>' +
-        '<button class="pd-menu-item" data-action="edit-profile" role="menuitem">✏ 编辑资料</button>' +
+        '<button class="pd-menu-item" data-action="change-password" role="menuitem">' + ICONS.password + '改密码</button>' +
+        '<button class="pd-menu-item" data-action="edit-profile" role="menuitem">' + ICONS.edit + '编辑资料</button>' +
         '<div class="pd-menu-divider"></div>' +
-        '<button class="pd-menu-item danger" data-action="logout" role="menuitem">🚪 退出登录</button>';
+        '<button class="pd-menu-item danger" data-action="logout" role="menuitem">' + ICONS.logout + '退出登录</button>';
     }
 
     async function fetchMe() {

@@ -135,6 +135,9 @@ class TestYamlStructure:
             data = yaml.safe_load(f)
         assert "limits" in data
         assert "energy" in data["limits"]
+        assert "runtime_usage" in data["limits"]
+        assert data["limits"]["runtime_usage"]["observe_only"] is True
+        assert "lingbi" not in data["limits"]
 
 
 # ===================================================================
