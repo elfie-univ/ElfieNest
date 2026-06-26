@@ -7,6 +7,22 @@ python_has_web_dependencies() {
     "$1" -c "$WEB_DEPENDENCY_CHECK" >/dev/null 2>&1
 }
 
+repair_project_venv() {
+    if [ "${ELFIE_SKIP_AUTO_REPAIR:-}" = "1" ]; then
+        return 1
+    fi
+    if [ ! -x "$SCRIPT_DIR/install.sh" ]; then
+        return 1
+    fi
+
+    echo "  🔧 检测到 .venv 缺少依赖，正在自动修复..." >&2
+    if ! ELFIE_SKIP_AUTO_REPAIR=1 "$SCRIPT_DIR/install.sh" >&2; then
+        echo "  ❌ 自动修复失败，请重新运行: $SCRIPT_DIR/install.sh" >&2
+        return 1
+    fi
+    echo "" >&2
+}
+
 select_python() {
     local venv_python="$SCRIPT_DIR/.venv/bin/python3"
 
@@ -15,12 +31,16 @@ select_python() {
         return
     fi
 
+    repair_project_venv
+    if python_has_web_dependencies "$venv_python"; then
+        echo "$venv_python"
+        return
+    fi
+
     if python_has_web_dependencies "python3"; then
-        if [ -x "$venv_python" ]; then
-            echo "  ⚠️  .venv 缺少 Web 依赖，临时使用系统 python3。" >&2
-            echo "  💡 修复 .venv: $venv_python -m pip install -r requirements.txt" >&2
-            echo "" >&2
-        fi
+        echo "  ⚠️  .venv 自动修复失败，临时使用系统 python3。" >&2
+        echo "  💡 可重新运行: $SCRIPT_DIR/install.sh" >&2
+        echo "" >&2
         echo "python3"
         return
     fi

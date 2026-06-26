@@ -12,6 +12,7 @@ echo ""
 # 获取项目根目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
+INSTALL_LOG_PATH="${TMPDIR:-/tmp}/elfienest-install.log"
 
 path_contains_dir() {
     local dir="$1"
@@ -22,6 +23,58 @@ ensure_writable_dir() {
     local dir="$1"
     mkdir -p "$dir" 2>/dev/null || return 1
     [ -w "$dir" ]
+}
+
+python_has_web_dependencies() {
+    "$1" -c 'import fastapi, uvicorn, multipart, rich, pydantic, websockets' >/dev/null 2>&1
+}
+
+find_python3() {
+    if command -v python3 >/dev/null 2>&1; then
+        command -v python3
+        return
+    fi
+
+    echo ""
+}
+
+ensure_project_venv() {
+    local system_python
+    local venv_python
+
+    system_python="$(find_python3)"
+    if [ -z "$system_python" ]; then
+        echo "❌ 未找到 python3，请先安装 Python 3.9 或更高版本"
+        exit 1
+    fi
+
+    venv_python="$PROJECT_ROOT/.venv/bin/python3"
+    if [ ! -x "$venv_python" ]; then
+        echo "🐍 正在创建项目运行环境: $PROJECT_ROOT/.venv"
+        "$system_python" -m venv "$PROJECT_ROOT/.venv"
+    fi
+
+    "$venv_python" -m ensurepip --upgrade >/dev/null 2>&1 || true
+
+    if python_has_web_dependencies "$venv_python"; then
+        echo "✅ 项目依赖已就绪"
+        return
+    fi
+
+    echo "📦 正在安装/更新项目依赖..."
+    echo "   详情日志: $INSTALL_LOG_PATH"
+    if ! "$venv_python" -m pip install --disable-pip-version-check -r "$PROJECT_ROOT/requirements.txt" > "$INSTALL_LOG_PATH" 2>&1; then
+        echo "❌ 项目依赖安装失败，最近日志:"
+        tail -40 "$INSTALL_LOG_PATH" || true
+        exit 1
+    fi
+
+    if ! python_has_web_dependencies "$venv_python"; then
+        echo "❌ 项目依赖安装后仍不可用，请检查 pip 输出"
+        exit 1
+    fi
+
+    echo "✅ 项目依赖已就绪"
 }
 
 choose_install_dir() {
@@ -122,6 +175,8 @@ echo ""
 
 # 创建目录
 mkdir -p "$INSTALL_DIR"
+
+ensure_project_venv
 
 if [ -x "$INSTALL_DIR/elfie" ]; then
     INSTALL_ACTION="更新"
