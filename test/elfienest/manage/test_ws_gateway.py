@@ -70,7 +70,7 @@ class TestWsGatewayInstantiation:
 
     def test_default_params(self) -> None:
         """默认参数实例化。"""
-        from runtime.data_home import get_db_path
+        from runtime.storage.data_home import get_db_path
 
         m = AuthenticatedWSManager()
         assert m.host == "127.0.0.1"

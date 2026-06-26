@@ -1,4 +1,4 @@
-"""tests for runtime.model_catalog module"""
+"""tests for runtime.models.catalog module"""
 import os
 import tempfile
 import urllib.error
@@ -7,12 +7,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from runtime.config import LLMRuntimeConfig
-from runtime.model_catalog import (
+from runtime.models.catalog import (
     BUILTIN_MODEL_CATALOG,
     ModelCatalog,
     ModelEntry,
     verify_provider,
 )
+from runtime.models.registry import ModelRegistry
 
 
 class TestBuiltinModelCatalog:
@@ -306,14 +307,10 @@ class TestVerifyProvider:
         assert "未知 provider" in result["error"]
 
 
-class TestModelRegistryBackwardCompat:
-    """ModelRegistry 向后兼容性测试"""
-
+class TestModelRegistry:
     def test_get_catalog_returns_five_slots(self, monkeypatch, tmp_path):
         """get_catalog 仍返回 5 槽位格式"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        from runtime.model_registry import ModelRegistry
-
         config = LLMRuntimeConfig()
         registry = ModelRegistry(config)
         catalog = registry.get_catalog()
@@ -325,8 +322,6 @@ class TestModelRegistryBackwardCompat:
     def test_get_catalog_entry_has_required_fields(self, monkeypatch, tmp_path):
         """get_catalog 返回的条目有必需字段"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        from runtime.model_registry import ModelRegistry
-
         config = LLMRuntimeConfig()
         registry = ModelRegistry(config)
         catalog = registry.get_catalog()
@@ -339,8 +334,6 @@ class TestModelRegistryBackwardCompat:
     def test_list_available_models(self, monkeypatch, tmp_path):
         """list_available_models 返回可用模型"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        from runtime.model_registry import ModelRegistry
-
         config = LLMRuntimeConfig()
         registry = ModelRegistry(config)
         available = registry.list_available_models()
@@ -352,8 +345,6 @@ class TestModelRegistryBackwardCompat:
     def test_get_model_info(self, monkeypatch, tmp_path):
         """get_model_info 返回模型信息"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        from runtime.model_registry import ModelRegistry
-
         config = LLMRuntimeConfig()
         registry = ModelRegistry(config)
         info = registry.get_model_info("local_fast")
@@ -364,8 +355,6 @@ class TestModelRegistryBackwardCompat:
     def test_get_model_info_raises_for_unknown(self, monkeypatch, tmp_path):
         """get_model_info 对未知模型抛出 KeyError"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        from runtime.model_registry import ModelRegistry
-
         config = LLMRuntimeConfig()
         registry = ModelRegistry(config)
 
@@ -375,8 +364,6 @@ class TestModelRegistryBackwardCompat:
     def test_get_full_catalog_returns_model_catalog(self, monkeypatch, tmp_path):
         """get_full_catalog 返回 ModelCatalog 实例"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        from runtime.model_registry import ModelRegistry
-
         config = LLMRuntimeConfig()
         registry = ModelRegistry(config)
         full_catalog = registry.get_full_catalog()
@@ -386,8 +373,6 @@ class TestModelRegistryBackwardCompat:
     def test_is_provider_active(self, monkeypatch, tmp_path):
         """_is_provider_active 正确判断 provider 状态"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        from runtime.model_registry import ModelRegistry
-
         config = LLMRuntimeConfig()
         config.providers["openai"]["api_key"] = "sk-test"
         config.providers["deepseek"]["api_key"] = ""

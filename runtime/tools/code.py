@@ -5,7 +5,7 @@ import sys
 import tempfile
 from typing import Any, Dict
 
-logger = logging.getLogger("runtime.plugins.code_sandbox")
+logger = logging.getLogger("runtime.tools.code")
 
 
 class CodeSandboxPlugin:

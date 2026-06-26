@@ -18,7 +18,7 @@ from runtime.tools.code import CodeSandboxPlugin
 from runtime.tools.search import WebSearchPlugin
 from runtime.tools.skills_evolution import SkillsSelfEvolutionPlugin
 
-logger = logging.getLogger("runtime.agent")
+logger = logging.getLogger("runtime.gateway.agent")
 
 
 class RuntimeAgent:

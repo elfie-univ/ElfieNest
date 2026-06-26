@@ -3,7 +3,7 @@ import urllib.parse
 import urllib.request
 from typing import Dict, List
 
-logger = logging.getLogger("runtime.plugins.web_search")
+logger = logging.getLogger("runtime.tools.search")
 
 
 class WebSearchPlugin:

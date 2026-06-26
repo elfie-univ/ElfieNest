@@ -1,11 +1,11 @@
-"""tests for runtime.migration module"""
+"""tests for runtime.storage.migration module"""
 import json
 import os
 from pathlib import Path
 
 import yaml
 
-from runtime.migration import (
+from runtime.storage.migration import (
     migrate_data_home,
     migrate_config,
     CURRENT_CONFIG_VERSION,
@@ -18,8 +18,8 @@ def test_migrate_no_old_data(monkeypatch, tmp_path):
     """没有旧数据时，创建空的 ~/.elfienest/ 结构并生成默认 config.yaml"""
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path / "new_home"))
     # 确保项目根目录下也没有旧 data/ 和 runtime_config.json
-    monkeypatch.setattr("runtime.migration._OLD_DATA_DIR", tmp_path / "nonexistent_data")
-    monkeypatch.setattr("runtime.migration._OLD_RUNTIME_CONFIG", tmp_path / "nonexistent_config.json")
+    monkeypatch.setattr("runtime.storage.migration._OLD_DATA_DIR", tmp_path / "nonexistent_data")
+    monkeypatch.setattr("runtime.storage.migration._OLD_RUNTIME_CONFIG", tmp_path / "nonexistent_config.json")
     result = migrate_data_home()
     assert result is True
     home = Path(tmp_path / "new_home")
@@ -84,7 +84,7 @@ def test_runtime_config_json_conversion(tmp_path):
 
     # _migrate_runtime_config_json 接收 home 目录，
     # 从 module-level _OLD_RUNTIME_CONFIG 读取 JSON，写入 home / "config.yaml"
-    import runtime.migration as migration_mod
+    import runtime.storage.migration as migration_mod
     old_config_backup = migration_mod._OLD_RUNTIME_CONFIG
     try:
         migration_mod._OLD_RUNTIME_CONFIG = json_path

@@ -17,7 +17,7 @@ from runtime.config import LLMRuntimeConfig
 from runtime.policy.model_route import resolve_model
 from runtime.policy.scene_classifier import classify_scene
 
-logger = logging.getLogger("runtime.model_router")
+logger = logging.getLogger("runtime.policy.router")
 
 
 class ModelRouter:

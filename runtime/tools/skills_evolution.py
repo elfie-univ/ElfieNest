@@ -5,7 +5,7 @@ from typing import Any, Dict
 from runtime.tools.code import CodeSandboxPlugin
 from runtime.tools.file import FileSandbox
 
-logger = logging.getLogger("runtime.plugins.skills_evolution")
+logger = logging.getLogger("runtime.tools.skills_evolution")
 
 
 class SkillsSelfEvolutionPlugin:

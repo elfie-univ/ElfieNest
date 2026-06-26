@@ -13,7 +13,8 @@ sys.path.insert(
     0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
 
-from runtime.agent import RuntimeAgent, UnsupportedModalError
+from runtime.gateway.agent import RuntimeAgent
+from runtime.gateway.model_guard import UnsupportedModalError
 from runtime.config import LLMRuntimeConfig
 
 

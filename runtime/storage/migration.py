@@ -25,7 +25,7 @@ import yaml
 
 from runtime.storage.data_home import ensure_elfie_home, get_config_path, get_elfie_home
 
-logger = logging.getLogger("runtime.migration")
+logger = logging.getLogger("runtime.storage.migration")
 
 # ---------------------------------------------------------------------------
 # 项目根目录下的旧路径

@@ -1,9 +1,9 @@
-"""tests for runtime.data_home module"""
+"""tests for runtime.storage.data_home module"""
 import os
 import tempfile
 from pathlib import Path
 
-from runtime.data_home import (
+from runtime.storage.data_home import (
     get_elfie_home,
     get_config_path,
     get_env_path,

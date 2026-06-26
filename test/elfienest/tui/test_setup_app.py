@@ -7,7 +7,7 @@ from pathlib import Path
 from _pytest.capture import CaptureFixture
 
 from elfienest.tui import setup_app
-from runtime.data_home import get_db_path
+from runtime.storage.data_home import get_db_path
 
 
 def test_run_setup_wizard_creates_first_admin(

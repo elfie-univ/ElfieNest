@@ -16,7 +16,7 @@ import pytest
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, PROJECT_ROOT)
 
-from runtime.token_tracker import TokenTracker, get_token_tracker
+from runtime.usage.token_tracker import TokenTracker, get_token_tracker
 
 
 class TestTokenTracker:
@@ -78,7 +78,7 @@ class TestTokenTracker:
         tracker = TokenTracker()
         
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch("runtime.token_tracker.get_elfie_home", return_value=Path(tmpdir)):
+            with patch("runtime.usage.token_tracker.get_elfie_home", return_value=Path(tmpdir)):
                 tracker.record("openai", {"prompt_tokens": 100, "completion_tokens": 50})
                 
                 tracker.flush_tick("tick_001")
