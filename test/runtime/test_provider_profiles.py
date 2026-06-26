@@ -1,4 +1,4 @@
-"""tests for runtime.provider_profiles module"""
+"""tests for runtime.providers.profiles module"""
 import os
 import tempfile
 from pathlib import Path
@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from runtime.config import LLMRuntimeConfig
-from runtime.provider_profiles import (
+from runtime.providers.profiles import (
     BUILTIN_PROFILES,
     ProviderProfile,
     get_default_api_mode,

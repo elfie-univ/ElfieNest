@@ -7,7 +7,7 @@ import sys
 import time
 import urllib.request
 
-logger = logging.getLogger("runtime.ollama_manager")
+logger = logging.getLogger("runtime.providers.ollama")
 
 
 class OllamaNotReadyError(Exception):

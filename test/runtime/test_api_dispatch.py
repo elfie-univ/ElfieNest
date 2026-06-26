@@ -14,13 +14,13 @@ import pytest
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, PROJECT_ROOT)
 
-from runtime.agent import (
-    _API_DISPATCH,
-    _call_anthropic_api,
-    _call_ollama_api,
-    _call_openai_compatible_api,
-    _detect_api_mode_for_url,
-    RuntimeAgent,
+from runtime.gateway.agent import RuntimeAgent
+from runtime.providers.dispatch import (
+    API_DISPATCH as _API_DISPATCH,
+    call_anthropic_api as _call_anthropic_api,
+    call_ollama_api as _call_ollama_api,
+    call_openai_compatible_api as _call_openai_compatible_api,
+    detect_api_mode_for_url as _detect_api_mode_for_url,
 )
 from runtime.config import LLMRuntimeConfig
 

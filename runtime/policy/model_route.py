@@ -19,7 +19,7 @@ import yaml
 from runtime.config import LLMRuntimeConfig
 from runtime.storage.data_home import get_elfie_config_dir
 
-logger = logging.getLogger("runtime.model_route")
+logger = logging.getLogger("runtime.policy.model_route")
 
 
 # ---------------------------------------------------------------------------

@@ -7,7 +7,7 @@ sys.path.insert(0, "/Users/zhenli/git-code/ElfieNest")
 
 from elfie import ElfieIndividual
 from elfie.body import BipedAnatomy
-from runtime.agent import RuntimeAgent
+from runtime.gateway.agent import RuntimeAgent
 from runtime.config import LLMRuntimeConfig
 
 

@@ -2,7 +2,7 @@ import logging
 import os
 from typing import List
 
-logger = logging.getLogger("runtime.plugins.file_sandbox")
+logger = logging.getLogger("runtime.tools.file")
 
 
 class FileSandbox:

@@ -1,11 +1,11 @@
-"""Tests for runtime.scene_classifier module.
+"""Tests for runtime.policy.scene_classifier module.
 
 测试场景分类器的各种输入组合。
 """
 
 import pytest
 
-from runtime.scene_classifier import (
+from runtime.policy.scene_classifier import (
     SCENE_SLOTS,
     DEEP_KEYWORDS,
     VISION_KEYWORDS,

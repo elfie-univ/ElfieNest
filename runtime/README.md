@@ -20,8 +20,7 @@ Current package ownership:
   observe-only.
 - `safety/`: permission management for native tools.
 
-The root-level files such as `runtime.agent`, `runtime.model_catalog`,
-`runtime.model_router`, and `runtime.data_home` are compatibility entry points
-for older imports. New code should import from the owned package above. Remove
-the compatibility entry points only after all internal callers and tests have
-migrated.
+New code should import from the owned package above. The old root-level
+compatibility modules such as `runtime.agent`, `runtime.model_catalog`,
+`runtime.model_router`, and `runtime.data_home` have been removed; only the
+stable package-level exports in `runtime/__init__.py` remain at the root.

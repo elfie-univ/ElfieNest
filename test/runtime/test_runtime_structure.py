@@ -1,11 +1,5 @@
-def test_gateway_agent_imports_match_legacy_path():
-    from runtime.agent import RuntimeAgent as LegacyRuntimeAgent
-    from runtime.gateway.agent import RuntimeAgent
-
-    assert RuntimeAgent is LegacyRuntimeAgent
-
-
 def test_layered_runtime_imports_are_available():
+    from runtime.gateway.agent import RuntimeAgent
     from runtime.models.catalog import ModelCatalog
     from runtime.models.registry import ModelRegistry
     from runtime.policy.router import ModelRouter
@@ -19,6 +13,7 @@ def test_layered_runtime_imports_are_available():
     from runtime.usage.observer import RuntimeObserver
     from runtime.usage.token_tracker import TokenTracker
 
+    assert RuntimeAgent is not None
     assert ModelCatalog is not None
     assert ModelRegistry is not None
     assert ModelRouter is not None
@@ -33,8 +28,25 @@ def test_layered_runtime_imports_are_available():
     assert TokenTracker is not None
 
 
-def test_legacy_setup_runtime_entrypoint_exposes_main():
-    from runtime.setup.runtime_setup import main as LayeredMain
-    from runtime.setup_runtime import main as LegacyMain
+def test_legacy_runtime_entrypoints_are_removed():
+    import importlib.util
 
-    assert LegacyMain is LayeredMain
+    legacy_modules = [
+        "runtime.agent",
+        "runtime.data_home",
+        "runtime.migration",
+        "runtime.model_catalog",
+        "runtime.model_registry",
+        "runtime.model_route",
+        "runtime.model_router",
+        "runtime.ollama_manager",
+        "runtime.permission_manager",
+        "runtime.provider_profiles",
+        "runtime.scene_classifier",
+        "runtime.setup_runtime",
+        "runtime.token_tracker",
+        "runtime.plugins",
+    ]
+
+    for module_name in legacy_modules:
+        assert importlib.util.find_spec(module_name) is None

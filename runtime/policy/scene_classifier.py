@@ -18,7 +18,7 @@
 import logging
 from typing import Dict, Optional
 
-logger = logging.getLogger("runtime.scene_classifier")
+logger = logging.getLogger("runtime.policy.scene_classifier")
 
 
 # ---------------------------------------------------------------------------

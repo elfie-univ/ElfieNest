@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 
 from runtime.storage.data_home import get_elfie_home
 
-logger = logging.getLogger("runtime.token_tracker")
+logger = logging.getLogger("runtime.usage.token_tracker")
 
 
 class TokenTracker:

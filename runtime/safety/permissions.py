@@ -1,7 +1,7 @@
 import logging
 import os
 
-logger = logging.getLogger("runtime.permission_manager")
+logger = logging.getLogger("runtime.safety.permissions")
 
 
 class PermissionDeniedError(Exception):

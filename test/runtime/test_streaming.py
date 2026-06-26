@@ -13,15 +13,15 @@ import pytest
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, PROJECT_ROOT)
 
-from runtime.agent import (
-    _STREAM_DISPATCH,
-    _stream_anthropic_api,
-    _stream_ollama_api,
-    _stream_openai_compatible_api,
-    RuntimeAgent,
+from runtime.gateway.agent import RuntimeAgent
+from runtime.providers.streaming import (
+    STREAM_DISPATCH as _STREAM_DISPATCH,
+    stream_anthropic_api as _stream_anthropic_api,
+    stream_ollama_api as _stream_ollama_api,
+    stream_openai_compatible_api as _stream_openai_compatible_api,
 )
 from runtime.config import LLMRuntimeConfig
-from runtime.ollama_manager import OllamaNotReadyError
+from runtime.providers.ollama import OllamaNotReadyError
 
 
 class MockHttpResponse:

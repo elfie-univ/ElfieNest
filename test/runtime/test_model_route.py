@@ -1,4 +1,4 @@
-"""Tests for runtime.model_route module.
+"""Tests for runtime.policy.model_route module.
 
 测试每精灵模型路由配置的加载、保存和解析功能。
 """
@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
-from runtime.model_route import (
+from runtime.policy.model_route import (
     SCENE_SLOTS,
     SceneRoute,
     ModelRoute,
