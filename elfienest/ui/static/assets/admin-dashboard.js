@@ -175,7 +175,7 @@
     if (state.csrfToken) localStorage.setItem("csrf_token", state.csrfToken);
     if (data.session_token) localStorage.setItem("session_token", data.session_token);
     if (data.role !== "admin") {
-      window.location.href = "/static/user.html";
+      window.location.href = "/static/index.html?v=2";
       return data;
     }
     ProfileDropdown.mount(document.getElementById("profileDropdown"), {
@@ -397,7 +397,7 @@
           <span>创建：${escapeHtml((elfie.created_at || "").slice(0, 19))}</span>
         </div>
         <div class="table-actions">
-          <a class="ghost-button" href="/static/user.html">进入工作台</a>
+          <a class="ghost-button" href="/static/index.html?v=2">进入工作台</a>
         </div>
       </article>
     `).join("");

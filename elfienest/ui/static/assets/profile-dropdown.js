@@ -1,5 +1,5 @@
 /*!
- * Profile Dropdown — shared component for admin.html & user.html
+ * Profile Dropdown — shared component for the ElfieNest console.
  * T13: 头像 SVG (8 color) + nickname + role pill + 退出登录
  *
  * Usage:
