@@ -1,14 +1,6 @@
-"""tests for runtime.providers.profiles module"""
-import os
-import tempfile
-from pathlib import Path
-
-import pytest
-
 from runtime.config import LLMRuntimeConfig
 from runtime.providers.profiles import (
     BUILTIN_PROFILES,
-    ProviderProfile,
     get_default_api_mode,
     get_profile,
 )
@@ -17,9 +9,10 @@ from runtime.providers.profiles import (
 class TestBuiltinProfiles:
     """BUILTIN_PROFILES 内置服务商档案测试"""
 
-    def test_builtin_profiles_has_nine_entries(self):
-        """BUILTIN_PROFILES 包含 9 个服务商"""
-        assert len(BUILTIN_PROFILES) == 9
+    def test_builtin_profiles_has_custom_openai_profile(self):
+        assert "custom_openai" in BUILTIN_PROFILES
+        assert BUILTIN_PROFILES["custom_openai"].api_mode == "chat_completions"
+        assert BUILTIN_PROFILES["custom_openai"].api_key_env_var == "CUSTOM_OPENAI_API_KEY"
 
     def test_each_profile_has_required_fields(self):
         """每个 profile 都有必需字段"""
@@ -144,8 +137,10 @@ class TestLLMRuntimeConfigBackwardCompat:
             yaml.dump(old_config, f)
 
         config = LLMRuntimeConfig()
-        if "custom_provider" in config.providers:
-            assert config.providers["custom_provider"]["api_mode"] == "chat_completions"
+        assert config.providers["custom_provider"]["api_mode"] == "chat_completions"
+        assert config.providers["custom_provider"]["api_base"] == "https://custom.api.com/v1"
+        assert config.providers["custom_provider"]["api_key"] == "test-key"
+        assert config.providers["custom_provider"]["status"] == "active"
 
     def test_status_defaults_based_on_api_key(self, monkeypatch, tmp_path):
         """status 根据是否有 api_key 自动设置"""
@@ -191,3 +186,104 @@ class TestLLMRuntimeConfigBackwardCompat:
 
         config = LLMRuntimeConfig()
         assert config.providers["ollama"]["status"] == "active"
+
+    def test_loads_custom_openai_credentials_from_env_file(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+        env_path = tmp_path / ".env"
+        env_path.write_text(
+            "CUSTOM_OPENAI_API_KEY=test-key\n"
+            "CUSTOM_OPENAI_API_BASE=https://proxy.example.com/v1\n",
+            encoding="utf-8",
+        )
+
+        config = LLMRuntimeConfig()
+
+        provider = config.providers["custom_openai"]
+        assert provider["api_key"] == "test-key"
+        assert provider["api_base"] == "https://proxy.example.com/v1"
+        assert provider["status"] == "active"
+
+
+def test_verify_custom_openai_falls_back_to_chat_completion_when_models_endpoint_fails(
+    monkeypatch,
+) -> None:
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    calls = []
+
+    def fake_urlopen(request, timeout):
+        calls.append((request.full_url, request.data))
+        if request.full_url.endswith("/models"):
+            import urllib.error
+
+            raise urllib.error.HTTPError(
+                request.full_url,
+                400,
+                "Bad Request",
+                hdrs=None,
+                fp=None,
+            )
+        return FakeResponse()
+
+    monkeypatch.setattr("runtime.models.catalog.urllib.request.urlopen", fake_urlopen)
+
+    class Config:
+        providers = {
+            "custom_openai": {
+                "api_key": "test-key",
+                "api_base": "https://proxy.example.com/v1",
+                "api_mode": "chat_completions",
+                "test_model": "gpt-4o-mini",
+            }
+        }
+
+    from runtime.models.catalog import verify_provider
+
+    result = verify_provider("custom_openai", Config())
+
+    assert result["status"] == "active"
+    assert calls[0][0] == "https://proxy.example.com/v1/models"
+    assert calls[1][0] == "https://proxy.example.com/v1/chat/completions"
+    assert b'"model": "gpt-4o-mini"' in calls[1][1]
+
+
+def test_verify_custom_openai_returns_actionable_error_when_models_and_chat_fail(
+    monkeypatch,
+) -> None:
+    import urllib.error
+
+    def fake_urlopen(request, timeout):
+        raise urllib.error.HTTPError(
+            request.full_url,
+            400,
+            "Bad Request",
+            hdrs=None,
+            fp=None,
+        )
+
+    monkeypatch.setattr("runtime.models.catalog.urllib.request.urlopen", fake_urlopen)
+
+    class Config:
+        providers = {
+            "custom_openai": {
+                "api_key": "test-key",
+                "api_base": "https://proxy.example.com/v1",
+                "api_mode": "chat_completions",
+                "test_model": "gpt-4o-mini",
+            }
+        }
+
+    from runtime.models.catalog import verify_provider
+
+    result = verify_provider("custom_openai", Config())
+
+    assert result["status"] == "inactive"
+    assert "Base URL 应该类似" in result["error"]
+    assert "测试模型" in result["error"]

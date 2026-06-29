@@ -7,7 +7,90 @@ from typing import Any, Dict
 import yaml
 
 from .providers.profiles import get_default_api_mode
-from .storage.data_home import get_config_path
+from .storage.data_home import get_config_path, get_env_path
+
+
+def _load_env_file_values() -> Dict[str, str]:
+    env_path = get_env_path()
+    env_values: Dict[str, str] = {}
+    if not os.path.exists(env_path):
+        return env_values
+    try:
+        with open(env_path, encoding="utf-8") as f:
+            for raw_line in f:
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                env_values[key.strip()] = value.strip()
+    except OSError:
+        return env_values
+    return env_values
+
+
+def _env_value(env_values: Dict[str, str], key: str, default: str = "") -> str:
+    return os.getenv(key, env_values.get(key, default))
+
+
+def _default_providers() -> Dict[str, Dict[str, str]]:
+    env_values = _load_env_file_values()
+    return {
+        "deepseek": {
+            "api_key": _env_value(env_values, "DEEPSEEK_API_KEY"),
+            "api_base": _env_value(
+                env_values,
+                "DEEPSEEK_API_BASE",
+                PROVIDER_RECOMMENDS["deepseek"]["api_base"],
+            ),
+            "api_mode": "chat_completions",
+        },
+        "openai": {
+            "api_key": _env_value(env_values, "OPENAI_API_KEY"),
+            "api_base": _env_value(
+                env_values,
+                "OPENAI_API_BASE",
+                PROVIDER_RECOMMENDS["openai"]["api_base"],
+            ),
+            "api_mode": "chat_completions",
+        },
+        "custom_openai": {
+            "api_key": _env_value(env_values, "CUSTOM_OPENAI_API_KEY"),
+            "api_base": _env_value(
+                env_values,
+                "CUSTOM_OPENAI_API_BASE",
+                "http://localhost:8000/v1",
+            ),
+            "api_mode": "chat_completions",
+            "test_model": "custom-model",
+        },
+        "gemini": {
+            "api_key": _env_value(env_values, "GEMINI_API_KEY"),
+            "api_base": _env_value(
+                env_values,
+                "GEMINI_API_BASE",
+                PROVIDER_RECOMMENDS["gemini"]["api_base"],
+            ),
+            "api_mode": "chat_completions",
+        },
+        "qwen": {
+            "api_key": _env_value(env_values, "QWEN_API_KEY"),
+            "api_base": _env_value(
+                env_values,
+                "QWEN_API_BASE",
+                PROVIDER_RECOMMENDS["qwen"]["api_base"],
+            ),
+            "api_mode": "chat_completions",
+        },
+        "ollama": {
+            "api_key": "",
+            "api_base": _env_value(
+                env_values,
+                "OLLAMA_HOST",
+                PROVIDER_RECOMMENDS["ollama"]["api_base"],
+            ),
+            "api_mode": "ollama",
+        },
+    }
 
 # 🌟 大模型跨服务商算力预设与精选推荐清单
 PROVIDER_RECOMMENDS: Dict[str, Dict[str, Any]] = {
@@ -110,45 +193,7 @@ class LLMRuntimeConfig:
     """大模型运行时跨服务商混合算力网格配置"""
 
     # 1. 多订阅源字典：存储各个 Provider 的 API Key、Base 节点、API 模式与状态
-    providers: Dict[str, Dict[str, str]] = field(
-        default_factory=lambda: {
-            "deepseek": {
-                "api_key": os.getenv("DEEPSEEK_API_KEY", ""),
-                "api_base": os.getenv(
-                    "DEEPSEEK_API_BASE", PROVIDER_RECOMMENDS["deepseek"]["api_base"]
-                ),
-                "api_mode": "chat_completions",
-            },
-            "openai": {
-                "api_key": os.getenv("OPENAI_API_KEY", ""),
-                "api_base": os.getenv(
-                    "OPENAI_API_BASE", PROVIDER_RECOMMENDS["openai"]["api_base"]
-                ),
-                "api_mode": "chat_completions",
-            },
-            "gemini": {
-                "api_key": os.getenv("GEMINI_API_KEY", ""),
-                "api_base": os.getenv(
-                    "GEMINI_API_BASE", PROVIDER_RECOMMENDS["gemini"]["api_base"]
-                ),
-                "api_mode": "chat_completions",
-            },
-            "qwen": {
-                "api_key": os.getenv("QWEN_API_KEY", ""),
-                "api_base": os.getenv(
-                    "QWEN_API_BASE", PROVIDER_RECOMMENDS["qwen"]["api_base"]
-                ),
-                "api_mode": "chat_completions",
-            },
-            "ollama": {
-                "api_key": "",
-                "api_base": os.getenv(
-                    "OLLAMA_HOST", PROVIDER_RECOMMENDS["ollama"]["api_base"]
-                ),
-                "api_mode": "ollama",
-            },
-        }
-    )
+    providers: Dict[str, Dict[str, str]] = field(default_factory=_default_providers)
 
     # 2. 算力分档路由映射 (模型名称 + 归属 Provider 绑定)
     cheap_model: str = "qwen3.5:0.8b"
@@ -210,16 +255,20 @@ class LLMRuntimeConfig:
                     saved_cfg["providers"], dict
                 ):
                     for provider, info in saved_cfg["providers"].items():
-                        if provider in self.providers:
-                            if "api_key" in info:
-                                self.providers[provider]["api_key"] = info["api_key"]
-                            if "api_base" in info:
-                                self.providers[provider]["api_base"] = info["api_base"]
-                            if "api_mode" in info:
-                                self.providers[provider]["api_mode"] = info["api_mode"]
-                            # status 只有明确设置时才覆盖，否则后面根据 api_key 重新计算
-                            if "status" in info and info["status"] in ("active", "inactive"):
-                                self.providers[provider]["status"] = info["status"]
+                        if provider not in self.providers:
+                            self.providers[provider] = {}
+                        if "api_key" in info:
+                            self.providers[provider]["api_key"] = info["api_key"]
+                        if "api_base" in info:
+                            self.providers[provider]["api_base"] = info["api_base"]
+                        if "api_mode" in info:
+                            self.providers[provider]["api_mode"] = info["api_mode"]
+                        if "status" in info and info["status"] in ("active", "inactive"):
+                            self.providers[provider]["status"] = info["status"]
+                        if "test_model" in info:
+                            self.providers[provider]["test_model"] = info["test_model"]
+                        if "display_name" in info:
+                            self.providers[provider]["display_name"] = info["display_name"]
 
                 # 更新其他字段属性（system 键深层合并，其余直接覆盖）
                 for k, v in saved_cfg.items():

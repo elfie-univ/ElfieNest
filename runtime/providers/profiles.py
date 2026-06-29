@@ -159,6 +159,19 @@ BUILTIN_PROFILES: Dict[str, ProviderProfile] = {
             "multimodal": ["llava-v1.5-7b-4096-preview"],
         },
     ),
+    "custom_openai": ProviderProfile(
+        name="自定义 OpenAI 兼容接口",
+        api_base="http://localhost:8000/v1",
+        auth_type="bearer",
+        api_mode="chat_completions",
+        base_url_env_var="CUSTOM_OPENAI_API_BASE",
+        api_key_env_var="CUSTOM_OPENAI_API_KEY",
+        default_models={
+            "cheap": ["custom-model"],
+            "deep": ["custom-model"],
+            "multimodal": ["custom-model"],
+        },
+    ),
 }
 
 

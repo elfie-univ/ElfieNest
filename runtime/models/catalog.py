@@ -12,7 +12,6 @@
 """
 
 import json
-import os
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -423,7 +422,7 @@ class ModelCatalog:
         if not self.config:
             return
 
-        for model_id, entry in self._catalog.items():
+        for entry in self._catalog.values():
             provider = entry.provider
             # Ollama 始终可用
             if provider == "ollama":
@@ -453,6 +452,90 @@ class ModelCatalog:
             完整模型字典
         """
         return dict(self._catalog)
+
+
+def _verify_custom_openai_provider(
+    provider_info: Dict[str, str],
+    api_base: str,
+    api_key: str,
+) -> Dict[str, Any]:
+    import time
+
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    models_url = f"{api_base.rstrip('/')}/models"
+    start_time = time.time()
+    try:
+        request = urllib.request.Request(models_url, headers=headers, method="GET")
+        with urllib.request.urlopen(request, timeout=5) as response:
+            if response.status == 200:
+                return {
+                    "status": "active",
+                    "latency_ms": round((time.time() - start_time) * 1000, 2),
+                    "error": None,
+                }
+    except urllib.error.HTTPError:
+        pass
+
+    test_model = provider_info.get("test_model", "custom-model") or "custom-model"
+    chat_url = f"{api_base.rstrip('/')}/chat/completions"
+    payload = json.dumps(
+        {
+            "model": test_model,
+            "messages": [{"role": "user", "content": "ping"}],
+            "max_tokens": 1,
+            "temperature": 0,
+        }
+    ).encode("utf-8")
+
+    try:
+        request = urllib.request.Request(
+            chat_url,
+            data=payload,
+            headers=headers,
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=5) as response:
+            if response.status == 200:
+                return {
+                    "status": "active",
+                    "latency_ms": round((time.time() - start_time) * 1000, 2),
+                    "error": None,
+                }
+            return {
+                "status": "inactive",
+                "latency_ms": None,
+                "error": f"HTTP {response.status}",
+            }
+    except urllib.error.HTTPError as e:
+        return {
+            "status": "inactive",
+            "latency_ms": None,
+            "error": _custom_openai_error(e.code, e.reason, test_model),
+        }
+    except urllib.error.URLError as e:
+        return {
+            "status": "inactive",
+            "latency_ms": None,
+            "error": f"连接失败: {e.reason}",
+        }
+    except TimeoutError:
+        return {
+            "status": "inactive",
+            "latency_ms": None,
+            "error": "连接超时（5秒）",
+        }
+
+
+def _custom_openai_error(status_code: int, reason: str, test_model: str) -> str:
+    return (
+        f"HTTP {status_code}: {reason}。"
+        "自定义 OpenAI 兼容接口验证失败："
+        "Base URL 应该类似 https://host/v1，不要填 /chat/completions；"
+        f"请确认 API Key 正确，测试模型 {test_model} 在该端点可用。"
+    )
 
 
 def verify_provider(provider_id: str, config: Any) -> Dict[str, Any]:
@@ -487,8 +570,6 @@ def verify_provider(provider_id: str, config: Any) -> Dict[str, Any]:
         return result
 
     api_mode = profile.api_mode
-    auth_type = profile.auth_type
-
     # 构建请求 URL 和 headers
     url = ""
     headers: Dict[str, str] = {}
@@ -498,6 +579,8 @@ def verify_provider(provider_id: str, config: Any) -> Dict[str, Any]:
             # Ollama: GET {api_base}/api/tags
             url = f"{api_base.rstrip('/')}/api/tags"
         elif api_mode == "chat_completions":
+            if provider_id == "custom_openai":
+                return _verify_custom_openai_provider(provider_info, api_base, api_key)
             # OpenAI 兼容: GET {api_base}/models with Bearer token
             url = f"{api_base.rstrip('/')}/models"
             if api_key:
