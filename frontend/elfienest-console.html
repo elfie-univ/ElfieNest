@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="ElfieNest 本地 Agent 精灵管理系统前端控制台原型"
+    />
+    <title>ElfieNest 控制台原型</title>
+    <link rel="stylesheet" href="./elfienest-console.css" />
+  </head>
+  <body>
+    <div class="app-shell" data-role="admin">
+      <aside class="sidebar" aria-label="主导航">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" role="img">
+              <path d="M16 4.5 25.4 10v12L16 27.5 6.6 22V10L16 4.5Z" />
+              <path d="M11.5 13.4 16 10.8l4.5 2.6v5.2L16 21.2l-4.5-2.6v-5.2Z" />
+            </svg>
+          </div>
+          <div>
+            <strong>ElfieNest</strong>
+            <span>本地精灵控制台</span>
+          </div>
+        </div>
+
+        <nav class="nav-list">
+          <span class="nav-group-label">业务模块</span>
+          <button class="nav-item" type="button" data-view="elves">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 3.5 19 7.5v9L12 20.5 5 16.5v-9L12 3.5Z" />
+                <path d="M8.7 9.7 12 7.8l3.3 1.9v4.6L12 16.2l-3.3-1.9V9.7Z" />
+              </svg>
+            </span>
+            精灵管理
+          </button>
+          <button class="nav-item admin-only" type="button" data-view="rooms">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M4 10.5 12 5l8 5.5v8H4v-8Z" />
+                <path d="M8 18.5v-5h8v5" />
+                <path d="M9.5 10.8h5" />
+              </svg>
+            </span>
+            房间管理
+          </button>
+
+          <span class="nav-group-label admin-only">系统管理</span>
+          <button class="nav-item admin-only" type="button" data-view="overview">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M4 19V5" />
+                <path d="M4 19h16" />
+                <path d="M8 16v-5" />
+                <path d="M12 16V8" />
+                <path d="M16 16v-7" />
+              </svg>
+            </span>
+            综合监控
+          </button>
+          <button class="nav-item admin-only" type="button" data-view="users">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M8 11.4a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" />
+                <path d="M16.5 10.7a2.7 2.7 0 1 0 0-5.4 2.7 2.7 0 0 0 0 5.4Z" />
+                <path d="M3.5 19.2c.6-3 2.2-4.8 4.5-4.8s3.9 1.8 4.5 4.8" />
+                <path d="M13.6 17.8c.7-2 1.8-3.1 3.2-3.1 1.8 0 3.1 1.4 3.7 3.9" />
+              </svg>
+            </span>
+            用户管理
+          </button>
+          <button class="nav-item admin-only" type="button" data-view="config">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z" />
+                <path d="M19.2 12a6.9 6.9 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a8.4 8.4 0 0 0-1.7-1L14.7 3h-5.4L9 6.1a8.4 8.4 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.5a6.9 6.9 0 0 0 0 2l-2 1.5 2 3.4 2.4-1a8.4 8.4 0 0 0 1.7 1l.3 3.1h5.4l.3-3.1a8.4 8.4 0 0 0 1.7-1l2.4 1 2-3.4-2-1.5c.1-.3.1-.7.1-1Z" />
+              </svg>
+            </span>
+            系统配置
+          </button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <span>本机服务</span>
+          <strong>HTTP 8000 · WS 8765</strong>
+        </div>
+      </aside>
+
+      <div class="workspace">
+        <header class="topbar">
+          <div>
+            <span class="eyebrow">LOCAL INSTANCE</span>
+            <h1 id="page-title">综合监控</h1>
+          </div>
+          <div class="topbar-actions">
+            <label class="search">
+              <span class="visually-hidden">搜索精灵、用户、配置</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M10.8 18.1a7.3 7.3 0 1 0 0-14.6 7.3 7.3 0 0 0 0 14.6Z" />
+                <path d="m16.2 16.2 4.3 4.3" />
+              </svg>
+              <input id="global-search" type="search" placeholder="搜索精灵、用户、配置" />
+            </label>
+            <button class="icon-button" type="button" title="系统提醒" aria-label="系统提醒" data-open-alerts>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M18 9.8a6 6 0 1 0-12 0c0 7-2.2 7.4-2.2 7.4h16.4S18 16.8 18 9.8Z" />
+                <path d="M9.8 20.1a2.4 2.4 0 0 0 4.4 0" />
+              </svg>
+            </button>
+            <button class="profile-button" type="button" aria-haspopup="menu" data-open-profile-menu>
+              <span class="avatar">林</span>
+              <span>
+                <strong id="profile-name">林澈</strong>
+                <small id="profile-role">管理员</small>
+              </span>
+            </button>
+          </div>
+        </header>
+
+        <main class="main" id="main-content">
+          <section class="view" data-view-panel="overview" aria-labelledby="overview-heading">
+            <div class="section-heading">
+              <div>
+                <h2 id="overview-heading">综合监控</h2>
+                <p>管理员默认入口，用来判断这台机器上的 ElfieNest 是否健康。</p>
+              </div>
+              <button class="ghost-button" type="button">刷新状态</button>
+            </div>
+
+            <div class="metric-row" aria-label="系统概览">
+              <article class="metric-card">
+                <span>CPU 负载</span>
+                <strong>42%</strong>
+                <small>温度 64°C · 正常</small>
+              </article>
+              <article class="metric-card">
+                <span>在线精灵</span>
+                <strong>3</strong>
+                <small>总计 6 只 · 1 只未配置</small>
+              </article>
+              <article class="metric-card">
+                <span>Godot 连接</span>
+                <strong>1</strong>
+                <small>WebSocket 心跳 09:18</small>
+              </article>
+            </div>
+
+            <div class="overview-grid">
+              <section class="config-card">
+                <h3>模型服务</h3>
+                <div class="health-list">
+                  <div><span>Ollama</span><mark class="status success">在线</mark></div>
+                  <div><span>OpenAI</span><mark class="status success">可用</mark></div>
+                  <div><span>DeepSeek</span><mark class="status warning">延迟偏高</mark></div>
+                  <div><span>Qwen</span><mark class="status info">待检测</mark></div>
+                </div>
+              </section>
+              <section class="config-card">
+                <h3>系统提醒</h3>
+                <div class="alert-list">
+                  <article>
+                    <strong>DeepSeek 响应延迟超过 2.8s</strong>
+                    <span>建议检查网络或切换默认轻量模型。</span>
+                  </article>
+                  <article>
+                    <strong>周予安精灵额度已满</strong>
+                    <span>当前 2 / 2，如需继续领养需管理员调整额度。</span>
+                  </article>
+                </div>
+              </section>
+              <section class="config-card wide">
+                <h3>最近运行日志</h3>
+                <div class="log-list">
+                  <span>[09:18:22] Godot 客户端心跳正常，场景家具同步完成。</span>
+                  <span>[09:14:03] 米卡完成一次主人对话，会话写入本地记录。</span>
+                  <span>[09:08:41] Ollama 本地服务发现模型 qwen3.5:0.8b。</span>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section class="view" data-view-panel="elves" aria-labelledby="elves-heading">
+            <div class="section-heading">
+              <div>
+                <h2 id="elves-heading">精灵管理</h2>
+                <p id="elves-copy">管理员可看全部精灵卡片；只有拥有者能进入详情、配置和聊天。</p>
+              </div>
+              <button class="primary-button" type="button" data-open-adoption>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5v14" />
+                  <path d="M5 12h14" />
+                </svg>
+                领养新精灵
+              </button>
+            </div>
+
+            <div class="metric-row" aria-label="精灵概览">
+              <article class="metric-card">
+                <span>我的额度</span>
+                <strong>3 / 8</strong>
+                <small>额度内可直接领养，无需审批</small>
+              </article>
+              <article class="metric-card">
+                <span>活跃精灵</span>
+                <strong id="metric-active">3</strong>
+                <small>正在响应或在线待命</small>
+              </article>
+              <article class="metric-card">
+                <span>未分配床位</span>
+                <strong>1</strong>
+                <small>可在房间管理中处理</small>
+              </article>
+            </div>
+
+            <div class="toolbar">
+              <label class="select-wrap filter-admin">
+                <span>范围</span>
+                <select id="scope-filter">
+                  <option value="all">全部</option>
+                  <option value="mine">我的</option>
+                  <option value="others">其他用户</option>
+                </select>
+              </label>
+              <label class="select-wrap filter-admin">
+                <span>拥有者</span>
+                <select id="owner-filter">
+                  <option value="all">全部用户</option>
+                  <option value="林澈">林澈</option>
+                  <option value="周予安">周予安</option>
+                  <option value="沈听">沈听</option>
+                </select>
+              </label>
+              <label class="select-wrap">
+                <span>状态</span>
+                <select id="status-filter">
+                  <option value="all">全部状态</option>
+                  <option value="online">在线</option>
+                  <option value="resting">休眠</option>
+                  <option value="setup">未配置</option>
+                </select>
+              </label>
+              <label class="select-wrap">
+                <span>房间</span>
+                <select id="room-filter">
+                  <option value="all">全部位置</option>
+                  <option value="dorm">潮馆主房间</option>
+                  <option value="none">未分配床位</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="elf-grid" id="elf-grid" aria-live="polite"></div>
+          </section>
+
+          <section class="view detail-view" data-view-panel="elf-detail" aria-labelledby="elf-detail-heading">
+            <div class="section-heading">
+              <div>
+                <button class="text-button" type="button" data-back-to-elves>返回精灵管理</button>
+                <h2 id="elf-detail-heading">精灵详情</h2>
+                <p id="elf-detail-copy">仅主人可查看并管理该精灵的配置与主人聊天记录。</p>
+              </div>
+              <button class="primary-button" type="button">保存配置</button>
+            </div>
+            <div id="elf-detail-content"></div>
+          </section>
+
+          <section class="view" data-view-panel="rooms" aria-labelledby="rooms-heading">
+            <div class="section-heading">
+              <div>
+                <h2 id="rooms-heading">房间管理</h2>
+                <p>当前版本管理一间潮馆主房间：床位、桌子、互动点、摄像头与装修布局。</p>
+              </div>
+              <button class="primary-button" type="button">保存房间布局</button>
+            </div>
+
+            <div class="room-shell">
+              <section class="room-map-panel">
+                <div class="config-card-head">
+                  <div>
+                    <h3>潮馆主房间 · 俯视布局</h3>
+                    <p>二维平面图显示床位、桌子、互动热点和精灵当前位置。</p>
+                  </div>
+                  <mark class="status success">Godot 场景已同步</mark>
+                </div>
+                <div class="room-map" aria-label="房间二维布局">
+                  <button class="room-object bed bed-a" type="button">
+                    <strong>床位 A</strong>
+                    <span>米卡</span>
+                  </button>
+                  <button class="room-object bed bed-b" type="button">
+                    <strong>床位 B</strong>
+                    <span>诺拉</span>
+                  </button>
+                  <button class="room-object bed bed-c empty" type="button">
+                    <strong>床位 C</strong>
+                    <span>空闲</span>
+                  </button>
+                  <button class="room-object desk desk-a" type="button">
+                    <strong>书桌</strong>
+                    <span>互动点</span>
+                  </button>
+                  <button class="room-object hotspot door" type="button">
+                    <strong>门口</strong>
+                    <span>入口</span>
+                  </button>
+                  <button class="room-object hotspot window" type="button">
+                    <strong>窗边</strong>
+                    <span>观察点</span>
+                  </button>
+                </div>
+              </section>
+
+              <aside class="room-side">
+                <section class="config-card">
+                  <h3>实时摄像头</h3>
+                  <div class="camera-preview">
+                    <span>Godot Camera · MainRoom</span>
+                    <strong>当前 3D 房间画面</strong>
+                  </div>
+                </section>
+                <section class="config-card">
+                  <h3>装修配置</h3>
+                  <label class="form-row">
+                    <span>床位数量</span>
+                    <select>
+                      <option>3 张床</option>
+                      <option>4 张床</option>
+                      <option>6 张床</option>
+                    </select>
+                  </label>
+                  <label class="form-row">
+                    <span>默认视角</span>
+                    <select>
+                      <option>俯视图</option>
+                      <option>门口视角</option>
+                      <option>自由摄像头</option>
+                    </select>
+                  </label>
+                  <button class="ghost-button full" type="button">进入布局编辑</button>
+                </section>
+                <section class="config-card">
+                  <h3>床位分配</h3>
+                  <div class="health-list">
+                    <div><span>床位 A</span><strong>米卡</strong></div>
+                    <div><span>床位 B</span><strong>诺拉</strong></div>
+                    <div><span>床位 C</span><strong>空闲</strong></div>
+                    <div><span>未分配</span><strong>岚岚</strong></div>
+                  </div>
+                </section>
+              </aside>
+            </div>
+          </section>
+
+          <section class="view" data-view-panel="users" aria-labelledby="users-heading">
+            <div class="section-heading">
+              <div>
+                <h2 id="users-heading">用户管理</h2>
+                <p>查看本机用户，管理角色、状态和精灵额度。</p>
+              </div>
+              <button class="primary-button" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5v14" />
+                  <path d="M5 12h14" />
+                </svg>
+                创建用户
+              </button>
+            </div>
+
+            <div class="table-panel">
+              <div class="table-row table-head">
+                <span>用户</span>
+                <span>角色</span>
+                <span>精灵额度</span>
+                <span>状态</span>
+                <span>最近登录</span>
+                <span>操作</span>
+              </div>
+              <div class="table-row">
+                <span><strong>林澈</strong><small>lin@local</small></span>
+                <span>管理员</span>
+                <span>3 / 8</span>
+                <span><mark class="status success">启用</mark></span>
+                <span>今天 09:18</span>
+                <span><button class="ghost-button" type="button">编辑</button></span>
+              </div>
+              <div class="table-row">
+                <span><strong>周予安</strong><small>zhou@local</small></span>
+                <span>普通用户</span>
+                <span>2 / 2</span>
+                <span><mark class="status warning">额度已满</mark></span>
+                <span>昨天 22:40</span>
+                <span><button class="ghost-button" type="button">编辑</button></span>
+              </div>
+              <div class="table-row">
+                <span><strong>沈听</strong><small>shen@local</small></span>
+                <span>普通用户</span>
+                <span>1 / 4</span>
+                <span><mark class="status success">启用</mark></span>
+                <span>6 月 18 日</span>
+                <span><button class="ghost-button" type="button">编辑</button></span>
+              </div>
+            </div>
+          </section>
+
+          <section class="view" data-view-panel="config" aria-labelledby="config-heading">
+            <div class="section-heading">
+              <div>
+                <h2 id="config-heading">系统配置</h2>
+                <p>全局底层配置。房间布局已移到房间管理，这里只处理系统能力。</p>
+              </div>
+              <button class="primary-button" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 12.5 9.2 17 19 7" />
+                </svg>
+                保存配置
+              </button>
+            </div>
+
+            <div class="settings-layout">
+              <aside class="settings-tabs" aria-label="系统配置分类">
+                <button class="settings-tab active" type="button" data-config-tab="llm">大模型配置</button>
+                <button class="settings-tab" type="button" data-config-tab="connectors">连接器</button>
+                <button class="settings-tab" type="button" data-config-tab="storage">存储与记忆</button>
+                <button class="settings-tab" type="button" data-config-tab="voice">语音 / TTS</button>
+                <button class="settings-tab" type="button" data-config-tab="security">安全与权限</button>
+                <button class="settings-tab" type="button" data-config-tab="docs">配置文档</button>
+              </aside>
+
+              <div class="settings-content">
+                <section class="settings-panel active" data-config-panel="llm">
+                  <h3>大模型服务商池</h3>
+                  <div class="provider-grid">
+                    <article class="provider-card active">
+                      <strong>Ollama 本地</strong>
+                      <span>qwen3.5:0.8b · 默认轻量模型</span>
+                      <button class="ghost-button" type="button">测试连接</button>
+                    </article>
+                    <article class="provider-card">
+                      <strong>OpenAI</strong>
+                      <span>需要 API Key · 复杂推理</span>
+                      <button class="ghost-button" type="button">配置</button>
+                    </article>
+                    <article class="provider-card">
+                      <strong>DeepSeek</strong>
+                      <span>中文与代码任务候选</span>
+                      <button class="ghost-button" type="button">测试连接</button>
+                    </article>
+                  </div>
+                </section>
+                <section class="settings-panel" data-config-panel="connectors">
+                  <h3>连接器</h3>
+                  <div class="config-grid">
+                    <section class="config-card">
+                      <h3>Godot WebSocket</h3>
+                      <p>端口 8765 · 当前 1 个客户端在线。</p>
+                    </section>
+                    <section class="config-card">
+                      <h3>HTTP 音频服务</h3>
+                      <p>端口 8000 · 用于静态音频文件服务。</p>
+                    </section>
+                  </div>
+                </section>
+                <section class="settings-panel" data-config-panel="storage">
+                  <h3>存储与记忆</h3>
+                  <div class="config-grid">
+                    <section class="config-card">
+                      <h3>本地数据库</h3>
+                      <p>.elfie_memory.db · 自动备份开启。</p>
+                    </section>
+                    <section class="config-card">
+                      <h3>长期记忆策略</h3>
+                      <p>主人聊天记录可提取长期记忆；跨用户私聊记录不可见。</p>
+                    </section>
+                  </div>
+                </section>
+                <section class="settings-panel" data-config-panel="voice">
+                  <h3>语音 / TTS</h3>
+                  <p>配置 edge-tts、语音缓存和 Godot 播放事件。</p>
+                </section>
+                <section class="settings-panel" data-config-panel="security">
+                  <h3>安全与权限</h3>
+                  <p>管理员可看全部精灵卡片，但不能进入别人精灵详情或读取主人聊天记录。</p>
+                </section>
+                <section class="settings-panel" data-config-panel="docs">
+                  <h3>配置文档</h3>
+                  <div class="doc-columns">
+                    <div>
+                      <h4>模型配置</h4>
+                      <p>优先配置本地 Ollama；云端 Provider 只保存密钥引用，不向普通用户暴露。</p>
+                    </div>
+                    <div>
+                      <h4>连接器配置</h4>
+                      <p>Godot 通过 WebSocket 同步场景家具、精灵移动和语音事件。</p>
+                    </div>
+                    <div>
+                      <h4>权限边界</h4>
+                      <p>只有精灵主人可以进入详情页查看主人聊天记录和发起对话。</p>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <div class="popover profile-menu" id="profile-menu" hidden>
+      <button type="button" data-open-profile>个人信息</button>
+      <button type="button" data-open-profile>修改密码</button>
+      <button type="button">偏好设置</button>
+      <button type="button" class="danger">退出登录</button>
+    </div>
+
+    <div class="popover alerts-menu" id="alerts-menu" hidden>
+      <strong>系统提醒</strong>
+      <p>暂无阻断性故障。</p>
+      <div class="alert-list compact">
+        <article>
+          <strong>DeepSeek 延迟偏高</strong>
+          <span>最近 10 次平均 2.8s。</span>
+        </article>
+        <article>
+          <strong>周予安额度已满</strong>
+          <span>2 / 2，只影响继续领养。</span>
+        </article>
+      </div>
+    </div>
+
+    <div class="drawer-backdrop" data-close-drawer hidden></div>
+
+    <aside class="drawer" id="adoption-drawer" aria-hidden="true" aria-label="领养新精灵">
+      <div class="drawer-head">
+        <div>
+          <span class="eyebrow">ADOPTION FLOW</span>
+          <h2>领养新精灵</h2>
+        </div>
+        <button class="icon-button" type="button" title="关闭" aria-label="关闭" data-close-drawer>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 6l12 12" />
+            <path d="M18 6 6 18" />
+          </svg>
+        </button>
+      </div>
+      <div class="drawer-body">
+        <div class="callout">
+          当前额度 3 / 8。额度内可直接领养，无需管理员审批。
+        </div>
+        <div class="wizard-steps" aria-label="领养步骤">
+          <button class="wizard-step active" type="button" data-step="0">外形</button>
+          <button class="wizard-step" type="button" data-step="1">性格</button>
+          <button class="wizard-step" type="button" data-step="2">预览</button>
+        </div>
+
+        <section class="wizard-panel active" data-wizard-panel="0">
+          <h3>步骤 A · 选择外形</h3>
+          <div class="option-grid">
+            <button class="option-card active" type="button">
+              <strong>狐狸</strong>
+              <span>轻盈、灵活，适合提醒和陪伴。</span>
+            </button>
+            <button class="option-card" type="button">
+              <strong>猫</strong>
+              <span>安静、敏锐，适合记录和整理。</span>
+            </button>
+          </div>
+          <label class="range-row">
+            <span>高矮</span>
+            <input type="range" min="1" max="10" value="6" />
+          </label>
+          <label class="range-row">
+            <span>胖瘦</span>
+            <input type="range" min="1" max="10" value="4" />
+          </label>
+        </section>
+
+        <section class="wizard-panel" data-wizard-panel="1">
+          <h3>步骤 B · 设置性格</h3>
+          <div class="option-grid">
+            <button class="option-card active" type="button">
+              <strong>活泼</strong>
+              <span>主动回应，适合陪伴型任务。</span>
+            </button>
+            <button class="option-card" type="button">
+              <strong>傲娇</strong>
+              <span>表达克制，但会持续观察。</span>
+            </button>
+            <button class="option-card" type="button">
+              <strong>粘人</strong>
+              <span>更频繁主动提醒和确认。</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="wizard-panel" data-wizard-panel="2">
+          <h3>步骤 C · 预览与确认</h3>
+          <div class="preview-stage" aria-label="精灵 3D 预览示意">
+            <div class="elfie-figure">
+              <span class="antenna"></span>
+              <span class="head"></span>
+              <span class="body"></span>
+              <span class="shadow"></span>
+            </div>
+            <div class="preview-meta">
+              <strong>拟定名称：岚岚</strong>
+              <span>物种：狐狸 · 性格：活泼 · 创建后未分配床位</span>
+            </div>
+          </div>
+          <label class="form-row">
+            <span>创建后挂载模型</span>
+            <select>
+              <option>Ollama · qwen3.5:0.8b</option>
+              <option>OpenAI · 高复杂度推理</option>
+              <option>DeepSeek · 中文和代码任务</option>
+            </select>
+          </label>
+          <button class="primary-button full" type="button">确认领养</button>
+        </section>
+
+        <div class="drawer-footer">
+          <button class="ghost-button" type="button" data-prev-step>上一步</button>
+          <button class="primary-button" type="button" data-next-step>下一步</button>
+        </div>
+      </div>
+    </aside>
+
+    <aside class="drawer compact" id="profile-drawer" aria-hidden="true" aria-label="个人信息">
+      <div class="drawer-head">
+        <div>
+          <span class="eyebrow">PROFILE</span>
+          <h2>个人信息</h2>
+        </div>
+        <button class="icon-button" type="button" title="关闭" aria-label="关闭" data-close-drawer>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 6l12 12" />
+            <path d="M18 6 6 18" />
+          </svg>
+        </button>
+      </div>
+      <div class="drawer-body">
+        <label class="form-row">
+          <span>显示名称</span>
+          <input type="text" value="林澈" />
+        </label>
+        <label class="form-row">
+          <span>登录账号</span>
+          <input type="email" value="lin@local" />
+        </label>
+        <label class="form-row">
+          <span>修改密码</span>
+          <input type="password" value="elfienest" />
+        </label>
+        <button class="primary-button full" type="button">保存个人信息</button>
+      </div>
+    </aside>
+
+    <script src="./elfienest-console.js"></script>
+  </body>
+</html>
