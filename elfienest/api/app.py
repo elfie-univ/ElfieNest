@@ -90,7 +90,7 @@ def verify_csrf_for_session(request: Request) -> None:
 
 def create_app(
     engine: Any = None,
-    db_path: str = None,
+    db_path: Optional[str] = None,
     ws_port: int = 8766,
 ) -> FastAPI:
     """Create and configure the FastAPI application.

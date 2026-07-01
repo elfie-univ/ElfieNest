@@ -1426,25 +1426,37 @@ function providerOptions(selectedProvider) {
 function renderFoodSlot(slot) {
   const selectedProvider = slot.provider || "ollama";
   const selectedModel = slot.model || "";
+  const iconMap = {
+    cheap: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="slot-icon cheap-icon"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"></path><line x1="16" y1="8" x2="2" y2="22"></line><line x1="17.5" y1="15" x2="9" y2="15"></line></svg>`,
+    deep: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="slot-icon deep-icon"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.44 2.5 2.5 0 0 1 0-3.12 3 3 0 0 1 0-3.88 2.5 2.5 0 0 1 0-3.12A2.5 2.5 0 0 1 9.5 2z"></path><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.44 2.5 2.5 0 0 0 0-3.12 3 3 0 0 0 0-3.88 2.5 2.5 0 0 0 0-3.12A2.5 2.5 0 0 0 14.5 2z"></path></svg>`,
+    multimodal: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="slot-icon multimodal-icon"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`
+  };
   return `
-    <article class="strategy-card editable">
+    <article class="strategy-card editable ${slot.key}">
       <div class="card-inline-head">
-        <strong>${escapeHtml(slot.title)}</strong>
+        <div class="slot-title-with-icon">
+          ${iconMap[slot.key] || ""}
+          <strong>${escapeHtml(slot.title)}</strong>
+        </div>
         <mark class="status info">${escapeHtml(slot.mode)}</mark>
       </div>
-      <p>${escapeHtml(slot.desc)}</p>
-      <label class="form-row">
+      <p class="slot-desc">${escapeHtml(slot.desc)}</p>
+      <div class="food-select-field">
         <span>供应商</span>
-        <select name="${escapeHtml(slot.providerName)}" data-food-provider="${escapeHtml(slot.key)}">
-          ${providerOptions(selectedProvider)}
-        </select>
-      </label>
-      <label class="form-row">
+        <div class="food-select-control-wrap">
+          <select name="${escapeHtml(slot.providerName)}" data-food-provider="${escapeHtml(slot.key)}">
+            ${providerOptions(selectedProvider)}
+          </select>
+        </div>
+      </div>
+      <div class="food-select-field">
         <span>模型</span>
-        <select name="${escapeHtml(slot.modelName)}" data-food-model="${escapeHtml(slot.key)}" data-selected-model="${escapeHtml(selectedModel)}">
-          ${modelOptionsForProvider(selectedProvider, selectedModel)}
-        </select>
-      </label>
+        <div class="food-select-control-wrap">
+          <select name="${escapeHtml(slot.modelName)}" data-food-model="${escapeHtml(slot.key)}" data-selected-model="${escapeHtml(selectedModel)}">
+            ${modelOptionsForProvider(selectedProvider, selectedModel)}
+          </select>
+        </div>
+      </div>
     </article>
   `;
 }
@@ -1528,19 +1540,45 @@ function renderFoodStrategy() {
       <div class="strategy-grid nested">
         ${slots.map(renderFoodSlot).join("")}
       </div>
-      <p class="form-message" id="food-policy-message" aria-live="polite"></p>
-      <button class="primary-button" type="submit">保存粮食配对</button>
+      <div class="food-form-footer">
+        <p class="form-message" id="food-policy-message" aria-live="polite"></p>
+        <button class="primary-button" type="submit">保存粮食配对</button>
+      </div>
     </form>
   `;
 
   routeGrid.innerHTML = `
-    <form class="config-grid food-route-form" id="food-route-form">
-      <label class="form-row"><span>Temperature</span><input name="temperature" type="number" min="0" max="2" step="0.1" value="${escapeHtml(llm.temperature ?? 0.7)}" /></label>
-      <label class="form-row"><span>Max tokens</span><input name="max_tokens" type="number" min="1" max="32000" step="1" value="${escapeHtml(llm.max_tokens ?? 1500)}" /></label>
-      <label class="form-row"><span>低能耗阈值</span><input name="energy_threshold_fast" type="number" min="0" max="100" step="1" value="${escapeHtml(llm.energy_threshold_fast ?? 30)}" /></label>
-      <label class="form-row"><span>深度复杂度阈值</span><input name="complexity_threshold_deep" type="number" min="0" max="10" step="1" value="${escapeHtml(llm.complexity_threshold_deep ?? 4)}" /></label>
-      <p class="form-message config-grid-wide" id="food-route-message" aria-live="polite"></p>
-      <button class="primary-button config-grid-wide" type="submit">保存路由参数</button>
+    <form class="food-route-form" id="food-route-form">
+      <div class="food-route-grid">
+        <div class="food-input-field">
+          <span>Temperature</span>
+          <div class="food-input-control-wrap">
+            <input name="temperature" type="number" min="0" max="2" step="0.1" value="${escapeHtml(llm.temperature ?? 0.7)}" />
+          </div>
+        </div>
+        <div class="food-input-field">
+          <span>Max tokens</span>
+          <div class="food-input-control-wrap">
+            <input name="max_tokens" type="number" min="1" max="32000" step="1" value="${escapeHtml(llm.max_tokens ?? 1500)}" />
+          </div>
+        </div>
+        <div class="food-input-field">
+          <span>低能耗阈值</span>
+          <div class="food-input-control-wrap">
+            <input name="energy_threshold_fast" type="number" min="0" max="100" step="1" value="${escapeHtml(llm.energy_threshold_fast ?? 30)}" />
+          </div>
+        </div>
+        <div class="food-input-field">
+          <span>深度复杂度阈值</span>
+          <div class="food-input-control-wrap">
+            <input name="complexity_threshold_deep" type="number" min="0" max="10" step="1" value="${escapeHtml(llm.complexity_threshold_deep ?? 4)}" />
+          </div>
+        </div>
+      </div>
+      <div class="food-form-footer">
+        <p class="form-message" id="food-route-message" aria-live="polite"></p>
+        <button class="primary-button" type="submit">保存路由参数</button>
+      </div>
     </form>
   `;
 }
