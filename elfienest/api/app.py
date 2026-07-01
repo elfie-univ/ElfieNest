@@ -15,7 +15,7 @@ from typing import (
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field  # noqa: E402
 
@@ -149,6 +149,15 @@ def create_app(
     )
 
     # -------------------------------------------------------------------
+    async def static_index_redirect() -> RedirectResponse:
+        return RedirectResponse("/", status_code=308)
+
+    app.add_api_route(
+        "/static/index.html",
+        static_index_redirect,
+        methods=["GET"],
+        include_in_schema=False,
+    )
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     # -------------------------------------------------------------------
@@ -199,8 +208,7 @@ def create_app(
 
     @app.get("/")
     async def root_redirect():
-        """根路径重定向到单页应用入口"""
-        return RedirectResponse(url="/static/index.html?v=2", status_code=302)
+        return FileResponse(STATIC_DIR / "index.html", media_type="text/html")
 
     @app.get("/api/health")
     async def health():

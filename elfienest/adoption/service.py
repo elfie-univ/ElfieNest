@@ -51,6 +51,20 @@ def adoption_options(db_path: str) -> dict[str, list[str]]:
     }
 
 
+def adoption_options_for_user(db_path: str, *, user_id: int) -> dict[str, Any]:
+    max_per_user = get_max_elfies_per_user(db_path)
+    used = count_elfies_by_owner(user_id, db_path)
+    remaining = max(0, max_per_user - used)
+    options = adoption_options(db_path)
+    options["quota"] = {
+        "used": used,
+        "max": max_per_user,
+        "remaining": remaining,
+        "can_adopt": remaining > 0,
+    }
+    return options
+
+
 def adopt_elfie_for_user(
     db_path: str,
     *,

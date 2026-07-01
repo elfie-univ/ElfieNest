@@ -1,0 +1,152 @@
+.elfie-avatar3d {
+  --avatar-scale-y: 1;
+  --avatar-scale-x: 1;
+  --avatar-rotate-y: -8deg;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  transform-style: preserve-3d;
+}
+
+.elfie-avatar3d.card-avatar {
+  width: 56px;
+  height: 56px;
+}
+
+.elfie-avatar3d.detail-avatar {
+  width: 64px;
+  height: 64px;
+}
+
+.elfie-avatar3d.avatar-preview {
+  width: 220px;
+  height: 220px;
+  margin: auto;
+  animation: avatarFloat 4200ms ease-in-out infinite;
+}
+
+.elfie-avatar3d.height-short {
+  --avatar-scale-y: 0.84;
+}
+
+.elfie-avatar3d.height-tall {
+  --avatar-scale-y: 1.16;
+}
+
+.elfie-avatar3d.build-slim {
+  --avatar-scale-x: 0.82;
+}
+
+.elfie-avatar3d.build-plump {
+  --avatar-scale-x: 1.16;
+}
+
+.avatar-ears,
+.avatar-head,
+.avatar-body,
+.avatar-legs,
+.avatar-shadow {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.avatar-shadow {
+  bottom: 5%;
+  width: 62%;
+  height: 12%;
+  background: rgba(23, 33, 29, 0.12);
+  border-radius: 50%;
+  filter: blur(4px);
+}
+
+.avatar-head {
+  top: 18%;
+  width: calc(48% * var(--avatar-scale-x));
+  height: calc(38% * var(--avatar-scale-y));
+  background:
+    radial-gradient(circle at 34% 48%, var(--accent-primary) 0 5%, transparent 6%),
+    radial-gradient(circle at 66% 48%, var(--accent-primary) 0 5%, transparent 6%),
+    linear-gradient(145deg, var(--surface-primary), var(--surface-secondary));
+  border: 2px solid var(--accent-primary);
+  border-radius: 34% 34% 38% 38%;
+  box-shadow: inset 0 -8px 0 color-mix(in srgb, var(--accent-soft) 68%, transparent);
+  transform: translateX(-50%) translateZ(18px);
+  z-index: 3;
+}
+
+.avatar-ears {
+  top: 7%;
+  width: calc(58% * var(--avatar-scale-x));
+  height: 24%;
+  border: 2px solid var(--accent-primary);
+  border-bottom: 0;
+  border-radius: 42% 42% 0 0;
+  box-shadow: inset -10px 0 0 color-mix(in srgb, var(--accent-soft) 54%, transparent);
+  transform: translateX(-50%) translateZ(10px);
+  z-index: 2;
+}
+
+.avatar-body {
+  top: calc(51% - (var(--avatar-scale-y) - 1) * 8%);
+  width: calc(58% * var(--avatar-scale-x));
+  height: calc(32% * var(--avatar-scale-y));
+  background: linear-gradient(160deg, var(--accent-soft), var(--surface-inset));
+  border: 2px solid var(--accent-primary);
+  border-radius: 42% 42% 30% 30%;
+  box-shadow: inset -16px 0 0 color-mix(in srgb, var(--accent-soft) 52%, transparent);
+  transform: translateX(-50%) translateZ(8px);
+  z-index: 2;
+}
+
+.avatar-legs {
+  top: calc(78% + (var(--avatar-scale-y) - 1) * 5%);
+  width: calc(40% * var(--avatar-scale-x));
+  height: 12%;
+  border-left: 3px solid var(--accent-primary);
+  border-right: 3px solid var(--accent-primary);
+  transform: translateX(-50%) translateZ(5px);
+  z-index: 1;
+}
+
+.elfie-avatar3d.anatomy-quadruped .avatar-head {
+  top: 24%;
+  width: calc(42% * var(--avatar-scale-x));
+  height: calc(34% * var(--avatar-scale-y));
+  border-radius: 44% 44% 36% 36%;
+}
+
+.elfie-avatar3d.anatomy-quadruped .avatar-ears {
+  top: 14%;
+  width: calc(48% * var(--avatar-scale-x));
+  height: 20%;
+  border-radius: 50% 50% 0 0;
+}
+
+.elfie-avatar3d.anatomy-quadruped .avatar-body {
+  top: calc(56% - (var(--avatar-scale-y) - 1) * 8%);
+  width: calc(74% * var(--avatar-scale-x));
+  height: calc(24% * var(--avatar-scale-y));
+  border-radius: 44% 48% 38% 38%;
+}
+
+.elfie-avatar3d.anatomy-quadruped .avatar-legs {
+  top: calc(75% + (var(--avatar-scale-y) - 1) * 5%);
+  width: calc(58% * var(--avatar-scale-x));
+  height: 12%;
+  border-left-width: 3px;
+  border-right-width: 3px;
+  box-shadow: inset 16px 0 0 -13px var(--accent-primary), inset -16px 0 0 -13px var(--accent-primary);
+}
+
+@keyframes avatarFloat {
+  0%,
+  100% {
+    transform: translateY(0) rotateY(calc(var(--avatar-rotate-y) - 2deg));
+  }
+  50% {
+    transform: translateY(-8px) rotateY(calc(var(--avatar-rotate-y) + 8deg));
+  }
+}

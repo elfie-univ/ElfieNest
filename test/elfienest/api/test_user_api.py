@@ -12,6 +12,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from elfienest.api.app import create_app
+from elfienest.api.ws_gateway import AuthenticatedWSManager
+from elfienest.persistence.chat_history import ChatMessageInput, ChatSender, record_chat_message
 from elfienest.persistence.store import init_db
 
 from ._helpers import create_test_admin
@@ -79,6 +81,22 @@ def _create_user_via_admin(client: TestClient, username: str = "alice", password
     )
     assert resp.status_code == 201, f"create user failed: {resp.text}"
     return resp.json()["id"]
+
+
+def _adopt_elfie(client: TestClient, csrf_token: str, name: str) -> str:
+    resp = client.post(
+        "/api/user/adopt",
+        json={
+            "name": name,
+            "anatomy_type": "biped",
+            "personality_style": "好奇探索",
+            "height": "standard",
+            "build": "standard",
+        },
+        headers=_headers(csrf_token),
+    )
+    assert resp.status_code == 201, f"adopt failed: {resp.text}"
+    return resp.json()["elfie_id"]
 
 
 # ===================================================================
@@ -229,6 +247,94 @@ class TestElfieDetail:
         assert resp.status_code == 404
 
 
+class TestElfieChatHistory:
+    def test_get_chat_history_filters_by_range_and_keyword(self, client: TestClient, db_path: str) -> None:
+        _create_user_via_admin(client, "alice")
+        tokens = _login_user(client, "alice")
+        elfie_id = _adopt_elfie(client, tokens["csrf_token"], "小白")
+        user_id = tokens["user_id"]
+
+        record_chat_message(
+            db_path,
+            ChatMessageInput(
+                elfie_id=elfie_id,
+                user_id=user_id,
+                sender=ChatSender.USER,
+                text="今天想聊星际门",
+                meta="已投递",
+                created_at="2026-06-30T09:00:00.000Z",
+            ),
+        )
+        record_chat_message(
+            db_path,
+            ChatMessageInput(
+                elfie_id=elfie_id,
+                user_id=user_id,
+                sender=ChatSender.ELFIE,
+                text="我记得昨天的梦",
+                meta="情绪：平静",
+                created_at="2026-06-29T09:00:00.000Z",
+            ),
+        )
+
+        resp = client.get(
+            f"/api/user/elfies/{elfie_id}/chat-history",
+            params={"range": "all", "q": "星际门"},
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert resp.status_code == 200
+        messages = resp.json()
+        assert [message["text"] for message in messages] == ["今天想聊星际门"]
+
+    def test_get_chat_history_rejects_other_owner(self, client: TestClient, db_path: str) -> None:
+        _create_user_via_admin(client, "alice")
+        _create_user_via_admin(client, "bob", "bobpass")
+        alice_tokens = _login_user(client, "alice")
+        elfie_id = _adopt_elfie(client, alice_tokens["csrf_token"], "小A")
+        bob_tokens = _login_user(client, "bob", "bobpass")
+
+        resp = client.get(
+            f"/api/user/elfies/{elfie_id}/chat-history",
+            headers=_headers(bob_tokens["csrf_token"]),
+        )
+
+        assert resp.status_code == 404
+
+    def test_ws_manager_records_user_and_elfie_messages(self, client: TestClient, db_path: str) -> None:
+        _create_user_via_admin(client, "alice")
+        tokens = _login_user(client, "alice")
+        elfie_id = _adopt_elfie(client, tokens["csrf_token"], "小白")
+        manager = AuthenticatedWSManager(db_path=db_path)
+
+        import anyio
+
+        anyio.run(
+            manager._handle_message,
+            tokens["user_id"],
+            f'{{"event":"user_message","payload":{{"elfie_id":"{elfie_id}","message":"你好"}}}}',
+        )
+        manager.broadcast_to_owners(
+            elfie_id,
+            {
+                "action": "speak_event",
+                "payload": {
+                    "elfie_id": elfie_id,
+                    "text": "我听到了",
+                    "emotion": "开心",
+                },
+            },
+        )
+
+        resp = client.get(
+            f"/api/user/elfies/{elfie_id}/chat-history",
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert resp.status_code == 200
+        assert [message["sender"] for message in resp.json()] == ["user", "elfie"]
+
+
 # ===================================================================
 # 未登录 / 权限
 # ===================================================================
@@ -263,6 +369,33 @@ class TestAdoptionInfo:
         assert sorted(data["heights"]) == sorted(["short", "standard", "tall"])
         # 3 胖瘦
         assert sorted(data["builds"]) == sorted(["slim", "standard", "plump"])
+
+    def test_returns_quota_status(self, client: TestClient) -> None:
+        _create_user_via_admin(client, "alice")
+        tokens = _login_user(client, "alice")
+
+        resp = client.post(
+            "/api/user/adopt",
+            json={
+                "name": "小白",
+                "anatomy_type": "biped",
+                "personality_style": "好奇探索",
+                "height": "standard",
+                "build": "standard",
+            },
+            headers=_headers(tokens["csrf_token"]),
+        )
+        assert resp.status_code == 201
+
+        resp = client.get("/api/user/adoption-info", headers=_headers(tokens["csrf_token"]))
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["quota"] == {
+            "used": 1,
+            "max": 3,
+            "remaining": 2,
+            "can_adopt": True,
+        }
 
 
 # ===================================================================

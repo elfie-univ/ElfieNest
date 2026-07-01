@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Final
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -16,9 +16,81 @@ router = APIRouter(prefix="/api/admin/nest", tags=["nest"])
 user_router = APIRouter(prefix="/api/user/nest", tags=["user-nest"])
 RequireAdmin = Depends(require_admin)
 RequireUser = Depends(get_current_user)
+DEFAULT_ROOM_NAME = "Main Nest"
+DEFAULT_BED_COUNT = 4
+MAX_BED_COUNT: Final = 24
+DEFAULT_BED_COLUMNS: Final = 3
+DEFAULT_BED_X: Final = (18, 39, 60)
+DEFAULT_BED_Y_START: Final = 34
+DEFAULT_BED_Y_GAP: Final = 20
+
+
+def _default_bed_position(index: int) -> tuple[int, int]:
+    row = index // DEFAULT_BED_COLUMNS
+    column = index % DEFAULT_BED_COLUMNS
+    return (DEFAULT_BED_X[column], DEFAULT_BED_Y_START + row * DEFAULT_BED_Y_GAP)
+
+
+def _ensure_default_room(db_path: str) -> None:
+    with get_db(db_path) as conn:
+        room = conn.execute("SELECT id FROM rooms ORDER BY id LIMIT 1").fetchone()
+        if room is not None:
+            return
+        cursor = conn.execute(
+            "INSERT INTO rooms (name, max_capacity) VALUES (?, ?)",
+            (DEFAULT_ROOM_NAME, DEFAULT_BED_COUNT),
+        )
+        room_id = cursor.lastrowid
+        for index in range(DEFAULT_BED_COUNT):
+            grid_x, grid_y = _default_bed_position(index)
+            conn.execute(
+                "INSERT INTO beds (room_id, name, grid_x, grid_y) VALUES (?, ?, ?, ?)",
+                (room_id, f"Bed {index + 1}", grid_x, grid_y),
+            )
+        conn.commit()
+
+
+def _sync_bed_count(db_path: str, room_id: int, target_count: int) -> dict[str, int]:
+    target_count = max(DEFAULT_BED_COUNT, min(MAX_BED_COUNT, target_count))
+    with get_db(db_path) as conn:
+        room = conn.execute("SELECT id FROM rooms WHERE id = ?", (room_id,)).fetchone()
+        if room is None:
+            raise HTTPException(status_code=404, detail="Room not found")
+
+        rows = conn.execute(
+            """
+            SELECT b.id, b.name, e.elfie_id AS occupant_id
+            FROM beds b
+            LEFT JOIN elfie_registry e ON e.bed_id = b.id
+            WHERE b.room_id = ?
+            ORDER BY b.id
+            """,
+            (room_id,),
+        ).fetchall()
+        current_count = len(rows)
+        if target_count > current_count:
+            for index in range(current_count, target_count):
+                grid_x, grid_y = _default_bed_position(index)
+                conn.execute(
+                    "INSERT INTO beds (room_id, name, grid_x, grid_y) VALUES (?, ?, ?, ?)",
+                    (room_id, f"Bed {index + 1}", grid_x, grid_y),
+                )
+        elif target_count < current_count:
+            removable = [row["id"] for row in reversed(rows) if row["occupant_id"] is None]
+            for bed_id in removable[: current_count - target_count]:
+                conn.execute("DELETE FROM beds WHERE id = ?", (bed_id,))
+
+        final_count = conn.execute(
+            "SELECT COUNT(*) FROM beds WHERE room_id = ?",
+            (room_id,),
+        ).fetchone()[0]
+        conn.execute("UPDATE rooms SET max_capacity = ? WHERE id = ?", (final_count, room_id))
+        conn.commit()
+        return {"bed_count": final_count, "requested_count": target_count}
 
 
 def _rooms_with_beds(db_path: str, user_id: int | None = None) -> list[Dict[str, Any]]:
+    _ensure_default_room(db_path)
     with get_db(db_path) as conn:
         cursor = conn.execute("SELECT * FROM rooms ORDER BY id")
         rooms = [dict(r) for r in cursor.fetchall()]
@@ -49,6 +121,22 @@ def _rooms_with_beds(db_path: str, user_id: int | None = None) -> list[Dict[str,
                 beds.append(bed)
             room["beds"] = beds
         return rooms
+
+
+def _default_room_id(db_path: str) -> int:
+    _ensure_default_room(db_path)
+    with get_db(db_path) as conn:
+        room = conn.execute("SELECT id FROM rooms ORDER BY id LIMIT 1").fetchone()
+        if room is None:
+            raise HTTPException(status_code=404, detail="Room not found")
+        return int(room["id"])
+
+
+def _bed_count_from_body(body: Dict[str, Any]) -> int:
+    try:
+        return int(body.get("bed_count", DEFAULT_BED_COUNT))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="bed_count must be an integer") from exc
 
 @router.get("/rooms")
 async def get_rooms(
@@ -118,6 +206,30 @@ async def update_bed(
         conn.execute(f"UPDATE beds SET {', '.join(updates)} WHERE id = ?", params)
         conn.commit()
         return {"detail": "Bed updated"}
+
+
+@router.put("/rooms/default/bed-count")
+async def update_default_room_bed_count(
+    body: Dict[str, Any],
+    request: Request,
+    admin: Dict[str, Any] = RequireAdmin,
+) -> Dict[str, int]:
+    _ = admin
+    room_id = _default_room_id(request.app.state.db_path)
+    target_count = _bed_count_from_body(body)
+    return _sync_bed_count(request.app.state.db_path, room_id, target_count)
+
+
+@router.put("/rooms/{room_id}/bed-count")
+async def update_bed_count(
+    room_id: int,
+    body: Dict[str, Any],
+    request: Request,
+    admin: Dict[str, Any] = RequireAdmin,
+) -> Dict[str, int]:
+    _ = admin
+    target_count = _bed_count_from_body(body)
+    return _sync_bed_count(request.app.state.db_path, room_id, target_count)
 
 
 @router.put("/elfies/{elfie_id}/bed")

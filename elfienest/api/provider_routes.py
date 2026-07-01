@@ -7,6 +7,7 @@ Provider 数据存储在 runtime_config.json 的 providers 字段中。
 from __future__ import annotations
 
 import logging
+import urllib.error
 from pathlib import Path
 from typing import Any, Dict
 
@@ -14,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from elfienest.config.runtime_store import read_runtime_config, write_runtime_config
 from runtime.config import LLMRuntimeConfig
-from runtime.models.catalog import verify_provider
+from runtime.models.catalog import _verify_custom_openai_provider, verify_provider
 from runtime.providers.profiles import BUILTIN_PROFILES, get_profile
 from runtime.usage.observer import (
     ProviderVerifyObservation,
@@ -51,6 +52,14 @@ def _write_runtime_config(config: Dict[str, Any]) -> None:
     write_runtime_config(_RUNTIME_CONFIG_PATH, config)
 
 
+def _default_auth_type(api_mode: str) -> str:
+    if api_mode == "ollama":
+        return "none"
+    if api_mode == "anthropic_messages":
+        return "x-api-key"
+    return "bearer"
+
+
 def _build_provider_response(provider_id: str, provider_info: Dict[str, Any]) -> Dict[str, Any]:
     """构建单个 provider 的响应对象。
 
@@ -61,14 +70,16 @@ def _build_provider_response(provider_id: str, provider_info: Dict[str, Any]) ->
     # 基础信息从 profile 获取
     name = profile.name if profile else provider_id
     api_mode = provider_info.get("api_mode") or (profile.api_mode if profile else "chat_completions")
-    auth_type = profile.auth_type if profile else "bearer"
+    auth_type = provider_info.get("auth_type") or (profile.auth_type if profile else "bearer")
 
     # 用户配置覆盖默认值
+    display_name = provider_info.get("display_name") or provider_info.get("name") or ""
     api_base = provider_info.get("api_base", profile.api_base if profile else "")
     api_key = provider_info.get("api_key", "")
+    test_model = provider_info.get("test_model", "")
 
     # 判断状态：有 API key 或为 ollama 则 active
-    status = "inactive"
+    status = str(provider_info.get("status") or "inactive")
     if provider_id == "ollama":
         status = "active"
     elif api_key:
@@ -76,10 +87,12 @@ def _build_provider_response(provider_id: str, provider_info: Dict[str, Any]) ->
 
     return {
         "provider_id": provider_id,
-        "name": name,
+        "name": display_name or name,
+        "display_name": display_name,
         "api_base": api_base,
         "api_mode": api_mode,
         "auth_type": auth_type,
+        "test_model": test_model,
         "status": status,
         "has_api_key": bool(api_key),
     }
@@ -138,6 +151,9 @@ async def add_provider(
     api_base = (body.get("api_base") or "").strip()
     api_key = (body.get("api_key") or "").strip()
     api_mode = body.get("api_mode", "chat_completions")
+    auth_type = body.get("auth_type") or ""
+    display_name = (body.get("display_name") or "").strip()
+    test_model = (body.get("test_model") or "").strip()
 
     if not provider_id:
         raise HTTPException(status_code=422, detail="provider_id 不能为空")
@@ -148,6 +164,12 @@ async def add_provider(
         raise HTTPException(
             status_code=422,
             detail=f"api_mode 必须是 {valid_modes} 之一",
+        )
+    valid_auth_types = ["none", "bearer", "x-api-key"]
+    if auth_type and auth_type not in valid_auth_types:
+        raise HTTPException(
+            status_code=422,
+            detail=f"auth_type 必须是 {valid_auth_types} 之一",
         )
 
     config = _read_runtime_config()
@@ -163,7 +185,13 @@ async def add_provider(
         "api_base": api_base,
         "api_key": api_key,
         "api_mode": api_mode,
+        "auth_type": auth_type or _default_auth_type(api_mode),
+        "status": "active" if api_key or api_mode == "ollama" else "inactive",
     }
+    if display_name:
+        config["providers"][provider_id]["display_name"] = display_name
+    if test_model:
+        config["providers"][provider_id]["test_model"] = test_model
 
     _write_runtime_config(config)
     logger.info("Provider '%s' added by admin", provider_id)
@@ -213,6 +241,32 @@ async def update_provider(
                 detail=f"api_mode 必须是 {valid_modes} 之一",
             )
         providers[provider_id]["api_mode"] = api_mode
+        providers[provider_id].setdefault("auth_type", _default_auth_type(api_mode))
+    if "auth_type" in body:
+        auth_type = body["auth_type"] or ""
+        valid_auth_types = ["none", "bearer", "x-api-key"]
+        if auth_type not in valid_auth_types:
+            raise HTTPException(
+                status_code=422,
+                detail=f"auth_type 必须是 {valid_auth_types} 之一",
+            )
+        providers[provider_id]["auth_type"] = auth_type
+    if "display_name" in body:
+        display_name = (body["display_name"] or "").strip()
+        if display_name:
+            providers[provider_id]["display_name"] = display_name
+        else:
+            providers[provider_id].pop("display_name", None)
+    if "test_model" in body:
+        test_model = (body["test_model"] or "").strip()
+        if test_model:
+            providers[provider_id]["test_model"] = test_model
+        else:
+            providers[provider_id].pop("test_model", None)
+    if providers[provider_id].get("api_key") or providers[provider_id].get("api_mode") == "ollama":
+        providers[provider_id]["status"] = "active"
+    else:
+        providers[provider_id]["status"] = "inactive"
 
     config["providers"] = providers
     _write_runtime_config(config)
@@ -283,8 +337,34 @@ async def verify_provider_endpoint(
     if provider_id not in BUILTIN_PROFILES and provider_id not in providers:
         raise HTTPException(status_code=404, detail=f"provider '{provider_id}' 不存在")
 
-    runtime_config = LLMRuntimeConfig()
-    result = verify_provider(provider_id, runtime_config)
+    provider_info = providers.get(provider_id, {})
+    if provider_id not in BUILTIN_PROFILES and isinstance(provider_info, dict):
+        api_mode = provider_info.get("api_mode", "chat_completions")
+        if api_mode != "chat_completions":
+            raise HTTPException(
+                status_code=422,
+                detail="自定义供应商验证当前仅支持 OpenAI 兼容 Chat Completions",
+            )
+        try:
+            result = _verify_custom_openai_provider(
+                provider_info,
+                str(provider_info.get("api_base", "")),
+                str(provider_info.get("api_key", "")),
+            )
+        except urllib.error.URLError as exc:
+            result = {
+                "status": "inactive",
+                "latency_ms": None,
+                "error": f"连接失败: {exc.reason}",
+            }
+    else:
+        runtime_config = LLMRuntimeConfig()
+        runtime_config.providers.update({
+            key: value
+            for key, value in providers.items()
+            if isinstance(value, dict)
+        })
+        result = verify_provider(provider_id, runtime_config)
     provider_status = str(result.get("status", "unverified"))
     event_status = (
         RuntimeEventStatus.OK

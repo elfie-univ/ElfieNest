@@ -18,9 +18,14 @@ from elfienest.adoption.service import (
     AdoptionRequest,
     AdoptionValidationError,
     adopt_elfie_for_user,
-    adoption_options,
+    adoption_options_for_user,
 )
 from elfienest.core.room import RoomFullError
+from elfienest.persistence.chat_history import (
+    ChatHistoryQuery,
+    ChatHistoryRange,
+    list_chat_history,
+)
 from elfienest.persistence.store import get_db
 
 logger = logging.getLogger("elfienest.api.user_routes")
@@ -170,6 +175,43 @@ async def get_elfie_detail(
     }
 
 
+@router.get("/elfies/{elfie_id}/chat-history")
+async def get_elfie_chat_history(
+    elfie_id: str,
+    request: Request,
+    range: ChatHistoryRange = ChatHistoryRange.ALL,  # noqa: A002
+    q: str = "",
+    limit: int = 100,
+    user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+):
+    db = request.app.state.db_path
+    with get_db(db) as conn:
+        if not _check_ownership(conn, elfie_id, user["id"]):
+            raise HTTPException(status_code=404, detail="精灵不存在")
+
+    records = list_chat_history(
+        db,
+        ChatHistoryQuery(
+            elfie_id=elfie_id,
+            user_id=user["id"],
+            history_range=range,
+            keyword=q,
+            limit=limit,
+        ),
+    )
+    return [
+        {
+            "id": record.id,
+            "elfie_id": record.elfie_id,
+            "sender": record.sender,
+            "text": record.text,
+            "meta": record.meta,
+            "created_at": record.created_at,
+        }
+        for record in records
+    ]
+
+
 @router.put("/elfies/{elfie_id}/config")
 async def update_elfie_config(
     elfie_id: str,
@@ -271,4 +313,4 @@ async def adoption_info(
 
     性格风格和 anatomy_type 从 ``system.adoption`` 动态读取。
     """
-    return adoption_options(request.app.state.db_path)
+    return adoption_options_for_user(request.app.state.db_path, user_id=user["id"])

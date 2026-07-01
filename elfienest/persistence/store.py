@@ -147,6 +147,8 @@ def init_db(db_path: Optional[str] = None) -> str:
         _migrate_v1_to_v2(conn)
     if version < 3:
         _migrate_v2_to_v3(conn)
+    if version < 4:
+        _migrate_v3_to_v4(conn)
 
     conn.commit()
     conn.close()
@@ -190,6 +192,26 @@ def _ensure_nest_tables(conn: sqlite3.Connection) -> None:
     """)
 
 
+def _ensure_chat_tables(conn: sqlite3.Connection) -> None:
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id INTEGER PRIMARY KEY,
+            elfie_id TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            sender TEXT NOT NULL CHECK(sender IN ('user', 'elfie', 'system')),
+            text TEXT NOT NULL,
+            meta TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(elfie_id) REFERENCES elfie_registry(elfie_id),
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_chat_messages_lookup
+        ON chat_messages(elfie_id, user_id, created_at)
+    """)
+
+
 def _migrate_v2_to_v3(conn: sqlite3.Connection) -> None:
     _ensure_nest_tables(conn)
     try:
@@ -197,6 +219,11 @@ def _migrate_v2_to_v3(conn: sqlite3.Connection) -> None:
     except sqlite3.OperationalError:
         pass
     conn.execute("PRAGMA user_version = 3")
+
+
+def _migrate_v3_to_v4(conn: sqlite3.Connection) -> None:
+    _ensure_chat_tables(conn)
+    conn.execute("PRAGMA user_version = 4")
 
 
 def migrate_db_if_needed(db_path: str = None) -> None:
@@ -211,6 +238,8 @@ def migrate_db_if_needed(db_path: str = None) -> None:
             _migrate_v1_to_v2(conn)
         if version < 3:
             _migrate_v2_to_v3(conn)
+        if version < 4:
+            _migrate_v3_to_v4(conn)
         conn.commit()
 
 

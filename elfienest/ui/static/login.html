@@ -1,11 +1,18 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ElfieNest - 登录</title>
     <style>
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
 
         :root {
             --bg-primary: #0f0f1a;
@@ -157,7 +164,9 @@
         }
 
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         .auto-redirecting {
@@ -215,6 +224,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="login-card" id="loginCard">
         <div class="logo">
@@ -242,11 +252,13 @@
         <form id="loginForm" autocomplete="off">
             <div class="form-group">
                 <label for="username">用户名</label>
-                <input type="text" id="username" name="username" placeholder="请输入用户名" autocomplete="username" required />
+                <input type="text" id="username" name="username" placeholder="请输入用户名" autocomplete="username"
+                    required />
             </div>
             <div class="form-group">
                 <label for="password">密码</label>
-                <input type="password" id="password" name="password" placeholder="请输入密码" autocomplete="current-password" required />
+                <input type="password" id="password" name="password" placeholder="请输入密码" autocomplete="current-password"
+                    required />
             </div>
             <button type="submit" class="login-btn" id="loginBtn">登 录</button>
         </form>
@@ -279,7 +291,7 @@
             }
 
             function redirectToConsole() {
-                window.location.href = '/static/index.html?v=2';
+                window.location.href = '/';
             }
 
             // Check if setup is needed first, then check session
@@ -399,4 +411,5 @@
         })();
     </script>
 </body>
+
 </html>

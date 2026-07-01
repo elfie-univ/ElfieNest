@@ -111,16 +111,22 @@ class TestProviderRoutes:
             "/api/admin/providers",
             json={
                 "provider_id": "custom_provider",
+                "display_name": "自建模型网关",
                 "api_base": "https://api.custom.com/v1",
                 "api_key": "test-key-123",
                 "api_mode": "chat_completions",
+                "auth_type": "bearer",
+                "test_model": "glm-5",
             },
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 201, resp.text
         provider = resp.json()
         assert provider["provider_id"] == "custom_provider"
+        assert provider["name"] == "自建模型网关"
         assert provider["api_base"] == "https://api.custom.com/v1"
+        assert provider["auth_type"] == "bearer"
+        assert provider["test_model"] == "glm-5"
         assert provider["has_api_key"] is True
 
     def test_put_providers_updates_provider(self, client: TestClient, runtime_config_path: Path) -> None:
@@ -142,12 +148,44 @@ class TestProviderRoutes:
         # 更新 api_key
         resp = client.put(
             "/api/admin/providers/test_provider",
-            json={"api_key": "new-key-456"},
+            json={
+                "api_key": "new-key-456",
+                "display_name": "测试供应商",
+                "auth_type": "x-api-key",
+                "test_model": "test-model",
+            },
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 200
         provider = resp.json()
+        assert provider["name"] == "测试供应商"
+        assert provider["auth_type"] == "x-api-key"
+        assert provider["test_model"] == "test-model"
         assert provider["has_api_key"] is True
+
+    def test_put_builtin_provider_creates_editable_config(self, client: TestClient, runtime_config_path: Path) -> None:
+        tokens = _login_admin(client)
+
+        resp = client.put(
+            "/api/admin/providers/openai",
+            json={
+                "api_base": "https://gateway.example.com/v1",
+                "api_key": "openai-test-key",
+                "api_mode": "chat_completions",
+                "auth_type": "bearer",
+                "display_name": "OpenAI 网关",
+                "test_model": "gpt-4o-mini",
+            },
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert resp.status_code == 200
+        provider = resp.json()
+        assert provider["provider_id"] == "openai"
+        assert provider["name"] == "OpenAI 网关"
+        assert provider["api_base"] == "https://gateway.example.com/v1"
+        assert provider["status"] == "active"
+        assert provider["test_model"] == "gpt-4o-mini"
 
     def test_delete_providers_removes_provider(self, client: TestClient, runtime_config_path: Path) -> None:
         """DELETE /api/admin/providers/{id} 删除 provider。"""
@@ -198,6 +236,31 @@ class TestProviderRoutes:
         result = resp.json()
         assert "status" in result
         assert result["status"] in ("active", "inactive", "unverified")
+
+    def test_verify_custom_provider_uses_saved_openai_compatible_config(self, client: TestClient) -> None:
+        tokens = _login_admin(client)
+        create_resp = client.post(
+            "/api/admin/providers",
+            json={
+                "provider_id": "custom_verify_provider",
+                "api_base": "https://invalid.local/v1",
+                "api_key": "",
+                "api_mode": "chat_completions",
+                "test_model": "glm-5",
+            },
+            headers=_headers(tokens["csrf_token"]),
+        )
+        assert create_resp.status_code == 201
+
+        resp = client.post(
+            "/api/admin/providers/custom_verify_provider/verify",
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert resp.status_code == 200
+        result = resp.json()
+        assert result["status"] in ("inactive", "unverified")
+        assert "未知 provider" not in str(result.get("error", ""))
 
     def test_non_admin_gets_403_on_provider_routes(self, client: TestClient, db_path: str) -> None:
         """普通用户访问 admin 端点 → 403。"""

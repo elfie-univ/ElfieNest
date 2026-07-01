@@ -8,7 +8,14 @@
       content="ElfieNest 本地 Agent 精灵管理系统前端控制台原型"
     />
     <title>ElfieNest 控制台</title>
-    <link rel="stylesheet" href="/static/elfienest-console.css" />
+    <script>
+      if (window.location.pathname === "/static/index.html") {
+        window.history.replaceState(null, "", "/");
+      }
+    </script>
+    <link rel="stylesheet" href="/static/elfienest-console.css?v=16" />
+    <link rel="stylesheet" href="/static/elfie-avatar3d.css?v=9" />
+    <link rel="stylesheet" href="/static/elfie-adoption-wizard.css?v=9" />
     <style>
       #login-view {
         position: fixed;
@@ -276,46 +283,55 @@
                 <h2 id="elves-heading">精灵管理</h2>
                 <p id="elves-copy">管理员可看全部精灵卡片；只有拥有者能进入详情、配置和聊天。</p>
               </div>
-              <button class="primary-button" type="button" data-open-adoption>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M12 5v14" />
-                  <path d="M5 12h14" />
-                </svg>
-                领养新精灵
-              </button>
-            </div>
-
-            <div class="metric-row" aria-label="精灵概览">
-              <article class="metric-card">
-                <span>我的额度</span>
-                <strong>3 / 8</strong>
-                <small>额度内可直接领养，无需审批</small>
-              </article>
-              <article class="metric-card">
-                <span>活跃精灵</span>
-                <strong id="metric-active">0</strong>
-                <small>正在响应或在线待命</small>
-              </article>
-              <article class="metric-card">
-                <span>未分配床位</span>
-                <strong id="metric-unassigned">0</strong>
-                <small>可在精灵巢管理中处理</small>
-              </article>
+              <div class="adoption-cta">
+                <button class="primary-button" type="button" data-open-adoption id="open-adoption-button">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5v14" />
+                    <path d="M5 12h14" />
+                  </svg>
+                  领养新精灵
+                </button>
+                <p id="adoption-quota-note" aria-live="polite">正在读取领养额度。</p>
+              </div>
             </div>
 
             <div class="toolbar">
               <label class="select-wrap filter-admin">
-                <span>范围</span>
-                <select id="scope-filter">
-                  <option value="all">全部</option>
-                  <option value="mine">我的</option>
+                <span>拥有者</span>
+                <select id="owner-filter">
+                  <option value="all">全部拥有者</option>
+                  <option value="mine">我的精灵</option>
                   <option value="others">其他用户</option>
                 </select>
               </label>
-              <label class="select-wrap filter-admin">
-                <span>拥有者</span>
-                <select id="owner-filter">
-                  <option value="all">全部用户</option>
+              <label class="select-wrap">
+                <span>状态</span>
+                <select id="elf-status-filter">
+                  <option value="all">全部状态</option>
+                  <option value="online">在线</option>
+                  <option value="creating">创建中</option>
+                  <option value="resting">休息中</option>
+                  <option value="offline">离线</option>
+                </select>
+              </label>
+              <label class="select-wrap">
+                <span>动物</span>
+                <select id="elf-anatomy-filter">
+                  <option value="all">全部动物</option>
+                  <option value="biped">双足</option>
+                  <option value="quadruped">四足</option>
+                </select>
+              </label>
+              <label class="select-wrap">
+                <span>体态</span>
+                <select id="elf-build-filter">
+                  <option value="all">全部体态</option>
+                  <option value="height-short">矮小</option>
+                  <option value="height-standard">标准身高</option>
+                  <option value="height-tall">高大</option>
+                  <option value="build-slim">纤细</option>
+                  <option value="build-standard">标准体型</option>
+                  <option value="build-plump">圆润</option>
                 </select>
               </label>
             </div>
@@ -328,9 +344,8 @@
               <div>
                 <button class="text-button" type="button" data-back-to-elves>返回精灵管理</button>
                 <h2 id="elf-detail-heading">精灵详情</h2>
-                <p id="elf-detail-copy">仅主人可查看并管理该精灵的配置与主人聊天记录。</p>
+                <p id="elf-detail-copy">领养后的形态和性格配置固定不可修改，主人仍可继续聊天。</p>
               </div>
-              <button class="primary-button" type="button">保存配置</button>
             </div>
             <div id="elf-detail-content"></div>
           </section>
@@ -339,7 +354,7 @@
             <div class="section-heading">
               <div>
                 <h2 id="rooms-heading">精灵巢管理</h2>
-                <p id="rooms-copy">管理员管理房间布局、床位分配、家具配置和 Godot 视角。</p>
+                <p id="rooms-copy">默认宿舍式精灵巢，管理床位数量、舱内布局和实时活动视图。</p>
               </div>
               <button class="primary-button admin-action" type="button" id="refresh-rooms">刷新房间数据</button>
             </div>
@@ -348,40 +363,42 @@
               <section class="room-map-panel">
                 <div class="config-card-head">
                   <div>
-                <h3 id="room-map-title">主房间 · 俯视布局</h3>
-                    <p>二维平面图显示床位、桌子、互动热点和精灵当前位置。</p>
+                <h3 id="room-map-title">Main Nest · 宿舍俯视图</h3>
+                    <p>按建筑设计俯视图呈现虫洞门、公共生活带、床位组和装饰墙。</p>
                   </div>
-                  <mark class="status success" id="room-sync-status">Godot 场景可查看</mark>
+                  <mark class="status success" id="room-sync-status">管理台预览</mark>
                 </div>
-                <div class="room-map" aria-label="房间二维布局" id="room-map-render">
-                  <!-- JS injected content -->
+                <div class="room-map-scroll" aria-label="精灵巢宿舍俯视图预览">
+                  <div class="room-map" id="room-map-render">
+                    <!-- JS injected content -->
+                  </div>
                 </div>
               </section>
 
               <aside class="room-side">
+                <section class="config-card">
+                  <div class="config-card-head">
+                    <h3>摄像头</h3>
+                    <button class="ghost-button" type="button" id="room-camera-toggle">打开预览</button>
+                  </div>
+                  <button class="camera-preview" id="room-camera-preview" type="button" data-open-camera aria-live="polite">
+                    <span>Godot Camera · Main Nest</span>
+                    <strong>当前屋顶视角</strong>
+                    <small>点击打开全屏观察</small>
+                  </button>
+                </section>
                 <section class="config-card admin-only">
-                  <h3>创建房间</h3>
-                  <form class="config-grid" id="room-create-form">
-                    <label class="form-row">
-                      <span>房间名称</span>
-                      <input id="room-create-name" type="text" placeholder="New Room" />
+                  <h3>床位数</h3>
+                  <form class="room-bed-count-form" id="room-layout-form">
+                    <label class="bed-count-inline">
+                      <span>床位数</span>
+                      <input id="room-bed-count" type="number" min="4" max="24" value="4" />
                     </label>
-                    <label class="form-row">
-                      <span>床位数量</span>
-                      <input id="room-create-capacity" type="number" min="1" max="12" value="4" />
-                    </label>
+                    <button class="primary-button" type="submit">保存</button>
                     <p class="form-message" id="room-message" aria-live="polite"></p>
-                    <button class="primary-button full" type="submit">创建房间</button>
                   </form>
                 </section>
-                <section class="config-card">
-                  <h3>实时摄像头</h3>
-                  <div class="camera-preview">
-                    <span>Godot Camera · MainRoom</span>
-                    <strong>当前 3D 房间画面</strong>
-                  </div>
-                </section>
-                <section class="config-card">
+                <section class="config-card" id="room-bed-assignment-card">
                   <h3 id="bed-panel-title">床位分配</h3>
                   <div class="health-list" id="unassigned-elfies-list">
                     <!-- JS injected content -->
@@ -397,7 +414,16 @@
                 <h2 id="providers-heading">供应商管理</h2>
                 <p>管理大模型供应商的连通性、API 地址和密钥状态；Ollama 作为本地免费兜底。</p>
               </div>
-              <button class="ghost-button" type="button" id="refresh-providers">刷新供应商</button>
+              <div class="section-actions">
+                <button class="ghost-button" type="button" id="refresh-providers">刷新供应商</button>
+                <button class="primary-button" type="button" id="open-provider-create-modal">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5v14" />
+                    <path d="M5 12h14" />
+                  </svg>
+                  新增供应商
+                </button>
+              </div>
             </div>
             <div class="metric-row" aria-label="供应商概览">
               <article class="metric-card">
@@ -484,7 +510,7 @@
                 <h2 id="users-heading">用户管理</h2>
                 <p>查看本机用户，管理角色、状态和精灵额度。</p>
               </div>
-              <button class="primary-button" type="button">
+              <button class="primary-button" type="button" id="open-user-create-modal">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M12 5v14" />
                   <path d="M5 12h14" />
@@ -570,7 +596,112 @@
 
     <div class="drawer-backdrop" data-close-drawer hidden></div>
 
-    <aside class="drawer" id="adoption-drawer" aria-hidden="true" aria-label="领养新精灵">
+    <section class="center-modal" id="user-create-modal" aria-hidden="true" aria-labelledby="user-create-title" role="dialog" aria-modal="true">
+      <form class="center-modal-card" id="user-create-form" novalidate>
+        <div class="center-modal-head">
+          <div>
+            <span class="eyebrow">USER ADMIN</span>
+            <h2 id="user-create-title">创建用户</h2>
+          </div>
+          <button class="icon-button" type="button" title="关闭" aria-label="关闭" data-close-drawer>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6l12 12" />
+              <path d="M18 6 6 18" />
+            </svg>
+          </button>
+        </div>
+        <div class="center-modal-body">
+          <label class="form-row">
+            <span>用户名</span>
+            <input id="user-create-username" name="username" type="text" autocomplete="off" minlength="1" required />
+          </label>
+          <label class="form-row">
+            <span>初始密码</span>
+            <input id="user-create-password" name="password" type="password" autocomplete="new-password" minlength="1" required />
+          </label>
+          <label class="form-row">
+            <span>角色</span>
+            <select id="user-create-role" name="role">
+              <option value="user">普通用户</option>
+              <option value="admin">管理员</option>
+            </select>
+          </label>
+          <p class="form-message" id="user-create-message" aria-live="polite"></p>
+        </div>
+        <div class="center-modal-footer">
+          <button class="ghost-button" type="button" data-close-drawer>取消</button>
+          <button class="primary-button" type="submit">创建用户</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="center-modal" id="provider-config-modal" aria-hidden="true" aria-labelledby="provider-config-title" role="dialog" aria-modal="true">
+      <form class="center-modal-card wide" id="provider-config-form" novalidate>
+        <div class="center-modal-head">
+          <div>
+            <span class="eyebrow">MODEL PROVIDER</span>
+            <h2 id="provider-config-title">配置供应商</h2>
+          </div>
+          <button class="icon-button" type="button" title="关闭" aria-label="关闭" data-close-drawer>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6l12 12" />
+              <path d="M18 6 6 18" />
+            </svg>
+          </button>
+        </div>
+        <div class="center-modal-body">
+          <input type="hidden" id="provider-config-mode" value="edit" />
+          <div class="config-grid">
+            <label class="form-row">
+              <span>供应商 ID</span>
+              <input id="provider-config-id" name="provider_id" type="text" autocomplete="off" required />
+            </label>
+            <label class="form-row">
+              <span>显示名称</span>
+              <input id="provider-config-name" name="display_name" type="text" autocomplete="off" placeholder="例如 OpenAI / 自建网关" />
+            </label>
+            <label class="form-row config-grid-wide">
+              <span>API Base</span>
+              <input id="provider-config-api-base" name="api_base" type="url" autocomplete="off" placeholder="https://api.example.com/v1" />
+            </label>
+            <label class="form-row">
+              <span>API Key</span>
+              <input id="provider-config-api-key" name="api_key" type="password" autocomplete="new-password" placeholder="留空表示不修改或无需密钥" />
+            </label>
+            <label class="form-row">
+              <span>测试模型</span>
+              <input id="provider-config-test-model" name="test_model" type="text" autocomplete="off" placeholder="用于连通性测试，可选" />
+            </label>
+            <label class="form-row">
+              <span>API 模式</span>
+              <select id="provider-config-api-mode" name="api_mode">
+                <option value="ollama">Ollama /api/chat</option>
+                <option value="chat_completions">OpenAI 兼容 Chat Completions</option>
+                <option value="anthropic_messages">Anthropic Messages</option>
+              </select>
+            </label>
+            <label class="form-row">
+              <span>授权方式</span>
+              <select id="provider-config-auth-type" name="auth_type">
+                <option value="none">无需授权</option>
+                <option value="bearer">Bearer API Key</option>
+                <option value="x-api-key">x-api-key Header</option>
+              </select>
+            </label>
+          </div>
+          <p class="form-message" id="provider-config-message" aria-live="polite"></p>
+        </div>
+        <div class="center-modal-footer">
+          <button class="ghost-button" type="button" data-close-drawer>取消</button>
+          <div class="modal-action-row">
+            <button class="ghost-button" type="button" id="provider-config-verify">保存并验证</button>
+            <button class="primary-button" type="submit">保存配置</button>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <aside class="drawer adoption-wizard-drawer modal-drawer" id="adoption-drawer" aria-hidden="true" aria-label="领养新精灵" role="dialog" aria-modal="true">
       <div class="drawer-head">
         <div>
           <span class="eyebrow">ADOPTION FLOW</span>
@@ -583,65 +714,85 @@
           </svg>
         </button>
       </div>
-      <form class="drawer-body" id="adoption-form">
-        <div class="callout">
-          额度内可直接领养。新精灵会进入你的精灵管理列表，床位可在精灵巢管理中查看。
-        </div>
-        <label class="form-row">
-          <span>名字</span>
-          <input id="adopt-name" type="text" maxlength="20" placeholder="新精灵" />
-        </label>
-        <div class="config-grid">
-          <label class="form-row">
-            <span>体型</span>
-            <select id="adopt-species">
-              <option value="biped">双足</option>
-              <option value="quadruped">四足</option>
-            </select>
-          </label>
-          <label class="form-row">
-            <span>性格</span>
-            <select id="adopt-personality">
-              <option value="活泼好动">活泼好动</option>
-              <option value="温顺乖巧">温顺乖巧</option>
-              <option value="高冷傲娇">高冷傲娇</option>
-              <option value="憨厚老实">憨厚老实</option>
-              <option value="机灵古怪">机灵古怪</option>
-            </select>
-          </label>
-          <label class="form-row">
-            <span>身高</span>
-            <select id="adopt-height">
-              <option value="short">矮小</option>
-              <option value="standard" selected>标准</option>
-              <option value="tall">高大</option>
-            </select>
-          </label>
-          <label class="form-row">
-            <span>体态</span>
-            <select id="adopt-build">
-              <option value="slim">纤细</option>
-              <option value="standard" selected>标准</option>
-              <option value="plump">圆润</option>
-            </select>
-          </label>
-        </div>
-        <div class="preview-stage" aria-label="精灵预览示意">
-          <div class="elfie-figure">
-            <span class="antenna"></span>
-            <span class="head"></span>
-            <span class="body"></span>
-            <span class="shadow"></span>
+      <form class="drawer-body adoption-wizard" id="adoption-form" data-step="0">
+        <div class="adoption-progress" aria-live="polite">
+          <div>
+            <span id="adoption-step-count">第 1 步 / 共 6 步</span>
+            <strong id="adoption-step-title">选择动物形态</strong>
           </div>
-          <div class="preview-meta">
-            <strong>创建后默认未分配床位</strong>
-            <span>房间位置由精灵巢管理展示，管理员可做床位分配。</span>
-          </div>
+          <meter id="adoption-step-meter" min="1" max="6" value="1">1/6</meter>
         </div>
+
+        <section class="adoption-panel active" data-adoption-panel="0" aria-labelledby="adoption-species-title">
+          <div class="wizard-copy">
+            <h3 id="adoption-species-title">选择动物形态</h3>
+            <p>形态会决定基础骨架和动作风格，领养后不会再变更。</p>
+          </div>
+          <div class="choice-grid" id="adoption-anatomy-options"></div>
+        </section>
+
+        <section class="adoption-panel" data-adoption-panel="1" aria-labelledby="adoption-shape-title">
+          <div class="wizard-copy">
+            <h3 id="adoption-shape-title">调整高矮胖瘦</h3>
+            <p>这些比例会写入精灵的初始配置，卡片头像和预览会同步变化。</p>
+          </div>
+          <div class="choice-grid two" id="adoption-height-options"></div>
+          <div class="choice-grid two" id="adoption-build-options"></div>
+        </section>
+
+        <section class="adoption-panel" data-adoption-panel="2" aria-labelledby="adoption-name-title">
+          <div class="wizard-copy">
+            <h3 id="adoption-name-title">给精灵起名字</h3>
+            <p>名字会写进配置文件，方便后续在卡片、聊天和床位里识别。</p>
+          </div>
+          <label class="form-row">
+            <span>名字</span>
+            <input id="adopt-name" type="text" maxlength="20" placeholder="新精灵" autocomplete="off" />
+          </label>
+        </section>
+
+        <section class="adoption-panel" data-adoption-panel="3" aria-labelledby="adoption-personality-title">
+          <div class="wizard-copy">
+            <h3 id="adoption-personality-title">选择性格</h3>
+            <p>性格预设决定初始人格参数；确认领养后只读展示。</p>
+          </div>
+          <div class="choice-grid personality" id="adoption-personality-options"></div>
+        </section>
+
+        <section class="adoption-panel" data-adoption-panel="4" aria-labelledby="adoption-preview-title">
+          <div class="wizard-copy">
+            <h3 id="adoption-preview-title">预览 3D 形象</h3>
+            <p>拖动模型可左右旋转，确认后卡片头像会使用同一套形态参数。</p>
+          </div>
+          <div class="adoption-preview-shell">
+            <div class="preview-stage" aria-label="精灵 3D 头像预览">
+              <div class="elfie-avatar3d avatar-preview avatar-model" id="adoption-preview-avatar" role="img" aria-label="可旋转精灵 3D 预览"></div>
+              <span class="preview-rotate-hint">拖动旋转</span>
+            </div>
+            <dl class="review-list compact" id="adoption-preview-facts"></dl>
+          </div>
+        </section>
+
+        <section class="adoption-panel" data-adoption-panel="5" aria-labelledby="adoption-review-title">
+          <div class="wizard-copy">
+            <h3 id="adoption-review-title">确认配置</h3>
+            <p>请最后检查一次。确认后会创建精灵配置文件，形态、性格和比例不可再修改。</p>
+          </div>
+          <dl class="review-list" id="adoption-review-list"></dl>
+          <div class="callout adoption-lock-note">
+            领养完成后只能查看这些基础配置；床位分配仍在精灵巢管理里处理。
+          </div>
+        </section>
+
         <p class="form-message" id="adoption-message" aria-live="polite"></p>
         <div class="drawer-footer">
-          <button class="ghost-button" type="button" data-close-drawer>取消</button>
-          <button class="primary-button" type="submit">确认领养</button>
+          <button class="ghost-button" type="button" id="adoption-prev-button">上一步</button>
+          <span class="wizard-footer-step" id="adoption-footer-step">第 1 / 6 步 · 选择动物形态</span>
+          <div class="wizard-action-row">
+            <button class="ghost-button" type="button" data-close-drawer>取消</button>
+            <button class="primary-button" type="button" id="adoption-next-button">下一步</button>
+            <button class="primary-button" type="submit" id="adoption-submit-button" hidden>确认领养</button>
+          </div>
         </div>
       </form>
     </aside>
@@ -697,6 +848,31 @@
       </div>
     </aside>
 
-    <script src="/static/elfienest-console.js"></script>
+    <aside class="drawer camera-drawer modal-drawer" id="room-camera-drawer" aria-hidden="true" aria-label="精灵巢摄像头预览" role="dialog" aria-modal="true">
+      <div class="drawer-head">
+        <div>
+          <span class="eyebrow">GODOT CAMERA</span>
+          <h2>精灵巢实时观察</h2>
+        </div>
+        <button class="icon-button" type="button" title="关闭" aria-label="关闭" data-close-drawer>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 6l12 12" />
+            <path d="M18 6 6 18" />
+          </svg>
+        </button>
+      </div>
+      <div class="drawer-body camera-drawer-body">
+        <div class="camera-full-preview">
+          <span>Godot Camera · Main Nest</span>
+          <strong>当前 3D 房间画面</strong>
+          <small>屋顶视角 · 后续接入可拖拽观察</small>
+        </div>
+      </div>
+    </aside>
+
+    <script src="/static/elfie-avatar3d.js?v=10"></script>
+    <script src="/static/elfienest-console.js?v=16"></script>
+    <script src="/static/elfie-adoption-options.js?v=9"></script>
+    <script src="/static/elfie-adoption-wizard.js?v=9"></script>
   </body>
 </html>

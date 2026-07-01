@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import sqlite3
 import threading
 from typing import Any, Dict, Optional, Set
 
@@ -16,6 +17,11 @@ import websockets
 import websockets.asyncio.server
 
 from elfienest.accounts.auth import verify_session
+from elfienest.persistence.chat_history import (
+    ChatMessageInput,
+    ChatSender,
+    record_chat_message,
+)
 from elfienest.persistence.store import get_db
 from runtime.storage.data_home import get_db_path as _get_db_path
 
@@ -264,6 +270,7 @@ class AuthenticatedWSManager:
                 logger.info(
                     "WS 用户 %d -> 精灵 '%s' 消息已投递", user_id, elfie_id
                 )
+            self._record_user_message(elfie_id, user_id, message)
 
     # -------------------------------------------------------------------
     # 数据库查询
@@ -321,6 +328,7 @@ class AuthenticatedWSManager:
             return
 
         msg_str = json.dumps(message_dict, ensure_ascii=False)
+        self._record_elfie_message(elfie_id, owner_id, message_dict)
 
         # 收集目标连接：owner + 所有管理员
         target: Set[Any] = set()
@@ -352,3 +360,46 @@ class AuthenticatedWSManager:
         ]
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
+
+    def _record_user_message(self, elfie_id: str, user_id: int, message: str) -> None:
+        try:
+            record_chat_message(
+                self.db_path,
+                ChatMessageInput(
+                    elfie_id=elfie_id,
+                    user_id=user_id,
+                    sender=ChatSender.USER,
+                    text=message,
+                    meta="已投递到下一次 tick",
+                ),
+            )
+        except sqlite3.Error as exc:
+            logger.warning("用户聊天消息持久化失败: %s", exc)
+
+    def _record_elfie_message(
+        self,
+        elfie_id: str,
+        user_id: int,
+        message_dict: Dict[str, Any],
+    ) -> None:
+        event = message_dict.get("event") or message_dict.get("action")
+        payload = message_dict.get("payload") or {}
+        if event != "speak_event" or not isinstance(payload, dict):
+            return
+        text = str(payload.get("text") or "").strip()
+        if not text:
+            return
+        emotion = str(payload.get("emotion") or "").strip()
+        try:
+            record_chat_message(
+                self.db_path,
+                ChatMessageInput(
+                    elfie_id=elfie_id,
+                    user_id=user_id,
+                    sender=ChatSender.ELFIE,
+                    text=text,
+                    meta=f"情绪：{emotion}" if emotion else "实时回复",
+                ),
+            )
+        except sqlite3.Error as exc:
+            logger.warning("精灵聊天消息持久化失败: %s", exc)

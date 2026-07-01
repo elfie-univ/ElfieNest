@@ -10,6 +10,17 @@ let providers = [];
 let models = [];
 let systemConfig = {};
 let globalQuery = "";
+let adoptionInfo = null;
+let providerModalMode = "edit";
+let roomLayoutEditing = false;
+let roomCameraOpen = false;
+let roomBedCountSaving = false;
+let pendingRoomBedCount = null;
+let chatHistoryFilters = {
+  range: "all",
+  keyword: "",
+};
+let chatHistorySearchTimer = null;
 let ws = null;
 let wsState = "offline";
 let wsReconnectTimer = null;
@@ -23,14 +34,21 @@ const profileRole = document.querySelector("#profile-role");
 const elvesCopy = document.querySelector("#elves-copy");
 const roomsCopy = document.querySelector("#rooms-copy");
 const elfGrid = document.querySelector("#elf-grid");
-const scopeFilter = document.querySelector("#scope-filter");
 const ownerFilter = document.querySelector("#owner-filter");
+const elfStatusFilter = document.querySelector("#elf-status-filter");
+const elfAnatomyFilter = document.querySelector("#elf-anatomy-filter");
+const elfBuildFilter = document.querySelector("#elf-build-filter");
 const backdrop = document.querySelector(".drawer-backdrop");
 const adoptionDrawer = document.querySelector("#adoption-drawer");
 const profileDrawer = document.querySelector("#profile-drawer");
+const roomCameraDrawer = document.querySelector("#room-camera-drawer");
+const userCreateModal = document.querySelector("#user-create-modal");
+const providerConfigModal = document.querySelector("#provider-config-modal");
 const profileMenu = document.querySelector("#profile-menu");
 const detailContent = document.querySelector("#elf-detail-content");
 const detailHeading = document.querySelector("#elf-detail-heading");
+const adoptionQuotaNote = document.querySelector("#adoption-quota-note");
+const openAdoptionButton = document.querySelector("#open-adoption-button");
 
 function byId(id) {
   return document.getElementById(id);
@@ -62,13 +80,57 @@ function nowLabel() {
 function addChatItem(elfieId, item) {
   if (!elfieId) return;
   const items = chatHistory.get(elfieId) || [];
-  items.push({ time: nowLabel(), ...item });
+  items.push({ timestamp: new Date().toISOString(), time: nowLabel(), ...item });
   if (items.length > MAX_CHAT_ITEMS) items.splice(0, items.length - MAX_CHAT_ITEMS);
   chatHistory.set(elfieId, items);
   if (activeView === "elf-detail" && byId("elf-chat-history")?.dataset.elfieId === elfieId) {
     renderChatHistory(elfieId);
   }
   renderLogs();
+}
+
+function normalizeChatItem(record) {
+  const timestamp = record.created_at || record.timestamp || new Date().toISOString();
+  const date = new Date(timestamp);
+  return {
+    sender: record.sender || "system",
+    text: record.text || "",
+    meta: record.meta || "",
+    timestamp,
+    time: Number.isNaN(date.getTime()) ? nowLabel() : date.toLocaleTimeString("zh-CN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    }),
+  };
+}
+
+async function loadChatHistory(elfieId) {
+  if (!elfieId) return;
+  const params = new URLSearchParams({
+    range: chatHistoryFilters.range || "all",
+    q: chatHistoryFilters.keyword || "",
+    limit: "200",
+  });
+  try {
+    const records = await fetchJson(`/api/user/elfies/${encodeURIComponent(elfieId)}/chat-history?${params.toString()}`);
+    chatHistory.set(elfieId, (Array.isArray(records) ? records : []).map(normalizeChatItem));
+    renderChatHistory(elfieId);
+  } catch (error) {
+    if (error.status === 404) {
+      chatHistory.set(elfieId, [{
+        sender: "system",
+        text: "只有精灵主人可以查看这只精灵的历史消息。",
+        meta: "权限范围",
+        timestamp: new Date().toISOString(),
+        time: nowLabel(),
+      }]);
+      renderChatHistory(elfieId);
+      return;
+    }
+    addSystemNotice(error.message || "历史消息读取失败");
+  }
 }
 
 function wsStatusLabel() {
@@ -223,6 +285,10 @@ function setFormMessage(id, text, kind = "info") {
   node.style.color = kind === "error" ? "var(--status-error)" : kind === "success" ? "var(--status-success)" : "var(--text-secondary)";
 }
 
+function isNotFoundError(error) {
+  return error?.status === 404 || error?.message === "Not Found" || error?.message === "Room not found";
+}
+
 function fillProfileForm() {
   const nameInput = byId("profile-edit-name");
   const colorSelect = byId("profile-edit-color");
@@ -234,6 +300,118 @@ function fillProfileForm() {
   const newPassword = byId("profile-new-password");
   if (oldPassword) oldPassword.value = "";
   if (newPassword) newPassword.value = "";
+}
+
+function resetUserCreateForm() {
+  const form = byId("user-create-form");
+  form?.reset();
+  setFormMessage("user-create-message", "");
+  const usernameInput = byId("user-create-username");
+  if (usernameInput) usernameInput.focus();
+}
+
+function authTypeForApiMode(apiMode) {
+  if (apiMode === "anthropic_messages") return "x-api-key";
+  if (apiMode === "ollama") return "none";
+  return "bearer";
+}
+
+function providerById(providerId) {
+  return providers.find((provider) => provider.provider_id === providerId) || null;
+}
+
+function providerDisplayName(providerId) {
+  const provider = providerById(providerId);
+  return provider?.name || providerId || "未设置";
+}
+
+function resetProviderConfigForm(provider = null) {
+  const form = byId("provider-config-form");
+  form?.reset();
+  const createMode = !provider;
+  providerModalMode = createMode ? "create" : "edit";
+  const apiMode = provider?.api_mode || "chat_completions";
+  const providerIdInput = byId("provider-config-id");
+  const nameInput = byId("provider-config-name");
+  const apiBaseInput = byId("provider-config-api-base");
+  const apiKeyInput = byId("provider-config-api-key");
+  const testModelInput = byId("provider-config-test-model");
+  const apiModeSelect = byId("provider-config-api-mode");
+  const authTypeSelect = byId("provider-config-auth-type");
+
+  setText("provider-config-title", createMode ? "新增供应商" : `配置供应商：${provider.name || provider.provider_id}`);
+  if (byId("provider-config-mode")) byId("provider-config-mode").value = providerModalMode;
+  if (providerIdInput) {
+    providerIdInput.value = provider?.provider_id || "";
+    providerIdInput.readOnly = !createMode;
+    providerIdInput.placeholder = createMode ? "例如 custom_openai_2" : "";
+  }
+  if (nameInput) nameInput.value = provider?.display_name || provider?.name || "";
+  if (apiBaseInput) apiBaseInput.value = provider?.api_base || "";
+  if (apiKeyInput) {
+    apiKeyInput.value = "";
+    apiKeyInput.placeholder = provider?.has_api_key ? "已保存，留空不修改" : "填写 API Key";
+  }
+  if (testModelInput) testModelInput.value = provider?.test_model || "";
+  if (apiModeSelect) apiModeSelect.value = apiMode;
+  if (authTypeSelect) authTypeSelect.value = provider?.auth_type || authTypeForApiMode(apiMode);
+  setFormMessage("provider-config-message", "");
+  setTimeout(() => (createMode ? providerIdInput : apiBaseInput)?.focus(), 0);
+}
+
+function providerPayloadFromForm(form, includeEmptyApiKey = false) {
+  const data = new FormData(form);
+  const apiKey = String(data.get("api_key") || "");
+  const apiMode = String(data.get("api_mode") || "chat_completions");
+  const payload = {
+    provider_id: String(data.get("provider_id") || "").trim(),
+    display_name: String(data.get("display_name") || "").trim(),
+    api_base: String(data.get("api_base") || "").trim(),
+    api_mode: apiMode,
+    auth_type: String(data.get("auth_type") || authTypeForApiMode(apiMode)),
+    test_model: String(data.get("test_model") || "").trim(),
+  };
+  if (includeEmptyApiKey || apiKey) payload.api_key = apiKey;
+  return payload;
+}
+
+async function saveProviderConfig({ verify = false } = {}) {
+  const form = byId("provider-config-form");
+  if (!(form instanceof HTMLFormElement)) return null;
+  const payload = providerPayloadFromForm(form, providerModalMode === "create");
+  if (!payload.provider_id) {
+    setFormMessage("provider-config-message", "请填写供应商 ID", "error");
+    return null;
+  }
+  if (!payload.api_base && payload.api_mode !== "ollama") {
+    setFormMessage("provider-config-message", "请填写 API Base", "error");
+    return null;
+  }
+  const endpoint = providerModalMode === "create"
+    ? "/api/admin/providers/"
+    : `/api/admin/providers/${encodeURIComponent(payload.provider_id)}`;
+  const method = providerModalMode === "create" ? "POST" : "PUT";
+  const body = { ...payload };
+  delete body.provider_id;
+  setFormMessage("provider-config-message", verify ? "正在保存并验证..." : "正在保存...");
+  const saved = await fetchJson(endpoint, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(providerModalMode === "create" ? payload : body),
+  });
+  if (verify) {
+    const result = await fetchJson(`/api/admin/providers/${encodeURIComponent(payload.provider_id)}/verify`, { method: "POST" });
+    setFormMessage(
+      "provider-config-message",
+      result.status === "active" ? `已保存，验证可用（${result.latency_ms || 0}ms）` : `已保存，验证未通过：${result.error || result.status}`,
+      result.status === "active" ? "success" : "error",
+    );
+  } else {
+    setFormMessage("provider-config-message", "供应商配置已保存", "success");
+  }
+  await loadProviders();
+  await loadModels();
+  return saved;
 }
 
 function updateProfileHeader(user) {
@@ -368,6 +546,7 @@ if (logoutButton) {
 
 async function loadDashboardData() {
   await loadElves();
+  await loadAdoptionInfo();
   await loadRooms();
   if (role === "admin") {
     await Promise.all([
@@ -408,18 +587,71 @@ function normalizeElfie(raw) {
 
 async function loadElves() {
   try {
-    const data = await fetchJson(role === "admin" ? "/api/admin/elfies" : "/api/user/elfies");
+    const data = role === "admin" ? await loadAdminElfies() : await fetchJson("/api/user/elfies");
     elves = (Array.isArray(data) ? data : []).map(normalizeElfie);
   } catch (error) {
     console.error("Failed to load elfies", error);
     elves = [];
   }
+  renderElfFilters();
   renderElves();
-  setText("metric-active", String(elves.length));
   setText("metric-overview-active", String(elves.length));
   setText("metric-overview-total", `总计 ${elves.length} 只`);
-  const unassigned = elves.filter((elf) => !elf.raw.bed_id).length;
-  setText("metric-unassigned", String(unassigned));
+  renderAdoptionQuota();
+}
+
+async function loadAdminElfies() {
+  const [adminResult, userResult] = await Promise.allSettled([
+    fetchJson("/api/admin/elfies"),
+    fetchJson("/api/user/elfies"),
+  ]);
+  const adminData = adminResult.status === "fulfilled" ? adminResult.value : [];
+  const userData = userResult.status === "fulfilled" ? userResult.value : [];
+  const merged = new Map();
+  for (const elf of [...(Array.isArray(adminData) ? adminData : []), ...(Array.isArray(userData) ? userData : [])]) {
+    const id = elf.elfie_id || elf.id;
+    if (id) merged.set(id, elf);
+  }
+  return Array.from(merged.values());
+}
+
+function adoptionQuotaFallback() {
+  const max = Number(systemConfig.adoption?.max_elfies_per_user || 3);
+  const used = elves.filter((elf) => elf.owned).length;
+  return {
+    used,
+    max,
+    remaining: Math.max(0, max - used),
+    can_adopt: used < max,
+  };
+}
+
+function adoptionQuota() {
+  return adoptionInfo?.quota || adoptionQuotaFallback();
+}
+
+function renderAdoptionQuota() {
+  const quota = adoptionQuota();
+  if (adoptionQuotaNote) {
+    adoptionQuotaNote.textContent = `最多领养 ${quota.max} 只，已领养 ${quota.used} 只，还可领养 ${quota.remaining} 只`;
+  }
+  if (openAdoptionButton) {
+    openAdoptionButton.disabled = !quota.can_adopt;
+    openAdoptionButton.setAttribute("aria-disabled", String(!quota.can_adopt));
+    openAdoptionButton.title = quota.can_adopt ? "开始领养新精灵" : "领养额度已满";
+  }
+}
+
+async function loadAdoptionInfo() {
+  try {
+    adoptionInfo = await fetchJson("/api/user/adoption-info");
+  } catch (error) {
+    console.error("Failed to load adoption info", error);
+    adoptionInfo = { quota: adoptionQuotaFallback() };
+  }
+  renderAdoptionQuota();
+  window.dispatchEvent(new CustomEvent("elfienest:adoption-info", { detail: adoptionInfo }));
+  return adoptionInfo;
 }
 
 async function loadRooms() {
@@ -446,7 +678,8 @@ async function loadProviders() {
 
 async function loadModels() {
   try {
-    models = await fetchJson("/api/admin/models/");
+    const catalogModels = await fetchJson("/api/admin/models/");
+    models = withProviderConfiguredModels(Array.isArray(catalogModels) ? catalogModels : []);
   } catch (error) {
     console.error("Failed to load models", error);
     models = [];
@@ -454,6 +687,29 @@ async function loadModels() {
   renderModelFilters();
   renderModels();
   renderFoodStrategy();
+}
+
+function withProviderConfiguredModels(catalogModels) {
+  const merged = [...catalogModels];
+  const knownIds = new Set(merged.map((model) => model.model_id));
+  for (const provider of providers) {
+    const modelName = (provider.test_model || "").trim();
+    if (!modelName) continue;
+    const modelId = `${provider.provider_id}/${modelName}`;
+    if (knownIds.has(modelId)) continue;
+    knownIds.add(modelId);
+    merged.push({
+      model_id: modelId,
+      provider: provider.provider_id,
+      display_name: modelName,
+      capabilities: ["text"],
+      context_window: 0,
+      cost_tier: 2,
+      visible: true,
+      active: provider.status === "active",
+    });
+  }
+  return merged;
 }
 
 async function loadSystemConfig() {
@@ -519,6 +775,10 @@ function labelForAppearance(height, build) {
   return `${heights[height] || height || "标准"} · ${builds[build] || build || "标准"}`;
 }
 
+function elfieAvatarMarkup(elf, extraClass = "") {
+  return window.ElfieAvatar3D.markup(elf, extraClass);
+}
+
 function emptyPanel(title, detail = "") {
   return `
     <article class="drawer-section empty-panel">
@@ -539,8 +799,8 @@ function setRole(nextRole) {
   }
   if (roomsCopy) {
     roomsCopy.textContent = role === "admin"
-      ? "管理员管理房间布局、床位分配、家具配置和 Godot 视角。"
-      : "普通用户可查看精灵巢布局、摄像头和公开状态，不能修改布局或床位。";
+      ? "默认宿舍式精灵巢，管理床位数量、公共生活带和全屋观察视图。"
+      : "普通用户可查看精灵巢布局和全屋摄像头观察，不能修改布局或床位。";
   }
   document.querySelectorAll(".admin-action").forEach((node) => {
     node.hidden = role !== "admin";
@@ -595,8 +855,21 @@ function openDrawer(drawer) {
   drawer.setAttribute("aria-hidden", "false");
 }
 
+function openCenterModal(modal) {
+  if (!modal) return;
+  closeMenus();
+  closeDrawers();
+  if (backdrop) backdrop.hidden = false;
+  modal.classList.add("open");
+  modal.setAttribute("aria-hidden", "false");
+}
+
 function closeDrawers() {
   if (backdrop) backdrop.hidden = true;
+  document.querySelectorAll(".center-modal").forEach((modal) => {
+    modal.classList.remove("open");
+    modal.setAttribute("aria-hidden", "true");
+  });
   document.querySelectorAll(".drawer").forEach((drawer) => {
     drawer.classList.remove("open");
     drawer.setAttribute("aria-hidden", "true");
@@ -618,24 +891,53 @@ function closeMenus() {
   if (profileMenu) profileMenu.hidden = true;
 }
 
-function renderElves() {
-  if (!elfGrid) return;
-  let list = elves;
-  if (role === "user" || scopeFilter?.value === "mine") {
-    list = elves.filter((elf) => elf.owned);
+function renderElfFilters() {
+  if (!ownerFilter || role !== "admin") return;
+  const selected = ownerFilter.value || "all";
+  const ownerNames = Array.from(new Set(elves.map((elf) => elf.owner).filter(Boolean))).sort((a, b) => a.localeCompare(b, "zh-CN"));
+  ownerFilter.innerHTML = [
+    `<option value="all">全部拥有者</option>`,
+    `<option value="mine">我的精灵</option>`,
+    `<option value="others">其他用户</option>`,
+    ...ownerNames.map((owner) => `<option value="owner:${escapeHtml(owner)}">${escapeHtml(owner)}</option>`),
+  ].join("");
+  ownerFilter.value = Array.from(ownerFilter.options).some((option) => option.value === selected) ? selected : "all";
+}
+
+function filteredElves() {
+  let list = role === "user" ? elves.filter((elf) => elf.owned) : [...elves];
+  const ownerValue = ownerFilter?.value || "all";
+  const statusValue = elfStatusFilter?.value || "all";
+  const anatomyValue = elfAnatomyFilter?.value || "all";
+  const buildValue = elfBuildFilter?.value || "all";
+
+  if (role === "admin" && ownerValue === "mine") list = list.filter((elf) => elf.owned);
+  if (role === "admin" && ownerValue === "others") list = list.filter((elf) => !elf.owned);
+  if (role === "admin" && ownerValue.startsWith("owner:")) {
+    list = list.filter((elf) => elf.owner === ownerValue.slice(6));
   }
-  if (scopeFilter?.value === "others") {
-    list = elves.filter((elf) => !elf.owned);
-  }
-  list = list.filter((elf) => matchesQuery([
+  if (statusValue !== "all") list = list.filter((elf) => elf.status === statusValue);
+  if (anatomyValue !== "all") list = list.filter((elf) => elf.anatomy === anatomyValue);
+  if (buildValue.startsWith("height-")) list = list.filter((elf) => elf.height === buildValue.slice(7));
+  if (buildValue.startsWith("build-")) list = list.filter((elf) => elf.build === buildValue.slice(6));
+
+  return list.filter((elf) => matchesQuery([
     elf.name,
     elf.owner,
     elf.role,
     elf.anatomy,
+    elf.height,
+    elf.build,
+    elf.statusLabel,
     elf.room,
     elf.bed,
     elf.mood,
   ]));
+}
+
+function renderElves() {
+  if (!elfGrid) return;
+  const list = filteredElves();
 
   if (!list.length) {
     elfGrid.innerHTML = emptyPanel("没有匹配的精灵", "普通用户只会看到自己领养的精灵。");
@@ -649,7 +951,7 @@ function renderElves() {
     return `
       <article class="elf-card ${elf.owned ? "own" : "other"}">
         <div class="elf-top">
-          <div class="elf-avatar" aria-hidden="true"></div>
+          ${elfieAvatarMarkup(elf, "card-avatar")}
           <mark class="status ${statusClass(elf.status)}">${escapeHtml(elf.statusLabel)}</mark>
         </div>
         <div>
@@ -674,11 +976,209 @@ function renderElves() {
   }).join("");
 }
 
+function dormGroupCount(bedCount) {
+  return Math.max(1, Math.ceil(Math.max(1, bedCount) / 4));
+}
+
+const DORM_PORTAL_WIDTH = 96;
+const DORM_MODULE_WIDTH = 300;
+const DORM_RIGHT_BOUNDARY_WIDTH = 40;
+
+function dormPlanWidth(groupCount) {
+  return DORM_PORTAL_WIDTH + groupCount * DORM_MODULE_WIDTH;
+}
+
+function dormMapWidth(groupCount) {
+  return dormPlanWidth(groupCount) + DORM_RIGHT_BOUNDARY_WIDTH;
+}
+
+function dormActivityZones(groupCount) {
+  const zones = [
+    { key: "chat", title: "休闲圆桌", detail: "聊天/桌游" },
+  ];
+  if (groupCount >= 2) zones.push({ key: "dining", title: "聚餐区", detail: "长餐桌" });
+  if (groupCount >= 3) zones.push({ key: "study", title: "静音书房", detail: "自习排座" });
+  if (groupCount >= 4) zones.push({ key: "media", title: "影音区", detail: "沙发巨幕" });
+  return zones;
+}
+
+function bedOccupantLabel(bed) {
+  if (!bed?.occupant_id) return "空闲";
+  return bed.occupant_name || "已入住";
+}
+
+function shortFloorLabel(value, maxLength = 6) {
+  const label = String(value ?? "");
+  if (label.length <= maxLength) return label;
+  return `${label.slice(0, maxLength - 1)}…`;
+}
+
+function renderActivitySymbol(zone) {
+  if (zone.key === "dining") {
+    return `
+      <div class="floor-zone-symbol dining-symbol" aria-hidden="true">
+        <div class="dining-chair-row">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="dining-table"><i></i></div>
+        <div class="dining-chair-row bottom">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+    `;
+  }
+  if (zone.key === "study") {
+    return `
+      <div class="floor-zone-symbol study-symbol" aria-hidden="true">
+        <span><i></i><b></b></span>
+        <span><i></i><b></b></span>
+      </div>
+    `;
+  }
+  if (zone.key === "media") {
+    return `
+      <div class="floor-zone-symbol media-symbol" aria-hidden="true">
+        <span class="screen"></span>
+        <span class="sofa"><i></i></span>
+      </div>
+    `;
+  }
+  return `
+    <div class="floor-zone-symbol round-table-symbol" aria-hidden="true">
+      <span class="chair top"></span>
+      <span class="chair right"></span>
+      <span class="chair bottom"></span>
+      <span class="chair left"></span>
+      <span class="table"><i></i></span>
+    </div>
+  `;
+}
+
+function renderActivityRoom(zone) {
+  return `
+    <div class="activity-room-card activity-${escapeHtml(zone.key)}">
+      <div class="activity-room-head">
+        <strong>${escapeHtml(zone.title)}</strong>
+        <span>${escapeHtml(zone.detail)}</span>
+      </div>
+      <div class="activity-room-body">
+        ${renderActivitySymbol(zone)}
+      </div>
+    </div>
+  `;
+}
+
+function renderDormBedSlot(bed, index, side) {
+  const bedNumber = index + 1;
+  const occupied = Boolean(bed?.occupant_id);
+  const emptyReserve = !bed;
+  if (emptyReserve) {
+    return `
+      <div class="floor-bed-unit reserve ${side === "right" ? "right" : "left"}" aria-label="空白床位区域"></div>
+    `;
+  }
+  const label = bedOccupantLabel(bed);
+  const shortLabel = shortFloorLabel(label, 5);
+  const className = ["floor-bed-unit", side === "right" ? "right" : "left", occupied ? "occupied" : "", emptyReserve ? "reserve" : ""]
+    .filter(Boolean)
+    .join(" ");
+  return `
+    <div class="${className}" title="${escapeHtml(emptyReserve ? `床位 ${bedNumber} 预留` : `床位 ${bedNumber} · ${label}`)}">
+      <div class="bed-label-row">
+        <span>${String(bedNumber).padStart(2, "0")}</span>
+        <strong>${escapeHtml(shortLabel)}</strong>
+      </div>
+      <div class="bed-furniture">
+        <div class="upper-bunk">
+          <i></i>
+          <span>上铺</span>
+        </div>
+        <div class="under-desk-plan">
+          <i></i>
+          <b></b>
+          <span>下桌</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderDormBedGroup(groupIndex, beds, zone) {
+  const slotIndexes = [
+    groupIndex * 4,
+    groupIndex * 4 + 1,
+    groupIndex * 4 + 2,
+    groupIndex * 4 + 3,
+  ];
+  return `
+    <div class="floor-module">
+      <div class="module-activity-area">
+        ${renderActivityRoom(zone)}
+      </div>
+      <div class="main-corridor">
+        <span>主干道</span>
+      </div>
+      <div class="module-dorm-area">
+        <div class="room-unit">
+          <div class="room-entry">
+            <i></i>
+            <span>${groupIndex + 1}号房间入口</span>
+            <i></i>
+          </div>
+          <div class="room-interior">
+            <div class="bed-stack left">
+              ${renderDormBedSlot(beds[slotIndexes[0]], slotIndexes[0], "left")}
+              ${renderDormBedSlot(beds[slotIndexes[1]], slotIndexes[1], "left")}
+            </div>
+            <div class="inner-corridor">
+              <span>内部通道</span>
+            </div>
+            <div class="bed-stack right">
+              ${renderDormBedSlot(beds[slotIndexes[2]], slotIndexes[2], "right")}
+              ${renderDormBedSlot(beds[slotIndexes[3]], slotIndexes[3], "right")}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderDormFloorplan(room, beds) {
+  const bedCount = Math.max(4, beds.length);
+  const groupCount = dormGroupCount(bedCount);
+  const zones = dormActivityZones(groupCount);
+  const bedGroups = Array.from({ length: groupCount }, (_, index) => (
+    renderDormBedGroup(index, beds, zones[index % zones.length])
+  )).join("");
+
+  return `
+    <div class="nest-floorplan" role="img" aria-label="${escapeHtml(room.name || "Main Nest")} 建筑平面图，包含虫洞终端、主干道、公共功能区和床位房间">
+      <aside class="portal-entrance" aria-label="虫洞终端">
+        <div class="portal-wall top"><span>主建筑体</span></div>
+        <div class="wormhole-terminal">
+          <i class="wormhole-ring outer"></i>
+          <i class="wormhole-ring inner"></i>
+          <i class="wormhole-core"></i>
+          <strong>虫洞终端</strong>
+          <small>星际穿越</small>
+        </div>
+        <div class="portal-wall bottom"><span>隔离边界</span></div>
+      </aside>
+      <div class="floor-modules">
+      ${bedGroups}
+      </div>
+    </div>
+  `;
+}
+
 function renderRooms() {
   const mapRender = byId("room-map-render");
   if (!mapRender) return;
   mapRender.innerHTML = "";
   const room = rooms[0];
+  mapRender.style.removeProperty("--nest-plan-width");
+  mapRender.style.removeProperty("min-width");
   if (!room) {
     mapRender.innerHTML = `
       <div class="room-readonly-state">
@@ -690,74 +1190,50 @@ function renderRooms() {
     return;
   }
 
-  setText("room-map-title", `${room.name || "主房间"} · 俯视布局`);
+  setText("room-map-title", `${room.name || "Main Nest"} · 宿舍俯视图`);
   const beds = room.beds || [];
-  const numericXs = beds
-    .map((bed) => Number(bed.grid_x))
-    .filter((value) => Number.isFinite(value));
-  const numericYs = beds
-    .map((bed) => Number(bed.grid_y))
-    .filter((value) => Number.isFinite(value));
-  const minX = numericXs.length ? Math.min(...numericXs) : 0;
-  const maxX = numericXs.length ? Math.max(...numericXs) : 0;
-  const minY = numericYs.length ? Math.min(...numericYs) : 0;
-  const maxY = numericYs.length ? Math.max(...numericYs) : 0;
-  beds.forEach((bed, index) => {
-    const node = document.createElement("button");
-    node.type = "button";
-    const occupied = Boolean(bed.occupant_id);
-    const ownerLabel = bed.occupant_is_mine ? "我的" : bed.occupant_owner_username || "未知主人";
-    const occupantLabel = occupied
-      ? `${bed.occupant_name || "未命名精灵"} · ${ownerLabel}`
-      : "空闲";
-    node.className = `room-object bed ${occupied ? "" : "empty"}`;
-    const rawX = Number(bed.grid_x);
-    const rawY = Number(bed.grid_y);
-    const hasX = Number.isFinite(rawX);
-    const hasY = Number.isFinite(rawY);
-    const x = hasX && maxX > minX ? 16 + ((rawX - minX) / (maxX - minX)) * 68 : 18 + (index % 2) * 58;
-    const y = hasY && maxY > minY ? 16 + ((rawY - minY) / (maxY - minY)) * 68 : 16 + Math.floor(index / 2) * 26;
-    node.style.left = `${Math.min(84, Math.max(12, x))}%`;
-    node.style.top = `${Math.min(84, Math.max(12, y))}%`;
-    node.innerHTML = `<strong>${escapeHtml(bed.name || `床位 ${bed.id}`)}</strong><span>${escapeHtml(occupantLabel)}</span>`;
-    if (role === "user") {
-      node.disabled = true;
-      node.title = "普通用户只能查看床位";
-    } else {
-      node.dataset.editBed = String(bed.id);
-      node.dataset.gridX = String(bed.grid_x ?? 0);
-      node.dataset.gridY = String(bed.grid_y ?? 0);
-      node.title = "点击编辑床位坐标";
-    }
-    mapRender.appendChild(node);
-  });
-
-  const desk = document.createElement("div");
-  desk.className = "room-object desk desk-a";
-  desk.innerHTML = "<strong>公共桌</strong><span>互动点</span>";
-  mapRender.appendChild(desk);
-  const camera = document.createElement("div");
-  camera.className = "room-object hotspot window";
-  camera.innerHTML = "<strong>Godot Camera</strong><span>可查看</span>";
-  mapRender.appendChild(camera);
+  mapRender.classList.toggle("editing", roomLayoutEditing && role === "admin");
+  const groupCount = dormGroupCount(Math.max(4, beds.length));
+  const planWidth = dormPlanWidth(groupCount);
+  const mapWidth = dormMapWidth(groupCount);
+  mapRender.style.setProperty("--nest-plan-width", `${planWidth}px`);
+  mapRender.style.setProperty("--nest-map-width", `${mapWidth}px`);
+  mapRender.style.minWidth = `${mapWidth}px`;
+  mapRender.innerHTML = `
+    ${renderDormFloorplan(room, beds)}
+    ${roomLayoutEditing ? `
+      <div class="room-layout-rules" role="note">
+        <strong>布局规则</strong>
+        <span>每 4 张床生成 1 个房间模块；模块内编号为左上、左下、右上、右下；顶部公共功能区按模块循环显示圆桌、聚餐、书房和影音区。</span>
+      </div>
+    ` : ""}
+  `;
   renderRoomSide();
 }
 
 function renderRoomSide() {
   const unassignedList = byId("unassigned-elfies-list");
   if (!unassignedList) return;
+  const room = rooms[0];
+  const bedCountInput = byId("room-bed-count");
+  const editToggle = byId("room-edit-toggle");
+  const cameraToggle = byId("room-camera-toggle");
+  const cameraPreview = byId("room-camera-preview");
+  const bedAssignmentCard = byId("room-bed-assignment-card");
+  if (bedCountInput && room?.beds && !roomBedCountSaving) {
+    bedCountInput.value = String(pendingRoomBedCount ?? room.beds.length);
+  }
+  if (editToggle) editToggle.textContent = roomLayoutEditing ? "隐藏布局规则" : "查看布局规则";
+  if (cameraToggle) cameraToggle.textContent = "打开预览";
+  cameraPreview?.classList.toggle("open", roomCameraOpen);
   if (role === "user") {
-    setText("bed-panel-title", "公开状态");
-    unassignedList.innerHTML = `
-      <div><span>权限</span><strong>只读查看</strong></div>
-      <div><span>可查看</span><strong>布局、摄像头、公开床位</strong></div>
-      <div><span>不可修改</span><strong>布局、床位、其他用户配置</strong></div>
-    `;
+    if (bedAssignmentCard) bedAssignmentCard.hidden = true;
+    unassignedList.innerHTML = "";
     return;
   }
+  if (bedAssignmentCard) bedAssignmentCard.hidden = false;
   setText("bed-panel-title", "床位分配");
   const unassigned = elves.filter((elf) => !elf.raw.bed_id);
-  const room = rooms[0];
   const emptyBeds = (room?.beds || []).filter((bed) => !bed.occupant_id);
   unassignedList.innerHTML = unassigned.length
     ? unassigned.map((elf) => `
@@ -799,9 +1275,14 @@ function renderProviders() {
         <strong>${escapeHtml(provider.name || provider.provider_id)}</strong>
         <mark class="status ${statusClass(provider.status)}">${provider.status === "active" ? "可用" : "未配置"}</mark>
       </div>
-      <span>${escapeHtml(provider.provider_id)} · ${escapeHtml(provider.api_mode || "chat")}</span>
+      <span>${escapeHtml(provider.provider_id)} · ${escapeHtml(provider.api_mode || "chat")} · ${escapeHtml(provider.auth_type || authTypeForApiMode(provider.api_mode))}</span>
       <span class="mono">${escapeHtml(provider.api_base || "未设置 API Base")}</span>
       <span>${provider.has_api_key || provider.provider_id === "ollama" ? "密钥状态正常" : "缺少 API Key"}</span>
+      ${provider.test_model ? `<span>测试模型：${escapeHtml(provider.test_model)}</span>` : ""}
+      <div class="card-action-row">
+        <button class="ghost-button" type="button" data-config-provider="${escapeHtml(provider.provider_id)}">配置</button>
+        <button class="ghost-button" type="button" data-verify-provider="${escapeHtml(provider.provider_id)}">验证</button>
+      </div>
     </article>
   `).join("");
 }
@@ -813,6 +1294,49 @@ function renderModelFilters() {
   const current = select.value || "all";
   select.innerHTML = `<option value="all">全部供应商</option>${providerIds.map((id) => `<option value="${escapeHtml(id)}">${escapeHtml(id)}</option>`).join("")}`;
   select.value = providerIds.includes(current) ? current : "all";
+}
+
+function modelFamilyKey(model) {
+  const rawName = model.display_name || (model.model_id || "").split("/").pop() || model.model_id || "";
+  return rawName
+    .toLowerCase()
+    .replace(/\s*\([^)]*\)\s*/g, " ")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function modelProviderTags(items) {
+  return items
+    .map((model) => `<span class="tag ${model.active ? "own" : ""}" title="${escapeHtml(model.model_id)}">${escapeHtml(providerDisplayName(model.provider))}</span>`)
+    .join(" ");
+}
+
+function groupedModels(list) {
+  const groups = new Map();
+  for (const model of list) {
+    const key = modelFamilyKey(model);
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        display_name: model.display_name || model.model_id,
+        capabilities: new Set(),
+        providers: [],
+        context_window: model.context_window || 0,
+        cost_tier: model.cost_tier ?? 0,
+        visible: false,
+        active: false,
+      });
+    }
+    const group = groups.get(key);
+    group.providers.push(model);
+    for (const capability of model.capabilities || []) group.capabilities.add(capability);
+    group.context_window = Math.max(group.context_window || 0, Number(model.context_window || 0));
+    group.cost_tier = Math.max(group.cost_tier || 0, Number(model.cost_tier ?? 0));
+    group.visible = group.visible || Boolean(model.visible);
+    group.active = group.active || Boolean(model.active);
+  }
+  return Array.from(groups.values()).sort((left, right) => left.display_name.localeCompare(right.display_name, "zh-CN"));
 }
 
 function renderModels() {
@@ -843,27 +1367,123 @@ function renderModels() {
     table.innerHTML = emptyPanel("没有匹配的模型", "换一个供应商或状态筛选。");
     return;
   }
+  const groups = groupedModels(list);
 
   table.innerHTML = `
     <div class="table-row model-row table-head">
       <span>模型</span>
-      <span>供应商</span>
+      <span>来源供应商</span>
       <span>能力</span>
       <span>上下文</span>
       <span>成本</span>
       <span>状态</span>
     </div>
-    ${list.map((model) => `
+    ${groups.map((group) => `
       <div class="table-row model-row">
-        <span><strong>${escapeHtml(model.display_name || model.model_id)}</strong><small>${escapeHtml(model.model_id)}</small></span>
-        <span>${escapeHtml(model.provider || "unknown")}</span>
-        <span>${(model.capabilities || []).map((item) => `<span class="tag">${escapeHtml(item)}</span>`).join(" ") || "text"}</span>
-        <span>${escapeHtml(model.context_window || "-")}</span>
-        <span><mark class="status info">L${escapeHtml(model.cost_tier ?? 0)}</mark></span>
-        <span><mark class="status ${model.active && model.visible ? "success" : "warning"}">${model.active && model.visible ? "可用" : model.visible ? "待配置" : "隐藏"}</mark></span>
+        <span><strong>${escapeHtml(group.display_name)}</strong><small>${group.providers.map((model) => escapeHtml(model.model_id)).join(" / ")}</small></span>
+        <span>
+          <div class="tag-row compact">${modelProviderTags(group.providers)}</div>
+          <small>${group.providers.length} 个来源</small>
+        </span>
+        <span>${Array.from(group.capabilities).map((item) => `<span class="tag">${escapeHtml(item)}</span>`).join(" ") || "text"}</span>
+        <span>${escapeHtml(group.context_window || "-")}</span>
+        <span><mark class="status info">L${escapeHtml(group.cost_tier ?? 0)}</mark></span>
+        <span><mark class="status ${group.active && group.visible ? "success" : "warning"}">${group.active && group.visible ? "可用" : group.visible ? "待配置" : "隐藏"}</mark></span>
       </div>
     `).join("")}
   `;
+}
+
+function modelOptionsForProvider(providerId, selectedModel) {
+  const providerModels = models.filter((model) => model.provider === providerId);
+  const hasSelectedModel = providerModels.some((model) => {
+    const modelName = (model.model_id || "").split("/").slice(1).join("/") || model.display_name || model.model_id;
+    return selectedModel === model.model_id || selectedModel === modelName;
+  });
+  const customOption = selectedModel && !hasSelectedModel
+    ? `<option value="${escapeHtml(selectedModel)}" selected>${escapeHtml(selectedModel)}（当前配置）</option>`
+    : "";
+  return [
+    `<option value="">选择模型</option>`,
+    customOption,
+    ...providerModels.map((model) => {
+      const modelName = (model.model_id || "").split("/").slice(1).join("/") || model.display_name || model.model_id;
+      return `<option value="${escapeHtml(modelName)}" ${selectedModel === modelName || selectedModel === model.model_id ? "selected" : ""}>${escapeHtml(model.display_name || modelName)}</option>`;
+    }),
+  ].join("");
+}
+
+function providerOptions(selectedProvider) {
+  const providerIds = providers.length
+    ? providers.map((provider) => provider.provider_id)
+    : [...new Set(models.map((model) => model.provider).filter(Boolean))];
+  const uniqueIds = Array.from(new Set(["ollama", ...providerIds, selectedProvider].filter(Boolean)));
+  return uniqueIds.map((providerId) => `
+    <option value="${escapeHtml(providerId)}" ${providerId === selectedProvider ? "selected" : ""}>${escapeHtml(providerDisplayName(providerId))}</option>
+  `).join("");
+}
+
+function renderFoodSlot(slot) {
+  const selectedProvider = slot.provider || "ollama";
+  const selectedModel = slot.model || "";
+  return `
+    <article class="strategy-card editable">
+      <div class="card-inline-head">
+        <strong>${escapeHtml(slot.title)}</strong>
+        <mark class="status info">${escapeHtml(slot.mode)}</mark>
+      </div>
+      <p>${escapeHtml(slot.desc)}</p>
+      <label class="form-row">
+        <span>供应商</span>
+        <select name="${escapeHtml(slot.providerName)}" data-food-provider="${escapeHtml(slot.key)}">
+          ${providerOptions(selectedProvider)}
+        </select>
+      </label>
+      <label class="form-row">
+        <span>模型</span>
+        <select name="${escapeHtml(slot.modelName)}" data-food-model="${escapeHtml(slot.key)}" data-selected-model="${escapeHtml(selectedModel)}">
+          ${modelOptionsForProvider(selectedProvider, selectedModel)}
+        </select>
+      </label>
+    </article>
+  `;
+}
+
+function foodPolicyPayload(form) {
+  const data = new FormData(form);
+  return {
+    default_cheap_provider: String(data.get("default_cheap_provider") || "ollama"),
+    default_cheap_model: String(data.get("default_cheap_model") || "qwen3.5:0.8b"),
+    default_deep_provider: String(data.get("default_deep_provider") || "ollama"),
+    default_deep_model: String(data.get("default_deep_model") || "qwen3.5:0.8b"),
+    default_multimodal_provider: String(data.get("default_multimodal_provider") || "ollama"),
+    default_multimodal_model: String(data.get("default_multimodal_model") || "moondream"),
+  };
+}
+
+function foodRoutePayload(form) {
+  const data = new FormData(form);
+  return {
+    temperature: Number(data.get("temperature") || 0.7),
+    max_tokens: Number(data.get("max_tokens") || 1500),
+    energy_threshold_fast: Number(data.get("energy_threshold_fast") || 30),
+    complexity_threshold_deep: Number(data.get("complexity_threshold_deep") || 4),
+  };
+}
+
+async function saveLlmConfig(payload, messageId) {
+  setFormMessage(messageId, "正在保存...");
+  const saved = await fetchJson("/api/admin/system/llm", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  systemConfig.llm = saved;
+  renderFoodStrategy();
+  renderOverview();
+  addSystemNotice("粮食策略已保存。");
+  setFormMessage(messageId, "已保存", "success");
+  return saved;
 }
 
 function renderFoodStrategy() {
@@ -872,37 +1492,57 @@ function renderFoodStrategy() {
   if (!strategyGrid || !routeGrid) return;
   const llm = systemConfig.llm || {};
   const slots = [
-    ["轻量粮食", llm.default_cheap_provider, llm.default_cheap_model, "日常短对话、低能耗思考"],
-    ["深度粮食", llm.default_deep_provider, llm.default_deep_model, "复杂推理、规划和复盘"],
-    ["多模态粮食", llm.default_multimodal_provider, llm.default_multimodal_model, "图像、场景和跨模态理解"],
-    ["本地兜底", "ollama", llm.default_cheap_model || "qwen3.5:0.8b", "外部模型失效时说明故障并维持基础沟通"],
+    {
+      key: "cheap",
+      title: "轻量粮食",
+      provider: llm.default_cheap_provider || "ollama",
+      model: llm.default_cheap_model || "qwen3.5:0.8b",
+      providerName: "default_cheap_provider",
+      modelName: "default_cheap_model",
+      mode: "低能耗",
+      desc: "日常短对话、低能耗思考",
+    },
+    {
+      key: "deep",
+      title: "深度粮食",
+      provider: llm.default_deep_provider || "ollama",
+      model: llm.default_deep_model || "qwen3.5:0.8b",
+      providerName: "default_deep_provider",
+      modelName: "default_deep_model",
+      mode: "复杂任务",
+      desc: "复杂推理、规划和复盘",
+    },
+    {
+      key: "multimodal",
+      title: "多模态粮食",
+      provider: llm.default_multimodal_provider || "ollama",
+      model: llm.default_multimodal_model || "moondream",
+      providerName: "default_multimodal_provider",
+      modelName: "default_multimodal_model",
+      mode: "视觉/场景",
+      desc: "图像、场景和跨模态理解",
+    },
   ];
-  strategyGrid.innerHTML = slots.map(([title, provider, model, desc]) => {
-    const match = models.find((item) => item.provider === provider && (item.model_id === model || item.display_name === model));
-    return `
-      <article class="strategy-card">
-        <div class="card-inline-head">
-          <strong>${escapeHtml(title)}</strong>
-          <mark class="status ${match?.active || provider === "ollama" ? "success" : "warning"}">${match?.active || provider === "ollama" ? "已配对" : "待确认"}</mark>
-        </div>
-        <span>${escapeHtml(provider || "未设置")} · ${escapeHtml(model || "未设置")}</span>
-        <p>${escapeHtml(desc)}</p>
-      </article>
-    `;
-  }).join("");
+  strategyGrid.innerHTML = `
+    <form class="food-policy-form" id="food-policy-form">
+      <div class="strategy-grid nested">
+        ${slots.map(renderFoodSlot).join("")}
+      </div>
+      <p class="form-message" id="food-policy-message" aria-live="polite"></p>
+      <button class="primary-button" type="submit">保存粮食配对</button>
+    </form>
+  `;
 
-  const routeItems = [
-    ["Temperature", llm.temperature ?? "默认"],
-    ["Max tokens", llm.max_tokens ?? "默认"],
-    ["低能耗阈值", llm.energy_threshold ?? "默认"],
-    ["深度复杂度阈值", llm.complexity_threshold ?? "默认"],
-  ];
-  routeGrid.innerHTML = routeItems.map(([label, value]) => `
-    <article class="provider-card">
-      <strong>${escapeHtml(label)}</strong>
-      <span>${escapeHtml(value)}</span>
-    </article>
-  `).join("");
+  routeGrid.innerHTML = `
+    <form class="config-grid food-route-form" id="food-route-form">
+      <label class="form-row"><span>Temperature</span><input name="temperature" type="number" min="0" max="2" step="0.1" value="${escapeHtml(llm.temperature ?? 0.7)}" /></label>
+      <label class="form-row"><span>Max tokens</span><input name="max_tokens" type="number" min="1" max="32000" step="1" value="${escapeHtml(llm.max_tokens ?? 1500)}" /></label>
+      <label class="form-row"><span>低能耗阈值</span><input name="energy_threshold_fast" type="number" min="0" max="100" step="1" value="${escapeHtml(llm.energy_threshold_fast ?? 30)}" /></label>
+      <label class="form-row"><span>深度复杂度阈值</span><input name="complexity_threshold_deep" type="number" min="0" max="10" step="1" value="${escapeHtml(llm.complexity_threshold_deep ?? 4)}" /></label>
+      <p class="form-message config-grid-wide" id="food-route-message" aria-live="polite"></p>
+      <button class="primary-button config-grid-wide" type="submit">保存路由参数</button>
+    </form>
+  `;
 }
 
 function renderSystemConfig() {
@@ -1006,8 +1646,9 @@ function renderChatHistory(elfieId) {
   historyNode.dataset.elfieId = elfieId;
   const items = chatHistory.get(elfieId) || [];
   if (!items.length) {
+    const isFiltered = chatHistoryFilters.range !== "all" || Boolean(chatHistoryFilters.keyword);
     historyNode.innerHTML = `
-      <div class="history-divider">还没有对话。发送第一句话后，精灵会在下一次 tick 响应。</div>
+      <div class="history-divider">${isFiltered ? "当前筛选范围没有历史消息。" : "还没有对话。发送第一句话后，精灵会在下一次 tick 响应。"}</div>
     `;
     return;
   }
@@ -1030,7 +1671,7 @@ function renderElfDetail(id) {
     <div class="elf-detail-layout">
       <section class="config-card detail-config">
         <div class="elf-detail-head">
-          <div class="elf-avatar large" aria-hidden="true"></div>
+          ${elfieAvatarMarkup(elf, "detail-avatar")}
           <div>
             <h3>${escapeHtml(elf.name)}</h3>
             <p>${escapeHtml(elf.owner)} · ${escapeHtml(labelForAnatomy(elf.anatomy))}</p>
@@ -1048,7 +1689,7 @@ function renderElfDetail(id) {
           <span>所在精灵巢</span>
           <input type="text" value="${escapeHtml(`${elf.room} · ${elf.bed}`)}" readonly />
         </label>
-        <div class="callout privacy">${elf.owned ? "你可以在用户工作台继续聊天和管理配置。" : "管理员只能查看公开元信息，不能读取主人聊天或私密配置。"}</div>
+        <div class="callout privacy">${elf.owned ? "基础形态和性格已锁定，只能查看不能修改。" : "管理员只能查看公开元信息，不能读取主人聊天或私密配置。"}</div>
       </section>
       <section class="chat-panel">
         <div class="chat-toolbar">
@@ -1056,7 +1697,25 @@ function renderElfDetail(id) {
             <h3>主人聊天</h3>
             <p id="ws-status-label">${escapeHtml(wsStatusLabel())}</p>
           </div>
-          <button class="ghost-button" type="button" id="chat-reconnect-button">重新连接</button>
+          <div class="chat-toolbar-actions">
+            <button class="ghost-button" type="button" id="chat-history-reset-button">全部历史</button>
+            <button class="ghost-button" type="button" id="chat-reconnect-button">重新连接</button>
+          </div>
+        </div>
+        <div class="chat-history-controls">
+          <label class="select-wrap">
+            <span>历史时间</span>
+            <select id="chat-history-range">
+              <option value="all" ${chatHistoryFilters.range === "all" ? "selected" : ""}>全部</option>
+              <option value="15m" ${chatHistoryFilters.range === "15m" ? "selected" : ""}>最近 15 分钟</option>
+              <option value="1h" ${chatHistoryFilters.range === "1h" ? "selected" : ""}>最近 1 小时</option>
+              <option value="today" ${chatHistoryFilters.range === "today" ? "selected" : ""}>今天</option>
+            </select>
+          </label>
+          <label class="search compact">
+            <span class="visually-hidden">搜索历史消息</span>
+            <input id="chat-history-search" type="search" placeholder="搜索历史消息" value="${escapeHtml(chatHistoryFilters.keyword)}" />
+          </label>
         </div>
         <div class="chat-history" id="elf-chat-history" data-elfie-id="${escapeHtml(elf.id)}"></div>
         <form class="chat-input-row" id="elf-chat-form" data-elfie-id="${escapeHtml(elf.id)}">
@@ -1073,12 +1732,13 @@ function renderElfDetail(id) {
     </div>
   `;
   renderChatHistory(elf.id);
+  loadChatHistory(elf.id);
   updateWsIndicators();
   setView("elf-detail");
 }
 
 document.addEventListener("click", (event) => {
-  const target = event.target.closest("button, [data-close-drawer], [data-view-shortcut]");
+  const target = event.target.closest("button, [data-close-drawer], [data-view-shortcut], [data-open-camera]");
   if (!target) {
     if (!event.target.closest(".popover")) closeMenus();
     return;
@@ -1097,7 +1757,10 @@ document.addEventListener("click", (event) => {
     setView("elves");
   }
   if (target.matches("[data-open-adoption]")) {
-    openDrawer(adoptionDrawer);
+    if (!target.disabled) {
+      openDrawer(adoptionDrawer);
+      loadAdoptionInfo();
+    }
   }
   if (target.matches("[data-open-profile-menu]")) {
     togglePopover(profileMenu, target);
@@ -1106,26 +1769,61 @@ document.addEventListener("click", (event) => {
     fillProfileForm();
     openDrawer(profileDrawer);
   }
+  if (target.id === "open-user-create-modal") {
+    openCenterModal(userCreateModal);
+    resetUserCreateForm();
+  }
+  if (target.id === "open-provider-create-modal") {
+    openCenterModal(providerConfigModal);
+    resetProviderConfigForm();
+  }
+  if (target.matches("[data-config-provider]")) {
+    const provider = providerById(target.dataset.configProvider || "");
+    openCenterModal(providerConfigModal);
+    resetProviderConfigForm(provider);
+  }
+  if (target.matches("[data-verify-provider]")) {
+    const providerId = target.dataset.verifyProvider || "";
+    if (providerId) {
+      target.disabled = true;
+      fetchJson(`/api/admin/providers/${encodeURIComponent(providerId)}/verify`, { method: "POST" })
+        .then((result) => {
+          addSystemNotice(result.status === "active"
+            ? `${providerDisplayName(providerId)} 验证可用。`
+            : `${providerDisplayName(providerId)} 验证未通过：${result.error || result.status}`);
+          return loadProviders();
+        })
+        .catch((error) => addSystemNotice(error.message || "供应商验证失败"))
+        .finally(() => {
+          target.disabled = false;
+        });
+    }
+  }
   if (target.matches("[data-open-alerts]")) {
     togglePopover(byId("alerts-menu"), target);
   }
   if (target.id === "chat-reconnect-button") {
     disconnectRealtime(true);
   }
-  if (target.matches("[data-edit-bed]")) {
-    const bedId = target.dataset.editBed;
-    const nextX = prompt("床位 grid_x", target.dataset.gridX || "0");
-    if (nextX === null) return;
-    const nextY = prompt("床位 grid_y", target.dataset.gridY || "0");
-    if (nextY === null) return;
-    fetchJson(`/api/admin/nest/beds/${bedId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ grid_x: Number(nextX), grid_y: Number(nextY) }),
-    })
-      .then(loadRooms)
-      .then(() => addSystemNotice(`床位 ${bedId} 坐标已更新。`))
-      .catch((error) => addSystemNotice(error.message || "床位更新失败"));
+  if (target.id === "chat-history-reset-button") {
+    chatHistoryFilters = { range: "all", keyword: "" };
+    const elfieId = byId("elf-chat-history")?.dataset.elfieId || "";
+    if (elfieId) renderElfDetail(elfieId);
+  }
+  if (target.id === "room-edit-toggle") {
+    roomLayoutEditing = !roomLayoutEditing;
+    renderRooms();
+    addSystemNotice(roomLayoutEditing ? "已显示宿舍布局规则。" : "已隐藏宿舍布局规则。");
+  }
+  if (target.id === "room-camera-toggle") {
+    roomCameraOpen = true;
+    renderRooms();
+    openDrawer(roomCameraDrawer);
+  }
+  if (target.matches("[data-open-camera]")) {
+    roomCameraOpen = true;
+    renderRooms();
+    openDrawer(roomCameraDrawer);
   }
   if (target.matches("[data-close-drawer]")) {
     closeDrawers();
@@ -1143,8 +1841,9 @@ document.addEventListener("click", (event) => {
   if (target.id === "refresh-logs") renderLogs();
 });
 
-scopeFilter?.addEventListener("change", renderElves);
-ownerFilter?.addEventListener("change", renderElves);
+[ownerFilter, elfStatusFilter, elfAnatomyFilter, elfBuildFilter].forEach((filter) => {
+  filter?.addEventListener("change", renderElves);
+});
 byId("model-provider-filter")?.addEventListener("change", renderModels);
 byId("model-status-filter")?.addEventListener("change", renderModels);
 byId("global-search")?.addEventListener("input", (event) => {
@@ -1158,6 +1857,25 @@ byId("global-search")?.addEventListener("input", (event) => {
 
 document.addEventListener("change", async (event) => {
   const target = event.target;
+  if (target instanceof HTMLSelectElement && target.matches("[data-food-provider]")) {
+    const key = target.dataset.foodProvider || "";
+    const modelSelect = document.querySelector(`[data-food-model="${key}"]`);
+    if (modelSelect instanceof HTMLSelectElement) {
+      modelSelect.innerHTML = modelOptionsForProvider(target.value, "");
+      modelSelect.dataset.selectedModel = modelSelect.value || "";
+    }
+    return;
+  }
+  if (target instanceof HTMLSelectElement && target.matches("[data-food-model]")) {
+    target.dataset.selectedModel = target.value || "";
+    return;
+  }
+  if (target instanceof HTMLSelectElement && target.id === "chat-history-range") {
+    chatHistoryFilters.range = target.value || "all";
+    const elfieId = byId("elf-chat-history")?.dataset.elfieId || "";
+    if (elfieId) loadChatHistory(elfieId);
+    return;
+  }
   if (!(target instanceof HTMLSelectElement) || !target.matches("[data-assign-bed]")) return;
   const elfieId = target.dataset.assignBed || "";
   const bedId = target.value ? Number(target.value) : null;
@@ -1176,70 +1894,152 @@ document.addEventListener("change", async (event) => {
   }
 });
 
-const adoptionForm = byId("adoption-form");
-if (adoptionForm) {
-  adoptionForm.addEventListener("submit", async (event) => {
+document.addEventListener("input", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement) || target.id !== "chat-history-search") return;
+  chatHistoryFilters.keyword = target.value.trim();
+  const elfieId = byId("elf-chat-history")?.dataset.elfieId || "";
+  if (!elfieId) return;
+  if (chatHistorySearchTimer) clearTimeout(chatHistorySearchTimer);
+  chatHistorySearchTimer = setTimeout(() => loadChatHistory(elfieId), 220);
+});
+
+async function saveRoomBedCount(requestedBedCount) {
+  try {
+    return await fetchJson("/api/admin/nest/rooms/default/bed-count", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bed_count: requestedBedCount }),
+    });
+  } catch (error) {
+    if (!isNotFoundError(error)) throw error;
+  }
+
+  let room = rooms[0];
+  if (!room) {
+    await loadRooms();
+    room = rooms[0];
+  }
+  if (!room) throw new Error("没有可保存的房间数据");
+
+  try {
+    return await fetchJson(`/api/admin/nest/rooms/${room.id}/bed-count`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bed_count: requestedBedCount }),
+    });
+  } catch (error) {
+    if (!isNotFoundError(error)) throw error;
+  }
+
+  await loadRooms();
+  room = rooms[0];
+  if (!room) throw new Error("房间数据刷新后仍不可用");
+  return fetchJson(`/api/admin/nest/rooms/${room.id}/bed-count`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ bed_count: requestedBedCount }),
+  });
+}
+
+const roomLayoutForm = byId("room-layout-form");
+if (roomLayoutForm) {
+  roomLayoutForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const message = byId("adoption-message");
-    if (message) {
-      message.textContent = "正在领养...";
-      message.style.color = "var(--text-secondary)";
-    }
-
-    const species = byId("adopt-species")?.value || "biped";
-    const height = byId("adopt-height")?.value || "standard";
-    const build = byId("adopt-build")?.value || "standard";
-    const personality = byId("adopt-personality")?.value || "活泼好动";
-    const name = (byId("adopt-name")?.value || "").trim() || `新精灵${elves.length + 1}`;
-
+    const bedCountInput = byId("room-bed-count");
+    const submitButton = roomLayoutForm.querySelector("button[type='submit']");
+    const requestedBedCount = Math.max(4, Math.min(24, Number(bedCountInput?.value || 4)));
+    let savedBedCount = null;
+    if (bedCountInput) bedCountInput.value = String(requestedBedCount);
+    roomBedCountSaving = true;
+    pendingRoomBedCount = requestedBedCount;
+    if (submitButton) submitButton.disabled = true;
+    setFormMessage("room-message", "正在保存...");
     try {
-      await fetchJson("/api/user/adopt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          anatomy_type: species,
-          personality_style: personality,
-          height,
-          build,
-        }),
-      });
-      if (message) {
-        message.textContent = "领养成功";
-        message.style.color = "var(--status-success)";
+      const result = await saveRoomBedCount(requestedBedCount);
+      await loadRooms();
+      savedBedCount = rooms[0]?.beds?.length || 0;
+      const expectedBedCount = Number(result.bed_count || requestedBedCount);
+      if (savedBedCount !== expectedBedCount) {
+        setFormMessage("room-message", `保存后读取到 ${savedBedCount} 个床位，请刷新后重试`, "error");
+        return;
       }
-      await loadElves();
-      setTimeout(() => {
-        closeDrawers();
-        if (message) message.textContent = "";
-      }, 1200);
+      setFormMessage("room-message", `已保存 ${savedBedCount} 个床位`, "success");
     } catch (error) {
-      if (message) {
-        message.textContent = error.message || "领养失败";
-        message.style.color = "var(--status-error)";
-      }
+      setFormMessage("room-message", error.message || "保存失败", "error");
+    } finally {
+      roomBedCountSaving = false;
+      pendingRoomBedCount = null;
+      if (bedCountInput && savedBedCount !== null) bedCountInput.value = String(savedBedCount);
+      if (submitButton) submitButton.disabled = false;
     }
   });
 }
 
-const roomCreateForm = byId("room-create-form");
-if (roomCreateForm) {
-  roomCreateForm.addEventListener("submit", async (event) => {
+const userCreateForm = byId("user-create-form");
+if (userCreateForm) {
+  userCreateForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    setFormMessage("room-message", "正在创建...");
+    const submitButton = userCreateForm.querySelector("button[type='submit']");
+    const username = (byId("user-create-username")?.value || "").trim();
+    const password = byId("user-create-password")?.value || "";
+    const nextRole = byId("user-create-role")?.value || "user";
+    if (!username || !password) {
+      setFormMessage("user-create-message", "请填写用户名和初始密码", "error");
+      return;
+    }
+    if (submitButton) submitButton.disabled = true;
+    setFormMessage("user-create-message", "正在创建...");
     try {
-      await fetchJson("/api/admin/nest/rooms", {
+      await fetchJson("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: (byId("room-create-name")?.value || "New Room").trim(),
-          max_capacity: Number(byId("room-create-capacity")?.value || 4),
-        }),
+        body: JSON.stringify({ username, password, role: nextRole }),
       });
-      setFormMessage("room-message", "房间已创建", "success");
-      await loadRooms();
+      setFormMessage("user-create-message", "用户已创建", "success");
+      await loadUsers();
+      addSystemNotice(`已创建用户：${username}`);
+      closeDrawers();
     } catch (error) {
-      setFormMessage("room-message", error.message || "创建失败", "error");
+      setFormMessage("user-create-message", error.message || "创建失败", "error");
+    } finally {
+      if (submitButton) submitButton.disabled = false;
+    }
+  });
+}
+
+const providerConfigForm = byId("provider-config-form");
+if (providerConfigForm) {
+  byId("provider-config-api-mode")?.addEventListener("change", (event) => {
+    const authTypeSelect = byId("provider-config-auth-type");
+    if (authTypeSelect instanceof HTMLSelectElement) {
+      authTypeSelect.value = authTypeForApiMode(event.target.value || "chat_completions");
+    }
+  });
+
+  byId("provider-config-verify")?.addEventListener("click", async () => {
+    const button = byId("provider-config-verify");
+    if (button) button.disabled = true;
+    try {
+      await saveProviderConfig({ verify: true });
+    } catch (error) {
+      setFormMessage("provider-config-message", error.message || "保存或验证失败", "error");
+    } finally {
+      if (button) button.disabled = false;
+    }
+  });
+
+  providerConfigForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submitButton = providerConfigForm.querySelector("button[type='submit']");
+    if (submitButton) submitButton.disabled = true;
+    try {
+      await saveProviderConfig();
+      closeDrawers();
+    } catch (error) {
+      setFormMessage("provider-config-message", error.message || "保存失败", "error");
+    } finally {
+      if (submitButton) submitButton.disabled = false;
     }
   });
 }
@@ -1321,6 +2121,24 @@ document.addEventListener("submit", (event) => {
 
 document.addEventListener("submit", async (event) => {
   const form = event.target;
+  if (form instanceof HTMLFormElement && form.id === "food-policy-form") {
+    event.preventDefault();
+    try {
+      await saveLlmConfig(foodPolicyPayload(form), "food-policy-message");
+    } catch (error) {
+      setFormMessage("food-policy-message", error.message || "保存失败", "error");
+    }
+    return;
+  }
+  if (form instanceof HTMLFormElement && form.id === "food-route-form") {
+    event.preventDefault();
+    try {
+      await saveLlmConfig(foodRoutePayload(form), "food-route-message");
+    } catch (error) {
+      setFormMessage("food-route-message", error.message || "保存失败", "error");
+    }
+    return;
+  }
   if (!(form instanceof HTMLFormElement) || !form.matches(".system-config-form")) return;
   event.preventDefault();
   const section = form.dataset.systemSection || "";
@@ -1372,6 +2190,19 @@ function updateWizard() {
     panel.classList.toggle("active", Number(panel.dataset.wizardPanel || 0) === wizardStep);
   });
 }
+
+window.ElfieNestConsole = {
+  addSystemNotice,
+  closeDrawers,
+  escapeHtml,
+  fetchJson,
+  labelForAnatomy,
+  labelForAppearance,
+  loadAdoptionInfo,
+  loadElves,
+  getAdoptionInfo: () => adoptionInfo,
+  getElfieCount: () => elves.length,
+};
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
