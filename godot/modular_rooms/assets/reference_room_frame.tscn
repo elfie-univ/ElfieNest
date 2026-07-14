@@ -1,0 +1,67 @@
+[gd_scene load_steps=10 format=3 uid="uid://reference_room_frame_001"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_BackWall"]
+resource_name = "ReferenceBackWall"
+transparency = 1
+albedo_color = Color(0, 0.8, 1, 0.3)
+roughness = 0.8
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_LeftWall"]
+resource_name = "ReferenceLeftWall"
+transparency = 1
+albedo_color = Color(1, 0.5, 0, 0.3)
+roughness = 0.8
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_RightWall"]
+resource_name = "ReferenceRightWall"
+transparency = 1
+albedo_color = Color(0, 1, 0.5, 0.3)
+roughness = 0.8
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_Floor"]
+resource_name = "ReferenceFloor"
+transparency = 1
+albedo_color = Color(0.5, 0.5, 0.5, 0.2)
+roughness = 0.8
+
+[sub_resource type="BoxMesh" id="BoxMesh_BackWall"]
+size = Vector3(0.1, 3, 5.6)
+
+[sub_resource type="BoxMesh" id="BoxMesh_LeftWall"]
+size = Vector3(3.7, 3, 0.1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_RightWall"]
+size = Vector3(3.7, 3, 0.1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_Floor"]
+size = Vector3(3.7, 0.1, 5.6)
+
+[node name="ReferenceRoomFrame" type="Node3D"]
+
+[node name="BackWall" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.85, 1.5, 0)
+mesh = SubResource("BoxMesh_BackWall")
+surface_material_override/0 = SubResource("StandardMaterial3D_BackWall")
+
+[node name="LeftWall" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 2.8)
+mesh = SubResource("BoxMesh_LeftWall")
+surface_material_override/0 = SubResource("StandardMaterial3D_LeftWall")
+
+[node name="RightWall" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, -2.8)
+mesh = SubResource("BoxMesh_RightWall")
+surface_material_override/0 = SubResource("StandardMaterial3D_RightWall")
+
+[node name="Floor" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+mesh = SubResource("BoxMesh_Floor")
+surface_material_override/0 = SubResource("StandardMaterial3D_Floor")
+
+[node name="Label3D" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.5, 0)
+text = "标准房间参考框
+深度: 3.7m | 宽度: 5.6m | 高度: 3.0m
+后墙(青色) | 左墙(橙色) | 右墙(绿色)"
+font_size = 32
+modulate = Color(1, 1, 1, 0.9)
