@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="/static/elfienest-console.css?v=17" />
     <link rel="stylesheet" href="/static/elfie-avatar3d.css?v=9" />
     <link rel="stylesheet" href="/static/elfie-adoption-wizard.css?v=9" />
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
       #login-view {
         position: fixed;
@@ -392,7 +393,7 @@
                   <form class="room-bed-count-form" id="room-layout-form">
                     <label class="bed-count-inline">
                       <span>床位数</span>
-                      <input id="room-bed-count" type="number" min="4" max="24" value="4" />
+                      <input id="room-bed-count" type="number" min="4" max="64" value="4" />
                     </label>
                     <button class="primary-button" type="submit">保存</button>
                     <p class="form-message" id="room-message" aria-live="polite"></p>
@@ -871,7 +872,7 @@
     </aside>
 
     <script src="/static/elfie-avatar3d.js?v=10"></script>
-    <script src="/static/elfienest-console.js?v=16"></script>
+    <script src="/static/elfienest-console.js?v=18"></script>
     <script src="/static/elfie-adoption-options.js?v=9"></script>
     <script src="/static/elfie-adoption-wizard.js?v=9"></script>
   </body>

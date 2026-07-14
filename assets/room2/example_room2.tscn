@@ -1,0 +1,20 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://room2/bedroom.tscn" id="1_52p54"]
+[ext_resource type="PackedScene" path="res://room2/1_kitchen_room.tscn" id="2_offig"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ty4dg"]
+albedo_color = Color(0.6, 0.6, 0.6, 1)
+
+[node name="ExampleRoom2" type="Node3D" unique_id=813499958]
+
+[node name="CorridorFloor" type="CSGBox3D" parent="." unique_id=17553593]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, -5)
+size = Vector3(4, 0.1, 10)
+material = SubResource("StandardMaterial3D_ty4dg")
+
+[node name="Bedroom" type="Node3D" parent="." unique_id=396777471 instance=ExtResource("1_52p54")]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 2, 0, -2.5)
+
+[node name="KitchenRoom" type="Node3D" parent="." unique_id=1706770772 instance=ExtResource("2_offig")]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -2, 0, -2.5)
