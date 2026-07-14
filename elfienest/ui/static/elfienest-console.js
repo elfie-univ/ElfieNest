@@ -1043,13 +1043,228 @@ function dormMapWidth(groupCount) {
   return dormPlanWidth(groupCount) + DORM_RIGHT_BOUNDARY_WIDTH;
 }
 
+const ACTIVITY_ZONES = [
+  { 
+    key: "dining",
+    title: '🍳 聚餐区', 
+    detail: '开放厨房 + 长餐桌',
+    renderUI: () => `
+      <div class="relative w-full h-full flex flex-col p-1 hover:scale-105 transition-transform gap-1">
+        <div class="w-full h-8 bg-stone-200 border-2 border-stone-400 rounded-sm flex items-center justify-between px-1 shadow-sm shrink-0">
+           <div class="w-5 h-6 bg-gray-300 border border-gray-400 flex"><div class="w-1/2 border-r border-gray-400"></div><div class="w-1/2"></div></div>
+           <div class="w-6 h-4 bg-gray-400 rounded-sm flex items-center justify-center shadow-inner"><div class="w-4 h-2 bg-blue-300 rounded-sm"></div></div>
+           <div class="w-6 h-5 bg-amber-50 border border-amber-200"></div>
+           <div class="w-8 h-6 bg-gray-800 rounded-sm border-2 border-gray-900 flex flex-wrap justify-center content-center gap-0.5 p-0.5">
+             <div class="w-2 h-2 bg-red-500 rounded-full shadow-[0_0_3px_red]"></div>
+             <div class="w-2 h-2 bg-red-500 rounded-full shadow-[0_0_3px_red]"></div>
+           </div>
+        </div>
+        <div class="flex-1 flex flex-col items-center justify-center relative pt-1">
+          <div class="flex gap-1.5 w-full justify-center">
+            ${[1,2,3,4].map(i => `<div class="w-4 h-2 bg-orange-300 rounded-t-sm shadow-sm border border-orange-400"></div>`).join('')}
+          </div>
+          <div class="w-28 h-6 bg-orange-50 border-2 border-orange-300 shadow-md z-10 rounded-sm flex items-center justify-center">
+             <div class="w-20 h-1 bg-orange-200/50 rounded-full"></div>
+          </div>
+          <div class="flex gap-1.5 w-full justify-center">
+            ${[1,2,3,4].map(i => `<div class="w-4 h-2 bg-orange-300 rounded-b-sm shadow-sm border border-orange-400"></div>`).join('')}
+          </div>
+        </div>
+      </div>
+    `
+  },
+  { 
+    key: "chat",
+    title: '🎲 休闲区', 
+    detail: '圆桌聊天 + 交友',
+    renderUI: () => `
+      <div class="relative w-20 h-20 flex items-center justify-center hover:scale-105 transition-transform">
+        <div class="w-12 h-12 rounded-full bg-amber-200/90 border-2 border-amber-400 shadow-md z-10 flex items-center justify-center">
+           <div class="w-8 h-8 rounded-full border border-amber-300/50"></div>
+        </div>
+        <div class="absolute top-0 w-4 h-3 bg-blue-400 rounded-t-full border border-blue-500 shadow-sm"></div>
+        <div class="absolute bottom-0 w-4 h-3 bg-blue-400 rounded-b-full border border-blue-500 shadow-sm"></div>
+        <div class="absolute left-0 w-3 h-4 bg-blue-400 rounded-l-full border border-blue-500 shadow-sm"></div>
+        <div class="absolute right-0 w-3 h-4 bg-blue-400 rounded-r-full border border-blue-500 shadow-sm"></div>
+      </div>
+    `
+  },
+  { 
+    key: "media",
+    title: '📺 影音室', 
+    detail: '大沙发 + 大电视',
+    renderUI: () => `
+      <div class="relative w-full h-full flex flex-col items-center justify-center p-2 hover:scale-105 transition-transform gap-3">
+         <div class="w-24 h-2 bg-gray-800 rounded-sm shadow-[0_4px_15px_rgba(59,130,246,0.6)] border border-gray-900 flex justify-center items-center">
+           <div class="w-16 h-[1px] bg-blue-400/50"></div>
+         </div>
+         <div class="w-24 h-12 border-b-8 border-x-8 border-indigo-300 rounded-b-xl flex items-end justify-center pb-1 shadow-md bg-indigo-50/30">
+           <div class="w-12 h-5 bg-white/80 border border-gray-200 shadow-sm rounded-sm backdrop-blur-sm"></div>
+         </div>
+      </div>
+    `
+  },
+  {
+    key: "gym",
+    title: '🏋️ 健身房',
+    detail: '器械 + 自由力量区',
+    renderUI: () => `
+      <div class="flex w-full h-full items-center justify-between p-1 gap-2 hover:scale-105 transition-transform">
+        <div class="flex gap-1 h-full max-h-[60px]">
+          ${[1,2].map(i => `
+            <div class="w-5 h-full bg-gray-700 rounded-sm border border-gray-800 flex flex-col items-center p-0.5 shadow-md">
+              <div class="w-full h-2.5 bg-cyan-950 border-b border-gray-600 flex justify-center items-center">
+                <div class="w-2 h-0.5 bg-cyan-400 rounded-full animate-pulse"></div>
+              </div>
+              <div class="w-2.5 flex-1 bg-gray-800 mt-0.5 border-x border-gray-600"></div>
+            </div>
+          `).join('')}
+        </div>
+        <div class="flex-1 h-full max-h-[60px] bg-blue-50/50 border border-blue-200 rounded-sm flex items-center justify-around p-1 relative">
+          <div class="w-6 h-12 bg-red-100 border border-red-300 flex items-center justify-center relative shadow-sm">
+             <div class="absolute w-10 h-1 bg-gray-400 rounded-full"></div>
+             <div class="absolute left-[-2px] w-1.5 h-4 bg-gray-800 rounded-sm"></div>
+             <div class="absolute right-[-2px] w-1.5 h-4 bg-gray-800 rounded-sm"></div>
+          </div>
+          <div class="flex flex-col gap-1 items-center">
+             <div class="w-8 h-5 bg-purple-200 border border-purple-300 rounded-sm shadow-inner flex items-center justify-center">
+               <div class="w-4 h-1 bg-gray-100/80 rounded-full"></div>
+             </div>
+             <div class="flex gap-1">
+               <div class="w-2.5 h-2.5 bg-gray-800 rounded-full"></div>
+               <div class="w-2.5 h-2.5 bg-gray-800 rounded-full"></div>
+             </div>
+          </div>
+        </div>
+      </div>
+    `
+  },
+  {
+    key: "garden",
+    title: '🌱 小花园',
+    detail: '绿植水景 + 宠物',
+    renderUI: () => `
+      <div class="w-full h-full bg-green-50/80 border-2 border-green-200 rounded-lg flex relative overflow-hidden hover:scale-105 transition-transform shadow-inner">
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_bottom_right,rgba(134,239,172,0.4)_0%,transparent_70%)]"></div>
+        <div class="absolute top-1 bottom-1 left-1/3 flex flex-col justify-around">
+           <div class="w-4 h-3 bg-stone-300 rounded-[40%_60%_70%_30%] shadow-sm ml-2"></div>
+           <div class="w-4 h-3 bg-stone-300 rounded-[60%_40%_30%_70%] shadow-sm -ml-1"></div>
+           <div class="w-4 h-3 bg-stone-300 rounded-[50%_50%_60%_40%] shadow-sm ml-1"></div>
+        </div>
+        <div class="absolute top-2 left-2 w-10 h-8 bg-blue-300/80 rounded-[40%_60%_70%_30%] border-2 border-blue-400 shadow-inner flex items-center justify-center">
+           <div class="w-3 h-2 bg-green-500 rounded-full"></div>
+           <div class="w-2 h-2 bg-green-400 rounded-full absolute bottom-1 right-1"></div>
+        </div>
+        <div class="absolute top-1 right-1">
+          <div class="w-10 h-10 bg-green-600 rounded-full shadow-lg border-2 border-green-700 absolute right-0 top-0"></div>
+          <div class="w-6 h-6 bg-emerald-500 rounded-full absolute top-4 -left-3 border border-emerald-600"></div>
+          <div class="w-4 h-4 bg-lime-400 rounded-full absolute top-1 -left-1 shadow-sm border border-lime-500"></div>
+        </div>
+        <div class="absolute bottom-1 right-2 w-8 h-8 bg-amber-100 rounded-full border-2 border-amber-300 flex items-center justify-center shadow-md">
+          <div class="w-5 h-4 bg-amber-700 rounded-t-full border border-amber-800 shadow-inner flex justify-center items-end">
+             <div class="w-2.5 h-2 bg-gray-900 rounded-t-full"></div>
+          </div>
+        </div>
+      </div>
+    `
+  },
+  {
+    key: "workspace",
+    title: '💻 工作台',
+    detail: '电脑排座 + 手工台',
+    renderUI: () => `
+      <div class="flex flex-col w-full h-full items-center justify-between p-1 hover:scale-105 transition-transform gap-1">
+        <div class="w-full flex flex-col items-center">
+           <div class="flex gap-3 w-full justify-center mb-0.5">
+              ${[1,2,3].map(i => `<div class="w-4 h-2 bg-gray-600 rounded-t-sm shadow-sm"></div>`).join('')}
+           </div>
+           <div class="w-full h-6 bg-blue-50 border-2 border-blue-200 rounded-sm shadow-sm flex justify-evenly items-center px-1">
+              ${[1,2,3].map(i => `
+                <div class="w-6 h-3 bg-gray-800 rounded-sm border border-gray-900 flex items-center justify-center">
+                  <div class="w-4 h-1.5 bg-blue-400/80"></div>
+                </div>
+              `).join('')}
+           </div>
+        </div>
+        <div class="w-full h-10 bg-stone-300 border-2 border-stone-500 rounded-sm shadow-md relative flex items-center justify-around px-2 overflow-hidden">
+           <div class="absolute left-2 w-10 h-6 bg-green-800/80 border border-green-900 grid grid-cols-4 grid-rows-2">
+              ${Array.from({length: 8}).map((_, i) => `<div class="border-[0.5px] border-green-700/50"></div>`).join('')}
+           </div>
+           <div class="absolute right-4 w-8 h-6 bg-blue-200 border border-blue-400 transform rotate-6 shadow-sm flex flex-col justify-evenly p-0.5">
+              <div class="w-full h-[1px] bg-blue-500"></div>
+              <div class="w-3/4 h-[1px] bg-blue-500"></div>
+           </div>
+           <div class="absolute bottom-1 right-2 w-2 h-2 bg-purple-400 rounded-full shadow-sm"></div>
+           <div class="absolute bottom-1 right-5 w-2 h-2 bg-yellow-400 rounded-sm shadow-sm"></div>
+           <div class="absolute top-1 left-1 w-3 h-1 bg-gray-800 rotate-45 shadow-sm"></div>
+        </div>
+      </div>
+    `
+  },
+  {
+    key: "art",
+    title: '🎸 艺术角',
+    detail: '画架 + 乐器',
+    renderUI: () => `
+      <div class="flex w-full h-full items-center justify-evenly p-2 hover:scale-105 transition-transform">
+        <div class="w-8 h-16 bg-black rounded-sm border border-gray-800 shadow-lg flex">
+          <div class="w-3 h-full bg-white ml-auto flex flex-col justify-evenly">
+            ${Array.from({length: 10}).map((_, i) => `<div class="h-[1px] w-full bg-gray-400"></div>`).join('')}
+          </div>
+          <div class="absolute -left-2 top-6 w-3 h-4 bg-amber-800 rounded-sm shadow-sm"></div>
+        </div>
+        <div class="relative w-12 h-12 flex flex-col items-center justify-center">
+          <div class="w-10 h-8 bg-amber-100 border-2 border-amber-700 shadow-md transform rotate-12 z-10 flex items-center justify-center overflow-hidden">
+             <div class="w-6 h-6 bg-rose-400/50 rounded-full absolute -top-1 -left-1"></div>
+             <div class="w-6 h-6 bg-cyan-400/50 rounded-full absolute -bottom-1 -right-1"></div>
+          </div>
+          <div class="absolute -bottom-2 -left-1 w-3 h-3 bg-stone-300 rounded-full shadow-sm border border-stone-400"></div>
+          <div class="w-4 h-4 bg-amber-600 rounded-full shadow-sm mt-1"></div>
+        </div>
+      </div>
+    `
+  },
+  {
+    key: "reading",
+    title: '📚 阅览角',
+    detail: '环绕书架 + 中央书桌',
+    renderUI: () => `
+      <div class="relative flex w-full h-full p-1 hover:scale-105 transition-transform overflow-hidden">
+         <div class="absolute top-1 left-1 right-1 h-3 bg-amber-900 border-2 border-amber-950 shadow-sm flex overflow-hidden opacity-90">
+           <div class="w-full h-full bg-[linear-gradient(90deg,transparent_2px,#fff_2px,#fff_4px,transparent_4px)] bg-[size:6px_100%] opacity-40"></div>
+         </div>
+         <div class="absolute top-1 bottom-1 left-1 w-3 bg-amber-900 border-2 border-amber-950 shadow-sm flex overflow-hidden opacity-90">
+           <div class="w-full h-full bg-[linear-gradient(0deg,transparent_2px,#fff_2px,#fff_4px,transparent_4px)] bg-[size:100%_6px] opacity-40"></div>
+         </div>
+         <div class="absolute top-0 left-0 w-8 h-6 bg-stone-800 rounded-br-lg border border-stone-600 flex items-center justify-center shadow-lg z-10">
+           <div class="w-4 h-3 bg-orange-500 rounded-t-full animate-pulse blur-[1px] shadow-[0_0_10px_#f97316]"></div>
+         </div>
+         <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-10 mt-1">
+            <div class="flex gap-2 w-full justify-center">
+               <div class="w-4 h-2 bg-emerald-700 rounded-t-sm shadow-sm"></div>
+               <div class="w-4 h-2 bg-emerald-700 rounded-t-sm shadow-sm"></div>
+            </div>
+            <div class="w-20 h-8 bg-amber-100 border-2 border-amber-600 shadow-lg rounded-sm flex items-center justify-center relative">
+               <div class="w-4 h-3 bg-rose-400 border border-rose-500 absolute left-2 rotate-12 shadow-sm"></div>
+               <div class="w-5 h-3 bg-blue-100 border border-blue-300 absolute right-2 -rotate-6 shadow-sm flex items-center">
+                  <div class="w-full h-[1px] bg-blue-300"></div>
+               </div>
+            </div>
+            <div class="flex gap-2 w-full justify-center">
+               <div class="w-4 h-2 bg-emerald-700 rounded-b-sm shadow-sm"></div>
+               <div class="w-4 h-2 bg-emerald-700 rounded-b-sm shadow-sm"></div>
+            </div>
+         </div>
+      </div>
+    `
+  }
+];
+
 function dormActivityZones(groupCount) {
-  const zones = [
-    { key: "chat", title: "休闲圆桌", detail: "聊天/桌游" },
-  ];
-  if (groupCount >= 2) zones.push({ key: "dining", title: "聚餐区", detail: "长餐桌" });
-  if (groupCount >= 3) zones.push({ key: "study", title: "静音书房", detail: "自习排座" });
-  if (groupCount >= 4) zones.push({ key: "media", title: "影音区", detail: "沙发巨幕" });
+  const zones = [];
+  for (let i = 0; i < groupCount; i++) {
+    zones.push(ACTIVITY_ZONES[i % ACTIVITY_ZONES.length]);
+  }
   return zones;
 }
 
@@ -1065,44 +1280,7 @@ function shortFloorLabel(value, maxLength = 6) {
 }
 
 function renderActivitySymbol(zone) {
-  if (zone.key === "dining") {
-    return `
-      <div class="floor-zone-symbol dining-symbol" aria-hidden="true">
-        <div class="dining-chair-row">
-          <span></span><span></span><span></span>
-        </div>
-        <div class="dining-table"><i></i></div>
-        <div class="dining-chair-row bottom">
-          <span></span><span></span><span></span>
-        </div>
-      </div>
-    `;
-  }
-  if (zone.key === "study") {
-    return `
-      <div class="floor-zone-symbol study-symbol" aria-hidden="true">
-        <span><i></i><b></b></span>
-        <span><i></i><b></b></span>
-      </div>
-    `;
-  }
-  if (zone.key === "media") {
-    return `
-      <div class="floor-zone-symbol media-symbol" aria-hidden="true">
-        <span class="screen"></span>
-        <span class="sofa"><i></i></span>
-      </div>
-    `;
-  }
-  return `
-    <div class="floor-zone-symbol round-table-symbol" aria-hidden="true">
-      <span class="chair top"></span>
-      <span class="chair right"></span>
-      <span class="chair bottom"></span>
-      <span class="chair left"></span>
-      <span class="table"><i></i></span>
-    </div>
-  `;
+  return zone.renderUI ? zone.renderUI() : "";
 }
 
 function renderActivityRoom(zone) {
@@ -2029,7 +2207,7 @@ if (roomLayoutForm) {
     event.preventDefault();
     const bedCountInput = byId("room-bed-count");
     const submitButton = roomLayoutForm.querySelector("button[type='submit']");
-    const requestedBedCount = Math.max(4, Math.min(24, Number(bedCountInput?.value || 4)));
+    const requestedBedCount = Math.max(4, Math.min(64, Number(bedCountInput?.value || 4)));
     let savedBedCount = null;
     if (bedCountInput) bedCountInput.value = String(requestedBedCount);
     roomBedCountSaving = true;
