@@ -42,6 +42,8 @@ class TestElfieNestSimulation(unittest.TestCase):
 
         self.assertIn("艾菲", room.elfies)
         self.assertIn("雪球", room.elfies)
+        self.assertEqual(elfie_1.brain.elfie_id, "艾菲")
+        self.assertEqual(elfie_1.memory.encoder.elfie_id, "艾菲")
 
         # 2. 动态家具注册
         furniture_list = ["bed_1", "bed_2", "chair_1", "chair_2", "wormhole_door"]

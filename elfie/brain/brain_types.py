@@ -4,6 +4,8 @@
 这些结构是单次 tick 的内存数据包，不持久化。
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -20,6 +22,8 @@ class SensorData:
     salience_score: float = 0.0
     has_new_message: bool = False
     user_message: str = ""
+    images: tuple[str, ...] = ()
+    audio: str | None = None
 
 
 @dataclass

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -21,7 +23,7 @@ class RemoteModelCallError(RuntimeError):
         self.failure = failure
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class GenerationRuntime:
     config: LLMRuntimeConfig
     registry: Any

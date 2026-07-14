@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Mapping
@@ -13,7 +15,7 @@ class RuntimeTaskType(str, Enum):
     ORGANIZE = "organize"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class FoodPolicyDecision:
     task_type: RuntimeTaskType
     group_key: str
@@ -27,7 +29,7 @@ class FoodPolicyDecision:
         }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class FoodPolicy:
     task_groups: Mapping[RuntimeTaskType, str]
 
@@ -59,16 +61,15 @@ def load_food_policy(runtime_policy: Mapping[str, Any] | None = None) -> FoodPol
     for raw_task_type, raw_group_key in raw_routes.items():
         if not isinstance(raw_group_key, str):
             continue
-        match raw_task_type:
-            case RuntimeTaskType():
-                parsed_task_type = raw_task_type
-            case str():
-                try:
-                    parsed_task_type = RuntimeTaskType(raw_task_type)
-                except ValueError:
-                    continue
-            case _:
+        if isinstance(raw_task_type, RuntimeTaskType):
+            parsed_task_type = raw_task_type
+        elif isinstance(raw_task_type, str):
+            try:
+                parsed_task_type = RuntimeTaskType(raw_task_type)
+            except ValueError:
                 continue
+        else:
+            continue
         task_groups[parsed_task_type] = raw_group_key
 
     return FoodPolicy(task_groups=task_groups)

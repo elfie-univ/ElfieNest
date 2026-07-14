@@ -25,6 +25,11 @@ def provider_secret_name(provider_id: str) -> str:
     return f"{normalized or 'CUSTOM'}_API_KEY"
 
 
+def tool_secret_name(tool_id: str) -> str:
+    normalized = _ENV_NAME_PATTERN.sub("_", tool_id.upper()).strip("_")
+    return f"ELFIE_{normalized or 'TOOL'}_API_KEY"
+
+
 def read_secrets(path: Path | None = None) -> dict[str, str]:
     secret_path = path or get_env_path()
     if not secret_path.exists():
@@ -78,6 +83,17 @@ def set_provider_secret(
     path: Path | None = None,
 ) -> str:
     name = provider_secret_name(provider_id)
+    values = read_secrets(path)
+    if api_key:
+        values[name] = api_key
+    else:
+        values.pop(name, None)
+    write_secrets(values, path)
+    return name
+
+
+def set_tool_secret(tool_id: str, api_key: str, path: Path | None = None) -> str:
+    name = tool_secret_name(tool_id)
     values = read_secrets(path)
     if api_key:
         values[name] = api_key

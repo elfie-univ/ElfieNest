@@ -67,7 +67,7 @@ class OllamaManager:
             raise OllamaNotReadyError(
                 "❌ 本地未检测到已部署的 Ollama 算力底座可执行程序！\n"
                 "💡 请在终端中运行静态引导脚本进行安装拉取：\n"
-                "   python runtime/setup_runtime.py"
+                "   .venv/bin/python runtime/setup/runtime_setup.py"
             )
 
         try:

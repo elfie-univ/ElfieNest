@@ -34,7 +34,7 @@ def main():
     config = LLMRuntimeConfig(
         ollama_host="http://localhost:11434", ollama_model_fast="qwen3.5:0.8b"
     )
-    runtime_agent = RuntimeAgent(config)
+    runtime_agent = RuntimeAgent(config, live_reload=True)
     logger.info("⚡ [底座算力底座就绪] 本地快速大模型及云端路由检测完毕。")
 
     # 2. 唤醒精灵个体，为其注入专属灵魂 (Elfie 三层大脑)

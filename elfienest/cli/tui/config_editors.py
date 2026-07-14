@@ -2,56 +2,35 @@ from __future__ import annotations
 
 from elfienest.cli.tui.common import clear_screen, input_text, print_banner
 from elfienest.config.user_config import UserConfig, write_user_config
-from runtime.providers.profiles import BUILTIN_PROFILES
 
 
 def config_llm(config: UserConfig) -> None:
     while True:
         clear_screen()
         print_banner()
-        print("  🤖 大模型配置")
+        print("  🤖 大模型与粮食策略")
         print("  " + "=" * 45)
-
-        llm = config.setdefault("system", {}).setdefault("llm", {})
-
-        print(f"  1. 轻量模型: {llm.get('default_cheap_model', 'qwen3.5:0.8b')}")
-        print(f"  2. 深度模型: {llm.get('default_deep_model', 'qwen3.5:0.8b')}")
-        print(f"  3. 多模态模型: {llm.get('default_multimodal_model', 'qwen2.5:7b')}")
-        print(f"  4. 服务商: {llm.get('default_cheap_provider', 'ollama')}")
-        print("  0. 保存并返回")
         print()
-
+        print("  精灵不再直接绑定 Provider 和模型。")
+        print("  Provider、模型验证和粮食配方请使用 Runtime Lab：")
+        print("    .venv/bin/python -m runtime.lab")
+        print("\n  1. 修改旧版默认模型（兼容设置）")
+        print("  0. 返回")
         try:
-            choice = input("请选择 [0-4]: ").strip()
-        except KeyboardInterrupt:
+            choice = input("\n请选择 [0-1]: ").strip()
+        except (KeyboardInterrupt, EOFError):
             return
-
-        if choice == "0":
-            write_user_config(config)
-            print("\n✅ 配置已保存")
-            input("按回车键继续...")
-            break
+        if choice == "0" or choice == "":
+            return
         if choice == "1":
-            value = input_text(
-                "请输入轻量模型名称", llm.get("default_cheap_model", "qwen3.5:0.8b")
-            )
+            llm = config.setdefault("system", {}).setdefault("llm", {})
+            current = llm.get("default_cheap_model", "qwen3.5:0.8b")
+            value = input(f"请输入默认模型 [{current}]: ").strip()
             if value:
                 llm["default_cheap_model"] = value
-        elif choice == "2":
-            value = input_text(
-                "请输入深度模型名称", llm.get("default_deep_model", "qwen3.5:0.8b")
-            )
-            if value:
-                llm["default_deep_model"] = value
-        elif choice == "3":
-            value = input_text(
-                "请输入多模态模型名称",
-                llm.get("default_multimodal_model", "qwen2.5:7b"),
-            )
-            if value:
-                llm["default_multimodal_model"] = value
-        elif choice == "4":
-            _choose_default_provider(llm)
+                write_user_config(config)
+                print("\n✅ 兼容默认模型已保存；实际调用仍由粮食策略决定。")
+                input("按回车键继续...")
 
 
 def config_engine(config: UserConfig) -> None:
@@ -154,22 +133,6 @@ def config_adoption(config: UserConfig) -> None:
             _set_int(adoption, "max_elfies_per_user", "请输入每用户精灵上限", 3)
         elif choice == "2":
             _choose_personality_style(adoption)
-
-
-def _choose_default_provider(llm: UserConfig) -> None:
-    providers = list(BUILTIN_PROFILES.keys())
-    print("\n可用服务商:")
-    for i, pid in enumerate(providers, 1):
-        profile = BUILTIN_PROFILES[pid]
-        print(f"  {i}. {pid:12s} - {profile.name}")
-    try:
-        idx = int(input(f"请选择 [1-{len(providers)}]: ")) - 1
-    except (KeyboardInterrupt, ValueError):
-        return
-    if 0 <= idx < len(providers):
-        provider_id = providers[idx]
-        llm["default_cheap_provider"] = provider_id
-        llm["default_deep_provider"] = provider_id
 
 
 def _choose_personality_style(adoption: UserConfig) -> None:

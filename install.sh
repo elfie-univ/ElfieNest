@@ -25,15 +25,27 @@ ensure_writable_dir() {
     [ -w "$dir" ]
 }
 
+python_is_39() {
+    "$1" -c 'import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 9) else 1)' >/dev/null 2>&1
+}
+
 python_has_web_dependencies() {
+    python_is_39 "$1" || return 1
     "$1" -c 'import fastapi, uvicorn, multipart, rich, pydantic, websockets' >/dev/null 2>&1
 }
 
-find_python3() {
-    if command -v python3 >/dev/null 2>&1; then
-        command -v python3
-        return
-    fi
+find_python39() {
+    local candidate resolved
+
+    for candidate in "${ELFIE_PYTHON:-}" python3.9 python3; do
+        [ -n "$candidate" ] || continue
+        resolved="$(command -v "$candidate" 2>/dev/null || true)"
+        [ -n "$resolved" ] || resolved="$candidate"
+        if [ -x "$resolved" ] && python_is_39 "$resolved"; then
+            echo "$resolved"
+            return
+        fi
+    done
 
     echo ""
 }
@@ -42,14 +54,17 @@ ensure_project_venv() {
     local system_python
     local venv_python
 
-    system_python="$(find_python3)"
+    system_python="$(find_python39)"
     if [ -z "$system_python" ]; then
-        echo "❌ 未找到 python3，请先安装 Python 3.9 或更高版本"
+        echo "❌ 未找到 Python 3.9。请安装 Python 3.9，或设置 ELFIE_PYTHON 指向 Python 3.9 可执行文件"
         exit 1
     fi
 
     venv_python="$PROJECT_ROOT/.venv/bin/python3"
-    if [ ! -x "$venv_python" ]; then
+    if [ -x "$venv_python" ] && ! python_is_39 "$venv_python"; then
+        echo "⚠️  检测到项目 .venv 不是 Python 3.9，正在用 Python 3.9 重建"
+        "$system_python" -m venv --clear "$PROJECT_ROOT/.venv"
+    elif [ ! -x "$venv_python" ]; then
         echo "🐍 正在创建项目运行环境: $PROJECT_ROOT/.venv"
         "$system_python" -m venv "$PROJECT_ROOT/.venv"
     fi

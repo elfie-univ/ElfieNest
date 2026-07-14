@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import logging
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from elfie.body import BipedAnatomy, QuadrupedAnatomy, SomaticReflexArc
@@ -31,12 +34,14 @@ class ElfieIndividual:
         anatomy_type: str = "biped",
         godot_api=None,
         elfie_id: str | None = None,
+        memory_db_path: str | None = None,
     ):
         """
         初始化生命管理器
         :param config_dir: 配置目录
         :param anatomy_type: 身体形态学类型 ("biped" 双足, "quadruped" 四足)
         :param godot_api: Godot API服务器实例（可选）
+        :param memory_db_path: 旧版开发工具使用的记忆数据库路径（可选）
         """
         # 1. 🧠 【大脑认知层】 (Cognition)
         self.brain = NeocortexBrain(config_dir, elfie_id=elfie_id)
@@ -49,7 +54,14 @@ class ElfieIndividual:
         self.hypothalamus = HypothalamusEnergy(limits_dict)
         self.amygdala = EmotionSystem()
         self.emotion_decay = EmotionDecayCalculator()
-        self.memory = MemorySystem()
+        resolved_memory_db_path = memory_db_path or (
+            str(Path(config_dir) / "graph_memory.db") if config_dir else None
+        )
+        self.memory = MemorySystem(
+            db_path=resolved_memory_db_path,
+            elfie_id=elfie_id,
+            config_dir=config_dir,
+        )
         self._was_sleeping = False
 
         # 3. 🔌 【神经交互总线层】 (Interface)
@@ -76,6 +88,11 @@ class ElfieIndividual:
         # Godot API 引用（用于发送表达事件）
         self.godot_api = godot_api
         self._last_expression: Optional[Dict[str, Any]] = None
+
+    def bind_identity(self, elfie_id: str) -> None:
+        """注册进房间时补齐身份，保证粮食权限和记忆任务读取同一精灵配置。"""
+        self.brain.elfie_id = elfie_id
+        self.memory.bind_elfie_identity(elfie_id, self.brain.config_dir)
 
     @property
     def hippocampus(self):
@@ -125,7 +142,10 @@ class ElfieIndividual:
             self._last_expression = expression
 
     def perceive_and_respond(
-        self, raw_sensor_data: Dict[str, Any], runtime_agent: Any
+        self,
+        raw_sensor_data: Dict[str, Any],
+        runtime_agent: Any,
+        debug_trace: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         具身认知与反馈 Somatic Loop 闭环主神经冲动链路：
@@ -136,6 +156,9 @@ class ElfieIndividual:
         5. 交互总线形态学动作硬拦截 (形态学限制，防动作幻觉)
         6. 下发小脑进行关节角度时序转换，声学合成发音，写入海马体
         """
+        if debug_trace is not None:
+            debug_trace["raw_input"] = dict(raw_sensor_data)
+
         # A0. 睡眠→唤醒边沿检测（在早期 return 之前更新状态）
         currently_sleeping = self.hypothalamus.is_sleeping
         should_consolidate = self._was_sleeping and not currently_sleeping
@@ -203,6 +226,10 @@ class ElfieIndividual:
 
         # 1. 交互总线感知大坝过滤
         has_valuable_change = self.signal_filter.filter_noise(raw_sensor_data)
+        if debug_trace is not None:
+            debug_trace.setdefault("stages", {})["sensory_filter"] = {
+                "passed": has_valuable_change
+            }
         if not has_valuable_change:
             return {
                 "success": True,
@@ -228,9 +255,22 @@ class ElfieIndividual:
 
         # 额外将具身形态描述注入 context 以利于大模型认知自己的物理形态
         context.embodied_anatomy = self.anatomy.get_anatomy_descriptor()
+        if debug_trace is not None:
+            debug_trace.setdefault("stages", {})["thalamus_context"] = {
+                "energy": context.energy,
+                "fatigue": context.fatigue,
+                "attention_mode": "CEN"
+                if context.sensors.has_new_message
+                else "DMN_IDLE",
+            }
 
         # 3. 顶层大脑皮层大模型思考
         decision = self.brain.think_and_decide(context, runtime_agent)
+        if debug_trace is not None:
+            debug_trace.setdefault("stages", {})["decision"] = {
+                "attention_mode": decision.attention_mode,
+                "action": decision.action,
+            }
 
         action = decision.action
         speech_text = decision.speech_text
@@ -238,6 +278,11 @@ class ElfieIndividual:
 
         # 4. 交互总线躯体物理安全拦截 (形态学限制校验)
         reflex_result = self.safety_reflex.intercept_and_validate(action, self.anatomy)
+        if debug_trace is not None:
+            debug_trace.setdefault("stages", {})["action_validation"] = {
+                "requested_action": action,
+                "allowed": bool(reflex_result.get("allowed")),
+            }
         if not reflex_result["allowed"]:
             # 形态学干涉生效：强制更改为点头，并引发轻微焦虑情绪与物理报错痛感
             logger.warning("❌ [交互总线] 形态学物理硬拦截生效！拦截非法肢体指令。")
@@ -259,11 +304,18 @@ class ElfieIndividual:
         )
 
         # 扣减下丘脑能耗
-        config = runtime_agent.config
-        is_remote = any(
-            provider != "ollama" and info.get("api_key", "")
-            for provider, info in config.providers.items()
-        )
+        runtime_result = self.brain.last_runtime_result
+        actual_model = getattr(runtime_result, "actual_model", None)
+        is_remote = bool(actual_model and not actual_model.startswith("ollama/"))
+        if actual_model is None and not callable(
+            getattr(runtime_agent, "run_with_food", None)
+        ):
+            # 仅供旧 Mock Runtime 使用；正式 Runtime 总会返回 actual_model。
+            config = runtime_agent.config
+            is_remote = any(
+                provider != "ollama" and info.get("api_key", "")
+                for provider, info in config.providers.items()
+            )
         self.hypothalamus.consume_energy_by_action(is_remote)
 
         # 快乐正反馈
@@ -279,6 +331,11 @@ class ElfieIndividual:
                 emotion=dominant_mood,
                 intensity=self.amygdala.get_emotion_value(dominant_mood),
             )
+            if debug_trace is not None:
+                debug_trace.setdefault("stages", {})["memory_write"] = {"written": True}
+
+        if debug_trace is not None:
+            debug_trace.setdefault("stages", {})["execution"] = {"action": action}
 
         return {
             "success": True,

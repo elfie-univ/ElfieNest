@@ -202,10 +202,8 @@ def test_admin_runtime_policy_returns_configured_strategy(client: TestClient) ->
     assert response.status_code == 200
     payload = response.json()
     assert payload["task_routes"]["reasoning"] == "premium"
-    assert payload["model_groups"]["premium"]["model_keys"] == [
-        "remote_deep",
-        "local_fast",
-    ]
+    assert payload["model_groups_deprecated"] is True
+    assert "focus" in payload["food_keys"]
     assert payload["tool_permissions"]["RUN_SKILL"]["mode"] == "allow"
     assert payload["tool_permissions"]["DELETE_SKILL"]["mode"] == "admin"
 
@@ -220,12 +218,6 @@ def test_admin_runtime_policy_put_persists_strategy(
         "/api/admin/runtime/policy",
         json={
             "task_routes": {"reasoning": "standard"},
-            "model_groups": {
-                "standard": {
-                    "display_name": "标准粮",
-                    "model_keys": ["remote_cheap", "local_fast"],
-                }
-            },
             "tool_permissions": {
                 "RUN_SKILL": {
                     "mode": "ask",
@@ -243,6 +235,23 @@ def test_admin_runtime_policy_put_persists_strategy(
 
     saved = json.loads(runtime_config_path.read_text(encoding="utf-8"))
     assert saved["runtime_policy"]["task_routes"]["reasoning"] == "standard"
+
+
+def test_admin_runtime_policy_rejects_direct_model_groups(client: TestClient) -> None:
+    tokens = _login(client, "admin", "adminchangeme")
+
+    response = client.put(
+        "/api/admin/runtime/policy",
+        json={
+            "model_groups": {
+                "premium": {"model_keys": ["remote_deep"]},
+            }
+        },
+        headers={"X-CSRF-Token": tokens["csrf_token"]},
+    )
+
+    assert response.status_code == 410
+    assert "模型由粮食配方管理" in response.text
 
 
 def test_admin_runtime_policy_rejects_invalid_permission_mode(

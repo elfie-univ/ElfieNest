@@ -14,7 +14,7 @@ class OllamaManager(Protocol):
     def has_model(self, model_name: str) -> bool: ...
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class FallbackPlan:
     model_key: str
     model_name: str

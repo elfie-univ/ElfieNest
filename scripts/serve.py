@@ -16,13 +16,13 @@
     --force         强制重启（杀死占用端口的进程）
 
 CLI 工具:
-    python3 scripts/elfie.py config    打开配置 TUI
-    python3 scripts/elfie.py models    列出可用模型
-    python3 scripts/elfie.py providers 管理 providers
-    python3 scripts/elfie.py status    查看服务状态
-    python3 scripts/elfie.py setup     首次设置向导
-    python3 scripts/elfie.py restart   重启服务
-    python3 scripts/elfie.py stop      停止服务
+    .venv/bin/python scripts/elfie.py config    打开配置 TUI
+    .venv/bin/python scripts/elfie.py models    列出可用模型
+    .venv/bin/python scripts/elfie.py providers 管理 providers
+    .venv/bin/python scripts/elfie.py status    查看服务状态
+    .venv/bin/python scripts/elfie.py setup     首次设置向导
+    .venv/bin/python scripts/elfie.py restart   重启服务
+    .venv/bin/python scripts/elfie.py stop      停止服务
 """
 import argparse
 import logging
@@ -46,24 +46,6 @@ from elfienest.persistence.store import (
 from elfienest.simulation.engine import ElfieNestEngine
 from runtime import LLMRuntimeConfig
 from runtime.storage.data_home import get_db_path, get_elfie_config_dir
-
-
-class LocalRuntimeAgent:
-    """RuntimeAgent 包装器 — 禁用工具调用，只返回纯文本回复，避免小模型幻觉搜网。"""
-
-    def __init__(self, config):
-        from runtime import RuntimeAgent  # noqa: PLC0415
-
-        self._agent = RuntimeAgent(config)
-        self.config = self._agent.config
-
-    def ask(self, prompt, energy=100, task_complexity=1):
-        return self._agent.ask(
-            prompt=prompt,
-            energy=energy,
-            task_complexity=task_complexity,
-            allowed_skills=[],
-        )
 
 
 class FallbackAgent:
@@ -326,12 +308,12 @@ def main():
             try:
                 from runtime import RuntimeAgent  # noqa: PLC0415
 
-                raw_agent = RuntimeAgent(config)
+                raw_agent = RuntimeAgent(config, live_reload=True)
                 # 调用自愈拉起机制：若已运行直接通过，若没运行则尝试后台启动它
                 raw_agent.ollama_manager.ensure_service_started()
 
-                runtime_agent = LocalRuntimeAgent(config)
-                print("  ✅ Ollama 已连接，使用本地大模型 qwen2.5:1.5b")
+                runtime_agent = raw_agent
+                print("  ✅ Runtime 已连接，将按粮食策略选择本地或云端模型")
                 print("  ⏳ 正在预热模型（首次加载需 10-15 秒）...")
 
                 def _warmup():
@@ -355,7 +337,7 @@ def main():
             print("  ⚡ Ollama 自动拉起失败或未安装，使用内置对话引擎")
             print(
                 "  💡 如需真实 AI 回复，请确认本地已安装 Ollama：\n"
-                "     安装引导: python runtime/setup_runtime.py"
+                "     安装引导: .venv/bin/python runtime/setup/runtime_setup.py"
             )
 
         # 音频服务器使用 8767 端口，避免与 uvicorn HTTP 端口冲突

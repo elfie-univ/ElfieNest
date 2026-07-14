@@ -30,7 +30,12 @@ from runtime.providers.model_hints import (
 from runtime.providers.profiles import BUILTIN_PROFILES
 from runtime.storage.config_store import read_yaml_mapping, write_yaml_mapping
 from runtime.storage.data_home import get_config_path
-from runtime.storage.secrets import provider_secret_name, set_provider_secret
+from runtime.storage.secrets import (
+    provider_secret_name,
+    set_provider_secret,
+    set_tool_secret,
+)
+from runtime.tools.config import TOOL_KEYS, load_tool_configs
 from runtime.validation.agent import ModelAgentValidationRunner
 from runtime.validation.foods import FoodValidationRunner
 from runtime.validation.models import CheckStatus, ValidationReport, ValidationSuite
@@ -239,9 +244,11 @@ class RuntimeLab:
             choice = self.menu.choose(
                 "Agent 基础能力",
                 (
-                    MenuItem("1", "验证全部本地工具"),
-                    MenuItem("2", "验证网络搜索工具"),
-                    MenuItem("3", "验证模型 + Agent 工具调用"),
+                    MenuItem("1", "查看工具配置"),
+                    MenuItem("2", "配置基础工具"),
+                    MenuItem("3", "验证全部本地工具"),
+                    MenuItem("4", "验证网络搜索工具"),
+                    MenuItem("5", "验证模型 + Agent 工具调用"),
                 ),
                 breadcrumb=breadcrumb,
                 back_label="返回上层",
@@ -249,6 +256,10 @@ class RuntimeLab:
             if choice is None:
                 return
             if choice == "1":
+                self._action("工具配置", breadcrumb, self._show_tool_configs)
+            elif choice == "2":
+                self._configure_tool_menu()
+            elif choice == "3":
                 self._action(
                     "本地工具验证",
                     breadcrumb,
@@ -256,9 +267,9 @@ class RuntimeLab:
                         DirectToolValidationRunner(self.config).run()
                     ),
                 )
-            elif choice == "2":
+            elif choice == "4":
                 self._action("网络搜索验证", breadcrumb, self._verify_web_search)
-            elif choice == "3":
+            elif choice == "5":
                 self._action("模型 + Agent 验证", breadcrumb, self._verify_model_agent)
 
     def food_menu(self) -> None:
@@ -544,6 +555,126 @@ class RuntimeLab:
             )
         else:
             self.output("已取消。")
+
+    def _show_tool_configs(self) -> None:
+        configs = load_tool_configs(self.config.runtime_policy)
+        labels = {
+            "web_search": "网络搜索",
+            "local_file": "本地文件",
+            "code_sandbox": "代码沙箱",
+            "skills_evolution": "技能进化",
+        }
+        for key in TOOL_KEYS:
+            item = configs[key]
+            status = "已启用" if item.get("enabled") else "已停用"
+            detail = ""
+            if key == "web_search":
+                detail = f" / {item.get('provider', 'duckduckgo')} / 密钥{'已配置' if item.get('api_key') else '未配置'}"
+            elif key == "local_file":
+                detail = f" / {item.get('root', '')}"
+            elif key == "code_sandbox":
+                detail = f" / {item.get('timeout_seconds', 5)}s"
+            self.output(f"- {labels[key]}: {status}{detail}")
+
+    def _configure_tool_menu(self) -> None:
+        labels = {
+            "web_search": "网络搜索",
+            "local_file": "本地文件",
+            "code_sandbox": "代码沙箱",
+            "skills_evolution": "技能进化",
+        }
+        choice = self.menu.choose(
+            "配置基础工具",
+            tuple(
+                MenuItem(str(index), labels[key])
+                for index, key in enumerate(TOOL_KEYS, 1)
+            ),
+            breadcrumb="Runtime Lab / 第二层 / 配置工具",
+            back_label="返回上层",
+        )
+        if choice is None:
+            return
+        tool_key = TOOL_KEYS[int(choice) - 1]
+        self._action(
+            f"配置{labels[tool_key]}",
+            "Runtime Lab / 第二层 / 配置工具",
+            lambda: self._configure_tool(tool_key),
+        )
+
+    def _configure_tool(self, tool_key: str) -> bool:
+        configs = load_tool_configs(self.config.runtime_policy)
+        current = dict(configs[tool_key])
+        enabled = self.menu.read_text(
+            f"是否启用 [y/n] [{'y' if current.get('enabled') else 'n'}]: ",
+            default="y" if current.get("enabled") else "n",
+        )
+        if enabled is None:
+            return False
+        current["enabled"] = enabled.lower() == "y"
+        pending_secret: str | None = None
+        if tool_key == "web_search":
+            provider = self.menu.read_text(
+                "搜索 Provider [duckduckgo/brave/tavily]: ",
+                default=str(current.get("provider") or "duckduckgo"),
+            )
+            if provider is None or provider not in {"duckduckgo", "brave", "tavily"}:
+                self.output("已取消或 Provider 无效。")
+                return False
+            current["provider"] = provider
+            api_base = self.menu.read_text(
+                "API Base（空值使用 Provider 默认）: ",
+                default=str(current.get("api_base") or ""),
+            )
+            if api_base is None:
+                return False
+            current["api_base"] = api_base
+            api_key = self.menu.read_text(
+                "API Key（空值保留，- 清除，Esc 取消）: ",
+                masked=True,
+                line_input=self.secret_input,
+            )
+            if api_key is None:
+                return False
+            if api_key == "-":
+                pending_secret = ""
+            elif api_key:
+                pending_secret = api_key
+            count = self.menu.read_text(
+                "默认结果数 [1-10]: ",
+                default=str(current.get("max_results") or 3),
+            )
+            if count is None:
+                return False
+            current["max_results"] = max(1, min(int(count), 10))
+            current.pop("api_key", None)
+        elif tool_key == "local_file":
+            root = self.menu.read_text(
+                "允许访问的本地根目录: ", default=str(current.get("root") or "")
+            )
+            if root is None or not root:
+                return False
+            current["root"] = root
+        elif tool_key == "code_sandbox":
+            timeout = self.menu.read_text(
+                "超时秒数 [1-60]: ",
+                default=str(current.get("timeout_seconds") or 5),
+            )
+            if timeout is None:
+                return False
+            current["timeout_seconds"] = max(1.0, min(float(timeout), 60.0))
+        policy = dict(self.config.runtime_policy)
+        tools = dict(policy.get("tools", {}))
+        tools[tool_key] = current
+        policy["tools"] = tools
+        self.config.runtime_policy = policy
+        payload = self.config.to_safe_dict()
+        payload["config_version"] = 2
+        write_yaml_mapping(get_config_path(), payload)
+        if pending_secret is not None:
+            set_tool_secret(tool_key, pending_secret)
+        self.config = LLMRuntimeConfig.load()
+        self.output("工具配置已安全保存到本地。")
+        return True
 
     def _food_strategy_menu(self, store: FoodCatalogStore) -> None:
         while True:

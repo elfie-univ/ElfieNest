@@ -17,6 +17,8 @@ MemorySystem 是图记忆系统的统一入口门面（Facade），
 - SensoryIndexer: 感官索引
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -40,7 +42,11 @@ class MemorySystem:
     """记忆系统门面：组合所有子系统，提供统一API"""
 
     def __init__(
-        self, db_path: Optional[str] = None, personality_path: Optional[str] = None
+        self,
+        db_path: Optional[str] = None,
+        personality_path: Optional[str] = None,
+        elfie_id: str | None = None,
+        config_dir: str | None = None,
     ):
         """初始化所有组件
 
@@ -53,13 +59,22 @@ class MemorySystem:
         self.core_cognition = CoreCognition(db_path, personality_path)
         self.sensory_indexer = SensoryIndexer(self.storage)
         self.encoder = MemoryEncoder(
-            self.storage, self.sensory_buffer, self.sensory_indexer
+            self.storage,
+            self.sensory_buffer,
+            self.sensory_indexer,
+            elfie_id=elfie_id,
+            config_dir=config_dir,
         )
         self.retriever = MemoryRetriever(self.storage)
         self.spreading = SpreadingActivation(self.storage)
         self.decay = EbbinghausDecay()
         self.weighting = EmotionWeighting()
-        self.consolidator = MemoryConsolidator(self.storage, self.core_cognition)
+        self.consolidator = MemoryConsolidator(
+            self.storage,
+            self.core_cognition,
+            elfie_id=elfie_id,
+            config_dir=config_dir,
+        )
         self.context_assembler = ContextAssembler(
             self.storage,
             self.retriever,
@@ -68,6 +83,17 @@ class MemorySystem:
             self.weighting,
             self.core_cognition,
         )
+
+    def bind_elfie_identity(
+        self,
+        elfie_id: str,
+        config_dir: str | None = None,
+    ) -> None:
+        self.encoder.elfie_id = elfie_id
+        self.consolidator.elfie_id = elfie_id
+        if config_dir is not None:
+            self.encoder.config_dir = config_dir
+            self.consolidator.config_dir = config_dir
 
     def record_episode(
         self,

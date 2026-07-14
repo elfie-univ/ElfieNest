@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -62,7 +62,7 @@ async def food_update_status(
 
 @router.post("/update-preview")
 async def preview_food_update(
-    body: Dict[str, Any] | None = None,
+    body: Optional[Dict[str, Any]] = None,
     admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
 ) -> Dict[str, Any]:
     _ = admin

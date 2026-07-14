@@ -24,12 +24,9 @@ def show_config(config: UserConfig) -> None:
     print("  " + "=" * 45)
     print()
 
-    llm = config.get("system", {}).get("llm", {})
-    print("  【大模型配置】")
-    print(f"    轻量模型: {llm.get('default_cheap_model', 'qwen3.5:0.8b')}")
-    print(f"    深度模型: {llm.get('default_deep_model', 'qwen3.5:0.8b')}")
-    print(f"    多模态模型: {llm.get('default_multimodal_model', 'qwen2.5:7b')}")
-    print(f"    服务商: {llm.get('default_cheap_provider', 'ollama')}")
+    print("  【大模型与粮食策略】")
+    print("    统一由 Runtime Lab 管理：.venv/bin/python -m runtime.lab")
+    print("    精灵只选择默认/允许/兜底粮食，不直接绑定模型")
     print()
 
     if config.get("providers", {}):
@@ -58,8 +55,6 @@ def show_config(config: UserConfig) -> None:
     print(f"    默认性格: {adoption.get('default_personality_style', '活泼好动')}")
     print()
 
-    input("\n按回车键继续...")
-    print()
     input("\n按回车键继续...")
 
 
@@ -122,13 +117,6 @@ def reset_config() -> None:
     if choice.lower() == "yes":
         default_config = {
             "system": {
-                "llm": {
-                    "default_cheap_model": "qwen3.5:0.8b",
-                    "default_deep_model": "qwen3.5:0.8b",
-                    "default_multimodal_model": "qwen2.5:7b",
-                    "default_cheap_provider": "ollama",
-                    "default_deep_provider": "ollama",
-                },
                 "engine": {
                     "tick_interval_sec": 1.5,
                     "tts_enabled": True,

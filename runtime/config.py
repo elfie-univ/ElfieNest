@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import copy
 import json
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict
 
 import yaml
@@ -173,10 +176,21 @@ class LLMRuntimeConfig:
     )
     runtime_policy: Dict[str, Any] = field(default_factory=dict)
 
+    # 开发 Runtime Lab 使用独立配置目录，避免误读正式环境的密钥和策略。
+    config_home: str | None = None
+
     def __post_init__(self):
         # 尝试自检测并热加载持久化的本地 YAML 配置文件
         saved_cfg = None
-        yaml_path = get_config_path()
+        config_home = Path(self.config_home).expanduser() if self.config_home else None
+        if config_home is not None:
+            # Runtime Lab 必须与正式进程环境隔离，尤其不能继承 OPENAI_API_KEY
+            # 等宿主进程密钥；它只读取自己的 .env 文件。
+            for provider_info in self.providers.values():
+                provider_info["api_key"] = ""
+        yaml_path = (
+            config_home / "config.yaml" if config_home is not None else get_config_path()
+        )
         if os.path.exists(yaml_path):
             try:
                 with open(yaml_path, encoding="utf-8") as f:
@@ -186,7 +200,11 @@ class LLMRuntimeConfig:
 
         # 向后兼容：如果 YAML 不存在，尝试加载旧版 JSON 配置
         if saved_cfg is None:
-            json_path = os.path.join(os.path.dirname(__file__), "runtime_config.json")
+            json_path = (
+                config_home / "runtime_config.json"
+                if config_home is not None
+                else Path(os.path.dirname(__file__)) / "runtime_config.json"
+            )
             if os.path.exists(json_path):
                 try:
                     with open(json_path, encoding="utf-8") as f:
@@ -231,8 +249,25 @@ class LLMRuntimeConfig:
                             ]
 
                 # 更新其他字段属性（system 键深层合并，其余直接覆盖）
+                explicit_defaults = {
+                    "cheap_model": "qwen3.5:0.8b",
+                    "cheap_provider": "ollama",
+                    "deep_model": "qwen3.5:0.8b",
+                    "deep_provider": "ollama",
+                    "multimodal_model": "moondream",
+                    "multimodal_provider": "ollama",
+                    "ollama_host": os.getenv("OLLAMA_HOST", "http://localhost:11434"),
+                    "ollama_model_fast": os.getenv("OLLAMA_MODEL_FAST", "qwen3.5:0.8b"),
+                    "ollama_model_vision": os.getenv("OLLAMA_MODEL_VISION", "moondream"),
+                    "energy_threshold_fast": 30.0,
+                    "complexity_threshold_deep": 3,
+                    "temperature": 0.7,
+                    "max_tokens": 1500,
+                }
                 for k, v in saved_cfg.items():
                     if k != "providers" and hasattr(self, k) and v is not None:
+                        if k in explicit_defaults and getattr(self, k) != explicit_defaults[k]:
+                            continue
                         if k == "system" and isinstance(v, dict):
                             deep_update(self.system, v)
                         else:
@@ -246,7 +281,14 @@ class LLMRuntimeConfig:
                 "api_key_env"
             ) or provider_secret_name(provider)
             self.providers[provider]["api_key_env"] = secret_name
-            local_secret = resolve_secret(secret_name, get_env_path())
+            secret_path = (
+                config_home / ".env" if config_home is not None else get_env_path()
+            )
+            local_secret = (
+                read_secrets(secret_path).get(secret_name, "")
+                if config_home is not None
+                else resolve_secret(secret_name, secret_path)
+            )
             if local_secret:
                 self.providers[provider]["api_key"] = local_secret
             # api_mode: 从 BUILTIN_PROFILES 获取，未知服务商默认 chat_completions

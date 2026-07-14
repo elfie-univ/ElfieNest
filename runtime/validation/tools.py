@@ -24,7 +24,9 @@ class DirectToolValidationRunner:
         search_plugin: WebSearchPlugin | None = None,
     ) -> None:
         self.config = config
-        self.search_plugin = search_plugin or WebSearchPlugin()
+        self.search_plugin = search_plugin or WebSearchPlugin.from_runtime_policy(
+            getattr(config, "runtime_policy", {})
+        )
 
     def run(self, *, include_network: bool = False) -> ValidationSuite:
         results = [

@@ -46,6 +46,7 @@ class ElfieFoodSelector:
     )
     _DANGER_MOODS = frozenset({"fear", "anger", "panic", "anxiety"})
     _CREATIVE_TERMS = ("创作", "故事", "诗", "想象", "设计", "灵感")
+    _VISION_TERMS = ("图片", "照片", "图像", "视觉", "看图", "这张图")
 
     def select(self, active_network: str, context: BrainContext) -> FoodIntent:
         message = context.sensors.user_message or ""
@@ -58,6 +59,11 @@ class ElfieFoodSelector:
             and context.emotion_intensity >= 75
         ):
             return FoodIntent("premium", "emotion_peak", reason="高强度危险情绪")
+
+        if context.sensors.images or context.sensors.audio or any(
+            term in message for term in self._VISION_TERMS
+        ):
+            return FoodIntent("vision", "multimodal", reason="任务包含多模态输入")
 
         if any(term in message for term in self._TOOL_TERMS):
             tools = ["local_file", "code_sandbox"]

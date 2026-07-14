@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Protocol, TypeAlias
+from typing import Dict, Protocol, Union
 
 from runtime.usage.observer import (
     RuntimeEventStatus,
@@ -11,8 +13,8 @@ from runtime.usage.observer import (
 
 logger = logging.getLogger("runtime.tools.executor")
 
-ToolMetadataValue: TypeAlias = str | int | bool
-ToolData: TypeAlias = dict[str, str | int | bool]
+ToolMetadataValue = Union[str, int, bool]
+ToolData = Dict[str, ToolMetadataValue]
 
 
 class SearchPlugin(Protocol):
@@ -45,7 +47,7 @@ class FileAccessPlugin(Protocol):
     def list_files(self, relative_path: str = ".") -> list[str]: ...
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ToolResult:
     tool_name: str
     ok: bool
@@ -53,7 +55,7 @@ class ToolResult:
     metadata: Mapping[str, ToolMetadataValue] = field(default_factory=dict)
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ToolExecutionContext:
     allowed_skills: tuple[str, ...]
     search_plugin: SearchPlugin

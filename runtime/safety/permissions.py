@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import logging
 import os
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Mapping, assert_never
+from typing import Any, Mapping
 
 from runtime.usage.observer import (
     PermissionDecisionObservation,
@@ -25,7 +27,7 @@ class PermissionMode(str, Enum):
     ADMIN = "admin"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ToolPermissionRule:
     mode: PermissionMode
     reason: str
@@ -72,8 +74,18 @@ class PermissionManager:
             raise PermissionDeniedError(f"❌ {reason}")
 
         rule = self._rule_for(action)
-        match rule.mode:
-            case PermissionMode.ALLOW:
+        if rule.mode == PermissionMode.ALLOW:
+            self._record_decision(
+                action,
+                resource,
+                allowed=True,
+                mode=rule.mode.value,
+                reason=rule.reason,
+            )
+            return True
+        if rule.mode == PermissionMode.ADMIN:
+            if token == self._admin_token:
+                logger.info("🔑 [特权令牌校验通过] 允许执行离线技能库代谢与去重操作")
                 self._record_decision(
                     action,
                     resource,
@@ -82,51 +94,38 @@ class PermissionManager:
                     reason=rule.reason,
                 )
                 return True
-            case PermissionMode.ADMIN:
-                if token == self._admin_token:
-                    logger.info("🔑 [特权令牌校验通过] 允许执行离线技能库代谢与去重操作")
-                    self._record_decision(
-                        action,
-                        resource,
-                        allowed=True,
-                        mode=rule.mode.value,
-                        reason=rule.reason,
-                    )
-                    return True
-                reason = rule.reason or "该操作需要管理员令牌"
-                self._record_decision(
-                    action,
-                    resource,
-                    allowed=False,
-                    mode=rule.mode.value,
-                    reason=reason,
-                )
-                raise PermissionDeniedError(
-                    f"❌ 越权执行被物理阻断！原因：{reason}\n"
-                    f"💡 技能代谢只允许在精灵 N3 深度睡眠模式下，由高特权整理模型（携带 admin_token）执行。"
-                )
-            case PermissionMode.ASK:
-                reason = rule.reason or "该操作需要人工确认，当前运行链路未提供交互式审批"
-                self._record_decision(
-                    action,
-                    resource,
-                    allowed=False,
-                    mode=rule.mode.value,
-                    reason=reason,
-                )
-                raise PermissionDeniedError(f"❌ 操作需要人工确认：{reason}")
-            case PermissionMode.DENY:
-                reason = rule.reason or "策略禁止该操作"
-                self._record_decision(
-                    action,
-                    resource,
-                    allowed=False,
-                    mode=rule.mode.value,
-                    reason=reason,
-                )
-                raise PermissionDeniedError(f"❌ 策略禁止执行：{reason}")
-            case unreachable:
-                assert_never(unreachable)
+            reason = rule.reason or "该操作需要管理员令牌"
+            self._record_decision(
+                action,
+                resource,
+                allowed=False,
+                mode=rule.mode.value,
+                reason=reason,
+            )
+            raise PermissionDeniedError(
+                f"❌ 越权执行被物理阻断！原因：{reason}\n"
+                f"💡 技能代谢只允许在精灵 N3 深度睡眠模式下，由高特权整理模型（携带 admin_token）执行。"
+            )
+        if rule.mode == PermissionMode.ASK:
+            reason = rule.reason or "该操作需要人工确认，当前运行链路未提供交互式审批"
+            self._record_decision(
+                action,
+                resource,
+                allowed=False,
+                mode=rule.mode.value,
+                reason=reason,
+            )
+            raise PermissionDeniedError(f"❌ 操作需要人工确认：{reason}")
+
+        reason = rule.reason or "策略禁止该操作"
+        self._record_decision(
+            action,
+            resource,
+            allowed=False,
+            mode=rule.mode.value,
+            reason=reason,
+        )
+        raise PermissionDeniedError(f"❌ 策略禁止执行：{reason}")
 
     def _rule_for(self, action: str) -> ToolPermissionRule:
         runtime_policy = getattr(self.config, "runtime_policy", {})

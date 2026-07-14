@@ -286,7 +286,7 @@ def render_provider_model_matrix(report: Mapping[str, Any], *, width: int) -> li
             latencies = [
                 float(item["latency_ms"])
                 for item in verified
-                if isinstance(item.get("latency_ms"), int | float)
+                if isinstance(item.get("latency_ms"), (int, float))
             ]
             fastest = f"{min(latencies):.0f}ms" if latencies else "—"
             name = str(row.get("model", ""))[:30]

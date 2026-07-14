@@ -100,7 +100,7 @@ def test_login_provider_saves_custom_endpoint_when_verify_fails(monkeypatch) -> 
     assert saved_env_vars[0]["CUSTOM_OPENAI_API_BASE"] == "https://proxy.example.com/v1"
 
 
-def test_show_route_prints_default_scene_routes(
+def test_show_route_prints_food_policy_without_models(
     tmp_path,
     monkeypatch,
     capsys: CaptureFixture[str],
@@ -110,5 +110,7 @@ def test_show_route_prints_default_scene_routes(
     route_commands.show_route("elfie-test")
 
     output = capsys.readouterr().out
-    assert "elfie-test 场景路由" in output
-    assert "idle" in output
+    assert "elfie-test 粮食权限" in output
+    assert "默认粮食: standard" in output
+    assert "vision" in output
+    assert "模型由 Runtime 粮食策略统一管理" in output

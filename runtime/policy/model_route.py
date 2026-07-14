@@ -8,6 +8,8 @@
 配置文件路径: ~/.elfienest/elfies/{elfie_id}/model_route.yaml
 """
 
+from __future__ import annotations
+
 import logging
 from dataclasses import asdict, dataclass, field
 from datetime import datetime

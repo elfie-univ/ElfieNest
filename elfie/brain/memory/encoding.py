@@ -9,6 +9,8 @@ MemoryEncoder 负责将 SensoryBuffer 中的感知事件（如"看到一只鸟"�
 3. 低情绪强度且无刺激源的事件 → 只停留在缓冲，不生成长期记忆
 """
 
+from __future__ import annotations
+
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -17,6 +19,7 @@ from .graph_storage import GraphStorage
 from .node_types import EdgeTypes, MemoryNode, NodeTypes
 from .sensory_buffer import SensoryBuffer
 from .sensory_index import SensoryIndexer
+from .runtime_food import ask_memory_model
 
 logger = logging.getLogger("elfie.brain.memory.encoding")
 
@@ -43,10 +46,14 @@ class MemoryEncoder:
         storage: GraphStorage,
         sensory_buffer: SensoryBuffer,
         sensory_indexer: SensoryIndexer = None,
+        elfie_id: str | None = None,
+        config_dir: str | None = None,
     ):
         self.storage = storage
         self.sensory_buffer = sensory_buffer
         self.sensory_indexer = sensory_indexer
+        self.elfie_id = elfie_id
+        self.config_dir = config_dir
 
     def encode(
         self,
@@ -290,7 +297,14 @@ class MemoryEncoder:
                     "只返回实体名称，每行一个，不要序号和额外说明：\n\n"
                     f"{content}"
                 )
-                response = runtime_agent.ask(prompt)
+                response = ask_memory_model(
+                    runtime_agent,
+                    prompt,
+                    elfie_id=self.elfie_id,
+                    config_dir=self.config_dir,
+                    food_key="coarse",
+                    complexity=1,
+                )
                 if response and response.strip():
                     # 解析LLM返回的实体（按行分割，去空格）
                     llm_entities = [

@@ -22,6 +22,28 @@ router = APIRouter(
 )
 
 
+def parse_food_policy_update(elfie_id: str, body: Dict[str, Any]) -> ElfieFoodPolicy:
+    allowed = body.get("allowed_foods")
+    if not isinstance(allowed, list) or not allowed:
+        raise HTTPException(status_code=422, detail="allowed_foods 必须是非空数组")
+    unknown = [item for item in allowed if item not in FIXED_FOOD_KINDS]
+    if unknown:
+        raise HTTPException(status_code=422, detail=f"未知粮食: {unknown}")
+    default_food = str(body.get("default_food", ""))
+    fallback_food = str(body.get("fallback_food", ""))
+    if default_food not in allowed or fallback_food not in allowed:
+        raise HTTPException(
+            status_code=422,
+            detail="default_food 和 fallback_food 必须包含在 allowed_foods 中",
+        )
+    return ElfieFoodPolicy(
+        elfie_id=elfie_id,
+        default_food=default_food,
+        allowed_foods=tuple(allowed),
+        fallback_food=fallback_food,
+    )
+
+
 def _owned_config_dir(request: Request, elfie_id: str, user_id: int) -> str:
     with get_db(request.app.state.db_path) as conn:
         row = conn.execute(
@@ -51,24 +73,6 @@ async def update_food_policy(
     user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
 ) -> Dict[str, Any]:
     config_dir = _owned_config_dir(request, elfie_id, user["id"])
-    allowed = body.get("allowed_foods")
-    if not isinstance(allowed, list) or not allowed:
-        raise HTTPException(status_code=422, detail="allowed_foods 必须是非空数组")
-    unknown = [item for item in allowed if item not in FIXED_FOOD_KINDS]
-    if unknown:
-        raise HTTPException(status_code=422, detail=f"未知粮食: {unknown}")
-    default_food = str(body.get("default_food", ""))
-    fallback_food = str(body.get("fallback_food", ""))
-    if default_food not in allowed or fallback_food not in allowed:
-        raise HTTPException(
-            status_code=422,
-            detail="default_food 和 fallback_food 必须包含在 allowed_foods 中",
-        )
-    policy = ElfieFoodPolicy(
-        elfie_id=elfie_id,
-        default_food=default_food,
-        allowed_foods=tuple(allowed),
-        fallback_food=fallback_food,
-    )
+    policy = parse_food_policy_update(elfie_id, body)
     save_elfie_food_policy(policy, config_dir)
     return policy.to_dict()

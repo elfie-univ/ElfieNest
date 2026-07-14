@@ -22,7 +22,7 @@ def configured_model_specs(provider: Mapping[str, Any]) -> list[ProviderModelSpe
     raw_models = provider.get("models", ())
     if isinstance(raw_models, str):
         specs.extend(_spec(item) for item in _split_models(raw_models))
-    elif isinstance(raw_models, list | tuple | set):
+    elif isinstance(raw_models, (list, tuple, set)):
         for item in raw_models:
             if isinstance(item, Mapping):
                 model_id = str(item.get("id") or item.get("model_id") or "").strip()

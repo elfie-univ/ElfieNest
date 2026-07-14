@@ -54,6 +54,7 @@ class ElfieNestRoom:
                     f"房间已满 ({len(self.elfies)}/{self.max_elfies_per_room})"
                 )
 
+        elfie_instance.bind_identity(elfie_id)
         self.elfies[elfie_id] = elfie_instance
         self.room_state["elfies_status"][elfie_id] = {
             "posture": "standing",

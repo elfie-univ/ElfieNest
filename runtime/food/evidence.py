@@ -80,7 +80,7 @@ def _from_dict(model_id: str, data: Mapping[str, Any]) -> ModelEvidence:
     raw_capabilities = data.get("capabilities", ())
     capabilities = (
         frozenset(str(item) for item in raw_capabilities)
-        if isinstance(raw_capabilities, list | tuple | set)
+        if isinstance(raw_capabilities, (list, tuple, set))
         else frozenset()
     )
     display_name = str(data.get("display_name", ""))
@@ -93,7 +93,7 @@ def _from_dict(model_id: str, data: Mapping[str, Any]) -> ModelEvidence:
         cost_grade=int(data.get("cost_grade", 2)),
         latency_ms=(
             float(data["latency_ms"])
-            if isinstance(data.get("latency_ms"), int | float)
+            if isinstance(data.get("latency_ms"), (int, float))
             else None
         ),
         tool_test_passed=bool(data.get("tool_test_passed", False)),

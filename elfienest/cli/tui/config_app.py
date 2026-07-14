@@ -6,36 +6,37 @@ from elfienest.cli.tui.common import clear_screen, print_banner, print_tui_panel
 from elfienest.cli.tui.config_editors import (
     config_adoption,
     config_engine,
-    config_llm,
     config_security,
 )
 from elfienest.cli.tui.config_views import reset_config, show_config, test_config
-from elfienest.cli.tui.provider_menu import config_providers
 from elfienest.config.user_config import read_user_config
+from runtime.lab.cli import RuntimeLab
 
 ProviderLogin = Callable[[str], None]
 
 
 def run_config_tui(provider_login: ProviderLogin) -> None:
+    runtime_lab = RuntimeLab()
     while True:
         clear_screen()
         print_banner()
         config = read_user_config()
 
-        print_tui_panel("配置菜单", "管理模型、服务商、引擎、安全与精灵领养配置")
-        print("  1. 查看当前配置")
-        print("  2. 配置大模型 (LLM)")
-        print("  3. 配置服务商 (Providers)")
-        print("  4. 配置引擎参数")
-        print("  5. 配置安全设置")
-        print("  6. 配置精灵领养")
-        print("  7. 测试配置")
-        print("  8. 重置为默认配置")
+        print_tui_panel("配置菜单", "三层 Runtime 配置与 ElfieNest 应用配置")
+        print("  1. 第一层：Provider 与原始模型")
+        print("  2. 第二层：Agent 基础工具")
+        print("  3. 第三层：粮食策略")
+        print("  4. 查看当前配置")
+        print("  5. 配置引擎参数")
+        print("  6. 配置安全设置")
+        print("  7. 配置精灵领养")
+        print("  8. 测试应用配置")
+        print("  9. 重置应用配置")
         print("  0. 退出")
         print()
 
         try:
-            choice = input("请选择 [0-8]: ").strip()
+            choice = input("请选择 [0-9]: ").strip()
         except KeyboardInterrupt:
             print("\n再见！")
             break
@@ -44,18 +45,20 @@ def run_config_tui(provider_login: ProviderLogin) -> None:
             print("\n再见！")
             break
         if choice == "1":
-            show_config(config)
+            runtime_lab.provider_menu()
         elif choice == "2":
-            config_llm(config)
+            runtime_lab.agent_menu()
         elif choice == "3":
-            config_providers(config, provider_login)
+            runtime_lab.food_menu()
         elif choice == "4":
-            config_engine(config)
+            show_config(config)
         elif choice == "5":
-            config_security(config)
+            config_engine(config)
         elif choice == "6":
-            config_adoption(config)
+            config_security(config)
         elif choice == "7":
-            test_config(config)
+            config_adoption(config)
         elif choice == "8":
+            test_config(config)
+        elif choice == "9":
             reset_config()

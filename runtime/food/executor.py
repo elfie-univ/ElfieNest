@@ -8,6 +8,7 @@ from typing import Any, Callable
 from runtime.config import LLMRuntimeConfig
 from runtime.food.models import ExecutionProfile, FoodRecipe
 from runtime.gateway.loop import RuntimeToolLoop, ToolLoopContext
+from runtime.gateway.multimodal import assemble_multimodal_payload
 from runtime.gateway.skills_prompt import inject_skills_system_prompt
 
 
@@ -53,6 +54,8 @@ class FoodExecutor:
         allowed_tools: tuple[str, ...] = (),
         max_loops: int = 3,
         prefer_deep: bool = False,
+        images: tuple[str, ...] = (),
+        audio: str | None = None,
     ) -> FoodExecutionResult:
         candidates: list[tuple[str, ExecutionProfile]] = []
         if prefer_deep and recipe.deep is not None:
@@ -73,6 +76,8 @@ class FoodExecutor:
                     [dict(message) for message in messages],
                     allowed_tools=allowed_tools,
                     max_loops=max_loops,
+                    images=images,
+                    audio=audio,
                 )
                 return FoodExecutionResult(
                     text=text,
@@ -93,12 +98,21 @@ class FoodExecutor:
         *,
         allowed_tools: tuple[str, ...],
         max_loops: int,
+        images: tuple[str, ...],
+        audio: str | None,
     ) -> str:
         provider, model = _parse_model_ref(profile.model)
         provider_config = self.config.providers.get(provider, {})
         if provider != "ollama" and not provider_config.get("api_key"):
             raise FoodExecutionError(f"Provider '{provider}' 没有可用密钥")
         tools = tuple(tool for tool in profile.tools if tool in allowed_tools)
+        if images or audio:
+            messages = assemble_multimodal_payload(
+                messages,
+                list(images),
+                audio,
+                provider,
+            )
         if tools:
             messages = inject_skills_system_prompt(messages, list(tools))
         loop = RuntimeToolLoop(

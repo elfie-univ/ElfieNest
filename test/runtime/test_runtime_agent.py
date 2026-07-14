@@ -16,6 +16,28 @@ sys.path.insert(
 from runtime.gateway.agent import RuntimeAgent
 from runtime.gateway.model_guard import UnsupportedModalError
 from runtime.config import LLMRuntimeConfig
+from runtime.food.models import ExecutionProfile, FoodRecipe
+from runtime.food.store import FoodCatalog
+
+
+def _configure_foods(agent):
+    agent.food_catalog_store.save(
+        FoodCatalog(
+            recipes={
+                key: FoodRecipe(key, key, "test", profile)
+                for key, profile in {
+                    "coarse": ExecutionProfile("ollama/coarse"),
+                    "standard": ExecutionProfile("ollama/standard"),
+                    "focus": ExecutionProfile("cloud/focus"),
+                    "tool": ExecutionProfile(
+                        "cloud/tool",
+                        tools=("web_search", "local_file", "code_sandbox"),
+                    ),
+                }.items()
+            }
+        )
+    )
+    agent.config.providers["cloud"] = {"api_key": "test-placeholder"}
 
 
 class TestRuntimeAgentInit:
@@ -44,60 +66,86 @@ class TestRuntimeAgentInit:
         assert agent.sandbox_plugin is not None
         assert agent.skills_evolution_plugin is not None
 
+    def test_live_reload_rebuilds_provider_and_tool_configuration(
+        self, monkeypatch, tmp_path
+    ):
+        config = LLMRuntimeConfig()
+        agent = RuntimeAgent(config, live_reload=True)
+        updated = LLMRuntimeConfig()
+        updated.runtime_policy = {
+            "tools": {
+                "web_search": {
+                    "enabled": True,
+                    "provider": "brave",
+                    "api_key_env": "TEST_SEARCH_KEY",
+                }
+            }
+        }
+        monkeypatch.setattr(agent, "_config_mtime", lambda: 2)
+        agent._config_mtime_ns = 1
+        monkeypatch.setattr(LLMRuntimeConfig, "load", classmethod(lambda cls: updated))
+
+        agent._reload_config_if_changed()
+
+        assert agent.config is updated
+        assert agent.search_plugin.provider == "brave"
+
 
 class TestModelRouting:
     """模型路由测试"""
 
-    def test_ask_local_routing_high_energy_simple_task(self):
-        """高精力简单任务走本地模型"""
+    def test_ask_simple_task_uses_standard_food(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
         agent = RuntimeAgent()
-        with patch.object(agent.router, "route_request") as mock_route:
-            mock_route.return_value = ("local", {"mode": "local", "reason": "test"})
-            with patch.object(agent, "generate") as mock_gen:
-                mock_gen.return_value = "Hello"
-                result = agent.ask("Hello", energy=80.0, task_complexity=1)
-                assert result == "Hello"
-                mock_gen.assert_called_once()
-                # 验证路由为 local 时使用 local_fast
-                call_kwargs = mock_gen.call_args[1]
-                assert call_kwargs["model_key"] == "local_fast"
+        _configure_foods(agent)
+        calls = []
+        agent._call_food_llm_api = lambda provider, model, *args: calls.append(
+            (provider, model)
+        ) or "Hello"
 
-    def test_ask_remote_routing_low_energy(self):
-        """低精力触发远程路由"""
-        agent = RuntimeAgent()
-        with patch.object(agent.router, "route_request") as mock_route:
-            mock_route.return_value = ("remote", {"mode": "remote", "reason": "test"})
-            with patch.object(agent, "generate") as mock_gen:
-                mock_gen.return_value = "Response"
-                result = agent.ask("Search for info", energy=20.0, task_complexity=1)
-                assert result == "Response"
-                call_kwargs = mock_gen.call_args[1]
-                assert call_kwargs["model_key"] == "remote_deep"
+        assert agent.ask("Hello", energy=80.0, task_complexity=1) == "Hello"
+        assert calls == [("ollama", "standard")]
 
-    def test_ask_complexity_threshold(self):
-        """复杂度达到阈值触发深度模型"""
+    def test_ask_low_energy_uses_coarse_food(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
         agent = RuntimeAgent()
-        with patch.object(agent.router, "route_request") as mock_route:
-            mock_route.return_value = ("remote", {"mode": "remote"})
-            with patch.object(agent, "generate") as mock_gen:
-                mock_gen.return_value = "Complex result"
-                agent.ask("Calculate 123*456", energy=100.0, task_complexity=4)
-                call_kwargs = mock_gen.call_args[1]
-                assert call_kwargs["model_key"] == "remote_deep"
+        _configure_foods(agent)
+        calls = []
+        agent._call_food_llm_api = lambda provider, model, *args: calls.append(
+            (provider, model)
+        ) or "Response"
 
-    def test_ask_default_skills(self):
-        """测试默认技能注入"""
+        assert agent.ask("Hello", energy=20.0) == "Response"
+        assert calls == [("ollama", "coarse")]
+
+    def test_ask_complexity_threshold_uses_focus_food(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
         agent = RuntimeAgent()
-        with patch.object(agent.router, "route_request") as mock_route:
-            mock_route.return_value = ("local", {"mode": "local"})
-            with patch.object(agent, "generate") as mock_gen:
-                mock_gen.return_value = "Result"
-                agent.ask("Hello")
-                # 验证默认允许三个技能
-                call_kwargs = mock_gen.call_args[1]
-                assert "web_search" in call_kwargs["allowed_skills"]
-                assert "code_sandbox" in call_kwargs["allowed_skills"]
-                assert "skills_evolution" in call_kwargs["allowed_skills"]
+        _configure_foods(agent)
+        calls = []
+        agent._call_food_llm_api = lambda provider, model, *args: calls.append(
+            (provider, model)
+        ) or "Complex result"
+
+        agent.ask("Calculate 123*456", energy=100.0, task_complexity=4)
+        assert calls == [("cloud", "focus")]
+
+    def test_ask_tool_task_uses_tool_food_permissions(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+        agent = RuntimeAgent()
+        _configure_foods(agent)
+        calls = []
+
+        def fake_call(provider, model, messages, *args):
+            calls.append((provider, model, messages))
+            return "Result"
+
+        agent._call_food_llm_api = fake_call
+        agent.ask("请运行这段代码")
+
+        assert calls[0][:2] == ("cloud", "tool")
+        assert "[SEARCH]" in calls[0][2][0]["content"]
+        assert "[CODE]" in calls[0][2][0]["content"]
 
 
 class TestGenerate:

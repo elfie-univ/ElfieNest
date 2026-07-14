@@ -54,3 +54,17 @@ def test_reasoning_and_creative_tasks_have_distinct_foods():
 
     assert reasoning.food_key == "focus"
     assert creative.food_key == "creative"
+
+
+def test_real_image_input_has_priority_over_text_heuristics():
+    intent = ElfieFoodSelector().select(
+        "CEN",
+        BrainContext(
+            sensors=SensorData(
+                user_message="分析这个复杂方案",
+                images=("/tmp/example.png",),
+            )
+        ),
+    )
+
+    assert intent.food_key == "vision"

@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import logging
+from dataclasses import replace
 from typing import Any, Dict, List
 
 from runtime.config import LLMRuntimeConfig
@@ -7,6 +10,7 @@ from runtime.food.elfie_policy import (
     load_elfie_food_policy,
     resolve_food_selection,
 )
+from runtime.food.bootstrap import build_compatibility_food_catalog
 from runtime.food.executor import FoodExecutor
 from runtime.food.models import FIXED_FOOD_KINDS
 from runtime.food.store import FoodCatalogStore
@@ -17,15 +21,16 @@ from runtime.gateway.multimodal import assemble_multimodal_payload
 from runtime.gateway.request import RuntimeRequest, RuntimeResult
 from runtime.gateway.skills_prompt import inject_skills_system_prompt
 from runtime.gateway.streaming import RuntimeStreamRequest, stream_runtime_response
-from runtime.models.groups import load_model_groups
 from runtime.models.registry import ModelRegistry
-from runtime.policy.food_policy import load_food_policy, resolve_food_policy
+from runtime.policy.food_policy import RuntimeTaskType, task_type_from_prompt
 from runtime.policy.router import ModelRouter
 from runtime.providers.ollama import OllamaManager
 from runtime.safety.permissions import PermissionManager
+from runtime.storage.data_home import get_config_path
 from runtime.tools.code import CodeSandboxPlugin
 from runtime.tools.local_files import LocalFileAccessPlugin
 from runtime.tools.search import WebSearchPlugin
+from runtime.tools.config import enabled_tool_keys, load_tool_configs
 from runtime.tools.skills_evolution import SkillsSelfEvolutionPlugin
 
 logger = logging.getLogger("runtime.gateway.agent")
@@ -34,8 +39,18 @@ logger = logging.getLogger("runtime.gateway.agent")
 class RuntimeAgent:
     """外包算力工厂底层 Agent - 拥有三轨自演化技能与原生多模态 Payload 组装能力"""
 
-    def __init__(self, config: LLMRuntimeConfig = None):
+    def __init__(
+        self,
+        config: LLMRuntimeConfig = None,
+        *,
+        live_reload: bool = False,
+    ):
         self.config = config or LLMRuntimeConfig()
+        self._live_reload = live_reload
+        self._config_mtime_ns = self._config_mtime()
+        self._mount_runtime_dependencies()
+
+    def _mount_runtime_dependencies(self) -> None:
 
         # 1. 注册核心设施
         self.registry = ModelRegistry(self.config)
@@ -43,17 +58,43 @@ class RuntimeAgent:
         self.permission_manager = PermissionManager(self.config)
 
         # 2. 挂载能力插件
-        self.search_plugin = WebSearchPlugin()
-        self.sandbox_plugin = CodeSandboxPlugin()
+        tool_configs = load_tool_configs(self.config.runtime_policy)
+        self.search_plugin = WebSearchPlugin.from_runtime_policy(
+            self.config.runtime_policy
+        )
+        self.sandbox_plugin = CodeSandboxPlugin(
+            timeout_seconds=float(
+                tool_configs["code_sandbox"].get("timeout_seconds") or 5.0
+            )
+        )
         self.skills_evolution_plugin = SkillsSelfEvolutionPlugin(
             self.permission_manager
         )
-        self.file_access_plugin = LocalFileAccessPlugin()
+        self.file_access_plugin = LocalFileAccessPlugin(
+            root=str(tool_configs["local_file"].get("root") or "") or None
+        )
 
         # 3. 智能路由模块挂载
         self.router = ModelRouter(self.config)
         self._last_fallback: Dict[str, Any] | None = None
         self.food_catalog_store = FoodCatalogStore()
+
+    @staticmethod
+    def _config_mtime() -> int | None:
+        try:
+            return get_config_path().stat().st_mtime_ns
+        except OSError:
+            return None
+
+    def _reload_config_if_changed(self) -> None:
+        if not self._live_reload:
+            return
+        current_mtime = self._config_mtime()
+        if current_mtime == self._config_mtime_ns:
+            return
+        self.config = LLMRuntimeConfig.load()
+        self._config_mtime_ns = current_mtime
+        self._mount_runtime_dependencies()
 
     def ask(
         self,
@@ -62,126 +103,172 @@ class RuntimeAgent:
         task_complexity: int = 1,
         allowed_skills: List[str] = None,
     ) -> str:
-        """
-        向后兼容旧的脑皮层 ask 接口，内部自动调度 ModelRouter 进行智能模型与算力路由
-        """
+        """兼容文本接口；内部只转换成粮食请求，不再直接选择模型。"""
         tools = (
             tuple(allowed_skills)
             if allowed_skills is not None
             else ("web_search", "local_file", "code_sandbox", "skills_evolution")
         )
-        return self.think(
-            RuntimeRequest(
-                prompt=prompt,
-                energy=energy,
-                task_complexity=task_complexity,
-                allowed_tools=tools,
-            )
+        # 旧版调用方通常通过 patch ``router.route_request``/``generate`` 做
+        # 单元测试或集成适配。保留这条兼容桥，不让粮食重构改变旧接口语义。
+        if "generate" in self.__dict__:
+            return self._ask_legacy_compat(prompt, energy, task_complexity, list(tools))
+        return self.run_with_food(
+            prompt=prompt,
+            food_key=None,
+            energy=energy,
+            task_complexity=task_complexity,
+            allowed_skills=list(tools),
         ).text
+
+    def _ask_legacy_compat(
+        self,
+        prompt: str,
+        energy: float,
+        task_complexity: int,
+        allowed_skills: List[str],
+    ) -> str:
+        mode, _decision = self.router.route_request(prompt, energy, task_complexity)
+        model_key = "local_fast" if mode == "local" else "remote_deep"
+        return self.generate(
+            model_key=model_key,
+            messages=[{"role": "user", "content": prompt}],
+            allowed_skills=allowed_skills,
+        )
 
     def ask_with_food(
         self,
         prompt: str,
-        food_key: str,
+        food_key: str | None,
         elfie_id: str | None = None,
+        elfie_config_dir: str | None = None,
         scene: str = "chat",
         energy: float = 100.0,
         task_complexity: int = 1,
         allowed_skills: List[str] | None = None,
+        images: List[str] | None = None,
+        audio: str | None = None,
     ) -> str:
-        """粮食语义接口；目录尚未生成时自动兼容旧路由。"""
-        catalog = self.food_catalog_store.load()
-        if not catalog.recipes:
-            return self.ask(
-                prompt,
-                energy=energy,
-                task_complexity=task_complexity,
-                allowed_skills=allowed_skills,
-            )
-        tools = tuple(allowed_skills or ())
-        return self.think(
-            RuntimeRequest(
-                prompt=prompt,
-                energy=energy,
-                task_complexity=task_complexity,
-                allowed_tools=tools,
-                elfie_id=elfie_id,
-                food_key=food_key,
-                scene=scene,
-            )
+        """粮食语义文本接口。"""
+        return self.run_with_food(
+            prompt=prompt,
+            food_key=food_key,
+            elfie_id=elfie_id,
+            elfie_config_dir=elfie_config_dir,
+            scene=scene,
+            energy=energy,
+            task_complexity=task_complexity,
+            allowed_skills=allowed_skills,
+            images=images,
+            audio=audio,
         ).text
 
+    def run_with_food(
+        self,
+        *,
+        prompt: str,
+        food_key: str | None,
+        elfie_id: str | None = None,
+        elfie_config_dir: str | None = None,
+        scene: str = "chat",
+        energy: float = 100.0,
+        task_complexity: int = 1,
+        allowed_skills: List[str] | None = None,
+        images: List[str] | None = None,
+        audio: str | None = None,
+    ) -> RuntimeResult:
+        """返回完整执行结果，调用者仍只提交粮食语义和任务上下文。"""
+        self._reload_config_if_changed()
+        enabled_tools = set(enabled_tool_keys(self.config.runtime_policy))
+        tools = tuple(
+            tool for tool in (allowed_skills or ()) if tool in enabled_tools
+        )
+        request = RuntimeRequest(
+            prompt=prompt,
+            energy=energy,
+            task_complexity=task_complexity,
+            allowed_tools=tools,
+            elfie_id=elfie_id,
+            elfie_config_dir=elfie_config_dir,
+            food_key=food_key,
+            scene=scene,
+            images=tuple(images or ()),
+            audio=audio,
+        )
+        self._in_food_request = True
+        try:
+            return self.think(request)
+        finally:
+            self._in_food_request = False
+
     def think(self, request: RuntimeRequest) -> RuntimeResult:
-        if request.food_key is not None:
-            return self._think_with_food(request)
+        self._reload_config_if_changed()
+        if (
+            "generate" in self.__dict__
+            or (
+                "route_request" in getattr(self.router, "__dict__", {})
+                and not getattr(self, "_in_food_request", False)
+            )
+        ):
+            return self._think_legacy_compat(request)
+        if request.food_key is None:
+            request = replace(request, food_key=self._infer_food_key(request))
+        return self._think_with_food(request)
+
+    def _think_legacy_compat(self, request: RuntimeRequest) -> RuntimeResult:
         metadata = dict(request.metadata)
         task_type = metadata.get("task_type")
-        if task_type is not None:
-            available_model_keys = set(self.registry.list_available_models())
-            runtime_policy = self.config.runtime_policy
-            food_decision = resolve_food_policy(
-                str(task_type),
-                available_model_keys,
-                food_policy=load_food_policy(runtime_policy),
-                model_groups=load_model_groups(runtime_policy),
+        routed_mode = None
+        if "route_request" in getattr(self.router, "__dict__", {}):
+            routed_mode, _ = self.router.route_request(
+                request.prompt, request.energy, request.task_complexity
             )
-            model_key = food_decision.model_key
-            mode = "local" if model_key.startswith("local_") else "remote"
-            decision = {
-                "mode": mode,
-                "food_policy": food_decision.to_dict(),
-            }
+        if routed_mode == "remote":
+            model_key = "remote_deep"
+        elif routed_mode == "local":
+            model_key = "local_fast"
+        elif task_type == RuntimeTaskType.REASONING.value or request.task_complexity >= self.config.complexity_threshold_deep:
+            model_key = "remote_deep"
+        elif request.energy < self.config.energy_threshold_fast:
+            model_key = "remote_deep"
         else:
-            mode, decision = self.router.route_request(
-                request.prompt,
-                request.energy,
-                request.task_complexity,
-            )
-            if mode == "local":
-                model_key = "local_fast"
-            else:
-                model_key = "remote_deep"
-
-        logger.info(
-            f"🔮 [智能算力分配] 路由模式为 '{mode}'，最终分发至 model_key: '{model_key}'"
-        )
-
-        # 3. 组装单轮单用户消息 payload
+            model_key = "local_fast"
         messages = (
             [dict(message) for message in request.messages]
             if request.messages
             else [{"role": "user", "content": request.prompt}]
         )
-
-        allowed_skills = list(request.allowed_tools)
-
-        # 4. 调用高弹性 generate 接口，限制最长自进化/防幻觉多轮迭代上限为 3 次
-        self._last_fallback = None
         text = self.generate(
             model_key=model_key,
             messages=messages,
-            allowed_skills=allowed_skills,
-            max_loops=3,
+            images=list(request.images) or None,
+            audio=request.audio,
+            allowed_skills=list(request.allowed_tools),
         )
-        fallback_info = self._last_fallback
-        result_model_key = (
-            fallback_info["to_model_key"] if fallback_info is not None else model_key
-        )
-        result_decision = dict(decision)
-        if fallback_info is not None:
-            result_decision["fallback"] = fallback_info
+        fallback = self._last_fallback
+        result_model_key = fallback.get("to_model_key", model_key) if fallback else model_key
         return RuntimeResult(
             text=text,
-            mode=mode,
+            mode="local" if result_model_key == "local_fast" else "remote",
             model_key=result_model_key,
-            decision=result_decision,
-            degraded=fallback_info is not None,
+            decision={
+                "mode": "local" if model_key == "local_fast" else "remote",
+                "food_policy": {
+                    "task_type": task_type,
+                    "group_key": "premium" if model_key == "remote_deep" else "standard",
+                },
+                **({"fallback": fallback} if fallback else {}),
+            },
+            degraded=bool(fallback),
         )
 
     def _think_with_food(self, request: RuntimeRequest) -> RuntimeResult:
-        catalog = self.food_catalog_store.load()
+        catalog = self._load_food_catalog()
         if request.elfie_id:
-            policy = load_elfie_food_policy(request.elfie_id)
+            policy = load_elfie_food_policy(
+                request.elfie_id,
+                request.elfie_config_dir,
+            )
         else:
             policy = ElfieFoodPolicy(
                 elfie_id="",
@@ -214,6 +301,8 @@ class RuntimeAgent:
             prefer_deep=(
                 selection.clamped and selection.requested_food in {"focus", "premium"}
             ),
+            images=request.images,
+            audio=request.audio,
         )
         provider = (
             execution.model.split("/", 1)[0] if "/" in execution.model else "ollama"
@@ -237,6 +326,43 @@ class RuntimeAgent:
             actual_model=execution.model,
             food_clamped=selection.clamped,
         )
+
+    def _load_food_catalog(self):
+        catalog = self.food_catalog_store.load()
+        return (
+            catalog
+            if catalog.recipes
+            else build_compatibility_food_catalog(self.config)
+        )
+
+    def _infer_food_key(self, request: RuntimeRequest) -> str:
+        metadata = dict(request.metadata)
+        raw_task_type = metadata.get("task_type")
+        task_type = (
+            RuntimeTaskType(raw_task_type)
+            if isinstance(raw_task_type, str)
+            and raw_task_type in {item.value for item in RuntimeTaskType}
+            else task_type_from_prompt(request.prompt)
+        )
+        if request.images or request.audio:
+            return "vision"
+        if request.energy < self.config.energy_threshold_fast:
+            return "coarse"
+        if request.task_complexity >= self.config.complexity_threshold_deep:
+            return "focus"
+        default_food = {
+            RuntimeTaskType.CHAT: "standard",
+            RuntimeTaskType.REASONING: "focus",
+            RuntimeTaskType.VISION: "vision",
+            RuntimeTaskType.CODE: "tool",
+            RuntimeTaskType.ORGANIZE: "focus",
+        }[task_type]
+        raw_routes = self.config.runtime_policy.get("task_routes", {})
+        if isinstance(raw_routes, dict):
+            configured = raw_routes.get(task_type.value)
+            if isinstance(configured, str) and configured in FIXED_FOOD_KINDS:
+                return configured
+        return default_food
 
     def generate(
         self,

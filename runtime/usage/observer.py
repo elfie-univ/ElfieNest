@@ -1,15 +1,16 @@
+from __future__ import annotations
+
 import json
 import logging
 import threading
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TypeAlias
-
+from typing import Union
 from runtime.storage.data_home import get_elfie_home
 
 logger = logging.getLogger("runtime.usage.observer")
 
-RuntimeMetadataValue: TypeAlias = str | int | float | bool
+RuntimeMetadataValue = Union[str, int, float, bool]
 
 
 class RuntimeEventType(str, Enum):
@@ -25,7 +26,7 @@ class RuntimeEventStatus(str, Enum):
     ERROR = "error"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class RuntimeEvent:
     event_type: RuntimeEventType
     status: RuntimeEventStatus
@@ -41,7 +42,7 @@ class RuntimeEvent:
         }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ModelCallObservation:
     provider: str
     model_name: str
@@ -66,7 +67,7 @@ class ModelCallObservation:
         )
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ToolCallObservation:
     tool_name: str
     status: RuntimeEventStatus
@@ -81,7 +82,7 @@ class ToolCallObservation:
         )
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class PermissionDecisionObservation:
     action: str
     resource: str
@@ -105,7 +106,7 @@ class PermissionDecisionObservation:
         )
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class FallbackObservation:
     from_model_key: str
     from_provider: str
@@ -127,7 +128,7 @@ class FallbackObservation:
         )
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ProviderVerifyObservation:
     provider_id: str
     status: RuntimeEventStatus

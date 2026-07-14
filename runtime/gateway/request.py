@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Any
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class RuntimeRequest:
     prompt: str
     energy: float = 100.0
@@ -16,11 +18,14 @@ class RuntimeRequest:
     messages: tuple[dict[str, Any], ...] = ()
     metadata: tuple[tuple[str, Any], ...] = ()
     elfie_id: str | None = None
+    elfie_config_dir: str | None = None
     food_key: str | None = None
     scene: str = "chat"
+    images: tuple[str, ...] = ()
+    audio: str | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class RuntimeResult:
     text: str
     mode: str

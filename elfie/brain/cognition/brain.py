@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import random
 from typing import Any
@@ -20,6 +22,8 @@ class NeocortexBrain:
         self.expectation = ExpectationManager()
         self.food_selector = ElfieFoodSelector()
         self.elfie_id = elfie_id
+        self.config_dir = config_dir
+        self.last_runtime_result: Any | None = None
 
     def _ask_runtime(
         self,
@@ -30,17 +34,36 @@ class NeocortexBrain:
         complexity: int,
         intent: FoodIntent,
     ) -> str:
-        """优先使用粮食接口；旧 Runtime/Mock 继续走兼容接口。"""
+        """只向 Runtime 提交粮食语义；旧 Mock 保留文本接口兼容。"""
+        run_with_food = getattr(runtime_agent, "run_with_food", None)
+        if callable(run_with_food):
+            result = run_with_food(
+                prompt=prompt,
+                food_key=intent.food_key,
+                elfie_id=self.elfie_id,
+                elfie_config_dir=self.config_dir,
+                scene=intent.scene,
+                energy=context.energy,
+                task_complexity=complexity,
+                allowed_skills=list(intent.allowed_tools),
+                images=list(context.sensors.images),
+                audio=context.sensors.audio,
+            )
+            self.last_runtime_result = result
+            return result.text
         ask_with_food = getattr(runtime_agent, "ask_with_food", None)
         if callable(ask_with_food):
             return ask_with_food(
                 prompt=prompt,
                 food_key=intent.food_key,
                 elfie_id=self.elfie_id,
+                elfie_config_dir=self.config_dir,
                 scene=intent.scene,
                 energy=context.energy,
                 task_complexity=complexity,
                 allowed_skills=list(intent.allowed_tools),
+                images=list(context.sensors.images),
+                audio=context.sensors.audio,
             )
         return runtime_agent.ask(
             prompt=prompt,
@@ -57,6 +80,7 @@ class NeocortexBrain:
         :param runtime_agent: 绑定的外包大模型算力底座 RuntimeAgent 实例
         :return: 精灵皮层生成的 BrainDecision (包含 action, speech_text, attention_mode, mutter)
         """
+        self.last_runtime_result = None
         has_new_msg = context.sensors.has_new_message
         salience_score = context.sensors.salience_score
 

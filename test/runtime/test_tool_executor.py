@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 from runtime.tools.executor import ToolExecutionContext, ToolExecutor, ToolResult

@@ -1,7 +1,9 @@
 """面向精灵的粮食配方抽象。"""
 
 from runtime.food.advisor import LLMFoodPlanningAdvisor, select_planning_model
+from runtime.food.bootstrap import build_compatibility_food_catalog
 from runtime.food.elfie_policy import (
+    DEFAULT_ALLOWED_FOODS,
     ElfieFoodPolicy,
     FoodSelection,
     load_elfie_food_policy,
@@ -29,6 +31,7 @@ from runtime.food.store import FoodCatalog, FoodCatalogStore
 __all__ = [
     "FIXED_FOOD_KINDS",
     "ExecutionProfile",
+    "DEFAULT_ALLOWED_FOODS",
     "ElfieFoodPolicy",
     "FoodCatalog",
     "FoodCatalogStore",
@@ -49,4 +52,5 @@ __all__ = [
     "resolve_food_selection",
     "save_elfie_food_policy",
     "select_planning_model",
+    "build_compatibility_food_catalog",
 ]
