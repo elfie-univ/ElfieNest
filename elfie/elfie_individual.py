@@ -1,4 +1,5 @@
 import logging
+from dataclasses import asdict
 from typing import Any, Dict, Optional
 
 from elfie.body import BipedAnatomy, QuadrupedAnatomy, SomaticReflexArc
@@ -26,7 +27,11 @@ class ElfieIndividual:
     """精灵本体核心管理器 (具身四层生命架构聚合器)"""
 
     def __init__(
-        self, config_dir: str = None, anatomy_type: str = "biped", godot_api=None
+        self,
+        config_dir: str = None,
+        anatomy_type: str = "biped",
+        godot_api=None,
+        memory_db_path: Optional[str] = None,
     ):
         """
         初始化生命管理器
@@ -45,7 +50,7 @@ class ElfieIndividual:
         self.hypothalamus = HypothalamusEnergy(limits_dict)
         self.amygdala = EmotionSystem()
         self.emotion_decay = EmotionDecayCalculator()
-        self.memory = MemorySystem()
+        self.memory = MemorySystem(db_path=memory_db_path)
         self._was_sleeping = False
 
         # 3. 🔌 【神经交互总线层】 (Interface)
@@ -121,7 +126,10 @@ class ElfieIndividual:
             self._last_expression = expression
 
     def perceive_and_respond(
-        self, raw_sensor_data: Dict[str, Any], runtime_agent: Any
+        self,
+        raw_sensor_data: Dict[str, Any],
+        runtime_agent: Any,
+        debug_trace: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         具身认知与反馈 Somatic Loop 闭环主神经冲动链路：
@@ -132,6 +140,16 @@ class ElfieIndividual:
         5. 交互总线形态学动作硬拦截 (形态学限制，防动作幻觉)
         6. 下发小脑进行关节角度时序转换，声学合成发音，写入海马体
         """
+        if debug_trace is not None:
+            debug_trace.clear()
+            debug_trace.update(
+                {
+                    "raw_input": dict(raw_sensor_data),
+                    "stages": {},
+                    "warnings": [],
+                }
+            )
+
         # A0. 睡眠→唤醒边沿检测（在早期 return 之前更新状态）
         currently_sleeping = self.hypothalamus.is_sleeping
         should_consolidate = self._was_sleeping and not currently_sleeping
@@ -140,6 +158,11 @@ class ElfieIndividual:
         # A. 睡眠熔断机制
         if self.hypothalamus.is_sleeping:
             sleep_mutter = self.mutter_actuator.mutter("sleeping")
+            if debug_trace is not None:
+                debug_trace["stages"]["sleep_gate"] = {
+                    "sleeping": True,
+                    "reason": "Elfie is sleeping",
+                }
             return {
                 "success": False,
                 "reason": "Elfie is sleeping",
@@ -164,6 +187,11 @@ class ElfieIndividual:
         override_joints, reflex_event = self.brainstem_reflex.process_sensory_impact(
             anatomy=self.anatomy, tactile_sensor=tactile_data, amygdala=self.amygdala
         )
+        if debug_trace is not None:
+            debug_trace["stages"]["brainstem_reflex"] = {
+                "tactile_input": tactile_data,
+                "event": dict(reflex_event),
+            }
 
         if reflex_event["triggered"]:
             # 反射触发：绕过大脑皮层，直接产生肢体避险动作与情绪变动
@@ -181,11 +209,27 @@ class ElfieIndividual:
 
             # 将紧急反射记录进海马体
             dominant_mood = self.amygdala.get_dominant_mood()
-            self.memory.record_episode(
+            memory_id = self.memory.record_episode(
                 content=f"【脑干反射】 遭遇外界刺激: {speech_text}",
                 emotion=dominant_mood,
                 intensity=self.amygdala.get_emotion_value(dominant_mood),
             )
+
+            if debug_trace is not None:
+                debug_trace["stages"]["execution"] = {
+                    "path": "brainstem_reflex",
+                    "speech": speech_text,
+                    "action": "reflex_avoidance"
+                    if reflex_event["type"] == "shock_avoidance"
+                    else "reflex_soothing",
+                    "joint_angles": {
+                        k: round(v, 3) for k, v in override_joints.items()
+                    },
+                }
+                debug_trace["stages"]["memory_write"] = {
+                    "episode_id": memory_id,
+                    "written": bool(memory_id),
+                }
 
             return {
                 "success": True,
@@ -199,6 +243,13 @@ class ElfieIndividual:
 
         # 1. 交互总线感知大坝过滤
         has_valuable_change = self.signal_filter.filter_noise(raw_sensor_data)
+        if debug_trace is not None:
+            debug_trace["stages"]["sensory_filter"] = {
+                "passed": has_valuable_change,
+                "reason": "valuable_change"
+                if has_valuable_change
+                else "no_sensory_changes",
+            }
         if not has_valuable_change:
             return {
                 "success": True,
@@ -224,9 +275,13 @@ class ElfieIndividual:
 
         # 额外将具身形态描述注入 context 以利于大模型认知自己的物理形态
         context.embodied_anatomy = self.anatomy.get_anatomy_descriptor()
+        if debug_trace is not None:
+            debug_trace["stages"]["thalamus_context"] = asdict(context)
 
         # 3. 顶层大脑皮层大模型思考
         decision = self.brain.think_and_decide(context, runtime_agent)
+        if debug_trace is not None:
+            debug_trace["stages"]["decision"] = asdict(decision)
 
         action = decision.action
         speech_text = decision.speech_text
@@ -234,6 +289,11 @@ class ElfieIndividual:
 
         # 4. 交互总线躯体物理安全拦截 (形态学限制校验)
         reflex_result = self.safety_reflex.intercept_and_validate(action, self.anatomy)
+        if debug_trace is not None:
+            debug_trace["stages"]["action_validation"] = {
+                "requested_action": action,
+                **dict(reflex_result),
+            }
         if not reflex_result["allowed"]:
             # 形态学干涉生效：强制更改为点头，并引发轻微焦虑情绪与物理报错痛感
             logger.warning("❌ [交互总线] 形态学物理硬拦截生效！拦截非法肢体指令。")
@@ -242,6 +302,8 @@ class ElfieIndividual:
             self.amygdala.update_emotion("anxiety", 15.0)
             self.amygdala.update_emotion("happiness", -10.0)
             mutter_msg = "(动作因形态学不兼容被强行拦截了哒...)"
+            if debug_trace is not None:
+                debug_trace["warnings"].append(reflex_result["feedback_error"])
 
         # 5. 执行具体物理驱动
         # (A) 声学发声合成
@@ -267,14 +329,28 @@ class ElfieIndividual:
         self.amygdala.update_emotion("happiness", 5.0)
 
         # 6. 将经历记入海马体
+        memory_id = ""
         if raw_sensor_data.get("has_new_message"):
             user_msg = raw_sensor_data.get("user_message", "")
             dominant_mood = self.amygdala.get_dominant_mood()
-            self.memory.record_episode(
+            memory_id = self.memory.record_episode(
                 content=f"主人对我说: '{user_msg}'。我回答了: '{speech_text}'，并做了动作 '{action}'。",
                 emotion=dominant_mood,
                 intensity=self.amygdala.get_emotion_value(dominant_mood),
             )
+
+        if debug_trace is not None:
+            debug_trace["stages"]["execution"] = {
+                "path": "cortical",
+                "speech": speech_text,
+                "action": action,
+                "mutter": mutter_msg,
+                "joint_angles": {k: round(v, 3) for k, v in actual_joints.items()},
+            }
+            debug_trace["stages"]["memory_write"] = {
+                "episode_id": memory_id,
+                "written": bool(memory_id),
+            }
 
         return {
             "success": True,

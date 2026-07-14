@@ -10,6 +10,7 @@ class SensoryDamSignalFilter:
     def __init__(self):
         self.last_temperature = None
         self.last_user_message = ""
+        self.last_message_id = None
 
     def filter_noise(self, raw_sensors: Dict[str, Any]) -> bool:
         """
@@ -22,8 +23,11 @@ class SensoryDamSignalFilter:
         # 1. 检查主人有没有发新消息 (强行放行，绝不可漏掉任何微信消息！)
         if raw_sensors.get("has_new_message", False):
             msg = raw_sensors.get("user_message", "")
-            if msg != self.last_user_message:
+            message_id = raw_sensors.get("message_id")
+            is_new_event = message_id is not None and message_id != self.last_message_id
+            if is_new_event or msg != self.last_user_message:
                 self.last_user_message = msg
+                self.last_message_id = message_id
                 has_change = True
 
         # 2. 检查温度是否有大幅浮动 (变化 > 0.5°C 允许放行)

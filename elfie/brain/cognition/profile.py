@@ -12,9 +12,10 @@ class ElfieProfile:
 
     def __init__(self, config_dir: str = None):
         if config_dir is None:
-            # 默认路径设为当前文件所在目录的上一级 config 文件夹
+            # cognition 位于 elfie/brain/cognition，默认配置位于 elfie/config
             current_dir = os.path.dirname(os.path.abspath(__file__))
-            self.config_dir = os.path.join(os.path.dirname(current_dir), "config")
+            elfie_dir = os.path.dirname(os.path.dirname(current_dir))
+            self.config_dir = os.path.join(elfie_dir, "config")
         else:
             self.config_dir = config_dir
 

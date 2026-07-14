@@ -2,6 +2,7 @@ import copy
 import json
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict
 
 import yaml
@@ -10,8 +11,8 @@ from .providers.profiles import get_default_api_mode
 from .storage.data_home import get_config_path, get_env_path
 
 
-def _load_env_file_values() -> Dict[str, str]:
-    env_path = get_env_path()
+def _load_env_file_values(env_path: Path | None = None) -> Dict[str, str]:
+    env_path = env_path or get_env_path()
     env_values: Dict[str, str] = {}
     if not os.path.exists(env_path):
         return env_values
@@ -28,56 +29,93 @@ def _load_env_file_values() -> Dict[str, str]:
     return env_values
 
 
-def _env_value(env_values: Dict[str, str], key: str, default: str = "") -> str:
-    return os.getenv(key, env_values.get(key, default))
+def _env_value(
+    env_values: Dict[str, str],
+    key: str,
+    default: str = "",
+    *,
+    include_process_env: bool = True,
+) -> str:
+    if include_process_env:
+        return os.getenv(key, env_values.get(key, default))
+    return env_values.get(key, default)
 
 
-def _default_providers() -> Dict[str, Dict[str, str]]:
-    env_values = _load_env_file_values()
+def _default_providers(
+    env_path: Path | None = None,
+    *,
+    include_process_env: bool = True,
+) -> Dict[str, Dict[str, str]]:
+    env_values = _load_env_file_values(env_path)
     return {
         "deepseek": {
-            "api_key": _env_value(env_values, "DEEPSEEK_API_KEY"),
+            "api_key": _env_value(
+                env_values,
+                "DEEPSEEK_API_KEY",
+                include_process_env=include_process_env,
+            ),
             "api_base": _env_value(
                 env_values,
                 "DEEPSEEK_API_BASE",
                 PROVIDER_RECOMMENDS["deepseek"]["api_base"],
+                include_process_env=include_process_env,
             ),
             "api_mode": "chat_completions",
         },
         "openai": {
-            "api_key": _env_value(env_values, "OPENAI_API_KEY"),
+            "api_key": _env_value(
+                env_values,
+                "OPENAI_API_KEY",
+                include_process_env=include_process_env,
+            ),
             "api_base": _env_value(
                 env_values,
                 "OPENAI_API_BASE",
                 PROVIDER_RECOMMENDS["openai"]["api_base"],
+                include_process_env=include_process_env,
             ),
             "api_mode": "chat_completions",
         },
         "custom_openai": {
-            "api_key": _env_value(env_values, "CUSTOM_OPENAI_API_KEY"),
+            "api_key": _env_value(
+                env_values,
+                "CUSTOM_OPENAI_API_KEY",
+                include_process_env=include_process_env,
+            ),
             "api_base": _env_value(
                 env_values,
                 "CUSTOM_OPENAI_API_BASE",
                 "http://localhost:8000/v1",
+                include_process_env=include_process_env,
             ),
             "api_mode": "chat_completions",
             "test_model": "custom-model",
         },
         "gemini": {
-            "api_key": _env_value(env_values, "GEMINI_API_KEY"),
+            "api_key": _env_value(
+                env_values,
+                "GEMINI_API_KEY",
+                include_process_env=include_process_env,
+            ),
             "api_base": _env_value(
                 env_values,
                 "GEMINI_API_BASE",
                 PROVIDER_RECOMMENDS["gemini"]["api_base"],
+                include_process_env=include_process_env,
             ),
             "api_mode": "chat_completions",
         },
         "qwen": {
-            "api_key": _env_value(env_values, "QWEN_API_KEY"),
+            "api_key": _env_value(
+                env_values,
+                "QWEN_API_KEY",
+                include_process_env=include_process_env,
+            ),
             "api_base": _env_value(
                 env_values,
                 "QWEN_API_BASE",
                 PROVIDER_RECOMMENDS["qwen"]["api_base"],
+                include_process_env=include_process_env,
             ),
             "api_mode": "chat_completions",
         },
@@ -87,10 +125,12 @@ def _default_providers() -> Dict[str, Dict[str, str]]:
                 env_values,
                 "OLLAMA_HOST",
                 PROVIDER_RECOMMENDS["ollama"]["api_base"],
+                include_process_env=include_process_env,
             ),
             "api_mode": "ollama",
         },
     }
+
 
 # 🌟 大模型跨服务商算力预设与精选推荐清单
 PROVIDER_RECOMMENDS: Dict[str, Dict[str, Any]] = {
@@ -193,7 +233,10 @@ class LLMRuntimeConfig:
     """大模型运行时跨服务商混合算力网格配置"""
 
     # 1. 多订阅源字典：存储各个 Provider 的 API Key、Base 节点、API 模式与状态
-    providers: Dict[str, Dict[str, str]] = field(default_factory=_default_providers)
+    providers: Dict[str, Dict[str, str]] = field(default_factory=dict)
+
+    # 独立工具可指定自己的配置目录，避免读取正式运行配置和密钥。
+    config_home: str | None = field(default=None, repr=False, compare=False)
 
     # 2. 算力分档路由映射 (模型名称 + 归属 Provider 绑定)
     cheap_model: str = "qwen3.5:0.8b"
@@ -227,9 +270,18 @@ class LLMRuntimeConfig:
     runtime_policy: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
+        scoped_home = Path(self.config_home).expanduser() if self.config_home else None
+        defaults = _default_providers(
+            scoped_home / ".env" if scoped_home else None,
+            include_process_env=scoped_home is None,
+        )
+        if self.providers:
+            deep_update(defaults, self.providers)
+        self.providers = defaults
+
         # 尝试自检测并热加载持久化的本地 YAML 配置文件
         saved_cfg = None
-        yaml_path = get_config_path()
+        yaml_path = scoped_home / "config.yaml" if scoped_home else get_config_path()
         if os.path.exists(yaml_path):
             try:
                 with open(yaml_path, encoding="utf-8") as f:
@@ -238,7 +290,7 @@ class LLMRuntimeConfig:
                 pass
 
         # 向后兼容：如果 YAML 不存在，尝试加载旧版 JSON 配置
-        if saved_cfg is None:
+        if saved_cfg is None and scoped_home is None:
             json_path = os.path.join(os.path.dirname(__file__), "runtime_config.json")
             if os.path.exists(json_path):
                 try:
@@ -263,12 +315,17 @@ class LLMRuntimeConfig:
                             self.providers[provider]["api_base"] = info["api_base"]
                         if "api_mode" in info:
                             self.providers[provider]["api_mode"] = info["api_mode"]
-                        if "status" in info and info["status"] in ("active", "inactive"):
+                        if "status" in info and info["status"] in (
+                            "active",
+                            "inactive",
+                        ):
                             self.providers[provider]["status"] = info["status"]
                         if "test_model" in info:
                             self.providers[provider]["test_model"] = info["test_model"]
                         if "display_name" in info:
-                            self.providers[provider]["display_name"] = info["display_name"]
+                            self.providers[provider]["display_name"] = info[
+                                "display_name"
+                            ]
 
                 # 更新其他字段属性（system 键深层合并，其余直接覆盖）
                 for k, v in saved_cfg.items():
@@ -289,22 +346,30 @@ class LLMRuntimeConfig:
             saved_status = None
             if saved_cfg and "providers" in saved_cfg:
                 saved_info = saved_cfg["providers"].get(provider, {})
-                if "status" in saved_info and saved_info["status"] in ("active", "inactive"):
+                if "status" in saved_info and saved_info["status"] in (
+                    "active",
+                    "inactive",
+                ):
                     saved_status = saved_info["status"]
             if saved_status:
                 self.providers[provider]["status"] = saved_status
             else:
                 api_key = self.providers[provider].get("api_key", "")
-                self.providers[provider]["status"] = "active" if api_key or provider == "ollama" else "inactive"
+                self.providers[provider]["status"] = (
+                    "active" if api_key or provider == "ollama" else "inactive"
+                )
+
+        if scoped_home is not None and saved_cfg is None:
+            self.ollama_host = self.providers["ollama"]["api_base"]
 
         # 同步本地 ollama_host 的最新变更到 providers 字典中
         if self.ollama_host:
             self.providers["ollama"]["api_base"] = self.ollama_host
 
     @classmethod
-    def load(cls) -> "LLMRuntimeConfig":
+    def load(cls, config_home: str | None = None) -> "LLMRuntimeConfig":
         """加载当前运行时配置（每次调用重新读取）。"""
-        return cls()
+        return cls(config_home=config_home)
 
     def to_dict(self) -> Dict[str, Any]:
         """将当前混配配置全量转化为字典格式以供持久化保存"""

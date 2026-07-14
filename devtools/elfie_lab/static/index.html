@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Elfie 单精灵开发者调试平台" />
+    <title>Elfie Lab</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="lab-shell" id="labShell">
+      <aside class="elfie-panel" aria-label="当前测试精灵">
+        <button class="panel-collapse" id="leftCollapse" type="button" aria-label="收起精灵信息">‹</button>
+        <section class="elfie-empty" id="elfieEmpty" hidden>
+          <div class="empty-orbit" aria-hidden="true"><span>◇</span></div>
+          <p class="eyebrow">本地开发环境</p>
+          <h1>创建第一只<br />测试精灵</h1>
+          <p>它将使用独立记忆和会话，不会影响普通用户数据。</p>
+          <button class="primary-button" id="emptyCreate" type="button">＋ 新建测试精灵</button>
+        </section>
+
+        <section class="elfie-content" id="elfieContent" hidden>
+          <div class="identity-block">
+            <div class="avatar" aria-hidden="true"><span id="avatarGlyph">艾</span><i></i></div>
+            <div class="identity-copy">
+              <span class="dev-badge">测试精灵</span>
+              <h1 id="elfieName">—</h1>
+              <p id="elfieDescription">—</p>
+            </div>
+          </div>
+
+          <div class="vitals" aria-label="当前状态">
+            <div><span>能量</span><strong id="energyValue">—</strong><i><b id="energyBar"></b></i></div>
+            <div><span>疲劳</span><strong id="fatigueValue">—</strong><i><b id="fatigueBar"></b></i></div>
+          </div>
+
+          <div class="live-status">
+            <span class="live-dot"></span>
+            <span id="wakeStatus">当前状态</span>
+            <strong id="dominantEmotion">—</strong>
+          </div>
+
+          <div class="profile-sections" id="profileSections">
+            <details open>
+              <summary><span>基本画像</span><i>＋</i></summary>
+              <div class="detail-grid" id="basicProfile"></div>
+            </details>
+            <details>
+              <summary><span>人格与表达</span><i>＋</i></summary>
+              <div class="detail-grid" id="personalityProfile"></div>
+            </details>
+            <details>
+              <summary><span>核心认知</span><i>＋</i></summary>
+              <div class="detail-stack" id="cognitionProfile"></div>
+            </details>
+            <details>
+              <summary><span>身体与能力</span><i>＋</i></summary>
+              <div class="detail-stack" id="bodyProfile"></div>
+            </details>
+            <details>
+              <summary><span>模型方案</span><i>＋</i></summary>
+              <div class="model-controls">
+                <label for="runtimeMode">本次实验模式</label>
+                <select id="runtimeMode">
+                  <option value="mock">Mock · 离线可用</option>
+                  <option value="real">真实 Runtime</option>
+                </select>
+                <p id="modelHint">elfie-mock · 不调用外部服务</p>
+                <p class="model-command" id="modelCommand" hidden></p>
+              </div>
+            </details>
+            <details>
+              <summary><span>记忆概况</span><i>＋</i></summary>
+              <div class="memory-summary"><strong id="memoryCount">0</strong><span>条情景记忆</span></div>
+            </details>
+          </div>
+        </section>
+
+        <div class="elfie-switcher-wrap" id="switcherWrap" hidden>
+          <div class="elfie-menu" id="elfieMenu" hidden role="menu"></div>
+          <button class="elfie-switcher" id="elfieSwitcher" type="button" aria-haspopup="menu" aria-expanded="false">
+            <span class="mini-avatar" id="miniAvatar">艾</span>
+            <span><strong id="switcherName">—</strong><small>切换测试精灵</small></span>
+            <b>⌃</b>
+          </button>
+        </div>
+      </aside>
+
+      <section class="timeline-panel" aria-label="交互时间线">
+        <div class="timeline-heading">
+          <div>
+            <p class="eyebrow">实时实验会话</p>
+            <h2>交互时间线</h2>
+          </div>
+          <div class="session-indicator"><span></span><b id="turnCount">0 轮</b></div>
+        </div>
+
+        <div class="timeline" id="timeline">
+          <section class="timeline-placeholder" id="timelinePlaceholder">
+            <div class="signal-mark" aria-hidden="true"><i></i><i></i><i></i></div>
+            <h3>等待第一次刺激</h3>
+            <p>发送一句话，或打开实验刺激构造边界状态。</p>
+          </section>
+        </div>
+
+        <form class="composer" id="composer">
+          <div class="stimulus-drawer" id="stimulusDrawer" hidden>
+            <div class="stimulus-grid">
+              <label>突显度 <output id="salienceOutput">20</output><input id="salienceInput" type="range" min="0" max="100" value="20" /></label>
+              <label>环境温度 <span><input id="temperatureInput" type="number" min="-50" max="100" value="24" /> °C</span></label>
+              <label>撞击力 <span><input id="impactInput" type="number" min="0" max="1000" value="0" /></span></label>
+              <label>抚摸频率 <span><input id="strokeInput" type="number" min="0" max="100" step="0.1" value="0" /></span></label>
+            </div>
+            <div class="injection-row">
+              <span><b>状态注入</b><small>会在本轮永久标记</small></span>
+              <label>能量 <input id="injectEnergy" type="number" min="0" max="100" placeholder="不修改" /></label>
+              <label>疲劳 <input id="injectFatigue" type="number" min="0" max="100" placeholder="不修改" /></label>
+            </div>
+          </div>
+          <div class="composer-row">
+            <button class="tool-button" id="stimulusToggle" type="button" aria-expanded="false" title="实验刺激">⌘</button>
+            <label class="message-field" for="messageInput">
+              <textarea id="messageInput" rows="1" placeholder="向当前精灵发送刺激…" disabled></textarea>
+              <span id="channelHint">[文字]</span>
+            </label>
+            <button class="send-button" id="sendButton" type="submit" disabled><span>发送</span><b>↑</b></button>
+          </div>
+          <p class="composer-note">Enter 发送 · Shift + Enter 换行 · 历史回合仅供查看</p>
+        </form>
+      </section>
+
+      <aside class="detail-panel is-closed" id="detailPanel" aria-label="选中回合详情" aria-hidden="true">
+        <div class="detail-heading">
+          <div><p class="eyebrow" id="detailKicker">历史回合 · 只读</p><h2 id="detailTitle">回合详情</h2></div>
+          <button id="detailClose" type="button" aria-label="收起回合详情">×</button>
+        </div>
+        <div class="detail-tabs" role="tablist">
+          <button class="active" data-tab="summary" role="tab">摘要</button>
+          <button data-tab="chain" role="tab">链路</button>
+          <button data-tab="snapshot" role="tab">快照</button>
+          <button data-tab="raw" role="tab">原始</button>
+        </div>
+        <div class="detail-content" id="detailContent"></div>
+      </aside>
+    </main>
+
+    <div class="modal-backdrop" id="createModal" hidden>
+      <form class="modal" id="createForm" role="dialog" aria-modal="true" aria-labelledby="createTitle">
+        <div class="modal-heading"><div><p class="eyebrow">独立测试数据</p><h2 id="createTitle">新建测试精灵</h2></div><button type="button" id="createClose" aria-label="关闭">×</button></div>
+        <label>精灵名称<input id="createName" maxlength="60" value="艾菲-默认测试" required /></label>
+        <label>身体形态<select id="createAnatomy"><option value="biped">双足直立</option><option value="quadruped">四足动物</option></select></label>
+        <label>调试说明<textarea id="createDescription" rows="3" maxlength="240" placeholder="例如：用于验证情绪和记忆链路"></textarea></label>
+        <p class="form-error" id="createError" hidden></p>
+        <div class="modal-actions"><button type="button" class="secondary-button" id="createCancel">取消</button><button type="submit" class="primary-button">创建并切换</button></div>
+      </form>
+    </div>
+
+    <div class="toast" id="toast" hidden role="status"></div>
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
