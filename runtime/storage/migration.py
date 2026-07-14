@@ -19,11 +19,12 @@ import json
 import logging
 import shutil
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Optional
 
 import yaml
 
 from runtime.storage.data_home import ensure_elfie_home, get_config_path, get_elfie_home
+from runtime.storage.secrets import provider_secret_name, set_provider_secret
 
 logger = logging.getLogger("runtime.storage.migration")
 
@@ -43,9 +44,6 @@ _OLD_RUNTIME_CONFIG: Path = _PROJECT_ROOT / "runtime" / "runtime_config.json"
 # 每个迁移函数签名: (dict) -> dict，接收旧配置，返回新配置
 _CONFIG_MIGRATIONS: Dict[int, Callable[[Dict[str, Any]], Dict[str, Any]]] = {}
 
-# 当前配置版本号（供外部和测试引用）
-CURRENT_CONFIG_VERSION: int = max(_CONFIG_MIGRATIONS.keys()) if _CONFIG_MIGRATIONS else 1
-
 
 def register_config_migration(version: int):
     """装饰器：注册配置迁移函数。
@@ -57,9 +55,11 @@ def register_config_migration(version: int):
             config.setdefault("new_field", "default_value")
             return config
     """
+
     def decorator(func: Callable[[Dict[str, Any]], Dict[str, Any]]):
         _CONFIG_MIGRATIONS[version] = func
         return func
+
     return decorator
 
 
@@ -68,6 +68,24 @@ def _migrate_v0_to_v1(config: Dict[str, Any]) -> Dict[str, Any]:
     """v0 → v1: 初始配置 schema，添加 config_version 字段。"""
     config.setdefault("config_version", 1)
     return config
+
+
+@register_config_migration(2)
+def _migrate_v1_to_v2(config: Dict[str, Any]) -> Dict[str, Any]:
+    """v1 → v2: 普通配置只保存 Provider 密钥变量名。"""
+    providers = config.get("providers", {})
+    if not isinstance(providers, dict):
+        return config
+    for provider_id, provider in providers.items():
+        if not isinstance(provider_id, str) or not isinstance(provider, dict):
+            continue
+        provider.pop("api_key", None)
+        provider.setdefault("api_key_env", provider_secret_name(provider_id))
+    return config
+
+
+# 当前配置版本号（供外部和测试引用）
+CURRENT_CONFIG_VERSION: int = max(_CONFIG_MIGRATIONS.keys())
 
 
 # ---------------------------------------------------------------------------
@@ -121,7 +139,13 @@ def migrate_data_home() -> bool:
         default_config = {"config_version": CURRENT_CONFIG_VERSION}
         config_yaml.parent.mkdir(parents=True, exist_ok=True)
         with open(config_yaml, "w", encoding="utf-8") as f:
-            yaml.dump(default_config, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+            yaml.dump(
+                default_config,
+                f,
+                allow_unicode=True,
+                default_flow_style=False,
+                sort_keys=False,
+            )
         logger.info("已创建默认配置文件: %s", config_yaml)
 
     # 5. 在旧 data/ 目录中创建 .migrated 标记
@@ -193,10 +217,14 @@ def _convert_runtime_config_json(home: Path) -> None:
 
     # 确保有 config_version
     data.setdefault("config_version", 1)
+    _persist_and_remove_provider_secrets(data, home / ".env")
+    data["config_version"] = CURRENT_CONFIG_VERSION
 
     home.mkdir(parents=True, exist_ok=True)
     with open(config_yaml, "w", encoding="utf-8") as f:
-        yaml.dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+        yaml.dump(
+            data, f, allow_unicode=True, default_flow_style=False, sort_keys=False
+        )
 
     logger.info("已将 runtime_config.json 转换为 config.yaml: %s", config_yaml)
 
@@ -238,7 +266,14 @@ def migrate_config(config_version: Optional[int] = None) -> None:
         logger.warning("读取 config.yaml 失败: %s", e)
         return
 
-    current_version = config_version if config_version is not None else config.get("config_version", 1)
+    current_version = (
+        config_version
+        if config_version is not None
+        else config.get("config_version", 1)
+    )
+
+    if current_version < 2:
+        _persist_and_remove_provider_secrets(config)
 
     # 按版本号顺序应用迁移
     max_registered = max(_CONFIG_MIGRATIONS.keys()) if _CONFIG_MIGRATIONS else 0
@@ -252,7 +287,9 @@ def migrate_config(config_version: Optional[int] = None) -> None:
 
     # 写回
     with open(config_path, "w", encoding="utf-8") as f:
-        yaml.dump(config, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+        yaml.dump(
+            config, f, allow_unicode=True, default_flow_style=False, sort_keys=False
+        )
 
     logger.info("配置迁移完成，当前版本: %d", config.get("config_version", 1))
 
@@ -286,6 +323,23 @@ def _migrate_config_dict(config: Dict[str, Any]) -> Dict[str, Any]:
         config = migration_func(config)
         config["config_version"] = version
     return config
+
+
+def _persist_and_remove_provider_secrets(
+    config: Dict[str, Any],
+    env_path: Path | None = None,
+) -> None:
+    providers = config.get("providers", {})
+    if not isinstance(providers, dict):
+        return
+    for provider_id, provider in providers.items():
+        if not isinstance(provider_id, str) or not isinstance(provider, dict):
+            continue
+        if "api_key" in provider:
+            api_key = str(provider.pop("api_key") or "")
+            if api_key:
+                set_provider_secret(provider_id, api_key, env_path)
+        provider.setdefault("api_key_env", provider_secret_name(provider_id))
 
 
 _migrate_old_data_dir = _copy_old_data_dir

@@ -39,6 +39,12 @@ class PermissionManager(Protocol):
     ) -> None: ...
 
 
+class FileAccessPlugin(Protocol):
+    def read_text(self, relative_path: str) -> str: ...
+
+    def list_files(self, relative_path: str = ".") -> list[str]: ...
+
+
 @dataclass(frozen=True, slots=True)
 class ToolResult:
     tool_name: str
@@ -55,6 +61,7 @@ class ToolExecutionContext:
     skills_evolution_plugin: SkillsEvolutionPlugin
     permission_manager: PermissionManager
     admin_token: str | None = None
+    file_access_plugin: FileAccessPlugin | None = None
 
 
 class ToolExecutor:
@@ -62,15 +69,19 @@ class ToolExecutor:
         self.context = context
 
     def execute(self, response_text: str) -> ToolResult | None:
+        if self._can_use("local_file") and _has_tag(response_text, "READ_FILE"):
+            return self._record_tool_result(self._execute_read_file(response_text))
+
+        if self._can_use("local_file") and _has_tag(response_text, "LIST_FILES"):
+            return self._record_tool_result(self._execute_list_files(response_text))
+
         if self._can_use("web_search") and _has_tag(response_text, "SEARCH"):
             return self._record_tool_result(self._execute_search(response_text))
 
         if self._can_use("code_sandbox") and _has_tag(response_text, "CODE"):
             return self._record_tool_result(self._execute_code(response_text))
 
-        if self._can_use("skills_evolution") and _has_tag(
-            response_text, "WRITE_SKILL"
-        ):
+        if self._can_use("skills_evolution") and _has_tag(response_text, "WRITE_SKILL"):
             return self._record_tool_result(self._execute_write_skill(response_text))
 
         if self._can_use("skills_evolution") and _has_tag(response_text, "RUN_SKILL"):
@@ -80,6 +91,41 @@ class ToolExecutor:
             return self._record_tool_result(self._execute_list_skills())
 
         return None
+
+    def _execute_read_file(self, response_text: str) -> ToolResult:
+        path = _extract_tag(response_text, "READ_FILE")
+        plugin = self.context.file_access_plugin
+        if plugin is None:
+            return ToolResult("local_file_read", False, "本地文件工具未配置")
+        self.context.permission_manager.verify_action("READ", file_path=path)
+        content = plugin.read_text(path)
+        return ToolResult(
+            tool_name="local_file_read",
+            ok=True,
+            content=(
+                f"【本地文件 {path} 内容】\n{content}\n"
+                "请根据文件内容生成最终回答，去掉 [READ_FILE] 标签。"
+            ),
+            metadata={"path": path},
+        )
+
+    def _execute_list_files(self, response_text: str) -> ToolResult:
+        path = _extract_tag(response_text, "LIST_FILES") or "."
+        plugin = self.context.file_access_plugin
+        if plugin is None:
+            return ToolResult("local_file_list", False, "本地文件工具未配置")
+        self.context.permission_manager.verify_action("READ", file_path=path)
+        files = plugin.list_files(path)
+        return ToolResult(
+            tool_name="local_file_list",
+            ok=True,
+            content=(
+                f"【本地目录 {path} 文件】\n"
+                + "\n".join(files)
+                + "\n请根据文件清单生成最终回答，去掉 [LIST_FILES] 标签。"
+            ),
+            metadata={"path": path},
+        )
 
     def _can_use(self, skill_name: str) -> bool:
         return skill_name in self.context.allowed_skills

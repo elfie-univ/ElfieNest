@@ -421,7 +421,9 @@ def main():
             name = row["name"]
             try:
                 elfie = ElfieIndividual(
-                    config_dir=config_dir, anatomy_type=anatomy_type
+                    config_dir=config_dir,
+                    anatomy_type=anatomy_type,
+                    elfie_id=elfie_id,
                 )
                 engine.room.register_elfie(elfie_id, elfie)
                 loaded_elfies.append({"id": elfie_id, "name": name})

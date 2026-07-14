@@ -13,10 +13,15 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from elfienest.config.runtime_store import read_runtime_config, write_runtime_config
+from elfienest.config.runtime_store import (
+    hydrate_runtime_secrets,
+    read_runtime_config,
+    write_runtime_config,
+)
 from runtime.config import LLMRuntimeConfig
 from runtime.models.catalog import _verify_custom_openai_provider, verify_provider
 from runtime.providers.profiles import BUILTIN_PROFILES, get_profile
+from runtime.storage.data_home import get_config_path
 from runtime.usage.observer import (
     ProviderVerifyObservation,
     RuntimeEventStatus,
@@ -34,7 +39,7 @@ router = APIRouter(prefix="/api/admin/providers", tags=["providers"])
 # ---------------------------------------------------------------------------
 
 _PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent
-_RUNTIME_CONFIG_PATH: Path = _PROJECT_ROOT / "runtime" / "runtime_config.json"
+_RUNTIME_CONFIG_PATH: Path = get_config_path()
 
 
 # ---------------------------------------------------------------------------
@@ -43,8 +48,11 @@ _RUNTIME_CONFIG_PATH: Path = _PROJECT_ROOT / "runtime" / "runtime_config.json"
 
 
 def _read_runtime_config() -> Dict[str, Any]:
-    """读取 runtime_config.json，不存在时返回空 dict。"""
-    return read_runtime_config(_RUNTIME_CONFIG_PATH)
+    """读取配置并仅在内部注入本地密钥。"""
+    config = read_runtime_config(_RUNTIME_CONFIG_PATH)
+    if _RUNTIME_CONFIG_PATH.suffix in {".yaml", ".yml"}:
+        return hydrate_runtime_secrets(config)
+    return config
 
 
 def _write_runtime_config(config: Dict[str, Any]) -> None:

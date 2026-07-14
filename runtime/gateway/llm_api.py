@@ -21,6 +21,8 @@ def call_llm_api(
     messages: list[dict[str, Any]],
     temperature: float,
     max_tokens: int,
+    *,
+    request_options: dict[str, Any] | None = None,
 ) -> str:
     provider_cfg: dict[str, Any] = config.providers.get(provider, {})
     api_key = provider_cfg.get("api_key", "")
@@ -32,7 +34,7 @@ def call_llm_api(
 
     try:
         if api_mode == "ollama":
-            response_text, usage = dispatch_fn(
+            args = (
                 api_base or config.ollama_host,
                 model_name,
                 messages,
@@ -40,11 +42,9 @@ def call_llm_api(
                 max_tokens,
             )
         elif api_mode == "anthropic_messages":
-            response_text, usage = dispatch_fn(
-                api_base, api_key, model_name, messages, temperature, max_tokens
-            )
+            args = (api_base, api_key, model_name, messages, temperature, max_tokens)
         else:
-            response_text, usage = dispatch_fn(
+            args = (
                 api_base,
                 api_key,
                 model_name,
@@ -53,6 +53,12 @@ def call_llm_api(
                 max_tokens,
                 provider,
             )
+        if request_options:
+            response_text, usage = dispatch_fn(
+                *args, request_options=dict(request_options)
+            )
+        else:
+            response_text, usage = dispatch_fn(*args)
     except (RuntimeError, ValueError) as failure:
         get_runtime_observer().record_model_call(
             ModelCallObservation(

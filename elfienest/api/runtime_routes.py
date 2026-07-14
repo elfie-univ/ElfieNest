@@ -10,6 +10,7 @@ from runtime.models.catalog import BUILTIN_MODEL_CATALOG
 from runtime.models.groups import load_model_groups, model_groups_to_payload
 from runtime.policy.food_policy import RuntimeTaskType, load_food_policy
 from runtime.safety.permissions import DEFAULT_TOOL_PERMISSIONS
+from runtime.storage.data_home import get_config_path
 from runtime.usage.observer import RuntimeEvent, get_runtime_observer
 from runtime.usage.token_tracker import get_token_tracker
 
@@ -18,7 +19,7 @@ from .admin_routes import require_admin
 router = APIRouter(prefix="/api/admin/runtime", tags=["runtime"])
 
 _PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent
-_RUNTIME_CONFIG_PATH: Path = _PROJECT_ROOT / "runtime" / "runtime_config.json"
+_RUNTIME_CONFIG_PATH: Path = get_config_path()
 
 
 def _read_runtime_config() -> Dict[str, Any]:

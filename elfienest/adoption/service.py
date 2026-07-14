@@ -162,6 +162,7 @@ def _register_with_engine(
         elfie = ElfieIndividual(
             config_dir=config_dir,
             anatomy_type=request.anatomy_type,
+            elfie_id=elfie_id,
         )
         engine.coordinator.register_elfie(elfie_id, elfie)
         logger.info(

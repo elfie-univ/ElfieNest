@@ -2,6 +2,14 @@ import logging
 from typing import Any, Dict, List
 
 from runtime.config import LLMRuntimeConfig
+from runtime.food.elfie_policy import (
+    ElfieFoodPolicy,
+    load_elfie_food_policy,
+    resolve_food_selection,
+)
+from runtime.food.executor import FoodExecutor
+from runtime.food.models import FIXED_FOOD_KINDS
+from runtime.food.store import FoodCatalogStore
 from runtime.gateway.generation import GenerationRuntime, generate_text
 from runtime.gateway.llm_api import call_llm_api
 from runtime.gateway.model_guard import ensure_model_ready
@@ -16,6 +24,7 @@ from runtime.policy.router import ModelRouter
 from runtime.providers.ollama import OllamaManager
 from runtime.safety.permissions import PermissionManager
 from runtime.tools.code import CodeSandboxPlugin
+from runtime.tools.local_files import LocalFileAccessPlugin
 from runtime.tools.search import WebSearchPlugin
 from runtime.tools.skills_evolution import SkillsSelfEvolutionPlugin
 
@@ -39,10 +48,12 @@ class RuntimeAgent:
         self.skills_evolution_plugin = SkillsSelfEvolutionPlugin(
             self.permission_manager
         )
+        self.file_access_plugin = LocalFileAccessPlugin()
 
         # 3. 智能路由模块挂载
         self.router = ModelRouter(self.config)
         self._last_fallback: Dict[str, Any] | None = None
+        self.food_catalog_store = FoodCatalogStore()
 
     def ask(
         self,
@@ -57,7 +68,7 @@ class RuntimeAgent:
         tools = (
             tuple(allowed_skills)
             if allowed_skills is not None
-            else ("web_search", "code_sandbox", "skills_evolution")
+            else ("web_search", "local_file", "code_sandbox", "skills_evolution")
         )
         return self.think(
             RuntimeRequest(
@@ -68,7 +79,41 @@ class RuntimeAgent:
             )
         ).text
 
+    def ask_with_food(
+        self,
+        prompt: str,
+        food_key: str,
+        elfie_id: str | None = None,
+        scene: str = "chat",
+        energy: float = 100.0,
+        task_complexity: int = 1,
+        allowed_skills: List[str] | None = None,
+    ) -> str:
+        """粮食语义接口；目录尚未生成时自动兼容旧路由。"""
+        catalog = self.food_catalog_store.load()
+        if not catalog.recipes:
+            return self.ask(
+                prompt,
+                energy=energy,
+                task_complexity=task_complexity,
+                allowed_skills=allowed_skills,
+            )
+        tools = tuple(allowed_skills or ())
+        return self.think(
+            RuntimeRequest(
+                prompt=prompt,
+                energy=energy,
+                task_complexity=task_complexity,
+                allowed_tools=tools,
+                elfie_id=elfie_id,
+                food_key=food_key,
+                scene=scene,
+            )
+        ).text
+
     def think(self, request: RuntimeRequest) -> RuntimeResult:
+        if request.food_key is not None:
+            return self._think_with_food(request)
         metadata = dict(request.metadata)
         task_type = metadata.get("task_type")
         if task_type is not None:
@@ -131,6 +176,66 @@ class RuntimeAgent:
             model_key=result_model_key,
             decision=result_decision,
             degraded=fallback_info is not None,
+        )
+
+    def _think_with_food(self, request: RuntimeRequest) -> RuntimeResult:
+        catalog = self.food_catalog_store.load()
+        if request.elfie_id:
+            policy = load_elfie_food_policy(request.elfie_id)
+        else:
+            policy = ElfieFoodPolicy(
+                elfie_id="",
+                default_food=request.food_key or "standard",
+                allowed_foods=tuple(FIXED_FOOD_KINDS),
+                fallback_food="coarse",
+            )
+        selection = resolve_food_selection(policy, request.food_key, catalog)
+        recipe = catalog.recipes.get(selection.actual_food)
+        if recipe is None:
+            raise ValueError(f"粮食 '{selection.actual_food}' 尚未配置")
+        messages = (
+            [dict(message) for message in request.messages]
+            if request.messages
+            else [{"role": "user", "content": request.prompt}]
+        )
+        execution = FoodExecutor(
+            config=self.config,
+            search_plugin=self.search_plugin,
+            sandbox_plugin=self.sandbox_plugin,
+            skills_evolution_plugin=self.skills_evolution_plugin,
+            permission_manager=self.permission_manager,
+            file_access_plugin=self.file_access_plugin,
+            model_caller=self._call_food_llm_api,
+        ).execute(
+            recipe,
+            messages,
+            allowed_tools=request.allowed_tools,
+            max_loops=3,
+            prefer_deep=(
+                selection.clamped and selection.requested_food in {"focus", "premium"}
+            ),
+        )
+        provider = (
+            execution.model.split("/", 1)[0] if "/" in execution.model else "ollama"
+        )
+        return RuntimeResult(
+            text=execution.text,
+            mode="local" if provider == "ollama" else "remote",
+            model_key=execution.model,
+            decision={
+                "food": {
+                    "requested": selection.requested_food,
+                    "actual": selection.actual_food,
+                    "reason": selection.reason,
+                },
+                "scene": request.scene,
+            },
+            degraded=execution.technical_fallback_used or selection.clamped,
+            food_requested=selection.requested_food,
+            food_used=selection.actual_food,
+            execution_stage=execution.execution_stage,
+            actual_model=execution.model,
+            food_clamped=selection.clamped,
         )
 
     def generate(
@@ -253,6 +358,25 @@ class RuntimeAgent:
             self.config, provider, model_name, messages, temperature, max_tokens
         )
 
+    def _call_food_llm_api(
+        self,
+        provider: str,
+        model_name: str,
+        messages: List[Dict[str, Any]],
+        temperature: float,
+        max_tokens: int,
+        request_options: Dict[str, Any],
+    ) -> str:
+        return call_llm_api(
+            self.config,
+            provider,
+            model_name,
+            messages,
+            temperature,
+            max_tokens,
+            request_options=request_options,
+        )
+
     def _generation_runtime(self) -> GenerationRuntime:
         return GenerationRuntime(
             config=self.config,
@@ -264,6 +388,7 @@ class RuntimeAgent:
             permission_manager=self.permission_manager,
             call_llm_api=self._call_llm_api,
             set_fallback_info=self._set_fallback_info,
+            file_access_plugin=self.file_access_plugin,
         )
 
     def _set_fallback_info(self, fallback_info: Dict[str, Any] | None) -> None:

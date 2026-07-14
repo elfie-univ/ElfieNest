@@ -480,6 +480,12 @@ def create_app(
     from .route_routes import router as route_router  # noqa: PLC0415
 
     app.include_router(route_router)
+    from .food_policy_routes import router as food_policy_router  # noqa: PLC0415
+
+    app.include_router(food_policy_router)
+    from .food_admin_routes import router as food_admin_router  # noqa: PLC0415
+
+    app.include_router(food_admin_router)
     from .runtime_routes import router as runtime_router  # noqa: PLC0415
 
     app.include_router(runtime_router)

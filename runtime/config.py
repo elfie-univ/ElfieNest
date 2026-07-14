@@ -6,26 +6,13 @@ from typing import Any, Dict
 
 import yaml
 
-from .providers.profiles import get_default_api_mode
+from .providers.profiles import BUILTIN_PROFILES, get_default_api_mode
 from .storage.data_home import get_config_path, get_env_path
+from .storage.secrets import provider_secret_name, read_secrets, resolve_secret
 
 
 def _load_env_file_values() -> Dict[str, str]:
-    env_path = get_env_path()
-    env_values: Dict[str, str] = {}
-    if not os.path.exists(env_path):
-        return env_values
-    try:
-        with open(env_path, encoding="utf-8") as f:
-            for raw_line in f:
-                line = raw_line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, value = line.split("=", 1)
-                env_values[key.strip()] = value.strip()
-    except OSError:
-        return env_values
-    return env_values
+    return read_secrets(get_env_path())
 
 
 def _env_value(env_values: Dict[str, str], key: str, default: str = "") -> str:
@@ -34,63 +21,23 @@ def _env_value(env_values: Dict[str, str], key: str, default: str = "") -> str:
 
 def _default_providers() -> Dict[str, Dict[str, str]]:
     env_values = _load_env_file_values()
-    return {
-        "deepseek": {
-            "api_key": _env_value(env_values, "DEEPSEEK_API_KEY"),
+    providers: Dict[str, Dict[str, str]] = {}
+    for provider_id, profile in BUILTIN_PROFILES.items():
+        api_key_env = profile.api_key_env_var or provider_secret_name(provider_id)
+        providers[provider_id] = {
+            "api_key": _env_value(env_values, api_key_env),
+            "api_key_env": api_key_env,
             "api_base": _env_value(
                 env_values,
-                "DEEPSEEK_API_BASE",
-                PROVIDER_RECOMMENDS["deepseek"]["api_base"],
+                profile.base_url_env_var,
+                profile.api_base,
             ),
-            "api_mode": "chat_completions",
-        },
-        "openai": {
-            "api_key": _env_value(env_values, "OPENAI_API_KEY"),
-            "api_base": _env_value(
-                env_values,
-                "OPENAI_API_BASE",
-                PROVIDER_RECOMMENDS["openai"]["api_base"],
-            ),
-            "api_mode": "chat_completions",
-        },
-        "custom_openai": {
-            "api_key": _env_value(env_values, "CUSTOM_OPENAI_API_KEY"),
-            "api_base": _env_value(
-                env_values,
-                "CUSTOM_OPENAI_API_BASE",
-                "http://localhost:8000/v1",
-            ),
-            "api_mode": "chat_completions",
-            "test_model": "custom-model",
-        },
-        "gemini": {
-            "api_key": _env_value(env_values, "GEMINI_API_KEY"),
-            "api_base": _env_value(
-                env_values,
-                "GEMINI_API_BASE",
-                PROVIDER_RECOMMENDS["gemini"]["api_base"],
-            ),
-            "api_mode": "chat_completions",
-        },
-        "qwen": {
-            "api_key": _env_value(env_values, "QWEN_API_KEY"),
-            "api_base": _env_value(
-                env_values,
-                "QWEN_API_BASE",
-                PROVIDER_RECOMMENDS["qwen"]["api_base"],
-            ),
-            "api_mode": "chat_completions",
-        },
-        "ollama": {
-            "api_key": "",
-            "api_base": _env_value(
-                env_values,
-                "OLLAMA_HOST",
-                PROVIDER_RECOMMENDS["ollama"]["api_base"],
-            ),
-            "api_mode": "ollama",
-        },
-    }
+            "api_mode": profile.api_mode,
+            "auth_type": profile.auth_type,
+        }
+    providers["custom_openai"]["test_model"] = "custom-model"
+    return providers
+
 
 # 🌟 大模型跨服务商算力预设与精选推荐清单
 PROVIDER_RECOMMENDS: Dict[str, Dict[str, Any]] = {
@@ -263,12 +210,25 @@ class LLMRuntimeConfig:
                             self.providers[provider]["api_base"] = info["api_base"]
                         if "api_mode" in info:
                             self.providers[provider]["api_mode"] = info["api_mode"]
-                        if "status" in info and info["status"] in ("active", "inactive"):
+                        if "auth_type" in info:
+                            self.providers[provider]["auth_type"] = info["auth_type"]
+                        if "status" in info and info["status"] in (
+                            "active",
+                            "inactive",
+                        ):
                             self.providers[provider]["status"] = info["status"]
                         if "test_model" in info:
                             self.providers[provider]["test_model"] = info["test_model"]
+                        if "models" in info and isinstance(info["models"], list):
+                            self.providers[provider]["models"] = info["models"]
                         if "display_name" in info:
-                            self.providers[provider]["display_name"] = info["display_name"]
+                            self.providers[provider]["display_name"] = info[
+                                "display_name"
+                            ]
+                        if "api_key_env" in info:
+                            self.providers[provider]["api_key_env"] = info[
+                                "api_key_env"
+                            ]
 
                 # 更新其他字段属性（system 键深层合并，其余直接覆盖）
                 for k, v in saved_cfg.items():
@@ -282,6 +242,13 @@ class LLMRuntimeConfig:
 
         # 确保 providers 字典中所有条目都有 api_mode 和 status
         for provider in self.providers:
+            secret_name = self.providers[provider].get(
+                "api_key_env"
+            ) or provider_secret_name(provider)
+            self.providers[provider]["api_key_env"] = secret_name
+            local_secret = resolve_secret(secret_name, get_env_path())
+            if local_secret:
+                self.providers[provider]["api_key"] = local_secret
             # api_mode: 从 BUILTIN_PROFILES 获取，未知服务商默认 chat_completions
             if "api_mode" not in self.providers[provider]:
                 self.providers[provider]["api_mode"] = get_default_api_mode(provider)
@@ -289,13 +256,18 @@ class LLMRuntimeConfig:
             saved_status = None
             if saved_cfg and "providers" in saved_cfg:
                 saved_info = saved_cfg["providers"].get(provider, {})
-                if "status" in saved_info and saved_info["status"] in ("active", "inactive"):
+                if "status" in saved_info and saved_info["status"] in (
+                    "active",
+                    "inactive",
+                ):
                     saved_status = saved_info["status"]
             if saved_status:
                 self.providers[provider]["status"] = saved_status
             else:
                 api_key = self.providers[provider].get("api_key", "")
-                self.providers[provider]["status"] = "active" if api_key or provider == "ollama" else "inactive"
+                self.providers[provider]["status"] = (
+                    "active" if api_key or provider == "ollama" else "inactive"
+                )
 
         # 同步本地 ollama_host 的最新变更到 providers 字典中
         if self.ollama_host:
@@ -326,3 +298,14 @@ class LLMRuntimeConfig:
             "system": self.system,
             "runtime_policy": self.runtime_policy,
         }
+
+    def to_safe_dict(self) -> Dict[str, Any]:
+        """返回可安全落盘的配置，不包含任何 Provider 明文密钥。"""
+        payload = self.to_dict()
+        payload["providers"] = {
+            provider_id: {
+                key: value for key, value in provider.items() if key != "api_key"
+            }
+            for provider_id, provider in self.providers.items()
+        }
+        return payload

@@ -26,7 +26,11 @@ class ElfieIndividual:
     """精灵本体核心管理器 (具身四层生命架构聚合器)"""
 
     def __init__(
-        self, config_dir: str = None, anatomy_type: str = "biped", godot_api=None
+        self,
+        config_dir: str = None,
+        anatomy_type: str = "biped",
+        godot_api=None,
+        elfie_id: str | None = None,
     ):
         """
         初始化生命管理器
@@ -35,7 +39,7 @@ class ElfieIndividual:
         :param godot_api: Godot API服务器实例（可选）
         """
         # 1. 🧠 【大脑认知层】 (Cognition)
-        self.brain = NeocortexBrain(config_dir)
+        self.brain = NeocortexBrain(config_dir, elfie_id=elfie_id)
 
         limits_dict = self.brain.profile.system_limits
         caps_dict = self.brain.profile.capabilities

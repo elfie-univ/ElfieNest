@@ -24,6 +24,8 @@ def call_ollama_api(
     messages: list[dict[str, Any]],
     temperature: float,
     max_tokens: int,
+    *,
+    request_options: dict[str, Any] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     headers: dict[str, str] = {"Content-Type": "application/json"}
     url = f"{ollama_host}/api/chat"
@@ -37,6 +39,7 @@ def call_ollama_api(
             "think": False,
         },
     }
+    _merge_request_options(payload, request_options)
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
 
@@ -65,11 +68,11 @@ def call_openai_compatible_api(
     temperature: float,
     max_tokens: int,
     provider: str = "unknown",
+    *,
+    request_options: dict[str, Any] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     if not api_base:
-        raise ValueError(
-            f"❌ 未找到大模型服务商 '{provider}' 的有效 API Base 配置！"
-        )
+        raise ValueError(f"❌ 未找到大模型服务商 '{provider}' 的有效 API Base 配置！")
 
     headers: dict[str, str] = {"Content-Type": "application/json"}
     url = f"{api_base}/chat/completions"
@@ -79,6 +82,7 @@ def call_openai_compatible_api(
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
+    _merge_request_options(payload, request_options)
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
@@ -109,6 +113,8 @@ def call_anthropic_api(
     messages: list[dict[str, Any]],
     temperature: float,
     max_tokens: int,
+    *,
+    request_options: dict[str, Any] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     url = f"{api_base.rstrip('/')}/messages"
     system_prompt = ""
@@ -132,6 +138,7 @@ def call_anthropic_api(
     }
     if system_prompt.strip():
         payload["system"] = system_prompt.strip()
+    _merge_request_options(payload, request_options)
 
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
@@ -155,3 +162,26 @@ API_DISPATCH = {
     "chat_completions": call_openai_compatible_api,
     "anthropic_messages": call_anthropic_api,
 }
+
+
+_RESERVED_REQUEST_FIELDS = frozenset(
+    {"model", "messages", "system", "stream", "temperature", "max_tokens"}
+)
+
+
+def _merge_request_options(
+    payload: dict[str, Any], request_options: dict[str, Any] | None
+) -> None:
+    """合并粮食内的 Provider 参数，同时保护调用核心字段。"""
+    if not request_options:
+        return
+    for key, value in request_options.items():
+        if key in _RESERVED_REQUEST_FIELDS:
+            continue
+        if key == "options" and isinstance(value, dict):
+            existing = payload.get("options")
+            merged = dict(existing) if isinstance(existing, dict) else {}
+            merged.update(value)
+            payload["options"] = merged
+        else:
+            payload[key] = value
