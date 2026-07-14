@@ -1,0 +1,21 @@
+[gd_scene format=3]
+
+[node name="Post_Its" type="Node3D" unique_id=1967927598]
+
+[node name="Note1" type="Node3D" parent="." unique_id=342303355]
+transform = Transform3D(1, 0, 0, 0, 0.9961947, -0.087155744, 0, 0.087155744, 0.9961947, -171.50871, 145.74153, -57.37918)
+
+[node name="Note2" type="Node3D" parent="." unique_id=2096061224]
+transform = Transform3D(1, 0, 0, 0, 0.9986295, 0.052335955, 0, -0.052335955, 0.9986295, -171.50871, 173.0447, -102.13505)
+
+[node name="Note3" type="Node3D" parent="." unique_id=378984096]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -171.50871, 172.11118, -63.892643)
+
+[node name="Note4" type="Node3D" parent="." unique_id=243202038]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -171.50871, 126.43188, -103.22008)
+
+[node name="Note5" type="Node3D" parent="." unique_id=1954968614]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -171.50871, 169.02937, -78.02771)
+
+[node name="Note6" type="Node3D" parent="." unique_id=1263830696]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -171.50871, 132.66931, -64.331795)

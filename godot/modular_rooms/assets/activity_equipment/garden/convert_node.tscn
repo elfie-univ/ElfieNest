@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[node name="convert_node" type="Node3D" unique_id=1030615587]
+transform = Transform3D(-4.3711387e-10, 0, -0.01, 0, 0.01, 0, 0.01, 0, -4.3711387e-10, 0, 0, 0)
+
+[node name="Walls" type="Node3D" parent="." unique_id=1178589705]
+
+[node name="Walls2" type="Node3D" parent="." unique_id=720480625]
+
+[node name="jardi" type="Node3D" parent="." unique_id=1550959885]
+transform = Transform3D(14.992898, 23.647684, -0.003400912, -0.13550125, 0.08993609, 27.999527, 23.647295, -14.99263, 0.1625962, 206.32999, 23.745499, 25.600525)

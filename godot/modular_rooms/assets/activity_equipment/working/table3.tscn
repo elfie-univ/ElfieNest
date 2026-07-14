@@ -1,0 +1,30 @@
+[gd_scene format=3]
+
+[node name="Table3" type="Node3D" unique_id=1617443702]
+transform = Transform3D(1, 0, 2.9116758e-22, 0, 1, 0, -2.9116758e-22, 0, 1, 242.22012, 12.135895, 2.0174255)
+
+[node name="Laptop" type="Node3D" parent="." unique_id=625998926]
+transform = Transform3D(-0.053488676, 1.8605137e-18, 0.26434106, 6.5504735e-18, 1, 4.993971e-19, -0.30334935, 2.1265768e-17, -0.04661046, 1.8177899, 4.994194, 73.8186)
+
+[node name="Paper" type="Node3D" parent="." unique_id=1250818856]
+transform = Transform3D(0.2831696, 0, -0.08255881, 0, 0.25, 0, 0.09907057, 0, 0.23597467, -45.942417, 54.5, 142.02615)
+
+[node name="Table3" type="Node3D" parent="." unique_id=380317099]
+
+[node name="Box" type="Node3D" parent="." unique_id=1471757267]
+transform = Transform3D(0.1968876, 0, 0.03390253, 0, 0.25, 0, -0.040683042, 0, 0.164073, -131.68549, 0.016723633, -51.460907)
+
+[node name="Box1" type="Node3D" parent="." unique_id=1406251956]
+transform = Transform3D(0.19562258, 0, -0.038654827, 0, 0.25, 0, 0.04638579, 0, 0.16301882, -137.12646, -4.3638306, -90.50198)
+
+[node name="Box2" type="Node3D" parent="." unique_id=1037126177]
+transform = Transform3D(0.19726865, 0, -0.032327715, 0, 0.25, 0, 0.038793266, 0, 0.16439053, -136.27399, -25.544525, -101.62277)
+
+[node name="Box3" type="Node3D" parent="." unique_id=551208678]
+transform = Transform3D(4.4641353e-17, 0, 0.16753905, 0, 0.25, 0, -0.20104684, 0, 3.7201134e-17, -144.7623, -25.544525, -69.45743)
+
+[node name="Paper7" type="Node3D" parent="." unique_id=1820744724]
+transform = Transform3D(0.2831696, 0, -0.08255881, 0, 0.25, 0, 0.09907057, 0, 0.23597467, -45.942417, -16.5, -31.415052)
+
+[node name="Paper8" type="Node3D" parent="." unique_id=207101412]
+transform = Transform3D(0.09767197, 0, -0.2363792, 0, 0.25, 0, 0.28365505, 0, 0.08139331, 11.734196, -16.5, -51.889633)

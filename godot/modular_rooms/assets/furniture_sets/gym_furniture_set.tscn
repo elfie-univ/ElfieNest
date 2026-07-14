@@ -1,0 +1,7 @@
+[gd_scene format=3]
+
+[node name="gym_furniture_set" type="Node3D" unique_id=1613016145]
+
+[node name="ReferenceWalls" type="Node3D" parent="." unique_id=417052496]
+
+[node name="Furniture" type="Node3D" parent="." unique_id=1244303619]

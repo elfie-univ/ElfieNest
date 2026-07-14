@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[node name="TV_Dresser" type="Node3D" unique_id=707021292]
+transform = Transform3D(1.7763567e-16, 0, -0.8, 0, 0.8, 0, 0.8, 0, 1.7763567e-16, 251.03781, 0, -26.564575)
+
+[node name="TV" type="Node3D" parent="." unique_id=642003822]
+
+[node name="Dresser" type="Node3D" parent="." unique_id=1484010675]

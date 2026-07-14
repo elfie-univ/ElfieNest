@@ -1,0 +1,53 @@
+[gd_scene format=4]
+
+[ext_resource type="Texture2D" path="res://room/assets/deps/color_0.png" id="1_co3qs"]
+[ext_resource type="Texture2D" path="res://room/assets/deps/color_1.png" id="2_ksg1i"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_i41es"]
+resource_name = "Colors"
+cull_mode = 2
+vertex_color_use_as_albedo = true
+albedo_texture = ExtResource("1_co3qs")
+metallic_texture = ExtResource("2_ksg1i")
+metallic_texture_channel = 2
+roughness = 0.6
+roughness_texture = ExtResource("2_ksg1i")
+roughness_texture_channel = 1
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_a5l57"]
+_surfaces = [{
+"aabb": AABB(-37.5, -5, -187.5, 75, 10, 225),
+"format": 34896613377,
+"index_count": 36,
+"index_data": PackedByteArray("AAABAAIAAAADAAEAAgABAAQAAQADAAUAAAAFAAMAAQAFAAQAAgAGAAAAAAAGAAUAAgAHAAYABQAGAAcAAgAEAAcABQAHAAQA"),
+"name": "Colors",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 8,
+"vertex_data": PackedByteArray("AAAAAP//AAD///////8AAP//AAD//wAAAAD/////AAD/////AAAAAAAA//8AAAAAAAAAAAAAAAD//wAAAAAAAA==")
+}]
+blend_shape_mode = 0
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_yk8m8"]
+resource_name = "Sketchfab_Scene_Top_Shelf_Colors_0"
+_surfaces = [{
+"aabb": AABB(-37.5, -5, -187.5, 75, 10, 225),
+"attribute_data": PackedByteArray("ylBofMpQXX7KUGh8ylBdfnVfXX51X2h8dV9dfnVfaHzKUGh8dV9ofMpQaHx1X2h8ylBofHVfXX7KUF1+dV9ofMpQXX51X11+dV9dfspQXX7KUGh8dV9dfnVfaHzKUF1+"),
+"format": 34896613399,
+"index_count": 36,
+"index_data": PackedByteArray("AAABAAIAAAADAAEABAAFAAYABAAHAAUACAAJAAoACAALAAkADAANAA4ADAAPAA0AEAARABIAEAATABEAFAAVABYAFAAXABUA"),
+"material": SubResource("StandardMaterial3D_i41es"),
+"name": "Colors",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 24,
+"vertex_data": PackedByteArray("AAAAAP///n/////////+f///AAD///5/AAD//////n8AAP//AAD/////AAAAAP///////wAA//8AAAAAAAD/////AAD///+/AAAAAAAA/78AAAAA////v///AAAAAP+/AAAAAP////8AAP//AAD//wAA////////AAAAAAAA////////////vwAA//8AAP+//////wAA/78AAP//////v///AAD///8//////wAA/z///wAAAAD/P/////////8//3////9/////f////3///////3////9/////f////38AAP9/AAD/fwAA/38AAP9//z//f/8//3//P/9//z//f////3////9/////f////3//fwAA/38AAP9/AAD/fwAA")
+}]
+blend_shape_mode = 0
+shadow_mesh = SubResource("ArrayMesh_a5l57")
+
+[node name="Top_Shelf" type="Node3D" unique_id=120161639]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -137.5, 190, 137.5)
+
+[node name="Top_Shelf_Colors_0" type="MeshInstance3D" parent="." unique_id=98034032]
+mesh = SubResource("ArrayMesh_yk8m8")

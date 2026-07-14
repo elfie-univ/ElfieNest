@@ -1,0 +1,19 @@
+[gd_scene format=3]
+
+[node name="Shelf" type="Node3D" unique_id=2136186134]
+transform = Transform3D(-0.038073737, 8.454079e-18, 0.9992747, 4.4392817e-16, 1, 8.454058e-18, -0.9992747, 4.4392822e-16, -0.038073737, 140.40034, -0.92006326, 14.730416)
+
+[node name="pCube5" type="Node3D" parent="." unique_id=1524279489]
+transform = Transform3D(4.440892e-16, -0.9, 0, 1, 3.9968028e-16, 0, 0, 0, 0.75, 115, 75, 173.5)
+
+[node name="pCube4" type="Node3D" parent="." unique_id=809168007]
+transform = Transform3D(4.440892e-16, -0.9, 0, 1, 3.9968028e-16, 0, 0, 0, 0.75, 115, 160, 184.5)
+
+[node name="pCube3" type="Node3D" parent="." unique_id=2088537813]
+transform = Transform3D(4.440892e-16, -0.9, 0, 1, 3.9968028e-16, 0, 0, 0, 0.75, 115, 120, 180)
+
+[node name="pCube2" type="Node3D" parent="." unique_id=684908755]
+transform = Transform3D(1, 0, 0, 0, 1.9850923, -0.12186934, 0, 0.24373868, 0.99254614, 70, 100.47331, 177.26147)
+
+[node name="pCube1" type="Node3D" parent="." unique_id=947087901]
+transform = Transform3D(1, 0, 0, 0, 1.9850923, -0.12186934, 0, 0.24373868, 0.99254614, 160, 100.47331, 177.26147)

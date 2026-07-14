@@ -1,0 +1,4 @@
+[gd_scene format=3]
+
+[node name="Shelves" type="Node3D" unique_id=1494616035]
+transform = Transform3D(200, 0, 0, 0, -8.742277e-06, 199.99997, 0, -199.99997, -8.742277e-06, 174.97816, 11.782181, -193.92326)

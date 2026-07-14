@@ -1,0 +1,16 @@
+[gd_scene format=3]
+
+[node name="PC_Setup2" type="Node3D" unique_id=1737559479]
+transform = Transform3D(1, 0, 2.646978e-23, 0, 1, 0, -2.646978e-23, 0, 1, 0, 0, 0)
+
+[node name="Computer" type="Node3D" parent="." unique_id=653963959]
+transform = Transform3D(-0.043577872, 2.3300755e-19, 0.49809736, 5.33675e-18, 0.5, 2.3300755e-19, -0.49809736, 5.33675e-18, -0.043577872, -93.59561, 20.150333, -38.579704)
+
+[node name="Keyboard" type="Node3D" parent="." unique_id=1037610155]
+transform = Transform3D(1.110223e-16, 0, 0.2, 0, 0.4, 0, -0.5, 0, 4.440892e-17, -100.334465, 91, -37.960888)
+
+[node name="CPU" type="Node3D" parent="." unique_id=266177374]
+transform = Transform3D(0.5, 0, 0, 0, 0.4, 0, 0, 0, 0.2, -145.32773, 91, -103.55741)
+
+[node name="Mouse" type="Node3D" parent="." unique_id=1035532578]
+transform = Transform3D(2.234805e-17, 0, 0.1514565, 0, 0.4, 0, -0.10064667, 0, 3.36301e-17, -96.75149, 91, -82.791794)

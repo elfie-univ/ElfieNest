@@ -1,0 +1,19 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://room/assets/piano.glb" id="1_x5bra"]
+
+[node name="Room3" type="Node3D" unique_id=983771090]
+transform = Transform3D(0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.01, 0, 0, 0)
+
+[node name="Walls" type="Node3D" parent="." unique_id=2116050764]
+
+[node name="Walls2" type="Node3D" parent="." unique_id=427864910]
+
+[node name="music_set" type="Node3D" parent="." unique_id=2134878746]
+transform = Transform3D(100, 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0)
+
+[node name="Drum_kit" type="Node3D" parent="." unique_id=1534328742]
+transform = Transform3D(59.999996, 0, 0, 0, 59.999996, 0, 0, 0, 59.999996, -86.50629, 0, 94.393196)
+
+[node name="piano" type="Node3D" parent="." unique_id=88163158 instance=ExtResource("1_x5bra")]
+transform = Transform3D(2.0918748, 0, 59.96352, 0, 59.999996, 0, -59.96352, 0, 2.0918748, 83.23139, 0, 130.41258)

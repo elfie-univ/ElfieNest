@@ -1,0 +1,45 @@
+[gd_scene format=3]
+
+[node name="Books" type="Node3D" unique_id=1424972467]
+
+[node name="Book5" type="Node3D" parent="." unique_id=1504352563]
+transform = Transform3D(1, 0, 0, 0, 0.95105654, 0.309017, 0, -0.309017, 0.95105654, -154.5, 174.81093, 30.120028)
+
+[node name="Book4" type="Node3D" parent="." unique_id=1265094833]
+transform = Transform3D(0.983445, -0.18120696, 4.1633363e-17, 4.1633363e-17, 2.220446e-16, 1, -0.18120696, -0.983445, 2.220446e-16, -154.97667, 164, 88.80735)
+
+[node name="Book3" type="Node3D" parent="." unique_id=171930933]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -152.25856, 174, 118.48665)
+
+[node name="Book2" type="Node3D" parent="." unique_id=2107214624]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -152.25856, 174, 15.664247)
+
+[node name="Book1" type="Node3D" parent="." unique_id=393941319]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -152.25856, 174, -9.512338)
+
+[node name="Book" type="Node3D" parent="." unique_id=471093492]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -152.25856, 174, -21.217133)
+
+[node name="Book6" type="Node3D" parent="." unique_id=852427735]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -152.25856, 219, -74.42761)
+
+[node name="Book7" type="Node3D" parent="." unique_id=1936838266]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -152.25856, 219, 28.394787)
+
+[node name="Book8" type="Node3D" parent="." unique_id=1494654413]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -152.25856, 219, 17.271488)
+
+[node name="Book9" type="Node3D" parent="." unique_id=1122417436]
+transform = Transform3D(0.9840526, -0.17771593, -0.007583083, 0.0075830827, -0.0006792358, 0.99997103, -0.17771593, -0.9840816, 0.0006792308, -150.76569, 209.022, -14.949011)
+
+[node name="Book10" type="Node3D" parent="." unique_id=1450943522]
+transform = Transform3D(1, 0, 0, 0, 0.95105654, 0.309017, 0, -0.309017, 0.95105654, -154.5, 219, -59.971832)
+
+[node name="Book11" type="Node3D" parent="." unique_id=1858990018]
+transform = Transform3D(0.9960484, 0.08848813, -0.007583083, 0.007493226, 0.0013476177, 0.99997103, 0.08849579, -0.99607635, 0.0006792308, -150.76569, 218.98967, -14.949011)
+
+[node name="Book12" type="Node3D" parent="." unique_id=1600828165]
+transform = Transform3D(0.9311698, 0.3645857, -2.7755576e-17, -2.7755576e-17, 2.220446e-16, 1, 0.3645857, -0.9311698, 2.220446e-16, -104.3507, 76, -133.30022)
+
+[node name="Book13" type="Node3D" parent="." unique_id=360325015]
+transform = Transform3D(0.9996808, 0.025264982, -1.3877788e-17, 1.7347235e-18, 5.551115e-16, 1, 0.025264982, -0.9996808, 5.551115e-16, -104.3507, 86, -133.30022)

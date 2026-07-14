@@ -1,0 +1,53 @@
+[gd_scene format=4]
+
+[ext_resource type="Texture2D" path="res://room/assets/deps/color_0.png" id="1_a36k0"]
+[ext_resource type="Texture2D" path="res://room/assets/deps/color_1.png" id="2_85lc2"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_i41es"]
+resource_name = "Colors"
+cull_mode = 2
+vertex_color_use_as_albedo = true
+albedo_texture = ExtResource("1_a36k0")
+metallic_texture = ExtResource("2_85lc2")
+metallic_texture_channel = 2
+roughness = 0.6
+roughness_texture = ExtResource("2_85lc2")
+roughness_texture_channel = 1
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_v2516"]
+_surfaces = [{
+"aabb": AABB(-2.5, -27.000002, -22, 7, 54.000004, 44),
+"format": 34359742465,
+"index_count": 108,
+"index_data": PackedByteArray("AAABAAIAAwAAAAIABAAAAAMAAwACAAUABgAEAAMABgADAAUABQACAAcABQAHAAYABgAIAAQABAAIAAAABgAHAAgAAgAJAAcAAgABAAkABwAKAAgABwAJAAoACAALAAAAAAALAAEACAAKAAsADAAJAAEADQAKAAkADQAJAAwADgALAAoADgAKAA0ADwABAAsADwALAA4ADAABAA8AEAAOAA0AEQAMAA8AEgAPAA4AEQAPABIAEgAOABAAEwAMABEAEgATABEAEwANAAwAEgAQABMAEAANABMA"),
+"name": "Colors",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 20,
+"vertex_data": PackedByteArray("AAAgwAEA2EEAALBBAACQQAEA2MEAALBBAAAgwAEA2MEAALBBAAAgwAAAyEEAAKBBAAAgwAAAyEEAAKDBAAAgwAAAyMEAAKBBAAAgwAAAyMEAAKDBAAAgwAEA2MEAALDBAAAgwAEA2EEAALDBAACQQAEA2MEAALDBAACQQAEA2EEAALDBAACQQAEA2EEAALBBAACQQAAAyMEAAKDBAACQQAAAyEEAAKDBAACQQAAAyEEAAKBBAACQQAAAyMEAAKBBAAAgQAAAyEEAAKBBAAAgQAAAyMEAAKDBAAAgQAAAyMEAAKBBAAAgQAAAyEEAAKDB")
+}]
+blend_shape_mode = 0
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_ff2or"]
+resource_name = "Sketchfab_Scene_Cork_Board_Colors_0"
+_surfaces = [{
+"aabb": AABB(-2.5, -27.000002, -22, 7, 54.000004, 44),
+"attribute_data": PackedByteArray("mB6EPnSC8z5shYc+L37RPpgehD4vftE+bIWHPnSC8z6YHoQ+dILzPmyFhz50gvM+mB6EPnSC8z5shYc+dILzPpgehD4vftE+bIWHPnSC8z6YHoQ+dILzPmyFhz4vftE+mB6EPi9+0T5shYc+L37RPpgehD4vftE+bIWHPi9+0T6Leqw+RhZsP4t6rD5pGH0/i3qsPkYWbD+Leqw+aRh9P5gehD4vftE+mB6EPnSC8z6YHoQ+L37RPpgehD4vftE+mB6EPi9+0T6YHoQ+dILzPpgehD50gvM+mB6EPnSC8z5shYc+L37RPmyFhz50gvM+bIWHPnSC8z5shYc+dILzPmyFhz4vftE+bIWHPnSC8z5shYc+L37RPmyFhz4vftE+bIWHPi9+0T5shYc+dILzPmyFhz50gvM+bIWHPi9+0T5shYc+dILzPmyFhz50gvM+bIWHPnSC8z5shYc+dILzPmyFhz50gvM+bIWHPi9+0T5shYc+L37RPmyFhz50gvM+bIWHPi9+0T5shYc+L37RPmyFhz4vftE+bIWHPi9+0T4="),
+"format": 34359742487,
+"index_count": 108,
+"index_data": PackedByteArray("AAABAAIAAAADAAEABAAFAAYABAAHAAUACAAJAAoACAALAAkADAANAA4ADAAPAA0AEAARABIAEAATABEAFAAVABYAFQAXABYAFgAXABgAFgAYABQAFQAZABcAFAAYABoAGwAZABUAFAAbABUAGwAaABkAFAAaABsAHAAdAB4AHgAdAB8AHAAgAB0AHgAfACEAIgAgABwAIQAfACMAIgAjACAAIQAjACIAJAAlACYAJAAnACUAKAApACoAKAArACkALAAtAC4ALAAvAC0AMAAxADIAMAAzADEA"),
+"material": SubResource("StandardMaterial3D_i41es"),
+"name": "Colors",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 52,
+"vertex_data": PackedByteArray("AAAgwAEA2EEAALBBAACQQAEA2MEAALBBAAAgwAEA2MEAALBBAACQQAEA2EEAALBBAAAgwAEA2EEAALDBAACQQAEA2EEAALBBAAAgwAEA2EEAALBBAACQQAEA2EEAALDBAAAgwAEA2MEAALDBAACQQAEA2EEAALDBAAAgwAEA2EEAALDBAACQQAEA2MEAALDBAAAgwAEA2MEAALBBAACQQAEA2MEAALDBAAAgwAEA2MEAALDBAACQQAEA2MEAALBBAAAgQAAAyMEAAKBBAAAgQAAAyEEAAKDBAAAgQAAAyMEAAKDBAAAgQAAAyEEAAKBBAAAgwAAAyMEAAKDBAAAgwAAAyEEAAKBBAAAgwAAAyMEAAKBBAAAgwAEA2MEAALBBAAAgwAEA2MEAALDBAAAgwAEA2EEAALBBAAAgwAEA2EEAALDBAAAgwAAAyEEAAKDBAACQQAAAyMEAAKBBAACQQAEA2EEAALBBAACQQAAAyEEAAKBBAACQQAEA2EEAALDBAACQQAEA2MEAALBBAACQQAAAyEEAAKDBAACQQAAAyMEAAKDBAACQQAEA2MEAALDBAAAgQAAAyMEAAKBBAACQQAAAyEEAAKBBAAAgQAAAyEEAAKBBAACQQAAAyMEAAKBBAAAgQAAAyEEAAKBBAACQQAAAyEEAAKDBAAAgQAAAyEEAAKDBAACQQAAAyEEAAKBBAAAgQAAAyEEAAKDBAACQQAAAyMEAAKDBAAAgQAAAyMEAAKDBAACQQAAAyEEAAKDBAAAgQAAAyMEAAKDBAACQQAAAyMEAAKBBAAAgQAAAyMEAAKBBAACQQAAAyMEAAKDB/3//f////z//f/9/////P/9//3////8//3//f////z//f///////v/9///////+//3///////7//f///////v/////////+//////////7//////////v/////////+//38AAP///7//fwAA////v/9/AAD///+//38AAP///7////9/////v////3////+/////f////7////9/////vwAA/3////+/AAD/f////78AAP9/////vwAA/3////+/AAD/f////78AAP9/////vwAA/3////+/AAD/f////7////9/////v////3////+/////f////7////9/////v////3////+/////f////7////9/////v////3////+//////////7//////////v/////////+//////////7//fwAA////v/9/AAD///+//38AAP///7//fwAA////v/9//3////8//3//f////z//f/9/////P/9//3////8//3///////7//f///////v/9///////+//3///////78=")
+}]
+blend_shape_mode = 0
+shadow_mesh = SubResource("ArrayMesh_v2516")
+
+[node name="Cork_Board" type="Node3D" unique_id=2118733113]
+transform = Transform3D(1, 0, 0, 0, 2, 0, 0, 0, 2, -175, 150, -80)
+
+[node name="Cork_Board_Colors_0" type="MeshInstance3D" parent="." unique_id=294660107]
+mesh = SubResource("ArrayMesh_ff2or")

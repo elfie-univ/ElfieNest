@@ -1,0 +1,7 @@
+[gd_scene format=3]
+
+[node name="bookroom_furniture_set" type="Node3D" unique_id=835517576]
+
+[node name="ReferenceWalls" type="Node3D" parent="." unique_id=2123304840]
+
+[node name="Furniture" type="Node3D" parent="." unique_id=766530375]
