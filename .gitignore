@@ -71,3 +71,6 @@ ElfieNest.worktree/
 
 # OpenCode agent skills (project-level)
 .agents/
+
+# Runtime temp files (audio, cache, etc.)
+data/temp/

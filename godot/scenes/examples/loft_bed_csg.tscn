@@ -1,0 +1,125 @@
+[gd_scene format=3 uid="uid://3t58rwdaxxjc"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_03bd4"]
+albedo_color = Color(0.85, 0.82, 0.75, 1)
+
+[node name="LoftBed" type="Node3D" unique_id=1175450702]
+
+[node name="BedCSG" type="CSGCombiner3D" parent="." unique_id=1369423110]
+
+[node name="BackPanel" type="CSGBox3D" parent="BedCSG" unique_id=366162999]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -0.6)
+size = Vector3(2.5, 2, 0.05)
+material = SubResource("StandardMaterial3D_03bd4")
+
+[node name="RightPanel" type="CSGBox3D" parent="BedCSG" unique_id=282565928]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.225, 1, 0)
+size = Vector3(0.05, 2, 1.25)
+material = SubResource("StandardMaterial3D_03bd4")
+
+[node name="LeftPanel" type="CSGBox3D" parent="BedCSG" unique_id=723153254]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.225, 1, 0)
+size = Vector3(0.05, 2, 1.25)
+material = SubResource("StandardMaterial3D_03bd4")
+
+[node name="InnerDivider" type="CSGBox3D" parent="BedCSG" unique_id=238803475]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6, 1, 0)
+size = Vector3(0.05, 2, 1.25)
+material = SubResource("StandardMaterial3D_03bd4")
+
+[node name="BedBase" type="CSGBox3D" parent="BedCSG" unique_id=1137165320]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, 1.5, 0)
+size = Vector3(1.8, 0.1, 1.15)
+material = SubResource("StandardMaterial3D_03bd4")
+
+[node name="FrontRail" type="CSGBox3D" parent="BedCSG" unique_id=1027288660]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, 1.75, 0.575)
+size = Vector3(1.8, 0.4, 0.05)
+material = SubResource("StandardMaterial3D_03bd4")
+
+[node name="Desk" type="CSGBox3D" parent="BedCSG" unique_id=1529269820]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, 0.75, -0.3)
+size = Vector3(1.8, 0.05, 0.6)
+material = SubResource("StandardMaterial3D_03bd4")
+
+[node name="DrawerCabinet" type="CSGBox3D" parent="BedCSG" unique_id=61960322]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.35, 0.375, -0.3)
+size = Vector3(0.35, 0.75, 0.5)
+material = SubResource("StandardMaterial3D_03bd4")
+
+[node name="Shelf_0" type="CSGBox3D" parent="BedCSG" unique_id=900077566]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.45, 0.9, -0.3)
+size = Vector3(0.2, 0.05, 0.4)
+material = SubResource("StandardMaterial3D_03bd4")
+
+[node name="Shelf_1" type="CSGBox3D" parent="BedCSG" unique_id=1357851709]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.45, 1.1, -0.3)
+size = Vector3(0.2, 0.05, 0.4)
+material = SubResource("StandardMaterial3D_03bd4")
+
+[node name="Shelf_2" type="CSGBox3D" parent="BedCSG" unique_id=450815465]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.45, 1.3, -0.3)
+size = Vector3(0.2, 0.05, 0.4)
+material = SubResource("StandardMaterial3D_03bd4")
+
+[node name="Step_0" type="CSGBox3D" parent="BedCSG" unique_id=363357986]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.9125, 0.175, 0.5)
+size = Vector3(0.575, 0.35, 0.3)
+material = SubResource("StandardMaterial3D_03bd4")
+
+[node name="Step_1" type="CSGBox3D" parent="BedCSG" unique_id=1339077785]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.9125, 0.35, 0.2)
+size = Vector3(0.575, 0.7, 0.3)
+material = SubResource("StandardMaterial3D_03bd4")
+
+[node name="Step_2" type="CSGBox3D" parent="BedCSG" unique_id=1235270726]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.9125, 0.525, -0.1)
+size = Vector3(0.575, 1.05, 0.3)
+material = SubResource("StandardMaterial3D_03bd4")
+
+[node name="Step_3" type="CSGBox3D" parent="BedCSG" unique_id=1018757727]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.9125, 0.7, -0.4)
+size = Vector3(0.575, 1.4, 0.3)
+material = SubResource("StandardMaterial3D_03bd4")
+
+[node name="HoleFront_0" type="CSGCylinder3D" parent="BedCSG" unique_id=1244349736]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, -0.1, 1.8, 0.575)
+operation = 2
+radius = 0.12
+height = 0.2
+
+[node name="HoleFront_1" type="CSGCylinder3D" parent="BedCSG" unique_id=1493490566]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 0.3, 1.8, 0.575)
+operation = 2
+radius = 0.12
+height = 0.2
+
+[node name="HoleFront_2" type="CSGCylinder3D" parent="BedCSG" unique_id=2087249485]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 0.7, 1.8, 0.575)
+operation = 2
+radius = 0.12
+height = 0.2
+
+[node name="HoleLeft_0" type="CSGCylinder3D" parent="BedCSG" unique_id=570699939]
+transform = Transform3D(-4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0, 0, 1, -1.225, 0.5, 0.5)
+operation = 2
+radius = 0.08
+height = 0.2
+
+[node name="HoleLeft_1" type="CSGCylinder3D" parent="BedCSG" unique_id=1068709483]
+transform = Transform3D(-4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0, 0, 1, -1.225, 0.85, 0.2)
+operation = 2
+radius = 0.08
+height = 0.2
+
+[node name="HoleLeft_2" type="CSGCylinder3D" parent="BedCSG" unique_id=1215704862]
+transform = Transform3D(-4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0, 0, 1, -1.225, 1.2, -0.1)
+operation = 2
+radius = 0.08
+height = 0.2
+
+[node name="HoleLeft_3" type="CSGCylinder3D" parent="BedCSG" unique_id=761953804]
+transform = Transform3D(-4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0, 0, 1, -1.225, 1.55, -0.4)
+operation = 2
+radius = 0.08
+height = 0.2
