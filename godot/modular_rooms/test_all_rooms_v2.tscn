@@ -1,0 +1,10 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://modular_rooms/test_all_rooms_v2.gd" id="1_test"]
+[ext_resource type="Script" path="res://modular_rooms/activity_room_v2.gd" id="2_v2"]
+
+[node name="TestAllRoomsV2" type="Node3D"]
+script = ExtResource("1_test")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 10, 10, 10)

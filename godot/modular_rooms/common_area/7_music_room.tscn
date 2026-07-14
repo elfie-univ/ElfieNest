@@ -1,6 +1,6 @@
-[gd_scene format=4]
+[gd_scene format=4 uid="uid://dogn7bvc8xlmn"]
 
-[ext_resource type="PackedScene" path="res://room/assets/piano.glb" id="1_hk2sv"]
+[ext_resource type="PackedScene" uid="uid://c3ukf2qx6cuj2" path="res://room/assets/piano.glb" id="3_wi244"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_w2fhj"]
 resource_name = "Attache_Gris_Pl_Mate"
@@ -5650,5 +5650,5 @@ transform = Transform3D(0.13470286, 0, -0.000715695, 0, 0.04772663, 0, 0.0019296
 [node name="Object_52" type="MeshInstance3D" parent="Drum_kit/Plane_002_21" unique_id=1113723885]
 mesh = SubResource("ArrayMesh_8f6l7")
 
-[node name="piano" type="Node3D" parent="." unique_id=904281903 instance=ExtResource("1_hk2sv")]
+[node name="piano" parent="." unique_id=904281903 instance=ExtResource("3_wi244")]
 transform = Transform3D(0.02440521, 0, 0.6995744, 0, 0.7, 0, -0.6995744, 0, 0.02440521, 0.8323139, 0, 1.3041258)

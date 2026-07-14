@@ -1,21 +1,21 @@
-[gd_scene format=4]
+[gd_scene format=4 uid="uid://bcowmqb7a7q7b"]
 
-[ext_resource type="Texture2D" path="res://room/assets/deps/color_0.png" id="1_28l2t"]
-[ext_resource type="Texture2D" path="res://room/assets/deps/color_1.png" id="2_lip6w"]
-[ext_resource type="PackedScene" path="res://room/assets/bookshelf_1.tscn" id="3_tian1"]
-[ext_resource type="PackedScene" path="res://room/assets/bookshelf_2.tscn" id="4_0y43y"]
-[ext_resource type="PackedScene" path="res://room/assets/table_medium.tscn" id="5_n2din"]
-[ext_resource type="PackedScene" path="res://room/assets/chair.tscn" id="6_m34kn"]
+[ext_resource type="Texture2D" uid="uid://bvjkhu0hcyfoq" path="res://room/assets/deps/color_0.png" id="1_urgl7"]
+[ext_resource type="Texture2D" uid="uid://deot67ek1igx7" path="res://room/assets/deps/color_1.png" id="2_l70lr"]
+[ext_resource type="PackedScene" uid="uid://coesfqsdeosfo" path="res://room/assets/bookshelf_1.tscn" id="3_id1ii"]
+[ext_resource type="PackedScene" uid="uid://dvrc4r4gdy4x2" path="res://room/assets/bookshelf_2.tscn" id="4_wxa3r"]
+[ext_resource type="PackedScene" uid="uid://bvm710w2sy605" path="res://room/assets/table_medium.tscn" id="5_y23v8"]
+[ext_resource type="PackedScene" uid="uid://d08d75oc7f4f6" path="res://room/assets/chair.tscn" id="6_iqh1v"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_i41es"]
 resource_name = "Colors"
 cull_mode = 2
 vertex_color_use_as_albedo = true
-albedo_texture = ExtResource("1_28l2t")
-metallic_texture = ExtResource("2_lip6w")
+albedo_texture = ExtResource("1_urgl7")
+metallic_texture = ExtResource("2_l70lr")
 metallic_texture_channel = 2
 roughness = 0.6
-roughness_texture = ExtResource("2_lip6w")
+roughness_texture = ExtResource("2_l70lr")
 roughness_texture_channel = 1
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_rkwq7"]
@@ -112,16 +112,16 @@ visible = false
 transform = Transform3D(-1.5, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0.1)
 mesh = SubResource("ArrayMesh_nndyd")
 
-[node name="Bookshelf1" type="Node3D" parent="convert_node" unique_id=1871362644 instance=ExtResource("3_tian1")]
+[node name="Bookshelf1" parent="convert_node" unique_id=1871362644 instance=ExtResource("3_id1ii")]
 transform = Transform3D(-0.68477666, 0.013863406, 0.72862107, -0.0007432142, 0.99980515, -0.01972171, -0.72875243, -0.01404649, -0.6846331, 248.41869, -10.048798, -122.88458)
 
-[node name="Bookshelf2" type="Node3D" parent="convert_node" unique_id=588963906 instance=ExtResource("4_0y43y")]
+[node name="Bookshelf2" parent="convert_node" unique_id=588963906 instance=ExtResource("4_wxa3r")]
 transform = Transform3D(0.6819983, 0.014040121, 0.73121893, 0, 0.9998156, -0.019197442, -0.7313537, 0.013092623, 0.68187267, 212.4533, -27.636158, 162.30847)
 
-[node name="Bookshelf3" type="Node3D" parent="convert_node" unique_id=1874722364 instance=ExtResource("4_0y43y")]
+[node name="Bookshelf3" parent="convert_node" unique_id=1874722364 instance=ExtResource("4_wxa3r")]
 transform = Transform3D(0.6819983, 0.01404012, 0.7312189, 0, 0.99981564, -0.019197442, -0.73135364, 0.013092624, 0.6818726, -54.314404, -23.292423, 161.89339)
 
-[node name="Bookshelf4" type="Node3D" parent="convert_node" unique_id=504962677 instance=ExtResource("3_tian1")]
+[node name="Bookshelf4" parent="convert_node" unique_id=504962677 instance=ExtResource("3_id1ii")]
 transform = Transform3D(0.68824047, 0, -0.72548246, 0, 0.9999999, 0, 0.72548246, 0, 0.6882406, -254.2035, 0, 160.13556)
 
 [node name="BeanBag" type="Node3D" parent="convert_node" unique_id=1165382140]
@@ -130,23 +130,23 @@ transform = Transform3D(39.999996, 0, -2.2737368e-13, 0, 39.999996, 0, 2.2737368
 [node name="Object_4" type="MeshInstance3D" parent="convert_node/BeanBag" unique_id=363058111]
 mesh = SubResource("ArrayMesh_c6jul")
 
-[node name="Table" type="Node3D" parent="convert_node" unique_id=707159501 instance=ExtResource("5_n2din")]
+[node name="Table" parent="convert_node" unique_id=707159501 instance=ExtResource("5_y23v8")]
 transform = Transform3D(1.5, 0, -3.5527137e-15, 0, 1, 0, 1.4210855e-14, 0, 1, 86.06845, 0, -132.0532)
 
-[node name="Chair1" type="Node3D" parent="convert_node" unique_id=2047493975 instance=ExtResource("6_m34kn")]
+[node name="Chair1" parent="convert_node" unique_id=2047493975 instance=ExtResource("6_iqh1v")]
 transform = Transform3D(1, 0, -3.5527137e-15, 0, 1, 0, 3.5527137e-15, 0, 1, 160.42827, 0, -100)
 
-[node name="Chair2" type="Node3D" parent="convert_node" unique_id=69351745 instance=ExtResource("6_m34kn")]
+[node name="Chair2" parent="convert_node" unique_id=69351745 instance=ExtResource("6_iqh1v")]
 transform = Transform3D(1, 0, -3.5527137e-15, 0, 1, 0, 3.5527137e-15, 0, 1, 72.8013, 0, -99.999985)
 
-[node name="Chair3" type="Node3D" parent="convert_node" unique_id=722774513 instance=ExtResource("6_m34kn")]
+[node name="Chair3" parent="convert_node" unique_id=722774513 instance=ExtResource("6_iqh1v")]
 transform = Transform3D(1, 0, -3.5527137e-15, 0, 1, 0, 3.5527137e-15, 0, 1, -16.295282, 0, -99.999985)
 
-[node name="Chair4" type="Node3D" parent="convert_node" unique_id=1553555244 instance=ExtResource("6_m34kn")]
+[node name="Chair4" parent="convert_node" unique_id=1553555244 instance=ExtResource("6_iqh1v")]
 transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 113.94257, 0, 72.023834)
 
-[node name="Chair5" type="Node3D" parent="convert_node" unique_id=1333830304 instance=ExtResource("6_m34kn")]
+[node name="Chair5" parent="convert_node" unique_id=1333830304 instance=ExtResource("6_iqh1v")]
 transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 25.42389, 0, 72.02384)
 
-[node name="Chair6" type="Node3D" parent="convert_node" unique_id=1735097699 instance=ExtResource("6_m34kn")]
+[node name="Chair6" parent="convert_node" unique_id=1735097699 instance=ExtResource("6_iqh1v")]
 transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -62.63759, 0, 72.02384)

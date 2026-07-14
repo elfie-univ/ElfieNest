@@ -1,18 +1,18 @@
-[gd_scene format=4]
+[gd_scene format=4 uid="uid://df6qyl88nqhfm"]
 
-[ext_resource type="Texture2D" path="res://room/assets/deps/color_0.png" id="1_qcj0x"]
-[ext_resource type="Texture2D" path="res://room/assets/deps/color_1.png" id="2_1bt4t"]
-[ext_resource type="PackedScene" path="res://room/assets/dinner_table/dinner_table_set.tscn" id="3_xi7sf"]
+[ext_resource type="Texture2D" uid="uid://bvjkhu0hcyfoq" path="res://room/assets/deps/color_0.png" id="1_40gxh"]
+[ext_resource type="Texture2D" uid="uid://deot67ek1igx7" path="res://room/assets/deps/color_1.png" id="2_sx8t1"]
+[ext_resource type="PackedScene" uid="uid://bq7r2h88dic0e" path="res://room/assets/dinner_table/dinner_table_set.tscn" id="3_f5yyr"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_i41es"]
 resource_name = "Colors"
 cull_mode = 2
 vertex_color_use_as_albedo = true
-albedo_texture = ExtResource("1_qcj0x")
-metallic_texture = ExtResource("2_1bt4t")
+albedo_texture = ExtResource("1_40gxh")
+metallic_texture = ExtResource("2_sx8t1")
 metallic_texture_channel = 2
 roughness = 0.6
-roughness_texture = ExtResource("2_1bt4t")
+roughness_texture = ExtResource("2_sx8t1")
 roughness_texture_channel = 1
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_a5l57"]
@@ -1783,7 +1783,7 @@ transform = Transform3D(1, 0, 0, 0, 1.5, 0, 0, 0, 1.5, -172.49998, 140, 226.1760
 [node name="Picture_Colors_02" type="MeshInstance3D" parent="Picture5" unique_id=1044956602]
 mesh = SubResource("ArrayMesh_nycuk")
 
-[node name="Dinner_Table" type="Node3D" parent="." unique_id=496172518 instance=ExtResource("3_xi7sf")]
+[node name="Dinner_Table" parent="." unique_id=496172518 instance=ExtResource("3_f5yyr")]
 transform = Transform3D(7, 0, 0, 0, 7, 0, 0, 0, 7, 41.32511, -21.578205, -114.62813)
 
 [node name="Shelves" type="MeshInstance3D" parent="." unique_id=1537550112]

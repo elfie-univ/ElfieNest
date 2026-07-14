@@ -1,18 +1,18 @@
-[gd_scene format=4]
+[gd_scene format=4 uid="uid://bbjt3cfro2lda"]
 
-[ext_resource type="Texture2D" path="res://room/assets/deps/color_0.png" id="1_wtdgq"]
-[ext_resource type="Texture2D" path="res://room/assets/deps/color_1.png" id="2_ef3tw"]
-[ext_resource type="PackedScene" path="res://room/assets/treadmill.tscn" id="3_o7d7c"]
+[ext_resource type="Texture2D" uid="uid://bvjkhu0hcyfoq" path="res://room/assets/deps/color_0.png" id="1_p82ws"]
+[ext_resource type="Texture2D" uid="uid://deot67ek1igx7" path="res://room/assets/deps/color_1.png" id="2_heu4a"]
+[ext_resource type="PackedScene" uid="uid://bk1rt80c7hsh2" path="res://room/assets/treadmill.tscn" id="4_648gy"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_i41es"]
 resource_name = "Colors"
 cull_mode = 2
 vertex_color_use_as_albedo = true
-albedo_texture = ExtResource("1_wtdgq")
-metallic_texture = ExtResource("2_ef3tw")
+albedo_texture = ExtResource("1_p82ws")
+metallic_texture = ExtResource("2_heu4a")
 metallic_texture_channel = 2
 roughness = 0.6
-roughness_texture = ExtResource("2_ef3tw")
+roughness_texture = ExtResource("2_heu4a")
 roughness_texture_channel = 1
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_qf0ya"]
@@ -1077,11 +1077,11 @@ shadow_mesh = SubResource("ArrayMesh_tp2ca")
 resource_name = "Colors"
 cull_mode = 2
 vertex_color_use_as_albedo = true
-albedo_texture = ExtResource("1_wtdgq")
-metallic_texture = ExtResource("2_ef3tw")
+albedo_texture = ExtResource("1_p82ws")
+metallic_texture = ExtResource("2_heu4a")
 metallic_texture_channel = 2
 roughness = 0.6
-roughness_texture = ExtResource("2_ef3tw")
+roughness_texture = ExtResource("2_heu4a")
 roughness_texture_channel = 1
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_64wun"]
@@ -1354,13 +1354,13 @@ transform = Transform3D(0, 0.14174971, 0.52901715, -1.5201141e-17, 0.52901715, -
 [node name="TV1_Colors_0" type="MeshInstance3D" parent="TV1" unique_id=86790412]
 mesh = SubResource("ArrayMesh_xql2q")
 
-[node name="Treadmill" type="Node3D" parent="." unique_id=1125274186 instance=ExtResource("3_o7d7c")]
+[node name="Treadmill" parent="." unique_id=1125274186 instance=ExtResource("4_648gy")]
 transform = Transform3D(0.8, 0, -3.5527137e-15, 0, 0.8, 0, 3.5527137e-15, 0, 0.8, -73.61, 0, 35)
 
-[node name="Treadmill2" type="Node3D" parent="." unique_id=1285543280 instance=ExtResource("3_o7d7c")]
+[node name="Treadmill2" parent="." unique_id=1285543280 instance=ExtResource("4_648gy")]
 transform = Transform3D(0.8, 0, -3.5527137e-15, 0, 0.8, 0, 3.5527137e-15, 0, 0.8, 39.842346, 0, 34.999996)
 
-[node name="Treadmill3" type="Node3D" parent="." unique_id=712256069 instance=ExtResource("3_o7d7c")]
+[node name="Treadmill3" parent="." unique_id=712256069 instance=ExtResource("4_648gy")]
 transform = Transform3D(0.8, 0, -3.5527137e-15, 0, 0.8, 0, 3.5527137e-15, 0, 0.8, 151.38568, 0, 34.99999)
 
 [node name="YogaBall" type="Node3D" parent="." unique_id=990448571]

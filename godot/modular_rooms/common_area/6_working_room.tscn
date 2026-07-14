@@ -1,17 +1,17 @@
-[gd_scene format=4]
+[gd_scene format=4 uid="uid://xk6vo1juqj8e"]
 
-[ext_resource type="Texture2D" path="res://room/assets/deps/color_0.png" id="1_ggebd"]
-[ext_resource type="Texture2D" path="res://room/assets/deps/color_1.png" id="2_7mvcq"]
+[ext_resource type="Texture2D" uid="uid://bvjkhu0hcyfoq" path="res://room/assets/deps/color_0.png" id="1_kpg5p"]
+[ext_resource type="Texture2D" uid="uid://deot67ek1igx7" path="res://room/assets/deps/color_1.png" id="2_glr6o"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_5uien"]
 resource_name = "Colors"
 cull_mode = 2
 vertex_color_use_as_albedo = true
-albedo_texture = ExtResource("1_ggebd")
-metallic_texture = ExtResource("2_7mvcq")
+albedo_texture = ExtResource("1_kpg5p")
+metallic_texture = ExtResource("2_glr6o")
 metallic_texture_channel = 2
 roughness = 0.6
-roughness_texture = ExtResource("2_7mvcq")
+roughness_texture = ExtResource("2_glr6o")
 roughness_texture_channel = 1
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_fbsxt"]
@@ -242,11 +242,11 @@ shadow_mesh = SubResource("ArrayMesh_ad5o3")
 resource_name = "Colors"
 cull_mode = 2
 vertex_color_use_as_albedo = true
-albedo_texture = ExtResource("1_ggebd")
-metallic_texture = ExtResource("2_7mvcq")
+albedo_texture = ExtResource("1_kpg5p")
+metallic_texture = ExtResource("2_glr6o")
 metallic_texture_channel = 2
 roughness = 0.6
-roughness_texture = ExtResource("2_7mvcq")
+roughness_texture = ExtResource("2_glr6o")
 roughness_texture_channel = 1
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_iokr7"]
