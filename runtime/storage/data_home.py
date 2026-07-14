@@ -7,10 +7,8 @@
 """
 
 import os
-import stat
 import sys
 from pathlib import Path
-from typing import Optional
 
 
 def get_elfie_home() -> Path:
@@ -32,6 +30,31 @@ def get_config_path() -> Path:
 def get_env_path() -> Path:
     """API Keys 和 secrets (权限 600, gitignored)"""
     return get_elfie_home() / ".env"
+
+
+def get_food_catalog_path() -> Path:
+    """当前生效的粮食配方目录。"""
+    return get_elfie_home() / "foods.yaml"
+
+
+def get_food_history_dir() -> Path:
+    """粮食配方历史版本目录。"""
+    return get_elfie_home() / "food_history"
+
+
+def get_validation_dir() -> Path:
+    """Runtime 三层本地验证报告目录。"""
+    return get_elfie_home() / "validations"
+
+
+def get_model_evidence_path() -> Path:
+    """已验证模型能力证据。"""
+    return get_elfie_home() / "model_evidence.yaml"
+
+
+def get_local_files_dir() -> Path:
+    """Agent 可访问的受控本地文件根目录。"""
+    return get_elfie_home() / "files"
 
 
 def get_db_path() -> Path:
@@ -103,6 +126,9 @@ def ensure_elfie_home() -> None:
         "skills",
         "audio_cache",
         "sessions",
+        "food_history",
+        "validations",
+        "files",
     ]
     for subdir in subdirs:
         d = home / subdir

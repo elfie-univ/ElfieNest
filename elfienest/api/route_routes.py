@@ -1,7 +1,6 @@
-"""Elfie 路由配置 REST API — 每精灵模型路由管理。
+"""旧精灵路由 API 的粮食策略兼容入口。
 
-用户端点，通过 get_current_user + 所有权验证保护。
-每个精灵独立配置场景模型路由（idle/deep/vision/tool_use/sleep）。
+精灵不再直接选择 Provider/模型；新客户端应使用 ``/food-policy``。
 """
 
 from __future__ import annotations
@@ -12,13 +11,12 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from elfienest.persistence.store import get_db
-from runtime.policy.model_route import (
-    SCENE_SLOTS,
-    SceneRoute,
-    load_model_route,
-    save_model_route,
+from runtime.food.elfie_policy import (
+    load_elfie_food_policy,
+    save_elfie_food_policy,
 )
 
+from .food_policy_routes import parse_food_policy_update
 from .user_routes import get_current_user
 
 logger = logging.getLogger("elfienest.api.route_routes")
@@ -52,49 +50,6 @@ def _get_owned_config_dir(conn, elfie_id: str, user_id: int) -> str:
     return row["config_dir"]
 
 
-def _validate_scene_routes(scene_routes: Dict[str, Any]) -> None:
-    """验证场景路由配置的有效性。"""
-    if not isinstance(scene_routes, dict):
-        raise HTTPException(status_code=422, detail="scene_routes 必须为字典")
-
-    for scene, route_data in scene_routes.items():
-        if scene not in SCENE_SLOTS:
-            raise HTTPException(
-                status_code=422,
-                detail=f"未知场景 '{scene}'，有效场景: {SCENE_SLOTS}",
-            )
-
-        if not isinstance(route_data, dict):
-            raise HTTPException(
-                status_code=422,
-                detail=f"场景 '{scene}' 的路由配置必须为字典",
-            )
-
-        # 验证 primary 字段
-        if "primary" not in route_data:
-            raise HTTPException(
-                status_code=422,
-                detail=f"场景 '{scene}' 缺少 primary 字段",
-            )
-
-        # 验证 fallbacks 字段（可选）
-        if "fallbacks" in route_data:
-            if not isinstance(route_data["fallbacks"], list):
-                raise HTTPException(
-                    status_code=422,
-                    detail=f"场景 '{scene}' 的 fallbacks 必须为列表",
-                )
-
-        # 验证 energy_threshold 字段（可选）
-        if "energy_threshold" in route_data:
-            threshold = route_data["energy_threshold"]
-            if not isinstance(threshold, (int, float)) or not (0 <= threshold <= 100):
-                raise HTTPException(
-                    status_code=422,
-                    detail=f"场景 '{scene}' 的 energy_threshold 必须为 0-100 的数值",
-                )
-
-
 # ===================================================================
 # 路由：GET /api/user/elfies/{elfie_id}/route
 # ===================================================================
@@ -106,19 +61,20 @@ async def get_elfie_route(
     request: Request,
     user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
 ) -> Dict[str, Any]:
-    """读取精灵的模型路由配置。
-
-    如果精灵没有自定义路由配置，返回系统默认配置。
-    """
+    """兼容读取粮食权限，不再返回任何模型引用。"""
     db = request.app.state.db_path
 
     with get_db(db) as conn:
         config_dir = _get_owned_config_dir(conn, elfie_id, user["id"])
 
-    # 加载路由配置
-    route = load_model_route(elfie_id, config_dir=config_dir)
-
-    return route.to_dict()
+    payload = load_elfie_food_policy(elfie_id, config_dir).to_dict()
+    payload.update(
+        {
+            "deprecated": True,
+            "replacement": f"/api/user/elfies/{elfie_id}/food-policy",
+        }
+    )
+    return payload
 
 
 # ===================================================================
@@ -133,40 +89,27 @@ async def update_elfie_route(
     request: Request,
     user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
 ) -> Dict[str, Any]:
-    """更新精灵的模型路由配置。
-
-    Body: {"scene_routes": {"idle": {"primary": "ollama/qwen3.5:0.8b", ...}, ...}}
-    """
+    """兼容更新粮食权限；明确拒绝旧的直接模型路由结构。"""
     db = request.app.state.db_path
 
     with get_db(db) as conn:
         config_dir = _get_owned_config_dir(conn, elfie_id, user["id"])
 
-    # 验证请求体
-    if "scene_routes" not in body:
-        raise HTTPException(status_code=422, detail="缺少 scene_routes 字段")
-
-    scene_routes_data = body["scene_routes"]
-    _validate_scene_routes(scene_routes_data)
-
-    # 构建路由配置
-    route = load_model_route(elfie_id, config_dir=config_dir)  # 加载现有配置作为基础
-
-    # 更新场景路由
-    for scene, route_data in scene_routes_data.items():
-        route.scene_routes[scene] = SceneRoute(
-            primary=route_data["primary"],
-            fallbacks=route_data.get("fallbacks", []),
-            energy_threshold=route_data.get("energy_threshold", 0.0),
+    if "scene_routes" in body:
+        raise HTTPException(
+            status_code=410,
+            detail="模型路由配置已停用；请改为配置 default_food、allowed_foods 和 fallback_food",
         )
-
-    # 保存
-    save_model_route(route, config_dir=config_dir)
+    policy = parse_food_policy_update(elfie_id, body)
+    save_elfie_food_policy(policy, config_dir)
 
     logger.info(
-        "用户 '%s' 更新了精灵 '%s' 的路由配置",
+        "用户 '%s' 通过旧路由入口更新了精灵 '%s' 的粮食权限",
         user["username"],
         elfie_id,
     )
 
-    return route.to_dict()
+    payload = policy.to_dict()
+    payload["deprecated"] = True
+    payload["replacement"] = f"/api/user/elfies/{elfie_id}/food-policy"
+    return payload

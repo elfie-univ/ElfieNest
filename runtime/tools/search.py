@@ -1,7 +1,12 @@
+from __future__ import annotations
+
 import logging
+import json
 import urllib.parse
 import urllib.request
-from typing import Dict, List
+from typing import Any, Dict, List, Mapping
+
+from runtime.tools.config import load_tool_configs
 
 logger = logging.getLogger("runtime.tools.search")
 
@@ -9,7 +14,18 @@ logger = logging.getLogger("runtime.tools.search")
 class WebSearchPlugin:
     """防幻觉内嵌联网搜索工具"""
 
-    def __init__(self):
+    def __init__(
+        self,
+        *,
+        provider: str = "duckduckgo",
+        api_base: str = "",
+        api_key: str = "",
+        max_results: int = 3,
+    ):
+        self.provider = provider
+        self.api_base = api_base
+        self.api_key = api_key
+        self.max_results = max(1, min(int(max_results), 10))
         # 默认的 Mock 检索库，以备网络不可用或无 API Key 时使用
         self._mock_database = {
             "elfie": "Elfie 仿生生命体是新一代智能宠物系统，采用三层大脑架构（顶层认知、中层生理情绪记忆、底层感知驱动）结合算力底座，具有生命涌现感。",
@@ -18,18 +34,34 @@ class WebSearchPlugin:
             "token": "ElfieNest 第一阶段只记录模型调用与工具调用观测事件，不做计费扣减或额度阻断。",
         }
 
-    def search(self, query: str, max_results: int = 3) -> str:
+    @classmethod
+    def from_runtime_policy(cls, runtime_policy: Mapping[str, Any] | None):
+        config = load_tool_configs(runtime_policy)["web_search"]
+        return cls(
+            provider=str(config.get("provider") or "duckduckgo"),
+            api_base=str(config.get("api_base") or ""),
+            api_key=str(config.get("api_key") or ""),
+            max_results=int(config.get("max_results") or 3),
+        )
+
+    def search(self, query: str, max_results: int | None = None) -> str:
         """
         执行联网搜索
         :param query: 搜索关键词
         :param max_results: 最大返回条数
         :return: 序列化为 Markdown 字符串的搜索结果
         """
-        logger.info(f"正在进行网络检索: '{query}'")
+        logger.info("正在使用 %s 进行网络检索: %r", self.provider, query)
+        max_results = max_results or self.max_results
 
         # 尝试使用 DuckDuckGo Lite 进行真实联网抓取
         try:
-            results = self._real_ddg_search(query, max_results)
+            if self.provider == "brave":
+                results = self._brave_search(query, max_results)
+            elif self.provider == "tavily":
+                results = self._tavily_search(query, max_results)
+            else:
+                results = self._real_ddg_search(query, max_results)
             if results:
                 return self._format_results(results)
         except Exception as e:
@@ -39,6 +71,50 @@ class WebSearchPlugin:
             ) from e
 
         raise RuntimeError(f"【检索空状态】未找到关于 '{query}' 的有效网络检索结果")
+
+    def _brave_search(self, query: str, max_results: int) -> List[Dict[str, str]]:
+        if not self.api_key:
+            raise RuntimeError("Brave Search 尚未配置 API Key")
+        base = self.api_base or "https://api.search.brave.com/res/v1/web/search"
+        url = f"{base}?q={urllib.parse.quote(query)}&count={max_results}"
+        request = urllib.request.Request(
+            url,
+            headers={"Accept": "application/json", "X-Subscription-Token": self.api_key},
+        )
+        with urllib.request.urlopen(request, timeout=8) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        return [
+            {
+                "title": str(item.get("title") or ""),
+                "snippet": str(item.get("description") or ""),
+                "source": str(item.get("url") or "Brave"),
+            }
+            for item in payload.get("web", {}).get("results", [])[:max_results]
+        ]
+
+    def _tavily_search(self, query: str, max_results: int) -> List[Dict[str, str]]:
+        if not self.api_key:
+            raise RuntimeError("Tavily 尚未配置 API Key")
+        base = self.api_base or "https://api.tavily.com/search"
+        body = json.dumps(
+            {"api_key": self.api_key, "query": query, "max_results": max_results}
+        ).encode("utf-8")
+        request = urllib.request.Request(
+            base,
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=8) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        return [
+            {
+                "title": str(item.get("title") or ""),
+                "snippet": str(item.get("content") or ""),
+                "source": str(item.get("url") or "Tavily"),
+            }
+            for item in payload.get("results", [])[:max_results]
+        ]
 
     def _real_ddg_search(self, query: str, max_results: int) -> List[Dict[str, str]]:
         """调用 DuckDuckGo html 版本的真实搜索 (无 API Key 免费限制)"""

@@ -1,16 +1,16 @@
 """tests for runtime.storage.migration module"""
+
 import json
-import os
 from pathlib import Path
 
 import yaml
 
 from runtime.storage.migration import (
-    migrate_data_home,
-    migrate_config,
     CURRENT_CONFIG_VERSION,
     _migrate_old_data_dir,
     _migrate_runtime_config_json,
+    migrate_config,
+    migrate_data_home,
 )
 
 
@@ -18,8 +18,13 @@ def test_migrate_no_old_data(monkeypatch, tmp_path):
     """没有旧数据时，创建空的 ~/.elfienest/ 结构并生成默认 config.yaml"""
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path / "new_home"))
     # 确保项目根目录下也没有旧 data/ 和 runtime_config.json
-    monkeypatch.setattr("runtime.storage.migration._OLD_DATA_DIR", tmp_path / "nonexistent_data")
-    monkeypatch.setattr("runtime.storage.migration._OLD_RUNTIME_CONFIG", tmp_path / "nonexistent_config.json")
+    monkeypatch.setattr(
+        "runtime.storage.migration._OLD_DATA_DIR", tmp_path / "nonexistent_data"
+    )
+    monkeypatch.setattr(
+        "runtime.storage.migration._OLD_RUNTIME_CONFIG",
+        tmp_path / "nonexistent_config.json",
+    )
     result = migrate_data_home()
     assert result is True
     home = Path(tmp_path / "new_home")
@@ -49,7 +54,9 @@ def test_migrate_preserves_old_data(tmp_path):
     elfies = old_data / "elfies"
     elfies.mkdir()
     (elfies / "test_elfie").mkdir()
-    (elfies / "test_elfie" / "personality.yaml").write_text("test: true", encoding="utf-8")
+    (elfies / "test_elfie" / "personality.yaml").write_text(
+        "test: true", encoding="utf-8"
+    )
 
     new_home = tmp_path / "elfienest"
     new_home.mkdir()
@@ -76,7 +83,9 @@ def test_runtime_config_json_conversion(tmp_path):
     # 创建旧的 runtime_config.json
     json_path = tmp_path / "runtime_config.json"
     config_data = {
-        "providers": {"openai": {"api_key": "test", "api_base": "https://api.openai.com/v1"}},
+        "providers": {
+            "openai": {"api_key": "test", "api_base": "https://api.openai.com/v1"}
+        },
         "system": {"llm": {"default_cheap_model": "gpt-4o-mini"}},
     }
     with open(json_path, "w", encoding="utf-8") as f:
@@ -85,6 +94,7 @@ def test_runtime_config_json_conversion(tmp_path):
     # _migrate_runtime_config_json 接收 home 目录，
     # 从 module-level _OLD_RUNTIME_CONFIG 读取 JSON，写入 home / "config.yaml"
     import runtime.storage.migration as migration_mod
+
     old_config_backup = migration_mod._OLD_RUNTIME_CONFIG
     try:
         migration_mod._OLD_RUNTIME_CONFIG = json_path
@@ -97,7 +107,10 @@ def test_runtime_config_json_conversion(tmp_path):
         with open(yaml_path, encoding="utf-8") as f:
             converted = yaml.safe_load(f)
         assert "config_version" in converted
-        assert converted["config_version"] == 1
+        assert converted["config_version"] == CURRENT_CONFIG_VERSION
         assert "providers" in converted
+        assert "api_key" not in converted["providers"]["openai"]
+        assert converted["providers"]["openai"]["api_key_env"] == "OPENAI_API_KEY"
+        assert "OPENAI_API_KEY=test" in (new_home / ".env").read_text(encoding="utf-8")
     finally:
         migration_mod._OLD_RUNTIME_CONFIG = old_config_backup

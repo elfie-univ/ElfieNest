@@ -15,6 +15,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException
 
 from elfienest.config.runtime_store import read_system_section, write_system_section
+from runtime.storage.data_home import get_config_path
 
 from .admin_routes import require_admin
 
@@ -27,7 +28,7 @@ router = APIRouter(prefix="/api/admin/system", tags=["system"])
 # ---------------------------------------------------------------------------
 
 _PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent
-_RUNTIME_CONFIG_PATH: Path = _PROJECT_ROOT / "runtime" / "runtime_config.json"
+_RUNTIME_CONFIG_PATH: Path = get_config_path()
 
 # ---------------------------------------------------------------------------
 # 可用的 section 白名单

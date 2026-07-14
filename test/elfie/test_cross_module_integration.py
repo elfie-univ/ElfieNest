@@ -77,7 +77,7 @@ class TestThalamusToCortex:
     """验证ThalamusContextBuilder.assemble()生产的BrainContext数据契约完整性"""
 
     def test_thalamus_assembles_complete_context(self):
-        """调用thalamus.assemble()，验证返回的BrainContext包含所有12个字段"""
+        """调用 thalamus.assemble()，验证 BrainContext 的完整数据契约。"""
         builder = ThalamusContextBuilder()
         energy = HypothalamusEnergy()
         emotion = EmotionSystem()
@@ -89,6 +89,8 @@ class TestThalamusToCortex:
             "salience_score": 10.0,
             "has_new_message": True,
             "user_message": "你好小狐狸",
+            "images": ["/tmp/camera.png"],
+            "audio": "/tmp/microphone.wav",
         }
 
         ctx = builder.assemble(raw_sensors, energy, emotion, memory)
@@ -97,12 +99,14 @@ class TestThalamusToCortex:
         assert isinstance(ctx, BrainContext), "返回类型应为BrainContext"
         assert isinstance(ctx.sensors, SensorData), "sensors字段应为SensorData"
 
-        # sensors含5个子字段
+        # 文本和多模态感官信号都必须保留
         assert ctx.sensors.temperature == 26.5
         assert ctx.sensors.is_network_online is True
         assert ctx.sensors.salience_score == 10.0
         assert ctx.sensors.has_new_message is True
         assert ctx.sensors.user_message == "你好小狐狸"
+        assert ctx.sensors.images == ("/tmp/camera.png",)
+        assert ctx.sensors.audio == "/tmp/microphone.wav"
 
         # 下丘脑字段：energy, fatigue, is_sleeping
         assert isinstance(ctx.energy, (int, float))
@@ -307,9 +311,10 @@ class TestReflexToEmotionToMemory:
 class TestMemoryToContextToPrompt:
     """验证记忆系统的内容如何流入LLM prompt"""
 
-    def test_context_appears_in_llm_prompt(self):
+    def test_context_appears_in_llm_prompt(self, tmp_path):
         """存入记忆→perceive_and_respond→验证传给LLM的prompt包含记忆上下文"""
-        elfie = ElfieIndividual(anatomy_type="biped")
+        elfie = ElfieIndividual(config_dir=str(tmp_path), anatomy_type="biped")
+        assert elfie.memory.storage.db_path == str(tmp_path / "graph_memory.db")
 
         # 先存一条测试记忆
         elfie.memory.record_episode(
@@ -338,9 +343,9 @@ class TestMemoryToContextToPrompt:
             f"prompt应包含存入的记忆内容，实际前200字符：\n{prompt[:200]}"
         )
 
-    def test_empty_memory_shows_default_text(self):
+    def test_empty_memory_shows_default_text(self, tmp_path):
         """无记忆时→perceive_and_respond→prompt中不应包含具体回忆但结构完好"""
-        elfie = ElfieIndividual(anatomy_type="biped")
+        elfie = ElfieIndividual(config_dir=str(tmp_path), anatomy_type="biped")
         mock_agent = MockRuntimeAgent()
 
         sensor_data = {

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -21,7 +23,7 @@ class RemoteModelCallError(RuntimeError):
         self.failure = failure
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class GenerationRuntime:
     config: LLMRuntimeConfig
     registry: Any
@@ -35,6 +37,7 @@ class GenerationRuntime:
         str,
     ]
     set_fallback_info: Callable[[dict[str, Any] | None], None]
+    file_access_plugin: Any = None
 
 
 def generate_text(
@@ -124,6 +127,7 @@ def build_tool_loop(
             skills_evolution_plugin=runtime.skills_evolution_plugin,
             permission_manager=runtime.permission_manager,
             admin_token=admin_token,
+            file_access_plugin=runtime.file_access_plugin,
         )
     )
 

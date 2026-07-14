@@ -3,6 +3,7 @@ from typing import Any
 
 import pytest
 
+from runtime.config import LLMRuntimeConfig
 from runtime.gateway.agent import RuntimeAgent
 from runtime.gateway.fallback import (
     FallbackPlan,
@@ -88,47 +89,48 @@ def test_build_fallback_prompt_preserves_original_request_and_explains_degradati
     assert "openai 调用失败" in prompt
 
 
-def test_runtime_agent_think_marks_result_degraded_after_remote_fallback():
-    agent = RuntimeAgent()
+def test_runtime_agent_think_marks_result_degraded_after_food_fallback(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    from runtime.food.models import ExecutionProfile, FoodRecipe
+    from runtime.food.store import FoodCatalog
 
-    agent.router.route_request = lambda prompt, energy, task_complexity: (
-        "remote",
-        {"mode": "remote"},
+    config = LLMRuntimeConfig()
+    config.providers["openai"]["api_key"] = "test-key"
+    agent = RuntimeAgent(config)
+    agent.food_catalog_store.save(
+        FoodCatalog(
+            recipes={
+                "standard": FoodRecipe(
+                    "standard",
+                    "标准粮",
+                    "test",
+                    ExecutionProfile("openai/gpt-4"),
+                    technical_fallbacks=(
+                        ExecutionProfile("ollama/qwen3.5:0.8b"),
+                    ),
+                )
+            }
+        )
     )
-    agent.registry.get_model_info = lambda model_key: {
-        "remote_deep": {
-            "name": "gpt-4",
-            "provider": "openai",
-            "is_vision": False,
-            "is_audio": False,
-            "active": True,
-        },
-        "local_fast": {
-            "name": "qwen3.5:0.8b",
-            "provider": "ollama",
-            "is_vision": False,
-            "is_audio": False,
-            "active": True,
-        },
-    }[model_key]
-    agent.ollama_manager.ensure_service_started = lambda: True
-    agent.ollama_manager.has_model = lambda model_name: model_name == "qwen3.5:0.8b"
 
     calls = []
 
-    def fake_call_llm_api(provider, model_name, messages, temperature, max_tokens):
+    def fake_call_llm_api(
+        provider, model_name, messages, temperature, max_tokens, options
+    ):
         calls.append((provider, model_name, messages))
         if provider == "openai":
             raise RuntimeError("remote unavailable")
         return "本地兜底回复"
 
-    agent._call_llm_api = fake_call_llm_api
+    agent._call_food_llm_api = fake_call_llm_api
 
     result = agent.think(RuntimeRequest(prompt="现在还能工作吗？"))
 
     assert result.text == "本地兜底回复"
     assert result.degraded is True
-    assert result.model_key == "local_fast"
-    assert result.decision["fallback"]["from_model_key"] == "remote_deep"
+    assert result.model_key == "ollama/qwen3.5:0.8b"
+    assert result.execution_stage == "fallback_1"
     assert calls[1][0] == "ollama"
-    assert "本地兜底模式" in calls[1][2][0]["content"]

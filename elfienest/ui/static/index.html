@@ -13,7 +13,7 @@
         window.history.replaceState(null, "", "/");
       }
     </script>
-    <link rel="stylesheet" href="/static/elfienest-console.css?v=17" />
+    <link rel="stylesheet" href="/static/elfienest-console.css?v=18" />
     <link rel="stylesheet" href="/static/elfie-avatar3d.css?v=9" />
     <link rel="stylesheet" href="/static/elfie-adoption-wizard.css?v=9" />
     <style>
@@ -113,7 +113,7 @@
             用户管理
           </button>
 
-          <span class="nav-group-label admin-only">大模型与粮食</span>
+          <span class="nav-group-label admin-only">Runtime 三层配置</span>
           <button class="nav-item admin-only" type="button" data-view="providers">
             <span class="nav-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
@@ -134,6 +134,12 @@
               </svg>
             </span>
             模型管理
+          </button>
+          <button class="nav-item admin-only" type="button" data-view="tools">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M14 7a5 5 0 0 0-7 7l-4 4 3 3 4-4a5 5 0 0 0 7-7l-3 3-3-3 3-3Z" /></svg>
+            </span>
+            基础工具
           </button>
           <button class="nav-item admin-only" type="button" data-view="food">
             <span class="nav-icon" aria-hidden="true">
@@ -473,22 +479,36 @@
             <div class="table-panel model-table" id="models-table"></div>
           </section>
 
+          <section class="view" data-view-panel="tools" aria-labelledby="tools-heading">
+            <div class="section-heading">
+              <div>
+                <h2 id="tools-heading">第二层：Agent 基础工具</h2>
+                <p>配置网络搜索、本地文件、代码沙箱和技能能力；密钥仅保存在本地。</p>
+              </div>
+              <button class="ghost-button" type="button" id="refresh-tools">重新读取工具</button>
+            </div>
+            <div class="provider-grid" id="tool-management-grid"></div>
+          </section>
+
           <section class="view" data-view-panel="food" aria-labelledby="food-heading">
             <div class="section-heading">
               <div>
-                <h2 id="food-heading">粮食策略</h2>
-                <p>把底层模型配对到精灵实际消耗的粮食层级：轻量、深度、多模态和本地兜底。</p>
+                <h2 id="food-heading">第三层：粮食策略</h2>
+                <p>精灵只选粮食；模型、Provider、推理强度和技术 Fallback 全部封装在粮食配方中。</p>
               </div>
-              <button class="ghost-button" type="button" id="refresh-food">重新读取策略</button>
+              <div class="section-actions">
+                <button class="ghost-button" type="button" id="refresh-food">重新读取</button>
+                <button class="primary-button" type="button" id="auto-update-food">自动更新粮食策略</button>
+              </div>
             </div>
             <div class="food-layout">
               <section class="config-card">
-                <h3>当前配对</h3>
+                <h3>当前八种粮食</h3>
                 <div class="strategy-grid" id="food-strategy-grid"></div>
               </section>
-              <section class="config-card">
-                <h3>路由参数</h3>
-                <div class="config-grid" id="food-route-grid"></div>
+              <section class="config-card" id="food-update-card">
+                <h3>自动更新预览</h3>
+                <div class="config-grid" id="food-update-preview">尚未生成更新预览。</div>
               </section>
             </div>
           </section>
@@ -671,6 +691,10 @@
             <label class="form-row">
               <span>测试模型</span>
               <input id="provider-config-test-model" name="test_model" type="text" autocomplete="off" placeholder="用于连通性测试，可选" />
+            </label>
+            <label class="form-row config-grid-wide">
+              <span>手工模型目录（每行：模型 ID | 显示名）</span>
+              <textarea id="provider-config-models" name="models" rows="4" placeholder="astron-code-latest | GLM-5"></textarea>
             </label>
             <label class="form-row">
               <span>API 模式</span>
@@ -871,7 +895,7 @@
     </aside>
 
     <script src="/static/elfie-avatar3d.js?v=10"></script>
-    <script src="/static/elfienest-console.js?v=16"></script>
+    <script src="/static/elfienest-console.js?v=17"></script>
     <script src="/static/elfie-adoption-options.js?v=9"></script>
     <script src="/static/elfie-adoption-wizard.js?v=9"></script>
   </body>

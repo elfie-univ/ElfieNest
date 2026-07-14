@@ -13,7 +13,7 @@ from runtime.providers.streaming import (
 logger = logging.getLogger("runtime.gateway.streaming")
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class RuntimeStreamRequest:
     config: LLMRuntimeConfig
     provider: str

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """记忆系统设计目标验证测试。
 
 验证约25个设计文档中描述的行为目标是否真正实现。

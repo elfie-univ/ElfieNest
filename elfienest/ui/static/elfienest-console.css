@@ -1114,6 +1114,11 @@ textarea {
   align-self: stretch;
 }
 
+.elf-detail-layout > .chat-panel {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
 .elf-detail-head {
   display: flex;
   align-items: center;
@@ -2603,6 +2608,11 @@ textarea {
   .settings-layout,
   .food-layout {
     grid-template-columns: 1fr;
+  }
+
+  .elf-detail-layout > .chat-panel {
+    grid-column: auto;
+    grid-row: auto;
   }
 
   .strategy-grid,

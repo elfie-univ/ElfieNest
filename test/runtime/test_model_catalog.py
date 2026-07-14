@@ -1,6 +1,4 @@
 """tests for runtime.models.catalog module"""
-import os
-import tempfile
 import urllib.error
 from unittest.mock import MagicMock, patch
 
@@ -10,7 +8,6 @@ from runtime.config import LLMRuntimeConfig
 from runtime.models.catalog import (
     BUILTIN_MODEL_CATALOG,
     ModelCatalog,
-    ModelEntry,
     verify_provider,
 )
 from runtime.models.registry import ModelRegistry
@@ -306,6 +303,26 @@ class TestVerifyProvider:
         assert result["status"] == "unverified"
         assert "未知 provider" in result["error"]
 
+    def test_verify_configured_dynamic_custom_provider(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+        config = LLMRuntimeConfig()
+        config.providers["custom_gateway"] = {
+            "api_base": "https://gateway.example/v1",
+            "api_mode": "chat_completions",
+            "auth_type": "bearer",
+            "api_key": "<test-api-key>",
+        }
+        expected = {"status": "active", "latency_ms": 12.0, "error": None}
+
+        with patch(
+            "runtime.models.catalog._verify_custom_openai_provider",
+            return_value=expected,
+        ) as verify_custom:
+            result = verify_provider("custom_gateway", config)
+
+        assert result == expected
+        verify_custom.assert_called_once()
+
 
 class TestModelRegistry:
     def test_get_catalog_returns_five_slots(self, monkeypatch, tmp_path):
@@ -339,7 +356,7 @@ class TestModelRegistry:
         available = registry.list_available_models()
 
         # 所有返回的模型都应该是 active
-        for key, entry in available.items():
+        for _key, entry in available.items():
             assert entry["active"] is True
 
     def test_get_model_info(self, monkeypatch, tmp_path):

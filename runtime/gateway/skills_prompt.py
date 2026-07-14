@@ -14,6 +14,10 @@ def inject_skills_system_prompt(
         rules.append(
             "  - 【高精度算术技能】: 如果您需要精确算术、物理/数学逻辑推演，您必须在回答中插入 `[CODE]Python 代码[/CODE]` 标记以安全执行代码，杜绝心算幻觉。"
         )
+    if "local_file" in allowed_skills:
+        rules.append(
+            "  - 【受控本地文件技能】: 读取文件使用 `[READ_FILE]相对路径[/READ_FILE]`；列出目录使用 `[LIST_FILES]相对路径[/LIST_FILES]`。只能访问 Runtime 分配的本地文件根目录。"
+        )
     if "skills_evolution" in allowed_skills:
         rules.append(
             "  - 【技能自演化系统】: 您拥有创建与重用技能脚本的能力！\n"

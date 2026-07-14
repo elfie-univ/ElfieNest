@@ -4,7 +4,12 @@ cd "$SCRIPT_DIR"
 WEB_DEPENDENCY_CHECK='import fastapi, uvicorn, multipart'
 
 python_has_web_dependencies() {
+    python_is_39 "$1" || return 1
     "$1" -c "$WEB_DEPENDENCY_CHECK" >/dev/null 2>&1
+}
+
+python_is_39() {
+    "$1" -c 'import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 9) else 1)' >/dev/null 2>&1
 }
 
 repair_project_venv() {
@@ -38,21 +43,21 @@ select_python() {
     fi
 
     if python_has_web_dependencies "python3"; then
-        echo "  ⚠️  .venv 自动修复失败，临时使用系统 python3。" >&2
+        echo "  ⚠️  .venv 自动修复失败，临时使用系统 Python 3.9。" >&2
         echo "  💡 可重新运行: $SCRIPT_DIR/install.sh" >&2
         echo "" >&2
         echo "python3"
         return
     fi
 
-    if [ -x "$venv_python" ]; then
-        echo "$venv_python"
-    else
-        echo "python3"
-    fi
+    echo "  ❌ 项目必须使用 Python 3.9，但没有找到可用的 Python 3.9 运行环境。" >&2
+    echo "  💡 请安装 Python 3.9，或设置 ELFIE_PYTHON 指向 Python 3.9。" >&2
+    return 1
 }
 
-PYTHON_BIN="$(select_python)"
+if ! PYTHON_BIN="$(select_python)"; then
+    exit 1
+fi
 
 show_logo() {
     clear

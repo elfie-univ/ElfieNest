@@ -9,6 +9,9 @@ let rooms = [];
 let providers = [];
 let models = [];
 let systemConfig = {};
+let toolConfigs = {};
+let foodCatalog = { foods: {} };
+let pendingFoodProposal = null;
 let globalQuery = "";
 let adoptionInfo = null;
 let providerModalMode = "edit";
@@ -270,6 +273,7 @@ function applySearchShortcut() {
     ["users", ["用户", "user"]],
     ["providers", ["供应商", "provider", "api"]],
     ["models", ["模型", "model"]],
+    ["tools", ["工具", "搜索", "文件", "沙箱", "tool"]],
     ["food", ["粮食", "路由", "food", "route"]],
     ["config", ["配置", "系统", "config"]],
     ["logs", ["日志", "提醒", "log", "alert"]],
@@ -336,6 +340,7 @@ function resetProviderConfigForm(provider = null) {
   const apiBaseInput = byId("provider-config-api-base");
   const apiKeyInput = byId("provider-config-api-key");
   const testModelInput = byId("provider-config-test-model");
+  const modelsInput = byId("provider-config-models");
   const apiModeSelect = byId("provider-config-api-mode");
   const authTypeSelect = byId("provider-config-auth-type");
 
@@ -353,6 +358,7 @@ function resetProviderConfigForm(provider = null) {
     apiKeyInput.placeholder = provider?.has_api_key ? "已保存，留空不修改" : "填写 API Key";
   }
   if (testModelInput) testModelInput.value = provider?.test_model || "";
+  if (modelsInput) modelsInput.value = (provider?.models || []).map((item) => `${item.id || item.model_id || ""} | ${item.display_name || item.id || ""}`).join("\n");
   if (apiModeSelect) apiModeSelect.value = apiMode;
   if (authTypeSelect) authTypeSelect.value = provider?.auth_type || authTypeForApiMode(apiMode);
   setFormMessage("provider-config-message", "");
@@ -370,6 +376,12 @@ function providerPayloadFromForm(form, includeEmptyApiKey = false) {
     api_mode: apiMode,
     auth_type: String(data.get("auth_type") || authTypeForApiMode(apiMode)),
     test_model: String(data.get("test_model") || "").trim(),
+    models: String(data.get("models") || "").split(/\r?\n/).map((line) => {
+      const [id, ...labelParts] = line.split("|");
+      const modelId = (id || "").trim();
+      return modelId ? { id: modelId, display_name: labelParts.join("|").trim() || modelId } : null;
+    }).filter(Boolean),
+    refresh_models: true,
   };
   if (includeEmptyApiKey || apiKey) payload.api_key = apiKey;
   return payload;
@@ -407,7 +419,11 @@ async function saveProviderConfig({ verify = false } = {}) {
       result.status === "active" ? "success" : "error",
     );
   } else {
-    setFormMessage("provider-config-message", "供应商配置已保存", "success");
+    const refresh = saved.model_refresh || {};
+    const detail = refresh.status === "updated"
+      ? `，已自动更新 ${refresh.count || 0} 个模型`
+      : refresh.status === "failed" ? `，模型自动拉取失败，已保留手工目录` : "";
+    setFormMessage("provider-config-message", `供应商配置已保存${detail}`, "success");
   }
   await loadProviders();
   await loadModels();
@@ -482,6 +498,16 @@ async function fetchJson(url, options = {}) {
 
 async function checkAuth() {
   try {
+    const setupStatus = await fetchJson("/api/auth/setup-status");
+    if (setupStatus.need_setup) {
+      window.location.replace("/static/setup.html");
+      return;
+    }
+  } catch {
+    // 健康检查或旧服务不支持 setup-status 时，继续走常规登录流程。
+  }
+
+  try {
     const data = await fetchJson("/api/auth/me");
     currentUser = data;
     csrfToken = data.csrf_token || "";
@@ -552,6 +578,8 @@ async function loadDashboardData() {
     await Promise.all([
       loadProviders(),
       loadModels(),
+      loadTools(),
+      loadFoods(),
       loadSystemConfig(),
       loadUsers(),
     ]);
@@ -689,31 +717,56 @@ async function loadModels() {
   renderFoodStrategy();
 }
 
+async function loadTools() {
+  try {
+    const payload = await fetchJson("/api/admin/runtime/tools/");
+    toolConfigs = payload.tools || {};
+  } catch (error) {
+    console.error("Failed to load tools", error);
+    toolConfigs = {};
+  }
+  renderTools();
+}
+
+async function loadFoods() {
+  try {
+    foodCatalog = await fetchJson("/api/admin/runtime/foods/");
+  } catch (error) {
+    console.error("Failed to load foods", error);
+    foodCatalog = { foods: {} };
+  }
+  renderFoodStrategy();
+}
+
 function withProviderConfiguredModels(catalogModels) {
   const merged = [...catalogModels];
   const knownIds = new Set(merged.map((model) => model.model_id));
   for (const provider of providers) {
-    const modelName = (provider.test_model || "").trim();
-    if (!modelName) continue;
-    const modelId = `${provider.provider_id}/${modelName}`;
-    if (knownIds.has(modelId)) continue;
-    knownIds.add(modelId);
-    merged.push({
-      model_id: modelId,
-      provider: provider.provider_id,
-      display_name: modelName,
-      capabilities: ["text"],
-      context_window: 0,
-      cost_tier: 2,
-      visible: true,
-      active: provider.status === "active",
-    });
+    const configured = [...(provider.models || [])];
+    if (provider.test_model && !configured.some((item) => item.id === provider.test_model)) configured.push({ id: provider.test_model, display_name: provider.test_model });
+    for (const item of configured) {
+      const modelName = String(item.id || item.model_id || "").trim();
+      if (!modelName) continue;
+      const modelId = `${provider.provider_id}/${modelName}`;
+      if (knownIds.has(modelId)) continue;
+      knownIds.add(modelId);
+      merged.push({
+        model_id: modelId,
+        provider: provider.provider_id,
+        display_name: item.display_name || modelName,
+        capabilities: item.capabilities || ["text"],
+        context_window: item.context_window || 0,
+        cost_tier: item.cost_tier ?? 2,
+        visible: true,
+        active: provider.status === "active",
+      });
+    }
   }
   return merged;
 }
 
 async function loadSystemConfig() {
-  const sections = ["llm", "engine", "adoption", "security"];
+  const sections = ["engine", "adoption", "security"];
   const loaded = {};
   await Promise.all(sections.map(async (section) => {
     try {
@@ -820,6 +873,7 @@ function setView(view) {
     users: "用户管理",
     providers: "供应商管理",
     models: "模型管理",
+    tools: "基础工具",
     food: "粮食策略",
     logs: "运行日志",
     config: "系统配置",
@@ -836,11 +890,8 @@ function setView(view) {
   if (nextView === "rooms") loadRooms();
   if (nextView === "providers") loadProviders();
   if (nextView === "models") loadModels();
-  if (nextView === "food") {
-    if (!models.length) loadModels();
-    if (!systemConfig.llm) loadSystemConfig();
-    renderFoodStrategy();
-  }
+  if (nextView === "tools") loadTools();
+  if (nextView === "food") loadFoods();
   if (nextView === "logs") renderLogs();
   if (nextView === "config") loadSystemConfig();
   if (nextView === "users") loadUsers();
@@ -1461,126 +1512,69 @@ function renderFoodSlot(slot) {
   `;
 }
 
-function foodPolicyPayload(form) {
-  const data = new FormData(form);
-  return {
-    default_cheap_provider: String(data.get("default_cheap_provider") || "ollama"),
-    default_cheap_model: String(data.get("default_cheap_model") || "qwen3.5:0.8b"),
-    default_deep_provider: String(data.get("default_deep_provider") || "ollama"),
-    default_deep_model: String(data.get("default_deep_model") || "qwen3.5:0.8b"),
-    default_multimodal_provider: String(data.get("default_multimodal_provider") || "ollama"),
-    default_multimodal_model: String(data.get("default_multimodal_model") || "moondream"),
-  };
-}
-
-function foodRoutePayload(form) {
-  const data = new FormData(form);
-  return {
-    temperature: Number(data.get("temperature") || 0.7),
-    max_tokens: Number(data.get("max_tokens") || 1500),
-    energy_threshold_fast: Number(data.get("energy_threshold_fast") || 30),
-    complexity_threshold_deep: Number(data.get("complexity_threshold_deep") || 4),
-  };
-}
-
-async function saveLlmConfig(payload, messageId) {
-  setFormMessage(messageId, "正在保存...");
-  const saved = await fetchJson("/api/admin/system/llm", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  systemConfig.llm = saved;
-  renderFoodStrategy();
-  renderOverview();
-  addSystemNotice("粮食策略已保存。");
-  setFormMessage(messageId, "已保存", "success");
-  return saved;
-}
+const FOOD_ORDER = ["coarse", "standard", "focus", "creative", "tool", "vision", "premium", "emergency"];
 
 function renderFoodStrategy() {
-  const strategyGrid = byId("food-strategy-grid");
-  const routeGrid = byId("food-route-grid");
-  if (!strategyGrid || !routeGrid) return;
-  const llm = systemConfig.llm || {};
-  const slots = [
-    {
-      key: "cheap",
-      title: "轻量粮食",
-      provider: llm.default_cheap_provider || "ollama",
-      model: llm.default_cheap_model || "qwen3.5:0.8b",
-      providerName: "default_cheap_provider",
-      modelName: "default_cheap_model",
-      mode: "低能耗",
-      desc: "日常短对话、低能耗思考",
-    },
-    {
-      key: "deep",
-      title: "深度粮食",
-      provider: llm.default_deep_provider || "ollama",
-      model: llm.default_deep_model || "qwen3.5:0.8b",
-      providerName: "default_deep_provider",
-      modelName: "default_deep_model",
-      mode: "复杂任务",
-      desc: "复杂推理、规划和复盘",
-    },
-    {
-      key: "multimodal",
-      title: "多模态粮食",
-      provider: llm.default_multimodal_provider || "ollama",
-      model: llm.default_multimodal_model || "moondream",
-      providerName: "default_multimodal_provider",
-      modelName: "default_multimodal_model",
-      mode: "视觉/场景",
-      desc: "图像、场景和跨模态理解",
-    },
-  ];
-  strategyGrid.innerHTML = `
-    <form class="food-policy-form" id="food-policy-form">
-      <div class="strategy-grid nested">
-        ${slots.map(renderFoodSlot).join("")}
-      </div>
-      <div class="food-form-footer">
-        <p class="form-message" id="food-policy-message" aria-live="polite"></p>
-        <button class="primary-button" type="submit">保存粮食配对</button>
-      </div>
-    </form>
-  `;
+  const grid = byId("food-strategy-grid");
+  if (!grid) return;
+  const foods = foodCatalog.foods || {};
+  if (!Object.keys(foods).length) {
+    grid.innerHTML = emptyPanel("尚未生成粮食策略", "点击“自动更新粮食策略”生成预览。");
+    return;
+  }
+  grid.innerHTML = FOOD_ORDER.filter((key) => foods[key]).map((key) => {
+    const recipe = foods[key];
+    const primary = recipe.primary || {};
+    return `
+      <form class="strategy-card editable food-recipe-form" data-food-key="${escapeHtml(key)}">
+        <div class="card-inline-head"><strong>${escapeHtml(recipe.display_name || key)}</strong><mark class="status ${statusClass(recipe.validation_status)}">${escapeHtml(recipe.validation_status || "unverified")}</mark></div>
+        <p class="slot-desc">${escapeHtml(recipe.description || "")}</p>
+        <label class="food-input-field"><span>主模型（Provider/Model）</span><input name="model" value="${escapeHtml(primary.model || "")}" /></label>
+        <label class="food-input-field"><span>推理强度</span><select name="reasoning_profile">${["off", "low", "balanced", "deep", "max", "verify"].map((value) => `<option value="${value}" ${primary.reasoning_profile === value ? "selected" : ""}>${value}</option>`).join("")}</select></label>
+        <label class="food-input-field"><span>Max tokens</span><input name="max_tokens" type="number" min="1" value="${escapeHtml(primary.max_tokens || 1500)}" /></label>
+        <label class="food-input-field"><span>Temperature</span><input name="temperature" type="number" min="0" max="2" step="0.1" value="${escapeHtml(primary.temperature ?? 0.7)}" /></label>
+        <small>Fallback：${escapeHtml((recipe.technical_fallbacks || []).map((item) => item.model).join(" → ") || "无")}</small>
+        <p class="form-message" data-food-message="${escapeHtml(key)}"></p>
+        <button class="ghost-button" type="submit">保存该配方</button>
+      </form>`;
+  }).join("");
+}
 
-  routeGrid.innerHTML = `
-    <form class="food-route-form" id="food-route-form">
-      <div class="food-route-grid">
-        <div class="food-input-field">
-          <span>Temperature</span>
-          <div class="food-input-control-wrap">
-            <input name="temperature" type="number" min="0" max="2" step="0.1" value="${escapeHtml(llm.temperature ?? 0.7)}" />
-          </div>
-        </div>
-        <div class="food-input-field">
-          <span>Max tokens</span>
-          <div class="food-input-control-wrap">
-            <input name="max_tokens" type="number" min="1" max="32000" step="1" value="${escapeHtml(llm.max_tokens ?? 1500)}" />
-          </div>
-        </div>
-        <div class="food-input-field">
-          <span>低能耗阈值</span>
-          <div class="food-input-control-wrap">
-            <input name="energy_threshold_fast" type="number" min="0" max="100" step="1" value="${escapeHtml(llm.energy_threshold_fast ?? 30)}" />
-          </div>
-        </div>
-        <div class="food-input-field">
-          <span>深度复杂度阈值</span>
-          <div class="food-input-control-wrap">
-            <input name="complexity_threshold_deep" type="number" min="0" max="10" step="1" value="${escapeHtml(llm.complexity_threshold_deep ?? 4)}" />
-          </div>
-        </div>
-      </div>
-      <div class="food-form-footer">
-        <p class="form-message" id="food-route-message" aria-live="polite"></p>
-        <button class="primary-button" type="submit">保存路由参数</button>
-      </div>
-    </form>
-  `;
+function renderTools() {
+  const grid = byId("tool-management-grid");
+  if (!grid) return;
+  const labels = { web_search: "网络搜索", local_file: "本地文件", code_sandbox: "代码沙箱", skills_evolution: "技能进化" };
+  grid.innerHTML = Object.entries(labels).map(([key, label]) => {
+    const config = toolConfigs[key] || {};
+    let fields = "";
+    if (key === "web_search") fields = `
+      <label class="form-row"><span>搜索 Provider</span><select name="provider">${["duckduckgo", "brave", "tavily"].map((value) => `<option value="${value}" ${config.provider === value ? "selected" : ""}>${value}</option>`).join("")}</select></label>
+      <label class="form-row"><span>API Base（可选）</span><input name="api_base" value="${escapeHtml(config.api_base || "")}" /></label>
+      <label class="form-row"><span>API Key</span><input name="api_key" type="password" placeholder="${config.has_api_key ? "已保存，留空不修改" : "DuckDuckGo 无需 Key"}" /></label>
+      <label class="form-row"><span>结果数</span><input name="max_results" type="number" min="1" max="10" value="${escapeHtml(config.max_results || 3)}" /></label>`;
+    if (key === "local_file") fields = `<label class="form-row"><span>允许根目录</span><input name="root" value="${escapeHtml(config.root || "")}" /></label>`;
+    if (key === "code_sandbox") fields = `<label class="form-row"><span>超时秒数</span><input name="timeout_seconds" type="number" min="1" max="60" value="${escapeHtml(config.timeout_seconds || 5)}" /></label>`;
+    return `<form class="provider-card tool-config-form" data-tool-key="${key}">
+      <div class="card-inline-head"><strong>${label}</strong><mark class="status ${config.enabled ? "success" : "warning"}">${config.enabled ? "已启用" : "已停用"}</mark></div>
+      <label class="form-row"><span>启用</span><input name="enabled" type="checkbox" ${config.enabled ? "checked" : ""} /></label>${fields}
+      <p class="form-message" data-tool-message="${key}"></p>
+      <div class="card-actions"><button class="ghost-button" type="submit">保存</button><button class="ghost-button" type="button" data-verify-tool="${key}">验证</button></div>
+    </form>`;
+  }).join("");
+}
+
+async function previewFoodUpdate() {
+  const preview = byId("food-update-preview");
+  if (preview) preview.textContent = "正在用模型建议与规则生成预览…";
+  pendingFoodProposal = await fetchJson("/api/admin/runtime/foods/update-preview", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ use_llm: true }),
+  });
+  if (!preview) return;
+  const changes = pendingFoodProposal.changes || [];
+  preview.innerHTML = `<p>生成来源：${escapeHtml((pendingFoodProposal.generation_sources || []).join(" + ") || "rules")}</p>
+    <div class="health-list">${changes.map((change) => `<div><span>${escapeHtml(change.food_key)}: ${escapeHtml(change.old_model || "未配置")} → ${escapeHtml(change.new_model || "不可用")}</span><mark class="status ${change.change_type === "unchanged" ? "info" : "warning"}">${escapeHtml(change.change_type)}</mark></div>`).join("")}</div>
+    ${(pendingFoodProposal.warnings || []).map((warning) => `<p class="form-message">${escapeHtml(warning)}</p>`).join("")}
+    <div class="card-actions"><button class="primary-button" type="button" id="apply-food-update">确认更新</button><button class="ghost-button" type="button" id="cancel-food-update">放弃</button></div>`;
 }
 
 function renderSystemConfig() {
@@ -1729,6 +1723,7 @@ function renderElfDetail(id) {
         </label>
         <div class="callout privacy">${elf.owned ? "基础形态和性格已锁定，只能查看不能修改。" : "管理员只能查看公开元信息，不能读取主人聊天或私密配置。"}</div>
       </section>
+      ${elf.owned ? `<section class="config-card detail-config"><h3>精灵粮食权限</h3><div id="elf-food-policy" data-elfie-id="${escapeHtml(elf.id)}">正在读取…</div></section>` : ""}
       <section class="chat-panel">
         <div class="chat-toolbar">
           <div>
@@ -1770,9 +1765,27 @@ function renderElfDetail(id) {
     </div>
   `;
   renderChatHistory(elf.id);
+  if (elf.owned) loadElfFoodPolicy(elf.id);
   loadChatHistory(elf.id);
   updateWsIndicators();
   setView("elf-detail");
+}
+
+async function loadElfFoodPolicy(elfieId) {
+  const host = byId("elf-food-policy");
+  if (!host) return;
+  try {
+    const policy = await fetchJson(`/api/user/elfies/${encodeURIComponent(elfieId)}/food-policy/`);
+    const allowed = new Set(policy.allowed_foods || []);
+    host.innerHTML = `<form class="elf-food-policy-form" data-elfie-id="${escapeHtml(elfieId)}">
+      <label class="form-row"><span>默认粮食</span><select name="default_food">${FOOD_ORDER.filter((key) => allowed.has(key)).map((key) => `<option value="${key}" ${policy.default_food === key ? "selected" : ""}>${key}</option>`).join("")}</select></label>
+      <label class="form-row"><span>Fallback 粮食</span><select name="fallback_food">${FOOD_ORDER.filter((key) => allowed.has(key)).map((key) => `<option value="${key}" ${policy.fallback_food === key ? "selected" : ""}>${key}</option>`).join("")}</select></label>
+      <div class="tag-row">${FOOD_ORDER.map((key) => `<label class="tag"><input type="checkbox" name="allowed_foods" value="${key}" ${allowed.has(key) ? "checked" : ""} /> ${key}</label>`).join("")}</div>
+      <p class="form-message" id="elf-food-policy-message"></p><button class="ghost-button" type="submit">保存粮食权限</button>
+    </form>`;
+  } catch (error) {
+    host.textContent = error.message || "粮食权限读取失败";
+  }
 }
 
 document.addEventListener("click", (event) => {
@@ -1872,9 +1885,39 @@ document.addEventListener("click", (event) => {
   if (target.id === "refresh-config") loadSystemConfig();
   if (target.id === "refresh-providers") loadProviders();
   if (target.id === "refresh-models") loadModels();
-  if (target.id === "refresh-food") {
-    loadSystemConfig();
-    loadModels();
+  if (target.id === "refresh-tools") loadTools();
+  if (target.id === "refresh-food") loadFoods();
+  if (target.id === "auto-update-food") previewFoodUpdate().catch((error) => {
+    const preview = byId("food-update-preview");
+    if (preview) preview.textContent = error.message || "预览生成失败";
+  });
+  if (target.id === "cancel-food-update") {
+    pendingFoodProposal = null;
+    const preview = byId("food-update-preview");
+    if (preview) preview.textContent = "已放弃本次更新。";
+  }
+  if (target.id === "apply-food-update" && pendingFoodProposal?.candidate) {
+    fetchJson("/api/admin/runtime/foods/update-apply", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm: true, candidate: pendingFoodProposal.candidate }),
+    }).then(() => {
+      pendingFoodProposal = null;
+      addSystemNotice("粮食策略已按预览确认更新。");
+      loadFoods();
+      const preview = byId("food-update-preview");
+      if (preview) preview.textContent = "更新已应用。";
+    }).catch((error) => {
+      const preview = byId("food-update-preview");
+      if (preview) preview.textContent = error.message || "更新失败";
+    });
+  }
+  if (target.matches("[data-verify-tool]")) {
+    const key = target.dataset.verifyTool || "";
+    const message = document.querySelector(`[data-tool-message="${key}"]`);
+    if (message) message.textContent = "正在验证…";
+    fetchJson(`/api/admin/runtime/tools/${encodeURIComponent(key)}/verify`, { method: "POST" })
+      .then((result) => { if (message) message.textContent = result.passed ? "验证通过" : `验证失败：${result.results?.[0]?.message || "未知错误"}`; })
+      .catch((error) => { if (message) message.textContent = error.message || "验证失败"; });
   }
   if (target.id === "refresh-logs") renderLogs();
 });
@@ -2159,21 +2202,52 @@ document.addEventListener("submit", (event) => {
 
 document.addEventListener("submit", async (event) => {
   const form = event.target;
-  if (form instanceof HTMLFormElement && form.id === "food-policy-form") {
+  if (form instanceof HTMLFormElement && form.matches(".tool-config-form")) {
     event.preventDefault();
+    const key = form.dataset.toolKey || "";
+    const data = new FormData(form);
+    const payload = { enabled: data.get("enabled") === "on" };
+    if (key === "web_search") Object.assign(payload, { provider: String(data.get("provider") || "duckduckgo"), api_base: String(data.get("api_base") || ""), max_results: Number(data.get("max_results") || 3) });
+    if (key === "web_search" && data.get("api_key")) payload.api_key = String(data.get("api_key"));
+    if (key === "local_file") payload.root = String(data.get("root") || "");
+    if (key === "code_sandbox") payload.timeout_seconds = Number(data.get("timeout_seconds") || 5);
+    const message = document.querySelector(`[data-tool-message="${key}"]`);
     try {
-      await saveLlmConfig(foodPolicyPayload(form), "food-policy-message");
+      await fetchJson(`/api/admin/runtime/tools/${encodeURIComponent(key)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (message) message.textContent = "已保存";
+      await loadTools();
     } catch (error) {
-      setFormMessage("food-policy-message", error.message || "保存失败", "error");
+      if (message) message.textContent = error.message || "保存失败";
     }
     return;
   }
-  if (form instanceof HTMLFormElement && form.id === "food-route-form") {
+  if (form instanceof HTMLFormElement && form.matches(".food-recipe-form")) {
     event.preventDefault();
+    const key = form.dataset.foodKey || "";
+    const current = foodCatalog.foods?.[key] || {};
+    const data = new FormData(form);
+    const payload = { ...current, primary: { ...(current.primary || {}), model: String(data.get("model") || ""), reasoning_profile: String(data.get("reasoning_profile") || "balanced"), max_tokens: Number(data.get("max_tokens") || 1500), temperature: Number(data.get("temperature") || 0.7) } };
+    const message = document.querySelector(`[data-food-message="${key}"]`);
     try {
-      await saveLlmConfig(foodRoutePayload(form), "food-route-message");
+      const saved = await fetchJson(`/api/admin/runtime/foods/${encodeURIComponent(key)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (message) message.textContent = saved.warnings?.length ? `已保存，警告：${saved.warnings.join("；")}` : "已保存";
+      await loadFoods();
     } catch (error) {
-      setFormMessage("food-route-message", error.message || "保存失败", "error");
+      if (message) message.textContent = error.message || "保存失败";
+    }
+    return;
+  }
+  if (form instanceof HTMLFormElement && form.matches(".elf-food-policy-form")) {
+    event.preventDefault();
+    const data = new FormData(form);
+    const elfieId = form.dataset.elfieId || "";
+    const payload = { default_food: String(data.get("default_food") || "standard"), fallback_food: String(data.get("fallback_food") || "coarse"), allowed_foods: data.getAll("allowed_foods").map(String) };
+    try {
+      await fetchJson(`/api/user/elfies/${encodeURIComponent(elfieId)}/food-policy/`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      setFormMessage("elf-food-policy-message", "已保存", "success");
+      await loadElfFoodPolicy(elfieId);
+    } catch (error) {
+      setFormMessage("elf-food-policy-message", error.message || "保存失败", "error");
     }
     return;
   }

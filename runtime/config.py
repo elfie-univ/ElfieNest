@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import copy
 import json
 import os
@@ -7,26 +9,13 @@ from typing import Any, Dict
 
 import yaml
 
-from .providers.profiles import get_default_api_mode
+from .providers.profiles import BUILTIN_PROFILES, get_default_api_mode
 from .storage.data_home import get_config_path, get_env_path
+from .storage.secrets import provider_secret_name, read_secrets, resolve_secret
 
 
 def _load_env_file_values(env_path: Path | None = None) -> Dict[str, str]:
-    env_path = env_path or get_env_path()
-    env_values: Dict[str, str] = {}
-    if not os.path.exists(env_path):
-        return env_values
-    try:
-        with open(env_path, encoding="utf-8") as f:
-            for raw_line in f:
-                line = raw_line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, value = line.split("=", 1)
-                env_values[key.strip()] = value.strip()
-    except OSError:
-        return env_values
-    return env_values
+    return read_secrets(env_path or get_env_path())
 
 
 def _env_value(
@@ -45,91 +34,29 @@ def _default_providers(
     env_path: Path | None = None,
     *,
     include_process_env: bool = True,
-) -> Dict[str, Dict[str, str]]:
+) -> Dict[str, Dict[str, Any]]:
     env_values = _load_env_file_values(env_path)
-    return {
-        "deepseek": {
+    providers: Dict[str, Dict[str, Any]] = {}
+    for provider_id, profile in BUILTIN_PROFILES.items():
+        api_key_env = profile.api_key_env_var or provider_secret_name(provider_id)
+        providers[provider_id] = {
             "api_key": _env_value(
                 env_values,
-                "DEEPSEEK_API_KEY",
+                api_key_env,
                 include_process_env=include_process_env,
             ),
+            "api_key_env": api_key_env,
             "api_base": _env_value(
                 env_values,
-                "DEEPSEEK_API_BASE",
-                PROVIDER_RECOMMENDS["deepseek"]["api_base"],
+                profile.base_url_env_var,
+                profile.api_base,
                 include_process_env=include_process_env,
             ),
-            "api_mode": "chat_completions",
-        },
-        "openai": {
-            "api_key": _env_value(
-                env_values,
-                "OPENAI_API_KEY",
-                include_process_env=include_process_env,
-            ),
-            "api_base": _env_value(
-                env_values,
-                "OPENAI_API_BASE",
-                PROVIDER_RECOMMENDS["openai"]["api_base"],
-                include_process_env=include_process_env,
-            ),
-            "api_mode": "chat_completions",
-        },
-        "custom_openai": {
-            "api_key": _env_value(
-                env_values,
-                "CUSTOM_OPENAI_API_KEY",
-                include_process_env=include_process_env,
-            ),
-            "api_base": _env_value(
-                env_values,
-                "CUSTOM_OPENAI_API_BASE",
-                "http://localhost:8000/v1",
-                include_process_env=include_process_env,
-            ),
-            "api_mode": "chat_completions",
-            "test_model": "custom-model",
-        },
-        "gemini": {
-            "api_key": _env_value(
-                env_values,
-                "GEMINI_API_KEY",
-                include_process_env=include_process_env,
-            ),
-            "api_base": _env_value(
-                env_values,
-                "GEMINI_API_BASE",
-                PROVIDER_RECOMMENDS["gemini"]["api_base"],
-                include_process_env=include_process_env,
-            ),
-            "api_mode": "chat_completions",
-        },
-        "qwen": {
-            "api_key": _env_value(
-                env_values,
-                "QWEN_API_KEY",
-                include_process_env=include_process_env,
-            ),
-            "api_base": _env_value(
-                env_values,
-                "QWEN_API_BASE",
-                PROVIDER_RECOMMENDS["qwen"]["api_base"],
-                include_process_env=include_process_env,
-            ),
-            "api_mode": "chat_completions",
-        },
-        "ollama": {
-            "api_key": "",
-            "api_base": _env_value(
-                env_values,
-                "OLLAMA_HOST",
-                PROVIDER_RECOMMENDS["ollama"]["api_base"],
-                include_process_env=include_process_env,
-            ),
-            "api_mode": "ollama",
-        },
-    }
+            "api_mode": profile.api_mode,
+            "auth_type": profile.auth_type,
+        }
+    providers["custom_openai"]["test_model"] = "custom-model"
+    return providers
 
 
 # 🌟 大模型跨服务商算力预设与精选推荐清单
@@ -233,10 +160,7 @@ class LLMRuntimeConfig:
     """大模型运行时跨服务商混合算力网格配置"""
 
     # 1. 多订阅源字典：存储各个 Provider 的 API Key、Base 节点、API 模式与状态
-    providers: Dict[str, Dict[str, str]] = field(default_factory=dict)
-
-    # 独立工具可指定自己的配置目录，避免读取正式运行配置和密钥。
-    config_home: str | None = field(default=None, repr=False, compare=False)
+    providers: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
     # 2. 算力分档路由映射 (模型名称 + 归属 Provider 绑定)
     cheap_model: str = "qwen3.5:0.8b"
@@ -269,19 +193,32 @@ class LLMRuntimeConfig:
     )
     runtime_policy: Dict[str, Any] = field(default_factory=dict)
 
+    # 开发 Runtime Lab 使用独立配置目录，避免误读正式环境的密钥和策略。
+    config_home: str | None = None
+
     def __post_init__(self):
-        scoped_home = Path(self.config_home).expanduser() if self.config_home else None
+        config_home = Path(self.config_home).expanduser() if self.config_home else None
         defaults = _default_providers(
-            scoped_home / ".env" if scoped_home else None,
-            include_process_env=scoped_home is None,
+            config_home / ".env" if config_home is not None else None,
+            include_process_env=config_home is None,
         )
         if self.providers:
             deep_update(defaults, self.providers)
         self.providers = defaults
 
+        if config_home is not None:
+            # 开发配置不能继承正式进程的 Ollama 地址和模型选择。
+            self.ollama_host = self.providers["ollama"]["api_base"]
+            self.ollama_model_fast = "qwen3.5:0.8b"
+            self.ollama_model_vision = "moondream"
+
         # 尝试自检测并热加载持久化的本地 YAML 配置文件
         saved_cfg = None
-        yaml_path = scoped_home / "config.yaml" if scoped_home else get_config_path()
+        yaml_path = (
+            config_home / "config.yaml"
+            if config_home is not None
+            else get_config_path()
+        )
         if os.path.exists(yaml_path):
             try:
                 with open(yaml_path, encoding="utf-8") as f:
@@ -290,8 +227,12 @@ class LLMRuntimeConfig:
                 pass
 
         # 向后兼容：如果 YAML 不存在，尝试加载旧版 JSON 配置
-        if saved_cfg is None and scoped_home is None:
-            json_path = os.path.join(os.path.dirname(__file__), "runtime_config.json")
+        if saved_cfg is None:
+            json_path = (
+                config_home / "runtime_config.json"
+                if config_home is not None
+                else Path(os.path.dirname(__file__)) / "runtime_config.json"
+            )
             if os.path.exists(json_path):
                 try:
                     with open(json_path, encoding="utf-8") as f:
@@ -315,6 +256,8 @@ class LLMRuntimeConfig:
                             self.providers[provider]["api_base"] = info["api_base"]
                         if "api_mode" in info:
                             self.providers[provider]["api_mode"] = info["api_mode"]
+                        if "auth_type" in info:
+                            self.providers[provider]["auth_type"] = info["auth_type"]
                         if "status" in info and info["status"] in (
                             "active",
                             "inactive",
@@ -322,14 +265,42 @@ class LLMRuntimeConfig:
                             self.providers[provider]["status"] = info["status"]
                         if "test_model" in info:
                             self.providers[provider]["test_model"] = info["test_model"]
+                        if "models" in info and isinstance(info["models"], list):
+                            self.providers[provider]["models"] = info["models"]
                         if "display_name" in info:
                             self.providers[provider]["display_name"] = info[
                                 "display_name"
                             ]
+                        if "api_key_env" in info:
+                            self.providers[provider]["api_key_env"] = info[
+                                "api_key_env"
+                            ]
 
                 # 更新其他字段属性（system 键深层合并，其余直接覆盖）
+                explicit_defaults = {
+                    "cheap_model": "qwen3.5:0.8b",
+                    "cheap_provider": "ollama",
+                    "deep_model": "qwen3.5:0.8b",
+                    "deep_provider": "ollama",
+                    "multimodal_model": "moondream",
+                    "multimodal_provider": "ollama",
+                    "ollama_host": os.getenv("OLLAMA_HOST", "http://localhost:11434"),
+                    "ollama_model_fast": os.getenv("OLLAMA_MODEL_FAST", "qwen3.5:0.8b"),
+                    "ollama_model_vision": os.getenv(
+                        "OLLAMA_MODEL_VISION", "moondream"
+                    ),
+                    "energy_threshold_fast": 30.0,
+                    "complexity_threshold_deep": 3,
+                    "temperature": 0.7,
+                    "max_tokens": 1500,
+                }
                 for k, v in saved_cfg.items():
                     if k != "providers" and hasattr(self, k) and v is not None:
+                        if (
+                            k in explicit_defaults
+                            and getattr(self, k) != explicit_defaults[k]
+                        ):
+                            continue
                         if k == "system" and isinstance(v, dict):
                             deep_update(self.system, v)
                         else:
@@ -339,6 +310,20 @@ class LLMRuntimeConfig:
 
         # 确保 providers 字典中所有条目都有 api_mode 和 status
         for provider in self.providers:
+            secret_name = self.providers[provider].get(
+                "api_key_env"
+            ) or provider_secret_name(provider)
+            self.providers[provider]["api_key_env"] = secret_name
+            secret_path = (
+                config_home / ".env" if config_home is not None else get_env_path()
+            )
+            local_secret = (
+                read_secrets(secret_path).get(secret_name, "")
+                if config_home is not None
+                else resolve_secret(secret_name, secret_path)
+            )
+            if local_secret:
+                self.providers[provider]["api_key"] = local_secret
             # api_mode: 从 BUILTIN_PROFILES 获取，未知服务商默认 chat_completions
             if "api_mode" not in self.providers[provider]:
                 self.providers[provider]["api_mode"] = get_default_api_mode(provider)
@@ -359,15 +344,12 @@ class LLMRuntimeConfig:
                     "active" if api_key or provider == "ollama" else "inactive"
                 )
 
-        if scoped_home is not None and saved_cfg is None:
-            self.ollama_host = self.providers["ollama"]["api_base"]
-
         # 同步本地 ollama_host 的最新变更到 providers 字典中
         if self.ollama_host:
             self.providers["ollama"]["api_base"] = self.ollama_host
 
     @classmethod
-    def load(cls, config_home: str | None = None) -> "LLMRuntimeConfig":
+    def load(cls, config_home: str | None = None) -> LLMRuntimeConfig:
         """加载当前运行时配置（每次调用重新读取）。"""
         return cls(config_home=config_home)
 
@@ -391,3 +373,14 @@ class LLMRuntimeConfig:
             "system": self.system,
             "runtime_policy": self.runtime_policy,
         }
+
+    def to_safe_dict(self) -> Dict[str, Any]:
+        """返回可安全落盘的配置，不包含任何 Provider 明文密钥。"""
+        payload = self.to_dict()
+        payload["providers"] = {
+            provider_id: {
+                key: value for key, value in provider.items() if key != "api_key"
+            }
+            for provider_id, provider in self.providers.items()
+        }
+        return payload

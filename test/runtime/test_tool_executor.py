@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 from runtime.tools.executor import ToolExecutionContext, ToolExecutor, ToolResult
@@ -50,6 +52,19 @@ class FakeSkillsPlugin:
 
     def list_skills(self) -> str:
         return "Skill list"
+
+
+@dataclass
+class FakeFileAccessPlugin:
+    path: str = ""
+
+    def read_text(self, relative_path: str) -> str:
+        self.path = relative_path
+        return "local content"
+
+    def list_files(self, relative_path: str = ".") -> list[str]:
+        self.path = relative_path
+        return ["one.txt", "two.txt"]
 
 
 def make_executor(
@@ -182,3 +197,26 @@ def test_tool_executor_handles_list_skills_and_ignores_disallowed_tags():
     assert result.ok is True
     assert result.content == "Skill list"
     assert disallowed.execute("[LIST_SKILLS][/LIST_SKILLS]") is None
+
+
+def test_tool_executor_handles_controlled_local_file_access():
+    executor, search, sandbox, skills, permission = make_executor(("local_file",))
+    file_access = FakeFileAccessPlugin()
+    executor.context = ToolExecutionContext(
+        allowed_skills=("local_file",),
+        search_plugin=search,
+        sandbox_plugin=sandbox,
+        skills_evolution_plugin=skills,
+        permission_manager=permission,
+        file_access_plugin=file_access,
+    )
+
+    read_result = executor.execute("[READ_FILE]notes/probe.txt[/READ_FILE]")
+    list_result = executor.execute("[LIST_FILES]notes[/LIST_FILES]")
+
+    assert read_result is not None
+    assert read_result.tool_name == "local_file_read"
+    assert "local content" in read_result.content
+    assert list_result is not None
+    assert list_result.tool_name == "local_file_list"
+    assert "one.txt" in list_result.content

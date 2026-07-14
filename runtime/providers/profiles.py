@@ -10,6 +10,8 @@
 - OpenClaw 的 ModelProviderConfig (types.models.ts)
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Dict, List
 

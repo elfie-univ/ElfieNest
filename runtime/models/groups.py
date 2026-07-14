@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Any, Mapping
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ModelGroup:
     key: str
     display_name: str
@@ -64,7 +66,7 @@ def load_model_groups(runtime_policy: Mapping[str, Any] | None = None) -> dict[s
             continue
 
         raw_model_keys = raw_group.get("model_keys", ())
-        if not isinstance(raw_model_keys, list | tuple):
+        if not isinstance(raw_model_keys, (list, tuple)):
             continue
 
         model_keys = tuple(

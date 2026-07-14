@@ -175,8 +175,8 @@ class RuntimeLabConfigStore:
                 }
                 for name, info in config.providers.items()
             },
-            "setup_command": "python -m devtools.runtime_lab configure",
-            "test_command": "python -m devtools.runtime_lab test",
+            "setup_command": ".venv/bin/python -m devtools.runtime_lab configure",
+            "test_command": ".venv/bin/python -m devtools.runtime_lab test",
         }
 
     @staticmethod

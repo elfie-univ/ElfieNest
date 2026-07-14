@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from elfienest.accounts.auth import hash_password, verify_session
 from elfienest.config.runtime_store import read_runtime_config, write_runtime_config
 from elfienest.persistence.store import get_db
+from runtime.storage.data_home import get_config_path
 
 logger = logging.getLogger("elfienest.api.admin_routes")
 
@@ -28,8 +29,8 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 _PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent
 """项目根目录（admin_routes.py → elfienest/manage/ → elfienest/ → 项目根）。"""
 
-_RUNTIME_CONFIG_PATH: Path = _PROJECT_ROOT / "runtime" / "runtime_config.json"
-"""``runtime_config.json`` 的完整路径（gitignored）。"""
+_RUNTIME_CONFIG_PATH: Path = get_config_path()
+"""用户本地 Runtime 配置路径。"""
 
 # ---------------------------------------------------------------------------
 # 鉴权依赖

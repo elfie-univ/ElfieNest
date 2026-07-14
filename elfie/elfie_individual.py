@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import logging
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from elfie.body import BipedAnatomy, QuadrupedAnatomy, SomaticReflexArc
@@ -31,16 +34,19 @@ class ElfieIndividual:
         config_dir: str = None,
         anatomy_type: str = "biped",
         godot_api=None,
-        memory_db_path: Optional[str] = None,
+        elfie_id: str | None = None,
+        memory_db_path: str | None = None,
     ):
         """
         初始化生命管理器
         :param config_dir: 配置目录
         :param anatomy_type: 身体形态学类型 ("biped" 双足, "quadruped" 四足)
         :param godot_api: Godot API服务器实例（可选）
+        :param elfie_id: 正式运行或测试环境中的稳定精灵标识（可选）
+        :param memory_db_path: 开发工具可指定的独立记忆数据库路径（可选）
         """
         # 1. 🧠 【大脑认知层】 (Cognition)
-        self.brain = NeocortexBrain(config_dir)
+        self.brain = NeocortexBrain(config_dir, elfie_id=elfie_id)
 
         limits_dict = self.brain.profile.system_limits
         caps_dict = self.brain.profile.capabilities
@@ -50,7 +56,14 @@ class ElfieIndividual:
         self.hypothalamus = HypothalamusEnergy(limits_dict)
         self.amygdala = EmotionSystem()
         self.emotion_decay = EmotionDecayCalculator()
-        self.memory = MemorySystem(db_path=memory_db_path)
+        resolved_memory_db_path = memory_db_path or (
+            str(Path(config_dir) / "graph_memory.db") if config_dir else None
+        )
+        self.memory = MemorySystem(
+            db_path=resolved_memory_db_path,
+            elfie_id=elfie_id,
+            config_dir=config_dir,
+        )
         self._was_sleeping = False
 
         # 3. 🔌 【神经交互总线层】 (Interface)
@@ -77,6 +90,11 @@ class ElfieIndividual:
         # Godot API 引用（用于发送表达事件）
         self.godot_api = godot_api
         self._last_expression: Optional[Dict[str, Any]] = None
+
+    def bind_identity(self, elfie_id: str) -> None:
+        """注册进房间时补齐身份，让粮食策略和记忆任务读取同一精灵配置。"""
+        self.brain.elfie_id = elfie_id
+        self.memory.bind_elfie_identity(elfie_id, self.brain.config_dir)
 
     @property
     def hippocampus(self):
@@ -140,6 +158,7 @@ class ElfieIndividual:
         5. 交互总线形态学动作硬拦截 (形态学限制，防动作幻觉)
         6. 下发小脑进行关节角度时序转换，声学合成发音，写入海马体
         """
+        mutter_msg: str | None
         if debug_trace is not None:
             debug_trace.clear()
             debug_trace.update(
@@ -317,11 +336,18 @@ class ElfieIndividual:
         )
 
         # 扣减下丘脑能耗
-        config = runtime_agent.config
-        is_remote = any(
-            provider != "ollama" and info.get("api_key", "")
-            for provider, info in config.providers.items()
-        )
+        runtime_result = self.brain.last_runtime_result
+        actual_model = getattr(runtime_result, "actual_model", None)
+        is_remote = bool(actual_model and not actual_model.startswith("ollama/"))
+        if actual_model is None and not callable(
+            getattr(runtime_agent, "run_with_food", None)
+        ):
+            # 旧 Mock Runtime 没有实际模型信息，沿用原有 Provider 判断。
+            config = runtime_agent.config
+            is_remote = any(
+                provider != "ollama" and info.get("api_key", "")
+                for provider, info in config.providers.items()
+            )
         self.hypothalamus.consume_energy_by_action(is_remote)
 
         # 快乐正反馈

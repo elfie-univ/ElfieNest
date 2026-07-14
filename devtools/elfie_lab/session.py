@@ -1,5 +1,7 @@
 """单精灵调试会话：执行、快照、轨迹和历史持久化。"""
 
+from __future__ import annotations
+
 import threading
 import time
 from dataclasses import asdict

@@ -14,6 +14,9 @@ def test_install_script_bootstraps_project_venv() -> None:
     assert "-m pip install" in script
     assert '"$PROJECT_ROOT/requirements.txt"' in script
     assert "INSTALL_LOG_PATH" in script
+    assert "python_is_39" in script
+    assert "find_python39" in script
+    assert 'venv --clear "$PROJECT_ROOT/.venv"' in script
 
 
 def test_elfie_entrypoint_can_self_repair_missing_venv_dependencies() -> None:
@@ -22,3 +25,5 @@ def test_elfie_entrypoint_can_self_repair_missing_venv_dependencies() -> None:
     assert "repair_project_venv" in script
     assert "ELFIE_SKIP_AUTO_REPAIR" in script
     assert "install.sh" in script
+    assert "python_is_39" in script
+    assert '"python3"' in script

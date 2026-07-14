@@ -36,12 +36,26 @@ class ThalamusContextBuilder:
 
         # 1. 过滤背景噪音（噪点剥离由 interface/signal_filter.py 或丘脑自身轻量策略完成）
         # 这里简单保留必要的感官通道信息
+        image_paths = tuple(
+            str(path)
+            for path in raw_sensors.get(
+                "images", raw_sensors.get("image_paths", ())
+            )
+            if str(path)
+        )
+        audio_path = str(raw_sensors["audio"]) if raw_sensors.get("audio") else None
         sensor_data = SensorData(
             temperature=raw_sensors.get("temperature", 24.0),
             is_network_online=raw_sensors.get("is_network_online", True),
             salience_score=raw_sensors.get("salience_score", 0.0),
-            has_new_message=raw_sensors.get("has_new_message", False),
+            has_new_message=bool(
+                raw_sensors.get("has_new_message", False)
+                or image_paths
+                or audio_path
+            ),
             user_message=raw_sensors.get("user_message", ""),
+            images=image_paths,
+            audio=audio_path,
         )
 
         # 2. 获取实时生理能耗参数与作息状态

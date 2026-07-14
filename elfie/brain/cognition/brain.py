@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import random
 from typing import Any
@@ -5,6 +7,7 @@ from typing import Any
 from elfie.brain.brain_types import BrainContext, BrainDecision
 from elfie.brain.cognition.attention_manager import AttentionManager
 from elfie.brain.cognition.expectation import ExpectationManager
+from elfie.brain.cognition.food_selector import ElfieFoodSelector, FoodIntent
 from elfie.brain.cognition.profile import ElfieProfile
 
 logger = logging.getLogger("elfie.cognition.brain")
@@ -13,10 +16,60 @@ logger = logging.getLogger("elfie.cognition.brain")
 class NeocortexBrain:
     """顶层：大脑皮层 (认知、决策与主思考网络)"""
 
-    def __init__(self, config_dir: str = None):
+    def __init__(self, config_dir: str = None, elfie_id: str | None = None):
         self.profile = ElfieProfile(config_dir)
         self.attention = AttentionManager()
         self.expectation = ExpectationManager()
+        self.food_selector = ElfieFoodSelector()
+        self.elfie_id = elfie_id
+        self.config_dir = config_dir
+        self.last_runtime_result: Any | None = None
+
+    def _ask_runtime(
+        self,
+        runtime_agent: Any,
+        *,
+        prompt: str,
+        context: BrainContext,
+        complexity: int,
+        intent: FoodIntent,
+    ) -> str:
+        """只向 Runtime 提交粮食语义；旧 Mock 保留文本接口兼容。"""
+        run_with_food = getattr(runtime_agent, "run_with_food", None)
+        if callable(run_with_food):
+            result = run_with_food(
+                prompt=prompt,
+                food_key=intent.food_key,
+                elfie_id=self.elfie_id,
+                elfie_config_dir=self.config_dir,
+                scene=intent.scene,
+                energy=context.energy,
+                task_complexity=complexity,
+                allowed_skills=list(intent.allowed_tools),
+                images=list(context.sensors.images),
+                audio=context.sensors.audio,
+            )
+            self.last_runtime_result = result
+            return result.text
+        ask_with_food = getattr(runtime_agent, "ask_with_food", None)
+        if callable(ask_with_food):
+            return ask_with_food(
+                prompt=prompt,
+                food_key=intent.food_key,
+                elfie_id=self.elfie_id,
+                elfie_config_dir=self.config_dir,
+                scene=intent.scene,
+                energy=context.energy,
+                task_complexity=complexity,
+                allowed_skills=list(intent.allowed_tools),
+                images=list(context.sensors.images),
+                audio=context.sensors.audio,
+            )
+        return runtime_agent.ask(
+            prompt=prompt,
+            energy=context.energy,
+            task_complexity=complexity,
+        )
 
     def think_and_decide(
         self, context: BrainContext, runtime_agent: Any
@@ -27,6 +80,7 @@ class NeocortexBrain:
         :param runtime_agent: 绑定的外包大模型算力底座 RuntimeAgent 实例
         :return: 精灵皮层生成的 BrainDecision (包含 action, speech_text, attention_mode, mutter)
         """
+        self.last_runtime_result = None
         has_new_msg = context.sensors.has_new_message
         salience_score = context.sensors.salience_score
 
@@ -35,7 +89,13 @@ class NeocortexBrain:
 
         # 2. 调度注意力脑网络 (DMN / CEN / SN)
         active_network = self.attention.evaluate_state(has_new_msg, salience_score)
+        food_intent = self.food_selector.select(active_network, context)
         logger.info(f"🧠 [皮层脑网络激活]: {active_network} 模式。")
+        logger.info(
+            "🍚 [粮食意图]: %s（%s）",
+            food_intent.food_key,
+            food_intent.reason,
+        )
 
         # 3. 自定义系统 Prompt 性格约束
         personality_prompt = self.profile.get_system_prompt_segment()
@@ -43,16 +103,16 @@ class NeocortexBrain:
         # 4. 根据不同注意力脑网络执行不同决策通路
         if active_network == "SN":
             # 突显网络：遭受突发扰动，以最快直觉进行生存反射
-            alert_text = (
-                f"警告！发生高能物理状态突变！传感器反馈: {context.sensors}，进行受惊反应决策。"
-            )
+            alert_text = f"警告！发生高能物理状态突变！传感器反馈: {context.sensors}，进行受惊反应决策。"
             logger.warning(f"🚨 突发打断！大脑皮层进行 SN 紧急反响: {alert_text}")
 
             # 使用本地快速模式，不调用联网工具，直接快速喊出受惊叫声并瑟瑟发抖
-            response = runtime_agent.ask(
+            response = self._ask_runtime(
+                runtime_agent,
                 prompt=f"{alert_text}\n请以一句话迅速回应物理不适，并在回答中携带一个物理姿态动作，如 [ACTION]wag_tail[/ACTION]。",
-                energy=context.energy,
-                task_complexity=2,
+                context=context,
+                complexity=2,
+                intent=food_intent,
             )
 
             return BrainDecision(
@@ -83,10 +143,12 @@ class NeocortexBrain:
             if "计算" in user_msg or "账单" in user_msg or "最新" in user_msg:
                 complexity = 4
 
-            response = runtime_agent.ask(
+            response = self._ask_runtime(
+                runtime_agent,
                 prompt=full_prompt,
-                energy=context.energy,
-                task_complexity=complexity,
+                context=context,
+                complexity=complexity,
+                intent=food_intent,
             )
 
             # 解析可能的动作标签
@@ -111,10 +173,12 @@ class NeocortexBrain:
                     f"【系统设定】:\n{personality_prompt}\n"
                     f"当前的预测误差很大，说明环境有异样。请你以艾菲小狐狸的身份，主动跟主人发起一句生动的对话（比如问问天气，或是吐槽网络不稳定），并搭配动作。"
                 )
-                response = runtime_agent.ask(
+                response = self._ask_runtime(
+                    runtime_agent,
                     prompt=active_prompt,
-                    energy=context.energy,
-                    task_complexity=2,
+                    context=context,
+                    complexity=2,
+                    intent=food_intent,
                 )
                 return BrainDecision(
                     action="wag_tail",

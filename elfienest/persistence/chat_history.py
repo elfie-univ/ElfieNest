@@ -1,28 +1,27 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
-from enum import StrEnum
+from datetime import datetime, timedelta, timezone
+from enum import Enum
 import sqlite3
-from typing import assert_never
 
 from elfienest.persistence.store import get_db
 
 
-class ChatSender(StrEnum):
+class ChatSender(str, Enum):
     USER = "user"
     ELFIE = "elfie"
     SYSTEM = "system"
 
 
-class ChatHistoryRange(StrEnum):
+class ChatHistoryRange(str, Enum):
     ALL = "all"
     LAST_15_MINUTES = "15m"
     LAST_HOUR = "1h"
     TODAY = "today"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ChatMessageInput:
     elfie_id: str
     user_id: int
@@ -32,7 +31,7 @@ class ChatMessageInput:
     created_at: str | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ChatHistoryQuery:
     elfie_id: str
     user_id: int
@@ -42,7 +41,7 @@ class ChatHistoryQuery:
     now: datetime | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ChatMessageRecord:
     id: int
     elfie_id: str
@@ -83,7 +82,7 @@ def list_chat_history(db_path: str, query: ChatHistoryQuery) -> list[ChatMessage
     clauses = ["elfie_id = ?", "user_id = ?"]
     params: list[str | int] = [query.elfie_id, query.user_id]
 
-    start = _range_start(query.history_range, query.now or datetime.now(UTC))
+    start = _range_start(query.history_range, query.now or datetime.now(timezone.utc))
     if start:
         clauses.append("created_at >= ?")
         params.append(start)
@@ -110,31 +109,29 @@ def list_chat_history(db_path: str, query: ChatHistoryQuery) -> list[ChatMessage
 
 
 def _range_start(history_range: ChatHistoryRange, now: datetime) -> str | None:
-    match history_range:
-        case ChatHistoryRange.ALL:
-            return None
-        case ChatHistoryRange.LAST_15_MINUTES:
-            return _datetime_to_iso(now - timedelta(minutes=15))
-        case ChatHistoryRange.LAST_HOUR:
-            return _datetime_to_iso(now - timedelta(hours=1))
-        case ChatHistoryRange.TODAY:
-            start = now.astimezone(UTC).replace(
-                hour=0,
-                minute=0,
-                second=0,
-                microsecond=0,
-            )
-            return _datetime_to_iso(start)
-        case _ as unreachable:
-            assert_never(unreachable)
+    if history_range == ChatHistoryRange.ALL:
+        return None
+    if history_range == ChatHistoryRange.LAST_15_MINUTES:
+        return _datetime_to_iso(now - timedelta(minutes=15))
+    if history_range == ChatHistoryRange.LAST_HOUR:
+        return _datetime_to_iso(now - timedelta(hours=1))
+    if history_range == ChatHistoryRange.TODAY:
+        start = now.astimezone(timezone.utc).replace(
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+        return _datetime_to_iso(start)
+    raise ValueError(f"不支持的聊天历史范围: {history_range!r}")
 
 
 def _utc_now_iso() -> str:
-    return _datetime_to_iso(datetime.now(UTC))
+    return _datetime_to_iso(datetime.now(timezone.utc))
 
 
 def _datetime_to_iso(value: datetime) -> str:
-    return value.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    return value.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def _row_to_record(row: sqlite3.Row) -> ChatMessageRecord:

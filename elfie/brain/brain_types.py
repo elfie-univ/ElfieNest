@@ -4,8 +4,10 @@
 这些结构是单次 tick 的内存数据包，不持久化。
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Dict, Optional
 
 
 @dataclass
@@ -20,6 +22,8 @@ class SensorData:
     salience_score: float = 0.0
     has_new_message: bool = False
     user_message: str = ""
+    images: tuple[str, ...] = ()
+    audio: str | None = None
 
 
 @dataclass
@@ -44,7 +48,7 @@ class BrainContext:
     # 记忆（海马体）
     history_episodes: str = "无相关历史情景记忆。"
     # 具身形态
-    embodied_anatomy: str = ""
+    embodied_anatomy: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

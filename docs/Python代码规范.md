@@ -306,7 +306,7 @@ ignore = [
 **严格模式配置**：
 ```toml
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.9"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
@@ -407,7 +407,7 @@ def transform(
 name = "elfienest"
 version = "0.1.0"
 description = "ElfieNest - Embodied AI creature simulation"
-requires-python = ">=3.11"
+requires-python = ">=3.9,<3.10"
 dependencies = [
     "websockets>=12.0",
     "pydantic>=2.0",
@@ -435,7 +435,7 @@ quote-style = "double"
 indent-style = "space"
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.9"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
@@ -504,7 +504,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.9'
 
       - name: Install dependencies
         run: |

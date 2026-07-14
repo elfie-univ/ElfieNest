@@ -212,7 +212,7 @@ function dot() { const item = document.createElement("i"); return item; }
 async function sendTurn(event) {
   event.preventDefault(); if (!state.currentId || state.sending) return;
   if (el("runtimeMode").value === "real") await refreshRuntimeStatus();
-  if (el("runtimeMode").value === "real" && !state.runtimeStatus?.ready_for_attempt) return showToast(`真实模型尚未配置，请运行：${state.runtimeStatus?.setup_command || "python -m devtools.runtime_lab configure"}`, true);
+  if (el("runtimeMode").value === "real" && !state.runtimeStatus?.ready_for_attempt) return showToast(`真实模型尚未配置，请运行：${state.runtimeStatus?.setup_command || ".venv/bin/python -m devtools.runtime_lab configure"}`, true);
   const message = ui.message.value.trim(); const injection = {};
   if (el("injectEnergy").value !== "") injection.energy = Number(el("injectEnergy").value);
   if (el("injectFatigue").value !== "") injection.fatigue = Number(el("injectFatigue").value);

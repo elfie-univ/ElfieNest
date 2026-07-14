@@ -7,9 +7,10 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from elfienest.config.runtime_store import read_runtime_config, write_runtime_config
 from runtime.models.catalog import BUILTIN_MODEL_CATALOG
-from runtime.models.groups import load_model_groups, model_groups_to_payload
-from runtime.policy.food_policy import RuntimeTaskType, load_food_policy
+from runtime.food.models import FIXED_FOOD_KINDS
+from runtime.policy.food_policy import RuntimeTaskType
 from runtime.safety.permissions import DEFAULT_TOOL_PERMISSIONS
+from runtime.storage.data_home import get_config_path
 from runtime.usage.observer import RuntimeEvent, get_runtime_observer
 from runtime.usage.token_tracker import get_token_tracker
 
@@ -18,7 +19,7 @@ from .admin_routes import require_admin
 router = APIRouter(prefix="/api/admin/runtime", tags=["runtime"])
 
 _PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent
-_RUNTIME_CONFIG_PATH: Path = _PROJECT_ROOT / "runtime" / "runtime_config.json"
+_RUNTIME_CONFIG_PATH: Path = get_config_path()
 
 
 def _read_runtime_config() -> Dict[str, Any]:
@@ -68,7 +69,8 @@ def build_runtime_status() -> Dict[str, Any]:
             "total": model_total,
             "visible": max(model_total - len(hidden_models), 0),
             "hidden": len(hidden_models),
-            "groups": _model_groups_list_payload(runtime_policy),
+            "groups": [],
+            "legacy_model_groups_ignored": True,
         },
         "fallback": {
             "provider": "ollama",
@@ -150,25 +152,28 @@ def _dict_field(data: Dict[str, Any], field_name: str) -> Dict[str, Any]:
     return field_value if isinstance(field_value, dict) else {}
 
 
-def _model_groups_list_payload(runtime_policy: Dict[str, Any]) -> list[Dict[str, Any]]:
-    return [
-        {
-            "key": group.key,
-            "display_name": group.display_name,
-            "model_keys": list(group.model_keys),
-        }
-        for group in load_model_groups(runtime_policy).values()
-    ]
-
-
 def _runtime_policy_payload(runtime_policy: Dict[str, Any]) -> Dict[str, Any]:
-    food_policy = load_food_policy(runtime_policy)
+    defaults = {
+        RuntimeTaskType.CHAT.value: "standard",
+        RuntimeTaskType.REASONING.value: "focus",
+        RuntimeTaskType.VISION.value: "vision",
+        RuntimeTaskType.CODE.value: "tool",
+        RuntimeTaskType.ORGANIZE.value: "focus",
+    }
+    raw_routes = runtime_policy.get("task_routes", {})
+    if isinstance(raw_routes, dict):
+        defaults.update(
+            {
+                task_type: food_key
+                for task_type, food_key in raw_routes.items()
+                if task_type in {item.value for item in RuntimeTaskType}
+                and food_key in FIXED_FOOD_KINDS
+            }
+        )
     return {
-        "task_routes": {
-            task_type.value: group_key
-            for task_type, group_key in food_policy.task_groups.items()
-        },
-        "model_groups": model_groups_to_payload(load_model_groups(runtime_policy)),
+        "task_routes": defaults,
+        "food_keys": list(FIXED_FOOD_KINDS),
+        "model_groups_deprecated": True,
         "tool_permissions": _tool_permissions_payload(runtime_policy),
     }
 
@@ -201,7 +206,12 @@ def _merge_runtime_policy(
         raise HTTPException(status_code=422, detail="runtime policy body 必须是对象")
 
     merged = dict(existing_policy)
-    for field_name in ("task_routes", "model_groups", "tool_permissions"):
+    if "model_groups" in updates:
+        raise HTTPException(
+            status_code=410,
+            detail="model_groups 已停用；任务只能路由到粮食 key，模型由粮食配方管理",
+        )
+    for field_name in ("task_routes", "tool_permissions"):
         if field_name in updates:
             value = updates[field_name]
             if not isinstance(value, dict):
@@ -233,19 +243,15 @@ def _validate_runtime_policy(runtime_policy: Dict[str, Any]) -> None:
                     detail=f"权限模式必须是 {sorted(valid_modes)} 之一",
                 )
 
-    groups = runtime_policy.get("model_groups", {})
-    if isinstance(groups, dict):
-        for group_key, group in groups.items():
-            if not isinstance(group_key, str) or not isinstance(group, dict):
-                raise HTTPException(status_code=422, detail="model_groups 格式错误")
-            model_keys = group.get("model_keys", [])
-            if not isinstance(model_keys, list) or not all(
-                isinstance(model_key, str) for model_key in model_keys
-            ) or not model_keys:
-                raise HTTPException(
-                    status_code=422,
-                    detail="model_groups.*.model_keys 必须是非空字符串数组",
-                )
+    if isinstance(routes, dict):
+        invalid_foods = [
+            food_key for food_key in routes.values() if food_key not in FIXED_FOOD_KINDS
+        ]
+        if invalid_foods:
+            raise HTTPException(
+                status_code=422,
+                detail=f"task_routes 只能使用粮食 key: {list(FIXED_FOOD_KINDS)}",
+            )
 
 
 def _event_payload(event: RuntimeEvent) -> Dict[str, Any]:

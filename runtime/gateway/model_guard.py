@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -14,7 +16,7 @@ class OllamaManager(Protocol):
     def ensure_service_started(self) -> bool: ...
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class RuntimeModelTarget:
     model_name: str
     provider: str

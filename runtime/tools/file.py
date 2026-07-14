@@ -1,6 +1,11 @@
+from __future__ import annotations
+
 import logging
 import os
+from pathlib import Path
 from typing import List
+
+from runtime.storage.data_home import get_skills_dir
 
 logger = logging.getLogger("runtime.tools.file")
 
@@ -8,11 +13,9 @@ logger = logging.getLogger("runtime.tools.file")
 class FileSandbox:
     """技能文件专用安全沙箱，物理隔离防路径穿梭"""
 
-    def __init__(self):
-        # 技能库根目录设定在 runtime/custom_skills
-        self.runtime_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        self.skills_root = os.path.join(self.runtime_dir, "custom_skills")
-        self._ensure_skills_root()
+    def __init__(self, skills_root: str | Path | None = None):
+        # 运行时技能属于用户数据，不能写入源码目录。
+        self.skills_root = str(Path(skills_root) if skills_root else get_skills_dir())
 
     def _ensure_skills_root(self):
         if not os.path.exists(self.skills_root):
@@ -32,6 +35,7 @@ class FileSandbox:
 
     def write_file(self, filename: str, content: str) -> str:
         """安全地在技能库中写入新脚本"""
+        self._ensure_skills_root()
         target_path = self._safe_path(filename)
         with open(target_path, "w", encoding="utf-8") as f:
             f.write(content)

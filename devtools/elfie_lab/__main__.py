@@ -1,4 +1,4 @@
-"""`python -m devtools.elfie_lab` 启动入口。"""
+"""`.venv/bin/python -m devtools.elfie_lab` 启动入口。"""
 
 import argparse
 

@@ -17,6 +17,8 @@
 - 永远不物理删除任何节点
 """
 
+from __future__ import annotations
+
 import logging
 from collections import Counter
 from datetime import datetime, timezone
@@ -24,6 +26,7 @@ from typing import Any, Dict, List
 
 from elfie.brain.memory.graph_storage import GraphStorage
 from elfie.brain.memory.node_types import EdgeTypes, MemoryNode, NodeTypes
+from elfie.brain.memory.runtime_food import ask_memory_model
 from elfie.brain.memory.tokenizer import tokenize
 
 logger = logging.getLogger("elfie.brain.memory.consolidation")
@@ -32,7 +35,13 @@ logger = logging.getLogger("elfie.brain.memory.consolidation")
 class MemoryConsolidator:
     """巩固引擎：将episodic记忆提炼为knowledge和entity属性更新"""
 
-    def __init__(self, storage: GraphStorage, core_cognition=None):
+    def __init__(
+        self,
+        storage: GraphStorage,
+        core_cognition=None,
+        elfie_id: str | None = None,
+        config_dir: str | None = None,
+    ):
         self.storage = storage
         self.core_cognition = core_cognition
         self._consolidation_count = 0  # 巩固次数计数
@@ -40,6 +49,8 @@ class MemoryConsolidator:
         self._pattern_counter = 0  # pattern节点ID计数器
         self._llm_calls_this_cycle = 0
         self._max_llm_calls = 4
+        self.elfie_id = elfie_id
+        self.config_dir = config_dir
 
     def run_consolidation(self, runtime_agent=None) -> Dict[str, Any]:
         """执行巩固流程（8.5步骤，含pattern发现）
@@ -252,10 +263,13 @@ class MemoryConsolidator:
         ):
             try:
                 prompt = self._build_extraction_prompt(group, entity_name)
-                response = runtime_agent.ask(
+                response = ask_memory_model(
+                    runtime_agent,
                     prompt,
-                    energy=50.0,
-                    task_complexity=2,
+                    elfie_id=self.elfie_id,
+                    config_dir=self.config_dir,
+                    food_key="focus",
+                    complexity=2,
                 )
                 self._llm_calls_this_cycle += 1
                 if response and response.strip():
@@ -482,10 +496,13 @@ class MemoryConsolidator:
         ):
             try:
                 prompt = self._build_causal_prompt(group)
-                response = runtime_agent.ask(
+                response = ask_memory_model(
+                    runtime_agent,
                     prompt,
-                    energy=50.0,
-                    task_complexity=2,
+                    elfie_id=self.elfie_id,
+                    config_dir=self.config_dir,
+                    food_key="focus",
+                    complexity=2,
                 )
                 self._llm_calls_this_cycle += 1
                 if response and response.strip():
@@ -667,10 +684,13 @@ class MemoryConsolidator:
         ):
             try:
                 prompt = self._build_pattern_prompt(knowledge_nodes)
-                response = runtime_agent.ask(
+                response = ask_memory_model(
+                    runtime_agent,
                     prompt,
-                    energy=50.0,
-                    task_complexity=2,
+                    elfie_id=self.elfie_id,
+                    config_dir=self.config_dir,
+                    food_key="focus",
+                    complexity=2,
                 )
                 self._llm_calls_this_cycle += 1
                 if response and response.strip():

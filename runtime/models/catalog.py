@@ -461,6 +461,8 @@ def _verify_custom_openai_provider(
 ) -> Dict[str, Any]:
     import time
 
+    from runtime.providers.model_hints import configured_model_names
+
     headers = {"Content-Type": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
@@ -479,7 +481,8 @@ def _verify_custom_openai_provider(
     except urllib.error.HTTPError:
         pass
 
-    test_model = provider_info.get("test_model", "custom-model") or "custom-model"
+    configured_models = configured_model_names(provider_info)
+    test_model = configured_models[0] if configured_models else "custom-model"
     chat_url = f"{api_base.rstrip('/')}/chat/completions"
     payload = json.dumps(
         {
@@ -565,11 +568,14 @@ def verify_provider(provider_id: str, config: Any) -> Dict[str, Any]:
 
     # 获取 profile 以确定 api_mode 和 auth_type
     profile = get_profile(provider_id)
-    if not profile:
+    if profile is None and (provider_id not in config.providers or not api_base):
         result["error"] = f"未知 provider: {provider_id}"
         return result
-
-    api_mode = profile.api_mode
+    api_mode = (
+        profile.api_mode
+        if profile
+        else str(provider_info.get("api_mode", "chat_completions"))
+    )
     # 构建请求 URL 和 headers
     url = ""
     headers: Dict[str, str] = {}
@@ -579,7 +585,7 @@ def verify_provider(provider_id: str, config: Any) -> Dict[str, Any]:
             # Ollama: GET {api_base}/api/tags
             url = f"{api_base.rstrip('/')}/api/tags"
         elif api_mode == "chat_completions":
-            if provider_id == "custom_openai":
+            if provider_id == "custom_openai" or profile is None:
                 return _verify_custom_openai_provider(provider_info, api_base, api_key)
             # OpenAI 兼容: GET {api_base}/models with Bearer token
             url = f"{api_base.rstrip('/')}/models"

@@ -30,6 +30,12 @@ class SensoryDamSignalFilter:
                 self.last_message_id = message_id
                 has_change = True
 
+        # 图片和音频是显式高价值输入，即使文本与上一条相同也必须放行。
+        if raw_sensors.get("images") or raw_sensors.get("image_paths"):
+            has_change = True
+        if raw_sensors.get("audio"):
+            has_change = True
+
         # 2. 检查温度是否有大幅浮动 (变化 > 0.5°C 允许放行)
         temp = raw_sensors.get("temperature", 24.0)
         if self.last_temperature is None:

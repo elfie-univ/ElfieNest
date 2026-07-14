@@ -1,5 +1,7 @@
 """真实与 Mock Runtime 的调试适配层。"""
 
+from __future__ import annotations
+
 import re
 import time
 from typing import Any, Dict, List

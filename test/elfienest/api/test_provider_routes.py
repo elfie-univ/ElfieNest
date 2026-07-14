@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 
 from elfienest.api.app import create_app
 from elfienest.persistence.store import init_db
+from runtime.validation.providers import DiscoveredModel
 
 from ._helpers import create_test_admin, create_test_user
 
@@ -89,6 +90,39 @@ def _headers(csrf_token: str) -> dict:
 
 
 class TestProviderRoutes:
+    def test_provider_save_can_auto_refresh_model_id_and_display_name(
+        self, client: TestClient
+    ) -> None:
+        tokens = _login_admin(client)
+        with patch(
+            "elfienest.api.provider_routes.discover_provider_models",
+            return_value=[
+                DiscoveredModel(
+                    "custom_auto",
+                    "astron-code-latest",
+                    display_name="GLM-5",
+                )
+            ],
+        ):
+            response = client.post(
+                "/api/admin/providers",
+                json={
+                    "provider_id": "custom_auto",
+                    "display_name": "讯飞 Coding Plan",
+                    "api_base": "https://example.invalid/v2",
+                    "api_key": "test-key",
+                    "api_mode": "chat_completions",
+                    "refresh_models": True,
+                },
+                headers=_headers(tokens["csrf_token"]),
+            )
+
+        assert response.status_code == 201
+        assert response.json()["models"] == [
+            {"id": "astron-code-latest", "display_name": "GLM-5"}
+        ]
+        assert response.json()["model_refresh"]["status"] == "updated"
+
     def test_get_providers_returns_list(self, client: TestClient) -> None:
         """GET /api/admin/providers 返回 provider 列表。"""
         tokens = _login_admin(client)
@@ -373,13 +407,15 @@ class TestRouteRoutes:
         assert resp.status_code == 200
         route = resp.json()
         assert "elfie_id" in route
-        assert "scene_routes" in route
-        # 默认包含 5 个场景
-        assert "idle" in route["scene_routes"]
-        assert "deep" in route["scene_routes"]
+        assert route["default_food"] == "standard"
+        assert "vision" in route["allowed_foods"]
+        assert "tool" in route["allowed_foods"]
+        assert "premium" not in route["allowed_foods"]
+        assert route["deprecated"] is True
+        assert route["replacement"].endswith("/food-policy")
 
     def test_put_elfie_route_updates_config(self, client: TestClient, db_path: str) -> None:
-        """PUT /api/user/elfies/{id}/route 更新路由配置。"""
+        """旧 route 入口只允许更新粮食权限。"""
         create_test_user(db_path, "alice", "pass123")
         tokens = _login_user(client, "alice", "pass123")
 
@@ -397,20 +433,10 @@ class TestRouteRoutes:
         )
         elfie_id = resp.json()["elfie_id"]
 
-        # 更新路由
         new_route = {
-            "scene_routes": {
-                "idle": {
-                    "primary": "deepseek/deepseek-chat",
-                    "fallbacks": ["ollama/qwen3.5:0.8b"],
-                    "energy_threshold": 0,
-                },
-                "deep": {
-                    "primary": "openai/gpt-4o",
-                    "fallbacks": ["deepseek/deepseek-chat", "ollama/qwen3.5:0.8b"],
-                    "energy_threshold": 50,
-                },
-            }
+            "default_food": "standard",
+            "allowed_foods": ["coarse", "standard", "focus"],
+            "fallback_food": "coarse",
         }
 
         resp = client.put(
@@ -420,8 +446,8 @@ class TestRouteRoutes:
         )
         assert resp.status_code == 200
         route = resp.json()
-        assert route["scene_routes"]["idle"]["primary"] == "deepseek/deepseek-chat"
-        assert route["scene_routes"]["deep"]["energy_threshold"] == 50
+        assert route["allowed_foods"] == ["coarse", "standard", "focus"]
+        assert "scene_routes" not in route
 
     def test_user_cannot_access_other_user_route(self, client: TestClient, db_path: str) -> None:
         """用户不能访问其他用户的精灵路由 → 404。"""
@@ -453,7 +479,7 @@ class TestRouteRoutes:
         assert resp.status_code == 404
 
     def test_put_route_invalid_scene(self, client: TestClient, db_path: str) -> None:
-        """PUT 无效场景名称 → 422。"""
+        """旧模型场景路由已停用。"""
         create_test_user(db_path, "alice", "pass123")
         tokens = _login_user(client, "alice", "pass123")
 
@@ -477,10 +503,11 @@ class TestRouteRoutes:
             json={"scene_routes": {"invalid_scene": {"primary": "test/model"}}},
             headers=_headers(tokens["csrf_token"]),
         )
-        assert resp.status_code == 422
+        assert resp.status_code == 410
+        assert "模型路由配置已停用" in resp.text
 
     def test_put_route_missing_primary(self, client: TestClient, db_path: str) -> None:
-        """PUT 缺少 primary 字段 → 422。"""
+        """任何旧 scene_routes 结构都被明确拒绝。"""
         create_test_user(db_path, "alice", "pass123")
         tokens = _login_user(client, "alice", "pass123")
 
@@ -504,7 +531,7 @@ class TestRouteRoutes:
             json={"scene_routes": {"idle": {"fallbacks": []}}},
             headers=_headers(tokens["csrf_token"]),
         )
-        assert resp.status_code == 422
+        assert resp.status_code == 410
 
 
 # ===================================================================

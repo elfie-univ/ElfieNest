@@ -13,15 +13,22 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from elfienest.config.runtime_store import read_runtime_config, write_runtime_config
+from elfienest.config.runtime_store import (
+    hydrate_runtime_secrets,
+    read_runtime_config,
+    write_runtime_config,
+)
 from runtime.config import LLMRuntimeConfig
 from runtime.models.catalog import _verify_custom_openai_provider, verify_provider
 from runtime.providers.profiles import BUILTIN_PROFILES, get_profile
+from runtime.providers.model_hints import configured_model_specs
+from runtime.storage.data_home import get_config_path
 from runtime.usage.observer import (
     ProviderVerifyObservation,
     RuntimeEventStatus,
     get_runtime_observer,
 )
+from runtime.validation.providers import discover_provider_models
 
 from .admin_routes import require_admin
 
@@ -34,7 +41,7 @@ router = APIRouter(prefix="/api/admin/providers", tags=["providers"])
 # ---------------------------------------------------------------------------
 
 _PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent
-_RUNTIME_CONFIG_PATH: Path = _PROJECT_ROOT / "runtime" / "runtime_config.json"
+_RUNTIME_CONFIG_PATH: Path = get_config_path()
 
 
 # ---------------------------------------------------------------------------
@@ -43,8 +50,11 @@ _RUNTIME_CONFIG_PATH: Path = _PROJECT_ROOT / "runtime" / "runtime_config.json"
 
 
 def _read_runtime_config() -> Dict[str, Any]:
-    """读取 runtime_config.json，不存在时返回空 dict。"""
-    return read_runtime_config(_RUNTIME_CONFIG_PATH)
+    """读取配置并仅在内部注入本地密钥。"""
+    config = read_runtime_config(_RUNTIME_CONFIG_PATH)
+    if _RUNTIME_CONFIG_PATH.suffix in {".yaml", ".yml"}:
+        return hydrate_runtime_secrets(config)
+    return config
 
 
 def _write_runtime_config(config: Dict[str, Any]) -> None:
@@ -77,6 +87,7 @@ def _build_provider_response(provider_id: str, provider_info: Dict[str, Any]) ->
     api_base = provider_info.get("api_base", profile.api_base if profile else "")
     api_key = provider_info.get("api_key", "")
     test_model = provider_info.get("test_model", "")
+    model_specs = configured_model_specs(provider_info)
 
     # 判断状态：有 API key 或为 ollama 则 active
     status = str(provider_info.get("status") or "inactive")
@@ -95,6 +106,11 @@ def _build_provider_response(provider_id: str, provider_info: Dict[str, Any]) ->
         "test_model": test_model,
         "status": status,
         "has_api_key": bool(api_key),
+        "models": [
+            {"id": item.model_id, "display_name": item.display_name}
+            for item in model_specs
+        ],
+        "model_refresh": provider_info.get("model_refresh", {}),
     }
 
 
@@ -154,6 +170,7 @@ async def add_provider(
     auth_type = body.get("auth_type") or ""
     display_name = (body.get("display_name") or "").strip()
     test_model = (body.get("test_model") or "").strip()
+    manual_models = _parse_manual_models(body.get("models"))
 
     if not provider_id:
         raise HTTPException(status_code=422, detail="provider_id 不能为空")
@@ -192,6 +209,10 @@ async def add_provider(
         config["providers"][provider_id]["display_name"] = display_name
     if test_model:
         config["providers"][provider_id]["test_model"] = test_model
+    if manual_models:
+        config["providers"][provider_id]["models"] = manual_models
+    if body.get("refresh_models") is True:
+        _refresh_provider_models(provider_id, config, require_models=not manual_models and not test_model)
 
     _write_runtime_config(config)
     logger.info("Provider '%s' added by admin", provider_id)
@@ -263,17 +284,77 @@ async def update_provider(
             providers[provider_id]["test_model"] = test_model
         else:
             providers[provider_id].pop("test_model", None)
+    if "models" in body:
+        providers[provider_id]["models"] = _parse_manual_models(body.get("models"))
     if providers[provider_id].get("api_key") or providers[provider_id].get("api_mode") == "ollama":
         providers[provider_id]["status"] = "active"
     else:
         providers[provider_id]["status"] = "inactive"
 
     config["providers"] = providers
+    if body.get("refresh_models") is True:
+        _refresh_provider_models(provider_id, config, require_models=False)
     _write_runtime_config(config)
 
     logger.info("Provider '%s' updated by admin", provider_id)
 
     return _build_provider_response(provider_id, providers[provider_id])
+
+
+def _parse_manual_models(value: Any) -> list[dict[str, str]]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise HTTPException(status_code=422, detail="models 必须是数组")
+    result: list[dict[str, str]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            raise HTTPException(status_code=422, detail="models 项必须包含 id 和 display_name")
+        model_id = str(item.get("id") or item.get("model_id") or "").strip()
+        display_name = str(item.get("display_name") or model_id).strip()
+        if model_id:
+            result.append({"id": model_id, "display_name": display_name})
+    return list({item["id"]: item for item in result}.values())
+
+
+def _refresh_provider_models(
+    provider_id: str,
+    config: Dict[str, Any],
+    *,
+    require_models: bool,
+) -> None:
+    runtime_config = LLMRuntimeConfig()
+    runtime_config.providers.update(
+        {
+            key: value
+            for key, value in config.get("providers", {}).items()
+            if isinstance(value, dict)
+        }
+    )
+    provider = config["providers"][provider_id]
+    try:
+        discovered = discover_provider_models(
+            provider_id,
+            runtime_config,
+            timeout=5.0,
+            allow_configured_fallback=False,
+        )
+    except Exception as exc:
+        provider["model_refresh"] = {"status": "failed", "message": str(exc)}
+        if require_models:
+            raise HTTPException(
+                status_code=422,
+                detail=f"自动拉取模型失败，请手工填写模型 ID 和显示名：{exc}",
+            ) from exc
+        return
+    provider["models"] = [
+        {"id": item.name, "display_name": item.display_name or item.name}
+        for item in discovered
+    ]
+    provider["model_refresh"] = {
+        "status": "updated",
+        "count": len(discovered),
+    }
 
 
 # ===================================================================

@@ -24,20 +24,46 @@ def test_run_config_tui_exits_from_main_menu(
     assert "再见" in output
 
 
-def test_config_llm_saves_updated_cheap_model(
+def test_config_tui_dispatches_three_runtime_layers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    calls: list[str] = []
+
+    class FakeRuntimeLab:
+        def provider_menu(self):
+            calls.append("provider")
+
+        def agent_menu(self):
+            calls.append("tools")
+
+        def food_menu(self):
+            calls.append("food")
+
+    monkeypatch.setattr(config_app, "RuntimeLab", FakeRuntimeLab)
+    monkeypatch.setattr(config_app, "clear_screen", lambda: None)
+    monkeypatch.setattr(config_app, "print_banner", lambda: None)
+    monkeypatch.setattr(config_app, "read_user_config", lambda: {})
+    _patch_input(monkeypatch, ["1", "2", "3", "0"])
+
+    config_app.run_config_tui(lambda provider_id: None)
+
+    assert calls == ["provider", "tools", "food"]
+
+
+def test_config_llm_redirects_model_management_to_runtime_lab(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: CaptureFixture[str],
+) -> None:
     config = {"system": {"llm": {"default_cheap_model": "old-model"}}}
-    saved_configs: list[dict[str, object]] = []
     monkeypatch.setattr(config_editors, "clear_screen", lambda: None)
     monkeypatch.setattr(config_editors, "print_banner", lambda: None)
-    monkeypatch.setattr(config_editors, "write_user_config", saved_configs.append)
-    _patch_input(monkeypatch, ["1", "new-model", "0", ""])
+    _patch_input(monkeypatch, [""])
 
     config_editors.config_llm(config)
 
-    assert config["system"]["llm"]["default_cheap_model"] == "new-model"
-    assert saved_configs == [config]
+    output = capsys.readouterr().out
+    assert ".venv/bin/python -m runtime.lab" in output
+    assert config["system"]["llm"]["default_cheap_model"] == "old-model"
 
 
 def test_config_providers_dispatches_provider_login(
