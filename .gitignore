@@ -62,15 +62,13 @@ data/
 ElfieNest.worktree/
 
 # 7. Godot 4+ 虚拟空间本地编译与导入缓存 (防止二进制资产及缓存进入仓库)
-/assets/.godot/
-/assets/android/
+/godot/.godot/
+/godot/android/
 
-
-# Godot Editor local cache
-.godot/
 
 # OpenCode agent skills (project-level)
 .agents/
 
 # Runtime temp files (audio, cache, etc.)
 data/temp/
+*.uid
