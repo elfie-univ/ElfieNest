@@ -65,3 +65,9 @@ ElfieNest.worktree/
 /assets/.godot/
 /assets/android/
 
+
+# Godot Editor local cache
+.godot/
+
+# OpenCode agent skills (project-level)
+.agents/
