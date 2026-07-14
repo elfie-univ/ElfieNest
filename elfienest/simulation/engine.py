@@ -50,7 +50,7 @@ class ElfieNestEngine:
         # 2. 音频分发参数
         self.http_port = http_port
         self.temp_audio_dir = os.path.abspath(
-            os.path.join(os.getcwd(), "assets", "temp")
+            os.path.join(os.getcwd(), "data", "temp", "audio")
         )
         os.makedirs(self.temp_audio_dir, exist_ok=True)
 
