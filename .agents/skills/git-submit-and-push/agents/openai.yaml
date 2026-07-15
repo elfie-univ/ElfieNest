@@ -1,4 +1,4 @@
 interface:
   display_name: "Git 提交并推送"
-  short_description: "检查代码改动、完成本地提交、推送远端并验证团队可见状态"
-  default_prompt: "使用 $git-submit-and-push 检查、提交并推送当前项目的全部目标改动。"
+  short_description: "评估提交时机，检查改动并推送到远端"
+  default_prompt: "使用 $git-submit-and-push 评估当前改动是否已完成；符合提交条件时检查、提交并推送到远端。"
