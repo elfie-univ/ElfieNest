@@ -1,0 +1,45 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://rooms/nest.gd" id="1_nest"]
+
+[sub_resource type="Environment" id="Environment_demo"]
+background_mode = 1
+background_color = Color(0.72, 0.78, 0.81, 1)
+ambient_light_source = 3
+ambient_light_color = Color(0.94, 0.94, 0.94, 1)
+ambient_light_energy = 0.12
+reflected_light_source = 2
+tonemap_mode = 2
+
+[sub_resource type="CameraAttributesPractical" id="CameraAttributes_demo"]
+auto_exposure_enabled = true
+auto_exposure_min_sensitivity = 60.0
+auto_exposure_max_sensitivity = 240.0
+
+[node name="Nest" type="Node3D"]
+script = ExtResource("1_nest")
+bed_count = 32
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_demo")
+camera_attributes = SubResource("CameraAttributes_demo")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-58, -32, 0)
+light_color = Color(1, 1, 1, 1)
+light_energy = 0.38
+shadow_enabled = true
+shadow_bias = 0.8
+shadow_normal_bias = 8.0
+directional_shadow_max_distance = 70.0
+
+[node name="FillLight" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-48, 142, 0)
+light_color = Color(1, 1, 1, 1)
+light_energy = 0.04
+shadow_enabled = false
+
+[node name="Camera3D" type="Camera3D" parent="."]
+projection = 1
+size = 29.0
+current = true

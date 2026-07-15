@@ -1,6 +1,6 @@
 extends SceneTree
 
-const DEMO_SCENE := preload("res://modular_rooms/modular_nest_demo.tscn")
+const DEMO_SCENE := preload("res://rooms/nest.tscn")
 const MAX_BUILDING_LENGTH: float = 112.0
 const ACTIVITY_OUTER_X: float = -5.2
 const DORM_OUTER_X: float = 6.0

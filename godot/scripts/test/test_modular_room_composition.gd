@@ -1,11 +1,11 @@
 extends SceneTree
 
-const DORM_SCENE := preload("res://modular_rooms/dorm_room.tscn")
-const ACTIVITY_SCENE := preload("res://modular_rooms/activity_room.tscn")
-const PORTAL_SCENE := preload("res://modular_rooms/portal_room.tscn")
-const NEST_SCENE := preload("res://modular_rooms/modular_nest_demo.tscn")
-const G := preload("res://modular_rooms/modular_geometry.gd")
-const D := preload("res://modular_rooms/room_dimensions.gd")
+const DORM_SCENE := preload("res://rooms/dorm_room.tscn")
+const ACTIVITY_SCENE := preload("res://rooms/activity_room.tscn")
+const PORTAL_SCENE := preload("res://rooms/portal_room.tscn")
+const NEST_SCENE := preload("res://rooms/nest.tscn")
+const G := preload("res://rooms/room_geometry.gd")
+const D := preload("res://rooms/room_dimensions.gd")
 
 const EXPECTED_BED_ROTATIONS := [
 	Vector3(0.0, 90.0, 180.0),
@@ -20,14 +20,14 @@ const EXPECTED_BED_SCALES := [
 	Vector3(-0.7, -0.7, -0.7),
 ]
 const EXPECTED_ACTIVITY_SCENE_PATHS := [
-	"res://room/common_area/1_kitchen_room.tscn",
-	"res://room/common_area/2_sitting_room.tscn",
-	"res://room/common_area/3_media_room.tscn",
-	"res://room/common_area/4_gym.tscn",
-	"res://room/common_area/5_garden.tscn",
-	"res://room/common_area/6_working_room.tscn",
-	"res://room/common_area/7_music_room.tscn",
-	"res://room/common_area/8_bookroom.tscn",
+	"res://rooms/common_area_layouts/kitchen_layout.tscn",
+	"res://rooms/common_area_layouts/sitting_layout.tscn",
+	"res://rooms/common_area_layouts/media_layout.tscn",
+	"res://rooms/common_area_layouts/gym_layout.tscn",
+	"res://rooms/common_area_layouts/garden_layout.tscn",
+	"res://rooms/common_area_layouts/working_layout.tscn",
+	"res://rooms/common_area_layouts/music_layout.tscn",
+	"res://rooms/common_area_layouts/bookroom_layout.tscn",
 ]
 
 
@@ -36,6 +36,12 @@ func _initialize() -> void:
 
 
 func run() -> void:
+	var door_header_ok := await _test_dorm_door_header_has_no_overlapping_meshes()
+	if not door_header_ok:
+		return
+	var floor_height_ok := await _test_decorative_floor_surfaces_stay_within_one_millimeter()
+	if not floor_height_ok:
+		return
 	var dorm_ok := await _test_dorm_preserves_source_bed_layout()
 	if not dorm_ok:
 		return
@@ -52,6 +58,59 @@ func run() -> void:
 		return
 	print("PASS: modular rooms preserve source furniture, collision, doorway, and wall separation")
 	quit(0)
+
+
+func _test_dorm_door_header_has_no_overlapping_meshes() -> bool:
+	var dorm := DORM_SCENE.instantiate() as ModularDormRoom
+	dorm.auto_preview = false
+	root.add_child(dorm)
+	dorm.build(0)
+	await process_frame
+	var generated := dorm.get_node("Generated") as Node3D
+	var track := generated.get_node("DormDoorTrack") as MeshInstance3D
+	var header := generated.get_node("DormDoorHeaderTrim") as MeshInstance3D
+	var overlap := G.visual_bounds_in(track, generated).intersection(G.visual_bounds_in(header, generated))
+	if not _require(
+		not overlap.has_volume(),
+		"Dorm door header can flicker because it overlaps the track by %s" % overlap.size
+	):
+		return false
+	dorm.free()
+	return true
+
+
+func _test_decorative_floor_surfaces_stay_within_one_millimeter() -> bool:
+	var dorm := DORM_SCENE.instantiate() as ModularDormRoom
+	dorm.auto_preview = false
+	root.add_child(dorm)
+	dorm.build(0)
+	await process_frame
+	var dorm_generated := dorm.get_node("Generated") as Node3D
+	for node_name in ["DormRug", "DormRugOuterTrim", "DormRugInset"]:
+		if not _require(_surface_is_flat(dorm_generated, node_name), "%s rises more than 1 mm above the dorm floor" % node_name):
+			return false
+	dorm.free()
+
+	var nest := NEST_SCENE.instantiate() as Node3D
+	root.add_child(nest)
+	await _wait_frames(3)
+	var generated := nest.get_node("Generated") as Node3D
+	for node_name in [
+		"CorridorCentralMarble",
+		"CorridorWarmMarbleInlayLeft",
+		"CorridorWarmMarbleInlayRight",
+		"CorridorDarkMarbleBandLeft",
+		"CorridorDarkMarbleBandRight",
+		"CorridorOuterMarbleBorderLeft",
+		"CorridorOuterMarbleBorderRight",
+		"CorridorCentralTileJoint_00_0",
+		"CorridorCentralTileJoint_00_1",
+		"DormDoorwayInlay_00",
+	]:
+		if not _require(_surface_is_flat(generated, node_name), "%s rises more than 1 mm above the corridor floor" % node_name):
+			return false
+	nest.free()
+	return true
 
 
 func _test_dorm_preserves_source_bed_layout() -> bool:
@@ -76,6 +135,20 @@ func _test_dorm_preserves_source_bed_layout() -> bool:
 	if not _require(_count_colliders(dorm) >= 9, "Dorm furniture and doorway do not have collision shapes"):
 		return false
 	if not _require(generated.has_node("DormDoorwayLeft"), "Dorm lacks the privacy doorway wall"):
+		return false
+	var doorway_lintel := generated.get_node("DormDoorwayLintel") as Node3D
+	var lintel_core := doorway_lintel.get_node("WallCore") as MeshInstance3D
+	var lintel_bottom_y := doorway_lintel.position.y - (lintel_core.mesh as BoxMesh).size.y / 2.0
+	var door_track := generated.get_node("DormDoorTrack") as MeshInstance3D
+	var door_header := generated.get_node("DormDoorHeaderTrim") as MeshInstance3D
+	var track_top_y := door_track.position.y + (door_track.mesh as BoxMesh).size.y / 2.0
+	var header_size := (door_header.mesh as BoxMesh).size
+	var header_bottom_y := door_header.position.y - header_size.y / 2.0
+	var header_top_y := door_header.position.y + header_size.y / 2.0
+	if not _require(
+		header_top_y >= lintel_bottom_y and header_bottom_y - track_top_y <= 0.001,
+		"Dorm doorway header trim leaves a gap larger than 1 mm below the lintel or above the track"
+	):
 		return false
 	if not _require(generated.has_node("DormRug"), "Dorm lacks the central rug between its bed rows"):
 		return false
@@ -173,6 +246,12 @@ func _test_activity_uses_source_furniture_with_colliders() -> bool:
 		var generated := activity.get_node("Generated") as Node3D
 		if not _require(generated.has_node("SourceFurniture"), "Activity room still uses primitive placeholder furniture"):
 			return false
+		var furniture_root := generated.get_node("SourceFurniture") as Node3D
+		if not _require(
+			furniture_root.transform.is_equal_approx(Transform3D.IDENTITY),
+			"Activity room %d changes the authored layout container transform" % (kind + 1)
+		):
+			return false
 		var minimum_collider_count := 4 if kind < 4 else 1
 		if not _require(
 			_count_colliders(activity) >= minimum_collider_count,
@@ -185,53 +264,14 @@ func _test_activity_uses_source_furniture_with_colliders() -> bool:
 			"Activity room %d does not use its corresponding source scene" % (kind + 1)
 		):
 			return false
-		var content := _activity_content_root(source)
-		if not _verify_activity_physical_dimensions(kind, content, generated):
-			return false
-		if not _verify_activity_wall_anchors(kind, content, generated):
-			return false
-		var bounds := G.visual_bounds_in(source, generated)
-		var finish_depth := D.WALL_THICKNESS / 2.0 + G.FINISH_AIR_GAP + G.FINISH_THICKNESS
-		var room_x_min := -D.ACTIVITY_DEPTH / 2.0 + finish_depth
-		var room_x_max := D.ACTIVITY_DEPTH / 2.0
-		var room_z_min := -D.CELL_PITCH / 2.0 + finish_depth
-		var room_z_max := D.CELL_PITCH / 2.0 - finish_depth
-		if not _require(
-			bounds.position.x >= room_x_min - 0.002
-				and bounds.end.x <= room_x_max + 0.002
-				and bounds.position.z >= room_z_min - 0.002
-				and bounds.end.z <= room_z_max + 0.002,
-			"Activity room %d furniture crosses a visible room boundary: %s" % [kind + 1, bounds]
-		):
-			return false
 		var original_source := load(EXPECTED_ACTIVITY_SCENE_PATHS[kind]).instantiate() as Node3D
-		activity.add_child(original_source)
-		await process_frame
-		var original_envelope := G.visual_bounds_in(original_source, activity)
-		var original_source_scale := original_source.scale
-		activity.remove_child(original_source)
-		original_source.queue_free()
-		var source_scale_ratio := Vector3(
-			source.scale.x / original_source_scale.x,
-			source.scale.y / original_source_scale.y,
-			source.scale.z / original_source_scale.z
-		)
-		var fitted_envelope := AABB(
-			source.position + original_envelope.position * source_scale_ratio,
-			original_envelope.size * source_scale_ratio.abs()
-		)
 		if not _require(
-			is_equal_approx(fitted_envelope.position.x, -D.ACTIVITY_DEPTH / 2.0 + 0.06)
-				and is_equal_approx(fitted_envelope.get_center().z, 0.0),
-			"Activity room %d fits furniture-only bounds instead of preserving its original room envelope" % (kind + 1)
+			source.transform.is_equal_approx(original_source.transform),
+			"Activity room %d changes the authored common_area root transform" % (kind + 1)
 		):
+			original_source.free()
 			return false
-		if kind == 4 and not _require(
-			absf(bounds.position.z - (room_z_min + 0.001)) <= 0.002
-				and absf(bounds.end.z - (room_z_max - 0.001)) <= 0.002,
-			"Garden perimeter does not follow both side walls: %s" % bounds
-		):
-			return false
+		original_source.free()
 		activity.free()
 	return true
 
@@ -263,121 +303,6 @@ func _test_teleporter_is_centered_on_its_stage() -> bool:
 		return false
 	portal.free()
 	return true
-
-
-func _verify_activity_physical_dimensions(kind: int, content: Node3D, generated: Node3D) -> bool:
-	match kind:
-		0:
-			var counter := _bounds(content, "Counter", generated)
-			var refrigerator := _bounds(content, "Refrigerator", generated)
-			var recycling_bins := _bounds(content, "Recycling_Bins", generated)
-			var shelves := _bounds(content, "Shelves", generated)
-			return _require(
-				refrigerator.size.y >= 1.7
-					and not _has_volume_overlap(counter, refrigerator)
-					and not _has_volume_overlap(counter, recycling_bins)
-					and not _has_volume_overlap(counter, shelves)
-					and shelves.size.x <= 2.45,
-				"Kitchen furniture still interpenetrates or the shelving run is too large"
-			)
-		1:
-			return _require(
-				_bounds(content, "Chair1", generated).size.y >= 0.75
-					and _bounds(content, "Table", generated).size.y >= 0.70,
-				"Dining furniture remains below usable seat/table height"
-			)
-		2:
-			var sofa := _bounds(content, "Sofa", generated)
-			var coffee_table := _bounds(content, "Coffee_Table", generated)
-			return _require(
-				sofa.size.y >= 0.80
-					and coffee_table.size.y >= 0.35
-					and coffee_table.size.y <= 0.50,
-				"Media furniture proportions remain outside realistic ranges"
-			)
-		3:
-			var treadmill := _bounds(content, "Treadmill", generated)
-			var yoga_ball := _bounds(content, "YogaBall", generated)
-			var second_yoga_ball := _bounds(content, "YogaBall1", generated)
-			return _require(
-				maxf(treadmill.size.x, treadmill.size.z) >= 1.65
-					and maxf(yoga_ball.size.x, yoga_ball.size.z) <= 0.78
-					and not _has_volume_overlap(yoga_ball, second_yoga_ball),
-				"Gym equipment is still uniformly scaled instead of physically sized"
-			)
-		4:
-			return _require(_bounds(content, "jardi", generated).size.y >= 1.5, "Garden plants remain vertically compressed")
-		5:
-			var curtains := content.get_node_or_null("Curtains") as Node3D
-			return _require(
-				_bounds(content, "Table", generated).size.y >= 0.70
-					and _bounds(content, "Chair", generated).size.y >= 0.85
-					and (curtains == null or not curtains.visible),
-					"Working-room desks or chairs remain outside usable height ranges"
-				)
-		6:
-				return _require(
-					maxf(_bounds(content, "Drum_kit", generated).size.x, _bounds(content, "Drum_kit", generated).size.z) >= 1.65
-						and maxf(_bounds(content, "piano", generated).size.x, _bounds(content, "piano", generated).size.z) >= 1.3
-						and maxf(_bounds(content, "music_set", generated).size.x, _bounds(content, "music_set", generated).size.z) >= 2.9,
-					"Music-room instruments remain visibly undersized"
-				)
-		7:
-			return _require(
-				_bounds(content, "Chair1", generated).size.y >= 0.75
-					and _bounds(content, "Table", generated).size.y >= 0.70,
-				"Bookroom reading furniture remains too small for human use"
-			)
-	return true
-
-
-func _verify_activity_wall_anchors(kind: int, content: Node3D, generated: Node3D) -> bool:
-	var anchors: Array = [
-		[["Counter", "x_min"], ["Refrigerator", "x_min"], ["Picture5", "x_min"], ["Shelves", "x_max"]],
-		[["Pictures", "z_max"], ["Pictures2", "z_min"], ["Wall_Shelves", "x_min"]],
-		[["Pictures2", "x_min"], ["TV_Dresser", "z_max"]],
-		[["Dumbell_Shelf", "x_min"], ["TV1", "z_min"], ["Cork_Board", "z_min"], ["Shelf", "z_max"]],
-		[["jardi", "x_min"]],
-		[["Wall_Shelves", "z_min"], ["Boards", "z_max"]],
-		[],
-		[["Bookshelf1", "z_max"], ["Bookshelf2", "x_min"], ["Bookshelf3", "z_min"], ["Bookshelf4", "z_min"]],
-	]
-	for entry in anchors[kind]:
-		var gap := _target_wall_gap(_bounds(content, entry[0], generated), entry[1])
-		if not _require(absf(gap - 0.001) <= 0.001, "Activity room %d %s leaves a %.3fm wall gap" % [kind + 1, entry[0], gap]):
-			return false
-	return true
-
-
-func _activity_content_root(source: Node3D) -> Node3D:
-	var converted := source.get_node_or_null("convert_node") as Node3D
-	if converted != null:
-		return converted
-	var music_room := source.get_node_or_null("Room3") as Node3D
-	return music_room if music_room != null else source
-
-
-func _bounds(content: Node3D, child_name: String, reference: Node3D) -> AABB:
-	return G.visual_bounds_in(content.get_node(child_name) as Node3D, reference)
-
-
-func _target_wall_gap(bounds: AABB, wall: String) -> float:
-	match wall:
-		"x_min": return bounds.position.x - (-D.ACTIVITY_DEPTH / 2.0 + 0.062)
-		"x_max": return D.ACTIVITY_DEPTH / 2.0 - 0.001 - bounds.end.x
-		"z_min": return bounds.position.z - (-D.CELL_PITCH / 2.0 + 0.062)
-		_: return D.CELL_PITCH / 2.0 - 0.062 - bounds.end.z
-
-
-func _has_volume_overlap(first: AABB, second: AABB) -> bool:
-	var overlap := Vector3(
-		minf(first.end.x, second.end.x) - maxf(first.position.x, second.position.x),
-		minf(first.end.y, second.end.y) - maxf(first.position.y, second.position.y),
-		minf(first.end.z, second.end.z) - maxf(first.position.z, second.position.z)
-	)
-	return overlap.x > 0.01 and overlap.y > 0.01 and overlap.z > 0.01
-
-
 func _test_partial_dorm_and_eight_room_activity_boundaries() -> bool:
 	var demo_nest := NEST_SCENE.instantiate() as ModularNest
 	root.add_child(demo_nest)
@@ -415,6 +340,11 @@ func _test_partial_dorm_and_eight_room_activity_boundaries() -> bool:
 	if not _require(_count_named_children(full_generated, "ActivityRoom_") == 8, "Thirty-two beds did not generate eight activity rooms"):
 		return false
 	if not _require(full_generated.has_node("CorridorCentralMarble"), "Corridor lacks the light marble center field"):
+		return false
+	if not _require(
+		_count_named_children(full_generated, "CorridorMarbleVein_") == 0,
+		"Corridor still contains narrow decorative vein strips"
+	):
 		return false
 	if not _require(
 		full_generated.has_node("CorridorDarkMarbleBandLeft") and full_generated.has_node("CorridorDarkMarbleBandRight"),
@@ -473,6 +403,12 @@ func _count_named_children(node: Node, prefix: String) -> int:
 		if child.name.begins_with(prefix):
 			count += 1
 	return count
+
+
+func _surface_is_flat(parent: Node3D, node_path: String) -> bool:
+	var surface := parent.get_node(node_path) as MeshInstance3D
+	var top_y := G.visual_bounds_in(surface, parent).end.y
+	return top_y > 0.0 and top_y <= 0.001
 
 
 func _wait_frames(count: int) -> void:

@@ -7,10 +7,16 @@ const ACTIVITY_DEPTH := 3.7
 const CELL_PITCH := 5.6
 const WALL_HEIGHT := 3.0
 const WALL_THICKNESS := 0.1
+const OUTPUT_DIR := "res://rooms/common_area_layouts/generated"
 
 
 func _init():
 	print("\n创建: 音乐室 (music)")
+	var mkdir_error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUTPUT_DIR))
+	if mkdir_error != OK:
+		push_error("无法创建布局输出目录: %s" % OUTPUT_DIR)
+		quit(1)
+		return
 	
 	# 创建根节点
 	var root := Node3D.new()
@@ -33,15 +39,21 @@ func _init():
 	var result := scene.pack(root)
 	
 	if result == OK:
-		var output_path := "res://modular_rooms/assets/furniture_sets/music_furniture_set.tscn"
+		var output_path := "%s/music_layout.tscn" % OUTPUT_DIR
 		var save_result := ResourceSaver.save(scene, output_path)
 		
 		if save_result == OK:
 			print("  ✅ 已保存: %s" % output_path)
 		else:
 			print("  ❌ 保存失败 (错误码: %d)" % save_result)
+			root.queue_free()
+			quit(1)
+			return
 	else:
 		print("  ❌ 打包失败")
+		root.queue_free()
+		quit(1)
+		return
 	
 	root.queue_free()
 	

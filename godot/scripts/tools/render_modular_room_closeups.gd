@@ -1,7 +1,7 @@
 extends SceneTree
 
-const NEST_SCENE := preload("res://modular_rooms/modular_nest_demo.tscn")
-const D := preload("res://modular_rooms/room_dimensions.gd")
+const NEST_SCENE := preload("res://rooms/nest.tscn")
+const D := preload("res://rooms/room_dimensions.gd")
 const FRAME_SIZE := Vector2i(1024, 768)
 const CONTACT_COLUMNS: int = 4
 const THUMBNAIL_SIZE := Vector2i(512, 384)

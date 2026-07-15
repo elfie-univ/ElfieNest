@@ -1,0 +1,11 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://main.gd" id="1_main"]
+[ext_resource type="PackedScene" path="res://rooms/nest.tscn" id="2_nest"]
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_main")
+
+[node name="Nest" parent="." instance=ExtResource("2_nest")]
+
+[node name="Characters" type="Node3D" parent="."]

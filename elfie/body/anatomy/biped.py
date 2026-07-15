@@ -6,7 +6,7 @@ class BipedAnatomy(SomaticAnatomy):
 
     def __init__(
         self,
-        gltf_path: str = "res://character/eflie_3d.tscn",
+        gltf_path: str = "res://characters/elfie/elfie_3d.tscn",
         voice_profile: VoiceProfile = None,
     ):
         super().__init__(gltf_path, voice_profile)

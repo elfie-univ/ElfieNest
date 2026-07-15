@@ -1,7 +1,7 @@
 extends SceneTree
 
-const ACTIVITY_SCENE := preload("res://modular_rooms/activity_room.tscn")
-const G := preload("res://modular_rooms/modular_geometry.gd")
+const ACTIVITY_SCENE := preload("res://rooms/activity_room.tscn")
+const G := preload("res://rooms/room_geometry.gd")
 const ARCHITECTURE := ["Walls", "Walls1", "Walls2", "Walls3", "Flooring", "Carpet", "floor", "ground"]
 const ROOM_NAMES := ["kitchen", "sitting", "media", "gym", "garden", "working", "music", "bookroom"]
 

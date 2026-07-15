@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://rooms/activity_room.gd" id="1_activity"]
+
+[node name="ActivityRoom" type="Node3D"]
+script = ExtResource("1_activity")
+

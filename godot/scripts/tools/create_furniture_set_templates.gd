@@ -8,6 +8,7 @@ const ACTIVITY_DEPTH := 3.7
 const CELL_PITCH := 5.6
 const WALL_HEIGHT := 3.0
 const WALL_THICKNESS := 0.1
+const OUTPUT_DIR := "res://rooms/common_area_layouts/generated"
 
 const FURNITURE_SETS := [
 	{
@@ -50,6 +51,12 @@ const FURNITURE_SETS := [
 
 func _init():
 	print("\n=== 创建家具组合场景模板 ===\n")
+	var mkdir_error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUTPUT_DIR))
+	if mkdir_error != OK:
+		push_error("无法创建布局输出目录: %s" % OUTPUT_DIR)
+		quit(1)
+		return
+	var failed := false
 	
 	for set_info in FURNITURE_SETS:
 		var name: String = set_info["name"]
@@ -78,22 +85,24 @@ func _init():
 		var result := scene.pack(root)
 		
 		if result == OK:
-			var output_path := "res://modular_rooms/assets/furniture_sets/%s_furniture_set.tscn" % name
+			var output_path := "%s/%s_layout.tscn" % [OUTPUT_DIR, name]
 			var save_result := ResourceSaver.save(scene, output_path)
 			
 			if save_result == OK:
 				print("  ✅ 已保存: %s" % output_path)
 			else:
 				print("  ❌ 保存失败: %s (错误码: %d)" % [output_path, save_result])
+				failed = true
 		else:
 			print("  ❌ 打包失败")
+			failed = true
 		
 		root.queue_free()
 	
 	print("\n=== 完成 ===")
 	print("请在 Godot 编辑器中打开这些场景，拖拽家具到 Furniture 节点下")
 	
-	quit()
+	quit(1 if failed else 0)
 
 
 func _create_reference_walls() -> Node3D:
