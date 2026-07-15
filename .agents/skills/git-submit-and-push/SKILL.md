@@ -1,0 +1,60 @@
+---
+name: git-submit-and-push
+description: 完成 Git 代码提交并立即推送到远端，包含工作区审查、测试、敏感信息检查、暂存、提交、推送和远端状态验证。用户说“提交”“提交代码”“commit 一下”“保存到 Git”或要求团队共享当前改动时必须使用此技能；除非用户明确要求只保留本地提交，否则提交默认包含 push。
+---
+
+# Git 提交并推送
+
+把“提交”视为完整的远端交付流程，而不是仅创建本地 commit。推送成功并验证远端分支后才算完成。
+
+## 强制规则
+
+1. 用户说“提交”时默认执行 `commit + push`。只有用户明确说“只提交本地”“不要推送”时才能停在本地。
+2. 提交前运行 `git status --short --branch`，确认当前分支、远端跟踪关系和所有改动来源。
+3. 不覆盖或回退用户已有改动。用户要求提交“当前代码”时包含当前工作区全部目标改动；范围不明确时根据当前任务边界审慎选择。
+4. 提交前运行与改动风险相匹配的测试，并执行 `git diff --check`。无法运行的测试必须在最终报告中说明。
+5. 检查暂存内容，禁止提交本地密钥、Token、密码、运行时配置或被 `.gitignore` 保护的敏感文件。
+6. 禁止使用 `--no-verify` 绕过 pre-commit。钩子失败时修复问题并重新提交。
+7. 创建 commit 后立即推送当前分支。已有上游时运行 `git push`；没有上游时运行 `git push -u origin <branch>`。
+8. 推送失败不算完成。继续处理可恢复的网络、认证、非快进或分支跟踪问题；无法恢复时明确报告 commit 仅存在本地。
+9. 推送后再次运行 `git status --short --branch`，确认 ahead 计数清零，并报告 commit、分支和远端。
+10. 在 worktree 中完成并经用户确认的功能，还要遵循仓库 `AGENTS.md` 的推送和主分支同步流程。
+
+## 标准流程
+
+### 1. 审查与验证
+
+```bash
+git status --short --branch
+git diff --check
+git diff --stat
+```
+
+读取关键差异并运行相关测试。若本地落后远端，先安全拉取并处理冲突，不丢弃工作区内容。
+
+### 2. 暂存与提交
+
+```bash
+git add <目标文件>
+git diff --cached --check
+git diff --cached --stat
+git commit -m "<符合项目约定的消息>"
+```
+
+提交消息应准确概括行为变化。多个独立主题可以拆分成多个 commit，但所有目标 commit 都必须推送。
+
+### 3. 推送与确认
+
+```bash
+git push
+git status --short --branch
+git log -1 --oneline --decorate
+```
+
+没有上游分支时使用：
+
+```bash
+git push -u origin <当前分支>
+```
+
+最终报告必须包含：提交哈希、当前分支、推送目标、推送结果、测试结果，以及是否仍有未提交改动。
