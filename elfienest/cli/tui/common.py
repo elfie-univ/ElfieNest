@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import getpass
 import os
+import warnings
 from typing import Optional
 
 try:
@@ -100,6 +101,8 @@ def input_text(prompt: str, default: Optional[str] = None) -> Optional[str]:
 
 def input_password(prompt: str) -> Optional[str]:
     try:
-        return getpass.getpass(prompt + ": ")
-    except KeyboardInterrupt:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", getpass.GetPassWarning)
+            return getpass.getpass(prompt + ": ")
+    except (EOFError, KeyboardInterrupt, getpass.GetPassWarning):
         return None

@@ -1,0 +1,73 @@
+"""服务启动失败后的进程与 PID 收据清理。"""
+
+from __future__ import annotations
+
+import signal
+import subprocess
+from pathlib import Path
+from typing import Callable
+
+from elfienest.operations.service_lifecycle_types import (
+    CleanupFailedError,
+    ServiceLifecycleError,
+    ServiceLifecycleResult,
+)
+from elfienest.operations.service_process import (
+    ProcessInspector,
+    command_runs_service,
+    remove_service_process,
+)
+
+
+def cleanup_failed_start(
+    pid: int,
+    pid_path: Path,
+    original_error: ServiceLifecycleError,
+    inspector: ProcessInspector,
+    signaler: Callable[[int, int], None],
+    expected_cwd: Path,
+    expected_script: Path,
+    timeout_seconds: float,
+    poll_interval_seconds: float,
+    monotonic: Callable[[], float],
+    sleeper: Callable[[float], None],
+) -> ServiceLifecycleResult:
+    """停止未健康启动的进程，只删除仍属于该 PID 的收据。"""
+    if not inspector.exists(pid):
+        remove_service_process(pid_path.parent, pid)
+        return ServiceLifecycleResult(status="failed", pid=pid, error=original_error)
+    try:
+        actual_cwd = inspector.cwd(pid).resolve()
+        actual_command = inspector.command(pid)
+    except (OSError, subprocess.SubprocessError, ValueError) as error:
+        return ServiceLifecycleResult(
+            status="failed", pid=pid, error=CleanupFailedError(pid, str(error))
+        )
+    if actual_cwd != expected_cwd or not command_runs_service(
+        actual_command, actual_cwd, expected_script
+    ):
+        return ServiceLifecycleResult(
+            status="failed",
+            pid=pid,
+            error=CleanupFailedError(pid, "PID 已被其他进程复用，拒绝发送信号"),
+        )
+    try:
+        signaler(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        remove_service_process(pid_path.parent, pid)
+        return ServiceLifecycleResult(status="failed", pid=pid, error=original_error)
+    except OSError as error:
+        return ServiceLifecycleResult(
+            status="failed", pid=pid, error=CleanupFailedError(pid, str(error))
+        )
+    deadline = monotonic() + timeout_seconds
+    while inspector.exists(pid):
+        if monotonic() >= deadline:
+            return ServiceLifecycleResult(
+                status="failed",
+                pid=pid,
+                error=CleanupFailedError(pid, "SIGTERM 后进程未退出"),
+            )
+        sleeper(poll_interval_seconds)
+    remove_service_process(pid_path.parent, pid)
+    return ServiceLifecycleResult(status="failed", pid=pid, error=original_error)

@@ -54,7 +54,9 @@ def test_python_guides_use_the_locked_environment_contract() -> None:
     python_guide = (PROJECT_ROOT / "docs" / "Python代码规范.md").read_text(
         encoding="utf-8"
     )
-    lab_design = (PROJECT_ROOT / "ELFIE_LAB_DESIGN.md").read_text(encoding="utf-8")
+    lab_design = (
+        PROJECT_ROOT / "docs" / "design" / "developer-tools" / "单精灵调试平台设计.md"
+    ).read_text(encoding="utf-8")
     agents_guide = (PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
 
     # When

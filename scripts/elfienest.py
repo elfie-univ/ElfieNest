@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from typing import NoReturn
 
 PINNED_CPYTHON_VERSION = (3, 9, 25)
 
@@ -19,6 +20,7 @@ if (
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from elfienest.cli.admin_commands import dispatch_admin
 from elfienest.cli.model_commands import dispatch_models
 from elfienest.cli.provider_commands import dispatch_providers, login_provider
 from elfienest.cli.route_commands import dispatch_route
@@ -38,8 +40,18 @@ from elfienest.cli.tui.config_app import run_config_tui
 from elfienest.cli.tui.setup_app import run_setup_wizard
 
 
+class SecretSafeArgumentParser(argparse.ArgumentParser):
+    """避免 argparse 在错误信息中回显可能误输的秘密。"""
+
+    def error(self, message: str) -> NoReturn:
+        if sys.argv[1:3] == ["admin", "reset-password"]:
+            self.print_usage(sys.stderr)
+            self.exit(2, f"{self.prog}: 参数无效\n")
+        super().error(message)
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(
+    parser = SecretSafeArgumentParser(
         prog="elfienest",
         description="ElfieNest CLI - 仿生生命体系统命令行工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -90,6 +102,24 @@ def main() -> None:
         "db_command", nargs="?", choices=["backup", "reset"], help="数据库命令"
     )
 
+    admin_parser = subparsers.add_parser("admin", help="管理员账号管理")
+    admin_subparsers = admin_parser.add_subparsers(
+        dest="admin_command",
+        help="管理员命令",
+        parser_class=SecretSafeArgumentParser,
+    )
+    admin_subparsers.add_parser("show", help="显示当前管理员")
+    reset_admin_parser = admin_subparsers.add_parser(
+        "reset-password", help="安全重置现有管理员密码"
+    )
+    reset_admin_parser.add_argument(
+        "admin_username",
+        nargs="?",
+        metavar="username",
+        help="管理员用户名；只有一个管理员时可省略",
+    )
+    admin_parser.set_defaults(admin_username=None)
+
     args = parser.parse_args()
     dispatch_command(args)
 
@@ -117,6 +147,8 @@ def dispatch_command(args: argparse.Namespace) -> None:
         show_logs()
     elif args.command == "db":
         dispatch_db(args.db_command)
+    elif args.command == "admin":
+        raise SystemExit(dispatch_admin(args.admin_command, args.admin_username))
     elif args.command == "version":
         show_version()
     elif args.command == "setup":

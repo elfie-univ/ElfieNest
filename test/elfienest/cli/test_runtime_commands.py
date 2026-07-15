@@ -7,6 +7,19 @@ from _pytest.capture import CaptureFixture
 from elfienest.cli import runtime_commands
 
 
+def test_web_command_uses_bound_loopback_origin() -> None:
+    # Given
+    expected_origin = "http://127.0.0.1:8000"
+
+    # When
+    web_url = runtime_commands.WEB_URL
+    health_url = runtime_commands.WEB_HEALTH_URL
+
+    # Then
+    assert web_url == f"{expected_origin}/"
+    assert health_url == f"{expected_origin}/api/health"
+
+
 def test_show_version_prints_current_version(capsys: CaptureFixture[str]) -> None:
     runtime_commands.show_version()
 
@@ -53,7 +66,9 @@ def test_restart_service_reports_failure_when_server_exits(
     def fake_run(*args, **kwargs):
         return subprocess.CompletedProcess(args=args[0], returncode=0)
 
-    monkeypatch.setattr(runtime_commands, "WEB_LOG_PATH", tmp_path / "web.log", raising=False)
+    monkeypatch.setattr(
+        runtime_commands, "WEB_LOG_PATH", tmp_path / "web.log", raising=False
+    )
     monkeypatch.setattr(runtime_commands.subprocess, "Popen", fake_popen)
     monkeypatch.setattr(runtime_commands.subprocess, "run", fake_run)
     monkeypatch.setattr(runtime_commands.time, "sleep", lambda _: None)

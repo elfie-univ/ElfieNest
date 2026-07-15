@@ -97,6 +97,34 @@ db backup          # 备份数据库
 db reset           # 重置数据库
 ```
 
+### 管理员账号恢复
+
+管理员账号保存在 `$ELFIE_HOME/nest.db`；未设置 `ELFIE_HOME` 时，默认路径是
+`~/.elfienest/nest.db`。恢复能力只提供给服务器本机命令行，不提供免登录网页
+接口，也不会创建新的管理员。
+
+在交互主菜单输入 `admin`，可进入管理员账号管理子菜单：
+
+```text
+1. 显示当前管理员
+2. 重置管理员密码
+0. 返回主菜单
+```
+
+也可以直接执行：
+
+```bash
+elfienest admin show                         # 显示数据库路径和管理员用户名
+elfienest admin reset-password               # 只有一个管理员时可省略用户名
+elfienest admin reset-password doctor-bai    # 多个管理员时必须明确指定用户名
+```
+
+新密码会在终端中隐藏输入两次，不会进入命令参数、环境变量或 shell 历史。
+重置前会精确停止当前项目登记的服务；密码更新和旧会话撤销在同一数据库事务
+中完成；随后重新启动服务并检查健康状态。命令返回 `0` 表示全部步骤成功，
+运行失败返回 `1`，参数语法错误返回 `2`。如果密码已更新但服务恢复失败，
+命令会明确提示并返回 `1`，此时可排查服务后重新登录。
+
 ### 其他
 
 ```bash
@@ -121,8 +149,8 @@ cd ElfieNest
 elfienest> serve --fallback
 
 # 4. 访问
-# http://localhost:8000/static/login.html
-# 默认账号: admin / adminchangeme
+# http://localhost:8000/
+# 首次使用请按页面向导创建管理员；账号不是固定值
 ```
 
 ### 用户模式

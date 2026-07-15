@@ -38,6 +38,12 @@ logging.basicConfig(level=logging.WARNING, format="%(message)s")
 
 from elfienest.adoption.generator import ElfieGenerator
 from elfienest.api.app import create_app
+from elfienest.operations.recovery_lock import (
+    MANAGED_START_ENV,
+    RecoveryInProgressError,
+    acquire_service_start_lease,
+)
+from elfienest.operations.service_process import register_current_service
 from elfienest.persistence.store import (
     get_db,
     init_db,
@@ -46,7 +52,7 @@ from elfienest.persistence.store import (
 )
 from elfienest.simulation.engine import ElfieNestEngine
 from runtime import LLMRuntimeConfig
-from runtime.storage.data_home import get_db_path, get_elfie_config_dir
+from runtime.storage.data_home import get_db_path, get_elfie_config_dir, get_elfie_home
 
 
 class FallbackAgent:
@@ -197,6 +203,15 @@ def main():
     )
     args = parser.parse_args()
 
+    managed_start = os.environ.pop(MANAGED_START_ENV, "") == "1"
+    try:
+        start_lease = acquire_service_start_lease(
+            get_elfie_home(), blocking=managed_start
+        )
+    except (OSError, RecoveryInProgressError):
+        print("  ❌ 管理员账号恢复或另一次服务启动正在进行，服务暂不允许启动")
+        raise SystemExit(1) from None
+
     # 检测端口是否被占用
     import socket
     import subprocess
@@ -268,6 +283,13 @@ def main():
             print("=" * 56 + "\n")
             sys.exit(1)
 
+    try:
+        register_current_service(get_elfie_home())
+    except OSError as error:
+        start_lease.release()
+        print(f"  ❌ 无法登记服务进程: {error}")
+        raise SystemExit(1) from None
+    start_lease.release()
     db_path = str(get_db_path())
 
     # 1. 初始化数据库 + 迁移 + 从环境变量 seed admin

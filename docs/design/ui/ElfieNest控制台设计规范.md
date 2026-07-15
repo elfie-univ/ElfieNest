@@ -1,4 +1,4 @@
-# ElfieNest Console Design System
+# ElfieNest 控制台设计规范
 
 ## Product Feel
 

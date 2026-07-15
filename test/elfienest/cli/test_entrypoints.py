@@ -7,13 +7,7 @@ from pathlib import Path
 
 import pytest
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-
-
-def _write_executable(path: Path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
-    path.chmod(0o755)
+from test.elfienest.cli.entrypoint_test_support import PROJECT_ROOT, write_executable
 
 
 def test_system_entrypoint_files_use_elfienest_name() -> None:
@@ -85,10 +79,10 @@ def test_elfienest_entrypoint_dispatches_cli_to_elfienest_script(
     project_root.mkdir()
     shutil.copy2(PROJECT_ROOT / "elfienest.sh", project_root / "elfienest.sh")
     shutil.copy2(PROJECT_ROOT / ".python-version", project_root / ".python-version")
-    _write_executable(project_root / "install.sh", "#!/bin/bash\nexit 1\n")
+    write_executable(project_root / "install.sh", "#!/bin/bash\nexit 1\n")
 
     invocation_log = tmp_path / "invocation.log"
-    _write_executable(
+    write_executable(
         project_root / ".venv" / "bin" / "python3",
         """#!/bin/bash
 if [ "${1:-}" = "-c" ]; then
@@ -120,3 +114,22 @@ printf '%s\n' "$*" > "$ENTRYPOINT_LOG"
     assert invocation_log.read_text(encoding="utf-8").strip() == (
         "scripts/elfienest.py version"
     )
+
+
+def test_existing_cli_help_keeps_setup_and_database_commands() -> None:
+    # Given
+    python_cli = PROJECT_ROOT / "scripts" / "elfienest.py"
+
+    # When
+    result = subprocess.run(
+        [str(PROJECT_ROOT / ".venv" / "bin" / "python3"), str(python_cli), "--help"],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    # Then
+    assert result.returncode == 0
+    assert "setup" in result.stdout
+    assert "db" in result.stdout

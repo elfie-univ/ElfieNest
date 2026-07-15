@@ -97,6 +97,7 @@ show_help() {
     echo "    web            启动服务并打开浏览器"
     echo "    version        显示版本信息"
     echo "    setup          首次设置向导"
+    echo "    admin          管理员账号管理（显示账号、重置密码）"
     echo ""
     echo "  ┌─────────────────────────────────────────────────────────┐"
     echo "  │  服务参数                                               │"
@@ -115,6 +116,7 @@ show_help() {
     echo "    elfienest> serve --force       # 强制重启"
     echo "    elfienest> config              # 进入配置界面"
     echo "    elfienest> status              # 查看状态"
+    echo "    elfienest> admin               # 管理员账号管理"
     echo "    elfienest> help                # 显示帮助"
     echo "    elfienest> exit                # 退出"
     echo ""
@@ -142,6 +144,7 @@ interactive_mode() {
             restart) "$PYTHON_BIN" scripts/elfienest.py restart ;;
             stop) "$PYTHON_BIN" scripts/elfienest.py stop ;;
             setup) "$PYTHON_BIN" scripts/elfienest.py setup ;;
+            admin) "$PYTHON_BIN" scripts/elfienest.py admin $args ;;
             web) "$PYTHON_BIN" scripts/elfienest.py web ;;
             *)
                 echo ""

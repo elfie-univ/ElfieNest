@@ -387,7 +387,7 @@
         <!-- Redirecting state (shown when need_setup=false) -->
         <div class="redirecting" id="redirectAway">
             <div class="spinner"></div>
-            <p>系统已初始化，正在跳转登录页...</p>
+            <p>系统已初始化，正在跳转控制台...</p>
         </div>
 
         <!-- Loading state -->
@@ -462,7 +462,7 @@
             <div class="success-state" id="successState">
                 <div class="success-icon">&#x2705;</div>
                 <div class="success-title">管理员账号已创建</div>
-                <div class="success-desc">正在跳转到登录页...</div>
+                <div class="success-desc">正在跳转到控制台...</div>
                 <div class="spinner" style="margin:0 auto;"></div>
             </div>
         </div>
@@ -638,9 +638,9 @@
                         // Show success
                         step2.classList.remove('active');
                         successState.classList.add('visible');
-                        // Auto-redirect to login page
+                        // Auto-redirect to the console
                         setTimeout(function () {
-                            window.location.href = '/static/login.html';
+                            window.location.href = '/';
                         }, 1500);
                     } else {
                         var errData = null;
@@ -681,12 +681,12 @@
                     if (resp.ok) {
                         var data = await resp.json();
                         if (!data.need_setup) {
-                            // Already has users, redirect to login
+                            // Already has users, redirect to the console
                             loadingSpinner.classList.remove('visible');
                             redirectAway.classList.add('visible');
                             setupCard.querySelector('.logo') && (setupCard.querySelector('.logo').style.display = 'none');
                             wizardContent.style.display = 'none';
-                            window.location.href = '/static/login.html';
+                            window.location.href = '/';
                             return;
                         }
                     }

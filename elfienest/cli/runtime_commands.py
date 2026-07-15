@@ -20,8 +20,8 @@ from elfienest.operations.service import (
 )
 
 VERSION = "1.0.0"
-WEB_URL = "http://localhost:8000/"
-WEB_HEALTH_URL = "http://localhost:8000/api/health"
+WEB_URL = "http://127.0.0.1:8000/"
+WEB_HEALTH_URL = "http://127.0.0.1:8000/api/health"
 WEB_START_TIMEOUT_SECONDS = 10.0
 WEB_LOG_PATH = Path("/tmp/elfienest-web.log")
 

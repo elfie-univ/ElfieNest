@@ -48,7 +48,13 @@ def run_setup_wizard() -> None:
 
     _print_step("1/4", "创建管理员账号")
     username = input_text("  管理员用户名", "admin") or "admin"
-    password = input_text("  管理员密码", "admin123") or "admin123"
+    password = input_password("  管理员密码")
+    if password is None:
+        print("  ❌ 当前终端无法安全输入管理员密码，设置已取消")
+        return
+    if not 6 <= len(password) <= 128:
+        print("  ❌ 管理员密码必须为 6-128 个字符，设置已取消")
+        return
     print()
 
     _print_step("2/4", "配置大模型服务商")
@@ -86,7 +92,7 @@ def run_setup_wizard() -> None:
         [
             "设置完成！",
             "启动服务: elfienest",
-            f"登录信息: {username} / {password}",
+            f"管理员用户名: {username}",
         ]
     )
 
