@@ -14,6 +14,10 @@ def test_development_runtime_config_does_not_read_production_config(
     (production / ".env").write_text(
         "OPENAI_API_KEY=production-only-secret\n", encoding="utf-8"
     )
+    (production / "foods.yaml").write_text(
+        "foods:\n  standard:\n    primary:\n      model: openai/production-only-model\n",
+        encoding="utf-8",
+    )
     monkeypatch.setenv("ELFIE_HOME", str(production))
     monkeypatch.setenv("OPENAI_API_KEY", "process-only-secret")
 
@@ -23,6 +27,10 @@ def test_development_runtime_config_does_not_read_production_config(
     assert config.config_home == str(tmp_path / "development")
     assert config.providers["openai"]["api_key"] == ""
     assert store.root != production
+
+    runtime = create_runtime("standard", str(store.root))
+    assert runtime.inner.selected_model == "ollama/qwen3.5:0.8b"
+    assert runtime.inner.runtime.food_catalog_store.path == store.root / "foods.yaml"
 
 
 def test_provider_configuration_separates_secret_and_non_secret_data(tmp_path):
@@ -48,6 +56,7 @@ def test_provider_configuration_separates_secret_and_non_secret_data(tmp_path):
     )
     assert stat.S_IMODE(store.env_path.stat().st_mode) == 0o600
 
-    runtime = create_runtime("real", str(store.root))
+    runtime = create_runtime("focus", str(store.root))
     assert runtime.inner.selected_provider == "openai"
-    assert runtime.inner.selected_model == "example-model"
+    assert runtime.inner.selected_model == "openai/example-model"
+    assert runtime.inner.runtime.food_catalog_store.path == store.root / "foods.yaml"

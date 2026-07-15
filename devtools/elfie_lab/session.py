@@ -17,7 +17,6 @@ from devtools.elfie_lab.schemas import (
     utc_now,
 )
 from devtools.elfie_lab.storage import ElfieLabStorage
-from devtools.runtime_lab import RuntimeLabConfigStore
 from elfie import ElfieIndividual
 
 
@@ -62,7 +61,6 @@ class ElfieLabSession:
         profile = self.elfie.brain.profile
         personality = profile.personality
         metadata = personality.get("metadata", {})
-        runtime_status = RuntimeLabConfigStore(self.runtime_config_dir).status()
         return {
             **self.spec.to_dict(),
             "configured_name": metadata.get("name", self.spec.name),
@@ -76,13 +74,10 @@ class ElfieLabSession:
             "core_cognition": self.elfie.memory.get_core_cognition(),
             "memory_count": len(self.elfie.memory.get_all_episodes()),
             "model": {
-                "default_mode": "mock",
+                "interaction_protocol": "food",
+                "default_food": "mock",
                 "mock_model": "elfie-mock",
-                "real_model": (
-                    f"{runtime_status['provider']}/{runtime_status['model']}"
-                ),
-                "real_model_key": runtime_status["model_key"],
-                "real_ready_for_attempt": runtime_status["ready_for_attempt"],
+                "catalog_scope": "runtime",
             },
         }
 
@@ -109,7 +104,7 @@ class ElfieLabSession:
             "memory_count": len(self.elfie.memory.get_all_episodes()),
         }
 
-    def run_turn(self, stimulus: StimulusBundle, mode: str) -> Dict[str, Any]:
+    def run_turn(self, stimulus: StimulusBundle, food_key: str) -> Dict[str, Any]:
         with self._lock:
             turn_id = new_id("turn")
             trace: Dict[str, Any] = {}
@@ -121,7 +116,7 @@ class ElfieLabSession:
             result: Dict[str, Any] = {}
             error: Optional[str] = None
             try:
-                runtime = create_runtime(mode, self.runtime_config_dir)
+                runtime = create_runtime(food_key, self.runtime_config_dir)
                 result = self.elfie.perceive_and_respond(
                     stimulus.to_sensor_data(turn_id), runtime, debug_trace=trace
                 )
@@ -148,7 +143,7 @@ class ElfieLabSession:
                 runtime.calls[-1]
                 if runtime is not None and runtime.calls
                 else {
-                    "mode": mode,
+                    "food_key": food_key,
                     "skipped": True,
                     "reason": error or self._model_skip_reason(trace),
                 }
@@ -158,7 +153,7 @@ class ElfieLabSession:
                 session_id=self.session_id,
                 elfie_id=self.spec.elfie_id,
                 timestamp=utc_now(),
-                mode=mode,
+                food_key=food_key,
                 stimulus_bundle=asdict(stimulus),
                 state_before=state_before,
                 trace=trace,

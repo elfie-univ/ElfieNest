@@ -91,10 +91,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .model-controls { padding-bottom: 13px; }
 .model-controls label { display: block; margin-bottom: 5px; color: var(--text-tertiary); font-size: 10px; }
 .model-controls select { width: 100%; padding: 8px 9px; border: 1px solid var(--border-default); border-radius: 8px; color: var(--text-primary); background: var(--surface-inset); }
+.model-controls option:disabled { color: var(--text-tertiary); }
 .model-controls p { margin: 7px 0 0; color: var(--text-tertiary); font-size: 10px; }
 .model-controls p.is-ready { color: var(--accent-primary); }
 .model-controls p.is-error { color: var(--status-error); }
-.model-command { padding: 7px 8px; border: 1px dashed var(--border-default); border-radius: 7px; background: var(--surface-inset); font-family: "SF Mono", Menlo, monospace; line-height: 1.5; word-break: break-all; }
+.food-setup-list { margin-top: 8px; border-top: 1px solid var(--border-subtle); padding-top: 7px; }
+.food-setup-list div { display: grid; gap: 3px; padding: 5px 0; color: var(--text-tertiary); font-size: 10px; }
+.food-setup-list code { color: var(--text-secondary); font-family: "SF Mono", Menlo, monospace; line-height: 1.5; overflow-wrap: anywhere; user-select: text; }
 .memory-summary { display: flex; align-items: baseline; gap: 7px; padding: 4px 0 13px; }
 .memory-summary strong { color: var(--accent-primary); font-size: 24px; }
 .memory-summary span { color: var(--text-tertiary); font-size: 10px; }

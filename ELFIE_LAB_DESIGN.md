@@ -30,7 +30,7 @@
 
 - 必须使用独立启动入口、独立本地网址和独立前端资源。
 - 必须使用独立测试数据和记忆目录，不得污染正式精灵的记忆或注册数据。
-- 必须使用独立的开发 Runtime 配置和密钥文件，不得读取或覆盖正式运行的 `config.yaml`、`.env`、精灵库或会话库。
+- Provider、模型、密钥和粮食策略复用本机公共 Runtime 配置，避免重复配置订阅和模型；测试精灵、记忆和会话仍必须独立存储。
 - 禁止修改或复用 `elfienest/ui/static/` 下的普通用户前端页面。
 - 禁止在普通用户导航、生产服务入口或安装后的用户界面中暴露本平台。
 - 平台不得依赖 `ElfieNestEngine`、Godot、群聊房间或普通用户鉴权流程才能运行。
@@ -312,34 +312,29 @@ http://127.0.0.1:<开发端口>/
 └── sessions/                 # 仅测试会话与 TurnRecord
 ```
 
-开发 Runtime 配置单独保存到：
+单精灵调试平台直接复用本机公共 Runtime 配置：
 
 ```text
-~/.elfienest/dev/runtime_lab/
-├── config.yaml               # 模型、服务地址、槽位和非敏感参数
-└── .env                      # 开发 API Key，文件权限为 0600
+~/.elfienest/
+├── config.yaml               # Provider、模型和非敏感参数
+├── .env                      # API Key，文件权限为 0600
+├── foods.yaml                # 当前粮食策略
+├── model_evidence.yaml       # 模型验证证据
+└── validations/              # 本地验证报告
 ```
 
-测试和持续集成使用临时目录或内存存储，不读写开发者的真实本地调试数据。
+网页只读取并调用上述 Runtime 配置，不负责录入密钥。测试和持续集成必须通过
+`--runtime-config-dir` 或依赖注入使用临时目录，不得读写开发者的真实本地配置。
 
-Runtime 开发工具使用命令行即可，不新增复杂网页：
+Provider、模型验证和粮食策略统一通过完整 Runtime Lab 配置：
 
 ```bash
-# 隐藏输入密钥并保存某个开发模型连接
-python -m devtools.runtime_lab configure
-
-# 查看脱敏状态
-python -m devtools.runtime_lab show
-
-# 发送固定消息测试当前连接，或测试所有已配置连接
-python -m devtools.runtime_lab test
-python -m devtools.runtime_lab test --all
-
-# 进入简单文字对话
-python -m devtools.runtime_lab chat
+python -m runtime.lab
 ```
 
-精灵调试平台与 Runtime 命令行工具共享上述“开发 Runtime 配置”，但它们都不共享正式运行配置。这样既能在配置一次后供多个开发工具使用，也不会让测试精灵、测试密钥或测试模型选择出现在真实运行环境中。
+启动后可在主菜单进入“Provider 与原始模型”和“粮食策略”，完成模型配置、
+粮食策略更新、真实验证和历史回滚。正式运行和单精灵调试使用同一份 Runtime
+配置，但测试精灵的注册、记忆、会话和实验记录不会进入正式精灵数据。
 
 ## 12. 核心模块改造要求
 

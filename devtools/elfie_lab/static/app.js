@@ -6,7 +6,8 @@ const state = {
   selectedFocus: "summary",
   detailTab: "summary",
   sending: false,
-  runtimeStatus: null,
+  foods: [],
+  configurationCommand: "",
 };
 
 const el = (id) => document.getElementById(id);
@@ -31,8 +32,10 @@ async function api(path, options = {}) {
 async function boot() {
   bindEvents();
   try {
-    const [data, runtimeStatus] = await Promise.all([api("/api/elfies"), api("/api/runtime/status")]);
-    state.runtimeStatus = runtimeStatus;
+    const [data, foodsData] = await Promise.all([api("/api/elfies"), api("/api/runtime/foods")]);
+    state.foods = foodsData.items || [];
+    state.configurationCommand = foodsData.configuration_command || "";
+    populateFoodSelect();
     updateModelHint();
     state.elfies = data.items || [];
     if (!state.elfies.length) return showEmpty();
@@ -65,10 +68,7 @@ function bindEvents() {
   });
   el("salienceInput").addEventListener("input", (event) => { el("salienceOutput").value = event.target.value; updateChannelHint(); });
   ["impactInput", "strokeInput", "injectEnergy", "injectFatigue"].forEach((id) => el(id).addEventListener("input", updateChannelHint));
-  el("runtimeMode").addEventListener("change", async () => {
-    if (el("runtimeMode").value === "real") await refreshRuntimeStatus();
-    updateModelHint();
-  });
+  el("foodSelect").addEventListener("change", updateModelHint);
   ui.composer.addEventListener("submit", sendTurn);
   ui.message.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); ui.composer.requestSubmit(); }
@@ -115,25 +115,89 @@ function renderProfile() {
   renderElfieMenu();
 }
 
-function updateModelHint() {
-  const hint = el("modelHint"); const command = el("modelCommand");
-  hint.classList.remove("is-ready", "is-error");
-  if (el("runtimeMode").value === "mock") {
-    hint.textContent = "elfie-mock · 不调用外部服务"; command.hidden = true; return;
-  }
-  const runtime = state.runtimeStatus;
-  if (!runtime) { hint.textContent = "正在读取开发 Runtime 配置…"; command.hidden = true; return; }
-  hint.textContent = runtime.ready_for_attempt
-    ? `${runtime.provider}/${runtime.model} · 开发配置已加载`
-    : `${runtime.provider}/${runtime.model} · 缺少开发凭据`;
-  hint.classList.add(runtime.ready_for_attempt ? "is-ready" : "is-error");
-  command.textContent = runtime.ready_for_attempt ? runtime.test_command : runtime.setup_command;
-  command.hidden = false;
+function populateFoodSelect(preferredKey = null) {
+  const select = el("foodSelect");
+  const desiredValue = preferredKey || localStorage.getItem("elfieLab.foodKey") || select.value;
+  select.replaceChildren();
+  state.foods.forEach((food) => {
+    const option = document.createElement("option");
+    option.value = food.key;
+    option.disabled = food.key !== "mock" && !food.ready_for_attempt;
+    const statusMark = !food.ready_for_attempt
+      ? " · 未就绪"
+      : !food.primary_ready && food.fallback_ready
+        ? " · 可降级"
+        : "";
+    option.textContent = `${food.display_name}${statusMark}`;
+    select.append(option);
+  });
+  const desiredFood = state.foods.find((food) => food.key === desiredValue && food.ready_for_attempt);
+  const fallbackFood = state.foods.find((food) => food.ready_for_attempt);
+  select.value = (desiredFood || fallbackFood)?.key || "";
+  localStorage.setItem("elfieLab.foodKey", select.value);
+  renderFoodSetupList();
 }
 
-async function refreshRuntimeStatus() {
-  try { state.runtimeStatus = await api("/api/runtime/status"); }
-  catch (error) { showToast(error.message, true); }
+function updateModelHint() {
+  const hint = el("modelHint");
+  hint.classList.remove("is-ready", "is-error");
+  const selectedKey = el("foodSelect").value;
+  const food = state.foods.find((f) => f.key === selectedKey);
+  if (!food) { hint.textContent = "没有已就绪的粮食"; hint.classList.add("is-error"); return; }
+  localStorage.setItem("elfieLab.foodKey", selectedKey);
+  if (food.key === "mock") {
+    hint.textContent = "elfie-mock · 不调用外部服务"; return;
+  }
+  const readiness = !food.ready_for_attempt
+    ? food.unavailable_reason
+    : food.primary_ready
+    ? "主模型已就绪"
+    : food.fallback_ready
+      ? "主模型未就绪，将尝试降级模型"
+      : "没有可用模型";
+  hint.textContent = `${food.model} · ${food.description} · ${readiness}`;
+  hint.classList.add(food.ready_for_attempt ? "is-ready" : "is-error");
+}
+
+function renderFoodSetupList() {
+  const container = el("foodSetupList");
+  const commandFoods = new Map();
+  const configureCommand = state.configurationCommand;
+  state.foods.forEach((food) => {
+    (food.setup_commands || []).forEach((command) => {
+      if (!commandFoods.has(command)) commandFoods.set(command, []);
+      commandFoods.get(command).push(food.display_name);
+    });
+  });
+  container.replaceChildren();
+  if (commandFoods.size && configureCommand) appendSetupCommand(container, "完整 Runtime Lab：", configureCommand);
+  commandFoods.forEach((names, command) => {
+    if (command !== configureCommand) {
+      appendSetupCommand(container, `${[...new Set(names)].join("、")}：`, command);
+    }
+  });
+  container.hidden = commandFoods.size === 0;
+}
+
+function appendSetupCommand(container, labelText, command) {
+  const row = document.createElement("div");
+  const label = document.createElement("span"); label.textContent = labelText;
+  const code = document.createElement("code"); code.textContent = command;
+  row.append(label, code); container.append(row);
+}
+
+async function refreshFoods(preferredKey = null) {
+  try {
+    const data = await api("/api/runtime/foods");
+    state.foods = data.items || [];
+    state.configurationCommand = data.configuration_command || "";
+    populateFoodSelect(preferredKey);
+    updateModelHint();
+    return true;
+  } catch (error) {
+    showToast(error.message, true);
+    return false;
+  }
 }
 
 function renderGrid(container, rows) {
@@ -211,12 +275,15 @@ function dot() { const item = document.createElement("i"); return item; }
 
 async function sendTurn(event) {
   event.preventDefault(); if (!state.currentId || state.sending) return;
-  if (el("runtimeMode").value === "real") await refreshRuntimeStatus();
-  if (el("runtimeMode").value === "real" && !state.runtimeStatus?.ready_for_attempt) return showToast(`真实模型尚未配置，请运行：${state.runtimeStatus?.setup_command || ".venv/bin/python -m devtools.runtime_lab configure"}`, true);
+  const selectedBeforeRefresh = el("foodSelect").value;
+  if (!await refreshFoods(selectedBeforeRefresh)) return;
+  const foodKey = el("foodSelect").value;
+  const food = state.foods.find((f) => f.key === foodKey);
+  if (!food || !food.ready_for_attempt) return showToast(`粮食「${food?.display_name || foodKey}」尚未就绪`, true);
   const message = ui.message.value.trim(); const injection = {};
   if (el("injectEnergy").value !== "") injection.energy = Number(el("injectEnergy").value);
   if (el("injectFatigue").value !== "") injection.fatigue = Number(el("injectFatigue").value);
-  const body = { message, mode: el("runtimeMode").value, temperature: Number(el("temperatureInput").value), salience_score: Number(el("salienceInput").value), impact_force: Number(el("impactInput").value), gentle_stroke: Number(el("strokeInput").value), state_injection: injection };
+  const body = { message, food_key: foodKey, temperature: Number(el("temperatureInput").value), salience_score: Number(el("salienceInput").value), impact_force: Number(el("impactInput").value), gentle_stroke: Number(el("strokeInput").value), state_injection: injection };
   if (!message && !body.impact_force && !body.gentle_stroke && !Object.keys(injection).length && body.salience_score < 70) return showToast("请输入消息或添加有效刺激", true);
   setSending(true);
   try {
@@ -260,9 +327,11 @@ function renderDetail() {
 }
 
 function renderSummary(turn) {
-  const stimulus = detailSection("本轮输入"); stimulus.append(detailCard("开发者刺激", turn.stimulus_bundle.message || "非文字刺激", turn.mode));
+  const stimulus = detailSection("本轮输入"); stimulus.append(detailCard("开发者刺激", turn.stimulus_bundle.message || "非文字刺激", turn.food_key || "mock"));
   if (turn.used_state_injection) stimulus.append(detailCard("状态注入", JSON.stringify(turn.stimulus_bundle.state_injection, null, 2), "已永久标记"));
-  const result = detailSection("精灵结果"); result.append(detailList({ "回复": turn.result.speech || turn.result.mutter || turn.result.reason || "—", "动作": turn.result.action || "—", "注意力": turn.trace?.stages?.decision?.attention_mode || "未进入皮层决策", "模式": turn.mode, "模型": turn.model_call?.model || "未调用", "总耗时": `${turn.duration_ms} ms`, "状态": turn.error ? turn.error : (turn.result.success === false ? "未完成" : "已完成") }));
+  const foodUsed = turn.model_call?.food_used;
+  const foodLabel = foodUsed && foodUsed !== turn.food_key ? `${turn.food_key} → ${foodUsed}` : (turn.food_key || "—");
+  const result = detailSection("精灵结果"); result.append(detailList({ "回复": turn.result.speech || turn.result.mutter || turn.result.reason || "—", "动作": turn.result.action || "—", "注意力": turn.trace?.stages?.decision?.attention_mode || "未进入皮层决策", "粮食": foodLabel, "模型": turn.model_call?.model || "未调用", "总耗时": `${turn.duration_ms} ms`, "状态": turn.error ? turn.error : (turn.result.success === false ? "未完成" : "已完成") }));
   ui.detailContent.append(stimulus, result);
 }
 
