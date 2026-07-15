@@ -1,7 +1,21 @@
-#!/usr/bin/env python3
+from __future__ import annotations
+
 import argparse
 import os
 import sys
+
+PINNED_CPYTHON_VERSION = (3, 9, 25)
+
+if (
+    sys.implementation.name != "cpython"
+    or sys.version_info[:3] != PINNED_CPYTHON_VERSION
+):
+    actual_version = ".".join(str(part) for part in sys.version_info[:3])
+    sys.stderr.write(
+        "❌ ElfieNest 必须使用 CPython 3.9.25；"
+        f"当前是 {sys.implementation.name} {actual_version}。\n"
+    )
+    raise SystemExit(1)
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -26,6 +40,7 @@ from elfienest.cli.tui.setup_app import run_setup_wizard
 
 def main() -> None:
     parser = argparse.ArgumentParser(
+        prog="elfienest",
         description="ElfieNest CLI - 仿生生命体系统命令行工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

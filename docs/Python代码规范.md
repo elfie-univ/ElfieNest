@@ -255,7 +255,7 @@ class TestEmotionSystem:
 
 ```bash
 # 运行覆盖率测试
-pytest --cov=elfie --cov-report=html --cov-fail-under=80
+uv run --no-sync pytest --cov=elfie --cov-report=html --cov-fail-under=80
 ```
 
 ---
@@ -266,25 +266,26 @@ pytest --cov=elfie --cov-report=html --cov-fail-under=80
 
 Ruff = Flake8 + Black + isort + YAPF + ...（超高速Python linter）
 
+开发工具统一由项目锁文件安装，不使用全局 `pip`：
+
 ```bash
-# 安装
-pip install ruff
+uv sync --locked --extra dev
 
 # 运行检查
-ruff check .
+uv run --no-sync ruff check .
 
 # 自动修复
-ruff check --fix .
+uv run --no-sync ruff check --fix .
 
 # 格式化
-ruff format .
+uv run --no-sync ruff format .
 ```
 
 **Ruff配置**（在`pyproject.toml`中）：
 ```toml
 [tool.ruff]
 line-length = 88
-target-version = "py311"
+target-version = "py39"
 
 [tool.ruff.lint]
 select = [
@@ -315,10 +316,10 @@ disallow_untyped_defs = true
 
 ```bash
 # 运行类型检查
-mypy elfie/
+uv run --no-sync mypy elfie/
 
 # 详细输出
-mypy --verbose elfie/
+uv run --no-sync mypy --verbose elfie/
 ```
 
 ### 3.3 渐进式改进策略（针对现有77个文件）
@@ -339,10 +340,10 @@ mypy --verbose elfie/
 
 ```bash
 # 对新文件启用严格检查
-mypy --strict new_module/
+uv run --no-sync mypy --strict new_module/
 
 # 对老文件使用宽松配置（逐步收紧）
-mypy --ignore-missing-imports --no-strict-optional legacy_module/
+uv run --no-sync mypy --ignore-missing-imports --no-strict-optional legacy_module/
 ```
 
 ---
@@ -407,7 +408,7 @@ def transform(
 name = "elfienest"
 version = "0.1.0"
 description = "ElfieNest - Embodied AI creature simulation"
-requires-python = ">=3.9,<3.10"
+requires-python = "==3.9.25"
 dependencies = [
     "websockets>=12.0",
     "pydantic>=2.0",
@@ -424,7 +425,7 @@ dev = [
 
 [tool.ruff]
 line-length = 88
-target-version = "py311"
+target-version = "py39"
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "B", "C4", "UP"]
@@ -495,32 +496,36 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
         with:
-          python-version: '3.9'
+          version: "0.9.26"
 
-      - name: Install dependencies
+      - name: Install CPython and locked dependencies
         run: |
-          pip install -e ".[dev]"
+          uv python install 3.9.25
+          uv sync --locked --extra dev
 
       - name: Run Ruff
-        run: ruff check . && ruff format --check .
+        run: uv run --no-sync ruff check . && uv run --no-sync ruff format --check .
 
       - name: Run MyPy
-        run: mypy elfie/ elfienest/ runtime/
+        run: uv run --no-sync mypy elfie/ elfienest/ runtime/
 
       - name: Run Tests
-        run: pytest --cov --cov-report=xml
+        run: uv run --no-sync pytest --cov --cov-report=xml
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4.6.0
         with:
           file: ./coverage.xml
 ```
@@ -567,10 +572,10 @@ Closes #42
 
 ### 7.1 代码提交前检查
 
-- [ ] `ruff check .` 无错误
-- [ ] `ruff format .` 已格式化
-- [ ] `mypy <changed_files>` 无错误
-- [ ] `pytest` 测试通过
+- [ ] `uv run --no-sync ruff check .` 无错误
+- [ ] `uv run --no-sync ruff format .` 已格式化
+- [ ] `uv run --no-sync mypy <changed_files>` 无错误
+- [ ] `uv run --no-sync pytest` 测试通过
 - [ ] 覆盖率达标（≥80%）
 - [ ] Commit message符合规范
 

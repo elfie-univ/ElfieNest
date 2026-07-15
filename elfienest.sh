@@ -1,27 +1,39 @@
 #!/bin/bash
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
-WEB_DEPENDENCY_CHECK='import fastapi, uvicorn, multipart'
+PYTHON_VERSION_FILE="$SCRIPT_DIR/.python-version"
+RUNTIME_DEPENDENCY_CHECK='import edge_tts, fastapi, httpx, multipart, pydantic, rich, uvicorn, websockets, yaml'
 
-python_has_web_dependencies() {
-    python_is_39 "$1" || return 1
-    "$1" -c "$WEB_DEPENDENCY_CHECK" >/dev/null 2>&1
+if [ ! -f "$PYTHON_VERSION_FILE" ]; then
+    echo "  ❌ 缺少 Python 版本文件: $PYTHON_VERSION_FILE" >&2
+    exit 1
+fi
+
+PINNED_PYTHON_VERSION="$(tr -d '[:space:]' < "$PYTHON_VERSION_FILE")"
+if [[ ! "$PINNED_PYTHON_VERSION" =~ ^3\.9\.[0-9]+$ ]]; then
+    echo "  ❌ .python-version 必须固定到 Python 3.9 的完整补丁版本。" >&2
+    exit 1
+fi
+
+python_has_runtime_dependencies() {
+    python_is_pinned_version "$1" || return 1
+    "$1" -c "$RUNTIME_DEPENDENCY_CHECK" >/dev/null 2>&1
 }
 
-python_is_39() {
-    "$1" -c 'import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 9) else 1)' >/dev/null 2>&1
+python_is_pinned_version() {
+    "$1" -c 'import platform, sys; ok = sys.implementation.name == "cpython" and platform.python_version() == sys.argv[1]; raise SystemExit(0 if ok else 1)' "$PINNED_PYTHON_VERSION" >/dev/null 2>&1
 }
 
 repair_project_venv() {
-    if [ "${ELFIE_SKIP_AUTO_REPAIR:-}" = "1" ]; then
+    if [ "${ELFIENEST_SKIP_AUTO_REPAIR:-${ELFIE_SKIP_AUTO_REPAIR:-}}" = "1" ]; then
         return 1
     fi
     if [ ! -x "$SCRIPT_DIR/install.sh" ]; then
         return 1
     fi
 
-    echo "  🔧 检测到 .venv 缺少依赖，正在自动修复..." >&2
-    if ! ELFIE_SKIP_AUTO_REPAIR=1 "$SCRIPT_DIR/install.sh" >&2; then
+    echo "  🔧 检测到 .venv 缺失、版本不匹配或依赖不完整，正在自动修复..." >&2
+    if ! ELFIENEST_SKIP_AUTO_REPAIR=1 "$SCRIPT_DIR/install.sh" --env-only >&2; then
         echo "  ❌ 自动修复失败，请重新运行: $SCRIPT_DIR/install.sh" >&2
         return 1
     fi
@@ -31,27 +43,19 @@ repair_project_venv() {
 select_python() {
     local venv_python="$SCRIPT_DIR/.venv/bin/python3"
 
-    if [ -x "$venv_python" ] && python_has_web_dependencies "$venv_python"; then
+    if [ -x "$venv_python" ] && python_has_runtime_dependencies "$venv_python"; then
         echo "$venv_python"
         return
     fi
 
     repair_project_venv
-    if python_has_web_dependencies "$venv_python"; then
+    if python_has_runtime_dependencies "$venv_python"; then
         echo "$venv_python"
         return
     fi
 
-    if python_has_web_dependencies "python3"; then
-        echo "  ⚠️  .venv 自动修复失败，临时使用系统 Python 3.9。" >&2
-        echo "  💡 可重新运行: $SCRIPT_DIR/install.sh" >&2
-        echo "" >&2
-        echo "python3"
-        return
-    fi
-
-    echo "  ❌ 项目必须使用 Python 3.9，但没有找到可用的 Python 3.9 运行环境。" >&2
-    echo "  💡 请安装 Python 3.9，或设置 ELFIE_PYTHON 指向 Python 3.9。" >&2
+    echo "  ❌ 项目运行环境不可用；必须使用锁定的 Python $PINNED_PYTHON_VERSION。" >&2
+    echo "  💡 请安装 uv 后重新运行: $SCRIPT_DIR/install.sh" >&2
     return 1
 }
 
@@ -107,12 +111,12 @@ show_help() {
     echo "  │  使用示例                                               │"
     echo "  └─────────────────────────────────────────────────────────┘"
     echo ""
-    echo "    elfie> serve --fallback        # 启动服务（内置引擎）"
-    echo "    elfie> serve --force           # 强制重启"
-    echo "    elfie> config                  # 进入配置界面"
-    echo "    elfie> status                  # 查看状态"
-    echo "    elfie> help                    # 显示帮助"
-    echo "    elfie> exit                    # 退出"
+    echo "    elfienest> serve --fallback    # 启动服务（内置引擎）"
+    echo "    elfienest> serve --force       # 强制重启"
+    echo "    elfienest> config              # 进入配置界面"
+    echo "    elfienest> status              # 查看状态"
+    echo "    elfienest> help                # 显示帮助"
+    echo "    elfienest> exit                # 退出"
     echo ""
 }
 
@@ -120,25 +124,25 @@ interactive_mode() {
     show_logo
     show_help
     while true; do
-        echo -n "elfie> "
+        echo -n "elfienest> "
         read -r cmd args
         case "$cmd" in
             ""|exit|quit|q) echo ""; echo "  再见！🦊"; echo ""; exit 0 ;;
             help|h|?) show_help ;;
             serve) "$PYTHON_BIN" scripts/serve.py $args ;;
-            config) "$PYTHON_BIN" scripts/elfie.py config ;;
-            status) "$PYTHON_BIN" scripts/elfie.py status ;;
-            models) "$PYTHON_BIN" scripts/elfie.py models ;;
-            stats) "$PYTHON_BIN" scripts/elfie.py stats ;;
-            logs) "$PYTHON_BIN" scripts/elfie.py logs ;;
-            db) "$PYTHON_BIN" scripts/elfie.py db $args ;;
-            providers) "$PYTHON_BIN" scripts/elfie.py providers ;;
-            session) "$PYTHON_BIN" scripts/elfie.py session ;;
-            version|v) "$PYTHON_BIN" scripts/elfie.py version ;;
-            restart) "$PYTHON_BIN" scripts/elfie.py restart ;;
-            stop) "$PYTHON_BIN" scripts/elfie.py stop ;;
-            setup) "$PYTHON_BIN" scripts/elfie.py setup ;;
-            web) "$PYTHON_BIN" scripts/elfie.py web ;;
+            config) "$PYTHON_BIN" scripts/elfienest.py config ;;
+            status) "$PYTHON_BIN" scripts/elfienest.py status ;;
+            models) "$PYTHON_BIN" scripts/elfienest.py models ;;
+            stats) "$PYTHON_BIN" scripts/elfienest.py stats ;;
+            logs) "$PYTHON_BIN" scripts/elfienest.py logs ;;
+            db) "$PYTHON_BIN" scripts/elfienest.py db $args ;;
+            providers) "$PYTHON_BIN" scripts/elfienest.py providers ;;
+            session) "$PYTHON_BIN" scripts/elfienest.py session ;;
+            version|v) "$PYTHON_BIN" scripts/elfienest.py version ;;
+            restart) "$PYTHON_BIN" scripts/elfienest.py restart ;;
+            stop) "$PYTHON_BIN" scripts/elfienest.py stop ;;
+            setup) "$PYTHON_BIN" scripts/elfienest.py setup ;;
+            web) "$PYTHON_BIN" scripts/elfienest.py web ;;
             *)
                 echo ""
                 echo "  ❌ 未知命令: $cmd"
@@ -169,6 +173,6 @@ else
     if [ "$has_serve_arg" = true ]; then
         "$PYTHON_BIN" scripts/serve.py "$@"
     else
-        "$PYTHON_BIN" scripts/elfie.py "$@"
+        "$PYTHON_BIN" scripts/elfienest.py "$@"
     fi
 fi

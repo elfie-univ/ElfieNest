@@ -1,241 +1,226 @@
 #!/bin/bash
-# ElfieNest 安装脚本
-# 安装 elfie 命令到系统
+# ElfieNest 用户级安装脚本
 
-set -e
+set -euo pipefail
+umask 077
+
+if (( EUID == 0 )); then
+    builtin printf '%s\n' "❌ ElfieNest 只支持用户级安装，请不要使用 root 或 sudo。" >&2
+    exit 1
+fi
 
 echo ""
 echo "🦊 ElfieNest 安装脚本"
 echo "======================"
 echo ""
 
-# 获取项目根目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
-INSTALL_LOG_PATH="${TMPDIR:-/tmp}/elfienest-install.log"
+PYTHON_VERSION_FILE="$PROJECT_ROOT/.python-version"
+INSTALL_HELPERS="$PROJECT_ROOT/scripts/elfienest_install_helpers.sh"
+RUNTIME_DEPENDENCY_CHECK='import edge_tts, fastapi, httpx, multipart, pydantic, rich, uvicorn, websockets, yaml'
+COMMAND_NAME="elfienest"
+UNINSTALL_COMMAND_NAME="uninstall-elfienest"
+ENVIRONMENT_ONLY=false
+INSTALL_LOG_PATH=""
+STAGED_WRAPPER=""
+STAGED_UNINSTALLER=""
 
-path_contains_dir() {
-    local dir="$1"
-    [[ ":$PATH:" == *":$dir:"* ]]
+case "${1:-}" in
+    "") ;;
+    --env-only) ENVIRONMENT_ONLY=true ;;
+    *)
+        echo "❌ 未知安装参数: $1" >&2
+        echo "   用法: ./install.sh [--env-only]" >&2
+        exit 2
+        ;;
+esac
+if [ "$#" -gt 1 ]; then
+    echo "❌ 安装脚本最多接受一个参数" >&2
+    exit 2
+fi
+
+if [ ! -f "$INSTALL_HELPERS" ]; then
+    echo "❌ 缺少安装辅助脚本: $INSTALL_HELPERS" >&2
+    exit 1
+fi
+# shellcheck source=scripts/elfienest_install_helpers.sh
+source "$INSTALL_HELPERS"
+
+cleanup_install_artifacts() {
+    [ -z "$INSTALL_LOG_PATH" ] || rm -f -- "$INSTALL_LOG_PATH"
+    [ -z "$STAGED_WRAPPER" ] || rm -f -- "$STAGED_WRAPPER"
+    [ -z "$STAGED_UNINSTALLER" ] || rm -f -- "$STAGED_UNINSTALLER"
 }
 
-ensure_writable_dir() {
-    local dir="$1"
-    mkdir -p "$dir" 2>/dev/null || return 1
-    [ -w "$dir" ]
+trap cleanup_install_artifacts EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+cd "$PROJECT_ROOT"
+INSTALL_LOG_PATH="$(mktemp "${TMPDIR:-/tmp}/elfienest-install.XXXXXX")"
+
+read_pinned_python_version() {
+    local version
+
+    if [ ! -f "$PYTHON_VERSION_FILE" ]; then
+        echo "❌ 缺少 Python 版本文件: $PYTHON_VERSION_FILE" >&2
+        return 1
+    fi
+
+    version="$(tr -d '[:space:]' < "$PYTHON_VERSION_FILE")"
+    if [[ ! "$version" =~ ^3\.9\.[0-9]+$ ]]; then
+        echo "❌ .python-version 必须固定到 CPython 3.9 的完整补丁版本" >&2
+        return 1
+    fi
+    printf '%s\n' "$version"
 }
 
-python_is_39() {
-    "$1" -c 'import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 9) else 1)' >/dev/null 2>&1
+PYTHON_VERSION="$(read_pinned_python_version)"
+
+python_is_pinned_version() {
+    "$1" -c 'import platform, sys; ok = sys.implementation.name == "cpython" and platform.python_version() == sys.argv[1]; raise SystemExit(0 if ok else 1)' "$PYTHON_VERSION" >/dev/null 2>&1
 }
 
-python_has_web_dependencies() {
-    python_is_39 "$1" || return 1
-    "$1" -c 'import fastapi, uvicorn, multipart, rich, pydantic, websockets' >/dev/null 2>&1
+python_has_runtime_dependencies() {
+    python_is_pinned_version "$1" || return 1
+    "$1" -c "$RUNTIME_DEPENDENCY_CHECK" >/dev/null 2>&1
 }
 
-find_python39() {
-    local candidate resolved
+resolve_custom_python() {
+    local candidate="$1"
+    local resolved
 
-    for candidate in "${ELFIE_PYTHON:-}" python3.9 python3; do
-        [ -n "$candidate" ] || continue
-        resolved="$(command -v "$candidate" 2>/dev/null || true)"
-        [ -n "$resolved" ] || resolved="$candidate"
-        if [ -x "$resolved" ] && python_is_39 "$resolved"; then
-            echo "$resolved"
-            return
-        fi
-    done
-
-    echo ""
+    resolved="$(command -v "$candidate" 2>/dev/null || true)"
+    [ -n "$resolved" ] || resolved="$candidate"
+    if [ ! -x "$resolved" ] || ! python_is_pinned_version "$resolved"; then
+        echo "❌ ELFIENEST_PYTHON 必须指向 CPython $PYTHON_VERSION 可执行文件" >&2
+        return 1
+    fi
+    printf '%s\n' "$resolved"
 }
 
 ensure_project_venv() {
-    local system_python
-    local venv_python
+    local python_request
+    local uv_bin
+    local venv_python="$PROJECT_ROOT/.venv/bin/python3"
 
-    system_python="$(find_python39)"
-    if [ -z "$system_python" ]; then
-        echo "❌ 未找到 Python 3.9。请安装 Python 3.9，或设置 ELFIE_PYTHON 指向 Python 3.9 可执行文件"
-        exit 1
+    uv_bin="$(command -v uv 2>/dev/null || true)"
+    if [ -z "$uv_bin" ]; then
+        echo "❌ 未找到 uv，无法创建锁定的 CPython $PYTHON_VERSION 环境"
+        echo "   macOS: brew install uv"
+        echo "   其他平台: https://docs.astral.sh/uv/getting-started/installation/"
+        return 1
     fi
 
-    venv_python="$PROJECT_ROOT/.venv/bin/python3"
-    if [ -x "$venv_python" ] && ! python_is_39 "$venv_python"; then
-        echo "⚠️  检测到项目 .venv 不是 Python 3.9，正在用 Python 3.9 重建"
-        "$system_python" -m venv --clear "$PROJECT_ROOT/.venv"
-    elif [ ! -x "$venv_python" ]; then
-        echo "🐍 正在创建项目运行环境: $PROJECT_ROOT/.venv"
-        "$system_python" -m venv "$PROJECT_ROOT/.venv"
+    if [ -n "${ELFIENEST_PYTHON:-}" ]; then
+        python_request="$(resolve_custom_python "$ELFIENEST_PYTHON")"
+    else
+        python_request="$PYTHON_VERSION"
+        echo "🐍 正在准备 CPython $PYTHON_VERSION..."
+        if ! "$uv_bin" python install "$PYTHON_VERSION" >> "$INSTALL_LOG_PATH" 2>&1; then
+            echo "❌ CPython $PYTHON_VERSION 安装失败，最近日志:"
+            tail -40 "$INSTALL_LOG_PATH" || true
+            return 1
+        fi
     fi
 
-    "$venv_python" -m ensurepip --upgrade >/dev/null 2>&1 || true
-
-    if python_has_web_dependencies "$venv_python"; then
-        echo "✅ 项目依赖已就绪"
-        return
-    fi
-
-    echo "📦 正在安装/更新项目依赖..."
+    echo "📦 正在按 uv.lock 同步项目依赖..."
     echo "   详情日志: $INSTALL_LOG_PATH"
-    if ! "$venv_python" -m pip install --disable-pip-version-check -r "$PROJECT_ROOT/requirements.txt" > "$INSTALL_LOG_PATH" 2>&1; then
-        echo "❌ 项目依赖安装失败，最近日志:"
+    if ! UV_PROJECT_ENVIRONMENT="$PROJECT_ROOT/.venv" "$uv_bin" sync --locked --no-dev --python "$python_request" >> "$INSTALL_LOG_PATH" 2>&1; then
+        echo "❌ 锁定环境同步失败，最近日志:"
         tail -40 "$INSTALL_LOG_PATH" || true
-        exit 1
+        return 1
     fi
 
-    if ! python_has_web_dependencies "$venv_python"; then
-        echo "❌ 项目依赖安装后仍不可用，请检查 pip 输出"
-        exit 1
+    if ! python_has_runtime_dependencies "$venv_python"; then
+        echo "❌ 同步后的环境不满足 CPython $PYTHON_VERSION 或运行依赖要求"
+        return 1
     fi
-
-    echo "✅ 项目依赖已就绪"
+    echo "✅ CPython $PYTHON_VERSION 与锁定依赖已就绪"
 }
 
-choose_install_dir() {
-    local dir
-
-    if [ "$EUID" -eq 0 ]; then
-        echo "/usr/local/bin"
-        return
-    fi
-
-    for dir in "$HOME/.local/bin" "$HOME/bin" "/usr/local/bin"; do
-        if path_contains_dir "$dir" && ensure_writable_dir "$dir"; then
-            echo "$dir"
-            return
-        fi
-    done
-
-    IFS=":" read -ra path_dirs <<< "$PATH"
-    for dir in "${path_dirs[@]}"; do
-        if [[ "$dir" == "$HOME"/* ]] && ensure_writable_dir "$dir"; then
-            echo "$dir"
-            return
-        fi
-    done
-
-    echo "$HOME/.local/bin"
-}
-
-path_line_for_dir() {
-    local dir="$1"
-    if [ "$dir" = "$HOME/.local/bin" ]; then
-        echo 'export PATH="$HOME/.local/bin:$PATH"'
-    elif [ "$dir" = "$HOME/bin" ]; then
-        echo 'export PATH="$HOME/bin:$PATH"'
-    else
-        echo "export PATH=\"$dir:\$PATH\""
-    fi
-}
-
-configure_user_path() {
-    local install_dir="$1"
-    local shell_name
-    local profile_file
-    local path_line
-
-    if path_contains_dir "$install_dir"; then
-        echo "✅ $install_dir 已在当前 PATH 中，本终端可直接使用 elfie"
-        return
-    fi
-
-    shell_name="$(basename "${SHELL:-}")"
-    if [ "$shell_name" = "bash" ]; then
-        profile_file="$HOME/.bashrc"
-    else
-        profile_file="$HOME/.zshrc"
-    fi
-
-    path_line="$(path_line_for_dir "$install_dir")"
-
-    touch "$profile_file"
-    if grep -Fq "$path_line" "$profile_file"; then
-        echo "✅ $profile_file 已包含 PATH 配置"
-    else
-        {
-            echo ""
-            echo "# ElfieNest CLI"
-            echo "$path_line"
-        } >> "$profile_file"
-        echo "✅ 已写入 PATH 配置: $profile_file"
-    fi
-
-    echo ""
-    echo "✅ 新打开的终端可直接使用 elfie"
-    echo "ℹ️  当前终端如果还找不到 elfie，可直接运行: $install_dir/elfie"
-}
-
-remove_old_wrapper_if_same_project() {
-    local old_path="$1"
-    if [ "$old_path" = "$INSTALL_DIR/elfie" ] || [ ! -f "$old_path" ]; then
-        return
-    fi
-    if grep -Fq "cd \"$PROJECT_ROOT\"" "$old_path" 2>/dev/null; then
-        rm -f "$old_path"
-        echo "🧹 已清理旧安装: $old_path"
-    fi
-}
-
-# 检测安装位置
-if [ "$EUID" -eq 0 ]; then
-    echo "📦 安装模式: 系统安装"
-else
-    echo "📦 安装模式: 用户安装"
+if [ "$ENVIRONMENT_ONLY" = true ]; then
+    ensure_project_venv
+    echo "🎉 项目环境配置完成！"
+    exit 0
 fi
 
-INSTALL_DIR="$(choose_install_dir)"
+echo "📦 安装模式: 用户安装"
+INSTALL_DIR="$(choose_user_install_dir)"
+if ! validate_user_install_dir "$INSTALL_DIR"; then
+    echo "❌ 安装目录不属于当前用户的安全 HOME 路径: $INSTALL_DIR" >&2
+    exit 1
+fi
 echo "📍 安装位置: $INSTALL_DIR"
 echo ""
 
-# 创建目录
-mkdir -p "$INSTALL_DIR"
+INSTALLED_WRAPPER="$INSTALL_DIR/$COMMAND_NAME"
+INSTALLED_UNINSTALLER="$INSTALL_DIR/$UNINSTALL_COMMAND_NAME"
+STAGED_WRAPPER="$(mktemp "$INSTALL_DIR/.elfienest-wrapper.XXXXXX")"
+STAGED_UNINSTALLER="$(mktemp "$INSTALL_DIR/.elfienest-uninstaller.XXXXXX")"
+write_managed_wrapper "$STAGED_WRAPPER" "$PROJECT_ROOT"
+write_managed_uninstaller \
+    "$STAGED_UNINSTALLER" \
+    "$INSTALLED_WRAPPER" \
+    "$INSTALLED_UNINSTALLER" \
+    "$PROJECT_ROOT"
+
+if path_contains_dir "$INSTALL_DIR"; then
+    reject_shadowing_command "$COMMAND_NAME" "$INSTALLED_WRAPPER"
+fi
+
+INSTALL_ACTION="安装"
+if [ -e "$INSTALLED_WRAPPER" ] || [ -L "$INSTALLED_WRAPPER" ]; then
+    if ! managed_file_matches "$INSTALLED_WRAPPER" "$STAGED_WRAPPER" \
+        && ! previous_wrapper_matches "$INSTALLED_WRAPPER" "$PROJECT_ROOT"; then
+        echo "❌ 已存在不属于当前项目的命令，拒绝覆盖: $INSTALLED_WRAPPER"
+        exit 1
+    fi
+    INSTALL_ACTION="更新"
+fi
+if [ -e "$INSTALLED_UNINSTALLER" ] || [ -L "$INSTALLED_UNINSTALLER" ]; then
+    if ! managed_file_matches "$INSTALLED_UNINSTALLER" "$STAGED_UNINSTALLER" \
+        && ! previous_uninstaller_matches \
+            "$INSTALLED_UNINSTALLER" \
+            "$INSTALLED_WRAPPER"; then
+        echo "❌ 已存在不属于当前项目的卸载命令，拒绝覆盖: $INSTALLED_UNINSTALLER"
+        exit 1
+    fi
+fi
 
 ensure_project_venv
 
-if [ -x "$INSTALL_DIR/elfie" ]; then
-    INSTALL_ACTION="更新"
-else
-    INSTALL_ACTION="安装"
+if ! configure_user_path "$INSTALL_DIR"; then
+    echo "❌ PATH 配置失败，ElfieNest 未修改任何命令入口。" >&2
+    exit 1
+fi
+if ! validate_user_install_dir "$INSTALL_DIR"; then
+    echo "❌ 安装期间目录安全属性发生变化，未修改任何命令入口。" >&2
+    exit 1
 fi
 
-# 创建 elfie 命令（指向 elfie.sh）
-cat > "$INSTALL_DIR/elfie" << INNER_EOF
-#!/bin/bash
-cd "$PROJECT_ROOT"
-./elfie.sh "\$@"
-INNER_EOF
+mv -f -- "$STAGED_UNINSTALLER" "$INSTALLED_UNINSTALLER"
+STAGED_UNINSTALLER=""
+mv -f -- "$STAGED_WRAPPER" "$INSTALLED_WRAPPER"
+STAGED_WRAPPER=""
+chmod 0755 "$INSTALLED_WRAPPER" "$INSTALLED_UNINSTALLER"
 
-chmod +x "$INSTALL_DIR/elfie"
+migrate_legacy_installations \
+    "$PROJECT_ROOT" \
+    "$INSTALL_DIR" \
+    "/usr/local/bin/elfie"
 
-remove_old_wrapper_if_same_project "$HOME/bin/elfie"
-remove_old_wrapper_if_same_project "$HOME/.local/bin/elfie"
-
-echo "✅ 已${INSTALL_ACTION} elfie 命令"
+echo "✅ 已${INSTALL_ACTION} elfienest 命令"
 echo ""
-
-# 检查 PATH
-if [ "$EUID" -ne 0 ]; then
-    configure_user_path "$INSTALL_DIR"
-fi
-
 echo "🎉 安装完成！"
 echo ""
 echo "使用方法:"
-echo "  elfie              # 进入交互式主菜单"
-echo "  elfie serve        # 启动服务"
-echo "  elfie --fallback   # 使用内置引擎启动"
-echo "  elfie config       # 配置系统"
-echo "  elfie status       # 查看状态"
-echo "  elfie --help       # 查看帮助"
+echo "  elfienest              # 进入交互式主菜单"
+echo "  elfienest serve        # 启动服务"
+echo "  elfienest --fallback   # 使用内置引擎启动"
+echo "  elfienest config       # 配置系统"
+echo "  elfienest status       # 查看状态"
+echo "  elfienest --help       # 查看帮助"
 echo ""
-
-# 创建卸载脚本
-cat > "$INSTALL_DIR/uninstall-elfie" << INNER_EOF
-#!/bin/bash
-rm -f "$INSTALL_DIR/elfie"
-rm -f "$INSTALL_DIR/uninstall-elfie"
-echo "✅ ElfieNest 已卸载"
-INNER_EOF
-
-chmod +x "$INSTALL_DIR/uninstall-elfie"

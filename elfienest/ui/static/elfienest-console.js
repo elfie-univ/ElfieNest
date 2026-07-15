@@ -1819,7 +1819,7 @@ function buildLogItems() {
     `精灵巢：${role === "admin" ? `读取到 ${rooms.length} 个房间。` : "普通用户为只读权限。"}`,
     `模型供应商：${providers.length || 1} 个供应商，${activeProviders || 1} 个可用。`,
     `模型目录：${models.length} 个模型已纳入粮食策略候选。`,
-    "完整进程日志可在本机运行 ./elfie.sh logs 查看。",
+    "完整进程日志可在本机运行 ./elfienest.sh logs 查看。",
   ];
 }
 

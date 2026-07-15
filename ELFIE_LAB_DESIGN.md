@@ -293,7 +293,7 @@ devtools/
 启动命令建议：
 
 ```bash
-python -m devtools.elfie_lab
+uv run --no-sync python -m devtools.elfie_lab
 ```
 
 启动后仅监听本地回环地址，例如：
@@ -326,17 +326,17 @@ Runtime 开发工具使用命令行即可，不新增复杂网页：
 
 ```bash
 # 隐藏输入密钥并保存某个开发模型连接
-python -m devtools.runtime_lab configure
+uv run --no-sync python -m devtools.runtime_lab configure
 
 # 查看脱敏状态
-python -m devtools.runtime_lab show
+uv run --no-sync python -m devtools.runtime_lab show
 
 # 发送固定消息测试当前连接，或测试所有已配置连接
-python -m devtools.runtime_lab test
-python -m devtools.runtime_lab test --all
+uv run --no-sync python -m devtools.runtime_lab test
+uv run --no-sync python -m devtools.runtime_lab test --all
 
 # 进入简单文字对话
-python -m devtools.runtime_lab chat
+uv run --no-sync python -m devtools.runtime_lab chat
 ```
 
 精灵调试平台与 Runtime 命令行工具共享上述“开发 Runtime 配置”，但它们都不共享正式运行配置。这样既能在配置一次后供多个开发工具使用，也不会让测试精灵、测试密钥或测试模型选择出现在真实运行环境中。

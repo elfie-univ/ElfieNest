@@ -31,7 +31,9 @@ from runtime.storage.data_home import get_db_path
 def run_setup_wizard() -> None:
     clear_screen()
     print_banner()
-    print_tui_panel("ElfieNest Setup Wizard", "首次启动前完成管理员、模型服务商与数据库初始化")
+    print_tui_panel(
+        "ElfieNest Setup Wizard", "首次启动前完成管理员、模型服务商与数据库初始化"
+    )
 
     db_path = str(get_db_path())
     init_db(db_path)
@@ -83,7 +85,7 @@ def run_setup_wizard() -> None:
     print_success_panel(
         [
             "设置完成！",
-            "启动服务: elfie",
+            "启动服务: elfienest",
             f"登录信息: {username} / {password}",
         ]
     )

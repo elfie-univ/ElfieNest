@@ -16,14 +16,15 @@
     --force         强制重启（杀死占用端口的进程）
 
 CLI 工具:
-    .venv/bin/python scripts/elfie.py config    打开配置 TUI
-    .venv/bin/python scripts/elfie.py models    列出可用模型
-    .venv/bin/python scripts/elfie.py providers 管理 providers
-    .venv/bin/python scripts/elfie.py status    查看服务状态
-    .venv/bin/python scripts/elfie.py setup     首次设置向导
-    .venv/bin/python scripts/elfie.py restart   重启服务
-    .venv/bin/python scripts/elfie.py stop      停止服务
+    .venv/bin/python scripts/elfienest.py config    打开配置 TUI
+    .venv/bin/python scripts/elfienest.py models    列出可用模型
+    .venv/bin/python scripts/elfienest.py providers 管理 providers
+    .venv/bin/python scripts/elfienest.py status    查看服务状态
+    .venv/bin/python scripts/elfienest.py setup     首次设置向导
+    .venv/bin/python scripts/elfienest.py restart   重启服务
+    .venv/bin/python scripts/elfienest.py stop      停止服务
 """
+
 import argparse
 import logging
 import os
@@ -97,13 +98,10 @@ class FallbackAgent:
             )
         if any(kw in prompt_lower for kw in ["睡", "困", "晚安"]):
             return (
-                "哈欠~~~有点困了呢..."
-                "但我还想再陪主人聊一会儿！ [ACTION]yawn[/ACTION]"
+                "哈欠~~~有点困了呢...但我还想再陪主人聊一会儿！ [ACTION]yawn[/ACTION]"
             )
         if any(kw in prompt_lower for kw in ["再见", "拜拜", "bye", "quit", "exit"]):
-            return (
-                "嗯！主人再见！随时来找我玩哦！ [ACTION]wave[/ACTION]"
-            )
+            return "嗯！主人再见！随时来找我玩哦！ [ACTION]wave[/ACTION]"
 
         replies = [
             "嗯嗯，我在听呢！继续继续说~ [ACTION]nod_head[/ACTION]",
@@ -127,9 +125,7 @@ def seed_single_elfie(db_path: str) -> bool:
         if row and row["cnt"] > 0:
             return False
 
-        cursor = conn.execute(
-            "SELECT id FROM users WHERE username = ?", ("admin",)
-        )
+        cursor = conn.execute("SELECT id FROM users WHERE username = ?", ("admin",))
         admin_row = cursor.fetchone()
         if admin_row is None:
             return False
@@ -263,12 +259,12 @@ def main():
                 print(f"  ❌ 端口 {port} ({name}) 已被占用")
             print("\n  💡 解决方法:")
             print("     1. 强制重启（自动杀死占用进程）:")
-            print("        ./dev.sh --force")
+            print("        ./elfienest.sh --force")
             print("        或")
-            print("        elfie --force")
+            print("        elfienest --force")
             print("     2. 手动关闭后重试")
             print("     3. 使用其他端口:")
-            print("        ./dev.sh --port 8001 --ws-port 8767")
+            print("        ./elfienest.sh --port 8001 --ws-port 8767")
             print("=" * 56 + "\n")
             sys.exit(1)
 
@@ -378,15 +374,12 @@ def main():
         from elfie import ElfieIndividual  # noqa: PLC0415
 
         with get_db(db_path) as conn:
-            cursor = conn.execute(
-                "SELECT COUNT(*) AS cnt FROM elfie_registry"
-            )
+            cursor = conn.execute("SELECT COUNT(*) AS cnt FROM elfie_registry")
             count_row = cursor.fetchone()
             existing_count = count_row["cnt"] if count_row else 0
 
             cursor = conn.execute(
-                "SELECT elfie_id, config_dir, anatomy_type, name "
-                "FROM elfie_registry"
+                "SELECT elfie_id, config_dir, anatomy_type, name FROM elfie_registry"
             )
             rows = cursor.fetchall()
 
@@ -434,9 +427,7 @@ def main():
     print()
 
     # 6. 创建 FastAPI app 并启动 uvicorn（阻塞主线程）
-    app = create_app(
-        engine=engine, db_path=db_path, ws_port=args.ws_port
-    )
+    app = create_app(engine=engine, db_path=db_path, ws_port=args.ws_port)
 
     import uvicorn  # noqa: PLC0415
 

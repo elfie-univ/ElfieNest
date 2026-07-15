@@ -32,7 +32,7 @@ def config_providers(config: UserConfig, provider_login: ProviderLogin) -> None:
             print(f"    {status_icon} {row.name}")
         print()
 
-        print("  1. 配置服务商 (使用 elfie login)")
+        print("  1. 配置服务商 (使用 elfienest login)")
         print("  2. 测试服务商连通性")
         print("  3. 查看所有服务商")
         print("  0. 返回")

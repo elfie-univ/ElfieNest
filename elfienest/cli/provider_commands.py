@@ -56,7 +56,7 @@ def login_provider(provider_id: str) -> None:
     if result["status"] != "active":
         error = result.get("error", "未知错误")
         print(f"  ⚠️  连通性验证失败: {error}")
-        print("  配置仍会保存，你可以稍后用 elfie providers test 再测试。\n")
+        print("  配置仍会保存，你可以稍后用 elfienest providers test 再测试。\n")
     else:
         latency = result.get("latency_ms", 0)
         print(f"  ✅ 连通性验证成功！延迟: {latency:.0f}ms\n")
@@ -120,7 +120,9 @@ def _prompt_custom_openai_login() -> ProviderLoginInput | None:
     )
 
 
-def _prompt_builtin_provider_login(profile: ProviderProfile) -> ProviderLoginInput | None:
+def _prompt_builtin_provider_login(
+    profile: ProviderProfile,
+) -> ProviderLoginInput | None:
     api_key = ""
     if profile.api_key_env_var:
         api_key = input_password("  API Key") or ""

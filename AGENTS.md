@@ -5,8 +5,14 @@ An embodied AI creature simulation with a three-layer brain architecture, emotio
 ## Quick Start
 
 ```bash
-# Run the main simulation (3 ticks)
-python main.py
+# Prepare the pinned Python 3.9.25 environment and install the CLI
+./install.sh
+
+# Verify the unified ElfieNest entrypoint
+elfienest version
+
+# Run the main simulation (3 ticks) through the pinned environment
+.venv/bin/python main.py
 ```
 
 The simulation runs without external dependencies - if Ollama is unavailable, it gracefully falls back to a built-in lightweight simulator.
@@ -53,15 +59,21 @@ ElfieNest/
 
 ## Running Tests
 
+首次运行测试前，先按锁文件安装 CPython `3.9.25` 和开发依赖：
+
 ```bash
-# Run all tests
-python -m pytest test/
+uv sync --locked --extra dev
+```
+
+```bash
+# Run all tests in the locked Python 3.9.25 environment
+uv run --no-sync pytest test/
 
 # Run specific test file
-python -m pytest test/elfie/brain/emotion/test_emotion_system.py
+uv run --no-sync pytest test/elfie/brain/emotion/test_emotion_system.py
 
 # Run with verbose output
-python -m pytest test/ -v
+uv run --no-sync pytest test/ -v
 ```
 
 Tests require no external services - they use mock agents.
@@ -175,12 +187,12 @@ api_key: ${OPENAI_API_KEY}  # 从环境变量注入
 
 ```python
 # ❌ 错误：明文硬编码
-api_key = "sk-xxxxxxxxxxxxxxxxxxxxxxxx"
+api_key = "<never-hardcode-api-key>"
 ```
 
 ```yaml
 # ❌ 错误：明文写在配置文件中
-api_key: pk-5aefbf35-0a22-4485-9b1b-f2cac89f7c1b
+api_key: <never-hardcode-api-key>
 ```
 
 ## Notes

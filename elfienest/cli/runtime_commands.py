@@ -86,7 +86,7 @@ def _print_web_start_failure(process: subprocess.Popen[str]) -> None:
         print(f"  ❌ 服务启动失败 (退出码 {returncode})")
     print(f"  📝 启动日志: {WEB_LOG_PATH}")
     _print_recent_web_log()
-    print("  💡 请运行 ./elfie.sh serve --force 查看完整错误")
+    print("  💡 请运行 ./elfienest.sh serve --force 查看完整错误")
     print()
 
 
@@ -250,8 +250,8 @@ def reset_db() -> None:
 
 def show_db() -> None:
     print("  可用命令:")
-    print("    elfie db backup  - 备份数据库")
-    print("    elfie db reset   - 重置数据库")
+    print("    elfienest db backup  - 备份数据库")
+    print("    elfienest db reset   - 重置数据库")
     print()
 
     try:
