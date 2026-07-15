@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Final
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -35,6 +35,7 @@ _RUNTIME_CONFIG_PATH: Path = get_config_path()
 # ---------------------------------------------------------------------------
 
 VALID_SECTIONS = frozenset({"llm", "adoption", "engine", "security"})
+MAX_ELFIES_PER_MACHINE: Final = 32
 
 # ---------------------------------------------------------------------------
 # 各 section 字段类型期望（用于 PUT 校验）
@@ -175,9 +176,10 @@ def _validate_range(section: str, data: Dict[str, Any]) -> None:
 
     elif section == "adoption":
         if "max_elfies_per_user" in data:
-            if data["max_elfies_per_user"] < 1:
+            if not 1 <= data["max_elfies_per_user"] <= MAX_ELFIES_PER_MACHINE:
                 raise HTTPException(
-                    422, detail="max_elfies_per_user 应 ≥ 1"
+                    422,
+                    detail=f"max_elfies_per_user 应在 1 ~ {MAX_ELFIES_PER_MACHINE} 之间",
                 )
         if "allowed_anatomy_types" in data:
             valid_types = {"biped", "quadruped"}
@@ -195,9 +197,13 @@ def _validate_range(section: str, data: Dict[str, Any]) -> None:
                 raise HTTPException(422, detail="tick_interval_sec 应 > 0")
         if "max_elfies_per_room" in data:
             v = data["max_elfies_per_room"]
-            if v is not None and v < 1:
+            if v is not None and not 1 <= v <= MAX_ELFIES_PER_MACHINE:
                 raise HTTPException(
-                    422, detail="max_elfies_per_room 应 ≥ 1 或 null"
+                    422,
+                    detail=(
+                        "max_elfies_per_room 应为 null 或在 "
+                        f"1 ~ {MAX_ELFIES_PER_MACHINE} 之间"
+                    ),
                 )
 
     elif section == "security":

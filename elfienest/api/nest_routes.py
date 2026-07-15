@@ -133,10 +133,16 @@ def _default_room_id(db_path: str) -> int:
 
 
 def _bed_count_from_body(body: Dict[str, Any]) -> int:
+    return _bounded_bed_count(body.get("bed_count", DEFAULT_BED_COUNT), "bed_count")
+
+
+def _bounded_bed_count(value: Any, field_name: str) -> int:
     try:
-        return int(body.get("bed_count", DEFAULT_BED_COUNT))
+        requested_count = int(value)
     except (TypeError, ValueError) as exc:
-        raise HTTPException(status_code=422, detail="bed_count must be an integer") from exc
+        raise HTTPException(status_code=422, detail=f"{field_name} must be an integer") from exc
+    return max(DEFAULT_BED_COUNT, min(MAX_BED_COUNT, requested_count))
+
 
 @router.get("/rooms")
 async def get_rooms(
@@ -164,7 +170,9 @@ async def create_room(
 ) -> Dict[str, Any]:
     """创建一个新房间。"""
     name = body.get("name", "New Room")
-    max_capacity = body.get("max_capacity", 4)
+    max_capacity = _bounded_bed_count(
+        body.get("max_capacity", DEFAULT_BED_COUNT), "max_capacity"
+    )
     with get_db(request.app.state.db_path) as conn:
         cursor = conn.execute(
             "INSERT INTO rooms (name, max_capacity) VALUES (?, ?)",

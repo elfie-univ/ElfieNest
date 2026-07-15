@@ -439,8 +439,9 @@ function updateProfileHeader(user) {
 function systemPayload(section, form) {
   const data = new FormData(form);
   if (section === "adoption") {
+    const maxPerUser = Number(data.get("max_elfies_per_user") || 3);
     return {
-      max_elfies_per_user: Number(data.get("max_elfies_per_user") || 3),
+      max_elfies_per_user: Math.max(1, Math.min(32, maxPerUser)),
       default_personality_style: String(data.get("default_personality_style") || "活泼好动").trim(),
       allowed_personality_styles: String(data.get("allowed_personality_styles") || "")
         .split(",")
@@ -453,7 +454,7 @@ function systemPayload(section, form) {
     return {
       tick_interval_sec: Number(data.get("tick_interval_sec") || 1.5),
       tts_enabled: data.get("tts_enabled") === "on",
-      max_elfies_per_room: maxRoom ? Number(maxRoom) : null,
+      max_elfies_per_room: maxRoom ? Math.max(1, Math.min(32, Number(maxRoom))) : null,
     };
   }
   return {
@@ -1767,7 +1768,7 @@ function renderSystemConfig() {
     adoptionPanel.innerHTML = `
       <h3>领养策略</h3>
       <form class="config-grid system-config-form" data-system-section="adoption">
-        <label class="form-row"><span>每用户上限</span><input name="max_elfies_per_user" type="number" min="1" max="99" value="${escapeHtml(adoption.max_elfies_per_user || 3)}" /></label>
+        <label class="form-row"><span>每用户上限</span><input name="max_elfies_per_user" type="number" min="1" max="32" value="${escapeHtml(adoption.max_elfies_per_user || 3)}" /></label>
         <label class="form-row"><span>默认性格</span><input name="default_personality_style" type="text" value="${escapeHtml(adoption.default_personality_style || "活泼好动")}" /></label>
         <label class="form-row"><span>可选性格（逗号分隔）</span><input name="allowed_personality_styles" type="text" value="${escapeHtml(styles.join(", "))}" /></label>
         <p class="form-message" data-system-message="adoption"></p>
@@ -1781,7 +1782,7 @@ function renderSystemConfig() {
       <form class="config-grid system-config-form" data-system-section="engine">
         <label class="form-row"><span>Tick 间隔（秒）</span><input name="tick_interval_sec" type="number" min="0.2" max="60" step="0.1" value="${escapeHtml(engine.tick_interval_sec ?? 1.5)}" /></label>
         <label class="check-row"><input name="tts_enabled" type="checkbox" ${engine.tts_enabled === false ? "" : "checked"} /><span>TTS 语音开启</span></label>
-        <label class="form-row"><span>房间容量</span><input name="max_elfies_per_room" type="number" min="1" max="99" value="${escapeHtml(engine.max_elfies_per_room || "")}" placeholder="不限" /></label>
+        <label class="form-row"><span>房间容量</span><input name="max_elfies_per_room" type="number" min="1" max="32" value="${escapeHtml(engine.max_elfies_per_room || "")}" placeholder="不限" /></label>
         <p class="form-message" data-system-message="engine"></p>
         <button class="primary-button full" type="submit">保存引擎设置</button>
       </form>

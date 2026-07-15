@@ -118,6 +118,23 @@ def test_bed_count_clamps_to_maximum_thirty_two(client: TestClient) -> None:
     assert len(rooms[0]["beds"]) == 32
 
 
+def test_create_room_clamps_capacity_to_maximum_thirty_two(client: TestClient) -> None:
+    tokens = _login_admin(client)
+    headers = _headers(tokens["csrf_token"])
+
+    resp = client.post(
+        "/api/admin/nest/rooms",
+        json={"name": "Oversized Nest", "max_capacity": 64},
+        headers=headers,
+    )
+    rooms = client.get("/api/admin/nest/rooms", headers=headers).json()
+    created_room = next(room for room in rooms if room["id"] == resp.json()["id"])
+
+    assert resp.status_code == 200
+    assert resp.json()["max_capacity"] == 32
+    assert len(created_room["beds"]) == 32
+
+
 def test_bed_count_persists_after_reloading_rooms(client: TestClient) -> None:
     tokens = _login_admin(client)
     headers = _headers(tokens["csrf_token"])

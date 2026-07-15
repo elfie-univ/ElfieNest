@@ -336,6 +336,26 @@ class TestPutErrors:
         )
         assert resp.status_code == 422
 
+    def test_max_elfies_per_user_gt_32_422(self, client: TestClient) -> None:
+        """单台机器最多培养 32 只精灵。"""
+        tokens = _login_admin(client)
+        resp = client.put(
+            "/api/admin/system/adoption",
+            json={"max_elfies_per_user": 33},
+            headers=_headers(tokens["csrf_token"]),
+        )
+        assert resp.status_code == 422
+
+    def test_max_elfies_per_room_gt_32_422(self, client: TestClient) -> None:
+        """房间容量不能超过单台机器的 32 只上限。"""
+        tokens = _login_admin(client)
+        resp = client.put(
+            "/api/admin/system/engine",
+            json={"max_elfies_per_room": 33},
+            headers=_headers(tokens["csrf_token"]),
+        )
+        assert resp.status_code == 422
+
     def test_tick_interval_zero_422(self, client: TestClient) -> None:
         """PUT tick_interval_sec=0 → 422。"""
         tokens = _login_admin(client)
