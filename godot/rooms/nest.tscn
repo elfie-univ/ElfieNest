@@ -1,13 +1,14 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://rooms/nest.gd" id="1_nest"]
+[ext_resource type="PackedScene" path="res://ui/observation_hud.tscn" id="2_hud"]
 
 [sub_resource type="Environment" id="Environment_demo"]
 background_mode = 1
 background_color = Color(0.72, 0.78, 0.81, 1)
 ambient_light_source = 3
 ambient_light_color = Color(0.94, 0.94, 0.94, 1)
-ambient_light_energy = 0.12
+ambient_light_energy = 0.24
 reflected_light_source = 2
 tonemap_mode = 2
 
@@ -24,22 +25,16 @@ bed_count = 32
 environment = SubResource("Environment_demo")
 camera_attributes = SubResource("CameraAttributes_demo")
 
-[node name="Sun" type="DirectionalLight3D" parent="."]
-rotation_degrees = Vector3(-58, -32, 0)
+[node name="CeilingFill" type="DirectionalLight3D" parent="."]
+position = Vector3(0, 18, -21)
+rotation_degrees = Vector3(-90, 0, 0)
 light_color = Color(1, 1, 1, 1)
-light_energy = 0.38
-shadow_enabled = true
-shadow_bias = 0.8
-shadow_normal_bias = 8.0
-directional_shadow_max_distance = 70.0
-
-[node name="FillLight" type="DirectionalLight3D" parent="."]
-rotation_degrees = Vector3(-48, 142, 0)
-light_color = Color(1, 1, 1, 1)
-light_energy = 0.04
+light_energy = 0.1
 shadow_enabled = false
 
 [node name="Camera3D" type="Camera3D" parent="."]
 projection = 1
 size = 29.0
 current = true
+
+[node name="ObservationHUD" parent="." instance=ExtResource("2_hud")]

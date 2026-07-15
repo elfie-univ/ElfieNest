@@ -1,0 +1,70 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://ui/observation_hud.gd" id="1_hud"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_panel"]
+content_margin_left = 10.0
+content_margin_top = 8.0
+content_margin_right = 10.0
+content_margin_bottom = 8.0
+bg_color = Color(0.07, 0.085, 0.095, 0.92)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.32, 0.37, 0.39, 0.75)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[node name="ObservationHUD" type="CanvasLayer"]
+layer = 20
+script = ExtResource("1_hud")
+
+[node name="Margin" type="MarginContainer" parent="."]
+offset_left = 16.0
+offset_top = 16.0
+offset_right = 476.0
+offset_bottom = 70.0
+
+[node name="Panel" type="PanelContainer" parent="Margin"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBox_panel")
+
+[node name="Controls" type="HBoxContainer" parent="Margin/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ViewLabel" type="Label" parent="Margin/Panel/Controls"]
+layout_mode = 2
+text = "观察视角"
+vertical_alignment = 1
+
+[node name="OverviewButton" type="Button" parent="Margin/Panel/Controls"]
+custom_minimum_size = Vector2(52, 34)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "切换到整体俯视"
+text = "总览"
+
+[node name="PreviousButton" type="Button" parent="Margin/Panel/Controls"]
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "上一个视角"
+text = "<"
+
+[node name="CameraSelector" type="OptionButton" parent="Margin/Panel/Controls"]
+custom_minimum_size = Vector2(220, 34)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+tooltip_text = "选择观察房间"
+
+[node name="NextButton" type="Button" parent="Margin/Panel/Controls"]
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "下一个视角"
+text = ">"

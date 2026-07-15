@@ -9,21 +9,38 @@ const ACTIVITY_ROOM_SCENE := preload("res://rooms/activity_room.tscn")
 const DORM_ROOM_SCENE := preload("res://rooms/dorm_room.tscn")
 const PORTAL_ROOM_SCENE := preload("res://rooms/portal_room.tscn")
 const MURAL_TEXTURE := preload("res://rooms/assets/artwork/gallery/img1.jpg")
-const CAMERA_START_OFFSET := Vector3(12.5, 24.5, 16.0)
 const CAMERA_ORBIT_SPEED: float = 0.008
 const CAMERA_MIN_PITCH: float = deg_to_rad(12.0)
 const CAMERA_MAX_PITCH: float = deg_to_rad(82.0)
 const CAMERA_MIN_SIZE: float = 5.0
 const CAMERA_MAX_SIZE: float = 120.0
 const CAMERA_BOUNDS_MARGIN: float = 2.0
+const ROOM_CAMERA_FOV: float = 92.0
+const PORTAL_CAMERA_FOV: float = 90.0
+const CORRIDOR_LIGHT_ENERGY: float = 0.3
+const SECTION_ROOM_SPAN: int = 4
+const OVERVIEW_MARGIN: float = 1.2
+const PORTAL_ROOM_LENGTH: float = 3.0
+const TOP_DOWN_MIN_HEIGHT: float = 18.0
+const ACTIVITY_VIEW_LABELS := [
+	"厨房",
+	"会客厅",
+	"影音室",
+	"健身房",
+	"花园",
+	"工作室",
+	"音乐室",
+	"图书室",
+]
 
-@export_range(1, 80, 1) var bed_count: int = 16:
+@export_range(1, 32, 1) var bed_count: int = 16:
 	set(value):
-		bed_count = clampi(value, 1, 80)
+		bed_count = clampi(value, 1, D.MAX_BED_COUNT)
 		if is_inside_tree():
 			call_deferred("rebuild")
 
 @export var activity_group_ids := PackedInt32Array([0, 0, 1, 2])
+@export var show_observation_hud: bool = true
 
 @export var regenerate_editor_preview: bool = false:
 	set(value):
@@ -36,22 +53,29 @@ var _camera_target := Vector3.ZERO
 var _camera_default_target := Vector3.ZERO
 var _camera_yaw: float = 0.0
 var _camera_pitch: float = 0.0
-var _camera_distance: float = CAMERA_START_OFFSET.length()
-var _camera_default_distance: float = CAMERA_START_OFFSET.length()
+var _camera_distance: float = TOP_DOWN_MIN_HEIGHT
+var _camera_default_distance: float = TOP_DOWN_MIN_HEIGHT
 var _camera_default_size: float = 22.0
+var _camera_views: Array[Dictionary] = []
+var _active_camera_index: int = 0
+
+@onready var _observation_hud: CanvasLayer = $ObservationHUD
 
 
 func _ready() -> void:
 	if Engine.is_editor_hint():
+		_observation_hud.visible = false
 		rebuild()
 	else:
+		_observation_hud.visible = show_observation_hud
+		_observation_hud.connect("view_selected", select_observation_view)
 		call_deferred("rebuild")
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if Engine.is_editor_hint():
 		return
-	var camera := get_node_or_null("Camera3D") as Camera3D
+	var camera := _active_camera()
 	if camera == null:
 		return
 	if event is InputEventMouseMotion:
@@ -71,8 +95,15 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 		elif mouse_motion.button_mask & MOUSE_BUTTON_MASK_RIGHT:
 			var viewport_height := maxf(get_viewport().get_visible_rect().size.y, 1.0)
-			var pan_scale := camera.size / viewport_height
-			var camera_basis := camera.transform.basis
+			var visible_height := camera.size
+			if camera.projection == Camera3D.PROJECTION_PERSPECTIVE:
+				visible_height = (
+					2.0
+					* _camera_distance
+					* tan(deg_to_rad(camera.fov / 2.0))
+				)
+			var pan_scale := visible_height / viewport_height
+			var camera_basis := camera.global_transform.basis
 			_camera_target += (
 				-camera_basis.x * mouse_motion.relative.x
 				+ camera_basis.y * mouse_motion.relative.y
@@ -84,22 +115,42 @@ func _unhandled_input(event: InputEvent) -> void:
 		if not mouse_button.pressed:
 			return
 		if mouse_button.button_index == MOUSE_BUTTON_WHEEL_UP:
-			camera.size = clampf(camera.size * 0.9, CAMERA_MIN_SIZE, CAMERA_MAX_SIZE)
+			if camera.projection == Camera3D.PROJECTION_PERSPECTIVE:
+				camera.fov = clampf(camera.fov * 0.9, 30.0, 100.0)
+			else:
+				camera.size = clampf(camera.size * 0.9, CAMERA_MIN_SIZE, CAMERA_MAX_SIZE)
 			get_viewport().set_input_as_handled()
 		elif mouse_button.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			camera.size = clampf(camera.size / 0.9, CAMERA_MIN_SIZE, CAMERA_MAX_SIZE)
+			if camera.projection == Camera3D.PROJECTION_PERSPECTIVE:
+				camera.fov = clampf(camera.fov / 0.9, 30.0, 100.0)
+			else:
+				camera.size = clampf(camera.size / 0.9, CAMERA_MIN_SIZE, CAMERA_MAX_SIZE)
 			get_viewport().set_input_as_handled()
 	elif event is InputEventKey:
 		var key_event := event as InputEventKey
-		if key_event.pressed and not key_event.echo and key_event.keycode in [KEY_R, KEY_HOME]:
-			_reset_camera()
-			get_viewport().set_input_as_handled()
+		if key_event.pressed and not key_event.echo:
+			if key_event.keycode in [KEY_R, KEY_HOME]:
+				_reset_camera()
+				get_viewport().set_input_as_handled()
+			elif key_event.keycode == KEY_0:
+				select_observation_view(0)
+				get_viewport().set_input_as_handled()
+			elif key_event.keycode == KEY_PAGEUP:
+				_cycle_observation_view(-1)
+				get_viewport().set_input_as_handled()
+			elif key_event.keycode == KEY_PAGEDOWN:
+				_cycle_observation_view(1)
+				get_viewport().set_input_as_handled()
 
 
 func rebuild() -> void:
 	if _rebuilding:
 		return
 	_rebuilding = true
+	var overview_camera := get_node_or_null("Camera3D") as Camera3D
+	if overview_camera != null:
+		overview_camera.current = true
+	_camera_views.clear()
 	var previous := get_node_or_null("Generated")
 	if previous != null:
 		remove_child(previous)
@@ -111,12 +162,14 @@ func rebuild() -> void:
 	var room_count := D.room_count_for_beds(bed_count)
 	var themes := _themes_for_rooms(room_count)
 	_build_floors(generated, room_count)
+	_build_corridor_lights(generated, room_count)
 	_build_rooms(generated, room_count, themes)
 	_build_activity_boundaries(generated, room_count, themes)
 	_build_dorm_boundaries(generated, room_count)
 	_build_end_wall(generated, room_count)
 	_build_portal_room(generated)
 	_update_camera(room_count)
+	_build_observation_views(generated, room_count)
 	_rebuilding = false
 
 
@@ -194,6 +247,21 @@ func _add_corridor_bay(parent: Node3D, index: int, center_z: float, decor_top_y:
 		0.0,
 		0.34
 	)
+
+
+func _build_corridor_lights(parent: Node3D, room_count: int) -> void:
+	var lights := Node3D.new()
+	lights.name = "CorridorLights"
+	parent.add_child(lights)
+	for index in range(room_count):
+		var light := OmniLight3D.new()
+		light.name = "CorridorLight_%02d" % (index + 1)
+		light.position = Vector3(0.0, 2.55, D.cell_center_z(index))
+		light.light_color = Color.WHITE
+		light.light_energy = CORRIDOR_LIGHT_ENERGY
+		light.omni_range = 3.8
+		light.shadow_enabled = false
+		lights.add_child(light)
 
 
 func _build_rooms(parent: Node3D, room_count: int, themes: Array[Color]) -> void:
@@ -293,6 +361,197 @@ func _build_portal_room(parent: Node3D) -> void:
 	portal_room.build()
 
 
+func _build_observation_views(generated: Node3D, room_count: int) -> void:
+	var previous_index := _active_camera_index
+	_camera_views.clear()
+	var overview := get_node_or_null("Camera3D") as Camera3D
+	if overview == null:
+		return
+	_register_observation_view("整体总览", overview, _camera_default_target)
+	_build_section_observation_views(generated, room_count)
+
+	for index in range(room_count):
+		var activity := generated.get_node("ActivityRoom_%02d" % (index + 1)) as Node3D
+		var activity_label := String(
+			ACTIVITY_VIEW_LABELS[index % ACTIVITY_VIEW_LABELS.size()]
+		)
+		_attach_room_camera(
+			activity,
+			"ActivityObservationCamera",
+			"%02d %s" % [index + 1, activity_label],
+			activity.position + Vector3(0.0, 0.65, 0.0),
+			ROOM_CAMERA_FOV
+		)
+
+		var dorm := generated.get_node("DormRoom_%02d" % (index + 1)) as Node3D
+		_attach_room_camera(
+			dorm,
+			"DormObservationCamera",
+			"%02d 宿舍" % (index + 1),
+			dorm.position + Vector3(0.0, 0.65, 0.0),
+			ROOM_CAMERA_FOV
+		)
+
+	var portal := generated.get_node("PortalRoom") as Node3D
+	_attach_room_camera(
+		portal,
+		"PortalObservationCamera",
+		"传送室",
+		Vector3(0.0, 0.65, 1.5),
+		PORTAL_CAMERA_FOV
+	)
+
+	var labels := PackedStringArray()
+	for view in _camera_views:
+		labels.append(String(view["label"]))
+	_active_camera_index = clampi(previous_index, 0, _camera_views.size() - 1)
+	_observation_hud.call("set_views", labels, _active_camera_index)
+	select_observation_view(_active_camera_index)
+
+
+func _build_section_observation_views(generated: Node3D, room_count: int) -> void:
+	var cameras := Node3D.new()
+	cameras.name = "SectionObservationCameras"
+	generated.add_child(cameras)
+	if room_count <= SECTION_ROOM_SPAN:
+		return
+	var section_count := ceili(float(room_count) / float(SECTION_ROOM_SPAN))
+	for section_index in range(section_count):
+		var first_room := section_index * SECTION_ROOM_SPAN
+		var last_room := mini(first_room + SECTION_ROOM_SPAN - 1, room_count - 1)
+		var first_z := D.cell_center_z(first_room)
+		var last_z := D.cell_center_z(last_room)
+		var target := Vector3(_building_center_x(), 0.55, (first_z + last_z) / 2.0)
+		var covered_length := float(last_room - first_room + 1) * D.CELL_PITCH
+		var camera := Camera3D.new()
+		camera.name = "SectionOverviewCamera_%02d" % (section_index + 1)
+		camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+		camera.size = _top_down_size(covered_length)
+		camera.near = 0.05
+		camera.far = 200.0
+		camera.current = false
+		cameras.add_child(camera)
+		_set_top_down_transform(camera, target, TOP_DOWN_MIN_HEIGHT)
+		_register_observation_view(
+			"区域俯视 %02d-%02d" % [first_room + 1, last_room + 1],
+			camera,
+			target
+		)
+
+
+func _attach_room_camera(
+	room: Node3D,
+	camera_name: String,
+	label: String,
+	target: Vector3,
+	fov: float
+) -> void:
+	var anchor := room.get_node_or_null("Generated/CameraAnchor") as Marker3D
+	if anchor == null:
+		push_warning("Observation camera anchor missing in %s" % room.name)
+		return
+	var camera := Camera3D.new()
+	camera.name = camera_name
+	camera.projection = Camera3D.PROJECTION_PERSPECTIVE
+	camera.fov = fov
+	camera.near = 0.05
+	camera.far = 200.0
+	camera.current = false
+	anchor.add_child(camera)
+	anchor.force_update_transform()
+	_register_observation_view(label, camera, target)
+
+
+func _register_observation_view(label: String, camera: Camera3D, target: Vector3) -> void:
+	_camera_views.append({
+		"label": label,
+		"camera": camera,
+		"target": target,
+		"transform": camera.global_transform,
+		"size": camera.size,
+		"fov": camera.fov,
+	})
+
+
+func observation_view_count() -> int:
+	return _camera_views.size()
+
+
+func observation_view_labels() -> PackedStringArray:
+	var labels := PackedStringArray()
+	for view in _camera_views:
+		labels.append(String(view["label"]))
+	return labels
+
+
+func select_observation_view(index: int) -> void:
+	if index < 0 or index >= _camera_views.size():
+		return
+	_active_camera_index = index
+	var view := _camera_views[index]
+	var camera := view["camera"] as Camera3D
+	camera.current = true
+	_camera_target = view["target"] as Vector3
+	camera.global_transform = view["transform"] as Transform3D
+	camera.size = float(view["size"])
+	camera.fov = float(view["fov"])
+	_sync_orbit_state(camera)
+	_observation_hud.call("set_selected_view", index)
+
+
+func _cycle_observation_view(direction: int) -> void:
+	if _camera_views.is_empty():
+		return
+	select_observation_view(posmod(_active_camera_index + direction, _camera_views.size()))
+
+
+func _active_camera() -> Camera3D:
+	if _camera_views.is_empty():
+		return get_node_or_null("Camera3D") as Camera3D
+	return _camera_views[_active_camera_index]["camera"] as Camera3D
+
+
+func _sync_orbit_state(camera: Camera3D) -> void:
+	var local_camera_position := to_local(camera.global_position)
+	var offset := local_camera_position - _camera_target
+	_camera_distance = maxf(offset.length(), 0.001)
+	_camera_yaw = atan2(offset.x, offset.z)
+	_camera_pitch = asin(clampf(offset.y / _camera_distance, -1.0, 1.0))
+
+
+func _building_center_x() -> float:
+	return (D.ACTIVITY_OUTER_X + D.DORM_OUTER_X) / 2.0
+
+
+func _building_width() -> float:
+	return D.DORM_OUTER_X - D.ACTIVITY_OUTER_X
+
+
+func _viewport_aspect() -> float:
+	var viewport_size := get_viewport().get_visible_rect().size
+	if viewport_size.x < 1.0 or viewport_size.y < 1.0:
+		return 16.0 / 9.0
+	return maxf(viewport_size.x / maxf(viewport_size.y, 1.0), 0.1)
+
+
+func _top_down_size(covered_length: float) -> float:
+	return clampf(
+		maxf(
+			_building_width() + OVERVIEW_MARGIN * 2.0,
+			covered_length / _viewport_aspect() + OVERVIEW_MARGIN * 2.0
+		),
+		CAMERA_MIN_SIZE,
+		CAMERA_MAX_SIZE
+	)
+
+
+func _set_top_down_transform(
+	camera: Camera3D, target: Vector3, height: float
+) -> void:
+	camera.global_position = to_global(target + Vector3(0.0, height, 0.0))
+	camera.look_at(to_global(target), -global_transform.basis.x.normalized())
+
+
 func _activity_group(index: int) -> int:
 	if index < activity_group_ids.size():
 		return activity_group_ids[index]
@@ -311,18 +570,19 @@ func _update_camera(room_count: int) -> void:
 	if camera == null:
 		return
 	var building_length := float(room_count) * D.CELL_PITCH
-	_camera_default_target = Vector3(0.35, 0.55, (-building_length + 3.0) / 2.0)
-	_camera_default_size = clampf(
-		maxf(22.0, building_length + 4.0),
-		CAMERA_MIN_SIZE,
-		CAMERA_MAX_SIZE
+	var overview_length := building_length + PORTAL_ROOM_LENGTH
+	_camera_default_target = Vector3(
+		_building_center_x(),
+		0.55,
+		(-building_length + PORTAL_ROOM_LENGTH) / 2.0
 	)
+	_camera_default_size = _top_down_size(overview_length)
 	var half_width := maxf(
 		absf(D.ACTIVITY_OUTER_X - _camera_default_target.x),
 		absf(D.DORM_OUTER_X - _camera_default_target.x)
 	)
 	var half_length := maxf(
-		absf(_camera_default_target.z),
+		absf(PORTAL_ROOM_LENGTH - _camera_default_target.z),
 		absf(-building_length - _camera_default_target.z)
 	)
 	var half_height := maxf(
@@ -331,22 +591,27 @@ func _update_camera(room_count: int) -> void:
 	)
 	var building_radius := Vector3(half_width, half_height, half_length).length()
 	_camera_default_distance = maxf(
-		CAMERA_START_OFFSET.length(),
+		TOP_DOWN_MIN_HEIGHT,
 		building_radius + CAMERA_BOUNDS_MARGIN
 	)
-	_reset_camera()
+	_camera_target = _camera_default_target
+	_camera_distance = _camera_default_distance
+	_camera_yaw = 0.0
+	_camera_pitch = PI / 2.0
+	camera.size = _camera_default_size
+	_set_top_down_transform(camera, _camera_target, _camera_distance)
 
 
 func _reset_camera() -> void:
-	var camera := get_node_or_null("Camera3D") as Camera3D
-	if camera == null:
+	if _camera_views.is_empty():
 		return
-	_camera_target = _camera_default_target
-	_camera_distance = _camera_default_distance
-	_camera_yaw = atan2(CAMERA_START_OFFSET.x, CAMERA_START_OFFSET.z)
-	_camera_pitch = asin(CAMERA_START_OFFSET.y / _camera_distance)
-	camera.size = _camera_default_size
-	_apply_camera_transform(camera)
+	var view := _camera_views[_active_camera_index]
+	var camera := view["camera"] as Camera3D
+	_camera_target = view["target"] as Vector3
+	camera.global_transform = view["transform"] as Transform3D
+	camera.size = float(view["size"])
+	camera.fov = float(view["fov"])
+	_sync_orbit_state(camera)
 
 
 func _apply_camera_transform(camera: Camera3D) -> void:
@@ -356,5 +621,10 @@ func _apply_camera_transform(camera: Camera3D) -> void:
 		sin(_camera_pitch) * _camera_distance,
 		cos(_camera_yaw) * horizontal_scale
 	)
-	camera.position = _camera_target + offset
-	camera.look_at(to_global(_camera_target), global_transform.basis.y.normalized())
+	camera.global_position = to_global(_camera_target + offset)
+	var target_position := to_global(_camera_target)
+	var view_direction := (target_position - camera.global_position).normalized()
+	var camera_up := global_transform.basis.y.normalized()
+	if absf(view_direction.dot(camera_up)) > 0.98:
+		camera_up = -global_transform.basis.x.normalized()
+	camera.look_at(target_position, camera_up)

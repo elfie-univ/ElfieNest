@@ -312,12 +312,14 @@ func _test_partial_dorm_and_eight_room_activity_boundaries() -> bool:
 		return false
 	if not _require(_count_named_children(demo_generated, "DormRoom_") == 8, "Editor demo does not preview eight dorm rooms"):
 		return false
-	var fill_light := demo_nest.get_node("FillLight") as DirectionalLight3D
+	var fill_light := demo_nest.get_node("CeilingFill") as DirectionalLight3D
 	var fill_color := fill_light.light_color
 	if not _require(
 		maxf(fill_color.r, maxf(fill_color.g, fill_color.b)) - minf(fill_color.r, minf(fill_color.g, fill_color.b)) <= 0.1,
 		"Colored global fill light still makes identical dorm walls appear as different colors"
 	):
+		return false
+	if not _require(not fill_light.shadow_enabled, "Ceiling fill should not add global room shadows"):
 		return false
 	demo_nest.free()
 

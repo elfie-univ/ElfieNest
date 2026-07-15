@@ -100,6 +100,24 @@ def test_bed_count_supports_four_bed_groups_beyond_twelve(client: TestClient) ->
     assert rooms[0]["beds"][-1]["name"] == "Bed 16"
 
 
+def test_bed_count_clamps_to_maximum_thirty_two(client: TestClient) -> None:
+    tokens = _login_admin(client)
+    headers = _headers(tokens["csrf_token"])
+    room = client.get("/api/admin/nest/rooms", headers=headers).json()[0]
+
+    resp = client.put(
+        f"/api/admin/nest/rooms/{room['id']}/bed-count",
+        json={"bed_count": 64},
+        headers=headers,
+    )
+    rooms = client.get("/api/admin/nest/rooms", headers=headers).json()
+
+    assert resp.status_code == 200
+    assert resp.json()["requested_count"] == 32
+    assert resp.json()["bed_count"] == 32
+    assert len(rooms[0]["beds"]) == 32
+
+
 def test_bed_count_persists_after_reloading_rooms(client: TestClient) -> None:
     tokens = _login_admin(client)
     headers = _headers(tokens["csrf_token"])

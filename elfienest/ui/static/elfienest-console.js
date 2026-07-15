@@ -2207,7 +2207,7 @@ if (roomLayoutForm) {
     event.preventDefault();
     const bedCountInput = byId("room-bed-count");
     const submitButton = roomLayoutForm.querySelector("button[type='submit']");
-    const requestedBedCount = Math.max(4, Math.min(64, Number(bedCountInput?.value || 4)));
+    const requestedBedCount = Math.max(4, Math.min(32, Number(bedCountInput?.value || 4)));
     let savedBedCount = null;
     if (bedCountInput) bedCountInput.value = String(requestedBedCount);
     roomBedCountSaving = true;

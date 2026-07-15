@@ -59,9 +59,11 @@ func build(room_index: int, occupied_bed_count: int = 4) -> void:
 	_build_interior_light()
 	var camera_anchor := Marker3D.new()
 	camera_anchor.name = "CameraAnchor"
-	camera_anchor.position = Vector3(0.0, 7.5, 0.0)
-	camera_anchor.rotation_degrees.x = -90.0
+	camera_anchor.position = Vector3(-D.DORM_DEPTH / 2.0 + 0.14, 2.58, 0.0)
 	_generated.add_child(camera_anchor)
+	camera_anchor.look_at(
+		_generated.to_global(Vector3(0.0, 0.55, 0.0)), Vector3.UP
+	)
 
 
 func _build_entryway() -> void:
@@ -244,7 +246,7 @@ func _build_interior_light() -> void:
 	light.name = "DormInteriorLight"
 	light.position = Vector3(0.0, 2.6, 0.0)
 	light.light_color = Color.WHITE
-	light.light_energy = 0.08
-	light.omni_range = 4.2
+	light.light_energy = 0.68
+	light.omni_range = 4.6
 	light.shadow_enabled = false
 	_generated.add_child(light)
