@@ -39,11 +39,25 @@ func build(theme_color: Color, furniture_kind: int) -> void:
 		theme_color
 	)
 	_build_furniture(furniture_kind)
+	_build_interior_light()
 	var camera_anchor := Marker3D.new()
 	camera_anchor.name = "CameraAnchor"
-	camera_anchor.position = Vector3(0.0, 7.0, 0.0)
-	camera_anchor.rotation_degrees.x = -90.0
+	camera_anchor.position = Vector3(D.ACTIVITY_DEPTH / 2.0 - 0.12, 2.55, 0.0)
 	_generated.add_child(camera_anchor)
+	camera_anchor.look_at(
+		_generated.to_global(Vector3(0.1, 0.55, 0.0)), Vector3.UP
+	)
+
+
+func _build_interior_light() -> void:
+	var light := OmniLight3D.new()
+	light.name = "ActivityInteriorLight"
+	light.position = Vector3(0.0, 2.55, 0.0)
+	light.light_color = Color.WHITE
+	light.light_energy = 0.8
+	light.omni_range = 4.8
+	light.shadow_enabled = false
+	_generated.add_child(light)
 
 
 func _replace_generated() -> Node3D:

@@ -49,12 +49,15 @@ func build() -> void:
 	)
 	_build_corridor_door()
 	_build_teleporter()
+	_build_interior_light()
 	_build_animation_hooks()
 	var camera_anchor := Marker3D.new()
 	camera_anchor.name = "CameraAnchor"
-	camera_anchor.position = Vector3(0.0, 6.5, ROOM_SIZE / 2.0)
-	camera_anchor.rotation_degrees.x = -90.0
+	camera_anchor.position = Vector3(0.0, 2.55, 0.12)
 	_generated.add_child(camera_anchor)
+	camera_anchor.look_at(
+		_generated.to_global(Vector3(0.0, 0.55, 1.2)), Vector3.UP
+	)
 
 
 func _replace_generated() -> Node3D:
@@ -129,6 +132,17 @@ func _build_teleporter() -> void:
 	light.light_color = TELEPORTER_COLOR
 	light.light_energy = 2.1
 	light.omni_range = 3.6
+	light.shadow_enabled = false
+	_generated.add_child(light)
+
+
+func _build_interior_light() -> void:
+	var light := OmniLight3D.new()
+	light.name = "PortalInteriorLight"
+	light.position = Vector3(0.0, 2.55, ROOM_SIZE / 2.0)
+	light.light_color = Color.WHITE
+	light.light_energy = 0.65
+	light.omni_range = 4.2
 	light.shadow_enabled = false
 	_generated.add_child(light)
 

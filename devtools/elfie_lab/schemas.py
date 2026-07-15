@@ -69,7 +69,7 @@ class TurnRecord:
     session_id: str
     elfie_id: str
     timestamp: str
-    mode: str
+    food_key: str
     stimulus_bundle: Dict[str, Any]
     state_before: Dict[str, Any]
     trace: Dict[str, Any]

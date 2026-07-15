@@ -197,9 +197,7 @@ class TestPutValid:
         assert saved["system"]["llm"]["temperature"] == 0.5
         assert saved["system"]["llm"]["max_tokens"] == 2000
 
-    def test_put_adoption(
-        self, client: TestClient, runtime_config_path: Path
-    ) -> None:
+    def test_put_adoption(self, client: TestClient, runtime_config_path: Path) -> None:
         """PUT adoption 修改 max_elfies_per_user → 200 + 文件持久化。"""
         tokens = _login_admin(client)
         resp = client.put(
@@ -214,9 +212,7 @@ class TestPutValid:
         saved = json.loads(runtime_config_path.read_text())
         assert saved["system"]["adoption"]["max_elfies_per_user"] == 5
 
-    def test_put_engine(
-        self, client: TestClient, runtime_config_path: Path
-    ) -> None:
+    def test_put_engine(self, client: TestClient, runtime_config_path: Path) -> None:
         """PUT engine 修改 tick_interval_sec → 200。"""
         tokens = _login_admin(client)
         resp = client.put(
@@ -246,9 +242,7 @@ class TestPutValid:
         saved = json.loads(runtime_config_path.read_text())
         assert saved["system"]["engine"]["max_elfies_per_room"] is None
 
-    def test_put_security(
-        self, client: TestClient, runtime_config_path: Path
-    ) -> None:
+    def test_put_security(self, client: TestClient, runtime_config_path: Path) -> None:
         """PUT security 修改 session_ttl_days 和 rate_limit → 200。"""
         tokens = _login_admin(client)
         resp = client.put(
@@ -336,6 +330,26 @@ class TestPutErrors:
         )
         assert resp.status_code == 422
 
+    def test_max_elfies_per_user_gt_32_422(self, client: TestClient) -> None:
+        """单台机器最多培养 32 只精灵。"""
+        tokens = _login_admin(client)
+        resp = client.put(
+            "/api/admin/system/adoption",
+            json={"max_elfies_per_user": 33},
+            headers=_headers(tokens["csrf_token"]),
+        )
+        assert resp.status_code == 422
+
+    def test_max_elfies_per_room_gt_32_422(self, client: TestClient) -> None:
+        """房间容量不能超过单台机器的 32 只上限。"""
+        tokens = _login_admin(client)
+        resp = client.put(
+            "/api/admin/system/engine",
+            json={"max_elfies_per_room": 33},
+            headers=_headers(tokens["csrf_token"]),
+        )
+        assert resp.status_code == 422
+
     def test_tick_interval_zero_422(self, client: TestClient) -> None:
         """PUT tick_interval_sec=0 → 422。"""
         tokens = _login_admin(client)
@@ -383,9 +397,7 @@ class TestAuthorization:
         alice_csrf = resp.headers.get("X-CSRF-Token", "")
 
         # GET /system/llm
-        resp = client.get(
-            "/api/admin/system/llm", headers=_headers(alice_csrf)
-        )
+        resp = client.get("/api/admin/system/llm", headers=_headers(alice_csrf))
         assert resp.status_code == 403
 
         # PUT /system/llm
@@ -430,9 +442,7 @@ class TestBackwardCompat:
         saved = json.loads(runtime_config_path.read_text())
         assert saved["providers"]["ollama"]["api_base"] == "http://127.0.0.1:11434"
 
-    def test_old_put_config_missing_providers_400(
-        self, client: TestClient
-    ) -> None:
+    def test_old_put_config_missing_providers_400(self, client: TestClient) -> None:
         """PUT /api/admin/config 缺少 providers → 400（旧行为不变）。"""
         tokens = _login_admin(client)
         resp = client.put(
@@ -456,9 +466,7 @@ class TestBackwardCompat:
         )
 
         # GET old config — 包含完整的文件内容
-        resp = client.get(
-            "/api/admin/config", headers=_headers(tokens["csrf_token"])
-        )
+        resp = client.get("/api/admin/config", headers=_headers(tokens["csrf_token"]))
         assert resp.status_code == 200
         data = resp.json()
         # 新端点写入的 system 应出现在旧 GET 中

@@ -58,15 +58,14 @@
               <div class="detail-stack" id="bodyProfile"></div>
             </details>
             <details>
-              <summary><span>模型方案</span><i>＋</i></summary>
+              <summary><span>粮食选择</span><i>＋</i></summary>
               <div class="model-controls">
-                <label for="runtimeMode">本次实验模式</label>
-                <select id="runtimeMode">
-                  <option value="mock">Mock · 离线可用</option>
-                  <option value="real">真实 Runtime</option>
+                <label for="foodSelect">本次实验粮食</label>
+                <select id="foodSelect">
+                  <option value="mock">模拟粮 · 离线可用</option>
                 </select>
                 <p id="modelHint">elfie-mock · 不调用外部服务</p>
-                <p class="model-command" id="modelCommand" hidden></p>
+                <div class="food-setup-list" id="foodSetupList" hidden></div>
               </div>
             </details>
             <details>

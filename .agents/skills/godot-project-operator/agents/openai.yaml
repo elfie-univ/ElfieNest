@@ -1,0 +1,4 @@
+interface:
+  display_name: "Godot 项目操作"
+  short_description: "安全地启动、运行、验证并清理 Godot 项目实例"
+  default_prompt: "使用 $godot-project-operator 安全打开并验证当前 Godot 项目，避免创建重复实例。"

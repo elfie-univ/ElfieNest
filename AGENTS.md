@@ -94,6 +94,16 @@ If the user has not confirmed the result yet, keep the changes local and state
 that they are not merged back. Do not assume worktree-only changes are visible
 from the main checkout.
 
+## Git 提交与推送（强制规则）
+
+- 用户要求“提交”“提交代码”“commit 一下”或“保存到 Git”时，必须读取并遵循 `.agents/skills/git-submit-and-push/SKILL.md`。
+- 每次完成并验证一组改动后，必须主动评估它是否已构成边界清晰、没有已知问题的提交节点；是则自动 commit 并 push，不等待用户再次下达“提交”命令。
+- 禁止提交仍在调试、测试失败、存在已知 bug 或尚待用户确认的半成品。对于需要用户目视验收的界面改动，用户说“没 bug 了”“可以了”或“验收通过”即视为提交和推送确认。
+- 除非用户明确要求“只提交本地”或“不要推送”，否则“提交”默认包含创建 commit 并立即 push 当前分支。
+- 禁止在本地 commit 成功后停止；只有远端 push 成功并验证分支不再 ahead 才算完成。
+- push 失败时必须继续处理可恢复问题，无法恢复时明确说明代码仍未被团队共享。
+- 最终报告必须包含 commit 哈希、分支、远端推送状态、测试结果和剩余未提交改动。
+
 ### Test Structure
 
 测试文件按照源代码包结构组织，镜像源代码目录：
@@ -141,6 +151,14 @@ The engine runs dual servers:
 - **WebSocket port 8765**: Real-time bidirectional communication with Godot client
 
 When Godot connects, actions are sent as `go_to`, `speak_event` events. Without Godot, runs in terminal-only mode.
+
+## Godot 操作技能（强制规则）
+
+- 打开、运行、验证、截图或关闭 Godot 前，必须读取并遵循 `.agents/skills/godot-project-operator/SKILL.md`。
+- 必须先检查已有 Godot 进程；禁止使用 `open -n` 创建重复实例。
+- 编辑器和游戏运行窗口只能按任务需要保留一个。短时 headless 验证必须同步等待退出。
+- 必须核对 `project.godot` 声明的 Godot 版本；版本不匹配时，未经用户明确同意不得打开可编辑项目。
+- 操作前后检查 Git 工作区，禁止擅自保留 Godot 自动生成的项目版本或导入元数据变更。
 
 ## 设计文档语言（强制规则）
 

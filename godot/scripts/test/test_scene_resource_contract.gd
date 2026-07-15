@@ -6,6 +6,7 @@ const REQUIRED_RESOURCES := [
 	"res://rooms/activity_room.tscn",
 	"res://rooms/dorm_room.tscn",
 	"res://rooms/portal_room.tscn",
+	"res://ui/observation_hud.tscn",
 	"res://rooms/common_area_layouts/kitchen_layout.tscn",
 	"res://rooms/common_area_layouts/sitting_layout.tscn",
 	"res://rooms/common_area_layouts/media_layout.tscn",

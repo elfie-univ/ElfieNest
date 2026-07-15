@@ -18,7 +18,7 @@ RequireAdmin = Depends(require_admin)
 RequireUser = Depends(get_current_user)
 DEFAULT_ROOM_NAME = "Main Nest"
 DEFAULT_BED_COUNT = 4
-MAX_BED_COUNT: Final = 64
+MAX_BED_COUNT: Final = 32
 DEFAULT_BED_COLUMNS: Final = 3
 DEFAULT_BED_X: Final = (18, 39, 60)
 DEFAULT_BED_Y_START: Final = 34
@@ -76,7 +76,9 @@ def _sync_bed_count(db_path: str, room_id: int, target_count: int) -> dict[str, 
                     (room_id, f"Bed {index + 1}", grid_x, grid_y),
                 )
         elif target_count < current_count:
-            removable = [row["id"] for row in reversed(rows) if row["occupant_id"] is None]
+            removable = [
+                row["id"] for row in reversed(rows) if row["occupant_id"] is None
+            ]
             for bed_id in removable[: current_count - target_count]:
                 conn.execute("DELETE FROM beds WHERE id = ?", (bed_id,))
 
@@ -84,7 +86,9 @@ def _sync_bed_count(db_path: str, room_id: int, target_count: int) -> dict[str, 
             "SELECT COUNT(*) FROM beds WHERE room_id = ?",
             (room_id,),
         ).fetchone()[0]
-        conn.execute("UPDATE rooms SET max_capacity = ? WHERE id = ?", (final_count, room_id))
+        conn.execute(
+            "UPDATE rooms SET max_capacity = ? WHERE id = ?", (final_count, room_id)
+        )
         conn.commit()
         return {"bed_count": final_count, "requested_count": target_count}
 
@@ -115,8 +119,7 @@ def _rooms_with_beds(db_path: str, user_id: int | None = None) -> list[Dict[str,
             for row in cursor.fetchall():
                 bed = dict(row)
                 bed["occupant_is_mine"] = (
-                    user_id is not None
-                    and bed.get("occupant_owner_user_id") == user_id
+                    user_id is not None and bed.get("occupant_owner_user_id") == user_id
                 )
                 beds.append(bed)
             room["beds"] = beds
@@ -133,10 +136,18 @@ def _default_room_id(db_path: str) -> int:
 
 
 def _bed_count_from_body(body: Dict[str, Any]) -> int:
+    return _bounded_bed_count(body.get("bed_count", DEFAULT_BED_COUNT), "bed_count")
+
+
+def _bounded_bed_count(value: Any, field_name: str) -> int:
     try:
-        return int(body.get("bed_count", DEFAULT_BED_COUNT))
+        requested_count = int(value)
     except (TypeError, ValueError) as exc:
-        raise HTTPException(status_code=422, detail="bed_count must be an integer") from exc
+        raise HTTPException(
+            status_code=422, detail=f"{field_name} must be an integer"
+        ) from exc
+    return max(DEFAULT_BED_COUNT, min(MAX_BED_COUNT, requested_count))
+
 
 @router.get("/rooms")
 async def get_rooms(
@@ -164,7 +175,9 @@ async def create_room(
 ) -> Dict[str, Any]:
     """创建一个新房间。"""
     name = body.get("name", "New Room")
-    max_capacity = body.get("max_capacity", 4)
+    max_capacity = _bounded_bed_count(
+        body.get("max_capacity", DEFAULT_BED_COUNT), "max_capacity"
+    )
     with get_db(request.app.state.db_path) as conn:
         cursor = conn.execute(
             "INSERT INTO rooms (name, max_capacity) VALUES (?, ?)",

@@ -45,6 +45,24 @@ def test_root_serves_console_without_static_redirect(client: TestClient) -> None
     assert "/static/setup.html" in console_js.text
 
 
+def test_capacity_inputs_and_payloads_are_capped_at_thirty_two(
+    client: TestClient,
+) -> None:
+    index = client.get("/")
+    console_js = client.get("/static/elfienest-console.js")
+
+    assert 'id="room-bed-count" type="number" min="4" max="32"' in index.text
+    assert (
+        'name="max_elfies_per_user" type="number" min="1" max="32"' in console_js.text
+    )
+    assert (
+        'name="max_elfies_per_room" type="number" min="1" max="32"' in console_js.text
+    )
+    assert "Math.min(32, maxPerUser)" in console_js.text
+    assert "Math.min(32, Number(maxRoom))" in console_js.text
+    assert "Math.min(32, Number(bedCountInput?.value || 4))" in console_js.text
+
+
 def test_static_index_redirects_to_root(client: TestClient) -> None:
     resp = client.get("/static/index.html", follow_redirects=False)
 

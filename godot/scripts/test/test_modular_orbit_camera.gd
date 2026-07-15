@@ -1,7 +1,7 @@
 extends SceneTree
 
 const DEMO_SCENE := preload("res://rooms/nest.tscn")
-const MAX_BUILDING_LENGTH: float = 112.0
+const MAX_BUILDING_LENGTH: float = 44.8
 const ACTIVITY_OUTER_X: float = -5.2
 const DORM_OUTER_X: float = 6.0
 const WALL_HEIGHT: float = 3.0
@@ -12,7 +12,8 @@ func _initialize() -> void:
 
 
 func run() -> void:
-	var nest := DEMO_SCENE.instantiate()
+	var nest := DEMO_SCENE.instantiate() as ModularNest
+	nest.show_observation_hud = false
 	root.add_child(nest)
 	await _wait_frames(3)
 	var camera := nest.get_node("Camera3D") as Camera3D
@@ -65,6 +66,8 @@ func run() -> void:
 
 	nest.set("bed_count", 80)
 	await _wait_frames(3)
+	if not _require(nest.bed_count == 32, "Godot nest no longer clamps maximum capacity to 32 beds"):
+		return
 	var end_on_view := InputEventMouseMotion.new()
 	end_on_view.relative = Vector2(
 		atan2(12.5, 16.0) / 0.008,
@@ -80,7 +83,7 @@ func run() -> void:
 				var camera_space_corner := camera.to_local(nest.to_global(corner))
 				if not _require(
 					camera_space_corner.z < -camera.near,
-					"80-bed layout passed behind the camera during an end-on orbit"
+					"Maximum 32-bed layout passed behind the camera during an end-on orbit"
 				):
 					return
 

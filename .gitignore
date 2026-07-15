@@ -67,8 +67,10 @@ ElfieNest.worktree/
 /godot/android/
 
 
-# OpenCode agent skills (project-level)
-.agents/
+# Project agent skills are shared; keep other local agent state ignored.
+.agents/*
+!.agents/skills/
+!.agents/skills/**
 
 # Runtime temp files (audio, cache, etc.)
 data/temp/

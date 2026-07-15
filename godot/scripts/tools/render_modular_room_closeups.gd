@@ -24,7 +24,8 @@ func run() -> void:
 		return
 
 	root.size = FRAME_SIZE
-	var nest := NEST_SCENE.instantiate() as Node3D
+	var nest := NEST_SCENE.instantiate() as ModularNest
+	nest.show_observation_hud = false
 	root.add_child(nest)
 	await _wait_frames(5)
 	var camera := nest.get_node("Camera3D") as Camera3D

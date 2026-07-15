@@ -6,6 +6,7 @@ const CELL_PITCH: float = 5.6
 const CLEAR_WIDTH: float = 5.5
 const WALL_THICKNESS: float = 0.1
 const WALL_HEIGHT: float = 3.0
+const MAX_BED_COUNT: int = 32
 
 const ACTIVITY_DEPTH: float = 3.7
 const CORRIDOR_WIDTH: float = 3.0
@@ -30,7 +31,8 @@ const DORM_RUG_TRIM_COLOR := Color("#d6d2c9")
 
 
 static func room_count_for_beds(bed_count: int) -> int:
-	return maxi(1, ceili(float(maxi(1, bed_count)) / 4.0))
+	var bounded_bed_count := clampi(bed_count, 1, MAX_BED_COUNT)
+	return maxi(1, ceili(float(bounded_bed_count) / 4.0))
 
 
 static func cell_center_z(index: int) -> float:
