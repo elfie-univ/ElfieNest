@@ -299,6 +299,27 @@ func _test_activity_uses_source_furniture_with_colliders() -> bool:
 			"Activity room %d does not use its corresponding source scene" % (kind + 1)
 		):
 			return false
+		if kind == 1 or kind == 2:
+			var artworks: Array[MeshInstance3D] = []
+			_collect_gallery_artworks(source, artworks)
+			if not _require(artworks.size() == 8, "Activity room %d does not fill all 8 picture frames" % (kind + 1)):
+				return false
+			var expected_prefix := "living_" if kind == 1 else "tv_"
+			for artwork in artworks:
+				var quad := artwork.mesh as QuadMesh
+				var material := quad.material as StandardMaterial3D
+				var texture_path := material.albedo_texture.resource_path
+				var inward := (generated.global_position - artwork.global_position).normalized()
+				if not _require(
+					artwork.global_transform.basis.z.normalized().dot(inward) > 0.0,
+					"Activity room %d has an artwork facing away from the room" % (kind + 1)
+				):
+					return false
+				if not _require(
+					texture_path.get_file().begins_with(expected_prefix),
+					"Activity room %d uses artwork from the wrong gallery: %s" % [kind + 1, texture_path]
+				):
+					return false
 		var original_source := load(EXPECTED_ACTIVITY_SCENE_PATHS[kind]).instantiate() as Node3D
 		if not _require(
 			source.transform.is_equal_approx(original_source.transform),
@@ -309,6 +330,14 @@ func _test_activity_uses_source_furniture_with_colliders() -> bool:
 		original_source.free()
 		activity.free()
 	return true
+
+
+func _collect_gallery_artworks(node: Node, artworks: Array[MeshInstance3D]) -> void:
+	for child in node.get_children():
+		var mesh_instance := child as MeshInstance3D
+		if mesh_instance != null and mesh_instance.name.begins_with("GalleryArtwork_"):
+			artworks.append(mesh_instance)
+		_collect_gallery_artworks(child, artworks)
 
 
 func _test_teleporter_is_centered_on_its_stage() -> bool:
