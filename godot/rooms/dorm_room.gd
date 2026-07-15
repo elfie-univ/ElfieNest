@@ -5,7 +5,7 @@ extends Node3D
 const D := preload("res://rooms/room_dimensions.gd")
 const G := preload("res://rooms/room_geometry.gd")
 const BED_SCENE := preload("res://rooms/assets/beds/base_bed.tscn")
-const MURAL_TEXTURE := preload("res://rooms/assets/artwork/gallery/img1.jpg")
+const ARTWORK_GALLERY := preload("res://rooms/assets/artwork/artwork_gallery.gd")
 const DOOR_WIDTH: float = 1.4
 const DOOR_HEIGHT: float = 2.2
 const BED_CENTER_X: float = 0.937172
@@ -29,6 +29,9 @@ const BED_SCALES := [
 ]
 const WALL_CONTACT_GAP: float = 0.001
 const ARTWORK_FRAME_GAP: float = 0.0005
+const ARTWORK_HEIGHT: float = 1.38
+const ARTWORK_MAX_WIDTH: float = 2.36
+const ARTWORK_FRAME_BORDER: float = 0.12
 const RUG_SURFACE_LEVELS := [0.0002, 0.0005, 0.0008]
 @export var auto_preview: bool = true
 @export_range(0, 99, 1) var preview_room_index: int = 0
@@ -55,7 +58,7 @@ func build(room_index: int, occupied_bed_count: int = 4) -> void:
 	_build_entryway()
 	_build_beds(room_index, occupied_bed_count)
 	_build_rug()
-	_build_mural()
+	_build_mural(room_index)
 	_build_interior_light()
 	var camera_anchor := Marker3D.new()
 	camera_anchor.name = "CameraAnchor"
@@ -202,28 +205,38 @@ func _build_rug() -> void:
 	)
 
 
-func _build_mural() -> void:
+func _build_mural(room_index: int) -> void:
 	var wall_x := D.DORM_DEPTH / 2.0
 	var finish_depth := D.WALL_THICKNESS / 2.0 + G.FINISH_AIR_GAP + G.FINISH_THICKNESS
 	var wall_finish_face_x := wall_x - finish_depth
 	var frame_depth := 0.052
 	var frame_center_x := wall_finish_face_x - WALL_CONTACT_GAP - frame_depth / 2.0
+	var mural_texture := ARTWORK_GALLERY.dorm_mural(room_index)
+	var texture_size := mural_texture.get_size()
+	var texture_aspect := texture_size.x / texture_size.y
+	var mural_size := Vector2(ARTWORK_HEIGHT * texture_aspect, ARTWORK_HEIGHT)
+	if mural_size.x > ARTWORK_MAX_WIDTH:
+		mural_size = Vector2(ARTWORK_MAX_WIDTH, ARTWORK_MAX_WIDTH / texture_aspect)
 	G.add_box(
 		_generated,
 		"DormMuralFrame",
-		Vector3(frame_depth, 1.62, 2.28),
+		Vector3(
+			frame_depth,
+			mural_size.y + ARTWORK_FRAME_BORDER * 2.0,
+			mural_size.x + ARTWORK_FRAME_BORDER * 2.0
+		),
 		Vector3(frame_center_x, 1.62, 0.0),
 		Color("#4c433b")
 	)
 	var mural := MeshInstance3D.new()
 	mural.name = "DormMural"
 	var quad := QuadMesh.new()
-	quad.size = Vector2(2.04, 1.38)
+	quad.size = mural_size
 	mural.mesh = quad
 	mural.position = Vector3(frame_center_x - frame_depth / 2.0 - ARTWORK_FRAME_GAP, 1.62, 0.0)
-	mural.rotation_degrees.y = 90.0
+	mural.rotation_degrees.y = -90.0
 	var material := StandardMaterial3D.new()
-	material.albedo_texture = MURAL_TEXTURE
+	material.albedo_texture = mural_texture
 	material.roughness = 0.62
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mural.material_override = material
@@ -231,7 +244,7 @@ func _build_mural() -> void:
 	G.add_box(
 		_generated,
 		"DormMuralLight",
-		Vector3(0.045, 0.045, 1.56),
+		Vector3(0.045, 0.045, mural_size.x * 0.76),
 		Vector3(wall_x - 0.16, 2.44, 0.0),
 		Color("#f4ddb5"),
 		false,

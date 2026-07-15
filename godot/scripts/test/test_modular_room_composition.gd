@@ -45,6 +45,9 @@ func run() -> void:
 	var dorm_ok := await _test_dorm_preserves_source_bed_layout()
 	if not dorm_ok:
 		return
+	var mural_ok := await _test_dorm_murals_face_inward_and_are_stable_by_room()
+	if not mural_ok:
+		return
 	var activity_ok := await _test_activity_uses_source_furniture_with_colliders()
 	if not activity_ok:
 		return
@@ -73,6 +76,38 @@ func _test_dorm_door_header_has_no_overlapping_meshes() -> bool:
 	if not _require(
 		not overlap.has_volume(),
 		"Dorm door header can flicker because it overlaps the track by %s" % overlap.size
+	):
+		return false
+	dorm.free()
+	return true
+
+
+func _test_dorm_murals_face_inward_and_are_stable_by_room() -> bool:
+	var dorm := DORM_SCENE.instantiate() as ModularDormRoom
+	dorm.auto_preview = false
+	root.add_child(dorm)
+	dorm.build(0)
+	await process_frame
+	var first_mural := dorm.get_node("Generated/DormMural") as MeshInstance3D
+	if not _require(
+		first_mural.transform.basis.z.dot(Vector3.LEFT) > 0.99,
+		"Dorm mural faces the exterior, so its texture appears mirrored inside the room"
+	):
+		return false
+	var first_path := _dorm_mural_path(dorm)
+	dorm.build(0)
+	await process_frame
+	var repeated_path := _dorm_mural_path(dorm)
+	dorm.build(1)
+	await process_frame
+	var second_path := _dorm_mural_path(dorm)
+	if not _require(first_path == repeated_path, "A dorm changes its mural when rebuilt with the same room index"):
+		return false
+	if not _require(first_path != second_path, "Adjacent dorm rooms use the same gallery mural"):
+		return false
+	if not _require(
+		first_path.begins_with("res://rooms/assets/artwork/gallery/") and not first_path.ends_with("img1.jpg"),
+		"Dorm murals do not use the curated oil-painting gallery"
 	):
 		return false
 	dorm.free()
@@ -409,6 +444,12 @@ func _surface_is_flat(parent: Node3D, node_path: String) -> bool:
 	var surface := parent.get_node(node_path) as MeshInstance3D
 	var top_y := G.visual_bounds_in(surface, parent).end.y
 	return top_y > 0.0 and top_y <= 0.001
+
+
+func _dorm_mural_path(dorm: ModularDormRoom) -> String:
+	var mural := dorm.get_node("Generated/DormMural") as MeshInstance3D
+	var material := mural.material_override as StandardMaterial3D
+	return material.albedo_texture.resource_path
 
 
 func _wait_frames(count: int) -> void:
