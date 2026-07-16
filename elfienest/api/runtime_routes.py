@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -18,16 +17,12 @@ from .owner_routes import require_owner
 
 router = APIRouter(prefix="/api/owner/runtime", tags=["runtime"])
 
-_PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent
-_RUNTIME_CONFIG_PATH: Path = get_config_path()
-
-
 def _read_runtime_config() -> Dict[str, Any]:
-    return read_runtime_config(_RUNTIME_CONFIG_PATH)
+    return read_runtime_config(get_config_path())
 
 
 def _write_runtime_config(config: Dict[str, Any]) -> None:
-    write_runtime_config(_RUNTIME_CONFIG_PATH, config)
+    write_runtime_config(get_config_path(), config)
 
 
 def build_runtime_status() -> Dict[str, Any]:

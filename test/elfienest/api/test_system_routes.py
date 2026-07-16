@@ -44,14 +44,8 @@ def app(db_path: str, runtime_config_path: Path):
     with (
         patch("elfienest.api.app.AuthenticatedWSManager.start"),
         patch("elfienest.api.app.AuthenticatedWSManager.stop"),
-        patch(
-            "elfienest.api.system_routes._RUNTIME_CONFIG_PATH",
-            runtime_config_path,
-        ),
-        patch(
-            "elfienest.api.owner_routes._RUNTIME_CONFIG_PATH",
-            runtime_config_path,
-        ),
+        patch("elfienest.api.system_routes.get_config_path", return_value=runtime_config_path),
+        patch("elfienest.api.owner_routes.get_config_path", return_value=runtime_config_path),
     ):
         application = create_app(engine=None, db_path=db_path, ws_port=9876)
         yield application

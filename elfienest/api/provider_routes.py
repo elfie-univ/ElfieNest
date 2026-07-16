@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 import urllib.error
-from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -40,10 +39,6 @@ router = APIRouter(prefix="/api/owner/providers", tags=["providers"])
 # 路径常量
 # ---------------------------------------------------------------------------
 
-_PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent
-_RUNTIME_CONFIG_PATH: Path = get_config_path()
-
-
 # ---------------------------------------------------------------------------
 # 辅助函数
 # ---------------------------------------------------------------------------
@@ -51,15 +46,16 @@ _RUNTIME_CONFIG_PATH: Path = get_config_path()
 
 def _read_runtime_config() -> Dict[str, Any]:
     """读取配置并仅在内部注入本地密钥。"""
-    config = read_runtime_config(_RUNTIME_CONFIG_PATH)
-    if _RUNTIME_CONFIG_PATH.suffix in {".yaml", ".yml"}:
+    config_path = get_config_path()
+    config = read_runtime_config(config_path)
+    if config_path.suffix in {".yaml", ".yml"}:
         return hydrate_runtime_secrets(config)
     return config
 
 
 def _write_runtime_config(config: Dict[str, Any]) -> None:
-    """写入 runtime_config.json（先备份）。"""
-    write_runtime_config(_RUNTIME_CONFIG_PATH, config)
+    """写入当前 ELFIE_HOME 配置（先备份）。"""
+    write_runtime_config(get_config_path(), config)
 
 
 def _default_auth_type(api_mode: str) -> str:

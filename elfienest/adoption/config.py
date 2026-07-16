@@ -1,6 +1,6 @@
 """领养配置共享模块 — 从 system.adoption 读取动态配置。
 
-所有函数在调用时重新读取 ``runtime/runtime_config.json``（不缓存），
+所有函数在调用时重新读取 ``~/.elfienest/config.yaml``（不缓存），
 确保配置更改即时生效。
 
 与 ``system_routes.py`` 使用相同的配置文件路径和默认值，
@@ -23,13 +23,12 @@ from typing import Any, Dict, Optional, Tuple
 from elfienest.config.runtime_store import read_runtime_config
 from runtime.storage.data_home import get_config_path
 
-_PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent
-_RUNTIME_CONFIG_PATH: Path = _PROJECT_ROOT / "runtime" / "runtime_config.json"
+_RUNTIME_CONFIG_PATH: Path = get_config_path()
 _DEFAULT_RUNTIME_CONFIG_PATH: Path = _RUNTIME_CONFIG_PATH
 
 
 def _load_adoption_settings() -> dict:
-    """从 ``runtime_config.json`` 读取 adoption 设置，与默认值深层合并。"""
+    """从当前 YAML 配置读取 adoption 设置，与默认值深层合并。"""
     from runtime.config import DEFAULT_SYSTEM_SETTINGS, deep_update  # noqa: PLC0415
 
     base: Dict[str, Any] = copy.deepcopy(DEFAULT_SYSTEM_SETTINGS)
@@ -49,11 +48,10 @@ def _load_adoption_settings() -> dict:
 
 
 def _config_path() -> Path:
-    """优先读取用户配置，测试或旧部署可继续注入 legacy JSON 路径。"""
+    """返回运行时配置路径；测试可显式注入临时路径。"""
     if _RUNTIME_CONFIG_PATH != _DEFAULT_RUNTIME_CONFIG_PATH:
         return _RUNTIME_CONFIG_PATH
-    user_path = get_config_path()
-    return user_path if user_path.exists() else _RUNTIME_CONFIG_PATH
+    return get_config_path()
 
 
 def get_adoption_settings(db_path: Optional[str] = None) -> dict:

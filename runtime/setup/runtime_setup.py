@@ -10,7 +10,10 @@ import urllib.error
 import urllib.request
 from typing import Any, Dict, List
 
+from elfienest.config.runtime_store import write_runtime_config
 from runtime.models.local_profiles import select_local_profile
+from runtime.storage.config_store import read_yaml_mapping
+from runtime.storage.data_home import get_config_path
 
 # 项目基准路径
 RUNTIME_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -274,12 +277,11 @@ def setup_code_plan_interactive():
         "ollama": {"api_key": "", "api_base": PROVIDER_METADATA["ollama"]["api_base"]},
     }
 
-    # 热加载已有配置
-    json_path = os.path.join(RUNTIME_DIR, "runtime_config.json")
-    if os.path.exists(json_path):
+    # 热加载 ELFIE_HOME 下的唯一 YAML 配置；旧 JSON 只允许显式迁移命令读取。
+    config_path = get_config_path()
+    if config_path.exists():
         try:
-            with open(json_path, encoding="utf-8") as f:
-                saved = json.load(f)
+            saved = read_yaml_mapping(config_path)
             if "providers" in saved:
                 for k, v in saved["providers"].items():
                     if k in providers:
@@ -453,12 +455,11 @@ def setup_code_plan_interactive():
     }
 
     try:
-        with open(json_path, "w", encoding="utf-8") as f:
-            json.dump(final_config, f, indent=4, ensure_ascii=False)
+        write_runtime_config(config_path, final_config)
 
         print("\n" + "=" * 70)
         print("🎉 恭喜！跨服务商多源算力混配路由网格配置已大功告成！")
-        print(f"   配置文件已成功落盘 ➡️ {json_path}")
+        print(f"   配置文件已成功落盘 ➡️ {config_path}")
         print(
             "   - 【Cheap 档】: {} ({})".format(
                 final_config["cheap_model"], final_config["cheap_provider"]

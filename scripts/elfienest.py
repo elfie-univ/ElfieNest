@@ -29,6 +29,7 @@ from elfienest.cli.lifecycle_commands import (
     start_background_service,
     stop_background_service,
 )
+from elfienest.cli.migration_commands import run_migrate
 from elfienest.cli.owner_commands import run_owner_menu
 from elfienest.cli.provider_commands import login_provider
 from elfienest.cli.runtime_commands import (
@@ -113,6 +114,7 @@ def main() -> None:
     subparsers.add_parser("doctor", help="运行本地诊断与配置检查")
     subparsers.add_parser("version", help="显示版本")
     subparsers.add_parser("setup", help="首次设置向导")
+    subparsers.add_parser("migrate", help="显式迁移旧配置和数据")
     db_parser = subparsers.add_parser("db", help="数据库工具")
     db_parser.add_argument(
         "db_command", nargs="?", choices=["backup", "reset"], help="数据库命令"
@@ -157,6 +159,8 @@ def dispatch_command(args: argparse.Namespace) -> None:
         show_version()
     elif args.command == "setup":
         run_setup_wizard()
+    elif args.command == "migrate":
+        raise SystemExit(run_migrate())
     else:
         print_banner()
         print("  启动服务...")

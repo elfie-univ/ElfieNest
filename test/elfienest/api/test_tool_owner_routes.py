@@ -18,7 +18,7 @@ def _client(tmp_path: Path):
     patches = (
         patch("elfienest.api.app.AuthenticatedWSManager.start"),
         patch("elfienest.api.app.AuthenticatedWSManager.stop"),
-        patch("elfienest.api.tool_owner_routes._RUNTIME_CONFIG_PATH", config_path),
+        patch("elfienest.api.tool_owner_routes.get_config_path", return_value=config_path),
         patch("elfienest.api.tool_owner_routes.set_tool_secret"),
     )
     return db_path, config_path, patches

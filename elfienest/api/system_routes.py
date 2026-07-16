@@ -9,7 +9,6 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import Any, Dict, Final
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -26,9 +25,6 @@ router = APIRouter(prefix="/api/owner/system", tags=["system"])
 # ---------------------------------------------------------------------------
 # 路径常量
 # ---------------------------------------------------------------------------
-
-_PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent
-_RUNTIME_CONFIG_PATH: Path = get_config_path()
 
 # ---------------------------------------------------------------------------
 # 可用的 section 白名单
@@ -231,7 +227,7 @@ def _validate_range(section: str, data: Dict[str, Any]) -> None:
 
 def _read_system_section(section: str) -> Dict[str, Any]:
     """从 ``runtime_config.json`` 读取指定 section，与默认值深层合并后返回。"""
-    return read_system_section(_RUNTIME_CONFIG_PATH, section)
+    return read_system_section(get_config_path(), section)
 
 
 def _write_system_section(section: str, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -240,7 +236,7 @@ def _write_system_section(section: str, data: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         写入后的完整 section 字典（已合并默认值）。
     """
-    result = write_system_section(_RUNTIME_CONFIG_PATH, section, data)
+    result = write_system_section(get_config_path(), section, data)
     logger.info("System section '%s' updated", section)
     return result
 

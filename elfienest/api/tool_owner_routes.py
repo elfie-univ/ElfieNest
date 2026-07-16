@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -18,11 +17,8 @@ from runtime.validation.tools import DirectToolValidationRunner
 from .owner_routes import require_owner
 
 router = APIRouter(prefix="/api/owner/runtime/tools", tags=["runtime-tools"])
-_RUNTIME_CONFIG_PATH: Path = get_config_path()
-
-
 def _read_policy() -> tuple[dict[str, Any], dict[str, Any]]:
-    config = read_runtime_config(_RUNTIME_CONFIG_PATH)
+    config = read_runtime_config(get_config_path())
     policy = config.get("runtime_policy", {})
     if not isinstance(policy, dict):
         policy = {}
@@ -79,7 +75,7 @@ async def update_tool(
         )
     tools[tool_key] = current
     config["runtime_policy"] = policy
-    write_runtime_config(_RUNTIME_CONFIG_PATH, config)
+    write_runtime_config(get_config_path(), config)
     return {"tool_key": tool_key, "config": public_tool_configs(policy)[tool_key]}
 
 

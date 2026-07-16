@@ -10,7 +10,6 @@ import json
 import logging
 import urllib.error
 import urllib.request
-from pathlib import Path
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -35,25 +34,22 @@ router = APIRouter(prefix="/api/owner/models", tags=["models"])
 # 路径常量
 # ---------------------------------------------------------------------------
 
-_PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent
-_RUNTIME_CONFIG_PATH: Path = get_config_path()
-
-
 # ---------------------------------------------------------------------------
 # 辅助函数
 # ---------------------------------------------------------------------------
 
 
 def _read_runtime_config() -> Dict[str, Any]:
-    config = read_runtime_config(_RUNTIME_CONFIG_PATH)
-    if _RUNTIME_CONFIG_PATH.suffix in {".yaml", ".yml"}:
+    config_path = get_config_path()
+    config = read_runtime_config(config_path)
+    if config_path.suffix in {".yaml", ".yml"}:
         return hydrate_runtime_secrets(config)
     return config
 
 
 def _write_runtime_config(config: Dict[str, Any]) -> None:
-    """写入 runtime_config.json（先备份）。"""
-    write_runtime_config(_RUNTIME_CONFIG_PATH, config)
+    """写入当前 ELFIE_HOME 配置（先备份）。"""
+    write_runtime_config(get_config_path(), config)
 
 
 def _build_model_response(entry: ModelEntry, overrides: Dict[str, Any]) -> Dict[str, Any]:

@@ -1,15 +1,13 @@
 from __future__ import annotations
 
 import copy
-import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict
 
-import yaml
-
 from .providers.profiles import BUILTIN_PROFILES, get_default_api_mode
+from .storage.config_store import ConfigStoreError, read_yaml_mapping
 from .storage.data_home import get_config_path, get_env_path
 from .storage.secrets import provider_secret_name, read_secrets, resolve_secret
 
@@ -219,26 +217,14 @@ class LLMRuntimeConfig:
             if config_home is not None
             else get_config_path()
         )
-        if os.path.exists(yaml_path):
+        # 生产配置只允许从 ELFIE_HOME/config.yaml 读取。旧版 JSON 由显式
+        # ``elfienest migrate`` 命令处理，正常启动绝不触碰旧文件。
+        if yaml_path.exists():
             try:
-                with open(yaml_path, encoding="utf-8") as f:
-                    saved_cfg = yaml.safe_load(f)
-            except Exception:
-                pass
-
-        # 向后兼容：如果 YAML 不存在，尝试加载旧版 JSON 配置
-        if saved_cfg is None:
-            json_path = (
-                config_home / "runtime_config.json"
-                if config_home is not None
-                else Path(os.path.dirname(__file__)) / "runtime_config.json"
-            )
-            if os.path.exists(json_path):
-                try:
-                    with open(json_path, encoding="utf-8") as f:
-                        saved_cfg = json.load(f)
-                except Exception:
-                    pass
+                saved_cfg = read_yaml_mapping(yaml_path)
+            except ConfigStoreError:
+                # 损坏的当前配置不会触发旧格式 fallback；继续使用内置默认值。
+                saved_cfg = None
 
         # 合并配置到当前实例
         if saved_cfg is not None:

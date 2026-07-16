@@ -15,24 +15,34 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
+import os
 import shutil
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
-import yaml
-
+from runtime.storage.config_store import (
+    ConfigStoreError,
+    read_yaml_mapping,
+    write_yaml_mapping,
+)
 from runtime.storage.data_home import ensure_elfie_home, get_config_path, get_elfie_home
 from runtime.storage.secrets import provider_secret_name, set_provider_secret
 
 logger = logging.getLogger("runtime.storage.migration")
 
+
+class MigrationError(RuntimeError):
+    """显式迁移失败；调用方应以非零退出码结束。"""
+
 # ---------------------------------------------------------------------------
 # 项目根目录下的旧路径
 # ---------------------------------------------------------------------------
 
-_PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
+_PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent
 _OLD_DATA_DIR: Path = _PROJECT_ROOT / "data"
 _OLD_RUNTIME_CONFIG: Path = _PROJECT_ROOT / "runtime" / "runtime_config.json"
 
@@ -93,7 +103,33 @@ CURRENT_CONFIG_VERSION: int = max(_CONFIG_MIGRATIONS.keys())
 # ---------------------------------------------------------------------------
 
 
+@contextmanager
+def _migration_lock(home: Path):
+    """使用目标目录内的排他锁，避免两个 CLI 同时迁移。"""
+    home.mkdir(parents=True, exist_ok=True)
+    lock_path = home / ".migration.lock"
+    try:
+        descriptor = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError as exc:
+        raise MigrationError(f"迁移已在进行中: {home}") from exc
+    try:
+        os.close(descriptor)
+        yield
+    finally:
+        try:
+            lock_path.unlink()
+        except OSError:
+            pass
+
+
 def migrate_data_home() -> bool:
+    """显式迁移入口，带排他锁并保证中断后锁文件清理。"""
+    home = get_elfie_home()
+    with _migration_lock(home):
+        return _migrate_data_home_unlocked()
+
+
+def _migrate_data_home_unlocked() -> bool:
     """主迁移函数：将旧数据目录迁移到 ``~/.elfienest/``。
 
     迁移规则：
@@ -109,7 +145,9 @@ def migrate_data_home() -> bool:
     home = get_elfie_home()
 
     # 1. 已迁移：~/.elfienest/ 已存在且有内容
-    if home.exists() and any(home.iterdir()):
+    if home.exists() and any(path.name != ".migration.lock" for path in home.iterdir()):
+        if _OLD_RUNTIME_CONFIG.exists():
+            _convert_runtime_config_json(home)
         logger.info("数据目录已存在: %s，跳过迁移", home)
         return True
 
@@ -137,15 +175,10 @@ def migrate_data_home() -> bool:
     config_yaml = get_config_path()
     if not config_yaml.exists():
         default_config = {"config_version": CURRENT_CONFIG_VERSION}
-        config_yaml.parent.mkdir(parents=True, exist_ok=True)
-        with open(config_yaml, "w", encoding="utf-8") as f:
-            yaml.dump(
-                default_config,
-                f,
-                allow_unicode=True,
-                default_flow_style=False,
-                sort_keys=False,
-            )
+        try:
+            write_yaml_mapping(config_yaml, default_config)
+        except ConfigStoreError as e:
+            raise MigrationError(str(e)) from e
         logger.info("已创建默认配置文件: %s", config_yaml)
 
     # 5. 在旧 data/ 目录中创建 .migrated 标记
@@ -205,15 +238,32 @@ def _convert_runtime_config_json(home: Path) -> None:
     """
     config_yaml = home / "config.yaml"
     if config_yaml.exists():
+        try:
+            read_yaml_mapping(config_yaml)
+        except ConfigStoreError as exc:
+            raise MigrationError(f"当前 config.yaml 无法读取: {exc}") from exc
+        # 已完成过迁移时，源文件若发生变化必须显式人工处理，不能静默覆盖当前配置。
+        if _OLD_RUNTIME_CONFIG.exists():
+            try:
+                current_hash = _sha256_bytes(_OLD_RUNTIME_CONFIG.read_bytes())
+                state = read_yaml_mapping(home / ".migration.yaml")
+            except (OSError, ConfigStoreError) as exc:
+                raise MigrationError(f"读取迁移状态失败: {exc}") from exc
+            previous_hash = state.get("source_sha256")
+            if previous_hash and previous_hash != current_hash:
+                raise MigrationError(
+                    "旧 runtime_config.json 内容已变化；请先备份并人工确认后再迁移"
+                )
         logger.info("config.yaml 已存在，跳过 JSON 转换")
         return
 
     try:
-        with open(_OLD_RUNTIME_CONFIG, encoding="utf-8") as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
-        logger.warning("读取旧配置文件失败: %s", e)
-        return
+        source_bytes = _OLD_RUNTIME_CONFIG.read_bytes()
+        data = json.loads(source_bytes.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError) as e:
+        raise MigrationError(f"读取旧配置文件失败: {_OLD_RUNTIME_CONFIG}: {e}") from e
+    if not isinstance(data, dict):
+        raise MigrationError("旧配置文件顶层必须是对象")
 
     # 确保有 config_version
     data.setdefault("config_version", 1)
@@ -221,10 +271,12 @@ def _convert_runtime_config_json(home: Path) -> None:
     data["config_version"] = CURRENT_CONFIG_VERSION
 
     home.mkdir(parents=True, exist_ok=True)
-    with open(config_yaml, "w", encoding="utf-8") as f:
-        yaml.dump(
-            data, f, allow_unicode=True, default_flow_style=False, sort_keys=False
-        )
+    try:
+        _backup_migration_source(_OLD_RUNTIME_CONFIG, home, source_bytes)
+        write_yaml_mapping(config_yaml, data)
+        _write_migration_state(home, _OLD_RUNTIME_CONFIG, source_bytes)
+    except (OSError, ConfigStoreError) as e:
+        raise MigrationError(f"写入迁移目标失败: {config_yaml}: {e}") from e
 
     logger.info("已将 runtime_config.json 转换为 config.yaml: %s", config_yaml)
 
@@ -260,11 +312,9 @@ def migrate_config(config_version: Optional[int] = None) -> None:
         return
 
     try:
-        with open(config_path, encoding="utf-8") as f:
-            config = yaml.safe_load(f) or {}
-    except (yaml.YAMLError, OSError) as e:
-        logger.warning("读取 config.yaml 失败: %s", e)
-        return
+        config = read_yaml_mapping(config_path)
+    except ConfigStoreError as e:
+        raise MigrationError(str(e)) from e
 
     current_version = (
         config_version
@@ -286,10 +336,10 @@ def migrate_config(config_version: Optional[int] = None) -> None:
         config["config_version"] = version
 
     # 写回
-    with open(config_path, "w", encoding="utf-8") as f:
-        yaml.dump(
-            config, f, allow_unicode=True, default_flow_style=False, sort_keys=False
-        )
+    try:
+        write_yaml_mapping(config_path, config)
+    except ConfigStoreError as e:
+        raise MigrationError(str(e)) from e
 
     logger.info("配置迁移完成，当前版本: %d", config.get("config_version", 1))
 
@@ -305,11 +355,34 @@ def get_config_version() -> int:
         return 0
 
     try:
-        with open(config_path, encoding="utf-8") as f:
-            config = yaml.safe_load(f) or {}
+        config = read_yaml_mapping(config_path)
         return int(config.get("config_version", 1))
-    except (yaml.YAMLError, OSError, ValueError, TypeError):
+    except (ConfigStoreError, ValueError, TypeError):
         return 1
+
+
+def _sha256_bytes(content: bytes) -> str:
+    return hashlib.sha256(content).hexdigest()
+
+
+def _backup_migration_source(source: Path, home: Path, content: bytes) -> Path:
+    """在目标目录保留带 hash 的源文件副本，避免覆盖历史迁移输入。"""
+    backup_dir = home / "backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    backup_path = backup_dir / f"{source.name}.{_sha256_bytes(content)[:16]}.bak"
+    if not backup_path.exists():
+        backup_path.write_bytes(content)
+    return backup_path
+
+
+def _write_migration_state(home: Path, source: Path, content: bytes) -> None:
+    state = {
+        "source": str(source),
+        "source_sha256": _sha256_bytes(content),
+        "status": "completed",
+        "config": str(home / "config.yaml"),
+    }
+    write_yaml_mapping(home / ".migration.yaml", state)
 
 
 def _migrate_config_dict(config: Dict[str, Any]) -> Dict[str, Any]:

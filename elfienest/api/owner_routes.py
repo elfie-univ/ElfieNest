@@ -9,7 +9,6 @@ Owner 精灵端点只提供公开元信息列表，不暴露私密聊天与配�
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -26,12 +25,6 @@ router = APIRouter(prefix="/api/owner", tags=["owner"])
 # ---------------------------------------------------------------------------
 # 路径常量
 # ---------------------------------------------------------------------------
-
-_PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent
-"""项目根目录（owner_routes.py → elfienest/manage/ → elfienest/ → 项目根）。"""
-
-_RUNTIME_CONFIG_PATH: Path = get_config_path()
-"""用户本地 Runtime 配置路径。"""
 
 # ---------------------------------------------------------------------------
 # 鉴权依赖
@@ -355,7 +348,7 @@ async def get_config(
     解析失败（非法 JSON）同样返回 ``{}``。
     """
     _ = owner
-    return read_runtime_config(_RUNTIME_CONFIG_PATH)
+    return read_runtime_config(get_config_path())
 
 
 @router.put("/config")
@@ -381,6 +374,6 @@ async def update_config(
             detail="配置必须包含 providers 字典结构",
         )
 
-    write_runtime_config(_RUNTIME_CONFIG_PATH, body)
+    write_runtime_config(get_config_path(), body)
     logger.info("Runtime config updated by owner")
     return {"detail": "配置已更新"}

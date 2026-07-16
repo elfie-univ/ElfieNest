@@ -110,7 +110,7 @@ def client(
     with (
         patch("elfienest.api.app.AuthenticatedWSManager.start"),
         patch("elfienest.api.app.AuthenticatedWSManager.stop"),
-        patch("elfienest.api.runtime_routes._RUNTIME_CONFIG_PATH", runtime_config_path),
+        patch("elfienest.api.runtime_routes.get_config_path", return_value=runtime_config_path),
         patch("elfienest.api.runtime_routes.get_runtime_observer", return_value=runtime_observer),
         patch("elfienest.api.runtime_routes.get_token_tracker", return_value=token_tracker),
     ):
