@@ -5,7 +5,6 @@ from dataclasses import replace
 from typing import Any, Dict, List
 
 from runtime.config import LLMRuntimeConfig
-from runtime.food.bootstrap import build_compatibility_food_catalog
 from runtime.food.elfie_policy import (
     ElfieFoodPolicy,
     load_elfie_food_policy,
@@ -14,7 +13,6 @@ from runtime.food.elfie_policy import (
 from runtime.food.executor import FoodExecutor
 from runtime.food.models import FIXED_FOOD_KINDS
 from runtime.food.store import FoodCatalogStore
-from runtime.gateway.generation import GenerationRuntime, generate_text
 from runtime.gateway.llm_api import call_llm_api
 from runtime.gateway.model_guard import ensure_model_ready
 from runtime.gateway.multimodal import assemble_multimodal_payload
@@ -23,7 +21,6 @@ from runtime.gateway.skills_prompt import inject_skills_system_prompt
 from runtime.gateway.streaming import RuntimeStreamRequest, stream_runtime_response
 from runtime.models.registry import ModelRegistry
 from runtime.policy.food_policy import RuntimeTaskType, task_type_from_prompt
-from runtime.policy.router import ModelRouter
 from runtime.providers.ollama import OllamaManager
 from runtime.safety.permissions import PermissionManager
 from runtime.storage.data_home import get_config_path
@@ -51,8 +48,6 @@ class RuntimeAgent:
         self._mount_runtime_dependencies()
 
     def _mount_runtime_dependencies(self) -> None:
-
-        # 1. 注册核心设施
         self.registry = ModelRegistry(self.config)
         self.ollama_manager = OllamaManager(self.config)
         self.permission_manager = PermissionManager(self.config)
@@ -74,9 +69,6 @@ class RuntimeAgent:
             root=str(tool_configs["local_file"].get("root") or "") or None
         )
 
-        # 3. 智能路由模块挂载
-        self.router = ModelRouter(self.config)
-        self._last_fallback: Dict[str, Any] | None = None
         self.food_catalog_store = FoodCatalogStore()
 
     @staticmethod
@@ -109,10 +101,6 @@ class RuntimeAgent:
             if allowed_skills is not None
             else ("web_search", "local_file", "code_sandbox", "skills_evolution")
         )
-        # 旧版调用方通常通过 patch ``router.route_request``/``generate`` 做
-        # 单元测试或集成适配。保留这条兼容桥，不让粮食重构改变旧接口语义。
-        if "generate" in self.__dict__:
-            return self._ask_legacy_compat(prompt, energy, task_complexity, list(tools))
         return self.run_with_food(
             prompt=prompt,
             food_key=None,
@@ -120,21 +108,6 @@ class RuntimeAgent:
             task_complexity=task_complexity,
             allowed_skills=list(tools),
         ).text
-
-    def _ask_legacy_compat(
-        self,
-        prompt: str,
-        energy: float,
-        task_complexity: int,
-        allowed_skills: List[str],
-    ) -> str:
-        mode, _decision = self.router.route_request(prompt, energy, task_complexity)
-        model_key = "local_fast" if mode == "local" else "remote_deep"
-        return self.generate(
-            model_key=model_key,
-            messages=[{"role": "user", "content": prompt}],
-            allowed_skills=allowed_skills,
-        )
 
     def ask_with_food(
         self,
@@ -203,64 +176,9 @@ class RuntimeAgent:
 
     def think(self, request: RuntimeRequest) -> RuntimeResult:
         self._reload_config_if_changed()
-        if (
-            "generate" in self.__dict__
-            or (
-                "route_request" in getattr(self.router, "__dict__", {})
-                and not getattr(self, "_in_food_request", False)
-            )
-        ):
-            return self._think_legacy_compat(request)
         if request.food_key is None:
             request = replace(request, food_key=self._infer_food_key(request))
         return self._think_with_food(request)
-
-    def _think_legacy_compat(self, request: RuntimeRequest) -> RuntimeResult:
-        metadata = dict(request.metadata)
-        task_type = metadata.get("task_type")
-        routed_mode = None
-        if "route_request" in getattr(self.router, "__dict__", {}):
-            routed_mode, _ = self.router.route_request(
-                request.prompt, request.energy, request.task_complexity
-            )
-        if routed_mode == "remote":
-            model_key = "remote_deep"
-        elif routed_mode == "local":
-            model_key = "local_fast"
-        elif task_type == RuntimeTaskType.REASONING.value or request.task_complexity >= self.config.complexity_threshold_deep:
-            model_key = "remote_deep"
-        elif request.energy < self.config.energy_threshold_fast:
-            model_key = "remote_deep"
-        else:
-            model_key = "local_fast"
-        messages = (
-            [dict(message) for message in request.messages]
-            if request.messages
-            else [{"role": "user", "content": request.prompt}]
-        )
-        text = self.generate(
-            model_key=model_key,
-            messages=messages,
-            images=list(request.images) or None,
-            audio=request.audio,
-            allowed_skills=list(request.allowed_tools),
-        )
-        fallback = self._last_fallback
-        result_model_key = fallback.get("to_model_key", model_key) if fallback else model_key
-        return RuntimeResult(
-            text=text,
-            mode="local" if result_model_key == "local_fast" else "remote",
-            model_key=result_model_key,
-            decision={
-                "mode": "local" if model_key == "local_fast" else "remote",
-                "food_policy": {
-                    "task_type": task_type,
-                    "group_key": "premium" if model_key == "remote_deep" else "standard",
-                },
-                **({"fallback": fallback} if fallback else {}),
-            },
-            degraded=bool(fallback),
-        )
 
     def _think_with_food(self, request: RuntimeRequest) -> RuntimeResult:
         catalog = self._load_food_catalog()
@@ -329,10 +247,78 @@ class RuntimeAgent:
 
     def _load_food_catalog(self):
         catalog = self.food_catalog_store.load()
-        return (
-            catalog
-            if catalog.recipes
-            else build_compatibility_food_catalog(self.config)
+        if not catalog.recipes:
+            raise RuntimeError(
+                "正式粮食目录 foods.yaml 不存在或为空，请先运行 setup/doctor 初始化"
+            )
+        return catalog
+
+    def _assemble_multimodal_payload(
+        self,
+        messages: List[Dict[str, Any]],
+        images: List[str] | None = None,
+        audio: str | None = None,
+        provider: str = "ollama",
+    ) -> List[Dict[str, Any]]:
+        """供粮食执行器适配层复用的多模态载荷组装。"""
+        return assemble_multimodal_payload(messages, images, audio, provider)
+
+    def _inject_skills_system_prompt(
+        self, messages: List[Dict[str, Any]], allowed_skills: List[str]
+    ) -> List[Dict[str, Any]]:
+        """供粮食执行器适配层复用的技能提示注入。"""
+        return inject_skills_system_prompt(messages, allowed_skills)
+
+    def _call_llm_api(
+        self,
+        provider: str,
+        model_name: str,
+        messages: List[Dict[str, Any]],
+        temperature: float,
+        max_tokens: int,
+    ) -> str:
+        """执行底层 Provider 调用；正式请求由 FoodExecutor 统一调度。"""
+        return call_llm_api(
+            self.config, provider, model_name, messages, temperature, max_tokens
+        )
+
+    def generate_stream(
+        self,
+        model_key: str,
+        messages: List[Dict[str, Any]],
+        images: List[str] | None = None,
+        audio: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        allowed_skills: List[str] | None = None,
+    ):
+        """底层流式传输适配；同步业务请求必须使用粮食执行链。"""
+        target = ensure_model_ready(
+            model_key, self.registry, self.ollama_manager, images, audio
+        )
+        local_messages = [dict(message) for message in messages]
+        if images or audio:
+            local_messages = self._assemble_multimodal_payload(
+                local_messages, images, audio, target.provider
+            )
+        if allowed_skills:
+            local_messages = self._inject_skills_system_prompt(
+                local_messages, allowed_skills
+            )
+        yield from stream_runtime_response(
+            RuntimeStreamRequest(
+                config=self.config,
+                provider=target.provider,
+                model_name=target.model_name,
+                messages=local_messages,
+                temperature=(
+                    self.config.temperature if temperature is None else temperature
+                ),
+                max_tokens=(
+                    self.config.max_tokens if max_tokens is None else max_tokens
+                ),
+                allowed_skills=tuple(allowed_skills or ()),
+            )
         )
 
     def _infer_food_key(self, request: RuntimeRequest) -> str:
@@ -364,126 +350,6 @@ class RuntimeAgent:
                 return configured
         return default_food
 
-    def generate(
-        self,
-        model_key: str,
-        messages: List[Dict[str, Any]],
-        images: List[str] = None,
-        audio: str = None,
-        temperature: float = None,
-        max_tokens: int = None,
-        allowed_skills: List[str] = None,
-        max_loops: int = 1,
-        owner_token: str = None,
-    ) -> str:
-        """
-        高度可控的多模态大模型 generate 接口
-        :param model_key: 算力套餐中的 Model Key (如 "local_fast", "remote_deep")
-        :param messages: 完整的对话上下文历史
-        :param images: 待处理图片本地绝对路径列表
-        :param audio: 待处理音频本地绝对路径
-        :param temperature: 随机温度 (不传使用 config 默认值)
-        :param max_tokens: 最大Token限制
-        :param allowed_skills: 允许调用的技能列表 (如 ["web_search", "code_sandbox", "skills_evolution"])
-        :param max_loops: 多轮推理循环迭代上限
-        :param owner_token: 特权令牌，用于 N3 重构时代谢技能
-        :return: 大模型最终的纯文本响应
-        """
-        return generate_text(
-            self._generation_runtime(),
-            model_key=model_key,
-            messages=messages,
-            images=images,
-            audio=audio,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            allowed_skills=allowed_skills,
-            max_loops=max_loops,
-            owner_token=owner_token,
-        )
-
-    def generate_stream(
-        self,
-        model_key: str,
-        messages: List[Dict[str, Any]],
-        images: List[str] = None,
-        audio: str = None,
-        temperature: float = None,
-        max_tokens: int = None,
-        allowed_skills: List[str] = None,
-        max_loops: int = 1,
-        owner_token: str = None,
-    ):
-        """SSE 流式生成 — yield 文本 chunk，流结束后检查 skill tag
-
-        与 generate() 完全独立，不影响同步调用链。
-        使用 httpx.stream 进行 SSE 流式响应。
-
-        ⚠️ 注意：流式模式下不支持多轮推理循环（max_loops 固定为 1），
-        因为流式响应需要实时 yield，无法进行工具回调后的二次请求。
-        """
-        target = ensure_model_ready(
-            model_key, self.registry, self.ollama_manager, images, audio
-        )
-        model_name = target.model_name
-        provider = target.provider
-
-        # 拷贝 messages 避免外部入参篡改
-        local_messages = [dict(m) for m in messages]
-
-        # 3. 拼装多模态媒体载荷至最新的一条 User Message
-        if images or audio:
-            local_messages = self._assemble_multimodal_payload(
-                local_messages, images, audio, provider
-            )
-
-        # 4. 根据允许的技能，动态向上下文顶部注入防幻觉指令规约
-        if allowed_skills:
-            local_messages = self._inject_skills_system_prompt(
-                local_messages, allowed_skills
-            )
-
-        temp = temperature if temperature is not None else self.config.temperature
-        tokens = max_tokens if max_tokens is not None else self.config.max_tokens
-
-        yield from stream_runtime_response(
-            RuntimeStreamRequest(
-                config=self.config,
-                provider=provider,
-                model_name=model_name,
-                messages=local_messages,
-                temperature=temp,
-                max_tokens=tokens,
-                allowed_skills=tuple(allowed_skills or ()),
-            )
-        )
-
-    def _assemble_multimodal_payload(
-        self,
-        messages: List[Dict[str, Any]],
-        images: List[str] = None,
-        audio: str = None,
-        provider: str = "ollama",
-    ) -> List[Dict[str, Any]]:
-        return assemble_multimodal_payload(messages, images, audio, provider)
-
-    def _inject_skills_system_prompt(
-        self, messages: List[Dict[str, Any]], allowed_skills: List[str]
-    ) -> List[Dict[str, Any]]:
-        return inject_skills_system_prompt(messages, allowed_skills)
-
-    def _call_llm_api(
-        self,
-        provider: str,
-        model_name: str,
-        messages: List[Dict[str, Any]],
-        temperature: float,
-        max_tokens: int,
-    ) -> str:
-        return call_llm_api(
-            self.config, provider, model_name, messages, temperature, max_tokens
-        )
-
     def _call_food_llm_api(
         self,
         provider: str,
@@ -502,20 +368,3 @@ class RuntimeAgent:
             max_tokens,
             request_options=request_options,
         )
-
-    def _generation_runtime(self) -> GenerationRuntime:
-        return GenerationRuntime(
-            config=self.config,
-            registry=self.registry,
-            ollama_manager=self.ollama_manager,
-            search_plugin=self.search_plugin,
-            sandbox_plugin=self.sandbox_plugin,
-            skills_evolution_plugin=self.skills_evolution_plugin,
-            permission_manager=self.permission_manager,
-            call_llm_api=self._call_llm_api,
-            set_fallback_info=self._set_fallback_info,
-            file_access_plugin=self.file_access_plugin,
-        )
-
-    def _set_fallback_info(self, fallback_info: Dict[str, Any] | None) -> None:
-        self._last_fallback = fallback_info

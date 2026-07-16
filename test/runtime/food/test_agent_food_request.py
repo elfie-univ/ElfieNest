@@ -1,9 +1,29 @@
+import pytest
+
 from runtime.config import LLMRuntimeConfig
+from runtime.food.elfie_policy import ElfieFoodPolicy, save_elfie_food_policy
 from runtime.food.models import ExecutionProfile, FoodRecipe
 from runtime.food.store import FoodCatalog
-from runtime.food.elfie_policy import ElfieFoodPolicy, save_elfie_food_policy
 from runtime.gateway.agent import RuntimeAgent
 from runtime.gateway.request import RuntimeRequest
+
+
+def test_runtime_agent_does_not_expose_direct_model_generation(monkeypatch, tmp_path):
+    """Given a runtime agent, When inspecting its public surface, Then only food APIs exist."""
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    agent = RuntimeAgent(LLMRuntimeConfig())
+
+    assert not hasattr(agent, "generate")
+    assert not hasattr(agent, "router")
+
+
+def test_runtime_agent_requires_formal_food_catalog(monkeypatch, tmp_path):
+    """Given no foods.yaml, When a request runs, Then initialization is explicit."""
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    agent = RuntimeAgent(LLMRuntimeConfig())
+
+    with pytest.raises(RuntimeError, match="foods.yaml"):
+        agent.ask("你好")
 
 
 def test_runtime_agent_accepts_food_interface_without_exposing_reasoning(
@@ -130,25 +150,12 @@ def test_runtime_reads_policy_from_elfie_actual_config_directory(
     assert result.actual_model == "ollama/focus"
 
 
-def test_missing_food_file_uses_internal_compatibility_food_not_legacy_router(
-    monkeypatch, tmp_path
-):
+def test_missing_food_file_requires_explicit_initialization(monkeypatch, tmp_path):
+    """Given missing foods.yaml, When asking, Then no compatibility recipe is created."""
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     agent = RuntimeAgent(LLMRuntimeConfig())
-    calls = []
-    agent._call_food_llm_api = lambda provider, model, *args: calls.append(
-        (provider, model)
-    ) or "ok"
-    monkeypatch.setattr(
-        agent.router,
-        "route_request",
-        lambda *args, **kwargs: (_ for _ in ()).throw(
-            AssertionError("旧模型路由不应被调用")
-        ),
-    )
 
-    result = agent.ask("你好")
+    with pytest.raises(RuntimeError, match="foods.yaml"):
+        agent.ask("你好")
 
-    assert result == "ok"
-    assert calls == [("ollama", agent.config.cheap_model)]
     assert not (tmp_path / "foods.yaml").exists()

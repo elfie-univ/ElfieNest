@@ -8,7 +8,6 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List
 
-from runtime.food.bootstrap import build_compatibility_food_catalog
 from runtime.food.models import FoodRecipe
 from runtime.food.store import FoodCatalog, FoodCatalogStore
 from runtime.providers.ollama import OllamaManager
@@ -177,12 +176,12 @@ def load_runtime_food_catalog(
     config_store: Any,
     food_store: FoodCatalogStore | None = None,
 ) -> FoodCatalog:
-    """加载 Runtime 粮食目录；尚未生成时按当前配置构造兼容配方。"""
+    """加载正式 Runtime 粮食目录；缺失时要求显式初始化。"""
     store = food_store or runtime_food_catalog_store(config_store)
     catalog = store.load()
-    if catalog.recipes:
-        return catalog
-    return build_compatibility_food_catalog(config_store.load_runtime_config())
+    if not catalog.recipes:
+        raise RuntimeError("Runtime 粮食目录 foods.yaml 不存在或为空，请先初始化")
+    return catalog
 
 
 def list_installed_ollama_models(config: Any) -> tuple[str, ...] | None:

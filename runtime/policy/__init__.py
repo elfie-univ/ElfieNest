@@ -1,31 +1,5 @@
-from runtime.policy.food_policy import (
-    DEFAULT_FOOD_POLICY,
-    FoodPolicy,
-    FoodPolicyDecision,
-    RuntimeTaskType,
-    resolve_food_policy,
-)
-from runtime.policy.model_route import (
-    ModelRoute,
-    SceneRoute,
-    load_model_route,
-    resolve_model,
-    save_model_route,
-)
-from runtime.policy.router import ModelRouter
-from runtime.policy.scene_classifier import classify_scene
+"""Runtime 任务分类公共入口。"""
 
-__all__ = [
-    "DEFAULT_FOOD_POLICY",
-    "FoodPolicy",
-    "FoodPolicyDecision",
-    "ModelRoute",
-    "ModelRouter",
-    "RuntimeTaskType",
-    "SceneRoute",
-    "classify_scene",
-    "load_model_route",
-    "resolve_food_policy",
-    "resolve_model",
-    "save_model_route",
-]
+from runtime.policy.food_policy import RuntimeTaskType, task_type_from_prompt
+
+__all__ = ["RuntimeTaskType", "task_type_from_prompt"]

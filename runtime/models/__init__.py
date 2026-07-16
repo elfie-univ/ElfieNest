@@ -4,7 +4,6 @@ from runtime.models.catalog import (
     ModelEntry,
     verify_provider,
 )
-from runtime.models.groups import DEFAULT_MODEL_GROUPS, ModelGroup, resolve_model_key
 from runtime.models.local_profiles import (
     LOCAL_MODEL_PROFILES,
     LocalModelProfile,
@@ -14,14 +13,11 @@ from runtime.models.registry import ModelRegistry
 
 __all__ = [
     "BUILTIN_MODEL_CATALOG",
-    "DEFAULT_MODEL_GROUPS",
     "LOCAL_MODEL_PROFILES",
     "LocalModelProfile",
     "ModelCatalog",
     "ModelEntry",
-    "ModelGroup",
     "ModelRegistry",
-    "resolve_model_key",
     "select_local_profile",
     "verify_provider",
 ]

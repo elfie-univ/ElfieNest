@@ -3,7 +3,27 @@ from fastapi.testclient import TestClient
 from devtools.elfie_lab.app import create_app
 from devtools.runtime_lab import RuntimeLabConfigStore
 from runtime import RuntimeAgent
+from runtime.food.models import ExecutionProfile, FoodRecipe
+from runtime.food.store import FoodCatalog, FoodCatalogStore
 from runtime.gateway.request import RuntimeResult
+
+
+def _write_foods(runtime_dir, *, focus_model="ollama/focus", standard_model="ollama/qwen3.5:0.8b"):
+    FoodCatalogStore(runtime_dir / "foods.yaml", runtime_dir / "food_history").save(
+        FoodCatalog(
+            recipes={
+                "coarse": FoodRecipe("coarse", "粗粮", "", ExecutionProfile("ollama/qwen3.5:0.8b")),
+                "standard": FoodRecipe("standard", "标准粮", "", ExecutionProfile(standard_model)),
+                "focus": FoodRecipe(
+                    "focus",
+                    "清醒粮",
+                    "",
+                    ExecutionProfile(focus_model),
+                    technical_fallbacks=(ExecutionProfile("ollama/qwen3.5:0.8b"),),
+                ),
+            }
+        )
+    )
 
 
 def test_app_create_elfie_and_chat(tmp_path):
@@ -79,6 +99,7 @@ def test_default_app_shares_runtime_but_keeps_elfie_data_isolated(
         "devtools.elfie_lab.app.list_installed_ollama_models",
         lambda config: (),
     )
+    _write_foods(shared_runtime)
 
     app = create_app(str(elfie_data))
     client = TestClient(app)
@@ -94,6 +115,7 @@ def test_default_app_shares_runtime_but_keeps_elfie_data_isolated(
 
 def test_food_api_reports_primary_and_fallback_readiness(tmp_path, monkeypatch):
     runtime_dir = tmp_path / "runtime"
+    _write_foods(runtime_dir, focus_model="openai/example-model")
     store = RuntimeLabConfigStore(str(runtime_dir))
     store.configure_provider(
         "openai",
@@ -123,6 +145,7 @@ def test_food_api_reports_primary_and_fallback_readiness(tmp_path, monkeypatch):
 
 def test_non_mock_turn_uses_selected_food_and_runtime_catalog(tmp_path, monkeypatch):
     runtime_dir = tmp_path / "runtime"
+    _write_foods(runtime_dir)
     captured = {}
 
     def fake_run_with_food(runtime, **kwargs):
@@ -169,7 +192,9 @@ def test_turn_rejects_legacy_mode_and_unknown_food(tmp_path, monkeypatch):
         "devtools.elfie_lab.app.list_installed_ollama_models",
         lambda config: (),
     )
-    client = TestClient(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
+    runtime_dir = tmp_path / "runtime"
+    _write_foods(runtime_dir)
+    client = TestClient(create_app(str(tmp_path / "data"), str(runtime_dir)))
     created = client.post("/api/elfies", json={"name": "粮食协议测试"}).json()
     endpoint = f"/api/elfies/{created['elfie_id']}/turns"
 
@@ -191,7 +216,9 @@ def test_foods_api_returns_food_list(tmp_path, monkeypatch):
         "devtools.elfie_lab.app.list_installed_ollama_models",
         lambda config: (),
     )
-    client = TestClient(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
+    runtime_dir = tmp_path / "runtime"
+    _write_foods(runtime_dir)
+    client = TestClient(create_app(str(tmp_path / "data"), str(runtime_dir)))
 
     response = client.get("/api/runtime/foods")
 
@@ -208,7 +235,9 @@ def test_uninstalled_ollama_food_is_disabled_with_setup_command(tmp_path, monkey
         "devtools.elfie_lab.app.list_installed_ollama_models",
         lambda config: ("another-model:latest",),
     )
-    client = TestClient(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
+    runtime_dir = tmp_path / "runtime"
+    _write_foods(runtime_dir)
+    client = TestClient(create_app(str(tmp_path / "data"), str(runtime_dir)))
 
     food_payload = client.get("/api/runtime/foods").json()
     foods = food_payload["items"]

@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 from elfienest.cli import doctor_commands
-from runtime.food.models import FIXED_FOOD_KINDS
-from runtime.food.store import FoodCatalogStore
 
 
-def test_doctor_repair_creates_home_dirs_and_compatibility_foods(
+def test_doctor_repair_creates_home_dirs_without_implicit_foods(
     monkeypatch,
     tmp_path,
 ) -> None:
@@ -16,11 +14,9 @@ def test_doctor_repair_creates_home_dirs_and_compatibility_foods(
     report = doctor_commands.repair_local_runtime_state()
 
     # Then
-    catalog = FoodCatalogStore().load()
-    assert set(catalog.recipes) == set(FIXED_FOOD_KINDS)
     assert (tmp_path / "validations").is_dir()
     assert "创建缺失的 ~/.elfienest 数据目录和子目录" in report.repaired
-    assert "补齐缺失的兼容粮食策略 foods.yaml" in report.repaired
+    assert not (tmp_path / "foods.yaml").exists()
 
 
 def test_doctor_runs_repair_before_offline_validation(
@@ -32,8 +28,7 @@ def test_doctor_runs_repair_before_offline_validation(
     monkeypatch.setattr(
         doctor_commands,
         "repair_local_runtime_state",
-        lambda: calls.append("repair")
-        or doctor_commands.DoctorRepairReport(("补齐缺失的兼容粮食策略 foods.yaml",)),
+        lambda: calls.append("repair") or doctor_commands.DoctorRepairReport(()),
     )
 
     class FakeReport:
@@ -54,4 +49,4 @@ def test_doctor_runs_repair_before_offline_validation(
     assert exit_code == 0
     assert calls == ["repair", "validate"]
     assert "Doctor 诊断并自动修复" in output
-    assert "补齐缺失的兼容粮食策略 foods.yaml" in output
+    assert "修复与诊断完成" in output

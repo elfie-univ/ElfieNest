@@ -150,8 +150,12 @@ def create_app(
     @app.get("/api/runtime/foods")
     def runtime_foods():
         """读取本机公共 Runtime 配置的粮食目录。"""
+        try:
+            items = food_items()
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
         return {
-            "items": food_items(),
+            "items": items,
             "configuration_command": configure_runtime_command,
         }
 
@@ -179,11 +183,14 @@ def create_app(
     @app.post("/api/elfies/{elfie_id}/turns")
     def create_turn(elfie_id: str, request: TurnRequest):
         food_key = request.food_key.lower().strip()
-        food = (
-            {"ready_for_attempt": True}
-            if food_key == "mock"
-            else {item["key"]: item for item in food_items()}.get(food_key)
-        )
+        try:
+            food = (
+                {"ready_for_attempt": True}
+                if food_key == "mock"
+                else {item["key"]: item for item in food_items()}.get(food_key)
+            )
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
         if food is None:
             raise HTTPException(
                 status_code=422,

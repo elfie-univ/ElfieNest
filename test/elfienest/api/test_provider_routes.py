@@ -372,164 +372,14 @@ class TestModelOwnerRoutes:
 
 
 # ===================================================================
-# Route Routes 测试
+# 旧模型路由已移除
 # ===================================================================
 
 
-class TestRouteRoutes:
-    def test_get_elfie_route_returns_default(self, client: TestClient, db_path: str) -> None:
-        """GET /api/user/elfies/{id}/route 返回路由配置（默认配置）。"""
-        # 创建用户并领养精灵
-        create_test_user(db_path, "alice", "pass123")
-        tokens = _login_user(client, "alice", "pass123")
-
-        resp = client.post(
-            "/api/user/adopt",
-            json={
-                "name": "小白",
-                "anatomy_type": "biped",
-                "personality_style": "好奇探索",
-                "height": "standard",
-                "build": "standard",
-            },
-            headers=_headers(tokens["csrf_token"]),
-        )
-        assert resp.status_code == 201
-        elfie_id = resp.json()["elfie_id"]
-
-        # 获取路由
-        resp = client.get(
-            f"/api/user/elfies/{elfie_id}/route",
-            headers=_headers(tokens["csrf_token"]),
-        )
-        assert resp.status_code == 200
-        route = resp.json()
-        assert "elfie_id" in route
-        assert route["default_food"] == "standard"
-        assert "vision" in route["allowed_foods"]
-        assert "tool" in route["allowed_foods"]
-        assert "premium" not in route["allowed_foods"]
-        assert route["deprecated"] is True
-        assert route["replacement"].endswith("/food-policy")
-
-    def test_put_elfie_route_updates_config(self, client: TestClient, db_path: str) -> None:
-        """旧 route 入口只允许更新粮食权限。"""
-        create_test_user(db_path, "alice", "pass123")
-        tokens = _login_user(client, "alice", "pass123")
-
-        # 领养
-        resp = client.post(
-            "/api/user/adopt",
-            json={
-                "name": "小白",
-                "anatomy_type": "biped",
-                "personality_style": "好奇探索",
-                "height": "standard",
-                "build": "standard",
-            },
-            headers=_headers(tokens["csrf_token"]),
-        )
-        elfie_id = resp.json()["elfie_id"]
-
-        new_route = {
-            "default_food": "standard",
-            "allowed_foods": ["coarse", "standard", "focus"],
-            "fallback_food": "coarse",
-        }
-
-        resp = client.put(
-            f"/api/user/elfies/{elfie_id}/route",
-            json=new_route,
-            headers=_headers(tokens["csrf_token"]),
-        )
-        assert resp.status_code == 200
-        route = resp.json()
-        assert route["allowed_foods"] == ["coarse", "standard", "focus"]
-        assert "scene_routes" not in route
-
-    def test_user_cannot_access_other_user_route(self, client: TestClient, db_path: str) -> None:
-        """用户不能访问其他用户的精灵路由 → 404。"""
-        # 创建两个用户
-        create_test_user(db_path, "alice", "pass123")
-        create_test_user(db_path, "bob", "bobpass")
-
-        # Alice 领养精灵
-        tokens_a = _login_user(client, "alice", "pass123")
-        resp = client.post(
-            "/api/user/adopt",
-            json={
-                "name": "小A",
-                "anatomy_type": "biped",
-                "personality_style": "好奇探索",
-                "height": "standard",
-                "build": "standard",
-            },
-            headers=_headers(tokens_a["csrf_token"]),
-        )
-        elfie_id = resp.json()["elfie_id"]
-
-        # Bob 尝试访问 Alice 的精灵路由
-        tokens_b = _login_user(client, "bob", "bobpass")
-        resp = client.get(
-            f"/api/user/elfies/{elfie_id}/route",
-            headers=_headers(tokens_b["csrf_token"]),
-        )
-        assert resp.status_code == 404
-
-    def test_put_route_invalid_scene(self, client: TestClient, db_path: str) -> None:
-        """旧模型场景路由已停用。"""
-        create_test_user(db_path, "alice", "pass123")
-        tokens = _login_user(client, "alice", "pass123")
-
-        # 领养
-        resp = client.post(
-            "/api/user/adopt",
-            json={
-                "name": "小白",
-                "anatomy_type": "biped",
-                "personality_style": "好奇探索",
-                "height": "standard",
-                "build": "standard",
-            },
-            headers=_headers(tokens["csrf_token"]),
-        )
-        elfie_id = resp.json()["elfie_id"]
-
-        # 尝试更新无效场景
-        resp = client.put(
-            f"/api/user/elfies/{elfie_id}/route",
-            json={"scene_routes": {"invalid_scene": {"primary": "test/model"}}},
-            headers=_headers(tokens["csrf_token"]),
-        )
-        assert resp.status_code == 410
-        assert "模型路由配置已停用" in resp.text
-
-    def test_put_route_missing_primary(self, client: TestClient, db_path: str) -> None:
-        """任何旧 scene_routes 结构都被明确拒绝。"""
-        create_test_user(db_path, "alice", "pass123")
-        tokens = _login_user(client, "alice", "pass123")
-
-        # 领养
-        resp = client.post(
-            "/api/user/adopt",
-            json={
-                "name": "小白",
-                "anatomy_type": "biped",
-                "personality_style": "好奇探索",
-                "height": "standard",
-                "build": "standard",
-            },
-            headers=_headers(tokens["csrf_token"]),
-        )
-        elfie_id = resp.json()["elfie_id"]
-
-        # 尝试更新缺少 primary 的配置
-        resp = client.put(
-            f"/api/user/elfies/{elfie_id}/route",
-            json={"scene_routes": {"idle": {"fallbacks": []}}},
-            headers=_headers(tokens["csrf_token"]),
-        )
-        assert resp.status_code == 410
+def test_legacy_model_route_endpoint_is_removed(client: TestClient) -> None:
+    """旧 route API 不再注册，客户端必须使用 food-policy。"""
+    response = client.get("/api/user/elfies/test-id/route")
+    assert response.status_code == 404
 
 
 # ===================================================================
@@ -546,9 +396,4 @@ class TestUnauthenticatedAccess:
     def test_model_routes_require_auth(self, client: TestClient) -> None:
         """未登录访问 model 端点 → 401。"""
         resp = client.get("/api/owner/models")
-        assert resp.status_code == 401
-
-    def test_route_routes_require_auth(self, client: TestClient) -> None:
-        """未登录访问 route 端点 → 401。"""
-        resp = client.get("/api/user/elfies/test-id/route")
         assert resp.status_code == 401

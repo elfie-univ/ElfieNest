@@ -202,7 +202,7 @@ def test_owner_runtime_policy_returns_configured_strategy(client: TestClient) ->
     assert response.status_code == 200
     payload = response.json()
     assert payload["task_routes"]["reasoning"] == "premium"
-    assert payload["model_groups_deprecated"] is True
+    assert "model_groups_deprecated" not in payload
     assert "focus" in payload["food_keys"]
     assert payload["tool_permissions"]["RUN_SKILL"]["mode"] == "allow"
     assert payload["tool_permissions"]["DELETE_SKILL"]["mode"] == "owner"

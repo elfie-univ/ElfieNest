@@ -76,7 +76,7 @@ def stream_runtime_response(request: RuntimeStreamRequest) -> Iterator[str]:
 
     detected_skills = detect_stream_skill_tags(full_response, request.allowed_skills)
     if detected_skills:
-        yield f"\n⚠️ [流式模式提示] 检测到技能标签: {', '.join(detected_skills)}。流式模式下不支持自动回调执行，请使用 generate() 进行完整工具调用。"
+        yield f"\n⚠️ [流式模式提示] 检测到技能标签: {', '.join(detected_skills)}。流式模式下不支持自动回调执行，请使用粮食执行链完成完整工具调用。"
 
 
 def detect_stream_skill_tags(response_text: str, allowed_skills: tuple[str, ...]) -> list[str]:

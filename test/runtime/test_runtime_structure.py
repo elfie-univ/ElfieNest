@@ -2,7 +2,6 @@ def test_layered_runtime_imports_are_available():
     from runtime.gateway.agent import RuntimeAgent
     from runtime.models.catalog import ModelCatalog
     from runtime.models.registry import ModelRegistry
-    from runtime.policy.router import ModelRouter
     from runtime.providers.ollama import OllamaManager
     from runtime.providers.profiles import get_profile
     from runtime.safety.permissions import PermissionManager
@@ -16,7 +15,7 @@ def test_layered_runtime_imports_are_available():
     assert RuntimeAgent is not None
     assert ModelCatalog is not None
     assert ModelRegistry is not None
-    assert ModelRouter is not None
+    assert not hasattr(RuntimeAgent(), "router")
     assert OllamaManager is not None
     assert get_profile("ollama") is not None
     assert PermissionManager is not None

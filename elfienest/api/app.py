@@ -523,9 +523,6 @@ def create_app(
     from .model_owner_routes import router as model_owner_router  # noqa: PLC0415
 
     app.include_router(model_owner_router)
-    from .route_routes import router as route_router  # noqa: PLC0415
-
-    app.include_router(route_router)
     from .food_policy_routes import router as food_policy_router  # noqa: PLC0415
 
     app.include_router(food_policy_router)

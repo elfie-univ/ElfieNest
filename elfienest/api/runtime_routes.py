@@ -64,7 +64,6 @@ def build_runtime_status() -> Dict[str, Any]:
             "visible": max(model_total - len(hidden_models), 0),
             "hidden": len(hidden_models),
             "groups": [],
-            "legacy_model_groups_ignored": True,
         },
         "fallback": {
             "provider": "ollama",
@@ -167,7 +166,6 @@ def _runtime_policy_payload(runtime_policy: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "task_routes": defaults,
         "food_keys": list(FIXED_FOOD_KINDS),
-        "model_groups_deprecated": True,
         "tool_permissions": _tool_permissions_payload(runtime_policy),
     }
 

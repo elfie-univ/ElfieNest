@@ -4,10 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from runtime.config import LLMRuntimeConfig
-from runtime.food.bootstrap import build_compatibility_food_catalog
-from runtime.food.models import FIXED_FOOD_KINDS
-from runtime.food.store import FoodCatalogStore
 from runtime.lab.cli import RuntimeLab
 from runtime.storage.data_home import (
     ensure_elfie_home,
@@ -72,15 +68,5 @@ def repair_local_runtime_state() -> DoctorRepairReport:
     ensure_elfie_home()
     if missing_dirs:
         repaired.append("创建缺失的 ~/.elfienest 数据目录和子目录")
-
-    food_store = FoodCatalogStore()
-    catalog = food_store.load()
-    missing_foods = sorted(set(FIXED_FOOD_KINDS) - set(catalog.recipes))
-    if missing_foods:
-        food_store.save(
-            build_compatibility_food_catalog(LLMRuntimeConfig.load()),
-            keep_history=food_store.path.exists(),
-        )
-        repaired.append("补齐缺失的兼容粮食策略 foods.yaml")
 
     return DoctorRepairReport(tuple(repaired))

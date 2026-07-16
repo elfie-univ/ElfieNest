@@ -4,6 +4,23 @@ import yaml
 
 from devtools.elfie_lab.runtime_adapters import create_runtime
 from devtools.runtime_lab import RuntimeLabConfigStore
+from runtime.food.models import ExecutionProfile, FoodRecipe
+from runtime.food.store import FoodCatalog, FoodCatalogStore
+
+
+def _write_foods(root):
+    FoodCatalogStore(root / "foods.yaml", root / "food_history").save(
+        FoodCatalog(
+            recipes={
+                "standard": FoodRecipe(
+                    "standard", "标准粮", "", ExecutionProfile("ollama/qwen3.5:0.8b")
+                ),
+                "focus": FoodRecipe(
+                    "focus", "清醒粮", "", ExecutionProfile("openai/example-model")
+                ),
+            }
+        )
+    )
 
 
 def test_development_runtime_config_does_not_read_production_config(
@@ -23,6 +40,7 @@ def test_development_runtime_config_does_not_read_production_config(
 
     store = RuntimeLabConfigStore(str(tmp_path / "development"))
     config = store.load_runtime_config()
+    _write_foods(store.root)
 
     assert config.config_home == str(tmp_path / "development")
     assert config.providers["openai"]["api_key"] == ""
@@ -35,6 +53,7 @@ def test_development_runtime_config_does_not_read_production_config(
 
 def test_provider_configuration_separates_secret_and_non_secret_data(tmp_path):
     store = RuntimeLabConfigStore(str(tmp_path / "runtime_lab"))
+    _write_foods(store.root)
 
     status = store.configure_provider(
         "openai",

@@ -1,53 +1,28 @@
 import pytest
 
-from runtime.models.groups import load_model_groups
-from runtime.policy.food_policy import load_food_policy, resolve_food_policy
+from runtime.policy.food_policy import RuntimeTaskType
 from runtime.safety.permissions import PermissionDeniedError, PermissionManager
 from runtime.usage.observer import RuntimeEventType, get_runtime_observer
 
 
 class FakeConfig:
     runtime_policy = {
-        "model_groups": {
-            "premium": {
-                "display_name": "精粮",
-                "model_keys": ["remote_deep", "remote_cheap", "local_fast"],
-            }
-        },
-        "task_routes": {
-            "reasoning": "premium",
-            "code": "premium",
-        },
         "tool_permissions": {
-            "RUN_SKILL": {
-                "mode": "deny",
-                "reason": "测试策略禁止运行技能",
-            },
-            "READ": {
-                "mode": "allow",
-                "reason": "只读放行",
-            },
-            "DELETE_SKILL": {
-                "mode": "owner",
-                "reason": "技能删除需要Owner令牌",
-            },
-        },
+            "RUN_SKILL": {"mode": "deny", "reason": "测试策略禁止运行技能"},
+            "READ": {"mode": "allow", "reason": "只读放行"},
+            "DELETE_SKILL": {"mode": "owner", "reason": "技能删除需要Owner令牌"},
+        }
     }
 
 
-def test_runtime_policy_overrides_model_groups_and_task_routes():
-    policy = load_food_policy(FakeConfig.runtime_policy)
-    model_groups = load_model_groups(FakeConfig.runtime_policy)
-
-    decision = resolve_food_policy(
-        task_type="reasoning",
-        available_model_keys={"remote_cheap", "local_fast"},
-        food_policy=policy,
-        model_groups=model_groups,
+def test_task_types_have_no_model_group_mapping():
+    assert tuple(item.value for item in RuntimeTaskType) == (
+        "chat",
+        "reasoning",
+        "vision",
+        "code",
+        "organize",
     )
-
-    assert decision.group_key == "premium"
-    assert decision.model_key == "remote_cheap"
 
 
 def test_permission_manager_denies_and_records_policy_decision():
@@ -68,37 +43,8 @@ def test_permission_manager_denies_and_records_policy_decision():
     assert events[-1].metadata["allowed"] is False
 
 
-def test_runtime_policy_ignores_unknown_task_route_and_falls_back_unknown_group():
-    policy = load_food_policy(
-        {
-            "task_routes": {
-                "unknown": "premium",
-                "reasoning": "missing_group",
-            }
-        }
-    )
-
-    decision = resolve_food_policy(
-        task_type="reasoning",
-        available_model_keys={"local_fast"},
-        food_policy=policy,
-        model_groups=load_model_groups({}),
-    )
-
-    assert "unknown" not in {task_type.value for task_type in policy.task_groups}
-    assert decision.group_key == "coarse"
-    assert decision.model_key == "local_fast"
-
-
 def test_permission_manager_allows_owner_action_with_token():
     manager = PermissionManager(FakeConfig())
     manager._owner_token = "secret"
 
-    assert (
-        manager.verify_action(
-            "DELETE_SKILL",
-            file_path="old_skill.py",
-            token="secret",
-        )
-        is True
-    )
+    assert manager.verify_action("DELETE_SKILL", file_path="old_skill.py", token="secret")
