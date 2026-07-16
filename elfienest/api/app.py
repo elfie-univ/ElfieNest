@@ -35,7 +35,7 @@ from elfienest.persistence.store import (
     get_db,
     init_db,
     migrate_db_if_needed,
-    seed_initial_admin_if_env_set,
+    seed_initial_owner_if_env_set,
 )
 from elfienest.ui import STATIC_DIR
 from runtime.storage.data_home import get_db_path as _get_db_path
@@ -93,6 +93,7 @@ def create_app(
     engine: Any = None,
     db_path: Optional[str] = None,
     ws_port: int = 8766,
+    http_port: int = 8000,
 ) -> FastAPI:
     """Create and configure the FastAPI application.
 
@@ -102,6 +103,7 @@ def create_app(
             engine access (adoption, config, etc.) become functional.
         db_path: Path to the SQLite database file.
         ws_port: Port for the authenticated WebSocket gateway (default 8766).
+        http_port: Port serving the browser console (default 8000).
 
     Returns:
         A fully configured :class:`FastAPI` instance.
@@ -113,14 +115,18 @@ def create_app(
     async def lifespan(app: FastAPI):
         init_db(db_path)
         migrate_db_if_needed(db_path)
-        seed_initial_admin_if_env_set(db_path)
+        seed_initial_owner_if_env_set(db_path)
         from .nest_routes import _rooms_with_beds  # noqa: PLC0415
 
         rooms = _rooms_with_beds(db_path)
         app.state.camera_feed.set_desired_bed_count(len(rooms[0]["beds"]))
 
         # 创建鉴权 WS 网关（独立端口，不与 Godot 8765 冲突）
-        ws_manager = AuthenticatedWSManager(port=ws_port, db_path=db_path)
+        ws_manager = AuthenticatedWSManager(
+            port=ws_port,
+            http_port=http_port,
+            db_path=db_path,
+        )
         if engine is not None:
             engine.ws_manager = ws_manager
             ws_manager.coordinator = engine.coordinator
@@ -138,6 +144,7 @@ def create_app(
     # 将 db_path 与 engine 存入 app.state 供依赖注入使用
     app.state.db_path = db_path
     app.state.engine = engine
+    app.state.ws_port = ws_port
     from .camera_routes import CameraFeedStore  # noqa: PLC0415
 
     app.state.camera_feed = CameraFeedStore()
@@ -240,6 +247,11 @@ def create_app(
             "manifest": status.manifest,
         }
 
+    @app.get("/api/ws-config")
+    async def ws_config() -> Dict[str, int]:
+        """返回浏览器连接鉴权 WebSocket 所需的端口。"""
+        return {"port": ws_port}
+
     @app.post("/api/auth/login")
     async def login(request: Request):
         """登录：校验身份 → 创建 session → 设置 cookie → 返回 user + CSRF token。
@@ -292,7 +304,6 @@ def create_app(
         resp = JSONResponse(content={
             "user": user_data,
             "csrf_token": csrf_token,
-            "session_token": session_token,
         })
         resp.set_cookie(
             key="session_token",
@@ -354,7 +365,6 @@ def create_app(
             "created_at": row["created_at"],
             "elfie_count": elfie_count,
             "csrf_token": csrf_token,
-            "session_token": session_token,
         }
 
     # -------------------------------------------------------------------
@@ -458,8 +468,13 @@ def create_app(
         new_hash = hash_password(body.new_password)
         with get_db(db_path) as conn:
             conn.execute(
-                "UPDATE users SET password_hash = ? WHERE id = ?",
+                "UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                 (new_hash, user["id"]),
+            )
+            current_token = request.cookies.get("session_token", "")
+            conn.execute(
+                "DELETE FROM sessions WHERE user_id = ? AND token != ?",
+                (user["id"], current_token),
             )
             conn.commit()
 

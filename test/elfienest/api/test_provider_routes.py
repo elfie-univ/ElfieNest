@@ -64,7 +64,6 @@ def _login_admin(client: TestClient) -> dict:
     resp = client.post("/api/auth/login", data={"username": "admin", "password": "adminchangeme"})
     assert resp.status_code == 200
     return {
-        "session_token": resp.json()["session_token"],
         "csrf_token": resp.headers.get("X-CSRF-Token", ""),
     }
 
@@ -74,7 +73,6 @@ def _login_user(client: TestClient, username: str, password: str) -> dict:
     resp = client.post("/api/auth/login", data={"username": username, "password": password})
     assert resp.status_code == 200
     return {
-        "session_token": resp.json()["session_token"],
         "csrf_token": resp.headers.get("X-CSRF-Token", ""),
         "user_id": resp.json()["user"]["id"],
     }

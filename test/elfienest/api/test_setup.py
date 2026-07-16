@@ -55,7 +55,7 @@ class TestSetupStatus:
 
 
 class TestSetup:
-    def test_setup_creates_admin(self, client: TestClient) -> None:
+    def test_setup_creates_owner(self, client: TestClient) -> None:
         """POST /api/auth/setup 在无用户时成功创建 admin（201）。"""
         resp = client.post(
             "/api/auth/setup",
@@ -64,7 +64,7 @@ class TestSetup:
         assert resp.status_code == 201, resp.text
         data = resp.json()
         assert data["username"] == "admin"
-        assert data["role"] == "admin"
+        assert data["role"] == "owner"
         assert "id" in data
         assert "csrf_token" in data
 
@@ -74,6 +74,25 @@ class TestSetup:
 
         # 验证 X-CSRF-Token header
         assert "x-csrf-token" in resp.headers
+
+    def test_setup_cookie_uses_configured_session_ttl(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """POST /api/auth/setup 的 cookie TTL 与统一 session TTL 保持一致。"""
+        monkeypatch.setattr(
+            "elfienest.api.setup_routes.get_session_ttl_seconds",
+            lambda _db_path: 86400,
+        )
+
+        resp = client.post(
+            "/api/auth/setup",
+            json={"username": "admin", "password": "securePass123"},
+        )
+
+        assert resp.status_code == 201, resp.text
+        assert "Max-Age=86400" in resp.headers["set-cookie"]
 
     def test_setup_blocked_when_users_exist(self, client: TestClient, db_path: str) -> None:
         """POST /api/auth/setup 在有用户时返回 409。"""

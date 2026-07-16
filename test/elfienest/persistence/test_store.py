@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import stat
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,7 @@ from elfienest.persistence.store import (
     get_db,
     init_db,
     seed_initial_admin_if_env_set,
+    seed_initial_owner_if_env_set,
 )
 from test.elfienest.api._helpers import create_test_admin
 
@@ -43,6 +45,13 @@ def _index_names(db_path: str) -> set[str]:
 
 
 class TestInitDb:
+    def test_does_not_change_existing_parent_permissions(self, tmp_path: Path) -> None:
+        parent_mode = stat.S_IMODE(tmp_path.stat().st_mode)
+
+        init_db(str(tmp_path / "nest.db"))
+
+        assert stat.S_IMODE(tmp_path.stat().st_mode) == parent_mode
+
     def test_creates_core_tables(self, tmp_path: Path) -> None:
         db = str(tmp_path / "nest.db")
         init_db(db)
@@ -103,6 +112,21 @@ class TestSeedInitialAdminIfEnvSet:
         assert len(parts) == 4
         assert len(parts[2]) == 32
         assert len(parts[3]) == 64
+
+    def test_legacy_admin_env_seeds_owner_role(self, tmp_path: Path, monkeypatch) -> None:
+        db = str(tmp_path / "nest.db")
+        init_db(db)
+        monkeypatch.delenv("OWNER_USERNAME", raising=False)
+        monkeypatch.delenv("OWNER_PASSWORD", raising=False)
+        monkeypatch.setenv("ADMIN_USERNAME", "migrated-owner")
+        monkeypatch.setenv("ADMIN_PASSWORD", "testpass123")
+
+        assert seed_initial_owner_if_env_set(db) is True
+        with sqlite3.connect(db) as conn:
+            row = conn.execute(
+                "SELECT role FROM users WHERE username = ?", ("migrated-owner",)
+            ).fetchone()
+        assert row[0] == "owner"
 
     def test_returns_false_when_env_not_set(self, tmp_path: Path) -> None:
         """环境变量未设置时返回 False。"""

@@ -22,6 +22,7 @@ from test.elfienest.operations.service_lifecycle_fakes import (
     FakeClock,
     FakeInspector,
     RecordingLauncher,
+    write_pid,
 )
 
 
@@ -121,6 +122,63 @@ def test_start_preserves_supplied_service_command(tmp_path: Path) -> None:
     assert result.status == "started"
     assert launcher.calls[0][0] == command
     assert result.command == command
+
+
+def test_start_rejects_a_running_service_on_a_different_port(tmp_path: Path) -> None:
+    # Given
+    project_root = tmp_path / "project"
+    elfie_home = tmp_path / "home"
+    write_pid(elfie_home, 5103)
+    launcher = RecordingLauncher(5104)
+    inspector = FakeInspector(
+        cwd=project_root,
+        command=("python", "scripts/serve.py", "--port", "8000"),
+        existence=[True],
+    )
+
+    # When
+    result = start_service(
+        elfie_home,
+        project_root,
+        command=("python", "scripts/serve.py", "--port", "8100"),
+        launcher=launcher,
+        inspector=inspector,
+        health_checker=lambda: True,
+    )
+
+    # Then
+    assert result.status == "failed"
+    assert result.pid == 5103
+    assert "其他端口" in str(result.error)
+    assert launcher.calls == []
+
+
+def test_start_checks_health_before_reporting_existing_service_as_running(
+    tmp_path: Path,
+) -> None:
+    # Given
+    project_root = tmp_path / "project"
+    elfie_home = tmp_path / "home"
+    write_pid(elfie_home, 5110)
+    inspector = FakeInspector(
+        cwd=project_root,
+        command=("python", "scripts/serve.py"),
+        existence=[True],
+    )
+
+    # When
+    result = start_service(
+        elfie_home,
+        project_root,
+        inspector=inspector,
+        launcher=RecordingLauncher(5111),
+        health_checker=lambda: False,
+    )
+
+    # Then
+    assert result.status == "failed"
+    assert result.pid == 5110
+    assert isinstance(result.error, HealthCheckFailedError)
 
 
 def test_start_health_failure_terminates_process_and_removes_pid(

@@ -14,7 +14,7 @@
 ./elfienest.sh serve --fallback   # 启动服务
 ./elfienest.sh config             # 配置系统
 ./elfienest.sh status             # 查看状态
-./elfienest.sh models             # 查看模型
+./elfienest.sh owner              # Owner 账号菜单
 ```
 
 ### 方式 2: 用户安装（日常使用）
@@ -54,6 +54,7 @@ elfienest> help              # 查看帮助
 elfienest> start --fallback  # 启动服务
 elfienest> status            # 查看状态
 elfienest> config            # 配置系统
+elfienest> owner             # Owner 账号菜单
 elfienest> exit              # 退出
 ```
 
@@ -65,11 +66,12 @@ elfienest> exit              # 退出
 start              # 启动 ElfieNest Web 服务
 serve              # start 的兼容别名
 serve --fallback   # 使用内置引擎（不连 Ollama）
-serve --force      # 强制重启（杀死占用端口的进程）
+start              # 后台启动（已运行时不重复启动）
+restart            # 停止并重新启动当前服务
 serve --port 8001  # 使用其他端口
-restart            # 重启 ElfieNest Web 服务
-stop               # 停止 ElfieNest Web 服务
+stop               # 停止服务
 status             # 查看服务状态
+web                # 确保服务可用并打开 Web 管理台
 build-godot-web    # 构建随 Web 服务发布的 Godot Web Runtime
 ```
 
@@ -77,17 +79,15 @@ build-godot-web    # 构建随 Web 服务发布的 Godot Web Runtime
 
 ```bash
 config             # 交互式配置 TUI
-models             # 列出可用模型
-providers          # 管理 providers
 setup              # 首次设置向导
+doctor             # 本地诊断并自动修复
+version            # 显示版本
 ```
 
 ### 监控和调试
 
 ```bash
-stats              # 显示使用统计
-session            # 管理会话
-logs               # 查看日志
+doctor             # 运行诊断
 version            # 显示版本
 ```
 
@@ -99,33 +99,29 @@ db backup          # 备份数据库
 db reset           # 重置数据库
 ```
 
-### 管理员账号恢复
+### Owner 账号恢复
 
-管理员账号保存在 `$ELFIE_HOME/nest.db`；未设置 `ELFIE_HOME` 时，默认路径是
+Owner 账号保存在 `$ELFIE_HOME/nest.db`；未设置 `ELFIE_HOME` 时，默认路径是
 `~/.elfienest/nest.db`。恢复能力只提供给服务器本机命令行，不提供免登录网页
-接口，也不会创建新的管理员。
+接口，也不会创建新的 Owner。
 
-在交互主菜单输入 `admin`，可进入管理员账号管理子菜单：
+在交互主菜单输入 `owner`，可进入 Owner 账号菜单：
 
 ```text
-1. 显示当前管理员
-2. 重置管理员密码
+1. 查看 Owner 账号信息
+2. 恢复 Owner 账号（同时更新登录名和密码）
 0. 返回主菜单
 ```
 
 也可以直接执行：
 
 ```bash
-elfienest admin show                         # 显示数据库路径和管理员用户名
-elfienest admin reset-password               # 只有一个管理员时可省略用户名
-elfienest admin reset-password doctor-bai    # 多个管理员时必须明确指定用户名
+elfienest owner                              # 进入 Owner 菜单
 ```
 
 新密码会在终端中隐藏输入两次，不会进入命令参数、环境变量或 shell 历史。
-重置前会精确停止当前项目登记的服务；密码更新和旧会话撤销在同一数据库事务
-中完成；随后重新启动服务并检查健康状态。命令返回 `0` 表示全部步骤成功，
-运行失败返回 `1`，参数语法错误返回 `2`。如果密码已更新但服务恢复失败，
-命令会明确提示并返回 `1`，此时可排查服务后重新登录。
+恢复会保留 Owner 的 `User ID` 和精灵归属，并撤销该 Owner 的旧会话。
+密码只在隐藏输入中填写，不会进入命令参数或 shell 历史。
 
 ### 其他
 
@@ -157,7 +153,7 @@ elfienest> serve --fallback
 
 # 4. 访问
 # http://localhost:8000/
-# 首次使用请按页面向导创建管理员；账号不是固定值
+# 首次使用请按页面向导创建 Owner；账号不是固定值
 ```
 
 ### 用户模式
@@ -300,16 +296,16 @@ elfienest> status
 ./elfienest.sh status
 ```
 
-### Q: 如何查看有多少精灵？
+### Q: 如何查看服务和精灵状态？
 
 ```bash
-elfienest> stats
+elfienest> status
 ```
 
 ### Q: 端口被占用怎么办？
 
 ```bash
-elfienest> serve --force
+elfienest> restart
 ```
 
 ### Q: 如何备份数据？
@@ -318,10 +314,10 @@ elfienest> serve --force
 elfienest> db backup
 ```
 
-### Q: 如何查看日志？
+### Q: 如何打开管理网页？
 
 ```bash
-elfienest> logs
+elfienest> web
 ```
 
 ## 环境变量配置

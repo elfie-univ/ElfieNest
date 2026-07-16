@@ -13,9 +13,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from elfienest.api.app import create_app
-from elfienest.persistence.store import get_db, init_db
+from elfienest.persistence.store import get_db, init_db, verify_password
 
-from ._helpers import create_test_admin
+from ._helpers import create_test_admin, create_test_user
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -63,10 +63,8 @@ def _login_admin(client: TestClient) -> dict:
     """辅助：以 admin 身份登录，返回 {"session_token", "csrf_token", "cookies"}。"""
     resp = client.post("/api/auth/login", data={"username": "admin", "password": "adminchangeme"})
     assert resp.status_code == 200, f"login failed: {resp.text}"
-    data = resp.json()
     csrf_token = resp.headers.get("X-CSRF-Token", "")
     return {
-        "session_token": data["session_token"],
         "csrf_token": csrf_token,
     }
 
@@ -82,6 +80,51 @@ def _headers(csrf_token: str) -> dict:
 
 
 class TestUserCRUD:
+    def test_admin_cannot_update_owner_account(self, client: TestClient, db_path: str) -> None:
+        # Given
+        tokens = _login_admin(client)
+        owner_id = 1
+
+        # When
+        response = client.put(
+            f"/api/admin/users/{owner_id}",
+            json={"username": "attacker", "password": "attacker-password"},
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        # Then
+        assert response.status_code == 403
+        with get_db(db_path) as conn:
+            owner = conn.execute(
+                "SELECT username, password_hash, role FROM users WHERE id = ?",
+                (owner_id,),
+            ).fetchone()
+        assert owner["username"] == "admin"
+        assert owner["role"] == "owner"
+        assert verify_password("adminchangeme", owner["password_hash"])
+
+    def test_owner_role_cannot_be_demoted_via_user_update(
+        self, client: TestClient, db_path: str
+    ) -> None:
+        # Given
+        tokens = _login_admin(client)
+        owner_id = 1
+
+        # When
+        response = client.put(
+            f"/api/admin/users/{owner_id}",
+            json={"role": "user"},
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        # Then
+        assert response.status_code == 403
+        with get_db(db_path) as conn:
+            role = conn.execute(
+                "SELECT role FROM users WHERE id = ?", (owner_id,)
+            ).fetchone()["role"]
+        assert role == "owner"
+
     def test_create_and_list(self, client: TestClient) -> None:
         """POST 创建 alice → GET 列表包含 alice。"""
         tokens = _login_admin(client)
@@ -151,14 +194,13 @@ class TestUserCRUD:
         )
         user_id = resp.json()["id"]
 
-        # 改 role 为 admin
+        # 不允许再创建第二个管理员角色。
         resp = client.put(
             f"/api/admin/users/{user_id}",
             json={"role": "admin"},
             headers=_headers(tokens["csrf_token"]),
         )
-        assert resp.status_code == 200
-        assert resp.json()["role"] == "admin"
+        assert resp.status_code == 422
 
     def test_delete_user(self, client: TestClient) -> None:
         """删除用户 → 列表不再包含。"""
@@ -180,16 +222,15 @@ class TestUserCRUD:
         usernames = [u["username"] for u in resp.json()]
         assert "alice" not in usernames
 
-    def test_cannot_delete_last_admin(self, client: TestClient) -> None:
-        """不能删除唯一 admin → 400。"""
+    def test_cannot_delete_owner(self, client: TestClient) -> None:
+        """不能从 Web 用户管理删除 Owner → 400。"""
         tokens = _login_admin(client)
-        # 当前 admin（id=1）是唯一管理员，删除应被拒绝
         resp = client.delete(
             "/api/admin/users/1",
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 400
-        assert "唯一的管理员" in resp.text
+        assert "Owner" in resp.text
 
     def test_delete_nonexistent_user_404(self, client: TestClient) -> None:
         """删除不存在的用户 → 404。"""
@@ -293,6 +334,21 @@ class TestAuthorization:
         resp = client.get("/api/admin/users")
         assert resp.status_code == 401
 
+    def test_legacy_admin_role_gets_403(self, client: TestClient, db_path: str) -> None:
+        """旧 admin role 登录后不能调用 Owner-only 管理接口。"""
+        create_test_user(db_path, "legacy_admin", "pass", role="admin")
+        response = client.post(
+            "/api/auth/login",
+            data={"username": "legacy_admin", "password": "pass"},
+        )
+        assert response.status_code == 200
+        csrf_token = response.headers.get("X-CSRF-Token", "")
+
+        response = client.get("/api/admin/users", headers=_headers(csrf_token))
+
+        assert response.status_code == 403
+        assert "Owner" in response.text
+
 
 # ===================================================================
 # 精灵管理
@@ -309,11 +365,11 @@ class TestAdminElfieList:
                 "SELECT id FROM users WHERE username = ?",
                 ("admin",),
             ).fetchone()["id"]
-            conn.execute(
+            room_cursor = conn.execute(
                 "INSERT INTO rooms (name, max_capacity) VALUES (?, ?)",
                 ("主精灵巢", 4),
             )
-            room_id = conn.execute("SELECT id FROM rooms").fetchone()["id"]
+            room_id = room_cursor.lastrowid
             cursor = conn.execute(
                 "INSERT INTO beds (room_id, name, grid_x, grid_y) VALUES (?, ?, ?, ?)",
                 (room_id, "Bed 1", 0, 0),

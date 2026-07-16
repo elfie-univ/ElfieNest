@@ -28,9 +28,11 @@ def read_user_config(path: Optional[Path] = None) -> UserConfig:
 
 def write_user_config(config: UserConfig, path: Optional[Path] = None) -> None:
     config_path = path or get_config_path()
-    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     with open(config_path, "w", encoding="utf-8") as file:
         yaml.dump(config, file, allow_unicode=True, default_flow_style=False)
+    if os.name == "posix":
+        config_path.chmod(0o600)
 
 
 def read_env_file(path: Optional[Path] = None) -> EnvVars:

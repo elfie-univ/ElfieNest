@@ -97,7 +97,9 @@ class ServicePortsActiveError(ServiceLifecycleError):
 class ServiceLifecycleResult:
     """一次生命周期操作的不可变结果。"""
 
-    status: Literal["started", "stopped", "already_stopped", "failed"]
+    status: Literal[
+        "started", "already_running", "stopped", "already_stopped", "failed"
+    ]
     pid: Optional[int] = None
     error: Optional[ServiceLifecycleError] = None
     command: Optional[Tuple[str, ...]] = None

@@ -5,13 +5,53 @@ from pathlib import Path
 from elfienest.operations.service import (
     backup_database,
     collect_usage_stats,
+    default_port_statuses,
     list_active_sessions,
     list_table_counts,
     reset_database,
+    service_port_statuses,
 )
 from elfienest.persistence.store import get_db, init_db
 
 from ..api._helpers import create_test_admin
+
+
+def test_default_port_statuses_include_audio_server(monkeypatch) -> None:
+    calls: list[tuple[int, str]] = []
+
+    def fake_check_port(port: int, name: str):
+        calls.append((port, name))
+        return None
+
+    monkeypatch.setattr("elfienest.operations.service.check_port", fake_check_port)
+
+    default_port_statuses()
+
+    assert calls == [
+        (8000, "HTTP 服务"),
+        (8766, "WebSocket (管理)"),
+        (8765, "WebSocket (Godot)"),
+        (8767, "音频服务器"),
+    ]
+
+
+def test_service_port_statuses_uses_custom_http_and_ws_ports(monkeypatch) -> None:
+    calls: list[tuple[int, str]] = []
+
+    def fake_check_port(port: int, name: str):
+        calls.append((port, name))
+        return None
+
+    monkeypatch.setattr("elfienest.operations.service.check_port", fake_check_port)
+
+    service_port_statuses(8100, 8866, 8768, 8769)
+
+    assert calls == [
+        (8100, "HTTP 服务"),
+        (8866, "WebSocket (管理)"),
+        (8768, "WebSocket (Godot)"),
+        (8769, "音频服务器"),
+    ]
 
 
 def test_collect_usage_stats_reads_core_counts(tmp_path: Path) -> None:
@@ -29,6 +69,7 @@ def test_collect_usage_stats_reads_core_counts(tmp_path: Path) -> None:
     stats = collect_usage_stats(db_path)
 
     assert stats.user_count == 1
+    assert stats.owner_count == 1
     assert stats.admin_count == 1
     assert stats.elfie_count == 1
     assert stats.session_count == 0

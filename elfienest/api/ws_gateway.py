@@ -11,7 +11,9 @@ import json
 import logging
 import sqlite3
 import threading
+from http.cookies import SimpleCookie
 from typing import Any, Dict, Optional, Set
+from urllib.parse import urlparse
 
 import websockets
 import websockets.asyncio.server
@@ -28,11 +30,24 @@ from runtime.storage.data_home import get_db_path as _get_db_path
 logger = logging.getLogger("elfienest.api.ws_gateway")
 
 
+class WebSocketGatewayStartError(RuntimeError):
+    """WebSocket 网关无法在后台线程完成监听时抛出的启动错误。"""
+
+    def __init__(self, host: str, port: int, reason: str) -> None:
+        self.host = host
+        self.port = port
+        self.reason = reason
+        super().__init__(self.__str__())
+
+    def __str__(self) -> str:
+        return f"WebSocket 网关启动失败 ({self.host}:{self.port}): {self.reason}"
+
+
 class AuthenticatedWSManager:
     """鉴权 WebSocket 网关，按 user_id 分组管理连接。
 
     与 GodotAPIServer（端口 8765）使用完全不同的协议层：
-    - 连接建立后必须在 5 秒内发送 ``{"event":"auth","payload":{"token":"..."}}``
+    - 连接建立后必须在 5 秒内发送 ``{"event":"auth"}``，会话从 HttpOnly cookie 读取
     - 验证通过后绑定 user_id，后续消息按 user_id 过滤
     - 提供 ``send_to_user`` / ``broadcast_to_owners`` 两个广播接口
     - 后台 asyncio 事件循环 + 线程模式（同 ``GodotAPIServer``）
@@ -42,10 +57,12 @@ class AuthenticatedWSManager:
         self,
         host: str = "127.0.0.1",
         port: int = 8766,
+        http_port: int = 8000,
         db_path: str = None,
     ) -> None:
         self.host = host
         self.port = port
+        self.http_port = http_port
         self.db_path = db_path if db_path is not None else str(_get_db_path())
 
         # user_id -> Set[websocket] 映射
@@ -58,6 +75,8 @@ class AuthenticatedWSManager:
         self._thread: Any = None
         self._server: Any = None
         self._running = False
+        self._startup_event = threading.Event()
+        self._startup_error: Exception | None = None
 
         # 可选注入：Coordinator 引用，用于处理 user_message 事件
         self.coordinator: Any = None
@@ -71,6 +90,8 @@ class AuthenticatedWSManager:
         if self._running:
             return
 
+        self._startup_event = threading.Event()
+        self._startup_error = None
         self._running = True
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(
@@ -80,14 +101,26 @@ class AuthenticatedWSManager:
         )
         self._thread.start()
 
-        import time
+        if not self._startup_event.wait(timeout=3.0):
+            self._running = False
+            self._request_loop_stop()
+            if self._thread is not None:
+                self._thread.join(timeout=2.0)
+            error = TimeoutError("后台线程未在 3 秒内就绪")
+            raise WebSocketGatewayStartError(self.host, self.port, str(error)) from error
 
-        t0 = time.time()
-        while self._loop is None or not self._loop.is_running():
-            time.sleep(0.05)
-            if time.time() - t0 > 3.0:
-                logger.error("❌ WS gateway 后台线程启动超时！")
-                break
+        if self._startup_error is not None:
+            self._running = False
+            if self._thread is not None:
+                self._thread.join(timeout=2.0)
+            error = self._startup_error
+            raise WebSocketGatewayStartError(self.host, self.port, str(error)) from error
+
+        if self._server is None or self._thread is None or not self._thread.is_alive():
+            self._running = False
+            error = RuntimeError("后台线程未保持运行")
+            raise WebSocketGatewayStartError(self.host, self.port, str(error)) from error
+
         logger.info(
             "🚀 WS gateway 已启动 %s:%d", self.host, self.port
         )
@@ -98,8 +131,15 @@ class AuthenticatedWSManager:
             return
 
         self._running = False
-        if self._loop and self._loop.is_running():
-            asyncio.run_coroutine_threadsafe(self._async_stop(), self._loop)
+        loop = self._loop
+        if loop and loop.is_running():
+            future = asyncio.run_coroutine_threadsafe(self._async_stop(), loop)
+            try:
+                future.result(timeout=2.0)
+            except (TimeoutError, RuntimeError) as exc:
+                logger.debug("WS gateway 异步关闭未完成: %s", exc)
+            if loop.is_running():
+                loop.call_soon_threadsafe(loop.stop)
 
         if self._thread:
             self._thread.join(timeout=2.0)
@@ -109,21 +149,43 @@ class AuthenticatedWSManager:
 
     def _run_event_loop(self) -> None:
         """后台线程执行体：创建事件循环并启动 WebSocket 服务器。"""
-        asyncio.set_event_loop(self._loop)
+        loop = self._loop
+        if loop is None:
+            self._startup_error = RuntimeError("事件循环未创建")
+            self._startup_event.set()
+            return
+        asyncio.set_event_loop(loop)
 
         async def _start_server():
             return await websockets.serve(
                 self._handle_client, self.host, self.port
             )
 
-        self._server = self._loop.run_until_complete(_start_server())
-
         try:
-            self._loop.run_forever()
-        except Exception as e:
-            logger.debug("WS gateway 事件循环退出: %s", e)
+            self._server = loop.run_until_complete(_start_server())
+            if self.port == 0 and self._server.sockets:
+                socket_name = self._server.sockets[0].getsockname()
+                if isinstance(socket_name, tuple) and len(socket_name) >= 2:
+                    self.port = int(socket_name[1])
+            self._startup_event.set()
+            loop.run_forever()
+        except Exception as exc:
+            self._startup_error = exc
+            self._startup_event.set()
+            logger.exception("WS gateway 事件循环启动失败: %s", exc)
         finally:
-            self._loop.close()
+            self._startup_event.set()
+            if self._server is not None:
+                self._server.close()
+            loop.close()
+
+    def _request_loop_stop(self) -> None:
+        """请求后台事件循环停止，覆盖启动阶段和正常运行阶段。"""
+        loop = self._loop
+        if loop is None or loop.is_closed():
+            return
+        if loop.is_running():
+            loop.call_soon_threadsafe(loop.stop)
 
     async def _async_stop(self) -> None:
         """异步关闭服务器和所有连接。"""
@@ -143,20 +205,19 @@ class AuthenticatedWSManager:
 
         self.connections.clear()
         self._user_info.clear()
-        self._loop.stop()
 
     # -------------------------------------------------------------------
     # 连接管理
     # -------------------------------------------------------------------
 
     def _add_connection(
-        self, user_id: int, ws: Any, role: str = "user"
+        self, user_id: int, ws: Any, role: str = "user", token: str = ""
     ) -> None:
         """将已验证的 WebSocket 连接加入 user_id 分组。"""
         if user_id not in self.connections:
             self.connections[user_id] = set()
         self.connections[user_id].add(ws)
-        self._user_info[ws] = {"user_id": user_id, "role": role}
+        self._user_info[ws] = {"user_id": user_id, "role": role, "token": token}
 
     def _remove_connection(self, user_id: int, ws: Any) -> None:
         """从分组和反向表中移除连接。"""
@@ -166,12 +227,69 @@ class AuthenticatedWSManager:
                 del self.connections[user_id]
         self._user_info.pop(ws, None)
 
+    def _session_is_current(self, token: str, user_id: int) -> bool:
+        """确认已建立连接的会话仍存在，支持本机 Owner 恢复立即撤销旧会话。"""
+        user = verify_session(token, self.db_path)
+        if user is None or user.get("id") != user_id:
+            return False
+        connection = next(
+            (
+                info
+                for info in self._user_info.values()
+                if info.get("user_id") == user_id and info.get("token") == token
+            ),
+            None,
+        )
+        return connection is None or connection.get("role") == user.get("role")
+
+    @staticmethod
+    def _session_token_from_websocket(websocket: Any) -> str:
+        """Read the HttpOnly session cookie from a WebSocket handshake."""
+        request = getattr(websocket, "request", None)
+        headers = getattr(request, "headers", {})
+        cookie_header = headers.get("Cookie", "")
+        cookies = SimpleCookie()
+        cookies.load(cookie_header)
+        morsel = cookies.get("session_token")
+        return morsel.value if morsel is not None else ""
+
+    def _origin_is_allowed(self, origin: str) -> bool:
+        """Allow browser handshakes originating from the local console only."""
+        if not origin:
+            return True
+        try:
+            parsed = urlparse(origin)
+            hostname = parsed.hostname
+            port = parsed.port
+        except ValueError:
+            return False
+        return (
+            parsed.scheme == "http"
+            and hostname in {
+                "127.0.0.1",
+                "localhost",
+                "::1",
+            }
+            and port == self.http_port
+            and not parsed.username
+            and not parsed.password
+            and parsed.path in {"", "/"}
+            and not parsed.params
+            and not parsed.query
+            and not parsed.fragment
+        )
+
     # -------------------------------------------------------------------
     # 客户端处理（asyncio 上下文）
     # -------------------------------------------------------------------
 
     async def _handle_client(self, websocket: Any) -> None:
         """处理 WebSocket 客户端的鉴权、消息接收与连接生命周期。"""
+        request = getattr(websocket, "request", None)
+        headers = getattr(request, "headers", {})
+        if not self._origin_is_allowed(headers.get("Origin", "")):
+            await websocket.close(4005, "Origin not allowed")
+            return
         # ---- Step 1: 鉴权（5 秒超时） ----
         try:
             raw = await asyncio.wait_for(websocket.recv(), timeout=5.0)
@@ -186,6 +304,9 @@ class AuthenticatedWSManager:
         except json.JSONDecodeError:
             await websocket.close(4002, "Invalid JSON")
             return
+        if not isinstance(data, dict):
+            await websocket.close(4002, "Invalid JSON object")
+            return
 
         if data.get("event") != "auth":
             await websocket.close(
@@ -193,7 +314,7 @@ class AuthenticatedWSManager:
             )
             return
 
-        token = (data.get("payload") or {}).get("token", "")
+        token = self._session_token_from_websocket(websocket)
         user = verify_session(token, self.db_path)
         if user is None:
             await websocket.close(4004, "Invalid or expired token")
@@ -201,7 +322,7 @@ class AuthenticatedWSManager:
 
         user_id = user["id"]
         role = user.get("role", "user")
-        self._add_connection(user_id, websocket, role)
+        self._add_connection(user_id, websocket, role, token)
 
         # 发送鉴权成功确认
         await websocket.send(
@@ -228,6 +349,9 @@ class AuthenticatedWSManager:
         # ---- Step 2: 消息循环 ----
         try:
             async for message in websocket:
+                if not self._session_is_current(token, user_id):
+                    await websocket.close(4004, "Session revoked")
+                    break
                 try:
                     await self._handle_message(user_id, message)
                 except Exception:
@@ -246,6 +370,8 @@ class AuthenticatedWSManager:
             data = json.loads(raw)
         except json.JSONDecodeError:
             return  # 静默忽略非 JSON
+        if not isinstance(data, dict):
+            return
 
         event = data.get("event")
         payload = data.get("payload", {}) or {}
@@ -322,7 +448,7 @@ class AuthenticatedWSManager:
     def broadcast_to_owners(
         self, elfie_id: str, message_dict: Dict[str, Any]
     ) -> None:
-        """向精灵 owner + 所有管理员连接广播消息。"""
+        """只向精灵所属用户的连接广播消息。"""
         owner_id = self._get_elfie_owner(elfie_id)
         if owner_id is None:
             return
@@ -330,14 +456,10 @@ class AuthenticatedWSManager:
         msg_str = json.dumps(message_dict, ensure_ascii=False)
         self._record_elfie_message(elfie_id, owner_id, message_dict)
 
-        # 收集目标连接：owner + 所有管理员
+        # 聊天与语音内容属于精灵所属用户，Owner/兼容管理员不能跨用户读取。
         target: Set[Any] = set()
         if owner_id in self.connections:
             target.update(self.connections[owner_id])
-
-        for ws, info in list(self._user_info.items()):
-            if info.get("role") == "admin":
-                target.add(ws)
 
         if not target:
             return
@@ -353,10 +475,33 @@ class AuthenticatedWSManager:
         """异步向一组 WebSocket 连接发送消息。"""
         if not targets:
             return
+        valid_targets: list[Any] = []
+        revoked_targets: list[Any] = []
+        for ws in targets:
+            info = self._user_info.get(ws)
+            if info is None:
+                continue
+            token = info.get("token", "")
+            user_id = info.get("user_id")
+            if isinstance(token, str) and isinstance(user_id, int) and self._session_is_current(
+                token, user_id
+            ):
+                valid_targets.append(ws)
+            else:
+                revoked_targets.append(ws)
+        if revoked_targets:
+            await asyncio.gather(
+                *(ws.close(4004, "Session revoked") for ws in revoked_targets),
+                return_exceptions=True,
+            )
+            for ws in revoked_targets:
+                info = self._user_info.get(ws)
+                if info is not None and isinstance(info.get("user_id"), int):
+                    self._remove_connection(info["user_id"], ws)
         tasks = [
             ws.send(message_str)
-            for ws in targets
-            if ws in self._user_info  # 确保连接仍有效
+            for ws in valid_targets
+            if ws in self._user_info
         ]
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)

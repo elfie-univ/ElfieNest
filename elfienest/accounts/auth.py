@@ -199,9 +199,20 @@ def require_admin(user=None):
     if user is None:
         raise HTTPException(status_code=401, detail="未登录")
 
-    if user.get("role") != "admin":
+    if user.get("role") not in {"admin", "owner"}:
         raise HTTPException(status_code=403, detail="需要管理员权限")
 
+    return user
+
+
+def require_owner(user=None):
+    """FastAPI dependency that accepts only the product Owner account."""
+    from fastapi import HTTPException  # noqa: PLC0415
+
+    if user is None:
+        raise HTTPException(status_code=401, detail="未登录")
+    if user.get("role") != "owner":
+        raise HTTPException(status_code=403, detail="需要 Owner 权限")
     return user
 
 

@@ -14,6 +14,10 @@ from typing import Final, Optional, Protocol, Sequence, Tuple
 PID_FILENAME: Final = "elfienest.pid"
 DEFAULT_SERVICE_PORTS: Final[Tuple[int, ...]] = (8000, 8765, 8766, 8767)
 DEFAULT_HTTP_PORT: Final = 8000
+DEFAULT_GODOT_WS_PORT: Final = 8765
+DEFAULT_MANAGEMENT_WS_PORT: Final = 8766
+DEFAULT_AUDIO_PORT: Final = 8767
+INTERNAL_SERVICE_PORTS: Final[Tuple[int, ...]] = (8765, 8767)
 
 
 class ProcessInspector(Protocol):
@@ -110,13 +114,38 @@ def http_port_from_command(command: Sequence[str]) -> int:
 
 def service_ports_from_command(command: Sequence[str]) -> Tuple[int, ...]:
     """返回当前服务命令实际使用的 HTTP、WebSocket 和固定内部端口。"""
-    websocket_port = 8766
+    websocket_port = DEFAULT_MANAGEMENT_WS_PORT
+    godot_ws_port = DEFAULT_GODOT_WS_PORT
+    audio_port = DEFAULT_AUDIO_PORT
     for index, argument in enumerate(command):
         if argument.startswith("--ws-port="):
             websocket_port = int(argument.split("=", maxsplit=1)[1])
         elif argument == "--ws-port" and index + 1 < len(command):
             websocket_port = int(command[index + 1])
-    return (http_port_from_command(command), 8765, websocket_port, 8767)
+        elif argument.startswith("--godot-ws-port="):
+            godot_ws_port = int(argument.split("=", maxsplit=1)[1])
+        elif argument == "--godot-ws-port" and index + 1 < len(command):
+            godot_ws_port = int(command[index + 1])
+        elif argument.startswith("--audio-port="):
+            audio_port = int(argument.split("=", maxsplit=1)[1])
+        elif argument == "--audio-port" and index + 1 < len(command):
+            audio_port = int(command[index + 1])
+    return (http_port_from_command(command), godot_ws_port, websocket_port, audio_port)
+
+
+def validate_service_ports(
+    http_port: int,
+    websocket_port: int,
+    godot_ws_port: int = DEFAULT_GODOT_WS_PORT,
+    audio_port: int = DEFAULT_AUDIO_PORT,
+) -> str | None:
+    """Validate externally configurable and fixed service ports."""
+    ports = (http_port, websocket_port, godot_ws_port, audio_port)
+    if any(port < 1 or port > 65535 for port in ports):
+        return "端口必须在 1-65535 范围内"
+    if len(set(ports)) != len(ports):
+        return "HTTP、管理 WebSocket、Godot WebSocket 和音频服务器端口不能重复"
+    return None
 
 
 def any_service_port_in_use(ports: Sequence[int] = DEFAULT_SERVICE_PORTS) -> bool:

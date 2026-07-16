@@ -53,10 +53,8 @@ def _login_admin(client: TestClient) -> dict:
         "/api/auth/login", data={"username": "admin", "password": "adminchangeme"}
     )
     assert resp.status_code == 200, f"login failed: {resp.text}"
-    data = resp.json()
     csrf_token = resp.headers.get("X-CSRF-Token", "")
     return {
-        "session_token": data["session_token"],
         "csrf_token": csrf_token,
     }
 
@@ -84,11 +82,12 @@ class TestMe:
         assert set(data.keys()) == {
             "id", "username", "role", "nickname",
             "avatar_color", "avatar_kind", "csrf_token",
-            "created_at", "elfie_count", "session_token",
+            "created_at", "elfie_count",
         }
+        assert "session_token" not in data
         assert data["id"] == 1
         assert data["username"] == "admin"
-        assert data["role"] == "admin"
+        assert data["role"] == "owner"
         assert data["nickname"] is None
         assert data["avatar_color"] == 0
         assert data["avatar_kind"] == "initials"
@@ -285,6 +284,29 @@ class TestChangePassword:
             data={"username": "admin", "password": "adminchangeme"},
         )
         assert resp.status_code == 401
+
+    def test_change_password_updates_account_timestamp(
+        self, client: TestClient, db_path: str
+    ) -> None:
+        tokens = _login_admin(client)
+        with get_db(db_path) as conn:
+            conn.execute(
+                "UPDATE users SET updated_at = 'old-timestamp' WHERE username = 'admin'"
+            )
+            conn.commit()
+
+        response = client.post(
+            "/api/auth/me/password",
+            json={"old_password": "adminchangeme", "new_password": "newpass123"},
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert response.status_code == 200
+        with get_db(db_path) as conn:
+            updated_at = conn.execute(
+                "SELECT updated_at FROM users WHERE username = 'admin'"
+            ).fetchone()[0]
+        assert updated_at != "old-timestamp"
 
     def test_change_password_wrong_old(self, client: TestClient) -> None:
         """旧密码错误返回 400。"""

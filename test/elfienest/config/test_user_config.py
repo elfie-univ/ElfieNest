@@ -32,6 +32,8 @@ def test_write_user_config_round_trips_yaml(tmp_path: Path) -> None:
     write_user_config(config, config_path)
 
     assert read_user_config(config_path) == config
+    if os.name == "posix":
+        assert stat.S_IMODE(config_path.stat().st_mode) == 0o600
 
 
 def test_read_env_file_ignores_comments_and_blank_lines(tmp_path: Path) -> None:

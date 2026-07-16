@@ -6,8 +6,8 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException
 
 from elfienest.config.runtime_store import read_runtime_config, write_runtime_config
-from runtime.models.catalog import BUILTIN_MODEL_CATALOG
 from runtime.food.models import FIXED_FOOD_KINDS
+from runtime.models.catalog import BUILTIN_MODEL_CATALOG
 from runtime.policy.food_policy import RuntimeTaskType
 from runtime.safety.permissions import DEFAULT_TOOL_PERMISSIONS
 from runtime.storage.data_home import get_config_path
@@ -34,7 +34,6 @@ def build_runtime_status() -> Dict[str, Any]:
     config = _read_runtime_config()
     providers = _dict_field(config, "providers")
     model_overrides = _dict_field(config, "models")
-    runtime_policy = _dict_field(config, "runtime_policy")
     observer_events = get_runtime_observer().snapshot()
 
     provider_total = len(providers)

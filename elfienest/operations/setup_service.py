@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import dataclass
 
 from elfienest.accounts.auth import create_session, generate_csrf_token
@@ -15,6 +16,13 @@ class AdminAccount:
     user_id: int
     username: str
     role: str
+
+
+@dataclass(frozen=True)
+class OwnerAccount:
+    user_id: int
+    username: str
+    role: str = "owner"
 
 
 @dataclass(frozen=True)
@@ -68,6 +76,58 @@ def create_first_admin(
     avatar_color: int = 0,
 ) -> SetupResult:
     account = create_first_admin_account(
+        db_path,
+        username=username,
+        password=password,
+        avatar_color=avatar_color,
+    )
+    session_token = create_session(account.user_id, db_path)
+    return SetupResult(
+        user_id=account.user_id,
+        username=account.username,
+        role=account.role,
+        session_token=session_token,
+        csrf_token=generate_csrf_token(session_token),
+    )
+
+
+def create_first_owner_account(
+    db_path: str,
+    *,
+    username: str,
+    password: str,
+    avatar_color: int = 0,
+) -> OwnerAccount:
+    """Create the single product Owner during first-time setup."""
+    with get_db(db_path) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        if conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] > 0:
+            raise SetupAlreadyCompleteError("系统已有用户，无法执行首启设置")
+        try:
+            cursor = conn.execute(
+                "INSERT INTO users "
+                "(username, password_hash, role, nickname, avatar_color, avatar_kind) "
+                "VALUES (?, ?, 'owner', ?, ?, 'initials')",
+                (username, hash_password(password), username, avatar_color),
+            )
+        except sqlite3.IntegrityError as error:
+            raise SetupAlreadyCompleteError("系统已有用户，无法执行首启设置") from error
+        user_id = cursor.lastrowid
+        conn.commit()
+    if user_id is None:
+        raise SetupAlreadyCompleteError("Owner 账户创建结果无效")
+    return OwnerAccount(user_id=int(user_id), username=username)
+
+
+def create_first_owner(
+    db_path: str,
+    *,
+    username: str,
+    password: str,
+    avatar_color: int = 0,
+) -> SetupResult:
+    """Create the first Owner and issue its initial Web session."""
+    account = create_first_owner_account(
         db_path,
         username=username,
         password=password,

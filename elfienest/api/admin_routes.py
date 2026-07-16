@@ -1,8 +1,9 @@
-"""管理员 REST API — 用户 CRUD + LLM 配置读写。
+"""Owner REST API — 用户 CRUD + LLM 配置读写。
 
 所有端点通过 ``Depends(require_admin)`` 保护，密码字段永不出现于响应中。
+``require_admin`` 是旧模块名兼容入口，当前语义为只允许 Owner。
 
-管理员精灵端点只提供公开元信息列表，不暴露私密聊天与配置内容。
+Owner 精灵端点只提供公开元信息列表，不暴露私密聊天与配置内容。
 """
 
 from __future__ import annotations
@@ -55,13 +56,13 @@ def get_current_user(request: Request) -> Dict[str, Any]:
 
 
 def require_admin(user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:  # noqa: B008
-    """要求当前用户为管理员。
+    """要求当前用户为 Owner。
 
     FastAPI 依赖链：``require_admin`` → ``get_current_user`` → 解析 cookie。
-    非管理员用户触发 403，未登录触发 401。
+    非 Owner 用户触发 403，未登录触发 401。
     """
-    if user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+    if user.get("role") != "owner":
+        raise HTTPException(status_code=403, detail="需要 Owner 权限")
     return user
 
 
@@ -78,7 +79,7 @@ async def create_user(
 ) -> Dict[str, Any]:
     """创建新用户。
 
-    Body: ``{"username": ..., "password": ..., "role": "admin"|"user"}``
+    Body: ``{"username": ..., "password": ..., "role": "user"}``
     返回 user 对象（**不含 password_hash**）。
     """
     _ = admin
@@ -88,8 +89,8 @@ async def create_user(
 
     if not username or not password:
         raise HTTPException(status_code=422, detail="用户名和密码不能为空")
-    if role not in ("admin", "user"):
-        raise HTTPException(status_code=422, detail="role 必须是 admin 或 user")
+    if role != "user":
+        raise HTTPException(status_code=422, detail="role 必须是 user")
 
     db_path: str = request.app.state.db_path
     with get_db(db_path) as conn:
@@ -224,14 +225,20 @@ async def update_user(
     _ = admin
     db_path: str = request.app.state.db_path
 
-    # 检查用户存在性
+    # 检查用户存在性，并保护唯一 Owner 不被用户管理接口改写。
     with get_db(db_path) as conn:
         cursor = conn.execute(
-            "SELECT id FROM users WHERE id = ?",
+            "SELECT id, role FROM users WHERE id = ?",
             (user_id,),
         )
-        if cursor.fetchone() is None:
+        target = cursor.fetchone()
+        if target is None:
             raise HTTPException(status_code=404, detail="用户不存在")
+        if target["role"] == "owner":
+            raise HTTPException(
+                status_code=403,
+                detail="Owner 账户只能通过本机 Owner 菜单恢复",
+            )
 
     # 构建动态 UPDATE
     updates: list[str] = []
@@ -255,8 +262,8 @@ async def update_user(
 
     role = body.get("role")
     if role is not None:
-        if role not in ("admin", "user"):
-            raise HTTPException(status_code=422, detail="role 必须是 admin 或 user")
+        if role != "user":
+            raise HTTPException(status_code=422, detail="role 必须是 user")
         updates.append("role = ?")
         params.append(role)
 
@@ -271,6 +278,8 @@ async def update_user(
 
     params.append(user_id)
     with get_db(db_path) as conn:
+        if password:
+            conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
         conn.execute(
             f"UPDATE users SET {', '.join(updates)} WHERE id = ?",
             params,
@@ -316,18 +325,12 @@ async def delete_user(
         if row is None:
             raise HTTPException(status_code=404, detail="用户不存在")
 
-        # 不能删除唯一的 admin
-        if row["role"] == "admin":
-            cursor = conn.execute(
-                "SELECT COUNT(*) AS cnt FROM users WHERE role = 'admin'",
-            )
-            admin_count = cursor.fetchone()["cnt"]
-            if admin_count <= 1:
-                raise HTTPException(
-                    status_code=400, detail="不能删除唯一的管理员"
-                )
+        # Owner 是系统唯一所有者，不能从 Web 用户管理中删除。
+        if row["role"] == "owner":
+            raise HTTPException(status_code=400, detail="不能删除 Owner 账户")
 
         # 级联删除精灵 + 删除用户
+        conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
         conn.execute(
             "DELETE FROM elfie_registry WHERE owner_user_id = ?",
             (user_id,),

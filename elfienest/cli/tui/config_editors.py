@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from elfienest.cli.tui.common import clear_screen, input_text, print_banner
 from elfienest.config.user_config import UserConfig, write_user_config
+from runtime.lab.menu import MenuItem, TerminalMenu
 
 
 def config_llm(config: UserConfig) -> None:
@@ -25,137 +26,222 @@ def config_llm(config: UserConfig) -> None:
         if choice == "1":
             llm = config.setdefault("system", {}).setdefault("llm", {})
             current = llm.get("default_cheap_model", "qwen3.5:0.8b")
-            value = input(f"请输入默认模型 [{current}]: ").strip()
+            value = input_text(f"请输入默认模型 [{current}]: ")
             if value:
                 llm["default_cheap_model"] = value
                 write_user_config(config)
                 print("\n✅ 兼容默认模型已保存；实际调用仍由粮食策略决定。")
-                input("按回车键继续...")
+                try:
+                    input("按回车键继续...")
+                except (EOFError, KeyboardInterrupt):
+                    return
 
 
 def config_engine(config: UserConfig) -> None:
+    """用方向键编辑引擎参数，并在返回时一次保存。"""
+    menu = TerminalMenu(input_fn=input, output_fn=print)
     while True:
-        clear_screen()
-        print_banner()
-        print("  ⚙️  引擎配置")
-        print("  " + "=" * 45)
-
         engine = config.setdefault("system", {}).setdefault("engine", {})
-
-        print(f"  1. Tick 间隔 (秒): {engine.get('tick_interval_sec', 1.5)}")
-        print(
-            f"  2. TTS 语音合成: {'启用' if engine.get('tts_enabled', True) else '禁用'}"
+        choice = menu.choose(
+            "引擎参数",
+            (
+                MenuItem("1", f"Tick 间隔（秒）：{engine.get('tick_interval_sec', 1.5)}"),
+                MenuItem(
+                    "2",
+                    "TTS 语音合成："
+                    + ("启用" if engine.get("tts_enabled", True) else "禁用"),
+                ),
+                MenuItem("3", f"房间精灵上限：{engine.get('max_elfies_per_room', 10)}"),
+            ),
+            breadcrumb="ElfieNest / Config / 应用 / 引擎参数",
+            back_label="保存并返回",
         )
-        print(f"  3. 房间精灵上限: {engine.get('max_elfies_per_room', 10)}")
-        print("  0. 保存并返回")
-        print()
-
-        try:
-            choice = input("请选择 [0-3]: ").strip()
-        except KeyboardInterrupt:
-            return
-
-        if choice == "0":
+        if choice is None:
             write_user_config(config)
-            print("\n✅ 配置已保存")
-            input("按回车键继续...")
-            break
+            return
         if choice == "1":
-            _set_float(engine, "tick_interval_sec", "请输入 Tick 间隔 (秒)", 1.5)
+            _set_float(
+                menu,
+                engine,
+                "tick_interval_sec",
+                "请输入 Tick 间隔（秒）",
+                1.5,
+                minimum=0.01,
+            )
         elif choice == "2":
             engine["tts_enabled"] = not engine.get("tts_enabled", True)
         elif choice == "3":
-            _set_int(engine, "max_elfies_per_room", "请输入房间精灵上限", 10)
+            _set_int(
+                menu,
+                engine,
+                "max_elfies_per_room",
+                "请输入房间精灵上限",
+                10,
+                minimum=1,
+                maximum=32,
+            )
 
 
 def config_security(config: UserConfig) -> None:
+    """编辑实际生效的会话和登录限流字段。"""
+    menu = TerminalMenu(input_fn=input, output_fn=print)
     while True:
-        clear_screen()
-        print_banner()
-        print("  🔒 安全配置")
-        print("  " + "=" * 45)
-
         security = config.setdefault("system", {}).setdefault("security", {})
-
-        print(f"  1. Session 有效期 (小时): {security.get('session_ttl_hours', 24)}")
-        print(f"  2. 速率限制 (次/分钟): {security.get('rate_limit_per_minute', 60)}")
-        print("  0. 保存并返回")
-        print()
-
-        try:
-            choice = input("请选择 [0-2]: ").strip()
-        except KeyboardInterrupt:
-            return
-
-        if choice == "0":
+        rate_limit = security.setdefault("rate_limit", {})
+        choice = menu.choose(
+            "会话与安全",
+            (
+                MenuItem("1", f"Session 有效期（天）：{security.get('session_ttl_days', 7)}"),
+                MenuItem("2", f"登录失败次数：{rate_limit.get('max_attempts', 5)}"),
+                MenuItem("3", f"限流窗口（秒）：{rate_limit.get('window_seconds', 300)}"),
+            ),
+            breadcrumb="ElfieNest / Config / Owner 与安全",
+            back_label="保存并返回",
+        )
+        if choice is None:
             write_user_config(config)
-            print("\n✅ 配置已保存")
-            input("按回车键继续...")
-            break
+            return
         if choice == "1":
-            _set_int(security, "session_ttl_hours", "请输入 Session 有效期 (小时)", 24)
+            _set_int(
+                menu,
+                security,
+                "session_ttl_days",
+                "请输入 Session 有效期（天）",
+                7,
+                minimum=1,
+                maximum=90,
+            )
         elif choice == "2":
             _set_int(
-                security,
-                "rate_limit_per_minute",
-                "请输入速率限制 (次/分钟)",
-                60,
+                menu,
+                rate_limit,
+                "max_attempts",
+                "请输入窗口内允许的失败次数",
+                5,
+                minimum=1,
+                maximum=100,
+            )
+        elif choice == "3":
+            _set_int(
+                menu,
+                rate_limit,
+                "window_seconds",
+                "请输入限流窗口（秒）",
+                300,
+                minimum=1,
+                maximum=3600,
             )
 
 
 def config_adoption(config: UserConfig) -> None:
+    """用方向键编辑精灵领养的实际运行时配置。"""
+    menu = TerminalMenu(input_fn=input, output_fn=print)
     while True:
-        clear_screen()
-        print_banner()
-        print("  🐾 精灵领养配置")
-        print("  " + "=" * 45)
-
         adoption = config.setdefault("system", {}).setdefault("adoption", {})
-
-        print(f"  1. 每用户精灵上限: {adoption.get('max_elfies_per_user', 3)}")
-        print(
-            f"  2. 默认性格风格: {adoption.get('default_personality_style', '活泼好动')}"
+        allowed = adoption.setdefault("allowed_anatomy_types", ["biped", "quadruped"])
+        enabled = adoption.setdefault("personality_presets_enabled", {})
+        if not enabled:
+            enabled.update(dict.fromkeys(_PERSONALITY_PRESETS, True))
+        choice = menu.choose(
+            "精灵领养",
+            (
+                MenuItem("1", f"每用户精灵上限：{adoption.get('max_elfies_per_user', 3)}"),
+                MenuItem("2", f"允许形态：{', '.join(allowed)}"),
+                MenuItem("3", "性格预设开关"),
+            ),
+            breadcrumb="ElfieNest / Config / 应用 / 精灵领养",
+            back_label="保存并返回",
         )
-        print("  0. 保存并返回")
-        print()
-
-        try:
-            choice = input("请选择 [0-2]: ").strip()
-        except KeyboardInterrupt:
-            return
-
-        if choice == "0":
+        if choice is None:
             write_user_config(config)
-            print("\n✅ 配置已保存")
-            input("按回车键继续...")
-            break
+            return
         if choice == "1":
-            _set_int(adoption, "max_elfies_per_user", "请输入每用户精灵上限", 3)
+            _set_int(
+                menu,
+                adoption,
+                "max_elfies_per_user",
+                "请输入每用户精灵上限",
+                3,
+                minimum=1,
+                maximum=32,
+            )
         elif choice == "2":
-            _choose_personality_style(adoption)
+            _toggle_anatomy_menu(menu, adoption)
+        elif choice == "3":
+            _toggle_personality_menu(menu, enabled)
 
 
-def _choose_personality_style(adoption: UserConfig) -> None:
-    styles = ["活泼好动", "温顺乖巧", "高冷傲娇", "憨厚老实", "机灵古怪"]
-    print("\n可用性格风格:")
-    for i, style in enumerate(styles, 1):
-        print(f"  {i}. {style}")
-    try:
-        idx = int(input("请选择 [1-5]: ")) - 1
-    except (KeyboardInterrupt, ValueError):
-        return
-    if 0 <= idx < len(styles):
-        adoption["default_personality_style"] = styles[idx]
+_PERSONALITY_PRESETS = ("活泼好动", "安静温顺", "好奇探索", "胆小害羞", "傲娇独立", "完全随机")
+
+
+def _toggle_anatomy_menu(menu: TerminalMenu, adoption: UserConfig) -> None:
+    """切换可领养形态，至少保留一种。"""
+    labels = {"biped": "双足", "quadruped": "四足"}
+    while True:
+        allowed = adoption.setdefault("allowed_anatomy_types", ["biped", "quadruped"])
+        choice = menu.choose(
+            "允许的精灵形态",
+            tuple(
+                MenuItem(str(index), f"{labels[key]}：{'启用' if key in allowed else '禁用'}")
+                for index, key in enumerate(labels, 1)
+            ),
+            breadcrumb="ElfieNest / Config / 应用 / 精灵领养 / 形态",
+            back_label="返回领养配置",
+        )
+        if choice is None:
+            return
+        if choice not in {"1", "2"}:
+            continue
+        key = tuple(labels)[int(choice) - 1]
+        if key in allowed and len(allowed) == 1:
+            continue
+        if key in allowed:
+            allowed.remove(key)
+        else:
+            allowed.append(key)
+
+
+def _toggle_personality_menu(menu: TerminalMenu, enabled: UserConfig) -> None:
+    """切换可供 Web 领养页使用的性格预设。"""
+    while True:
+        choice = menu.choose(
+            "性格预设开关",
+            tuple(
+                MenuItem(str(index), f"{name}：{'启用' if enabled.get(name, True) else '禁用'}")
+                for index, name in enumerate(_PERSONALITY_PRESETS, 1)
+            ),
+            breadcrumb="ElfieNest / Config / 应用 / 精灵领养 / 性格",
+            back_label="返回领养配置",
+        )
+        if choice is None:
+            return
+        if not choice.isdigit() or not 1 <= int(choice) <= len(_PERSONALITY_PRESETS):
+            continue
+        name = _PERSONALITY_PRESETS[int(choice) - 1]
+        if sum(bool(value) for value in enabled.values()) == 1 and enabled.get(name, True):
+            continue
+        enabled[name] = not enabled.get(name, True)
 
 
 def _set_float(
+    menu: TerminalMenu,
     section: UserConfig,
     key: str,
     prompt: str,
     default: float,
+    *,
+    minimum: float | None = None,
+    maximum: float | None = None,
 ) -> None:
     try:
-        value = float(input_text(prompt, str(section.get(key, default))))
+        raw = menu.read_text(f"{prompt} [{section.get(key, default)}]: ", default=str(default))
+        if raw is None:
+            return
+        value = float(raw)
+        if minimum is not None and value < minimum:
+            raise ValueError
+        if maximum is not None and value > maximum:
+            raise ValueError
     except (TypeError, ValueError):
         print("❌ 输入无效")
         return
@@ -163,13 +249,24 @@ def _set_float(
 
 
 def _set_int(
+    menu: TerminalMenu,
     section: UserConfig,
     key: str,
     prompt: str,
     default: int,
+    *,
+    minimum: int | None = None,
+    maximum: int | None = None,
 ) -> None:
     try:
-        value = int(input_text(prompt, str(section.get(key, default))))
+        raw = menu.read_text(f"{prompt} [{section.get(key, default)}]: ", default=str(default))
+        if raw is None:
+            return
+        value = int(raw)
+        if minimum is not None and value < minimum:
+            raise ValueError
+        if maximum is not None and value > maximum:
+            raise ValueError
     except (TypeError, ValueError):
         print("❌ 输入无效")
         return

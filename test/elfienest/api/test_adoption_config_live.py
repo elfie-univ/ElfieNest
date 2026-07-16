@@ -82,7 +82,6 @@ def _login_admin(client: TestClient) -> dict:
     assert resp.status_code == 200, f"admin login failed: {resp.text}"
     csrf_token = resp.headers.get("X-CSRF-Token", "")
     return {
-        "session_token": resp.json()["session_token"],
         "csrf_token": csrf_token,
     }
 
@@ -106,7 +105,6 @@ def _create_user_and_login(client: TestClient, username: str = "alice", password
     )
     assert resp.status_code == 200, f"user login failed: {resp.text}"
     return {
-        "session_token": resp.json()["session_token"],
         "csrf_token": resp.headers.get("X-CSRF-Token", ""),
     }
 

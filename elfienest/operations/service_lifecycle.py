@@ -6,12 +6,16 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Callable, Optional, Sequence, Union
+from typing import Callable, Optional, Sequence
 
 from elfienest.operations.recovery_lock import (
-    MANAGED_START_ENV,
     RecoveryInProgressError,
     acquire_service_start_lease,
+)
+from elfienest.operations.service_lifecycle_helpers import (
+    default_launcher,
+    existing_service_command,
+    read_pid,
 )
 from elfienest.operations.service_lifecycle_types import (
     HealthCheckFailedError,
@@ -37,6 +41,9 @@ from elfienest.operations.service_process import (
     service_ports_from_command,
 )
 from elfienest.operations.service_start_cleanup import cleanup_failed_start
+
+_default_launcher = default_launcher
+_read_pid = read_pid
 
 
 def stop_service(
@@ -127,7 +134,15 @@ def stop_service(
             timeout_error = StopTimeoutError(pid, timeout_seconds)
             return ServiceLifecycleResult(status="failed", pid=pid, error=timeout_error)
         sleeper(poll_interval_seconds)
-    if service_ports_in_use(service_ports_from_command(actual_command)):
+    try:
+        target_ports = service_ports_from_command(actual_command)
+    except ValueError as error:
+        return ServiceLifecycleResult(
+            status="failed",
+            pid=pid,
+            error=ProcessInspectionError(pid, f"服务端口参数无效: {error}"),
+        )
+    if service_ports_in_use(target_ports):
         return ServiceLifecycleResult(
             status="failed",
             pid=pid,
@@ -166,7 +181,7 @@ def start_service(
             "--fallback",
         )
     )
-    process_launcher = launcher or _default_launcher
+    process_launcher = launcher or default_launcher
     process_inspector = inspector or DefaultProcessInspector()
     try:
         startup_lease = acquire_service_start_lease(elfie_home)
@@ -174,58 +189,51 @@ def start_service(
         return ServiceLifecycleResult(
             status="failed", error=LaunchFailedError(f"服务启动被阻止: {error}")
         )
+    lease_released = False
     try:
-        pid = process_launcher(launch_command, resolved_root)
-    except OSError as error:
-        startup_lease.release()
-        return ServiceLifecycleResult(
-            status="failed", error=LaunchFailedError(str(error))
-        )
-    if pid <= 0:
-        startup_lease.release()
-        return ServiceLifecycleResult(
-            status="failed", error=LaunchFailedError(f"launcher 返回无效 PID {pid}")
-        )
+        existing = existing_service_command(elfie_home, resolved_root, process_inspector)
+        if existing is not None:
+            existing_pid, existing_command = existing
+            requested_ports = service_ports_from_command(launch_command)
+            existing_ports = service_ports_from_command(existing_command)
+            if requested_ports != existing_ports:
+                return ServiceLifecycleResult(
+                    status="failed",
+                    pid=existing_pid,
+                    error=LaunchFailedError(
+                        "已有服务正在使用其他端口，先执行 restart 或 stop 再更改端口"
+                    ),
+                )
+            try:
+                existing_healthy = health_checker()
+            except (OSError, RuntimeError, ValueError):
+                existing_healthy = False
+            if not existing_healthy:
+                return ServiceLifecycleResult(
+                    status="failed",
+                    pid=existing_pid,
+                    command=existing_command,
+                    error=HealthCheckFailedError(existing_pid, 0.0),
+                )
+            return ServiceLifecycleResult(
+                status="already_running", pid=existing_pid, command=existing_command
+            )
 
-    pid_path = elfie_home / PID_FILENAME
-    try:
-        register_service_process(elfie_home, pid)
-    except OSError as error:
-        startup_lease.release()
-        launch_error = LaunchFailedError(f"无法登记 PID {pid}: {error}")
-        return cleanup_failed_start(
-            pid=pid,
-            pid_path=pid_path,
-            original_error=launch_error,
-            inspector=process_inspector,
-            signaler=signaler,
-            expected_cwd=resolved_root,
-            expected_script=(resolved_root / "scripts" / "serve.py").resolve(),
-            timeout_seconds=timeout_seconds,
-            poll_interval_seconds=poll_interval_seconds,
-            monotonic=monotonic,
-            sleeper=sleeper,
-        )
-    startup_lease.release()
-    deadline = monotonic() + timeout_seconds
-    while True:
-        if not process_inspector.exists(pid):
-            remove_service_process(elfie_home, pid)
+        pid = process_launcher(launch_command, resolved_root)
+        if pid <= 0:
             return ServiceLifecycleResult(
-                status="failed",
-                pid=pid,
-                error=LaunchFailedError("服务在健康检查通过前退出"),
-                command=launch_command,
+                status="failed", error=LaunchFailedError(f"launcher 返回无效 PID {pid}")
             )
-        if health_checker():
-            return ServiceLifecycleResult(
-                status="started", pid=pid, command=launch_command
-            )
-        if monotonic() >= deadline:
+
+        pid_path = elfie_home / PID_FILENAME
+        try:
+            register_service_process(elfie_home, pid)
+        except OSError as error:
+            launch_error = LaunchFailedError(f"无法登记 PID {pid}: {error}")
             return cleanup_failed_start(
                 pid=pid,
                 pid_path=pid_path,
-                original_error=HealthCheckFailedError(pid, timeout_seconds),
+                original_error=launch_error,
                 inspector=process_inspector,
                 signaler=signaler,
                 expected_cwd=resolved_root,
@@ -235,29 +243,58 @@ def start_service(
                 monotonic=monotonic,
                 sleeper=sleeper,
             )
-        sleeper(poll_interval_seconds)
 
-
-def _read_pid(pid_path: Path) -> Union[int, InvalidPidFileError]:
-    content = pid_path.read_text(encoding="utf-8").strip()
-    try:
-        pid = int(content)
-    except ValueError:
-        return InvalidPidFileError(pid_path, content)
-    if pid <= 0:
-        return InvalidPidFileError(pid_path, content)
-    return pid
-
-
-def _default_launcher(command: Sequence[str], cwd: Path) -> int:
-    environment = os.environ.copy()
-    environment[MANAGED_START_ENV] = "1"
-    process = subprocess.Popen(
-        command,
-        cwd=str(cwd),
-        env=environment,
-        start_new_session=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    return process.pid
+        startup_lease.release()
+        lease_released = True
+        deadline = monotonic() + timeout_seconds
+        while True:
+            if not process_inspector.exists(pid):
+                remove_service_process(elfie_home, pid)
+                return ServiceLifecycleResult(
+                    status="failed",
+                    pid=pid,
+                    error=LaunchFailedError("服务在健康检查通过前退出"),
+                    command=launch_command,
+                )
+            try:
+                healthy = health_checker()
+            except (OSError, RuntimeError, ValueError):
+                return cleanup_failed_start(
+                    pid=pid,
+                    pid_path=pid_path,
+                    original_error=HealthCheckFailedError(pid, timeout_seconds),
+                    inspector=process_inspector,
+                    signaler=signaler,
+                    expected_cwd=resolved_root,
+                    expected_script=(resolved_root / "scripts" / "serve.py").resolve(),
+                    timeout_seconds=timeout_seconds,
+                    poll_interval_seconds=poll_interval_seconds,
+                    monotonic=monotonic,
+                    sleeper=sleeper,
+                )
+            if healthy:
+                return ServiceLifecycleResult(
+                    status="started", pid=pid, command=launch_command
+                )
+            if monotonic() >= deadline:
+                return cleanup_failed_start(
+                    pid=pid,
+                    pid_path=pid_path,
+                    original_error=HealthCheckFailedError(pid, timeout_seconds),
+                    inspector=process_inspector,
+                    signaler=signaler,
+                    expected_cwd=resolved_root,
+                    expected_script=(resolved_root / "scripts" / "serve.py").resolve(),
+                    timeout_seconds=timeout_seconds,
+                    poll_interval_seconds=poll_interval_seconds,
+                    monotonic=monotonic,
+                    sleeper=sleeper,
+                )
+            sleeper(poll_interval_seconds)
+    except (OSError, ValueError) as error:
+        return ServiceLifecycleResult(
+            status="failed", error=LaunchFailedError(str(error))
+        )
+    finally:
+        if not lease_released:
+            startup_lease.release()

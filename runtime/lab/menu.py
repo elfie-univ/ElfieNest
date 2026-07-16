@@ -102,15 +102,32 @@ class TerminalMenu:
         测试模式仍使用普通行输入。
         """
         if not self.interactive:
-            raw = (line_input or self.input)(prompt)
+            try:
+                raw = (line_input or self.input)(prompt)
+            except (EOFError, KeyboardInterrupt):
+                return None
             return None if raw == "\x1b" else raw.strip() or default
 
         sys.stdout.write(prompt)
         sys.stdout.flush()
         chars: list[str] = []
+        cursor = 0
+
+        def redraw() -> None:
+            visible = "•" * len(chars) if masked else "".join(chars)
+            move_left = len(chars) - cursor
+            sys.stdout.write(f"\r{prompt}{visible}\033[K")
+            if move_left:
+                sys.stdout.write(f"\033[{move_left}D")
+            sys.stdout.flush()
+
         while True:
             key = self.key_reader()
-            if key in {"escape", "left"}:
+            if key == "interrupt":
+                sys.stdout.write("\n\033[2m已取消。\033[0m\n")
+                sys.stdout.flush()
+                return None
+            if key == "escape":
                 sys.stdout.write("\n\033[2m已取消。\033[0m\n")
                 sys.stdout.flush()
                 return None
@@ -118,29 +135,37 @@ class TerminalMenu:
                 sys.stdout.write("\n")
                 sys.stdout.flush()
                 return "".join(chars).strip() or default
+            if key == "left":
+                cursor = max(0, cursor - 1)
+                redraw()
+                continue
+            if key == "right":
+                cursor = min(len(chars), cursor + 1)
+                redraw()
+                continue
             if key == "backspace":
-                if chars:
-                    chars.pop()
-                    sys.stdout.write("\b \b")
-                    sys.stdout.flush()
+                if cursor:
+                    del chars[cursor - 1]
+                    cursor -= 1
+                    redraw()
                 continue
             if key == "paste":
                 try:
                     pasted = self.clipboard_reader()
-                except Exception:
+                except (OSError, RuntimeError, subprocess.SubprocessError):
                     sys.stdout.write("\a")
                     sys.stdout.flush()
                     continue
                 pasted = pasted.strip().replace("\r", "").replace("\n", "")
                 if pasted:
-                    chars.extend(pasted)
-                    sys.stdout.write("•" * len(pasted) if masked else pasted)
-                    sys.stdout.flush()
+                    chars[cursor:cursor] = pasted
+                    cursor += len(pasted)
+                    redraw()
                 continue
             if len(key) == 1 and key.isprintable():
-                chars.append(key)
-                sys.stdout.write("•" if masked else key)
-                sys.stdout.flush()
+                chars.insert(cursor, key)
+                cursor += 1
+                redraw()
 
     def confirm(
         self,
@@ -151,7 +176,11 @@ class TerminalMenu:
     ) -> bool:
         """在当前预览下方显示确认按钮，安全默认为放弃。"""
         if not self.interactive:
-            return self.input(f"{prompt} [y/N]: ").strip().lower() == "y"
+            try:
+                answer = self.input(f"{prompt} [y/N]: ")
+            except (EOFError, KeyboardInterrupt):
+                return False
+            return answer.strip().lower() == "y"
 
         accepted = False
         while True:
@@ -223,7 +252,10 @@ class TerminalMenu:
         for item in items:
             self.output(f"{item.key}. {item.label}")
         self.output(f"0. {back_label}")
-        raw = self.input("请选择: ").strip()
+        try:
+            raw = self.input("请选择: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            return None
         if raw == "0":
             return None
         return raw
@@ -284,6 +316,8 @@ def _normalize_char(char: str) -> str:
         return "escape"
     if char == "\x16":
         return "paste"
+    if char == "\x03":
+        return "interrupt"
     return char
 
 

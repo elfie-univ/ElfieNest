@@ -3,11 +3,11 @@
 
 启动 serve.py（fallback 模式 + 随机端口），执行 5 步验证：
 
-  Step 1: Admin 登录 → 创建用户 alice
+  Step 1: Owner 登录 → 创建用户 alice
   Step 2: Alice 登录 → POST adopt → 验证精灵入房
   Step 3: Alice 领养 3 只后第 4 只 → 409
   Step 4: Alice WS 连接（或 HTTP 降级）→ 验证精灵存在
-  Step 5: Admin 看到所有精灵（验证隔离）
+  Step 5: Owner 看到所有精灵（验证隔离）
 
 输出 5/5 或 N/5 报告。
 """
@@ -15,9 +15,12 @@
 import json
 import os
 import re
+import secrets
+import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -31,6 +34,15 @@ def find_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
+
+
+def find_distinct_free_ports(count: int) -> list[int]:
+    ports: list[int] = []
+    while len(ports) < count:
+        port = find_free_port()
+        if port not in ports:
+            ports.append(port)
+    return ports
 
 
 def _header_lower(d: dict, key: str) -> str:
@@ -128,13 +140,20 @@ def wait_for_server(url: str, timeout: float = 15.0) -> bool:
 
 
 def main() -> None:
-    port = find_free_port()
+    port, ws_port, godot_ws_port, audio_port = find_distinct_free_ports(4)
     base_url = f"http://127.0.0.1:{port}"
+    data_home = tempfile.mkdtemp(prefix="elfienest-e2e-")
+    owner_password = os.environ.get(
+        "ELFIENEST_E2E_OWNER_PASSWORD", secrets.token_urlsafe(24)
+    )
 
     print("=" * 60)
     print("  ElfieNest 管理面板 E2E 验证")
     print("=" * 60)
-    print(f"  端口: {port}")
+    print(f"  HTTP 端口: {port}")
+    print(f"  管理 WS 端口: {ws_port}")
+    print(f"  Godot WS 端口: {godot_ws_port}")
+    print(f"  音频端口: {audio_port}")
     print()
 
     print("  🚀 启动 serve.py --fallback ...")
@@ -142,8 +161,12 @@ def main() -> None:
         [sys.executable, "scripts/serve.py",
          "--fallback",
          "--port", str(port),
+         "--ws-port", str(ws_port),
+         "--godot-ws-port", str(godot_ws_port),
+         "--audio-port", str(audio_port),
          ],
         cwd=PROJECT_ROOT,
+        env={**os.environ, "ELFIE_HOME": data_home},
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )
@@ -159,25 +182,26 @@ def main() -> None:
             if out:
                 print(out.decode("utf-8", errors="replace")[:2000])
         print("\n❌ serve.py 未能在 25 秒内就绪")
+        shutil.rmtree(data_home, ignore_errors=True)
         sys.exit(1)
 
     print("  ✅ 服务就绪\n")
 
-    admin = E2ESession(base_url)
+    owner = E2ESession(base_url)
     alice = E2ESession(base_url)
     results = [False] * 5
 
     try:
         # ==================================================================
-        # Step 0: 首启设置（如无用户，先创建 admin）
+        # Step 0: 首启设置（如无用户，先创建 Owner）
         # ==================================================================
         print("  [Step 0/5] 检查首启状态")
-        status, data, raw = admin.get("/api/auth/setup-status")
+        status, data, raw = owner.get("/api/auth/setup-status")
         if status == 200 and data.get("need_setup"):
             print("    ⚡ 系统无用户，执行首启设置...")
-            status, data, raw, _ = admin.post_json(
+            status, data, raw, _ = owner.post_json(
                 "/api/auth/setup",
-                {"username": "admin", "password": "adminchangeme"},
+                {"username": "owner", "password": owner_password},
             )
             aok = status == 201
             print(f"    {'✅' if aok else '❌'} 首启设置 {'成功' if aok else f'失败: {status} {raw[:200]}'}")
@@ -185,16 +209,16 @@ def main() -> None:
             print("    ✅ 系统已有用户，跳过首启设置")
 
         # ==================================================================
-        # Step 1: Admin 登录 → 创建用户 alice
+        # Step 1: Owner 登录 → 创建用户 alice
         # ==================================================================
-        print("  [Step 1/5] Admin 登录 → 创建用户 alice")
-        ok, admin_csrf = admin.login("admin", "adminchangeme")
+        print("  [Step 1/5] Owner 登录 → 创建用户 alice")
+        ok, owner_csrf = owner.login("owner", owner_password)
         if ok:
-            print("    ✅ Admin 登录成功")
-            status, data, raw, _ = admin.post_json(
+            print("    ✅ Owner 登录成功")
+            status, data, raw, _ = owner.post_json(
                 "/api/admin/users",
                 {"username": "alice", "password": "alice123", "role": "user"},
-                headers={"X-CSRF-Token": admin_csrf},
+                headers={"X-CSRF-Token": owner_csrf},
             )
             if status == 201:
                 print(f"    ✅ 创建用户 alice 成功 (id={data.get('id')})")
@@ -202,7 +226,7 @@ def main() -> None:
             else:
                 print(f"    ❌ 创建用户失败: {status} {raw[:200]}")
         else:
-            print("    ❌ Admin 登录失败")
+            print("    ❌ Owner 登录失败")
 
         # ==================================================================
         # Step 2: Alice 登录 → POST adopt → 验证精灵入房
@@ -294,26 +318,26 @@ def main() -> None:
             print(f"    ❌ 查询失败: {status} {raw[:200]}")
 
         # ==================================================================
-        # Step 5: Admin 查看所有精灵
+        # Step 5: Owner 查看所有精灵
         # ==================================================================
-        print("  [Step 5/5] Admin 查看所有精灵")
-        ok, admin_csrf2 = admin.login("admin", "adminchangeme")
+        print("  [Step 5/5] Owner 查看所有精灵")
+        ok, owner_csrf2 = owner.login("owner", owner_password)
         if ok:
-            status, data, raw = admin.get(
+            status, data, raw = owner.get(
                 "/api/admin/elfies",
-                headers={"X-CSRF-Token": admin_csrf2},
+                headers={"X-CSRF-Token": owner_csrf2},
             )
             if status == 200 and isinstance(data, list):
                 names = [e["name"] for e in data]
-                print(f"    ✅ Admin 看到 {len(data)} 只精灵: {names}")
+                print(f"    ✅ Owner 看到 {len(data)} 只精灵: {names}")
                 if len(data) >= 3:
                     results[4] = True
                 else:
-                    print(f"    ⚠️ Admin 只看到 {len(data)} 只，预期至少 3")
+                    print(f"    ⚠️ Owner 只看到 {len(data)} 只，预期至少 3")
             else:
-                print(f"    ❌ Admin 查询精灵失败: {status} {raw[:200]}")
+                print(f"    ❌ Owner 查询精灵失败: {status} {raw[:200]}")
         else:
-            print("    ❌ Admin 重新登录失败")
+            print("    ❌ Owner 重新登录失败")
 
     except Exception as exc:
         print(f"\n  ❌ 测试异常: {exc}")
@@ -329,6 +353,7 @@ def main() -> None:
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait(timeout=2.0)
+        shutil.rmtree(data_home, ignore_errors=True)
 
     # 报告
     print()
@@ -337,11 +362,11 @@ def main() -> None:
     print("=" * 60)
 
     labels = [
-        "Step 1: Admin 登录 → 创建 alice",
+        "Step 1: Owner 登录 → 创建 alice",
         "Step 2: Alice 领养 → 精灵入房",
         "Step 3: 3 只上限 → 第 4 只 409",
         "Step 4: 精灵存在 (HTTP 验证)",
-        "Step 5: Admin 多租户隔离",
+        "Step 5: Owner 多租户隔离",
     ]
 
     passed = sum(1 for r in results if r)

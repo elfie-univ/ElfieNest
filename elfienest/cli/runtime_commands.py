@@ -165,8 +165,8 @@ def show_stats() -> None:
 
     print("  【用户统计】")
     print(f"    总用户数: {stats.user_count}")
-    print(f"    管理员数: {stats.admin_count}")
-    print(f"    普通用户: {stats.user_count - stats.admin_count}")
+    print(f"    Owner 数: {stats.owner_count}")
+    print(f"    普通用户: {stats.user_count - stats.owner_count}")
     print()
 
     print("  【精灵统计】")

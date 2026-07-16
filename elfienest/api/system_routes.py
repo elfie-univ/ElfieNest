@@ -183,6 +183,11 @@ def _validate_range(section: str, data: Dict[str, Any]) -> None:
                 )
         if "allowed_anatomy_types" in data:
             valid_types = {"biped", "quadruped"}
+            if not data["allowed_anatomy_types"]:
+                raise HTTPException(
+                    422,
+                    detail="allowed_anatomy_types 至少需要保留一种形态",
+                )
             for t in data["allowed_anatomy_types"]:
                 if t not in valid_types:
                     raise HTTPException(

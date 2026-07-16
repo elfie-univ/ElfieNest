@@ -13,7 +13,11 @@ from fastapi.testclient import TestClient
 
 from elfienest.api.app import create_app
 from elfienest.api.ws_gateway import AuthenticatedWSManager
-from elfienest.persistence.chat_history import ChatMessageInput, ChatSender, record_chat_message
+from elfienest.persistence.chat_history import (
+    ChatMessageInput,
+    ChatSender,
+    record_chat_message,
+)
 from elfienest.persistence.store import init_db
 
 from ._helpers import create_test_admin
@@ -52,7 +56,6 @@ def _login_admin(client: TestClient) -> dict:
     resp = client.post("/api/auth/login", data={"username": "admin", "password": "adminchangeme"})
     assert resp.status_code == 200
     return {
-        "session_token": resp.json()["session_token"],
         "csrf_token": resp.headers.get("X-CSRF-Token", ""),
     }
 
@@ -61,7 +64,6 @@ def _login_user(client: TestClient, username: str = "alice", password: str = "pa
     resp = client.post("/api/auth/login", data={"username": username, "password": password})
     assert resp.status_code == 200, f"user login failed: {resp.text}"
     return {
-        "session_token": resp.json()["session_token"],
         "csrf_token": resp.headers.get("X-CSRF-Token", ""),
         "user_id": resp.json()["user"]["id"],
     }

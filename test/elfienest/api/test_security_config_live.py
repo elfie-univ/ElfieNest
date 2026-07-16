@@ -99,7 +99,6 @@ def _login_admin(client: TestClient) -> dict:
     assert resp.status_code == 200, f"login failed: {resp.text}"
     csrf_token = resp.headers.get("X-CSRF-Token", "")
     return {
-        "session_token": resp.json()["session_token"],
         "csrf_token": csrf_token,
     }
 

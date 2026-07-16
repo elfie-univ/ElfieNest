@@ -31,10 +31,15 @@ class AnatomyCount:
 @dataclass(frozen=True)
 class UsageStats:
     user_count: int
-    admin_count: int
+    owner_count: int
     elfie_count: int
     session_count: int
     anatomy_stats: List[AnatomyCount]
+
+    @property
+    def admin_count(self) -> int:
+        """兼容旧调用；当前统计语义为 Owner 数。"""
+        return self.owner_count
 
 
 @dataclass(frozen=True)
@@ -57,10 +62,20 @@ def check_port(port: int, name: str, host: str = "127.0.0.1") -> PortStatus:
 
 
 def default_port_statuses() -> List[PortStatus]:
+    return service_port_statuses(8000, 8766)
+
+
+def service_port_statuses(
+    http_port: int,
+    websocket_port: int,
+    godot_ws_port: int = 8765,
+    audio_port: int = 8767,
+) -> List[PortStatus]:
     return [
-        check_port(8000, "HTTP 服务"),
-        check_port(8766, "WebSocket (管理)"),
-        check_port(8765, "WebSocket (Godot)"),
+        check_port(http_port, "HTTP 服务"),
+        check_port(websocket_port, "WebSocket (管理)"),
+        check_port(godot_ws_port, "WebSocket (Godot)"),
+        check_port(audio_port, "音频服务器"),
     ]
 
 
@@ -68,7 +83,7 @@ def collect_usage_stats(db_path: Optional[str] = None) -> UsageStats:
     database_path = _resolve_existing_db_path(db_path)
     with sqlite3.connect(database_path) as conn:
         user_count = _count_rows(conn, "users")
-        admin_count = _count_rows(conn, "users", "WHERE role='admin'")
+        owner_count = _count_rows(conn, "users", "WHERE role='owner'")
         elfie_count = _count_rows(conn, "elfie_registry")
         session_count = _count_rows(conn, "sessions")
         cursor = conn.execute(
@@ -85,7 +100,7 @@ def collect_usage_stats(db_path: Optional[str] = None) -> UsageStats:
 
     return UsageStats(
         user_count=user_count,
-        admin_count=admin_count,
+        owner_count=owner_count,
         elfie_count=elfie_count,
         session_count=session_count,
         anatomy_stats=anatomy_stats,

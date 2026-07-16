@@ -17,11 +17,11 @@ from runtime.food.models import FIXED_FOOD_KINDS
 from runtime.food.planner import FoodPlanner, ModelEvidence
 from runtime.food.store import FoodCatalog, FoodCatalogStore
 from runtime.lab.menu import MenuItem, TerminalMenu
-from runtime.models.catalog import BUILTIN_MODEL_CATALOG
 from runtime.models.capabilities import (
     canonical_display_name,
     known_capabilities,
 )
+from runtime.models.catalog import BUILTIN_MODEL_CATALOG
 from runtime.providers.model_hints import (
     ProviderModelSpec,
     configured_model_specs,
@@ -62,7 +62,13 @@ class RuntimeLab:
         interactive: bool | None = None,
         key_reader: Callable[[], str] | None = None,
     ) -> None:
-        self.input = input_fn
+        def safe_input(prompt: str) -> str:
+            try:
+                return input_fn(prompt)
+            except (EOFError, KeyboardInterrupt):
+                return ""
+
+        self.input = safe_input
         self.secret_input = secret_input_fn
         self.output = output_fn
         custom_io = input_fn is not input or output_fn is not print

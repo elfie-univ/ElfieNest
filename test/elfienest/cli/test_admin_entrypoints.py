@@ -9,7 +9,7 @@ from elfienest.persistence.store import get_db, hash_password, init_db
 from test.elfienest.cli.entrypoint_test_support import PROJECT_ROOT, write_executable
 
 
-def test_cli_help_exposes_admin_account_management() -> None:
+def test_cli_help_exposes_owner_account_management() -> None:
     python_cli = PROJECT_ROOT / "scripts" / "elfienest.py"
     result = subprocess.run(
         [str(PROJECT_ROOT / ".venv" / "bin" / "python3"), str(python_cli), "--help"],
@@ -19,11 +19,12 @@ def test_cli_help_exposes_admin_account_management() -> None:
         check=False,
     )
     assert result.returncode == 0
-    assert "admin" in result.stdout
-    assert "管理员账号管理" in result.stdout
+    assert "owner" in result.stdout
+    assert "Owner 账户菜单" in result.stdout
+    assert "admin" not in result.stdout
 
 
-def test_interactive_help_exposes_admin_account_management() -> None:
+def test_interactive_help_exposes_owner_account_management() -> None:
     env = os.environ.copy()
     env["TERM"] = "xterm"
     result = subprocess.run(
@@ -37,11 +38,12 @@ def test_interactive_help_exposes_admin_account_management() -> None:
         timeout=10,
     )
     assert result.returncode == 0
-    assert "admin" in result.stdout
-    assert "管理员账号管理" in result.stdout
+    assert "owner" in result.stdout
+    assert "Owner 账户" in result.stdout
+    assert "admin" not in result.stdout
 
 
-def test_admin_show_reports_current_administrator_without_secrets(
+def test_owner_menu_reports_current_owner_without_secrets(
     tmp_path: Path,
 ) -> None:
     elfie_home = tmp_path / ".elfienest"
@@ -50,7 +52,7 @@ def test_admin_show_reports_current_administrator_without_secrets(
     password_hash = hash_password("entrypoint-secret")
     with get_db(str(db_path)) as conn:
         conn.execute(
-            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'admin')",
+            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'owner')",
             ("doctor-bai", password_hash),
         )
         conn.commit()
@@ -61,11 +63,11 @@ def test_admin_show_reports_current_administrator_without_secrets(
         [
             str(PROJECT_ROOT / ".venv" / "bin" / "python3"),
             str(PROJECT_ROOT / "scripts" / "elfienest.py"),
-            "admin",
-            "show",
+            "owner",
         ],
         cwd=PROJECT_ROOT,
         env=env,
+        input="1\n0\n",
         capture_output=True,
         text=True,
         check=False,
@@ -73,58 +75,21 @@ def test_admin_show_reports_current_administrator_without_secrets(
 
     assert result.returncode == 0
     assert "doctor-bai" in result.stdout
-    assert str(db_path) in result.stdout
+    assert "User ID:" in result.stdout
+    assert "密码状态:" in result.stdout
     assert password_hash not in result.stdout
     assert "entrypoint-secret" not in result.stdout
 
 
-def test_admin_help_exposes_show_and_reset_without_password_argument() -> None:
+def test_owner_command_rejects_password_argument_without_echoing_it() -> None:
+    secret = "must-not-enter-argv"
     result = subprocess.run(
         [
             str(PROJECT_ROOT / ".venv" / "bin" / "python3"),
             str(PROJECT_ROOT / "scripts" / "elfienest.py"),
-            "admin",
-            "--help",
-        ],
-        cwd=PROJECT_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0
-    assert "show" in result.stdout
-    assert "reset-password" in result.stdout
-    assert "--password" not in result.stdout
-
-
-def test_admin_reset_help_accepts_only_optional_username() -> None:
-    result = subprocess.run(
-        [
-            str(PROJECT_ROOT / ".venv" / "bin" / "python3"),
-            str(PROJECT_ROOT / "scripts" / "elfienest.py"),
-            "admin",
-            "reset-password",
-            "--help",
-        ],
-        cwd=PROJECT_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0
-    assert "username" in result.stdout
-    assert "--password" not in result.stdout
-
-
-def test_admin_reset_rejects_password_as_extra_positional_argument() -> None:
-    result = subprocess.run(
-        [
-            str(PROJECT_ROOT / ".venv" / "bin" / "python3"),
-            str(PROJECT_ROOT / "scripts" / "elfienest.py"),
-            "admin",
-            "reset-password",
-            "doctor-bai",
-            "must-not-enter-argv",
+            "owner",
+            "--password",
+            secret,
         ],
         cwd=PROJECT_ROOT,
         capture_output=True,
@@ -132,17 +97,51 @@ def test_admin_reset_rejects_password_as_extra_positional_argument() -> None:
         check=False,
     )
     assert result.returncode == 2
-    assert "must-not-enter-argv" not in result.stdout
-    assert "must-not-enter-argv" not in result.stderr
+    assert secret not in result.stderr
 
 
-def test_non_admin_parser_errors_keep_existing_diagnostics() -> None:
+def test_owner_menu_has_no_password_positional_interface() -> None:
     result = subprocess.run(
         [
             str(PROJECT_ROOT / ".venv" / "bin" / "python3"),
             str(PROJECT_ROOT / "scripts" / "elfienest.py"),
-            "models",
-            "invalid-model-command",
+            "owner",
+            "reset-password",
+        ],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 2
+
+
+def test_owner_parser_rejects_unknown_extra_arguments() -> None:
+    secret = "unexpected-secret-argument"
+    result = subprocess.run(
+        [
+            str(PROJECT_ROOT / ".venv" / "bin" / "python3"),
+            str(PROJECT_ROOT / "scripts" / "elfienest.py"),
+            "owner",
+            secret,
+        ],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 2
+    assert secret not in result.stdout
+    assert secret not in result.stderr
+
+
+def test_config_parser_errors_keep_current_choices() -> None:
+    result = subprocess.run(
+        [
+            str(PROJECT_ROOT / ".venv" / "bin" / "python3"),
+            str(PROJECT_ROOT / "scripts" / "elfienest.py"),
+            "config",
+            "invalid-config-path",
         ],
         cwd=PROJECT_ROOT,
         capture_output=True,
@@ -151,19 +150,19 @@ def test_non_admin_parser_errors_keep_existing_diagnostics() -> None:
     )
 
     assert result.returncode == 2
-    assert "invalid-model-command" in result.stderr
-    assert "list" in result.stderr
-    assert "scan" in result.stderr
+    assert "invalid-config-path" in result.stderr
+    assert "provider" in result.stderr
+    assert "doctor" in result.stderr
 
 
-def test_service_entrypoint_rejects_admin_recovery_bypass(tmp_path: Path) -> None:
+def test_service_entrypoint_rejects_owner_recovery_bypass(tmp_path: Path) -> None:
     env = os.environ.copy()
     env["ELFIE_HOME"] = str(tmp_path / "home")
     result = subprocess.run(
         [
             str(PROJECT_ROOT / ".venv" / "bin" / "python3"),
             str(PROJECT_ROOT / "scripts" / "serve.py"),
-            "--admin-recovery",
+            "--owner-recovery",
         ],
         cwd=PROJECT_ROOT,
         env=env,
@@ -177,13 +176,13 @@ def test_service_entrypoint_rejects_admin_recovery_bypass(tmp_path: Path) -> Non
     assert "unrecognized arguments" in result.stderr
 
 
-def test_interactive_shell_forwards_admin_reset_username(tmp_path: Path) -> None:
+def test_interactive_shell_forwards_owner_command(tmp_path: Path) -> None:
     project_root = tmp_path / "ElfieNest"
     project_root.mkdir()
     shutil.copy2(PROJECT_ROOT / "elfienest.sh", project_root / "elfienest.sh")
     shutil.copy2(PROJECT_ROOT / ".python-version", project_root / ".python-version")
     write_executable(project_root / "install.sh", "#!/bin/bash\nexit 1\n")
-    invocation_log = tmp_path / "admin-invocation.log"
+    invocation_log = tmp_path / "owner-invocation.log"
     write_executable(
         project_root / ".venv" / "bin" / "python3",
         """#!/bin/bash
@@ -206,7 +205,7 @@ printf '%s\n' "$*" > "$ENTRYPOINT_LOG"
         [str(project_root / "elfienest.sh")],
         cwd=project_root,
         env=env,
-        input="admin reset-password doctor-bai\nexit\n",
+        input="owner\nexit\n",
         capture_output=True,
         text=True,
         check=False,
@@ -214,5 +213,5 @@ printf '%s\n' "$*" > "$ENTRYPOINT_LOG"
     )
     assert result.returncode == 0
     assert invocation_log.read_text(encoding="utf-8").strip() == (
-        "scripts/elfienest.py admin reset-password doctor-bai"
+        "scripts/elfienest.py owner"
     )

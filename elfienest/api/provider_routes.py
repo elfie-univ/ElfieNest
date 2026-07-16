@@ -20,8 +20,8 @@ from elfienest.config.runtime_store import (
 )
 from runtime.config import LLMRuntimeConfig
 from runtime.models.catalog import _verify_custom_openai_provider, verify_provider
-from runtime.providers.profiles import BUILTIN_PROFILES, get_profile
 from runtime.providers.model_hints import configured_model_specs
+from runtime.providers.profiles import BUILTIN_PROFILES, get_profile
 from runtime.storage.data_home import get_config_path
 from runtime.usage.observer import (
     ProviderVerifyObservation,

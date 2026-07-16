@@ -1,6 +1,7 @@
 let currentUser = null;
 let csrfToken = "";
-let role = "admin";
+let wsPort = 8766;
+let role = "owner";
 let activeView = "overview";
 let previousView = "overview";
 let wizardStep = 0;
@@ -172,11 +173,11 @@ function statusClass(status) {
 
 function wsUrl() {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${protocol}//${window.location.hostname}:8766`;
+  return `${protocol}//${window.location.hostname}:${wsPort}`;
 }
 
 function connectRealtime() {
-  if (!currentUser?.session_token || wsState === "connecting" || wsState === "online") return;
+  if (!currentUser || wsState === "connecting" || wsState === "online") return;
   if (wsReconnectTimer) {
     clearTimeout(wsReconnectTimer);
     wsReconnectTimer = null;
@@ -188,7 +189,7 @@ function connectRealtime() {
   ws.addEventListener("open", () => {
     ws.send(JSON.stringify({
       event: "auth",
-      payload: { token: currentUser.session_token },
+      payload: {},
     }));
   });
 
@@ -208,6 +209,17 @@ function connectRealtime() {
     wsState = "error";
     updateWsIndicators();
   });
+}
+
+async function loadWsConfig() {
+  try {
+    const config = await fetchJson("/api/ws-config");
+    if (Number.isInteger(config.port) && config.port > 0 && config.port <= 65535) {
+      wsPort = config.port;
+    }
+  } catch {
+    // Keep the default for older services that do not expose ws-config.
+  }
 }
 
 function disconnectRealtime(reconnect = false) {
@@ -453,13 +465,21 @@ function systemPayload(section, form) {
   const data = new FormData(form);
   if (section === "adoption") {
     const maxPerUser = Number(data.get("max_elfies_per_user") || 3);
+    const anatomyTypes = String(data.get("allowed_anatomy_types") || "biped, quadruped")
+      .split(",")
+      .map((item) => item.trim())
+      .filter((item) => ["biped", "quadruped"].includes(item));
+    const presetNames = ["活泼好动", "安静温顺", "好奇探索", "胆小害羞", "傲娇独立", "完全随机"];
+    const enabledPresets = new Set(String(data.get("personality_presets") || presetNames.join(","))
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean));
     return {
       max_elfies_per_user: Math.max(1, Math.min(32, maxPerUser)),
-      default_personality_style: String(data.get("default_personality_style") || "活泼好动").trim(),
-      allowed_personality_styles: String(data.get("allowed_personality_styles") || "")
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean),
+      allowed_anatomy_types: anatomyTypes.length ? anatomyTypes : ["biped", "quadruped"],
+      personality_presets_enabled: Object.fromEntries(
+        presetNames.map((name) => [name, enabledPresets.has(name)]),
+      ),
     };
   }
   if (section === "engine") {
@@ -472,8 +492,10 @@ function systemPayload(section, form) {
   }
   return {
     session_ttl_days: Number(data.get("session_ttl_days") || 7),
-    max_login_attempts: Number(data.get("max_login_attempts") || 5),
-    rate_limit_window_seconds: Number(data.get("rate_limit_window_seconds") || 300),
+    rate_limit: {
+      max_attempts: Number(data.get("max_attempts") || 5),
+      window_seconds: Number(data.get("window_seconds") || 300),
+    },
   };
 }
 
@@ -527,11 +549,12 @@ async function checkAuth() {
     csrfToken = data.csrf_token || "";
     setRole(data.role || "user");
     setText("profile-name", data.nickname || data.username);
-    setText("profile-role", data.role === "admin" ? "管理员" : "普通用户");
+    setText("profile-role", data.role === "owner" ? "Owner" : "普通用户");
     setText("profile-avatar", (data.nickname || data.username || "U").charAt(0).toUpperCase());
 
     const loginView = byId("login-view");
     if (loginView) loginView.style.display = "none";
+    await loadWsConfig();
     connectRealtime();
     startCameraPolling();
     await loadDashboardData();
@@ -591,7 +614,7 @@ async function loadDashboardData() {
   await loadElves();
   await loadAdoptionInfo();
   await loadRooms();
-  if (role === "admin") {
+  if (role === "owner") {
     await Promise.all([
       loadProviders(),
       loadModels(),
@@ -632,7 +655,7 @@ function normalizeElfie(raw) {
 
 async function loadElves() {
   try {
-    const data = role === "admin" ? await loadAdminElfies() : await fetchJson("/api/user/elfies");
+    const data = role === "owner" ? await loadAdminElfies() : await fetchJson("/api/user/elfies");
     elves = (Array.isArray(data) ? data : []).map(normalizeElfie);
   } catch (error) {
     console.error("Failed to load elfies", error);
@@ -701,7 +724,7 @@ async function loadAdoptionInfo() {
 
 async function loadRooms() {
   try {
-    const endpoint = role === "admin" ? "/api/admin/nest/rooms" : "/api/user/nest/rooms";
+    const endpoint = role === "owner" ? "/api/admin/nest/rooms" : "/api/user/nest/rooms";
     rooms = await fetchJson(endpoint);
   } catch (error) {
     console.error("Failed to load rooms", error);
@@ -801,7 +824,7 @@ async function loadSystemConfig() {
 
 async function loadUsers() {
   const body = byId("users-table-body");
-  if (!body || role !== "admin") return;
+  if (!body || role !== "owner") return;
   try {
     const users = await fetchJson("/api/admin/users");
     const rows = [
@@ -818,7 +841,7 @@ async function loadUsers() {
     body.innerHTML = rows.map((user) => `
       <div class="table-row user-row">
         <span><strong>${escapeHtml(user.username)}</strong><small>${user.current ? "当前登录" : `ID ${user.id}`}</small></span>
-        <span><mark class="status ${user.role === "admin" ? "info" : "success"}">${user.role === "admin" ? "管理员" : "普通用户"}</mark></span>
+        <span><mark class="status ${user.role === "owner" ? "info" : "success"}">${user.role === "owner" ? "Owner" : "普通用户"}</mark></span>
         <span><mark class="status success">正常</mark></span>
         <span>${formatDate(user.created_at) || "未知"}</span>
         <span>${user.elfie_count ?? 0} 只精灵</span>
@@ -859,23 +882,24 @@ function emptyPanel(title, detail = "") {
 }
 
 function setRole(nextRole) {
-  role = nextRole;
+  const isOwner = nextRole === "owner" || nextRole === "admin";
+  role = isOwner ? "owner" : nextRole;
   if (shell) shell.dataset.role = role;
-  if (profileRole) profileRole.textContent = role === "admin" ? "管理员" : "普通用户";
+  if (profileRole) profileRole.textContent = isOwner ? "Owner" : "普通用户";
   if (elvesCopy) {
-    elvesCopy.textContent = role === "admin"
-      ? "管理员可查看本机精灵概览；私密聊天和配置仍只归拥有者管理。"
+    elvesCopy.textContent = role === "owner"
+      ? "Owner 可查看本机精灵概览；私密聊天和配置仍只归拥有者管理。"
       : "这里只显示你的精灵，可领养、聊天，并管理自己的精灵配置。";
   }
   if (roomsCopy) {
-    roomsCopy.textContent = role === "admin"
+    roomsCopy.textContent = role === "owner"
       ? "默认宿舍式精灵巢，管理床位数量、公共生活带和全屋观察视图。"
       : "普通用户可查看精灵巢布局和全屋摄像头观察，不能修改布局或床位。";
   }
-  document.querySelectorAll(".admin-action").forEach((node) => {
-    node.hidden = role !== "admin";
+  document.querySelectorAll(".owner-action").forEach((node) => {
+    node.hidden = role !== "owner";
   });
-  setView(role === "admin" ? "overview" : "elves");
+  setView(role === "owner" ? "overview" : "elves");
 }
 
 function setView(view) {
@@ -960,7 +984,7 @@ function closeMenus() {
 }
 
 function renderElfFilters() {
-  if (!ownerFilter || role !== "admin") return;
+  if (!ownerFilter || role !== "owner") return;
   const selected = ownerFilter.value || "all";
   const ownerNames = Array.from(new Set(elves.map((elf) => elf.owner).filter(Boolean))).sort((a, b) => a.localeCompare(b, "zh-CN"));
   ownerFilter.innerHTML = [
@@ -979,9 +1003,9 @@ function filteredElves() {
   const anatomyValue = elfAnatomyFilter?.value || "all";
   const buildValue = elfBuildFilter?.value || "all";
 
-  if (role === "admin" && ownerValue === "mine") list = list.filter((elf) => elf.owned);
-  if (role === "admin" && ownerValue === "others") list = list.filter((elf) => !elf.owned);
-  if (role === "admin" && ownerValue.startsWith("owner:")) {
+  if (role === "owner" && ownerValue === "mine") list = list.filter((elf) => elf.owned);
+  if (role === "owner" && ownerValue === "others") list = list.filter((elf) => !elf.owned);
+  if (role === "owner" && ownerValue.startsWith("owner:")) {
     list = list.filter((elf) => elf.owner === ownerValue.slice(6));
   }
   if (statusValue !== "all") list = list.filter((elf) => elf.status === statusValue);
@@ -1612,7 +1636,7 @@ function renderRooms() {
 
   setText("room-map-title", `${room.name || "Main Nest"} · 宿舍俯视图`);
   const beds = room.beds || [];
-  mapRender.classList.toggle("editing", roomLayoutEditing && role === "admin");
+  mapRender.classList.toggle("editing", roomLayoutEditing && role === "owner");
   const groupCount = dormGroupCount(Math.max(4, beds.length));
   const planWidth = dormPlanWidth(groupCount);
   const mapWidth = dormMapWidth(groupCount);
@@ -1955,13 +1979,16 @@ function renderSystemConfig() {
   const enginePanel = byId("config-engine-panel");
   const securityPanel = byId("config-security-panel");
   if (adoptionPanel) {
-    const styles = adoption.allowed_personality_styles || adoption.personality_styles || [];
+    const enabledPresets = adoption.personality_presets_enabled || {};
+    const enabledNames = Object.entries(enabledPresets)
+      .filter(([, enabled]) => enabled)
+      .map(([name]) => name);
     adoptionPanel.innerHTML = `
       <h3>领养策略</h3>
       <form class="config-grid system-config-form" data-system-section="adoption">
         <label class="form-row"><span>每用户上限</span><input name="max_elfies_per_user" type="number" min="1" max="32" value="${escapeHtml(adoption.max_elfies_per_user || 3)}" /></label>
-        <label class="form-row"><span>默认性格</span><input name="default_personality_style" type="text" value="${escapeHtml(adoption.default_personality_style || "活泼好动")}" /></label>
-        <label class="form-row"><span>可选性格（逗号分隔）</span><input name="allowed_personality_styles" type="text" value="${escapeHtml(styles.join(", "))}" /></label>
+        <label class="form-row"><span>允许形态（逗号分隔）</span><input name="allowed_anatomy_types" type="text" value="${escapeHtml((adoption.allowed_anatomy_types || ["biped", "quadruped"]).join(", "))}" /></label>
+        <label class="form-row"><span>启用性格（逗号分隔）</span><input name="personality_presets" type="text" value="${escapeHtml(enabledNames.join(", "))}" /></label>
         <p class="form-message" data-system-message="adoption"></p>
         <button class="primary-button full" type="submit">保存领养策略</button>
       </form>
@@ -1984,8 +2011,8 @@ function renderSystemConfig() {
       <h3>安全设置</h3>
       <form class="config-grid system-config-form" data-system-section="security">
         <label class="form-row"><span>会话有效期（天）</span><input name="session_ttl_days" type="number" min="1" max="90" value="${escapeHtml(security.session_ttl_days || 7)}" /></label>
-        <label class="form-row"><span>最大登录尝试</span><input name="max_login_attempts" type="number" min="1" max="30" value="${escapeHtml(security.max_login_attempts || 5)}" /></label>
-        <label class="form-row"><span>限流窗口（秒）</span><input name="rate_limit_window_seconds" type="number" min="10" max="3600" value="${escapeHtml(security.rate_limit_window_seconds || 300)}" /></label>
+        <label class="form-row"><span>最大登录尝试</span><input name="max_attempts" type="number" min="1" max="100" value="${escapeHtml(security.rate_limit?.max_attempts || 5)}" /></label>
+        <label class="form-row"><span>限流窗口（秒）</span><input name="window_seconds" type="number" min="1" max="3600" value="${escapeHtml(security.rate_limit?.window_seconds || 300)}" /></label>
         <p class="form-message" data-system-message="security"></p>
         <button class="primary-button full" type="submit">保存安全设置</button>
       </form>
@@ -2008,10 +2035,10 @@ function buildLogItems() {
   const activeProviders = providers.filter((provider) => provider.status === "active").length;
   return [
     `精灵管理：当前用户可见 ${elves.length} 只精灵。`,
-    `精灵巢：${role === "admin" ? `读取到 ${rooms.length} 个房间。` : "普通用户为只读权限。"}`,
+    `精灵巢：${role === "owner" ? `读取到 ${rooms.length} 个房间。` : "普通用户为只读权限。"}`,
     `模型供应商：${providers.length || 1} 个供应商，${activeProviders || 1} 个可用。`,
     `模型目录：${models.length} 个模型已纳入粮食策略候选。`,
-    "完整进程日志可在本机运行 ./elfienest.sh logs 查看。",
+    "完整进程日志请使用 serve 前台输出或本机日志目录查看。",
   ];
 }
 
@@ -2091,7 +2118,7 @@ function renderElfDetail(id) {
           <span>所在精灵巢</span>
           <input type="text" value="${escapeHtml(`${elf.room} · ${elf.bed}`)}" readonly />
         </label>
-        <div class="callout privacy">${elf.owned ? "基础形态和性格已锁定，只能查看不能修改。" : "管理员只能查看公开元信息，不能读取主人聊天或私密配置。"}</div>
+        <div class="callout privacy">${elf.owned ? "基础形态和性格已锁定，只能查看不能修改。" : "Owner 只能查看公开元信息，不能读取主人聊天或私密配置。"}</div>
       </section>
       ${elf.owned ? `<section class="config-card detail-config"><h3>精灵粮食权限</h3><div id="elf-food-policy" data-elfie-id="${escapeHtml(elf.id)}">正在读取…</div></section>` : ""}
       <section class="chat-panel">

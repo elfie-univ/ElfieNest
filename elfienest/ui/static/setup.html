@@ -400,7 +400,7 @@
             <div class="logo">
                 <span class="logo-icon">🦊</span>
                 <h1>ElfieNest</h1>
-                <p>创建管理员账号以开始使用</p>
+                <p>创建 Owner 账号以开始使用</p>
             </div>
 
             <div class="step-indicator">
@@ -413,12 +413,12 @@
 
             <!-- Step 1: Account -->
             <div class="step-panel active" id="step1">
-                <div class="step-title">设置管理员账号</div>
+                <div class="step-title">设置 Owner 账号</div>
 
                 <div class="form-group">
                     <label for="username">用户名</label>
-                    <input type="text" id="username" name="username" placeholder="至少 6 个字符" autocomplete="off" />
-                    <div class="field-error" id="usernameError">用户名至少需要 6 个字符</div>
+                    <input type="text" id="username" name="username" placeholder="至少 3 个字符" autocomplete="off" />
+                    <div class="field-error" id="usernameError">用户名至少需要 3 个字符</div>
                 </div>
 
                 <div class="form-group">
@@ -454,14 +454,14 @@
 
                 <div class="btn-row">
                     <button type="button" class="btn-secondary" id="backBtn">返回</button>
-                    <button type="button" class="btn-primary" id="submitBtn">创建管理员</button>
+                    <button type="button" class="btn-primary" id="submitBtn">创建 Owner</button>
                 </div>
             </div>
 
             <!-- Success state -->
             <div class="success-state" id="successState">
                 <div class="success-icon">&#x2705;</div>
-                <div class="success-title">管理员账号已创建</div>
+                <div class="success-title">Owner 账号已创建</div>
                 <div class="success-desc">正在跳转到控制台...</div>
                 <div class="spinner" style="margin:0 auto;"></div>
             </div>
@@ -571,7 +571,7 @@
                 var password = passwordInput.value;
                 var confirm = confirmPasswordInput.value;
 
-                if (username.length < 6) {
+                if (username.length < 3) {
                     usernameError.classList.add('visible');
                     usernameInput.classList.add('invalid');
                     valid = false;
@@ -655,7 +655,7 @@
                     showError('无法连接到服务，请检查网络');
                 } finally {
                     submitBtn.disabled = false;
-                    submitBtn.textContent = '创建管理员';
+                    submitBtn.textContent = '创建 Owner';
                 }
             });
 

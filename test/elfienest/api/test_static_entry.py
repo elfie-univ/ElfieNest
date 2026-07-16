@@ -37,6 +37,7 @@ def test_root_serves_console_without_static_redirect(client: TestClient) -> None
     assert "Runtime 三层配置" in resp.text
     assert "第二层：Agent 基础工具" in resp.text
     assert "自动更新粮食策略" in resp.text
+    assert client.get("/api/ws-config").json() == {"port": 9876}
     assert 'id="login-form"' in resp.text
     assert '<script src="/static/elfienest-console.js?v=21"></script>' in resp.text
 
@@ -44,6 +45,8 @@ def test_root_serves_console_without_static_redirect(client: TestClient) -> None
     assert console_js.status_code == 200
     assert "/api/auth/setup-status" in console_js.text
     assert "/static/setup.html" in console_js.text
+    assert "currentUser?.session_token" not in console_js.text
+    assert ":8766`" not in console_js.text
 
 
 def test_capacity_inputs_and_payloads_are_capped_at_thirty_two(

@@ -20,33 +20,47 @@ if (
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from elfienest.cli.admin_commands import dispatch_admin
-from elfienest.cli.model_commands import dispatch_models
-from elfienest.cli.provider_commands import dispatch_providers, login_provider
-from elfienest.cli.route_commands import dispatch_route
+from elfienest.cli.doctor_commands import run_doctor
+from elfienest.cli.lifecycle_commands import (
+    default_service_command,
+    open_web_console,
+    restart_background_service,
+    show_service_status,
+    start_background_service,
+    stop_background_service,
+)
+from elfienest.cli.owner_commands import run_owner_menu
+from elfienest.cli.provider_commands import login_provider
 from elfienest.cli.runtime_commands import (
     dispatch_db,
-    restart_service,
-    show_logs,
-    show_sessions,
-    show_stats,
-    show_status,
     show_version,
-    start_web,
-    stop_service,
 )
 from elfienest.cli.tui.common import print_banner
 from elfienest.cli.tui.config_app import run_config_tui
 from elfienest.cli.tui.setup_app import run_setup_wizard
+from elfienest.operations.service_lifecycle_types import ServiceLifecycleResult
 
 
 class SecretSafeArgumentParser(argparse.ArgumentParser):
     """避免 argparse 在错误信息中回显可能误输的秘密。"""
 
     def error(self, message: str) -> NoReturn:
-        if sys.argv[1:3] == ["admin", "reset-password"]:
+        sensitive_options = {
+            "--api-key",
+            "--password",
+            "--secret",
+            "--token",
+        }
+        has_sensitive_argument = any(
+            argument.split("=", 1)[0] in sensitive_options
+            for argument in sys.argv[1:]
+        )
+        if has_sensitive_argument:
             self.print_usage(sys.stderr)
             self.exit(2, f"{self.prog}: 参数无效\n")
+        if "owner" in sys.argv[1:]:
+            self.print_usage(sys.stderr)
+            self.exit(2, f"{self.prog}: Owner 参数无效\n")
         super().error(message)
 
 
@@ -57,68 +71,52 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    subparsers = parser.add_subparsers(dest="command", help="命令")
-
-    subparsers.add_parser("config", help="交互式配置 TUI")
-
-    models_parser = subparsers.add_parser("models", help="模型管理")
-    models_parser.add_argument(
-        "models_command",
-        nargs="?",
-        choices=["list", "scan"],
-        default="list",
-        help="模型命令",
+    subparsers = parser.add_subparsers(
+        dest="command",
+        help="命令",
+        parser_class=SecretSafeArgumentParser,
     )
 
-    providers_parser = subparsers.add_parser("providers", help="管理服务商")
-    providers_parser.add_argument(
-        "providers_command",
+    config_parser = subparsers.add_parser("config", help="配置中心（方向键菜单）")
+    config_parser.add_argument(
+        "config_path",
         nargs="?",
-        choices=["list", "test", "add", "remove"],
-        default="list",
-        help="服务商命令",
+        choices=["provider", "providers", "agent", "tools", "food", "owner", "doctor"],
+        help=argparse.SUPPRESS,
     )
-    providers_parser.add_argument("provider_id", nargs="?", help="服务商标识")
 
-    login_parser = subparsers.add_parser("login", help="配置服务商 API Key")
-    login_parser.add_argument("provider", help="服务商标识 (如 openai, deepseek)")
+    serve_parser = subparsers.add_parser(
+        "serve", aliases=["server"], help="前台运行服务并实时显示日志"
+    )
+    serve_parser.add_argument("--fallback", action="store_true")
+    serve_parser.add_argument("--force", action="store_true")
+    serve_parser.add_argument("--port", type=int, default=None)
+    serve_parser.add_argument("--ws-port", type=int, default=None)
+    serve_parser.add_argument("--godot-ws-port", type=int, default=None)
+    serve_parser.add_argument("--audio-port", type=int, default=None)
+    serve_parser.add_argument("--no-seed-elfie", action="store_true")
 
-    route_parser = subparsers.add_parser("route", help="模型路由管理")
-    route_parser.add_argument("route_command", choices=["show"], help="路由命令")
-    route_parser.add_argument("elfie_id", nargs="?", help="精灵 ID")
-
+    start_parser = subparsers.add_parser(
+        "start", help="后台启动服务（已运行时不重复启动）"
+    )
+    start_parser.add_argument("--port", type=int, default=None)
+    start_parser.add_argument("--ws-port", type=int, default=None)
+    start_parser.add_argument("--godot-ws-port", type=int, default=None)
+    start_parser.add_argument("--audio-port", type=int, default=None)
+    start_parser.add_argument("--fallback", action="store_true")
+    start_parser.add_argument("--no-seed-elfie", action="store_true")
     subparsers.add_parser("status", help="查看服务状态")
-    subparsers.add_parser("web", help="启动服务并打开浏览器")
-    subparsers.add_parser("stats", help="显示使用统计")
-    subparsers.add_parser("session", help="管理会话")
-    subparsers.add_parser("logs", help="查看日志")
+    subparsers.add_parser("web", help="确保服务可用并打开 Web 管理台")
+    subparsers.add_parser("stop", help="停止服务")
+    subparsers.add_parser("restart", help="强制重启服务")
+    subparsers.add_parser("owner", help="Owner 账户菜单")
+    subparsers.add_parser("doctor", help="运行本地诊断与配置检查")
     subparsers.add_parser("version", help="显示版本")
     subparsers.add_parser("setup", help="首次设置向导")
-    subparsers.add_parser("restart", help="重启服务")
-    subparsers.add_parser("stop", help="停止服务")
-
     db_parser = subparsers.add_parser("db", help="数据库工具")
     db_parser.add_argument(
         "db_command", nargs="?", choices=["backup", "reset"], help="数据库命令"
     )
-
-    admin_parser = subparsers.add_parser("admin", help="管理员账号管理")
-    admin_subparsers = admin_parser.add_subparsers(
-        dest="admin_command",
-        help="管理员命令",
-        parser_class=SecretSafeArgumentParser,
-    )
-    admin_subparsers.add_parser("show", help="显示当前管理员")
-    reset_admin_parser = admin_subparsers.add_parser(
-        "reset-password", help="安全重置现有管理员密码"
-    )
-    reset_admin_parser.add_argument(
-        "admin_username",
-        nargs="?",
-        metavar="username",
-        help="管理员用户名；只有一个管理员时可省略",
-    )
-    admin_parser.set_defaults(admin_username=None)
 
     args = parser.parse_args()
     dispatch_command(args)
@@ -126,42 +124,68 @@ def main() -> None:
 
 def dispatch_command(args: argparse.Namespace) -> None:
     if args.command == "config":
-        run_config_tui(login_provider)
-    elif args.command == "models":
-        dispatch_models(args.models_command)
-    elif args.command == "providers":
-        dispatch_providers(args.providers_command, args.provider_id)
-    elif args.command == "login":
-        login_provider(args.provider)
-    elif args.command == "route":
-        dispatch_route(args.route_command, args.elfie_id)
+        run_config_tui(login_provider, getattr(args, "config_path", None))
+    elif args.command in {"serve", "server"}:
+        options = _service_options_from_args(args)
+        if args.force:
+            options += ("--force",)
+        os.execvp(
+            sys.executable,
+            [sys.executable, "scripts/serve.py", *options],
+        )
     elif args.command == "status":
-        show_status()
+        show_service_status()
     elif args.command == "web":
-        start_web()
-    elif args.command == "stats":
-        show_stats()
-    elif args.command == "session":
-        show_sessions()
-    elif args.command == "logs":
-        show_logs()
+        _exit_on_lifecycle_failure(open_web_console())
+    elif args.command == "start":
+        _exit_on_lifecycle_failure(
+            start_background_service(
+                default_service_command(_service_options_from_args(args))
+            )
+        )
+    elif args.command == "stop":
+        _exit_on_lifecycle_failure(stop_background_service())
+    elif args.command == "restart":
+        _exit_on_lifecycle_failure(restart_background_service())
+    elif args.command == "owner":
+        raise SystemExit(run_owner_menu())
+    elif args.command == "doctor":
+        raise SystemExit(run_doctor())
     elif args.command == "db":
         dispatch_db(args.db_command)
-    elif args.command == "admin":
-        raise SystemExit(dispatch_admin(args.admin_command, args.admin_username))
     elif args.command == "version":
         show_version()
     elif args.command == "setup":
         run_setup_wizard()
-    elif args.command == "restart":
-        restart_service()
-    elif args.command == "stop":
-        stop_service()
     else:
         print_banner()
         print("  启动服务...")
         print()
         os.execvp(sys.executable, [sys.executable, "scripts/serve.py"] + sys.argv[1:])
+
+
+def _service_options_from_args(args: argparse.Namespace) -> tuple[str, ...]:
+    """Convert supported background start options to the service command."""
+    options: list[str] = []
+    if args.port is not None:
+        options.extend(("--port", str(args.port)))
+    if args.ws_port is not None:
+        options.extend(("--ws-port", str(args.ws_port)))
+    if args.godot_ws_port is not None:
+        options.extend(("--godot-ws-port", str(args.godot_ws_port)))
+    if args.audio_port is not None:
+        options.extend(("--audio-port", str(args.audio_port)))
+    if args.fallback:
+        options.append("--fallback")
+    if args.no_seed_elfie:
+        options.append("--no-seed-elfie")
+    return tuple(options)
+
+
+def _exit_on_lifecycle_failure(result: ServiceLifecycleResult) -> None:
+    """将生命周期失败转换为可脚本判断的非零退出码。"""
+    if getattr(result, "status", None) == "failed":
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

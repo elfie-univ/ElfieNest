@@ -10,7 +10,7 @@ The visual signature is a soft technical habitat: neutral work surfaces, subtle 
 
 - Keep CJK labels short and stable in the sidebar.
 - Do not combine Elfie management and nest management; private companions and shared nest space are separate product concepts.
-- Admin views may expose operational, user, nest, model, and provider configuration.
+- Owner 视图可以暴露服务运维、用户、精灵巢、模型和 Provider 配置；旧的 admin 角色不再作为产品导航或配置权限入口。
 - User views only expose owned Elfies and read-only nest visibility, with limited permitted actions such as viewing layout and camera status.
 - Model provider setup, model catalog, and food strategy belong together, but provider credentials and model routing should remain distinct inside the page.
 - Use the existing CSS variables before introducing new raw values.
@@ -88,12 +88,12 @@ Cards are limited to repeated items, framed tools, modals, and dashboards. Whole
 
 ## Navigation Model
 
-Admin navigation is grouped by task area:
+Owner 导航按任务域分组：
 
-- Business management: Elfie management, nest management, user management.
-- Model food: provider management, model catalog, food strategy.
-- Runtime operations: overview, services, logs, runtime health.
-- System settings: focused global settings only, with detail tabs inside the page rather than many sidebar entries.
+- 家庭管理：精灵管理、精灵巢管理、用户管理。
+- 模型粮食：Provider 管理、模型目录、粮食策略。
+- 运行运维：总览、服务、日志、运行时健康。
+- 系统设置：只放核心全局设置，细分项放在页面内部标签中，不在侧边栏无限展开。
 
 Regular users keep only Elfie management and nest visibility. Their Elfie page shows owned companions; their nest page is read-only except for permitted observation actions.
 
@@ -102,7 +102,7 @@ Regular users keep only Elfie management and nest visibility. Their Elfie page s
 ### App Shell
 
 - Structure: sidebar, topbar, main workspace, optional modal overlays.
-- Variants: admin console and user workspace.
+- 变体：Owner 控制台和普通用户工作区。
 - States: active navigation, mobile collapsed nav, authenticated profile.
 - Accessibility: nav and main landmarks, visible focus.
 - Motion: panel changes use opacity and transform only.

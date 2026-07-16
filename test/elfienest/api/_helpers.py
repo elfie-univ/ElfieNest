@@ -12,15 +12,15 @@ from elfienest.persistence.store import get_db, hash_password
 
 
 def create_test_admin(db_path: str, username: str = "admin", password: str = "adminchangeme") -> int:
-    """直接在数据库中创建测试管理员，绕过 setup wizard。
+    """直接在数据库中创建测试 Owner，绕过 setup wizard。
 
     Returns:
-        新创建管理员的 user_id。
+        新创建 Owner 的 user_id。
     """
     with get_db(db_path) as conn:
         pw_hash = hash_password(password)
         cursor = conn.execute(
-            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'admin')",
+            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'owner')",
             (username, pw_hash),
         )
         user_id = cursor.lastrowid

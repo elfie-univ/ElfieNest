@@ -71,7 +71,6 @@ def _login_admin(client: TestClient) -> dict:
     assert resp.status_code == 200, f"login failed: {resp.text}"
     csrf_token = resp.headers.get("X-CSRF-Token", "")
     return {
-        "session_token": resp.json()["session_token"],
         "csrf_token": csrf_token,
     }
 
@@ -338,6 +337,17 @@ class TestPutErrors:
             json={"max_elfies_per_user": 33},
             headers=_headers(tokens["csrf_token"]),
         )
+        assert resp.status_code == 422
+
+    def test_empty_allowed_anatomy_types_422(self, client: TestClient) -> None:
+        """至少保留一种可领养形态，避免把领养功能配置成不可用。"""
+        tokens = _login_admin(client)
+        resp = client.put(
+            "/api/admin/system/adoption",
+            json={"allowed_anatomy_types": []},
+            headers=_headers(tokens["csrf_token"]),
+        )
+
         assert resp.status_code == 422
 
     def test_max_elfies_per_room_gt_32_422(self, client: TestClient) -> None:

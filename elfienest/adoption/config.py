@@ -17,26 +17,28 @@ Usage::
 from __future__ import annotations
 
 import copy
-import json
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
+
+from elfienest.config.runtime_store import read_runtime_config
+from runtime.storage.data_home import get_config_path
 
 _PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent
 _RUNTIME_CONFIG_PATH: Path = _PROJECT_ROOT / "runtime" / "runtime_config.json"
+_DEFAULT_RUNTIME_CONFIG_PATH: Path = _RUNTIME_CONFIG_PATH
 
 
 def _load_adoption_settings() -> dict:
     """从 ``runtime_config.json`` 读取 adoption 设置，与默认值深层合并。"""
     from runtime.config import DEFAULT_SYSTEM_SETTINGS, deep_update  # noqa: PLC0415
 
-    base: Dict[str, object] = copy.deepcopy(DEFAULT_SYSTEM_SETTINGS)
-    if not _RUNTIME_CONFIG_PATH.exists():
+    base: Dict[str, Any] = copy.deepcopy(DEFAULT_SYSTEM_SETTINGS)
+    configured_path = _config_path()
+    if not configured_path.exists():
         return base.get("adoption", {})
 
-    try:
-        with open(_RUNTIME_CONFIG_PATH, encoding="utf-8") as f:
-            saved = json.load(f)
-    except (json.JSONDecodeError, OSError):
+    saved = read_runtime_config(configured_path)
+    if not isinstance(saved, dict):
         return base.get("adoption", {})
 
     saved_system = saved.get("system", {})
@@ -44,6 +46,14 @@ def _load_adoption_settings() -> dict:
         deep_update(base, saved_system)
 
     return base.get("adoption", {})
+
+
+def _config_path() -> Path:
+    """优先读取用户配置，测试或旧部署可继续注入 legacy JSON 路径。"""
+    if _RUNTIME_CONFIG_PATH != _DEFAULT_RUNTIME_CONFIG_PATH:
+        return _RUNTIME_CONFIG_PATH
+    user_path = get_config_path()
+    return user_path if user_path.exists() else _RUNTIME_CONFIG_PATH
 
 
 def get_adoption_settings(db_path: Optional[str] = None) -> dict:

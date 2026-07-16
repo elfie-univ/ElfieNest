@@ -2,8 +2,8 @@
 """ElfieNest 后端服务 — FastAPI + 引擎后台线程共存 + DB 驱动动态精灵加载。
 
 启动流程:
-    1. 初始化 DB + seed admin 账号
-    2. 可选项: 为 admin seed 初始精灵"艾菲" (--seed-elfie，默认开启)
+    1. 初始化 DB + seed Owner 账号
+    2. 可选项: 为 Owner seed 初始精灵"艾菲" (--seed-elfie，默认开启)
     3. 引擎后台线程: RuntimeAgent → ElfieNestEngine (不硬编码精灵)
     4. 从 DB 查询 elfie_registry → 实例化 ElfieIndividual → 注册到引擎
     5. 创建 FastAPI app → uvicorn 阻塞主线程
@@ -17,8 +17,8 @@
 
 CLI 工具:
     .venv/bin/python scripts/elfienest.py config    打开配置 TUI
-    .venv/bin/python scripts/elfienest.py models    列出可用模型
-    .venv/bin/python scripts/elfienest.py providers 管理 providers
+    .venv/bin/python scripts/elfienest.py owner     管理 Owner 账户
+    .venv/bin/python scripts/elfienest.py doctor    运行本地诊断
     .venv/bin/python scripts/elfienest.py status    查看服务状态
     .venv/bin/python scripts/elfienest.py setup     首次设置向导
     .venv/bin/python scripts/elfienest.py restart   重启服务
@@ -31,6 +31,8 @@ import os
 import sys
 import threading
 import time
+from pathlib import Path
+from typing import Callable, Sequence
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -44,12 +46,20 @@ from elfienest.operations.recovery_lock import (
     RecoveryInProgressError,
     acquire_service_start_lease,
 )
-from elfienest.operations.service_process import register_current_service
+from elfienest.operations.service_process import (
+    DEFAULT_AUDIO_PORT,
+    DEFAULT_GODOT_WS_PORT,
+    DEFAULT_MANAGEMENT_WS_PORT,
+    DefaultProcessInspector,
+    command_runs_service,
+    register_current_service,
+    validate_service_ports,
+)
 from elfienest.persistence.store import (
     get_db,
     init_db,
     migrate_db_if_needed,
-    seed_initial_admin_if_env_set,
+    seed_initial_owner_if_env_set,
 )
 from elfienest.simulation.engine import ElfieNestEngine
 from runtime import LLMRuntimeConfig
@@ -120,8 +130,16 @@ class FallbackAgent:
         return random.choice(replies)
 
 
+def remaining_occupied_ports(
+    occupied: Sequence[tuple[int, str]],
+    is_port_in_use_func: Callable[[int], bool],
+) -> list[tuple[int, str]]:
+    """返回强制清理后仍然被占用的端口。"""
+    return [(port, name) for port, name in occupied if is_port_in_use_func(port)]
+
+
 def seed_single_elfie(db_path: str) -> bool:
-    """如果 elfie_registry 为空，为 admin 用户 seed 一只精灵"艾菲"。
+    """如果 elfie_registry 为空，为 Owner 用户 seed 一只精灵"艾菲"。
 
     Returns:
         True 表示成功 seed 了一只新精灵，False 表示已有精灵无需操作。
@@ -132,12 +150,14 @@ def seed_single_elfie(db_path: str) -> bool:
         if row and row["cnt"] > 0:
             return False
 
-        cursor = conn.execute("SELECT id FROM users WHERE username = ?", ("admin",))
-        admin_row = cursor.fetchone()
-        if admin_row is None:
+        cursor = conn.execute(
+            "SELECT id FROM users WHERE role = 'owner' ORDER BY id LIMIT 1"
+        )
+        owner_row = cursor.fetchone()
+        if owner_row is None:
             return False
 
-    admin_id = admin_row["id"]
+    owner_id = owner_row["id"]
     elfie_id = "艾菲"
     config_dir = str(get_elfie_config_dir(elfie_id))
 
@@ -160,7 +180,7 @@ def seed_single_elfie(db_path: str) -> bool:
             (
                 elfie_id,
                 "艾菲",
-                admin_id,
+                owner_id,
                 "biped",
                 config_dir,
                 "活泼好动",
@@ -189,8 +209,20 @@ def main():
     parser.add_argument(
         "--ws-port",
         type=int,
-        default=8766,
+        default=DEFAULT_MANAGEMENT_WS_PORT,
         help="鉴权 WebSocket 端口（默认 8766）",
+    )
+    parser.add_argument(
+        "--godot-ws-port",
+        type=int,
+        default=DEFAULT_GODOT_WS_PORT,
+        help="Godot WebSocket 端口（默认 8765）",
+    )
+    parser.add_argument(
+        "--audio-port",
+        type=int,
+        default=DEFAULT_AUDIO_PORT,
+        help="音频服务器端口（默认 8767）",
     )
     parser.add_argument(
         "--no-seed-elfie",
@@ -204,13 +236,22 @@ def main():
     )
     args = parser.parse_args()
 
+    port_error = validate_service_ports(
+        args.port,
+        args.ws_port,
+        args.godot_ws_port,
+        args.audio_port,
+    )
+    if port_error:
+        parser.error(port_error)
+
     managed_start = os.environ.pop(MANAGED_START_ENV, "") == "1"
     try:
         start_lease = acquire_service_start_lease(
             get_elfie_home(), blocking=managed_start
         )
     except (OSError, RecoveryInProgressError):
-        print("  ❌ 管理员账号恢复或另一次服务启动正在进行，服务暂不允许启动")
+        print("  ❌ Owner 账号恢复或另一次服务启动正在进行，服务暂不允许启动")
         raise SystemExit(1) from None
 
     godot_web = inspect_godot_web_bundle()
@@ -229,7 +270,10 @@ def main():
             return s.connect_ex(("127.0.0.1", port)) == 0
 
     def kill_process_on_port(port):
-        """杀死占用指定端口的进程"""
+        """只终止当前项目登记的服务进程，保留外部监听者。"""
+        inspector = DefaultProcessInspector()
+        expected_root = Path(__file__).resolve().parent.parent
+        expected_script = Path(__file__).resolve()
         try:
             result = subprocess.run(
                 ["lsof", "-ti", f":{port}"],
@@ -240,6 +284,16 @@ def main():
             killed = []
             for pid in pids:
                 if pid:
+                    try:
+                        numeric_pid = int(pid)
+                        process_cwd = inspector.cwd(numeric_pid).resolve()
+                        process_command = inspector.command(numeric_pid)
+                    except (OSError, ValueError, subprocess.SubprocessError):
+                        continue
+                    if process_cwd != expected_root or not command_runs_service(
+                        process_command, process_cwd, expected_script
+                    ):
+                        continue
                     try:
                         subprocess.run(["kill", "-9", pid], check=True)
                         killed.append(pid)
@@ -252,8 +306,8 @@ def main():
     ports_to_check = [
         (args.port, "HTTP"),
         (args.ws_port, "WebSocket"),
-        (8765, "Godot WebSocket"),
-        (8767, "音频服务器"),
+        (args.godot_ws_port, "Godot WebSocket"),
+        (args.audio_port, "音频服务器"),
     ]
 
     occupied = []
@@ -274,6 +328,17 @@ def main():
                     print(f"  ⚠ 端口 {port} ({name}): 无法终止")
             print()
             time.sleep(1)
+            remaining = remaining_occupied_ports(occupied, is_port_in_use)
+            if remaining:
+                print("=" * 56)
+                print("  ❌ 强制重启失败，以下端口仍被占用")
+                print("=" * 56)
+                for port, name in remaining:
+                    print(f"  ❌ 端口 {port} ({name}) 仍被占用")
+                print("  请手动关闭这些进程后重试。")
+                print("=" * 56 + "\n")
+                start_lease.release()
+                sys.exit(1)
         else:
             print("\n" + "=" * 56)
             print("  ⚠️  端口冲突，无法启动服务")
@@ -287,8 +352,9 @@ def main():
             print("        elfienest --force")
             print("     2. 手动关闭后重试")
             print("     3. 使用其他端口:")
-            print("        ./elfienest.sh --port 8001 --ws-port 8767")
+            print("        ./elfienest.sh --port 8001 --ws-port 8866")
             print("=" * 56 + "\n")
+            start_lease.release()
             sys.exit(1)
 
     try:
@@ -300,15 +366,15 @@ def main():
     start_lease.release()
     db_path = str(get_db_path())
 
-    # 1. 初始化数据库 + 迁移 + 从环境变量 seed admin
+    # 1. 初始化数据库 + 迁移 + 从环境变量 seed Owner
     init_db(db_path)
     migrate_db_if_needed(db_path)
-    seed_initial_admin_if_env_set(db_path)
+    seed_initial_owner_if_env_set(db_path)
 
-    # 2. 可选：为 admin seed 初始精灵（默认开启）
+    # 2. 可选：为 Owner seed 初始精灵（默认开启）
     if not args.no_seed_elfie:
         if seed_single_elfie(db_path):
-            print("  🌱 已为 admin 自动 seed 精灵「艾菲」(--seed-elfie)")
+            print("  🌱 已为 Owner 自动 seed 精灵「艾菲」(--seed-elfie)")
 
     # 3. 启动引擎后台线程（容器 + 就绪事件不变）
     engine_holder: dict = {}
@@ -366,9 +432,9 @@ def main():
                 "     安装引导: .venv/bin/python runtime/setup/runtime_setup.py"
             )
 
-        # 音频服务器使用 8767 端口，避免与 uvicorn HTTP 端口冲突
         engine = ElfieNestEngine(
-            http_port=8767,
+            ws_port=args.godot_ws_port,
+            http_port=args.audio_port,
             tick_interval_sec=tick_interval_sec,
             tts_enabled=tts_enabled,
             max_elfies_per_room=max_elfies_per_room,
@@ -444,7 +510,7 @@ def main():
     print("=" * 56)
     print(f"  🌐 HTTP:    http://127.0.0.1:{args.port}")
     print(f"  🔌 WebSocket(管理): ws://127.0.0.1:{args.ws_port}")
-    print("  🔌 WebSocket(Godot): ws://127.0.0.1:8765")
+    print(f"  🔌 WebSocket(Godot): ws://127.0.0.1:{args.godot_ws_port}")
     if loaded_elfies:
         names_str = ", ".join(e["name"] for e in loaded_elfies)
         print(f"  ✨ 已加载 {len(loaded_elfies)} 只精灵: {names_str}")
@@ -457,7 +523,12 @@ def main():
     print()
 
     # 6. 创建 FastAPI app 并启动 uvicorn（阻塞主线程）
-    app = create_app(engine=engine, db_path=db_path, ws_port=args.ws_port)
+    app = create_app(
+        engine=engine,
+        db_path=db_path,
+        ws_port=args.ws_port,
+        http_port=args.port,
+    )
 
     import uvicorn  # noqa: PLC0415
 

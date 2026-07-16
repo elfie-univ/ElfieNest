@@ -8,9 +8,10 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from elfienest.accounts.auth import get_session_ttl_seconds
 from elfienest.operations.setup_service import (
     SetupAlreadyCompleteError,
-    create_first_admin,
+    create_first_owner,
     needs_setup,
 )
 
@@ -37,10 +38,10 @@ async def get_setup_status(request: Request) -> SetupStatus:
 
 @router.post("/setup", status_code=201)
 async def do_setup(body: SetupRequest, request: Request) -> JSONResponse:
-    """首启设置 — 创建第一个管理员账号。仅在无用户时允许。"""
+    """首启设置 — 创建第一个 Owner 账号。仅在无用户时允许。"""
     db_path = request.app.state.db_path
     try:
-        setup_result = create_first_admin(
+        setup_result = create_first_owner(
             db_path,
             username=body.username,
             password=body.password,
@@ -63,7 +64,7 @@ async def do_setup(body: SetupRequest, request: Request) -> JSONResponse:
         value=setup_result.session_token,
         httponly=True,
         samesite="lax",
-        max_age=7 * 24 * 3600,
+        max_age=get_session_ttl_seconds(db_path),
     )
     response.headers["X-CSRF-Token"] = setup_result.csrf_token
     return response

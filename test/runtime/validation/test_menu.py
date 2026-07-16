@@ -55,6 +55,15 @@ def test_masked_text_input_supports_editing(capsys):
     assert "sec" not in capsys.readouterr().out
 
 
+def test_text_input_left_and_right_move_the_cursor(capsys):
+    menu = make_menu(["a", "b", "left", "X", "right", "Y", "enter"])
+
+    result = menu.read_text("Name: ")
+
+    assert result == "aXbY"
+    capsys.readouterr()
+
+
 def test_ctrl_v_pastes_clipboard_text_with_unicode(capsys):
     menu = make_menu(["paste", "enter"], clipboard="https://讯飞.example/v2\n")
 

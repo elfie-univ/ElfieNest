@@ -6,8 +6,17 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
-from elfienest.accounts.auth import create_session, hash_password, verify_session
+import anyio
+import pytest
+
+from elfienest.accounts.auth import (
+    create_session,
+    delete_session,
+    hash_password,
+    verify_session,
+)
 from elfienest.api.ws_gateway import AuthenticatedWSManager
 from elfienest.persistence.store import get_db, init_db
 
@@ -41,7 +50,7 @@ class TestWsTokenVerification:
         user = verify_session(token, db)
         assert user is not None
         assert user["username"] == "admin"
-        assert user["role"] == "admin"
+        assert user["role"] == "owner"
 
     def test_invalid_token_returns_none(self, tmp_path: Path) -> None:
         """无效 token → verify_session 返回 None（WS 连接将被关闭）。"""
@@ -58,6 +67,19 @@ class TestWsTokenVerification:
 
         user = verify_session("", db)
         assert user is None
+
+    def test_gateway_rechecks_revoked_session(self, tmp_path: Path) -> None:
+        # Given
+        db = str(tmp_path / "nest.db")
+        uid = _init_db_with_admin(db)
+        token = create_session(uid, db)
+        manager = AuthenticatedWSManager(port=0, db_path=db)
+
+        # When
+        delete_session(token, db)
+
+        # Then
+        assert manager._session_is_current(token, uid) is False
 
 
 # ===================================================================
@@ -101,6 +123,103 @@ class TestWsGatewayInstantiation:
         m = AuthenticatedWSManager(port=0, db_path=":memory:")
         assert m.connections == {}
         assert m._user_info == {}
+
+    def test_session_token_can_be_read_from_http_only_cookie(self, tmp_path: Path) -> None:
+        manager = AuthenticatedWSManager(port=0, db_path=str(tmp_path / "nest.db"))
+        websocket = SimpleNamespace(
+            request=SimpleNamespace(
+                headers={"Cookie": "theme=dark; session_token=cookie-token"}
+            )
+        )
+
+        assert manager._session_token_from_websocket(websocket) == "cookie-token"
+
+    def test_cross_site_websocket_origin_is_rejected(self, tmp_path: Path) -> None:
+        manager = AuthenticatedWSManager(port=0, db_path=str(tmp_path / "nest.db"))
+
+        assert manager._origin_is_allowed("http://127.0.0.1:8000") is True
+        assert manager._origin_is_allowed("http://localhost:8100") is False
+        assert manager._origin_is_allowed("https://127.0.0.1:8000") is False
+        assert manager._origin_is_allowed("http://localhost:not-a-port") is False
+        assert manager._origin_is_allowed("https://example.invalid") is False
+        custom = AuthenticatedWSManager(
+            port=0,
+            http_port=8100,
+            db_path=str(tmp_path / "custom.db"),
+        )
+        assert custom._origin_is_allowed("http://localhost:8100") is True
+
+    def test_start_propagates_bind_failure(self, tmp_path: Path) -> None:
+        manager = AuthenticatedWSManager(
+            port=65536,
+            db_path=str(tmp_path / "nest.db"),
+        )
+
+        with pytest.raises(RuntimeError, match="WebSocket"):
+            manager.start()
+
+        assert manager._running is False
+        assert manager._thread is not None
+        assert manager._thread.is_alive() is False
+
+    def test_auth_payload_cannot_replace_cookie_session(self, tmp_path: Path) -> None:
+        db = str(tmp_path / "nest.db")
+        uid = _init_db_with_admin(db)
+        cookie_token = create_session(uid, db)
+        manager = AuthenticatedWSManager(port=0, db_path=db)
+
+        class FakeWebSocket:
+            def __init__(self) -> None:
+                self.request = SimpleNamespace(
+                    headers={
+                        "Origin": "http://127.0.0.1:8000",
+                        "Cookie": f"session_token={cookie_token}",
+                    }
+                )
+                self.closed: list[tuple[int, str]] = []
+                self.sent: list[str] = []
+
+            async def recv(self) -> str:
+                return '{"event":"auth","payload":{"token":"wrong"}}'
+
+            async def send(self, message: str) -> None:
+                self.sent.append(message)
+
+            async def close(self, code: int, reason: str) -> None:
+                self.closed.append((code, reason))
+
+            def __aiter__(self) -> FakeWebSocket:
+                return self
+
+            async def __anext__(self) -> str:
+                raise StopAsyncIteration
+
+        websocket = FakeWebSocket()
+        anyio.run(manager._handle_client, websocket)
+
+        assert websocket.closed == []
+        assert '"event": "auth_ok"' in websocket.sent[0]
+
+    def test_auth_rejects_non_object_json_frame(self, tmp_path: Path) -> None:
+        manager = AuthenticatedWSManager(port=0, db_path=str(tmp_path / "nest.db"))
+
+        class FakeWebSocket:
+            def __init__(self) -> None:
+                self.request = SimpleNamespace(
+                    headers={"Origin": "http://127.0.0.1:8000"}
+                )
+                self.closed: list[tuple[int, str]] = []
+
+            async def recv(self) -> str:
+                return "[]"
+
+            async def close(self, code: int, reason: str) -> None:
+                self.closed.append((code, reason))
+
+        websocket = FakeWebSocket()
+        anyio.run(manager._handle_client, websocket)
+
+        assert websocket.closed == [(4002, "Invalid JSON object")]
 
 
 # ===================================================================

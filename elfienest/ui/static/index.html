@@ -66,7 +66,7 @@
         </div>
     </div>
 
-    <div class="app-shell" data-role="admin">
+    <div class="app-shell" data-role="owner">
       <aside class="sidebar" aria-label="主导航">
         <div class="brand">
           <div class="brand-mark" aria-hidden="true">
@@ -102,7 +102,7 @@
             </span>
             精灵巢管理
           </button>
-          <button class="nav-item admin-only" type="button" data-view="users">
+          <button class="nav-item owner-only" type="button" data-view="users">
             <span class="nav-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
                 <path d="M8 11.4a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" />
@@ -114,8 +114,8 @@
             用户管理
           </button>
 
-          <span class="nav-group-label admin-only">Runtime 三层配置</span>
-          <button class="nav-item admin-only" type="button" data-view="providers">
+          <span class="nav-group-label owner-only">Runtime 三层配置</span>
+          <button class="nav-item owner-only" type="button" data-view="providers">
             <span class="nav-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
                 <path d="M4 7h16" />
@@ -125,7 +125,7 @@
             </span>
             供应商管理
           </button>
-          <button class="nav-item admin-only" type="button" data-view="models">
+          <button class="nav-item owner-only" type="button" data-view="models">
             <span class="nav-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
                 <path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
@@ -136,13 +136,13 @@
             </span>
             模型管理
           </button>
-          <button class="nav-item admin-only" type="button" data-view="tools">
+          <button class="nav-item owner-only" type="button" data-view="tools">
             <span class="nav-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24"><path d="M14 7a5 5 0 0 0-7 7l-4 4 3 3 4-4a5 5 0 0 0 7-7l-3 3-3-3 3-3Z" /></svg>
             </span>
             基础工具
           </button>
-          <button class="nav-item admin-only" type="button" data-view="food">
+          <button class="nav-item owner-only" type="button" data-view="food">
             <span class="nav-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
                 <path d="M4 19h16" />
@@ -154,8 +154,8 @@
             粮食策略
           </button>
 
-          <span class="nav-group-label admin-only">运行维护</span>
-          <button class="nav-item admin-only" type="button" data-view="overview">
+          <span class="nav-group-label owner-only">运行维护</span>
+          <button class="nav-item owner-only" type="button" data-view="overview">
             <span class="nav-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
                 <path d="M4 19V5" />
@@ -167,7 +167,7 @@
             </span>
             综合监控
           </button>
-          <button class="nav-item admin-only" type="button" data-view="logs">
+          <button class="nav-item owner-only" type="button" data-view="logs">
             <span class="nav-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
                 <path d="M5 5h14v14H5z" />
@@ -179,8 +179,8 @@
             运行日志
           </button>
 
-          <span class="nav-group-label admin-only">系统设置</span>
-          <button class="nav-item admin-only" type="button" data-view="config">
+          <span class="nav-group-label owner-only">系统设置</span>
+          <button class="nav-item owner-only" type="button" data-view="config">
             <span class="nav-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
                 <path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z" />
@@ -222,7 +222,7 @@
               <span class="avatar" id="profile-avatar">林</span>
               <span>
                 <strong id="profile-name">林澈</strong>
-                <small id="profile-role">管理员</small>
+                <small id="profile-role">Owner</small>
               </span>
             </button>
           </div>
@@ -233,7 +233,7 @@
             <div class="section-heading">
               <div>
                 <h2 id="overview-heading">综合监控</h2>
-                <p>管理员默认入口，用来判断这台机器上的 ElfieNest 是否健康。</p>
+                <p>Owner 默认入口，用来判断这台机器上的 ElfieNest 是否健康。</p>
               </div>
               <button class="ghost-button" type="button" id="refresh-overview">刷新状态</button>
             </div>
@@ -288,7 +288,7 @@
             <div class="section-heading">
               <div>
                 <h2 id="elves-heading">精灵管理</h2>
-                <p id="elves-copy">管理员可看全部精灵卡片；只有拥有者能进入详情、配置和聊天。</p>
+                <p id="elves-copy">Owner 可看全部精灵卡片；只有拥有者能进入详情、配置和聊天。</p>
               </div>
               <div class="adoption-cta">
                 <button class="primary-button" type="button" data-open-adoption id="open-adoption-button">
@@ -363,7 +363,7 @@
                 <h2 id="rooms-heading">精灵巢管理</h2>
                 <p id="rooms-copy">默认宿舍式精灵巢，管理床位数量、舱内布局和实时活动视图。</p>
               </div>
-              <button class="primary-button admin-action" type="button" id="refresh-rooms">刷新房间数据</button>
+              <button class="primary-button owner-action" type="button" id="refresh-rooms">刷新房间数据</button>
             </div>
 
             <div class="room-shell">
@@ -396,7 +396,7 @@
                     <small>点击打开实时观察</small>
                   </button>
                 </section>
-                <section class="config-card admin-only">
+                <section class="config-card owner-only">
                   <h3>床位数</h3>
                   <form class="room-bed-count-form" id="room-layout-form">
                     <label class="bed-count-inline">
@@ -623,7 +623,7 @@
       <form class="center-modal-card" id="user-create-form" novalidate>
         <div class="center-modal-head">
           <div>
-            <span class="eyebrow">USER ADMIN</span>
+            <span class="eyebrow">USER MANAGEMENT</span>
             <h2 id="user-create-title">创建用户</h2>
           </div>
           <button class="icon-button" type="button" title="关闭" aria-label="关闭" data-close-drawer>
@@ -646,7 +646,6 @@
             <span>角色</span>
             <select id="user-create-role" name="role">
               <option value="user">普通用户</option>
-              <option value="admin">管理员</option>
             </select>
           </label>
           <p class="form-message" id="user-create-message" aria-live="polite"></p>

@@ -1,4 +1,4 @@
-"""管理员恢复与普通服务启动之间的本机进程锁。"""
+"""Owner 恢复与普通服务启动之间的本机进程锁。"""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from typing import Final, Iterator, Optional
 
 from elfienest.operations.service_process import secure_elfie_home
 
-LOCK_FILENAME: Final = "admin-recovery.lock"
+LOCK_FILENAME: Final = "owner-recovery.lock"
 MANAGED_START_ENV: Final = "ELFIENEST_MANAGED_START"
 
 
@@ -21,7 +21,7 @@ class RecoveryInProgressError(Exception):
     path: Path
 
     def __str__(self) -> str:
-        return f"已有管理员恢复操作正在执行: {self.path}"
+        return f"已有 Owner 恢复操作正在执行: {self.path}"
 
 
 class ServiceStartLease:
@@ -50,8 +50,8 @@ def _open_lock(elfie_home: Path) -> int:
 
 
 @contextmanager
-def admin_recovery_lock(elfie_home: Path) -> Iterator[None]:
-    """持有独占锁，阻止并发恢复和普通服务启动。"""
+def owner_recovery_lock(elfie_home: Path) -> Iterator[None]:
+    """持有 Owner 恢复独占锁，阻止并发恢复和普通服务启动。"""
     descriptor = _open_lock(elfie_home)
     try:
         try:
@@ -64,8 +64,12 @@ def admin_recovery_lock(elfie_home: Path) -> Iterator[None]:
         os.close(descriptor)
 
 
+# 旧内部调用点的名称保留；产品入口统一使用 Owner 术语。
+admin_recovery_lock = owner_recovery_lock
+
+
 def service_start_is_blocked(elfie_home: Path) -> bool:
-    """检测普通服务启动是否与管理员恢复临界区冲突。"""
+    """检测普通服务启动是否与 Owner 恢复临界区冲突。"""
     try:
         lease = acquire_service_start_lease(elfie_home)
     except (OSError, RecoveryInProgressError):

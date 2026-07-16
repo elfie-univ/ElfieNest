@@ -2771,12 +2771,12 @@ textarea {
   display: none !important;
 }
 
-.app-shell[data-role="user"] .admin-only,
+.app-shell[data-role="user"] .owner-only,
 .app-shell[data-role="user"] .filter-admin {
   display: none;
 }
 
-.app-shell[data-role="user"] .admin-action {
+.app-shell[data-role="user"] .owner-action {
   display: none;
 }
 

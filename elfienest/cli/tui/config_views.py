@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import sqlite3
 import urllib.error
 import urllib.request
@@ -9,7 +10,7 @@ from elfienest.cli.tui.common import clear_screen, print_banner
 from elfienest.config.provider_service import list_configured_provider_rows
 from elfienest.config.user_config import UserConfig, read_user_config, write_user_config
 from elfienest.operations.service import DatabaseUnavailableError, collect_usage_stats
-from runtime.config import LLMRuntimeConfig
+from runtime.config import DEFAULT_SYSTEM_SETTINGS, LLMRuntimeConfig
 from runtime.models.catalog import verify_provider
 from runtime.providers.profiles import get_profile
 from runtime.storage.data_home import get_config_path
@@ -44,18 +45,26 @@ def show_config(config: UserConfig) -> None:
     print()
 
     security = config.get("system", {}).get("security", {})
+    rate_limit = security.get("rate_limit", {})
     print("  【安全配置】")
-    print(f"    Session TTL: {security.get('session_ttl_hours', 24)} 小时")
-    print(f"    速率限制: {security.get('rate_limit_per_minute', 60)}/分钟")
+    print(f"    Session TTL: {security.get('session_ttl_days', 7)} 天")
+    print(f"    登录失败次数: {rate_limit.get('max_attempts', 5)}")
+    print(f"    限流窗口: {rate_limit.get('window_seconds', 300)} 秒")
     print()
 
     adoption = config.get("system", {}).get("adoption", {})
     print("  【领养配置】")
     print(f"    每用户精灵上限: {adoption.get('max_elfies_per_user', 3)}")
-    print(f"    默认性格: {adoption.get('default_personality_style', '活泼好动')}")
+    print(
+        "    允许形态: "
+        + ", ".join(adoption.get("allowed_anatomy_types", ["biped", "quadruped"]))
+    )
+    enabled = adoption.get("personality_presets_enabled", {})
+    enabled_names = [name for name, is_enabled in enabled.items() if is_enabled]
+    print(f"    启用性格预设: {', '.join(enabled_names) or '默认'}")
     print()
 
-    input("\n按回车键继续...")
+    _pause()
 
 
 def test_config(config: UserConfig) -> None:
@@ -108,29 +117,28 @@ def test_config(config: UserConfig) -> None:
                 print(f"    ❌ {name}: 不可用")
 
     print("\n✅ 测试完成")
-    input("\n按回车键继续...")
+    _pause()
 
 
 def reset_config() -> None:
-    print("\n⚠️  这将重置所有配置为默认值，是否继续？")
-    choice = input("输入 'yes' 确认: ").strip()
+    print("\n⚠️  这将重置应用配置为默认值，Provider 与其他账户数据会保留，是否继续？")
+    try:
+        choice = input("输入 'yes' 确认: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        return
     if choice.lower() == "yes":
-        default_config = {
-            "system": {
-                "engine": {
-                    "tick_interval_sec": 1.5,
-                    "tts_enabled": True,
-                    "max_elfies_per_room": 10,
-                },
-                "security": {"session_ttl_hours": 24, "rate_limit_per_minute": 60},
-                "adoption": {
-                    "max_elfies_per_user": 3,
-                    "default_personality_style": "活泼好动",
-                },
-            }
-        }
-        write_user_config(default_config)
+        updated = copy.deepcopy(read_user_config())
+        updated["system"] = copy.deepcopy(DEFAULT_SYSTEM_SETTINGS)
+        write_user_config(updated)
         print("✅ 配置已重置")
     else:
         print("已取消")
-    input("\n按回车键继续...")
+    _pause()
+
+
+def _pause() -> None:
+    """等待用户返回；重定向输入结束时安静退出。"""
+    try:
+        input("\n按回车键继续...")
+    except (EOFError, KeyboardInterrupt):
+        return

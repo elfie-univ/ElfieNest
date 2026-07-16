@@ -1,11 +1,20 @@
 from runtime.food.evidence import ModelEvidenceStore
+from runtime.food.models import ExecutionProfile, FoodRecipe
 from runtime.food.planner import ModelEvidence
+from runtime.food.store import FoodCatalog
 from runtime.lab.cli import RuntimeLab
 from runtime.providers.model_hints import ProviderModelSpec
 from runtime.storage.config_store import read_yaml_mapping
 from runtime.validation.models import CheckResult, CheckStatus, ValidationSuite
-from runtime.food.models import ExecutionProfile, FoodRecipe
-from runtime.food.store import FoodCatalog
+
+
+def test_runtime_lab_direct_prompts_fail_closed_on_eof(tmp_path):
+    def raise_eof(_prompt):
+        raise EOFError
+
+    lab = RuntimeLab(input_fn=raise_eof, output_fn=lambda _line: None)
+
+    assert lab.input("确认") == ""
 
 
 def test_runtime_lab_has_single_interactive_entry_and_can_exit(monkeypatch, tmp_path):

@@ -16,7 +16,7 @@ from runtime.validation.providers import DiscoveredModel
 
 def test_only_configured_providers_are_listed(monkeypatch, tmp_path):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = LLMRuntimeConfig()
+    config = LLMRuntimeConfig(config_home=str(tmp_path))
     config.providers["openai"]["api_key"] = ""
     config.providers["openai"]["status"] = "inactive"
     config.providers["deepseek"]["api_key"] = "configured-locally"
@@ -28,7 +28,7 @@ def test_overview_groups_same_model_across_providers_and_renders_responsively(
     monkeypatch, tmp_path
 ):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = LLMRuntimeConfig()
+    config = LLMRuntimeConfig(config_home=str(tmp_path))
     config.providers["openai"]["api_key"] = "configured-locally"
     evidence = [
         ModelEvidence(
@@ -83,7 +83,7 @@ def test_overview_store_keeps_current_and_history(tmp_path):
 
 def test_regenerate_removes_models_deleted_from_provider(monkeypatch, tmp_path):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = LLMRuntimeConfig()
+    config = LLMRuntimeConfig(config_home=str(tmp_path))
     evidence_store = ModelEvidenceStore(tmp_path / "evidence.yaml")
     evidence_store.merge(
         [
@@ -132,7 +132,7 @@ def test_regenerate_removes_models_deleted_from_provider(monkeypatch, tmp_path):
 
 def test_regenerate_keeps_old_models_when_discovery_fails(monkeypatch, tmp_path):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = LLMRuntimeConfig()
+    config = LLMRuntimeConfig(config_home=str(tmp_path))
     evidence_store = ModelEvidenceStore(tmp_path / "evidence.yaml")
     evidence_store.merge(
         [ModelEvidence("ollama/keep", frozenset({"text"}), True, local=True)]
