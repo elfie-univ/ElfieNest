@@ -126,6 +126,11 @@ def _rooms_with_beds(db_path: str, user_id: int | None = None) -> list[Dict[str,
         return rooms
 
 
+def _publish_desired_layout(request: Request, rooms: list[Dict[str, Any]]) -> None:
+    if rooms:
+        request.app.state.camera_feed.set_desired_bed_count(len(rooms[0]["beds"]))
+
+
 def _default_room_id(db_path: str) -> int:
     _ensure_default_room(db_path)
     with get_db(db_path) as conn:
@@ -156,7 +161,9 @@ async def get_rooms(
 ) -> list[Dict[str, Any]]:
     """获取所有房间和床位信息。"""
     _ = admin
-    return _rooms_with_beds(request.app.state.db_path)
+    rooms = _rooms_with_beds(request.app.state.db_path)
+    _publish_desired_layout(request, rooms)
+    return rooms
 
 
 @user_router.get("/rooms")
@@ -164,7 +171,9 @@ async def get_user_rooms(
     request: Request,
     user: Dict[str, Any] = RequireUser,
 ) -> list[Dict[str, Any]]:
-    return _rooms_with_beds(request.app.state.db_path, user_id=user["id"])
+    rooms = _rooms_with_beds(request.app.state.db_path, user_id=user["id"])
+    _publish_desired_layout(request, rooms)
+    return rooms
 
 
 @router.post("/rooms")
@@ -230,7 +239,9 @@ async def update_default_room_bed_count(
     _ = admin
     room_id = _default_room_id(request.app.state.db_path)
     target_count = _bed_count_from_body(body)
-    return _sync_bed_count(request.app.state.db_path, room_id, target_count)
+    result = _sync_bed_count(request.app.state.db_path, room_id, target_count)
+    request.app.state.camera_feed.set_desired_bed_count(result["bed_count"])
+    return result
 
 
 @router.put("/rooms/{room_id}/bed-count")
@@ -242,7 +253,10 @@ async def update_bed_count(
 ) -> Dict[str, int]:
     _ = admin
     target_count = _bed_count_from_body(body)
-    return _sync_bed_count(request.app.state.db_path, room_id, target_count)
+    result = _sync_bed_count(request.app.state.db_path, room_id, target_count)
+    if room_id == _default_room_id(request.app.state.db_path):
+        request.app.state.camera_feed.set_desired_bed_count(result["bed_count"])
+    return result
 
 
 @router.put("/elfies/{elfie_id}/bed")

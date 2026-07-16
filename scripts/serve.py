@@ -38,6 +38,7 @@ logging.basicConfig(level=logging.WARNING, format="%(message)s")
 
 from elfienest.adoption.generator import ElfieGenerator
 from elfienest.api.app import create_app
+from elfienest.operations.godot_web import inspect_godot_web_bundle
 from elfienest.operations.recovery_lock import (
     MANAGED_START_ENV,
     RecoveryInProgressError,
@@ -211,6 +212,13 @@ def main():
     except (OSError, RecoveryInProgressError):
         print("  ❌ 管理员账号恢复或另一次服务启动正在进行，服务暂不允许启动")
         raise SystemExit(1) from None
+
+    godot_web = inspect_godot_web_bundle()
+    if godot_web.ready:
+        print(f"  ✅ Godot Web Runtime: {godot_web.entry_url}")
+    else:
+        print("  ⚠️  Godot Web Runtime 尚未构建，3D 房间暂不可用")
+        print("  💡 修改 Godot 资源或发布前运行: ./elfienest.sh build-godot-web")
 
     # 检测端口是否被占用
     import socket

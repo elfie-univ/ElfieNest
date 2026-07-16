@@ -171,6 +171,8 @@ def test_elfienest_entrypoint_can_self_repair_missing_runtime_dependencies() -> 
     assert "install.sh" in script
     assert "--env-only" in script
     assert ".python-version" in script
+    assert 'start|serve)' in script
+    assert 'build-godot-web)' in script
 
 
 def test_installer_detects_but_does_not_modify_legacy_system_entrypoint() -> None:

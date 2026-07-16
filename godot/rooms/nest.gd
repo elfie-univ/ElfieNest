@@ -484,6 +484,10 @@ func observation_view_labels() -> PackedStringArray:
 	return labels
 
 
+func observation_active_view_index() -> int:
+	return _active_camera_index
+
+
 func select_observation_view(index: int) -> void:
 	if index < 0 or index >= _camera_views.size():
 		return

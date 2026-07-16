@@ -17,8 +17,21 @@ let adoptionInfo = null;
 let providerModalMode = "edit";
 let roomLayoutEditing = false;
 let roomCameraOpen = false;
+let cameraStatus = {
+  online: false,
+  labels: [],
+  active_index: 0,
+  desired_index: 0,
+  frame_version: 0,
+};
+let cameraPollTimer = null;
+let lastCameraFrameVersion = -1;
+let cameraControlsSignature = "";
+let godotWebBundle = { ready: false, checked: false, entry_url: "", manifest: {} };
+let godotWebRuntimeReady = false;
 let roomBedCountSaving = false;
 let pendingRoomBedCount = null;
+let roomLayoutStatusOverride = "";
 let chatHistoryFilters = {
   range: "all",
   keyword: "",
@@ -47,6 +60,7 @@ const profileDrawer = document.querySelector("#profile-drawer");
 const roomCameraDrawer = document.querySelector("#room-camera-drawer");
 const userCreateModal = document.querySelector("#user-create-modal");
 const providerConfigModal = document.querySelector("#provider-config-modal");
+const roomLayoutConfirmModal = document.querySelector("#room-layout-confirm-modal");
 const profileMenu = document.querySelector("#profile-menu");
 const detailContent = document.querySelector("#elf-detail-content");
 const detailHeading = document.querySelector("#elf-detail-heading");
@@ -145,7 +159,6 @@ function wsStatusLabel() {
 
 function updateWsIndicators() {
   setText("ws-status-label", wsStatusLabel());
-  setText("room-sync-status", wsState === "online" ? "WebSocket 在线" : "WebSocket 待连接");
   const sendButton = byId("chat-send-button");
   if (sendButton) sendButton.disabled = wsState !== "online";
 }
@@ -520,9 +533,11 @@ async function checkAuth() {
     const loginView = byId("login-view");
     if (loginView) loginView.style.display = "none";
     connectRealtime();
+    startCameraPolling();
     await loadDashboardData();
   } catch {
     disconnectRealtime();
+    stopCameraPolling();
     const loginView = byId("login-view");
     if (loginView) loginView.style.display = "flex";
   }
@@ -563,6 +578,7 @@ if (logoutButton) {
     } catch {
     } finally {
       disconnectRealtime();
+      stopCameraPolling();
       currentUser = null;
       const loginView = byId("login-view");
       if (loginView) loginView.style.display = "flex";
@@ -1402,6 +1418,180 @@ function renderDormFloorplan(room, beds) {
   `;
 }
 
+function cameraCategory(label, index) {
+  if (index === 0 || label === "整体总览") return "总览";
+  if (label.startsWith("区域俯视")) return "区域";
+  if (label.endsWith("宿舍")) return "宿舍";
+  if (label === "传送室") return "入口";
+  return "活动区";
+}
+
+function cameraLabels() {
+  return cameraStatus.labels?.length ? cameraStatus.labels : ["整体总览"];
+}
+
+function setCameraImagesReady(ready) {
+  byId("room-camera-preview")?.classList.toggle("has-frame", ready);
+  byId("room-camera-live-frame")?.classList.toggle("has-frame", ready && !godotWebRuntimeReady);
+}
+
+function godotWebRuntimeUrl(status) {
+  const version = status.manifest?.generated_at || status.manifest?.godot_version || "current";
+  return `${status.entry_url}?v=${encodeURIComponent(version)}`;
+}
+
+async function startGodotWebRuntime() {
+  const iframe = byId("godot-web-runtime");
+  if (!iframe || iframe.getAttribute("src")) return;
+  try {
+    godotWebBundle = { ...(await fetchJson("/api/godot-web/status")), checked: true };
+  } catch {
+    godotWebBundle = { ready: false, checked: true, entry_url: "", manifest: {} };
+  }
+  if (godotWebBundle.ready) {
+    iframe.src = godotWebRuntimeUrl(godotWebBundle);
+  }
+  renderCameraStatus();
+}
+
+function stopGodotWebRuntime() {
+  const iframe = byId("godot-web-runtime");
+  if (iframe) iframe.removeAttribute("src");
+  godotWebRuntimeReady = false;
+  byId("room-camera-live-frame")?.classList.remove("has-web-runtime");
+}
+
+window.addEventListener("message", (event) => {
+  if (event.origin !== window.location.origin || event.data !== "elfienest:godot-web-ready") return;
+  godotWebRuntimeReady = true;
+  byId("room-camera-live-frame")?.classList.add("has-web-runtime");
+  renderCameraStatus();
+});
+
+function updateCameraFrame() {
+  if (!cameraStatus.online || !cameraStatus.frame_version) {
+    setCameraImagesReady(false);
+    return;
+  }
+  if (cameraStatus.frame_version === lastCameraFrameVersion) return;
+  lastCameraFrameVersion = cameraStatus.frame_version;
+  const frameUrl = `/api/camera/frame.jpg?v=${cameraStatus.frame_version}`;
+  const image = roomCameraOpen
+    ? byId("room-camera-live-image")
+    : byId("room-camera-thumbnail");
+  if (image) {
+    image.onload = () => setCameraImagesReady(true);
+    image.onerror = () => setCameraImagesReady(false);
+    image.src = frameUrl;
+  }
+}
+
+function renderCameraStatus() {
+  const labels = cameraLabels();
+  const activeIndex = Math.max(0, Math.min(labels.length - 1, Number(cameraStatus.active_index || 0)));
+  const activeLabel = labels[activeIndex] || "整体总览";
+  setText("room-camera-active-title", activeLabel);
+  setText("room-camera-thumbnail-title", activeLabel);
+  const runtimeAvailable = godotWebBundle.ready;
+  const live = cameraStatus.online || godotWebRuntimeReady;
+  setText("room-camera-feed-state", live ? "实时" : "离线");
+  setText("room-camera-thumbnail-state", cameraStatus.online
+    ? "实时"
+    : runtimeAvailable ? "3D Runtime 加载中" : "3D Runtime 未构建");
+  setText("room-camera-offline-title", runtimeAvailable ? "3D Runtime 加载中" : "3D Runtime 未构建");
+  setText("room-camera-offline-copy", runtimeAvailable
+    ? "浏览器正在启动内置 Godot Web Runtime"
+    : "运行 ./elfie.sh build-godot-web 生成发布资源");
+  byId("room-camera-offline-state")?.toggleAttribute("hidden", live);
+  const syncStatus = byId("room-sync-status");
+  if (syncStatus) {
+    const isSyncing = roomBedCountSaving || (cameraStatus.online && cameraStatus.layout_syncing);
+    const label = roomLayoutStatusOverride || (isSyncing
+      ? "正在重建"
+      : cameraStatus.online ? "已同步" : "Godot 离线");
+    syncStatus.textContent = label;
+    syncStatus.className = `status ${isSyncing ? "warning is-loading" : cameraStatus.online ? "success" : "info"}`;
+  }
+
+  const strip = byId("room-camera-view-strip");
+  const controlsSignature = `${activeIndex}:${labels.join("\u0000")}`;
+  if (strip && controlsSignature !== cameraControlsSignature) {
+    cameraControlsSignature = controlsSignature;
+    strip.innerHTML = labels.map((label, index) => `
+      <button class="camera-view-button ${index === activeIndex ? "active" : ""}" type="button" role="option" data-camera-index="${index}" aria-selected="${index === activeIndex}">
+        <span>${escapeHtml(cameraCategory(label, index))}</span>
+        <strong>${escapeHtml(label)}</strong>
+      </button>
+    `).join("");
+    requestAnimationFrame(() => {
+      strip.querySelector("[data-camera-index].active")?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+    });
+  }
+  updateCameraFrame();
+}
+
+async function loadCameraStatus() {
+  try {
+    cameraStatus = await fetchJson("/api/camera/status");
+  } catch {
+    cameraStatus = { ...cameraStatus, online: false };
+  }
+  renderCameraStatus();
+}
+
+function startCameraPolling() {
+  if (cameraPollTimer) return;
+  startGodotWebRuntime();
+  loadCameraStatus();
+  cameraPollTimer = window.setInterval(loadCameraStatus, 180);
+}
+
+function stopCameraPolling() {
+  if (cameraPollTimer) window.clearInterval(cameraPollTimer);
+  cameraPollTimer = null;
+  cameraStatus = { ...cameraStatus, online: false };
+  cameraControlsSignature = "";
+  stopGodotWebRuntime();
+  renderCameraStatus();
+}
+
+async function selectRoomCamera(index) {
+  const labels = cameraLabels();
+  const boundedIndex = Math.max(0, Math.min(labels.length - 1, Number(index || 0)));
+  cameraStatus = { ...cameraStatus, active_index: boundedIndex, desired_index: boundedIndex };
+  renderCameraStatus();
+  await fetchJson("/api/camera/view", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ index: boundedIndex }),
+  });
+}
+
+function stepRoomCamera(direction) {
+  const labels = cameraLabels();
+  if (!labels.length) return;
+  const currentIndex = Number(cameraStatus.active_index || 0);
+  selectRoomCamera((currentIndex + direction + labels.length) % labels.length).catch(() => {});
+}
+
+function openRoomCameraPreview() {
+  roomCameraOpen = true;
+  renderRooms();
+  openDrawer(roomCameraDrawer);
+  selectRoomCamera(0).catch(() => {});
+}
+
+function resetRoomCameraPreview() {
+  if (!roomCameraOpen) return;
+  roomCameraOpen = false;
+  selectRoomCamera(0).catch(() => {});
+  renderRoomSide();
+}
+
 function renderRooms() {
   const mapRender = byId("room-map-render");
   if (!mapRender) return;
@@ -1456,6 +1646,7 @@ function renderRoomSide() {
   if (editToggle) editToggle.textContent = roomLayoutEditing ? "隐藏布局规则" : "查看布局规则";
   if (cameraToggle) cameraToggle.textContent = "打开预览";
   cameraPreview?.classList.toggle("open", roomCameraOpen);
+  renderCameraStatus();
   if (role === "user") {
     if (bedAssignmentCard) bedAssignmentCard.hidden = true;
     unassignedList.innerHTML = "";
@@ -2046,16 +2237,22 @@ document.addEventListener("click", (event) => {
     addSystemNotice(roomLayoutEditing ? "已显示宿舍布局规则。" : "已隐藏宿舍布局规则。");
   }
   if (target.id === "room-camera-toggle") {
-    roomCameraOpen = true;
-    renderRooms();
-    openDrawer(roomCameraDrawer);
+    openRoomCameraPreview();
   }
   if (target.matches("[data-open-camera]")) {
-    roomCameraOpen = true;
-    renderRooms();
-    openDrawer(roomCameraDrawer);
+    openRoomCameraPreview();
+  }
+  if (target.matches("[data-camera-index]")) {
+    selectRoomCamera(Number(target.dataset.cameraIndex || 0)).catch(() => {});
+  }
+  if (target.id === "room-camera-previous") {
+    stepRoomCamera(-1);
+  }
+  if (target.id === "room-camera-next") {
+    stepRoomCamera(1);
   }
   if (target.matches("[data-close-drawer]")) {
+    if (roomCameraDrawer?.classList.contains("open")) resetRoomCameraPreview();
     closeDrawers();
   }
 
@@ -2202,39 +2399,106 @@ async function saveRoomBedCount(requestedBedCount) {
   });
 }
 
+function closeRoomLayoutConfirmation() {
+  if (roomBedCountSaving) return;
+  pendingRoomBedCount = null;
+  const bedCountInput = byId("room-bed-count");
+  if (bedCountInput) bedCountInput.value = String(rooms[0]?.beds?.length || 4);
+  closeDrawers();
+}
+
+function setRoomLayoutSaving(saving) {
+  roomBedCountSaving = saving;
+  const bedCountInput = byId("room-bed-count");
+  const saveButton = roomLayoutForm?.querySelector("button[type='submit']");
+  const confirmButton = byId("room-layout-confirm-submit");
+  const refreshButton = byId("refresh-rooms");
+  if (bedCountInput) bedCountInput.disabled = saving;
+  if (saveButton) saveButton.disabled = saving;
+  if (confirmButton) {
+    confirmButton.disabled = saving;
+    confirmButton.classList.toggle("is-loading", saving);
+  }
+  if (refreshButton) {
+    refreshButton.disabled = saving;
+    refreshButton.classList.toggle("is-loading", saving);
+  }
+  renderCameraStatus();
+}
+
+async function waitForGodotLayout(savedBedCount) {
+  await loadCameraStatus();
+  if (!cameraStatus.online) return "offline";
+  for (let attempt = 0; attempt < 24; attempt += 1) {
+    if (Number(cameraStatus.reported_bed_count) === savedBedCount && !cameraStatus.layout_syncing) {
+      return "synced";
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 250));
+    await loadCameraStatus();
+    if (!cameraStatus.online) return "offline";
+  }
+  return "pending";
+}
+
+async function confirmRoomLayoutChange() {
+  if (roomBedCountSaving || pendingRoomBedCount === null) return;
+  const requestedBedCount = pendingRoomBedCount;
+  let savedBedCount = null;
+  roomLayoutStatusOverride = "正在重建";
+  setRoomLayoutSaving(true);
+  setFormMessage("room-layout-confirm-message", "正在保存并通知 Godot 重建...");
+  setFormMessage("room-message", "正在重建...");
+  try {
+    const result = await saveRoomBedCount(requestedBedCount);
+    await loadRooms();
+    savedBedCount = rooms[0]?.beds?.length || 0;
+    const expectedBedCount = Number(result.bed_count || requestedBedCount);
+    if (savedBedCount !== expectedBedCount) {
+      throw new Error(`保存后读取到 ${savedBedCount} 个床位，请刷新后重试`);
+    }
+    const syncResult = await waitForGodotLayout(savedBedCount);
+    roomLayoutStatusOverride = syncResult === "synced"
+      ? "已同步"
+      : syncResult === "offline" ? "已保存 · Godot 离线" : "已保存 · 等待 Godot";
+    setFormMessage("room-message", `已保存 ${savedBedCount} 个床位`, "success");
+    closeDrawers();
+  } catch (error) {
+    roomLayoutStatusOverride = "重建失败";
+    setFormMessage("room-layout-confirm-message", error.message || "保存失败", "error");
+    setFormMessage("room-message", error.message || "保存失败", "error");
+  } finally {
+    setRoomLayoutSaving(false);
+    pendingRoomBedCount = null;
+    const bedCountInput = byId("room-bed-count");
+    if (bedCountInput && savedBedCount !== null) bedCountInput.value = String(savedBedCount);
+  }
+}
+
 const roomLayoutForm = byId("room-layout-form");
 if (roomLayoutForm) {
-  roomLayoutForm.addEventListener("submit", async (event) => {
+  roomLayoutForm.addEventListener("submit", (event) => {
     event.preventDefault();
     const bedCountInput = byId("room-bed-count");
-    const submitButton = roomLayoutForm.querySelector("button[type='submit']");
     const requestedBedCount = Math.max(4, Math.min(32, Number(bedCountInput?.value || 4)));
-    let savedBedCount = null;
+    const currentBedCount = rooms[0]?.beds?.length || 4;
     if (bedCountInput) bedCountInput.value = String(requestedBedCount);
-    roomBedCountSaving = true;
-    pendingRoomBedCount = requestedBedCount;
-    if (submitButton) submitButton.disabled = true;
-    setFormMessage("room-message", "正在保存...");
-    try {
-      const result = await saveRoomBedCount(requestedBedCount);
-      await loadRooms();
-      savedBedCount = rooms[0]?.beds?.length || 0;
-      const expectedBedCount = Number(result.bed_count || requestedBedCount);
-      if (savedBedCount !== expectedBedCount) {
-        setFormMessage("room-message", `保存后读取到 ${savedBedCount} 个床位，请刷新后重试`, "error");
-        return;
-      }
-      setFormMessage("room-message", `已保存 ${savedBedCount} 个床位`, "success");
-    } catch (error) {
-      setFormMessage("room-message", error.message || "保存失败", "error");
-    } finally {
-      roomBedCountSaving = false;
-      pendingRoomBedCount = null;
-      if (bedCountInput && savedBedCount !== null) bedCountInput.value = String(savedBedCount);
-      if (submitButton) submitButton.disabled = false;
+    if (requestedBedCount === currentBedCount) {
+      setFormMessage("room-message", "床位数未变化");
+      return;
     }
+    pendingRoomBedCount = requestedBedCount;
+    setText("room-layout-current-beds", currentBedCount);
+    setText("room-layout-next-beds", requestedBedCount);
+    setText("room-layout-current-rooms", Math.ceil(currentBedCount / 4));
+    setText("room-layout-next-rooms", Math.ceil(requestedBedCount / 4));
+    setFormMessage("room-layout-confirm-message", "");
+    openCenterModal(roomLayoutConfirmModal);
   });
 }
+
+byId("room-layout-confirm-submit")?.addEventListener("click", confirmRoomLayoutChange);
+byId("room-layout-confirm-cancel")?.addEventListener("click", closeRoomLayoutConfirmation);
+byId("room-layout-confirm-close")?.addEventListener("click", closeRoomLayoutConfirmation);
 
 const userCreateForm = byId("user-create-form");
 if (userCreateForm) {
@@ -2497,6 +2761,7 @@ window.ElfieNestConsole = {
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
+    if (roomCameraDrawer?.classList.contains("open")) resetRoomCameraPreview();
     closeDrawers();
     closeMenus();
   }

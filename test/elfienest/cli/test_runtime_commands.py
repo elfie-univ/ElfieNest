@@ -72,6 +72,7 @@ def test_restart_service_reports_failure_when_server_exits(
     monkeypatch.setattr(runtime_commands.subprocess, "Popen", fake_popen)
     monkeypatch.setattr(runtime_commands.subprocess, "run", fake_run)
     monkeypatch.setattr(runtime_commands.time, "sleep", lambda _: None)
+    monkeypatch.setattr(runtime_commands, "_wait_for_web_stopped", lambda: True)
 
     runtime_commands.restart_service()
 

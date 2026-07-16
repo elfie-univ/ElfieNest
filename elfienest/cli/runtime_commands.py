@@ -23,18 +23,30 @@ VERSION = "1.0.0"
 WEB_URL = "http://127.0.0.1:8000/"
 WEB_HEALTH_URL = "http://127.0.0.1:8000/api/health"
 WEB_START_TIMEOUT_SECONDS = 10.0
+WEB_STOP_TIMEOUT_SECONDS = 5.0
 WEB_LOG_PATH = Path("/tmp/elfienest-web.log")
 
 
 def _start_web_service_process() -> subprocess.Popen[str]:
     WEB_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    popen_options = {
+        "stdin": subprocess.DEVNULL,
+        "stdout": None,
+        "stderr": subprocess.STDOUT,
+        "text": True,
+    }
+    if os.name == "nt":
+        popen_options["creationflags"] = (
+            subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+        )
+    else:
+        popen_options["start_new_session"] = True
     with WEB_LOG_PATH.open("a", encoding="utf-8") as log_file:
         log_file.write("\n=== ElfieNest web service start ===\n")
+        popen_options["stdout"] = log_file
         return subprocess.Popen(
             [sys.executable, "scripts/serve.py", "--fallback", "--force"],
-            stdout=log_file,
-            stderr=subprocess.STDOUT,
-            text=True,
+            **popen_options,
         )
 
 
@@ -50,6 +62,17 @@ def _wait_for_web_ready(process: subprocess.Popen[str]) -> bool:
         except (OSError, TimeoutError, urllib.error.URLError):
             time.sleep(0.5)
 
+    return False
+
+
+def _wait_for_web_stopped() -> bool:
+    deadline = time.monotonic() + WEB_STOP_TIMEOUT_SECONDS
+    while time.monotonic() < deadline:
+        try:
+            urllib.request.urlopen(WEB_HEALTH_URL, timeout=0.3).close()
+        except (OSError, TimeoutError, urllib.error.URLError):
+            return True
+        time.sleep(0.1)
     return False
 
 
@@ -282,7 +305,9 @@ def restart_service() -> None:
     except OSError:
         pass
 
-    time.sleep(1)
+    if not _wait_for_web_stopped():
+        print("  ❌ 旧服务未能在 5 秒内停止，已取消重启")
+        return
 
     print("  ✓ 启动新服务...")
     process = _start_web_service_process()

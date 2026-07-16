@@ -30,6 +30,7 @@ from elfienest.accounts.auth import (
     verify_password,
     verify_session,
 )
+from elfienest.operations.godot_web import inspect_godot_web_bundle
 from elfienest.persistence.store import (
     get_db,
     init_db,
@@ -113,6 +114,10 @@ def create_app(
         init_db(db_path)
         migrate_db_if_needed(db_path)
         seed_initial_admin_if_env_set(db_path)
+        from .nest_routes import _rooms_with_beds  # noqa: PLC0415
+
+        rooms = _rooms_with_beds(db_path)
+        app.state.camera_feed.set_desired_bed_count(len(rooms[0]["beds"]))
 
         # 创建鉴权 WS 网关（独立端口，不与 Godot 8765 冲突）
         ws_manager = AuthenticatedWSManager(port=ws_port, db_path=db_path)
@@ -133,6 +138,9 @@ def create_app(
     # 将 db_path 与 engine 存入 app.state 供依赖注入使用
     app.state.db_path = db_path
     app.state.engine = engine
+    from .camera_routes import CameraFeedStore  # noqa: PLC0415
+
+    app.state.camera_feed = CameraFeedStore()
 
     # -------------------------------------------------------------------
     # CORS — 允许 127.0.0.1 和 localhost
@@ -178,7 +186,9 @@ def create_app(
     async def csrf_middleware(request: Request, call_next):
         if request.method in ("POST", "PUT", "DELETE"):
             path = request.url.path
-            if path != "/api/auth/login" and path != "/api/auth/setup":
+            csrf_exempt = path in {"/api/auth/login", "/api/auth/setup"}
+            csrf_exempt = csrf_exempt or path.startswith("/api/godot-camera/")
+            if not csrf_exempt:
                 try:
                     verify_csrf_for_session(request)
                 except HTTPException as exc:
@@ -213,7 +223,22 @@ def create_app(
     @app.get("/api/health")
     async def health():
         """健康检查"""
-        return {"status": "ok", "engine_ready": engine is not None}
+        godot_web = inspect_godot_web_bundle()
+        return {
+            "status": "ok",
+            "engine_ready": engine is not None,
+            "godot_web_ready": godot_web.ready,
+        }
+
+    @app.get("/api/godot-web/status")
+    async def godot_web_status():
+        status = inspect_godot_web_bundle()
+        return {
+            "ready": status.ready,
+            "entry_url": status.entry_url,
+            "missing": list(status.missing),
+            "manifest": status.manifest,
+        }
 
     @app.post("/api/auth/login")
     async def login(request: Request):
@@ -467,6 +492,12 @@ def create_app(
     from .user_routes import router as user_router  # noqa: PLC0415
 
     app.include_router(user_router)
+
+    from .camera_routes import godot_router as godot_camera_router  # noqa: PLC0415
+    from .camera_routes import viewer_router as camera_viewer_router  # noqa: PLC0415
+
+    app.include_router(godot_camera_router)
+    app.include_router(camera_viewer_router)
 
     # -------------------------------------------------------------------
     # LLM Config 路由 (Provider/Model/Route 管理)

@@ -13,7 +13,7 @@
         window.history.replaceState(null, "", "/");
       }
     </script>
-    <link rel="stylesheet" href="/static/elfienest-console.css?v=18" />
+    <link rel="stylesheet" href="/static/elfienest-console.css?v=19" />
     <link rel="stylesheet" href="/static/elfie-avatar3d.css?v=9" />
     <link rel="stylesheet" href="/static/elfie-adoption-wizard.css?v=9" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -389,9 +389,11 @@
                     <button class="ghost-button" type="button" id="room-camera-toggle">打开预览</button>
                   </div>
                   <button class="camera-preview" id="room-camera-preview" type="button" data-open-camera aria-live="polite">
+                    <img id="room-camera-thumbnail" alt="精灵巢实时摄像头画面" />
+                    <span class="camera-connection-state" id="room-camera-thumbnail-state">Godot 未连接</span>
                     <span>Godot Camera · Main Nest</span>
-                    <strong>当前屋顶视角</strong>
-                    <small>点击打开全屏观察</small>
+                    <strong id="room-camera-thumbnail-title">整体总览</strong>
+                    <small>点击打开实时观察</small>
                   </button>
                 </section>
                 <section class="config-card admin-only">
@@ -726,6 +728,32 @@
       </form>
     </section>
 
+    <section class="center-modal" id="room-layout-confirm-modal" aria-hidden="true" aria-labelledby="room-layout-confirm-title" role="dialog" aria-modal="true">
+      <div class="center-modal-card">
+        <div class="center-modal-head">
+          <div>
+            <span class="eyebrow">LAYOUT REBUILD</span>
+            <h2 id="room-layout-confirm-title">确认重建精灵巢</h2>
+          </div>
+          <button class="icon-button" type="button" title="关闭" aria-label="关闭" id="room-layout-confirm-close">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12" /><path d="M18 6 6 18" /></svg>
+          </button>
+        </div>
+        <div class="center-modal-body">
+          <p class="layout-confirm-copy">床位变化会重新生成 Godot 房间和摄像头目录。确认前不会保存或重建。</p>
+          <dl class="layout-change-summary">
+            <div><dt>床位数</dt><dd><span id="room-layout-current-beds">4</span><b>→</b><strong id="room-layout-next-beds">4</strong></dd></div>
+            <div><dt>宿舍数</dt><dd><span id="room-layout-current-rooms">1</span><b>→</b><strong id="room-layout-next-rooms">1</strong></dd></div>
+          </dl>
+          <p class="form-message" id="room-layout-confirm-message" aria-live="polite"></p>
+        </div>
+        <div class="center-modal-footer">
+          <button class="ghost-button" type="button" id="room-layout-confirm-cancel">取消</button>
+          <button class="primary-button" type="button" id="room-layout-confirm-submit">确认并重建</button>
+        </div>
+      </div>
+    </section>
+
     <aside class="drawer adoption-wizard-drawer modal-drawer" id="adoption-drawer" aria-hidden="true" aria-label="领养新精灵" role="dialog" aria-modal="true">
       <div class="drawer-head">
         <div>
@@ -887,15 +915,42 @@
         </button>
       </div>
       <div class="drawer-body camera-drawer-body">
-        <div class="camera-full-preview">
-          <span>Godot Camera · Main Nest</span>
-          <strong>当前 3D 房间画面</strong>
-          <small>屋顶视角 · 后续接入可拖拽观察</small>
+        <div class="camera-live-monitor">
+          <div class="camera-live-frame" id="room-camera-live-frame">
+            <iframe id="godot-web-runtime" title="ElfieNest 3D 房间实时画面" data-runtime-src="" tabindex="0"></iframe>
+            <img id="room-camera-live-image" alt="精灵巢实时摄像头画面" />
+            <div class="camera-offline-state" id="room-camera-offline-state">
+              <strong id="room-camera-offline-title">3D Runtime 加载中</strong>
+              <small id="room-camera-offline-copy">正在检查内置 Godot Web 资源</small>
+            </div>
+            <div class="camera-live-overlay">
+              <div>
+                <span>GODOT CAMERA · MAIN NEST</span>
+                <strong id="room-camera-active-title">整体总览</strong>
+              </div>
+              <mark id="room-camera-feed-state">离线</mark>
+            </div>
+          </div>
+          <div class="camera-switcher" aria-label="摄像头切换">
+            <button class="icon-button camera-step-button" type="button" id="room-camera-previous" title="上一个摄像头" aria-label="上一个摄像头">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
+            </button>
+            <div class="camera-view-strip" id="room-camera-view-strip" role="listbox" aria-label="可用摄像头">
+              <button class="camera-view-button active" type="button" role="option" data-camera-index="0" aria-selected="true">
+                <span>总览</span>
+                <strong>整体总览</strong>
+              </button>
+            </div>
+            <button class="icon-button camera-step-button" type="button" id="room-camera-next" title="下一个摄像头" aria-label="下一个摄像头">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6" /></svg>
+            </button>
+          </div>
         </div>
       </div>
     </aside>
 
     <script src="/static/elfie-avatar3d.js?v=10"></script>
+    <script src="/static/elfienest-console.js?v=21"></script>
     <script src="/static/elfie-adoption-options.js?v=9"></script>
     <script src="/static/elfie-adoption-wizard.js?v=9"></script>
     <script src="/static/elfienest-console.js?v=18"></script>

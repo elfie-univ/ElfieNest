@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -37,7 +38,7 @@ def test_root_serves_console_without_static_redirect(client: TestClient) -> None
     assert "第二层：Agent 基础工具" in resp.text
     assert "自动更新粮食策略" in resp.text
     assert 'id="login-form"' in resp.text
-    assert '<script src="/static/elfienest-console.js?v=18"></script>' in resp.text
+    assert '<script src="/static/elfienest-console.js?v=21"></script>' in resp.text
 
     console_js = client.get("/static/elfienest-console.js")
     assert console_js.status_code == 200
@@ -61,6 +62,63 @@ def test_capacity_inputs_and_payloads_are_capped_at_thirty_two(
     assert "Math.min(32, maxPerUser)" in console_js.text
     assert "Math.min(32, Number(maxRoom))" in console_js.text
     assert "Math.min(32, Number(bedCountInput?.value || 4))" in console_js.text
+
+
+def test_room_camera_uses_live_godot_frames_and_reported_views(
+    client: TestClient,
+) -> None:
+    index = client.get("/")
+    console_js = client.get("/static/elfienest-console.js")
+
+    assert 'id="room-camera-thumbnail"' in index.text
+    assert 'id="room-camera-live-image"' in index.text
+    assert 'id="room-camera-view-strip" role="listbox"' in index.text
+    assert 'id="godot-web-runtime"' in index.text
+    assert "/api/camera/frame.jpg" in console_js.text
+    assert 'fetchJson("/api/godot-web/status")' in console_js.text
+    assert "elfienest:godot-web-ready" in console_js.text
+    assert 'fetchJson("/api/camera/status")' in console_js.text
+    assert 'fetchJson("/api/camera/view"' in console_js.text
+    assert "renderDormFloorplan(room, beds)" in console_js.text
+    assert "room-camera-plan" not in index.text
+
+
+def test_godot_web_status_reports_missing_bundle(client: TestClient) -> None:
+    missing_bundle = SimpleNamespace(
+        ready=False,
+        entry_url="/static/godot-web/elfienest.html",
+        missing=(".html", ".js", ".wasm", ".pck", "build-manifest.json"),
+        manifest={},
+    )
+    with patch(
+        "elfienest.api.app.inspect_godot_web_bundle",
+        return_value=missing_bundle,
+    ):
+        status = client.get("/api/godot-web/status")
+        health = client.get("/api/health")
+
+    assert status.status_code == 200
+    assert status.json()["ready"] is False
+    assert status.json()["entry_url"] == "/static/godot-web/elfienest.html"
+    assert ".wasm" in status.json()["missing"]
+    assert health.json()["godot_web_ready"] is False
+
+
+def test_room_layout_change_requires_confirmation_and_exposes_rebuild_state(
+    client: TestClient,
+) -> None:
+    index = client.get("/")
+    console_js = client.get("/static/elfienest-console.js")
+    console_css = client.get("/static/elfienest-console.css")
+
+    assert 'id="room-layout-confirm-modal"' in index.text
+    assert 'id="room-layout-confirm-submit"' in index.text
+    assert "openCenterModal(roomLayoutConfirmModal)" in console_js.text
+    assert "confirmRoomLayoutChange" in console_js.text
+    assert 'bedCountInput.value = String(rooms[0]?.beds?.length || 4)' in console_js.text
+    assert "waitForGodotLayout" in console_js.text
+    assert 'roomLayoutStatusOverride = "正在重建"' in console_js.text
+    assert ".is-loading::before" in console_css.text
 
 
 def test_static_index_redirects_to_root(client: TestClient) -> None:

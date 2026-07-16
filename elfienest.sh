@@ -85,7 +85,9 @@ show_help() {
     echo "  │  命令列表                                               │"
     echo "  └─────────────────────────────────────────────────────────┘"
     echo ""
-    echo "    serve          启动服务"
+    echo "    start          启动 ElfieNest Web 服务"
+    echo "    serve          start 的兼容别名"
+    echo "    build-godot-web 构建浏览器 3D Runtime"
     echo "    config         配置系统（交互式 TUI）"
     echo "    status         查看服务状态"
     echo "    models         列出可用模型"
@@ -95,6 +97,8 @@ show_help() {
     echo "    logs           查看日志"
     echo "    db             数据库工具"
     echo "    web            启动服务并打开浏览器"
+    echo "    restart        重启 ElfieNest Web 服务"
+    echo "    stop           停止 ElfieNest Web 服务"
     echo "    version        显示版本信息"
     echo "    setup          首次设置向导"
     echo "    admin          管理员账号管理（显示账号、重置密码）"
@@ -131,7 +135,8 @@ interactive_mode() {
         case "$cmd" in
             ""|exit|quit|q) echo ""; echo "  再见！🦊"; echo ""; exit 0 ;;
             help|h|?) show_help ;;
-            serve) "$PYTHON_BIN" scripts/serve.py $args ;;
+            start|serve) "$PYTHON_BIN" scripts/serve.py $args ;;
+            build-godot-web) "$PYTHON_BIN" scripts/build_godot_web.py $args ;;
             config) "$PYTHON_BIN" scripts/elfienest.py config ;;
             status) "$PYTHON_BIN" scripts/elfienest.py status ;;
             models) "$PYTHON_BIN" scripts/elfienest.py models ;;
@@ -162,9 +167,13 @@ else
     SERVE_ARGS="--fallback --force --port --ws-port --no-seed-elfie"
     has_serve_arg=false
     command="$1"
-    if [ "$command" = "serve" ]; then
+    if [ "$command" = "start" ] || [ "$command" = "serve" ]; then
         shift
         has_serve_arg=true
+    elif [ "$command" = "build-godot-web" ]; then
+        shift
+        "$PYTHON_BIN" scripts/build_godot_web.py "$@"
+        exit $?
     else
         for arg in "$@"; do
             if [[ " $SERVE_ARGS " =~ " $arg " ]] || [[ "$arg" == --port=* ]] || [[ "$arg" == --ws-port=* ]]; then

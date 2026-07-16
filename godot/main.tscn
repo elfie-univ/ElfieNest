@@ -1,11 +1,16 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://rooms/nest.tscn" id="2_nest"]
+[ext_resource type="Script" path="res://camera_stream_bridge.gd" id="3_camera_bridge"]
 
 [node name="Main" type="Node3D"]
 script = ExtResource("1_main")
 
 [node name="Nest" parent="." instance=ExtResource("2_nest")]
+show_observation_hud = false
 
 [node name="Characters" type="Node3D" parent="."]
+
+[node name="CameraStreamBridge" type="Node" parent="."]
+script = ExtResource("3_camera_bridge")

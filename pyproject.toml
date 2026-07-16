@@ -39,6 +39,9 @@ build-constraint-dependencies = ["setuptools==80.9.0"]
 where = ["."]
 include = ["elfie*", "elfienest*", "runtime*"]
 
+[tool.setuptools.package-data]
+"elfienest.ui" = ["static/**/*"]
+
 [tool.ruff]
 line-length = 88
 target-version = "py39"

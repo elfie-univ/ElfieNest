@@ -51,7 +51,7 @@ elfienest>
 
 ```
 elfienest> help              # 查看帮助
-elfienest> serve --fallback  # 启动服务
+elfienest> start --fallback  # 启动服务
 elfienest> status            # 查看状态
 elfienest> config            # 配置系统
 elfienest> exit              # 退出
@@ -62,13 +62,15 @@ elfienest> exit              # 退出
 ### 服务管理
 
 ```bash
-serve              # 启动服务（前台运行）
+start              # 启动 ElfieNest Web 服务
+serve              # start 的兼容别名
 serve --fallback   # 使用内置引擎（不连 Ollama）
 serve --force      # 强制重启（杀死占用端口的进程）
 serve --port 8001  # 使用其他端口
-restart            # 重启服务
-stop               # 停止服务
+restart            # 重启 ElfieNest Web 服务
+stop               # 停止 ElfieNest Web 服务
 status             # 查看服务状态
+build-godot-web    # 构建随 Web 服务发布的 Godot Web Runtime
 ```
 
 ### 配置管理
@@ -134,6 +136,11 @@ exit               # 退出交互式命令行
 ```
 
 ## 快速开始
+
+正常运行时，`start`、`serve`、`web` 和 `restart` 只启动 Python/FastAPI。
+浏览器会加载随项目发布的 `elfienest/ui/static/godot-web/`，不会启动
+Godot 编辑器或本机 Godot App。Godot 和 Export Templates 只用于修改资源后
+执行 `build-godot-web`，具体流程见 `godot/WEB_EXPORT.md`。
 
 ### 开发模式
 

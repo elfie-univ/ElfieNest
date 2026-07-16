@@ -1,4 +1,4 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://rooms/nest.gd" id="1_nest"]
 [ext_resource type="PackedScene" path="res://ui/observation_hud.tscn" id="2_hud"]
@@ -12,18 +12,12 @@ ambient_light_energy = 0.24
 reflected_light_source = 2
 tonemap_mode = 2
 
-[sub_resource type="CameraAttributesPractical" id="CameraAttributes_demo"]
-auto_exposure_enabled = true
-auto_exposure_min_sensitivity = 60.0
-auto_exposure_max_sensitivity = 240.0
-
 [node name="Nest" type="Node3D"]
 script = ExtResource("1_nest")
 bed_count = 32
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_demo")
-camera_attributes = SubResource("CameraAttributes_demo")
 
 [node name="CeilingFill" type="DirectionalLight3D" parent="."]
 position = Vector3(0, 18, -21)

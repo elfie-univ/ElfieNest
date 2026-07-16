@@ -177,6 +177,11 @@ func run() -> void:
 		return
 	nest.select_observation_view(1)
 	await process_frame
+	if not _require(
+		nest.observation_active_view_index() == 1,
+		"Observation system did not report the selected camera index"
+	):
+		return
 	var selected_section_camera := root.get_camera_3d()
 	var default_section_size := selected_section_camera.size
 	var section_zoom := InputEventMouseButton.new()
@@ -238,6 +243,16 @@ func run() -> void:
 		compact_sections.get_child_count() == 0
 			and nest.observation_view_count() == 1 + 4 * 2 + 1,
 		"Layouts with four or fewer room rows should only expose the overall overview"
+	):
+		return
+
+	nest.bed_count = 5
+	await _wait_frames(4)
+	if not _require(
+		nest.observation_view_count() == 1 + 2 * 2 + 1
+			and nest.observation_view_labels()[1].contains("厨房")
+			and nest.observation_view_labels()[2].contains("宿舍"),
+		"Changing the saved bed count should rebuild the room and camera layout"
 	):
 		return
 
