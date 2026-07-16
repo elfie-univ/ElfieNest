@@ -98,6 +98,7 @@ show_help() {
     echo "    db*            数据库维护工具"
     echo "    version        显示版本信息"
     echo "    setup          首次设置向导"
+    echo "    developer      Developer Tool（仅开发者）"
     echo ""
     echo "  ┌─────────────────────────────────────────────────────────┐"
     echo "  │  带 * 命令支持参数                                      │"
@@ -139,7 +140,8 @@ interactive_mode() {
             ""|exit|quit|q) echo ""; echo "  再见！🦊"; echo ""; exit 0 ;;
             help|h|?) show_help ;;
             serve|server) "$PYTHON_BIN" scripts/serve.py "${args[@]}" ;;
-            build-godot-web) "$PYTHON_BIN" scripts/build_godot_web.py "${args[@]}" ;;
+            build-godot-web) "$SCRIPT_DIR/developer.sh" build-godot-web "${args[@]}" ;;
+            developer|dev) "$SCRIPT_DIR/developer.sh" "${args[@]}" ;;
             config|owner|doctor|status|web|stop|restart|start|version|v|setup)
                 "$PYTHON_BIN" scripts/elfienest.py "$cmd" "${args[@]}" ;;
             db) "$PYTHON_BIN" scripts/elfienest.py db "${args[@]}" ;;
@@ -164,7 +166,11 @@ else
         ;;
     build-godot-web)
         shift
-        "$PYTHON_BIN" scripts/build_godot_web.py "$@"
+        "$SCRIPT_DIR/developer.sh" build-godot-web "$@"
+        ;;
+    developer|dev)
+        shift
+        "$SCRIPT_DIR/developer.sh" "$@"
         ;;
     --fallback|--force|--port|--ws-port|--godot-ws-port|--audio-port|--no-seed-elfie|--port=*|--ws-port=*|--godot-ws-port=*|--audio-port=*)
         "$PYTHON_BIN" scripts/serve.py "$@"

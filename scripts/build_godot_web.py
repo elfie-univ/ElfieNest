@@ -18,6 +18,7 @@ from typing import Dict, List, Optional
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 GODOT_PROJECT = PROJECT_ROOT / "godot"
 DEFAULT_OUTPUT = PROJECT_ROOT / "elfienest" / "ui" / "static" / "godot-web"
+DESKTOP_OUTPUT = PROJECT_ROOT / "desktop" / "resources" / "godot-web"
 PRESET_NAME = "Web"
 ENTRY_NAME = "elfienest.html"
 REQUIRED_SUFFIXES = (".html", ".js", ".wasm", ".pck")
@@ -94,6 +95,8 @@ def main() -> int:
         output.replace(previous)
     staging.replace(output)
     shutil.rmtree(previous, ignore_errors=True)
+    if output == DEFAULT_OUTPUT:
+        _sync_desktop_bundle(output)
     print(f"✅ Godot Web Runtime 已生成: {output}")
     print(f"   入口: {output / ENTRY_NAME}")
     return 0
@@ -135,6 +138,20 @@ def _write_manifest(directory: Path, godot_version: str) -> None:
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+
+
+def _sync_desktop_bundle(output: Path) -> None:
+    """同步正式 Web 产物到 Electron 发布资源目录。"""
+    staging = DESKTOP_OUTPUT.parent / f".{DESKTOP_OUTPUT.name}.staging"
+    shutil.rmtree(staging, ignore_errors=True)
+    staging.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(output, staging)
+    previous = DESKTOP_OUTPUT.with_name(f"{DESKTOP_OUTPUT.name}.previous")
+    shutil.rmtree(previous, ignore_errors=True)
+    if DESKTOP_OUTPUT.exists():
+        DESKTOP_OUTPUT.replace(previous)
+    staging.replace(DESKTOP_OUTPUT)
+    shutil.rmtree(previous, ignore_errors=True)
 
 
 def _find_godot(explicit: Optional[Path]) -> Optional[Path]:

@@ -16,7 +16,7 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             id INTEGER PRIMARY KEY,
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
-            role TEXT NOT NULL CHECK(role IN ('owner', 'admin', 'user')),
+            role TEXT NOT NULL CHECK(role IN ('owner', 'user')),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             nickname TEXT DEFAULT NULL,
@@ -162,19 +162,14 @@ def _migrate_v4_to_v5(connection: sqlite3.Connection) -> None:
     connection.execute(
         "UPDATE users SET updated_at = created_at WHERE updated_at IS NULL"
     )
+    # Any pre-release privileged role is normalized to the single Owner role.
+    connection.execute(
+        "UPDATE users SET role = 'owner' WHERE role NOT IN ('owner', 'user')"
+    )
     owner = connection.execute(
         "SELECT id FROM users WHERE role = 'owner' ORDER BY id LIMIT 1"
     ).fetchone()
-    if owner is None:
-        legacy_admin = connection.execute(
-            "SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1"
-        ).fetchone()
-        if legacy_admin is not None:
-            connection.execute(
-                "UPDATE users SET role = 'owner', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                (legacy_admin[0],),
-            )
-    else:
+    if owner is not None:
         connection.execute(
             "UPDATE users SET role = 'user', updated_at = CURRENT_TIMESTAMP "
             "WHERE role = 'owner' AND id != ?",
@@ -195,7 +190,7 @@ def _rebuild_users_table(
             id INTEGER PRIMARY KEY,
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
-            role TEXT NOT NULL CHECK(role IN ('owner', 'admin', 'user')),
+            role TEXT NOT NULL CHECK(role IN ('owner', 'user')),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             nickname TEXT DEFAULT NULL,
@@ -210,7 +205,11 @@ def _rebuild_users_table(
     source = []
     for column in target:
         if column in existing_columns:
-            source.append(column)
+            source.append(
+                "CASE WHEN role = 'user' THEN 'user' ELSE 'owner' END"
+                if column == "role"
+                else column
+            )
         elif column == "updated_at":
             source.append("created_at" if "created_at" in existing_columns else "CURRENT_TIMESTAMP")
         else:

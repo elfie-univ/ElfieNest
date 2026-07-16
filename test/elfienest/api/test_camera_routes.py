@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from elfienest.api.app import create_app
 from elfienest.persistence.store import init_db
 
-from ._helpers import create_test_admin
+from ._helpers import create_test_owner
 
 JPEG_FRAME = b"\xff\xd8camera-frame\xff\xd9"
 
@@ -18,7 +18,7 @@ JPEG_FRAME = b"\xff\xd8camera-frame\xff\xd9"
 def client(tmp_path: Path):
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
-    create_test_admin(db_path)
+    create_test_owner(db_path)
     with (
         patch("elfienest.api.app.AuthenticatedWSManager.start"),
         patch("elfienest.api.app.AuthenticatedWSManager.stop"),
@@ -31,7 +31,7 @@ def client(tmp_path: Path):
 def _login(client: TestClient) -> str:
     response = client.post(
         "/api/auth/login",
-        data={"username": "admin", "password": "adminchangeme"},
+        data={"username": "owner", "password": "ownerchangeme"},
     )
     assert response.status_code == 200
     return response.headers["X-CSRF-Token"]
@@ -107,7 +107,7 @@ def test_camera_status_reports_layout_syncing_until_godot_rebuilds(
 ) -> None:
     csrf_token = _login(client)
     update_response = client.put(
-        "/api/admin/nest/rooms/default/bed-count",
+        "/api/owner/nest/rooms/default/bed-count",
         json={"bed_count": 12},
         headers={"X-CSRF-Token": csrf_token},
     )

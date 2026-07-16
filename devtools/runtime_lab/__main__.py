@@ -3,7 +3,7 @@
 import argparse
 import getpass
 import sys
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Sequence
 
 from devtools.runtime_lab.config_store import (
     PROVIDER_DEFAULTS,
@@ -147,7 +147,7 @@ def _chat(store: RuntimeLabConfigStore, args: argparse.Namespace) -> int:
             print(f"连接失败：{type(exc).__name__}: {exc}", file=sys.stderr)
 
 
-def main() -> int:
+def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="配置并测试独立的开发 Runtime")
     parser.add_argument("--config-dir", default=None, help="覆盖开发配置目录")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -176,7 +176,7 @@ def main() -> int:
     chat = subparsers.add_parser("chat", help="进入简单文字对话测试")
     chat.add_argument("--provider", choices=sorted(PROVIDER_DEFAULTS))
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     store = RuntimeLabConfigStore(args.config_dir)
     if args.command == "show":
         return _show(store)

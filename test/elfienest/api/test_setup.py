@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from elfienest.api.app import create_app
 
-from ._helpers import create_test_admin
+from ._helpers import create_test_owner
 
 
 @pytest.fixture
@@ -47,7 +47,7 @@ class TestSetupStatus:
 
     def test_setup_status_with_users(self, client: TestClient, db_path: str) -> None:
         """有用户时返回 need_setup=false。"""
-        create_test_admin(db_path)
+        create_test_owner(db_path)
         resp = client.get("/api/auth/setup-status")
         assert resp.status_code == 200
         data = resp.json()
@@ -56,14 +56,14 @@ class TestSetupStatus:
 
 class TestSetup:
     def test_setup_creates_owner(self, client: TestClient) -> None:
-        """POST /api/auth/setup 在无用户时成功创建 admin（201）。"""
+        """POST /api/auth/setup 在无用户时成功创建 owner（201）。"""
         resp = client.post(
             "/api/auth/setup",
-            json={"username": "admin", "password": "securePass123"},
+            json={"username": "owner", "password": "securePass123"},
         )
         assert resp.status_code == 201, resp.text
         data = resp.json()
-        assert data["username"] == "admin"
+        assert data["username"] == "owner"
         assert data["role"] == "owner"
         assert "id" in data
         assert "csrf_token" in data
@@ -88,7 +88,7 @@ class TestSetup:
 
         resp = client.post(
             "/api/auth/setup",
-            json={"username": "admin", "password": "securePass123"},
+            json={"username": "owner", "password": "securePass123"},
         )
 
         assert resp.status_code == 201, resp.text
@@ -96,7 +96,7 @@ class TestSetup:
 
     def test_setup_blocked_when_users_exist(self, client: TestClient, db_path: str) -> None:
         """POST /api/auth/setup 在有用户时返回 409。"""
-        create_test_admin(db_path)
+        create_test_owner(db_path)
         resp = client.post(
             "/api/auth/setup",
             json={"username": "another", "password": "securePass123"},
@@ -116,7 +116,7 @@ class TestSetup:
         """密码少于6字符返回 422。"""
         resp = client.post(
             "/api/auth/setup",
-            json={"username": "admin", "password": "short"},
+            json={"username": "owner", "password": "short"},
         )
         assert resp.status_code == 422
 
@@ -124,12 +124,12 @@ class TestSetup:
         """avatar_color 超出 0-7 返回 422。"""
         resp = client.post(
             "/api/auth/setup",
-            json={"username": "admin", "password": "securePass123", "avatar_color": 8},
+            json={"username": "owner", "password": "securePass123", "avatar_color": 8},
         )
         assert resp.status_code == 422
 
         resp = client.post(
             "/api/auth/setup",
-            json={"username": "admin", "password": "securePass123", "avatar_color": -1},
+            json={"username": "owner", "password": "securePass123", "avatar_color": -1},
         )
         assert resp.status_code == 422

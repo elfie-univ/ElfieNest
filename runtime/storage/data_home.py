@@ -72,6 +72,21 @@ def get_cache_dir() -> Path:
     return get_elfie_home() / "cache"
 
 
+def get_models_dir() -> Path:
+    """Ollama 等本地模型的统一存储目录。"""
+    return get_elfie_home() / "models"
+
+
+def get_runtime_dir() -> Path:
+    """应用运行时状态目录（PID、健康状态和临时套接字）。"""
+    return get_elfie_home() / "runtime"
+
+
+def get_backups_dir() -> Path:
+    """数据库和配置备份目录。"""
+    return get_elfie_home() / "backups"
+
+
 def get_logs_dir() -> Path:
     """日志目录"""
     return get_elfie_home() / "logs"
@@ -122,6 +137,9 @@ def ensure_elfie_home() -> None:
     subdirs = [
         "elfies",
         "cache",
+        "models",
+        "runtime",
+        "backups",
         "logs",
         "skills",
         "audio_cache",

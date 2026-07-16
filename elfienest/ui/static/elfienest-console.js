@@ -425,8 +425,8 @@ async function saveProviderConfig({ verify = false } = {}) {
     return null;
   }
   const endpoint = providerModalMode === "create"
-    ? "/api/admin/providers/"
-    : `/api/admin/providers/${encodeURIComponent(payload.provider_id)}`;
+    ? "/api/owner/providers/"
+    : `/api/owner/providers/${encodeURIComponent(payload.provider_id)}`;
   const method = providerModalMode === "create" ? "POST" : "PUT";
   const body = { ...payload };
   delete body.provider_id;
@@ -437,7 +437,7 @@ async function saveProviderConfig({ verify = false } = {}) {
     body: JSON.stringify(providerModalMode === "create" ? payload : body),
   });
   if (verify) {
-    const result = await fetchJson(`/api/admin/providers/${encodeURIComponent(payload.provider_id)}/verify`, { method: "POST" });
+    const result = await fetchJson(`/api/owner/providers/${encodeURIComponent(payload.provider_id)}/verify`, { method: "POST" });
     setFormMessage(
       "provider-config-message",
       result.status === "active" ? `已保存，验证可用（${result.latency_ms || 0}ms）` : `已保存，验证未通过：${result.error || result.status}`,
@@ -655,7 +655,7 @@ function normalizeElfie(raw) {
 
 async function loadElves() {
   try {
-    const data = role === "owner" ? await loadAdminElfies() : await fetchJson("/api/user/elfies");
+    const data = role === "owner" ? await loadOwnerElfies() : await fetchJson("/api/user/elfies");
     elves = (Array.isArray(data) ? data : []).map(normalizeElfie);
   } catch (error) {
     console.error("Failed to load elfies", error);
@@ -668,15 +668,15 @@ async function loadElves() {
   renderAdoptionQuota();
 }
 
-async function loadAdminElfies() {
-  const [adminResult, userResult] = await Promise.allSettled([
-    fetchJson("/api/admin/elfies"),
+async function loadOwnerElfies() {
+  const [ownerResult, userResult] = await Promise.allSettled([
+    fetchJson("/api/owner/elfies"),
     fetchJson("/api/user/elfies"),
   ]);
-  const adminData = adminResult.status === "fulfilled" ? adminResult.value : [];
+  const ownerData = ownerResult.status === "fulfilled" ? ownerResult.value : [];
   const userData = userResult.status === "fulfilled" ? userResult.value : [];
   const merged = new Map();
-  for (const elf of [...(Array.isArray(adminData) ? adminData : []), ...(Array.isArray(userData) ? userData : [])]) {
+  for (const elf of [...(Array.isArray(ownerData) ? ownerData : []), ...(Array.isArray(userData) ? userData : [])]) {
     const id = elf.elfie_id || elf.id;
     if (id) merged.set(id, elf);
   }
@@ -724,7 +724,7 @@ async function loadAdoptionInfo() {
 
 async function loadRooms() {
   try {
-    const endpoint = role === "owner" ? "/api/admin/nest/rooms" : "/api/user/nest/rooms";
+    const endpoint = role === "owner" ? "/api/owner/nest/rooms" : "/api/user/nest/rooms";
     rooms = await fetchJson(endpoint);
   } catch (error) {
     console.error("Failed to load rooms", error);
@@ -735,7 +735,7 @@ async function loadRooms() {
 
 async function loadProviders() {
   try {
-    providers = await fetchJson("/api/admin/providers/");
+    providers = await fetchJson("/api/owner/providers/");
   } catch (error) {
     console.error("Failed to load providers", error);
     providers = [];
@@ -746,7 +746,7 @@ async function loadProviders() {
 
 async function loadModels() {
   try {
-    const catalogModels = await fetchJson("/api/admin/models/");
+    const catalogModels = await fetchJson("/api/owner/models/");
     models = withProviderConfiguredModels(Array.isArray(catalogModels) ? catalogModels : []);
   } catch (error) {
     console.error("Failed to load models", error);
@@ -759,7 +759,7 @@ async function loadModels() {
 
 async function loadTools() {
   try {
-    const payload = await fetchJson("/api/admin/runtime/tools/");
+    const payload = await fetchJson("/api/owner/runtime/tools/");
     toolConfigs = payload.tools || {};
   } catch (error) {
     console.error("Failed to load tools", error);
@@ -770,7 +770,7 @@ async function loadTools() {
 
 async function loadFoods() {
   try {
-    foodCatalog = await fetchJson("/api/admin/runtime/foods/");
+    foodCatalog = await fetchJson("/api/owner/runtime/foods/");
   } catch (error) {
     console.error("Failed to load foods", error);
     foodCatalog = { foods: {} };
@@ -810,7 +810,7 @@ async function loadSystemConfig() {
   const loaded = {};
   await Promise.all(sections.map(async (section) => {
     try {
-      loaded[section] = await fetchJson(`/api/admin/system/${section}`);
+      loaded[section] = await fetchJson(`/api/owner/system/${section}`);
     } catch (error) {
       console.error(`Failed to load system ${section}`, error);
       loaded[section] = {};
@@ -826,7 +826,7 @@ async function loadUsers() {
   const body = byId("users-table-body");
   if (!body || role !== "owner") return;
   try {
-    const users = await fetchJson("/api/admin/users");
+    const users = await fetchJson("/api/owner/users");
     const rows = [
       {
         id: currentUser.id,
@@ -882,7 +882,7 @@ function emptyPanel(title, detail = "") {
 }
 
 function setRole(nextRole) {
-  const isOwner = nextRole === "owner" || nextRole === "admin";
+  const isOwner = nextRole === "owner" || nextRole === "owner";
   role = isOwner ? "owner" : nextRole;
   if (shell) shell.dataset.role = role;
   if (profileRole) profileRole.textContent = isOwner ? "Owner" : "普通用户";
@@ -1039,7 +1039,7 @@ function renderElves() {
   elfGrid.innerHTML = list.map((elf) => {
     const ownerTag = elf.owned
       ? `<span class="tag own">我的精灵</span>`
-      : `<span class="tag admin">${escapeHtml(elf.owner)}</span>`;
+      : `<span class="tag owner">${escapeHtml(elf.owner)}</span>`;
     return `
       <article class="elf-card ${elf.owned ? "own" : "other"}">
         <div class="elf-top">
@@ -1710,7 +1710,7 @@ function renderProviders() {
     provider.status,
   ]));
   if (!visibleProviders.length) {
-    grid.innerHTML = emptyPanel("暂无供应商数据", "检查 /api/admin/providers/ 是否可用。");
+    grid.innerHTML = emptyPanel("暂无供应商数据", "检查 /api/owner/providers/ 是否可用。");
     return;
   }
 
@@ -1960,7 +1960,7 @@ function renderTools() {
 async function previewFoodUpdate() {
   const preview = byId("food-update-preview");
   if (preview) preview.textContent = "正在用模型建议与规则生成预览…";
-  pendingFoodProposal = await fetchJson("/api/admin/runtime/foods/update-preview", {
+  pendingFoodProposal = await fetchJson("/api/owner/runtime/foods/update-preview", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ use_llm: true }),
   });
   if (!preview) return;
@@ -2234,7 +2234,7 @@ document.addEventListener("click", (event) => {
     const providerId = target.dataset.verifyProvider || "";
     if (providerId) {
       target.disabled = true;
-      fetchJson(`/api/admin/providers/${encodeURIComponent(providerId)}/verify`, { method: "POST" })
+      fetchJson(`/api/owner/providers/${encodeURIComponent(providerId)}/verify`, { method: "POST" })
         .then((result) => {
           addSystemNotice(result.status === "active"
             ? `${providerDisplayName(providerId)} 验证可用。`
@@ -2300,7 +2300,7 @@ document.addEventListener("click", (event) => {
     if (preview) preview.textContent = "已放弃本次更新。";
   }
   if (target.id === "apply-food-update" && pendingFoodProposal?.candidate) {
-    fetchJson("/api/admin/runtime/foods/update-apply", {
+    fetchJson("/api/owner/runtime/foods/update-apply", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ confirm: true, candidate: pendingFoodProposal.candidate }),
     }).then(() => {
@@ -2318,7 +2318,7 @@ document.addEventListener("click", (event) => {
     const key = target.dataset.verifyTool || "";
     const message = document.querySelector(`[data-tool-message="${key}"]`);
     if (message) message.textContent = "正在验证…";
-    fetchJson(`/api/admin/runtime/tools/${encodeURIComponent(key)}/verify`, { method: "POST" })
+    fetchJson(`/api/owner/runtime/tools/${encodeURIComponent(key)}/verify`, { method: "POST" })
       .then((result) => { if (message) message.textContent = result.passed ? "验证通过" : `验证失败：${result.results?.[0]?.message || "未知错误"}`; })
       .catch((error) => { if (message) message.textContent = error.message || "验证失败"; });
   }
@@ -2365,7 +2365,7 @@ document.addEventListener("change", async (event) => {
   const bedId = target.value ? Number(target.value) : null;
   if (!elfieId || !bedId) return;
   try {
-    await fetchJson(`/api/admin/nest/elfies/${encodeURIComponent(elfieId)}/bed`, {
+    await fetchJson(`/api/owner/nest/elfies/${encodeURIComponent(elfieId)}/bed`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ bed_id: bedId }),
@@ -2390,7 +2390,7 @@ document.addEventListener("input", (event) => {
 
 async function saveRoomBedCount(requestedBedCount) {
   try {
-    return await fetchJson("/api/admin/nest/rooms/default/bed-count", {
+    return await fetchJson("/api/owner/nest/rooms/default/bed-count", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ bed_count: requestedBedCount }),
@@ -2407,7 +2407,7 @@ async function saveRoomBedCount(requestedBedCount) {
   if (!room) throw new Error("没有可保存的房间数据");
 
   try {
-    return await fetchJson(`/api/admin/nest/rooms/${room.id}/bed-count`, {
+    return await fetchJson(`/api/owner/nest/rooms/${room.id}/bed-count`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ bed_count: requestedBedCount }),
@@ -2419,7 +2419,7 @@ async function saveRoomBedCount(requestedBedCount) {
   await loadRooms();
   room = rooms[0];
   if (!room) throw new Error("房间数据刷新后仍不可用");
-  return fetchJson(`/api/admin/nest/rooms/${room.id}/bed-count`, {
+  return fetchJson(`/api/owner/nest/rooms/${room.id}/bed-count`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ bed_count: requestedBedCount }),
@@ -2542,7 +2542,7 @@ if (userCreateForm) {
     if (submitButton) submitButton.disabled = true;
     setFormMessage("user-create-message", "正在创建...");
     try {
-      await fetchJson("/api/admin/users", {
+      await fetchJson("/api/owner/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password, role: nextRole }),
@@ -2683,7 +2683,7 @@ document.addEventListener("submit", async (event) => {
     if (key === "code_sandbox") payload.timeout_seconds = Number(data.get("timeout_seconds") || 5);
     const message = document.querySelector(`[data-tool-message="${key}"]`);
     try {
-      await fetchJson(`/api/admin/runtime/tools/${encodeURIComponent(key)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      await fetchJson(`/api/owner/runtime/tools/${encodeURIComponent(key)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       if (message) message.textContent = "已保存";
       await loadTools();
     } catch (error) {
@@ -2699,7 +2699,7 @@ document.addEventListener("submit", async (event) => {
     const payload = { ...current, primary: { ...(current.primary || {}), model: String(data.get("model") || ""), reasoning_profile: String(data.get("reasoning_profile") || "balanced"), max_tokens: Number(data.get("max_tokens") || 1500), temperature: Number(data.get("temperature") || 0.7) } };
     const message = document.querySelector(`[data-food-message="${key}"]`);
     try {
-      const saved = await fetchJson(`/api/admin/runtime/foods/${encodeURIComponent(key)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const saved = await fetchJson(`/api/owner/runtime/foods/${encodeURIComponent(key)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       if (message) message.textContent = saved.warnings?.length ? `已保存，警告：${saved.warnings.join("；")}` : "已保存";
       await loadFoods();
     } catch (error) {
@@ -2730,7 +2730,7 @@ document.addEventListener("submit", async (event) => {
     message.style.color = "var(--text-secondary)";
   }
   try {
-    const saved = await fetchJson(`/api/admin/system/${section}`, {
+    const saved = await fetchJson(`/api/owner/system/${section}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(systemPayload(section, form)),

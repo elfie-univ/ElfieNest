@@ -1,5 +1,6 @@
 from runtime.storage.config_store import read_yaml_mapping, write_yaml_mapping
 from runtime.storage.data_home import (
+    get_backups_dir,
     get_config_path,
     get_db_path,
     get_elfie_home,
@@ -7,6 +8,8 @@ from runtime.storage.data_home import (
     get_food_history_dir,
     get_local_files_dir,
     get_model_evidence_path,
+    get_models_dir,
+    get_runtime_dir,
     get_validation_dir,
 )
 from runtime.storage.secrets import (
@@ -20,10 +23,13 @@ __all__ = [
     "get_config_path",
     "get_db_path",
     "get_elfie_home",
+    "get_backups_dir",
     "get_food_catalog_path",
     "get_food_history_dir",
     "get_model_evidence_path",
+    "get_models_dir",
     "get_local_files_dir",
+    "get_runtime_dir",
     "get_validation_dir",
     "provider_secret_name",
     "read_secrets",

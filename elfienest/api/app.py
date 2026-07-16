@@ -481,7 +481,7 @@ def create_app(
         return {"detail": "密码已更新"}
 
     # -------------------------------------------------------------------
-    # Setup Wizard 路由（首启向导 — 在 admin 路由之前注册）
+    # Setup Wizard 路由（首启向导 — 在 owner 路由之前注册）
     # -------------------------------------------------------------------
     from .setup_routes import router as setup_router  # noqa: PLC0415
 
@@ -495,13 +495,13 @@ def create_app(
     app.include_router(system_router)
 
     # -------------------------------------------------------------------
-    # Admin REST API 路由
+    # Owner REST API 路由
     # -------------------------------------------------------------------
-    from .admin_routes import router as admin_router  # noqa: PLC0415
     from .nest_routes import router as nest_router  # noqa: PLC0415
     from .nest_routes import user_router as user_nest_router  # noqa: PLC0415
+    from .owner_routes import router as owner_router  # noqa: PLC0415
 
-    app.include_router(admin_router)
+    app.include_router(owner_router)
     app.include_router(nest_router)
     app.include_router(user_nest_router)
     from .user_routes import router as user_router  # noqa: PLC0415
@@ -520,21 +520,21 @@ def create_app(
     from .provider_routes import router as provider_router  # noqa: PLC0415
 
     app.include_router(provider_router)
-    from .model_admin_routes import router as model_admin_router  # noqa: PLC0415
+    from .model_owner_routes import router as model_owner_router  # noqa: PLC0415
 
-    app.include_router(model_admin_router)
+    app.include_router(model_owner_router)
     from .route_routes import router as route_router  # noqa: PLC0415
 
     app.include_router(route_router)
     from .food_policy_routes import router as food_policy_router  # noqa: PLC0415
 
     app.include_router(food_policy_router)
-    from .food_admin_routes import router as food_admin_router  # noqa: PLC0415
+    from .food_owner_routes import router as food_owner_router  # noqa: PLC0415
 
-    app.include_router(food_admin_router)
-    from .tool_admin_routes import router as tool_admin_router  # noqa: PLC0415
+    app.include_router(food_owner_router)
+    from .tool_owner_routes import router as tool_owner_router  # noqa: PLC0415
 
-    app.include_router(tool_admin_router)
+    app.include_router(tool_owner_router)
     from .runtime_routes import router as runtime_router  # noqa: PLC0415
 
     app.include_router(runtime_router)

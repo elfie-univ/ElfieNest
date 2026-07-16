@@ -7,14 +7,14 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from elfienest.persistence.store import get_db
 
-from .admin_routes import require_admin
+from .owner_routes import require_owner
 from .user_routes import get_current_user
 
 logger = logging.getLogger("elfienest.api.nest_routes")
 
-router = APIRouter(prefix="/api/admin/nest", tags=["nest"])
+router = APIRouter(prefix="/api/owner/nest", tags=["nest"])
 user_router = APIRouter(prefix="/api/user/nest", tags=["user-nest"])
-RequireAdmin = Depends(require_admin)
+RequireOwner = Depends(require_owner)
 RequireUser = Depends(get_current_user)
 DEFAULT_ROOM_NAME = "Main Nest"
 DEFAULT_BED_COUNT = 4
@@ -157,10 +157,10 @@ def _bounded_bed_count(value: Any, field_name: str) -> int:
 @router.get("/rooms")
 async def get_rooms(
     request: Request,
-    admin: Dict[str, Any] = RequireAdmin,
+    owner: Dict[str, Any] = RequireOwner,
 ) -> list[Dict[str, Any]]:
     """获取所有房间和床位信息。"""
-    _ = admin
+    _ = owner
     rooms = _rooms_with_beds(request.app.state.db_path)
     _publish_desired_layout(request, rooms)
     return rooms
@@ -180,7 +180,7 @@ async def get_user_rooms(
 async def create_room(
     body: Dict[str, Any],
     request: Request,
-    admin: Dict[str, Any] = RequireAdmin,
+    owner: Dict[str, Any] = RequireOwner,
 ) -> Dict[str, Any]:
     """创建一个新房间。"""
     name = body.get("name", "New Room")
@@ -208,7 +208,7 @@ async def update_bed(
     bed_id: int,
     body: Dict[str, Any],
     request: Request,
-    admin: Dict[str, Any] = RequireAdmin,
+    owner: Dict[str, Any] = RequireOwner,
 ) -> Dict[str, Any]:
     """更新床位坐标。"""
     updates = []
@@ -234,9 +234,9 @@ async def update_bed(
 async def update_default_room_bed_count(
     body: Dict[str, Any],
     request: Request,
-    admin: Dict[str, Any] = RequireAdmin,
+    owner: Dict[str, Any] = RequireOwner,
 ) -> Dict[str, int]:
-    _ = admin
+    _ = owner
     room_id = _default_room_id(request.app.state.db_path)
     target_count = _bed_count_from_body(body)
     result = _sync_bed_count(request.app.state.db_path, room_id, target_count)
@@ -249,9 +249,9 @@ async def update_bed_count(
     room_id: int,
     body: Dict[str, Any],
     request: Request,
-    admin: Dict[str, Any] = RequireAdmin,
+    owner: Dict[str, Any] = RequireOwner,
 ) -> Dict[str, int]:
-    _ = admin
+    _ = owner
     target_count = _bed_count_from_body(body)
     result = _sync_bed_count(request.app.state.db_path, room_id, target_count)
     if room_id == _default_room_id(request.app.state.db_path):
@@ -264,7 +264,7 @@ async def assign_bed(
     elfie_id: str,
     body: Dict[str, Any],
     request: Request,
-    admin: Dict[str, Any] = RequireAdmin,
+    owner: Dict[str, Any] = RequireOwner,
 ) -> Dict[str, Any]:
     """为精灵分配床位。"""
     bed_id = body.get("bed_id")  # 可以为 None 以取消分配

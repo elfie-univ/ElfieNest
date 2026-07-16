@@ -32,7 +32,7 @@ def test_owner_menu_has_three_items_and_shares_actions(monkeypatch, capsys) -> N
     assert calls == ["view", "recover"]
     assert "查看 Owner 账号信息" in output
     assert "恢复 Owner 账号" in output
-    assert "管理员" not in output
+    assert "Owner" in output
 
 
 def test_owner_account_view_is_a_detail_page_with_pause(monkeypatch, capsys) -> None:

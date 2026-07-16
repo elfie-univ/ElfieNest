@@ -75,3 +75,8 @@ ElfieNest.worktree/
 # Runtime temp files (audio, cache, etc.)
 data/temp/
 *.uid
+
+# Electron build output and local Node dependencies
+/desktop/node_modules/
+/desktop/dist/
+/desktop/out/

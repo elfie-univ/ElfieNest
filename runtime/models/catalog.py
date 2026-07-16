@@ -31,7 +31,7 @@ class ModelEntry:
         capabilities: 能力标签 ["text", "vision", "audio", "code", "reasoning"]
         context_window: 上下文窗口大小（token 数）
         cost_tier: 费用等级 0=免费 1=极低 2=低 3=中 4=高
-        visible: 是否对普通用户可见（管理员控制）
+        visible: 是否对普通用户可见（Owner控制）
         active: 是否可用（有 API key 且连通）
     """
 

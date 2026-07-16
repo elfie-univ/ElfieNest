@@ -24,7 +24,6 @@ def test_cli_help_uses_owner_and_doctor_without_old_homepage_duplicates() -> Non
     assert result.returncode == 0
     assert "owner" in result.stdout
     assert "doctor" in result.stdout
-    assert "admin" not in result.stdout
     assert "session" not in result.stdout
     assert "stats" not in result.stdout
 

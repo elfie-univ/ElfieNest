@@ -28,8 +28,8 @@ class FakeConfig:
                 "reason": "只读放行",
             },
             "DELETE_SKILL": {
-                "mode": "admin",
-                "reason": "技能删除需要管理员令牌",
+                "mode": "owner",
+                "reason": "技能删除需要Owner令牌",
             },
         },
     }
@@ -90,9 +90,9 @@ def test_runtime_policy_ignores_unknown_task_route_and_falls_back_unknown_group(
     assert decision.model_key == "local_fast"
 
 
-def test_permission_manager_allows_admin_action_with_token():
+def test_permission_manager_allows_owner_action_with_token():
     manager = PermissionManager(FakeConfig())
-    manager._admin_token = "secret"
+    manager._owner_token = "secret"
 
     assert (
         manager.verify_action(

@@ -17,11 +17,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from elfienest.config.runtime_store import read_system_section, write_system_section
 from runtime.storage.data_home import get_config_path
 
-from .admin_routes import require_admin
+from .owner_routes import require_owner
 
 logger = logging.getLogger("elfienest.api.system_routes")
 
-router = APIRouter(prefix="/api/admin/system", tags=["system"])
+router = APIRouter(prefix="/api/owner/system", tags=["system"])
 
 # ---------------------------------------------------------------------------
 # 路径常量
@@ -246,20 +246,20 @@ def _write_system_section(section: str, data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # ===================================================================
-# 路由：GET /api/admin/system/{section}
+# 路由：GET /api/owner/system/{section}
 # ===================================================================
 
 
 @router.get("/{section}")
 async def get_system_section(
     section: str,
-    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
 ) -> Dict[str, Any]:
     """读取系统设置指定 section。
 
     返回深层合并默认值后的完整 section 字典。
     """
-    _ = admin
+    _ = owner
     if section not in VALID_SECTIONS:
         raise HTTPException(
             status_code=404,
@@ -269,7 +269,7 @@ async def get_system_section(
 
 
 # ===================================================================
-# 路由：PUT /api/admin/system/{section}
+# 路由：PUT /api/owner/system/{section}
 # ===================================================================
 
 
@@ -277,13 +277,13 @@ async def get_system_section(
 async def update_system_section(
     section: str,
     body: Dict[str, Any],
-    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
 ) -> Dict[str, Any]:
     """更新系统设置指定 section。
 
     Body 为 section 子树的字段；未知键和类型不匹配返回 422。
     """
-    _ = admin
+    _ = owner
     if section not in VALID_SECTIONS:
         raise HTTPException(
             status_code=404,

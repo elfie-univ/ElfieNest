@@ -10,7 +10,7 @@ The visual signature is a soft technical habitat: neutral work surfaces, subtle 
 
 - Keep CJK labels short and stable in the sidebar.
 - Do not combine Elfie management and nest management; private companions and shared nest space are separate product concepts.
-- Owner 视图可以暴露服务运维、用户、精灵巢、模型和 Provider 配置；旧的 admin 角色不再作为产品导航或配置权限入口。
+- Owner 视图可以暴露服务运维、用户、精灵巢、模型和 Provider 配置；系统只使用 Owner 和普通用户两种账户角色。
 - User views only expose owned Elfies and read-only nest visibility, with limited permitted actions such as viewing layout and camera status.
 - Model provider setup, model catalog, and food strategy belong together, but provider credentials and model routing should remain distinct inside the page.
 - Use the existing CSS variables before introducing new raw values.

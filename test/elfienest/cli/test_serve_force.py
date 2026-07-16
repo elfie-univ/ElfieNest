@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from scripts.e2e_dashboard_check import find_distinct_free_ports
 from scripts.serve import remaining_occupied_ports
 
@@ -23,3 +25,14 @@ def test_dashboard_e2e_uses_distinct_service_ports() -> None:
 
     assert len(ports) == 4
     assert len(set(ports)) == 4
+
+
+def test_python_core_does_not_start_godot_processes() -> None:
+    # Given
+    source = (Path(__file__).resolve().parents[3] / "scripts" / "serve.py").read_text(
+        encoding="utf-8"
+    )
+
+    # When / Then
+    assert "start_godot_runtime(" not in source
+    assert "Godot Web Runtime 由 ElfieNest Desktop" in source

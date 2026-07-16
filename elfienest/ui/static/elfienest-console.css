@@ -639,7 +639,7 @@ textarea {
   background: var(--accent-soft);
 }
 
-.tag.admin {
+.tag.owner {
   color: var(--accent-indigo);
   background: color-mix(in srgb, var(--accent-indigo) 14%, var(--surface-primary));
 }
@@ -2772,7 +2772,7 @@ textarea {
 }
 
 .app-shell[data-role="user"] .owner-only,
-.app-shell[data-role="user"] .filter-admin {
+.app-shell[data-role="user"] .filter-owner {
   display: none;
 }
 

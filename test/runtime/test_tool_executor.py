@@ -39,7 +39,7 @@ class FakeSkillsPlugin:
     skill_args: str = ""
 
     def write_skill(
-        self, filename: str, code: str, admin_token: str | None = None
+        self, filename: str, code: str, owner_token: str | None = None
     ) -> str:
         self.skill_name = filename
         self.skill_args = code

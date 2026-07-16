@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from elfienest.api.app import create_app
 from elfienest.persistence.store import get_db, init_db
 
-from ._helpers import create_test_admin
+from ._helpers import create_test_owner
 
 
 @pytest.fixture
@@ -20,7 +20,7 @@ def db_path(tmp_path: Path) -> str:
 @pytest.fixture
 def client(db_path: str):
     init_db(db_path)
-    create_test_admin(db_path)
+    create_test_owner(db_path)
     with (
         patch("elfienest.api.app.AuthenticatedWSManager.start"),
         patch("elfienest.api.app.AuthenticatedWSManager.stop"),
@@ -30,9 +30,9 @@ def client(db_path: str):
             yield c
 
 
-def _login_admin(client: TestClient) -> dict[str, str]:
+def _login_owner(client: TestClient) -> dict[str, str]:
     resp = client.post(
-        "/api/auth/login", data={"username": "admin", "password": "adminchangeme"}
+        "/api/auth/login", data={"username": "owner", "password": "ownerchangeme"}
     )
     assert resp.status_code == 200
     return {"csrf_token": resp.headers.get("X-CSRF-Token", "")}
@@ -43,9 +43,9 @@ def _headers(csrf_token: str) -> dict[str, str]:
 
 
 def test_default_room_is_created_when_rooms_are_empty(client: TestClient) -> None:
-    tokens = _login_admin(client)
+    tokens = _login_owner(client)
 
-    resp = client.get("/api/admin/nest/rooms", headers=_headers(tokens["csrf_token"]))
+    resp = client.get("/api/owner/nest/rooms", headers=_headers(tokens["csrf_token"]))
 
     assert resp.status_code == 200
     rooms = resp.json()
@@ -61,16 +61,16 @@ def test_default_room_is_created_when_rooms_are_empty(client: TestClient) -> Non
 
 
 def test_bed_count_adds_beds_in_dorm_row_layout(client: TestClient) -> None:
-    tokens = _login_admin(client)
+    tokens = _login_owner(client)
     headers = _headers(tokens["csrf_token"])
-    room = client.get("/api/admin/nest/rooms", headers=headers).json()[0]
+    room = client.get("/api/owner/nest/rooms", headers=headers).json()[0]
 
     resp = client.put(
-        f"/api/admin/nest/rooms/{room['id']}/bed-count",
+        f"/api/owner/nest/rooms/{room['id']}/bed-count",
         json={"bed_count": 6},
         headers=headers,
     )
-    rooms = client.get("/api/admin/nest/rooms", headers=headers).json()
+    rooms = client.get("/api/owner/nest/rooms", headers=headers).json()
 
     assert resp.status_code == 200
     assert resp.json()["bed_count"] == 6
@@ -85,16 +85,16 @@ def test_bed_count_adds_beds_in_dorm_row_layout(client: TestClient) -> None:
 
 
 def test_bed_count_supports_four_bed_groups_beyond_twelve(client: TestClient) -> None:
-    tokens = _login_admin(client)
+    tokens = _login_owner(client)
     headers = _headers(tokens["csrf_token"])
-    room = client.get("/api/admin/nest/rooms", headers=headers).json()[0]
+    room = client.get("/api/owner/nest/rooms", headers=headers).json()[0]
 
     resp = client.put(
-        f"/api/admin/nest/rooms/{room['id']}/bed-count",
+        f"/api/owner/nest/rooms/{room['id']}/bed-count",
         json={"bed_count": 16},
         headers=headers,
     )
-    rooms = client.get("/api/admin/nest/rooms", headers=headers).json()
+    rooms = client.get("/api/owner/nest/rooms", headers=headers).json()
 
     assert resp.status_code == 200
     assert resp.json()["bed_count"] == 16
@@ -103,16 +103,16 @@ def test_bed_count_supports_four_bed_groups_beyond_twelve(client: TestClient) ->
 
 
 def test_bed_count_clamps_to_maximum_thirty_two(client: TestClient) -> None:
-    tokens = _login_admin(client)
+    tokens = _login_owner(client)
     headers = _headers(tokens["csrf_token"])
-    room = client.get("/api/admin/nest/rooms", headers=headers).json()[0]
+    room = client.get("/api/owner/nest/rooms", headers=headers).json()[0]
 
     resp = client.put(
-        f"/api/admin/nest/rooms/{room['id']}/bed-count",
+        f"/api/owner/nest/rooms/{room['id']}/bed-count",
         json={"bed_count": 64},
         headers=headers,
     )
-    rooms = client.get("/api/admin/nest/rooms", headers=headers).json()
+    rooms = client.get("/api/owner/nest/rooms", headers=headers).json()
 
     assert resp.status_code == 200
     assert resp.json()["requested_count"] == 32
@@ -121,15 +121,15 @@ def test_bed_count_clamps_to_maximum_thirty_two(client: TestClient) -> None:
 
 
 def test_create_room_clamps_capacity_to_maximum_thirty_two(client: TestClient) -> None:
-    tokens = _login_admin(client)
+    tokens = _login_owner(client)
     headers = _headers(tokens["csrf_token"])
 
     resp = client.post(
-        "/api/admin/nest/rooms",
+        "/api/owner/nest/rooms",
         json={"name": "Oversized Nest", "max_capacity": 64},
         headers=headers,
     )
-    rooms = client.get("/api/admin/nest/rooms", headers=headers).json()
+    rooms = client.get("/api/owner/nest/rooms", headers=headers).json()
     created_room = next(room for room in rooms if room["id"] == resp.json()["id"])
 
     assert resp.status_code == 200
@@ -138,17 +138,17 @@ def test_create_room_clamps_capacity_to_maximum_thirty_two(client: TestClient) -
 
 
 def test_bed_count_persists_after_reloading_rooms(client: TestClient) -> None:
-    tokens = _login_admin(client)
+    tokens = _login_owner(client)
     headers = _headers(tokens["csrf_token"])
-    room = client.get("/api/admin/nest/rooms", headers=headers).json()[0]
+    room = client.get("/api/owner/nest/rooms", headers=headers).json()[0]
 
     resp = client.put(
-        f"/api/admin/nest/rooms/{room['id']}/bed-count",
+        f"/api/owner/nest/rooms/{room['id']}/bed-count",
         json={"bed_count": 23},
         headers=headers,
     )
-    reloaded_resp = client.get("/api/admin/nest/rooms", headers=headers)
-    second_reloaded_resp = client.get("/api/admin/nest/rooms", headers=headers)
+    reloaded_resp = client.get("/api/owner/nest/rooms", headers=headers)
+    second_reloaded_resp = client.get("/api/owner/nest/rooms", headers=headers)
 
     assert resp.status_code == 200
     assert resp.json()["bed_count"] == 23
@@ -158,15 +158,15 @@ def test_bed_count_persists_after_reloading_rooms(client: TestClient) -> None:
 
 
 def test_default_room_bed_count_endpoint_persists_five_beds(client: TestClient) -> None:
-    tokens = _login_admin(client)
+    tokens = _login_owner(client)
     headers = _headers(tokens["csrf_token"])
 
     resp = client.put(
-        "/api/admin/nest/rooms/default/bed-count",
+        "/api/owner/nest/rooms/default/bed-count",
         json={"bed_count": 5},
         headers=headers,
     )
-    reloaded_resp = client.get("/api/admin/nest/rooms", headers=headers)
+    reloaded_resp = client.get("/api/owner/nest/rooms", headers=headers)
 
     assert resp.status_code == 200
     assert resp.json()["bed_count"] == 5
@@ -178,27 +178,27 @@ def test_default_room_bed_count_endpoint_persists_five_beds(client: TestClient) 
 def test_update_bed_count_clamps_to_minimum_four_and_preserves_occupied_beds(
     client: TestClient, db_path: str
 ) -> None:
-    tokens = _login_admin(client)
+    tokens = _login_owner(client)
     headers = _headers(tokens["csrf_token"])
-    room = client.get("/api/admin/nest/rooms", headers=headers).json()[0]
+    room = client.get("/api/owner/nest/rooms", headers=headers).json()[0]
     occupied_bed_id = room["beds"][-1]["id"]
 
     with get_db(db_path) as conn:
-        admin_id = conn.execute(
-            "SELECT id FROM users WHERE username = ?", ("admin",)
+        owner_id = conn.execute(
+            "SELECT id FROM users WHERE username = ?", ("owner",)
         ).fetchone()["id"]
         conn.execute(
             "INSERT INTO elfie_registry (elfie_id, name, owner_user_id, anatomy_type, bed_id) VALUES (?, ?, ?, ?, ?)",
-            ("elfie_occupied", "占床精灵", admin_id, "biped", occupied_bed_id),
+            ("elfie_occupied", "占床精灵", owner_id, "biped", occupied_bed_id),
         )
         conn.commit()
 
     resp = client.put(
-        f"/api/admin/nest/rooms/{room['id']}/bed-count",
+        f"/api/owner/nest/rooms/{room['id']}/bed-count",
         json={"bed_count": 2},
         headers=headers,
     )
-    rooms = client.get("/api/admin/nest/rooms", headers=headers).json()
+    rooms = client.get("/api/owner/nest/rooms", headers=headers).json()
     bed_ids = {bed["id"] for bed in rooms[0]["beds"]}
 
     assert resp.status_code == 200

@@ -20,7 +20,7 @@ from elfienest.persistence.chat_history import (
 )
 from elfienest.persistence.store import init_db
 
-from ._helpers import create_test_admin
+from ._helpers import create_test_owner
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -34,9 +34,9 @@ def db_path(tmp_path: Path) -> str:
 
 @pytest.fixture
 def app(db_path: str):
-    # 预填充 admin 用户（ lifespan 不再硬编码 admin/adminchangeme ）
+    # 预填充 owner 用户（ lifespan 不再硬编码 owner/ownerchangeme ）
     init_db(db_path)
-    create_test_admin(db_path)
+    create_test_owner(db_path)
 
     with (
         patch("elfienest.api.app.AuthenticatedWSManager.start"),
@@ -52,8 +52,8 @@ def client(app):
         yield c
 
 
-def _login_admin(client: TestClient) -> dict:
-    resp = client.post("/api/auth/login", data={"username": "admin", "password": "adminchangeme"})
+def _login_owner(client: TestClient) -> dict:
+    resp = client.post("/api/auth/login", data={"username": "owner", "password": "ownerchangeme"})
     assert resp.status_code == 200
     return {
         "csrf_token": resp.headers.get("X-CSRF-Token", ""),
@@ -73,13 +73,13 @@ def _headers(csrf_token: str) -> dict:
     return {"X-CSRF-Token": csrf_token, "Content-Type": "application/json"}
 
 
-def _create_user_via_admin(client: TestClient, username: str = "alice", password: str = "pass123") -> int:
-    """Admin 创建用户，返回用户 id。"""
-    admin_tokens = _login_admin(client)
+def _create_user_via_owner(client: TestClient, username: str = "alice", password: str = "pass123") -> int:
+    """Owner 创建用户，返回用户 id。"""
+    owner_tokens = _login_owner(client)
     resp = client.post(
-        "/api/admin/users",
+        "/api/owner/users",
         json={"username": username, "password": password, "role": "user"},
-        headers=_headers(admin_tokens["csrf_token"]),
+        headers=_headers(owner_tokens["csrf_token"]),
     )
     assert resp.status_code == 201, f"create user failed: {resp.text}"
     return resp.json()["id"]
@@ -109,7 +109,7 @@ def _adopt_elfie(client: TestClient, csrf_token: str, name: str) -> str:
 class TestElfieList:
     def test_user_sees_own_elfies(self, client: TestClient, db_path: str) -> None:
         """用户 A 登录 → 看到自己的 2 只精灵。"""
-        _create_user_via_admin(client, "alice")
+        _create_user_via_owner(client, "alice")
         tokens_a = _login_user(client, "alice")
 
         # 领养 2 只精灵
@@ -134,8 +134,8 @@ class TestElfieList:
 
     def test_user_b_does_not_see_a_elfies(self, client: TestClient, db_path: str) -> None:
         """用户 B 看不到 A 的精灵。"""
-        _create_user_via_admin(client, "alice")
-        _create_user_via_admin(client, "bob", "bobpass")
+        _create_user_via_owner(client, "alice")
+        _create_user_via_owner(client, "bob", "bobpass")
 
         tokens_a = _login_user(client, "alice")
         # A 领养 1 只
@@ -166,7 +166,7 @@ class TestElfieList:
 class TestElfieDetail:
     def test_get_elfie_detail_yaml(self, client: TestClient, db_path: str) -> None:
         """GET 精灵详情返回 YAML 内容。"""
-        _create_user_via_admin(client, "alice")
+        _create_user_via_owner(client, "alice")
         tokens = _login_user(client, "alice")
 
         # 领养
@@ -196,7 +196,7 @@ class TestElfieDetail:
 
     def test_update_personality_config(self, client: TestClient, db_path: str) -> None:
         """PUT 更新 personality.yaml → 文件写入正确。"""
-        _create_user_via_admin(client, "alice")
+        _create_user_via_owner(client, "alice")
         tokens = _login_user(client, "alice")
 
         resp = client.post(
@@ -226,8 +226,8 @@ class TestElfieDetail:
 
     def test_access_others_elfie_404(self, client: TestClient, db_path: str) -> None:
         """访问不属于自己的精灵 → 404。"""
-        _create_user_via_admin(client, "alice")
-        _create_user_via_admin(client, "bob", "bobpass")
+        _create_user_via_owner(client, "alice")
+        _create_user_via_owner(client, "bob", "bobpass")
 
         tokens_a = _login_user(client, "alice")
         resp = client.post(
@@ -251,7 +251,7 @@ class TestElfieDetail:
 
 class TestElfieChatHistory:
     def test_get_chat_history_filters_by_range_and_keyword(self, client: TestClient, db_path: str) -> None:
-        _create_user_via_admin(client, "alice")
+        _create_user_via_owner(client, "alice")
         tokens = _login_user(client, "alice")
         elfie_id = _adopt_elfie(client, tokens["csrf_token"], "小白")
         user_id = tokens["user_id"]
@@ -290,8 +290,8 @@ class TestElfieChatHistory:
         assert [message["text"] for message in messages] == ["今天想聊星际门"]
 
     def test_get_chat_history_rejects_other_owner(self, client: TestClient, db_path: str) -> None:
-        _create_user_via_admin(client, "alice")
-        _create_user_via_admin(client, "bob", "bobpass")
+        _create_user_via_owner(client, "alice")
+        _create_user_via_owner(client, "bob", "bobpass")
         alice_tokens = _login_user(client, "alice")
         elfie_id = _adopt_elfie(client, alice_tokens["csrf_token"], "小A")
         bob_tokens = _login_user(client, "bob", "bobpass")
@@ -304,7 +304,7 @@ class TestElfieChatHistory:
         assert resp.status_code == 404
 
     def test_ws_manager_records_user_and_elfie_messages(self, client: TestClient, db_path: str) -> None:
-        _create_user_via_admin(client, "alice")
+        _create_user_via_owner(client, "alice")
         tokens = _login_user(client, "alice")
         elfie_id = _adopt_elfie(client, tokens["csrf_token"], "小白")
         manager = AuthenticatedWSManager(db_path=db_path)
@@ -357,7 +357,7 @@ class TestUnauthenticated:
 class TestAdoptionInfo:
     def test_returns_lists(self, client: TestClient) -> None:
         """GET /api/user/adoption-info 返回正确列表。"""
-        _create_user_via_admin(client, "alice")
+        _create_user_via_owner(client, "alice")
         tokens = _login_user(client, "alice")
 
         resp = client.get("/api/user/adoption-info", headers=_headers(tokens["csrf_token"]))
@@ -373,7 +373,7 @@ class TestAdoptionInfo:
         assert sorted(data["builds"]) == sorted(["slim", "standard", "plump"])
 
     def test_returns_quota_status(self, client: TestClient) -> None:
-        _create_user_via_admin(client, "alice")
+        _create_user_via_owner(client, "alice")
         tokens = _login_user(client, "alice")
 
         resp = client.post(
@@ -408,7 +408,7 @@ class TestAdoptionInfo:
 class TestAdopt:
     def test_successful_adoption(self, client: TestClient) -> None:
         """POST /api/user/adopt → 201 + 生成 YAML。"""
-        _create_user_via_admin(client, "alice")
+        _create_user_via_owner(client, "alice")
         tokens = _login_user(client, "alice")
 
         resp = client.post(
@@ -434,7 +434,7 @@ class TestAdopt:
 
     def test_limit_3_then_409(self, client: TestClient) -> None:
         """3 只上限 → 第 4 次 409。"""
-        _create_user_via_admin(client, "alice")
+        _create_user_via_owner(client, "alice")
         tokens = _login_user(client, "alice")
 
         for i in range(3):
@@ -468,7 +468,7 @@ class TestAdopt:
 
     def test_invalid_name_empty_400(self, client: TestClient) -> None:
         """name 为空 → 400。"""
-        _create_user_via_admin(client, "alice")
+        _create_user_via_owner(client, "alice")
         tokens = _login_user(client, "alice")
 
         resp = client.post(
@@ -486,7 +486,7 @@ class TestAdopt:
 
     def test_invalid_anatomy_type_400(self, client: TestClient) -> None:
         """非法 anatomy_type → 400。"""
-        _create_user_via_admin(client, "alice")
+        _create_user_via_owner(client, "alice")
         tokens = _login_user(client, "alice")
 
         resp = client.post(
@@ -504,7 +504,7 @@ class TestAdopt:
 
     def test_invalid_personality_style_400(self, client: TestClient) -> None:
         """未知 personality_style → 400。"""
-        _create_user_via_admin(client, "alice")
+        _create_user_via_owner(client, "alice")
         tokens = _login_user(client, "alice")
 
         resp = client.post(
@@ -522,7 +522,7 @@ class TestAdopt:
 
     def test_invalid_height_400(self, client: TestClient) -> None:
         """非法 height → 400。"""
-        _create_user_via_admin(client, "alice")
+        _create_user_via_owner(client, "alice")
         tokens = _login_user(client, "alice")
 
         resp = client.post(
@@ -540,7 +540,7 @@ class TestAdopt:
 
     def test_invalid_build_400(self, client: TestClient) -> None:
         """非法 build → 400。"""
-        _create_user_via_admin(client, "alice")
+        _create_user_via_owner(client, "alice")
         tokens = _login_user(client, "alice")
 
         resp = client.post(
@@ -563,7 +563,7 @@ class TestAdoptRoomFull:
         from elfie import ElfieIndividual  # noqa: PLC0415
         from elfienest.simulation.engine import ElfieNestEngine  # noqa: PLC0415
 
-        _create_user_via_admin(client, "alice")
+        _create_user_via_owner(client, "alice")
         tokens = _login_user(client, "alice")
 
         # 创建一个已满的房间引擎（上限 1，已注册 1 只）

@@ -383,7 +383,6 @@ def main():
     def engine_worker():
         config = LLMRuntimeConfig(
             ollama_host="http://localhost:11434",
-            ollama_model_fast="qwen2.5:1.5b",
         )
 
         # 读取 engine 配置
@@ -455,11 +454,11 @@ def main():
         sys.exit(1)
     engine = engine_holder["engine"]
     time.sleep(2.0)  # 等服务就绪
+    print("  ℹ️ Godot Web Runtime 由 ElfieNest Desktop 隐藏窗口托管")
 
     # 读取 engine 配置（用于检查房间上限）
     config = LLMRuntimeConfig(
         ollama_host="http://localhost:11434",
-        ollama_model_fast="qwen2.5:1.5b",
     )
     engine_config = config.system.get("engine", {})
     max_elfies_per_room = engine_config.get("max_elfies_per_room")
@@ -502,6 +501,8 @@ def main():
                 print(f"  ⚠️  加载精灵 {name} ({elfie_id}) 失败: {e}")
     except Exception as e:
         print(f"  ⚠️  查询精灵列表失败: {e}")
+
+    engine.sync_godot_elfies()
 
     # 5. 打印启动信息
     print()

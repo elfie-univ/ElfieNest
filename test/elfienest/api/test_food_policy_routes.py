@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from elfienest.api.app import create_app
 from elfienest.persistence.store import init_db
 
-from ._helpers import create_test_admin
+from ._helpers import create_test_owner
 
 
 @pytest.fixture
@@ -18,7 +18,7 @@ def db_path(tmp_path: Path) -> str:
 @pytest.fixture
 def client(db_path: str):
     init_db(db_path)
-    create_test_admin(db_path)
+    create_test_owner(db_path)
     with (
         patch("elfienest.api.app.AuthenticatedWSManager.start"),
         patch("elfienest.api.app.AuthenticatedWSManager.stop"),
@@ -33,12 +33,12 @@ def headers(csrf):
 
 
 def test_user_can_configure_only_food_keys_for_owned_elfie(client):
-    admin = client.post(
-        "/api/auth/login", data={"username": "admin", "password": "adminchangeme"}
+    owner = client.post(
+        "/api/auth/login", data={"username": "owner", "password": "ownerchangeme"}
     )
-    csrf = admin.headers["X-CSRF-Token"]
+    csrf = owner.headers["X-CSRF-Token"]
     created = client.post(
-        "/api/admin/users",
+        "/api/owner/users",
         json={"username": "alice", "password": "pass123", "role": "user"},
         headers=headers(csrf),
     )

@@ -67,7 +67,7 @@ class AuthenticatedWSManager:
 
         # user_id -> Set[websocket] 映射
         self.connections: Dict[int, Set[Any]] = {}
-        # websocket -> {user_id, role} 反向表（含 role 用于管理员广播）
+        # websocket -> {user_id, role} 反向表（含 role 用于Owner广播）
         self._user_info: Dict[Any, Dict[str, Any]] = {}
 
         # 后台异步组件
@@ -456,7 +456,7 @@ class AuthenticatedWSManager:
         msg_str = json.dumps(message_dict, ensure_ascii=False)
         self._record_elfie_message(elfie_id, owner_id, message_dict)
 
-        # 聊天与语音内容属于精灵所属用户，Owner/兼容管理员不能跨用户读取。
+        # 聊天与语音内容属于精灵所属用户，Owner/兼容Owner不能跨用户读取。
         target: Set[Any] = set()
         if owner_id in self.connections:
             target.update(self.connections[owner_id])

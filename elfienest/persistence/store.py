@@ -119,38 +119,12 @@ def migrate_db_if_needed(db_path: Optional[str] = None) -> None:
         migrate_schema(conn)
 
 
-def seed_initial_admin_if_env_set(
-    db_path: Optional[str] = None,
-    username_env: str = "ADMIN_USERNAME",
-    password_env: str = "ADMIN_PASSWORD",
-) -> bool:
-    """从旧版管理员环境变量创建兼容账户。
-
-    新产品入口使用 :func:`seed_initial_owner_if_env_set`；此函数保留给
-    旧版 Web/API 测试和已有部署迁移使用。
-
-    Returns:
-        True 如果创建了管理员，False 如果环境变量未设置或用户已存在。
-    """
-    return _seed_initial_account_from_env(
-        db_path,
-        username_env=username_env,
-        password_env=password_env,
-        role="admin",
-    )
-
-
 def seed_initial_owner_if_env_set(
     db_path: Optional[str] = None,
     username_env: str = "OWNER_USERNAME",
     password_env: str = "OWNER_PASSWORD",
 ) -> bool:
     """从 Owner 环境变量创建唯一 Owner 账户。"""
-    # 旧部署只配置 ADMIN_* 时，迁移为 Owner 角色而不是重新创建 admin。
-    if not os.environ.get(username_env) and username_env == "OWNER_USERNAME":
-        username_env = "ADMIN_USERNAME"
-    if not os.environ.get(password_env) and password_env == "OWNER_PASSWORD":
-        password_env = "ADMIN_PASSWORD"
     return _seed_initial_account_from_env(
         db_path,
         username_env=username_env,
@@ -199,22 +173,6 @@ def _seed_initial_account_from_env(
         conn.commit()
         logger.info("从环境变量创建了初始 %s: %s", role, username)
         return True
-
-
-def seed_admin(db_path: Optional[str] = None) -> None:
-    """已弃用: 请使用 :func:`seed_initial_admin_if_env_set`。
-
-    旧版函数保留用于向后兼容。现在内部调用
-    ``seed_initial_admin_if_env_set``，不再硬编码管理员凭据。
-    """
-    import warnings  # noqa: PLC0415
-
-    warnings.warn(
-        "seed_admin 已弃用，请使用 seed_initial_admin_if_env_set",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    seed_initial_admin_if_env_set(db_path=db_path or str(_get_db_path()))
 
 
 # ---------------------------------------------------------------------------

@@ -216,7 +216,7 @@ def main() -> None:
         if ok:
             print("    ✅ Owner 登录成功")
             status, data, raw, _ = owner.post_json(
-                "/api/admin/users",
+                "/api/owner/users",
                 {"username": "alice", "password": "alice123", "role": "user"},
                 headers={"X-CSRF-Token": owner_csrf},
             )
@@ -324,7 +324,7 @@ def main() -> None:
         ok, owner_csrf2 = owner.login("owner", owner_password)
         if ok:
             status, data, raw = owner.get(
-                "/api/admin/elfies",
+                "/api/owner/elfies",
                 headers={"X-CSRF-Token": owner_csrf2},
             )
             if status == 200 and isinstance(data, list):

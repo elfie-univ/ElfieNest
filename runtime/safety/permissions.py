@@ -24,7 +24,7 @@ class PermissionMode(str, Enum):
     ALLOW = "allow"
     ASK = "ask"
     DENY = "deny"
-    ADMIN = "admin"
+    OWNER = "owner"
 
 
 @dataclass(frozen=True)
@@ -40,7 +40,7 @@ DEFAULT_TOOL_PERMISSIONS: Mapping[str, ToolPermissionRule] = {
     "RUN_SKILL": ToolPermissionRule(PermissionMode.ALLOW, "运行已登记技能自动放行"),
     "LIST_SKILLS": ToolPermissionRule(PermissionMode.ALLOW, "读取技能清单自动放行"),
     "CREATE_SKILL": ToolPermissionRule(PermissionMode.ALLOW, "新增技能允许，但文件名必须留在技能根目录"),
-    "DELETE_SKILL": ToolPermissionRule(PermissionMode.ADMIN, "技能删除或覆盖需要管理员令牌"),
+    "DELETE_SKILL": ToolPermissionRule(PermissionMode.OWNER, "技能删除或覆盖需要Owner令牌"),
 }
 
 
@@ -51,8 +51,8 @@ class PermissionManager:
         self.config = config
         # 定义夜间 N3 整理专用的系统高特权令牌
         # 可以从环境变量获取，或者在启动时随机生成一个以确保本地安全
-        self._admin_token = os.getenv(
-            "ELFIE_ADMIN_TOKEN", "elfie_sleep_evolution_token_2026"
+        self._owner_token = os.getenv(
+            "ELFIE_OWNER_TOKEN", "elfie_sleep_evolution_token_2026"
         )
 
     def verify_action(
@@ -83,8 +83,8 @@ class PermissionManager:
                 reason=rule.reason,
             )
             return True
-        if rule.mode == PermissionMode.ADMIN:
-            if token == self._admin_token:
+        if rule.mode == PermissionMode.OWNER:
+            if token == self._owner_token:
                 logger.info("🔑 [特权令牌校验通过] 允许执行离线技能库代谢与去重操作")
                 self._record_decision(
                     action,
@@ -94,7 +94,7 @@ class PermissionManager:
                     reason=rule.reason,
                 )
                 return True
-            reason = rule.reason or "该操作需要管理员令牌"
+            reason = rule.reason or "该操作需要Owner令牌"
             self._record_decision(
                 action,
                 resource,
@@ -104,7 +104,7 @@ class PermissionManager:
             )
             raise PermissionDeniedError(
                 f"❌ 越权执行被物理阻断！原因：{reason}\n"
-                f"💡 技能代谢只允许在精灵 N3 深度睡眠模式下，由高特权整理模型（携带 admin_token）执行。"
+                f"💡 技能代谢只允许在精灵 N3 深度睡眠模式下，由高特权整理模型（携带 owner_token）执行。"
             )
         if rule.mode == PermissionMode.ASK:
             reason = rule.reason or "该操作需要人工确认，当前运行链路未提供交互式审批"

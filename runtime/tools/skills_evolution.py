@@ -16,7 +16,7 @@ class SkillsSelfEvolutionPlugin:
         self.file_sandbox = file_sandbox or FileSandbox()
         self.sandbox_plugin = CodeSandboxPlugin(timeout_seconds=5.0)
 
-    def write_skill(self, filename: str, code: str, admin_token: str = None) -> str:
+    def write_skill(self, filename: str, code: str, owner_token: str = None) -> str:
         """
         拦截 [WRITE_SKILL] 语法并写入新技能
         进行严格的分级安全审计
@@ -32,7 +32,7 @@ class SkillsSelfEvolutionPlugin:
         if is_overwrite:
             # 覆盖修改视同高危的代谢修改操作，需特权 token
             self.permission_manager.verify_action(
-                "DELETE_SKILL", file_path=filename, token=admin_token
+                "DELETE_SKILL", file_path=filename, token=owner_token
             )
         else:
             # 新增技能直接放行
@@ -98,7 +98,7 @@ class SkillsSelfEvolutionPlugin:
             formatted.append(f"  [{idx}] {name}")
         return "\n".join(formatted)
 
-    def delete_skill_by_admin(self, filename: str, admin_token: str) -> str:
+    def delete_skill_by_owner(self, filename: str, owner_token: str) -> str:
         """
         特权时段 (N3代谢) 进行技能删除
         """
@@ -107,7 +107,7 @@ class SkillsSelfEvolutionPlugin:
 
         # 强特权审计
         self.permission_manager.verify_action(
-            "DELETE_SKILL", file_path=filename, token=admin_token
+            "DELETE_SKILL", file_path=filename, token=owner_token
         )
 
         if self.file_sandbox.delete_file(filename):

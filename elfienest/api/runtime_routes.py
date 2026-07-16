@@ -14,9 +14,9 @@ from runtime.storage.data_home import get_config_path
 from runtime.usage.observer import RuntimeEvent, get_runtime_observer
 from runtime.usage.token_tracker import get_token_tracker
 
-from .admin_routes import require_admin
+from .owner_routes import require_owner
 
-router = APIRouter(prefix="/api/admin/runtime", tags=["runtime"])
+router = APIRouter(prefix="/api/owner/runtime", tags=["runtime"])
 
 _PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent
 _RUNTIME_CONFIG_PATH: Path = get_config_path()
@@ -92,17 +92,17 @@ def build_runtime_status() -> Dict[str, Any]:
 
 @router.get("/status")
 async def get_runtime_status(
-    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
 ) -> Dict[str, Any]:
-    _ = admin
+    _ = owner
     return build_runtime_status()
 
 
 @router.get("/policy")
 async def get_runtime_policy(
-    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
 ) -> Dict[str, Any]:
-    _ = admin
+    _ = owner
     config = _read_runtime_config()
     runtime_policy = _dict_field(config, "runtime_policy")
     return _runtime_policy_payload(runtime_policy)
@@ -111,9 +111,9 @@ async def get_runtime_policy(
 @router.put("/policy")
 async def update_runtime_policy(
     body: Dict[str, Any],
-    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
 ) -> Dict[str, Any]:
-    _ = admin
+    _ = owner
     current_config = _read_runtime_config()
     existing_policy = _dict_field(current_config, "runtime_policy")
     merged_policy = _merge_runtime_policy(existing_policy, body)
@@ -126,9 +126,9 @@ async def update_runtime_policy(
 @router.get("/audit")
 async def get_runtime_audit(
     limit: int = 100,
-    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
 ) -> Dict[str, Any]:
-    _ = admin
+    _ = owner
     bounded_limit = min(max(limit, 1), 500)
     events = get_runtime_observer().snapshot()
     recent_events = events[-bounded_limit:]
@@ -222,7 +222,7 @@ def _merge_runtime_policy(
 
 
 def _validate_runtime_policy(runtime_policy: Dict[str, Any]) -> None:
-    valid_modes = {"allow", "ask", "deny", "admin"}
+    valid_modes = {"allow", "ask", "deny", "owner"}
     valid_task_types = {task_type.value for task_type in RuntimeTaskType}
     routes = runtime_policy.get("task_routes", {})
     if isinstance(routes, dict):

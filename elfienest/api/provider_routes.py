@@ -1,6 +1,6 @@
 """Provider 管理 REST API — 服务商配置的增删改查 + 连通性验证。
 
-所有端点通过 ``Depends(require_admin)`` 保护。
+所有端点通过 ``Depends(require_owner)`` 保护。
 Provider 数据存储在 runtime_config.json 的 providers 字段中。
 """
 
@@ -30,11 +30,11 @@ from runtime.usage.observer import (
 )
 from runtime.validation.providers import discover_provider_models
 
-from .admin_routes import require_admin
+from .owner_routes import require_owner
 
 logger = logging.getLogger("elfienest.api.provider_routes")
 
-router = APIRouter(prefix="/api/admin/providers", tags=["providers"])
+router = APIRouter(prefix="/api/owner/providers", tags=["providers"])
 
 # ---------------------------------------------------------------------------
 # 路径常量
@@ -115,19 +115,19 @@ def _build_provider_response(provider_id: str, provider_info: Dict[str, Any]) ->
 
 
 # ===================================================================
-# 路由：GET /api/admin/providers
+# 路由：GET /api/owner/providers
 # ===================================================================
 
 
 @router.get("/")
 async def list_providers(
-    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
 ) -> list:
     """列出所有 provider（内置 + 用户配置）。
 
     返回每个 provider 的状态、api_mode 等元数据。
     """
-    _ = admin
+    _ = owner
 
     config = _read_runtime_config()
     providers = config.get("providers", {})
@@ -148,20 +148,20 @@ async def list_providers(
 
 
 # ===================================================================
-# 路由：POST /api/admin/providers
+# 路由：POST /api/owner/providers
 # ===================================================================
 
 
 @router.post("/", status_code=201)
 async def add_provider(
     body: Dict[str, Any],
-    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
 ) -> Dict[str, Any]:
     """添加新的 provider 配置。
 
     Body: {"provider_id": "openai", "api_base": "...", "api_key": "...", "api_mode": "chat_completions"}
     """
-    _ = admin
+    _ = owner
 
     provider_id = (body.get("provider_id") or "").strip()
     api_base = (body.get("api_base") or "").strip()
@@ -215,13 +215,13 @@ async def add_provider(
         _refresh_provider_models(provider_id, config, require_models=not manual_models and not test_model)
 
     _write_runtime_config(config)
-    logger.info("Provider '%s' added by admin", provider_id)
+    logger.info("Provider '%s' added by owner", provider_id)
 
     return _build_provider_response(provider_id, config["providers"][provider_id])
 
 
 # ===================================================================
-# 路由：PUT /api/admin/providers/{provider_id}
+# 路由：PUT /api/owner/providers/{provider_id}
 # ===================================================================
 
 
@@ -229,13 +229,13 @@ async def add_provider(
 async def update_provider(
     provider_id: str,
     body: Dict[str, Any],
-    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
 ) -> Dict[str, Any]:
     """更新 provider 配置。
 
     Body 可选字段: api_key, api_base, api_mode
     """
-    _ = admin
+    _ = owner
 
     config = _read_runtime_config()
     providers = config.get("providers", {})
@@ -296,7 +296,7 @@ async def update_provider(
         _refresh_provider_models(provider_id, config, require_models=False)
     _write_runtime_config(config)
 
-    logger.info("Provider '%s' updated by admin", provider_id)
+    logger.info("Provider '%s' updated by owner", provider_id)
 
     return _build_provider_response(provider_id, providers[provider_id])
 
@@ -358,17 +358,17 @@ def _refresh_provider_models(
 
 
 # ===================================================================
-# 路由：DELETE /api/admin/providers/{provider_id}
+# 路由：DELETE /api/owner/providers/{provider_id}
 # ===================================================================
 
 
 @router.delete("/{provider_id}")
 async def delete_provider(
     provider_id: str,
-    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
 ) -> Dict[str, Any]:
     """删除 provider 配置（仅删除用户配置，内置 profile 保留）。"""
-    _ = admin
+    _ = owner
 
     # 不允许删除 ollama（始终可用）
     if provider_id == "ollama":
@@ -390,27 +390,27 @@ async def delete_provider(
     del config["providers"][provider_id]
     _write_runtime_config(config)
 
-    logger.info("Provider '%s' deleted by admin", provider_id)
+    logger.info("Provider '%s' deleted by owner", provider_id)
 
     return {"detail": f"provider '{provider_id}' 已删除"}
 
 
 # ===================================================================
-# 路由：POST /api/admin/providers/{provider_id}/verify
+# 路由：POST /api/owner/providers/{provider_id}/verify
 # ===================================================================
 
 
 @router.post("/{provider_id}/verify")
 async def verify_provider_endpoint(
     provider_id: str,
-    admin: Dict[str, Any] = Depends(require_admin),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
 ) -> Dict[str, Any]:
     """验证 provider 连通性。
 
     通过 HTTP 请求检查 provider 是否可达和可用。
     返回: {"status": "active"|"inactive"|"unverified", "latency_ms": float|None, "error": str|None}
     """
-    _ = admin
+    _ = owner
 
     config = _read_runtime_config()
     providers = config.get("providers", {})

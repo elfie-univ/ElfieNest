@@ -62,6 +62,9 @@ class ElfieNestEngine:
         self.api_server.register_callback(
             "register_scene", self._on_godot_scene_registered
         )
+        self.api_server.register_callback(
+            "runtime_ready", self._on_godot_runtime_ready
+        )
         self.api_server.register_callback("arrived_at", self._on_godot_elfie_arrived)
         self.api_server.register_callback("user_message", self._on_user_message)
 
@@ -76,6 +79,25 @@ class ElfieNestEngine:
         """Godot 场景握手回调：动态注册家具"""
         furniture = payload.get("furniture", [])
         self.room.register_scene_furniture(furniture)
+
+    def _on_godot_runtime_ready(self, _payload: Dict[str, Any]) -> None:
+        """向刚连接的 Godot Runtime 同步当前 Python 精灵目录。"""
+        self.sync_godot_elfies()
+
+    def sync_godot_elfies(self) -> None:
+        """将当前 Python 房间精灵目录同步给 Godot Runtime。"""
+        self.api_server.send_action(
+            "sync_elfies",
+            {
+                "elfies": [
+                    {
+                        "elfie_id": elfie_id,
+                        "name": getattr(elfie, "name", elfie_id),
+                    }
+                    for elfie_id, elfie in self.room.elfies.items()
+                ]
+            },
+        )
 
     def _on_godot_elfie_arrived(self, payload: Dict[str, Any]):
         """Godot 精灵移动到达回调：锁定物理姿态"""
@@ -217,7 +239,7 @@ class ElfieNestEngine:
                                 },
                             )
 
-                            # 通过鉴权 WS 网关只向该精灵的 owner + 管理员推送
+                            # 通过鉴权 WS 网关只向该精灵的 owner + Owner推送
                             if self.ws_manager:
                                 self.ws_manager.broadcast_to_owners(
                                     elfie_id,

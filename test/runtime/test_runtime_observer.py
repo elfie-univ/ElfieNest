@@ -34,7 +34,7 @@ class FakeSandboxPlugin:
 
 class FakeSkillsPlugin:
     def write_skill(
-        self, filename: str, code: str, admin_token: str | None = None
+        self, filename: str, code: str, owner_token: str | None = None
     ) -> str:
         return "written"
 

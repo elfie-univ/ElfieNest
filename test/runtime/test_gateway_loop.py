@@ -38,7 +38,7 @@ class FakeSkillsPlugin:
     skill_name: str = ""
 
     def write_skill(
-        self, filename: str, code: str, admin_token: str | None = None
+        self, filename: str, code: str, owner_token: str | None = None
     ) -> str:
         self.skill_name = filename
         return "Skill written"

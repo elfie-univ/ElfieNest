@@ -1,5 +1,6 @@
-[gd_scene format=3 uid="uid://baf3fumcv6eip"]
+[gd_scene load_steps=15 format=3 uid="uid://baf3fumcv6eip"]
 
+[ext_resource type="Script" path="res://characters/elfie/elfie_actor.gd" id="15_actor"]
 [ext_resource type="PackedScene" uid="uid://bkargplrv43wa" path="res://characters/elfie/character.fbx" id="1_tsi43"]
 [ext_resource type="AnimationLibrary" uid="uid://r2viypiutigy" path="res://characters/elfie/animation/Twist Dance.fbx" id="2_0hh0d"]
 [ext_resource type="AnimationLibrary" uid="uid://bvqgpfxv15wop" path="res://characters/elfie/animation/idle.fbx" id="3_u1ai1"]
@@ -20,6 +21,7 @@ radius = 0.6
 height = 1.8
 
 [node name="Node3D" type="CharacterBody3D" unique_id=1164168289]
+script = ExtResource("15_actor")
 transform = Transform3D(0.3941986, 0, -0.9190253, 0, 1, 0, 0.9190253, 0, 0.3941986, 0, 0, 0)
 
 [node name="character" parent="." unique_id=1078210509 instance=ExtResource("1_tsi43")]

@@ -1,0 +1,50 @@
+{
+  "name": "elfienest-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ElfieNest 跨平台桌面应用外壳",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "pnpm exec tsc -p tsconfig.json",
+    "dev": "pnpm build && electron .",
+    "package": "pnpm build && electron-builder"
+  },
+  "build": {
+    "appId": "com.elfienest.desktop",
+    "productName": "ElfieNest",
+    "asar": true,
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources",
+        "to": "."
+      }
+    ],
+    "mac": {
+      "target": ["dmg"]
+    },
+    "win": {
+      "target": ["nsis"]
+    },
+    "linux": {
+      "target": ["AppImage"]
+    },
+    "directories": {
+      "output": "out"
+    }
+  },
+  "packageManager": "pnpm@10.12.1",
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "electron": "^37.0.0",
+    "electron-builder": "^26.0.0",
+    "typescript": "^5.8.0"
+  }
+}

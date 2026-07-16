@@ -64,10 +64,6 @@ def owner_recovery_lock(elfie_home: Path) -> Iterator[None]:
         os.close(descriptor)
 
 
-# 旧内部调用点的名称保留；产品入口统一使用 Owner 术语。
-admin_recovery_lock = owner_recovery_lock
-
-
 def service_start_is_blocked(elfie_home: Path) -> bool:
     """检测普通服务启动是否与 Owner 恢复临界区冲突。"""
     try:

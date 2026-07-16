@@ -1,17 +1,17 @@
-"""测试辅助函数 — 直接在数据库中创建测试用户/管理员。
+"""测试辅助函数 — 直接在数据库中创建测试用户/Owner。
 
 使用方式::
 
-    from _helpers import create_test_admin, create_test_user
+    from _helpers import create_test_owner, create_test_user
 
-    admin_id = create_test_admin(db_path)
+    owner_id = create_test_owner(db_path)
     user_id = create_test_user(db_path, "alice", "pass")
 """
 
 from elfienest.persistence.store import get_db, hash_password
 
 
-def create_test_admin(db_path: str, username: str = "admin", password: str = "adminchangeme") -> int:
+def create_test_owner(db_path: str, username: str = "owner", password: str = "ownerchangeme") -> int:
     """直接在数据库中创建测试 Owner，绕过 setup wizard。
 
     Returns:

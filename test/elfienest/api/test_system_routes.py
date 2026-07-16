@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from elfienest.api.app import create_app
 from elfienest.persistence.store import init_db
 
-from ._helpers import create_test_admin
+from ._helpers import create_test_owner
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -39,7 +39,7 @@ def runtime_config_path(tmp_path: Path) -> Path:
 def app(db_path: str, runtime_config_path: Path):
     """创建 FastAPI 应用，mock WS 网关和 system_routes 配置路径。"""
     init_db(db_path)
-    create_test_admin(db_path)
+    create_test_owner(db_path)
 
     with (
         patch("elfienest.api.app.AuthenticatedWSManager.start"),
@@ -49,7 +49,7 @@ def app(db_path: str, runtime_config_path: Path):
             runtime_config_path,
         ),
         patch(
-            "elfienest.api.admin_routes._RUNTIME_CONFIG_PATH",
+            "elfienest.api.owner_routes._RUNTIME_CONFIG_PATH",
             runtime_config_path,
         ),
     ):
@@ -63,10 +63,10 @@ def client(app):
         yield c
 
 
-def _login_admin(client: TestClient) -> dict:
-    """辅助：以 admin 身份登录，返回 token 信息。"""
+def _login_owner(client: TestClient) -> dict:
+    """辅助：以 owner 身份登录，返回 token 信息。"""
     resp = client.post(
-        "/api/auth/login", data={"username": "admin", "password": "adminchangeme"}
+        "/api/auth/login", data={"username": "owner", "password": "ownerchangeme"}
     )
     assert resp.status_code == 200, f"login failed: {resp.text}"
     csrf_token = resp.headers.get("X-CSRF-Token", "")
@@ -85,13 +85,13 @@ def _headers(csrf_token: str) -> dict:
 
 
 class TestGetDefaults:
-    """GET /api/admin/system/{section} 在无文件时返回默认值。"""
+    """GET /api/owner/system/{section} 在无文件时返回默认值。"""
 
     def test_get_llm_defaults(self, client: TestClient) -> None:
         """无文件时 GET llm → 返回系统默认 LLM 配置。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.get(
-            "/api/admin/system/llm", headers=_headers(tokens["csrf_token"])
+            "/api/owner/system/llm", headers=_headers(tokens["csrf_token"])
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -104,9 +104,9 @@ class TestGetDefaults:
 
     def test_get_adoption_defaults(self, client: TestClient) -> None:
         """无文件时 GET adoption → 返回系统默认 adoption 配置。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.get(
-            "/api/admin/system/adoption", headers=_headers(tokens["csrf_token"])
+            "/api/owner/system/adoption", headers=_headers(tokens["csrf_token"])
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -116,9 +116,9 @@ class TestGetDefaults:
 
     def test_get_engine_defaults(self, client: TestClient) -> None:
         """无文件时 GET engine → 返回系统默认 engine 配置。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.get(
-            "/api/admin/system/engine", headers=_headers(tokens["csrf_token"])
+            "/api/owner/system/engine", headers=_headers(tokens["csrf_token"])
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -128,9 +128,9 @@ class TestGetDefaults:
 
     def test_get_security_defaults(self, client: TestClient) -> None:
         """无文件时 GET security → 返回系统默认 security 配置。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.get(
-            "/api/admin/system/security", headers=_headers(tokens["csrf_token"])
+            "/api/owner/system/security", headers=_headers(tokens["csrf_token"])
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -151,10 +151,10 @@ class TestGetWithFile:
         self, client: TestClient, runtime_config_path: Path
     ) -> None:
         """PUT 修改 temperature → GET 返回新值。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         # PUT 修改 temperature
         resp = client.put(
-            "/api/admin/system/llm",
+            "/api/owner/system/llm",
             json={"temperature": 0.3},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -162,7 +162,7 @@ class TestGetWithFile:
 
         # GET 验证合并结果
         resp = client.get(
-            "/api/admin/system/llm", headers=_headers(tokens["csrf_token"])
+            "/api/owner/system/llm", headers=_headers(tokens["csrf_token"])
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -176,13 +176,13 @@ class TestGetWithFile:
 
 
 class TestPutValid:
-    """PUT /api/admin/system/{section} 合法写入。"""
+    """PUT /api/owner/system/{section} 合法写入。"""
 
     def test_put_llm(self, client: TestClient, runtime_config_path: Path) -> None:
         """PUT llm 修改 temperature 和 max_tokens → 200 + 文件持久化。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.put(
-            "/api/admin/system/llm",
+            "/api/owner/system/llm",
             json={"temperature": 0.5, "max_tokens": 2000},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -198,9 +198,9 @@ class TestPutValid:
 
     def test_put_adoption(self, client: TestClient, runtime_config_path: Path) -> None:
         """PUT adoption 修改 max_elfies_per_user → 200 + 文件持久化。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.put(
-            "/api/admin/system/adoption",
+            "/api/owner/system/adoption",
             json={"max_elfies_per_user": 5},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -213,9 +213,9 @@ class TestPutValid:
 
     def test_put_engine(self, client: TestClient, runtime_config_path: Path) -> None:
         """PUT engine 修改 tick_interval_sec → 200。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.put(
-            "/api/admin/system/engine",
+            "/api/owner/system/engine",
             json={"tick_interval_sec": 2.0},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -230,9 +230,9 @@ class TestPutValid:
         self, client: TestClient, runtime_config_path: Path
     ) -> None:
         """PUT engine max_elfies_per_room=null → 200。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.put(
-            "/api/admin/system/engine",
+            "/api/owner/system/engine",
             json={"max_elfies_per_room": None},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -243,9 +243,9 @@ class TestPutValid:
 
     def test_put_security(self, client: TestClient, runtime_config_path: Path) -> None:
         """PUT security 修改 session_ttl_days 和 rate_limit → 200。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.put(
-            "/api/admin/system/security",
+            "/api/owner/system/security",
             json={
                 "session_ttl_days": 1,
                 "rate_limit": {"max_attempts": 3, "window_seconds": 60},
@@ -271,9 +271,9 @@ class TestPutErrors:
 
     def test_unknown_section_404(self, client: TestClient) -> None:
         """未知 section → 404。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.put(
-            "/api/admin/system/unknown_section",
+            "/api/owner/system/unknown_section",
             json={"foo": "bar"},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -281,17 +281,17 @@ class TestPutErrors:
 
     def test_get_unknown_section_404(self, client: TestClient) -> None:
         """GET 未知 section → 404。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.get(
-            "/api/admin/system/none", headers=_headers(tokens["csrf_token"])
+            "/api/owner/system/none", headers=_headers(tokens["csrf_token"])
         )
         assert resp.status_code == 404
 
     def test_unknown_key_422(self, client: TestClient) -> None:
         """PUT 包含未知键 → 422。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.put(
-            "/api/admin/system/llm",
+            "/api/owner/system/llm",
             json={"unknown_key": 123},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -300,9 +300,9 @@ class TestPutErrors:
 
     def test_wrong_type_422(self, client: TestClient) -> None:
         """PUT 字段类型错误 → 422。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.put(
-            "/api/admin/system/llm",
+            "/api/owner/system/llm",
             json={"temperature": "not_a_number"},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -311,9 +311,9 @@ class TestPutErrors:
 
     def test_temperature_range_422(self, client: TestClient) -> None:
         """PUT temperature 超出 0-2 范围 → 422。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.put(
-            "/api/admin/system/llm",
+            "/api/owner/system/llm",
             json={"temperature": 3.0},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -321,9 +321,9 @@ class TestPutErrors:
 
     def test_max_elfies_per_user_lt_1_422(self, client: TestClient) -> None:
         """PUT max_elfies_per_user=0 → 422。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.put(
-            "/api/admin/system/adoption",
+            "/api/owner/system/adoption",
             json={"max_elfies_per_user": 0},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -331,9 +331,9 @@ class TestPutErrors:
 
     def test_max_elfies_per_user_gt_32_422(self, client: TestClient) -> None:
         """单台机器最多培养 32 只精灵。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.put(
-            "/api/admin/system/adoption",
+            "/api/owner/system/adoption",
             json={"max_elfies_per_user": 33},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -341,9 +341,9 @@ class TestPutErrors:
 
     def test_empty_allowed_anatomy_types_422(self, client: TestClient) -> None:
         """至少保留一种可领养形态，避免把领养功能配置成不可用。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.put(
-            "/api/admin/system/adoption",
+            "/api/owner/system/adoption",
             json={"allowed_anatomy_types": []},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -352,9 +352,9 @@ class TestPutErrors:
 
     def test_max_elfies_per_room_gt_32_422(self, client: TestClient) -> None:
         """房间容量不能超过单台机器的 32 只上限。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.put(
-            "/api/admin/system/engine",
+            "/api/owner/system/engine",
             json={"max_elfies_per_room": 33},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -362,9 +362,9 @@ class TestPutErrors:
 
     def test_tick_interval_zero_422(self, client: TestClient) -> None:
         """PUT tick_interval_sec=0 → 422。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.put(
-            "/api/admin/system/engine",
+            "/api/owner/system/engine",
             json={"tick_interval_sec": 0},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -372,9 +372,9 @@ class TestPutErrors:
 
     def test_session_ttl_zero_422(self, client: TestClient) -> None:
         """PUT session_ttl_days=0 → 422。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.put(
-            "/api/admin/system/security",
+            "/api/owner/system/security",
             json={"session_ttl_days": 0},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -389,12 +389,12 @@ class TestPutErrors:
 class TestAuthorization:
     """系统设置端点权限校验。"""
 
-    def test_non_admin_gets_403(self, client: TestClient) -> None:
+    def test_non_owner_gets_403(self, client: TestClient) -> None:
         """普通用户 → 403。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         # 创建普通用户
         resp = client.post(
-            "/api/admin/users",
+            "/api/owner/users",
             json={"username": "alice", "password": "pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -407,12 +407,12 @@ class TestAuthorization:
         alice_csrf = resp.headers.get("X-CSRF-Token", "")
 
         # GET /system/llm
-        resp = client.get("/api/admin/system/llm", headers=_headers(alice_csrf))
+        resp = client.get("/api/owner/system/llm", headers=_headers(alice_csrf))
         assert resp.status_code == 403
 
         # PUT /system/llm
         resp = client.put(
-            "/api/admin/system/llm",
+            "/api/owner/system/llm",
             json={"temperature": 0.5},
             headers=_headers(alice_csrf),
         )
@@ -420,25 +420,25 @@ class TestAuthorization:
 
     def test_unauthenticated_gets_401(self, client: TestClient) -> None:
         """未登录 → 401。"""
-        resp = client.get("/api/admin/system/llm")
+        resp = client.get("/api/owner/system/llm")
         assert resp.status_code == 401
 
 
 # ===================================================================
-# 向后兼容 — 旧的 PUT /api/admin/config 不受影响
+# 向后兼容 — 旧的 PUT /api/owner/config 不受影响
 # ===================================================================
 
 
 class TestBackwardCompat:
-    """旧的 GET/PUT /api/admin/config 端点行为不变。"""
+    """旧的 GET/PUT /api/owner/config 端点行为不变。"""
 
     def test_old_put_config_still_works(
         self, client: TestClient, runtime_config_path: Path
     ) -> None:
-        """PUT /api/admin/config 仍然要求 providers + 200。"""
-        tokens = _login_admin(client)
+        """PUT /api/owner/config 仍然要求 providers + 200。"""
+        tokens = _login_owner(client)
         resp = client.put(
-            "/api/admin/config",
+            "/api/owner/config",
             json={
                 "providers": {
                     "ollama": {"api_base": "http://127.0.0.1:11434"},
@@ -453,10 +453,10 @@ class TestBackwardCompat:
         assert saved["providers"]["ollama"]["api_base"] == "http://127.0.0.1:11434"
 
     def test_old_put_config_missing_providers_400(self, client: TestClient) -> None:
-        """PUT /api/admin/config 缺少 providers → 400（旧行为不变）。"""
-        tokens = _login_admin(client)
+        """PUT /api/owner/config 缺少 providers → 400（旧行为不变）。"""
+        tokens = _login_owner(client)
         resp = client.put(
-            "/api/admin/config",
+            "/api/owner/config",
             json={"temperature": 0.5},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -466,17 +466,17 @@ class TestBackwardCompat:
     def test_old_get_config_returns_file(
         self, client: TestClient, runtime_config_path: Path
     ) -> None:
-        """GET /api/admin/config 返回原始文件内容。"""
-        tokens = _login_admin(client)
+        """GET /api/owner/config 返回原始文件内容。"""
+        tokens = _login_owner(client)
         # 先写入一些 system 数据
         client.put(
-            "/api/admin/system/llm",
+            "/api/owner/system/llm",
             json={"temperature": 0.3},
             headers=_headers(tokens["csrf_token"]),
         )
 
         # GET old config — 包含完整的文件内容
-        resp = client.get("/api/admin/config", headers=_headers(tokens["csrf_token"]))
+        resp = client.get("/api/owner/config", headers=_headers(tokens["csrf_token"]))
         assert resp.status_code == 200
         data = resp.json()
         # 新端点写入的 system 应出现在旧 GET 中

@@ -2,9 +2,9 @@
 
 ## 目标
 
-ElfieNest 正常运行时只启动 Python/FastAPI 服务。浏览器从
-`elfienest/ui/static/godot-web/` 加载已经导出的 Godot Web Runtime，
-不读取 `godot/` 源项目，也不要求运行用户安装 Godot。
+ElfieNest 正常运行时由 Electron Desktop 监督 Python/FastAPI 服务，并在隐藏的
+Chromium BrowserWindow 中加载已经导出的 Godot Web Runtime；不读取 `godot/`
+源项目，也不要求运行用户安装 Godot。
 
 Godot 编辑器和 Export Templates 只属于构建环境：
 
@@ -116,6 +116,14 @@ GODOT_BIN=/path/to/godot4.6 ./elfienest.sh build-godot-web
 ./elfienest.sh start
 ```
 
-`start` 只启动 ElfieNest Web 服务。它不会调用 Godot 编辑器或本机
-Godot App。页面会读取 `/api/godot-web/status`，产物完整时自动加载
-`/static/godot-web/elfienest.html`；产物缺失时显示明确的构建提示。
+打包后的 Desktop 会启动 ElfieNest Core、Ollama，并在 Electron 隐藏的
+BrowserWindow 中加载 Godot Web Runtime。Godot Runtime 是持续存在的精灵巢世界
+实例，负责房间、碰撞、角色移动和状态上报；Web 页面只是观察和控制客户端，
+不负责创建精灵巢。Python Core 不再自行启动 Godot。
+
+普通用户不需要安装 Godot。Godot 编辑器和 Export Templates 只属于
+`./developer.sh build-godot-web` 的开发/构建环境；导出的 WebAssembly 资源由
+Electron/Chromium 承载。
+
+`elfienest/ui/static/godot-web/` 是 Python Core 提供给隐藏 Runtime 的资源，构建
+完成后会同步到 `desktop/resources/godot-web/`，供 Electron 安装包携带。

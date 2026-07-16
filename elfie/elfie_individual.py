@@ -57,7 +57,7 @@ class ElfieIndividual:
         self.amygdala = EmotionSystem()
         self.emotion_decay = EmotionDecayCalculator()
         resolved_memory_db_path = memory_db_path or (
-            str(Path(config_dir) / "graph_memory.db") if config_dir else None
+            str(Path(config_dir) / "graph_memory.db") if config_dir else ":memory:"
         )
         self.memory = MemorySystem(
             db_path=resolved_memory_db_path,

@@ -69,17 +69,17 @@ def test_owner_account_never_returns_recoverable_password(tmp_path: Path) -> Non
     assert not hasattr(account, "password_hash")
 
 
-def test_legacy_admin_is_migrated_to_single_owner(tmp_path: Path) -> None:
+def test_legacy_owner_is_migrated_to_single_owner(tmp_path: Path) -> None:
     # Given
     db_path = tmp_path / "legacy.db"
     with sqlite3.connect(str(db_path)) as connection:
         connection.execute(
             "CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, "
-            "password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('admin', 'user')), "
+            "password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('owner', 'user')), "
             "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
         )
         connection.execute(
-            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'admin')",
+            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'owner')",
             ("legacy-owner", hash_password("legacy-secret")),
         )
 
@@ -111,10 +111,10 @@ def test_legacy_users_without_timestamps_can_migrate(tmp_path: Path) -> None:
     with sqlite3.connect(str(db_path)) as connection:
         connection.execute(
             "CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, "
-            "password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('admin', 'user')))"
+            "password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('owner', 'user')))"
         )
         connection.execute(
-            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'admin')",
+            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'owner')",
             ("legacy-owner", hash_password("legacy-secret")),
         )
 

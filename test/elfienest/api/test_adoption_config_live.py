@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 from elfienest.api.app import create_app
 from elfienest.persistence.store import init_db
 
-from ._helpers import create_test_admin
+from ._helpers import create_test_owner
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -42,7 +42,7 @@ def runtime_config_path(tmp_path: Path) -> Path:
 def app(db_path: str, runtime_config_path: Path):
     """创建 FastAPI 应用，mock WS 网关 + 统一 mock 配置文件路径。"""
     init_db(db_path)
-    create_test_admin(db_path)
+    create_test_owner(db_path)
 
     with (
         patch("elfienest.api.app.AuthenticatedWSManager.start"),
@@ -52,7 +52,7 @@ def app(db_path: str, runtime_config_path: Path):
             runtime_config_path,
         ),
         patch(
-            "elfienest.api.admin_routes._RUNTIME_CONFIG_PATH",
+            "elfienest.api.owner_routes._RUNTIME_CONFIG_PATH",
             runtime_config_path,
         ),
         patch(
@@ -75,11 +75,11 @@ def client(app):
 # ---------------------------------------------------------------------------
 
 
-def _login_admin(client: TestClient) -> dict:
+def _login_owner(client: TestClient) -> dict:
     resp = client.post(
-        "/api/auth/login", data={"username": "admin", "password": "adminchangeme"}
+        "/api/auth/login", data={"username": "owner", "password": "ownerchangeme"}
     )
-    assert resp.status_code == 200, f"admin login failed: {resp.text}"
+    assert resp.status_code == 200, f"owner login failed: {resp.text}"
     csrf_token = resp.headers.get("X-CSRF-Token", "")
     return {
         "csrf_token": csrf_token,
@@ -91,12 +91,12 @@ def _headers(csrf_token: str) -> dict:
 
 
 def _create_user_and_login(client: TestClient, username: str = "alice", password: str = "pass123") -> dict:
-    """Admin 创建用户 → 登录 → 返回 token。"""
-    admin_tokens = _login_admin(client)
+    """Owner 创建用户 → 登录 → 返回 token。"""
+    owner_tokens = _login_owner(client)
     resp = client.post(
-        "/api/admin/users",
+        "/api/owner/users",
         json={"username": username, "password": password, "role": "user"},
-        headers=_headers(admin_tokens["csrf_token"]),
+        headers=_headers(owner_tokens["csrf_token"]),
     )
     assert resp.status_code == 201, f"create user failed: {resp.text}"
 
@@ -119,13 +119,13 @@ class TestMaxElfiesPerUser:
 
     def test_adopt_second_returns_409(self, client: TestClient) -> None:
         """max_elfies_per_user=1 时，第二只领养返回 409。"""
-        admin_tokens = _login_admin(client)
+        owner_tokens = _login_owner(client)
 
         # 设置 max_elfies_per_user = 1
         resp = client.put(
-            "/api/admin/system/adoption",
+            "/api/owner/system/adoption",
             json={"max_elfies_per_user": 1},
-            headers=_headers(admin_tokens["csrf_token"]),
+            headers=_headers(owner_tokens["csrf_token"]),
         )
         assert resp.status_code == 200, resp.text
 
@@ -172,13 +172,13 @@ class TestPersonalityPresetsFilter:
 
     def test_disabled_preset_excluded(self, client: TestClient) -> None:
         """禁用 "安静温顺" → adoption-info 不包含该预设。"""
-        admin_tokens = _login_admin(client)
+        owner_tokens = _login_owner(client)
 
         # 禁用 "安静温顺"
         resp = client.put(
-            "/api/admin/system/adoption",
+            "/api/owner/system/adoption",
             json={"personality_presets_enabled": {"安静温顺": False}},
-            headers=_headers(admin_tokens["csrf_token"]),
+            headers=_headers(owner_tokens["csrf_token"]),
         )
         assert resp.status_code == 200, resp.text
 
@@ -199,12 +199,12 @@ class TestPersonalityPresetsFilter:
 
     def test_disabled_preset_rejected_on_adopt(self, client: TestClient) -> None:
         """禁用 "安静温顺" → 尝试领养该预设 → 400。"""
-        admin_tokens = _login_admin(client)
+        owner_tokens = _login_owner(client)
 
         resp = client.put(
-            "/api/admin/system/adoption",
+            "/api/owner/system/adoption",
             json={"personality_presets_enabled": {"安静温顺": False}},
-            headers=_headers(admin_tokens["csrf_token"]),
+            headers=_headers(owner_tokens["csrf_token"]),
         )
         assert resp.status_code == 200
 
@@ -234,13 +234,13 @@ class TestAnatomyTypesFilter:
 
     def test_quadruped_rejected(self, client: TestClient) -> None:
         """仅允许 biped → 尝试领养 quadruped → 400。"""
-        admin_tokens = _login_admin(client)
+        owner_tokens = _login_owner(client)
 
         # 仅允许 biped
         resp = client.put(
-            "/api/admin/system/adoption",
+            "/api/owner/system/adoption",
             json={"allowed_anatomy_types": ["biped"]},
-            headers=_headers(admin_tokens["csrf_token"]),
+            headers=_headers(owner_tokens["csrf_token"]),
         )
         assert resp.status_code == 200, resp.text
 
@@ -263,12 +263,12 @@ class TestAnatomyTypesFilter:
 
     def test_adoption_info_reflects_filter(self, client: TestClient) -> None:
         """仅允许 biped → adoption-info 只包含 biped。"""
-        admin_tokens = _login_admin(client)
+        owner_tokens = _login_owner(client)
 
         resp = client.put(
-            "/api/admin/system/adoption",
+            "/api/owner/system/adoption",
             json={"allowed_anatomy_types": ["biped"]},
-            headers=_headers(admin_tokens["csrf_token"]),
+            headers=_headers(owner_tokens["csrf_token"]),
         )
         assert resp.status_code == 200
 
@@ -292,11 +292,11 @@ class TestAllPresetsDisabledFallback:
 
     def test_all_disabled_returns_all(self, client: TestClient) -> None:
         """全部禁用 → adoption-info 仍包含全部 6 种预设。"""
-        admin_tokens = _login_admin(client)
+        owner_tokens = _login_owner(client)
 
         # 全部禁用
         resp = client.put(
-            "/api/admin/system/adoption",
+            "/api/owner/system/adoption",
             json={
                 "personality_presets_enabled": {
                     "活泼好动": False,
@@ -307,7 +307,7 @@ class TestAllPresetsDisabledFallback:
                     "完全随机": False,
                 }
             },
-            headers=_headers(admin_tokens["csrf_token"]),
+            headers=_headers(owner_tokens["csrf_token"]),
         )
         assert resp.status_code == 200, resp.text
 

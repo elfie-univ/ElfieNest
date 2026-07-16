@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "application_version": "0.1.0",
+  "components": {
+    "python_core": {
+      "version": "0.1.0",
+      "entry": "python-core/<platform>/ElfieNestCore"
+    },
+    "godot_web_runtime": {
+      "version": "4.6",
+      "entry": "godot-web/elfienest.html"
+    },
+    "ollama": {
+      "version": "pinned-by-release",
+      "entry": "ollama/<platform>/ollama"
+    }
+  },
+  "models": {
+    "default_text": "qwen3.5:0.8b",
+    "default_vision": "moondream"
+  }
+}

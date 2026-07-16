@@ -22,7 +22,7 @@ from elfienest.accounts.auth import (
 from elfienest.persistence.store import get_db, init_db
 from elfienest.persistence.store import hash_password as store_hash
 from elfienest.persistence.store import verify_password as store_verify
-from test.elfienest.api._helpers import create_test_admin
+from test.elfienest.api._helpers import create_test_owner
 
 # ===================================================================
 # 密码哈希
@@ -81,17 +81,17 @@ class TestVerifyPassword:
 # ===================================================================
 
 
-def _ensure_admin_user(db_path: str) -> int:
-    """确保 DB 有 admin 用户，返回其 id。"""
+def _ensure_owner_user(db_path: str) -> int:
+    """确保 DB 有 Owner 用户，返回其 id。"""
     init_db(db_path)
-    return create_test_admin(db_path)
+    return create_test_owner(db_path)
 
 
 class TestCreateSession:
     def test_returns_64_char_hex(self, tmp_path: Path) -> None:
         """create_session 返回 64 字符 hex token。"""
         db = str(tmp_path / "nest.db")
-        uid = _ensure_admin_user(db)
+        uid = _ensure_owner_user(db)
         token = create_session(uid, db)
         assert isinstance(token, str)
         assert len(token) == 64
@@ -100,7 +100,7 @@ class TestCreateSession:
     def test_inserts_into_sessions_table(self, tmp_path: Path) -> None:
         """session 记录在 sessions 表中可查。"""
         db = str(tmp_path / "nest.db")
-        uid = _ensure_admin_user(db)
+        uid = _ensure_owner_user(db)
         token = create_session(uid, db)
 
         with get_db(db) as conn:
@@ -118,25 +118,25 @@ class TestVerifySession:
     def test_valid_session(self, tmp_path: Path) -> None:
         """verify_session 返回用户信息。"""
         db = str(tmp_path / "nest.db")
-        uid = _ensure_admin_user(db)
+        uid = _ensure_owner_user(db)
         token = create_session(uid, db)
 
         user = verify_session(token, db)
         assert user is not None
         assert user["id"] == uid
-        assert user["username"] == "admin"
-        assert user["role"] == "admin"
+        assert user["username"] == "owner"
+        assert user["role"] == "owner"
 
     def test_invalid_token(self, tmp_path: Path) -> None:
         """无效 token 返回 None。"""
         db = str(tmp_path / "nest.db")
-        _ensure_admin_user(db)
+        _ensure_owner_user(db)
         assert verify_session("fake_token_123", db) is None
 
     def test_deleted_session(self, tmp_path: Path) -> None:
         """delete_session 后 verify 返回 None。"""
         db = str(tmp_path / "nest.db")
-        uid = _ensure_admin_user(db)
+        uid = _ensure_owner_user(db)
         token = create_session(uid, db)
 
         delete_session(token, db)
@@ -145,7 +145,7 @@ class TestVerifySession:
     def test_expired_session(self, tmp_path: Path) -> None:
         """手动插入过期 session → verify 返回 None。"""
         db = str(tmp_path / "nest.db")
-        uid = _ensure_admin_user(db)
+        uid = _ensure_owner_user(db)
 
         # 插入已过期的 session
         token = "expired_token_hex_" + "a" * 48
@@ -198,46 +198,46 @@ class TestRateLimiter:
         """5 次以内允许。"""
         limiter = RateLimiter(max_attempts=3, window_seconds=300)
         for _ in range(3):
-            assert limiter.is_limited("1.2.3.4", "admin") is False
-            limiter.record_failure("1.2.3.4", "admin")
+            assert limiter.is_limited("1.2.3.4", "owner") is False
+            limiter.record_failure("1.2.3.4", "owner")
 
     def test_blocks_at_limit(self) -> None:
         """第 6 次（max_attempts+1）不允许。"""
         limiter = RateLimiter(max_attempts=3, window_seconds=300)
         for _ in range(3):
-            limiter.record_failure("1.2.3.4", "admin")
-        assert limiter.is_limited("1.2.3.4", "admin") is True
+            limiter.record_failure("1.2.3.4", "owner")
+        assert limiter.is_limited("1.2.3.4", "owner") is True
 
     def test_clear_resets(self) -> None:
         """clear 后重置计数。"""
         limiter = RateLimiter(max_attempts=2, window_seconds=300)
-        limiter.record_failure("1.2.3.4", "admin")
-        limiter.record_failure("1.2.3.4", "admin")
-        assert limiter.is_limited("1.2.3.4", "admin") is True
-        limiter.clear("1.2.3.4", "admin")
-        assert limiter.is_limited("1.2.3.4", "admin") is False
+        limiter.record_failure("1.2.3.4", "owner")
+        limiter.record_failure("1.2.3.4", "owner")
+        assert limiter.is_limited("1.2.3.4", "owner") is True
+        limiter.clear("1.2.3.4", "owner")
+        assert limiter.is_limited("1.2.3.4", "owner") is False
 
     def test_different_ip_not_affected(self) -> None:
         """不同 IP 不受影响。"""
         limiter = RateLimiter(max_attempts=2, window_seconds=300)
-        limiter.record_failure("1.2.3.4", "admin")
-        limiter.record_failure("1.2.3.4", "admin")
-        assert limiter.is_limited("1.2.3.4", "admin") is True
-        assert limiter.is_limited("5.6.7.8", "admin") is False
+        limiter.record_failure("1.2.3.4", "owner")
+        limiter.record_failure("1.2.3.4", "owner")
+        assert limiter.is_limited("1.2.3.4", "owner") is True
+        assert limiter.is_limited("5.6.7.8", "owner") is False
 
     def test_different_user_not_affected(self) -> None:
         """不同用户名不受影响。"""
         limiter = RateLimiter(max_attempts=2, window_seconds=300)
-        limiter.record_failure("1.2.3.4", "admin")
-        limiter.record_failure("1.2.3.4", "admin")
-        assert limiter.is_limited("1.2.3.4", "admin") is True
+        limiter.record_failure("1.2.3.4", "owner")
+        limiter.record_failure("1.2.3.4", "owner")
+        assert limiter.is_limited("1.2.3.4", "owner") is True
         assert limiter.is_limited("1.2.3.4", "other_user") is False
 
     def test_window_expiry(self) -> None:
         """窗口过期后自动释放。"""
         limiter = RateLimiter(max_attempts=2, window_seconds=0.01)
-        limiter.record_failure("1.2.3.4", "admin")
-        limiter.record_failure("1.2.3.4", "admin")
-        assert limiter.is_limited("1.2.3.4", "admin") is True
+        limiter.record_failure("1.2.3.4", "owner")
+        limiter.record_failure("1.2.3.4", "owner")
+        assert limiter.is_limited("1.2.3.4", "owner") is True
         time.sleep(0.02)
-        assert limiter.is_limited("1.2.3.4", "admin") is False
+        assert limiter.is_limited("1.2.3.4", "owner") is False

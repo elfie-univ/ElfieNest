@@ -1,7 +1,7 @@
 """Auth 核心 — PBKDF2 密码哈希 + session token + 鉴权中间件 + CSRF + 速率限制。
 
 重用了 store.py 中的 hash_password / verify_password 实现。
-FastAPI 依赖（get_current_user / require_admin）仅在对应的函数中按需导入，
+FastAPI 依赖（get_current_user / require_owner）仅在对应的函数中按需导入，
 不在模块顶层强依赖 FastAPI。
 """
 
@@ -181,26 +181,6 @@ def get_current_user(request=None):
     user = verify_session(token)
     if user is None:
         raise HTTPException(status_code=401, detail="会话无效或已过期")
-
-    return user
-
-
-def require_admin(user=None):
-    """FastAPI ``Depends`` 管理员权限校验。
-
-    必须在 ``get_current_user`` 之后链式使用：:
-
-        @router.get("/admin-only")
-        def admin_only(user: dict = Depends(require_admin)):
-            ...
-    """
-    from fastapi import HTTPException  # noqa: PLC0415
-
-    if user is None:
-        raise HTTPException(status_code=401, detail="未登录")
-
-    if user.get("role") not in {"admin", "owner"}:
-        raise HTTPException(status_code=403, detail="需要管理员权限")
 
     return user
 

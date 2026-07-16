@@ -20,17 +20,17 @@ from elfienest.accounts.auth import (
 from elfienest.api.ws_gateway import AuthenticatedWSManager
 from elfienest.persistence.store import get_db, init_db
 
-from ._helpers import create_test_admin
+from ._helpers import create_test_owner
 
 # ===================================================================
 # Helpers
 # ===================================================================
 
 
-def _init_db_with_admin(db_path: str) -> int:
-    """初始化 DB 并创建测试 admin，返回 admin 的 user_id。"""
+def _init_db_with_owner(db_path: str) -> int:
+    """初始化 DB 并创建测试 owner，返回 owner 的 user_id。"""
     init_db(db_path)
-    return create_test_admin(db_path)
+    return create_test_owner(db_path)
 
 
 # ===================================================================
@@ -44,18 +44,18 @@ class TestWsTokenVerification:
     def test_valid_token_returns_user(self, tmp_path: Path) -> None:
         """有效 token → verify_session 返回用户信息（等价于 WS 鉴权成功）。"""
         db = str(tmp_path / "nest.db")
-        uid = _init_db_with_admin(db)
+        uid = _init_db_with_owner(db)
         token = create_session(uid, db)
 
         user = verify_session(token, db)
         assert user is not None
-        assert user["username"] == "admin"
+        assert user["username"] == "owner"
         assert user["role"] == "owner"
 
     def test_invalid_token_returns_none(self, tmp_path: Path) -> None:
         """无效 token → verify_session 返回 None（WS 连接将被关闭）。"""
         db = str(tmp_path / "nest.db")
-        _init_db_with_admin(db)
+        _init_db_with_owner(db)
 
         user = verify_session("fake_token_123", db)
         assert user is None
@@ -63,7 +63,7 @@ class TestWsTokenVerification:
     def test_empty_token_returns_none(self, tmp_path: Path) -> None:
         """空 token → verify_session 返回 None（WS 连接将被关闭）。"""
         db = str(tmp_path / "nest.db")
-        _init_db_with_admin(db)
+        _init_db_with_owner(db)
 
         user = verify_session("", db)
         assert user is None
@@ -71,7 +71,7 @@ class TestWsTokenVerification:
     def test_gateway_rechecks_revoked_session(self, tmp_path: Path) -> None:
         # Given
         db = str(tmp_path / "nest.db")
-        uid = _init_db_with_admin(db)
+        uid = _init_db_with_owner(db)
         token = create_session(uid, db)
         manager = AuthenticatedWSManager(port=0, db_path=db)
 
@@ -164,7 +164,7 @@ class TestWsGatewayInstantiation:
 
     def test_auth_payload_cannot_replace_cookie_session(self, tmp_path: Path) -> None:
         db = str(tmp_path / "nest.db")
-        uid = _init_db_with_admin(db)
+        uid = _init_db_with_owner(db)
         cookie_token = create_session(uid, db)
         manager = AuthenticatedWSManager(port=0, db_path=db)
 
@@ -230,14 +230,14 @@ class TestWsGatewayInstantiation:
 class TestWsGatewayOwnerCheck:
     """_is_elfie_owned_by 权限校验逻辑。"""
 
-    def _setup_admin_with_elfie(self, db_path: str) -> tuple[int, str]:
-        """创建 DB + admin + 一个精灵，返回 (admin_id, elfie_id)。"""
-        uid = _init_db_with_admin(db_path)
-        elfie_id = "e_admin"
+    def _setup_owner_with_elfie(self, db_path: str) -> tuple[int, str]:
+        """创建 DB + owner + 一个精灵，返回 (owner_id, elfie_id)。"""
+        uid = _init_db_with_owner(db_path)
+        elfie_id = "e_owner"
         with get_db(db_path) as conn:
             conn.execute(
                 "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) VALUES (?, ?, ?)",
-                (elfie_id, "admin_elfie", uid),
+                (elfie_id, "owner_elfie", uid),
             )
             conn.commit()
         return uid, elfie_id
@@ -259,7 +259,7 @@ class TestWsGatewayOwnerCheck:
     def test_owner_owns_elfie(self, tmp_path: Path) -> None:
         """owner 用户 → _is_elfie_owned_by 返回 True。"""
         db = str(tmp_path / "nest.db")
-        uid, elfie_id = self._setup_admin_with_elfie(db)
+        uid, elfie_id = self._setup_owner_with_elfie(db)
 
         manager = AuthenticatedWSManager(port=0, db_path=db)
         assert manager._is_elfie_owned_by(elfie_id, uid) is True
@@ -267,16 +267,16 @@ class TestWsGatewayOwnerCheck:
     def test_other_user_does_not_own(self, tmp_path: Path) -> None:
         """非 owner 用户 → _is_elfie_owned_by 返回 False（消息被拒绝）。"""
         db = str(tmp_path / "nest.db")
-        self._setup_admin_with_elfie(db)
+        self._setup_owner_with_elfie(db)
         alice_id = self._setup_alice(db)
 
         manager = AuthenticatedWSManager(port=0, db_path=db)
-        assert manager._is_elfie_owned_by("e_admin", alice_id) is False
+        assert manager._is_elfie_owned_by("e_owner", alice_id) is False
 
     def test_nonexistent_elfie_returns_false(self, tmp_path: Path) -> None:
         """不存在的精灵 → _is_elfie_owned_by 返回 False。"""
         db = str(tmp_path / "nest.db")
-        _init_db_with_admin(db)
+        _init_db_with_owner(db)
 
         manager = AuthenticatedWSManager(port=0, db_path=db)
         assert manager._is_elfie_owned_by("nonexistent", 1) is False
@@ -284,7 +284,7 @@ class TestWsGatewayOwnerCheck:
     def test_get_elfie_owner_returns_owner_id(self, tmp_path: Path) -> None:
         """_get_elfie_owner 返回正确的 owner_user_id。"""
         db = str(tmp_path / "nest.db")
-        uid, elfie_id = self._setup_admin_with_elfie(db)
+        uid, elfie_id = self._setup_owner_with_elfie(db)
 
         manager = AuthenticatedWSManager(port=0, db_path=db)
         assert manager._get_elfie_owner(elfie_id) == uid
@@ -292,7 +292,7 @@ class TestWsGatewayOwnerCheck:
     def test_get_elfie_owner_nonexistent(self, tmp_path: Path) -> None:
         """不存在的精灵 → _get_elfie_owner 返回 None。"""
         db = str(tmp_path / "nest.db")
-        _init_db_with_admin(db)
+        _init_db_with_owner(db)
 
         manager = AuthenticatedWSManager(port=0, db_path=db)
         assert manager._get_elfie_owner("nonexistent") is None

@@ -27,7 +27,7 @@ class SandboxPlugin(Protocol):
 
 class SkillsEvolutionPlugin(Protocol):
     def write_skill(
-        self, filename: str, code: str, admin_token: str | None = None
+        self, filename: str, code: str, owner_token: str | None = None
     ) -> str: ...
 
     def run_skill(self, filename: str, args: str = "") -> ToolData: ...
@@ -62,7 +62,7 @@ class ToolExecutionContext:
     sandbox_plugin: SandboxPlugin
     skills_evolution_plugin: SkillsEvolutionPlugin
     permission_manager: PermissionManager
-    admin_token: str | None = None
+    owner_token: str | None = None
     file_access_plugin: FileAccessPlugin | None = None
 
 
@@ -183,7 +183,7 @@ class ToolExecutor:
         feedback = self.context.skills_evolution_plugin.write_skill(
             normalized_name,
             skill_code.strip(),
-            self.context.admin_token,
+            self.context.owner_token,
         )
         logger.info("已完成技能沉淀拦截与回调。")
         return ToolResult(

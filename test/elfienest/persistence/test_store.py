@@ -1,4 +1,4 @@
-"""测试 store.py — init_db / seed_initial_admin_if_env_set / get_db / count_elfies_by_owner
+"""测试 store.py — init_db / seed_initial_owner_if_env_set / get_db / count_elfies_by_owner
 
 使用 tmp_path 隔离每个测试的 DB 文件。
 """
@@ -16,10 +16,9 @@ from elfienest.persistence.store import (
     count_elfies_by_owner,
     get_db,
     init_db,
-    seed_initial_admin_if_env_set,
     seed_initial_owner_if_env_set,
 )
-from test.elfienest.api._helpers import create_test_admin
+from test.elfienest.api._helpers import create_test_owner
 
 
 def _table_names(db_path: str) -> set[str]:
@@ -82,30 +81,30 @@ class TestInitDb:
         assert "users" in tables
 
 
-class TestSeedInitialAdminIfEnvSet:
-    def test_creates_admin_when_env_set(self, tmp_path: Path) -> None:
-        """环境变量设置时 seed_initial_admin_if_env_set 创建 admin。"""
+class TestSeedInitialOwnerIfEnvSet:
+    def test_creates_owner_when_env_set(self, tmp_path: Path) -> None:
+        """环境变量设置时 seed_initial_owner_if_env_set 创建 owner。"""
         db = str(tmp_path / "nest.db")
         init_db(db)
-        os.environ["ADMIN_USERNAME"] = "testadmin"
-        os.environ["ADMIN_PASSWORD"] = "testpass123"
+        os.environ["OWNER_USERNAME"] = "testowner"
+        os.environ["OWNER_PASSWORD"] = "testpass123"
         try:
-            result = seed_initial_admin_if_env_set(db)
+            result = seed_initial_owner_if_env_set(db)
             assert result is True
         finally:
-            del os.environ["ADMIN_USERNAME"]
-            del os.environ["ADMIN_PASSWORD"]
+            del os.environ["OWNER_USERNAME"]
+            del os.environ["OWNER_PASSWORD"]
 
         conn = sqlite3.connect(db)
         conn.row_factory = sqlite3.Row
         row = conn.execute(
-            "SELECT * FROM users WHERE username = ?", ("testadmin",)
+            "SELECT * FROM users WHERE username = ?", ("testowner",)
         ).fetchone()
         conn.close()
 
         assert row is not None
-        assert row["username"] == "testadmin"
-        assert row["role"] == "admin"
+        assert row["username"] == "testowner"
+        assert row["role"] == "owner"
         pw_hash: str = row["password_hash"]
         assert pw_hash.startswith("pbkdf2_sha256$260000$")
         parts = pw_hash.split("$")
@@ -113,13 +112,11 @@ class TestSeedInitialAdminIfEnvSet:
         assert len(parts[2]) == 32
         assert len(parts[3]) == 64
 
-    def test_legacy_admin_env_seeds_owner_role(self, tmp_path: Path, monkeypatch) -> None:
+    def test_owner_env_seeds_owner_role(self, tmp_path: Path, monkeypatch) -> None:
         db = str(tmp_path / "nest.db")
         init_db(db)
-        monkeypatch.delenv("OWNER_USERNAME", raising=False)
-        monkeypatch.delenv("OWNER_PASSWORD", raising=False)
-        monkeypatch.setenv("ADMIN_USERNAME", "migrated-owner")
-        monkeypatch.setenv("ADMIN_PASSWORD", "testpass123")
+        monkeypatch.setenv("OWNER_USERNAME", "migrated-owner")
+        monkeypatch.setenv("OWNER_PASSWORD", "testpass123")
 
         assert seed_initial_owner_if_env_set(db) is True
         with sqlite3.connect(db) as conn:
@@ -132,34 +129,34 @@ class TestSeedInitialAdminIfEnvSet:
         """环境变量未设置时返回 False。"""
         db = str(tmp_path / "nest.db")
         init_db(db)
-        result = seed_initial_admin_if_env_set(db)
+        result = seed_initial_owner_if_env_set(db)
         assert result is False
 
     def test_returns_false_when_env_partial(self, tmp_path: Path) -> None:
         """部分环境变量设置时返回 False。"""
         db = str(tmp_path / "nest.db")
         init_db(db)
-        os.environ["ADMIN_USERNAME"] = "partial"
+        os.environ["OWNER_USERNAME"] = "partial"
         try:
-            result = seed_initial_admin_if_env_set(db)
+            result = seed_initial_owner_if_env_set(db)
             assert result is False
         finally:
-            del os.environ["ADMIN_USERNAME"]
+            del os.environ["OWNER_USERNAME"]
 
     def test_does_not_reinsert_when_user_exists(self, tmp_path: Path) -> None:
         """用户已存在时不重复插入。"""
         db = str(tmp_path / "nest.db")
         init_db(db)
-        create_test_admin(db, "testadmin", "testpass123")
+        create_test_owner(db, "testowner", "testpass123")
 
-        os.environ["ADMIN_USERNAME"] = "testadmin"
-        os.environ["ADMIN_PASSWORD"] = "testpass123"
+        os.environ["OWNER_USERNAME"] = "testowner"
+        os.environ["OWNER_PASSWORD"] = "testpass123"
         try:
-            result = seed_initial_admin_if_env_set(db)
+            result = seed_initial_owner_if_env_set(db)
             assert result is False
         finally:
-            del os.environ["ADMIN_USERNAME"]
-            del os.environ["ADMIN_PASSWORD"]
+            del os.environ["OWNER_USERNAME"]
+            del os.environ["OWNER_PASSWORD"]
 
         conn = sqlite3.connect(db)
         count = conn.execute("SELECT COUNT(*) AS cnt FROM users").fetchone()[0]
@@ -203,43 +200,43 @@ class TestCountElfiesByOwner:
         """无精灵时返回 0。"""
         db = str(tmp_path / "nest.db")
         init_db(db)
-        admin_id = create_test_admin(db)
+        owner_id = create_test_owner(db)
 
-        assert count_elfies_by_owner(admin_id, db) == 0
+        assert count_elfies_by_owner(owner_id, db) == 0
 
     def test_one(self, tmp_path: Path) -> None:
         """一个精灵时返回 1。"""
         db = str(tmp_path / "nest.db")
         init_db(db)
-        admin_id = create_test_admin(db)
+        owner_id = create_test_owner(db)
 
         with get_db(db) as conn:
             conn.execute(
                 "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) "
                 "VALUES (?, ?, ?)",
-                ("elfie_001", "小白", admin_id),
+                ("elfie_001", "小白", owner_id),
             )
             conn.commit()
 
-        assert count_elfies_by_owner(admin_id, db) == 1
+        assert count_elfies_by_owner(owner_id, db) == 1
 
     def test_two(self, tmp_path: Path) -> None:
         """两个精灵时返回 2。"""
         db = str(tmp_path / "nest.db")
         init_db(db)
-        admin_id = create_test_admin(db)
+        owner_id = create_test_owner(db)
 
         with get_db(db) as conn:
             conn.execute(
                 "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) "
                 "VALUES (?, ?, ?)",
-                ("elfie_001", "小白", admin_id),
+                ("elfie_001", "小白", owner_id),
             )
             conn.execute(
                 "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) "
                 "VALUES (?, ?, ?)",
-                ("elfie_002", "小黑", admin_id),
+                ("elfie_002", "小黑", owner_id),
             )
             conn.commit()
 
-        assert count_elfies_by_owner(admin_id, db) == 2
+        assert count_elfies_by_owner(owner_id, db) == 2

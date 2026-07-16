@@ -13,7 +13,7 @@ from elfienest.operations.service import (
 )
 from elfienest.persistence.store import get_db, init_db
 
-from ..api._helpers import create_test_admin
+from ..api._helpers import create_test_owner
 
 
 def test_default_port_statuses_include_audio_server(monkeypatch) -> None:
@@ -57,12 +57,12 @@ def test_service_port_statuses_uses_custom_http_and_ws_ports(monkeypatch) -> Non
 def test_collect_usage_stats_reads_core_counts(tmp_path: Path) -> None:
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
-    admin_id = create_test_admin(db_path)
+    owner_id = create_test_owner(db_path)
     with get_db(db_path) as conn:
         conn.execute(
             "INSERT INTO elfie_registry (elfie_id, name, owner_user_id, anatomy_type) "
             "VALUES (?, ?, ?, ?)",
-            ("elfie_001", "小白", admin_id, "biped"),
+            ("elfie_001", "小白", owner_id, "biped"),
         )
         conn.commit()
 
@@ -70,7 +70,7 @@ def test_collect_usage_stats_reads_core_counts(tmp_path: Path) -> None:
 
     assert stats.user_count == 1
     assert stats.owner_count == 1
-    assert stats.admin_count == 1
+    assert stats.owner_count == 1
     assert stats.elfie_count == 1
     assert stats.session_count == 0
     assert [(row.anatomy_type, row.count) for row in stats.anatomy_stats] == [
@@ -81,11 +81,11 @@ def test_collect_usage_stats_reads_core_counts(tmp_path: Path) -> None:
 def test_list_active_sessions_uses_expires_at_schema(tmp_path: Path) -> None:
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
-    admin_id = create_test_admin(db_path, "admin")
+    owner_id = create_test_owner(db_path, "owner")
     with get_db(db_path) as conn:
         conn.execute(
             "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
-            ("abcdef123456", admin_id, 12345.0),
+            ("abcdef123456", owner_id, 12345.0),
         )
         conn.commit()
 
@@ -93,14 +93,14 @@ def test_list_active_sessions_uses_expires_at_schema(tmp_path: Path) -> None:
 
     assert len(sessions) == 1
     assert sessions[0].token == "abcdef123456"
-    assert sessions[0].username == "admin"
+    assert sessions[0].username == "owner"
     assert sessions[0].expires_at == 12345.0
 
 
 def test_list_table_counts_reports_existing_tables(tmp_path: Path) -> None:
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
-    create_test_admin(db_path)
+    create_test_owner(db_path)
 
     counts = list_table_counts(db_path)
 

@@ -50,7 +50,7 @@ def generate_text(
     max_tokens: int | None = None,
     allowed_skills: list[str] | None = None,
     max_loops: int = 1,
-    admin_token: str | None = None,
+    owner_token: str | None = None,
 ) -> str:
     target = ensure_model_ready(
         model_key, runtime.registry, runtime.ollama_manager, images, audio
@@ -60,7 +60,7 @@ def generate_text(
     )
     temp = temperature if temperature is not None else runtime.config.temperature
     tokens = max_tokens if max_tokens is not None else runtime.config.max_tokens
-    tool_loop = build_tool_loop(runtime, allowed_skills, admin_token)
+    tool_loop = build_tool_loop(runtime, allowed_skills, owner_token)
     loop_numbers = count(1)
 
     def call_remote(messages_for_loop: list[dict[str, Any]]) -> str:
@@ -91,7 +91,7 @@ def generate_text(
             messages=messages,
             allowed_skills=allowed_skills,
             max_loops=max_loops,
-            admin_token=admin_token,
+            owner_token=owner_token,
             temperature=temp,
             max_tokens=tokens,
         )
@@ -117,7 +117,7 @@ def prepare_messages(
 def build_tool_loop(
     runtime: GenerationRuntime,
     allowed_skills: list[str] | None,
-    admin_token: str | None,
+    owner_token: str | None,
 ) -> RuntimeToolLoop:
     return RuntimeToolLoop(
         ToolLoopContext(
@@ -126,7 +126,7 @@ def build_tool_loop(
             sandbox_plugin=runtime.sandbox_plugin,
             skills_evolution_plugin=runtime.skills_evolution_plugin,
             permission_manager=runtime.permission_manager,
-            admin_token=admin_token,
+            owner_token=owner_token,
             file_access_plugin=runtime.file_access_plugin,
         )
     )
@@ -140,7 +140,7 @@ def generate_with_local_fallback(
     messages: list[dict[str, Any]],
     allowed_skills: list[str] | None,
     max_loops: int,
-    admin_token: str | None,
+    owner_token: str | None,
     temperature: float,
     max_tokens: int,
 ) -> str:
@@ -180,7 +180,7 @@ def generate_with_local_fallback(
     if allowed_skills:
         fallback_messages = inject_skills_system_prompt(fallback_messages, allowed_skills)
 
-    tool_loop = build_tool_loop(runtime, allowed_skills, admin_token)
+    tool_loop = build_tool_loop(runtime, allowed_skills, owner_token)
     loop_numbers = count(1)
 
     def call_local(messages_for_loop: list[dict[str, Any]]) -> str:

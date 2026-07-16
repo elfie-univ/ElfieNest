@@ -5,12 +5,12 @@ from dataclasses import replace
 from typing import Any, Dict, List
 
 from runtime.config import LLMRuntimeConfig
+from runtime.food.bootstrap import build_compatibility_food_catalog
 from runtime.food.elfie_policy import (
     ElfieFoodPolicy,
     load_elfie_food_policy,
     resolve_food_selection,
 )
-from runtime.food.bootstrap import build_compatibility_food_catalog
 from runtime.food.executor import FoodExecutor
 from runtime.food.models import FIXED_FOOD_KINDS
 from runtime.food.store import FoodCatalogStore
@@ -28,9 +28,9 @@ from runtime.providers.ollama import OllamaManager
 from runtime.safety.permissions import PermissionManager
 from runtime.storage.data_home import get_config_path
 from runtime.tools.code import CodeSandboxPlugin
+from runtime.tools.config import enabled_tool_keys, load_tool_configs
 from runtime.tools.local_files import LocalFileAccessPlugin
 from runtime.tools.search import WebSearchPlugin
-from runtime.tools.config import enabled_tool_keys, load_tool_configs
 from runtime.tools.skills_evolution import SkillsSelfEvolutionPlugin
 
 logger = logging.getLogger("runtime.gateway.agent")
@@ -374,7 +374,7 @@ class RuntimeAgent:
         max_tokens: int = None,
         allowed_skills: List[str] = None,
         max_loops: int = 1,
-        admin_token: str = None,
+        owner_token: str = None,
     ) -> str:
         """
         高度可控的多模态大模型 generate 接口
@@ -386,7 +386,7 @@ class RuntimeAgent:
         :param max_tokens: 最大Token限制
         :param allowed_skills: 允许调用的技能列表 (如 ["web_search", "code_sandbox", "skills_evolution"])
         :param max_loops: 多轮推理循环迭代上限
-        :param admin_token: 特权令牌，用于 N3 重构时代谢技能
+        :param owner_token: 特权令牌，用于 N3 重构时代谢技能
         :return: 大模型最终的纯文本响应
         """
         return generate_text(
@@ -399,7 +399,7 @@ class RuntimeAgent:
             max_tokens=max_tokens,
             allowed_skills=allowed_skills,
             max_loops=max_loops,
-            admin_token=admin_token,
+            owner_token=owner_token,
         )
 
     def generate_stream(
@@ -412,7 +412,7 @@ class RuntimeAgent:
         max_tokens: int = None,
         allowed_skills: List[str] = None,
         max_loops: int = 1,
-        admin_token: str = None,
+        owner_token: str = None,
     ):
         """SSE 流式生成 — yield 文本 chunk，流结束后检查 skill tag
 

@@ -9,6 +9,7 @@ import webbrowser
 from pathlib import Path
 from typing import Optional, Sequence
 
+from elfienest.operations import desktop_lifecycle
 from elfienest.operations.service import default_port_statuses, service_port_statuses
 from elfienest.operations.service_lifecycle import start_service, stop_service
 from elfienest.operations.service_lifecycle_helpers import existing_service_command
@@ -43,6 +44,18 @@ def start_background_service(
     command: Optional[Sequence[str]] = None,
 ) -> ServiceLifecycleResult:
     """Start the service once; a verified running process is left untouched."""
+    desktop_executable = desktop_lifecycle.find_desktop_executable(PROJECT_ROOT)
+    if command is None and desktop_executable is not None:
+        result = desktop_lifecycle.start_desktop_application(
+            get_elfie_home(),
+            PROJECT_ROOT,
+            health_checker=_web_is_healthy,
+        )
+        _print_start_result(result)
+        return result
+    if command is None:
+        print("  ⚠️ 未找到打包版 Desktop，当前使用 Python Core 开发调试模式")
+        print("  💡 发布安装包会由 Electron 同时托管 Ollama、Core 和 Godot Web Runtime")
     launch_command = tuple(command) if command is not None else default_service_command()
     try:
         http_port = _validated_http_port(launch_command)
@@ -64,6 +77,13 @@ def start_background_service(
 
 def stop_background_service() -> ServiceLifecycleResult:
     """Stop only the current project's verified service process."""
+    desktop_result = desktop_lifecycle.stop_desktop_application(get_elfie_home())
+    if desktop_result.status != "already_stopped" or desktop_result.pid is not None:
+        if desktop_result.status == "stopped":
+            print("  ✅ Desktop 服务已停止")
+        elif desktop_result.status == "failed":
+            print(f"  ❌ Desktop 服务停止失败: {desktop_result.error}")
+        return desktop_result
     result = stop_service(get_elfie_home(), PROJECT_ROOT)
     if result.status == "stopped":
         print("  ✅ 服务已停止")
@@ -76,6 +96,20 @@ def stop_background_service() -> ServiceLifecycleResult:
 
 def restart_background_service() -> ServiceLifecycleResult:
     """Stop the current process and start it again with its existing arguments."""
+    desktop_was_present = desktop_lifecycle.find_desktop_executable(PROJECT_ROOT) is not None
+    desktop_result = desktop_lifecycle.stop_desktop_application(get_elfie_home())
+    if desktop_was_present and desktop_result.status in {"stopped", "already_stopped"}:
+        result = desktop_lifecycle.start_desktop_application(
+            get_elfie_home(), PROJECT_ROOT, health_checker=_web_is_healthy
+        )
+        if result.status in {"started", "already_running"}:
+            print("  ✅ Desktop 服务已重启")
+        else:
+            print(f"  ❌ Desktop 服务重启失败: {result.error}")
+        return result
+    if desktop_result.status == "failed":
+        print(f"  ❌ Desktop 服务重启失败: {desktop_result.error}")
+        return desktop_result
     stopped = stop_service(get_elfie_home(), PROJECT_ROOT)
     if stopped.status == "failed":
         print(f"  ❌ 无法重启服务: {stopped.error}")
@@ -107,6 +141,11 @@ def show_service_status() -> None:
     print("  📊 服务状态")
     print("  " + "=" * 45)
     print()
+    desktop_pid = desktop_lifecycle.desktop_process_id(get_elfie_home())
+    if desktop_pid is not None:
+        print(f"  ✅ ElfieNest Desktop: 运行中 (PID {desktop_pid})")
+        print()
+        return
     running = existing_service_command(
         get_elfie_home(), PROJECT_ROOT, DefaultProcessInspector()
     )
@@ -125,6 +164,15 @@ def show_service_status() -> None:
 
 def open_web_console() -> ServiceLifecycleResult:
     """Ensure a healthy service and open the Web management console."""
+    if desktop_lifecycle.find_desktop_executable(PROJECT_ROOT) is not None:
+        result = desktop_lifecycle.start_desktop_application(
+            get_elfie_home(), PROJECT_ROOT, health_checker=_web_is_healthy
+        )
+        if result.status not in {"started", "already_running"}:
+            print(f"  ❌ 无法打开 Web 管理台: {result.error}")
+            return result
+        print("  🖥️ 已打开 ElfieNest Desktop 管理台")
+        return result
     running = existing_service_command(
         get_elfie_home(), PROJECT_ROOT, DefaultProcessInspector()
     )

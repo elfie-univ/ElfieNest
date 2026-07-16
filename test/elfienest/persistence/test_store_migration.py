@@ -74,7 +74,7 @@ class TestMigrationV1ToV2:
         )
         conn.execute(
             "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
-            ("admin", "pbkdf2_sha256$260000$ccdd$hash", "admin"),
+            ("owner", "pbkdf2_sha256$260000$ccdd$hash", "owner"),
         )
         conn.commit()
         conn.close()
@@ -96,8 +96,8 @@ class TestMigrationV1ToV2:
         assert rows[0]["avatar_color"] == 0
         assert rows[0]["avatar_kind"] == "initials"
 
-        assert rows[1]["username"] == "admin"
-        assert rows[1]["role"] == "admin"
+        assert rows[1]["username"] == "owner"
+        assert rows[1]["role"] == "owner"
         assert rows[1]["nickname"] is None
 
     def test_column_count(self, tmp_path: Path) -> None:

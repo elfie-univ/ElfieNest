@@ -7,26 +7,26 @@ import pytest
 from elfienest.operations.recovery_lock import (
     RecoveryInProgressError,
     acquire_service_start_lease,
-    admin_recovery_lock,
+    owner_recovery_lock,
     service_start_is_blocked,
 )
 
 
-def test_admin_recovery_lock_blocks_normal_service_start(tmp_path: Path) -> None:
+def test_owner_recovery_lock_blocks_normal_service_start(tmp_path: Path) -> None:
     elfie_home = tmp_path / "home"
 
-    with admin_recovery_lock(elfie_home):
+    with owner_recovery_lock(elfie_home):
         assert service_start_is_blocked(elfie_home) is True
 
     assert service_start_is_blocked(elfie_home) is False
 
 
-def test_admin_recovery_lock_rejects_concurrent_recovery(tmp_path: Path) -> None:
+def test_owner_recovery_lock_rejects_concurrent_recovery(tmp_path: Path) -> None:
     elfie_home = tmp_path / "home"
 
-    with admin_recovery_lock(elfie_home):
+    with owner_recovery_lock(elfie_home):
         with pytest.raises(RecoveryInProgressError):
-            with admin_recovery_lock(elfie_home):
+            with owner_recovery_lock(elfie_home):
                 raise AssertionError("并发恢复不应进入临界区")
 
 
@@ -37,11 +37,11 @@ def test_service_start_lease_blocks_recovery_until_pid_handoff(
     lease = acquire_service_start_lease(elfie_home)
 
     with pytest.raises(RecoveryInProgressError):
-        with admin_recovery_lock(elfie_home):
+        with owner_recovery_lock(elfie_home):
             raise AssertionError("PID 登记前恢复不应进入临界区")
 
     lease.release()
-    with admin_recovery_lock(elfie_home):
+    with owner_recovery_lock(elfie_home):
         assert service_start_is_blocked(elfie_home) is True
 
 

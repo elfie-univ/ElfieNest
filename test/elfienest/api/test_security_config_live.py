@@ -30,7 +30,7 @@ from elfienest.accounts.auth import (
 from elfienest.api.app import create_app
 from elfienest.persistence.store import get_db, init_db
 
-from ._helpers import create_test_admin
+from ._helpers import create_test_owner
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -62,7 +62,7 @@ def runtime_config_path(tmp_path: Path) -> Path:
 def app(db_path: str, runtime_config_path: Path):
     """创建 FastAPI 应用，mock WS 网关和配置路径。"""
     init_db(db_path)
-    create_test_admin(db_path)
+    create_test_owner(db_path)
 
     with (
         patch("elfienest.api.app.AuthenticatedWSManager.start"),
@@ -72,7 +72,7 @@ def app(db_path: str, runtime_config_path: Path):
             runtime_config_path,
         ),
         patch(
-            "elfienest.api.admin_routes._RUNTIME_CONFIG_PATH",
+            "elfienest.api.owner_routes._RUNTIME_CONFIG_PATH",
             runtime_config_path,
         ),
     ):
@@ -91,10 +91,10 @@ def client(app):
 # ---------------------------------------------------------------------------
 
 
-def _login_admin(client: TestClient) -> dict:
-    """以 admin 身份登录，返回 token 信息。"""
+def _login_owner(client: TestClient) -> dict:
+    """以 owner 身份登录，返回 token 信息。"""
     resp = client.post(
-        "/api/auth/login", data={"username": "admin", "password": "adminchangeme"}
+        "/api/auth/login", data={"username": "owner", "password": "ownerchangeme"}
     )
     assert resp.status_code == 200, f"login failed: {resp.text}"
     csrf_token = resp.headers.get("X-CSRF-Token", "")
@@ -133,7 +133,7 @@ class TestSessionTtlLive:
         """create_session 创建的 session expires_at ≈ now + config TTL。"""
         db_path = str(tmp_path / "nest.db")
         init_db(db_path)
-        uid = create_test_admin(db_path)
+        uid = create_test_owner(db_path)
 
         with patch("runtime.config.LLMRuntimeConfig") as MockConfig:
             instance = MockConfig.return_value
@@ -174,7 +174,7 @@ class TestSessionTtlLive:
         """修改 TTL 后，已存在的 session 的过期时间保持不变。"""
         db_path = str(tmp_path / "nest.db")
         init_db(db_path)
-        uid = create_test_admin(db_path)
+        uid = create_test_owner(db_path)
 
         # 先用 7 天 TTL 创建 session
         with patch("runtime.config.LLMRuntimeConfig") as MockConfig:
@@ -236,23 +236,23 @@ class TestRateLimitLive:
             }
 
             limiter = get_rate_limiter()
-            assert not limiter.is_limited("1.2.3.4", "admin")
-            limiter.record_failure("1.2.3.4", "admin")
-            assert not limiter.is_limited("1.2.3.4", "admin")
-            limiter.record_failure("1.2.3.4", "admin")
-            assert limiter.is_limited("1.2.3.4", "admin") is True
+            assert not limiter.is_limited("1.2.3.4", "owner")
+            limiter.record_failure("1.2.3.4", "owner")
+            assert not limiter.is_limited("1.2.3.4", "owner")
+            limiter.record_failure("1.2.3.4", "owner")
+            assert limiter.is_limited("1.2.3.4", "owner") is True
 
     def test_login_endpoint_rate_limit_http(
         self, client: TestClient, runtime_config_path: Path
     ) -> None:
         """HTTP API：PUT max_attempts=2 → 2 次错误密码 → 第 3 次 429。"""
-        admin_tokens = _login_admin(client)
+        owner_tokens = _login_owner(client)
 
         # PUT 写入新限流配置到 runtime_config_path（mock 路径）
         resp = client.put(
-            "/api/admin/system/security",
+            "/api/owner/system/security",
             json={"rate_limit": {"max_attempts": 2, "window_seconds": 300}},
-            headers=_headers(admin_tokens["csrf_token"]),
+            headers=_headers(owner_tokens["csrf_token"]),
         )
         assert resp.status_code == 200
 
@@ -268,18 +268,18 @@ class TestRateLimitLive:
 
             # 连续 3 次错误密码
             resp1 = client.post(
-                "/api/auth/login", data={"username": "admin", "password": "wrong1"}
+                "/api/auth/login", data={"username": "owner", "password": "wrong1"}
             )
             assert resp1.status_code == 401, resp1.text
 
             resp2 = client.post(
-                "/api/auth/login", data={"username": "admin", "password": "wrong2"}
+                "/api/auth/login", data={"username": "owner", "password": "wrong2"}
             )
             assert resp2.status_code == 401, resp2.text
 
             # 第 3 次应被限流
             resp3 = client.post(
-                "/api/auth/login", data={"username": "admin", "password": "wrong3"}
+                "/api/auth/login", data={"username": "owner", "password": "wrong3"}
             )
             assert resp3.status_code == 429, f"expected 429 got {resp3.status_code}: {resp3.text}"
             assert "过于频繁" in resp3.text
@@ -295,9 +295,9 @@ class TestConfigInvalidValues:
 
     def test_session_ttl_days_zero_422(self, client: TestClient) -> None:
         """PUT session_ttl_days=0 → 422。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.put(
-            "/api/admin/system/security",
+            "/api/owner/system/security",
             json={"session_ttl_days": 0},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -305,9 +305,9 @@ class TestConfigInvalidValues:
 
     def test_rate_limit_max_attempts_zero_422(self, client: TestClient) -> None:
         """PUT rate_limit.max_attempts=0 → 422。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.put(
-            "/api/admin/system/security",
+            "/api/owner/system/security",
             json={"rate_limit": {"max_attempts": 0, "window_seconds": 300}},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -315,9 +315,9 @@ class TestConfigInvalidValues:
 
     def test_rate_limit_window_seconds_zero_422(self, client: TestClient) -> None:
         """PUT rate_limit.window_seconds=0 → 422。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.put(
-            "/api/admin/system/security",
+            "/api/owner/system/security",
             json={"rate_limit": {"max_attempts": 5, "window_seconds": 0}},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -325,9 +325,9 @@ class TestConfigInvalidValues:
 
     def test_security_unknown_key_422(self, client: TestClient) -> None:
         """PUT security 未知键 → 422。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.put(
-            "/api/admin/system/security",
+            "/api/owner/system/security",
             json={"unknown_field": "value"},
             headers=_headers(tokens["csrf_token"]),
         )

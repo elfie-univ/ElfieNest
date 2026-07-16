@@ -15,7 +15,7 @@ from runtime.usage.observer import (
 )
 from runtime.usage.token_tracker import TokenTracker
 
-from ._helpers import create_test_admin, create_test_user
+from ._helpers import create_test_owner, create_test_user
 
 
 @pytest.fixture
@@ -104,7 +104,7 @@ def client(
     token_tracker: TokenTracker,
 ):
     init_db(db_path)
-    create_test_admin(db_path)
+    create_test_owner(db_path)
     create_test_user(db_path, "alice", "pass123")
 
     with (
@@ -128,11 +128,11 @@ def _login(client: TestClient, username: str, password: str) -> dict[str, str]:
     return {"csrf_token": response.headers.get("X-CSRF-Token", "")}
 
 
-def test_admin_runtime_status_returns_diagnostic_snapshot(client: TestClient) -> None:
-    tokens = _login(client, "admin", "adminchangeme")
+def test_owner_runtime_status_returns_diagnostic_snapshot(client: TestClient) -> None:
+    tokens = _login(client, "owner", "ownerchangeme")
 
     response = client.get(
-        "/api/admin/runtime/status",
+        "/api/owner/runtime/status",
         headers={"X-CSRF-Token": tokens["csrf_token"]},
     )
 
@@ -152,7 +152,7 @@ def test_admin_runtime_status_returns_diagnostic_snapshot(client: TestClient) ->
     assert payload["notes"]
 
 
-def test_admin_runtime_status_tolerates_malformed_config_fields(
+def test_owner_runtime_status_tolerates_malformed_config_fields(
     client: TestClient,
     runtime_config_path: Path,
 ) -> None:
@@ -165,10 +165,10 @@ def test_admin_runtime_status_tolerates_malformed_config_fields(
         ),
         encoding="utf-8",
     )
-    tokens = _login(client, "admin", "adminchangeme")
+    tokens = _login(client, "owner", "ownerchangeme")
 
     response = client.get(
-        "/api/admin/runtime/status",
+        "/api/owner/runtime/status",
         headers={"X-CSRF-Token": tokens["csrf_token"]},
     )
 
@@ -180,22 +180,22 @@ def test_admin_runtime_status_tolerates_malformed_config_fields(
     assert payload["notes"]
 
 
-def test_non_admin_cannot_read_runtime_status(client: TestClient) -> None:
+def test_non_owner_cannot_read_runtime_status(client: TestClient) -> None:
     tokens = _login(client, "alice", "pass123")
 
     response = client.get(
-        "/api/admin/runtime/status",
+        "/api/owner/runtime/status",
         headers={"X-CSRF-Token": tokens["csrf_token"]},
     )
 
     assert response.status_code == 403
 
 
-def test_admin_runtime_policy_returns_configured_strategy(client: TestClient) -> None:
-    tokens = _login(client, "admin", "adminchangeme")
+def test_owner_runtime_policy_returns_configured_strategy(client: TestClient) -> None:
+    tokens = _login(client, "owner", "ownerchangeme")
 
     response = client.get(
-        "/api/admin/runtime/policy",
+        "/api/owner/runtime/policy",
         headers={"X-CSRF-Token": tokens["csrf_token"]},
     )
 
@@ -205,17 +205,17 @@ def test_admin_runtime_policy_returns_configured_strategy(client: TestClient) ->
     assert payload["model_groups_deprecated"] is True
     assert "focus" in payload["food_keys"]
     assert payload["tool_permissions"]["RUN_SKILL"]["mode"] == "allow"
-    assert payload["tool_permissions"]["DELETE_SKILL"]["mode"] == "admin"
+    assert payload["tool_permissions"]["DELETE_SKILL"]["mode"] == "owner"
 
 
-def test_admin_runtime_policy_put_persists_strategy(
+def test_owner_runtime_policy_put_persists_strategy(
     client: TestClient,
     runtime_config_path: Path,
 ) -> None:
-    tokens = _login(client, "admin", "adminchangeme")
+    tokens = _login(client, "owner", "ownerchangeme")
 
     response = client.put(
-        "/api/admin/runtime/policy",
+        "/api/owner/runtime/policy",
         json={
             "task_routes": {"reasoning": "standard"},
             "tool_permissions": {
@@ -237,11 +237,11 @@ def test_admin_runtime_policy_put_persists_strategy(
     assert saved["runtime_policy"]["task_routes"]["reasoning"] == "standard"
 
 
-def test_admin_runtime_policy_rejects_direct_model_groups(client: TestClient) -> None:
-    tokens = _login(client, "admin", "adminchangeme")
+def test_owner_runtime_policy_rejects_direct_model_groups(client: TestClient) -> None:
+    tokens = _login(client, "owner", "ownerchangeme")
 
     response = client.put(
-        "/api/admin/runtime/policy",
+        "/api/owner/runtime/policy",
         json={
             "model_groups": {
                 "premium": {"model_keys": ["remote_deep"]},
@@ -254,13 +254,13 @@ def test_admin_runtime_policy_rejects_direct_model_groups(client: TestClient) ->
     assert "模型由粮食配方管理" in response.text
 
 
-def test_admin_runtime_policy_rejects_invalid_permission_mode(
+def test_owner_runtime_policy_rejects_invalid_permission_mode(
     client: TestClient,
 ) -> None:
-    tokens = _login(client, "admin", "adminchangeme")
+    tokens = _login(client, "owner", "ownerchangeme")
 
     response = client.put(
-        "/api/admin/runtime/policy",
+        "/api/owner/runtime/policy",
         json={"tool_permissions": {"RUN_SKILL": {"mode": "unknown"}}},
         headers={"X-CSRF-Token": tokens["csrf_token"]},
     )
@@ -268,13 +268,13 @@ def test_admin_runtime_policy_rejects_invalid_permission_mode(
     assert response.status_code == 422
 
 
-def test_admin_runtime_policy_rejects_invalid_task_route(
+def test_owner_runtime_policy_rejects_invalid_task_route(
     client: TestClient,
 ) -> None:
-    tokens = _login(client, "admin", "adminchangeme")
+    tokens = _login(client, "owner", "ownerchangeme")
 
     response = client.put(
-        "/api/admin/runtime/policy",
+        "/api/owner/runtime/policy",
         json={"task_routes": {"unknown": "premium"}},
         headers={"X-CSRF-Token": tokens["csrf_token"]},
     )
@@ -282,11 +282,11 @@ def test_admin_runtime_policy_rejects_invalid_task_route(
     assert response.status_code == 422
 
 
-def test_admin_runtime_audit_returns_recent_events(client: TestClient) -> None:
-    tokens = _login(client, "admin", "adminchangeme")
+def test_owner_runtime_audit_returns_recent_events(client: TestClient) -> None:
+    tokens = _login(client, "owner", "ownerchangeme")
 
     response = client.get(
-        "/api/admin/runtime/audit",
+        "/api/owner/runtime/audit",
         headers={"X-CSRF-Token": tokens["csrf_token"]},
     )
 
@@ -297,15 +297,15 @@ def test_admin_runtime_audit_returns_recent_events(client: TestClient) -> None:
     assert payload["events"][1]["event_type"] == "fallback"
 
 
-def test_non_admin_cannot_read_runtime_policy_or_audit(client: TestClient) -> None:
+def test_non_owner_cannot_read_runtime_policy_or_audit(client: TestClient) -> None:
     tokens = _login(client, "alice", "pass123")
 
     policy_response = client.get(
-        "/api/admin/runtime/policy",
+        "/api/owner/runtime/policy",
         headers={"X-CSRF-Token": tokens["csrf_token"]},
     )
     audit_response = client.get(
-        "/api/admin/runtime/audit",
+        "/api/owner/runtime/audit",
         headers={"X-CSRF-Token": tokens["csrf_token"]},
     )
 

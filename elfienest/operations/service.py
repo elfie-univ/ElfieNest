@@ -36,12 +36,6 @@ class UsageStats:
     session_count: int
     anatomy_stats: List[AnatomyCount]
 
-    @property
-    def admin_count(self) -> int:
-        """兼容旧调用；当前统计语义为 Owner 数。"""
-        return self.owner_count
-
-
 @dataclass(frozen=True)
 class ActiveSession:
     token: str

@@ -15,7 +15,7 @@ from elfienest.api.app import create_app
 from elfienest.persistence.store import init_db
 from runtime.validation.providers import DiscoveredModel
 
-from ._helpers import create_test_admin, create_test_user
+from ._helpers import create_test_owner, create_test_user
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -40,13 +40,13 @@ def runtime_config_path(tmp_path: Path) -> Path:
 def app(db_path: str, runtime_config_path: Path):
     """创建 FastAPI 应用。"""
     init_db(db_path)
-    create_test_admin(db_path)
+    create_test_owner(db_path)
 
     with (
         patch("elfienest.api.app.AuthenticatedWSManager.start"),
         patch("elfienest.api.app.AuthenticatedWSManager.stop"),
         patch("elfienest.api.provider_routes._RUNTIME_CONFIG_PATH", runtime_config_path),
-        patch("elfienest.api.model_admin_routes._RUNTIME_CONFIG_PATH", runtime_config_path),
+        patch("elfienest.api.model_owner_routes._RUNTIME_CONFIG_PATH", runtime_config_path),
     ):
         application = create_app(engine=None, db_path=db_path, ws_port=9876)
         yield application
@@ -59,9 +59,9 @@ def client(app):
         yield c
 
 
-def _login_admin(client: TestClient) -> dict:
-    """Admin 登录。"""
-    resp = client.post("/api/auth/login", data={"username": "admin", "password": "adminchangeme"})
+def _login_owner(client: TestClient) -> dict:
+    """Owner 登录。"""
+    resp = client.post("/api/auth/login", data={"username": "owner", "password": "ownerchangeme"})
     assert resp.status_code == 200
     return {
         "csrf_token": resp.headers.get("X-CSRF-Token", ""),
@@ -91,7 +91,7 @@ class TestProviderRoutes:
     def test_provider_save_can_auto_refresh_model_id_and_display_name(
         self, client: TestClient
     ) -> None:
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         with patch(
             "elfienest.api.provider_routes.discover_provider_models",
             return_value=[
@@ -103,7 +103,7 @@ class TestProviderRoutes:
             ],
         ):
             response = client.post(
-                "/api/admin/providers",
+                "/api/owner/providers",
                 json={
                     "provider_id": "custom_auto",
                     "display_name": "讯飞 Coding Plan",
@@ -122,9 +122,9 @@ class TestProviderRoutes:
         assert response.json()["model_refresh"]["status"] == "updated"
 
     def test_get_providers_returns_list(self, client: TestClient) -> None:
-        """GET /api/admin/providers 返回 provider 列表。"""
-        tokens = _login_admin(client)
-        resp = client.get("/api/admin/providers", headers=_headers(tokens["csrf_token"]))
+        """GET /api/owner/providers 返回 provider 列表。"""
+        tokens = _login_owner(client)
+        resp = client.get("/api/owner/providers", headers=_headers(tokens["csrf_token"]))
         assert resp.status_code == 200
         providers = resp.json()
         assert isinstance(providers, list)
@@ -137,10 +137,10 @@ class TestProviderRoutes:
         assert ollama["status"] == "active"
 
     def test_post_providers_adds_new_provider(self, client: TestClient, runtime_config_path: Path) -> None:
-        """POST /api/admin/providers 添加新 provider。"""
-        tokens = _login_admin(client)
+        """POST /api/owner/providers 添加新 provider。"""
+        tokens = _login_owner(client)
         resp = client.post(
-            "/api/admin/providers",
+            "/api/owner/providers",
             json={
                 "provider_id": "custom_provider",
                 "display_name": "自建模型网关",
@@ -162,12 +162,12 @@ class TestProviderRoutes:
         assert provider["has_api_key"] is True
 
     def test_put_providers_updates_provider(self, client: TestClient, runtime_config_path: Path) -> None:
-        """PUT /api/admin/providers/{id} 更新 provider。"""
-        tokens = _login_admin(client)
+        """PUT /api/owner/providers/{id} 更新 provider。"""
+        tokens = _login_owner(client)
 
         # 先添加一个 provider
         client.post(
-            "/api/admin/providers",
+            "/api/owner/providers",
             json={
                 "provider_id": "test_provider",
                 "api_base": "https://test.com/v1",
@@ -179,7 +179,7 @@ class TestProviderRoutes:
 
         # 更新 api_key
         resp = client.put(
-            "/api/admin/providers/test_provider",
+            "/api/owner/providers/test_provider",
             json={
                 "api_key": "new-key-456",
                 "display_name": "测试供应商",
@@ -196,10 +196,10 @@ class TestProviderRoutes:
         assert provider["has_api_key"] is True
 
     def test_put_builtin_provider_creates_editable_config(self, client: TestClient, runtime_config_path: Path) -> None:
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
 
         resp = client.put(
-            "/api/admin/providers/openai",
+            "/api/owner/providers/openai",
             json={
                 "api_base": "https://gateway.example.com/v1",
                 "api_key": "openai-test-key",
@@ -220,12 +220,12 @@ class TestProviderRoutes:
         assert provider["test_model"] == "gpt-4o-mini"
 
     def test_delete_providers_removes_provider(self, client: TestClient, runtime_config_path: Path) -> None:
-        """DELETE /api/admin/providers/{id} 删除 provider。"""
-        tokens = _login_admin(client)
+        """DELETE /api/owner/providers/{id} 删除 provider。"""
+        tokens = _login_owner(client)
 
         # 添加 provider
         client.post(
-            "/api/admin/providers",
+            "/api/owner/providers",
             json={
                 "provider_id": "to_delete",
                 "api_base": "https://delete.com/v1",
@@ -237,31 +237,31 @@ class TestProviderRoutes:
 
         # 删除
         resp = client.delete(
-            "/api/admin/providers/to_delete",
+            "/api/owner/providers/to_delete",
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 200
 
         # 验证已删除
-        resp = client.get("/api/admin/providers", headers=_headers(tokens["csrf_token"]))
+        resp = client.get("/api/owner/providers", headers=_headers(tokens["csrf_token"]))
         provider_ids = [p["provider_id"] for p in resp.json()]
         assert "to_delete" not in provider_ids
 
     def test_cannot_delete_ollama(self, client: TestClient) -> None:
         """不能删除 ollama provider。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.delete(
-            "/api/admin/providers/ollama",
+            "/api/owner/providers/ollama",
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 400
         assert "ollama" in resp.text.lower()
 
     def test_verify_provider_endpoint(self, client: TestClient) -> None:
-        """POST /api/admin/providers/{id}/verify 验证连通性。"""
-        tokens = _login_admin(client)
+        """POST /api/owner/providers/{id}/verify 验证连通性。"""
+        tokens = _login_owner(client)
         resp = client.post(
-            "/api/admin/providers/ollama/verify",
+            "/api/owner/providers/ollama/verify",
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 200
@@ -270,9 +270,9 @@ class TestProviderRoutes:
         assert result["status"] in ("active", "inactive", "unverified")
 
     def test_verify_custom_provider_uses_saved_openai_compatible_config(self, client: TestClient) -> None:
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         create_resp = client.post(
-            "/api/admin/providers",
+            "/api/owner/providers",
             json={
                 "provider_id": "custom_verify_provider",
                 "api_base": "https://invalid.local/v1",
@@ -285,7 +285,7 @@ class TestProviderRoutes:
         assert create_resp.status_code == 201
 
         resp = client.post(
-            "/api/admin/providers/custom_verify_provider/verify",
+            "/api/owner/providers/custom_verify_provider/verify",
             headers=_headers(tokens["csrf_token"]),
         )
 
@@ -294,25 +294,25 @@ class TestProviderRoutes:
         assert result["status"] in ("inactive", "unverified")
         assert "未知 provider" not in str(result.get("error", ""))
 
-    def test_non_admin_gets_403_on_provider_routes(self, client: TestClient, db_path: str) -> None:
-        """普通用户访问 admin 端点 → 403。"""
+    def test_non_owner_gets_403_on_provider_routes(self, client: TestClient, db_path: str) -> None:
+        """普通用户访问 owner 端点 → 403。"""
         create_test_user(db_path, "alice", "pass123")
         tokens = _login_user(client, "alice", "pass123")
 
-        resp = client.get("/api/admin/providers", headers=_headers(tokens["csrf_token"]))
+        resp = client.get("/api/owner/providers", headers=_headers(tokens["csrf_token"]))
         assert resp.status_code == 403
 
 
 # ===================================================================
-# Model Admin Routes 测试
+# Model Owner Routes 测试
 # ===================================================================
 
 
-class TestModelAdminRoutes:
+class TestModelOwnerRoutes:
     def test_get_models_returns_catalog(self, client: TestClient) -> None:
-        """GET /api/admin/models 返回模型目录。"""
-        tokens = _login_admin(client)
-        resp = client.get("/api/admin/models", headers=_headers(tokens["csrf_token"]))
+        """GET /api/owner/models 返回模型目录。"""
+        tokens = _login_owner(client)
+        resp = client.get("/api/owner/models", headers=_headers(tokens["csrf_token"]))
         assert resp.status_code == 200
         models = resp.json()
         assert isinstance(models, list)
@@ -329,10 +329,10 @@ class TestModelAdminRoutes:
         assert "cost_tier" in model
 
     def test_put_models_updates_visibility(self, client: TestClient, runtime_config_path: Path) -> None:
-        """PUT /api/admin/models/{id} 更新模型可见性。"""
-        tokens = _login_admin(client)
+        """PUT /api/owner/models/{id} 更新模型可见性。"""
+        tokens = _login_owner(client)
         resp = client.put(
-            "/api/admin/models/openai/gpt-4o",
+            "/api/owner/models/openai/gpt-4o",
             json={"visible": False, "cost_tier": 3},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -343,9 +343,9 @@ class TestModelAdminRoutes:
 
     def test_put_models_invalid_cost_tier(self, client: TestClient) -> None:
         """PUT 无效 cost_tier → 422。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.put(
-            "/api/admin/models/openai/gpt-4o",
+            "/api/owner/models/openai/gpt-4o",
             json={"cost_tier": 5},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -353,18 +353,18 @@ class TestModelAdminRoutes:
 
     def test_put_models_nonexistent_model(self, client: TestClient) -> None:
         """PUT 不存在的模型 → 404。"""
-        tokens = _login_admin(client)
+        tokens = _login_owner(client)
         resp = client.put(
-            "/api/admin/models/unknown/model",
+            "/api/owner/models/unknown/model",
             json={"visible": True},
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 404
 
     def test_post_scan_models(self, client: TestClient) -> None:
-        """POST /api/admin/models/scan 扫描新模型。"""
-        tokens = _login_admin(client)
-        resp = client.post("/api/admin/models/scan", headers=_headers(tokens["csrf_token"]))
+        """POST /api/owner/models/scan 扫描新模型。"""
+        tokens = _login_owner(client)
+        resp = client.post("/api/owner/models/scan", headers=_headers(tokens["csrf_token"]))
         assert resp.status_code == 200
         result = resp.json()
         assert "discovered" in result
@@ -540,12 +540,12 @@ class TestRouteRoutes:
 class TestUnauthenticatedAccess:
     def test_provider_routes_require_auth(self, client: TestClient) -> None:
         """未登录访问 provider 端点 → 401。"""
-        resp = client.get("/api/admin/providers")
+        resp = client.get("/api/owner/providers")
         assert resp.status_code == 401
 
     def test_model_routes_require_auth(self, client: TestClient) -> None:
         """未登录访问 model 端点 → 401。"""
-        resp = client.get("/api/admin/models")
+        resp = client.get("/api/owner/models")
         assert resp.status_code == 401
 
     def test_route_routes_require_auth(self, client: TestClient) -> None:

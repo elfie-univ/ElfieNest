@@ -32,3 +32,11 @@ def test_perceive_and_respond_populates_optional_debug_trace():
     assert trace["stages"]["decision"]["attention_mode"] == "CEN"
     assert trace["stages"]["execution"]["action"] == "nod_head"
     assert trace["stages"]["memory_write"]["written"] is True
+
+
+def test_standalone_elfie_uses_in_memory_graph_by_default():
+    # Given / When
+    elfie = ElfieIndividual()
+
+    # Then
+    assert elfie.memory.storage.db_path == ":memory:"

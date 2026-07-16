@@ -133,10 +133,15 @@ exit               # 退出交互式命令行
 
 ## 快速开始
 
-正常运行时，`start`、`serve`、`web` 和 `restart` 只启动 Python/FastAPI。
-浏览器会加载随项目发布的 `elfienest/ui/static/godot-web/`，不会启动
-Godot 编辑器或本机 Godot App。Godot 和 Export Templates 只用于修改资源后
-执行 `build-godot-web`，具体流程见 `godot/WEB_EXPORT.md`。
+发布安装包中，`start`、`web` 和 `restart` 由 ElfieNest Desktop 统一启动
+Ollama、Python Core 和隐藏的 Godot Web Runtime，随后打开 Electron 管理台。
+源码仓库尚未构建 Desktop 时，这些命令会明确回退到 Python Core 开发调试模式；
+此时不会自行启动 Godot。Godot 和 Export Templates 只属于开发者，使用
+`./developer.sh build-godot-web` 构建后随 Desktop 资源发布，具体流程见
+`godot/WEB_EXPORT.md`。
+
+开发者实验工具统一从 `./developer.sh` 进入，包含单精灵实验、Runtime 实验和
+精灵巢模块实验；它们使用独立网址和 `~/.elfienest/developer/` 数据目录。
 
 ### 开发模式
 
