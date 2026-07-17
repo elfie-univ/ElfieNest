@@ -10,12 +10,12 @@ from elfienest.transport.godot_api import GodotAPIServer
 class FakeWebSocket:
     def __init__(self, messages: list[str], origin: str = "") -> None:
         self.request = SimpleNamespace(headers={"Origin": origin})
-        self._messages = iter(messages)
+        self._messages = list(messages)
         self.sent: list[str] = []
         self.closed: list[tuple[int, str]] = []
 
     async def recv(self) -> str:
-        return next(self._messages)
+        return self._messages.pop(0)
 
     async def send(self, message: str) -> None:
         self.sent.append(message)
@@ -27,6 +27,8 @@ class FakeWebSocket:
         return self
 
     async def __anext__(self) -> str:
+        if self._messages:
+            return self._messages.pop(0)
         raise StopAsyncIteration
 
 
@@ -34,7 +36,10 @@ def test_godot_requires_hello_nonce_before_runtime_events() -> None:
     # Given
     server = GodotAPIServer(port=0, handshake_nonce="nonce-1")
     websocket = FakeWebSocket(
-        ['{"event":"hello","payload":{"protocol":1,"nonce":"nonce-1"}}']
+        [
+            '{"event":"hello","payload":{"protocol":1,"nonce":"nonce-1"}}',
+            '{"event":"runtime_ready","payload":{"protocol":1}}',
+        ]
     )
 
     # When

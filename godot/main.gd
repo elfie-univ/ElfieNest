@@ -3,6 +3,7 @@ extends Node3D
 const ACTOR_SCENE := preload("res://characters/elfie/elfie_3d.tscn")
 const GODOT_WS_URL := "ws://127.0.0.1:8765"
 const GODOT_PROTOCOL_VERSION := 1
+const RECONNECT_DELAY_SEC := 1.0
 
 @onready var nest: ModularNest = $Nest
 @onready var characters: Node3D = $Characters
@@ -12,6 +13,8 @@ var _actors: Dictionary = {}
 var _connected := false
 var _handshake_complete := false
 var _handshake_nonce := ""
+var _ws_url := ""
+var _next_reconnect_at := 0.0
 
 
 func add_character(
@@ -30,11 +33,11 @@ func add_character(
 
 
 func _ready() -> void:
-	var ws_url := OS.get_environment("ELFIENEST_GODOT_WS")
-	if ws_url.is_empty():
-		ws_url = GODOT_WS_URL
+	_ws_url = OS.get_environment("ELFIENEST_GODOT_WS")
+	if _ws_url.is_empty():
+		_ws_url = GODOT_WS_URL
 	_handshake_nonce = _resolve_handshake_nonce()
-	_socket.connect_to_url(ws_url)
+	_connect_websocket()
 
 
 func _process(_delta: float) -> void:
@@ -50,6 +53,11 @@ func _process(_delta: float) -> void:
 	if state != WebSocketPeer.STATE_OPEN:
 		_connected = false
 		_handshake_complete = false
+		if state == WebSocketPeer.STATE_CLOSED:
+			var now := Time.get_ticks_msec() / 1000.0
+			if now >= _next_reconnect_at:
+				_next_reconnect_at = now + RECONNECT_DELAY_SEC
+				_connect_websocket()
 		return
 	while _socket.get_available_packet_count() > 0:
 		var packet := _socket.get_packet().get_string_from_utf8()
@@ -148,3 +156,10 @@ func _resolve_handshake_nonce() -> String:
 		if pair.size() == 2 and pair[0] == "nonce":
 			return String(pair[1]).uri_decode()
 	return ""
+
+
+func _connect_websocket() -> void:
+	_socket = WebSocketPeer.new()
+	_connected = false
+	_handshake_complete = false
+	_socket.connect_to_url(_ws_url)

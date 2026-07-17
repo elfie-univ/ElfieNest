@@ -77,6 +77,7 @@ test("supervisor starts components once and returns the same ready snapshot", as
     waitForHttp: async (baseUrl, path) => {
       healthChecks.push(`${baseUrl}${path}`);
     },
+    waitForGodotReady: async (): Promise<void> => undefined,
   });
 
   // When
@@ -129,6 +130,7 @@ test("supervisor stop releases the hidden runtime before managed processes", asy
   const supervisor = new RuntimeSupervisor(createConfig(), {
     spawnProcess: (name) => new FakeProcess(() => events.push(`${name}:stop`)),
     waitForHttp: async (): Promise<void> => undefined,
+    waitForGodotReady: async (): Promise<void> => undefined,
   });
   await supervisor.start(createRuntime(events));
 
@@ -138,4 +140,26 @@ test("supervisor stop releases the hidden runtime before managed processes", asy
   // Then
   assert.deepEqual(events, ["godot:load", "godot:close", "core:stop", "ollama:stop"]);
   assert.equal(supervisor.lifecycleState, "stopped");
+});
+
+test("supervisor does not mark Godot ready before runtime handshake", async () => {
+  // Given
+  const events: string[] = [];
+  const supervisor = new RuntimeSupervisor(createConfig(), {
+    spawnProcess: (name) => new FakeProcess(() => events.push(`${name}:stop`)),
+    waitForHttp: async (): Promise<void> => undefined,
+    waitForGodotReady: async (): Promise<void> => {
+      throw new Error("runtime handshake pending");
+    },
+  });
+
+  // When / Then
+  await assert.rejects(
+    supervisor.start(createRuntime(events)),
+    (error: unknown) =>
+      error instanceof SupervisorError &&
+      error.message === "runtime handshake pending" &&
+      error.component === "godot",
+  );
+  assert.equal(supervisor.status.godot, "stopped");
 });

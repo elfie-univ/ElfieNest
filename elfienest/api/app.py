@@ -221,6 +221,9 @@ def create_app(
             "status": "ok",
             "engine_ready": engine is not None,
             "godot_web_ready": godot_web.ready,
+            "godot_runtime_ready": bool(
+                engine is not None and engine.api_server.runtime_ready
+            ),
         }
 
     @app.get("/api/godot-web/status")
@@ -230,6 +233,7 @@ def create_app(
             "ready": status.ready,
             "entry_url": status.entry_url,
             "missing": list(status.missing),
+            "integrity_errors": list(getattr(status, "integrity_errors", ())),
             "manifest": status.manifest,
         }
 

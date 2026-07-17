@@ -55,6 +55,7 @@ class GodotAPIServer:
         self._thread: Any = None
         self._server: Any = None
         self._running = False
+        self._runtime_ready = False
 
     def register_callback(
         self, event_name: str, callback: Callable[[Dict[str, Any]], None]
@@ -96,6 +97,7 @@ class GodotAPIServer:
             return
 
         self._running = False
+        self._runtime_ready = False
         if self._loop and self._loop.is_running():
             # 优雅在后台线程中关闭 Server 并停止 loop
             asyncio.run_coroutine_threadsafe(self._async_stop(), self._loop)
@@ -206,6 +208,12 @@ class GodotAPIServer:
                     payload = data.get("payload", {})
 
                     if event_name:
+                        if (
+                            event_name == "runtime_ready"
+                            and isinstance(payload, dict)
+                            and payload.get("protocol") == GODOT_PROTOCOL_VERSION
+                        ):
+                            self._runtime_ready = True
                         logger.info(
                             f"📥 [通信网关] 接收到 Godot 事件: {event_name} - {payload}"
                         )
@@ -222,6 +230,13 @@ class GodotAPIServer:
             )
         finally:
             self.clients.discard(websocket)
+            if not self.clients:
+                self._runtime_ready = False
+
+    @property
+    def runtime_ready(self) -> bool:
+        """返回至少一个 Godot 客户端是否完成协议握手和 runtime_ready。"""
+        return self._runtime_ready
 
     def _trigger_callbacks(self, event_name: str, payload: Dict[str, Any]):
         """在主/回调线程中触发注册的回调函数，带有防御性异常处理"""

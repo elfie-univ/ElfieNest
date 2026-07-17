@@ -31,11 +31,13 @@ type ProcessSpawner = (
   options: Readonly<SpawnOptions>,
 ) => ManagedProcess;
 type HealthChecker = (baseUrl: string, path: string) => Promise<void>;
+type RuntimeReadyChecker = (healthUrl: string) => Promise<void>;
 type ProcessStopper = (process: ManagedProcess) => Promise<void>;
 
 export interface SupervisorDependencies {
   readonly spawnProcess?: ProcessSpawner;
   readonly waitForHttp?: HealthChecker;
+  readonly waitForGodotReady?: RuntimeReadyChecker;
   readonly stopProcess?: ProcessStopper;
 }
 
@@ -64,6 +66,7 @@ export class RuntimeSupervisor {
   private godotNonce: string | undefined;
   private readonly spawnProcess: ProcessSpawner;
   private readonly waitForHttp: HealthChecker;
+  private readonly waitForGodotReady: RuntimeReadyChecker;
   private readonly stopProcess: ProcessStopper;
 
   constructor(
@@ -72,6 +75,7 @@ export class RuntimeSupervisor {
   ) {
     this.spawnProcess = dependencies.spawnProcess ?? spawnManagedProcess;
     this.waitForHttp = dependencies.waitForHttp ?? waitForHttp;
+    this.waitForGodotReady = dependencies.waitForGodotReady ?? waitForGodotReady;
     this.stopProcess = dependencies.stopProcess ?? stopManagedProcess;
   }
 
@@ -113,6 +117,7 @@ export class RuntimeSupervisor {
       activeComponent = "godot";
       this.update("godot", "starting");
       await runtime.load(appendNonce(this.config.godotUrl, this.godotNonce));
+      await this.waitForGodotReady(this.config.coreHealthUrl);
       this.update("godot", "ready");
       this.lifecycle = "ready";
       return this.snapshot;
@@ -254,6 +259,70 @@ function waitForHttp(baseUrl: string, path: string): Promise<void> {
           return;
         }
         retry();
+      });
+      request.once("error", retry);
+    };
+    check();
+  });
+}
+
+function waitForGodotReady(healthUrl: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let attempts = 0;
+    let settled = false;
+    let timer: NodeJS.Timeout | undefined;
+    const finish = (error?: Error): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (timer !== undefined) {
+        clearTimeout(timer);
+      }
+      if (error === undefined) {
+        resolve();
+      } else {
+        reject(error);
+      }
+    };
+    const retry = (): void => {
+      if (attempts >= 40) {
+        finish(new Error(`Godot Runtime 握手超时: ${healthUrl}`));
+        return;
+      }
+      timer = setTimeout(check, 250);
+    };
+    const check = (): void => {
+      attempts += 1;
+      const request = get(healthUrl, (response) => {
+        let body = "";
+        response.setEncoding("utf8");
+        response.on("data", (chunk: string) => {
+          body += chunk;
+        });
+        response.once("end", () => {
+          if (response.statusCode !== 200) {
+            retry();
+            return;
+          }
+          try {
+            const payload: unknown = JSON.parse(body);
+            if (
+              typeof payload === "object" &&
+              payload !== null &&
+              "godot_runtime_ready" in payload &&
+              payload.godot_runtime_ready === true
+            ) {
+              finish();
+              return;
+            }
+          } catch (error: unknown) {
+            if (!(error instanceof SyntaxError)) {
+              throw error;
+            }
+          }
+          retry();
+        });
       });
       request.once("error", retry);
     };
