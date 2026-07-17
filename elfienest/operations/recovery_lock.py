@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import atexit
-import fcntl
 import os
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -11,6 +10,11 @@ from pathlib import Path
 from typing import Final, Iterator, Optional
 
 from elfienest.operations.service_process import secure_elfie_home
+
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
 
 LOCK_FILENAME: Final = "owner-recovery.lock"
 MANAGED_START_ENV: Final = "ELFIENEST_MANAGED_START"
@@ -35,7 +39,7 @@ class ServiceStartLease:
         if descriptor is None:
             return
         self._descriptor = None
-        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        _unlock(descriptor)
         os.close(descriptor)
 
 
@@ -45,8 +49,33 @@ def _open_lock(elfie_home: Path) -> int:
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
     descriptor = os.open(elfie_home / LOCK_FILENAME, flags, 0o600)
-    os.fchmod(descriptor, 0o600)
+    if os.name != "nt":
+        os.fchmod(descriptor, 0o600)
+    if os.fstat(descriptor).st_size == 0:
+        os.write(descriptor, b"\0")
+        os.lseek(descriptor, 0, os.SEEK_SET)
     return descriptor
+
+
+def _lock(descriptor: int, *, blocking: bool) -> None:
+    if os.name == "nt":
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        mode = msvcrt.LK_LOCK if blocking else msvcrt.LK_NBLCK
+        try:
+            msvcrt.locking(descriptor, mode, 1)
+        except OSError as error:
+            raise BlockingIOError from error
+        return
+    operation = fcntl.LOCK_EX if blocking else fcntl.LOCK_EX | fcntl.LOCK_NB
+    fcntl.flock(descriptor, operation)
+
+
+def _unlock(descriptor: int) -> None:
+    if os.name == "nt":
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
+        return
+    fcntl.flock(descriptor, fcntl.LOCK_UN)
 
 
 @contextmanager
@@ -55,12 +84,12 @@ def owner_recovery_lock(elfie_home: Path) -> Iterator[None]:
     descriptor = _open_lock(elfie_home)
     try:
         try:
-            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            _lock(descriptor, blocking=False)
         except BlockingIOError as error:
             raise RecoveryInProgressError(elfie_home / LOCK_FILENAME) from error
         yield
     finally:
-        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        _unlock(descriptor)
         os.close(descriptor)
 
 
@@ -80,8 +109,7 @@ def acquire_service_start_lease(
     """串行化服务启动，并持锁到 PID 已登记可被精确停止。"""
     descriptor = _open_lock(elfie_home)
     try:
-        operation = fcntl.LOCK_EX if blocking else fcntl.LOCK_EX | fcntl.LOCK_NB
-        fcntl.flock(descriptor, operation)
+        _lock(descriptor, blocking=blocking)
     except BlockingIOError as error:
         os.close(descriptor)
         raise RecoveryInProgressError(elfie_home / LOCK_FILENAME) from error

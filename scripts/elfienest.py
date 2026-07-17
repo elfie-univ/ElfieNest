@@ -87,7 +87,7 @@ def main() -> None:
     )
 
     serve_parser = subparsers.add_parser(
-        "serve", aliases=["server"], help="前台运行服务并实时显示日志"
+        "serve", help="开发/诊断模式前台运行服务并实时显示日志"
     )
     serve_parser.add_argument("--fallback", action="store_true")
     serve_parser.add_argument("--force", action="store_true")
@@ -127,7 +127,7 @@ def main() -> None:
 def dispatch_command(args: argparse.Namespace) -> None:
     if args.command == "config":
         run_config_tui(login_provider, getattr(args, "config_path", None))
-    elif args.command in {"serve", "server"}:
+    elif args.command == "serve":
         options = _service_options_from_args(args)
         if args.force:
             options += ("--force",)

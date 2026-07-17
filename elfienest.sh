@@ -85,7 +85,7 @@ show_help() {
     echo "  │  命令列表                                               │"
     echo "  └─────────────────────────────────────────────────────────┘"
     echo ""
-    echo "    serve*         前台运行服务并实时显示日志"
+    echo "    serve*         开发/诊断模式前台运行服务并实时显示日志"
     echo "    start*         后台启动服务（已运行时不重复启动）"
     echo "    stop           停止当前服务"
     echo "    restart        强制重启当前服务"
@@ -117,7 +117,7 @@ show_help() {
     echo "  │  使用示例                                               │"
     echo "  └─────────────────────────────────────────────────────────┘"
     echo ""
-    echo "    elfienest> serve --fallback    # 前台服务（内置引擎）"
+    echo "    elfienest> serve --fallback    # 开发诊断前台服务（内置引擎）"
     echo "    elfienest> start               # 后台启动"
     echo "    elfienest> config              # 进入配置中心"
     echo "    elfienest> owner               # Owner 账户菜单"
@@ -139,7 +139,7 @@ interactive_mode() {
         case "$cmd" in
             ""|exit|quit|q) echo ""; echo "  再见！🦊"; echo ""; exit 0 ;;
             help|h|?) show_help ;;
-            serve|server) "$PYTHON_BIN" scripts/serve.py "${args[@]}" ;;
+            serve) "$PYTHON_BIN" scripts/serve.py "${args[@]}" ;;
             build-godot-web) "$SCRIPT_DIR/developer.sh" build-godot-web "${args[@]}" ;;
             developer|dev) "$SCRIPT_DIR/developer.sh" "${args[@]}" ;;
             config|owner|doctor|status|web|stop|restart|start|version|v|setup)
@@ -160,7 +160,7 @@ if [ $# -eq 0 ]; then
 else
     command="$1"
     case "$command" in
-    serve|server)
+    serve)
         shift
         "$PYTHON_BIN" scripts/serve.py "$@"
         ;;
@@ -171,9 +171,6 @@ else
     developer|dev)
         shift
         "$SCRIPT_DIR/developer.sh" "$@"
-        ;;
-    --fallback|--force|--port|--ws-port|--godot-ws-port|--audio-port|--no-seed-elfie|--port=*|--ws-port=*|--godot-ws-port=*|--audio-port=*)
-        "$PYTHON_BIN" scripts/serve.py "$@"
         ;;
     --help|-h)
         show_logo
