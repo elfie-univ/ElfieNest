@@ -172,7 +172,11 @@ def test_default_room_bed_count_endpoint_persists_five_beds(client: TestClient) 
     assert resp.json()["bed_count"] == 5
     assert reloaded_resp.status_code == 200
     assert len(reloaded_resp.json()[0]["beds"]) == 5
-    assert client.get("/api/godot-camera/control").json()["bed_count"] == 5
+    control = client.get(
+        "/api/godot-camera/control",
+        headers={"X-ElfieNest-Godot-Token": client.app.state.godot_camera_token},
+    )
+    assert control.json()["bed_count"] == 5
 
 
 def test_update_bed_count_clamps_to_minimum_four_and_preserves_occupied_beds(

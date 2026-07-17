@@ -64,6 +64,7 @@ export class RuntimeSupervisor {
   private runtime: HiddenRuntime | undefined;
   private lifecycle: SupervisorLifecycleState = "stopped";
   private godotNonce: string | undefined;
+  private godotCameraToken: string | undefined;
   private readonly spawnProcess: ProcessSpawner;
   private readonly waitForHttp: HealthChecker;
   private readonly waitForGodotReady: RuntimeReadyChecker;
@@ -98,6 +99,7 @@ export class RuntimeSupervisor {
     this.lifecycle = "starting";
     this.runtime = runtime;
     this.godotNonce = randomBytes(32).toString("hex");
+    this.godotCameraToken = randomBytes(32).toString("hex");
     let activeComponent: SupervisorComponent = "ollama";
     try {
       if (this.config.manageOllama) {
@@ -116,7 +118,13 @@ export class RuntimeSupervisor {
 
       activeComponent = "godot";
       this.update("godot", "starting");
-      await runtime.load(appendNonce(this.config.godotUrl, this.godotNonce));
+      await runtime.load(
+        appendRuntimeCredentials(
+          this.config.godotUrl,
+          this.godotNonce,
+          this.godotCameraToken,
+        ),
+      );
       await this.waitForGodotReady(this.config.coreHealthUrl);
       this.update("godot", "ready");
       this.lifecycle = "ready";
@@ -138,6 +146,7 @@ export class RuntimeSupervisor {
     this.runtime?.close();
     this.runtime = undefined;
     this.godotNonce = undefined;
+    this.godotCameraToken = undefined;
     const order: readonly ComponentName[] = ["godot", "core", "ollama"];
     for (const name of order) {
       const child = this.processes.get(name);
@@ -168,6 +177,7 @@ export class RuntimeSupervisor {
         OLLAMA_MODELS: `${this.config.dataRoot}/models`,
         ELFIENEST_SUPERVISED: "1",
         ELFIENEST_GODOT_NONCE: this.godotNonce ?? "",
+        ELFIENEST_GODOT_CAMERA_TOKEN: this.godotCameraToken ?? "",
       },
       stdio: "ignore",
       windowsHide: true,
@@ -189,9 +199,14 @@ export class RuntimeSupervisor {
   }
 }
 
-function appendNonce(url: string, nonce: string): string {
+function appendRuntimeCredentials(
+  url: string,
+  nonce: string,
+  cameraToken: string,
+): string {
   const target = new URL(url);
   target.searchParams.set("nonce", nonce);
+  target.searchParams.set("camera_token", cameraToken);
   return target.toString();
 }
 

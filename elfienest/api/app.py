@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 import logging
+import os
+import secrets
 from contextlib import asynccontextmanager
 from typing import (
     Any,
@@ -145,6 +147,10 @@ def create_app(
     app.state.db_path = db_path
     app.state.engine = engine
     app.state.ws_port = ws_port
+    app.state.godot_camera_token = (
+        os.environ.get("ELFIENEST_GODOT_CAMERA_TOKEN")
+        or secrets.token_urlsafe(32)
+    )
     from .camera_routes import CameraFeedStore  # noqa: PLC0415
 
     app.state.camera_feed = CameraFeedStore()
@@ -194,8 +200,14 @@ def create_app(
         if request.method in ("POST", "PUT", "DELETE"):
             path = request.url.path
             csrf_exempt = path in {"/api/auth/login", "/api/auth/setup"}
-            csrf_exempt = csrf_exempt or path.startswith("/api/godot-camera/")
-            if not csrf_exempt:
+            internal_camera_token = (
+                path.startswith("/api/godot-camera/")
+                and secrets.compare_digest(
+                    request.headers.get("X-ElfieNest-Godot-Token", ""),
+                    request.app.state.godot_camera_token,
+                )
+            )
+            if not csrf_exempt and not internal_camera_token:
                 try:
                     verify_csrf_for_session(request)
                 except HTTPException as exc:

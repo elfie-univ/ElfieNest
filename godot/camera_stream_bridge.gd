@@ -17,6 +17,9 @@ var _layout_update_in_progress: bool = false
 var _frame_in_flight: bool = false
 var _control_in_flight: bool = false
 var _status_in_flight: bool = false
+var _camera_token: String = ""
+var _requested_views: Array[int] = []
+var _capture_cursor: int = 0
 
 
 func _ready() -> void:
@@ -27,6 +30,9 @@ func _ready() -> void:
 		var location := JavaScriptBridge.get_interface("location")
 		if location != null:
 			api_base_url = "%s/api/godot-camera" % String(location.origin)
+	_camera_token = OS.get_environment("ELFIENEST_GODOT_CAMERA_TOKEN")
+	if _camera_token.is_empty() and OS.has_feature("web"):
+		_camera_token = _query_parameter("camera_token")
 	_nest = get_node_or_null(nest_path) as ModularNest
 	if _nest == null:
 		push_warning("Camera stream bridge could not find the nest")
@@ -92,6 +98,9 @@ func _capture_frame() -> void:
 		or _nest.observation_view_count() == 0
 	):
 		return
+	var next_view := _next_capture_view()
+	if next_view != _nest.observation_active_view_index():
+		_nest.select_observation_view(next_view)
 	var image := get_viewport().get_texture().get_image()
 	if image == null or image.is_empty():
 		return
@@ -107,7 +116,7 @@ func _capture_frame() -> void:
 	]
 	var error := _frame_request.request_raw(
 		frame_url,
-		PackedStringArray(["Content-Type: image/jpeg"]),
+		_request_headers("Content-Type: image/jpeg"),
 		HTTPClient.METHOD_POST,
 		frame
 	)
@@ -131,7 +140,7 @@ func _publish_status() -> void:
 	})
 	var error := _status_request.request(
 		"%s/status" % api_base_url,
-		PackedStringArray(["Content-Type: application/json"]),
+		_request_headers("Content-Type: application/json"),
 		HTTPClient.METHOD_POST,
 		body
 	)
@@ -141,7 +150,10 @@ func _publish_status() -> void:
 func _poll_control() -> void:
 	if _control_in_flight or not _request_available(_control_request):
 		return
-	var error := _control_request.request("%s/control" % api_base_url)
+	var error := _control_request.request(
+		"%s/control" % api_base_url,
+		_request_headers(),
+	)
 	_control_in_flight = error == OK
 
 
@@ -191,8 +203,44 @@ func _apply_control(payload: Dictionary) -> void:
 		_nest.bed_count = requested_bed_count
 		for _frame in range(4):
 			await get_tree().process_frame
-	var requested_index := int(payload.get("view_index", 0))
+	_requested_views.clear()
+	var raw_views: Variant = payload.get("views", [])
+	if raw_views is Array:
+		for raw_view in raw_views as Array:
+			if raw_view is Dictionary and (raw_view as Dictionary).has("view_index"):
+				_requested_views.append(int((raw_view as Dictionary)["view_index"]))
+	if _requested_views.is_empty():
+		_requested_views.append(int(payload.get("view_index", 0)))
+	var requested_index := _requested_views[0]
 	if requested_index != _nest.observation_active_view_index():
 		_nest.select_observation_view(requested_index)
 	_publish_status()
 	_layout_update_in_progress = false
+
+
+func _next_capture_view() -> int:
+	if _requested_views.is_empty():
+		return _nest.observation_active_view_index()
+	var selected := _requested_views[_capture_cursor % _requested_views.size()]
+	_capture_cursor = (_capture_cursor + 1) % _requested_views.size()
+	return selected
+
+
+func _request_headers(content_type: String = "") -> PackedStringArray:
+	var headers := PackedStringArray()
+	if not content_type.is_empty():
+		headers.append(content_type)
+	if not _camera_token.is_empty():
+		headers.append("X-ElfieNest-Godot-Token: %s" % _camera_token)
+	return headers
+
+
+func _query_parameter(name: String) -> String:
+	var query: Variant = JavaScriptBridge.eval("window.location.search")
+	if not query is String:
+		return ""
+	for part in String(query).trim_prefix("?").split("&"):
+		var pair := part.split("=", true, 1)
+		if pair.size() == 2 and pair[0] == name:
+			return String(pair[1]).uri_decode()
+	return ""

@@ -95,6 +95,33 @@ test("supervisor starts components once and returns the same ready snapshot", as
   assert.deepEqual(events, ["godot:load"]);
 });
 
+test("supervisor passes independent runtime and camera credentials", async () => {
+  // Given
+  let loadedUrl = "";
+  const supervisor = new RuntimeSupervisor(createConfig(), {
+    spawnProcess: () => new FakeProcess(() => undefined),
+    waitForHttp: async (): Promise<void> => undefined,
+    waitForGodotReady: async (): Promise<void> => undefined,
+  });
+
+  // When
+  await supervisor.start({
+    load: async (url: string): Promise<void> => {
+      loadedUrl = url;
+    },
+    close: (): void => undefined,
+  });
+
+  // Then
+  const parsed = new URL(loadedUrl);
+  const nonce = parsed.searchParams.get("nonce");
+  const cameraToken = parsed.searchParams.get("camera_token");
+  assert.ok(nonce);
+  assert.ok(cameraToken);
+  assert.notEqual(nonce, cameraToken);
+  await supervisor.stop();
+});
+
 test("supervisor attributes startup failure and cleans every started process", async () => {
   // Given
   const events: string[] = [];

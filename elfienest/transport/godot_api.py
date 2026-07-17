@@ -10,6 +10,11 @@ from typing import Any, Dict, List, Optional, Set
 import websockets
 import websockets.asyncio.server
 
+from elfienest.transport.godot_protocol import (
+    GODOT_INBOUND_EVENTS,
+    MessageRateLimiter,
+)
+
 logger = logging.getLogger("elfienest.transport.godot_api")
 
 GODOT_PROTOCOL_VERSION = 1
@@ -39,10 +44,14 @@ class GodotAPIServer:
             or os.environ.get("ELFIENEST_GODOT_NONCE", "")
             or secrets.token_urlsafe(32)
         )
-        self.allowed_origins = allowed_origins or {
-            f"http://127.0.0.1:{http_port}",
-            f"http://localhost:{http_port}",
-        }
+        self.allowed_origins = (
+            allowed_origins
+            if allowed_origins is not None
+            else {
+                f"http://127.0.0.1:{http_port}",
+                f"http://localhost:{http_port}",
+            }
+        )
 
         # 所有的活跃客户端连接
         self.clients: Set[Any] = set()
@@ -56,6 +65,7 @@ class GodotAPIServer:
         self._server: Any = None
         self._running = False
         self._runtime_ready = False
+        self._ready_clients: Set[Any] = set()
 
     def register_callback(
         self, event_name: str, callback: Callable[[Dict[str, Any]], None]
@@ -155,7 +165,7 @@ class GodotAPIServer:
         request = getattr(websocket, "request", None)
         headers = getattr(request, "headers", {})
         origin = headers.get("Origin", "")
-        if origin and origin not in self.allowed_origins:
+        if origin not in self.allowed_origins:
             await websocket.close(4005, "Origin not allowed")
             return
 
@@ -190,6 +200,7 @@ class GodotAPIServer:
             return
 
         self.clients.add(websocket)
+        limiter = MessageRateLimiter()
         await websocket.send(
             json.dumps(
                 {
@@ -202,26 +213,33 @@ class GodotAPIServer:
 
         try:
             async for message in websocket:
+                if not limiter.allow():
+                    await websocket.close(4029, "Message rate limit exceeded")
+                    return
                 try:
                     data = json.loads(message)
+                    if not isinstance(data, dict):
+                        await websocket.close(4002, "Invalid JSON object")
+                        return
                     event_name = data.get("event")
                     payload = data.get("payload", {})
 
-                    if event_name:
-                        if (
-                            event_name == "runtime_ready"
-                            and isinstance(payload, dict)
-                            and payload.get("protocol") == GODOT_PROTOCOL_VERSION
-                        ):
-                            self._runtime_ready = True
-                        logger.info(
-                            f"📥 [通信网关] 接收到 Godot 事件: {event_name} - {payload}"
-                        )
-                        self._trigger_callbacks(event_name, payload)
-                    else:
-                        logger.warning(
-                            f"⚠️ [通信网关] 收到无 event 标签的非法消息: {message}"
-                        )
+                    if event_name not in GODOT_INBOUND_EVENTS:
+                        await websocket.close(4006, "Event not allowed")
+                        return
+                    if not isinstance(payload, dict):
+                        await websocket.close(4004, "Invalid event payload")
+                        return
+                    if (
+                        event_name == "runtime_ready"
+                        and payload.get("protocol") == GODOT_PROTOCOL_VERSION
+                    ):
+                        self._ready_clients.add(websocket)
+                        self._runtime_ready = True
+                    logger.info(
+                        f"📥 [通信网关] 接收到 Godot 事件: {event_name} - {payload}"
+                    )
+                    self._trigger_callbacks(event_name, payload)
                 except json.JSONDecodeError:
                     logger.error(f"❌ [通信网关] 消息解析 JSON 失败: {message}")
         except websockets.exceptions.ConnectionClosed as e:
@@ -230,8 +248,8 @@ class GodotAPIServer:
             )
         finally:
             self.clients.discard(websocket)
-            if not self.clients:
-                self._runtime_ready = False
+            self._ready_clients.discard(websocket)
+            self._runtime_ready = bool(self._ready_clients)
 
     @property
     def runtime_ready(self) -> bool:
