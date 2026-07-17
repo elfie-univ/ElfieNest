@@ -8,6 +8,10 @@ from typing import Final
 CURRENT_SCHEMA_VERSION: Final[int] = 5
 
 
+class OwnerSchemaMigrationError(RuntimeError):
+    """数据库包含不支持的 Owner 角色状态，必须人工确认后迁移。"""
+
+
 def initialize_schema(connection: sqlite3.Connection) -> None:
     """Create all tables and apply every known migration."""
     connection.execute(
@@ -25,6 +29,11 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
         )
         """
     )
+
+    version = int(connection.execute("PRAGMA user_version").fetchone()[0])
+    if version < 5:
+        _validate_owner_roles(connection)
+
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS sessions (
@@ -56,7 +65,6 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
         """
     )
 
-    version = int(connection.execute("PRAGMA user_version").fetchone()[0])
     if version < 1:
         connection.execute("PRAGMA user_version = 1")
     if version < 2:
@@ -72,8 +80,12 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
 
 def migrate_schema(connection: sqlite3.Connection) -> None:
     """Apply pending migrations to an already opened database connection."""
-    initialize_schema(connection)
-    connection.commit()
+    try:
+        initialize_schema(connection)
+        connection.commit()
+    except (OwnerSchemaMigrationError, sqlite3.Error):
+        connection.rollback()
+        raise
 
 
 def _migrate_v1_to_v2(connection: sqlite3.Connection) -> None:
@@ -151,6 +163,7 @@ def _migrate_v3_to_v4(connection: sqlite3.Connection) -> None:
 
 def _migrate_v4_to_v5(connection: sqlite3.Connection) -> None:
     columns = _table_columns(connection, "users")
+    _validate_owner_roles(connection)
     sql = str(
         connection.execute(
             "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'"
@@ -162,21 +175,32 @@ def _migrate_v4_to_v5(connection: sqlite3.Connection) -> None:
     connection.execute(
         "UPDATE users SET updated_at = created_at WHERE updated_at IS NULL"
     )
-    # Any pre-release privileged role is normalized to the single Owner role.
-    connection.execute(
-        "UPDATE users SET role = 'owner' WHERE role NOT IN ('owner', 'user')"
-    )
-    owner = connection.execute(
-        "SELECT id FROM users WHERE role = 'owner' ORDER BY id LIMIT 1"
-    ).fetchone()
-    if owner is not None:
-        connection.execute(
-            "UPDATE users SET role = 'user', updated_at = CURRENT_TIMESTAMP "
-            "WHERE role = 'owner' AND id != ?",
-            (owner[0],),
-        )
     _ensure_owner_index(connection)
     connection.execute("PRAGMA user_version = 5")
+
+
+def _validate_owner_roles(connection: sqlite3.Connection) -> None:
+    """在任何 schema 写入前拒绝未知角色或多个 Owner。"""
+    invalid_roles = tuple(
+        str(row[0])
+        for row in connection.execute(
+            "SELECT DISTINCT role FROM users "
+            "WHERE role IS NULL OR role NOT IN ('owner', 'user')"
+        ).fetchall()
+    )
+    if invalid_roles:
+        raise OwnerSchemaMigrationError(
+            "发现不支持的用户角色: " + ", ".join(invalid_roles)
+        )
+    owner_count = int(
+        connection.execute(
+            "SELECT COUNT(*) FROM users WHERE role = 'owner'"
+        ).fetchone()[0]
+    )
+    if owner_count > 1:
+        raise OwnerSchemaMigrationError(
+            f"数据库包含 {owner_count} 个 Owner；请先人工确认保留的 Owner"
+        )
 
 
 def _rebuild_users_table(
@@ -205,11 +229,7 @@ def _rebuild_users_table(
     source = []
     for column in target:
         if column in existing_columns:
-            source.append(
-                "CASE WHEN role = 'user' THEN 'user' ELSE 'owner' END"
-                if column == "role"
-                else column
-            )
+            source.append(column)
         elif column == "updated_at":
             source.append("created_at" if "created_at" in existing_columns else "CURRENT_TIMESTAMP")
         else:

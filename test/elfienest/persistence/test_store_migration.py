@@ -11,6 +11,9 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+import pytest
+
+from elfienest.persistence.schema import OwnerSchemaMigrationError
 from elfienest.persistence.store import init_db, migrate_db_if_needed
 
 
@@ -32,6 +35,80 @@ def _table_info_columns(db_path: str, table: str = "users") -> list[str]:
 
 
 class TestMigrationV1ToV2:
+    def test_unknown_role_requires_explicit_migration(self, tmp_path: Path) -> None:
+        """未知角色不得被静默改成 Owner 或 user。"""
+        db = str(tmp_path / "legacy.db")
+        conn = sqlite3.connect(db)
+        conn.execute(
+            """
+            CREATE TABLE users (
+                id INTEGER PRIMARY KEY,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                role TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.execute(
+            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
+            ("legacy-admin", "hash", "admin"),
+        )
+        conn.execute("PRAGMA user_version = 4")
+        conn.commit()
+        conn.close()
+
+        with pytest.raises(OwnerSchemaMigrationError, match="admin") as error_info:
+            migrate_db_if_needed(db)
+
+        backup_paths = tuple(tmp_path.glob("legacy.db.migration-backup.*"))
+        assert len(backup_paths) == 1
+        assert "原数据库备份已保留" in str(error_info.value)
+        assert backup_paths[0].read_bytes() == Path(db).read_bytes()
+
+        conn = sqlite3.connect(db)
+        assert conn.execute("SELECT role FROM users").fetchone()[0] == "admin"
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 4
+        assert conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sessions'"
+        ).fetchone() is None
+        conn.close()
+
+    def test_multiple_owners_require_explicit_migration(self, tmp_path: Path) -> None:
+        """多个 Owner 不得被静默降级，迁移失败时保留原 schema。"""
+        db = str(tmp_path / "multiple-owners.db")
+        conn = sqlite3.connect(db)
+        conn.execute(
+            """
+            CREATE TABLE users (
+                id INTEGER PRIMARY KEY,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                role TEXT NOT NULL CHECK(role IN ('owner', 'user')),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.executemany(
+            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'owner')",
+            [("owner-one", "hash-1"), ("owner-two", "hash-2")],
+        )
+        conn.execute("PRAGMA user_version = 4")
+        conn.commit()
+        conn.close()
+
+        with pytest.raises(OwnerSchemaMigrationError, match="2 个 Owner"):
+            migrate_db_if_needed(db)
+
+        conn = sqlite3.connect(db)
+        assert conn.execute("SELECT COUNT(*) FROM users WHERE role = 'owner'").fetchone()[0] == 2
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 4
+        assert "updated_at" not in _table_info_columns(db)
+        assert conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sessions'"
+        ).fetchone() is None
+        conn.close()
+
     def test_adds_profile_columns(self, tmp_path: Path) -> None:
         """迁移后 users 表包含 nickname / avatar_color / avatar_kind 三列。"""
         db = str(tmp_path / "nest.db")

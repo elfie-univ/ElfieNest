@@ -8,12 +8,19 @@ import hashlib
 import logging
 import os
 import secrets
+import shutil
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator, Optional
 
-from elfienest.persistence.schema import initialize_schema, migrate_schema
+from elfienest.persistence.schema import (
+    CURRENT_SCHEMA_VERSION,
+    OwnerSchemaMigrationError,
+    initialize_schema,
+    migrate_schema,
+)
 from runtime.storage.data_home import get_db_path as _get_db_path
 
 logger = logging.getLogger("elfienest.persistence.store")
@@ -115,8 +122,35 @@ def migrate_db_if_needed(db_path: Optional[str] = None) -> None:
     """检查并执行必要的数据库迁移。使用 PRAGMA user_version 跟踪版本。"""
     if db_path is None:
         db_path = str(_get_db_path())
-    with get_db(db_path) as conn:
-        migrate_schema(conn)
+    backup_path = _backup_before_migration(db_path)
+    try:
+        with get_db(db_path) as conn:
+            migrate_schema(conn)
+    except OwnerSchemaMigrationError as error:
+        if backup_path is None:
+            raise
+        raise OwnerSchemaMigrationError(
+            f"{error}；原数据库备份已保留: {backup_path}"
+        ) from error
+
+
+def _backup_before_migration(db_path: str) -> Optional[Path]:
+    """为落后版本创建同目录备份，避免迁移失败后无法恢复。"""
+    if db_path == ":memory:":
+        return None
+    database_path = Path(db_path).expanduser().resolve()
+    if not database_path.is_file():
+        return None
+    with sqlite3.connect(str(database_path)) as connection:
+        version = int(connection.execute("PRAGMA user_version").fetchone()[0])
+    if version >= CURRENT_SCHEMA_VERSION:
+        return None
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    backup_path = database_path.with_name(
+        f"{database_path.name}.migration-backup.{timestamp}"
+    )
+    shutil.copy2(str(database_path), str(backup_path))
+    return backup_path
 
 
 def seed_initial_owner_if_env_set(

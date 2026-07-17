@@ -1,5 +1,5 @@
-import logging
 import json
+import logging
 import os
 import shutil
 import subprocess
@@ -53,6 +53,11 @@ class OllamaManager:
         """
         if self.check_health():
             return True
+
+        if os.environ.get("ELFIENEST_SUPERVISED") == "1":
+            raise OllamaNotReadyError(
+                "❌ Ollama 未就绪；当前由 Electron supervisor 托管，Core 不会自行启动 Ollama。"
+            )
 
         logger.warning("🔌 本地 Ollama 算力端口未响应！尝试进行自愈式拉起...")
 

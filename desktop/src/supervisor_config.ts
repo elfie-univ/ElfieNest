@@ -31,8 +31,9 @@ export function resolveSupervisorConfig(
   resourcesPath: string,
   projectRoot: string,
   platform: NodeJS.Platform,
+  userDataRoot: string = join(projectRoot, ".elfienest"),
 ): SupervisorConfig {
-  const dataRoot = environmentValue(environment, "ELFIE_HOME", join(projectRoot, ".elfienest"));
+  const dataRoot = environmentValue(environment, "ELFIE_HOME", userDataRoot);
   const uiUrl = environmentValue(environment, "ELFIENEST_UI_URL", "http://127.0.0.1:8000/");
   const godotUrl = environmentValue(
     environment,
@@ -47,6 +48,7 @@ export function resolveSupervisorConfig(
   );
   const packagedOllama = join(resourcesPath, "ollama", platform, platformExecutable(platform, "ollama"));
   const packagedCore = join(resourcesPath, "python-core", platform, platformExecutable(platform, "ElfieNestCore"));
+  const packagedCoreAvailable = existsSync(packagedCore);
   const developmentPython = join(
     projectRoot,
     platform === "win32" ? ".venv\\Scripts\\python.exe" : ".venv/bin/python3",
@@ -54,7 +56,7 @@ export function resolveSupervisorConfig(
   const coreExecutable = environmentValue(
     environment,
     "ELFIENEST_CORE_BIN",
-    existsSync(packagedCore) ? packagedCore : developmentPython,
+    packagedCoreAvailable ? packagedCore : developmentPython,
   );
   const coreArgs = basename(coreExecutable).startsWith("ElfieNestCore") ? [] : ["scripts/serve.py"];
   return {
@@ -67,7 +69,11 @@ export function resolveSupervisorConfig(
     coreExecutable,
     coreArgs,
     resourcesPath,
-    coreWorkingDirectory: environmentValue(environment, "ELFIENEST_CORE_CWD", projectRoot),
+    coreWorkingDirectory: environmentValue(
+      environment,
+      "ELFIENEST_CORE_CWD",
+      packagedCoreAvailable ? dataRoot : projectRoot,
+    ),
     manageOllama: environment["ELFIENEST_OLLAMA_EXTERNAL"] !== "1",
   };
 }

@@ -7,6 +7,7 @@
   "main": "dist/main.js",
   "scripts": {
     "build": "pnpm exec tsc -p tsconfig.json",
+    "test": "pnpm build && node --test dist/supervisor.test.js",
     "dev": "pnpm build && electron .",
     "package": "pnpm build && electron-builder"
   },

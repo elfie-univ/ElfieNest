@@ -1,10 +1,11 @@
 import { app, BrowserWindow } from "electron";
 
-import { RuntimeSupervisor, type HiddenRuntime } from "./supervisor";
-import { resolveSupervisorConfig } from "./supervisor_config";
+import { RuntimeSupervisor, type HiddenRuntime } from "./supervisor.js";
+import { resolveSupervisorConfig } from "./supervisor_config.js";
 
 let supervisor: RuntimeSupervisor | undefined;
 let stopping = false;
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
 function createMainWindow(uiUrl: string): BrowserWindow {
   const window = new BrowserWindow({
@@ -48,17 +49,32 @@ async function startDesktop(): Promise<void> {
     process.resourcesPath,
     app.getAppPath(),
     process.platform,
+    app.getPath("userData"),
   );
   supervisor = new RuntimeSupervisor(config);
   await supervisor.start(createHiddenGodotRuntime());
   createMainWindow(config.uiUrl);
 }
 
-void app.whenReady().then(() => startDesktop()).catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : "未知错误";
-  console.error("ElfieNest Desktop 启动失败", message);
+if (!hasSingleInstanceLock) {
   app.quit();
-});
+} else {
+  app.on("second-instance", () => {
+    const window = BrowserWindow.getAllWindows()[0];
+    if (window !== undefined) {
+      if (window.isMinimized()) {
+        window.restore();
+      }
+      window.focus();
+    }
+  });
+
+  void app.whenReady().then(() => startDesktop()).catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : "未知错误";
+    console.error("ElfieNest Desktop 启动失败", message);
+    app.quit();
+  });
+}
 
 app.on("before-quit", (event) => {
   if (stopping || supervisor === undefined) {

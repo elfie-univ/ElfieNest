@@ -1,8 +1,10 @@
 import json
 from unittest.mock import Mock, patch
 
+import pytest
+
 from runtime.models.local_profiles import select_local_profile
-from runtime.providers.ollama import OllamaManager
+from runtime.providers.ollama import OllamaManager, OllamaNotReadyError
 from runtime.setup.runtime_setup import MODELS_TO_PULL
 
 
@@ -43,3 +45,17 @@ def test_ollama_manager_checks_model_presence():
         assert manager.has_model("qwen3.5:0.8b") is True
         assert manager.has_model("moondream") is True
         assert manager.has_model("llama3") is False
+
+
+def test_supervised_runtime_never_starts_ollama_process(monkeypatch):
+    """桌面 supervisor 托管时，Core 只能检查 Ollama，不能重复 Popen。"""
+    manager = OllamaManager(Mock(ollama_host="http://localhost:11434"))
+    monkeypatch.setenv("ELFIENEST_SUPERVISED", "1")
+
+    with patch.object(manager, "check_health", return_value=False), patch(
+        "runtime.providers.ollama.subprocess.Popen"
+    ) as popen:
+        with pytest.raises(OllamaNotReadyError, match="supervisor"):
+            manager.ensure_service_started()
+
+    popen.assert_not_called()
