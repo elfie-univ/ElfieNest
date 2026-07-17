@@ -150,7 +150,7 @@ printf '%s\\n' "$*" >> "$ENTRYPOINT_LOG"
     ]
 
 
-def test_shell_routes_direct_port_flags_to_foreground_service(tmp_path: Path) -> None:
+def test_shell_routes_direct_port_flags_to_cli_parser(tmp_path: Path) -> None:
     # Given
     project_root = tmp_path / "ElfieNest"
     project_root.mkdir()
@@ -195,5 +195,5 @@ printf '%s\\n' "$*" >> "$ENTRYPOINT_LOG"
     # Then
     assert result.returncode == 0
     assert log_path.read_text(encoding="utf-8").splitlines() == [
-        "scripts/serve.py --audio-port 8769 --godot-ws-port 8768",
+        "scripts/elfienest.py --audio-port 8769 --godot-ws-port 8768",
     ]
