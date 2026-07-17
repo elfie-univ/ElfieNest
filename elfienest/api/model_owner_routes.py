@@ -1,7 +1,7 @@
 """Model Catalog 管理 REST API — 模型目录的查看、更新、扫描。
 
 所有端点通过 ``Depends(require_owner)`` 保护。
-模型数据来自 BUILTIN_MODEL_CATALOG + runtime_config.json 的覆盖配置。
+模型数据来自 BUILTIN_MODEL_CATALOG + ELFIE_HOME/config.yaml 的覆盖配置。
 """
 
 from __future__ import annotations

@@ -48,3 +48,10 @@ def test_permission_manager_allows_owner_action_with_token():
     manager._owner_token = "secret"
 
     assert manager.verify_action("DELETE_SKILL", file_path="old_skill.py", token="secret")
+
+
+def test_permission_manager_denies_code_execution_by_default():
+    manager = PermissionManager(object())
+
+    with pytest.raises(PermissionDeniedError, match="策略禁止"):
+        manager.verify_action("RUN_CODE", file_path="code_sandbox")

@@ -5,11 +5,11 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+import yaml
 from fastapi.testclient import TestClient
 
 from elfienest.api.app import create_app
@@ -28,11 +28,12 @@ def db_path(tmp_path: Path) -> str:
 
 
 @pytest.fixture
-def runtime_config_path(tmp_path: Path) -> Path:
-    """临时 runtime_config.json 路径，用于 mock owner_routes._RUNTIME_CONFIG_PATH。"""
-    p = tmp_path / "runtime" / "runtime_config.json"
+def runtime_config_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """临时 ELFIE_HOME/config.yaml 路径。"""
+    p = tmp_path / "runtime" / "config.yaml"
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text('{"providers": {"ollama": {"api_base": "http://localhost:11434"}}}')
+    monkeypatch.setenv("ELFIE_HOME", str(p.parent))
+    p.write_text("providers:\n  ollama:\n    api_base: http://localhost:11434\n")
     return p
 
 
@@ -429,7 +430,7 @@ class TestConfig:
         assert resp.status_code == 200
 
         # 验证文件已写入
-        written = json.loads(runtime_config_path.read_text())
+        written = yaml.safe_load(runtime_config_path.read_text())
         assert written["providers"]["ollama"]["api_base"] == "http://127.0.0.1:11434"
         assert written["temperature"] == 0.7
 

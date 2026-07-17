@@ -5,11 +5,11 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+import yaml
 from fastapi.testclient import TestClient
 
 from elfienest.api.app import create_app
@@ -28,10 +28,11 @@ def db_path(tmp_path: Path) -> str:
 
 
 @pytest.fixture
-def runtime_config_path(tmp_path: Path) -> Path:
-    """临时 runtime_config.json 路径，用于 mock system_routes._RUNTIME_CONFIG_PATH。"""
-    p = tmp_path / "runtime" / "runtime_config.json"
+def runtime_config_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """临时 ELFIE_HOME/config.yaml 路径。"""
+    p = tmp_path / "runtime" / "config.yaml"
     p.parent.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("ELFIE_HOME", str(p.parent))
     return p
 
 
@@ -186,7 +187,7 @@ class TestPutValid:
         assert data["max_tokens"] == 2000
 
         # 验证文件持久化
-        saved = json.loads(runtime_config_path.read_text())
+        saved = yaml.safe_load(runtime_config_path.read_text())
         assert saved["system"]["llm"]["temperature"] == 0.5
         assert saved["system"]["llm"]["max_tokens"] == 2000
 
@@ -202,7 +203,7 @@ class TestPutValid:
         data = resp.json()
         assert data["max_elfies_per_user"] == 5
 
-        saved = json.loads(runtime_config_path.read_text())
+        saved = yaml.safe_load(runtime_config_path.read_text())
         assert saved["system"]["adoption"]["max_elfies_per_user"] == 5
 
     def test_put_engine(self, client: TestClient, runtime_config_path: Path) -> None:
@@ -217,7 +218,7 @@ class TestPutValid:
         data = resp.json()
         assert data["tick_interval_sec"] == 2.0
 
-        saved = json.loads(runtime_config_path.read_text())
+        saved = yaml.safe_load(runtime_config_path.read_text())
         assert saved["system"]["engine"]["tick_interval_sec"] == 2.0
 
     def test_put_engine_null_max_elfies(
@@ -232,7 +233,7 @@ class TestPutValid:
         )
         assert resp.status_code == 200, resp.text
 
-        saved = json.loads(runtime_config_path.read_text())
+        saved = yaml.safe_load(runtime_config_path.read_text())
         assert saved["system"]["engine"]["max_elfies_per_room"] is None
 
     def test_put_security(self, client: TestClient, runtime_config_path: Path) -> None:
@@ -251,7 +252,7 @@ class TestPutValid:
         assert data["session_ttl_days"] == 1
         assert data["rate_limit"]["max_attempts"] == 3
 
-        saved = json.loads(runtime_config_path.read_text())
+        saved = yaml.safe_load(runtime_config_path.read_text())
         assert saved["system"]["security"]["session_ttl_days"] == 1
 
 
@@ -443,7 +444,7 @@ class TestBackwardCompat:
         assert resp.status_code == 200
 
         # 验证写入
-        saved = json.loads(runtime_config_path.read_text())
+        saved = yaml.safe_load(runtime_config_path.read_text())
         assert saved["providers"]["ollama"]["api_base"] == "http://127.0.0.1:11434"
 
     def test_old_put_config_missing_providers_400(self, client: TestClient) -> None:

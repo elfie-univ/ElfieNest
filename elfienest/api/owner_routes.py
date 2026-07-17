@@ -14,6 +14,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from elfienest.accounts.auth import (
+    get_current_user,
     hash_password,
     require_owner,
 )
@@ -22,6 +23,8 @@ from elfienest.persistence.store import get_db
 from runtime.storage.data_home import get_config_path
 
 logger = logging.getLogger("elfienest.api.owner_routes")
+
+__all__ = ("get_current_user", "require_owner", "router")
 
 router = APIRouter(prefix="/api/owner", tags=["owner"])
 
@@ -312,7 +315,7 @@ async def delete_user(
 async def get_config(
     owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
 ) -> Dict[str, Any]:
-    """读取 ``runtime_config.json``。
+    """读取 ``ELFIE_HOME/config.yaml``。
 
     文件可能不存在（gitignored 且尚未创建），此时返回 ``{}``。
     解析失败（非法 JSON）同样返回 ``{}``。
@@ -326,11 +329,11 @@ async def update_config(
     body: Dict[str, Any],
     owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
 ) -> Dict[str, Any]:
-    """写入 ``runtime_config.json``。
+    """写入 ``ELFIE_HOME/config.yaml``。
 
     操作步骤：
     1. 校验 JSON 必须包含 ``providers`` 字典结构
-    2. 如果旧文件存在，备份为 ``runtime_config.json.bak``
+    2. 如果当前 YAML 存在，先创建同目录备份
     3. 写入新内容
 
     .. warning::

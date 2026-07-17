@@ -25,6 +25,7 @@ class ElfieNestEngine:
         ws_host: str = "127.0.0.1",
         ws_port: int = 8765,
         http_port: int = 8000,
+        godot_origin_port: Optional[int] = None,
         tick_interval_sec: float = 1.5,
         tts_enabled: bool = True,
         max_elfies_per_room: Optional[int] = None,
@@ -47,7 +48,9 @@ class ElfieNestEngine:
         self.api_server = GodotAPIServer(
             host=ws_host,
             port=ws_port,
-            http_port=http_port,
+            http_port=(
+                godot_origin_port if godot_origin_port is not None else http_port
+            ),
         )
         self.coordinator = ElfieNestCoordinator(self.room, self.api_server)
 

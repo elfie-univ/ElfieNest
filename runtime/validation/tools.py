@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 from runtime.safety.permissions import PermissionDeniedError, PermissionManager
-from runtime.tools.code import CodeSandboxPlugin
+from runtime.tools.code import CodeSandboxPlugin, CodeSandboxUnavailableError
 from runtime.tools.file import FileSandbox
 from runtime.tools.search import WebSearchPlugin
 from runtime.tools.skills_evolution import SkillsSelfEvolutionPlugin
@@ -55,6 +55,13 @@ class DirectToolValidationRunner:
                 check_id="tool.code_sandbox",
                 status=CheckStatus.PASSED if passed else CheckStatus.FAILED,
                 message="代码沙箱验证通过" if passed else "代码沙箱返回异常结果",
+                duration_ms=(time.perf_counter() - started) * 1000,
+            )
+        except CodeSandboxUnavailableError as exc:
+            return CheckResult(
+                check_id="tool.code_sandbox",
+                status=CheckStatus.SKIPPED,
+                message=str(exc),
                 duration_ms=(time.perf_counter() - started) * 1000,
             )
         except Exception as exc:
@@ -122,6 +129,13 @@ class DirectToolValidationRunner:
                 check_id="tool.skill_lifecycle",
                 status=CheckStatus.PASSED if passed else CheckStatus.FAILED,
                 message="技能生命周期验证通过" if passed else "技能生命周期结果异常",
+                duration_ms=(time.perf_counter() - started) * 1000,
+            )
+        except CodeSandboxUnavailableError as exc:
+            return CheckResult(
+                check_id="tool.skill_lifecycle",
+                status=CheckStatus.SKIPPED,
+                message=str(exc),
                 duration_ms=(time.perf_counter() - started) * 1000,
             )
         except Exception as exc:

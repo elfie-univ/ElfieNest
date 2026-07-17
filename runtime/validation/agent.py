@@ -52,6 +52,15 @@ class ModelAgentValidationRunner:
         )
 
     def verify_tool(self, provider: str, model: str, tool_name: str) -> CheckResult:
+        if tool_name == "code_sandbox":
+            return CheckResult(
+                check_id=f"agent.{provider}.{model}.{tool_name}",
+                status=CheckStatus.SKIPPED,
+                message="真实隔离 sandbox 尚未接入，跳过代码执行验证",
+                provider=provider,
+                model=model,
+                details={"tool_called": False},
+            )
         if tool_name not in {"code_sandbox", "local_file", "web_search"}:
             return CheckResult(
                 check_id=f"agent.{provider}.{model}.{tool_name}",

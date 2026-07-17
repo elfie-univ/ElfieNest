@@ -434,6 +434,7 @@ def main():
         engine = ElfieNestEngine(
             ws_port=args.godot_ws_port,
             http_port=args.audio_port,
+            godot_origin_port=args.port,
             tick_interval_sec=tick_interval_sec,
             tts_enabled=tts_enabled,
             max_elfies_per_room=max_elfies_per_room,

@@ -28,11 +28,12 @@ def db_path(tmp_path: Path) -> str:
 
 
 @pytest.fixture
-def runtime_config_path(tmp_path: Path) -> Path:
-    """临时 runtime_config.json 路径。"""
-    p = tmp_path / "runtime" / "runtime_config.json"
+def runtime_config_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """临时 ELFIE_HOME/config.yaml 路径。"""
+    p = tmp_path / "runtime" / "config.yaml"
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text('{"providers": {"ollama": {"api_base": "http://localhost:11434"}}}')
+    monkeypatch.setenv("ELFIE_HOME", str(p.parent))
+    p.write_text("providers:\n  ollama:\n    api_base: http://localhost:11434\n")
     return p
 
 

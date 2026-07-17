@@ -1,5 +1,7 @@
 import os
 
+import pytest
+
 from elfienest.config.runtime_store import (
     hydrate_runtime_secrets,
     read_runtime_config,
@@ -37,10 +39,12 @@ def test_yaml_runtime_store_splits_provider_secrets(monkeypatch, tmp_path):
     assert hydrated["providers"]["openai"]["api_key"] == "local-secret"
 
 
-def test_json_runtime_store_remains_backward_compatible_for_legacy_files(tmp_path):
+def test_json_runtime_store_is_rejected_outside_explicit_migration(tmp_path):
     path = tmp_path / "runtime_config.json"
     config = {"providers": {"openai": {"api_key": "legacy-secret"}}}
 
-    write_runtime_config(path, config)
+    with pytest.raises(RuntimeError, match="拒绝"):
+        write_runtime_config(path, config)
 
-    assert read_runtime_config(path) == config
+    with pytest.raises(RuntimeError, match="拒绝"):
+        read_runtime_config(path)

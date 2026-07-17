@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import copy
-import json
 import shutil
 from pathlib import Path
 from typing import Any, Dict
 
 from runtime.config import DEFAULT_SYSTEM_SETTINGS, deep_update
-from runtime.storage.config_store import read_yaml_mapping, write_yaml_mapping
+from runtime.storage.config_store import (
+    ConfigStoreError,
+    read_yaml_mapping,
+    write_yaml_mapping,
+)
 from runtime.storage.secrets import (
     provider_secret_name,
     resolve_secret,
@@ -16,19 +19,11 @@ from runtime.storage.secrets import (
 
 
 def read_runtime_config(path: Path) -> Dict[str, Any]:
-    if not path.exists():
-        return {}
-    if path.suffix in {".yaml", ".yml"}:
-        try:
-            return read_yaml_mapping(path)
-        except RuntimeError:
-            return {}
-    try:
-        with open(path, encoding="utf-8") as file:
-            loaded = json.load(file)
-    except (json.JSONDecodeError, OSError):
-        return {}
-    return loaded if isinstance(loaded, dict) else {}
+    if path.suffix not in {".yaml", ".yml"}:
+        raise ConfigStoreError(
+            f"生产配置必须使用 ELFIE_HOME/config.yaml，拒绝读取旧格式: {path}"
+        )
+    return read_yaml_mapping(path)
 
 
 def hydrate_runtime_secrets(config: Dict[str, Any]) -> Dict[str, Any]:
@@ -54,30 +49,29 @@ def write_runtime_config(
     *,
     backup_existing: bool = True,
 ) -> None:
+    if path.suffix not in {".yaml", ".yml"}:
+        raise ConfigStoreError(
+            f"生产配置必须使用 ELFIE_HOME/config.yaml，拒绝写入旧格式: {path}"
+        )
     if backup_existing and path.exists():
-        shutil.copy2(str(path), str(path.with_suffix(f"{path.suffix}.bak")))
+        backup_path = path.with_suffix(f"{path.suffix}.bak")
+        shutil.copy2(str(path), str(backup_path))
 
-    if path.suffix in {".yaml", ".yml"}:
-        safe_config = copy.deepcopy(config)
-        providers = safe_config.get("providers", {})
-        if isinstance(providers, dict):
-            for provider_id, provider in providers.items():
-                if not isinstance(provider_id, str) or not isinstance(provider, dict):
-                    continue
-                has_api_key_field = "api_key" in provider
-                api_key = str(provider.pop("api_key", "") or "")
-                secret_name = str(
-                    provider.get("api_key_env") or provider_secret_name(provider_id)
-                )
-                provider["api_key_env"] = secret_name
-                if has_api_key_field:
-                    set_provider_secret(provider_id, api_key)
-        write_yaml_mapping(path, safe_config)
-        return
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as file:
-        json.dump(config, file, ensure_ascii=False, indent=2)
+    safe_config = copy.deepcopy(config)
+    providers = safe_config.get("providers", {})
+    if isinstance(providers, dict):
+        for provider_id, provider in providers.items():
+            if not isinstance(provider_id, str) or not isinstance(provider, dict):
+                continue
+            has_api_key_field = "api_key" in provider
+            api_key = str(provider.pop("api_key", "") or "")
+            secret_name = str(
+                provider.get("api_key_env") or provider_secret_name(provider_id)
+            )
+            provider["api_key_env"] = secret_name
+            if has_api_key_field:
+                set_provider_secret(provider_id, api_key)
+    write_yaml_mapping(path, safe_config)
 
 
 def read_system_section(path: Path, section: str) -> Dict[str, Any]:

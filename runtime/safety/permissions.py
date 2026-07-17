@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import secrets
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Mapping
@@ -35,7 +36,10 @@ class ToolPermissionRule:
 
 DEFAULT_TOOL_PERMISSIONS: Mapping[str, ToolPermissionRule] = {
     "WEB_SEARCH": ToolPermissionRule(PermissionMode.ALLOW, "联网检索工具自动放行"),
-    "RUN_CODE": ToolPermissionRule(PermissionMode.ALLOW, "代码沙箱只在隔离环境运行，默认放行并审计"),
+    "RUN_CODE": ToolPermissionRule(
+        PermissionMode.DENY,
+        "真实代码隔离尚未接入，生产环境默认禁止执行代码",
+    ),
     "READ": ToolPermissionRule(PermissionMode.ALLOW, "只读工具自动放行"),
     "RUN_SKILL": ToolPermissionRule(PermissionMode.ALLOW, "运行已登记技能自动放行"),
     "LIST_SKILLS": ToolPermissionRule(PermissionMode.ALLOW, "读取技能清单自动放行"),
@@ -51,9 +55,7 @@ class PermissionManager:
         self.config = config
         # 定义夜间 N3 整理专用的系统高特权令牌
         # 可以从环境变量获取，或者在启动时随机生成一个以确保本地安全
-        self._owner_token = os.getenv(
-            "ELFIE_OWNER_TOKEN", "elfie_sleep_evolution_token_2026"
-        )
+        self._owner_token = os.getenv("ELFIE_OWNER_TOKEN", "").strip()
 
     def verify_action(
         self, action: str, file_path: str = None, token: str = None
@@ -84,7 +86,9 @@ class PermissionManager:
             )
             return True
         if rule.mode == PermissionMode.OWNER:
-            if token == self._owner_token:
+            if self._owner_token and token and secrets.compare_digest(
+                token, self._owner_token
+            ):
                 logger.info("🔑 [特权令牌校验通过] 允许执行离线技能库代谢与去重操作")
                 self._record_decision(
                     action,

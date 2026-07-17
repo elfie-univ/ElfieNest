@@ -1,7 +1,7 @@
 """Provider 管理 REST API — 服务商配置的增删改查 + 连通性验证。
 
 所有端点通过 ``Depends(require_owner)`` 保护。
-Provider 数据存储在 runtime_config.json 的 providers 字段中。
+Provider 数据存储在 ELFIE_HOME/config.yaml 的 providers 字段中。
 """
 
 from __future__ import annotations

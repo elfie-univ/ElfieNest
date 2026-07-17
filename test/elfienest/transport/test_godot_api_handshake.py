@@ -83,3 +83,15 @@ def test_godot_rejects_wrong_nonce_and_origin() -> None:
     # Then
     assert wrong_nonce.closed == [(4004, "Invalid Godot handshake")]
     assert wrong_origin.closed == [(4005, "Origin not allowed")]
+
+
+def test_godot_allows_configured_management_ui_origin() -> None:
+    server = GodotAPIServer(port=0, http_port=18000, handshake_nonce="nonce-1")
+    websocket = FakeWebSocket(
+        ['{"event":"hello","payload":{"protocol":1,"nonce":"nonce-1"}}'],
+        origin="http://127.0.0.1:18000",
+    )
+
+    anyio.run(server._handle_client, websocket)
+
+    assert websocket.closed == []
