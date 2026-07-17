@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { get } from "node:http";
 import { spawn, type SpawnOptions } from "node:child_process";
+import { randomBytes } from "node:crypto";
 
 import type { SupervisorConfig } from "./supervisor_config.js";
 
@@ -60,6 +61,7 @@ export class RuntimeSupervisor {
   private snapshot: SupervisorSnapshot = initialSnapshot;
   private runtime: HiddenRuntime | undefined;
   private lifecycle: SupervisorLifecycleState = "stopped";
+  private godotNonce: string | undefined;
   private readonly spawnProcess: ProcessSpawner;
   private readonly waitForHttp: HealthChecker;
   private readonly stopProcess: ProcessStopper;
@@ -91,6 +93,7 @@ export class RuntimeSupervisor {
 
     this.lifecycle = "starting";
     this.runtime = runtime;
+    this.godotNonce = randomBytes(32).toString("hex");
     let activeComponent: SupervisorComponent = "ollama";
     try {
       if (this.config.manageOllama) {
@@ -109,7 +112,7 @@ export class RuntimeSupervisor {
 
       activeComponent = "godot";
       this.update("godot", "starting");
-      await runtime.load(this.config.godotUrl);
+      await runtime.load(appendNonce(this.config.godotUrl, this.godotNonce));
       this.update("godot", "ready");
       this.lifecycle = "ready";
       return this.snapshot;
@@ -129,6 +132,7 @@ export class RuntimeSupervisor {
     this.lifecycle = "stopping";
     this.runtime?.close();
     this.runtime = undefined;
+    this.godotNonce = undefined;
     const order: readonly ComponentName[] = ["godot", "core", "ollama"];
     for (const name of order) {
       const child = this.processes.get(name);
@@ -158,6 +162,7 @@ export class RuntimeSupervisor {
         ELFIE_HOME: this.config.dataRoot,
         OLLAMA_MODELS: `${this.config.dataRoot}/models`,
         ELFIENEST_SUPERVISED: "1",
+        ELFIENEST_GODOT_NONCE: this.godotNonce ?? "",
       },
       stdio: "ignore",
       windowsHide: true,
@@ -177,6 +182,12 @@ export class RuntimeSupervisor {
   private update(name: ComponentName, state: ComponentState): void {
     this.snapshot = { ...this.snapshot, [name]: state };
   }
+}
+
+function appendNonce(url: string, nonce: string): string {
+  const target = new URL(url);
+  target.searchParams.set("nonce", nonce);
+  return target.toString();
 }
 
 function errorMessage(error: unknown): string {

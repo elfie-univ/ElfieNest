@@ -1,14 +1,18 @@
 import asyncio
 import json
 import logging
+import os
+import secrets
 import threading
 from collections.abc import Callable
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Optional, Set
 
 import websockets
 import websockets.asyncio.server
 
 logger = logging.getLogger("elfienest.transport.godot_api")
+
+GODOT_PROTOCOL_VERSION = 1
 
 
 class GodotAPIServer:
@@ -19,9 +23,26 @@ class GodotAPIServer:
     同时提供线程安全的同步接口供外部调用。
     """
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 8765):
+    def __init__(
+        self,
+        host: str = "127.0.0.1",
+        port: int = 8765,
+        http_port: int = 8000,
+        handshake_nonce: Optional[str] = None,
+        allowed_origins: Optional[Set[str]] = None,
+    ):
         self.host = host
         self.port = port
+        self.http_port = http_port
+        self.handshake_nonce = (
+            handshake_nonce
+            or os.environ.get("ELFIENEST_GODOT_NONCE", "")
+            or secrets.token_urlsafe(32)
+        )
+        self.allowed_origins = allowed_origins or {
+            f"http://127.0.0.1:{http_port}",
+            f"http://localhost:{http_port}",
+        }
 
         # 所有的活跃客户端连接
         self.clients: Set[Any] = set()
@@ -91,7 +112,13 @@ class GodotAPIServer:
         # websockets v16+ 中 serve 是类，__init__ 要求事件循环已运行，
         # 因此包装在 async 函数中通过 run_until_complete 启动，确保 await 时 loop 已运行
         async def _start_server():
-            return await websockets.serve(self._handle_client, self.host, self.port)  # type: ignore[arg-type]
+            return await websockets.serve(
+                self._handle_client,
+                self.host,
+                self.port,
+                max_size=1024 * 1024,
+                max_queue=32,
+            )  # type: ignore[arg-type]
 
         self._server = self._loop.run_until_complete(_start_server())
 
@@ -119,9 +146,57 @@ class GodotAPIServer:
     async def _handle_client(self, websocket: Any):
         """处理来自 Godot 的新连接以及接收到的 JSON 消息"""
         logger.info(
-            f"🤝 [通信网关] 收到来自 Godot 的连接握手: {websocket.remote_address}"
+            "🤝 [通信网关] 收到来自 Godot 的连接握手: %s",
+            getattr(websocket, "remote_address", None),
         )
+
+        request = getattr(websocket, "request", None)
+        headers = getattr(request, "headers", {})
+        origin = headers.get("Origin", "")
+        if origin and origin not in self.allowed_origins:
+            await websocket.close(4005, "Origin not allowed")
+            return
+
+        try:
+            raw = await asyncio.wait_for(websocket.recv(), timeout=5.0)
+        except asyncio.TimeoutError:
+            await websocket.close(4001, "Hello timeout: send hello within 5s")
+            return
+        except websockets.exceptions.ConnectionClosed:
+            return
+
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            await websocket.close(4002, "Invalid JSON")
+            return
+        if not isinstance(data, dict):
+            await websocket.close(4002, "Invalid JSON object")
+            return
+        if data.get("event") != "hello":
+            await websocket.close(4003, "First frame must be hello")
+            return
+        payload = data.get("payload", {})
+        if not isinstance(payload, dict):
+            await websocket.close(4004, "Invalid Godot handshake")
+            return
+        if (
+            payload.get("protocol") != GODOT_PROTOCOL_VERSION
+            or payload.get("nonce") != self.handshake_nonce
+        ):
+            await websocket.close(4004, "Invalid Godot handshake")
+            return
+
         self.clients.add(websocket)
+        await websocket.send(
+            json.dumps(
+                {
+                    "event": "hello_ok",
+                    "payload": {"protocol": GODOT_PROTOCOL_VERSION},
+                },
+                ensure_ascii=False,
+            )
+        )
 
         try:
             async for message in websocket:

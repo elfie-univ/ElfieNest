@@ -256,7 +256,7 @@ class AuthenticatedWSManager:
     def _origin_is_allowed(self, origin: str) -> bool:
         """Allow browser handshakes originating from the local console only."""
         if not origin:
-            return True
+            return False
         try:
             parsed = urlparse(origin)
             hostname = parsed.hostname

@@ -2,6 +2,7 @@ extends Node3D
 
 const ACTOR_SCENE := preload("res://characters/elfie/elfie_3d.tscn")
 const GODOT_WS_URL := "ws://127.0.0.1:8765"
+const GODOT_PROTOCOL_VERSION := 1
 
 @onready var nest: ModularNest = $Nest
 @onready var characters: Node3D = $Characters
@@ -9,6 +10,8 @@ const GODOT_WS_URL := "ws://127.0.0.1:8765"
 var _socket := WebSocketPeer.new()
 var _actors: Dictionary = {}
 var _connected := false
+var _handshake_complete := false
+var _handshake_nonce := ""
 
 
 func add_character(
@@ -30,6 +33,7 @@ func _ready() -> void:
 	var ws_url := OS.get_environment("ELFIENEST_GODOT_WS")
 	if ws_url.is_empty():
 		ws_url = GODOT_WS_URL
+	_handshake_nonce = _resolve_handshake_nonce()
 	_socket.connect_to_url(ws_url)
 
 
@@ -38,9 +42,14 @@ func _process(_delta: float) -> void:
 	var state := _socket.get_ready_state()
 	if state == WebSocketPeer.STATE_OPEN and not _connected:
 		_connected = true
-		_send_event("runtime_ready", {"protocol": 1, "bed_count": nest.bed_count})
+		_handshake_complete = false
+		_send_event(
+			"hello",
+			{"protocol": GODOT_PROTOCOL_VERSION, "nonce": _handshake_nonce}
+		)
 	if state != WebSocketPeer.STATE_OPEN:
 		_connected = false
+		_handshake_complete = false
 		return
 	while _socket.get_available_packet_count() > 0:
 		var packet := _socket.get_packet().get_string_from_utf8()
@@ -56,6 +65,13 @@ func _handle_message(raw_message: String) -> void:
 	if not parsed is Dictionary:
 		return
 	var message := parsed as Dictionary
+	var event_name := String(message.get("event", ""))
+	if event_name == "hello_ok":
+		_handshake_complete = true
+		_send_event("runtime_ready", {"protocol": GODOT_PROTOCOL_VERSION, "bed_count": nest.bed_count})
+		return
+	if not _handshake_complete:
+		return
 	var action := String(message.get("action", ""))
 	var payload: Variant = message.get("payload", {})
 	if not payload is Dictionary:
@@ -116,3 +132,19 @@ func _spawn_position(index: int) -> Vector3:
 	var column := index % 4
 	var row := index / 4
 	return Vector3(-1.2 + float(column) * 0.8, 0.0, -2.5 - float(row) * 1.2)
+
+
+func _resolve_handshake_nonce() -> String:
+	var environment_nonce := OS.get_environment("ELFIENEST_GODOT_NONCE")
+	if not environment_nonce.is_empty():
+		return environment_nonce
+	if not OS.has_feature("web"):
+		return ""
+	var query: Variant = JavaScriptBridge.eval("window.location.search")
+	if not query is String:
+		return ""
+	for part in String(query).trim_prefix("?").split("&"):
+		var pair := part.split("=", true, 1)
+		if pair.size() == 2 and pair[0] == "nonce":
+			return String(pair[1]).uri_decode()
+	return ""

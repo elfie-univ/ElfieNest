@@ -137,6 +137,7 @@ class TestWsGatewayInstantiation:
     def test_cross_site_websocket_origin_is_rejected(self, tmp_path: Path) -> None:
         manager = AuthenticatedWSManager(port=0, db_path=str(tmp_path / "nest.db"))
 
+        assert manager._origin_is_allowed("") is False
         assert manager._origin_is_allowed("http://127.0.0.1:8000") is True
         assert manager._origin_is_allowed("http://localhost:8100") is False
         assert manager._origin_is_allowed("https://127.0.0.1:8000") is False

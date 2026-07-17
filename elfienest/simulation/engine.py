@@ -44,7 +44,11 @@ class ElfieNestEngine:
 
         # 1. 实例化核心组件
         self.room = ElfieNestRoom(max_elfies_per_room=max_elfies_per_room)
-        self.api_server = GodotAPIServer(host=ws_host, port=ws_port)
+        self.api_server = GodotAPIServer(
+            host=ws_host,
+            port=ws_port,
+            http_port=http_port,
+        )
         self.coordinator = ElfieNestCoordinator(self.room, self.api_server)
 
         # 2. 音频分发参数
