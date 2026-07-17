@@ -8,7 +8,7 @@ from typing import Any, Dict, Final
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
-from .user_routes import get_current_user
+from elfienest.accounts.auth import get_current_user
 
 MAX_FRAME_BYTES: Final = 2 * 1024 * 1024
 MAX_CAMERA_VIEWS: Final = 64

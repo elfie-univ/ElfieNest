@@ -13,6 +13,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from elfienest.accounts.auth import get_current_user
 from elfienest.adoption.generator import ElfieGenerator
 from elfienest.adoption.service import (
     AdoptionRequest,
@@ -39,30 +40,6 @@ router = APIRouter(prefix="/api/user", tags=["user"])
 PERSONALITY_STYLES: tuple = tuple(ElfieGenerator.PERSONALITY_PRESETS.keys())
 HEIGHTS: tuple = ("short", "standard", "tall")
 BUILDS: tuple = ("slim", "standard", "plump")
-
-# ---------------------------------------------------------------------------
-# 依赖 — 从 session_token cookie 获取当前用户（使用 app.state.db_path）
-# ---------------------------------------------------------------------------
-
-
-def get_current_user(request: Request) -> Dict[str, Any]:
-    """FastAPI ``Depends`` 用鉴权中间件。
-
-    从 cookie ``session_token`` 读取 token，调 ``verify_session`` 验证。
-    使用 ``request.app.state.db_path`` 作为数据库路径。
-    """
-    token = request.cookies.get("session_token")
-    if not token:
-        raise HTTPException(status_code=401, detail="未登录，缺少会话 token")
-
-    from elfienest.accounts.auth import verify_session as _verify  # noqa: PLC0415
-
-    db = request.app.state.db_path
-    user = _verify(token, db)
-    if user is None:
-        raise HTTPException(status_code=401, detail="会话无效或已过期")
-    return user
-
 
 # ---------------------------------------------------------------------------
 # 助手 — 校验精灵所有权

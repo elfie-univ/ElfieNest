@@ -11,7 +11,10 @@ import hmac
 import logging
 import secrets
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from fastapi import Depends, HTTPException, Request
 
 from elfienest.persistence.store import get_db
 
@@ -61,6 +64,15 @@ def verify_csrf_token(session_token: str, csrf_token: str) -> bool:
 _session_config: Dict[str, int] = {"ttl_seconds": 7 * 86_400}
 
 
+def _runtime_config_for_db(db_path: Optional[str]):
+    """加载与数据库同一数据根目录的 Runtime 配置。"""
+    from runtime.config import LLMRuntimeConfig  # noqa: PLC0415
+
+    if db_path and db_path != ":memory:":
+        return LLMRuntimeConfig(config_home=str(Path(db_path).expanduser().parent))
+    return LLMRuntimeConfig()
+
+
 def get_session_ttl_seconds(db_path: Optional[str] = None) -> int:
     """获取 session TTL（秒），从 system.security 读取并缓存。
 
@@ -70,9 +82,7 @@ def get_session_ttl_seconds(db_path: Optional[str] = None) -> int:
     Returns:
         TTL 秒数
     """
-    from runtime.config import LLMRuntimeConfig  # noqa: PLC0415
-
-    config = LLMRuntimeConfig()
+    config = _runtime_config_for_db(db_path)
     ttl_days = config.system.get("security", {}).get("session_ttl_days", 7)
     ttl_seconds = ttl_days * 86400
 
@@ -113,7 +123,7 @@ def create_session(user_id: int, db_path: str = None) -> str:
     return token
 
 
-def verify_session(token: str, db_path: str = None) -> Optional[Dict[str, Any]]:
+def verify_session(token: str, db_path: str) -> Optional[Dict[str, Any]]:
     """验证 *token* 对应的 session 是否有效且未过期。
 
     检查 sessions 表 + JOIN users 表获取用户信息。
@@ -156,7 +166,7 @@ def delete_session(token: str, db_path: str = None) -> None:
 # ---------------------------------------------------------------------------
 
 
-def get_current_user(request=None):
+def get_current_user(request: Request) -> Dict[str, Any]:
     """FastAPI ``Depends`` 用鉴权中间件。
 
     从 cookie ``session_token`` 读取 token，调 ``verify_session`` 验证。
@@ -168,29 +178,31 @@ def get_current_user(request=None):
         def protected(user: dict = Depends(get_current_user)):
             return user
     """
-    from fastapi import HTTPException  # noqa: PLC0415
-    from fastapi import Request as FastAPIRequest
-
-    if request is None or not isinstance(request, FastAPIRequest):
-        raise HTTPException(status_code=401, detail="未提供请求对象")
-
     token = request.cookies.get("session_token")
     if not token:
         raise HTTPException(status_code=401, detail="未登录，缺少会话 token")
 
-    user = verify_session(token)
+    db_path = getattr(request.app.state, "db_path", None)
+    if not isinstance(db_path, str) or not db_path:
+        raise HTTPException(status_code=500, detail="应用未配置鉴权数据库")
+    user = verify_session(token, db_path)
     if user is None:
         raise HTTPException(status_code=401, detail="会话无效或已过期")
 
     return user
 
 
-def require_owner(user=None):
-    """FastAPI dependency that accepts only the product Owner account."""
-    from fastapi import HTTPException  # noqa: PLC0415
+def require_user(  # noqa: B008
+    user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+) -> Dict[str, Any]:
+    """要求请求已通过当前应用数据库的 session 鉴权。"""
+    return user
 
-    if user is None:
-        raise HTTPException(status_code=401, detail="未登录")
+
+def require_owner(  # noqa: B008
+    user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+) -> Dict[str, Any]:
+    """要求当前用户为唯一 Owner 角色。"""
     if user.get("role") != "owner":
         raise HTTPException(status_code=403, detail="需要 Owner 权限")
     return user
@@ -267,9 +279,7 @@ def get_rate_limiter(db_path: Optional[str] = None) -> RateLimiter:
     Returns:
         RateLimiter 实例
     """
-    from runtime.config import LLMRuntimeConfig  # noqa: PLC0415
-
-    config = LLMRuntimeConfig()
+    config = _runtime_config_for_db(db_path)
     security = config.system.get("security", {})
     rate_config = security.get("rate_limit", {})
 
@@ -277,7 +287,7 @@ def get_rate_limiter(db_path: Optional[str] = None) -> RateLimiter:
     window_seconds = rate_config.get("window_seconds", 300)
 
     # 使用配置参数作为缓存键
-    cache_key = f"{max_attempts}:{window_seconds}"
+    cache_key = f"{db_path or '<default>'}:{max_attempts}:{window_seconds}"
 
     if cache_key not in _rate_limiter_cache:
         _rate_limiter_cache[cache_key] = RateLimiter(

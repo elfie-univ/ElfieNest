@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from elfienest.accounts.auth import require_owner
 from runtime.config import LLMRuntimeConfig
 from runtime.food.advisor import LLMFoodPlanningAdvisor, select_planning_model
 from runtime.food.evidence import ModelEvidenceStore
@@ -18,8 +19,6 @@ from runtime.storage.data_home import (
     get_food_history_dir,
     get_model_evidence_path,
 )
-
-from .owner_routes import require_owner
 
 router = APIRouter(prefix="/api/owner/runtime/foods", tags=["runtime-foods"])
 

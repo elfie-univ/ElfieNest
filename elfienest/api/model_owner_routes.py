@@ -14,6 +14,7 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from elfienest.accounts.auth import require_owner
 from elfienest.config.runtime_store import (
     hydrate_runtime_secrets,
     read_runtime_config,
@@ -23,8 +24,6 @@ from runtime.config import LLMRuntimeConfig
 from runtime.models.catalog import BUILTIN_MODEL_CATALOG, ModelCatalog, ModelEntry
 from runtime.providers.profiles import get_profile
 from runtime.storage.data_home import get_config_path
-
-from .owner_routes import require_owner
 
 logger = logging.getLogger("elfienest.api.model_owner_routes")
 

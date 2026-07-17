@@ -5,10 +5,8 @@ from typing import Any, Dict, Final
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from elfienest.accounts.auth import get_current_user, require_owner
 from elfienest.persistence.store import get_db
-
-from .owner_routes import require_owner
-from .user_routes import get_current_user
 
 logger = logging.getLogger("elfienest.api.nest_routes")
 

@@ -4,6 +4,7 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from elfienest.accounts.auth import require_owner
 from elfienest.config.runtime_store import read_runtime_config, write_runtime_config
 from runtime.food.models import FIXED_FOOD_KINDS
 from runtime.models.catalog import BUILTIN_MODEL_CATALOG
@@ -12,8 +13,6 @@ from runtime.safety.permissions import DEFAULT_TOOL_PERMISSIONS
 from runtime.storage.data_home import get_config_path
 from runtime.usage.observer import RuntimeEvent, get_runtime_observer
 from runtime.usage.token_tracker import get_token_tracker
-
-from .owner_routes import require_owner
 
 router = APIRouter(prefix="/api/owner/runtime", tags=["runtime"])
 

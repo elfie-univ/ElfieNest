@@ -6,6 +6,7 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from elfienest.accounts.auth import get_current_user
 from elfienest.persistence.store import get_db
 from runtime.food.elfie_policy import (
     ElfieFoodPolicy,
@@ -13,8 +14,6 @@ from runtime.food.elfie_policy import (
     save_elfie_food_policy,
 )
 from runtime.food.models import FIXED_FOOD_KINDS
-
-from .user_routes import get_current_user
 
 router = APIRouter(
     prefix="/api/user/elfies/{elfie_id}/food-policy",

@@ -12,6 +12,7 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from elfienest.accounts.auth import require_owner
 from elfienest.config.runtime_store import (
     hydrate_runtime_secrets,
     read_runtime_config,
@@ -28,8 +29,6 @@ from runtime.usage.observer import (
     get_runtime_observer,
 )
 from runtime.validation.providers import discover_provider_models
-
-from .owner_routes import require_owner
 
 logger = logging.getLogger("elfienest.api.provider_routes")
 

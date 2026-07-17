@@ -13,10 +13,9 @@ from typing import Any, Dict, Final
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from elfienest.accounts.auth import require_owner
 from elfienest.config.runtime_store import read_system_section, write_system_section
 from runtime.storage.data_home import get_config_path
-
-from .owner_routes import require_owner
 
 logger = logging.getLogger("elfienest.api.system_routes")
 

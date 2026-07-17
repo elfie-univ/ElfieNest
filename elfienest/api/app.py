@@ -23,12 +23,12 @@ from elfienest.accounts.auth import (
     create_session,
     delete_session,
     generate_csrf_token,
+    get_current_user,
     get_rate_limiter,
     get_session_ttl_seconds,
     hash_password,
     verify_csrf_token,
     verify_password,
-    verify_session,
 )
 from elfienest.operations.godot_web import inspect_godot_web_bundle
 from elfienest.persistence.store import (
@@ -204,20 +204,6 @@ def create_app(
                         content={"detail": exc.detail},
                     )
         return await call_next(request)
-
-    # -------------------------------------------------------------------
-    # 本地 get_current_user 依赖（使用 app.state.db_path）
-    # -------------------------------------------------------------------
-    def get_current_user(request: Request) -> Dict[str, Any]:
-        """从 session_token cookie 获取当前用户，使用 app 配置的 db_path。"""
-        token = request.cookies.get("session_token")
-        if not token:
-            raise HTTPException(status_code=401, detail="未登录，缺少会话 token")
-        db = request.app.state.db_path
-        user = verify_session(token, db)
-        if user is None:
-            raise HTTPException(status_code=401, detail="会话无效或已过期")
-        return user
 
     # -------------------------------------------------------------------
     # Routes

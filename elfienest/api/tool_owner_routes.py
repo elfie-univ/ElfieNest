@@ -6,6 +6,7 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from elfienest.accounts.auth import require_owner
 from elfienest.config.runtime_store import read_runtime_config, write_runtime_config
 from runtime.config import LLMRuntimeConfig
 from runtime.storage.data_home import get_config_path
@@ -13,8 +14,6 @@ from runtime.storage.secrets import set_tool_secret, tool_secret_name
 from runtime.tools.config import TOOL_KEYS, public_tool_configs
 from runtime.validation.models import ValidationSuite
 from runtime.validation.tools import DirectToolValidationRunner
-
-from .owner_routes import require_owner
 
 router = APIRouter(prefix="/api/owner/runtime/tools", tags=["runtime-tools"])
 def _read_policy() -> tuple[dict[str, Any], dict[str, Any]]:

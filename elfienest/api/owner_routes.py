@@ -13,7 +13,10 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from elfienest.accounts.auth import hash_password, verify_session
+from elfienest.accounts.auth import (
+    hash_password,
+    require_owner,
+)
 from elfienest.config.runtime_store import read_runtime_config, write_runtime_config
 from elfienest.persistence.store import get_db
 from runtime.storage.data_home import get_config_path
@@ -25,39 +28,6 @@ router = APIRouter(prefix="/api/owner", tags=["owner"])
 # ---------------------------------------------------------------------------
 # 路径常量
 # ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
-# 鉴权依赖
-# ---------------------------------------------------------------------------
-
-
-def get_current_user(request: Request) -> Dict[str, Any]:
-    """从 cookie ``session_token`` 获取当前用户。
-
-    使用 ``request.app.state.db_path``（由 ``create_app`` 注入），
-    与 ``app.py`` 中的本地 ``get_current_user`` 逻辑一致。
-    """
-    token = request.cookies.get("session_token")
-    if not token:
-        raise HTTPException(status_code=401, detail="未登录，缺少会话 token")
-
-    user = verify_session(token, request.app.state.db_path)
-    if user is None:
-        raise HTTPException(status_code=401, detail="会话无效或已过期")
-
-    return user
-
-
-def require_owner(user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:  # noqa: B008
-    """要求当前用户为 Owner。
-
-    FastAPI 依赖链：``require_owner`` → ``get_current_user`` → 解析 cookie。
-    非 Owner 用户触发 403，未登录触发 401。
-    """
-    if user.get("role") != "owner":
-        raise HTTPException(status_code=403, detail="需要 Owner 权限")
-    return user
-
 
 # ===================================================================
 # 用户管理
