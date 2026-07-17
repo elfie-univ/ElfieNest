@@ -7,7 +7,8 @@
   "main": "dist/main.js",
   "scripts": {
     "build": "pnpm exec tsc -p tsconfig.json",
-    "test": "pnpm build && node --test dist/supervisor.test.js",
+    "test": "pnpm build && node --test dist/supervisor.test.js dist/resource_manifest.test.js",
+    "build-resource-manifest": "pnpm build && node dist/build_resource_manifest.js",
     "dev": "pnpm build && electron .",
     "package": "pnpm build && electron-builder"
   },
