@@ -60,9 +60,9 @@ def test_collect_usage_stats_reads_core_counts(tmp_path: Path) -> None:
     owner_id = create_test_owner(db_path)
     with get_db(db_path) as conn:
         conn.execute(
-            "INSERT INTO elfie_registry (elfie_id, name, owner_user_id, anatomy_type) "
+            "INSERT INTO elfie_registry (elfie_id, name, owner_user_id, species_id) "
             "VALUES (?, ?, ?, ?)",
-            ("elfie_001", "小白", owner_id, "biped"),
+            ("elfie_001", "小白", owner_id, "dog"),
         )
         conn.commit()
 
@@ -73,8 +73,8 @@ def test_collect_usage_stats_reads_core_counts(tmp_path: Path) -> None:
     assert stats.owner_count == 1
     assert stats.elfie_count == 1
     assert stats.session_count == 0
-    assert [(row.anatomy_type, row.count) for row in stats.anatomy_stats] == [
-        ("biped", 1)
+    assert [(row.species_id, row.count) for row in stats.species_stats] == [
+        ("dog", 1)
     ]
 
 

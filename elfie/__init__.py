@@ -1,3 +1,4 @@
-from elfie.elfie_individual import ElfieIndividual
+from elfie.elfie import Elfie
+from elfie.factory import ElfieFactory
 
-__all__ = ["ElfieIndividual"]
+__all__ = ["Elfie", "ElfieFactory"]

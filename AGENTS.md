@@ -22,11 +22,14 @@ The simulation runs without external dependencies - if Ollama is unavailable, it
 ```
 ElfieNest/
 ├── main.py              # Entry point - orchestrates runtime, elfie, and engine
-├── elfie/               # ElfieIndividual - the creature with embodied cognition
+├── elfie/               # Elfie - 完整精灵聚合对象
+│   ├── profile/         # 个体档案、物种外貌和默认模板
 │   ├── brain/           # Neocortex (LLM reasoning), context building
-│   ├── body/            # Anatomy (biped/quadruped), somatic reflexes
-│   ├── interface/       # Actuators (speech, motion), sensors, signal filters
-│   └── config/          # Personality, capabilities, system limits (YAML)
+│   ├── nervous_system/  # 传感、动作、过滤、限位和反射
+│   ├── body/            # Headless、Native、External 可替换身体
+│   ├── communication/   # 精灵自带的消息通信
+│   ├── skills/          # 思考过程中使用的技能
+│   └── state/           # 可恢复动态状态
 ├── elfienest/           # ElfieNestEngine - physics tick simulation
 │   ├── engine.py        # Main loop, HTTP audio server, WebSocket API
 │   ├── room.py          # Multi-creature room state management
@@ -44,7 +47,7 @@ ElfieNest/
 ### Three-Layer Brain Architecture
 1. **Neocortex (Cognition)**: LLM-based reasoning and decision making
 2. **Limbic System (Core Systems)**: Emotions (amygdala), energy (hypothalamus), memory (hippocampus), context (thalamus)
-3. **Body (Interface)**: Physical actuators, sensors, reflex arcs
+3. **Nervous System and Body**: Physical actuators, sensors, reflex arcs
 
 ### Main Loop Flow
 1. `ElfieNestEngine.start_loop()` drives physics ticks
@@ -119,9 +122,14 @@ test/
 │   ├── body/
 │   │   ├── anatomy/         # 解剖学测试
 │   │   └── reflex/          # 反射弧测试
-│   └── interface/
-│       ├── actuators/       # 执行器测试
-│       └── sensors/         # 传感器测试
+│   ├── nervous_system/
+│   │   ├── actuators/       # 执行器测试
+│   │   ├── sensors/         # 传感器测试
+│   │   └── reflex/          # 反射测试
+│   └── body/
+│       ├── native/          # Native 身体测试
+│       ├── headless/        # Headless 身体测试
+│       └── external/        # External 身体测试
 ├── elfienest/               # 引擎测试
 └── runtime/                 # 运行时测试
 ```
@@ -140,9 +148,10 @@ test/
 - Default local model: `qwen3.5:0.8b` via Ollama
 
 ### Creature Configs
-- `elfie/config/personality.yaml` - Big Five personality traits, speech style
-- `elfie/config/capabilities.yaml` - What actions the creature can perform
-- `elfie/config/system_limits.yaml` - Joint limits, energy constraints
+- `elfie/profile/defaults/personality.yaml` - 默认 Big Five 人格和说话风格
+- `elfie/profile/defaults/capabilities.yaml` - 默认动作能力
+- `elfie/profile/defaults/system_limits.yaml` - 默认关节、能量和疲劳限制
+- 每只精灵自己的稳定配置保存在其数据目录的 `profile.yaml`
 
 ## Godot Integration
 

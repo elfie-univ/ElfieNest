@@ -5,7 +5,7 @@
     1. 初始化 DB + seed Owner 账号
     2. 可选项: 为 Owner seed 初始精灵"艾菲" (--seed-elfie，默认开启)
     3. 引擎后台线程: RuntimeAgent → ElfieNestEngine (不硬编码精灵)
-    4. 从 DB 查询 elfie_registry → 实例化 ElfieIndividual → 注册到引擎
+    4. 从 DB 查询 elfie_registry → 实例化 Elfie → 注册到引擎
     5. 创建 FastAPI app → uvicorn 阻塞主线程
 
 命令行参数:
@@ -467,7 +467,9 @@ def main():
     # 4. 从 DB 动态加载所有精灵
     loaded_elfies: list[dict] = []
     try:
-        from elfie import ElfieIndividual  # noqa: PLC0415
+        from elfie import ElfieFactory  # noqa: PLC0415
+
+        elfie_factory = ElfieFactory()
 
         with get_db(db_path) as conn:
             cursor = conn.execute("SELECT COUNT(*) AS cnt FROM elfie_registry")
@@ -491,9 +493,10 @@ def main():
             anatomy_type = row["anatomy_type"]
             name = row["name"]
             try:
-                elfie = ElfieIndividual(
-                    config_dir=config_dir,
+                elfie = elfie_factory.restore(
+                    config_dir,
                     anatomy_type=anatomy_type,
+                    godot_api=engine.api_server,
                     elfie_id=elfie_id,
                 )
                 engine.room.register_elfie(elfie_id, elfie)

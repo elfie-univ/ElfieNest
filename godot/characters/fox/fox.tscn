@@ -1,0 +1,25 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://characters/shared/elfie_actor.gd" id="1_actor"]
+[ext_resource type="PackedScene" path="res://characters/fox/fox.glb" id="2_model"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_fox"]
+radius = 0.34
+height = 1.72
+
+[node name="Fox" type="CharacterBody3D"]
+floor_snap_length = 0.15
+safe_margin = 0.02
+script = ExtResource("1_actor")
+species_id = "fox"
+
+[node name="VisualRoot" type="Node3D" parent="."]
+
+[node name="character" parent="VisualRoot" instance=ExtResource("2_model")]
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+root_node = NodePath("../VisualRoot/character")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.86, 0)
+shape = SubResource("CapsuleShape3D_fox")

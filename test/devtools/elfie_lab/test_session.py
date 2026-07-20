@@ -17,6 +17,9 @@ def test_mock_turn_records_full_debug_chain(tmp_path):
     assert turn["trace"]["stages"]["decision"]["attention_mode"] == "CEN"
     assert "thalamus_context" in turn["trace"]["stages"]
     assert "action_validation" in turn["trace"]["stages"]
+    assert turn["result"]["body_execution"]["status"] == "completed"
+    assert turn["trace"]["stages"]["body_output"]["action"] == turn["result"]["action"]
+    assert session.body.last_result.action == turn["result"]["action"]
     assert turn["state_before"]["energy"] > turn["state_after"]["energy"]
     assert (
         storage.load_latest_session(spec.elfie_id)["turns"][0]["turn_id"]

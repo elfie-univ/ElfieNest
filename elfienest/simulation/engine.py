@@ -3,6 +3,8 @@ import os
 import time
 from typing import Any, Dict, Optional
 
+from elfie.body import BodyCommand, BodyEvent
+from elfie.profile import AppearanceResolver
 from elfienest.core.room import ElfieNestRoom
 from elfienest.simulation.action_mapper import map_action_to_world
 from elfienest.simulation.coordinator import ElfieNestCoordinator
@@ -52,7 +54,7 @@ class ElfieNestEngine:
                 godot_origin_port if godot_origin_port is not None else http_port
             ),
         )
-        self.coordinator = ElfieNestCoordinator(self.room, self.api_server)
+        self.coordinator = ElfieNestCoordinator(self.room)
 
         # 2. 音频分发参数
         self.http_port = http_port
@@ -69,11 +71,8 @@ class ElfieNestEngine:
         self.api_server.register_callback(
             "register_scene", self._on_godot_scene_registered
         )
-        self.api_server.register_callback(
-            "runtime_ready", self._on_godot_runtime_ready
-        )
+        self.api_server.register_callback("runtime_ready", self._on_godot_runtime_ready)
         self.api_server.register_callback("arrived_at", self._on_godot_elfie_arrived)
-        self.api_server.register_callback("user_message", self._on_user_message)
 
         # 4. 可选的鉴权 WebSocket 管理网关（由 app.py 注入，None 则不启用）
         self.ws_manager: Optional[Any] = None
@@ -97,14 +96,47 @@ class ElfieNestEngine:
             "sync_elfies",
             {
                 "elfies": [
-                    {
-                        "elfie_id": elfie_id,
-                        "name": getattr(elfie, "name", elfie_id),
-                    }
+                    self._build_godot_elfie_payload(elfie_id, elfie)
                     for elfie_id, elfie in self.room.elfies.items()
                 ]
             },
         )
+
+    @staticmethod
+    def _build_godot_elfie_payload(elfie_id: str, elfie: Any) -> Dict[str, Any]:
+        """从个体配置提取 Godot 渲染所需的最小身份与外观数据。"""
+        character_profile = getattr(elfie, "character_profile", None)
+        if character_profile is not None:
+            resolved = AppearanceResolver().resolve(character_profile)
+            appearance = resolved.to_payload()
+            return {
+                "elfie_id": elfie_id,
+                "name": character_profile.identity.display_name,
+                "species": character_profile.identity.species_id,
+                "height_scale": resolved.height_scale,
+                "build_scale": resolved.build_scale,
+                "appearance": appearance,
+            }
+
+        profile = getattr(getattr(elfie, "brain", None), "profile", None)
+        personality = getattr(profile, "personality", {})
+        if not isinstance(personality, dict):
+            personality = {}
+        metadata = personality.get("metadata", {})
+        if not isinstance(metadata, dict):
+            metadata = {}
+        appearance = metadata.get("appearance", {})
+        if not isinstance(appearance, dict):
+            appearance = {}
+
+        payload: Dict[str, Any] = {
+            "elfie_id": elfie_id,
+            "name": metadata.get("name") or getattr(elfie, "name", elfie_id),
+        }
+        for field in ("species", "height", "build", "height_scale", "build_scale"):
+            if field in appearance:
+                payload[field] = appearance[field]
+        return payload
 
     def _on_godot_elfie_arrived(self, payload: Dict[str, Any]):
         """Godot 精灵移动到达回调：锁定物理姿态"""
@@ -121,13 +153,6 @@ class ElfieNestEngine:
             posture = "away"
 
         self.room.update_elfie_posture(elfie_id, posture, target or None)
-
-    def _on_user_message(self, payload: Dict[str, Any]):
-        """处理用户通过 WebSocket 发送的消息"""
-        elfie_id = payload.get("elfie_id", "")
-        message = payload.get("message", "")
-        if elfie_id and message:
-            self.coordinator.send_user_message(elfie_id, message)
 
     async def _async_generate_tts(
         self, text: str, output_path: str, voice: str = "zh-CN-XiaoxiaoNeural"
@@ -146,6 +171,57 @@ class ElfieNestEngine:
             http_port=self.http_port,
             tts_enabled=self.tts_enabled,
         )
+
+    def _collect_world_sensory_events(self, elfie_id: str) -> list[BodyEvent]:
+        """把房间和管理端输入转换成身体层统一感官事件。"""
+        events: list[BodyEvent] = []
+        pending_speech = self.room.consume_pending_sensory_input(elfie_id)
+        if pending_speech:
+            events.append(
+                BodyEvent(
+                    sensor="hearing",
+                    source="nest:room_speech",
+                    payload={"user_message": pending_speech},
+                )
+            )
+
+        user_message = self.coordinator.consume_user_message(elfie_id)
+        if user_message:
+            events.append(
+                BodyEvent(
+                    sensor="hearing",
+                    source="nest:owner_message",
+                    payload={"user_message": user_message},
+                )
+            )
+
+        tactile = self.coordinator.consume_tactile(elfie_id)
+        if (
+            float(tactile.get("impact_force", 0.0)) > 0.0
+            or float(tactile.get("gentle_stroke", 0.0)) > 0.0
+        ):
+            events.append(
+                BodyEvent(
+                    sensor="touch",
+                    source="nest:physical_interaction",
+                    payload=tactile,
+                )
+            )
+        return events
+
+    @staticmethod
+    def _execute_body_command(
+        elfie: Any, command: BodyCommand
+    ) -> Optional[Dict[str, Any]]:
+        """通过精灵的神经系统控制当前身体；未装配身体时只记录告警。"""
+        if getattr(elfie, "current_body", None) is None:
+            logger.warning(
+                "精灵 %s 尚未绑定身体，跳过动作 %s",
+                getattr(getattr(elfie, "identity", None), "elfie_id", "unknown"),
+                command.action,
+            )
+            return None
+        return elfie.execute_body_command(command).to_dict()
 
     def start_loop(
         self,
@@ -195,24 +271,17 @@ class ElfieNestEngine:
                     ):
                         continue
 
-                    # 1. 组装感官输入：包含群聊听到的话 + 用户消息 + Coordinator 注入的物理碰撞触觉
-                    pending_speech = self.room.consume_pending_sensory_input(elfie_id)
-                    tactile_sensory = self.coordinator.consume_tactile(elfie_id)
-                    user_msg = self.coordinator.consume_user_message(elfie_id)
-
-                    raw_sensor_data = {
-                        "has_new_message": bool(pending_speech) or bool(user_msg),
-                        "user_message": pending_speech if pending_speech else user_msg,
-                        **tactile_sensory,
-                    }
-
+                    # 1. 当前身体事件与房间补充事件统一进入神经系统。
+                    world_events = self._collect_world_sensory_events(elfie_id)
                     logger.info(
-                        f"👀 [具身感知] 精灵 '{elfie_id}' 正在感知环境: {raw_sensor_data}"
+                        "👀 [具身感知] 精灵 '%s' 收到 %s 条身体事件",
+                        elfie_id,
+                        len(world_events),
                     )
 
                     # 2. 激活大脑神经冲动闭环 (脑干反射弧检测 -> 丘脑组装 Context -> 皮层 LLM 决策)
-                    response = elfie.perceive_and_respond(
-                        raw_sensor_data, runtime_agent
+                    response = elfie.respond_to_body_events(
+                        world_events, runtime_agent
                     )
 
                     # 3. 处理具身决策响应结果
@@ -235,16 +304,24 @@ class ElfieNestEngine:
                             # 5. 音频合成与播发
                             audio_url = self._synthesize_voice(elfie_id, speech_text)
 
-                            # 发送发音和头顶文字气泡事件给 Godot
-                            self.api_server.send_action(
-                                "speak_event",
-                                {
-                                    "elfie_id": elfie_id,
-                                    "text": speech_text,
-                                    "audio_url": audio_url or "",
-                                    "emotion": str(elfie.amygdala.get_dominant_mood()),
-                                },
+                            # 发音和头顶文字气泡通过当前身体执行。
+                            speech_execution = self._execute_body_command(
+                                elfie,
+                                BodyCommand(
+                                    action="speech.say",
+                                    parameters={
+                                        "speech": speech_text,
+                                        "audio_url": audio_url or "",
+                                        "emotion": str(
+                                            elfie.amygdala.get_dominant_mood()
+                                        ),
+                                    },
+                                ),
                             )
+                            if speech_execution is not None:
+                                response.setdefault("body_executions", []).append(
+                                    speech_execution
+                                )
 
                             # 通过鉴权 WS 网关只向该精灵的 owner + Owner推送
                             if self.ws_manager:
@@ -263,12 +340,8 @@ class ElfieNestEngine:
                                     },
                                 )
 
-                        # 6. 转译并下发物理语义动作
-                        if (
-                            action
-                            and action != "reflex_avoidance"
-                            and action != "reflex_soothing"
-                        ):
+                        # 6. 转译并通过当前身体下发物理语义动作。
+                        if action:
                             world_action = map_action_to_world(action)
 
                             if world_action:
@@ -279,15 +352,30 @@ class ElfieNestEngine:
                                     world_action.target_furniture,
                                 )
 
-                                # 下发给 Godot 去进行 3D 寻路与寻路到达 Area 的碰撞反馈
-                                self.api_server.send_action(
-                                    "go_to",
-                                    {
-                                        "elfie_id": elfie_id,
+                                command = BodyCommand(
+                                    action="movement.go_to",
+                                    parameters={
                                         "target": world_action.target_furniture,
                                         "posture": world_action.posture,
                                         "animation": world_action.animation,
                                     },
+                                )
+                            else:
+                                command = BodyCommand(
+                                    action=action,
+                                    parameters={
+                                        "mutter": mutter,
+                                        "joint_angles": response.get(
+                                            "joint_angles", {}
+                                        ),
+                                    },
+                                )
+                            action_execution = self._execute_body_command(
+                                elfie, command
+                            )
+                            if action_execution is not None:
+                                response.setdefault("body_executions", []).append(
+                                    action_execution
                                 )
                     else:
                         logger.warning(

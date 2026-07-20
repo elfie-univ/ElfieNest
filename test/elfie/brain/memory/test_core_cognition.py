@@ -25,7 +25,7 @@ _PROJECT_ROOT = _HERE.parent.parent.parent.parent
 
 # 实际personality.yaml路径
 _PERSONALITY_PATH = str(
-    _PROJECT_ROOT / "elfie" / "config" / "personality.yaml"
+    _PROJECT_ROOT / "elfie" / "profile" / "defaults" / "personality.yaml"
 )
 # 不存在的路径，用于阻止 _load_from_db 自动初始化
 _NONEXISTENT_PATH = "/tmp/_nonexistent_personality.yaml"

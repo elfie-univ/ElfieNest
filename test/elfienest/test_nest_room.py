@@ -7,7 +7,7 @@ import unittest
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from elfie import ElfieIndividual
+from elfie import Elfie
 from elfienest import ElfieNestEngine
 from elfienest.core.room import ElfieNestRoom
 
@@ -35,8 +35,8 @@ class TestElfieNestSimulation(unittest.TestCase):
         room = ElfieNestRoom()
 
         # 1. 注册多只精灵
-        elfie_1 = ElfieIndividual()
-        elfie_2 = ElfieIndividual()
+        elfie_1 = Elfie()
+        elfie_2 = Elfie()
         room.register_elfie("艾菲", elfie_1)
         room.register_elfie("雪球", elfie_2)
 
@@ -88,7 +88,7 @@ class TestElfieNestSimulation(unittest.TestCase):
         engine = ElfieNestEngine(ws_port=8899, http_port=8080)
 
         # 注册精灵
-        elfie = ElfieIndividual()
+        elfie = Elfie()
         engine.coordinator.register_elfie("艾菲", elfie)
 
         # 模拟触觉碰撞 (揉尾巴)

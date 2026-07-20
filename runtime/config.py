@@ -130,7 +130,7 @@ DEFAULT_SYSTEM_SETTINGS: Dict[str, Dict[str, Any]] = {
     },
     "adoption": {
         "max_elfies_per_user": 3,
-        "allowed_anatomy_types": ["biped", "quadruped"],
+        "allowed_species_ids": ["dog", "fox"],
         "personality_presets_enabled": {
             "活泼好动": True,
             "安静温顺": True,

@@ -7,14 +7,14 @@
 
   const state = {
     step: 0,
-    anatomy: "biped",
+    species: "fox",
     height: "standard",
     build: "standard",
     personality: "活泼好动",
     name: "",
   };
 
-  const steps = ["选择动物形态", "调整高矮胖瘦", "给精灵起名字", "选择性格", "预览 3D 形象", "确认配置"];
+  const steps = ["选择动物物种", "调整高矮胖瘦", "给精灵起名字", "选择性格", "预览 3D 形象", "确认配置"];
   const lastStep = steps.length - 1;
   const byId = (id) => document.getElementById(id);
   const panels = Array.from(document.querySelectorAll("[data-adoption-panel]"));
@@ -49,12 +49,12 @@
     `;
   }
 
-  function anatomyButton(value) {
-    const option = options.anatomyOption(value);
+  function speciesButton(value) {
+    const option = options.speciesOption(value);
     return `
-      <button class="choice-card anatomy-choice ${state.anatomy === value ? "active" : ""}" type="button" data-choice-group="anatomy" data-choice-value="${escapeHtml(value)}">
+      <button class="choice-card species-choice ${state.species === value ? "active" : ""}" type="button" data-choice-group="species" data-choice-value="${escapeHtml(value)}">
         <span class="choice-avatar">
-          ${avatar.markup({ anatomy: value, height: "standard", build: "standard" })}
+          ${avatar.markup({ species: value, height: "standard", build: "standard" })}
         </span>
         <strong>${escapeHtml(option.label)}</strong>
         <span>${escapeHtml(option.detail)}</span>
@@ -79,7 +79,7 @@
 
   function selectedElfie() {
     return {
-      anatomy: state.anatomy,
+      species: state.species,
       height: state.height,
       build: state.build,
     };
@@ -92,14 +92,14 @@
 
   function renderChoices() {
     const info = consoleApi.getAdoptionInfo() || {};
-    const anatomies = Array.isArray(info.anatomy_types) && info.anatomy_types.length
-      ? info.anatomy_types
-      : ["biped", "quadruped"];
-    if (!anatomies.includes(state.anatomy)) {
-      state.anatomy = anatomies[0] || "biped";
+    const species = Array.isArray(info.species_ids) && info.species_ids.length
+      ? info.species_ids
+      : ["dog", "fox"];
+    if (!species.includes(state.species)) {
+      state.species = species[0] || "fox";
     }
     const anatomyNode = byId("adoption-anatomy-options");
-    if (anatomyNode) anatomyNode.innerHTML = anatomies.map(anatomyButton).join("");
+    if (anatomyNode) anatomyNode.innerHTML = species.map(speciesButton).join("");
 
     const heightNode = byId("adoption-height-options");
     if (heightNode) {
@@ -116,11 +116,11 @@
   }
 
   function reviewRows(compact = false) {
-    const anatomy = consoleApi.labelForAnatomy(state.anatomy);
+    const species = consoleApi.labelForSpecies(state.species);
     const appearance = consoleApi.labelForAppearance(state.height, state.build);
     const rows = [
       ["名字", selectedName()],
-      ["动物", anatomy],
+      ["物种", species],
       ["体态", appearance],
       ["性格", state.personality],
       ["配置状态", compact ? "确认后锁定" : "领养后不可修改"],
@@ -181,7 +181,7 @@
 
   function resetWizard() {
     state.step = 0;
-    state.anatomy = "biped";
+    state.species = "fox";
     state.height = "standard";
     state.build = "standard";
     state.personality = "活泼好动";
@@ -202,7 +202,7 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: state.name,
-          anatomy_type: state.anatomy,
+          species_id: state.species,
           personality_style: state.personality,
           height: state.height,
           build: state.build,

@@ -1,9 +1,8 @@
 import logging
 from typing import Any, Dict
 
-from elfie import ElfieIndividual
+from elfie import Elfie
 from elfienest.core.room import ElfieNestRoom
-from elfienest.transport.godot_api import GodotAPIServer
 
 logger = logging.getLogger("elfienest.simulation.coordinator")
 
@@ -15,9 +14,8 @@ class ElfieNestCoordinator:
     进而激活脑干自律物理反射弧或注入大脑丘脑。
     """
 
-    def __init__(self, room: ElfieNestRoom, api_server: GodotAPIServer):
+    def __init__(self, room: ElfieNestRoom):
         self.room = room
-        self.api_server = api_server
 
         # 缓存每个精灵积压的物理触觉感官包
         self.pending_tactile: Dict[str, Dict[str, Any]] = {}
@@ -25,7 +23,7 @@ class ElfieNestCoordinator:
         # 用户消息缓冲（WebSocket 入站）
         self.pending_messages: Dict[str, str] = {}
 
-    def register_elfie(self, elfie_id: str, elfie: ElfieIndividual):
+    def register_elfie(self, elfie_id: str, elfie: Elfie):
         """兼容 main.py 接口：在房间中注册精灵"""
         self.room.register_elfie(elfie_id, elfie)
 
@@ -41,18 +39,12 @@ class ElfieNestCoordinator:
         )
 
         if event_type == "collision":
-            # 揉揉尾巴/拍一拍，完美对接 elfie_individual.py 的 Somatic Reflex
+            # 揉揉尾巴/拍一拍，对接 Elfie 的 Somatic Reflex。
             self.pending_tactile[receiver_id] = {
                 "impact_force": 1.5,
                 "impact_direction": "back",
                 "gentle_stroke": 1.0,
             }
-
-            # 如果有 Godot 在线，将碰撞状态发送给 Godot 端同步播动作
-            self.api_server.send_action(
-                "physical_impact_event",
-                {"elfie_id": receiver_id, "impact_type": "gentle_stroke"},
-            )
 
     def send_user_message(self, elfie_id: str, message: str):
         """接收来自 WebSocket 客户端的用户消息，缓存到下一个 tick"""

@@ -23,7 +23,7 @@ import pytest
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.insert(0, PROJECT_ROOT)
 
-from elfie import ElfieIndividual
+from elfie import Elfie
 from elfie.brain import (
     BrainContext,
     EmotionSystem,
@@ -94,7 +94,7 @@ class TestMemoryCoherence:
 
         完整链路：感官→丘脑→皮层→记忆录制→跨tick检索→上下文注入
         """
-        elfie = ElfieIndividual(anatomy_type="biped")
+        elfie = Elfie(anatomy_type="biped")
 
         # -------- Tick 1: 传入用户消息，模拟LLM回复提到"鱼" --------
         agent_tick1 = MockRuntimeAgent(
@@ -162,7 +162,7 @@ class TestEmotionEvolution:
         3. 抚摸(gentle_stroke=1.2)→恐惧降低、快乐升高
         4. 验证全程情绪在[0,100]合理范围
         """
-        elfie = ElfieIndividual(anatomy_type="quadruped")
+        elfie = Elfie(anatomy_type="quadruped")
         initial_fear = elfie.amygdala.get_emotion_value("fear")
 
         # -------- Tick 1: 撞击刺激 --------
@@ -247,7 +247,7 @@ class TestSleepWakeConsolidationCycle:
         6. 验证产生了knowledge类型节点
         7. 验证产生了knowledge类型节点
         """
-        elfie = ElfieIndividual(anatomy_type="biped")
+        elfie = Elfie(anatomy_type="biped")
         recon_agent = MockRuntimeAgent(
             response="- 主人每天8点左右喂我\n- 清晨喂食后情绪很开心"
         )
@@ -333,7 +333,7 @@ class TestMorphologicalProtection:
         4. 验证fear(anxiety)升高
         5. 验证记忆记录了该拦截事件
         """
-        elfie = ElfieIndividual(anatomy_type="biped")
+        elfie = Elfie(anatomy_type="biped")
 
         initial_fear = elfie.amygdala.get_emotion_value("fear")
 
@@ -388,7 +388,7 @@ class TestPredictionDrivenSocial:
 
         完整链路：温度变化→信号通过→丘脑组装→皮层预测加工误差大→主动社交→LLM调用→speech输出
         """
-        elfie = ElfieIndividual(anatomy_type="quadruped")
+        elfie = Elfie(anatomy_type="quadruped")
         agent = MockRuntimeAgent(
             response="好热呀！今天天气怎么这么热！ [ACTION]wag_tail[/ACTION]"
         )
@@ -528,7 +528,7 @@ class TestEmotionDecayMultiTick:
         1. fear值逐步下降
         2. 最终fear < 80 但 > 0（不会衰减到零）
         """
-        elfie = ElfieIndividual(anatomy_type="biped")
+        elfie = Elfie(anatomy_type="biped")
 
         # 直接设fear=80（基线10，需要加70）
         elfie.amygdala.update_emotion("fear", 70.0)
@@ -655,7 +655,7 @@ class TestLowEnergyEffects:
 
         完整链路：低能量→丘脑组装含energy值→皮层decision→consume_energy
         """
-        elfie = ElfieIndividual(anatomy_type="biped")
+        elfie = Elfie(anatomy_type="biped")
 
         # 设能量极低
         elfie.hypothalamus.energy = 5.0
@@ -707,7 +707,7 @@ class TestFullPerceptionActionCycle:
         h. 能量被扣减 ✓
         i. boredom降低，happiness升高 ✓
         """
-        elfie = ElfieIndividual(anatomy_type="quadruped")
+        elfie = Elfie(anatomy_type="quadruped")
 
         # 记录初始状态
         initial_energy = elfie.hypothalamus.get_energy()
@@ -812,7 +812,7 @@ class TestSignalFilterBoundary:
 
     def test_signal_filter_blocks_duplicate(self):
         """连续两次传入相同用户消息→第二次被过滤拦截"""
-        elfie = ElfieIndividual(anatomy_type="biped")
+        elfie = Elfie(anatomy_type="biped")
         agent = MockRuntimeAgent()
 
         sensor_data = {

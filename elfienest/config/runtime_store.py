@@ -80,6 +80,8 @@ def read_system_section(path: Path, section: str) -> Dict[str, Any]:
     saved_section = saved.get("system", {}).get(section, {})
     if isinstance(saved_section, dict):
         deep_update(base, saved_section)
+    if section == "adoption":
+        base.pop("allowed_anatomy_types", None)
     return base
 
 

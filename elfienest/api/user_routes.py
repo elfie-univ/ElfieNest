@@ -7,12 +7,15 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Dict
 
+import yaml
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from elfie.profile import ElfieProfileRepository
 from elfienest.accounts.auth import get_current_user
 from elfienest.adoption.generator import ElfieGenerator
 from elfienest.adoption.service import (
@@ -66,13 +69,13 @@ async def list_my_elfies(
     request: Request,
     user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
 ):
-    """返回当前用户名下所有精灵（id, name, anatomy_type, personality_style, height, build, created_at）。"""
+    """返回当前用户名下所有精灵及其稳定物种和领养摘要。"""
     db = request.app.state.db_path
     with get_db(db) as conn:
         cursor = conn.execute(
             """SELECT e.elfie_id,
                       e.name,
-                      e.anatomy_type,
+                      e.species_id,
                       e.personality_style,
                       e.height,
                       e.build,
@@ -93,7 +96,7 @@ async def list_my_elfies(
         {
             "elfie_id": r["elfie_id"],
             "name": r["name"],
-            "anatomy_type": r["anatomy_type"],
+            "species_id": r["species_id"],
             "personality_style": r["personality_style"],
             "height": r["height"],
             "build": r["build"],
@@ -120,7 +123,8 @@ async def get_elfie_detail(
             raise HTTPException(status_code=404, detail="精灵不存在")
 
         cursor = conn.execute(
-            """SELECT elfie_id, name, anatomy_type, personality_style,
+            """SELECT elfie_id, name, species_id, profile_schema_version,
+                      personality_style,
                       height, build, created_at, config_dir
                FROM elfie_registry WHERE elfie_id = ?""",
             (elfie_id,),
@@ -132,7 +136,12 @@ async def get_elfie_detail(
 
     config_dir = Path(row["config_dir"])
     configs: Dict[str, Any] = {}
-    for fname in ("personality.yaml", "capabilities.yaml", "system_limits.yaml"):
+    for fname in (
+        "profile.yaml",
+        "personality.yaml",
+        "capabilities.yaml",
+        "system_limits.yaml",
+    ):
         fpath = config_dir / fname
         if fpath.exists():
             configs[fname] = fpath.read_text(encoding="utf-8")
@@ -142,7 +151,8 @@ async def get_elfie_detail(
     return {
         "elfie_id": row["elfie_id"],
         "name": row["name"],
-        "anatomy_type": row["anatomy_type"],
+        "species_id": row["species_id"],
+        "profile_schema_version": row["profile_schema_version"],
         "personality_style": row["personality_style"],
         "height": row["height"],
         "build": row["build"],
@@ -231,8 +241,19 @@ async def update_elfie_config(
     if not content or not isinstance(content, str):
         raise HTTPException(status_code=400, detail="content 不能为空且必须为字符串")
 
+    try:
+        parsed = yaml.safe_load(content)
+    except yaml.YAMLError as exc:
+        raise HTTPException(status_code=400, detail=f"YAML 格式错误: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise HTTPException(status_code=400, detail="配置 YAML 根节点必须是映射")
+
     fpath = config_dir / filename
     fpath.write_text(content, encoding="utf-8")
+    repository = ElfieProfileRepository(config_dir)
+    if repository.exists():
+        field_name = filename.removesuffix(".yaml")
+        repository.save(replace(repository.load(), **{field_name: parsed}))
     logger.info(
         "User %s updated %s for elfie %s", user["username"], filename, elfie_id,
     )
@@ -247,13 +268,16 @@ async def adopt_elfie(
 ):
     """核心领养端点 — 创建新精灵并分配至当前用户。
 
-    前置检查：上限 3 只、名字长度、anatomy_type、personality_style、height、build。
+    前置检查：领养上限、名字、物种、性格方向和外貌生成方向。
     通过后：生成 elfie_id → 调用 ElfieGenerator → 插入 elfie_registry → 可选注册到 engine。
     """
     db = request.app.state.db_path
     adoption_request = AdoptionRequest(
         name=(body.get("name") or "").strip(),
-        anatomy_type=(body.get("anatomy_type") or "").strip(),
+        species_id=(
+            body.get("species_id")
+            or ("fox" if body.get("anatomy_type") else "")
+        ).strip(),
         personality_style=(body.get("personality_style") or "").strip(),
         height=(body.get("height") or "").strip(),
         build=(body.get("build") or "").strip(),
@@ -276,6 +300,7 @@ async def adopt_elfie(
         content={
             "elfie_id": result.elfie_id,
             "name": result.name,
+            "species_id": result.species_id,
             "config_dir": result.config_dir,
         },
     )
@@ -286,8 +311,8 @@ async def adoption_info(
     request: Request,
     user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
 ):
-    """返回领养可选项（性格风格列表、体型列表、身高/体型选项）。
+    """返回领养可选项（物种、性格以及外貌生成方向）。
 
-    性格风格和 anatomy_type 从 ``system.adoption`` 动态读取。
+    性格风格和 species_id 从 ``system.adoption`` 动态读取。
     """
     return adoption_options_for_user(request.app.state.db_path, user_id=user["id"])

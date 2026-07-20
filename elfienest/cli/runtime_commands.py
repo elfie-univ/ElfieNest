@@ -56,8 +56,8 @@ def show_stats() -> None:
 
     print("  【精灵统计】")
     print(f"    总精灵数: {stats.elfie_count}")
-    for row in stats.anatomy_stats:
-        print(f"    {row.anatomy_type}: {row.count}")
+    for row in stats.species_stats:
+        print(f"    {row.species_id}: {row.count}")
     print()
 
     print("  【会话统计】")

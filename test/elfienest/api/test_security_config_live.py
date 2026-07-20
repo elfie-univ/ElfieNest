@@ -8,7 +8,7 @@
 - test_config_invalid_values: PUT session_ttl_days=0 → 422;
   PUT max_attempts=0 → 422
 
-使用 tmp_path 隔离 DB 和 runtime_config.json。
+使用 tmp_path 隔离 DB 和 ELFIE_HOME/config.yaml。
 """
 
 from __future__ import annotations
@@ -51,11 +51,12 @@ def db_path(tmp_path: Path) -> str:
 
 
 @pytest.fixture
-def runtime_config_path(tmp_path: Path) -> Path:
-    """临时 runtime_config.json 路径，用于 mock。"""
-    p = tmp_path / "runtime" / "runtime_config.json"
-    p.parent.mkdir(parents=True, exist_ok=True)
-    return p
+def runtime_config_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Path:
+    """使用临时 ELFIE_HOME 隔离生产格式配置及本地密钥。"""
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    return tmp_path / "config.yaml"
 
 
 @pytest.fixture
@@ -67,8 +68,6 @@ def app(db_path: str, runtime_config_path: Path):
     with (
         patch("elfienest.api.app.AuthenticatedWSManager.start"),
         patch("elfienest.api.app.AuthenticatedWSManager.stop"),
-        patch("elfienest.api.system_routes.get_config_path", return_value=runtime_config_path),
-        patch("elfienest.api.owner_routes.get_config_path", return_value=runtime_config_path),
     ):
         application = create_app(engine=None, db_path=db_path, ws_port=9876)
         yield application
@@ -242,7 +241,7 @@ class TestRateLimitLive:
         """HTTP API：PUT max_attempts=2 → 2 次错误密码 → 第 3 次 429。"""
         owner_tokens = _login_owner(client)
 
-        # PUT 写入新限流配置到 runtime_config_path（mock 路径）
+        # PUT 写入临时 ELFIE_HOME/config.yaml。
         resp = client.put(
             "/api/owner/system/security",
             json={"rate_limit": {"max_attempts": 2, "window_seconds": 300}},

@@ -15,7 +15,7 @@ class SensorData:
     """底层感官数据（经过丘脑噪点剥离后）
 
     对应原来 context["sensors"] 子字典。
-    来源：ElfieIndividual 从 raw_sensor_data 过滤后传入丘脑。
+    来源：Elfie 从 raw_sensor_data 过滤后传入丘脑。
     """
     temperature: float = 24.0
     is_network_online: bool = True
@@ -56,7 +56,7 @@ class BrainDecision:
     """大脑皮层 → 执行层 的决策契约
 
     由 NeocortexBrain.think_and_decide() 返回，
-    ElfieIndividual.perceive_and_respond() 消费后驱动执行器。
+    Elfie.perceive_and_respond() 消费后驱动执行器。
     """
     action: str = "blink_eyes"
     speech_text: str = ""

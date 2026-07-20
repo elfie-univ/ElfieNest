@@ -106,7 +106,7 @@ class TestGetDefaults:
         assert resp.status_code == 200
         data = resp.json()
         assert data["max_elfies_per_user"] == 3
-        assert data["allowed_anatomy_types"] == ["biped", "quadruped"]
+        assert data["allowed_species_ids"] == ["dog", "fox"]
         assert data["personality_presets_enabled"]["活泼好动"] is True
 
     def test_get_engine_defaults(self, client: TestClient) -> None:
@@ -334,12 +334,12 @@ class TestPutErrors:
         )
         assert resp.status_code == 422
 
-    def test_empty_allowed_anatomy_types_422(self, client: TestClient) -> None:
-        """至少保留一种可领养形态，避免把领养功能配置成不可用。"""
+    def test_empty_allowed_species_ids_422(self, client: TestClient) -> None:
+        """至少保留一个可领养物种，避免把领养功能配置成不可用。"""
         tokens = _login_owner(client)
         resp = client.put(
             "/api/owner/system/adoption",
-            json={"allowed_anatomy_types": []},
+            json={"allowed_species_ids": []},
             headers=_headers(tokens["csrf_token"]),
         )
 

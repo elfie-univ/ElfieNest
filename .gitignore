@@ -50,6 +50,7 @@ dist/
 *.sln
 *.swp
 *~
+*.blend1
 .mypy_cache/
 .ruff_cache/
 .playwright-mcp/

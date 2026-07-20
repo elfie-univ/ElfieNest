@@ -53,7 +53,7 @@ const roomsCopy = document.querySelector("#rooms-copy");
 const elfGrid = document.querySelector("#elf-grid");
 const ownerFilter = document.querySelector("#owner-filter");
 const elfStatusFilter = document.querySelector("#elf-status-filter");
-const elfAnatomyFilter = document.querySelector("#elf-anatomy-filter");
+const elfSpeciesFilter = document.querySelector("#elf-species-filter");
 const elfBuildFilter = document.querySelector("#elf-build-filter");
 const backdrop = document.querySelector(".drawer-backdrop");
 const adoptionDrawer = document.querySelector("#adoption-drawer");
@@ -465,10 +465,10 @@ function systemPayload(section, form) {
   const data = new FormData(form);
   if (section === "adoption") {
     const maxPerUser = Number(data.get("max_elfies_per_user") || 3);
-    const anatomyTypes = String(data.get("allowed_anatomy_types") || "biped, quadruped")
+    const speciesIds = String(data.get("allowed_species_ids") || "dog, fox")
       .split(",")
       .map((item) => item.trim())
-      .filter((item) => ["biped", "quadruped"].includes(item));
+      .filter((item) => ["dog", "fox"].includes(item));
     const presetNames = ["活泼好动", "安静温顺", "好奇探索", "胆小害羞", "傲娇独立", "完全随机"];
     const enabledPresets = new Set(String(data.get("personality_presets") || presetNames.join(","))
       .split(",")
@@ -476,7 +476,7 @@ function systemPayload(section, form) {
       .filter(Boolean));
     return {
       max_elfies_per_user: Math.max(1, Math.min(32, maxPerUser)),
-      allowed_anatomy_types: anatomyTypes.length ? anatomyTypes : ["biped", "quadruped"],
+      allowed_species_ids: speciesIds.length ? speciesIds : ["dog", "fox"],
       personality_presets_enabled: Object.fromEntries(
         presetNames.map((name) => [name, enabledPresets.has(name)]),
       ),
@@ -641,7 +641,7 @@ function normalizeElfie(raw) {
     statusLabel: raw.status_label || "在线",
     model: raw.model || raw.default_model || "按粮食策略",
     role: raw.prompt || raw.personality_style || "基础陪伴精灵",
-    anatomy: raw.anatomy_type || "biped",
+    species: raw.species_id || "fox",
     height: raw.height || "standard",
     build: raw.build || "standard",
     energy: raw.energy ?? 100,
@@ -857,8 +857,8 @@ function formatDate(value) {
   return String(value).slice(0, 10);
 }
 
-function labelForAnatomy(value) {
-  const map = { biped: "双足", quadruped: "四足" };
+function labelForSpecies(value) {
+  const map = { dog: "小狗", fox: "狐狸" };
   return map[value] || value || "未知";
 }
 
@@ -1000,7 +1000,7 @@ function filteredElves() {
   let list = role === "user" ? elves.filter((elf) => elf.owned) : [...elves];
   const ownerValue = ownerFilter?.value || "all";
   const statusValue = elfStatusFilter?.value || "all";
-  const anatomyValue = elfAnatomyFilter?.value || "all";
+  const speciesValue = elfSpeciesFilter?.value || "all";
   const buildValue = elfBuildFilter?.value || "all";
 
   if (role === "owner" && ownerValue === "mine") list = list.filter((elf) => elf.owned);
@@ -1009,7 +1009,7 @@ function filteredElves() {
     list = list.filter((elf) => elf.owner === ownerValue.slice(6));
   }
   if (statusValue !== "all") list = list.filter((elf) => elf.status === statusValue);
-  if (anatomyValue !== "all") list = list.filter((elf) => elf.anatomy === anatomyValue);
+  if (speciesValue !== "all") list = list.filter((elf) => elf.species === speciesValue);
   if (buildValue.startsWith("height-")) list = list.filter((elf) => elf.height === buildValue.slice(7));
   if (buildValue.startsWith("build-")) list = list.filter((elf) => elf.build === buildValue.slice(6));
 
@@ -1017,7 +1017,7 @@ function filteredElves() {
     elf.name,
     elf.owner,
     elf.role,
-    elf.anatomy,
+    elf.species,
     elf.height,
     elf.build,
     elf.statusLabel,
@@ -1052,7 +1052,7 @@ function renderElves() {
         </div>
         <div class="tag-row">
           ${ownerTag}
-          <span class="tag">${escapeHtml(labelForAnatomy(elf.anatomy))}</span>
+          <span class="tag">${escapeHtml(labelForSpecies(elf.species))}</span>
           <span class="tag">${escapeHtml(labelForAppearance(elf.height, elf.build))}</span>
         </div>
         <div class="metric-mini-row">
@@ -1987,7 +1987,7 @@ function renderSystemConfig() {
       <h3>领养策略</h3>
       <form class="config-grid system-config-form" data-system-section="adoption">
         <label class="form-row"><span>每用户上限</span><input name="max_elfies_per_user" type="number" min="1" max="32" value="${escapeHtml(adoption.max_elfies_per_user || 3)}" /></label>
-        <label class="form-row"><span>允许形态（逗号分隔）</span><input name="allowed_anatomy_types" type="text" value="${escapeHtml((adoption.allowed_anatomy_types || ["biped", "quadruped"]).join(", "))}" /></label>
+        <label class="form-row"><span>允许物种（逗号分隔）</span><input name="allowed_species_ids" type="text" value="${escapeHtml((adoption.allowed_species_ids || ["dog", "fox"]).join(", "))}" /></label>
         <label class="form-row"><span>启用性格（逗号分隔）</span><input name="personality_presets" type="text" value="${escapeHtml(enabledNames.join(", "))}" /></label>
         <p class="form-message" data-system-message="adoption"></p>
         <button class="primary-button full" type="submit">保存领养策略</button>
@@ -2103,7 +2103,7 @@ function renderElfDetail(id) {
           ${elfieAvatarMarkup(elf, "detail-avatar")}
           <div>
             <h3>${escapeHtml(elf.name)}</h3>
-            <p>${escapeHtml(elf.owner)} · ${escapeHtml(labelForAnatomy(elf.anatomy))}</p>
+            <p>${escapeHtml(elf.owner)} · ${escapeHtml(labelForSpecies(elf.species))}</p>
           </div>
         </div>
         <label class="form-row">
@@ -2325,7 +2325,7 @@ document.addEventListener("click", (event) => {
   if (target.id === "refresh-logs") renderLogs();
 });
 
-[ownerFilter, elfStatusFilter, elfAnatomyFilter, elfBuildFilter].forEach((filter) => {
+[ownerFilter, elfStatusFilter, elfSpeciesFilter, elfBuildFilter].forEach((filter) => {
   filter?.addEventListener("change", renderElves);
 });
 byId("model-provider-filter")?.addEventListener("change", renderModels);
@@ -2778,7 +2778,7 @@ window.ElfieNestConsole = {
   closeDrawers,
   escapeHtml,
   fetchJson,
-  labelForAnatomy,
+  labelForSpecies,
   labelForAppearance,
   loadAdoptionInfo,
   loadElves,

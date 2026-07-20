@@ -8,15 +8,8 @@
   数据契约: BrainContext(边缘→认知), BrainDecision(认知→执行)
 """
 
-import os
-import sys
-
-import pytest
-
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-sys.path.insert(0, PROJECT_ROOT)
-
-from elfie import ElfieIndividual
+from elfie import Elfie
+from elfie.body import HeadlessBody
 from elfie.brain import (
     BrainContext,
     EmotionSystem,
@@ -25,7 +18,6 @@ from elfie.brain import (
     ThalamusContextBuilder,
 )
 from elfie.brain.memory import MemorySystem
-
 
 # ---------------------------------------------------------------------------
 # Mock 辅助类
@@ -54,18 +46,6 @@ class MockRuntimeAgent:
     def ask(self, prompt, energy, task_complexity):
         self.prompts_received.append(prompt)
         return self.response
-
-
-class MockGodotAPI:
-    """追踪send_expression调用的模拟Godot API"""
-
-    def __init__(self):
-        self.expression_sent = None
-        self.send_count = 0
-
-    def send_expression(self, expression):
-        self.expression_sent = expression
-        self.send_count += 1
 
 
 # ---------------------------------------------------------------------------
@@ -207,11 +187,13 @@ class TestEmotionToMemory:
         emotion.update_emotion("anxiety", 50.0)  # fear
 
         raw_sensors = {"has_new_message": True, "user_message": "测试"}
-        ctx = builder.assemble(raw_sensors, energy, emotion, memory)
+        builder.assemble(raw_sensors, energy, emotion, memory)
 
         # 验证intensity参数被传入
         assert "intensity" in call_kwargs, "get_context应收到intensity参数"
-        assert call_kwargs["intensity"] > 0.0, f"intensity应>0，实际={call_kwargs['intensity']}"
+        assert call_kwargs["intensity"] > 0.0, (
+            f"intensity应>0，实际={call_kwargs['intensity']}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -223,8 +205,8 @@ class TestEnergyToDecision:
     """验证能量/睡眠状态对感知决策的影响"""
 
     def test_sleeping_blocks_perception(self):
-        """构造ElfieIndividual，设置is_sleeping=True，验证返休眠reason且不做LLM调用"""
-        elfie = ElfieIndividual(anatomy_type="biped")
+        """构造Elfie，设置is_sleeping=True，验证返休眠reason且不做LLM调用"""
+        elfie = Elfie(anatomy_type="biped")
         # 强制设置为睡眠状态
         elfie.hypothalamus.is_sleeping = True
 
@@ -252,7 +234,7 @@ class TestReflexToEmotionToMemory:
 
     def test_shock_reflex_records_to_memory(self):
         """传入impact_force=25触发避险反射→验证memory包含脑干反射记录"""
-        elfie = ElfieIndividual(anatomy_type="biped")
+        elfie = Elfie(anatomy_type="biped")
         mock_agent = MockRuntimeAgent()
 
         sensor_data = {
@@ -276,7 +258,7 @@ class TestReflexToEmotionToMemory:
 
     def test_shock_reflex_elevates_fear_then_retrievable(self):
         """撞击后fear升高→存入记忆→用fear情绪检索应能找到这条反射记录"""
-        elfie = ElfieIndividual(anatomy_type="biped")
+        elfie = Elfie(anatomy_type="biped")
         mock_agent = MockRuntimeAgent()
 
         sensor_data = {
@@ -313,7 +295,7 @@ class TestMemoryToContextToPrompt:
 
     def test_context_appears_in_llm_prompt(self, tmp_path):
         """存入记忆→perceive_and_respond→验证传给LLM的prompt包含记忆上下文"""
-        elfie = ElfieIndividual(config_dir=str(tmp_path), anatomy_type="biped")
+        elfie = Elfie(config_dir=str(tmp_path), anatomy_type="biped")
         assert elfie.memory.storage.db_path == str(tmp_path / "graph_memory.db")
 
         # 先存一条测试记忆
@@ -345,7 +327,7 @@ class TestMemoryToContextToPrompt:
 
     def test_empty_memory_shows_default_text(self, tmp_path):
         """无记忆时→perceive_and_respond→prompt中不应包含具体回忆但结构完好"""
-        elfie = ElfieIndividual(config_dir=str(tmp_path), anatomy_type="biped")
+        elfie = Elfie(config_dir=str(tmp_path), anatomy_type="biped")
         mock_agent = MockRuntimeAgent()
 
         sensor_data = {
@@ -382,7 +364,7 @@ class TestConsolidationToKnowledgeToRetrieval:
         # 存3条同类型经历（同一实体关联，触发频率模式提取）
         for i in range(3):
             memory.record_episode(
-                content=f"第{i+1}次和主人玩球很开心",
+                content=f"第{i + 1}次和主人玩球很开心",
                 emotion="happy",
                 intensity=70.0,
             )
@@ -412,7 +394,7 @@ class TestConsolidationToKnowledgeToRetrieval:
         created_ids = []
         for i in range(3):
             nid = memory.record_episode(
-                content=f"第{i+1}次在公园玩耍很开心",
+                content=f"第{i + 1}次在公园玩耍很开心",
                 emotion="happy",
                 intensity=70.0,
             )
@@ -449,12 +431,12 @@ class TestConsolidationToKnowledgeToRetrieval:
 
 
 class TestEmotionToExpression:
-    """验证情绪变化通过godot_api发送表达事件"""
+    """验证情绪变化通过当前身体发送表达事件。"""
 
     def test_emotion_change_triggers_expression(self):
-        """构造ElfieIndividual(godot_api=mock)→改变情绪→verify send_expression被调用"""
-        godot = MockGodotAPI()
-        elfie = ElfieIndividual(anatomy_type="biped", godot_api=godot)
+        body = HeadlessBody(body_id="emotion-body")
+        body.connect()
+        elfie = Elfie(anatomy_type="biped", body=body)
 
         # 初始状态：_last_expression应为None
         assert elfie._last_expression is None
@@ -465,30 +447,31 @@ class TestEmotionToExpression:
         # 调用tick → 内部调用_send_emotion_expression()
         elfie.tick(dt=0.1)
 
-        # 验证send_expression被调用
-        assert godot.send_count >= 1, "情绪变化后send_expression应被调用"
-        assert godot.expression_sent is not None
+        assert body.last_result is not None
+        expression_sent = body.last_result.output["expression"]
         # 表达应包含关键字段
-        assert "emotion" in godot.expression_sent
-        assert "expression" in godot.expression_sent
-        assert "intensity" in godot.expression_sent
+        assert "emotion" in expression_sent
+        assert "expression" in expression_sent
+        assert "intensity" in expression_sent
 
     def test_same_emotion_no_duplicate_expression(self):
         """情绪未变化时不重复发送表达事件"""
-        godot = MockGodotAPI()
-        elfie = ElfieIndividual(anatomy_type="biped", godot_api=godot)
+        body = HeadlessBody(body_id="emotion-body")
+        body.connect()
+        elfie = Elfie(anatomy_type="biped", body=body)
 
         # 第一次：发送表达（happiness升高到阈值以上）
         elfie.amygdala.update_emotion("happiness", 60.0)
         elfie.tick(dt=0.1)
-        first_expression = godot.expression_sent
-        assert godot.send_count == 1, "第一次应发送表达"
-        first_emotion = godot.expression_sent["emotion"]
+        first_result = body.last_result
+        assert first_result is not None
+        assert len(body.actuators.results) == 1, "第一次应发送表达"
+        first_emotion = first_result.output["expression"]["emotion"]
 
         # 第二次：情绪未变化 → 不应重复发送
         elfie.tick(dt=0.1)
-        assert godot.send_count == 1, "情绪未变化时不应重复发送"
-        assert godot.expression_sent is first_expression, "expression_sent不应变化"
+        assert len(body.actuators.results) == 1, "情绪未变化时不应重复发送"
+        assert body.last_result is first_result, "身体执行结果不应变化"
 
         # 第三次：降低happiness、升高sadness使主导情绪变化 → 应再发送
         elfie.amygdala.update_emotion("happiness", -80.0)  # 降低开心
@@ -497,7 +480,7 @@ class TestEmotionToExpression:
         # 验证主导情绪已变
         new_dominant = elfie.amygdala.get_dominant_mood()
         if new_dominant != first_emotion:
-            assert godot.send_count == 2, "主导情绪变化后应再次发送表达"
+            assert len(body.actuators.results) == 2, "主导情绪变化后应再次发送表达"
 
 
 # ---------------------------------------------------------------------------
@@ -510,7 +493,7 @@ class TestSleepWakeConsolidation:
 
     def test_wakeup_triggers_consolidation(self):
         """_was_sleeping=True然后is_sleeping=False→perceive_and_respond→触发巩固"""
-        elfie = ElfieIndividual(anatomy_type="biped")
+        elfie = Elfie(anatomy_type="biped")
         mock_agent = MockRuntimeAgent(response="我醒了！")
 
         # 模拟刚醒来：_was_sleeping=True, is_sleeping=False
@@ -539,13 +522,13 @@ class TestSleepWakeConsolidation:
             "temperature": 26.5,  # 温度变化通过信号过滤
         }
 
-        result = elfie.perceive_and_respond(sensor_data, mock_agent)
+        elfie.perceive_and_respond(sensor_data, mock_agent)
 
         assert consolidation_called[0], "唤醒后第一次perceive_and_respond应触发巩固"
 
     def test_no_consolidation_when_not_waking(self):
         """正常清醒状态下perceive_and_respond不触发巩固"""
-        elfie = ElfieIndividual(anatomy_type="biped")
+        elfie = Elfie(anatomy_type="biped")
         mock_agent = MockRuntimeAgent()
 
         # 确保是默认清醒状态
@@ -567,6 +550,6 @@ class TestSleepWakeConsolidation:
             "user_message": "测试",
         }
 
-        result = elfie.perceive_and_respond(sensor_data, mock_agent)
+        elfie.perceive_and_respond(sensor_data, mock_agent)
 
         assert not consolidation_called[0], "清醒状态不应触发记忆巩固"

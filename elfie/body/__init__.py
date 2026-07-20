@@ -1,13 +1,30 @@
-"""
-Elfie Body Physical Somatic Layer
-物理躯体躯壳层：声明 3D 骨架、物理极限、声音曲线与小脑步态步频，及脑干自律快速反射弧。
-"""
+"""Elfie 可替换身体及当前 Native 身体的公共导出。"""
 
-from elfie.body.actuators.gait import GaitEngine
-from elfie.body.anatomy.base import JointLimit, SomaticAnatomy, VoiceProfile
-from elfie.body.anatomy.biped import BipedAnatomy
-from elfie.body.anatomy.quadruped import QuadrupedAnatomy
-from elfie.body.reflex.reflex_arc import SomaticReflexArc
+from elfie.body.binding import BodyBinding, BodySwitchError
+from elfie.body.capabilities import BodyCapabilities
+from elfie.body.external import ExternalBody, ExternalTransport
+from elfie.body.headless import HeadlessBody
+from elfie.body.native import GodotGateway, GodotTransport, NativeBody
+from elfie.body.native.anatomy.base import JointLimit, SomaticAnatomy, VoiceProfile
+from elfie.body.native.anatomy.biped import BipedAnatomy
+from elfie.body.native.anatomy.quadruped import QuadrupedAnatomy
+from elfie.body.native.gait import GaitEngine
+from elfie.body.port import ActuatorPort, BodyPort, SensorPort
+from elfie.body.registry import (
+    BodyNotFoundError,
+    BodyRegistrationError,
+    BodyRegistry,
+)
+from elfie.body.types import (
+    BodyCommand,
+    BodyDescriptor,
+    BodyEvent,
+    BodyMode,
+    BodyState,
+    CommandResult,
+    CommandStatus,
+)
+from elfie.nervous_system.reflex.reflex_arc import SomaticReflexArc
 
 __all__ = [
     "SomaticAnatomy",
@@ -17,4 +34,26 @@ __all__ = [
     "QuadrupedAnatomy",
     "GaitEngine",
     "SomaticReflexArc",
+    "SensorPort",
+    "ActuatorPort",
+    "BodyPort",
+    "BodyCapabilities",
+    "BodyRegistry",
+    "BodyRegistrationError",
+    "BodyNotFoundError",
+    "BodyBinding",
+    "BodySwitchError",
+    "BodyEvent",
+    "BodyCommand",
+    "CommandResult",
+    "CommandStatus",
+    "BodyDescriptor",
+    "BodyState",
+    "BodyMode",
+    "HeadlessBody",
+    "GodotGateway",
+    "GodotTransport",
+    "NativeBody",
+    "ExternalTransport",
+    "ExternalBody",
 ]

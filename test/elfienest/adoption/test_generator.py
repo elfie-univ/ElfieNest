@@ -12,7 +12,7 @@ from typing import Dict, List
 import pytest
 import yaml
 
-from elfienest.adoption.config import get_allowed_anatomy_types
+from elfienest.adoption.config import get_allowed_species_ids
 from elfienest.adoption.generator import (
     PERSONALITY_PRESETS,
     VALID_BUILDS,
@@ -156,6 +156,17 @@ class TestElfieProfileCompatibility:
         # 验证能读取 big_five
         assert profile.personality is not None
 
+    def test_canonical_profile_contains_legacy_config_sections(
+        self, generator: ElfieGenerator, config_dir: str
+    ) -> None:
+        _generate(generator, config_dir)
+        from elfie.profile import ElfieProfileRepository
+
+        profile = ElfieProfileRepository(config_dir).load()
+        assert "big_five" in profile.personality
+        assert "actuators" in profile.capabilities
+        assert "limits" in profile.system_limits
+
     def test_supported_actions_contains_mandatory(self, generator: ElfieGenerator, config_dir: str) -> None:
         """supported_actions 包含 nod_head + blink_eyes。"""
         # 需要读取 capabilities.yaml 中的 supported_actions
@@ -245,7 +256,7 @@ class TestConstants:
         assert "nod_head" in ElfieGenerator.ACTION_POOL
 
     def test_valid_values_constants(self) -> None:
-        """VALID 常量定义正确，adoption 配置默认值匹配旧硬编码。"""
+        """VALID 常量定义正确，正式领养配置提供物种而非运动形态。"""
         assert VALID_HEIGHTS == ("short", "standard", "tall")
         assert VALID_BUILDS == ("slim", "standard", "plump")
-        assert get_allowed_anatomy_types() == ("biped", "quadruped")
+        assert get_allowed_species_ids() == ("dog", "fox")

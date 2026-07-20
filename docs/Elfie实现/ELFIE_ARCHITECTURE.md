@@ -24,21 +24,24 @@ Elfie 是一个具身 AI 生物，不只是聊天代理。它的每一次回应�
 2. 边缘系统与核心系统：情绪、能量、睡眠、记忆、上下文组装。
 3. 身体与接口：传感器、执行器、反射弧、解剖结构、物理限制。
 
-工程实现上，`elfie/elfie_individual.py` 将精灵聚合为四层：
+工程实现上，`elfie/elfie.py` 将精灵聚合为四层：
 
 1. 认知层：`NeocortexBrain`。
 2. 核心系统层：丘脑、下丘脑、杏仁核、记忆系统。
-3. 神经交互总线层：传感器、信号过滤、语音、动作、碎碎念、物理限位。
-4. 身体物理层：解剖结构、关节、步态、脑干反射弧。
+3. 神经系统层：传感器、信号过滤、语音、动作、碎碎念、物理限位和快速反射。
+4. 身体层：可替换身体，以及当前 Native 身体的解剖结构、关节和步态。
 
 这两个模型不冲突。三层模型解释“精灵是什么”，四层模型解释“代码怎么分边界”。
 
 ## 当前运行流
 
-当前主要具身闭环是 `ElfieIndividual.perceive_and_respond()`。
+当前主要具身闭环是 `Elfie.respond_to_body_events()`。旧
+`Elfie.perceive_and_respond(raw_sensor_data)` 仍作为内部兼容入口保留，用于复用
+现有认知、反射、步态和记忆算法。
 
 ```text
-原始传感器 / 用户消息 / Godot 事件
+BodyEvent / 房间补充事件 / 外部身体事件
+  -> 神经系统归并为认知链暂用感知数据
   -> 睡眠闸门
   -> 脑干反射检查
   -> 感官噪声过滤
@@ -65,11 +68,11 @@ LLM 认知之前有两条快速路径：
 
 ## 目录职责
 
-### `elfie/elfie_individual.py`
+### `elfie/elfie.py`
 
 负责精灵对象聚合和顶层具身闭环。
 
-它应该做编排，不应该承载具体子系统细节。一个新行为如果超过少量胶水逻辑，就应该放到 `brain/`、`body/` 或 `interface/` 的对应子模块里。
+它应该做编排，不应该承载具体子系统细节。一个新行为如果超过少量胶水逻辑，就应该放到 `brain/`、`nervous_system/`、`body/`、`communication/` 或 `skills/` 的对应子模块里。
 
 ### `elfie/brain/`
 
@@ -97,36 +100,60 @@ brain/
 
 在公开导入路径和测试可以干净迁移之前，不要急着做这个移动。
 
+### `elfie/profile/`
+
+负责个体稳定档案以及未领养实例的默认模板。
+
+- `profile.yaml`：每只精灵的身份、外貌、具身形态、人格、能力和系统限制。
+- `embodiment.primary_morphology`：当前默认身体形态。新代码优先读取这个字段；
+  旧 `anatomy_type` 只作为历史配置、老测试和数据库迁移兼容字段。
+- `defaults/`：未指定个体目录时使用的人格、能力和系统限制默认模板。
+- `species.py`、`generator.py`、`resolver.py`：物种配置、稳定随机生成和 Godot
+  可应用外貌参数解析。
+
+迁移期每只精灵目录中的三份旧 YAML 仍会双写，旧源码配置目录已删除。
+
 ### `elfie/body/`
 
-负责身体数字孪生。
+负责可替换身体及当前精灵本体的身体实现。
 
-- `anatomy/`：骨架定义、关节、声音 profile、关节限位。
-- `actuators/gait.py`：底层步态和关节角生成。
-- `reflex/`：可以绕过大脑皮层的脑干反射弧。
+- `port.py`、`types.py`、`capabilities.py`：所有身体共享的输入、输出、状态和能力协议。
+- `native/anatomy/`：当前本体的骨架定义、关节、声音 profile、关节限位。
+- `native/gait.py`：当前本体的底层步态和关节角生成。
+- `headless/`：已用于调试、测试和无渲染运行，接收注入刺激并记录动作结果。
+- `external/`：预留给母星代理、毛绒玩具和机器人扩展协议。
 
 身体层不应该调用 LLM，也不应该理解用户聊天。它接收物理刺激或运动意图，输出身体状态。
 
-### `elfie/interface/`
+### `elfie/nervous_system/`
 
-负责精灵和外部世界之间的适配。
+负责大脑和身体之间的双向传感与动作连接。
 
 - `sensors/`：环境、音频、视觉输入适配。
 - `actuators/`：语音、运动、碎碎念输出适配。
 - `signal_filter.py`：感官大坝，抑制低价值重复输入。
 - `physical_limits.py`：动作执行前的形态学和能力拦截。
-- `social_connectors/`：Telegram、WeChat 等外部消息入口。
+- `reflex/`：可以绕过复杂认知的快速身体反射。
 
-接口层可以知道外部系统，但在进入认知层之前，应将外部事件翻译成内部契约。
+神经系统在进入认知层之前将身体事件翻译成内部感知，在执行前将大脑动作交给
+当前身体。微信、Telegram 等不依赖身体的消息通道属于 `communication/`。
 
-### `elfie/config/`
+### `elfie/communication/`
 
-负责精灵专属配置。
+负责精灵自带的双向消息通信。当前微信和 Telegram 连接器位于
+`communication/channels/`；后续收件箱、发件箱、权限和通道路由也在此扩展，
+不放入身体或精灵巢房间逻辑。
 
-- `personality.yaml`：人格、说话风格、身份素材。
-- `capabilities.yaml`：支持的动作和行为能力。
-- `system_limits.yaml`：能量、疲劳、物理约束。
-- `emotion_expressions.yaml`：情绪到表情的映射。
+### 后续 Godot 表现层计划
+
+当前阶段只完成外貌参数生成和解析，不把复杂 Godot 表现层塞进本轮重构。后续需要
+单独完成两项：
+
+- 外貌实装：把 `AppearanceResolver` 输出的 `bone_scales`、`blend_shapes` 和
+  `material_parameters` 完整接入 Godot 角色控制器，并要求狗、狐狸等资产提供
+  同名骨骼缩放点、Shape Key 和材质参数。
+- 精细碰撞：在现有胶囊碰撞的基础上，设计可随骨骼或关键部位变化的碰撞层，
+  解决伸胳膊、腿部动作和体型变化后的穿墙问题。
 
 配置文件只能放占位符或非敏感值。运行时供应商密钥应放在环境变量或已 gitignore 的 runtime 配置里。
 
@@ -289,13 +316,13 @@ brain/
 
 ## 功能增长规则
 
-1. 新传感能力先加在 `interface/sensors/`，再通过 `SensorData` 暴露类型化字段。
+1. 新传感能力先加在 `nervous_system/sensors/`，再通过 `SensorData` 暴露类型化字段。
 2. 新情绪反应优先建立 `EmotionInput` 映射，不要直接散落修改情绪值。
 3. 新动作应进入动作注册表或能力映射，再接入物理校验和动作生成。
 4. 新记忆行为应收敛在 `MemorySystem` 门面后面，让其他模块仍然只面对一个记忆入口。
 5. LLM prompt 改动应放在 cognition 或 memory context assembly 内。
-6. Godot 传输细节不要进入 `brain/` 和 `body/`。
-7. `ElfieIndividual` 只做编排，不做逻辑垃圾桶。
+6. Godot 传输细节不要进入 `brain/`；身体侧只允许在 Native 的传输适配中出现。
+7. `Elfie` 只做编排，不做逻辑垃圾桶。
 
 ## 推荐实现路线
 
@@ -341,10 +368,10 @@ brain/
 
 主要歧义是命名：`brain/` 里同时放了大脑皮层和边缘/核心系统。代码规模还不大时，这个结构可以接受。等后续模块继续增多，再引入 `brain/limbic/` 做聚焦重组。
 
-第二个歧义是 actuator 的归属：`body/actuators/gait.py` 负责物理步态计算，`interface/actuators/motion.py` 负责把高层动作意图适配为身体运动。这种拆分是对的，但后续命名和注释要持续强调：
+第二个边界是 actuator 的归属：`body/native/gait.py` 负责本体步态计算，`nervous_system/actuators/motion.py` 负责把高层动作意图适配为身体运动。这种拆分需要继续保留：
 
 - body actuator：物理运动数学。
-- interface actuator：外部命令/输出适配。
+- nervous-system actuator：大脑动作意图到当前身体的适配。
 
 ## 非目标
 

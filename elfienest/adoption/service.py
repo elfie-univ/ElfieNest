@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from elfienest.adoption.config import (
-    get_allowed_anatomy_types,
     get_allowed_personality_styles,
+    get_allowed_species_ids,
     get_max_elfies_per_user,
 )
 from elfienest.adoption.generator import ElfieGenerator
@@ -29,7 +29,7 @@ class AdoptionValidationError(Exception):
 @dataclass(frozen=True)
 class AdoptionRequest:
     name: str
-    anatomy_type: str
+    species_id: str
     personality_style: str
     height: str
     build: str
@@ -39,13 +39,14 @@ class AdoptionRequest:
 class AdoptionResult:
     elfie_id: str
     name: str
+    species_id: str
     config_dir: str
 
 
 def adoption_options(db_path: str) -> dict[str, list[str]]:
     return {
         "personality_styles": list(get_allowed_personality_styles(db_path)),
-        "anatomy_types": list(get_allowed_anatomy_types(db_path)),
+        "species_ids": list(get_allowed_species_ids(db_path)),
         "heights": list(VALID_HEIGHTS),
         "builds": list(VALID_BUILDS),
     }
@@ -78,9 +79,9 @@ def adopt_elfie_for_user(
     config_dir = str(_get_elfie_config_dir(db_path, elfie_id))
 
     try:
-        ElfieGenerator().generate(
+        ElfieGenerator().generate_for_species(
             name=request.name,
-            anatomy_type=request.anatomy_type,
+            species_id=request.species_id,
             personality_style=request.personality_style,
             height=request.height,
             build=request.build,
@@ -93,14 +94,15 @@ def adopt_elfie_for_user(
     with get_db(db_path) as conn:
         conn.execute(
             """INSERT INTO elfie_registry
-               (elfie_id, name, owner_user_id, anatomy_type, config_dir,
-                personality_style, height, build)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+               (elfie_id, name, owner_user_id, species_id,
+                profile_schema_version, config_dir, personality_style, height, build)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 elfie_id,
                 request.name,
                 user_id,
-                request.anatomy_type,
+                request.species_id,
+                1,
                 config_dir,
                 request.personality_style,
                 request.height,
@@ -115,6 +117,7 @@ def adopt_elfie_for_user(
     return AdoptionResult(
         elfie_id=elfie_id,
         name=request.name,
+        species_id=request.species_id,
         config_dir=config_dir,
     )
 
@@ -128,13 +131,15 @@ def _validate_adoption_request(
     if not request.name or len(request.name) > 20:
         raise AdoptionValidationError("名字长度必须在 1-20 字之间")
 
-    allowed_anatomy = get_allowed_anatomy_types(db_path)
-    if request.anatomy_type not in allowed_anatomy:
-        raise AdoptionValidationError(f"anatomy_type 必须是 {allowed_anatomy}")
+    allowed_species = get_allowed_species_ids(db_path)
+    if request.species_id not in allowed_species:
+        raise AdoptionValidationError(f"species_id 必须是 {allowed_species}")
 
     allowed_styles = get_allowed_personality_styles(db_path)
     if request.personality_style not in allowed_styles:
-        raise AdoptionValidationError(f"personality_style 必须是 {list(allowed_styles)}")
+        raise AdoptionValidationError(
+            f"personality_style 必须是 {list(allowed_styles)}"
+        )
 
     if request.height not in VALID_HEIGHTS:
         raise AdoptionValidationError(f"height 必须是 {VALID_HEIGHTS}")
@@ -156,13 +161,13 @@ def _register_with_engine(
     db_path: str,
 ) -> None:
     try:
-        from elfie.elfie_individual import ElfieIndividual  # noqa: PLC0415
+        from elfie import ElfieFactory  # noqa: PLC0415
 
         _ensure_room_has_capacity(engine)
-        elfie = ElfieIndividual(
-            config_dir=config_dir,
-            anatomy_type=request.anatomy_type,
+        elfie = ElfieFactory().restore(
+            config_dir,
             elfie_id=elfie_id,
+            godot_api=getattr(engine, "api_server", None),
         )
         engine.coordinator.register_elfie(elfie_id, elfie)
         logger.info(

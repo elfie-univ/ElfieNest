@@ -7,7 +7,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from elfie import ElfieIndividual
+from elfie import Elfie
+from elfie.body import BodyCommand, CommandStatus, HeadlessBody
 from elfienest.core.room import ElfieNestRoom, RoomFullError
 from elfienest.simulation.engine import ElfieNestCoordinator, ElfieNestEngine
 
@@ -18,7 +19,7 @@ class TestElfieNestEngine:
     @pytest.fixture
     def mock_elfie(self):
         """创建模拟精灵"""
-        elfie = MagicMock(spec=ElfieIndividual)
+        elfie = MagicMock(spec=Elfie)
         elfie.perceive_and_respond.return_value = {
             "success": True,
             "speech": "你好！",
@@ -56,6 +57,33 @@ class TestElfieNestEngine:
         assert tactile["gentle_stroke"] == 1.0
         assert tactile["impact_force"] == 1.5
 
+    def test_engine_collects_room_owner_and_touch_as_body_events(
+        self, engine, mock_elfie
+    ):
+        engine.room.register_elfie("elf1", mock_elfie)
+        engine.room.broadcast_speech("other", "伙伴在说话")
+        engine.coordinator.send_user_message("elf1", "主人在说话")
+        engine.coordinator.trigger_elfie_interaction("other", "elf1", "collision")
+
+        events = engine._collect_world_sensory_events("elf1")
+
+        assert [event.sensor for event in events] == ["hearing", "hearing", "touch"]
+        assert "伙伴在说话" in events[0].payload["user_message"]
+        assert events[1].payload["user_message"] == "主人在说话"
+        assert events[2].payload["gentle_stroke"] == 1.0
+
+    def test_engine_executes_output_through_current_body(self, engine):
+        body = HeadlessBody(body_id="elf1")
+        body.connect()
+        elfie = Elfie(memory_db_path=":memory:", body=body)
+
+        result = engine._execute_body_command(elfie, BodyCommand(action="gesture.wave"))
+
+        assert result is not None
+        assert result["status"] == CommandStatus.COMPLETED.value
+        assert body.last_result is not None
+        assert body.last_result.action == "gesture.wave"
+
     def test_room_tick_updates_elfies(self, engine, mock_elfie):
         """测试 Tick 循环更新精灵"""
         engine.room.register_elfie("elf1", mock_elfie)
@@ -72,7 +100,7 @@ class TestElfieNestRoom:
 
     @pytest.fixture
     def mock_elfie(self):
-        elfie = MagicMock(spec=ElfieIndividual)
+        elfie = MagicMock(spec=Elfie)
         elfie.tick = MagicMock()
         return elfie
 
@@ -85,7 +113,7 @@ class TestElfieNestRoom:
     def test_broadcast_speech_excludes_sender(self, room, mock_elfie):
         """测试广播排除发送者"""
         room.register_elfie("elf1", mock_elfie)
-        room.register_elfie("elf2", MagicMock(spec=ElfieIndividual))
+        room.register_elfie("elf2", MagicMock(spec=Elfie))
 
         room.broadcast_speech("elf1", "Hello")
 
@@ -143,26 +171,26 @@ class TestRoomCapacity:
     def test_room_full_error(self):
         """max_elfies_per_room=1 → 注册第 2 只 → RoomFullError"""
         room = ElfieNestRoom(max_elfies_per_room=1)
-        room.register_elfie("elf1", MagicMock(spec=ElfieIndividual))
+        room.register_elfie("elf1", MagicMock(spec=Elfie))
 
         with pytest.raises(RoomFullError, match="房间已满"):
-            room.register_elfie("elf2", MagicMock(spec=ElfieIndividual))
+            room.register_elfie("elf2", MagicMock(spec=Elfie))
 
     def test_room_full_error_message(self):
         """验证 RoomFullError 消息包含当前数量/上限"""
         room = ElfieNestRoom(max_elfies_per_room=2)
-        room.register_elfie("elf1", MagicMock(spec=ElfieIndividual))
-        room.register_elfie("elf2", MagicMock(spec=ElfieIndividual))
+        room.register_elfie("elf1", MagicMock(spec=Elfie))
+        room.register_elfie("elf2", MagicMock(spec=Elfie))
 
         with pytest.raises(RoomFullError) as exc_info:
-            room.register_elfie("elf3", MagicMock(spec=ElfieIndividual))
+            room.register_elfie("elf3", MagicMock(spec=Elfie))
         assert "2/2" in str(exc_info.value)
 
     def test_room_unlimited(self):
         """max_elfies_per_room=None → 无限制注册"""
         room = ElfieNestRoom(max_elfies_per_room=None)
         for i in range(100):
-            room.register_elfie(f"elf{i}", MagicMock(spec=ElfieIndividual))
+            room.register_elfie(f"elf{i}", MagicMock(spec=Elfie))
         assert len(room.elfies) == 100
 
 
@@ -171,9 +199,7 @@ class TestEngineConfig:
 
     def test_engine_tick_interval(self):
         """tick_interval_sec=2.0 → 验证属性"""
-        engine = ElfieNestEngine(
-            ws_port=18766, http_port=18001, tick_interval_sec=2.0
-        )
+        engine = ElfieNestEngine(ws_port=18766, http_port=18001, tick_interval_sec=2.0)
         assert engine.tick_interval_sec == 2.0
 
     def test_engine_tick_interval_default(self):
@@ -189,9 +215,7 @@ class TestEngineConfig:
     def test_engine_tts_disabled(self):
         """tts_enabled=False → _synthesize_voice 返回 None"""
         with patch("elfienest.transport.godot_api.GodotAPIServer"):
-            engine = ElfieNestEngine(
-                ws_port=18769, http_port=18004, tts_enabled=False
-            )
+            engine = ElfieNestEngine(ws_port=18769, http_port=18004, tts_enabled=False)
         result = engine._synthesize_voice("test", "hello")
         assert result is None
 
@@ -220,8 +244,8 @@ class TestEdgeCases:
     def test_empty_speech_broadcast(self):
         """测试空消息广播"""
         room = ElfieNestRoom()
-        room.register_elfie("elf1", MagicMock(spec=ElfieIndividual))
-        room.register_elfie("elf2", MagicMock(spec=ElfieIndividual))
+        room.register_elfie("elf1", MagicMock(spec=Elfie))
+        room.register_elfie("elf2", MagicMock(spec=Elfie))
 
         room.broadcast_speech("elf1", "")
 
@@ -236,7 +260,7 @@ class TestEdgeCases:
 
     def test_consume_tactile_default(self):
         """测试消费默认触觉"""
-        coordinator = ElfieNestCoordinator(MagicMock(), MagicMock())
+        coordinator = ElfieNestCoordinator(MagicMock())
         tactile = coordinator.consume_tactile("unknown")
 
         assert tactile["gentle_stroke"] == 0.0

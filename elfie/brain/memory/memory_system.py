@@ -47,6 +47,7 @@ class MemorySystem:
         personality_path: Optional[str] = None,
         elfie_id: str | None = None,
         config_dir: str | None = None,
+        personality_data: Optional[dict] = None,
     ):
         """初始化所有组件
 
@@ -56,7 +57,11 @@ class MemorySystem:
         """
         self.storage = GraphStorage(db_path)
         self.sensory_buffer = SensoryBuffer()
-        self.core_cognition = CoreCognition(db_path, personality_path)
+        self.core_cognition = CoreCognition(
+            db_path,
+            personality_path,
+            personality_data=personality_data,
+        )
         self.sensory_indexer = SensoryIndexer(self.storage)
         self.encoder = MemoryEncoder(
             self.storage,

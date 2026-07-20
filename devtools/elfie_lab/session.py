@@ -17,7 +17,8 @@ from devtools.elfie_lab.schemas import (
     utc_now,
 )
 from devtools.elfie_lab.storage import ElfieLabStorage
-from elfie import ElfieIndividual
+from elfie import Elfie
+from elfie.body import HeadlessBody
 
 
 class ElfieLabSession:
@@ -38,9 +39,12 @@ class ElfieLabSession:
         self.turns: List[Dict[str, Any]] = (
             list(latest.get("turns", [])) if latest else []
         )
-        self.elfie = ElfieIndividual(
+        self.body = HeadlessBody(body_id=f"{spec.elfie_id}:headless")
+        self.body.connect()
+        self.elfie = Elfie(
             anatomy_type=spec.anatomy_type,
             memory_db_path=str(storage.memory_path(spec.elfie_id)),
+            body=self.body,
         )
         self._lock = threading.Lock()
         if self.turns:
@@ -95,7 +99,7 @@ class ElfieLabSession:
             "expression": expression,
             "attention_network": self.elfie.brain.attention.current_network,
             "anatomy_type": self.spec.anatomy_type,
-            "action_intent": self.elfie.motion_actuator.last_action_intent,
+            "action_intent": self.elfie.nervous_system.motion_actuator.last_action_intent,
             "joint_angles": {
                 name: round(value, 3)
                 for name, value in self.elfie.anatomy.get_joint_angles().items()
@@ -117,8 +121,13 @@ class ElfieLabSession:
             error: Optional[str] = None
             try:
                 runtime = create_runtime(food_key, self.runtime_config_dir)
-                result = self.elfie.perceive_and_respond(
-                    stimulus.to_sensor_data(turn_id), runtime, debug_trace=trace
+                self.body.inject_sensor_data(
+                    stimulus.to_sensor_data(turn_id),
+                    event_id=turn_id,
+                )
+                result = self.elfie.perceive_body_and_respond(
+                    runtime,
+                    debug_trace=trace,
                 )
             except Exception as exc:
                 error = f"{type(exc).__name__}: {exc}"
@@ -175,9 +184,13 @@ class ElfieLabSession:
             self.session_id = new_id("session")
             self.created_at = utc_now()
             self.turns = []
-            self.elfie = ElfieIndividual(
+            self.body.disconnect()
+            self.body = HeadlessBody(body_id=f"{self.spec.elfie_id}:headless")
+            self.body.connect()
+            self.elfie = Elfie(
                 anatomy_type=self.spec.anatomy_type,
                 memory_db_path=str(self.storage.memory_path(self.spec.elfie_id)),
+                body=self.body,
             )
             self.storage.save_session(self.get_payload())
             return self.get_payload()
@@ -240,7 +253,7 @@ class ElfieLabSession:
         joints = snapshot.get("joint_angles", {})
         if isinstance(joints, dict):
             self.elfie.anatomy.apply_joint_angles(joints)
-        self.elfie.motion_actuator.last_action_intent = str(
+        self.elfie.nervous_system.motion_actuator.last_action_intent = str(
             snapshot.get("action_intent", "idle")
         )
         self.elfie.brain.attention.current_network = str(

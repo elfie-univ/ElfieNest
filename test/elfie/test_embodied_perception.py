@@ -5,7 +5,7 @@ import unittest
 # 将工程路径引入 Python path
 sys.path.insert(0, "/Users/zhenli/git-code/ElfieNest")
 
-from elfie import ElfieIndividual
+from elfie import Elfie
 from elfie.body import BipedAnatomy
 from runtime.gateway.agent import RuntimeAgent
 from runtime.config import LLMRuntimeConfig
@@ -43,7 +43,7 @@ class TestEmbodiedPerception(unittest.TestCase):
     def test_morphological_restrictions(self):
         """测试 2：交互总线形态学拦截 (Morphological Restrictions Against Illusion Actions)"""
         # (A) 实例化双足精灵
-        biped_elfie = ElfieIndividual(anatomy_type="biped")
+        biped_elfie = Elfie(anatomy_type="biped")
 
         # 提供一个有变化的 user_message，防止被感知大坝过滤
         sensor_data = {"has_new_message": True, "user_message": "摇尾巴指令请求"}
@@ -76,7 +76,7 @@ class TestEmbodiedPerception(unittest.TestCase):
         self.assertGreater(biped_elfie.amygdala.emotions["fear"], 10.0)
 
         # (B) 实例化四足爬行精灵
-        quad_elfie = ElfieIndividual(anatomy_type="quadruped")
+        quad_elfie = Elfie(anatomy_type="quadruped")
 
         # 重新配置 sensor_data 规避大坝缓存
         sensor_data_quad = {"has_new_message": True, "user_message": "挥手动作请求"}
@@ -108,11 +108,11 @@ class TestEmbodiedPerception(unittest.TestCase):
     def test_cerebellar_gait_cpg(self):
         """测试 3：小脑时域步态协同正弦解算 (Cerebellar Gait Engine CPG Generator)"""
         # 以双足精灵直立行走为例
-        elfie = ElfieIndividual(anatomy_type="biped")
+        elfie = Elfie(anatomy_type="biped")
 
         # 模拟在 0.5s 时大腿和肩膀的关节相位
         # 时间流动 0.5 秒，速度 1.0
-        joints_t05 = elfie.motion_actuator.translate_and_drive(
+        joints_t05 = elfie.nervous_system.motion_actuator.translate_and_drive(
             anatomy=elfie.anatomy, action_intent="walk", speed=1.0, elapsed_time=0.5
         )
 
@@ -133,7 +133,7 @@ class TestEmbodiedPerception(unittest.TestCase):
 
     def test_brainstem_avoidance_reflex(self):
         """测试 4：脑干紧急激烈碰撞避险自主反射 (Brainstem Avoidance Shock Reflex)"""
-        elfie = ElfieIndividual(anatomy_type="quadruped")  # 四足小狐狸
+        elfie = Elfie(anatomy_type="quadruped")  # 四足小狐狸
 
         # 模拟来自 Godot 物理宿舍床脚 of 突发猛烈侧向碰撞 (撞击力 25.0 > 15.0，来源: right)
         sensor_data = {
@@ -161,13 +161,13 @@ class TestEmbodiedPerception(unittest.TestCase):
         self.assertLess(elfie.amygdala.emotions["happiness"], 50.0)
 
         # 验证海马体成功载入紧急痛觉反射事件
-        recent_memory = [ep["content"] for ep in elfie.hippocampus.get_all_episodes()]
+        recent_memory = [ep["content"] for ep in elfie.memory.get_all_episodes()]
         recent_memory_str = " ".join(recent_memory)
         self.assertIn("脑干反射", recent_memory_str)
 
     def test_brainstem_stroke_reflex(self):
         """测试 5：脑干温柔抚摸摇尾舒适反射 (Tactile Stroke Soothing Reflex)"""
-        elfie = ElfieIndividual(anatomy_type="quadruped")
+        elfie = Elfie(anatomy_type="quadruped")
 
         # 模拟主人在屏幕/面板上以 1.2Hz 的平缓频率轻柔抚摸精灵
         sensor_data = {
@@ -193,12 +193,12 @@ class TestEmbodiedPerception(unittest.TestCase):
 
     def test_vision_viewport_perception(self):
         """测试 6：多模态虚拟视角大模型决策 (Embodied Vision Pipeline)"""
-        elfie = ElfieIndividual(anatomy_type="biped")
+        elfie = Elfie(anatomy_type="biped")
 
         mock_image_path = "/tmp/dormitory_door_viewport.png"
 
         # 1. 神经总线 Vision 传感器接收这张 3D 视口照片，并做解析
-        _ = elfie.speech_actuator.synthesize_speech(
+        _ = elfie.nervous_system.speech_actuator.synthesize_speech(
             "眼前的红木门紧闭着哒", elfie.anatomy.voice_profile
         )
 

@@ -120,12 +120,12 @@ class TestMigrationV1ToV2:
         assert "avatar_color" in cols
         assert "avatar_kind" in cols
 
-    def test_user_version_becomes_5(self, tmp_path: Path) -> None:
+    def test_user_version_becomes_6(self, tmp_path: Path) -> None:
         db = str(tmp_path / "nest.db")
         init_db(db)
         migrate_db_if_needed(db)
 
-        assert _user_version(db) == 5
+        assert _user_version(db) == 6
 
     def test_migration_idempotent(self, tmp_path: Path) -> None:
         """重复执行 migrate_db_if_needed 不报错。"""
@@ -136,7 +136,7 @@ class TestMigrationV1ToV2:
 
         cols = _table_info_columns(db)
         assert "nickname" in cols
-        assert _user_version(db) == 5
+        assert _user_version(db) == 6
 
     def test_preserves_existing_data(self, tmp_path: Path) -> None:
         """迁移前插入的用户，迁移后数据保持完整。"""
@@ -189,13 +189,13 @@ class TestMigrationV1ToV2:
         assert cols[:5] == ["id", "username", "password_hash", "role", "created_at"]
         assert cols[5:] == ["updated_at", "nickname", "avatar_color", "avatar_kind"]
 
-    def test_init_db_sets_version_5(self, tmp_path: Path) -> None:
+    def test_init_db_sets_version_6(self, tmp_path: Path) -> None:
         db = str(tmp_path / "nest.db")
         init_db(db)
 
         cols = _table_info_columns(db)
         assert "nickname" in cols
-        assert _user_version(db) == 5
+        assert _user_version(db) == 6
 
     def test_adds_nest_tables_and_bed_id(self, tmp_path: Path) -> None:
         db = str(tmp_path / "nest.db")
@@ -212,3 +212,61 @@ class TestMigrationV1ToV2:
         assert "grid_x" in bed_cols
         assert "grid_y" in bed_cols
         assert "bed_id" in elfie_cols
+        assert "species_id" in elfie_cols
+        assert "profile_schema_version" in elfie_cols
+
+    def test_v5_registry_migrates_with_stable_species_defaults(
+        self, tmp_path: Path
+    ) -> None:
+        db = str(tmp_path / "v5.db")
+        conn = sqlite3.connect(db)
+        conn.execute(
+            """CREATE TABLE users (
+                id INTEGER PRIMARY KEY,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                role TEXT NOT NULL CHECK(role IN ('owner', 'user')),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                nickname TEXT DEFAULT NULL,
+                avatar_color INTEGER DEFAULT 0,
+                avatar_kind TEXT DEFAULT 'initials'
+            )"""
+        )
+        conn.execute(
+            """CREATE TABLE elfie_registry (
+                id INTEGER PRIMARY KEY,
+                elfie_id TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                owner_user_id INTEGER,
+                anatomy_type TEXT DEFAULT 'biped',
+                config_dir TEXT,
+                personality_style TEXT,
+                height TEXT DEFAULT 'standard',
+                build TEXT DEFAULT 'standard',
+                bed_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )"""
+        )
+        conn.execute(
+            "INSERT INTO elfie_registry (elfie_id, name, anatomy_type) VALUES (?, ?, ?)",
+            ("legacy-1", "旧精灵", "quadruped"),
+        )
+        conn.execute("PRAGMA user_version = 5")
+        conn.commit()
+        conn.close()
+
+        migrate_db_if_needed(db)
+
+        conn = sqlite3.connect(db)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT elfie_id, anatomy_type, species_id, profile_schema_version "
+            "FROM elfie_registry WHERE elfie_id = 'legacy-1'"
+        ).fetchone()
+        conn.close()
+        assert row is not None
+        assert row["anatomy_type"] == "quadruped"
+        assert row["species_id"] == "fox"
+        assert row["profile_schema_version"] == 1
+        assert _user_version(db) == 6

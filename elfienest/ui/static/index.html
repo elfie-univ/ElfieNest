@@ -323,10 +323,10 @@
               </label>
               <label class="select-wrap">
                 <span>动物</span>
-                <select id="elf-anatomy-filter">
-                  <option value="all">全部动物</option>
-                  <option value="biped">双足</option>
-                  <option value="quadruped">四足</option>
+                <select id="elf-species-filter">
+                  <option value="all">全部物种</option>
+                  <option value="dog">小狗</option>
+                  <option value="fox">狐狸</option>
                 </select>
               </label>
               <label class="select-wrap">
@@ -770,15 +770,15 @@
         <div class="adoption-progress" aria-live="polite">
           <div>
             <span id="adoption-step-count">第 1 步 / 共 6 步</span>
-            <strong id="adoption-step-title">选择动物形态</strong>
+            <strong id="adoption-step-title">选择动物物种</strong>
           </div>
           <meter id="adoption-step-meter" min="1" max="6" value="1">1/6</meter>
         </div>
 
         <section class="adoption-panel active" data-adoption-panel="0" aria-labelledby="adoption-species-title">
           <div class="wizard-copy">
-            <h3 id="adoption-species-title">选择动物形态</h3>
-            <p>形态会决定基础骨架和动作风格，领养后不会再变更。</p>
+            <h3 id="adoption-species-title">选择动物物种</h3>
+            <p>物种会决定基础模型和合法外貌范围，领养后不会再变更。</p>
           </div>
           <div class="choice-grid" id="adoption-anatomy-options"></div>
         </section>

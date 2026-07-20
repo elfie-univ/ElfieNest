@@ -1,4 +1,4 @@
-"""精灵随机生成器 — 根据领养偏好随机生成性格/能力/体质 YAML 配置。
+"""精灵领养生成器：创建稳定外貌档案及现有大脑兼容配置。
 
 Usage::
 
@@ -6,9 +6,9 @@ Usage::
     from runtime.storage.data_home import get_elfie_config_dir
 
     gen = ElfieGenerator()
-    result = gen.generate(
+    result = gen.generate_for_species(
         name="小白",
-        anatomy_type="quadruped",
+        species_id="dog",
         personality_style="好奇探索",
         height="tall",
         build="plump",
@@ -21,10 +21,18 @@ from __future__ import annotations
 
 import logging
 import random
+import secrets
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import yaml
+
+from elfie.profile import (
+    AppearanceResolver,
+    ElfieProfileRepository,
+    create_visual_profile,
+)
 
 logger = logging.getLogger("elfienest.adoption.generator")
 
@@ -159,6 +167,7 @@ GREETINGS_POOLS: Dict[str, List[str]] = {
 
 VALID_HEIGHTS: Tuple[str, ...] = ("short", "standard", "tall")
 VALID_BUILDS: Tuple[str, ...] = ("slim", "standard", "plump")
+VALID_LEGACY_ANATOMY_TYPES: Tuple[str, ...] = ("biped", "quadruped")
 
 
 # ===================================================================
@@ -167,7 +176,7 @@ VALID_BUILDS: Tuple[str, ...] = ("slim", "standard", "plump")
 
 
 class ElfieGenerator:
-    """精灵随机生成器：根据领养偏好生成 3 个 YAML 配置文件。
+    """根据领养偏好生成 ``profile.yaml`` 和三个兼容配置文件。
 
     类属性暴露常量，方便前端 / API 层读取可选值：
 
@@ -257,6 +266,7 @@ class ElfieGenerator:
         style: str,
         height: str,
         build: str,
+        appearance_summary: Dict[str, Any],
         big_five: Dict[str, float],
         verbal_tick: str,
         mutter_templates: Dict[str, List[str]],
@@ -267,7 +277,11 @@ class ElfieGenerator:
                 "name": name,
                 "version": "1.0",
                 "description": DESCRIPTION_TEMPLATES.get(style, DESCRIPTION_TEMPLATES["完全随机"]),
-                "appearance": {"height": height, "build": build},
+                "appearance": {
+                    "height": height,
+                    "build": build,
+                    **appearance_summary,
+                },
             },
             "big_five": big_five,
             "speech_style": {
@@ -350,11 +364,42 @@ class ElfieGenerator:
         config_dir: str,
         elfie_id: str,
     ) -> Dict[str, str]:
-        """生成精灵的 3 个 YAML 配置文件。
+        """旧身体形态入口；新代码应调用 :meth:`generate_for_species`。
+
+        ``anatomy_type`` 不再决定视觉身份。保留此包装仅为了尚未迁移的身体
+        模块和测试，旧个体统一映射到默认狐狸母版。
+        """
+        if anatomy_type not in VALID_LEGACY_ANATOMY_TYPES:
+            raise ValueError(
+                f"无效 anatomy_type: {anatomy_type!r}。"
+                f"可选: {', '.join(VALID_LEGACY_ANATOMY_TYPES)}"
+            )
+        return self.generate_for_species(
+            name=name,
+            species_id="fox",
+            personality_style=personality_style,
+            height=height,
+            build=build,
+            config_dir=config_dir,
+            elfie_id=elfie_id,
+        )
+
+    def generate_for_species(
+        self,
+        name: str,
+        species_id: str,
+        personality_style: str,
+        height: str,
+        build: str,
+        config_dir: str,
+        elfie_id: str,
+        appearance_seed: int | None = None,
+    ) -> Dict[str, str]:
+        """生成稳定视觉档案及现有大脑兼容配置。
 
         Args:
             name: 精灵名字。
-            anatomy_type: 体型，``"biped"`` 或 ``"quadruped"``。
+            species_id: 物种，当前为 ``"dog"`` 或 ``"fox"``。
             personality_style: 性格风格（6 种预设之一）。
             height: 身高，``"short"`` / ``"standard"`` / ``"tall"``。
             build: 体型，``"slim"`` / ``"standard"`` / ``"plump"``。
@@ -362,7 +407,7 @@ class ElfieGenerator:
             elfie_id: 精灵唯一标识。
 
         Returns:
-            ``{"elfie_id": ..., "config_dir": ...}``。
+            ``{"elfie_id": ..., "config_dir": ..., "species_id": ...}``。
 
         Raises:
             ValueError: 任意参数超出允许范围。
@@ -371,8 +416,8 @@ class ElfieGenerator:
         # 参数校验（使用共享配置模块读取动态配置）
         # ------------------------------------------------------------------
         from elfienest.adoption.config import (  # noqa: PLC0415
-            get_allowed_anatomy_types,
             get_allowed_personality_styles,
+            get_allowed_species_ids,
         )
 
         allowed_styles = get_allowed_personality_styles()
@@ -389,10 +434,10 @@ class ElfieGenerator:
             raise ValueError(
                 f"无效 build: {build!r}。可选: {', '.join(VALID_BUILDS)}"
             )
-        allowed_anatomy = get_allowed_anatomy_types()
-        if anatomy_type not in allowed_anatomy:
+        allowed_species = get_allowed_species_ids()
+        if species_id not in allowed_species:
             raise ValueError(
-                f"无效 anatomy_type: {anatomy_type!r}。可选: {', '.join(allowed_anatomy)}"
+                f"无效 species_id: {species_id!r}。可选: {', '.join(allowed_species)}"
             )
 
         # ------------------------------------------------------------------
@@ -400,6 +445,16 @@ class ElfieGenerator:
         # ------------------------------------------------------------------
         cfg_path = Path(config_dir)
         cfg_path.mkdir(parents=True, exist_ok=True)
+
+        profile = create_visual_profile(
+            elfie_id=elfie_id,
+            display_name=name,
+            species_id=species_id,
+            seed=appearance_seed if appearance_seed is not None else secrets.randbits(63),
+            height_direction=height,
+            build_direction=build,
+        )
+        resolved = AppearanceResolver().resolve(profile)
 
         # ------------------------------------------------------------------
         # 生成随机值
@@ -420,13 +475,30 @@ class ElfieGenerator:
         # 构建 YAML 字典
         # ------------------------------------------------------------------
         personality = self._build_personality_yaml(
-            name, personality_style, height, build,
+            name,
+            personality_style,
+            height,
+            build,
+            {
+                "species": species_id,
+                "height_scale": resolved.height_scale,
+                "build_scale": resolved.build_scale,
+            },
             big_five, verbal_tick, mutter_templates, greetings,
         )
         capabilities = self._build_capabilities_yaml(
             supported_actions, max_wpm, max_servo_speed,
         )
         system_limits = self._build_system_limits_yaml(depletion_rate)
+
+        # profile.yaml 是稳定事实来源；旧三份 YAML 在迁移期继续双写给现有 API。
+        profile = replace(
+            profile,
+            personality=personality,
+            capabilities=capabilities,
+            system_limits=system_limits,
+        )
+        ElfieProfileRepository(cfg_path).save(profile)
 
         # ------------------------------------------------------------------
         # 写入 YAML 文件
@@ -452,4 +524,8 @@ class ElfieGenerator:
             elfie_id, name, config_dir,
         )
 
-        return {"elfie_id": elfie_id, "config_dir": config_dir}
+        return {
+            "elfie_id": elfie_id,
+            "config_dir": config_dir,
+            "species_id": species_id,
+        }

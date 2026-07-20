@@ -4,6 +4,8 @@ from typing import Any, Dict, List
 
 import yaml
 
+from elfie.profile import ElfieProfileRepository
+
 logger = logging.getLogger("elfie.cognition.profile")
 
 
@@ -12,16 +14,38 @@ class ElfieProfile:
 
     def __init__(self, config_dir: str = None):
         if config_dir is None:
-            # cognition 位于 elfie/brain/cognition，默认配置位于 elfie/config
+            # 未指定个体目录时使用 Profile 模块维护的默认模板。
             current_dir = os.path.dirname(os.path.abspath(__file__))
             elfie_dir = os.path.dirname(os.path.dirname(current_dir))
-            self.config_dir = os.path.join(elfie_dir, "config")
+            self.config_dir = os.path.join(elfie_dir, "profile", "defaults")
         else:
             self.config_dir = config_dir
 
-        self.personality = self._load_yaml("personality.yaml")
-        self.capabilities = self._load_yaml("capabilities.yaml")
-        self.system_limits = self._load_yaml("system_limits.yaml")
+        canonical = self._load_canonical_profile()
+        self.personality = canonical.get("personality") or self._load_yaml(
+            "personality.yaml"
+        )
+        self.capabilities = canonical.get("capabilities") or self._load_yaml(
+            "capabilities.yaml"
+        )
+        self.system_limits = canonical.get("system_limits") or self._load_yaml(
+            "system_limits.yaml"
+        )
+
+    def _load_canonical_profile(self) -> Dict[str, Dict[str, Any]]:
+        repository = ElfieProfileRepository(self.config_dir)
+        if not repository.exists():
+            return {}
+        try:
+            profile = repository.load()
+        except (OSError, ValueError, yaml.YAMLError) as exc:
+            logger.error("加载 profile.yaml 失败，将回退旧配置: %s", exc)
+            return {}
+        return {
+            "personality": profile.personality,
+            "capabilities": profile.capabilities,
+            "system_limits": profile.system_limits,
+        }
 
     def _load_yaml(self, filename: str) -> Dict[str, Any]:
         path = os.path.join(self.config_dir, filename)

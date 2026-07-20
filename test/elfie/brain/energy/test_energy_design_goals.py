@@ -5,7 +5,7 @@
 
 import pytest
 
-from elfie import ElfieIndividual
+from elfie import Elfie
 from elfie.brain.energy.energy import HypothalamusEnergy
 
 
@@ -46,9 +46,9 @@ class TestHibernationFuse:
         )
 
     def test_sleep_blocks_perception(self):
-        """is_sleeping=True时，ElfieIndividual.perceive_and_respond
+        """is_sleeping=True时，Elfie.perceive_and_respond
         返回的dict包含"sleeping"或success=False的睡眠相关原因"""
-        elfie = ElfieIndividual()
+        elfie = Elfie()
         # 直接设置睡眠状态（绕过疲劳累积过程）
         elfie.hypothalamus.is_sleeping = True
 
@@ -124,9 +124,9 @@ class TestEmotionEnergyInteraction:
     """验证 tick() 同时驱动能量消耗和情绪衰减"""
 
     def test_tick_with_energy_still_decays_emotion(self):
-        """构造ElfieIndividual，先注入fear=80，然后tick(dt=10)，
+        """构造Elfie，先注入fear=80，然后tick(dt=10)，
         fear应有衰减（验证tick同时驱动能量和情绪衰减）"""
-        elfie = ElfieIndividual()
+        elfie = Elfie()
 
         # 注入 fear：baseline=10，加 70 到 80
         elfie.amygdala.update_emotion("fear", 70)

@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+import yaml
 from fastapi.testclient import TestClient
 
 from elfienest.api.app import create_app
@@ -222,7 +223,10 @@ class TestElfieDetail:
 
         # 验证已写入
         resp = client.get(f"/api/user/elfies/{elfie_id}", headers=_headers(tokens["csrf_token"]))
-        assert new_yaml in resp.json()["configs"]["personality.yaml"]
+        configs = resp.json()["configs"]
+        assert new_yaml in configs["personality.yaml"]
+        canonical = yaml.safe_load(configs["profile.yaml"])
+        assert canonical["personality"]["big_five"]["openness"] == 0.5
 
     def test_access_others_elfie_404(self, client: TestClient, db_path: str) -> None:
         """访问不属于自己的精灵 → 404。"""
@@ -365,8 +369,8 @@ class TestAdoptionInfo:
         data = resp.json()
         # 6 种性格
         assert len(data["personality_styles"]) == 6
-        # 2 种体型
-        assert sorted(data["anatomy_types"]) == sorted(["biped", "quadruped"])
+        # 2 个当前可领养物种
+        assert sorted(data["species_ids"]) == ["dog", "fox"]
         # 3 身高
         assert sorted(data["heights"]) == sorted(["short", "standard", "tall"])
         # 3 胖瘦
@@ -380,7 +384,7 @@ class TestAdoptionInfo:
             "/api/user/adopt",
             json={
                 "name": "小白",
-                "anatomy_type": "biped",
+                "species_id": "dog",
                 "personality_style": "好奇探索",
                 "height": "standard",
                 "build": "standard",
@@ -415,7 +419,7 @@ class TestAdopt:
             "/api/user/adopt",
             json={
                 "name": "小白",
-                "anatomy_type": "biped",
+                "species_id": "dog",
                 "personality_style": "好奇探索",
                 "height": "tall",
                 "build": "plump",
@@ -425,6 +429,7 @@ class TestAdopt:
         assert resp.status_code == 201, resp.text
         data = resp.json()
         assert data["name"] == "小白"
+        assert data["species_id"] == "dog"
         assert data["elfie_id"].startswith("elfie_")
         assert "config_dir" in data
 
@@ -484,8 +489,8 @@ class TestAdopt:
         )
         assert resp.status_code == 400
 
-    def test_invalid_anatomy_type_400(self, client: TestClient) -> None:
-        """非法 anatomy_type → 400。"""
+    def test_invalid_species_id_400(self, client: TestClient) -> None:
+        """非法 species_id → 400。"""
         _create_user_via_owner(client, "alice")
         tokens = _login_user(client, "alice")
 
@@ -493,7 +498,7 @@ class TestAdopt:
             "/api/user/adopt",
             json={
                 "name": "小白",
-                "anatomy_type": "tripled",
+                "species_id": "dragon",
                 "personality_style": "好奇探索",
                 "height": "standard",
                 "build": "standard",
@@ -560,7 +565,7 @@ class TestAdopt:
 class TestAdoptRoomFull:
     def test_adopt_room_full(self, client: TestClient, app, db_path: str) -> None:
         """房间满 → POST /api/user/adopt → 409 detail 包含 '房间已满'。"""
-        from elfie import ElfieIndividual  # noqa: PLC0415
+        from elfie import Elfie  # noqa: PLC0415
         from elfienest.simulation.engine import ElfieNestEngine  # noqa: PLC0415
 
         _create_user_via_owner(client, "alice")
@@ -574,7 +579,7 @@ class TestAdoptRoomFull:
                 http_port=18007,
                 tts_enabled=False,
             )
-        engine.room.register_elfie("existing", MagicMock(spec=ElfieIndividual))
+        engine.room.register_elfie("existing", MagicMock(spec=Elfie))
 
         # 注入到 app.state
         app.state.engine = engine

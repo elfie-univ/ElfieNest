@@ -1,9 +1,8 @@
 """端到端服务测试 — 真实 Engine + 真实 WS 客户端 + 真实 HTTP 全链路验证
 
 验证完整端到端事件流：
-  1. register_scene 握手 → 家具注册
-  2. physical_impact_event → 碰撞反射 WS 消息
-  3. speak_event → 反射弧自动语音 WS 消息
+  1. hello 安全握手 → runtime_ready → sync_elfies
+  2. physical interaction → speak_event + emotion_expression
   4. go_to → LLM 决策动作（可选，不稳定时不失败）
   5. arrived_at 回调 → 姿态更新
   6. HTTP 端口可达
@@ -21,7 +20,7 @@ import urllib.request
 
 import websockets
 
-from elfie import ElfieIndividual
+from elfie import ElfieFactory
 from elfienest.simulation.engine import ElfieNestEngine
 
 # ---------------------------------------------------------------------------
@@ -69,41 +68,44 @@ class TestE2EServiceFlow:
         """异步 WS 客户端测试逻辑"""
         uri = f"ws://{engine.api_server.host}:{engine.api_server.port}"
 
-        async with websockets.connect(uri) as ws:
-            # ---------- 1. register_scene 握手 ----------
-            register_msg = json.dumps({
-                "event": "register_scene",
-                "payload": {"furniture": ["bed_1", "chair_1"]},
-            }, ensure_ascii=False)
-            await ws.send(register_msg)
-
-            # 轮询等待 WS 服务端回调处理完成（跨线程，需要足够等待）
-            furniture_registered = False
-            for _ in range(30):
-                await asyncio.sleep(0.1)
-                furniture = engine.room.room_state.get("furniture", {})
-                if "bed_1" in furniture and "chair_1" in furniture:
-                    furniture_registered = True
-                    break
-
-            assert furniture_registered, (
-                f"家具注册后应包含 bed_1 和 chair_1，实际：{list(engine.room.room_state.get('furniture', {}).keys())}"
+        origin = f"http://127.0.0.1:{engine.http_port}"
+        async with websockets.connect(uri, origin=origin) as ws:
+            hello_msg = json.dumps(
+                {
+                    "event": "hello",
+                    "payload": {
+                        "protocol": 1,
+                        "nonce": engine.api_server.handshake_nonce,
+                    },
+                },
+                ensure_ascii=False,
             )
+            await ws.send(hello_msg)
+            hello_raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
+            hello = json.loads(hello_raw)
+            assert hello == {"event": "hello_ok", "payload": {"protocol": 1}}
 
-            # ---------- 2. physical_impact_event ----------
+            # ---------- 1. runtime_ready 后同步当前精灵目录 ----------
+            ready_msg = json.dumps(
+                {
+                    "event": "runtime_ready",
+                    "payload": {"protocol": 1, "bed_count": 1},
+                },
+                ensure_ascii=False,
+            )
+            await ws.send(ready_msg)
+            sync_raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
+            sync_data = json.loads(sync_raw)
+            assert sync_data["action"] == "sync_elfies"
+            assert sync_data["payload"]["elfies"][0]["elfie_id"] == "艾菲"
+
+            # ---------- 2. 触觉反射通过 NativeBody 发出语音与表情 ----------
             engine.coordinator.trigger_elfie_interaction("艾菲", "艾菲", "collision")
 
-            msg_raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
-            data = json.loads(msg_raw)
-            assert data["action"] == "physical_impact_event", (
-                f"第一条消息应为 physical_impact_event，实际：{data}"
-            )
-            assert data["payload"]["elfie_id"] == "艾菲"
-
-            # ---------- 3. speak_event（反射弧自动语音） ----------
             speak_found = False
+            expression_found = False
             deadline = time.time() + 4.0
-            while time.time() < deadline:
+            while time.time() < deadline and not (speak_found and expression_found):
                 try:
                     msg_raw = await asyncio.wait_for(ws.recv(), timeout=2.0)
                     data = json.loads(msg_raw)
@@ -113,13 +115,17 @@ class TestE2EServiceFlow:
                         assert data["payload"]["text"], (
                             f"speak_event 的 text 不应为空，实际：{data['payload']}"
                         )
-                        break
+                    elif data.get("action") == "emotion_expression":
+                        expression_found = True
+                        assert data["payload"]["elfie_id"] == "艾菲"
+                        assert "reflex_soothing" in data["payload"]["actions"]
                 except (asyncio.TimeoutError, websockets.exceptions.ConnectionClosed):
                     break
 
             assert speak_found, "应在合理时间内收到 speak_event"
+            assert expression_found, "应在合理时间内收到 emotion_expression"
 
-            # ---------- 4. go_to 事件（可选，不强制） ----------
+            # ---------- 3. go_to 事件（可选，不强制） ----------
             deadline = time.time() + 4.0
             while time.time() < deadline:
                 try:
@@ -131,7 +137,7 @@ class TestE2EServiceFlow:
                 except (asyncio.TimeoutError, websockets.exceptions.ConnectionClosed):
                     break
 
-            # ---------- 5. arrived_at 回调 ----------
+            # ---------- 4. arrived_at 回调 ----------
             arrived_msg = json.dumps({
                 "event": "arrived_at",
                 "payload": {"elfie_id": "艾菲", "target": "bed_1"},
@@ -144,7 +150,7 @@ class TestE2EServiceFlow:
                 f"arrived_at bed_1 后 posture 应为 lying，实际：{elfie_status}"
             )
 
-        # ---------- 6. HTTP 端口可达 ----------
+        # ---------- 5. HTTP 端口可达 ----------
         http_url = f"http://127.0.0.1:{engine.http_port}/"
         with urllib.request.urlopen(http_url, timeout=5.0) as resp:
             assert resp.status == 200, f"HTTP 服务应返回 200，实际：{resp.status}"
@@ -160,7 +166,10 @@ class TestE2EServiceFlow:
 
             # 将精灵创建与引擎启动封装在同一线程内，避免 SQLite 跨线程访问异常
             def _run_engine():
-                elfie = ElfieIndividual()
+                elfie = ElfieFactory().create(
+                    godot_api=engine.api_server,
+                    elfie_id="艾菲",
+                )
                 engine.coordinator.register_elfie("艾菲", elfie)
                 engine._synthesize_voice = lambda elfie_id, text: f"http://127.0.0.1:{engine.http_port}/dummy.mp3"
                 engine.start_loop(mock_agent, ticks_to_run=20, interval_sec=0.3)

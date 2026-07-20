@@ -1,7 +1,7 @@
 import logging
 import sys
 
-from elfie import ElfieIndividual
+from elfie import ElfieFactory
 from elfienest import ElfieNestEngine
 from runtime import LLMRuntimeConfig, RuntimeAgent
 
@@ -37,14 +37,17 @@ def main():
     runtime_agent = RuntimeAgent(config, live_reload=True)
     logger.info("⚡ [底座算力底座就绪] 本地快速大模型及云端路由检测完毕。")
 
-    # 2. 唤醒精灵个体，为其注入专属灵魂 (Elfie 三层大脑)
-    elfie = ElfieIndividual()
+    # 2. 启动 ElfieNest 生态盒子游戏引擎
+    engine = ElfieNestEngine()
+
+    # 3. 唤醒精灵个体，并装配 Godot 中的 NativeBody
+    elfie = ElfieFactory().create(
+        elfie_id="艾菲",
+        godot_api=engine.api_server,
+    )
     logger.info(
         "✨ [灵魂注入完成] 艾菲 (Elfie) 的顶层认知、中层边缘化学、底层感觉神经融合完毕！"
     )
-
-    # 3. 启动 ElfieNest 生态盒子游戏引擎
-    engine = ElfieNestEngine()
 
     # 4. 将艾菲注册到精灵盒子生态协调器中
     engine.coordinator.register_elfie("艾菲", elfie)

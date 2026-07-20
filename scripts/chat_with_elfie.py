@@ -18,7 +18,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("chat")
 
-from elfie import ElfieIndividual
+from elfie import Elfie
 from elfienest import ElfieNestEngine
 from runtime import LLMRuntimeConfig, RuntimeAgent
 
@@ -35,7 +35,7 @@ def main():
             ollama_model_fast="qwen3.5:0.8b",
         )
         runtime_agent = RuntimeAgent(config)
-        elfie = ElfieIndividual()
+        elfie = Elfie()
         engine = ElfieNestEngine()
         engine.coordinator.register_elfie("艾菲", elfie)
         engine_holder["engine"] = engine

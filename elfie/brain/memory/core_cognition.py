@@ -190,15 +190,18 @@ class CoreCognition:
         """返回项目默认的 personality.yaml 绝对路径"""
         if cls._DEFAULT_PERSONALITY_PATH is None:
             cls._DEFAULT_PERSONALITY_PATH = str(
-                Path(__file__).resolve().parent.parent.parent.parent
-                / "elfie"
-                / "config"
+                Path(__file__).resolve().parents[2]
+                / "profile"
+                / "defaults"
                 / "personality.yaml"
             )
         return cls._DEFAULT_PERSONALITY_PATH
 
     def __init__(
-        self, db_path: str = ":memory:", personality_path: Optional[str] = None
+        self,
+        db_path: str = ":memory:",
+        personality_path: Optional[str] = None,
+        personality_data: Optional[Dict[str, Any]] = None,
     ):
         """从SQLite加载核心认知，如不存在则从personality.yaml初始化。
 
@@ -207,12 +210,31 @@ class CoreCognition:
             personality_path: personality.yaml 路径（默认自动查找项目路径）
         """
         self.db_path = db_path
-        self.personality_path = personality_path or self._get_default_personality_path()
+        self._personality_data = (
+            dict(personality_data) if isinstance(personality_data, dict) else None
+        )
+        self.personality_path = personality_path or (
+            None
+            if self._personality_data is not None
+            else self._get_default_personality_path()
+        )
         self.storage = GraphStorage(db_path)
         self._core_text: Dict[str, str] = {}
         self._update_count: int = 0
         self._current_personality: Optional[Dict[str, float]] = None
         self._load_from_db()
+
+    @staticmethod
+    def _read_personality_file(path: str) -> Dict[str, Any]:
+        """同时兼容旧 personality.yaml 和新版 profile.yaml。"""
+        with open(path, encoding="utf-8") as handle:
+            raw = yaml.safe_load(handle) or {}
+        if not isinstance(raw, dict):
+            raise ValueError(f"性格配置根节点必须是映射: {path}")
+        nested = raw.get("personality")
+        if isinstance(nested, dict):
+            return dict(nested)
+        return dict(raw)
 
     # ------------------------------------------------------------------
     # 初始化
@@ -229,14 +251,15 @@ class CoreCognition:
             确保后续全量重写（_rewrite_all）能找到正确的yaml文件。
         """
         path = yaml_path or self.personality_path
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"找不到personality.yaml: {path}")
-
-        # 记录实际使用的路径，供后续 _rewrite_all 使用
-        self.personality_path = path
-
-        with open(path, encoding="utf-8") as f:
-            data = yaml.safe_load(f)
+        if path is not None and os.path.exists(path):
+            # 记录实际使用的路径，供后续 _rewrite_all 使用。
+            self.personality_path = path
+            data = self._read_personality_file(path)
+            self._personality_data = data
+        elif self._personality_data is not None:
+            data = dict(self._personality_data)
+        else:
+            raise FileNotFoundError(f"找不到精灵性格配置: {path}")
 
         big_five = data.get("big_five", {})
         metadata = data.get("metadata", {})
@@ -358,18 +381,20 @@ class CoreCognition:
         self._save_core_to_db()
 
     def _rewrite_all(self) -> None:
-        """从personality.yaml重新生成所有核心认知。"""
-        if not os.path.exists(self.personality_path):
+        """从当前个体档案重新生成所有核心认知。"""
+        if self.personality_path and os.path.exists(self.personality_path):
+            try:
+                data = self._read_personality_file(self.personality_path)
+                self._personality_data = data
+            except (OSError, yaml.YAMLError, ValueError) as exc:
+                logger.error("🧠 [核心认知] 读取个体档案失败: %s", exc)
+                return
+        elif self._personality_data is not None:
+            data = dict(self._personality_data)
+        else:
             logger.warning(
-                "🧠 [核心认知] 无法全量重写：%s 不存在", self.personality_path
+                "🧠 [核心认知] 无法全量重写：没有可用的性格档案"
             )
-            return
-
-        try:
-            with open(self.personality_path, encoding="utf-8") as f:
-                data = yaml.safe_load(f)
-        except Exception as exc:
-            logger.error("🧠 [核心认知] 读取yaml失败: %s", exc)
             return
 
         big_five = data.get("big_five", {})
@@ -595,8 +620,11 @@ class CoreCognition:
                     self._core_text[core_key] = row["content"]
             self._update_count = 0
             logger.info("🧠 [核心认知] 从数据库加载%d条核心认知", len(rows))
-        elif self.personality_path and os.path.exists(self.personality_path):
-            logger.info("🧠 [核心认知] 数据库为空，从personality.yaml自动初始化")
+        elif (
+            self._personality_data is not None
+            or (self.personality_path and os.path.exists(self.personality_path))
+        ):
+            logger.info("🧠 [核心认知] 数据库为空，从个体性格档案自动初始化")
             self.initialize_from_personality()
 
     def close(self) -> None:

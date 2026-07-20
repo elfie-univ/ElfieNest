@@ -1,8 +1,8 @@
-import json
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+import yaml
 from fastapi.testclient import TestClient
 
 from elfienest.api.app import create_app
@@ -24,11 +24,11 @@ def db_path(tmp_path: Path) -> str:
 
 
 @pytest.fixture
-def runtime_config_path(tmp_path: Path) -> Path:
-    path = tmp_path / "runtime" / "runtime_config.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
+def runtime_config_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    path = tmp_path / "config.yaml"
     path.write_text(
-        json.dumps(
+        yaml.safe_dump(
             {
                 "providers": {
                     "ollama": {
@@ -60,7 +60,8 @@ def runtime_config_path(tmp_path: Path) -> Path:
                     },
                 },
             },
-            ensure_ascii=False,
+            allow_unicode=True,
+            sort_keys=False,
         ),
         encoding="utf-8",
     )
@@ -110,7 +111,6 @@ def client(
     with (
         patch("elfienest.api.app.AuthenticatedWSManager.start"),
         patch("elfienest.api.app.AuthenticatedWSManager.stop"),
-        patch("elfienest.api.runtime_routes.get_config_path", return_value=runtime_config_path),
         patch("elfienest.api.runtime_routes.get_runtime_observer", return_value=runtime_observer),
         patch("elfienest.api.runtime_routes.get_token_tracker", return_value=token_tracker),
     ):
@@ -156,16 +156,17 @@ def test_owner_runtime_status_tolerates_malformed_config_fields(
     client: TestClient,
     runtime_config_path: Path,
 ) -> None:
+    tokens = _login(client, "owner", "ownerchangeme")
     runtime_config_path.write_text(
-        json.dumps(
+        yaml.safe_dump(
             {
                 "providers": ["not", "a", "mapping"],
                 "models": "not-a-mapping",
-            }
+            },
+            sort_keys=False,
         ),
         encoding="utf-8",
     )
-    tokens = _login(client, "owner", "ownerchangeme")
 
     response = client.get(
         "/api/owner/runtime/status",
@@ -233,7 +234,7 @@ def test_owner_runtime_policy_put_persists_strategy(
     assert payload["task_routes"]["reasoning"] == "standard"
     assert payload["tool_permissions"]["RUN_SKILL"]["mode"] == "ask"
 
-    saved = json.loads(runtime_config_path.read_text(encoding="utf-8"))
+    saved = yaml.safe_load(runtime_config_path.read_text(encoding="utf-8"))
     assert saved["runtime_policy"]["task_routes"]["reasoning"] == "standard"
 
 

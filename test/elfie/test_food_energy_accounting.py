@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
 from elfie.brain.brain_types import BrainDecision
-from elfie.elfie_individual import ElfieIndividual
+from elfie.elfie import Elfie
 
 
 class FoodRuntime:
@@ -21,7 +21,7 @@ def test_energy_cost_uses_actual_food_model_not_configured_provider_count(
     monkeypatch, tmp_path
 ):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    elfie = ElfieIndividual()
+    elfie = Elfie()
     consumed = []
     monkeypatch.setattr(
         elfie.hypothalamus,

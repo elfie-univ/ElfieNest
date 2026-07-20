@@ -3,7 +3,7 @@
 测试场景：
 1. PUT system.adoption.max_elfies_per_user=1 → 领养第二只 → 409
 2. PUT personality_presets_enabled["安静温顺"]=False → adoption-info 不包含该预设
-3. PUT allowed_anatomy_types=["biped"] → 领养 quadruped → 422
+3. PUT allowed_species_ids=["dog"] → 领养 fox → 400
 4. 全部禁用 → 返回全部预设（安全回退）
 """
 
@@ -32,8 +32,8 @@ def db_path(tmp_path: Path) -> str:
 
 @pytest.fixture
 def runtime_config_path(tmp_path: Path) -> Path:
-    """临时 runtime_config.json 路径，同时 mock system_routes 和 adoption_config。"""
-    p = tmp_path / "runtime" / "runtime_config.json"
+    """临时正式 config.yaml 路径，同时 mock system_routes 和 adoption_config。"""
+    p = tmp_path / "elfie-home" / "config.yaml"
     p.parent.mkdir(parents=True, exist_ok=True)
     return p
 
@@ -219,33 +219,33 @@ class TestPersonalityPresetsFilter:
 
 
 # ===================================================================
-# Test: anatomy_types_filter
+# Test: species_ids_filter
 # ===================================================================
 
 
-class TestAnatomyTypesFilter:
-    """PUT allowed_anatomy_types=["biped"] → 领养 quadruped → 422。"""
+class TestSpeciesIdsFilter:
+    """PUT allowed_species_ids=["dog"] → 领养 fox → 400。"""
 
-    def test_quadruped_rejected(self, client: TestClient) -> None:
-        """仅允许 biped → 尝试领养 quadruped → 400。"""
+    def test_fox_rejected(self, client: TestClient) -> None:
+        """仅允许 dog → 尝试领养 fox → 400。"""
         owner_tokens = _login_owner(client)
 
-        # 仅允许 biped
+        # 仅允许 dog
         resp = client.put(
             "/api/owner/system/adoption",
-            json={"allowed_anatomy_types": ["biped"]},
+            json={"allowed_species_ids": ["dog"]},
             headers=_headers(owner_tokens["csrf_token"]),
         )
         assert resp.status_code == 200, resp.text
 
         user_tokens = _create_user_and_login(client)
 
-        # 领养 quadruped → 400
+        # 领养 fox → 400
         resp = client.post(
             "/api/user/adopt",
             json={
-                "name": "四足",
-                "anatomy_type": "quadruped",
+                "name": "狐狸",
+                "species_id": "fox",
                 "personality_style": "活泼好动",
                 "height": "standard",
                 "build": "standard",
@@ -253,15 +253,15 @@ class TestAnatomyTypesFilter:
             headers=_headers(user_tokens["csrf_token"]),
         )
         assert resp.status_code == 400, f"expected 400, got {resp.status_code}: {resp.text}"
-        assert "quadruped" not in resp.text.lower() or "无效" in resp.text
+        assert "species_id" in resp.text
 
     def test_adoption_info_reflects_filter(self, client: TestClient) -> None:
-        """仅允许 biped → adoption-info 只包含 biped。"""
+        """仅允许 dog → adoption-info 只包含 dog。"""
         owner_tokens = _login_owner(client)
 
         resp = client.put(
             "/api/owner/system/adoption",
-            json={"allowed_anatomy_types": ["biped"]},
+            json={"allowed_species_ids": ["dog"]},
             headers=_headers(owner_tokens["csrf_token"]),
         )
         assert resp.status_code == 200
@@ -273,7 +273,7 @@ class TestAnatomyTypesFilter:
         )
         assert resp.status_code == 200
         data = resp.json()
-        assert data["anatomy_types"] == ["biped"]
+        assert data["species_ids"] == ["dog"]
 
 
 # ===================================================================

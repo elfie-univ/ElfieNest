@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Final
 
-CURRENT_SCHEMA_VERSION: Final[int] = 5
+CURRENT_SCHEMA_VERSION: Final[int] = 6
 
 
 class OwnerSchemaMigrationError(RuntimeError):
@@ -53,6 +53,8 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             name TEXT NOT NULL,
             owner_user_id INTEGER,
             anatomy_type TEXT DEFAULT 'biped',
+            species_id TEXT NOT NULL DEFAULT 'fox',
+            profile_schema_version INTEGER NOT NULL DEFAULT 1,
             config_dir TEXT,
             personality_style TEXT,
             height TEXT DEFAULT 'standard',
@@ -75,6 +77,8 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
         _migrate_v3_to_v4(connection)
     if version < 5:
         _migrate_v4_to_v5(connection)
+    if version < 6:
+        _migrate_v5_to_v6(connection)
     _ensure_owner_index(connection)
 
 
@@ -177,6 +181,21 @@ def _migrate_v4_to_v5(connection: sqlite3.Connection) -> None:
     )
     _ensure_owner_index(connection)
     connection.execute("PRAGMA user_version = 5")
+
+
+def _migrate_v5_to_v6(connection: sqlite3.Connection) -> None:
+    """增加稳定物种和档案版本；旧 anatomy_type 仅保留兼容读取。"""
+    _ignore_duplicate_column(
+        connection,
+        "ALTER TABLE elfie_registry "
+        "ADD COLUMN species_id TEXT NOT NULL DEFAULT 'fox'",
+    )
+    _ignore_duplicate_column(
+        connection,
+        "ALTER TABLE elfie_registry "
+        "ADD COLUMN profile_schema_version INTEGER NOT NULL DEFAULT 1",
+    )
+    connection.execute("PRAGMA user_version = 6")
 
 
 def _validate_owner_roles(connection: sqlite3.Connection) -> None:

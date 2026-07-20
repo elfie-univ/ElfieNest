@@ -103,7 +103,7 @@ def _rooms_with_beds(db_path: str, user_id: int | None = None) -> list[Dict[str,
                        e.elfie_id AS occupant_id,
                        e.name AS occupant_name,
                        e.owner_user_id AS occupant_owner_user_id,
-                       e.anatomy_type AS occupant_anatomy_type,
+                       e.species_id AS occupant_species_id,
                        u.username AS occupant_owner_username
                 FROM beds b
                 LEFT JOIN elfie_registry e ON e.bed_id = b.id

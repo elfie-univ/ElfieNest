@@ -136,21 +136,24 @@ test/
 │   │       └── test_energy.py              # 对应 elfie/brain/energy/energy.py
 │   ├── body/
 │   │   ├── __init__.py
-│   │   ├── anatomy/
-│   │   │   ├── __init__.py
-│   │   │   └── test_anatomy.py             # 对应 elfie/body/anatomy/*.py
-│   │   └── reflex/
+│   │   └── native/
 │   │       ├── __init__.py
-│   │       └── test_reflex_arc.py          # 对应 elfie/body/reflex/reflex_arc.py
-│   ├── interface/
+│   │       └── test_public_api.py          # 对应 elfie/body/native/ 公共导出
+│   ├── nervous_system/
 │   │   ├── __init__.py
 │   │   ├── actuators/
 │   │   │   ├── __init__.py
-│   │   │   └── test_actuators.py           # 对应 elfie/interface/actuators/*.py
-│   │   └── sensors/
+│   │   │   └── test_actuators.py           # 对应 nervous_system/actuators/*.py
+│   │   ├── sensors/
+│   │   │   ├── __init__.py
+│   │   │   └── test_sensors.py             # 对应 nervous_system/sensors/*.py
+│   │   └── reflex/
 │   │       ├── __init__.py
-│   │       └── test_sensors.py             # 对应 elfie/interface/sensors/*.py
-│   └── test_embodied_perception.py         # 对应 elfie/elfie_individual.py
+│   │       └── test_reflex_arc.py          # 对应 nervous_system/reflex/*.py
+│   ├── communication/
+│   │   ├── __init__.py
+│   │   └── test_public_api.py              # 对应 communication 公共导出
+│   └── test_embodied_perception.py         # 对应 elfie/elfie.py
 ├── elfienest/
 │   ├── __init__.py
 │   ├── test_engine.py                      # 对应 elfienest/engine.py

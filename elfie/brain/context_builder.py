@@ -34,7 +34,7 @@ class ThalamusContextBuilder:
             "丘脑十字路口：正在捕获外部感官、情感化学值、体能作息与海马体记忆切片..."
         )
 
-        # 1. 过滤背景噪音（噪点剥离由 interface/signal_filter.py 或丘脑自身轻量策略完成）
+        # 1. 过滤背景噪音（由 nervous_system/signal_filter.py 或丘脑轻量策略完成）
         # 这里简单保留必要的感官通道信息
         image_paths = tuple(
             str(path)

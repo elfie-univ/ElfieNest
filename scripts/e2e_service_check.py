@@ -25,7 +25,7 @@ logger = logging.getLogger("e2e_check")
 
 import websockets
 
-from elfie import ElfieIndividual
+from elfie import Elfie
 from elfienest import ElfieNestEngine
 from elfienest.transport.godot_api import GodotAPIServer
 from runtime import LLMRuntimeConfig, RuntimeAgent
@@ -182,7 +182,7 @@ def main():
             ollama_host="http://localhost:11434", ollama_model_fast="qwen3.5:0.8b"
         )
         runtime_agent = RuntimeAgent(config)
-        elfie = ElfieIndividual()
+        elfie = Elfie()
         engine = ElfieNestEngine(ws_port=8765, http_port=8000)
         engine.coordinator.register_elfie("艾菲", elfie)
         engine_holder["engine"] = engine

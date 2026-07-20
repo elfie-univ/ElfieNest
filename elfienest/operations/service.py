@@ -23,8 +23,8 @@ class PortStatus:
 
 
 @dataclass(frozen=True)
-class AnatomyCount:
-    anatomy_type: str
+class SpeciesCount:
+    species_id: str
     count: int
 
 
@@ -34,7 +34,7 @@ class UsageStats:
     owner_count: int
     elfie_count: int
     session_count: int
-    anatomy_stats: List[AnatomyCount]
+    species_stats: List[SpeciesCount]
 
 @dataclass(frozen=True)
 class ActiveSession:
@@ -82,13 +82,13 @@ def collect_usage_stats(db_path: Optional[str] = None) -> UsageStats:
         session_count = _count_rows(conn, "sessions")
         cursor = conn.execute(
             """
-            SELECT anatomy_type, COUNT(*)
+            SELECT species_id, COUNT(*)
             FROM elfie_registry
-            GROUP BY anatomy_type
+            GROUP BY species_id
             """
         )
-        anatomy_stats = [
-            AnatomyCount(anatomy_type=str(row[0]), count=int(row[1]))
+        species_stats = [
+            SpeciesCount(species_id=str(row[0]), count=int(row[1]))
             for row in cursor.fetchall()
         ]
 
@@ -97,7 +97,7 @@ def collect_usage_stats(db_path: Optional[str] = None) -> UsageStats:
         owner_count=owner_count,
         elfie_count=elfie_count,
         session_count=session_count,
-        anatomy_stats=anatomy_stats,
+        species_stats=species_stats,
     )
 
 

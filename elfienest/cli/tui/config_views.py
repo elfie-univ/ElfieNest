@@ -56,8 +56,8 @@ def show_config(config: UserConfig) -> None:
     print("  【领养配置】")
     print(f"    每用户精灵上限: {adoption.get('max_elfies_per_user', 3)}")
     print(
-        "    允许形态: "
-        + ", ".join(adoption.get("allowed_anatomy_types", ["biped", "quadruped"]))
+        "    允许物种: "
+        + ", ".join(adoption.get("allowed_species_ids", ["dog", "fox"]))
     )
     enabled = adoption.get("personality_presets_enabled", {})
     enabled_names = [name for name, is_enabled in enabled.items() if is_enabled]

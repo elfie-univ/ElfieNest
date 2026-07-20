@@ -1,7 +1,7 @@
 """情绪表达映射引擎 - Expression Mapper"""
 
 import logging
-import os
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 import yaml
@@ -26,11 +26,7 @@ class ExpressionMapper:
         if self._config is not None:
             return
 
-        config_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            "config",
-            "emotion_expressions.yaml",
-        )
+        config_path = Path(__file__).with_name("emotion_expressions.yaml")
 
         try:
             with open(config_path, encoding="utf-8") as f:

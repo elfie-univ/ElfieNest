@@ -16,7 +16,9 @@ const REQUIRED_RESOURCES := [
 	"res://rooms/common_area_layouts/working_layout.tscn",
 	"res://rooms/common_area_layouts/music_layout.tscn",
 	"res://rooms/common_area_layouts/bookroom_layout.tscn",
-	"res://characters/elfie/elfie_3d.tscn",
+	"res://characters/dog/dog.tscn",
+	"res://characters/fox/fox.tscn",
+	"res://characters/shared/elfie_actor.gd",
 ]
 
 

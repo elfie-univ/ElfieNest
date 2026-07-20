@@ -8,10 +8,10 @@
 
 Usage::
 
-    from elfienest.adoption.config import get_max_elfies_per_user, get_allowed_anatomy_types
+    from elfienest.adoption.config import get_max_elfies_per_user, get_allowed_species_ids
 
     limit = get_max_elfies_per_user()
-    types = get_allowed_anatomy_types()
+    species = get_allowed_species_ids()
 """
 
 from __future__ import annotations
@@ -44,7 +44,10 @@ def _load_adoption_settings() -> dict:
     if isinstance(saved_system, dict):
         deep_update(base, saved_system)
 
-    return base.get("adoption", {})
+    adoption = base.get("adoption", {})
+    if isinstance(adoption, dict):
+        adoption.pop("allowed_anatomy_types", None)
+    return adoption
 
 
 def _config_path() -> Path:
@@ -76,18 +79,12 @@ def get_max_elfies_per_user(db_path: Optional[str] = None) -> int:
     return int(settings.get("max_elfies_per_user", 3))
 
 
-def get_allowed_anatomy_types(
+def get_allowed_species_ids(
     db_path: Optional[str] = None,
 ) -> Tuple[str, ...]:
-    """获取允许的解剖类型列表。
-
-    默认值：``("biped", "quadruped")``（与旧硬编码一致）。
-
-    Returns:
-        允许的 anatomy_type 元组
-    """
+    """获取领养时允许选择的物种 ID。"""
     settings = get_adoption_settings(db_path)
-    raw = settings.get("allowed_anatomy_types", ["biped", "quadruped"])
+    raw = settings.get("allowed_species_ids", ["dog", "fox"])
     return tuple(raw)
 
 

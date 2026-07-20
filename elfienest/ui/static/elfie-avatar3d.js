@@ -6,7 +6,7 @@
   function avatarClassName(elfie, extraClass) {
     return [
       "elfie-avatar3d",
-      `anatomy-${escapeClassPart(elfie?.anatomy, "biped")}`,
+      `species-${escapeClassPart(elfie?.species, "fox")}`,
       `height-${escapeClassPart(elfie?.height, "standard")}`,
       `build-${escapeClassPart(elfie?.build, "standard")}`,
       extraClass || "",

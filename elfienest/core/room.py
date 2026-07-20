@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from elfie import ElfieIndividual
+from elfie import Elfie
 
 logger = logging.getLogger("elfienest.core.room")
 
@@ -30,8 +30,8 @@ class ElfieNestRoom:
         # 0. 房间容量限制
         self.max_elfies_per_room = max_elfies_per_room
 
-        # 1. 灵魂容器：保存注册进来的小精灵实例 {elfie_id: ElfieIndividual}
-        self.elfies: Dict[str, ElfieIndividual] = {}
+        # 1. 灵魂容器：保存注册进来的小精灵实例 {elfie_id: Elfie}
+        self.elfies: Dict[str, Elfie] = {}
 
         # 2. 动态语义状态看板，仅记录"谁在什么家具上做什么"，不涉及任何坐标
         self.room_state: Dict[str, Any] = {
@@ -42,7 +42,7 @@ class ElfieNestRoom:
         # 3. 待分发给各精灵的群聊感知消息缓冲 {elfie_id: [messages]}
         self.sensory_buffers: Dict[str, List[str]] = {}
 
-    def register_elfie(self, elfie_id: str, elfie_instance: ElfieIndividual):
+    def register_elfie(self, elfie_id: str, elfie_instance: Elfie):
         """将精灵实例注入并注册到该宿舍房间中。
 
         Raises:

@@ -1,12 +1,12 @@
 (function () {
-  const anatomyLabels = {
-    biped: {
-      label: "双足精灵",
-      detail: "站立互动更明显，适合聊天、挥手和房间巡游。",
+  const speciesLabels = {
+    dog: {
+      label: "小狗",
+      detail: "使用小狗物种母版，并随机生成独特的脸型、体态和毛色。",
     },
-    quadruped: {
-      label: "四足精灵",
-      detail: "动物感更强，适合低姿态移动、摆尾和陪伴动作。",
+    fox: {
+      label: "狐狸",
+      detail: "使用狐狸物种母版，并随机生成独特的脸型、体态和花纹。",
     },
   };
 
@@ -31,8 +31,8 @@
     完全随机: "系统随机生成完整人格参数。",
   };
 
-  function anatomyOption(value) {
-    return anatomyLabels[value] || { label: value, detail: "自定义动物形态。" };
+  function speciesOption(value) {
+    return speciesLabels[value] || { label: value, detail: "自定义动物物种。" };
   }
 
   function personalityDetail(style) {
@@ -40,7 +40,7 @@
   }
 
   window.ElfieAdoptionOptions = {
-    anatomyOption,
+    speciesOption,
     buildOptions,
     heightOptions,
     personalityDetail,

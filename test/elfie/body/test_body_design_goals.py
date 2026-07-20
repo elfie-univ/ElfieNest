@@ -5,9 +5,9 @@
 
 import pytest
 
-from elfie import ElfieIndividual
-from elfie.body.anatomy.biped import BipedAnatomy
-from elfie.interface.signal_filter import SensoryDamSignalFilter
+from elfie import Elfie
+from elfie.body.native.anatomy.biped import BipedAnatomy
+from elfie.nervous_system.signal_filter import SensoryDamSignalFilter
 
 
 class MockRuntimeAgent:
@@ -62,9 +62,9 @@ class TestBrainstemShockReflex:
     """验证剧烈撞击触发的脑干自主避险反射"""
 
     def test_brainstem_shock_reflex(self):
-        """构造ElfieIndividual(quadruped)，传入impact_force=25, impact_direction="right"
+        """构造Elfie(quadruped)，传入impact_force=25, impact_direction="right"
         →perceive_and_respond返回action="reflex_avoidance"，包含"痛"，fear > 20"""
-        elfie = ElfieIndividual(anatomy_type="quadruped")
+        elfie = Elfie(anatomy_type="quadruped")
 
         sensor_data = {
             "has_new_message": False,
@@ -98,9 +98,9 @@ class TestBrainstemStrokeReflex:
     """验证温柔抚摸触发的脑干舒适反射"""
 
     def test_brainstem_stroke_reflex(self):
-        """构造ElfieIndividual(quadruped)，传入gentle_stroke=1.2
+        """构造Elfie(quadruped)，传入gentle_stroke=1.2
         →perceive_and_respond返回action="reflex_soothing"，包含"舒服"或"呼噜"，happiness > 50"""
-        elfie = ElfieIndividual(anatomy_type="quadruped")
+        elfie = Elfie(anatomy_type="quadruped")
 
         sensor_data = {
             "has_new_message": False,

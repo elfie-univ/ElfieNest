@@ -138,7 +138,7 @@ def config_adoption(config: UserConfig) -> None:
     menu = TerminalMenu(input_fn=input, output_fn=print)
     while True:
         adoption = config.setdefault("system", {}).setdefault("adoption", {})
-        allowed = adoption.setdefault("allowed_anatomy_types", ["biped", "quadruped"])
+        allowed = adoption.setdefault("allowed_species_ids", ["dog", "fox"])
         enabled = adoption.setdefault("personality_presets_enabled", {})
         if not enabled:
             enabled.update(dict.fromkeys(_PERSONALITY_PRESETS, True))
@@ -146,7 +146,7 @@ def config_adoption(config: UserConfig) -> None:
             "精灵领养",
             (
                 MenuItem("1", f"每用户精灵上限：{adoption.get('max_elfies_per_user', 3)}"),
-                MenuItem("2", f"允许形态：{', '.join(allowed)}"),
+                MenuItem("2", f"允许物种：{', '.join(allowed)}"),
                 MenuItem("3", "性格预设开关"),
             ),
             breadcrumb="ElfieNest / Config / 应用 / 精灵领养",
@@ -166,7 +166,7 @@ def config_adoption(config: UserConfig) -> None:
                 maximum=32,
             )
         elif choice == "2":
-            _toggle_anatomy_menu(menu, adoption)
+            _toggle_species_menu(menu, adoption)
         elif choice == "3":
             _toggle_personality_menu(menu, enabled)
 
@@ -174,18 +174,18 @@ def config_adoption(config: UserConfig) -> None:
 _PERSONALITY_PRESETS = ("活泼好动", "安静温顺", "好奇探索", "胆小害羞", "傲娇独立", "完全随机")
 
 
-def _toggle_anatomy_menu(menu: TerminalMenu, adoption: UserConfig) -> None:
-    """切换可领养形态，至少保留一种。"""
-    labels = {"biped": "双足", "quadruped": "四足"}
+def _toggle_species_menu(menu: TerminalMenu, adoption: UserConfig) -> None:
+    """切换可领养物种，至少保留一种。"""
+    labels = {"dog": "小狗", "fox": "狐狸"}
     while True:
-        allowed = adoption.setdefault("allowed_anatomy_types", ["biped", "quadruped"])
+        allowed = adoption.setdefault("allowed_species_ids", ["dog", "fox"])
         choice = menu.choose(
-            "允许的精灵形态",
+            "允许的精灵物种",
             tuple(
                 MenuItem(str(index), f"{labels[key]}：{'启用' if key in allowed else '禁用'}")
                 for index, key in enumerate(labels, 1)
             ),
-            breadcrumb="ElfieNest / Config / 应用 / 精灵领养 / 形态",
+            breadcrumb="ElfieNest / Config / 应用 / 精灵领养 / 物种",
             back_label="返回领养配置",
         )
         if choice is None:

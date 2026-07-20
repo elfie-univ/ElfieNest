@@ -1,6 +1,9 @@
 extends Node3D
 
-const ACTOR_SCENE := preload("res://characters/elfie/elfie_3d.tscn")
+const ACTOR_SCENES := {
+	"dog": preload("res://characters/dog/dog.tscn"),
+	"fox": preload("res://characters/fox/fox.tscn"),
+}
 const GODOT_WS_URL := "ws://127.0.0.1:8765"
 const GODOT_PROTOCOL_VERSION := 1
 const RECONNECT_DELAY_SEC := 1.0
@@ -108,10 +111,13 @@ func _sync_elfies(raw_elfies: Variant) -> void:
 			continue
 		expected[identity] = true
 		if not _actors.has(identity):
-			var actor := add_character(ACTOR_SCENE, _spawn_position(index)) as ElfieActor
+			var elfie_data := raw_elfie as Dictionary
+			var actor_scene := _actor_scene_for(elfie_data, identity)
+			var actor := add_character(actor_scene, _spawn_position(index)) as ElfieActor
 			if actor == null:
 				continue
-			actor.configure(identity, actor.position)
+			var appearance := elfie_data.get("appearance", elfie_data) as Dictionary
+			actor.configure(identity, actor.position, appearance)
 			_actors[identity] = actor
 		index += 1
 	var stale_ids: Array[String] = []
@@ -140,6 +146,14 @@ func _spawn_position(index: int) -> Vector3:
 	var column := index % 4
 	var row := index / 4
 	return Vector3(-1.2 + float(column) * 0.8, 0.0, -2.5 - float(row) * 1.2)
+
+
+func _actor_scene_for(elfie_data: Dictionary, identity: String) -> PackedScene:
+	var species := String(elfie_data.get("species", ""))
+	if ACTOR_SCENES.has(species):
+		return ACTOR_SCENES[species] as PackedScene
+	push_warning("精灵 %s 缺少合法 species，使用 fox 兼容母版" % identity)
+	return ACTOR_SCENES["fox"] as PackedScene
 
 
 func _resolve_handshake_nonce() -> String:

@@ -52,7 +52,7 @@ _SECTION_SCHEMAS: Dict[str, Dict[str, Any]] = {
     },
     "adoption": {
         "max_elfies_per_user": int,
-        "allowed_anatomy_types": list,
+        "allowed_species_ids": list,
         "personality_presets_enabled": dict,
     },
     "engine": {
@@ -176,18 +176,18 @@ def _validate_range(section: str, data: Dict[str, Any]) -> None:
                     422,
                     detail=f"max_elfies_per_user 应在 1 ~ {MAX_ELFIES_PER_MACHINE} 之间",
                 )
-        if "allowed_anatomy_types" in data:
-            valid_types = {"biped", "quadruped"}
-            if not data["allowed_anatomy_types"]:
+        if "allowed_species_ids" in data:
+            valid_types = {"dog", "fox"}
+            if not data["allowed_species_ids"]:
                 raise HTTPException(
                     422,
-                    detail="allowed_anatomy_types 至少需要保留一种形态",
+                    detail="allowed_species_ids 至少需要保留一个物种",
                 )
-            for t in data["allowed_anatomy_types"]:
+            for t in data["allowed_species_ids"]:
                 if t not in valid_types:
                     raise HTTPException(
                         422,
-                        detail=f"allowed_anatomy_types 只允许 {sorted(valid_types)}，"
+                        detail=f"allowed_species_ids 只允许 {sorted(valid_types)}，"
                         f"收到 '{t}'",
                     )
 

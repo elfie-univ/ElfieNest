@@ -20,7 +20,7 @@ import pytest
 # 直接添加项目根目录到sys.path，避免通过elfie/__init__.py触发依赖链
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# 直接从具体模块导入，避免elfie/__init__.py中的ElfieIndividual导入问题
+# 直接从具体模块导入，避免elfie/__init__.py中的Elfie导入问题
 from elfie.brain.emotion.emotion_input import EmotionInput
 from elfie.brain.emotion.emotion_system import EmotionSystem
 from elfie.brain.emotion.emotion_types import EMOTION_CONFIGS
