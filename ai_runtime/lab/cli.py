@@ -1284,51 +1284,137 @@ class RuntimeLab:
         except Exception as exc:
             self.output(f"模型发现失败: {exc}")
             return
+
         if not models:
             self.output("没有可验证模型。")
             return
+
+        provider = self.config.providers.get(provider_id, {})
+        test_model = str(provider.get("test_model", "")).strip()
+
+        self.output(f"\n发现 {len(models)} 个模型:")
+        for idx, model in enumerate(models, 1):
+            test_mark = " ✓" if model.name == test_model else ""
+            self.output(f"  {idx}. {model.display_name or model.name} ({model.name}){test_mark}")
+
         if all(model.source == "configured" for model in models):
-            self.output("未能自动拉取模型，将验证手工配置的模型 ID。")
-        self.output(f"即将真实调用 {len(models)} 个模型，可能产生费用。")
-        if self.input("继续批量验证吗？[y/N]: ").strip().lower() != "y":
-            self.output("已取消。")
-            return
-        suite = ProviderValidationRunner(self.config).verify_models(
-            provider_id, [model.name for model in models]
+            self.output("\n未能自动拉取模型，将验证手工配置的模型 ID。")
+
+        recommended_model = test_model or (models[0].name if models else "")
+        choice = self.menu.choose(
+            "选择验证范围",
+            (
+                MenuItem("1", f"验证测试模型: {recommended_model}", "推荐"),
+                MenuItem("2", "验证前 N 个模型"),
+                MenuItem("3", "手动选择模型"),
+                MenuItem("4", f"验证所有 {len(models)} 个模型", "耗时较长"),
+            ),
+            breadcrumb=f"Runtime Lab / 第一层 / {provider_id}",
+            back_label="返回",
         )
-        self._print_suite(suite)
-        evidence = []
-        model_by_id = {model.name: model for model in models}
-        for result in suite.results:
-            model_id = f"{provider_id}/{result.model}"
-            catalog_entry = BUILTIN_MODEL_CATALOG.get(model_id)
-            discovered_name = (
-                model_by_id[result.model].display_name
-                if result.model in model_by_id
-                else result.model or ""
+
+        if choice is None:
+            return
+
+        selected_models = []
+        if choice == "1":
+            test_name = test_model or (models[0].name if models else "")
+            selected_models = [m for m in models if m.name == test_name]
+            if not selected_models and models:
+                selected_models = [models[0]]
+        elif choice == "2":
+            n_str = self.input(f"验证前几个模型？[1-{len(models)}]: ").strip()
+            try:
+                n = int(n_str)
+                n = max(1, min(n, len(models)))
+                selected_models = models[:n]
+            except ValueError:
+                self.output("无效输入，已取消。")
+                return
+        elif choice == "3":
+            self.output("\n请输入要验证的模型编号，用空格分隔（如: 1 3 5）:")
+            indices_str = self.input("编号: ").strip()
+            try:
+                indices = [int(x) for x in indices_str.split()]
+                selected_models = [models[i-1] for i in indices if 1 <= i <= len(models)]
+            except (ValueError, IndexError):
+                self.output("无效输入，已取消。")
+                return
+        elif choice == "4":
+            selected_models = models
+            self.output(f"\n⚠️  即将验证所有 {len(models)} 个模型，可能需要较长时间。")
+            if self.input("确认继续吗？[y/N]: ").strip().lower() != "y":
+                self.output("已取消。")
+                return
+
+        if not selected_models:
+            self.output("未选择任何模型。")
+            return
+
+        self.output(f"\n开始验证 {len(selected_models)} 个模型...\n")
+
+        results = []
+        runner = ProviderValidationRunner(self.config)
+
+        for idx, model in enumerate(selected_models, 1):
+            self.output(f"[{idx}/{len(selected_models)}] 正在验证: {model.display_name or model.name} ({model.name})...")
+
+            try:
+                result = runner.verify_model(provider_id, model.name)
+                results.append(result)
+
+                status_mark = "✓" if result.status == CheckStatus.PASSED else "✗"
+                self.output(f"  {status_mark} {result.message} ({result.duration_ms:.0f}ms)")
+            except KeyboardInterrupt:
+                self.output("\n\n用户中断验证。")
+                break
+            except Exception as exc:
+                self.output(f"  ✗ 验证失败: {exc}")
+                if idx < len(selected_models):
+                    cont = self.input("\n是否继续验证剩余模型？[Y/n]: ").strip().lower()
+                    if cont == "n":
+                        self.output("已取消剩余验证。")
+                        break
+
+        if results:
+            suite = ValidationSuite(
+                name=f"provider:{provider_id}",
+                results=tuple(results),
             )
-            known = known_capabilities(result.model or "", discovered_name)
-            evidence.append(
-                ModelEvidence(
-                    model=model_id,
-                    display_name=canonical_display_name(
-                        result.model or "", discovered_name
-                    ),
-                    capabilities=frozenset(
-                        catalog_entry.capabilities
-                        if catalog_entry
-                        else known or ("text",)
-                    ),
-                    verified=result.status is CheckStatus.PASSED,
-                    cost_grade=catalog_entry.cost_tier if catalog_entry else 2,
-                    latency_ms=result.duration_ms,
-                    local=provider_id == "ollama",
+            self._print_suite(suite)
+
+            evidence = []
+            model_by_id = {model.name: model for model in models}
+            for result in results:
+                model_id = f"{provider_id}/{result.model}"
+                catalog_entry = BUILTIN_MODEL_CATALOG.get(model_id)
+                discovered_name = (
+                    model_by_id[result.model].display_name
+                    if result.model in model_by_id
+                    else result.model or ""
                 )
-            )
-        ModelEvidenceStore().merge(evidence)
-        path = ValidationReport((suite,)).save()
-        self.output(f"验证证据和报告已保存: {path}")
-        self.output("下一步：进入第三层生成/更新粮食，验证模型才会正式进入路由。")
+                known = known_capabilities(result.model or "", discovered_name)
+                evidence.append(
+                    ModelEvidence(
+                        model=model_id,
+                        display_name=canonical_display_name(
+                            result.model or "", discovered_name
+                        ),
+                        capabilities=frozenset(
+                            catalog_entry.capabilities
+                            if catalog_entry
+                            else known or ("text",)
+                        ),
+                        verified=result.status is CheckStatus.PASSED,
+                        cost_grade=catalog_entry.cost_tier if catalog_entry else 2,
+                        latency_ms=result.duration_ms,
+                        local=provider_id == "ollama",
+                    )
+                )
+            ModelEvidenceStore().merge(evidence)
+            path = ValidationReport((suite,)).save()
+            self.output(f"\n验证证据和报告已保存: {path}")
+            self.output("下一步：进入第三层生成/更新粮食，验证模型才会正式进入路由。")
 
     def _verify_model_agent(self) -> None:
         store = ModelEvidenceStore()

@@ -18,6 +18,7 @@ const ui = {
   message: el("messageInput"), send: el("sendButton"), detail: el("detailPanel"),
   detailContent: el("detailContent"), modal: el("createModal"), createForm: el("createForm"),
   toast: el("toast"), stimulusDrawer: el("stimulusDrawer"), stimulusToggle: el("stimulusToggle"),
+  elfieError: el("elfieError"),
 };
 
 const emotionLabels = { happiness: "快乐", sadness: "悲伤", fear: "恐惧", anger: "愤怒", surprise: "惊讶", disgust: "厌恶", boredom: "无聊", jealousy: "嫉妒", calm: "平静" };
@@ -42,13 +43,25 @@ async function boot() {
     const remembered = localStorage.getItem("elfieLab.currentElfie");
     const first = state.elfies.find((item) => item.elfie_id === remembered) || state.elfies[0];
     await selectElfie(first.elfie_id);
-  } catch (error) { showToast(error.message, true); }
+  } catch (error) {
+    const errorMessage = error.message.toLowerCase();
+    if (error.message.includes("503") ||
+        errorMessage.includes("粮食") ||
+        errorMessage.includes("food")) {
+      showError();
+      return;
+    }
+    showToast(error.message, true);
+  }
 }
 
 function bindEvents() {
   el("emptyCreate").addEventListener("click", openCreate);
   el("createClose").addEventListener("click", closeCreate);
   el("createCancel").addEventListener("click", closeCreate);
+  if (el("errorReload")) {
+    el("errorReload").addEventListener("click", () => window.location.reload());
+  }
   ui.modal.addEventListener("click", (event) => { if (event.target === ui.modal) closeCreate(); });
   ui.createForm.addEventListener("submit", createElfie);
   ui.switcher.addEventListener("click", toggleElfieMenu);
@@ -84,12 +97,20 @@ function showEmpty() {
   ui.message.disabled = true; ui.send.disabled = true;
 }
 
+function showError() {
+  ui.elfieError.hidden = false;
+  ui.elfieEmpty.hidden = true;
+  ui.elfieContent.hidden = true;
+  ui.switcherWrap.hidden = true;
+}
+
 async function selectElfie(id) {
   closeElfieMenu();
   const session = await api(`/api/elfies/${encodeURIComponent(id)}`);
   state.currentId = id; state.session = session; state.selectedTurn = null;
   localStorage.setItem("elfieLab.currentElfie", id);
   ui.elfieEmpty.hidden = true; ui.elfieContent.hidden = false; ui.switcherWrap.hidden = false;
+  ui.elfieError.hidden = true;
   ui.message.disabled = false; ui.send.disabled = false;
   renderProfile(); renderTimeline(); closeDetail();
 }

@@ -19,6 +19,26 @@
           <button class="primary-button" id="emptyCreate" type="button">＋ 新建测试精灵</button>
         </section>
 
+        <section class="elfie-error" id="elfieError" hidden>
+          <div class="error-icon" aria-hidden="true">⚠️</div>
+          <h1>Runtime 粮食配置缺失</h1>
+          <p class="error-description">elfie-lab 需要先初始化粮食目录才能使用</p>
+          <div class="error-steps">
+            <h2>解决步骤：</h2>
+            <ol>
+              <li>确保 Python 虚拟环境已激活</li>
+              <li>在项目根目录运行以下命令初始化 Runtime Lab：</li>
+            </ol>
+            <div class="error-command">
+              <code>.venv/bin/python -m ai_runtime.lab</code>
+            </div>
+            <ol start="3">
+              <li>初始化完成后，刷新本页面即可正常使用</li>
+            </ol>
+          </div>
+          <button class="primary-button" id="errorReload" type="button">🔄 刷新页面</button>
+        </section>
+
         <section class="elfie-content" id="elfieContent" hidden>
           <div class="identity-block">
             <div class="avatar" aria-hidden="true"><span id="avatarGlyph">艾</span><i></i></div>
