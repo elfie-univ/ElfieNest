@@ -41,58 +41,63 @@
 
         <section class="elfie-content" id="elfieContent" hidden>
           <div class="identity-block">
-            <div class="avatar" aria-hidden="true"><span id="avatarGlyph">艾</span><i></i></div>
+            <div class="avatar"><img id="avatarImage" alt="当前精灵头像" hidden /><span id="avatarGlyph">艾</span><i></i></div>
             <div class="identity-copy">
               <span class="dev-badge">测试精灵</span>
               <h1 id="elfieName">—</h1>
               <p id="elfieDescription">—</p>
+              <div class="identity-meta"><span id="speciesLabel">—</span><span id="lifeStage">—</span><code id="elfieId">—</code></div>
             </div>
           </div>
 
-          <div class="vitals" aria-label="当前状态">
-            <div><span>能量</span><strong id="energyValue">—</strong><i><b id="energyBar"></b></i></div>
-            <div><span>疲劳</span><strong id="fatigueValue">—</strong><i><b id="fatigueBar"></b></i></div>
-          </div>
+          <section class="appearance-section" aria-labelledby="appearanceTitle">
+            <div class="section-heading"><div><span>外貌</span><strong id="appearanceTitle">3D 个体视图</strong></div><small id="appearanceStatus">加载中</small></div>
+            <div class="appearance-viewport" id="appearanceViewport">
+              <iframe id="appearanceFrame" title="当前精灵 3D 外貌" src="about:blank"></iframe>
+              <div class="appearance-loading" id="appearanceLoading"><span></span><p>正在装载角色</p></div>
+            </div>
+            <div class="appearance-tools" aria-label="3D 视图控制">
+              <button id="previewRotateLeft" type="button" title="向左旋转" aria-label="向左旋转">↶</button>
+              <button id="previewRotateRight" type="button" title="向右旋转" aria-label="向右旋转">↷</button>
+              <button id="previewZoomOut" type="button" title="缩小" aria-label="缩小">−</button>
+              <button id="previewZoomIn" type="button" title="放大" aria-label="放大">＋</button>
+              <button id="previewReset" type="button" title="复位视角" aria-label="复位视角">⌂</button>
+              <button class="capture-button" id="previewCapture" type="button" title="保存当前头像"><span>拍照</span><b>◎</b></button>
+            </div>
+          </section>
 
-          <div class="live-status">
-            <span class="live-dot"></span>
-            <span id="wakeStatus">当前状态</span>
-            <strong id="dominantEmotion">—</strong>
-          </div>
+          <section class="portrait-section" aria-labelledby="personalityTitle">
+            <div class="section-heading"><div><span>内在画像</span><strong id="personalityTitle">大五人格</strong></div></div>
+            <div class="personality-layout">
+              <svg id="personalityRadar" class="personality-radar" viewBox="0 0 210 170" role="img" aria-label="大五人格雷达图"></svg>
+              <div class="personality-tags" id="personalityTags"></div>
+            </div>
+          </section>
 
-          <div class="profile-sections" id="profileSections">
-            <details open>
-              <summary><span>基本画像</span><i>＋</i></summary>
-              <div class="detail-grid" id="basicProfile"></div>
-            </details>
-            <details>
-              <summary><span>人格与表达</span><i>＋</i></summary>
-              <div class="detail-grid" id="personalityProfile"></div>
-            </details>
-            <details>
-              <summary><span>核心认知</span><i>＋</i></summary>
-              <div class="detail-stack" id="cognitionProfile"></div>
-            </details>
-            <details>
-              <summary><span>身体与能力</span><i>＋</i></summary>
-              <div class="detail-stack" id="bodyProfile"></div>
-            </details>
-            <details>
-              <summary><span>粮食选择</span><i>＋</i></summary>
-              <div class="model-controls">
-                <label for="foodSelect">本次实验粮食</label>
-                <select id="foodSelect">
-                  <option value="mock">模拟粮 · 离线可用</option>
-                </select>
-                <p id="modelHint">elfie-mock · 不调用外部服务</p>
-                <div class="food-setup-list" id="foodSetupList" hidden></div>
-              </div>
-            </details>
-            <details>
-              <summary><span>记忆概况</span><i>＋</i></summary>
-              <div class="memory-summary"><strong id="memoryCount">0</strong><span>条情景记忆</span></div>
-            </details>
-          </div>
+          <section class="state-section" aria-labelledby="stateTitle">
+            <div class="section-heading"><div><span>State</span><strong id="stateTitle">当前状态</strong></div><small id="wakeStatus">—</small></div>
+            <div class="state-metrics" id="stateMetrics"></div>
+            <div class="emotion-strip"><span class="live-dot"></span><span>主导情绪</span><strong id="dominantEmotion">—</strong></div>
+          </section>
+
+          <section class="memory-section" aria-labelledby="memoryTitle">
+            <div class="section-heading"><div><span>Memory + Cognition</span><strong id="memoryTitle">记忆与认知</strong></div><small><b id="memoryCount">0</b> 条经历</small></div>
+            <div class="topic-cloud" id="topicCloud"></div>
+            <details open><summary><span>重要经历</span><i>＋</i></summary><div class="event-timeline" id="importantEvents"></div></details>
+            <details><summary><span>关系认知</span><i>＋</i></summary><svg class="memory-graph" id="relationGraph" viewBox="0 0 340 210" role="img" aria-label="关系认知网络"></svg></details>
+            <details><summary><span>知识与信念</span><i>＋</i></summary><svg class="memory-graph" id="knowledgeGraph" viewBox="0 0 340 210" role="img" aria-label="知识与信念图"></svg></details>
+            <details><summary><span>世界理解</span><i>＋</i></summary><p class="world-understanding" id="worldUnderstanding">尚未形成稳定的世界理解</p></details>
+          </section>
+
+          <details class="experiment-section">
+            <summary><span>实验配置</span><i>＋</i></summary>
+            <div class="model-controls">
+              <label for="foodSelect">本次实验粮食</label>
+              <select id="foodSelect"><option value="mock">模拟粮 · 离线可用</option></select>
+              <p id="modelHint">elfie-mock · 不调用外部服务</p>
+              <div class="food-setup-list" id="foodSetupList" hidden></div>
+            </div>
+          </details>
         </section>
 
         <div class="elfie-switcher-wrap" id="switcherWrap" hidden>
@@ -167,7 +172,7 @@
       <form class="modal" id="createForm" role="dialog" aria-modal="true" aria-labelledby="createTitle">
         <div class="modal-heading"><div><p class="eyebrow">独立测试数据</p><h2 id="createTitle">新建测试精灵</h2></div><button type="button" id="createClose" aria-label="关闭">×</button></div>
         <label>精灵名称<input id="createName" maxlength="60" value="艾菲-默认测试" required /></label>
-        <label>身体形态<select id="createAnatomy"><option value="biped">双足直立</option><option value="quadruped">四足动物</option></select></label>
+        <label>精灵物种<select id="createSpecies"><option value="dog">小狗</option><option value="fox">狐狸</option></select></label>
         <label>调试说明<textarea id="createDescription" rows="3" maxlength="240" placeholder="例如：用于验证情绪和记忆链路"></textarea></label>
         <p class="form-error" id="createError" hidden></p>
         <div class="modal-actions"><button type="button" class="secondary-button" id="createCancel">取消</button><button type="submit" class="primary-button">创建并切换</button></div>

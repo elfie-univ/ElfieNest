@@ -26,6 +26,7 @@ const SHARED_ANIMATIONS := {
 const LOOPING_ANIMATIONS := {"idle": true, "walking": true, "running": true}
 
 @export var species_id := ""
+@export var install_shared_animations := true
 
 var elfie_id := ""
 var _target_position: Vector3
@@ -39,7 +40,8 @@ var _wander_seed := 0
 
 
 func _ready() -> void:
-	_install_shared_animations()
+	if install_shared_animations:
+		_install_shared_animations()
 
 
 func configure(
@@ -158,6 +160,25 @@ func _appearance_scale(value: Variant, named_values: Dictionary) -> float:
 	if value is float or value is int:
 		return float(value)
 	return float(named_values.get(String(value), 1.0))
+
+
+func visual_bounds() -> AABB:
+	var bounds := AABB()
+	var has_bounds := false
+	for node in _visual_root.find_children("*", "Skeleton3D", true, false):
+		var skeleton := node as Skeleton3D
+		for bone_index in range(skeleton.get_bone_count()):
+			var point := skeleton.to_global(
+				skeleton.get_bone_global_pose(bone_index).origin
+			)
+			if has_bounds:
+				bounds = bounds.expand(point)
+			else:
+				bounds = AABB(point, Vector3.ZERO)
+				has_bounds = true
+	if has_bounds:
+		return bounds.grow(0.14)
+	return bounds
 
 
 func _play_animation(animation_name: String) -> void:

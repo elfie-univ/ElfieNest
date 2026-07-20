@@ -1,5 +1,7 @@
 """独立的本地 Web 服务，不依赖 ElfieNestEngine。"""
 
+import base64
+import binascii
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -8,6 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
+from ai_runtime.storage.data_home import get_elfie_home
 from devtools.elfie_lab.runtime_adapters import (
     list_installed_ollama_models,
     load_runtime_food_catalog,
@@ -19,12 +22,11 @@ from devtools.elfie_lab.schemas import StimulusBundle
 from devtools.elfie_lab.session import SessionRegistry
 from devtools.elfie_lab.storage import ElfieLabStorage
 from devtools.runtime_lab import RuntimeLabConfigStore
-from ai_runtime.storage.data_home import get_elfie_home
 
 
 class CreateElfieRequest(BaseModel):
     name: str = Field(min_length=1, max_length=60)
-    anatomy_type: str = "biped"
+    species_id: str = "fox"
     description: str = Field(default="", max_length=240)
 
 
@@ -40,6 +42,10 @@ class TurnRequest(BaseModel):
     impact_direction: str = Field(default="none", max_length=40)
     gentle_stroke: float = Field(default=0.0, ge=0.0, le=100.0)
     state_injection: Dict[str, Any] = Field(default_factory=dict)
+
+
+class PortraitRequest(BaseModel):
+    data_url: str = Field(min_length=32, max_length=7_000_000)
 
 
 def create_app(
@@ -64,6 +70,13 @@ def create_app(
     app.state.runtime_store = runtime_store
     app.state.food_store = food_store
     app.mount("/static", StaticFiles(directory=static_dir), name="elfie_lab_static")
+    godot_web_dir = Path(__file__).parents[2] / "build" / "components" / "godot-web"
+    if godot_web_dir.is_dir():
+        app.mount(
+            "/godot-web",
+            StaticFiles(directory=godot_web_dir, html=True),
+            name="elfie_lab_godot_web",
+        )
 
     def food_items() -> list[Dict[str, Any]]:
         config = runtime_store.load_runtime_config()
@@ -167,7 +180,7 @@ def create_app(
     def create_elfie(request: CreateElfieRequest):
         try:
             spec = storage.create_elfie(
-                request.name, request.anatomy_type, request.description
+                request.name, request.species_id, request.description
             )
             return sessions.get(spec.elfie_id).get_payload()
         except ValueError as exc:
@@ -179,6 +192,30 @@ def create_app(
             return sessions.get(elfie_id).get_payload()
         except (KeyError, ValueError) as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/api/elfies/{elfie_id}/portrait", include_in_schema=False)
+    def get_portrait(elfie_id: str):
+        try:
+            storage.get_elfie(elfie_id)
+            path = storage.portrait_path(elfie_id)
+        except (KeyError, ValueError) as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="该精灵尚未保存头像")
+        return FileResponse(path, media_type="image/png")
+
+    @app.put("/api/elfies/{elfie_id}/portrait")
+    def save_portrait(elfie_id: str, request: PortraitRequest):
+        try:
+            storage.get_elfie(elfie_id)
+            prefix = "data:image/png;base64,"
+            if not request.data_url.startswith(prefix):
+                raise ValueError("头像数据必须是 PNG data URL")
+            content = base64.b64decode(request.data_url[len(prefix) :], validate=True)
+            storage.save_portrait(elfie_id, content)
+        except (KeyError, ValueError, binascii.Error) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {"portrait_url": f"/api/elfies/{elfie_id}/portrait"}
 
     @app.post("/api/elfies/{elfie_id}/turns")
     def create_turn(elfie_id: str, request: TurnRequest):

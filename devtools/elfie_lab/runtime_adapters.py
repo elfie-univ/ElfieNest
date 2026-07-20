@@ -138,8 +138,8 @@ def create_runtime(food_key: str, config_dir: str | None = None) -> TracingRunti
     if normalized == "mock":
         return TracingRuntimeAgent(MockRuntimeAgent(), "mock")
 
-    from devtools.runtime_lab import RuntimeLabConfigStore
     from ai_runtime import RuntimeAgent
+    from devtools.runtime_lab import RuntimeLabConfigStore
 
     store = RuntimeLabConfigStore(config_dir or str(get_elfie_home()))
     config = store.load_runtime_config()

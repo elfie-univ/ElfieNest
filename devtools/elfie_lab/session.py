@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import re
 import threading
 import time
+from collections import Counter
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
@@ -17,8 +19,9 @@ from devtools.elfie_lab.schemas import (
     utc_now,
 )
 from devtools.elfie_lab.storage import ElfieLabStorage
-from elfie import Elfie
+from elfie import ElfieFactory
 from elfie.body import HeadlessBody
+from elfie.profile import AppearanceResolver
 
 
 class ElfieLabSession:
@@ -41,8 +44,8 @@ class ElfieLabSession:
         )
         self.body = HeadlessBody(body_id=f"{spec.elfie_id}:headless")
         self.body.connect()
-        self.elfie = Elfie(
-            anatomy_type=spec.anatomy_type,
+        self.elfie = ElfieFactory().restore(
+            storage.elfie_dir(spec.elfie_id),
             memory_db_path=str(storage.memory_path(spec.elfie_id)),
             body=self.body,
         )
@@ -62,20 +65,27 @@ class ElfieLabSession:
         }
 
     def profile(self) -> Dict[str, Any]:
-        profile = self.elfie.brain.profile
-        personality = profile.personality
-        metadata = personality.get("metadata", {})
+        character_profile = self.elfie.profile
+        personality = self.elfie.brain.profile.personality
+        resolved = AppearanceResolver().resolve(character_profile).to_payload()
+        big_five = personality.get("big_five", {})
         return {
             **self.spec.to_dict(),
-            "configured_name": metadata.get("name", self.spec.name),
-            "personality_summary": self._personality_summary(
-                personality.get("big_five", {})
-            ),
-            "big_five": personality.get("big_five", {}),
+            "configured_name": character_profile.identity.display_name,
+            "species_id": character_profile.identity.species_id,
+            "species_label": "小狗" if character_profile.identity.species_id == "dog" else "狐狸",
+            "personality_summary": self._personality_summary(big_five),
+            "personality_tags": self._personality_tags(big_five),
+            "big_five": big_five,
             "speech_style": personality.get("speech_style", {}),
-            "capabilities": profile.capabilities,
-            "system_limits": profile.system_limits,
-            "core_cognition": self.elfie.memory.get_core_cognition(),
+            "appearance": resolved,
+            "appearance_genome": asdict(character_profile.appearance),
+            "portrait_url": (
+                f"/api/elfies/{self.spec.elfie_id}/portrait"
+                if self.storage.portrait_path(self.spec.elfie_id).is_file()
+                else ""
+            ),
+            "memory_cognition": self._memory_cognition_projection(),
             "memory_count": len(self.elfie.memory.get_all_episodes()),
             "model": {
                 "interaction_protocol": "food",
@@ -98,7 +108,8 @@ class ElfieLabSession:
             "dominant_emotion": self.elfie.amygdala.get_dominant_mood(),
             "expression": expression,
             "attention_network": self.elfie.brain.attention.current_network,
-            "anatomy_type": self.spec.anatomy_type,
+            "species_id": self.spec.species_id,
+            "anatomy_type": self.elfie.anatomy_type,
             "action_intent": self.elfie.nervous_system.motion_actuator.last_action_intent,
             "joint_angles": {
                 name: round(value, 3)
@@ -187,8 +198,8 @@ class ElfieLabSession:
             self.body.disconnect()
             self.body = HeadlessBody(body_id=f"{self.spec.elfie_id}:headless")
             self.body.connect()
-            self.elfie = Elfie(
-                anatomy_type=self.spec.anatomy_type,
+            self.elfie = ElfieFactory().restore(
+                self.storage.elfie_dir(self.spec.elfie_id),
                 memory_db_path=str(self.storage.memory_path(self.spec.elfie_id)),
                 body=self.body,
             )
@@ -303,6 +314,93 @@ class ElfieLabSession:
             reverse=True,
         )
         return "、".join(f"高{labels[key]}" for key, _ in ranked[:2]) or "平衡人格"
+
+    @staticmethod
+    def _personality_tags(big_five: Dict[str, Any]) -> List[str]:
+        labels = {
+            "openness": ("务实", "好奇"),
+            "conscientiousness": ("随性", "自律"),
+            "extraversion": ("安静", "活跃"),
+            "agreeableness": ("独立", "亲和"),
+            "neuroticism": ("沉稳", "敏感"),
+        }
+        ranked = sorted(
+            (
+                (abs(float(value) - 0.5), labels[key][float(value) >= 0.5])
+                for key, value in big_five.items()
+                if key in labels and isinstance(value, (int, float))
+            ),
+            reverse=True,
+        )
+        return [label for _, label in ranked[:3]]
+
+    def _memory_cognition_projection(self) -> Dict[str, Any]:
+        episodes = self.elfie.memory.get_all_episodes()
+        core = self.elfie.memory.get_core_cognition()
+        nodes_by_type = {
+            node_type: self.elfie.memory.storage.get_nodes_by_type(node_type, limit=40)
+            for node_type in ("entity", "knowledge", "pattern")
+        }
+        token_counts: Counter[str] = Counter()
+        for episode in episodes:
+            content = str(episode.get("content", ""))
+            for token in re.findall(r"[\u4e00-\u9fff]{2,6}|[A-Za-z][A-Za-z0-9_-]{2,}", content):
+                if token not in {"什么", "这个", "那个", "然后", "可以", "精灵"}:
+                    token_counts[token] += 1
+        topics = [
+            {"label": label, "weight": count}
+            for label, count in token_counts.most_common(12)
+        ]
+        events = sorted(
+            (
+                {
+                    "content": str(item.get("content", "")),
+                    "timestamp": str(item.get("metadata", {}).get("timestamp", "")),
+                    "emotion": str(item.get("metadata", {}).get("emotion", "")),
+                    "importance": float(item.get("metadata", {}).get("intensity", 0.0)),
+                }
+                for item in episodes
+            ),
+            key=lambda item: item["timestamp"],
+            reverse=True,
+        )[:8]
+        entities = nodes_by_type["entity"][:9]
+        relation_nodes = [{"id": "self", "label": self.spec.name, "weight": 1.0}]
+        relation_nodes.extend(
+            {
+                "id": node.id,
+                "label": node.content[:24],
+                "weight": float(node.metadata.get("importance", 0.55)),
+            }
+            for node in entities
+        )
+        relation_links = []
+        for node in entities:
+            edges = self.elfie.memory.storage.get_edges(node.id, "both")
+            if not edges:
+                relation_links.append({"source": "self", "target": node.id, "label": "认识", "weight": 0.5})
+            relation_links.extend(
+                {"source": node.id, "target": edge.target, "label": edge.rel, "weight": edge.weight}
+                for edge in edges
+                if any(candidate.id == edge.target for candidate in entities)
+            )
+        knowledge_nodes = [
+            {"id": node.id, "label": node.content[:48], "type": node.type}
+            for node in [*nodes_by_type["knowledge"][:8], *nodes_by_type["pattern"][:4]]
+        ]
+        knowledge_links = []
+        known_ids = {item["id"] for item in knowledge_nodes}
+        for item in knowledge_nodes:
+            for edge in self.elfie.memory.storage.get_edges(item["id"], "both"):
+                if edge.target in known_ids:
+                    knowledge_links.append({"source": item["id"], "target": edge.target, "label": edge.rel})
+        return {
+            "topics": topics,
+            "important_events": events,
+            "relations": {"nodes": relation_nodes, "links": relation_links},
+            "knowledge": {"nodes": knowledge_nodes, "links": knowledge_links},
+            "world_understanding": str(core.get("world", "")),
+        }
 
 
 class SessionRegistry:

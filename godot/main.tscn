@@ -1,8 +1,25 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://rooms/nest.tscn" id="2_nest"]
 [ext_resource type="Script" path="res://camera_stream_bridge.gd" id="3_camera_bridge"]
+
+[sub_resource type="Environment" id="Environment_lab"]
+background_mode = 1
+background_color = Color(0.82, 0.87, 0.84, 1)
+ambient_light_source = 3
+ambient_light_color = Color(1, 1, 1, 1)
+ambient_light_energy = 0.72
+reflected_light_source = 2
+tonemap_mode = 2
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial_lab_floor"]
+albedo_color = Color(0.73, 0.79, 0.75, 1)
+roughness = 0.92
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_lab"]
+material = SubResource("StandardMaterial_lab_floor")
+size = Vector2(8, 8)
 
 [node name="Main" type="Node3D"]
 script = ExtResource("1_main")
@@ -11,6 +28,32 @@ script = ExtResource("1_main")
 show_observation_hud = false
 
 [node name="Characters" type="Node3D" parent="."]
+
+[node name="LabPreview" type="Node3D" parent="."]
+visible = false
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="LabPreview"]
+environment = SubResource("Environment_lab")
+
+[node name="KeyLight" type="DirectionalLight3D" parent="LabPreview"]
+rotation_degrees = Vector3(-38, -28, 0)
+light_color = Color(1, 0.97, 0.92, 1)
+light_energy = 1.25
+shadow_enabled = true
+
+[node name="FillLight" type="DirectionalLight3D" parent="LabPreview"]
+rotation_degrees = Vector3(-22, 145, 0)
+light_color = Color(0.78, 0.87, 1, 1)
+light_energy = 0.48
+shadow_enabled = false
+
+[node name="Floor" type="MeshInstance3D" parent="LabPreview"]
+mesh = SubResource("PlaneMesh_lab")
+
+[node name="Camera3D" type="Camera3D" parent="LabPreview"]
+position = Vector3(0, 0.88, 3.4)
+projection = 1
+size = 2.35
 
 [node name="CameraStreamBridge" type="Node" parent="."]
 script = ExtResource("3_camera_bridge")

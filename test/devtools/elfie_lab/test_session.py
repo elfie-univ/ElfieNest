@@ -5,8 +5,21 @@ from devtools.elfie_lab.storage import ElfieLabStorage
 
 def test_mock_turn_records_full_debug_chain(tmp_path):
     storage = ElfieLabStorage(str(tmp_path))
-    spec = storage.create_elfie("艾菲-测试")
+    spec = storage.create_elfie("艾菲-测试", species_id="dog")
     session = ElfieLabSession(spec, storage)
+
+    profile = session.profile()
+    assert profile["species_id"] == "dog"
+    assert profile["appearance"]["species_id"] == "dog"
+    assert len(profile["big_five"]) == 5
+    assert len(profile["personality_tags"]) == 3
+    assert set(profile["memory_cognition"]) == {
+        "topics",
+        "important_events",
+        "relations",
+        "knowledge",
+        "world_understanding",
+    }
 
     turn = session.run_turn(StimulusBundle(message="今天心情怎么样？"), "mock")
 

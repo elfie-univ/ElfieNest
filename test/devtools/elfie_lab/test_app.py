@@ -1,11 +1,11 @@
 from fastapi.testclient import TestClient
 
-from devtools.elfie_lab.app import create_app
-from devtools.runtime_lab import RuntimeLabConfigStore
 from ai_runtime import RuntimeAgent
 from ai_runtime.food.models import ExecutionProfile, FoodRecipe
 from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
 from ai_runtime.gateway.request import RuntimeResult
+from devtools.elfie_lab.app import create_app
+from devtools.runtime_lab import RuntimeLabConfigStore
 
 
 def _write_foods(runtime_dir, *, focus_model="ollama/focus", standard_model="ollama/qwen3.5:0.8b"):
@@ -32,10 +32,13 @@ def test_app_create_elfie_and_chat(tmp_path):
     assert client.get("/api/health").json()["status"] == "ok"
     created = client.post(
         "/api/elfies",
-        json={"name": "Web 测试精灵", "anatomy_type": "quadruped"},
+        json={"name": "Web 测试精灵", "species_id": "dog"},
     )
     assert created.status_code == 201
     elfie_id = created.json()["elfie_id"]
+    assert created.json()["profile"]["species_id"] == "dog"
+    assert created.json()["profile"]["appearance"]["species_id"] == "dog"
+    assert (tmp_path / "data" / "elfies" / elfie_id / "profile.yaml").is_file()
 
     turn = client.post(
         f"/api/elfies/{elfie_id}/turns",
@@ -74,6 +77,11 @@ def test_static_shell_has_three_columns_without_top_navigation(tmp_path):
     assert 'class="detail-panel is-closed"' in response.text
     assert 'id="foodSelect"' in response.text
     assert 'id="foodSetupList"' in response.text
+    assert 'id="appearanceFrame"' in response.text
+    assert 'id="personalityRadar"' in response.text
+    assert 'id="relationGraph"' in response.text
+    assert 'id="createSpecies"' in response.text
+    assert 'id="createAnatomy"' not in response.text
     assert 'id="runtimeMode"' not in response.text
     assert "<nav" not in response.text
     script = client.get("/static/app.js")
@@ -88,6 +96,28 @@ def test_static_shell_has_three_columns_without_top_navigation(tmp_path):
     assert runtime.json()["scope"] == "override"
     assert runtime.json()["config_dir"] == str(runtime_dir)
 
+
+def test_app_rejects_unknown_species_and_saves_portrait(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
+
+    invalid = client.post(
+        "/api/elfies", json={"name": "未知物种", "species_id": "rabbit"}
+    )
+    assert invalid.status_code == 422
+
+    created = client.post(
+        "/api/elfies", json={"name": "头像测试", "species_id": "fox"}
+    ).json()
+    elfie_id = created["elfie_id"]
+    png_header = "iVBORw0KGgo="
+    saved = client.put(
+        f"/api/elfies/{elfie_id}/portrait",
+        json={"data_url": f"data:image/png;base64,{png_header}"},
+    )
+    assert saved.status_code == 200
+    image = client.get(saved.json()["portrait_url"])
+    assert image.status_code == 200
+    assert image.headers["content-type"] == "image/png"
 
 def test_default_app_shares_runtime_but_keeps_elfie_data_isolated(
     tmp_path, monkeypatch

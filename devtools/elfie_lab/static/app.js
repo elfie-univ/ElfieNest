@@ -8,6 +8,7 @@ const state = {
   sending: false,
   foods: [],
   configurationCommand: "",
+  previewReady: false,
 };
 
 const el = (id) => document.getElementById(id);
@@ -90,6 +91,17 @@ function bindEvents() {
   document.addEventListener("click", (event) => {
     if (!ui.switcherWrap.contains(event.target)) closeElfieMenu();
   });
+  window.addEventListener("message", handlePreviewMessage);
+  el("appearanceFrame").addEventListener("load", () => {
+    state.previewReady = false;
+    window.setTimeout(syncAppearancePreview, 800);
+  });
+  el("previewRotateLeft").addEventListener("click", () => sendPreview("rotate", { delta: -0.28 }));
+  el("previewRotateRight").addEventListener("click", () => sendPreview("rotate", { delta: 0.28 }));
+  el("previewZoomOut").addEventListener("click", () => sendPreview("zoom", { delta: 0.18 }));
+  el("previewZoomIn").addEventListener("click", () => sendPreview("zoom", { delta: -0.18 }));
+  el("previewReset").addEventListener("click", () => sendPreview("reset"));
+  el("previewCapture").addEventListener("click", () => sendPreview("capture"));
 }
 
 function showEmpty() {
@@ -112,6 +124,7 @@ async function selectElfie(id) {
   ui.elfieEmpty.hidden = true; ui.elfieContent.hidden = false; ui.switcherWrap.hidden = false;
   ui.elfieError.hidden = true;
   ui.message.disabled = false; ui.send.disabled = false;
+  ensurePreviewFrame();
   renderProfile(); renderTimeline(); closeDetail();
 }
 
@@ -121,19 +134,260 @@ function renderProfile() {
   el("avatarGlyph").textContent = glyph; el("miniAvatar").textContent = glyph;
   el("elfieName").textContent = profile.name; el("switcherName").textContent = profile.name;
   el("elfieDescription").textContent = profile.description || profile.personality_summary;
-  el("energyValue").textContent = `${current.energy.toFixed(1)}%`; el("energyBar").style.width = `${current.energy}%`;
-  el("fatigueValue").textContent = `${current.fatigue.toFixed(1)}%`; el("fatigueBar").style.width = `${current.fatigue}%`;
-  el("wakeStatus").textContent = current.is_sleeping ? "正在睡眠" : "清醒 · 实时状态";
+  el("speciesLabel").textContent = profile.species_label || profile.species_id;
+  el("lifeStage").textContent = profile.life_stage || "青年";
+  el("elfieId").textContent = profile.elfie_id;
+  el("wakeStatus").textContent = current.is_sleeping ? "睡眠中" : "清醒";
   el("dominantEmotion").textContent = emotionLabels[current.dominant_emotion] || current.dominant_emotion;
   el("memoryCount").textContent = current.memory_count;
-  renderGrid(el("basicProfile"), [["身体", profile.anatomy_type === "biped" ? "双足直立" : "四足动物"], ["画像", profile.personality_summary], ["注意力", current.attention_network], ["当前动作", current.action_intent]]);
-  const five = profile.big_five || {};
-  renderGrid(el("personalityProfile"), Object.entries(five).map(([key, value]) => [({openness:"开放度", conscientiousness:"尽责度", extraversion:"外向度", agreeableness:"宜人性", neuroticism:"敏感度"}[key] || key), Number(value).toFixed(2)]));
-  renderStack(el("cognitionProfile"), Object.entries(profile.core_cognition || {}).map(([key, value]) => [({identity:"自我认知", relation:"主人关系", world:"世界观", tendency:"行为倾向"}[key] || key), value]));
-  const actions = profile.capabilities?.actuators?.motion?.supported_actions || [];
-  renderStack(el("bodyProfile"), [["允许动作", actions.join("、") || "未配置"], ["关节数", String(Object.keys(current.joint_angles || {}).length)], ["当前表情", current.expression?.expression || "平静"]]);
+  const avatar = el("avatarImage");
+  avatar.hidden = !profile.portrait_url;
+  el("avatarGlyph").hidden = Boolean(profile.portrait_url);
+  if (profile.portrait_url) avatar.src = `${profile.portrait_url}?v=${Date.now()}`;
+  renderPersonalityRadar(profile.big_five || {});
+  renderPersonalityTags(profile.personality_tags || []);
+  renderStateMetrics(current);
+  renderMemoryCognition(profile.memory_cognition || {});
+  syncAppearancePreview();
   updateModelHint();
   renderElfieMenu();
+}
+
+function ensurePreviewFrame() {
+  const frame = el("appearanceFrame");
+  if (frame.src === "about:blank" || !frame.src.includes("/godot-web/")) {
+    frame.src = "/godot-web/elfienest.html?mode=elfie_lab";
+  }
+}
+
+function sendPreview(action, payload = {}) {
+  const target = el("appearanceFrame").contentWindow;
+  if (!target) return;
+  target.postMessage(
+    JSON.stringify({ channel: "elfie-lab", action, ...payload }),
+    window.location.origin,
+  );
+}
+
+function syncAppearancePreview() {
+  if (!state.session) return;
+  const profile = state.session.profile;
+  sendPreview("configure", {
+    elfie_id: profile.elfie_id,
+    species_id: profile.species_id,
+    appearance: profile.appearance || {},
+  });
+}
+
+async function handlePreviewMessage(event) {
+  if (
+    event.origin !== window.location.origin
+    || event.source !== el("appearanceFrame").contentWindow
+  ) return;
+  let message = event.data;
+  if (typeof message === "string") {
+    if (message === "elfienest:godot-web-ready") {
+      syncAppearancePreview();
+      return;
+    }
+    try { message = JSON.parse(message); } catch { return; }
+  }
+  if (message?.channel !== "elfie-lab") return;
+  if (message.event === "ready") {
+    state.previewReady = true;
+    el("appearanceLoading").hidden = true;
+    el("appearanceStatus").textContent = "idle · 可交互";
+    syncAppearancePreview();
+  }
+  if (message.event === "portrait" && message.data_url) {
+    try {
+      const result = await api(
+        `/api/elfies/${encodeURIComponent(state.currentId)}/portrait`,
+        { method: "PUT", body: JSON.stringify({ data_url: message.data_url }) },
+      );
+      state.session.profile.portrait_url = result.portrait_url;
+      renderProfile();
+      showToast("头像已保存");
+    } catch (error) { showToast(error.message, true); }
+  }
+}
+
+function renderPersonalityRadar(values) {
+  const svg = el("personalityRadar");
+  const axes = [
+    ["开放", "openness"],
+    ["尽责", "conscientiousness"],
+    ["外向", "extraversion"],
+    ["亲和", "agreeableness"],
+    ["敏感", "neuroticism"],
+  ];
+  const center = [105, 82];
+  const radius = 58;
+  const point = (index, scale) => {
+    const angle = -Math.PI / 2 + index * Math.PI * 2 / axes.length;
+    return [
+      center[0] + Math.cos(angle) * radius * scale,
+      center[1] + Math.sin(angle) * radius * scale,
+    ];
+  };
+  svg.replaceChildren();
+  [0.25, 0.5, 0.75, 1].forEach((scale) => appendSvg(svg, "polygon", {
+    points: axes.map((_, index) => point(index, scale).join(",")).join(" "),
+    class: "radar-grid",
+  }));
+  axes.forEach(([label], index) => {
+    const edge = point(index, 1);
+    const textPoint = point(index, 1.28);
+    appendSvg(svg, "line", {
+      x1: center[0], y1: center[1], x2: edge[0], y2: edge[1], class: "radar-axis",
+    });
+    const text = appendSvg(svg, "text", {
+      x: textPoint[0], y: textPoint[1], class: "radar-label", "text-anchor": "middle",
+    });
+    text.textContent = label;
+  });
+  const profilePoints = axes.map(([, key], index) => point(
+    index,
+    Math.max(0, Math.min(1, Number(values[key] ?? 0.5))),
+  ));
+  appendSvg(svg, "polygon", {
+    points: profilePoints.map((item) => item.join(",")).join(" "), class: "radar-profile",
+  });
+  profilePoints.forEach(([x, y]) => appendSvg(svg, "circle", {
+    cx: x, cy: y, r: 3, class: "radar-point",
+  }));
+}
+
+function renderPersonalityTags(tags) {
+  el("personalityTags").replaceChildren(...tags.slice(0, 3).map((label) => {
+    const span = document.createElement("span");
+    span.textContent = label;
+    return span;
+  }));
+}
+
+function renderStateMetrics(current) {
+  const emotionValues = Object.values(current.emotions || { calm: 0 }).map(Number);
+  const metrics = [
+    ["能量", current.energy, "energy"],
+    ["疲劳", current.fatigue, "fatigue"],
+    ["注意力", current.attention_network === "CEN" ? 78 : 42, "attention"],
+    ["情绪强度", Math.max(...emotionValues), "emotion"],
+  ];
+  el("stateMetrics").replaceChildren(...metrics.map(([label, raw, kind]) => {
+    const value = Math.max(0, Math.min(100, Number(raw || 0)));
+    const row = document.createElement("div");
+    row.className = `state-metric ${kind}`;
+    const labelNode = document.createElement("span"); labelNode.textContent = label;
+    const track = document.createElement("i");
+    const bar = document.createElement("b"); bar.style.width = `${value}%`; track.append(bar);
+    const output = document.createElement("strong"); output.textContent = String(Math.round(value));
+    row.append(labelNode, track, output);
+    return row;
+  }));
+}
+
+function renderMemoryCognition(memory) {
+  renderTopicCloud(memory.topics || []);
+  renderImportantEvents(memory.important_events || []);
+  renderGraph(el("relationGraph"), memory.relations || {}, true);
+  renderGraph(el("knowledgeGraph"), memory.knowledge || {}, false);
+  el("worldUnderstanding").textContent = (
+    memory.world_understanding || "尚未形成稳定的世界理解"
+  );
+}
+
+function renderTopicCloud(topics) {
+  const max = Math.max(1, ...topics.map((item) => Number(item.weight || 1)));
+  const nodes = topics.map((item, index) => {
+    const span = document.createElement("span");
+    span.textContent = item.label;
+    span.style.fontSize = `${10 + 8 * Number(item.weight || 1) / max}px`;
+    span.className = `topic-${index % 4}`;
+    return span;
+  });
+  if (!nodes.length) {
+    const empty = document.createElement("small");
+    empty.textContent = "互动后将在这里形成记忆主题";
+    nodes.push(empty);
+  }
+  el("topicCloud").replaceChildren(...nodes);
+}
+
+function renderImportantEvents(events) {
+  const nodes = events.map((event) => {
+    const article = document.createElement("article");
+    const time = document.createElement("time");
+    time.textContent = event.timestamp
+      ? new Date(event.timestamp).toLocaleDateString("zh-CN")
+      : "未标记日期";
+    const copy = document.createElement("p"); copy.textContent = event.content;
+    article.append(time, copy);
+    return article;
+  });
+  if (!nodes.length) {
+    const empty = document.createElement("p");
+    empty.className = "projection-empty";
+    empty.textContent = "尚无重要经历";
+    nodes.push(empty);
+  }
+  el("importantEvents").replaceChildren(...nodes);
+}
+
+function renderGraph(svg, graph, relations) {
+  const nodes = (graph.nodes || []).slice(0, relations ? 9 : 12);
+  const links = graph.links || [];
+  svg.replaceChildren();
+  if (!nodes.length || (relations && nodes.length === 1)) {
+    const text = appendSvg(svg, "text", {
+      x: 170, y: 108, class: "graph-empty", "text-anchor": "middle",
+    });
+    text.textContent = relations ? "互动后将形成关系网络" : "尚未沉淀知识与信念";
+    return;
+  }
+  const positions = new Map();
+  nodes.forEach((node, index) => {
+    const angle = -Math.PI / 2 + index * Math.PI * 2 / nodes.length;
+    const centerNode = relations && index === 0;
+    positions.set(node.id, centerNode
+      ? [170, 105]
+      : [170 + Math.cos(angle) * 112, 105 + Math.sin(angle) * 72]);
+  });
+  links.forEach((link) => {
+    const from = positions.get(link.source); const to = positions.get(link.target);
+    if (from && to) appendSvg(svg, "line", {
+      x1: from[0], y1: from[1], x2: to[0], y2: to[1], class: "graph-link",
+    });
+  });
+  if (relations) nodes.slice(1).forEach((node) => {
+    if (!links.some((link) => link.source === node.id || link.target === node.id)) {
+      const from = positions.get(nodes[0].id); const to = positions.get(node.id);
+      appendSvg(svg, "line", {
+        x1: from[0], y1: from[1], x2: to[0], y2: to[1], class: "graph-link muted",
+      });
+    }
+  });
+  nodes.forEach((node, index) => {
+    const [x, y] = positions.get(node.id);
+    const centerNode = relations && index === 0;
+    appendSvg(svg, "circle", {
+      cx: x,
+      cy: y,
+      r: centerNode ? 24 : 15 + Math.min(7, Number(node.weight || 0.4) * 7),
+      class: centerNode ? "graph-node self" : "graph-node",
+    });
+    const text = appendSvg(svg, "text", {
+      x, y: y + (centerNode ? 34 : 29), class: "graph-label", "text-anchor": "middle",
+    });
+    text.textContent = String(node.label || "").slice(0, 10);
+  });
+}
+
+function appendSvg(parent, tag, attrs) {
+  const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, String(value)));
+  parent.append(node);
+  return node;
 }
 
 function populateFoodSelect(preferredKey = null) {
@@ -386,7 +640,7 @@ function closeCreate() { ui.modal.hidden = true; el("createError").hidden = true
 async function createElfie(event) {
   event.preventDefault(); const errorBox = el("createError"); errorBox.hidden = true;
   try {
-    const session = await api("/api/elfies", { method: "POST", body: JSON.stringify({ name: el("createName").value, anatomy_type: el("createAnatomy").value, description: el("createDescription").value }) });
+    const session = await api("/api/elfies", { method: "POST", body: JSON.stringify({ name: el("createName").value, species_id: el("createSpecies").value, description: el("createDescription").value }) });
     const data = await api("/api/elfies"); state.elfies = data.items || []; closeCreate(); await selectElfie(session.elfie_id); showToast("测试精灵已创建");
   } catch (error) { errorBox.textContent = error.message; errorBox.hidden = false; }
 }

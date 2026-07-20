@@ -3,10 +3,12 @@
 import json
 import os
 import tempfile
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from devtools.elfie_lab.schemas import ElfieSpec, new_id
+from elfie.profile import ElfieProfileRepository, create_visual_profile
 
 
 class ElfieLabStorage:
@@ -30,38 +32,88 @@ class ElfieLabStorage:
     def create_elfie(
         self,
         name: str,
-        anatomy_type: str = "biped",
+        species_id: str = "fox",
         description: str = "",
     ) -> ElfieSpec:
-        if anatomy_type not in {"biped", "quadruped"}:
-            raise ValueError("身体形态只能是 biped 或 quadruped")
+        if species_id not in {"dog", "fox"}:
+            raise ValueError("精灵物种只能是 dog 或 fox")
         clean_name = name.strip()
         if not clean_name:
             raise ValueError("精灵名称不能为空")
         spec = ElfieSpec(
             elfie_id=new_id("elfie"),
             name=clean_name,
-            anatomy_type=anatomy_type,
+            species_id=species_id,
             description=description.strip() or "用于本地调试的单精灵",
         )
         self._write_json(self.profile_path(spec.elfie_id), spec.to_dict())
+        self._save_character_profile(spec)
         return spec
 
     def get_elfie(self, elfie_id: str) -> ElfieSpec:
         path = self.profile_path(elfie_id)
         if not path.exists():
             raise KeyError(f"测试精灵不存在: {elfie_id}")
-        return ElfieSpec.from_dict(self._read_json(path))
+        spec = ElfieSpec.from_dict(self._read_json(path))
+        repository = ElfieProfileRepository(self.elfie_dir(elfie_id))
+        if repository.exists():
+            profile = repository.load()
+            if profile.identity.species_id != spec.species_id:
+                spec.species_id = profile.identity.species_id
+        else:
+            self._save_character_profile(spec)
+            self._write_json(path, spec.to_dict())
+        return spec
+
+    def elfie_dir(self, elfie_id: str) -> Path:
+        self._validate_id(elfie_id)
+        return self.elfies_dir / elfie_id
 
     def profile_path(self, elfie_id: str) -> Path:
-        self._validate_id(elfie_id)
-        return self.elfies_dir / elfie_id / "profile.json"
+        return self.elfie_dir(elfie_id) / "profile.json"
+
+    def portrait_path(self, elfie_id: str) -> Path:
+        return self.elfie_dir(elfie_id) / "portrait.png"
 
     def memory_path(self, elfie_id: str) -> Path:
         self._validate_id(elfie_id)
         path = self.elfies_dir / elfie_id / "memory.db"
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
+
+    def save_portrait(self, elfie_id: str, content: bytes) -> Path:
+        if not content.startswith(b"\x89PNG\r\n\x1a\n"):
+            raise ValueError("头像必须是 PNG 图片")
+        if len(content) > 5 * 1024 * 1024:
+            raise ValueError("头像文件不能超过 5 MB")
+        path = self.portrait_path(elfie_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, temporary = tempfile.mkstemp(
+            prefix=".portrait.", suffix=".tmp", dir=str(path.parent)
+        )
+        try:
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(content)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, path)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+        return path
+
+    def _save_character_profile(self, spec: ElfieSpec) -> None:
+        seed = int.from_bytes(spec.elfie_id.encode("utf-8"), "little") % (2**31)
+        profile = create_visual_profile(
+            elfie_id=spec.elfie_id,
+            display_name=spec.name,
+            species_id=spec.species_id,
+            seed=seed,
+        )
+        defaults_dir = Path(__file__).parents[2] / "elfie" / "profile" / "defaults"
+        legacy = ElfieProfileRepository(defaults_dir).load_legacy_sections()
+        profile = replace(profile, **legacy)
+        ElfieProfileRepository(self.elfie_dir(spec.elfie_id)).save(profile)
 
     def session_path(self, elfie_id: str, session_id: str) -> Path:
         self._validate_id(elfie_id)

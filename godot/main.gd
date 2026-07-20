@@ -10,6 +10,9 @@ const RECONNECT_DELAY_SEC := 1.0
 
 @onready var nest: ModularNest = $Nest
 @onready var characters: Node3D = $Characters
+@onready var lab_preview: Node3D = $LabPreview
+@onready var lab_camera: Camera3D = $LabPreview/Camera3D
+@onready var camera_stream_bridge: Node = $CameraStreamBridge
 
 var _socket := WebSocketPeer.new()
 var _actors: Dictionary = {}
@@ -18,10 +21,17 @@ var _handshake_complete := false
 var _handshake_nonce := ""
 var _ws_url := ""
 var _next_reconnect_at := 0.0
+var _lab_mode := false
+var _lab_actor: ElfieActor
+var _lab_window: JavaScriptObject
+var _lab_message_callback: JavaScriptObject
+var _lab_default_camera_size := 2.35
 
 
 func add_character(
-	character_scene: PackedScene, spawn_position: Vector3 = Vector3.ZERO
+	character_scene: PackedScene,
+	spawn_position: Vector3 = Vector3.ZERO,
+	install_animations: bool = true,
 ) -> CharacterBody3D:
 	var instance := character_scene.instantiate()
 	if not instance is CharacterBody3D:
@@ -30,12 +40,18 @@ func add_character(
 		return null
 
 	var character := instance as CharacterBody3D
+	if character is ElfieActor:
+		(character as ElfieActor).install_shared_animations = install_animations
 	characters.add_child(character)
 	character.position = spawn_position
 	return character
 
 
 func _ready() -> void:
+	_lab_mode = OS.has_feature("web") and _query_parameter("mode") == "elfie_lab"
+	if _lab_mode:
+		_setup_lab_preview()
+		return
 	_ws_url = OS.get_environment("ELFIENEST_GODOT_WS")
 	if _ws_url.is_empty():
 		_ws_url = GODOT_WS_URL
@@ -44,6 +60,10 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+	if _lab_mode:
+		if get_viewport().get_camera_3d() != lab_camera:
+			lab_camera.make_current()
+		return
 	_socket.poll()
 	var state := _socket.get_ready_state()
 	if state == WebSocketPeer.STATE_OPEN and not _connected:
@@ -162,12 +182,16 @@ func _resolve_handshake_nonce() -> String:
 		return environment_nonce
 	if not OS.has_feature("web"):
 		return ""
+	return _query_parameter("nonce")
+
+
+func _query_parameter(name: String) -> String:
 	var query: Variant = JavaScriptBridge.eval("window.location.search")
 	if not query is String:
 		return ""
 	for part in String(query).trim_prefix("?").split("&"):
 		var pair := part.split("=", true, 1)
-		if pair.size() == 2 and pair[0] == "nonce":
+		if pair.size() == 2 and pair[0] == name:
 			return String(pair[1]).uri_decode()
 	return ""
 
@@ -177,3 +201,143 @@ func _connect_websocket() -> void:
 	_connected = false
 	_handshake_complete = false
 	_socket.connect_to_url(_ws_url)
+
+
+func _setup_lab_preview() -> void:
+	nest.visible = false
+	nest.process_mode = Node.PROCESS_MODE_DISABLED
+	for camera in nest.find_children("*", "Camera3D", true, false):
+		(camera as Camera3D).current = false
+	lab_preview.visible = true
+	lab_camera.make_current()
+	camera_stream_bridge.process_mode = Node.PROCESS_MODE_DISABLED
+	_disable_nest_cameras.call_deferred()
+	_lab_window = JavaScriptBridge.get_interface("window")
+	if _lab_window == null:
+		return
+	_lab_message_callback = JavaScriptBridge.create_callback(_on_lab_message)
+	_lab_window.addEventListener("message", _lab_message_callback)
+	_post_lab_message("ready", {})
+
+
+func _disable_nest_cameras() -> void:
+	await get_tree().process_frame
+	for camera in nest.find_children("*", "Camera3D", true, false):
+		(camera as Camera3D).current = false
+	lab_camera.make_current()
+
+
+func _on_lab_message(arguments: Array) -> void:
+	if arguments.is_empty():
+		return
+	var event: JavaScriptObject = arguments[0]
+	if event == null or not event.data is String:
+		return
+	var parsed: Variant = JSON.parse_string(String(event.data))
+	if not parsed is Dictionary:
+		return
+	var message := parsed as Dictionary
+	if String(message.get("channel", "")) != "elfie-lab":
+		return
+	match String(message.get("action", "")):
+		"configure":
+			_configure_lab_actor(message)
+		"rotate":
+			if _lab_actor != null:
+				_lab_actor.rotation.y += float(message.get("delta", 0.0))
+		"zoom":
+			lab_camera.size = clampf(
+				lab_camera.size + float(message.get("delta", 0.0)), 1.5, 3.4
+			)
+		"reset":
+			_reset_lab_view()
+		"capture":
+			_capture_lab_portrait.call_deferred()
+		_:
+			pass
+
+
+func _configure_lab_actor(message: Dictionary) -> void:
+	var species := String(message.get("species_id", "fox"))
+	if not ACTOR_SCENES.has(species):
+		species = "fox"
+	if _lab_actor != null and is_instance_valid(_lab_actor):
+		_lab_actor.queue_free()
+		_lab_actor = null
+	var actor := add_character(
+		ACTOR_SCENES[species] as PackedScene,
+		Vector3.ZERO,
+		false,
+	) as ElfieActor
+	if actor == null:
+		return
+	var appearance: Variant = message.get("appearance", {})
+	actor.configure(
+		String(message.get("elfie_id", "elfie_lab_preview")),
+		Vector3.ZERO,
+		appearance as Dictionary if appearance is Dictionary else {},
+	)
+	actor.set_physics_process(false)
+	actor.velocity = Vector3.ZERO
+	actor.rotation = Vector3.ZERO
+	_lab_actor = actor
+	_frame_lab_actor.call_deferred()
+
+
+func _reset_lab_view() -> void:
+	if _lab_actor != null:
+		_lab_actor.rotation = Vector3.ZERO
+	_frame_lab_actor.call_deferred()
+
+
+func _frame_lab_actor() -> void:
+	await get_tree().process_frame
+	if _lab_actor == null or not is_instance_valid(_lab_actor):
+		return
+	var bounds := _lab_actor_bounds()
+	if bounds.size.is_zero_approx():
+		return
+	var center := bounds.get_center()
+	var viewport_size := get_viewport().get_visible_rect().size
+	var aspect := viewport_size.x / maxf(viewport_size.y, 1.0)
+	_lab_default_camera_size = clampf(
+		maxf(bounds.size.y, bounds.size.x / maxf(aspect, 0.1)) * 1.16,
+		1.5,
+		3.4,
+	)
+	lab_camera.size = _lab_default_camera_size
+	lab_camera.global_position = center + Vector3(
+		0.0,
+		bounds.size.y * 0.02,
+		maxf(3.0, bounds.size.z * 2.0),
+	)
+	lab_camera.look_at(center + Vector3(0.0, bounds.size.y * 0.02, 0.0), Vector3.UP)
+
+
+func _lab_actor_bounds() -> AABB:
+	return _lab_actor.visual_bounds()
+
+
+func _capture_lab_portrait() -> void:
+	await get_tree().process_frame
+	var image := get_viewport().get_texture().get_image()
+	if image == null or image.is_empty():
+		return
+	if image.get_width() > 720:
+		var target_height := roundi(
+			float(image.get_height()) * 720.0 / float(image.get_width())
+		)
+		image.resize(720, target_height, Image.INTERPOLATE_LANCZOS)
+	var data_url := "data:image/png;base64,%s" % Marshalls.raw_to_base64(
+		image.save_png_to_buffer()
+	)
+	_post_lab_message("portrait", {"data_url": data_url})
+
+
+func _post_lab_message(event_name: String, payload: Dictionary) -> void:
+	if _lab_window == null:
+		return
+	_lab_window.parent.postMessage(
+		JSON.stringify({"channel": "elfie-lab", "event": event_name}.merged(payload)),
+		String(_lab_window.location.origin),
+	)

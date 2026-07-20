@@ -18,7 +18,8 @@ def new_id(prefix: str) -> str:
 class ElfieSpec:
     elfie_id: str
     name: str
-    anatomy_type: str = "biped"
+    species_id: str = "fox"
+    life_stage: str = "青年"
     description: str = "用于本地调试的单精灵"
     created_at: str = field(default_factory=utc_now)
     updated_at: str = field(default_factory=utc_now)
@@ -28,10 +29,16 @@ class ElfieSpec:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ElfieSpec":
+        species_id = str(data.get("species_id", ""))
+        if species_id not in {"dog", "fox"}:
+            # 旧 Lab 只保存身体形态，没有物种。迁移时用狐狸母版兜底，
+            # 不再把 biped/quadruped 暴露为个体类别。
+            species_id = "fox"
         return cls(
             elfie_id=str(data["elfie_id"]),
             name=str(data["name"]),
-            anatomy_type=str(data.get("anatomy_type", "biped")),
+            species_id=species_id,
+            life_stage=str(data.get("life_stage", "青年")),
             description=str(data.get("description", "")),
             created_at=str(data.get("created_at", utc_now())),
             updated_at=str(data.get("updated_at", utc_now())),
