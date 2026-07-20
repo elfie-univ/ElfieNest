@@ -14,9 +14,26 @@
 ## 当前实现
 
 `src/main.ts` 会创建一个隐藏的 Godot Web BrowserWindow，并通过
-`src/supervisor.ts` 按 Ollama → Python Core → Godot Web 的顺序启动依赖。源码开发时可用
+`src/supervisor/supervisor.ts` 按 Ollama → Python Core → Godot Web 的顺序启动依赖。源码开发时可用
 `ELFIENEST_CORE_BIN` 和 `ELFIENEST_OLLAMA_BIN` 指向本机调试运行时；发布包从
 `resources/` 读取平台专属组件。
 
 生产安装包仍需要在构建流水线中生成 Python Core 和 Ollama 的平台产物，开发者不应把
 Godot 编辑器或用户数据放入安装包。
+
+## 固定构建路径
+
+Desktop 的 TypeScript 编译结果只能进入根目录 `build/components/desktop/`。发布前的
+平台资源只能按 target 放入根目录 `build/staging/<platform-arch>/resources/`，例如：
+
+```text
+build/staging/darwin-arm64/resources/
+├── godot-web/
+├── python-core/ElfieNestCore
+├── ollama/ollama
+└── manifest.json
+```
+
+Windows target 使用 `python-core/ElfieNestCore.exe` 和 `ollama/ollama.exe`。不要再创建
+`resources/python-core/darwin/`、`resources/ollama/win32/` 这类把多平台塞进同一个
+resources 根目录的旧结构。

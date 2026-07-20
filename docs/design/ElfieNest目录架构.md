@@ -84,7 +84,8 @@ desktop/src/
 ├── windows/
 ├── supervisor/
 ├── resources/
-└── platform/
+├── platform/
+└── ipc/                # 有真实原生调用需求时再创建
 
 godot/
 ├── project.godot
@@ -96,6 +97,59 @@ godot/
 ```
 
 Desktop 只负责 Electron 宿主、窗口、平台差异、发布资源发现和子进程生命周期。Godot 是独立 4.6 源项目，负责房屋、坐标、导航、碰撞、相机和渲染。Godot Web 导出物不是源码，统一写入 `build/components/godot-web/`。
+
+Desktop 目录的固定二级结构如下：
+
+```text
+desktop/
+├── src/
+│   ├── main.ts
+│   ├── windows/
+│   ├── supervisor/
+│   ├── resources/
+│   ├── platform/
+│   └── ipc/
+├── assets/
+├── packaging/
+├── package.json
+├── pnpm-lock.yaml
+└── tsconfig.json
+```
+
+`src/ipc/` 不是必建空目录；只有出现真实原生 IPC 调用时再创建。
+
+## 构建产物和发布物
+
+所有组件编译产物、staging 资源和最终安装包必须进入根目录下的统一位置：
+
+```text
+build/
+├── components/
+│   ├── godot-web/
+│   ├── desktop/
+│   ├── app-web/
+│   └── python-core/
+│       └── <platform-arch>/
+├── staging/
+│   └── <platform-arch>/
+│       └── resources/
+│           ├── godot-web/
+│           ├── python-core/
+│           └── ollama/
+├── manifests/
+└── stamps/
+
+dist/
+├── ElfieNest-<version>-arm64.dmg
+├── ElfieNest-<version>-x64.exe
+├── ElfieNest-<version>-x86_64.AppImage
+└── checksums.txt
+```
+
+`build/staging/<platform-arch>/resources/` 是单平台 staging root。构建脚本不得在同一个
+`resources/` 下面创建 `python-core/darwin/`、`python-core/win32/`、`ollama/linux/`
+这类旧式多平台目录。Windows target 只在当前 target 的 `python-core/` 和 `ollama/`
+目录内使用 `.exe` 文件名。
 
 ## 依赖方向
 

@@ -1,10 +1,11 @@
 {
   "schema_version": 1,
   "application_version": "0.1.0",
+  "target": "darwin-arm64",
   "components": {
     "python_core": {
       "version": "0.1.0",
-      "entry": "python-core/<platform>/ElfieNestCore"
+      "entry": "python-core/ElfieNestCore"
     },
     "godot_web_runtime": {
       "version": "4.6",
@@ -12,7 +13,7 @@
     },
     "ollama": {
       "version": "pinned-by-release",
-      "entry": "ollama/<platform>/ollama"
+      "entry": "ollama/ollama"
     }
   },
   "models": {

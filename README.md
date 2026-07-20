@@ -92,10 +92,16 @@ build/components/godot-web/
 build/components/desktop/
 build/components/python-core/<platform-arch>/
 build/staging/<platform-arch>/resources/
+build/manifests/
+build/stamps/
 dist/
 ```
 
-最终用户不需要安装 Godot Editor。打包阶段从 `build/staging/<platform-arch>/resources/` 收集 Godot Web、Python Core 和 Ollama runner，模型在首启或按需下载。
+`build/components/` 保存各组件中间产物；`build/staging/<platform-arch>/resources/`
+保存当前目标平台的打包资源；`build/manifests/` 保存版本、大小和 SHA-256 清单；
+`build/stamps/` 保存输入指纹，用来控制增量构建。最终用户不需要安装 Godot Editor。
+打包阶段从 `build/staging/<platform-arch>/resources/` 收集 Godot Web、Python Core 和
+Ollama runner，模型在首启或按需下载。
 
 ## 用户数据
 
@@ -111,7 +117,8 @@ dist/
 └── models/
 ```
 
-`devtools/` 和测试必须使用隔离的 `ELFIE_HOME`、端口和数据库。仓库现有 `data/` 属于待单独清点的历史目录，未经确认不得删除。
+`devtools/` 和测试必须使用隔离的 `ELFIE_HOME`、端口和数据库。仓库根目录不再保留
+`data/`；历史本地数据已迁出/清理，后续代码不得把生产或测试数据写回仓库源码目录。
 
 ## 测试
 
