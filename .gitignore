@@ -7,7 +7,10 @@
 !/docs/design/
 !/docs/design/**
 
-# 2. 算力底座本地敏感配置与托管二进制 (安全防泄漏)
+# 2. AI Runtime 本地敏感配置与托管二进制（保留旧路径用于升级迁移）
+/ai_runtime/runtime_config.json
+/ai_runtime/runtime_config*.bak
+/ai_runtime/bin/
 /runtime/runtime_config.json
 /runtime/runtime_config*.bak
 /runtime/bin/
@@ -77,7 +80,7 @@ ElfieNest.worktree/
 data/temp/
 *.uid
 
-# Electron build output and local Node dependencies
+# Electron 本地依赖；旧输出目录继续忽略，但新构建只能写入根 build/dist
 /desktop/node_modules/
 /desktop/dist/
 /desktop/out/

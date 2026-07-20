@@ -4,8 +4,8 @@ import yaml
 
 from devtools.elfie_lab.runtime_adapters import create_runtime
 from devtools.runtime_lab import RuntimeLabConfigStore
-from runtime.food.models import ExecutionProfile, FoodRecipe
-from runtime.food.store import FoodCatalog, FoodCatalogStore
+from ai_runtime.food.models import ExecutionProfile, FoodRecipe
+from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
 
 
 def _write_foods(root):

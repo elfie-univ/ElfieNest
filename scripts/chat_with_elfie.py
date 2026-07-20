@@ -18,9 +18,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("chat")
 
-from elfie import Elfie
-from elfienest import ElfieNestEngine
-from runtime import LLMRuntimeConfig, RuntimeAgent
+from elfie import ElfieFactory
+from app.orchestration.engine import ElfieNestEngine
+from ai_runtime import LLMRuntimeConfig, RuntimeAgent
 
 
 def main():
@@ -35,9 +35,12 @@ def main():
             ollama_model_fast="qwen3.5:0.8b",
         )
         runtime_agent = RuntimeAgent(config)
-        elfie = Elfie()
         engine = ElfieNestEngine()
-        engine.coordinator.register_elfie("艾菲", elfie)
+        elfie = ElfieFactory().create(
+            elfie_id="艾菲",
+            godot_api=engine.api_server,
+        )
+        engine.session.register_elfie("艾菲", elfie)
         engine_holder["engine"] = engine
         engine_ready.set()
         # 2. 启动引擎主循环（阻塞）
@@ -76,14 +79,12 @@ def main():
             break
 
         # 发送消息给精灵
-        engine.coordinator.send_user_message("艾菲", user_input)
+        engine.session.send_user_message("艾菲", user_input)
         print("⏳ 艾菲正在思考...")
 
     # 4. 清理
     engine.api_server.stop()
-    if engine.httpd:
-        engine.httpd.shutdown()
-        engine.httpd.server_close()
+    engine.audio_server.stop()
 
 
 if __name__ == "__main__":

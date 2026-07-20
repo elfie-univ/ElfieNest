@@ -1,0 +1,118 @@
+# ElfieNest 目录架构
+
+## 状态
+
+本文件是当前仓库目录与依赖边界的正式规范。新代码、测试、构建脚本和设计文档必须以本规范为准。
+
+## 根目录
+
+```text
+ElfieNest/
+├── elfie/
+├── nest/
+├── ai_runtime/
+├── app/
+├── desktop/
+├── godot/
+├── devtools/
+├── docs/
+├── scripts/
+├── test/
+├── build/
+└── dist/
+```
+
+源码、用户数据和生成产物必须分离：源码位于前九个目录；测试位于 `test/`；中间产物位于 `build/`；最终安装包位于 `dist/`；生产数据位于 `ELFIE_HOME`，默认目标为 `~/.elfienest/`。
+
+## Nest
+
+```text
+nest/
+├── __init__.py
+├── nest.py
+├── events.py
+├── state/
+├── engine/
+├── interaction/
+└── godot/
+```
+
+- `nest.py` 是 App 唯一依赖的公开门面。
+- `state/` 保存 `nest_id`、配置、居民 ID、家具覆盖和 Godot 会话状态。
+- `engine/` 只推进环境时间和调度，不调用 LLM，也不推进精灵自身生理状态。
+- `interaction/` 传播发言、用户消息、触觉和碰撞结果。
+- `godot/` 维护 Python 侧协议、连接、命令和导出物检查。
+- Nest 不持有 `ElfieIndividual`，不维护房屋几何蓝图。
+
+## App
+
+```text
+app/
+├── features/
+│   ├── accounts/
+│   ├── adoption/
+│   ├── chat/
+│   ├── nest_management/
+│   ├── nest_registration/
+│   ├── administration/
+│   ├── configuration/
+│   └── setup/
+├── orchestration/
+├── interfaces/
+│   ├── api/
+│   ├── web/
+│   └── cli/
+├── infrastructure/
+│   ├── persistence/
+│   ├── audio/
+│   ├── filesystem/
+│   └── device_identity/
+└── bootstrap/
+```
+
+- 产品规则按功能进入 `features/`，不再创建顶层 `domain/` 与 `use_cases/` 双份目录。
+- `orchestration/NestSession` 持有真实精灵实例和唯一 Nest，负责跨模块循环。
+- `interfaces/` 只负责入站解析、鉴权、展示和调用产品功能。
+- `infrastructure/` 实现持久化、音频、文件和设备身份等出站能力。
+- `bootstrap/` 是组合根，不实现账户、领养、聊天或 Nest 规则。
+
+## Desktop 与 Godot
+
+```text
+desktop/src/
+├── main.ts
+├── windows/
+├── supervisor/
+├── resources/
+└── platform/
+
+godot/
+├── project.godot
+├── main.tscn
+├── rooms/
+├── characters/
+├── scripts/
+└── ui/
+```
+
+Desktop 只负责 Electron 宿主、窗口、平台差异、发布资源发现和子进程生命周期。Godot 是独立 4.6 源项目，负责房屋、坐标、导航、碰撞、相机和渲染。Godot Web 导出物不是源码，统一写入 `build/components/godot-web/`。
+
+## 依赖方向
+
+```text
+app/interfaces
+  -> app/features 或 app/orchestration
+  -> elfie + nest + ai_runtime
+  -> 所需端口
+  -> app/infrastructure
+```
+
+`desktop` 启动 `app/bootstrap` 并监督运行组件；`nest/godot` 与已导出的 Godot Runtime 交换事件。`elfie`、`nest` 和 `ai_runtime` 不得反向导入 `app`。
+
+## 测试和持续约束
+
+测试目录镜像源码目录。`test/architecture/test_project_structure.py` 检查目标根目录、App/Nest/Desktop 二级结构、旧包消失和 Python 导入边界。任何目录调整必须先修改本规范，再同步更新 README、AGENTS.md 和结构契约测试。
+
+## 延期范围
+
+当前不创建 `connectivity/`。Nest-Nest 网络、中央信令服务、局域网发现、远程移动聊天 App 和房屋自由编辑需要后续专项设计；不得为了预留未来能力提前建立空的顶层实现。

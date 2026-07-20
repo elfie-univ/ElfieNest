@@ -18,9 +18,9 @@ Godot 编辑器和 Export Templates 只属于构建环境：
 | --- | --- |
 | Godot 源项目 | `godot/` |
 | Web 导出预设 | `godot/export_presets.cfg` |
-| 正式 Web Runtime | `elfienest/ui/static/godot-web/` |
-| Web 入口 | `elfienest/ui/static/godot-web/elfienest.html` |
-| 构建清单 | `elfienest/ui/static/godot-web/build-manifest.json` |
+| 正式 Web Runtime | `build/components/godot-web/` |
+| Web 入口 | `build/components/godot-web/elfienest.html` |
+| 构建清单 | `build/components/godot-web/build-manifest.json` |
 
 正式目录至少包含：
 
@@ -86,7 +86,7 @@ GODOT_BIN=/path/to/godot4.6 ./elfienest.sh build-godot-web
 2. 打开 `Project > Export`。
 3. 选择仓库已有的 `Web` preset。
 4. 点击 `Export Project`。
-5. 输出入口选择 `elfienest/ui/static/godot-web/elfienest.html`。
+5. 输出入口选择 `build/components/godot-web/elfienest.html`。
 
 手工导出不会生成 ElfieNest 的 `build-manifest.json`，因此完成排查后仍需运行一次标准构建命令。
 
@@ -103,12 +103,14 @@ GODOT_BIN=/path/to/godot4.6 ./elfienest.sh build-godot-web
   -> ./elfienest.sh build-godot-web --check
   -> ./elfienest.sh start
   -> 浏览器验收 3D 房间
-  -> 提交源资源和对应 Web Runtime
+  -> 提交 Godot 源资源和构建脚本，CI 重新生成 Web Runtime
 ```
 
-发布流水线也必须执行同一个构建命令，并将整个
-`elfienest/ui/static/godot-web/` 放入发行包。这样 Windows、Linux 和 macOS
-使用同一套 WebAssembly 资源，不需要分别导出三个原生 Godot 应用。
+发布流水线也必须执行同一个构建命令，并在打包阶段将
+`build/components/godot-web/` 组装到
+`build/staging/<platform-arch>/resources/godot-web/`。Windows、Linux 和 macOS
+使用同一套 WebAssembly 资源，不需要分别导出三个原生 Godot 应用。`build/`
+属于可再生中间产物，不提交 Git。
 
 ## 正常运行
 
@@ -125,5 +127,6 @@ BrowserWindow 中加载 Godot Web Runtime。Godot Runtime 是持续存在的精�
 `./developer.sh build-godot-web` 的开发/构建环境；导出的 WebAssembly 资源由
 Electron/Chromium 承载。
 
-`elfienest/ui/static/godot-web/` 是 Python Core 提供给隐藏 Runtime 的资源，构建
-完成后会同步到 `desktop/resources/godot-web/`，供 Electron 安装包携带。
+`build/components/godot-web/` 是唯一规范导出位置。开发态 Python Core 从该目录
+挂载 Godot Runtime；发布时构建编排器把同一份产物复制到平台 staging，Electron
+只消费 staging，不在 `desktop/` 或 Web 源码目录维护长期副本。

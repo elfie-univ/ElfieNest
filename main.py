@@ -2,8 +2,8 @@ import logging
 import sys
 
 from elfie import ElfieFactory
-from elfienest import ElfieNestEngine
-from runtime import LLMRuntimeConfig, RuntimeAgent
+from app.orchestration.engine import ElfieNestEngine
+from ai_runtime import LLMRuntimeConfig, RuntimeAgent
 
 
 def setup_logging():
@@ -50,11 +50,11 @@ def main():
     )
 
     # 4. 将艾菲注册到精灵盒子生态协调器中
-    engine.coordinator.register_elfie("艾菲", elfie)
+    engine.session.register_elfie("艾菲", elfie)
 
     # 5. 模拟一个物理碰撞，先逗一下小狐狸，刺激其情绪化学引擎发生变化
     logger.info("\n[世界物理交互] 模拟主人轻轻揉了揉艾菲的尾巴 (触发物理社交)...")
-    engine.coordinator.trigger_elfie_interaction("艾菲", "艾菲", event_type="collision")
+    engine.session.trigger_elfie_interaction("艾菲", "艾菲", event_type="collision")
 
     # 6. 开启世界物理 Tick 仿真循环
     # 运行 3 个 Tick 周期，周期 2 将自动触发主人的算术题微信提问，演示完整的防幻觉 Python 沙箱回调！

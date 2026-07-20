@@ -9,7 +9,7 @@ from devtools.runtime_lab.config_store import (
     PROVIDER_DEFAULTS,
     RuntimeLabConfigStore,
 )
-from runtime.gateway.llm_api import call_llm_api
+from ai_runtime.gateway.llm_api import call_llm_api
 
 
 def _configure(store: RuntimeLabConfigStore, args: argparse.Namespace) -> int:

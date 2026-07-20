@@ -38,15 +38,15 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 logging.basicConfig(level=logging.WARNING, format="%(message)s")
 
-from elfienest.adoption.generator import ElfieGenerator
-from elfienest.api.app import create_app
-from elfienest.operations.godot_web import inspect_godot_web_bundle
-from elfienest.operations.recovery_lock import (
+from app.features.adoption.generator import ElfieGenerator
+from app.interfaces.api.app import create_app
+from nest.godot.bundle import inspect_godot_web_bundle
+from app.orchestration.lifecycle.recovery_lock import (
     MANAGED_START_ENV,
     RecoveryInProgressError,
     acquire_service_start_lease,
 )
-from elfienest.operations.service_process import (
+from app.orchestration.lifecycle.process import (
     DEFAULT_AUDIO_PORT,
     DEFAULT_GODOT_WS_PORT,
     DEFAULT_MANAGEMENT_WS_PORT,
@@ -55,15 +55,15 @@ from elfienest.operations.service_process import (
     register_current_service,
     validate_service_ports,
 )
-from elfienest.persistence.store import (
+from app.infrastructure.persistence.store import (
     get_db,
     init_db,
     migrate_db_if_needed,
     seed_initial_owner_if_env_set,
 )
-from elfienest.simulation.engine import ElfieNestEngine
-from runtime import LLMRuntimeConfig
-from runtime.storage.data_home import get_db_path, get_elfie_config_dir, get_elfie_home
+from app.orchestration.engine import ElfieNestEngine
+from ai_runtime import LLMRuntimeConfig
+from ai_runtime.storage.data_home import get_db_path, get_elfie_config_dir, get_elfie_home
 
 
 class FallbackAgent:
@@ -397,7 +397,7 @@ def main():
             print("  ⚡ 使用内置对话引擎（--fallback 模式）")
         else:
             try:
-                from runtime import RuntimeAgent  # noqa: PLC0415
+                from ai_runtime import RuntimeAgent  # noqa: PLC0415
 
                 raw_agent = RuntimeAgent(config, live_reload=True)
                 # 调用自愈拉起机制：若已运行直接通过，若没运行则尝试后台启动它
@@ -428,7 +428,7 @@ def main():
             print("  ⚡ Ollama 自动拉起失败或未安装，使用内置对话引擎")
             print(
                 "  💡 如需真实 AI 回复，请确认本地已安装 Ollama：\n"
-                "     安装引导: .venv/bin/python runtime/setup/runtime_setup.py"
+                "     安装引导: .venv/bin/python ai_runtime/setup/runtime_setup.py"
             )
 
         engine = ElfieNestEngine(
@@ -499,7 +499,7 @@ def main():
                     godot_api=engine.api_server,
                     elfie_id=elfie_id,
                 )
-                engine.room.register_elfie(elfie_id, elfie)
+                engine.session.register_elfie(elfie_id, elfie)
                 loaded_elfies.append({"id": elfie_id, "name": name})
             except Exception as e:
                 print(f"  ⚠️  加载精灵 {name} ({elfie_id}) 失败: {e}")

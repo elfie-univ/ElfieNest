@@ -19,7 +19,7 @@ from devtools.elfie_lab.schemas import StimulusBundle
 from devtools.elfie_lab.session import SessionRegistry
 from devtools.elfie_lab.storage import ElfieLabStorage
 from devtools.runtime_lab import RuntimeLabConfigStore
-from runtime.storage.data_home import get_elfie_home
+from ai_runtime.storage.data_home import get_elfie_home
 
 
 class CreateElfieRequest(BaseModel):

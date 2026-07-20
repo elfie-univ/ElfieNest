@@ -20,8 +20,8 @@ if (
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from elfienest.cli.doctor_commands import run_doctor
-from elfienest.cli.lifecycle_commands import (
+from app.interfaces.cli.doctor_commands import run_doctor
+from app.interfaces.cli.lifecycle_commands import (
     default_service_command,
     open_web_console,
     restart_background_service,
@@ -29,17 +29,17 @@ from elfienest.cli.lifecycle_commands import (
     start_background_service,
     stop_background_service,
 )
-from elfienest.cli.migration_commands import run_migrate
-from elfienest.cli.owner_commands import run_owner_menu
-from elfienest.cli.provider_commands import login_provider
-from elfienest.cli.runtime_commands import (
+from app.interfaces.cli.migration_commands import run_migrate
+from app.interfaces.cli.owner_commands import run_owner_menu
+from app.interfaces.cli.provider_commands import login_provider
+from app.interfaces.cli.runtime_commands import (
     dispatch_db,
     show_version,
 )
-from elfienest.cli.tui.common import print_banner
-from elfienest.cli.tui.config_app import run_config_tui
-from elfienest.cli.tui.setup_app import run_setup_wizard
-from elfienest.operations.service_lifecycle_types import ServiceLifecycleResult
+from app.interfaces.cli.tui.common import print_banner
+from app.interfaces.cli.tui.config_app import run_config_tui
+from app.interfaces.cli.tui.setup_app import run_setup_wizard
+from app.orchestration.lifecycle.types import ServiceLifecycleResult
 
 
 class SecretSafeArgumentParser(argparse.ArgumentParser):

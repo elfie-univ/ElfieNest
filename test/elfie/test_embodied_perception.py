@@ -7,8 +7,8 @@ sys.path.insert(0, "/Users/zhenli/git-code/ElfieNest")
 
 from elfie import Elfie
 from elfie.body import BipedAnatomy
-from runtime.gateway.agent import RuntimeAgent
-from runtime.config import LLMRuntimeConfig
+from ai_runtime.gateway.agent import RuntimeAgent
+from ai_runtime.config import LLMRuntimeConfig
 
 
 class TestEmbodiedPerception(unittest.TestCase):

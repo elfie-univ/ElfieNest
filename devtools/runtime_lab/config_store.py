@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 
 import yaml
 
-from runtime.config import PROVIDER_RECOMMENDS, LLMRuntimeConfig
+from ai_runtime.config import PROVIDER_RECOMMENDS, LLMRuntimeConfig
 
 SECRET_ENV_KEYS = {
     "deepseek": "DEEPSEEK_API_KEY",

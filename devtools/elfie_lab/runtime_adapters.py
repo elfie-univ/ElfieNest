@@ -8,10 +8,10 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List
 
-from runtime.food.models import FoodRecipe
-from runtime.food.store import FoodCatalog, FoodCatalogStore
-from runtime.providers.ollama import OllamaManager
-from runtime.storage.data_home import get_elfie_home
+from ai_runtime.food.models import FoodRecipe
+from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
+from ai_runtime.providers.ollama import OllamaManager
+from ai_runtime.storage.data_home import get_elfie_home
 
 _SECRET_PATTERNS = (
     re.compile(r"sk-[A-Za-z0-9_-]{12,}"),
@@ -139,7 +139,7 @@ def create_runtime(food_key: str, config_dir: str | None = None) -> TracingRunti
         return TracingRuntimeAgent(MockRuntimeAgent(), "mock")
 
     from devtools.runtime_lab import RuntimeLabConfigStore
-    from runtime import RuntimeAgent
+    from ai_runtime import RuntimeAgent
 
     store = RuntimeLabConfigStore(config_dir or str(get_elfie_home()))
     config = store.load_runtime_config()
@@ -167,9 +167,9 @@ def runtime_lab_command(config_store: Any) -> str:
     """返回操作当前 Runtime 根目录的完整 Runtime Lab 命令。"""
     root_path = Path(config_store.root).expanduser().resolve()
     if root_path == get_elfie_home().expanduser().resolve():
-        return ".venv/bin/python -m runtime.lab"
+        return ".venv/bin/python -m ai_runtime.lab"
     root = shlex.quote(str(root_path))
-    return f"ELFIE_HOME={root} .venv/bin/python -m runtime.lab"
+    return f"ELFIE_HOME={root} .venv/bin/python -m ai_runtime.lab"
 
 
 def load_runtime_food_catalog(

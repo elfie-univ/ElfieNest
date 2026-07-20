@@ -25,10 +25,10 @@ logger = logging.getLogger("e2e_check")
 
 import websockets
 
-from elfie import Elfie
-from elfienest import ElfieNestEngine
-from elfienest.transport.godot_api import GodotAPIServer
-from runtime import LLMRuntimeConfig, RuntimeAgent
+from elfie import ElfieFactory
+from app.orchestration.engine import ElfieNestEngine
+from nest.godot.api import GodotAPIServer
+from ai_runtime import LLMRuntimeConfig, RuntimeAgent
 
 # ---------------------------------------------------------------------------
 # Monkey-patch: websockets >= 14 的 serve() 要求事件循环已运行，
@@ -101,7 +101,7 @@ async def async_client_test(engine):
 
         # 3. 触发物理碰撞（在 WS 连接后调用，确保能收到 physical_impact_event）
         try:
-            engine.coordinator.trigger_elfie_interaction(
+            engine.session.trigger_elfie_interaction(
                 "艾菲", "艾菲", "collision"
             )
             logger.info("✅ 已触发物理碰撞事件")
@@ -182,9 +182,12 @@ def main():
             ollama_host="http://localhost:11434", ollama_model_fast="qwen3.5:0.8b"
         )
         runtime_agent = RuntimeAgent(config)
-        elfie = Elfie()
         engine = ElfieNestEngine(ws_port=8765, http_port=8000)
-        engine.coordinator.register_elfie("艾菲", elfie)
+        elfie = ElfieFactory().create(
+            elfie_id="艾菲",
+            godot_api=engine.api_server,
+        )
+        engine.session.register_elfie("艾菲", elfie)
         engine_holder["engine"] = engine
         engine_ready.set()
         # 2. 启动引擎主循环（阻塞）

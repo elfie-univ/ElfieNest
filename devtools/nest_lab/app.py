@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from runtime.storage.data_home import get_elfie_home
+from ai_runtime.storage.data_home import get_elfie_home
 
 
 def create_app(data_dir: Path | str | None = None) -> FastAPI:

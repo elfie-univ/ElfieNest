@@ -37,10 +37,10 @@ build-constraint-dependencies = ["setuptools==80.9.0"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["elfie*", "elfienest*", "runtime*"]
+include = ["ai_runtime*", "app*", "elfie*", "nest*"]
 
 [tool.setuptools.package-data]
-"elfienest.ui" = ["static/**/*"]
+"app.interfaces.web" = ["static/**/*"]
 
 [tool.ruff]
 line-length = 88
@@ -69,7 +69,7 @@ ignore = [
 "scripts/*" = ["E402"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["elfie", "elfienest", "runtime"]
+known-first-party = ["ai_runtime", "app", "elfie", "nest"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -112,7 +112,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["elfie", "elfienest", "runtime"]
+source = ["ai_runtime", "app", "elfie", "nest"]
 omit = [
     "*/test/*",
     "*/tests/*",

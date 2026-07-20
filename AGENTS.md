@@ -21,8 +21,7 @@ The simulation runs without external dependencies - if Ollama is unavailable, it
 
 ```
 ElfieNest/
-├── main.py              # Entry point - orchestrates runtime, elfie, and engine
-├── elfie/               # Elfie - 完整精灵聚合对象
+├── elfie/               # 完整精灵个体
 │   ├── profile/         # 个体档案、物种外貌和默认模板
 │   ├── brain/           # Neocortex (LLM reasoning), context building
 │   ├── nervous_system/  # 传感、动作、过滤、限位和反射
@@ -30,17 +29,31 @@ ElfieNest/
 │   ├── communication/   # 精灵自带的消息通信
 │   ├── skills/          # 思考过程中使用的技能
 │   └── state/           # 可恢复动态状态
-├── elfienest/           # ElfieNestEngine - physics tick simulation
-│   ├── engine.py        # Main loop, HTTP audio server, WebSocket API
-│   ├── room.py          # Multi-creature room state management
-│   └── godot_api.py     # WebSocket bridge for Godot 3D client
-├── runtime/             # LLMRuntimeAgent - multi-provider LLM orchestration
-│   ├── agent.py         # Main agent with tool calling loop
-│   ├── config.py        # Provider configs (Ollama, OpenAI, DeepSeek, Gemini, Qwen)
-│   ├── model_router.py  # Energy/complexity-based model selection
-│   └── plugins/         # Tools: web_search, code_sandbox, skills_evolution
-└── test/                # Unit tests for embodied perception
+├── nest/                # 完整精灵巢活动空间
+├── ai_runtime/          # AI 推理、粮食、工具和安全运行时
+├── app/                 # 产品功能、接口、基础设施和跨模块编排
+├── desktop/             # Electron 桌面宿主
+├── godot/               # 独立 Godot 4.6 源项目
+├── devtools/            # 隔离的模块实验台
+├── docs/                # 中文设计与实现文档
+├── scripts/             # 启动、构建、检查和发布脚本
+├── test/                # 镜像源码结构的测试
+├── build/               # 中间构建产物，Git 忽略
+└── dist/                # 最终安装包，Git 忽略
 ```
+
+## 目录架构边界（强制规则）
+
+- `elfie/` 只实现单个完整精灵，不得加入账户、Web、Godot 场景或桌面生命周期。
+- `nest/` 只实现活动空间、巢内状态、环境时钟、互动传播和 Python 侧 Godot 协议。Nest 只能保存精灵 ID 与巢内状态，禁止持有或创建 `ElfieIndividual`。
+- 真实精灵实例与 `Nest` 的组合固定放在 `app/orchestration/NestSession`；跨 `elfie/`、`nest/`、`ai_runtime/` 的流程只能进入 `app/orchestration/`。
+- 产品功能进入 `app/features/`；API/Web/CLI 进入 `app/interfaces/`；持久化、音频、文件系统和设备身份进入 `app/infrastructure/`；`app/bootstrap/` 只负责依赖装配。
+- Godot 房屋、几何、坐标、移动、碰撞和渲染以 `godot/` 为唯一源码来源。禁止在 Python Nest 中创建房屋蓝图、3D 布局或家具资产副本。
+- Electron 窗口、平台适配、资源发现和进程监督进入 `desktop/`；账户、聊天、领养和 Nest 规则禁止进入 Desktop。
+- AI 模型、供应商、粮食策略、工具、安全和推理循环进入 `ai_runtime/`；禁止恢复旧顶层包名 `runtime/`。
+- 禁止恢复旧顶层包名 `elfienest/`。产品名仍为 ElfieNest，但 Python 源码必须按 `app/`、`nest/`、`elfie/`、`ai_runtime/` 分责。
+- 正式中间产物只能写入根 `build/`，最终发行物只能写入根 `dist/`，生产数据只能写入 `ELFIE_HOME`。禁止把生成的 Godot Web、Desktop JS 或 Python Core 放回源码目录。
+- 新增目录或跨边界依赖前必须同步更新 README、架构文档和 `test/architecture/` 契约测试。
 
 ## Key Concepts
 
@@ -50,9 +63,9 @@ ElfieNest/
 3. **Nervous System and Body**: Physical actuators, sensors, reflex arcs
 
 ### Main Loop Flow
-1. `ElfieNestEngine.start_loop()` drives physics ticks
-2. Each tick: `room.tick()` updates energy/emotion decay
-3. For each active elfie: `perceive_and_respond()` triggers:
+1. `ElfieNestEngine.start_loop()` drives the application loop
+2. Each tick: `Nest.tick()` advances environment time and `NestSession.tick_elfies()` advances active Elfies
+3. For each active Elfie, `perceive_and_respond()` triggers:
    - Brainstem reflex check (instant physical response)
    - Sensory signal filtering (noise reduction)
    - Thalamus context assembly
@@ -130,8 +143,13 @@ test/
 │       ├── native/          # Native 身体测试
 │       ├── headless/        # Headless 身体测试
 │       └── external/        # External 身体测试
-├── elfienest/               # 引擎测试
-└── runtime/                 # 运行时测试
+├── nest/                    # 活动空间和 Godot 协议测试
+├── ai_runtime/              # AI 运行时测试
+├── app/                     # 产品功能、接口、基础设施和编排测试
+├── devtools/                # 隔离开发工具测试
+├── godot/                   # Godot 源资源契约测试
+├── architecture/            # 目录和依赖边界契约
+└── e2e/                     # 产品全链路测试
 ```
 
 **新增测试规则**：
@@ -143,7 +161,7 @@ test/
 ## Configuration
 
 ### LLM Runtime
-- Config loaded from `runtime/runtime_config.json` (gitignored)
+- Production config is loaded from `${ELFIE_HOME:-~/.elfienest}/config.yaml`
 - Falls back to environment variables: `OLLAMA_HOST`, `DEEPSEEK_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `QWEN_API_KEY`
 - Default local model: `qwen3.5:0.8b` via Ollama
 
@@ -179,7 +197,7 @@ When Godot connects, actions are sent as `go_to`, `speak_event` events. Without 
 
 - 单精灵调试平台仅供本地开发和调试 `elfie` 模块使用，不属于普通用户产品界面。
 - 调试平台必须使用独立启动入口、独立本地网址、独立前端资源和独立数据目录。
-- 禁止为了实现调试平台而修改或复用 `elfienest/ui/static/` 下的普通用户前端页面。
+- 禁止为了实现调试平台而修改或复用 `app/interfaces/web/static/` 下的普通用户前端页面。
 - 禁止在普通用户导航、生产服务入口或安装后的用户界面中暴露调试平台。
 - 调试平台可以复用项目的视觉变量和基础技术栈，但不能依赖 `ElfieNestEngine`、Godot、群聊房间或普通用户鉴权流程才能运行。
 
@@ -190,9 +208,9 @@ When Godot connects, actions are sent as `go_to`, `speak_event` events. Without 
 ### 强制规则
 
 1. **禁止明文密钥**：任何 API Key（如 `sk-xxx`、`pk-xxx`、`AIzaxxx`、`AKIAxxx`、`ghp_xxx` 等）不得以字符串字面量出现在 `.py`、`.yaml`、`.yml`、`.json`、`.md` 等任何被 Git 跟踪的文件中。
-2. **使用环境变量**：所有密钥必须通过环境变量读取（`os.environ.get("API_KEY")`），或从已 gitignore 的本地配置文件加载（如 `runtime/runtime_config.json`、`.env`）。
+2. **使用环境变量**：所有密钥必须通过环境变量读取（`os.environ.get("API_KEY")`），或从已 gitignore 的用户数据配置加载（如 `${ELFIE_HOME}/config.yaml`、`${ELFIE_HOME}/.env`）。
 3. **配置文件占位符**：示例配置中使用占位符（如 `<your-api-key-here>`、`${API_KEY}`），不得填写真实密钥。
-4. **已 gitignore 的敏感文件**：`config.yaml`、`.env`、`runtime/runtime_config.json` 已在 `.gitignore` 中，不得移除。
+4. **已 gitignore 的敏感文件**：`config.yaml`、`.env` 和本机 Runtime 配置已在 `.gitignore` 中，不得移除对应保护规则。
 5. **Pre-commit 钩子**：项目已安装 `.git/hooks/pre-commit`，提交前自动扫描密钥模式。如检测到疑似密钥，提交将被阻止。不要使用 `--no-verify` 绕过。
 
 ### 正确做法
@@ -202,7 +220,7 @@ When Godot connects, actions are sent as `go_to`, `speak_event` events. Without 
 api_key = os.environ.get("OPENAI_API_KEY", "")
 
 # ✅ 正确：从 gitignored 配置文件加载
-config = load_config("runtime/runtime_config.json")  # 该文件已被 gitignore
+config = load_config(os.environ["ELFIE_HOME"] + "/config.yaml")
 ```
 
 ```yaml
