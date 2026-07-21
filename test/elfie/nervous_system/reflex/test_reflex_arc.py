@@ -1,14 +1,11 @@
 """反射弧模块测试 (Reflex Arc Module Tests)"""
 
-import sys
 import unittest
-
-sys.path.insert(0, "/Users/zhenli/git-code/ElfieNest")
 
 from elfie.body.native.anatomy.biped import BipedAnatomy
 from elfie.body.native.anatomy.quadruped import QuadrupedAnatomy
-from elfie.nervous_system.reflex.reflex_arc import SomaticReflexArc
 from elfie.brain.emotion.emotional_state import AmygdalaEmotionalState
+from elfie.nervous_system.reflex.reflex_arc import SomaticReflexArc
 
 
 class TestSomaticReflexArc(unittest.TestCase):

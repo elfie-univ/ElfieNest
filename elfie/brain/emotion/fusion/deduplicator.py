@@ -5,7 +5,29 @@ Emotion Fusion Deduplicator Module
 """
 
 import time
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
+
+
+class EmptyIntensitiesError(ValueError):
+    """Raised when intensity fusion receives no observations."""
+
+    def __str__(self) -> str:
+        return "intensities list cannot be empty"
+
+
+class IntensityWeightCountError(ValueError):
+    """Raised when intensity and weight counts differ."""
+
+    def __init__(self, intensity_count: int, weight_count: int) -> None:
+        self.intensity_count = intensity_count
+        self.weight_count = weight_count
+        super().__init__(intensity_count, weight_count)
+
+    def __str__(self) -> str:
+        return (
+            "intensities and weights must have same length: "
+            f"{self.intensity_count} != {self.weight_count}"
+        )
 
 
 class EventDeduplicator:
@@ -15,7 +37,12 @@ class EventDeduplicator:
     使用TTL机制维护已处理事件的集合，自动清理过期事件。
     """
 
-    def __init__(self, ttl: float = 60.0):
+    def __init__(
+        self,
+        ttl: float = 60.0,
+        *,
+        clock: Callable[[], float] = time.monotonic,
+    ):
         """
         初始化去重器
 
@@ -23,6 +50,7 @@ class EventDeduplicator:
             ttl: 事件保留时间（秒），默认60秒
         """
         self.ttl = ttl
+        self._clock = clock
         self.processed_events: Dict[str, float] = {}  # event_id -> timestamp
 
     def is_new(self, event_id: str, current_time: Optional[float] = None) -> bool:
@@ -37,7 +65,7 @@ class EventDeduplicator:
             True表示新事件，False表示已处理过
         """
         if current_time is None:
-            current_time = time.time()
+            current_time = self._clock()
         self._clean_expired(current_time)
         return event_id not in self.processed_events
 
@@ -50,7 +78,7 @@ class EventDeduplicator:
             current_time: 当前时间戳，默认使用time.time()
         """
         if current_time is None:
-            current_time = time.time()
+            current_time = self._clock()
         self.processed_events[event_id] = current_time
 
     def _clean_expired(self, current_time: float):
@@ -94,13 +122,13 @@ def fuse_intensities(
         ValueError: intensities和weights长度不匹配，或列表为空
     """
     if not intensities:
-        raise ValueError("intensities list cannot be empty")
+        raise EmptyIntensitiesError
 
     if weights is None:
         weights = [1.0] * len(intensities)
 
     if len(intensities) != len(weights):
-        raise ValueError("intensities and weights must have same length")
+        raise IntensityWeightCountError(len(intensities), len(weights))
 
     total = sum(i * w for i, w in zip(intensities, weights))
     weight_sum = sum(weights)

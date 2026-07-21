@@ -67,6 +67,23 @@ def test_hub_receives_messages_without_using_body_sensor_queue() -> None:
     assert hub.inbox.pending_count == 0
 
 
+def test_hub_without_perception_sink_preserves_manual_inbox_delivery() -> None:
+    # Given: the compatibility Hub has no cognitive perception sink.
+    hub = CommunicationHub("elfie-1")
+    hub.register_channel(FakeChannel())
+
+    # When: one inbound platform message is admitted.
+    received = hub.receive(
+        channel_id="test",
+        sender_id="owner-1",
+        content="仍由旧调用方手动读取",
+    )
+
+    # Then: the envelope remains pending until the compatibility drain runs.
+    assert hub.inbox.pending_count == 1
+    assert hub.drain_inbox() == [received]
+
+
 def test_hub_records_failed_channel_delivery() -> None:
     hub = CommunicationHub("elfie-1")
     hub.register_channel(FakeChannel(succeeds=False), connect=True)

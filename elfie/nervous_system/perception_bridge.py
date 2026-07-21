@@ -1,0 +1,142 @@
+"""Backpressure-aware Body-to-Brain adapter owned by NervousSystem."""
+
+from __future__ import annotations
+
+from collections import deque
+from threading import Lock
+from typing import Deque, Iterable, List, Optional, Tuple
+
+from elfie.body.contracts import (
+    BodySensorEvent,
+    EmergencyStopCommand,
+    TactileImpact,
+)
+from elfie.body.port import BodyPort
+from elfie.brain.perception_types import (
+    IngestDisposition,
+    IngestReceipt,
+    PerceptionEvent,
+    PerceptionWrite,
+)
+from elfie.brain.workspace_ports import PerceptionSink
+from elfie.message_types import ElfieId
+from elfie.nervous_system.perception_normalizer import BodyPerceptionNormalizer
+from elfie.nervous_system.perception_reflex import (
+    DANGER_FORCE_NEWTONS,
+    BodyReflexController,
+)
+
+
+class BodyPerceptionBridge:
+    """Mutable adapter whose pending queue preserves reliable input order."""
+
+    def __init__(
+        self,
+        *,
+        sink: PerceptionSink,
+        elfie_id: ElfieId,
+        normalizer: BodyPerceptionNormalizer,
+        body_port: Optional[BodyPort] = None,
+    ) -> None:
+        self._sink = sink
+        self._elfie_id = elfie_id
+        self._normalizer = normalizer
+        self._pending: Deque[PerceptionEvent] = deque()
+        self._filtered_count = 0
+        self._state_lock = Lock()
+        self._pending_lock = Lock()
+        self._draining = False
+        self._reflex = BodyReflexController(
+            elfie_id=elfie_id,
+            body_port=body_port,
+        )
+
+    @property
+    def pending_count(self) -> int:
+        with self._pending_lock:
+            return len(self._pending)
+
+    @property
+    def filtered_count(self) -> int:
+        with self._state_lock:
+            return self._filtered_count
+
+    @property
+    def urgent_revision(self) -> int:
+        return self._reflex.urgent_revision
+
+    @property
+    def last_reflex_command(self) -> Optional[EmergencyStopCommand]:
+        return self._reflex.last_command
+
+    def bind_body_port(self, body_port: Optional[BodyPort]) -> None:
+        """Update the reflex target after a Body lifecycle transition."""
+        self._reflex.bind_body_port(body_port)
+
+    def receive(self, events: Iterable[BodySensorEvent]) -> Tuple[IngestReceipt, ...]:
+        receipts = ()
+        for event in events:
+            receipts += self.receive_body_event(event)
+        return receipts
+
+    def receive_body_event(
+        self,
+        event: BodySensorEvent,
+    ) -> Tuple[IngestReceipt, ...]:
+        with self._state_lock:
+            writes = self._normalizer.normalize(event)
+            if not writes:
+                self._filtered_count += 1
+                return ()
+            payload = event.payload
+            reflex_required = False
+            if isinstance(payload, TactileImpact) and (
+                payload.force_newtons >= DANGER_FORCE_NEWTONS
+            ):
+                reflex_required = True
+        if reflex_required and isinstance(payload, TactileImpact):
+            writes += self._reflex.handle(event, payload)
+        return self._publish(writes)
+
+    def retry_pending(self) -> Tuple[IngestReceipt, ...]:
+        receipts: List[IngestReceipt] = []
+        with self._pending_lock:
+            if self._draining:
+                return ()
+            self._draining = True
+        try:
+            while True:
+                with self._pending_lock:
+                    if not self._pending:
+                        break
+                    event = self._pending[0]
+                receipt = self._sink.publish(event)
+                receipts.append(receipt)
+                if receipt.disposition not in {
+                    IngestDisposition.ACCEPTED,
+                    IngestDisposition.DUPLICATE,
+                }:
+                    break
+                with self._pending_lock:
+                    if self._pending and self._pending[0] is event:
+                        self._pending.popleft()
+        finally:
+            with self._pending_lock:
+                self._draining = False
+        return tuple(receipts)
+
+    def _publish(
+        self,
+        writes: Tuple[PerceptionWrite, ...],
+    ) -> Tuple[IngestReceipt, ...]:
+        receipts = ()
+        for write in writes:
+            if isinstance(write, PerceptionEvent):
+                with self._pending_lock:
+                    self._pending.append(write)
+                receipts += self.retry_pending()
+            else:
+                receipts += (self._sink.publish(write),)
+        return receipts
+
+__all__ = ("BodyPerceptionBridge",)

@@ -1,10 +1,6 @@
 """测试传感器模块 (AudioSensor 和 VisionSensor)"""
 
-import sys
-
 import pytest
-
-sys.path.insert(0, "/Users/zhenli/git-code/ElfieNest")
 
 from elfie.nervous_system.sensors.audio import AudioSensor
 from elfie.nervous_system.sensors.vision import VisionSensor

@@ -33,6 +33,12 @@ from elfie.communication.outbox import (
     CommunicationOutbox,
     OutboxEntry,
 )
+from elfie.communication.perception_adapter import (
+    AdapterDirectionError,
+    CommunicationPerceptionAdapter,
+    DeliveryPerceptionCorrelation,
+    InboundPerceptionAttempt,
+)
 from elfie.communication.policy import CommunicationPolicy, CommunicationPolicyError
 from elfie.communication.router import (
     ChannelRegistrationError,
@@ -62,6 +68,10 @@ __all__ = [
     "OutboxEntry",
     "CommunicationPolicy",
     "CommunicationPolicyError",
+    "AdapterDirectionError",
+    "CommunicationPerceptionAdapter",
+    "DeliveryPerceptionCorrelation",
+    "InboundPerceptionAttempt",
     "ChannelRegistrationError",
     "CommunicationRouter",
     "CommunicationHub",

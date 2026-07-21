@@ -3,8 +3,6 @@
 验证睡眠熔断、唤醒恢复、情绪-能量交互等设计目标。
 """
 
-import pytest
-
 from elfie import Elfie
 from elfie.brain.energy.energy import HypothalamusEnergy
 

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, List, Mapping, Optional, Sequence, Tuple, TypedDict
+from typing import Any, List, Mapping, Optional, Sequence, Tuple
 
+from elfie.brain.perception_types import IngestReceipt
 from elfie.communication.channel import (
     CommunicationMessage,
     MessageDirection,
@@ -17,27 +18,19 @@ from elfie.communication.contracts import (
     InboundDisposition,
     InboundDispositionStatus,
 )
+from elfie.communication.hub_snapshot import (
+    HubSnapshot,
+    build_hub_snapshot,
+)
 from elfie.communication.inbox import CommunicationInbox
 from elfie.communication.outbox import CommunicationOutbox
+from elfie.communication.perception_adapter import (
+    CommunicationPerceptionAdapter,
+    DeliveryPerceptionCorrelation,
+)
 from elfie.communication.policy import CommunicationPolicy, CommunicationPolicyError
 from elfie.communication.router import CommunicationRouter, RegisteredChannel
 from elfie.message_types import ErrorInfo
-
-
-class ChannelSnapshot(TypedDict):
-    """Stable snapshot shape for one registered channel."""
-
-    channel_id: str
-    connected: bool
-
-
-class HubSnapshot(TypedDict):
-    """Stable compatibility snapshot shape for product callers."""
-
-    elfie_id: str
-    channels: List[ChannelSnapshot]
-    pending_inbox: int
-    outbox_count: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,12 +52,14 @@ class CommunicationHub:
         *,
         policy: Optional[CommunicationPolicy] = None,
         router: Optional[CommunicationRouter] = None,
+        perception_adapter: Optional[CommunicationPerceptionAdapter] = None,
     ) -> None:
         self.elfie_id = elfie_id
         self.policy = policy or CommunicationPolicy()
         self.router = router or CommunicationRouter()
         self.inbox = CommunicationInbox()
         self.outbox = CommunicationOutbox()
+        self.perception_adapter = perception_adapter
         self._inbound_dispositions: List[InboundDisposition] = []
 
     def bind_identity(self, elfie_id: str) -> None:
@@ -123,12 +118,21 @@ class CommunicationHub:
                 exc.error,
             )
         self.inbox.receive(envelope)
+        if self.perception_adapter is not None:
+            attempt = self.perception_adapter.publish_inbound(envelope)
+            if attempt.completed:
+                self.inbox.mark_cognitive_delivery(envelope)
         return self._record_disposition(
             envelope,
             InboundDispositionStatus.ACCEPTED,
         )
 
-    def send_envelope(self, envelope: CommunicationEnvelope) -> DeliveryReceipt:
+    def send_envelope(
+        self,
+        envelope: CommunicationEnvelope,
+        *,
+        correlation: Optional[DeliveryPerceptionCorrelation] = None,
+    ) -> DeliveryReceipt:
         """Apply outbound policy and always return a typed delivery receipt."""
         if envelope.direction is not MessageDirection.OUTBOUND:
             receipt = DeliveryReceipt.for_envelope(
@@ -151,7 +155,21 @@ class CommunicationHub:
             else:
                 receipt = self.router.route(envelope)
         self.outbox.record(envelope, receipt)
+        if self.perception_adapter is not None and correlation is not None:
+            self.perception_adapter.publish_delivery(envelope, receipt, correlation)
         return receipt
+
+    def retry_perception(self) -> Tuple[IngestReceipt, ...]:
+        """Retry backpressured communication facts once in source order."""
+        if self.perception_adapter is None:
+            return ()
+        attempts = self.perception_adapter.retry_inbound()
+        for attempt in attempts:
+            if attempt.completed:
+                self.inbox.mark_cognitive_delivery(attempt.envelope)
+        return tuple(attempt.receipt for attempt in attempts) + (
+            self.perception_adapter.retry_delivery()
+        )
 
     def send_batch(
         self,
@@ -230,18 +248,7 @@ class CommunicationHub:
         return tuple(self._inbound_dispositions)
 
     def snapshot(self) -> HubSnapshot:
-        return {
-            "elfie_id": self.elfie_id,
-            "channels": [
-                {
-                    "channel_id": channel.channel_id,
-                    "connected": channel.is_connected,
-                }
-                for channel in self.router.list_channels()
-            ],
-            "pending_inbox": self.inbox.pending_count,
-            "outbox_count": len(self.outbox.history),
-        }
+        return build_hub_snapshot(self.elfie_id, self.router, self.inbox, self.outbox)
 
     def _record_disposition(
         self,
@@ -260,7 +267,6 @@ class CommunicationHub:
 
 
 __all__ = (
-    "ChannelSnapshot",
     "CommunicationHub",
     "HubSnapshot",
     "InboundDispositionInvariantError",

@@ -6,7 +6,13 @@ from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
-from elfie.body import BipedAnatomy, BodyBinding, BodyRegistry, QuadrupedAnatomy
+from elfie.body import (
+    BipedAnatomy,
+    BodyBinding,
+    BodyId,
+    BodyRegistry,
+    QuadrupedAnatomy,
+)
 from elfie.body.native.anatomy.base import SomaticAnatomy
 from elfie.body.port import BodyPort
 from elfie.body.types import BodyCommand, BodyEvent, CommandResult
@@ -18,12 +24,14 @@ from elfie.brain import (
 )
 from elfie.brain.cognition import NeocortexBrain
 from elfie.brain.memory import MemorySystem
+from elfie.brain.perceptual_workspace import PerceptualWorkspace
 from elfie.communication import (
     CommunicationHub,
     CommunicationMessage,
     DeliveryReceipt,
     MessageKind,
 )
+from elfie.message_types import ElfieId
 from elfie.nervous_system import NervousSystem
 from elfie.profile import (
     ElfieProfile as CharacterProfile,
@@ -73,10 +81,16 @@ class Elfie:
         limits_dict = self.brain.profile.system_limits
         caps_dict = self.brain.profile.capabilities
 
+        # 兼容主循环只维护一个显式仿真时间源；BrainCoordinator 将接管发布。
+        self.elapsed_time = 0.0
+
         # 2. 🧬 【情绪与边缘系统】 (Core Systems)
         self.thalamus = ThalamusContextBuilder()
-        self.hypothalamus = HypothalamusEnergy(limits_dict)
-        self.amygdala = EmotionSystem()
+        self.hypothalamus = HypothalamusEnergy(
+            limits_dict,
+            clock=self._simulation_time,
+        )
+        self.amygdala = EmotionSystem(clock=self._simulation_time)
         self.emotion_decay = EmotionDecayCalculator()
         resolved_memory_db_path = memory_db_path or (
             str(Path(config_dir) / "graph_memory.db") if config_dir else ":memory:"
@@ -99,7 +113,14 @@ class Elfie:
         self._was_sleeping = False
 
         # 3. 🔌 【神经系统层】 (Nervous System)
-        self.nervous_system = NervousSystem(caps_dict)
+        workspace_elfie_id = ElfieId(self.character_profile.identity.elfie_id)
+        self.perceptual_workspace = PerceptualWorkspace(workspace_elfie_id)
+        self.nervous_system = NervousSystem(
+            caps_dict,
+            perception_sink=self.perceptual_workspace,
+            elfie_id=workspace_elfie_id,
+            body_port=body,
+        )
 
         # 4. 🧱 【具身身体物理层】 (Body - 数字孪生躯体)
         self.anatomy_type = self._resolve_primary_morphology(anatomy_type)
@@ -108,9 +129,6 @@ class Elfie:
             self.anatomy = QuadrupedAnatomy()
         else:
             self.anatomy = BipedAnatomy()
-
-        # 仿真内的时间相角累加器
-        self.elapsed_time = 0.0
 
         # 身体注册与当前绑定。
         self.body_registry = BodyRegistry()
@@ -195,15 +213,20 @@ class Elfie:
         """登记一副可用身体，并可通过正式生命周期将其设为当前身体。"""
         self.body_binding.register(body)
         if make_current:
-            self.body_binding.bind(body.body_id)
+            current = self.body_binding.bind(body.body_id)
+            self.nervous_system.bind_body_port(current)
 
     def bind_body(self, body_id: str) -> BodyPort:
         """切换当前身体，负责旧身体断开和新身体连接。"""
-        return self.body_binding.bind(body_id)
+        current = self.body_binding.bind(body_id)
+        self.nervous_system.bind_body_port(current)
+        return current
 
     def unbind_body(self) -> BodyPort | None:
         """断开并解除当前身体绑定。"""
-        return self.body_binding.unbind()
+        previous = self.body_binding.unbind()
+        self.nervous_system.bind_body_port(None)
+        return previous
 
     @property
     def profile(self) -> CharacterProfile:
@@ -217,6 +240,10 @@ class Elfie:
     def current_body(self) -> BodyPort | None:
         return self.body_binding.current
 
+    def _simulation_time(self) -> float:
+        """Return the compatibility loop's single simulation timestamp."""
+        return self.elapsed_time
+
     def tick(self, dt: float):
         """
         由世界引擎（或主周期）定时驱动的精灵生理与时间相角 Tick
@@ -224,11 +251,11 @@ class Elfie:
         """
         self.elapsed_time += dt
 
-        # (A) 下丘脑生理钟时钟钟摆 Tick 衰减
-        self.hypothalamus.update_clock(dt)
+        # (A) 下丘脑与情绪共享同一个绝对仿真时间。
+        self.hypothalamus.advance_to(self.elapsed_time)
 
-        # (B) 杏仁核情绪自然半衰期衰减
-        self.emotion_decay.decay_emotions(self.amygdala, dt)
+        # (B) 杏仁核按同一时间边界自然半衰期衰减。
+        self.amygdala.advance_to(self.elapsed_time)
 
         # (C) 检查情绪变化，发送表达事件到 Godot
         self._send_emotion_expression()
@@ -270,7 +297,8 @@ class Elfie:
         body = self.current_body
         events = list(body.read_events()) if body is not None else []
         events.extend(additional_events)
-        return self.nervous_system.receive(events)
+        body_id = BodyId(body.describe().body_id if body is not None else "unbound")
+        return self.nervous_system.receive_legacy(events, body_id=body_id)
 
     def execute_body_command(self, command: BodyCommand) -> CommandResult:
         """通过神经系统的唯一控制出口驱动当前身体。"""

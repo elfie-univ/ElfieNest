@@ -1,25 +1,43 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, Optional, Tuple
 
+from elfie.body.contracts import BodyId, BodySensorEvent, EmergencyStopCommand
 from elfie.body.native.anatomy.base import SomaticAnatomy, VoiceProfile
 from elfie.body.port import BodyPort
 from elfie.body.types import BodyCommand, BodyEvent, CommandResult
+from elfie.brain.perception_types import IngestReceipt
+from elfie.brain.workspace_ports import PerceptionSink
+from elfie.message_types import ElfieId
 from elfie.nervous_system.actuators import (
     MotionActuator,
     MutterActuator,
     SpeechActuator,
 )
+from elfie.nervous_system.legacy_perception import adapt_legacy_body_events
+from elfie.nervous_system.perception_bridge import BodyPerceptionBridge
+from elfie.nervous_system.perception_normalizer import BodyPerceptionNormalizer
 from elfie.nervous_system.physical_limits import PhysicalLimitsReflex
 from elfie.nervous_system.reflex import SomaticReflexArc
 from elfie.nervous_system.sensors import AudioSensor, EnvironmentSensor, VisionSensor
 from elfie.nervous_system.signal_filter import SensoryDamSignalFilter
 
 
+class PerceptionBridgeNotConfiguredError(RuntimeError):
+    """Raised when typed Body input arrives before sink injection."""
+
+
 class NervousSystem:
     """统一大脑与身体之间的感知、反射、校验和动作传递入口。"""
 
-    def __init__(self, capabilities_config: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        capabilities_config: Optional[Dict[str, Any]] = None,
+        *,
+        perception_sink: Optional[PerceptionSink] = None,
+        elfie_id: Optional[ElfieId] = None,
+        body_port: Optional[BodyPort] = None,
+    ) -> None:
         self.vision_sensor = VisionSensor()
         self.audio_sensor = AudioSensor()
         self.environment_sensor = EnvironmentSensor()
@@ -31,67 +49,126 @@ class NervousSystem:
         self.signal_filter = SensoryDamSignalFilter()
         self.physical_limits = PhysicalLimitsReflex(capabilities_config)
         self.reflex = SomaticReflexArc()
-
-    def receive(self, events: Iterable[BodyEvent]) -> Dict[str, Any]:
-        """把当前身体的一批事件归并为现有认知链使用的感知数据。
-
-        Body 负责把具体来源适配成 ``BodyEvent``；神经系统在这里按感官类别
-        接收并保留事件顺序。返回值暂时维持旧认知链的字典结构，避免重写大脑。
-        """
-        raw_sensor_data: Dict[str, Any] = {"sensory_events": []}
-        heard_messages: List[str] = []
-        image_paths: List[str] = []
-
-        for event in events:
-            payload = dict(event.payload)
-            raw_sensor_data["sensory_events"].append(
-                {
-                    "event_id": event.event_id,
-                    "sensor": event.sensor,
-                    "source": event.source,
-                    "timestamp": event.timestamp,
-                    "payload": payload,
-                }
+        self._perception_bridge: Optional[BodyPerceptionBridge] = None
+        if perception_sink is not None and elfie_id is not None:
+            self._perception_bridge = BodyPerceptionBridge(
+                sink=perception_sink,
+                elfie_id=elfie_id,
+                normalizer=BodyPerceptionNormalizer(elfie_id, self.signal_filter),
+                body_port=body_port,
+            )
+        elif perception_sink is not None or elfie_id is not None:
+            raise PerceptionBridgeNotConfiguredError(
+                "perception_sink and elfie_id must be injected together"
             )
 
-            if event.sensor == "hearing":
-                heard = str(
-                    payload.get("user_message")
-                    or payload.get("transcript")
-                    or payload.get("text")
-                    or ""
-                ).strip()
-                if heard:
-                    heard_messages.append(
-                        self.audio_sensor.receive_virtual_audio(heard, event.source)
-                    )
-            elif event.sensor == "vision":
-                candidates = payload.get("images", payload.get("image_paths", ()))
-                if isinstance(candidates, str):
-                    candidates = (candidates,)
-                image_paths.extend(str(path) for path in candidates if str(path))
-                single_path = payload.get("image") or payload.get("path")
-                if single_path:
-                    image_paths.append(str(single_path))
-            elif event.sensor == "touch":
-                self.environment_sensor.receive_tactile_pulse(
-                    impact_force=float(payload.get("impact_force", 0.0)),
-                    direction=str(payload.get("impact_direction", "none")),
-                    stroke_freq=float(payload.get("gentle_stroke", 0.0)),
-                )
-            elif event.sensor == "environment":
-                self.environment_sensor.update_from_godot_world(payload)
+    @property
+    def pending_count(self) -> int:
+        return self._require_perception_bridge().pending_count
 
-            # 旧认知链仍读取扁平字段；同名字段以最新事件为准，完整事件不会丢失。
-            raw_sensor_data.update(payload)
+    @property
+    def filtered_count(self) -> int:
+        return self._require_perception_bridge().filtered_count
 
-        if heard_messages:
-            raw_sensor_data["has_new_message"] = True
-            raw_sensor_data["user_message"] = "\n".join(heard_messages)
-        if image_paths:
-            raw_sensor_data["images"] = list(dict.fromkeys(image_paths))
+    @property
+    def urgent_revision(self) -> int:
+        return self._require_perception_bridge().urgent_revision
 
-        return raw_sensor_data
+    @property
+    def last_reflex_command(self) -> Optional[EmergencyStopCommand]:
+        return self._require_perception_bridge().last_reflex_command
+
+    def receive_body_events(
+        self,
+        events: Iterable[BodySensorEvent],
+    ) -> Tuple[IngestReceipt, ...]:
+        """Publish a typed Body batch without flattening event identity."""
+        return self._require_perception_bridge().receive(events)
+
+    def receive(self, events: Iterable[BodyEvent]) -> Dict[str, Any]:
+        """Deprecated raw Body adapter retained until the Task 14 migration."""
+        return self.receive_legacy(events, body_id=BodyId("legacy-body"))
+
+    def receive_body_event(
+        self,
+        event: BodySensorEvent,
+    ) -> Tuple[IngestReceipt, ...]:
+        """Process one Body event through reflex, filter, and Brain publish."""
+        return self._require_perception_bridge().receive_body_event(event)
+
+    def receive_legacy(
+        self,
+        events: Iterable[BodyEvent],
+        *,
+        body_id: BodyId,
+    ) -> Dict[str, Any]:
+        """Publish legacy Body events and return their deprecated raw view."""
+        event_batch = tuple(events)
+        self._mirror_legacy_sensors(event_batch)
+        typed_events, raw = adapt_legacy_body_events(event_batch, body_id=body_id)
+        if self._perception_bridge is not None:
+            self.receive_body_events(typed_events)
+        return raw
+
+    def bind_body_port(self, body_port: Optional[BodyPort]) -> None:
+        """Keep the immediate reflex target aligned with the active Body."""
+        self._require_perception_bridge().bind_body_port(body_port)
+
+    def _mirror_legacy_sensors(self, events: Tuple[BodyEvent, ...]) -> None:
+        handlers: Dict[str, Callable[[BodyEvent, Dict[str, Any]], None]] = {
+            "hearing": self._mirror_legacy_hearing,
+            "touch": self._mirror_legacy_touch,
+            "environment": self._mirror_legacy_environment,
+        }
+        for event in events:
+            payload = dict(event.payload)
+            handler = handlers.get(event.sensor)
+            if handler is not None:
+                handler(event, payload)
+
+    def _mirror_legacy_hearing(
+        self,
+        event: BodyEvent,
+        payload: Dict[str, Any],
+    ) -> None:
+        heard = str(
+            payload.get("user_message")
+            or payload.get("transcript")
+            or payload.get("text")
+            or ""
+        ).strip()
+        if heard:
+            self.audio_sensor.receive_virtual_audio(heard, event.source)
+
+    def _mirror_legacy_touch(
+        self,
+        _event: BodyEvent,
+        payload: Dict[str, Any],
+    ) -> None:
+        self.environment_sensor.receive_tactile_pulse(
+            impact_force=float(payload.get("impact_force", 0.0)),
+            direction=str(payload.get("impact_direction", "none")),
+            stroke_freq=float(payload.get("gentle_stroke", 0.0)),
+        )
+
+    def _mirror_legacy_environment(
+        self,
+        _event: BodyEvent,
+        payload: Dict[str, Any],
+    ) -> None:
+        self.environment_sensor.update_from_godot_world(payload)
+
+    def retry_pending(self) -> Tuple[IngestReceipt, ...]:
+        """Retry reliable writes retained after Workspace backpressure."""
+        return self._require_perception_bridge().retry_pending()
+
+    def _require_perception_bridge(self) -> BodyPerceptionBridge:
+        bridge = self._perception_bridge
+        if bridge is None:
+            raise PerceptionBridgeNotConfiguredError(
+                "typed perception bridge is not configured"
+            )
+        return bridge
 
     def control(self, body: BodyPort, command: BodyCommand) -> CommandResult:
         """把已校验的语义动作交给当前身体执行。

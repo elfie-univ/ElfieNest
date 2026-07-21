@@ -48,6 +48,15 @@ class CommunicationInbox:
             self._pending.append(envelope)
             self._history.append(envelope)
 
+    def mark_cognitive_delivery(self, envelope: CommunicationEnvelope) -> bool:
+        """Remove an envelope after the perception boundary retains it."""
+        with self._lock:
+            try:
+                self._pending.remove(envelope)
+            except ValueError:
+                return False
+        return True
+
     def drain(self, limit: Optional[int] = None) -> List[CommunicationEnvelope]:
         """Remove up to ``limit`` pending envelopes in arrival order."""
         with self._lock:

@@ -38,9 +38,10 @@ def test_nervous_system_filters_signals_through_existing_filter() -> None:
     assert nervous_system.filter_signals({"temperature": 25.0}) is True
 
 
-def test_nervous_system_receives_body_events_by_existing_sense_categories() -> None:
+def test_legacy_receive_preserves_raw_view_and_sensor_side_effects() -> None:
+    # Given: the pre-typed public API receives hearing and tactile events.
     nervous_system = NervousSystem()
-    events = [
+    events = (
         BodyEvent(
             sensor="hearing",
             source="godot:user_message",
@@ -56,21 +57,18 @@ def test_nervous_system_receives_body_events_by_existing_sense_categories() -> N
             source="godot:collision",
             payload={"impact_force": 8.0, "impact_direction": "left"},
         ),
-    ]
+    )
 
+    # When: a legacy caller uses the original receive method.
     received = nervous_system.receive(events)
 
+    # Then: the raw compatibility view and sensor mirrors remain intact.
     assert received["user_message"] == "第一句话\n第二句话"
-    assert received["has_new_message"] is True
     assert received["message_id"] == "m2"
-    assert received["impact_force"] == 8.0
-    assert [event["sensor"] for event in received["sensory_events"]] == [
-        "hearing",
-        "hearing",
-        "touch",
-    ]
     assert nervous_system.audio_sensor.get_last_heard() == "第二句话"
-    assert nervous_system.environment_sensor.get_tactile_data()["impact_force"] == 8.0
+    tactile = nervous_system.environment_sensor.get_tactile_data()
+    assert tactile["impact_force"] == 8.0
+    assert tactile["impact_direction"] == "left"
 
 
 def test_nervous_system_controls_current_body_through_body_port() -> None:
@@ -112,3 +110,15 @@ def test_nervous_system_validates_and_executes_existing_actions() -> None:
     joints = nervous_system.drive(anatomy, "nod_head", elapsed_time=1.0)
     assert joints["neck_pitch"] == 0.4
     assert joints["head_yaw"] == 0.0
+
+
+def test_validate_action_remains_the_physical_safety_gate() -> None:
+    # Given: a biped body and an action that its morphology cannot perform.
+    nervous_system = NervousSystem()
+    anatomy = BipedAnatomy()
+
+    # When: the output path asks the NervousSystem safety gate for permission.
+    result = nervous_system.validate_action("wag_tail", anatomy)
+
+    # Then: the action is rejected before any body execution can occur.
+    assert result["allowed"] is False

@@ -2,11 +2,22 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, TypedDict
 
 import yaml
 
 logger = logging.getLogger("elfie.brain.emotion.expression_mapper")
+ExpressionConfig = Dict[str, Any]
+
+
+class EmotionExpression(TypedDict):
+    """Legacy expression payload consumed by Body compatibility code."""
+
+    expression: str
+    actions: List[str]
+    voice_modifier: str
+    intensity: float
+    emotion: str
 
 
 class ExpressionMapper:
@@ -39,7 +50,7 @@ class ExpressionMapper:
             logger.error(f"YAML解析错误: {e}，使用默认配置")
             self._config = self._get_default_config()
 
-    def _get_default_config(self) -> dict:
+    def _get_default_config(self) -> ExpressionConfig:
         """获取默认配置"""
         return {
             "emotions": {
@@ -120,7 +131,10 @@ class ExpressionMapper:
         else:
             return "high"
 
-    def get_expression_for_emotions(self, emotions: Dict[str, float]) -> dict:
+    def get_expression_for_emotions(
+        self,
+        emotions: Dict[str, float],
+    ) -> EmotionExpression:
         """根据情绪字典获取表达参数
 
         Args:
@@ -173,7 +187,7 @@ class ExpressionMapper:
             "emotion": dominant_emotion,
         }
 
-    def _get_default_expression(self) -> dict:
+    def _get_default_expression(self) -> EmotionExpression:
         """获取默认表达"""
         assert self._config is not None, "Config should be loaded in __new__"
         default = self._config.get("default_expression", {})
