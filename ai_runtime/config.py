@@ -142,9 +142,7 @@ DEFAULT_SYSTEM_SETTINGS: Dict[str, Dict[str, Any]] = {
     },
     "engine": {
         "tick_interval_sec": 1.5,
-        "tts_enabled": True,
         "max_elfies_per_room": None,
-        "default_tts_voice": "zh-CN-XiaoxiaoNeural",
     },
     "security": {
         "session_ttl_days": 7,

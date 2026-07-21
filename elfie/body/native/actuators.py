@@ -91,7 +91,6 @@ class NativeActuators:
                     "speak_event",
                     {
                         "text": speech,
-                        "audio_url": str(parameters.get("audio_url", "")),
                         "emotion": str(parameters.get("emotion", "")),
                     },
                 )

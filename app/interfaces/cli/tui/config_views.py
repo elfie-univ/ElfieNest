@@ -6,14 +6,21 @@ import urllib.error
 import urllib.request
 from typing import Final
 
-from app.interfaces.cli.tui.common import clear_screen, print_banner
-from app.features.configuration.provider_service import list_configured_provider_rows
-from app.features.configuration.user_config import UserConfig, read_user_config, write_user_config
-from app.features.administration.system_service import DatabaseUnavailableError, collect_usage_stats
 from ai_runtime.config import DEFAULT_SYSTEM_SETTINGS, LLMRuntimeConfig
 from ai_runtime.models.catalog import verify_provider
 from ai_runtime.providers.profiles import get_profile
 from ai_runtime.storage.data_home import get_config_path
+from app.features.administration.system_service import (
+    DatabaseUnavailableError,
+    collect_usage_stats,
+)
+from app.features.configuration.provider_service import list_configured_provider_rows
+from app.features.configuration.user_config import (
+    UserConfig,
+    read_user_config,
+    write_user_config,
+)
+from app.interfaces.cli.tui.common import clear_screen, print_banner
 
 CONFIG_FILE: Final = str(get_config_path())
 
@@ -40,7 +47,6 @@ def show_config(config: UserConfig) -> None:
     engine = config.get("system", {}).get("engine", {})
     print("  【引擎配置】")
     print(f"    Tick 间隔: {engine.get('tick_interval_sec', 1.5)} 秒")
-    print(f"    TTS 启用: {engine.get('tts_enabled', True)}")
     print(f"    房间精灵上限: {engine.get('max_elfies_per_room', 10)}")
     print()
 

@@ -125,8 +125,8 @@ class NervousSystem:
         return self.physical_limits.intercept_and_validate(action_name, anatomy)
 
     def speak(self, text: str, voice_profile: Optional[VoiceProfile] = None) -> str:
-        """把说话意图交给发声执行器。"""
-        return self.speech_actuator.synthesize_speech(text, voice_profile)
+        """把说话意图交给文本发言执行器。"""
+        return self.speech_actuator.speak(text)
 
     def drive(
         self,

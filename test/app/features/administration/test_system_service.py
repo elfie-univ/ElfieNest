@@ -16,7 +16,7 @@ from app.infrastructure.persistence.store import get_db, init_db
 from test.app.interfaces.api._helpers import create_test_owner
 
 
-def test_default_port_statuses_include_audio_server(monkeypatch) -> None:
+def test_default_port_statuses_include_application_services(monkeypatch) -> None:
     calls: list[tuple[int, str]] = []
 
     def fake_check_port(port: int, name: str):
@@ -31,7 +31,6 @@ def test_default_port_statuses_include_audio_server(monkeypatch) -> None:
         (8000, "HTTP 服务"),
         (8766, "WebSocket (管理)"),
         (8765, "WebSocket (Godot)"),
-        (8767, "音频服务器"),
     ]
 
 
@@ -44,13 +43,12 @@ def test_service_port_statuses_uses_custom_http_and_ws_ports(monkeypatch) -> Non
 
     monkeypatch.setattr("app.features.administration.system_service.check_port", fake_check_port)
 
-    service_port_statuses(8100, 8866, 8768, 8769)
+    service_port_statuses(8100, 8866, 8768)
 
     assert calls == [
         (8100, "HTTP 服务"),
         (8866, "WebSocket (管理)"),
         (8768, "WebSocket (Godot)"),
-        (8769, "音频服务器"),
     ]
 
 

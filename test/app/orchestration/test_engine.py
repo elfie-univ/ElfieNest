@@ -10,7 +10,7 @@ from nest import NestFullError
 @pytest.fixture
 def engine() -> ElfieNestEngine:
     with patch("app.orchestration.engine.GodotAPIServer"):
-        return ElfieNestEngine(ws_port=18765, http_port=18000)
+        return ElfieNestEngine(ws_port=18765)
 
 
 @pytest.fixture
@@ -28,13 +28,8 @@ def mock_elfie() -> MagicMock:
 
 
 def test_engine_owns_nest_and_session(engine: ElfieNestEngine) -> None:
-    # Given / When
-    http_port = engine.http_port
-
-    # Then
     assert engine.nest is not None
     assert engine.session.nest is engine.nest
-    assert http_port == 18000
 
 
 def test_session_owns_real_elfie_instances(
@@ -97,12 +92,19 @@ def test_engine_configuration_is_preserved() -> None:
     with patch("app.orchestration.engine.GodotAPIServer"):
         engine = ElfieNestEngine(
             tick_interval_sec=2.5,
-            tts_enabled=False,
             max_elfies_per_room=3,
         )
 
     # Then
     assert engine.tick_interval_sec == 2.5
-    assert engine.tts_enabled is False
     assert engine.nest.state.config.max_residents == 3
-    assert engine._synthesize_voice("elfie-1", "hello") is None
+
+
+def test_engine_initialization_does_not_create_repository_data_dir(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    with patch("app.orchestration.engine.GodotAPIServer"):
+        ElfieNestEngine()
+
+    assert not (tmp_path / "data").exists()

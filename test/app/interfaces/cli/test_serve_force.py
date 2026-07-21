@@ -8,23 +8,23 @@ from scripts.serve import remaining_occupied_ports
 
 def test_force_cleanup_reports_ports_still_occupied() -> None:
     # Given
-    occupied = ((8000, "HTTP"), (8766, "WebSocket"), (8767, "音频服务器"))
+    occupied = ((8000, "HTTP"), (8766, "WebSocket"), (8765, "Godot WebSocket"))
 
     # When
     remaining = remaining_occupied_ports(
         occupied,
-        lambda port: port in {8766, 8767},
+        lambda port: port in {8766, 8765},
     )
 
     # Then
-    assert remaining == [(8766, "WebSocket"), (8767, "音频服务器")]
+    assert remaining == [(8766, "WebSocket"), (8765, "Godot WebSocket")]
 
 
 def test_dashboard_e2e_uses_distinct_service_ports() -> None:
-    ports = find_distinct_free_ports(4)
+    ports = find_distinct_free_ports(3)
 
-    assert len(ports) == 4
-    assert len(set(ports)) == 4
+    assert len(ports) == 3
+    assert len(set(ports)) == 3
 
 
 def test_python_core_does_not_start_godot_processes() -> None:

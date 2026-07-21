@@ -15,7 +15,6 @@ dependencies = [
     "uvicorn>=0.27.0",
     "python-multipart>=0.0.9",
     "PyYAML>=6.0.1",
-    "edge-tts>=6.1.9",
 ]
 
 [project.optional-dependencies]

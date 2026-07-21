@@ -576,8 +576,6 @@ class TestAdoptRoomFull:
             engine = ElfieNestEngine(
                 max_elfies_per_room=1,
                 ws_port=18772,
-                http_port=18007,
-                tts_enabled=False,
             )
         engine.session.register_elfie("existing", MagicMock(spec=Elfie))
 

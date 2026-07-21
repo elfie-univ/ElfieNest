@@ -2,7 +2,7 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 PYTHON_VERSION_FILE="$SCRIPT_DIR/.python-version"
-RUNTIME_DEPENDENCY_CHECK='import edge_tts, fastapi, httpx, multipart, pydantic, rich, uvicorn, websockets, yaml'
+RUNTIME_DEPENDENCY_CHECK='import fastapi, httpx, multipart, pydantic, rich, uvicorn, websockets, yaml'
 
 if [ ! -f "$PYTHON_VERSION_FILE" ]; then
     echo "  ❌ 缺少 Python 版本文件: $PYTHON_VERSION_FILE" >&2
@@ -108,9 +108,7 @@ show_help() {
     echo "    serve --force          强制接管冲突端口"
     echo "    serve --port <端口>    指定 HTTP 端口"
     echo "    serve --ws-port <端口> 指定 WebSocket 端口"
-    echo "    serve --audio-port <端口> 指定音频端口"
     echo "    start --port <端口>    后台启动时指定 HTTP 端口"
-    echo "    start --audio-port <端口> 后台启动时指定音频端口"
     echo "    start --fallback       后台启动时使用内置引擎"
     echo ""
     echo "  ┌─────────────────────────────────────────────────────────┐"

@@ -173,9 +173,9 @@ test/
 
 ## Godot Integration
 
-The engine runs dual servers:
-- **HTTP port 8000**: Static audio file serving (edge-tts synthesized speech)
-- **WebSocket port 8765**: Real-time bidirectional communication with Godot client
+The engine uses **WebSocket port 8765** for real-time bidirectional communication
+with the Godot client. Elfie replies are text events; external messaging channels
+may add on-demand voice generation in their own adapters when required.
 
 When Godot connects, actions are sent as `go_to`, `speak_event` events. Without Godot, runs in terminal-only mode.
 

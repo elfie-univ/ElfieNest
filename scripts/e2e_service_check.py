@@ -10,7 +10,6 @@ import os
 import sys
 import threading
 import time
-import urllib.request
 
 # 确保能导入 elfienest 等模块
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -25,10 +24,10 @@ logger = logging.getLogger("e2e_check")
 
 import websockets
 
-from elfie import ElfieFactory
-from app.orchestration.engine import ElfieNestEngine
-from nest.godot.api import GodotAPIServer
 from ai_runtime import LLMRuntimeConfig, RuntimeAgent
+from app.orchestration.engine import ElfieNestEngine
+from elfie import ElfieFactory
+from nest.godot.api import GodotAPIServer
 
 # ---------------------------------------------------------------------------
 # Monkey-patch: websockets >= 14 的 serve() 要求事件循环已运行，
@@ -152,17 +151,6 @@ async def async_client_test(engine):
     return results
 
 
-def check_http_port() -> bool:
-    """检查 HTTP 端口 8000 是否可达。"""
-    try:
-        req = urllib.request.Request("http://127.0.0.1:8000/", method="GET")
-        with urllib.request.urlopen(req, timeout=5.0) as resp:
-            return resp.status == 200
-    except Exception as e:
-        logger.warning(f"⚠️ HTTP 检查异常: {e}")
-        return False
-
-
 def main():
     logger.info(
         "========================================================================="
@@ -182,7 +170,7 @@ def main():
             ollama_host="http://localhost:11434", ollama_model_fast="qwen3.5:0.8b"
         )
         runtime_agent = RuntimeAgent(config)
-        engine = ElfieNestEngine(ws_port=8765, http_port=8000)
+        engine = ElfieNestEngine(ws_port=8765)
         elfie = ElfieFactory().create(
             elfie_id="艾菲",
             godot_api=engine.api_server,
@@ -203,13 +191,10 @@ def main():
         sys.exit(1)
     engine = engine_holder["engine"]
 
-    # 再等 WS/HTTP 服务完全启动
+    # 再等 WebSocket 服务完全启动
     time.sleep(2.0)
 
-    # 3. 在引擎仍在运行时检查 HTTP 端口（避免引擎结束后端口已关闭）
-    http_ok = check_http_port()
-
-    # 4. 跑异步客户端测试
+    # 3. 跑异步客户端测试
     ws_results = {
         "ws_connected": False,
         "register_scene_ok": False,
@@ -232,7 +217,6 @@ def main():
         ("register_scene 握手完成", ws_results.get("register_scene_ok", False)),
         ("收到 physical_impact_event 事件", ws_results.get("physical_impact_event", False)),
         ("收到 speak_event 事件（精灵说话）", ws_results.get("speak_event", False)),
-        ("HTTP 端口 8000 可达", http_ok),
     ]
 
     passed = 0

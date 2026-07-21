@@ -94,7 +94,6 @@ def main() -> None:
     serve_parser.add_argument("--port", type=int, default=None)
     serve_parser.add_argument("--ws-port", type=int, default=None)
     serve_parser.add_argument("--godot-ws-port", type=int, default=None)
-    serve_parser.add_argument("--audio-port", type=int, default=None)
     serve_parser.add_argument("--no-seed-elfie", action="store_true")
 
     start_parser = subparsers.add_parser(
@@ -103,7 +102,6 @@ def main() -> None:
     start_parser.add_argument("--port", type=int, default=None)
     start_parser.add_argument("--ws-port", type=int, default=None)
     start_parser.add_argument("--godot-ws-port", type=int, default=None)
-    start_parser.add_argument("--audio-port", type=int, default=None)
     start_parser.add_argument("--fallback", action="store_true")
     start_parser.add_argument("--no-seed-elfie", action="store_true")
     subparsers.add_parser("status", help="查看服务状态")
@@ -177,8 +175,6 @@ def _service_options_from_args(args: argparse.Namespace) -> tuple[str, ...]:
         options.extend(("--ws-port", str(args.ws_port)))
     if args.godot_ws_port is not None:
         options.extend(("--godot-ws-port", str(args.godot_ws_port)))
-    if args.audio_port is not None:
-        options.extend(("--audio-port", str(args.audio_port)))
     if args.fallback:
         options.append("--fallback")
     if args.no_seed_elfie:

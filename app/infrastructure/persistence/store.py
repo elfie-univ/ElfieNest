@@ -15,13 +15,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator, Optional
 
+from ai_runtime.storage.data_home import get_db_path as _get_db_path
 from app.infrastructure.persistence.schema import (
     CURRENT_SCHEMA_VERSION,
     OwnerSchemaMigrationError,
     initialize_schema,
     migrate_schema,
 )
-from ai_runtime.storage.data_home import get_db_path as _get_db_path
 
 logger = logging.getLogger("app.infrastructure.persistence.store")
 
@@ -85,12 +85,12 @@ def verify_password(password: str, hashed: str) -> bool:
 def init_db(db_path: Optional[str] = None) -> str:
     """Initialize the database and create all required tables.
 
-    Creates the parent ``data/`` directory if it does not exist.  Tables are
-    created with ``CREATE TABLE IF NOT EXISTS`` so the call is idempotent.
+    Creates the configured database parent directory if it does not exist.
+    Tables are created with ``CREATE TABLE IF NOT EXISTS`` so the call is idempotent.
 
     Args:
-        db_path: Path to the SQLite database file.  Defaults to ``data/nest.db``
-            relative to the current working directory.
+        db_path: Path to the SQLite database file. Defaults to
+            ``ELFIE_HOME/nest.db``.
 
     Returns:
         The resolved absolute path of the database file.
@@ -222,7 +222,8 @@ def get_db(db_path: Optional[str] = None) -> Iterator[sqlite3.Connection]:
     cross-thread sharing issues with FastAPI.
 
     Args:
-        db_path: Path to the SQLite database file.  Defaults to ``data/nest.db``.
+        db_path: Path to the SQLite database file. Defaults to
+            ``ELFIE_HOME/nest.db``.
 
     Yields:
         An open :class:`sqlite3.Connection` with ``row_factory`` set to

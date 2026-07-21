@@ -57,9 +57,7 @@ _SECTION_SCHEMAS: Dict[str, Dict[str, Any]] = {
     },
     "engine": {
         "tick_interval_sec": (float, int),
-        "tts_enabled": bool,
         "max_elfies_per_room": (int, type(None)),
-        "default_tts_voice": str,
     },
     "security": {
         "session_ttl_days": int,

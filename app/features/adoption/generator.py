@@ -303,7 +303,6 @@ class ElfieGenerator:
                 "speech": {
                     "enabled": True,
                     "max_words_per_minute": max_wpm,
-                    "tts_provider": "local_system",
                 },
                 "motion": {
                     "enabled": True,

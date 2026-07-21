@@ -96,7 +96,6 @@ def test_restart_command_preserves_custom_ports_and_drops_force() -> None:
         "--ws-port=8866",
         "--godot-ws-port",
         "8768",
-        "--audio-port=8769",
     )
 
     # When
@@ -113,26 +112,22 @@ def test_restart_command_preserves_custom_ports_and_drops_force() -> None:
         "--ws-port=8866",
         "--godot-ws-port",
         "8768",
-        "--audio-port=8769",
     )
     assert http_port == 8100
     assert service_process.service_ports_from_command(restart_command) == (
         8100,
         8768,
         8866,
-        8769,
     )
 
 
-def test_default_service_ports_include_audio_server() -> None:
-    assert 8767 in service_process.DEFAULT_SERVICE_PORTS
+def test_default_service_ports_include_three_application_services() -> None:
+    assert service_process.DEFAULT_SERVICE_PORTS == (8000, 8765, 8766)
 
 
 def test_validate_service_ports_rejects_fixed_port_collisions() -> None:
     assert service_process.validate_service_ports(8000, 8766) is None
-    assert service_process.validate_service_ports(8000, 8767) is not None
     assert service_process.validate_service_ports(8765, 8866) is not None
-    assert service_process.validate_service_ports(8000, 8866, 8765, 8765) is not None
 
 
 def test_validate_service_ports_rejects_out_of_range_values() -> None:
