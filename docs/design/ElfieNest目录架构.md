@@ -64,7 +64,6 @@ app/
 │   └── cli/
 ├── infrastructure/
 │   ├── persistence/
-│   ├── audio/
 │   ├── filesystem/
 │   └── device_identity/
 └── bootstrap/
@@ -73,7 +72,7 @@ app/
 - 产品规则按功能进入 `features/`，不再创建顶层 `domain/` 与 `use_cases/` 双份目录。
 - `orchestration/NestSession` 持有真实精灵实例和唯一 Nest，负责跨模块循环。
 - `interfaces/` 只负责入站解析、鉴权、展示和调用产品功能。
-- `infrastructure/` 实现持久化、音频、文件和设备身份等出站能力。
+- `infrastructure/` 实现持久化、文件和设备身份等出站能力。
 - `bootstrap/` 是组合根，不实现账户、领养、聊天或 Nest 规则。
 
 ## Desktop 与 Godot
