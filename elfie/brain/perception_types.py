@@ -67,6 +67,7 @@ class InternalSignal(str, Enum):
     MEMORY = "memory"
     EMOTION = "emotion"
     HOMEOSTASIS = "homeostasis"
+    PROCESSING_FAILURE = "processing_failure"
 
 
 @unique
@@ -150,6 +151,21 @@ class PerceptionEvent(FrozenContractModel):
     salience: _Salience = 0.5
 
 
+class ProcessingFailureEvent(PerceptionEvent):
+    """Reliable evidence emitted after a frame fails three times."""
+
+    failed_frame_id: EventId
+    failed_cutoff_seq: _Sequence
+    failure_count: _Count
+    failure_reason: _NonBlankText
+
+
+PerceptionJournalEvent: TypeAlias = Union[
+    ProcessingFailureEvent,
+    PerceptionEvent,
+]
+
+
 class PerceptionStateUpdate(FrozenContractModel):
     """A latest-only state-board update with an explicit source revision."""
 
@@ -227,7 +243,7 @@ class PerceptionFrame(FrozenContractModel):
     captured_at: UTCDateTime
     cutoff_seq: _Sequence
     trigger_reason: TriggerReason
-    events: Tuple[PerceptionEvent, ...] = ()
+    events: Tuple[PerceptionJournalEvent, ...] = ()
     state_updates: Tuple[PerceptionStateUpdate, ...] = ()
     media_samples: Tuple[PerceptionMediaSample, ...] = ()
     coalesced: Tuple[CoalescedSummary, ...] = ()
@@ -266,6 +282,7 @@ __all__ = (
     "InternalPayload",
     "InternalSignal",
     "PerceptionEvent",
+    "PerceptionJournalEvent",
     "PerceptionFrame",
     "PerceptionMediaSample",
     "PerceptionPayload",
@@ -273,6 +290,7 @@ __all__ = (
     "PerceptionWrite",
     "PhysicalModality",
     "PhysicalPayload",
+    "ProcessingFailureEvent",
     "SocialPayload",
     "TriggerReason",
 )
