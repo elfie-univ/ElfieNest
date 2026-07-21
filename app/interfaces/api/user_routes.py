@@ -282,6 +282,7 @@ async def adopt_elfie(
         personality_style=(body.get("personality_style") or "").strip(),
         height=(body.get("height") or "").strip(),
         build=(body.get("build") or "").strip(),
+        appearance_overrides=body.get("appearance_overrides", {}),
     )
     engine = getattr(request.app.state, "engine", None)
     try:

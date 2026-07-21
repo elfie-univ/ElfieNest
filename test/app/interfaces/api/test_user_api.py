@@ -437,6 +437,60 @@ class TestAdopt:
         resp = client.get("/api/user/elfies", headers=_headers(tokens["csrf_token"]))
         assert len(resp.json()) == 1
 
+    def test_adoption_persists_explicit_appearance_overrides(
+        self, client: TestClient
+    ) -> None:
+        """完整外貌分组可在初始化时显式指定并保存。"""
+        _create_user_via_owner(client, "appearance-owner")
+        tokens = _login_user(client, "appearance-owner")
+
+        resp = client.post(
+            "/api/user/adopt",
+            json={
+                "name": "银栗",
+                "species_id": "fox",
+                "personality_style": "好奇探索",
+                "height": "standard",
+                "build": "standard",
+                "appearance_overrides": {
+                    "macro": {"stature_z": -1.6, "body_fat_z": 1.4},
+                    "body_bias": {"belly_depth_bias": 0.55},
+                    "coat": {"palette_id": "silver"},
+                },
+            },
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert resp.status_code == 201, resp.text
+        profile_path = Path(resp.json()["config_dir"]) / "profile.yaml"
+        profile = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
+        assert profile["appearance"]["macro"]["stature_z"] == -1.6
+        assert profile["appearance"]["macro"]["body_fat_z"] == 1.4
+        assert profile["appearance"]["body_bias"]["belly_depth_bias"] == 0.55
+        assert profile["appearance"]["coat"]["palette_id"] == "silver"
+
+    def test_adoption_rejects_invalid_appearance_override(
+        self, client: TestClient
+    ) -> None:
+        _create_user_via_owner(client, "invalid-appearance-owner")
+        tokens = _login_user(client, "invalid-appearance-owner")
+
+        resp = client.post(
+            "/api/user/adopt",
+            json={
+                "name": "越界",
+                "species_id": "fox",
+                "personality_style": "好奇探索",
+                "height": "standard",
+                "build": "standard",
+                "appearance_overrides": {"macro": {"stature_z": 9.0}},
+            },
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert resp.status_code == 400
+        assert "stature_z" in resp.text
+
     def test_limit_3_then_409(self, client: TestClient) -> None:
         """3 只上限 → 第 4 次 409。"""
         _create_user_via_owner(client, "alice")

@@ -68,3 +68,50 @@ def test_species_private_traits_do_not_pollute_other_species() -> None:
         "tail_tip_coverage",
         "cheek_ruff_bias",
     }
+
+
+def test_explicit_overrides_control_generated_appearance() -> None:
+    profile = create_visual_profile(
+        elfie_id="configured-fox",
+        display_name="栗子",
+        species_id="fox",
+        seed=42,
+        appearance_overrides={
+            "macro": {
+                "stature_z": 1.75,
+                "frame_size_z": -0.4,
+                "body_fat_z": 1.2,
+                "muscularity_z": 0.3,
+            },
+            "face": {"skull_width_bias": -0.65, "eye_size_bias": 0.4},
+            "coat": {"palette_id": "silver", "eye_color_id": "green"},
+            "species_traits": {"tail_tip_coverage": 0.8},
+        },
+    )
+
+    assert profile.appearance.macro.stature_z == 1.75
+    assert profile.appearance.macro.body_fat_z == 1.2
+    assert profile.appearance.face.skull_width_bias == -0.65
+    assert profile.appearance.face.eye_size_bias == 0.4
+    assert profile.appearance.coat.palette_id == "silver"
+    assert profile.appearance.coat.eye_color_id == "green"
+    assert profile.appearance.species_traits["tail_tip_coverage"] == 0.8
+
+
+def test_overrides_reject_unknown_and_out_of_range_parameters() -> None:
+    for overrides in (
+        {"face": {"unknown_face_control": 0.2}},
+        {"macro": {"stature_z": 2.1}},
+        {"species_traits": {"dog_only_trait": 0.1}},
+    ):
+        try:
+            create_visual_profile(
+                elfie_id="invalid-fox",
+                display_name="越界",
+                species_id="fox",
+                seed=42,
+                appearance_overrides=overrides,
+            )
+        except ValueError:
+            continue
+        raise AssertionError(f"外貌覆盖应被拒绝: {overrides}")
