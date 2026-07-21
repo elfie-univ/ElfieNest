@@ -18,16 +18,16 @@ elfienest version
 
 ```text
 ElfieNest/
+├── ai_runtime/        # AI 模型、粮食策略、工具、安全和运行时实验台
 ├── elfie/             # 一个完整精灵个体：大脑、身体、感知和执行器
 ├── nest/              # 一个完整精灵巢：状态、环境驱动、互动和 Godot 会话
-├── ai_runtime/        # AI 模型、粮食策略、工具、安全和运行时实验台
 ├── app/               # 账户、领养、聊天、管理、接口、持久化和跨模块编排
 ├── desktop/           # Electron 窗口、进程监督、平台适配和打包配置
 ├── godot/             # 独立 Godot 4.6 源项目，不是运行时产物目录
 ├── devtools/          # Elfie、Nest、AI Runtime 的隔离开发实验台
-├── docs/              # 产品、架构、开发和运行文档
 ├── scripts/           # 启动、构建、检查、迁移和发布脚本
 ├── test/              # 与源码模块镜像的测试，以及产品 E2E
+├── docs/              # 产品、架构、开发和运行文档
 ├── build/             # 中间构建产物，Git 忽略
 └── dist/              # DMG、EXE、AppImage 等最终发布物，Git 忽略
 ```
