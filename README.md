@@ -38,6 +38,8 @@ ElfieNest/
 
 定义一个完整 `ElfieIndividual`。情绪、能量、记忆、认知、身体限制、感知和动作能力都属于精灵自身；它不负责账户、房间渲染或桌面生命周期。
 
+`profile.yaml` 是精灵唯一稳定档案；能量、情绪、`elapsed_time` 和当前身体绑定由各模块在进程内维护，恢复精灵时只加载 Profile，并按本次启动参数绑定身体。
+
 ### `nest/`
 
 定义唯一活动空间。`nest/nest.py` 是 App 的公开入口；`state/` 只保存精灵 ID、家具和巢内状态，`engine/` 推进环境时钟，`interaction/` 传播广播、用户消息和触觉事件，`godot/` 维护 Python 侧 Godot 协议。

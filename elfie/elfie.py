@@ -4,7 +4,7 @@ import hashlib
 import logging
 from dataclasses import asdict, replace
 from pathlib import Path
-from typing import Any, Dict, Iterable, Optional, Union
+from typing import Any, Dict, Iterable, Optional
 
 from elfie.body import BipedAnatomy, BodyBinding, BodyRegistry, QuadrupedAnatomy
 from elfie.body.native.anatomy.base import SomaticAnatomy
@@ -33,12 +33,6 @@ from elfie.profile import (
     create_visual_profile,
 )
 from elfie.skills import SkillManager
-from elfie.state import (
-    ElfieState,
-    ElfieStateRepository,
-    capture_elfie_state,
-    restore_elfie_state,
-)
 
 logger = logging.getLogger("elfie.elfie")
 
@@ -66,9 +60,6 @@ class Elfie:
         :param character_profile: 已解析的稳定个体档案；省略时从配置目录加载
         :param body: 可选的身体端口；省略时保持原有直接传感调用路径
         """
-        self._state_config_dir = (
-            Path(config_dir).expanduser() if config_dir is not None else None
-        )
         # 1. 🧠 【大脑认知层】 (Cognition)
         self.brain = NeocortexBrain(config_dir, elfie_id=elfie_id)
 
@@ -627,23 +618,3 @@ class Elfie:
             "communication": self.communication.snapshot(),
             "skills": self.skills.snapshot(),
         }
-
-    def snapshot_state(self) -> ElfieState:
-        return capture_elfie_state(self)
-
-    def restore_state(
-        self,
-        state: ElfieState,
-        *,
-        restore_body: bool = True,
-    ) -> bool:
-        return restore_elfie_state(self, state, restore_body=restore_body)
-
-    def save_state(
-        self,
-        config_dir: Optional[Union[str, Path]] = None,
-    ) -> Path:
-        target = Path(config_dir).expanduser() if config_dir else self._state_config_dir
-        if target is None:
-            raise ValueError("未提供精灵配置目录，无法保存 state.yaml")
-        return ElfieStateRepository(target).save(self.snapshot_state())

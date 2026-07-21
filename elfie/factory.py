@@ -11,7 +11,6 @@ from elfie.communication import CommunicationHub
 from elfie.elfie import Elfie
 from elfie.profile import ElfieProfile, ElfieProfileRepository
 from elfie.skills import SkillManager
-from elfie.state import ElfieStateRepository
 
 ConfigPath = Union[str, Path]
 
@@ -98,14 +97,6 @@ class ElfieFactory:
         )
         if not had_profile:
             profile_repository.save(elfie.profile)
-        state_repository = ElfieStateRepository(path)
-        if state_repository.exists():
-            # 显式传入的身体选择优先于持久状态。
-            restore_body = body is None and current_body_id is None
-            elfie.restore_state(
-                state_repository.load(),
-                restore_body=restore_body,
-            )
         return elfie
 
     @staticmethod
