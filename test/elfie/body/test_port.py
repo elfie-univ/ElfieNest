@@ -9,6 +9,7 @@ from elfie.body import (
     CommandResult,
     CommandStatus,
     HeadlessBody,
+    LegacyBodyPort,
 )
 
 
@@ -61,7 +62,8 @@ class MinimalBody:
 def test_body_port_exposes_one_receive_and_one_control_entry() -> None:
     body = MinimalBody()
 
-    assert isinstance(body, BodyPort)
+    assert isinstance(body, LegacyBodyPort)
+    assert not isinstance(body, BodyPort)
     assert body.read_events() == []
     assert (
         body.execute(BodyCommand(action="face.blink")).status is CommandStatus.COMPLETED

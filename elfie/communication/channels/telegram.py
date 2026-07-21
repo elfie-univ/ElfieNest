@@ -1,8 +1,21 @@
 from __future__ import annotations
 
 import logging
+from functools import singledispatchmethod
 
 from elfie.communication.channel import CommunicationMessage, MessageKind
+from elfie.communication.contracts import (
+    AudioPart,
+    CommunicationEnvelope,
+    ContentPart,
+    DeliveryReceipt,
+    DeliveryStatus,
+    FilePart,
+    ImagePart,
+    ReactionPart,
+    SystemEventPart,
+    TextPart,
+)
 
 logger = logging.getLogger("elfie.communication.channels.telegram")
 
@@ -65,3 +78,52 @@ class TelegramChannel:
                 message.recipient_id, message.content
             )
         return self.connector.send_message(message.recipient_id, message.content)
+
+    def send_envelope(self, envelope: CommunicationEnvelope) -> DeliveryReceipt:
+        """Send every typed part through the existing Telegram connector edge."""
+        for part in envelope.parts:
+            delivered = self._send_part(part, envelope.recipient_id)
+            if not delivered:
+                return DeliveryReceipt.for_envelope(
+                    envelope,
+                    status=DeliveryStatus.FAILED,
+                    error_code="telegram_send_failed",
+                    error_message="Telegram connector 未确认发送成功",
+                    retryable=True,
+                )
+        return DeliveryReceipt.for_envelope(envelope, status=DeliveryStatus.SENT)
+
+    @singledispatchmethod
+    def _send_part(self, part: ContentPart, recipient_id: str) -> bool:
+        raise TypeError(type(part).__name__)
+
+    @_send_part.register
+    def _send_text(self, part: TextPart, recipient_id: str) -> bool:
+        return self.connector.send_message(recipient_id, part.text)
+
+    @_send_part.register
+    def _send_image(self, part: ImagePart, recipient_id: str) -> bool:
+        return self.connector.send_viewport_image(recipient_id, part.media.uri)
+
+    @_send_part.register
+    def _send_audio(self, part: AudioPart, recipient_id: str) -> bool:
+        return self.connector.send_message(recipient_id, part.media.uri)
+
+    @_send_part.register
+    def _send_file(self, part: FilePart, recipient_id: str) -> bool:
+        return self.connector.send_message(recipient_id, part.media.uri)
+
+    @_send_part.register
+    def _send_reaction(self, part: ReactionPart, recipient_id: str) -> bool:
+        return self.connector.send_message(recipient_id, part.reaction)
+
+    @_send_part.register
+    def _send_system_event(
+        self,
+        part: SystemEventPart,
+        recipient_id: str,
+    ) -> bool:
+        return self.connector.send_message(
+            recipient_id,
+            part.description or part.event_name,
+        )

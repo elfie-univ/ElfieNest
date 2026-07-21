@@ -3,8 +3,6 @@
 验证关节安全限位、脑干反射避险/抚慰、信号过滤等设计目标。
 """
 
-import pytest
-
 from elfie import Elfie
 from elfie.body.native.anatomy.biped import BipedAnatomy
 from elfie.nervous_system.signal_filter import SensoryDamSignalFilter

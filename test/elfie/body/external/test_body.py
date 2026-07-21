@@ -1,15 +1,20 @@
+from datetime import datetime, timezone
 from typing import Any, Mapping
 
 from elfie.body import (
     BodyCapabilities,
     BodyCommand,
     BodyEvent,
+    BodyId,
     BodyMode,
     BodyPort,
+    BodySensorEvent,
     CommandResult,
     CommandStatus,
     ExternalBody,
+    UtteranceFinal,
 )
+from elfie.message_types import ActorId, ActorRef, EventId
 
 
 class FakeExternalTransport:
@@ -46,7 +51,7 @@ class FakeExternalTransport:
     def snapshot(self) -> Mapping[str, Any]:
         return {"connected": self.connected}
 
-    def emit(self, event: BodyEvent) -> None:
+    def emit(self, event: BodyEvent | BodySensorEvent) -> None:
         assert self.handler is not None
         self.handler(event)
 
@@ -124,3 +129,42 @@ def test_external_body_rejects_acknowledgement_for_a_different_command() -> None
 
     assert result.status is CommandStatus.FAILED
     assert "与原命令不匹配" in result.error
+
+
+def test_legacy_external_port_characterization_before_contract_migration() -> None:
+    """Given a disconnected external body, rejection never reaches transport."""
+    body, transport = make_external_body()
+
+    result = body.execute(
+        BodyCommand(action="speech.say", command_id="legacy-command")
+    )
+
+    assert body.describe().body_id == "robot-1"
+    assert body.snapshot().connected is False
+    assert result.command_id == "legacy-command"
+    assert result.status is CommandStatus.REJECTED
+    assert transport.commands == []
+
+
+def test_external_sensor_edge_preserves_typed_event_identity() -> None:
+    transport = FakeExternalTransport()
+    body = ExternalBody(
+        body_id="robot-1",
+        display_name="Typed robot",
+        capabilities=BodyCapabilities(sensors=frozenset({"utterance_final"})),
+        transport=transport,
+    )
+    event = BodySensorEvent(
+        event_id=EventId("utterance-1"),
+        body_id=BodyId("robot-1"),
+        source=ActorRef(actor_id=ActorId("owner-1"), source_kind="microphone"),
+        occurred_at=datetime(2026, 7, 21, 8, 0, tzinfo=timezone.utc),
+        received_at=datetime(2026, 7, 21, 8, 0, tzinfo=timezone.utc),
+        payload=UtteranceFinal(kind="utterance_final", text="你好"),
+    )
+    body.connect()
+    transport.emit(event)
+
+    received = body.read_sensor_events()
+
+    assert received == [event]

@@ -47,3 +47,15 @@ def test_headless_body_rejects_action_outside_capabilities() -> None:
 
     assert result.status is CommandStatus.REJECTED
     assert "不支持动作" in result.error
+
+
+def test_legacy_headless_port_characterization_before_contract_migration() -> None:
+    """Given a disconnected legacy body, its identity survives a rejected command."""
+    body = HeadlessBody(body_id="legacy-headless")
+
+    result = body.execute(BodyCommand(action="face.blink", command_id="legacy-command"))
+
+    assert body.describe().body_id == "legacy-headless"
+    assert body.snapshot().connected is False
+    assert result.command_id == "legacy-command"
+    assert result.status is CommandStatus.REJECTED

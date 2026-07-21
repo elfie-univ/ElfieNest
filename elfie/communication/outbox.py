@@ -1,51 +1,61 @@
-"""精灵网络消息的发送结果记录。"""
+"""精灵完整出站 envelope 及类型化投递回执记录。"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
 from threading import Lock
 from typing import Dict, List, Optional
 
-from elfie.communication.channel import CommunicationMessage
+from elfie.communication.contracts import (
+    CommunicationEnvelope,
+    DeliveryReceipt,
+    DeliveryStatus,
+)
 
 
-class DeliveryStatus(str, Enum):
-    SENT = "sent"
-    FAILED = "failed"
+@dataclass(frozen=True, slots=True)
+class ReceiptCorrelationError(ValueError):
+    """A receipt did not identify the envelope being recorded."""
 
-
-@dataclass(frozen=True)
-class DeliveryReceipt:
     message_id: str
-    channel_id: str
-    status: DeliveryStatus
-    error: str = ""
+    receipt_message_id: str
 
-    @property
-    def delivered(self) -> bool:
-        return self.status is DeliveryStatus.SENT
+    def __str__(self) -> str:
+        return (
+            f"receipt message {self.receipt_message_id} does not match "
+            f"envelope {self.message_id}"
+        )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class OutboxEntry:
-    message: CommunicationMessage
+    """One canonical envelope and its latest delivery receipt."""
+
+    message: CommunicationEnvelope
     receipt: DeliveryReceipt
 
 
 class CommunicationOutbox:
+    """Thread-safe canonical outbound history keyed by message identity."""
+
     def __init__(self) -> None:
         self._entries: Dict[str, OutboxEntry] = {}
         self._lock = Lock()
 
     def record(
-        self, message: CommunicationMessage, receipt: DeliveryReceipt
+        self,
+        message: CommunicationEnvelope,
+        receipt: DeliveryReceipt,
     ) -> OutboxEntry:
+        """Record a receipt only when its message identity matches."""
         if receipt.message_id != message.message_id:
-            raise ValueError("发送回执与消息不匹配")
+            raise ReceiptCorrelationError(
+                message_id=str(message.message_id),
+                receipt_message_id=str(receipt.message_id),
+            )
         entry = OutboxEntry(message=message, receipt=receipt)
         with self._lock:
-            self._entries[message.message_id] = entry
+            self._entries[str(message.message_id)] = entry
         return entry
 
     def get(self, message_id: str) -> Optional[OutboxEntry]:
@@ -56,3 +66,12 @@ class CommunicationOutbox:
     def history(self) -> List[OutboxEntry]:
         with self._lock:
             return list(self._entries.values())
+
+
+__all__ = (
+    "CommunicationOutbox",
+    "DeliveryReceipt",
+    "DeliveryStatus",
+    "OutboxEntry",
+    "ReceiptCorrelationError",
+)

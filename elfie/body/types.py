@@ -9,6 +9,28 @@ from typing import Any, Dict, Mapping
 from uuid import uuid4
 
 from elfie.body.capabilities import BodyCapabilities
+from elfie.body.contracts import (
+    BodyCommand as TypedBodyCommand,
+)
+from elfie.body.contracts import (
+    BodyId,
+    BodySensorEvent,
+    BodySnapshot,
+    CommandReceipt,
+    EmergencyStopCommand,
+    EnvironmentSample,
+    ExpressionCommand,
+    MotionCommand,
+    ProprioceptionSample,
+    SpeechCommand,
+    TactileImpact,
+    UtteranceFinal,
+    VisionChange,
+    VisionSample,
+)
+from elfie.body.contracts import (
+    CommandStatus as ReceiptStatus,
+)
 
 
 class BodyMode(str, Enum):
@@ -96,3 +118,41 @@ class BodyState:
             "last_action": self.last_action,
             "metadata": dict(self.metadata),
         }
+
+
+# Explicit compatibility names remain until the Task 14 caller migration.
+LegacyBodyEvent = BodyEvent
+LegacyBodyCommand = BodyCommand
+LegacyCommandResult = CommandResult
+LegacyCommandStatus = CommandStatus
+
+
+__all__ = (
+    "BodyCommand",
+    "BodyDescriptor",
+    "BodyEvent",
+    "BodyId",
+    "BodyMode",
+    "BodySensorEvent",
+    "BodySnapshot",
+    "BodyState",
+    "CommandReceipt",
+    "CommandResult",
+    "CommandStatus",
+    "EmergencyStopCommand",
+    "EnvironmentSample",
+    "ExpressionCommand",
+    "LegacyBodyCommand",
+    "LegacyBodyEvent",
+    "LegacyCommandResult",
+    "LegacyCommandStatus",
+    "MotionCommand",
+    "ProprioceptionSample",
+    "ReceiptStatus",
+    "SpeechCommand",
+    "TactileImpact",
+    "TypedBodyCommand",
+    "UtteranceFinal",
+    "VisionChange",
+    "VisionSample",
+)

@@ -3,6 +3,7 @@
 from elfie.communication.channel import (
     CommunicationChannel,
     CommunicationMessage,
+    LegacyCommunicationChannel,
     MessageDirection,
     MessageKind,
 )
@@ -12,12 +13,24 @@ from elfie.communication.channels import (
     WeChatChannel,
     WeChatConnector,
 )
+from elfie.communication.contracts import (
+    AudioPart,
+    CommunicationEnvelope,
+    ContentPart,
+    DeliveryReceipt,
+    DeliveryStatus,
+    FilePart,
+    ImagePart,
+    InboundDisposition,
+    InboundDispositionStatus,
+    ReactionPart,
+    SystemEventPart,
+    TextPart,
+)
 from elfie.communication.hub import CommunicationHub
 from elfie.communication.inbox import CommunicationInbox
 from elfie.communication.outbox import (
     CommunicationOutbox,
-    DeliveryReceipt,
-    DeliveryStatus,
     OutboxEntry,
 )
 from elfie.communication.policy import CommunicationPolicy, CommunicationPolicyError
@@ -28,9 +41,20 @@ from elfie.communication.router import (
 
 __all__ = [
     "CommunicationChannel",
+    "LegacyCommunicationChannel",
     "CommunicationMessage",
+    "CommunicationEnvelope",
+    "ContentPart",
     "MessageDirection",
     "MessageKind",
+    "TextPart",
+    "ImagePart",
+    "AudioPart",
+    "FilePart",
+    "ReactionPart",
+    "SystemEventPart",
+    "InboundDisposition",
+    "InboundDispositionStatus",
     "CommunicationInbox",
     "CommunicationOutbox",
     "DeliveryReceipt",

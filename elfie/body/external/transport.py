@@ -3,11 +3,24 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, Mapping, Protocol, runtime_checkable
+from typing import Any, Mapping, Protocol, Union, runtime_checkable
 
-from elfie.body.types import BodyCommand, BodyEvent, CommandResult
+from elfie.body.contracts import (
+    BodyCommand,
+    BodySensorEvent,
+    CommandReceipt,
+)
+from elfie.body.types import (
+    BodyCommand as LegacyBodyCommand,
+)
+from elfie.body.types import (
+    BodyEvent,
+)
+from elfie.body.types import (
+    CommandResult as LegacyCommandResult,
+)
 
-ExternalEventHandler = Callable[[BodyEvent], None]
+ExternalEventHandler = Callable[[Union[BodyEvent, BodySensorEvent]], None]
 
 
 @runtime_checkable
@@ -20,6 +33,8 @@ class ExternalTransport(Protocol):
 
     def disconnect(self) -> None: ...
 
-    def send_command(self, command: BodyCommand) -> CommandResult: ...
+    def send_command(
+        self, command: LegacyBodyCommand | BodyCommand
+    ) -> LegacyCommandResult | CommandReceipt: ...
 
     def snapshot(self) -> Mapping[str, Any]: ...

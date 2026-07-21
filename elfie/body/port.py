@@ -2,15 +2,26 @@
 
 from __future__ import annotations
 
-from typing import List, Protocol, runtime_checkable
+from datetime import datetime
+from typing import List, Protocol, Tuple, runtime_checkable
 
 from elfie.body.capabilities import BodyCapabilities
-from elfie.body.types import (
+from elfie.body.contracts import (
     BodyCommand,
+    BodySensorEvent,
+    BodySnapshot,
+    CommandReceipt,
+)
+from elfie.body.types import (
+    BodyCommand as LegacyBodyCommand,
+)
+from elfie.body.types import (
     BodyDescriptor,
     BodyEvent,
     BodyState,
-    CommandResult,
+)
+from elfie.body.types import (
+    CommandResult as LegacyCommandResult,
 )
 
 
@@ -18,14 +29,16 @@ from elfie.body.types import (
 class SensorPort(Protocol):
     """身体实现内部使用的传感事件队列。"""
 
-    def read_events(self) -> List[BodyEvent]: ...
+    def read_sensor_events(self) -> List[BodySensorEvent]: ...
 
 
 @runtime_checkable
 class ActuatorPort(Protocol):
     """身体实现内部使用的动作执行器。"""
 
-    def execute(self, command: BodyCommand) -> CommandResult: ...
+    def execute(
+        self, command: BodyCommand, *, now: datetime | None = None
+    ) -> Tuple[CommandReceipt, ...]: ...
 
 
 @runtime_checkable
@@ -45,10 +58,32 @@ class BodyPort(Protocol):
 
     def describe(self) -> BodyDescriptor: ...
 
+    def read_sensor_events(self) -> List[BodySensorEvent]: ...
+
+    def execute(
+        self, command: BodyCommand, *, now: datetime | None = None
+    ) -> Tuple[CommandReceipt, ...]: ...
+
+    def snapshot_body(self, *, now: datetime | None = None) -> BodySnapshot: ...
+
+
+@runtime_checkable
+class LegacyBodyPort(Protocol):
+    """Compatibility protocol for callers migrating in Task 14."""
+
+    body_id: str
+    capabilities: BodyCapabilities
+
+    def connect(self) -> None: ...
+
+    def disconnect(self) -> None: ...
+
+    def describe(self) -> BodyDescriptor: ...
+
     def read_events(self) -> List[BodyEvent]: ...
 
-    def execute(self, command: BodyCommand) -> CommandResult: ...
+    def execute(self, command: LegacyBodyCommand) -> LegacyCommandResult: ...
 
     def snapshot(self) -> BodyState: ...
 
-    def emergency_stop(self) -> CommandResult: ...
+    def emergency_stop(self) -> LegacyCommandResult: ...

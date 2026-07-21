@@ -3,12 +3,15 @@ from typing import Any, Callable, Dict, List
 from elfie import Elfie
 from elfie.body import (
     BodyCommand,
+    BodyId,
     BodyMode,
     BodyPort,
     CommandStatus,
     GodotTransport,
     NativeBody,
+    UtteranceFinal,
 )
+from elfie.message_types import ActorId, EventId
 
 
 class MockRuntimeAgent:
@@ -198,3 +201,37 @@ def test_elfie_emotion_expression_uses_current_body_instead_of_direct_godot_api(
     payload = gateway.sent[-1]["payload"]
     assert payload["elfie_id"] == "elfie-1"
     assert payload["expression"] == elfie.amygdala.get_expression()["expression"]
+
+
+def test_legacy_native_port_characterization_before_contract_migration() -> None:
+    """Given a disconnected native body, rejection never reaches Godot."""
+    body, gateway = make_body(body_id="legacy-native")
+
+    result = body.execute(BodyCommand(action="blink_eyes", command_id="legacy-command"))
+
+    assert body.describe().body_id == "legacy-native"
+    assert body.snapshot().connected is False
+    assert result.command_id == "legacy-command"
+    assert result.status is CommandStatus.REJECTED
+    assert gateway.sent == []
+
+
+def test_native_sensor_edge_preserves_wire_identity() -> None:
+    body, gateway = make_body()
+    body.connect()
+    gateway.emit(
+        "user_message",
+        {
+            "elfie_id": "elfie-1",
+            "message": "你好",
+            "message_id": "utterance-1",
+            "actor_id": "owner-1",
+        },
+    )
+
+    event = body.read_sensor_events()[0]
+
+    assert event.event_id == EventId("utterance-1")
+    assert event.body_id == BodyId("elfie-1")
+    assert event.source.actor_id == ActorId("owner-1")
+    assert isinstance(event.payload, UtteranceFinal)

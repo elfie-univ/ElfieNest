@@ -1,28 +1,55 @@
-"""精灵的网络消息收件箱。"""
+"""精灵完整通信 envelope 的线程安全收件箱。"""
 
 from __future__ import annotations
 
 from collections import deque
+from dataclasses import dataclass
 from threading import Lock
-from typing import Deque, List, Optional
+from typing import Deque, List, Optional, Set, Tuple
 
-from elfie.communication.channel import CommunicationMessage, MessageDirection
+from elfie.communication.contracts import CommunicationEnvelope, MessageDirection
+
+
+@dataclass(frozen=True, slots=True)
+class InboxDirectionError(ValueError):
+    """An outbound envelope was offered to the inbound store."""
+
+    direction: MessageDirection
+
+    def __str__(self) -> str:
+        return f"inbox only accepts inbound envelopes, got {self.direction.value}"
 
 
 class CommunicationInbox:
+    """Canonical envelope storage with an atomic replay identity boundary."""
+
     def __init__(self) -> None:
-        self._pending: Deque[CommunicationMessage] = deque()
-        self._history: List[CommunicationMessage] = []
+        self._pending: Deque[CommunicationEnvelope] = deque()
+        self._history: List[CommunicationEnvelope] = []
+        self._seen_identities: Set[Tuple[str, str]] = set()
         self._lock = Lock()
 
-    def receive(self, message: CommunicationMessage) -> None:
-        if message.direction is not MessageDirection.INBOUND:
-            raise ValueError("收件箱只接受 inbound 消息")
+    def claim_identity(self, envelope: CommunicationEnvelope) -> bool:
+        """Atomically reserve dedupe and external identities once."""
+        identities = [("dedupe", envelope.dedupe_key)]
+        if envelope.external_message_id is not None:
+            identities.append(("external", envelope.external_message_id))
         with self._lock:
-            self._pending.append(message)
-            self._history.append(message)
+            if any(identity in self._seen_identities for identity in identities):
+                return False
+            self._seen_identities.update(identities)
+        return True
 
-    def drain(self, limit: Optional[int] = None) -> List[CommunicationMessage]:
+    def receive(self, envelope: CommunicationEnvelope) -> None:
+        """Store a validated, admitted inbound envelope."""
+        if envelope.direction is not MessageDirection.INBOUND:
+            raise InboxDirectionError(direction=envelope.direction)
+        with self._lock:
+            self._pending.append(envelope)
+            self._history.append(envelope)
+
+    def drain(self, limit: Optional[int] = None) -> List[CommunicationEnvelope]:
+        """Remove up to ``limit`` pending envelopes in arrival order."""
         with self._lock:
             count = len(self._pending) if limit is None else max(0, limit)
             messages = []
@@ -36,6 +63,9 @@ class CommunicationInbox:
             return len(self._pending)
 
     @property
-    def history(self) -> List[CommunicationMessage]:
+    def history(self) -> List[CommunicationEnvelope]:
         with self._lock:
             return list(self._history)
+
+
+__all__ = ("CommunicationInbox", "InboxDirectionError")

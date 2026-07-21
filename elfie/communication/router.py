@@ -1,36 +1,98 @@
-"""通信通道注册和出站路由。"""
+"""通信通道注册和完整 envelope 出站路由。"""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from threading import RLock
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
-from elfie.communication.channel import CommunicationChannel, CommunicationMessage
-from elfie.communication.outbox import DeliveryReceipt, DeliveryStatus
+from elfie.communication.channel import (
+    CommunicationChannel,
+    CommunicationMessage,
+    LegacyCommunicationChannel,
+)
+from elfie.communication.contracts import (
+    CommunicationEnvelope,
+    DeliveryReceipt,
+    DeliveryStatus,
+)
+
+RegisteredChannel = Union[CommunicationChannel, LegacyCommunicationChannel]
 
 
+class LegacyChannelAdapter:
+    """Make a historical bool-returning channel satisfy the envelope protocol."""
+
+    def __init__(self, channel: LegacyCommunicationChannel) -> None:
+        self._channel = channel
+        self.channel_id = channel.channel_id
+
+    @property
+    def is_connected(self) -> bool:
+        return self._channel.is_connected
+
+    def connect(self) -> bool:
+        return self._channel.connect()
+
+    def disconnect(self) -> None:
+        self._channel.disconnect()
+
+    def send_envelope(self, envelope: CommunicationEnvelope) -> DeliveryReceipt:
+        delivered = self._channel.send(CommunicationMessage.from_envelope(envelope))
+        if not delivered:
+            return DeliveryReceipt.for_envelope(
+                envelope,
+                status=DeliveryStatus.FAILED,
+                error_code="send_not_confirmed",
+                error_message="通信通道未确认发送成功",
+                retryable=True,
+            )
+        return DeliveryReceipt.for_envelope(envelope, status=DeliveryStatus.SENT)
+
+
+@dataclass(frozen=True, slots=True)
 class ChannelRegistrationError(ValueError):
-    """通道没有实现协议或标识发生冲突。"""
+    """A channel is incomplete or conflicts with an existing registration."""
+
+    reason: str
+
+    def __str__(self) -> str:
+        return self.reason
+
+
+@dataclass(frozen=True, slots=True)
+class ChannelNotFoundError(KeyError):
+    """A requested channel ID is absent from the registry."""
+
+    channel_id: str
+
+    def __str__(self) -> str:
+        return f"通信通道未注册: {self.channel_id}"
 
 
 class CommunicationRouter:
+    """Thread-safe channel registry and typed routing boundary."""
+
     def __init__(self) -> None:
         self._channels: Dict[str, CommunicationChannel] = {}
         self._lock = RLock()
 
     def register(
-        self, channel: CommunicationChannel, *, replace: bool = False
-    ) -> CommunicationChannel:
-        if not isinstance(channel, CommunicationChannel):
-            raise ChannelRegistrationError("通道没有完整实现 CommunicationChannel")
-        channel_id = str(channel.channel_id).strip()
+        self,
+        channel: RegisteredChannel,
+        *,
+        replace: bool = False,
+    ) -> RegisteredChannel:
+        """Register either the canonical or explicit Task 14 compatibility port."""
+        canonical = self._canonical_channel(channel)
+        channel_id = str(canonical.channel_id).strip()
         if not channel_id:
-            raise ChannelRegistrationError("channel_id 不能为空")
+            raise ChannelRegistrationError(reason="channel_id 不能为空")
         with self._lock:
             existing = self._channels.get(channel_id)
             if existing is not None and existing is not channel and not replace:
-                raise ChannelRegistrationError(f"通信通道已经注册: {channel_id}")
-            self._channels[channel_id] = channel
+                raise ChannelRegistrationError(reason=f"通信通道已经注册: {channel_id}")
+            self._channels[channel_id] = canonical
         return channel
 
     def unregister(self, channel_id: str) -> CommunicationChannel:
@@ -38,7 +100,7 @@ class CommunicationRouter:
             try:
                 return self._channels.pop(channel_id)
             except KeyError as exc:
-                raise KeyError(f"通信通道未注册: {channel_id}") from exc
+                raise ChannelNotFoundError(channel_id=channel_id) from exc
 
     def get(self, channel_id: str) -> Optional[CommunicationChannel]:
         with self._lock:
@@ -51,36 +113,78 @@ class CommunicationRouter:
     def connect(self, channel_id: str) -> bool:
         channel = self.get(channel_id)
         if channel is None:
-            raise KeyError(f"通信通道未注册: {channel_id}")
+            raise ChannelNotFoundError(channel_id=channel_id)
         return channel.connect()
 
     def disconnect_all(self) -> None:
         for channel in self.list_channels():
             channel.disconnect()
 
-    def route(self, message: CommunicationMessage) -> DeliveryReceipt:
-        channel = self.get(message.channel_id)
+    def route(self, envelope: CommunicationEnvelope) -> DeliveryReceipt:
+        """Send one canonical envelope and normalize every expected failure."""
+        channel = self.get(envelope.channel_id)
         if channel is None:
-            return self._failed(message, f"通信通道未注册: {message.channel_id}")
+            return self._failed(
+                envelope,
+                code="unknown_channel",
+                message=f"通信通道未注册: {envelope.channel_id}",
+            )
         if not channel.is_connected:
-            return self._failed(message, f"通信通道尚未连接: {message.channel_id}")
+            return self._failed(
+                envelope,
+                code="channel_disconnected",
+                message=f"通信通道尚未连接: {envelope.channel_id}",
+                retryable=True,
+            )
         try:
-            delivered = channel.send(message)
-        except Exception as exc:
-            return self._failed(message, f"通信通道发送失败: {exc}")
-        if not delivered:
-            return self._failed(message, "通信通道未确认发送成功")
-        return DeliveryReceipt(
-            message_id=message.message_id,
-            channel_id=message.channel_id,
-            status=DeliveryStatus.SENT,
-        )
+            receipt = channel.send_envelope(envelope)
+        except (OSError, RuntimeError) as exc:
+            return self._failed(
+                envelope,
+                code="channel_send_failed",
+                message=f"通信通道发送失败: {exc}",
+                retryable=True,
+            )
+        if (
+            receipt.message_id != envelope.message_id
+            or receipt.channel_id != envelope.channel_id
+        ):
+            return self._failed(
+                envelope,
+                code="invalid_channel_receipt",
+                message="通信通道返回了不匹配的投递回执",
+            )
+        return receipt
 
     @staticmethod
-    def _failed(message: CommunicationMessage, error: str) -> DeliveryReceipt:
-        return DeliveryReceipt(
-            message_id=message.message_id,
-            channel_id=message.channel_id,
+    def _canonical_channel(channel: RegisteredChannel) -> CommunicationChannel:
+        if isinstance(channel, CommunicationChannel):
+            return channel
+        if isinstance(channel, LegacyCommunicationChannel):
+            return LegacyChannelAdapter(channel)
+        raise ChannelRegistrationError(reason="通道没有完整实现 CommunicationChannel")
+
+    @staticmethod
+    def _failed(
+        envelope: CommunicationEnvelope,
+        *,
+        code: str,
+        message: str,
+        retryable: bool = False,
+    ) -> DeliveryReceipt:
+        return DeliveryReceipt.for_envelope(
+            envelope,
             status=DeliveryStatus.FAILED,
-            error=error,
+            error_code=code,
+            error_message=message,
+            retryable=retryable,
         )
+
+
+__all__ = (
+    "ChannelRegistrationError",
+    "ChannelNotFoundError",
+    "CommunicationRouter",
+    "LegacyChannelAdapter",
+    "RegisteredChannel",
+)
