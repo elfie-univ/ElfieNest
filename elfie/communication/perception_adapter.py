@@ -66,12 +66,23 @@ class AdapterDirectionError(ValueError):
 class CommunicationPerceptionAdapter:
     """Publish communication facts without exposing workspace internals."""
 
-    def __init__(self, sink: PerceptionSink) -> None:
+    def __init__(
+        self,
+        sink: PerceptionSink,
+        *,
+        max_pending_inbound: int = 512,
+        max_pending_delivery: int = 1024,
+    ) -> None:
         self._sink = sink
+        self._max_pending_inbound = max_pending_inbound
+        self._max_pending_delivery = max_pending_delivery
         self._pending_inbound: OrderedDict[EventId, CommunicationEnvelope] = (
             OrderedDict()
         )
         self._pending_delivery: OrderedDict[EventId, PerceptionEvent] = OrderedDict()
+        self._dropped_inbound_count = 0
+        self._dropped_delivery_count = 0
+        self._closed = False
         self._lock = Lock()
 
     def publish_inbound(
@@ -81,7 +92,19 @@ class CommunicationPerceptionAdapter:
         """Publish one complete inbound envelope or retain it for retry."""
         self._require_direction(envelope, MessageDirection.INBOUND)
         with self._lock:
+            if self._closed:
+                return InboundPerceptionAttempt(
+                    envelope=envelope,
+                    receipt=IngestReceipt(
+                        event_id=envelope.meta.event_id,
+                        disposition=IngestDisposition.REJECTED,
+                        ingest_seq=None,
+                        retryable=False,
+                        reason="communication_adapter_closed",
+                    ),
+                )
             self._pending_inbound[envelope.meta.event_id] = envelope
+            self._trim_inbound()
         receipt = self._sink.publish(build_social_event(envelope))
         with self._lock:
             if completes_cognitive_delivery(receipt.disposition):
@@ -98,7 +121,16 @@ class CommunicationPerceptionAdapter:
         self._require_direction(envelope, MessageDirection.OUTBOUND)
         event = build_execution_event(envelope, receipt, correlation)
         with self._lock:
+            if self._closed:
+                return IngestReceipt(
+                    event_id=event.meta.event_id,
+                    disposition=IngestDisposition.REJECTED,
+                    ingest_seq=None,
+                    retryable=False,
+                    reason="communication_adapter_closed",
+                )
             self._pending_delivery[event.meta.event_id] = event
+            self._trim_delivery()
         ingest = self._sink.publish(event)
         with self._lock:
             if completes_cognitive_delivery(ingest.disposition):
@@ -145,6 +177,23 @@ class CommunicationPerceptionAdapter:
         with self._lock:
             return len(self._pending_delivery)
 
+    @property
+    def dropped_inbound_count(self) -> int:
+        with self._lock:
+            return self._dropped_inbound_count
+
+    @property
+    def dropped_delivery_count(self) -> int:
+        with self._lock:
+            return self._dropped_delivery_count
+
+    def close(self) -> None:
+        """Close retry production and release retained events."""
+        with self._lock:
+            self._closed = True
+            self._pending_inbound.clear()
+            self._pending_delivery.clear()
+
     @staticmethod
     def _require_direction(
         envelope: CommunicationEnvelope,
@@ -152,6 +201,16 @@ class CommunicationPerceptionAdapter:
     ) -> None:
         if envelope.direction is not expected:
             raise AdapterDirectionError(expected=expected, actual=envelope.direction)
+
+    def _trim_inbound(self) -> None:
+        while len(self._pending_inbound) > self._max_pending_inbound:
+            self._pending_inbound.popitem(last=False)
+            self._dropped_inbound_count += 1
+
+    def _trim_delivery(self) -> None:
+        while len(self._pending_delivery) > self._max_pending_delivery:
+            self._pending_delivery.popitem(last=False)
+            self._dropped_delivery_count += 1
 
 __all__ = (
     "AdapterDirectionError",

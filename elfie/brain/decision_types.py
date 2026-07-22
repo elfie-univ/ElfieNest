@@ -20,7 +20,7 @@ from elfie.message_types import (
 
 _NonBlankText = Annotated[
     str,
-    StringConstraints(strict=True, min_length=1, pattern=r".*\S.*"),
+    StringConstraints(strict=True, min_length=1, max_length=8192, pattern=r".*\S.*"),
 ]
 _Revision = Annotated[int, Field(strict=True, ge=0)]
 _Intensity = Annotated[float, Field(strict=True, ge=0.0, le=1.0)]

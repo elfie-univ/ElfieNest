@@ -17,7 +17,7 @@ from elfie.brain.runtime_port import (
 )
 
 
-@dataclass(frozen=True)  # noqa: SLOTS_OK - Python 3.9
+@dataclass(frozen=True)
 class WorkerNotRunningError(RuntimeError):
     """Raised when work is submitted outside the explicit lifecycle."""
 
@@ -44,6 +44,23 @@ class WorkerCapacityError(RuntimeError):
         )
 
 
+class WorkerQueueFullError(RuntimeError):
+    """Raised when queued cortical work reaches the configured bound."""
+
+    __slots__ = ("queued_tasks", "capacity")
+
+    def __init__(self, *, queued_tasks: int, capacity: int) -> None:
+        self.queued_tasks = queued_tasks
+        self.capacity = capacity
+        super().__init__(queued_tasks, capacity)
+
+    def __str__(self) -> str:
+        return (
+            "cortical worker queue full: "
+            f"{self.queued_tasks}/{self.capacity} tasks are waiting"
+        )
+
+
 class CorticalTaskView(Protocol):
     """Typed input required for one generation and decode operation."""
 
@@ -56,7 +73,7 @@ class CorticalTaskView(Protocol):
         """Return the immutable decode seed."""
 
 
-@dataclass(frozen=True)  # noqa: SLOTS_OK - Python 3.9
+@dataclass(frozen=True)
 class CorticalTask:
     """Concrete immutable cortical task."""
 
@@ -64,7 +81,7 @@ class CorticalTask:
     seed: DecisionDecodeSeed
 
 
-@dataclass(frozen=True)  # noqa: SLOTS_OK - Python 3.9
+@dataclass(frozen=True)
 class CorticalTurnResult:
     """Validated worker result returned to BrainCoordinator."""
 
@@ -109,10 +126,12 @@ class CorticalWorker:
         runtime: CorticalRuntimePort,
         decoder: DecisionPlanDecoder,
         max_active_calls: int = 2,
+        max_queued_tasks: int = 16,
     ) -> None:
         self._runtime = runtime
         self._decoder = decoder
         self._max_active_calls = max_active_calls
+        self._max_queued_tasks = max_queued_tasks
         self._queued: Deque[_QueuedTask] = deque()
         self._current: Optional[Future[CorticalTurnResult]] = None
         self._active: Dict[Future[CorticalTurnResult], _ActiveCall] = {}
@@ -142,6 +161,11 @@ class CorticalWorker:
                     )
                 thread = self._prepare_thread_locked(_QueuedTask(task, future))
             else:
+                if len(self._queued) >= self._max_queued_tasks:
+                    raise WorkerQueueFullError(
+                        queued_tasks=len(self._queued),
+                        capacity=self._max_queued_tasks,
+                    )
                 self._queued.append(_QueuedTask(task, future))
         if thread is not None:
             thread.start()
@@ -270,5 +294,6 @@ __all__ = (
     "CorticalTurnResult",
     "CorticalWorker",
     "WorkerCapacityError",
+    "WorkerQueueFullError",
     "WorkerNotRunningError",
 )

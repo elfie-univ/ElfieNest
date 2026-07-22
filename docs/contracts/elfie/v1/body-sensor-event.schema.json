@@ -5,6 +5,7 @@
       "description": "Stable identity and origin category for a message actor.",
       "properties": {
         "actor_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Actor Id",
@@ -13,6 +14,7 @@
         "display_name": {
           "anyOf": [
             {
+              "maxLength": 8192,
               "minLength": 1,
               "pattern": ".*\\S.*",
               "type": "string"
@@ -25,6 +27,7 @@
           "title": "Display Name"
         },
         "source_kind": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Source Kind",
@@ -97,12 +100,14 @@
       "description": "Reference to media stored outside typed message payloads.",
       "properties": {
         "media_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Media Id",
           "type": "string"
         },
         "mime_type": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Mime Type",
@@ -135,6 +140,7 @@
           "title": "Size Bytes"
         },
         "uri": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Uri",
@@ -367,6 +373,7 @@
       "type": "string"
     },
     "event_id": {
+      "maxLength": 160,
       "minLength": 1,
       "pattern": "^\\S(?:.*\\S)?$",
       "title": "Event Id",

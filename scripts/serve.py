@@ -38,14 +38,21 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 logging.basicConfig(level=logging.WARNING, format="%(message)s")
 
-from app.features.adoption.generator import ElfieGenerator
-from app.interfaces.api.app import create_app
-from nest.godot.bundle import inspect_godot_web_bundle
-from app.orchestration.lifecycle.recovery_lock import (
-    MANAGED_START_ENV,
-    RecoveryInProgressError,
-    acquire_service_start_lease,
+from ai_runtime import LLMRuntimeConfig
+from ai_runtime.storage.data_home import (
+    get_db_path,
+    get_elfie_config_dir,
+    get_elfie_home,
 )
+from app.features.adoption.generator import ElfieGenerator
+from app.infrastructure.persistence.store import (
+    get_db,
+    init_db,
+    migrate_db_if_needed,
+    seed_initial_owner_if_env_set,
+)
+from app.interfaces.api.app import create_app
+from app.orchestration.engine import ElfieNestEngine
 from app.orchestration.lifecycle.process import (
     DEFAULT_AUDIO_PORT,
     DEFAULT_GODOT_WS_PORT,
@@ -55,15 +62,12 @@ from app.orchestration.lifecycle.process import (
     register_current_service,
     validate_service_ports,
 )
-from app.infrastructure.persistence.store import (
-    get_db,
-    init_db,
-    migrate_db_if_needed,
-    seed_initial_owner_if_env_set,
+from app.orchestration.lifecycle.recovery_lock import (
+    MANAGED_START_ENV,
+    RecoveryInProgressError,
+    acquire_service_start_lease,
 )
-from app.orchestration.engine import ElfieNestEngine
-from ai_runtime import LLMRuntimeConfig
-from ai_runtime.storage.data_home import get_db_path, get_elfie_config_dir, get_elfie_home
+from nest.godot.bundle import inspect_godot_web_bundle
 
 
 class FallbackAgent:
@@ -543,8 +547,6 @@ def main():
         print("\n正在关闭服务...")
     finally:
         engine.api_server.stop()
-        if engine.audio_server:
-            engine.audio_server.stop()
         print("服务已关闭。")
 
 

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from queue import Queue
+from collections import deque
+from queue import Empty, Full, Queue
 from threading import Condition, Lock, Thread
 from typing import Callable, Optional, Tuple
 
@@ -23,19 +24,23 @@ class CoordinatorRuntime:
         self,
         elfie_id: ElfieId,
         cortical_worker: CorticalExecutionPort,
+        *,
+        mailbox_capacity: int = 1024,
     ) -> None:
         self._elfie_id = elfie_id
         self._worker = cortical_worker
-        self._mailbox: Queue[ControlMessage] = Queue()
+        self._mailbox_capacity = mailbox_capacity
+        self._mailbox: Queue[ControlMessage] = Queue(mailbox_capacity)
         self._thread: Optional[Thread] = None
         self._lock = Lock()
         self._stop_requested = False
+        self._dropped_control_count = 0
 
     def start(self, owner_loop: Callable[[], None]) -> None:
         with self._lock:
             if self._thread is not None and self._thread.is_alive():
                 return
-            self._mailbox = Queue()
+            self._mailbox = Queue(self._mailbox_capacity)
             self._stop_requested = False
             self._worker.start()
             self._thread = Thread(
@@ -46,7 +51,15 @@ class CoordinatorRuntime:
             self._thread.start()
 
     def post(self, message: ControlMessage) -> None:
-        self._mailbox.put(message)
+        with self._lock:
+            if self._stop_requested:
+                self._dropped_control_count += 1
+                return
+        try:
+            self._mailbox.put_nowait(message)
+        except Full:
+            with self._lock:
+                self._dropped_control_count += 1
 
     def receive(self) -> ControlMessage:
         return self._mailbox.get()
@@ -56,7 +69,7 @@ class CoordinatorRuntime:
             if self._stop_requested or self._thread is None:
                 return
             self._stop_requested = True
-            self._mailbox.put(StopControl())
+            self._post_stop_control()
         self._worker.stop()
 
     def join(self) -> None:
@@ -71,12 +84,31 @@ class CoordinatorRuntime:
         with self._lock:
             return self._thread is not None and self._thread.is_alive()
 
+    @property
+    def dropped_control_count(self) -> int:
+        with self._lock:
+            return self._dropped_control_count
+
+    def _post_stop_control(self) -> None:
+        while True:
+            try:
+                self._mailbox.put_nowait(StopControl())
+                return
+            except Full:
+                try:
+                    self._mailbox.get_nowait()
+                except Empty:
+                    continue
+                self._dropped_control_count += 1
+
 
 class TurnOutcomeBuffer:
     """Publish immutable turn outcomes to observers without polling."""
 
-    def __init__(self) -> None:
-        self._items: list[TurnOutcome] = []
+    def __init__(self, *, capacity: int = 256) -> None:
+        self._items: deque[TurnOutcome] = deque()
+        self._capacity = capacity
+        self._evicted_count = 0
         self._changed = Condition()
 
     def snapshot(self) -> Tuple[TurnOutcome, ...]:
@@ -100,8 +132,16 @@ class TurnOutcomeBuffer:
 
     def record(self, outcome: TurnOutcome) -> None:
         with self._changed:
+            if len(self._items) >= self._capacity:
+                self._items.popleft()
+                self._evicted_count += 1
             self._items.append(outcome)
             self._changed.notify_all()
+
+    @property
+    def evicted_count(self) -> int:
+        with self._changed:
+            return self._evicted_count
 
 
 __all__ = ("CoordinatorRuntime", "TurnOutcomeBuffer")

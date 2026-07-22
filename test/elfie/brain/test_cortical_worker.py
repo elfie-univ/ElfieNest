@@ -11,6 +11,7 @@ from elfie.brain.cortical_worker import (
     CorticalWorker,
     WorkerCapacityError,
     WorkerNotRunningError,
+    WorkerQueueFullError,
 )
 from elfie.brain.decision_decoder import DecisionDecodeSeed, DecisionPlanDecoder
 from elfie.brain.runtime_port import (
@@ -185,6 +186,33 @@ def test_worker_bounds_isolated_hung_provider_calls() -> None:
 
     assert first.result(timeout=1).decode.plan.turn_id == TurnId("turn-1")
     assert second.result(timeout=1).decode.plan.turn_id == TurnId("turn-2")
+
+
+def test_worker_rejects_submissions_when_queue_is_full() -> None:
+    # Given: one active generation and one queued task fill the queue.
+    runtime = BlockingRuntime()
+    worker = CorticalWorker(
+        runtime=runtime,
+        decoder=DecisionPlanDecoder(),
+        max_queued_tasks=1,
+    )
+    worker.start()
+    first = worker.submit(_task("turn-1"))
+    assert runtime.first_started.wait(1)
+    queued = worker.submit(_task("turn-2"))
+
+    try:
+        # When / Then: the next queued task is rejected without growing memory.
+        with pytest.raises(WorkerQueueFullError) as captured:
+            worker.submit(_task("turn-3"))
+        assert captured.value.queued_tasks == 1
+        assert captured.value.capacity == 1
+    finally:
+        runtime.release.set()
+        first.result(timeout=1)
+        queued.result(timeout=1)
+        worker.stop()
+        worker.join()
 
 
 class RepairRuntime:

@@ -13,6 +13,7 @@ from elfie.communication import (
     MessageDirection,
     TextPart,
 )
+from elfie.communication.outbox import CommunicationOutbox
 from elfie.message_types import ActorRef, MessageMeta
 
 NOW = datetime(2026, 7, 22, 0, 0, tzinfo=timezone.utc)
@@ -59,6 +60,31 @@ def test_hub_routes_outbound_message_and_records_receipt() -> None:
     assert channel.sent[0].sender.actor_id == "elfie-1"
     assert channel.sent[0].direction is MessageDirection.OUTBOUND
     assert hub.outbox.get(receipt.message_id).receipt is receipt
+
+
+def test_outbox_retains_only_bounded_recent_history() -> None:
+    outbox = CommunicationOutbox(history_capacity=1)
+    first = _envelope(MessageDirection.OUTBOUND, "elfie-1", "owner-1", "一")
+    second = _envelope(
+        MessageDirection.OUTBOUND,
+        "elfie-1",
+        "owner-1",
+        "二",
+        event_id="message-2",
+    )
+
+    outbox.record(
+        first,
+        DeliveryReceipt.for_envelope(first, status=DeliveryStatus.SENT),
+    )
+    outbox.record(
+        second,
+        DeliveryReceipt.for_envelope(second, status=DeliveryStatus.SENT),
+    )
+
+    assert outbox.get(str(first.meta.event_id)) is None
+    assert outbox.history[0].message is second
+    assert outbox.evicted_count == 1
 
 
 def test_hub_receives_messages_without_using_body_sensor_queue() -> None:
@@ -178,6 +204,8 @@ def _envelope(
     sender_id: str,
     recipient_id: str,
     content: str,
+    *,
+    event_id: str | None = None,
 ) -> CommunicationEnvelope:
     sender = ActorRef(
         actor_id=sender_id,
@@ -185,7 +213,7 @@ def _envelope(
     )
     return CommunicationEnvelope(
         meta=MessageMeta(
-            event_id=f"message-{sender_id}-{recipient_id}",
+            event_id=event_id or f"message-{sender_id}-{recipient_id}",
             elfie_id=(
                 recipient_id
                 if direction is MessageDirection.INBOUND

@@ -11,11 +11,16 @@ from pydantic_core import PydanticCustomError
 
 _NonBlankId = Annotated[
     str,
-    StringConstraints(strict=True, min_length=1, pattern=r"^\S(?:.*\S)?$"),
+    StringConstraints(
+        strict=True,
+        min_length=1,
+        max_length=160,
+        pattern=r"^\S(?:.*\S)?$",
+    ),
 ]
 _NonBlankText = Annotated[
     str,
-    StringConstraints(strict=True, min_length=1, pattern=r".*\S.*"),
+    StringConstraints(strict=True, min_length=1, max_length=8192, pattern=r".*\S.*"),
 ]
 _Sha256 = Annotated[str, StringConstraints(strict=True, pattern=r"^[0-9a-f]{64}$")]
 _SizeBytes = Annotated[int, Field(strict=True, ge=0)]

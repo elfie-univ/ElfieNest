@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass
 from threading import Lock
-from typing import Dict, List, Optional
+from typing import Optional
 
 from elfie.communication.contracts import (
     CommunicationEnvelope,
@@ -38,8 +39,10 @@ class OutboxEntry:
 class CommunicationOutbox:
     """Thread-safe canonical outbound history keyed by message identity."""
 
-    def __init__(self) -> None:
-        self._entries: Dict[str, OutboxEntry] = {}
+    def __init__(self, *, history_capacity: int = 1024) -> None:
+        self._entries: OrderedDict[str, OutboxEntry] = OrderedDict()
+        self._history_capacity = history_capacity
+        self._evicted_count = 0
         self._lock = Lock()
 
     def record(
@@ -55,7 +58,12 @@ class CommunicationOutbox:
             )
         entry = OutboxEntry(message=message, receipt=receipt)
         with self._lock:
-            self._entries[str(message.meta.event_id)] = entry
+            message_id = str(message.meta.event_id)
+            self._entries.pop(message_id, None)
+            if len(self._entries) >= self._history_capacity:
+                self._entries.popitem(last=False)
+                self._evicted_count += 1
+            self._entries[message_id] = entry
         return entry
 
     def get(self, message_id: str) -> Optional[OutboxEntry]:
@@ -63,9 +71,14 @@ class CommunicationOutbox:
             return self._entries.get(message_id)
 
     @property
-    def history(self) -> List[OutboxEntry]:
+    def history(self) -> list[OutboxEntry]:
         with self._lock:
             return list(self._entries.values())
+
+    @property
+    def evicted_count(self) -> int:
+        with self._lock:
+            return self._evicted_count
 
 
 __all__ = (

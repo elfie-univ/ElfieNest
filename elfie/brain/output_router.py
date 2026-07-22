@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
-from typing import Callable, Dict, Optional, Tuple
+from typing import Callable, Optional, Tuple
 from uuid import uuid4
 
 from elfie.brain.decision_types import CancelPolicy, DecisionIntent, DecisionPlan
@@ -42,6 +43,7 @@ class OutputRouter:
         max_intents_per_plan: int = 64,
         max_schedule_horizon_seconds: float = 60.0,
         max_workers: int = 4,
+        completed_retention: int = 256,
     ) -> None:
         self._capabilities = capabilities
         self._clock = clock
@@ -50,6 +52,7 @@ class OutputRouter:
             seconds=max_schedule_horizon_seconds,
         )
         self._max_workers = max_workers
+        self._completed_retention = completed_retention
         self._queue: Queue[BatchRuntime] = Queue(max_pending_batches)
         self._executors = ExecutorRegistry(
             body=body_executor,
@@ -61,14 +64,15 @@ class OutputRouter:
             sink=perception_sink,
             clock=clock,
         )
-        self._runtimes: Dict[TurnId, BatchRuntime] = {}
-        self._plans: Dict[str, DecisionPlan] = {}
+        self._runtimes: OrderedDict[TurnId, BatchRuntime] = OrderedDict()
+        self._plans: OrderedDict[str, DecisionPlan] = OrderedDict()
         self._thread: Optional[Thread] = None
         self._pool: Optional[ThreadPoolExecutor] = None
         self._lock = Lock()
         self._stop_requested = Event()
         self._accepting = False
         self._last_rejection: Optional[BatchRejection] = None
+        self._evicted_completed_count = 0
 
     def start(self) -> None:
         """Start the bounded batch scheduler and target executor pool once."""
@@ -115,6 +119,7 @@ class OutputRouter:
             runtime = BatchRuntime(batch, plan)
             self._plans[str(plan.plan_id)] = plan
             self._runtimes[plan.turn_id] = runtime
+            self._trim_completed_locked()
             for intent in plan.intents:
                 kind, _executor = self._executors.for_intent(intent)
                 self._emit(plan, intent, kind, ExecutionStatus.ACCEPTED, None)
@@ -150,6 +155,11 @@ class OutputRouter:
 
     def retry_receipts(self) -> Tuple[EventId, ...]:
         return self._publisher.retry_pending()
+
+    @property
+    def evicted_completed_count(self) -> int:
+        with self._lock:
+            return self._evicted_completed_count
 
     @property
     def last_rejection(self) -> Optional[BatchRejection]:
@@ -247,6 +257,18 @@ class OutputRouter:
         )
         self._last_rejection = rejection
         return rejection
+
+    def _trim_completed_locked(self) -> None:
+        completed = [
+            turn_id
+            for turn_id, runtime in self._runtimes.items()
+            if runtime.done.is_set()
+        ]
+        overflow = len(completed) - self._completed_retention
+        for turn_id in completed[: max(0, overflow)]:
+            runtime = self._runtimes.pop(turn_id)
+            self._plans.pop(str(runtime.plan.plan_id), None)
+            self._evicted_completed_count += 1
 
 
 __all__ = ("OutputRouter",)

@@ -5,6 +5,7 @@
       "description": "Stable identity and origin category for a message actor.",
       "properties": {
         "actor_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Actor Id",
@@ -13,6 +14,7 @@
         "display_name": {
           "anyOf": [
             {
+              "maxLength": 8192,
               "minLength": 1,
               "pattern": ".*\\S.*",
               "type": "string"
@@ -25,6 +27,7 @@
           "title": "Display Name"
         },
         "source_kind": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Source Kind",
@@ -48,6 +51,7 @@
         "transcript": {
           "anyOf": [
             {
+              "maxLength": 8192,
               "minLength": 1,
               "pattern": ".*\\S.*",
               "type": "string"
@@ -77,6 +81,7 @@
       "description": "文件引用及面向用户的文件名。",
       "properties": {
         "filename": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Filename",
@@ -106,6 +111,7 @@
         "caption": {
           "anyOf": [
             {
+              "maxLength": 8192,
               "minLength": 1,
               "pattern": ".*\\S.*",
               "type": "string"
@@ -138,12 +144,14 @@
       "description": "Reference to media stored outside typed message payloads.",
       "properties": {
         "media_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Media Id",
           "type": "string"
         },
         "mime_type": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Mime Type",
@@ -176,6 +184,7 @@
           "title": "Size Bytes"
         },
         "uri": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Uri",
@@ -206,6 +215,7 @@
         "causation_id": {
           "anyOf": [
             {
+              "maxLength": 160,
               "minLength": 1,
               "pattern": "^\\S(?:.*\\S)?$",
               "type": "string"
@@ -220,6 +230,7 @@
         "correlation_id": {
           "anyOf": [
             {
+              "maxLength": 160,
               "minLength": 1,
               "pattern": "^\\S(?:.*\\S)?$",
               "type": "string"
@@ -232,12 +243,14 @@
           "title": "Correlation Id"
         },
         "elfie_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Elfie Id",
           "type": "string"
         },
         "event_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Event Id",
@@ -267,6 +280,7 @@
           "$ref": "#/$defs/ActorRef"
         },
         "trace_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Trace Id",
@@ -300,12 +314,14 @@
       "description": "对已有外部消息的反应。",
       "properties": {
         "reaction": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Reaction",
           "type": "string"
         },
         "target_message_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Target Message Id",
@@ -332,6 +348,7 @@
         "description": {
           "anyOf": [
             {
+              "maxLength": 8192,
               "minLength": 1,
               "pattern": ".*\\S.*",
               "type": "string"
@@ -344,6 +361,7 @@
           "title": "Description"
         },
         "event_name": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Event Name",
@@ -367,6 +385,7 @@
       "description": "普通文本消息片段。",
       "properties": {
         "text": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Text",
@@ -390,24 +409,28 @@
   "description": "跨平台、可去重并保留会话身份的完整消息。",
   "properties": {
     "account_id": {
+      "maxLength": 160,
       "minLength": 1,
       "pattern": "^\\S(?:.*\\S)?$",
       "title": "Account Id",
       "type": "string"
     },
     "channel_id": {
+      "maxLength": 160,
       "minLength": 1,
       "pattern": "^\\S(?:.*\\S)?$",
       "title": "Channel Id",
       "type": "string"
     },
     "conversation_id": {
+      "maxLength": 160,
       "minLength": 1,
       "pattern": "^\\S(?:.*\\S)?$",
       "title": "Conversation Id",
       "type": "string"
     },
     "dedupe_key": {
+      "maxLength": 160,
       "minLength": 1,
       "pattern": "^\\S(?:.*\\S)?$",
       "title": "Dedupe Key",
@@ -419,6 +442,7 @@
     "external_message_id": {
       "anyOf": [
         {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "type": "string"
@@ -495,6 +519,7 @@
     "reply_to": {
       "anyOf": [
         {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "type": "string"
@@ -512,6 +537,7 @@
     "sequence_id": {
       "anyOf": [
         {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "type": "string"

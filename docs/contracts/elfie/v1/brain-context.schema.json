@@ -5,6 +5,7 @@
       "description": "Stable identity and origin category for a message actor.",
       "properties": {
         "actor_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Actor Id",
@@ -13,6 +14,7 @@
         "display_name": {
           "anyOf": [
             {
+              "maxLength": 8192,
               "minLength": 1,
               "pattern": ".*\\S.*",
               "type": "string"
@@ -25,6 +27,7 @@
           "title": "Display Name"
         },
         "source_kind": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Source Kind",
@@ -99,6 +102,7 @@
         "latest_event_id": {
           "anyOf": [
             {
+              "maxLength": 160,
               "minLength": 1,
               "pattern": "^\\S(?:.*\\S)?$",
               "type": "string"
@@ -223,6 +227,7 @@
           "type": "string"
         },
         "event_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Event Id",
@@ -257,6 +262,7 @@
         },
         "event_ids": {
           "items": {
+            "maxLength": 160,
             "minLength": 1,
             "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
@@ -401,12 +407,14 @@
           "type": "array"
         },
         "code": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Code",
           "type": "string"
         },
         "message": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Message",
@@ -450,18 +458,21 @@
           "type": "string"
         },
         "intent_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Intent Id",
           "type": "string"
         },
         "plan_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Plan Id",
           "type": "string"
         },
         "receipt_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Receipt Id",
@@ -471,6 +482,7 @@
           "$ref": "#/$defs/ExecutionStatus"
         },
         "turn_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Turn Id",
@@ -595,12 +607,14 @@
       "description": "Reference to media stored outside typed message payloads.",
       "properties": {
         "media_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Media Id",
           "type": "string"
         },
         "mime_type": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Mime Type",
@@ -633,6 +647,7 @@
           "title": "Size Bytes"
         },
         "uri": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Uri",
@@ -688,6 +703,7 @@
           "type": "string"
         },
         "memory_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Memory Id",
@@ -701,6 +717,7 @@
         },
         "source_event_ids": {
           "items": {
+            "maxLength": 160,
             "minLength": 1,
             "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
@@ -725,6 +742,7 @@
         "causation_id": {
           "anyOf": [
             {
+              "maxLength": 160,
               "minLength": 1,
               "pattern": "^\\S(?:.*\\S)?$",
               "type": "string"
@@ -739,6 +757,7 @@
         "correlation_id": {
           "anyOf": [
             {
+              "maxLength": 160,
               "minLength": 1,
               "pattern": "^\\S(?:.*\\S)?$",
               "type": "string"
@@ -751,12 +770,14 @@
           "title": "Correlation Id"
         },
         "elfie_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Elfie Id",
           "type": "string"
         },
         "event_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Event Id",
@@ -786,6 +807,7 @@
           "$ref": "#/$defs/ActorRef"
         },
         "trace_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Trace Id",
@@ -882,6 +904,7 @@
           "type": "array"
         },
         "elfie_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Elfie Id",
@@ -903,6 +926,7 @@
           "type": "array"
         },
         "frame_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Frame Id",
@@ -1108,6 +1132,7 @@
           "type": "integer"
         },
         "failed_frame_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Failed Frame Id",
@@ -1205,6 +1230,7 @@
         "reply_to_event_id": {
           "anyOf": [
             {
+              "maxLength": 160,
               "minLength": 1,
               "pattern": "^\\S(?:.*\\S)?$",
               "type": "string"

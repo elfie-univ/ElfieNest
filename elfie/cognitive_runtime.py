@@ -103,6 +103,9 @@ class ElfieCognitiveRuntime:
             allowed_tools=skills.allowed_runtime_tools(),
         )
         self._started = False
+        self._workspace = workspace
+        self._nervous_system = nervous_system
+        self._communication = communication
 
     def start(self) -> None:
         if self._started:
@@ -132,6 +135,9 @@ class ElfieCognitiveRuntime:
     def stop(self) -> None:
         if not self._started:
             return
+        self._workspace.stop()
+        self._communication.close()
+        self._nervous_system.close_perception()
         self.coordinator.stop()
         self.router.stop()
 

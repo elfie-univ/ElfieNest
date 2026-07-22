@@ -75,6 +75,10 @@ class NervousSystem:
         return self._require_perception_bridge().filtered_count
 
     @property
+    def dropped_pending_count(self) -> int:
+        return self._require_perception_bridge().dropped_pending_count
+
+    @property
     def urgent_revision(self) -> int:
         return self._require_perception_bridge().urgent_revision
 
@@ -103,6 +107,10 @@ class NervousSystem:
     def retry_pending(self) -> Tuple[IngestReceipt, ...]:
         """Retry reliable writes retained after Workspace backpressure."""
         return self._require_perception_bridge().retry_pending()
+
+    def close_perception(self) -> None:
+        """Close the Body-to-Brain input boundary."""
+        self._require_perception_bridge().close()
 
     def _require_perception_bridge(self) -> BodyPerceptionBridge:
         bridge = self._perception_bridge

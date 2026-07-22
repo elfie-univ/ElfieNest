@@ -22,11 +22,16 @@ from elfie.message_types import (
 
 _NonBlank = Annotated[
     str,
-    StringConstraints(strict=True, min_length=1, pattern=r"^\S(?:.*\S)?$"),
+    StringConstraints(
+        strict=True,
+        min_length=1,
+        max_length=160,
+        pattern=r"^\S(?:.*\S)?$",
+    ),
 ]
 _NonBlankContent = Annotated[
     str,
-    StringConstraints(strict=True, min_length=1, pattern=r".*\S.*"),
+    StringConstraints(strict=True, min_length=1, max_length=8192, pattern=r".*\S.*"),
 ]
 _Attempt = Annotated[int, Field(strict=True, ge=1)]
 _Ordinal = Annotated[int, Field(strict=True, ge=0)]

@@ -19,6 +19,7 @@
         },
         "cause_event_ids": {
           "items": {
+            "maxLength": 160,
             "minLength": 1,
             "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
@@ -34,6 +35,7 @@
         },
         "dependency_ids": {
           "items": {
+            "maxLength": 160,
             "minLength": 1,
             "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
@@ -42,6 +44,7 @@
           "type": "array"
         },
         "expression": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Expression",
@@ -54,6 +57,7 @@
           "type": "number"
         },
         "intent_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Intent Id",
@@ -87,6 +91,7 @@
         },
         "cause_event_ids": {
           "items": {
+            "maxLength": 160,
             "minLength": 1,
             "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
@@ -96,6 +101,7 @@
           "type": "array"
         },
         "content": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Content",
@@ -108,6 +114,7 @@
         },
         "dependency_ids": {
           "items": {
+            "maxLength": 160,
             "minLength": 1,
             "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
@@ -116,6 +123,7 @@
           "type": "array"
         },
         "intent_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Intent Id",
@@ -162,6 +170,7 @@
         },
         "cause_event_ids": {
           "items": {
+            "maxLength": 160,
             "minLength": 1,
             "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
@@ -171,18 +180,21 @@
           "type": "array"
         },
         "channel_id": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Channel Id",
           "type": "string"
         },
         "content": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Content",
           "type": "string"
         },
         "conversation_id": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Conversation Id",
@@ -195,6 +207,7 @@
         },
         "dependency_ids": {
           "items": {
+            "maxLength": 160,
             "minLength": 1,
             "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
@@ -203,6 +216,7 @@
           "type": "array"
         },
         "intent_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Intent Id",
@@ -224,6 +238,7 @@
         "reply_to_event_id": {
           "anyOf": [
             {
+              "maxLength": 160,
               "minLength": 1,
               "pattern": "^\\S(?:.*\\S)?$",
               "type": "string"
@@ -251,6 +266,7 @@
         "sequence_id": {
           "anyOf": [
             {
+              "maxLength": 8192,
               "minLength": 1,
               "pattern": ".*\\S.*",
               "type": "string"
@@ -291,6 +307,7 @@
         },
         "cause_event_ids": {
           "items": {
+            "maxLength": 160,
             "minLength": 1,
             "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
@@ -306,6 +323,7 @@
         },
         "dependency_ids": {
           "items": {
+            "maxLength": 160,
             "minLength": 1,
             "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
@@ -314,12 +332,14 @@
           "type": "array"
         },
         "intent_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Intent Id",
           "type": "string"
         },
         "motion": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Motion",
@@ -328,6 +348,7 @@
         "target": {
           "anyOf": [
             {
+              "maxLength": 8192,
               "minLength": 1,
               "pattern": ".*\\S.*",
               "type": "string"
@@ -366,6 +387,7 @@
         },
         "cause_event_ids": {
           "items": {
+            "maxLength": 160,
             "minLength": 1,
             "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
@@ -381,6 +403,7 @@
         },
         "dependency_ids": {
           "items": {
+            "maxLength": 160,
             "minLength": 1,
             "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
@@ -389,12 +412,14 @@
           "type": "array"
         },
         "intent_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Intent Id",
           "type": "string"
         },
         "reason": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Reason",
@@ -427,6 +452,7 @@
         },
         "cause_event_ids": {
           "items": {
+            "maxLength": 160,
             "minLength": 1,
             "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
@@ -442,6 +468,7 @@
         },
         "dependency_ids": {
           "items": {
+            "maxLength": 160,
             "minLength": 1,
             "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
@@ -450,12 +477,14 @@
           "type": "array"
         },
         "intent_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Intent Id",
           "type": "string"
         },
         "text": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Text",
@@ -490,6 +519,7 @@
     },
     "cause_event_ids": {
       "items": {
+        "maxLength": 160,
         "minLength": 1,
         "pattern": "^\\S(?:.*\\S)?$",
         "type": "string"
@@ -514,6 +544,7 @@
       "type": "string"
     },
     "frame_id": {
+      "maxLength": 160,
       "minLength": 1,
       "pattern": "^\\S(?:.*\\S)?$",
       "title": "Frame Id",
@@ -558,6 +589,7 @@
       "type": "array"
     },
     "plan_id": {
+      "maxLength": 160,
       "minLength": 1,
       "pattern": "^\\S(?:.*\\S)?$",
       "title": "Plan Id",
@@ -570,6 +602,7 @@
       "type": "integer"
     },
     "turn_id": {
+      "maxLength": 160,
       "minLength": 1,
       "pattern": "^\\S(?:.*\\S)?$",
       "title": "Turn Id",

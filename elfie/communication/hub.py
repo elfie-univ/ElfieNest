@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from threading import RLock
 from typing import List, Optional, Sequence, Tuple
 
 from elfie.brain.perception_types import IngestReceipt
@@ -19,7 +19,7 @@ from elfie.communication.hub_snapshot import (
     HubSnapshot,
     build_hub_snapshot,
 )
-from elfie.communication.inbox import CommunicationInbox
+from elfie.communication.inbox import CommunicationInbox, InboxAdmitStatus
 from elfie.communication.outbox import CommunicationOutbox
 from elfie.communication.perception_adapter import (
     CommunicationPerceptionAdapter,
@@ -28,16 +28,6 @@ from elfie.communication.perception_adapter import (
 from elfie.communication.policy import CommunicationPolicy, CommunicationPolicyError
 from elfie.communication.router import CommunicationRouter
 from elfie.message_types import ErrorInfo
-
-
-@dataclass(frozen=True)  # noqa: SLOTS_OK - Python 3.9
-class InboundDispositionInvariantError(RuntimeError):
-    """A rejected inbound result omitted its required typed error."""
-
-    status: InboundDispositionStatus
-
-    def __str__(self) -> str:
-        return f"inbound disposition {self.status.value} omitted error"
 
 
 class CommunicationHub:
@@ -58,6 +48,10 @@ class CommunicationHub:
         self.outbox = CommunicationOutbox()
         self.perception_adapter = perception_adapter
         self._inbound_dispositions: List[InboundDisposition] = []
+        self._max_dispositions = 1024
+        self._evicted_dispositions = 0
+        self._closed = False
+        self._lock = RLock()
 
     def bind_identity(self, elfie_id: str) -> None:
         self.elfie_id = elfie_id
@@ -86,6 +80,22 @@ class CommunicationHub:
         envelope: CommunicationEnvelope,
     ) -> InboundDisposition:
         """Admit one inbound envelope with observable replay disposition."""
+        with self._lock:
+            return self._receive_envelope_locked(envelope)
+
+    def _receive_envelope_locked(
+        self,
+        envelope: CommunicationEnvelope,
+    ) -> InboundDisposition:
+        if self._closed or self.inbox.closed:
+            return self._record_disposition(
+                envelope,
+                InboundDispositionStatus.REJECTED,
+                ErrorInfo(
+                    code="communication_closed",
+                    message="通信输入边界已关闭",
+                ),
+            )
         if envelope.direction is not MessageDirection.INBOUND:
             return self._record_disposition(
                 envelope,
@@ -112,7 +122,17 @@ class CommunicationHub:
                 InboundDispositionStatus.REJECTED,
                 exc.error,
             )
-        if not self.inbox.claim_identity(envelope):
+        admit_status = self.inbox.admit(envelope)
+        if admit_status is InboxAdmitStatus.CLOSED:
+            return self._record_disposition(
+                envelope,
+                InboundDispositionStatus.REJECTED,
+                ErrorInfo(
+                    code="communication_closed",
+                    message="通信输入边界已关闭",
+                ),
+            )
+        if admit_status is InboxAdmitStatus.DUPLICATE:
             return self._record_disposition(
                 envelope,
                 InboundDispositionStatus.DUPLICATE,
@@ -121,7 +141,15 @@ class CommunicationHub:
                     message="外部消息 identity 已处理",
                 ),
             )
-        self.inbox.receive(envelope)
+        if admit_status is InboxAdmitStatus.FULL:
+            return self._record_disposition(
+                envelope,
+                InboundDispositionStatus.REJECTED,
+                ErrorInfo(
+                    code="inbox_backpressure",
+                    message="通信收件箱待处理消息已满",
+                ),
+            )
         if self.perception_adapter is not None:
             attempt = self.perception_adapter.publish_inbound(envelope)
             if attempt.completed:
@@ -197,10 +225,24 @@ class CommunicationHub:
 
     @property
     def inbound_dispositions(self) -> Tuple[InboundDisposition, ...]:
-        return tuple(self._inbound_dispositions)
+        with self._lock:
+            return tuple(self._inbound_dispositions)
+
+    @property
+    def evicted_disposition_count(self) -> int:
+        with self._lock:
+            return self._evicted_dispositions
 
     def snapshot(self) -> HubSnapshot:
         return build_hub_snapshot(self.elfie_id, self.router, self.inbox, self.outbox)
+
+    def close(self) -> None:
+        """Close communication input and pending perception retries."""
+        with self._lock:
+            self._closed = True
+            self.inbox.close()
+            if self.perception_adapter is not None:
+                self.perception_adapter.close()
 
     def _record_disposition(
         self,
@@ -214,6 +256,9 @@ class CommunicationHub:
             status=status,
             error=error,
         )
+        if len(self._inbound_dispositions) >= self._max_dispositions:
+            self._inbound_dispositions.pop(0)
+            self._evicted_dispositions += 1
         self._inbound_dispositions.append(disposition)
         return disposition
 
@@ -221,5 +266,4 @@ class CommunicationHub:
 __all__ = (
     "CommunicationHub",
     "HubSnapshot",
-    "InboundDispositionInvariantError",
 )

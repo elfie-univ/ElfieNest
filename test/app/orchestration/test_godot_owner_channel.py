@@ -26,10 +26,23 @@ class RecordingGodotAPI:
         self.actions.append((action, payload))
 
 
+class RecordingBroadcaster:
+    def __init__(self) -> None:
+        self.messages: list[tuple[str, dict[str, JsonValue]]] = []
+
+    def broadcast_to_owners(
+        self,
+        elfie_id: str,
+        message_dict: dict[str, JsonValue],
+    ) -> None:
+        self.messages.append((elfie_id, message_dict))
+
+
 def test_outbound_owner_message_uses_envelope_event_identity() -> None:
     # Given: the canonical envelope stores identity only under MessageMeta.
     api = RecordingGodotAPI()
-    channel = GodotOwnerChannel(api)
+    broadcaster = RecordingBroadcaster()
+    channel = GodotOwnerChannel(api, owner_broadcaster=lambda: broadcaster)
     sender = ActorRef(actor_id="elfie-1", source_kind="elfie")
     envelope = CommunicationEnvelope(
         meta=MessageMeta(
@@ -55,5 +68,12 @@ def test_outbound_owner_message_uses_envelope_event_identity() -> None:
 
     # Then: the wire message ID and receipt retain the canonical event ID.
     assert api.actions[0][1]["message_id"] == "message-owner-1"
+    assert broadcaster.messages[0] == (
+        "elfie-1",
+        {
+            "action": "owner_message",
+            "payload": api.actions[0][1],
+        },
+    )
     assert receipt.message_id == envelope.meta.event_id
     assert receipt.status is DeliveryStatus.SENT

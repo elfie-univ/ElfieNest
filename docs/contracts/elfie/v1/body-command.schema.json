@@ -15,6 +15,7 @@
           "type": "integer"
         },
         "command_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Command Id",
@@ -31,6 +32,7 @@
           "type": "string"
         },
         "intent_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Intent Id",
@@ -48,6 +50,7 @@
           "type": "string"
         },
         "turn_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Turn Id",
@@ -83,6 +86,7 @@
           "type": "integer"
         },
         "command_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Command Id",
@@ -113,6 +117,7 @@
           "title": "Intensity"
         },
         "intent_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Intent Id",
@@ -130,6 +135,7 @@
           "type": "string"
         },
         "turn_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Turn Id",
@@ -155,12 +161,14 @@
       "description": "Reference to media stored outside typed message payloads.",
       "properties": {
         "media_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Media Id",
           "type": "string"
         },
         "mime_type": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Mime Type",
@@ -193,6 +201,7 @@
           "title": "Size Bytes"
         },
         "uri": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Uri",
@@ -222,6 +231,7 @@
           "type": "integer"
         },
         "command_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Command Id",
@@ -238,6 +248,7 @@
           "type": "string"
         },
         "intent_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Intent Id",
@@ -283,6 +294,7 @@
           "title": "Target"
         },
         "turn_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Turn Id",
@@ -329,6 +341,7 @@
           "type": "integer"
         },
         "command_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Command Id",
@@ -345,6 +358,7 @@
           "type": "string"
         },
         "intent_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Intent Id",
@@ -362,6 +376,7 @@
           "type": "string"
         },
         "turn_id": {
+          "maxLength": 160,
           "minLength": 1,
           "pattern": "^\\S(?:.*\\S)?$",
           "title": "Turn Id",

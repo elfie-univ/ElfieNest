@@ -13,12 +13,14 @@
           "type": "array"
         },
         "code": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Code",
           "type": "string"
         },
         "message": {
+          "maxLength": 8192,
           "minLength": 1,
           "pattern": ".*\\S.*",
           "title": "Message",
@@ -81,6 +83,7 @@
       "$ref": "#/$defs/ExecutorKind"
     },
     "intent_id": {
+      "maxLength": 160,
       "minLength": 1,
       "pattern": "^\\S(?:.*\\S)?$",
       "title": "Intent Id",
@@ -92,12 +95,14 @@
       "type": "string"
     },
     "plan_id": {
+      "maxLength": 160,
       "minLength": 1,
       "pattern": "^\\S(?:.*\\S)?$",
       "title": "Plan Id",
       "type": "string"
     },
     "receipt_id": {
+      "maxLength": 160,
       "minLength": 1,
       "pattern": "^\\S(?:.*\\S)?$",
       "title": "Receipt Id",
@@ -107,6 +112,7 @@
       "$ref": "#/$defs/ExecutionStatus"
     },
     "turn_id": {
+      "maxLength": 160,
       "minLength": 1,
       "pattern": "^\\S(?:.*\\S)?$",
       "title": "Turn Id",

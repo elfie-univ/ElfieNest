@@ -37,11 +37,15 @@ class BodyPerceptionBridge:
         elfie_id: ElfieId,
         normalizer: BodyPerceptionNormalizer,
         body_port: Optional[BodyPort] = None,
+        max_pending_events: int = 512,
     ) -> None:
         self._sink = sink
         self._elfie_id = elfie_id
         self._normalizer = normalizer
         self._pending: Deque[PerceptionEvent] = deque()
+        self._max_pending_events = max_pending_events
+        self._dropped_pending_count = 0
+        self._closed = False
         self._filtered_count = 0
         self._state_lock = Lock()
         self._pending_lock = Lock()
@@ -60,6 +64,11 @@ class BodyPerceptionBridge:
     def filtered_count(self) -> int:
         with self._state_lock:
             return self._filtered_count
+
+    @property
+    def dropped_pending_count(self) -> int:
+        with self._pending_lock:
+            return self._dropped_pending_count
 
     @property
     def urgent_revision(self) -> int:
@@ -83,6 +92,17 @@ class BodyPerceptionBridge:
         self,
         event: BodySensorEvent,
     ) -> Tuple[IngestReceipt, ...]:
+        with self._pending_lock:
+            if self._closed:
+                return (
+                    IngestReceipt(
+                        event_id=event.event_id,
+                        disposition=IngestDisposition.REJECTED,
+                        ingest_seq=None,
+                        retryable=False,
+                        reason="body_perception_closed",
+                    ),
+                )
         with self._state_lock:
             writes = self._normalizer.normalize(event)
             if not writes:
@@ -133,10 +153,19 @@ class BodyPerceptionBridge:
         for write in writes:
             if isinstance(write, PerceptionEvent):
                 with self._pending_lock:
+                    if len(self._pending) >= self._max_pending_events:
+                        self._pending.popleft()
+                        self._dropped_pending_count += 1
                     self._pending.append(write)
                 receipts += self.retry_pending()
             else:
                 receipts += (self._sink.publish(write),)
         return receipts
+
+    def close(self) -> None:
+        """Reject future Body input and release pending reliable events."""
+        with self._pending_lock:
+            self._closed = True
+            self._pending.clear()
 
 __all__ = ("BodyPerceptionBridge",)

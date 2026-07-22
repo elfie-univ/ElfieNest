@@ -2,21 +2,11 @@ import logging
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
-from uuid import uuid4
 
 from app.orchestration.nest_session import NestSession
 from app.orchestration.runtime_adapter import SerializedRuntimeAdapter
 from app.orchestration.world_perception import collect_world_sensory_events
 from elfie.body import BodySensorEvent
-from elfie.communication import CommunicationEnvelope, MessageDirection, TextPart
-from elfie.message_types import (
-    ActorId,
-    ActorRef,
-    ElfieId,
-    EventId,
-    MessageMeta,
-    TraceId,
-)
 from elfie.profile import AppearanceResolver
 from nest import Nest, NestConfig
 from nest.godot.api import GodotAPIServer
@@ -157,40 +147,22 @@ class ElfieNestEngine:
         """Parse one owner message into the Communication boundary only."""
         elfie_id = str(payload.get("elfie_id") or "").strip()
         message = str(payload.get("message") or "").strip()
-        elfie = self.session.elfies.get(elfie_id)
-        if elfie is None or not message:
+        if elfie_id not in self.session.elfies or not message:
             return
         owner_id = str(payload.get("owner_id") or "owner").strip()
         conversation_id = str(
             payload.get("conversation_id") or f"owner:{owner_id}"
         ).strip()
         external_id = str(
-            payload.get("message_id") or f"godot-message-{uuid4().hex}"
+            payload.get("message_id") or ""
         ).strip()
-        now = self._simulation_datetime()
-        owner = ActorRef(actor_id=ActorId(owner_id), source_kind="owner")
-        elfie.receive_communication_envelope(
-            CommunicationEnvelope(
-                meta=MessageMeta(
-                    event_id=EventId(f"godot:{external_id}"),
-                    elfie_id=ElfieId(elfie_id),
-                    source=owner,
-                    occurred_at=now,
-                    received_at=now,
-                    trace_id=TraceId(f"godot-owner:{external_id}"),
-                ),
-                account_id=str(payload.get("account_id") or "godot-owner"),
-                channel_id="godot-owner",
-                conversation_id=conversation_id,
-                sender=owner,
-                recipients=(
-                    ActorRef(actor_id=ActorId(elfie_id), source_kind="elfie"),
-                ),
-                direction=MessageDirection.INBOUND,
-                external_message_id=external_id,
-                dedupe_key=external_id,
-                parts=(TextPart(text=message),),
-            )
+        self.session.send_user_message(
+            elfie_id,
+            message,
+            owner_id=owner_id,
+            conversation_id=conversation_id,
+            external_message_id=external_id or None,
+            account_id=str(payload.get("account_id") or "godot-owner"),
         )
 
     def _collect_world_sensory_events(self, elfie_id: str) -> list[BodySensorEvent]:

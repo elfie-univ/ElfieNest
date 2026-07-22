@@ -239,5 +239,5 @@ api_key: <never-hardcode-api-key>
 ## Notes
 
 - Comments and config files are in Chinese
-- The `.elfie_memories.json` file persists episodic memories between runs
+- Long-term episodic memories are stored under `ELFIE_HOME` by the memory system; the root `.elfie_memories.json` path is only a legacy migration input.
 - `download_novel.py` is a standalone utility, not part of the simulation

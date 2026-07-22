@@ -15,6 +15,7 @@ from elfie.body.contracts import (
 )
 from elfie.brain.perception_types import (
     ExecutionPayload,
+    IngestDisposition,
     PerceptionEvent,
     PhysicalPayload,
 )
@@ -120,6 +121,30 @@ def test_backpressured_reliable_event_retries_once_capacity_is_available() -> No
     ]
     nervous_system.retry_pending()
     assert workspace.metrics().reliable_event_count == 1
+
+
+def test_closed_body_perception_rejects_without_pending_growth() -> None:
+    # Given: the runtime closed the Body-to-Brain input boundary.
+    workspace = PerceptualWorkspace(ELFIE_ID, journal_capacity=1)
+    nervous_system = NervousSystem(
+        perception_sink=workspace,
+        elfie_id=ELFIE_ID,
+    )
+    nervous_system.close_perception()
+    event = body_event(
+        "utterance-after-stop",
+        ROOM,
+        UtteranceFinal(kind="utterance_final", text="还在吗"),
+    )
+
+    # When: a sensor event arrives after shutdown.
+    receipts = nervous_system.receive_body_event(event)
+
+    # Then: it is rejected without entering retry state or the workspace.
+    assert receipts[0].disposition is IngestDisposition.REJECTED
+    assert receipts[0].reason == "body_perception_closed"
+    assert nervous_system.pending_count == 0
+    assert workspace.metrics().reliable_event_count == 0
 
 
 def test_dangerous_touch_executes_reflex_before_cortical_publish() -> None:

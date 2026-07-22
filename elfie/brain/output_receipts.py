@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from threading import Lock
 from typing import Callable, Tuple
 from uuid import uuid4
@@ -44,13 +44,17 @@ class ExecutionReceiptPublisher:
         sink: PerceptionSink,
         clock: Callable[[], UTCDateTime],
         max_pending: int = 1024,
+        max_receipts: int = 2048,
     ) -> None:
         self._elfie_id = elfie_id
         self._sink = sink
         self._clock = clock
         self._max_pending = max_pending
+        self._max_receipts = max_receipts
         self._pending: OrderedDict[EventId, PerceptionEvent] = OrderedDict()
-        self._receipts: list[ExecutionReceipt] = []
+        self._receipts: deque[ExecutionReceipt] = deque()
+        self._evicted_receipt_count = 0
+        self._dropped_pending_count = 0
         self._lock = Lock()
 
     def emit(
@@ -75,12 +79,16 @@ class ExecutionReceiptPublisher:
         )
         event = self._event(plan, intent, receipt)
         with self._lock:
+            if len(self._receipts) >= self._max_receipts:
+                self._receipts.popleft()
+                self._evicted_receipt_count += 1
             self._receipts.append(receipt)
         ingest = self._sink.publish(event)
         if ingest.disposition is IngestDisposition.BACKPRESSURED:
             with self._lock:
                 if len(self._pending) >= self._max_pending:
-                    raise ReceiptBacklogFullError(receipt.receipt_id)
+                    self._pending.popitem(last=False)
+                    self._dropped_pending_count += 1
                 self._pending[receipt.receipt_id] = event
         return receipt
 
@@ -105,6 +113,16 @@ class ExecutionReceiptPublisher:
                 for receipt in self._receipts
                 if str(receipt.turn_id) == turn_id
             )
+
+    @property
+    def evicted_receipt_count(self) -> int:
+        with self._lock:
+            return self._evicted_receipt_count
+
+    @property
+    def dropped_pending_count(self) -> int:
+        with self._lock:
+            return self._dropped_pending_count
 
     def _event(
         self,

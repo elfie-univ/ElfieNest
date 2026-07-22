@@ -21,6 +21,7 @@ from elfie.communication import (
     CommunicationHub,
     DeliveryReceipt,
     DeliveryStatus,
+    InboundDispositionStatus,
     MessageDirection,
     TextPart,
 )
@@ -210,4 +211,32 @@ def test_cognitive_lifecycle_runs_two_turns_without_blocking_clock() -> None:
     assert "execution:receipt" in runtime.requests[1].user_prompt
     elfie.stop()
     elfie.join()
+
+
+def test_stop_closes_communication_input_boundary() -> None:
+    # Given: a running Elfie with a registered communication channel.
+    body = HeadlessBody(body_id="body-stop")
+    hub = CommunicationHub("elfie-loop")
+    hub.register_channel(RecordingChannel(), connect=True)
+    elfie = ElfieFactory().create(
+        elfie_id="elfie-loop",
+        memory_db_path=":memory:",
+        body=body,
+        communication=hub,
+        cortical_runtime=TwoTurnRuntime(),
+    )
+    elfie.start()
+    elfie.stop()
+    elfie.join()
+
+    # When: an owner message arrives after shutdown.
+    disposition = elfie.receive_communication_envelope(
+        _owner_message(elfie.cognitive_datetime)
+    )
+
+    # Then: it is rejected without being retained for a later turn.
+    assert disposition.status is InboundDispositionStatus.REJECTED
+    assert disposition.error is not None
+    assert disposition.error.code == "communication_closed"
+    assert hub.inbox.metrics().pending_count == 0
     assert elfie.is_running is False

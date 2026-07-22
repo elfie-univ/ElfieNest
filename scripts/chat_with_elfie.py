@@ -18,9 +18,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("chat")
 
-from elfie import ElfieFactory
-from app.orchestration.engine import ElfieNestEngine
 from ai_runtime import LLMRuntimeConfig, RuntimeAgent
+from app.orchestration.engine import ElfieNestEngine
+from elfie import ElfieFactory
 
 
 def main():
@@ -84,7 +84,6 @@ def main():
 
     # 4. 清理
     engine.api_server.stop()
-    engine.audio_server.stop()
 
 
 if __name__ == "__main__":
