@@ -141,7 +141,8 @@ Ollama、Python Core 和隐藏的 Godot Web Runtime，随后打开 Electron 管�
 `godot/WEB_EXPORT.md`。
 
 开发者实验工具统一从 `./developer.sh` 进入，包含单精灵实验、Runtime 实验和
-精灵巢模块实验；它们使用独立网址和 `~/.elfienest/developer/` 数据目录。
+精灵巢模块实验；它们使用独立网址和 `~/.elfienest/developer/` 数据目录。运行
+`./developer.sh elfie-lab` 后会自动打开单精灵调试网页。
 
 ### 开发模式
 

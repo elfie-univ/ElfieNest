@@ -4,7 +4,7 @@ import base64
 import binascii
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator, Dict, Optional
+from typing import Any, AsyncIterator, Callable, Dict, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
@@ -48,7 +48,10 @@ class PortraitRequest(BaseModel):
 
 
 def create_app(
-    data_dir: Optional[str] = None, runtime_config_dir: Optional[str] = None
+    data_dir: Optional[str] = None,
+    runtime_config_dir: Optional[str] = None,
+    *,
+    on_ready: Optional[Callable[[], None]] = None,
 ) -> FastAPI:
     storage = ElfieLabStorage(data_dir)
     runtime_root = runtime_config_dir or str(get_elfie_home())
@@ -61,6 +64,8 @@ def create_app(
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         try:
+            if on_ready is not None:
+                on_ready()
             yield
         finally:
             sessions.close()

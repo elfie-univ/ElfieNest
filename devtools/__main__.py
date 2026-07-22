@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import webbrowser
 from pathlib import Path
 
 import uvicorn
@@ -49,7 +50,16 @@ def _run_elfie_lab(args: argparse.Namespace) -> int:
 
     tool = resolve_tool("elfie-lab")
     data_dir = Path(args.data_dir) if args.data_dir else tool.data_root
-    uvicorn.run(create_app(str(data_dir)), host=args.host, port=args.port)
+    browser_url = f"http://{args.host}:{args.port}/"
+
+    def open_browser() -> None:
+        webbrowser.open(browser_url)
+
+    uvicorn.run(
+        create_app(str(data_dir), on_ready=open_browser),
+        host=args.host,
+        port=args.port,
+    )
     return 0
 
 

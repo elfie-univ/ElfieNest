@@ -43,6 +43,24 @@ def test_app_lifespan_stops_registered_elfie_sessions(tmp_path):
     assert runtime.is_running is False
 
 
+def test_app_calls_ready_callback_during_lifespan_startup(tmp_path):
+    # Given
+    lifecycle_events = []
+    app = create_app(
+        str(tmp_path / "data"),
+        str(tmp_path / "runtime"),
+        on_ready=lambda: lifecycle_events.append("ready"),
+    )
+    assert lifecycle_events == []
+
+    # When
+    with TestClient(app):
+        events_while_running = list(lifecycle_events)
+
+    # Then
+    assert events_while_running == ["ready"]
+
+
 def test_app_rejects_empty_stimulus(tmp_path, client_for):
     client = client_for(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
     created = client.post("/api/elfies", json={"name": "空刺激测试"}).json()
