@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 from functools import singledispatchmethod
 
-from elfie.communication.channel import CommunicationMessage, MessageKind
 from elfie.communication.contracts import (
     AudioPart,
     CommunicationEnvelope,
@@ -72,17 +71,11 @@ class TelegramChannel:
     def disconnect(self) -> None:
         self.connector.disconnect()
 
-    def send(self, message: CommunicationMessage) -> bool:
-        if message.kind is MessageKind.IMAGE:
-            return self.connector.send_viewport_image(
-                message.recipient_id, message.content
-            )
-        return self.connector.send_message(message.recipient_id, message.content)
-
     def send_envelope(self, envelope: CommunicationEnvelope) -> DeliveryReceipt:
         """Send every typed part through the existing Telegram connector edge."""
+        recipient_id = str(envelope.recipients[0].actor_id)
         for part in envelope.parts:
-            delivered = self._send_part(part, envelope.recipient_id)
+            delivered = self._send_part(part, recipient_id)
             if not delivered:
                 return DeliveryReceipt.for_envelope(
                     envelope,

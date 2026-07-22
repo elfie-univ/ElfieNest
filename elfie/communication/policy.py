@@ -20,9 +20,9 @@ from elfie.communication.contracts import (
 from elfie.message_types import ErrorInfo
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class CommunicationPolicyError(ValueError):
-    """A typed policy denial retained as an exception for legacy callers."""
+    """A typed policy denial raised before storage or transport."""
 
     error: ErrorInfo
 
@@ -30,7 +30,7 @@ class CommunicationPolicyError(ValueError):
         return self.error.message
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class CommunicationPolicy:
     """Local allow-list and content-size policy for both directions."""
 
@@ -44,8 +44,9 @@ class CommunicationPolicy:
         """Raise one typed denial before an envelope reaches storage/transport."""
         if self.allowed_channels and envelope.channel_id not in self.allowed_channels:
             self._deny("channel_not_allowed", f"不允许使用通信通道: {envelope.channel_id}")
-        if envelope.sender_id in self.blocked_sender_ids:
-            self._deny("sender_blocked", f"通信发送者已被拒绝: {envelope.sender_id}")
+        sender_id = str(envelope.sender.actor_id)
+        if sender_id in self.blocked_sender_ids:
+            self._deny("sender_blocked", f"通信发送者已被拒绝: {sender_id}")
         direction_policy = {
             MessageDirection.INBOUND: (
                 self.allow_inbound,

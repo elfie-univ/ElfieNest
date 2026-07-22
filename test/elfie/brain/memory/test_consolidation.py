@@ -19,8 +19,7 @@ import pytest
 from elfie.brain.memory.consolidation import MemoryConsolidator
 from elfie.brain.memory.context_assembly import ContextAssembler
 from elfie.brain.memory.graph_storage import GraphStorage
-from elfie.brain.memory.node_types import Edge, MemoryNode, NodeTypes, EdgeTypes
-
+from elfie.brain.memory.node_types import Edge, EdgeTypes, MemoryNode, NodeTypes
 
 # ---------------------------------------------------------------------------
 # 辅助函数

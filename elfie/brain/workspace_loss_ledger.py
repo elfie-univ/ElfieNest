@@ -1,12 +1,14 @@
 """Observable coalescing and bounded-sample loss accounting."""
 
-from typing import Dict, NamedTuple, Tuple
+from dataclasses import dataclass
+from typing import Dict, Tuple
 
 from elfie.brain.perception_types import CoalescedSummary, DroppedSummary
 from elfie.message_types import EventId
 
 
-class _Counter(NamedTuple):
+@dataclass(frozen=True)  # noqa: SLOTS_OK - Python 3.9
+class _Counter:
     seq: int
     count: int
     event_ids: Tuple[EventId, ...]

@@ -74,7 +74,7 @@ class BodyPerceptionBridge:
         self._reflex.bind_body_port(body_port)
 
     def receive(self, events: Iterable[BodySensorEvent]) -> Tuple[IngestReceipt, ...]:
-        receipts = ()
+        receipts: Tuple[IngestReceipt, ...] = ()
         for event in events:
             receipts += self.receive_body_event(event)
         return receipts
@@ -129,7 +129,7 @@ class BodyPerceptionBridge:
         self,
         writes: Tuple[PerceptionWrite, ...],
     ) -> Tuple[IngestReceipt, ...]:
-        receipts = ()
+        receipts: Tuple[IngestReceipt, ...] = ()
         for write in writes:
             if isinstance(write, PerceptionEvent):
                 with self._pending_lock:

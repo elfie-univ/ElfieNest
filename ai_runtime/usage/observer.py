@@ -6,6 +6,7 @@ import threading
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Union
+
 from ai_runtime.storage.data_home import get_elfie_home
 
 logger = logging.getLogger("ai_runtime.usage.observer")

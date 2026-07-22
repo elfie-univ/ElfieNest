@@ -41,10 +41,11 @@ def test_factory_creates_canonical_elfie_without_copying_legacy_algorithms() -> 
     elfie = ElfieFactory().create(elfie_id="elfie-new", memory_db_path=":memory:")
 
     assert isinstance(elfie, Elfie)
-    assert elfie.brain is not None
+    assert elfie.perceptual_workspace is not None
     assert elfie.nervous_system is not None
     assert elfie.memory is not None
     assert elfie.identity.elfie_id == "elfie-new"
+    assert not hasattr(elfie, "brain")
 
 
 def test_factory_builds_and_connects_native_body_when_godot_gateway_is_supplied() -> (
@@ -61,7 +62,7 @@ def test_factory_builds_and_connects_native_body_when_godot_gateway_is_supplied(
     assert elfie.current_body is not None
     assert elfie.current_body.body_id == "elfie-native"
     assert elfie.current_body.describe().mode is BodyMode.NATIVE
-    assert elfie.current_body.snapshot().connected is True
+    assert elfie.current_body.snapshot_body().connected is True
     assert gateway.callbacks
 
 
@@ -143,7 +144,7 @@ def test_factory_registers_multiple_bodies_and_selects_current_body() -> None:
     assert elfie.current_body is second
     assert second.connected is True
     assert first.connected is False
-    assert [item["body_id"] for item in elfie.describe()["available_bodies"]] == [
+    assert [item.body_id for item in elfie.body_registry.describe_all()] == [
         "first",
         "second",
     ]

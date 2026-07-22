@@ -24,6 +24,7 @@ _NonBlankText = Annotated[
 ]
 _Revision = Annotated[int, Field(strict=True, ge=0)]
 _Intensity = Annotated[float, Field(strict=True, ge=0.0, le=1.0)]
+_Ordinal = Annotated[int, Field(strict=True, ge=0)]
 
 
 @unique
@@ -69,6 +70,24 @@ class MessageIntent(IntentContract):
     conversation_id: _NonBlankText
     content: _NonBlankText
     reply_to_event_id: Optional[EventId] = None
+    sequence_id: Optional[_NonBlankText] = None
+    ordinal: Optional[_Ordinal] = None
+    send_after: Optional[UTCDateTime] = None
+
+    @model_validator(mode="after")
+    def validate_sequence(self) -> MessageIntent:
+        """Keep optional message ordering identity complete and schedulable."""
+        if (self.sequence_id is None) != (self.ordinal is None):
+            raise PydanticCustomError(
+                "incomplete_message_sequence",
+                "sequence_id and ordinal must be provided together",
+            )
+        if self.send_after is not None and self.send_after > self.deadline:
+            raise PydanticCustomError(
+                "message_send_after",
+                "send_after cannot be later than the intent deadline",
+            )
+        return self
 
 
 class MotionIntent(IntentContract):

@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from functools import singledispatch
-from typing import Final, FrozenSet, Mapping, Protocol, Tuple
+from typing import Final, FrozenSet, Mapping, NamedTuple, Protocol, Tuple
 
 from elfie.brain.perception_types import (
     ExecutionPayload,
@@ -34,6 +33,7 @@ from elfie.message_types import (
     MediaRef,
     MessageMeta,
     PlanId,
+    TurnId,
 )
 
 _EXECUTION_STATUS: Final[Mapping[DeliveryStatus, ExecutionStatus]] = {
@@ -51,19 +51,21 @@ _COMPLETING_DISPOSITIONS: Final[FrozenSet[IngestDisposition]] = frozenset(
 )
 
 
-@dataclass(frozen=True, slots=True)
-class PartPerception:
+class PartPerception(NamedTuple):
     """Text and media retained from one communication content part."""
 
     content: str
     media: Tuple[MediaRef, ...] = ()
 
 
-@dataclass(frozen=True, slots=True)
 class UnsupportedContentPartError(TypeError):
     """A new content variant lacks a perception conversion."""
 
-    part_type: str
+    __slots__ = ("part_type",)
+
+    def __init__(self, part_type: str) -> None:
+        self.part_type = part_type
+        super().__init__(str(self))
 
     def __str__(self) -> str:
         return f"unsupported communication content part: {self.part_type}"
@@ -72,8 +74,17 @@ class UnsupportedContentPartError(TypeError):
 class DeliveryCorrelation(Protocol):
     """Decision identity required to normalize one delivery receipt."""
 
-    plan_id: PlanId
-    intent_id: IntentId
+    @property
+    def plan_id(self) -> PlanId:
+        """Return the plan identity."""
+
+    @property
+    def turn_id(self) -> TurnId:
+        """Return the cognitive turn identity."""
+
+    @property
+    def intent_id(self) -> IntentId:
+        """Return the output intent identity."""
 
 
 @singledispatch
@@ -154,7 +165,7 @@ def build_execution_event(
             occurred_at=envelope.meta.received_at,
             received_at=envelope.meta.received_at,
             trace_id=envelope.meta.trace_id,
-            causation_id=envelope.message_id,
+            causation_id=envelope.meta.event_id,
             correlation_id=CorrelationId(external_id),
             priority=envelope.meta.priority,
         ),
@@ -162,6 +173,7 @@ def build_execution_event(
             type="execution",
             receipt_id=receipt.receipt_id,
             plan_id=correlation.plan_id,
+            turn_id=correlation.turn_id,
             intent_id=correlation.intent_id,
             executor="communication",
             status=_EXECUTION_STATUS[receipt.status],

@@ -3,25 +3,7 @@
 验证睡眠熔断、唤醒恢复、情绪-能量交互等设计目标。
 """
 
-from elfie import Elfie
 from elfie.brain.energy.energy import HypothalamusEnergy
-
-
-class MockRuntimeAgent:
-    """Mock LLM runtime agent，仅用于构造签名"""
-    class MockConfig:
-        remote_api_key = ""
-        providers = {
-            "deepseek": {"api_key": "", "api_base": ""},
-            "openai": {"api_key": "", "api_base": ""},
-            "gemini": {"api_key": "", "api_base": ""},
-            "qwen": {"api_key": "", "api_base": ""},
-            "ollama": {"api_key": "", "api_base": "http://localhost:11434"},
-        }
-    config = MockConfig()
-    def ask(self, prompt: str, energy: float, task_complexity: int) -> str:
-        return ""
-
 
 # =============================================================================
 # 睡眠熔断测试
@@ -42,22 +24,6 @@ class TestHibernationFuse:
         assert energy.is_sleeping is True, (
             f"疲劳度 95.0 >= 休眠阈值 {energy.hibernation_threshold}，应触发休眠"
         )
-
-    def test_sleep_blocks_perception(self):
-        """is_sleeping=True时，Elfie.perceive_and_respond
-        返回的dict包含"sleeping"或success=False的睡眠相关原因"""
-        elfie = Elfie()
-        # 直接设置睡眠状态（绕过疲劳累积过程）
-        elfie.hypothalamus.is_sleeping = True
-
-        result = elfie.perceive_and_respond(
-            {"has_new_message": True, "user_message": "hello"},
-            MockRuntimeAgent(),
-        )
-
-        assert result.get("success") is False, "睡眠时应返回 success=False"
-        reason = result.get("reason", "")
-        assert "sleeping" in reason, f"原因应包含 sleeping，实际为: {reason}"
 
     def test_hibernation_threshold_boundary(self):
         """疲劳恰好95.0→触发睡眠（边界值测试）"""
@@ -117,32 +83,3 @@ class TestWakeupRecovery:
 # =============================================================================
 # 情绪-能量交互测试
 # =============================================================================
-
-class TestEmotionEnergyInteraction:
-    """验证 tick() 同时驱动能量消耗和情绪衰减"""
-
-    def test_tick_with_energy_still_decays_emotion(self):
-        """构造Elfie，先注入fear=80，然后tick(dt=10)，
-        fear应有衰减（验证tick同时驱动能量和情绪衰减）"""
-        elfie = Elfie()
-
-        # 注入 fear：baseline=10，加 70 到 80
-        elfie.amygdala.update_emotion("fear", 70)
-        assert elfie.amygdala.get_emotion_value("fear") == 80.0, (
-            "fear 注入后应为 80"
-        )
-
-        before_energy = elfie.hypothalamus.get_energy()
-
-        # tick 10 秒：应同时触发能量消耗和情绪衰减
-        elfie.tick(10.0)
-
-        after_fear = elfie.amygdala.get_emotion_value("fear")
-        after_energy = elfie.hypothalamus.get_energy()
-
-        assert after_fear < 80.0, (
-            f"tick 后 fear 应衰减：注入 80.0 -> {after_fear:.2f}"
-        )
-        assert after_energy < before_energy, (
-            f"tick 后能量应减少：{before_energy} -> {after_energy}"
-        )

@@ -1,3 +1,4 @@
+from ai_runtime.tools.config import TOOL_KEYS
 from elfie import ElfieFactory
 from elfie.skills import (
     BUILTIN_SKILLS,
@@ -5,7 +6,6 @@ from elfie.skills import (
     SkillManager,
     SkillPolicy,
 )
-from ai_runtime.tools.config import TOOL_KEYS
 
 
 class CapturingRuntime:
@@ -113,4 +113,4 @@ def test_factory_injects_skill_manager_into_canonical_elfie() -> None:
     )
 
     assert elfie.skills is manager
-    assert elfie.describe()["skills"]["allowed_runtime_tools"] == ["web_search"]
+    assert elfie.skills.allowed_runtime_tools() == ("web_search",)

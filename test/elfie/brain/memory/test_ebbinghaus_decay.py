@@ -3,8 +3,6 @@
 import math
 from datetime import datetime, timedelta
 
-import pytest
-
 from elfie.brain.memory.ebbinghaus_decay import EbbinghausDecay
 from elfie.brain.memory.node_types import MemoryNode, NodeTypes
 

@@ -1,4 +1,4 @@
-"""Typed compatibility snapshot construction for CommunicationHub."""
+"""CommunicationHub 状态快照构造。"""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ class ChannelSnapshot(TypedDict):
 
 
 class HubSnapshot(TypedDict):
-    """Stable compatibility snapshot shape for product callers."""
+    """产品调用方可观测的稳定 Hub 状态。"""
 
     elfie_id: str
     channels: List[ChannelSnapshot]

@@ -1,0 +1,176 @@
+"""Architecture gates for the canonical Elfie cognitive information flow."""
+
+from __future__ import annotations
+
+import ast
+import tokenize
+from pathlib import Path
+
+import elfie.body as body_api
+import elfie.communication as communication_api
+from elfie.body import BodyCommand, BodySensorEvent, CommandReceipt
+from elfie.body.contracts import BodyCommand as ContractBodyCommand
+from elfie.brain import BrainContext, DecisionPlan, PerceptualWorkspace
+from elfie.communication import CommunicationEnvelope, DeliveryReceipt
+from scripts.export_elfie_contract_schemas import render_contract_schemas
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+ELFIE_ROOT = PROJECT_ROOT / "elfie"
+REQUIRED_BRAIN_FILES = frozenset(
+    {
+        "context_types.py",
+        "decision_types.py",
+        "perception_types.py",
+        "perceptual_workspace.py",
+        "runtime_port.py",
+    }
+)
+EXPECTED_SCHEMA_FILES = frozenset(
+    {
+        "body-command.schema.json",
+        "body-sensor-event.schema.json",
+        "brain-context.schema.json",
+        "communication-envelope.schema.json",
+        "decision-plan.schema.json",
+        "execution-receipt.schema.json",
+        "message-meta.schema.json",
+    }
+)
+
+
+def test_brain_root_contains_facilities_without_a_fourth_layer_package() -> None:
+    # Given
+    brain_root = ELFIE_ROOT / "brain"
+    entries = {path.name for path in brain_root.iterdir()}
+
+    # When / Then
+    assert REQUIRED_BRAIN_FILES <= entries
+    assert not any((brain_root / "perception").glob("*.py"))
+    assert not any((brain_root / "cognition").glob("*.py"))
+    assert not (brain_root / "brain_types.py").exists()
+
+
+def test_elfie_does_not_reverse_import_application_or_runtime_layers() -> None:
+    # Given / When
+    offenders: list[str] = []
+    for path in ELFIE_ROOT.rglob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            module = node.module if isinstance(node, ast.ImportFrom) else None
+            names = [alias.name for alias in node.names] if isinstance(node, ast.Import) else []
+            imported = ([module] if module is not None else []) + names
+            if any(name.split(".", 1)[0] in {"ai_runtime", "app", "nest"} for name in imported):
+                offenders.append(path.relative_to(PROJECT_ROOT).as_posix())
+                break
+
+    # Then
+    assert offenders == []
+
+
+def test_canonical_cross_module_contracts_are_public() -> None:
+    # Given / When / Then
+    for contract in (
+        BodySensorEvent,
+        CommandReceipt,
+        CommunicationEnvelope,
+        DeliveryReceipt,
+        BrainContext,
+        DecisionPlan,
+    ):
+        assert callable(contract.model_json_schema)
+    assert BodyCommand is not None
+    assert BodyCommand is ContractBodyCommand
+    assert PerceptualWorkspace is not None
+
+
+def test_old_product_cognition_entry_points_are_absent() -> None:
+    # Given
+    elfie_source = (ELFIE_ROOT / "elfie.py").read_text(encoding="utf-8")
+    tree = ast.parse(elfie_source)
+    methods = {
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef)
+    }
+
+    # When / Then
+    assert methods.isdisjoint(
+        {
+            "perceive_and_respond",
+            "perceive_body_and_respond",
+            "respond_to_body_events",
+        }
+    )
+
+
+def test_task14_legacy_body_and_communication_paths_are_absent() -> None:
+    # Given: Task 14 has made the typed contracts the only product path.
+    forbidden_body_exports = (
+        "BodyEvent",
+        "CommandResult",
+        "LegacyBodyCommand",
+        "LegacyBodyEvent",
+        "LegacyBodyPort",
+        "LegacyCommandResult",
+        "LegacyCommandStatus",
+    )
+    forbidden_communication_exports = (
+        "CommunicationMessage",
+        "LegacyChannelAdapter",
+        "LegacyCommunicationChannel",
+        "MessageKind",
+    )
+
+    # When / Then: no public symbol or runtime adapter can restore the old path.
+    assert not (ELFIE_ROOT / "nervous_system" / "legacy_perception.py").exists()
+    assert all(not hasattr(body_api, name) for name in forbidden_body_exports)
+    assert all(
+        not hasattr(communication_api, name)
+        for name in forbidden_communication_exports
+    )
+    assert "LegacyBodyPort" not in (ELFIE_ROOT / "body" / "port.py").read_text(
+        encoding="utf-8"
+    )
+    assert "LegacyCommunicationChannel" not in (
+        ELFIE_ROOT / "communication" / "channel.py"
+    ).read_text(encoding="utf-8")
+
+
+def test_elfie_facade_stays_within_250_pure_source_lines() -> None:
+    # Given
+    path = ELFIE_ROOT / "elfie.py"
+
+    # When
+    with path.open("rb") as source:
+        lines = {
+            token.start[0]
+            for token in tokenize.tokenize(source.readline)
+            if token.type
+            not in {
+                tokenize.ENCODING,
+                tokenize.ENDMARKER,
+                tokenize.INDENT,
+                tokenize.DEDENT,
+                tokenize.NEWLINE,
+                tokenize.NL,
+                tokenize.COMMENT,
+            }
+        }
+
+    # Then
+    assert len(lines) <= 250
+
+
+def test_versioned_contract_schemas_are_complete() -> None:
+    # Given
+    schema_root = PROJECT_ROOT / "docs" / "contracts" / "elfie" / "v1"
+
+    # When
+    existing = {path.name for path in schema_root.glob("*.schema.json")}
+
+    # Then
+    assert existing == EXPECTED_SCHEMA_FILES
+    assert {
+        path.name: path.read_text(encoding="utf-8")
+        for path in schema_root.glob("*.schema.json")
+    } == render_contract_schemas()

@@ -1,12 +1,6 @@
 """精灵自带的双向消息通信能力。"""
 
-from elfie.communication.channel import (
-    CommunicationChannel,
-    CommunicationMessage,
-    LegacyCommunicationChannel,
-    MessageDirection,
-    MessageKind,
-)
+from elfie.communication.channel import CommunicationChannel
 from elfie.communication.channels import (
     TelegramChannel,
     TelegramConnector,
@@ -23,6 +17,7 @@ from elfie.communication.contracts import (
     ImagePart,
     InboundDisposition,
     InboundDispositionStatus,
+    MessageDirection,
     ReactionPart,
     SystemEventPart,
     TextPart,
@@ -47,12 +42,9 @@ from elfie.communication.router import (
 
 __all__ = [
     "CommunicationChannel",
-    "LegacyCommunicationChannel",
-    "CommunicationMessage",
     "CommunicationEnvelope",
     "ContentPart",
     "MessageDirection",
-    "MessageKind",
     "TextPart",
     "ImagePart",
     "AudioPart",

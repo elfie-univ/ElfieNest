@@ -1,0 +1,127 @@
+{
+  "$defs": {
+    "ErrorInfo": {
+      "additionalProperties": false,
+      "description": "Structured error details suitable for receipts and replay.",
+      "properties": {
+        "causes": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ErrorInfo"
+          },
+          "title": "Causes",
+          "type": "array"
+        },
+        "code": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Message",
+          "type": "string"
+        },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "ErrorInfo",
+      "type": "object"
+    },
+    "ExecutionStatus": {
+      "description": "Normalized lifecycle states emitted by output executors.",
+      "enum": [
+        "accepted",
+        "started",
+        "completed",
+        "rejected",
+        "failed",
+        "interrupted",
+        "timed_out",
+        "cancelled"
+      ],
+      "title": "ExecutionStatus",
+      "type": "string"
+    },
+    "ExecutorKind": {
+      "description": "Closed output targets understood by the scheduler.",
+      "enum": [
+        "body",
+        "communication",
+        "internal"
+      ],
+      "title": "ExecutorKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One correlatable state transition for one decision intent.",
+  "properties": {
+    "error": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ErrorInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "executor": {
+      "$ref": "#/$defs/ExecutorKind"
+    },
+    "intent_id": {
+      "minLength": 1,
+      "pattern": "^\\S(?:.*\\S)?$",
+      "title": "Intent Id",
+      "type": "string"
+    },
+    "occurred_at": {
+      "format": "date-time",
+      "title": "Occurred At",
+      "type": "string"
+    },
+    "plan_id": {
+      "minLength": 1,
+      "pattern": "^\\S(?:.*\\S)?$",
+      "title": "Plan Id",
+      "type": "string"
+    },
+    "receipt_id": {
+      "minLength": 1,
+      "pattern": "^\\S(?:.*\\S)?$",
+      "title": "Receipt Id",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/ExecutionStatus"
+    },
+    "turn_id": {
+      "minLength": 1,
+      "pattern": "^\\S(?:.*\\S)?$",
+      "title": "Turn Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "receipt_id",
+    "plan_id",
+    "turn_id",
+    "intent_id",
+    "executor",
+    "status",
+    "occurred_at"
+  ],
+  "title": "ExecutionReceipt",
+  "type": "object"
+}

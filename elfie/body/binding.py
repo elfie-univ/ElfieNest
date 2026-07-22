@@ -45,7 +45,7 @@ class BodyBinding:
         with self._lock:
             previous = self._current
             if candidate is previous:
-                if not candidate.snapshot().connected:
+                if not candidate.snapshot_body().connected:
                     candidate.connect()
                 return candidate
 

@@ -31,7 +31,7 @@ from elfie.message_types import (
 WireScalar: TypeAlias = Union[str, int, float, bool, datetime, None]
 WireValue: TypeAlias = Union[WireScalar, List["WireValue"], dict[str, "WireValue"]]
 
-_COMMAND_ADAPTER = TypeAdapter(BodyCommand)
+_COMMAND_ADAPTER: TypeAdapter[BodyCommand] = TypeAdapter(BodyCommand)
 
 
 class _CommandIdentity(BaseModel):

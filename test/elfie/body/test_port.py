@@ -1,16 +1,28 @@
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+
+import elfie.body as body_api
+import elfie.body.port as body_port_module
+import elfie.body.types as body_types
 from elfie.body import (
     BodyCapabilities,
     BodyCommand,
     BodyDescriptor,
-    BodyEvent,
+    BodyId,
     BodyMode,
     BodyPort,
-    BodyState,
-    CommandResult,
+    BodySensorEvent,
+    BodySnapshot,
+    CommandReceipt,
     CommandStatus,
     HeadlessBody,
-    LegacyBodyPort,
+    MotionCommand,
 )
+from elfie.message_types import CommandId, IntentId, TurnId
+from elfie.nervous_system import NervousSystem
+
+NOW = datetime(2026, 7, 22, 8, 0, tzinfo=timezone.utc)
 
 
 def test_headless_body_implements_body_port() -> None:
@@ -20,6 +32,25 @@ def test_headless_body_implements_body_port() -> None:
     assert body.describe().mode.value == "headless"
     assert body.describe().capabilities.supports_sensor("vision") is True
     assert body.describe().capabilities.supports_action("tail.wag") is True
+
+
+def test_body_public_api_exposes_only_typed_boundary_contracts() -> None:
+    legacy_symbols = (
+        "LegacyBodyPort",
+        "LegacyBodyCommand",
+        "LegacyBodyEvent",
+        "LegacyCommandResult",
+        "LegacyCommandStatus",
+        "BodyEvent",
+        "CommandResult",
+        "BodyState",
+    )
+
+    assert all(not hasattr(body_api, name) for name in legacy_symbols)
+    assert all(not hasattr(body_types, name) for name in legacy_symbols)
+    assert not hasattr(body_port_module, "LegacyBodyPort")
+    assert not hasattr(NervousSystem, "receive")
+    assert not hasattr(NervousSystem, "receive_legacy")
 
 
 class MinimalBody:
@@ -42,31 +73,42 @@ class MinimalBody:
             capabilities=self.capabilities,
         )
 
-    def read_events(self) -> list[BodyEvent]:
+    def read_sensor_events(self) -> list[BodySensorEvent]:
         return []
 
-    def execute(self, command: BodyCommand) -> CommandResult:
-        return CommandResult(
-            command_id=command.command_id,
-            action=command.action,
-            status=CommandStatus.COMPLETED,
+    def execute(
+        self,
+        command: BodyCommand,
+        *,
+        now: datetime | None = None,
+    ) -> tuple[CommandReceipt, ...]:
+        return (CommandReceipt.completed(command, occurred_at=now or NOW),)
+
+    def snapshot_body(self, *, now: datetime | None = None) -> BodySnapshot:
+        return BodySnapshot(
+            body_id=BodyId(self.body_id),
+            captured_at=now or NOW,
+            connected=True,
+            capability_revision=1,
         )
-
-    def snapshot(self) -> BodyState:
-        return BodyState(body_id=self.body_id, connected=True)
-
-    def emergency_stop(self) -> CommandResult:
-        return self.execute(BodyCommand(action="system.emergency_stop"))
 
 
 def test_body_port_exposes_one_receive_and_one_control_entry() -> None:
     body = MinimalBody()
-
-    assert isinstance(body, LegacyBodyPort)
-    assert not isinstance(body, BodyPort)
-    assert body.read_events() == []
-    assert (
-        body.execute(BodyCommand(action="face.blink")).status is CommandStatus.COMPLETED
+    command = MotionCommand(
+        command_type="motion",
+        command_id=CommandId("command-1"),
+        turn_id=TurnId("turn-1"),
+        intent_id=IntentId("intent-1"),
+        body_id=BodyId("minimal"),
+        issued_at=NOW,
+        deadline=NOW + timedelta(seconds=1),
+        capability_revision=1,
+        kind="gesture.wave",
     )
+
+    assert isinstance(body, BodyPort)
+    assert body.read_sensor_events() == []
+    assert body.execute(command, now=NOW)[0].status is CommandStatus.COMPLETED
     assert not hasattr(body, "sensors")
     assert not hasattr(body, "actuators")

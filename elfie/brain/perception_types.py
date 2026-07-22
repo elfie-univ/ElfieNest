@@ -19,6 +19,7 @@ from elfie.message_types import (
     MediaRef,
     MessageMeta,
     PlanId,
+    TurnId,
     UTCDateTime,
 )
 
@@ -56,6 +57,7 @@ class ExecutionStatus(str, Enum):
     FAILED = "failed"
     INTERRUPTED = "interrupted"
     TIMED_OUT = "timed_out"
+    CANCELLED = "cancelled"
 
 
 @unique
@@ -123,6 +125,7 @@ class ExecutionPayload(FrozenContractModel):
     type: Literal["execution"]
     receipt_id: EventId
     plan_id: PlanId
+    turn_id: TurnId
     intent_id: IntentId
     executor: Literal["body", "communication", "internal"]
     status: ExecutionStatus

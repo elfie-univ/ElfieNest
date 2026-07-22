@@ -4,53 +4,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from threading import RLock
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
-from elfie.communication.channel import (
-    CommunicationChannel,
-    CommunicationMessage,
-    LegacyCommunicationChannel,
-)
+from elfie.communication.channel import CommunicationChannel
 from elfie.communication.contracts import (
     CommunicationEnvelope,
     DeliveryReceipt,
     DeliveryStatus,
 )
 
-RegisteredChannel = Union[CommunicationChannel, LegacyCommunicationChannel]
+RegisteredChannel = CommunicationChannel
 
 
-class LegacyChannelAdapter:
-    """Make a historical bool-returning channel satisfy the envelope protocol."""
-
-    def __init__(self, channel: LegacyCommunicationChannel) -> None:
-        self._channel = channel
-        self.channel_id = channel.channel_id
-
-    @property
-    def is_connected(self) -> bool:
-        return self._channel.is_connected
-
-    def connect(self) -> bool:
-        return self._channel.connect()
-
-    def disconnect(self) -> None:
-        self._channel.disconnect()
-
-    def send_envelope(self, envelope: CommunicationEnvelope) -> DeliveryReceipt:
-        delivered = self._channel.send(CommunicationMessage.from_envelope(envelope))
-        if not delivered:
-            return DeliveryReceipt.for_envelope(
-                envelope,
-                status=DeliveryStatus.FAILED,
-                error_code="send_not_confirmed",
-                error_message="通信通道未确认发送成功",
-                retryable=True,
-            )
-        return DeliveryReceipt.for_envelope(envelope, status=DeliveryStatus.SENT)
-
-
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ChannelRegistrationError(ValueError):
     """A channel is incomplete or conflicts with an existing registration."""
 
@@ -60,7 +26,7 @@ class ChannelRegistrationError(ValueError):
         return self.reason
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ChannelNotFoundError(KeyError):
     """A requested channel ID is absent from the registry."""
 
@@ -83,16 +49,19 @@ class CommunicationRouter:
         *,
         replace: bool = False,
     ) -> RegisteredChannel:
-        """Register either the canonical or explicit Task 14 compatibility port."""
-        canonical = self._canonical_channel(channel)
-        channel_id = str(canonical.channel_id).strip()
+        """Register one channel that implements the complete typed contract."""
+        if not isinstance(channel, CommunicationChannel):
+            raise ChannelRegistrationError(
+                reason="通道没有完整实现 CommunicationChannel"
+            )
+        channel_id = str(channel.channel_id).strip()
         if not channel_id:
             raise ChannelRegistrationError(reason="channel_id 不能为空")
         with self._lock:
             existing = self._channels.get(channel_id)
             if existing is not None and existing is not channel and not replace:
                 raise ChannelRegistrationError(reason=f"通信通道已经注册: {channel_id}")
-            self._channels[channel_id] = canonical
+            self._channels[channel_id] = channel
         return channel
 
     def unregister(self, channel_id: str) -> CommunicationChannel:
@@ -146,7 +115,7 @@ class CommunicationRouter:
                 retryable=True,
             )
         if (
-            receipt.message_id != envelope.message_id
+            receipt.message_id != envelope.meta.event_id
             or receipt.channel_id != envelope.channel_id
         ):
             return self._failed(
@@ -155,14 +124,6 @@ class CommunicationRouter:
                 message="通信通道返回了不匹配的投递回执",
             )
         return receipt
-
-    @staticmethod
-    def _canonical_channel(channel: RegisteredChannel) -> CommunicationChannel:
-        if isinstance(channel, CommunicationChannel):
-            return channel
-        if isinstance(channel, LegacyCommunicationChannel):
-            return LegacyChannelAdapter(channel)
-        raise ChannelRegistrationError(reason="通道没有完整实现 CommunicationChannel")
 
     @staticmethod
     def _failed(
@@ -185,6 +146,5 @@ __all__ = (
     "ChannelRegistrationError",
     "ChannelNotFoundError",
     "CommunicationRouter",
-    "LegacyChannelAdapter",
     "RegisteredChannel",
 )

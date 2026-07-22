@@ -10,7 +10,7 @@ from typing import Deque, List, Optional, Set, Tuple
 from elfie.communication.contracts import CommunicationEnvelope, MessageDirection
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class InboxDirectionError(ValueError):
     """An outbound envelope was offered to the inbound store."""
 
@@ -61,7 +61,7 @@ class CommunicationInbox:
         """Remove up to ``limit`` pending envelopes in arrival order."""
         with self._lock:
             count = len(self._pending) if limit is None else max(0, limit)
-            messages = []
+            messages: List[CommunicationEnvelope] = []
             while self._pending and len(messages) < count:
                 messages.append(self._pending.popleft())
         return messages

@@ -100,13 +100,6 @@ ContentPart = Annotated[
 ]
 
 
-class DeliveryErrorInfo(ErrorInfo):
-    """Typed receipt error with legacy substring lookup until Task 14."""
-
-    def __contains__(self, needle: str) -> bool:
-        return needle in self.message
-
-
 class CommunicationEnvelope(FrozenContractModel):
     """跨平台、可去重并保留会话身份的完整消息。"""
 
@@ -138,27 +131,6 @@ class CommunicationEnvelope(FrozenContractModel):
                 "sequence_id and ordinal must be provided together",
             )
         return self
-
-    @property
-    def message_id(self) -> EventId:
-        """Expose the legacy message ID at the compatibility edge."""
-        return self.meta.event_id
-
-    @property
-    def sender_id(self) -> str:
-        """Expose the legacy sender ID at the compatibility edge."""
-        return str(self.sender.actor_id)
-
-    @property
-    def recipient_id(self) -> str:
-        """Expose the first legacy recipient ID."""
-        return str(self.recipients[0].actor_id)
-
-    @property
-    def timestamp(self) -> float:
-        """Expose the legacy Unix timestamp."""
-        return self.meta.occurred_at.timestamp()
-
 
 @unique
 class DeliveryStatus(str, Enum):
@@ -211,15 +183,6 @@ class DeliveryReceipt(FrozenContractModel):
             )
         return self
 
-    @property
-    def delivered(self) -> bool:
-        """Preserve the legacy success predicate."""
-        return self.status in {
-            DeliveryStatus.SENT,
-            DeliveryStatus.DELIVERED,
-            DeliveryStatus.READ,
-        }
-
     @classmethod
     def for_envelope(
         cls,
@@ -236,14 +199,14 @@ class DeliveryReceipt(FrozenContractModel):
         """Create a receipt while retaining envelope correlation identity."""
         error = None
         if error_code is not None:
-            error = DeliveryErrorInfo(
+            error = ErrorInfo(
                 code=error_code,
                 message=error_message or error_code,
                 retryable=retryable,
             )
         return cls(
-            receipt_id=f"receipt_{uuid4().hex}",
-            message_id=envelope.message_id,
+            receipt_id=EventId(f"receipt_{uuid4().hex}"),
+            message_id=envelope.meta.event_id,
             channel_id=envelope.channel_id,
             status=status,
             attempt=attempt,

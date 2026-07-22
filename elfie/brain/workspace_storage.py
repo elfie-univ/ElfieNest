@@ -14,6 +14,7 @@ from elfie.brain.perception_types import (
     PerceptionWrite,
     TriggerReason,
 )
+from elfie.brain.workspace_event_metrics import WorkspaceEventMetrics
 from elfie.brain.workspace_loss_ledger import WorkspaceLossLedger
 from elfie.brain.workspace_types import (
     FrameLifecycleError,
@@ -59,11 +60,9 @@ class WorkspaceStorage:
         self._state: OrderedDict[str, _StateEntry] = OrderedDict()
         self._media: Dict[str, Deque[_MediaEntry]] = {}
         self._loss = WorkspaceLossLedger()
+        self._event_metrics = WorkspaceEventMetrics()
         self._dead_letters: Deque[ProcessingFailureEvent] = deque()
         self._media_count = 0
-        self._oldest_at: Optional[UTCDateTime] = None
-        self._newest_at: Optional[UTCDateTime] = None
-        self._max_salience = 0.0
 
     @property
     def journal_full(self) -> bool:
@@ -72,20 +71,17 @@ class WorkspaceStorage:
     def store(self, item: PerceptionWrite, seq: int) -> IngestDisposition:
         if isinstance(item, PerceptionEvent):
             self._journal.append(_EventEntry(seq, item))
-            self._record_event_metrics(item)
+            self._event_metrics.record(item)
             return IngestDisposition.ACCEPTED
         if isinstance(item, PerceptionStateUpdate):
             return self._store_state(item, seq)
         return self._store_media(item, seq)
 
     def metrics(self) -> WorkspaceStorageMetrics:
-        return WorkspaceStorageMetrics(
+        return self._event_metrics.snapshot(
             reliable_event_count=len(self._journal) + len(self._failure_queue),
             state_key_count=len(self._state),
             media_sample_count=self._media_count,
-            oldest_event_at=self._oldest_at,
-            newest_event_at=self._newest_at,
-            max_salience=self._max_salience,
         )
 
     def build_frame(
@@ -153,7 +149,9 @@ class WorkspaceStorage:
                 del self._media[stream_id]
         self._loss.commit(cutoff)
         self._media_count = sum(len(stream) for stream in self._media.values())
-        self._refresh_event_metrics()
+        self._event_metrics.refresh(
+            entry.item for entry in tuple(self._failure_queue) + tuple(self._journal)
+        )
 
     def enqueue_processing_failure(
         self,
@@ -173,7 +171,7 @@ class WorkspaceStorage:
         )
         self._failure_queue.append(_EventEntry(seq, failure))
         self._dead_letters.append(failure)
-        self._record_event_metrics(failure)
+        self._event_metrics.record(failure)
         return failure
 
     def dead_letters(self) -> Tuple[ProcessingFailureEvent, ...]:
@@ -223,25 +221,5 @@ class WorkspaceStorage:
         stream.append(_MediaEntry(seq, item))
         self._media_count += 1
         return disposition
-
-    def _record_event_metrics(self, event: PerceptionEvent) -> None:
-        occurred_at = event.meta.occurred_at
-        if self._oldest_at is None or occurred_at < self._oldest_at:
-            self._oldest_at = occurred_at
-        if self._newest_at is None or occurred_at > self._newest_at:
-            self._newest_at = occurred_at
-        self._max_salience = max(self._max_salience, event.salience)
-
-    def _refresh_event_metrics(self) -> None:
-        events = tuple(self._failure_queue) + tuple(self._journal)
-        if not events:
-            self._oldest_at = None
-            self._newest_at = None
-            self._max_salience = 0.0
-            return
-        self._oldest_at = min(entry.item.meta.occurred_at for entry in events)
-        self._newest_at = max(entry.item.meta.occurred_at for entry in events)
-        self._max_salience = max(entry.item.salience for entry in events)
-
 
 __all__ = ("WorkspaceStorage",)

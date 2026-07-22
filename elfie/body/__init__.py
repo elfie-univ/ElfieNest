@@ -2,6 +2,24 @@
 
 from elfie.body.binding import BodyBinding, BodySwitchError
 from elfie.body.capabilities import BodyCapabilities
+from elfie.body.contracts import (
+    BodyCommand,
+    BodyId,
+    BodySensorEvent,
+    BodySnapshot,
+    CommandReceipt,
+    CommandStatus,
+    EmergencyStopCommand,
+    EnvironmentSample,
+    ExpressionCommand,
+    MotionCommand,
+    ProprioceptionSample,
+    SpeechCommand,
+    TactileImpact,
+    UtteranceFinal,
+    VisionChange,
+    VisionSample,
+)
 from elfie.body.external import ExternalBody, ExternalTransport
 from elfie.body.headless import HeadlessBody
 from elfie.body.native import GodotGateway, GodotTransport, NativeBody
@@ -9,40 +27,15 @@ from elfie.body.native.anatomy.base import JointLimit, SomaticAnatomy, VoiceProf
 from elfie.body.native.anatomy.biped import BipedAnatomy
 from elfie.body.native.anatomy.quadruped import QuadrupedAnatomy
 from elfie.body.native.gait import GaitEngine
-from elfie.body.port import ActuatorPort, BodyPort, LegacyBodyPort, SensorPort
+from elfie.body.port import ActuatorPort, BodyPort, SensorPort
 from elfie.body.registry import (
     BodyNotFoundError,
     BodyRegistrationError,
     BodyRegistry,
 )
 from elfie.body.types import (
-    BodyCommand,
     BodyDescriptor,
-    BodyEvent,
-    BodyId,
     BodyMode,
-    BodySensorEvent,
-    BodySnapshot,
-    BodyState,
-    CommandReceipt,
-    CommandResult,
-    CommandStatus,
-    EmergencyStopCommand,
-    EnvironmentSample,
-    ExpressionCommand,
-    LegacyBodyCommand,
-    LegacyBodyEvent,
-    LegacyCommandResult,
-    LegacyCommandStatus,
-    MotionCommand,
-    ProprioceptionSample,
-    ReceiptStatus,
-    SpeechCommand,
-    TactileImpact,
-    TypedBodyCommand,
-    UtteranceFinal,
-    VisionChange,
-    VisionSample,
 )
 from elfie.nervous_system.reflex.reflex_arc import SomaticReflexArc
 
@@ -57,19 +50,15 @@ __all__ = [
     "SensorPort",
     "ActuatorPort",
     "BodyPort",
-    "LegacyBodyPort",
     "BodyCapabilities",
     "BodyRegistry",
     "BodyRegistrationError",
     "BodyNotFoundError",
     "BodyBinding",
     "BodySwitchError",
-    "BodyEvent",
     "BodyCommand",
-    "CommandResult",
     "CommandStatus",
     "BodyDescriptor",
-    "BodyState",
     "BodyMode",
     "HeadlessBody",
     "GodotGateway",
@@ -81,8 +70,6 @@ __all__ = [
     "BodySensorEvent",
     "BodySnapshot",
     "CommandReceipt",
-    "ReceiptStatus",
-    "TypedBodyCommand",
     "SpeechCommand",
     "MotionCommand",
     "ExpressionCommand",
@@ -93,8 +80,4 @@ __all__ = [
     "TactileImpact",
     "ProprioceptionSample",
     "EnvironmentSample",
-    "LegacyBodyEvent",
-    "LegacyBodyCommand",
-    "LegacyCommandResult",
-    "LegacyCommandStatus",
 ]

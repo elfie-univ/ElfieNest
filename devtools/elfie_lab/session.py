@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import re
 import threading
 import time
-from collections import Counter
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
+from devtools.elfie_lab.deprecated_sync_adapter import DeprecatedSyncCognitionAdapter
 from devtools.elfie_lab.runtime_adapters import create_runtime
 from devtools.elfie_lab.schemas import (
     ElfieSpec,
@@ -18,10 +17,11 @@ from devtools.elfie_lab.schemas import (
     new_id,
     utc_now,
 )
+from devtools.elfie_lab.session_projection import build_profile, build_snapshot
+from devtools.elfie_lab.session_state import apply_state_injection, model_skip_reason
 from devtools.elfie_lab.storage import ElfieLabStorage
 from elfie import ElfieFactory
 from elfie.body import HeadlessBody
-from elfie.profile import AppearanceResolver
 
 
 class ElfieLabSession:
@@ -49,9 +49,9 @@ class ElfieLabSession:
             memory_db_path=str(storage.memory_path(spec.elfie_id)),
             body=self.body,
         )
+        self._sync_adapter = DeprecatedSyncCognitionAdapter(self.elfie)
         self._lock = threading.Lock()
-        if self.turns:
-            self._restore_snapshot(self.turns[-1].get("state_after", {}))
+        self._closed = False
 
     def get_payload(self) -> Dict[str, Any]:
         return {
@@ -65,66 +65,20 @@ class ElfieLabSession:
         }
 
     def profile(self) -> Dict[str, Any]:
-        character_profile = self.elfie.profile
-        personality = self.elfie.brain.profile.personality
-        resolved = AppearanceResolver().resolve(character_profile).to_payload()
-        big_five = personality.get("big_five", {})
-        return {
-            **self.spec.to_dict(),
-            "configured_name": character_profile.identity.display_name,
-            "species_id": character_profile.identity.species_id,
-            "species_label": "小狗" if character_profile.identity.species_id == "dog" else "狐狸",
-            "personality_summary": self._personality_summary(big_five),
-            "personality_tags": self._personality_tags(big_five),
-            "big_five": big_five,
-            "speech_style": personality.get("speech_style", {}),
-            "appearance": resolved,
-            "appearance_genome": asdict(character_profile.appearance),
-            "portrait_url": (
-                f"/api/elfies/{self.spec.elfie_id}/portrait"
-                if self.storage.portrait_path(self.spec.elfie_id).is_file()
-                else ""
-            ),
-            "memory_cognition": self._memory_cognition_projection(),
-            "memory_count": len(self.elfie.memory.get_all_episodes()),
-            "model": {
-                "interaction_protocol": "food",
-                "default_food": "mock",
-                "mock_model": "elfie-mock",
-                "catalog_scope": "runtime",
-            },
-        }
+        return build_profile(self.elfie, self.spec, self.storage)
 
     def snapshot(self) -> Dict[str, Any]:
-        expression = self.elfie.amygdala.get_expression() or {}
-        return {
-            "energy": round(self.elfie.hypothalamus.get_energy(), 2),
-            "fatigue": round(self.elfie.hypothalamus.get_fatigue(), 2),
-            "is_sleeping": bool(self.elfie.hypothalamus.is_sleeping),
-            "emotions": {
-                name: round(value, 2)
-                for name, value in self.elfie.amygdala.emotions.items()
-            },
-            "dominant_emotion": self.elfie.amygdala.get_dominant_mood(),
-            "expression": expression,
-            "attention_network": self.elfie.brain.attention.current_network,
-            "species_id": self.spec.species_id,
-            "anatomy_type": self.elfie.anatomy_type,
-            "action_intent": self.elfie.nervous_system.motion_actuator.last_action_intent,
-            "joint_angles": {
-                name: round(value, 3)
-                for name, value in self.elfie.anatomy.get_joint_angles().items()
-            },
-            "elapsed_time": round(self.elfie.elapsed_time, 3),
-            "memory_count": len(self.elfie.memory.get_all_episodes()),
-        }
+        return build_snapshot(self.elfie, self.spec)
 
     def run_turn(self, stimulus: StimulusBundle, food_key: str) -> Dict[str, Any]:
         with self._lock:
             turn_id = new_id("turn")
             trace: Dict[str, Any] = {}
             pre_injection = self.snapshot()
-            injection_changes = self._apply_state_injection(stimulus.state_injection)
+            injection_changes = apply_state_injection(
+                self.elfie,
+                stimulus.state_injection,
+            )
             state_before = self.snapshot()
             runtime = None
             started = time.perf_counter()
@@ -132,15 +86,30 @@ class ElfieLabSession:
             error: Optional[str] = None
             try:
                 runtime = create_runtime(food_key, self.runtime_config_dir)
-                self.body.inject_sensor_data(
-                    stimulus.to_sensor_data(turn_id),
-                    event_id=turn_id,
-                )
-                result = self.elfie.perceive_body_and_respond(
+                outcome, receipts = self._sync_adapter.run(
+                    stimulus,
+                    turn_id,
                     runtime,
-                    debug_trace=trace,
                 )
-            except Exception as exc:
+                response = runtime.calls[-1].get("response", "") if runtime.calls else ""
+                result = {
+                    "success": outcome.status.value == "completed",
+                    "speech": str(response),
+                    "action": "",
+                    "turn_id": str(outcome.turn_id),
+                    "plan_id": str(outcome.plan_id),
+                }
+                trace = {
+                    "stages": {
+                        "typed_input": {"source": "developer_tool"},
+                        "cognitive_turn": outcome.model_dump(mode="json"),
+                        "output_receipts": [
+                            receipt.model_dump(mode="json") for receipt in receipts
+                        ],
+                    },
+                    "warnings": [],
+                }
+            except Exception as exc:  # noqa: BROAD_EXCEPT_OK - Lab trace boundary
                 error = f"{type(exc).__name__}: {exc}"
                 result = {
                     "success": False,
@@ -165,7 +134,7 @@ class ElfieLabSession:
                 else {
                     "food_key": food_key,
                     "skipped": True,
-                    "reason": error or self._model_skip_reason(trace),
+                    "reason": error or model_skip_reason(trace),
                 }
             )
             record = TurnRecord(
@@ -195,6 +164,7 @@ class ElfieLabSession:
             self.session_id = new_id("session")
             self.created_at = utc_now()
             self.turns = []
+            self._sync_adapter.close()
             self.body.disconnect()
             self.body = HeadlessBody(body_id=f"{self.spec.elfie_id}:headless")
             self.body.connect()
@@ -203,221 +173,16 @@ class ElfieLabSession:
                 memory_db_path=str(self.storage.memory_path(self.spec.elfie_id)),
                 body=self.body,
             )
+            self._sync_adapter = DeprecatedSyncCognitionAdapter(self.elfie)
+            self._closed = False
             self.storage.save_session(self.get_payload())
             return self.get_payload()
 
-    def _apply_state_injection(self, injection: Dict[str, Any]) -> Dict[str, Any]:
-        if not injection:
-            return {}
-        allowed = {"energy", "fatigue", "is_sleeping", "emotions"}
-        unknown = set(injection) - allowed
-        if unknown:
-            raise ValueError(f"不支持的状态注入字段: {', '.join(sorted(unknown))}")
-
-        changes: Dict[str, Any] = {}
-        if "energy" in injection:
-            value = self._bounded_number(injection["energy"], "energy")
-            changes["energy"] = {
-                "before": self.elfie.hypothalamus.energy,
-                "after": value,
-            }
-            self.elfie.hypothalamus.energy = value
-        if "fatigue" in injection:
-            value = self._bounded_number(injection["fatigue"], "fatigue")
-            changes["fatigue"] = {
-                "before": self.elfie.hypothalamus.fatigue,
-                "after": value,
-            }
-            self.elfie.hypothalamus.fatigue = value
-        if "is_sleeping" in injection:
-            value = bool(injection["is_sleeping"])
-            changes["is_sleeping"] = {
-                "before": self.elfie.hypothalamus.is_sleeping,
-                "after": value,
-            }
-            self.elfie.hypothalamus.is_sleeping = value
-        if "emotions" in injection:
-            emotions = injection["emotions"]
-            if not isinstance(emotions, dict):
-                raise ValueError("emotions 必须是字典")
-            changes["emotions"] = {}
-            for name, raw_value in emotions.items():
-                if name not in self.elfie.amygdala.emotions:
-                    raise ValueError(f"未知情绪: {name}")
-                value = self._bounded_number(raw_value, name)
-                changes["emotions"][name] = {
-                    "before": self.elfie.amygdala.emotions[name],
-                    "after": value,
-                }
-                self.elfie.amygdala.emotions[name] = value
-        return changes
-
-    def _restore_snapshot(self, snapshot: Dict[str, Any]) -> None:
-        if not snapshot:
-            return
-        self.elfie.hypothalamus.energy = float(snapshot.get("energy", 100.0))
-        self.elfie.hypothalamus.fatigue = float(snapshot.get("fatigue", 0.0))
-        self.elfie.hypothalamus.is_sleeping = bool(snapshot.get("is_sleeping", False))
-        for name, value in snapshot.get("emotions", {}).items():
-            if name in self.elfie.amygdala.emotions:
-                self.elfie.amygdala.emotions[name] = float(value)
-        joints = snapshot.get("joint_angles", {})
-        if isinstance(joints, dict):
-            self.elfie.anatomy.apply_joint_angles(joints)
-        self.elfie.nervous_system.motion_actuator.last_action_intent = str(
-            snapshot.get("action_intent", "idle")
-        )
-        self.elfie.brain.attention.current_network = str(
-            snapshot.get("attention_network", "DMN")
-        )
-        self.elfie.elapsed_time = float(snapshot.get("elapsed_time", 0.0))
-
-    @staticmethod
-    def _bounded_number(value: Any, field_name: str) -> float:
-        try:
-            number = float(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"{field_name} 必须是数字") from exc
-        if not 0.0 <= number <= 100.0:
-            raise ValueError(f"{field_name} 必须在 0 到 100 之间")
-        return number
-
-    @staticmethod
-    def _model_skip_reason(trace: Dict[str, Any]) -> str:
-        stages = trace.get("stages", {})
-        if "brainstem_reflex" in stages and stages["brainstem_reflex"].get(
-            "event", {}
-        ).get("triggered"):
-            return "brainstem_reflex"
-        if "sleep_gate" in stages:
-            return "sleep_gate"
-        if not stages.get("sensory_filter", {}).get("passed", True):
-            return "sensory_filter"
-        return "attention_path_without_model"
-
-    @staticmethod
-    def _personality_summary(big_five: Dict[str, Any]) -> str:
-        labels = {
-            "openness": "开放",
-            "conscientiousness": "尽责",
-            "extraversion": "外向",
-            "agreeableness": "宜人",
-            "neuroticism": "敏感",
-        }
-        ranked = sorted(
-            (
-                (key, float(value))
-                for key, value in big_five.items()
-                if key in labels and isinstance(value, (int, float))
-            ),
-            key=lambda item: item[1],
-            reverse=True,
-        )
-        return "、".join(f"高{labels[key]}" for key, _ in ranked[:2]) or "平衡人格"
-
-    @staticmethod
-    def _personality_tags(big_five: Dict[str, Any]) -> List[str]:
-        labels = {
-            "openness": ("务实", "好奇"),
-            "conscientiousness": ("随性", "自律"),
-            "extraversion": ("安静", "活跃"),
-            "agreeableness": ("独立", "亲和"),
-            "neuroticism": ("沉稳", "敏感"),
-        }
-        ranked = sorted(
-            (
-                (abs(float(value) - 0.5), labels[key][float(value) >= 0.5])
-                for key, value in big_five.items()
-                if key in labels and isinstance(value, (int, float))
-            ),
-            reverse=True,
-        )
-        return [label for _, label in ranked[:3]]
-
-    def _memory_cognition_projection(self) -> Dict[str, Any]:
-        episodes = self.elfie.memory.get_all_episodes()
-        core = self.elfie.memory.get_core_cognition()
-        nodes_by_type = {
-            node_type: self.elfie.memory.storage.get_nodes_by_type(node_type, limit=40)
-            for node_type in ("entity", "knowledge", "pattern")
-        }
-        token_counts: Counter[str] = Counter()
-        for episode in episodes:
-            content = str(episode.get("content", ""))
-            for token in re.findall(r"[\u4e00-\u9fff]{2,6}|[A-Za-z][A-Za-z0-9_-]{2,}", content):
-                if token not in {"什么", "这个", "那个", "然后", "可以", "精灵"}:
-                    token_counts[token] += 1
-        topics = [
-            {"label": label, "weight": count}
-            for label, count in token_counts.most_common(12)
-        ]
-        events = sorted(
-            (
-                {
-                    "content": str(item.get("content", "")),
-                    "timestamp": str(item.get("metadata", {}).get("timestamp", "")),
-                    "emotion": str(item.get("metadata", {}).get("emotion", "")),
-                    "importance": float(item.get("metadata", {}).get("intensity", 0.0)),
-                }
-                for item in episodes
-            ),
-            key=lambda item: item["timestamp"],
-            reverse=True,
-        )[:8]
-        entities = nodes_by_type["entity"][:9]
-        relation_nodes = [{"id": "self", "label": self.spec.name, "weight": 1.0}]
-        relation_nodes.extend(
-            {
-                "id": node.id,
-                "label": node.content[:24],
-                "weight": float(node.metadata.get("importance", 0.55)),
-            }
-            for node in entities
-        )
-        relation_links = []
-        for node in entities:
-            edges = self.elfie.memory.storage.get_edges(node.id, "both")
-            if not edges:
-                relation_links.append({"source": "self", "target": node.id, "label": "认识", "weight": 0.5})
-            relation_links.extend(
-                {"source": node.id, "target": edge.target, "label": edge.rel, "weight": edge.weight}
-                for edge in edges
-                if any(candidate.id == edge.target for candidate in entities)
-            )
-        knowledge_nodes = [
-            {"id": node.id, "label": node.content[:48], "type": node.type}
-            for node in [*nodes_by_type["knowledge"][:8], *nodes_by_type["pattern"][:4]]
-        ]
-        knowledge_links = []
-        known_ids = {item["id"] for item in knowledge_nodes}
-        for item in knowledge_nodes:
-            for edge in self.elfie.memory.storage.get_edges(item["id"], "both"):
-                if edge.target in known_ids:
-                    knowledge_links.append({"source": item["id"], "target": edge.target, "label": edge.rel})
-        return {
-            "topics": topics,
-            "important_events": events,
-            "relations": {"nodes": relation_nodes, "links": relation_links},
-            "knowledge": {"nodes": knowledge_nodes, "links": knowledge_links},
-            "world_understanding": str(core.get("world", "")),
-        }
-
-
-class SessionRegistry:
-    """进程内会话注册表，持久数据仍由 storage 负责。"""
-
-    def __init__(self, storage: ElfieLabStorage, runtime_config_dir: str | None = None):
-        self.storage = storage
-        self.runtime_config_dir = runtime_config_dir
-        self._sessions: Dict[str, ElfieLabSession] = {}
-        self._lock = threading.Lock()
-
-    def get(self, elfie_id: str) -> ElfieLabSession:
+    def close(self) -> None:
+        """Stop cognition and release the body owned by this session."""
         with self._lock:
-            if elfie_id not in self._sessions:
-                self._sessions[elfie_id] = ElfieLabSession(
-                    self.storage.get_elfie(elfie_id),
-                    self.storage,
-                    self.runtime_config_dir,
-                )
-            return self._sessions[elfie_id]
+            if self._closed:
+                return
+            self._closed = True
+            self._sync_adapter.close()
+            self.body.disconnect()

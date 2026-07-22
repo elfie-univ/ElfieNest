@@ -147,7 +147,10 @@ class BodyPerceptionNormalizer:
         payload: ProprioceptionSample,
     ) -> Tuple[PerceptionWrite, ...]:
         prefix = f"body:{event.body_id}:proprioception"
-        values = (("posture", payload.posture), ("arrived", payload.arrived))
+        values: Tuple[Tuple[str, bool | str], ...] = (
+            ("posture", payload.posture),
+            ("arrived", payload.arrived),
+        )
         if payload.target is not None:
             values += (("target", payload.target),)
         return tuple(
@@ -159,7 +162,7 @@ class BodyPerceptionNormalizer:
         event: BodySensorEvent,
         payload: EnvironmentSample,
     ) -> Tuple[PerceptionWrite, ...]:
-        values = ()
+        values: Tuple[Tuple[str, float], ...] = ()
         if payload.temperature_celsius is not None:
             values += (("temperature_celsius", payload.temperature_celsius),)
         if payload.humidity_ratio is not None:

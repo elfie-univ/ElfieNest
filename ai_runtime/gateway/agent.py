@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import replace
+from time import perf_counter
 from typing import Any, Dict, List
 
 from ai_runtime.config import LLMRuntimeConfig
@@ -11,12 +12,19 @@ from ai_runtime.food.elfie_policy import (
     resolve_food_selection,
 )
 from ai_runtime.food.executor import FoodExecutor
-from ai_runtime.food.models import FIXED_FOOD_KINDS
+from ai_runtime.food.models import FIXED_FOOD_KINDS, ExecutionProfile
 from ai_runtime.food.store import FoodCatalogStore
 from ai_runtime.gateway.llm_api import call_llm_api
 from ai_runtime.gateway.model_guard import ensure_model_ready
 from ai_runtime.gateway.multimodal import assemble_multimodal_payload
-from ai_runtime.gateway.request import RuntimeRequest, RuntimeResult
+from ai_runtime.gateway.request import (
+    RuntimeRequest,
+    RuntimeResult,
+    StructuredGenerationMode,
+    StructuredRuntimeCapabilities,
+    StructuredRuntimeRequest,
+    StructuredRuntimeResult,
+)
 from ai_runtime.gateway.skills_prompt import inject_skills_system_prompt
 from ai_runtime.gateway.streaming import RuntimeStreamRequest, stream_runtime_response
 from ai_runtime.models.registry import ModelRegistry
@@ -179,6 +187,101 @@ class RuntimeAgent:
         if request.food_key is None:
             request = replace(request, food_key=self._infer_food_key(request))
         return self._think_with_food(request)
+
+    def structured_capabilities(self) -> StructuredRuntimeCapabilities:
+        """Describe conservative capabilities for the standard food target."""
+        profile = self._structured_profile("standard")
+        provider = self._provider_for_model(profile.model)
+        native = provider == "openai"
+        return StructuredRuntimeCapabilities(
+            provider=provider,
+            model_key=profile.model,
+            supports_json_schema=native,
+            supports_tool_calling=native,
+            supports_json_mode=native,
+            supports_plain_text=True,
+            max_output_tokens=profile.max_tokens,
+        )
+
+    def generate_structured(
+        self,
+        request: StructuredRuntimeRequest,
+    ) -> StructuredRuntimeResult:
+        """Execute exactly one structured generation using the selected mode."""
+        self._reload_config_if_changed()
+        profile = self._structured_profile(request.food_key)
+        provider = self._provider_for_model(profile.model)
+        model_name = self._model_name(profile.model)
+        messages = (
+            [message.model_dump(mode="python") for message in request.messages]
+            if request.messages
+            else [{"role": "user", "content": request.prompt}]
+        )
+        options = self._structured_request_options(request)
+        started = perf_counter()
+        text = self._call_food_llm_api(
+            provider,
+            model_name,
+            messages,
+            request.temperature,
+            min(request.max_tokens, profile.max_tokens),
+            options,
+        )
+        return StructuredRuntimeResult(
+            text=text,
+            selected_mode=request.selected_mode,
+            provider=provider,
+            model_key=profile.model,
+            latency_ms=(perf_counter() - started) * 1000.0,
+        )
+
+    def _structured_profile(self, food_key: str) -> ExecutionProfile:
+        catalog = self._load_food_catalog()
+        recipe = catalog.recipes.get(food_key)
+        if recipe is None:
+            raise ValueError(f"粮食 '{food_key}' 尚未配置")
+        return recipe.primary
+
+    @staticmethod
+    def _provider_for_model(model_key: str) -> str:
+        return model_key.split("/", 1)[0] if "/" in model_key else "ollama"
+
+    @staticmethod
+    def _model_name(model_key: str) -> str:
+        return model_key.split("/", 1)[1] if "/" in model_key else model_key
+
+    @staticmethod
+    def _structured_request_options(
+        request: StructuredRuntimeRequest,
+    ) -> Dict[str, Any]:
+        if request.selected_mode is StructuredGenerationMode.JSON_SCHEMA:
+            return {
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": request.response_schema_name,
+                        "schema": dict(request.response_schema),
+                        "strict": True,
+                    },
+                }
+            }
+        if request.selected_mode is StructuredGenerationMode.TOOL_CALL:
+            return {
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": request.response_schema_name,
+                            "parameters": dict(request.response_schema),
+                        },
+                    }
+                ],
+                "tool_choice": {
+                    "type": "function",
+                    "function": {"name": request.response_schema_name},
+                },
+            }
+        return {}
 
     def _think_with_food(self, request: RuntimeRequest) -> RuntimeResult:
         catalog = self._load_food_catalog()

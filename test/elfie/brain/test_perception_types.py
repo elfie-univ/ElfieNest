@@ -34,6 +34,7 @@ from elfie.message_types import (
     MessageMeta,
     PlanId,
     TraceId,
+    TurnId,
 )
 
 NOW = datetime(2026, 7, 21, 8, 0, tzinfo=timezone.utc)
@@ -82,6 +83,7 @@ def test_frame_preserves_ordered_multi_source_events_when_round_tripped() -> Non
                 type="execution",
                 receipt_id=EventId("receipt-1"),
                 plan_id=PlanId("plan-previous"),
+                turn_id=TurnId("turn-previous"),
                 intent_id=IntentId("intent-previous"),
                 executor="body",
                 status=ExecutionStatus.COMPLETED,

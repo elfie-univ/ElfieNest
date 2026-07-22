@@ -12,17 +12,7 @@ from elfie.body.contracts import (
     BodySnapshot,
     CommandReceipt,
 )
-from elfie.body.types import (
-    BodyCommand as LegacyBodyCommand,
-)
-from elfie.body.types import (
-    BodyDescriptor,
-    BodyEvent,
-    BodyState,
-)
-from elfie.body.types import (
-    CommandResult as LegacyCommandResult,
-)
+from elfie.body.types import BodyDescriptor
 
 
 @runtime_checkable
@@ -45,7 +35,7 @@ class ActuatorPort(Protocol):
 class BodyPort(Protocol):
     """一副可替换身体对 Elfie 暴露的最小公共接口。
 
-    调用方只通过 ``read_events`` 接收感觉，通过 ``execute`` 控制身体。
+    调用方只通过 typed sensor event 接收感觉，通过 typed command 控制身体。
     具体身体可以在内部拆分 sensors/actuators，但它们不是公共调用入口。
     """
 
@@ -65,25 +55,3 @@ class BodyPort(Protocol):
     ) -> Tuple[CommandReceipt, ...]: ...
 
     def snapshot_body(self, *, now: datetime | None = None) -> BodySnapshot: ...
-
-
-@runtime_checkable
-class LegacyBodyPort(Protocol):
-    """Compatibility protocol for callers migrating in Task 14."""
-
-    body_id: str
-    capabilities: BodyCapabilities
-
-    def connect(self) -> None: ...
-
-    def disconnect(self) -> None: ...
-
-    def describe(self) -> BodyDescriptor: ...
-
-    def read_events(self) -> List[BodyEvent]: ...
-
-    def execute(self, command: LegacyBodyCommand) -> LegacyCommandResult: ...
-
-    def snapshot(self) -> BodyState: ...
-
-    def emergency_stop(self) -> LegacyCommandResult: ...

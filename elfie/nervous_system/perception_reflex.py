@@ -174,6 +174,7 @@ class BodyReflexController:
                 type="execution",
                 receipt_id=receipt.receipt_id,
                 plan_id=PlanId(f"reflex-plan:{cause.event_id}"),
+                turn_id=receipt.turn_id,
                 intent_id=receipt.intent_id,
                 executor="body",
                 status=_STATUS_MAP[receipt.status],

@@ -2,8 +2,9 @@
 
 import base64
 import binascii
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, AsyncIterator, Dict, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
@@ -11,15 +12,13 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from ai_runtime.storage.data_home import get_elfie_home
+from devtools.elfie_lab.food_status import build_food_items, mock_food_item
 from devtools.elfie_lab.runtime_adapters import (
-    list_installed_ollama_models,
-    load_runtime_food_catalog,
-    model_availability,
     runtime_food_catalog_store,
     runtime_lab_command,
 )
 from devtools.elfie_lab.schemas import StimulusBundle
-from devtools.elfie_lab.session import SessionRegistry
+from devtools.elfie_lab.session_registry import SessionRegistry
 from devtools.elfie_lab.storage import ElfieLabStorage
 from devtools.runtime_lab import RuntimeLabConfigStore
 
@@ -51,12 +50,6 @@ class PortraitRequest(BaseModel):
 def create_app(
     data_dir: Optional[str] = None, runtime_config_dir: Optional[str] = None
 ) -> FastAPI:
-    app = FastAPI(
-        title="Elfie Lab",
-        description="单精灵开发者调试平台",
-        docs_url="/api/docs",
-        redoc_url=None,
-    )
     storage = ElfieLabStorage(data_dir)
     runtime_root = runtime_config_dir or str(get_elfie_home())
     runtime_store = RuntimeLabConfigStore(runtime_root)
@@ -64,6 +57,21 @@ def create_app(
     configure_runtime_command = runtime_lab_command(runtime_store)
     shared_runtime = Path(runtime_store.root).resolve() == get_elfie_home().resolve()
     sessions = SessionRegistry(storage, str(runtime_store.root))
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        try:
+            yield
+        finally:
+            sessions.close()
+
+    app = FastAPI(
+        title="Elfie Lab",
+        description="单精灵开发者调试平台",
+        docs_url="/api/docs",
+        redoc_url=None,
+        lifespan=lifespan,
+    )
     static_dir = Path(__file__).with_name("static")
     app.state.storage = storage
     app.state.sessions = sessions
@@ -77,74 +85,6 @@ def create_app(
             StaticFiles(directory=godot_web_dir, html=True),
             name="elfie_lab_godot_web",
         )
-
-    def food_items() -> list[Dict[str, Any]]:
-        config = runtime_store.load_runtime_config()
-        catalog = load_runtime_food_catalog(runtime_store, food_store)
-        installed_models = list_installed_ollama_models(config)
-        foods = []
-        for key, recipe in catalog.recipes.items():
-            primary = model_availability(
-                recipe.primary.model,
-                config,
-                installed_models,
-                configure_runtime_command,
-            )
-            fallback_states = [
-                model_availability(
-                    profile.model,
-                    config,
-                    installed_models,
-                    configure_runtime_command,
-                )
-                for profile in recipe.technical_fallbacks
-                if profile.model
-            ]
-            fallback_models = [
-                profile.model for profile in recipe.technical_fallbacks if profile.model
-            ]
-            fallback_ready = any(item["ready"] for item in fallback_states)
-            ready_for_attempt = bool(primary["ready"] or fallback_ready)
-            setup_commands = []
-            for item in [primary, *fallback_states]:
-                command = str(item.get("command", ""))
-                if command and command not in setup_commands:
-                    setup_commands.append(command)
-            foods.append(
-                {
-                    "key": key,
-                    "display_name": recipe.display_name,
-                    "description": recipe.description,
-                    "model": recipe.primary.model,
-                    "reasoning": recipe.primary.reasoning_profile.value,
-                    "primary_ready": primary["ready"],
-                    "fallback_ready": fallback_ready,
-                    "fallback_models": fallback_models,
-                    "ready_for_attempt": ready_for_attempt,
-                    "credential_ready": ready_for_attempt,
-                    "unavailable_reason": (
-                        ""
-                        if ready_for_attempt
-                        else str(primary.get("reason", "粮食尚未就绪"))
-                    ),
-                    "setup_commands": setup_commands,
-                }
-            )
-        mock_entry = {
-            "key": "mock",
-            "display_name": "模拟粮",
-            "description": "离线可用，不调用任何外部服务",
-            "model": "elfie-mock",
-            "reasoning": "off",
-            "primary_ready": True,
-            "fallback_ready": False,
-            "fallback_models": [],
-            "ready_for_attempt": True,
-            "credential_ready": True,
-            "unavailable_reason": "",
-            "setup_commands": [],
-        }
-        return [mock_entry, *foods]
 
     @app.get("/", include_in_schema=False)
     def index():
@@ -164,7 +104,11 @@ def create_app(
     def runtime_foods():
         """读取本机公共 Runtime 配置的粮食目录。"""
         try:
-            items = food_items()
+            items = build_food_items(
+                runtime_store,
+                food_store,
+                configure_runtime_command,
+            )
         except RuntimeError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         return {
@@ -210,7 +154,10 @@ def create_app(
             storage.get_elfie(elfie_id)
             prefix = "data:image/png;base64,"
             if not request.data_url.startswith(prefix):
-                raise ValueError("头像数据必须是 PNG data URL")
+                raise HTTPException(
+                    status_code=422,
+                    detail="头像数据必须是 PNG data URL",
+                )
             content = base64.b64decode(request.data_url[len(prefix) :], validate=True)
             storage.save_portrait(elfie_id, content)
         except (KeyError, ValueError, binascii.Error) as exc:
@@ -222,9 +169,16 @@ def create_app(
         food_key = request.food_key.lower().strip()
         try:
             food = (
-                {"ready_for_attempt": True}
+                mock_food_item()
                 if food_key == "mock"
-                else {item["key"]: item for item in food_items()}.get(food_key)
+                else {
+                    item["key"]: item
+                    for item in build_food_items(
+                        runtime_store,
+                        food_store,
+                        configure_runtime_command,
+                    )
+                }.get(food_key)
             )
         except RuntimeError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc

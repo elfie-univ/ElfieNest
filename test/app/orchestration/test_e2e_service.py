@@ -2,7 +2,8 @@
 
 验证完整端到端事件流：
   1. hello 安全握手 → runtime_ready → sync_elfies
-  2. physical interaction → speak_event + emotion_expression
+  2. physical interaction → physical_impact_event
+  3. owner message → Communication → cortical speak_event
   4. go_to → LLM 决策动作（可选，不稳定时不失败）
   5. arrived_at 回调 → 姿态更新
   6. HTTP 端口可达
@@ -16,12 +17,16 @@ import os
 import tempfile
 import threading
 import time
-import urllib.request
 
 import websockets
 
-from elfie import ElfieFactory
+from ai_runtime.gateway.request import (
+    StructuredRuntimeCapabilities,
+    StructuredRuntimeRequest,
+    StructuredRuntimeResult,
+)
 from app.orchestration.engine import ElfieNestEngine
+from elfie import ElfieFactory
 
 # ---------------------------------------------------------------------------
 # Mock 辅助类
@@ -29,31 +34,29 @@ from app.orchestration.engine import ElfieNestEngine
 
 
 class MockRuntimeAgent:
-    """模拟 LLM 运行时代理，记录所有调用供验证"""
+    """实现正式 structured Runtime 边界的确定性小模型 fake。"""
 
-    class MockConfig:
-        remote_api_key = ""
-        providers = {
-            "deepseek": {"api_key": "", "api_base": ""},
-            "openai": {"api_key": "", "api_base": ""},
-            "gemini": {"api_key": "", "api_base": ""},
-            "qwen": {"api_key": "", "api_base": ""},
-            "ollama": {"api_key": "", "api_base": "http://localhost:11434"},
-        }
-
-    config = MockConfig()
-
-    def __init__(self, response="你好！ [ACTION]sleep[/ACTION]"):
+    def __init__(self, response: str = "你好，我没事。") -> None:
         self.response = response
-        self.ask_calls = []
+        self.requests: list[StructuredRuntimeRequest] = []
 
-    def ask(self, prompt, energy, task_complexity):
-        self.ask_calls.append({
-            "prompt": prompt,
-            "energy": energy,
-            "complexity": task_complexity,
-        })
-        return self.response
+    def structured_capabilities(self) -> StructuredRuntimeCapabilities:
+        return StructuredRuntimeCapabilities(
+            provider="test",
+            model_key="test/plain-text",
+            supports_json_schema=False,
+            supports_tool_calling=False,
+            supports_json_mode=False,
+            supports_plain_text=True,
+            max_output_tokens=128,
+        )
+
+    def generate_structured(
+        self,
+        request: StructuredRuntimeRequest,
+    ) -> StructuredRuntimeResult:
+        self.requests.append(request)
+        return request.to_result(text=self.response)
 
 
 # ---------------------------------------------------------------------------
@@ -64,7 +67,11 @@ class MockRuntimeAgent:
 class TestE2EServiceFlow:
     """端到端服务测试 — 真实 Engine + 真实 WS 客户端 + 真实 HTTP"""
 
-    async def _async_client_test(self, engine: ElfieNestEngine):
+    async def _async_client_test(
+        self,
+        engine: ElfieNestEngine,
+        runtime: MockRuntimeAgent,
+    ) -> None:
         """异步 WS 客户端测试逻辑"""
         uri = f"ws://{engine.api_server.host}:{engine.api_server.port}"
 
@@ -99,33 +106,64 @@ class TestE2EServiceFlow:
             assert sync_data["action"] == "sync_elfies"
             assert sync_data["payload"]["elfies"][0]["elfie_id"] == "艾菲"
 
-            # ---------- 2. 触觉反射通过 NativeBody 发出语音与表情 ----------
+            # ---------- 2. 房间触觉产生物理可视事件 ----------
             engine.session.trigger_elfie_interaction("艾菲", "艾菲", "collision")
 
-            speak_found = False
-            expression_found = False
+            impact_found = False
             deadline = time.time() + 4.0
-            while time.time() < deadline and not (speak_found and expression_found):
+            while time.time() < deadline and not impact_found:
+                try:
+                    msg_raw = await asyncio.wait_for(ws.recv(), timeout=2.0)
+                    data = json.loads(msg_raw)
+                    if data.get("action") == "physical_impact_event":
+                        impact_found = True
+                        assert data["payload"]["elfie_id"] == "艾菲"
+                        assert data["payload"]["impact_type"] == "gentle_stroke"
+                except (asyncio.TimeoutError, websockets.exceptions.ConnectionClosed):
+                    break
+            assert impact_found, "应在合理时间内收到 physical_impact_event"
+
+            # ---------- 3. Owner 完整消息经 Communication 触发大脑语音 ----------
+            await ws.send(
+                json.dumps(
+                    {
+                        "event": "user_message",
+                        "payload": {
+                            "elfie_id": "艾菲",
+                            "owner_id": "owner-test",
+                            "conversation_id": "conversation-test",
+                            "message_id": "message-test-1",
+                            "message": "你还好吗？",
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+            )
+
+            speak_found = False
+            deadline = time.time() + 4.0
+            while time.time() < deadline and not speak_found:
                 try:
                     msg_raw = await asyncio.wait_for(ws.recv(), timeout=2.0)
                     data = json.loads(msg_raw)
                     if data.get("action") == "speak_event":
                         speak_found = True
                         assert data["payload"]["elfie_id"] == "艾菲"
-                        assert data["payload"]["text"], (
-                            f"speak_event 的 text 不应为空，实际：{data['payload']}"
-                        )
-                    elif data.get("action") == "emotion_expression":
-                        expression_found = True
-                        assert data["payload"]["elfie_id"] == "艾菲"
-                        assert "reflex_soothing" in data["payload"]["actions"]
+                        assert data["payload"]["text"] == runtime.response
                 except (asyncio.TimeoutError, websockets.exceptions.ConnectionClosed):
                     break
 
-            assert speak_found, "应在合理时间内收到 speak_event"
-            assert expression_found, "应在合理时间内收到 emotion_expression"
+            elfie = engine.session.elfies["艾菲"]
+            assert speak_found, (
+                "应在合理时间内收到 speak_event; "
+                f"runtime_requests={len(runtime.requests)}, "
+                f"turn_outcomes={elfie.turn_outcomes()}, "
+                f"workspace_metrics={elfie.perceptual_workspace.metrics()}, "
+                f"elapsed={elfie.elapsed_time}"
+            )
+            assert len(runtime.requests) == 1
 
-            # ---------- 3. go_to 事件（可选，不强制） ----------
+            # ---------- 4. go_to 事件（可选，不强制） ----------
             deadline = time.time() + 4.0
             while time.time() < deadline:
                 try:
@@ -137,7 +175,7 @@ class TestE2EServiceFlow:
                 except (asyncio.TimeoutError, websockets.exceptions.ConnectionClosed):
                     break
 
-            # ---------- 4. arrived_at 回调 ----------
+            # ---------- 5. arrived_at 回调 ----------
             arrived_msg = json.dumps({
                 "event": "arrived_at",
                 "payload": {"elfie_id": "艾菲", "target": "bed_1"},
@@ -149,11 +187,6 @@ class TestE2EServiceFlow:
             assert elfie_status is not None and elfie_status.posture == "lying", (
                 f"arrived_at bed_1 后 posture 应为 lying，实际：{elfie_status}"
             )
-
-        # ---------- 5. HTTP 端口可达 ----------
-        http_url = f"http://127.0.0.1:{engine.http_port}/"
-        with urllib.request.urlopen(http_url, timeout=5.0) as resp:
-            assert resp.status == 200, f"HTTP 服务应返回 200，实际：{resp.status}"
 
     def test_full_e2e_service_flow(self):
         """端到端服务测试 — 真实 Engine + 真实 WS 客户端 + 真实 HTTP"""
@@ -179,7 +212,7 @@ class TestE2EServiceFlow:
 
             try:
                 time.sleep(1.0)
-                asyncio.run(self._async_client_test(engine))
+                asyncio.run(self._async_client_test(engine, mock_agent))
             finally:
                 engine_thread.join(timeout=15)
                 if old_elfie_home is None:

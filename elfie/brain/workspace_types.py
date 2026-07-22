@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from enum import Enum, unique
 from typing import NamedTuple, Optional
 from uuid import uuid4
@@ -48,6 +47,9 @@ class TriggerMetrics(FrozenContractModel):
     media_sample_count: int = Field(strict=True, ge=0)
     oldest_event_at: Optional[UTCDateTime]
     newest_event_at: Optional[UTCDateTime]
+    oldest_social_at: Optional[UTCDateTime]
+    newest_social_at: Optional[UTCDateTime]
+    critical_event_count: int = Field(strict=True, ge=0)
     max_salience: float = Field(strict=True, ge=0.0, le=1.0)
     stopped: bool
 
@@ -60,6 +62,9 @@ class WorkspaceStorageMetrics(NamedTuple):
     media_sample_count: int
     oldest_event_at: Optional[UTCDateTime]
     newest_event_at: Optional[UTCDateTime]
+    oldest_social_at: Optional[UTCDateTime]
+    newest_social_at: Optional[UTCDateTime]
+    critical_event_count: int
     max_salience: float
 
 
@@ -70,21 +75,27 @@ class WorkspaceClaim(NamedTuple):
     turn_id: TurnId
 
 
-@dataclass(frozen=True)
 class ActiveClaimError(RuntimeError):
     """Raised when a second frame claim is attempted."""
 
-    frame_id: EventId
+    __slots__ = ("frame_id",)
+
+    def __init__(self, frame_id: EventId) -> None:
+        self.frame_id = frame_id
+        super().__init__(str(self))
 
     def __str__(self) -> str:
         return f"frame {self.frame_id} is already active"
 
 
-@dataclass(frozen=True)
 class FrameLifecycleError(RuntimeError):
     """Raised when a frame or turn ID does not match workspace state."""
 
-    reason: str
+    __slots__ = ("reason",)
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+        super().__init__(reason)
 
     def __str__(self) -> str:
         return self.reason

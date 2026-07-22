@@ -219,3 +219,29 @@ def test_plan_rejects_stale_schema_version() -> None:
     # When / Then: schema drift is rejected before intent routing.
     with pytest.raises(ValidationError, match="schema_version"):
         DecisionPlan.model_validate_json(json.dumps(raw))
+
+
+def test_message_intent_preserves_sequence_and_send_after() -> None:
+    # Given: one message scheduled as the third item in an output sequence.
+    send_after = NOW + timedelta(seconds=1)
+
+    # When: the typed boundary parses the sequencing fields.
+    intent = MessageIntent(
+        type="message",
+        intent_id=IntentId("message-sequenced"),
+        cause_event_ids=(EventId("social-event"),),
+        dependency_ids=(),
+        deadline=PLAN_DEADLINE,
+        cancel_policy=CancelPolicy.IF_NOT_STARTED,
+        channel_id="wechat-main",
+        conversation_id="conversation-1",
+        content="third reply",
+        sequence_id="reply-sequence",
+        ordinal=2,
+        send_after=send_after,
+    )
+
+    # Then: the router receives explicit ordering instead of inferring from text.
+    assert intent.sequence_id == "reply-sequence"
+    assert intent.ordinal == 2
+    assert intent.send_after == send_after

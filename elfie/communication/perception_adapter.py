@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from collections import OrderedDict
-from dataclasses import dataclass
 from threading import Lock
-from typing import List, Tuple
+from typing import List, NamedTuple, Tuple
 
 from elfie.brain.perception_types import (
     IngestDisposition,
@@ -23,19 +22,18 @@ from elfie.communication.perception_conversion import (
     build_social_event,
     completes_cognitive_delivery,
 )
-from elfie.message_types import EventId, IntentId, PlanId
+from elfie.message_types import EventId, IntentId, PlanId, TurnId
 
 
-@dataclass(frozen=True, slots=True)
-class DeliveryPerceptionCorrelation:
+class DeliveryPerceptionCorrelation(NamedTuple):
     """Decision identity supplied by the output router for one message."""
 
     plan_id: PlanId
+    turn_id: TurnId
     intent_id: IntentId
 
 
-@dataclass(frozen=True, slots=True)
-class InboundPerceptionAttempt:
+class InboundPerceptionAttempt(NamedTuple):
     """One retryable inbound publication and its workspace disposition."""
 
     envelope: CommunicationEnvelope
@@ -47,12 +45,19 @@ class InboundPerceptionAttempt:
         return completes_cognitive_delivery(self.receipt.disposition)
 
 
-@dataclass(frozen=True, slots=True)
 class AdapterDirectionError(ValueError):
     """An envelope crossed the wrong side of the perception adapter."""
 
-    expected: MessageDirection
-    actual: MessageDirection
+    __slots__ = ("actual", "expected")
+
+    def __init__(
+        self,
+        expected: MessageDirection,
+        actual: MessageDirection,
+    ) -> None:
+        self.expected = expected
+        self.actual = actual
+        super().__init__(str(self))
 
     def __str__(self) -> str:
         return f"expected {self.expected.value} envelope, got {self.actual.value}"
@@ -76,11 +81,11 @@ class CommunicationPerceptionAdapter:
         """Publish one complete inbound envelope or retain it for retry."""
         self._require_direction(envelope, MessageDirection.INBOUND)
         with self._lock:
-            self._pending_inbound[envelope.message_id] = envelope
+            self._pending_inbound[envelope.meta.event_id] = envelope
         receipt = self._sink.publish(build_social_event(envelope))
         with self._lock:
             if completes_cognitive_delivery(receipt.disposition):
-                self._pending_inbound.pop(envelope.message_id, None)
+                self._pending_inbound.pop(envelope.meta.event_id, None)
         return InboundPerceptionAttempt(envelope=envelope, receipt=receipt)
 
     def publish_delivery(

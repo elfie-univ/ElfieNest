@@ -16,12 +16,6 @@ def engine() -> ElfieNestEngine:
 @pytest.fixture
 def mock_elfie() -> MagicMock:
     elfie = MagicMock(spec=Elfie)
-    elfie.respond_to_body_events.return_value = {
-        "success": True,
-        "speech": "你好！",
-        "action": "",
-        "mutter": "",
-    }
     elfie.amygdala = MagicMock()
     elfie.amygdala.get_dominant_mood.return_value = "happy"
     return elfie
@@ -63,7 +57,7 @@ def test_session_ticks_only_active_elfies(
     engine.session.tick_elfies(1.0)
 
     # Then
-    mock_elfie.tick.assert_called_once_with(1.0)
+    mock_elfie.advance_clock.assert_called_once_with(1.0)
 
 
 def test_session_routes_collision_through_nest(
@@ -105,4 +99,4 @@ def test_engine_configuration_is_preserved() -> None:
     assert engine.tick_interval_sec == 2.5
     assert engine.tts_enabled is False
     assert engine.nest.state.config.max_residents == 3
-    assert engine._synthesize_voice("elfie-1", "hello") is None
+    assert not hasattr(engine, "_synthesize_voice")

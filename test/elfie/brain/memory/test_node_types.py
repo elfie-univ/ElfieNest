@@ -6,8 +6,6 @@
 import json
 from datetime import datetime
 
-import pytest
-
 from elfie.brain.memory.node_types import (
     Edge,
     EdgeTypes,

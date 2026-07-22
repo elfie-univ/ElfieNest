@@ -1,6 +1,5 @@
 """情绪自适应加权模块的单元测试。"""
 
-import pytest
 
 from elfie.brain.memory.emotion_weighting import EmotionWeighting
 from elfie.brain.memory.node_types import NodeTypes

@@ -1,11 +1,16 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Iterable, Optional, Tuple
+from datetime import datetime
+from typing import Any, Dict, Iterable, Optional, Tuple
 
-from elfie.body.contracts import BodyId, BodySensorEvent, EmergencyStopCommand
+from elfie.body.contracts import (
+    BodyCommand,
+    BodySensorEvent,
+    CommandReceipt,
+    EmergencyStopCommand,
+)
 from elfie.body.native.anatomy.base import SomaticAnatomy, VoiceProfile
 from elfie.body.port import BodyPort
-from elfie.body.types import BodyCommand, BodyEvent, CommandResult
 from elfie.brain.perception_types import IngestReceipt
 from elfie.brain.workspace_ports import PerceptionSink
 from elfie.message_types import ElfieId
@@ -14,7 +19,6 @@ from elfie.nervous_system.actuators import (
     MutterActuator,
     SpeechActuator,
 )
-from elfie.nervous_system.legacy_perception import adapt_legacy_body_events
 from elfie.nervous_system.perception_bridge import BodyPerceptionBridge
 from elfie.nervous_system.perception_normalizer import BodyPerceptionNormalizer
 from elfie.nervous_system.physical_limits import PhysicalLimitsReflex
@@ -85,10 +89,6 @@ class NervousSystem:
         """Publish a typed Body batch without flattening event identity."""
         return self._require_perception_bridge().receive(events)
 
-    def receive(self, events: Iterable[BodyEvent]) -> Dict[str, Any]:
-        """Deprecated raw Body adapter retained until the Task 14 migration."""
-        return self.receive_legacy(events, body_id=BodyId("legacy-body"))
-
     def receive_body_event(
         self,
         event: BodySensorEvent,
@@ -96,67 +96,9 @@ class NervousSystem:
         """Process one Body event through reflex, filter, and Brain publish."""
         return self._require_perception_bridge().receive_body_event(event)
 
-    def receive_legacy(
-        self,
-        events: Iterable[BodyEvent],
-        *,
-        body_id: BodyId,
-    ) -> Dict[str, Any]:
-        """Publish legacy Body events and return their deprecated raw view."""
-        event_batch = tuple(events)
-        self._mirror_legacy_sensors(event_batch)
-        typed_events, raw = adapt_legacy_body_events(event_batch, body_id=body_id)
-        if self._perception_bridge is not None:
-            self.receive_body_events(typed_events)
-        return raw
-
     def bind_body_port(self, body_port: Optional[BodyPort]) -> None:
         """Keep the immediate reflex target aligned with the active Body."""
         self._require_perception_bridge().bind_body_port(body_port)
-
-    def _mirror_legacy_sensors(self, events: Tuple[BodyEvent, ...]) -> None:
-        handlers: Dict[str, Callable[[BodyEvent, Dict[str, Any]], None]] = {
-            "hearing": self._mirror_legacy_hearing,
-            "touch": self._mirror_legacy_touch,
-            "environment": self._mirror_legacy_environment,
-        }
-        for event in events:
-            payload = dict(event.payload)
-            handler = handlers.get(event.sensor)
-            if handler is not None:
-                handler(event, payload)
-
-    def _mirror_legacy_hearing(
-        self,
-        event: BodyEvent,
-        payload: Dict[str, Any],
-    ) -> None:
-        heard = str(
-            payload.get("user_message")
-            or payload.get("transcript")
-            or payload.get("text")
-            or ""
-        ).strip()
-        if heard:
-            self.audio_sensor.receive_virtual_audio(heard, event.source)
-
-    def _mirror_legacy_touch(
-        self,
-        _event: BodyEvent,
-        payload: Dict[str, Any],
-    ) -> None:
-        self.environment_sensor.receive_tactile_pulse(
-            impact_force=float(payload.get("impact_force", 0.0)),
-            direction=str(payload.get("impact_direction", "none")),
-            stroke_freq=float(payload.get("gentle_stroke", 0.0)),
-        )
-
-    def _mirror_legacy_environment(
-        self,
-        _event: BodyEvent,
-        payload: Dict[str, Any],
-    ) -> None:
-        self.environment_sensor.update_from_godot_world(payload)
 
     def retry_pending(self) -> Tuple[IngestReceipt, ...]:
         """Retry reliable writes retained after Workspace backpressure."""
@@ -170,13 +112,15 @@ class NervousSystem:
             )
         return bridge
 
-    def control(self, body: BodyPort, command: BodyCommand) -> CommandResult:
-        """把已校验的语义动作交给当前身体执行。
-
-        神经系统不判断 Godot 动画、电机或无界面记录的实现细节；对应身体根据
-        自身 capabilities 决定执行或拒绝，并返回统一结果。
-        """
-        return body.execute(command)
+    def execute_body_command(
+        self,
+        body: BodyPort,
+        command: BodyCommand,
+        *,
+        now: datetime,
+    ) -> Tuple[CommandReceipt, ...]:
+        """Pass an already typed physical intent to the current Body boundary."""
+        return body.execute(command, now=now)
 
     def filter_signals(self, raw_sensor_data: Dict[str, Any]) -> bool:
         """过滤重复或无价值的感知信号。"""

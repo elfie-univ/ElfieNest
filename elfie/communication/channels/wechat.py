@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 from functools import singledispatchmethod
 
-from elfie.communication.channel import CommunicationMessage, MessageKind
 from elfie.communication.contracts import (
     AudioPart,
     CommunicationEnvelope,
@@ -78,11 +77,6 @@ class WeChatChannel:
 
     def disconnect(self) -> None:
         self.connector.disconnect()
-
-    def send(self, message: CommunicationMessage) -> bool:
-        if message.kind is MessageKind.IMAGE:
-            return self.connector.send_viewport_image(message.content)
-        return self.connector.send_message(message.content)
 
     def send_envelope(self, envelope: CommunicationEnvelope) -> DeliveryReceipt:
         """Send every typed part through the existing WeChat connector edge."""

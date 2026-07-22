@@ -12,16 +12,13 @@ from elfie.body.contracts import (
     BodyId,
     BodySensorEvent,
     ProprioceptionSample,
-    UtteranceFinal,
 )
-from elfie.body.types import BodyEvent
 from elfie.message_types import ActorId, ActorRef, EventId
 
 
 class NativeSensors:
     def __init__(self, body_id: str):
         self.body_id = body_id
-        self._events: Deque[BodyEvent] = deque()
         self._sensor_events: Deque[BodySensorEvent] = deque()
         self._lock = Lock()
 
@@ -32,64 +29,22 @@ class NativeSensors:
         if payload.get("elfie_id") != self.body_id:
             return
 
-        legacy_event = self._convert(event_name, payload)
         sensor_event = self._convert_typed(event_name, payload)
-        if legacy_event is None or sensor_event is None:
+        if sensor_event is None:
             return
         with self._lock:
-            self._events.append(legacy_event)
             self._sensor_events.append(sensor_event)
-
-    def read_events(self) -> List[BodyEvent]:
-        with self._lock:
-            events = list(self._events)
-            self._events.clear()
-            self._sensor_events.clear()
-        return events
 
     def read_sensor_events(self) -> List[BodySensorEvent]:
         with self._lock:
             events = list(self._sensor_events)
             self._sensor_events.clear()
-            self._events.clear()
         return events
 
     @property
     def pending_count(self) -> int:
         with self._lock:
-            return max(len(self._events), len(self._sensor_events))
-
-    def _convert(
-        self, event_name: str, payload: Dict[str, Any]
-    ) -> BodyEvent | None:
-        if event_name == "user_message":
-            message = str(payload.get("message", ""))
-            if not message:
-                return None
-            sensor_data: Dict[str, Any] = {
-                "has_new_message": True,
-                "user_message": message,
-            }
-            if payload.get("message_id") is not None:
-                sensor_data["message_id"] = payload["message_id"]
-            return BodyEvent(
-                sensor="hearing",
-                payload=sensor_data,
-                source="godot:user_message",
-            )
-
-        if event_name == "arrived_at":
-            return BodyEvent(
-                sensor="proprioception",
-                payload={
-                    "has_arrival_update": True,
-                    "arrived_at": True,
-                    "target": str(payload.get("target", "")),
-                    "posture": str(payload.get("posture", "")),
-                },
-                source="godot:arrived_at",
-            )
-        return None
+            return len(self._sensor_events)
 
     def _convert_typed(
         self,
@@ -104,12 +59,7 @@ class NativeSensors:
         )
         occurred_at = payload.get("occurred_at")
         event_time = occurred_at if isinstance(occurred_at, datetime) else now
-        if event_name == "user_message":
-            message = str(payload.get("message", ""))
-            if not message:
-                return None
-            event_payload = UtteranceFinal(kind="utterance_final", text=message)
-        elif event_name == "arrived_at":
+        if event_name == "arrived_at":
             event_payload = ProprioceptionSample(
                 kind="proprioception_sample",
                 posture=str(payload.get("posture") or "unknown"),

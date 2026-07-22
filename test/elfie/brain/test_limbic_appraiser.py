@@ -1,5 +1,7 @@
 """Tests for the pure perception-to-limbic appraisal boundary."""
 
+from __future__ import annotations
+
 from datetime import datetime, timezone
 
 import pytest

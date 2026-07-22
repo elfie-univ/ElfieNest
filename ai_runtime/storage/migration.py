@@ -29,7 +29,11 @@ from ai_runtime.storage.config_store import (
     read_yaml_mapping,
     write_yaml_mapping,
 )
-from ai_runtime.storage.data_home import ensure_elfie_home, get_config_path, get_elfie_home
+from ai_runtime.storage.data_home import (
+    ensure_elfie_home,
+    get_config_path,
+    get_elfie_home,
+)
 from ai_runtime.storage.secrets import provider_secret_name, set_provider_secret
 
 logger = logging.getLogger("ai_runtime.storage.migration")

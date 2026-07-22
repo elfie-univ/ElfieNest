@@ -131,8 +131,6 @@ def classify_scene(
             return "idle"
 
     # 4. 关键词映射
-    prompt_lower = prompt.lower()
-
     # 检查 tool_use 关键词
     for kw in TOOL_USE_KEYWORDS:
         if kw in prompt:

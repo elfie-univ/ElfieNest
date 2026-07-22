@@ -7,15 +7,15 @@ import subprocess
 from pathlib import Path
 from typing import Callable
 
-from app.orchestration.lifecycle.types import (
-    CleanupFailedError,
-    ServiceLifecycleError,
-    ServiceLifecycleResult,
-)
 from app.orchestration.lifecycle.process import (
     ProcessInspector,
     command_runs_service,
     remove_service_process,
+)
+from app.orchestration.lifecycle.types import (
+    CleanupFailedError,
+    ServiceLifecycleError,
+    ServiceLifecycleResult,
 )
 
 

@@ -3,20 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, List, Mapping, Optional, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 from elfie.brain.perception_types import IngestReceipt
-from elfie.communication.channel import (
-    CommunicationMessage,
-    MessageDirection,
-    MessageKind,
-)
+from elfie.communication.channel import CommunicationChannel
 from elfie.communication.contracts import (
     CommunicationEnvelope,
     DeliveryReceipt,
     DeliveryStatus,
     InboundDisposition,
     InboundDispositionStatus,
+    MessageDirection,
 )
 from elfie.communication.hub_snapshot import (
     HubSnapshot,
@@ -29,13 +26,13 @@ from elfie.communication.perception_adapter import (
     DeliveryPerceptionCorrelation,
 )
 from elfie.communication.policy import CommunicationPolicy, CommunicationPolicyError
-from elfie.communication.router import CommunicationRouter, RegisteredChannel
+from elfie.communication.router import CommunicationRouter
 from elfie.message_types import ErrorInfo
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)  # noqa: SLOTS_OK - Python 3.9
 class InboundDispositionInvariantError(RuntimeError):
-    """A rejected compatibility result omitted its required typed error."""
+    """A rejected inbound result omitted its required typed error."""
 
     status: InboundDispositionStatus
 
@@ -65,13 +62,20 @@ class CommunicationHub:
     def bind_identity(self, elfie_id: str) -> None:
         self.elfie_id = elfie_id
 
+    def bind_perception_adapter(
+        self,
+        adapter: CommunicationPerceptionAdapter,
+    ) -> None:
+        """Bind the Brain-facing producer after the Elfie workspace exists."""
+        self.perception_adapter = adapter
+
     def register_channel(
         self,
-        channel: RegisteredChannel,
+        channel: CommunicationChannel,
         *,
         connect: bool = False,
         replace: bool = False,
-    ) -> RegisteredChannel:
+    ) -> CommunicationChannel:
         registered = self.router.register(channel, replace=replace)
         if connect:
             registered.connect()
@@ -91,15 +95,6 @@ class CommunicationHub:
                     message="入站边界只接受 inbound envelope",
                 ),
             )
-        if not self.inbox.claim_identity(envelope):
-            return self._record_disposition(
-                envelope,
-                InboundDispositionStatus.DUPLICATE,
-                ErrorInfo(
-                    code="duplicate_message",
-                    message="外部消息 identity 已处理",
-                ),
-            )
         if self.router.get(envelope.channel_id) is None:
             return self._record_disposition(
                 envelope,
@@ -116,6 +111,15 @@ class CommunicationHub:
                 envelope,
                 InboundDispositionStatus.REJECTED,
                 exc.error,
+            )
+        if not self.inbox.claim_identity(envelope):
+            return self._record_disposition(
+                envelope,
+                InboundDispositionStatus.DUPLICATE,
+                ErrorInfo(
+                    code="duplicate_message",
+                    message="外部消息 identity 已处理",
+                ),
             )
         self.inbox.receive(envelope)
         if self.perception_adapter is not None:
@@ -185,58 +189,6 @@ class CommunicationHub:
         )
         return tuple(self.send_envelope(envelope) for envelope in ordered)
 
-    def receive(
-        self,
-        *,
-        channel_id: str,
-        sender_id: str,
-        content: str,
-        kind: MessageKind = MessageKind.TEXT,
-        metadata: Optional[Mapping[str, Any]] = None,
-    ) -> CommunicationEnvelope:
-        """Compatibility adapter for the pre-envelope receive call shape."""
-        message = CommunicationMessage(
-            channel_id=channel_id,
-            direction=MessageDirection.INBOUND,
-            sender_id=sender_id,
-            recipient_id=self.elfie_id,
-            content=content,
-            kind=kind,
-            metadata=metadata or {},
-        )
-        envelope = message.to_envelope(elfie_id=self.elfie_id)
-        disposition = self.receive_envelope(envelope)
-        if disposition.status is InboundDispositionStatus.ACCEPTED:
-            return envelope
-        if disposition.error is None:
-            raise InboundDispositionInvariantError(status=disposition.status)
-        if disposition.error.code == "unknown_channel":
-            raise KeyError(disposition.error.message)
-        raise CommunicationPolicyError(error=disposition.error)
-
-    def send(
-        self,
-        *,
-        channel_id: str,
-        recipient_id: str,
-        content: str,
-        kind: MessageKind = MessageKind.TEXT,
-        metadata: Optional[Mapping[str, Any]] = None,
-    ) -> DeliveryReceipt:
-        """Compatibility adapter retaining policy exceptions until Task 14."""
-        message = CommunicationMessage(
-            channel_id=channel_id,
-            direction=MessageDirection.OUTBOUND,
-            sender_id=self.elfie_id,
-            recipient_id=recipient_id,
-            content=content,
-            kind=kind,
-            metadata=metadata or {},
-        )
-        envelope = message.to_envelope(elfie_id=self.elfie_id)
-        self.policy.validate(envelope)
-        return self.send_envelope(envelope)
-
     def drain_inbox(
         self,
         limit: Optional[int] = None,
@@ -257,7 +209,7 @@ class CommunicationHub:
         error: Optional[ErrorInfo] = None,
     ) -> InboundDisposition:
         disposition = InboundDisposition(
-            message_id=envelope.message_id,
+            message_id=envelope.meta.event_id,
             channel_id=envelope.channel_id,
             status=status,
             error=error,

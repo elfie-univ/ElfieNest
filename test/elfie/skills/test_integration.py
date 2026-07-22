@@ -1,43 +1,42 @@
-from types import SimpleNamespace
+"""Skill policy integration with the typed cortical request boundary."""
 
 from elfie import ElfieFactory
+from elfie.body import HeadlessBody
+from elfie.communication import CommunicationHub
 from elfie.skills import SkillManager, SkillPolicy
+from test.elfie.test_cognitive_lifecycle import (
+    RecordingChannel,
+    TwoTurnRuntime,
+    _owner_message,
+)
 
 
-class RuntimeWithFood:
-    class Config:
-        providers = {"ollama": {"api_key": "", "api_base": "mock://local"}}
-
-    config = Config()
-
-    def __init__(self) -> None:
-        self.allowed_skills = None
-
-    def run_with_food(self, **kwargs):
-        self.allowed_skills = kwargs["allowed_skills"]
-        return SimpleNamespace(text="收到。[ACTION]nod_head[/ACTION]", actual_model="ollama/test")
-
-
-def test_elfie_filters_brain_requested_tools_before_runtime_execution() -> None:
+def test_elfie_passes_allowed_runtime_tools_to_cortical_request() -> None:
+    # Given: one Elfie whose policy allows only the registered web search tool.
+    manager = SkillManager(
+        policy=SkillPolicy(allowed_skill_ids=frozenset({"web_search"}))
+    )
+    body = HeadlessBody(body_id="skills-body")
+    hub = CommunicationHub("elfie-loop")
+    hub.register_channel(RecordingChannel(), connect=True)
+    runtime = TwoTurnRuntime()
+    runtime.release_first.set()
     elfie = ElfieFactory().create(
-        elfie_id="elfie-skills",
+        elfie_id="elfie-loop",
         memory_db_path=":memory:",
-        skills=SkillManager(
-            policy=SkillPolicy(allowed_skill_ids=frozenset({"web_search"}))
-        ),
-    )
-    runtime = RuntimeWithFood()
-
-    result = elfie.perceive_and_respond(
-        {
-            "message_id": "message-1",
-            "has_new_message": True,
-            "user_message": "帮我搜索最新消息",
-            "temperature": 24.0,
-            "salience_score": 20.0,
-        },
-        runtime,
+        body=body,
+        communication=hub,
+        skills=manager,
+        cortical_runtime=runtime,
     )
 
-    assert result["success"] is True
-    assert runtime.allowed_skills == ["web_search"]
+    # When: a typed owner message starts one cortical turn.
+    elfie.start()
+    elfie.receive_communication_envelope(_owner_message(elfie.cognitive_datetime))
+    elfie.advance_clock(0.5)
+    elfie.wait_for_outcome_count(1, timeout=1.0)
+
+    # Then: the typed request carries the filtered tool capability.
+    assert runtime.requests[0].allowed_tools == ("web_search",)
+    elfie.stop()
+    elfie.join()

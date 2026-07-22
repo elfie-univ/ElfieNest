@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Mapping, Optional, Tuple, overload
+from typing import List, Mapping, Optional, Tuple
 
 from elfie.body.capabilities import BodyCapabilities
 from elfie.body.command_execution import (
@@ -15,9 +15,8 @@ from elfie.body.command_execution import (
     validate_command,
 )
 from elfie.body.contracts import (
-    BodyCommand as TypedBodyCommand,
-)
-from elfie.body.contracts import (
+    BodyCommand,
+    BodyId,
     BodySensorEvent,
     BodySnapshot,
     CommandReceipt,
@@ -25,20 +24,11 @@ from elfie.body.contracts import (
     MotionCommand,
     SpeechCommand,
 )
-from elfie.body.native.actuators import NativeActuators
 from elfie.body.native.godot_transport import GodotTransport
 from elfie.body.native.sensors import NativeSensors
 from elfie.body.types import (
-    BodyCommand as LegacyBodyCommand,
-)
-from elfie.body.types import (
     BodyDescriptor,
-    BodyEvent,
     BodyMode,
-    BodyState,
-)
-from elfie.body.types import (
-    CommandResult as LegacyCommandResult,
 )
 
 
@@ -58,65 +48,41 @@ class NativeBody:
             actions=frozenset({"*"}),
         )
         self.sensors = NativeSensors(body_id)
-        self.actuators = NativeActuators(
-            body_id=body_id,
-            capabilities=self.capabilities,
-            transport=transport,
-        )
         self.connected = False
-        self._last_typed_receipt: CommandReceipt | None = None
+        self._last_receipt: CommandReceipt | None = None
 
     def connect(self) -> None:
         if self.connected:
             return
         self.transport.connect(self.sensors.receive)
-        self.actuators.connected = True
         self.connected = True
 
     def disconnect(self) -> None:
         if not self.connected:
             return
         self.transport.disconnect(self.sensors.receive)
-        self.actuators.connected = False
         self.connected = False
 
     def describe(self) -> BodyDescriptor:
         return BodyDescriptor(
-            body_id=self.body_id,
+            body_id=BodyId(self.body_id),
             mode=BodyMode.NATIVE,
             display_name="Native Godot Body",
             capabilities=self.capabilities,
         )
-
-    def read_events(self) -> List[BodyEvent]:
-        if not self.connected:
-            return []
-        return self.sensors.read_events()
 
     def read_sensor_events(self) -> List[BodySensorEvent]:
         if not self.connected:
             return []
         return self.sensors.read_sensor_events()
 
-    @overload
-    def execute(
-        self, command: LegacyBodyCommand, *, now: datetime | None = None
-    ) -> LegacyCommandResult: ...
-
-    @overload
-    def execute(
-        self, command: TypedBodyCommand, *, now: datetime | None = None
-    ) -> Tuple[CommandReceipt, ...]: ...
-
     def execute(
         self,
-        command: LegacyBodyCommand | TypedBodyCommand,
+        command: BodyCommand,
         *,
         now: datetime | None = None,
-    ) -> LegacyCommandResult | Tuple[CommandReceipt, ...]:
-        if isinstance(command, LegacyBodyCommand):
-            return self.actuators.execute(command)
-        return self._execute_typed(command, now=now or utc_now())
+    ) -> Tuple[CommandReceipt, ...]:
+        return self._execute(command, now=now or utc_now())
 
     def execute_wire(
         self,
@@ -128,22 +94,12 @@ class NativeBody:
         parsed = parse_wire_command(payload, occurred_at=current_time)
         if isinstance(parsed, CommandReceipt):
             return (parsed,)
-        return self._execute_typed(parsed, now=current_time)
-
-    def snapshot(self) -> BodyState:
-        last_result = self.actuators.last_result
-        return BodyState(
-            body_id=self.body_id,
-            connected=self.connected,
-            pending_event_count=self.sensors.pending_count,
-            last_action=last_result.action if last_result else "",
-            metadata={"godot_runtime_ready": self.transport.runtime_ready},
-        )
+        return self._execute(parsed, now=current_time)
 
     def snapshot_body(self, *, now: datetime | None = None) -> BodySnapshot:
-        receipt = self._last_typed_receipt
+        receipt = self._last_receipt
         return BodySnapshot(
-            body_id=self.body_id,
+            body_id=BodyId(self.body_id),
             captured_at=now or utc_now(),
             connected=self.connected,
             capability_revision=self.capabilities.revision,
@@ -152,17 +108,9 @@ class NativeBody:
             last_status=receipt.status if receipt else None,
         )
 
-    def emergency_stop(self) -> LegacyCommandResult:
-        result = self.execute(LegacyBodyCommand(action="system.emergency_stop"))
-        return result
-
-    @property
-    def last_result(self) -> Optional[LegacyCommandResult]:
-        return self.actuators.last_result
-
-    def _execute_typed(
+    def _execute(
         self,
-        command: TypedBodyCommand,
+        command: BodyCommand,
         *,
         now: datetime,
     ) -> Tuple[CommandReceipt, ...]:
@@ -174,7 +122,7 @@ class NativeBody:
             now=now,
         )
         if rejection is not None:
-            self._last_typed_receipt = rejection
+            self._last_receipt = rejection
             return (rejection,)
         if isinstance(command, SpeechCommand):
             self.transport.send_action(
@@ -213,8 +161,8 @@ class NativeBody:
                 "Godot transport cannot acknowledge emergency stop",
                 now,
             )
-            self._last_typed_receipt = receipt
+            self._last_receipt = receipt
             return (receipt,)
         receipts = lifecycle_receipts(command, occurred_at=now)
-        self._last_typed_receipt = receipts[-1]
+        self._last_receipt = receipts[-1]
         return receipts

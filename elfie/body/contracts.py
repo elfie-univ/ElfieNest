@@ -133,6 +133,7 @@ class MotionCommand(_CommandBase):
 class ExpressionCommand(_CommandBase):
     command_type: Literal["expression"]
     kind: _NonBlankText
+    intensity: Optional[_Ratio] = None
 
 
 class EmergencyStopCommand(_CommandBase):

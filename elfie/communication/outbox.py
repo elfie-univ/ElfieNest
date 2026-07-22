@@ -13,7 +13,7 @@ from elfie.communication.contracts import (
 )
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ReceiptCorrelationError(ValueError):
     """A receipt did not identify the envelope being recorded."""
 
@@ -27,7 +27,7 @@ class ReceiptCorrelationError(ValueError):
         )
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class OutboxEntry:
     """One canonical envelope and its latest delivery receipt."""
 
@@ -48,14 +48,14 @@ class CommunicationOutbox:
         receipt: DeliveryReceipt,
     ) -> OutboxEntry:
         """Record a receipt only when its message identity matches."""
-        if receipt.message_id != message.message_id:
+        if receipt.message_id != message.meta.event_id:
             raise ReceiptCorrelationError(
-                message_id=str(message.message_id),
+                message_id=str(message.meta.event_id),
                 receipt_message_id=str(receipt.message_id),
             )
         entry = OutboxEntry(message=message, receipt=receipt)
         with self._lock:
-            self._entries[str(message.message_id)] = entry
+            self._entries[str(message.meta.event_id)] = entry
         return entry
 
     def get(self, message_id: str) -> Optional[OutboxEntry]:

@@ -96,6 +96,7 @@ class ConnectedChannelDescriptor(FrozenContractModel):
     account_id: _NonBlankText
     capability_revision: _Revision
     content_kinds: Tuple[_NonBlankText, ...]
+    authorized_conversation_ids: Tuple[_NonBlankText, ...] = ()
 
 
 class EffectiveCapabilities(FrozenContractModel):

@@ -5,7 +5,9 @@ from __future__ import annotations
 import logging
 from typing import Dict
 
+from app.orchestration.godot_owner_channel import GodotOwnerChannel
 from elfie import Elfie
+from elfie.brain.runtime_port import CorticalRuntimePort
 from nest import Nest
 from nest.godot.api import GodotAPIServer
 from nest.interaction.hub import TactileInput
@@ -20,15 +22,26 @@ class NestSession:
         self.nest = nest
         self.api_server = api_server
         self.elfies: Dict[str, Elfie] = {}
+        self._cortical_runtime: CorticalRuntimePort | None = None
 
     def register_elfie(self, elfie_id: str, elfie: Elfie) -> None:
         self.nest.register_resident(elfie_id)
         elfie.bind_identity(elfie_id)
+        elfie.register_communication_channel(
+            GodotOwnerChannel(self.api_server),
+            connect=True,
+            replace=True,
+        )
+        if self._cortical_runtime is not None and not elfie.cognition_configured:
+            elfie.configure_cognition(self._cortical_runtime)
         self.elfies[elfie_id] = elfie
         logger.info("精灵 '%s' 已进入 Nest", elfie_id)
 
     def remove_elfie(self, elfie_id: str) -> None:
-        self.elfies.pop(elfie_id, None)
+        elfie = self.elfies.pop(elfie_id, None)
+        if elfie is not None:
+            elfie.stop()
+            elfie.join()
         self.nest.remove_resident(elfie_id)
 
     def tick_elfies(self, seconds: float) -> None:
@@ -36,7 +49,26 @@ class NestSession:
         for elfie_id, elfie in self.elfies.items():
             state = self.nest.resident_state(elfie_id)
             if state is not None and state.active and state.posture != "away":
-                elfie.tick(seconds)
+                elfie.advance_clock(seconds)
+
+    def configure_cognition(self, runtime: CorticalRuntimePort) -> None:
+        """Inject the serialized Runtime boundary into every registered Elfie."""
+        self._cortical_runtime = runtime
+        for elfie in self.elfies.values():
+            if not elfie.cognition_configured:
+                elfie.configure_cognition(runtime)
+
+    def start_elfies(self) -> None:
+        for elfie in self.elfies.values():
+            elfie.start()
+
+    def stop_elfies(self) -> None:
+        for elfie in self.elfies.values():
+            elfie.stop()
+
+    def join_elfies(self) -> None:
+        for elfie in self.elfies.values():
+            elfie.join()
 
     def trigger_elfie_interaction(
         self,

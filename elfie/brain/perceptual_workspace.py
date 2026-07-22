@@ -104,6 +104,9 @@ class PerceptualWorkspace:
                 media_sample_count=storage.media_sample_count,
                 oldest_event_at=storage.oldest_event_at,
                 newest_event_at=storage.newest_event_at,
+                oldest_social_at=storage.oldest_social_at,
+                newest_social_at=storage.newest_social_at,
+                critical_event_count=storage.critical_event_count,
                 max_salience=storage.max_salience,
                 stopped=self._signal.stopped,
             )

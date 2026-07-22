@@ -8,25 +8,10 @@ import time
 from pathlib import Path
 from typing import Callable, Optional, Sequence
 
-from app.orchestration.lifecycle.recovery_lock import (
-    RecoveryInProgressError,
-    acquire_service_start_lease,
-)
 from app.orchestration.lifecycle.helpers import (
     default_launcher,
     existing_service_command,
     read_pid,
-)
-from app.orchestration.lifecycle.types import (
-    HealthCheckFailedError,
-    InvalidPidFileError,
-    LaunchFailedError,
-    ProcessIdentityMismatchError,
-    ProcessInspectionError,
-    ServiceLifecycleResult,
-    ServicePortsActiveError,
-    SignalProcessError,
-    StopTimeoutError,
 )
 from app.orchestration.lifecycle.process import (
     DEFAULT_SERVICE_PORTS,
@@ -40,7 +25,22 @@ from app.orchestration.lifecycle.process import (
     restart_command_from_process,
     service_ports_from_command,
 )
+from app.orchestration.lifecycle.recovery_lock import (
+    RecoveryInProgressError,
+    acquire_service_start_lease,
+)
 from app.orchestration.lifecycle.start_cleanup import cleanup_failed_start
+from app.orchestration.lifecycle.types import (
+    HealthCheckFailedError,
+    InvalidPidFileError,
+    LaunchFailedError,
+    ProcessIdentityMismatchError,
+    ProcessInspectionError,
+    ServiceLifecycleResult,
+    ServicePortsActiveError,
+    SignalProcessError,
+    StopTimeoutError,
+)
 
 _default_launcher = default_launcher
 _read_pid = read_pid
