@@ -2,6 +2,61 @@
 
 ElfieNest 是一个桌面端具身 AI 精灵系统。它将完整精灵个体、精灵巢活动空间、AI 推理运行时、用户产品功能、Godot 3D 世界和 Electron 桌面宿主拆成独立模块，并通过明确的依赖方向组合运行。
 
+## 整体架构
+
+```mermaid
+flowchart TB
+    subgraph Desktop["ElfieNest Desktop（Electron 跨平台应用宿主）"]
+        direction TB
+
+        subgraph Application["App 产品与编排层"]
+            direction TB
+            App["产品功能、接口与基础设施"]
+            Session["app/orchestration/NestSession<br/>Elfie + Nest 唯一组合桥梁"]
+            App --> Session
+        end
+
+        subgraph Domain["核心领域层"]
+            direction LR
+            Elfie["Elfie<br/>完整精灵个体"]
+            Nest["Nest<br/>精灵巢活动空间"]
+            Communication["elfie/communication<br/>个体消息策略、收件箱与发件箱"]
+        end
+
+        subgraph Runtime["运行时与系统能力层"]
+            direction LR
+            AIRuntime["AI Runtime<br/>模型、粮食、工具与安全"]
+            Godot["Godot Web Runtime<br/>3D 世界、移动、碰撞与渲染"]
+            Connectivity["Connectivity Runtime（规划中）<br/>真实网络连接、信令与环境适配"]
+            DataHome["ELFIE_HOME<br/>配置、数据库、模型与精灵数据"]
+        end
+
+        Session --> Elfie
+        Session --> Nest
+        Elfie --> Communication
+        Elfie --> AIRuntime
+        Nest <--> Godot
+        Communication -. "未来接入" .-> Connectivity
+        App --> DataHome
+        Elfie --> DataHome
+        AIRuntime --> DataHome
+    end
+
+    ModelServices["本地或云端模型服务"]
+    ExternalWorld["微信、Telegram、Nest-Nest 与其他外部环境"]
+    AIRuntime --> ModelServices
+    Connectivity -. "规划中的连接器" .-> ExternalWorld
+```
+
+Electron 是应用宿主和进程监督者，不承载精灵、Nest 或账户业务规则。App 通过
+`NestSession` 组合真实精灵与活动空间；Elfie 使用 AI Runtime 完成推理，Nest 与
+Godot Runtime 交换世界事件。`elfie/communication` 已提供精灵自身的消息语义，
+未来的 Connectivity Runtime 只负责真实网络连接、协议适配和跨环境传输。
+
+图中展示的是职责与组合关系，不代表所有模块运行在同一进程：App、Elfie、Nest
+和 AI Runtime 属于 Python Core；Godot Web Runtime 运行在独立隐藏窗口中；模型
+服务和外部通信环境位于 Desktop 应用边界之外。
+
 ## 快速开始
 
 项目固定使用 CPython `3.9.25`：
@@ -51,7 +106,7 @@ app/
 ├── features/          # accounts、adoption、chat、Nest 管理、配置和 Setup
 ├── orchestration/     # NestSession、ElfieNestEngine、启动和事件路由
 ├── interfaces/        # FastAPI、Web、CLI/TUI
-├── infrastructure/    # persistence、audio、filesystem、device_identity
+├── infrastructure/    # persistence、filesystem、device_identity
 └── bootstrap/         # 组合根，只创建和注入具体对象
 ```
 

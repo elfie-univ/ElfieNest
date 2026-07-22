@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, replace
+from typing import Any, Mapping
 
 from .models import (
     PROFILE_SCHEMA_VERSION,
@@ -39,6 +40,7 @@ class AppearanceGenerator:
         species_id: str,
         height_direction: str = "standard",
         build_direction: str = "standard",
+        overrides: Mapping[str, Any] | None = None,
     ) -> AppearanceGenome:
         species = get_species_profile(species_id)
         _validate_direction(
@@ -167,6 +169,8 @@ class AppearanceGenerator:
                 }
             ),
         )
+        genome = _apply_appearance_overrides(genome, overrides)
+        _validate_generated_appearance(genome, species_id)
         return genome
 
 
@@ -178,12 +182,14 @@ def create_visual_profile(
     seed: int,
     height_direction: str = "standard",
     build_direction: str = "standard",
+    appearance_overrides: Mapping[str, Any] | None = None,
 ) -> ElfieProfile:
     """创建当前阶段可直接持久化的视觉个体档案。"""
     appearance = AppearanceGenerator(seed).generate(
         species_id=species_id,
         height_direction=height_direction,
         build_direction=build_direction,
+        overrides=appearance_overrides,
     )
     profile = ElfieProfile(
         schema_version=PROFILE_SCHEMA_VERSION,
@@ -212,6 +218,90 @@ def create_visual_profile(
     )
     profile.validate()
     return profile
+
+
+def _apply_appearance_overrides(
+    genome: AppearanceGenome,
+    overrides: Mapping[str, Any] | None,
+) -> AppearanceGenome:
+    """把显式初始化参数覆盖到种子生成的外貌上，并拒绝未知字段。"""
+    if overrides is None:
+        return genome
+    if not isinstance(overrides, Mapping):
+        raise ValueError("appearance_overrides 必须是映射")
+
+    group_types = {
+        "macro": AppearanceMacro,
+        "proportions": AppearanceProportions,
+        "body_bias": BodyAppearance,
+        "face": FaceAppearance,
+        "appendages": AppendageAppearance,
+        "fur": FurAppearance,
+        "coat": CoatAppearance,
+    }
+    allowed_groups = set(group_types) | {"species_traits"}
+    unknown_groups = sorted(set(overrides) - allowed_groups)
+    if unknown_groups:
+        raise ValueError(
+            "appearance_overrides 包含未知分组: " + ", ".join(unknown_groups)
+        )
+
+    updates: dict[str, Any] = {}
+    for group_name, model_type in group_types.items():
+        if group_name not in overrides:
+            continue
+        raw_group = overrides[group_name]
+        if not isinstance(raw_group, Mapping):
+            raise ValueError(f"appearance_overrides.{group_name} 必须是映射")
+        allowed_fields = {item.name for item in fields(model_type)}
+        unknown_fields = sorted(set(raw_group) - allowed_fields)
+        if unknown_fields:
+            raise ValueError(
+                f"appearance_overrides.{group_name} 包含未知字段: "
+                + ", ".join(unknown_fields)
+            )
+        updates[group_name] = replace(
+            getattr(genome, group_name),
+            **dict(raw_group),
+        )
+
+    if "species_traits" in overrides:
+        raw_traits = overrides["species_traits"]
+        if not isinstance(raw_traits, Mapping):
+            raise ValueError("appearance_overrides.species_traits 必须是映射")
+        unknown_traits = sorted(set(raw_traits) - set(genome.species_traits))
+        if unknown_traits:
+            raise ValueError(
+                "appearance_overrides.species_traits 包含当前物种不支持的字段: "
+                + ", ".join(unknown_traits)
+            )
+        updates["species_traits"] = {
+            **genome.species_traits,
+            **dict(raw_traits),
+        }
+
+    return replace(genome, **updates)
+
+
+def _validate_generated_appearance(
+    genome: AppearanceGenome,
+    species_id: str,
+) -> None:
+    validation_profile = ElfieProfile(
+        schema_version=PROFILE_SCHEMA_VERSION,
+        identity=ElfieIdentity(
+            elfie_id="appearance-validation",
+            display_name="appearance-validation",
+            species_id=species_id,
+        ),
+        appearance=genome,
+        provenance=ProfileProvenance(
+            generator_version=GENERATOR_VERSION,
+            master_seed=genome.seed,
+            appearance_seed=genome.seed,
+        ),
+    )
+    validation_profile.validate()
 
 
 def _validate_direction(name: str, value: str, allowed: tuple[str, ...]) -> None:

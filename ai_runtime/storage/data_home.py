@@ -97,11 +97,6 @@ def get_skills_dir() -> Path:
     return get_elfie_home() / "skills"
 
 
-def get_audio_cache_dir() -> Path:
-    """TTS 音频缓存目录"""
-    return get_elfie_home() / "audio_cache"
-
-
 def get_sessions_dir() -> Path:
     """会话历史目录"""
     return get_elfie_home() / "sessions"
@@ -142,7 +137,6 @@ def ensure_elfie_home() -> None:
         "backups",
         "logs",
         "skills",
-        "audio_cache",
         "sessions",
         "food_history",
         "validations",

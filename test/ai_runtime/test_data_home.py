@@ -12,7 +12,6 @@ from ai_runtime.storage.data_home import (
     get_cache_dir,
     get_logs_dir,
     get_skills_dir,
-    get_audio_cache_dir,
     get_sessions_dir,
     ensure_elfie_home,
 )
@@ -38,7 +37,7 @@ def test_ensure_elfie_home_creates_structure(monkeypatch, tmp_path):
     ensure_elfie_home()
     home = get_elfie_home()
     assert home.exists()
-    for subdir in ["elfies", "cache", "logs", "skills", "audio_cache", "sessions"]:
+    for subdir in ["elfies", "cache", "logs", "skills", "sessions"]:
         assert (home / subdir).exists()
 
 
@@ -52,5 +51,4 @@ def test_path_helpers(monkeypatch, tmp_path):
     assert get_cache_dir() == get_elfie_home() / "cache"
     assert get_logs_dir() == get_elfie_home() / "logs"
     assert get_skills_dir() == get_elfie_home() / "skills"
-    assert get_audio_cache_dir() == get_elfie_home() / "audio_cache"
     assert get_sessions_dir() == get_elfie_home() / "sessions"

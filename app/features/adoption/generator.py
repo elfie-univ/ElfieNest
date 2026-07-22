@@ -303,7 +303,6 @@ class ElfieGenerator:
                 "speech": {
                     "enabled": True,
                     "max_words_per_minute": max_wpm,
-                    "tts_provider": "local_system",
                 },
                 "motion": {
                     "enabled": True,
@@ -394,6 +393,7 @@ class ElfieGenerator:
         config_dir: str,
         elfie_id: str,
         appearance_seed: int | None = None,
+        appearance_overrides: Dict[str, Any] | None = None,
     ) -> Dict[str, str]:
         """生成稳定视觉档案及现有大脑兼容配置。
 
@@ -453,6 +453,7 @@ class ElfieGenerator:
             seed=appearance_seed if appearance_seed is not None else secrets.randbits(63),
             height_direction=height,
             build_direction=build,
+            appearance_overrides=appearance_overrides,
         )
         resolved = AppearanceResolver().resolve(profile)
 

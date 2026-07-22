@@ -28,7 +28,7 @@ def test_start_is_idempotent_when_service_is_already_running(monkeypatch, capsys
     assert "已在运行" in capsys.readouterr().out
 
 
-def test_start_rejects_fixed_port_collision_before_launch(
+def test_start_rejects_godot_port_collision_before_launch(
     monkeypatch, capsys
 ) -> None:
     calls: list[str] = []
@@ -40,7 +40,7 @@ def test_start_rejects_fixed_port_collision_before_launch(
     )
 
     result = lifecycle_commands.start_background_service(
-        ("python", "scripts/serve.py", "--port", "8767")
+        ("python", "scripts/serve.py", "--port", "8765")
     )
 
     assert result.status == "failed"
@@ -48,7 +48,7 @@ def test_start_rejects_fixed_port_collision_before_launch(
     assert "端口" in capsys.readouterr().out
 
 
-def test_start_forwards_custom_internal_ports(monkeypatch) -> None:
+def test_start_forwards_custom_service_ports(monkeypatch) -> None:
     # Given
     commands: list[tuple[str, ...]] = []
     monkeypatch.setattr(
@@ -68,22 +68,18 @@ def test_start_forwards_custom_internal_ports(monkeypatch) -> None:
                 "8866",
                 "--godot-ws-port",
                 "8768",
-                "--audio-port",
-                "8769",
             )
         )
     )
 
     # Then
-    assert commands[0][-8:] == (
+    assert commands[0][-6:] == (
         "--port",
         "8100",
         "--ws-port",
         "8866",
         "--godot-ws-port",
         "8768",
-        "--audio-port",
-        "8769",
     )
 
 
@@ -163,8 +159,6 @@ def test_status_reports_the_tracked_service_ports(monkeypatch, capsys) -> None:
                 "8866",
                 "--godot-ws-port",
                 "8768",
-                "--audio-port",
-                "8769",
             ),
         ),
     )
@@ -183,6 +177,5 @@ def test_status_reports_the_tracked_service_ports(monkeypatch, capsys) -> None:
     assert (8100, "HTTP 服务") in checked
     assert (8866, "WebSocket (管理)") in checked
     assert (8768, "WebSocket (Godot)") in checked
-    assert (8769, "音频服务器") in checked
     assert "端口 8100" in output
     assert "端口 8866" in output

@@ -36,9 +36,7 @@
     },
     "engine": {
       "tick_interval_sec": 1.5,
-      "tts_enabled": true,
-      "max_elfies_per_room": null,
-      "default_tts_voice": "zh-CN-XiaoxiaoNeural"
+      "max_elfies_per_room": null
     },
     "security": {
       "session_ttl_days": 7,

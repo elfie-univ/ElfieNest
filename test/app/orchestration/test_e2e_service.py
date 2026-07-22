@@ -1,11 +1,10 @@
-"""端到端服务测试 — 真实 Engine + 真实 WS 客户端 + 真实 HTTP 全链路验证
+"""端到端服务测试 — 真实 Engine + 真实 WS 客户端全链路验证
 
 验证完整端到端事件流：
   1. hello 安全握手 → runtime_ready → sync_elfies
   2. physical interaction → speak_event + emotion_expression
   4. go_to → LLM 决策动作（可选，不稳定时不失败）
   5. arrived_at 回调 → 姿态更新
-  6. HTTP 端口可达
 
 所有 WS recv 均使用 asyncio.wait_for(..., timeout=5.0) 防死等。
 """
@@ -16,7 +15,6 @@ import os
 import tempfile
 import threading
 import time
-import urllib.request
 
 import websockets
 
@@ -62,13 +60,13 @@ class MockRuntimeAgent:
 
 
 class TestE2EServiceFlow:
-    """端到端服务测试 — 真实 Engine + 真实 WS 客户端 + 真实 HTTP"""
+    """端到端服务测试 — 真实 Engine + 真实 WS 客户端。"""
 
     async def _async_client_test(self, engine: ElfieNestEngine):
         """异步 WS 客户端测试逻辑"""
         uri = f"ws://{engine.api_server.host}:{engine.api_server.port}"
 
-        origin = f"http://127.0.0.1:{engine.http_port}"
+        origin = "http://127.0.0.1:18001"
         async with websockets.connect(uri, origin=origin) as ws:
             hello_msg = json.dumps(
                 {
@@ -150,15 +148,10 @@ class TestE2EServiceFlow:
                 f"arrived_at bed_1 后 posture 应为 lying，实际：{elfie_status}"
             )
 
-        # ---------- 5. HTTP 端口可达 ----------
-        http_url = f"http://127.0.0.1:{engine.http_port}/"
-        with urllib.request.urlopen(http_url, timeout=5.0) as resp:
-            assert resp.status == 200, f"HTTP 服务应返回 200，实际：{resp.status}"
-
     def test_full_e2e_service_flow(self):
-        """端到端服务测试 — 真实 Engine + 真实 WS 客户端 + 真实 HTTP"""
+        """端到端服务测试 — 真实 Engine + 真实 WS 客户端。"""
         old_elfie_home = os.environ.get("ELFIE_HOME")
-        engine = ElfieNestEngine(ws_port=18766, http_port=18001)
+        engine = ElfieNestEngine(ws_port=18766, godot_origin_port=18001)
         mock_agent = MockRuntimeAgent()
 
         with tempfile.TemporaryDirectory() as elfie_home:
@@ -171,7 +164,6 @@ class TestE2EServiceFlow:
                     elfie_id="艾菲",
                 )
                 engine.session.register_elfie("艾菲", elfie)
-                engine._synthesize_voice = lambda elfie_id, text: f"http://127.0.0.1:{engine.http_port}/dummy.mp3"
                 engine.start_loop(mock_agent, ticks_to_run=20, interval_sec=0.3)
 
             engine_thread = threading.Thread(target=_run_engine, daemon=True)

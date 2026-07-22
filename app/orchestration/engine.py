@@ -1,13 +1,10 @@
 import logging
-import os
 import time
 from typing import Any, Dict, Optional
 
+from app.orchestration.nest_session import NestSession
 from elfie.body import BodyCommand, BodyEvent
 from elfie.profile import AppearanceResolver
-from app.infrastructure.audio.server import AudioServer
-from app.infrastructure.audio.tts import async_generate_tts, synthesize_voice
-from app.orchestration.nest_session import NestSession
 from nest import Nest, NestConfig
 from nest.godot.action_mapper import map_action_to_world
 from nest.godot.api import GodotAPIServer
@@ -18,18 +15,15 @@ logger = logging.getLogger("app.orchestration.engine")
 class ElfieNestEngine:
     """
     ElfieNest 物理时钟游戏引擎的核心控制箱。
-    内置 8000 端口的语音静态分发网关，8765 端口的 WebSocket 控制总线。
-    管理多只精灵的具身逻辑、生理衰减以及高逼真度的 edge-tts 语音流水线。
+    通过 WebSocket 控制总线管理多只精灵的具身逻辑、生理衰减与文本发言广播。
     """
 
     def __init__(
         self,
         ws_host: str = "127.0.0.1",
         ws_port: int = 8765,
-        http_port: int = 8000,
         godot_origin_port: Optional[int] = None,
         tick_interval_sec: float = 1.5,
-        tts_enabled: bool = True,
         max_elfies_per_room: Optional[int] = None,
     ):
         """初始化引擎。
@@ -37,38 +31,23 @@ class ElfieNestEngine:
         Args:
             ws_host: WebSocket 主机地址
             ws_port: WebSocket 端口
-            http_port: HTTP 端口
+            godot_origin_port: 允许连接 Godot WebSocket 的页面来源端口
             tick_interval_sec: 每个 tick 的间隔秒数
-            tts_enabled: 是否启用 TTS
             max_elfies_per_room: 房间最大精灵数
         """
         self.tick_interval_sec = tick_interval_sec
-        self.tts_enabled = tts_enabled
 
         # 1. 实例化核心组件
         self.nest = Nest(NestConfig(max_residents=max_elfies_per_room))
         self.api_server = GodotAPIServer(
             host=ws_host,
             port=ws_port,
-            http_port=(
-                godot_origin_port if godot_origin_port is not None else http_port
-            ),
+            http_port=godot_origin_port if godot_origin_port is not None else 8000,
         )
         self.session = NestSession(self.nest, self.api_server)
         self.coordinator = self.session
 
-        # 2. 音频分发参数
-        self.http_port = http_port
-        self.temp_audio_dir = os.path.abspath(
-            os.path.join(os.getcwd(), "data", "temp", "audio")
-        )
-        os.makedirs(self.temp_audio_dir, exist_ok=True)
-
-        self.audio_server = AudioServer(
-            directory=self.temp_audio_dir, port=self.http_port
-        )
-
-        # 3. 注册 Godot 事件回调以驱动 Python 看板
+        # 2. 注册 Godot 事件回调以驱动 Python 看板
         self.api_server.register_callback(
             "register_scene", self._on_godot_scene_registered
         )
@@ -76,12 +55,8 @@ class ElfieNestEngine:
         self.api_server.register_callback("arrived_at", self._on_godot_elfie_arrived)
         self.api_server.register_callback("user_message", self._on_user_message)
 
-        # 4. 可选的鉴权 WebSocket 管理网关（由 app.py 注入，None 则不启用）
+        # 3. 可选的鉴权 WebSocket 管理网关（由 app.py 注入，None 则不启用）
         self.ws_manager: Optional[Any] = None
-
-    def _start_http_server(self):
-        """在独立线程中拉起极简语音静态分发服务器"""
-        self.audio_server.start()
 
     def _on_godot_scene_registered(self, payload: Dict[str, Any]):
         """Godot 场景握手回调：动态注册家具"""
@@ -163,24 +138,6 @@ class ElfieNestEngine:
         if elfie_id and message:
             self.session.send_user_message(elfie_id, message)
 
-    async def _async_generate_tts(
-        self, text: str, output_path: str, voice: str = "zh-CN-XiaoxiaoNeural"
-    ):
-        """异步调用 edge-tts 生成高品质微软 MP3 语音"""
-        await async_generate_tts(text, output_path, voice)
-
-    def _synthesize_voice(self, elfie_id: str, text: str) -> Optional[str]:
-        """
-        线程安全地同步调用 edge-tts，生成 MP3 文件并返回可供 Godot 拉取的本地静态服务 URL。
-        """
-        return synthesize_voice(
-            elfie_id=elfie_id,
-            text=text,
-            temp_audio_dir=self.temp_audio_dir,
-            http_port=self.http_port,
-            tts_enabled=self.tts_enabled,
-        )
-
     def _collect_world_sensory_events(self, elfie_id: str) -> list[BodyEvent]:
         """把房间和管理端输入转换成身体层统一感官事件。"""
         events: list[BodyEvent] = []
@@ -250,8 +207,7 @@ class ElfieNestEngine:
         """
         if interval_sec is None:
             interval_sec = self.tick_interval_sec
-        # 1. 启动 HTTP 语音服务器与 WebSocket 网络总线
-        self._start_http_server()
+        # 1. 启动 WebSocket 网络总线
         self.api_server.start()
         if self.ws_manager:
             self.ws_manager.start()
@@ -308,17 +264,13 @@ class ElfieNestEngine:
                         if speech_text:
                             self.nest.broadcast_speech(elfie_id, speech_text)
 
-                            # 5. 音频合成与播发
-                            audio_url = self._synthesize_voice(elfie_id, speech_text)
-
-                            # 发音和头顶文字气泡通过当前身体执行。
+                            # 5. 发言文本和情绪通过当前身体执行。
                             speech_execution = self._execute_body_command(
                                 elfie,
                                 BodyCommand(
                                     action="speech.say",
                                     parameters={
                                         "speech": speech_text,
-                                        "audio_url": audio_url or "",
                                         "emotion": str(
                                             elfie.amygdala.get_dominant_mood()
                                         ),
@@ -339,7 +291,6 @@ class ElfieNestEngine:
                                         "payload": {
                                             "elfie_id": elfie_id,
                                             "text": speech_text,
-                                            "audio_url": audio_url or "",
                                             "emotion": str(
                                                 elfie.amygdala.get_dominant_mood()
                                             ),
@@ -397,7 +348,6 @@ class ElfieNestEngine:
         finally:
             # 清理套接字和服务线程，防止端口占用死锁
             self.api_server.stop()
-            self.audio_server.stop()
             if self.ws_manager:
                 self.ws_manager.stop()
             logger.info("🌈 [时间盒子] 仿真主循环已平稳落地退出。")

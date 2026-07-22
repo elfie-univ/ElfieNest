@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import secrets
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +41,7 @@ class AdoptionRequest:
     personality_style: str
     height: str
     build: str
+    appearance_overrides: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -95,6 +96,7 @@ def adopt_elfie_for_user(
             build=request.build,
             config_dir=config_dir,
             elfie_id=elfie_id,
+            appearance_overrides=request.appearance_overrides,
         )
     except ValueError as exc:
         raise AdoptionValidationError(str(exc)) from None

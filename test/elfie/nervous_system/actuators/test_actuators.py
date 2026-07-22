@@ -6,7 +6,6 @@ import pytest
 
 sys.path.insert(0, "/Users/zhenli/git-code/ElfieNest")
 
-from elfie.body.native.anatomy.base import VoiceProfile
 from elfie.body.native.anatomy.biped import BipedAnatomy
 from elfie.body.native.anatomy.quadruped import QuadrupedAnatomy
 from elfie.nervous_system.actuators.motion import MotionActuator
@@ -21,53 +20,28 @@ class TestSpeechActuator:
         actuator = SpeechActuator()
         assert actuator is not None
 
-    def test_synthesize_speech_empty_text(self):
+    def test_speak_empty_text(self):
         """测试空文本输入返回空字符串"""
         actuator = SpeechActuator()
-        result = actuator.synthesize_speech("")
+        result = actuator.speak("")
         assert result == ""
 
-    def test_synthesize_speech_with_none_text(self):
+    def test_speak_with_empty_text(self):
         """测试 None 输入返回空字符串"""
         actuator = SpeechActuator()
         # 模拟处理无消息场景 - 传入空字符串而非None
-        result = actuator.synthesize_speech("")
+        result = actuator.speak("")
         assert result == ""
 
-    def test_synthesize_speech_with_text(self):
-        """测试正常文本合成"""
+    def test_speak_with_text(self):
+        """测试正常发言文本。"""
         actuator = SpeechActuator()
         text = "你好，我是小精灵"
-        result = actuator.synthesize_speech(text)
+        result = actuator.speak(text)
         assert result == text
-
-    def test_synthesize_speech_with_voice_profile(self):
-        """测试带 VoiceProfile 的语音合成"""
-        actuator = SpeechActuator()
-        profile = VoiceProfile(
-            pitch=1.5,
-            speed=0.8,
-            timbre="gentle",
-            frequency_curve=[0.8, 0.9, 1.0, 1.1, 1.2, 1.1, 1.0, 0.9, 0.8, 0.9],
-        )
-        text = "测试语音"
-        result = actuator.synthesize_speech(text, voice_profile=profile)
-        assert result == text
-
-    def test_synthesize_speech_default_voice_profile(self):
-        """测试使用默认 VoiceProfile"""
-        actuator = SpeechActuator()
-        text = "默认音色"
-        result = actuator.synthesize_speech(text)
-        assert result == text
-        # 默认 profile 应该被正确创建
-        profile = VoiceProfile()
-        assert profile.pitch == 1.0
-        assert profile.speed == 1.0
-        assert profile.timbre == "cute"
 
     def test_speak_method(self):
-        """测试 speak 方法是 synthesize_speech 的别名"""
+        """测试 speak 返回广播文本。"""
         actuator = SpeechActuator()
         text = "Hello World"
         result = actuator.speak(text)

@@ -274,7 +274,6 @@ elfienest> config
 elfienest> config
 # 选择 "3. 配置引擎参数"
 # 设置 Tick 间隔: 1.5 秒
-# 启用/禁用 TTS
 # 设置房间精灵上限: 10
 ```
 

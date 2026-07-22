@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from app.interfaces.cli.tui.common import clear_screen, input_text, print_banner
-from app.features.configuration.user_config import UserConfig, write_user_config
 from ai_runtime.lab.menu import MenuItem, TerminalMenu
+from app.features.configuration.user_config import UserConfig, write_user_config
+from app.interfaces.cli.tui.common import clear_screen, input_text, print_banner
 
 
 def config_llm(config: UserConfig) -> None:
@@ -46,12 +46,7 @@ def config_engine(config: UserConfig) -> None:
             "引擎参数",
             (
                 MenuItem("1", f"Tick 间隔（秒）：{engine.get('tick_interval_sec', 1.5)}"),
-                MenuItem(
-                    "2",
-                    "TTS 语音合成："
-                    + ("启用" if engine.get("tts_enabled", True) else "禁用"),
-                ),
-                MenuItem("3", f"房间精灵上限：{engine.get('max_elfies_per_room', 10)}"),
+                MenuItem("2", f"房间精灵上限：{engine.get('max_elfies_per_room', 10)}"),
             ),
             breadcrumb="ElfieNest / Config / 应用 / 引擎参数",
             back_label="保存并返回",
@@ -69,8 +64,6 @@ def config_engine(config: UserConfig) -> None:
                 minimum=0.01,
             )
         elif choice == "2":
-            engine["tts_enabled"] = not engine.get("tts_enabled", True)
-        elif choice == "3":
             _set_int(
                 menu,
                 engine,

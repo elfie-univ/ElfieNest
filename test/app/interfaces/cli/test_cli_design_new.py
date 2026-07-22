@@ -132,8 +132,6 @@ printf '%s\\n' "$*" >> "$ENTRYPOINT_LOG"
             "8100",
             "--godot-ws-port",
             "8768",
-            "--audio-port",
-            "8769",
         ],
         cwd=project_root,
         env=environment,
@@ -146,7 +144,7 @@ printf '%s\\n' "$*" >> "$ENTRYPOINT_LOG"
     # Then
     assert result.returncode == 0
     assert log_path.read_text(encoding="utf-8").splitlines() == [
-        "scripts/elfienest.py start --port 8100 --godot-ws-port 8768 --audio-port 8769",
+        "scripts/elfienest.py start --port 8100 --godot-ws-port 8768",
     ]
 
 
@@ -179,8 +177,6 @@ printf '%s\\n' "$*" >> "$ENTRYPOINT_LOG"
     result = subprocess.run(
         [
             str(project_root / "elfienest.sh"),
-            "--audio-port",
-            "8769",
             "--godot-ws-port",
             "8768",
         ],
@@ -195,5 +191,5 @@ printf '%s\\n' "$*" >> "$ENTRYPOINT_LOG"
     # Then
     assert result.returncode == 0
     assert log_path.read_text(encoding="utf-8").splitlines() == [
-        "scripts/elfienest.py --audio-port 8769 --godot-ws-port 8768",
+        "scripts/elfienest.py --godot-ws-port 8768",
     ]

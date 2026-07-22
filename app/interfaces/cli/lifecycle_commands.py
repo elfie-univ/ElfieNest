@@ -9,21 +9,24 @@ import webbrowser
 from pathlib import Path
 from typing import Optional, Sequence
 
-from app.orchestration.lifecycle import desktop as desktop_lifecycle
-from app.features.administration.system_service import default_port_statuses, service_port_statuses
-from app.orchestration.lifecycle.service import start_service, stop_service
-from app.orchestration.lifecycle.helpers import existing_service_command
-from app.orchestration.lifecycle.types import (
-    LaunchFailedError,
-    ServiceLifecycleResult,
+from ai_runtime.storage.data_home import get_elfie_home
+from app.features.administration.system_service import (
+    default_port_statuses,
+    service_port_statuses,
 )
+from app.orchestration.lifecycle import desktop as desktop_lifecycle
+from app.orchestration.lifecycle.helpers import existing_service_command
 from app.orchestration.lifecycle.process import (
     DefaultProcessInspector,
     http_port_from_command,
     service_ports_from_command,
     validate_service_ports,
 )
-from ai_runtime.storage.data_home import get_elfie_home
+from app.orchestration.lifecycle.service import start_service, stop_service
+from app.orchestration.lifecycle.types import (
+    LaunchFailedError,
+    ServiceLifecycleResult,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 WEB_URL = "http://127.0.0.1:8000/"
@@ -154,7 +157,7 @@ def show_service_status() -> None:
     else:
         _, command = running
         ports = service_ports_from_command(command)
-        port_statuses = service_port_statuses(ports[0], ports[2], ports[1], ports[3])
+        port_statuses = service_port_statuses(ports[0], ports[2], ports[1])
     for port_status in port_statuses:
         state = "运行中" if port_status.running else "未运行"
         icon = "✅" if port_status.running else "⭕"
@@ -216,7 +219,7 @@ def _web_is_healthy(port: int = 8000) -> bool:
 def _validated_http_port(command: Sequence[str]) -> int:
     """Parse and validate HTTP/WS ports before spawning a service process."""
     ports = service_ports_from_command(command)
-    error = validate_service_ports(ports[0], ports[2], ports[1], ports[3])
+    error = validate_service_ports(ports[0], ports[2], ports[1])
     if error:
         raise ValueError(error)
     return ports[0]

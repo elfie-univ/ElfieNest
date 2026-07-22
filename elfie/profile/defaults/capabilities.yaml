@@ -7,7 +7,6 @@ actuators:
   speech:
     enabled: true
     max_words_per_minute: 120
-    tts_provider: "local_system"  # 或 "edge_tts"
     
   motion:
     enabled: true

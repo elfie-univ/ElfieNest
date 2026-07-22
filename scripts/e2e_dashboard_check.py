@@ -140,7 +140,7 @@ def wait_for_server(url: str, timeout: float = 15.0) -> bool:
 
 
 def main() -> None:
-    port, ws_port, godot_ws_port, audio_port = find_distinct_free_ports(4)
+    port, ws_port, godot_ws_port = find_distinct_free_ports(3)
     base_url = f"http://127.0.0.1:{port}"
     data_home = tempfile.mkdtemp(prefix="elfienest-e2e-")
     owner_password = os.environ.get(
@@ -153,7 +153,6 @@ def main() -> None:
     print(f"  HTTP 端口: {port}")
     print(f"  管理 WS 端口: {ws_port}")
     print(f"  Godot WS 端口: {godot_ws_port}")
-    print(f"  音频端口: {audio_port}")
     print()
 
     print("  🚀 启动 serve.py --fallback ...")
@@ -163,7 +162,6 @@ def main() -> None:
          "--port", str(port),
          "--ws-port", str(ws_port),
          "--godot-ws-port", str(godot_ws_port),
-         "--audio-port", str(audio_port),
          ],
         cwd=PROJECT_ROOT,
         env={**os.environ, "ELFIE_HOME": data_home},

@@ -198,9 +198,7 @@ class TestEmbodiedPerception(unittest.TestCase):
         mock_image_path = "/tmp/dormitory_door_viewport.png"
 
         # 1. 神经总线 Vision 传感器接收这张 3D 视口照片，并做解析
-        _ = elfie.nervous_system.speech_actuator.synthesize_speech(
-            "眼前的红木门紧闭着哒", elfie.anatomy.voice_profile
-        )
+        _ = elfie.nervous_system.speech_actuator.speak("眼前的红木门紧闭着哒")
 
         # 2. 灌入视口输入并 mock ask 方法
         class MockVLMObserverAgent:

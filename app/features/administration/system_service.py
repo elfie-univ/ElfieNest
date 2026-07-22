@@ -63,13 +63,11 @@ def service_port_statuses(
     http_port: int,
     websocket_port: int,
     godot_ws_port: int = 8765,
-    audio_port: int = 8767,
 ) -> List[PortStatus]:
     return [
         check_port(http_port, "HTTP 服务"),
         check_port(websocket_port, "WebSocket (管理)"),
         check_port(godot_ws_port, "WebSocket (Godot)"),
-        check_port(audio_port, "音频服务器"),
     ]
 
 

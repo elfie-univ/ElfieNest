@@ -118,7 +118,6 @@ class TestGetDefaults:
         assert resp.status_code == 200
         data = resp.json()
         assert data["tick_interval_sec"] == 1.5
-        assert data["tts_enabled"] is True
         assert data["max_elfies_per_room"] is None
 
     def test_get_security_defaults(self, client: TestClient) -> None:

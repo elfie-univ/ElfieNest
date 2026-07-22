@@ -8,6 +8,46 @@ const WANDER_MIN_Z := -30.0
 const WANDER_MAX_Z := -2.0
 const BASE_COLLISION_RADIUS := 0.34
 const BASE_COLLISION_HEIGHT := 1.72
+const BONE_SCALE_CONTROLS := {
+	"HeadScale": {
+		"mode": "uniform",
+		"bones": ["mixamorig_Head"],
+	},
+	"NeckLength": {
+		"mode": "length",
+		"bones": ["mixamorig_Neck"],
+	},
+	"ArmLength": {
+		"mode": "length",
+		"bones": [
+			"mixamorig_LeftArm",
+			"mixamorig_LeftForeArm",
+			"mixamorig_RightArm",
+			"mixamorig_RightForeArm",
+		],
+	},
+	"LegLength": {
+		"mode": "length",
+		"bones": [
+			"mixamorig_LeftUpLeg",
+			"mixamorig_LeftLeg",
+			"mixamorig_RightUpLeg",
+			"mixamorig_RightLeg",
+		],
+	},
+	"HandScale": {
+		"mode": "uniform",
+		"bones": ["mixamorig_LeftHand", "mixamorig_RightHand"],
+	},
+	"PawScale": {
+		"mode": "uniform",
+		"bones": ["mixamorig_LeftFoot", "mixamorig_RightFoot"],
+	},
+	"TailLength": {
+		"mode": "length",
+		"bones": ["mixamorig_Tail_Bone"],
+	},
+}
 const SHARED_ANIMATIONS := {
 	"idle": "res://characters/animation/idle.fbx",
 	"walking": "res://characters/animation/walking.fbx",
@@ -137,7 +177,54 @@ func _apply_appearance(appearance: Dictionary) -> void:
 	)
 	_collision_shape.shape = capsule
 	_collision_shape.position.y = capsule.height * 0.5
+	_apply_bone_scales(appearance.get("bone_scales", {}))
 	_apply_blend_shapes(appearance.get("blend_shapes", {}))
+
+
+func _apply_bone_scales(raw_values: Variant) -> void:
+	if not raw_values is Dictionary:
+		return
+	for node in _visual_root.find_children("*", "Skeleton3D", true, false):
+		var skeleton := node as Skeleton3D
+		if skeleton == null:
+			continue
+		for control_name: String in BONE_SCALE_CONTROLS:
+			if control_name == "HeadScale" or control_name == "NeckLength":
+				continue
+			var control: Dictionary = BONE_SCALE_CONTROLS[control_name]
+			var factor := clampf(
+				float((raw_values as Dictionary).get(control_name, 1.0)),
+				0.5,
+				1.5,
+			)
+			var pose_scale := (
+				Vector3.ONE * factor
+				if control["mode"] == "uniform"
+				else Vector3(1.0, factor, 1.0)
+			)
+			for bone_name: String in control["bones"]:
+				var bone_index := skeleton.find_bone(bone_name)
+				if bone_index >= 0:
+					skeleton.set_bone_pose_scale(bone_index, pose_scale)
+		_apply_neck_and_head_scales(skeleton, raw_values as Dictionary)
+
+
+func _apply_neck_and_head_scales(
+	skeleton: Skeleton3D,
+	raw_values: Dictionary,
+) -> void:
+	var neck_factor := clampf(float(raw_values.get("NeckLength", 1.0)), 0.5, 1.5)
+	var head_factor := clampf(float(raw_values.get("HeadScale", 1.0)), 0.5, 1.5)
+	var neck_index := skeleton.find_bone("mixamorig_Neck")
+	if neck_index >= 0:
+		skeleton.set_bone_pose_scale(neck_index, Vector3(1.0, neck_factor, 1.0))
+	var head_index := skeleton.find_bone("mixamorig_Head")
+	if head_index >= 0:
+		# Neck scale is inherited by Head; cancel it on the local length axis.
+		skeleton.set_bone_pose_scale(
+			head_index,
+			Vector3(head_factor, head_factor / neck_factor, head_factor),
+		)
 
 
 func _apply_blend_shapes(raw_values: Variant) -> void:

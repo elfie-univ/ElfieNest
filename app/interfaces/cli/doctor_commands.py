@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from ai_runtime.lab.cli import RuntimeLab
 from ai_runtime.storage.data_home import (
     ensure_elfie_home,
-    get_audio_cache_dir,
     get_cache_dir,
     get_elfie_home,
     get_food_history_dir,
@@ -58,7 +57,6 @@ def repair_local_runtime_state() -> DoctorRepairReport:
         get_cache_dir(),
         get_logs_dir(),
         get_skills_dir(),
-        get_audio_cache_dir(),
         get_sessions_dir(),
         get_food_history_dir(),
         get_validation_dir(),
