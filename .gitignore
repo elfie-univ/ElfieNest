@@ -6,6 +6,8 @@
 /docs/*
 !/docs/design/
 !/docs/design/**
+!/docs/contracts/
+!/docs/contracts/**
 
 # 2. AI Runtime 本地敏感配置与托管二进制（保留旧路径用于升级迁移）
 /ai_runtime/runtime_config.json

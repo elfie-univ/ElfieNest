@@ -17,9 +17,9 @@ from typing import Any, Dict, List, Optional
 
 from .graph_storage import GraphStorage
 from .node_types import EdgeTypes, MemoryNode, NodeTypes
+from .runtime_food import ask_memory_model
 from .sensory_buffer import SensoryBuffer
 from .sensory_index import SensoryIndexer
-from .runtime_food import ask_memory_model
 
 logger = logging.getLogger("elfie.brain.memory.encoding")
 

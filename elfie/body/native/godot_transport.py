@@ -22,7 +22,7 @@ NativeEventHandler = Callable[[str, Dict[str, Any]], None]
 class GodotTransport:
     """复用现有 GodotAPIServer，不持有房间或精灵业务逻辑。"""
 
-    _INBOUND_EVENTS = ("runtime_ready", "arrived_at", "user_message")
+    _INBOUND_EVENTS = ("runtime_ready", "arrived_at")
 
     def __init__(self, gateway: GodotGateway):
         self.gateway = gateway

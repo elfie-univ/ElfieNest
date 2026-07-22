@@ -1,0 +1,625 @@
+{
+  "$defs": {
+    "CancelPolicy": {
+      "description": "When a stale turn may cancel an intent.",
+      "enum": [
+        "always",
+        "if_not_started",
+        "never"
+      ],
+      "title": "CancelPolicy",
+      "type": "string"
+    },
+    "ExpressionIntent": {
+      "additionalProperties": false,
+      "description": "A semantic expression routed through the current Body.",
+      "properties": {
+        "cancel_policy": {
+          "$ref": "#/$defs/CancelPolicy"
+        },
+        "cause_event_ids": {
+          "items": {
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Cause Event Ids",
+          "type": "array"
+        },
+        "deadline": {
+          "format": "date-time",
+          "title": "Deadline",
+          "type": "string"
+        },
+        "dependency_ids": {
+          "items": {
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "title": "Dependency Ids",
+          "type": "array"
+        },
+        "expression": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Expression",
+          "type": "string"
+        },
+        "intensity": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Intensity",
+          "type": "number"
+        },
+        "intent_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Intent Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "expression",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "intent_id",
+        "cause_event_ids",
+        "dependency_ids",
+        "deadline",
+        "cancel_policy",
+        "type",
+        "expression",
+        "intensity"
+      ],
+      "title": "ExpressionIntent",
+      "type": "object"
+    },
+    "InternalIntent": {
+      "additionalProperties": false,
+      "description": "A closed internal operation routed to the restricted internal sink.",
+      "properties": {
+        "cancel_policy": {
+          "$ref": "#/$defs/CancelPolicy"
+        },
+        "cause_event_ids": {
+          "items": {
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Cause Event Ids",
+          "type": "array"
+        },
+        "content": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Content",
+          "type": "string"
+        },
+        "deadline": {
+          "format": "date-time",
+          "title": "Deadline",
+          "type": "string"
+        },
+        "dependency_ids": {
+          "items": {
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "title": "Dependency Ids",
+          "type": "array"
+        },
+        "intent_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Intent Id",
+          "type": "string"
+        },
+        "operation": {
+          "$ref": "#/$defs/InternalOperation"
+        },
+        "type": {
+          "const": "internal",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "intent_id",
+        "cause_event_ids",
+        "dependency_ids",
+        "deadline",
+        "cancel_policy",
+        "type",
+        "operation",
+        "content"
+      ],
+      "title": "InternalIntent",
+      "type": "object"
+    },
+    "InternalOperation": {
+      "description": "Closed internal actions accepted by the restricted internal sink.",
+      "enum": [
+        "remember",
+        "schedule",
+        "reflect"
+      ],
+      "title": "InternalOperation",
+      "type": "string"
+    },
+    "MessageIntent": {
+      "additionalProperties": false,
+      "description": "A platform-neutral message routed through Communication.",
+      "properties": {
+        "cancel_policy": {
+          "$ref": "#/$defs/CancelPolicy"
+        },
+        "cause_event_ids": {
+          "items": {
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Cause Event Ids",
+          "type": "array"
+        },
+        "channel_id": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Channel Id",
+          "type": "string"
+        },
+        "content": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Content",
+          "type": "string"
+        },
+        "conversation_id": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Conversation Id",
+          "type": "string"
+        },
+        "deadline": {
+          "format": "date-time",
+          "title": "Deadline",
+          "type": "string"
+        },
+        "dependency_ids": {
+          "items": {
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "title": "Dependency Ids",
+          "type": "array"
+        },
+        "intent_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Intent Id",
+          "type": "string"
+        },
+        "ordinal": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ordinal"
+        },
+        "reply_to_event_id": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reply To Event Id"
+        },
+        "send_after": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Send After"
+        },
+        "sequence_id": {
+          "anyOf": [
+            {
+              "maxLength": 8192,
+              "minLength": 1,
+              "pattern": ".*\\S.*",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sequence Id"
+        },
+        "type": {
+          "const": "message",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "intent_id",
+        "cause_event_ids",
+        "dependency_ids",
+        "deadline",
+        "cancel_policy",
+        "type",
+        "channel_id",
+        "conversation_id",
+        "content"
+      ],
+      "title": "MessageIntent",
+      "type": "object"
+    },
+    "MotionIntent": {
+      "additionalProperties": false,
+      "description": "A semantic motion routed through current Body capability checks.",
+      "properties": {
+        "cancel_policy": {
+          "$ref": "#/$defs/CancelPolicy"
+        },
+        "cause_event_ids": {
+          "items": {
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Cause Event Ids",
+          "type": "array"
+        },
+        "deadline": {
+          "format": "date-time",
+          "title": "Deadline",
+          "type": "string"
+        },
+        "dependency_ids": {
+          "items": {
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "title": "Dependency Ids",
+          "type": "array"
+        },
+        "intent_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Intent Id",
+          "type": "string"
+        },
+        "motion": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Motion",
+          "type": "string"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "maxLength": 8192,
+              "minLength": 1,
+              "pattern": ".*\\S.*",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "type": {
+          "const": "motion",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "intent_id",
+        "cause_event_ids",
+        "dependency_ids",
+        "deadline",
+        "cancel_policy",
+        "type",
+        "motion"
+      ],
+      "title": "MotionIntent",
+      "type": "object"
+    },
+    "NoOpIntent": {
+      "additionalProperties": false,
+      "description": "A terminal, auditable decision that requests no external action.",
+      "properties": {
+        "cancel_policy": {
+          "$ref": "#/$defs/CancelPolicy"
+        },
+        "cause_event_ids": {
+          "items": {
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Cause Event Ids",
+          "type": "array"
+        },
+        "deadline": {
+          "format": "date-time",
+          "title": "Deadline",
+          "type": "string"
+        },
+        "dependency_ids": {
+          "items": {
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "title": "Dependency Ids",
+          "type": "array"
+        },
+        "intent_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Intent Id",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Reason",
+          "type": "string"
+        },
+        "type": {
+          "const": "noop",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "intent_id",
+        "cause_event_ids",
+        "dependency_ids",
+        "deadline",
+        "cancel_policy",
+        "type",
+        "reason"
+      ],
+      "title": "NoOpIntent",
+      "type": "object"
+    },
+    "SpeechIntent": {
+      "additionalProperties": false,
+      "description": "Speech routed through NervousSystem to the current Body.",
+      "properties": {
+        "cancel_policy": {
+          "$ref": "#/$defs/CancelPolicy"
+        },
+        "cause_event_ids": {
+          "items": {
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Cause Event Ids",
+          "type": "array"
+        },
+        "deadline": {
+          "format": "date-time",
+          "title": "Deadline",
+          "type": "string"
+        },
+        "dependency_ids": {
+          "items": {
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "title": "Dependency Ids",
+          "type": "array"
+        },
+        "intent_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Intent Id",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Text",
+          "type": "string"
+        },
+        "type": {
+          "const": "speech",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "intent_id",
+        "cause_event_ids",
+        "dependency_ids",
+        "deadline",
+        "cancel_policy",
+        "type",
+        "text"
+      ],
+      "title": "SpeechIntent",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A validated dependency DAG of intents for one sealed perception frame.",
+  "properties": {
+    "capability_revision": {
+      "minimum": 0,
+      "title": "Capability Revision",
+      "type": "integer"
+    },
+    "cause_event_ids": {
+      "items": {
+        "maxLength": 160,
+        "minLength": 1,
+        "pattern": "^\\S(?:.*\\S)?$",
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Cause Event Ids",
+      "type": "array"
+    },
+    "context_revision": {
+      "minimum": 0,
+      "title": "Context Revision",
+      "type": "integer"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "deadline": {
+      "format": "date-time",
+      "title": "Deadline",
+      "type": "string"
+    },
+    "frame_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "pattern": "^\\S(?:.*\\S)?$",
+      "title": "Frame Id",
+      "type": "string"
+    },
+    "intents": {
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "expression": "#/$defs/ExpressionIntent",
+            "internal": "#/$defs/InternalIntent",
+            "message": "#/$defs/MessageIntent",
+            "motion": "#/$defs/MotionIntent",
+            "noop": "#/$defs/NoOpIntent",
+            "speech": "#/$defs/SpeechIntent"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/SpeechIntent"
+          },
+          {
+            "$ref": "#/$defs/MessageIntent"
+          },
+          {
+            "$ref": "#/$defs/MotionIntent"
+          },
+          {
+            "$ref": "#/$defs/ExpressionIntent"
+          },
+          {
+            "$ref": "#/$defs/InternalIntent"
+          },
+          {
+            "$ref": "#/$defs/NoOpIntent"
+          }
+        ]
+      },
+      "minItems": 1,
+      "title": "Intents",
+      "type": "array"
+    },
+    "plan_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "pattern": "^\\S(?:.*\\S)?$",
+      "title": "Plan Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "turn_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "pattern": "^\\S(?:.*\\S)?$",
+      "title": "Turn Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "plan_id",
+    "turn_id",
+    "frame_id",
+    "context_revision",
+    "capability_revision",
+    "created_at",
+    "deadline",
+    "cause_event_ids",
+    "intents"
+  ],
+  "title": "DecisionPlan",
+  "type": "object"
+}

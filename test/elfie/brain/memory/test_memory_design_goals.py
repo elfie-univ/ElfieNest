@@ -1,10 +1,10 @@
-from __future__ import annotations
-
 """记忆系统设计目标验证测试。
 
 验证约25个设计文档中描述的行为目标是否真正实现。
 每个测试对应一个明确的设计意图，而非仅测试"函数能用"。
 """
+
+from __future__ import annotations
 
 import math
 from datetime import datetime, timedelta
@@ -25,7 +25,6 @@ from elfie.brain.memory.node_types import (
     RetrievalQuery,
 )
 from elfie.brain.memory.spreading_activation import SpreadingActivation
-
 
 # ==============================================================================
 # 辅助函数
@@ -252,14 +251,14 @@ class TestEmotionWeightingDesignGoals:
 
         设计意图：巩固后的知识性记忆在检索时获得增强，反映知识比经历更具长期参考价值
         """
-        all_same = dict(
-            semantic_score=0.6,
-            mood_score=0.5,
-            recency_score=0.4,
-            spread_score=0.3,
-            memory_strength=1.0,
-            emotion="calm",
-        )
+        all_same = {
+            "semantic_score": 0.6,
+            "mood_score": 0.5,
+            "recency_score": 0.4,
+            "spread_score": 0.3,
+            "memory_strength": 1.0,
+            "emotion": "calm",
+        }
 
         score_episodic = self.ew.compute_score(
             **all_same, node_type=NodeTypes.EPISODIC.value
@@ -294,13 +293,13 @@ class TestEmotionWeightingDesignGoals:
         """
         # 记忆A: emotion="happy", 记忆B: emotion="anger"
         # 其他所有得分相同
-        common = dict(
-            semantic_score=0.5,
-            recency_score=0.5,
-            spread_score=0.5,
-            memory_strength=1.0,
-            node_type=NodeTypes.EPISODIC.value,
-        )
+        common = {
+            "semantic_score": 0.5,
+            "recency_score": 0.5,
+            "spread_score": 0.5,
+            "memory_strength": 1.0,
+            "node_type": NodeTypes.EPISODIC.value,
+        }
 
         # 当前情绪 = happy
         score_a_when_happy = self.ew.compute_score(
@@ -635,7 +634,7 @@ class TestConsolidationPatternDesignGoals:
             storage.add_node(ep)
 
         # 运行巩固（无LLM，使用规则降级）
-        result = consolidator.run_consolidation(runtime_agent=None)
+        consolidator.run_consolidation(runtime_agent=None)
 
         # 验证产生了pattern节点
         pattern_nodes = storage.get_nodes_by_type(NodeTypes.PATTERN.value)

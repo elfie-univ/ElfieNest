@@ -21,6 +21,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field  # noqa: E402
 
+from ai_runtime.storage.data_home import get_db_path as _get_db_path
 from app.features.accounts.auth import (
     create_session,
     delete_session,
@@ -32,7 +33,6 @@ from app.features.accounts.auth import (
     verify_csrf_token,
     verify_password,
 )
-from nest.godot.bundle import GODOT_WEB_DIR, inspect_godot_web_bundle
 from app.infrastructure.persistence.store import (
     get_db,
     init_db,
@@ -40,7 +40,7 @@ from app.infrastructure.persistence.store import (
     seed_initial_owner_if_env_set,
 )
 from app.interfaces.web import STATIC_DIR
-from ai_runtime.storage.data_home import get_db_path as _get_db_path
+from nest.godot.bundle import GODOT_WEB_DIR, inspect_godot_web_bundle
 
 from .ws_gateway import AuthenticatedWSManager
 
@@ -132,6 +132,7 @@ def create_app(
         if engine is not None:
             engine.ws_manager = ws_manager
             ws_manager.nest_session = engine.session
+            engine.session.owner_broadcaster = ws_manager
         ws_manager.start()
         app.state.ws_manager = ws_manager
 

@@ -2,7 +2,7 @@
 
 import pytest
 
-from elfie.brain.energy.energy import HypothalamusEnergy
+from elfie.brain.energy.energy import EnergyTimeRegressionError, HypothalamusEnergy
 
 
 class TestHypothalamusEnergy:
@@ -178,11 +178,9 @@ class TestHypothalamusEnergy:
         assert energy_system.fatigue == initial_fatigue
 
     def test_negative_delta_time(self, energy_system):
-        """测试负时间步长（边界情况）"""
-        _ = energy_system.energy
-        energy_system.update_clock(-10.0)
-        # 负时间可能导致异常行为，这是边界测试
-        assert energy_system.energy is not None
+        """负时间步长必须作为时间倒退被明确拒绝。"""
+        with pytest.raises(EnergyTimeRegressionError):
+            energy_system.update_clock(-10.0)
 
     def test_very_large_delta_time(self, energy_system):
         """测试非常大的时间步长"""

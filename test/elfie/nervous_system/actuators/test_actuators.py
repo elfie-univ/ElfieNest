@@ -1,10 +1,6 @@
 """测试执行器模块 (SpeechActuator 和 MotionActuator)"""
 
-import sys
-
 import pytest
-
-sys.path.insert(0, "/Users/zhenli/git-code/ElfieNest")
 
 from elfie.body.native.anatomy.biped import BipedAnatomy
 from elfie.body.native.anatomy.quadruped import QuadrupedAnatomy

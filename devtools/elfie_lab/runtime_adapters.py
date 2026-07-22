@@ -12,6 +12,12 @@ from ai_runtime.food.models import FoodRecipe
 from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
 from ai_runtime.providers.ollama import OllamaManager
 from ai_runtime.storage.data_home import get_elfie_home
+from elfie.brain.runtime_port import (
+    ModelGenerationCapabilities,
+    ModelGenerationRequest,
+    ModelGenerationResult,
+    StructuredOutputMode,
+)
 
 _SECRET_PATTERNS = (
     re.compile(r"sk-[A-Za-z0-9_-]{12,}"),
@@ -92,6 +98,30 @@ class TracingRuntimeAgent:
         finally:
             call["duration_ms"] = round((time.perf_counter() - started) * 1000, 2)
             self.calls.append(call)
+
+    def capabilities(self) -> ModelGenerationCapabilities:
+        return ModelGenerationCapabilities(
+            provider=self._provider_name(),
+            model_key=self._model_name(2),
+            supports_json_schema=False,
+            supports_tool_calling=False,
+            supports_json_mode=False,
+            supports_plain_text=True,
+            max_output_tokens=1024,
+        )
+
+    def generate(self, request: ModelGenerationRequest) -> ModelGenerationResult:
+        text = self.ask(request.user_prompt, energy=100.0, task_complexity=2)
+        return ModelGenerationResult(
+            text=text,
+            selected_mode=StructuredOutputMode.JSON_TEXT,
+            provider=self._provider_name(),
+            model_key=self._model_name(2),
+        )
+
+    def abandon(self, request: ModelGenerationRequest) -> None:
+        """Detach the Lab request; the temporary adapter owns no call gate."""
+        del request
 
     def _model_name(self, task_complexity: int) -> str:
         if self.food_key == "mock":

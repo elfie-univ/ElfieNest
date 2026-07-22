@@ -11,7 +11,6 @@ from elfie.profile import (
     EmbodimentProfile,
     create_visual_profile,
 )
-from elfie.state import ElfieState, ElfieStateRepository
 
 
 def make_profile(config_dir: Path, elfie_id: str = "elfie-profile"):
@@ -42,10 +41,11 @@ def test_factory_creates_canonical_elfie_without_copying_legacy_algorithms() -> 
     elfie = ElfieFactory().create(elfie_id="elfie-new", memory_db_path=":memory:")
 
     assert isinstance(elfie, Elfie)
-    assert elfie.brain is not None
+    assert elfie.perceptual_workspace is not None
     assert elfie.nervous_system is not None
     assert elfie.memory is not None
     assert elfie.identity.elfie_id == "elfie-new"
+    assert not hasattr(elfie, "brain")
 
 
 def test_factory_builds_and_connects_native_body_when_godot_gateway_is_supplied() -> (
@@ -62,7 +62,7 @@ def test_factory_builds_and_connects_native_body_when_godot_gateway_is_supplied(
     assert elfie.current_body is not None
     assert elfie.current_body.body_id == "elfie-native"
     assert elfie.current_body.describe().mode is BodyMode.NATIVE
-    assert elfie.current_body.snapshot().connected is True
+    assert elfie.current_body.snapshot_body().connected is True
     assert gateway.callbacks
 
 
@@ -78,6 +78,25 @@ def test_factory_restores_persisted_profile_and_identity(tmp_path: Path) -> None
     assert elfie.profile is profile or elfie.profile.to_dict() == profile.to_dict()
     assert elfie.identity.display_name == "小狐"
     assert elfie.species_id == "fox"
+
+
+def test_restore_preserves_profile_and_explicit_body_binding(tmp_path: Path) -> None:
+    # Given
+    profile = make_profile(tmp_path)
+    explicit = HeadlessBody(body_id="explicit")
+
+    # When
+    elfie = ElfieFactory().restore(
+        tmp_path,
+        bodies=[explicit],
+        current_body_id="explicit",
+        memory_db_path=":memory:",
+    )
+
+    # Then
+    assert elfie.profile.to_dict() == profile.to_dict()
+    assert elfie.current_body is explicit
+    assert explicit.connected is True
 
 
 def test_factory_uses_profile_embodiment_when_legacy_anatomy_is_absent(
@@ -125,7 +144,7 @@ def test_factory_registers_multiple_bodies_and_selects_current_body() -> None:
     assert elfie.current_body is second
     assert second.connected is True
     assert first.connected is False
-    assert [item["body_id"] for item in elfie.describe()["available_bodies"]] == [
+    assert [item.body_id for item in elfie.body_registry.describe_all()] == [
         "first",
         "second",
     ]
@@ -173,69 +192,54 @@ def test_factory_migrates_legacy_config_into_canonical_profile(tmp_path: Path) -
     assert migrated.system_limits["limits"]["energy"]["max_value"] == 100
 
 
-def test_factory_restores_dynamic_state_after_registering_bodies(
+def test_restore_ignores_legacy_state_yaml(tmp_path: Path) -> None:
+    # Given
+    make_profile(tmp_path)
+    explicit = HeadlessBody(body_id="headless-new")
+    legacy_state = tmp_path / "state.yaml"
+    legacy_content = (
+        "schema_version: 1\n"
+        "energy: 1\n"
+        "emotions:\n"
+        "  fear: 99\n"
+        "current_body_id: old\n"
+    )
+    legacy_state.write_text(legacy_content, encoding="utf-8")
+
+    # When
+    elfie = ElfieFactory().restore(
+        tmp_path,
+        bodies=[explicit],
+        current_body_id="headless-new",
+        memory_db_path=":memory:",
+    )
+
+    # Then
+    assert elfie.hypothalamus.energy == elfie.hypothalamus.max_energy
+    assert elfie.amygdala.emotions["fear"] == 10.0
+    assert elfie.current_body is explicit
+    assert legacy_state.read_text(encoding="utf-8") == legacy_content
+
+
+def test_restore_does_not_use_legacy_binding_without_explicit_body(
     tmp_path: Path,
 ) -> None:
+    # Given
     make_profile(tmp_path)
-    body = HeadlessBody(body_id="remembered")
-    ElfieStateRepository(tmp_path).save(
-        ElfieState(
-            energy=42.0,
-            fatigue=18.0,
-            is_sleeping=True,
-            emotions={"joy": 77.0},
-            elapsed_time=91.0,
-            current_body_id="remembered",
-        )
-    )
+    available = HeadlessBody(body_id="available")
+    legacy_state = tmp_path / "state.yaml"
+    legacy_content = "energy: 1\ncurrent_body_id: missing-body\n"
+    legacy_state.write_text(legacy_content, encoding="utf-8")
 
+    # When
     elfie = ElfieFactory().restore(
         tmp_path,
-        bodies=[body],
+        bodies=[available],
         memory_db_path=":memory:",
     )
 
-    assert elfie.hypothalamus.energy == 42.0
-    assert elfie.hypothalamus.fatigue == 18.0
-    assert elfie.hypothalamus.is_sleeping is True
-    assert elfie.amygdala.emotions["joy"] == 77.0
-    assert elfie.elapsed_time == 91.0
-    assert elfie.current_body is body
-    assert body.connected is True
-
-
-def test_factory_does_not_bind_unregistered_body_from_state(tmp_path: Path) -> None:
-    make_profile(tmp_path)
-    ElfieStateRepository(tmp_path).save(ElfieState(current_body_id="missing-body"))
-
-    elfie = ElfieFactory().restore(tmp_path, memory_db_path=":memory:")
-
+    # Then
+    assert elfie.hypothalamus.energy == elfie.hypothalamus.max_energy
     assert elfie.current_body is None
-
-
-def test_explicit_body_selection_overrides_persisted_binding(tmp_path: Path) -> None:
-    make_profile(tmp_path)
-    remembered = HeadlessBody(body_id="remembered")
-    explicit = HeadlessBody(body_id="explicit")
-    ElfieStateRepository(tmp_path).save(ElfieState(current_body_id="remembered"))
-
-    elfie = ElfieFactory().restore(
-        tmp_path,
-        bodies=[remembered, explicit],
-        current_body_id="explicit",
-        memory_db_path=":memory:",
-    )
-
-    assert elfie.current_body is explicit
-
-
-def test_elfie_can_save_its_current_state(tmp_path: Path) -> None:
-    make_profile(tmp_path)
-    elfie = ElfieFactory().restore(tmp_path, memory_db_path=":memory:")
-    elfie.hypothalamus.energy = 61.0
-    elfie.elapsed_time = 12.5
-
-    assert elfie.save_state() == tmp_path / "state.yaml"
-    saved = ElfieStateRepository(tmp_path).load()
-    assert saved.energy == 61.0
-    assert saved.elapsed_time == 12.5
+    assert available.connected is False
+    assert legacy_state.read_text(encoding="utf-8") == legacy_content

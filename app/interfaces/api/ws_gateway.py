@@ -18,6 +18,7 @@ from urllib.parse import urlparse
 import websockets
 import websockets.asyncio.server
 
+from ai_runtime.storage.data_home import get_db_path as _get_db_path
 from app.features.accounts.auth import verify_session
 from app.infrastructure.persistence.chat_history import (
     ChatMessageInput,
@@ -25,7 +26,6 @@ from app.infrastructure.persistence.chat_history import (
     record_chat_message,
 )
 from app.infrastructure.persistence.store import get_db
-from ai_runtime.storage.data_home import get_db_path as _get_db_path
 
 logger = logging.getLogger("app.interfaces.api.ws_gateway")
 
@@ -375,10 +375,16 @@ class AuthenticatedWSManager:
 
         event = data.get("event")
         payload = data.get("payload", {}) or {}
+        if not isinstance(payload, dict):
+            return
 
         if event == "user_message":
-            elfie_id = payload.get("elfie_id", "")
-            message = payload.get("message", "")
+            elfie_id = payload.get("elfie_id")
+            message = payload.get("message")
+            if not isinstance(elfie_id, str) or not isinstance(message, str):
+                return
+            elfie_id = elfie_id.strip()
+            message = message.strip()
             if not elfie_id or not message:
                 return
 
@@ -392,7 +398,20 @@ class AuthenticatedWSManager:
                 return
 
             if self.nest_session is not None:
-                self.nest_session.send_user_message(elfie_id, message)
+                self.nest_session.send_user_message(
+                    elfie_id,
+                    message,
+                    owner_id=str(user_id),
+                    conversation_id=str(
+                        payload.get("conversation_id") or f"owner:{user_id}"
+                    ),
+                    external_message_id=(
+                        str(payload["message_id"])
+                        if payload.get("message_id") is not None
+                        else None
+                    ),
+                    account_id=str(payload.get("account_id") or "owner-ws"),
+                )
                 logger.info(
                     "WS 用户 %d -> 精灵 '%s' 消息已投递", user_id, elfie_id
                 )
@@ -529,9 +548,9 @@ class AuthenticatedWSManager:
     ) -> None:
         event = message_dict.get("event") or message_dict.get("action")
         payload = message_dict.get("payload") or {}
-        if event != "speak_event" or not isinstance(payload, dict):
+        if not isinstance(payload, dict):
             return
-        text = str(payload.get("text") or "").strip()
+        text = self._elfie_message_text(str(event), payload)
         if not text:
             return
         emotion = str(payload.get("emotion") or "").strip()
@@ -548,3 +567,19 @@ class AuthenticatedWSManager:
             )
         except sqlite3.Error as exc:
             logger.warning("精灵聊天消息持久化失败: %s", exc)
+
+    @staticmethod
+    def _elfie_message_text(event: str, payload: Dict[str, Any]) -> str:
+        if event == "speak_event":
+            return str(payload.get("text") or "").strip()
+        if event != "owner_message":
+            return ""
+        parts = payload.get("parts") or []
+        if not isinstance(parts, list):
+            return ""
+        texts = [
+            str(part.get("text") or "").strip()
+            for part in parts
+            if isinstance(part, dict) and part.get("type") == "text"
+        ]
+        return "\n".join(text for text in texts if text)

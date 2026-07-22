@@ -12,30 +12,39 @@
     10次输入 → slow_factor = 6.0
 """
 
+from __future__ import annotations
+
 import time
 from collections import deque
+from typing import Callable
 
 
 class FrequencyTracker:
     """频率追踪器 - 使用时间滑动窗口"""
 
-    def __init__(self, window_size=60.0):
+    def __init__(
+        self,
+        window_size: float = 60.0,
+        *,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
         """初始化频率追踪器
 
         Args:
             window_size: 时间窗口大小（秒），默认60秒
         """
         self.window_size = window_size
-        self.expire_times: deque = deque()  # 存储每个输入的过期时间
+        self._clock = clock
+        self.expire_times: deque[float] = deque()  # 存储每个输入的过期时间
 
-    def record_input(self, current_time=None):
+    def record_input(self, current_time: float | None = None) -> None:
         """记录一次输入
 
         Args:
             current_time: 当前时间戳（秒），默认使用time.time()
         """
         if current_time is None:
-            current_time = time.time()
+            current_time = self._clock()
 
         # 过期时间 = 当前时间 + 窗口大小
         expire_time = current_time + self.window_size
@@ -44,7 +53,7 @@ class FrequencyTracker:
         # 清理已过期的记录
         self._clean_expired(current_time)
 
-    def _clean_expired(self, current_time):
+    def _clean_expired(self, current_time: float) -> None:
         """清理已过期的记录
 
         Args:
@@ -53,7 +62,7 @@ class FrequencyTracker:
         while self.expire_times and self.expire_times[0] < current_time:
             self.expire_times.popleft()
 
-    def get_recent_count(self, current_time=None):
+    def get_recent_count(self, current_time: float | None = None) -> int:
         """获取最近窗口内的输入次数
 
         Args:
@@ -63,7 +72,7 @@ class FrequencyTracker:
             最近窗口内的输入次数
         """
         if current_time is None:
-            current_time = time.time()
+            current_time = self._clock()
 
         self._clean_expired(current_time)
         return len(self.expire_times)
@@ -90,7 +99,7 @@ class FrequencyTracker:
         recent_count = self.get_recent_count(current_time)
         return 1.0 + recent_count * coefficient
 
-    def reset(self):
+    def reset(self) -> None:
         """重置所有记录"""
         self.expire_times.clear()
 

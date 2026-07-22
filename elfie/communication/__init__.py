@@ -1,24 +1,38 @@
 """精灵自带的双向消息通信能力。"""
 
-from elfie.communication.channel import (
-    CommunicationChannel,
-    CommunicationMessage,
-    MessageDirection,
-    MessageKind,
-)
+from elfie.communication.channel import CommunicationChannel
 from elfie.communication.channels import (
     TelegramChannel,
     TelegramConnector,
     WeChatChannel,
     WeChatConnector,
 )
+from elfie.communication.contracts import (
+    AudioPart,
+    CommunicationEnvelope,
+    ContentPart,
+    DeliveryReceipt,
+    DeliveryStatus,
+    FilePart,
+    ImagePart,
+    InboundDisposition,
+    InboundDispositionStatus,
+    MessageDirection,
+    ReactionPart,
+    SystemEventPart,
+    TextPart,
+)
 from elfie.communication.hub import CommunicationHub
 from elfie.communication.inbox import CommunicationInbox
 from elfie.communication.outbox import (
     CommunicationOutbox,
-    DeliveryReceipt,
-    DeliveryStatus,
     OutboxEntry,
+)
+from elfie.communication.perception_adapter import (
+    AdapterDirectionError,
+    CommunicationPerceptionAdapter,
+    DeliveryPerceptionCorrelation,
+    InboundPerceptionAttempt,
 )
 from elfie.communication.policy import CommunicationPolicy, CommunicationPolicyError
 from elfie.communication.router import (
@@ -28,9 +42,17 @@ from elfie.communication.router import (
 
 __all__ = [
     "CommunicationChannel",
-    "CommunicationMessage",
+    "CommunicationEnvelope",
+    "ContentPart",
     "MessageDirection",
-    "MessageKind",
+    "TextPart",
+    "ImagePart",
+    "AudioPart",
+    "FilePart",
+    "ReactionPart",
+    "SystemEventPart",
+    "InboundDisposition",
+    "InboundDispositionStatus",
     "CommunicationInbox",
     "CommunicationOutbox",
     "DeliveryReceipt",
@@ -38,6 +60,10 @@ __all__ = [
     "OutboxEntry",
     "CommunicationPolicy",
     "CommunicationPolicyError",
+    "AdapterDirectionError",
+    "CommunicationPerceptionAdapter",
+    "DeliveryPerceptionCorrelation",
+    "InboundPerceptionAttempt",
     "ChannelRegistrationError",
     "CommunicationRouter",
     "CommunicationHub",

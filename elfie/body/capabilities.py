@@ -13,6 +13,7 @@ class BodyCapabilities:
     sensors: FrozenSet[str] = frozenset()
     actions: FrozenSet[str] = frozenset()
     limits: Mapping[str, Any] = field(default_factory=dict)
+    revision: int = 1
 
     def supports_sensor(self, sensor: str) -> bool:
         return "*" in self.sensors or sensor in self.sensors
@@ -25,4 +26,5 @@ class BodyCapabilities:
             "sensors": sorted(self.sensors),
             "actions": sorted(self.actions),
             "limits": dict(self.limits),
+            "revision": self.revision,
         }

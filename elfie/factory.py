@@ -7,11 +7,11 @@ from typing import Any, Iterable, Optional, Union
 
 from elfie.body.native import GodotTransport, NativeBody
 from elfie.body.port import BodyPort
+from elfie.brain.runtime_port import CorticalRuntimePort
 from elfie.communication import CommunicationHub
 from elfie.elfie import Elfie
 from elfie.profile import ElfieProfile, ElfieProfileRepository
 from elfie.skills import SkillManager
-from elfie.state import ElfieStateRepository
 
 ConfigPath = Union[str, Path]
 
@@ -33,6 +33,7 @@ class ElfieFactory:
         current_body_id: Optional[str] = None,
         communication: Optional[CommunicationHub] = None,
         skills: Optional[SkillManager] = None,
+        cortical_runtime: Optional[CorticalRuntimePort] = None,
     ) -> Elfie:
         normalized_config_dir = str(config_dir) if config_dir is not None else None
         profile = self._resolve_profile(normalized_config_dir, character_profile)
@@ -53,6 +54,7 @@ class ElfieFactory:
             body=body,
             communication=communication,
             skills=skills,
+            cortical_runtime=cortical_runtime,
         )
         for available_body in bodies:
             if elfie.body_registry.get(available_body.body_id) is available_body:
@@ -77,6 +79,7 @@ class ElfieFactory:
         current_body_id: Optional[str] = None,
         communication: Optional[CommunicationHub] = None,
         skills: Optional[SkillManager] = None,
+        cortical_runtime: Optional[CorticalRuntimePort] = None,
     ) -> Elfie:
         """从已有目录恢复；旧目录没有 profile.yaml 时沿用原兼容加载逻辑。"""
         path = Path(config_dir).expanduser()
@@ -95,17 +98,10 @@ class ElfieFactory:
             current_body_id=current_body_id,
             communication=communication,
             skills=skills,
+            cortical_runtime=cortical_runtime,
         )
         if not had_profile:
             profile_repository.save(elfie.profile)
-        state_repository = ElfieStateRepository(path)
-        if state_repository.exists():
-            # 显式传入的身体选择优先于持久状态。
-            restore_body = body is None and current_body_id is None
-            elfie.restore_state(
-                state_repository.load(),
-                restore_body=restore_body,
-            )
         return elfie
 
     @staticmethod

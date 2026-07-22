@@ -1,0 +1,566 @@
+{
+  "$defs": {
+    "ActorRef": {
+      "additionalProperties": false,
+      "description": "Stable identity and origin category for a message actor.",
+      "properties": {
+        "actor_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Actor Id",
+          "type": "string"
+        },
+        "display_name": {
+          "anyOf": [
+            {
+              "maxLength": 8192,
+              "minLength": 1,
+              "pattern": ".*\\S.*",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Display Name"
+        },
+        "source_kind": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Source Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "actor_id",
+        "source_kind"
+      ],
+      "title": "ActorRef",
+      "type": "object"
+    },
+    "AudioPart": {
+      "additionalProperties": false,
+      "description": "音频引用及可选转写文本。",
+      "properties": {
+        "media": {
+          "$ref": "#/$defs/MediaRef"
+        },
+        "transcript": {
+          "anyOf": [
+            {
+              "maxLength": 8192,
+              "minLength": 1,
+              "pattern": ".*\\S.*",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Transcript"
+        },
+        "type": {
+          "const": "audio",
+          "default": "audio",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "media"
+      ],
+      "title": "AudioPart",
+      "type": "object"
+    },
+    "FilePart": {
+      "additionalProperties": false,
+      "description": "文件引用及面向用户的文件名。",
+      "properties": {
+        "filename": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Filename",
+          "type": "string"
+        },
+        "media": {
+          "$ref": "#/$defs/MediaRef"
+        },
+        "type": {
+          "const": "file",
+          "default": "file",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "media",
+        "filename"
+      ],
+      "title": "FilePart",
+      "type": "object"
+    },
+    "ImagePart": {
+      "additionalProperties": false,
+      "description": "图片引用及可选说明。",
+      "properties": {
+        "caption": {
+          "anyOf": [
+            {
+              "maxLength": 8192,
+              "minLength": 1,
+              "pattern": ".*\\S.*",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Caption"
+        },
+        "media": {
+          "$ref": "#/$defs/MediaRef"
+        },
+        "type": {
+          "const": "image",
+          "default": "image",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "media"
+      ],
+      "title": "ImagePart",
+      "type": "object"
+    },
+    "MediaRef": {
+      "additionalProperties": false,
+      "description": "Reference to media stored outside typed message payloads.",
+      "properties": {
+        "media_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Media Id",
+          "type": "string"
+        },
+        "mime_type": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Mime Type",
+          "type": "string"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sha256"
+        },
+        "size_bytes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Size Bytes"
+        },
+        "uri": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "media_id",
+        "uri",
+        "mime_type"
+      ],
+      "title": "MediaRef",
+      "type": "object"
+    },
+    "MessageDirection": {
+      "description": "消息相对于当前精灵的流向。",
+      "enum": [
+        "inbound",
+        "outbound"
+      ],
+      "title": "MessageDirection",
+      "type": "string"
+    },
+    "MessageMeta": {
+      "additionalProperties": false,
+      "description": "Identity, timing, origin, and trace data shared by every message.",
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "correlation_id": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Correlation Id"
+        },
+        "elfie_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Elfie Id",
+          "type": "string"
+        },
+        "event_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Event Id",
+          "type": "string"
+        },
+        "occurred_at": {
+          "format": "date-time",
+          "title": "Occurred At",
+          "type": "string"
+        },
+        "priority": {
+          "$ref": "#/$defs/Priority",
+          "default": "normal"
+        },
+        "received_at": {
+          "format": "date-time",
+          "title": "Received At",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "source": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "trace_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Trace Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event_id",
+        "elfie_id",
+        "source",
+        "occurred_at",
+        "received_at",
+        "trace_id"
+      ],
+      "title": "MessageMeta",
+      "type": "object"
+    },
+    "Priority": {
+      "description": "Scheduling priority shared by message-producing subsystems.",
+      "enum": [
+        "critical",
+        "high",
+        "normal",
+        "low"
+      ],
+      "title": "Priority",
+      "type": "string"
+    },
+    "ReactionPart": {
+      "additionalProperties": false,
+      "description": "对已有外部消息的反应。",
+      "properties": {
+        "reaction": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Reaction",
+          "type": "string"
+        },
+        "target_message_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Target Message Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "reaction",
+          "default": "reaction",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target_message_id",
+        "reaction"
+      ],
+      "title": "ReactionPart",
+      "type": "object"
+    },
+    "SystemEventPart": {
+      "additionalProperties": false,
+      "description": "平台产生的闭合系统事件。",
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 8192,
+              "minLength": 1,
+              "pattern": ".*\\S.*",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "event_name": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Event Name",
+          "type": "string"
+        },
+        "type": {
+          "const": "system_event",
+          "default": "system_event",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event_name"
+      ],
+      "title": "SystemEventPart",
+      "type": "object"
+    },
+    "TextPart": {
+      "additionalProperties": false,
+      "description": "普通文本消息片段。",
+      "properties": {
+        "text": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Text",
+          "type": "string"
+        },
+        "type": {
+          "const": "text",
+          "default": "text",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "TextPart",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "跨平台、可去重并保留会话身份的完整消息。",
+  "properties": {
+    "account_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "pattern": "^\\S(?:.*\\S)?$",
+      "title": "Account Id",
+      "type": "string"
+    },
+    "channel_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "pattern": "^\\S(?:.*\\S)?$",
+      "title": "Channel Id",
+      "type": "string"
+    },
+    "conversation_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "pattern": "^\\S(?:.*\\S)?$",
+      "title": "Conversation Id",
+      "type": "string"
+    },
+    "dedupe_key": {
+      "maxLength": 160,
+      "minLength": 1,
+      "pattern": "^\\S(?:.*\\S)?$",
+      "title": "Dedupe Key",
+      "type": "string"
+    },
+    "direction": {
+      "$ref": "#/$defs/MessageDirection"
+    },
+    "external_message_id": {
+      "anyOf": [
+        {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "External Message Id"
+    },
+    "meta": {
+      "$ref": "#/$defs/MessageMeta"
+    },
+    "ordinal": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Ordinal"
+    },
+    "parts": {
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "audio": "#/$defs/AudioPart",
+            "file": "#/$defs/FilePart",
+            "image": "#/$defs/ImagePart",
+            "reaction": "#/$defs/ReactionPart",
+            "system_event": "#/$defs/SystemEventPart",
+            "text": "#/$defs/TextPart"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/TextPart"
+          },
+          {
+            "$ref": "#/$defs/ImagePart"
+          },
+          {
+            "$ref": "#/$defs/AudioPart"
+          },
+          {
+            "$ref": "#/$defs/FilePart"
+          },
+          {
+            "$ref": "#/$defs/ReactionPart"
+          },
+          {
+            "$ref": "#/$defs/SystemEventPart"
+          }
+        ]
+      },
+      "minItems": 1,
+      "title": "Parts",
+      "type": "array"
+    },
+    "recipients": {
+      "items": {
+        "$ref": "#/$defs/ActorRef"
+      },
+      "minItems": 1,
+      "title": "Recipients",
+      "type": "array"
+    },
+    "reply_to": {
+      "anyOf": [
+        {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reply To"
+    },
+    "sender": {
+      "$ref": "#/$defs/ActorRef"
+    },
+    "sequence_id": {
+      "anyOf": [
+        {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Sequence Id"
+    }
+  },
+  "required": [
+    "meta",
+    "account_id",
+    "channel_id",
+    "conversation_id",
+    "sender",
+    "recipients",
+    "direction",
+    "dedupe_key",
+    "parts"
+  ],
+  "title": "CommunicationEnvelope",
+  "type": "object"
+}

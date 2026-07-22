@@ -1,0 +1,1324 @@
+{
+  "$defs": {
+    "ActorRef": {
+      "additionalProperties": false,
+      "description": "Stable identity and origin category for a message actor.",
+      "properties": {
+        "actor_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Actor Id",
+          "type": "string"
+        },
+        "display_name": {
+          "anyOf": [
+            {
+              "maxLength": 8192,
+              "minLength": 1,
+              "pattern": ".*\\S.*",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Display Name"
+        },
+        "source_kind": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Source Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "actor_id",
+        "source_kind"
+      ],
+      "title": "ActorRef",
+      "type": "object"
+    },
+    "BodyCapabilityDescriptor": {
+      "additionalProperties": false,
+      "description": "Capabilities of the single body currently bound to the Elfie.",
+      "properties": {
+        "actions": {
+          "items": {
+            "minLength": 1,
+            "pattern": ".*\\S.*",
+            "type": "string"
+          },
+          "title": "Actions",
+          "type": "array"
+        },
+        "body_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Body Id",
+          "type": "string"
+        },
+        "capability_revision": {
+          "minimum": 0,
+          "title": "Capability Revision",
+          "type": "integer"
+        },
+        "sensors": {
+          "items": {
+            "minLength": 1,
+            "pattern": ".*\\S.*",
+            "type": "string"
+          },
+          "title": "Sensors",
+          "type": "array"
+        }
+      },
+      "required": [
+        "body_id",
+        "capability_revision",
+        "sensors",
+        "actions"
+      ],
+      "title": "BodyCapabilityDescriptor",
+      "type": "object"
+    },
+    "CoalescedSummary": {
+      "additionalProperties": false,
+      "description": "Observable evidence that repeated state updates were coalesced.",
+      "properties": {
+        "count": {
+          "minimum": 1,
+          "title": "Count",
+          "type": "integer"
+        },
+        "key": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Key",
+          "type": "string"
+        },
+        "latest_event_id": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Latest Event Id"
+        }
+      },
+      "required": [
+        "key",
+        "count",
+        "latest_event_id"
+      ],
+      "title": "CoalescedSummary",
+      "type": "object"
+    },
+    "ConnectedChannelDescriptor": {
+      "additionalProperties": false,
+      "description": "Capabilities of one currently connected communication channel.",
+      "properties": {
+        "account_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Account Id",
+          "type": "string"
+        },
+        "authorized_conversation_ids": {
+          "default": [],
+          "items": {
+            "minLength": 1,
+            "pattern": ".*\\S.*",
+            "type": "string"
+          },
+          "title": "Authorized Conversation Ids",
+          "type": "array"
+        },
+        "capability_revision": {
+          "minimum": 0,
+          "title": "Capability Revision",
+          "type": "integer"
+        },
+        "channel_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Channel Id",
+          "type": "string"
+        },
+        "content_kinds": {
+          "items": {
+            "minLength": 1,
+            "pattern": ".*\\S.*",
+            "type": "string"
+          },
+          "title": "Content Kinds",
+          "type": "array"
+        }
+      },
+      "required": [
+        "channel_id",
+        "account_id",
+        "capability_revision",
+        "content_kinds"
+      ],
+      "title": "ConnectedChannelDescriptor",
+      "type": "object"
+    },
+    "ConversationContext": {
+      "additionalProperties": false,
+      "description": "Bounded conversation history selected for the current frame.",
+      "properties": {
+        "captured_at": {
+          "format": "date-time",
+          "title": "Captured At",
+          "type": "string"
+        },
+        "conversation_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": ".*\\S.*",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Conversation Id"
+        },
+        "messages": {
+          "items": {
+            "$ref": "#/$defs/ConversationMessage"
+          },
+          "title": "Messages",
+          "type": "array"
+        },
+        "revision": {
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "revision",
+        "captured_at",
+        "conversation_id",
+        "messages"
+      ],
+      "title": "ConversationContext",
+      "type": "object"
+    },
+    "ConversationMessage": {
+      "additionalProperties": false,
+      "description": "A source-preserving conversation item used as model context.",
+      "properties": {
+        "content": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Content",
+          "type": "string"
+        },
+        "event_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Event Id",
+          "type": "string"
+        },
+        "occurred_at": {
+          "format": "date-time",
+          "title": "Occurred At",
+          "type": "string"
+        },
+        "sender": {
+          "$ref": "#/$defs/ActorRef"
+        }
+      },
+      "required": [
+        "event_id",
+        "sender",
+        "occurred_at",
+        "content"
+      ],
+      "title": "ConversationMessage",
+      "type": "object"
+    },
+    "DroppedSummary": {
+      "additionalProperties": false,
+      "description": "Observable evidence for intentionally dropped bounded samples.",
+      "properties": {
+        "count": {
+          "minimum": 1,
+          "title": "Count",
+          "type": "integer"
+        },
+        "event_ids": {
+          "items": {
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "title": "Event Ids",
+          "type": "array"
+        },
+        "reason": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason",
+        "count",
+        "event_ids"
+      ],
+      "title": "DroppedSummary",
+      "type": "object"
+    },
+    "EffectiveCapabilities": {
+      "additionalProperties": false,
+      "description": "Only the current Body and currently connected channel endpoints.",
+      "properties": {
+        "captured_at": {
+          "format": "date-time",
+          "title": "Captured At",
+          "type": "string"
+        },
+        "connected_channels": {
+          "items": {
+            "$ref": "#/$defs/ConnectedChannelDescriptor"
+          },
+          "title": "Connected Channels",
+          "type": "array"
+        },
+        "current_body": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BodyCapabilityDescriptor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revision": {
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "revision",
+        "captured_at",
+        "current_body",
+        "connected_channels"
+      ],
+      "title": "EffectiveCapabilities",
+      "type": "object"
+    },
+    "EmotionSnapshot": {
+      "additionalProperties": false,
+      "description": "Emotion state captured by the single Brain owner.",
+      "properties": {
+        "captured_at": {
+          "format": "date-time",
+          "title": "Captured At",
+          "type": "string"
+        },
+        "dominant": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": ".*\\S.*",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Dominant"
+        },
+        "revision": {
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "values": {
+          "items": {
+            "$ref": "#/$defs/EmotionValue"
+          },
+          "title": "Values",
+          "type": "array"
+        }
+      },
+      "required": [
+        "revision",
+        "captured_at",
+        "values",
+        "dominant"
+      ],
+      "title": "EmotionSnapshot",
+      "type": "object"
+    },
+    "EmotionValue": {
+      "additionalProperties": false,
+      "description": "One named normalized emotion value.",
+      "properties": {
+        "intensity": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Intensity",
+          "type": "number"
+        },
+        "name": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "intensity"
+      ],
+      "title": "EmotionValue",
+      "type": "object"
+    },
+    "ErrorInfo": {
+      "additionalProperties": false,
+      "description": "Structured error details suitable for receipts and replay.",
+      "properties": {
+        "causes": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ErrorInfo"
+          },
+          "title": "Causes",
+          "type": "array"
+        },
+        "code": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Message",
+          "type": "string"
+        },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "ErrorInfo",
+      "type": "object"
+    },
+    "ExecutionPayload": {
+      "additionalProperties": false,
+      "description": "A normalized receipt returned by a typed output executor.",
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ErrorInfo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "executor": {
+          "enum": [
+            "body",
+            "communication",
+            "internal"
+          ],
+          "title": "Executor",
+          "type": "string"
+        },
+        "intent_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Intent Id",
+          "type": "string"
+        },
+        "plan_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Plan Id",
+          "type": "string"
+        },
+        "receipt_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Receipt Id",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/ExecutionStatus"
+        },
+        "turn_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Turn Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "execution",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "receipt_id",
+        "plan_id",
+        "turn_id",
+        "intent_id",
+        "executor",
+        "status"
+      ],
+      "title": "ExecutionPayload",
+      "type": "object"
+    },
+    "ExecutionStatus": {
+      "description": "Normalized lifecycle states emitted by output executors.",
+      "enum": [
+        "accepted",
+        "started",
+        "completed",
+        "rejected",
+        "failed",
+        "interrupted",
+        "timed_out",
+        "cancelled"
+      ],
+      "title": "ExecutionStatus",
+      "type": "string"
+    },
+    "HomeostasisSnapshot": {
+      "additionalProperties": false,
+      "description": "Energy and fatigue captured after timestamp-driven advancement.",
+      "properties": {
+        "captured_at": {
+          "format": "date-time",
+          "title": "Captured At",
+          "type": "string"
+        },
+        "energy": {
+          "maximum": 100.0,
+          "minimum": 0.0,
+          "title": "Energy",
+          "type": "number"
+        },
+        "fatigue": {
+          "maximum": 100.0,
+          "minimum": 0.0,
+          "title": "Fatigue",
+          "type": "number"
+        },
+        "revision": {
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "sleeping": {
+          "title": "Sleeping",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "revision",
+        "captured_at",
+        "energy",
+        "fatigue",
+        "sleeping"
+      ],
+      "title": "HomeostasisSnapshot",
+      "type": "object"
+    },
+    "InternalPayload": {
+      "additionalProperties": false,
+      "description": "A coordinator-owned internal signal represented as inert data.",
+      "properties": {
+        "detail": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Detail",
+          "type": "string"
+        },
+        "signal": {
+          "$ref": "#/$defs/InternalSignal"
+        },
+        "type": {
+          "const": "internal",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "signal",
+        "detail"
+      ],
+      "title": "InternalPayload",
+      "type": "object"
+    },
+    "InternalSignal": {
+      "description": "Coordinator-owned signals that may enter the perceptual workspace.",
+      "enum": [
+        "clock",
+        "autonomous_deadline",
+        "memory",
+        "emotion",
+        "homeostasis",
+        "processing_failure"
+      ],
+      "title": "InternalSignal",
+      "type": "string"
+    },
+    "MediaRef": {
+      "additionalProperties": false,
+      "description": "Reference to media stored outside typed message payloads.",
+      "properties": {
+        "media_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Media Id",
+          "type": "string"
+        },
+        "mime_type": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Mime Type",
+          "type": "string"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sha256"
+        },
+        "size_bytes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Size Bytes"
+        },
+        "uri": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "media_id",
+        "uri",
+        "mime_type"
+      ],
+      "title": "MediaRef",
+      "type": "object"
+    },
+    "MemoryContext": {
+      "additionalProperties": false,
+      "description": "Bounded memory excerpts selected for one cortical turn.",
+      "properties": {
+        "captured_at": {
+          "format": "date-time",
+          "title": "Captured At",
+          "type": "string"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/MemoryItem"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "revision": {
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "revision",
+        "captured_at",
+        "items"
+      ],
+      "title": "MemoryContext",
+      "type": "object"
+    },
+    "MemoryItem": {
+      "additionalProperties": false,
+      "description": "A typed memory excerpt with explicit causal sources.",
+      "properties": {
+        "content": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Content",
+          "type": "string"
+        },
+        "memory_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Memory Id",
+          "type": "string"
+        },
+        "relevance": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Relevance",
+          "type": "number"
+        },
+        "source_event_ids": {
+          "items": {
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "title": "Source Event Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "memory_id",
+        "content",
+        "relevance",
+        "source_event_ids"
+      ],
+      "title": "MemoryItem",
+      "type": "object"
+    },
+    "MessageMeta": {
+      "additionalProperties": false,
+      "description": "Identity, timing, origin, and trace data shared by every message.",
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "correlation_id": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Correlation Id"
+        },
+        "elfie_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Elfie Id",
+          "type": "string"
+        },
+        "event_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Event Id",
+          "type": "string"
+        },
+        "occurred_at": {
+          "format": "date-time",
+          "title": "Occurred At",
+          "type": "string"
+        },
+        "priority": {
+          "$ref": "#/$defs/Priority",
+          "default": "normal"
+        },
+        "received_at": {
+          "format": "date-time",
+          "title": "Received At",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "source": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "trace_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Trace Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event_id",
+        "elfie_id",
+        "source",
+        "occurred_at",
+        "received_at",
+        "trace_id"
+      ],
+      "title": "MessageMeta",
+      "type": "object"
+    },
+    "PerceptionEvent": {
+      "additionalProperties": false,
+      "description": "A reliable, ordered event candidate for the workspace journal.",
+      "properties": {
+        "meta": {
+          "$ref": "#/$defs/MessageMeta"
+        },
+        "payload": {
+          "discriminator": {
+            "mapping": {
+              "execution": "#/$defs/ExecutionPayload",
+              "internal": "#/$defs/InternalPayload",
+              "physical": "#/$defs/PhysicalPayload",
+              "social": "#/$defs/SocialPayload"
+            },
+            "propertyName": "type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/PhysicalPayload"
+            },
+            {
+              "$ref": "#/$defs/SocialPayload"
+            },
+            {
+              "$ref": "#/$defs/ExecutionPayload"
+            },
+            {
+              "$ref": "#/$defs/InternalPayload"
+            }
+          ],
+          "title": "Payload"
+        },
+        "salience": {
+          "default": 0.5,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Salience",
+          "type": "number"
+        }
+      },
+      "required": [
+        "meta",
+        "payload"
+      ],
+      "title": "PerceptionEvent",
+      "type": "object"
+    },
+    "PerceptionFrame": {
+      "additionalProperties": false,
+      "description": "An immutable cutoff of ordered journal, state, and media inputs.",
+      "properties": {
+        "captured_at": {
+          "format": "date-time",
+          "title": "Captured At",
+          "type": "string"
+        },
+        "coalesced": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CoalescedSummary"
+          },
+          "title": "Coalesced",
+          "type": "array"
+        },
+        "cutoff_seq": {
+          "minimum": 0,
+          "title": "Cutoff Seq",
+          "type": "integer"
+        },
+        "dropped": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DroppedSummary"
+          },
+          "title": "Dropped",
+          "type": "array"
+        },
+        "elfie_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Elfie Id",
+          "type": "string"
+        },
+        "events": {
+          "default": [],
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ProcessingFailureEvent"
+              },
+              {
+                "$ref": "#/$defs/PerceptionEvent"
+              }
+            ]
+          },
+          "title": "Events",
+          "type": "array"
+        },
+        "frame_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Frame Id",
+          "type": "string"
+        },
+        "media_samples": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/PerceptionMediaSample"
+          },
+          "title": "Media Samples",
+          "type": "array"
+        },
+        "revision": {
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "state_updates": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/PerceptionStateUpdate"
+          },
+          "title": "State Updates",
+          "type": "array"
+        },
+        "trigger_reason": {
+          "$ref": "#/$defs/TriggerReason"
+        }
+      },
+      "required": [
+        "frame_id",
+        "elfie_id",
+        "revision",
+        "captured_at",
+        "cutoff_seq",
+        "trigger_reason"
+      ],
+      "title": "PerceptionFrame",
+      "type": "object"
+    },
+    "PerceptionMediaSample": {
+      "additionalProperties": false,
+      "description": "A bounded media-stream sample that references external storage.",
+      "properties": {
+        "captured_at": {
+          "format": "date-time",
+          "title": "Captured At",
+          "type": "string"
+        },
+        "media": {
+          "$ref": "#/$defs/MediaRef"
+        },
+        "meta": {
+          "$ref": "#/$defs/MessageMeta"
+        },
+        "ordinal": {
+          "minimum": 0,
+          "title": "Ordinal",
+          "type": "integer"
+        },
+        "stream_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Stream Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "meta",
+        "stream_id",
+        "ordinal",
+        "captured_at",
+        "media"
+      ],
+      "title": "PerceptionMediaSample",
+      "type": "object"
+    },
+    "PerceptionStateUpdate": {
+      "additionalProperties": false,
+      "description": "A latest-only state-board update with an explicit source revision.",
+      "properties": {
+        "meta": {
+          "$ref": "#/$defs/MessageMeta"
+        },
+        "revision": {
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "state_key": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "State Key",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "meta",
+        "state_key",
+        "revision",
+        "value"
+      ],
+      "title": "PerceptionStateUpdate",
+      "type": "object"
+    },
+    "PhysicalModality": {
+      "description": "Normalized physical modalities accepted from NervousSystem adapters.",
+      "enum": [
+        "utterance",
+        "vision",
+        "touch",
+        "proprioception",
+        "environment",
+        "connection"
+      ],
+      "title": "PhysicalModality",
+      "type": "string"
+    },
+    "PhysicalPayload": {
+      "additionalProperties": false,
+      "description": "A normalized physical observation from the current Body path.",
+      "properties": {
+        "body_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Body Id",
+          "type": "string"
+        },
+        "content": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Content",
+          "type": "string"
+        },
+        "media": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/MediaRef"
+          },
+          "title": "Media",
+          "type": "array"
+        },
+        "modality": {
+          "$ref": "#/$defs/PhysicalModality"
+        },
+        "type": {
+          "const": "physical",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "body_id",
+        "modality",
+        "content"
+      ],
+      "title": "PhysicalPayload",
+      "type": "object"
+    },
+    "Priority": {
+      "description": "Scheduling priority shared by message-producing subsystems.",
+      "enum": [
+        "critical",
+        "high",
+        "normal",
+        "low"
+      ],
+      "title": "Priority",
+      "type": "string"
+    },
+    "ProcessingFailureEvent": {
+      "additionalProperties": false,
+      "description": "Reliable evidence emitted after a frame fails three times.",
+      "properties": {
+        "failed_cutoff_seq": {
+          "minimum": 0,
+          "title": "Failed Cutoff Seq",
+          "type": "integer"
+        },
+        "failed_frame_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$",
+          "title": "Failed Frame Id",
+          "type": "string"
+        },
+        "failure_count": {
+          "minimum": 1,
+          "title": "Failure Count",
+          "type": "integer"
+        },
+        "failure_reason": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Failure Reason",
+          "type": "string"
+        },
+        "meta": {
+          "$ref": "#/$defs/MessageMeta"
+        },
+        "payload": {
+          "discriminator": {
+            "mapping": {
+              "execution": "#/$defs/ExecutionPayload",
+              "internal": "#/$defs/InternalPayload",
+              "physical": "#/$defs/PhysicalPayload",
+              "social": "#/$defs/SocialPayload"
+            },
+            "propertyName": "type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/PhysicalPayload"
+            },
+            {
+              "$ref": "#/$defs/SocialPayload"
+            },
+            {
+              "$ref": "#/$defs/ExecutionPayload"
+            },
+            {
+              "$ref": "#/$defs/InternalPayload"
+            }
+          ],
+          "title": "Payload"
+        },
+        "salience": {
+          "default": 0.5,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Salience",
+          "type": "number"
+        }
+      },
+      "required": [
+        "meta",
+        "payload",
+        "failed_frame_id",
+        "failed_cutoff_seq",
+        "failure_count",
+        "failure_reason"
+      ],
+      "title": "ProcessingFailureEvent",
+      "type": "object"
+    },
+    "SocialPayload": {
+      "additionalProperties": false,
+      "description": "A social message normalized by a Communication adapter.",
+      "properties": {
+        "channel_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Channel Id",
+          "type": "string"
+        },
+        "content": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Content",
+          "type": "string"
+        },
+        "conversation_id": {
+          "minLength": 1,
+          "pattern": ".*\\S.*",
+          "title": "Conversation Id",
+          "type": "string"
+        },
+        "media": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/MediaRef"
+          },
+          "title": "Media",
+          "type": "array"
+        },
+        "reply_to_event_id": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reply To Event Id"
+        },
+        "sender": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "type": {
+          "const": "social",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "channel_id",
+        "conversation_id",
+        "sender",
+        "content"
+      ],
+      "title": "SocialPayload",
+      "type": "object"
+    },
+    "TriggerReason": {
+      "description": "Reasons the coordinator may seal a perception frame.",
+      "enum": [
+        "emergency",
+        "conversation_quiet",
+        "conversation_hard_max",
+        "salience",
+        "capacity",
+        "oldest_event",
+        "autonomous",
+        "manual"
+      ],
+      "title": "TriggerReason",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Complete immutable input for one cortical decision.",
+  "properties": {
+    "capabilities": {
+      "$ref": "#/$defs/EffectiveCapabilities"
+    },
+    "captured_at": {
+      "format": "date-time",
+      "title": "Captured At",
+      "type": "string"
+    },
+    "conversation": {
+      "$ref": "#/$defs/ConversationContext"
+    },
+    "emotion": {
+      "$ref": "#/$defs/EmotionSnapshot"
+    },
+    "frame": {
+      "$ref": "#/$defs/PerceptionFrame"
+    },
+    "homeostasis": {
+      "$ref": "#/$defs/HomeostasisSnapshot"
+    },
+    "memory": {
+      "$ref": "#/$defs/MemoryContext"
+    },
+    "revision": {
+      "minimum": 0,
+      "title": "Revision",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "revision",
+    "captured_at",
+    "frame",
+    "emotion",
+    "homeostasis",
+    "conversation",
+    "memory",
+    "capabilities"
+  ],
+  "title": "BrainContext",
+  "type": "object"
+}

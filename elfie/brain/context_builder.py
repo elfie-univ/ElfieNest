@@ -1,100 +1,52 @@
-import logging
-from typing import Any, Dict
+"""Strict Thalamus assembly for one sealed cortical frame."""
 
-from elfie.brain.brain_types import BrainContext, SensorData
+from __future__ import annotations
+
+import logging
+from typing import Optional
+
+from elfie.brain.context_types import (
+    BrainContext,
+    ConversationContext,
+    EffectiveCapabilities,
+    EmotionSnapshot,
+    HomeostasisSnapshot,
+    MemoryContext,
+)
+from elfie.brain.perception_types import PerceptionFrame
+from elfie.message_types import UTCDateTime
 
 logger = logging.getLogger("elfie.brain.context_builder")
 
 
 class ThalamusContextBuilder:
-    """中层：丘脑 (上下文拼装总线 - Context Bus)"""
-
-    def __init__(self):
-        """初始化丘脑上下文拼装总线"""
-        pass
+    """Build immutable BrainContext only from sealed typed inputs."""
 
     def assemble(
         self,
-        raw_sensors: Dict[str, Any],
-        energy_system: Any,
-        emotion_engine: Any,
-        memory_system: Any,
-        is_local: bool = False,
+        *,
+        frame: PerceptionFrame,
+        emotion: EmotionSnapshot,
+        homeostasis: HomeostasisSnapshot,
+        conversation: ConversationContext,
+        memory: MemoryContext,
+        capabilities: EffectiveCapabilities,
+        captured_at: Optional[UTCDateTime] = None,
+        revision: Optional[int] = None,
     ) -> BrainContext:
-        """
-        拉取多方状态，进行相关性拼接与噪点剥离，形成大脑皮层消费的 BrainContext
-        :param raw_sensors: 底层爬行动物脑感觉器官捕获的瞬时裸数据
-        :param energy_system: 下丘脑能量作息系统实例
-        :param emotion_engine: 杏仁核情绪引擎实例
-        :param memory_system: 海马体记忆检索实例
-        :param is_local: 是否本地模型（本地→top_k=1缩短提示词）
-        :return: 精密组合的 BrainContext
-        """
+        """Assemble one immutable context without reading or draining sources."""
+        context_captured_at = captured_at if captured_at is not None else frame.captured_at
+        context_revision = revision if revision is not None else frame.revision
         logger.info(
-            "丘脑十字路口：正在捕获外部感官、情感化学值、体能作息与海马体记忆切片..."
+            "丘脑已接收 sealed PerceptionFrame，正在组装不可变 BrainContext。"
         )
-
-        # 1. 过滤背景噪音（由 nervous_system/signal_filter.py 或丘脑轻量策略完成）
-        # 这里简单保留必要的感官通道信息
-        image_paths = tuple(
-            str(path)
-            for path in raw_sensors.get(
-                "images", raw_sensors.get("image_paths", ())
-            )
-            if str(path)
+        return BrainContext(
+            revision=context_revision,
+            captured_at=context_captured_at,
+            frame=frame,
+            emotion=emotion,
+            homeostasis=homeostasis,
+            conversation=conversation,
+            memory=memory,
+            capabilities=capabilities,
         )
-        audio_path = str(raw_sensors["audio"]) if raw_sensors.get("audio") else None
-        sensor_data = SensorData(
-            temperature=raw_sensors.get("temperature", 24.0),
-            is_network_online=raw_sensors.get("is_network_online", True),
-            salience_score=raw_sensors.get("salience_score", 0.0),
-            has_new_message=bool(
-                raw_sensors.get("has_new_message", False)
-                or image_paths
-                or audio_path
-            ),
-            user_message=raw_sensors.get("user_message", ""),
-            images=image_paths,
-            audio=audio_path,
-        )
-
-        # 2. 获取实时生理能耗参数与作息状态
-        energy_level = energy_system.get_energy()
-        fatigue_level = energy_system.get_fatigue()
-        is_sleeping = energy_system.is_sleeping
-
-        # 3. 抓取实时心情和情感状态标签
-        realtime_emotion = emotion_engine.get_current_emotion_summary()
-        dominant_mood = emotion_engine.get_dominant_mood()
-        emotion_intensity = getattr(
-            emotion_engine, "get_emotion_value", lambda _: 0.0
-        )(dominant_mood)
-
-        # 4. 使用记忆系统门面检索并组装5区域上下文
-        user_message = sensor_data.user_message
-        active_memory = memory_system
-        if user_message and active_memory:
-            top_k = 1 if is_local else 5
-            memory_slices = active_memory.get_context(
-                query=user_message,
-                emotion=dominant_mood,
-                intensity=emotion_intensity,
-                top_k=top_k,
-            )
-        else:
-            memory_slices = "无相关历史情景记忆。"
-
-        # 5. 拼装 BrainContext 投递给大脑皮层
-        assembled_context = BrainContext(
-            sensors=sensor_data,
-            energy=energy_level,
-            fatigue=fatigue_level,
-            is_sleeping=is_sleeping,
-            emotion_state=realtime_emotion,
-            emotion_mood=dominant_mood,
-            emotion_intensity=emotion_intensity,
-            history_episodes=memory_slices,
-        )
-
-        logger.info("丘脑拼装完成，已投递至 Neocortex 大脑皮层。")
-        return assembled_context

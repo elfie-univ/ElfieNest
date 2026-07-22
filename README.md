@@ -91,13 +91,20 @@ ElfieNest/
 
 ### `elfie/`
 
-定义一个完整 `ElfieIndividual`。情绪、能量、记忆、认知、身体限制、感知和动作能力都属于精灵自身；它不负责账户、房间渲染或桌面生命周期。
+定义一个完整 `Elfie`。情绪、能量、记忆、认知、身体限制、感知和动作能力都属于精灵自身；它不负责账户、房间渲染或桌面生命周期。
+
+`profile.yaml` 是精灵唯一稳定档案；能量、情绪、`elapsed_time` 和当前身体绑定由各模块在进程内维护，恢复精灵时只加载 Profile，并按本次启动参数绑定身体。
+
+感知和输出采用异步类型化闭环：Body 事件先经过 NervousSystem，数字消息直接由
+Communication 写入 `PerceptualWorkspace`；每只 Elfie 的 BrainCoordinator 独立
+决定何时封口 frame，生成 `BrainContext` 和 `DecisionPlan`，再由 OutputRouter
+分别路由身体、通信和内部意图。物理 tick 不等待模型或输出执行。
 
 ### `nest/`
 
 定义唯一活动空间。`nest/nest.py` 是 App 的公开入口；`state/` 只保存精灵 ID、家具和巢内状态，`engine/` 推进环境时钟，`interaction/` 传播广播、用户消息和触觉事件，`godot/` 维护 Python 侧 Godot 协议。
 
-Nest 不创建、不持有 `ElfieIndividual`，也不复制 Godot 房屋蓝图。房间几何、真实坐标、移动、碰撞和渲染以 `godot/` 项目为准。
+Nest 不创建、不持有 `Elfie`，也不复制 Godot 房屋蓝图。房间几何、真实坐标、移动、碰撞和渲染以 `godot/` 项目为准。
 
 ### `app/`
 
@@ -186,7 +193,7 @@ pnpm test
 pnpm exec tsc --noEmit
 ```
 
-测试路径镜像源码，例如 `test/elfie/`、`test/nest/`、`test/ai_runtime/` 和 `test/app/`。`test/architecture/` 会阻止旧 `elfienest/`、`runtime/` 包名或错误二级目录重新进入项目。
+测试路径镜像源码，例如 `test/elfie/`、`test/nest/`、`test/ai_runtime/` 和 `test/app/`。`test/architecture/` 会阻止旧 `elfienest/`、`runtime/`、`elfie/state/`、`brain/cognition/`、`brain/perception/` 和非法反向依赖重新进入项目。
 
 ## 后续开发约束
 
@@ -198,3 +205,4 @@ pnpm exec tsc --noEmit
 - `connectivity/`、Nest-Nest 网络和移动聊天 App 尚未进入当前仓库范围。
 
 更完整的目录职责与依赖规范见 [`docs/design/ElfieNest目录架构.md`](docs/design/ElfieNest目录架构.md)。
+单精灵完整时序与契约见 [`docs/design/Elfie感知认知决策信息流.md`](docs/design/Elfie感知认知决策信息流.md)。

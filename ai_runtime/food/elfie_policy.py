@@ -15,7 +15,6 @@ from ai_runtime.food.store import FoodCatalog
 from ai_runtime.storage.config_store import read_yaml_mapping, write_yaml_mapping
 from ai_runtime.storage.data_home import get_elfie_config_dir
 
-
 DEFAULT_ALLOWED_FOODS: tuple[str, ...] = (
     "coarse",
     "standard",

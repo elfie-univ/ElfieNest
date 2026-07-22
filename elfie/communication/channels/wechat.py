@@ -1,8 +1,20 @@
 from __future__ import annotations
 
 import logging
+from functools import singledispatchmethod
 
-from elfie.communication.channel import CommunicationMessage, MessageKind
+from elfie.communication.contracts import (
+    AudioPart,
+    CommunicationEnvelope,
+    ContentPart,
+    DeliveryReceipt,
+    DeliveryStatus,
+    FilePart,
+    ImagePart,
+    ReactionPart,
+    SystemEventPart,
+    TextPart,
+)
 
 logger = logging.getLogger("elfie.communication.channels.wechat")
 
@@ -66,7 +78,44 @@ class WeChatChannel:
     def disconnect(self) -> None:
         self.connector.disconnect()
 
-    def send(self, message: CommunicationMessage) -> bool:
-        if message.kind is MessageKind.IMAGE:
-            return self.connector.send_viewport_image(message.content)
-        return self.connector.send_message(message.content)
+    def send_envelope(self, envelope: CommunicationEnvelope) -> DeliveryReceipt:
+        """Send every typed part through the existing WeChat connector edge."""
+        for part in envelope.parts:
+            delivered = self._send_part(part)
+            if not delivered:
+                return DeliveryReceipt.for_envelope(
+                    envelope,
+                    status=DeliveryStatus.FAILED,
+                    error_code="wechat_send_failed",
+                    error_message="WeChat connector 未确认发送成功",
+                    retryable=True,
+                )
+        return DeliveryReceipt.for_envelope(envelope, status=DeliveryStatus.SENT)
+
+    @singledispatchmethod
+    def _send_part(self, part: ContentPart) -> bool:
+        raise TypeError(type(part).__name__)
+
+    @_send_part.register
+    def _send_text(self, part: TextPart) -> bool:
+        return self.connector.send_message(part.text)
+
+    @_send_part.register
+    def _send_image(self, part: ImagePart) -> bool:
+        return self.connector.send_viewport_image(part.media.uri)
+
+    @_send_part.register
+    def _send_audio(self, part: AudioPart) -> bool:
+        return self.connector.send_message(part.media.uri)
+
+    @_send_part.register
+    def _send_file(self, part: FilePart) -> bool:
+        return self.connector.send_message(part.media.uri)
+
+    @_send_part.register
+    def _send_reaction(self, part: ReactionPart) -> bool:
+        return self.connector.send_message(part.reaction)
+
+    @_send_part.register
+    def _send_system_event(self, part: SystemEventPart) -> bool:
+        return self.connector.send_message(part.description or part.event_name)

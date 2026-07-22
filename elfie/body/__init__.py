@@ -2,6 +2,24 @@
 
 from elfie.body.binding import BodyBinding, BodySwitchError
 from elfie.body.capabilities import BodyCapabilities
+from elfie.body.contracts import (
+    BodyCommand,
+    BodyId,
+    BodySensorEvent,
+    BodySnapshot,
+    CommandReceipt,
+    CommandStatus,
+    EmergencyStopCommand,
+    EnvironmentSample,
+    ExpressionCommand,
+    MotionCommand,
+    ProprioceptionSample,
+    SpeechCommand,
+    TactileImpact,
+    UtteranceFinal,
+    VisionChange,
+    VisionSample,
+)
 from elfie.body.external import ExternalBody, ExternalTransport
 from elfie.body.headless import HeadlessBody
 from elfie.body.native import GodotGateway, GodotTransport, NativeBody
@@ -16,13 +34,8 @@ from elfie.body.registry import (
     BodyRegistry,
 )
 from elfie.body.types import (
-    BodyCommand,
     BodyDescriptor,
-    BodyEvent,
     BodyMode,
-    BodyState,
-    CommandResult,
-    CommandStatus,
 )
 from elfie.nervous_system.reflex.reflex_arc import SomaticReflexArc
 
@@ -43,12 +56,9 @@ __all__ = [
     "BodyNotFoundError",
     "BodyBinding",
     "BodySwitchError",
-    "BodyEvent",
     "BodyCommand",
-    "CommandResult",
     "CommandStatus",
     "BodyDescriptor",
-    "BodyState",
     "BodyMode",
     "HeadlessBody",
     "GodotGateway",
@@ -56,4 +66,18 @@ __all__ = [
     "NativeBody",
     "ExternalTransport",
     "ExternalBody",
+    "BodyId",
+    "BodySensorEvent",
+    "BodySnapshot",
+    "CommandReceipt",
+    "SpeechCommand",
+    "MotionCommand",
+    "ExpressionCommand",
+    "EmergencyStopCommand",
+    "UtteranceFinal",
+    "VisionSample",
+    "VisionChange",
+    "TactileImpact",
+    "ProprioceptionSample",
+    "EnvironmentSample",
 ]

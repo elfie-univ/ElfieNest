@@ -7,13 +7,13 @@ import subprocess
 from pathlib import Path
 from typing import Sequence, Union
 
-from app.orchestration.lifecycle.recovery_lock import MANAGED_START_ENV
-from app.orchestration.lifecycle.types import InvalidPidFileError
 from app.orchestration.lifecycle.process import (
     PID_FILENAME,
     ProcessInspector,
     command_runs_service,
 )
+from app.orchestration.lifecycle.recovery_lock import MANAGED_START_ENV
+from app.orchestration.lifecycle.types import InvalidPidFileError
 
 
 def read_pid(pid_path: Path) -> Union[int, InvalidPidFileError]:

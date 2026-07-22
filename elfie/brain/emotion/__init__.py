@@ -1,6 +1,9 @@
 from elfie.brain.emotion.decay_calculator import EmotionDecayCalculator
 from elfie.brain.emotion.emotion_input import EmotionInput
-from elfie.brain.emotion.emotion_system import EmotionSystem
+from elfie.brain.emotion.emotion_system import (
+    EmotionSystem,
+    EmotionTimeRegressionError,
+)
 from elfie.brain.emotion.emotion_types import (
     EMOTION_ALIASES,
     EMOTION_CONFIGS,
@@ -13,11 +16,14 @@ from elfie.brain.emotion.personality import (
     PersonalityModifier,
     calculate_personality_modifier,
 )
+from elfie.brain.emotion.stimulus import EmotionStimulusEvent, StimulusSource
 
 __all__ = [
     "AmygdalaEmotionalState",
     "EmotionDecayCalculator",
     "EmotionSystem",
+    "EmotionTimeRegressionError",
+    "EmotionStimulusEvent",
     "EmotionInput",
     "EmotionType",
     "EMOTION_CONFIGS",
@@ -26,4 +32,5 @@ __all__ = [
     "PersonalityModifier",
     "calculate_personality_modifier",
     "EmotionInteractionSystem",
+    "StimulusSource",
 ]

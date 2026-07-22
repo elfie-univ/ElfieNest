@@ -3,9 +3,14 @@
 新的情绪系统实现，整合饱和增长、分阶段衰减、频率追踪和事件去重。
 """
 
-import logging
-from typing import Dict, Optional
+from __future__ import annotations
 
+import logging
+import time
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Callable, Dict, Final, Mapping, Optional
+
+from elfie.brain.context_types import EmotionSnapshot, EmotionValue
 from elfie.brain.emotion.accumulator.decay import decay
 from elfie.brain.emotion.accumulator.frequency import FrequencyTracker
 from elfie.brain.emotion.accumulator.saturation import calculate_accumulation_delta
@@ -14,19 +19,53 @@ from elfie.brain.emotion.emotion_types import EMOTION_CONFIGS, resolve_emotion_n
 from elfie.brain.emotion.fusion.deduplicator import EventDeduplicator
 from elfie.brain.emotion.interactions import EmotionInteractionSystem
 from elfie.brain.emotion.personality import PersonalityModifier
+from elfie.brain.emotion.stimulus import EmotionStimulusEvent, StimulusSource
+
+if TYPE_CHECKING:
+    from elfie.brain.emotion.expression_mapper import EmotionExpression
 
 logger = logging.getLogger("elfie.brain.emotion.emotion_system")
+
+_LEGACY_STIMULUS_SOURCES: Final[Mapping[StimulusSource, str]] = {
+    StimulusSource.PHYSICAL: "physical",
+    StimulusSource.SOCIAL: "text",
+    StimulusSource.EXECUTION: "brain",
+}
+
+
+class EmotionTimeRegressionError(Exception):
+    """Raised when emotion state receives an older simulation timestamp."""
+
+    def __init__(self, previous_timestamp: float, requested_timestamp: float) -> None:
+        self.previous_timestamp = previous_timestamp
+        self.requested_timestamp = requested_timestamp
+        super().__init__(previous_timestamp, requested_timestamp)
+
+    def __str__(self) -> str:
+        return (
+            "emotion simulation time cannot move backwards: "
+            f"{self.previous_timestamp} -> {self.requested_timestamp}"
+        )
 
 
 class EmotionSystem:
     """情绪系统 - 整合所有情绪处理组件"""
 
-    def __init__(self, personality: Optional[Dict[str, float]] = None):
+    def __init__(
+        self,
+        personality: Optional[Dict[str, float]] = None,
+        *,
+        clock: Callable[[], float] = time.monotonic,
+    ):
         """初始化情绪系统
 
         Args:
             personality: 可选的Big Five性格特征字典，用于调节情绪反应
         """
+        self._clock = clock
+        self.last_updated_at = float(clock())
+        self.revision = 0
+
         # 初始化8种情绪为baseline值
         self.emotions: Dict[str, float] = {
             name: config["baseline"] for name, config in EMOTION_CONFIGS.items()
@@ -34,11 +73,12 @@ class EmotionSystem:
 
         # 为每种情绪创建频率追踪器
         self.frequency_trackers: Dict[str, FrequencyTracker] = {
-            name: FrequencyTracker() for name in EMOTION_CONFIGS
+            name: FrequencyTracker(clock=self._simulation_time)
+            for name in EMOTION_CONFIGS
         }
 
         # 全局事件去重器
-        self.deduplicator = EventDeduplicator()
+        self.deduplicator = EventDeduplicator(clock=self._simulation_time)
 
         # 性格调节器（可选）
         self.personality_modifier: Optional[PersonalityModifier] = None
@@ -50,7 +90,11 @@ class EmotionSystem:
 
         logger.info("情绪系统初始化完成，8种情绪已加载")
 
-    def process_input(self, emotion_input: EmotionInput):
+    def _simulation_time(self) -> float:
+        """Return the single simulation time used by all accumulators."""
+        return self.last_updated_at
+
+    def process_input(self, emotion_input: EmotionInput) -> None:
         """处理情绪输入（新API）
 
         Args:
@@ -114,13 +158,26 @@ class EmotionSystem:
         old_value = self.emotions[emotion]
         self.emotions[emotion] += actual_delta
         self.emotions[emotion] = min(self.emotions[emotion], config["max_value"])
+        self.revision += 1
 
         logger.info(
             f"🎭 [情绪更新] {emotion}: {old_value:.1f} -> {self.emotions[emotion]:.1f} "
             f"(delta={actual_delta:.2f}, intensity={emotion_input.intensity:.2f})"
         )
 
-    def update_emotion(self, name: str, delta: float):
+    def apply_stimulus(self, stimulus: EmotionStimulusEvent) -> None:
+        """Apply one coordinator-appraised, deduplicable stimulus."""
+        self.process_input(
+            EmotionInput(
+                emotion=stimulus.emotion.value,
+                intensity=stimulus.intensity,
+                source=_LEGACY_STIMULUS_SOURCES[stimulus.source],
+                event_id=str(stimulus.event_id),
+                timestamp=self.last_updated_at,
+            )
+        )
+
+    def update_emotion(self, name: str, delta: float) -> None:
         """更新情绪值（向后兼容的旧API）
 
         Args:
@@ -138,17 +195,32 @@ class EmotionSystem:
         self.emotions[emotion] += delta
         # 边界裁切 (0 - 100)
         self.emotions[emotion] = max(0.0, min(100.0, self.emotions[emotion]))
+        self.revision += 1
 
         logger.info(
             f"🎭 [情绪微调] {emotion}: {old_val:.1f} -> {self.emotions[emotion]:.1f}"
         )
 
-    def tick(self, dt: float):
+    def tick(self, dt: float) -> None:
         """时间滴答 - 衰减所有情绪
 
         Args:
             dt: 时间增量（秒）
         """
+        self.advance_to(self.last_updated_at + dt)
+
+    def advance_to(self, timestamp: float) -> None:
+        """Advance emotion decay to one absolute simulation timestamp."""
+        if timestamp < self.last_updated_at:
+            raise EmotionTimeRegressionError(self.last_updated_at, timestamp)
+        if timestamp == self.last_updated_at:
+            return
+        self._decay_all(timestamp - self.last_updated_at)
+        self.last_updated_at = timestamp
+        self.revision += 1
+
+    def _decay_all(self, dt: float) -> None:
+        """Apply existing emotion decay and interaction formulas."""
         for emotion, value in self.emotions.items():
             config = EMOTION_CONFIGS[emotion]
             old_value = value
@@ -178,6 +250,19 @@ class EmotionSystem:
                 )
 
         self.interaction_system.apply_transfer_interactions(self.emotions)
+
+    def snapshot(self, at: float) -> EmotionSnapshot:
+        """Advance first, then seal normalized immutable emotion values."""
+        self.advance_to(at)
+        return EmotionSnapshot(
+            revision=self.revision,
+            captured_at=datetime.fromtimestamp(at, timezone.utc),
+            values=tuple(
+                EmotionValue(name=name, intensity=value / 100.0)
+                for name, value in self.emotions.items()
+            ),
+            dominant=self.get_dominant_mood() if self.emotions else None,
+        )
 
     def get_dominant_mood(self) -> str:
         """获取主导情绪
@@ -218,7 +303,7 @@ class EmotionSystem:
         emotion = resolve_emotion_name(name)
         return self.emotions.get(emotion, 0.0)
 
-    def get_expression(self) -> dict:
+    def get_expression(self) -> EmotionExpression:
         """获取当前情绪的表达参数
 
         Returns:

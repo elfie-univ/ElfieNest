@@ -28,7 +28,6 @@ ElfieNest/
 │   ├── body/            # Headless、Native、External 可替换身体
 │   ├── communication/   # 精灵自带的消息通信
 │   ├── skills/          # 思考过程中使用的技能
-│   └── state/           # 可恢复动态状态
 ├── nest/                # 完整精灵巢活动空间
 ├── ai_runtime/          # AI 推理、粮食、工具和安全运行时
 ├── app/                 # 产品功能、接口、基础设施和跨模块编排
@@ -65,13 +64,10 @@ ElfieNest/
 ### Main Loop Flow
 1. `ElfieNestEngine.start_loop()` drives the application loop
 2. Each tick: `Nest.tick()` advances environment time and `NestSession.tick_elfies()` advances active Elfies
-3. For each active Elfie, `perceive_and_respond()` triggers:
-   - Brainstem reflex check (instant physical response)
-   - Sensory signal filtering (noise reduction)
-   - Thalamus context assembly
-   - Neocortex LLM decision
-   - Morphological action validation
-   - Motor execution and speech synthesis
+3. For each active Elfie, the Engine publishes `BrainClockPulse` and pumps typed Body events without waiting for cognition
+4. NervousSystem and Communication publish into `PerceptualWorkspace`
+5. BrainCoordinator seals a frame, builds `BrainContext`, and submits one asynchronous cortical turn
+6. OutputRouter routes the typed `DecisionPlan` and writes execution receipts back to the workspace
 
 ## Running Tests
 
@@ -129,7 +125,7 @@ test/
 ├── elfie/
 │   ├── brain/
 │   │   ├── emotion/         # 情绪系统测试
-│   │   ├── cognition/       # 认知测试
+│   │   ├── context/         # 上下文与认知协调测试
 │   │   ├── memory/          # 记忆测试
 │   │   └── energy/          # 能量测试
 │   ├── body/
@@ -243,5 +239,5 @@ api_key: <never-hardcode-api-key>
 ## Notes
 
 - Comments and config files are in Chinese
-- The `.elfie_memories.json` file persists episodic memories between runs
+- Long-term episodic memories are stored under `ELFIE_HOME` by the memory system; the root `.elfie_memories.json` path is only a legacy migration input.
 - `download_novel.py` is a standalone utility, not part of the simulation

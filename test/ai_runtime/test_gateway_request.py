@@ -1,7 +1,14 @@
-from ai_runtime.gateway.agent import RuntimeAgent
-from ai_runtime.gateway.request import RuntimeRequest, RuntimeResult
 from ai_runtime.food.models import ExecutionProfile, FoodRecipe
 from ai_runtime.food.store import FoodCatalog
+from ai_runtime.gateway.agent import RuntimeAgent
+from ai_runtime.gateway.request import (
+    RuntimeRequest,
+    RuntimeResult,
+    StructuredGenerationMode,
+    StructuredRuntimeCapabilities,
+    StructuredRuntimeRequest,
+    StructuredRuntimeResult,
+)
 
 
 def _save_food(agent, food_key, model):
@@ -106,3 +113,49 @@ def test_runtime_task_route_can_only_override_with_food_key(monkeypatch, tmp_pat
     )
 
     assert result.food_used == "premium"
+
+
+def test_structured_runtime_request_is_strict_and_round_trips():
+    request = StructuredRuntimeRequest(
+        prompt="Return a decision plan.",
+        messages=(
+            {"role": "system", "content": "Use JSON."},
+            {"role": "user", "content": "Hello"},
+        ),
+        response_schema_name="DecisionPlan",
+        response_schema={"type": "object", "required": ["intents"]},
+        selected_mode=StructuredGenerationMode.JSON_SCHEMA,
+        allowed_tools=(),
+    )
+
+    restored = StructuredRuntimeRequest.model_validate_json(request.model_dump_json())
+
+    assert restored == request
+    assert restored.response_schema["required"] == ["intents"]
+
+
+def test_structured_runtime_models_preserve_legacy_runtime_models():
+    capabilities = StructuredRuntimeCapabilities(
+        provider="openai",
+        model_key="openai/gpt-test",
+        supports_json_schema=True,
+        supports_tool_calling=False,
+        supports_json_mode=True,
+        supports_plain_text=True,
+        max_output_tokens=512,
+    )
+    result = StructuredRuntimeResult(
+        text='{"intents":[]}',
+        selected_mode=StructuredGenerationMode.JSON_SCHEMA,
+        provider=capabilities.provider,
+        model_key=capabilities.model_key,
+        prompt_tokens=12,
+        completion_tokens=8,
+        latency_ms=3.5,
+    )
+
+    legacy = RuntimeRequest(prompt="Hello")
+
+    assert legacy.prompt == "Hello"
+    assert result.selected_mode is StructuredGenerationMode.JSON_SCHEMA
+    assert capabilities.supports_json_schema is True

@@ -75,6 +75,21 @@ app/
 - `infrastructure/` 实现持久化、文件和设备身份等出站能力。
 - `bootstrap/` 是组合根，不实现账户、领养、聊天或 Nest 规则。
 
+## Elfie
+
+`elfie/` 的稳定职责目录是 `profile/`、`brain/`、`nervous_system/`、`body/`、
+`communication/` 和 `skills/`。`Elfie` 只作为单精灵 facade 与生命周期边界，
+认知算法由 Brain、神经处理由 NervousSystem、设备连接由 Body、数字消息由
+Communication 分别拥有。
+
+Body 输入必须先经过 NervousSystem；数字通信不经过 NervousSystem，而是与身体
+感知并列写入 Brain 根层的 `PerceptualWorkspace`。BrainCoordinator 独立封口
+frame、构建上下文和提交皮层任务；OutputRouter 是唯一输出入口。详细契约和时序
+见 `docs/design/Elfie感知认知决策信息流.md`。
+
+`elfie/state/`、`brain/cognition/` 和 `brain/brain_types.py` 已删除；禁止新增
+`brain/perception/`。运行时情绪、能量和身体绑定由各模块内存维护，不聚合恢复。
+
 ## Desktop 与 Godot
 
 ```text
@@ -160,7 +175,7 @@ app/interfaces
   -> app/infrastructure
 ```
 
-`desktop` 启动 `app/bootstrap` 并监督运行组件；`nest/godot` 与已导出的 Godot Runtime 交换事件。`elfie`、`nest` 和 `ai_runtime` 不得反向导入 `app`。
+`desktop` 启动 `app/bootstrap` 并监督运行组件；`nest/godot` 与已导出的 Godot Runtime 交换事件。`elfie`、`nest` 和 `ai_runtime` 不得反向导入 `app`；`elfie` 也不得导入 `nest` 或 `ai_runtime`。
 
 ## 测试和持续约束
 

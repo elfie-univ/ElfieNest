@@ -11,11 +11,11 @@ from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.food.evidence import ModelEvidenceStore
 from ai_runtime.food.planner import ModelEvidence
 from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
-from ai_runtime.models.catalog import BUILTIN_MODEL_CATALOG
 from ai_runtime.models.capabilities import (
     canonical_display_name,
     known_capabilities,
 )
+from ai_runtime.models.catalog import BUILTIN_MODEL_CATALOG
 from ai_runtime.providers.profiles import BUILTIN_PROFILES
 from ai_runtime.storage.data_home import get_validation_dir
 from ai_runtime.validation.models import CheckResult, CheckStatus, ValidationSuite

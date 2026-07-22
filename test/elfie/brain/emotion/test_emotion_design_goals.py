@@ -14,21 +14,19 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from elfie.brain.emotion.accumulator.saturation import calculate_accumulation_delta
 from elfie.brain.emotion.accumulator.decay import decay
 from elfie.brain.emotion.accumulator.frequency import FrequencyTracker
+from elfie.brain.emotion.accumulator.saturation import calculate_accumulation_delta
 from elfie.brain.emotion.emotion_input import EmotionInput
 from elfie.brain.emotion.emotion_system import EmotionSystem
 from elfie.brain.emotion.emotion_types import EMOTION_CONFIGS
 from elfie.brain.emotion.expression_mapper import ExpressionMapper
 from elfie.brain.emotion.interactions import (
-    EmotionInteractionSystem,
     apply_transfer,
     get_enhancement_modifier,
     get_inhibition_modifier,
 )
 from elfie.brain.emotion.personality import PersonalityModifier
-
 
 # =============================================================================
 # 1. 饱和增长（Saturation）- 3 tests

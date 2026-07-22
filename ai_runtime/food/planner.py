@@ -322,7 +322,6 @@ def validate_food_recipe(
         return ["主模型尚无真实验证记录"]
     if not selected.verified:
         return ["主模型最近一次真实调用验证失败"]
-    models = {model_id: item for model_id, item in all_models.items() if item.verified}
     required = FIXED_FOOD_KINDS[recipe.key].required_capabilities
     missing = [
         capability for capability in required if not _supports(selected, capability)

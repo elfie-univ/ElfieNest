@@ -2,19 +2,28 @@
 
 from __future__ import annotations
 
-from typing import Any, List, Mapping, Optional
+from datetime import datetime
+from typing import List, Mapping, Optional, Tuple
 
 from elfie.body.capabilities import BodyCapabilities
-from elfie.body.headless.actuators import HeadlessActuators
+from elfie.body.command_execution import (
+    WireValue,
+    lifecycle_receipts,
+    parse_wire_command,
+    utc_now,
+    validate_command,
+)
+from elfie.body.contracts import (
+    BodyCommand,
+    BodyId,
+    BodySensorEvent,
+    BodySnapshot,
+    CommandReceipt,
+)
 from elfie.body.headless.sensors import HeadlessSensors
 from elfie.body.types import (
-    BodyCommand,
     BodyDescriptor,
-    BodyEvent,
     BodyMode,
-    BodyState,
-    CommandResult,
-    CommandStatus,
 )
 
 
@@ -32,8 +41,8 @@ class HeadlessBody:
             actions=frozenset({"*"}),
         )
         self.sensors = HeadlessSensors(source=body_id)
-        self.actuators = HeadlessActuators(self.capabilities)
         self.connected = False
+        self._last_receipt: CommandReceipt | None = None
 
     def connect(self) -> None:
         self.connected = True
@@ -43,45 +52,66 @@ class HeadlessBody:
 
     def describe(self) -> BodyDescriptor:
         return BodyDescriptor(
-            body_id=self.body_id,
+            body_id=BodyId(self.body_id),
             mode=BodyMode.HEADLESS,
             display_name="Headless Body",
             capabilities=self.capabilities,
         )
 
-    def inject_sensor_data(
+    def inject_event(self, event: BodySensorEvent) -> None:
+        self.sensors.inject_event(event)
+
+    def read_sensor_events(self) -> List[BodySensorEvent]:
+        return self.sensors.read_sensor_events()
+
+    def execute(
         self,
-        sensor_data: Mapping[str, Any],
+        command: BodyCommand,
         *,
-        event_id: Optional[str] = None,
-    ) -> BodyEvent:
-        return self.sensors.inject_sensor_data(sensor_data, event_id=event_id)
+        now: datetime | None = None,
+    ) -> Tuple[CommandReceipt, ...]:
+        return self._execute(command, now=now or utc_now())
 
-    def read_events(self) -> List[BodyEvent]:
-        return self.sensors.read_events()
+    def execute_wire(
+        self,
+        payload: Mapping[str, WireValue],
+        *,
+        now: datetime | None = None,
+    ) -> Tuple[CommandReceipt, ...]:
+        current_time = now or utc_now()
+        parsed = parse_wire_command(payload, occurred_at=current_time)
+        if isinstance(parsed, CommandReceipt):
+            return (parsed,)
+        return self._execute(parsed, now=current_time)
 
-    def execute(self, command: BodyCommand) -> CommandResult:
-        if not self.connected:
-            return CommandResult(
-                command_id=command.command_id,
-                action=command.action,
-                status=CommandStatus.REJECTED,
-                error="HeadlessBody 尚未连接",
-            )
-        return self.actuators.execute(command)
-
-    def snapshot(self) -> BodyState:
-        last_result = self.actuators.last_result
-        return BodyState(
-            body_id=self.body_id,
+    def snapshot_body(self, *, now: datetime | None = None) -> BodySnapshot:
+        receipt = self._last_receipt
+        return BodySnapshot(
+            body_id=BodyId(self.body_id),
+            captured_at=now or utc_now(),
             connected=self.connected,
+            capability_revision=self.capabilities.revision,
             pending_event_count=self.sensors.pending_count,
-            last_action=last_result.action if last_result else "",
+            last_command_id=receipt.command_id if receipt else None,
+            last_status=receipt.status if receipt else None,
         )
 
-    def emergency_stop(self) -> CommandResult:
-        return self.execute(BodyCommand(action="system.emergency_stop"))
-
-    @property
-    def last_result(self) -> Optional[CommandResult]:
-        return self.actuators.last_result
+    def _execute(
+        self,
+        command: BodyCommand,
+        *,
+        now: datetime,
+    ) -> Tuple[CommandReceipt, ...]:
+        rejection = validate_command(
+            command,
+            expected_body_id=self.body_id,
+            capabilities=self.capabilities,
+            connected=self.connected,
+            now=now,
+        )
+        if rejection is not None:
+            self._last_receipt = rejection
+            return (rejection,)
+        receipts = lifecycle_receipts(command, occurred_at=now)
+        self._last_receipt = receipts[-1]
+        return receipts

@@ -17,8 +17,8 @@ from app.features.accounts.auth import (
     hash_password,
     verify_session,
 )
-from app.interfaces.api.ws_gateway import AuthenticatedWSManager
 from app.infrastructure.persistence.store import get_db, init_db
+from app.interfaces.api.ws_gateway import AuthenticatedWSManager
 
 from ._helpers import create_test_owner
 
@@ -117,6 +117,46 @@ class TestWsGatewayInstantiation:
         assert not m._running
         assert m._loop is None
         assert m._server is None
+
+
+class TestWsGatewayMessageParsing:
+    def test_malformed_user_message_payload_is_ignored(self, tmp_path: Path) -> None:
+        # Given: an authenticated user sends a malformed JSON payload shape.
+        db = str(tmp_path / "nest.db")
+        uid = _init_db_with_owner(db)
+        manager = AuthenticatedWSManager(port=0, db_path=db)
+        manager.nest_session = SimpleNamespace(send_user_message=pytest.fail)
+
+        # When / Then: parsing returns without raising or dispatching.
+        anyio.run(
+            manager._handle_message,
+            uid,
+            '{"event":"user_message","payload":"not-an-object"}',
+        )
+
+    def test_non_string_user_message_text_is_ignored(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # Given: the authenticated owner sends a user_message whose message is
+        # not text, even though the Elfie ownership check passes.
+        db = str(tmp_path / "nest.db")
+        uid = _init_db_with_owner(db)
+        manager = AuthenticatedWSManager(port=0, db_path=db)
+        manager.nest_session = SimpleNamespace(send_user_message=pytest.fail)
+        monkeypatch.setattr(manager, "_is_elfie_owned_by", lambda *_args: True)
+        monkeypatch.setattr(manager, "_record_user_message", pytest.fail)
+
+        # When / Then: parsing rejects it at the WS boundary without escaping.
+        anyio.run(
+            manager._handle_message,
+            uid,
+            (
+                '{"event":"user_message","payload":'
+                '{"elfie_id":"elfie-1","message":["not","text"]}}'
+            ),
+        )
 
     def test_connections_is_dict(self) -> None:
         """connections 属性是一个空的 dict。"""

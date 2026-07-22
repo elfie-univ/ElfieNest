@@ -125,9 +125,9 @@ test/
 │   │   │   ├── test_personality.py         # 对应 elfie/brain/emotion/personality.py
 │   │   │   ├── test_interactions.py        # 对应 elfie/brain/emotion/interactions.py
 │   │   │   └── test_deduplicator.py        # 对应 elfie/brain/emotion/fusion/deduplicator.py
-│   │   ├── cognition/
-│   │   │   ├── __init__.py
-│   │   │   └── test_cognition.py           # 对应 elfie/brain/cognition/*.py
+│   │   ├── test_coordinator.py             # 对应 elfie/brain/coordinator.py
+│   │   ├── test_perceptual_workspace.py    # 对应 Brain 根层感知工作区
+│   │   ├── test_decision_decoder.py        # 对应结构化决策边界
 │   │   ├── memory/
 │   │   │   ├── __init__.py
 │   │   │   └── test_memory.py              # 对应 elfie/brain/memory/*.py
@@ -153,14 +153,12 @@ test/
 │   ├── communication/
 │   │   ├── __init__.py
 │   │   └── test_public_api.py              # 对应 communication 公共导出
-│   └── test_embodied_perception.py         # 对应 elfie/elfie.py
-├── elfienest/
-│   ├── __init__.py
-│   ├── test_engine.py                      # 对应 elfienest/engine.py
-│   └── test_nest_room.py                   # 对应 elfienest/room.py
-└── runtime/
-    ├── __init__.py
-    └── test_runtime_agent.py               # 对应 runtime/agent.py
+│   └── test_cognitive_lifecycle.py         # 对应 elfie/elfie.py 完整闭环
+├── nest/                                   # 镜像 nest/ 活动空间
+├── ai_runtime/                             # 镜像 ai_runtime/ 推理运行时
+├── app/                                    # 镜像 app/ 产品和编排边界
+├── architecture/                           # 目录、依赖和公共契约门禁
+└── e2e/                                    # 跨模块产品场景
 ```
 
 **新增测试文件的规则**：
@@ -522,7 +520,7 @@ jobs:
         run: uv run --no-sync ruff check . && uv run --no-sync ruff format --check .
 
       - name: Run MyPy
-        run: uv run --no-sync mypy elfie/ elfienest/ runtime/
+        run: uv run --no-sync mypy elfie/ nest/ ai_runtime/ app/
 
       - name: Run Tests
         run: uv run --no-sync pytest --cov --cov-report=xml

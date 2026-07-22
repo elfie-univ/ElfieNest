@@ -12,14 +12,14 @@ import pytest
 import yaml
 from fastapi.testclient import TestClient
 
-from app.interfaces.api.app import create_app
-from app.interfaces.api.ws_gateway import AuthenticatedWSManager
 from app.infrastructure.persistence.chat_history import (
     ChatMessageInput,
     ChatSender,
     record_chat_message,
 )
 from app.infrastructure.persistence.store import init_db
+from app.interfaces.api.app import create_app
+from app.interfaces.api.ws_gateway import AuthenticatedWSManager
 
 from ._helpers import create_test_owner
 
@@ -331,6 +331,16 @@ class TestElfieChatHistory:
                 },
             },
         )
+        manager.broadcast_to_owners(
+            elfie_id,
+            {
+                "action": "owner_message",
+                "payload": {
+                    "elfie_id": elfie_id,
+                    "parts": [{"type": "text", "text": "这是文字回复"}],
+                },
+            },
+        )
 
         resp = client.get(
             f"/api/user/elfies/{elfie_id}/chat-history",
@@ -338,7 +348,11 @@ class TestElfieChatHistory:
         )
 
         assert resp.status_code == 200
-        assert [message["sender"] for message in resp.json()] == ["user", "elfie"]
+        assert [message["sender"] for message in resp.json()] == [
+            "user",
+            "elfie",
+            "elfie",
+        ]
 
 
 # ===================================================================
@@ -619,8 +633,8 @@ class TestAdopt:
 class TestAdoptRoomFull:
     def test_adopt_room_full(self, client: TestClient, app, db_path: str) -> None:
         """房间满 → POST /api/user/adopt → 409 detail 包含 '房间已满'。"""
-        from elfie import Elfie  # noqa: PLC0415
         from app.orchestration.engine import ElfieNestEngine  # noqa: PLC0415
+        from elfie import Elfie  # noqa: PLC0415
 
         _create_user_via_owner(client, "alice")
         tokens = _login_user(client, "alice")

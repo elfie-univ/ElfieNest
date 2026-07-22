@@ -1,7 +1,6 @@
 import ast
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 REQUIRED_ROOT_DIRECTORIES = frozenset(
@@ -19,6 +18,7 @@ REQUIRED_ROOT_DIRECTORIES = frozenset(
     }
 )
 FORBIDDEN_SOURCE_DIRECTORIES = frozenset({"elfienest", "runtime"})
+FORBIDDEN_ELFIE_DIRECTORIES = frozenset({"state"})
 REQUIRED_APP_DIRECTORIES = frozenset(
     {"bootstrap", "features", "infrastructure", "interfaces", "orchestration"}
 )
@@ -50,6 +50,19 @@ def test_legacy_source_directories_are_removed() -> None:
 
     # Then
     assert legacy == frozenset()
+
+
+def test_elfie_has_no_persisted_runtime_state_package() -> None:
+    # Given
+    existing = {
+        path.name for path in (PROJECT_ROOT / "elfie").iterdir() if path.is_dir()
+    }
+
+    # When
+    persisted_state_packages = FORBIDDEN_ELFIE_DIRECTORIES & existing
+
+    # Then
+    assert persisted_state_packages == frozenset()
 
 
 def test_app_and_nest_have_the_confirmed_secondary_structure() -> None:

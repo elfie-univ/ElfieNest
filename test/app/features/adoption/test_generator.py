@@ -149,9 +149,9 @@ class TestElfieProfileCompatibility:
     def test_elfie_profile_loads(self, generator: ElfieGenerator, config_dir: str) -> None:
         """ElfieProfile(config_dir) 能成功加载。"""
         _generate(generator, config_dir)
-        # 动态导入避免类加载顺序问题
-        from elfie.brain.cognition.profile import ElfieProfile
-        profile = ElfieProfile(config_dir=config_dir)
+        from elfie.profile import ElfieProfileRepository
+
+        profile = ElfieProfileRepository(config_dir).load()
         assert profile is not None
         # 验证能读取 big_five
         assert profile.personality is not None

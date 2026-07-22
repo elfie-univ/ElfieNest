@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
-from elfie.profile import create_visual_profile
 from app.orchestration.engine import ElfieNestEngine
+from elfie.profile import create_visual_profile
 
 
 def test_godot_sync_payload_includes_render_appearance() -> None:

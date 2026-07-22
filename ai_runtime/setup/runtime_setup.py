@@ -10,10 +10,10 @@ import urllib.error
 import urllib.request
 from typing import Any, Dict, List
 
-from app.features.configuration.runtime_store import write_runtime_config
 from ai_runtime.models.local_profiles import select_local_profile
 from ai_runtime.storage.config_store import read_yaml_mapping
 from ai_runtime.storage.data_home import get_config_path
+from app.features.configuration.runtime_store import write_runtime_config
 
 # 项目基准路径
 RUNTIME_DIR = os.path.dirname(os.path.abspath(__file__))

@@ -1,11 +1,10 @@
 """图记忆系统的 SQLite 持久化存储层。"""
 
 import logging
+import os
 import sqlite3
 from pathlib import Path
 from typing import Optional
-
-from ai_runtime.storage.data_home import get_elfie_home
 
 from .graph_content_search import GraphContentSearchMixin
 from .graph_edge_store import GraphEdgeStoreMixin
@@ -19,7 +18,8 @@ class GraphStorage(GraphNodeStoreMixin, GraphEdgeStoreMixin, GraphContentSearchM
 
     def __init__(self, db_path: Optional[str] = None):
         if db_path is None:
-            db_path = str(get_elfie_home() / "graph_memory.db")
+            data_home = Path(os.environ.get("ELFIE_HOME", "~/.elfienest")).expanduser()
+            db_path = str(data_home / "graph_memory.db")
         self.db_path = db_path
         if db_path != ":memory:":
             Path(db_path).parent.mkdir(parents=True, exist_ok=True)
