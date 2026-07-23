@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
+import json
 import re
-import shlex
 import time
-from pathlib import Path
 from typing import Any, Dict, List
 
 from ai_runtime.food.models import FoodRecipe
-from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
-from ai_runtime.providers.ollama import OllamaManager
 from ai_runtime.storage.data_home import get_elfie_home
+from devtools.elfie_lab.runtime_foods import (
+    load_runtime_food_catalog,
+    runtime_food_catalog_store,
+)
 from elfie.brain.runtime_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,
@@ -53,7 +54,7 @@ class MockRuntimeAgent:
         message = match.group(1).strip() if match else "这件事"
         if len(message) > 28:
             message = message[:28] + "…"
-        return f"我有好好听到你说\u201c{message}\u201d哒。[ACTION]nod_head[/ACTION]"
+        return f"我有好好听到你说\u201c{message}\u201d哒。"
 
 
 class TracingRuntimeAgent:
@@ -93,17 +94,18 @@ class TracingRuntimeAgent:
         except Exception as exc:
             call["provider"] = self._provider_name()
             call["model"] = self._model_name(task_complexity)
-            call["error"] = f"{type(exc).__name__}: {exc}"
+            call["error"] = type(exc).__name__
             raise
         finally:
             call["duration_ms"] = round((time.perf_counter() - started) * 1000, 2)
             self.calls.append(call)
 
     def capabilities(self) -> ModelGenerationCapabilities:
+        structured_mock = self.food_key == "mock"
         return ModelGenerationCapabilities(
             provider=self._provider_name(),
             model_key=self._model_name(2),
-            supports_json_schema=False,
+            supports_json_schema=structured_mock,
             supports_tool_calling=False,
             supports_json_mode=False,
             supports_plain_text=True,
@@ -111,10 +113,15 @@ class TracingRuntimeAgent:
         )
 
     def generate(self, request: ModelGenerationRequest) -> ModelGenerationResult:
-        text = self.ask(request.user_prompt, energy=100.0, task_complexity=2)
+        speech = self.ask(request.user_prompt, energy=100.0, task_complexity=2)
+        text = _mock_decision_json(request, speech) if self.food_key == "mock" else speech
         return ModelGenerationResult(
             text=text,
-            selected_mode=StructuredOutputMode.JSON_TEXT,
+            selected_mode=(
+                StructuredOutputMode.JSON_SCHEMA
+                if self.food_key == "mock"
+                else StructuredOutputMode.JSON_TEXT
+            ),
             provider=self._provider_name(),
             model_key=self._model_name(2),
         )
@@ -136,6 +143,44 @@ class TracingRuntimeAgent:
         if self.food_key == "mock":
             return "mock"
         return str(getattr(self.inner, "selected_provider", "runtime_router"))
+
+
+def _mock_decision_json(request: ModelGenerationRequest, speech: str) -> str:
+    common = {
+        "cause_event_ids": [str(item) for item in request.cause_event_ids],
+        "dependency_ids": [],
+        "deadline": request.deadline.isoformat(),
+        "cancel_policy": "always",
+    }
+    return json.dumps(
+        {
+            "schema_version": 1,
+            "plan_id": "mock-plan",
+            "turn_id": str(request.turn_id),
+            "frame_id": str(request.frame_id),
+            "context_revision": request.context_revision,
+            "capability_revision": request.capability_revision,
+            "created_at": request.created_at.isoformat(),
+            "deadline": request.deadline.isoformat(),
+            "cause_event_ids": [str(item) for item in request.cause_event_ids],
+            "intents": [
+                {
+                    "type": "speech",
+                    "intent_id": "mock-speech",
+                    "text": speech,
+                    **common,
+                },
+                {
+                    "type": "motion",
+                    "intent_id": "mock-motion",
+                    "motion": "nod_head",
+                    "target": None,
+                    **common,
+                },
+            ],
+        },
+        ensure_ascii=False,
+    )
 
 
 class FoodRuntimeAgent:
@@ -183,83 +228,6 @@ def create_runtime(food_key: str, config_dir: str | None = None) -> TracingRunti
     agent.food_catalog_store = food_store
     food_agent = FoodRuntimeAgent(agent, normalized, recipe)
     return TracingRuntimeAgent(food_agent, normalized)
-
-
-def runtime_food_catalog_store(config_store: Any) -> FoodCatalogStore:
-    """返回指定 Runtime 根目录下的粮食存储。"""
-    return FoodCatalogStore(
-        Path(config_store.root) / "foods.yaml",
-        Path(config_store.root) / "food_history",
-    )
-
-
-def runtime_lab_command(config_store: Any) -> str:
-    """返回操作当前 Runtime 根目录的完整 Runtime Lab 命令。"""
-    root_path = Path(config_store.root).expanduser().resolve()
-    if root_path == get_elfie_home().expanduser().resolve():
-        return ".venv/bin/python -m ai_runtime.lab"
-    root = shlex.quote(str(root_path))
-    return f"ELFIE_HOME={root} .venv/bin/python -m ai_runtime.lab"
-
-
-def load_runtime_food_catalog(
-    config_store: Any,
-    food_store: FoodCatalogStore | None = None,
-) -> FoodCatalog:
-    """加载正式 Runtime 粮食目录；缺失时要求显式初始化。"""
-    store = food_store or runtime_food_catalog_store(config_store)
-    catalog = store.load()
-    if not catalog.recipes:
-        raise RuntimeError("Runtime 粮食目录 foods.yaml 不存在或为空，请先初始化")
-    return catalog
-
-
-def list_installed_ollama_models(config: Any) -> tuple[str, ...] | None:
-    """返回本机模型；服务不可达时返回 ``None``。"""
-    try:
-        return OllamaManager(config).list_installed_models()
-    except Exception:
-        return None
-
-
-def model_availability(
-    model_ref: str,
-    config: Any,
-    installed_ollama_models: tuple[str, ...] | None,
-    configure_command: str,
-) -> Dict[str, Any]:
-    if not model_ref:
-        return {
-            "ready": False,
-            "reason": "模型尚未配置",
-            "command": configure_command,
-        }
-    provider = _provider_from_model(model_ref)
-    model = model_ref.split("/", 1)[1] if "/" in model_ref else model_ref
-    if provider == "ollama":
-        if installed_ollama_models is None:
-            return {
-                "ready": False,
-                "reason": "Ollama 服务不可用",
-                "command": "ollama serve",
-            }
-        installed = any(
-            candidate == model
-            or (":" not in model and candidate.split(":", 1)[0] == model)
-            for candidate in installed_ollama_models
-        )
-        return {
-            "ready": installed,
-            "reason": "" if installed else f"本地模型 {model} 尚未安装",
-            "command": "" if installed else f"ollama pull {model}",
-        }
-
-    configured = bool(config.providers.get(provider, {}).get("api_key"))
-    return {
-        "ready": configured,
-        "reason": "" if configured else f"Provider {provider} 尚未配置凭据",
-        "command": ("" if configured else configure_command),
-    }
 
 
 def _provider_from_model(model_ref: str) -> str:

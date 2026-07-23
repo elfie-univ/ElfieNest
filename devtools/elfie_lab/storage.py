@@ -5,10 +5,14 @@ import os
 import tempfile
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
-from devtools.elfie_lab.schemas import ElfieSpec, new_id
-from elfie.profile import ElfieProfileRepository, create_visual_profile
+from devtools.elfie_lab.schemas import ElfieSpec, derive_life_stage, new_id
+from elfie.profile import (
+    ElfieProfileRepository,
+    create_visual_profile,
+    derive_personality,
+)
 
 
 class ElfieLabStorage:
@@ -33,22 +37,72 @@ class ElfieLabStorage:
         self,
         name: str,
         species_id: str = "fox",
-        description: str = "",
+        age_years: float = 2.0,
+        description: str = "用于本地调试的单精灵",
+        *,
+        appearance_description: str = "默认测试外貌",
+        personality_description: str = "平衡、稳定",
     ) -> ElfieSpec:
         if species_id not in {"dog", "fox"}:
             raise ValueError("精灵物种只能是 dog 或 fox")
         clean_name = name.strip()
         if not clean_name:
             raise ValueError("精灵名称不能为空")
+        if age_years <= 0 or age_years > 100:
+            raise ValueError("精灵年龄必须在 0 到 100 岁之间")
+        required_text = {
+            "用途描述": description,
+            "性格描述": personality_description,
+            "外貌描述": appearance_description,
+        }
+        for label, value in required_text.items():
+            if not value.strip():
+                raise ValueError(f"{label}不能为空")
         spec = ElfieSpec(
             elfie_id=new_id("elfie"),
             name=clean_name,
             species_id=species_id,
-            description=description.strip() or "用于本地调试的单精灵",
+            age_years=age_years,
+            life_stage=derive_life_stage(species_id, age_years),
+            description=description.strip(),
+            appearance_description=appearance_description.strip(),
+            personality_description=personality_description.strip(),
         )
         self._write_json(self.profile_path(spec.elfie_id), spec.to_dict())
         self._save_character_profile(spec)
         return spec
+
+    def update_big_five(
+        self,
+        elfie_id: str,
+        values: Dict[str, float],
+    ) -> Callable[[], None]:
+        """持久化人工校准的人格五维，并保留派生来源。"""
+        spec = self.get_elfie(elfie_id)
+        repository = ElfieProfileRepository(self.elfie_dir(elfie_id))
+        profile = repository.load()
+        derivation = derive_personality(
+            elfie_id,
+            spec.personality_description,
+            values,
+        )
+        personality = {
+            **profile.personality,
+            "big_five": dict(derivation.big_five),
+            "derivation": {
+                "preset": derivation.preset,
+                "matched_keywords": list(derivation.matched_keywords),
+                "provenance": derivation.provenance,
+                "overridden_traits": list(derivation.overridden_traits),
+                "seed": derivation.seed,
+            },
+        }
+        repository.save(replace(profile, personality=personality))
+
+        def rollback() -> None:
+            repository.save(profile)
+
+        return rollback
 
     def get_elfie(self, elfie_id: str) -> ElfieSpec:
         path = self.profile_path(elfie_id)
@@ -102,7 +156,11 @@ class ElfieLabStorage:
                 os.unlink(temporary)
         return path
 
-    def _save_character_profile(self, spec: ElfieSpec) -> None:
+    def _save_character_profile(
+        self,
+        spec: ElfieSpec,
+        big_five_overrides: Optional[Dict[str, float]] = None,
+    ) -> None:
         seed = int.from_bytes(spec.elfie_id.encode("utf-8"), "little") % (2**31)
         profile = create_visual_profile(
             elfie_id=spec.elfie_id,
@@ -113,6 +171,23 @@ class ElfieLabStorage:
         defaults_dir = Path(__file__).parents[2] / "elfie" / "profile" / "defaults"
         legacy = ElfieProfileRepository(defaults_dir).load_legacy_sections()
         profile = replace(profile, **legacy)
+        derivation = derive_personality(
+            spec.elfie_id,
+            spec.personality_description,
+            big_five_overrides,
+        )
+        personality = {
+            **profile.personality,
+            "big_five": dict(derivation.big_five),
+            "derivation": {
+                "preset": derivation.preset,
+                "matched_keywords": list(derivation.matched_keywords),
+                "provenance": derivation.provenance,
+                "overridden_traits": list(derivation.overridden_traits),
+                "seed": derivation.seed,
+            },
+        }
+        profile = replace(profile, personality=personality)
         ElfieProfileRepository(self.elfie_dir(spec.elfie_id)).save(profile)
 
     def session_path(self, elfie_id: str, session_id: str) -> Path:

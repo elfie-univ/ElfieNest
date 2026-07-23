@@ -19,6 +19,7 @@ from app.features.adoption.generator import (
     VALID_HEIGHTS,
     ElfieGenerator,
 )
+from elfie.profile import PERSONALITY_PRESETS as PROFILE_PERSONALITY_PRESETS
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -58,6 +59,44 @@ def _generate(generator: ElfieGenerator, config_dir: str, **kwargs) -> dict:
 
 
 class TestBigFiveRanges:
+    def test_adoption_reuses_profile_owned_personality_presets(self) -> None:
+        # Given: the adoption and profile personality preset exports.
+        # When / Then: adoption exposes the exact profile-owned object.
+        assert PERSONALITY_PRESETS is PROFILE_PERSONALITY_PRESETS
+
+    def test_personality_preset_contract_is_stable(self) -> None:
+        # Given: the personality presets exposed by the adoption generator.
+        expected_names = (
+            "活泼好动",
+            "安静温顺",
+            "好奇探索",
+            "胆小害羞",
+            "傲娇独立",
+            "完全随机",
+        )
+
+        # When: their public names and trait ranges are inspected.
+        actual_names = tuple(PERSONALITY_PRESETS)
+
+        # Then: the existing order and five-dimensional range contract remain stable.
+        assert actual_names == expected_names
+        assert all(
+            tuple(ranges)
+            == (
+                "openness",
+                "conscientiousness",
+                "extraversion",
+                "agreeableness",
+                "neuroticism",
+            )
+            for ranges in PERSONALITY_PRESETS.values()
+        )
+        assert all(
+            0.0 <= lower <= upper <= 1.0
+            for ranges in PERSONALITY_PRESETS.values()
+            for lower, upper in ranges.values()
+        )
+
     def test_all_six_styles_in_range(self, generator: ElfieGenerator, tmp_path: Path) -> None:
         """6 种风格各生成 1 个 → big_five 5 个维度都在 [0, 1]。"""
         for style in PERSONALITY_PRESETS:

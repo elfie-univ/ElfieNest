@@ -29,6 +29,7 @@ from typing import Any, Dict, List, Tuple
 import yaml
 
 from elfie.profile import (
+    PERSONALITY_PRESETS,
     AppearanceResolver,
     ElfieProfileRepository,
     create_visual_profile,
@@ -39,51 +40,6 @@ logger = logging.getLogger("app.features.adoption.generator")
 # ---------------------------------------------------------------------------
 # 常量
 # ---------------------------------------------------------------------------
-
-PERSONALITY_PRESETS: Dict[str, Dict[str, Tuple[float, float]]] = {
-    "活泼好动": {
-        "openness": (0.5, 0.8),
-        "conscientiousness": (0.3, 0.6),
-        "extraversion": (0.75, 0.95),
-        "agreeableness": (0.5, 0.8),
-        "neuroticism": (0.3, 0.6),
-    },
-    "安静温顺": {
-        "openness": (0.4, 0.7),
-        "conscientiousness": (0.6, 0.85),
-        "extraversion": (0.2, 0.5),
-        "agreeableness": (0.7, 0.95),
-        "neuroticism": (0.2, 0.45),
-    },
-    "好奇探索": {
-        "openness": (0.7, 0.95),
-        "conscientiousness": (0.4, 0.7),
-        "extraversion": (0.6, 0.85),
-        "agreeableness": (0.5, 0.8),
-        "neuroticism": (0.2, 0.5),
-    },
-    "胆小害羞": {
-        "openness": (0.4, 0.7),
-        "conscientiousness": (0.5, 0.8),
-        "extraversion": (0.15, 0.4),
-        "agreeableness": (0.5, 0.8),
-        "neuroticism": (0.6, 0.9),
-    },
-    "傲娇独立": {
-        "openness": (0.5, 0.8),
-        "conscientiousness": (0.5, 0.8),
-        "extraversion": (0.3, 0.6),
-        "agreeableness": (0.3, 0.6),
-        "neuroticism": (0.4, 0.7),
-    },
-    "完全随机": {
-        "openness": (0.0, 1.0),
-        "conscientiousness": (0.0, 1.0),
-        "extraversion": (0.0, 1.0),
-        "agreeableness": (0.0, 1.0),
-        "neuroticism": (0.0, 1.0),
-    },
-}
 
 VERBAL_TICKS_POOL: List[str] = ["哒", "喵", "呢", "啦", "呀"]
 

@@ -25,6 +25,10 @@ developer/
 
 `nest-lab` 默认使用 `127.0.0.1:8890`，不连接正式的 `ElfieNestEngine`、生产数据库、普通用户鉴权或普通用户前端资源。它是验证房间状态、碰撞、运动和 Godot WebSocket 协议的单独实验台。
 
+`./developer.sh elfie-lab` 默认监听 `127.0.0.1:8877`，服务就绪后自动用系统默认浏览器打开该地址。它使用独立的 `elfie_lab/elfies`、`sessions`、`media` 和 `trash` 数据边界；可以读取公共 Runtime 粮食目录，但不复用普通用户鉴权、页面或生产精灵注册表。
+
+Elfie Lab 的左侧只拥有一个 Godot Web iframe。相机操作和历史动作按钮都通过带 `request_id` 的 Lab 协议驱动该实例，右侧详情只保存状态和控制信息，不加载第二份角色资源。Godot Web 导出缺失时，精灵管理、文字/图片刺激、Debug 注入和历史详情仍须可用。
+
 ## 普通用户服务边界
 
 普通用户入口是 `./elfienest.sh start` 或打包后的 ElfieNest Desktop。打包环境中，Python Core、Ollama 和 Godot Web Runtime 由 Electron 主进程统一监督：

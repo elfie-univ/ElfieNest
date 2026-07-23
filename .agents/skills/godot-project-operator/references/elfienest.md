@@ -4,7 +4,7 @@
 
 - 项目目录：`godot/`
 - 项目文件：`godot/project.godot`
-- 要求版本：Godot 4.6，Forward+
+- 要求版本：Godot 4.7，GL Compatibility
 - 主场景：`res://main.tscn`
 - 最终巢穴场景：`res://rooms/nest.tscn`
 - 场景资源契约：`res://scripts/test/test_scene_resource_contract.gd`
@@ -29,7 +29,7 @@
 
 ### Godot 自动升级项目版本
 
-Godot 4.7 打开声明为 4.6 的项目可能把 `config/features` 改为 `4.7`，并给 `*.import` 增加新字段。默认拒绝版本不匹配的可编辑启动。若用户同意测试新版本，操作后展示差异，不要擅自提交升级。
+Godot 主次版本与 `project.godot` 声明不一致时，可能改写 `config/features`，并给 `*.import` 增加新字段。默认拒绝版本不匹配的可编辑启动。若用户同意测试其他版本，操作后展示差异，不要擅自提交升级。
 
 ### 需要截图验收
 

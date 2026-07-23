@@ -14,13 +14,29 @@ def new_id(prefix: str) -> str:
     return f"{prefix}_{uuid4().hex[:12]}"
 
 
+def derive_life_stage(species_id: str, age_years: float) -> str:
+    """按物种和实际年龄派生可解释的生命阶段。"""
+    youth_limit = 3.0 if species_id == "dog" else 2.0
+    senior_limit = 8.0 if species_id == "dog" else 7.0
+    if age_years < 1.0:
+        return "幼年"
+    if age_years < youth_limit:
+        return "青年"
+    if age_years < senior_limit:
+        return "成年"
+    return "老年"
+
+
 @dataclass
 class ElfieSpec:
     elfie_id: str
     name: str
     species_id: str = "fox"
-    life_stage: str = "青年"
+    age_years: Optional[float] = None
+    life_stage: str = "年龄未设置"
     description: str = "用于本地调试的单精灵"
+    appearance_description: str = ""
+    personality_description: str = ""
     created_at: str = field(default_factory=utc_now)
     updated_at: str = field(default_factory=utc_now)
 
@@ -34,12 +50,21 @@ class ElfieSpec:
             # 旧 Lab 只保存身体形态，没有物种。迁移时用狐狸母版兜底，
             # 不再把 biped/quadruped 暴露为个体类别。
             species_id = "fox"
+        raw_age = data.get("age_years")
+        age_years = float(raw_age) if isinstance(raw_age, (int, float)) else None
         return cls(
             elfie_id=str(data["elfie_id"]),
             name=str(data["name"]),
             species_id=species_id,
-            life_stage=str(data.get("life_stage", "青年")),
+            age_years=age_years,
+            life_stage=(
+                derive_life_stage(species_id, age_years)
+                if age_years is not None
+                else "年龄未设置"
+            ),
             description=str(data.get("description", "")),
+            appearance_description=str(data.get("appearance_description", "")),
+            personality_description=str(data.get("personality_description", "")),
             created_at=str(data.get("created_at", utc_now())),
             updated_at=str(data.get("updated_at", utc_now())),
         )
@@ -48,6 +73,7 @@ class ElfieSpec:
 @dataclass
 class StimulusBundle:
     message: str = ""
+    vision_media: Optional[Dict[str, Any]] = None
     temperature: float = 24.0
     is_network_online: bool = True
     salience_score: float = 20.0
@@ -82,6 +108,7 @@ class TurnRecord:
     trace: Dict[str, Any]
     model_call: Dict[str, Any]
     result: Dict[str, Any]
+    decision: Dict[str, Any]
     state_after: Dict[str, Any]
     state_diff: Dict[str, Any]
     duration_ms: float

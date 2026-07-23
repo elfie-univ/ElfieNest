@@ -39,8 +39,13 @@ godot/characters/
     ├── <species>.glb
     ├── <species>.tscn
     ├── <species>_shaded.png
-    └── source/             # 可选；Blender 源文件及许可证说明
+    └── source/             # 可选；Blender 源文件及许可证说明，必须包含 .gdignore
 ```
+
+`source/` 是 DCC 制作源目录，不是 Godot 运行资源目录。目录中的 `.blend`、
+制作预览和中间导出由 Blender 或仓库工具直接读取；`.gdignore` 阻止 Godot
+扫描和自动导入这些文件。提交给 Godot 场景的稳定资产必须导出到物种目录的
+`<species>.glb`，场景只引用该 GLB，不得直接引用 `.blend`。
 
 物种标识使用小写 ASCII，例如 `dog`、`fox`。所有物种的运行时节点名称
 保持一致：
@@ -162,6 +167,11 @@ twist dance
 
 工具入口：[Blender](https://www.blender.org/)。建议保存 `.blend` 源文件，
 不要只保留最终 GLB。
+
+Blender 与 Godot 的职责固定如下：Blender 负责建模、骨架、蒙皮、Shape Key、
+材质制作和母版保存，并导出 GLB；Godot 负责导入 GLB、组装场景、动画控制、
+碰撞和运行时渲染。不要让 Godot 直接导入 `.blend`，否则冷导入会隐式启动
+本机 Blender，使构建结果依赖 Blender 版本和图形驱动状态。
 
 ### 6.1 先清除动画数据
 

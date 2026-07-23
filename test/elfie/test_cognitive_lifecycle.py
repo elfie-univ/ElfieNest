@@ -25,7 +25,7 @@ from elfie.communication import (
     MessageDirection,
     TextPart,
 )
-from elfie.message_types import ActorRef, MessageMeta
+from elfie.message_types import ActorRef, MessageMeta, TurnId
 
 
 class RecordingChannel:
@@ -200,6 +200,11 @@ def test_cognitive_lifecycle_runs_two_turns_without_blocking_clock() -> None:
     elfie.wait_for_outcome_count(1, timeout=1)
     first = elfie.turn_outcomes()[0]
     elfie.wait_for_output(first.turn_id, timeout=1)
+    decision_plan = elfie.decision_plan(first.turn_id)
+    assert decision_plan is not None
+    assert decision_plan.turn_id == first.turn_id
+    assert len(decision_plan.intents) == 5
+    assert elfie.decision_plan(TurnId("turn-unknown")) is None
     assert len(channel.sent) == 2
 
     # When: receipt facts age into the next frame.

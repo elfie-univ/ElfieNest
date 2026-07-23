@@ -90,3 +90,43 @@ def test_stop_returns_while_the_bounded_queue_is_full() -> None:
     stop_thread.join(1)
     router.join()
     assert stopped_without_drain is True
+
+
+def test_decision_plan_lookup_follows_completed_retention() -> None:
+    # Given: one retained completed plan and an unknown turn.
+    router = OutputRouter(
+        elfie_id=ELFIE_ID,
+        capabilities=StaticCapabilities(_capabilities()),
+        perception_sink=PerceptualWorkspace(ELFIE_ID),
+        body_executor=RecordingExecutor(),
+        message_executor=RecordingExecutor(),
+        internal_executor=RecordingExecutor(),
+        clock=lambda: NOW,
+        completed_retention=1,
+    )
+    router.start()
+    first = _speech_plan(1)
+    assert isinstance(router.submit(first), ExecutionBatch)
+    router.wait_for_turn(first.turn_id, timeout=1)
+
+    # When: the retained plan is looked up repeatedly.
+    first_lookup = router.decision_plan(first.turn_id)
+    duplicate_lookup = router.decision_plan(first.turn_id)
+
+    # Then: callers receive the frozen plan and unknown turns stay absent.
+    assert first_lookup is first
+    assert duplicate_lookup is first
+    assert router.decision_plan(TurnId("turn-unknown")) is None
+
+    # When: enough later completed turns make the first plan stale.
+    second = _speech_plan(2)
+    third = _speech_plan(3)
+    assert isinstance(router.submit(second), ExecutionBatch)
+    router.wait_for_turn(second.turn_id, timeout=1)
+    assert isinstance(router.submit(third), ExecutionBatch)
+
+    # Then: plan visibility follows the router's existing retention boundary.
+    assert router.decision_plan(first.turn_id) is None
+    assert router.decision_plan(second.turn_id) is second
+    router.stop()
+    router.join()

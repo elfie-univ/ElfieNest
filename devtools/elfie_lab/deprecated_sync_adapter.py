@@ -17,7 +17,10 @@ from elfie.body import (
     EnvironmentSample,
     TactileImpact,
     UtteranceFinal,
+    VisionChange,
+    VisionSample,
 )
+from elfie.brain.decision_types import DecisionPlan
 from elfie.brain.output_types import ExecutionReceipt
 from elfie.brain.runtime_port import (
     CorticalRuntimePort,
@@ -26,7 +29,7 @@ from elfie.brain.runtime_port import (
     ModelGenerationResult,
 )
 from elfie.brain.turn_outcome import TurnOutcome
-from elfie.message_types import ActorRef, EventId
+from elfie.message_types import ActorRef, EventId, MediaRef
 
 
 class RuntimeSelectionMissingError(RuntimeError):
@@ -75,7 +78,7 @@ class DeprecatedSyncCognitionAdapter:
         stimulus: StimulusBundle,
         event_id: str,
         runtime: CorticalRuntimePort,
-    ) -> tuple[TurnOutcome, tuple[ExecutionReceipt, ...]]:
+    ) -> tuple[TurnOutcome, DecisionPlan | None, tuple[ExecutionReceipt, ...]]:
         self._runtime.select(runtime)
         previous_count = len(self._elfie.turn_outcomes())
         self._elfie.pump_body_events(self._events(stimulus, event_id))
@@ -83,7 +86,11 @@ class DeprecatedSyncCognitionAdapter:
         self._elfie.wait_for_outcome_count(previous_count + 1, timeout=5.0)
         outcome = self._elfie.turn_outcomes()[-1]
         self._elfie.wait_for_output(outcome.turn_id, timeout=5.0)
-        return outcome, self._elfie.execution_receipts(outcome.turn_id)
+        return (
+            outcome,
+            self._elfie.decision_plan(outcome.turn_id),
+            self._elfie.execution_receipts(outcome.turn_id),
+        )
 
     def close(self) -> None:
         self._elfie.stop()
@@ -113,6 +120,34 @@ class DeprecatedSyncCognitionAdapter:
                     UtteranceFinal(kind="utterance_final", text=message),
                 )
             )
+        if stimulus.vision_media is not None:
+            media = MediaRef.model_validate(stimulus.vision_media)
+            events.append(
+                self._event(
+                    EventId(f"{event_id}:vision"),
+                    body_id,
+                    source,
+                    now,
+                    VisionSample(
+                        kind="vision_sample",
+                        media=media,
+                    ),
+                )
+            )
+            if not message:
+                events.append(
+                    self._event(
+                        EventId(f"{event_id}:vision-change"),
+                        body_id,
+                        source,
+                        now,
+                        VisionChange(
+                            kind="vision_change",
+                            description="开发者提交了一帧新的视觉输入",
+                            media=media,
+                        ),
+                    )
+                )
         events.append(
             self._event(
                 EventId(f"{event_id}:environment"),
@@ -147,7 +182,13 @@ class DeprecatedSyncCognitionAdapter:
         body_id: BodyId,
         source: ActorRef,
         now: datetime,
-        payload: EnvironmentSample | TactileImpact | UtteranceFinal,
+        payload: (
+            EnvironmentSample
+            | TactileImpact
+            | UtteranceFinal
+            | VisionChange
+            | VisionSample
+        ),
     ) -> BodySensorEvent:
         return BodySensorEvent(
             event_id=event_id,

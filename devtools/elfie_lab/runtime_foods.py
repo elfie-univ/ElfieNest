@@ -1,0 +1,95 @@
+"""Elfie Lab 对公共 Runtime 粮食目录的只读投影。"""
+
+from __future__ import annotations
+
+import shlex
+from pathlib import Path
+from typing import Any, Dict
+
+from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
+from ai_runtime.providers.ollama import OllamaManager
+from ai_runtime.storage.data_home import get_elfie_home
+
+
+def runtime_food_catalog_store(config_store: Any) -> FoodCatalogStore:
+    """返回指定 Runtime 根目录下的粮食存储。"""
+    return FoodCatalogStore(
+        Path(config_store.root) / "foods.yaml",
+        Path(config_store.root) / "food_history",
+    )
+
+
+def runtime_lab_command(config_store: Any) -> str:
+    """返回操作当前 Runtime 根目录的完整 Runtime Lab 命令。"""
+    root_path = Path(config_store.root).expanduser().resolve()
+    if root_path == get_elfie_home().expanduser().resolve():
+        return ".venv/bin/python -m ai_runtime.lab"
+    root = shlex.quote(str(root_path))
+    return f"ELFIE_HOME={root} .venv/bin/python -m ai_runtime.lab"
+
+
+def load_runtime_food_catalog(
+    config_store: Any,
+    food_store: FoodCatalogStore | None = None,
+) -> FoodCatalog:
+    """加载正式 Runtime 粮食目录；缺失时要求显式初始化。"""
+    store = food_store or runtime_food_catalog_store(config_store)
+    catalog = store.load()
+    if not catalog.recipes:
+        raise RuntimeError("Runtime 粮食目录 foods.yaml 不存在或为空，请先初始化")
+    return catalog
+
+
+def list_installed_ollama_models(config: Any) -> tuple[str, ...] | None:
+    """返回本机模型；服务不可达时返回 ``None``。"""
+    try:
+        return OllamaManager(config).list_installed_models()
+    except Exception:
+        return None
+
+
+def model_availability(
+    model_ref: str,
+    config: Any,
+    installed_ollama_models: tuple[str, ...] | None,
+    configure_command: str,
+) -> Dict[str, Any]:
+    if not model_ref:
+        return {"ready": False, "reason": "模型尚未配置", "command": configure_command}
+    provider = _provider_from_model(model_ref)
+    model = model_ref.split("/", 1)[1] if "/" in model_ref else model_ref
+    if provider == "ollama":
+        if installed_ollama_models is None:
+            return {"ready": False, "reason": "Ollama 服务不可用", "command": "ollama serve"}
+        installed = any(
+            candidate == model
+            or (":" not in model and candidate.split(":", 1)[0] == model)
+            for candidate in installed_ollama_models
+        )
+        return {
+            "ready": installed,
+            "reason": "" if installed else f"本地模型 {model} 尚未安装",
+            "command": "" if installed else f"ollama pull {model}",
+        }
+
+    configured = bool(config.providers.get(provider, {}).get("api_key"))
+    return {
+        "ready": configured,
+        "reason": "" if configured else f"Provider {provider} 尚未配置凭据",
+        "command": "" if configured else configure_command,
+    }
+
+
+def _provider_from_model(model_ref: str) -> str:
+    if not model_ref:
+        return ""
+    return model_ref.split("/", 1)[0] if "/" in model_ref else "ollama"
+
+
+__all__ = (
+    "list_installed_ollama_models",
+    "load_runtime_food_catalog",
+    "model_availability",
+    "runtime_food_catalog_store",
+    "runtime_lab_command",
+)

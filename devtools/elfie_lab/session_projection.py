@@ -33,6 +33,7 @@ def build_profile(
         "personality_summary": _personality_summary(big_five),
         "personality_tags": _personality_tags(big_five),
         "big_five": big_five,
+        "personality_derivation": personality.get("derivation", {}),
         "speech_style": personality.get("speech_style", {}),
         "appearance": resolved,
         "appearance_genome": asdict(character_profile.appearance),

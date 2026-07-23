@@ -132,6 +132,9 @@ class ElfieCognitiveRuntime:
     def execution_receipts(self, turn_id: TurnId) -> Tuple[ExecutionReceipt, ...]:
         return self.router.receipts(turn_id)
 
+    def decision_plan(self, turn_id: TurnId) -> Optional[DecisionPlan]:
+        return self.router.decision_plan(turn_id)
+
     def stop(self) -> None:
         if not self._started:
             return

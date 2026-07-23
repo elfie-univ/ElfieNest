@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 import time
 from dataclasses import asdict
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from devtools.elfie_lab.deprecated_sync_adapter import DeprecatedSyncCognitionAdapter
 from devtools.elfie_lab.runtime_adapters import create_runtime
@@ -20,8 +20,21 @@ from devtools.elfie_lab.schemas import (
 from devtools.elfie_lab.session_projection import build_profile, build_snapshot
 from devtools.elfie_lab.session_state import apply_state_injection, model_skip_reason
 from devtools.elfie_lab.storage import ElfieLabStorage
+from devtools.elfie_lab.turn_projection import project_decision
+from devtools.elfie_lab.turn_summary import model_call_summary, stimulus_modalities
 from elfie import ElfieFactory
 from elfie.body import HeadlessBody
+
+
+class SessionClosedError(RuntimeError):
+    __slots__ = ("elfie_id",)
+
+    def __init__(self, elfie_id: str) -> None:
+        super().__init__(elfie_id)
+        self.elfie_id = elfie_id
+
+    def __str__(self) -> str:
+        return f"调试会话已关闭: {self.elfie_id}"
 
 
 class ElfieLabSession:
@@ -72,6 +85,7 @@ class ElfieLabSession:
 
     def run_turn(self, stimulus: StimulusBundle, food_key: str) -> Dict[str, Any]:
         with self._lock:
+            self._ensure_open()
             turn_id = new_id("turn")
             trace: Dict[str, Any] = {}
             pre_injection = self.snapshot()
@@ -86,22 +100,27 @@ class ElfieLabSession:
             error: Optional[str] = None
             try:
                 runtime = create_runtime(food_key, self.runtime_config_dir)
-                outcome, receipts = self._sync_adapter.run(
+                outcome, plan, receipts = self._sync_adapter.run(
                     stimulus,
                     turn_id,
                     runtime,
                 )
-                response = runtime.calls[-1].get("response", "") if runtime.calls else ""
+                decision = project_decision(plan, receipts)
+                speech = "\n".join(
+                    decision["spoken_texts"] + decision["message_texts"]
+                )
                 result = {
                     "success": outcome.status.value == "completed",
-                    "speech": str(response),
-                    "action": "",
+                    "speech": speech,
                     "turn_id": str(outcome.turn_id),
                     "plan_id": str(outcome.plan_id),
                 }
                 trace = {
                     "stages": {
-                        "typed_input": {"source": "developer_tool"},
+                        "typed_input": {
+                            "source": "developer_tool",
+                            "modalities": stimulus_modalities(stimulus),
+                        },
                         "cognitive_turn": outcome.model_dump(mode="json"),
                         "output_receipts": [
                             receipt.model_dump(mode="json") for receipt in receipts
@@ -109,14 +128,15 @@ class ElfieLabSession:
                     },
                     "warnings": [],
                 }
-            except Exception as exc:  # noqa: BROAD_EXCEPT_OK - Lab trace boundary
-                error = f"{type(exc).__name__}: {exc}"
+            except Exception as exc:  # Lab trace must persist unexpected failures.
+                error = type(exc).__name__
                 result = {
                     "success": False,
                     "reason": "调试回合执行失败",
                     "error": error,
                 }
                 trace.setdefault("warnings", []).append(error)
+                decision = project_decision(None, ())
 
             duration_ms = round((time.perf_counter() - started) * 1000, 2)
             if injection_changes:
@@ -128,7 +148,7 @@ class ElfieLabSession:
                     **trace.get("stages", {}),
                 }
             state_after = self.snapshot()
-            model_call = (
+            model_call = model_call_summary(
                 runtime.calls[-1]
                 if runtime is not None and runtime.calls
                 else {
@@ -148,6 +168,7 @@ class ElfieLabSession:
                 trace=trace,
                 model_call=model_call,
                 result=result,
+                decision=decision,
                 state_after=state_after,
                 state_diff=calculate_state_diff(state_before, state_after),
                 duration_ms=duration_ms,
@@ -161,6 +182,7 @@ class ElfieLabSession:
 
     def reset(self) -> Dict[str, Any]:
         with self._lock:
+            self._ensure_open()
             self.session_id = new_id("session")
             self.created_at = utc_now()
             self.turns = []
@@ -181,8 +203,48 @@ class ElfieLabSession:
     def close(self) -> None:
         """Stop cognition and release the body owned by this session."""
         with self._lock:
-            if self._closed:
-                return
-            self._closed = True
-            self._sync_adapter.close()
-            self.body.disconnect()
+            self._close_locked()
+
+    def close_if_idle(self) -> bool:
+        """Close this session only when no turn or reset currently owns it."""
+        if not self._lock.acquire(blocking=False):
+            return False
+        try:
+            self._close_locked()
+            return True
+        finally:
+            self._lock.release()
+
+    def replace_if_idle(
+        self,
+        update_data: Callable[[], Callable[[], None]],
+        create_replacement: Callable[[], ElfieLabSession],
+    ) -> ElfieLabSession | None:
+        """Build a replacement transactionally while preventing concurrent turns."""
+        if not self._lock.acquire(blocking=False):
+            return None
+        try:
+            self._ensure_open()
+            rollback = update_data()
+            replacement_created = False
+            try:
+                replacement = create_replacement()
+                replacement_created = True
+            finally:
+                if not replacement_created:
+                    rollback()
+            self._close_locked()
+            return replacement
+        finally:
+            self._lock.release()
+
+    def _close_locked(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        self._sync_adapter.close()
+        self.body.disconnect()
+
+    def _ensure_open(self) -> None:
+        if self._closed:
+            raise SessionClosedError(self.spec.elfie_id)

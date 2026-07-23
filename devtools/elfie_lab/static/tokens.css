@@ -1,0 +1,23 @@
+:root {
+  color-scheme: light;
+  --surface-base: #f3f6f4;
+  --surface-primary: #ffffff;
+  --surface-secondary: #f8faf9;
+  --surface-elevated: #ffffff;
+  --surface-inset: #edf3ef;
+  --text-primary: #1a2821;
+  --text-secondary: #4e6258;
+  --text-tertiary: #778a80;
+  --border-default: #cbd8d1;
+  --border-subtle: #e0e8e3;
+  --accent-primary: #217a5c;
+  --accent-hover: #19664b;
+  --accent-soft: #dff0e8;
+  --accent-amber: #966718;
+  --accent-indigo: #506da8;
+  --status-error: #b43c3c;
+  --panel-left: 392px;
+  --panel-right: 420px;
+  font-family: "Avenir Next", "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+  font-size: 14px;
+}

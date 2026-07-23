@@ -62,22 +62,17 @@
               <button id="previewZoomOut" type="button" title="缩小" aria-label="缩小">−</button>
               <button id="previewZoomIn" type="button" title="放大" aria-label="放大">＋</button>
               <button id="previewReset" type="button" title="复位视角" aria-label="复位视角">⌂</button>
+              <button id="previewFocusHead" type="button" title="头部取景" aria-label="头部取景">◉</button>
               <button class="capture-button" id="previewCapture" type="button" title="保存当前头像"><span>拍照</span><b>◎</b></button>
             </div>
           </section>
 
           <section class="portrait-section" aria-labelledby="personalityTitle">
-            <div class="section-heading"><div><span>内在画像</span><strong id="personalityTitle">大五人格</strong></div></div>
+            <div class="section-heading"><div><span>内在画像</span><strong id="personalityTitle">大五人格</strong></div><button class="section-action" id="editPersonality" type="button">修改</button></div>
             <div class="personality-layout">
               <svg id="personalityRadar" class="personality-radar" viewBox="0 0 210 170" role="img" aria-label="大五人格雷达图"></svg>
               <div class="personality-tags" id="personalityTags"></div>
             </div>
-          </section>
-
-          <section class="state-section" aria-labelledby="stateTitle">
-            <div class="section-heading"><div><span>State</span><strong id="stateTitle">当前状态</strong></div><small id="wakeStatus">—</small></div>
-            <div class="state-metrics" id="stateMetrics"></div>
-            <div class="emotion-strip"><span class="live-dot"></span><span>主导情绪</span><strong id="dominantEmotion">—</strong></div>
           </section>
 
           <section class="memory-section" aria-labelledby="memoryTitle">
@@ -103,7 +98,7 @@
         <div class="elfie-switcher-wrap" id="switcherWrap" hidden>
           <div class="elfie-menu" id="elfieMenu" hidden role="menu"></div>
           <button class="elfie-switcher" id="elfieSwitcher" type="button" aria-haspopup="menu" aria-expanded="false">
-            <span class="mini-avatar" id="miniAvatar">艾</span>
+            <span class="mini-avatar" id="miniAvatar"><img id="miniAvatarImage" alt="" hidden /><b id="miniAvatarGlyph">艾</b></span>
             <span><strong id="switcherName">—</strong><small>切换测试精灵</small></span>
             <b>⌃</b>
           </button>
@@ -129,20 +124,46 @@
 
         <form class="composer" id="composer">
           <div class="stimulus-drawer" id="stimulusDrawer" hidden>
-            <div class="stimulus-grid">
-              <label>突显度 <output id="salienceOutput">20</output><input id="salienceInput" type="range" min="0" max="100" value="20" /></label>
-              <label>环境温度 <span><input id="temperatureInput" type="number" min="-50" max="100" value="24" /> °C</span></label>
-              <label>撞击力 <span><input id="impactInput" type="number" min="0" max="1000" value="0" /></span></label>
-              <label>抚摸频率 <span><input id="strokeInput" type="number" min="0" max="100" step="0.1" value="0" /></span></label>
+            <div class="stimulus-tabs" role="tablist" aria-label="刺激设置">
+              <button class="active" id="advancedTab" type="button" data-stimulus-tab="advanced">高级输入</button>
+              <button id="debugTab" type="button" data-stimulus-tab="debug">Debug 状态</button>
             </div>
-            <div class="injection-row">
-              <span><b>状态注入</b><small>会在本轮永久标记</small></span>
-              <label>能量 <input id="injectEnergy" type="number" min="0" max="100" placeholder="不修改" /></label>
-              <label>疲劳 <input id="injectFatigue" type="number" min="0" max="100" placeholder="不修改" /></label>
+            <div id="advancedStimulusPanel">
+              <div class="stimulus-grid">
+                <label>突显度 <output id="salienceOutput">20</output><input id="salienceInput" type="range" min="0" max="100" value="20" /></label>
+                <label>环境温度 <span><input id="temperatureInput" type="number" min="-50" max="100" value="24" /> °C</span></label>
+                <label>撞击力 <span><input id="impactInput" type="number" min="0" max="1000" value="0" /></span></label>
+                <label>触碰位置 <select id="impactDirection"><option value="none">无</option><option value="head">头部</option><option value="back">背部</option><option value="paw">爪部</option></select></label>
+                <label>抚摸力度 <span><input id="strokeInput" type="number" min="0" max="100" step="0.1" value="0" /></span></label>
+                <label class="check-control"><input id="networkOnline" type="checkbox" checked /> 网络可用</label>
+              </div>
+            </div>
+            <div id="debugStimulusPanel" hidden>
+              <div class="debug-toggle-row"><label class="check-control"><input id="debugInjectionEnabled" type="checkbox" /> 启用本轮状态覆盖</label></div>
+              <div class="injection-grid" id="debugInjectionFields" aria-disabled="true">
+                <label>能量 <input id="injectEnergy" type="number" min="0" max="100" placeholder="不修改" disabled /></label>
+                <label>疲劳 <input id="injectFatigue" type="number" min="0" max="100" placeholder="不修改" disabled /></label>
+                <label class="check-control"><input id="injectSleeping" type="checkbox" disabled /> 睡眠中</label>
+                <label>快乐 <input id="injectEmotionHappiness" type="number" min="0" max="100" placeholder="不修改" disabled /></label>
+                <label>悲伤 <input id="injectEmotionSadness" type="number" min="0" max="100" placeholder="不修改" disabled /></label>
+                <label>愤怒 <input id="injectEmotionAnger" type="number" min="0" max="100" placeholder="不修改" disabled /></label>
+                <label>恐惧 <input id="injectEmotionFear" type="number" min="0" max="100" placeholder="不修改" disabled /></label>
+                <label>惊讶 <input id="injectEmotionSurprise" type="number" min="0" max="100" placeholder="不修改" disabled /></label>
+                <label>厌恶 <input id="injectEmotionDisgust" type="number" min="0" max="100" placeholder="不修改" disabled /></label>
+                <label>无聊 <input id="injectEmotionBoredom" type="number" min="0" max="100" placeholder="不修改" disabled /></label>
+                <label>依恋 <input id="injectEmotionAttachment" type="number" min="0" max="100" placeholder="不修改" disabled /></label>
+              </div>
             </div>
           </div>
+          <div class="media-preview" id="mediaPreview" hidden>
+            <img id="mediaPreviewImage" alt="本轮视觉输入预览" />
+            <span><strong id="mediaPreviewName">图片</strong><small id="mediaPreviewStatus">等待上传</small></span>
+            <button id="mediaRemove" type="button" aria-label="移除视觉输入">×</button>
+          </div>
           <div class="composer-row">
-            <button class="tool-button" id="stimulusToggle" type="button" aria-expanded="false" title="实验刺激">⌘</button>
+            <button class="tool-button" id="mediaAttach" type="button" title="添加视觉输入" aria-label="添加视觉输入">▧</button>
+            <input id="mediaInput" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+            <button class="tool-button" id="stimulusToggle" type="button" aria-expanded="false" title="高级输入" aria-label="高级输入">⌘</button>
             <label class="message-field" for="messageInput">
               <textarea id="messageInput" rows="1" placeholder="向当前精灵发送刺激…" disabled></textarea>
               <span id="channelHint">[文字]</span>
@@ -153,9 +174,9 @@
         </form>
       </section>
 
-      <aside class="detail-panel is-closed" id="detailPanel" aria-label="选中回合详情" aria-hidden="true">
+      <aside class="detail-panel" id="detailPanel" aria-label="状态与回合详情" aria-hidden="false">
         <div class="detail-heading">
-          <div><p class="eyebrow" id="detailKicker">历史回合 · 只读</p><h2 id="detailTitle">回合详情</h2></div>
+          <div><p class="eyebrow" id="detailKicker">当前精灵 · 实时</p><h2 id="detailTitle">当前状态</h2></div>
           <button id="detailClose" type="button" aria-label="收起回合详情">×</button>
         </div>
         <div class="detail-tabs" role="tablist">
@@ -171,15 +192,37 @@
     <div class="modal-backdrop" id="createModal" hidden>
       <form class="modal" id="createForm" role="dialog" aria-modal="true" aria-labelledby="createTitle">
         <div class="modal-heading"><div><p class="eyebrow">独立测试数据</p><h2 id="createTitle">新建测试精灵</h2></div><button type="button" id="createClose" aria-label="关闭">×</button></div>
-        <label>精灵名称<input id="createName" maxlength="60" value="艾菲-默认测试" required /></label>
-        <label>精灵物种<select id="createSpecies"><option value="dog">小狗</option><option value="fox">狐狸</option></select></label>
-        <label>调试说明<textarea id="createDescription" rows="3" maxlength="240" placeholder="例如：用于验证情绪和记忆链路"></textarea></label>
+        <label>精灵物种<select id="createSpecies" required><option value="dog">小狗</option><option value="fox">狐狸</option></select></label>
+        <label>精灵名称<input id="createName" maxlength="60" autocomplete="off" placeholder="给它起一个名字" required /></label>
+        <label>年龄（岁）<input id="createAgeYears" type="number" min="0.1" max="100" step="0.1" placeholder="例如：2" required /></label>
+        <label>用途与角色<textarea id="createDescription" rows="2" maxlength="240" placeholder="例如：陪伴我验证日常对话、记忆和动作" required></textarea></label>
+        <label>性格描述<textarea id="createPersonalityDescription" rows="3" maxlength="1000" placeholder="例如：温柔、安静，但对新事物很好奇" required></textarea></label>
+        <label>外貌描述<textarea id="createAppearanceDescription" rows="3" maxlength="1000" placeholder="例如：银白色毛发，耳尖是灰色" required></textarea></label>
         <p class="form-error" id="createError" hidden></p>
         <div class="modal-actions"><button type="button" class="secondary-button" id="createCancel">取消</button><button type="submit" class="primary-button">创建并切换</button></div>
       </form>
     </div>
 
+    <div class="modal-backdrop" id="personalityModal" hidden>
+      <form class="modal personality-modal" id="personalityForm" role="dialog" aria-modal="true" aria-labelledby="personalityEditTitle">
+        <div class="modal-heading"><div><p class="eyebrow">创建后校准</p><h2 id="personalityEditTitle">修改大五人格</h2></div><button type="button" id="personalityClose" aria-label="关闭">×</button></div>
+        <p class="modal-intro">数值由性格描述自动生成。这里的修改会覆盖当前精灵的五维人格。</p>
+        <div class="trait-editor" id="personalityTraitEditor"></div>
+        <p class="form-error" id="personalityError" hidden></p>
+        <div class="modal-actions"><button type="button" class="secondary-button" id="personalityCancel">取消</button><button type="submit" class="primary-button">保存修改</button></div>
+      </form>
+    </div>
+
+    <div class="modal-backdrop" id="deleteModal" hidden>
+      <form class="modal confirm-modal" id="deleteForm" role="alertdialog" aria-modal="true" aria-labelledby="deleteTitle">
+        <div class="modal-heading"><div><p class="eyebrow">可恢复删除</p><h2 id="deleteTitle">删除测试精灵</h2></div><button type="button" id="deleteClose" aria-label="关闭">×</button></div>
+        <p>确认删除 <strong id="deleteElfieName">当前精灵</strong>？它的档案、会话和媒体会移入 Lab 回收区。</p>
+        <p class="form-error" id="deleteError" hidden></p>
+        <div class="modal-actions"><button type="button" class="secondary-button" id="deleteCancel">取消</button><button type="submit" class="danger-button" id="deleteConfirm">删除</button></div>
+      </form>
+    </div>
+
     <div class="toast" id="toast" hidden role="status"></div>
-    <script src="/static/app.js" defer></script>
+    <script type="module" src="/static/app.js"></script>
   </body>
 </html>

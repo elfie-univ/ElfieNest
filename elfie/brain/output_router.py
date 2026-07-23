@@ -153,6 +153,11 @@ class OutputRouter:
     def receipts(self, turn_id: TurnId) -> Tuple[ExecutionReceipt, ...]:
         return self._publisher.receipts_for(str(turn_id))
 
+    def decision_plan(self, turn_id: TurnId) -> Optional[DecisionPlan]:
+        with self._lock:
+            runtime = self._runtimes.get(turn_id)
+            return runtime.plan if runtime is not None else None
+
     def retry_receipts(self) -> Tuple[EventId, ...]:
         return self._publisher.retry_pending()
 

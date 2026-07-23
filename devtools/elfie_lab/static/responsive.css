@@ -1,0 +1,22 @@
+@media (max-width: 1359px) {
+  :root { --panel-left: 340px; --panel-right: 370px; }
+  .lab-shell, .lab-shell.detail-open { grid-template-columns: var(--panel-left) minmax(460px, 1fr) 0; }
+  .detail-panel { position: fixed; z-index: 20; top: 0; right: 0; bottom: 0; width: min(420px, 88vw); box-shadow: -24px 0 60px rgba(42, 68, 54, .18); }
+  .lab-shell.detail-open .detail-panel { opacity: 1; }
+  .stimulus-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 760px) {
+  :root { --panel-left: 72px; }
+  .lab-shell, .lab-shell.detail-open { grid-template-columns: 72px minmax(0, 1fr) 0; }
+  .elfie-content, .elfie-empty { visibility: hidden; }
+  .timeline-heading { padding-left: 16px; padding-right: 16px; }
+  .timeline { padding: 22px 14px; }
+  .bubble { max-width: 88%; }
+  .composer { padding-left: 10px; padding-right: 10px; }
+  .send-button { min-width: 44px; }.send-button span { display: none; }
+  .composer-note { display: none; }
+  .stimulus-drawer, .media-preview { margin-left: 0; }.injection-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+}

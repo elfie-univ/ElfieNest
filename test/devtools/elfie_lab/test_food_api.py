@@ -6,6 +6,17 @@ from devtools.elfie_lab.app import create_app
 from devtools.runtime_lab import RuntimeLabConfigStore
 
 
+def elfie_payload(name):
+    return {
+        "name": name,
+        "species_id": "fox",
+        "age_years": 2,
+        "description": "验证粮食选择",
+        "personality_description": "稳定、好奇",
+        "appearance_description": "浅色毛发",
+    }
+
+
 def _write_foods(
     runtime_dir,
     *,
@@ -124,7 +135,7 @@ def test_non_mock_turn_uses_selected_food_and_runtime_catalog(
         lambda config: ("qwen3.5:0.8b",),
     )
     client = client_for(create_app(str(tmp_path / "data"), str(runtime_dir)))
-    created = client.post("/api/elfies", json={"name": "粮食交互测试"}).json()
+    created = client.post("/api/elfies", json=elfie_payload("粮食交互测试")).json()
 
     response = client.post(
         f"/api/elfies/{created['elfie_id']}/turns",
@@ -153,7 +164,7 @@ def test_turn_rejects_legacy_mode_and_unknown_food(
     runtime_dir = tmp_path / "runtime"
     _write_foods(runtime_dir)
     client = client_for(create_app(str(tmp_path / "data"), str(runtime_dir)))
-    created = client.post("/api/elfies", json={"name": "粮食协议测试"}).json()
+    created = client.post("/api/elfies", json=elfie_payload("粮食协议测试")).json()
     endpoint = f"/api/elfies/{created['elfie_id']}/turns"
 
     legacy = client.post(endpoint, json={"message": "你好", "mode": "real"})
@@ -210,7 +221,7 @@ def test_uninstalled_ollama_food_is_disabled_with_setup_command(
         ".venv/bin/python -m ai_runtime.lab"
     )
 
-    created = client.post("/api/elfies", json={"name": "未就绪粮食测试"}).json()
+    created = client.post("/api/elfies", json=elfie_payload("未就绪粮食测试")).json()
     response = client.post(
         f"/api/elfies/{created['elfie_id']}/turns",
         json={"message": "你好", "food_key": "standard"},

@@ -1,0 +1,8 @@
+.lab-shell { display: grid; grid-template-columns: var(--panel-left) minmax(520px, 1fr) var(--panel-right); width: 100vw; height: 100vh; transition: grid-template-columns 220ms ease-in-out; }
+.lab-shell.detail-open { grid-template-columns: var(--panel-left) minmax(560px, 1fr) var(--panel-right); }
+.lab-shell.left-closed { --panel-left: 72px; }
+.elfie-panel, .timeline-panel, .detail-panel { min-height: 0; position: relative; }
+.elfie-panel { display: flex; flex-direction: column; border-right: 1px solid var(--border-default); background: rgba(248, 250, 249, .97); overflow: hidden; }
+.timeline-panel { display: flex; flex-direction: column; background: rgba(243, 246, 244, .9); min-width: 0; }
+.detail-panel { border-left: 1px solid var(--border-default); background: rgba(255, 255, 255, .98); overflow: hidden; opacity: 1; transition: opacity 180ms ease; }
+.detail-panel.is-closed { opacity: 0; pointer-events: none; }

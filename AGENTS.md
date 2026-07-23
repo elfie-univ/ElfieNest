@@ -32,7 +32,7 @@ ElfieNest/
 ├── ai_runtime/          # AI 推理、粮食、工具和安全运行时
 ├── app/                 # 产品功能、接口、基础设施和跨模块编排
 ├── desktop/             # Electron 桌面宿主
-├── godot/               # 独立 Godot 4.6 源项目
+├── godot/               # 独立 Godot 4.7 源项目
 ├── devtools/            # 隔离的模块实验台
 ├── docs/                # 中文设计与实现文档
 ├── scripts/             # 启动、构建、检查和发布脚本

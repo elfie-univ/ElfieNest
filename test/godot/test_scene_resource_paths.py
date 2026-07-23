@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 GODOT_ROOT = PROJECT_ROOT / "godot"
 
@@ -73,3 +72,21 @@ def test_legacy_resource_paths_are_not_referenced() -> None:
 def test_project_uses_main_scene() -> None:
     project_text = (GODOT_ROOT / "project.godot").read_text(encoding="utf-8")
     assert 'run/main_scene="res://main.tscn"' in project_text
+
+
+def test_blender_authoring_sources_are_excluded_from_godot_imports() -> None:
+    authoring_roots = {
+        path.parent
+        for path in GODOT_ROOT.glob("characters/*/source/**/*.blend")
+    }
+
+    missing_markers = [
+        str(path.relative_to(PROJECT_ROOT))
+        for path in sorted(authoring_roots)
+        if not (path / ".gdignore").is_file()
+    ]
+
+    assert missing_markers == [], (
+        "Blender 制作源目录必须用 .gdignore 与 Godot 自动导入隔离: "
+        f"{missing_markers}"
+    )

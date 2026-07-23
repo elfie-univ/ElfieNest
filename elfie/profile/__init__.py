@@ -9,6 +9,14 @@ from .models import (
     EmbodimentProfile,
     ProfileProvenance,
 )
+from .personality_derivation import (
+    PERSONALITY_KEYWORDS,
+    PERSONALITY_PRESETS,
+    OverrideValue,
+    PersonalityDerivation,
+    PersonalityDerivationError,
+    derive_personality,
+)
 from .repository import ElfieProfileRepository
 from .resolver import AppearanceResolver, ResolvedAppearance
 from .species import SUPPORTED_SPECIES, SpeciesAppearanceProfile, get_species_profile
@@ -22,10 +30,16 @@ __all__ = [
     "ElfieProfile",
     "ElfieProfileRepository",
     "ProfileProvenance",
+    "PERSONALITY_KEYWORDS",
+    "PERSONALITY_PRESETS",
+    "OverrideValue",
+    "PersonalityDerivation",
+    "PersonalityDerivationError",
     "ResolvedAppearance",
     "SUPPORTED_MORPHOLOGIES",
     "SUPPORTED_SPECIES",
     "SpeciesAppearanceProfile",
     "create_visual_profile",
+    "derive_personality",
     "get_species_profile",
 ]

@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
+import pytest
+
 import devtools.__main__ as developer_main
 import devtools.elfie_lab.app as elfie_lab_app
 from devtools.entrypoint import available_tools, resolve_tool
@@ -61,3 +63,9 @@ def test_elfie_lab_opens_default_url_when_server_becomes_ready(
     assert exit_code == 0
     assert opened_urls == ["http://127.0.0.1:8877/"]
     assert served_apps == ["elfie-lab-app"]
+
+
+def test_elfie_lab_unified_entrypoint_rejects_remote_binding() -> None:
+    # Given / When / Then
+    with pytest.raises(SystemExit, match="2"):
+        developer_main.main(["elfie-lab", "--host", "0.0.0.0"])

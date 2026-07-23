@@ -19,6 +19,7 @@ const REQUIRED_RESOURCES := [
 	"res://characters/dog/dog.tscn",
 	"res://characters/fox/fox.tscn",
 	"res://characters/shared/elfie_actor.gd",
+	"res://lab_preview_controller.gd",
 ]
 
 

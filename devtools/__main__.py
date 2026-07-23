@@ -9,6 +9,7 @@ from pathlib import Path
 
 import uvicorn
 
+from devtools.elfie_lab.host import loopback_host
 from devtools.entrypoint import available_tools, resolve_tool
 
 
@@ -21,7 +22,8 @@ def _parser() -> argparse.ArgumentParser:
             subparser.add_argument("runtime_args", nargs=argparse.REMAINDER)
             continue
         if tool.default_port is not None:
-            subparser.add_argument("--host", default="127.0.0.1")
+            host_type = loopback_host if tool.name == "elfie-lab" else str
+            subparser.add_argument("--host", default="127.0.0.1", type=host_type)
             subparser.add_argument("--port", default=tool.default_port, type=int)
             subparser.add_argument("--data-dir", default=None)
     return parser

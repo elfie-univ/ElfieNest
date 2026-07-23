@@ -110,7 +110,7 @@ godot/
 └── ui/
 ```
 
-Desktop 只负责 Electron 宿主、窗口、平台差异、发布资源发现和子进程生命周期。Godot 是独立 4.6 源项目，负责房屋、坐标、导航、碰撞、相机和渲染。Godot Web 导出物不是源码，统一写入 `build/components/godot-web/`。
+Desktop 只负责 Electron 宿主、窗口、平台差异、发布资源发现和子进程生命周期。Godot 是独立 4.7 源项目，负责房屋、坐标、导航、碰撞、相机和渲染。Godot Web 导出物不是源码，统一写入 `build/components/godot-web/`。
 
 Desktop 目录的固定二级结构如下：
 

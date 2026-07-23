@@ -11,6 +11,7 @@ from typing import Iterable
 from elfie.body import BodyBinding, BodyRegistry
 from elfie.body.contracts import BodySensorEvent
 from elfie.body.port import BodyPort
+from elfie.brain.decision_types import DecisionPlan
 from elfie.brain.emotion.emotion_system import EmotionSystem
 from elfie.brain.energy.energy import HypothalamusEnergy
 from elfie.brain.memory import MemorySystem
@@ -58,9 +59,9 @@ class Elfie:
         self._clock_lock = Lock()
         self.hypothalamus = HypothalamusEnergy(
             self.character_profile.system_limits,
-            clock=self._simulation_time,
+            clock=lambda: self._elapsed_time,
         )
-        self.amygdala = EmotionSystem(clock=self._simulation_time)
+        self.amygdala = EmotionSystem(clock=lambda: self._elapsed_time)
         self.memory = MemorySystem(
             db_path=memory_db_path or self._default_memory_path(config_dir),
             personality_path=self._personality_path(config_dir),
@@ -258,8 +259,8 @@ class Elfie:
     def execution_receipts(self, turn_id: TurnId) -> tuple[ExecutionReceipt, ...]:
         return self._require_cognitive_runtime().execution_receipts(turn_id)
 
-    def _simulation_time(self) -> float:
-        return self._elapsed_time
+    def decision_plan(self, turn_id: TurnId) -> DecisionPlan | None:
+        return self._require_cognitive_runtime().decision_plan(turn_id)
 
     def _require_cognitive_runtime(self) -> ElfieCognitiveRuntime:
         runtime = self._cognitive_runtime

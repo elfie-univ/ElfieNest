@@ -1,5 +1,6 @@
 import pytest
 
+import devtools.elfie_lab.session as session_module
 from devtools.elfie_lab.schemas import StimulusBundle
 from devtools.elfie_lab.session import ElfieLabSession
 from devtools.elfie_lab.storage import ElfieLabStorage
@@ -42,11 +43,14 @@ def test_mock_turn_records_full_debug_chain(tmp_path, session_factory):
 
     assert turn["result"]["success"] is True
     assert turn["result"]["speech"]
+    assert turn["decision"]["spoken_texts"] == [turn["result"]["speech"]]
+    assert turn["decision"]["motion_intents"][0]["motion"] == "nod_head"
+    assert "response" not in turn["model_call"]
     assert turn["model_call"]["model"] == "elfie-mock"
     stages = turn["trace"]["stages"]
     assert stages["typed_input"]["source"] == "developer_tool"
     assert stages["cognitive_turn"]["status"] == "completed"
-    assert stages["cognitive_turn"]["model_mode"] == "text_fallback"
+    assert stages["cognitive_turn"]["model_mode"] == "structured"
     assert stages["output_receipts"][-1]["status"] == "completed"
     assert (
         storage.load_latest_session(spec.elfie_id)["turns"][0]["turn_id"]
@@ -98,3 +102,55 @@ def test_close_stops_cognitive_runtime(tmp_path, session_factory):
     session.close()
 
     assert runtime.is_running is False
+
+
+def test_close_if_idle_refuses_to_interrupt_owned_turn_lock(tmp_path, session_factory):
+    # Given
+    storage = ElfieLabStorage(str(tmp_path))
+    spec = storage.create_elfie("并发删除测试")
+    session = session_factory(spec, storage)
+    session._lock.acquire()
+
+    try:
+        # When
+        closed = session.close_if_idle()
+    finally:
+        session._lock.release()
+
+    # Then
+    assert closed is False
+    assert session.elfie._cognitive_runtime.is_running is True
+
+
+def test_closed_session_reference_cannot_start_turn_after_delete_wins_race(
+    tmp_path, session_factory
+):
+    # Given
+    storage = ElfieLabStorage(str(tmp_path))
+    spec = storage.create_elfie("删除抢先测试")
+    session = session_factory(spec, storage)
+    assert session.close_if_idle() is True
+
+    # When / Then
+    with pytest.raises(RuntimeError, match="会话已关闭"):
+        session.run_turn(StimulusBundle(message="不应执行"), "mock")
+
+
+def test_failed_turn_does_not_persist_exception_secrets_or_paths(
+    tmp_path, session_factory, monkeypatch
+):
+    storage = ElfieLabStorage(str(tmp_path))
+    spec = storage.create_elfie("失败脱敏测试")
+    session = session_factory(spec, storage)
+
+    def fail_runtime(_food_key, _config_dir):
+        raise RuntimeError(f"sk-sensitive-secret at {tmp_path}/config.yaml")
+
+    monkeypatch.setattr(session_module, "create_runtime", fail_runtime)
+
+    turn = session.run_turn(StimulusBundle(message="触发失败"), "mock")
+    persisted = str(storage.load_latest_session(spec.elfie_id))
+
+    assert turn["error"] == "RuntimeError"
+    assert "sk-sensitive-secret" not in persisted
+    assert str(tmp_path) not in persisted

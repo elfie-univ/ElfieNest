@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import List, TypedDict
 
 from ai_runtime.food.store import FoodCatalogStore
-from devtools.elfie_lab.runtime_adapters import (
+from devtools.elfie_lab.runtime_foods import (
     list_installed_ollama_models,
     load_runtime_food_catalog,
     model_availability,
@@ -106,3 +106,22 @@ def mock_food_item() -> FoodStatusItem:
         "unavailable_reason": "",
         "setup_commands": [],
     }
+
+
+def find_food_item(
+    food_key: str,
+    runtime_store: RuntimeLabConfigStore,
+    food_store: FoodCatalogStore,
+    configure_runtime_command: str,
+) -> FoodStatusItem | None:
+    """Resolve one normalized food key from the same rows exposed by the API."""
+    if food_key == "mock":
+        return mock_food_item()
+    return {
+        item["key"]: item
+        for item in build_food_items(
+            runtime_store,
+            food_store,
+            configure_runtime_command,
+        )
+    }.get(food_key)

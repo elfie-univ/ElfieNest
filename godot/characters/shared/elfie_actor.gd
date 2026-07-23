@@ -73,6 +73,7 @@ var _target_position: Vector3
 var _has_target := false
 var _wander_clock := 0.0
 var _wander_seed := 0
+var _preview_tween: Tween
 
 @onready var _visual_root: Node3D = $VisualRoot
 @onready var _collision_shape: CollisionShape3D = $CollisionShape3D
@@ -96,6 +97,10 @@ func configure(
 	_apply_appearance(appearance)
 	_play_animation("idle")
 	_pick_wander_target()
+
+
+func prepare_preview() -> void:
+	install_shared_animations = false
 
 
 func set_target_name(target_name: String) -> void:
@@ -266,6 +271,78 @@ func visual_bounds() -> AABB:
 	if has_bounds:
 		return bounds.grow(0.14)
 	return bounds
+
+
+func preview_focus_point(target: String) -> Vector3:
+	var bounds := visual_bounds()
+	if bounds.size.is_zero_approx():
+		return global_position + Vector3(0.0, 0.9, 0.0)
+	if target == "head":
+		return Vector3(
+			bounds.get_center().x,
+			bounds.end.y - bounds.size.y * 0.12,
+			bounds.get_center().z,
+		)
+	return bounds.get_center()
+
+
+func play_preview_intent(intent: Dictionary) -> bool:
+	if String(intent.get("type", "")) != "motion":
+		return false
+	var motion := String(intent.get("motion", ""))
+	match motion:
+		"nod_head":
+			_animate_head_gesture.call_deferred(Vector3.RIGHT, [-0.22, 0.12, 0.0])
+			return true
+		"shake_head":
+			_animate_head_gesture.call_deferred(Vector3.UP, [-0.24, 0.24, 0.0])
+			return true
+		_:
+			if not SHARED_ANIMATIONS.has(motion) or not _animation_player.has_animation(motion):
+				return false
+			_animation_player.play(motion)
+			return true
+
+
+func _animate_head_gesture(axis: Vector3, angles: Array) -> void:
+	var skeleton := _find_preview_skeleton()
+	if skeleton == null:
+		return
+	var head_index := skeleton.find_bone("mixamorig_Head")
+	if head_index < 0:
+		return
+	if _preview_tween != null and _preview_tween.is_valid():
+		_preview_tween.kill()
+	var base_rotation := skeleton.get_bone_pose_rotation(head_index)
+	_preview_tween = create_tween()
+	var previous := 0.0
+	for target: float in angles:
+		_preview_tween.tween_method(
+			_set_preview_head_angle.bind(skeleton, head_index, base_rotation, axis),
+			previous,
+			target,
+			0.12,
+		)
+		previous = target
+
+
+func _set_preview_head_angle(
+	angle: float,
+	skeleton: Skeleton3D,
+	head_index: int,
+	base_rotation: Quaternion,
+	axis: Vector3,
+) -> void:
+	skeleton.set_bone_pose_rotation(
+		head_index,
+		base_rotation * Quaternion(axis, angle),
+	)
+
+
+func _find_preview_skeleton() -> Skeleton3D:
+	for node in _visual_root.find_children("*", "Skeleton3D", true, false):
+		return node as Skeleton3D
+	return null
 
 
 func _play_animation(animation_name: String) -> void:
