@@ -2,12 +2,10 @@
 # ElfieNest Git 忽略规则配置 (.gitignore)
 # =========================================================================
 
-# 1. 正式设计文档纳入版本控制，其余本地文档继续忽略
-/docs/*
-!/docs/design/
-!/docs/design/**
-!/docs/contracts/
-!/docs/contracts/**
+# 1. 公开文档站源码纳入版本控制；历史草稿统一放入被忽略的 .omo/
+/docs/node_modules/
+/docs/.vitepress/cache/
+/docs/.vitepress/dist/
 
 # 2. AI Runtime 本地敏感配置与托管二进制（保留旧路径用于升级迁移）
 /ai_runtime/runtime_config.json
@@ -44,6 +42,12 @@ env/
 *.egg
 build/
 dist/
+# Keep the setuptools metadata output directory available in clean checkouts.
+!/build/
+/build/*
+!/build/metadata/
+/build/metadata/*
+!/build/metadata/.gitignore
 
 # 6. IDE/编辑器/工具缓存与日志
 .DS_Store
@@ -63,10 +67,11 @@ dist/
 # 6. 运行时数据（DB、精灵配置等）
 data/
 
-# 7. Sisyphus/OpenCode 工作目录 (本地状态，不提交)
-.omo/
-.sisyphus/
-ElfieNest.worktree/
+# 7. 本地过程材料与代理知识（只供本机整理，不提交、不参与 Docs 构建）
+/.omo/
+/.sisyphus/
+/.agents/knowledge/
+/ElfieNest.worktree/
 
 # 7. Godot 4+ 虚拟空间本地编译与导入缓存 (防止二进制资产及缓存进入仓库)
 /godot/.godot/
@@ -74,9 +79,9 @@ ElfieNest.worktree/
 
 
 # Project agent skills are shared; keep other local agent state ignored.
-.agents/*
-!.agents/skills/
-!.agents/skills/**
+/.agents/*
+!/.agents/skills/
+!/.agents/skills/**
 
 # Runtime temp files (audio, cache, etc.)
 data/temp/

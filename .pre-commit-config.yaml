@@ -1,14 +1,13 @@
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.4
+  - repo: local
     hooks:
-      - id: ruff
-        args: [--fix]
-      - id: ruff-format
+      - id: quality-baseline
+        name: Python quality baseline
+        entry: uv run --no-sync python scripts/check_quality_baseline.py
+        language: system
+        pass_filenames: false
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.14.0
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
     hooks:
-      - id: mypy
-        args: [--strict, --ignore-missing-imports]
-        pass_filenames: true
+      - id: gitleaks

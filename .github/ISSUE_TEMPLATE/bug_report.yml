@@ -1,0 +1,88 @@
+name: Bug 报告
+description: 报告可以稳定复现的 ElfieNest 缺陷
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请勿提交密钥、Token、密码、用户数据或未脱敏日志。安全漏洞请按 SECURITY.md 私密报告。
+  - type: textarea
+    id: summary
+    attributes:
+      label: 问题摘要
+      description: 用一两句话说明哪里出错，以及它造成的影响。
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: 版本或提交
+      description: 填写版本号、分支名或完整 commit SHA。
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 平台
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - 其他
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 环境信息
+      description: Python、Node.js、pnpm、Godot 版本及相关配置；请移除私密值。
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 最小复现步骤
+      description: 从干净状态开始，列出可以重复执行的具体步骤。
+      placeholder: |
+        1. 运行……
+        2. 输入……
+        3. 观察……
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期结果
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际结果
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 已脱敏的日志或证据
+      description: 不要粘贴凭据、用户数据、私有路径或未公开世界观内容。
+      render: text
+  - type: textarea
+    id: verification
+    attributes:
+      label: 已完成的排查
+      description: 列出你已经运行的命令、测试和结果，避免只写“不能用”。
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我已搜索现有 Issue，确认没有相同报告。
+          required: true
+        - label: 日志、截图和配置已经脱敏。
+          required: true
+        - label: 这不是需要私密报告的安全漏洞。
+          required: true

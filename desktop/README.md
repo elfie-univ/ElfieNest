@@ -1,39 +1,78 @@
 # ElfieNest Desktop
 
-这里是跨平台 Electron 外壳。它负责 TypeScript 管理界面、首次安装引导和本地进程监督，
-不承载 Python 或 Godot 的业务逻辑。
+`desktop/` 是跨平台 Electron 宿主，只负责桌面生命周期、窗口、平台资源发现和
+本地进程监督。账户、领养、聊天、Nest 规则和 Elfie 认知都不属于这一层。
 
-## 进程边界
+## 启动与退出顺序
 
-- Electron 主进程：窗口、IPC、安装检查、进程启动和停止。
-- Renderer：安装引导和管理页面。
-- Python Core：由应用包内的打包程序启动。
-- Godot Web Runtime：由 Electron 的隐藏 BrowserWindow 启动并持续运行。
-- Ollama：由应用包内或安装器准备的后台 `ollama serve` 启动。
+`src/main.ts` 先取得单实例锁，再通过
+`src/platform/supervisor_config.ts` 解析开发态或安装包内的运行资源。
+`RuntimeSupervisor` 的启动顺序是：
 
-## 当前实现
+1. 启动或连接 Ollama，并等待 `/api/tags` 可用；
+2. 启动 Python Core，并等待 `/api/health` 可用；
+3. 在隐藏的、关闭后台节流的 `BrowserWindow` 中加载 Godot Web Runtime，
+   注入本次启动生成的 runtime nonce 与 camera token，等待握手完成；
+4. 打开普通用户管理窗口。
 
-`src/main.ts` 会创建一个隐藏的 Godot Web BrowserWindow，并通过
-`src/supervisor/supervisor.ts` 按 Ollama → Python Core → Godot Web 的顺序启动依赖。源码开发时可用
-`ELFIENEST_CORE_BIN` 和 `ELFIENEST_OLLAMA_BIN` 指向本机调试运行时；发布包从
-`resources/` 读取平台专属组件。
+退出时先关闭隐藏 Godot Runtime，再停止 Python Core 和由 Desktop 管理的
+Ollama。任一组件启动失败都会停止已经启动的组件，并显示归因到具体组件的错误
+窗口。设置 `ELFIENEST_OLLAMA_EXTERNAL=1` 时，Desktop 不创建 Ollama 进程，但仍
+会等待配置的 Ollama 地址可用。
 
-生产安装包仍需要在构建流水线中生成 Python Core 和 Ollama 的平台产物，开发者不应把
-Godot 编辑器或用户数据放入安装包。
+## 资源发现
 
-## 固定构建路径
+开发态可以通过以下环境变量显式指定资源，不需要把本机调试程序复制进源码：
 
-Desktop 的 TypeScript 编译结果只能进入根目录 `build/components/desktop/`。发布前的
-平台资源只能按 target 放入根目录 `build/staging/<platform-arch>/resources/`，例如：
+- `ELFIENEST_CORE_BIN`、`ELFIENEST_CORE_CWD`：Python Core 程序与工作目录；
+- `ELFIENEST_OLLAMA_BIN`、`ELFIENEST_OLLAMA_URL`：Ollama 程序与服务地址；
+- `ELFIENEST_UI_URL`、`ELFIENEST_GODOT_URL`：管理界面与 Godot Web 入口；
+- `ELFIE_HOME`：本次桌面运行使用的数据目录。
 
-```text
-build/staging/darwin-arm64/resources/
-├── godot-web/
-├── python-core/ElfieNestCore
-├── ollama/ollama
-└── manifest.json
+安装包资源按单一 target 放在
+`build/staging/<platform-arch>/resources/`。资源清单实现支持：
+
+- `darwin-arm64`
+- `darwin-x64`
+- `win32-x64`
+- `linux-x64`
+
+每个 target 必须包含 Godot Web 的 `html/js/wasm/pck`、对应平台的 Python Core
+和 Ollama 可执行文件。`src/resources/resource_manifest.ts` 会记录文件大小和
+SHA-256，并拒绝缺失资源。完整 staging 约定见
+[`packaging/runtime-resources.md`](packaging/runtime-resources.md)。
+
+## 开发命令
+
+需要 Node.js 20 和仓库锁定的 pnpm 10.12.1：
+
+```bash
+cd desktop
+npx --yes pnpm@10.12.1 install --frozen-lockfile
+npx --yes pnpm@10.12.1 build
+npx --yes pnpm@10.12.1 test
 ```
 
-Windows target 使用 `python-core/ElfieNestCore.exe` 和 `ollama/ollama.exe`。不要再创建
-`resources/python-core/darwin/`、`resources/ollama/win32/` 这类把多平台塞进同一个
-resources 根目录的旧结构。
+准备好一个 target 的 staging 资源后，可生成清单：
+
+```bash
+cd desktop
+ELFIENEST_TARGET=darwin-arm64 \
+  npx --yes pnpm@10.12.1 build-resource-manifest
+```
+
+`npx --yes pnpm@10.12.1 dev` 会编译并启动 Electron，可能继续启动本地组件；
+只做静态检查时不要用它。`npx --yes pnpm@10.12.1 package` 生成安装包，输出
+只能进入根目录 `dist/`。
+
+## 构建边界
+
+```text
+build/components/desktop/                         TypeScript 编译结果
+build/staging/<platform-arch>/resources/          单平台打包资源
+dist/                                             最终安装包
+```
+
+不要把生成的 JavaScript、Godot Web Runtime、Python Core、Ollama、模型或用户
+数据写回 `desktop/`。改变资源布局或监督顺序时，应同步更新对应 TypeScript 测试、
+本文件和 Developer 文档。

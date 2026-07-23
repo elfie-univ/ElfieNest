@@ -1,243 +1,152 @@
-# ElfieNest Project Guide
+# ElfieNest 编码代理指南
 
-An embodied AI creature simulation with a three-layer brain architecture, emotional chemistry, and Godot 3D integration.
+本文件是自动化编码代理进入仓库后的单一规则入口。ElfieNest 是一个具身
+AI 精灵项目，仓库同时包含 Python Core、Electron 桌面宿主、Godot 源项目、
+本地开发工具和公开文档站。产品介绍与用户入口见 `README.md`，贡献教程见
+`CONTRIBUTING.md`；这里仅保留代理执行任务时必须遵守的边界和审批门。
 
-## Quick Start
+## 规则优先级
+
+当前任务的明确用户指令必须遵守。判断项目事实时，按以下顺序取证：
+
+1. 当前代码、对应测试及可重放运行结果；
+2. `pyproject.toml`、`uv.lock`、`.pre-commit-config.yaml`、
+   `.github/workflows/ci.yml`、`.quality-baseline.json` 和
+   `test/architecture/` 等机器配置与契约；
+3. `docs/developer/` 中当前公开的 Developer 文档；
+4. `.agents/knowledge/`、`.omo/` 中的历史或私有材料。
+
+低优先级材料与高优先级事实冲突时，以高优先级为准并修正文档，不要为了
+迎合旧设计而改坏当前实现。不得把历史设想当成已实现能力。
+
+## 私有知识的条件路由
+
+`.agents/knowledge/INDEX.md` 是可选的本机私有索引。只有文件存在，并且当前
+任务属于架构、产品或故事等知识任务时，才按索引条目的 `read_when` 条件读取
+命中的材料；未命中就不要展开读取。索引不存在时，依靠代码、测试、机器配置
+和公开文档正常工作，不得创建占位文件或中断任务。
+
+`.agents/knowledge/` 与 `.omo/` 默认不公开。禁止把其中的秘密、合作材料、
+未发布世界观、历史草案、模型提示词或中间设计稿自动复制、摘录、链接到
+`README.md`、`docs/`、源码注释、提交信息或 PR。公开内容必须经过用户明确审阅。
+
+## 环境、启动与验证
+
+Python 固定为 CPython 3.9.25，依赖以 `uv.lock` 为准：
 
 ```bash
-# Prepare the pinned Python 3.9.25 environment and install the CLI
 ./install.sh
-
-# Verify the unified ElfieNest entrypoint
-elfienest version
-
-# Run the main simulation (3 ticks) through the pinned environment
+./elfienest.sh version
 .venv/bin/python main.py
 ```
 
-The simulation runs without external dependencies - if Ollama is unavailable, it gracefully falls back to a built-in lightweight simulator.
-
-## Architecture
-
-```
-ElfieNest/
-├── elfie/               # 完整精灵个体
-│   ├── profile/         # 个体档案、物种外貌和默认模板
-│   ├── brain/           # Neocortex (LLM reasoning), context building
-│   ├── nervous_system/  # 传感、动作、过滤、限位和反射
-│   ├── body/            # Headless、Native、External 可替换身体
-│   ├── communication/   # 精灵自带的消息通信
-│   ├── skills/          # 思考过程中使用的技能
-├── nest/                # 完整精灵巢活动空间
-├── ai_runtime/          # AI 推理、粮食、工具和安全运行时
-├── app/                 # 产品功能、接口、基础设施和跨模块编排
-├── desktop/             # Electron 桌面宿主
-├── godot/               # 独立 Godot 4.7 源项目
-├── devtools/            # 隔离的模块实验台
-├── docs/                # 中文设计与实现文档
-├── scripts/             # 启动、构建、检查和发布脚本
-├── test/                # 镜像源码结构的测试
-├── build/               # 中间构建产物，Git 忽略
-└── dist/                # 最终安装包，Git 忽略
-```
-
-## 目录架构边界（强制规则）
-
-- `elfie/` 只实现单个完整精灵，不得加入账户、Web、Godot 场景或桌面生命周期。
-- `nest/` 只实现活动空间、巢内状态、环境时钟、互动传播和 Python 侧 Godot 协议。Nest 只能保存精灵 ID 与巢内状态，禁止持有或创建 `ElfieIndividual`。
-- 真实精灵实例与 `Nest` 的组合固定放在 `app/orchestration/NestSession`；跨 `elfie/`、`nest/`、`ai_runtime/` 的流程只能进入 `app/orchestration/`。
-- 产品功能进入 `app/features/`；API/Web/CLI 进入 `app/interfaces/`；持久化、音频、文件系统和设备身份进入 `app/infrastructure/`；`app/bootstrap/` 只负责依赖装配。
-- Godot 房屋、几何、坐标、移动、碰撞和渲染以 `godot/` 为唯一源码来源。禁止在 Python Nest 中创建房屋蓝图、3D 布局或家具资产副本。
-- Electron 窗口、平台适配、资源发现和进程监督进入 `desktop/`；账户、聊天、领养和 Nest 规则禁止进入 Desktop。
-- AI 模型、供应商、粮食策略、工具、安全和推理循环进入 `ai_runtime/`；禁止恢复旧顶层包名 `runtime/`。
-- 禁止恢复旧顶层包名 `elfienest/`。产品名仍为 ElfieNest，但 Python 源码必须按 `app/`、`nest/`、`elfie/`、`ai_runtime/` 分责。
-- 正式中间产物只能写入根 `build/`，最终发行物只能写入根 `dist/`，生产数据只能写入 `ELFIE_HOME`。禁止把生成的 Godot Web、Desktop JS 或 Python Core 放回源码目录。
-- 新增目录或跨边界依赖前必须同步更新 README、架构文档和 `test/architecture/` 契约测试。
-
-## Key Concepts
-
-### Three-Layer Brain Architecture
-1. **Neocortex (Cognition)**: LLM-based reasoning and decision making
-2. **Limbic System (Core Systems)**: Emotions (amygdala), energy (hypothalamus), memory (hippocampus), context (thalamus)
-3. **Nervous System and Body**: Physical actuators, sensors, reflex arcs
-
-### Main Loop Flow
-1. `ElfieNestEngine.start_loop()` drives the application loop
-2. Each tick: `Nest.tick()` advances environment time and `NestSession.tick_elfies()` advances active Elfies
-3. For each active Elfie, the Engine publishes `BrainClockPulse` and pumps typed Body events without waiting for cognition
-4. NervousSystem and Communication publish into `PerceptualWorkspace`
-5. BrainCoordinator seals a frame, builds `BrainContext`, and submits one asynchronous cortical turn
-6. OutputRouter routes the typed `DecisionPlan` and writes execution receipts back to the workspace
-
-## Running Tests
-
-首次运行测试前，先按锁文件安装 CPython `3.9.25` 和开发依赖：
+首次准备开发环境和运行测试：
 
 ```bash
 uv sync --locked --extra dev
+UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/
 ```
 
-```bash
-# Run all tests in the locked Python 3.9.25 environment
-uv run --no-sync pytest test/
+只改局部时先运行对应测试，再运行 `test/architecture/`。质量门及文档构建命令
+以 `CONTRIBUTING.md` 为准；机器上的最终事实源是 `pyproject.toml`、
+`.quality-baseline.json`、`.pre-commit-config.yaml` 和 CI。不得另写一套代码
+规范或用文档描述覆盖机器配置。
 
-# Run specific test file
-uv run --no-sync pytest test/elfie/brain/emotion/test_emotion_system.py
+## 目录与依赖边界
 
-# Run with verbose output
-uv run --no-sync pytest test/ -v
-```
+- `elfie/` 只实现单个完整精灵：档案、大脑、神经系统、身体、通信和技能；
+  不得加入账户、Web、Godot 场景或桌面生命周期。
+- `nest/` 只实现活动空间、巢内状态、环境时间、互动传播和 Python 侧 Godot
+  接口；只能保存精灵 ID 与巢内状态，不得持有或创建真实精灵对象。
+- 真实精灵与 `Nest` 的组合属于 `app/orchestration/`；跨 `elfie/`、`nest/`
+  和 `ai_runtime/` 的产品流程也必须在这里编排。
+- `app/features/` 放产品用例，`app/interfaces/` 放 API、Web、CLI，
+  `app/infrastructure/` 放持久化、音频、文件系统和设备能力，
+  `app/bootstrap/` 只做依赖装配。
+- `ai_runtime/` 放模型、供应商、粮食策略、工具、安全和推理循环。
+- `desktop/` 只负责 Electron 窗口、平台适配、资源发现和进程监督，不承载
+  账户、聊天、领养或 Nest 规则。
+- `godot/` 是房屋、几何、坐标、移动、碰撞和渲染的唯一源码来源；禁止在
+  Python 中复制场景、3D 布局或家具事实。
+- `devtools/` 是隔离的模块实验台；`docs/` 是公开文档网站内容；
+  `test/` 必须镜像源码结构，根目录不得新增 `test_*.py`。
+- 中间构建产物只能写入根 `build/`，最终发行物只能写入根 `dist/`，生产数据
+  只能写入 `ELFIE_HOME`；不得把生成物写回源码目录。
 
-Tests require no external services - they use mock agents.
+禁止恢复旧顶层 Python 包 `runtime/` 或 `elfienest/`。新增顶层目录、改变上述
+职责或引入跨边界依赖前，必须先更新 `test/architecture/` 契约，再同步相关
+README 与 `docs/developer/`，并由用户确认架构影响。
 
-## Worktree Completion Workflow
+## 实现和测试要求
 
-When working from a Git worktree, do not leave completed work only in the
-worktree branch. After a feature is finished, verified, and confirmed by the
-user:
+- 行为变化先写能失败的测试，再做最小实现；测试放在对应
+  `test/<module>/` 路径并使用绝对导入。
+- Python、TypeScript、GDScript 的具体规范、质量基线与验证命令只引用
+  `CONTRIBUTING.md`、`pyproject.toml`、`.quality-baseline.json`、
+  `.pre-commit-config.yaml`、CI 和架构测试，不在本文件复制教程。
+- 不覆盖或回滚他人的未提交改动，不顺手格式化、删除或重构任务范围外文件。
+- 修改行为、命令、配置或目录边界时，同步更新面向开发者的当前文档；能力
+  声明必须能由代码、测试或可重放场景证明。
 
-1. Commit the completed work in the worktree branch.
-2. Push the branch to the remote repository.
-3. Merge or otherwise sync the confirmed changes back to the original main
-   branch so other branches and worktrees can see them.
-4. Report the commit, branch, push status, and merge/sync status to the user.
+## Godot 操作门
 
-If the user has not confirmed the result yet, keep the changes local and state
-that they are not merged back. Do not assume worktree-only changes are visible
-from the main checkout.
+打开、运行、调试、截图或关闭 Godot 前，必须先读取并执行
+`.agents/skills/godot-project-operator/SKILL.md`。按该技能检查现有进程和
+`godot/project.godot` 声明的版本；未经用户同意不得用不匹配版本编辑项目，
+不得创建重复实例。操作前后检查 Git 状态，禁止保留 `.godot/`、导入缓存或
+编辑器自动产生的无关改动。
 
-## Git 提交与推送（强制规则）
+Godot 相关规则的机器边界由 `godot/project.godot`、源码资源和
+`test/architecture/` / `test/godot/` 验证；技能负责安全操作流程，二者都不能
+被旧设计文档替代。
 
-- 用户要求“提交”“提交代码”“commit 一下”或“保存到 Git”时，必须读取并遵循 `.agents/skills/git-submit-and-push/SKILL.md`。
-- 每次完成并验证一组改动后，必须主动评估它是否已构成边界清晰、没有已知问题的提交节点；是则自动 commit 并 push，不等待用户再次下达“提交”命令。
-- 禁止提交仍在调试、测试失败、存在已知 bug 或尚待用户确认的半成品。对于需要用户目视验收的界面改动，用户说“没 bug 了”“可以了”或“验收通过”即视为提交和推送确认。
-- 除非用户明确要求“只提交本地”或“不要推送”，否则“提交”默认包含创建 commit 并立即 push 当前分支。
-- 禁止在本地 commit 成功后停止；只有远端 push 成功并验证分支不再 ahead 才算完成。
-- push 失败时必须继续处理可恢复问题，无法恢复时明确说明代码仍未被团队共享。
-- 最终报告必须包含 commit 哈希、分支、远端推送状态、测试结果和剩余未提交改动。
+## 文档、公开边界与调试工具
 
-### Test Structure
+- 新增或改写的产品、交互、架构和技术设计正文必须使用简体中文；路径、
+  标识符、API、协议字段和第三方产品名可以保留英文并用中文说明。
+- `docs/` 只发布最终读者需要、与当前实现一致且经用户审阅的内容。会议记录、
+  提示词、模型中间稿、历史草案、合作材料和未开发剧情留在私有区域。
+- JSON Schema 等内部数据结构不得为了说明代码而在文档站维护冗余副本；
+  代码中的类型模型是内部契约事实源。
+- 单精灵调试平台只服务本地 `elfie` 模块开发，必须使用独立入口、本地网址、
+  前端资源和数据目录。禁止修改或复用 `app/interfaces/web/static/` 的普通
+  用户页面，禁止在生产入口或普通用户导航中暴露调试平台。
 
-测试文件按照源代码包结构组织，镜像源代码目录：
+任何公开能力、剧情秘密、截图或页面上线前，都需要负责人目视审阅。无法证明
+已实现的能力应明确标为规划，或不公开。
 
-```
-test/
-├── elfie/
-│   ├── brain/
-│   │   ├── emotion/         # 情绪系统测试
-│   │   ├── context/         # 上下文与认知协调测试
-│   │   ├── memory/          # 记忆测试
-│   │   └── energy/          # 能量测试
-│   ├── body/
-│   │   ├── anatomy/         # 解剖学测试
-│   │   └── reflex/          # 反射弧测试
-│   ├── nervous_system/
-│   │   ├── actuators/       # 执行器测试
-│   │   ├── sensors/         # 传感器测试
-│   │   └── reflex/          # 反射测试
-│   └── body/
-│       ├── native/          # Native 身体测试
-│       ├── headless/        # Headless 身体测试
-│       └── external/        # External 身体测试
-├── nest/                    # 活动空间和 Godot 协议测试
-├── ai_runtime/              # AI 运行时测试
-├── app/                     # 产品功能、接口、基础设施和编排测试
-├── devtools/                # 隔离开发工具测试
-├── godot/                   # Godot 源资源契约测试
-├── architecture/            # 目录和依赖边界契约
-└── e2e/                     # 产品全链路测试
-```
+## 安全与敏感信息
 
-**新增测试规则**：
-- 测试文件必须放在对应包路径（镜像源代码结构）
-- 每个测试目录必须有`__init__.py`
-- 使用绝对导入：`from elfie.brain.emotion import ...`
-- 禁止在`test/`根目录直接放置测试文件
+禁止把 API Key、Secret、Token、密码、私有地址、用户数据、未脱敏日志或生产
+配置写入任何被 Git 跟踪的文件。密钥从环境变量或 `ELFIE_HOME` 下被忽略的
+用户配置加载；示例只能使用明显占位符。
 
-## Configuration
+`.pre-commit-config.yaml` 使用官方 `gitleaks/gitleaks` pre-commit hook，
+CI 通过 `pre-commit run --all-files` 执行它。仓库配置不等于本机已安装
+`.git/hooks/pre-commit`；需要本地钩子时按 `CONTRIBUTING.md` 准备环境。
+禁止使用 `--no-verify`、删除扫描器或修改忽略规则来绕过检查。安全扫描只是
+提交前的机器门，发现或怀疑泄密时仍须停止发布并请求用户确认。
 
-### LLM Runtime
-- Production config is loaded from `${ELFIE_HOME:-~/.elfienest}/config.yaml`
-- Falls back to environment variables: `OLLAMA_HOST`, `DEEPSEEK_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `QWEN_API_KEY`
-- Default local model: `qwen3.5:0.8b` via Ollama
+## 提交、推送与人工审批
 
-### Creature Configs
-- `elfie/profile/defaults/personality.yaml` - 默认 Big Five 人格和说话风格
-- `elfie/profile/defaults/capabilities.yaml` - 默认动作能力
-- `elfie/profile/defaults/system_limits.yaml` - 默认关节、能量和疲劳限制
-- 每只精灵自己的稳定配置保存在其数据目录的 `profile.yaml`
+准备提交或推送时，先读取
+`.agents/skills/git-submit-and-push/SKILL.md`，检查工作区、测试、敏感信息、
+分支和远端状态。只有变更完整、验证通过且满足用户授权与审阅门时，才能按该
+技能暂存、提交和推送；明确要求“不提交”或“审阅后再提交”时，该人工审批点
+优先，保持改动在本地。
 
-## Godot Integration
+本次文档体系重建的用户审批门是：用户完整审阅文档前，禁止 stage、commit、
+push 或发布网站。完成实现与本地验证后只报告工作区状态和验收入口，等待用户
+明确确认。未来其他任务仍按当时的用户指令、本文件和 Git 技能判断，不继承
+本次临时禁令。
 
-The engine uses **WebSocket port 8765** for real-time bidirectional communication
-with the Godot client. Elfie replies are text events; external messaging channels
-may add on-demand voice generation in their own adapters when required.
+## 完成前检查
 
-When Godot connects, actions are sent as `go_to`, `speak_event` events. Without Godot, runs in terminal-only mode.
+交付前必须确认：
 
-## Godot 操作技能（强制规则）
-
-- 打开、运行、验证、截图或关闭 Godot 前，必须读取并遵循 `.agents/skills/godot-project-operator/SKILL.md`。
-- 必须先检查已有 Godot 进程；禁止使用 `open -n` 创建重复实例。
-- 编辑器和游戏运行窗口只能按任务需要保留一个。短时 headless 验证必须同步等待退出。
-- 必须核对 `project.godot` 声明的 Godot 版本；版本不匹配时，未经用户明确同意不得打开可编辑项目。
-- 操作前后检查 Git 工作区，禁止擅自保留 Godot 自动生成的项目版本或导入元数据变更。
-
-## 设计文档语言（强制规则）
-
-- 后续新增或改写的产品设计、交互设计、架构设计、技术方案等设计文档，正文必须使用简体中文。
-- 文件路径、代码标识符、API 名称、协议字段和第三方产品名可以保留英文，但必须用中文说明其含义。
-- 禁止新增只有英文正文、没有中文说明的设计文档。
-
-## 开发者调试平台隔离（强制规则）
-
-- 单精灵调试平台仅供本地开发和调试 `elfie` 模块使用，不属于普通用户产品界面。
-- 调试平台必须使用独立启动入口、独立本地网址、独立前端资源和独立数据目录。
-- 禁止为了实现调试平台而修改或复用 `app/interfaces/web/static/` 下的普通用户前端页面。
-- 禁止在普通用户导航、生产服务入口或安装后的用户界面中暴露调试平台。
-- 调试平台可以复用项目的视觉变量和基础技术栈，但不能依赖 `ElfieNestEngine`、Godot、群聊房间或普通用户鉴权流程才能运行。
-
-## Security: 密钥与敏感信息管理（强制规则）
-
-> **绝对禁止将 API Key、Secret、Token、密码等敏感信息以明文形式写入代码或配置文件中并提交到 Git。**
-
-### 强制规则
-
-1. **禁止明文密钥**：任何 API Key（如 `sk-xxx`、`pk-xxx`、`AIzaxxx`、`AKIAxxx`、`ghp_xxx` 等）不得以字符串字面量出现在 `.py`、`.yaml`、`.yml`、`.json`、`.md` 等任何被 Git 跟踪的文件中。
-2. **使用环境变量**：所有密钥必须通过环境变量读取（`os.environ.get("API_KEY")`），或从已 gitignore 的用户数据配置加载（如 `${ELFIE_HOME}/config.yaml`、`${ELFIE_HOME}/.env`）。
-3. **配置文件占位符**：示例配置中使用占位符（如 `<your-api-key-here>`、`${API_KEY}`），不得填写真实密钥。
-4. **已 gitignore 的敏感文件**：`config.yaml`、`.env` 和本机 Runtime 配置已在 `.gitignore` 中，不得移除对应保护规则。
-5. **Pre-commit 钩子**：项目已安装 `.git/hooks/pre-commit`，提交前自动扫描密钥模式。如检测到疑似密钥，提交将被阻止。不要使用 `--no-verify` 绕过。
-
-### 正确做法
-
-```python
-# ✅ 正确：从环境变量读取
-api_key = os.environ.get("OPENAI_API_KEY", "")
-
-# ✅ 正确：从 gitignored 配置文件加载
-config = load_config(os.environ["ELFIE_HOME"] + "/config.yaml")
-```
-
-```yaml
-# ✅ 正确：使用占位符
-api_key: ${OPENAI_API_KEY}  # 从环境变量注入
-```
-
-### 错误做法
-
-```python
-# ❌ 错误：明文硬编码
-api_key = "<never-hardcode-api-key>"
-```
-
-```yaml
-# ❌ 错误：明文写在配置文件中
-api_key: <never-hardcode-api-key>
-```
-
-## Notes
-
-- Comments and config files are in Chinese
-- Long-term episodic memories are stored under `ELFIE_HOME` by the memory system; the root `.elfie_memories.json` path is only a legacy migration input.
-- `download_novel.py` is a standalone utility, not part of the simulation
+1. 改动位于正确目录，没有引入禁止的跨边界依赖或旧顶层包；
+2. 对应测试、`test/architecture/` 和适用的质量门实际通过；
+3. 文档与代码事实一致，私有材料未进入公开路径；
+4. Gitleaks 与其他安全检查没有被绕过；
+5. 没有混入他人改动、缓存、生成物或 Godot 导入噪声；
+6. 用户要求的人工审阅、提交和发布审批点已经满足。

@@ -12,7 +12,6 @@ from elfie.body import BodyCommand, BodySensorEvent, CommandReceipt
 from elfie.body.contracts import BodyCommand as ContractBodyCommand
 from elfie.brain import BrainContext, DecisionPlan, PerceptualWorkspace
 from elfie.communication import CommunicationEnvelope, DeliveryReceipt
-from scripts.export_elfie_contract_schemas import render_contract_schemas
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ELFIE_ROOT = PROJECT_ROOT / "elfie"
@@ -23,17 +22,6 @@ REQUIRED_BRAIN_FILES = frozenset(
         "perception_types.py",
         "perceptual_workspace.py",
         "runtime_port.py",
-    }
-)
-EXPECTED_SCHEMA_FILES = frozenset(
-    {
-        "body-command.schema.json",
-        "body-sensor-event.schema.json",
-        "brain-context.schema.json",
-        "communication-envelope.schema.json",
-        "decision-plan.schema.json",
-        "execution-receipt.schema.json",
-        "message-meta.schema.json",
     }
 )
 
@@ -68,7 +56,7 @@ def test_elfie_does_not_reverse_import_application_or_runtime_layers() -> None:
 
 
 def test_canonical_cross_module_contracts_are_public() -> None:
-    # Given / When / Then
+    # Given
     for contract in (
         BodySensorEvent,
         CommandReceipt,
@@ -77,7 +65,12 @@ def test_canonical_cross_module_contracts_are_public() -> None:
         BrainContext,
         DecisionPlan,
     ):
-        assert callable(contract.model_json_schema)
+        # When
+        schema = contract.model_json_schema()
+
+        # Then
+        assert schema["title"] == contract.__name__
+        assert schema["type"] == "object"
     assert BodyCommand is not None
     assert BodyCommand is ContractBodyCommand
     assert PerceptualWorkspace is not None
@@ -161,16 +154,15 @@ def test_elfie_facade_stays_within_250_pure_source_lines() -> None:
     assert len(lines) <= 250
 
 
-def test_versioned_contract_schemas_are_complete() -> None:
+def test_pydantic_contracts_have_no_tracked_schema_maintenance_chain() -> None:
     # Given
     schema_root = PROJECT_ROOT / "docs" / "contracts" / "elfie" / "v1"
+    scripts_root = PROJECT_ROOT / "scripts"
 
     # When
-    existing = {path.name for path in schema_root.glob("*.schema.json")}
+    schema_snapshots = tuple(schema_root.glob("*.schema.json"))
+    schema_exporters = tuple(scripts_root.glob("export_*contract*schema*.py"))
 
     # Then
-    assert existing == EXPECTED_SCHEMA_FILES
-    assert {
-        path.name: path.read_text(encoding="utf-8")
-        for path in schema_root.glob("*.schema.json")
-    } == render_contract_schemas()
+    assert schema_snapshots == ()
+    assert schema_exporters == ()

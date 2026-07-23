@@ -1,0 +1,125 @@
+# 当前架构
+
+这份文档描述 ElfieNest 当前代码中的模块边界与运行链路。它不是历史路线图，也
+不会把尚未实现的设计写进当前架构。
+
+## 系统地图
+
+```text
+Electron Desktop
+        │ 监督进程、窗口与平台资源
+        ▼
+Python Core: app
+   ├── orchestration ──> elfie
+   │                ├──> nest
+   │                └──> ai_runtime
+   ├── features
+   ├── interfaces
+   └── infrastructure
+        │
+        └──────────────> Godot Web Runtime
+```
+
+核心源码按职责分为：
+
+| 模块 | 当前职责 | 详细入口 |
+| --- | --- | --- |
+| `elfie/` | 一只完整精灵的档案、大脑、神经系统、身体、通信与技能 | [Elfie README](https://github.com/elfie-univ/ElfieNest/blob/main/elfie/README.md) |
+| `nest/` | 活动空间状态、环境时钟、互动和 Godot 协议边界 | [Nest README](https://github.com/elfie-univ/ElfieNest/blob/main/nest/README.md) |
+| `ai_runtime/` | 模型、Provider、策略、粮食、工具与安全运行时 | [AI Runtime README](https://github.com/elfie-univ/ElfieNest/blob/main/ai_runtime/README.md) |
+| `app/` | 产品用例、接口、基础设施和跨模块编排 | [App README](https://github.com/elfie-univ/ElfieNest/blob/main/app/README.md) |
+| `desktop/` | Electron 生命周期、资源发现和进程监督 | [Desktop README](https://github.com/elfie-univ/ElfieNest/blob/main/desktop/README.md) |
+| `godot/` | 房间、几何、坐标、碰撞、角色和渲染源码 | [Godot README](https://github.com/elfie-univ/ElfieNest/blob/main/godot/README.md) |
+| `devtools/` | 与普通用户产品隔离的模块实验台 | [Devtools README](https://github.com/elfie-univ/ElfieNest/blob/main/devtools/README.md) |
+
+## 模块边界
+
+`app/orchestration/NestSession` 是真实 `Elfie` 实例与 `Nest` 的唯一组合位置。
+它按 ID 把巢内事件交给对应精灵，也负责把认知 Runtime 注入精灵生命周期。
+
+`Nest` 自己只维护居民 ID、巢内语义状态、环境时钟与互动传播。它不创建或保存
+真实 Elfie 对象，也不复制 3D 空间事实。
+
+房屋、几何、世界坐标、移动、碰撞体、导航和渲染的唯一源码来源是 `godot/`。
+Python 侧只保存产品规则所需的语义状态，并通过明确协议与导出的 Godot Runtime
+交换事件。
+
+依赖方向由 `test/architecture/` 持续检查。底层领域模块不能为了调用产品功能
+而反向依赖 `app.interfaces`。
+
+## 类型化认知信息流
+
+Elfie 的物理感知与数字通信是两条独立输入通道：
+
+```text
+Body -> NervousSystem --------\
+                               -> PerceptualWorkspace
+Communication ----------------/          │
+                                          ▼
+                                  BrainCoordinator
+                                          │
+                              BrainContext + 模型回合
+                                          │
+                                          ▼
+                                    DecisionPlan
+                                          │
+                                          ▼
+                                     OutputRouter
+                          ┌───────────────┼───────────────┐
+                          ▼               ▼               ▼
+                        身体             通信           内部执行器
+                          └──────── ExecutionReceipt ─────┘
+                                          │
+                                          └──> PerceptualWorkspace
+```
+
+`ElfieNestEngine.tick_once()` 推进 Nest 和精灵自身时钟，再泵送身体事件；它不会
+等待模型推理或输出执行完成。每只精灵的 `BrainCoordinator` 独立封装感知帧，
+`OutputRouter` 原子接收完整 `DecisionPlan`，执行结果再作为回执回到工作区。
+
+这些内部契约由 Pydantic 类型定义。需要 JSON Schema 的调用方可以在运行时对
+公开模型调用 `model_json_schema()`；仓库不维护第二份磁盘 Schema。
+
+## 进程边界
+
+开发态和安装态的组件不都运行在一个进程里：
+
+```text
+Electron Desktop
+  ├── 普通用户窗口
+  ├── Ollama（受管或外部）
+  ├── Python Core
+  └── 隐藏 Godot Web Runtime
+```
+
+Desktop 只负责单实例窗口、平台资源发现、进程监督和退出收束。账户、领养、
+聊天、Nest 规则与 Elfie 认知仍属于 Python Core。Godot Web Runtime 在隐藏的
+Chromium 窗口中持续运行，负责空间世界；模型服务可以是本地 Ollama 或由 Runtime
+配置的其他 Provider。
+
+## 数据与产物边界
+
+三类路径不能混用：
+
+| 内容 | 唯一位置 |
+| --- | --- |
+| 生产配置、数据库、精灵数据和本地密钥 | `${ELFIE_HOME:-~/.elfienest}` |
+| 可再生的中间构建产物 | 根目录 `build/` |
+| 最终发行安装包 | 根目录 `dist/` |
+
+测试和实验必须使用隔离的 `ELFIE_HOME`。生成的 Godot Web、Desktop JavaScript
+和 Python Core 不能写回源码目录；`build/` 与 `dist/` 都不提交 Git。
+
+## 当前事实与未来方向
+
+当前仓库已经具备分层模块、类型化认知闭环、Godot 源项目、Electron 宿主代码和
+源码运行入口，但仍是开发者预览。
+
+以下内容不能从架构图推导为已经交付：
+
+- 可下载并完成发布验收的 Windows、macOS 或 Linux 桌面安装包；
+- 当前 CI 没有覆盖的平台兼容性；
+- 历史设计稿中尚未进入代码和测试的高级玩法。
+
+当一项未来方向真正实现、通过测试并完成负责人审阅后，才会进入“当前架构”或
+单独的关键设计文章。

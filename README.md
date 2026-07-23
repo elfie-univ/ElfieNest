@@ -1,208 +1,137 @@
 # ElfieNest
 
-ElfieNest 是一个桌面端具身 AI 精灵系统。它将完整精灵个体、精灵巢活动空间、AI 推理运行时、用户产品功能、Godot 3D 世界和 Electron 桌面宿主拆成独立模块，并通过明确的依赖方向组合运行。
+一个仍在早期开发中的开源具身 AI 精灵项目：让每只 Elfie 拥有自己的档案、
+感知、情绪、能量、记忆、身体与类型化认知闭环，并生活在由 Godot 呈现的 Nest
+世界里。
 
-## 整体架构
+> 当前仓库提供的是源码开发者预览，不是已经发布的桌面安装包。想先认识这个
+> 项目，可以阅读[世界观与故事](docs/story/index.md)；想实际运行，请从
+> [开始使用](docs/getting-started/index.md)进入。
 
-```mermaid
-flowchart TB
-    subgraph Desktop["ElfieNest Desktop（Electron 跨平台应用宿主）"]
-        direction TB
+## 当前项目状态
 
-        subgraph Application["App 产品与编排层"]
-            direction TB
-            App["产品功能、接口与基础设施"]
-            Session["app/orchestration/NestSession<br/>Elfie + Nest 唯一组合桥梁"]
-            App --> Session
-        end
+ElfieNest 正在搭建一条可观察、可测试的具身 AI 生命循环。当前代码已经包含：
 
-        subgraph Domain["核心领域层"]
-            direction LR
-            Elfie["Elfie<br/>完整精灵个体"]
-            Nest["Nest<br/>精灵巢活动空间"]
-            Communication["elfie/communication<br/>个体消息策略、收件箱与发件箱"]
-        end
+- 单个 Elfie 的稳定档案、三层脑、记忆、情绪、能量、神经系统和可替换身体；
+- Body 与 Communication 分别进入感知工作区，再由认知协调器形成类型化决策，
+  最后路由到身体、通信或内部执行器；
+- 只维护居民 ID 和巢内语义状态的 Nest，以及拥有房间、几何、移动、碰撞和渲染
+  源码的 Godot 项目；
+- 独立的 AI Runtime、产品应用层、Electron 桌面宿主和模块调试工具。
 
-        subgraph Runtime["运行时与系统能力层"]
-            direction LR
-            AIRuntime["AI Runtime<br/>模型、粮食、工具与安全"]
-            Godot["Godot Web Runtime<br/>3D 世界、移动、碰撞与渲染"]
-            Connectivity["Connectivity Runtime（规划中）<br/>真实网络连接、信令与环境适配"]
-            DataHome["ELFIE_HOME<br/>配置、数据库、模型与精灵数据"]
-        end
+这些模块仍处于开发阶段。仓库不会把未来玩法、未验证平台或尚未发布的安装包写成
+现成功能。
 
-        Session --> Elfie
-        Session --> Nest
-        Elfie --> Communication
-        Elfie --> AIRuntime
-        Nest <--> Godot
-        Communication -. "未来接入" .-> Connectivity
-        App --> DataHome
-        Elfie --> DataHome
-        AIRuntime --> DataHome
-    end
+## 核心体验
 
-    ModelServices["本地或云端模型服务"]
-    ExternalWorld["微信、Telegram、Nest-Nest 与其他外部环境"]
-    AIRuntime --> ModelServices
-    Connectivity -. "规划中的连接器" .-> ExternalWorld
+ElfieNest 关注的不是让模型只返回一段聊天文字，而是让感知、思考和行动沿着清晰
+边界持续流动：
+
+```text
+Body / Communication
+        ↓
+PerceptualWorkspace
+        ↓
+BrainCoordinator → DecisionPlan
+        ↓
+OutputRouter → 身体 / 通信 / 内部状态
+        ↓
+ExecutionReceipt 回到感知工作区
 ```
 
-Electron 是应用宿主和进程监督者，不承载精灵、Nest 或账户业务规则。App 通过
-`NestSession` 组合真实精灵与活动空间；Elfie 使用 AI Runtime 完成推理，Nest 与
-Godot Runtime 交换世界事件。`elfie/communication` 已提供精灵自身的消息语义，
-未来的 Connectivity Runtime 只负责真实网络连接、协议适配和跨环境传输。
-
-图中展示的是职责与组合关系，不代表所有模块运行在同一进程：App、Elfie、Nest
-和 AI Runtime 属于 Python Core；Godot Web Runtime 运行在独立隐藏窗口中；模型
-服务和外部通信环境位于 Desktop 应用边界之外。
+物理时钟不等待模型推理完成。真实 Elfie 与 Nest 只在应用编排层组合；Godot
+继续作为空间与渲染的唯一源码来源。
 
 ## 快速开始
 
-项目固定使用 CPython `3.9.25`：
+当前最短路径使用固定的 CPython `3.9.25` 和 `uv.lock`：
+
+```bash
+./install.sh --env-only
+./elfienest.sh version
+.venv/bin/python main.py
+```
+
+`main.py` 会运行三次 tick 的本地演示。没有可用的 Ollama 服务时，Runtime 可以
+进入回退路径；这用于验证基本链路，不等同于完整模型体验。
+
+如需安装当前用户可直接调用的 `elfienest` 命令：
 
 ```bash
 ./install.sh
 elfienest version
-.venv/bin/python main.py
 ```
 
-没有可用的 Ollama 服务时，基础仿真可以降级运行；完整本地模型能力需要安装或由桌面发行包提供 Ollama runner，并下载相应模型。
+安装脚本只支持用户级安装，请不要使用 `root` 或 `sudo`。更完整的前提、错误处理
+和平台说明见[开始使用](docs/getting-started/index.md)。
 
-## 根目录
+## 平台与能力状态
 
-```text
-ElfieNest/
-├── ai_runtime/        # AI 模型、粮食策略、工具、安全和运行时实验台
-├── elfie/             # 一个完整精灵个体：大脑、身体、感知和执行器
-├── nest/              # 一个完整精灵巢：状态、环境驱动、互动和 Godot 会话
-├── app/               # 账户、领养、聊天、管理、接口、持久化和跨模块编排
-├── desktop/           # Electron 窗口、进程监督、平台适配和打包配置
-├── godot/             # 独立 Godot 4.7 源项目，不是运行时产物目录
-├── devtools/          # Elfie、Nest、AI Runtime 的隔离开发实验台
-├── scripts/           # 启动、构建、检查、迁移和发布脚本
-├── test/              # 与源码模块镜像的测试，以及产品 E2E
-├── docs/              # 产品、架构、开发和运行文档
-├── build/             # 中间构建产物，Git 忽略
-└── dist/              # DMG、EXE、AppImage 等最终发布物，Git 忽略
-```
+| 项目 | 当前状态 |
+| --- | --- |
+| 源码环境安装与版本入口 | CI 在 Ubuntu 与 macOS 验证 |
+| Windows 源码环境 | 当前 CI 尚未验证 |
+| Python | 固定 CPython 3.9.25 |
+| Godot 源项目 | 当前声明 Godot 4.7 |
+| 桌面安装包 | 尚未正式发布 |
+| 无外部模型的基础演示 | 提供 Runtime 回退路径 |
 
-## 核心边界
+Desktop 源码中已有 macOS、Windows 和 Linux 的目标资源布局，但这不代表对应平台
+已经提供可下载、经过发布验收的安装包。
 
-### `elfie/`
+## 文档入口
 
-定义一个完整 `Elfie`。情绪、能量、记忆、认知、身体限制、感知和动作能力都属于精灵自身；它不负责账户、房间渲染或桌面生命周期。
+- [文档首页](docs/index.md)：项目简介与阅读入口；
+- [世界观与故事](docs/story/index.md)：写给第一次认识 ElfieNest 的读者；
+- [开始使用](docs/getting-started/index.md)：从源码运行当前预览；
+- [开发者文档](docs/developer/index.md)：架构、开发流程与工具；
+- [当前架构](docs/developer/architecture.md)：模块边界和信息流；
+- [命令与开发工具](docs/developer/tooling.md)：CLI、实验台、Godot 与构建入口。
 
-`profile.yaml` 是精灵唯一稳定档案；能量、情绪、`elapsed_time` 和当前身体绑定由各模块在进程内维护，恢复精灵时只加载 Profile，并按本次启动参数绑定身体。
+文档站使用 VitePress。站点源码只包含准备公开的最终文档；历史设计、过程证据和
+尚未揭示的世界观材料不属于公开站点。
 
-感知和输出采用异步类型化闭环：Body 事件先经过 NervousSystem，数字消息直接由
-Communication 写入 `PerceptualWorkspace`；每只 Elfie 的 BrainCoordinator 独立
-决定何时封口 frame，生成 `BrainContext` 和 `DecisionPlan`，再由 OutputRouter
-分别路由身体、通信和内部意图。物理 tick 不等待模型或输出执行。
+## 开发参与
 
-### `nest/`
+开始修改前请阅读：
 
-定义唯一活动空间。`nest/nest.py` 是 App 的公开入口；`state/` 只保存精灵 ID、家具和巢内状态，`engine/` 推进环境时钟，`interaction/` 传播广播、用户消息和触觉事件，`godot/` 维护 Python 侧 Godot 协议。
+- [贡献指南](CONTRIBUTING.md)：环境、测试、质量门与协作流程；
+- [安全策略](SECURITY.md)：漏洞报告与密钥处理；
+- [项目规则](AGENTS.md)：目录边界和适用于人与编码代理的工程约束；
+- [行为准则](CODE_OF_CONDUCT.md)：社区协作边界。
 
-Nest 不创建、不持有 `Elfie`，也不复制 Godot 房屋蓝图。房间几何、真实坐标、移动、碰撞和渲染以 `godot/` 项目为准。
-
-### `app/`
-
-```text
-app/
-├── features/          # accounts、adoption、chat、Nest 管理、配置和 Setup
-├── orchestration/     # NestSession、ElfieNestEngine、启动和事件路由
-├── interfaces/        # FastAPI、Web、CLI/TUI
-├── infrastructure/    # persistence、filesystem、device_identity
-└── bootstrap/         # 组合根，只创建和注入具体对象
-```
-
-`app/orchestration/NestSession` 同时持有一个 `Nest` 和多个真实精灵实例，是精灵进入 Nest、接收刺激并把决策应用回环境的唯一组合位置。
-
-### `desktop/`
-
-Electron 是安装后唯一桌面宿主，负责窗口和 Python Core、Ollama、隐藏 Godot Web Runtime 的生命周期。账户、聊天、领养和 Nest 规则不得进入 Desktop。
-
-## 依赖方向
-
-```text
-Desktop
-  -> app/bootstrap
-  -> app/interfaces
-  -> app/features + app/orchestration
-  -> elfie + nest + ai_runtime
-  -> app/infrastructure
-
-nest/godot <-> 已导出的 Godot Web Runtime
-```
-
-底层模块不得反向导入 App。`app/bootstrap` 只装配依赖，不承载业务规则。
-
-## Godot 与构建产物
-
-`godot/` 是用 Godot 4.7 打开的源项目。开发者修改场景后使用统一脚本导出：
-
-```bash
-./elfienest.sh build-godot-web
-./elfienest.sh build-godot-web --check
-```
-
-标准输出位置：
-
-```text
-build/components/godot-web/
-build/components/desktop/
-build/components/python-core/<platform-arch>/
-build/staging/<platform-arch>/resources/
-build/manifests/
-build/stamps/
-dist/
-```
-
-`build/components/` 保存各组件中间产物；`build/staging/<platform-arch>/resources/`
-保存当前目标平台的打包资源；`build/manifests/` 保存版本、大小和 SHA-256 清单；
-`build/stamps/` 保存输入指纹，用来控制增量构建。最终用户不需要安装 Godot Editor。
-打包阶段从 `build/staging/<platform-arch>/resources/` 收集 Godot Web、Python Core 和
-Ollama runner，模型在首启或按需下载。
-
-## 用户数据
-
-生产数据不放在仓库源码目录，统一位于 `ELFIE_HOME`；默认目标是 `~/.elfienest/`：
-
-```text
-~/.elfienest/
-├── config.yaml
-├── .env
-├── nest.db
-├── foods.yaml
-├── elfies/
-└── models/
-```
-
-`devtools/` 和测试必须使用隔离的 `ELFIE_HOME`、端口和数据库。仓库根目录不再保留
-`data/`；历史本地数据已迁出/清理，后续代码不得把生产或测试数据写回仓库源码目录。
-
-## 测试
+常用开发验证：
 
 ```bash
 uv sync --locked --extra dev
-UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/
-
-cd desktop
-pnpm test
-pnpm exec tsc --noEmit
+UV_CACHE_DIR=/tmp/elfienest-uv-cache \
+  uv run --no-sync pytest test/architecture/
+UV_CACHE_DIR=/tmp/elfienest-uv-cache \
+  uv run --no-sync python scripts/check_quality_baseline.py
 ```
 
-测试路径镜像源码，例如 `test/elfie/`、`test/nest/`、`test/ai_runtime/` 和 `test/app/`。`test/architecture/` 会阻止旧 `elfienest/`、`runtime/`、`elfie/state/`、`brain/cognition/`、`brain/perception/` 和非法反向依赖重新进入项目。
+测试路径、Desktop 与 Godot 构建命令分别由
+[测试说明](test/README.md)、[Desktop 说明](desktop/README.md)和
+[Godot 说明](godot/README.md)维护。
 
-## 后续开发约束
+## 最小目录地图
 
-- 新的产品功能进入 `app/features/`，跨模块组合进入 `app/orchestration/`。
-- 新的巢内状态、规则或互动进入 `nest/`，3D 几何和碰撞进入 `godot/`。
-- 新的模型、推理、工具和粮食能力进入 `ai_runtime/`。
-- Web、API、CLI 只作为入站接口，不直接实现跨模块业务流程。
-- 构建产物只能进入 `build/` 或 `dist/`，用户数据只能进入 `ELFIE_HOME`。
-- `connectivity/`、Nest-Nest 网络和移动聊天 App 尚未进入当前仓库范围。
+| 目录 | 职责 |
+| --- | --- |
+| [`elfie/`](elfie/README.md) | 一只完整 Elfie 的档案、大脑、身体、通信与技能 |
+| [`nest/`](nest/README.md) | 活动空间状态、环境时钟、互动与 Godot 协议边界 |
+| [`ai_runtime/`](ai_runtime/README.md) | 模型、Provider、路由、粮食、工具、安全与运行时 |
+| [`app/`](app/README.md) | 产品用例、接口、基础设施与跨模块编排 |
+| [`desktop/`](desktop/README.md) | Electron 生命周期、资源发现和进程监督 |
+| [`godot/`](godot/README.md) | 房间、几何、坐标、碰撞、角色和渲染源码 |
+| [`devtools/`](devtools/README.md) | 与普通用户产品隔离的模块实验台 |
+| [`scripts/`](scripts/README.md) | 启动、构建、检查和人工诊断入口 |
+| [`test/`](test/README.md) | 镜像源码边界的测试、架构契约与 E2E |
+| [`docs/`](docs/index.md) | VitePress 公开文档站源码 |
 
-更完整的目录职责与依赖规范见 [`docs/design/ElfieNest目录架构.md`](docs/design/ElfieNest目录架构.md)。
-单精灵完整时序与契约见 [`docs/design/Elfie感知认知决策信息流.md`](docs/design/Elfie感知认知决策信息流.md)。
+完整依赖方向、进程边界、`ELFIE_HOME` 数据边界，以及 `build/`、`dist/` 产物
+规则统一放在[开发者架构文档](docs/developer/architecture.md)中。
+
+## 许可证
+
+ElfieNest 使用 [Apache License 2.0](LICENSE)。
