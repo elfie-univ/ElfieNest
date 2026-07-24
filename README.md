@@ -1,16 +1,20 @@
 # ElfieNest
 
-一个仍在早期开发中的开源具身 AI 精灵项目：让每只 Elfie 拥有自己的档案、
-感知、情绪、能量、记忆、身体与类型化认知闭环，并生活在由 Godot 呈现的 Nest
-世界里。
+一个开源的具身 AI 精灵项目：让每只 Elfie 拥有自己的档案、感知、情绪、能量、
+记忆、身体与类型化认知闭环，并生活在由 Godot 呈现的 Nest 世界里。
 
-> 当前仓库提供的是源码开发者预览，不是已经发布的桌面安装包。想先认识这个
-> 项目，可以阅读[世界观与故事](docs/story/index.md)；想实际运行，请从
-> [开始使用](docs/getting-started/index.md)进入。
+2026 年，[创作者名]在解析一组异常的深空噪声时，捕获到来自 Elfaria 的虫洞信号。
+为了让这条微弱的通道稳定下来，他在地球上建立了第一座 ElfieNest——一座连接
+两个世界的私人基站。虫洞另一端，一些名叫 Elfie 的生命正在报名参加“赴地计划”。
+它们想了解地球、结识人类，也想找一个可以共同生活的家。
 
-## 当前项目状态
+现在，你也可以在自己的电脑上建立一座 ElfieNest，领养第一只愿意来到你身边的 Elfie。
 
-ElfieNest 正在搭建一条可观察、可测试的具身 AI 生命循环。当前代码已经包含：
+先从[文档首页](docs/index.md)开始，再按[世界观与故事](docs/story/index.md)、
+[开始使用](docs/getting-started/index.md)和[开发者文档](docs/developer/index.md)
+逐层深入。
+
+## 项目由什么组成
 
 - 单个 Elfie 的稳定档案、三层脑、记忆、情绪、能量、神经系统和可替换身体；
 - Body 与 Communication 分别进入感知工作区，再由认知协调器形成类型化决策，
@@ -18,9 +22,6 @@ ElfieNest 正在搭建一条可观察、可测试的具身 AI 生命循环。当
 - 只维护居民 ID 和巢内语义状态的 Nest，以及拥有房间、几何、移动、碰撞和渲染
   源码的 Godot 项目；
 - 独立的 AI Runtime、产品应用层、Electron 桌面宿主和模块调试工具。
-
-这些模块仍处于开发阶段。仓库不会把未来玩法、未验证平台或尚未发布的安装包写成
-现成功能。
 
 ## 核心体验
 
@@ -65,25 +66,11 @@ elfienest version
 安装脚本只支持用户级安装，请不要使用 `root` 或 `sudo`。更完整的前提、错误处理
 和平台说明见[开始使用](docs/getting-started/index.md)。
 
-## 平台与能力状态
-
-| 项目 | 当前状态 |
-| --- | --- |
-| 源码环境安装与版本入口 | CI 在 Ubuntu 与 macOS 验证 |
-| Windows 源码环境 | 当前 CI 尚未验证 |
-| Python | 固定 CPython 3.9.25 |
-| Godot 源项目 | 当前声明 Godot 4.7 |
-| 桌面安装包 | 尚未正式发布 |
-| 无外部模型的基础演示 | 提供 Runtime 回退路径 |
-
-Desktop 源码中已有 macOS、Windows 和 Linux 的目标资源布局，但这不代表对应平台
-已经提供可下载、经过发布验收的安装包。
-
 ## 文档入口
 
 - [文档首页](docs/index.md)：项目简介与阅读入口；
 - [世界观与故事](docs/story/index.md)：写给第一次认识 ElfieNest 的读者；
-- [开始使用](docs/getting-started/index.md)：从源码运行当前预览；
+- [开始使用](docs/getting-started/index.md)：从源码建立并运行一座 Nest；
 - [开发者文档](docs/developer/index.md)：架构、开发流程与工具；
 - [当前架构](docs/developer/architecture.md)：模块边界和信息流；
 - [命令与开发工具](docs/developer/tooling.md)：CLI、实验台、Godot 与构建入口。
