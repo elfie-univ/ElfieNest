@@ -60,7 +60,11 @@ def model_availability(
     model = model_ref.split("/", 1)[1] if "/" in model_ref else model_ref
     if provider == "ollama":
         if installed_ollama_models is None:
-            return {"ready": False, "reason": "Ollama 服务不可用", "command": "ollama serve"}
+            return {
+                "ready": False,
+                "reason": "Ollama 服务不可用",
+                "command": "ollama serve",
+            }
         installed = any(
             candidate == model
             or (":" not in model and candidate.split(":", 1)[0] == model)

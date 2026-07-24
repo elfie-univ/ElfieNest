@@ -26,4 +26,6 @@ class NestEngine:
     def tick(self, seconds: float) -> None:
         if seconds < 0:
             raise InvalidTickError(seconds)
-        self._state.elapsed_seconds += seconds
+        if self._state.clock_paused:
+            return
+        self._state.elapsed_seconds += seconds * self._state.time_scale

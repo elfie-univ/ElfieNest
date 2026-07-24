@@ -39,7 +39,7 @@ class WebBuild:
 
     def asset_path(self, relative_path: str) -> Path:
         """Resolve a manifest-listed generated asset without path traversal."""
-        assets = set()
+        assets: set[str] = set()
         for page in WEB_ENTRYPOINTS:
             assets.update(self._entry_assets(page))
         if relative_path not in assets:

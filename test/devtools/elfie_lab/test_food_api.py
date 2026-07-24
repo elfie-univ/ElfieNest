@@ -43,9 +43,7 @@ def _write_foods(
                     "清醒粮",
                     "",
                     ExecutionProfile(focus_model),
-                    technical_fallbacks=(
-                        ExecutionProfile("ollama/qwen3.5:0.8b"),
-                    ),
+                    technical_fallbacks=(ExecutionProfile("ollama/qwen3.5:0.8b"),),
                 ),
             }
         )
@@ -154,9 +152,7 @@ def test_non_mock_turn_uses_selected_food_and_runtime_catalog(
     }
 
 
-def test_turn_rejects_legacy_mode_and_unknown_food(
-    tmp_path, monkeypatch, client_for
-):
+def test_turn_rejects_legacy_mode_and_unknown_food(tmp_path, monkeypatch, client_for):
     monkeypatch.setattr(
         "devtools.elfie_lab.food_status.list_installed_ollama_models",
         lambda config: (),

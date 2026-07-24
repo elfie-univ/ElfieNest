@@ -38,7 +38,9 @@ async def chat_websocket(websocket: WebSocket) -> None:
     """Authenticate the future chat stream with the same session as REST."""
     policy = websocket.app.state.service_access_policy
     origin = websocket.headers.get("origin")
-    if policy.mode.value == "lan" and (origin is None or not policy.allows_origin(origin)):
+    if policy.mode.value == "lan" and (
+        origin is None or not policy.allows_origin(origin)
+    ):
         await websocket.close(code=1008)
         return
     token = websocket.cookies.get("session_token")
@@ -223,7 +225,9 @@ def _owns_elfie(db_path: str, user_id: int, elfie_id: str) -> bool:
 def _conversation_summary(
     db_path: str, user_id: int, profile: Dict[str, Any]
 ) -> Dict[str, Any]:
-    messages = list_chat_history(db_path, ChatHistoryQuery(str(profile["elfie_id"]), user_id))
+    messages = list_chat_history(
+        db_path, ChatHistoryQuery(str(profile["elfie_id"]), user_id)
+    )
     latest = messages[-1] if messages else None
     return {
         "elfie_id": profile["elfie_id"],

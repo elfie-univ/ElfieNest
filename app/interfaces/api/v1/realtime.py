@@ -42,7 +42,10 @@ class SameOriginChatHub:
         if owner_id is None:
             return
         history = list_chat_history(self._db_path, ChatHistoryQuery(elfie_id, owner_id))
-        latest = next((message for message in reversed(history) if message.sender == "elfie"), None)
+        latest = next(
+            (message for message in reversed(history) if message.sender == "elfie"),
+            None,
+        )
         if latest is None:
             return
         self.publish_message(
@@ -77,6 +80,7 @@ class SameOriginChatHub:
     def _owner_id(self, elfie_id: str) -> int | None:
         with get_db(self._db_path) as connection:
             row = connection.execute(
-                "SELECT owner_user_id FROM elfie_registry WHERE elfie_id = ?", (elfie_id,)
+                "SELECT owner_user_id FROM elfie_registry WHERE elfie_id = ?",
+                (elfie_id,),
             ).fetchone()
         return int(row["owner_user_id"]) if row is not None else None

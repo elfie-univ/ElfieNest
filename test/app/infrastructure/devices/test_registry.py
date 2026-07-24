@@ -51,7 +51,10 @@ def test_rotate_and_revoke_invalidate_old_device_credentials(tmp_path: Path) -> 
     replacement = registry.rotate(1, credential.device_id)
     with pytest.raises(DeviceCredentialError):
         registry.authenticate(credential.bearer_token)
-    assert registry.authenticate(replacement.bearer_token).device_id == credential.device_id
+    assert (
+        registry.authenticate(replacement.bearer_token).device_id
+        == credential.device_id
+    )
 
     registry.revoke(1, credential.device_id)
     with pytest.raises(DeviceCredentialError):

@@ -1,15 +1,18 @@
+from __future__ import annotations
+
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from app.orchestration.nest_session import NestSession
 from app.orchestration.runtime_adapter import SerializedRuntimeAdapter
+from app.orchestration.runtime_gateway import RuntimeGateway
 from app.orchestration.world_perception import collect_world_sensory_events
 from elfie.body import BodySensorEvent
-from elfie.profile import AppearanceResolver
 from nest import Nest, NestConfig
 from nest.godot.api import GodotAPIServer
+from nest.state.repository import NestRepository
 
 logger = logging.getLogger("app.orchestration.engine")
 
@@ -27,6 +30,8 @@ class ElfieNestEngine:
         godot_origin_port: Optional[int] = None,
         tick_interval_sec: float = 1.5,
         max_elfies_per_room: Optional[int] = None,
+        api_server: RuntimeGateway | None = None,
+        nest_repository: NestRepository | None = None,
     ):
         """初始化引擎。
 
@@ -41,119 +46,20 @@ class ElfieNestEngine:
 
         # 1. 实例化核心组件
         self.nest = Nest(NestConfig(max_residents=max_elfies_per_room))
-        self.api_server = GodotAPIServer(
+        self.api_server = api_server or GodotAPIServer(
             host=ws_host,
             port=ws_port,
             http_port=godot_origin_port if godot_origin_port is not None else 8000,
         )
-        self.session = NestSession(self.nest, self.api_server)
+        self.session = NestSession(
+            self.nest,
+            self.api_server,
+            repository=nest_repository,
+        )
         self.coordinator = self.session
 
-        # 2. 注册 Godot 事件回调以驱动 Python 看板
-        self.api_server.register_callback(
-            "register_scene", self._on_godot_scene_registered
-        )
-        self.api_server.register_callback("runtime_ready", self._on_godot_runtime_ready)
-        self.api_server.register_callback("arrived_at", self._on_godot_elfie_arrived)
-        self.api_server.register_callback("user_message", self._on_user_message)
-
-        # 3. 可选的鉴权 WebSocket 管理网关（由 app.py 注入，None 则不启用）
+        # 2. 可选的鉴权 WebSocket 管理网关（由 app.py 注入，None 则不启用）
         self.ws_manager: Optional[Any] = None
-
-    def _on_godot_scene_registered(self, payload: Dict[str, Any]):
-        """Godot 场景握手回调：动态注册家具"""
-        furniture = payload.get("furniture", [])
-        self.nest.register_scene_furniture(furniture)
-
-    def _on_godot_runtime_ready(self, _payload: Dict[str, Any]) -> None:
-        """向刚连接的 Godot Runtime 同步当前 Python 精灵目录。"""
-        self.sync_godot_elfies()
-
-    def sync_godot_elfies(self) -> None:
-        """将当前 Python 房间精灵目录同步给 Godot Runtime。"""
-        self.api_server.send_action(
-            "sync_elfies",
-            {
-                "elfies": [
-                    self._build_godot_elfie_payload(elfie_id, elfie)
-                    for elfie_id, elfie in self.session.elfies.items()
-                ]
-            },
-        )
-
-    @staticmethod
-    def _build_godot_elfie_payload(elfie_id: str, elfie: Any) -> Dict[str, Any]:
-        """从个体配置提取 Godot 渲染所需的最小身份与外观数据。"""
-        character_profile = getattr(elfie, "character_profile", None)
-        if character_profile is not None:
-            resolved = AppearanceResolver().resolve(character_profile)
-            appearance = resolved.to_payload()
-            return {
-                "elfie_id": elfie_id,
-                "name": character_profile.identity.display_name,
-                "species": character_profile.identity.species_id,
-                "height_scale": resolved.height_scale,
-                "build_scale": resolved.build_scale,
-                "appearance": appearance,
-            }
-
-        profile = getattr(getattr(elfie, "brain", None), "profile", None)
-        personality = getattr(profile, "personality", {})
-        if not isinstance(personality, dict):
-            personality = {}
-        metadata = personality.get("metadata", {})
-        if not isinstance(metadata, dict):
-            metadata = {}
-        appearance = metadata.get("appearance", {})
-        if not isinstance(appearance, dict):
-            appearance = {}
-
-        payload: Dict[str, Any] = {
-            "elfie_id": elfie_id,
-            "name": metadata.get("name") or getattr(elfie, "name", elfie_id),
-        }
-        for field in ("species", "height", "build", "height_scale", "build_scale"):
-            if field in appearance:
-                payload[field] = appearance[field]
-        return payload
-
-    def _on_godot_elfie_arrived(self, payload: Dict[str, Any]):
-        """Godot 精灵移动到达回调：锁定物理姿态"""
-        elfie_id = payload.get("elfie_id", "")
-        target = payload.get("target", "")
-
-        # 解析预期的姿势。如果是床则躺下，椅子坐下，传送门消散
-        posture = "standing"
-        if target and "bed" in target.lower():
-            posture = "lying"
-        elif target and "chair" in target.lower():
-            posture = "sitting"
-        elif target and "door" in target.lower():
-            posture = "away"
-
-        self.nest.update_resident_posture(elfie_id, posture, target or None)
-
-    def _on_user_message(self, payload: Dict[str, Any]) -> None:
-        """Parse one owner message into the Communication boundary only."""
-        elfie_id = str(payload.get("elfie_id") or "").strip()
-        message = str(payload.get("message") or "").strip()
-        if elfie_id not in self.session.elfies or not message:
-            return
-        owner_id = str(payload.get("owner_id") or "owner").strip()
-        conversation_id = str(
-            payload.get("conversation_id") or f"owner:{owner_id}"
-        ).strip()
-        external_id = str(
-            payload.get("message_id") or ""
-        ).strip()
-        self.session.send_user_message(
-            elfie_id,
-            message,
-            owner_id=owner_id,
-            conversation_id=conversation_id,
-            external_message_id=external_id or None,
-            account_id=str(payload.get("account_id") or "godot-owner"),
-        )
 
     def _collect_world_sensory_events(self, elfie_id: str) -> list[BodySensorEvent]:
         """Convert only physical room facts into typed Body sensor events."""
@@ -169,6 +75,10 @@ class ElfieNestEngine:
 
     def tick_once(self, seconds: float) -> None:
         """Advance physics and publish inputs without awaiting cognition or output."""
+        self.session.poll_runtime_connection()
+        for event in self.api_server.drain_runtime_events():
+            self.session.consume_runtime_event(event)
+        self.session.flush_runtime_state()
         self.nest.tick(seconds)
         self.session.tick_elfies(seconds)
         for elfie_id, elfie in tuple(self.session.elfies.items()):

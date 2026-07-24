@@ -241,7 +241,9 @@ def test_device_websocket_routes_typed_sensor_events_and_command_polls(
         headers={"Authorization": f"Bearer {bearer_token}"},
     ) as websocket:
         assert websocket.receive_json()["event"] == "ready"
-        websocket.send_json({"event": "sensor_event", "sensor_event": event.model_dump(mode="json")})
+        websocket.send_json(
+            {"event": "sensor_event", "sensor_event": event.model_dump(mode="json")}
+        )
         assert websocket.receive_json() == {"event": "sensor_event", "delivered": True}
 
         command = SpeechCommand(
@@ -256,7 +258,9 @@ def test_device_websocket_routes_typed_sensor_events_and_command_polls(
             capability_revision=1,
             text="你好，玩具。",
         )
-        assert client.app.state.device_gateway.enqueue_command(device_id, command) is True
+        assert (
+            client.app.state.device_gateway.enqueue_command(device_id, command) is True
+        )
         websocket.send_json({"event": "command_poll"})
         command_batch = websocket.receive_json()
 
@@ -265,7 +269,9 @@ def test_device_websocket_routes_typed_sensor_events_and_command_polls(
     assert command_batch["commands"] == [command.model_dump(mode="json")]
 
 
-def test_v1_chat_websocket_requires_the_same_session_as_rest(client: TestClient) -> None:
+def test_v1_chat_websocket_requires_the_same_session_as_rest(
+    client: TestClient,
+) -> None:
     _login_owner(client)
     session_token = client.cookies.get("session_token")
     assert session_token
@@ -275,7 +281,10 @@ def test_v1_chat_websocket_requires_the_same_session_as_rest(client: TestClient)
     ) as websocket:
         ready = websocket.receive_json()
 
-    assert ready == {"event": "ready", "principal": {"role": "owner", "username": "owner"}}
+    assert ready == {
+        "event": "ready",
+        "principal": {"role": "owner", "username": "owner"},
+    }
 
 
 def test_v1_session_projection_includes_the_owner_landing_preference(

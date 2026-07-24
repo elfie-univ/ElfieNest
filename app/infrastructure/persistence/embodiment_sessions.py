@@ -72,9 +72,7 @@ def begin_hosting(
     return EmbodimentSession(elfie_id, session_id, state, body_id, lease_expires_at)
 
 
-def complete_hosting(
-    db_path: str, elfie_id: str, session_id: str
-) -> EmbodimentSession:
+def complete_hosting(db_path: str, elfie_id: str, session_id: str) -> EmbodimentSession:
     """Mark a successfully connected host body as active for its existing lease."""
     return _transition(db_path, elfie_id, session_id, EmbodimentState.HOSTED)
 
@@ -229,9 +227,7 @@ def _write_session(
 
 def _row_to_session(elfie_id: str, row) -> EmbodimentSession:
     if row is None:
-        return EmbodimentSession(
-            elfie_id, None, EmbodimentState.AT_NEST, None, None
-        )
+        return EmbodimentSession(elfie_id, None, EmbodimentState.AT_NEST, None, None)
     return EmbodimentSession(
         elfie_id=elfie_id,
         session_id=str(row["session_id"]) if row["session_id"] is not None else None,

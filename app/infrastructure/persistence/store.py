@@ -143,7 +143,14 @@ def _backup_before_migration(db_path: str) -> Optional[Path]:
         return None
     with sqlite3.connect(str(database_path)) as connection:
         version = int(connection.execute("PRAGMA user_version").fetchone()[0])
-    if version >= CURRENT_SCHEMA_VERSION:
+        semantic_nest_schema_missing = (
+            connection.execute(
+                "SELECT 1 FROM sqlite_master "
+                "WHERE type = 'table' AND name = 'nest_config'"
+            ).fetchone()
+            is None
+        )
+    if version >= CURRENT_SCHEMA_VERSION and not semantic_nest_schema_missing:
         return None
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     backup_path = database_path.with_name(

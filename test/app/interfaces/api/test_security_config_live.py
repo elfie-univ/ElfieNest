@@ -51,9 +51,7 @@ def db_path(tmp_path: Path) -> str:
 
 
 @pytest.fixture
-def runtime_config_path(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> Path:
+def runtime_config_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """使用临时 ELFIE_HOME 隔离生产格式配置及本地密钥。"""
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     p = tmp_path / "config.yaml"
@@ -70,8 +68,14 @@ def app(db_path: str, runtime_config_path: Path):
     with (
         patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
         patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-        patch("app.interfaces.api.system_routes.get_config_path", return_value=runtime_config_path),
-        patch("app.interfaces.api.owner_routes.get_config_path", return_value=runtime_config_path),
+        patch(
+            "app.interfaces.api.system_routes.get_config_path",
+            return_value=runtime_config_path,
+        ),
+        patch(
+            "app.interfaces.api.owner_routes.get_config_path",
+            return_value=runtime_config_path,
+        ),
     ):
         application = create_app(engine=None, db_path=db_path, ws_port=9876)
         yield application
@@ -278,7 +282,9 @@ class TestRateLimitLive:
             resp3 = client.post(
                 "/api/auth/login", data={"username": "owner", "password": "wrong3"}
             )
-            assert resp3.status_code == 429, f"expected 429 got {resp3.status_code}: {resp3.text}"
+            assert resp3.status_code == 429, (
+                f"expected 429 got {resp3.status_code}: {resp3.text}"
+            )
             assert "过于频繁" in resp3.text
 
 

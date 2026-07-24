@@ -3,14 +3,39 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping, Union
+from typing import Union
 
-EventValue = Union[str, float, bool, None]
+from typing_extensions import TypeAlias
 
 
 @dataclass(frozen=True)
-class NestEvent:
-    """跨 Nest 内部组件传递的不可变事件。"""
+class ResidentAdmittedEvent:
+    """居民被加入 Nest membership。"""
 
-    name: str
-    payload: Mapping[str, EventValue]
+    elfie_id: str
+
+
+@dataclass(frozen=True)
+class HomeAssignedEvent:
+    """居民获得长期语义住处。"""
+
+    elfie_id: str
+    home_zone_id: str
+    home_anchor_id: str
+
+
+@dataclass(frozen=True)
+class RuntimeMirrorUpdatedEvent:
+    """Runtime 镜像状态更新，不代表长期持久事实。"""
+
+    elfie_id: str
+    current_zone_id: str | None
+    posture: str
+    active_command_id: str | None = None
+
+
+NestDomainEvent: TypeAlias = Union[
+    ResidentAdmittedEvent,
+    HomeAssignedEvent,
+    RuntimeMirrorUpdatedEvent,
+]

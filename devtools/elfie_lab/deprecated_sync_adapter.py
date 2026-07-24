@@ -170,7 +170,9 @@ class DeprecatedSyncCognitionAdapter:
                     TactileImpact(
                         kind="tactile_impact",
                         location=stimulus.impact_direction or "body",
-                        force_newtons=max(stimulus.impact_force, stimulus.gentle_stroke),
+                        force_newtons=max(
+                            stimulus.impact_force, stimulus.gentle_stroke
+                        ),
                     ),
                 )
             )

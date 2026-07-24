@@ -1,6 +1,5 @@
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Callable, Dict, List
 
 import pytest
 
@@ -26,15 +25,20 @@ def make_profile(config_dir: Path, elfie_id: str = "elfie-profile"):
 
 class FakeGodotGateway:
     def __init__(self) -> None:
-        self.callbacks: Dict[str, List[Callable[[Dict[str, Any]], None]]] = {}
-        self.sent = []
-        self.runtime_ready = False
+        self.sent: list[dict[str, object]] = []
 
-    def register_callback(self, event_name: str, callback: Callable) -> None:
-        self.callbacks.setdefault(event_name, []).append(callback)
+    def send_body_command(
+        self,
+        payload: dict[str, object],
+        *,
+        correlation_id: str,
+    ) -> bool:
+        self.sent.append({"payload": payload, "correlation_id": correlation_id})
+        return True
 
-    def send_action(self, action: str, payload: Dict[str, Any]) -> None:
-        self.sent.append({"action": action, "payload": payload})
+    def cancel_body_command(self, *, command_id: str, actor_id: str) -> bool:
+        self.sent.append({"command_id": command_id, "actor_id": actor_id})
+        return True
 
 
 def test_factory_creates_canonical_elfie_without_copying_legacy_algorithms() -> None:
@@ -63,7 +67,6 @@ def test_factory_builds_and_connects_native_body_when_godot_gateway_is_supplied(
     assert elfie.current_body.body_id == "elfie-native"
     assert elfie.current_body.describe().mode is BodyMode.NATIVE
     assert elfie.current_body.snapshot_body().connected is True
-    assert gateway.callbacks
 
 
 def test_factory_restores_persisted_profile_and_identity(tmp_path: Path) -> None:
@@ -198,11 +201,7 @@ def test_restore_ignores_legacy_state_yaml(tmp_path: Path) -> None:
     explicit = HeadlessBody(body_id="headless-new")
     legacy_state = tmp_path / "state.yaml"
     legacy_content = (
-        "schema_version: 1\n"
-        "energy: 1\n"
-        "emotions:\n"
-        "  fear: 99\n"
-        "current_body_id: old\n"
+        "schema_version: 1\nenergy: 1\nemotions:\n  fear: 99\ncurrent_body_id: old\n"
     )
     legacy_state.write_text(legacy_content, encoding="utf-8")
 

@@ -51,7 +51,7 @@ git status --short
 ```bash
 python3 .agents/skills/godot-project-operator/scripts/godot_guard.py status
 git status --short
-git diff -- godot/project.godot 'godot/**/*.import'
+git diff -- godot_project/project.godot 'godot_project/**/*.import'
 ```
 
 5. 报告保留了哪个窗口、关闭了哪些临时进程、验证结果以及是否产生源码变更。

@@ -57,7 +57,9 @@ def _login(client: TestClient, username: str) -> None:
     assert response.status_code == 200
 
 
-def test_pages_redirect_anonymous_users_to_login_with_safe_next(client: TestClient) -> None:
+def test_pages_redirect_anonymous_users_to_login_with_safe_next(
+    client: TestClient,
+) -> None:
     # Given: no session.
     # When: an anonymous browser requests protected pages.
     # Then: each redirect preserves only a local page target.
@@ -83,7 +85,9 @@ def test_login_discards_malformed_or_external_next(client: TestClient) -> None:
     # Given: no session and hostile next values.
     # When: the browser requests the login entry point.
     # Then: no open redirect target survives.
-    external = client.get("/login?next=https://attacker.invalid", follow_redirects=False)
+    external = client.get(
+        "/login?next=https://attacker.invalid", follow_redirects=False
+    )
     malformed = client.get("/login?next=//attacker.invalid", follow_redirects=False)
 
     assert external.status_code == 200
@@ -145,7 +149,9 @@ def test_owner_and_user_receive_server_side_landing_routes(client: TestClient) -
     assert user_manage.headers["location"] == "/chat"
 
 
-def test_owner_can_open_the_compatibility_management_workspace(client: TestClient) -> None:
+def test_owner_can_open_the_compatibility_management_workspace(
+    client: TestClient,
+) -> None:
     _create_user(client, "owner", "owner")
     _login(client, "owner")
 
@@ -161,7 +167,10 @@ def test_lan_rejects_unrecognized_host_and_origin(tmp_path: Path) -> None:
     with (
         patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
         patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-        patch("app.interfaces.api.service_access.private_ipv4_addresses", return_value=("192.168.1.8",)),
+        patch(
+            "app.interfaces.api.service_access.private_ipv4_addresses",
+            return_value=("192.168.1.8",),
+        ),
     ):
         application = create_app(
             engine=None, db_path=db_path, ws_port=9876, service_mode="lan"
@@ -172,7 +181,10 @@ def test_lan_rejects_unrecognized_host_and_origin(tmp_path: Path) -> None:
             wrong_port = client.get("/login", headers={"Host": "192.168.1.8:9001"})
             bad_origin = client.get(
                 "/login",
-                headers={"Host": "192.168.1.8:8000", "Origin": "http://attacker.invalid"},
+                headers={
+                    "Host": "192.168.1.8:8000",
+                    "Origin": "http://attacker.invalid",
+                },
             )
             malformed_origin = client.get(
                 "/login",
@@ -198,7 +210,9 @@ def test_core_reads_the_packaged_web_build_directory_from_its_environment(
         patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
         patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
     ):
-        application = create_app(engine=None, db_path=str(tmp_path / "nest.db"), ws_port=9876)
+        application = create_app(
+            engine=None, db_path=str(tmp_path / "nest.db"), ws_port=9876
+        )
         with TestClient(application) as test_client:
             response = test_client.get("/login")
 

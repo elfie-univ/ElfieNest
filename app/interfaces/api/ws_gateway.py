@@ -109,23 +109,27 @@ class AuthenticatedWSManager:
             if self._thread is not None:
                 self._thread.join(timeout=2.0)
             error = TimeoutError("后台线程未在 3 秒内就绪")
-            raise WebSocketGatewayStartError(self.host, self.port, str(error)) from error
+            raise WebSocketGatewayStartError(
+                self.host, self.port, str(error)
+            ) from error
 
         if self._startup_error is not None:
             self._running = False
             if self._thread is not None:
                 self._thread.join(timeout=2.0)
             error = self._startup_error
-            raise WebSocketGatewayStartError(self.host, self.port, str(error)) from error
+            raise WebSocketGatewayStartError(
+                self.host, self.port, str(error)
+            ) from error
 
         if self._server is None or self._thread is None or not self._thread.is_alive():
             self._running = False
             error = RuntimeError("后台线程未保持运行")
-            raise WebSocketGatewayStartError(self.host, self.port, str(error)) from error
+            raise WebSocketGatewayStartError(
+                self.host, self.port, str(error)
+            ) from error
 
-        logger.info(
-            "🚀 WS gateway 已启动 %s:%d", self.host, self.port
-        )
+        logger.info("🚀 WS gateway 已启动 %s:%d", self.host, self.port)
 
     def stop(self) -> None:
         """停止 WebSocket 服务器并清理连接。幂等。"""
@@ -145,9 +149,7 @@ class AuthenticatedWSManager:
 
         if self._thread:
             self._thread.join(timeout=2.0)
-        logger.info(
-            "🛑 WS gateway 已停止。端口 %d 已释放。", self.port
-        )
+        logger.info("🛑 WS gateway 已停止。端口 %d 已释放。", self.port)
 
     def _run_event_loop(self) -> None:
         """后台线程执行体：创建事件循环并启动 WebSocket 服务器。"""
@@ -159,9 +161,7 @@ class AuthenticatedWSManager:
         asyncio.set_event_loop(loop)
 
         async def _start_server():
-            return await websockets.serve(
-                self._handle_client, self.host, self.port
-            )
+            return await websockets.serve(self._handle_client, self.host, self.port)
 
         try:
             self._server = loop.run_until_complete(_start_server())
@@ -200,9 +200,7 @@ class AuthenticatedWSManager:
         for ws_set in self.connections.values():
             all_ws.update(ws_set)
         if all_ws:
-            close_tasks = [
-                ws.close(1001, "Server shutting down") for ws in all_ws
-            ]
+            close_tasks = [ws.close(1001, "Server shutting down") for ws in all_ws]
             await asyncio.gather(*close_tasks, return_exceptions=True)
 
         self.connections.clear()
@@ -267,7 +265,8 @@ class AuthenticatedWSManager:
             return False
         return (
             parsed.scheme == "http"
-            and hostname in {
+            and hostname
+            in {
                 "127.0.0.1",
                 "localhost",
                 "::1",
@@ -311,9 +310,7 @@ class AuthenticatedWSManager:
             return
 
         if data.get("event") != "auth":
-            await websocket.close(
-                4003, "First frame must be {'event':'auth', ...}"
-            )
+            await websocket.close(4003, "First frame must be {'event':'auth', ...}")
             return
 
         token = self._session_token_from_websocket(websocket)
@@ -364,9 +361,7 @@ class AuthenticatedWSManager:
             self._remove_connection(user_id, websocket)
             logger.debug("WS 连接已清理 (user_id=%d)", user_id)
 
-    async def _handle_message(
-        self, user_id: int, raw: str
-    ) -> None:
+    async def _handle_message(self, user_id: int, raw: str) -> None:
         """处理单条 WebSocket 消息。"""
         try:
             data = json.loads(raw)
@@ -414,9 +409,7 @@ class AuthenticatedWSManager:
                     ),
                     account_id=str(payload.get("account_id") or "owner-ws"),
                 )
-                logger.info(
-                    "WS 用户 %d -> 精灵 '%s' 消息已投递", user_id, elfie_id
-                )
+                logger.info("WS 用户 %d -> 精灵 '%s' 消息已投递", user_id, elfie_id)
             self._record_user_message(elfie_id, user_id, message)
 
     # -------------------------------------------------------------------
@@ -451,24 +444,18 @@ class AuthenticatedWSManager:
     # 对外广播接口（线程安全，主线程调用）
     # -------------------------------------------------------------------
 
-    def send_to_user(
-        self, user_id: int, message_dict: Dict[str, Any]
-    ) -> None:
+    def send_to_user(self, user_id: int, message_dict: Dict[str, Any]) -> None:
         """向指定 user_id 的所有 WS 连接发送消息。"""
         if user_id not in self.connections:
             return
         msg_str = json.dumps(message_dict, ensure_ascii=False)
         if self._loop and self._loop.is_running():
             asyncio.run_coroutine_threadsafe(
-                self._async_send_to_set(
-                    self.connections[user_id].copy(), msg_str
-                ),
+                self._async_send_to_set(self.connections[user_id].copy(), msg_str),
                 self._loop,
             )
 
-    def broadcast_to_owners(
-        self, elfie_id: str, message_dict: Dict[str, Any]
-    ) -> None:
+    def broadcast_to_owners(self, elfie_id: str, message_dict: Dict[str, Any]) -> None:
         """只向精灵所属用户的连接广播消息。"""
         owner_id = self._get_elfie_owner(elfie_id)
         if owner_id is None:
@@ -492,9 +479,7 @@ class AuthenticatedWSManager:
                 self._async_send_to_set(target, msg_str), self._loop
             )
 
-    async def _async_send_to_set(
-        self, targets: Set[Any], message_str: str
-    ) -> None:
+    async def _async_send_to_set(self, targets: Set[Any], message_str: str) -> None:
         """异步向一组 WebSocket 连接发送消息。"""
         if not targets:
             return
@@ -506,8 +491,10 @@ class AuthenticatedWSManager:
                 continue
             token = info.get("token", "")
             user_id = info.get("user_id")
-            if isinstance(token, str) and isinstance(user_id, int) and self._session_is_current(
-                token, user_id
+            if (
+                isinstance(token, str)
+                and isinstance(user_id, int)
+                and self._session_is_current(token, user_id)
             ):
                 valid_targets.append(ws)
             else:
@@ -521,11 +508,7 @@ class AuthenticatedWSManager:
                 info = self._user_info.get(ws)
                 if info is not None and isinstance(info.get("user_id"), int):
                     self._remove_connection(info["user_id"], ws)
-        tasks = [
-            ws.send(message_str)
-            for ws in valid_targets
-            if ws in self._user_info
-        ]
+        tasks = [ws.send(message_str) for ws in valid_targets if ws in self._user_info]
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 

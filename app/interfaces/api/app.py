@@ -73,6 +73,7 @@ class PasswordChange(BaseModel):
     old_password: str
     new_password: str = Field(..., min_length=6)
 
+
 # ---------------------------------------------------------------------------
 # CSRF 校验依赖
 # ---------------------------------------------------------------------------
@@ -134,7 +135,13 @@ def create_app(
         from .nest_routes import _rooms_with_beds  # noqa: PLC0415
 
         rooms = _rooms_with_beds(db_path)
-        app.state.camera_feed.set_desired_bed_count(len(rooms[0]["beds"]))
+        app.state.camera_feed.set_desired_bed_count(rooms[0]["desired_bed_count"])
+        if engine is not None:
+            from app.infrastructure.persistence.nest_state_repository import (  # noqa: PLC0415
+                SQLiteNestStateRepository,
+            )
+
+            engine.session.attach_repository(SQLiteNestStateRepository(db_path))
 
         # 创建鉴权 WS 网关（独立端口，不与 Godot 8765 冲突）
         ws_manager = AuthenticatedWSManager(
@@ -176,10 +183,9 @@ def create_app(
     except (WebBuildManifestMissingError, WebBuildManifestMalformedError) as error:
         app.state.web_build = None
         app.state.web_build_error = str(error)
-    app.state.godot_camera_token = (
-        os.environ.get("ELFIENEST_GODOT_CAMERA_TOKEN")
-        or secrets.token_urlsafe(32)
-    )
+    app.state.godot_camera_token = os.environ.get(
+        "ELFIENEST_GODOT_CAMERA_TOKEN"
+    ) or secrets.token_urlsafe(32)
     from .camera_routes import CameraFeedStore  # noqa: PLC0415
 
     app.state.camera_feed = CameraFeedStore()
@@ -219,7 +225,9 @@ def create_app(
     # 全局异常处理 — 未捕获异常返回 500 结构化 JSON 不泄露 traceback
     # -------------------------------------------------------------------
     @app.exception_handler(Exception)
-    async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    async def global_exception_handler(
+        request: Request, exc: Exception
+    ) -> JSONResponse:
         logger.exception("Unhandled exception: %s %s", request.method, request.url)
         return JSONResponse(
             status_code=500,
@@ -234,12 +242,11 @@ def create_app(
         if request.method in ("POST", "PUT", "DELETE"):
             path = request.url.path
             csrf_exempt = path in {"/api/auth/login", "/api/auth/setup"}
-            internal_camera_token = (
-                path.startswith("/api/godot-camera/")
-                and secrets.compare_digest(
-                    request.headers.get("X-ElfieNest-Godot-Token", ""),
-                    request.app.state.godot_camera_token,
-                )
+            internal_camera_token = path.startswith(
+                "/api/godot-camera/"
+            ) and secrets.compare_digest(
+                request.headers.get("X-ElfieNest-Godot-Token", ""),
+                request.app.state.godot_camera_token,
             )
             if not csrf_exempt and not internal_camera_token:
                 try:
@@ -338,12 +345,14 @@ def create_app(
             "default_landing_page": row["default_landing_page"],
         }
 
-        resp = JSONResponse(content={
-            "user": user_data,
-            "csrf_token": csrf_token,
-            "landing_path": safe_next_path(request.query_params.get("next"))
-            or default_landing_path(user_data),
-        })
+        resp = JSONResponse(
+            content={
+                "user": user_data,
+                "csrf_token": csrf_token,
+                "landing_path": safe_next_path(request.query_params.get("next"))
+                or default_landing_path(user_data),
+            }
+        )
         resp.set_cookie(
             key="session_token",
             value=session_token,
@@ -390,9 +399,7 @@ def create_app(
             elfie_count = cursor.fetchone()[0]
 
         session_token = request.cookies.get("session_token", "")
-        csrf_token = (
-            generate_csrf_token(session_token) if session_token else ""
-        )
+        csrf_token = generate_csrf_token(session_token) if session_token else ""
 
         return {
             "id": row["id"],

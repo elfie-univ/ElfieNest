@@ -2,9 +2,11 @@ from pathlib import Path
 
 import pytest
 
-from app.interfaces.web.build_discovery import WebBuildManifestMissingError
-from app.interfaces.web.build_discovery import WebBuildManifestMalformedError
-from app.interfaces.web.build_discovery import discover_web_build
+from app.interfaces.web.build_discovery import (
+    WebBuildManifestMalformedError,
+    WebBuildManifestMissingError,
+    discover_web_build,
+)
 
 
 def test_discover_web_build_raises_clear_error_when_manifest_is_missing(
@@ -57,7 +59,9 @@ def test_discover_web_build_accepts_manifest_with_all_page_shells(
     assert web_build.manifest_path == build_dir / "manifest.json"
 
 
-def test_web_build_allows_only_login_assets_before_authentication(tmp_path: Path) -> None:
+def test_web_build_allows_only_login_assets_before_authentication(
+    tmp_path: Path,
+) -> None:
     # Given: login imports its own entry plus one shared asset.
     build_dir = tmp_path / "build" / "web"
     assets = build_dir / "assets"

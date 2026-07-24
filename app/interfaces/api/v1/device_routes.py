@@ -58,7 +58,9 @@ DeviceProtocolFrame = Annotated[
     ],
     Field(discriminator="event"),
 ]
-_DEVICE_FRAME_ADAPTER: Final = TypeAdapter(DeviceProtocolFrame)
+_DEVICE_FRAME_ADAPTER: Final[TypeAdapter[DeviceProtocolFrame]] = TypeAdapter(
+    DeviceProtocolFrame
+)
 
 
 def _registry(request: Request) -> DeviceRegistry:
@@ -70,7 +72,10 @@ async def list_devices(
     request: Request,
     owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
 ) -> list[Dict[str, Any]]:
-    return [_device_payload(record) for record in _registry(request).list_for_owner(int(owner["id"]))]
+    return [
+        _device_payload(record)
+        for record in _registry(request).list_for_owner(int(owner["id"]))
+    ]
 
 
 @router.post("/owner/devices")
@@ -140,16 +145,24 @@ async def device_websocket(websocket: WebSocket) -> None:
                 return
             frame = _parse_device_frame(raw_frame)
             if frame is None:
-                await websocket.send_json({"event": "error", "detail": "设备协议帧无效或过大"})
+                await websocket.send_json(
+                    {"event": "error", "detail": "设备协议帧无效或过大"}
+                )
                 continue
             registry.heartbeat(device.device_id)
             # CPython 3.9.25 is the supported runtime, so structural matching is unavailable.
             if isinstance(frame, DeviceHeartbeatFrame):
-                await websocket.send_json({"event": "heartbeat", "device_id": device.device_id})
+                await websocket.send_json(
+                    {"event": "heartbeat", "device_id": device.device_id}
+                )
             elif isinstance(frame, DeviceSensorFrame):
-                delivered = gateway.deliver_sensor_event(device.device_id, frame.sensor_event)
+                delivered = gateway.deliver_sensor_event(
+                    device.device_id, frame.sensor_event
+                )
                 registry.record_protocol_event(device.device_id, "sensor_event")
-                await websocket.send_json({"event": "sensor_event", "delivered": delivered})
+                await websocket.send_json(
+                    {"event": "sensor_event", "delivered": delivered}
+                )
             elif isinstance(frame, DeviceReceiptFrame):
                 delivered = gateway.deliver_receipt(device.device_id, frame.receipt)
                 registry.record_protocol_event(device.device_id, "receipt")
@@ -160,7 +173,9 @@ async def device_websocket(websocket: WebSocket) -> None:
                 await websocket.send_json(
                     {
                         "event": "commands",
-                        "commands": [command.model_dump(mode="json") for command in commands],
+                        "commands": [
+                            command.model_dump(mode="json") for command in commands
+                        ],
                     }
                 )
             else:

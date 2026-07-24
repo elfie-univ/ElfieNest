@@ -41,7 +41,9 @@ class DeviceGateway:
         with self._lock:
             self._active_devices.discard(device_id)
 
-    def attach_sensor_handler(self, device_id: str, handler: ExternalEventHandler) -> None:
+    def attach_sensor_handler(
+        self, device_id: str, handler: ExternalEventHandler
+    ) -> None:
         """Associate one external body sensor consumer with a device identity."""
         with self._lock:
             self._sensor_handlers[device_id] = handler
@@ -117,7 +119,9 @@ class DeviceGatewayTransport(ExternalTransport):
 
     def send_command(self, command: BodyCommand) -> CommandReceipt:
         """Queue a typed command and acknowledge gateway acceptance, or fail closed."""
-        if not self._connected or not self._gateway.enqueue_command(self._device_id, command):
+        if not self._connected or not self._gateway.enqueue_command(
+            self._device_id, command
+        ):
             raise ConnectionError("设备网关未连接，无法投递动作")
         return CommandReceipt.for_status(
             command,

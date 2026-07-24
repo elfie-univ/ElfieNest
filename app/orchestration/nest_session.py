@@ -3,34 +3,33 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
 from typing import Dict
-from uuid import uuid4
-
-from pydantic import ValidationError
 
 from app.orchestration.godot_owner_channel import (
     GodotOwnerChannel,
     OwnerMessageBroadcaster,
 )
-from app.orchestration.speech_broadcast_transport import (
-    NestSpeechBroadcastTransport,
+from app.orchestration.nest_residents import (
+    actor_catalog,
+    persist_resident,
+    restore_snapshot,
 )
+from app.orchestration.nest_runtime_events import NestRuntimeEventRouter
+from app.orchestration.owner_message_delivery import deliver_owner_message
+from app.orchestration.runtime_gateway import RuntimeGateway
+from app.orchestration.runtime_sync import NestRuntimeSynchronizer
 from elfie import Elfie
 from elfie.brain.runtime_port import CorticalRuntimePort
-from elfie.communication import CommunicationEnvelope, MessageDirection, TextPart
 from elfie.communication.contracts import InboundDisposition
-from elfie.message_types import (
-    ActorId,
-    ActorRef,
-    ElfieId,
-    EventId,
-    MessageMeta,
-    TraceId,
-)
 from nest import Nest
-from nest.godot.api import GodotAPIServer
+from nest.godot.messages import RuntimeEventFrame
 from nest.interaction.hub import TactileInput
+from nest.state.repository import (
+    NestPersistenceError,
+    NestPersistenceSnapshot,
+    NestRepository,
+)
+from nest.state.store import NoHomeAvailableError, ReconciliationRequiredError
 
 logger = logging.getLogger("app.orchestration.nest_session")
 
@@ -38,20 +37,72 @@ logger = logging.getLogger("app.orchestration.nest_session")
 class NestSession:
     """持有真实精灵实例，并把巢内事件交给对应精灵处理。"""
 
-    def __init__(self, nest: Nest, api_server: GodotAPIServer) -> None:
+    def __init__(
+        self,
+        nest: Nest,
+        api_server: RuntimeGateway,
+        repository: NestRepository | None = None,
+    ) -> None:
         self.nest = nest
         self.api_server = api_server
         self.elfies: Dict[str, Elfie] = {}
         self._cortical_runtime: CorticalRuntimePort | None = None
         self.owner_broadcaster: OwnerMessageBroadcaster | None = None
+        self._runtime_token: tuple[str, int] | None = None
+        self._repository = repository
+        snapshot = (
+            repository.load_snapshot()
+            if repository is not None
+            else NestPersistenceSnapshot(
+                desired_bed_count=4,
+                elapsed_seconds=0.0,
+                catalog=None,
+                residents=(),
+            )
+        )
+        restore_snapshot(self.nest, snapshot)
+        self._runtime_sync = NestRuntimeSynchronizer(
+            nest=nest,
+            gateway=api_server,
+            actor_catalog_provider=lambda: actor_catalog(self.elfies),
+            desired_bed_count=snapshot.desired_bed_count,
+            repository=repository,
+        )
+        self._runtime_events = NestRuntimeEventRouter(
+            nest=nest,
+            gateway=api_server,
+            elfies=self.elfies,
+            synchronizer=self._runtime_sync,
+            broadcaster_provider=lambda: self.owner_broadcaster,
+        )
 
     def register_elfie(self, elfie_id: str, elfie: Elfie) -> None:
+        was_resident = self.nest.resident_state(elfie_id) is not None
+        previous_home_anchor_id = self.nest.home_anchor_id(elfie_id)
         self.nest.register_resident(elfie_id)
+        try:
+            if (
+                self.nest.state.world_catalog is not None
+                and self.nest.home_anchor_id(elfie_id) is None
+            ):
+                self.nest.admit_resident(elfie_id)
+            persist_resident(self.nest, self._repository, elfie_id)
+        except (
+            NestPersistenceError,
+            NoHomeAvailableError,
+            ReconciliationRequiredError,
+        ):
+            if not was_resident:
+                self.nest.remove_resident(elfie_id)
+            elif (
+                previous_home_anchor_id is None
+                and self.nest.home_anchor_id(elfie_id) is not None
+            ):
+                self.nest.release_home(elfie_id)
+            raise
         elfie.bind_identity(elfie_id)
-        self._attach_room_speech_broadcast(elfie)
         elfie.register_communication_channel(
             GodotOwnerChannel(
-                self.api_server,
                 owner_broadcaster=lambda: self.owner_broadcaster,
             ),
             connect=True,
@@ -60,28 +111,64 @@ class NestSession:
         if self._cortical_runtime is not None and not elfie.cognition_configured:
             elfie.configure_cognition(self._cortical_runtime)
         self.elfies[elfie_id] = elfie
+        self._runtime_sync.mark_actor_catalog_dirty()
         logger.info("精灵 '%s' 已进入 Nest", elfie_id)
 
-    def _attach_room_speech_broadcast(self, elfie: Elfie) -> None:
-        body = elfie.current_body
-        transport = getattr(body, "transport", None)
-        if transport is None or isinstance(transport, NestSpeechBroadcastTransport):
-            return
-        required = ("connect", "disconnect", "send_action")
-        if not all(hasattr(transport, name) for name in required):
-            return
-        body.transport = NestSpeechBroadcastTransport(
-            inner=transport,
-            nest=self.nest,
-            owner_broadcaster=lambda: self.owner_broadcaster,
-        )
-
     def remove_elfie(self, elfie_id: str) -> None:
+        existing = self.elfies.get(elfie_id)
+        if existing is not None:
+            transport = getattr(existing.current_body, "transport", None)
+            cancel_all = getattr(transport, "cancel_all", None)
+            if callable(cancel_all):
+                cancel_all(actor_id=elfie_id)
+        if self._repository is not None:
+            self._repository.remove_resident(elfie_id)
         elfie = self.elfies.pop(elfie_id, None)
         if elfie is not None:
             elfie.stop()
             elfie.join()
         self.nest.remove_resident(elfie_id)
+        self._runtime_sync.mark_actor_catalog_dirty()
+
+    def attach_repository(self, repository: NestRepository) -> None:
+        """Attach persistence during application bootstrap before residents load."""
+        if self._repository is repository:
+            return
+        if self.elfies:
+            msg = "cannot attach Nest repository after Elfie instances are registered"
+            raise RuntimeError(msg)
+        snapshot = repository.load_snapshot()
+        self._repository = repository
+        restore_snapshot(self.nest, snapshot)
+        self._runtime_sync = NestRuntimeSynchronizer(
+            nest=self.nest,
+            gateway=self.api_server,
+            actor_catalog_provider=lambda: actor_catalog(self.elfies),
+            desired_bed_count=snapshot.desired_bed_count,
+            repository=repository,
+        )
+        self._runtime_events.replace_synchronizer(self._runtime_sync)
+
+    def poll_runtime_connection(self) -> None:
+        """Detect a new authoritative Runtime and send desired world config."""
+        connection = self.api_server.runtime_connection
+        token = (
+            (connection.runtime_id, connection.generation)
+            if connection is not None
+            else None
+        )
+        if token != self._runtime_token:
+            self._runtime_events.interrupt_native_bodies("runtime generation changed")
+            self._runtime_token = token
+        self._runtime_sync.poll_connection()
+
+    def consume_runtime_event(self, event: RuntimeEventFrame) -> None:
+        """Apply one drained and generation-validated Runtime event."""
+        self._runtime_events.consume(event)
+
+    def flush_runtime_state(self) -> None:
+        """Send one complete actor catalog when the matching world is ready."""
+        self._runtime_sync.flush()
 
     def tick_elfies(self, seconds: float) -> None:
         """推进活跃精灵自身周期；Nest 环境时钟由 Nest 单独推进。"""
@@ -118,10 +205,6 @@ class NestSession:
         if event_type != "collision":
             return
         self.nest.submit_collision(receiver_id)
-        self.api_server.send_action(
-            "physical_impact_event",
-            {"elfie_id": receiver_id, "impact_type": "gentle_stroke"},
-        )
         logger.info("已将 %s 的碰撞刺激投递给 %s", sender_id, receiver_id)
 
     def send_user_message(
@@ -136,39 +219,17 @@ class NestSession:
         channel_id: str = "godot-owner",
     ) -> InboundDisposition | None:
         """Deliver owner text through the typed Communication boundary."""
-        elfie = self.elfies.get(elfie_id)
-        text = message.strip()
-        if elfie is None or not text:
-            return None
-        now = datetime.fromtimestamp(self.nest.state.elapsed_seconds, timezone.utc)
-        external_id = external_message_id or f"owner-message-{uuid4().hex}"
-        try:
-            owner = ActorRef(actor_id=ActorId(owner_id), source_kind="owner")
-            envelope = CommunicationEnvelope(
-                meta=MessageMeta(
-                    event_id=EventId(f"owner:{external_id}"),
-                    elfie_id=ElfieId(elfie_id),
-                    source=owner,
-                    occurred_at=now,
-                    received_at=now,
-                    trace_id=TraceId(f"owner-message:{external_id}"),
-                ),
-                account_id=account_id,
-                channel_id=channel_id,
-                conversation_id=conversation_id or f"owner:{owner_id}",
-                sender=owner,
-                recipients=(
-                    ActorRef(actor_id=ActorId(elfie_id), source_kind="elfie"),
-                ),
-                direction=MessageDirection.INBOUND,
-                external_message_id=external_id,
-                dedupe_key=external_id,
-                parts=(TextPart(text=text),),
-            )
-        except ValidationError as exc:
-            logger.warning("owner 消息 envelope 校验失败: %s", exc)
-            return None
-        return elfie.receive_communication_envelope(envelope)
+        return deliver_owner_message(
+            elfie=self.elfies.get(elfie_id),
+            elfie_id=elfie_id,
+            message=message,
+            elapsed_seconds=self.nest.state.elapsed_seconds,
+            owner_id=owner_id,
+            conversation_id=conversation_id,
+            external_message_id=external_message_id,
+            account_id=account_id,
+            channel_id=channel_id,
+        )
 
     def consume_user_message(self, elfie_id: str) -> str:
         return self.nest.consume_user_message(elfie_id)

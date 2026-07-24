@@ -11,14 +11,18 @@ from app.orchestration.lifecycle.types import ServiceLifecycleResult
 from scripts import elfienest
 
 
-def test_start_is_idempotent_when_service_is_already_running(monkeypatch, capsys) -> None:
+def test_start_is_idempotent_when_service_is_already_running(
+    monkeypatch, capsys
+) -> None:
     # Given
     calls: list[str] = []
     monkeypatch.setattr(
         lifecycle_commands,
         "start_service",
-        lambda *args, **kwargs: calls.append("start")
-        or ServiceLifecycleResult(status="already_running", pid=42),
+        lambda *args, **kwargs: (
+            calls.append("start")
+            or ServiceLifecycleResult(status="already_running", pid=42)
+        ),
     )
 
     # When
@@ -29,15 +33,14 @@ def test_start_is_idempotent_when_service_is_already_running(monkeypatch, capsys
     assert "已在运行" in capsys.readouterr().out
 
 
-def test_start_rejects_godot_port_collision_before_launch(
-    monkeypatch, capsys
-) -> None:
+def test_start_rejects_godot_port_collision_before_launch(monkeypatch, capsys) -> None:
     calls: list[str] = []
     monkeypatch.setattr(
         lifecycle_commands,
         "start_service",
-        lambda *args, **kwargs: calls.append("start")
-        or ServiceLifecycleResult(status="started", pid=1),
+        lambda *args, **kwargs: (
+            calls.append("start") or ServiceLifecycleResult(status="started", pid=1)
+        ),
     )
 
     result = lifecycle_commands.start_background_service(
@@ -55,8 +58,10 @@ def test_start_forwards_custom_service_ports(monkeypatch) -> None:
     monkeypatch.setattr(
         lifecycle_commands,
         "start_service",
-        lambda *args, **kwargs: commands.append(tuple(kwargs["command"]))
-        or ServiceLifecycleResult(status="started", pid=44),
+        lambda *args, **kwargs: (
+            commands.append(tuple(kwargs["command"]))
+            or ServiceLifecycleResult(status="started", pid=44)
+        ),
     )
 
     # When
@@ -100,8 +105,10 @@ def test_start_uses_core_when_desktop_executable_is_present(monkeypatch) -> None
     monkeypatch.setattr(
         lifecycle_commands,
         "start_service",
-        lambda *args, **kwargs: commands.append(tuple(kwargs["command"]))
-        or ServiceLifecycleResult(status="started", pid=44),
+        lambda *args, **kwargs: (
+            commands.append(tuple(kwargs["command"]))
+            or ServiceLifecycleResult(status="started", pid=44)
+        ),
     )
 
     # When
@@ -166,8 +173,10 @@ def test_restart_uses_core_when_desktop_executable_is_present(monkeypatch) -> No
     monkeypatch.setattr(
         lifecycle_commands,
         "start_service",
-        lambda *args, **kwargs: commands.append(tuple(kwargs["command"]))
-        or ServiceLifecycleResult(status="started", pid=43),
+        lambda *args, **kwargs: (
+            commands.append(tuple(kwargs["command"]))
+            or ServiceLifecycleResult(status="started", pid=43)
+        ),
     )
 
     # When
@@ -200,7 +209,9 @@ def test_web_opens_the_tracked_service_port(monkeypatch) -> None:
         "existing_service_command",
         lambda *args: (42, ("python", "scripts/serve.py", "--port", "8100")),
     )
-    monkeypatch.setattr(lifecycle_commands, "_web_is_healthy", lambda port=8000: port == 8100)
+    monkeypatch.setattr(
+        lifecycle_commands, "_web_is_healthy", lambda port=8000: port == 8100
+    )
     monkeypatch.setattr(lifecycle_commands.webbrowser, "open", opened.append)
 
     # When
@@ -224,7 +235,9 @@ def test_web_uses_core_when_desktop_executable_is_present(monkeypatch) -> None:
         "start_desktop_application",
         lambda *args, **kwargs: pytest.fail("web must not launch Desktop"),
     )
-    monkeypatch.setattr(lifecycle_commands, "existing_service_command", lambda *args: None)
+    monkeypatch.setattr(
+        lifecycle_commands, "existing_service_command", lambda *args: None
+    )
     monkeypatch.setattr(
         lifecycle_commands,
         "start_background_service",
@@ -233,7 +246,9 @@ def test_web_uses_core_when_desktop_executable_is_present(monkeypatch) -> None:
             command=("python", "scripts/serve.py", "--port", "8100"),
         ),
     )
-    monkeypatch.setattr(lifecycle_commands, "_web_is_healthy", lambda port=8000: port == 8100)
+    monkeypatch.setattr(
+        lifecycle_commands, "_web_is_healthy", lambda port=8000: port == 8100
+    )
     monkeypatch.setattr(lifecycle_commands.webbrowser, "open", opened.append)
 
     # When
@@ -271,7 +286,9 @@ def test_status_does_not_report_desktop_lifecycle(monkeypatch, capsys) -> None:
         "desktop_process_id",
         lambda *args: pytest.fail("status must inspect Core only"),
     )
-    monkeypatch.setattr(lifecycle_commands, "existing_service_command", lambda *args: None)
+    monkeypatch.setattr(
+        lifecycle_commands, "existing_service_command", lambda *args: None
+    )
 
     # When
     lifecycle_commands.show_service_status()
@@ -286,8 +303,9 @@ def test_explicit_desktop_command_starts_desktop(monkeypatch) -> None:
     monkeypatch.setattr(
         lifecycle_commands.desktop_lifecycle,
         "start_desktop_application",
-        lambda *args, **kwargs: calls.append("desktop")
-        or ServiceLifecycleResult(status="started", pid=44),
+        lambda *args, **kwargs: (
+            calls.append("desktop") or ServiceLifecycleResult(status="started", pid=44)
+        ),
     )
 
     # When
@@ -351,7 +369,9 @@ def test_status_reports_the_tracked_service_ports(monkeypatch, capsys) -> None:
         checked.append((port, name))
         return PortStatus(port, name, True)
 
-    monkeypatch.setattr("app.features.administration.system_service.check_port", fake_check_port)
+    monkeypatch.setattr(
+        "app.features.administration.system_service.check_port", fake_check_port
+    )
 
     # When
     lifecycle_commands.show_service_status()

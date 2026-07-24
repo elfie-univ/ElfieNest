@@ -74,15 +74,14 @@ class BodyPerceptionNormalizer:
                 salience=0.6,
             )
         if isinstance(payload, TactileImpact):
-            content = (
-                f"location={payload.location}; force_newtons={payload.force_newtons:g}"
-            )
+            force_newtons = payload.force_newtons or 0.0
+            content = f"location={payload.location}; force_newtons={force_newtons:g}"
             return self._reliable(
                 event,
                 PhysicalModality.TOUCH,
                 content,
                 (),
-                salience=min(1.0, 0.4 + payload.force_newtons / 30.0),
+                salience=min(1.0, 0.4 + force_newtons / 30.0),
             )
         if isinstance(payload, VisionSample):
             return (self._media(event, payload),)
@@ -173,7 +172,8 @@ class BodyPerceptionNormalizer:
             return ()
         prefix = f"body:{event.body_id}:environment"
         return tuple(
-            self._state(event, f"{prefix}:{name}", value) for name, value in values
+            self._state(event, f"{prefix}:{name}", value)
+            for name, value in values
             if self._state_values.get(f"{prefix}:{name}") != value
         )
 

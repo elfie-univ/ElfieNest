@@ -56,7 +56,9 @@ def _serve_generated_page(request: Request, page: str) -> Response:
     """Return a generated page shell or a useful build diagnosis, never old assets."""
     web_build = getattr(request.app.state, "web_build", None)
     if web_build is None:
-        error = getattr(request.app.state, "web_build_error", "Web build is unavailable.")
+        error = getattr(
+            request.app.state, "web_build_error", "Web build is unavailable."
+        )
         return PlainTextResponse(str(error), status_code=503)
     return FileResponse(web_build.page_path(page), media_type="text/html")
 
@@ -66,7 +68,9 @@ async def generated_asset(asset_path: str, request: Request) -> Response:
     """Serve only login assets anonymously; product-specific assets require a session."""
     web_build = getattr(request.app.state, "web_build", None)
     if web_build is None:
-        error = getattr(request.app.state, "web_build_error", "Web build is unavailable.")
+        error = getattr(
+            request.app.state, "web_build_error", "Web build is unavailable."
+        )
         return PlainTextResponse(str(error), status_code=503)
     user = _current_page_user(request)
     if user is None and not web_build.is_login_asset(f"assets/{asset_path}"):

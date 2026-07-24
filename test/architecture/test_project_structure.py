@@ -15,13 +15,13 @@ REQUIRED_ROOT_DIRECTORIES = frozenset(
         "devtools",
         "docs",
         "elfie",
-        "godot",
+        "godot_project",
         "nest",
         "scripts",
         "test",
     }
 )
-FORBIDDEN_SOURCE_DIRECTORIES = frozenset({"elfienest", "runtime"})
+FORBIDDEN_SOURCE_DIRECTORIES = frozenset({"elfienest", "godot", "runtime"})
 FORBIDDEN_ELFIE_DIRECTORIES = frozenset({"state"})
 REQUIRED_APP_DIRECTORIES = frozenset(
     {"bootstrap", "features", "infrastructure", "interfaces", "orchestration"}
@@ -41,6 +41,50 @@ CURRENT_PYTHON_SOURCE_ROOTS = (
     "scripts",
 )
 EXPECTED_QUALITY_COMMAND = "uv run --no-sync python scripts/check_quality_baseline.py"
+NEST_FORBIDDEN_IMPORT_ROOTS = frozenset({"ai_runtime", "app", "elfie", "godot_project"})
+NEST_SPATIAL_LAYOUT_NAMES = frozenset(
+    {
+        "DEFAULT_BED_COLUMNS",
+        "DEFAULT_BED_X",
+        "DEFAULT_BED_Y_GAP",
+        "DEFAULT_BED_Y_START",
+        "grid_x",
+        "grid_y",
+    }
+)
+NEST_LEGACY_GODOT_NAMES = frozenset(
+    {
+        "FurnitureState",
+        "GODOT_INBOUND_EVENTS",
+        "register_scene_furniture",
+        "send_action",
+        "target_furniture",
+    }
+)
+
+
+def _imported_roots(path: Path) -> set[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    imported_roots: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported_roots.update(alias.name.split(".", 1)[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            imported_roots.add(node.module.split(".", 1)[0])
+    return imported_roots
+
+
+def _names_in_python_source(source: str) -> set[str]:
+    tree = ast.parse(source)
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name):
+            names.add(node.id)
+        elif isinstance(node, ast.arg):
+            names.add(node.arg)
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            names.add(node.value)
+    return names
 
 
 def test_target_root_directories_exist() -> None:
@@ -126,20 +170,97 @@ def test_python_sources_do_not_import_legacy_packages() -> None:
         if not source_root.exists():
             continue
         for path in source_root.rglob("*.py"):
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-            imported_roots = set()
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Import):
-                    imported_roots.update(
-                        alias.name.split(".", 1)[0] for alias in node.names
-                    )
-                elif isinstance(node, ast.ImportFrom) and node.module is not None:
-                    imported_roots.add(node.module.split(".", 1)[0])
+            imported_roots = _imported_roots(path)
             if imported_roots & forbidden_packages:
                 offenders.append(path.relative_to(PROJECT_ROOT).as_posix())
 
     # Then
     assert offenders == []
+
+
+def test_nest_python_sources_do_not_import_product_or_godot_source_layers() -> None:
+    # Given
+    nest_root = PROJECT_ROOT / "nest"
+
+    # When
+    offenders = []
+    for path in nest_root.rglob("*.py"):
+        imported_forbidden_roots = _imported_roots(path) & NEST_FORBIDDEN_IMPORT_ROOTS
+        if imported_forbidden_roots:
+            offenders.append(
+                (
+                    path.relative_to(PROJECT_ROOT).as_posix(),
+                    sorted(imported_forbidden_roots),
+                )
+            )
+
+    # Then
+    assert offenders == []
+
+
+def test_nest_boundary_check_catches_illegal_reverse_dependency_fixture(
+    tmp_path: Path,
+) -> None:
+    # Given
+    source_path = tmp_path / "fixture.py"
+    source_path.write_text(
+        "from app.orchestration.nest_session import NestSession\n",
+        encoding="utf-8",
+    )
+
+    # When
+    imported_roots = _imported_roots(source_path)
+
+    # Then
+    assert imported_roots & NEST_FORBIDDEN_IMPORT_ROOTS == {"app"}
+
+
+def test_nest_source_text_check_catches_spatial_layout_fixture() -> None:
+    # Given
+    source = (
+        "DEFAULT_BED_X = (18, 39, 60)\ndef place(grid_x: int) -> int: return grid_x\n"
+    )
+
+    # When
+    spatial_names = _names_in_python_source(source) & NEST_SPATIAL_LAYOUT_NAMES
+
+    # Then
+    assert spatial_names == {"DEFAULT_BED_X", "grid_x"}
+
+
+def test_nest_does_not_retain_v1_godot_or_furniture_mirror_api() -> None:
+    offenders = []
+    for path in (PROJECT_ROOT / "nest").rglob("*.py"):
+        legacy_names = (
+            _names_in_python_source(path.read_text(encoding="utf-8"))
+            & NEST_LEGACY_GODOT_NAMES
+        )
+        if legacy_names:
+            offenders.append(
+                (
+                    path.relative_to(PROJECT_ROOT).as_posix(),
+                    sorted(legacy_names),
+                )
+            )
+
+    assert offenders == []
+
+
+def test_godot_gateway_accepts_protocol_v2_only() -> None:
+    source = (PROJECT_ROOT / "nest" / "godot" / "api.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    protocol_values = {
+        node.value.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id == "GODOT_PROTOCOL_VERSION"
+            for target in node.targets
+        )
+        and isinstance(node.value, ast.Constant)
+    }
+
+    assert protocol_values == {2}
 
 
 def test_ci_uses_current_python_roots_and_required_quality_gates() -> None:

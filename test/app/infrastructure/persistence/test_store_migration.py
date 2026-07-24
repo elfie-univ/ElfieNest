@@ -69,9 +69,12 @@ class TestMigrationV1ToV2:
         conn = sqlite3.connect(db)
         assert conn.execute("SELECT role FROM users").fetchone()[0] == "admin"
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 4
-        assert conn.execute(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sessions'"
-        ).fetchone() is None
+        assert (
+            conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sessions'"
+            ).fetchone()
+            is None
+        )
         conn.close()
 
     def test_multiple_owners_require_explicit_migration(self, tmp_path: Path) -> None:
@@ -101,12 +104,20 @@ class TestMigrationV1ToV2:
             migrate_db_if_needed(db)
 
         conn = sqlite3.connect(db)
-        assert conn.execute("SELECT COUNT(*) FROM users WHERE role = 'owner'").fetchone()[0] == 2
+        assert (
+            conn.execute("SELECT COUNT(*) FROM users WHERE role = 'owner'").fetchone()[
+                0
+            ]
+            == 2
+        )
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 4
         assert "updated_at" not in _table_info_columns(db)
-        assert conn.execute(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sessions'"
-        ).fetchone() is None
+        assert (
+            conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sessions'"
+            ).fetchone()
+            is None
+        )
         conn.close()
 
     def test_adds_profile_columns(self, tmp_path: Path) -> None:

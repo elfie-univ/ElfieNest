@@ -40,7 +40,7 @@ def private_ipv4_addresses() -> Tuple[str, ...]:
     except socket.gaierror:
         candidates = []
     for candidate in candidates:
-        address = candidate[4][0]
+        address = str(candidate[4][0])
         if ipaddress.ip_address(address).is_private:
             addresses.add(address)
     return tuple(sorted(addresses))
@@ -64,7 +64,9 @@ class ServiceAccessPolicy:
         selected_mode = ServiceMode(mode)
         hosts = set(LOOPBACK_HOSTS)
         if selected_mode is ServiceMode.LAN:
-            hosts.update(lan_addresses if lan_addresses is not None else private_ipv4_addresses())
+            hosts.update(
+                lan_addresses if lan_addresses is not None else private_ipv4_addresses()
+            )
         return cls(
             mode=selected_mode,
             http_port=http_port,
@@ -123,5 +125,7 @@ def configure_service_access(app, policy: ServiceAccessPolicy) -> None:
             return JSONResponse(status_code=400, content={"detail": "不受信任的 Host"})
         origin = request.headers.get("origin")
         if origin and not policy.allows_origin(origin):
-            return JSONResponse(status_code=403, content={"detail": "不受信任的 Origin"})
+            return JSONResponse(
+                status_code=403, content={"detail": "不受信任的 Origin"}
+            )
         return await call_next(request)

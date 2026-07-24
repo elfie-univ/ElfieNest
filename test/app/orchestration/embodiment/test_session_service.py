@@ -61,7 +61,9 @@ def test_host_failure_restores_the_nest_body_and_releases_the_persisted_lease(
     service = EmbodimentSessionService(db_path=db_path, nest_body_id=nest_body.body_id)
 
     # When: hosting attempts to bind the failed body after obtaining a lease.
-    result = service.host("elfie-1", elfie, FailingBody(body_id="broken-toy"), lease_seconds=30)
+    result = service.host(
+        "elfie-1", elfie, FailingBody(body_id="broken-toy"), lease_seconds=30
+    )
 
     # Then: BodyBinding restores the exact prior body and persistence is at_nest.
     assert isinstance(result, HostingFailed)
@@ -73,7 +75,9 @@ def test_host_failure_restores_the_nest_body_and_releases_the_persisted_lease(
     assert persisted.body_id is None
 
 
-def test_duplicate_host_is_rejected_before_a_second_body_can_bind(tmp_path: Path) -> None:
+def test_duplicate_host_is_rejected_before_a_second_body_can_bind(
+    tmp_path: Path,
+) -> None:
     # Given: the first host operation owns the durable lease and active body.
     db_path, elfie = _registered_elfie(tmp_path)
     nest_body = elfie.current_body
@@ -83,7 +87,9 @@ def test_duplicate_host_is_rejected_before_a_second_body_can_bind(tmp_path: Path
     assert isinstance(service.host("elfie-1", elfie, first, lease_seconds=30), Hosted)
 
     # When: a second host request races in while the first session is active.
-    result = service.host("elfie-1", elfie, HeadlessBody(body_id="toy-2"), lease_seconds=30)
+    result = service.host(
+        "elfie-1", elfie, HeadlessBody(body_id="toy-2"), lease_seconds=30
+    )
 
     # Then: the conflict is explicit and toy-1 remains the single active binding.
     assert isinstance(result, EmbodimentConflict)

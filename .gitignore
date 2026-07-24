@@ -74,8 +74,8 @@ data/
 /ElfieNest.worktree/
 
 # 7. Godot 4+ 虚拟空间本地编译与导入缓存 (防止二进制资产及缓存进入仓库)
-/godot/.godot/
-/godot/android/
+/godot_project/.godot/
+/godot_project/android/
 
 
 # Project agent skills are shared; keep other local agent state ignored.

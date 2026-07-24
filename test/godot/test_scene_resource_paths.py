@@ -3,7 +3,7 @@
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-GODOT_ROOT = PROJECT_ROOT / "godot"
+GODOT_ROOT = PROJECT_ROOT / "godot_project"
 
 EXPECTED_SCENES = (
     "main.tscn",
@@ -74,10 +74,39 @@ def test_project_uses_main_scene() -> None:
     assert 'run/main_scene="res://main.tscn"' in project_text
 
 
+def test_runtime_source_declares_protocol_v2_manifest_contract() -> None:
+    main_text = (GODOT_ROOT / "main.gd").read_text(encoding="utf-8")
+    nest_text = (GODOT_ROOT / "rooms" / "nest.gd").read_text(encoding="utf-8")
+    world_controller_text = (GODOT_ROOT / "runtime" / "world_controller.gd").read_text(
+        encoding="utf-8"
+    )
+
+    assert "const GODOT_PROTOCOL_VERSION := 2" in main_text
+    assert '"scene_manifest"' in world_controller_text
+    assert '"world_ready"' in world_controller_text
+    assert "match command_name:" in main_text
+    assert '"configure_world"' in main_text
+    assert "func scene_manifest() -> Dictionary:" in nest_text
+    assert "func apply_world_config(config: Dictionary) -> Dictionary:" in nest_text
+
+
+def test_runtime_manifest_is_semantic_and_does_not_export_coordinates() -> None:
+    nest_text = (GODOT_ROOT / "rooms" / "nest.gd").read_text(encoding="utf-8")
+    manifest_section = nest_text.split("func scene_manifest()", maxsplit=1)[1]
+    manifest_section = manifest_section.split(
+        "func _build_semantic_anchor_markers",
+        maxsplit=1,
+    )[0]
+
+    assert '"zones": _semantic_zones(room_count)' in manifest_section
+    assert '"anchors": _semantic_anchors(room_count)' in manifest_section
+    assert "Vector3" not in manifest_section
+    assert '"position"' not in manifest_section
+
+
 def test_blender_authoring_sources_are_excluded_from_godot_imports() -> None:
     authoring_roots = {
-        path.parent
-        for path in GODOT_ROOT.glob("characters/*/source/**/*.blend")
+        path.parent for path in GODOT_ROOT.glob("characters/*/source/**/*.blend")
     }
 
     missing_markers = [
@@ -87,6 +116,5 @@ def test_blender_authoring_sources_are_excluded_from_godot_imports() -> None:
     ]
 
     assert missing_markers == [], (
-        "Blender 制作源目录必须用 .gdignore 与 Godot 自动导入隔离: "
-        f"{missing_markers}"
+        f"Blender 制作源目录必须用 .gdignore 与 Godot 自动导入隔离: {missing_markers}"
     )

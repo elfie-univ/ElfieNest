@@ -196,7 +196,8 @@ def test_app_rejects_unknown_species_and_saves_portrait(tmp_path, client_for):
     client = client_for(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
 
     invalid = client.post(
-        "/api/elfies", json={**complete_elfie_payload("未知物种"), "species_id": "rabbit"}
+        "/api/elfies",
+        json={**complete_elfie_payload("未知物种"), "species_id": "rabbit"},
     )
     assert invalid.status_code == 422
 
@@ -223,9 +224,9 @@ def test_delete_elfie_recycles_data_and_selects_next_elfie(tmp_path, client_for)
     deleted_id = client.post(
         "/api/elfies", json=complete_elfie_payload("待删除")
     ).json()["elfie_id"]
-    next_id = client.post(
-        "/api/elfies", json=complete_elfie_payload("保留")
-    ).json()["elfie_id"]
+    next_id = client.post("/api/elfies", json=complete_elfie_payload("保留")).json()[
+        "elfie_id"
+    ]
     (data_dir / "media" / deleted_id).mkdir(parents=True)
     (data_dir / "media" / deleted_id / "sample.txt").write_text("media")
 
@@ -263,9 +264,9 @@ def test_delete_elfie_returns_conflict_while_turn_is_active(tmp_path, client_for
     # Given
     app = create_app(str(tmp_path / "data"), str(tmp_path / "runtime"))
     client = client_for(app)
-    elfie_id = client.post(
-        "/api/elfies", json=complete_elfie_payload("忙碌")
-    ).json()["elfie_id"]
+    elfie_id = client.post("/api/elfies", json=complete_elfie_payload("忙碌")).json()[
+        "elfie_id"
+    ]
     session = app.state.sessions.get(elfie_id)
     session._lock.acquire()
 
@@ -304,9 +305,7 @@ def test_delete_elfie_reports_recycle_failure_and_restores_source(tmp_path):
     ) as client:
         elfie_id = client.post(
             "/api/elfies", json=complete_elfie_payload("回滚")
-        ).json()[
-            "elfie_id"
-        ]
+        ).json()["elfie_id"]
         (data_dir / "sessions" / elfie_id).mkdir(parents=True, exist_ok=True)
         (data_dir / "sessions" / elfie_id / "turn.json").write_text("{}")
         move_count = 0

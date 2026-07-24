@@ -2,13 +2,13 @@
 
 ## 项目契约
 
-- 项目目录：`godot/`
-- 项目文件：`godot/project.godot`
+- 项目目录：`godot_project/`
+- 项目文件：`godot_project/project.godot`
 - 要求版本：Godot 4.7，GL Compatibility
 - 主场景：`res://main.tscn`
 - 最终巢穴场景：`res://rooms/nest.tscn`
 - 场景资源契约：`res://scripts/test/test_scene_resource_contract.gd`
-- Godot 生成缓存：`godot/.godot/`，已被 Git 忽略
+- Godot 生成缓存：`godot_project/.godot/`，已被 Git 忽略
 
 主场景包含 `Nest` 和空的 `Characters` 容器。仅查看最终渲染时直接运行主场景，不需要同时启动编辑器、独立游戏进程和截图进程。
 
@@ -25,7 +25,7 @@
 
 ### `.godot` 缓存含旧资源路径
 
-先在工作区干净且没有 Godot 进程时确认缓存问题。`godot/.godot/` 是可再生目录，但删除或重建前必须说明影响并取得用户同意。不要通过连续启动多个实例竞争重建缓存。
+先在工作区干净且没有 Godot 进程时确认缓存问题。`godot_project/.godot/` 是可再生目录，但删除或重建前必须说明影响并取得用户同意。不要通过连续启动多个实例竞争重建缓存。
 
 ### Godot 自动升级项目版本
 

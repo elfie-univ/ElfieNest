@@ -66,7 +66,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/
 - `ai_runtime/` 放模型、供应商、粮食策略、工具、安全和推理循环。
 - `desktop/` 只负责 Electron 窗口、平台适配、资源发现和进程监督，不承载
   账户、聊天、领养或 Nest 规则。
-- `godot/` 是房屋、几何、坐标、移动、碰撞和渲染的唯一源码来源；禁止在
+- `godot_project/` 是独立 Godot 源工程，也是房屋、几何、坐标、移动、碰撞和渲染的唯一源码来源；禁止在
   Python 中复制场景、3D 布局或家具事实。
 - `devtools/` 是隔离的模块实验台；`docs/` 是公开文档网站内容；
   `test/` 必须镜像源码结构，根目录不得新增 `test_*.py`。
@@ -92,11 +92,11 @@ README 与 `docs/developer/`，并由用户确认架构影响。
 
 打开、运行、调试、截图或关闭 Godot 前，必须先读取并执行
 `.agents/skills/godot-project-operator/SKILL.md`。按该技能检查现有进程和
-`godot/project.godot` 声明的版本；未经用户同意不得用不匹配版本编辑项目，
+`godot_project/project.godot` 声明的版本；未经用户同意不得用不匹配版本编辑项目，
 不得创建重复实例。操作前后检查 Git 状态，禁止保留 `.godot/`、导入缓存或
 编辑器自动产生的无关改动。
 
-Godot 相关规则的机器边界由 `godot/project.godot`、源码资源和
+Godot 相关规则的机器边界由 `godot_project/project.godot`、源码资源和
 `test/architecture/` / `test/godot/` 验证；技能负责安全操作流程，二者都不能
 被旧设计文档替代。
 

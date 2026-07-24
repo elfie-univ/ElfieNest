@@ -25,30 +25,26 @@ def collect_world_sensory_events(
     body_id = BodyId(
         str(getattr(current_body, "body_id", "") or f"nest-body:{elfie_id}")
     )
-    pending_speech = nest.consume_sensory_input(elfie_id)
-    if pending_speech:
+    for speech in nest.consume_speech_events(elfie_id):
         events.append(
             BodySensorEvent(
-                event_id=EventId(f"nest-room-speech:{uuid4().hex}"),
+                event_id=EventId(speech["event_id"]),
                 body_id=body_id,
                 source=ActorRef(
-                    actor_id=ActorId("nest-room"),
-                    source_kind="room",
+                    actor_id=ActorId(speech["sender_id"]),
+                    source_kind="elfie",
                 ),
                 occurred_at=captured_at,
                 received_at=captured_at,
                 payload=UtteranceFinal(
                     kind="utterance_final",
-                    text=pending_speech,
+                    text=speech["text"],
                 ),
             )
         )
 
     tactile = session.consume_tactile(elfie_id)
-    if (
-        float(tactile.get("impact_force", 0.0)) > 0.0
-        or float(tactile.get("gentle_stroke", 0.0)) > 0.0
-    ):
+    if tactile["intensity"] > 0.0:
         events.append(
             BodySensorEvent(
                 event_id=EventId(f"nest-touch:{uuid4().hex}"),
@@ -62,7 +58,11 @@ def collect_world_sensory_events(
                 payload=TactileImpact(
                     kind="tactile_impact",
                     location="body",
-                    force_newtons=float(tactile.get("impact_force", 0.0)),
+                    intensity=tactile["intensity"],
+                    direction=tactile["direction"],
+                    contact_kind=tactile["contact_kind"],
+                    source_semantic_id=tactile["source_semantic_id"],
+                    force_newtons=tactile["force_newtons_estimate"],
                 ),
             )
         )

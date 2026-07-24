@@ -509,8 +509,6 @@ def main():
     except Exception as e:
         print(f"  ⚠️  查询精灵列表失败: {e}")
 
-    engine.sync_godot_elfies()
-
     # 5. 打印启动信息
     print()
     print("=" * 56)

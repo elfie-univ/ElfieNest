@@ -18,14 +18,6 @@ from elfie.message_types import ActorRef, MessageMeta
 NOW = datetime(2026, 7, 22, 8, 0, tzinfo=timezone.utc)
 
 
-class RecordingGodotAPI:
-    def __init__(self) -> None:
-        self.actions: list[tuple[str, dict[str, JsonValue]]] = []
-
-    def send_action(self, action: str, payload: dict[str, JsonValue]) -> None:
-        self.actions.append((action, payload))
-
-
 class RecordingBroadcaster:
     def __init__(self) -> None:
         self.messages: list[tuple[str, dict[str, JsonValue]]] = []
@@ -40,9 +32,8 @@ class RecordingBroadcaster:
 
 def test_outbound_owner_message_uses_envelope_event_identity() -> None:
     # Given: the canonical envelope stores identity only under MessageMeta.
-    api = RecordingGodotAPI()
     broadcaster = RecordingBroadcaster()
-    channel = GodotOwnerChannel(api, owner_broadcaster=lambda: broadcaster)
+    channel = GodotOwnerChannel(owner_broadcaster=lambda: broadcaster)
     sender = ActorRef(actor_id="elfie-1", source_kind="elfie")
     envelope = CommunicationEnvelope(
         meta=MessageMeta(
@@ -63,16 +54,25 @@ def test_outbound_owner_message_uses_envelope_event_identity() -> None:
         parts=(TextPart(text="你好"),),
     )
 
-    # When: the app adapter sends the typed envelope to Godot.
+    # When: the app adapter sends the typed envelope to the owner transport.
     receipt = channel.send_envelope(envelope)
 
-    # Then: the wire message ID and receipt retain the canonical event ID.
-    assert api.actions[0][1]["message_id"] == "message-owner-1"
+    # Then: the owner message and receipt retain the canonical event ID.
     assert broadcaster.messages[0] == (
         "elfie-1",
         {
             "action": "owner_message",
-            "payload": api.actions[0][1],
+            "payload": {
+                "elfie_id": "elfie-1",
+                "conversation_id": "owner-chat",
+                "message_id": "message-owner-1",
+                "parts": [
+                    {
+                        "type": "text",
+                        "text": "你好",
+                    }
+                ],
+            },
         },
     )
     assert receipt.message_id == envelope.meta.event_id

@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-GODOT_PROJECT = PROJECT_ROOT / "godot"
+GODOT_PROJECT = PROJECT_ROOT / "godot_project"
 DEFAULT_OUTPUT = PROJECT_ROOT / "build" / "components" / "godot-web"
 PRESET_NAME = "Web"
 ENTRY_NAME = "elfienest.html"

@@ -48,9 +48,7 @@ def start_background_service(
 ) -> ServiceLifecycleResult:
     """Start the service once; a verified running process is left untouched."""
     launch_command = (
-        tuple(command)
-        if command is not None
-        else default_service_command(("--lan",))
+        tuple(command) if command is not None else default_service_command(("--lan",))
     )
     try:
         http_port = _validated_http_port(launch_command)

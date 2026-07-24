@@ -114,7 +114,9 @@ def test_room_layout_change_requires_confirmation_and_exposes_rebuild_state(
     assert 'id="room-layout-confirm-submit"' in index
     assert "openCenterModal(roomLayoutConfirmModal)" in console_js.text
     assert "confirmRoomLayoutChange" in console_js.text
-    assert 'bedCountInput.value = String(rooms[0]?.beds?.length || 4)' in console_js.text
+    assert (
+        "bedCountInput.value = String(rooms[0]?.beds?.length || 4)" in console_js.text
+    )
     assert "waitForGodotLayout" in console_js.text
     assert 'roomLayoutStatusOverride = "正在重建"' in console_js.text
     assert ".is-loading::before" in console_css.text

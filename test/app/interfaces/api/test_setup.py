@@ -94,7 +94,9 @@ class TestSetup:
         assert resp.status_code == 201, resp.text
         assert "Max-Age=86400" in resp.headers["set-cookie"]
 
-    def test_setup_blocked_when_users_exist(self, client: TestClient, db_path: str) -> None:
+    def test_setup_blocked_when_users_exist(
+        self, client: TestClient, db_path: str
+    ) -> None:
         """POST /api/auth/setup 在有用户时返回 409。"""
         create_test_owner(db_path)
         resp = client.post(

@@ -45,7 +45,7 @@ def project_decision(
 
     for intent in plan.intents:
         statuses = receipt_statuses.get(str(intent.intent_id), [])
-        common = {
+        common: Dict[str, Any] = {
             "intent_id": str(intent.intent_id),
             "status": statuses[-1] if statuses else "pending",
             "receipts": statuses,

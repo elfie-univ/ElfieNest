@@ -29,7 +29,7 @@ Python Core: app
 | `ai_runtime/` | 模型、Provider、策略、粮食、工具与安全运行时 | [AI Runtime README](https://github.com/elfie-univ/ElfieNest/blob/main/ai_runtime/README.md) |
 | `app/` | 产品用例、接口、基础设施和跨模块编排 | [App README](https://github.com/elfie-univ/ElfieNest/blob/main/app/README.md) |
 | `desktop/` | Electron 生命周期、资源发现和进程监督 | [Desktop README](https://github.com/elfie-univ/ElfieNest/blob/main/desktop/README.md) |
-| `godot/` | 房间、几何、坐标、碰撞、角色和渲染源码 | [Godot README](https://github.com/elfie-univ/ElfieNest/blob/main/godot/README.md) |
+| `godot_project/` | 独立 Godot 源工程：房间、几何、坐标、碰撞、角色和渲染源码 | [Godot README](https://github.com/elfie-univ/ElfieNest/blob/main/godot_project/README.md) |
 | `devtools/` | 与普通用户产品隔离的模块实验台 | [Devtools README](https://github.com/elfie-univ/ElfieNest/blob/main/devtools/README.md) |
 
 ## 模块边界
@@ -40,12 +40,51 @@ Python Core: app
 `Nest` 自己只维护居民 ID、巢内语义状态、环境时钟与互动传播。它不创建或保存
 真实 Elfie 对象，也不复制 3D 空间事实。
 
-房屋、几何、世界坐标、移动、碰撞体、导航和渲染的唯一源码来源是 `godot/`。
+房屋、几何、世界坐标、移动、碰撞体、导航和渲染的唯一源码来源是独立 Godot 源工程 `godot_project/`。
 Python 侧只保存产品规则所需的语义状态，并通过明确协议与导出的 Godot Runtime
 交换事件。
 
 依赖方向由 `test/architecture/` 持续检查。底层领域模块不能为了调用产品功能
 而反向依赖 `app.interfaces`。
+
+## 精灵、Nest 与 Godot Runtime 的交互
+
+`godot_project/` 是开发时编辑的 Godot 源工程，并不是 Python 在运行时导入的
+目录。构建会把它导出为 Godot Runtime；Python 侧通过 `nest/godot/` 的协议边界
+与这个已运行的 Runtime 交换语义命令和世界事实。
+
+```mermaid
+flowchart LR
+    Source["godot_project/<br/>Godot 源工程"]
+    Runtime["Godot Runtime<br/>导出的 Web 或桌面运行时"]
+    Elfie["elfie/<br/>认知、身体输出与通信输出"]
+    Orchestration["app/orchestration/<br/>真实 Elfie 与 Nest 的组合、路由"]
+    Nest["nest/<br/>房间语义、居民状态与世界事件"]
+    Adapter["nest/godot/<br/>Godot Runtime 协议适配"]
+
+    Source -->|"导出构建"| Runtime
+    Elfie -->|"抽象行动与通信输出"| Orchestration
+    Orchestration -->|"成员、住处与房间规则"| Nest
+    Orchestration -->|"世界配置、角色目录与身体语义命令"| Adapter
+    Adapter -->|"Runtime 协议"| Runtime
+    Runtime -->|"运行时事件与物理事实"| Adapter
+    Adapter -->|"校验后的世界目录、镜像与物理事件"| Orchestration
+    Orchestration -->|"应用语义状态与互动传播"| Nest
+    Orchestration -->|"身体感知、通信感知或执行回执"| Elfie
+```
+
+构建阶段先把 `godot_project/` 导出为可运行的 Godot Runtime。连接使用仅支持
+v2 的 nonce 鉴权和单权威 generation；编排层先配置世界，等待 Runtime 发布语义
+目录并声明导航就绪，再发送完整角色目录。运行期间，精灵输出抽象行动或通信内容；
+`app/orchestration/` 按精灵 ID 经 `nest/godot/` 发送语义命令，Nest 自身不复制
+坐标和家具事实。Runtime 运行空间、导航、动作、碰撞和渲染，并将发生的物理事实
+回传。同一条回程经由编排层更新 Nest 语义状态，并成为对应精灵的身体感知、通信
+感知或动作执行回执。
+
+移动采用“目标级命令、引擎逐帧执行”的粒度。大脑发出一次
+`execute_intent(intent="move_to_anchor")`，Godot 负责路径、步进、碰撞和动画；Python 只接收接受、开始、
+完成、阻塞、取消、超时和触觉等决策相关事实。这样既充分使用 Godot 物理世界，
+又不会让模型参与每一帧控制。
 
 ## 类型化认知信息流
 

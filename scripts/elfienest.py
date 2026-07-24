@@ -54,8 +54,7 @@ class SecretSafeArgumentParser(argparse.ArgumentParser):
             "--token",
         }
         has_sensitive_argument = any(
-            argument.split("=", 1)[0] in sensitive_options
-            for argument in sys.argv[1:]
+            argument.split("=", 1)[0] in sensitive_options for argument in sys.argv[1:]
         )
         if has_sensitive_argument:
             self.print_usage(sys.stderr)
