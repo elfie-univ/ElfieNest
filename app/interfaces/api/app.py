@@ -136,7 +136,7 @@ def create_app(
 
         rooms = _rooms_with_beds(db_path)
         app.state.camera_feed.set_desired_bed_count(rooms[0]["desired_bed_count"])
-        if engine is not None:
+        if engine is not None and not engine.session.has_repository:
             from app.infrastructure.persistence.nest_state_repository import (  # noqa: PLC0415
                 SQLiteNestStateRepository,
             )

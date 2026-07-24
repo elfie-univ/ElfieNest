@@ -57,7 +57,7 @@ const OwnerElfieSchema = z.object({
 }).passthrough()
 
 const RoomSchema = z.object({
-  id: z.number().int(),
+  id: z.string(),
   name: z.string(),
   beds: z.array(z.object({
     id: z.number().int(),

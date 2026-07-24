@@ -149,6 +149,11 @@ class NestSession:
         )
         self._runtime_events.replace_synchronizer(self._runtime_sync)
 
+    @property
+    def has_repository(self) -> bool:
+        """Whether persistence was bound before the service starts loading Elfies."""
+        return self._repository is not None
+
     def poll_runtime_connection(self) -> None:
         """Detect a new authoritative Runtime and send desired world config."""
         connection = self.api_server.runtime_connection

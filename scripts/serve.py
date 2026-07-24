@@ -45,6 +45,9 @@ from ai_runtime.storage.data_home import (
     get_elfie_home,
 )
 from app.features.adoption.generator import ElfieGenerator
+from app.infrastructure.persistence.nest_state_repository import (
+    SQLiteNestStateRepository,
+)
 from app.infrastructure.persistence.store import (
     get_db,
     init_db,
@@ -441,6 +444,7 @@ def main():
             godot_origin_port=args.port,
             tick_interval_sec=tick_interval_sec,
             max_elfies_per_room=max_elfies_per_room,
+            nest_repository=SQLiteNestStateRepository(db_path),
         )
         engine_holder["engine"] = engine
         engine_ready.set()

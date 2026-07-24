@@ -71,7 +71,7 @@ def _headers(csrf_token: str) -> dict:
 
 class TestMe:
     def test_me_returns_full_schema(self, client: TestClient) -> None:
-        """GET /api/auth/me 返回全部 9 字段。"""
+        """GET /api/auth/me 返回当前页面路由所需的全部字段。"""
         tokens = _login_owner(client)
         resp = client.get(
             "/api/auth/me",
@@ -80,9 +80,16 @@ class TestMe:
         assert resp.status_code == 200
         data = resp.json()
         assert set(data.keys()) == {
-            "id", "username", "role", "nickname",
-            "avatar_color", "avatar_kind", "csrf_token",
-            "created_at", "elfie_count",
+            "id",
+            "username",
+            "role",
+            "nickname",
+            "avatar_color",
+            "avatar_kind",
+            "csrf_token",
+            "created_at",
+            "elfie_count",
+            "default_landing_page",
         }
         assert "session_token" not in data
         assert data["id"] == 1
@@ -91,6 +98,7 @@ class TestMe:
         assert data["nickname"] is None
         assert data["avatar_color"] == 0
         assert data["avatar_kind"] == "initials"
+        assert data["default_landing_page"] == "manage"
         assert "csrf_token" in data
         assert "created_at" in data
         assert data["elfie_count"] == 0
@@ -137,7 +145,12 @@ class TestGetProfile:
         )
         assert resp.status_code == 200
         data = resp.json()
-        assert set(data.keys()) == {"username", "nickname", "avatar_color", "avatar_kind"}
+        assert set(data.keys()) == {
+            "username",
+            "nickname",
+            "avatar_color",
+            "avatar_kind",
+        }
         assert data["username"] == "owner"
         assert data["nickname"] is None
         assert data["avatar_color"] == 0
