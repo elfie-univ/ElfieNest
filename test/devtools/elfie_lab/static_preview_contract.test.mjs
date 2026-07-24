@@ -21,7 +21,7 @@ const portrait = readFileSync(
   "utf8",
 );
 const godotMain = readFileSync(
-  new URL("../../../godot/main.gd", import.meta.url),
+  new URL("../../../godot_project/main.gd", import.meta.url),
   "utf8",
 );
 

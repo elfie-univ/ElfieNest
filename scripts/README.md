@@ -32,10 +32,14 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 | --- | --- |
 | `chat_with_elfie.py` | 启动长时间引擎循环并在终端对话；需要模型运行时，手工退出后清理服务 |
 | `e2e_dashboard_check.py` | 用临时目录和随机端口启动 fallback 服务，检查登录、领养与管理面板链路 |
-| `e2e_service_check.py` | 在固定本地 WebSocket 端口运行完整通信诊断；先确认端口空闲并使用隔离数据目录 |
+| `verify_nest_runtime_e2e.py` | 等待一个 Godot Runtime，验证双精灵同步、广播、语义移动和取消终态 |
 
 这些脚本可能耗时、占用端口或产生本地数据，不应作为 import 时执行的模块，也不应
 在不知情的情况下指向默认生产数据。可自动化的回归应优先进入 `test/e2e/`。
+
+`verify_nest_runtime_e2e.py` 启动 Python 侧协议 v2 网关；另一个终端需使用脚本
+输出的 WebSocket 地址和 nonce 启动 `godot_project/main.tscn`。脚本只使用内存
+状态，不读取或写入生产 `ELFIE_HOME`。
 
 ## 产物边界
 

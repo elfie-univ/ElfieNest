@@ -83,7 +83,7 @@ GODOT_BIN=/path/to/godot4.7 ./developer.sh build-godot-web
 ```
 
 正式输出位于 `build/components/godot-web/`，不会提交 Git。具体环境、产物和
-打包流程见仓库内 `godot/WEB_EXPORT.md`。
+打包流程见独立 Godot 源工程内的 `godot_project/WEB_EXPORT.md`。
 
 ## Developer Tools
 

@@ -103,7 +103,9 @@ class OutputRouter:
                     return runtime.batch
                 return self._reject(plan, "idempotency_conflict", "plan ID was reused")
             if not self._accepting:
-                return self._reject(plan, "router_not_running", "output router is stopped")
+                return self._reject(
+                    plan, "router_not_running", "output router is stopped"
+                )
             error = self._validate(plan)
             if error is not None:
                 return self._reject(plan, error.code, error.message)

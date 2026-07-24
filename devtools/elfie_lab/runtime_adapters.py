@@ -114,7 +114,9 @@ class TracingRuntimeAgent:
 
     def generate(self, request: ModelGenerationRequest) -> ModelGenerationResult:
         speech = self.ask(request.user_prompt, energy=100.0, task_complexity=2)
-        text = _mock_decision_json(request, speech) if self.food_key == "mock" else speech
+        text = (
+            _mock_decision_json(request, speech) if self.food_key == "mock" else speech
+        )
         return ModelGenerationResult(
             text=text,
             selected_mode=(

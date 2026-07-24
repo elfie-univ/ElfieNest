@@ -1,14 +1,51 @@
 """精灵巢状态模型。"""
 
 from nest.state.config import NestConfig
-from nest.state.models import FurnitureState, GodotRuntimeState, ResidentState
-from nest.state.store import NestFullError, NestState
+from nest.state.models import (
+    AnchorKind,
+    HomeAssignment,
+    InteractionAnchor,
+    PersistentResidentState,
+    ResidentPresence,
+    ResidentState,
+    RuntimeResidentMirror,
+    WorldCatalog,
+    ZoneDescriptor,
+)
+from nest.state.repository import (
+    NestPersistenceError,
+    NestPersistenceSnapshot,
+    NestRepository,
+)
+from nest.state.store import (
+    BedConflictError,
+    NestFullError,
+    NestState,
+    NoHomeAvailableError,
+    ReconciliationRequiredError,
+    UnknownAnchorError,
+    UnknownResidentError,
+)
 
 __all__ = [
-    "FurnitureState",
-    "GodotRuntimeState",
+    "AnchorKind",
+    "BedConflictError",
+    "HomeAssignment",
+    "InteractionAnchor",
     "NestConfig",
     "NestFullError",
     "NestState",
+    "NestPersistenceError",
+    "NestPersistenceSnapshot",
+    "NestRepository",
+    "NoHomeAvailableError",
+    "ReconciliationRequiredError",
+    "PersistentResidentState",
+    "ResidentPresence",
     "ResidentState",
+    "RuntimeResidentMirror",
+    "UnknownAnchorError",
+    "UnknownResidentError",
+    "WorldCatalog",
+    "ZoneDescriptor",
 ]

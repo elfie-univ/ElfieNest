@@ -5,7 +5,14 @@ from __future__ import annotations
 import sqlite3
 from typing import Final
 
-CURRENT_SCHEMA_VERSION: Final[int] = 6
+from app.infrastructure.persistence.nest_schema import (
+    NestSchemaMigrationError,
+    ensure_legacy_nest_tables,
+    ensure_nest_semantic_tables,
+    migrate_legacy_nest_layout_to_semantic_tables,
+)
+
+CURRENT_SCHEMA_VERSION: Final[int] = 7
 
 
 class OwnerSchemaMigrationError(RuntimeError):
@@ -44,7 +51,7 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
         )
         """
     )
-    _ensure_nest_tables(connection)
+    ensure_legacy_nest_tables(connection)
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS elfie_registry (
@@ -79,6 +86,10 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
         _migrate_v4_to_v5(connection)
     if version < 6:
         _migrate_v5_to_v6(connection)
+    if version < 7:
+        migrate_legacy_nest_layout_to_semantic_tables(connection)
+    else:
+        ensure_nest_semantic_tables(connection)
     _ensure_owner_index(connection)
 
 
@@ -87,7 +98,7 @@ def migrate_schema(connection: sqlite3.Connection) -> None:
     try:
         initialize_schema(connection)
         connection.commit()
-    except (OwnerSchemaMigrationError, sqlite3.Error):
+    except (OwnerSchemaMigrationError, NestSchemaMigrationError, sqlite3.Error):
         connection.rollback()
         raise
 
@@ -100,32 +111,6 @@ def _migrate_v1_to_v2(connection: sqlite3.Connection) -> None:
     ):
         _ignore_duplicate_column(connection, statement)
     connection.execute("PRAGMA user_version = 2")
-
-
-def _ensure_nest_tables(connection: sqlite3.Connection) -> None:
-    connection.execute(
-        """
-        CREATE TABLE IF NOT EXISTS rooms (
-            id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL,
-            max_capacity INTEGER NOT NULL DEFAULT 4,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-        """
-    )
-    connection.execute(
-        """
-        CREATE TABLE IF NOT EXISTS beds (
-            id INTEGER PRIMARY KEY,
-            room_id INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            grid_x INTEGER DEFAULT 0,
-            grid_y INTEGER DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(room_id) REFERENCES rooms(id)
-        )
-        """
-    )
 
 
 def _ensure_chat_tables(connection: sqlite3.Connection) -> None:
@@ -153,7 +138,7 @@ def _ensure_chat_tables(connection: sqlite3.Connection) -> None:
 
 
 def _migrate_v2_to_v3(connection: sqlite3.Connection) -> None:
-    _ensure_nest_tables(connection)
+    ensure_legacy_nest_tables(connection)
     _ignore_duplicate_column(
         connection, "ALTER TABLE elfie_registry ADD COLUMN bed_id INTEGER"
     )
@@ -187,8 +172,7 @@ def _migrate_v5_to_v6(connection: sqlite3.Connection) -> None:
     """增加稳定物种和档案版本；旧 anatomy_type 仅保留兼容读取。"""
     _ignore_duplicate_column(
         connection,
-        "ALTER TABLE elfie_registry "
-        "ADD COLUMN species_id TEXT NOT NULL DEFAULT 'fox'",
+        "ALTER TABLE elfie_registry ADD COLUMN species_id TEXT NOT NULL DEFAULT 'fox'",
     )
     _ignore_duplicate_column(
         connection,
@@ -250,11 +234,17 @@ def _rebuild_users_table(
         if column in existing_columns:
             source.append(column)
         elif column == "updated_at":
-            source.append("created_at" if "created_at" in existing_columns else "CURRENT_TIMESTAMP")
+            source.append(
+                "created_at"
+                if "created_at" in existing_columns
+                else "CURRENT_TIMESTAMP"
+            )
         else:
             source.append(_default_expression(column))
     connection.execute(
-        "INSERT INTO users_new (" + ", ".join(target) + ") SELECT "
+        "INSERT INTO users_new ("
+        + ", ".join(target)
+        + ") SELECT "
         + ", ".join(source)
         + " FROM users"
     )
@@ -283,7 +273,9 @@ def _ensure_owner_index(connection: sqlite3.Connection) -> None:
 
 
 def _table_columns(connection: sqlite3.Connection, table_name: str) -> set[str]:
-    return {str(row[1]) for row in connection.execute(f"PRAGMA table_info({table_name})")}
+    return {
+        str(row[1]) for row in connection.execute(f"PRAGMA table_info({table_name})")
+    }
 
 
 def _ignore_duplicate_column(connection: sqlite3.Connection, statement: str) -> None:

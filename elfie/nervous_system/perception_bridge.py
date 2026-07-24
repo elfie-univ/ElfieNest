@@ -111,7 +111,7 @@ class BodyPerceptionBridge:
             payload = event.payload
             reflex_required = False
             if isinstance(payload, TactileImpact) and (
-                payload.force_newtons >= DANGER_FORCE_NEWTONS
+                (payload.force_newtons or 0.0) >= DANGER_FORCE_NEWTONS
             ):
                 reflex_required = True
         if reflex_required and isinstance(payload, TactileImpact):
@@ -167,5 +167,6 @@ class BodyPerceptionBridge:
         with self._pending_lock:
             self._closed = True
             self._pending.clear()
+
 
 __all__ = ("BodyPerceptionBridge",)

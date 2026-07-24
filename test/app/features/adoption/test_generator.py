@@ -97,27 +97,47 @@ class TestBigFiveRanges:
             for lower, upper in ranges.values()
         )
 
-    def test_all_six_styles_in_range(self, generator: ElfieGenerator, tmp_path: Path) -> None:
+    def test_all_six_styles_in_range(
+        self, generator: ElfieGenerator, tmp_path: Path
+    ) -> None:
         """6 种风格各生成 1 个 → big_five 5 个维度都在 [0, 1]。"""
         for style in PERSONALITY_PRESETS:
             cfg = str(tmp_path / f"elfie_{style}")
-            result = _generate(generator, cfg, personality_style=style, elfie_id=f"test_{style}")
+            result = _generate(
+                generator, cfg, personality_style=style, elfie_id=f"test_{style}"
+            )
             # 读取 personality.yaml 验证
             with open(Path(result["config_dir"]) / "personality.yaml") as f:
                 data = yaml.safe_load(f)
             bf = data["big_five"]
-            for trait in ("openness", "conscientiousness", "extraversion", "agreeableness", "neuroticism"):
+            for trait in (
+                "openness",
+                "conscientiousness",
+                "extraversion",
+                "agreeableness",
+                "neuroticism",
+            ):
                 val = bf[trait]
                 assert 0.0 <= val <= 1.0, f"{style}/{trait} = {val} out of [0,1]"
 
-    def test_random_style_high_variance(self, generator: ElfieGenerator, tmp_path: Path) -> None:
+    def test_random_style_high_variance(
+        self, generator: ElfieGenerator, tmp_path: Path
+    ) -> None:
         """完全随机风格生成 10 次 → 每个维度有较大方差。"""
-        traits = ["openness", "conscientiousness", "extraversion", "agreeableness", "neuroticism"]
+        traits = [
+            "openness",
+            "conscientiousness",
+            "extraversion",
+            "agreeableness",
+            "neuroticism",
+        ]
         values: Dict[str, List[float]] = {t: [] for t in traits}
 
         for i in range(10):
             cfg = str(tmp_path / f"random_{i}")
-            result = _generate(generator, cfg, personality_style="完全随机", elfie_id=f"r{i}")
+            result = _generate(
+                generator, cfg, personality_style="完全随机", elfie_id=f"r{i}"
+            )
             with open(Path(result["config_dir"]) / "personality.yaml") as f:
                 data = yaml.safe_load(f)
             bf = data["big_five"]
@@ -128,7 +148,9 @@ class TestBigFiveRanges:
             vals = values[t]
             # 至少 5 个不同值 或 标准差 > 0.1
             distinct = len({round(v, 4) for v in vals})
-            std = math.sqrt(sum((v - sum(vals) / len(vals)) ** 2 for v in vals) / len(vals))
+            std = math.sqrt(
+                sum((v - sum(vals) / len(vals)) ** 2 for v in vals) / len(vals)
+            )
             assert distinct >= 5 or std > 0.1, (
                 f"{t}: distinct={distinct}, std={std:.4f} — not enough variance"
             )
@@ -140,7 +162,9 @@ class TestBigFiveRanges:
 
 
 class TestYamlStructure:
-    def test_three_yaml_files_exist(self, generator: ElfieGenerator, config_dir: str) -> None:
+    def test_three_yaml_files_exist(
+        self, generator: ElfieGenerator, config_dir: str
+    ) -> None:
         """生成的 YAML 文件存在。"""
         result = _generate(generator, config_dir)
         base = Path(result["config_dir"])
@@ -148,7 +172,9 @@ class TestYamlStructure:
         assert (base / "capabilities.yaml").exists()
         assert (base / "system_limits.yaml").exists()
 
-    def test_personality_has_big_five(self, generator: ElfieGenerator, config_dir: str) -> None:
+    def test_personality_has_big_five(
+        self, generator: ElfieGenerator, config_dir: str
+    ) -> None:
         """personality.yaml 包含 big_five 节。"""
         _generate(generator, config_dir)
         with open(Path(config_dir) / "personality.yaml") as f:
@@ -156,18 +182,25 @@ class TestYamlStructure:
         assert "big_five" in data
         bf = data["big_five"]
         assert set(bf.keys()) == {
-            "openness", "conscientiousness", "extraversion",
-            "agreeableness", "neuroticism",
+            "openness",
+            "conscientiousness",
+            "extraversion",
+            "agreeableness",
+            "neuroticism",
         }
 
-    def test_capabilities_has_actuators(self, generator: ElfieGenerator, config_dir: str) -> None:
+    def test_capabilities_has_actuators(
+        self, generator: ElfieGenerator, config_dir: str
+    ) -> None:
         """capabilities.yaml 包含 actuators 节。"""
         _generate(generator, config_dir)
         with open(Path(config_dir) / "capabilities.yaml") as f:
             data = yaml.safe_load(f)
         assert "actuators" in data
 
-    def test_system_limits_has_limits(self, generator: ElfieGenerator, config_dir: str) -> None:
+    def test_system_limits_has_limits(
+        self, generator: ElfieGenerator, config_dir: str
+    ) -> None:
         """system_limits.yaml 包含 limits 节。"""
         _generate(generator, config_dir)
         with open(Path(config_dir) / "system_limits.yaml") as f:
@@ -185,7 +218,9 @@ class TestYamlStructure:
 
 
 class TestElfieProfileCompatibility:
-    def test_elfie_profile_loads(self, generator: ElfieGenerator, config_dir: str) -> None:
+    def test_elfie_profile_loads(
+        self, generator: ElfieGenerator, config_dir: str
+    ) -> None:
         """ElfieProfile(config_dir) 能成功加载。"""
         _generate(generator, config_dir)
         from elfie.profile import ElfieProfileRepository
@@ -206,7 +241,9 @@ class TestElfieProfileCompatibility:
         assert "actuators" in profile.capabilities
         assert "limits" in profile.system_limits
 
-    def test_supported_actions_contains_mandatory(self, generator: ElfieGenerator, config_dir: str) -> None:
+    def test_supported_actions_contains_mandatory(
+        self, generator: ElfieGenerator, config_dir: str
+    ) -> None:
         """supported_actions 包含 nod_head + blink_eyes。"""
         # 需要读取 capabilities.yaml 中的 supported_actions
         # 因为 generate 内部调用 _pick_supported_actions，我们直接测试该方法
@@ -226,9 +263,15 @@ class TestHeightBuildEffects:
     def test_tall_depletion_greater_than_short(self) -> None:
         """height=tall 时 depletion_rate > short 的对应值。"""
         base_rate = 0.005
-        tall_rate = ElfieGenerator._compute_depletion_rate(base_rate, "tall", "standard")
-        short_rate = ElfieGenerator._compute_depletion_rate(base_rate, "short", "standard")
-        standard_rate = ElfieGenerator._compute_depletion_rate(base_rate, "standard", "standard")
+        tall_rate = ElfieGenerator._compute_depletion_rate(
+            base_rate, "tall", "standard"
+        )
+        short_rate = ElfieGenerator._compute_depletion_rate(
+            base_rate, "short", "standard"
+        )
+        standard_rate = ElfieGenerator._compute_depletion_rate(
+            base_rate, "standard", "standard"
+        )
         assert tall_rate > standard_rate > short_rate
         assert abs(tall_rate - 0.0055) < 0.0001  # 0.005 * 1.1
         assert abs(short_rate - 0.0045) < 0.0001  # 0.005 * 0.9
@@ -236,9 +279,15 @@ class TestHeightBuildEffects:
     def test_plump_depletion_greater_than_slim(self) -> None:
         """build=plump 时 depletion_rate > slim 的对应值。"""
         base_rate = 0.005
-        plump_rate = ElfieGenerator._compute_depletion_rate(base_rate, "standard", "plump")
-        slim_rate = ElfieGenerator._compute_depletion_rate(base_rate, "standard", "slim")
-        standard_rate = ElfieGenerator._compute_depletion_rate(base_rate, "standard", "standard")
+        plump_rate = ElfieGenerator._compute_depletion_rate(
+            base_rate, "standard", "plump"
+        )
+        slim_rate = ElfieGenerator._compute_depletion_rate(
+            base_rate, "standard", "slim"
+        )
+        standard_rate = ElfieGenerator._compute_depletion_rate(
+            base_rate, "standard", "standard"
+        )
         assert plump_rate > standard_rate > slim_rate
         assert abs(plump_rate - 0.00525) < 0.0001  # 0.005 * 1.05
         assert abs(slim_rate - 0.00475) < 0.0001  # 0.005 * 0.95
@@ -257,22 +306,30 @@ class TestHeightBuildEffects:
 
 
 class TestValidation:
-    def test_unknown_personality_style_raises(self, generator: ElfieGenerator, config_dir: str) -> None:
+    def test_unknown_personality_style_raises(
+        self, generator: ElfieGenerator, config_dir: str
+    ) -> None:
         """未知 personality_style → ValueError。"""
         with pytest.raises(ValueError, match="未知"):
             _generate(generator, config_dir, personality_style="nonexistent")
 
-    def test_unknown_anatomy_type_raises(self, generator: ElfieGenerator, config_dir: str) -> None:
+    def test_unknown_anatomy_type_raises(
+        self, generator: ElfieGenerator, config_dir: str
+    ) -> None:
         """未知 anatomy_type → ValueError。"""
         with pytest.raises(ValueError, match="无效 anatomy_type"):
             _generate(generator, config_dir, anatomy_type="tripled")
 
-    def test_unknown_height_raises(self, generator: ElfieGenerator, config_dir: str) -> None:
+    def test_unknown_height_raises(
+        self, generator: ElfieGenerator, config_dir: str
+    ) -> None:
         """未知 height → ValueError。"""
         with pytest.raises(ValueError, match="无效 height"):
             _generate(generator, config_dir, height="super_tall")
 
-    def test_unknown_build_raises(self, generator: ElfieGenerator, config_dir: str) -> None:
+    def test_unknown_build_raises(
+        self, generator: ElfieGenerator, config_dir: str
+    ) -> None:
         """未知 build → ValueError。"""
         with pytest.raises(ValueError, match="无效 build"):
             _generate(generator, config_dir, build="extra_wide")

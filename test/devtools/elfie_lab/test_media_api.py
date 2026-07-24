@@ -33,12 +33,18 @@ def test_upload_and_submit_pure_visual_turn(tmp_path, client_for):
 
     turn = client.post(
         f"/api/elfies/{elfie_id}/turns",
-        json={"message": "", "food_key": "mock", "vision_media_id": descriptor["media_id"]},
+        json={
+            "message": "",
+            "food_key": "mock",
+            "vision_media_id": descriptor["media_id"],
+        },
     )
 
     assert turn.status_code == 200
     payload = turn.json()
-    assert payload["stimulus_bundle"]["vision_media"]["media_id"] == descriptor["media_id"]
+    assert (
+        payload["stimulus_bundle"]["vision_media"]["media_id"] == descriptor["media_id"]
+    )
     assert payload["trace"]["stages"]["typed_input"]["modalities"] == [
         "vision",
         "environment",

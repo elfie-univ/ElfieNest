@@ -145,9 +145,7 @@ def _memory_cognition_projection(
                 "content": str(item.get("content", "")),
                 "timestamp": str(item.get("metadata", {}).get("timestamp", "")),
                 "emotion": str(item.get("metadata", {}).get("emotion", "")),
-                "importance": float(
-                    item.get("metadata", {}).get("intensity", 0.0)
-                ),
+                "importance": float(item.get("metadata", {}).get("intensity", 0.0)),
             }
             for item in episodes
         ),

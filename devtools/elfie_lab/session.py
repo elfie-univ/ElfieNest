@@ -106,9 +106,7 @@ class ElfieLabSession:
                     runtime,
                 )
                 decision = project_decision(plan, receipts)
-                speech = "\n".join(
-                    decision["spoken_texts"] + decision["message_texts"]
-                )
+                speech = "\n".join(decision["spoken_texts"] + decision["message_texts"])
                 result = {
                     "success": outcome.status.value == "completed",
                     "speech": speech,

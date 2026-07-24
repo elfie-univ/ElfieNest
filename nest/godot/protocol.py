@@ -1,15 +1,10 @@
-"""Godot WebSocket 协议边界：事件白名单和连接级速率限制。"""
+"""Connection-level rate limiting for Godot protocol v2."""
 
 from __future__ import annotations
 
 import time
 from typing import Final
 
-GODOT_INBOUND_EVENTS: Final = frozenset({
-    "runtime_ready",
-    "arrived_at",
-    "user_message",
-})
 MAX_EVENTS_PER_SECOND: Final = 60
 RATE_LIMIT_WINDOW_SECONDS: Final = 1.0
 

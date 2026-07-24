@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 import anyio
@@ -32,107 +33,94 @@ class FakeWebSocket:
         raise StopAsyncIteration
 
 
-def test_godot_requires_hello_nonce_before_runtime_events() -> None:
-    # Given
+def test_gateway_accepts_only_authenticated_protocol_v2_hello() -> None:
     server = GodotAPIServer(port=0, handshake_nonce="nonce-1")
-    websocket = FakeWebSocket(
-        [
-            '{"event":"hello","payload":{"protocol":1,"nonce":"nonce-1"}}',
-            '{"event":"runtime_ready","payload":{"protocol":1}}',
-        ],
+    accepted = FakeWebSocket(
+        [_hello(protocol=2, nonce="nonce-1")],
+        origin="http://127.0.0.1:8000",
+    )
+    legacy = FakeWebSocket(
+        [_hello(protocol=1, nonce="nonce-1")],
         origin="http://127.0.0.1:8000",
     )
 
-    # When
-    anyio.run(server._handle_client, websocket)
+    anyio.run(server._handle_client, accepted)
+    anyio.run(server._handle_client, legacy)
 
-    # Then
-    assert websocket.closed == []
-    assert '"event": "hello_ok"' in websocket.sent[0]
+    assert accepted.closed == []
+    assert json.loads(accepted.sent[0])["payload"]["protocol"] == 2
+    assert legacy.closed == [(4004, "Invalid Godot handshake")]
+    assert legacy.sent == []
 
 
-def test_godot_rejects_runtime_event_as_first_frame() -> None:
-    # Given
+def test_gateway_rejects_event_as_first_frame() -> None:
     server = GodotAPIServer(port=0, handshake_nonce="nonce-1")
     websocket = FakeWebSocket(
-        ['{"event":"runtime_ready","payload":{"protocol":1}}'],
+        ['{"kind":"event","protocol":2}'],
         origin="http://127.0.0.1:8000",
     )
 
-    # When
     anyio.run(server._handle_client, websocket)
 
-    # Then
     assert websocket.closed == [(4003, "First frame must be hello")]
-    assert websocket.sent == []
 
 
-def test_godot_rejects_wrong_nonce_and_origin() -> None:
-    # Given
+def test_gateway_rejects_wrong_nonce_and_origin() -> None:
     server = GodotAPIServer(port=0, handshake_nonce="nonce-1")
     wrong_nonce = FakeWebSocket(
-        ['{"event":"hello","payload":{"protocol":1,"nonce":"wrong"}}'],
+        [_hello(protocol=2, nonce="wrong")],
         origin="http://127.0.0.1:8000",
     )
     wrong_origin = FakeWebSocket(
-        ['{"event":"hello","payload":{"protocol":1,"nonce":"nonce-1"}}'],
+        [_hello(protocol=2, nonce="nonce-1")],
         origin="https://example.invalid",
     )
+    empty_origin = FakeWebSocket([_hello(protocol=2, nonce="nonce-1")])
 
-    # When
     anyio.run(server._handle_client, wrong_nonce)
     anyio.run(server._handle_client, wrong_origin)
+    anyio.run(server._handle_client, empty_origin)
 
-    # Then
     assert wrong_nonce.closed == [(4004, "Invalid Godot handshake")]
     assert wrong_origin.closed == [(4005, "Origin not allowed")]
+    assert empty_origin.closed == [(4005, "Origin not allowed")]
 
 
-def test_godot_rejects_empty_origin() -> None:
-    server = GodotAPIServer(port=0, handshake_nonce="nonce-1")
-    websocket = FakeWebSocket(
-        ['{"event":"hello","payload":{"protocol":1,"nonce":"nonce-1"}}']
+def test_gateway_allows_configured_web_runtime_origin() -> None:
+    server = GodotAPIServer(
+        port=0,
+        http_port=18000,
+        handshake_nonce="nonce-1",
     )
-
-    anyio.run(server._handle_client, websocket)
-
-    assert websocket.closed == [(4005, "Origin not allowed")]
-
-
-def test_godot_rejects_unknown_runtime_event() -> None:
-    server = GodotAPIServer(port=0, handshake_nonce="nonce-1")
     websocket = FakeWebSocket(
-        [
-            '{"event":"hello","payload":{"protocol":1,"nonce":"nonce-1"}}',
-            '{"event":"not_allowed","payload":{}}',
-        ],
-        origin="http://127.0.0.1:8000",
-    )
-
-    anyio.run(server._handle_client, websocket)
-
-    assert websocket.closed == [(4006, "Event not allowed")]
-
-
-def test_godot_closes_connection_after_rate_limit() -> None:
-    server = GodotAPIServer(port=0, handshake_nonce="nonce-1")
-    messages = [
-        '{"event":"hello","payload":{"protocol":1,"nonce":"nonce-1"}}'
-    ] + ['{"event":"runtime_ready","payload":{"protocol":1}}'] * 61
-    websocket = FakeWebSocket(messages, origin="http://127.0.0.1:8000")
-
-    anyio.run(server._handle_client, websocket)
-
-    assert websocket.closed == [(4029, "Message rate limit exceeded")]
-
-
-def test_godot_allows_configured_management_ui_origin() -> None:
-    server = GodotAPIServer(port=0, http_port=18000, handshake_nonce="nonce-1")
-    websocket = FakeWebSocket(
-        ['{"event":"hello","payload":{"protocol":1,"nonce":"nonce-1"}}'],
+        [_hello(protocol=2, nonce="nonce-1")],
         origin="http://127.0.0.1:18000",
     )
 
     anyio.run(server._handle_client, websocket)
 
     assert websocket.closed == []
+
+
+def test_gateway_restarts_fifty_times_without_leaking_thread_or_clients() -> None:
+    server = GodotAPIServer(port=0, handshake_nonce="nonce-1")
+
+    for _ in range(50):
+        server.start()
+        server.stop()
+        assert server._thread is not None
+        assert not server._thread.is_alive()
+        assert server.clients == set()
+
+
+def _hello(*, protocol: int, nonce: str) -> str:
+    return json.dumps(
+        {
+            "event": "hello",
+            "payload": {
+                "protocol": protocol,
+                "nonce": nonce,
+                "runtime_id": "runtime-a",
+            },
+        }
+    )

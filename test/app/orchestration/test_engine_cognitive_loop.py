@@ -26,31 +26,6 @@ def test_tick_once_only_advances_world_and_pumps_typed_inputs() -> None:
     assert not hasattr(ElfieNestEngine, "respond_to_body_events")
 
 
-def test_godot_owner_message_enters_communication_once() -> None:
-    # Given: one registered Elfie and a stable external Godot message ID.
-    with patch("app.orchestration.engine.GodotAPIServer"):
-        engine = ElfieNestEngine(ws_port=18765, godot_origin_port=18000)
-    elfie = MagicMock()
-    elfie.identity.elfie_id = "elfie-1"
-    engine.session.register_elfie("elfie-1", elfie)
-    payload = {
-        "elfie_id": "elfie-1",
-        "owner_id": "owner-1",
-        "conversation_id": "owner-chat",
-        "message_id": "godot-message-1",
-        "message": "hello",
-    }
-
-    # When: the same gateway delivery is replayed.
-    engine._on_user_message(payload)
-    engine._on_user_message(payload)
-
-    # Then: the Communication boundary owns dedupe; Nest and Body get no copy.
-    assert elfie.receive_communication_envelope.call_count == 2
-    assert engine.nest.consume_user_message("elfie-1") == ""
-    assert engine._collect_world_sensory_events("elfie-1") == []
-
-
 def test_session_owner_message_bypasses_legacy_nest_buffer() -> None:
     # Given: the product session owns one Elfie with the new Communication boundary.
     with patch("app.orchestration.engine.GodotAPIServer"):

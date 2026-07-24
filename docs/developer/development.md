@@ -118,7 +118,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 ### Godot 打不开或版本不一致
 
 先不要打开可编辑项目。阅读
-[Godot README](https://github.com/elfie-univ/ElfieNest/blob/main/godot/README.md)，
+[Godot README](https://github.com/elfie-univ/ElfieNest/blob/main/godot_project/README.md)，
 核对现有 Godot 进程、项目声明版本和 Export Templates，再按公开操作门执行。
 
 ### 质量门报告历史问题

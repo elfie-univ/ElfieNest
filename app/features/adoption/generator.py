@@ -232,7 +232,9 @@ class ElfieGenerator:
             "metadata": {
                 "name": name,
                 "version": "1.0",
-                "description": DESCRIPTION_TEMPLATES.get(style, DESCRIPTION_TEMPLATES["完全随机"]),
+                "description": DESCRIPTION_TEMPLATES.get(
+                    style, DESCRIPTION_TEMPLATES["完全随机"]
+                ),
                 "appearance": {
                     "height": height,
                     "build": build,
@@ -387,9 +389,7 @@ class ElfieGenerator:
                 f"无效 height: {height!r}。可选: {', '.join(VALID_HEIGHTS)}"
             )
         if build not in VALID_BUILDS:
-            raise ValueError(
-                f"无效 build: {build!r}。可选: {', '.join(VALID_BUILDS)}"
-            )
+            raise ValueError(f"无效 build: {build!r}。可选: {', '.join(VALID_BUILDS)}")
         allowed_species = get_allowed_species_ids()
         if species_id not in allowed_species:
             raise ValueError(
@@ -406,7 +406,9 @@ class ElfieGenerator:
             elfie_id=elfie_id,
             display_name=name,
             species_id=species_id,
-            seed=appearance_seed if appearance_seed is not None else secrets.randbits(63),
+            seed=appearance_seed
+            if appearance_seed is not None
+            else secrets.randbits(63),
             height_direction=height,
             build_direction=build,
             appearance_overrides=appearance_overrides,
@@ -425,7 +427,9 @@ class ElfieGenerator:
         max_servo_speed = random.uniform(40, 80)
         base_depletion_rate = random.uniform(0.003, 0.008)
         depletion_rate = self._compute_depletion_rate(
-            base_depletion_rate, height, build,
+            base_depletion_rate,
+            height,
+            build,
         )
 
         # ------------------------------------------------------------------
@@ -441,10 +445,15 @@ class ElfieGenerator:
                 "height_scale": resolved.height_scale,
                 "build_scale": resolved.build_scale,
             },
-            big_five, verbal_tick, mutter_templates, greetings,
+            big_five,
+            verbal_tick,
+            mutter_templates,
+            greetings,
         )
         capabilities = self._build_capabilities_yaml(
-            supported_actions, max_wpm, max_servo_speed,
+            supported_actions,
+            max_wpm,
+            max_servo_speed,
         )
         system_limits = self._build_system_limits_yaml(depletion_rate)
 
@@ -478,7 +487,9 @@ class ElfieGenerator:
 
         logger.info(
             "Generated config for elfie %s (%s) at %s",
-            elfie_id, name, config_dir,
+            elfie_id,
+            name,
+            config_dir,
         )
 
         return {

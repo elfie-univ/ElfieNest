@@ -59,12 +59,14 @@ def test_session_routes_collision_through_nest(
     engine: ElfieNestEngine,
 ) -> None:
     # Given / When
+    engine.nest.register_resident("receiver")
     engine.session.trigger_elfie_interaction("sender", "receiver", "collision")
     tactile = engine.session.consume_tactile("receiver")
 
     # Then
-    assert tactile["gentle_stroke"] == 1.0
-    assert tactile["impact_force"] == 1.5
+    assert tactile["intensity"] == 0.25
+    assert tactile["direction"] == "back"
+    assert tactile["force_newtons_estimate"] == 1.5
 
 
 def test_engine_capacity_is_enforced_by_nest(mock_elfie: MagicMock) -> None:

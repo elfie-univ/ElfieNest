@@ -8,7 +8,6 @@ from typing import Callable, Protocol
 from pydantic import JsonValue
 
 from elfie.communication import CommunicationEnvelope, DeliveryReceipt, DeliveryStatus
-from nest.godot.api import GodotAPIServer
 
 
 class OwnerMessageBroadcaster(Protocol):
@@ -28,11 +27,9 @@ class GodotOwnerChannel:
 
     def __init__(
         self,
-        api_server: GodotAPIServer,
         *,
         owner_broadcaster: Callable[[], OwnerMessageBroadcaster | None] | None = None,
     ) -> None:
-        self._api_server = api_server
         self._owner_broadcaster = owner_broadcaster or (lambda: None)
         self._connected = False
         self._lock = Lock()
@@ -58,13 +55,15 @@ class GodotOwnerChannel:
             "message_id": str(envelope.meta.event_id),
             "parts": [part.model_dump(mode="json") for part in envelope.parts],
         }
-        self._api_server.send_action("owner_message", payload)
         broadcaster = self._owner_broadcaster()
         if broadcaster is not None:
-            broadcaster.broadcast_to_owners(str(envelope.meta.elfie_id), {
-                "action": "owner_message",
-                "payload": payload,
-            })
+            broadcaster.broadcast_to_owners(
+                str(envelope.meta.elfie_id),
+                {
+                    "action": "owner_message",
+                    "payload": payload,
+                },
+            )
         return DeliveryReceipt.for_envelope(envelope, status=DeliveryStatus.SENT)
 
 

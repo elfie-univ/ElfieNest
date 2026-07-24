@@ -112,7 +112,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 
 测试路径、Desktop 与 Godot 构建命令分别由
 [测试说明](test/README.md)、[Desktop 说明](desktop/README.md)和
-[Godot 说明](godot/README.md)维护。
+[Godot 说明](godot_project/README.md)维护。
 
 ## 最小目录地图
 
@@ -123,7 +123,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 | [`ai_runtime/`](ai_runtime/README.md) | 模型、Provider、路由、粮食、工具、安全与运行时 |
 | [`app/`](app/README.md) | 产品用例、接口、基础设施与跨模块编排 |
 | [`desktop/`](desktop/README.md) | Electron 生命周期、资源发现和进程监督 |
-| [`godot/`](godot/README.md) | 房间、几何、坐标、碰撞、角色和渲染源码 |
+| [`godot_project/`](godot_project/README.md) | 独立 Godot 源工程：房间、几何、坐标、碰撞、角色和渲染源码 |
 | [`devtools/`](devtools/README.md) | 与普通用户产品隔离的模块实验台 |
 | [`scripts/`](scripts/README.md) | 启动、构建、检查和人工诊断入口 |
 | [`test/`](test/README.md) | 镜像源码边界的测试、架构契约与 E2E |

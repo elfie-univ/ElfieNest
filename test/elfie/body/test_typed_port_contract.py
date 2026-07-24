@@ -30,17 +30,23 @@ NOW = datetime(2026, 7, 21, 8, 0, tzinfo=timezone.utc)
 
 
 class RecordingGodotGateway:
-    runtime_ready = True
-
     def __init__(self) -> None:
-        self.callbacks = {}
         self.sent = []
+        self.transport = None
 
-    def register_callback(self, event_name, callback) -> None:
-        self.callbacks.setdefault(event_name, []).append(callback)
+    def send_body_command(self, payload, *, correlation_id) -> bool:
+        self.sent.append(payload)
+        lifecycle = {"command_id": correlation_id, "actor_id": payload["actor_id"]}
+        self.transport.receive_runtime_event("intent_accepted", lifecycle)
+        self.transport.receive_runtime_event("intent_started", lifecycle)
+        self.transport.receive_runtime_event(
+            "intent_terminal",
+            {**lifecycle, "status": "completed"},
+        )
+        return True
 
-    def send_action(self, action, payload) -> None:
-        self.sent.append((action, payload))
+    def cancel_body_command(self, *, command_id, actor_id) -> bool:
+        return True
 
 
 class RecordingExternalTransport:
@@ -72,7 +78,9 @@ def make_headless() -> HeadlessBody:
 
 def make_native() -> NativeBody:
     gateway = RecordingGodotGateway()
-    return NativeBody(body_id="body-1", transport=GodotTransport(gateway))
+    transport = GodotTransport(gateway)
+    gateway.transport = transport
+    return NativeBody(body_id="body-1", transport=transport)
 
 
 def make_external() -> ExternalBody:

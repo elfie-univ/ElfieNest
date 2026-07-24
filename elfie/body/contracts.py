@@ -58,7 +58,11 @@ class VisionChange(FrozenContractModel):
 class TactileImpact(FrozenContractModel):
     kind: Literal["tactile_impact"]
     location: _NonBlankText
-    force_newtons: _NonNegativeFloat
+    intensity: _Ratio = 0.0
+    direction: _NonBlankText = "none"
+    contact_kind: _NonBlankText = "world"
+    source_semantic_id: Optional[_NonBlankText] = None
+    force_newtons: Optional[_NonNegativeFloat] = None
 
 
 class ProprioceptionSample(FrozenContractModel):

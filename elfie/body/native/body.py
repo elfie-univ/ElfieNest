@@ -8,7 +8,6 @@ from typing import List, Mapping, Optional, Tuple
 from elfie.body.capabilities import BodyCapabilities
 from elfie.body.command_execution import (
     WireValue,
-    lifecycle_receipts,
     parse_wire_command,
     rejected,
     utc_now,
@@ -20,16 +19,19 @@ from elfie.body.contracts import (
     BodySensorEvent,
     BodySnapshot,
     CommandReceipt,
+    CommandStatus,
+    EmergencyStopCommand,
     ExpressionCommand,
     MotionCommand,
     SpeechCommand,
 )
-from elfie.body.native.godot_transport import GodotTransport
+from elfie.body.native.godot_transport import GodotTransport, RuntimeIntentPayload
 from elfie.body.native.sensors import NativeSensors
 from elfie.body.types import (
     BodyDescriptor,
     BodyMode,
 )
+from elfie.message_types import ErrorInfo
 
 
 class NativeBody:
@@ -124,45 +126,101 @@ class NativeBody:
         if rejection is not None:
             self._last_receipt = rejection
             return (rejection,)
+        payload: RuntimeIntentPayload
         if isinstance(command, SpeechCommand):
-            self.transport.send_action(
-                "speak_event",
-                {
-                    "elfie_id": self.body_id,
-                    "text": command.text,
-                    "audio_url": command.audio.uri if command.audio else "",
-                },
-            )
+            payload = {
+                "command_id": str(command.command_id),
+                "actor_id": self.body_id,
+                "intent": "speak",
+                "text": command.text,
+            }
         elif isinstance(command, MotionCommand):
             if command.target:
-                self.transport.send_action(
-                    "go_to",
-                    {
-                        "elfie_id": self.body_id,
-                        "target": command.target,
-                        "posture": command.posture or "standing",
-                        "animation": command.kind,
-                    },
-                )
+                payload = {
+                    "command_id": str(command.command_id),
+                    "actor_id": self.body_id,
+                    "intent": "move_to_anchor",
+                    "anchor_id": command.target,
+                }
             else:
-                self.transport.send_action(
-                    "emotion_expression",
-                    {"elfie_id": self.body_id, "actions": [command.kind]},
-                )
+                payload = {
+                    "command_id": str(command.command_id),
+                    "actor_id": self.body_id,
+                    "intent": "emotion_expression",
+                    "expression": command.kind,
+                }
         elif isinstance(command, ExpressionCommand):
-            self.transport.send_action(
-                "emotion_expression",
-                {"elfie_id": self.body_id, "expression": command.kind},
+            payload = {
+                "command_id": str(command.command_id),
+                "actor_id": self.body_id,
+                "intent": "emotion_expression",
+                "expression": command.kind,
+            }
+        elif isinstance(command, EmergencyStopCommand):
+            self.transport.cancel_all(actor_id=self.body_id)
+            receipts = (
+                CommandReceipt.for_status(
+                    command,
+                    CommandStatus.ACCEPTED,
+                    occurred_at=now,
+                ),
+                CommandReceipt.completed(command, occurred_at=now),
             )
-        else:
+            self._last_receipt = receipts[-1]
+            return receipts
+        else:  # pragma: no cover - discriminated BodyCommand is exhaustive.
             receipt = rejected(
                 command,
                 "unsupported_capability",
-                "Godot transport cannot acknowledge emergency stop",
+                "Godot transport cannot execute this command",
                 now,
             )
             self._last_receipt = receipt
             return (receipt,)
-        receipts = lifecycle_receipts(command, occurred_at=now)
-        self._last_receipt = receipts[-1]
-        return receipts
+        timeout_seconds = max((command.deadline - now).total_seconds(), 0.0)
+        payload["deadline_seconds"] = timeout_seconds
+        result = self.transport.execute_intent(
+            payload,
+            timeout_seconds=timeout_seconds,
+        )
+        receipts_list: list[CommandReceipt] = []
+        for status in result.statuses:
+            if status == "accepted":
+                receipts_list.append(
+                    CommandReceipt.for_status(
+                        command,
+                        CommandStatus.ACCEPTED,
+                        occurred_at=utc_now(),
+                    )
+                )
+            elif status == "started":
+                receipts_list.append(
+                    CommandReceipt.for_status(
+                        command,
+                        CommandStatus.STARTED,
+                        occurred_at=utc_now(),
+                    )
+                )
+        terminal_status = {
+            "completed": CommandStatus.COMPLETED,
+            "cancelled": CommandStatus.INTERRUPTED,
+            "interrupted": CommandStatus.INTERRUPTED,
+            "timed_out": CommandStatus.TIMED_OUT,
+        }.get(result.terminal_status, CommandStatus.FAILED)
+        terminal_error = None
+        if terminal_status is not CommandStatus.COMPLETED:
+            terminal_error = ErrorInfo(
+                code=result.terminal_status,
+                message=result.reason or result.terminal_status,
+            )
+        receipts_list.append(
+            CommandReceipt.for_status(
+                command,
+                terminal_status,
+                occurred_at=utc_now(),
+                error=terminal_error,
+            )
+        )
+        final_receipts: tuple[CommandReceipt, ...] = tuple(receipts_list)
+        self._last_receipt = final_receipts[-1]
+        return final_receipts

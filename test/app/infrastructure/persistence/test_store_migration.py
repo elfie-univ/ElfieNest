@@ -69,9 +69,12 @@ class TestMigrationV1ToV2:
         conn = sqlite3.connect(db)
         assert conn.execute("SELECT role FROM users").fetchone()[0] == "admin"
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 4
-        assert conn.execute(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sessions'"
-        ).fetchone() is None
+        assert (
+            conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sessions'"
+            ).fetchone()
+            is None
+        )
         conn.close()
 
     def test_multiple_owners_require_explicit_migration(self, tmp_path: Path) -> None:
@@ -101,12 +104,20 @@ class TestMigrationV1ToV2:
             migrate_db_if_needed(db)
 
         conn = sqlite3.connect(db)
-        assert conn.execute("SELECT COUNT(*) FROM users WHERE role = 'owner'").fetchone()[0] == 2
+        assert (
+            conn.execute("SELECT COUNT(*) FROM users WHERE role = 'owner'").fetchone()[
+                0
+            ]
+            == 2
+        )
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 4
         assert "updated_at" not in _table_info_columns(db)
-        assert conn.execute(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sessions'"
-        ).fetchone() is None
+        assert (
+            conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sessions'"
+            ).fetchone()
+            is None
+        )
         conn.close()
 
     def test_adds_profile_columns(self, tmp_path: Path) -> None:
@@ -120,12 +131,12 @@ class TestMigrationV1ToV2:
         assert "avatar_color" in cols
         assert "avatar_kind" in cols
 
-    def test_user_version_becomes_6(self, tmp_path: Path) -> None:
+    def test_user_version_becomes_7(self, tmp_path: Path) -> None:
         db = str(tmp_path / "nest.db")
         init_db(db)
         migrate_db_if_needed(db)
 
-        assert _user_version(db) == 6
+        assert _user_version(db) == 7
 
     def test_migration_idempotent(self, tmp_path: Path) -> None:
         """重复执行 migrate_db_if_needed 不报错。"""
@@ -136,7 +147,7 @@ class TestMigrationV1ToV2:
 
         cols = _table_info_columns(db)
         assert "nickname" in cols
-        assert _user_version(db) == 6
+        assert _user_version(db) == 7
 
     def test_preserves_existing_data(self, tmp_path: Path) -> None:
         """迁移前插入的用户，迁移后数据保持完整。"""
@@ -189,13 +200,13 @@ class TestMigrationV1ToV2:
         assert cols[:5] == ["id", "username", "password_hash", "role", "created_at"]
         assert cols[5:] == ["updated_at", "nickname", "avatar_color", "avatar_kind"]
 
-    def test_init_db_sets_version_6(self, tmp_path: Path) -> None:
+    def test_init_db_sets_version_7(self, tmp_path: Path) -> None:
         db = str(tmp_path / "nest.db")
         init_db(db)
 
         cols = _table_info_columns(db)
         assert "nickname" in cols
-        assert _user_version(db) == 6
+        assert _user_version(db) == 7
 
     def test_adds_nest_tables_and_bed_id(self, tmp_path: Path) -> None:
         db = str(tmp_path / "nest.db")
@@ -269,4 +280,4 @@ class TestMigrationV1ToV2:
         assert row["anatomy_type"] == "quadruped"
         assert row["species_id"] == "fox"
         assert row["profile_schema_version"] == 1
-        assert _user_version(db) == 6
+        assert _user_version(db) == 7
