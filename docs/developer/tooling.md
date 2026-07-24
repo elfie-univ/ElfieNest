@@ -39,7 +39,6 @@ uv sync --locked --extra dev
 | `doctor` | 检查本地环境和配置 |
 | `owner` | 在本机终端打开 Owner 账户菜单 |
 | `db` | 查看数据库信息，或执行 `backup`、`reset` |
-| `migrate` | 显式迁移旧配置和数据 |
 | `version` | 显示版本 |
 | `build-godot-web` | 构建或检查浏览器 3D Runtime |
 | `developer` | 进入隔离的 Developer Tools |
@@ -71,7 +70,7 @@ Owner 恢复只在本机终端提供；密码通过隐藏输入填写，不应�
 ```
 
 `db reset` 会重置本地数据库，执行前必须确认 `ELFIE_HOME` 指向的精确数据目录并
-保留备份。`migrate` 会改变旧配置或数据，只应在确认迁移来源后运行。
+保留备份。命令行不提供旧数据迁移入口；新配置与聊天只使用当前目录契约。
 
 ## Godot Web 构建
 

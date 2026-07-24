@@ -12,7 +12,7 @@ from app.infrastructure.persistence.nest_schema import (
     migrate_legacy_nest_layout_to_semantic_tables,
 )
 
-CURRENT_SCHEMA_VERSION: Final[int] = 9
+CURRENT_SCHEMA_VERSION: Final[int] = 10
 
 
 class OwnerSchemaMigrationError(RuntimeError):
@@ -99,6 +99,8 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
         _migrate_v7_to_v8(connection)
     if version < 9:
         _migrate_v8_to_v9(connection)
+    if version < 10:
+        _migrate_v9_to_v10(connection)
     _ensure_owner_index(connection)
 
 
@@ -122,30 +124,6 @@ def _migrate_v1_to_v2(connection: sqlite3.Connection) -> None:
     connection.execute("PRAGMA user_version = 2")
 
 
-def _ensure_chat_tables(connection: sqlite3.Connection) -> None:
-    connection.execute(
-        """
-        CREATE TABLE IF NOT EXISTS chat_messages (
-            id INTEGER PRIMARY KEY,
-            elfie_id TEXT NOT NULL,
-            user_id INTEGER NOT NULL,
-            sender TEXT NOT NULL CHECK(sender IN ('user', 'elfie', 'system')),
-            text TEXT NOT NULL,
-            meta TEXT DEFAULT '',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(elfie_id) REFERENCES elfie_registry(elfie_id),
-            FOREIGN KEY(user_id) REFERENCES users(id)
-        )
-        """
-    )
-    connection.execute(
-        """
-        CREATE INDEX IF NOT EXISTS idx_chat_messages_lookup
-        ON chat_messages(elfie_id, user_id, created_at)
-        """
-    )
-
-
 def _migrate_v2_to_v3(connection: sqlite3.Connection) -> None:
     ensure_legacy_nest_tables(connection)
     _ignore_duplicate_column(
@@ -155,7 +133,6 @@ def _migrate_v2_to_v3(connection: sqlite3.Connection) -> None:
 
 
 def _migrate_v3_to_v4(connection: sqlite3.Connection) -> None:
-    _ensure_chat_tables(connection)
     connection.execute("PRAGMA user_version = 4")
 
 
@@ -254,6 +231,16 @@ def _migrate_v8_to_v9(connection: sqlite3.Connection) -> None:
         "CREATE INDEX IF NOT EXISTS idx_devices_owner ON devices(owner_user_id)"
     )
     connection.execute("PRAGMA user_version = 9")
+
+
+def _migrate_v9_to_v10(connection: sqlite3.Connection) -> None:
+    """Delete the unreleased Nest-level chat store.
+
+    Chat history belongs only to each elfie's workspace.  This development-only
+    migration deliberately discards the obsolete table instead of copying it.
+    """
+    connection.execute("DROP TABLE IF EXISTS chat_messages")
+    connection.execute("PRAGMA user_version = 10")
 
 
 def _validate_owner_roles(connection: sqlite3.Connection) -> None:

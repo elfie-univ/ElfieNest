@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional
 import yaml
 
 from ai_runtime.config import PROVIDER_RECOMMENDS, LLMRuntimeConfig
+from ai_runtime.storage.data_home import get_elfie_developer_home
 
 SECRET_ENV_KEYS = {
     "deepseek": "DEEPSEEK_API_KEY",
@@ -40,7 +41,7 @@ class RuntimeLabConfigStore:
 
     def __init__(self, root: Optional[str] = None):
         configured = root or os.getenv("ELFIE_LAB_RUNTIME_DIR")
-        self.root = Path(configured or "~/.elfienest/dev/runtime_lab").expanduser()
+        self.root = Path(configured) if configured else get_elfie_developer_home() / "runtime_lab"
         self.config_path = self.root / "config.yaml"
         self.env_path = self.root / ".env"
 

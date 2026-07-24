@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Iterable
 
-from ai_runtime.storage.data_home import get_elfie_home
+from ai_runtime.storage.data_home import get_elfie_developer_home
 
 
 @dataclass(frozen=True)
@@ -32,7 +32,7 @@ _TOOL_NAMES: Final[tuple[tuple[str, str, int | None, str], ...]] = (
 
 def available_tools(data_root: Path | None = None) -> tuple[DeveloperTool, ...]:
     """返回 Developer Tool 的固定顺序目录。"""
-    root = (data_root or get_elfie_home() / "developer").resolve()
+    root = (data_root or get_elfie_developer_home()).resolve()
     return tuple(
         DeveloperTool(name, module, port, root / directory)
         for name, module, port, directory in _TOOL_NAMES

@@ -8,7 +8,6 @@ from typing import Any, Dict
 
 from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
 from ai_runtime.providers.ollama import OllamaManager
-from ai_runtime.storage.data_home import get_elfie_home
 
 
 def runtime_food_catalog_store(config_store: Any) -> FoodCatalogStore:
@@ -22,8 +21,6 @@ def runtime_food_catalog_store(config_store: Any) -> FoodCatalogStore:
 def runtime_lab_command(config_store: Any) -> str:
     """返回操作当前 Runtime 根目录的完整 Runtime Lab 命令。"""
     root_path = Path(config_store.root).expanduser().resolve()
-    if root_path == get_elfie_home().expanduser().resolve():
-        return ".venv/bin/python -m ai_runtime.lab"
     root = shlex.quote(str(root_path))
     return f"ELFIE_HOME={root} .venv/bin/python -m ai_runtime.lab"
 

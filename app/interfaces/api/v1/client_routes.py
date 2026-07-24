@@ -10,15 +10,12 @@ from starlette.websockets import WebSocketDisconnect
 
 from app.features.accounts.auth import get_current_user, verify_session
 from app.features.elfie_profile.public_projection import build_public_profile
-from app.infrastructure.persistence.chat_history import (
-    ChatHistoryQuery,
-    ChatMessageInput,
-    ChatSender,
-    list_chat_history,
-    record_chat_message,
+from app.infrastructure.persistence.elfie_chat_history import (
+    list_elfie_chat_history,
 )
 from app.infrastructure.persistence.embodiment_sessions import get_embodiment_session
 from app.infrastructure.persistence.store import get_db
+from app.interfaces.api.chat_persistence import record_owner_chat_message
 
 router = APIRouter(prefix="/api/v1", tags=["v1-client"])
 
@@ -162,12 +159,12 @@ async def list_conversation_messages(
     return [
         {
             "id": message.id,
-            "elfie_id": message.elfie_id,
-            "sender": message.sender,
+            "elfie_id": elfie_id,
+            "sender": message.sender.value,
             "text": message.text,
             "created_at": message.created_at,
         }
-        for message in list_chat_history(db_path, ChatHistoryQuery(elfie_id, user_id))
+        for message in list_elfie_chat_history(elfie_id, user_id=user_id)
     ]
 
 
@@ -225,9 +222,7 @@ def _owns_elfie(db_path: str, user_id: int, elfie_id: str) -> bool:
 def _conversation_summary(
     db_path: str, user_id: int, profile: Dict[str, Any]
 ) -> Dict[str, Any]:
-    messages = list_chat_history(
-        db_path, ChatHistoryQuery(str(profile["elfie_id"]), user_id)
-    )
+    messages = list_elfie_chat_history(str(profile["elfie_id"]), user_id=user_id)
     latest = messages[-1] if messages else None
     return {
         "elfie_id": profile["elfie_id"],
@@ -256,20 +251,17 @@ def _send_client_message(
             conversation_id=f"owner:{user_id}",
             account_id="product-web",
         )
-    message = record_chat_message(
-        app.state.db_path,
-        ChatMessageInput(
-            elfie_id=elfie_id,
-            user_id=user_id,
-            sender=ChatSender.USER,
-            text=normalized,
-            meta="已投递到下一次 tick",
-        ),
+    message = record_owner_chat_message(
+        elfie_id,
+        user_id,
+        normalized,
+        conversation_id=f"owner:{user_id}",
+        channel="web",
     )
     return {
         "id": message.id,
-        "elfie_id": message.elfie_id,
-        "sender": message.sender,
+        "elfie_id": elfie_id,
+        "sender": message.sender.value,
         "text": message.text,
         "created_at": message.created_at,
     }

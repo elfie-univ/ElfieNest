@@ -167,7 +167,7 @@ def seed_single_elfie(db_path: str) -> bool:
             return False
 
     owner_id = owner_row["id"]
-    elfie_id = "艾菲"
+    elfie_id = "elfie_default"
     config_dir = str(get_elfie_config_dir(elfie_id))
 
     ElfieGenerator().generate(

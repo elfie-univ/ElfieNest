@@ -50,27 +50,31 @@ def _write_foods(
     )
 
 
-def test_default_app_shares_runtime_but_keeps_elfie_data_isolated(
+def test_default_app_uses_developer_runtime_and_keeps_production_isolated(
     tmp_path, monkeypatch, client_for
 ):
-    shared_runtime = tmp_path / "shared-runtime"
+    production_home = tmp_path / "production"
+    developer_home = tmp_path / "developer"
+    developer_runtime = developer_home / "runtime_lab"
     elfie_data = tmp_path / "elfie-data"
-    monkeypatch.setenv("ELFIE_HOME", str(shared_runtime))
+    monkeypatch.setenv("ELFIE_HOME", str(production_home))
+    monkeypatch.setenv("ELFIE_DEV_HOME", str(developer_home))
     monkeypatch.setattr(
         "devtools.elfie_lab.food_status.list_installed_ollama_models",
         lambda config: (),
     )
-    _write_foods(shared_runtime)
+    _write_foods(developer_runtime)
 
     app = create_app(str(elfie_data))
     client = client_for(app)
 
     assert app.state.storage.root == elfie_data
-    assert app.state.runtime_store.root == shared_runtime
-    assert app.state.food_store.path == shared_runtime / "foods.yaml"
-    assert client.get("/api/runtime/status").json()["scope"] == "shared"
+    assert app.state.runtime_store.root == developer_runtime
+    assert app.state.food_store.path == developer_runtime / "foods.yaml"
+    assert client.get("/api/runtime/status").json()["scope"] == "developer"
+    assert not production_home.exists()
     assert client.get("/api/runtime/foods").json()["configuration_command"] == (
-        ".venv/bin/python -m ai_runtime.lab"
+        f"ELFIE_HOME={developer_runtime} .venv/bin/python -m ai_runtime.lab"
     )
 
 

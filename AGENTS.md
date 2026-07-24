@@ -72,6 +72,18 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/
   `test/` 必须镜像源码结构，根目录不得新增 `test_*.py`。
 - 中间构建产物只能写入根 `build/`，最终发行物只能写入根 `dist/`，生产数据
   只能写入 `ELFIE_HOME`；不得把生成物写回源码目录。
+- 生产数据的唯一根是 `${ELFIE_HOME:-~/.elfienest}`：根级 `nest.db` 只保存
+  Nest 身份、账号/归属、运行与房间状态；每只精灵使用稳定 `elfie_id` 的
+  `elfies/<elfie_id>/` 工作区，聊天唯一事实源为
+  `conversations/history.sqlite`。名称只能出现在档案或登记表，不能参与目录寻址。
+- 不创建 `users/` 聊天目录，不在 Nest 根保留新的聊天副本；浏览器和手机自己的
+  历史不回传为本机用户目录。`nest.db.chat_messages` 是已废弃表，禁止创建、读取、
+  写入或迁移；历史表在数据库升级时直接删除。
+- Developer Tools 的唯一默认根是 `${ELFIE_DEV_HOME:-~/.elfienest-dev}`，并在其下
+  分别保存 `elfie_lab/`、`nest_lab/`、`runtime_lab/` 数据。它们不得读取或写入
+  `ELFIE_HOME`；仅可为拒绝误配置而比较生产根。新增路径必须由
+  `ai_runtime.storage.data_home` 解析，并同步 `test/architecture/` 与
+  `docs/developer/` 的数据契约。
 
 禁止恢复旧顶层 Python 包 `runtime/` 或 `elfienest/`。新增顶层目录、改变上述
 职责或引入跨边界依赖前，必须先更新 `test/architecture/` 契约，再同步相关

@@ -131,12 +131,12 @@ class TestMigrationV1ToV2:
         assert "avatar_color" in cols
         assert "avatar_kind" in cols
 
-    def test_user_version_becomes_9(self, tmp_path: Path) -> None:
+    def test_user_version_becomes_10(self, tmp_path: Path) -> None:
         db = str(tmp_path / "nest.db")
         init_db(db)
         migrate_db_if_needed(db)
 
-        assert _user_version(db) == 9
+        assert _user_version(db) == 10
 
     def test_migration_idempotent(self, tmp_path: Path) -> None:
         """重复执行 migrate_db_if_needed 不报错。"""
@@ -147,7 +147,7 @@ class TestMigrationV1ToV2:
 
         cols = _table_info_columns(db)
         assert "nickname" in cols
-        assert _user_version(db) == 9
+        assert _user_version(db) == 10
 
     def test_preserves_existing_data(self, tmp_path: Path) -> None:
         """迁移前插入的用户，迁移后数据保持完整。"""
@@ -206,13 +206,48 @@ class TestMigrationV1ToV2:
             "default_landing_page",
         ]
 
-    def test_init_db_sets_version_9(self, tmp_path: Path) -> None:
+    def test_init_db_sets_version_10_without_legacy_chat_table(self, tmp_path: Path) -> None:
         db = str(tmp_path / "nest.db")
         init_db(db)
 
         cols = _table_info_columns(db)
         assert "nickname" in cols
-        assert _user_version(db) == 9
+        assert _user_version(db) == 10
+        connection = sqlite3.connect(db)
+        legacy_table = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'chat_messages'"
+        ).fetchone()
+        connection.close()
+        assert legacy_table is None
+
+    def test_v9_database_deletes_the_unreleased_legacy_chat_table(
+        self, tmp_path: Path
+    ) -> None:
+        db = str(tmp_path / "legacy-v9.db")
+        init_db(db)
+        with sqlite3.connect(db) as connection:
+            connection.execute("PRAGMA user_version = 9")
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS chat_messages (
+                    id INTEGER PRIMARY KEY,
+                    elfie_id TEXT NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    sender TEXT NOT NULL,
+                    text TEXT NOT NULL
+                )
+                """
+            )
+
+        migrate_db_if_needed(db)
+
+        connection = sqlite3.connect(db)
+        legacy_table = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'chat_messages'"
+        ).fetchone()
+        connection.close()
+        assert _user_version(db) == 10
+        assert legacy_table is None
 
     def test_adds_nest_tables_and_bed_id(self, tmp_path: Path) -> None:
         db = str(tmp_path / "nest.db")
@@ -286,4 +321,4 @@ class TestMigrationV1ToV2:
         assert row["anatomy_type"] == "quadruped"
         assert row["species_id"] == "fox"
         assert row["profile_schema_version"] == 1
-        assert _user_version(db) == 9
+        assert _user_version(db) == 10

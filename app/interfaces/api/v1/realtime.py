@@ -7,10 +7,7 @@ from typing import Any, Dict, Set
 
 from fastapi import WebSocket
 
-from app.infrastructure.persistence.chat_history import (
-    ChatHistoryQuery,
-    list_chat_history,
-)
+from app.infrastructure.persistence.elfie_chat_history import list_elfie_chat_history
 from app.infrastructure.persistence.store import get_db
 
 
@@ -41,9 +38,13 @@ class SameOriginChatHub:
         owner_id = self._owner_id(elfie_id)
         if owner_id is None:
             return
-        history = list_chat_history(self._db_path, ChatHistoryQuery(elfie_id, owner_id))
+        history = list_elfie_chat_history(elfie_id, user_id=owner_id)
         latest = next(
-            (message for message in reversed(history) if message.sender == "elfie"),
+            (
+                message
+                for message in reversed(history)
+                if message.sender.value == "elfie"
+            ),
             None,
         )
         if latest is None:
@@ -52,8 +53,8 @@ class SameOriginChatHub:
             owner_id,
             {
                 "id": latest.id,
-                "elfie_id": latest.elfie_id,
-                "sender": latest.sender,
+                "elfie_id": elfie_id,
+                "sender": latest.sender.value,
                 "text": latest.text,
                 "created_at": latest.created_at,
             },

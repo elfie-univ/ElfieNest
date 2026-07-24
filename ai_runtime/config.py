@@ -215,8 +215,7 @@ class LLMRuntimeConfig:
             if config_home is not None
             else get_config_path()
         )
-        # 生产配置只允许从 ELFIE_HOME/config.yaml 读取。旧版 JSON 由显式
-        # ``elfienest migrate`` 命令处理，正常启动绝不触碰旧文件。
+        # 生产配置只允许从 ELFIE_HOME/config.yaml 读取；不再兼容旧版 JSON。
         if yaml_path.exists():
             try:
                 saved_cfg = read_yaml_mapping(yaml_path)

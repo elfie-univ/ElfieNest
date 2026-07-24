@@ -7,6 +7,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+from ai_runtime.storage.data_home import get_elfie_developer_home
 from devtools.elfie_lab.schemas import ElfieSpec, derive_life_stage, new_id
 from elfie.profile import (
     ElfieProfileRepository,
@@ -18,7 +19,7 @@ from elfie.profile import (
 class ElfieLabStorage:
     def __init__(self, data_dir: Optional[str] = None):
         configured = data_dir or os.getenv("ELFIE_LAB_DATA_DIR")
-        self.root = Path(configured or "~/.elfienest/dev/elfie_lab").expanduser()
+        self.root = Path(configured) if configured else get_elfie_developer_home() / "elfie_lab"
         self.elfies_dir = self.root / "elfies"
         self.sessions_dir = self.root / "sessions"
         self.elfies_dir.mkdir(parents=True, exist_ok=True)

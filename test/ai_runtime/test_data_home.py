@@ -1,19 +1,21 @@
 """tests for ai_runtime.storage.data_home module"""
-import os
-import tempfile
 from pathlib import Path
 
+import pytest
+
 from ai_runtime.storage.data_home import (
-    get_elfie_home,
+    ensure_elfie_home,
+    get_cache_dir,
     get_config_path,
-    get_env_path,
     get_db_path,
     get_elfie_config_dir,
-    get_cache_dir,
+    get_elfie_conversations_dir,
+    get_elfie_developer_home,
+    get_elfie_home,
+    get_env_path,
     get_logs_dir,
-    get_skills_dir,
     get_sessions_dir,
-    ensure_elfie_home,
+    get_skills_dir,
 )
 
 
@@ -52,3 +54,32 @@ def test_path_helpers(monkeypatch, tmp_path):
     assert get_logs_dir() == get_elfie_home() / "logs"
     assert get_skills_dir() == get_elfie_home() / "skills"
     assert get_sessions_dir() == get_elfie_home() / "sessions"
+
+
+def test_developer_home_is_independent_from_production_home(monkeypatch, tmp_path):
+    """开发工具根只能由 ELFIE_DEV_HOME 控制。"""
+    production_home = tmp_path / "production"
+    developer_home = tmp_path / "developer"
+    monkeypatch.setenv("ELFIE_HOME", str(production_home))
+    monkeypatch.setenv("ELFIE_DEV_HOME", str(developer_home))
+
+    assert get_elfie_developer_home() == developer_home
+    assert get_elfie_developer_home() != get_elfie_home()
+    assert not production_home.exists()
+
+
+def test_developer_home_defaults_to_sibling_hidden_directory(monkeypatch):
+    """未配置时开发工具根不会落入生产根。"""
+    monkeypatch.delenv("ELFIE_HOME", raising=False)
+    monkeypatch.delenv("ELFIE_DEV_HOME", raising=False)
+
+    assert get_elfie_developer_home() == Path.home() / ".elfienest-dev"
+    assert get_elfie_developer_home() != get_elfie_home()
+
+
+def test_elfie_conversation_path_rejects_path_traversal(monkeypatch, tmp_path):
+    """精灵会话目录不得接受跳出生产根的 ID。"""
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path / "production"))
+
+    with pytest.raises(ValueError, match="精灵 ID"):
+        get_elfie_conversations_dir("../escape")

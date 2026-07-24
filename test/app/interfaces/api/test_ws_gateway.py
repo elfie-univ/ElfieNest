@@ -146,7 +146,6 @@ class TestWsGatewayMessageParsing:
         manager = AuthenticatedWSManager(port=0, db_path=db)
         manager.nest_session = SimpleNamespace(send_user_message=pytest.fail)
         monkeypatch.setattr(manager, "_is_elfie_owned_by", lambda *_args: True)
-        monkeypatch.setattr(manager, "_record_user_message", pytest.fail)
 
         # When / Then: parsing rejects it at the WS boundary without escaping.
         anyio.run(

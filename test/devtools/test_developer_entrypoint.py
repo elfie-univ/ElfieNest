@@ -32,6 +32,24 @@ def test_nest_lab_resolution_uses_isolated_data_root(tmp_path: Path) -> None:
     assert tool.data_root == tmp_path / "nest_lab"
 
 
+def test_default_developer_tools_resolve_under_developer_home(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """Developer Tool 默认根不得落入生产 ELFIE_HOME。"""
+    production_home = tmp_path / "production"
+    developer_home = tmp_path / "developer"
+    monkeypatch.setenv("ELFIE_HOME", str(production_home))
+    monkeypatch.setenv("ELFIE_DEV_HOME", str(developer_home))
+
+    tools = available_tools()
+
+    assert tuple(tool.data_root for tool in tools) == (
+        developer_home / "elfie_lab",
+        developer_home / "runtime_lab",
+        developer_home / "nest_lab",
+    )
+
+
 def test_elfie_lab_opens_default_url_when_server_becomes_ready(
     monkeypatch,
 ) -> None:

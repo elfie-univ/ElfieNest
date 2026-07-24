@@ -7,8 +7,23 @@
 """
 
 import os
+import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Final
+
+_ELFIE_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^elfie_[A-Za-z0-9_-]+$")
+
+
+@dataclass(frozen=True, slots=True)
+class InvalidElfieIdError(ValueError):
+    """精灵工作区 ID 不可安全映射到目录。"""
+
+    elfie_id: str
+
+    def __str__(self) -> str:
+        return f"精灵 ID 不合法，不能用于数据目录: {self.elfie_id!r}"
 
 
 def get_elfie_home() -> Path:
@@ -20,6 +35,12 @@ def get_elfie_home() -> Path:
     """
     home = Path(os.environ.get("ELFIE_HOME", str(Path.home() / ".elfienest")))
     return home
+
+
+def get_elfie_developer_home() -> Path:
+    """获取与生产数据根完全隔离的开发工具数据根。"""
+    default = Path.home() / ".elfienest-dev"
+    return Path(os.environ.get("ELFIE_DEV_HOME", str(default)))
 
 
 def get_config_path() -> Path:
@@ -64,7 +85,19 @@ def get_db_path() -> Path:
 
 def get_elfie_config_dir(elfie_id: str) -> Path:
     """每个精灵的独立配置目录"""
+    return get_elfie_workspace_dir(elfie_id)
+
+
+def get_elfie_workspace_dir(elfie_id: str) -> Path:
+    """返回经过校验的单精灵工作空间目录。"""
+    if _ELFIE_ID_PATTERN.fullmatch(elfie_id) is None:
+        raise InvalidElfieIdError(elfie_id)
     return get_elfie_home() / "elfies" / elfie_id
+
+
+def get_elfie_conversations_dir(elfie_id: str) -> Path:
+    """返回单精灵聊天历史及附件的所属目录。"""
+    return get_elfie_workspace_dir(elfie_id) / "conversations"
 
 
 def get_cache_dir() -> Path:

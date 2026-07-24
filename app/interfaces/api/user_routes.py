@@ -15,7 +15,6 @@ import yaml
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from elfie.profile import ElfieProfileRepository
 from app.features.accounts.auth import get_current_user
 from app.features.adoption.generator import ElfieGenerator
 from app.features.adoption.service import (
@@ -25,17 +24,15 @@ from app.features.adoption.service import (
     adopt_elfie_for_user,
     adoption_options_for_user,
 )
-from nest import NestFullError
-from app.infrastructure.persistence.chat_history import (
-    ChatHistoryQuery,
-    ChatHistoryRange,
-    list_chat_history,
-)
 from app.infrastructure.persistence.store import get_db
+from app.interfaces.api.user_chat_routes import router as user_chat_router
+from elfie.profile import ElfieProfileRepository
+from nest import NestFullError
 
 logger = logging.getLogger("app.interfaces.api.user_routes")
 
 router = APIRouter(prefix="/api/user", tags=["user"])
+router.include_router(user_chat_router)
 
 # ---------------------------------------------------------------------------
 # 有效值常量（与 adoption.py 保持一致）
@@ -161,43 +158,6 @@ async def get_elfie_detail(
         "config_dir": row["config_dir"],
         "configs": configs,
     }
-
-
-@router.get("/elfies/{elfie_id}/chat-history")
-async def get_elfie_chat_history(
-    elfie_id: str,
-    request: Request,
-    range: ChatHistoryRange = ChatHistoryRange.ALL,  # noqa: A002
-    q: str = "",
-    limit: int = 100,
-    user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
-):
-    db = request.app.state.db_path
-    with get_db(db) as conn:
-        if not _check_ownership(conn, elfie_id, user["id"]):
-            raise HTTPException(status_code=404, detail="精灵不存在")
-
-    records = list_chat_history(
-        db,
-        ChatHistoryQuery(
-            elfie_id=elfie_id,
-            user_id=user["id"],
-            history_range=range,
-            keyword=q,
-            limit=limit,
-        ),
-    )
-    return [
-        {
-            "id": record.id,
-            "elfie_id": record.elfie_id,
-            "sender": record.sender,
-            "text": record.text,
-            "meta": record.meta,
-            "created_at": record.created_at,
-        }
-        for record in records
-    ]
 
 
 @router.put("/elfies/{elfie_id}/config")

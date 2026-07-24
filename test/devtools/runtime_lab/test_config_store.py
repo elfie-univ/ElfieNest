@@ -2,10 +2,13 @@ import stat
 
 import yaml
 
-from devtools.elfie_lab.runtime_adapters import create_runtime
-from devtools.runtime_lab import RuntimeLabConfigStore
 from ai_runtime.food.models import ExecutionProfile, FoodRecipe
 from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
+from devtools.elfie_lab.runtime_adapters import (
+    create_runtime,
+    default_runtime_config_dir,
+)
+from devtools.runtime_lab import RuntimeLabConfigStore
 
 
 def _write_foods(root):
@@ -49,6 +52,18 @@ def test_development_runtime_config_does_not_read_production_config(
     runtime = create_runtime("standard", str(store.root))
     assert runtime.inner.selected_model == "ollama/qwen3.5:0.8b"
     assert runtime.inner.runtime.food_catalog_store.path == store.root / "foods.yaml"
+
+
+def test_elfie_lab_runtime_adapter_defaults_to_developer_root(tmp_path, monkeypatch):
+    production_home = tmp_path / "production"
+    developer_home = tmp_path / "developer"
+    monkeypatch.setenv("ELFIE_HOME", str(production_home))
+    monkeypatch.setenv("ELFIE_DEV_HOME", str(developer_home))
+
+    config_dir = default_runtime_config_dir()
+
+    assert config_dir == str(developer_home / "runtime_lab")
+    assert config_dir != str(production_home)
 
 
 def test_provider_configuration_separates_secret_and_non_secret_data(tmp_path):

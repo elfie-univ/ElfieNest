@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse
 
 import devtools.elfie_lab.api_models as api_models
 import devtools.elfie_lab.runtime_foods as runtime_food_support
-from ai_runtime.storage.data_home import get_elfie_home
+from ai_runtime.storage.data_home import get_elfie_developer_home, get_elfie_home
 from devtools.elfie_lab.food_status import build_food_items, find_food_item
 from devtools.elfie_lab.host import LoopbackHostMiddleware
 from devtools.elfie_lab.media_store import (
@@ -42,11 +42,16 @@ def create_app(
     on_ready: Optional[Callable[[], None]] = None,
 ) -> FastAPI:
     storage = ElfieLabStorage(data_dir)
-    runtime_root = runtime_config_dir or str(get_elfie_home())
+    runtime_root = runtime_config_dir or str(get_elfie_developer_home() / "runtime_lab")
+    if Path(runtime_root).expanduser().resolve() == get_elfie_home().resolve():
+        raise ValueError("Elfie Lab 不得使用生产 ELFIE_HOME 作为运行时配置目录")
     runtime_store = RuntimeLabConfigStore(runtime_root)
     food_store = runtime_food_support.runtime_food_catalog_store(runtime_store)
     configure_runtime_command = runtime_food_support.runtime_lab_command(runtime_store)
-    shared_runtime = Path(runtime_store.root).resolve() == get_elfie_home().resolve()
+    developer_runtime = (
+        Path(runtime_store.root).resolve()
+        == (get_elfie_developer_home() / "runtime_lab").resolve()
+    )
     sessions = SessionRegistry(storage, str(runtime_store.root))
     recycle_store = RecycleStore(storage.root)
     media_store = ElfieLabMediaStore(storage.root)
@@ -88,7 +93,7 @@ def create_app(
     @app.get("/api/runtime/status")
     def runtime_status():
         status = runtime_store.status()
-        status["scope"] = "shared" if shared_runtime else "override"
+        status["scope"] = "developer" if developer_runtime else "override"
         return status
 
     @app.get("/api/runtime/foods")

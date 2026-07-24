@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
@@ -9,10 +10,11 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-from app.infrastructure.persistence.chat_history import (
-    ChatMessageInput,
-    ChatSender,
-    record_chat_message,
+from ai_runtime.storage.data_home import get_elfie_conversations_dir
+from app.infrastructure.persistence.elfie_chat_history import (
+    ElfieChatMessageInput,
+    ElfieChatSender,
+    record_elfie_chat_message,
 )
 from app.infrastructure.persistence.embodiment_sessions import begin_hosting
 from app.infrastructure.persistence.store import init_db
@@ -24,8 +26,9 @@ from ._helpers import create_test_owner
 
 
 @pytest.fixture
-def client(tmp_path: Path) -> TestClient:
+def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     db_path = str(tmp_path / "nest.db")
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path / "elfienest-home"))
     init_db(db_path)
     create_test_owner(db_path)
     with (
@@ -94,13 +97,15 @@ def test_v1_conversations_and_messages_are_owner_scoped(client: TestClient) -> N
     csrf_token = _login_owner(client)
     elfie_id = _adopt_elfie(client, csrf_token)
     user_id = int(client.get("/api/v1/me").json()["id"])
-    record_chat_message(
-        client.app.state.db_path,
-        ChatMessageInput(
-            elfie_id=elfie_id,
+    record_elfie_chat_message(
+        elfie_id,
+        ElfieChatMessageInput(
+            message_id="v1-history-1",
+            conversation_id=f"owner:{user_id}",
             user_id=user_id,
-            sender=ChatSender.USER,
+            sender=ElfieChatSender.USER,
             text="今天好吗？",
+            channel="web",
             created_at="2026-07-24T08:00:00.000Z",
         ),
     )
@@ -114,6 +119,26 @@ def test_v1_conversations_and_messages_are_owner_scoped(client: TestClient) -> N
     assert messages.status_code == 200
     assert messages.json()[0]["text"] == "今天好吗？"
     assert "meta" not in messages.json()[0]
+
+
+def test_v1_writes_only_to_the_owned_elfie_workspace(client: TestClient) -> None:
+    csrf_token = _login_owner(client)
+    elfie_id = _adopt_elfie(client, csrf_token)
+
+    response = client.post(
+        f"/api/v1/conversations/{elfie_id}/messages",
+        json={"text": "只应存在于精灵工作区"},
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert response.status_code == 200
+    history_path = get_elfie_conversations_dir(elfie_id) / "history.sqlite"
+    assert history_path.exists()
+    with sqlite3.connect(client.app.state.db_path) as connection:
+        legacy_table = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'chat_messages'"
+        ).fetchone()
+    assert legacy_table is None
 
 
 def test_v1_can_send_an_owned_message_without_exposing_legacy_meta(
@@ -331,13 +356,15 @@ def test_v1_chat_websocket_receives_a_persisted_elfie_reply(client: TestClient) 
         "/api/v1/ws/chat", headers={"Cookie": f"session_token={session_token}"}
     ) as websocket:
         assert websocket.receive_json()["event"] == "ready"
-        record_chat_message(
-            client.app.state.db_path,
-            ChatMessageInput(
-                elfie_id=elfie_id,
+        record_elfie_chat_message(
+            elfie_id,
+            ElfieChatMessageInput(
+                message_id="v1-reply-1",
+                conversation_id=f"owner:{user_id}",
                 user_id=user_id,
-                sender=ChatSender.ELFIE,
+                sender=ElfieChatSender.ELFIE,
                 text="我在这里。",
+                channel="web",
             ),
         )
         client.app.state.v1_chat_hub.publish_elfie_reply(elfie_id)

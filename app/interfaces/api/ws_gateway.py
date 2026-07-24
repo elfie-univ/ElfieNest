@@ -20,12 +20,11 @@ import websockets.asyncio.server
 
 from ai_runtime.storage.data_home import get_db_path as _get_db_path
 from app.features.accounts.auth import verify_session
-from app.infrastructure.persistence.chat_history import (
-    ChatMessageInput,
-    ChatSender,
-    record_chat_message,
-)
 from app.infrastructure.persistence.store import get_db
+from app.interfaces.api.chat_persistence import (
+    record_elfie_chat_reply,
+    record_owner_chat_message,
+)
 
 logger = logging.getLogger("app.interfaces.api.ws_gateway")
 
@@ -394,23 +393,37 @@ class AuthenticatedWSManager:
                 )
                 return
 
+            conversation_id = str(payload.get("conversation_id") or f"owner:{user_id}")
+            external_message_id = (
+                str(payload["message_id"])
+                if payload.get("message_id") is not None
+                else None
+            )
             if self.nest_session is not None:
                 self.nest_session.send_user_message(
                     elfie_id,
                     message,
                     owner_id=str(user_id),
-                    conversation_id=str(
-                        payload.get("conversation_id") or f"owner:{user_id}"
-                    ),
-                    external_message_id=(
-                        str(payload["message_id"])
-                        if payload.get("message_id") is not None
-                        else None
-                    ),
+                    conversation_id=conversation_id,
+                    external_message_id=external_message_id,
                     account_id=str(payload.get("account_id") or "owner-ws"),
                 )
                 logger.info("WS 用户 %d -> 精灵 '%s' 消息已投递", user_id, elfie_id)
-            self._record_user_message(elfie_id, user_id, message)
+            try:
+                record_owner_chat_message(
+                    elfie_id,
+                    user_id,
+                    message,
+                    conversation_id=conversation_id,
+                    channel="web",
+                    message_id=(
+                        f"web:{external_message_id}"
+                        if external_message_id is not None
+                        else None
+                    ),
+                )
+            except sqlite3.Error as exc:
+                logger.warning("用户聊天消息持久化失败: %s", exc)
 
     # -------------------------------------------------------------------
     # 数据库查询
@@ -462,8 +475,8 @@ class AuthenticatedWSManager:
             return
 
         msg_str = json.dumps(message_dict, ensure_ascii=False)
-        self._record_elfie_message(elfie_id, owner_id, message_dict)
-        if self.product_chat_hub is not None:
+        recorded = self._record_elfie_message(elfie_id, owner_id, message_dict)
+        if recorded and self.product_chat_hub is not None:
             self.product_chat_hub.publish_elfie_reply(elfie_id)
 
         # 聊天与语音内容属于精灵所属用户，Owner/兼容Owner不能跨用户读取。
@@ -512,48 +525,33 @@ class AuthenticatedWSManager:
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
-    def _record_user_message(self, elfie_id: str, user_id: int, message: str) -> None:
-        try:
-            record_chat_message(
-                self.db_path,
-                ChatMessageInput(
-                    elfie_id=elfie_id,
-                    user_id=user_id,
-                    sender=ChatSender.USER,
-                    text=message,
-                    meta="已投递到下一次 tick",
-                ),
-            )
-        except sqlite3.Error as exc:
-            logger.warning("用户聊天消息持久化失败: %s", exc)
-
     def _record_elfie_message(
         self,
         elfie_id: str,
         user_id: int,
         message_dict: Dict[str, Any],
-    ) -> None:
+    ) -> bool:
         event = message_dict.get("event") or message_dict.get("action")
         payload = message_dict.get("payload") or {}
         if not isinstance(payload, dict):
-            return
+            return False
         text = self._elfie_message_text(str(event), payload)
         if not text:
-            return
+            return False
         emotion = str(payload.get("emotion") or "").strip()
         try:
-            record_chat_message(
-                self.db_path,
-                ChatMessageInput(
-                    elfie_id=elfie_id,
-                    user_id=user_id,
-                    sender=ChatSender.ELFIE,
-                    text=text,
-                    meta=f"情绪：{emotion}" if emotion else "实时回复",
-                ),
+            record_elfie_chat_reply(
+                elfie_id,
+                user_id,
+                text,
+                conversation_id=f"owner:{user_id}",
+                channel="web",
+                meta=f"情绪：{emotion}" if emotion else "实时回复",
             )
         except sqlite3.Error as exc:
             logger.warning("精灵聊天消息持久化失败: %s", exc)
+            return False
+        return True
 
     @staticmethod
     def _elfie_message_text(event: str, payload: Dict[str, Any]) -> str:

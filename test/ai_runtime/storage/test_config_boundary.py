@@ -12,7 +12,6 @@ import yaml
 
 from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.storage.data_home import get_config_path, get_elfie_home
-from ai_runtime.storage.migration import migrate_data_home
 
 
 def _write_legacy_runtime_config(path: Path, provider_id: str = "legacy_only") -> None:
@@ -151,9 +150,6 @@ def test_normal_load_does_not_migrate_old_data_directory(monkeypatch, tmp_path):
     _patch_legacy_runtime_path(monkeypatch, tmp_path / "missing-runtime_config.json")
     monkeypatch.setenv("ELFIE_HOME", str(isolated_home))
 
-    migration_module = importlib.import_module("ai_runtime.storage.migration")
-    monkeypatch.setattr(migration_module, "_OLD_DATA_DIR", old_data)
-
     # When: 只执行普通运行时配置加载。
     LLMRuntimeConfig.load()
 
@@ -163,36 +159,12 @@ def test_normal_load_does_not_migrate_old_data_directory(monkeypatch, tmp_path):
     assert not isolated_home.exists()
 
 
-def test_explicit_migration_is_the_only_legacy_json_conversion(monkeypatch, tmp_path):
-    """Given 隔离 home 和旧 JSON，When 显式迁移，Then 才转换为 config.yaml。"""
-    isolated_home = tmp_path / "isolated-home"
-    legacy_path = tmp_path / "old-install" / "runtime_config.json"
-    _write_legacy_runtime_config(legacy_path, provider_id="migrated_provider")
-    monkeypatch.setenv("ELFIE_HOME", str(isolated_home))
-
-    migration_module = importlib.import_module("ai_runtime.storage.migration")
-    monkeypatch.setattr(migration_module, "_OLD_RUNTIME_CONFIG", legacy_path)
-    monkeypatch.setattr(
-        migration_module, "_OLD_DATA_DIR", tmp_path / "old-install" / "data-missing"
-    )
-
-    # When: 仅调用显式迁移命令。
-    assert migrate_data_home() is True
-
-    # Then: legacy 内容只在迁移产物中出现，且目标路径属于隔离 home。
-    migrated = yaml.safe_load((isolated_home / "config.yaml").read_text(encoding="utf-8"))
-    assert migrated["providers"]["migrated_provider"]["api_base"] == (
-        "https://legacy.invalid/v1"
-    )
-    assert (isolated_home / "config.yaml").exists()
-
-
 def test_runtime_api_reads_current_elfie_home_after_environment_switch(
     monkeypatch, tmp_path
 ):
     """Given two homes, When ELFIE_HOME changes, Then API helpers follow it."""
-    from app.interfaces.api import runtime_routes
     from ai_runtime.storage.config_store import write_yaml_mapping
+    from app.interfaces.api import runtime_routes
 
     first_home = tmp_path / "first"
     second_home = tmp_path / "second"

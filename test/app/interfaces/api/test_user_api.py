@@ -12,10 +12,10 @@ import pytest
 import yaml
 from fastapi.testclient import TestClient
 
-from app.infrastructure.persistence.chat_history import (
-    ChatMessageInput,
-    ChatSender,
-    record_chat_message,
+from app.infrastructure.persistence.elfie_chat_history import (
+    ElfieChatMessageInput,
+    ElfieChatSender,
+    record_elfie_chat_message,
 )
 from app.infrastructure.persistence.store import init_db
 from app.interfaces.api.app import create_app
@@ -34,9 +34,10 @@ def db_path(tmp_path: Path) -> str:
 
 
 @pytest.fixture
-def app(db_path: str):
+def app(db_path: str, monkeypatch: pytest.MonkeyPatch):
     # 预填充 owner 用户（ lifespan 不再硬编码 owner/ownerchangeme ）
     init_db(db_path)
+    monkeypatch.setenv("ELFIE_HOME", str(Path(db_path).parent / "elfienest-home"))
     create_test_owner(db_path)
 
     with (
@@ -260,25 +261,29 @@ class TestElfieChatHistory:
         elfie_id = _adopt_elfie(client, tokens["csrf_token"], "小白")
         user_id = tokens["user_id"]
 
-        record_chat_message(
-            db_path,
-            ChatMessageInput(
-                elfie_id=elfie_id,
+        record_elfie_chat_message(
+            elfie_id,
+            ElfieChatMessageInput(
+                message_id="legacy-route-history-1",
+                conversation_id=f"owner:{user_id}",
                 user_id=user_id,
-                sender=ChatSender.USER,
+                sender=ElfieChatSender.USER,
                 text="今天想聊星际门",
                 meta="已投递",
+                channel="web",
                 created_at="2026-06-30T09:00:00.000Z",
             ),
         )
-        record_chat_message(
-            db_path,
-            ChatMessageInput(
-                elfie_id=elfie_id,
+        record_elfie_chat_message(
+            elfie_id,
+            ElfieChatMessageInput(
+                message_id="legacy-route-history-2",
+                conversation_id=f"owner:{user_id}",
                 user_id=user_id,
-                sender=ChatSender.ELFIE,
+                sender=ElfieChatSender.ELFIE,
                 text="我记得昨天的梦",
                 meta="情绪：平静",
+                channel="web",
                 created_at="2026-06-29T09:00:00.000Z",
             ),
         )

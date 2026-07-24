@@ -9,6 +9,16 @@ ElfieNest 把“精灵的长期生活数据”和“源码、构建物、公开�
 - 测试、实验台和文档验收必须使用独立的 `ELFIE_HOME` 或临时目录。
 - `build/` 只存中间产物，`dist/` 只存最终发行物；两者都不属于源码文档。
 
+生产根内部按 Nest 与精灵两层归属。`nest.db` 保存 Nest 身份、账号/所有权、房间和
+运行状态；每只精灵的档案、记忆、工作内容与聊天位于
+`elfies/<elfie_id>/`。`elfie_id` 是不可变目录 ID，名称变更不能移动数据。
+新聊天只能写入 `elfies/<elfie_id>/conversations/history.sqlite`，不创建用户聊天
+目录，也不在 `nest.db.chat_messages` 写入副本。
+
+Developer Tools 使用独立 `${ELFIE_DEV_HOME:-~/.elfienest-dev}`，不能默认读取或
+写入生产根。`nest.db.chat_messages` 是未发布阶段的废弃表，会在数据库升级时删除；
+不保留兼容读取或迁移入口。
+
 ## 密钥与外部服务
 
 - API Key、Token、密码只从环境变量或被 Git 忽略的用户配置读取。

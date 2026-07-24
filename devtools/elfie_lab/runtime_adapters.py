@@ -8,7 +8,7 @@ import time
 from typing import Any, Dict, List
 
 from ai_runtime.food.models import FoodRecipe
-from ai_runtime.storage.data_home import get_elfie_home
+from ai_runtime.storage.data_home import get_elfie_developer_home
 from devtools.elfie_lab.runtime_foods import (
     load_runtime_food_catalog,
     runtime_food_catalog_store,
@@ -218,7 +218,7 @@ def create_runtime(food_key: str, config_dir: str | None = None) -> TracingRunti
     from ai_runtime import RuntimeAgent
     from devtools.runtime_lab import RuntimeLabConfigStore
 
-    store = RuntimeLabConfigStore(config_dir or str(get_elfie_home()))
+    store = RuntimeLabConfigStore(config_dir or default_runtime_config_dir())
     config = store.load_runtime_config()
     food_store = runtime_food_catalog_store(store)
     catalog = load_runtime_food_catalog(store, food_store)
@@ -230,6 +230,11 @@ def create_runtime(food_key: str, config_dir: str | None = None) -> TracingRunti
     agent.food_catalog_store = food_store
     food_agent = FoodRuntimeAgent(agent, normalized, recipe)
     return TracingRuntimeAgent(food_agent, normalized)
+
+
+def default_runtime_config_dir() -> str:
+    """返回 Elfie Lab 专属的开发 Runtime Lab 根目录。"""
+    return str(get_elfie_developer_home() / "runtime_lab")
 
 
 def _provider_from_model(model_ref: str) -> str:
