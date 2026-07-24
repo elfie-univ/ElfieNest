@@ -10,6 +10,8 @@ export default defineConfig({
   base,
   cleanUrls: true,
   lastUpdated: true,
+  transformHtml: (html) =>
+    html.replaceAll('rel="preload stylesheet"', 'rel="stylesheet"'),
   themeConfig: {
     nav: [
       { text: "首页", link: "/" },
@@ -27,17 +29,53 @@ export default defineConfig({
       "/getting-started/": [
         {
           text: "开始使用",
-          items: [{ text: "开始使用 ElfieNest", link: "/getting-started/" }]
+          items: [
+            { text: "使用手册总览", link: "/getting-started/" },
+            { text: "安装与环境", link: "/getting-started/install" },
+            { text: "配置模型与数据", link: "/getting-started/configuration" },
+            { text: "运行第一座 Nest", link: "/getting-started/run" },
+            { text: "故障排查", link: "/getting-started/troubleshooting" },
+            { text: "常见问题", link: "/getting-started/faq" }
+          ]
         }
       ],
       "/developer/": [
         {
-          text: "开发者文档",
+          text: "项目总览",
+          items: [{ text: "开发者文档", link: "/developer/" }]
+        },
+        {
+          text: "架构",
           items: [
-            { text: "开发者入口", link: "/developer/" },
             { text: "当前架构", link: "/developer/architecture" },
+            { text: "模块边界", link: "/developer/architecture-boundaries" },
+            { text: "认知信息流", link: "/developer/architecture-cognitive-flow" },
+            { text: "运行时与数据", link: "/developer/architecture-runtime" }
+          ]
+        },
+        {
+          text: "开发流程",
+          items: [
             { text: "开发流程", link: "/developer/development" },
-            { text: "命令与开发工具", link: "/developer/tooling" }
+            { text: "测试与质量", link: "/developer/testing" },
+            { text: "调试与实验台", link: "/developer/debugging" }
+          ]
+        },
+        {
+          text: "工具与发布",
+          items: [
+            { text: "命令参考", link: "/developer/tooling" },
+            { text: "Developer Tools", link: "/developer/devtools" },
+            { text: "Godot", link: "/developer/godot" },
+            { text: "Desktop", link: "/developer/desktop" },
+            { text: "构建与发布", link: "/developer/build-release" }
+          ]
+        },
+        {
+          text: "协作规则",
+          items: [
+            { text: "代码规范与约束", link: "/developer/standards" },
+            { text: "安全与数据边界", link: "/developer/security-data" }
           ]
         }
       ]
@@ -49,7 +87,7 @@ export default defineConfig({
       { icon: "github", link: "https://github.com/elfie-univ/ElfieNest" }
     ],
     footer: {
-      message: "ElfieNest 是一个仍在早期开发中的开源项目。",
+      message: "ElfieNest · 一座连接两个世界的私人地球基站。",
       copyright: "Copyright © 2026 ElfieNest"
     },
     editLink: {

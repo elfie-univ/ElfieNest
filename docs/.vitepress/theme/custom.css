@@ -1,0 +1,334 @@
+:root {
+  --vp-c-brand-1: #7394f5;
+  --vp-c-brand-2: #9ab0ff;
+  --vp-c-brand-3: #5272d4;
+  --vp-c-brand-soft: rgba(115, 148, 245, 0.18);
+}
+
+/* 首页的导航独立于星空画面：先保证可读，再让它作为基站的控制台。 */
+.VPNavBar.home .wrapper {
+  border-bottom: 1px solid rgba(142, 175, 255, 0.26);
+  background:
+    linear-gradient(90deg, rgba(5, 12, 30, 0.99) 0%, rgba(9, 22, 52, 0.98) 48%, rgba(5, 12, 30, 0.99) 100%),
+    linear-gradient(180deg, rgba(27, 54, 115, 0.48), transparent 100%);
+  box-shadow: 0 8px 24px rgba(1, 5, 16, 0.26);
+}
+
+.VPNavBar.home .VPNavBarTitle .title,
+.VPNavBar.home .VPNavBarMenuLink,
+.VPNavBar.home .VPNavBarMenuGroup > button {
+  color: rgba(245, 248, 255, 0.9);
+}
+
+.VPNavBar.home .VPNavBarMenuLink.active,
+.VPNavBar.home .VPNavBarMenuLink:hover,
+.VPNavBar.home .VPNavBarMenuGroup > button:hover {
+  color: #9eb7ff;
+}
+
+.VPNavBar.home .DocSearch-Button {
+  border-color: rgba(159, 186, 255, 0.28);
+  background: rgba(134, 163, 235, 0.12);
+  box-shadow: inset 0 1px rgba(237, 243, 255, 0.08);
+}
+
+.VPNavBar.home .DocSearch-Button:hover {
+  border-color: rgba(170, 196, 255, 0.62);
+  background: rgba(134, 163, 235, 0.2);
+}
+
+.VPNavBar.home .DocSearch-Button .DocSearch-Search-Icon,
+.VPNavBar.home .DocSearch-Button .DocSearch-Button-Placeholder,
+.VPNavBar.home .DocSearch-Button:hover .DocSearch-Search-Icon,
+.VPNavBar.home .DocSearch-Button:hover .DocSearch-Button-Placeholder {
+  color: rgba(237, 242, 255, 0.82);
+}
+
+.VPNavBar.home .DocSearch-Button-Key {
+  border-color: rgba(159, 186, 255, 0.24);
+  color: rgba(220, 231, 255, 0.72);
+}
+
+/* 首页采用“地球基站观测窗”的单一视觉：一张全幅深空图承载故事，内容保持可读。 */
+.VPHero {
+  position: relative;
+  isolation: isolate;
+  min-height: 600px;
+  overflow: hidden;
+  padding: 76px 24px 116px;
+  margin-top: var(--vp-nav-height);
+  background: #030918;
+}
+
+.VPHero .image,
+.VPHero .image-container,
+.VPHero .image img {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  transform: none !important;
+}
+
+.VPHero .image {
+  z-index: -3;
+  margin: 0;
+}
+
+.VPHero .image img {
+  display: block;
+  object-fit: cover !important;
+  object-position: center center !important;
+}
+
+.VPHero::before {
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(2, 8, 24, 0.97) 0%, rgba(2, 8, 24, 0.86) 40%, rgba(2, 8, 24, 0.2) 71%, rgba(2, 8, 24, 0.34) 100%),
+    linear-gradient(0deg, rgba(2, 8, 24, 0.9) 0%, transparent 34%);
+  content: "";
+}
+
+.VPHero::after {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background-image: radial-gradient(rgba(154, 176, 255, 0.24) 0.8px, transparent 0.8px);
+  background-size: 22px 22px;
+  mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0.46), transparent 64%);
+  opacity: 0.22;
+  content: "";
+  pointer-events: none;
+}
+
+.VPHero .container {
+  display: flex;
+  align-items: center;
+  width: min(100%, 1240px);
+  min-height: 428px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.VPHero .main,
+.VPHero.has-image .main {
+  width: min(100%, 1040px);
+  max-width: 1040px !important;
+  padding: 0;
+  text-align: left;
+}
+
+.VPHero .name {
+  margin: 0 0 18px;
+  color: #8ca8ff;
+  font-size: clamp(4.5rem, 8vw, 7.4rem);
+  font-weight: 800;
+  letter-spacing: -0.075em;
+  line-height: 0.9;
+  white-space: nowrap;
+}
+
+.VPHero .text {
+  max-width: 1040px;
+  color: #f8faff;
+  font-size: clamp(2.1rem, 3vw, 3.15rem);
+  font-weight: 700;
+  letter-spacing: -0.055em;
+  line-height: 1.12;
+  text-wrap: pretty;
+}
+
+.VPHero .tagline {
+  max-width: 650px;
+  margin: 24px 0 0;
+  color: rgba(235, 241, 255, 0.86);
+  font-size: 1.15rem;
+  line-height: 1.65;
+}
+
+.VPHero .actions {
+  gap: 12px;
+  margin-top: 30px;
+}
+
+.VPHero .VPButton {
+  min-width: 108px;
+  border-radius: 999px;
+  font-weight: 650;
+}
+
+.VPHomeFeatures {
+  position: relative;
+  z-index: 2;
+  padding: 0 24px 64px;
+  margin-top: -50px;
+}
+
+.VPHomeFeatures .items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  width: min(100%, 1240px);
+  max-width: 1240px !important;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.VPHomeFeatures .item {
+  flex: 1 1 calc((100% - 36px) / 3);
+  padding: 0;
+}
+
+.VPHomeFeatures .item .box {
+  position: relative;
+  isolation: isolate;
+  min-height: 162px;
+  padding: 26px 28px;
+  border: 1px solid rgba(117, 170, 255, 0.58);
+  border-radius: 16px;
+  background:
+    linear-gradient(145deg, rgba(24, 48, 101, 0.98), rgba(8, 21, 52, 0.98));
+  box-shadow:
+    0 0 0 1px rgba(179, 211, 255, 0.12) inset,
+    0 0 12px rgba(92, 156, 255, 0.48),
+    0 0 26px rgba(59, 105, 255, 0.28);
+}
+
+.VPHomeFeatures .item .box::before {
+  position: absolute;
+  z-index: -1;
+  inset: 7px 10px auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(183, 218, 255, 0.9), transparent);
+  box-shadow: 0 0 8px rgba(130, 186, 255, 0.9);
+  content: "";
+}
+
+.VPHomeFeatures .item .title {
+  color: #f5f7ff;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.VPHomeFeatures .item .details {
+  color: rgba(223, 230, 251, 0.78);
+  line-height: 1.65;
+}
+
+.VPContent .container {
+  max-width: 960px;
+}
+
+.home-note {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  margin: 56px auto 20px;
+  padding: 26px 30px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 18px;
+  background: var(--vp-c-bg-soft);
+}
+
+.home-note strong {
+  color: var(--vp-c-brand-1);
+  font-size: 1.65rem;
+  letter-spacing: -0.04em;
+}
+
+.home-note span {
+  color: var(--vp-c-text-2);
+  font-size: 1.05rem;
+}
+
+@media (max-width: 960px) {
+  .VPHero {
+    min-height: 580px;
+    margin-top: 0;
+    padding: 64px 32px 118px;
+  }
+
+  .VPHero .name {
+    font-size: clamp(4rem, 9vw, 6rem);
+  }
+
+  .VPHomeFeatures {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .VPHomeFeatures .item {
+    padding: 6px;
+  }
+}
+
+@media (max-width: 768px) {
+  .VPHero {
+    min-height: 0;
+    padding: 84px 24px 76px;
+  }
+
+  .VPHero::before {
+    background: linear-gradient(180deg, rgba(2, 8, 24, 0.74) 0%, rgba(2, 8, 24, 0.94) 72%, rgba(2, 8, 24, 1) 100%);
+  }
+
+  .VPHero .container {
+    min-height: 0;
+  }
+
+  .VPHero .name {
+    font-size: clamp(3.55rem, 17vw, 5.25rem);
+    letter-spacing: -0.08em;
+  }
+
+  .VPHero .text {
+    font-size: clamp(2rem, 9.3vw, 3.2rem);
+    line-height: 1.16;
+  }
+
+  .VPHero .tagline {
+    font-size: 1.05rem;
+  }
+
+  .VPHero .actions {
+    flex-wrap: wrap;
+    margin-top: 26px;
+  }
+
+  .VPHomeFeatures {
+    padding: 0 18px 48px;
+    margin-top: -12px;
+    background: #030918;
+  }
+
+  .VPHomeFeatures .items {
+    gap: 12px;
+  }
+
+  .VPHomeFeatures .item {
+    padding: 0;
+  }
+
+  .VPHomeFeatures .item {
+    flex-basis: 100%;
+  }
+
+  .VPHomeFeatures .item .box {
+    min-height: 0;
+    padding: 22px 24px;
+  }
+
+  .home-note {
+    display: block;
+  }
+
+  .home-note span {
+    display: block;
+    margin-top: 6px;
+  }
+}
