@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from argparse import Namespace
+from pathlib import Path
 
 import pytest
 
-from app.interfaces.cli import lifecycle_commands
 from app.features.administration.system_service import PortStatus
+from app.interfaces.cli import lifecycle_commands
 from app.orchestration.lifecycle.types import ServiceLifecycleResult
 from scripts import elfienest
 
@@ -83,6 +84,34 @@ def test_start_forwards_custom_service_ports(monkeypatch) -> None:
     )
 
 
+def test_start_uses_core_when_desktop_executable_is_present(monkeypatch) -> None:
+    # Given
+    commands: list[tuple[str, ...]] = []
+    monkeypatch.setattr(
+        lifecycle_commands.desktop_lifecycle,
+        "find_desktop_executable",
+        lambda *args: Path("/tmp/ElfieNestDesktop"),
+    )
+    monkeypatch.setattr(
+        lifecycle_commands.desktop_lifecycle,
+        "start_desktop_application",
+        lambda *args, **kwargs: pytest.fail("start must not launch Desktop"),
+    )
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "start_service",
+        lambda *args, **kwargs: commands.append(tuple(kwargs["command"]))
+        or ServiceLifecycleResult(status="started", pid=44),
+    )
+
+    # When
+    result = lifecycle_commands.start_background_service()
+
+    # Then
+    assert result.status == "started"
+    assert commands == [lifecycle_commands.default_service_command(("--lan",))]
+
+
 def test_restart_does_not_pass_force_flag(monkeypatch, capsys) -> None:
     # Given
     commands: list[tuple[str, ...]] = []
@@ -107,6 +136,46 @@ def test_restart_does_not_pass_force_flag(monkeypatch, capsys) -> None:
     assert commands == [("python", "scripts/serve.py", "--fallback")]
     assert "--force" not in commands[0]
     assert "已重启" in capsys.readouterr().out
+
+
+def test_restart_uses_core_when_desktop_executable_is_present(monkeypatch) -> None:
+    # Given
+    commands: list[tuple[str, ...]] = []
+    monkeypatch.setattr(
+        lifecycle_commands.desktop_lifecycle,
+        "find_desktop_executable",
+        lambda *args: Path("/tmp/ElfieNestDesktop"),
+    )
+    monkeypatch.setattr(
+        lifecycle_commands.desktop_lifecycle,
+        "stop_desktop_application",
+        lambda *args: pytest.fail("restart must not stop Desktop"),
+    )
+    monkeypatch.setattr(
+        lifecycle_commands.desktop_lifecycle,
+        "start_desktop_application",
+        lambda *args, **kwargs: pytest.fail("restart must not launch Desktop"),
+    )
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "stop_service",
+        lambda *args: ServiceLifecycleResult(
+            status="stopped", command=("python", "scripts/serve.py", "--fallback")
+        ),
+    )
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "start_service",
+        lambda *args, **kwargs: commands.append(tuple(kwargs["command"]))
+        or ServiceLifecycleResult(status="started", pid=43),
+    )
+
+    # When
+    result = lifecycle_commands.restart_background_service()
+
+    # Then
+    assert result.status == "started"
+    assert commands == [("python", "scripts/serve.py", "--fallback")]
 
 
 def test_dispatch_propagates_lifecycle_failure(monkeypatch) -> None:
@@ -140,6 +209,121 @@ def test_web_opens_the_tracked_service_port(monkeypatch) -> None:
     # Then
     assert result.status == "already_running"
     assert opened == ["http://127.0.0.1:8100/"]
+
+
+def test_web_uses_core_when_desktop_executable_is_present(monkeypatch) -> None:
+    # Given
+    opened: list[str] = []
+    monkeypatch.setattr(
+        lifecycle_commands.desktop_lifecycle,
+        "find_desktop_executable",
+        lambda *args: Path("/tmp/ElfieNestDesktop"),
+    )
+    monkeypatch.setattr(
+        lifecycle_commands.desktop_lifecycle,
+        "start_desktop_application",
+        lambda *args, **kwargs: pytest.fail("web must not launch Desktop"),
+    )
+    monkeypatch.setattr(lifecycle_commands, "existing_service_command", lambda *args: None)
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "start_background_service",
+        lambda: ServiceLifecycleResult(
+            status="started",
+            command=("python", "scripts/serve.py", "--port", "8100"),
+        ),
+    )
+    monkeypatch.setattr(lifecycle_commands, "_web_is_healthy", lambda port=8000: port == 8100)
+    monkeypatch.setattr(lifecycle_commands.webbrowser, "open", opened.append)
+
+    # When
+    result = lifecycle_commands.open_web_console()
+
+    # Then
+    assert result.status == "already_running"
+    assert opened == ["http://127.0.0.1:8100/"]
+
+
+def test_stop_uses_core_when_desktop_pid_is_present(monkeypatch) -> None:
+    # Given
+    monkeypatch.setattr(
+        lifecycle_commands.desktop_lifecycle,
+        "stop_desktop_application",
+        lambda *args: pytest.fail("stop must not stop Desktop"),
+    )
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "stop_service",
+        lambda *args: ServiceLifecycleResult(status="stopped", pid=44),
+    )
+
+    # When
+    result = lifecycle_commands.stop_background_service()
+
+    # Then
+    assert result.status == "stopped"
+
+
+def test_status_does_not_report_desktop_lifecycle(monkeypatch, capsys) -> None:
+    # Given
+    monkeypatch.setattr(
+        lifecycle_commands.desktop_lifecycle,
+        "desktop_process_id",
+        lambda *args: pytest.fail("status must inspect Core only"),
+    )
+    monkeypatch.setattr(lifecycle_commands, "existing_service_command", lambda *args: None)
+
+    # When
+    lifecycle_commands.show_service_status()
+
+    # Then
+    assert "服务状态" in capsys.readouterr().out
+
+
+def test_explicit_desktop_command_starts_desktop(monkeypatch) -> None:
+    # Given
+    calls: list[str] = []
+    monkeypatch.setattr(
+        lifecycle_commands.desktop_lifecycle,
+        "start_desktop_application",
+        lambda *args, **kwargs: calls.append("desktop")
+        or ServiceLifecycleResult(status="started", pid=44),
+    )
+
+    # When
+    result = lifecycle_commands.start_desktop_application()
+
+    # Then
+    assert result.status == "started"
+    assert calls == ["desktop"]
+
+
+def test_product_start_options_enable_lan_by_default_and_allow_loopback() -> None:
+    # Given
+    default_start = Namespace(
+        port=None,
+        ws_port=None,
+        godot_ws_port=None,
+        fallback=False,
+        no_seed_elfie=False,
+        lan=True,
+    )
+    loopback_start = Namespace(
+        port=None,
+        ws_port=None,
+        godot_ws_port=None,
+        fallback=False,
+        no_seed_elfie=False,
+        lan=False,
+    )
+
+    # When
+    default_options = elfienest._service_options_from_args(default_start)
+    loopback_options = elfienest._service_options_from_args(loopback_start)
+
+    # Then
+    assert default_options == ("--lan",)
+    assert loopback_options == ()
 
 
 def test_status_reports_the_tracked_service_ports(monkeypatch, capsys) -> None:

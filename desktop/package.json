@@ -7,7 +7,7 @@
   "main": "main.js",
   "scripts": {
     "build": "pnpm exec tsc -p tsconfig.json",
-    "test": "pnpm build && node --test ../build/components/desktop/supervisor/supervisor.test.js ../build/components/desktop/resources/resource_manifest.test.js",
+    "test": "pnpm build && node --test ../build/components/desktop/platform/supervisor_config.test.js ../build/components/desktop/supervisor/supervisor.test.js ../build/components/desktop/resources/resource_manifest.test.js",
     "build-resource-manifest": "pnpm build && node ../build/components/desktop/resources/build_resource_manifest.js",
     "dev": "pnpm build && electron ../build/components/desktop/main.js",
     "package": "pnpm build && electron-builder"

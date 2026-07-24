@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Final
 
-CURRENT_SCHEMA_VERSION: Final[int] = 6
+CURRENT_SCHEMA_VERSION: Final[int] = 9
 
 
 class OwnerSchemaMigrationError(RuntimeError):
@@ -25,7 +25,9 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             nickname TEXT DEFAULT NULL,
             avatar_color INTEGER DEFAULT 0,
-            avatar_kind TEXT DEFAULT 'initials'
+            avatar_kind TEXT DEFAULT 'initials',
+            default_landing_page TEXT NOT NULL DEFAULT 'manage'
+            CHECK(default_landing_page IN ('chat', 'manage'))
         )
         """
     )
@@ -79,6 +81,12 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
         _migrate_v4_to_v5(connection)
     if version < 6:
         _migrate_v5_to_v6(connection)
+    if version < 7:
+        _migrate_v6_to_v7(connection)
+    if version < 8:
+        _migrate_v7_to_v8(connection)
+    if version < 9:
+        _migrate_v8_to_v9(connection)
     _ensure_owner_index(connection)
 
 
@@ -196,6 +204,72 @@ def _migrate_v5_to_v6(connection: sqlite3.Connection) -> None:
         "ADD COLUMN profile_schema_version INTEGER NOT NULL DEFAULT 1",
     )
     connection.execute("PRAGMA user_version = 6")
+
+
+def _migrate_v6_to_v7(connection: sqlite3.Connection) -> None:
+    """Persist the Owner's preferred landing page without changing user roles."""
+    _ignore_duplicate_column(
+        connection,
+        "ALTER TABLE users ADD COLUMN default_landing_page "
+        "TEXT NOT NULL DEFAULT 'manage' CHECK(default_landing_page IN ('chat', 'manage'))",
+    )
+    connection.execute("PRAGMA user_version = 7")
+
+
+def _migrate_v7_to_v8(connection: sqlite3.Connection) -> None:
+    """Add persistent embodiment session/lease facts without altering old rows."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS embodiment_sessions (
+            elfie_id TEXT PRIMARY KEY,
+            session_id TEXT,
+            state TEXT NOT NULL CHECK(state IN (
+                'at_nest', 'switching_to_hosted', 'hosted',
+                'returning_to_nest', 'offline'
+            )),
+            body_id TEXT,
+            lease_expires_at REAL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(elfie_id) REFERENCES elfie_registry(elfie_id)
+        )
+        """
+    )
+    connection.execute("PRAGMA user_version = 8")
+
+
+def _migrate_v8_to_v9(connection: sqlite3.Connection) -> None:
+    """Add local-device credential facts without storing raw device secrets."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS devices (
+            device_id TEXT PRIMARY KEY,
+            owner_user_id INTEGER NOT NULL,
+            display_name TEXT NOT NULL,
+            secret_hash TEXT NOT NULL,
+            revoked_at TIMESTAMP,
+            last_heartbeat_at REAL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(owner_user_id) REFERENCES users(id)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS device_audit_events (
+            id INTEGER PRIMARY KEY,
+            device_id TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            detail TEXT NOT NULL DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(device_id) REFERENCES devices(device_id)
+        )
+        """
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_devices_owner ON devices(owner_user_id)"
+    )
+    connection.execute("PRAGMA user_version = 9")
 
 
 def _validate_owner_roles(connection: sqlite3.Connection) -> None:

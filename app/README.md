@@ -29,7 +29,7 @@
 app/
 ├── bootstrap/       # 应用组合根，只做依赖装配
 ├── features/        # accounts、adoption、configuration、setup 等产品用例
-├── infrastructure/  # persistence、filesystem、device_identity 等适配器
+├── infrastructure/  # persistence、filesystem、devices 等适配器
 ├── interfaces/      # api、cli、web 入站接口
 └── orchestration/   # 跨 Elfie、Nest、AI Runtime 和平台的流程编排
 ```
@@ -39,6 +39,10 @@ app/
 - `app.interfaces.api.create_app`：创建 HTTP/Web 应用；
 - `app.orchestration.ElfieNestEngine`：推进 Nest 环境时钟并泵送类型化输入；
 - `app.orchestration.NestSession`：真实 `Elfie` 实例与 `Nest` 的唯一组合位置。
+- `app.orchestration.embodiment`：以持久化 lease 编排真实身体绑定、托管与归巢；
+  `nest/embodiment` 仅保存状态，不保存真实精灵或设备连接。
+- `app.infrastructure.devices.DeviceGatewayTransport`：将已认证的局域网设备接入
+  `elfie.body.external.ExternalTransport` 契约；设备事件、动作轮询和回执不进入 Nest。
 
 `NestSession` 持有真实精灵对象，Nest 只接收精灵 ID 和巢内状态；其他模块不得另建
 一套精灵与活动空间的组合关系。

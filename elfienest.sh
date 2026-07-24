@@ -54,8 +54,14 @@ select_python() {
         return
     fi
 
-    echo "  ❌ 项目运行环境不可用；必须使用锁定的 Python $PINNED_PYTHON_VERSION。" >&2
-    echo "  💡 请安装 uv 后重新运行: $SCRIPT_DIR/install.sh" >&2
+    if [ ! -x "$venv_python" ]; then
+        echo "  ❌ 项目运行环境不可用：缺少 .venv 中的 CPython $PINNED_PYTHON_VERSION。" >&2
+    elif ! python_is_pinned_version "$venv_python"; then
+        echo "  ❌ 项目运行环境不可用：.venv 解释器版本错误；必须使用 CPython $PINNED_PYTHON_VERSION。" >&2
+    else
+        echo "  ❌ 项目运行环境不可用：解释器版本正确，但运行依赖缺失或不完整。" >&2
+    fi
+    echo "  💡 请按锁文件修复环境: $SCRIPT_DIR/install.sh --env-only" >&2
     return 1
 }
 
@@ -91,6 +97,7 @@ show_help() {
     echo "    restart        强制重启当前服务"
     echo "    status         查看服务与端口状态"
     echo "    web            确保服务可用并打开 Web 管理台"
+    echo "    desktop        显式启动打包版 ElfieNest Desktop"
     echo "    config         配置中心（方向键菜单）"
     echo "    owner          Owner 账户菜单"
     echo "    doctor         本地诊断并自动修复"
@@ -140,7 +147,7 @@ interactive_mode() {
             serve) "$PYTHON_BIN" scripts/serve.py "${args[@]}" ;;
             build-godot-web) "$SCRIPT_DIR/developer.sh" build-godot-web "${args[@]}" ;;
             developer|dev) "$SCRIPT_DIR/developer.sh" "${args[@]}" ;;
-            config|owner|doctor|status|web|stop|restart|start|version|v|setup)
+            config|owner|doctor|status|web|desktop|stop|restart|start|version|v|setup)
                 "$PYTHON_BIN" scripts/elfienest.py "$cmd" "${args[@]}" ;;
             db) "$PYTHON_BIN" scripts/elfienest.py db "${args[@]}" ;;
             *)

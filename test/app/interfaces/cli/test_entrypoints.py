@@ -7,7 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from test.app.interfaces.cli.entrypoint_test_support import PROJECT_ROOT, write_executable
+from test.app.interfaces.cli.entrypoint_test_support import (
+    PROJECT_ROOT,
+    write_executable,
+)
 
 
 def test_system_entrypoint_files_use_elfienest_name() -> None:
@@ -106,6 +109,7 @@ printf '%s\n' "$*" > "$ENTRYPOINT_LOG"
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
 
@@ -114,6 +118,47 @@ printf '%s\n' "$*" > "$ENTRYPOINT_LOG"
     assert invocation_log.read_text(encoding="utf-8").strip() == (
         "scripts/elfienest.py version"
     )
+
+
+def test_entrypoint_explains_missing_dependencies_without_misreporting_python(
+    tmp_path: Path,
+) -> None:
+    # Given
+    project_root = tmp_path / "ElfieNest"
+    project_root.mkdir()
+    shutil.copy2(PROJECT_ROOT / "elfienest.sh", project_root / "elfienest.sh")
+    shutil.copy2(PROJECT_ROOT / ".python-version", project_root / ".python-version")
+    write_executable(project_root / "install.sh", "#!/bin/bash\nexit 1\n")
+    write_executable(
+        project_root / ".venv" / "bin" / "python3",
+        """#!/bin/bash
+if [ "${1:-}" = "-c" ]; then
+    case "${2:-}" in
+        *platform.python_version*) exit 0 ;;
+    esac
+    exit 1
+fi
+exit 1
+""",
+    )
+    env = os.environ.copy()
+    env["ELFIENEST_SKIP_AUTO_REPAIR"] = "1"
+
+    # When
+    result = subprocess.run(
+        [str(project_root / "elfienest.sh"), "version"],
+        cwd=project_root,
+        env=env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+
+    # Then
+    assert result.returncode != 0
+    assert "依赖缺失或不完整" in result.stderr
+    assert "解释器版本错误" not in result.stderr
 
 
 def test_existing_cli_help_keeps_setup_and_database_commands() -> None:

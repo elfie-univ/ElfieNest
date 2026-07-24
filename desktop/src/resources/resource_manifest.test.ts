@@ -33,6 +33,9 @@ test("resource manifest records and validates every packaged component for one s
     assert.equal(manifest.target, "darwin-arm64");
     assert.ok(manifest.files["python-core/ElfieNestCore"]);
     assert.ok(manifest.files["ollama/ollama"]);
+    assert.ok(manifest.files["web/login.html"]);
+    assert.ok(manifest.files["web/chat.html"]);
+    assert.ok(manifest.files["web/manage.html"]);
     assert.equal(manifest.files["python-core/darwin/ElfieNestCore"], undefined);
     assert.equal(manifest.files["ollama/darwin/ollama"], undefined);
     assert.deepEqual(validateResourceManifest(root, manifest), []);
@@ -52,6 +55,7 @@ test("resource manifest uses Windows executables inside the target staging root"
     assert.equal(manifest.target, "win32-x64");
     assert.ok(manifest.files["python-core/ElfieNestCore.exe"]);
     assert.ok(manifest.files["ollama/ollama.exe"]);
+    assert.ok(manifest.files["web/manifest.json"]);
     assert.equal(manifest.files["python-core/win32/ElfieNestCore.exe"], undefined);
     assert.deepEqual(validateResourceManifest(root, manifest), []);
   } finally {

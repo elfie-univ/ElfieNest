@@ -78,6 +78,45 @@ pre-commit 与 CI 还会运行 Gitleaks。不要用 `--no-verify` 绕过密钥�
 生产数据。详细边界见
 [Devtools README](https://github.com/elfie-univ/ElfieNest/blob/main/devtools/README.md)。
 
+## 产品 Web 与局域网模式
+
+Core 提供三个同源页面：`/login`、`/chat` 与 `/manage`。未登录访问后两页会回到
+`/login?next=...`；普通用户固定进入聊天页，`/manage` 在服务端重定向到 `/chat`。
+Owner 默认进入管理页，并可将自己的默认页改为聊天页。
+
+聊天页通过同源 `/api/v1/ws/chat` 使用与 REST 相同的会话认证。用户消息会获得实时确认；
+运行时产生的精灵回复先写入聊天历史，再桥接给该精灵所属用户的同源聊天连接，因此刷新后
+历史与实时消息保持一致。
+
+`/manage` 是当前 Owner 管理页。二期完成高级运行配置的 TypeScript 页面迁移前，Owner 可从
+管理页进入 `/manage?mode=classic` 使用受同一服务端角色门禁保护的兼容工作区；普通用户仍会
+被重定向到 `/chat`。
+
+前端源码位于 `app/interfaces/web/frontend/`，构建产物只能写入根目录 `build/web/`：
+
+```bash
+cd app/interfaces/web/frontend
+pnpm install --frozen-lockfile
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+开发启动默认只监听 loopback；需要给同网段设备提供登录页时，显式使用 `--lan`。
+LAN 不会放宽账户、角色、CSRF、Host/Origin 或设备凭证检查。安装后的 CLI 可用
+`--loopback` 关闭家庭 LAN 服务。设备只使用 `/api/v1/ws/devices` 的 Bearer 凭证，
+浏览器用户始终使用会话 Cookie。
+
+`/api/v1/ws/devices` 不接受自由格式 JSON：每个文本帧最大 64 KiB，并且只能是
+`heartbeat`、`sensor_event`、`receipt` 或 `command_poll`。其中传感器事件和动作回执
+直接复用 `elfie.body.contracts` 的类型契约；Core 通过 `DeviceGatewayTransport` 将动作
+排入已连接设备的下一次 `command_poll`。设备凭证只在登记或轮换时显示一次，不能写入
+浏览器日志、测试夹具或版本库。
+
+当前阶段的产品验收聚焦 `/login`、`/chat`、`/manage`、Electron 登录入口和移动浏览器。
+设备—具身 lease—能力声明的 Owner 配置、设备节流策略、真实安装包 staging、双客户端
+自动化和旧单页控制台退役均已明确排入后续二期；它们不是本阶段 APP 页面发布的前置条件。
+
 ## 提交前检查
 
 准备交付一组改动前，至少确认：

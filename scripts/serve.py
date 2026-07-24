@@ -52,6 +52,7 @@ from app.infrastructure.persistence.store import (
     seed_initial_owner_if_env_set,
 )
 from app.interfaces.api.app import create_app
+from app.interfaces.api.service_access import ServiceMode
 from app.orchestration.engine import ElfieNestEngine
 from app.orchestration.lifecycle.process import (
     DEFAULT_GODOT_WS_PORT,
@@ -139,6 +140,11 @@ def remaining_occupied_ports(
 ) -> list[tuple[int, str]]:
     """返回强制清理后仍然被占用的端口。"""
     return [(port, name) for port, name in occupied if is_port_in_use_func(port)]
+
+
+def service_host(lan: bool) -> str:
+    """Keep developer CLI loopback-only unless the caller explicitly enables LAN."""
+    return "0.0.0.0" if lan else "127.0.0.1"
 
 
 def seed_single_elfie(db_path: str) -> bool:
@@ -230,6 +236,11 @@ def main():
         "--force",
         action="store_true",
         help="强制重启：杀死占用端口的进程",
+    )
+    parser.add_argument(
+        "--lan",
+        action="store_true",
+        help="显式监听家庭局域网 IPv4 地址（默认仅本机）",
     )
     args = parser.parse_args()
 
@@ -525,12 +536,18 @@ def main():
         db_path=db_path,
         ws_port=args.ws_port,
         http_port=args.port,
+        service_mode=ServiceMode.LAN.value if args.lan else ServiceMode.LOOPBACK.value,
     )
 
     import uvicorn  # noqa: PLC0415
 
     try:
-        uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")
+        uvicorn.run(
+            app,
+            host=service_host(args.lan),
+            port=args.port,
+            log_level="warning",
+        )
     except KeyboardInterrupt:
         print("\n正在关闭服务...")
     finally:

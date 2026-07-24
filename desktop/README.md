@@ -13,7 +13,7 @@
 2. 启动 Python Core，并等待 `/api/health` 可用；
 3. 在隐藏的、关闭后台节流的 `BrowserWindow` 中加载 Godot Web Runtime，
    注入本次启动生成的 runtime nonce 与 camera token，等待握手完成；
-4. 打开普通用户管理窗口。
+4. 打开同源 `/login` 登录窗口；登录后由 Core 按角色跳转到 `/chat` 或 `/manage`。
 
 退出时先关闭隐藏 Godot Runtime，再停止 Python Core 和由 Desktop 管理的
 Ollama。任一组件启动失败都会停止已经启动的组件，并显示归因到具体组件的错误
@@ -37,9 +37,11 @@ Ollama。任一组件启动失败都会停止已经启动的组件，并显示�
 - `win32-x64`
 - `linux-x64`
 
-每个 target 必须包含 Godot Web 的 `html/js/wasm/pck`、对应平台的 Python Core
-和 Ollama 可执行文件。`src/resources/resource_manifest.ts` 会记录文件大小和
-SHA-256，并拒绝缺失资源。完整 staging 约定见
+每个 target 必须包含 Godot Web 的 `html/js/wasm/pck`、三个产品页面的 Vite `web/`
+构建产物、对应平台的 Python Core 和 Ollama 可执行文件。Python Core 在安装包内以
+`python-core/ElfieNestCore`（Windows 为 `.exe`）被解析，并通过
+`ELFIENEST_WEB_BUILD_DIR` 读取 `web/`；二者必须与资源清单采用同一相对路径。
+`src/resources/resource_manifest.ts` 会记录文件大小和 SHA-256，并拒绝缺失资源。完整 staging 约定见
 [`packaging/runtime-resources.md`](packaging/runtime-resources.md)。
 
 ## 开发命令

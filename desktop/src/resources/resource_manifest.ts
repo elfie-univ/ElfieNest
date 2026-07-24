@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 export const SUPPORTED_RESOURCE_TARGETS = [
@@ -16,6 +16,13 @@ const GODOT_WEB_RESOURCE_PATHS = [
   "godot-web/elfienest.js",
   "godot-web/elfienest.wasm",
   "godot-web/elfienest.pck",
+] as const;
+
+const PRODUCT_WEB_RESOURCE_PATHS = [
+  "web/manifest.json",
+  "web/login.html",
+  "web/chat.html",
+  "web/manage.html",
 ] as const;
 
 export type ResourcePath = string;
@@ -81,9 +88,35 @@ export function requiredResourcePathsForTarget(
 ): readonly ResourcePath[] {
   return [
     ...GODOT_WEB_RESOURCE_PATHS,
+    ...PRODUCT_WEB_RESOURCE_PATHS,
     executablePathForTarget(target, "python-core"),
     executablePathForTarget(target, "ollama"),
   ];
+}
+
+function productWebAssetPaths(root: string): readonly ResourcePath[] {
+  const webRoot = join(root, "web");
+  if (!existsSync(webRoot)) {
+    return [];
+  }
+  const resourcePaths: string[] = [];
+  const visit = (directory: string, prefix: string): void => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const relativePath = `${prefix}/${entry.name}`;
+      const fullPath = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        visit(fullPath, relativePath);
+      } else if (entry.isFile()) {
+        resourcePaths.push(relativePath);
+      }
+    }
+  };
+  visit(webRoot, "web");
+  return resourcePaths;
+}
+
+function manifestResourcePaths(root: string, target: ResourceTarget): readonly ResourcePath[] {
+  return [...new Set([...requiredResourcePathsForTarget(target), ...productWebAssetPaths(root)])];
 }
 
 export function buildResourceManifest(
@@ -92,7 +125,7 @@ export function buildResourceManifest(
   target: ResourceTarget,
 ): ResourceManifest {
   const files: Record<string, ResourceFile> = {};
-  for (const resourcePath of requiredResourcePathsForTarget(target)) {
+  for (const resourcePath of manifestResourcePaths(root, target)) {
     const fullPath = join(root, resourcePath);
     if (!existsSync(fullPath)) {
       throw new ResourceManifestError(resourcePath, "资源文件不存在");
@@ -120,7 +153,11 @@ export function validateResourceManifest(
   manifest: ResourceManifest,
 ): readonly string[] {
   const errors: string[] = [];
-  for (const resourcePath of requiredResourcePathsForTarget(manifest.target)) {
+  const expectedPaths = new Set([
+    ...requiredResourcePathsForTarget(manifest.target),
+    ...Object.keys(manifest.files),
+  ]);
+  for (const resourcePath of expectedPaths) {
     const expected = manifest.files[resourcePath];
     const fullPath = join(root, resourcePath);
     if (expected === undefined) {

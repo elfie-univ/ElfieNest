@@ -174,6 +174,7 @@ export class RuntimeSupervisor {
       env: {
         ...process.env,
         ELFIE_HOME: this.config.dataRoot,
+        ELFIENEST_WEB_BUILD_DIR: this.config.webBuildDirectory,
         OLLAMA_MODELS: `${this.config.dataRoot}/models`,
         ELFIENEST_SUPERVISED: "1",
         ELFIENEST_GODOT_NONCE: this.godotNonce ?? "",

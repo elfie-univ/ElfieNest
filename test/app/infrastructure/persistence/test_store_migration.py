@@ -120,12 +120,12 @@ class TestMigrationV1ToV2:
         assert "avatar_color" in cols
         assert "avatar_kind" in cols
 
-    def test_user_version_becomes_6(self, tmp_path: Path) -> None:
+    def test_user_version_becomes_9(self, tmp_path: Path) -> None:
         db = str(tmp_path / "nest.db")
         init_db(db)
         migrate_db_if_needed(db)
 
-        assert _user_version(db) == 6
+        assert _user_version(db) == 9
 
     def test_migration_idempotent(self, tmp_path: Path) -> None:
         """重复执行 migrate_db_if_needed 不报错。"""
@@ -136,7 +136,7 @@ class TestMigrationV1ToV2:
 
         cols = _table_info_columns(db)
         assert "nickname" in cols
-        assert _user_version(db) == 6
+        assert _user_version(db) == 9
 
     def test_preserves_existing_data(self, tmp_path: Path) -> None:
         """迁移前插入的用户，迁移后数据保持完整。"""
@@ -178,24 +178,30 @@ class TestMigrationV1ToV2:
         assert rows[1]["nickname"] is None
 
     def test_column_count(self, tmp_path: Path) -> None:
-        """迁移后 users 表共有 9 列。"""
+        """迁移后 users 表包含 Owner 的默认落页偏好。"""
         db = str(tmp_path / "nest.db")
         init_db(db)
         migrate_db_if_needed(db)
 
         cols = _table_info_columns(db)
-        assert len(cols) == 9
-        # 验证列顺序：原 5 列 + updated_at + profile 3 列
+        assert len(cols) == 10
+        # 验证列顺序：原 5 列 + updated_at + profile 3 列 + 默认落页
         assert cols[:5] == ["id", "username", "password_hash", "role", "created_at"]
-        assert cols[5:] == ["updated_at", "nickname", "avatar_color", "avatar_kind"]
+        assert cols[5:] == [
+            "updated_at",
+            "nickname",
+            "avatar_color",
+            "avatar_kind",
+            "default_landing_page",
+        ]
 
-    def test_init_db_sets_version_6(self, tmp_path: Path) -> None:
+    def test_init_db_sets_version_9(self, tmp_path: Path) -> None:
         db = str(tmp_path / "nest.db")
         init_db(db)
 
         cols = _table_info_columns(db)
         assert "nickname" in cols
-        assert _user_version(db) == 6
+        assert _user_version(db) == 9
 
     def test_adds_nest_tables_and_bed_id(self, tmp_path: Path) -> None:
         db = str(tmp_path / "nest.db")
@@ -269,4 +275,4 @@ class TestMigrationV1ToV2:
         assert row["anatomy_type"] == "quadruped"
         assert row["species_id"] == "fox"
         assert row["profile_schema_version"] == 1
-        assert _user_version(db) == 6
+        assert _user_version(db) == 9

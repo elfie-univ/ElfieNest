@@ -10,6 +10,7 @@ export type SupervisorConfig = Readonly<{
   readonly ollamaExecutable: string;
   readonly coreExecutable: string;
   readonly coreArgs: readonly string[];
+  readonly webBuildDirectory: string;
   readonly resourcesPath: string;
   readonly coreWorkingDirectory: string;
   readonly manageOllama: boolean;
@@ -34,7 +35,11 @@ export function resolveSupervisorConfig(
   userDataRoot: string = join(projectRoot, ".elfienest"),
 ): SupervisorConfig {
   const dataRoot = environmentValue(environment, "ELFIE_HOME", userDataRoot);
-  const uiUrl = environmentValue(environment, "ELFIENEST_UI_URL", "http://127.0.0.1:8000/");
+  const uiUrl = environmentValue(
+    environment,
+    "ELFIENEST_UI_URL",
+    "http://127.0.0.1:8000/login",
+  );
   const godotUrl = environmentValue(
     environment,
     "ELFIENEST_GODOT_URL",
@@ -47,7 +52,11 @@ export function resolveSupervisorConfig(
     `${uiUrl.replace(/\/$/, "")}/api/health`,
   );
   const packagedOllama = join(resourcesPath, "ollama", platform, platformExecutable(platform, "ollama"));
-  const packagedCore = join(resourcesPath, "python-core", platform, platformExecutable(platform, "ElfieNestCore"));
+  const packagedCore = join(
+    resourcesPath,
+    "python-core",
+    platformExecutable(platform, "ElfieNestCore"),
+  );
   const packagedCoreAvailable = existsSync(packagedCore);
   const developmentPython = join(
     projectRoot,
@@ -59,6 +68,11 @@ export function resolveSupervisorConfig(
     packagedCoreAvailable ? packagedCore : developmentPython,
   );
   const coreArgs = basename(coreExecutable).startsWith("ElfieNestCore") ? [] : ["scripts/serve.py"];
+  const webBuildDirectory = environmentValue(
+    environment,
+    "ELFIENEST_WEB_BUILD_DIR",
+    packagedCoreAvailable ? join(resourcesPath, "web") : join(projectRoot, "build", "web"),
+  );
   return {
     dataRoot,
     uiUrl,
@@ -68,6 +82,7 @@ export function resolveSupervisorConfig(
     ollamaExecutable: environmentValue(environment, "ELFIENEST_OLLAMA_BIN", packagedOllama),
     coreExecutable,
     coreArgs,
+    webBuildDirectory,
     resourcesPath,
     coreWorkingDirectory: environmentValue(
       environment,

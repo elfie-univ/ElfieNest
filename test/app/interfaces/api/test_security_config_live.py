@@ -27,8 +27,8 @@ from app.features.accounts.auth import (
     invalidate_rate_limiter_cache,
     invalidate_session_cache,
 )
-from app.interfaces.api.app import create_app
 from app.infrastructure.persistence.store import get_db, init_db
+from app.interfaces.api.app import create_app
 
 from ._helpers import create_test_owner
 
@@ -79,7 +79,7 @@ def app(db_path: str, runtime_config_path: Path):
 
 @pytest.fixture
 def client(app):
-    with TestClient(app) as c:
+    with TestClient(app, base_url="http://127.0.0.1:8000") as c:
         yield c
 
 

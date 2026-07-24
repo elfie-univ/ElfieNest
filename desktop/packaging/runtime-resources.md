@@ -10,6 +10,12 @@ build/staging/<platform-arch>/resources/
 │   ├── elfienest.js
 │   ├── elfienest.wasm
 │   └── elfienest.pck
+├── web/
+│   ├── manifest.json
+│   ├── login.html
+│   ├── chat.html
+│   ├── manage.html
+│   └── assets/
 ├── python-core/ElfieNestCore
 ├── ollama/ollama
 └── manifest.json
@@ -17,7 +23,9 @@ build/staging/<platform-arch>/resources/
 
 这是“单 target staging root”。每次只放当前目标平台需要的资源，不在同一个
 `resources/` 下嵌套 `darwin/`、`win32/`、`linux/` 多平台目录。Windows 目标目录中的
-两个可执行文件名分别是 `python-core/ElfieNestCore.exe` 和 `ollama/ollama.exe`。
+两个可执行文件名分别是 `python-core/ElfieNestCore.exe` 和 `ollama/ollama.exe`。`web/`
+必须是前端 Vite 构建产物的完整副本；Electron 启动 Core 时将其作为
+`ELFIENEST_WEB_BUILD_DIR` 传入，Core 不会回退到旧静态控制台。
 
 `manifest.json` 应记录版本和哈希。模型不随安装包提交，首次启动时由 Ollama 下载到
 用户数据目录的 `models/`，这样升级应用不会重复携带大文件。

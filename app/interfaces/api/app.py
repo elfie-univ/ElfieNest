@@ -9,6 +9,7 @@ import logging
 import os
 import secrets
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import (
     Any,
     Dict,
@@ -17,7 +18,7 @@ from typing import (
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field  # noqa: E402
 
@@ -33,6 +34,7 @@ from app.features.accounts.auth import (
     verify_csrf_token,
     verify_password,
 )
+from app.infrastructure.devices import DeviceGateway
 from app.infrastructure.persistence.store import (
     get_db,
     init_db,
@@ -40,8 +42,17 @@ from app.infrastructure.persistence.store import (
     seed_initial_owner_if_env_set,
 )
 from app.interfaces.web import STATIC_DIR
+from app.interfaces.web.build_discovery import (
+    WebBuildManifestMalformedError,
+    WebBuildManifestMissingError,
+    discover_web_build,
+)
 from nest.godot.bundle import GODOT_WEB_DIR, inspect_godot_web_bundle
 
+from .page_routes import default_landing_path, safe_next_path
+from .page_routes import router as page_router
+from .service_access import ServiceAccessPolicy, configure_service_access
+from .v1.realtime import SameOriginChatHub
 from .ws_gateway import AuthenticatedWSManager
 
 logger = logging.getLogger("app.interfaces.api.app")
@@ -96,6 +107,8 @@ def create_app(
     db_path: Optional[str] = None,
     ws_port: int = 8766,
     http_port: int = 8000,
+    service_mode: str = "loopback",
+    web_build_dir: Optional[Path] = None,
 ) -> FastAPI:
     """Create and configure the FastAPI application.
 
@@ -129,6 +142,7 @@ def create_app(
             http_port=http_port,
             db_path=db_path,
         )
+        ws_manager.product_chat_hub = app.state.v1_chat_hub
         if engine is not None:
             engine.ws_manager = ws_manager
             ws_manager.nest_session = engine.session
@@ -147,7 +161,21 @@ def create_app(
     # 将 db_path 与 engine 存入 app.state 供依赖注入使用
     app.state.db_path = db_path
     app.state.engine = engine
+    app.state.device_gateway = DeviceGateway()
+    app.state.v1_chat_hub = SameOriginChatHub(db_path)
     app.state.ws_port = ws_port
+    configured_web_build_dir = os.environ.get("ELFIENEST_WEB_BUILD_DIR")
+    build_dir = web_build_dir or (
+        Path(configured_web_build_dir)
+        if configured_web_build_dir
+        else Path(__file__).resolve().parents[3] / "build" / "web"
+    )
+    try:
+        app.state.web_build = discover_web_build(build_dir)
+        app.state.web_build_error = None
+    except (WebBuildManifestMissingError, WebBuildManifestMalformedError) as error:
+        app.state.web_build = None
+        app.state.web_build_error = str(error)
     app.state.godot_camera_token = (
         os.environ.get("ELFIENEST_GODOT_CAMERA_TOKEN")
         or secrets.token_urlsafe(32)
@@ -156,15 +184,15 @@ def create_app(
 
     app.state.camera_feed = CameraFeedStore()
 
+    service_access = ServiceAccessPolicy.create(service_mode, http_port)
+    configure_service_access(app, service_access)
+
     # -------------------------------------------------------------------
     # CORS — 允许 127.0.0.1 和 localhost
     # -------------------------------------------------------------------
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://127.0.0.1:8000",
-            "http://localhost:8000",
-        ],
+        allow_origins=list(service_access.cors_origins),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -227,10 +255,6 @@ def create_app(
     # Routes
     # -------------------------------------------------------------------
 
-    @app.get("/")
-    async def root_redirect():
-        return FileResponse(STATIC_DIR / "index.html", media_type="text/html")
-
     @app.get("/api/health")
     async def health():
         """健康检查"""
@@ -256,8 +280,11 @@ def create_app(
         }
 
     @app.get("/api/ws-config")
-    async def ws_config() -> Dict[str, int]:
+    async def ws_config(
+        user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+    ) -> Dict[str, int]:
         """返回浏览器连接鉴权 WebSocket 所需的端口。"""
+        _ = user
         return {"port": ws_port}
 
     @app.post("/api/auth/login")
@@ -289,7 +316,8 @@ def create_app(
         # 验证凭据
         with get_db(db) as conn:
             cursor = conn.execute(
-                "SELECT id, username, password_hash, role FROM users WHERE username = ?",
+                "SELECT id, username, password_hash, role, default_landing_page "
+                "FROM users WHERE username = ?",
                 (username,),
             )
             row = cursor.fetchone()
@@ -307,11 +335,14 @@ def create_app(
             "id": row["id"],
             "username": row["username"],
             "role": row["role"],
+            "default_landing_page": row["default_landing_page"],
         }
 
         resp = JSONResponse(content={
             "user": user_data,
             "csrf_token": csrf_token,
+            "landing_path": safe_next_path(request.query_params.get("next"))
+            or default_landing_path(user_data),
         })
         resp.set_cookie(
             key="session_token",
@@ -347,7 +378,7 @@ def create_app(
         with get_db(db_path) as conn:
             cursor = conn.execute(
                 "SELECT id, username, role, nickname, avatar_color, avatar_kind, "
-                "created_at FROM users WHERE id = ?",
+                "default_landing_page, created_at FROM users WHERE id = ?",
                 (user["id"],),
             )
             row = cursor.fetchone()
@@ -370,6 +401,7 @@ def create_app(
             "nickname": row["nickname"],
             "avatar_color": row["avatar_color"],
             "avatar_kind": row["avatar_kind"],
+            "default_landing_page": row["default_landing_page"],
             "created_at": row["created_at"],
             "elfie_count": elfie_count,
             "csrf_token": csrf_token,
@@ -494,6 +526,12 @@ def create_app(
     from .setup_routes import router as setup_router  # noqa: PLC0415
 
     app.include_router(setup_router)
+    app.include_router(page_router)
+    from .v1.client_routes import router as v1_client_router  # noqa: PLC0415
+    from .v1.device_routes import router as v1_device_router  # noqa: PLC0415
+
+    app.include_router(v1_client_router)
+    app.include_router(v1_device_router)
 
     # -------------------------------------------------------------------
     # System Settings 路由

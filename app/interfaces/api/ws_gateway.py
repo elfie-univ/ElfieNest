@@ -80,6 +80,8 @@ class AuthenticatedWSManager:
 
         # 可选注入：NestSession 引用，用于处理 user_message 事件
         self.nest_session: Any = None
+        # 新产品页的同源 WebSocket 桥；旧独立端口仍保持兼容。
+        self.product_chat_hub: Any = None
 
     # -------------------------------------------------------------------
     # 生命周期
@@ -474,6 +476,8 @@ class AuthenticatedWSManager:
 
         msg_str = json.dumps(message_dict, ensure_ascii=False)
         self._record_elfie_message(elfie_id, owner_id, message_dict)
+        if self.product_chat_hub is not None:
+            self.product_chat_hub.publish_elfie_reply(elfie_id)
 
         # 聊天与语音内容属于精灵所属用户，Owner/兼容Owner不能跨用户读取。
         target: Set[Any] = set()

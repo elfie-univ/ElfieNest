@@ -47,6 +47,7 @@ function createConfig(): SupervisorConfig {
     ollamaExecutable: "ollama",
     coreExecutable: "python",
     coreArgs: ["serve.py"],
+    webBuildDirectory: "/tmp/elfienest-web",
     resourcesPath: "/tmp/elfienest-resources",
     coreWorkingDirectory: "/tmp/elfienest-core",
     manageOllama: true,
@@ -119,6 +120,25 @@ test("supervisor passes independent runtime and camera credentials", async () =>
   assert.ok(nonce);
   assert.ok(cameraToken);
   assert.notEqual(nonce, cameraToken);
+  await supervisor.stop();
+});
+
+test("supervisor gives Core the packaged Web build directory", async () => {
+  let coreEnvironment: NodeJS.ProcessEnv | undefined;
+  const supervisor = new RuntimeSupervisor(createConfig(), {
+    spawnProcess: (name, _command, _args, options) => {
+      if (name === "core") {
+        coreEnvironment = options.env;
+      }
+      return new FakeProcess(() => undefined);
+    },
+    waitForHttp: async (): Promise<void> => undefined,
+    waitForGodotReady: async (): Promise<void> => undefined,
+  });
+
+  await supervisor.start(createRuntime([]));
+
+  assert.equal(coreEnvironment?.ELFIENEST_WEB_BUILD_DIR, "/tmp/elfienest-web");
   await supervisor.stop();
 });
 

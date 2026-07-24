@@ -16,12 +16,16 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import Depends, HTTPException, Request
 
+from ai_runtime.storage.data_home import get_db_path as _get_db_path
 from app.infrastructure.persistence.store import get_db
 
 # 重导出 store.py 中的哈希函数，便于 auth 层统一 import
-from app.infrastructure.persistence.store import hash_password as hash_password  # noqa: F401
-from app.infrastructure.persistence.store import verify_password as verify_password  # noqa: F401
-from ai_runtime.storage.data_home import get_db_path as _get_db_path
+from app.infrastructure.persistence.store import (
+    hash_password as hash_password,  # noqa: F401
+)
+from app.infrastructure.persistence.store import (
+    verify_password as verify_password,  # noqa: F401
+)
 
 logger = logging.getLogger("app.features.accounts.auth")
 
@@ -136,7 +140,7 @@ def verify_session(token: str, db_path: str) -> Optional[Dict[str, Any]]:
 
     with get_db(db_path) as conn:
         cursor = conn.execute(
-            """SELECT u.id, u.username, u.role
+            """SELECT u.id, u.username, u.role, u.default_landing_page
                FROM sessions s
                JOIN users u ON s.user_id = u.id
                WHERE s.token = ? AND s.expires_at > ?""",
@@ -147,7 +151,12 @@ def verify_session(token: str, db_path: str) -> Optional[Dict[str, Any]]:
     if row is None:
         return None
 
-    return {"id": row["id"], "username": row["username"], "role": row["role"]}
+    return {
+        "id": row["id"],
+        "username": row["username"],
+        "role": row["role"],
+        "default_landing_page": row["default_landing_page"],
+    }
 
 
 def delete_session(token: str, db_path: str = None) -> None:

@@ -56,7 +56,9 @@ app.on("before-quit", (event) => {
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0 && supervisor?.status.core === "ready") {
-    createMainWindow(process.env["ELFIENEST_UI_URL"] ?? "http://127.0.0.1:8000/");
+    createMainWindow(
+      process.env["ELFIENEST_UI_URL"] ?? "http://127.0.0.1:8000/login",
+    );
   }
 });
 

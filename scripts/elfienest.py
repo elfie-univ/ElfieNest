@@ -27,6 +27,7 @@ from app.interfaces.cli.lifecycle_commands import (
     restart_background_service,
     show_service_status,
     start_background_service,
+    start_desktop_application,
     stop_background_service,
 )
 from app.interfaces.cli.migration_commands import run_migrate
@@ -104,8 +105,23 @@ def main() -> None:
     start_parser.add_argument("--godot-ws-port", type=int, default=None)
     start_parser.add_argument("--fallback", action="store_true")
     start_parser.add_argument("--no-seed-elfie", action="store_true")
+    start_network_group = start_parser.add_mutually_exclusive_group()
+    start_network_group.add_argument(
+        "--lan",
+        dest="lan",
+        action="store_true",
+        default=True,
+        help="允许局域网访问（产品后台启动默认开启）",
+    )
+    start_network_group.add_argument(
+        "--loopback",
+        dest="lan",
+        action="store_false",
+        help="仅绑定本机回环地址",
+    )
     subparsers.add_parser("status", help="查看服务状态")
     subparsers.add_parser("web", help="确保服务可用并打开 Web 管理台")
+    subparsers.add_parser("desktop", help="显式启动打包版 ElfieNest Desktop")
     subparsers.add_parser("stop", help="停止服务")
     subparsers.add_parser("restart", help="强制重启服务")
     subparsers.add_parser("owner", help="Owner 账户菜单")
@@ -137,6 +153,8 @@ def dispatch_command(args: argparse.Namespace) -> None:
         show_service_status()
     elif args.command == "web":
         _exit_on_lifecycle_failure(open_web_console())
+    elif args.command == "desktop":
+        _exit_on_lifecycle_failure(start_desktop_application())
     elif args.command == "start":
         _exit_on_lifecycle_failure(
             start_background_service(
@@ -179,6 +197,8 @@ def _service_options_from_args(args: argparse.Namespace) -> tuple[str, ...]:
         options.append("--fallback")
     if args.no_seed_elfie:
         options.append("--no-seed-elfie")
+    if getattr(args, "lan", False):
+        options.append("--lan")
     return tuple(options)
 
 
