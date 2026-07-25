@@ -91,3 +91,6 @@ data/temp/
 /desktop/node_modules/
 /desktop/dist/
 /desktop/out/
+
+# Developer Tools Web local dependencies
+/devtools/web/node_modules/

@@ -22,6 +22,7 @@ var _lab_mode := false
 var _nest_lab_mode := false
 var _lab_controller: Node
 var _lab_window: JavaScriptObject
+var _lab_browser_bridge_ready := false
 var _world_controller: Node
 var _actor_controller: Node
 var _runtime_client: Node
@@ -54,6 +55,7 @@ func _ready() -> void:
 		return
 	if _nest_lab_mode:
 		_disable_camera_stream()
+		_setup_nest_lab_camera_bridge()
 	_world_controller = WORLD_RUNTIME_CONTROLLER.new()
 	add_child(_world_controller)
 	_world_controller.setup(nest)
@@ -72,9 +74,12 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if _lab_mode:
 		_poll_lab_messages()
+		_initialize_lab_browser_bridge()
 		if get_viewport().get_camera_3d() != lab_camera:
 			lab_camera.make_current()
 		return
+	if _nest_lab_mode:
+		_poll_nest_lab_camera_messages()
 	_runtime_client.process_frame()
 
 
@@ -221,6 +226,13 @@ func _setup_lab_preview() -> void:
 	_lab_controller.setup(characters, lab_camera, ACTOR_SCENES)
 	_lab_controller.capture_requested.connect(_capture_lab_portrait)
 	_disable_nest_cameras.call_deferred()
+	_initialize_lab_browser_bridge()
+
+
+func _initialize_lab_browser_bridge() -> void:
+	"""Retry the Web bridge after Godot's first frame when the browser is not ready yet."""
+	if _lab_browser_bridge_ready:
+		return
 	_lab_window = JavaScriptBridge.get_interface("window")
 	if _lab_window == null:
 		return
@@ -230,12 +242,60 @@ func _setup_lab_preview() -> void:
 		+ " if (typeof data === 'string') window.__elfieLabQueue.push(data); };"
 		+ " })()"
 	)
+	_lab_browser_bridge_ready = true
 	_post_lab_message("ready", {})
 
 
 func _disable_camera_stream() -> void:
 	"""Keep developer Web previews from calling production camera endpoints."""
 	camera_stream_bridge.process_mode = Node.PROCESS_MODE_DISABLED
+
+
+func _setup_nest_lab_camera_bridge() -> void:
+	"""Accept only same-origin named camera presets from the Nest Lab shell."""
+	JavaScriptBridge.eval(
+		"(() => { window.__elfieNestLabCameraQueue = [];"
+		+ " window.addEventListener('message', (event) => {"
+		+ " if (event.origin !== window.location.origin) return;"
+		+ " const data = event.data;"
+		+ " if (data && data.channel === 'elfienest-nest-lab'"
+		+ " && data.type === 'camera' && typeof data.intent === 'string')"
+		+ " window.__elfieNestLabCameraQueue.push(data.intent);"
+		+ " }); })()"
+	)
+
+
+func _poll_nest_lab_camera_messages() -> void:
+	"""Drain the browser bridge without exposing arbitrary camera coordinates."""
+	var raw_batch: Variant = JavaScriptBridge.eval(
+		"window.__elfieNestLabCameraQueue && window.__elfieNestLabCameraQueue.length"
+		+ " ? JSON.stringify(window.__elfieNestLabCameraQueue.splice(0)) : ''"
+	)
+	if not raw_batch is String or String(raw_batch).is_empty():
+		return
+	var parsed_batch: Variant = JSON.parse_string(String(raw_batch))
+	if not parsed_batch is Array:
+		return
+	for raw_intent: Variant in parsed_batch as Array:
+		if raw_intent is String:
+			_select_nest_lab_camera_preset(String(raw_intent))
+
+
+func _select_nest_lab_camera_preset(intent: String) -> void:
+	"""Map the small public preset vocabulary to native room cameras."""
+	match intent:
+		"overview":
+			nest.select_observation_view(0)
+		"activity":
+			nest.select_observation_view_named("活动")
+		"dorm":
+			nest.select_observation_view_named("宿舍")
+		"portal":
+			nest.select_observation_view_named("传送室")
+		"restore":
+			nest.reset_observation_camera()
+		_:
+			return
 
 
 func _disable_nest_cameras() -> void:

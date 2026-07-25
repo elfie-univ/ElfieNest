@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import deque
+from datetime import datetime, timezone
 
 from devtools.nest_lab.models import LabEvent
 
@@ -18,7 +19,14 @@ class LabEventLog:
     def append(self, name: str, detail: str) -> None:
         """Append one normalized event."""
         self._sequence += 1
-        self._events.append(LabEvent(self._sequence, name, detail))
+        self._events.append(
+            LabEvent(
+                self._sequence,
+                name,
+                detail,
+                datetime.now(timezone.utc).isoformat(),
+            )
+        )
 
     def items(self) -> tuple[LabEvent, ...]:
         """Return events in display order."""

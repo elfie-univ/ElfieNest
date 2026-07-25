@@ -24,9 +24,9 @@ class UnknownDeveloperToolError(ValueError):
 
 
 _TOOL_NAMES: Final[tuple[tuple[str, str, int | None, str], ...]] = (
-    ("elfie-lab", "devtools.elfie_lab", 8877, "elfie_lab"),
+    ("elfie-lab", "devtools.elfie_lab", 9001, "elfie_lab"),
     ("runtime-lab", "devtools.runtime_lab", None, "runtime_lab"),
-    ("nest-lab", "devtools.nest_lab", 8890, "nest_lab"),
+    ("nest-lab", "devtools.nest_lab", 9002, "nest_lab"),
 )
 
 

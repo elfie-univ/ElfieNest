@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from devtools.nest_lab.app import create_app
+from devtools.nest_lab.event_log import LabEventLog
 
 
 def _client(tmp_path) -> TestClient:
@@ -120,3 +121,17 @@ def test_nest_lab_controls_wander_pause_resume_and_reset(tmp_path) -> None:
     assert resumed.json()["paused"] is False
     assert reset.json()["actor_count"] == 0
     assert reset.json()["world_revision"] > 1
+
+
+def test_nest_lab_events_expose_an_observed_time_and_human_context() -> None:
+    # Given
+    events = LabEventLog()
+
+    # When
+    events.append("gateway_started", "ws://127.0.0.1:8891")
+
+    # Then
+    event = events.items()[0].to_dict()
+    assert event["name"] == "gateway_started"
+    assert event["detail"]
+    assert event["occurred_at"].endswith("+00:00")

@@ -199,6 +199,25 @@ def test_foods_api_returns_food_list(tmp_path, monkeypatch, client_for):
     assert mock_food["credential_ready"] is True
 
 
+def test_default_elfie_lab_offers_mock_food_when_runtime_catalog_is_absent(
+    tmp_path, monkeypatch, client_for
+):
+    # Given
+    monkeypatch.setattr(
+        "devtools.elfie_lab.food_status.list_installed_ollama_models",
+        lambda config: (),
+    )
+    runtime_dir = tmp_path / "empty-runtime"
+    client = client_for(create_app(str(tmp_path / "data"), str(runtime_dir)))
+
+    # When
+    response = client.get("/api/runtime/foods")
+
+    # Then
+    assert response.status_code == 200
+    assert [item["key"] for item in response.json()["items"]] == ["mock"]
+
+
 def test_uninstalled_ollama_food_is_disabled_with_setup_command(
     tmp_path, monkeypatch, client_for
 ):

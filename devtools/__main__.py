@@ -12,6 +12,11 @@ import uvicorn
 
 from devtools.elfie_lab.host import loopback_host
 from devtools.entrypoint import available_tools, resolve_tool
+from devtools.lab_restart import (
+    ForeignPortOwnerError,
+    RestartTimeoutError,
+    restart_default_lab,
+)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -57,6 +62,7 @@ def _run_nest_lab(args: argparse.Namespace) -> int:
         ),
         host=args.host,
         port=args.port,
+        access_log=False,
     )
     return 0
 
@@ -75,6 +81,7 @@ def _run_elfie_lab(args: argparse.Namespace) -> int:
         create_app(str(data_dir), on_ready=open_browser),
         host=args.host,
         port=args.port,
+        access_log=False,
     )
     return 0
 
@@ -82,6 +89,27 @@ def _run_elfie_lab(args: argparse.Namespace) -> int:
 def _browser_url(host: str, port: int) -> str:
     """Use a new local URL for each launch so old Lab shells cannot be reused."""
     return f"http://{host}:{port}/?run={token_urlsafe(12)}"
+
+
+def _has_explicit_port_override(raw_args: list[str]) -> bool:
+    """判断调用方是否明确请求了非默认的网页端口组合。"""
+    return any(
+        argument in {"--port", "--godot-ws-port"}
+        or argument.startswith("--port=")
+        or argument.startswith("--godot-ws-port=")
+        for argument in raw_args
+    )
+
+
+def _restart_default_lab_if_requested(args: argparse.Namespace, raw_args: list[str]) -> None:
+    """默认启动是同类 Lab 的重启；显式端口保留并行实验语义。"""
+    if args.tool not in {"elfie-lab", "nest-lab"}:
+        return
+    if _has_explicit_port_override(raw_args):
+        return
+    tool = resolve_tool(args.tool)
+    workspace = Path(__file__).resolve().parents[1]
+    restart_default_lab(tool, workspace)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -95,6 +123,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.tool is None:
         _parser().print_help()
         return 0
+    try:
+        _restart_default_lab_if_requested(args, raw_args)
+    except (ForeignPortOwnerError, RestartTimeoutError) as error:
+        _parser().error(str(error))
     if args.tool == "nest-lab":
         return _run_nest_lab(args)
     if args.tool == "elfie-lab":

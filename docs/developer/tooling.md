@@ -86,6 +86,14 @@ Godot 源项目当前声明 4.7。构建机必须使用同版本 Godot 和 Web E
 Godot 源码摘要自动复用或重新导出；`--godot` / `GODOT_BIN` 仅用于自动发现失败或多版本
 构建机的显式覆盖。
 
+网页 Lab 还会自动检查共享的 React + TypeScript + Vite 产物。需要只构建网页外壳时使用：
+
+```bash
+./developer.sh build-devtools-web --ensure
+```
+
+其输出固定在 `build/components/devtools-web/`，不应提交。
+
 ## Developer Tools
 
 开发实验统一从 `./developer.sh` 进入，不会启动普通用户产品入口：
@@ -93,18 +101,22 @@ Godot 源码摘要自动复用或重新导出；`--godot` / `GODOT_BIN` 仅用�
 ```bash
 ./developer.sh --help
 ./developer.sh elfie-lab --data-dir /tmp/elfienest-elfie-lab
-./developer.sh nest-lab --data-dir /tmp/elfienest-nest-lab --godot-ws-port 8891
+./developer.sh nest-lab --data-dir /tmp/elfienest-nest-lab --godot-ws-port 9003
 ./developer.sh runtime-lab --config-dir /tmp/elfienest-runtime-lab show
 ```
 
-- Elfie Lab 默认监听 `127.0.0.1:8877`；
-- Nest Lab 默认监听 HTTP `127.0.0.1:8890` 和 Godot WebSocket `127.0.0.1:8891`，
+- Elfie Lab 默认监听 `127.0.0.1:9001`；
+- Nest Lab 默认监听 HTTP `127.0.0.1:9002` 和 Godot WebSocket `127.0.0.1:9003`，
   启动后会自动打开实验网页；
 - Runtime Lab 是命令行工具，没有监听端口。
 
-端口只是本地默认值，不是生产保证。`runtime-lab test` 和 `runtime-lab chat`
-会真实请求模型服务；运行前确认 Provider、模型、网络与费用。详细边界见
-`devtools/README.md`。
+正式 App 的 HTTP、Godot WebSocket、管理 WebSocket 分别为 `8000`、`8765`、`8766`，
+与网页 Lab 不冲突。未指定端口的 `elfie-lab` / `nest-lab` 启动会安全重启当前工作区的
+同类默认实例；显式 `--port`（Nest 还包括 `--godot-ws-port`）则用于并行实验，不会终止
+任何既有实例。未知进程占用默认端口时会拒绝启动，不会强制终止它。
+
+`runtime-lab test` 和 `runtime-lab chat` 会真实请求模型服务；运行前确认 Provider、模型、
+网络与费用。详细边界见 `devtools/README.md`。
 
 ## 质量检查与测试
 

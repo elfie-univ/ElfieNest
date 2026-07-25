@@ -16,7 +16,7 @@ def main() -> None:
     """启动独立的精灵巢模块实验台。"""
     parser = argparse.ArgumentParser(description="启动精灵巢模块 Developer Tool")
     parser.add_argument("--host", default="127.0.0.1", type=loopback_host)
-    parser.add_argument("--port", default=8890, type=int)
+    parser.add_argument("--port", default=9002, type=int)
     parser.add_argument("--godot-ws-port", default=None, type=int)
     parser.add_argument("--data-dir", default=None)
     args = parser.parse_args()
@@ -31,6 +31,7 @@ def main() -> None:
         ),
         host=args.host,
         port=args.port,
+        access_log=False,
     )
 
 

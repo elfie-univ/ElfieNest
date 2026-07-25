@@ -7,20 +7,21 @@ from pathlib import Path
 from typing import AsyncIterator, Callable, Dict, Union
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse
 
 from ai_runtime.storage.data_home import get_elfie_developer_home
 from devtools.elfie_lab.host import LoopbackHostMiddleware
 from devtools.nest_lab.routes import build_router
 from devtools.nest_lab.static_host import mount_static_surfaces
 from devtools.nest_lab.world import NestLabWorld
+from devtools.web_host import frontend_shell
 
 
 def create_app(
     data_dir: Path | str | None = None,
     *,
-    http_port: int = 8890,
-    godot_ws_port: int = 8891,
+    http_port: int = 9002,
+    godot_ws_port: int = 9003,
     on_ready: Callable[[], None] | None = None,
 ) -> FastAPI:
     """Create one disposable Lab without production engine or data dependencies."""
@@ -56,15 +57,13 @@ def create_app(
     app.add_middleware(LoopbackHostMiddleware)
     app.state.data_dir = root
     app.state.world = world
-    static_dir, bundle_ready = mount_static_surfaces(app)
+    bundle_ready = mount_static_surfaces(app)
     app.state.godot_web_ready = bundle_ready
     app.include_router(build_router(world))
 
     @app.get("/", include_in_schema=False)
-    def index() -> FileResponse:
-        return FileResponse(
-            static_dir / "index.html", headers={"Cache-Control": "no-store"}
-        )
+    def index() -> HTMLResponse:
+        return frontend_shell("nest")
 
     @app.get("/api/health")
     def health() -> Dict[str, Union[bool, str]]:

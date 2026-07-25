@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Annotated, AsyncIterator, Callable, Optional
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 
 import devtools.elfie_lab.api_models as api_models
 import devtools.elfie_lab.runtime_foods as runtime_food_support
@@ -30,13 +30,11 @@ from devtools.elfie_lab.recycle_store import (
 from devtools.elfie_lab.schemas import StimulusBundle
 from devtools.elfie_lab.session import SessionClosedError
 from devtools.elfie_lab.session_registry import SessionBusyError, SessionRegistry
-from devtools.elfie_lab.static_host import (
-    mount_static_surfaces,
-    no_store_file_response,
-)
+from devtools.elfie_lab.static_host import mount_static_surfaces
 from devtools.elfie_lab.storage import ElfieLabStorage
 from devtools.elfie_lab.system_routes import build_system_router
 from devtools.runtime_lab import RuntimeLabConfigStore
+from devtools.web_host import frontend_shell
 
 
 def create_app(
@@ -83,7 +81,7 @@ def create_app(
     app.state.media_store = media_store
     app.state.runtime_store = runtime_store
     app.state.food_store = food_store
-    static_dir = mount_static_surfaces(app)
+    mount_static_surfaces(app)
     app.include_router(build_profile_router(storage, sessions))
     app.include_router(
         build_system_router(
@@ -95,8 +93,8 @@ def create_app(
     )
 
     @app.get("/", include_in_schema=False)
-    def index():
-        return no_store_file_response(static_dir / "index.html")
+    def index() -> HTMLResponse:
+        return frontend_shell("elfie")
 
     @app.get("/api/health")
     def health():
@@ -104,7 +102,13 @@ def create_app(
 
     @app.get("/api/elfies")
     def list_elfies():
-        return {"items": [item.to_dict() for item in storage.list_elfies()]}
+        items = []
+        for item in storage.list_elfies():
+            payload = item.to_dict()
+            if storage.portrait_path(item.elfie_id).is_file():
+                payload["portrait_url"] = f"/api/elfies/{item.elfie_id}/portrait"
+            items.append(payload)
+        return {"items": items}
 
     @app.post("/api/elfies", status_code=201)
     def create_elfie(request: api_models.CreateElfieRequest):

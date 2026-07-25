@@ -7,6 +7,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 from starlette.types import Scope
 
+from devtools.web_host import mount_vite_bundle
+
 
 class NoStoreStaticFiles(StaticFiles):
     """Serve rebuildable Lab assets without browser persistence."""
@@ -17,12 +19,9 @@ class NoStoreStaticFiles(StaticFiles):
         return response
 
 
-def mount_static_surfaces(app: FastAPI) -> tuple[Path, bool]:
+def mount_static_surfaces(app: FastAPI) -> bool:
     """Mount Lab assets and the existing exported Godot bundle when available."""
-    static_dir = Path(__file__).with_name("static")
-    app.mount(
-        "/static", NoStoreStaticFiles(directory=static_dir), name="nest_lab_static"
-    )
+    mount_vite_bundle(app)
     bundle_dir = Path(__file__).parents[2] / "build" / "components" / "godot-web"
     bundle_ready = (bundle_dir / "elfienest.html").is_file()
     if bundle_ready:
@@ -31,4 +30,4 @@ def mount_static_surfaces(app: FastAPI) -> tuple[Path, bool]:
             NoStoreStaticFiles(directory=bundle_dir, html=True),
             name="nest_lab_godot_web",
         )
-    return static_dir, bundle_ready
+    return bundle_ready

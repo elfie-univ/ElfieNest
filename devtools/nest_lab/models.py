@@ -41,6 +41,7 @@ class LabEvent:
     sequence: int
     name: str
     detail: str
+    occurred_at: str
 
     def to_dict(self) -> dict[str, str | int]:
         """Return the public timeline representation."""
@@ -48,6 +49,7 @@ class LabEvent:
             "sequence": self.sequence,
             "name": self.name,
             "detail": self.detail,
+            "occurred_at": self.occurred_at,
         }
 
 
