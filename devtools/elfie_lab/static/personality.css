@@ -1,6 +1,0 @@
-.section-action { border: 0; color: var(--accent-primary); background: transparent; cursor: pointer; font-size: 10px; font-weight: 700; }
-.modal-intro { margin: -8px 0 18px; color: var(--text-secondary); font-size: 11px; line-height: 1.6; }
-.trait-editor { display: grid; gap: 14px; }
-.trait-row { display: grid; grid-template-columns: 64px minmax(0, 1fr) 38px; align-items: center; gap: 10px; color: var(--text-secondary); font-size: 11px; }
-.trait-row input { width: 100%; accent-color: var(--accent-primary); }
-.trait-row output { color: var(--text-primary); font-variant-numeric: tabular-nums; text-align: right; }

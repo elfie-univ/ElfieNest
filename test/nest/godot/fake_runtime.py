@@ -72,11 +72,13 @@ class FakeRuntime:
             )
             self._emit(EventName.WORLD_SNAPSHOT, self._snapshot(), command_id)
         elif name is CommandName.EXECUTE_INTENT:
-            self._emit(EventName.INTENT_ACCEPTED, dict(payload), command_id)
-            self._emit(EventName.INTENT_STARTED, dict(payload), command_id)
-            terminal = dict(payload)
-            terminal["status"] = "completed"
-            terminal["detail"] = "contract_only"
+            progress = {
+                "command_id": str(payload["command_id"]),
+                "actor_id": str(payload["actor_id"]),
+            }
+            self._emit(EventName.INTENT_ACCEPTED, progress, command_id)
+            self._emit(EventName.INTENT_STARTED, progress, command_id)
+            terminal = {**progress, "status": "completed", "detail": "contract_only"}
             self._emit(EventName.INTENT_TERMINAL, terminal, command_id)
         elif name is CommandName.CANCEL_INTENT:
             terminal = dict(payload)

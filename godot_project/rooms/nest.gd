@@ -806,6 +806,21 @@ func select_observation_view(index: int) -> void:
 	_observation_hud.call("set_selected_view", index)
 
 
+func select_observation_view_named(label_fragment: String) -> bool:
+	"""Select the first generated observation camera matching a stable label."""
+	for index in range(_camera_views.size()):
+		var view := _camera_views[index]
+		if String(view["label"]).contains(label_fragment):
+			select_observation_view(index)
+			return true
+	return false
+
+
+func reset_observation_camera() -> void:
+	"""Restore the current preset after direct orbit, pan, or zoom input."""
+	_reset_camera()
+
+
 func _cycle_observation_view(direction: int) -> void:
 	if _camera_views.is_empty():
 		return

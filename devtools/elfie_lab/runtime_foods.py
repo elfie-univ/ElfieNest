@@ -29,12 +29,9 @@ def load_runtime_food_catalog(
     config_store: Any,
     food_store: FoodCatalogStore | None = None,
 ) -> FoodCatalog:
-    """加载正式 Runtime 粮食目录；缺失时要求显式初始化。"""
+    """加载 Lab Runtime 粮食目录；缺失时允许离线模拟粮单独运行。"""
     store = food_store or runtime_food_catalog_store(config_store)
-    catalog = store.load()
-    if not catalog.recipes:
-        raise RuntimeError("Runtime 粮食目录 foods.yaml 不存在或为空，请先初始化")
-    return catalog
+    return store.load()
 
 
 def list_installed_ollama_models(config: Any) -> tuple[str, ...] | None:

@@ -8,8 +8,8 @@ from test.app.interfaces.cli.installer_test_support import (
     copy_installer_project,
     write_executable,
 )
-
 from test.support.paths import PROJECT_ROOT
+
 PINNED_PYTHON_VERSION = "3.9.25"
 
 
@@ -171,10 +171,21 @@ def test_elfienest_entrypoint_can_self_repair_missing_runtime_dependencies() -> 
     assert "install.sh" in script
     assert "--env-only" in script
     assert ".python-version" in script
-    assert 'serve)' in script
-    assert 'serve|server)' not in script
-    assert 'config|owner|doctor|status|web|stop|restart|start|version|v|setup)' in script
-    assert 'build-godot-web)' in script
+    assert "serve)" in script
+    assert "serve|server)" not in script
+    assert (
+        "config|owner|doctor|status|web|stop|restart|start|version|v|setup)" in script
+    )
+    assert "build-godot-web)" in script
+
+
+def test_developer_tools_ensure_the_shared_godot_web_runtime_before_starting() -> None:
+    # Given
+    script = (PROJECT_ROOT / "developer.sh").read_text(encoding="utf-8")
+
+    # When / Then: both visual Labs share one current Web export without user setup.
+    assert '"$PYTHON_BIN" scripts/build_godot_web.py --ensure' in script
+    assert "elfie-lab|nest-lab)" in script
 
 
 def test_installer_detects_but_does_not_modify_legacy_system_entrypoint() -> None:
