@@ -1,4 +1,4 @@
-"""独立的本地 Web 服务，不依赖 ElfieNestEngine。"""
+# 独立的本地 Web 服务，不依赖 ElfieNestEngine。
 
 import base64
 import binascii
@@ -67,7 +67,6 @@ def create_app(
 
     app = FastAPI(
         title="Elfie Lab",
-        description="单精灵开发者调试平台",
         docs_url="/api/docs",
         redoc_url=None,
         lifespan=lifespan,

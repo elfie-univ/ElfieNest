@@ -1,4 +1,5 @@
 """tests for ai_runtime.storage.data_home module"""
+
 from pathlib import Path
 
 import pytest
@@ -49,7 +50,9 @@ def test_path_helpers(monkeypatch, tmp_path):
     assert get_config_path() == get_elfie_home() / "config.yaml"
     assert get_env_path() == get_elfie_home() / ".env"
     assert get_db_path() == get_elfie_home() / "nest.db"
-    assert get_elfie_config_dir("elfie_123") == get_elfie_home() / "elfies" / "elfie_123"
+    assert (
+        get_elfie_config_dir("elfie_123") == get_elfie_home() / "elfies" / "elfie_123"
+    )
     assert get_cache_dir() == get_elfie_home() / "cache"
     assert get_logs_dir() == get_elfie_home() / "logs"
     assert get_skills_dir() == get_elfie_home() / "skills"

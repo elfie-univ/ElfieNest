@@ -18,7 +18,10 @@ from app.features.accounts.auth import (
     hash_password,
     require_owner,
 )
-from app.features.configuration.runtime_store import read_runtime_config, write_runtime_config
+from app.features.configuration.runtime_store import (
+    read_runtime_config,
+    write_runtime_config,
+)
 from app.infrastructure.persistence.store import get_db
 from ai_runtime.storage.data_home import get_config_path
 
@@ -60,9 +63,7 @@ async def create_user(
 
     db_path: str = request.app.state.db_path
     with get_db(db_path) as conn:
-        cursor = conn.execute(
-            "SELECT id FROM users WHERE username = ?", (username,)
-        )
+        cursor = conn.execute("SELECT id FROM users WHERE username = ?", (username,))
         if cursor.fetchone() is not None:
             raise HTTPException(status_code=409, detail="用户名已存在")
 
@@ -101,7 +102,8 @@ async def list_users(
     db_path: str = request.app.state.db_path
     current_user_id = owner["id"]
     with get_db(db_path) as conn:
-        cursor = conn.execute("""
+        cursor = conn.execute(
+            """
             SELECT u.id, u.username, u.role, u.created_at,
                    (SELECT COUNT(*)
                     FROM elfie_registry
@@ -109,7 +111,9 @@ async def list_users(
             FROM users u
             WHERE u.id != ?
             ORDER BY u.id
-        """, (current_user_id,))
+        """,
+            (current_user_id,),
+        )
         rows = cursor.fetchall()
 
     return [
@@ -121,58 +125,6 @@ async def list_users(
             "elfie_count": r["elfie_count"],
         }
         for r in rows
-    ]
-
-
-@router.get("/elfies")
-async def list_all_elfies(
-    request: Request,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
-) -> list:
-    _ = owner
-    db_path: str = request.app.state.db_path
-    with get_db(db_path) as conn:
-        cursor = conn.execute(
-            """
-            SELECT e.elfie_id,
-                   e.name,
-                   e.owner_user_id,
-                   u.username AS owner_username,
-                   e.species_id,
-                   e.personality_style,
-                   e.height,
-                   e.build,
-                   e.bed_id,
-                   b.name AS bed_name,
-                   r.id AS room_id,
-                   r.name AS room_name,
-                   e.created_at
-            FROM elfie_registry e
-            LEFT JOIN users u ON u.id = e.owner_user_id
-            LEFT JOIN beds b ON b.id = e.bed_id
-            LEFT JOIN rooms r ON r.id = b.room_id
-            ORDER BY e.created_at DESC
-            """,
-        )
-        rows = cursor.fetchall()
-
-    return [
-        {
-            "elfie_id": row["elfie_id"],
-            "name": row["name"],
-            "owner_user_id": row["owner_user_id"],
-            "owner_username": row["owner_username"],
-            "species_id": row["species_id"],
-            "personality_style": row["personality_style"],
-            "height": row["height"],
-            "build": row["build"],
-            "bed_id": row["bed_id"],
-            "bed_name": row["bed_name"],
-            "room_id": row["room_id"],
-            "room_name": row["room_name"],
-            "created_at": row["created_at"],
-        }
-        for row in rows
     ]
 
 
@@ -306,6 +258,8 @@ async def delete_user(
 
     logger.info("Owner deleted user %s (id=%d)", row["username"], user_id)
     return {"detail": f"用户 {row['username']} 已删除"}
+
+
 # ===================================================================
 # LLM 配置管理
 # ===================================================================

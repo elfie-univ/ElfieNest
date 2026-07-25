@@ -206,7 +206,9 @@ class TestMigrationV1ToV2:
             "default_landing_page",
         ]
 
-    def test_init_db_sets_version_10_without_legacy_chat_table(self, tmp_path: Path) -> None:
+    def test_init_db_sets_version_10_without_legacy_chat_table(
+        self, tmp_path: Path
+    ) -> None:
         db = str(tmp_path / "nest.db")
         init_db(db)
 

@@ -163,7 +163,9 @@ class TestWsGatewayMessageParsing:
         assert m.connections == {}
         assert m._user_info == {}
 
-    def test_session_token_can_be_read_from_http_only_cookie(self, tmp_path: Path) -> None:
+    def test_session_token_can_be_read_from_http_only_cookie(
+        self, tmp_path: Path
+    ) -> None:
         manager = AuthenticatedWSManager(port=0, db_path=str(tmp_path / "nest.db"))
         websocket = SimpleNamespace(
             request=SimpleNamespace(

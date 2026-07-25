@@ -1,4 +1,4 @@
-"""普通用户 REST API — 名下精灵列表 + 单精灵配置读写 + 领养端点。
+"""普通用户 REST API — 名下精灵列表、公开详情与领养端点。
 
 所有端点使用 ``Depends(get_current_user)`` 保护。
 精灵所有权校验通过 ``_check_ownership`` 实现（不属于当前用户的返回 404）。
@@ -6,12 +6,8 @@
 
 from __future__ import annotations
 
-import logging
-from dataclasses import replace
-from pathlib import Path
 from typing import Any, Dict
 
-import yaml
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
@@ -24,12 +20,11 @@ from app.features.adoption.service import (
     adopt_elfie_for_user,
     adoption_options_for_user,
 )
+from app.features.elfie_profile.public_projection import build_public_profile
+from app.infrastructure.persistence.embodiment_sessions import get_embodiment_session
 from app.infrastructure.persistence.store import get_db
 from app.interfaces.api.user_chat_routes import router as user_chat_router
-from elfie.profile import ElfieProfileRepository
 from nest import NestFullError
-
-logger = logging.getLogger("app.interfaces.api.user_routes")
 
 router = APIRouter(prefix="/api/user", tags=["user"])
 router.include_router(user_chat_router)
@@ -114,17 +109,20 @@ async def get_elfie_detail(
     request: Request,
     user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
 ):
-    """返回单精灵详情 + 当前配置 YAML 内容（personality / capabilities / system_limits）。"""
+    """返回当前用户自己精灵的安全公开资料，不暴露原始配置。"""
     db = request.app.state.db_path
     with get_db(db) as conn:
         if not _check_ownership(conn, elfie_id, user["id"]):
             raise HTTPException(status_code=404, detail="精灵不存在")
 
         cursor = conn.execute(
-            """SELECT elfie_id, name, species_id, profile_schema_version,
-                      personality_style,
-                      height, build, created_at, config_dir
-               FROM elfie_registry WHERE elfie_id = ?""",
+            """SELECT e.elfie_id, e.name, e.species_id, e.personality_style,
+                      e.config_dir, e.bed_id, b.name AS bed_name,
+                      r.id AS room_id, r.name AS room_name
+               FROM elfie_registry e
+               LEFT JOIN beds b ON b.id = e.bed_id
+               LEFT JOIN rooms r ON r.id = b.room_id
+               WHERE e.elfie_id = ?""",
             (elfie_id,),
         )
         row = cursor.fetchone()
@@ -132,93 +130,18 @@ async def get_elfie_detail(
     if row is None:
         raise HTTPException(status_code=404, detail="精灵不存在")
 
-    config_dir = Path(row["config_dir"])
-    configs: Dict[str, Any] = {}
-    for fname in (
-        "profile.yaml",
-        "personality.yaml",
-        "capabilities.yaml",
-        "system_limits.yaml",
-    ):
-        fpath = config_dir / fname
-        if fpath.exists():
-            configs[fname] = fpath.read_text(encoding="utf-8")
-        else:
-            configs[fname] = None
-
-    return {
-        "elfie_id": row["elfie_id"],
-        "name": row["name"],
-        "species_id": row["species_id"],
-        "profile_schema_version": row["profile_schema_version"],
-        "personality_style": row["personality_style"],
-        "height": row["height"],
-        "build": row["build"],
-        "created_at": row["created_at"],
-        "config_dir": row["config_dir"],
-        "configs": configs,
-    }
-
-
-@router.put("/elfies/{elfie_id}/config")
-async def update_elfie_config(
-    elfie_id: str,
-    request: Request,
-    body: Dict[str, Any],
-    user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
-):
-    """更新单精灵配置 YAML 文件。
-
-    请求体: ``{"filename": "personality.yaml", "content": "..."}``
-    仅允许更新 ``personality.yaml`` / ``capabilities.yaml`` / ``system_limits.yaml``。
-    """
-    db = request.app.state.db_path
-    with get_db(db) as conn:
-        if not _check_ownership(conn, elfie_id, user["id"]):
-            raise HTTPException(status_code=404, detail="精灵不存在")
-
-        cursor = conn.execute(
-            "SELECT config_dir FROM elfie_registry WHERE elfie_id = ?",
-            (elfie_id,),
-        )
-        row = cursor.fetchone()
-
-    if row is None:
-        raise HTTPException(status_code=404, detail="精灵不存在")
-
-    config_dir = Path(row["config_dir"])
-    filename = (body.get("filename") or "").strip()
-    content = body.get("content")
-
-    if filename not in (
-        "personality.yaml",
-        "capabilities.yaml",
-        "system_limits.yaml",
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail="filename 必须是 personality.yaml / capabilities.yaml / system_limits.yaml 之一",
-        )
-    if not content or not isinstance(content, str):
-        raise HTTPException(status_code=400, detail="content 不能为空且必须为字符串")
-
-    try:
-        parsed = yaml.safe_load(content)
-    except yaml.YAMLError as exc:
-        raise HTTPException(status_code=400, detail=f"YAML 格式错误: {exc}") from exc
-    if not isinstance(parsed, dict):
-        raise HTTPException(status_code=400, detail="配置 YAML 根节点必须是映射")
-
-    fpath = config_dir / filename
-    fpath.write_text(content, encoding="utf-8")
-    repository = ElfieProfileRepository(config_dir)
-    if repository.exists():
-        field_name = filename.removesuffix(".yaml")
-        repository.save(replace(repository.load(), **{field_name: parsed}))
-    logger.info(
-        "User %s updated %s for elfie %s", user["username"], filename, elfie_id,
+    return build_public_profile(
+        elfie_id=str(row["elfie_id"]),
+        name=str(row["name"]),
+        species_id=str(row["species_id"]),
+        personality_style=str(row["personality_style"] or ""),
+        config_dir=str(row["config_dir"]) if row["config_dir"] else None,
+        room_id=int(row["room_id"]) if row["room_id"] is not None else None,
+        room_name=str(row["room_name"]) if row["room_name"] is not None else None,
+        bed_id=int(row["bed_id"]) if row["bed_id"] is not None else None,
+        bed_name=str(row["bed_name"]) if row["bed_name"] is not None else None,
+        embodiment_state=get_embodiment_session(db, elfie_id).state.value,
     )
-    return {"detail": f"{filename} 已更新"}
 
 
 @router.post("/adopt")
@@ -236,8 +159,7 @@ async def adopt_elfie(
     adoption_request = AdoptionRequest(
         name=(body.get("name") or "").strip(),
         species_id=(
-            body.get("species_id")
-            or ("fox" if body.get("anatomy_type") else "")
+            body.get("species_id") or ("fox" if body.get("anatomy_type") else "")
         ).strip(),
         personality_style=(body.get("personality_style") or "").strip(),
         height=(body.get("height") or "").strip(),
@@ -263,7 +185,6 @@ async def adopt_elfie(
             "elfie_id": result.elfie_id,
             "name": result.name,
             "species_id": result.species_id,
-            "config_dir": result.config_dir,
         },
     )
 

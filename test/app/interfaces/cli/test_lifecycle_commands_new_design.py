@@ -11,6 +11,18 @@ from app.orchestration.lifecycle.types import ServiceLifecycleResult
 from scripts import elfienest
 
 
+def test_lifecycle_commands_use_repository_root_for_service_command() -> None:
+    # Given
+    repo_root = Path(__file__).resolve().parents[4]
+
+    # When
+    command = lifecycle_commands.default_service_command()
+
+    # Then
+    assert lifecycle_commands.PROJECT_ROOT == repo_root
+    assert command[1] == str(repo_root / "scripts" / "serve.py")
+
+
 def test_start_is_idempotent_when_service_is_already_running(
     monkeypatch, capsys
 ) -> None:
@@ -92,6 +104,7 @@ def test_start_forwards_custom_service_ports(monkeypatch) -> None:
 def test_start_uses_core_when_desktop_executable_is_present(monkeypatch) -> None:
     # Given
     commands: list[tuple[str, ...]] = []
+    timeouts: list[float] = []
     monkeypatch.setattr(
         lifecycle_commands.desktop_lifecycle,
         "find_desktop_executable",
@@ -107,6 +120,7 @@ def test_start_uses_core_when_desktop_executable_is_present(monkeypatch) -> None
         "start_service",
         lambda *args, **kwargs: (
             commands.append(tuple(kwargs["command"]))
+            or timeouts.append(kwargs["timeout_seconds"])
             or ServiceLifecycleResult(status="started", pid=44)
         ),
     )
@@ -117,6 +131,7 @@ def test_start_uses_core_when_desktop_executable_is_present(monkeypatch) -> None
     # Then
     assert result.status == "started"
     assert commands == [lifecycle_commands.default_service_command(("--lan",))]
+    assert timeouts == [lifecycle_commands.BACKGROUND_START_TIMEOUT_SECONDS]
 
 
 def test_restart_does_not_pass_force_flag(monkeypatch, capsys) -> None:
@@ -148,6 +163,7 @@ def test_restart_does_not_pass_force_flag(monkeypatch, capsys) -> None:
 def test_restart_uses_core_when_desktop_executable_is_present(monkeypatch) -> None:
     # Given
     commands: list[tuple[str, ...]] = []
+    timeouts: list[float] = []
     monkeypatch.setattr(
         lifecycle_commands.desktop_lifecycle,
         "find_desktop_executable",
@@ -175,6 +191,7 @@ def test_restart_uses_core_when_desktop_executable_is_present(monkeypatch) -> No
         "start_service",
         lambda *args, **kwargs: (
             commands.append(tuple(kwargs["command"]))
+            or timeouts.append(kwargs["timeout_seconds"])
             or ServiceLifecycleResult(status="started", pid=43)
         ),
     )
@@ -185,6 +202,7 @@ def test_restart_uses_core_when_desktop_executable_is_present(monkeypatch) -> No
     # Then
     assert result.status == "started"
     assert commands == [("python", "scripts/serve.py", "--fallback")]
+    assert timeouts == [lifecycle_commands.BACKGROUND_START_TIMEOUT_SECONDS]
 
 
 def test_dispatch_propagates_lifecycle_failure(monkeypatch) -> None:

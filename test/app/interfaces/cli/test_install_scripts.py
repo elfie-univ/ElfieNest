@@ -10,6 +10,7 @@ from test.app.interfaces.cli.installer_test_support import (
 )
 
 from test.support.paths import PROJECT_ROOT
+
 PINNED_PYTHON_VERSION = "3.9.25"
 
 
@@ -171,10 +172,15 @@ def test_elfienest_entrypoint_can_self_repair_missing_runtime_dependencies() -> 
     assert "install.sh" in script
     assert "--env-only" in script
     assert ".python-version" in script
-    assert 'serve)' in script
-    assert 'serve|server)' not in script
-    assert 'config|owner|doctor|status|web|stop|restart|start|version|v|setup)' in script
-    assert 'build-godot-web)' in script
+    assert "serve)" in script
+    assert "serve|server)" not in script
+    assert (
+        "config|owner|doctor|status|web|desktop|stop|restart|start|version|v|setup)"
+        in script
+    )
+    assert "build-godot-web)" in script
+    assert '""|exit|quit|q)' not in script
+    assert '"" ) continue ;;' in script
 
 
 def test_installer_detects_but_does_not_modify_legacy_system_entrypoint() -> None:

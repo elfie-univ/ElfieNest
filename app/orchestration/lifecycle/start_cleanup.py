@@ -40,6 +40,11 @@ def cleanup_failed_start(
         actual_cwd = inspector.cwd(pid).resolve()
         actual_command = inspector.command(pid)
     except (OSError, subprocess.SubprocessError, ValueError) as error:
+        if not inspector.exists(pid):
+            remove_service_process(pid_path.parent, pid)
+            return ServiceLifecycleResult(
+                status="failed", pid=pid, error=original_error
+            )
         return ServiceLifecycleResult(
             status="failed", pid=pid, error=CleanupFailedError(pid, str(error))
         )

@@ -169,6 +169,7 @@ def start_service(
     poll_interval_seconds: float = 0.1,
     monotonic: Callable[[], float] = time.monotonic,
     sleeper: Callable[[float], None] = time.sleep,
+    service_ports_in_use: Optional[Callable[[Sequence[int]], bool]] = None,
 ) -> ServiceLifecycleResult:
     """启动服务；健康失败时终止进程并删除 PID 文件。"""
     resolved_root = project_root.resolve()
@@ -218,6 +219,15 @@ def start_service(
             return ServiceLifecycleResult(
                 status="already_running", pid=existing_pid, command=existing_command
             )
+
+        port_checker = any_service_port_in_use if launcher is None else service_ports_in_use
+        if port_checker is not None:
+            requested_ports = service_ports_from_command(launch_command)
+            if port_checker(requested_ports):
+                return ServiceLifecycleResult(
+                    status="failed",
+                    error=ServicePortsActiveError("目标端口已被其他进程占用"),
+                )
 
         pid = process_launcher(launch_command, resolved_root)
         if pid <= 0:

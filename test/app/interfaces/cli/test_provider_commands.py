@@ -81,7 +81,9 @@ def test_login_provider_saves_custom_endpoint_when_verify_fails(monkeypatch) -> 
     saved_env_vars = []
     text_answers = iter(["我的代理", "https://proxy.example.com/v1", "gpt-4o-mini"])
     monkeypatch.setattr(provider_commands, "input_password", lambda prompt: "test-key")
-    monkeypatch.setattr(provider_commands, "input_text", lambda prompt: next(text_answers))
+    monkeypatch.setattr(
+        provider_commands, "input_text", lambda prompt: next(text_answers)
+    )
     monkeypatch.setattr(provider_commands, "read_user_config", lambda: {})
     monkeypatch.setattr(provider_commands, "read_env_file", lambda: {})
     monkeypatch.setattr(provider_commands, "write_user_config", saved_configs.append)
@@ -107,10 +109,10 @@ def test_show_route_prints_food_policy_without_models(
 ) -> None:
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
 
-    route_commands.show_route("elfie-test")
+    route_commands.show_route("elfie_test")
 
     output = capsys.readouterr().out
-    assert "elfie-test 粮食权限" in output
+    assert "elfie_test 粮食权限" in output
     assert "默认粮食: standard" in output
     assert "vision" in output
     assert "模型由 Runtime 粮食策略统一管理" in output

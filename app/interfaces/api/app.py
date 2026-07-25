@@ -18,7 +18,7 @@ from typing import (
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field  # noqa: E402
 
@@ -41,7 +41,6 @@ from app.infrastructure.persistence.store import (
     migrate_db_if_needed,
     seed_initial_owner_if_env_set,
 )
-from app.interfaces.web import STATIC_DIR
 from app.interfaces.web.build_discovery import (
     WebBuildManifestMalformedError,
     WebBuildManifestMissingError,
@@ -49,7 +48,7 @@ from app.interfaces.web.build_discovery import (
 )
 from nest.godot.bundle import GODOT_WEB_DIR, inspect_godot_web_bundle
 
-from .page_routes import default_landing_path, safe_next_path
+from .page_routes import post_login_landing_path
 from .page_routes import router as page_router
 from .service_access import ServiceAccessPolicy, configure_service_access
 from .v1.realtime import SameOriginChatHub
@@ -204,17 +203,6 @@ def create_app(
         allow_headers=["*"],
     )
 
-    # -------------------------------------------------------------------
-    async def static_index_redirect() -> RedirectResponse:
-        return RedirectResponse("/", status_code=308)
-
-    app.add_api_route(
-        "/static/index.html",
-        static_index_redirect,
-        methods=["GET"],
-        include_in_schema=False,
-    )
-    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     app.mount(
         "/runtime/godot",
         StaticFiles(directory=str(GODOT_WEB_DIR), check_dir=False),
@@ -349,8 +337,10 @@ def create_app(
             content={
                 "user": user_data,
                 "csrf_token": csrf_token,
-                "landing_path": safe_next_path(request.query_params.get("next"))
-                or default_landing_path(user_data),
+                "landing_path": post_login_landing_path(
+                    user_data,
+                    request.query_params.get("next"),
+                ),
             }
         )
         resp.set_cookie(
@@ -552,9 +542,11 @@ def create_app(
     # -------------------------------------------------------------------
     from .nest_routes import router as nest_router  # noqa: PLC0415
     from .nest_routes import user_router as user_nest_router  # noqa: PLC0415
+    from .owner_elfie_routes import router as owner_elfie_router  # noqa: PLC0415
     from .owner_routes import router as owner_router  # noqa: PLC0415
 
     app.include_router(owner_router)
+    app.include_router(owner_elfie_router)
     app.include_router(nest_router)
     app.include_router(user_nest_router)
     from .user_routes import router as user_router  # noqa: PLC0415

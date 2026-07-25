@@ -55,6 +55,32 @@ class TestSetupStatus:
 
 
 class TestSetup:
+    def test_setup_rejects_lan_client_before_owner_exists(
+        self, app, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """首启只能从本机或 Electron 回环服务完成，LAN 不能抢注 Owner。"""
+        monkeypatch.setattr(
+            "app.interfaces.api.service_access.private_ipv4_addresses",
+            lambda: ("192.168.1.8",),
+        )
+        lan_app = create_app(
+            engine=None,
+            db_path=app.state.db_path,
+            ws_port=9877,
+            service_mode="lan",
+        )
+        with TestClient(
+            lan_app,
+            base_url="http://192.168.1.8:8000",
+            client=("192.168.1.30", 50000),
+        ) as lan_client:
+            response = lan_client.post(
+                "/api/auth/setup",
+                json={"username": "owner", "password": "securePass123"},
+            )
+
+        assert response.status_code == 403
+
     def test_setup_creates_owner(self, client: TestClient) -> None:
         """POST /api/auth/setup 在无用户时成功创建 owner（201）。"""
         resp = client.post(

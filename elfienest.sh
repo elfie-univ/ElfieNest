@@ -142,7 +142,8 @@ interactive_mode() {
         cmd="${argv[0]}"
         args=("${argv[@]:1}")
         case "$cmd" in
-            ""|exit|quit|q) echo ""; echo "  再见！🦊"; echo ""; exit 0 ;;
+            "" ) continue ;;
+            exit|quit|q) echo ""; echo "  再见！🦊"; echo ""; exit 0 ;;
             help|h|?) show_help ;;
             serve) "$PYTHON_BIN" scripts/serve.py "${args[@]}" ;;
             build-godot-web) "$SCRIPT_DIR/developer.sh" build-godot-web "${args[@]}" ;;

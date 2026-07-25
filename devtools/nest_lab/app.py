@@ -14,7 +14,11 @@ from ai_runtime.storage.data_home import get_elfie_developer_home
 
 def create_app(data_dir: Path | str | None = None) -> FastAPI:
     """创建隔离的 Nest Lab 应用，不连接正式数据库或 Godot 服务。"""
-    root = Path(data_dir) if data_dir is not None else get_elfie_developer_home() / "nest_lab"
+    root = (
+        Path(data_dir)
+        if data_dir is not None
+        else get_elfie_developer_home() / "nest_lab"
+    )
     root.mkdir(parents=True, exist_ok=True)
     static_dir = Path(__file__).with_name("static")
     app = FastAPI(

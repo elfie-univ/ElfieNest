@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 from test.support.paths import PROJECT_ROOT
+
+PINNED_CPYTHON_VERSION = "3.9.25"
 
 
 def test_ci_actions_are_pinned_to_full_commit_shas() -> None:
@@ -79,3 +80,21 @@ def test_engineering_guides_use_the_locked_environment_contract() -> None:
     assert "./developer.sh" in tooling_guide
     assert not re.search(r"^python -m devtools", tooling_guide, re.MULTILINE)
     assert not any(contract in engineering_guides for contract in stale_contracts)
+
+
+def test_ci_installs_and_verifies_exact_cpython_runtime() -> None:
+    # Given
+    workflow = (PROJECT_ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+
+    # When
+    pinned_install = "uv python install " + PINNED_CPYTHON_VERSION
+    runtime_probe = re.compile(
+        r'sys\.implementation\.name == "cpython"\s+and\s+'
+        r'platform\.python_version\(\) == "3\.9\.25"'
+    )
+
+    # Then
+    assert workflow.count(pinned_install) == 3
+    assert runtime_probe.search(workflow)

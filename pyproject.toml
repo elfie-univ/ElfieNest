@@ -39,7 +39,6 @@ where = ["."]
 include = ["ai_runtime*", "app*", "elfie*", "nest*"]
 
 [tool.setuptools.package-data]
-"app.interfaces.web" = ["static/**/*"]
 
 [tool.ruff]
 line-length = 88

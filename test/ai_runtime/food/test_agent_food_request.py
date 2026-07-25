@@ -92,7 +92,7 @@ def test_unauthorized_upgrade_uses_deep_profile_inside_allowed_food(
     result = agent.think(
         RuntimeRequest(
             prompt="hard",
-            elfie_id="elfie-1",
+            elfie_id="elfie_test_1",
             food_key="premium",
             scene="emotion_peak",
             allowed_tools=(),
@@ -106,9 +106,7 @@ def test_unauthorized_upgrade_uses_deep_profile_inside_allowed_food(
     assert result.execution_stage == "deep"
 
 
-def test_runtime_reads_policy_from_elfie_actual_config_directory(
-    monkeypatch, tmp_path
-):
+def test_runtime_reads_policy_from_elfie_actual_config_directory(monkeypatch, tmp_path):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path / "global"))
     config_dir = tmp_path / "custom-elfie"
     save_elfie_food_policy(

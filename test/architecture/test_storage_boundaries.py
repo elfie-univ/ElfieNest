@@ -22,7 +22,10 @@ def test_developer_tools_only_reference_production_home_for_an_explicit_guard() 
         source = path.read_text(encoding="utf-8")
         imports_production_root = "get_elfie_home" in source or "get_db_path" in source
         relative_path = path.relative_to(PROJECT_ROOT).as_posix()
-        if imports_production_root and relative_path not in DEVELOPER_PRODUCTION_GUARD_FILES:
+        if (
+            imports_production_root
+            and relative_path not in DEVELOPER_PRODUCTION_GUARD_FILES
+        ):
             offenders.append(relative_path)
 
     assert offenders == []
@@ -32,7 +35,10 @@ def test_legacy_nest_chat_storage_has_no_runtime_path() -> None:
     offenders = []
     for relative_path in ACTIVE_CHAT_ROUTE_FILES:
         source = (PROJECT_ROOT / relative_path).read_text(encoding="utf-8")
-        if "chat_messages" in source or "app.infrastructure.persistence.chat_history" in source:
+        if (
+            "chat_messages" in source
+            or "app.infrastructure.persistence.chat_history" in source
+        ):
             offenders.append(relative_path)
 
     assert offenders == []

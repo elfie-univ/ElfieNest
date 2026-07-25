@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from importlib import metadata
+
 from _pytest.capture import CaptureFixture
 
 from app.interfaces.cli import runtime_commands
@@ -9,7 +11,7 @@ def test_show_version_prints_current_version(capsys: CaptureFixture[str]) -> Non
     runtime_commands.show_version()
 
     output = capsys.readouterr().out
-    assert "ElfieNest v1.0.0" in output
+    assert f"ElfieNest v{metadata.version('elfienest')}" in output
 
 
 def test_show_status_reports_database_unavailable(

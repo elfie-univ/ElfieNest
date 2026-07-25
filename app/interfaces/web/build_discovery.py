@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Final
 
 WEB_MANIFEST_NAME: Final = "manifest.json"
-WEB_ENTRYPOINTS: Final = ("login.html", "chat.html", "manage.html")
+WEB_ENTRYPOINT: Final = "index.html"
 
 
 class WebBuildManifestMissingError(FileNotFoundError):
@@ -28,20 +28,14 @@ class WebBuild:
     manifest_path: Path
     manifest: dict[str, object]
 
-    def page_path(self, page: str) -> Path:
-        """Resolve one verified generated page shell inside the build root."""
-        self._entry(page)
-        return self._safe_file(page)
-
-    def is_login_asset(self, relative_path: str) -> bool:
-        """Whether an asset is required to render the anonymous login page."""
-        return relative_path in set(self._entry_assets("login.html"))
+    def shell_path(self) -> Path:
+        """Resolve the only generated React application shell inside the build root."""
+        self._entry(WEB_ENTRYPOINT)
+        return self._safe_file(WEB_ENTRYPOINT)
 
     def asset_path(self, relative_path: str) -> Path:
-        """Resolve a manifest-listed generated asset without path traversal."""
-        assets: set[str] = set()
-        for page in WEB_ENTRYPOINTS:
-            assets.update(self._entry_assets(page))
+        """Resolve a manifest-listed public application asset without traversal."""
+        assets = set(self._entry_assets(WEB_ENTRYPOINT))
         if relative_path not in assets:
             raise FileNotFoundError(relative_path)
         return self._safe_file(relative_path)
@@ -96,11 +90,9 @@ def discover_web_build(directory: Path) -> WebBuild:
             f"Web build manifest must contain an object: {manifest_path}."
         )
 
-    missing_entries = [entry for entry in WEB_ENTRYPOINTS if entry not in manifest]
-    if missing_entries:
-        rendered_entries = ", ".join(missing_entries)
+    if WEB_ENTRYPOINT not in manifest:
         raise WebBuildManifestMalformedError(
-            f"Web build manifest is missing required entries ({rendered_entries}): "
+            f"Web build manifest is missing required entry ({WEB_ENTRYPOINT}): "
             f"{manifest_path}."
         )
 

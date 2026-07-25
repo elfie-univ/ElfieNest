@@ -136,6 +136,15 @@ def main() -> None:
 
 
 def dispatch_command(args: argparse.Namespace) -> None:
+    try:
+        _dispatch_command(args)
+    except KeyboardInterrupt as error:
+        print()
+        print("  已取消。")
+        raise SystemExit(130) from error
+
+
+def _dispatch_command(args: argparse.Namespace) -> None:
     if args.command == "config":
         run_config_tui(login_provider, getattr(args, "config_path", None))
     elif args.command == "serve":

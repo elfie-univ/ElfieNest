@@ -19,6 +19,18 @@ uv sync --locked --extra dev
 uv run --no-sync pytest test/architecture/
 ```
 
+除非负责人明确批准一次全仓 Python 升级，不得修改 `.python-version`、
+`requires-python`、锁文件、CI 或启动脚本中的 3.9.25 契约。所有安装、开发、测试、
+代码审查与脚本均通过 `uv` 和仓库 `.venv/bin/python3` 运行；不要调用系统
+`python`/`python3`、复用其他虚拟环境或设置 `ELFIENEST_PYTHON` 覆盖入口。环境缺失、
+损坏或版本错误时，只运行：
+
+```bash
+./install.sh --env-only
+```
+
+`uv run --no-sync` 是已同步锁定环境的快速执行方式，不会替你选择或安装 Python。
+
 文档站使用 Node.js 20 和 pnpm 10.12.1：
 
 ```bash

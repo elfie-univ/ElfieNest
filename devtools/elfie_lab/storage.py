@@ -19,7 +19,9 @@ from elfie.profile import (
 class ElfieLabStorage:
     def __init__(self, data_dir: Optional[str] = None):
         configured = data_dir or os.getenv("ELFIE_LAB_DATA_DIR")
-        self.root = Path(configured) if configured else get_elfie_developer_home() / "elfie_lab"
+        self.root = (
+            Path(configured) if configured else get_elfie_developer_home() / "elfie_lab"
+        )
         self.elfies_dir = self.root / "elfies"
         self.sessions_dir = self.root / "sessions"
         self.elfies_dir.mkdir(parents=True, exist_ok=True)

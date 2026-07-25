@@ -1,4 +1,5 @@
 """首启向导端点 — setup-status + setup"""
+
 from __future__ import annotations
 
 import logging
@@ -15,6 +16,8 @@ from app.features.setup.service import (
     needs_setup,
 )
 
+_LOCAL_SETUP_CLIENTS = frozenset({"127.0.0.1", "::1", "testclient"})
+
 logger = logging.getLogger("app.interfaces.api.setup_routes")
 
 router = APIRouter(prefix="/api/auth", tags=["setup"])
@@ -30,6 +33,13 @@ class SetupRequest(BaseModel):
     avatar_color: Optional[int] = Field(None, ge=0, le=7)
 
 
+def _require_local_setup_client(request: Request) -> None:
+    """首次 Owner 只能由本机/Electron 回环请求创建。"""
+    client_host = request.client.host if request.client is not None else ""
+    if client_host not in _LOCAL_SETUP_CLIENTS:
+        raise HTTPException(status_code=403, detail="首次设置仅允许在本机完成")
+
+
 @router.get("/setup-status")
 async def get_setup_status(request: Request) -> SetupStatus:
     """检查是否需要首启设置（没有用户时返回 need_setup=true）"""
@@ -39,6 +49,7 @@ async def get_setup_status(request: Request) -> SetupStatus:
 @router.post("/setup", status_code=201)
 async def do_setup(body: SetupRequest, request: Request) -> JSONResponse:
     """首启设置 — 创建第一个 Owner 账号。仅在无用户时允许。"""
+    _require_local_setup_client(request)
     db_path = request.app.state.db_path
     try:
         setup_result = create_first_owner(

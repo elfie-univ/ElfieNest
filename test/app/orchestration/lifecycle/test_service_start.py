@@ -26,6 +26,13 @@ from test.app.orchestration.lifecycle.service_fakes import (
 )
 
 
+class ExitingBeforeCleanupInspector(FakeInspector):
+    """Simulate a launched service exiting between exists() and cwd()."""
+
+    def cwd(self, pid: int) -> Path:
+        raise OSError(f"process {pid} exited")
+
+
 def test_start_writes_pid_before_health_check_and_returns_started(
     tmp_path: Path,
 ) -> None:
@@ -303,6 +310,35 @@ def test_start_health_cleanup_timeout_keeps_pid_receipt(tmp_path: Path) -> None:
     assert result.status == "failed"
     assert isinstance(result.error, CleanupFailedError)
     assert (elfie_home / "elfienest.pid").exists()
+
+
+def test_start_health_failure_reports_original_error_when_process_exits_during_cleanup(
+    tmp_path: Path,
+) -> None:
+    # Given
+    project_root = tmp_path / "project"
+    elfie_home = tmp_path / "home"
+    launcher = RecordingLauncher(5112)
+    inspector = ExitingBeforeCleanupInspector(
+        cwd=project_root,
+        command=("python", "scripts/serve.py"),
+        existence=[True, True, False],
+    )
+
+    # When
+    result = start_service(
+        elfie_home,
+        project_root,
+        launcher=launcher,
+        inspector=inspector,
+        health_checker=lambda: False,
+        timeout_seconds=0.0,
+    )
+
+    # Then
+    assert result.status == "failed"
+    assert isinstance(result.error, HealthCheckFailedError)
+    assert not (elfie_home / "elfienest.pid").exists()
 
 
 def test_start_pid_registration_failure_cleans_up_launched_process(

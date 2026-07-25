@@ -1,4 +1,4 @@
-from scripts.serve import service_host
+from scripts.serve import prepare_godot_web_runtime, service_host
 
 
 def test_service_host_binds_loopback_unless_lan_is_explicit() -> None:
@@ -7,3 +7,37 @@ def test_service_host_binds_loopback_unless_lan_is_explicit() -> None:
     # Then: only LAN chooses all IPv4 interfaces.
     assert service_host(lan=False) == "127.0.0.1"
     assert service_host(lan=True) == "0.0.0.0"
+
+
+def test_prepare_godot_web_runtime_uses_ensure_for_development() -> None:
+    # Given: a development launch and a successful exporter process.
+    commands: list[list[str]] = []
+
+    class Result:
+        returncode = 0
+
+    def run(command: list[str]) -> Result:
+        commands.append(command)
+        return Result()
+
+    # When: preparation runs.
+    # Then: it requests an incremental ensure build.
+    assert prepare_godot_web_runtime("development", run) is True
+    assert commands[0][-1] == "--ensure"
+
+
+def test_prepare_godot_web_runtime_checks_only_in_release() -> None:
+    # Given: a release launch with a missing staged bundle.
+    commands: list[list[str]] = []
+
+    class Result:
+        returncode = 1
+
+    def run(command: list[str]) -> Result:
+        commands.append(command)
+        return Result()
+
+    # When: preparation runs.
+    # Then: it only validates the staged runtime and fails closed.
+    assert prepare_godot_web_runtime("release", run) is False
+    assert commands[0][-1] == "--check"

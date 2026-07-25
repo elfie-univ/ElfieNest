@@ -28,11 +28,12 @@ CLI 工具:
 import argparse
 import logging
 import os
+import subprocess
 import sys
 import threading
 import time
 from pathlib import Path
-from typing import Callable, Sequence
+from typing import Callable, Protocol, Sequence
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -150,6 +151,29 @@ def service_host(lan: bool) -> str:
     return "0.0.0.0" if lan else "127.0.0.1"
 
 
+class GodotBuildCommandResult(Protocol):
+    """最小化的 Godot 构建命令结果契约，便于无 Godot 单元测试。"""
+
+    returncode: int
+
+
+GodotBuildCommandRunner = Callable[[list[str]], GodotBuildCommandResult]
+
+
+def prepare_godot_web_runtime(
+    runtime_mode: str,
+    run_command: GodotBuildCommandRunner = subprocess.run,
+) -> bool:
+    """按运行模式确保或校验 Godot Web Runtime，返回是否可用。"""
+    action = "--ensure" if runtime_mode == "development" else "--check"
+    command = [
+        sys.executable,
+        str(Path(__file__).with_name("build_godot_web.py")),
+        action,
+    ]
+    return run_command(command).returncode == 0
+
+
 def seed_single_elfie(db_path: str) -> bool:
     """如果 elfie_registry 为空，为 Owner 用户 seed 一只精灵"艾菲"。
 
@@ -245,6 +269,12 @@ def main():
         action="store_true",
         help="显式监听家庭局域网 IPv4 地址（默认仅本机）",
     )
+    parser.add_argument(
+        "--runtime-mode",
+        choices=("development", "release"),
+        default=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
+        help="Godot Web Runtime 生命周期模式（默认 development）",
+    )
     args = parser.parse_args()
 
     port_error = validate_service_ports(
@@ -264,6 +294,15 @@ def main():
         print("  ❌ Owner 账号恢复或另一次服务启动正在进行，服务暂不允许启动")
         raise SystemExit(1) from None
 
+    godot_ready = prepare_godot_web_runtime(args.runtime_mode)
+    if not godot_ready and args.runtime_mode == "release":
+        print("  ❌ 发布模式只接受已验证的 Godot Web Runtime，服务未启动")
+        raise SystemExit(1)
+    if not godot_ready:
+        print(
+            "  ⚠️  Godot Web Runtime 自动构建失败，服务仍可用于聊天；请按诊断修复 3D 预览"
+        )
+
     godot_web = inspect_godot_web_bundle()
     if godot_web.ready:
         print(f"  ✅ Godot Web Runtime: {godot_web.entry_url}")
@@ -273,7 +312,6 @@ def main():
 
     # 检测端口是否被占用
     import socket
-    import subprocess
 
     def is_port_in_use(port):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

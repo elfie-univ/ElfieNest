@@ -17,7 +17,7 @@ from app.infrastructure.persistence.elfie_chat_history import (
     ElfieChatSender,
     record_elfie_chat_message,
 )
-from app.infrastructure.persistence.store import init_db
+from app.infrastructure.persistence.store import get_db, init_db
 from app.interfaces.api.app import create_app
 from app.interfaces.api.ws_gateway import AuthenticatedWSManager
 
@@ -55,15 +55,21 @@ def client(app):
 
 
 def _login_owner(client: TestClient) -> dict:
-    resp = client.post("/api/auth/login", data={"username": "owner", "password": "ownerchangeme"})
+    resp = client.post(
+        "/api/auth/login", data={"username": "owner", "password": "ownerchangeme"}
+    )
     assert resp.status_code == 200
     return {
         "csrf_token": resp.headers.get("X-CSRF-Token", ""),
     }
 
 
-def _login_user(client: TestClient, username: str = "alice", password: str = "pass123") -> dict:
-    resp = client.post("/api/auth/login", data={"username": username, "password": password})
+def _login_user(
+    client: TestClient, username: str = "alice", password: str = "pass123"
+) -> dict:
+    resp = client.post(
+        "/api/auth/login", data={"username": username, "password": password}
+    )
     assert resp.status_code == 200, f"user login failed: {resp.text}"
     return {
         "csrf_token": resp.headers.get("X-CSRF-Token", ""),
@@ -75,7 +81,9 @@ def _headers(csrf_token: str) -> dict:
     return {"X-CSRF-Token": csrf_token, "Content-Type": "application/json"}
 
 
-def _create_user_via_owner(client: TestClient, username: str = "alice", password: str = "pass123") -> int:
+def _create_user_via_owner(
+    client: TestClient, username: str = "alice", password: str = "pass123"
+) -> int:
     """Owner 创建用户，返回用户 id。"""
     owner_tokens = _login_owner(client)
     resp = client.post(
@@ -119,7 +127,7 @@ class TestElfieList:
             resp = client.post(
                 "/api/user/adopt",
                 json={
-                    "name": f"精灵{i+1}",
+                    "name": f"精灵{i + 1}",
                     "anatomy_type": "biped",
                     "personality_style": "好奇探索",
                     "height": "standard",
@@ -134,7 +142,9 @@ class TestElfieList:
         elfies = resp.json()
         assert len(elfies) == 2
 
-    def test_user_b_does_not_see_a_elfies(self, client: TestClient, db_path: str) -> None:
+    def test_user_b_does_not_see_a_elfies(
+        self, client: TestClient, db_path: str
+    ) -> None:
         """用户 B 看不到 A 的精灵。"""
         _create_user_via_owner(client, "alice")
         _create_user_via_owner(client, "bob", "bobpass")
@@ -166,8 +176,10 @@ class TestElfieList:
 
 
 class TestElfieDetail:
-    def test_get_elfie_detail_yaml(self, client: TestClient, db_path: str) -> None:
-        """GET 精灵详情返回 YAML 内容。"""
+    def test_get_elfie_detail_returns_public_profile(
+        self, client: TestClient, db_path: str
+    ) -> None:
+        """GET 精灵详情只返回安全的公开资料。"""
         _create_user_via_owner(client, "alice")
         tokens = _login_user(client, "alice")
 
@@ -187,17 +199,22 @@ class TestElfieDetail:
         elfie_id = resp.json()["elfie_id"]
 
         # 获取详情
-        resp = client.get(f"/api/user/elfies/{elfie_id}", headers=_headers(tokens["csrf_token"]))
+        resp = client.get(
+            f"/api/user/elfies/{elfie_id}", headers=_headers(tokens["csrf_token"])
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["name"] == "小白"
         assert data["elfie_id"] == elfie_id
-        assert "personality.yaml" in data["configs"]
-        assert "capabilities.yaml" in data["configs"]
-        assert "system_limits.yaml" in data["configs"]
+        assert "appearance" in data
+        assert "big_five" in data
+        assert "config_dir" not in data
+        assert "configs" not in data
 
-    def test_update_personality_config(self, client: TestClient, db_path: str) -> None:
-        """PUT 更新 personality.yaml → 文件写入正确。"""
+    def test_raw_config_write_is_not_available(
+        self, client: TestClient, db_path: str
+    ) -> None:
+        """通用 YAML 写入路由已退役。"""
         _create_user_via_owner(client, "alice")
         tokens = _login_user(client, "alice")
 
@@ -214,20 +231,12 @@ class TestElfieDetail:
         )
         elfie_id = resp.json()["elfie_id"]
 
-        new_yaml = "metadata:\n  name: 小白\nbig_five:\n  openness: 0.5\n"
         resp = client.put(
             f"/api/user/elfies/{elfie_id}/config",
-            json={"filename": "personality.yaml", "content": new_yaml},
+            json={"filename": "personality.yaml", "content": "big_five: {}"},
             headers=_headers(tokens["csrf_token"]),
         )
-        assert resp.status_code == 200
-
-        # 验证已写入
-        resp = client.get(f"/api/user/elfies/{elfie_id}", headers=_headers(tokens["csrf_token"]))
-        configs = resp.json()["configs"]
-        assert new_yaml in configs["personality.yaml"]
-        canonical = yaml.safe_load(configs["profile.yaml"])
-        assert canonical["personality"]["big_five"]["openness"] == 0.5
+        assert resp.status_code in (404, 410)
 
     def test_access_others_elfie_404(self, client: TestClient, db_path: str) -> None:
         """访问不属于自己的精灵 → 404。"""
@@ -250,12 +259,16 @@ class TestElfieDetail:
 
         # B 尝试访问 A 的精灵
         tokens_b = _login_user(client, "bob", "bobpass")
-        resp = client.get(f"/api/user/elfies/{elfie_id}", headers=_headers(tokens_b["csrf_token"]))
+        resp = client.get(
+            f"/api/user/elfies/{elfie_id}", headers=_headers(tokens_b["csrf_token"])
+        )
         assert resp.status_code == 404
 
 
 class TestElfieChatHistory:
-    def test_get_chat_history_filters_by_range_and_keyword(self, client: TestClient, db_path: str) -> None:
+    def test_get_chat_history_filters_by_range_and_keyword(
+        self, client: TestClient, db_path: str
+    ) -> None:
         _create_user_via_owner(client, "alice")
         tokens = _login_user(client, "alice")
         elfie_id = _adopt_elfie(client, tokens["csrf_token"], "小白")
@@ -298,7 +311,9 @@ class TestElfieChatHistory:
         messages = resp.json()
         assert [message["text"] for message in messages] == ["今天想聊星际门"]
 
-    def test_get_chat_history_rejects_other_owner(self, client: TestClient, db_path: str) -> None:
+    def test_get_chat_history_rejects_other_owner(
+        self, client: TestClient, db_path: str
+    ) -> None:
         _create_user_via_owner(client, "alice")
         _create_user_via_owner(client, "bob", "bobpass")
         alice_tokens = _login_user(client, "alice")
@@ -312,7 +327,9 @@ class TestElfieChatHistory:
 
         assert resp.status_code == 404
 
-    def test_ws_manager_records_user_and_elfie_messages(self, client: TestClient, db_path: str) -> None:
+    def test_ws_manager_records_user_and_elfie_messages(
+        self, client: TestClient, db_path: str
+    ) -> None:
         _create_user_via_owner(client, "alice")
         tokens = _login_user(client, "alice")
         elfie_id = _adopt_elfie(client, tokens["csrf_token"], "小白")
@@ -383,7 +400,9 @@ class TestAdoptionInfo:
         _create_user_via_owner(client, "alice")
         tokens = _login_user(client, "alice")
 
-        resp = client.get("/api/user/adoption-info", headers=_headers(tokens["csrf_token"]))
+        resp = client.get(
+            "/api/user/adoption-info", headers=_headers(tokens["csrf_token"])
+        )
         assert resp.status_code == 200
         data = resp.json()
         # 6 种性格
@@ -412,7 +431,9 @@ class TestAdoptionInfo:
         )
         assert resp.status_code == 201
 
-        resp = client.get("/api/user/adoption-info", headers=_headers(tokens["csrf_token"]))
+        resp = client.get(
+            "/api/user/adoption-info", headers=_headers(tokens["csrf_token"])
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["quota"] == {
@@ -450,7 +471,7 @@ class TestAdopt:
         assert data["name"] == "小白"
         assert data["species_id"] == "dog"
         assert data["elfie_id"].startswith("elfie_")
-        assert "config_dir" in data
+        assert "config_dir" not in data
 
         # 验证精灵出现在列表中
         resp = client.get("/api/user/elfies", headers=_headers(tokens["csrf_token"]))
@@ -481,7 +502,13 @@ class TestAdopt:
         )
 
         assert resp.status_code == 201, resp.text
-        profile_path = Path(resp.json()["config_dir"]) / "profile.yaml"
+        elfie_id = str(resp.json()["elfie_id"])
+        with get_db(client.app.state.db_path) as conn:
+            row = conn.execute(
+                "SELECT config_dir FROM elfie_registry WHERE elfie_id = ?", (elfie_id,)
+            ).fetchone()
+        assert row is not None
+        profile_path = Path(str(row["config_dir"])) / "profile.yaml"
         profile = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
         assert profile["appearance"]["macro"]["stature_z"] == -1.6
         assert profile["appearance"]["macro"]["body_fat_z"] == 1.4
@@ -519,7 +546,7 @@ class TestAdopt:
             resp = client.post(
                 "/api/user/adopt",
                 json={
-                    "name": f"精灵{i+1}",
+                    "name": f"精灵{i + 1}",
                     "anatomy_type": "biped",
                     "personality_style": "活泼好动",
                     "height": "standard",

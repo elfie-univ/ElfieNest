@@ -11,6 +11,7 @@ import platform
 import re
 import shutil
 import subprocess
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -29,6 +30,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--check", action="store_true", help="只检查现有产物")
     parser.add_argument(
+        "--ensure",
+        action="store_true",
+        help="仅在 Web Runtime 缺失或与 Godot 源码不一致时导出",
+    )
+    parser.add_argument(
         "--allow-version-mismatch",
         action="store_true",
         help="允许 Godot 与项目版本不同（不建议用于发布）",
@@ -41,8 +47,20 @@ def main() -> int:
     output = args.output.expanduser().resolve()
     if args.check:
         return _print_bundle_check(output)
+    if args.ensure and runtime_is_current(output):
+        print(f"✅ Godot Web Runtime 已是最新: {output / ENTRY_NAME}")
+        return 0
 
-    binary = _find_godot(args.godot)
+    return _export_runtime(output, args.godot, args.allow_version_mismatch)
+
+
+def _export_runtime(
+    output: Path,
+    explicit_binary: Optional[Path],
+    allow_version_mismatch: bool,
+) -> int:
+    """导出 Godot Runtime，并在完整性检查后原子替换当前 bundle。"""
+    binary = _find_godot(explicit_binary)
     if binary is None:
         print("❌ 未找到 Godot 4。请通过 --godot 或 GODOT_BIN 指定构建工具。")
         return 2
@@ -52,7 +70,7 @@ def main() -> int:
         required_version
         and actual_version
         and required_version != actual_version
-        and not args.allow_version_mismatch
+        and not allow_version_mismatch
     ):
         print(
             f"❌ 项目要求 Godot {required_version}，当前构建工具是 {actual_version}。"
@@ -60,6 +78,20 @@ def main() -> int:
         print("   发布构建必须使用同版本 Godot 和同版本 Web Export Templates。")
         return 2
 
+    with _build_lock(output):
+        if runtime_is_current(output):
+            print(f"✅ Godot Web Runtime 已由其他进程更新: {output / ENTRY_NAME}")
+            return 0
+        return _export_runtime_locked(output, binary, actual_version, required_version)
+
+
+def _export_runtime_locked(
+    output: Path,
+    binary: Path,
+    actual_version: Optional[str],
+    required_version: Optional[str],
+) -> int:
+    """在排他锁内执行一次真实 Godot 导出。"""
     staging = output.parent / f".{output.name}.staging"
     previous = output.parent / f".{output.name}.previous"
     shutil.rmtree(staging, ignore_errors=True)
@@ -88,7 +120,7 @@ def main() -> int:
         print("❌ 导出命令完成，但产物不完整: " + ", ".join(missing))
         return 1
 
-    _write_manifest(staging, actual_version or "unknown")
+    _write_manifest(staging, actual_version or "unknown", current_source_fingerprint())
     shutil.rmtree(previous, ignore_errors=True)
     if output.exists():
         output.replace(previous)
@@ -118,7 +150,9 @@ def _missing_artifacts(directory: Path) -> List[str]:
     return [suffix for suffix in REQUIRED_SUFFIXES if suffix not in suffixes]
 
 
-def _write_manifest(directory: Path, godot_version: str) -> None:
+def _write_manifest(
+    directory: Path, godot_version: str, source_fingerprint: str
+) -> None:
     files: Dict[str, Dict[str, object]] = {}
     for path in sorted(item for item in directory.iterdir() if item.is_file()):
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -129,12 +163,92 @@ def _write_manifest(directory: Path, godot_version: str) -> None:
         "preset": PRESET_NAME,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "entry": ENTRY_NAME,
+        "source_fingerprint": source_fingerprint,
         "files": files,
     }
     (directory / "build-manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+
+
+def current_source_fingerprint() -> str:
+    """返回影响 Web 导出的 Godot 源树内容指纹，不纳入编辑器缓存。"""
+    digest = hashlib.sha256()
+    if not GODOT_PROJECT.is_dir():
+        return digest.hexdigest()
+    for path in sorted(item for item in GODOT_PROJECT.rglob("*") if item.is_file()):
+        relative = path.relative_to(GODOT_PROJECT)
+        if ".godot" in relative.parts or relative.suffix in {".import", ".tmp"}:
+            continue
+        digest.update(relative.as_posix().encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def runtime_is_current(output: Path) -> bool:
+    """检查 bundle 完整性以及 manifest 是否对应当前 Godot 源码。"""
+    missing = _missing_artifacts(output)
+    manifest_path = output / "build-manifest.json"
+    if missing or not manifest_path.is_file():
+        return False
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    if not isinstance(manifest, dict):
+        return False
+    if manifest.get("source_fingerprint") != current_source_fingerprint():
+        return False
+    expected_files = manifest.get("files")
+    if not isinstance(expected_files, dict):
+        return False
+    for filename, metadata in expected_files.items():
+        if not isinstance(filename, str) or not isinstance(metadata, dict):
+            return False
+        path = output / filename
+        if not path.is_file():
+            return False
+        if metadata.get("bytes") != path.stat().st_size:
+            return False
+        if metadata.get("sha256") != hashlib.sha256(path.read_bytes()).hexdigest():
+            return False
+    return True
+
+
+class _build_lock:
+    """文件锁：同一 source tree 中只允许一个 Godot Web 导出。"""
+
+    def __init__(self, output: Path) -> None:
+        self._path = output.parent / f".{output.name}.lock"
+        self._fd: Optional[int] = None
+
+    def __enter__(self) -> _build_lock:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        deadline = time.monotonic() + 120
+        while self._fd is None:
+            try:
+                self._fd = os.open(
+                    str(self._path), os.O_CREAT | os.O_EXCL | os.O_WRONLY
+                )
+                os.write(self._fd, str(os.getpid()).encode("ascii"))
+            except FileExistsError:
+                if time.monotonic() >= deadline:
+                    raise RuntimeError(
+                        f"Godot Web Runtime 构建锁超时: {self._path}"
+                    ) from None
+                time.sleep(0.2)
+        return self
+
+    def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
+        if self._fd is not None:
+            os.close(self._fd)
+        try:
+            self._path.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def _find_godot(explicit: Optional[Path]) -> Optional[Path]:

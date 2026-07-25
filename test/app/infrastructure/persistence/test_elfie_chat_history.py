@@ -44,9 +44,7 @@ def test_records_multi_channel_history_in_the_elfie_workspace(
 
     assert [record.text for record in history] == ["网页来的消息", "飞书回复"]
     assert [record.channel for record in history] == ["web", "feishu"]
-    assert (
-        get_elfie_conversations_dir("elfie_alpha") / "history.sqlite"
-    ).is_file()
+    assert (get_elfie_conversations_dir("elfie_alpha") / "history.sqlite").is_file()
 
 
 def test_retries_are_idempotent_and_elfies_are_isolated(monkeypatch, tmp_path) -> None:

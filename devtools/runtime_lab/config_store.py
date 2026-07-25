@@ -41,7 +41,11 @@ class RuntimeLabConfigStore:
 
     def __init__(self, root: Optional[str] = None):
         configured = root or os.getenv("ELFIE_LAB_RUNTIME_DIR")
-        self.root = Path(configured) if configured else get_elfie_developer_home() / "runtime_lab"
+        self.root = (
+            Path(configured)
+            if configured
+            else get_elfie_developer_home() / "runtime_lab"
+        )
         self.config_path = self.root / "config.yaml"
         self.env_path = self.root / ".env"
 

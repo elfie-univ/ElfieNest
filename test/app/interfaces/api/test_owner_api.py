@@ -47,7 +47,10 @@ def app(db_path: str, runtime_config_path: Path):
     with (
         patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
         patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-        patch("app.interfaces.api.owner_routes.get_config_path", return_value=runtime_config_path),
+        patch(
+            "app.interfaces.api.owner_routes.get_config_path",
+            return_value=runtime_config_path,
+        ),
     ):
         application = create_app(engine=None, db_path=db_path, ws_port=9876)
         yield application
@@ -62,7 +65,9 @@ def client(app):
 
 def _login_owner(client: TestClient) -> dict:
     """辅助：以 owner 身份登录，返回 {"session_token", "csrf_token", "cookies"}。"""
-    resp = client.post("/api/auth/login", data={"username": "owner", "password": "ownerchangeme"})
+    resp = client.post(
+        "/api/auth/login", data={"username": "owner", "password": "ownerchangeme"}
+    )
     assert resp.status_code == 200, f"login failed: {resp.text}"
     csrf_token = resp.headers.get("X-CSRF-Token", "")
     return {
@@ -81,7 +86,9 @@ def _headers(csrf_token: str) -> dict:
 
 
 class TestUserCRUD:
-    def test_owner_cannot_update_owner_account(self, client: TestClient, db_path: str) -> None:
+    def test_owner_cannot_update_owner_account(
+        self, client: TestClient, db_path: str
+    ) -> None:
         # Given
         tokens = _login_owner(client)
         owner_id = 1
@@ -242,7 +249,9 @@ class TestUserCRUD:
         )
         assert resp.status_code == 404
 
-    def test_delete_user_destroys_elfies(self, client: TestClient, db_path: str) -> None:
+    def test_delete_user_destroys_elfies(
+        self, client: TestClient, db_path: str
+    ) -> None:
         """删除用户 → 级联删除其精灵（registry 记录）。"""
         tokens = _login_owner(client)
         # 创建用户 → 给用户分配一个精灵
@@ -255,6 +264,7 @@ class TestUserCRUD:
 
         # 手动插入精灵
         from app.infrastructure.persistence.store import get_db
+
         with get_db(db_path) as conn:
             conn.execute(
                 "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) "
@@ -286,7 +296,9 @@ class TestUserCRUD:
         usernames = [u["username"] for u in resp.json()]
         assert "owner" not in usernames
 
-    def test_owner_list_users_shows_other_users(self, client: TestClient, db_path: str) -> None:
+    def test_owner_list_users_shows_other_users(
+        self, client: TestClient, db_path: str
+    ) -> None:
         """Owner可以看到其他普通用户。"""
         tokens = _login_owner(client)
 
@@ -318,7 +330,9 @@ class TestAuthorization:
         )
 
         # 以 alice 身份登录
-        resp = client.post("/api/auth/login", data={"username": "alice", "password": "pass"})
+        resp = client.post(
+            "/api/auth/login", data={"username": "alice", "password": "pass"}
+        )
         assert resp.status_code == 200
         alice_csrf = resp.headers.get("X-CSRF-Token", "")
 
@@ -356,7 +370,9 @@ class TestAuthorization:
 
 
 class TestOwnerElfieList:
-    def test_owner_elfies_list_available(self, client: TestClient, db_path: str) -> None:
+    def test_owner_elfies_list_available(
+        self, client: TestClient, db_path: str
+    ) -> None:
         tokens = _login_owner(client)
         headers = _headers(tokens["csrf_token"])
 
@@ -387,10 +403,14 @@ class TestOwnerElfieList:
         assert resp.status_code == 200
         data = resp.json()
         assert data[0]["elfie_id"] == "elfie_001"
-        assert data[0]["bed_id"] == bed_id
-        assert data[0]["room_name"] == "主精灵巢"
+        assert data[0]["profile"]["nest"]["bed_id"] == bed_id
+        assert data[0]["profile"]["nest"]["room_name"] == "主精灵巢"
+        assert data[0]["profile"]["appearance"] == {}
+        assert "config_dir" not in data[0]
 
-        resp = client.put("/api/owner/elfies/test-id", json={"name": "test"}, headers=headers)
+        resp = client.put(
+            "/api/owner/elfies/test-id", json={"name": "test"}, headers=headers
+        )
         assert resp.status_code == 404
 
         resp = client.delete("/api/owner/elfies/test-id", headers=headers)
@@ -412,7 +432,9 @@ class TestConfig:
         assert isinstance(data, dict)
         assert "providers" in data
 
-    def test_put_config_valid(self, client: TestClient, runtime_config_path: Path) -> None:
+    def test_put_config_valid(
+        self, client: TestClient, runtime_config_path: Path
+    ) -> None:
         """PUT 写入正确配置。"""
         tokens = _login_owner(client)
         new_config = {
@@ -445,7 +467,9 @@ class TestConfig:
         assert resp.status_code == 400
         assert "providers" in resp.text
 
-    def test_get_config_no_file(self, client: TestClient, runtime_config_path: Path) -> None:
+    def test_get_config_no_file(
+        self, client: TestClient, runtime_config_path: Path
+    ) -> None:
         """文件不存在时返回空 dict。"""
         runtime_config_path.unlink()  # 删除 mock 配置文件
         tokens = _login_owner(client)

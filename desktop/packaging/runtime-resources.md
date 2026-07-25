@@ -12,9 +12,7 @@ build/staging/<platform-arch>/resources/
 │   └── elfienest.pck
 ├── web/
 │   ├── manifest.json
-│   ├── login.html
-│   ├── chat.html
-│   ├── manage.html
+│   ├── index.html
 │   └── assets/
 ├── python-core/ElfieNestCore
 ├── ollama/ollama

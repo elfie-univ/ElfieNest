@@ -14,11 +14,14 @@ from fastapi.responses import (
 
 from app.features.accounts.auth import get_current_user
 from app.features.setup.service import needs_setup
-from app.interfaces.web import STATIC_DIR
 
 router = APIRouter(include_in_schema=False)
 
 _SAFE_NEXT_PATHS = frozenset({"/chat", "/manage"})
+_SHELL_CACHE_HEADERS = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+}
 
 
 def safe_next_path(raw_next: Optional[str]) -> Optional[str]:
@@ -38,6 +41,16 @@ def default_landing_path(user: Dict[str, Any]) -> str:
     return "/chat"
 
 
+def post_login_landing_path(user: Dict[str, Any], raw_next: Optional[str]) -> str:
+    """Resolve login landing without letting generic chat redirects steal Owner flow."""
+    safe_next = safe_next_path(raw_next)
+    if user.get("role") == "owner" and safe_next == "/manage":
+        return "/manage"
+    if user.get("role") == "user" and safe_next == "/chat":
+        return "/chat"
+    return default_landing_path(user)
+
+
 def _login_redirect(target: str) -> RedirectResponse:
     return RedirectResponse(url=f"/login?next={target}", status_code=303)
 
@@ -52,7 +65,7 @@ def _current_page_user(request: Request) -> Optional[Dict[str, Any]]:
         raise
 
 
-def _serve_generated_page(request: Request, page: str) -> Response:
+def _serve_generated_page(request: Request) -> Response:
     """Return a generated page shell or a useful build diagnosis, never old assets."""
     web_build = getattr(request.app.state, "web_build", None)
     if web_build is None:
@@ -60,21 +73,22 @@ def _serve_generated_page(request: Request, page: str) -> Response:
             request.app.state, "web_build_error", "Web build is unavailable."
         )
         return PlainTextResponse(str(error), status_code=503)
-    return FileResponse(web_build.page_path(page), media_type="text/html")
+    return FileResponse(
+        web_build.shell_path(),
+        media_type="text/html",
+        headers=_SHELL_CACHE_HEADERS,
+    )
 
 
 @router.get("/assets/{asset_path:path}")
 async def generated_asset(asset_path: str, request: Request) -> Response:
-    """Serve only login assets anonymously; product-specific assets require a session."""
+    """Serve manifest-listed static bundle assets; APIs enforce all data permissions."""
     web_build = getattr(request.app.state, "web_build", None)
     if web_build is None:
         error = getattr(
             request.app.state, "web_build_error", "Web build is unavailable."
         )
         return PlainTextResponse(str(error), status_code=503)
-    user = _current_page_user(request)
-    if user is None and not web_build.is_login_asset(f"assets/{asset_path}"):
-        raise HTTPException(status_code=401, detail="登录后才能加载产品资源")
     try:
         path = web_build.asset_path(f"assets/{asset_path}")
     except FileNotFoundError as error:
@@ -86,38 +100,55 @@ async def generated_asset(asset_path: str, request: Request) -> Response:
 async def root_page(request: Request) -> Response:
     """Send setup installs to setup and authenticated users to their landing page."""
     if needs_setup(request.app.state.db_path):
-        return FileResponse(STATIC_DIR / "setup.html", media_type="text/html")
+        return RedirectResponse("/setup", status_code=303)
     user = _current_page_user(request)
     if user is None:
         return _login_redirect("/chat")
     return RedirectResponse(default_landing_path(user), status_code=303)
 
 
+@router.get("/setup")
+async def setup_page(request: Request) -> Response:
+    """Serve the first-run React wizard only while no account exists."""
+    if not needs_setup(request.app.state.db_path):
+        user = _current_page_user(request)
+        return (
+            RedirectResponse(default_landing_path(user), status_code=303)
+            if user
+            else _login_redirect("/chat")
+        )
+    return _serve_generated_page(request)
+
+
 @router.get("/login")
 async def login_page(request: Request) -> Response:
     """Serve the login-capable console, never reflecting an unsafe next target."""
+    if needs_setup(request.app.state.db_path):
+        return RedirectResponse("/setup", status_code=303)
     user = _current_page_user(request)
     if user is not None:
         return RedirectResponse(default_landing_path(user), status_code=303)
-    return _serve_generated_page(request, "login.html")
+    return _serve_generated_page(request)
 
 
 @router.get("/chat")
 async def chat_page(request: Request) -> Response:
     """Serve chat only to a valid session."""
+    if needs_setup(request.app.state.db_path):
+        return RedirectResponse("/setup", status_code=303)
     if _current_page_user(request) is None:
         return _login_redirect("/chat")
-    return _serve_generated_page(request, "chat.html")
+    return _serve_generated_page(request)
 
 
 @router.get("/manage")
 async def manage_page(request: Request) -> Response:
     """Enforce the Owner-only management landing route on the server."""
+    if needs_setup(request.app.state.db_path):
+        return RedirectResponse("/setup", status_code=303)
     user = _current_page_user(request)
     if user is None:
         return _login_redirect("/manage")
     if user.get("role") != "owner":
         return RedirectResponse("/chat", status_code=303)
-    if request.query_params.get("mode") == "classic":
-        return FileResponse(STATIC_DIR / "index.html", media_type="text/html")
-    return _serve_generated_page(request, "manage.html")
+    return _serve_generated_page(request)

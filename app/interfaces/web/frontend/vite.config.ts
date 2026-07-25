@@ -13,9 +13,7 @@ export default defineConfig({
     outDir: webBuildDirectory,
     rollupOptions: {
       input: {
-        chat: resolve(frontendRoot, "chat.html"),
-        login: resolve(frontendRoot, "login.html"),
-        manage: resolve(frontendRoot, "manage.html")
+        app: resolve(frontendRoot, "index.html")
       }
     }
   }

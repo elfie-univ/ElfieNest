@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from importlib import metadata
 
 from app.features.administration.system_service import (
     DatabaseUnavailableError,
@@ -12,7 +13,7 @@ from app.features.administration.system_service import (
     reset_database,
 )
 
-VERSION = "1.0.0"
+PACKAGE_NAME = "elfienest"
 
 
 def show_status() -> None:
@@ -174,8 +175,16 @@ def show_db() -> None:
 
 
 def show_version() -> None:
-    print(f"  ElfieNest v{VERSION}")
+    print(f"  ElfieNest v{_current_version()}")
     print()
     print("  🦊 仿生生命体系统")
     print("  一个基于三层大脑架构的 AI 生物模拟系统")
     print()
+
+
+def _current_version() -> str:
+    """Return the installed package version used by this launcher."""
+    try:
+        return metadata.version(PACKAGE_NAME)
+    except metadata.PackageNotFoundError:
+        return "unknown"

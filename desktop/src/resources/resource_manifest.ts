@@ -20,9 +20,7 @@ const GODOT_WEB_RESOURCE_PATHS = [
 
 const PRODUCT_WEB_RESOURCE_PATHS = [
   "web/manifest.json",
-  "web/login.html",
-  "web/chat.html",
-  "web/manage.html",
+  "web/index.html",
 ] as const;
 
 export type ResourcePath = string;

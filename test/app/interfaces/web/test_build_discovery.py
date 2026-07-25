@@ -38,16 +38,14 @@ def test_discover_web_build_raises_clear_error_when_manifest_is_malformed(
     # Then: an incomplete artifact cannot be mounted as a Web build.
 
 
-def test_discover_web_build_accepts_manifest_with_all_page_shells(
+def test_discover_web_build_accepts_manifest_with_one_react_shell(
     tmp_path: Path,
 ) -> None:
-    # Given: a Vite manifest for all required generated page shells.
+    # Given: a Vite manifest for the one generated React application shell.
     build_dir = tmp_path / "build" / "web"
     build_dir.mkdir(parents=True)
     manifest = """{
-      "login.html": {"file": "assets/login.js"},
-      "chat.html": {"file": "assets/chat.js"},
-      "manage.html": {"file": "assets/manage.js"}
+      "index.html": {"file": "assets/app.js"}
     }"""
     (build_dir / "manifest.json").write_text(manifest, encoding="utf-8")
 
@@ -59,22 +57,19 @@ def test_discover_web_build_accepts_manifest_with_all_page_shells(
     assert web_build.manifest_path == build_dir / "manifest.json"
 
 
-def test_web_build_allows_only_login_assets_before_authentication(
+def test_web_build_exposes_only_manifest_listed_public_assets(
     tmp_path: Path,
 ) -> None:
-    # Given: login imports its own entry plus one shared asset.
+    # Given: the React shell imports its entry plus one shared asset.
     build_dir = tmp_path / "build" / "web"
     assets = build_dir / "assets"
     assets.mkdir(parents=True)
-    (build_dir / "login.html").write_text("login", encoding="utf-8")
-    (assets / "login.js").write_text("login", encoding="utf-8")
+    (build_dir / "index.html").write_text("app", encoding="utf-8")
+    (assets / "app.js").write_text("app", encoding="utf-8")
     (assets / "shared.js").write_text("shared", encoding="utf-8")
-    (assets / "chat.js").write_text("chat", encoding="utf-8")
     (build_dir / "manifest.json").write_text(
         """{
-          "login.html": {"file": "assets/login.js", "imports": ["shared"]},
-          "chat.html": {"file": "assets/chat.js"},
-          "manage.html": {"file": "assets/manage.js"},
+          "index.html": {"file": "assets/app.js", "imports": ["shared"]},
           "shared": {"file": "assets/shared.js"}
         }""",
         encoding="utf-8",
@@ -83,8 +78,9 @@ def test_web_build_allows_only_login_assets_before_authentication(
     # When: Core reads the manifest-derived asset visibility.
     web_build = discover_web_build(build_dir)
 
-    # Then: only the anonymous shell's transitive assets are whitelisted.
-    assert web_build.is_login_asset("assets/login.js") is True
-    assert web_build.is_login_asset("assets/shared.js") is True
-    assert web_build.is_login_asset("assets/chat.js") is False
-    assert web_build.asset_path("assets/chat.js").read_text() == "chat"
+    # Then: only manifest-listed shell assets can be read.
+    assert web_build.shell_path().read_text() == "app"
+    assert web_build.asset_path("assets/app.js").read_text() == "app"
+    assert web_build.asset_path("assets/shared.js").read_text() == "shared"
+    with pytest.raises(FileNotFoundError):
+        web_build.asset_path("assets/unknown.js")

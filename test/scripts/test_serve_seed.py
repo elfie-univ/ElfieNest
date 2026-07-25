@@ -11,9 +11,7 @@ class _CapturingGenerator:
         self.elfie_id = kwargs["elfie_id"]
 
 
-def test_default_seed_uses_a_workspace_safe_id(
-    monkeypatch, tmp_path: Path
-) -> None:
+def test_default_seed_uses_a_workspace_safe_id(monkeypatch, tmp_path: Path) -> None:
     # Given: an Owner and a fresh production data root.
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
@@ -32,9 +30,7 @@ def test_default_seed_uses_a_workspace_safe_id(
 
     # Then: the stable directory ID is separate from the visible Chinese name.
     with get_db(db_path) as connection:
-        row = connection.execute(
-            "SELECT elfie_id, name FROM elfie_registry"
-        ).fetchone()
+        row = connection.execute("SELECT elfie_id, name FROM elfie_registry").fetchone()
     assert row["elfie_id"] == "elfie_default"
     assert row["name"] == "艾菲"
     assert generator.elfie_id == "elfie_default"

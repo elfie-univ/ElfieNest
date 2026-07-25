@@ -27,14 +27,11 @@ def _web_build(tmp_path: Path) -> Path:
     build_dir = tmp_path / "build" / "web"
     assets = build_dir / "assets"
     assets.mkdir(parents=True)
-    for page in ("login", "chat", "manage"):
-        (build_dir / f"{page}.html").write_text(page, encoding="utf-8")
-        (assets / f"{page}.js").write_text(page, encoding="utf-8")
+    (build_dir / "index.html").write_text("app", encoding="utf-8")
+    (assets / "app.js").write_text("app", encoding="utf-8")
     (build_dir / "manifest.json").write_text(
         """{
-          "login.html": {"file": "assets/login.js"},
-          "chat.html": {"file": "assets/chat.js"},
-          "manage.html": {"file": "assets/manage.js"}
+          "index.html": {"file": "assets/app.js"}
         }""",
         encoding="utf-8",
     )
@@ -62,14 +59,14 @@ def test_pages_redirect_anonymous_users_to_login_with_safe_next(
 ) -> None:
     # Given: no session.
     # When: an anonymous browser requests protected pages.
-    # Then: each redirect preserves only a local page target.
+    # Then: a fresh installation always enters the setup wizard first.
     chat = client.get("/chat", follow_redirects=False)
     manage = client.get("/manage", follow_redirects=False)
 
     assert chat.status_code == 303
-    assert chat.headers["location"] == "/login?next=/chat"
+    assert chat.headers["location"] == "/setup"
     assert manage.status_code == 303
-    assert manage.headers["location"] == "/login?next=/manage"
+    assert manage.headers["location"] == "/setup"
 
 
 def test_ws_configuration_requires_an_authenticated_session(client: TestClient) -> None:
@@ -84,36 +81,43 @@ def test_ws_configuration_requires_an_authenticated_session(client: TestClient) 
 def test_login_discards_malformed_or_external_next(client: TestClient) -> None:
     # Given: no session and hostile next values.
     # When: the browser requests the login entry point.
-    # Then: no open redirect target survives.
+    # Then: no open redirect target survives and setup owns first launch.
     external = client.get(
         "/login?next=https://attacker.invalid", follow_redirects=False
     )
     malformed = client.get("/login?next=//attacker.invalid", follow_redirects=False)
 
-    assert external.status_code == 200
-    assert "https://attacker.invalid" not in external.text
-    assert malformed.status_code == 200
-    assert "//attacker.invalid" not in malformed.text
+    assert external.status_code == 303
+    assert external.headers["location"] == "/setup"
+    assert malformed.status_code == 303
+    assert malformed.headers["location"] == "/setup"
 
 
-def test_anonymous_clients_only_receive_login_page_assets(client: TestClient) -> None:
-    # Given: a generated build with separate login and chat entries.
-    # When: an anonymous client asks for each bundle.
-    login_asset = client.get("/assets/login.js")
-    chat_asset = client.get("/assets/chat.js")
+def test_anonymous_clients_receive_public_shell_assets_but_no_product_data(
+    client: TestClient,
+) -> None:
+    # Given: a generated single-page application bundle.
+    # When: an anonymous client asks for its static asset and protected data.
+    shell_asset = client.get("/assets/app.js")
+    conversations = client.get("/api/v1/conversations")
 
-    # Then: the chat bundle is not an anonymous product resource.
-    assert login_asset.status_code == 200
-    assert chat_asset.status_code == 401
+    # Then: JavaScript is public but data remains session-protected.
+    assert shell_asset.status_code == 200
+    assert conversations.status_code == 401
 
 
 def test_login_returns_only_an_allowed_post_login_page(client: TestClient) -> None:
-    # Given: an Owner account and both trusted and hostile next values.
+    # Given: an Owner account and both local and hostile next values.
     _create_user(client, "owner", "owner")
 
     # When: the same credentials are submitted through each login target.
-    trusted = client.post(
+    chat_next = client.post(
         "/api/auth/login?next=/chat",
+        data={"username": "owner", "password": "pass123"},
+    )
+    client.cookies.clear()
+    manage_next = client.post(
+        "/api/auth/login?next=/manage",
         data={"username": "owner", "password": "pass123"},
     )
     client.cookies.clear()
@@ -122,8 +126,9 @@ def test_login_returns_only_an_allowed_post_login_page(client: TestClient) -> No
         data={"username": "owner", "password": "pass123"},
     )
 
-    # Then: a known local page is honored; all other targets use role default.
-    assert trusted.json()["landing_path"] == "/chat"
+    # Then: generic chat redirects cannot steal the Owner's management default.
+    assert chat_next.json()["landing_path"] == "/manage"
+    assert manage_next.json()["landing_path"] == "/manage"
     assert hostile.json()["landing_path"] == "/manage"
 
 
@@ -149,7 +154,7 @@ def test_owner_and_user_receive_server_side_landing_routes(client: TestClient) -
     assert user_manage.headers["location"] == "/chat"
 
 
-def test_owner_can_open_the_compatibility_management_workspace(
+def test_owner_manage_query_still_returns_the_react_shell(
     client: TestClient,
 ) -> None:
     _create_user(client, "owner", "owner")
@@ -158,7 +163,18 @@ def test_owner_can_open_the_compatibility_management_workspace(
     response = client.get("/manage?mode=classic")
 
     assert response.status_code == 200
-    assert "Runtime 三层配置" in response.text
+    assert response.text == "app"
+
+
+def test_react_shell_pages_are_not_cached_by_the_browser(client: TestClient) -> None:
+    _create_user(client, "owner", "owner")
+    _login(client, "owner")
+
+    response = client.get("/manage")
+
+    assert response.status_code == 200
+    assert "no-store" in response.headers["cache-control"]
+    assert response.headers["pragma"] == "no-cache"
 
 
 def test_lan_rejects_unrecognized_host_and_origin(tmp_path: Path) -> None:
@@ -217,4 +233,4 @@ def test_core_reads_the_packaged_web_build_directory_from_its_environment(
             response = test_client.get("/login")
 
     assert response.status_code == 200
-    assert response.text == "login"
+    assert response.text == "app"

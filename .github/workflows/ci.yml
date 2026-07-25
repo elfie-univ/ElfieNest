@@ -29,7 +29,15 @@ jobs:
           enable-cache: true
 
       - name: Install pinned environment through project installer
-        run: ./install.sh --env-only
+        run: |
+          uv python install 3.9.25
+          ./install.sh --env-only
+
+      - name: Verify exact CPython runtime
+        run: >
+          .venv/bin/python3 -c 'import platform, sys;
+          raise SystemExit(0 if sys.implementation.name == "cpython" and
+          platform.python_version() == "3.9.25" else 1)'
 
       - name: Run entrypoint smoke test
         run: ./elfienest.sh version

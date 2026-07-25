@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 from elfie.profile import AppearanceResolver, ElfieProfileRepository
 
@@ -22,11 +22,11 @@ def build_public_profile(
     name: str,
     species_id: str,
     personality_style: str,
-    config_dir: str,
-    room_id: int | None,
-    room_name: str | None,
-    bed_id: int | None,
-    bed_name: str | None,
+    config_dir: Optional[str],
+    room_id: Optional[int],
+    room_name: Optional[str],
+    bed_id: Optional[int],
+    bed_name: Optional[str],
     embodiment_state: str = "at_nest",
 ) -> Dict[str, Any]:
     """Return only fields approved for normal product clients.
@@ -34,17 +34,11 @@ def build_public_profile(
     Config-file paths and raw profile data are inputs to the projection only and
     must never become output fields.
     """
-    profile = ElfieProfileRepository(Path(config_dir)).load()
-    personality = profile.personality
-    big_five = _public_big_five(personality.get("big_five"))
-    return {
+    result = {
         "elfie_id": elfie_id,
         "name": name,
         "species_id": species_id,
         "portrait_url": "",
-        "appearance": AppearanceResolver().resolve(profile).to_payload(),
-        "big_five": big_five,
-        "personality_tags": _personality_tags(personality_style, big_five),
         "nest": {
             "room_id": room_id,
             "room_name": room_name,
@@ -54,6 +48,37 @@ def build_public_profile(
         },
         "embodiment": {"state": embodiment_state},
     }
+    if not config_dir:
+        return _unavailable_profile(result, personality_style)
+
+    repository = ElfieProfileRepository(Path(config_dir))
+    if not repository.exists():
+        return _unavailable_profile(result, personality_style)
+
+    profile = repository.load()
+    personality = profile.personality
+    big_five = _public_big_five(personality.get("big_five"))
+    result.update(
+        {
+            "appearance": AppearanceResolver().resolve(profile).to_payload(),
+            "big_five": big_five,
+            "personality_tags": _personality_tags(personality_style, big_five),
+        }
+    )
+    return result
+
+
+def _unavailable_profile(
+    result: Dict[str, Any], personality_style: str
+) -> Dict[str, Any]:
+    result.update(
+        {
+            "appearance": {},
+            "big_five": {},
+            "personality_tags": _personality_tags(personality_style, {}),
+        }
+    )
+    return result
 
 
 def _public_big_five(raw: object) -> Dict[str, float]:
@@ -67,7 +92,7 @@ def _public_big_five(raw: object) -> Dict[str, float]:
     return values
 
 
-def _personality_tags(style: str, big_five: Dict[str, float]) -> list[str]:
+def _personality_tags(style: str, big_five: Dict[str, float]) -> List[str]:
     tags = [style] if style else []
     ranked = sorted(big_five.items(), key=lambda item: item[1], reverse=True)
     tags.extend(key for key, _ in ranked[:2])

@@ -47,6 +47,17 @@ uv sync --locked --extra dev
 UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/
 ```
 
+### Python 运行时不可变契约
+
+- 未获得用户对“全仓 Python 升级”的明确批准，禁止修改 `.python-version`、
+  `pyproject.toml` 的 `requires-python`、`uv.lock`、CI、安装器或启动脚本中的
+  CPython 3.9.25 契约；不得借单个功能、依赖或本机版本顺手升级 Python。
+- Agent、开发者、CR、测试和所有产品/开发脚本必须经仓库受控的 `uv` 与
+  `.venv/bin/python3` 执行。不得以系统 `python`、`python3`、Conda、pip 环境或
+  任意 `ELFIENEST_PYTHON` 覆盖作为产品入口。
+- 需要修复缺失、损坏或版本不匹配的环境时，唯一标准路径是
+  `./install.sh --env-only`；`uv run --no-sync` 只能在该锁定环境已经存在时使用。
+
 只改局部时先运行对应测试，再运行 `test/architecture/`。质量门及文档构建命令
 以 `CONTRIBUTING.md` 为准；机器上的最终事实源是 `pyproject.toml`、
 `.quality-baseline.json`、`.pre-commit-config.yaml` 和 CI。不得另写一套代码
