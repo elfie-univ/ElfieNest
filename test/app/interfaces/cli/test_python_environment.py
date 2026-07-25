@@ -50,3 +50,12 @@ def test_build_backend_is_constrained_to_an_exact_version() -> None:
     # Then
     assert exact_build_backend in pyproject
     assert exact_build_constraint in pyproject
+
+
+def test_setuptools_metadata_is_written_under_build_directory() -> None:
+    # Given
+    setup_config = (PROJECT_ROOT / "setup.cfg").read_text(encoding="utf-8")
+
+    # Then
+    assert "[egg_info]" in setup_config
+    assert "egg_base = build/metadata" in setup_config
