@@ -210,7 +210,7 @@ def start_desktop_application() -> ServiceLifecycleResult:
 def _web_is_healthy(port: int = 8000) -> bool:
     health_url = f"http://127.0.0.1:{port}/api/health"
     try:
-        with urllib.request.urlopen(health_url, timeout=0.5) as response:
+        with urllib.request.urlopen(health_url, timeout=2.0) as response:
             return response.status == 200
     except (OSError, TimeoutError, urllib.error.URLError):
         return False

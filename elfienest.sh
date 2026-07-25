@@ -1,73 +1,53 @@
 #!/bin/bash
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
-PYTHON_VERSION_FILE="$SCRIPT_DIR/.python-version"
-RUNTIME_DEPENDENCY_CHECK='import fastapi, httpx, multipart, pydantic, rich, uvicorn, websockets, yaml'
 
-if [ ! -f "$PYTHON_VERSION_FILE" ]; then
-    echo "  ❌ 缺少 Python 版本文件: $PYTHON_VERSION_FILE" >&2
-    exit 1
-fi
+# ============================================================================
+# 运行模式探测（基于 Electron supervisor_config.ts:55-60 的判定）
+# ============================================================================
 
-PINNED_PYTHON_VERSION="$(tr -d '[:space:]' < "$PYTHON_VERSION_FILE")"
-if [[ ! "$PINNED_PYTHON_VERSION" =~ ^3\.9\.[0-9]+$ ]]; then
-    echo "  ❌ .python-version 必须固定到 Python 3.9 的完整补丁版本。" >&2
-    exit 1
-fi
+detect_runtime_mode() {
+    local script_dir="$1"
 
-python_has_runtime_dependencies() {
-    python_is_pinned_version "$1" || return 1
-    "$1" -c "$RUNTIME_DEPENDENCY_CHECK" >/dev/null 2>&1
-}
-
-python_is_pinned_version() {
-    "$1" -c 'import platform, sys; ok = sys.implementation.name == "cpython" and platform.python_version() == sys.argv[1]; raise SystemExit(0 if ok else 1)' "$PINNED_PYTHON_VERSION" >/dev/null 2>&1
-}
-
-repair_project_venv() {
-    if [ "${ELFIENEST_SKIP_AUTO_REPAIR:-${ELFIE_SKIP_AUTO_REPAIR:-}}" = "1" ]; then
-        return 1
-    fi
-    if [ ! -x "$SCRIPT_DIR/install.sh" ]; then
-        return 1
-    fi
-
-    echo "  🔧 检测到 .venv 缺失、版本不匹配或依赖不完整，正在自动修复..." >&2
-    if ! ELFIENEST_SKIP_AUTO_REPAIR=1 "$SCRIPT_DIR/install.sh" --env-only >&2; then
-        echo "  ❌ 自动修复失败，请重新运行: $SCRIPT_DIR/install.sh" >&2
-        return 1
-    fi
-    echo "" >&2
-}
-
-select_python() {
-    local venv_python="$SCRIPT_DIR/.venv/bin/python3"
-
-    if [ -x "$venv_python" ] && python_has_runtime_dependencies "$venv_python"; then
-        echo "$venv_python"
+    # 安装目录标志：存在 resources/python-core/ 或 manifest.json
+    if [ -d "$script_dir/resources/python-core" ] || [ -f "$script_dir/manifest.json" ]; then
+        echo "production"
         return
     fi
 
-    repair_project_venv
-    if python_has_runtime_dependencies "$venv_python"; then
-        echo "$venv_python"
+    # 源码树标志：存在 pyproject.toml 或 scripts/serve.py
+    if [ -f "$script_dir/pyproject.toml" ] || [ -f "$script_dir/scripts/serve.py" ]; then
+        echo "development"
         return
     fi
 
-    if [ ! -x "$venv_python" ]; then
-        echo "  ❌ 项目运行环境不可用：缺少 .venv 中的 CPython $PINNED_PYTHON_VERSION。" >&2
-    elif ! python_is_pinned_version "$venv_python"; then
-        echo "  ❌ 项目运行环境不可用：.venv 解释器版本错误；必须使用 CPython $PINNED_PYTHON_VERSION。" >&2
-    else
-        echo "  ❌ 项目运行环境不可用：解释器版本正确，但运行依赖缺失或不完整。" >&2
-    fi
-    echo "  💡 请按锁文件修复环境: $SCRIPT_DIR/install.sh --env-only" >&2
-    return 1
+    echo "unknown"
 }
 
-if ! PYTHON_BIN="$(select_python)"; then
-    exit 1
-fi
+MODE="$(detect_runtime_mode "$SCRIPT_DIR")"
+
+case "$MODE" in
+    production)
+        # 生产模式：直接调 Python Core（依赖已打包）
+        exec "$SCRIPT_DIR/resources/python-core/ElfieNestCore" "$@"
+        ;;
+    development)
+        # 开发模式：先装依赖（不管后面有没有命令）
+        if ! "$SCRIPT_DIR/scripts/bootstrap.sh" ensure --tier=dev; then
+            echo "  ❌ 依赖检查失败，请按提示修复" >&2
+            exit 1
+        fi
+        ;;
+    unknown)
+        echo "❌ 无法识别运行模式：既不是源码树也不是安装目录" >&2
+        exit 1
+        ;;
+esac
+
+# ============================================================================
+# 开发模式：命令分发与交互菜单（从原 elfienest.sh 迁移）
+# ============================================================================
+
+PYTHON_BIN="$SCRIPT_DIR/.venv/bin/python3"
 
 show_logo() {
     clear
@@ -76,7 +56,7 @@ show_logo() {
     RESET=$'\e[0m'
     echo ""
     echo "${CYAN}███████╗██╗     ███████╗██╗███████╗     ${YELLOW}███╗   ██╗███████╗███████╗████████╗${RESET}"
-    echo "${CYAN}██╔════╝██║     ██╔════╝██║██╔════╝     ${YELLOW}████╗  ██║██╔════╝██╔════╝╚══██╔══╝${RESET}"
+    echo "${CYAN}██╔════╝██║     ██╔════╝██║██╔════╝     ${YELLOW}████╗  ██║██╔════╝██╔════╝╚══██╔╝${RESET}"
     echo "${CYAN}█████╗  ██║     █████╗  ██║█████╗       ${YELLOW}██╔██╗ ██║█████╗  ███████╗   ██║   ${RESET}"
     echo "${CYAN}██╔══╝  ██║     ██╔══╝  ██║██╔══╝       ${YELLOW}██║╚██╗██║██╔══╝  ╚════██║   ██║   ${RESET}"
     echo "${CYAN}███████╗███████╗██║     ██║███████╗     ${YELLOW}██║ ╚████║███████╗███████║   ██║   ${RESET}"

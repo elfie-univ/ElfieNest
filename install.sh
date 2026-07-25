@@ -18,25 +18,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
 PYTHON_VERSION_FILE="$PROJECT_ROOT/.python-version"
 INSTALL_HELPERS="$PROJECT_ROOT/scripts/elfienest_install_helpers.sh"
-RUNTIME_DEPENDENCY_CHECK='import fastapi, httpx, multipart, pydantic, rich, uvicorn, websockets, yaml'
 COMMAND_NAME="elfienest"
 UNINSTALL_COMMAND_NAME="uninstall-elfienest"
-ENVIRONMENT_ONLY=false
 INSTALL_LOG_PATH=""
 STAGED_WRAPPER=""
 STAGED_UNINSTALLER=""
 
-case "${1:-}" in
-    "") ;;
-    --env-only) ENVIRONMENT_ONLY=true ;;
-    *)
-        echo "❌ 未知安装参数: $1" >&2
-        echo "   用法: ./install.sh [--env-only]" >&2
-        exit 2
-        ;;
-esac
-if [ "$#" -gt 1 ]; then
-    echo "❌ 安装脚本最多接受一个参数" >&2
+if [ "$#" -gt 0 ]; then
+    echo "❌ 安装脚本不接受参数" >&2
+    echo "   用法: ./install.sh" >&2
     exit 2
 fi
 
@@ -78,74 +68,6 @@ read_pinned_python_version() {
 }
 
 PYTHON_VERSION="$(read_pinned_python_version)"
-
-python_is_pinned_version() {
-    "$1" -c 'import platform, sys; ok = sys.implementation.name == "cpython" and platform.python_version() == sys.argv[1]; raise SystemExit(0 if ok else 1)' "$PYTHON_VERSION" >/dev/null 2>&1
-}
-
-python_has_runtime_dependencies() {
-    python_is_pinned_version "$1" || return 1
-    "$1" -c "$RUNTIME_DEPENDENCY_CHECK" >/dev/null 2>&1
-}
-
-resolve_custom_python() {
-    local candidate="$1"
-    local resolved
-
-    resolved="$(command -v "$candidate" 2>/dev/null || true)"
-    [ -n "$resolved" ] || resolved="$candidate"
-    if [ ! -x "$resolved" ] || ! python_is_pinned_version "$resolved"; then
-        echo "❌ ELFIENEST_PYTHON 必须指向 CPython $PYTHON_VERSION 可执行文件" >&2
-        return 1
-    fi
-    printf '%s\n' "$resolved"
-}
-
-ensure_project_venv() {
-    local python_request
-    local uv_bin
-    local venv_python="$PROJECT_ROOT/.venv/bin/python3"
-
-    uv_bin="$(command -v uv 2>/dev/null || true)"
-    if [ -z "$uv_bin" ]; then
-        echo "❌ 未找到 uv，无法创建锁定的 CPython $PYTHON_VERSION 环境"
-        echo "   macOS: brew install uv"
-        echo "   其他平台: https://docs.astral.sh/uv/getting-started/installation/"
-        return 1
-    fi
-
-    if [ -n "${ELFIENEST_PYTHON:-}" ]; then
-        python_request="$(resolve_custom_python "$ELFIENEST_PYTHON")"
-    else
-        python_request="$PYTHON_VERSION"
-        echo "🐍 正在准备 CPython $PYTHON_VERSION..."
-        if ! "$uv_bin" python install "$PYTHON_VERSION" >> "$INSTALL_LOG_PATH" 2>&1; then
-            echo "❌ CPython $PYTHON_VERSION 安装失败，最近日志:"
-            tail -40 "$INSTALL_LOG_PATH" || true
-            return 1
-        fi
-    fi
-
-    echo "📦 正在按 uv.lock 同步项目依赖..."
-    echo "   详情日志: $INSTALL_LOG_PATH"
-    if ! UV_PROJECT_ENVIRONMENT="$PROJECT_ROOT/.venv" "$uv_bin" sync --locked --no-dev --python "$python_request" >> "$INSTALL_LOG_PATH" 2>&1; then
-        echo "❌ 锁定环境同步失败，最近日志:"
-        tail -40 "$INSTALL_LOG_PATH" || true
-        return 1
-    fi
-
-    if ! python_has_runtime_dependencies "$venv_python"; then
-        echo "❌ 同步后的环境不满足 CPython $PYTHON_VERSION 或运行依赖要求"
-        return 1
-    fi
-    echo "✅ CPython $PYTHON_VERSION 与锁定依赖已就绪"
-}
-
-if [ "$ENVIRONMENT_ONLY" = true ]; then
-    ensure_project_venv
-    echo "🎉 项目环境配置完成！"
-    exit 0
-fi
 
 echo "📦 安装模式: 用户安装"
 INSTALL_DIR="$(choose_user_install_dir)"
@@ -190,7 +112,11 @@ if [ -e "$INSTALLED_UNINSTALLER" ] || [ -L "$INSTALLED_UNINSTALLER" ]; then
     fi
 fi
 
-ensure_project_venv
+# 调用 bootstrap.sh 准备所有运行时依赖
+if ! "$SCRIPT_DIR/scripts/bootstrap.sh" ensure --tier=prod; then
+    echo "❌ 运行时依赖准备失败" >&2
+    exit 1
+fi
 
 if ! configure_user_path "$INSTALL_DIR"; then
     echo "❌ PATH 配置失败，ElfieNest 未修改任何命令入口。" >&2

@@ -7,12 +7,47 @@
 
 | 文件 | 分类 | 说明 |
 | --- | --- | --- |
+| `bootstrap.sh` | 依赖编排 | 统一检测和安装所有依赖（Python、Node、前端、Godot web、Ollama、Electron） |
 | `elfienest.py` | CLI 分发 | 被 `./elfienest.sh` 调用，分发配置、服务生命周期、Owner、数据库、迁移等命令 |
 | `serve.py` | 前台服务 | 启动 FastAPI、引擎和 WebSocket；由 `serve` 或后台生命周期命令调用 |
 | `build_godot_web.py` | 构建 | 导出并校验 Godot Web Runtime，正式输出到 `build/components/godot-web/` |
+| `release.py` | 发布构建 | 组装 staging 资源并调用 electron-builder |
 | `check_quality_baseline.py` | 质量门 | 比较 Ruff、Ruff format、MyPy 当前诊断与受控历史基线 |
 | `elfienest_install_helpers.sh` | Shell 库 | 供 `install.sh` 校验用户级安装目录和 PATH，不能独立执行 |
 | `__init__.py` | 包标记 | 允许架构测试导入脚本中的可测试函数，不是命令入口 |
+
+### bootstrap.sh 用法
+
+`bootstrap.sh` 是统一的依赖编排器，支持两种模式：
+
+- `dev`：贡献者模式，包含 Python dev + 前端 + Godot web + Ollama + Electron dev deps
+- `prod`：使用者模式，包含 Python runtime + 前端产物 + Godot web 产物 + Ollama
+
+```bash
+# 检查依赖状态
+./scripts/bootstrap.sh check --tier=dev
+
+# 补齐缺失依赖
+./scripts/bootstrap.sh ensure --tier=dev
+
+# 输出 JSON 格式报告（供 CI 使用）
+./scripts/bootstrap.sh report --tier=prod
+```
+
+### release.py 用法
+
+`release.py` 用于打包发布，组装 staging 资源并调用 electron-builder：
+
+```bash
+# 打包 macOS ARM64
+python scripts/release.py --target darwin-arm64
+
+# 打包 Windows x64
+python scripts/release.py --target win32-x64
+
+# 只组装 staging，不打包
+python scripts/release.py --target darwin-arm64 --skip-package
+```
 
 正常使用示例：
 

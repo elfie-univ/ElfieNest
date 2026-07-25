@@ -32,20 +32,37 @@ AI 精灵项目，仓库同时包含 Python Core、Electron 桌面宿主、Godot
 
 ## 环境、启动与验证
 
-Python 固定为 CPython 3.9.25，依赖以 `uv.lock` 为准：
+Python 固定为 CPython 3.9.25，依赖以 `uv.lock` 为准。前端使用 Node.js 20+ 和 pnpm。
+所有依赖由 `scripts/bootstrap.sh` 统一编排，分两种模式：
+
+- **dev（贡献者）**：Python dev + 前端 + Godot web + Ollama + Electron dev deps
+- **prod（使用者）**：Python runtime + 前端产物 + Godot web 产物 + Ollama
+
+### 开发者快速启动
 
 ```bash
-./install.sh
-./elfienest.sh version
-.venv/bin/python main.py
+./elfienest.sh              # 自动检测并补齐依赖，进入交互菜单
+./elfienest.sh serve        # 自动检测并补齐依赖，前台运行服务
+./elfienest.sh start        # 自动检测并补齐依赖，后台启动服务
 ```
 
-首次准备开发环境和运行测试：
+首次运行会自动安装所有依赖（Python、前端、Ollama）。后续运行会跳过已安装的依赖。
+
+### 手动依赖管理
 
 ```bash
-uv sync --locked --extra dev
-UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/
+./scripts/bootstrap.sh check --tier=dev     # 检查依赖状态
+./scripts/bootstrap.sh ensure --tier=dev    # 补齐缺失依赖
+./scripts/bootstrap.sh report --tier=dev    # 输出 JSON 格式报告
 ```
+
+### 用户安装
+
+```bash
+./install.sh                # 完整安装应用 + 全局命令
+```
+
+安装后可全局运行 `elfienest` 命令。
 
 ### Python 运行时不可变契约
 

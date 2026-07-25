@@ -12,31 +12,53 @@
 
 ## 开发环境
 
-Python 环境固定为 CPython 3.9.25，依赖以 `uv.lock` 为准：
+ElfieNest 使用 `scripts/bootstrap.sh` 统一管理所有依赖，分两种模式：
+
+- **dev（贡献者）**：Python dev + 前端 + Godot web + Ollama + Electron dev deps
+- **prod（使用者）**：Python runtime + 前端产物 + Godot web 产物 + Ollama
+
+### 快速启动
 
 ```bash
-uv sync --locked --extra dev
-uv run --no-sync pytest test/architecture/
+./elfienest.sh              # 自动检测并补齐依赖，进入交互菜单
 ```
 
-除非负责人明确批准一次全仓 Python 升级，不得修改 `.python-version`、
+首次运行会自动安装所有依赖。后续运行会跳过已安装的依赖。
+
+### 手动依赖管理
+
+```bash
+# 检查依赖状态
+./scripts/bootstrap.sh check --tier=dev
+
+# 补齐缺失依赖
+./scripts/bootstrap.sh ensure --tier=dev
+```
+
+### Python 环境契约
 `requires-python`、锁文件、CI 或启动脚本中的 3.9.25 契约。所有安装、开发、测试、
-代码审查与脚本均通过 `uv` 和仓库 `.venv/bin/python3` 运行；不要调用系统
-`python`/`python3`、复用其他虚拟环境或设置 `ELFIENEST_PYTHON` 覆盖入口。环境缺失、
-损坏或版本错误时，只运行：
+代码审查与脚本均通过 `scripts/bootstrap.sh` 和仓库 `.venv/bin/python3` 运行；
+不要调用系统 `python`/`python3`、复用其他虚拟环境或设置 `ELFIENEST_PYTHON` 覆盖入口。
+
+### 前端开发
+
+前端使用 Node.js 20+ 和 pnpm：
 
 ```bash
-./install.sh --env-only
+cd app/interfaces/web/frontend
+pnpm install --frozen-lockfile
+pnpm build       # 构建到 build/web/
+pnpm test        # 运行前端测试
 ```
 
-`uv run --no-sync` 是已同步锁定环境的快速执行方式，不会替你选择或安装 Python。
+### 文档站
 
 文档站使用 Node.js 20 和 pnpm 10.12.1：
 
 ```bash
 cd docs
-npx --yes pnpm@10.12.1 install --frozen-lockfile
-npx --yes pnpm@10.12.1 build
+pnpm install --frozen-lockfile
+pnpm build
 ```
 
 不要手工改写锁文件。只有依赖确实改变时，才更新相应锁文件并在 PR 中解释原因。
