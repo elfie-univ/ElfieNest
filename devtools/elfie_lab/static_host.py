@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 from starlette.types import Scope
@@ -15,6 +16,13 @@ class NoStoreStaticFiles(StaticFiles):
         response = await super().get_response(path, scope)
         response.headers["Cache-Control"] = "no-store"
         return response
+
+
+def no_store_file_response(path: Path) -> FileResponse:
+    """Return an HTML shell response that cannot be reused after a Lab restart."""
+    response = FileResponse(path)
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 def mount_static_surfaces(app: FastAPI) -> Path:

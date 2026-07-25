@@ -15,4 +15,9 @@ if [[ "${1:-}" == "build-godot-web" ]]; then
   shift
   exec "$PYTHON_BIN" scripts/build_godot_web.py "$@"
 fi
+case "${1:-}" in
+  elfie-lab|nest-lab)
+    "$PYTHON_BIN" scripts/build_godot_web.py --ensure
+    ;;
+esac
 exec "$PYTHON_BIN" -m devtools "$@"

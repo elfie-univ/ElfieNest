@@ -13,11 +13,17 @@
 | 工具 | 入口 | 关注点 |
 | --- | --- | --- |
 | Elfie Lab | `./developer.sh elfie-lab` | 单只精灵的档案、感知、决策和回合 |
-| Nest Lab | `./developer.sh nest-lab` | 巢、环境时间、房间语义和事件传播 |
+| Nest Lab | `./developer.sh nest-lab` | 固定房间、临时角色、Godot 事件与语义移动 |
 | Runtime Lab | `./developer.sh runtime-lab` | Provider、模型、粮食、工具和安全 |
 
-它们可以复用视觉变量和底层库，但不能依赖普通用户鉴权、Godot 正式产品入口或生产
-数据才能启动。
+它们可以复用底层库和同一份 Godot Web Runtime，但不能依赖普通用户鉴权、
+`ElfieNestEngine` 或生产数据才能启动。启动 Elfie Lab 或 Nest Lab 时会自动检查该
+Runtime；只有缺失或 Godot 源码发生变化时才重新导出。
+
+Nest Lab 在浏览器中嵌入已导出的固定房间。开发者可修改床位数、添加狐狸/小狗、开启
+Python 定时选择语义锚点的随机游走，或暂停、继续、重置实验。Godot 负责几何、渲染、
+路径与碰撞；Lab 只发送 v2 语义命令并记录 Runtime 事实。两种 Lab 都使用与正式桌面
+运行相同的 Godot Web 导出物；只是各自提供隔离的网页外壳、数据根和本地协议入口。
 
 ## 数据根
 

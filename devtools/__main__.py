@@ -6,6 +6,7 @@ import argparse
 import sys
 import webbrowser
 from pathlib import Path
+from secrets import token_urlsafe
 
 import uvicorn
 
@@ -22,10 +23,12 @@ def _parser() -> argparse.ArgumentParser:
             subparser.add_argument("runtime_args", nargs=argparse.REMAINDER)
             continue
         if tool.default_port is not None:
-            host_type = loopback_host if tool.name == "elfie-lab" else str
+            host_type = loopback_host
             subparser.add_argument("--host", default="127.0.0.1", type=host_type)
             subparser.add_argument("--port", default=tool.default_port, type=int)
             subparser.add_argument("--data-dir", default=None)
+            if tool.name == "nest-lab":
+                subparser.add_argument("--godot-ws-port", default=None, type=int)
     return parser
 
 
@@ -43,7 +46,18 @@ def _run_nest_lab(args: argparse.Namespace) -> int:
 
     tool = resolve_tool("nest-lab")
     data_dir = Path(args.data_dir) if args.data_dir else tool.data_root
-    uvicorn.run(create_app(data_dir), host=args.host, port=args.port)
+    godot_ws_port = args.godot_ws_port or args.port + 1
+    browser_url = _browser_url(args.host, args.port)
+    uvicorn.run(
+        create_app(
+            data_dir,
+            http_port=args.port,
+            godot_ws_port=godot_ws_port,
+            on_ready=lambda: webbrowser.open(browser_url),
+        ),
+        host=args.host,
+        port=args.port,
+    )
     return 0
 
 
@@ -52,7 +66,7 @@ def _run_elfie_lab(args: argparse.Namespace) -> int:
 
     tool = resolve_tool("elfie-lab")
     data_dir = Path(args.data_dir) if args.data_dir else tool.data_root
-    browser_url = f"http://{args.host}:{args.port}/"
+    browser_url = _browser_url(args.host, args.port)
 
     def open_browser() -> None:
         webbrowser.open(browser_url)
@@ -63,6 +77,11 @@ def _run_elfie_lab(args: argparse.Namespace) -> int:
         port=args.port,
     )
     return 0
+
+
+def _browser_url(host: str, port: int) -> str:
+    """Use a new local URL for each launch so old Lab shells cannot be reused."""
+    return f"http://{host}:{port}/?run={token_urlsafe(12)}"
 
 
 def main(argv: list[str] | None = None) -> int:

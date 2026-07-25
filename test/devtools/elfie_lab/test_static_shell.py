@@ -10,6 +10,7 @@ def test_static_shell_has_three_columns_without_top_navigation(tmp_path, client_
     response = client.get("/")
 
     assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
     assert 'class="elfie-panel"' in response.text
     assert 'class="timeline-panel"' in response.text
     assert 'class="detail-panel"' in response.text

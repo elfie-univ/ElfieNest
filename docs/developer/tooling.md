@@ -77,12 +77,14 @@ Owner 恢复只在本机终端提供；密码通过隐藏输入填写，不应�
 Godot 源项目当前声明 4.7。构建机必须使用同版本 Godot 和 Web Export Templates：
 
 ```bash
-GODOT_BIN=/path/to/godot4.7 ./developer.sh build-godot-web
 ./developer.sh build-godot-web --check
 ```
 
 正式输出位于 `build/components/godot-web/`，不会提交 Git。具体环境、产物和
-打包流程见独立 Godot 源工程内的 `godot_project/WEB_EXPORT.md`。
+打包流程见独立 Godot 源工程内的 `godot_project/WEB_EXPORT.md`。日常启动
+`./developer.sh elfie-lab` 或 `./developer.sh nest-lab` 不需要先执行此命令：入口会按
+Godot 源码摘要自动复用或重新导出；`--godot` / `GODOT_BIN` 仅用于自动发现失败或多版本
+构建机的显式覆盖。
 
 ## Developer Tools
 
@@ -91,12 +93,13 @@ GODOT_BIN=/path/to/godot4.7 ./developer.sh build-godot-web
 ```bash
 ./developer.sh --help
 ./developer.sh elfie-lab --data-dir /tmp/elfienest-elfie-lab
-./developer.sh nest-lab --data-dir /tmp/elfienest-nest-lab
+./developer.sh nest-lab --data-dir /tmp/elfienest-nest-lab --godot-ws-port 8891
 ./developer.sh runtime-lab --config-dir /tmp/elfienest-runtime-lab show
 ```
 
 - Elfie Lab 默认监听 `127.0.0.1:8877`；
-- Nest Lab 默认监听 `127.0.0.1:8890`；
+- Nest Lab 默认监听 HTTP `127.0.0.1:8890` 和 Godot WebSocket `127.0.0.1:8891`，
+  启动后会自动打开实验网页；
 - Runtime Lab 是命令行工具，没有监听端口。
 
 端口只是本地默认值，不是生产保证。`runtime-lab test` 和 `runtime-lab chat`

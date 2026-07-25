@@ -90,6 +90,24 @@ def test_runtime_source_declares_protocol_v2_manifest_contract() -> None:
     assert "func apply_world_config(config: Dictionary) -> Dictionary:" in nest_text
 
 
+def test_web_runtime_accepts_a_loopback_websocket_url_from_its_query() -> None:
+    main_text = (GODOT_ROOT / "main.gd").read_text(encoding="utf-8")
+
+    assert "func _resolve_runtime_ws_url() -> String:" in main_text
+    assert '_query_parameter("ws")' in main_text
+    assert 'hostname not in ["127.0.0.1", "localhost"]' in main_text
+    assert 'normalized.find("@")' in main_text
+    assert "port.is_valid_int()" in main_text
+
+
+def test_nest_lab_web_mode_disables_production_camera_streaming() -> None:
+    main_text = (GODOT_ROOT / "main.gd").read_text(encoding="utf-8")
+
+    assert '_query_parameter("mode") == "nest_lab"' in main_text
+    assert "func _disable_camera_stream() -> void:" in main_text
+    assert "if _nest_lab_mode:" in main_text
+
+
 def test_runtime_manifest_is_semantic_and_does_not_export_coordinates() -> None:
     nest_text = (GODOT_ROOT / "rooms" / "nest.gd").read_text(encoding="utf-8")
     manifest_section = nest_text.split("func scene_manifest()", maxsplit=1)[1]

@@ -16,7 +16,7 @@ from typing import Final
 _ELFIE_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^elfie_[A-Za-z0-9_-]+$")
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class InvalidElfieIdError(ValueError):
     """精灵工作区 ID 不可安全映射到目录。"""
 

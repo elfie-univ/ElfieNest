@@ -7,8 +7,21 @@
 
 ## Nest Lab
 
-用于验证巢内状态、环境时钟、互动传播和 Godot 语义边界。它不创建完整 Elfie，
-也不复制 Godot 房屋几何。
+用于验证固定房间中的巢内状态、角色入巢、Godot 语义边界和运行时事件。启动后会自动
+打开本机网页：中央预览的是导出的 Godot 房间；右侧可调整床位、添加狐狸或小狗、开启
+Python 驱动的随机游走，并暂停、继续或重置实验。事件时间线会显示世界配置、角色同步、
+移动终态、碰撞和其他 Runtime 事实。
+
+房屋几何、渲染、寻路和碰撞始终由 Godot 执行；Lab 不在 Python 复制坐标或物理规则。
+随机游走只是 Python 每两秒选择一个语义锚点并发送既有 v2 移动命令，不是角色自主大脑。
+直接启动即可；脚本会自动复用当前导出物，或在缺失、Godot 源码变化时用项目声明的 Godot
+版本重新导出：
+
+```bash
+./developer.sh nest-lab --data-dir /tmp/elfienest-nest-lab --port 8890
+```
+
+它不会悄悄启动正式产品引擎；Lab 仅启动隔离的 Godot Web Runtime 和对应的本地网关。
 
 ## Runtime Lab
 
@@ -19,7 +32,7 @@
 
 ```bash
 ./developer.sh elfie-lab --data-dir /tmp/elfienest-elfie-lab --port 8877
-./developer.sh nest-lab --data-dir /tmp/elfienest-nest-lab --port 8890
+./developer.sh nest-lab --data-dir /tmp/elfienest-nest-lab --port 8890 --godot-ws-port 8891
 ./developer.sh runtime-lab --config-dir /tmp/elfienest-runtime-lab show
 ```
 

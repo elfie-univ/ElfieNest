@@ -29,6 +29,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--check", action="store_true", help="只检查现有产物")
     parser.add_argument(
+        "--ensure",
+        action="store_true",
+        help="仅在 Web Runtime 缺失或 Godot 源码变化时重新导出",
+    )
+    parser.add_argument(
         "--allow-version-mismatch",
         action="store_true",
         help="允许 Godot 与项目版本不同（不建议用于发布）",
@@ -41,6 +46,9 @@ def main() -> int:
     output = args.output.expanduser().resolve()
     if args.check:
         return _print_bundle_check(output)
+    if args.ensure and bundle_is_current(output, GODOT_PROJECT):
+        print(f"✅ Godot Web Runtime 已是最新: {output / ENTRY_NAME}")
+        return 0
 
     binary = _find_godot(args.godot)
     if binary is None:
@@ -88,7 +96,7 @@ def main() -> int:
         print("❌ 导出命令完成，但产物不完整: " + ", ".join(missing))
         return 1
 
-    _write_manifest(staging, actual_version or "unknown")
+    _write_manifest(staging, actual_version or "unknown", source_digest(GODOT_PROJECT))
     shutil.rmtree(previous, ignore_errors=True)
     if output.exists():
         output.replace(previous)
@@ -118,7 +126,45 @@ def _missing_artifacts(directory: Path) -> List[str]:
     return [suffix for suffix in REQUIRED_SUFFIXES if suffix not in suffixes]
 
 
-def _write_manifest(directory: Path, godot_version: str) -> None:
+def bundle_is_current(output: Path, project: Path) -> bool:
+    """Whether an existing export exactly matches the tracked Godot sources."""
+    if _missing_artifacts(output) or not (output / "build-manifest.json").is_file():
+        return False
+    try:
+        manifest = json.loads((output / "build-manifest.json").read_text("utf-8"))
+    except json.JSONDecodeError:
+        return False
+    return isinstance(manifest, dict) and manifest.get(
+        "source_digest"
+    ) == source_digest(project)
+
+
+def source_digest(project: Path) -> str:
+    """Hash export-relevant project files while ignoring regenerable Godot metadata."""
+    digest = hashlib.sha256()
+    for path in sorted(project.rglob("*")):
+        if not path.is_file() or _is_generated_godot_file(path, project):
+            continue
+        relative_path = path.relative_to(project).as_posix().encode("utf-8")
+        digest.update(relative_path)
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def _is_generated_godot_file(path: Path, project: Path) -> bool:
+    relative_path = path.relative_to(project)
+    return (
+        ".godot" in relative_path.parts
+        or path.name.endswith(".import")
+        or path.name.endswith(".uid")
+    )
+
+
+def _write_manifest(
+    directory: Path, godot_version: str, source_digest_value: str
+) -> None:
     files: Dict[str, Dict[str, object]] = {}
     for path in sorted(item for item in directory.iterdir() if item.is_file()):
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -127,6 +173,7 @@ def _write_manifest(directory: Path, godot_version: str) -> None:
         "schema_version": 1,
         "godot_version": godot_version,
         "preset": PRESET_NAME,
+        "source_digest": source_digest_value,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "entry": ENTRY_NAME,
         "files": files,
