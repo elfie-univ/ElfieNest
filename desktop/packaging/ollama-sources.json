@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "sources": [
+    {
+      "target": "darwin-arm64",
+      "version": "0.32.3",
+      "url": "https://github.com/ollama/ollama/releases/download/v0.32.3/ollama-darwin.tgz",
+      "filename": "ollama-darwin.tgz",
+      "sha256": "14462bd438815eb2c1d4c61224744637131ab744e858a2e2562e7fc7fc2c4f7d",
+      "license_notice": "desktop/packaging/third_party/ollama/LICENSE"
+    },
+    {
+      "target": "darwin-x64",
+      "version": "0.32.3",
+      "url": "https://github.com/ollama/ollama/releases/download/v0.32.3/ollama-darwin.tgz",
+      "filename": "ollama-darwin.tgz",
+      "sha256": "14462bd438815eb2c1d4c61224744637131ab744e858a2e2562e7fc7fc2c4f7d",
+      "license_notice": "desktop/packaging/third_party/ollama/LICENSE"
+    },
+    {
+      "target": "win32-x64",
+      "version": "0.32.3",
+      "url": "https://github.com/ollama/ollama/releases/download/v0.32.3/ollama-windows-amd64.zip",
+      "filename": "ollama-windows-amd64.zip",
+      "sha256": "c66dd7dde4d5ec4822eaa57dd421d51aa7c633a3ff36a974040837df73a5969e",
+      "license_notice": "desktop/packaging/third_party/ollama/LICENSE"
+    },
+    {
+      "target": "linux-x64",
+      "version": "0.32.3",
+      "url": "https://github.com/ollama/ollama/releases/download/v0.32.3/ollama-linux-amd64.tar.zst",
+      "filename": "ollama-linux-amd64.tar.zst",
+      "sha256": "2597d74fbe654ef6a37db56f771cf37d4a85c6bde4018127874e3927d3113800",
+      "license_notice": "desktop/packaging/third_party/ollama/LICENSE"
+    }
+  ]
+}

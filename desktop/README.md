@@ -44,6 +44,10 @@ Ollama。任一组件启动失败都会停止已经启动的组件，并显示�
 `src/resources/resource_manifest.ts` 会记录文件大小和 SHA-256，并拒绝缺失资源。完整 staging 约定见
 [`packaging/runtime-resources.md`](packaging/runtime-resources.md)。
 
+内测安装包固定为 `0.1.0`，使用 `ElfieNest-0.1.0-internal-*` 命名，不配置
+publish 或自动更新。macOS 和 Windows 的首次内测包不签名、不公证；测试者必须在
+受控设备上确认系统来源警告，再进行安装、启动、健康检查和退出验收。
+
 ## 开发命令
 
 需要 Node.js 20 和仓库锁定的 pnpm 10.12.1：
@@ -55,7 +59,9 @@ npx --yes pnpm@10.12.1 build
 npx --yes pnpm@10.12.1 test
 ```
 
-准备好一个 target 的 staging 资源后，可生成清单：
+`scripts/assemble_desktop_resources.py` 在组装 staging 时会生成 `manifest.json`。
+Desktop 启动时会在创建任何受管子进程前重新校验该清单；可用原有命令单独重建
+用于诊断的清单：
 
 ```bash
 cd desktop

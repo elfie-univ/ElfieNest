@@ -31,7 +31,7 @@ class ElfieChatHistoryRange(str, Enum):
     TODAY = "today"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ElfieChatPersistenceError(RuntimeError):
     """已提交的精灵聊天消息无法重新读取。"""
 
@@ -41,7 +41,7 @@ class ElfieChatPersistenceError(RuntimeError):
         return f"精灵聊天消息写入后未找到记录: {self.message_id}"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ElfieChatMessageInput:
     """写入精灵聊天历史的不可变消息。"""
 
@@ -56,7 +56,7 @@ class ElfieChatMessageInput:
     attachment_refs: tuple[str, ...] = ()
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ElfieChatMessageRecord:
     """精灵聊天历史中的已持久化消息。"""
 
