@@ -18,6 +18,7 @@ test("desktop opens the login page and resolves the Core at the packaged manifes
 
     assert.equal(config.uiUrl, "http://127.0.0.1:8000/login");
     assert.equal(config.coreExecutable, core);
+    assert.equal(config.ollamaExecutable, join(resources, "ollama", "ollama"));
     assert.equal(config.webBuildDirectory, join(resources, "web"));
     assert.deepEqual(config.coreArgs, []);
     assert.equal(config.coreWorkingDirectory, join(root, "data"));

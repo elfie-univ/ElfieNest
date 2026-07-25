@@ -12,7 +12,7 @@ from app.features.administration.system_service import (
     reset_database,
 )
 
-VERSION = "1.0.0"
+VERSION = "0.1.0"
 
 
 def show_status() -> None:

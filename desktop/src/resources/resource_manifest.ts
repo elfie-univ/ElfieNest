@@ -179,3 +179,48 @@ export function validateResourceManifest(
   }
   return errors;
 }
+
+function parseResourceManifest(text: string): ResourceManifest {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(text) as unknown;
+  } catch {
+    throw new ResourceManifestError("manifest.json", "不是有效 JSON");
+  }
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+    throw new ResourceManifestError("manifest.json", "根节点必须是对象");
+  }
+  const manifest = payload as Partial<ResourceManifest>;
+  if (
+    manifest.schema_version !== 1 ||
+    typeof manifest.application_version !== "string" ||
+    !isResourceTarget(String(manifest.target)) ||
+    typeof manifest.files !== "object" ||
+    manifest.files === null
+  ) {
+    throw new ResourceManifestError("manifest.json", "结构无效");
+  }
+  return manifest as ResourceManifest;
+}
+
+export function loadAndValidateResourceManifest(
+  root: string,
+  applicationVersion: string,
+): ResourceManifest {
+  const manifestPath = join(root, "manifest.json");
+  if (!existsSync(manifestPath)) {
+    throw new ResourceManifestError("manifest.json", "资源清单不存在");
+  }
+  const manifest = parseResourceManifest(readFileSync(manifestPath, "utf8"));
+  if (manifest.application_version !== applicationVersion) {
+    throw new ResourceManifestError(
+      "manifest.json",
+      `应用版本不匹配 expected=${applicationVersion} actual=${manifest.application_version}`,
+    );
+  }
+  const errors = validateResourceManifest(root, manifest);
+  if (errors.length > 0) {
+    throw new ResourceManifestError("manifest.json", errors.join("; "));
+  }
+  return manifest;
+}

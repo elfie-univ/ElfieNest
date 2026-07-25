@@ -51,7 +51,7 @@ export function resolveSupervisorConfig(
     "ELFIENEST_CORE_HEALTH_URL",
     `${uiUrl.replace(/\/$/, "")}/api/health`,
   );
-  const packagedOllama = join(resourcesPath, "ollama", platform, platformExecutable(platform, "ollama"));
+  const packagedOllama = join(resourcesPath, "ollama", platformExecutable(platform, "ollama"));
   const packagedCore = join(
     resourcesPath,
     "python-core",

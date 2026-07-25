@@ -9,7 +9,19 @@ def test_show_version_prints_current_version(capsys: CaptureFixture[str]) -> Non
     runtime_commands.show_version()
 
     output = capsys.readouterr().out
-    assert "ElfieNest v1.0.0" in output
+    assert "ElfieNest v0.1.0" in output
+
+
+def test_show_version_prints_project_release_version(
+    capsys: CaptureFixture[str],
+) -> None:
+    # Given: the configured application release version.
+
+    # When: the version command renders its user-facing output.
+    runtime_commands.show_version()
+
+    # Then: it renders the configured release version.
+    assert "ElfieNest v0.1.0" in capsys.readouterr().out
 
 
 def test_show_status_reports_database_unavailable(

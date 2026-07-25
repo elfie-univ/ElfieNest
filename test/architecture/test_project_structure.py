@@ -178,6 +178,27 @@ def test_python_sources_do_not_import_legacy_packages() -> None:
     assert offenders == []
 
 
+def test_python_39_sources_do_not_use_dataclass_slots() -> None:
+    # Given: the repository's fixed CPython 3.9.25 runtime contract.
+    source_roots = tuple(PROJECT_ROOT / root for root in CURRENT_PYTHON_SOURCE_ROOTS)
+
+    # When: dataclass decorator keyword arguments are inspected.
+    offenders: list[str] = []
+    for source_root in source_roots:
+        for path in source_root.rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for decorator in ast.walk(tree):
+                if not isinstance(decorator, ast.Call):
+                    continue
+                if not isinstance(decorator.func, ast.Name) or decorator.func.id != "dataclass":
+                    continue
+                if any(keyword.arg == "slots" for keyword in decorator.keywords):
+                    offenders.append(path.relative_to(PROJECT_ROOT).as_posix())
+
+    # Then: no Python 3.10-only dataclass slots argument can reach runtime.
+    assert offenders == []
+
+
 def test_nest_python_sources_do_not_import_product_or_godot_source_layers() -> None:
     # Given
     nest_root = PROJECT_ROOT / "nest"

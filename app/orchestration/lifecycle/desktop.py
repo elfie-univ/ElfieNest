@@ -26,6 +26,14 @@ def find_desktop_executable(project_root: Path) -> Optional[Path]:
         [
             project_root / ".elfienest" / "runtime" / "ElfieNestDesktop",
             project_root / "dist" / "ElfieNestDesktop",
+            project_root
+            / "dist"
+            / "ElfieNest.app"
+            / "Contents"
+            / "MacOS"
+            / "ElfieNest",
+            project_root / "dist" / "win-unpacked" / "ElfieNest.exe",
+            project_root / "dist" / "linux-unpacked" / "elfienest",
         ]
     )
     for candidate in candidates:
