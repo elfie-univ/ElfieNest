@@ -4,11 +4,17 @@
   grid-template-columns: var(--panel-left) minmax(520px, 1fr) 0;
 }
 
-.left-closed .elfie-switcher-wrap {
+.lab-shell.left-closed .elfie-switcher-wrap {
   top: auto;
   bottom: 10px;
-  left: 10px;
-  right: 10px;
+  left: 8px;
+  right: auto;
+  width: 56px;
+}
+
+.lab-shell.left-closed .elfie-panel {
+  z-index: 12;
+  overflow: visible;
 }
 
 .left-closed .elfie-menu {
@@ -24,13 +30,43 @@
 .left-closed .compact-switcher-menu {
   display: grid;
   gap: 6px;
+  overflow: visible;
 }
 
 .left-closed .compact-switcher-menu button {
+  position: relative;
   width: 38px;
   height: 38px;
   justify-content: center;
   padding: 0;
+}
+
+.compact-switcher-menu button[data-tooltip]::after {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: calc(100% + 10px);
+  padding: 6px 9px;
+  border: 1px solid var(--border-default);
+  border-radius: 7px;
+  color: var(--text-primary);
+  background: var(--surface-elevated);
+  box-shadow: 0 8px 22px rgba(42, 68, 54, .14);
+  content: attr(data-tooltip);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-4px, -50%);
+  transition: opacity 120ms ease, transform 120ms ease;
+  white-space: nowrap;
+}
+
+.compact-switcher-menu button[data-tooltip]:hover::after,
+.compact-switcher-menu button[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(0, -50%);
 }
 
 .left-closed .compact-switcher-menu .mini-avatar {
@@ -89,33 +125,32 @@
 }
 
 .message-avatar {
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
   display: grid;
   place-items: center;
   overflow: hidden;
   border: 1px solid var(--border-default);
-  border-radius: 11px;
+  border-radius: 12px;
   color: #ffffff;
-  background: var(--accent-primary);
-  font-size: 13px;
+  background: linear-gradient(145deg, #5cb894, #247a5c);
+  font-size: 18px;
   font-weight: 800;
 }
 
 .message-avatar svg {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.6;
+  stroke-width: 2;
 }
 
 .developer-avatar {
-  color: var(--text-secondary);
-  background: var(--surface-elevated);
+  background: linear-gradient(145deg, #6b8cba, #4a6a9e);
 }
 
 .bubble-row.elfie > div {
@@ -181,8 +216,8 @@
 }
 
 .turn-action:hover {
-  border-color: var(--accent-primary);
-  background: var(--accent-soft);
+  border-color: var(--interactive-hover-border);
+  background: var(--interactive-hover);
 }
 
 @media (max-width: 760px) {

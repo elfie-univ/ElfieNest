@@ -1,16 +1,18 @@
 .composer { flex: 0 0 auto; padding: 14px 24px 10px; border-top: 1px solid var(--border-default); background: rgba(255, 255, 255, .98); }
-.composer-row { width: min(900px, 100%); display: flex; align-items: flex-end; gap: 8px; margin: 0 auto; }
-.tool-button, .send-button { height: 42px; border-radius: 10px; cursor: pointer; }
-.tool-button { width: 42px; flex: 0 0 auto; border: 1px solid var(--border-default); background: var(--surface-elevated); color: var(--text-secondary); font-size: 16px; }
-.tool-button.active { color: var(--accent-primary); border-color: #77a592; background: var(--accent-soft); }
-.message-field { flex: 1; min-height: 42px; display: flex; align-items: flex-end; gap: 7px; padding: 8px 10px; border: 1px solid var(--border-default); border-radius: 11px; background: var(--surface-inset); }
+.composer-row { width: min(900px, 100%); margin: 0 auto; }
+.message-field { width: 100%; min-height: 52px; display: flex; flex-direction: column; padding: 12px 14px; border: 1px solid var(--border-default); border-radius: 16px; background: var(--surface-inset); }
 .message-field:focus-within { border-color: #5b927d; }
-.message-field textarea { flex: 1; max-height: 140px; padding: 3px 0; resize: none; border: 0; outline: 0; color: var(--text-primary); background: transparent; line-height: 1.5; }
-.message-field span { margin-bottom: 3px; color: var(--text-tertiary); font-size: 9px; white-space: nowrap; }
-.send-button { min-width: 80px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 13px; border: 0; color: #ffffff; background: var(--accent-primary); font-weight: 750; }
-.send-button:hover:not(:disabled) { background: var(--accent-hover); }
+.message-field-inner { display: flex; align-items: flex-end; gap: 12px; flex: 1; }
+.message-field textarea { flex: 1; max-height: 140px; padding: 3px 0; resize: none; border: 0; outline: 0; color: var(--text-primary); background: transparent; line-height: 1.5; font-size: 15px; }
+.message-field-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-subtle); }
+.message-field-actions { display: flex; align-items: center; gap: 4px; }
+.tool-button { width: 32px; height: 32px; display: grid; place-items: center; padding: 0 0 2px; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--surface-elevated); color: var(--text-tertiary); cursor: pointer; font-size: 20px; line-height: 1; transition: color 120ms ease, border-color 120ms ease, background 120ms ease; }
+.tool-button:hover { color: var(--text-primary); border-color: var(--interactive-hover-border); background: var(--interactive-hover); }
+.tool-button.active { color: var(--accent-primary); border-color: #77a592; background: var(--accent-soft); }
+.send-button { height: 32px; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0 14px; border: 0; border-radius: 8px; color: #ffffff; background: var(--accent-primary); cursor: pointer; font-size: 14px; font-weight: 650; transition: background 120ms ease; }
+.send-button:hover:not(:disabled) { color: var(--accent-primary); background: var(--interactive-hover); }
 .send-button:disabled, .message-field textarea:disabled { opacity: .42; cursor: not-allowed; }
-.send-button b { font-size: 17px; }
+.send-button b { font-size: 16px; }
 .composer-note { width: min(900px, 100%); margin: 7px auto 0; padding-left: 52px; color: var(--text-tertiary); font-size: 9px; }
 .stimulus-drawer { width: min(900px, 100%); margin: 0 auto 10px; padding: 12px; border: 1px solid var(--border-default); border-radius: 11px; background: var(--surface-primary); }
 .stimulus-tabs { display: flex; gap: 2px; margin-bottom: 12px; padding: 3px; border: 1px solid var(--border-subtle); border-radius: 7px; background: var(--surface-inset); }

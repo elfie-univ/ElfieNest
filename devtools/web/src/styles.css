@@ -9,9 +9,9 @@
 body { margin: 0; min-width: 980px; background: radial-gradient(circle at 18% 4%, #24453d 0, transparent 29rem), #101a18; }
 body:has(.nest-console) { color: #dce8e2; color-scheme: dark; background: radial-gradient(circle at 18% 4%, #24453d 0, transparent 29rem), #101a18; }
 button, input { font: inherit; }
-button { border: 1px solid #537b6e; border-radius: .55rem; background: #1b332d; color: inherit; cursor: pointer; padding: .55rem .7rem; }
-button:hover:not(:disabled) { background: #285445; }
-button:disabled { cursor: not-allowed; opacity: .45; }
+.nest-console button { border: 1px solid #537b6e; border-radius: .55rem; background: #1b332d; color: inherit; cursor: pointer; padding: .55rem .7rem; }
+.nest-console button:hover:not(:disabled) { background: #285445; }
+.nest-console button:disabled { cursor: not-allowed; opacity: .45; }
 h1, h2, p { margin-top: 0; }
 h1, h2 { font-family: "Noto Serif CJK SC", "Songti SC", serif; }
 .nest-console { color: #dce8e2; max-width: 1760px; margin: 0 auto; padding: 2rem; }

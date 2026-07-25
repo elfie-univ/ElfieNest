@@ -1,5 +1,5 @@
 from ai_runtime import RuntimeAgent
-from ai_runtime.food.models import ExecutionProfile, FoodRecipe
+from ai_runtime.food.models import FIXED_FOOD_KINDS, ExecutionProfile, FoodRecipe
 from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
 from ai_runtime.gateway.request import RuntimeResult
 from devtools.elfie_lab.app import create_app
@@ -199,7 +199,7 @@ def test_foods_api_returns_food_list(tmp_path, monkeypatch, client_for):
     assert mock_food["credential_ready"] is True
 
 
-def test_default_elfie_lab_offers_mock_food_when_runtime_catalog_is_absent(
+def test_default_elfie_lab_shows_unconfigured_foods_as_disabled_when_catalog_is_absent(
     tmp_path, monkeypatch, client_for
 ):
     # Given
@@ -215,7 +215,13 @@ def test_default_elfie_lab_offers_mock_food_when_runtime_catalog_is_absent(
 
     # Then
     assert response.status_code == 200
-    assert [item["key"] for item in response.json()["items"]] == ["mock"]
+    items = response.json()["items"]
+    assert [item["key"] for item in items] == ["mock", *FIXED_FOOD_KINDS]
+    assert all(
+        not item["ready_for_attempt"]
+        and item["unavailable_reason"] == "粮食目录尚未初始化"
+        for item in items[1:]
+    )
 
 
 def test_uninstalled_ollama_food_is_disabled_with_setup_command(

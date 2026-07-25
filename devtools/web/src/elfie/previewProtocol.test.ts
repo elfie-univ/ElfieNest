@@ -4,6 +4,7 @@ import {
   buildPreviewCommand,
   clampPreviewDelta,
   createPreviewRequestRegistry,
+  orbitButtonDelta,
 } from "./previewProtocol";
 
 describe("Elfie Lab preview protocol", () => {
@@ -11,6 +12,11 @@ describe("Elfie Lab preview protocol", () => {
     expect(clampPreviewDelta(2, 0.35)).toBe(0.35);
     expect(clampPreviewDelta(-2, 0.25)).toBe(-0.25);
     expect(clampPreviewDelta(Number.NaN, 0.5)).toBe(0);
+  });
+
+  it("maps left and right buttons to the matching visible orbit direction", () => {
+    expect(orbitButtonDelta("left")).toEqual({ x: 0.28, y: 0 });
+    expect(orbitButtonDelta("right")).toEqual({ x: -0.28, y: 0 });
   });
 
   it("uses the typed payload envelope expected by the Godot controller", () => {

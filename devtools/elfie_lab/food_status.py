@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import List, TypedDict
 
+from ai_runtime.food.models import FIXED_FOOD_KINDS, FoodKind
 from ai_runtime.food.store import FoodCatalogStore
 from devtools.elfie_lab.runtime_foods import (
     list_installed_ollama_models,
@@ -87,6 +88,8 @@ def build_food_items(
                 "setup_commands": setup_commands,
             }
         )
+    if not foods:
+        foods = [unconfigured_food_item(kind) for kind in FIXED_FOOD_KINDS.values()]
     return [mock_food_item(), *foods]
 
 
@@ -104,6 +107,24 @@ def mock_food_item() -> FoodStatusItem:
         "ready_for_attempt": True,
         "credential_ready": True,
         "unavailable_reason": "",
+        "setup_commands": [],
+    }
+
+
+def unconfigured_food_item(kind: FoodKind) -> FoodStatusItem:
+    """Expose an unavailable fixed food when the Lab catalog has not been initialized."""
+    return {
+        "key": kind.key,
+        "display_name": kind.display_name,
+        "description": kind.description,
+        "model": "",
+        "reasoning": "",
+        "primary_ready": False,
+        "fallback_ready": False,
+        "fallback_models": [],
+        "ready_for_attempt": False,
+        "credential_ready": False,
+        "unavailable_reason": "粮食目录尚未初始化",
         "setup_commands": [],
     }
 

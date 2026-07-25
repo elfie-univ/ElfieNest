@@ -10,6 +10,13 @@ export function clampPreviewDelta(value: number, limit: number): number {
   return Math.max(-limit, Math.min(limit, value));
 }
 
+export function orbitButtonDelta(direction: "left" | "right"): Readonly<{
+  readonly x: number;
+  readonly y: number;
+}> {
+  return { x: direction === "left" ? 0.28 : -0.28, y: 0 };
+}
+
 export function boundedPreviewPayload(
   action: string,
   payload: Readonly<Record<string, unknown>>,
