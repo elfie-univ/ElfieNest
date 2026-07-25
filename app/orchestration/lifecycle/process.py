@@ -185,6 +185,7 @@ def _reject_live_pid_replacement(pid_path: Path, new_pid: int) -> None:
     try:
         os.kill(recorded_pid, 0)
     except ProcessLookupError:
+        pid_path.unlink(missing_ok=True)
         return
     except PermissionError as error:
         raise FileExistsError(f"PID {recorded_pid} 状态不可验证，拒绝覆盖") from error

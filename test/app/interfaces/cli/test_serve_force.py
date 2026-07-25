@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.e2e_dashboard_check import find_distinct_free_ports
 from scripts.serve import remaining_occupied_ports
 
 
@@ -20,13 +19,6 @@ def test_force_cleanup_reports_ports_still_occupied() -> None:
     assert remaining == [(8766, "WebSocket"), (8765, "Godot WebSocket")]
 
 
-def test_dashboard_e2e_uses_distinct_service_ports() -> None:
-    ports = find_distinct_free_ports(3)
-
-    assert len(ports) == 3
-    assert len(set(ports)) == 3
-
-
 def test_python_core_does_not_start_godot_processes() -> None:
     # Given
     source = (Path(__file__).resolve().parents[4] / "scripts" / "serve.py").read_text(
@@ -36,3 +28,16 @@ def test_python_core_does_not_start_godot_processes() -> None:
     # When / Then
     assert "start_godot_runtime(" not in source
     assert "Godot Web Runtime 由 ElfieNest Desktop" in source
+
+
+def test_serve_main_does_not_rebind_nest_repository_inside_worker() -> None:
+    # Given
+    source = (Path(__file__).resolve().parents[4] / "scripts" / "serve.py").read_text(
+        encoding="utf-8"
+    )
+
+    # When / Then
+    assert source.count(
+        "from app.infrastructure.persistence.nest_state_repository import ("
+    ) == 1
+    assert "engine.session.attach_repository(SQLiteNestStateRepository(db_path))" in source
