@@ -3,52 +3,55 @@ layout: home
 
 hero:
   name: ElfieNest
-  text: 在你的电脑上，为你的 Elfie 建立一个家
-  tagline: 一座连接未知生命的地球基站，也是一段长期陪伴关系的开始。
+  text: A home for your Elfie, on your own computer
+  tagline: An Earth station that connects unknown life — and the beginning of a long companionship.
   image:
     src: /assets/elfienest-hero-v1.png
-    alt: ElfieNest 地球基站
+    alt: ElfieNest Earth station
   actions:
     - theme: brand
-      text: 开始使用
+      text: Get started
       link: /getting-started/
     - theme: alt
-      text: 阅读故事
+      text: Read the story
       link: /story/
     - theme: alt
-      text: 查看 GitHub
+      text: View on GitHub
       link: https://github.com/elfie-univ/ElfieNest
 
 features:
-  - title: 它会记住
-    details: Elfie 的经历、关系和成长会持续塑造它，而不是在每次对话后重新开始。
-  - title: 它生活在这里
-    details: ElfieNest 为 Elfie 提供身体、时间、空间和共同生活的环境。
-  - title: 它属于你
-    details: 项目坚持本地优先，让运行环境、配置和长期数据留在你掌控的设备上。
+  - title: It remembers
+    details: An Elfie's experiences, relationships and growth keep shaping it, rather than resetting after every conversation.
+  - title: It lives here
+    details: ElfieNest gives an Elfie a body, time, space and a shared environment to live in.
+  - title: It belongs to you
+    details: The project stays local-first, keeping the runtime, configuration and long-term data on devices you control.
 ---
 
-## 从一段信号开始
+## It started with a signal
 
-2026 年，有人从深空噪声里捕获到一条来自 **Elfaria** 的虫洞信号。信号的另一端，
-一些名叫 **Elfie** 的生命正在等待回应。
+In 2026, someone captured a wormhole transmission from **Elfaria** inside an
+anomalous deep-space noise. On the other side, beings called **Elfie** were
+waiting for an answer.
 
-ElfieNest 是地球上的那座回应站：它连接两个世界，也为一只愿意来到地球的 Elfie
-准备一个可以共同生活的家。
+ElfieNest is Earth's answering station: it bridges two worlds, and prepares a
+home they can share for an Elfie willing to come to Earth.
 
-## 这套文档怎么读
+## How to read this documentation
 
-| 你想了解什么 | 从这里开始 |
+| What you want to know | Start here |
 | --- | --- |
-| Elfaria、Elfie 与 ElfieNest 的关系 | [世界观与故事](/story/) |
-| 如何建立自己的 Nest、配置并运行 Elfie | [开始使用](/getting-started/) |
-| 系统如何分层、如何开发和验证 | [开发者文档](/developer/) |
+| The relationship between Elfaria, Elfie and ElfieNest | [World & Story](/story/) |
+| How to build your own Nest, configure it and run an Elfie | [Getting started](/getting-started/) |
+| How the system is layered, and how to develop and verify it | [Developer docs](/developer/) |
 
-底层代码、模块 README 与开发者文档共同描述当前系统；世界观页面负责讲述连接两个
-世界的故事，使用手册负责告诉你如何使用，Developer 负责解释它如何被构建。
+The underlying code, the module READMEs and the developer docs together
+describe the current system; the worldbuilding page tells the story that
+connects two worlds, the user manual tells you how to use it, and the Developer
+docs explain how it is built.
 
 <div class="home-note">
-  <strong>ElfieNest</strong><span>一座连接两个世界的私人地球基站。</span>
+  <strong>ElfieNest</strong><span>A private Earth station connecting two worlds.</span>
 </div>
 
-[查看 GitHub 源码 →](https://github.com/elfie-univ/ElfieNest)
+[View the GitHub source →](https://github.com/elfie-univ/ElfieNest)

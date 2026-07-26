@@ -1,27 +1,29 @@
-# 运行第一座 Nest
+# Run your first Nest
 
-## 最小运行
+## Minimal run
 
-在仓库根目录执行：
+From the repository root:
 
 ```bash
 .venv/bin/python main.py
 ```
 
-这个入口会准备一个最小 Nest，推进三次环境 tick，让 Elfie 经过一次感知—决策—输出
-流程，然后主动结束本地服务。
+This entry prepares a minimal Nest, advances three environment ticks, walks an
+Elfie through one perception → decision → output flow, and then proactively
+shuts down the local service.
 
-## 你会看到什么
+## What you will see
 
-运行链路包含：
+The run pipeline includes:
 
-1. Nest 推进环境时间；
-2. 身体与通信事件进入感知工作区；
-3. BrainCoordinator 组织一次认知回合；
-4. OutputRouter 将 DecisionPlan 分别路由到身体、通信或内部执行器；
-5. 执行回执回到下一轮感知。
+1. The Nest advances environment time;
+2. Body and communication events enter the perceptual workspace;
+3. The `BrainCoordinator` organizes one cognitive turn;
+4. The `OutputRouter` routes the `DecisionPlan` to body, communication or
+   internal effectors;
+5. Execution receipts flow back into the next round of perception.
 
-## 常用入口
+## Common entry points
 
 ```bash
 ./elfienest.sh serve --fallback
@@ -29,4 +31,5 @@
 ./elfienest.sh stop
 ```
 
-完整命令和 Developer Tools 见[命令参考](/developer/tooling)。
+For the full command set and Developer Tools see
+[Commands & dev tools](/developer/tooling).

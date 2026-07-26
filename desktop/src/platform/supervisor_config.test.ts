@@ -22,6 +22,7 @@ test("desktop opens the login page and resolves the Core at the packaged manifes
     assert.equal(config.webBuildDirectory, join(resources, "web"));
     assert.deepEqual(config.coreArgs, ["--lan"]);
     assert.equal(config.coreWorkingDirectory, join(root, "data"));
+    assert.equal(config.ollamaOptional, true);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

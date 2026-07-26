@@ -1,56 +1,72 @@
 # ElfieNest Desktop
 
-`desktop/` 是跨平台 Electron 宿主，只负责桌面生命周期、窗口、平台资源发现和
-本地进程监督。账户、领养、聊天、Nest 规则和 Elfie 认知都不属于这一层。
+> 中文版：[`README_zh.md`](README_zh.md)
 
-## 启动与退出顺序
+`desktop/` is the cross-platform Electron host. It only handles desktop
+lifecycle, windows, platform resource discovery and local process supervision.
+Accounts, adoption, chat, Nest rules and Elfie cognition do not belong in this
+layer.
 
-`src/main.ts` 先取得单实例锁，再通过
-`src/platform/supervisor_config.ts` 解析开发态或安装包内的运行资源。
-`RuntimeSupervisor` 的启动顺序是：
+## Startup & shutdown sequence
 
-1. 启动或连接 Ollama，并等待 `/api/tags` 可用；
-2. 启动 Python Core，并等待 `/api/health` 可用；
-3. 在隐藏的、关闭后台节流的 `BrowserWindow` 中加载 Godot Web Runtime，
-   注入本次启动生成的 runtime nonce 与 camera token，等待握手完成；
-4. 打开同源 `/login` 登录窗口；登录后由 Core 按角色跳转到 `/chat` 或 `/manage`。
+`src/main.ts` first acquires the single-instance lock, then resolves dev-time
+or installer-bundled runtime resources through
+`src/platform/supervisor_config.ts`. The `RuntimeSupervisor` startup sequence is:
 
-退出时先关闭隐藏 Godot Runtime，再停止 Python Core 和由 Desktop 管理的
-Ollama。任一组件启动失败都会停止已经启动的组件，并显示归因到具体组件的错误
-窗口。设置 `ELFIENEST_OLLAMA_EXTERNAL=1` 时，Desktop 不创建 Ollama 进程，但仍
-会等待配置的 Ollama 地址可用。
+1. Start or connect to Ollama and wait for `/api/tags` to be available;
+2. Start the Python Core and wait for `/api/health` to be available;
+3. Load the Godot Web Runtime inside a hidden `BrowserWindow` with background
+   throttling disabled, inject the runtime nonce and camera token generated
+   for this launch, and wait for the handshake to complete;
+4. Open the same-origin `/login` window; after login, the Core redirects to
+   `/chat` or `/manage` based on role.
 
-## 资源发现
+On shutdown it first closes the hidden Godot Runtime, then stops the Python
+Core and the Ollama managed by Desktop. If any component fails to start, all
+already-started components are stopped and an error window attributing the
+failure to the specific component is shown. When
+`ELFIENEST_OLLAMA_EXTERNAL=1` is set, Desktop does not spawn an Ollama process
+but still waits for the configured Ollama address to become available.
 
-开发态可以通过以下环境变量显式指定资源，不需要把本机调试程序复制进源码：
+## Resource discovery
 
-- `ELFIENEST_CORE_BIN`、`ELFIENEST_CORE_CWD`：Python Core 程序与工作目录；
-- `ELFIENEST_OLLAMA_BIN`、`ELFIENEST_OLLAMA_URL`：Ollama 程序与服务地址；
-- `ELFIENEST_UI_URL`、`ELFIENEST_GODOT_URL`：管理界面与 Godot Web 入口；
-- `ELFIE_HOME`：本次桌面运行使用的数据目录。
+In dev mode you can specify resources through these environment variables
+instead of copying local debug binaries into the source tree:
 
-安装包资源按单一 target 放在
-`build/staging/<platform-arch>/resources/`。资源清单实现支持：
+- `ELFIENEST_CORE_BIN`, `ELFIENEST_CORE_CWD`: Python Core binary and working
+  directory;
+- `ELFIENEST_OLLAMA_BIN`, `ELFIENEST_OLLAMA_URL`: Ollama binary and service
+  URL;
+- `ELFIENEST_UI_URL`, `ELFIENEST_GODOT_URL`: management UI and Godot web entry
+  URLs;
+- `ELFIE_HOME`: data directory for this desktop run.
+
+Installer resources are placed per single target under
+`build/staging/<platform-arch>/resources/`. The resource manifest supports:
 
 - `darwin-arm64`
 - `darwin-x64`
 - `win32-x64`
 - `linux-x64`
 
-每个 target 必须包含 Godot Web 的 `html/js/wasm/pck`、三个产品页面的 Vite `web/`
-构建产物、对应平台的 Python Core 和 Ollama 可执行文件。Python Core 在安装包内以
-`python-core/ElfieNestCore`（Windows 为 `.exe`）被解析，并通过
-`ELFIENEST_WEB_BUILD_DIR` 读取 `web/`；二者必须与资源清单采用同一相对路径。
-`src/resources/resource_manifest.ts` 会记录文件大小和 SHA-256，并拒绝缺失资源。完整 staging 约定见
-[`packaging/runtime-resources.md`](packaging/runtime-resources.md)。
+Each target must include the Godot Web `html/js/wasm/pck`, the Vite `web/`
+build output of the three product pages, and the platform-matching Python Core
+and Ollama executables. Inside the installer, the Python Core is resolved as
+`python-core/ElfieNestCore` (`.exe` on Windows) and reads `web/` via
+`ELFIENEST_WEB_BUILD_DIR`; both must use the same relative path as in the
+resource manifest. `src/resources/resource_manifest.ts` records file sizes and
+SHA-256 hashes and rejects any missing resource. For the full staging convention
+see [`packaging/runtime-resources.md`](packaging/runtime-resources.md).
 
-内测安装包固定为 `0.1.0`，使用 `ElfieNest-0.1.0-internal-*` 命名，不配置
-publish 或自动更新。macOS 和 Windows 的首次内测包不签名、不公证；测试者必须在
-受控设备上确认系统来源警告，再进行安装、启动、健康检查和退出验收。
+Internal-test installers are pinned to `0.1.0`, named
+`ElfieNest-0.1.0-internal-*`, with no publish or auto-update configured. The
+first macOS and Windows internal builds are neither signed nor notarized;
+testers must acknowledge the system origin warning on a controlled device
+before installing, launching, running health checks and verifying shutdown.
 
-## 开发命令
+## Development commands
 
-需要 Node.js 20 和仓库锁定的 pnpm 10.12.1：
+Requires Node.js 20 and the repo-pinned pnpm 10.12.1:
 
 ```bash
 cd desktop
@@ -59,9 +75,10 @@ npx --yes pnpm@10.12.1 build
 npx --yes pnpm@10.12.1 test
 ```
 
-`scripts/assemble_desktop_resources.py` 在组装 staging 时会生成 `manifest.json`。
-Desktop 启动时会在创建任何受管子进程前重新校验该清单；可用原有命令单独重建
-用于诊断的清单：
+`scripts/assemble_desktop_resources.py` generates `manifest.json` while
+assembling staging. At startup Desktop re-validates that manifest before
+spawning any managed subprocess; you can rebuild a diagnostic manifest on its
+own with:
 
 ```bash
 cd desktop
@@ -69,18 +86,24 @@ ELFIENEST_TARGET=darwin-arm64 \
   npx --yes pnpm@10.12.1 build-resource-manifest
 ```
 
-`npx --yes pnpm@10.12.1 dev` 会编译并启动 Electron，可能继续启动本地组件；
-只做静态检查时不要用它。`npx --yes pnpm@10.12.1 package` 生成安装包，输出
-只能进入根目录 `dist/`。
+`npx --yes pnpm@10.12.1 dev` compiles and launches Electron and may also start
+local components; do not use it for static-only checks. `npx --yes pnpm@10.12.1
+package` produces the installer, whose output must go only into the root
+`dist/`.
 
-## 构建边界
+## Build boundaries
 
 ```text
-build/components/desktop/                         TypeScript 编译结果
-build/staging/<platform-arch>/resources/          单平台打包资源
-dist/                                             最终安装包
+build/components/desktop/                         TypeScript compilation output
+build/staging/<platform-arch>/resources/          single-platform packaged resources
+dist/                                             final installers
 ```
 
-不要把生成的 JavaScript、Godot Web Runtime、Python Core、Ollama、模型或用户
-数据写回 `desktop/`。改变资源布局或监督顺序时，应同步更新对应 TypeScript 测试、
-本文件和 Developer 文档。
+Never write generated JavaScript, the Godot Web Runtime, the Python Core,
+Ollama, models or user data back into `desktop/`. When you change the resource
+layout or the supervision sequence, update the corresponding TypeScript tests,
+this file, and the Developer docs in lockstep.
+
+> Note: `packaging/runtime-resources.md`, `WEB_EXPORT.md`, the Godot character
+> specs and `.github/pull_request_template.md` are intentionally not
+> dual-language in this round and remain in their original language.

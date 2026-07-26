@@ -85,7 +85,7 @@ check_python() {
 }
 
 ensure_python() {
-    if check_python; then
+    if check_python && [[ "${ELFIENEST_FORCE_LOCKED_SYNC:-0}" != "1" ]]; then
         echo "${GREEN}  ✅ Python $PINNED_PYTHON_VERSION 已就绪${RESET}"
         return 0
     fi
@@ -155,28 +155,6 @@ ensure_node() {
     return 1
 }
 
-check_pnpm() {
-    local pnpm_version
-    pnpm_version="$(pnpm --version 2>/dev/null || true)"
-
-    if [[ -z "$pnpm_version" ]]; then
-        return 1
-    fi
-
-    return 0
-}
-
-ensure_pnpm() {
-    if check_pnpm; then
-        echo "${GREEN}  ✅ pnpm 已就绪${RESET}"
-        return 0
-    fi
-
-    echo "${CYAN}  🔧 正在安装 pnpm...${RESET}"
-    npm install -g pnpm@latest
-    echo "${GREEN}  ✅ pnpm 已安装${RESET}"
-}
-
 check_frontend() {
     [[ -f "$PROJECT_ROOT/build/web/manifest.json" ]]
 }
@@ -216,82 +194,6 @@ ensure_frontend() {
 
     cd "$PROJECT_ROOT"
     echo "${GREEN}  ✅ 前端构建完成${RESET}"
-}
-
-check_godot_web() {
-    local godot_dir="$PROJECT_ROOT/build/components/godot-web"
-
-    [[ -f "$godot_dir/elfienest.html" ]] && \
-    [[ -f "$godot_dir/elfienest.js" ]] && \
-    [[ -f "$godot_dir/elfienest.wasm" ]] && \
-    [[ -f "$godot_dir/elfienest.pck" ]]
-}
-
-ensure_godot_web() {
-    if check_godot_web; then
-        echo "${GREEN}  ✅ Godot Web Runtime 已就绪${RESET}"
-        return 0
-    fi
-
-    echo "${YELLOW}  ⚠️  Godot Web Runtime 缺失${RESET}" >&2
-    echo "     请安装 Godot 4.7 编辑器 + Web Export Templates" >&2
-    echo "     然后运行: ./elfienest.sh build-godot-web" >&2
-    return 2  # 部分成功（警告）
-}
-
-check_ollama() {
-    # 检查本地 bin 目录
-    if [[ -x "$PROJECT_ROOT/ai_runtime/setup/bin/ollama" ]]; then
-        return 0
-    fi
-
-    # 检查系统 PATH
-    if command -v ollama >/dev/null 2>&1; then
-        return 0
-    fi
-
-    return 1
-}
-
-ensure_ollama() {
-    if check_ollama; then
-        echo "${GREEN}  ✅ Ollama 已就绪${RESET}"
-        return 0
-    fi
-
-    echo "${CYAN}  🔧 正在检查 Ollama...${RESET}"
-
-    # 跨平台支持
-    case "$(uname)" in
-        Darwin)
-            # macOS: 使用 Python 脚本下载
-            echo "${CYAN}  📥 正在为 macOS 下载 Ollama...${RESET}"
-            if ! "$PROJECT_ROOT/.venv/bin/python" -c "from ai_runtime.setup.runtime_setup import download_ollama_macos; import sys; sys.exit(0 if download_ollama_macos() else 1)" >&2; then
-                echo "${RED}  ❌ Ollama 下载失败${RESET}" >&2
-                return 1
-            fi
-            echo "${GREEN}  ✅ Ollama 已下载${RESET}"
-            ;;
-        Linux)
-            # Linux: 提示用户安装
-            echo "${YELLOW}  ⚠️  请在 Linux 上安装 Ollama:${RESET}" >&2
-            echo "     curl -fsSL https://ollama.com/install.sh | sh" >&2
-            echo "     或访问: https://ollama.com/download/linux" >&2
-            return 2
-            ;;
-        MINGW*|MSYS*|CYGWIN*)
-            # Windows: 提示用户下载
-            echo "${YELLOW}  ⚠️  请在 Windows 上下载安装 Ollama:${RESET}" >&2
-            echo "     https://ollama.com/download/windows" >&2
-            return 2
-            ;;
-        *)
-            echo "${YELLOW}  ⚠️  未知平台，请手动安装 Ollama: https://ollama.com${RESET}" >&2
-            return 2
-            ;;
-    esac
-
-    return 0
 }
 
 check_elfie_home() {
@@ -349,11 +251,32 @@ ensure_electron() {
     echo "${GREEN}  ✅ Electron 依赖已就绪${RESET}"
 }
 
+RUNTIME_DEPENDENCIES_HELPER="$SCRIPT_DIR/bootstrap_runtime_dependencies.sh"
+if [[ ! -f "$RUNTIME_DEPENDENCIES_HELPER" ]]; then
+    echo "${RED}❌ 缺少运行时依赖模块: $RUNTIME_DEPENDENCIES_HELPER${RESET}" >&2
+    exit 1
+fi
+# shellcheck source=scripts/bootstrap_runtime_dependencies.sh
+source "$RUNTIME_DEPENDENCIES_HELPER"
+
+REPORT_HELPER="$SCRIPT_DIR/bootstrap_report.sh"
+if [[ ! -f "$REPORT_HELPER" ]]; then
+    echo "${RED}❌ 缺少依赖报告模块: $REPORT_HELPER${RESET}" >&2
+    exit 1
+fi
+# shellcheck source=scripts/bootstrap_report.sh
+source "$REPORT_HELPER"
+
 # ============================================================================
 # 主流程
 # ============================================================================
 
 main() {
+    if [[ "$ACTION" == "report" ]]; then
+        emit_bootstrap_report
+        return $?
+    fi
+
     echo ""
     echo "${CYAN}🦊 ElfieNest 依赖检查${RESET}"
     echo "   模式: ${TIER} | 动作: ${ACTION}"
@@ -406,26 +329,16 @@ main() {
     fi
     echo ""
 
-    # Godot web（所有 tier，只检查不强制装）
+    # Godot web（所有 tier，完整产品硬门）
     echo "📦 Godot Web Runtime"
     if [[ "$ACTION" == "ensure" ]]; then
-        local godot_result
-        if ensure_godot_web; then
-            godot_result=0
-        else
-            godot_result=$?
-        fi
-        if [[ $godot_result -eq 2 ]]; then
-            has_warning=true
-        elif [[ $godot_result -ne 0 ]]; then
-            exit_code=1
-        fi
+        ensure_godot_web || exit_code=1
     else
         if check_godot_web; then
             echo "${GREEN}  ✅ Godot Web Runtime 已就绪${RESET}"
         else
-            echo "${YELLOW}  ⚠️  Godot Web Runtime 缺失（不影响启动）${RESET}"
-            has_warning=true
+            echo "${RED}  ❌ Godot Web Runtime 缺失；完整产品无法启动${RESET}"
+            exit_code=1
         fi
     fi
     echo ""
@@ -445,10 +358,14 @@ main() {
             exit_code=1
         fi
     else
-        if check_ollama; then
-            echo "${GREEN}  ✅ Ollama 已就绪${RESET}"
+        local ollama_capability
+        ollama_capability="$(ollama_capability_state)"
+        if [[ "$ollama_capability" == "managed" ]]; then
+            echo "${GREEN}  ✅ Ollama 已就绪（托管运行时）${RESET}"
+        elif [[ "$ollama_capability" == "external" ]]; then
+            echo "${GREEN}  ✅ Ollama 已就绪（外部运行时健康）${RESET}"
         else
-            echo "${YELLOW}  ⚠️  Ollama 缺失（需要安装）${RESET}"
+            echo "${YELLOW}  ⚠️  Ollama fallback：本地模型能力不可用${RESET}"
             has_warning=true
         fi
     fi

@@ -1,36 +1,52 @@
-# 开发者文档
+# Developer docs
 
-Developer 文档按“先理解、再修改、最后交付”的顺序组织。每一篇只负责一个问题，
-代码与测试是当前事实来源。
+The Developer docs are organized along "understand first, then modify, then
+deliver". Each page owns exactly one problem; code and tests are the current
+source of truth.
 
-## 先理解系统
+## Understand the system first
 
-- [当前架构](./architecture)：系统全景、核心调用链和进程边界。
-- [模块边界](./architecture-boundaries)：每个根模块负责什么、不负责什么。
-- [认知信息流](./architecture-cognitive-flow)：从感知输入到执行回执的类型化流程。
-- [运行时与数据](./architecture-runtime)：配置、数据、服务和构建产物如何隔离。
+- [Current architecture](./architecture): the system panorama, the core call
+  chain and the process boundaries.
+- [Module boundaries](./architecture-boundaries): what each root module is and
+  is not responsible for.
+- [Cognitive information flow](./architecture-cognitive-flow): the typed flow
+  from perception input to execution receipt.
+- [Runtime & data](./architecture-runtime): how configuration, data, services
+  and build artifacts are isolated.
 
-## 再开始修改
+## Then start modifying
 
-- [开发流程](./development)：环境、分支、最小变更和本地工作顺序。
-- [测试与质量](./testing)：测试层级、质量基线、pre-commit 与 CI。
-- [调试与实验台](./debugging)：Elfie Lab、Nest Lab、Runtime Lab 的用途和隔离方式。
+- [Development flow](./development): environment, branches, minimal changes and
+  the local working order.
+- [Testing & quality](./testing): test layers, quality baseline, pre-commit and
+  CI.
+- [Debugging & workbenches](./debugging): the purpose and isolation of Elfie
+  Lab, Nest Lab and Runtime Lab.
 
-## 最后验证与交付
+## Finally verify and deliver
 
-- [命令参考](./tooling)：统一 CLI、服务、数据和诊断命令。
-- [Developer Tools](./devtools)：三个模块实验台的入口和适用场景。
-- [Godot](./godot)：场景、空间、角色、Web Runtime 的所有权和检查流程。
-- [Desktop](./desktop)：Electron 宿主、资源发现和进程监督边界。
-- [构建与发布](./build-release)：构建目录、发布物、文档站和人工审阅门。
+- [Command reference](./tooling): the unified CLI and the service, data and
+  diagnosis commands.
+- [Developer Tools](./devtools): the entry points and use cases of the three
+  module workbenches.
+- [Godot](./godot): ownership and inspection of scenes, space, characters and
+  the Web Runtime.
+- [Desktop](./desktop): the Electron host, resource discovery and process
+  supervision boundary.
+- [Build & release](./build-release): build directories, release artifacts, the
+  docs site and the manual review gate.
 
-## 协作规则
+## Collaboration rules
 
-- [代码规范与约束](./standards)：目录边界、Python 类型、测试和文档写法。
-- [安全与数据边界](./security-data)：生产数据、密钥、私有材料和公开站点的隔离。
+- [Code standards & constraints](./standards): directory boundaries, Python
+  types, tests and how to write docs.
+- [Security & data boundary](./security-data): the isolation between production
+  data, keys, private material and the public site.
 
-## 文档规则
+## Documentation rules
 
-Developer 文档只收录最终、可核验、能够帮助别人完成工作的内容。讨论记录、模型
-中间稿、未实现方案和私有世界观不进入公开侧栏；关键设计文章需要独立主题、代码
-证据和负责人审阅。
+The Developer docs only collect finalized, verifiable content that helps others
+get their work done. Discussion notes, model intermediate drafts, unimplemented
+proposals and private worldbuilding do not enter the public sidebar; a key
+design article needs its own topic, code evidence and maintainer review.

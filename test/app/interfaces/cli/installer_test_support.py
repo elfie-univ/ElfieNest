@@ -8,7 +8,6 @@ from pathlib import Path
 from test.support.paths import PROJECT_ROOT
 
 
-
 def write_executable(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
@@ -22,7 +21,12 @@ def copy_installer_project(destination: Path) -> None:
         Path("elfienest.sh"),
         Path(".python-version"),
         Path("uv.lock"),
+        Path("scripts/bootstrap.sh"),
+        Path("scripts/bootstrap_report.sh"),
+        Path("scripts/bootstrap_runtime_dependencies.sh"),
         Path("scripts/elfienest_install_helpers.sh"),
+        Path("scripts/native_install_artifact.sh"),
+        Path("scripts/release.py"),
     )
     for relative_path in relative_paths:
         source = PROJECT_ROOT / relative_path
@@ -31,6 +35,27 @@ def copy_installer_project(destination: Path) -> None:
         target = destination / relative_path
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
+    (destination / "build/web").mkdir(parents=True, exist_ok=True)
+    (destination / "build/web/manifest.json").write_text("{}\n", encoding="utf-8")
+    godot_web = destination / "build/components/godot-web"
+    for suffix in ("html", "js", "wasm", "pck"):
+        (godot_web / f"elfienest.{suffix}").parent.mkdir(parents=True, exist_ok=True)
+        (godot_web / f"elfienest.{suffix}").write_text("runtime\n", encoding="utf-8")
+    fake_dmg = destination / "build" / "ElfieNest-test.dmg"
+    fake_dmg.write_bytes(b"not-a-real-dmg")
+    packaged_cli = (
+        destination
+        / "build"
+        / "fake-dmg"
+        / "ElfieNest.app"
+        / "Contents"
+        / "Resources"
+        / "management-cli"
+        / "ElfieNestCli"
+    )
+    packaged_cli.parent.mkdir(parents=True, exist_ok=True)
+    packaged_cli.write_text("#!/bin/bash\nexit 0\n", encoding="utf-8")
+    packaged_cli.chmod(0o755)
 
 
 def write_fake_uv(fake_bin: Path) -> Path:
@@ -54,15 +79,51 @@ if [ "${1:-}" = "sync" ]; then
     mkdir -p "$venv_dir/bin"
     cat > "$venv_dir/bin/python3" <<'PYTHON'
 #!/bin/bash
+if [[ "${1:-}" = */scripts/release.py ]]; then
+    while [ "$#" -gt 0 ]; do
+        if [ "$1" = "--artifact-output" ]; then
+            printf '%s\n' "$(pwd)/build/ElfieNest-test.dmg" > "$2"
+            exit 0
+        fi
+        shift
+    done
+fi
 exit 0
 PYTHON
     chmod +x "$venv_dir/bin/python3"
+    cp "$venv_dir/bin/python3" "$venv_dir/bin/python"
+    chmod +x "$venv_dir/bin/python"
     exit 0
 fi
 exit 0
 """,
     )
     return uv_path
+
+
+def write_fake_native_install_tools(fake_bin: Path) -> None:
+    write_executable(
+        fake_bin / "uname",
+        """#!/bin/bash
+if [ "${1:-}" = "-s" ]; then echo Darwin; else echo x86_64; fi
+""",
+    )
+    write_executable(
+        fake_bin / "hdiutil",
+        """#!/bin/bash
+set -eu
+if [ "$1" = "attach" ]; then
+    while [ "$#" -gt 0 ]; do
+        if [ "$1" = "-mountpoint" ]; then
+            cp -R "$(pwd)/build/fake-dmg/ElfieNest.app" "$2/ElfieNest.app"
+            exit 0
+        fi
+        shift
+    done
+fi
+exit 0
+""",
+    )
 
 
 def installer_environment(
@@ -85,6 +146,7 @@ def installer_environment(
     )
     if extra is not None:
         environment.update(extra)
+    write_fake_native_install_tools(fake_bin)
     return environment
 
 

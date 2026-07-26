@@ -1,25 +1,29 @@
-# 常见问题
+# FAQ
 
-## ElfieNest 是什么？
+## What is ElfieNest?
 
-它是一座连接地球与 Elfaria 的软件基站，也是 Elfie 在地球上的 Nest。技术上，它
-把精灵个体、巢内环境、模型运行时和空间呈现组合起来。
+It is a software station connecting Earth and Elfaria, and it is also an Elfie's
+Nest on Earth. Technically it composes the creature individual, the in-nest
+environment, the model runtime and the spatial presentation.
 
-## Elfie 和 Nest 有什么区别？
+## What is the difference between an Elfie and a Nest?
 
-Elfie 是一只完整的精灵个体；Nest 是它生活的活动空间。一个负责“谁在生活”，一个
-负责“生活在哪里、发生了什么”。
+An Elfie is a complete creature individual; a Nest is the activity space it
+lives in. One answers "who is living", the other answers "where they live and
+what happens there".
 
-## 我需要先理解模型和代码吗？
+## Do I need to understand models and code first?
 
-不需要。普通使用路径从安装、配置和运行开始；模型、模块边界和测试属于
-[开发者文档](/developer/)。
+No. The normal usage path starts from install, configure and run; models,
+module boundaries and tests belong to the [Developer docs](/developer/).
 
-## 数据放在哪里？
+## Where is data stored?
 
-生产数据放在 `ELFIE_HOME`，源码目录只保存代码和可发布的最终文档。
+Production data lives under `ELFIE_HOME`; the source tree only stores code and
+the finalized documents that can be published.
 
-## 没有外部模型服务能运行吗？
+## Can it run without an external model service?
 
-可以用回退模式验证基础运行链路。要获得完整模型体验，需要按 Provider 配置可用的
-模型服务。
+You can use fallback mode to validate the basic runtime pipeline. For the full
+model experience you need to configure an available model service per the
+provider instructions.

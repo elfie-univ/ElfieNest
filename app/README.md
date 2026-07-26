@@ -1,67 +1,81 @@
-# App 模块
+# App module
 
-## 模块定位
+> 中文版：[`README_zh.md`](README_zh.md)
 
-`app/` 是 ElfieNest 的产品应用层：承接用户用例和入站接口，组合基础设施，
-并在需要跨越 `elfie/`、`nest/` 与 `ai_runtime/` 时负责应用级编排。
+## Module positioning
 
-## 负责与不负责
+`app/` is the product application layer of ElfieNest: it owns user use-cases and
+inbound interfaces, composes infrastructure, and performs application-level
+orchestration whenever a flow has to cross `elfie/`, `nest/` and `ai_runtime/`.
 
-负责：
+## Responsibilities and non-responsibilities
 
-- 账户、领养、配置、初始化等产品用例；
-- HTTP、Web、CLI 等入站接口；
-- 数据库、文件系统和设备能力等产品基础设施适配；
-- 真实精灵、Nest、AI Runtime 与 Godot 通道之间的跨模块流程；
-- 桌面服务进程的应用级生命周期编排。
+Responsible for:
 
-不负责：
+- Product use-cases such as accounts, adoption, configuration and setup;
+- Inbound interfaces: HTTP, Web and CLI;
+- Product infrastructure adapters: databases, file systems and device
+  capabilities;
+- Cross-module flows between real Elfies, the Nest, the AI Runtime and the
+  Godot channel;
+- Application-level lifecycle orchestration of desktop service processes.
 
-- 在应用层重新实现单精灵的大脑、身体、记忆或通信；
-- 在应用层保存 Nest 几何、坐标或 Godot 场景事实；
-- 在 `features/` 或 `interfaces/` 中直接实现模型供应商和工具运行时；
-- 在 `bootstrap/` 中放业务规则。`bootstrap/` 只允许创建对象、注入依赖和完成
-  组合根装配。
+Not responsible for:
 
-## 目录地图
+- Re-implementing an Elfie's brain, body, memory or communication at the
+  application layer;
+- Persisting Nest geometry, coordinates or Godot scene facts at the application
+  layer;
+- Implementing model providers and tool runtimes directly inside `features/`
+  or `interfaces/`;
+- Putting business rules in `bootstrap/`. `bootstrap/` may only create objects,
+  inject dependencies and assemble the composition root.
+
+## Directory map
 
 ```text
 app/
-├── bootstrap/       # 应用组合根，只做依赖装配
-├── features/        # accounts、adoption、configuration、setup 等产品用例
-├── infrastructure/  # persistence、filesystem、devices 等适配器
-├── interfaces/      # api、cli、web 入站接口
-└── orchestration/   # 跨 Elfie、Nest、AI Runtime 和平台的流程编排
+├── bootstrap/       # Application composition root — dependency wiring only
+├── features/        # Product use-cases: accounts, adoption, configuration, setup, ...
+├── infrastructure/  # Adapters: persistence, filesystem, devices, ...
+├── interfaces/      # Inbound interfaces: api, cli, web
+└── orchestration/   # Cross-cutting flows across Elfie, Nest, AI Runtime and platforms
 ```
 
-## 公开入口
+## Public entry points
 
-- `app.interfaces.api.create_app`：创建 HTTP/Web 应用；
-- `app.orchestration.ElfieNestEngine`：推进 Nest 环境时钟并泵送类型化输入；
-- `app.orchestration.NestSession`：真实 `Elfie` 实例与 `Nest` 的唯一组合位置。
-- `app.orchestration.embodiment`：以持久化 lease 编排真实身体绑定、托管与归巢；
-  `nest/embodiment` 仅保存状态，不保存真实精灵或设备连接。
-- `app.infrastructure.devices.DeviceGatewayTransport`：将已认证的局域网设备接入
-  `elfie.body.external.ExternalTransport` 契约；设备事件、动作轮询和回执不进入 Nest。
+- `app.interfaces.api.create_app`: creates the HTTP/Web application;
+- `app.orchestration.ElfieNestEngine`: advances the Nest environment clock and
+  pumps typed inputs;
+- `app.orchestration.NestSession`: the only place where real `Elfie` instances
+  and `Nest` are composed;
+- `app.orchestration.embodiment`: orchestrates real body binding, hosting and
+  homing through persistent leases; `nest/embodiment` only stores state and
+  holds no real Elfie or device connection;
+- `app.infrastructure.devices.DeviceGatewayTransport`: brings authenticated
+  LAN devices into the `elfie.body.external.ExternalTransport` contract; device
+  events, action polling and receipts never enter the Nest.
 
-`NestSession` 持有真实精灵对象，Nest 只接收精灵 ID 和巢内状态；其他模块不得另建
-一套精灵与活动空间的组合关系。
+`NestSession` holds the real Elfie objects, while the Nest only receives Elfie
+IDs and in-nest state; no other module may build its own composition of Elfies
+and activity spaces.
 
-## 依赖方向
+## Dependency direction
 
 ```text
-interfaces ──> features / orchestration
-features   ──> infrastructure + 各领域公开 API
+interfaces    ──> features / orchestration
+features      ──> infrastructure + each domain's public API
 orchestration ──> elfie + nest + ai_runtime
-bootstrap  ──> 以上模块（仅装配）
+bootstrap     ──> all of the above (wiring only)
 ```
 
-跨 `elfie/`、`nest/` 和 `ai_runtime/` 的产品流程进入 `app/orchestration/`。
-下层模块不得为了调用产品功能而反向导入 `app.interfaces`。
+Product flows that cross `elfie/`, `nest/` and `ai_runtime/` belong in
+`app/orchestration/`. Lower layers must not import `app.interfaces` in reverse
+to call product features.
 
-## 运行与调试
+## Run & debug
 
-从仓库根目录运行应用层重点检查：
+Run the most relevant application-layer checks from the repository root:
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
@@ -73,14 +87,15 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   test/app/orchestration/test_engine_cognitive_loop.py
 ```
 
-完整环境准备、统一质量门和产品启动方式见
-[`CONTRIBUTING.md`](../CONTRIBUTING.md)；当前整体边界见
-[`docs/developer/`](../docs/developer/)。
+For the full environment setup, the unified quality gate and product launch
+flows, see [`CONTRIBUTING.md`](../CONTRIBUTING.md); for the current overall
+boundaries, see [`docs/developer/`](../docs/developer/).
 
-## 对应测试
+## Corresponding tests
 
-- `test/app/features/`：产品用例；
-- `test/app/infrastructure/`：持久化等基础设施；
-- `test/app/interfaces/`：API、CLI 和 Web 边界；
-- `test/app/orchestration/`：引擎、认知循环和平台生命周期；
-- `test/architecture/test_project_structure.py`：顶层目录、旧包与质量门契约。
+- `test/app/features/`: product use-cases;
+- `test/app/infrastructure/`: persistence and other infrastructure;
+- `test/app/interfaces/`: API, CLI and Web boundaries;
+- `test/app/orchestration/`: engine, cognitive loop and platform lifecycle;
+- `test/architecture/test_project_structure.py`: top-level directories, legacy
+  package bans and quality gate contracts.

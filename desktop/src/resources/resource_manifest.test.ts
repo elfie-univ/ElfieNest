@@ -33,6 +33,7 @@ test("resource manifest records and validates every packaged component for one s
     assert.equal(manifest.application_version, "0.1.0");
     assert.equal(manifest.target, "darwin-arm64");
     assert.ok(manifest.files["python-core/ElfieNestCore"]);
+    assert.ok(manifest.files["management-cli/ElfieNestCli"]);
     assert.ok(manifest.files["ollama/ollama"]);
     assert.ok(manifest.files["web/index.html"]);
     assert.equal(manifest.files["web/login.html"], undefined);
@@ -56,6 +57,7 @@ test("resource manifest uses Windows executables inside the target staging root"
     // Then
     assert.equal(manifest.target, "win32-x64");
     assert.ok(manifest.files["python-core/ElfieNestCore.exe"]);
+    assert.ok(manifest.files["management-cli/ElfieNestCli.exe"]);
     assert.ok(manifest.files["ollama/ollama.exe"]);
     assert.ok(manifest.files["web/manifest.json"]);
     assert.equal(manifest.files["python-core/win32/ElfieNestCore.exe"], undefined);

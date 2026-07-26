@@ -100,15 +100,9 @@ export class RuntimeSupervisor {
     this.runtime = runtime;
     this.godotNonce = randomBytes(32).toString("hex");
     this.godotCameraToken = randomBytes(32).toString("hex");
-    let activeComponent: SupervisorComponent = "ollama";
+    let activeComponent: SupervisorComponent = "supervisor";
     try {
-      if (this.config.manageOllama) {
-        activeComponent = "ollama";
-        this.update("ollama", "starting");
-        this.startProcess("ollama", this.config.ollamaExecutable, ["serve"]);
-      }
-      await this.waitForHttp(this.config.ollamaUrl, "/api/tags");
-      this.update("ollama", "ready");
+      await this.startOptionalOllama();
 
       activeComponent = "core";
       this.update("core", "starting");
@@ -193,6 +187,23 @@ export class RuntimeSupervisor {
       }
     });
     this.processes.set(name, child);
+  }
+
+  private async startOptionalOllama(): Promise<void> {
+    try {
+      if (this.config.manageOllama) {
+        this.update("ollama", "starting");
+        this.startProcess("ollama", this.config.ollamaExecutable, ["serve"]);
+      }
+      await this.waitForHttp(this.config.ollamaUrl, "/api/tags");
+      this.update("ollama", "ready");
+    } catch (error: unknown) {
+      this.update("ollama", "degraded");
+      if (!this.config.ollamaOptional) {
+        throw new SupervisorError("ollama", errorMessage(error));
+      }
+      console.warn(`ElfieNest Ollama 不可用，继续使用 fallback: ${errorMessage(error)}`);
+    }
   }
 
   private update(name: ComponentName, state: ComponentState): void {

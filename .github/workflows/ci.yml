@@ -28,10 +28,10 @@ jobs:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
 
-      - name: Install pinned environment through project installer
+      - name: Install pinned development environment
         run: |
           uv python install 3.9.25
-          ./install.sh --env-only
+          uv sync --locked --extra dev
 
       - name: Verify exact CPython runtime
         run: >

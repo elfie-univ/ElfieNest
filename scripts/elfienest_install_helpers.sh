@@ -148,13 +148,14 @@ configure_user_path() {
 
 write_managed_wrapper() {
     local output_path="$1"
-    local project_root="$2"
+    local cli_path="$2"
 
     {
         printf '#!/bin/bash\n'
-        printf '# ElfieNest managed wrapper v1\n'
-        printf 'PROJECT_ROOT=%q\n' "$project_root"
-        printf 'exec "$PROJECT_ROOT/elfienest.sh" "$@"\n'
+        printf '# ElfieNest managed wrapper v2\n'
+        printf 'set -eu\n'
+        printf 'CLI_PATH=%q\n' "$cli_path"
+        printf 'exec "$CLI_PATH" "$@"\n'
     } > "$output_path"
     chmod 0755 "$output_path"
 }
@@ -163,28 +164,38 @@ write_managed_uninstaller() {
     local output_path="$1"
     local wrapper_path="$2"
     local uninstaller_path="$3"
-    local project_root="$4"
+    local application_root="$4"
+    local cli_path="$5"
 
     {
         printf '#!/bin/bash\n'
-        printf '# ElfieNest managed uninstaller v1\n'
+        printf '# ElfieNest managed uninstaller v2\n'
         printf 'set -eu\n'
         printf 'umask 077\n'
         printf 'WRAPPER_PATH=%q\n' "$wrapper_path"
         printf 'UNINSTALLER_PATH=%q\n' "$uninstaller_path"
-        printf 'PROJECT_ROOT=%q\n' "$project_root"
+        printf 'APPLICATION_ROOT=%q\n' "$application_root"
+        printf 'CLI_PATH=%q\n' "$cli_path"
         printf '%s\n' 'wrapper_is_managed() {'
-        printf '%s\n' '    local expected_project_line'
+        printf '%s\n' '    local expected_cli_line'
         printf '%s\n' '    local line_count'
         printf '%s\n' '    [ -f "$WRAPPER_PATH" ] || return 1'
         printf '%s\n' '    [ ! -L "$WRAPPER_PATH" ] || return 1'
-        printf '%s\n' "    printf -v expected_project_line 'PROJECT_ROOT=%q' \"\$PROJECT_ROOT\""
+        printf '%s\n' "    printf -v expected_cli_line 'CLI_PATH=%q' \"\$CLI_PATH\""
         printf '%s\n' '    line_count="$(wc -l < "$WRAPPER_PATH" | tr -d '\''[:space:]'\'')"'
-        printf '%s\n' '    [ "$line_count" = "4" ] || return 1'
+        printf '%s\n' '    [ "$line_count" = "5" ] || return 1'
         printf '%s\n' '    grep -Fqx '\''#!/bin/bash'\'' "$WRAPPER_PATH" || return 1'
-        printf '%s\n' '    grep -Fqx '\''# ElfieNest managed wrapper v1'\'' "$WRAPPER_PATH" || return 1'
-        printf '%s\n' '    grep -Fqx "$expected_project_line" "$WRAPPER_PATH" || return 1'
-        printf '%s\n' '    grep -Fqx '\''exec "$PROJECT_ROOT/elfienest.sh" "$@"'\'' "$WRAPPER_PATH" || return 1'
+        printf '%s\n' '    grep -Fqx '\''# ElfieNest managed wrapper v2'\'' "$WRAPPER_PATH" || return 1'
+        printf '%s\n' '    grep -Fqx '\''set -eu'\'' "$WRAPPER_PATH" || return 1'
+        printf '%s\n' '    grep -Fqx "$expected_cli_line" "$WRAPPER_PATH" || return 1'
+        printf '%s\n' '    grep -Fqx '\''exec "$CLI_PATH" "$@"'\'' "$WRAPPER_PATH" || return 1'
+        printf '%s\n' '}'
+        printf '%s\n' 'application_is_managed() {'
+        printf '%s\n' '    [ -d "$APPLICATION_ROOT" ] || return 1'
+        printf '%s\n' '    [ ! -L "$APPLICATION_ROOT" ] || return 1'
+        printf '%s\n' '    [ -f "$CLI_PATH" ] || return 1'
+        printf '%s\n' '    [ ! -L "$CLI_PATH" ] || return 1'
+        printf '%s\n' '    [ -x "$CLI_PATH" ] || return 1'
         printf '%s\n' '}'
         printf '%s\n' 'if [ -L "$UNINSTALLER_PATH" ]; then'
         printf '%s\n' '    echo "❌ 卸载入口是符号链接，拒绝操作: $UNINSTALLER_PATH" >&2'
@@ -196,6 +207,13 @@ write_managed_uninstaller() {
         printf '%s\n' '        exit 1'
         printf '%s\n' '    fi'
         printf '%s\n' '    rm -f -- "$WRAPPER_PATH"'
+        printf '%s\n' 'fi'
+        printf '%s\n' 'if [ -e "$APPLICATION_ROOT" ] || [ -L "$APPLICATION_ROOT" ]; then'
+        printf '%s\n' '    if ! application_is_managed; then'
+        printf '%s\n' '        echo "❌ 应用目录已被修改，拒绝删除: $APPLICATION_ROOT" >&2'
+        printf '%s\n' '        exit 1'
+        printf '%s\n' '    fi'
+        printf '%s\n' '    rm -rf -- "$APPLICATION_ROOT"'
         printf '%s\n' 'fi'
         printf '%s\n' 'rm -f -- "$UNINSTALLER_PATH"'
         printf '%s\n' 'echo "✅ ElfieNest 已卸载"'
@@ -218,6 +236,10 @@ previous_wrapper_matches() {
 
     [ -f "$wrapper_path" ] || return 1
     [ ! -L "$wrapper_path" ] || return 1
+    cmp -s "$wrapper_path" <(
+        printf '#!/bin/bash\n# ElfieNest managed wrapper v1\nPROJECT_ROOT=%q\nexec "\$PROJECT_ROOT/elfienest.sh" "\$@"\n' \
+            "$project_root"
+    ) && return 0
     cmp -s "$wrapper_path" <(
         printf '#!/bin/bash\n# ElfieNest project: %s\ncd "%s"\nexec ./elfienest.sh "$@"\n' \
             "$project_root" \

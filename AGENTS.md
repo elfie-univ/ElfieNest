@@ -72,8 +72,9 @@ Python 固定为 CPython 3.9.25，依赖以 `uv.lock` 为准。前端使用 Node
 - Agent、开发者、CR、测试和所有产品/开发脚本必须经仓库受控的 `uv` 与
   `.venv/bin/python3` 执行。不得以系统 `python`、`python3`、Conda、pip 环境或
   任意 `ELFIENEST_PYTHON` 覆盖作为产品入口。
-- 需要修复缺失、损坏或版本不匹配的环境时，唯一标准路径是
-  `./install.sh --env-only`；`uv run --no-sync` 只能在该锁定环境已经存在时使用。
+- 需要修复缺失、损坏或版本不匹配的开发环境时，标准路径是
+  `./elfienest.sh version`；需要安装本机原生应用时运行 `./install.sh`。
+  `uv run --no-sync` 只能在该锁定环境已经存在时使用。
 
 只改局部时先运行对应测试，再运行 `test/architecture/`。质量门及文档构建命令
 以 `CONTRIBUTING.md` 为准；机器上的最终事实源是 `pyproject.toml`、
@@ -142,8 +143,15 @@ Godot 相关规则的机器边界由 `godot_project/project.godot`、源码资�
 
 ## 文档、公开边界与调试工具
 
-- 新增或改写的产品、交互、架构和技术设计正文必须使用简体中文；路径、
-  标识符、API、协议字段和第三方产品名可以保留英文并用中文说明。
+- 公开文档的默认语言为英文，同时维护简体中文版本。README 类文件使用
+  `README.md`（英文，默认）+ `README_zh.md`（中文）成对；根目录社区文档
+  同样使用 `_zh.md` 后缀（如 `CONTRIBUTING.md` / `CONTRIBUTING_zh.md`）。
+  `docs/` VitePress 文档站使用 `locales` 机制：英文为站点根目录，中文位于
+  `docs/zh/`。
+- **任何对公开文档（README、社区文档、docs 站页面）的内容变更，必须在同一
+  改动中同时更新中英文两份。** 仅更新一侧视为未完成；PR 必须列明双语同步
+  情况。
+- 路径、标识符、API、协议字段和第三方产品名可以保留英文并用中文说明。
 - `docs/` 只发布最终读者需要、与当前实现一致且经用户审阅的内容。会议记录、
   提示词、模型中间稿、历史草案、合作材料和未开发剧情留在私有区域。
 - JSON Schema 等内部数据结构不得为了说明代码而在文档站维护冗余副本；

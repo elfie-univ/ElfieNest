@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 import urllib.error
 import urllib.request
@@ -39,6 +40,9 @@ BACKGROUND_START_TIMEOUT_SECONDS = 60.0
 def default_service_command(extra_args: Sequence[str] = ()) -> tuple[str, ...]:
     """Build the background command without the foreground-only force flag."""
     filtered = tuple(argument for argument in extra_args if argument != "--force")
+    packaged_core = os.environ.get("ELFIENEST_CORE_BIN")
+    if packaged_core:
+        return (packaged_core, *filtered)
     return (
         sys.executable,
         str((PROJECT_ROOT / "scripts" / "serve.py").resolve()),

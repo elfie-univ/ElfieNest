@@ -1,51 +1,64 @@
 # Developer Tools
 
-## 入口
+## Entry points
 
-统一入口是：
+The unified entry point is:
 
 ```bash
 ./developer.sh --help
 ```
 
-工具分为三个相互隔离的工作台：
+The tools split into three mutually isolated workbenches:
 
-| 工具 | 入口 | 关注点 |
+| Tool | Entry point | Focus |
 | --- | --- | --- |
-| Elfie Lab | `./developer.sh elfie-lab` | 单只精灵的档案、感知、决策和回合 |
-| Nest Lab | `./developer.sh nest-lab` | 固定房间、临时角色、Godot 事件与语义移动 |
-| Runtime Lab | `./developer.sh runtime-lab` | Provider、模型、粮食、工具和安全 |
+| Elfie Lab | `./developer.sh elfie-lab` | A single Elfie's profile, perception, decisions and turns |
+| Nest Lab | `./developer.sh nest-lab` | Fixed rooms, temporary characters, Godot events and semantic motion |
+| Runtime Lab | `./developer.sh runtime-lab` | Providers, models, food, tools and safety |
 
-它们可以复用底层库和同一份 Godot Web Runtime，但不能依赖普通用户鉴权、
-`ElfieNestEngine` 或生产数据才能启动。启动 Elfie Lab 或 Nest Lab 时会自动检查该
-Runtime；只有缺失或 Godot 源码发生变化时才重新导出。
+They can reuse the underlying libraries and the same Godot Web Runtime, but they
+must not depend on end-user auth, `ElfieNestEngine` or production data to start.
+When launching Elfie Lab or Nest Lab, the Runtime is auto-checked; it is
+re-exported only when missing or when the Godot source has changed.
 
-Elfie Lab 与 Nest Lab 的浏览器壳共用 `devtools/web/` 的 React + TypeScript + Vite 工程。
-前端产物只生成到 `build/components/devtools-web/`，不会写回或提交到源码目录；启动命令会
-按前端源码摘要自动复用或重建它。Nest Lab 的相机按钮只发送总览、活动区、宿舍、传送室和
-还原视角这些受限意图，Godot 仍是相机变换的唯一事实源。
+The Elfie Lab and Nest Lab browser shells share the React + TypeScript + Vite
+project in `devtools/web/`. The frontend artifact is generated only into
+`build/components/devtools-web/` and never written back to or committed into
+source directories; the launch command reuses or rebuilds it based on a frontend
+source digest. The Nest Lab camera button only sends a restricted set of
+intents — overview, activity area, dormitory, teleport room and reset view —
+Godot remains the single source of truth for camera transforms.
 
-Nest Lab 在浏览器中嵌入已导出的固定房间。开发者可修改床位数、添加狐狸/小狗、开启
-Python 定时选择语义锚点的随机游走，或暂停、继续、重置实验。Godot 负责几何、渲染、
-路径与碰撞；Lab 只发送 v2 语义命令并记录 Runtime 事实。两种 Lab 都使用与正式桌面
-运行相同的 Godot Web 导出物；只是各自提供隔离的网页外壳、数据根和本地协议入口。
+Nest Lab embeds the exported fixed room in the browser. Developers can change
+the bed count, add a fox / dog, start a Python-driven random walk that picks a
+semantic anchor on a timer, or pause, resume and reset the experiment. Godot
+handles geometry, rendering, pathfinding and collision; the Lab only sends v2
+semantic commands and records Runtime facts. Both Labs use the same Godot Web
+export as the real desktop run; each just provides an isolated web shell, data
+root and local protocol entry.
 
-本机端口固定分层：正式 App 为 `8000` / `8765` / `8766`，Elfie Lab 为 `9001`，Nest Lab
-为 `9002` / `9003`，Runtime Lab 不监听网页端口。直接使用默认 Lab 命令会安全重启当前
-工作区同类旧实例；只有显式传入端口时才保留并行实例，且未知端口占用者不会被终止。
+Local ports are layered by convention: the real App uses `8000` / `8765` /
+`8766`, Elfie Lab uses `9001`, Nest Lab uses `9002` / `9003`, and Runtime Lab
+does not listen on a web port. Running the default Lab command again safely
+restarts the old same-kind instance in the current workspace; only an explicit
+port keeps parallel instances alive, and an unknown port occupant is never
+terminated.
 
-Elfie Lab 首次启动默认提供离线“模拟粮”，因此可以创建精灵并验证本地流程；配置
-Ollama 或远端 Provider 后，Runtime Lab 中的真实粮食会自动出现在选择器中。
+Elfie Lab ships an offline "mock food" by default on first launch, so you can
+create an Elfie and validate the local flow; after configuring Ollama or a
+remote provider, real foods automatically appear in the Runtime Lab selector.
 
-## 数据根
+## Data root
 
-三个实验台默认使用 `${ELFIE_DEV_HOME:-~/.elfienest-dev}`，并分别在
-`elfie_lab/`、`nest_lab/`、`runtime_lab/` 下写入自己的配置、会话和调试数据。
-它们绝不以 `${ELFIE_HOME:-~/.elfienest}` 为默认值；若把生产根显式传给 Elfie Lab
-的 Runtime 配置，会被拒绝。需要运行 Runtime Lab 子进程时，也必须把它的开发根
-显式作为该进程的 `ELFIE_HOME`。
+The three workbenches default to `${ELFIE_DEV_HOME:-~/.elfienest-dev}` and
+write their own configuration, sessions and debug data under `elfie_lab/`,
+`nest_lab/` and `runtime_lab/` respectively. They never default to
+`${ELFIE_HOME:-~/.elfienest}`; if you explicitly pass the production root to
+Elfie Lab's Runtime configuration, it is rejected. When a Runtime Lab
+subprocess is needed, its dev root must also be explicitly passed as that
+process's `ELFIE_HOME`.
 
-本地验收可同时隔离两类数据：
+Local acceptance can isolate both kinds of data at once:
 
 ```bash
 ELFIE_HOME=/tmp/elfienest-production \

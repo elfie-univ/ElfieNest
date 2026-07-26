@@ -1,54 +1,66 @@
-# 命令与开发工具
+# Commands & dev tools
 
-本页记录当前代码提供的稳定 CLI、构建命令和隔离调试入口。命令行为以
-`./elfienest.sh --help`、`scripts/elfienest.py` 和对应测试为准。
+This page records the stable CLI, build commands and isolated debugging entry
+points provided by the current code. Command behavior is defined by
+`./elfienest.sh --help`, `scripts/elfienest.py` and the corresponding tests.
 
-## 准备锁定环境
+## Prepare the locked environment
 
-ElfieNest 固定使用 CPython 3.9.25，依赖以 `uv.lock` 为准：
+ElfieNest is pinned to CPython 3.9.25, with dependencies pinned by `uv.lock`:
 
 ```bash
-./install.sh --env-only
+./elfienest.sh version
 ./elfienest.sh version
 ```
 
-贡献者还需要开发依赖：
+Contributors also need the dev dependencies:
 
 ```bash
 uv sync --locked --extra dev
 ```
 
-`./install.sh` 不使用 `sudo`，完整安装时会创建当前用户可用的 `elfienest` 与
-`uninstall-elfienest` 命令。源码开发也可以始终使用仓库内的
-`./elfienest.sh`。
+`./install.sh` does not use `sudo`; a full install creates the user-level
+`elfienest` and `uninstall-elfienest` commands. Source development can also
+always use the in-repo `./elfienest.sh`.
+
+Python `3.9.25` is the common pinned runtime for both the product and the
+development tools. Unless the maintainer explicitly approves a full-repo
+upgrade, you must not switch to system `python` / `python3`, another virtual
+environment, or an `ELFIENEST_PYTHON` override entry; install, CLI, Developer
+Tools, tests and code review all go through `uv` and the repo's `.venv`. When
+the environment is unhealthy, run `./elfienest.sh version` to repair the dev
+dependencies; use `./install.sh` to install the native application, then
+confirm it with `elfienest version`.
 
 Python `3.9.25` 是产品和开发工具的共同固定运行时。除非负责人明确批准全仓升级，
 不得改用系统 `python`/`python3`、其他虚拟环境或 `ELFIENEST_PYTHON` 覆盖入口；
 安装、CLI、Developer Tools、测试和 CR 一律经 `uv` 与仓库 `.venv`。环境失效时只需
-运行 `./install.sh --env-only`，随后再运行 `./elfienest.sh version` 确认版本。
+运行 `./elfienest.sh version` 让开发入口补齐依赖；需要安装本机原生应用时运行
+`./install.sh`，随后使用 `elfienest version` 确认版本。
 
-## CLI 入口
+## CLI entry points
 
-直接运行 `./elfienest.sh` 会进入交互模式；脚本化调用应提供明确子命令：
+Running `./elfienest.sh` directly enters interactive mode; scripted calls
+should pass an explicit subcommand:
 
-| 命令 | 当前用途 |
+| Command | Current use |
 | --- | --- |
-| `serve` | 开发/诊断模式前台运行服务并显示日志 |
-| `start` | 后台启动服务，已运行时不重复启动 |
-| `status` | 查看登记服务与端口状态 |
-| `stop` | 停止当前项目登记的服务 |
-| `restart` | 停止并重新启动当前服务 |
-| `web` | 确保服务可用并打开 Web 管理台 |
-| `config` | 打开方向键配置中心 |
-| `setup` | 运行首次设置向导 |
-| `doctor` | 检查本地环境和配置 |
-| `owner` | 在本机终端打开 Owner 账户菜单 |
-| `db` | 查看数据库信息，或执行 `backup`、`reset` |
-| `version` | 显示版本 |
-| `build-godot-web` | 构建、增量确保或检查浏览器 3D Runtime |
-| `developer` | 进入隔离的 Developer Tools |
+| `serve` | Run the service in the foreground (dev/diagnostic mode) and show logs |
+| `start` | Start the service in the background; do not start again if already running |
+| `status` | Show registered services and port status |
+| `stop` | Stop the services registered by the current project |
+| `restart` | Stop and restart the current service |
+| `web` | Ensure the service is up and open the web management console |
+| `config` | Open the arrow-key configuration center |
+| `setup` | Run the first-time setup wizard |
+| `doctor` | Check the local environment and configuration |
+| `owner` | Open the Owner account menu in the local terminal |
+| `db` | Show database info, or run `backup` / `reset` |
+| `version` | Show the version |
+| `build-godot-web` | Build, incrementally ensure, or check the browser 3D Runtime |
+| `developer` | Enter the isolated Developer Tools |
 
-前台与后台服务支持经代码确认的参数：
+Foreground and background services support code-validated parameters:
 
 ```bash
 ./elfienest.sh serve --fallback
@@ -56,17 +68,21 @@ Python `3.9.25` 是产品和开发工具的共同固定运行时。除非负责�
 ./elfienest.sh start --fallback --no-seed-elfie
 ```
 
-`--fallback` 使用内置模拟运行时，不连接 Ollama。`serve --force` 只尝试终止由
-当前项目登记、且确认属于该服务的冲突进程；它不是任意端口清理工具。
+`--fallback` uses the built-in mock runtime and does not connect to Ollama.
+`serve --force` only tries to stop conflict processes registered by the current
+project and confirmed to belong to that service; it is not a generic port
+cleanup tool.
 
-## 数据与高风险命令
+## Data and high-risk commands
 
-默认产品数据位于 `${ELFIE_HOME:-~/.elfienest}`。测试、文档核验和实验必须
-设置临时 `ELFIE_HOME`，避免污染日常数据。
+Default product data lives at `${ELFIE_HOME:-~/.elfienest}`. Tests, doc
+verification and experiments must set a temporary `ELFIE_HOME` to avoid
+polluting day-to-day data.
 
-Owner 恢复只在本机终端提供；密码通过隐藏输入填写，不应放进命令参数、环境变量
-或 shell 历史。服务密钥从环境变量或被 Git 忽略的本地配置读取，示例文档只能
-使用占位符。
+Owner recovery is offered only in the local terminal; the password is entered
+via hidden input and must never go into command arguments, environment
+variables or shell history. Service keys are read from environment variables or
+Git-ignored local configuration; example docs may only use placeholders.
 
 ```bash
 ./elfienest.sh owner
@@ -74,12 +90,15 @@ Owner 恢复只在本机终端提供；密码通过隐藏输入填写，不应�
 ./elfienest.sh db backup
 ```
 
-`db reset` 会重置本地数据库，执行前必须确认 `ELFIE_HOME` 指向的精确数据目录并
-保留备份。命令行不提供旧数据迁移入口；新配置与聊天只使用当前目录契约。
+`db reset` resets the local database; before running it you must confirm the
+exact data directory `ELFIE_HOME` points at and keep a backup. The CLI does not
+provide a legacy-data migration entry; new configuration and chat use only the
+current directory contract.
 
-## Godot Web 构建
+## Godot Web build
 
-Godot 源项目当前声明 4.7。构建机必须使用同版本 Godot 和 Web Export Templates：
+The Godot source project currently declares 4.7. The build machine must use the
+same Godot version and Web Export Templates:
 
 ```bash
 GODOT_BIN=/path/to/godot4.7 ./developer.sh build-godot-web
@@ -87,18 +106,23 @@ GODOT_BIN=/path/to/godot4.7 ./developer.sh build-godot-web
 ./developer.sh build-godot-web --check
 ```
 
-正式输出位于 `build/components/godot-web/`，不会提交 Git。具体环境、产物和
-打包流程见独立 Godot 源工程内的 `godot_project/WEB_EXPORT.md`。
+The official output lives at `build/components/godot-web/` and is not committed
+to Git. For the specific environment, artifacts and packaging flow see
+`godot_project/WEB_EXPORT.md` inside the standalone Godot source project.
 
-源码树中的 `./elfienest.sh serve` 与 `./developer.sh` 默认使用 development 生命周期：
-启动前会比较 Godot 源树指纹，缺失或过期时自动执行 `--ensure`；没有变更时不会重复导出。
-`ELFIENEST_RUNTIME_MODE=release` 只执行 `--check`，缺少已验证 runtime 会拒绝启动。
-导出机必须安装 Godot 4.7 与对应 Web Export Templates；若缺失，服务会明确报告 3D 预览
-离线原因，聊天与管理 API 不会伪造“预览正常”。
+`./elfienest.sh serve` and `./developer.sh` in the source tree default to the
+development lifecycle: before starting they compare the Godot source tree
+fingerprint and auto-run `--ensure` when missing or stale; they do not
+re-export when nothing has changed. `ELFIENEST_RUNTIME_MODE=release` only runs
+`--check` and refuses to start when a validated runtime is missing. The export
+machine must have Godot 4.7 and the matching Web Export Templates installed; if
+they are missing, the service clearly reports why the 3D preview is offline,
+and the chat and management APIs never fake "preview OK".
 
 ## Developer Tools
 
-开发实验统一从 `./developer.sh` 进入，不会启动普通用户产品入口：
+Development experiments all enter through `./developer.sh` and never start the
+end-user product entry:
 
 ```bash
 ./developer.sh --help
@@ -107,15 +131,16 @@ GODOT_BIN=/path/to/godot4.7 ./developer.sh build-godot-web
 ./developer.sh runtime-lab --config-dir /tmp/elfienest-runtime-lab show
 ```
 
-- Elfie Lab 默认监听 `127.0.0.1:8877`；
-- Nest Lab 默认监听 `127.0.0.1:8890`；
-- Runtime Lab 是命令行工具，没有监听端口。
+- Elfie Lab listens on `127.0.0.1:8877` by default;
+- Nest Lab listens on `127.0.0.1:8890` by default;
+- Runtime Lab is a CLI tool with no listening port.
 
-端口只是本地默认值，不是生产保证。`runtime-lab test` 和 `runtime-lab chat`
-会真实请求模型服务；运行前确认 Provider、模型、网络与费用。详细边界见
-`devtools/README.md`。
+Ports are only local defaults, not production guarantees. `runtime-lab test`
+and `runtime-lab chat` make real requests to the model service; confirm the
+provider, model, network and cost before running them. For the detailed
+boundaries see `devtools/README.md`.
 
-## 质量检查与测试
+## Quality checks and tests
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
@@ -126,7 +151,7 @@ PRE_COMMIT_HOME=/tmp/elfienest-precommit \
   uv run --no-sync pre-commit run --all-files
 ```
 
-文档站本地构建：
+Local docs site build:
 
 ```bash
 cd docs
@@ -134,7 +159,7 @@ npx --yes pnpm@10.12.1 install --frozen-lockfile
 npx --yes pnpm@10.12.1 build
 ```
 
-Desktop 使用 Node.js 20 与独立锁文件：
+Desktop uses Node.js 20 and a separate lockfile:
 
 ```bash
 cd desktop
@@ -143,4 +168,5 @@ npx --yes pnpm@10.12.1 build
 npx --yes pnpm@10.12.1 test
 ```
 
-`build/` 只放中间产物，`dist/` 只放最终安装包。不要把生成结果写回源码目录。
+`build/` holds only intermediate artifacts and `dist/` only final installers.
+Never write generated output back into source directories.

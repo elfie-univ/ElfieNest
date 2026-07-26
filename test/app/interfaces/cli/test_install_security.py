@@ -12,7 +12,7 @@ from test.app.interfaces.cli.installer_test_support import (
 )
 
 
-def test_installed_wrapper_treats_hostile_checkout_path_as_data(
+def test_installed_wrapper_never_references_a_hostile_checkout_path(
     tmp_path: Path,
 ) -> None:
     # Given
@@ -48,7 +48,10 @@ def test_installed_wrapper_treats_hostile_checkout_path_as_data(
 
     # Then
     assert wrapper_result.returncode == 0, wrapper_result.stdout + wrapper_result.stderr
-    assert wrapper_result.stdout == "PROJECT:version\n"
+    assert wrapper_result.stdout == ""
+    assert str(project_root) not in (home / ".local" / "bin" / "elfienest").read_text(
+        encoding="utf-8"
+    )
     assert not (caller / "PWNED").exists()
 
 

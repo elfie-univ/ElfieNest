@@ -1,36 +1,45 @@
-# 调试与实验台
+# Debugging & workbenches
 
 ## Elfie Lab
 
-用于观察单个 Elfie 的档案、感知、认知回合和输出投影。它拥有独立入口、端口和
-数据目录，不进入普通用户导航。
+For observing a single Elfie's profile, perception, cognitive turns and output
+projection. It has its own entry point, port and data directory, and is not
+part of end-user navigation.
 
 ## Nest Lab
 
-用于验证固定房间中的巢内状态、角色入巢、Godot 语义边界和运行时事件。启动后会自动
-打开本机网页：中央预览的是导出的 Godot 房间；右侧可调整床位、添加狐狸或小狗、开启
-Python 驱动的随机游走，并暂停、继续或重置实验。事件时间线会显示世界配置、角色同步、
-移动终态、碰撞和其他 Runtime 事实。
+For validating in-nest state inside a fixed room, character entry, the Godot
+semantic boundary and runtime events. On startup it auto-opens a local web
+page: the center previews the exported Godot room; the right side lets you
+adjust the bed count, add a fox or dog, start a Python-driven random walk, and
+pause, resume or reset the experiment. The event timeline shows world
+configuration, actor sync, motion terminal states, collisions and other Runtime
+facts.
 
-房屋几何、渲染、寻路和碰撞始终由 Godot 执行；Lab 不在 Python 复制坐标或物理规则。
-随机游走只是 Python 每两秒选择一个语义锚点并发送既有 v2 移动命令，不是角色自主大脑。
-直接启动即可；脚本会自动复用当前导出物，或在缺失、Godot 源码变化时用项目声明的 Godot
-版本重新导出：
+House geometry, rendering, pathfinding and collision are always performed by
+Godot; the Lab does not copy coordinates or physics rules into Python. The
+random walk is just Python picking a semantic anchor every two seconds and
+sending an existing v2 move command — it is not the character's autonomous
+brain. Just launch it; the script reuses the current export, or re-exports
+using the Godot version declared by the project when missing or when the Godot
+source has changed:
 
 ```bash
 ./developer.sh nest-lab --data-dir /tmp/elfienest-nest-lab --port 9002
 ```
 
-它不会悄悄启动正式产品引擎；Lab 仅启动隔离的 Godot Web Runtime 和对应的本地网关。
-不传端口时，重复运行默认命令会安全重启当前工作区的 Nest Lab；传入 `--port` 或
-`--godot-ws-port` 时则视为独立实验，不会回收原实例。
+It does not silently start the real product engine; the Lab starts only the
+isolated Godot Web Runtime and the corresponding local gateway. When no port is
+passed, running the default command again safely restarts the Nest Lab in the
+current workspace; passing `--port` or `--godot-ws-port` is treated as an
+independent experiment and does not reclaim the original instance.
 
 ## Runtime Lab
 
-用于检查 Provider、模型配置、粮食策略、工具和安全策略。它是命令行实验台，不是
-普通用户产品页面。
+For inspecting providers, model configuration, food policy, tools and safety
+policy. It is a CLI workbench, not an end-user product page.
 
-## 隔离运行
+## Isolated runs
 
 ```bash
 ./developer.sh elfie-lab --data-dir /tmp/elfienest-elfie-lab --port 9001
@@ -38,5 +47,6 @@ Python 驱动的随机游走，并暂停、继续或重置实验。事件时间�
 ./developer.sh runtime-lab --config-dir /tmp/elfienest-runtime-lab show
 ```
 
-实验必须使用临时 `ELFIE_HOME` 或显式数据目录；调试完成后检查没有遗留进程、端口、
-缓存或生成文件。
+Experiments must use a temporary `ELFIE_HOME` or an explicit data directory;
+after debugging, check that no processes, ports, caches or generated files are
+left behind.

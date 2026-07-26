@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -53,8 +52,6 @@ def test_freeze_core_builds_only_on_its_native_target(tmp_path: Path) -> None:
             "--onefile",
             "--name",
             "ElfieNestCore",
-            "--add-data",
-            f"{PROJECT_ROOT / 'app' / 'interfaces' / 'web' / 'static'}{os.pathsep}app/interfaces/web/static",
             "--distpath",
             str(tmp_path),
             "--workpath",
@@ -81,6 +78,26 @@ def test_freeze_core_rejects_a_cross_platform_request(tmp_path: Path) -> None:
 
     # Then: no packager process starts.
     assert calls == []
+
+
+def test_freeze_cli_builds_a_checkout_independent_management_executable(
+    tmp_path: Path,
+) -> None:
+    # Given: a native target runner and the product CLI entrypoint.
+    commands: list[Sequence[str]] = []
+
+    # When: release preparation freezes the CLI beside its target Core.
+    artifact = package_python_core.freeze_cli(
+        target="darwin-arm64",
+        output_dir=tmp_path,
+        host_target="darwin-arm64",
+        command_runner=commands.append,
+    )
+
+    # Then: the native executable is built from the CLI entrypoint, not a checkout wrapper.
+    assert artifact == tmp_path / "ElfieNestCli"
+    assert commands[0][-1] == str(PROJECT_ROOT / "scripts" / "elfienest.py")
+    assert "ElfieNestCli" in commands[0]
 
 
 def test_ollama_provenance_pins_every_release_target_and_license() -> None:
