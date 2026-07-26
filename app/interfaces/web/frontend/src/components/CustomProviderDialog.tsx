@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react"
 
 import type { ProviderDraft } from "../api/owner-providers"
-import { ManagerDialog } from "./ManagerDialog"
+import { ManageDialog } from "./ManageDialog"
 import { SelectField } from "./SelectField"
 import { TextField } from "./TextField"
 
@@ -50,7 +50,7 @@ export function CustomProviderDialog({ onOpenChange, onSave, open }: Props) {
     }
   }
 
-  return <ManagerDialog
+  return <ManageDialog
     description="用于 OpenAI 兼容或其他自建网关。ID 只能使用小写字母、数字和下划线。"
     onOpenChange={onOpenChange}
     open={open}
@@ -77,5 +77,5 @@ export function CustomProviderDialog({ onOpenChange, onSave, open }: Props) {
         <button className="button button--quiet" disabled={pending} onClick={() => onOpenChange(false)} type="button">取消</button>
       </div>
     </form>
-  </ManagerDialog>
+  </ManageDialog>
 }

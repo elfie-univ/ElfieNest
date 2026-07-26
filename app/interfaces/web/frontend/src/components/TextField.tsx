@@ -1,6 +1,6 @@
 import { useId, type HTMLInputAutoCompleteAttribute, type HTMLInputTypeAttribute } from "react"
 
-import "./manager-controls.css"
+import "./manage-controls.css"
 
 type TextFieldProps = {
   readonly autoComplete?: HTMLInputAutoCompleteAttribute
@@ -35,7 +35,7 @@ export function TextField({
 }: TextFieldProps) {
   const id = useId()
   const descriptionId = error || hint ? `${id}-description` : undefined
-  return <label className="manager-field" htmlFor={id}>
+  return <label className="manage-field" htmlFor={id}>
     <span>{label}</span>
     <input
       aria-describedby={descriptionId}
@@ -52,7 +52,7 @@ export function TextField({
       type={type}
       value={value}
     />
-    {error ? <small className="manager-field__error" id={descriptionId}>{error}</small> : null}
+    {error ? <small className="manage-field__error" id={descriptionId}>{error}</small> : null}
     {!error && hint ? <small id={descriptionId}>{hint}</small> : null}
   </label>
 }

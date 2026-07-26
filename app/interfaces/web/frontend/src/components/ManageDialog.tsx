@@ -2,9 +2,9 @@ import * as Dialog from "@radix-ui/react-dialog"
 import { useRef, type ReactElement, type ReactNode } from "react"
 
 import { Icon } from "./Icon"
-import "./manager-controls.css"
+import "./manage-controls.css"
 
-type ManagerDialogProps = {
+type ManageDialogProps = {
   readonly children: ReactNode
   readonly contentClassName?: string
   readonly description?: string
@@ -14,7 +14,7 @@ type ManagerDialogProps = {
   readonly trigger?: ReactElement
 }
 
-export function ManagerDialog({
+export function ManageDialog({
   children,
   contentClassName,
   description,
@@ -22,13 +22,13 @@ export function ManagerDialog({
   open,
   title,
   trigger,
-}: ManagerDialogProps) {
+}: ManageDialogProps) {
   const openerRef = useRef<HTMLElement | null>(null)
-  const contentClasses = ["manager-dialog", contentClassName].filter(Boolean).join(" ")
+  const contentClasses = ["manage-dialog", contentClassName].filter(Boolean).join(" ")
   return <Dialog.Root onOpenChange={onOpenChange} open={open}>
     {trigger ? <Dialog.Trigger asChild>{trigger}</Dialog.Trigger> : null}
     <Dialog.Portal>
-      <Dialog.Overlay className="manager-dialog-backdrop" />
+      <Dialog.Overlay className="manage-dialog-backdrop" />
       <Dialog.Content
         className={contentClasses}
         onCloseAutoFocus={(event) => {
@@ -41,14 +41,14 @@ export function ManagerDialog({
           openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
         }}
       >
-        <header className="manager-dialog__header">
+        <header className="manage-dialog__header">
           <div>
             <Dialog.Title>{title}</Dialog.Title>
             {description ? <Dialog.Description>{description}</Dialog.Description> : null}
           </div>
         </header>
-        <div className="manager-dialog__body">{children}</div>
-        <Dialog.Close aria-label={`关闭${title}`} className="manager-dialog__close">
+        <div className="manage-dialog__body">{children}</div>
+        <Dialog.Close aria-label={`关闭${title}`} className="manage-dialog__close">
           <Icon name="x" size={18} />
         </Dialog.Close>
       </Dialog.Content>

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react"
 import type { ExecutionProfile, FoodRecipe } from "../api/owner-foods"
 import type { SelectOption } from "./SelectField"
 import { ExecutionProfileFields } from "./ExecutionProfileFields"
-import { ManagerDialog } from "./ManagerDialog"
+import { ManageDialog } from "./ManageDialog"
 
 type FoodRecipeEditorProps = {
   readonly food: FoodRecipe | null
@@ -23,7 +23,7 @@ export function FoodRecipeEditor({ food, modelOptions, onOpenChange, onSave, ope
     setPending(true)
     try { await onSave(draft) } finally { setPending(false) }
   }
-  return <ManagerDialog
+  return <ManageDialog
     contentClassName="food-recipe-dialog"
     description="只修改这一种粮食；保存后保留后端验证警告。"
     onOpenChange={onOpenChange}
@@ -48,7 +48,7 @@ export function FoodRecipeEditor({ food, modelOptions, onOpenChange, onSave, ope
       </div>)}</section>
       <div className="manage-actions"><button aria-label={`保存${food.display_name}`} className="button" disabled={pending} onClick={() => { void save() }} type="button">{pending ? "保存中…" : "保存"}</button><button className="button button--quiet" disabled={pending} onClick={() => onOpenChange(false)} type="button">取消</button></div>
     </div>
-  </ManagerDialog>
+  </ManageDialog>
 }
 
 function defaultFallback(): ExecutionProfile {

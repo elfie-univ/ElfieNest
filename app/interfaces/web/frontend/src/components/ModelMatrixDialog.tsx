@@ -7,7 +7,7 @@ import {
   type ModelMatrix,
 } from "../api/owner-providers"
 import { ApiError } from "../api/client"
-import { ManagerDialog } from "./ManagerDialog"
+import { ManageDialog } from "./ManageDialog"
 import { Notice } from "./Notice"
 
 type ModelMatrixDialogProps = {
@@ -53,7 +53,7 @@ export function ModelMatrixDialog({ csrfToken, onOpenChange, open }: ModelMatrix
     }
   }
 
-  return <ManagerDialog
+  return <ManageDialog
     contentClassName="model-matrix-dialog"
     description="按模型查看已配置供应商的支持、验证和最近测速；未知价格不会估造。"
     onOpenChange={onOpenChange}
@@ -86,7 +86,7 @@ export function ModelMatrixDialog({ csrfToken, onOpenChange, open }: ModelMatrix
         </tr>)}</tbody>
       </table>
     </div> : null}
-  </ManagerDialog>
+  </ManageDialog>
 }
 
 function collectBenchmarkCombinations(matrix: ModelMatrix): BenchmarkCombination[] {

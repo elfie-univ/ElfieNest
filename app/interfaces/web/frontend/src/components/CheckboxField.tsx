@@ -2,7 +2,7 @@ import * as Checkbox from "@radix-ui/react-checkbox"
 import { useId } from "react"
 
 import { Icon } from "./Icon"
-import "./manager-controls.css"
+import "./manage-controls.css"
 
 type CheckboxFieldProps = {
   readonly checked: boolean
@@ -14,7 +14,7 @@ type CheckboxFieldProps = {
 
 export function CheckboxField({ checked, disabled = false, hint, label, onChange }: CheckboxFieldProps) {
   const id = useId()
-  return <div className="manager-checkbox-field">
+  return <div className="manage-checkbox-field">
     <Checkbox.Root aria-label={label} checked={checked} disabled={disabled} id={id} onCheckedChange={(next) => onChange(next === true)}>
       <Checkbox.Indicator><Icon name="check" size={15} /></Checkbox.Indicator>
     </Checkbox.Root>

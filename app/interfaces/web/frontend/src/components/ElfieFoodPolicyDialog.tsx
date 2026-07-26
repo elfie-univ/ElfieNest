@@ -1,7 +1,7 @@
 import { useState } from "react"
 
 import { ApiError, ownerWrite, type OwnerElfie } from "../api/client"
-import { ManagerDialog } from "./ManagerDialog"
+import { ManageDialog } from "./ManageDialog"
 import { Notice } from "./Notice"
 import { SelectField } from "./SelectField"
 
@@ -43,7 +43,7 @@ export function ElfieFoodPolicyDialog({
     }
   }
 
-  return <ManagerDialog
+  return <ManageDialog
     description={`${elfie.profile.name} · 仅允许调整默认粮食，其他公开档案保持只读。`}
     onOpenChange={(open) => { if (!open) onClose() }}
     open
@@ -68,5 +68,5 @@ export function ElfieFoodPolicyDialog({
         取消
       </button>
     </div>
-  </ManagerDialog>
+  </ManageDialog>
 }

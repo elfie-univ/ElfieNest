@@ -112,7 +112,7 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
         刷新
       </button>
     </div>
-    <div className="manager-filters">
+    <div className="manage-filters">
       <label>所属用户<SelectField
         ariaLabel="按用户筛选精灵"
         onValueChange={(value) => update("ownerUserId", value)}

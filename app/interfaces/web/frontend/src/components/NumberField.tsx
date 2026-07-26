@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from "react"
 
 import { Icon } from "./Icon"
-import "./manager-controls.css"
+import "./manage-controls.css"
 
 type NumberFieldProps = {
   readonly disabled?: boolean
@@ -50,9 +50,9 @@ export function NumberField({
     onChange(next)
   }
   const descriptionId = error || hint ? `${id}-description` : undefined
-  return <div className="manager-field manager-number-field">
+  return <div className="manage-field manage-number-field">
     <label htmlFor={id}>{label}</label>
-    <div className="manager-number-field__control">
+    <div className="manage-number-field__control">
       <button aria-label={`减少${label}`} disabled={disabled || value <= min} onClick={() => stepValue(-1)} type="button">
         <Icon name="minus" size={16} />
       </button>
@@ -71,7 +71,7 @@ export function NumberField({
         <Icon name="plus" size={16} />
       </button>
     </div>
-    {error ? <small className="manager-field__error" id={descriptionId}>{error}</small> : null}
+    {error ? <small className="manage-field__error" id={descriptionId}>{error}</small> : null}
     {!error && hint ? <small id={descriptionId}>{hint}</small> : null}
   </div>
 }

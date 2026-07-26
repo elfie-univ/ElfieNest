@@ -18,8 +18,8 @@ describe("ManagePage", () => {
     expect(source.match(/<h1>/g)).toHaveLength(1)
   })
 
-  it("uses the documented ElfieNest logo in the manager sidebar", () => {
-    const source = readFileSync(resolve(import.meta.dirname, "../components/ManagerSidebar.tsx"), "utf8")
+  it("uses the documented ElfieNest logo in the manage sidebar", () => {
+    const source = readFileSync(resolve(import.meta.dirname, "../components/ManageSidebar.tsx"), "utf8")
 
     expect(source).toContain("docs/public/assets/logo.png")
     expect(source).toContain('<img alt="ElfieNest"')

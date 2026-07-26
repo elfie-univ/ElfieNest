@@ -6,7 +6,7 @@ import { CameraPreview } from "./CameraPreview"
 import { ClassicNestFloorPlan } from "./ClassicNestFloorPlan"
 import { ConfirmDialog } from "./ConfirmDialog"
 import { Icon } from "./Icon"
-import { ManagerDialog } from "./ManagerDialog"
+import { ManageDialog } from "./ManageDialog"
 import { Notice } from "./Notice"
 import { NumberField } from "./NumberField"
 
@@ -86,7 +86,7 @@ export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
         <section className="nest-side-card"><h3>房间事件</h3><ul className="nest-events">{beds.filter((bed) => bed.occupant_name).map((bed) => <li key={bed.anchor_id}>{bed.name}：{bed.occupant_name} 已在位</li>)}{beds.every((bed) => !bed.occupant_name) ? <li>暂无床位占用事件</li> : null}</ul></section>
       </aside>
     </div>
-    <ManagerDialog contentClassName="manager-dialog--camera" description="可在此切换 Godot 已上报的摄像机位。" onOpenChange={setShowCamera} open={showCamera} title="实时房间摄像头"><CameraPreview csrfToken={csrfToken} /></ManagerDialog>
+    <ManageDialog contentClassName="manage-dialog--camera" description="可在此切换 Godot 已上报的摄像机位。" onOpenChange={setShowCamera} open={showCamera} title="实时房间摄像头"><CameraPreview csrfToken={csrfToken} /></ManageDialog>
     <ConfirmDialog confirmLabel="保存布局" description={`确认向 Godot 提交 ${bedCount} 个期望床位吗？这不会由管理端直接修改 3D 几何。`} onConfirm={() => { void confirmBedUpdate() }} onOpenChange={setConfirmBeds} open={confirmBeds} pending={savingBeds} title="确认调整床位" />
   </section>
 }

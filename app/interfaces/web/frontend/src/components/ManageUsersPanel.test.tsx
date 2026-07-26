@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { deleteManagedUser, ownerUsers, updateManagedUser } from "../api/client"
-import { ManagerUsersPanel } from "./ManagerUsersPanel"
+import { ManageUsersPanel } from "./ManageUsersPanel"
 
 vi.mock("../api/client", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/client")>()
@@ -37,7 +37,7 @@ const bob = {
   effective_elfie_limit: 5,
 }
 
-describe("ManagerUsersPanel", () => {
+describe("ManageUsersPanel", () => {
   beforeEach(() => {
     vi.mocked(ownerUsers).mockResolvedValue([alice, bob])
     vi.mocked(updateManagedUser).mockResolvedValue(bob)
@@ -46,7 +46,7 @@ describe("ManagerUsersPanel", () => {
 
   it("renders identity cards with honest status and protected removal", async () => {
     const user = userEvent.setup()
-    render(<ManagerUsersPanel csrfToken="csrf" />)
+    render(<ManageUsersPanel csrfToken="csrf" />)
 
     const cards = await screen.findAllByRole("article")
     expect(cards).toHaveLength(2)
@@ -60,7 +60,7 @@ describe("ManagerUsersPanel", () => {
 
   it("edits only the adoption limit and can restore the system default", async () => {
     const user = userEvent.setup()
-    render(<ManagerUsersPanel csrfToken="csrf" />)
+    render(<ManageUsersPanel csrfToken="csrf" />)
 
     await user.click(await screen.findByRole("button", { name: "编辑 alice 的领养上限" }))
     const dialog = screen.getByRole("dialog", { name: "编辑领养上限" })

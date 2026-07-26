@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest"
 
-import { isManagerTab, MANAGER_NAV_GROUPS, MANAGER_NAV_ITEMS } from "./managerNavigation"
+import { isManageTab, MANAGE_NAV_GROUPS, MANAGE_NAV_ITEMS } from "./manageNavigation"
 
-describe("MANAGER_NAV_ITEMS", () => {
+describe("MANAGE_NAV_ITEMS", () => {
   it("uses the approved Lucide icon key for every management destination", () => {
-    expect(MANAGER_NAV_ITEMS.map((item) => item.icon)).toEqual([
+    expect(MANAGE_NAV_ITEMS.map((item) => item.icon)).toEqual([
       "activity", "users", "cat", "house", "plug-zap", "utensils", "wrench", "settings"
     ])
   })
 
-  it("exposes only the approved desktop manager destinations in their final order", () => {
-    expect(MANAGER_NAV_ITEMS.map(({ id, label }) => ({ id, label }))).toEqual([
+  it("exposes only the approved desktop manage destinations in their final order", () => {
+    expect(MANAGE_NAV_ITEMS.map(({ id, label }) => ({ id, label }))).toEqual([
       { id: "monitor", label: "状态监控" },
       { id: "users", label: "用户管理" },
       { id: "elfies", label: "精灵管理" },
@@ -23,7 +23,7 @@ describe("MANAGER_NAV_ITEMS", () => {
   })
 
   it("groups destinations without keeping retired routes addressable", () => {
-    expect(MANAGER_NAV_GROUPS.map((group) => ({
+    expect(MANAGE_NAV_GROUPS.map((group) => ({
       label: group.label,
       ids: group.items.map((item) => item.id),
     }))).toEqual([
@@ -32,8 +32,8 @@ describe("MANAGER_NAV_ITEMS", () => {
       { label: "模型订阅", ids: ["providers", "foods"] },
       { label: "系统配置", ids: ["tools", "system"] },
     ])
-    expect(isManagerTab("logs")).toBe(false)
-    expect(isManagerTab("models")).toBe(false)
-    expect(isManagerTab("godot")).toBe(false)
+    expect(isManageTab("logs")).toBe(false)
+    expect(isManageTab("models")).toBe(false)
+    expect(isManageTab("godot")).toBe(false)
   })
 })

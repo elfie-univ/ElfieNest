@@ -119,7 +119,7 @@ export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
     <div className="manage-head"><p>展开查看每个执行角色；人工编辑只改当前粮食，自动生成必须先预览差异。</p><button className="button button--quiet" disabled={pending !== null} onClick={() => { void load() }} type="button">重新读取</button></div>
     {error ? <Notice kind="error" message={error} /> : null}
     {notice ? <Notice message={notice} /> : null}
-    {foods.length === 0 ? <div className="manager-empty-state"><h3>尚无粮食策略</h3><p>先生成更新预览，检查模型角色差异后再确认应用。</p></div> : <div className="food-table-wrap"><table className="food-table"><thead><tr><th>粮食</th><th>主模型</th><th>验证状态</th><th>来源 / 更新时间</th><th>操作</th></tr></thead><tbody>{foods.map((food) => {
+    {foods.length === 0 ? <div className="manage-empty-state"><h3>尚无粮食策略</h3><p>先生成更新预览，检查模型角色差异后再确认应用。</p></div> : <div className="food-table-wrap"><table className="food-table"><thead><tr><th>粮食</th><th>主模型</th><th>验证状态</th><th>来源 / 更新时间</th><th>操作</th></tr></thead><tbody>{foods.map((food) => {
       const isExpanded = expanded.has(food.key)
       const warnings = foodWarnings[food.key] ?? []
       return <Fragment key={food.key}>

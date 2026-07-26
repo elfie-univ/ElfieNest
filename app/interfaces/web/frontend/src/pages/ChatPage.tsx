@@ -170,7 +170,7 @@ export function ChatPage() {
           </nav>
           <div className="rail-bottom">
             <div className="rail-quick-actions">
-              {user.role === "owner" ? <a aria-label="进入管理" className="rail-button rail-button--manager" data-tooltip="进入管理" href="/manage"><Icon name="house" /></a> : null}
+              {user.role === "owner" ? <a aria-label="进入管理" className="rail-button rail-button--manage" data-tooltip="进入管理" href="/manage"><Icon name="house" /></a> : null}
               <button aria-label="扫码用手机打开聊天" className="rail-button" data-tooltip="扫码用手机打开聊天" onClick={() => setShowMobileAccess(true)} type="button"><Icon name="qr-code" /></button>
             </div>
             <AccountMenu compact onUpdated={refresh} user={user} />

@@ -3,11 +3,11 @@ import userEvent from "@testing-library/user-event"
 import { useState } from "react"
 import { describe, expect, it } from "vitest"
 
-import { ManagerDialog } from "./ManagerDialog"
+import { ManageDialog } from "./ManageDialog"
 
 function DialogFixture() {
   const [open, setOpen] = useState(false)
-  return <ManagerDialog
+  return <ManageDialog
     description="填写连接信息"
     onOpenChange={setOpen}
     open={open}
@@ -16,20 +16,20 @@ function DialogFixture() {
   >
     <label htmlFor="dialog-name">名称</label>
     <input id="dialog-name" />
-  </ManagerDialog>
+  </ManageDialog>
 }
 
 function ExternalTriggerFixture() {
   const [open, setOpen] = useState(false)
   return <>
     <button onClick={() => setOpen(true)} type="button">外部打开</button>
-    <ManagerDialog onOpenChange={setOpen} open={open} title="外部弹窗">
+    <ManageDialog onOpenChange={setOpen} open={open} title="外部弹窗">
       <button type="button">弹窗操作</button>
-    </ManagerDialog>
+    </ManageDialog>
   </>
 }
 
-describe("ManagerDialog", () => {
+describe("ManageDialog", () => {
   it("moves focus into the dialog and restores it after Escape", async () => {
     const user = userEvent.setup()
     render(<DialogFixture />)

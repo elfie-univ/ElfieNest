@@ -1,5 +1,5 @@
 import type { ExecutionProfile, FoodPreview, FoodRecipe } from "../api/owner-foods"
-import { ManagerDialog } from "./ManagerDialog"
+import { ManageDialog } from "./ManageDialog"
 
 type FoodPreviewDialogProps = {
   readonly onContinue: () => void
@@ -14,7 +14,7 @@ export function FoodPreviewDialog({ onContinue, onOpenChange, open, preview }: F
     ...Object.keys(preview.current.foods),
     ...Object.keys(preview.candidate.foods),
   ]))
-  return <ManagerDialog
+  return <ManageDialog
     contentClassName="food-preview-dialog"
     description="这里仅展示候选差异；关闭不会修改当前粮食目录。"
     onOpenChange={onOpenChange}
@@ -34,7 +34,7 @@ export function FoodPreviewDialog({ onContinue, onOpenChange, open, preview }: F
       {preview.warnings.map((warning) => <p className="form-hint" key={warning}>{warning}</p>)}
       <div className="manage-actions"><button className="button" disabled={!preview.has_changes} onClick={onContinue} type="button">继续应用</button><button className="button button--quiet" onClick={() => onOpenChange(false)} type="button">关闭预览</button></div>
     </div>
-  </ManagerDialog>
+  </ManageDialog>
 }
 
 function roleDiffs(current: FoodRecipe | undefined, candidate: FoodRecipe | undefined): readonly [string, string, string][] {

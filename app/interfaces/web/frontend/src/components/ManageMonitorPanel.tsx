@@ -13,9 +13,9 @@ const RuntimeStatusSchema = z.object({
   notes: z.array(z.string()),
 })
 
-type ManagerMonitorPanelProps = { readonly elfieCount: number }
+type ManageMonitorPanelProps = { readonly elfieCount: number }
 
-export function ManagerMonitorPanel({ elfieCount }: ManagerMonitorPanelProps) {
+export function ManageMonitorPanel({ elfieCount }: ManageMonitorPanelProps) {
   const [status, setStatus] = useState<z.infer<typeof RuntimeStatusSchema> | null>(null)
   const [error, setError] = useState<string | null>(null)
 

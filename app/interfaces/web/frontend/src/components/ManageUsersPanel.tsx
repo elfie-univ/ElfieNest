@@ -5,12 +5,12 @@ import { Avatar } from "./Avatar"
 import { CheckboxField } from "./CheckboxField"
 import { ConfirmDialog } from "./ConfirmDialog"
 import { Icon } from "./Icon"
-import { ManagerDialog } from "./ManagerDialog"
+import { ManageDialog } from "./ManageDialog"
 import { Notice } from "./Notice"
 import { NumberField } from "./NumberField"
 import { TextField } from "./TextField"
 
-export function ManagerUsersPanel({ csrfToken }: { readonly csrfToken: string }) {
+export function ManageUsersPanel({ csrfToken }: { readonly csrfToken: string }) {
   const [users, setUsers] = useState<readonly OwnerUser[]>([])
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<OwnerUser | null>(null)
@@ -57,7 +57,7 @@ function QuotaDialog({ csrfToken, onClose, onSaved, user }: { readonly csrfToken
     try { await updateManagedUser(user.id, { elfie_quota_override: useDefault ? null : quota }, csrfToken); await onSaved() }
     catch (reason: unknown) { setError(reason instanceof ApiError ? reason.message : "领养上限没有保存") }
   }
-  return <ManagerDialog description="只修改这个成员最多可领养的精灵数量；账号资料由本人维护。" onOpenChange={(open) => { if (!open) onClose() }} open title="编辑领养上限"><form onSubmit={(event) => { event.preventDefault(); void save() }}>{error ? <Notice kind="error" message={error} /> : null}<CheckboxField checked={useDefault} hint={`当前系统默认上限为 ${user.elfie_quota_override === null ? user.effective_elfie_limit : "全局配置值"}`} label="沿用系统默认上限" onChange={setUseDefault} /><NumberField disabled={useDefault} label="领养上限" max={32} min={1} onChange={setQuota} value={quota} /><div className="manage-actions"><button className="button" type="submit">保存上限</button><button className="button button--quiet" onClick={onClose} type="button">取消</button></div></form></ManagerDialog>
+  return <ManageDialog description="只修改这个成员最多可领养的精灵数量；账号资料由本人维护。" onOpenChange={(open) => { if (!open) onClose() }} open title="编辑领养上限"><form onSubmit={(event) => { event.preventDefault(); void save() }}>{error ? <Notice kind="error" message={error} /> : null}<CheckboxField checked={useDefault} hint={`当前系统默认上限为 ${user.elfie_quota_override === null ? user.effective_elfie_limit : "全局配置值"}`} label="沿用系统默认上限" onChange={setUseDefault} /><NumberField disabled={useDefault} label="领养上限" max={32} min={1} onChange={setQuota} value={quota} /><div className="manage-actions"><button className="button" type="submit">保存上限</button><button className="button button--quiet" onClick={onClose} type="button">取消</button></div></form></ManageDialog>
 }
 
 function CreateUserDialog({ csrfToken, onClose, onSaved, open }: { readonly csrfToken: string; readonly onClose: () => void; readonly onSaved: () => Promise<void>; readonly open: boolean }) {
@@ -69,5 +69,5 @@ function CreateUserDialog({ csrfToken, onClose, onSaved, open }: { readonly csrf
     try { await createManagedUser(username.trim(), password, csrfToken); await onSaved() }
     catch (reason: unknown) { setError(reason instanceof ApiError ? reason.message : "本地用户没有创建") }
   }
-  return <ManagerDialog description="当前阶段账号保存在本机。二维码邀请与统一身份将在账户中心接入后实现。" onOpenChange={(next) => { if (!next) onClose() }} open={open} title="添加本地用户"><form onSubmit={(event) => { event.preventDefault(); void save() }}>{error ? <Notice kind="error" message={error} /> : null}<TextField autoFocus label="用户名" onChange={setUsername} required value={username} /><TextField autoComplete="new-password" label="初始密码" onChange={setPassword} required type="password" value={password} /><div className="manage-actions"><button className="button" type="submit">创建用户</button><button className="button button--quiet" onClick={onClose} type="button">取消</button></div></form></ManagerDialog>
+  return <ManageDialog description="当前阶段账号保存在本机。二维码邀请与统一身份将在账户中心接入后实现。" onOpenChange={(next) => { if (!next) onClose() }} open={open} title="添加本地用户"><form onSubmit={(event) => { event.preventDefault(); void save() }}>{error ? <Notice kind="error" message={error} /> : null}<TextField autoFocus label="用户名" onChange={setUsername} required value={username} /><TextField autoComplete="new-password" label="初始密码" onChange={setPassword} required type="password" value={password} /><div className="manage-actions"><button className="button" type="submit">创建用户</button><button className="button button--quiet" onClick={onClose} type="button">取消</button></div></form></ManageDialog>
 }

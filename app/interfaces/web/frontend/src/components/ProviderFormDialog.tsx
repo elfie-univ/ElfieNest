@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react"
 
 import type { ProviderDraft, ProviderModelDraft, ProviderView } from "../api/owner-providers"
-import { ManagerDialog } from "./ManagerDialog"
+import { ManageDialog } from "./ManageDialog"
 import { SelectField } from "./SelectField"
 import { TextField } from "./TextField"
 
@@ -65,7 +65,7 @@ export function ProviderFormDialog({ onOpenChange, onSave, open, provider }: Pro
     }
   }
 
-  return <ManagerDialog
+  return <ManageDialog
     contentClassName="provider-form-dialog"
     description={method === "local" ? "连接本机模型服务并读取可用模型。" : "密钥只写入本机；读取时只返回是否已配置。"}
     onOpenChange={onOpenChange}
@@ -132,5 +132,5 @@ export function ProviderFormDialog({ onOpenChange, onSave, open, provider }: Pro
           </div>
         </>}
     </form>
-  </ManagerDialog>
+  </ManageDialog>
 }

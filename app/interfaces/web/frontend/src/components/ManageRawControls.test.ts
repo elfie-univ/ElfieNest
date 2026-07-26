@@ -3,23 +3,23 @@ import { resolve } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-const MANAGER_PANELS = [
+const MANAGE_PANELS = [
   "OwnerNestPanel.tsx",
-  "ManagerUsersPanel.tsx",
+  "ManageUsersPanel.tsx",
   "OwnerProviderPanel.tsx",
   "OwnerFoodPanel.tsx",
   "SystemSettingsPanel.tsx",
 ] as const
-const REACHABLE_MANAGER_SURFACES = [
-  ...MANAGER_PANELS,
+const REACHABLE_MANAGE_SURFACES = [
+  ...MANAGE_PANELS,
   "AccountMenu.tsx",
-  "ManagerMonitorPanel.tsx",
-  "ManagerSidebar.tsx",
+  "ManageMonitorPanel.tsx",
+  "ManageSidebar.tsx",
   "OwnerElfieOverview.tsx",
 ] as const
 
-describe("Manager raw browser controls", () => {
-  it.each(MANAGER_PANELS)("does not use window.confirm in %s", (filename) => {
+describe("Manage raw browser controls", () => {
+  it.each(MANAGE_PANELS)("does not use window.confirm in %s", (filename) => {
     const source = readFileSync(resolve(import.meta.dirname, filename), "utf8")
 
     expect(source).not.toContain("window.confirm")
@@ -32,7 +32,7 @@ describe("Manager raw browser controls", () => {
     expect(source).not.toContain('aria-modal="true"')
   })
 
-  it.each(["ManagerUsersPanel.tsx", "OwnerProviderPanel.tsx"] as const)(
+  it.each(["ManageUsersPanel.tsx", "OwnerProviderPanel.tsx"] as const)(
     "routes form fields and dialog shells through shared controls in %s",
     (filename) => {
       const source = readFileSync(resolve(import.meta.dirname, filename), "utf8")
@@ -51,7 +51,7 @@ describe("Manager raw browser controls", () => {
     expect(source).toContain("<CheckboxField")
   })
 
-  it("keeps legacy JSON catalog panels outside the reachable manager page", () => {
+  it("keeps legacy JSON catalog panels outside the reachable manage page", () => {
     const managePage = readFileSync(resolve(import.meta.dirname, "../pages/ManagePage.tsx"), "utf8")
 
     expect(managePage).not.toContain("OwnerDataPanel")
@@ -59,7 +59,7 @@ describe("Manager raw browser controls", () => {
     expect(managePage).not.toContain("RuntimeLogPanel")
   })
 
-  it.each(REACHABLE_MANAGER_SURFACES)("does not expose raw JSON or browser-native Manager actions in %s", (filename) => {
+  it.each(REACHABLE_MANAGE_SURFACES)("does not expose raw JSON or browser-native Manage actions in %s", (filename) => {
     const source = readFileSync(resolve(import.meta.dirname, filename), "utf8")
 
     expect(source).not.toContain("window.confirm")

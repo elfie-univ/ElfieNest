@@ -1,7 +1,7 @@
 import * as AlertDialog from "@radix-ui/react-alert-dialog"
 import { useRef, type ReactElement } from "react"
 
-import "./manager-controls.css"
+import "./manage-controls.css"
 
 type ConfirmDialogProps = {
   readonly cancelLabel?: string
@@ -32,9 +32,9 @@ export function ConfirmDialog({
   return <AlertDialog.Root onOpenChange={onOpenChange} open={open}>
     {trigger ? <AlertDialog.Trigger asChild>{trigger}</AlertDialog.Trigger> : null}
     <AlertDialog.Portal>
-      <AlertDialog.Overlay className="manager-dialog-backdrop" />
+      <AlertDialog.Overlay className="manage-dialog-backdrop" />
       <AlertDialog.Content
-        className="manager-dialog manager-confirm-dialog"
+        className="manage-dialog manage-confirm-dialog"
         onCloseAutoFocus={(event) => {
           if (!openerRef.current) return
           event.preventDefault()
@@ -47,10 +47,10 @@ export function ConfirmDialog({
       >
         <AlertDialog.Title>{title}</AlertDialog.Title>
         <AlertDialog.Description>{description}</AlertDialog.Description>
-        <div className="manager-dialog__actions">
+        <div className="manage-dialog__actions">
           <AlertDialog.Cancel className="button button--quiet" disabled={pending}>{cancelLabel}</AlertDialog.Cancel>
           <button
-            className={danger ? "button manager-confirm-dialog__danger" : "button"}
+            className={danger ? "button manage-confirm-dialog__danger" : "button"}
             disabled={pending}
             onClick={onConfirm}
             type="button"
