@@ -12,7 +12,7 @@ from app.infrastructure.persistence.nest_schema import (
     migrate_legacy_nest_layout_to_semantic_tables,
 )
 
-CURRENT_SCHEMA_VERSION: Final[int] = 10
+CURRENT_SCHEMA_VERSION: Final[int] = 11
 
 
 class OwnerSchemaMigrationError(RuntimeError):
@@ -34,7 +34,9 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             avatar_color INTEGER DEFAULT 0,
             avatar_kind TEXT DEFAULT 'initials',
             default_landing_page TEXT NOT NULL DEFAULT 'manage'
-            CHECK(default_landing_page IN ('chat', 'manage'))
+            CHECK(default_landing_page IN ('chat', 'manage')),
+            theme_key TEXT NOT NULL DEFAULT 'warm-paper'
+            CHECK(theme_key IN ('warm-paper', 'harbor-blue', 'orchid-archive', 'moss-green'))
         )
         """
     )
@@ -95,12 +97,15 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
         ensure_nest_semantic_tables(connection)
 
     _ensure_default_landing_page_column(connection)
+    _ensure_theme_key_column(connection)
     if version < 8:
         _migrate_v7_to_v8(connection)
     if version < 9:
         _migrate_v8_to_v9(connection)
     if version < 10:
         _migrate_v9_to_v10(connection)
+    if version < 11:
+        _migrate_v10_to_v11(connection)
     _ensure_owner_index(connection)
 
 
@@ -177,6 +182,15 @@ def _ensure_default_landing_page_column(connection: sqlite3.Connection) -> None:
     )
 
 
+def _ensure_theme_key_column(connection: sqlite3.Connection) -> None:
+    """Keep the user-selected Web theme available across historical layouts."""
+    _ignore_duplicate_column(
+        connection,
+        "ALTER TABLE users ADD COLUMN theme_key TEXT NOT NULL DEFAULT 'warm-paper' "
+        "CHECK(theme_key IN ('warm-paper', 'harbor-blue', 'orchid-archive', 'moss-green'))",
+    )
+
+
 def _migrate_v7_to_v8(connection: sqlite3.Connection) -> None:
     """Add persistent embodiment session/lease facts without altering old rows."""
     connection.execute(
@@ -241,6 +255,12 @@ def _migrate_v9_to_v10(connection: sqlite3.Connection) -> None:
     """
     connection.execute("DROP TABLE IF EXISTS chat_messages")
     connection.execute("PRAGMA user_version = 10")
+
+
+def _migrate_v10_to_v11(connection: sqlite3.Connection) -> None:
+    """Persist one validated visual theme preference per user."""
+    _ensure_theme_key_column(connection)
+    connection.execute("PRAGMA user_version = 11")
 
 
 def _validate_owner_roles(connection: sqlite3.Connection) -> None:

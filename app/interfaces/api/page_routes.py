@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import (
     FileResponse,
     PlainTextResponse,
@@ -12,8 +12,14 @@ from fastapi.responses import (
     Response,
 )
 
-from app.features.accounts.auth import get_current_user
+from app.features.accounts.auth import get_current_user, require_owner
 from app.features.setup.service import needs_setup
+from app.interfaces.api.service_access import LOOPBACK_HOSTS, ServiceMode
+from app.interfaces.web.build_discovery import (
+    WebBuildManifestMalformedError,
+    WebBuildManifestMissingError,
+    discover_web_build,
+)
 
 router = APIRouter(include_in_schema=False)
 
@@ -92,7 +98,16 @@ async def generated_asset(asset_path: str, request: Request) -> Response:
     try:
         path = web_build.asset_path(f"assets/{asset_path}")
     except FileNotFoundError as error:
-        raise HTTPException(status_code=404, detail="页面资源不存在") from error
+        try:
+            refreshed_build = discover_web_build(web_build.directory)
+            path = refreshed_build.asset_path(f"assets/{asset_path}")
+        except (
+            FileNotFoundError,
+            WebBuildManifestMalformedError,
+            WebBuildManifestMissingError,
+        ) as refresh_error:
+            raise HTTPException(status_code=404, detail="页面资源不存在") from refresh_error
+        request.app.state.web_build = refreshed_build
     return FileResponse(path)
 
 
@@ -152,3 +167,21 @@ async def manage_page(request: Request) -> Response:
     if user.get("role") != "owner":
         return RedirectResponse("/chat", status_code=303)
     return _serve_generated_page(request)
+
+
+@router.get("/api/owner/mobile-access")
+async def owner_mobile_access(
+    request: Request,
+    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+) -> Dict[str, Any]:
+    """Return only the LAN URLs that the active Core listener can serve."""
+    _ = owner
+    policy = request.app.state.service_access_policy
+    if policy.mode is not ServiceMode.LAN:
+        return {"available": False, "urls": []}
+    urls = [
+        f"http://{host}:{policy.http_port}/"
+        for host in sorted(policy.hostnames)
+        if host not in LOOPBACK_HOSTS
+    ]
+    return {"available": bool(urls), "urls": urls}

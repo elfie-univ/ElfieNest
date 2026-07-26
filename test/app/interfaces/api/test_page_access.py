@@ -106,6 +106,22 @@ def test_anonymous_clients_receive_public_shell_assets_but_no_product_data(
     assert conversations.status_code == 401
 
 
+def test_asset_request_refreshes_the_manifest_after_a_frontend_rebuild(
+    client: TestClient,
+) -> None:
+    """服务存活期间的新 Vite hash 不得让 React shell 失去 JS 资源。"""
+    build_dir = client.app.state.web_build.directory
+    (build_dir / "assets" / "app-new.js").write_text("new app", encoding="utf-8")
+    (build_dir / "manifest.json").write_text(
+        '{"index.html": {"file": "assets/app-new.js"}}', encoding="utf-8"
+    )
+
+    response = client.get("/assets/app-new.js")
+
+    assert response.status_code == 200
+    assert response.text == "new app"
+
+
 def test_login_returns_only_an_allowed_post_login_page(client: TestClient) -> None:
     # Given: an Owner account and both local and hostile next values.
     _create_user(client, "owner", "owner")
@@ -215,6 +231,41 @@ def test_lan_rejects_unrecognized_host_and_origin(tmp_path: Path) -> None:
     assert wrong_port.status_code == 400
     assert bad_origin.status_code == 403
     assert malformed_origin.status_code == 403
+
+
+def test_owner_mobile_access_exposes_only_active_lan_addresses(tmp_path: Path) -> None:
+    # Given: an Owner session on a LAN-facing Core with one allowed address.
+    db_path = str(tmp_path / "nest.db")
+    with (
+        patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
+        patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
+        patch(
+            "app.interfaces.api.service_access.private_ipv4_addresses",
+            return_value=("192.168.1.8",),
+        ),
+    ):
+        application = create_app(
+            engine=None, db_path=db_path, ws_port=9876, service_mode="lan"
+        )
+        with TestClient(application) as client:
+            _create_user(client, "owner", "owner")
+            headers = {"Host": "192.168.1.8:8000"}
+            login = client.post(
+                "/api/auth/login",
+                data={"username": "owner", "password": "pass123"},
+                headers=headers,
+            )
+
+            # When: the Owner asks the current Core for its mobile access URL.
+            response = client.get("/api/owner/mobile-access", headers=headers)
+
+    # Then: the response advertises the real LAN root, never a loopback URL.
+    assert login.status_code == 200
+    assert response.status_code == 200
+    assert response.json() == {
+        "available": True,
+        "urls": ["http://192.168.1.8:8000/"],
+    }
 
 
 def test_core_reads_the_packaged_web_build_directory_from_its_environment(

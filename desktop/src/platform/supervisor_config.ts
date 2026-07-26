@@ -67,7 +67,7 @@ export function resolveSupervisorConfig(
     "ELFIENEST_CORE_BIN",
     packagedCoreAvailable ? packagedCore : developmentPython,
   );
-  const coreArgs = basename(coreExecutable).startsWith("ElfieNestCore") ? [] : ["scripts/serve.py"];
+  const coreArgs = basename(coreExecutable).startsWith("ElfieNestCore") ? ["--lan"] : ["scripts/serve.py", "--lan"];
   const webBuildDirectory = environmentValue(
     environment,
     "ELFIENEST_WEB_BUILD_DIR",

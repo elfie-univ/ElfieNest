@@ -12,6 +12,9 @@ export function SessionProvider({ children }: { readonly children: ReactNode }) 
     try { setUser(await currentUser()) } catch { setUser(null) } finally { setLoading(false) }
   }
   useEffect(() => { void refresh() }, [])
+  useEffect(() => {
+    document.documentElement.dataset["theme"] = user?.theme_key ?? "warm-paper"
+  }, [user])
   return <SessionContext.Provider value={{ user, loading, refresh }}>{children}</SessionContext.Provider>
 }
 

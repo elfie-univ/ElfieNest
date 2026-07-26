@@ -1,5 +1,6 @@
 import type { ElfieProfile } from "../api/client"
 import { Avatar } from "./Avatar"
+import { Icon } from "./Icon"
 
 type ElfieProfilePanelProps = {
   readonly profile: ElfieProfile | null
@@ -65,13 +66,13 @@ export function ElfieProfilePanel({ profile }: ElfieProfilePanelProps) {
           <p>{formatAppearance(profile)}</p>
         </div>
         <div className="stage-actions">
-          <button type="button">↶</button>
-          <button type="button">↷</button>
-          <button type="button">−</button>
-          <button type="button">＋</button>
-          <button type="button">⌂</button>
-          <button type="button">◎</button>
-          <a className="button" href="/runtime/godot">拍照 ◎</a>
+          <button aria-label="向左旋转" type="button"><Icon name="rotate-ccw" /></button>
+          <button aria-label="向右旋转" type="button"><Icon name="rotate-cw" /></button>
+          <button aria-label="缩小" type="button"><Icon name="minus" /></button>
+          <button aria-label="放大" type="button"><Icon name="plus" /></button>
+          <button aria-label="回到房间" type="button"><Icon name="house" /></button>
+          <button aria-label="查看精灵" type="button"><Icon name="user" /></button>
+          <a className="button" href="/runtime/godot"><Icon name="camera" size={17} />拍照</a>
         </div>
       </section>
 

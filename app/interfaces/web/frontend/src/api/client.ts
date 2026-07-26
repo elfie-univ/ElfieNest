@@ -1,10 +1,21 @@
 import ky from "ky"
 import { z } from "zod"
 
+export const ThemeKeySchema = z.union([
+  z.literal("warm-paper"),
+  z.literal("harbor-blue"),
+  z.literal("orchid-archive"),
+  z.literal("moss-green"),
+])
+
 const ClientUserSchema = z.object({
   id: z.number().int(),
   username: z.string(),
   role: z.union([z.literal("owner"), z.literal("user")]),
+  nickname: z.string().nullable().optional(),
+  avatar_color: z.number().int().min(0).max(7).optional(),
+  avatar_kind: z.union([z.literal("initials"), z.literal("emoji")]).optional(),
+  theme_key: ThemeKeySchema.default("warm-paper"),
   default_landing_page: z.union([z.literal("chat"), z.literal("manage")]).optional(),
   csrf_token: z.string().optional()
 })
@@ -52,8 +63,10 @@ const AdoptionInfoSchema = z.object({
   quota: z.object({ used: z.number().int(), max: z.number().int(), remaining: z.number().int(), can_adopt: z.boolean() })
 })
 const AdoptionResultSchema = z.object({ elfie_id: z.string(), name: z.string(), species_id: z.string() })
+export const MobileAccessSchema = z.object({ available: z.boolean(), urls: z.array(z.string().url()) })
 
 export type ClientUser = z.infer<typeof ClientUserSchema>
+export type ThemeKey = z.infer<typeof ThemeKeySchema>
 export type ChatMessage = z.infer<typeof ChatMessageSchema>
 export type Conversation = z.infer<typeof ConversationSchema>
 export type ElfieProfile = z.infer<typeof ProfileSchema>
@@ -62,6 +75,7 @@ export type CreatedOwnerUser = z.infer<typeof CreatedOwnerUserSchema>
 export type OwnerElfie = z.infer<typeof OwnerElfieSchema>
 export type NestRoom = z.infer<typeof RoomSchema>
 export type AdoptionInfo = z.infer<typeof AdoptionInfoSchema>
+export type MobileAccess = z.infer<typeof MobileAccessSchema>
 
 export class ApiError extends Error {
   public constructor(readonly status: number, message: string) { super(message) }
@@ -81,6 +95,10 @@ export async function ownerRead(path: string): Promise<unknown> {
   return requestJson(path)
 }
 
+export async function mobileAccess(): Promise<MobileAccess> {
+  return MobileAccessSchema.parse(await ownerRead("/api/owner/mobile-access"))
+}
+
 export async function ownerWrite(
   path: string,
   method: "POST" | "PUT" | "DELETE",
@@ -97,6 +115,37 @@ function csrfHeaders(csrfToken: string, json = false): HeadersInit {
 }
 
 export async function currentUser(): Promise<ClientUser> { return ClientUserSchema.parse(await requestJson("/api/auth/me")) }
+export async function saveTheme(themeKey: ThemeKey, csrfToken: string): Promise<ThemeKey> {
+  const payload = z.object({ theme_key: ThemeKeySchema }).parse(
+    await requestJson("/api/auth/me/theme", {
+      method: "PUT",
+      headers: csrfHeaders(csrfToken, true),
+      body: JSON.stringify({ theme_key: themeKey }),
+    }),
+  )
+  return payload.theme_key
+}
+export async function updateProfile(
+  profileInput: { readonly nickname: string; readonly avatarColor: number; readonly avatarKind: "initials" | "emoji" },
+  csrfToken: string,
+): Promise<void> {
+  await requestJson("/api/auth/me/profile", {
+    method: "PUT",
+    headers: csrfHeaders(csrfToken, true),
+    body: JSON.stringify({
+      nickname: profileInput.nickname,
+      avatar_color: profileInput.avatarColor,
+      avatar_kind: profileInput.avatarKind,
+    }),
+  })
+}
+export async function changePassword(oldPassword: string, newPassword: string, csrfToken: string): Promise<void> {
+  await requestJson("/api/auth/me/password", {
+    method: "POST",
+    headers: csrfHeaders(csrfToken, true),
+    body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+  })
+}
 export async function setup(username: string, password: string): Promise<z.infer<typeof SetupResponseSchema>> {
   return SetupResponseSchema.parse(await requestJson("/api/auth/setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) }))
 }

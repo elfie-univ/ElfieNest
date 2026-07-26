@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react"
 
 import { adoptionInfo, adoptElfie, ApiError, type AdoptionInfo } from "../api/client"
 import { Notice } from "./Notice"
+import { SelectField } from "./SelectField"
 
 type AdoptionPanelProps = { readonly csrfToken: string; readonly onAdopted: (elfieId: string) => Promise<void> }
 
@@ -24,5 +25,5 @@ export function AdoptionPanel({ csrfToken, onAdopted }: AdoptionPanelProps) {
     finally { setSaving(false) }
   }
   if (info === null) return <section className="manage-card"><h2>领养一只精灵</h2>{error ? <Notice kind="error" message={error} /> : <p>正在准备领养选项…</p>}</section>
-  return <section className="manage-card"><h2>领养一只精灵</h2><p>你可以领养 {info.quota.remaining}/{info.quota.max} 位精灵。领养后只归属于你的聊天与资料空间。</p><form className="manage-form" onSubmit={(event) => { void submit(event) }}><input onChange={(event) => setName(event.target.value)} placeholder="精灵名字" required value={name} /><select onChange={(event) => setSpeciesId(event.target.value)} value={speciesId}>{info.species_ids.map((value) => <option key={value} value={value}>{value}</option>)}</select><select onChange={(event) => setPersonalityStyle(event.target.value)} value={personalityStyle}>{info.personality_styles.map((value) => <option key={value} value={value}>{value}</option>)}</select><select onChange={(event) => setHeight(event.target.value)} value={height}>{info.heights.map((value) => <option key={value} value={value}>{value}</option>)}</select><select onChange={(event) => setBuild(event.target.value)} value={build}>{info.builds.map((value) => <option key={value} value={value}>{value}</option>)}</select><button className="button" disabled={!info.quota.can_adopt || saving} type="submit">{saving ? "正在领养…" : "确认领养"}</button></form>{error && <Notice kind="error" message={error} />}</section>
+  return <section className="manage-card"><h2>领养一只精灵</h2><p>你可以领养 {info.quota.remaining}/{info.quota.max} 位精灵。领养后只归属于你的聊天与资料空间。</p><form className="manage-form" onSubmit={(event) => { void submit(event) }}><input onChange={(event) => setName(event.target.value)} placeholder="精灵名字" required value={name} /><SelectField ariaLabel="选择精灵物种" onValueChange={setSpeciesId} options={info.species_ids.map((value) => ({ label: value, value }))} value={speciesId} /><SelectField ariaLabel="选择人格风格" onValueChange={setPersonalityStyle} options={info.personality_styles.map((value) => ({ label: value, value }))} value={personalityStyle} /><SelectField ariaLabel="选择精灵身高" onValueChange={setHeight} options={info.heights.map((value) => ({ label: value, value }))} value={height} /><SelectField ariaLabel="选择精灵体型" onValueChange={setBuild} options={info.builds.map((value) => ({ label: value, value }))} value={build} /><button className="button" disabled={!info.quota.can_adopt || saving} type="submit">{saving ? "正在领养…" : "确认领养"}</button></form>{error && <Notice kind="error" message={error} />}</section>
 }

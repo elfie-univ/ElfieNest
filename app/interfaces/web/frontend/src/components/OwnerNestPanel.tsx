@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react"
 
 import { ApiError, ownerElfies, ownerRead, ownerRooms, ownerWrite, type NestRoom, type OwnerElfie } from "../api/client"
 import { Notice } from "./Notice"
+import { SelectField } from "./SelectField"
 
 type OwnerNestPanelProps = { readonly csrfToken: string }
 
@@ -59,7 +60,7 @@ export function OwnerNestPanel({ csrfToken }: OwnerNestPanelProps) {
     <div className="manage-head"><div><h2>精灵巢</h2><p>管理全局房间、床位与家位；家位不改变精灵的用户归属。</p></div><button className="button button--quiet" onClick={() => { void load() }} type="button">刷新</button></div>
     {error && <Notice kind="error" message={error} />}{notice && <Notice message={notice} />}
     <div className="nest-room-grid">{rooms.map((room) => <article className="nest-room" key={room.id}><strong>{room.name}</strong><small>{room.beds.filter((bed) => bed.occupant_name !== null).length}/{room.beds.length} 个床位已使用</small><ul>{room.beds.map((bed) => <li key={bed.id}>{bed.name}：{bed.occupant_name ?? "空闲"}</li>)}</ul></article>)}</div>
-    <div className="manager-action-grid"><form className="manage-form" onSubmit={(event) => { void updateBeds(event) }}><label>床位数量<input max="32" min="1" onChange={(event) => setBedCount(event.target.value)} type="number" value={bedCount} /></label><button className="button" type="submit">确认重建布局</button></form><form className="manage-form" onSubmit={(event) => { void assignHome(event) }}><select aria-label="选择要配置家位的精灵" onChange={(event) => setSelectedElfie(event.target.value)} value={selectedElfie}><option value="">选择精灵</option>{elfies.map((elfie) => <option key={elfie.elfie_id} value={elfie.elfie_id}>{elfie.profile.name}</option>)}</select><select aria-label="选择家位" onChange={(event) => setSelectedHome(event.target.value)} value={selectedHome}><option value="">清除家位</option>{homes.map((home) => <option key={home.id} value={home.id}>{home.label}</option>)}</select><button className="button" type="submit">保存家位</button></form></div>
+    <div className="manager-action-grid"><form className="manage-form" onSubmit={(event) => { void updateBeds(event) }}><label>床位数量<input max="32" min="1" onChange={(event) => setBedCount(event.target.value)} type="number" value={bedCount} /></label><button className="button" type="submit">确认重建布局</button></form><form className="manage-form" onSubmit={(event) => { void assignHome(event) }}><SelectField ariaLabel="选择要配置家位的精灵" onValueChange={setSelectedElfie} options={[{ label: "选择精灵", value: "" }, ...elfies.map((elfie) => ({ label: elfie.profile.name, value: elfie.elfie_id }))]} value={selectedElfie} /><SelectField ariaLabel="选择家位" onValueChange={setSelectedHome} options={[{ label: "清除家位", value: "" }, ...homes.map((home) => ({ label: home.label, value: home.id }))]} value={selectedHome} /><button className="button" type="submit">保存家位</button></form></div>
     <div className="manager-preview-links"><a className="button button--quiet" href="/runtime/godot">打开 Godot Web Runtime</a><CameraStatus /></div>
   </section>
 }

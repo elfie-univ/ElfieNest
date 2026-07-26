@@ -73,6 +73,13 @@ class PasswordChange(BaseModel):
     new_password: str = Field(..., min_length=6)
 
 
+class ThemePreferenceUpdate(BaseModel):
+    theme_key: str = Field(
+        ...,
+        pattern="^(warm-paper|harbor-blue|orchid-archive|moss-green)$",
+    )
+
+
 # ---------------------------------------------------------------------------
 # CSRF 校验依赖
 # ---------------------------------------------------------------------------
@@ -377,7 +384,7 @@ def create_app(
         with get_db(db_path) as conn:
             cursor = conn.execute(
                 "SELECT id, username, role, nickname, avatar_color, avatar_kind, "
-                "default_landing_page, created_at FROM users WHERE id = ?",
+                "default_landing_page, theme_key, created_at FROM users WHERE id = ?",
                 (user["id"],),
             )
             row = cursor.fetchone()
@@ -399,6 +406,7 @@ def create_app(
             "avatar_color": row["avatar_color"],
             "avatar_kind": row["avatar_kind"],
             "default_landing_page": row["default_landing_page"],
+            "theme_key": row["theme_key"],
             "created_at": row["created_at"],
             "elfie_count": elfie_count,
             "csrf_token": csrf_token,
@@ -516,6 +524,21 @@ def create_app(
             conn.commit()
 
         return {"detail": "密码已更新"}
+
+    @app.put("/api/auth/me/theme")
+    async def update_theme_preference(
+        body: ThemePreferenceUpdate,
+        request: Request,
+        user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+    ) -> Dict[str, str]:
+        """Persist the authenticated user's selected visual theme."""
+        with get_db(request.app.state.db_path) as conn:
+            conn.execute(
+                "UPDATE users SET theme_key = ? WHERE id = ?",
+                (body.theme_key, user["id"]),
+            )
+            conn.commit()
+        return {"theme_key": body.theme_key}
 
     # -------------------------------------------------------------------
     # Setup Wizard 路由（首启向导 — 在 owner 路由之前注册）

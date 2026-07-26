@@ -409,8 +409,12 @@ main() {
     # Godot web（所有 tier，只检查不强制装）
     echo "📦 Godot Web Runtime"
     if [[ "$ACTION" == "ensure" ]]; then
-        ensure_godot_web
-        local godot_result=$?
+        local godot_result
+        if ensure_godot_web; then
+            godot_result=0
+        else
+            godot_result=$?
+        fi
         if [[ $godot_result -eq 2 ]]; then
             has_warning=true
         elif [[ $godot_result -ne 0 ]]; then
@@ -429,8 +433,12 @@ main() {
     # Ollama（prod tier 或 dev tier）
     echo "📦 Ollama"
     if [[ "$ACTION" == "ensure" ]]; then
-        ensure_ollama
-        local ollama_result=$?
+        local ollama_result
+        if ensure_ollama; then
+            ollama_result=0
+        else
+            ollama_result=$?
+        fi
         if [[ $ollama_result -eq 2 ]]; then
             has_warning=true
         elif [[ $ollama_result -ne 0 ]]; then

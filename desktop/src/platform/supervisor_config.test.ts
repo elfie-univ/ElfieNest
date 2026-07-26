@@ -19,7 +19,7 @@ test("desktop opens the login page and resolves the Core at the packaged manifes
     assert.equal(config.uiUrl, "http://127.0.0.1:8000/login");
     assert.equal(config.coreExecutable, core);
     assert.equal(config.webBuildDirectory, join(resources, "web"));
-    assert.deepEqual(config.coreArgs, []);
+    assert.deepEqual(config.coreArgs, ["--lan"]);
     assert.equal(config.coreWorkingDirectory, join(root, "data"));
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -44,7 +44,7 @@ test("desktop environment overrides retain the explicit UI and Core launch contr
     assert.equal(config.uiUrl, "http://127.0.0.1:8010/login");
     assert.equal(config.coreExecutable, "/custom/core");
     assert.equal(config.webBuildDirectory, "/custom/web");
-    assert.deepEqual(config.coreArgs, ["scripts/serve.py"]);
+    assert.deepEqual(config.coreArgs, ["scripts/serve.py", "--lan"]);
     assert.equal(config.coreWorkingDirectory, "/custom/workdir");
   } finally {
     rmSync(root, { recursive: true, force: true });

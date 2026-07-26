@@ -11,10 +11,10 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-from app.interfaces.api.app import create_app
 from app.infrastructure.persistence.store import get_db, init_db
+from app.interfaces.api.app import create_app
 
-from ._helpers import create_test_owner
+from ._helpers import create_test_owner, create_test_user
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -90,6 +90,7 @@ class TestMe:
             "created_at",
             "elfie_count",
             "default_landing_page",
+            "theme_key",
         }
         assert "session_token" not in data
         assert data["id"] == 1
@@ -99,6 +100,7 @@ class TestMe:
         assert data["avatar_color"] == 0
         assert data["avatar_kind"] == "initials"
         assert data["default_landing_page"] == "manage"
+        assert data["theme_key"] == "warm-paper"
         assert "csrf_token" in data
         assert "created_at" in data
         assert data["elfie_count"] == 0
@@ -155,6 +157,84 @@ class TestGetProfile:
         assert data["nickname"] is None
         assert data["avatar_color"] == 0
         assert data["avatar_kind"] == "initials"
+
+
+# ===================================================================
+# PUT /api/auth/me/theme
+# ===================================================================
+
+
+class TestThemePreference:
+    def test_theme_preference_persists_for_the_authenticated_user(
+        self, client: TestClient
+    ) -> None:
+        """当前登录用户可保存主题，且 ``/api/auth/me`` 返回持久化后的值。"""
+        tokens = _login_owner(client)
+
+        response = client.put(
+            "/api/auth/me/theme",
+            json={"theme_key": "harbor-blue"},
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {"theme_key": "harbor-blue"}
+        current = client.get("/api/auth/me", headers=_headers(tokens["csrf_token"]))
+        assert current.json()["theme_key"] == "harbor-blue"
+
+    def test_each_authenticated_user_keeps_their_own_theme(
+        self, client: TestClient, db_path: str
+    ) -> None:
+        """Owner 与普通用户的主题偏好相互隔离。"""
+        create_test_user(db_path, "member", "memberchangeme")
+        owner_tokens = _login_owner(client)
+        owner_update = client.put(
+            "/api/auth/me/theme",
+            json={"theme_key": "orchid-archive"},
+            headers=_headers(owner_tokens["csrf_token"]),
+        )
+        assert owner_update.status_code == 200
+        logout = client.post(
+            "/api/auth/logout", headers={"X-CSRF-Token": owner_tokens["csrf_token"]}
+        )
+        assert logout.status_code == 200
+
+        member_login = client.post(
+            "/api/auth/login",
+            data={"username": "member", "password": "memberchangeme"},
+        )
+        member_tokens = {"csrf_token": member_login.headers["X-CSRF-Token"]}
+        member_update = client.put(
+            "/api/auth/me/theme",
+            json={"theme_key": "moss-green"},
+            headers=_headers(member_tokens["csrf_token"]),
+        )
+
+        assert member_update.status_code == 200
+        assert client.get("/api/auth/me", headers=_headers(member_tokens["csrf_token"])).json()[
+            "theme_key"
+        ] == "moss-green"
+        with get_db(db_path) as conn:
+            owner_theme = conn.execute(
+                "SELECT theme_key FROM users WHERE username = 'owner'"
+            ).fetchone()["theme_key"]
+        assert owner_theme == "orchid-archive"
+
+    def test_theme_preference_rejects_unknown_theme_key(
+        self, client: TestClient
+    ) -> None:
+        """未注册主题不能写入用户偏好。"""
+        tokens = _login_owner(client)
+
+        response = client.put(
+            "/api/auth/me/theme",
+            json={"theme_key": "midnight"},
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert response.status_code == 422
+        current = client.get("/api/auth/me", headers=_headers(tokens["csrf_token"]))
+        assert current.json()["theme_key"] == "warm-paper"
 
 
 # ===================================================================

@@ -131,12 +131,12 @@ class TestMigrationV1ToV2:
         assert "avatar_color" in cols
         assert "avatar_kind" in cols
 
-    def test_user_version_becomes_10(self, tmp_path: Path) -> None:
+    def test_user_version_becomes_11(self, tmp_path: Path) -> None:
         db = str(tmp_path / "nest.db")
         init_db(db)
         migrate_db_if_needed(db)
 
-        assert _user_version(db) == 10
+        assert _user_version(db) == 11
 
     def test_migration_idempotent(self, tmp_path: Path) -> None:
         """重复执行 migrate_db_if_needed 不报错。"""
@@ -147,7 +147,8 @@ class TestMigrationV1ToV2:
 
         cols = _table_info_columns(db)
         assert "nickname" in cols
-        assert _user_version(db) == 10
+        assert "theme_key" in cols
+        assert _user_version(db) == 11
 
     def test_preserves_existing_data(self, tmp_path: Path) -> None:
         """迁移前插入的用户，迁移后数据保持完整。"""
@@ -195,8 +196,8 @@ class TestMigrationV1ToV2:
         migrate_db_if_needed(db)
 
         cols = _table_info_columns(db)
-        assert len(cols) == 10
-        # 验证列顺序：原 5 列 + updated_at + profile 3 列 + 默认落页
+        assert len(cols) == 11
+        # 验证列顺序：原 5 列 + updated_at + profile 3 列 + 默认落页 + 主题偏好
         assert cols[:5] == ["id", "username", "password_hash", "role", "created_at"]
         assert cols[5:] == [
             "updated_at",
@@ -204,9 +205,10 @@ class TestMigrationV1ToV2:
             "avatar_color",
             "avatar_kind",
             "default_landing_page",
+            "theme_key",
         ]
 
-    def test_init_db_sets_version_10_without_legacy_chat_table(
+    def test_init_db_sets_version_11_without_legacy_chat_table(
         self, tmp_path: Path
     ) -> None:
         db = str(tmp_path / "nest.db")
@@ -214,7 +216,7 @@ class TestMigrationV1ToV2:
 
         cols = _table_info_columns(db)
         assert "nickname" in cols
-        assert _user_version(db) == 10
+        assert _user_version(db) == 11
         connection = sqlite3.connect(db)
         legacy_table = connection.execute(
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'chat_messages'"
@@ -248,7 +250,7 @@ class TestMigrationV1ToV2:
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'chat_messages'"
         ).fetchone()
         connection.close()
-        assert _user_version(db) == 10
+        assert _user_version(db) == 11
         assert legacy_table is None
 
     def test_adds_nest_tables_and_bed_id(self, tmp_path: Path) -> None:
@@ -323,4 +325,4 @@ class TestMigrationV1ToV2:
         assert row["anatomy_type"] == "quadruped"
         assert row["species_id"] == "fox"
         assert row["profile_schema_version"] == 1
-        assert _user_version(db) == 10
+        assert _user_version(db) == 11

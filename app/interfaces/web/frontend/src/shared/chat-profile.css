@@ -1,0 +1,96 @@
+.chat-workbench { display: grid; grid-template-columns: 72px minmax(280px, 360px) minmax(0, 1fr); width: 100vw; height: 100vh; overflow: hidden; background: color-mix(in srgb, var(--surface) 78%, transparent); }
+.app-rail { display: grid; grid-template-rows: minmax(0, 1fr) auto; justify-items: center; padding: 18px 10px; background: linear-gradient(180deg, var(--rail-a), var(--rail-b)); border-right: 1px solid var(--line); }
+.rail-nav, .rail-bottom, .rail-quick-actions { display: grid; gap: 12px; }
+.rail-nav { align-content: start; align-self: start; padding-top: 24px; }
+.rail-bottom { align-self: end; }
+.rail-button { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 14px; background: transparent; color: var(--ink-soft); font-size: 22px; }
+.rail-button:hover, .rail-button--active { background: var(--active-bg); color: var(--active-ink); }
+.rail-button--manager { font-size: 16px; font-weight: 800; }
+.rail-button > svg { width: 21px; height: 21px; }
+.chat-list-pane { min-width: 0; display: grid; grid-template-rows: auto auto 1fr auto; background: var(--surface-muted); border-right: 1px solid var(--line); }
+.list-pane-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 18px 10px; }
+.list-pane-head h1 { margin: 0; font-size: 24px; }
+.add-button { width: 34px; height: 34px; border-radius: 10px; background: var(--surface); color: var(--accent-hover); border: 1px solid var(--line); display: grid; place-items: center; }
+.add-button > svg { width: 19px; height: 19px; }
+.search-box { display: flex; align-items: center; gap: 6px; margin: 0 18px 14px; padding: 0 10px; border-radius: 10px; background: var(--surface); color: var(--ink-soft); }
+.search-box > svg { flex: 0 0 auto; }
+.search-box input { min-width: 0; width: 100%; border: 0; background: transparent; }
+.chat-list { min-height: 0; overflow: auto; }
+.wechat-row { width: 100%; display: flex; align-items: center; gap: 14px; padding: 15px 18px; border-radius: 0; background: transparent; text-align: left; }
+.wechat-row:hover { background: var(--nav-hover); }
+.wechat-row--active { background: var(--active-bg); color: var(--active-ink); }
+.wechat-row--active:hover { background: var(--active-hover); }
+.wechat-row--active small { color: var(--ink-soft); }
+.list-copy { min-width: 0; }
+.list-copy strong, .list-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-copy small { color: var(--ink-soft); font-size: 13px; margin-top: 4px; }
+.connection-state { margin: 10px 18px 16px; color: var(--ink-soft); line-height: 1.45; }
+.conversation { min-width: 0; display: grid; grid-template-rows: auto 1fr auto; background: var(--surface); }
+.topline { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 17px 26px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.topline h1 { margin: 0; font-size: 22px; }
+.message-list { min-height: 0; overflow: auto; padding: 32px 38px; display: grid; align-content: start; gap: 18px; }
+.message { max-width: min(72%, 680px); display: flex; align-items: flex-start; gap: 12px; }
+.message--user { justify-self: end; flex-direction: row-reverse; }
+.bubble { padding: 12px 16px; border-radius: 8px; background: var(--surface-muted); line-height: 1.55; white-space: pre-wrap; box-shadow: 0 1px 1px color-mix(in srgb, var(--shadow-color) 10%, transparent); }
+.message--user .bubble { background: var(--accent-soft); color: var(--active-ink); }
+.composer { display: flex; gap: 10px; padding: 18px 24px; background: var(--surface); border-top: 1px solid var(--line); }
+.composer textarea { min-height: 68px; flex: 1; resize: none; }
+
+.elfie-passport {
+  min-width: 0;
+  height: 100vh;
+  overflow: auto;
+  padding: 36px;
+  background: var(--surface-muted);
+}
+.elfie-passport--empty { display: grid; place-items: center; }
+.passport-identity {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 24px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--border);
+}
+.passport-identity .avatar { width: 96px; height: 96px; border-radius: 14px; }
+.passport-identity h1 { margin: 4px 0; font-size: 34px; }
+.passport-identity p { margin: 0; color: var(--text-muted); }
+.passport-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.passport-tags span, .tag { display: inline-block; padding: 5px 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--accent-hover); background: var(--surface-raised); font-size: 13px; }
+.passport-section { padding: 28px 0; border-bottom: 1px solid var(--border); }
+.section-title { display: grid; gap: 4px; margin-bottom: 18px; }
+.section-title span, .passport-grid span { color: var(--text-muted); font-size: 13px; font-weight: 800; letter-spacing: .08em; }
+.section-title strong { font-size: 26px; }
+.section-title small { justify-self: end; margin-top: -26px; color: var(--text-muted); font-weight: 700; }
+.section-title--row { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.section-title--row small { justify-self: auto; margin-top: 0; }
+.avatar-stage { min-height: 340px; display: grid; place-items: center; gap: 18px; padding: 34px; border: 1px solid var(--focus-ring); border-radius: 18px; background: var(--field-bg); text-align: center; }
+.avatar-stage .avatar { width: 170px; height: 170px; border-radius: 14px; font-size: 54px; box-shadow: 0 18px 34px color-mix(in srgb, var(--shadow-color) 22%, transparent); }
+.avatar-stage p { max-width: 720px; margin: 0; color: var(--text); }
+.stage-actions { display: grid; grid-template-columns: repeat(6, 68px) minmax(180px, 1fr); gap: 12px; margin-top: 16px; }
+.stage-actions button { min-height: 54px; border: 1px solid var(--border); border-radius: 13px; background: var(--surface-raised); color: var(--text); font-size: 22px; }
+.personality-bars { display: grid; gap: 13px; max-width: 760px; }
+.personality-row { display: grid; grid-template-columns: 90px minmax(0, 1fr) 56px; align-items: center; gap: 12px; }
+.personality-row div { height: 12px; overflow: hidden; border-radius: 999px; background: var(--selected-bg); }
+.personality-row i { display: block; block-size: 100%; border-radius: inherit; background: var(--accent); }
+.passport-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding-top: 28px; }
+.passport-grid article { padding: 18px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface-raised); }
+.passport-grid strong { display: block; margin: 8px 0; font-size: 20px; }
+.passport-grid p { margin: 0; color: var(--text-muted); line-height: 1.55; }
+
+.modal-backdrop { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; background: color-mix(in srgb, var(--overlay-bg) 34%, transparent); z-index: 20; }
+.adoption-modal { position: relative; width: min(760px, 100%); max-height: min(680px, calc(100vh - 40px)); overflow: auto; }
+.modal-close { position: absolute; z-index: 1; top: 12px; right: 12px; width: 34px; height: 34px; border-radius: 50%; background: var(--accent-hover); color: var(--surface-raised); display: grid; place-items: center; }
+.modal-close > svg { width: 19px; height: 19px; }
+
+.manage-workbench { display: grid; grid-template-columns: 72px minmax(0, 1fr); width: 100%; height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; background: var(--surface-raised); }
+.manage { width: 100%; min-height: 0; height: 100vh; height: 100dvh; padding: 34px; border-radius: 0; overflow: auto; overscroll-behavior: contain; }
+.manage-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.manage-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 28px; }
+.manage-card { padding: 20px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface-raised); }
+.manage-card h2 { margin: 0 0 10px; font-size: 18px; }
+.manage-card p { color: var(--text-muted); line-height: 1.6; }
+.manage-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 18px; }
+.manage-list { display: grid; gap: 8px; margin: 18px 0; padding: 0; list-style: none; color: var(--text); font-size: 14px; }
+.manage-list li { padding: 9px 10px; border-radius: 10px; background: var(--code-bg); }
+.manage-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; }
