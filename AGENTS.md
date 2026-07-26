@@ -72,8 +72,9 @@ Python 固定为 CPython 3.9.25，依赖以 `uv.lock` 为准。前端使用 Node
 - Agent、开发者、CR、测试和所有产品/开发脚本必须经仓库受控的 `uv` 与
   `.venv/bin/python3` 执行。不得以系统 `python`、`python3`、Conda、pip 环境或
   任意 `ELFIENEST_PYTHON` 覆盖作为产品入口。
-- 需要修复缺失、损坏或版本不匹配的环境时，唯一标准路径是
-  `./install.sh --env-only`；`uv run --no-sync` 只能在该锁定环境已经存在时使用。
+- 需要修复缺失、损坏或版本不匹配的开发环境时，标准路径是
+  `./elfienest.sh version`；需要安装本机原生应用时运行 `./install.sh`。
+  `uv run --no-sync` 只能在该锁定环境已经存在时使用。
 
 只改局部时先运行对应测试，再运行 `test/architecture/`。质量门及文档构建命令
 以 `CONTRIBUTING.md` 为准；机器上的最终事实源是 `pyproject.toml`、

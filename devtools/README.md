@@ -12,7 +12,7 @@ Prepare the repo-pinned Python environment first, then list the available
 tools:
 
 ```bash
-./install.sh --env-only
+./elfienest.sh version
 ./developer.sh --help
 ```
 

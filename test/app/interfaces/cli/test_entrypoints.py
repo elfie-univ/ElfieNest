@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -82,6 +83,25 @@ def test_elfienest_entrypoint_dispatches_cli_to_elfienest_script(
     project_root.mkdir()
     shutil.copy2(PROJECT_ROOT / "elfienest.sh", project_root / "elfienest.sh")
     shutil.copy2(PROJECT_ROOT / ".python-version", project_root / ".python-version")
+    scripts_dir = project_root / "scripts"
+    scripts_dir.mkdir()
+    shutil.copy2(PROJECT_ROOT / "scripts" / "bootstrap.sh", scripts_dir / "bootstrap.sh")
+    shutil.copy2(
+        PROJECT_ROOT / "scripts" / "bootstrap_report.sh",
+        scripts_dir / "bootstrap_report.sh",
+    )
+    shutil.copy2(
+        PROJECT_ROOT / "scripts" / "bootstrap_runtime_dependencies.sh",
+        scripts_dir / "bootstrap_runtime_dependencies.sh",
+    )
+    (scripts_dir / "serve.py").write_text("", encoding="utf-8")
+    (project_root / "build/web").mkdir(parents=True)
+    (project_root / "build/web/manifest.json").write_text("{}\n", encoding="utf-8")
+    godot_web = project_root / "build/components/godot-web"
+    for suffix in ("html", "js", "wasm", "pck"):
+        (godot_web / f"elfienest.{suffix}").parent.mkdir(parents=True, exist_ok=True)
+        (godot_web / f"elfienest.{suffix}").write_text("runtime\n", encoding="utf-8")
+    (project_root / "desktop/node_modules").mkdir(parents=True)
     write_executable(project_root / "install.sh", "#!/bin/bash\nexit 1\n")
 
     invocation_log = tmp_path / "invocation.log"
@@ -128,6 +148,18 @@ def test_entrypoint_explains_missing_dependencies_without_misreporting_python(
     project_root.mkdir()
     shutil.copy2(PROJECT_ROOT / "elfienest.sh", project_root / "elfienest.sh")
     shutil.copy2(PROJECT_ROOT / ".python-version", project_root / ".python-version")
+    scripts_dir = project_root / "scripts"
+    scripts_dir.mkdir()
+    shutil.copy2(PROJECT_ROOT / "scripts" / "bootstrap.sh", scripts_dir / "bootstrap.sh")
+    shutil.copy2(
+        PROJECT_ROOT / "scripts" / "bootstrap_report.sh",
+        scripts_dir / "bootstrap_report.sh",
+    )
+    shutil.copy2(
+        PROJECT_ROOT / "scripts" / "bootstrap_runtime_dependencies.sh",
+        scripts_dir / "bootstrap_runtime_dependencies.sh",
+    )
+    (scripts_dir / "serve.py").write_text("", encoding="utf-8")
     write_executable(project_root / "install.sh", "#!/bin/bash\nexit 1\n")
     write_executable(
         project_root / ".venv" / "bin" / "python3",
@@ -142,7 +174,12 @@ exit 1
 """,
     )
     env = os.environ.copy()
-    env["ELFIENEST_SKIP_AUTO_REPAIR"] = "1"
+    env.update(
+        {
+            "ELFIENEST_SKIP_AUTO_REPAIR": "1",
+            "PATH": "/usr/bin:/bin",
+        }
+    )
 
     # When
     result = subprocess.run(
@@ -157,7 +194,7 @@ exit 1
 
     # Then
     assert result.returncode != 0
-    assert "依赖缺失或不完整" in result.stderr
+    assert "依赖检查失败" in result.stderr
     assert "解释器版本错误" not in result.stderr
 
 
@@ -167,7 +204,7 @@ def test_existing_cli_help_keeps_setup_and_database_commands() -> None:
 
     # When
     result = subprocess.run(
-        [str(PROJECT_ROOT / ".venv" / "bin" / "python3"), str(python_cli), "--help"],
+        [sys.executable, str(python_cli), "--help"],
         cwd=PROJECT_ROOT,
         capture_output=True,
         text=True,

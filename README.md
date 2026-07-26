@@ -81,7 +81,6 @@ remains the single source of truth for space and rendering.
 The shortest current path uses a pinned CPython `3.9.25` and `uv.lock`:
 
 ```bash
-./install.sh --env-only
 ./elfienest.sh version
 .venv/bin/python main.py
 ```
@@ -90,7 +89,10 @@ The shortest current path uses a pinned CPython `3.9.25` and `uv.lock`:
 Runtime can enter a fallback path; this validates the basic pipeline and is not
 the full model experience.
 
-To install the `elfienest` command you can call directly:
+To build the current source as a native application for this machine and install
+the user-level `elfienest` command, run:
+
+如需把当前源码构建为本机原生应用，并安装当前用户可直接调用的 `elfienest` 命令：
 
 ```bash
 ./install.sh

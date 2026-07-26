@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from pathlib import Path
 from typing import NoReturn
 
 PINNED_CPYTHON_VERSION = (3, 9, 25)
@@ -31,6 +32,10 @@ from app.interfaces.cli.lifecycle_commands import (
     stop_background_service,
 )
 from app.interfaces.cli.owner_commands import run_owner_menu
+from app.interfaces.cli.packaged_runtime import (
+    PackagedCliRuntimeError,
+    configure_frozen_cli_runtime,
+)
 from app.interfaces.cli.provider_commands import login_provider
 from app.interfaces.cli.runtime_commands import (
     dispatch_db,
@@ -40,6 +45,13 @@ from app.interfaces.cli.tui.common import print_banner
 from app.interfaces.cli.tui.config_app import run_config_tui
 from app.interfaces.cli.tui.setup_app import run_setup_wizard
 from app.orchestration.lifecycle.types import ServiceLifecycleResult
+
+if getattr(sys, "frozen", False):
+    try:
+        configure_frozen_cli_runtime(Path(sys.executable), sys.platform, os.environ)
+    except PackagedCliRuntimeError as error:
+        sys.stderr.write(f"❌ {error}\n")
+        raise SystemExit(1) from error
 
 
 class SecretSafeArgumentParser(argparse.ArgumentParser):
@@ -151,10 +163,7 @@ def _dispatch_command(args: argparse.Namespace) -> None:
         options = _service_options_from_args(args)
         if args.force:
             options += ("--force",)
-        os.execvp(
-            sys.executable,
-            [sys.executable, "scripts/serve.py", *options],
-        )
+        _exec_foreground_service(options)
     elif args.command == "status":
         show_service_status()
     elif args.command == "web":
@@ -185,7 +194,14 @@ def _dispatch_command(args: argparse.Namespace) -> None:
         print_banner()
         print("  启动服务...")
         print()
-        os.execvp(sys.executable, [sys.executable, "scripts/serve.py"] + sys.argv[1:])
+        _exec_foreground_service(tuple(sys.argv[1:]))
+
+
+def _exec_foreground_service(options: tuple[str, ...]) -> NoReturn:
+    """Replace the CLI with the source or packaged Core service command."""
+    command = default_service_command(options)
+    os.execvp(command[0], list(command))
+    raise AssertionError("os.execvp returned unexpectedly")
 
 
 def _service_options_from_args(args: argparse.Namespace) -> tuple[str, ...]:

@@ -11,7 +11,7 @@ The project is pinned to CPython `3.9.25`, with dependencies pinned by
 `uv.lock`:
 
 ```bash
-./install.sh --env-only
+./elfienest.sh version
 uv sync --locked --extra dev
 uv lock --check
 ```
@@ -26,8 +26,14 @@ scripts because of the local default interpreter, a single dependency or a
 local feature. All agents, developers and automation may only use `uv` and the
 repo's `.venv/bin/python3`; do not call system `python` / `python3`, other
 virtual environments, or an `ELFIENEST_PYTHON` override. When the environment
-is wrong, run `./install.sh --env-only` and then run the locked commands with
-`uv run --no-sync`.
+is wrong, run `./elfienest.sh version`, then use `uv run --no-sync` only with
+the repaired locked environment.
+
+除非负责人明确批准一次全仓升级，CPython `3.9.25` 是不可变契约：不得因为本机
+默认解释器、单个依赖或局部功能修改版本文件、锁文件、CI 或启动脚本。所有 Agent、
+开发者和自动化只能使用 `uv` 与仓库 `.venv/bin/python3`；不要调用系统
+`python`/`python3`、其他虚拟环境或 `ELFIENEST_PYTHON` 覆盖。环境不正确时运行
+`./elfienest.sh version`，再使用 `uv run --no-sync` 执行已锁定的命令。
 
 ## Pick a test layer
 

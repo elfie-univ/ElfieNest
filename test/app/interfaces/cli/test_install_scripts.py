@@ -1,31 +1,115 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
 from test.app.interfaces.cli.installer_test_support import (
     copy_installer_project,
     write_executable,
+    write_fake_native_install_tools,
+    write_fake_uv,
 )
-
 from test.support.paths import PROJECT_ROOT
 
 PINNED_PYTHON_VERSION = "3.9.25"
 
 
-def test_install_script_syncs_locked_uv_environment() -> None:
+def test_installer_no_argument_invocation_completes_user_install_in_isolated_home(
+    tmp_path: Path,
+) -> None:
     # Given
-    script = (PROJECT_ROOT / "install.sh").read_text(encoding="utf-8")
+    project_root = tmp_path / "ElfieNest"
+    copy_installer_project(project_root)
+    bootstrap_path = project_root / "scripts" / "bootstrap.sh"
+    shutil.copy2(PROJECT_ROOT / "scripts" / "bootstrap.sh", bootstrap_path)
+    shutil.copy2(
+        PROJECT_ROOT / "scripts" / "bootstrap_report.sh",
+        project_root / "scripts" / "bootstrap_report.sh",
+    )
+    shutil.copy2(
+        PROJECT_ROOT / "scripts" / "bootstrap_runtime_dependencies.sh",
+        project_root / "scripts" / "bootstrap_runtime_dependencies.sh",
+    )
+    (project_root / "build" / "web").mkdir(parents=True, exist_ok=True)
+    (project_root / "build" / "web" / "manifest.json").write_text(
+        "{}\n", encoding="utf-8"
+    )
+    home = tmp_path / "home"
+    fake_bin = tmp_path / "fake-bin"
+    uv_log = tmp_path / "uv.log"
+    write_fake_uv(fake_bin)
+    write_fake_native_install_tools(fake_bin)
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "FAKE_UV_LOG": str(uv_log),
+            "HOME": str(home),
+            "PATH": f"{fake_bin}:{home / '.local' / 'bin'}:/usr/bin:/bin",
+        }
+    )
 
     # When
-    uses_locked_uv = '"$uv_bin" sync' in script and "--locked" in script
+    result = subprocess.run(
+        [str(project_root / "install.sh")],
+        cwd=project_root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
 
     # Then
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "安装完成" in result.stdout
+    assert (home / ".local" / "bin" / "elfienest").is_file()
+
+
+def test_installer_env_only_redirects_to_full_user_install(tmp_path: Path) -> None:
+    # Given
+    project_root = tmp_path / "ElfieNest"
+    copy_installer_project(project_root)
+    home = tmp_path / "home"
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "HOME": str(home),
+            "PATH": "/usr/bin:/bin",
+        }
+    )
+
+    # When
+    result = subprocess.run(
+        ["bash", str(project_root / "install.sh"), "--env-only"],
+        cwd=project_root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    # Then
+    assert result.returncode != 0
+    assert "请直接运行 ./install.sh" in result.stdout + result.stderr
+
+
+def test_install_script_delegates_locked_environment_sync_to_bootstrap() -> None:
+    # Given
+    install_script = (PROJECT_ROOT / "install.sh").read_text(encoding="utf-8")
+    bootstrap_script = (PROJECT_ROOT / "scripts" / "bootstrap.sh").read_text(
+        encoding="utf-8"
+    )
+
+    # When
+    delegates_prod_install = 'bootstrap.sh" ensure --tier=prod' in install_script
+    uses_locked_uv = '"$uv_bin" sync' in bootstrap_script and "--locked" in bootstrap_script
+
+    # Then
+    assert delegates_prod_install
     assert uses_locked_uv
-    assert ".python-version" in script
-    assert "requirements.txt" not in script
-    assert "ELFIENEST_PYTHON" in script
+    assert ".python-version" in bootstrap_script
+    assert "requirements.txt" not in install_script + bootstrap_script
 
 
 def test_installer_exposes_elfienest_and_safely_migrates_legacy_wrapper(
@@ -41,19 +125,8 @@ def test_installer_exposes_elfienest_and_safely_migrates_legacy_wrapper(
     fake_bin = tmp_path / "fake-bin"
     uv_log = tmp_path / "uv.log"
 
-    write_executable(
-        fake_bin / "uv",
-        """#!/bin/bash
-set -eu
-printf '%s\n' "$*" >> "$FAKE_UV_LOG"
-mkdir -p .venv/bin
-cat > .venv/bin/python3 <<'PYTHON'
-#!/bin/bash
-exit 0
-PYTHON
-chmod +x .venv/bin/python3
-""",
-    )
+    write_fake_uv(fake_bin)
+    write_fake_native_install_tools(fake_bin)
     write_executable(
         home_bin / "elfie",
         f'#!/bin/bash\ncd "{project_root}"\n./elfie.sh "$@"\n',
@@ -92,7 +165,8 @@ chmod +x .venv/bin/python3
     assert result.returncode == 0, result.stdout + result.stderr
     installed_wrapper = local_bin / "elfienest"
     assert installed_wrapper.is_file()
-    assert 'exec "$PROJECT_ROOT/elfienest.sh" "$@"' in installed_wrapper.read_text(
+    assert "managed wrapper v2" in installed_wrapper.read_text(encoding="utf-8")
+    assert str(home / "Applications" / "ElfieNest.app") in installed_wrapper.read_text(
         encoding="utf-8"
     )
     assert (local_bin / "uninstall-elfienest").is_file()
@@ -159,19 +233,16 @@ chmod +x .venv/bin/python3
     assert "不属于当前项目" in result.stdout + result.stderr
 
 
-def test_elfienest_entrypoint_can_self_repair_missing_runtime_dependencies() -> None:
+def test_elfienest_entrypoint_delegates_development_dependencies_to_bootstrap() -> None:
     # Given
     script = (PROJECT_ROOT / "elfienest.sh").read_text(encoding="utf-8")
 
     # When
-    has_repair_path = "repair_project_venv" in script
+    uses_bootstrap = 'scripts/bootstrap.sh" ensure --tier=dev' in script
 
     # Then
-    assert has_repair_path
-    assert "ELFIENEST_SKIP_AUTO_REPAIR" in script
-    assert "install.sh" in script
-    assert "--env-only" in script
-    assert ".python-version" in script
+    assert uses_bootstrap
+    assert "--env-only" not in script
     assert "serve)" in script
     assert "serve|server)" not in script
     assert (

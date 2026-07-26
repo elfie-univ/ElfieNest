@@ -93,7 +93,7 @@ def test_failed_python_install_preserves_installed_commands(tmp_path: Path) -> N
     assert uninstaller.read_bytes() == original_uninstaller
 
 
-def test_custom_python_skips_managed_python_download(tmp_path: Path) -> None:
+def test_installer_rejects_external_python_override(tmp_path: Path) -> None:
     # Given
     project_root = tmp_path / "ElfieNest"
     copy_installer_project(project_root)
@@ -114,10 +114,9 @@ def test_custom_python_skips_managed_python_download(tmp_path: Path) -> None:
     result = run_installer(project_root, environment)
 
     # Then
-    assert result.returncode == 0, result.stdout + result.stderr
-    uv_invocations = uv_log.read_text(encoding="utf-8").splitlines()
-    assert not any(line.startswith("python install ") for line in uv_invocations)
-    assert any(str(custom_python) in line for line in uv_invocations)
+    assert result.returncode != 0
+    assert "ELFIENEST_PYTHON" in result.stderr
+    assert not uv_log.exists()
 
 
 def test_installer_uses_first_eligible_home_directory_on_path(

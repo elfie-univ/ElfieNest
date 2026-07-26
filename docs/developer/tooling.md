@@ -9,7 +9,7 @@ points provided by the current code. Command behavior is defined by
 ElfieNest is pinned to CPython 3.9.25, with dependencies pinned by `uv.lock`:
 
 ```bash
-./install.sh --env-only
+./elfienest.sh version
 ./elfienest.sh version
 ```
 
@@ -28,8 +28,15 @@ development tools. Unless the maintainer explicitly approves a full-repo
 upgrade, you must not switch to system `python` / `python3`, another virtual
 environment, or an `ELFIENEST_PYTHON` override entry; install, CLI, Developer
 Tools, tests and code review all go through `uv` and the repo's `.venv`. When
-the environment fails, just run `./install.sh --env-only` and then
-`./elfienest.sh version` to confirm.
+the environment is unhealthy, run `./elfienest.sh version` to repair the dev
+dependencies; use `./install.sh` to install the native application, then
+confirm it with `elfienest version`.
+
+Python `3.9.25` 是产品和开发工具的共同固定运行时。除非负责人明确批准全仓升级，
+不得改用系统 `python`/`python3`、其他虚拟环境或 `ELFIENEST_PYTHON` 覆盖入口；
+安装、CLI、Developer Tools、测试和 CR 一律经 `uv` 与仓库 `.venv`。环境失效时只需
+运行 `./elfienest.sh version` 让开发入口补齐依赖；需要安装本机原生应用时运行
+`./install.sh`，随后使用 `elfienest version` 确认版本。
 
 ## CLI entry points
 

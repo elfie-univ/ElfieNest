@@ -14,6 +14,7 @@ export type SupervisorConfig = Readonly<{
   readonly resourcesPath: string;
   readonly coreWorkingDirectory: string;
   readonly manageOllama: boolean;
+  readonly ollamaOptional: boolean;
 }>;
 
 type Environment = Readonly<Record<string, string | undefined>>;
@@ -90,5 +91,6 @@ export function resolveSupervisorConfig(
       packagedCoreAvailable ? dataRoot : projectRoot,
     ),
     manageOllama: environment["ELFIENEST_OLLAMA_EXTERNAL"] !== "1",
+    ollamaOptional: environment["ELFIENEST_OLLAMA_REQUIRED"] !== "1",
   };
 }

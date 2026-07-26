@@ -13,6 +13,18 @@ def _copy_runtime_entrypoint_fixture(project_root: Path) -> None:
     project_root.mkdir()
     for relative_path in ("elfienest.sh", "developer.sh", ".python-version"):
         shutil.copy2(PROJECT_ROOT / relative_path, project_root / relative_path)
+    scripts_dir = project_root / "scripts"
+    scripts_dir.mkdir()
+    shutil.copy2(PROJECT_ROOT / "scripts" / "bootstrap.sh", scripts_dir / "bootstrap.sh")
+    shutil.copy2(
+        PROJECT_ROOT / "scripts" / "bootstrap_report.sh",
+        scripts_dir / "bootstrap_report.sh",
+    )
+    shutil.copy2(
+        PROJECT_ROOT / "scripts" / "bootstrap_runtime_dependencies.sh",
+        scripts_dir / "bootstrap_runtime_dependencies.sh",
+    )
+    (scripts_dir / "serve.py").write_text("", encoding="utf-8")
     write_executable(project_root / "install.sh", "#!/bin/bash\nexit 1\n")
 
 
@@ -65,8 +77,7 @@ def test_elfienest_entrypoint_rejects_wrong_venv_interpreter(
 
     # Then
     assert result.returncode != 0
-    assert "解释器版本错误" in result.stderr
-    assert "CPython" in result.stderr
+    assert "依赖检查失败" in result.stderr
 
 
 def test_developer_entrypoint_rejects_external_python_override(
@@ -94,3 +105,31 @@ def test_developer_entrypoint_rejects_external_python_override(
     assert result.returncode != 0
     assert "ELFIENEST_PYTHON" in result.stderr
     assert "CPython 3.9.25" in result.stderr
+
+
+def test_packaged_entrypoint_runs_bundled_core_without_bootstrap(tmp_path: Path) -> None:
+    # Given
+    project_root = tmp_path / "ElfieNest"
+    project_root.mkdir()
+    shutil.copy2(PROJECT_ROOT / "elfienest.sh", project_root / "elfienest.sh")
+    invocation_log = tmp_path / "packaged-entrypoint.log"
+    write_executable(
+        project_root / "resources" / "python-core" / "ElfieNestCore",
+        "#!/bin/bash\nprintf '%s\\n' \"$*\" > \"$ENTRYPOINT_LOG\"\n",
+    )
+    environment = os.environ.copy()
+    environment["ENTRYPOINT_LOG"] = str(invocation_log)
+
+    # When
+    result = subprocess.run(
+        [str(project_root / "elfienest.sh"), "version"],
+        cwd=project_root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    # Then
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert invocation_log.read_text(encoding="utf-8").strip() == "version"

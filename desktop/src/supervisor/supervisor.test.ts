@@ -51,6 +51,7 @@ function createConfig(): SupervisorConfig {
     resourcesPath: "/tmp/elfienest-resources",
     coreWorkingDirectory: "/tmp/elfienest-core",
     manageOllama: true,
+    ollamaOptional: true,
   };
 }
 
@@ -139,6 +140,31 @@ test("supervisor gives Core the packaged Web build directory", async () => {
   await supervisor.start(createRuntime([]));
 
   assert.equal(coreEnvironment?.ELFIENEST_WEB_BUILD_DIR, "/tmp/elfienest-web");
+  await supervisor.stop();
+});
+
+test("supervisor starts the app in fallback when optional Ollama is unavailable", async () => {
+  // Given: a local Ollama health check that fails on a low-capability machine.
+  const spawned: string[] = [];
+  const supervisor = new RuntimeSupervisor(createConfig(), {
+    spawnProcess: (name) => {
+      spawned.push(name);
+      return new FakeProcess(() => undefined);
+    },
+    waitForHttp: async (_baseUrl, path) => {
+      if (path === "/api/tags") {
+        throw new Error("ollama unavailable");
+      }
+    },
+    waitForGodotReady: async (): Promise<void> => undefined,
+  });
+
+  // When: startup proceeds without a usable local model sidecar.
+  const status = await supervisor.start(createRuntime([]));
+
+  // Then: only the model capability is degraded; Core and Godot are usable.
+  assert.deepEqual(spawned, ["ollama", "core"]);
+  assert.deepEqual(status, { ollama: "degraded", core: "ready", godot: "ready" });
   await supervisor.stop();
 });
 

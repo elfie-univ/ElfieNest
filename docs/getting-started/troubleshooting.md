@@ -5,7 +5,7 @@
 Install uv following its official guide first, then re-run:
 
 ```bash
-./install.sh --env-only
+./install.sh
 ```
 
 ## Wrong Python version

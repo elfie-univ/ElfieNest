@@ -29,7 +29,7 @@ fi
 
 if ! "$PYTHON_BIN" -c 'import platform, sys; ok = sys.implementation.name == "cpython" and platform.python_version() == sys.argv[1]; raise SystemExit(0 if ok else 1)' "$PINNED_PYTHON_VERSION" >/dev/null 2>&1; then
   echo "❌ Developer Tool 必须使用项目锁定的 CPython $PINNED_PYTHON_VERSION 环境。" >&2
-  echo "💡 请运行 ./install.sh --env-only 修复环境。" >&2
+  echo "💡 请运行 ./elfienest.sh version 补齐开发环境，或运行 ./install.sh 安装本机应用。" >&2
   exit 1
 fi
 

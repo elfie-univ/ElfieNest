@@ -88,6 +88,13 @@ def executable_name(target: str) -> str:
     return "ElfieNestCore.exe" if target == "win32-x64" else "ElfieNestCore"
 
 
+def cli_executable_name(target: str) -> str:
+    """Return the platform-specific frozen management CLI filename."""
+    if target not in TARGETS:
+        raise NativeTargetRequiredError(f"native-target-unsupported target={target}")
+    return "ElfieNestCli.exe" if target == "win32-x64" else "ElfieNestCli"
+
+
 def _run_pyinstaller(command: Sequence[str]) -> None:
     """Run PyInstaller without allowing a failed process to create an artifact."""
     PYINSTALLER_CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -105,11 +112,46 @@ def freeze_core(
     command_runner: Callable[[Sequence[str]], None] = _run_pyinstaller,
 ) -> Path:
     """Freeze the source Core only when the build runner is target-native."""
+    return _freeze_entrypoint(
+        target=target,
+        output_dir=output_dir,
+        host_target=host_target,
+        executable=executable_name(target),
+        entrypoint=PROJECT_ROOT / "scripts" / "serve.py",
+        command_runner=command_runner,
+    )
+
+
+def freeze_cli(
+    target: str,
+    output_dir: Path,
+    host_target: str,
+    command_runner: Callable[[Sequence[str]], None] = _run_pyinstaller,
+) -> Path:
+    """Freeze the management CLI so installed commands never use a checkout path."""
+    return _freeze_entrypoint(
+        target=target,
+        output_dir=output_dir,
+        host_target=host_target,
+        executable=cli_executable_name(target),
+        entrypoint=PROJECT_ROOT / "scripts" / "elfienest.py",
+        command_runner=command_runner,
+    )
+
+
+def _freeze_entrypoint(
+    target: str,
+    output_dir: Path,
+    host_target: str,
+    executable: str,
+    entrypoint: Path,
+    command_runner: Callable[[Sequence[str]], None],
+) -> Path:
+    """Freeze one native executable with the common PyInstaller contract."""
     if target != host_target:
         raise NativeTargetRequiredError(
             f"native-target-required target={target} host_target={host_target}"
         )
-    executable = executable_name(target)
     output_dir.mkdir(parents=True, exist_ok=True)
     command = (
         sys.executable,
@@ -120,15 +162,13 @@ def freeze_core(
         "--onefile",
         "--name",
         executable.rsplit(".", 1)[0],
-        "--add-data",
-        f"{PROJECT_ROOT / 'app' / 'interfaces' / 'web' / 'static'}{os.pathsep}app/interfaces/web/static",
         "--distpath",
         str(output_dir),
         "--workpath",
         str(output_dir.parent / "pyinstaller-work"),
         "--specpath",
         str(output_dir.parent / "pyinstaller-spec"),
-        str(PROJECT_ROOT / "scripts" / "serve.py"),
+        str(entrypoint),
     )
     command_runner(command)
     return output_dir / executable
