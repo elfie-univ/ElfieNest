@@ -7,18 +7,18 @@ from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.features.accounts.auth import require_owner
 from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.food.advisor import LLMFoodPlanningAdvisor, select_planning_model
 from ai_runtime.food.evidence import ModelEvidenceStore
 from ai_runtime.food.models import FIXED_FOOD_KINDS, FoodRecipe, FoodValidationStatus
 from ai_runtime.food.planner import FoodPlanner, validate_food_recipe
-from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
+from ai_runtime.food.store import FoodCatalog, FoodCatalogStore, fingerprint_source
 from ai_runtime.storage.data_home import (
     get_food_catalog_path,
     get_food_history_dir,
     get_model_evidence_path,
 )
+from app.features.accounts.auth import require_owner
 
 router = APIRouter(prefix="/api/owner/runtime/foods", tags=["runtime-foods"])
 
@@ -67,14 +67,15 @@ async def preview_food_update(
     _ = owner
     store, evidence_store = _stores()
     evidence = list(evidence_store.load().values())
+    current = store.load()
     planner = FoodPlanner()
     if body is None or body.get("use_llm", True) is True:
         config = LLMRuntimeConfig.load()
         planning_model = select_planning_model(config, evidence)
         if planning_model:
             planner = FoodPlanner(LLMFoodPlanningAdvisor(config, planning_model))
-    proposal = planner.propose(evidence, store.load())
-    return _proposal_payload(proposal)
+    proposal = planner.propose(evidence, current)
+    return _proposal_payload(proposal, current)
 
 
 @router.post("/update-apply")
@@ -87,32 +88,35 @@ async def apply_food_update(
         raise HTTPException(status_code=409, detail="必须明确确认粮食更新")
     store, evidence_store = _stores()
     raw_candidate = body.get("candidate")
-    if isinstance(raw_candidate, dict):
-        catalog = FoodCatalog.from_dict(raw_candidate)
-        evidence = list(evidence_store.load().values())
-        expected_fingerprint = (
-            FoodPlanner().propose(evidence, store.load()).catalog.source_fingerprint
+    if not isinstance(raw_candidate, dict):
+        raise HTTPException(status_code=422, detail="必须提交刚刚预览的粮食候选")
+    current = store.load()
+    submitted_base = str(body.get("base_catalog_fingerprint") or "")
+    if submitted_base != fingerprint_source(current.to_dict()):
+        raise HTTPException(
+            status_code=409, detail="粮食候选已过期，请重新预览后再确认"
         )
-        if catalog.source_fingerprint != expected_fingerprint:
+    catalog = FoodCatalog.from_dict(raw_candidate)
+    evidence = list(evidence_store.load().values())
+    expected_fingerprint = (
+        FoodPlanner().propose(evidence, current).catalog.source_fingerprint
+    )
+    if catalog.source_fingerprint != expected_fingerprint:
+        raise HTTPException(
+            status_code=409, detail="粮食候选已过期，请重新预览后再确认"
+        )
+    unknown_foods = set(catalog.recipes) - set(FIXED_FOOD_KINDS)
+    if unknown_foods:
+        raise HTTPException(status_code=422, detail="候选包含未知粮食")
+    for recipe in catalog.recipes.values():
+        warnings = validate_food_recipe(recipe, evidence)
+        if warnings and recipe.validation_status is not FoodValidationStatus.FAILED:
             raise HTTPException(
-                status_code=409,
-                detail="粮食候选已过期，请重新预览后再确认",
+                status_code=422,
+                detail=f"{recipe.display_name} 未通过验证: {'; '.join(warnings)}",
             )
-        unknown_foods = set(catalog.recipes) - set(FIXED_FOOD_KINDS)
-        if unknown_foods:
-            raise HTTPException(status_code=422, detail="候选包含未知粮食")
-        for recipe in catalog.recipes.values():
-            warnings = validate_food_recipe(recipe, evidence)
-            if warnings and recipe.validation_status is not FoodValidationStatus.FAILED:
-                raise HTTPException(
-                    status_code=422,
-                    detail=f"{recipe.display_name} 未通过验证: {'; '.join(warnings)}",
-                )
-        store.save(catalog)
-        return {"applied": True, "candidate": catalog.to_dict()}
-    proposal = FoodPlanner().propose(list(evidence_store.load().values()), store.load())
-    store.save(proposal.catalog)
-    return _proposal_payload(proposal)
+    store.save(catalog)
+    return {"applied": True, "candidate": catalog.to_dict()}
 
 
 @router.put("/{food_key}")
@@ -166,8 +170,9 @@ async def rollback_foods(
     return catalog.to_dict()
 
 
-def _proposal_payload(proposal) -> Dict[str, Any]:
+def _proposal_payload(proposal, current: FoodCatalog) -> Dict[str, Any]:
     return {
+        "base_catalog_fingerprint": fingerprint_source(current.to_dict()),
         "has_changes": proposal.has_changes,
         "generation_sources": list(proposal.generation_sources),
         "advisor_error": proposal.advisor_error,
@@ -182,5 +187,6 @@ def _proposal_payload(proposal) -> Dict[str, Any]:
             }
             for change in proposal.changes
         ],
+        "current": current.to_dict(),
         "candidate": proposal.catalog.to_dict(),
     }

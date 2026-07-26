@@ -1,7 +1,7 @@
 import { resolve } from "node:path"
 
 import react from "@vitejs/plugin-react"
-import { defineConfig } from "vite"
+import { defineConfig } from "vitest/config"
 
 const frontendRoot = resolve(import.meta.dirname)
 const webBuildDirectory = resolve(frontendRoot, "../../../../build/web")
@@ -9,6 +9,10 @@ const webBuildDirectory = resolve(frontendRoot, "../../../../build/web")
 export default defineConfig({
   root: frontendRoot,
   plugins: [react()],
+  test: {
+    environment: "jsdom",
+    setupFiles: [resolve(frontendRoot, "src/test/setup.ts")],
+  },
   build: {
     emptyOutDir: true,
     manifest: "manifest.json",

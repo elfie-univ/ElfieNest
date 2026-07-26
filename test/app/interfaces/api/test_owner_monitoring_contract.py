@@ -131,6 +131,10 @@ def test_owner_elfie_monitoring_projection_is_safe_and_structured(
         "elfie_id",
         "name",
         "species_id",
+        "gender",
+        "birth_date",
+        "summary",
+        "online_status",
         "portrait_url",
         "appearance",
         "big_five",
@@ -140,6 +144,10 @@ def test_owner_elfie_monitoring_projection_is_safe_and_structured(
     }
     assert row["profile"]["name"] == "星尘"
     assert row["profile"]["species_id"] == "dog"
+    assert row["profile"]["gender"] is None
+    assert row["profile"]["birth_date"] is None
+    assert row["profile"]["summary"]
+    assert row["profile"]["online_status"] == "unknown"
     assert row["profile"]["embodiment"] == {"state": "switching_to_hosted"}
     assert row["food_policy"] == {
         "default_food": "focus",
@@ -293,3 +301,17 @@ def test_food_policy_hides_another_users_elfie(
 
     # Then: the target is hidden from another user.
     assert response.status_code == 404
+
+
+def test_owner_monitoring_treats_empty_filter_values_as_all(
+    client: TestClient, monitoring_world: dict
+) -> None:
+    owner = _login(client, "owner", "ownerchangeme")
+
+    response = client.get(
+        "/api/owner/elfies?owner_user_id=&species_id=&food_key=&status=",
+        headers=_headers(str(owner["csrf_token"])),
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 3

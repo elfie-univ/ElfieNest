@@ -12,7 +12,9 @@ class TestBuiltinProfiles:
     def test_builtin_profiles_has_custom_openai_profile(self):
         assert "custom_openai" in BUILTIN_PROFILES
         assert BUILTIN_PROFILES["custom_openai"].api_mode == "chat_completions"
-        assert BUILTIN_PROFILES["custom_openai"].api_key_env_var == "CUSTOM_OPENAI_API_KEY"
+        assert (
+            BUILTIN_PROFILES["custom_openai"].api_key_env_var == "CUSTOM_OPENAI_API_KEY"
+        )
 
     def test_each_profile_has_required_fields(self):
         """每个 profile 都有必需字段"""
@@ -138,7 +140,10 @@ class TestLLMRuntimeConfigBackwardCompat:
 
         config = LLMRuntimeConfig()
         assert config.providers["custom_provider"]["api_mode"] == "chat_completions"
-        assert config.providers["custom_provider"]["api_base"] == "https://custom.api.com/v1"
+        assert (
+            config.providers["custom_provider"]["api_base"]
+            == "https://custom.api.com/v1"
+        )
         assert config.providers["custom_provider"]["api_key"] == "test-key"
         assert config.providers["custom_provider"]["status"] == "active"
 
@@ -232,7 +237,7 @@ def test_verify_custom_openai_falls_back_to_chat_completion_when_models_endpoint
             )
         return FakeResponse()
 
-    monkeypatch.setattr("ai_runtime.models.catalog.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("ai_runtime.models.catalog.open_provider_request", fake_urlopen)
 
     class Config:
         providers = {
@@ -268,7 +273,7 @@ def test_verify_custom_openai_returns_actionable_error_when_models_and_chat_fail
             fp=None,
         )
 
-    monkeypatch.setattr("ai_runtime.models.catalog.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("ai_runtime.models.catalog.open_provider_request", fake_urlopen)
 
     class Config:
         providers = {

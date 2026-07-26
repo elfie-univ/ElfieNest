@@ -67,9 +67,10 @@ def test_web_build_exposes_only_manifest_listed_public_assets(
     (build_dir / "index.html").write_text("app", encoding="utf-8")
     (assets / "app.js").write_text("app", encoding="utf-8")
     (assets / "shared.js").write_text("shared", encoding="utf-8")
+    (assets / "logo.png").write_bytes(b"logo")
     (build_dir / "manifest.json").write_text(
         """{
-          "index.html": {"file": "assets/app.js", "imports": ["shared"]},
+          "index.html": {"file": "assets/app.js", "imports": ["shared"], "assets": ["assets/logo.png"]},
           "shared": {"file": "assets/shared.js"}
         }""",
         encoding="utf-8",
@@ -82,5 +83,6 @@ def test_web_build_exposes_only_manifest_listed_public_assets(
     assert web_build.shell_path().read_text() == "app"
     assert web_build.asset_path("assets/app.js").read_text() == "app"
     assert web_build.asset_path("assets/shared.js").read_text() == "shared"
+    assert web_build.asset_path("assets/logo.png").read_bytes() == b"logo"
     with pytest.raises(FileNotFoundError):
         web_build.asset_path("assets/unknown.js")

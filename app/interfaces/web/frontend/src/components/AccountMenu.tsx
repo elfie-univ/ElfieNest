@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react"
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react"
 
 import {
   ApiError,
@@ -7,6 +7,7 @@ import {
   saveTheme,
   type ClientUser,
   type ThemeKey,
+  uploadAvatar,
   updateProfile,
 } from "../api/client"
 import { Avatar } from "./Avatar"
@@ -20,7 +21,7 @@ const THEMES = [
   { key: "moss-green", label: "苔藓绿", description: "自然" },
 ] as const satisfies readonly { readonly key: ThemeKey; readonly label: string; readonly description: string }[]
 
-type AccountSection = "landing" | "password" | "profile" | "theme"
+type AccountSection = "landing" | "password" | "theme"
 type Feedback = { readonly kind: "error" | "info"; readonly message: string; readonly section: AccountSection }
 
 type AccountMenuProps = {
@@ -41,7 +42,6 @@ function errorMessage(reason: unknown, fallback: string): string {
 
 function sectionSummary(section: AccountSection, user: ClientUser): string {
   switch (section) {
-    case "profile": return "显示名与头像颜色"
     case "password": return "更新登录凭据"
     case "theme": return THEMES.find((theme) => theme.key === user.theme_key)?.label ?? "暖纸与陶土"
     case "landing": return user.default_landing_page === "chat" ? "聊天页" : "管理页"
@@ -76,33 +76,46 @@ function SettingRow({
 export function AccountMenuPanel({ onClose, onUpdated, user }: AccountMenuPanelProps) {
   const [expanded, setExpanded] = useState<AccountSection | null>(null)
   const [nickname, setNickname] = useState(user.nickname ?? "")
-  const [avatarColor, setAvatarColor] = useState(user.avatar_color ?? 0)
+  const [editingIdentity, setEditingIdentity] = useState(false)
   const [oldPassword, setOldPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [landing, setLanding] = useState<"chat" | "manage">(user.default_landing_page === "chat" ? "chat" : "manage")
   const [feedback, setFeedback] = useState<Feedback | null>(null)
   const [saving, setSaving] = useState<AccountSection | null>(null)
+  const fileInput = useRef<HTMLInputElement | null>(null)
   const csrfToken = user.csrf_token ?? ""
   const displayName = user.nickname?.trim() || user.username
   const roleDescription = user.role === "owner" ? "Owner · 系统管理权限" : "用户 · 聊天与精灵空间"
 
   useEffect(() => {
     setNickname(user.nickname ?? "")
-    setAvatarColor(user.avatar_color ?? 0)
     setLanding(user.default_landing_page === "chat" ? "chat" : "manage")
-  }, [user.avatar_color, user.default_landing_page, user.nickname])
+  }, [user.default_landing_page, user.nickname])
 
   const toggle = (section: AccountSection): void => {
     setExpanded((current) => current === section ? null : section)
     setFeedback(null)
   }
   const report = (section: AccountSection, kind: Feedback["kind"], message: string): void => setFeedback({ kind, message, section })
-  const saveProfile = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
-    event.preventDefault(); setSaving("profile")
+  const saveIdentity = async (): Promise<void> => {
+    setSaving("theme")
     try {
-      await updateProfile({ nickname: nickname.trim(), avatarColor, avatarKind: user.avatar_kind ?? "initials" }, csrfToken)
-      await onUpdated(); report("profile", "info", "个人资料已保存。")
-    } catch (reason: unknown) { report("profile", "error", errorMessage(reason, "个人资料没有保存")) }
+      await updateProfile({ nickname: nickname.trim() }, csrfToken)
+      await onUpdated(); setEditingIdentity(false)
+    } catch (reason: unknown) { report("theme", "error", errorMessage(reason, "显示名称没有保存")) }
+    finally { setSaving(null) }
+  }
+  const saveIdentityOnEnter = (event: ReactKeyboardEvent<HTMLInputElement>): void => {
+    if (event.key !== "Enter") return
+    event.preventDefault()
+    void saveIdentity()
+  }
+  const uploadIdentityAvatar = async (file: File): Promise<void> => {
+    setSaving("theme")
+    try {
+      await uploadAvatar(file, csrfToken)
+      await onUpdated()
+    } catch (reason: unknown) { report("theme", "error", errorMessage(reason, "头像没有上传")) }
     finally { setSaving(null) }
   }
   const selectTheme = async (themeKey: ThemeKey): Promise<void> => {
@@ -133,17 +146,11 @@ export function AccountMenuPanel({ onClose, onUpdated, user }: AccountMenuPanelP
   return <section aria-label="个人与外观设置" className="account-menu__panel">
     <header><p className="brand"><Icon name="user" size={14} />个人设置</p><button aria-label="关闭个人设置" className="account-menu__close" onClick={onClose} type="button"><Icon name="x" /></button></header>
     <section className="account-menu__identity">
-      <Avatar name={displayName} />
-      <div><h2>{displayName}</h2><p>ID: {user.id} · @{user.username}</p><small>{roleDescription}</small></div>
-      <button aria-label="编辑个人资料" className="account-menu__edit" onClick={() => toggle("profile")} type="button"><Icon name="pencil" size={16} /></button>
+      <input accept="image/png,image/jpeg,image/webp" aria-label="上传本地头像" className="account-menu__avatar-input" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadIdentityAvatar(file); event.target.value = "" }} ref={fileInput} type="file" />
+      <button aria-label="上传本地头像" className="account-menu__avatar-button" disabled={saving !== null} onClick={() => fileInput.current?.click()} type="button"><Avatar imageUrl={user.avatar_url} name={displayName} /></button>
+      <div>{editingIdentity ? <input aria-label="显示名称" autoFocus maxLength={32} onChange={(event) => setNickname(event.target.value)} onKeyDown={saveIdentityOnEnter} placeholder={user.username} value={nickname} /> : <h2>{displayName}</h2>}<p>ID: {user.id} · @{user.username}</p><small>{roleDescription}</small></div>
+      <button aria-label={editingIdentity ? "保存显示名称" : "编辑显示名称"} className="account-menu__edit" disabled={saving !== null} onClick={() => { if (editingIdentity) void saveIdentity(); else setEditingIdentity(true) }} type="button"><Icon name="pencil" size={16} /></button>
     </section>
-    <SettingRow active={expanded === "profile"} icon="user" label="个人资料" onToggle={() => toggle("profile")} summary={sectionSummary("profile", user)}>
-      <form className="account-menu__form" onSubmit={(event) => { void saveProfile(event) }}>
-        <label>显示名称<input maxLength={32} onChange={(event) => setNickname(event.target.value)} placeholder={user.username} value={nickname} /></label>
-        <label>头像颜色<SelectField ariaLabel="选择头像颜色" onValueChange={(value) => setAvatarColor(Number(value))} options={Array.from({ length: 8 }, (_, index) => ({ label: `颜色 ${index + 1}`, value: String(index) }))} value={String(avatarColor)} /></label>
-        <button className="button button--quiet" disabled={saving === "profile"} type="submit">{saving === "profile" ? "正在保存…" : "保存资料"}</button>
-      </form>
-    </SettingRow>
     <SettingRow active={expanded === "password"} icon="lock-keyhole" label="修改密码" onToggle={() => toggle("password")} summary={sectionSummary("password", user)}>
       <form className="account-menu__form" onSubmit={(event) => { void savePassword(event) }}>
         <label>当前密码<input autoComplete="current-password" onChange={(event) => setOldPassword(event.target.value)} required type="password" value={oldPassword} /></label>
@@ -182,7 +189,7 @@ export function AccountMenu({ compact = false, onUpdated, user }: AccountMenuPro
 
   return <div className={compact ? "account-menu account-menu--compact" : "account-menu"} ref={root}>
     <button aria-expanded={open} aria-haspopup="dialog" aria-label={compact ? "打开个人设置" : undefined} className="account-menu__trigger" data-tooltip={compact ? "个人设置" : undefined} onClick={() => setOpen((current) => !current)} type="button">
-      <Avatar name={displayName} />
+      <Avatar imageUrl={user.avatar_url} name={displayName} />
       {!compact ? <span><strong>{displayName}</strong><small>{user.role === "owner" ? "Owner" : "用户设置"}</small></span> : null}
     </button>
     {open ? <AccountMenuPanel onClose={() => setOpen(false)} onUpdated={onUpdated} user={user} /> : null}

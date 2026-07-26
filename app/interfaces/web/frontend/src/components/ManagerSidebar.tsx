@@ -8,6 +8,8 @@ import { Avatar } from "./Avatar"
 import { Icon } from "./Icon"
 import { MobileAccessDialog } from "./MobileAccessDialog"
 
+const managerLogoUrl = new URL("../../../../../../docs/public/assets/logo.png", import.meta.url).href
+
 type ManagerSidebarProps = {
   readonly activeTab: ManagerTab
   readonly onSelect: (tab: ManagerTab) => void
@@ -18,7 +20,7 @@ type ManagerSidebarProps = {
 export function ManagerSidebar({ activeTab, onSelect, onUserUpdated, user }: ManagerSidebarProps) {
   const [showMobileAccess, setShowMobileAccess] = useState(false)
   return <aside aria-label="ElfieNest 管理导航" className="manager-sidebar">
-    <div className="manager-sidebar__brand"><Avatar name="管" /><span><strong>ELFIE NEST</strong><small>OWNER CONSOLE</small></span></div>
+    <div className="manager-sidebar__brand"><span className="manager-sidebar__logo"><span aria-hidden="true">管</span><img alt="ElfieNest" onError={(event) => { event.currentTarget.hidden = true }} src={managerLogoUrl} /></span><span><strong>ELFIE NEST</strong><small>管理系统 · OWNER CONSOLE</small></span></div>
     <nav className="manager-sidebar__navigation">
       {MANAGER_NAV_GROUPS.map((group) => <section className="manager-nav-group" key={group.label}><p>{group.label}</p>{group.items.map((item) => <button aria-current={activeTab === item.id ? "page" : undefined} className={activeTab === item.id ? "manager-nav-item manager-nav-item--active" : "manager-nav-item"} key={item.id} onClick={() => onSelect(item.id)} type="button"><Icon name={item.icon} size={17} />{item.label}</button>)}</section>)}
     </nav>

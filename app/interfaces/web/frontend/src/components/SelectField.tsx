@@ -4,6 +4,7 @@ import { Icon } from "./Icon"
 import "./select-field.css"
 
 export type SelectOption = {
+  readonly disabled?: boolean
   readonly label: string
   readonly value: string
 }
@@ -35,7 +36,7 @@ export function SelectField({
     <Select.Portal>
       <Select.Content className="select-field__content" position="popper" sideOffset={6}>
         <Select.Viewport className="select-field__viewport">
-          {options.map((option) => <Select.Item className="select-field__item" key={option.value} value={option.value}>
+          {options.map((option) => <Select.Item className="select-field__item" disabled={option.disabled ?? false} key={option.value} value={option.value}>
             <Select.ItemText>{option.label}</Select.ItemText>
             <Select.ItemIndicator className="select-field__indicator"><Icon name="check" size={15} /></Select.ItemIndicator>
           </Select.Item>)}

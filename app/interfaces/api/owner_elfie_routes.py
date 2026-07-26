@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ai_runtime.food.elfie_policy import load_elfie_food_policy
 from app.features.accounts.auth import require_owner
@@ -18,21 +18,41 @@ router = APIRouter(prefix="/api/owner", tags=["owner-elfie-monitoring"])
 @router.get("/elfies")
 async def list_owner_elfie_monitoring(
     request: Request,
-    owner_user_id: Optional[int] = None,
+    owner_user_id: Optional[str] = None,
     species_id: Optional[str] = None,
     food_key: Optional[str] = None,
     embodiment_state: Optional[str] = None,
+    status: Optional[str] = None,
     owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
 ) -> List[Dict[str, Any]]:
     """List safe operational summaries without private configuration or chats."""
     _ = owner
-    rows = _load_registered_elfies(request.app.state.db_path, owner_user_id, species_id)
+    rows = _load_registered_elfies(
+        request.app.state.db_path,
+        _optional_owner_id(owner_user_id),
+        _optional_text(species_id),
+    )
     return _filter_monitoring_rows(
         request.app.state.db_path,
         rows,
-        food_key=food_key,
-        embodiment_state=embodiment_state,
+        food_key=_optional_text(food_key),
+        embodiment_state=_optional_text(embodiment_state) or _optional_text(status),
     )
+
+
+def _optional_text(value: Optional[str]) -> Optional[str]:
+    normalized = (value or "").strip()
+    return normalized or None
+
+
+def _optional_owner_id(value: Optional[str]) -> Optional[int]:
+    normalized = _optional_text(value)
+    if normalized is None:
+        return None
+    try:
+        return int(normalized)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="owner_user_id 必须是整数") from exc
 
 
 def _load_registered_elfies(

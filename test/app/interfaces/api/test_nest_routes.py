@@ -95,7 +95,9 @@ def test_bed_count_updates_desired_state_not_python_bed_geometry(
     assert rooms[0]["beds"] == []
 
 
-def test_bed_count_clamps_to_semantic_runtime_limit(client: TestClient) -> None:
+def test_bed_count_rejects_values_above_semantic_runtime_limit(
+    client: TestClient,
+) -> None:
     tokens = _login_owner(client)
     headers = _headers(tokens["csrf_token"])
 
@@ -105,8 +107,7 @@ def test_bed_count_clamps_to_semantic_runtime_limit(client: TestClient) -> None:
         headers=headers,
     )
 
-    assert resp.status_code == 200
-    assert resp.json()["desired_bed_count"] == 32
+    assert resp.status_code == 422
 
 
 def test_create_room_and_coordinate_update_are_gone(client: TestClient) -> None:

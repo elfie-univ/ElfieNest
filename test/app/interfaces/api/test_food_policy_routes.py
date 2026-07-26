@@ -4,8 +4,8 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-from app.interfaces.api.app import create_app
 from app.infrastructure.persistence.store import init_db
+from app.interfaces.api.app import create_app
 
 from ._helpers import create_test_owner
 
@@ -78,3 +78,49 @@ def test_user_can_configure_only_food_keys_for_owned_elfie(client):
         headers=headers(user_csrf),
     )
     assert loaded.json()["default_food"] == "standard"
+
+
+def test_owner_can_edit_a_registered_elfies_food_policy(client):
+    """管理台可只修改粮食策略，不暴露或修改精灵档案。"""
+    owner = client.post(
+        "/api/auth/login", data={"username": "owner", "password": "ownerchangeme"}
+    )
+    csrf = owner.headers["X-CSRF-Token"]
+    created = client.post(
+        "/api/owner/users",
+        json={"username": "alice", "password": "pass123", "role": "user"},
+        headers=headers(csrf),
+    )
+    assert created.status_code == 201
+    login = client.post(
+        "/api/auth/login", data={"username": "alice", "password": "pass123"}
+    )
+    user_csrf = login.headers["X-CSRF-Token"]
+    adopted = client.post(
+        "/api/user/adopt",
+        json={
+            "name": "小白",
+            "anatomy_type": "biped",
+            "personality_style": "好奇探索",
+            "height": "standard",
+            "build": "standard",
+        },
+        headers=headers(user_csrf),
+    )
+    owner = client.post(
+        "/api/auth/login", data={"username": "owner", "password": "ownerchangeme"}
+    )
+    csrf = owner.headers["X-CSRF-Token"]
+
+    response = client.put(
+        f"/api/user/elfies/{adopted.json()['elfie_id']}/food-policy/",
+        json={
+            "default_food": "focus",
+            "allowed_foods": ["coarse", "focus"],
+            "fallback_food": "coarse",
+        },
+        headers=headers(csrf),
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["default_food"] == "focus"

@@ -12,7 +12,7 @@ from app.infrastructure.persistence.nest_schema import (
     migrate_legacy_nest_layout_to_semantic_tables,
 )
 
-CURRENT_SCHEMA_VERSION: Final[int] = 11
+CURRENT_SCHEMA_VERSION: Final[int] = 13
 
 
 class OwnerSchemaMigrationError(RuntimeError):
@@ -33,10 +33,13 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             nickname TEXT DEFAULT NULL,
             avatar_color INTEGER DEFAULT 0,
             avatar_kind TEXT DEFAULT 'initials',
+            avatar_path TEXT DEFAULT NULL,
             default_landing_page TEXT NOT NULL DEFAULT 'manage'
             CHECK(default_landing_page IN ('chat', 'manage')),
             theme_key TEXT NOT NULL DEFAULT 'warm-paper'
-            CHECK(theme_key IN ('warm-paper', 'harbor-blue', 'orchid-archive', 'moss-green'))
+            CHECK(theme_key IN ('warm-paper', 'harbor-blue', 'orchid-archive', 'moss-green')),
+            elfie_quota_override INTEGER DEFAULT NULL
+            CHECK(elfie_quota_override IS NULL OR elfie_quota_override BETWEEN 1 AND 32)
         )
         """
     )
@@ -106,6 +109,10 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
         _migrate_v9_to_v10(connection)
     if version < 11:
         _migrate_v10_to_v11(connection)
+    if version < 12:
+        _migrate_v11_to_v12(connection)
+    if version < 13:
+        _migrate_v12_to_v13(connection)
     _ensure_owner_index(connection)
 
 
@@ -261,6 +268,24 @@ def _migrate_v10_to_v11(connection: sqlite3.Connection) -> None:
     """Persist one validated visual theme preference per user."""
     _ensure_theme_key_column(connection)
     connection.execute("PRAGMA user_version = 11")
+
+
+def _migrate_v11_to_v12(connection: sqlite3.Connection) -> None:
+    """Replace generated avatar fields with a private local image reference."""
+    _ignore_duplicate_column(
+        connection, "ALTER TABLE users ADD COLUMN avatar_path TEXT DEFAULT NULL"
+    )
+    connection.execute("PRAGMA user_version = 12")
+
+
+def _migrate_v12_to_v13(connection: sqlite3.Connection) -> None:
+    """Allow one nullable per-user adoption-limit override."""
+    _ignore_duplicate_column(
+        connection,
+        "ALTER TABLE users ADD COLUMN elfie_quota_override INTEGER DEFAULT NULL "
+        "CHECK(elfie_quota_override IS NULL OR elfie_quota_override BETWEEN 1 AND 32)",
+    )
+    connection.execute("PRAGMA user_version = 13")
 
 
 def _validate_owner_roles(connection: sqlite3.Connection) -> None:

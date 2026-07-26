@@ -131,12 +131,12 @@ class TestMigrationV1ToV2:
         assert "avatar_color" in cols
         assert "avatar_kind" in cols
 
-    def test_user_version_becomes_11(self, tmp_path: Path) -> None:
+    def test_user_version_becomes_13(self, tmp_path: Path) -> None:
         db = str(tmp_path / "nest.db")
         init_db(db)
         migrate_db_if_needed(db)
 
-        assert _user_version(db) == 11
+        assert _user_version(db) == 13
 
     def test_migration_idempotent(self, tmp_path: Path) -> None:
         """重复执行 migrate_db_if_needed 不报错。"""
@@ -148,7 +148,7 @@ class TestMigrationV1ToV2:
         cols = _table_info_columns(db)
         assert "nickname" in cols
         assert "theme_key" in cols
-        assert _user_version(db) == 11
+        assert _user_version(db) == 13
 
     def test_preserves_existing_data(self, tmp_path: Path) -> None:
         """迁移前插入的用户，迁移后数据保持完整。"""
@@ -196,19 +196,21 @@ class TestMigrationV1ToV2:
         migrate_db_if_needed(db)
 
         cols = _table_info_columns(db)
-        assert len(cols) == 11
-        # 验证列顺序：原 5 列 + updated_at + profile 3 列 + 默认落页 + 主题偏好
+        assert len(cols) == 13
+        # 验证列顺序：原 5 列 + updated_at + profile 3 列 + 头像路径 + 默认落页 + 主题偏好 + 领养上限覆盖
         assert cols[:5] == ["id", "username", "password_hash", "role", "created_at"]
         assert cols[5:] == [
             "updated_at",
             "nickname",
             "avatar_color",
             "avatar_kind",
+            "avatar_path",
             "default_landing_page",
             "theme_key",
+            "elfie_quota_override",
         ]
 
-    def test_init_db_sets_version_11_without_legacy_chat_table(
+    def test_init_db_sets_version_13_without_legacy_chat_table(
         self, tmp_path: Path
     ) -> None:
         db = str(tmp_path / "nest.db")
@@ -216,7 +218,7 @@ class TestMigrationV1ToV2:
 
         cols = _table_info_columns(db)
         assert "nickname" in cols
-        assert _user_version(db) == 11
+        assert _user_version(db) == 13
         connection = sqlite3.connect(db)
         legacy_table = connection.execute(
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'chat_messages'"
@@ -250,7 +252,7 @@ class TestMigrationV1ToV2:
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'chat_messages'"
         ).fetchone()
         connection.close()
-        assert _user_version(db) == 11
+        assert _user_version(db) == 13
         assert legacy_table is None
 
     def test_adds_nest_tables_and_bed_id(self, tmp_path: Path) -> None:
@@ -325,4 +327,25 @@ class TestMigrationV1ToV2:
         assert row["anatomy_type"] == "quadruped"
         assert row["species_id"] == "fox"
         assert row["profile_schema_version"] == 1
-        assert _user_version(db) == 11
+        assert _user_version(db) == 13
+
+    def test_v12_database_adds_nullable_quota_override_idempotently(
+        self, tmp_path: Path
+    ) -> None:
+        db = str(tmp_path / "legacy-v12.db")
+        init_db(db)
+        with sqlite3.connect(db) as connection:
+            connection.execute("PRAGMA user_version = 12")
+            connection.execute("ALTER TABLE users DROP COLUMN elfie_quota_override")
+
+        migrate_db_if_needed(db)
+        migrate_db_if_needed(db)
+
+        with sqlite3.connect(db) as connection:
+            columns = [row[1] for row in connection.execute("PRAGMA table_info(users)")]
+            quota = connection.execute(
+                "SELECT elfie_quota_override FROM users LIMIT 1"
+            ).fetchone()
+        assert columns.count("elfie_quota_override") == 1
+        assert quota is None or quota[0] is None
+        assert _user_version(db) == 13

@@ -4,11 +4,19 @@ import json
 import logging
 import urllib.error
 import urllib.request
-from typing import Any
+from typing import Any, cast
 
+from ai_runtime.providers.http import (
+    ProviderHttpResponse,
+    open_provider_request,
+    read_provider_response,
+)
 from ai_runtime.providers.ollama import OllamaNotReadyError
 
 logger = logging.getLogger("ai_runtime.providers.dispatch")
+
+_MAX_ERROR_RESPONSE_BYTES = 64 * 1024
+_ERROR_RESPONSE_DEADLINE_SECONDS = 5.0
 
 
 def detect_api_mode_for_url(base_url: str) -> str:
@@ -46,8 +54,14 @@ def call_ollama_api(
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
 
     try:
-        with urllib.request.urlopen(req, timeout=300) as response:
-            res_data = json.loads(response.read().decode("utf-8"))
+        with open_provider_request(req, timeout=300) as response:
+            res_data = json.loads(
+                read_provider_response(
+                    response,
+                    max_bytes=8 * 1024 * 1024,
+                    deadline_seconds=300,
+                ).decode("utf-8")
+            )
             usage: dict[str, Any] = {}
             if "eval_count" in res_data:
                 usage = {
@@ -92,14 +106,20 @@ def call_openai_compatible_api(
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
 
     try:
-        with urllib.request.urlopen(req, timeout=60) as response:
-            res_data = json.loads(response.read().decode("utf-8"))
+        with open_provider_request(req, timeout=60) as response:
+            res_data = json.loads(
+                read_provider_response(
+                    response,
+                    max_bytes=8 * 1024 * 1024,
+                    deadline_seconds=60,
+                ).decode("utf-8")
+            )
             usage = res_data.get("usage", {})
             return res_data["choices"][0]["message"]["content"], usage
     except Exception as e:
         logger.error("云端大模型 API 调用异常: %s", e)
         if isinstance(e, urllib.error.HTTPError):
-            err_msg = e.read().decode("utf-8", errors="ignore")
+            err_msg = _http_error_summary(e)
             raise RuntimeError(
                 f"❌ 云端大模型接口 ({provider}) 返回 HTTP {e.code} 错误。响应详情: {err_msg}"
             ) from e
@@ -146,12 +166,18 @@ def call_anthropic_api(
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
 
     try:
-        with urllib.request.urlopen(req, timeout=60) as response:
-            res_data = json.loads(response.read().decode("utf-8"))
+        with open_provider_request(req, timeout=60) as response:
+            res_data = json.loads(
+                read_provider_response(
+                    response,
+                    max_bytes=8 * 1024 * 1024,
+                    deadline_seconds=60,
+                ).decode("utf-8")
+            )
             usage = res_data.get("usage", {})
             return res_data["content"][0]["text"], usage
     except urllib.error.HTTPError as e:
-        err_msg = e.read().decode("utf-8", errors="ignore")
+        err_msg = _http_error_summary(e)
         raise RuntimeError(
             f"❌ Anthropic API 返回 HTTP {e.code} 错误。响应详情: {err_msg}"
         ) from e
@@ -187,3 +213,17 @@ def _merge_request_options(
             payload["options"] = merged
         else:
             payload[key] = value
+
+
+def _http_error_summary(error: urllib.error.HTTPError) -> str:
+    try:
+        payload = read_provider_response(
+            cast(ProviderHttpResponse, error),
+            max_bytes=_MAX_ERROR_RESPONSE_BYTES,
+            deadline_seconds=_ERROR_RESPONSE_DEADLINE_SECONDS,
+        )
+    except ValueError:
+        return "[Provider 错误响应体超过安全上限，内容已丢弃]"
+    except TimeoutError:
+        return "[Provider 错误响应体读取超时，内容已丢弃]"
+    return payload.decode("utf-8", errors="replace")

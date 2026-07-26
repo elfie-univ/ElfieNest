@@ -22,7 +22,7 @@ class FakeResponse:
     def __init__(self, payload):
         self.payload = payload
 
-    def read(self):
+    def read(self, _amount=None):
         return json.dumps(self.payload).encode("utf-8")
 
     def __enter__(self):
@@ -36,7 +36,7 @@ def test_discovers_ollama_models(monkeypatch, tmp_path):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     config = LLMRuntimeConfig()
     monkeypatch.setattr(
-        "ai_runtime.validation.providers.urllib.request.urlopen",
+        "ai_runtime.validation.providers.open_provider_request",
         lambda request, timeout: FakeResponse(
             {"models": [{"name": "qwen:small"}, {"model": "vision:model"}]}
         ),
@@ -61,7 +61,7 @@ def test_discovers_openai_compatible_models_with_bearer_header(monkeypatch, tmp_
         return FakeResponse({"data": [{"id": "model-b"}, {"id": "model-a"}]})
 
     monkeypatch.setattr(
-        "ai_runtime.validation.providers.urllib.request.urlopen", fake_urlopen
+        "ai_runtime.validation.providers.open_provider_request", fake_urlopen
     )
 
     models = discover_provider_models("openai", config)
@@ -102,7 +102,7 @@ def test_model_discovery_failure_becomes_check_result(monkeypatch, tmp_path):
     def fail(request, timeout):
         raise urllib.error.URLError("offline")
 
-    monkeypatch.setattr("ai_runtime.validation.providers.urllib.request.urlopen", fail)
+    monkeypatch.setattr("ai_runtime.validation.providers.open_provider_request", fail)
     suite = ProviderValidationRunner(config).verify_models("ollama")
 
     assert suite.results[0].status is CheckStatus.FAILED
@@ -125,7 +125,7 @@ def test_discovery_uses_manual_models_when_models_endpoint_is_unavailable(
         raise urllib.error.HTTPError(request.full_url, 404, "Not Found", {}, None)
 
     monkeypatch.setattr(
-        "ai_runtime.validation.providers.urllib.request.urlopen", unsupported
+        "ai_runtime.validation.providers.open_provider_request", unsupported
     )
 
     models = discover_provider_models("custom_gateway", config)
@@ -148,7 +148,7 @@ def test_xfyun_coding_plan_uses_official_model_alias_when_listing_is_unavailable
         raise urllib.error.HTTPError(request.full_url, 404, "Not Found", {}, None)
 
     monkeypatch.setattr(
-        "ai_runtime.validation.providers.urllib.request.urlopen", unsupported
+        "ai_runtime.validation.providers.open_provider_request", unsupported
     )
 
     models = discover_provider_models("custom_openai", config)

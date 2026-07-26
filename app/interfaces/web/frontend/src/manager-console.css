@@ -13,13 +13,16 @@
   background: linear-gradient(180deg, var(--rail-a) 0%, var(--rail-b) 100%);
   border-right: 1px solid var(--line);
 }
-.manager-sidebar__brand { display: flex; align-items: center; gap: 11px; }
-.manager-sidebar__brand .avatar { width: 42px; height: 42px; border-radius: 12px; }
+.manager-sidebar__brand { display: flex; align-items: center; gap: 12px; }
+.manager-sidebar__logo { position: relative; display: grid; width: 50px; height: 50px; flex: 0 0 50px; place-items: center; overflow: hidden; border-radius: 12px; color: var(--accent-contrast, white); background: var(--accent); font-weight: 800; }
+.manager-sidebar__logo img { position: relative; z-index: 1; display: block; width: 100%; height: 100%; object-fit: cover; }
+.manager-sidebar__logo > span { position: absolute; inset: 0; display: grid; place-items: center; }
 .manager-sidebar__brand span { display: grid; gap: 2px; min-width: 0; }
-.manager-sidebar__brand strong { font-size: 13px; letter-spacing: .08em; }
-.manager-sidebar__brand small { color: var(--ink-soft); font-size: 10px; letter-spacing: .1em; }
+.manager-sidebar__brand strong { font-size: 16px; letter-spacing: .075em; }
+.manager-sidebar__brand small { color: var(--ink-soft); font-size: 10px; letter-spacing: .07em; }
 .manager-sidebar__navigation { display: grid; flex: 1 1 auto; min-height: 0; gap: 12px; margin-top: 24px; overflow: auto; overscroll-behavior: contain; padding: 0 2px 8px; }
 .manager-nav-group { display: grid; gap: 2px; }
+.manager-nav-group + .manager-nav-group { padding-top: 12px; border-top: 1px dashed color-mix(in srgb, var(--line) 76%, transparent); }
 .manager-nav-group > p { margin: 0 0 3px 8px; color: var(--ink-soft); font-size: 10px; font-weight: 800; letter-spacing: .12em; }
 .manager-nav-item, .manager-quick-action {
   display: flex;
@@ -69,6 +72,10 @@
 .account-menu__close:hover { background: var(--nav-hover); color: var(--active-ink); }
 .account-menu__identity { display: grid; grid-template-columns: 62px minmax(0, 1fr) auto; align-items: center; gap: 12px; margin: 12px 0; padding: 12px; border: 1px solid var(--border-soft, var(--line)); border-radius: 14px; background: var(--surface-field, var(--surface-muted)); }
 .account-menu__identity .avatar { width: 62px; height: 62px; border-radius: 14px; font-size: 22px; }
+.account-menu__avatar-input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
+.account-menu__avatar-button { display: grid; padding: 0; border-radius: 14px; background: transparent; }
+.account-menu__avatar-button:hover .avatar { outline: 2px solid var(--accent); outline-offset: 3px; }
+.account-menu__identity input[aria-label="显示名称"] { width: 100%; min-width: 0; border: 1px solid var(--accent); border-radius: 8px; padding: 5px 7px; color: var(--ink); background: var(--surface-raised); font: inherit; font-size: 18px; font-weight: 700; }
 .account-menu__identity h2 { font-size: 18px; }
 .account-menu__identity p, .account-menu__identity small { display: block; margin: 3px 0 0; color: var(--ink-soft); font-size: 12px; }
 .account-menu__edit { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 9px; color: var(--accent-hover); background: transparent; }
