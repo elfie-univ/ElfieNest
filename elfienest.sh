@@ -31,10 +31,13 @@ case "$MODE" in
         exec "$SCRIPT_DIR/resources/python-core/ElfieNestCore" "$@"
         ;;
     development)
-        # 开发模式：先装依赖（不管后面有没有命令）
-        if ! "$SCRIPT_DIR/scripts/bootstrap.sh" ensure --tier=dev; then
-            echo "  ❌ 依赖检查失败，请按提示修复" >&2
-            exit 1
+        # 开发模式：静默检查依赖，缺失时才显示安装过程
+        if ! "$SCRIPT_DIR/scripts/bootstrap.sh" check --tier=dev >/dev/null 2>&1; then
+            echo "  🦊 检测到缺失依赖，正在安装..." >&2
+            if ! "$SCRIPT_DIR/scripts/bootstrap.sh" ensure --tier=dev; then
+                echo "  ❌ 依赖安装失败，请按提示修复" >&2
+                exit 1
+            fi
         fi
         ;;
     unknown)
@@ -81,11 +84,9 @@ show_help() {
     echo "    config         配置中心（方向键菜单）"
     echo "    owner          Owner 账户菜单"
     echo "    doctor         本地诊断并自动修复"
-    echo "    build-godot-web 构建浏览器 3D Runtime"
     echo "    db*            数据库维护工具"
     echo "    version        显示版本信息"
     echo "    setup          首次设置向导"
-    echo "    developer      Developer Tool（仅开发者）"
     echo ""
     echo "  ┌─────────────────────────────────────────────────────────┐"
     echo "  │  带 * 命令支持参数                                      │"
@@ -126,8 +127,6 @@ interactive_mode() {
             exit|quit|q) echo ""; echo "  再见！🦊"; echo ""; exit 0 ;;
             help|h|?) show_help ;;
             serve) "$PYTHON_BIN" scripts/serve.py "${args[@]}" ;;
-            build-godot-web) "$SCRIPT_DIR/developer.sh" build-godot-web "${args[@]}" ;;
-            developer|dev) "$SCRIPT_DIR/developer.sh" "${args[@]}" ;;
             config|owner|doctor|status|web|desktop|stop|restart|start|version|v|setup)
                 "$PYTHON_BIN" scripts/elfienest.py "$cmd" "${args[@]}" ;;
             db) "$PYTHON_BIN" scripts/elfienest.py db "${args[@]}" ;;
@@ -149,14 +148,6 @@ else
     serve)
         shift
         "$PYTHON_BIN" scripts/serve.py "$@"
-        ;;
-    build-godot-web)
-        shift
-        "$SCRIPT_DIR/developer.sh" build-godot-web "$@"
-        ;;
-    developer|dev)
-        shift
-        "$SCRIPT_DIR/developer.sh" "$@"
         ;;
     --help|-h)
         show_logo
