@@ -28,9 +28,11 @@ build/staging/<platform-arch>/resources/
 `manifest.json` 应记录版本和哈希。模型不随安装包提交，首次启动时由 Ollama 下载到
 用户数据目录的 `models/`，这样升级应用不会重复携带大文件。
 
-资源准备完成后，在 `desktop/` 目录设置 `ELFIENEST_TARGET=<platform-arch>`，执行
-`pnpm build-resource-manifest` 生成并校验 `manifest.json`。资源缺失或路径不是文件
-时命令会失败，不会生成不完整的安装清单。最终安装包只能输出到根 `dist/`。
+使用 `scripts/assemble_desktop_resources.py` 组装时，它会先校验已下载 Ollama archive
+的固定 SHA-256，再复制 Vite、Godot Web、target-native Python Core 和 Ollama，最后
+原子写入 `manifest.json`。资源缺失、archive 被篡改或路径不是文件时命令会失败，
+不会生成不完整的安装清单。Electron 在已打包模式还会再次验证清单，之后才生成
+任何受管子进程。最终安装包只能输出到根 `dist/`。
 
 当前 Desktop 资源清单代码支持的 target：
 

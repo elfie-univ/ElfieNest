@@ -132,7 +132,7 @@ class NestSession:
 
     def attach_repository(self, repository: NestRepository) -> None:
         """Attach persistence during application bootstrap before residents load."""
-        if self._repository is repository:
+        if self._repository is not None:
             return
         if self.elfies:
             msg = "cannot attach Nest repository after Elfie instances are registered"

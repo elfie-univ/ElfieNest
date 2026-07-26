@@ -509,6 +509,8 @@ def main():
     engine_config = config.system.get("engine", {})
     max_elfies_per_room = engine_config.get("max_elfies_per_room")
 
+    engine.session.attach_repository(SQLiteNestStateRepository(db_path))
+
     # 4. 从 DB 动态加载所有精灵
     loaded_elfies: list[dict] = []
     try:

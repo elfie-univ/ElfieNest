@@ -149,7 +149,9 @@ func _physics_process(_delta: float) -> void:
 		return
 	var direction := offset.normalized()
 	_play_animation("walking")
-	look_at(global_position + direction, Vector3.UP)
+	# 导入物种模型以 +Z 为视觉前方，而 Node3D.look_at 对齐的是 -Z。
+	# 因此看向反方向，使视觉朝向与物理速度一致，避免倒着行走。
+	look_at(global_position - direction, Vector3.UP)
 	_navigation_agent.velocity = direction * WALK_SPEED
 
 

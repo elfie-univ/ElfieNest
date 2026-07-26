@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from "electron";
 
 import { resolveSupervisorConfig } from "./platform/supervisor_config.js";
+import { loadAndValidateResourceManifest } from "./resources/resource_manifest.js";
 import { RuntimeSupervisor } from "./supervisor/supervisor.js";
 import {
   createHiddenGodotRuntime,
@@ -20,6 +21,9 @@ async function startDesktop(): Promise<void> {
     process.platform,
     app.getPath("userData"),
   );
+  if (app.isPackaged) {
+    loadAndValidateResourceManifest(config.resourcesPath, app.getVersion());
+  }
   supervisor = new RuntimeSupervisor(config);
   await supervisor.start(createHiddenGodotRuntime());
   createMainWindow(config.uiUrl);

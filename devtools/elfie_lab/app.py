@@ -7,12 +7,12 @@ from pathlib import Path
 from typing import Annotated, AsyncIterator, Callable, Optional
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 
 import devtools.elfie_lab.api_models as api_models
 import devtools.elfie_lab.runtime_foods as runtime_food_support
 from ai_runtime.storage.data_home import get_elfie_developer_home, get_elfie_home
-from devtools.elfie_lab.food_status import build_food_items, find_food_item
+from devtools.elfie_lab.food_status import find_food_item
 from devtools.elfie_lab.host import LoopbackHostMiddleware
 from devtools.elfie_lab.media_store import (
     MAX_MEDIA_BYTES,
@@ -32,7 +32,9 @@ from devtools.elfie_lab.session import SessionClosedError
 from devtools.elfie_lab.session_registry import SessionBusyError, SessionRegistry
 from devtools.elfie_lab.static_host import mount_static_surfaces
 from devtools.elfie_lab.storage import ElfieLabStorage
+from devtools.elfie_lab.system_routes import build_system_router
 from devtools.runtime_lab import RuntimeLabConfigStore
+from devtools.web_host import frontend_shell
 
 
 def create_app(
@@ -78,42 +80,34 @@ def create_app(
     app.state.media_store = media_store
     app.state.runtime_store = runtime_store
     app.state.food_store = food_store
-    static_dir = mount_static_surfaces(app)
+    mount_static_surfaces(app)
     app.include_router(build_profile_router(storage, sessions))
+    app.include_router(
+        build_system_router(
+            runtime_store,
+            food_store,
+            configure_runtime_command,
+            developer_runtime=developer_runtime,
+        )
+    )
 
     @app.get("/", include_in_schema=False)
-    def index():
-        return FileResponse(static_dir / "index.html")
+    def index() -> HTMLResponse:
+        return frontend_shell("elfie")
 
     @app.get("/api/health")
     def health():
         return {"status": "ok", "service": "elfie-lab"}
 
-    @app.get("/api/runtime/status")
-    def runtime_status():
-        status = runtime_store.status()
-        status["scope"] = "developer" if developer_runtime else "override"
-        return status
-
-    @app.get("/api/runtime/foods")
-    def runtime_foods():
-        """读取本机公共 Runtime 配置的粮食目录。"""
-        try:
-            items = build_food_items(
-                runtime_store,
-                food_store,
-                configure_runtime_command,
-            )
-        except RuntimeError as exc:
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
-        return {
-            "items": items,
-            "configuration_command": configure_runtime_command,
-        }
-
     @app.get("/api/elfies")
     def list_elfies():
-        return {"items": [item.to_dict() for item in storage.list_elfies()]}
+        items = []
+        for item in storage.list_elfies():
+            payload = item.to_dict()
+            if storage.portrait_path(item.elfie_id).is_file():
+                payload["portrait_url"] = f"/api/elfies/{item.elfie_id}/portrait"
+            items.append(payload)
+        return {"items": items}
 
     @app.post("/api/elfies", status_code=201)
     def create_elfie(request: api_models.CreateElfieRequest):

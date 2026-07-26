@@ -1,0 +1,231 @@
+/* React parity layer: preserves the pre-migration Elfie Lab interaction contract. */
+
+.lab-shell:not(.detail-open) {
+  grid-template-columns: var(--panel-left) minmax(520px, 1fr) 0;
+}
+
+.lab-shell.left-closed .elfie-switcher-wrap {
+  top: auto;
+  bottom: 10px;
+  left: 8px;
+  right: auto;
+  width: 56px;
+}
+
+.lab-shell.left-closed .elfie-panel {
+  z-index: 12;
+  overflow: visible;
+}
+
+.left-closed .elfie-menu {
+  left: 50%;
+  right: auto;
+  top: auto;
+  bottom: 62px;
+  width: 52px;
+  padding: 6px;
+  transform: translateX(-50%);
+}
+
+.left-closed .compact-switcher-menu {
+  display: grid;
+  gap: 6px;
+  overflow: visible;
+}
+
+.left-closed .compact-switcher-menu button {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  justify-content: center;
+  padding: 0;
+}
+
+.compact-switcher-menu button[data-tooltip]::after {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: calc(100% + 10px);
+  padding: 6px 9px;
+  border: 1px solid var(--border-default);
+  border-radius: 7px;
+  color: var(--text-primary);
+  background: var(--surface-elevated);
+  box-shadow: 0 8px 22px rgba(42, 68, 54, .14);
+  content: attr(data-tooltip);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-4px, -50%);
+  transition: opacity 120ms ease, transform 120ms ease;
+  white-space: nowrap;
+}
+
+.compact-switcher-menu button[data-tooltip]:hover::after,
+.compact-switcher-menu button[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+
+.left-closed .compact-switcher-menu .mini-avatar {
+  width: 32px;
+  height: 32px;
+}
+
+.elfie-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.elfie-menu-row > button:first-child {
+  min-width: 0;
+  flex: 1;
+}
+
+.elfie-menu-row > button:first-child span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.elfie-menu-row > button:last-child {
+  width: 32px;
+  min-height: 32px;
+  flex: 0 0 32px;
+  justify-content: center;
+  color: var(--status-error);
+  font-size: 17px;
+}
+
+.mini-avatar img,
+.message-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.personality-tags:empty::before {
+  content: "人格描述将在创建后自动提炼";
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
+.bubble-row {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.bubble-row.user {
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+}
+
+.message-avatar {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  color: #ffffff;
+  background: linear-gradient(145deg, #5cb894, #247a5c);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.message-avatar svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.developer-avatar {
+  background: linear-gradient(145deg, #6b8cba, #4a6a9e);
+}
+
+.bubble-row.elfie > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.bubble-row.elfie .bubble {
+  width: min(460px, 72%);
+  min-width: min(390px, 72%);
+}
+
+.bubble {
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.bubble-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.channel,
+.bubble-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 16px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  color: var(--text-tertiary);
+  background: var(--surface-inset);
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.bubble-tag {
+  margin-top: 7px;
+  color: var(--accent-primary);
+}
+
+.bubble-tag.warning {
+  color: var(--accent-amber);
+}
+
+.turn-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.turn-action {
+  min-height: 25px;
+  padding: 4px 7px;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  color: var(--accent-primary);
+  background: var(--surface-elevated);
+  cursor: pointer;
+  font-size: 9px;
+}
+
+.turn-action:hover {
+  border-color: var(--interactive-hover-border);
+  background: var(--interactive-hover);
+}
+
+@media (max-width: 760px) {
+  .message-avatar {
+    display: none;
+  }
+
+  .left-closed .elfie-menu {
+    top: auto;
+  }
+}

@@ -6,6 +6,7 @@ import test from "node:test";
 
 import {
   buildResourceManifest,
+  loadAndValidateResourceManifest,
   requiredResourcePathsForTarget,
   validateResourceManifest,
 } from "./resource_manifest.js";
@@ -79,6 +80,24 @@ test("resource manifest reports tampered and missing files", () => {
     assert.equal(errors.length, 3);
     assert.ok(errors.some((error) => error.includes("elfienest.wasm")));
     assert.ok(errors.some((error) => error.includes("ollama/ollama")));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("resource manifest refuses a tampered packaged file before startup", () => {
+  // Given
+  const root = createResourceTree("darwin-arm64");
+  try {
+    const manifest = buildResourceManifest(root, "0.1.0", "darwin-arm64");
+    writeFileSync(join(root, "manifest.json"), JSON.stringify(manifest));
+    writeFileSync(join(root, "godot-web/elfienest.wasm"), "tampered");
+
+    // When/Then
+    assert.throws(
+      () => loadAndValidateResourceManifest(root, "0.1.0"),
+      /godot-web\/elfienest\.wasm/,
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

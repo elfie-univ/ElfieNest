@@ -7,6 +7,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 from starlette.types import Scope
 
+from devtools.web_host import mount_vite_bundle
+
 
 class NoStoreStaticFiles(StaticFiles):
     """Serve rebuildable development assets without browser persistence."""
@@ -17,14 +19,9 @@ class NoStoreStaticFiles(StaticFiles):
         return response
 
 
-def mount_static_surfaces(app: FastAPI) -> Path:
+def mount_static_surfaces(app: FastAPI) -> None:
     """挂载 Lab 前端，并在已构建时挂载 Godot Web 导出。"""
-    static_dir = Path(__file__).with_name("static")
-    app.mount(
-        "/static",
-        NoStoreStaticFiles(directory=static_dir),
-        name="elfie_lab_static",
-    )
+    mount_vite_bundle(app)
     godot_web_dir = Path(__file__).parents[2] / "build" / "components" / "godot-web"
     if godot_web_dir.is_dir():
         app.mount(
@@ -32,4 +29,3 @@ def mount_static_surfaces(app: FastAPI) -> Path:
             NoStoreStaticFiles(directory=godot_web_dir, html=True),
             name="elfie_lab_godot_web",
         )
-    return static_dir

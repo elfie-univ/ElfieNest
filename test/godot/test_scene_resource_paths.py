@@ -90,6 +90,50 @@ def test_runtime_source_declares_protocol_v2_manifest_contract() -> None:
     assert "func apply_world_config(config: Dictionary) -> Dictionary:" in nest_text
 
 
+def test_web_runtime_accepts_a_loopback_websocket_url_from_its_query() -> None:
+    main_text = (GODOT_ROOT / "main.gd").read_text(encoding="utf-8")
+
+    assert "func _resolve_runtime_ws_url() -> String:" in main_text
+    assert '_query_parameter("ws")' in main_text
+    assert 'hostname not in ["127.0.0.1", "localhost"]' in main_text
+    assert 'normalized.find("@")' in main_text
+    assert "port.is_valid_int()" in main_text
+
+
+def test_nest_lab_web_mode_disables_production_camera_streaming() -> None:
+    main_text = (GODOT_ROOT / "main.gd").read_text(encoding="utf-8")
+
+    assert '_query_parameter("mode") == "nest_lab"' in main_text
+    assert "func _disable_camera_stream() -> void:" in main_text
+    assert "if _nest_lab_mode:" in main_text
+
+
+def test_elfie_lab_retries_its_web_bridge_until_the_browser_is_ready() -> None:
+    main_text = (GODOT_ROOT / "main.gd").read_text(encoding="utf-8")
+
+    assert "_initialize_lab_browser_bridge()" in main_text
+    assert "_lab_browser_bridge_ready" in main_text
+
+
+def test_nest_lab_web_mode_accepts_only_named_camera_presets_and_restore() -> None:
+    # Given
+    main_text = (GODOT_ROOT / "main.gd").read_text(encoding="utf-8")
+
+    # When / Then
+    assert "elfienest-nest-lab" in main_text
+    assert "_poll_nest_lab_camera_messages" in main_text
+    assert "select_observation_view_named" in main_text
+    assert "reset_observation_camera" in main_text
+
+
+def test_actor_movement_matches_the_imported_model_forward_axis() -> None:
+    actor_source = (GODOT_ROOT / "characters" / "shared" / "elfie_actor.gd").read_text(
+        encoding="utf-8"
+    )
+
+    assert "look_at(global_position - direction, Vector3.UP)" in actor_source
+
+
 def test_runtime_manifest_is_semantic_and_does_not_export_coordinates() -> None:
     nest_text = (GODOT_ROOT / "rooms" / "nest.gd").read_text(encoding="utf-8")
     manifest_section = nest_text.split("func scene_manifest()", maxsplit=1)[1]

@@ -1,4 +1,24 @@
-# ElfieNest
+<div align="center">
+  <table border="0">
+    <tr>
+      <td align="center" valign="middle" style="border: none;">
+        <img src="docs/public/assets/logo.png" alt="ElfieNest Logo" width="115" />
+      </td>
+      <td align="left" valign="middle" style="border: none;">
+        <pre>
+███████╗██╗     ███████╗██╗███████╗     ███╗   ██╗███████╗███████╗████████╗
+██╔════╝██║     ██╔════╝██║██╔════╝     ████╗  ██║██╔════╝██╔════╝╚══██╔══╝
+█████╗  ██║     █████╗  ██║█████╗       ██╔██╗ ██║█████╗  ███████╗   ██║
+██╔══╝  ██║     ██╔══╝  ██║██╔══╝       ██║╚██╗██║██╔══╝  ╚════██║   ██║
+███████╗███████╗██║     ██║███████╗     ██║ ╚████║███████╗███████║   ██║
+╚══════╝╚══════╝╚═╝     ╚═╝╚══════╝     ╚═╝  ╚═══╝╚══════╝╚══════╝   ╚═╝
+        </pre>
+      </td>
+    </tr>
+  </table>
+
+  <p><strong>🦊 仿生生命体系统 - Embodied AI Creature Simulation</strong></p>
+</div>
 
 一个开源的具身 AI 精灵项目：让每只 Elfie 拥有自己的档案、感知、情绪、能量、
 记忆、身体与类型化认知闭环，并生活在由 Godot 呈现的 Nest 世界里。
