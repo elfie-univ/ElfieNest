@@ -1,59 +1,71 @@
-# 参与 ElfieNest
+# Contributing to ElfieNest
 
-感谢你愿意改进 ElfieNest。这个仓库同时包含 Python Core、Electron
-桌面宿主、Godot 源项目和公开文档站。请先确认改动属于哪个边界，再开始写代码。
+> 中文版：[`CONTRIBUTING_zh.md`](CONTRIBUTING_zh.md)
 
-## 开始之前
+Thanks for wanting to improve ElfieNest. This repository holds the Python Core,
+the Electron desktop host, the Godot source project and the public docs site at
+the same time. Before writing any code, confirm which boundary your change
+belongs to.
 
-1. 阅读根目录的 `AGENTS.md`，了解强制架构、安全和操作规则。
-2. 阅读相关模块的 `README.md`；公开架构说明位于 `docs/developer/`。
-3. 先搜索已有 Issue，确认问题没有被重复报告。
-4. 对行为变化先补失败测试，再做最小实现。
+## Before you start
 
-## 开发环境
+1. Read the root `AGENTS.md` for the mandatory architecture, safety and
+   operation rules.
+2. Read the relevant module's `README.md`; the public architecture reference
+   lives under `docs/developer/`.
+3. Search existing issues first to make sure the problem has not already been
+   reported.
+4. For any behavior change, add a failing test first, then make the minimal
+   implementation.
 
-ElfieNest 使用 `scripts/bootstrap.sh` 统一管理所有依赖，分两种模式：
+## Development environment
 
-- **dev（贡献者）**：Python dev + 前端 + Godot web + Ollama + Electron dev deps
-- **prod（使用者）**：Python runtime + 前端产物 + Godot web 产物 + Ollama
+ElfieNest manages all dependencies through `scripts/bootstrap.sh`, in two
+tiers:
 
-### 快速启动
+- **dev (contributors)**: Python dev + frontend + Godot web + Ollama + Electron dev deps
+- **prod (end users)**: Python runtime + frontend artifacts + Godot web artifacts + Ollama
+
+### Quick start
 
 ```bash
-./elfienest.sh              # 自动检测并补齐依赖，进入交互菜单
+./elfienest.sh              # auto-detect and install dependencies, then open the interactive menu
 ```
 
-首次运行会自动安装所有依赖。后续运行会跳过已安装的依赖。
+The first run installs all dependencies automatically. Subsequent runs skip
+already-installed dependencies.
 
-### 手动依赖管理
+### Manual dependency management
 
 ```bash
-# 检查依赖状态
+# Check dependency status
 ./scripts/bootstrap.sh check --tier=dev
 
-# 补齐缺失依赖
+# Ensure missing dependencies are installed
 ./scripts/bootstrap.sh ensure --tier=dev
 ```
 
-### Python 环境契约
-`requires-python`、锁文件、CI 或启动脚本中的 3.9.25 契约。所有安装、开发、测试、
-代码审查与脚本均通过 `scripts/bootstrap.sh` 和仓库 `.venv/bin/python3` 运行；
-不要调用系统 `python`/`python3`、复用其他虚拟环境或设置 `ELFIENEST_PYTHON` 覆盖入口。
+### Python environment contract
+The 3.9.25 contract in `requires-python`, lockfile, CI and launch scripts. All
+install, dev, test, code review and script runs go through `scripts/bootstrap.sh`
+and the repository's `.venv/bin/python3`; do not call system
+`python` / `python3`, reuse other virtual environments, or set an
+`ELFIENEST_PYTHON` override entry.
 
-### 前端开发
+### Frontend development
 
-前端使用 Node.js 20+ 和 pnpm：
+The frontend uses Node.js 20+ and pnpm:
 
 ```bash
 cd app/interfaces/web/frontend
 pnpm install --frozen-lockfile
-pnpm build       # 构建到 build/web/
-pnpm test        # 运行前端测试
+pnpm build       # build into build/web/
+pnpm test        # run frontend tests
 ```
 
-### 文档站
+### Docs site
 
-文档站使用 Node.js 20 和 pnpm 10.12.1：
+The docs site uses Node.js 20 and pnpm 10.12.1:
 
 ```bash
 cd docs
@@ -61,55 +73,79 @@ pnpm install --frozen-lockfile
 pnpm build
 ```
 
-不要手工改写锁文件。只有依赖确实改变时，才更新相应锁文件并在 PR 中解释原因。
+Do not hand-edit lockfiles. Only update the relevant lockfile when a dependency
+has actually changed, and explain why in the PR.
 
-## 选择正确目录
+## Pick the right directory
 
-- `elfie/`：单个完整精灵的档案、大脑、神经系统、身体、通信和技能。
-- `nest/`：活动空间、巢内状态、环境时间和互动传播；不得持有真实精灵对象。
-- `app/orchestration/`：组合真实 `Elfie`、`Nest` 与 `ai_runtime` 的跨模块流程。
-- `app/features/`：产品用例；`app/interfaces/`：API、Web、CLI；
-  `app/infrastructure/`：持久化、文件系统、音频和设备能力。
-- `ai_runtime/`：模型、供应商、路由、工具、安全和推理运行时。
-- `desktop/`：Electron 窗口、平台适配、资源发现和进程监督。
-- `godot_project/`：独立 Godot 源工程；房屋、几何、坐标、碰撞、移动和渲染的唯一源项目。
-- `devtools/`：与普通用户产品隔离的模块实验台。
-- `docs/`：唯一会进入公开文档网站的内容。
-- `test/`：镜像源码结构的测试；根目录不得直接新增 `test_*.py`。
+- `elfie/`: a single complete creature's profile, brain, nervous system, body,
+  communication and skills.
+- `nest/`: activity space, in-nest state, environment time and interaction
+  propagation; must not hold real Elfie objects.
+- `app/orchestration/`: cross-module flows that compose real `Elfie`, `Nest`
+  and `ai_runtime`.
+- `app/features/`: product use-cases; `app/interfaces/`: API, Web, CLI;
+  `app/infrastructure/`: persistence, filesystem, audio and device
+  capabilities.
+- `ai_runtime/`: models, providers, routing, tools, safety and the inference
+  runtime.
+- `desktop/`: Electron windows, platform adaptation, resource discovery and
+  process supervision.
+- `godot_project/`: standalone Godot source project; the single source project
+  for houses, geometry, coordinates, collision, motion and rendering.
+- `devtools/`: module workbenches isolated from the end-user product.
+- `docs/`: the only content that goes into the public documentation site.
+- `test/`: tests mirroring the source structure; never add `test_*.py` directly
+  at the root.
 
-新增顶层目录或跨边界依赖前，必须同步更新架构契约测试、相关 README 和 Developer 文档。
+Before adding a top-level directory or a cross-boundary dependency, you must
+update the architecture contract tests, the relevant READMEs and the Developer
+docs in lockstep.
 
-## 代码规范
+## Code standards
 
 ### Python
 
-- 使用 Python 3.9 可用的语法和类型；稳定模块边界使用明确类型，不传裸字典。
-- 新增或修改的函数必须有准确类型，不使用 `Any` 掩盖模型不清晰的问题。
-- 数据入口优先解析为 Pydantic v2 模型；内部契约以代码中的 Pydantic 模型为唯一事实源。
-- 错误应携带可操作上下文；不得吞掉异常或只打印后继续。
-- 单个 Python 文件以 250 行纯源码为上限；超过时按职责拆分。
-- 测试使用绝对导入，并放在与源码对应的 `test/<module>/` 路径。
+- Use Python 3.9-compatible syntax and types; use explicit types at stable
+  module boundaries and do not pass around bare dicts.
+- New or modified functions must have accurate types; do not use `Any` to paper
+  over an unclear model.
+- At data entry points, parse into Pydantic v2 models first; Pydantic models in
+  code are the single source of truth for internal contracts.
+- Errors must carry actionable context; never swallow exceptions or just print
+  and continue.
+- A single Python file is capped at 250 lines of pure source; split by
+  responsibility when exceeded.
+- Tests use absolute imports and live in the `test/<module>/` path matching the
+  source.
 
-仓库存在一份机器可读的历史质量债务基线 `.quality-baseline.json`。它不是豁免清单：
-已有诊断可以逐步消除，但任何新增 Ruff、Ruff format 或 MyPy 诊断都会使检查失败。
-不要用 `--write-baseline` 接纳自己的新问题；只有专门的质量债务变更才能更新基线。
+The repository carries a machine-readable historical quality-debt baseline at
+`.quality-baseline.json`. It is not an exemption list: existing diagnostics can
+be gradually eliminated, but any new Ruff, Ruff format or MyPy diagnostic fails
+the check. Do not use `--write-baseline` to absorb your own new issues; only a
+dedicated quality-debt change may update the baseline.
 
 ### TypeScript
 
-- 保持 `strict` 类型检查，不使用无说明的 `any` 或非空断言。
-- Electron 只负责桌面生命周期和平台边界，不承载产品业务规则。
-- 修改 `desktop/` 后运行其现有测试和 TypeScript 检查，并在 PR 中列出命令。
+- Keep `strict` type checking; do not use unjustified `any` or non-null
+  assertions.
+- Electron only owns the desktop lifecycle and platform boundary; it carries no
+  product business rules.
+- After changing `desktop/`, run its existing tests and TypeScript checks and
+  list the commands in the PR.
 
 ### GDScript
 
-- Godot 只负责场景、几何、坐标、碰撞、移动和渲染。
-- 打开、运行或截图 Godot 前，必须先按
-  `.agents/skills/godot-project-operator/SKILL.md` 检查版本和现有进程。
-- 不提交 `.godot/`、导入缓存或编辑器自动产生的无关改动。
+- Godot is only responsible for scenes, geometry, coordinates, collision,
+  motion and rendering.
+- Before opening, running or screenshotting Godot, follow
+  `.agents/skills/godot-project-operator/SKILL.md` to check the version and
+  existing processes.
+- Do not commit `.godot/`, import caches or unrelated editor-generated changes.
 
-## 测试与质量门
+## Tests and quality gate
 
-提交前至少运行：
+Run at least the following before submitting:
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/architecture/
@@ -117,47 +153,73 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync python scripts/check_quali
 PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run --all-files
 ```
 
-再运行与你的改动直接相关的单元、集成或端到端测试。文档改动还要运行：
+Then run the unit, integration or end-to-end tests directly related to your
+change. For docs changes also run:
 
 ```bash
 cd docs
 npx --yes pnpm@10.12.1 build
 ```
 
-不得使用 `--no-verify`，不得用宽泛 ignore、删除测试或更新质量基线来隐藏失败。
+Never use `--no-verify`, and never hide failures with broad ignores, deleted
+tests or an updated quality baseline.
 
-## 文档和公开内容
+## Docs and public content
 
-- 产品、交互、架构和技术设计正文使用简体中文。
-- `docs/` 只写最终读者需要的当前内容，不存放会议记录、提示词、模型中间稿或历史草案。
-- `.omo/` 和 `.agents/knowledge/` 是本机私有区域，禁止在公开文档中链接、摘录或复制。
-- 能力声明必须由当前代码、测试或可重放场景证明；未发布能力必须明确标为规划，或不公开。
-- 修改行为、命令、目录边界或配置时，同步更新对应 README 和 Developer 文档。
+- The default language for public documents is **English**; a Simplified
+  Chinese version is maintained in lockstep.
+- README-class files use the `README.md` (English, default) + `README_zh.md`
+  (Chinese) pair; root-level community docs use the same `_zh.md` suffix
+  convention (e.g. `CONTRIBUTING.md` / `CONTRIBUTING_zh.md`).
+- The `docs/` VitePress site uses the `locales` mechanism: English is the site
+  root, Chinese lives under `docs/zh/`.
+- **Any content change to a public document (README, community doc, or docs
+  site page) must be applied to both the English and Chinese versions in the
+  same change.** Updating only one side is treated as incomplete.
+- `docs/` only contains finalized content that the end reader needs; it does
+  not store meeting notes, prompts, model intermediate drafts or historical
+  proposals.
+- `.omo/` and `.agents/knowledge/` are local private areas; never link, excerpt
+  or copy them into public docs.
+- Capability claims must be provable by the current code, tests or a replayable
+  scenario; unreleased capabilities must be explicitly marked as planned or
+  kept private.
+- When changing behavior, commands, directory boundaries or configuration,
+  update the corresponding README and Developer docs in lockstep.
 
-## 分支和提交范围
+## Branch and commit scope
 
-- 一个 PR 只解决一个边界清晰的问题；避免顺手格式化或重构无关文件。
-- 不覆盖他人的未提交改动，不提交本机配置、生成物、缓存或生产数据。
-- 提交信息说明“为什么改”，而不只是罗列文件名。
-- 界面或文档网站改动必须先由负责人目视验收；未确认前保持本地改动，不提交、不推送。
+- One PR solves one well-scoped problem; avoid drive-by formatting or
+  refactoring of unrelated files.
+- Do not overwrite others' uncommitted changes; do not commit local configs,
+  generated artifacts, caches or production data.
+- Commit messages explain "why", not just list filenames.
+- UI or docs-site changes must be visually accepted by the maintainer first;
+  keep changes local, uncommitted and unpushed until accepted.
 
-## Pull Request 必须包含
+## A Pull Request must include
 
-- 问题与范围，以及明确不在本次处理的内容。
-- 受影响模块和架构边界。
-- 实际执行的测试命令及结果。
-- README、Developer 文档和用户文档是否需要同步。
-- 是否涉及配置迁移、用户数据、安全边界或公开能力声明。
-- 界面改动的截图或可复现验收步骤。
+- The problem and scope, plus what is explicitly out of scope for this PR.
+- Affected modules and architecture boundaries.
+- The actual test commands you ran and their results.
+- Whether README, Developer docs and user docs need a sync update, and whether
+  the English/Chinese pair was kept in sync.
+- Whether the change involves config migration, user data, security boundaries
+  or public capability claims.
+- Screenshots or reproducible acceptance steps for UI changes.
 
-## 禁止事项
+## Prohibited
 
-- 提交 API Key、Token、密码、私有地址、用户数据或未脱敏日志。
-- 恢复旧顶层包 `runtime/` 或 `elfienest/`。
-- 在 `nest/` 持有或创建真实精灵，或在 Python 中复制 Godot 场景/几何事实。
-- 在 `desktop/`、Godot 或调试平台中绕过产品和安全边界。
-- 发布私有世界观、合作材料、未实现能力或模型生成的中间设计稿。
-- 绕过 pre-commit、Gitleaks、架构测试或用户审阅门。
+- Committing API keys, tokens, passwords, private addresses, user data or
+  unredacted logs.
+- Restoring the legacy top-level packages `runtime/` or `elfienest/`.
+- Holding or creating real Elfies inside `nest/`, or copying Godot scene /
+  geometry facts into Python.
+- Bypassing product and security boundaries inside `desktop/`, Godot or the
+  debug platform.
+- Publishing private worldbuilding, partnership material, unreleased
+  capabilities or model-generated intermediate designs.
+- Bypassing pre-commit, Gitleaks, architecture tests or the user review gate.
 
-提交贡献即表示你同意遵守 `CODE_OF_CONDUCT.md`，并按 Apache License 2.0
-提供你的贡献。
+Submitting a contribution means you agree to abide by `CODE_OF_CONDUCT.md` and
+to provide your contribution under the Apache License 2.0.

@@ -1,81 +1,97 @@
-# ElfieNest Godot 源项目
+# ElfieNest Godot source project
 
-`godot_project/` 是独立、可直接由 Godot Editor 打开的 Godot 源工程，也是
-ElfieNest 3D 世界的唯一源码来源，负责房屋、几何、坐标、移动、碰撞、角色和
-渲染。它不是 Python 包，也不是产品运行时直接读取的目录；Python Core 只通过
-导出的 Godot Web Runtime 及其协议交换巢内事件与状态，且不得复制这里的场景布局
-或空间事实。
+> 中文版：[`README_zh.md`](README_zh.md)
 
-## 当前项目
+`godot_project/` is a standalone Godot source project that can be opened
+directly by the Godot Editor. It is the single source of truth for the
+ElfieNest 3D world, owning the house, geometry, coordinates, motion, collision,
+characters and rendering. It is not a Python package and not a directory the
+product runtime reads directly; the Python Core only exchanges in-nest events
+and state through the exported Godot Web Runtime and its protocol, and must
+never copy scene layouts or spatial facts from here.
 
-- 项目文件：`project.godot`
-- 当前引擎特性版本：Godot 4.7
-- 主场景：`main.tscn`
-- 渲染方式：GL Compatibility
-- Web 导出预设：`export_presets.cfg` 中的 `Web`
+## Current project
 
-主要源码分布：
+- Project file: `project.godot`
+- Current engine feature version: Godot 4.7
+- Main scene: `main.tscn`
+- Renderer: GL Compatibility
+- Web export preset: `Web` in `export_presets.cfg`
+
+Main source layout:
 
 ```text
 godot_project/
-├── main.tscn、main.gd     # 项目入口
-├── runtime/               # 世界配置、角色同步与语义动作生命周期
-├── rooms/                 # Nest、房间、布局和家具资源
-├── characters/            # Elfie 角色、模型、动画与外观制作资料
-├── ui/                    # 观察界面
-└── scripts/               # Godot 内部测试与资源制作工具
+├── main.tscn, main.gd     # project entry
+├── runtime/               # world configuration, actor sync and semantic action lifecycle
+├── rooms/                 # Nest, rooms, layout and furniture assets
+├── characters/            # Elfie characters, models, animation and appearance authoring material
+├── ui/                    # observation UI
+└── scripts/               # Godot-internal tests and asset authoring tools
 ```
 
-角色制作资料从 [`characters/README.md`](characters/README.md) 进入；房间资源
-约定从 [`rooms/assets/README.md`](rooms/assets/README.md) 进入。
+Enter character authoring from [`characters/README.md`](characters/README.md);
+enter room asset conventions from
+[`rooms/assets/README.md`](rooms/assets/README.md).
 
-## 编辑安全
+## Editing safety
 
-打开、运行、调试、截图或关闭 Godot 前，必须先遵守公开
-[`AGENTS.md`](../AGENTS.md) 中的 Godot 操作门。本地编码代理如果还有可用的安全
-操作技能，再按 `AGENTS.md` 的条件路由执行：
+Before opening, running, debugging, screenshotting or closing Godot, you must
+first follow the Godot operation gate in the public
+[`AGENTS.md`](../AGENTS.md). If a local coding agent also has a safe-operation
+skill available, follow the conditional routing in `AGENTS.md`:
 
-1. 检查已有 Godot 进程，避免重复实例；
-2. 核对本机 Godot 与 `project.godot` 声明的版本；
-3. 版本不匹配时，不得未经确认打开可编辑项目；
-4. 操作前后检查 Git 状态，不保留 `.godot/`、导入缓存或无关 `.import` 噪声。
+1. Check existing Godot processes to avoid duplicate instances;
+2. Verify the local Godot version against the one declared in `project.godot`;
+3. On version mismatch, do not open the editable project without confirmation;
+4. Check Git status before and after the operation; do not leave `.godot/`,
+   import caches or unrelated `.import` noise behind.
 
-不要把 `godot_project/` 当作普通脚本目录直接批量格式化，也不要把编辑器生成物当作
-源码提交。
+Do not treat `godot_project/` as a generic script directory to be bulk
+formatted, and never commit editor-generated artifacts as source.
 
 ## Web Runtime
 
-普通用户运行的是导出后的 Godot Web Runtime，不需要安装 Godot 编辑器。正式
-产物只能进入：
+End users run the exported Godot Web Runtime; they do not need the Godot
+editor installed. Final artifacts may only go into:
 
 ```text
 build/components/godot-web/
 ```
 
-在仓库根目录构建或检查：
+Build or check from the repository root:
 
 ```bash
 GODOT_BIN=/path/to/godot4.7 ./developer.sh build-godot-web
 ./developer.sh build-godot-web --check
 ```
 
-构建器会核对引擎版本、检查必需产物、生成哈希清单，并在成功后替换正式输出。
-发布打包再把同一份产物复制到单 target staging；不要在 `godot_project/`、`desktop/`
-或普通用户 Web 源码中维护副本。
+The builder verifies the engine version, checks required artifacts, generates a
+hash manifest and replaces the official output on success. Release packaging
+then copies the same artifacts into single-target staging; do not keep copies
+inside `godot_project/`, `desktop/` or end-user web sources.
 
-Web 导出的环境准备、目录和验收细节只在
-[`WEB_EXPORT.md`](WEB_EXPORT.md) 维护，避免出现多份互相漂移的流程。
+Environment preparation, directory layout and acceptance details for the Web
+export are maintained only in [`WEB_EXPORT.md`](WEB_EXPORT.md) to avoid multiple
+drifting copies of the flow.
 
-## 与 Python 的运行边界
+## Runtime boundary with Python
 
-Runtime 通过 WebSocket protocol v2 接收 `configure_world`、`sync_actors`、
-`execute_intent` 和 `cancel_intent`。Godot 负责：
+The Runtime receives `configure_world`, `sync_actors`, `execute_intent` and
+`cancel_intent` over WebSocket protocol v2. Godot is responsible for:
 
-- 根据床位数重建固定房间，并发布稳定的 zone/anchor 语义目录；
-- 生成导航网格、逐物理帧寻路、碰撞与避障；
-- 加载狐狸/狗角色模型，播放移动、姿态和表情；
-- 计算触觉接触和说话听众，并回传带 revision/generation 的类型化事件。
+- Rebuilding fixed rooms based on the bed count and publishing a stable
+  zone/anchor semantic catalog;
+- Generating the navigation mesh, per-physics-frame pathfinding, collision and
+  avoidance;
+- Loading the fox / dog character models and playing movement, posture and
+  facial animations;
+- Computing tactile contacts and speech listeners and reporting typed events
+  back with revision/generation.
 
-Python 不发送逐帧坐标，也不在 `nest/` 复制家具占用或碰撞几何。一个
-`execute_intent(intent="move_to_anchor")` 可以在 Godot 中持续多个物理帧；遇到阻塞、取消、超时或最终完成时
-再回传生命周期事件，让精灵大脑依据真实结果继续决策。
+Python never sends per-frame coordinates and never copies furniture occupancy
+or collision geometry into `nest/`. A single
+`execute_intent(intent="move_to_anchor")` can span multiple physics frames in
+Godot; lifecycle events are only reported back on blocked, cancelled, timed-out
+or final completion, so the Elfie's brain can keep deciding based on the real
+outcome.

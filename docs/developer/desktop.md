@@ -1,27 +1,31 @@
 # Desktop
 
-Electron Desktop 是宿主和监督层，不是产品业务层。
+The Electron Desktop is a host and supervision layer, not a product business
+layer.
 
-Desktop 窗口固定先打开 Core 的 `/login`。登录后的 `/chat` 或 `/manage` 由 Core
-根据会话角色和 Owner 的个人默认页决定；Electron 不复制任何登录、聊天或管理页面。
+Desktop windows always open the Core's `/login` first. After login, `/chat` or
+`/manage` is decided by the Core based on the session role and the Owner's
+personal default page; Electron does not duplicate any login, chat or
+management page.
 
-## 负责
+## Responsible for
 
-- 单实例窗口与生命周期；
-- Python Core、Ollama、Godot Web Runtime 的资源发现和进程监督；
-- 平台路径、打包资源和退出收束；
-- Desktop 端与 Web Runtime 的宿主桥接。
+- Single-instance windows and lifecycle;
+- Resource discovery and process supervision for the Python Core, Ollama and
+  the Godot Web Runtime;
+- Platform paths, packaged resources and shutdown convergence;
+- The host bridge between the Desktop side and the Web Runtime.
 
-## 不负责
+## Not responsible for
 
-- Elfie 认知、人格、记忆和输出路由；
-- 账户、领养、聊天和 Nest 规则；
-- 复制 Python 或 Godot 的领域事实。
+- Elfie cognition, personality, memory and output routing;
+- Accounts, adoption, chat and Nest rules;
+- Duplicating Python or Godot domain facts.
 
-修改 Desktop 后，使用 `desktop/` 自己的锁文件和测试，不把 Desktop 生成物写回源码
-目录。
+After changing Desktop, use `desktop/`'s own lockfile and tests; never write
+Desktop-generated artifacts back into source directories.
 
-开发时可运行：
+In development you can run:
 
 ```bash
 cd desktop

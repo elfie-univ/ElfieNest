@@ -1,76 +1,91 @@
-# AI Runtime 模块
+# AI Runtime module
 
-## 模块定位
+> 中文版：[`README_zh.md`](README_zh.md)
 
-`ai_runtime/` 是模型访问、供应商适配、算力/粮食策略、原生工具、安全权限、配置
-存储和调用观测的运行时层，为上层提供与具体 Elfie 或 Nest 无关的推理能力。
+## Module positioning
 
-## 负责与不负责
+`ai_runtime/` is the runtime layer for model access, provider adapters,
+compute / food policy, native tools, safety permissions, configuration storage
+and invocation observability. It serves the upper layers with inference
+capabilities that are agnostic to any specific Elfie or Nest.
 
-负责：
+## Responsibilities and non-responsibilities
 
-- 统一文本、多模态、流式与结构化生成请求；
-- 模型目录、Provider 配置、路由策略和本地 Ollama 回退；
-- 面向精灵的粮食配方、选择、验证和执行；
-- 搜索、代码、文件与技能演化等原生工具及权限检查；
-- `ELFIE_HOME` 数据路径、Runtime 配置、密钥解析和迁移辅助；
-- 模型/工具调用观测、用量统计和本地 Runtime 验证。
+Responsible for:
 
-不负责：
+- Unified text, multimodal, streaming and structured generation requests;
+- Model catalog, Provider configuration, routing policy and local Ollama
+  fallback;
+- Elfie-facing food recipes, selection, validation and execution;
+- Native tools (search, code, file, skill evolution) and their permission
+  checks;
+- `ELFIE_HOME` data paths, Runtime configuration, key resolution and migration
+  helpers;
+- Model / tool invocation observability, usage accounting and local Runtime
+  validation.
 
-- 保存精灵身份、情绪、记忆、身体或 Nest 状态；
-- 组合真实精灵、活动空间、Godot 或桌面生命周期；
-- 实现账户、领养、聊天页面等产品用例；
-- 恢复旧顶层 Python 包 `runtime/` 或为它增加兼容导入。
+Not responsible for:
 
-## 目录地图
+- Storing Elfie identity, emotion, memory, body or Nest state;
+- Composing real Elfies, activity spaces, Godot or desktop lifecycles;
+- Implementing product use-cases such as accounts, adoption or chat pages;
+- Restoring the legacy top-level Python package `runtime/` or adding compat
+  imports for it.
+
+## Directory map
 
 ```text
 ai_runtime/
-├── gateway/     # RuntimeAgent、请求模型、生成循环、流式与多模态入口
-├── models/      # 模型目录、本地模型档案和注册表
-├── providers/   # Ollama 与各 Provider 的配置和调用适配
-├── policy/      # 任务分类和模型路由策略
-├── food/        # 粮食配方、选择、规划、证据和执行
-├── tools/       # 搜索、代码、文件和技能演化工具
-├── safety/      # 工具权限管理
-├── storage/     # ELFIE_HOME、配置、密钥和迁移辅助
-├── setup/       # Runtime 初始化入口
-├── usage/       # 调用事件和 token 用量观测
-├── validation/  # Provider、模型、工具和粮食的本地验证
-└── lab/         # Runtime 本地交互实验室
+├── gateway/     # RuntimeAgent, request models, generation loop, streaming & multimodal entry
+├── models/      # Model catalog, local model profiles and registry
+├── providers/   # Ollama and other provider configuration & invocation adapters
+├── policy/      # Task classification and model routing policy
+├── food/        # Food recipes, selection, planning, evidence and execution
+├── tools/       # Search, code, file and skill-evolution tools
+├── safety/      # Tool permission management
+├── storage/     # ELFIE_HOME, configuration, keys and migration helpers
+├── setup/       # Runtime initialization entry
+├── usage/       # Invocation events and token usage observability
+├── validation/  # Local validation of providers, models, tools and food
+└── lab/         # Local interactive runtime lab
 ```
 
-`custom_skills/` 是运行时自定义技能包入口；新增能力前应先确认它属于 Runtime，
-而不是产品、单精灵或 Nest 领域。
+`custom_skills/` is the entry point for runtime custom skill packs; before
+adding a capability, confirm it truly belongs to the Runtime rather than to the
+product, a single Elfie, or the Nest domain.
 
-## 公开入口
+## Public entry points
 
-- `ai_runtime.LLMRuntimeConfig`：加载模型、Provider 与 Runtime 策略；
-- `ai_runtime.RuntimeAgent`：统一推理入口；
-- `ai_runtime.RuntimeRequest`、`ai_runtime.RuntimeResult`：普通生成请求与结果；
-- `ai_runtime.gateway.RuntimeAgent`：与根包相同的 Gateway 公开入口；
-- `ai_runtime.lab.RuntimeLab`：仅供本地开发验证的交互实验室。
+- `ai_runtime.LLMRuntimeConfig` — loads models, providers and Runtime policy;
+- `ai_runtime.RuntimeAgent` — unified inference entry point;
+- `ai_runtime.RuntimeRequest`, `ai_runtime.RuntimeResult` — plain generation
+  request and result;
+- `ai_runtime.gateway.RuntimeAgent` — the same Gateway public entry as the root
+  package;
+- `ai_runtime.lab.RuntimeLab` — interactive lab for local dev validation only.
 
-结构化生成使用 `RuntimeAgent.generate_structured()` 及
-`StructuredRuntimeRequest`。调用者提交运行时请求，应用层负责把结果转换成
-Elfie 认知端口所需的类型。
+Structured generation uses `RuntimeAgent.generate_structured()` together with
+`StructuredRuntimeRequest`. Callers submit a runtime request; the application
+layer is responsible for converting the result into the types expected by the
+Elfie cognitive ports.
 
-## 依赖方向
+## Dependency direction
 
 ```text
 app/orchestration ──> ai_runtime.gateway
-app/features      ──> ai_runtime 的配置、策略、存储与验证公开入口
+app/features      ──> ai_runtime public entry points for config, policy, storage & validation
 ai_runtime.gateway ──> models + providers + policy + food + tools + safety
 ```
 
-Runtime 核心不依赖 `elfie/` 或 `nest/`，也不应知道真实精灵和活动空间对象。
-当前 `ai_runtime/setup/runtime_setup.py` 会调用应用配置存储完成安装期写入；这是
-现存的 setup 集成边界，不应扩展到 Gateway、Provider 或工具核心。
+The Runtime core does not depend on `elfie/` or `nest/`, and must not know about
+real Elfies or activity-space objects. The current
+`ai_runtime/setup/runtime_setup.py` calls the application configuration store
+for install-time writes; this is an existing setup integration boundary and must
+not be extended into the Gateway, Provider or tool cores.
 
-## 运行与调试
+## Run & debug
 
-从仓库根目录运行 Runtime 测试：
+Run Runtime tests from the repository root:
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
@@ -82,21 +97,22 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   test/ai_runtime/test_structured_generation.py
 ```
 
-本地 Runtime Lab 使用独立开发数据目录，避免读取生产配置：
+The local Runtime Lab uses an isolated dev data directory to avoid reading
+production configuration:
 
 ```bash
 ELFIE_HOME=/tmp/elfienest-runtime-lab \
   .venv/bin/python -m ai_runtime.lab
 ```
 
-环境准备、密钥规则和统一质量门见
-[`CONTRIBUTING.md`](../CONTRIBUTING.md)。
+For environment preparation, key rules and the unified quality gate, see
+[`CONTRIBUTING.md`](../CONTRIBUTING.md).
 
-## 对应测试
+## Corresponding tests
 
-- `test/ai_runtime/`：Gateway、Provider、模型、策略和工具；
-- `test/ai_runtime/food/`：粮食配方、规划、证据和执行；
-- `test/ai_runtime/storage/`：配置、密钥和数据边界；
-- `test/ai_runtime/validation/`：本地验证器与 Runtime Lab；
-- `test/architecture/test_project_structure.py`：当前源码根、旧 `runtime/` 包禁令
-  和质量门入口。
+- `test/ai_runtime/`: Gateway, providers, models, policy and tools;
+- `test/ai_runtime/food/`: food recipes, planning, evidence and execution;
+- `test/ai_runtime/storage/`: configuration, keys and data boundary;
+- `test/ai_runtime/validation/`: local validators and the Runtime Lab;
+- `test/architecture/test_project_structure.py`: current source root, the
+  legacy `runtime/` package ban, and quality gate entry points.

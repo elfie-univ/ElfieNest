@@ -26,6 +26,7 @@
   color: #9eb7ff;
 }
 
+
 .VPNavBar.home .DocSearch-Button {
   border-color: rgba(159, 186, 255, 0.28);
   background: rgba(134, 163, 235, 0.12);
@@ -47,6 +48,15 @@
 .VPNavBar.home .DocSearch-Button-Key {
   border-color: rgba(159, 186, 255, 0.24);
   color: rgba(220, 231, 255, 0.72);
+}
+
+/* 首页导航栏语言切换按钮 */
+.VPNavBar.home .VPNavBarTranslations {
+  color: rgba(245, 248, 255, 0.9);
+}
+
+.VPNavBar.home .VPNavBarTranslations:hover {
+  color: #9eb7ff;
 }
 
 /* 首页采用“地球基站观测窗”的单一视觉：一张全幅深空图承载故事，内容保持可读。 */

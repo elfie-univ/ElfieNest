@@ -1,46 +1,49 @@
-# 故障排查
+# Troubleshooting
 
-## 命令找不到 `uv`
+## `uv` command not found
 
-先按 uv 官方说明安装，再重新运行：
+Install uv following its official guide first, then re-run:
 
 ```bash
 ./install.sh --env-only
 ```
 
-## Python 版本不对
+## Wrong Python version
 
-项目固定使用 CPython `3.9.25`。不要复用其他虚拟环境，重新运行安装器即可。
+The project is pinned to CPython `3.9.25`. Do not reuse other virtual
+environments — just re-run the installer.
 
-## 端口已被占用
+## Port already in use
 
-先查看当前项目登记的服务：
+First check the services registered by the current project:
 
 ```bash
 ./elfienest.sh status
 ```
 
-确认属于当前项目后再执行：
+Once you have confirmed they belong to the current project, run:
 
 ```bash
 ./elfienest.sh stop
 ```
 
-不要使用宽泛的 `kill` 命令清理未知进程。
+Do not use broad `kill` commands against unknown processes.
 
-## 模型连接失败
+## Model connection failure
 
-先用回退模式验证基础链路：
+First validate the basic pipeline with fallback mode:
 
 ```bash
 ./elfienest.sh serve --fallback
 ```
 
-如果回退模式正常，再检查 Ollama 地址、Provider 配置和环境变量。
+If fallback mode works, check the Ollama address, the provider configuration and
+the environment variables.
 
-## 数据目录异常
+## Abnormal data directory
 
-给本次实验设置独立 `ELFIE_HOME`，不要删除默认数据目录：
+Set an isolated `ELFIE_HOME` for this experiment; do not delete the default data
+directory:
 
 ```bash
 ELFIE_HOME=/tmp/elfienest-debug .venv/bin/python main.py

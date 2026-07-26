@@ -1,37 +1,45 @@
-# 开始使用
+# Getting started
 
-这是一份从“建立一座 Nest”到“认识第一只 Elfie”的使用手册。你可以按顺序阅读，
-也可以直接进入需要的章节。
+This is the user manual that goes from "building a Nest" to "meeting your first
+Elfie". You can read it in order or jump straight to the section you need.
 
-## 使用路径
+## The path
 
 ```text
-安装环境 → 配置数据与模型 → 启动 Nest → 认识 Elfie → 处理问题
+Install environment → Configure data & models → Start the Nest → Meet an Elfie → Troubleshoot
 ```
 
-### 1. [安装与环境](./install)
+### 1. [Install & environment](./install)
 
-准备 Git、uv 和固定的 CPython 3.9.25 环境，把代码安装到自己的电脑上。
+Get Git, uv and the pinned CPython 3.9.25 environment, and install the code on
+your computer.
 
-### 2. [配置模型与数据](./configuration)
+### 2. [Configure models & data](./configuration)
 
-理解 `ELFIE_HOME`、本地配置、模型 Provider 和数据目录，知道哪些配置应该留在本机。
+Understand `ELFIE_HOME`, local configuration, model providers and data
+directories — and know which configuration should stay on your machine.
 
-### 3. [运行第一座 Nest](./run)
+### 3. [Run your first Nest](./run)
 
-启动最小运行链路，验证环境时钟、Elfie 感知和输出路由已经连通。
+Start the minimal running pipeline and verify that the environment clock, Elfie
+perception and output routing are all connected.
 
-### 4. [故障排查](./troubleshooting)
+### 4. [Troubleshooting](./troubleshooting)
 
-按症状定位安装、端口、模型、数据目录和 Godot 连接问题。
+Locate installation, port, model, data-directory and Godot connection issues by
+symptom.
 
-### 5. [常见问题](./faq)
+### 5. [FAQ](./faq)
 
-集中回答“Elfie 是什么”“Nest 保存什么”“没有 Ollama 能不能运行”等问题。
+Answers to questions like "What is an Elfie?", "What does the Nest store?" and
+"Can it run without Ollama?".
 
-## 使用手册的边界
+## Scope of this manual
 
-这里讲的是如何使用 ElfieNest，不放系统内部的模块实现、测试命令和 Godot 开发流程。
-需要阅读代码、调试模块或构建运行时，请转到[开发者文档](/developer/)。
+This manual covers how to *use* ElfieNest; it does not cover internal module
+implementations, test commands or the Godot development flow. To read code,
+debug modules or build the runtime, head to the [Developer docs](/developer/).
 
-没有截图的章节先保留文字和操作路径；正式界面截图会在对应功能完成并验收后补入。
+Sections without screenshots keep their text and operation paths for now;
+formal UI screenshots will be added after the corresponding features are
+completed and accepted.

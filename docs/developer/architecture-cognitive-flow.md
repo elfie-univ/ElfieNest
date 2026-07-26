@@ -1,7 +1,8 @@
-# 认知信息流
+# Cognitive information flow
 
-Elfie 的输入和输出不是一段统一的聊天字符串，而是按身体、通信和内部执行分别路由
-的类型化事件。
+An Elfie's inputs and outputs are not a single unified chat string — they are
+typed events routed separately across body, communication and internal
+execution.
 
 ```text
 Body → NervousSystem ───────┐
@@ -21,13 +22,18 @@ Communication ─────────────┘
                               PerceptualWorkspace
 ```
 
-## 一次回合
+## One turn
 
-1. `ElfieNestEngine` 推进时钟并泵送身体事件；
-2. `NervousSystem` 与 `Communication` 向工作区写入独立事件；
-3. `BrainCoordinator` 封存感知帧并提交异步认知回合；
-4. `DecisionPlan` 由 `OutputRouter` 分发到具体输出端；
-5. 执行结果生成 `ExecutionReceipt`，供下一次感知使用。
+1. `ElfieNestEngine` advances the clock and pumps body events;
+2. `NervousSystem` and `Communication` each write independent events into the
+   workspace;
+3. `BrainCoordinator` seals the perception frame and submits an async cognitive
+   turn;
+4. The `DecisionPlan` is dispatched by `OutputRouter` to the specific output
+   endpoints;
+5. The execution result produces an `ExecutionReceipt` for the next round of
+   perception.
 
-这条链路允许物理动作继续推进，不必等待模型完成；也让每一类输入、输出和回执都能
-单独测试和重放。
+This chain lets physical actions keep advancing without waiting for the model to
+finish, and lets every category of input, output and receipt be tested and
+replayed on its own.

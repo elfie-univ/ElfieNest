@@ -1,86 +1,109 @@
-# Nest 模块
+# Nest module
 
-## 模块定位
+> 中文版：[`README_zh.md`](README_zh.md)
 
-`nest/` 实现精灵活动空间的 Python 领域模型：维护居民 ID、巢内语义状态、环境时钟
-和互动传播，并提供与 Godot Runtime 连接所需的协议适配。
+## Module positioning
 
-## 负责与不负责
+`nest/` implements the Python domain model of an Elfie's activity space: it
+maintains resident IDs, in-nest semantic state, the environment clock and
+interaction propagation, and provides the protocol adapter needed to talk to
+the Godot Runtime.
 
-负责：
+## Responsibilities and non-responsibilities
 
-- 居民注册、移除、长期床位分配、姿态和活动状态；
-- 环境时间推进、说话传播、碰撞和触觉等巢内互动；
-- Godot Runtime v2 的鉴权、单权威会话、命令/事件队列和速率限制；
-- 场景语义目录、Runtime 临时镜像和已导出 Web Runtime 的完整性检查。
+Responsible for:
 
-不负责：
+- Resident registration, removal, long-term bed allocation, posture and
+  activity state;
+- Environment time advancement, speech propagation, collision and tactile and
+  other in-nest interactions;
+- Godot Runtime v2 authentication, single authoritative session, command/event
+  queues and rate limiting;
+- The scene semantic catalog, the Runtime's temporary mirror, and integrity
+  checks on the exported Web Runtime.
 
-- 创建、恢复或持有真实 `Elfie` / `ElfieIndividual` 对象；
-- 执行单精灵认知、记忆、身体或通信生命周期；
-- 定义房屋几何、世界坐标、碰撞体、导航网格、家具资源和渲染；
-- 编排 AI Runtime 或产品账户流程。
+Not responsible for:
 
-`NestState` 只保存精灵 ID、长期住处和巢内语义状态，不保存家具副本、坐标或
-真实精灵对象。房屋、几何、坐标、移动、碰撞判定与渲染的唯一源码来源是独立
-Godot 源工程 `godot_project/`；Python 侧只保存业务所需的语义状态和通信边界。
+- Creating, restoring or holding real `Elfie` / `ElfieIndividual` objects;
+- Running a single Elfie's cognition, memory, body or communication lifecycle;
+- Defining house geometry, world coordinates, collision shapes, navigation
+  meshes, furniture assets or rendering;
+- Orchestrating the AI Runtime or product account flows.
 
-## 目录地图
+`NestState` only stores Elfie IDs, long-term homes and in-nest semantic state —
+it does not store furniture copies, coordinates or real Elfie objects. The
+single source of truth for houses, geometry, coordinates, motion, collision and
+rendering is the standalone Godot source project at `godot_project/`; the
+Python side only keeps the business-required semantic state and communication
+boundary.
+
+## Directory map
 
 ```text
 nest/
-├── nest.py         # Nest 公开门面
-├── state/          # 配置、居民、住处、世界目录与 Runtime 镜像
-├── engine/         # 环境时钟推进
-├── interaction/    # 说话、用户消息、碰撞与触觉传播
-├── godot/          # v2 消息、权威会话、WebSocket 网关与 Runtime 产物检查
-└── events.py       # Nest 领域事件值对象
+├── nest.py         # public Nest facade
+├── state/          # config, residents, homes, world catalog and Runtime mirror
+├── engine/         # environment clock advancement
+├── interaction/    # speech, user messages, collision and tactile propagation
+├── godot/          # v2 messages, authoritative session, WebSocket gateway and Runtime artifact checks
+└── events.py       # Nest domain event value objects
 ```
 
-## 公开入口
+## Public entry points
 
-- `nest.Nest`：组合状态、环境时钟和互动传播；
-- `nest.NestConfig`：Nest 容量等配置；
-- `nest.NestFullError`：居民容量已满错误；
-- `nest.NestState`：仅包含巢内状态的运行容器；
-- `nest.godot.GodotAPIServer`：Python 与 Godot Runtime 的 WebSocket 边界。
+- `nest.Nest` — composes state, environment clock and interaction propagation;
+- `nest.NestConfig` — configuration such as Nest capacity;
+- `nest.NestFullError` — raised when resident capacity is full;
+- `nest.NestState` — runtime container holding only in-nest state;
+- `nest.godot.GodotAPIServer` — the WebSocket boundary between Python and the
+  Godot Runtime.
 
-真实精灵注册由 `app.orchestration.NestSession` 完成；不要把真实对象塞入
-`NestState`。
+Real Elfie registration is performed by `app.orchestration.NestSession`; do not
+push real objects into `NestState`.
 
-## 依赖方向
+## Dependency direction
 
 ```text
 app/orchestration ──> nest
 nest.nest ──> state + engine + interaction
-nest.godot ──> Nest/Godot 边界
-godot_project/ ──> 场景与几何的唯一事实源
+nest.godot ──> Nest / Godot boundary
+godot_project/ ──> single source of truth for scenes and geometry
 ```
 
-`nest/` 不依赖 `app/`、`elfie/` 或 `ai_runtime/`。需要把 Nest 事件交给真实
-精灵时，由 `app/orchestration/` 按 ID 查找并调用精灵对象。
+`nest/` does not depend on `app/`, `elfie/` or `ai_runtime/`. When Nest events
+must reach a real Elfie, `app/orchestration/` looks the Elfie up by ID and
+invokes it.
 
-## Runtime v2 生命周期
+## Runtime v2 lifecycle
 
-Godot Runtime 连接后必须先发送带随机 nonce、`runtime_id` 和 `protocol: 2`
-的 `hello`。同一时刻只有一个 Runtime 拥有权威；新一代连接会获得递增
-`generation`，旧代事件不会进入 Nest。
+After connecting, the Godot Runtime must first send a `hello` carrying a random
+nonce, a `runtime_id` and `protocol: 2`. Only one Runtime holds authority at a
+time; a newer connection gets an incremented `generation`, and events from
+older generations never enter the Nest.
 
-启动同步按固定顺序收敛：
+Startup sync converges in a fixed order:
 
-1. 编排层发送 `configure_world`，包含 `nest_id`、床位数和世界 revision；
-2. Runtime 构建房间与导航，回传不含坐标的 `scene_manifest`；
-3. Runtime 回传 `world_ready`，Python 才发送完整 `sync_actors`；
-4. Runtime 回传 `world_snapshot`，Nest 只保存临时语义镜像。
+1. The orchestration layer sends `configure_world` with `nest_id`, the bed
+   count and the world revision;
+2. The Runtime builds rooms and navigation, and replies with a
+   `scene_manifest` that contains no coordinates;
+3. The Runtime replies with `world_ready`, after which Python sends the full
+   `sync_actors`;
+4. The Runtime replies with `world_snapshot`, and the Nest stores only a
+   temporary semantic mirror.
 
-身体动作使用有生命周期的语义命令，而不是由大脑逐帧发“走一步”。例如
-`execute_intent(intent="move_to_anchor")` 交给 Godot 按导航网格逐物理帧执行；只有接受、开始、完成、阻塞、
-取消、超时、触觉接触和说话听众等关键事实回传 Python。Runtime 断线或 generation
-变化时，等待中的身体命令统一进入中断状态，由精灵下一次决策处理。
+Body actions use lifecycle-bearing semantic commands rather than the brain
+issuing "step forward" each frame. For example
+`execute_intent(intent="move_to_anchor")` is executed by Godot frame by frame
+along the navigation mesh; only key facts such as accepted, started, completed,
+blocked, cancelled, timed out, tactile contact and speech listeners are
+reported back to Python. When the Runtime disconnects or the generation
+changes, any in-flight body command uniformly enters an interrupted state and
+is handled by the Elfie's next decision.
 
-## 运行与调试
+## Run & debug
 
-从仓库根目录运行 Nest 领域和 Godot 协议检查：
+Run Nest domain and Godot protocol checks from the repository root:
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
@@ -92,14 +115,19 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   test/nest/godot/test_api_handshake.py
 ```
 
-如需打开、运行或截图 Godot 项目，必须先遵守仓库的 Godot 操作门；这里的测试不
-需要启动 Godot 编辑器。开发环境与统一质量门见
-[`CONTRIBUTING.md`](../CONTRIBUTING.md)。
+Opening, running or screenshotting the Godot project requires following the
+repo's Godot operation gate first; the tests here do not need the Godot editor
+to be running. For the dev environment and the unified quality gate see
+[`CONTRIBUTING.md`](../CONTRIBUTING.md).
 
-## 对应测试
+## Corresponding tests
 
-- `test/nest/test_nest.py`：状态、环境时钟和互动传播；
-- `test/nest/godot/`：v2 握手、消息校验、权威会话和 Web 构建产物；
-- `test/e2e/test_nest_runtime_v2.py`：重连后的世界与完整角色目录收敛；
-- `test/architecture/test_project_structure.py`：Nest 目录结构与旧包禁令；
-- `test/app/orchestration/`：真实精灵和 Nest 的组合行为。
+- `test/nest/test_nest.py`: state, environment clock and interaction
+  propagation;
+- `test/nest/godot/`: v2 handshake, message validation, authoritative session
+  and web build artifacts;
+- `test/e2e/test_nest_runtime_v2.py`: world and full character catalog
+  convergence after reconnection;
+- `test/architecture/test_project_structure.py`: Nest directory structure and
+  legacy package bans;
+- `test/app/orchestration/`: composition behavior of real Elfies and the Nest.

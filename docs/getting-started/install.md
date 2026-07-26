@@ -1,36 +1,38 @@
-# 安装与环境
+# Install & environment
 
-## 系统前提
+## Prerequisites
 
 - Git
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
-- 能够下载 CPython `3.9.25` 和项目依赖的网络环境
+- A network connection that can download CPython `3.9.25` and the project
+  dependencies
 
-## 获取源码
+## Get the source
 
 ```bash
 git clone https://github.com/elfie-univ/ElfieNest.git
 cd ElfieNest
 ```
 
-## 准备环境
+## Prepare the environment
 
 ```bash
 ./install.sh --env-only
 ```
 
-如果希望在终端直接使用 `elfienest` 命令：
+If you want the `elfienest` command available in your terminal:
 
 ```bash
 ./install.sh
 ```
 
-安装脚本使用 `uv.lock` 准备固定环境。不要用 `sudo`，也不要手工替换 Python 版本。
+The installer uses `uv.lock` to prepare a pinned environment. Do not use
+`sudo`, and do not manually swap the Python version.
 
-## 验证
+## Verify
 
 ```bash
 ./elfienest.sh version
 ```
 
-成功时会显示版本信息并以状态码 `0` 退出。
+On success it prints version information and exits with status code `0`.

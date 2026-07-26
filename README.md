@@ -17,36 +17,48 @@
     </tr>
   </table>
 
-  <p><strong>🦊 仿生生命体系统 - Embodied AI Creature Simulation</strong></p>
+  <p><strong>🦊 Embodied AI Creature Simulation — 仿生生命体系统</strong></p>
+
+  <p>
+    <a href="README_zh.md">简体中文</a> · English
+  </p>
 </div>
 
-一个开源的具身 AI 精灵项目：让每只 Elfie 拥有自己的档案、感知、情绪、能量、
-记忆、身体与类型化认知闭环，并生活在由 Godot 呈现的 Nest 世界里。
+An open-source embodied AI creature project: every Elfie carries its own profile,
+perception, emotion, energy, memory, body and a typed cognitive loop, and lives
+inside a Nest world rendered by Godot.
 
-2026 年，[创作者名]在解析一组异常的深空噪声时，捕获到来自 Elfaria 的虫洞信号。
-为了让这条微弱的通道稳定下来，他在地球上建立了第一座 ElfieNest——一座连接
-两个世界的私人基站。虫洞另一端，一些名叫 Elfie 的生命正在报名参加“赴地计划”。
-它们想了解地球、结识人类，也想找一个可以共同生活的家。
+In 2026, while parsing an anomalous deep-space signal, [the Creator] captured a
+wormhole transmission from Elfaria. To keep that fragile channel stable, they
+built the first ElfieNest on Earth — a private station bridging two worlds. On
+the other side, beings called Elfie are signing up for the "Earthbound Program".
+They want to understand Earth, meet humans, and find a home they can share.
 
-现在，你也可以在自己的电脑上建立一座 ElfieNest，领养第一只愿意来到你身边的 Elfie。
+Now you can host your own ElfieNest on your own computer and adopt the first
+Elfie willing to come to you.
 
-先从[文档首页](docs/index.md)开始，再按[世界观与故事](docs/story/index.md)、
-[开始使用](docs/getting-started/index.md)和[开发者文档](docs/developer/index.md)
-逐层深入。
+Start at the [documentation home](https://elfienest.dev/), then move through
+[World & Story](docs/story/index.md), [Getting Started](docs/getting-started/index.md),
+and the [Developer Docs](docs/developer/index.md) layer by layer.
 
-## 项目由什么组成
+> 中文版请阅读 [README_zh.md](README_zh.md)。
 
-- 单个 Elfie 的稳定档案、三层脑、记忆、情绪、能量、神经系统和可替换身体；
-- Body 与 Communication 分别进入感知工作区，再由认知协调器形成类型化决策，
-  最后路由到身体、通信或内部执行器；
-- 只维护居民 ID 和巢内语义状态的 Nest，以及拥有房间、几何、移动、碰撞和渲染
-  源码的 Godot 项目；
-- 独立的 AI Runtime、产品应用层、Electron 桌面宿主和模块调试工具。
+## What the project is made of
 
-## 核心体验
+- A stable profile, three-layer brain, memory, emotion, energy, nervous system
+  and a swappable body for each individual Elfie;
+- Body and Communication each feed the perceptual workspace, the cognitive
+  coordinator forms a typed decision, then routes it to body, communication or
+  internal effectors;
+- A Nest that only holds resident IDs and in-nest semantic state, plus a Godot
+  project that owns rooms, geometry, motion, collision and rendering;
+- A standalone AI Runtime, a product application layer, an Electron desktop
+  host and isolated module workbenches.
 
-ElfieNest 关注的不是让模型只返回一段聊天文字，而是让感知、思考和行动沿着清晰
-边界持续流动：
+## Core experience
+
+ElfieNest is not about making a model return one chat message. It is about
+keeping perception, thought and action flowing along clear boundaries:
 
 ```text
 Body / Communication
@@ -55,17 +67,18 @@ PerceptualWorkspace
         ↓
 BrainCoordinator → DecisionPlan
         ↓
-OutputRouter → 身体 / 通信 / 内部状态
+OutputRouter → body / communication / internal state
         ↓
-ExecutionReceipt 回到感知工作区
+ExecutionReceipt flows back into the perceptual workspace
 ```
 
-物理时钟不等待模型推理完成。真实 Elfie 与 Nest 只在应用编排层组合；Godot
-继续作为空间与渲染的唯一源码来源。
+The physical clock does not wait for model inference to finish. A real Elfie
+and a Nest are combined only in the application orchestration layer. Godot
+remains the single source of truth for space and rendering.
 
-## 快速开始
+## Quick start
 
-当前最短路径使用固定的 CPython `3.9.25` 和 `uv.lock`：
+The shortest current path uses a pinned CPython `3.9.25` and `uv.lock`:
 
 ```bash
 ./install.sh --env-only
@@ -73,41 +86,49 @@ ExecutionReceipt 回到感知工作区
 .venv/bin/python main.py
 ```
 
-`main.py` 会运行三次 tick 的本地演示。没有可用的 Ollama 服务时，Runtime 可以
-进入回退路径；这用于验证基本链路，不等同于完整模型体验。
+`main.py` runs a three-tick local demo. When no Ollama service is reachable, the
+Runtime can enter a fallback path; this validates the basic pipeline and is not
+the full model experience.
 
-如需安装当前用户可直接调用的 `elfienest` 命令：
+To install the `elfienest` command you can call directly:
 
 ```bash
 ./install.sh
 elfienest version
 ```
 
-安装脚本只支持用户级安装，请不要使用 `root` 或 `sudo`。更完整的前提、错误处理
-和平台说明见[开始使用](docs/getting-started/index.md)。
+The installer supports user-level installation only — do not run it as `root`
+or with `sudo`. For the full set of prerequisites, error handling and platform
+notes, see [Getting Started](docs/getting-started/index.md).
 
-## 文档入口
+## Documentation entry points
 
-- [文档首页](docs/index.md)：项目简介与阅读入口；
-- [世界观与故事](docs/story/index.md)：写给第一次认识 ElfieNest 的读者；
-- [开始使用](docs/getting-started/index.md)：从源码建立并运行一座 Nest；
-- [开发者文档](docs/developer/index.md)：架构、开发流程与工具；
-- [当前架构](docs/developer/architecture.md)：模块边界和信息流；
-- [命令与开发工具](docs/developer/tooling.md)：CLI、实验台、Godot 与构建入口。
+- [Documentation home](docs/index.md): project intro and reading entry;
+- [World & Story](docs/story/index.md): for first-time readers of ElfieNest;
+- [Getting Started](docs/getting-started/index.md): build and run a Nest from
+  source;
+- [Developer Docs](docs/developer/index.md): architecture, workflow and tooling;
+- [Current architecture](docs/developer/architecture.md): module boundaries and
+  information flow;
+- [Commands & dev tools](docs/developer/tooling.md): CLI, workbenches, Godot and
+  build entry points.
 
-文档站使用 VitePress。站点源码只包含准备公开的最终文档；历史设计、过程证据和
-尚未揭示的世界观材料不属于公开站点。
+The docs site is built with VitePress. The site source contains only finalized
+documents intended for the public; historical designs, process evidence and
+unrevealed worldbuilding material are not part of the public site.
 
-## 开发参与
+## Contributing
 
-开始修改前请阅读：
+Before changing anything, please read:
 
-- [贡献指南](CONTRIBUTING.md)：环境、测试、质量门与协作流程；
-- [安全策略](SECURITY.md)：漏洞报告与密钥处理；
-- [项目规则](AGENTS.md)：目录边界和适用于人与编码代理的工程约束；
-- [行为准则](CODE_OF_CONDUCT.md)：社区协作边界。
+- [Contributing guide](CONTRIBUTING.md): environment, tests, quality gates and
+  collaboration flow;
+- [Security policy](SECURITY.md): vulnerability reporting and key handling;
+- [Project rules](AGENTS.md): directory boundaries and engineering constraints
+  that apply to both humans and coding agents;
+- [Code of conduct](CODE_OF_CONDUCT.md): community collaboration boundaries.
 
-常用开发验证：
+Common dev checks:
 
 ```bash
 uv sync --locked --extra dev
@@ -117,28 +138,29 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync python scripts/check_quality_baseline.py
 ```
 
-测试路径、Desktop 与 Godot 构建命令分别由
-[测试说明](test/README.md)、[Desktop 说明](desktop/README.md)和
-[Godot 说明](godot_project/README.md)维护。
+Test paths, Desktop and Godot build commands are maintained separately by the
+[test guide](test/README.md), [Desktop guide](desktop/README.md) and
+[Godot guide](godot_project/README.md).
 
-## 最小目录地图
+## Minimal directory map
 
-| 目录 | 职责 |
+| Directory | Responsibility |
 | --- | --- |
-| [`elfie/`](elfie/README.md) | 一只完整 Elfie 的档案、大脑、身体、通信与技能 |
-| [`nest/`](nest/README.md) | 活动空间状态、环境时钟、互动与 Godot 协议边界 |
-| [`ai_runtime/`](ai_runtime/README.md) | 模型、Provider、路由、粮食、工具、安全与运行时 |
-| [`app/`](app/README.md) | 产品用例、接口、基础设施与跨模块编排 |
-| [`desktop/`](desktop/README.md) | Electron 生命周期、资源发现和进程监督 |
-| [`godot_project/`](godot_project/README.md) | 独立 Godot 源工程：房间、几何、坐标、碰撞、角色和渲染源码 |
-| [`devtools/`](devtools/README.md) | 与普通用户产品隔离的模块实验台 |
-| [`scripts/`](scripts/README.md) | 启动、构建、检查和人工诊断入口 |
-| [`test/`](test/README.md) | 镜像源码边界的测试、架构契约与 E2E |
-| [`docs/`](docs/index.md) | VitePress 公开文档站源码 |
+| [`elfie/`](elfie/README.md) | One complete Elfie: profile, brain, body, communication and skills |
+| [`nest/`](nest/README.md) | Activity-space state, environment clock, interaction, Godot protocol boundary |
+| [`ai_runtime/`](ai_runtime/README.md) | Models, providers, routing, food, tools, safety and runtime |
+| [`app/`](app/README.md) | Product use-cases, interfaces, infrastructure and cross-module orchestration |
+| [`desktop/`](desktop/README.md) | Electron lifecycle, resource discovery and process supervision |
+| [`godot_project/`](godot_project/README.md) | Standalone Godot source project: rooms, geometry, coordinates, collision, characters and rendering |
+| [`devtools/`](devtools/README.md) | Module workbenches isolated from the end-user product |
+| [`scripts/`](scripts/README.md) | Launch, build, check and manual diagnosis entry points |
+| [`test/`](test/README.md) | Tests mirroring source boundaries, architecture contracts and E2E |
+| [`docs/`](docs/index.md) | VitePress public documentation site source |
 
-完整依赖方向、进程边界、`ELFIE_HOME` 数据边界，以及 `build/`、`dist/` 产物
-规则统一放在[开发者架构文档](docs/developer/architecture.md)中。
+The full dependency direction, process boundaries, `ELFIE_HOME` data boundary,
+and the `build/` / `dist/` artifact rules live in the
+[developer architecture doc](docs/developer/architecture.md).
 
-## 许可证
+## License
 
-ElfieNest 使用 [Apache License 2.0](LICENSE)。
+ElfieNest is released under the [Apache License 2.0](LICENSE).

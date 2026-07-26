@@ -1,61 +1,69 @@
-# 运行时与数据
+# Runtime & data
 
-## 进程关系
+## Process relationships
 
 ```text
 Electron Desktop
   ├─ Python Core
-  ├─ Ollama 或其他 Provider
+  ├─ Ollama or other provider
   └─ Godot Web Runtime
 ```
 
-Desktop 负责窗口、资源和进程监督；Python Core 负责产品、Elfie、Nest 与 Runtime；
-Godot 负责空间事实和渲染；模型服务负责推理能力。
+Desktop owns windows, resources and process supervision; the Python Core owns
+the product, Elfie, Nest and Runtime; Godot owns spatial facts and rendering;
+the model service owns inference capability.
 
-## 数据目录
+## Data directories
 
-| 类型 | 位置 | 是否提交 |
+| Type | Location | Committed? |
 | --- | --- | --- |
-| 用户配置、数据库、精灵档案、本地密钥 | `${ELFIE_HOME:-~/.elfienest}` | 否 |
-| 可再生中间产物 | `build/` | 否 |
-| 最终发行物 | `dist/` | 否 |
-| 公开文档源 | `docs/` | 是 |
-| 历史和私有过程材料 | `.omo/`、`.agents/knowledge/` | 否 |
+| User configuration, databases, Elfie profiles, local keys | `${ELFIE_HOME:-~/.elfienest}` | No |
+| Reproducible intermediate artifacts | `build/` | No |
+| Final release artifacts | `dist/` | No |
+| Public documentation source | `docs/` | Yes |
+| Historical and private process material | `.omo/`, `.agents/knowledge/` | No |
 
-## 生产目录契约
+## Production directory contract
 
-一台电脑只有一个生产 Nest 根 `${ELFIE_HOME:-~/.elfienest}`。根目录保存 Nest 级
-别事实：`config.yaml`、`.env`、`foods.yaml`、`nest.db`、备份、运行态及日志。
-`nest.db` 只保存账号、权限、精灵登记/归属、Nest 世界与运行状态；它不再接收新的
-聊天消息。
+A single computer has only one production Nest root:
+`${ELFIE_HOME:-~/.elfienest}`. The root holds Nest-level facts: `config.yaml`,
+`.env`, `foods.yaml`, `nest.db`, backups, runtime state and logs. `nest.db`
+only stores accounts, permissions, Elfie registration/ownership, the Nest world
+and runtime state; it no longer accepts new chat messages.
 
-每只精灵都以不可变的 `elfie_id` 作为工作区名。显示名称可改，但绝不能改动目录：
+Each Elfie uses an immutable `elfie_id` as its workspace name. Display names may
+change, but the directory must never move:
 
 ```text
 ${ELFIE_HOME:-~/.elfienest}/
-├── nest.db                         # Nest、账号、归属和世界状态
-├── config.yaml / .env / foods.yaml # 本机生产配置与密钥引用
+├── nest.db                         # Nest, accounts, ownership and world state
+├── config.yaml / .env / foods.yaml # local production config and key references
 └── elfies/
-    └── <elfie_id>/                 # 稳定 ID，不使用可变名称
-        ├── profile.yaml 等档案、记忆和工作内容
+    └── <elfie_id>/                 # stable ID, never a mutable name
+        ├── profile.yaml and other profile, memory and work content
         └── conversations/
-            └── history.sqlite      # 该精灵的所有本机渠道聊天
+            └── history.sqlite      # all local-channel chat for this Elfie
 ```
 
-`history.sqlite` 记录会话、渠道、发送方、用户关系、文本、元数据和附件引用。不会建立
-用户视角的本机聊天副本，也不会把附件二进制塞进数据库。网页、桌面、微信或飞书等
-渠道都按所属精灵写入这一个工作区。
+`history.sqlite` records sessions, channels, senders, user relationships, text,
+metadata and attachment references. It does not build user-view local chat
+copies, and it does not stuff attachment binaries into the database. Channels
+such as web, desktop, WeChat or Feishu all write into this one workspace under
+the owning Elfie.
 
-## 开发边界
+## Development boundary
 
-Developer Tools 默认使用独立根 `${ELFIE_DEV_HOME:-~/.elfienest-dev}`，其下的
-`elfie_lab/`、`nest_lab/`、`runtime_lab/` 不得回退读取生产根。测试应同时设置临时
-`ELFIE_HOME` 与 `ELFIE_DEV_HOME`。
+Developer Tools defaults to an independent root
+`${ELFIE_DEV_HOME:-~/.elfienest-dev}`; the `elfie_lab/`, `nest_lab/` and
+`runtime_lab/` underneath must never fall back to reading the production root.
+Tests should set both a temporary `ELFIE_HOME` and `ELFIE_DEV_HOME`.
 
-`nest.db.chat_messages` 是未发布阶段遗留的废弃表。数据库升级会直接删除它；不提供
-兼容读取、复制或迁移工具。新聊天只能位于对应精灵工作区。
+`nest.db.chat_messages` is a deprecated table left over from the unreleased
+phase. A database upgrade deletes it outright; no compat read, copy or migration
+path is provided. New chat lives only inside the corresponding Elfie workspace.
 
-## 内部契约
+## Internal contracts
 
-Pydantic 模型是内部数据结构的唯一事实源。代码需要时可以运行时调用
-`model_json_schema()`；仓库不维护第二份 JSON Schema 文件。
+Pydantic models are the single source of truth for internal data structures.
+When the code needs one, it can call `model_json_schema()` at runtime; the repo
+does not maintain a second JSON Schema file.

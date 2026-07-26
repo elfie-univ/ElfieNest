@@ -1,45 +1,65 @@
-# 安全政策
+# Security Policy
 
-## 支持范围
+> 中文版：[`SECURITY_zh.md`](SECURITY_zh.md)
 
-安全修复优先面向默认分支当前代码。历史提交、个人 fork、未合并分支和未经修改的
-第三方组件不承诺单独维护；如果问题来自第三方依赖，我们会记录影响并跟随上游修复。
-本项目尚未承诺固定响应时限或长期支持版本。
+## Supported versions
 
-## 私密报告漏洞
+Security fixes target the current code on the default branch. We do not commit
+to separately maintaining historical commits, personal forks, unmerged branches
+or unmodified third-party components; if the issue originates from a
+third-party dependency, we will track the impact and follow upstream fixes.
+This project does not yet commit to a fixed response SLA or long-term support
+versions.
 
-请使用 GitHub 仓库的 **Private vulnerability reporting** 创建私密安全报告：
+## Private vulnerability reporting
+
+Please use the GitHub repository's **Private vulnerability reporting** to create
+a private security report:
 
 `Security` → `Advisories` → `Report a vulnerability`
 
-如果仓库当前没有显示该入口，请不要创建公开 Issue，也不要在 Discussion、PR、日志或
-截图中披露利用细节。等待仓库负责人启用私密报告入口后再提交。
+If the repository does not currently show that entry, do not open a public
+issue, and do not disclose exploit details in Discussions, PRs, logs or
+screenshots. Wait for the maintainer to enable the private reporting entry
+before submitting.
 
-报告尽量包含：
+Where possible, the report should include:
 
-- 受影响的提交、版本、平台和配置；
-- 可复现的最小步骤、预期结果与实际结果；
-- 影响范围、攻击前提和你已验证的缓解方式；
-- 已彻底脱敏的日志、截图或概念验证；
-- 是否已经向第三方依赖维护者报告。
+- The affected commit, version, platform and configuration;
+- Minimal reproducible steps, expected result and actual result;
+- Impact scope, attack prerequisites and any mitigations you have already
+  verified;
+- Fully redacted logs, screenshots or proof-of-concept;
+- Whether the issue has already been reported to the third-party dependency's
+  maintainers.
 
-不要提交真实 API Key、Token、密码、Cookie、个人数据、生产数据库或可直接伤害用户的
-利用代码。若密钥已经泄露，先在对应供应商处撤销并轮换，再报告仓库问题。
+Do not submit real API keys, tokens, passwords, cookies, personal data,
+production databases or exploit code that could directly harm users. If a key
+has already been exposed, revoke and rotate it at the provider first, then
+report the repository issue.
 
-## 处理方式
+## Handling
 
-维护者会在私密渠道内确认问题、核实影响、协调修复和测试，并在适当时发布安全公告。
-在修复或缓解措施公开前，请避免对外披露。具体优先级和发布时间取决于影响、可复现性
-与修复风险，不提供无法兑现的 SLA。
+The maintainers will confirm the issue, verify the impact, coordinate the fix
+and testing inside a private channel, and publish a security advisory when
+appropriate. Please avoid public disclosure before a fix or mitigation is
+released. Specific priority and release timing depend on impact,
+reproducibility and fix risk; no unfulfillable SLA is offered.
 
-## 安全边界
+## Security boundaries
 
-- 密钥只从环境变量或 Git 忽略的 `${ELFIE_HOME}/config.yaml`、`.env` 读取。
-- 示例配置只能使用明显占位值，不能包含真实凭据。
-- `~/.elfienest/`（或 `ELFIE_HOME`）是生产数据边界，不得把其中内容提交到仓库。
-- Godot WebSocket、代码执行、文件系统和桌面进程监督属于显式安全边界，不能通过调试
-  入口绕过。
-- 仓库使用官方 Gitleaks pre-commit hook 扫描硬编码秘密；禁止使用 `--no-verify` 绕过。
+- Keys are loaded only from environment variables or Git-ignored
+  `${ELFIE_HOME}/config.yaml` / `.env`;
+- Example configs may only contain obvious placeholder values, never real
+  credentials;
+- `~/.elfienest/` (or `ELFIE_HOME`) is the production data boundary; never
+  commit its contents to the repository;
+- Godot WebSocket, code execution, the file system and desktop process
+  supervision are explicit security boundaries and must not be bypassed through
+  debug entry points;
+- The repository uses the official Gitleaks pre-commit hook to scan for
+  hardcoded secrets; never bypass it with `--no-verify`.
 
-公开的一般缺陷请使用普通 Issue 模板；只有漏洞、凭据泄露或可造成安全影响的问题才走
-私密安全报告渠道。
+For ordinary defects, please use the normal issue template; only
+vulnerabilities, credential exposure or issues with security impact go through
+the private security reporting channel.

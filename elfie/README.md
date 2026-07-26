@@ -1,54 +1,63 @@
-# Elfie 模块
+# Elfie module
 
-## 模块定位
+> 中文版：[`README_zh.md`](README_zh.md)
 
-`elfie/` 实现一只完整精灵：稳定档案、三层脑、记忆与内稳态、神经系统、可替换
-身体、数字通信和认知过程中可用的技能。
+## Module positioning
 
-## 负责与不负责
+`elfie/` implements a single complete creature: a stable profile, a three-layer
+brain, memory and homeostasis, a nervous system, a swappable body, digital
+communication and the skills usable during cognition.
 
-负责：
+## Responsibilities and non-responsibilities
 
-- 单只精灵的身份、外貌、人格、能力与稳定限制；
-- 感知帧、上下文、皮层决策、输出路由和执行回执闭环；
-- 情绪、能量、长期记忆和精灵自身时钟；
-- Headless、Native、External 身体及其神经系统边界；
-- 精灵自身的数字消息通道和技能白名单。
+Responsible for:
 
-不负责：
+- A single Elfie's identity, appearance, personality, capabilities and stable
+  limits;
+- The perceptual-frame → context → cortical decision → output routing →
+  execution-receipt loop;
+- Emotion, energy, long-term memory and the Elfie's own clock;
+- Headless, Native and External bodies and their nervous-system boundaries;
+- The Elfie's own digital message channel and its skill allowlist.
 
-- 账户、Web/API、桌面窗口或产品服务生命周期；
-- 保存房间、家具、坐标、Godot 场景或 Nest 居民表；
-- 选择产品级模型供应商、保存 Runtime 配置或实现模型工具；
-- 组合真实精灵与 Nest；该职责只属于 `app.orchestration.NestSession`。
+Not responsible for:
 
-## 目录地图
+- Accounts, Web/API, desktop windows or product service lifecycles;
+- Storing rooms, furniture, coordinates, Godot scenes or Nest resident tables;
+- Choosing product-level model providers, persisting Runtime configuration or
+  implementing model tools;
+- Composing real Elfies with the Nest — that responsibility belongs solely to
+  `app.orchestration.NestSession`.
+
+## Directory map
 
 ```text
 elfie/
-├── elfie.py             # 单精灵门面与生命周期
-├── factory.py           # Profile、Body、Communication、Runtime 装配
-├── cognitive_context.py # 认知所需的个体上下文来源
-├── cognitive_runtime.py # Coordinator、Router 与 worker 生命周期组合
-├── message_types.py     # 跨边界 ID、Actor、时间和错误基础类型
-├── profile/             # 身份、物种、外貌和稳定 Profile
-├── brain/               # Workspace、上下文、情绪、能量、记忆和决策
-├── nervous_system/      # 感知规范化、过滤、反射和物理输出
-├── body/                # Headless、Native、External 可替换身体
-├── communication/       # 不经过 NervousSystem 的数字消息通道
-└── skills/              # 允许传给 Runtime 的工具白名单
+├── elfie.py             # single-Elfie facade and lifecycle
+├── factory.py           # Profile, Body, Communication, Runtime assembly
+├── cognitive_context.py # sources of the individual context needed for cognition
+├── cognitive_runtime.py # Coordinator, Router and worker lifecycle composition
+├── message_types.py     # cross-boundary ID, Actor, time and error base types
+├── profile/             # identity, species, appearance and the stable Profile
+├── brain/               # Workspace, context, emotion, energy, memory and decisions
+├── nervous_system/      # perception normalization, filtering, reflexes and physical output
+├── body/                # Headless, Native, External swappable bodies
+├── communication/       # digital message channel bypassing the NervousSystem
+└── skills/              # tool allowlist that may be passed to the Runtime
 ```
 
-## 公开入口
+## Public entry points
 
-- `elfie.Elfie`：一只完整精灵的门面和异步生命周期；
-- `elfie.ElfieFactory`：创建或从配置目录恢复精灵；
-- `elfie.brain.PerceptualWorkspace`：接收并封装类型化感知；
-- `elfie.brain.BrainCoordinator`：生成认知帧、上下文和皮层回合；
-- `elfie.brain.DecisionPlan`：皮层输出的类型化决策；
-- `elfie.brain.output_router.OutputRouter`：把决策路由到身体、通信或内部执行器。
+- `elfie.Elfie` — facade and async lifecycle of a complete Elfie;
+- `elfie.ElfieFactory` — create an Elfie or restore it from a config directory;
+- `elfie.brain.PerceptualWorkspace` — receives and wraps typed perception;
+- `elfie.brain.BrainCoordinator` — produces cognitive frames, context and
+  cortical turns;
+- `elfie.brain.DecisionPlan` — the typed decision produced by the cortex;
+- `elfie.brain.output_router.OutputRouter` — routes a decision to body,
+  communication or internal effectors.
 
-核心闭环是：
+The core loop is:
 
 ```text
 Body -> NervousSystem ----\
@@ -58,27 +67,31 @@ Communication ------------/                         -> DecisionPlan
 ExecutionReceipt ----------------------------------> PerceptualWorkspace
 ```
 
-物理时钟、感知收集、模型推理和输出执行彼此解耦。历史同步认知入口已从产品
-路径移除；调用方应通过类型化感知、认知生命周期和输出回执协作。
+The physical clock, perception collection, model inference and output execution
+are all decoupled. The historical synchronous cognitive entry has been removed
+from the product path; callers must cooperate through typed perception, the
+cognitive lifecycle and output receipts.
 
-类型化边界由 Pydantic v2 frozen model 或 discriminated union 定义。Pydantic
-模型是内部契约的唯一事实源；需要 JSON Schema 时对公开模型调用
-`model_json_schema()` 按需生成，不在仓库中维护 Schema 文件或导出脚本。
+Typed boundaries are defined by Pydantic v2 frozen models or discriminated
+unions. Pydantic models are the single source of truth for internal contracts;
+when a JSON Schema is needed, call `model_json_schema()` on the public model on
+demand — do not maintain Schema files or export scripts in the repo.
 
-## 依赖方向
+## Dependency direction
 
 ```text
 app/orchestration ──> elfie
 elfie.elfie ──> profile + brain + nervous_system + body + communication + skills
-brain/output ──> 抽象 CorticalRuntimePort 与执行端口
+brain/output ──> abstract CorticalRuntimePort and execution ports
 ```
 
-`elfie/` 不反向导入 `app/`、`nest/` 或 `ai_runtime/`。模型调用通过
-`CorticalRuntimePort` 注入，具体 Runtime 适配在应用编排层完成。
+`elfie/` does not import `app/`, `nest/` or `ai_runtime/` in reverse. Model
+calls are injected through `CorticalRuntimePort`; concrete Runtime adaptation
+happens in the application orchestration layer.
 
-## 运行与调试
+## Run & debug
 
-从仓库根目录运行单精灵和认知闭环检查：
+Run single-Elfie and cognitive-loop checks from the repository root:
 
 ```bash
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
@@ -92,14 +105,18 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   test/elfie/brain/test_output_router.py
 ```
 
-完整环境准备和质量门见 [`CONTRIBUTING.md`](../CONTRIBUTING.md)；跨模块时序见
-[`docs/developer/`](../docs/developer/)。
+For the full environment setup and quality gate see
+[`CONTRIBUTING.md`](../CONTRIBUTING.md); for cross-module timing see
+[`docs/developer/`](../docs/developer/).
 
-## 对应测试
+## Corresponding tests
 
-- `test/elfie/`：单精灵门面、工厂、身份和跨子模块组合；
-- `test/elfie/brain/`：感知、上下文、决策、情绪、能量和记忆；
-- `test/elfie/body/`、`test/elfie/nervous_system/`：身体与物理边界；
-- `test/elfie/communication/`、`test/elfie/skills/`：消息与技能；
-- `test/architecture/test_elfie_cognitive_contracts.py`：认知入口、依赖方向、
-  Pydantic 契约和磁盘 Schema 禁令。
+- `test/elfie/`: single-Elfie facade, factory, identity and cross-submodule
+  composition;
+- `test/elfie/brain/`: perception, context, decision, emotion, energy and
+  memory;
+- `test/elfie/body/`, `test/elfie/nervous_system/`: body and physical
+  boundaries;
+- `test/elfie/communication/`, `test/elfie/skills/`: messages and skills;
+- `test/architecture/test_elfie_cognitive_contracts.py`: cognitive entry
+  points, dependency direction, Pydantic contracts and the on-disk Schema ban.
