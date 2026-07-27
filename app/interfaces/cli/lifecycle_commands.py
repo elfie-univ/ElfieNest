@@ -1,4 +1,4 @@
-"""用户可见的服务生命周期命令。"""
+"""User-visible service lifecycle commands."""
 
 from __future__ import annotations
 
@@ -6,6 +6,8 @@ import json
 import os
 import secrets
 import sys
+import threading
+import time
 import urllib.error
 import urllib.request
 import webbrowser
@@ -148,6 +150,37 @@ def _start_configured_public_ollama() -> None:
         return
 
 
+class ProgressIndicator:
+    """Simple progress indicator with spinner animation."""
+
+    def __init__(self, message: str = "Starting"):
+        self.message = message
+        self.running = False
+        self.thread = None
+        self.spinner_chars = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
+    def _spin(self):
+        idx = 0
+        while self.running:
+            spinner = self.spinner_chars[idx % len(self.spinner_chars)]
+            print(f"\r  {spinner} {self.message}...", end="", flush=True)
+            time.sleep(0.1)
+            idx += 1
+
+    def start(self):
+        """Start the spinner animation."""
+        self.running = True
+        self.thread = threading.Thread(target=self._spin, daemon=True)
+        self.thread.start()
+
+    def stop(self, success: bool = True):
+        """Stop the spinner and show result."""
+        self.running = False
+        if self.thread:
+            self.thread.join(timeout=0.2)
+        print(f"\r  {'✅' if success else '❌'} {self.message}{' ✓' if success else ' ✗'}    ", flush=True)
+
+
 def default_service_command(extra_args: Sequence[str] = ()) -> tuple[str, ...]:
     """Build the background command without the foreground-only force flag."""
     filtered = tuple(argument for argument in extra_args if argument != "--force")
@@ -167,18 +200,23 @@ def start_background_service(
     owner_id: str = "cli",
 ) -> ServiceLifecycleResult:
     """Start the service once; a verified running process is left untouched."""
+    progress = ProgressIndicator("Starting service")
+    progress.start()
+
     launch_command = (
         tuple(command) if command is not None else default_service_command(("--lan",))
     )
     try:
         http_port = _validated_http_port(launch_command)
     except ValueError as error:
+        progress.stop(success=False)
         result = ServiceLifecycleResult(
-            status="failed", error=LaunchFailedError(f"服务端口参数无效: {error}")
+            status="failed", error=LaunchFailedError(f"Invalid service port: {error}")
         )
         _print_start_result(result)
         return result
     result = _supervisor_for(launch_command, http_port).start(owner_id=owner_id)
+    progress.stop(success=result.status in {"started", "already_running"})
     _print_start_result(result)
     return result
 
@@ -197,35 +235,41 @@ def stop_background_service(owner_id: str = "cli") -> ServiceLifecycleResult:
             return result
     result = supervisor.stop()
     if result.status == "stopped":
-        print("  ✅ 服务已停止")
+        print("  ✅ Service stopped")
     elif result.status == "already_stopped":
-        print("  ⭕ 服务未运行")
+        print("  ⭕ Service not running")
     else:
-        print(f"  ❌ 服务停止失败: {result.error}")
+        print(f"  ❌ Failed to stop service: {result.error}")
     return result
 
 
 def restart_background_service() -> ServiceLifecycleResult:
     """Stop the current process and start it again with its existing arguments."""
+    progress = ProgressIndicator("Restarting service")
+    progress.start()
+
     stopped = _supervisor_for(default_service_command(), DEFAULT_HTTP_PORT).stop()
     if stopped.status == "failed":
-        print(f"  ❌ 无法重启服务: {stopped.error}")
+        progress.stop(success=False)
+        print(f"  ❌ Cannot restart service: {stopped.error}")
         return stopped
     command = stopped.command or default_service_command(("--lan",))
     try:
         http_port = _validated_http_port(command)
     except ValueError as error:
+        progress.stop(success=False)
         result = ServiceLifecycleResult(
-            status="failed", error=LaunchFailedError(f"服务端口参数无效: {error}")
+            status="failed", error=LaunchFailedError(f"Invalid service port: {error}")
         )
-        print(f"  ❌ 服务重启失败: {result.error}")
+        print(f"  ❌ Service restart failed: {result.error}")
         return result
     launch_command = tuple(argument for argument in command if argument != "--force")
     result = _supervisor_for(launch_command, http_port).start(owner_id="cli")
+    progress.stop(success=result.status in {"started", "already_running"})
     if result.status in {"started", "already_running"}:
-        print("  ✅ 服务已重启")
+        print("  ✅ Service restarted")
     else:
-        print(f"  ❌ 服务重启失败: {result.error}")
+        print(f"  ❌ Service restart failed: {result.error}")
     return result
 
 
@@ -266,7 +310,7 @@ def show_service_status(*, json_output: bool = False) -> None:
             )
         )
         return
-    print("  📊 服务状态")
+    print("  📊 Service Status")
     print("  " + "=" * 45)
     print()
     if running is None:
@@ -274,9 +318,9 @@ def show_service_status(*, json_output: bool = False) -> None:
         external = _external_recorded_service(elfie_home, inspector)
         if external is not None:
             pid, cwd, _ = external
-            print(f"  ⚠️  已登记 PID {pid} 来自其他 ElfieNest checkout: {cwd}")
+            print(f"  ⚠️  Registered PID {pid} from another ElfieNest checkout: {cwd}")
         elif any(port_status.running for port_status in port_statuses):
-            print("  ⚠️  默认服务端口被外部进程占用，当前项目没有可验证服务。")
+            print("  ⚠️  Default service ports occupied by external process, no verified service for current project.")
     else:
         _, command = running
         ports = service_ports_from_command(command)
@@ -284,11 +328,11 @@ def show_service_status(*, json_output: bool = False) -> None:
     for port_status in port_statuses:
         is_current_project = running is not None
         state = (
-            "运行中"
+            "running"
             if is_current_project and port_status.running
-            else "被外部进程占用"
+            else "occupied by external process"
             if port_status.running
-            else "未运行"
+            else "not running"
         )
         icon = (
             "✅"
@@ -297,7 +341,7 @@ def show_service_status(*, json_output: bool = False) -> None:
             if port_status.running
             else "⭕"
         )
-        print(f"  {icon} {port_status.name}: {state} (端口 {port_status.port})")
+        print(f"  {icon} {port_status.name}: {state} (port {port_status.port})")
     if health.components:
         print()
         print(f"  Runtime: {health.state.value} (generation {health.generation})")
@@ -317,25 +361,25 @@ def open_web_console() -> ServiceLifecycleResult:
         if not _web_is_healthy(port):
             result = ServiceLifecycleResult(
                 status="failed",
-                error=LaunchFailedError(f"已登记服务但 Web 端口 {port} 未通过健康检查"),
+                error=LaunchFailedError(f"Registered service but Web port {port} failed health check"),
             )
-            print(f"  ❌ 无法打开 Web 管理台: {result.error}")
+            print(f"  ❌ Cannot open Web console: {result.error}")
             return result
     else:
         if _web_is_healthy(8000):
             webbrowser.open(WEB_URL)
-            print(f"  🌐 已打开已运行的 Web 管理台: {WEB_URL}")
-            print("  ⚠️  该服务未由当前项目 PID 收据验证；start/restart 不会接管它。")
+            print(f"  🌐 Opened running Web console: {WEB_URL}")
+            print("  ⚠️  Service not verified by current project PID receipt; start/restart won't take over.")
             return ServiceLifecycleResult(status="already_running")
         if any(port_status.running for port_status in default_port_statuses()):
             result = ServiceLifecycleResult(
                 status="failed",
                 error=LaunchFailedError(
-                    "默认服务端口已被外部进程占用，且 Web 健康检查未通过；"
-                    "请从占用服务所属 checkout 管理它，或使用自定义端口启动当前项目"
+                    "Default service ports occupied by external process and Web health check failed; "
+                    "manage it from the owning checkout, or start current project with custom ports"
                 ),
             )
-            print(f"  ❌ 无法打开 Web 管理台: {result.error}")
+            print(f"  ❌ Cannot open Web console: {result.error}")
             return result
         result = start_background_service()
         if result.status not in {"started", "already_running"}:
@@ -346,13 +390,13 @@ def open_web_console() -> ServiceLifecycleResult:
         if not _web_is_healthy(port):
             result = ServiceLifecycleResult(
                 status="failed",
-                error=LaunchFailedError(f"服务已启动但 Web 端口 {port} 未通过健康检查"),
+                error=LaunchFailedError(f"Service started but Web port {port} failed health check"),
             )
-            print(f"  ❌ 无法打开 Web 管理台: {result.error}")
+            print(f"  ❌ Cannot open Web console: {result.error}")
             return result
     web_url = f"http://127.0.0.1:{port}/"
     webbrowser.open(web_url)
-    print(f"  🌐 已打开 Web 管理台: {web_url}")
+    print(f"  🌐 Opened Web console: {web_url}")
     return ServiceLifecycleResult(status="already_running")
 
 
@@ -362,9 +406,9 @@ def start_desktop_application() -> ServiceLifecycleResult:
         get_elfie_home(), PROJECT_ROOT, health_checker=_web_is_healthy
     )
     if result.status in {"started", "already_running"}:
-        print(f"  ✅ Desktop 已启动 (PID {result.pid})")
+        print(f"  ✅ Desktop started (PID {result.pid})")
     else:
-        print(f"  ❌ Desktop 启动失败: {result.error}")
+        print(f"  ❌ Desktop failed to start: {result.error}")
     return result
 
 
@@ -412,8 +456,8 @@ def _validated_http_port(command: Sequence[str]) -> int:
 
 def _print_start_result(result: ServiceLifecycleResult) -> None:
     if result.status == "started":
-        print(f"  ✅ 服务已启动 (PID {result.pid})")
+        print(f"  ✅ Service started (PID {result.pid})")
     elif result.status == "already_running":
-        print(f"  ⭕ 服务已在运行 (PID {result.pid})")
+        print(f"  ⭕ Service already running (PID {result.pid})")
     else:
-        print(f"  ❌ 服务启动失败: {result.error}")
+        print(f"  ❌ Service failed to start: {result.error}")

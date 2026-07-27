@@ -100,11 +100,11 @@ def test_owner_recovery_pty_hides_password_and_updates_database(tmp_path: Path) 
     transcript = bytearray()
     child_pid, master_fd = _spawn_reset(elfie_home)
 
-    _read_until(master_fd, "新 Owner 登录名".encode(), transcript)
+    _read_until(master_fd, "New Owner username".encode(), transcript)
     os.write(master_fd, b"new-owner\n")
-    _read_until(master_fd, "新 Owner 密码".encode(), transcript)
+    _read_until(master_fd, "New Owner password".encode(), transcript)
     os.write(master_fd, f"{new_password}\n".encode())
-    _read_until(master_fd, "再次输入新 Owner 密码".encode(), transcript)
+    _read_until(master_fd, "Re-enter new Owner password".encode(), transcript)
     os.write(master_fd, f"{new_password}\n".encode())
     exit_code = _wait_for_child(child_pid, master_fd, transcript)
 
@@ -124,11 +124,11 @@ def test_owner_recovery_pty_eof_keeps_database_unchanged(tmp_path: Path) -> None
     transcript = bytearray()
     child_pid, master_fd = _spawn_reset(elfie_home)
 
-    _read_until(master_fd, "新 Owner 登录名".encode(), transcript)
+    _read_until(master_fd, "New Owner username".encode(), transcript)
     os.write(master_fd, b"new-owner\n")
-    _read_until(master_fd, "新 Owner 密码".encode(), transcript)
+    _read_until(master_fd, "New Owner password".encode(), transcript)
     os.write(master_fd, b"first-entry\n")
-    _read_until(master_fd, "再次输入新 Owner 密码".encode(), transcript)
+    _read_until(master_fd, "Re-enter new Owner password".encode(), transcript)
     os.write(master_fd, b"\x04")
     exit_code = _wait_for_child(child_pid, master_fd, transcript)
 
@@ -146,7 +146,7 @@ def test_owner_recovery_pty_ctrl_c_keeps_database_unchanged(tmp_path: Path) -> N
     transcript = bytearray()
     child_pid, master_fd = _spawn_reset(elfie_home)
 
-    _read_until(master_fd, "新 Owner 登录名".encode(), transcript)
+    _read_until(master_fd, "New Owner username".encode(), transcript)
     os.write(master_fd, b"\x03")
     exit_code = _wait_for_child(child_pid, master_fd, transcript)
 

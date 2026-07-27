@@ -20,83 +20,83 @@ PACKAGE_NAME = "elfienest"
 
 
 def show_status() -> None:
-    print("  📊 服务状态")
+    print("  📊 Service Status")
     print("  " + "=" * 45)
     print()
 
     for port_status in default_port_statuses():
         if port_status.running:
-            print(f"  ✅ {port_status.name}: 运行中 (端口 {port_status.port})")
+            print(f"  ✅ {port_status.name}: running (port {port_status.port})")
         else:
-            print(f"  ⭕ {port_status.name}: 未运行 (端口 {port_status.port})")
+            print(f"  ⭕ {port_status.name}: not running (port {port_status.port})")
 
     print()
     try:
         stats = collect_usage_stats()
-        print(f"  📦 数据库: {stats.user_count} 用户, {stats.elfie_count} 精灵")
+        print(f"  📦 Database: {stats.user_count} users, {stats.elfie_count} elfies")
     except DatabaseUnavailableError:
-        print("  ❌ 数据库未初始化")
+        print("  ❌ Database not initialized")
 
     print()
 
 
 def show_stats() -> None:
-    print("  📈 使用统计")
+    print("  📈 Usage Statistics")
     print("  " + "=" * 45)
     print()
 
     try:
         stats = collect_usage_stats()
     except DatabaseUnavailableError as e:
-        print(f"  ❌ 无法读取统计: {e}")
+        print(f"  ❌ Cannot read statistics: {e}")
         print()
         return
 
-    print("  【用户统计】")
-    print(f"    总用户数: {stats.user_count}")
-    print(f"    Owner 数: {stats.owner_count}")
-    print(f"    普通用户: {stats.user_count - stats.owner_count}")
+    print("  【User Statistics】")
+    print(f"    Total users: {stats.user_count}")
+    print(f"    Owners: {stats.owner_count}")
+    print(f"    Regular users: {stats.user_count - stats.owner_count}")
     print()
 
-    print("  【精灵统计】")
-    print(f"    总精灵数: {stats.elfie_count}")
+    print("  【Elfie Statistics】")
+    print(f"    Total elfies: {stats.elfie_count}")
     for row in stats.species_stats:
         print(f"    {row.species_id}: {row.count}")
     print()
 
-    print("  【会话统计】")
-    print(f"    活跃会话: {stats.session_count}")
+    print("  【Session Statistics】")
+    print(f"    Active sessions: {stats.session_count}")
     print()
 
 
 def show_sessions() -> None:
-    print("  👥 会话管理")
+    print("  👥 Session Management")
     print("  " + "=" * 45)
     print()
 
     try:
         sessions = list_active_sessions()
     except DatabaseUnavailableError as e:
-        print(f"  ❌ 无法读取会话: {e}")
+        print(f"  ❌ Cannot read sessions: {e}")
         print()
         return
 
     if sessions:
-        print("  【在线用户】")
+        print("  【Online Users】")
         for session in sessions:
             token_short = session.token[:8] + "..."
             print(
                 f"    • {session.username} "
-                f"(token: {token_short}, 过期: {session.expires_at})"
+                f"(token: {token_short}, expires: {session.expires_at})"
             )
     else:
-        print("  暂无活跃会话")
+        print("  No active sessions")
 
     print()
 
 
 def show_logs() -> None:
-    print("  📝 日志查看")
+    print("  📝 Log Viewer")
     print("  " + "=" * 45)
     print()
 
@@ -113,18 +113,18 @@ def show_logs() -> None:
                 with open(log_file) as file:
                     lines = file.readlines()[-20:]
             except OSError:
-                print("    无法读取")
+                print("    Cannot read")
             else:
                 for line in lines:
                     print(f"    {line.rstrip()}")
             print()
 
-    print("  💡 查看完整日志: tail -100 /tmp/serve.log")
+    print("  💡 View full logs: tail -100 /tmp/serve.log")
     print()
 
 
 def dispatch_db(subcmd: str | None) -> None:
-    print("  🗄️  数据库工具")
+    print("  🗄️  Database Tools")
     print("  " + "=" * 45)
     print()
 
@@ -142,46 +142,46 @@ def backup_db() -> None:
     try:
         backup_path = backup_database()
     except DatabaseUnavailableError as e:
-        print(f"  ❌ 备份失败: {e}")
+        print(f"  ❌ Backup failed: {e}")
         return
-    print(f"  ✅ 数据库已备份到: {backup_path}")
+    print(f"  ✅ Database backed up to: {backup_path}")
 
 
 def reset_db() -> None:
-    print("  ⚠️  这将删除所有数据，是否继续？")
-    choice = input("输入 'yes' 确认: ").strip()
+    print("  ⚠️  This will delete all data. Continue?")
+    choice = input("Type 'yes' to confirm: ").strip()
     if choice.lower() != "yes":
         return
     try:
         reset_database()
     except DatabaseUnavailableError as e:
-        print(f"  ❌ 删除失败: {e}")
+        print(f"  ❌ Delete failed: {e}")
         return
-    print("  ✅ 数据库已删除，重启服务将自动创建新数据库")
+    print("  ✅ Database deleted; restart service to create new database")
 
 
 def show_db() -> None:
-    print("  可用命令:")
-    print("    elfienest db backup  - 备份数据库")
-    print("    elfienest db reset   - 重置数据库")
+    print("  Available commands:")
+    print("    elfienest db backup  - Backup database")
+    print("    elfienest db reset   - Reset database")
     print()
 
     try:
         table_counts = list_table_counts()
     except DatabaseUnavailableError as e:
-        print(f"  ❌ 无法读取数据库: {e}")
+        print(f"  ❌ Cannot read database: {e}")
         return
 
-    print("  【数据库表】")
+    print("  【Database Tables】")
     for table_count in table_counts:
-        print(f"    • {table_count.name}: {table_count.count} 条记录")
+        print(f"    • {table_count.name}: {table_count.count} records")
 
 
 def show_version() -> None:
     print(f"  ElfieNest v{_current_version()}")
     print()
-    print("  🦊 仿生生命体系统")
-    print("  一个基于三层大脑架构的 AI 生物模拟系统")
+    print("  🦊 Embodied AI Creature System")
+    print("  An AI creature simulation system based on three-layer brain architecture")
     print()
 
 

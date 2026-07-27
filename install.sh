@@ -1,21 +1,21 @@
 #!/bin/bash
-# ElfieNest 用户级安装脚本
+# ElfieNest user-level installation script
 
 set -euo pipefail
 umask 077
 
 if (( EUID == 0 )); then
-    builtin printf '%s\n' "❌ ElfieNest 只支持用户级安装，请不要使用 root 或 sudo。" >&2
+    builtin printf '%s\n' "❌ ElfieNest only supports user-level installation. Do not use root or sudo." >&2
     exit 1
 fi
 
 if [[ -n "${ELFIENEST_PYTHON:-}" ]]; then
-    builtin printf '%s\n' "❌ 不支持 ELFIENEST_PYTHON；安装必须使用仓库固定的 CPython 3.9.25。" >&2
+    builtin printf '%s\n' "❌ ELFIENEST_PYTHON is not supported; installation must use the repo-pinned CPython 3.9.25." >&2
     exit 1
 fi
 
 echo ""
-echo "🦊 ElfieNest 安装脚本"
+echo "🦊 ElfieNest Installation Script"
 echo "======================"
 echo ""
 
@@ -32,13 +32,13 @@ STAGED_UNINSTALLER=""
 RELEASE_ARTIFACT_PATH=""
 
 if [ "$#" -gt 0 ]; then
-    echo "❌ 安装脚本不接受参数" >&2
-    echo "   请直接运行 ./install.sh 完成完整安装。" >&2
+    echo "❌ Installation script does not accept arguments" >&2
+    echo "   Please run ./install.sh directly to complete full installation." >&2
     exit 2
 fi
 
 if [ ! -f "$INSTALL_HELPERS" ]; then
-    echo "❌ 缺少安装辅助脚本: $INSTALL_HELPERS" >&2
+    echo "❌ Missing installation helper script: $INSTALL_HELPERS" >&2
     exit 1
 fi
 # shellcheck source=scripts/elfienest_install_helpers.sh
@@ -59,7 +59,7 @@ trap 'exit 143' TERM
 cd "$PROJECT_ROOT"
 INSTALL_LOG_PATH="$(mktemp "${TMPDIR:-/tmp}/elfienest-install.XXXXXX")"
 if [ ! -f "$NATIVE_INSTALL_HELPERS" ]; then
-    echo "❌ 缺少原生应用安装辅助脚本: $NATIVE_INSTALL_HELPERS" >&2
+    echo "❌ Missing native app installation helper script: $NATIVE_INSTALL_HELPERS" >&2
     exit 1
 fi
 # shellcheck source=scripts/native_install_artifact.sh
@@ -69,13 +69,13 @@ read_pinned_python_version() {
     local version
 
     if [ ! -f "$PYTHON_VERSION_FILE" ]; then
-        echo "❌ 缺少 Python 版本文件: $PYTHON_VERSION_FILE" >&2
+        echo "❌ Missing Python version file: $PYTHON_VERSION_FILE" >&2
         return 1
     fi
 
     version="$(tr -d '[:space:]' < "$PYTHON_VERSION_FILE")"
     if [[ ! "$version" =~ ^3\.9\.[0-9]+$ ]]; then
-        echo "❌ .python-version 必须固定到 CPython 3.9 的完整补丁版本" >&2
+        echo "❌ .python-version must be pinned to a complete CPython 3.9 patch version" >&2
         return 1
     fi
     printf '%s\n' "$version"
@@ -90,7 +90,7 @@ project_python_executable() {
     elif [ -x "$windows_python" ]; then
         printf '%s\n' "$windows_python"
     else
-        echo "❌ 缺少仓库受控的 Python 运行时。" >&2
+        echo "❌ Missing repo-controlled Python runtime." >&2
         return 1
     fi
 }
@@ -108,17 +108,17 @@ if [[ "$NATIVE_TARGET" == "linux-x64" ]]; then
     SOURCE_ICON="$APPLICATION_ROOT/.DirIcon"
 fi
 if ! validate_native_application_destination "$NATIVE_TARGET" "$APPLICATION_ROOT"; then
-    echo "❌ 原生应用目录不符合当前平台的安全安装位置: $APPLICATION_ROOT" >&2
+    echo "❌ Native app directory does not match safe installation location for current platform: $APPLICATION_ROOT" >&2
     exit 1
 fi
 
-echo "📦 安装模式: 用户安装"
+echo "📦 Installation mode: User installation"
 INSTALL_DIR="$(choose_user_install_dir)"
 if ! validate_user_install_dir "$INSTALL_DIR"; then
-    echo "❌ 安装目录不属于当前用户的安全 HOME 路径: $INSTALL_DIR" >&2
+    echo "❌ Installation directory is not under current user's safe HOME path: $INSTALL_DIR" >&2
     exit 1
 fi
-echo "📍 安装位置: $INSTALL_DIR"
+echo "📍 Installation location: $INSTALL_DIR"
 echo ""
 
 INSTALLED_WRAPPER="$INSTALL_DIR/$COMMAND_NAME"
@@ -140,37 +140,37 @@ if path_contains_dir "$INSTALL_DIR"; then
     reject_shadowing_command "$COMMAND_NAME" "$INSTALLED_WRAPPER"
 fi
 
-INSTALL_ACTION="安装"
+INSTALL_ACTION="Install"
 if [ -e "$INSTALLED_WRAPPER" ] || [ -L "$INSTALLED_WRAPPER" ]; then
     if ! managed_file_matches "$INSTALLED_WRAPPER" "$STAGED_WRAPPER" \
         && ! previous_wrapper_matches "$INSTALLED_WRAPPER" "$PROJECT_ROOT"; then
-        echo "❌ 已存在不属于当前项目的命令，拒绝覆盖: $INSTALLED_WRAPPER"
+        echo "❌ Command already exists from another project, refusing to overwrite: $INSTALLED_WRAPPER"
         exit 1
     fi
-    INSTALL_ACTION="更新"
+    INSTALL_ACTION="Update"
 fi
 if [ -e "$INSTALLED_UNINSTALLER" ] || [ -L "$INSTALLED_UNINSTALLER" ]; then
     if ! managed_file_matches "$INSTALLED_UNINSTALLER" "$STAGED_UNINSTALLER" \
         && ! previous_uninstaller_matches \
             "$INSTALLED_UNINSTALLER" \
             "$INSTALLED_WRAPPER"; then
-        echo "❌ 已存在不属于当前项目的卸载命令，拒绝覆盖: $INSTALLED_UNINSTALLER"
+        echo "❌ Uninstall command already exists from another project, refusing to overwrite: $INSTALLED_UNINSTALLER"
         exit 1
     fi
 fi
 
-# 调用 bootstrap.sh 准备所有运行时依赖
+# Call bootstrap.sh to prepare all runtime dependencies
 if ! ELFIENEST_FORCE_LOCKED_SYNC=1 "$SCRIPT_DIR/scripts/bootstrap.sh" ensure --tier=build; then
-    echo "❌ 运行时依赖准备失败" >&2
+    echo "❌ Runtime dependency preparation failed" >&2
     exit 1
 fi
 
 if ! configure_user_path "$INSTALL_DIR"; then
-    echo "❌ PATH 配置失败，ElfieNest 未修改任何命令入口。" >&2
+    echo "❌ PATH configuration failed, ElfieNest did not modify any command entry points." >&2
     exit 1
 fi
 if ! validate_user_install_dir "$INSTALL_DIR"; then
-    echo "❌ 安装期间目录安全属性发生变化，未修改任何命令入口。" >&2
+    echo "❌ Directory security properties changed during installation, no command entry points modified." >&2
     exit 1
 fi
 
@@ -184,25 +184,25 @@ else
     RELEASE_BUILD_STATUS=$?
 fi
 if [[ "$RELEASE_BUILD_STATUS" -ne 0 && "$RELEASE_BUILD_STATUS" -ne 3 ]]; then
-    echo "❌ 本机原生应用构建失败，已保留旧应用与旧命令。" >&2
+    echo "❌ Native application build failed, old app and old commands preserved." >&2
     exit 1
 fi
 IFS= read -r RELEASE_ARTIFACT < "$RELEASE_ARTIFACT_PATH" || true
 if [ -z "${RELEASE_ARTIFACT:-}" ] || [ ! -f "$RELEASE_ARTIFACT" ]; then
-    echo "❌ 原生构建没有产生可安装的发行物。" >&2
+    echo "❌ Native build did not produce any installable artifacts." >&2
     exit 1
 fi
 if ! install_native_artifact "$NATIVE_TARGET" "$RELEASE_ARTIFACT" "$APPLICATION_ROOT"; then
-    echo "❌ 原生应用安装失败，已保留旧命令。" >&2
+    echo "❌ Native application installation failed, old commands preserved." >&2
     exit 1
 fi
 if ! validate_native_application_root "$NATIVE_TARGET" "$APPLICATION_ROOT"; then
-    echo "❌ 原生应用安装后的资源校验失败。" >&2
+    echo "❌ Native application post-install resource verification failed." >&2
     exit 1
 fi
 if [[ "$NATIVE_TARGET" == "linux-x64" ]] \
     && ! install_linux_xdg_integration "$APPLICATION_ROOT"; then
-    echo "❌ Linux 应用菜单集成失败，已保留已安装应用。" >&2
+    echo "❌ Linux application menu integration failed, installed app preserved." >&2
     exit 1
 fi
 
@@ -217,18 +217,18 @@ migrate_legacy_installations \
     "$INSTALL_DIR" \
     "/usr/local/bin/elfie"
 
-echo "✅ 已${INSTALL_ACTION} elfienest 命令"
+echo "✅ ${INSTALL_ACTION}ed elfienest command"
 echo ""
-echo "🎉 安装完成！"
+echo "🎉 Installation complete!"
 if ! launch_native_application "$NATIVE_TARGET" "$APPLICATION_ROOT"; then
-    echo "⚠️  应用已安装，但无法自动打开；请从应用菜单或 elfienest 命令启动。" >&2
+    echo "⚠️  Application installed, but cannot auto-launch; please start from application menu or elfienest command." >&2
 fi
 echo ""
-echo "使用方法:"
-echo "  elfienest              # 进入交互式主菜单"
-echo "  elfienest serve        # 启动服务"
-echo "  elfienest --fallback   # 使用内置引擎启动"
-echo "  elfienest config       # 配置系统"
-echo "  elfienest status       # 查看状态"
-echo "  elfienest --help       # 查看帮助"
+echo "Usage:"
+echo "  elfienest              # Enter interactive main menu"
+echo "  elfienest serve        # Start service"
+echo "  elfienest --fallback   # Start with built-in engine"
+echo "  elfienest config       # Configure system"
+echo "  elfienest status       # View status"
+echo "  elfienest --help       # View help"
 echo ""

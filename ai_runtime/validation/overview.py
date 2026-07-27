@@ -1,4 +1,4 @@
-"""Runtime 总览报告与 Provider × 模型矩阵。"""
+"""Runtime overview report and Provider × Model matrix."""
 
 from __future__ import annotations
 
@@ -274,7 +274,7 @@ def render_provider_model_matrix(report: Mapping[str, Any], *, width: int) -> li
     if not models:
         return ["尚无模型验证证据。"]
     if width < 96:
-        lines = ["模型                              可用入口   最快延迟"]
+        lines = ["Model                              Available Endpoints   Fastest Latency"]
         lines.append("─" * min(width, 60))
         for row in models:
             endpoints = [

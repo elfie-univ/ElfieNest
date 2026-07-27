@@ -21,28 +21,28 @@ MODELS_TO_PULL = [DEFAULT_LOCAL_PROFILE.text_model, DEFAULT_LOCAL_PROFILE.vision
 # 经典大模型预设元数据（多级高中低三档候选库）
 PROVIDER_METADATA: Dict[str, Dict[str, Any]] = {
     "openai": {
-        "name": "OpenAI 官方",
+        "name": "OpenAI Official",
         "api_base": "https://api.openai.com/v1",
         "test_model": "gpt-4o-mini",
-        "cheap": {"model": "gpt-4o-mini", "desc": "GPT-4o-Mini (低能耗，极速响应)"},
-        "deep": {"model": "gpt-4o", "desc": "GPT-4o (深度推理与高级代码)"},
-        "multimodal": {"model": "gpt-4o", "desc": "GPT-4o (原生视频与音频多模态)"},
+        "cheap": {"model": "gpt-4o-mini", "desc": "GPT-4o-Mini (Low energy, fast response)"},
+        "deep": {"model": "gpt-4o", "desc": "GPT-4o (Deep reasoning & advanced code)"},
+        "multimodal": {"model": "gpt-4o", "desc": "GPT-4o (Native video & audio multimodal)"},
     },
     "deepseek": {
-        "name": "DeepSeek 官方",
+        "name": "DeepSeek Official",
         "api_base": "https://api.deepseek.com/v1",
         "test_model": "deepseek-chat",
         "cheap": {
             "model": "deepseek-chat",
-            "desc": "DeepSeek V3 (极佳性价比，极强中文)",
+            "desc": "DeepSeek V3 (Excellent cost-performance, strong Chinese)",
         },
         "deep": {
             "model": "deepseek-reasoner",
-            "desc": "DeepSeek R1 (深度思考与超强逻辑)",
+            "desc": "DeepSeek R1 (Deep thinking & superior logic)",
         },
         "multimodal": {
             "model": "deepseek-chat",
-            "desc": "DeepSeek V3 (无原生多模态，以 Chat 替代)",
+            "desc": "DeepSeek V3 (No native multimodal, using Chat fallback)",
         },
     },
     "gemini": {
@@ -51,42 +51,42 @@ PROVIDER_METADATA: Dict[str, Dict[str, Any]] = {
         "test_model": "gemini-1.5-flash",
         "cheap": {
             "model": "gemini-1.5-flash",
-            "desc": "Gemini 1.5 Flash (大上下文，高性价比)",
+            "desc": "Gemini 1.5 Flash (Large context, high cost-performance)",
         },
         "deep": {
             "model": "gemini-1.5-pro",
-            "desc": "Gemini 1.5 Pro (殿堂级推理，超长记忆)",
+            "desc": "Gemini 1.5 Pro (Top-tier reasoning, ultra-long memory)",
         },
         "multimodal": {
             "model": "gemini-1.5-pro",
-            "desc": "Gemini 1.5 Pro (极致多模态，原生听觉视觉)",
+            "desc": "Gemini 1.5 Pro (Ultimate multimodal, native audio vision)",
         },
     },
     "qwen": {
-        "name": "阿里通义千问 (DashScope)",
+        "name": "Alibaba Tongyi Qianwen (DashScope)",
         "api_base": "https://dashscope.aliyuncs.com/compatible-mode/v1",
         "test_model": "qwen-coder-turbo",
         "cheap": {
             "model": "qwen-coder-turbo",
-            "desc": "Qwen-Coder-Turbo (高能效代码日常)",
+            "desc": "Qwen-Coder-Turbo (High-efficiency daily code)",
         },
         "deep": {
             "model": "qwen-coder-plus",
-            "desc": "Qwen-Coder-Plus (强推理专业级代码)",
+            "desc": "Qwen-Coder-Plus (Strong reasoning professional code)",
         },
         "multimodal": {
             "model": "qwen-vl-plus",
-            "desc": "Qwen-VL-Plus (阿里原生高画质视觉模型)",
+            "desc": "Qwen-VL-Plus (Alibaba native high-quality vision model)",
         },
     },
     "ollama": {
-        "name": "本地 Ollama (完全离线)",
+        "name": "Local Ollama (Fully offline)",
         "api_base": "http://localhost:11434",
-        "cheap": {"model": "qwen3.5:0.8b", "desc": "Qwen3.5 0.8B (超省能耗，秒级回复)"},
-        "deep": {"model": "qwen3.5:4b", "desc": "Qwen3.5 4B (本地中度推理)"},
+        "cheap": {"model": "qwen3.5:0.8b", "desc": "Qwen3.5 0.8B (Ultra low energy, instant response)"},
+        "deep": {"model": "qwen3.5:4b", "desc": "Qwen3.5 4B (Local moderate reasoning)"},
         "multimodal": {
             "model": "moondream",
-            "desc": "Moondream 2 (本地轻量多模态视觉)",
+            "desc": "Moondream 2 (Local lightweight multimodal vision)",
         },
     },
 }
@@ -95,7 +95,7 @@ PROVIDER_METADATA: Dict[str, Dict[str, Any]] = {
 def render_progress_bar(
     completed: int, total: int, prefix: str = "", suffix: str = "", length: int = 40
 ):
-    """在终端渲染精美的流式进度条"""
+    """Render beautiful streaming progress bar in terminal"""
     if total <= 0:
         return
     percent = float(completed) / total
@@ -112,7 +112,7 @@ def render_progress_bar(
 
 
 def check_local_ollama_alive() -> bool:
-    """心跳检测，探测本地 11434 是否已经有可用的 Ollama 服务"""
+    """Heartbeat check, probe if local 11434 has available Ollama service"""
     url = "http://localhost:11434/api/tags"
     try:
         req = urllib.request.Request(url, method="GET")
@@ -123,8 +123,8 @@ def check_local_ollama_alive() -> bool:
 
 
 def pull_ollama_model(model_name: str):
-    """通过 Ollama HTTP API 拉取模型，并实时渲染终端进度条"""
-    print(f"\n⚡ 准备拉取算力模型: {model_name} ...")
+    """Pull model via Ollama HTTP API, render terminal progress bar in real-time"""
+    print(f"\n⚡ Preparing to pull compute model: {model_name} ...")
     url = "http://localhost:11434/api/pull"
     payload = {"name": model_name, "stream": True}
     data = json.dumps(payload).encode("utf-8")
@@ -153,9 +153,9 @@ def pull_ollama_model(model_name: str):
                 else:
                     sys.stdout.write(f"\r📦 {model_name} | {status}...")
                     sys.stdout.flush()
-            print(f"\n✅ 模型 {model_name} 拉取/校验成功！")
+            print(f"\n✅ Model {model_name} pull/verify successful!")
     except Exception as e:
-        print(f"\n❌ 拉取模型 {model_name} 失败: {e}")
+        print(f"\n❌ Failed to pull model {model_name}: {e}")
         raise e
 
 
@@ -175,29 +175,29 @@ def test_api_connectivity(provider: str, api_key: str, api_base: str) -> bool:
         "max_tokens": 5,
     }
 
-    print(f"📡 正在探测 {meta['name']} 的物理通道连通性 ({model_name})...")
+    print(f"📡 Proving {meta['name']} physical channel connectivity ({model_name})...")
     try:
         data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(url, data=data, headers=headers, method="POST")
         with urllib.request.urlopen(req, timeout=8) as response:
             if response.status == 200:
-                print(f"  🟢 恭喜！{meta['name']} 算力握手成功，响应一切正常！")
+                print(f"  🟢 Congratulations! {meta['name']} compute handshake successful, response normal!")
                 return True
     except Exception as e:
-        print(f"  ⚠️  通道握手未通过。错误详情: {e}")
+        print(f"  ⚠️  Channel handshake failed. Error details: {e}")
         if isinstance(e, urllib.error.HTTPError):
             try:
                 err_body = e.read().decode("utf-8", errors="ignore")
-                print(f"     服务端反馈: {err_body}")
+                print(f"     Server feedback: {err_body}")
             except Exception:
                 pass
     return False
 
 
 def setup_code_plan_interactive():
-    """两步法极炫引导程序：1. 激活订阅源 2. 跨源高中低档交配绑定"""
+    """Two-step wizard: 1. Activate providers 2. Cross-provider high/mid/low tier binding"""
     print("\n" + "=" * 70)
-    print("🎨 Elfie LLM 混合分布式算力网格：个性化订阅与高中低交配配置")
+    print("🎨 Elfie LLM Hybrid Distributed Compute Grid: Personalized Provider & Tier Configuration")
     print("=" * 70)
 
     # 初始化配置容器
@@ -221,7 +221,7 @@ def setup_code_plan_interactive():
                 for k, v in saved["providers"].items():
                     if k in providers:
                         providers[k].update(v)
-            print("💡 检测到已有历史配置，已为您自动预载入。")
+            print("💡 Detected existing configuration, auto-loaded for you.")
         except Exception:
             pass
 
@@ -233,44 +233,44 @@ def setup_code_plan_interactive():
         print("│       Elfie 算力订阅源注册中心 (Providers Config)       │")
         print("├────────────────────────────────────────────────────────┤")
         for idx, (p_key, meta) in enumerate(PROVIDER_METADATA.items(), 1):
-            status = "🔴 未激活"
+            status = "🔴 Inactive"
             if p_key == "ollama":
-                status = "🟢 本地全托管激活"
+                status = "🟢 Locally managed active"
             elif providers[p_key]["api_key"]:
-                status = f"🟢 已激活 (Key: {providers[p_key]['api_key'][:8]}...)"
-            print(f"  {idx}) {meta['name']:<24} [状态: {status}]")
+                status = f"🟢 Active (Key: {providers[p_key]['api_key'][:8]}...)"
+            print(f"  {idx}) {meta['name']:<24} [Status: {status}]")
         print("  6) 🆗 订阅配置已就绪，进入下一步高中低端“交配”绑定")
         print("└────────────────────────────────────────────────────────┘")
 
-        choice = input("👉 请选择要配置的订阅源编号 [1-6]: ").strip()
+        choice = input("👉 Select provider to configure [1-6]: ").strip()
         if choice == "6" or not choice:
             break
 
         p_keys = list(PROVIDER_METADATA.keys())
         if not choice.isdigit() or int(choice) < 1 or int(choice) > 5:
-            print("❌ 编号输入错误，请重新选择！")
+            print("❌ Invalid input, please select again!")
             continue
 
         selected_provider = p_keys[int(choice) - 1]
         meta = PROVIDER_METADATA[selected_provider]
 
         if selected_provider == "ollama":
-            print("🦊 本地 Ollama 算力属于免密托管服务，默认长驻激活！")
+            print("🦊 Local Ollama is a password-free managed service, always active by default!")
             custom_base = input(
-                f"   请输入 Ollama 监听主机地址 [回车默认: {providers['ollama']['api_base']}]: "
+                f"   Enter Ollama listen host address [Enter for default: {providers['ollama']['api_base']}]: "
             ).strip()
             if custom_base:
                 providers["ollama"]["api_base"] = custom_base
             continue
 
-        print(f"\n🔐 正在配置服务商: {meta['name']}")
-        key = input("   请输入 API Key (空值代表不启用): ").strip()
+        print(f"\n🔐 Configuring provider: {meta['name']}")
+        key = input("   Enter API Key (empty to disable): ").strip()
         if not key:
             providers[selected_provider]["api_key"] = ""
-            print(f"❌ 已将服务商 {meta['name']} 设为禁用状态。")
+            print(f"❌ Provider {meta['name']} has been disabled.")
             continue
 
-        base = input(f"   请输入 API Base [回车默认推荐: {meta['api_base']}]: ").strip()
+        base = input(f"   Enter API Base [Enter for recommended default: {meta['api_base']}]: ").strip()
         base_to_save = base if base else meta["api_base"]
 
         # 开展连通性检测
@@ -282,13 +282,13 @@ def setup_code_plan_interactive():
                 .lower()
             )
             if ignore != "y":
-                print("❌ 已放弃保存该无效配置。")
+                print("❌ Discarded invalid configuration.")
                 continue
 
         # 保存生效
         providers[selected_provider]["api_key"] = key
         providers[selected_provider]["api_base"] = base_to_save
-        print(f"🎉 服务商 {meta['name']} 配置保存成功！")
+        print(f"🎉 Provider {meta['name']} configuration saved successfully!")
 
     # ----------------------------------------------------
     # 阶段二：高中低三档交叉交配绑定 (Cross Mix-and-Match)
@@ -307,12 +307,12 @@ def setup_code_plan_interactive():
 
     for tier in ["cheap", "deep", "multimodal"]:
         tier_title = {
-            "cheap": "Cheap 档（低耗日常助理，主要节省 Token，要求秒回）",
-            "deep": "Deep 档（深度推理专家，主要处理复杂代码、数学自进化任务）",
-            "multimodal": "Multimodal 档（多模态专家，主要处理多张图片与原生音频）",
+            "cheap": "Cheap tier (Low-cost daily assistant, token-efficient, instant response)",
+            "deep": "Deep tier (Deep reasoning expert, complex code & math self-evolution tasks)",
+            "multimodal": "Multimodal tier (Multimodal expert, multiple images & native audio)",
         }[tier]
 
-        print(f"\n👉 请选择您的【{tier_title}】:")
+        print(f"\n👉 Select your [{tier_title}]:")
 
         # 提取当前所有激活厂商在该 tier 的默认推荐模型
         candidate_list = []
@@ -329,10 +329,10 @@ def setup_code_plan_interactive():
             )
 
         for idx, cand in enumerate(candidate_list, 1):
-            print(f"  {idx}) {cand['model']:<24} (来自 {cand['provider_name']})")
-        print(f"  {len(candidate_list) + 1}) ✍️  手动配置自定义模型与服务商")
+            print(f"  {idx}) {cand['model']:<24} (from {cand['provider_name']})")
+        print(f"  {len(candidate_list) + 1}) ✍️  Manually configure custom model & provider")
 
-        selected_idx = input("请输入选项编号 [默认 1]: ").strip()
+        selected_idx = input("Enter option number [default 1]: ").strip()
         if not selected_idx:
             selected_idx = "1"
 
@@ -341,26 +341,26 @@ def setup_code_plan_interactive():
             or int(selected_idx) < 1
             or int(selected_idx) > len(candidate_list) + 1
         ):
-            print("❌ 输入有误，默认回车为您绑定第 1 项。")
+            print("❌ Invalid input, defaulting to option 1.")
             selected_idx = "1"
 
         idx_val = int(selected_idx)
         if idx_val == len(candidate_list) + 1:
             # 用户自定义输入
-            print("   【手动自定义模型绑定】")
+            print("   [Manual Custom Model Binding]")
             prov_input = (
                 input(
-                    "   请输入该模型的归属 Provider (如 openai, deepseek, qwen, ollama): "
+                    "   Enter the model's Provider (e.g., openai, deepseek, qwen, ollama): "
                 )
                 .strip()
                 .lower()
             )
             model_input = input(
-                "   请输入该模型的真实大模型名称 (如 gpt-4o-2024-11-20): "
+                "   Enter the actual model name (e.g., gpt-4o-2024-11-20): "
             ).strip()
 
             if not prov_input or not model_input:
-                print("❌ 输入不可为空！被迫退回并默认绑定第 1 项推荐。")
+                print("❌ Input cannot be empty! Falling back to option 1 recommendation.")
                 routing[tier] = {
                     "model": candidate_list[0]["model"],
                     "provider": candidate_list[0]["provider"],
@@ -372,7 +372,7 @@ def setup_code_plan_interactive():
             routing[tier] = {"model": chosen["model"], "provider": chosen["provider"]}
 
         print(
-            f"🎯 成功绑定【{tier} 档】 ➡️ 模型: '{routing[tier]['model']}' (Provider: {routing[tier]['provider']})"
+            f"🎯 Successfully bound [{tier} tier] ➡️ Model: '{routing[tier]['model']}' (Provider: {routing[tier]['provider']})"
         )
 
     # ----------------------------------------------------
@@ -393,34 +393,34 @@ def setup_code_plan_interactive():
         write_runtime_config(config_path, final_config)
 
         print("\n" + "=" * 70)
-        print("🎉 恭喜！跨服务商多源算力混配路由网格配置已大功告成！")
-        print(f"   配置文件已成功落盘 ➡️ {config_path}")
+        print("🎉 Congratulations! Cross-provider multi-source compute routing grid configuration complete!")
+        print(f"   Configuration saved to ➡️ {config_path}")
         print(
-            "   - 【Cheap 档】: {} ({})".format(
+            "   - [Cheap tier]: {} ({})".format(
                 final_config["cheap_model"], final_config["cheap_provider"]
             )
         )
         print(
-            "   - 【Deep  档】: {} ({})".format(
+            "   - [Deep  tier]: {} ({})".format(
                 final_config["deep_model"], final_config["deep_provider"]
             )
         )
         print(
-            "   - 【Multi 档】: {} ({})".format(
+            "   - [Multi tier]: {} ({})".format(
                 final_config["multimodal_model"], final_config["multimodal_provider"]
             )
         )
         print(
-            "\n🚀 现在，您可以愉快地拉起 Elfie 神经大脑，尽享高性价比分布式混合算力的畅快！"
+            "\n🚀 Now you can launch Elfie neural brain and enjoy high cost-performance distributed hybrid compute!"
         )
         print("=" * 70 + "\n")
     except Exception as e:
-        print(f"❌ 持久化配置文件落盘失败: {e}")
+        print(f"❌ Failed to persist configuration file: {e}")
 
 
 def main():
     print("=========================================================================")
-    print("🚀 Elfie LLM Runtime 算力底座：一键引导与模型拉取引导程序")
+    print("🚀 Elfie LLM Runtime Compute Base: One-click Wizard & Model Pull Guide")
     print("=========================================================================")
 
     # 1. 仅使用用户自行安装的系统级 Ollama；应用不下载私有副本。
@@ -428,8 +428,8 @@ def main():
     ollama_exec = system_ollama
 
     if not ollama_exec:
-        print("❌ 本地未检测到已安装的 Ollama 二进制。")
-        print("💡 请前往官网手动安装 Ollama：https://ollama.com")
+        print("❌ No installed Ollama binary detected locally.")
+        print("💡 Please visit official website to install Ollama: https://ollama.com")
         sys.exit(1)
 
     # 2. 检查 Ollama 服务是否在运行
@@ -437,7 +437,7 @@ def main():
     process = None
 
     if not service_already_running:
-        print("🔌 检测到本地 11434 算力端口未响应。尝试在后台拉起 Ollama 服务...")
+        print("🔌 Detected local 11434 compute port not responding. Attempting to start Ollama service in background...")
         try:
             process = subprocess.Popen(
                 [ollama_exec, "serve"],
@@ -448,20 +448,20 @@ def main():
             for _ in range(15):
                 time.sleep(1)
                 if check_local_ollama_alive():
-                    print("✅ Ollama 算力服务已在后台成功拉起！")
+                    print("✅ Ollama compute service successfully started in background!")
                     break
             else:
                 print(
-                    "❌ 算力服务自启动超时！请检查本地是否被防火墙阻拦，或手动运行 'ollama serve'。"
+                    "❌ Compute service auto-start timeout! Check if blocked by firewall, or manually run 'ollama serve'."
                 )
                 if process:
                     process.terminate()
                 sys.exit(1)
         except Exception as e:
-            print(f"❌ 启动服务进程异常: {e}")
+            print(f"❌ Service process startup exception: {e}")
             sys.exit(1)
     else:
-        print("✅ 检测到本地已存在活跃的 Ollama 算力服务进程。")
+        print("✅ Detected active Ollama compute service process locally.")
 
     # 3. 逐个拉取本地核心模型
     try:
@@ -470,9 +470,9 @@ def main():
         print(
             "\n========================================================================="
         )
-        print("🎉 算力底座物理环境部署完毕！")
-        print("   - 本地非思考小模型: qwen3.5:0.8b (已拉取)")
-        print("   - 本地余光多模态视觉: moondream (已拉取)")
+        print("🎉 Compute base physical environment deployment complete!")
+        print("   - Local non-reasoning small model: qwen3.5:0.8b (pulled)")
+        print("   - Local peripheral multimodal vision: moondream (pulled)")
         print(
             "========================================================================="
         )
@@ -483,10 +483,10 @@ def main():
     finally:
         # 回收我们刚刚启动的临时后台服务，保证不残留僵尸进程
         if process:
-            print("💤 正在回收临时引导的本地算力服务进程...")
+            print("💤 Recycling temporary bootstrapped local compute service process...")
             process.terminate()
             process.wait()
-            print("👋 临时服务回收完毕。")
+            print("👋 Temporary service cleanup complete.")
 
 
 if __name__ == "__main__":

@@ -124,7 +124,7 @@ def test_start_is_idempotent_when_service_is_already_running(
 
     # Then
     assert calls == ["start"]
-    assert "已在运行" in capsys.readouterr().out
+    assert "already running" in capsys.readouterr().out
 
 
 def test_start_rejects_godot_port_collision_before_launch(monkeypatch, capsys) -> None:
@@ -239,7 +239,7 @@ def test_restart_does_not_pass_force_flag(monkeypatch, capsys) -> None:
     # Then
     assert commands == [("python", "scripts/serve.py", "--fallback")]
     assert "--force" not in commands[0]
-    assert "已重启" in capsys.readouterr().out
+    assert "Service restarted" in capsys.readouterr().out
 
 
 def test_restart_uses_core_when_desktop_executable_is_present(monkeypatch) -> None:
@@ -394,7 +394,7 @@ def test_status_does_not_report_desktop_lifecycle(monkeypatch, capsys) -> None:
     lifecycle_commands.show_service_status()
 
     # Then
-    assert "服务状态" in capsys.readouterr().out
+    assert "Service Status" in capsys.readouterr().out
 
 
 def test_explicit_desktop_command_starts_desktop(monkeypatch) -> None:
@@ -478,11 +478,11 @@ def test_status_reports_the_tracked_service_ports(monkeypatch, capsys) -> None:
 
     # Then
     output = capsys.readouterr().out
-    assert (8100, "HTTP 服务") in checked
-    assert (8866, "WebSocket (管理)") in checked
+    assert (8100, "HTTP") in checked
+    assert (8866, "WebSocket (admin)") in checked
     assert (8768, "WebSocket (Godot)") in checked
-    assert "端口 8100" in output
-    assert "端口 8866" in output
+    assert "port 8100" in output
+    assert "port 8866" in output
 
 
 def test_status_json_reports_component_graph(monkeypatch, capsys) -> None:

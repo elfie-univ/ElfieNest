@@ -30,8 +30,8 @@ def test_owner_menu_has_three_items_and_shares_actions(monkeypatch, capsys) -> N
     output = capsys.readouterr().out
     assert result == 0
     assert calls == ["view", "recover"]
-    assert "查看 Owner 账号信息" in output
-    assert "恢复 Owner 账号" in output
+    assert "View Owner Account Information" in output
+    assert "Recover Owner Account" in output
     assert "Owner" in output
 
 
@@ -61,10 +61,10 @@ def test_owner_account_view_is_a_detail_page_with_pause(monkeypatch, capsys) -> 
     # Then
     output = capsys.readouterr().out
     assert result == 0
-    assert "ElfieNest / Owner / 查看账号" in output
+    assert "ElfieNest / Owner / View Account" in output
     assert "User ID: 7" in output
-    assert "登录名: owner" in output
-    assert "密码状态: 已设置" in output
+    assert "Username: owner" in output
+    assert "Password status: Set (not viewable)" in output
 
 
 def test_owner_recovery_can_be_cancelled_before_input(monkeypatch, capsys) -> None:
@@ -90,5 +90,5 @@ def test_owner_recovery_can_be_cancelled_before_input(monkeypatch, capsys) -> No
     output = capsys.readouterr().out
     assert result == 1
     assert calls == []
-    assert "恢复 Owner 账号" in output
-    assert "已取消" in output
+    assert "Recover Owner Account" in output
+    assert "Cancelled" in output

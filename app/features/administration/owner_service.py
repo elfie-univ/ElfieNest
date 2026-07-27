@@ -24,7 +24,7 @@ class OwnerServiceError(Exception):
 @dataclass(frozen=True)
 class OwnerNotFoundError(OwnerServiceError):
     def __str__(self) -> str:
-        return "数据库中没有 Owner 账户"
+        return "No Owner account in database"
 
 
 @dataclass(frozen=True)
@@ -33,7 +33,7 @@ class OwnerDatabaseError(OwnerServiceError):
     detail: str
 
     def __str__(self) -> str:
-        return f"Owner 数据库操作失败 ({self.path}): {self.detail}"
+        return f"Owner database operation failed ({self.path}): {self.detail}"
 
 
 @dataclass(frozen=True)
@@ -42,7 +42,7 @@ class InvalidOwnerInputError(OwnerServiceError):
     detail: str
 
     def __str__(self) -> str:
-        return f"{self.field}无效: {self.detail}"
+        return f"Invalid {self.field}: {self.detail}"
 
 
 @dataclass(frozen=True)
@@ -51,7 +51,7 @@ class OwnerAccount:
     username: str
     created_at: Optional[str]
     updated_at: Optional[str]
-    password_status: str = "已设置（不可查看）"
+    password_status: str = "Set (not viewable)"
 
 
 def get_owner_account(db_path: Optional[str] = None) -> OwnerAccount:

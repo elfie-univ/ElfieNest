@@ -51,7 +51,7 @@ def test_status_marks_default_ports_as_external_when_pid_belongs_elsewhere(
     monkeypatch.setattr(
         lifecycle_commands,
         "default_port_statuses",
-        lambda: [PortStatus(port=8000, name="HTTP 服务", running=True)],
+        lambda: [PortStatus(port=8000, name="HTTP", running=True)],
     )
 
     # When: the user asks for status from the current worktree.
@@ -59,9 +59,9 @@ def test_status_marks_default_ports_as_external_when_pid_belongs_elsewhere(
 
     # Then: a live external service is not reported as the current project.
     output = capsys.readouterr().out
-    assert "其他 ElfieNest checkout" in output
-    assert "被外部进程占用" in output
-    assert "✅ HTTP 服务" not in output
+    assert "another ElfieNest checkout" in output
+    assert "occupied by external process" in output
+    assert "✅ HTTP" not in output
 
 
 def test_web_opens_healthy_default_service_without_starting_another_one(
@@ -106,7 +106,7 @@ def test_web_reports_external_port_owner_when_default_health_fails(
     monkeypatch.setattr(
         lifecycle_commands,
         "default_port_statuses",
-        lambda: [PortStatus(port=8000, name="HTTP 服务", running=True)],
+        lambda: [PortStatus(port=8000, name="HTTP", running=True)],
     )
     monkeypatch.setattr(lifecycle_commands.webbrowser, "open", opened.append)
     monkeypatch.setattr(
@@ -122,4 +122,4 @@ def test_web_reports_external_port_owner_when_default_health_fails(
     assert result.status == "failed"
     assert opened == []
     assert start_calls == []
-    assert "外部进程占用" in capsys.readouterr().out
+    assert "occupied by external process" in capsys.readouterr().out

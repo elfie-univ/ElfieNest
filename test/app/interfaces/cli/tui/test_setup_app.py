@@ -19,7 +19,7 @@ def test_run_setup_wizard_creates_first_owner(
     monkeypatch.setattr(setup_app, "clear_screen", lambda: None)
     monkeypatch.setattr(setup_app, "print_banner", lambda: None)
     monkeypatch.setattr(setup_app, "input_password", lambda _prompt: "setup-secret")
-    _patch_input(monkeypatch, ["owner", "Owner", "skip", "4", "skip", "y"])
+    _patch_input(monkeypatch, ["y", "owner", "Owner", "skip", "4", "skip", "y"])
 
     setup_app.run_setup_wizard()
 
@@ -48,14 +48,14 @@ def test_run_setup_wizard_fails_closed_without_hidden_password_input(
         "input_password",
         lambda _prompt: None,
     )
-    _patch_input(monkeypatch, ["owner", "Owner"])
+    _patch_input(monkeypatch, ["y", "owner", "Owner"])
 
     setup_app.run_setup_wizard()
 
     with sqlite3.connect(get_db_path()) as conn:
         owner_count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     assert owner_count == 0
-    assert "安全输入" in capsys.readouterr().out
+    assert "无法安全输入" in capsys.readouterr().out
 
 
 def test_tui_invalid_ollama_choice_does_not_advance_setup(
@@ -67,7 +67,7 @@ def test_tui_invalid_ollama_choice_does_not_advance_setup(
     monkeypatch.setattr(setup_app, "clear_screen", lambda: None)
     monkeypatch.setattr(setup_app, "print_banner", lambda: None)
     monkeypatch.setattr(setup_app, "input_password", lambda _prompt: "setup-secret")
-    _patch_input(monkeypatch, ["owner", "Owner", "not-a-choice"])
+    _patch_input(monkeypatch, ["y", "owner", "Owner", "not-a-choice"])
 
     setup_app.run_setup_wizard()
 

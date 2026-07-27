@@ -50,7 +50,7 @@ def test_elfienest_entrypoint_rejects_malformed_python_version_file(
     # Then
     assert result.returncode != 0
     assert ".python-version" in result.stderr
-    assert "完整补丁版本" in result.stderr
+    assert "complete Python 3.9 patch version" in result.stderr
 
 
 def test_elfienest_entrypoint_rejects_wrong_venv_interpreter(
@@ -79,7 +79,7 @@ def test_elfienest_entrypoint_rejects_wrong_venv_interpreter(
 
     # Then
     assert result.returncode != 0
-    assert "依赖检查失败" in result.stderr
+    assert "Dependency check failed" in result.stderr
 
 
 def test_developer_entrypoint_rejects_external_python_override(

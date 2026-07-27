@@ -1,4 +1,4 @@
-"""服务生命周期操作的冻结结果与类型化错误。"""
+"""Frozen results and typed errors for service lifecycle operations."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Literal, Optional, Tuple
 
 
 class ServiceLifecycleError(Exception):
-    """服务生命周期可预期错误的基类。"""
+    """Base class for expected service lifecycle errors."""
 
 
 @dataclass(frozen=True)
@@ -17,7 +17,7 @@ class InvalidPidFileError(ServiceLifecycleError):
     content: str
 
     def __str__(self) -> str:
-        return f"PID 文件内容无效 ({self.path}): {self.content!r}"
+        return f"Invalid PID file content ({self.path}): {self.content!r}"
 
 
 @dataclass(frozen=True)
@@ -29,7 +29,7 @@ class ProcessIdentityMismatchError(ServiceLifecycleError):
     actual_command: Tuple[str, ...]
 
     def __str__(self) -> str:
-        return f"PID {self.pid} 不是当前项目的 ElfieNest 服务进程"
+        return f"PID {self.pid} is not a current project ElfieNest service process"
 
 
 @dataclass(frozen=True)
@@ -38,7 +38,7 @@ class ProcessInspectionError(ServiceLifecycleError):
     detail: str
 
     def __str__(self) -> str:
-        return f"无法检查 PID {self.pid}: {self.detail}"
+        return f"Cannot check PID {self.pid}: {self.detail}"
 
 
 @dataclass(frozen=True)
@@ -47,7 +47,7 @@ class StopTimeoutError(ServiceLifecycleError):
     timeout_seconds: float
 
     def __str__(self) -> str:
-        return f"PID {self.pid} 在 {self.timeout_seconds:g} 秒内未停止"
+        return f"PID {self.pid} did not stop within {self.timeout_seconds:g} seconds"
 
 
 @dataclass(frozen=True)
@@ -56,7 +56,7 @@ class SignalProcessError(ServiceLifecycleError):
     detail: str
 
     def __str__(self) -> str:
-        return f"无法向 PID {self.pid} 发送 SIGTERM: {self.detail}"
+        return f"Cannot send SIGTERM to PID {self.pid}: {self.detail}"
 
 
 @dataclass(frozen=True)
@@ -64,7 +64,7 @@ class LaunchFailedError(ServiceLifecycleError):
     detail: str
 
     def __str__(self) -> str:
-        return f"服务进程启动失败: {self.detail}"
+        return f"Service process launch failed: {self.detail}"
 
 
 @dataclass(frozen=True)
@@ -73,7 +73,7 @@ class HealthCheckFailedError(ServiceLifecycleError):
     timeout_seconds: float
 
     def __str__(self) -> str:
-        return f"PID {self.pid} 在 {self.timeout_seconds:g} 秒内未通过健康检查"
+        return f"PID {self.pid} did not pass health check within {self.timeout_seconds:g} seconds"
 
 
 @dataclass(frozen=True)
@@ -82,7 +82,7 @@ class CleanupFailedError(ServiceLifecycleError):
     detail: str
 
     def __str__(self) -> str:
-        return f"PID {self.pid} 健康检查失败且无法终止: {self.detail}"
+        return f"PID {self.pid} failed health check and cannot be terminated: {self.detail}"
 
 
 @dataclass(frozen=True)
@@ -90,12 +90,12 @@ class ServicePortsActiveError(ServiceLifecycleError):
     detail: str
 
     def __str__(self) -> str:
-        return f"服务端口仍在使用，无法确认服务已停止: {self.detail}"
+        return f"Service port still in use, cannot confirm service stopped: {self.detail}"
 
 
 @dataclass(frozen=True)
 class ServiceLifecycleResult:
-    """一次生命周期操作的不可变结果。"""
+    """Immutable result of a lifecycle operation."""
 
     status: Literal[
         "started", "already_running", "stopped", "already_stopped", "failed"

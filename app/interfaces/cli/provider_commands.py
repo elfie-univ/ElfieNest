@@ -40,7 +40,7 @@ def login_provider(provider_id: str) -> None:
     if login_input is None:
         return
 
-    print("\n  ⏳ 验证连通性...")
+    print("\n  ⏳ Verifying connectivity...")
 
     temp_config = LLMRuntimeConfig()
     temp_config.providers[provider_id] = {
@@ -54,12 +54,12 @@ def login_provider(provider_id: str) -> None:
 
     result = verify_provider(provider_id, temp_config)
     if result["status"] != "active":
-        error = result.get("error", "未知错误")
-        print(f"  ⚠️  连通性验证失败: {error}")
-        print("  配置仍会保存，你可以稍后用 elfienest providers test 再测试。\n")
+        error = result.get("error", "unknown error")
+        print(f"  ⚠️  Connectivity verification failed: {error}")
+        print("  Config will still be saved. Test again later with: elfienest providers test\n")
     else:
         latency = result.get("latency_ms", 0)
-        print(f"  ✅ 连通性验证成功！延迟: {latency:.0f}ms\n")
+        print(f"  ✅ Connectivity verified! Latency: {latency:.0f}ms\n")
 
     save_result = save_provider_credentials(
         read_user_config(),
@@ -77,14 +77,14 @@ def login_provider(provider_id: str) -> None:
     write_env_file(save_result.env_vars)
 
     saved_name = login_input.display_name or profile.name
-    print(f"  ✅ {saved_name} 配置已保存")
+    print(f"  ✅ {saved_name} configuration saved")
 
 
 def _prompt_login_input(
     provider_id: str,
     profile: ProviderProfile,
 ) -> ProviderLoginInput | None:
-    print(f"\n🔑 配置 {profile.name} 服务商\n")
+    print(f"\n🔑 Configure {profile.name} provider\n")
 
     if provider_id == CUSTOM_OPENAI_PROVIDER_ID:
         return _prompt_custom_openai_login()
@@ -92,24 +92,24 @@ def _prompt_login_input(
 
 
 def _prompt_custom_openai_login() -> ProviderLoginInput | None:
-    display_name = (input_text("  名称") or "").strip()
+    display_name = (input_text("  Name") or "").strip()
     if not display_name:
-        print("❌ 名称不能为空")
+        print("❌ Name cannot be empty")
         return None
 
     base_url = (input_text("  Endpoint / Base URL") or "").strip()
     if not base_url:
-        print("❌ Endpoint / Base URL 不能为空")
+        print("❌ Endpoint / Base URL cannot be empty")
         return None
 
-    test_model = (input_text("  测试模型") or "").strip()
+    test_model = (input_text("  Test model") or "").strip()
     if not test_model:
-        print("❌ 测试模型不能为空")
+        print("❌ Test model cannot be empty")
         return None
 
     api_key = input_password("  API Key") or ""
     if not api_key:
-        print("❌ API Key 不能为空")
+        print("❌ API Key cannot be empty")
         return None
 
     return ProviderLoginInput(
@@ -127,12 +127,12 @@ def _prompt_builtin_provider_login(
     if profile.api_key_env_var:
         api_key = input_password("  API Key") or ""
         if not api_key:
-            print("❌ API Key 不能为空")
+            print("❌ API Key cannot be empty")
             return None
     else:
-        print("  ℹ️  Ollama 无需 API Key，跳过")
+        print("  ℹ️  Ollama doesn't require API Key, skipping")
 
-    base_url_hint = f"回车使用默认 {profile.api_base}"
+    base_url_hint = f"Press Enter for default {profile.api_base}"
     base_url_input = (input_text(f"  Base URL ({base_url_hint})") or "").strip()
     base_url = base_url_input if base_url_input else profile.api_base
     return ProviderLoginInput(
@@ -156,11 +156,11 @@ def dispatch_providers(subcmd: Optional[str], provider_id: Optional[str]) -> Non
 
 
 def list_providers() -> None:
-    print("\n  📋 服务商列表\n")
+    print("\n  📋 Provider List\n")
 
     config = read_user_config()
 
-    print(f"  {'ID':<12s} {'名称':<20s} {'状态':<8s} {'API模式':<20s}")
+    print(f"  {'ID':<12s} {'Name':<20s} {'Status':<8s} {'API Mode':<20s}")
     print("  " + "-" * 70)
 
     for row in list_provider_rows(config):
@@ -176,21 +176,21 @@ def list_providers() -> None:
 def test_provider(provider_id: str) -> None:
     profile = get_profile(provider_id)
     if not profile:
-        print(f"❌ 未知服务商: {provider_id}")
+        print(f"❌ Unknown provider: {provider_id}")
         return
 
     name = _configured_provider_name(provider_id, profile.name)
-    print(f"\n  ⏳ 测试 {name} 连通性...\n")
+    print(f"\n  ⏳ Testing {name} connectivity...\n")
 
     config = LLMRuntimeConfig.load()
     result = verify_provider(provider_id, config)
 
     if result["status"] == "active":
         latency = result.get("latency_ms", 0)
-        print(f"  ✅ {name} 可用，延迟: {latency:.0f}ms")
+        print(f"  ✅ {name} available, latency: {latency:.0f}ms")
     else:
-        error = result.get("error", "未知错误")
-        print(f"  ❌ {name} 不可用: {error}")
+        error = result.get("error", "unknown error")
+        print(f"  ❌ {name} unavailable: {error}")
 
     print()
 
@@ -211,23 +211,23 @@ def remove_provider(provider_id: str) -> None:
         provider_id,
     )
     if remove_result is None:
-        print(f"❌ 未知服务商: {provider_id}")
+        print(f"❌ Unknown provider: {provider_id}")
         return
 
     name = _configured_provider_name(provider_id, remove_result.profile.name)
     if remove_result.removed_config:
         write_user_config(remove_result.config)
-        print(f"  ✅ 已从 config.yaml 移除 {name}")
+        print(f"  ✅ Removed {name} from config.yaml")
 
     if remove_result.removed_env_key or remove_result.removed_base_url_env_key:
         write_env_file(remove_result.env_vars)
 
     if remove_result.removed_env_key:
-        print(f"  ✅ 已从 .env 移除 {remove_result.profile.api_key_env_var}")
+        print(f"  ✅ Removed {remove_result.profile.api_key_env_var} from .env")
     if remove_result.removed_base_url_env_key:
-        print(f"  ✅ 已从 .env 移除 {remove_result.profile.base_url_env_var}")
+        print(f"  ✅ Removed {remove_result.profile.base_url_env_var} from .env")
 
-    print(f"\n  ✅ {name} 配置已移除")
+    print(f"\n  ✅ {name} configuration removed")
 
 
 def _configured_provider_name(provider_id: str, fallback_name: str) -> str:
@@ -236,7 +236,7 @@ def _configured_provider_name(provider_id: str, fallback_name: str) -> str:
 
 
 def _print_unknown_provider(provider_id: str) -> None:
-    print(f"❌ 未知服务商: {provider_id}")
-    print("\n可用服务商:")
+    print(f"❌ Unknown provider: {provider_id}")
+    print("\nAvailable providers:")
     for pid, profile in BUILTIN_PROFILES.items():
         print(f"  • {pid:12s} - {profile.name}")

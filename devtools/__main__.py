@@ -1,4 +1,4 @@
-"""Developer Tool 统一入口。"""
+"""Developer Tool unified entry point."""
 
 from __future__ import annotations
 
@@ -20,28 +20,113 @@ from devtools.lab_restart import (
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="ElfieNest Developer Tool")
-    subparsers = parser.add_subparsers(dest="tool")
+    parser = argparse.ArgumentParser(
+        prog="developer.sh",
+        description="ElfieNest Developer Tool — Module isolation development and debugging platform",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s elfie-lab                    # Single-elfie debugging (default port 9001)
+  %(prog)s elfie-lab --port 8080        # Use custom port
+  %(prog)s nest-lab                     # Godot room experiments (default HTTP 9002, WS 9003)
+  %(prog)s runtime-lab                  # Configure AI models (interactive TUI)
+
+Documentation: https://elfienest.dev/developer/devtools
+""",
+    )
+    subparsers = parser.add_subparsers(dest="tool", title="Available tools")
+
     for tool in available_tools():
-        subparser = subparsers.add_parser(tool.name, help=_help_text(tool.name))
+        subparser = subparsers.add_parser(
+            tool.name,
+            help=_help_text(tool.name),
+            description=_help_description(tool.name),
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+        )
         if tool.name == "runtime-lab":
-            subparser.add_argument("runtime_args", nargs=argparse.REMAINDER)
+            subparser.epilog = """
+Runtime Lab is an interactive TUI menu with the following features:
+
+  1. Runtime overview and reports
+  2. Provider and model configuration
+  3. Agent capability validation
+  4. Food strategy configuration
+
+Example:
+  %(prog)s runtime-lab
+
+After launch, use arrow keys to navigate and Enter to select.
+
+Data directory: ~/.elfienest-dev/runtime_lab/
+"""
             continue
         if tool.default_port is not None:
             host_type = loopback_host
-            subparser.add_argument("--host", default="127.0.0.1", type=host_type)
-            subparser.add_argument("--port", default=tool.default_port, type=int)
-            subparser.add_argument("--data-dir", default=None)
+            subparser.add_argument(
+                "--host",
+                default="127.0.0.1",
+                type=host_type,
+                help="Bind host address (loopback only, default: 127.0.0.1)",
+            )
+            subparser.add_argument(
+                "--port",
+                default=tool.default_port,
+                type=int,
+                help=f"HTTP service port (default: {tool.default_port})",
+            )
+            subparser.add_argument(
+                "--data-dir",
+                default=None,
+                help="Data directory (default: ~/.elfienest-dev/<lab-name>)",
+            )
             if tool.name == "nest-lab":
-                subparser.add_argument("--godot-ws-port", default=None, type=int)
+                subparser.add_argument(
+                    "--godot-ws-port",
+                    default=None,
+                    type=int,
+                    help="Godot WebSocket port (default: HTTP port + 1)",
+                )
     return parser
 
 
 def _help_text(name: str) -> str:
     descriptions = {
-        "elfie-lab": "单精灵感知与决策调试",
-        "runtime-lab": "Provider 与模型连接实验",
-        "nest-lab": "精灵巢/Godot 模块实验",
+        "elfie-lab": "Single-elfie perception and decision debugging (Web UI)",
+        "runtime-lab": "Provider and model configuration (interactive TUI)",
+        "nest-lab": "Nest/Godot module experiments (Web UI)",
+    }
+    return descriptions[name]
+
+
+def _help_description(name: str) -> str:
+    descriptions = {
+        "elfie-lab": """
+Elfie Lab — Single Elfie Debugging Platform
+
+Provides single-elfie profile, perception, decision, chat and turn debugging.
+Automatically opens browser interface on startup.
+
+Data directory: ~/.elfienest-dev/elfie_lab/
+Default port: 9001
+""",
+        "runtime-lab": """
+Runtime Lab — Provider, Model and Food Configuration TUI
+
+Interactive menu interface for configuring and testing AI model providers
+(Ollama, OpenAI, Anthropic, etc.).
+Supports three-layer validation: Provider connection, Agent capabilities, Food strategy.
+
+Data directory: ~/.elfienest-dev/runtime_lab/
+""",
+        "nest-lab": """
+Nest Lab — Godot Room and Character Experiments
+
+Provides fixed rooms, temporary characters, path planning and collision experiments.
+Automatically opens browser interface and connects to Godot Runtime on startup.
+
+Data directory: ~/.elfienest-dev/nest_lab/
+Default ports: HTTP 9002, Godot WebSocket 9003
+""",
     }
     return descriptions[name]
 
@@ -124,7 +209,7 @@ def main(argv: list[str] | None = None) -> int:
     if raw_args and raw_args[0] == "runtime-lab":
         from devtools.runtime_lab.__main__ import main as runtime_lab_main
 
-        return runtime_lab_main(raw_args[1:])
+        return runtime_lab_main()
     args = _parser().parse_args(raw_args)
     if args.tool is None:
         _parser().print_help()

@@ -1,4 +1,4 @@
-"""Runtime Lab 单屏键盘菜单。"""
+"""Runtime Lab single-screen keyboard menu."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ class MenuItem:
 
 
 class TerminalMenu:
-    """TTY 下使用方向键；测试或重定向输入时退回行输入。"""
+    """Use arrow keys in TTY; fall back to line input for tests or redirection."""
 
     def __init__(
         self,
@@ -45,7 +45,7 @@ class TerminalMenu:
         items: Sequence[MenuItem],
         *,
         breadcrumb: str = "Runtime Lab",
-        back_label: str = "退出",
+        back_label: str = "Back",
     ) -> str | None:
         if not items:
             return None
@@ -80,7 +80,7 @@ class TerminalMenu:
         self.output(title)
         self.output("")
 
-    def pause(self, message: str = "按回车或左方向键返回…") -> None:
+    def pause(self, message: str = "Press Enter or Left arrow to return...") -> None:
         if not self.interactive:
             return
         sys.stdout.write(f"\n\033[2m{message}\033[0m")
@@ -96,10 +96,10 @@ class TerminalMenu:
         masked: bool = False,
         line_input: Callable[[str], str] | None = None,
     ) -> str | None:
-        """读取可被 Esc 取消的单行文本。
+        """Read single-line text that can be cancelled by Esc.
 
-        TTY 模式使用原始按键，Esc 无需回车即可取消；重定向或
-        测试模式仍使用普通行输入。
+        TTY mode uses raw keys, Esc cancels without Enter;
+        redirection or test mode uses normal line input.
         """
         if not self.interactive:
             try:
@@ -124,11 +124,11 @@ class TerminalMenu:
         while True:
             key = self.key_reader()
             if key == "interrupt":
-                sys.stdout.write("\n\033[2m已取消。\033[0m\n")
+                sys.stdout.write("\n\033[2mCancelled.\033[0m\n")
                 sys.stdout.flush()
                 return None
             if key == "escape":
-                sys.stdout.write("\n\033[2m已取消。\033[0m\n")
+                sys.stdout.write("\n\033[2mCancelled.\033[0m\n")
                 sys.stdout.flush()
                 return None
             if key == "enter":
@@ -171,10 +171,10 @@ class TerminalMenu:
         self,
         prompt: str,
         *,
-        accept_label: str = "应用更新",
-        reject_label: str = "放弃更新",
+        accept_label: str = "Apply",
+        reject_label: str = "Discard",
     ) -> bool:
-        """在当前预览下方显示确认按钮，安全默认为放弃。"""
+        """Display confirmation buttons below current preview, safe default to discard."""
         if not self.interactive:
             try:
                 answer = self.input(f"{prompt} [y/N]: ")
@@ -196,7 +196,7 @@ class TerminalMenu:
             )
             sys.stdout.write(
                 f"\r\033[2K{prompt}  {reject}  {accept}"
-                "  \033[2m←→选择 Enter确认 Esc放弃\033[0m"
+                "  \033[2m←→ Select Enter Confirm Esc Discard\033[0m"
             )
             sys.stdout.flush()
             key = self.key_reader()
@@ -237,7 +237,7 @@ class TerminalMenu:
             else:
                 sys.stdout.write(f"{marker} {number}. {item.label}{hint}\n")
         sys.stdout.write(
-            f"\n\033[2m↑↓ 选择   Enter/→ 进入   ←/Esc {back_label}   数字 快速进入\033[0m\n"
+            f"\n\033[2m↑↓ Navigate   Enter/→ Select   ←/Esc {back_label}   Number Quick Select\033[0m\n"
         )
         sys.stdout.flush()
 
@@ -253,7 +253,7 @@ class TerminalMenu:
             self.output(f"{item.key}. {item.label}")
         self.output(f"0. {back_label}")
         try:
-            raw = self.input("请选择: ").strip()
+            raw = self.input("Select: ").strip()
         except (EOFError, KeyboardInterrupt):
             return None
         if raw == "0":
@@ -322,7 +322,7 @@ def _normalize_char(char: str) -> str:
 
 
 def _read_utf8_char(fd: int) -> str:
-    """从 raw TTY 读取一个完整 UTF-8 字符，避免中文粘贴丢字。"""
+    """Read a complete UTF-8 character from raw TTY, avoiding Chinese paste character loss."""
     first = os.read(fd, 1)
     if not first:
         return ""
@@ -341,7 +341,7 @@ def _read_utf8_char(fd: int) -> str:
 
 
 def _read_clipboard() -> str:
-    """在用户主动按 Ctrl+V 时读取本机剪贴板。"""
+    """Read from local clipboard when user presses Ctrl+V."""
     if sys.platform == "darwin":
         command = ["pbpaste"]
     elif os.name == "nt":
@@ -351,7 +351,7 @@ def _read_clipboard() -> str:
     elif shutil.which("xclip"):
         command = ["xclip", "-selection", "clipboard", "-o"]
     else:
-        raise RuntimeError("当前系统没有可用的剪贴板命令")
+        raise RuntimeError("No available clipboard command on current system")
     completed = subprocess.run(  # noqa: S603
         command,
         check=False,
@@ -360,5 +360,5 @@ def _read_clipboard() -> str:
         timeout=2,
     )
     if completed.returncode != 0:
-        raise RuntimeError("剪贴板读取失败")
+        raise RuntimeError("Clipboard read failed")
     return completed.stdout

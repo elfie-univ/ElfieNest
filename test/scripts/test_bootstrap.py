@@ -38,8 +38,8 @@ def test_bootstrap_ensure_build_fails_when_godot_web_runtime_is_missing(
     )
 
     assert result.returncode == 1
-    assert "Godot Web Runtime 缺失" in result.stderr
-    assert "完整产品无法启动" in result.stderr
+    assert "Godot Web Runtime missing" in result.stderr
+    assert "full product cannot start" in result.stderr
 
 
 def test_bootstrap_report_completes_in_isolated_home(tmp_path: Path) -> None:
@@ -190,7 +190,7 @@ def test_bootstrap_accepts_only_dev_and_build_tiers(tmp_path: Path) -> None:
 
     # Then: it is rejected instead of selecting an installed-runtime dependency path.
     assert result.returncode != 0
-    assert "dev 或 build" in result.stderr
+    assert "dev or build" in result.stderr
 
 
 def test_bootstrap_pins_the_official_godot_toolchain_for_source_builds() -> None:
@@ -200,13 +200,15 @@ def test_bootstrap_pins_the_official_godot_toolchain_for_source_builds() -> None
     ).read_text(encoding="utf-8")
 
     # When: Godot prerequisites are inspected before a Web runtime export.
-    requires_editor = 'GODOT_TOOLCHAIN_VERSION="4.7.1"' in runtime_source
+    accepts_any_47x = 'GODOT_PROJECT_VERSION="4.7"' in runtime_source
+    default_download = 'GODOT_DEFAULT_DOWNLOAD_VERSION="4.7.1"' in runtime_source
     uses_official_download = "https://downloads.godotengine.org/" in runtime_source
     requires_templates = "Web Export Templates" in runtime_source
-    refuses_noninteractive_download = "非交互环境不能确认安装" in runtime_source
+    refuses_noninteractive_download = "Non-interactive environment cannot confirm Godot installation" in runtime_source
 
     # Then: only an explicit developer confirmation can initiate the fixed toolchain.
-    assert requires_editor
+    assert accepts_any_47x
+    assert default_download
     assert uses_official_download
     assert requires_templates
     assert refuses_noninteractive_download
@@ -219,7 +221,7 @@ def test_bootstrap_reuses_a_matching_managed_godot_toolchain(tmp_path: Path) -> 
     project_root = tmp_path / "project"
     scripts_dir = copy_bootstrap(project_root)
     developer_home = tmp_path / "elfienest-dev"
-    managed_godot = developer_home / "toolchains" / "godot" / "4.7.1" / "Godot"
+    managed_godot = developer_home / "toolchains" / "godot" / "4.7" / "Godot"
     make_executable(managed_godot, "#!/bin/bash\necho '4.7.1.stable'\n")
 
     # When: the bootstrap helper resolves its Godot toolchain a second time.
@@ -311,7 +313,7 @@ def test_godot_toolchain_install_recovers_cleanly_after_a_failed_download(
         check=False,
     )
     # Then: no partial managed directory survives the first failed transfer.
-    managed_root = developer_home / "toolchains" / "godot" / "4.7.1"
+    managed_root = developer_home / "toolchains" / "godot" / "4.7"
     assert failed.returncode == 1
     assert not managed_root.exists()
 

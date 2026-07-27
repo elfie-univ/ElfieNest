@@ -236,7 +236,7 @@ ensure_electron() {
     local desktop_dir="$PROJECT_ROOT/app/interfaces/desktop"
 
     if [[ ! -f "$desktop_dir/package.json" ]]; then
-        echo "${YELLOW}  ⚠️  app/interfaces/desktop/package.json 不存在，跳过 Electron${RESET}"
+        echo "${YELLOW}  ⚠️  app/interfaces/desktop/package.json does not exist, skipping Electron${RESET}"
         return 0
     fi
 

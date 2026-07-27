@@ -77,9 +77,9 @@ def discover_provider_models(
                 ).decode("utf-8")
             )
     except urllib.error.HTTPError as exc:
-        discovery_error = RuntimeError(f"模型发现失败：HTTP {exc.code} {exc.reason}")
+        discovery_error = RuntimeError(f"Model discovery failed: HTTP {exc.code} {exc.reason}")
     except urllib.error.URLError as exc:
-        discovery_error = RuntimeError(f"模型发现连接失败：{exc.reason}")
+        discovery_error = RuntimeError(f"Model discovery connection failed: {exc.reason}")
     except (json.JSONDecodeError, UnicodeDecodeError, ValueError, TimeoutError):
         discovery_error = RuntimeError("模型发现接口返回了无效 JSON")
 
@@ -99,7 +99,7 @@ def discover_provider_models(
     if discovery_error is not None:
         raise RuntimeError(
             f"{discovery_error}。该 Provider 可能不支持 /models，"
-            "请在 Provider 配置中手工填写模型 ID"
+            "Please manually enter model ID in Provider configuration"
         ) from discovery_error
     return [
         DiscoveredModel(provider_id, name, display_name=name)
@@ -149,7 +149,7 @@ class ProviderValidationRunner:
             check_id=f"provider.{provider_id}.health",
             status=CheckStatus.PASSED if active else CheckStatus.FAILED,
             message=(
-                "Provider 连通性验证通过"
+                "Provider connectivity validation passed"
                 if active
                 else str(result.get("error") or "Provider 不可用")
             ),
@@ -186,7 +186,7 @@ class ProviderValidationRunner:
             return CheckResult(
                 check_id=f"provider.{provider_id}.model.{model_name}",
                 status=CheckStatus.PASSED,
-                message="模型冒烟调用通过",
+                message="Model smoke test passed",
                 duration_ms=duration_ms,
                 provider=provider_id,
                 model=model_name,

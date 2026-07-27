@@ -11,9 +11,9 @@ def dispatch_route(subcmd: Optional[str], elfie_id: Optional[str]) -> None:
 
 
 def show_route(elfie_id: str) -> None:
-    print(f"\n  🍚  {elfie_id} 粮食权限\n")
+    print(f"\n  🍚  {elfie_id} Food Permissions\n")
     policy = load_elfie_food_policy(elfie_id)
-    print(f"  默认粮食: {policy.default_food}")
-    print(f"  允许粮食: {', '.join(policy.allowed_foods)}")
-    print(f"  降级粮食: {policy.fallback_food}")
-    print("\n  模型由 Runtime 粮食策略统一管理，精灵不再直接选择模型。\n")
+    print(f"  Default food: {policy.default_food}")
+    print(f"  Allowed food: {', '.join(policy.allowed_foods)}")
+    print(f"  Fallback food: {policy.fallback_food}")
+    print("\n  Models are managed by Runtime food policy; Elfies do not select models directly.\n")

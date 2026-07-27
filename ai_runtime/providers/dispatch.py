@@ -117,7 +117,7 @@ def call_openai_compatible_api(
             usage = res_data.get("usage", {})
             return res_data["choices"][0]["message"]["content"], usage
     except Exception as e:
-        logger.error("云端大模型 API 调用异常: %s", e)
+        logger.error("Cloud LLM API call exception: %s", e)
         if isinstance(e, urllib.error.HTTPError):
             err_msg = _http_error_summary(e)
             raise RuntimeError(

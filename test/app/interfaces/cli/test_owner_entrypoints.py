@@ -23,7 +23,7 @@ def test_cli_help_exposes_owner_account_management() -> None:
     )
     assert result.returncode == 0
     assert "owner" in result.stdout
-    assert "Owner 账户菜单" in result.stdout
+    assert "Owner account menu" in result.stdout
 
 
 def test_interactive_help_exposes_owner_account_management() -> None:
@@ -41,7 +41,7 @@ def test_interactive_help_exposes_owner_account_management() -> None:
     )
     assert result.returncode == 0
     assert "owner" in result.stdout
-    assert "Owner 账户" in result.stdout
+    assert "Owner account" in result.stdout
 
 
 def test_owner_menu_reports_current_owner_without_secrets(
@@ -77,7 +77,7 @@ def test_owner_menu_reports_current_owner_without_secrets(
     assert result.returncode == 0
     assert "doctor-bai" in result.stdout
     assert "User ID:" in result.stdout
-    assert "密码状态:" in result.stdout
+    assert "Password status:" in result.stdout
     assert password_hash not in result.stdout
     assert "entrypoint-secret" not in result.stdout
 
@@ -153,7 +153,7 @@ def test_config_parser_errors_keep_current_choices() -> None:
     assert result.returncode == 2
     assert "invalid-config-path" in result.stderr
     assert "provider" in result.stderr
-    assert "doctor" in result.stderr
+    assert "food" in result.stderr
 
 
 def test_service_entrypoint_rejects_owner_recovery_bypass(tmp_path: Path) -> None:

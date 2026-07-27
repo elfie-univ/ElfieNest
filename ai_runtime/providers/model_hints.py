@@ -66,7 +66,7 @@ def suggested_model_names(api_base: str) -> list[str]:
 
 
 def parse_model_input(value: str) -> list[str]:
-    """把终端中的逗号分隔模型 ID 转换为去重列表。"""
+    """Convert comma-separated model IDs from terminal to deduplicated list."""
     return _unique(_split_models(value))
 
 

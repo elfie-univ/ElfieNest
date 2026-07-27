@@ -1,4 +1,4 @@
-"""本地 Doctor 诊断与安全自动修复入口。"""
+"""Local doctor diagnostics and safe auto-repair entry."""
 
 from __future__ import annotations
 
@@ -20,36 +20,36 @@ from ai_runtime.storage.data_home import (
 
 @dataclass(frozen=True)
 class DoctorRepairReport:
-    """Doctor 本地自动修复动作摘要。"""
+    """Summary of local auto-repair actions."""
 
     repaired: tuple[str, ...] = ()
 
 
 def run_doctor() -> int:
-    """先执行安全本地修复，再运行不访问网络的 Runtime 与工具配置检查。"""
-    print("  🩺 Doctor 诊断并自动修复")
+    """Run safe local repairs first, then offline runtime and config checks."""
+    print("  🩺 Doctor diagnostics and auto-repair")
     print("  " + "=" * 45)
     print()
     try:
         repairs = repair_local_runtime_state()
         if repairs.repaired:
-            print("  🔧 已自动修复:")
+            print("  🔧 Auto-repaired:")
             for item in repairs.repaired:
                 print(f"    - {item}")
             print()
         else:
-            print("  ✅ 本地结构无需修复")
+            print("  ✅ Local structure needs no repair")
             print()
         report = RuntimeLab().run_offline_validation()
     except (OSError, RuntimeError, ValueError) as error:
-        print(f"  ❌ Doctor 失败: {error}")
+        print(f"  ❌ Doctor failed: {error}")
         return 1
-    print("  ✅ 修复与诊断完成" if report.passed else "  ⚠️  修复完成，诊断仍发现问题")
+    print("  ✅ Repair and diagnostics complete" if report.passed else "  ⚠️  Repair complete, diagnostics found issues")
     return 0 if report.passed else 1
 
 
 def repair_local_runtime_state() -> DoctorRepairReport:
-    """修复不需要联网、不需要密钥、不会破坏用户数据的本地状态。"""
+    """Repair local state that needs no network, keys, or user data deletion."""
     repaired: list[str] = []
     expected_dirs = (
         get_elfie_home(),
@@ -65,6 +65,6 @@ def repair_local_runtime_state() -> DoctorRepairReport:
     missing_dirs = [path for path in expected_dirs if not path.exists()]
     ensure_elfie_home()
     if missing_dirs:
-        repaired.append("创建缺失的 ~/.elfienest 数据目录和子目录")
+        repaired.append("Created missing ~/.elfienest data directories")
 
     return DoctorRepairReport(tuple(repaired))

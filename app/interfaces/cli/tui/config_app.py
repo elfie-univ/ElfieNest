@@ -31,45 +31,33 @@ def run_config_tui(
         print_banner()
         config = read_user_config()
         print_tui_panel(
-            "配置中心 / 核心配置",
-            "KUI 只放基础核心项；精灵细节与高级安全策略在 Web 管理页处理",
+            "Config Center / Runtime Config",
+            "AI runtime core config; other settings in Web console",
         )
         choice = menu.choose(
-            "配置中心",
+            "Config Center",
             (
-                MenuItem("1", "Runtime / Provider 与模型"),
-                MenuItem("2", "Runtime / Agent 基础能力"),
-                MenuItem("3", "Runtime / 粮食策略"),
-                MenuItem("4", "应用 / 引擎参数"),
-                MenuItem("5", "应用 / 精灵领养"),
-                MenuItem("6", "Owner 账户"),
-                MenuItem("7", "诊断并自动修复（Doctor）"),
-                MenuItem("8", "查看当前配置"),
-                MenuItem("9", "重置应用配置"),
+                MenuItem("1", "Provider and Model Configuration"),
+                MenuItem("2", "Agent Capability Validation"),
+                MenuItem("3", "Food Strategy Configuration"),
+                MenuItem("4", "View Current Config"),
+                MenuItem("5", "Reset Runtime Config"),
             ),
             breadcrumb="ElfieNest / Config",
-            back_label="返回首页",
+            back_label="Back to Home",
         )
         if choice is None:
-            print("\n再见！")
+            print("\nGoodbye!")
             return
         if choice == "1":
             runtime_lab.provider_menu()
         elif choice == "2":
-            runtime_lab.agent_menu()
+            runtime_lab.tool_menu()
         elif choice == "3":
             runtime_lab.food_menu()
         elif choice == "4":
-            config_engine(config)
-        elif choice == "5":
-            config_adoption(config)
-        elif choice == "6":
-            run_owner_menu()
-        elif choice == "7":
-            run_doctor()
-        elif choice == "8":
             show_config(config)
-        elif choice == "9":
+        elif choice == "5":
             reset_config()
 
 
@@ -83,12 +71,8 @@ def _dispatch_initial_path(
     if path in {"provider", "providers"}:
         runtime_lab.provider_menu()
     elif path in {"agent", "tools"}:
-        runtime_lab.agent_menu()
+            runtime_lab.tool_menu()
     elif path in {"food", "foods"}:
         runtime_lab.food_menu()
-    elif path == "owner":
-        run_owner_menu()
-    elif path in {"doctor", "verify"}:
-        run_doctor()
     elif path == "login":
         provider_login("ollama")
