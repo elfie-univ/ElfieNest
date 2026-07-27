@@ -44,13 +44,13 @@ function createConfig(): SupervisorConfig {
     godotUrl: "http://127.0.0.1:8000/static/godot.html",
     ollamaUrl: "http://127.0.0.1:11434",
     coreHealthUrl: "http://127.0.0.1:8000/api/health",
-    ollamaExecutable: "ollama",
     coreExecutable: "python",
     coreArgs: ["serve.py"],
     webBuildDirectory: "/tmp/elfienest-web",
+    godotWebDirectory: "/tmp/elfienest-godot-web",
     resourcesPath: "/tmp/elfienest-resources",
     coreWorkingDirectory: "/tmp/elfienest-core",
-    manageOllama: true,
+    runtimeMode: "release",
     ollamaOptional: true,
   };
 }
@@ -87,7 +87,7 @@ test("supervisor starts components once and returns the same ready snapshot", as
   const second = await supervisor.start(createRuntime(events));
 
   // Then
-  assert.deepEqual(spawned, ["ollama", "core"]);
+  assert.deepEqual(spawned, ["core"]);
   assert.deepEqual(healthChecks, [
     "http://127.0.0.1:11434/api/tags",
     "http://127.0.0.1:8000/api/health",
@@ -140,6 +140,9 @@ test("supervisor gives Core the packaged Web build directory", async () => {
   await supervisor.start(createRuntime([]));
 
   assert.equal(coreEnvironment?.ELFIENEST_WEB_BUILD_DIR, "/tmp/elfienest-web");
+  assert.equal(coreEnvironment?.ELFIENEST_GODOT_WEB_DIR, "/tmp/elfienest-godot-web");
+  assert.equal(coreEnvironment?.ELFIENEST_RUNTIME_MODE, "release");
+  assert.equal(coreEnvironment?.OLLAMA_MODELS, undefined);
   await supervisor.stop();
 });
 
@@ -159,11 +162,11 @@ test("supervisor starts the app in fallback when optional Ollama is unavailable"
     waitForGodotReady: async (): Promise<void> => undefined,
   });
 
-  // When: startup proceeds without a usable local model sidecar.
+  // When: startup proceeds without a reachable public Ollama endpoint.
   const status = await supervisor.start(createRuntime([]));
 
   // Then: only the model capability is degraded; Core and Godot are usable.
-  assert.deepEqual(spawned, ["ollama", "core"]);
+  assert.deepEqual(spawned, ["core"]);
   assert.deepEqual(status, { ollama: "degraded", core: "ready", godot: "ready" });
   await supervisor.stop();
 });
@@ -189,7 +192,7 @@ test("supervisor attributes startup failure and cleans every started process", a
       error.component === "core",
   );
   assert.equal(supervisor.lifecycleState, "stopped");
-  assert.deepEqual(events, ["godot:close", "core:stop", "ollama:stop"]);
+  assert.deepEqual(events, ["godot:close", "core:stop"]);
   assert.deepEqual(supervisor.status, {
     ollama: "stopped",
     core: "stopped",
@@ -211,7 +214,7 @@ test("supervisor stop releases the hidden runtime before managed processes", asy
   await supervisor.stop();
 
   // Then
-  assert.deepEqual(events, ["godot:load", "godot:close", "core:stop", "ollama:stop"]);
+  assert.deepEqual(events, ["godot:load", "godot:close", "core:stop"]);
   assert.equal(supervisor.lifecycleState, "stopped");
 });
 

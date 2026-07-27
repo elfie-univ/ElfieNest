@@ -6,10 +6,15 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any, Final
 
-from app.infrastructure.persistence.nest_schema import DEFAULT_NEST_ID
+from app.infrastructure.persistence.nest_schema import (
+    DEFAULT_NEST_ID,
+    MAX_SEMANTIC_BEDS,
+    MIN_SEMANTIC_BEDS,
+)
 
 DEFAULT_DESIRED_BED_COUNT: Final = 4
-MAX_DESIRED_BED_COUNT: Final = 32
+MAX_DESIRED_BED_COUNT: Final = MAX_SEMANTIC_BEDS
+MIN_DESIRED_BED_COUNT: Final = MIN_SEMANTIC_BEDS
 
 
 class NestRepositoryConflictError(RuntimeError):
@@ -98,32 +103,21 @@ class SQLiteNestRepository:
             """,
             (DEFAULT_NEST_ID,),
         ).fetchone()
-        if (
-            row is not None
-            and int(row["desired_bed_count"]) < DEFAULT_DESIRED_BED_COUNT
-        ):
-            anchor_count = int(
-                self._connection.execute(
-                    "SELECT COUNT(*) FROM nest_anchors"
-                ).fetchone()[0]
+        if row is not None and int(row["desired_bed_count"]) < MIN_DESIRED_BED_COUNT:
+            self._connection.execute(
+                "UPDATE nest_config SET desired_bed_count = ? WHERE nest_id = ?",
+                (MIN_DESIRED_BED_COUNT, DEFAULT_NEST_ID),
             )
-            membership_count = int(
-                self._connection.execute(
-                    "SELECT COUNT(*) FROM nest_memberships"
-                ).fetchone()[0]
-            )
-            if anchor_count == 0 and membership_count == 0:
-                self._connection.execute(
-                    "UPDATE nest_config SET desired_bed_count = ? WHERE nest_id = ?",
-                    (DEFAULT_DESIRED_BED_COUNT, DEFAULT_NEST_ID),
-                )
 
     def set_desired_bed_count(self, bed_count: int) -> dict[str, int | None]:
-        bounded = max(1, min(MAX_DESIRED_BED_COUNT, int(bed_count)))
+        if not MIN_DESIRED_BED_COUNT <= int(bed_count) <= MAX_DESIRED_BED_COUNT:
+            raise ValueError(
+                f"bed_count 必须在 {MIN_DESIRED_BED_COUNT} 到 {MAX_DESIRED_BED_COUNT} 之间"
+            )
         self.ensure_default_config()
         self._connection.execute(
             "UPDATE nest_config SET desired_bed_count = ? WHERE nest_id = ?",
-            (bounded, DEFAULT_NEST_ID),
+            (int(bed_count), DEFAULT_NEST_ID),
         )
         return self.config_summary()
 

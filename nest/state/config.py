@@ -27,7 +27,7 @@ class NestConfig:
     def __post_init__(self) -> None:
         if not self.nest_id.strip():
             raise NestConfigError("nest_id 不能为空")
-        if not 1 <= self.bed_count <= 32:
-            raise NestConfigError("bed_count 必须在 1 到 32 之间")
+        if not 4 <= self.bed_count <= 32:
+            raise NestConfigError("bed_count 必须在 4 到 32 之间")
         if self.max_residents is not None and self.max_residents < 1:
             raise NestConfigError("max_residents 必须大于零")

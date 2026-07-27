@@ -168,8 +168,9 @@ export class RuntimeSupervisor {
       env: {
         ...process.env,
         ELFIE_HOME: this.config.dataRoot,
+        ELFIENEST_GODOT_WEB_DIR: this.config.godotWebDirectory,
         ELFIENEST_WEB_BUILD_DIR: this.config.webBuildDirectory,
-        OLLAMA_MODELS: `${this.config.dataRoot}/models`,
+        ELFIENEST_RUNTIME_MODE: this.config.runtimeMode,
         ELFIENEST_SUPERVISED: "1",
         ELFIENEST_GODOT_NONCE: this.godotNonce ?? "",
         ELFIENEST_GODOT_CAMERA_TOKEN: this.godotCameraToken ?? "",
@@ -191,10 +192,7 @@ export class RuntimeSupervisor {
 
   private async startOptionalOllama(): Promise<void> {
     try {
-      if (this.config.manageOllama) {
-        this.update("ollama", "starting");
-        this.startProcess("ollama", this.config.ollamaExecutable, ["serve"]);
-      }
+      this.update("ollama", "starting");
       await this.waitForHttp(this.config.ollamaUrl, "/api/tags");
       this.update("ollama", "ready");
     } catch (error: unknown) {

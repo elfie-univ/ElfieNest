@@ -27,7 +27,7 @@ def copy_bootstrap(project_root: Path) -> Path:
     return scripts_dir
 
 
-def prepare_prod_runtime(project_root: Path, *, godot_web: bool = True) -> None:
+def prepare_build_runtime(project_root: Path, *, godot_web: bool = True) -> None:
     (project_root / ".python-version").write_text("3.9.25\n", encoding="utf-8")
     (project_root / "build/web").mkdir(parents=True)
     (project_root / "build/web/manifest.json").write_text("{}\n", encoding="utf-8")
@@ -40,6 +40,10 @@ def prepare_prod_runtime(project_root: Path, *, godot_web: bool = True) -> None:
             runtime_file.write_text("runtime\n", encoding="utf-8")
     make_executable(project_root / ".venv/bin/python3")
     make_executable(project_root / ".venv/bin/python")
+    make_executable(
+        project_root / ".fake-bin/godot4",
+        "#!/bin/sh\necho '4.7.1.stable'\n",
+    )
 
 
 def run_bootstrap(
@@ -47,16 +51,19 @@ def run_bootstrap(
     project_root: Path,
     elfie_home: Path,
     *,
-    path: str = "/usr/bin:/bin:/usr/sbin:/sbin",
+    path: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    effective_path = (
+        path or f"{project_root / '.fake-bin'}:/usr/bin:/bin:/usr/sbin:/sbin"
+    )
     return subprocess.run(
-        ["bash", str(scripts_dir / "bootstrap.sh"), "report", "--tier=prod"],
+        ["bash", str(scripts_dir / "bootstrap.sh"), "report", "--tier=build"],
         cwd=project_root,
         env={
             **os.environ,
             "ELFIE_HOME": str(elfie_home),
             "HOME": str(elfie_home.parent / "home"),
-            "PATH": path,
+            "PATH": effective_path,
         },
         capture_output=True,
         text=True,

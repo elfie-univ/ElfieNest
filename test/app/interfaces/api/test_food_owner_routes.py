@@ -3,10 +3,10 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-from app.interfaces.api.app import create_app
-from app.infrastructure.persistence.store import init_db
 from ai_runtime.food.evidence import ModelEvidenceStore
 from ai_runtime.food.planner import ModelEvidence
+from app.infrastructure.persistence.store import init_db
+from app.interfaces.api.app import create_app
 
 from ._helpers import create_test_owner
 
@@ -39,10 +39,15 @@ def client(tmp_path, paths):
     with (
         patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
         patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-        patch("app.interfaces.api.food_owner_routes._FOOD_CATALOG_PATH", paths["catalog"]),
-        patch("app.interfaces.api.food_owner_routes._FOOD_HISTORY_DIR", paths["history"]),
         patch(
-            "app.interfaces.api.food_owner_routes._MODEL_EVIDENCE_PATH", paths["evidence"]
+            "app.interfaces.api.food_owner_routes._FOOD_CATALOG_PATH", paths["catalog"]
+        ),
+        patch(
+            "app.interfaces.api.food_owner_routes._FOOD_HISTORY_DIR", paths["history"]
+        ),
+        patch(
+            "app.interfaces.api.food_owner_routes._MODEL_EVIDENCE_PATH",
+            paths["evidence"],
         ),
     ):
         app = create_app(engine=None, db_path=db_path, ws_port=9876)
@@ -128,3 +133,20 @@ def test_food_can_be_edited_without_separate_expert_mode(client):
 
     assert response.status_code == 200, response.text
     assert response.json()["food"]["source"] == "manual"
+
+
+def test_food_api_rejects_a_bare_model_reference(client):
+    headers = auth(client)
+
+    response = client.put(
+        "/api/owner/runtime/foods/standard",
+        json={
+            "display_name": "标准粮",
+            "description": "人工调整",
+            "primary": {"model": "qwen2.5:0.5b"},
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+    assert "provider_id/model_id" in response.json()["detail"]

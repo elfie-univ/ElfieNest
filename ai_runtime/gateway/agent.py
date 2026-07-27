@@ -27,6 +27,7 @@ from ai_runtime.gateway.request import (
 )
 from ai_runtime.gateway.skills_prompt import inject_skills_system_prompt
 from ai_runtime.gateway.streaming import RuntimeStreamRequest, stream_runtime_response
+from ai_runtime.models.model_reference import parse_model_reference
 from ai_runtime.models.registry import ModelRegistry
 from ai_runtime.policy.food_policy import RuntimeTaskType, task_type_from_prompt
 from ai_runtime.providers.ollama import OllamaManager
@@ -161,9 +162,7 @@ class RuntimeAgent:
         """返回完整执行结果，调用者仍只提交粮食语义和任务上下文。"""
         self._reload_config_if_changed()
         enabled_tools = set(enabled_tool_keys(self.config.runtime_policy))
-        tools = tuple(
-            tool for tool in (allowed_skills or ()) if tool in enabled_tools
-        )
+        tools = tuple(tool for tool in (allowed_skills or ()) if tool in enabled_tools)
         request = RuntimeRequest(
             prompt=prompt,
             energy=energy,
@@ -244,11 +243,11 @@ class RuntimeAgent:
 
     @staticmethod
     def _provider_for_model(model_key: str) -> str:
-        return model_key.split("/", 1)[0] if "/" in model_key else "ollama"
+        return parse_model_reference(model_key).provider_id
 
     @staticmethod
     def _model_name(model_key: str) -> str:
-        return model_key.split("/", 1)[1] if "/" in model_key else model_key
+        return parse_model_reference(model_key).model_id
 
     @staticmethod
     def _structured_request_options(

@@ -163,8 +163,11 @@ GodotBuildCommandRunner = Callable[[list[str]], GodotBuildCommandResult]
 def prepare_godot_web_runtime(
     runtime_mode: str,
     run_command: GodotBuildCommandRunner = subprocess.run,
+    is_frozen: bool = bool(getattr(sys, "frozen", False)),
 ) -> bool:
     """按运行模式确保或校验 Godot Web Runtime，返回是否可用。"""
+    if runtime_mode == "release" and is_frozen:
+        return True
     action = "--ensure" if runtime_mode == "development" else "--check"
     command = [
         sys.executable,

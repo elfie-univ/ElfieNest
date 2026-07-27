@@ -24,6 +24,7 @@ emit_bootstrap_report() {
     local python_state
     local node_state
     local frontend_state
+    local godot_toolchain_state
     local godot_state
     local ollama_state
     local elfie_home_state
@@ -33,13 +34,14 @@ emit_bootstrap_report() {
 
     python_state="$(bootstrap_component_state check_python)"
     frontend_state="$(bootstrap_component_state check_frontend)"
+    godot_toolchain_state="$(bootstrap_component_state check_godot_toolchain)"
     godot_state="$(bootstrap_component_state check_godot_web)"
     ollama_state="$(ollama_capability_state)"
     elfie_home_state="$(bootstrap_component_state check_elfie_home)"
     node_state="$(bootstrap_component_state check_node)"
     electron_state="$(bootstrap_component_state check_electron)"
 
-    if [[ "$python_state" == "missing" || "$frontend_state" == "missing" || "$godot_state" == "missing" ]]; then
+    if [[ "$python_state" == "missing" || "$frontend_state" == "missing" || "$godot_toolchain_state" == "missing" || "$godot_state" == "missing" ]]; then
         overall_state="failed"
         exit_code=1
     fi
@@ -47,11 +49,7 @@ emit_bootstrap_report() {
         overall_state="failed"
         exit_code=1
     fi
-    if [[ "$TIER" == "prod" && "$elfie_home_state" == "missing" ]]; then
-        overall_state="failed"
-        exit_code=1
-    fi
-    if [[ "$overall_state" == "ready" && "$ollama_state" == "fallback" ]]; then
+    if [[ "$overall_state" == "ready" && "$ollama_state" == "optional_missing" ]]; then
         overall_state="degraded"
     fi
 
@@ -66,11 +64,13 @@ emit_bootstrap_report() {
     printf ',\n'
     bootstrap_report_component "frontend" true "$frontend_state"
     printf ',\n'
+    bootstrap_report_component "godot_toolchain" true "$godot_toolchain_state"
+    printf ',\n'
     bootstrap_report_component "godot_web" true "$godot_state"
     printf ',\n'
     bootstrap_report_component "ollama" false "$ollama_state"
     printf ',\n'
-    bootstrap_report_component "elfie_home" "$([[ "$TIER" == "prod" ]] && printf true || printf false)" "$elfie_home_state"
+    bootstrap_report_component "elfie_home" false "$elfie_home_state"
     printf ',\n'
     bootstrap_report_component "electron" "$([[ "$TIER" == "dev" ]] && printf true || printf false)" "$electron_state"
     printf '\n  }\n'

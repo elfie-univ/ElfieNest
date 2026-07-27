@@ -18,10 +18,12 @@ test("desktop opens the login page and resolves the Core at the packaged manifes
 
     assert.equal(config.uiUrl, "http://127.0.0.1:8000/login");
     assert.equal(config.coreExecutable, core);
-    assert.equal(config.ollamaExecutable, join(resources, "ollama", "ollama"));
+    assert.equal(config.ollamaUrl, "http://127.0.0.1:11434");
     assert.equal(config.webBuildDirectory, join(resources, "web"));
+    assert.equal(config.godotWebDirectory, join(resources, "godot-web"));
     assert.deepEqual(config.coreArgs, ["--lan"]);
     assert.equal(config.coreWorkingDirectory, join(root, "data"));
+    assert.equal(config.runtimeMode, "release");
     assert.equal(config.ollamaOptional, true);
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -35,6 +37,7 @@ test("desktop environment overrides retain the explicit UI and Core launch contr
       {
         ELFIENEST_CORE_BIN: "/custom/core",
         ELFIENEST_CORE_CWD: "/custom/workdir",
+        ELFIENEST_GODOT_WEB_DIR: "/custom/godot-web",
         ELFIENEST_WEB_BUILD_DIR: "/custom/web",
         ELFIENEST_UI_URL: "http://127.0.0.1:8010/login",
       },
@@ -46,8 +49,41 @@ test("desktop environment overrides retain the explicit UI and Core launch contr
     assert.equal(config.uiUrl, "http://127.0.0.1:8010/login");
     assert.equal(config.coreExecutable, "/custom/core");
     assert.equal(config.webBuildDirectory, "/custom/web");
+    assert.equal(config.godotWebDirectory, "/custom/godot-web");
     assert.deepEqual(config.coreArgs, ["scripts/serve.py", "--lan"]);
     assert.equal(config.coreWorkingDirectory, "/custom/workdir");
+    assert.equal(config.runtimeMode, "development");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("desktop forwards isolated service ports to the packaged Core", () => {
+  const root = mkdtempSync(join(tmpdir(), "elfienest-supervisor-config-"));
+  const resources = join(root, "resources");
+  const core = join(resources, "python-core", "ElfieNestCore");
+  mkdirSync(join(resources, "python-core"), { recursive: true });
+  writeFileSync(core, "core");
+
+  try {
+    const config = resolveSupervisorConfig(
+      {
+        ELFIENEST_CORE_PORT: "18899",
+        ELFIENEST_GODOT_WS_PORT: "18898",
+        ELFIENEST_UI_URL: "http://127.0.0.1:18899/login",
+        ELFIENEST_WS_PORT: "18897",
+      },
+      resources,
+      root,
+      "darwin",
+    );
+
+    assert.deepEqual(config.coreArgs, [
+      "--lan",
+      "--port", "18899",
+      "--ws-port", "18897",
+      "--godot-ws-port", "18898",
+    ]);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

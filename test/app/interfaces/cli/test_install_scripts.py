@@ -47,6 +47,7 @@ def test_installer_no_argument_invocation_completes_user_install_in_isolated_hom
             "FAKE_UV_LOG": str(uv_log),
             "HOME": str(home),
             "PATH": f"{fake_bin}:{home / '.local' / 'bin'}:/usr/bin:/bin",
+            "ELFIENEST_TEST_APPLICATIONS_ROOT": str(home / "Applications"),
         }
     )
 
@@ -102,14 +103,18 @@ def test_install_script_delegates_locked_environment_sync_to_bootstrap() -> None
     )
 
     # When
-    delegates_prod_install = 'bootstrap.sh" ensure --tier=prod' in install_script
-    uses_locked_uv = '"$uv_bin" sync' in bootstrap_script and "--locked" in bootstrap_script
+    delegates_build_install = 'bootstrap.sh" ensure --tier=build' in install_script
+    uses_locked_uv = (
+        '"$uv_bin" sync' in bootstrap_script and "--locked" in bootstrap_script
+    )
 
     # Then
-    assert delegates_prod_install
+    assert delegates_build_install
     assert uses_locked_uv
     assert ".python-version" in bootstrap_script
     assert "requirements.txt" not in install_script + bootstrap_script
+    assert "--source-install-artifact-output" in install_script
+    assert "--artifact-output" not in install_script
 
 
 def test_installer_exposes_elfienest_and_safely_migrates_legacy_wrapper(
@@ -148,6 +153,7 @@ def test_installer_exposes_elfienest_and_safely_migrates_legacy_wrapper(
             "FAKE_UV_LOG": str(uv_log),
             "HOME": str(home),
             "PATH": f"{fake_bin}:{local_bin}:{home_bin}:/usr/bin:/bin",
+            "ELFIENEST_TEST_APPLICATIONS_ROOT": str(home / "Applications"),
         }
     )
 
@@ -239,9 +245,12 @@ def test_elfienest_entrypoint_delegates_development_dependencies_to_bootstrap() 
 
     # When
     uses_bootstrap = 'scripts/bootstrap.sh" ensure --tier=dev' in script
+    checks_before_ensure = 'scripts/bootstrap.sh" report --tier=dev' in script
 
     # Then
     assert uses_bootstrap
+    assert checks_before_ensure
+    assert "首次准备，正在安装" in script
     assert "--env-only" not in script
     assert "serve)" in script
     assert "serve|server)" not in script

@@ -95,18 +95,22 @@ def test_bed_count_updates_desired_state_not_python_bed_geometry(
     assert rooms[0]["beds"] == []
 
 
-def test_bed_count_clamps_to_semantic_runtime_limit(client: TestClient) -> None:
+@pytest.mark.parametrize("bed_count", [1, 3, 33, 64])
+def test_bed_count_rejects_values_outside_production_range(
+    client: TestClient,
+    bed_count: int,
+) -> None:
     tokens = _login_owner(client)
     headers = _headers(tokens["csrf_token"])
 
     resp = client.put(
         "/api/owner/nest/rooms/default/bed-count",
-        json={"bed_count": 64},
+        json={"bed_count": bed_count},
         headers=headers,
     )
 
-    assert resp.status_code == 200
-    assert resp.json()["desired_bed_count"] == 32
+    assert resp.status_code == 422
+    assert "4 到 32" in resp.text
 
 
 def test_create_room_and_coordinate_update_are_gone(client: TestClient) -> None:
@@ -132,19 +136,24 @@ def test_runtime_manifest_bed_anchors_are_visible_without_grid_fields(
     client: TestClient,
     db_path: str,
 ) -> None:
-    _seed_manifest(db_path, bed_count=2)
+    _seed_manifest(db_path, bed_count=4)
     tokens = _login_owner(client)
 
     resp = client.get("/api/owner/nest/rooms", headers=_headers(tokens["csrf_token"]))
 
     assert resp.status_code == 200
     beds = resp.json()[0]["beds"]
-    assert [bed["anchor_id"] for bed in beds] == ["dorm-01/bed-01", "dorm-01/bed-02"]
+    assert [bed["anchor_id"] for bed in beds] == [
+        "dorm-01/bed-01",
+        "dorm-01/bed-02",
+        "dorm-01/bed-03",
+        "dorm-01/bed-04",
+    ]
     assert all("grid_x" not in bed and "grid_y" not in bed for bed in beds)
 
 
 def test_assign_home_rejects_occupied_bed(client: TestClient, db_path: str) -> None:
-    _seed_manifest(db_path, bed_count=1)
+    _seed_manifest(db_path, bed_count=4)
     _seed_elfie(db_path, "fox-1")
     _seed_elfie(db_path, "dog-1")
     tokens = _login_owner(client)
@@ -170,7 +179,7 @@ def test_user_room_view_redacts_another_users_occupant(
     client: TestClient,
     db_path: str,
 ) -> None:
-    _seed_manifest(db_path, bed_count=1)
+    _seed_manifest(db_path, bed_count=4)
     create_test_user(db_path, "alice", "pass123")
     create_test_user(db_path, "bob", "bobpass")
     _seed_elfie(db_path, "bob-fox", owner_username="bob")

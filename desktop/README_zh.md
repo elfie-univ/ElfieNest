@@ -11,23 +11,20 @@
 `src/platform/supervisor_config.ts` 解析开发态或安装包内的运行资源。
 `RuntimeSupervisor` 的启动顺序是：
 
-1. 启动或连接 Ollama，并等待 `/api/tags` 可用；
-2. 启动 Python Core，并等待 `/api/health` 可用；
-3. 在隐藏的、关闭后台节流的 `BrowserWindow` 中加载 Godot Web Runtime，
+1. 启动 Python Core，并等待 `/api/health` 可用；
+2. 在隐藏的、关闭后台节流的 `BrowserWindow` 中加载 Godot Web Runtime，
    注入本次启动生成的 runtime nonce 与 camera token，等待握手完成；
 4. 打开同源 `/login` 登录窗口；登录后由 Core 按角色跳转到 `/chat` 或 `/manage`。
 
-退出时先关闭隐藏 Godot Runtime，再停止 Python Core 和由 Desktop 管理的
-Ollama。任一组件启动失败都会停止已经启动的组件，并显示归因到具体组件的错误
-窗口。设置 `ELFIENEST_OLLAMA_EXTERNAL=1` 时，Desktop 不创建 Ollama 进程，但仍
-会等待配置的 Ollama 地址可用。
+退出时先关闭隐藏 Godot Runtime，再停止 Python Core。任一组件启动失败都会停止
+已经启动的组件，并显示归因到具体组件的错误窗口。Desktop 不打包、启动或切换
+Ollama；Setup 只会可选地绑定一个公共 endpoint。
 
 ## 资源发现
 
 开发态可以通过以下环境变量显式指定资源，不需要把本机调试程序复制进源码：
 
 - `ELFIENEST_CORE_BIN`、`ELFIENEST_CORE_CWD`：Python Core 程序与工作目录；
-- `ELFIENEST_OLLAMA_BIN`、`ELFIENEST_OLLAMA_URL`：Ollama 程序与服务地址；
 - `ELFIENEST_UI_URL`、`ELFIENEST_GODOT_URL`：管理界面与 Godot Web 入口；
 - `ELFIE_HOME`：本次桌面运行使用的数据目录。
 
@@ -40,7 +37,7 @@ Ollama。任一组件启动失败都会停止已经启动的组件，并显示�
 - `linux-x64`
 
 每个 target 必须包含 Godot Web 的 `html/js/wasm/pck`、三个产品页面的 Vite `web/`
-构建产物、对应平台的 Python Core 和 Ollama 可执行文件。Python Core 在安装包内以
+构建产物、对应平台的 Python Core 和管理 CLI。Python Core 在安装包内以
 `python-core/ElfieNestCore`（Windows 为 `.exe`）被解析，并通过
 `ELFIENEST_WEB_BUILD_DIR` 读取 `web/`；二者必须与资源清单采用同一相对路径。
 `src/resources/resource_manifest.ts` 会记录文件大小和 SHA-256，并拒绝缺失资源。完整 staging 约定见

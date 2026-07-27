@@ -100,7 +100,7 @@ def test_v6_legacy_nest_layout_migrates_to_semantic_tables(tmp_path: Path) -> No
 
     # Then
     with _connect(db_path) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 11
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 13
         assert _table_exists(connection, "nest_config")
         assert _table_exists(connection, "nest_home_assignments")
         anchors = connection.execute(
@@ -150,6 +150,9 @@ def test_v6_multiple_rooms_migrate_without_losing_assignments(
         homes = connection.execute(
             "SELECT elfie_id, home_anchor_id FROM nest_home_assignments ORDER BY elfie_id"
         ).fetchall()
+        desired_bed_count = connection.execute(
+            "SELECT desired_bed_count FROM nest_config WHERE nest_id = 'local-nest'"
+        ).fetchone()[0]
     assert [row["zone_id"] for row in zones] == [
         "legacy-room-10",
         "legacy-room-20",
@@ -158,6 +161,7 @@ def test_v6_multiple_rooms_migrate_without_losing_assignments(
         ("dog-1", "legacy-room-20/bed-7"),
         ("fox-1", "legacy-room-10/bed-1"),
     ]
+    assert desired_bed_count == 4
 
 
 def test_legacy_app_v9_database_still_receives_semantic_nest_migration(
@@ -179,7 +183,7 @@ def test_legacy_app_v9_database_still_receives_semantic_nest_migration(
         home = connection.execute(
             "SELECT elfie_id, home_anchor_id FROM nest_home_assignments"
         ).fetchone()
-    assert version == 11
+    assert version == 13
     assert "default_landing_page" in {row["name"] for row in landing_column}
     assert home["elfie_id"] == "fox-1"
     assert home["home_anchor_id"] == "legacy-room-10/bed-1"

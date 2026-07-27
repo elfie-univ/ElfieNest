@@ -33,5 +33,48 @@ def test_manifest_validation_rejects_a_manifest_that_omits_required_godot_files(
     (resources / "manifest.json").write_text(json.dumps(payload), encoding="utf-8")
 
     # When/Then: an incomplete product runtime cannot reach electron packaging.
-    with pytest.raises(release_manifest.ReleaseResourceManifestError, match="godot-web"):
+    with pytest.raises(
+        release_manifest.ReleaseResourceManifestError, match="godot-web"
+    ):
         release_manifest.validate_release_resources(resources)
+
+
+def test_manifest_validation_accepts_runtime_without_a_bundled_ollama_binary(
+    tmp_path: Path,
+) -> None:
+    # Given: every portable application resource, with no machine-level model service.
+    resources = tmp_path / "resources"
+    target = "darwin-arm64"
+    contents = {
+        "web/index.html": b"shell",
+        "web/manifest.json": b"{}",
+        "godot-web/elfienest.html": b"html",
+        "godot-web/elfienest.js": b"js",
+        "godot-web/elfienest.wasm": b"wasm",
+        "godot-web/elfienest.pck": b"pck",
+        "python-core/ElfieNestCore": b"core",
+        "management-cli/ElfieNestCli": b"cli",
+    }
+    files = {}
+    for relative, data in contents.items():
+        path = resources / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        files[relative] = {
+            "size": len(data),
+            "sha256": hashlib.sha256(data).hexdigest(),
+        }
+    (resources / "manifest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "application_version": "0.1.0",
+                "target": target,
+                "files": files,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    # When/Then: validation treats public Ollama binding as setup state, not a package file.
+    release_manifest.validate_release_resources(resources)

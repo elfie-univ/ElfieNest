@@ -231,6 +231,8 @@ class LLMRuntimeConfig:
                     saved_cfg["providers"], dict
                 ):
                     for provider, info in saved_cfg["providers"].items():
+                        if not isinstance(provider, str) or not isinstance(info, dict):
+                            continue
                         if provider not in self.providers:
                             self.providers[provider] = {}
                         if "api_key" in info:
@@ -258,6 +260,12 @@ class LLMRuntimeConfig:
                             self.providers[provider]["api_key_env"] = info[
                                 "api_key_env"
                             ]
+                        if provider == "ollama" and isinstance(
+                            info.get("installation"), dict
+                        ):
+                            self.providers[provider]["installation"] = copy.deepcopy(
+                                info["installation"]
+                            )
 
                 # 更新其他字段属性（system 键深层合并，其余直接覆盖）
                 explicit_defaults = {

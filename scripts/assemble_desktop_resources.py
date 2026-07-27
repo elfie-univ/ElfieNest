@@ -7,11 +7,8 @@ import argparse
 import hashlib
 import json
 import shutil
-import tarfile
-import tempfile
-import zipfile
 from pathlib import Path
-from typing import Final, Iterable, Mapping, Sequence
+from typing import Final, Iterable, Mapping
 
 from scripts import check_release_version, package_python_core
 
@@ -52,87 +49,17 @@ def _copy_directory(source: Path, destination: Path, component: str) -> None:
     shutil.copytree(source, destination)
 
 
-def _safe_members(archive: tarfile.TarFile) -> Sequence[tarfile.TarInfo]:
-    members = archive.getmembers()
-    for member in members:
-        member_path = Path(member.name)
-        if member.islnk() or member_path.is_absolute() or ".." in member_path.parts:
-            raise ResourceAssemblyError(f"ollama-archive-unsafe-member path={member.name}")
-        if member.issym():
-            link_path = Path(member.linkname)
-            if link_path.is_absolute() or ".." in link_path.parts:
-                raise ResourceAssemblyError(
-                    f"ollama-archive-unsafe-link path={member.name} link={member.linkname}"
-                )
-    return members
-
-
-def _extract_ollama_archive(archive: Path, destination: Path, executable: str) -> None:
-    with tempfile.TemporaryDirectory(prefix="elfienest-ollama-") as temporary:
-        extracted = Path(temporary)
-        if archive.suffix == ".zip":
-            with zipfile.ZipFile(archive) as bundle:
-                for member in bundle.infolist():
-                    if Path(member.filename).is_absolute() or ".." in Path(member.filename).parts:
-                        raise ResourceAssemblyError(
-                            f"ollama-archive-unsafe-member path={member.filename}"
-                        )
-                bundle.extractall(extracted)
-        elif archive.name.endswith((".tgz", ".tar.gz")):
-            with tarfile.open(archive, "r:gz") as bundle:
-                bundle.extractall(extracted, members=_safe_members(bundle))
-        elif archive.name.endswith(".tar.zst"):
-            _extract_zstd_tar(archive, extracted)
-        else:
-            raise ResourceAssemblyError(
-                f"ollama-archive-format-unsupported path={archive.name}"
-            )
-        candidates = sorted(path for path in extracted.rglob(executable) if path.is_file())
-        if len(candidates) != 1:
-            raise ResourceAssemblyError(
-                f"ollama-archive-executable-invalid executable={executable} count={len(candidates)}"
-            )
-        source_executable = candidates[0]
-        destination.mkdir(parents=True, exist_ok=True)
-        for child in extracted.iterdir():
-            _copy_path(child, destination / child.name)
-        shutil.copy2(source_executable, destination / executable)
-
-
-def _extract_zstd_tar(archive: Path, destination: Path) -> None:
-    try:
-        import zstandard
-    except ImportError as error:
-        raise ResourceAssemblyError("ollama-zstd-dependency-missing") from error
-    with archive.open("rb") as source:
-        with zstandard.ZstdDecompressor().stream_reader(source) as reader:
-            with tarfile.open(fileobj=reader, mode="r|") as bundle:
-                for member in bundle:
-                    if (
-                        member.islnk()
-                        or member.issym()
-                        or Path(member.name).is_absolute()
-                        or ".." in Path(member.name).parts
-                    ):
-                        raise ResourceAssemblyError(
-                            f"ollama-archive-unsafe-member path={member.name}"
-                        )
-                    bundle.extract(member, destination)
-
-
-def _copy_path(source: Path, destination: Path) -> None:
-    if source.is_dir():
-        shutil.copytree(source, destination)
-    else:
-        shutil.copy2(source, destination)
-
-
 def _manifest_files(root: Path) -> Mapping[str, Mapping[str, object]]:
     files: dict[str, Mapping[str, object]] = {}
-    for path in sorted(candidate for candidate in root.rglob("*") if candidate.is_file()):
+    for path in sorted(
+        candidate for candidate in root.rglob("*") if candidate.is_file()
+    ):
         relative = path.relative_to(root).as_posix()
         data = path.read_bytes()
-        files[relative] = {"size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+        files[relative] = {
+            "size": len(data),
+            "sha256": hashlib.sha256(data).hexdigest(),
+        }
     return files
 
 
@@ -155,18 +82,11 @@ def assemble_resources(
     godot_source: Path,
     core_source: Path,
     cli_source: Path,
-    ollama_archive: Path,
-    ollama_source: package_python_core.OllamaSource,
     application_version: str,
 ) -> Path:
     """Build one atomic flat resource root from validated component inputs."""
     if target not in package_python_core.TARGETS:
         raise ResourceAssemblyError(f"resource-target-unsupported target={target}")
-    if ollama_source.target != target:
-        raise ResourceAssemblyError(
-            f"ollama-source-target-mismatch target={target} source_target={ollama_source.target}"
-        )
-    package_python_core.verify_ollama_source(ollama_archive, ollama_source)
     _require_files(web_source, REQUIRED_WEB_FILES, "web")
     _require_files(godot_source, REQUIRED_GODOT_FILES, "godot-web")
     core_name = _target_executable(target, "ElfieNestCore")
@@ -192,11 +112,6 @@ def assemble_resources(
         cli_destination = staging / "resources" / "management-cli"
         cli_destination.mkdir(parents=True, exist_ok=True)
         shutil.copy2(cli_source, cli_destination / cli_name)
-        _extract_ollama_archive(
-            ollama_archive,
-            staging / "resources" / "ollama",
-            _target_executable(target, "ollama"),
-        )
         _write_manifest(staging / "resources", application_version, target)
         shutil.rmtree(target_root, ignore_errors=True)
         staging.replace(target_root)
@@ -215,16 +130,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--godot-source", type=Path, default=DEFAULT_GODOT_SOURCE)
     parser.add_argument("--core-source", type=Path)
     parser.add_argument("--cli-source", type=Path)
-    parser.add_argument("--ollama-archive", type=Path, required=True)
     return parser.parse_args()
 
 
 def main() -> int:
-    """Assemble a staging tree after resolving its immutable sidecar source."""
+    """Assemble portable application resources for one native target."""
     args = parse_args()
     target = str(args.target)
     try:
-        source = package_python_core.load_ollama_sources().for_target(target)
         core_source = args.core_source or (
             PROJECT_ROOT
             / "build"
@@ -246,13 +159,10 @@ def main() -> int:
             godot_source=args.godot_source,
             core_source=core_source,
             cli_source=cli_source,
-            ollama_archive=args.ollama_archive,
-            ollama_source=source,
             application_version=check_release_version.project_version(),
         )
     except (
         ResourceAssemblyError,
-        package_python_core.OllamaSourceError,
         check_release_version.ReleaseVersionError,
         OSError,
     ) as error:

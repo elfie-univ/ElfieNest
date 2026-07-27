@@ -5,12 +5,13 @@
 先按 uv 官方说明安装，再重新运行：
 
 ```bash
-./install.sh --env-only
+./elfienest.sh
 ```
 
 ## Python 版本不对
 
-项目固定使用 CPython `3.9.25`。不要复用其他虚拟环境，重新运行安装器即可。
+项目固定使用 CPython `3.9.25`。不要复用其他虚拟环境；源码开发运行
+`./elfienest.sh`，完整安装当前机器应用运行 `./install.sh`。
 
 ## 端口已被占用
 
@@ -30,13 +31,9 @@
 
 ## 模型连接失败
 
-先用回退模式验证基础链路：
-
-```bash
-./elfienest.sh serve --fallback
-```
-
-如果回退模式正常，再检查 Ollama 地址、Provider 配置和环境变量。
+Ollama 是可选能力。若在 Setup 中选择了它，请检查已保存的唯一 Ollama endpoint
+及其 Provider 配置；不要扫描并切换到另一个本地服务。也可以在 Setup 中跳过它或
+配置其他 Provider。
 
 ## 数据目录异常
 

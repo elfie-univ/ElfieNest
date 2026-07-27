@@ -1,6 +1,6 @@
 extends SceneTree
 
-const BED_COUNTS := [1, 4, 5, 16, 32]
+const BED_COUNTS := [4, 5, 16, 32]
 const WORLD_RUNTIME_CONTROLLER := preload("res://runtime/world_controller.gd")
 
 func _init() -> void:
@@ -103,7 +103,7 @@ func _init() -> void:
 		quit(1)
 		return
 
-	for invalid_bed_count in [0, 33]:
+	for invalid_bed_count in [0, 1, 3, 33]:
 		var invalid := nest.apply_world_config({
 			"nest_id": "test-nest",
 			"bed_count": invalid_bed_count,

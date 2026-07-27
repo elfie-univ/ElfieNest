@@ -35,8 +35,8 @@ AI 精灵项目，仓库同时包含 Python Core、Electron 桌面宿主、Godot
 Python 固定为 CPython 3.9.25，依赖以 `uv.lock` 为准。前端使用 Node.js 20+ 和 pnpm。
 所有依赖由 `scripts/bootstrap.sh` 统一编排，分两种模式：
 
-- **dev（贡献者）**：Python dev + 前端 + Godot web + Ollama + Electron dev deps
-- **prod（使用者）**：Python runtime + 前端产物 + Godot web 产物 + Ollama
+- **dev（贡献者）**：Python dev + 前端 + Godot 编辑器/Web Export + Electron dev deps
+- **build（源码/安装包构建）**：当前原生 target 的发行工具链
 
 ### 开发者快速启动
 
@@ -46,7 +46,8 @@ Python 固定为 CPython 3.9.25，依赖以 `uv.lock` 为准。前端使用 Node
 ./elfienest.sh start        # 自动检测并补齐依赖，后台启动服务
 ```
 
-首次运行会自动安装所有依赖（Python、前端、Ollama）。后续运行会跳过已安装的依赖。
+首次运行会自动安装必需的开发依赖。公共 Ollama 是 Setup 中可选的明确选择，不能在
+bootstrap 阶段静默安装。
 
 ### 手动依赖管理
 

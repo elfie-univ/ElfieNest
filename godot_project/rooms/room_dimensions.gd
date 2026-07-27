@@ -7,6 +7,7 @@ const CLEAR_WIDTH: float = 5.5
 const WALL_THICKNESS: float = 0.1
 const WALL_HEIGHT: float = 3.0
 const MAX_BED_COUNT: int = 32
+const MIN_BED_COUNT: int = 4
 
 const ACTIVITY_DEPTH: float = 3.7
 const CORRIDOR_WIDTH: float = 3.0
@@ -31,7 +32,7 @@ const DORM_RUG_TRIM_COLOR := Color("#d6d2c9")
 
 
 static func room_count_for_beds(bed_count: int) -> int:
-	var bounded_bed_count := clampi(bed_count, 1, MAX_BED_COUNT)
+	var bounded_bed_count := clampi(bed_count, MIN_BED_COUNT, MAX_BED_COUNT)
 	return maxi(1, ceili(float(bounded_bed_count) / 4.0))
 
 

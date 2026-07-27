@@ -1,9 +1,7 @@
-"""Release packaging contracts for the frozen Core and Ollama sidecar."""
+"""Release packaging contracts for frozen Core and management CLI executables."""
 
 from __future__ import annotations
 
-import hashlib
-import subprocess
 import sys
 from pathlib import Path
 from typing import Sequence
@@ -98,71 +96,3 @@ def test_freeze_cli_builds_a_checkout_independent_management_executable(
     assert artifact == tmp_path / "ElfieNestCli"
     assert commands[0][-1] == str(PROJECT_ROOT / "scripts" / "elfienest.py")
     assert "ElfieNestCli" in commands[0]
-
-
-def test_ollama_provenance_pins_every_release_target_and_license() -> None:
-    # Given: the checked-in sidecar source registry.
-    registry = package_python_core.load_ollama_sources()
-
-    # When: each supported desktop target resolves its source contract.
-    sources = [registry.for_target(target) for target in package_python_core.TARGETS]
-
-    # Then: every source is immutable, official, and carries a local license notice.
-    assert {source.target for source in sources} == set(package_python_core.TARGETS)
-    assert all(source.url.startswith("https://github.com/ollama/ollama/releases/") for source in sources)
-    assert all(len(source.sha256) == 64 for source in sources)
-    assert all((PROJECT_ROOT / source.license_notice).is_file() for source in sources)
-    assert {source.version for source in sources} == {"0.32.3"}
-
-
-def test_verify_ollama_source_rejects_checksum_mismatch_before_staging(
-    tmp_path: Path,
-) -> None:
-    # Given: a source file whose bytes do not match its requested provenance.
-    source = tmp_path / "ollama-darwin.tgz"
-    source.write_bytes(b"not an Ollama release archive")
-    expected_sha256 = hashlib.sha256(b"trusted bytes").hexdigest()
-    provenance = package_python_core.OllamaSource(
-        target="darwin-arm64",
-        version="0.32.3",
-        url="https://github.com/ollama/ollama/releases/download/v0.32.3/ollama-darwin.tgz",
-        filename=source.name,
-        sha256=expected_sha256,
-        license_notice="desktop/packaging/third_party/ollama/LICENSE",
-    )
-
-    # When: staging asks to verify the downloaded source.
-    with pytest.raises(package_python_core.OllamaSourceChecksumError):
-        package_python_core.verify_ollama_source(source, provenance)
-
-    # Then: no derived sidecar or model data is created.
-    assert list(tmp_path.iterdir()) == [source]
-
-
-def test_verify_ollama_cli_returns_nonzero_for_an_intentional_checksum_mismatch(
-    tmp_path: Path,
-) -> None:
-    # Given: a file with a valid target filename but incorrect release bytes.
-    source = tmp_path / "ollama-darwin.tgz"
-    source.write_bytes(b"tampered")
-
-    # When: the source verification command is invoked.
-    result = subprocess.run(
-        [
-            sys.executable,
-            "scripts/package_python_core.py",
-            "verify-ollama",
-            "--target",
-            "darwin-arm64",
-            "--source",
-            str(source),
-        ],
-        cwd=PROJECT_ROOT,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-
-    # Then: it refuses the bytes before a later staging task can consume them.
-    assert result.returncode == 1
-    assert "ollama-source-checksum-mismatch" in result.stderr

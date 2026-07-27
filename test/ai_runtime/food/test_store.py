@@ -1,5 +1,8 @@
+import pytest
+
 from ai_runtime.food.models import ExecutionProfile, FoodRecipe
 from ai_runtime.food.store import FoodCatalog, FoodCatalogStore, fingerprint_source
+from ai_runtime.models.model_reference import ModelReferenceError
 
 
 def test_food_catalog_store_versions_and_detects_source_updates(tmp_path):
@@ -40,3 +43,22 @@ def test_food_catalog_store_versions_and_detects_source_updates(tmp_path):
     store.save(changed)
     restored = store.rollback_latest()
     assert restored.source_fingerprint == fingerprint
+
+
+def test_food_catalog_store_rejects_a_bare_model_on_new_write(tmp_path):
+    store = FoodCatalogStore(tmp_path / "foods.yaml", tmp_path / "history")
+    catalog = FoodCatalog(
+        recipes={
+            "standard": FoodRecipe(
+                key="standard",
+                display_name="标准粮",
+                description="",
+                primary=ExecutionProfile(model="qwen2.5:0.5b"),
+            )
+        }
+    )
+
+    with pytest.raises(ModelReferenceError, match="provider_id/model_id"):
+        store.save(catalog)
+
+    assert not store.path.exists()

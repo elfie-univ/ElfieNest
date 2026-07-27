@@ -71,16 +71,16 @@ ExecutionReceipt 回到感知工作区
 
 ## 快速开始
 
-当前最短路径使用固定的 CPython `3.9.25` 和 `uv.lock`：
+开发模式与安装是两件事。下载源码后，开发者使用固定的 CPython `3.9.25` 和
+`uv.lock`，通过下面的入口补齐开发依赖并进入交互菜单：
 
 ```bash
-./install.sh --env-only
 ./elfienest.sh version
 .venv/bin/python main.py
 ```
 
-`main.py` 会运行三次 tick 的本地演示。没有可用的 Ollama 服务时，Runtime 可以
-进入回退路径；这用于验证基本链路，不等同于完整模型体验。
+`main.py` 会运行三次 tick 的本地演示。Ollama 是可选的公共本地模型能力：没有它时，
+应用仍可完成 Setup 并使用其他已配置 Provider；不会静默下载私有 Ollama 或模型权重。
 
 如需安装当前用户可直接调用的 `elfienest` 命令：
 
@@ -91,6 +91,9 @@ elfienest version
 
 安装脚本只支持用户级安装，请不要使用 `root` 或 `sudo`。更完整的前提、错误处理
 和平台说明见[开始使用](docs/zh/getting-started/index.md)。
+
+手动原生安装包与未来的校验远程 bootstrap 会进入同一个安装后运行态。bootstrap
+契约已在本地验证，但正式 URL 尚未上线。
 
 ## 文档入口
 

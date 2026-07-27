@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from ai_runtime.food.models import FoodRecipe
+from ai_runtime.models.model_reference import ModelReferenceError, parse_model_reference
 from ai_runtime.storage.config_store import read_yaml_mapping, write_yaml_mapping
 from ai_runtime.storage.data_home import get_food_catalog_path, get_food_history_dir
 
@@ -66,6 +67,7 @@ class FoodCatalogStore:
         return FoodCatalog.from_dict(read_yaml_mapping(self.path))
 
     def save(self, catalog: FoodCatalog, *, keep_history: bool = True) -> None:
+        validate_food_catalog_model_references(catalog)
         if keep_history and self.path.exists():
             self._snapshot_current()
         payload = catalog.to_dict()
@@ -113,3 +115,19 @@ def fingerprint_source(data: Mapping[str, Any]) -> str:
         data, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     )
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def validate_food_catalog_model_references(catalog: FoodCatalog) -> None:
+    """Reject new food writes that leave provider selection implicit."""
+    for recipe in catalog.recipes.values():
+        profiles = [recipe.primary, recipe.deep, recipe.verifier]
+        profiles.extend(recipe.technical_fallbacks)
+        for profile in profiles:
+            if profile is None or not profile.model:
+                continue
+            try:
+                parse_model_reference(profile.model)
+            except ModelReferenceError as exc:
+                raise ModelReferenceError(
+                    f"粮食 '{recipe.key}' 的模型无效: {exc}"
+                ) from exc

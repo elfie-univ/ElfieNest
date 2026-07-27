@@ -100,7 +100,6 @@ def _required_paths(target: str) -> set[str]:
         *REQUIRED_GODOT_FILES,
         f"python-core/ElfieNestCore{executable_suffix}",
         f"management-cli/ElfieNestCli{executable_suffix}",
-        f"ollama/ollama{executable_suffix}",
     }
 
 

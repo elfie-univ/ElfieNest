@@ -12,6 +12,7 @@ from app.interfaces.api.camera_state import (
     DEFAULT_ROOM_ID,
     MAX_BED_COUNT,
     MAX_CAMERA_VIEWS,
+    MIN_BED_COUNT,
     CameraFeedStore,
 )
 
@@ -31,7 +32,9 @@ def _require_local_client(request: Request) -> None:
     host = request.client.host if request.client else ""
     expected_token = request.app.state.godot_camera_token
     provided_token = request.headers.get("X-ElfieNest-Godot-Token", "")
-    if host not in LOCAL_CLIENTS or not secrets.compare_digest(provided_token, expected_token):
+    if host not in LOCAL_CLIENTS or not secrets.compare_digest(
+        provided_token, expected_token
+    ):
         raise HTTPException(status_code=403, detail="摄像头上报接口仅允许本机访问")
 
 
@@ -66,9 +69,11 @@ async def publish_camera_status(
         active_index = int(body.get("active_index", 0))
         bed_count = int(body.get("bed_count"))
     except (TypeError, ValueError) as exc:
-        raise HTTPException(status_code=422, detail="active_index 和 bed_count 必须是整数") from exc
-    if bed_count < 1 or bed_count > MAX_BED_COUNT:
-        raise HTTPException(status_code=422, detail="bed_count 必须在 1 到 32 之间")
+        raise HTTPException(
+            status_code=422, detail="active_index 和 bed_count 必须是整数"
+        ) from exc
+    if bed_count < MIN_BED_COUNT or bed_count > MAX_BED_COUNT:
+        raise HTTPException(status_code=422, detail="bed_count 必须在 4 到 32 之间")
     _feed(request).update_status(labels, active_index, bed_count, room_id=room_id)
     return {"detail": "Camera status updated"}
 

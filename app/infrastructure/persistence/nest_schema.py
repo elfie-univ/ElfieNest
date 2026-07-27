@@ -7,6 +7,7 @@ from typing import Final
 
 DEFAULT_NEST_ID: Final = "local-nest"
 MAX_SEMANTIC_BEDS: Final = 32
+MIN_SEMANTIC_BEDS: Final = 4
 
 
 class NestSchemaMigrationError(RuntimeError):
@@ -26,7 +27,7 @@ def ensure_nest_semantic_tables(connection: sqlite3.Connection) -> None:
         """
         CREATE TABLE IF NOT EXISTS nest_config (
             nest_id TEXT PRIMARY KEY,
-            desired_bed_count INTEGER NOT NULL CHECK(desired_bed_count BETWEEN 1 AND 32),
+            desired_bed_count INTEGER NOT NULL CHECK(desired_bed_count BETWEEN 4 AND 32),
             applied_world_revision INTEGER,
             clock_anchor_seconds REAL NOT NULL DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -117,7 +118,7 @@ def migrate_legacy_nest_layout_to_semantic_tables(
     _validate_legacy_layout(connection)
     ensure_nest_semantic_tables(connection)
     bed_count = _legacy_bed_count(connection)
-    desired_bed_count = max(1, bed_count)
+    desired_bed_count = max(MIN_SEMANTIC_BEDS, bed_count)
     connection.execute(
         """
         INSERT OR IGNORE INTO nest_config

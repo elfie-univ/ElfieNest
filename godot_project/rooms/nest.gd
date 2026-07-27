@@ -34,9 +34,9 @@ const ACTIVITY_VIEW_LABELS := [
 	"图书室",
 ]
 
-@export_range(1, 32, 1) var bed_count: int = 16:
+@export_range(4, 32, 1) var bed_count: int = 16:
 	set(value):
-		bed_count = clampi(value, 1, D.MAX_BED_COUNT)
+		bed_count = clampi(value, D.MIN_BED_COUNT, D.MAX_BED_COUNT)
 		if is_inside_tree() and not _suppress_deferred_rebuild:
 			call_deferred("rebuild")
 
@@ -187,7 +187,7 @@ func apply_world_config(config: Dictionary) -> Dictionary:
 	if requested_nest_id.is_empty():
 		return _config_rejected("invalid_nest_id")
 	var requested_bed_count := _parse_protocol_integer(raw_bed_count)
-	if requested_bed_count < 1 or requested_bed_count > D.MAX_BED_COUNT:
+	if requested_bed_count < D.MIN_BED_COUNT or requested_bed_count > D.MAX_BED_COUNT:
 		return _config_rejected("invalid_bed_count")
 	var requested_revision := _parse_protocol_integer(raw_revision)
 	if requested_revision < 0:

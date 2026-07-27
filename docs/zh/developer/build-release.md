@@ -36,36 +36,25 @@ GitHub Pages 使用 `/ElfieNest/` base。Pull Request 只构建；只有经过�
 
 当前只构建内部测试安装包：版本固定为 `0.1.0`，不配置自动更新、不上传公开
 Release，也不打包任何模型权重。每个平台必须在对应原生 runner 上构建：macOS
-ARM64、macOS x64、Windows x64、Linux x64。Python Core 不能跨平台伪造，Ollama
-模型首次使用时才写入 `${ELFIE_HOME}/models/`。
+ARM64、macOS x64、Windows x64、Linux x64。安装包不包含 Ollama 引擎或模型，也不
+创建私有 sidecar；公共 Ollama 是 Setup 中可选的用户决策。
 
-构建顺序如下；所有中间物都在 `build/`，最终安装包只在 `dist/`：
+发布协调器始终请求完整四 target 矩阵：`darwin-arm64`、`darwin-x64`、`win32-x64`、
+`linux-x64`。每个 target 必须由匹配的原生 runner 构建并完成安装 smoke；缺少 runner
+只能报告 `incomplete`，不能伪造跨平台成功。所有中间物都在 `build/`，最终安装包只在
+`dist/`：
 
 ```bash
-# 1. 产品前端
-cd app/interfaces/web/frontend
-npx --yes pnpm@10.12.1 install --frozen-lockfile
-npx --yes pnpm@10.12.1 build
-cd ../../../..
+# 构建当前原生 target；只在本地 build/dist 生成，不上传或发布
+.venv/bin/python scripts/release.py --target darwin-x64
 
-# 2. 在当前目标平台冻结 Python Core
-uv sync --locked --extra release
-.venv/bin/python scripts/package_python_core.py freeze-core \
-  --target darwin-arm64 --output-dir build/python-core/darwin-arm64
-
-# 3. 导出 Godot Web（使用项目要求的 Godot 4.7 和 Web Export Templates）
-python3 scripts/build_godot_web.py
-
-# 4. 下载与清单中版本、SHA-256 对应的 Ollama archive 后，组装单 target staging
-.venv/bin/python scripts/assemble_desktop_resources.py \
-  --target darwin-arm64 \
-  --ollama-archive build/downloads/ollama/darwin-arm64/ollama-darwin.tgz
-
-# 5. 只生成当前 target 的 unsigned internal installer
-cd desktop
-ELFIENEST_TARGET=darwin-arm64 \
-  npx --yes pnpm@10.12.1 exec electron-builder --mac --arm64 --publish never
+# 请求完整矩阵；不可用 runner 保持 incomplete
+.venv/bin/python scripts/release.py
 ```
+
+每个安装包包含 Electron、前端、Godot Web、目标原生 Python Core 和管理 CLI。
+`./install.sh` 只构建当前机器 target，并安装到与手动原生安装包相同的 canonical
+layout。第三种安装方式“远程校验 bootstrap”已经做本地契约验证，但正式 URL 尚未上线。
 
 首次内测的 macOS、Windows 安装包没有签名或公证，系统会显示来源警告；这是当前
 内测约束，不应通过关闭安全机制来绕过。安装测试必须记录“安装、启动、`/api/health`

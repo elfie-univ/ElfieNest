@@ -78,16 +78,17 @@ remains the single source of truth for space and rendering.
 
 ## Quick start
 
-The shortest current path uses a pinned CPython `3.9.25` and `uv.lock`:
+Development mode is separate from installation. A source contributor uses the
+pinned CPython `3.9.25` and `uv.lock` through this entry point:
 
 ```bash
 ./elfienest.sh version
 .venv/bin/python main.py
 ```
 
-`main.py` runs a three-tick local demo. When no Ollama service is reachable, the
-Runtime can enter a fallback path; this validates the basic pipeline and is not
-the full model experience.
+`main.py` runs a three-tick local demo. Public Ollama is optional: Setup can
+skip it or bind one chosen endpoint, but the application never silently bundles
+or installs a private engine or model weights.
 
 To build the current source as a native application for this machine and install
 the user-level `elfienest` command, run:
@@ -102,6 +103,10 @@ elfienest version
 The installer supports user-level installation only — do not run it as `root`
 or with `sudo`. For the full set of prerequisites, error handling and platform
 notes, see [Getting Started](docs/getting-started/index.md).
+
+Manual native packages and a future verified remote bootstrap enter the same
+installed runtime. The bootstrap contract is locally tested, but its public URL
+is not live yet.
 
 ## Documentation entry points
 

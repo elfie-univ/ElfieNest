@@ -12,12 +12,6 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.features.accounts.auth import require_owner
-from app.features.configuration.runtime_store import (
-    hydrate_runtime_secrets,
-    read_runtime_config,
-    write_runtime_config,
-)
 from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.models.catalog import _verify_custom_openai_provider, verify_provider
 from ai_runtime.providers.model_hints import configured_model_specs
@@ -29,6 +23,12 @@ from ai_runtime.usage.observer import (
     get_runtime_observer,
 )
 from ai_runtime.validation.providers import discover_provider_models
+from app.features.accounts.auth import require_owner
+from app.features.configuration.runtime_store import (
+    hydrate_runtime_secrets,
+    read_runtime_config,
+    write_runtime_config,
+)
 
 logger = logging.getLogger("app.interfaces.api.provider_routes")
 
@@ -65,7 +65,9 @@ def _default_auth_type(api_mode: str) -> str:
     return "bearer"
 
 
-def _build_provider_response(provider_id: str, provider_info: Dict[str, Any]) -> Dict[str, Any]:
+def _build_provider_response(
+    provider_id: str, provider_info: Dict[str, Any]
+) -> Dict[str, Any]:
     """构建单个 provider 的响应对象。
 
     合并内置 profile 和用户配置，添加 status 和 api_mode。
@@ -74,8 +76,12 @@ def _build_provider_response(provider_id: str, provider_info: Dict[str, Any]) ->
 
     # 基础信息从 profile 获取
     name = profile.name if profile else provider_id
-    api_mode = provider_info.get("api_mode") or (profile.api_mode if profile else "chat_completions")
-    auth_type = provider_info.get("auth_type") or (profile.auth_type if profile else "bearer")
+    api_mode = provider_info.get("api_mode") or (
+        profile.api_mode if profile else "chat_completions"
+    )
+    auth_type = provider_info.get("auth_type") or (
+        profile.auth_type if profile else "bearer"
+    )
 
     # 用户配置覆盖默认值
     display_name = provider_info.get("display_name") or provider_info.get("name") or ""
@@ -207,7 +213,9 @@ async def add_provider(
     if manual_models:
         config["providers"][provider_id]["models"] = manual_models
     if body.get("refresh_models") is True:
-        _refresh_provider_models(provider_id, config, require_models=not manual_models and not test_model)
+        _refresh_provider_models(
+            provider_id, config, require_models=not manual_models and not test_model
+        )
 
     _write_runtime_config(config)
     logger.info("Provider '%s' added by owner", provider_id)
@@ -242,6 +250,18 @@ async def update_provider(
     # 确保 providers 字典中有该 provider
     if provider_id not in providers:
         providers[provider_id] = {}
+
+    if (
+        provider_id == "ollama"
+        and "api_base" in body
+        and isinstance(providers[provider_id].get("installation"), dict)
+        and (body["api_base"] or "").strip()
+        != str(providers[provider_id].get("api_base") or "").strip()
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="已绑定的 Ollama endpoint 必须通过 Owner 迁移流程变更",
+        )
 
     # 更新字段
     if "api_key" in body:
@@ -281,7 +301,10 @@ async def update_provider(
             providers[provider_id].pop("test_model", None)
     if "models" in body:
         providers[provider_id]["models"] = _parse_manual_models(body.get("models"))
-    if providers[provider_id].get("api_key") or providers[provider_id].get("api_mode") == "ollama":
+    if (
+        providers[provider_id].get("api_key")
+        or providers[provider_id].get("api_mode") == "ollama"
+    ):
         providers[provider_id]["status"] = "active"
     else:
         providers[provider_id]["status"] = "inactive"
@@ -304,7 +327,9 @@ def _parse_manual_models(value: Any) -> list[dict[str, str]]:
     result: list[dict[str, str]] = []
     for item in value:
         if not isinstance(item, dict):
-            raise HTTPException(status_code=422, detail="models 项必须包含 id 和 display_name")
+            raise HTTPException(
+                status_code=422, detail="models 项必须包含 id 和 display_name"
+            )
         model_id = str(item.get("id") or item.get("model_id") or "").strip()
         display_name = str(item.get("display_name") or model_id).strip()
         if model_id:
@@ -435,11 +460,9 @@ async def verify_provider_endpoint(
             }
     else:
         runtime_config = LLMRuntimeConfig()
-        runtime_config.providers.update({
-            key: value
-            for key, value in providers.items()
-            if isinstance(value, dict)
-        })
+        runtime_config.providers.update(
+            {key: value for key, value in providers.items() if isinstance(value, dict)}
+        )
         result = verify_provider(provider_id, runtime_config)
     provider_status = str(result.get("status", "unverified"))
     event_status = (

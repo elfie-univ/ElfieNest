@@ -34,6 +34,8 @@ from app.features.accounts.auth import (
     verify_csrf_token,
     verify_password,
 )
+from app.features.setup.jobs import OllamaInstallJobManager
+from app.features.setup.progress import recover_interrupted_setup_task
 from app.infrastructure.devices import DeviceGateway
 from app.infrastructure.persistence.store import (
     get_db,
@@ -137,6 +139,7 @@ def create_app(
     async def lifespan(app: FastAPI):
         init_db(db_path)
         migrate_db_if_needed(db_path)
+        recover_interrupted_setup_task(db_path)
         seed_initial_owner_if_env_set(db_path)
         from .nest_routes import _rooms_with_beds  # noqa: PLC0415
 
@@ -176,6 +179,7 @@ def create_app(
     app.state.engine = engine
     app.state.device_gateway = DeviceGateway()
     app.state.v1_chat_hub = SameOriginChatHub(db_path)
+    app.state.setup_ollama_jobs = OllamaInstallJobManager()
     app.state.ws_port = ws_port
     configured_web_build_dir = os.environ.get("ELFIENEST_WEB_BUILD_DIR")
     build_dir = web_build_dir or (

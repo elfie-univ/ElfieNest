@@ -6,8 +6,8 @@ from pathlib import Path
 
 from _pytest.capture import CaptureFixture
 
-from app.interfaces.cli.tui import setup_app
 from ai_runtime.storage.data_home import get_db_path
+from app.interfaces.cli.tui import setup_app
 
 
 def test_run_setup_wizard_creates_first_owner(
@@ -19,7 +19,7 @@ def test_run_setup_wizard_creates_first_owner(
     monkeypatch.setattr(setup_app, "clear_screen", lambda: None)
     monkeypatch.setattr(setup_app, "print_banner", lambda: None)
     monkeypatch.setattr(setup_app, "input_password", lambda _prompt: "setup-secret")
-    _patch_input(monkeypatch, ["owner", "n"])
+    _patch_input(monkeypatch, ["owner", "Owner", "skip", "4", "skip", "y"])
 
     setup_app.run_setup_wizard()
 
@@ -31,6 +31,7 @@ def test_run_setup_wizard_creates_first_owner(
     output = capsys.readouterr().out
     assert owner_count == 1
     assert "设置完成" in output
+    assert "步骤 5/5" in output
     assert "setup-secret" not in output
 
 
@@ -47,7 +48,7 @@ def test_run_setup_wizard_fails_closed_without_hidden_password_input(
         "input_password",
         lambda _prompt: None,
     )
-    _patch_input(monkeypatch, ["owner"])
+    _patch_input(monkeypatch, ["owner", "Owner"])
 
     setup_app.run_setup_wizard()
 
@@ -57,18 +58,26 @@ def test_run_setup_wizard_fails_closed_without_hidden_password_input(
     assert "安全输入" in capsys.readouterr().out
 
 
-def test_optional_provider_prompt_stops_cleanly_on_eof(monkeypatch) -> None:
-    monkeypatch.setattr(setup_app, "read_user_config", lambda: {})
-    monkeypatch.setattr(setup_app, "read_env_file", lambda: {})
-    monkeypatch.setattr(setup_app, "write_user_config", lambda _config: None)
-    monkeypatch.setattr(setup_app, "write_env_file", lambda _env: None)
+def test_tui_invalid_ollama_choice_does_not_advance_setup(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """无效输入不能把终端向导越过 Ollama 选择步骤。"""
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    monkeypatch.setattr(setup_app, "clear_screen", lambda: None)
+    monkeypatch.setattr(setup_app, "print_banner", lambda: None)
+    monkeypatch.setattr(setup_app, "input_password", lambda _prompt: "setup-secret")
+    _patch_input(monkeypatch, ["owner", "Owner", "not-a-choice"])
 
-    def raise_eof() -> str:
-        raise EOFError
+    setup_app.run_setup_wizard()
 
-    monkeypatch.setattr("builtins.input", raise_eof)
-
-    setup_app._configure_optional_providers(["openai"])
+    with sqlite3.connect(get_db_path()) as conn:
+        row = conn.execute(
+            "SELECT owner_user_id, ollama_decision FROM setup_progress"
+        ).fetchone()
+    assert row is not None
+    assert row[0] is not None
+    assert row[1] is None
 
 
 def _patch_input(

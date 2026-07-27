@@ -7,13 +7,13 @@ export type SupervisorConfig = Readonly<{
   readonly godotUrl: string;
   readonly ollamaUrl: string;
   readonly coreHealthUrl: string;
-  readonly ollamaExecutable: string;
   readonly coreExecutable: string;
   readonly coreArgs: readonly string[];
   readonly webBuildDirectory: string;
+  readonly godotWebDirectory: string;
   readonly resourcesPath: string;
   readonly coreWorkingDirectory: string;
-  readonly manageOllama: boolean;
+  readonly runtimeMode: "development" | "release";
   readonly ollamaOptional: boolean;
 }>;
 
@@ -22,6 +22,21 @@ type Environment = Readonly<Record<string, string | undefined>>;
 function environmentValue(environment: Environment, key: string, fallback: string): string {
   const value = environment[key];
   return value === undefined || value.trim() === "" ? fallback : value;
+}
+
+function optionalPortArgument(
+  environment: Environment,
+  environmentKey: string,
+  argument: "--port" | "--ws-port" | "--godot-ws-port",
+): readonly string[] {
+  const value = environment[environmentKey]?.trim();
+  if (value === undefined || value === "") {
+    return [];
+  }
+  if (!/^[1-9][0-9]{0,4}$/.test(value) || Number(value) > 65535) {
+    throw new Error(`无效端口 ${environmentKey}=${value}`);
+  }
+  return [argument, value];
 }
 
 function platformExecutable(platform: NodeJS.Platform, name: string): string {
@@ -52,7 +67,6 @@ export function resolveSupervisorConfig(
     "ELFIENEST_CORE_HEALTH_URL",
     `${uiUrl.replace(/\/$/, "")}/api/health`,
   );
-  const packagedOllama = join(resourcesPath, "ollama", platformExecutable(platform, "ollama"));
   const packagedCore = join(
     resourcesPath,
     "python-core",
@@ -68,11 +82,27 @@ export function resolveSupervisorConfig(
     "ELFIENEST_CORE_BIN",
     packagedCoreAvailable ? packagedCore : developmentPython,
   );
-  const coreArgs = basename(coreExecutable).startsWith("ElfieNestCore") ? ["--lan"] : ["scripts/serve.py", "--lan"];
+  const coreBaseArgs = basename(coreExecutable).startsWith("ElfieNestCore")
+    ? ["--lan"]
+    : ["scripts/serve.py", "--lan"];
+  const coreArgs = [
+    ...coreBaseArgs,
+    ...optionalPortArgument(environment, "ELFIENEST_CORE_PORT", "--port"),
+    ...optionalPortArgument(environment, "ELFIENEST_WS_PORT", "--ws-port"),
+    ...optionalPortArgument(environment, "ELFIENEST_GODOT_WS_PORT", "--godot-ws-port"),
+  ];
   const webBuildDirectory = environmentValue(
     environment,
     "ELFIENEST_WEB_BUILD_DIR",
     packagedCoreAvailable ? join(resourcesPath, "web") : join(projectRoot, "build", "web"),
+  );
+  const runtimeMode = packagedCoreAvailable ? "release" : "development";
+  const godotWebDirectory = environmentValue(
+    environment,
+    "ELFIENEST_GODOT_WEB_DIR",
+    packagedCoreAvailable
+      ? join(resourcesPath, "godot-web")
+      : join(projectRoot, "build", "components", "godot-web"),
   );
   return {
     dataRoot,
@@ -80,17 +110,17 @@ export function resolveSupervisorConfig(
     godotUrl,
     ollamaUrl,
     coreHealthUrl,
-    ollamaExecutable: environmentValue(environment, "ELFIENEST_OLLAMA_BIN", packagedOllama),
     coreExecutable,
     coreArgs,
     webBuildDirectory,
+    godotWebDirectory,
     resourcesPath,
     coreWorkingDirectory: environmentValue(
       environment,
       "ELFIENEST_CORE_CWD",
       packagedCoreAvailable ? dataRoot : projectRoot,
     ),
-    manageOllama: environment["ELFIENEST_OLLAMA_EXTERNAL"] !== "1",
+    runtimeMode,
     ollamaOptional: environment["ELFIENEST_OLLAMA_REQUIRED"] !== "1",
   };
 }

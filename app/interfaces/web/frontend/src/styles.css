@@ -1,6 +1,7 @@
 @import "./shared/styles.css";
 @import "./manager-console.css";
 @import "./icon-catalog.css";
+@import "./setup-wizard.css";
 
 .detail dl > div { display: contents; }
 .detail dd { margin: 0; }

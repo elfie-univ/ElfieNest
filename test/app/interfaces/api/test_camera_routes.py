@@ -6,9 +6,9 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.infrastructure.persistence.store import init_db
 from app.interfaces.api.app import create_app
 from app.interfaces.api.camera_state import CameraFeedStore
-from app.infrastructure.persistence.store import init_db
 
 from ._helpers import create_test_owner
 
@@ -38,7 +38,9 @@ def _login(client: TestClient) -> str:
     return response.headers["X-CSRF-Token"]
 
 
-def _godot_headers(client: TestClient, content_type: str | None = None) -> dict[str, str]:
+def _godot_headers(
+    client: TestClient, content_type: str | None = None
+) -> dict[str, str]:
     headers = {
         "X-ElfieNest-Godot-Token": client.app.state.godot_camera_token,
     }
@@ -59,6 +61,21 @@ def test_godot_camera_publish_requires_internal_token(client: TestClient) -> Non
     )
 
     assert response.status_code == 403
+
+
+@pytest.mark.parametrize("bed_count", [1, 3, 33])
+def test_godot_camera_status_rejects_non_production_bed_count(
+    client: TestClient,
+    bed_count: int,
+) -> None:
+    response = client.post(
+        "/api/godot-camera/status",
+        json={"labels": ["整体总览"], "active_index": 0, "bed_count": bed_count},
+        headers=_godot_headers(client),
+    )
+
+    assert response.status_code == 422
+    assert "4 到 32" in response.text
 
 
 def test_godot_frame_and_camera_control_round_trip(client: TestClient) -> None:

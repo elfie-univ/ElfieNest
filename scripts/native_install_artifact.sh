@@ -1,6 +1,14 @@
 #!/bin/bash
 # Platform-native application installation helpers for source-built artifacts.
 
+native_macos_applications_directory() {
+    if [[ -n "${ELFIENEST_TEST_APPLICATIONS_ROOT:-}" ]]; then
+        printf '%s\n' "$ELFIENEST_TEST_APPLICATIONS_ROOT"
+        return 0
+    fi
+    printf '%s\n' "/Applications"
+}
+
 native_cli_path() {
     local target="$1"
     local application_root="$2"
@@ -20,14 +28,88 @@ native_cli_path() {
     esac
 }
 
+native_manifest_path() {
+    local target="$1"
+    local application_root="$2"
+
+    case "$target" in
+        darwin-arm64|darwin-x64)
+            printf '%s\n' "$application_root/Contents/Resources/manifest.json"
+            ;;
+        win32-x64|linux-x64)
+            printf '%s\n' "$application_root/resources/manifest.json"
+            ;;
+        *) return 1 ;;
+    esac
+}
+
 validate_native_application_root() {
     local target="$1"
     local application_root="$2"
     local cli_path
+    local manifest_path
 
     cli_path="$(native_cli_path "$target" "$application_root")" || return 1
+    manifest_path="$(native_manifest_path "$target" "$application_root")" || return 1
     [[ -d "$application_root" && ! -L "$application_root" \
-        && -f "$cli_path" && ! -L "$cli_path" && -x "$cli_path" ]]
+        && -f "$cli_path" && ! -L "$cli_path" && -x "$cli_path" \
+        && -f "$manifest_path" && ! -L "$manifest_path" ]] || return 1
+    if [[ "$target" == "linux-x64" ]]; then
+        [[ -f "$application_root/AppRun" && ! -L "$application_root/AppRun" \
+            && -x "$application_root/AppRun" ]]
+    fi
+}
+
+native_linux_desktop_file() {
+    printf '%s\n' "$HOME/.local/share/applications/elfienest.desktop"
+}
+
+native_linux_icon_file() {
+    printf '%s\n' "$HOME/.local/share/icons/hicolor/scalable/apps/elfienest.svg"
+}
+
+install_linux_xdg_integration() {
+    local application_root="$1"
+    local desktop_file
+    local icon_file
+    local source_icon="$application_root/.DirIcon"
+
+    [[ -d "$application_root" && ! -L "$application_root" ]] || return 1
+    [[ -f "$application_root/AppRun" && ! -L "$application_root/AppRun" \
+        && -x "$application_root/AppRun" ]] || return 1
+    desktop_file="$(native_linux_desktop_file)"
+    icon_file="$(native_linux_icon_file)"
+    ensure_safe_user_install_dir "${desktop_file%/*}" || return 1
+    ensure_safe_user_install_dir "${icon_file%/*}" || return 1
+    if [[ -f "$source_icon" && ! -L "$source_icon" ]]; then
+        cp -- "$source_icon" "$icon_file" || return 1
+    fi
+    {
+        printf '%s\n' '[Desktop Entry]'
+        printf '%s\n' 'Type=Application'
+        printf '%s\n' 'Name=ElfieNest'
+        printf 'Exec=%q\n' "$application_root/AppRun"
+        printf '%s\n' 'Icon=elfienest'
+        printf '%s\n' 'Terminal=false'
+        printf '%s\n' 'Categories=Utility;'
+    } > "$desktop_file"
+    chmod 0644 "$desktop_file"
+}
+
+launch_native_application() {
+    local target="$1"
+    local application_root="$2"
+
+    if [[ -n "${ELFIENEST_TEST_APPLICATIONS_ROOT:-}" \
+        || "${ELFIENEST_SKIP_APP_LAUNCH:-0}" == "1" ]]; then
+        return 0
+    fi
+    case "$target" in
+        darwin-arm64|darwin-x64) /usr/bin/open -- "$application_root" ;;
+        win32-x64) cmd.exe /c start "" "$application_root/ElfieNest.exe" ;;
+        linux-x64) nohup "$application_root/AppRun" >/dev/null 2>&1 & ;;
+        *) return 1 ;;
+    esac
 }
 
 replace_native_application_root() {
@@ -90,6 +172,34 @@ install_macos_app_bundle() {
     replace_native_application_root "$target" "$source_bundle" "$destination_bundle"
 }
 
+install_macos_app_bundle_with_authorization() {
+    local source_bundle="$1"
+    local destination_bundle="$2"
+    local target="${3:-darwin-x64}"
+    local destination_parent="${destination_bundle%/*}"
+    local helper_path="${BASH_SOURCE[0]}"
+    local privileged_command
+    local apple_script
+
+    if [[ -w "$destination_parent" && "${ELFIENEST_FORCE_MACOS_AUTHORIZATION:-0}" != "1" ]]; then
+        install_macos_app_bundle "$source_bundle" "$destination_bundle" "$target"
+        return
+    fi
+    [[ "$destination_bundle" == "/Applications/ElfieNest.app" ]] || {
+        echo "native-install-macos-authorization-destination-invalid" >&2
+        return 1
+    }
+    validate_native_application_root "$target" "$source_bundle" || return 1
+    [[ -f "$helper_path" && ! -L "$helper_path" ]] || return 1
+    printf -v privileged_command '%q ' \
+        /bin/bash "$helper_path" --privileged-macos-install \
+        "$source_bundle" "$destination_bundle" "$target"
+    privileged_command="${privileged_command% }"
+    apple_script="${privileged_command//\\/\\\\}"
+    apple_script="${apple_script//\"/\\\"}"
+    /usr/bin/osascript -e "do shell script \"$apple_script\" with administrator privileges"
+}
+
 install_macos_dmg() {
     local artifact="$1"
     local destination_bundle="$2"
@@ -105,7 +215,7 @@ install_macos_dmg() {
         return 1
     fi
     bundle="$mountpoint/ElfieNest.app"
-    replace_native_application_root "$target" "$bundle" "$destination_bundle"
+    install_macos_app_bundle_with_authorization "$bundle" "$destination_bundle" "$target"
     result=$?
     hdiutil detach "$mountpoint" >/dev/null 2>&1 || true
     rmdir -- "$mountpoint" 2>/dev/null || true
@@ -176,9 +286,33 @@ native_application_root() {
     local target="$1"
 
     case "$target" in
-        darwin-arm64|darwin-x64) printf '%s\n' "$HOME/Applications/ElfieNest.app" ;;
+        darwin-arm64|darwin-x64)
+            printf '%s/ElfieNest.app\n' "$(native_macos_applications_directory)"
+            ;;
         win32-x64) printf '%s\n' "${LOCALAPPDATA:-$HOME/AppData/Local}/Programs/ElfieNest" ;;
         linux-x64) printf '%s\n' "$HOME/.local/opt/ElfieNest" ;;
+        *) return 1 ;;
+    esac
+}
+
+validate_native_application_destination() {
+    local target="$1"
+    local application_root="$2"
+    local expected_root
+    local parent
+
+    expected_root="$(native_application_root "$target")" || return 1
+    [[ "$application_root" == "$expected_root" ]] || return 1
+    parent="${application_root%/*}"
+    case "$target" in
+        darwin-arm64|darwin-x64)
+            if [[ -n "${ELFIENEST_TEST_APPLICATIONS_ROOT:-}" ]]; then
+                ensure_safe_user_install_dir "$parent"
+                return
+            fi
+            [[ "$parent" == "/Applications" && -d "$parent" && ! -L "$parent" ]]
+            ;;
+        win32-x64|linux-x64) ensure_safe_user_install_dir "$parent" ;;
         *) return 1 ;;
     esac
 }
@@ -200,3 +334,8 @@ current_native_target() {
             ;;
     esac
 }
+
+if [[ "${BASH_SOURCE[0]}" == "$0" && "${1:-}" == "--privileged-macos-install" ]]; then
+    [[ "$#" == "4" ]] || exit 2
+    install_macos_app_bundle "$2" "$3" "$4"
+fi

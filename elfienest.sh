@@ -2,7 +2,7 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ============================================================================
-# 运行模式探测（基于 Electron supervisor_config.ts:55-60 的判定）
+# 运行状态探测：源码开发路径与安装后运行路径必须严格分开。
 # ============================================================================
 
 detect_runtime_mode() {
@@ -10,13 +10,13 @@ detect_runtime_mode() {
 
     # 安装目录标志：存在 resources/python-core/ 或 manifest.json
     if [ -d "$script_dir/resources/python-core" ] || [ -f "$script_dir/manifest.json" ]; then
-        echo "production"
+        echo "installed_runtime"
         return
     fi
 
     # 源码树标志：存在 pyproject.toml 或 scripts/serve.py
     if [ -f "$script_dir/pyproject.toml" ] || [ -f "$script_dir/scripts/serve.py" ]; then
-        echo "development"
+        echo "source_development"
         return
     fi
 
@@ -26,15 +26,18 @@ detect_runtime_mode() {
 MODE="$(detect_runtime_mode "$SCRIPT_DIR")"
 
 case "$MODE" in
-    production)
-        # 生产模式：直接调 Python Core（依赖已打包）
+    installed_runtime)
+        # 安装后运行：直接调 Python Core（依赖已打包）
         exec "$SCRIPT_DIR/resources/python-core/ElfieNestCore" "$@"
         ;;
-    development)
-        # 开发模式：先装依赖（不管后面有没有命令）
-        if ! "$SCRIPT_DIR/scripts/bootstrap.sh" ensure --tier=dev; then
-            echo "  ❌ 依赖检查失败，请按提示修复" >&2
-            exit 1
+    source_development)
+        # 源码开发：先检查；首次缺依赖时再补齐，成功前不进入菜单。
+        if ! "$SCRIPT_DIR/scripts/bootstrap.sh" report --tier=dev >/dev/null; then
+            echo "  ℹ️ 首次准备，正在安装开发依赖..."
+            if ! "$SCRIPT_DIR/scripts/bootstrap.sh" ensure --tier=dev; then
+                echo "  ❌ 依赖检查失败，请按提示修复" >&2
+                exit 1
+            fi
         fi
         ;;
     unknown)

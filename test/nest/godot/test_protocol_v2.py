@@ -181,7 +181,7 @@ def test_scene_manifest_event_allows_nested_semantic_payload() -> None:
             "payload": {
                 "nest_id": "local-nest",
                 "world_revision": 4,
-                "bed_count": 2,
+                "bed_count": 4,
                 "zones": [
                     {
                         "zone_id": "dorm-01",
@@ -205,7 +205,7 @@ def test_scene_manifest_event_allows_nested_semantic_payload() -> None:
         }
     )
 
-    assert event.payload["bed_count"] == 2
+    assert event.payload["bed_count"] == 4
 
 
 @pytest.mark.parametrize("event_name", ["config_rejected", "startup_error"])

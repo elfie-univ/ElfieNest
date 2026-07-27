@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import os
+import sys
 from importlib import metadata
+from pathlib import Path
 
 from app.features.administration.system_service import (
     DatabaseUnavailableError,
@@ -12,6 +14,7 @@ from app.features.administration.system_service import (
     list_table_counts,
     reset_database,
 )
+from app.interfaces.cli.packaged_runtime import packaged_application_version
 
 PACKAGE_NAME = "elfienest"
 
@@ -187,4 +190,4 @@ def _current_version() -> str:
     try:
         return metadata.version(PACKAGE_NAME)
     except metadata.PackageNotFoundError:
-        return "unknown"
+        return packaged_application_version(Path(sys.executable)) or "unknown"

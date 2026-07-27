@@ -1,6 +1,6 @@
 #!/bin/bash
 # ElfieNest 统一依赖编排器
-# 用法: bootstrap <check|ensure|report> [--tier=dev|prod]
+# 用法: bootstrap <check|ensure|report> [--tier=dev|build]
 
 set -euo pipefail
 
@@ -41,8 +41,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 # 验证 tier
-if [[ "$TIER" != "dev" && "$TIER" != "prod" ]]; then
-    echo "${RED}❌ Tier 必须是 dev 或 prod，当前: $TIER${RESET}" >&2
+if [[ "$TIER" != "dev" && "$TIER" != "build" ]]; then
+    echo "${RED}❌ Tier 必须是 dev 或 build，当前: $TIER${RESET}" >&2
     exit 1
 fi
 
@@ -110,8 +110,8 @@ ensure_python() {
 
     # 同步依赖
     local sync_args="--locked"
-    if [[ "$TIER" == "prod" ]]; then
-        sync_args="$sync_args --no-dev"
+    if [[ "$TIER" == "build" ]]; then
+        sync_args="$sync_args --no-dev --extra release"
     fi
 
     if ! UV_PROJECT_ENVIRONMENT="$PROJECT_ROOT/.venv" "$uv_bin" sync $sync_args >&2; then
@@ -329,7 +329,20 @@ main() {
     fi
     echo ""
 
-    # Godot web（所有 tier，完整产品硬门）
+    # Godot source toolchain + Web runtime（所有 bootstrap tier 的硬门）
+    echo "📦 Godot 源码构建工具链"
+    if [[ "$ACTION" == "ensure" ]]; then
+        ensure_godot_toolchain || exit_code=1
+    else
+        if check_godot_toolchain; then
+            echo "${GREEN}  ✅ Godot $GODOT_TOOLCHAIN_VERSION 编辑器已就绪${RESET}"
+        else
+            echo "${RED}  ❌ Godot $GODOT_TOOLCHAIN_VERSION 编辑器缺失或版本不匹配${RESET}" >&2
+            exit_code=1
+        fi
+    fi
+    echo ""
+
     echo "📦 Godot Web Runtime"
     if [[ "$ACTION" == "ensure" ]]; then
         ensure_godot_web || exit_code=1
@@ -343,7 +356,7 @@ main() {
     fi
     echo ""
 
-    # Ollama（prod tier 或 dev tier）
+    # Ollama（可选能力；首次 Setup 才能经用户确认后调用官方安装）
     echo "📦 Ollama"
     if [[ "$ACTION" == "ensure" ]]; then
         local ollama_result
@@ -361,30 +374,15 @@ main() {
         local ollama_capability
         ollama_capability="$(ollama_capability_state)"
         if [[ "$ollama_capability" == "managed" ]]; then
-            echo "${GREEN}  ✅ Ollama 已就绪（托管运行时）${RESET}"
+            echo "${GREEN}  ✅ 公共 Ollama 已就绪（可选能力）${RESET}"
         elif [[ "$ollama_capability" == "external" ]]; then
             echo "${GREEN}  ✅ Ollama 已就绪（外部运行时健康）${RESET}"
         else
-            echo "${YELLOW}  ⚠️  Ollama fallback：本地模型能力不可用${RESET}"
+            echo "${YELLOW}  ⚠️  Ollama 可选且尚未安装：建议在 Setup 中配置离线保障${RESET}"
             has_warning=true
         fi
     fi
     echo ""
-
-    # ELFIE_HOME（prod tier）
-    if [[ "$TIER" == "prod" ]]; then
-        echo "📦 数据目录"
-        if [[ "$ACTION" == "ensure" ]]; then
-            ensure_elfie_home || exit_code=1
-        else
-            if check_elfie_home; then
-                echo "${GREEN}  ✅ ELFIE_HOME 已就绪${RESET}"
-            else
-                echo "${YELLOW}  ⚠️  ELFIE_HOME 缺失（首次运行会自动创建）${RESET}"
-            fi
-        fi
-        echo ""
-    fi
 
     # Electron（dev tier only）
     if [[ "$TIER" == "dev" ]]; then

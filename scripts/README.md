@@ -11,7 +11,7 @@ environment.
 
 | File | Category | Description |
 | --- | --- | --- |
-| `bootstrap.sh` | Dependency orchestration | Unified detection and installation of all dependencies (Python, Node, frontend, Godot web, Ollama, Electron) |
+| `bootstrap.sh` | Dependency orchestration | Unified source-development/build preparation (Python, Node, frontend, Godot Web and Electron) |
 | `elfienest.py` | CLI dispatcher | Called by `./elfienest.sh`; dispatches config, service lifecycle, Owner, database, migration and other commands |
 | `serve.py` | Foreground service | Starts FastAPI, the engine and WebSockets; called by `serve` or background lifecycle commands |
 | `build_godot_web.py` | Build | Exports and validates the Godot Web Runtime; final output goes to `build/components/godot-web/` |
@@ -24,8 +24,8 @@ environment.
 
 `bootstrap.sh` is the unified dependency orchestrator and supports two tiers:
 
-- `dev`: contributor tier — Python dev + frontend + Godot web + Ollama + Electron dev deps
-- `prod`: end-user tier — Python runtime + frontend artifacts + Godot web artifacts + Ollama
+- `dev`: contributor tier — Python dev + frontend + Godot editor/Web export + Electron dev deps
+- `build`: source/package-build tier — the release toolchain for the current native target
 
 ```bash
 # Check dependency status
@@ -35,7 +35,7 @@ environment.
 ./scripts/bootstrap.sh ensure --tier=dev
 
 # Print a JSON report (for CI)
-./scripts/bootstrap.sh report --tier=prod
+./scripts/bootstrap.sh report --tier=build
 ```
 
 ### release.py usage
@@ -44,14 +44,11 @@ environment.
 invokes electron-builder:
 
 ```bash
-# Package macOS ARM64
-python scripts/release.py --target darwin-arm64
+# Build the current native target locally, without upload or publication
+.venv/bin/python scripts/release.py --target darwin-x64
 
-# Package Windows x64
-python scripts/release.py --target win32-x64
-
-# Assemble staging only, without packaging
-python scripts/release.py --target darwin-arm64 --skip-package
+# Request the four-target coordination session; unavailable runners stay incomplete
+.venv/bin/python scripts/release.py
 ```
 
 Typical usage:

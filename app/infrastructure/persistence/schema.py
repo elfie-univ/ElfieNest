@@ -12,7 +12,7 @@ from app.infrastructure.persistence.nest_schema import (
     migrate_legacy_nest_layout_to_semantic_tables,
 )
 
-CURRENT_SCHEMA_VERSION: Final[int] = 11
+CURRENT_SCHEMA_VERSION: Final[int] = 13
 
 
 class OwnerSchemaMigrationError(RuntimeError):
@@ -106,6 +106,10 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
         _migrate_v9_to_v10(connection)
     if version < 11:
         _migrate_v10_to_v11(connection)
+    if version < 12:
+        _migrate_v11_to_v12(connection)
+    if version < 13:
+        _migrate_v12_to_v13(connection)
     _ensure_owner_index(connection)
 
 
@@ -261,6 +265,97 @@ def _migrate_v10_to_v11(connection: sqlite3.Connection) -> None:
     """Persist one validated visual theme preference per user."""
     _ensure_theme_key_column(connection)
     connection.execute("PRAGMA user_version = 11")
+
+
+def _migrate_v11_to_v12(connection: sqlite3.Connection) -> None:
+    """Persist resumable first-run setup state without storing credentials."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS setup_progress (
+            singleton_id INTEGER PRIMARY KEY CHECK(singleton_id = 1),
+            progress_schema_version INTEGER NOT NULL DEFAULT 1,
+            current_step INTEGER NOT NULL DEFAULT 1 CHECK(current_step BETWEEN 1 AND 5),
+            owner_user_id INTEGER,
+            owner_completed_at TIMESTAMP,
+            ollama_decision TEXT CHECK(ollama_decision IN (
+                'bound_existing', 'install_official', 'skipped'
+            )),
+            ollama_endpoint TEXT,
+            nest_completed_at TIMESTAMP,
+            model_decision TEXT CHECK(model_decision IN ('configured', 'skipped')),
+            model_reference TEXT,
+            active_task_step INTEGER CHECK(active_task_step BETWEEN 1 AND 5),
+            active_task_key TEXT,
+            task_state TEXT NOT NULL DEFAULT 'idle' CHECK(task_state IN (
+                'idle', 'running', 'failed', 'completed', 'cancelled'
+            )),
+            task_progress INTEGER NOT NULL DEFAULT 0 CHECK(task_progress BETWEEN 0 AND 100),
+            last_error TEXT,
+            completed_at TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(owner_user_id) REFERENCES users(id)
+        )
+        """
+    )
+    connection.execute("INSERT OR IGNORE INTO setup_progress (singleton_id) VALUES (1)")
+    owner = connection.execute(
+        "SELECT id FROM users WHERE role = 'owner' ORDER BY id LIMIT 1"
+    ).fetchone()
+    if owner is not None:
+        connection.execute(
+            """
+            UPDATE setup_progress
+            SET owner_user_id = ?,
+                owner_completed_at = COALESCE(owner_completed_at, CURRENT_TIMESTAMP),
+                current_step = CASE WHEN current_step = 1 THEN 2 ELSE current_step END,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE singleton_id = 1
+            """,
+            (int(owner[0]),),
+        )
+    connection.execute("PRAGMA user_version = 12")
+
+
+def _migrate_v12_to_v13(connection: sqlite3.Connection) -> None:
+    """Raise the semantic Nest minimum to four without dropping Nest relations."""
+    row = connection.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'nest_config'"
+    ).fetchone()
+    if row is None:
+        ensure_nest_semantic_tables(connection)
+    elif "BETWEEN 4 AND 32" not in str(row[0]):
+        connection.execute("PRAGMA foreign_keys = OFF")
+        try:
+            connection.execute(
+                "UPDATE nest_config SET desired_bed_count = 4 WHERE desired_bed_count < 4"
+            )
+            connection.execute(
+                """
+                CREATE TABLE nest_config_v13 (
+                    nest_id TEXT PRIMARY KEY,
+                    desired_bed_count INTEGER NOT NULL
+                        CHECK(desired_bed_count BETWEEN 4 AND 32),
+                    applied_world_revision INTEGER,
+                    clock_anchor_seconds REAL NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            connection.execute(
+                """
+                INSERT INTO nest_config_v13
+                    (nest_id, desired_bed_count, applied_world_revision,
+                     clock_anchor_seconds, created_at)
+                SELECT nest_id, desired_bed_count, applied_world_revision,
+                       clock_anchor_seconds, created_at
+                FROM nest_config
+                """
+            )
+            connection.execute("DROP TABLE nest_config")
+            connection.execute("ALTER TABLE nest_config_v13 RENAME TO nest_config")
+        finally:
+            connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA user_version = 13")
 
 
 def _validate_owner_roles(connection: sqlite3.Connection) -> None:

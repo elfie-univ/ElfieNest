@@ -9,7 +9,7 @@ points provided by the current code. Command behavior is defined by
 ElfieNest is pinned to CPython 3.9.25, with dependencies pinned by `uv.lock`:
 
 ```bash
-./elfienest.sh version
+./elfienest.sh
 ./elfienest.sh version
 ```
 
@@ -68,7 +68,8 @@ Foreground and background services support code-validated parameters:
 ./elfienest.sh start --fallback --no-seed-elfie
 ```
 
-`--fallback` uses the built-in mock runtime and does not connect to Ollama.
+`--fallback` is a development-only simulation mode; it is not a packaged model
+provider. Setup keeps public Ollama optional and binds exactly one chosen endpoint.
 `serve --force` only tries to stop conflict processes registered by the current
 project and confirmed to belong to that service; it is not a generic port
 cleanup tool.

@@ -10,6 +10,7 @@ from typing import Any, Final
 MAX_CAMERA_VIEWS: Final = 64
 MAX_OBSERVERS: Final = 10
 MAX_BED_COUNT: Final = 32
+MIN_BED_COUNT: Final = 4
 ONLINE_TIMEOUT_SECONDS: Final = 2.5
 DEFAULT_ROOM_ID: Final = "default"
 
@@ -76,11 +77,13 @@ class CameraFeedStore:
     ) -> None:
         """设置指定房间希望 Godot 重建的床位数量。"""
         with self._lock:
-            self._room(room_id).desired_bed_count = max(
-                1, min(MAX_BED_COUNT, int(bed_count))
-            )
+            if not MIN_BED_COUNT <= int(bed_count) <= MAX_BED_COUNT:
+                raise ValueError("bed_count 必须在 4 到 32 之间")
+            self._room(room_id).desired_bed_count = int(bed_count)
 
-    def select_view(self, index: int, user_id: int, room_id: str = DEFAULT_ROOM_ID) -> None:
+    def select_view(
+        self, index: int, user_id: int, room_id: str = DEFAULT_ROOM_ID
+    ) -> None:
         """记录某个用户在某个房间的独立机位选择。"""
         with self._lock:
             room = self._room(room_id)

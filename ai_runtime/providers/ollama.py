@@ -1,11 +1,11 @@
 import json
 import logging
 import os
-import shutil
 import subprocess
 import sys
 import time
 import urllib.request
+from typing import List, Mapping, Optional
 
 logger = logging.getLogger("ai_runtime.providers.ollama")
 
@@ -21,8 +21,6 @@ class OllamaManager:
 
     def __init__(self, config):
         self.config = config
-        self.runtime_dir = os.path.dirname(os.path.abspath(__file__))
-        self.ollama_path = os.path.join(self.runtime_dir, "bin", "ollama")
 
     def check_health(self) -> bool:
         """极速心跳探测 (100ms 级别)"""
@@ -40,11 +38,18 @@ class OllamaManager:
         req = urllib.request.Request(url, method="GET")
         with urllib.request.urlopen(req, timeout=2.0) as response:
             data = json.loads(response.read().decode("utf-8"))
-        return tuple(model.get("name", "") for model in data.get("models", []) if model.get("name"))
+        return tuple(
+            model.get("name", "")
+            for model in data.get("models", [])
+            if model.get("name")
+        )
 
     def has_model(self, model_name: str) -> bool:
         installed = self.list_installed_models()
-        return any(name == model_name or name.split(":", 1)[0] == model_name for name in installed)
+        return any(
+            name == model_name or name.split(":", 1)[0] == model_name
+            for name in installed
+        )
 
     def ensure_service_started(self) -> bool:
         """
@@ -59,27 +64,19 @@ class OllamaManager:
                 "❌ Ollama 未就绪；当前由 Electron supervisor 托管，Core 不会自行启动 Ollama。"
             )
 
-        logger.warning("🔌 本地 Ollama 算力端口未响应！尝试进行自愈式拉起...")
-
-        # 寻找可执行文件 (优先项目 bin 下的，其次是系统 PATH)
-        ollama_exec = None
-        if os.path.exists(self.ollama_path):
-            ollama_exec = self.ollama_path
-        else:
-            ollama_exec = shutil.which("ollama")
-
-        if not ollama_exec:
+        launch_command = self._recorded_launch_command()
+        if launch_command is None:
             raise OllamaNotReadyError(
-                "❌ 本地未检测到已部署的 Ollama 算力底座可执行程序！\n"
-                "💡 请在终端中运行静态引导脚本进行安装拉取：\n"
-                "   .venv/bin/python ai_runtime/setup/runtime_setup.py"
+                "❌ 当前 Ollama 没有可启动的固定绑定。\n"
+                "💡 请通过初始化向导绑定已安装的公共 Ollama，或进入修复流程。"
             )
+        logger.warning("🔌 已绑定的公共 Ollama 未响应，尝试启动该固定安装。")
 
         try:
             # 静默拉起后台守护进程
             # preexec_fn 用于在 Unix 下使子进程脱离终端控制，防止 main 退出时被误杀
             subprocess.Popen(
-                [ollama_exec, "serve"],
+                launch_command,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 preexec_fn=os.setpgrp if sys.platform != "win32" else None,
@@ -94,10 +91,41 @@ class OllamaManager:
 
             # 若超时仍未连通，说明服务因某些原因拉起失败 (如端口被占用)
             raise OllamaNotReadyError(
-                f"❌ Ollama 服务拉起超时 (5s)！请手动执行 '{ollama_exec} serve' 检查服务日志。"
+                "❌ 已绑定的 Ollama 启动超时 (5s)！请在初始化向导中检查该绑定。"
             )
 
         except Exception as e:
             if isinstance(e, OllamaNotReadyError):
                 raise e
             raise OllamaNotReadyError(f"❌ 自愈拉起 Ollama 子进程异常: {e}") from e
+
+    def _recorded_launch_command(self) -> Optional[List[str]]:
+        providers = getattr(self.config, "providers", {})
+        if not isinstance(providers, Mapping):
+            return None
+        provider = providers.get("ollama")
+        if not isinstance(provider, Mapping):
+            return None
+        installation = provider.get("installation")
+        if not isinstance(installation, Mapping):
+            return None
+        platform = installation.get("platform")
+        install_kind = installation.get("install_kind")
+        launch_target = installation.get("launch_target")
+        if not all(
+            isinstance(value, str) and value
+            for value in (platform, install_kind, launch_target)
+        ):
+            return None
+        platform_name = str(platform)
+        installation_kind = str(install_kind)
+        target = str(launch_target)
+        if platform_name == "darwin":
+            return ["/usr/bin/open", "-a", target]
+        if platform_name == "win32":
+            return [target]
+        if platform_name == "linux" and installation_kind == "systemd-user":
+            return ["systemctl", "--user", "start", target]
+        if platform_name == "linux":
+            return [target, "serve"]
+        return None

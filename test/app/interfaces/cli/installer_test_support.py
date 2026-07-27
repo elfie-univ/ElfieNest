@@ -56,6 +56,15 @@ def copy_installer_project(destination: Path) -> None:
     packaged_cli.parent.mkdir(parents=True, exist_ok=True)
     packaged_cli.write_text("#!/bin/bash\nexit 0\n", encoding="utf-8")
     packaged_cli.chmod(0o755)
+    (
+        destination
+        / "build"
+        / "fake-dmg"
+        / "ElfieNest.app"
+        / "Contents"
+        / "Resources"
+        / "manifest.json"
+    ).write_text('{"version":"0.1.0"}\n', encoding="utf-8")
 
 
 def write_fake_uv(fake_bin: Path) -> Path:
@@ -81,7 +90,7 @@ if [ "${1:-}" = "sync" ]; then
 #!/bin/bash
 if [[ "${1:-}" = */scripts/release.py ]]; then
     while [ "$#" -gt 0 ]; do
-        if [ "$1" = "--artifact-output" ]; then
+        if [ "$1" = "--artifact-output" ] || [ "$1" = "--source-install-artifact-output" ]; then
             printf '%s\n' "$(pwd)/build/ElfieNest-test.dmg" > "$2"
             exit 0
         fi
@@ -142,6 +151,7 @@ def installer_environment(
             "PATH": path
             or f"{fake_bin}:{home / '.local' / 'bin'}:{home / 'bin'}:/usr/bin:/bin",
             "SHELL": "/bin/bash",
+            "ELFIENEST_TEST_APPLICATIONS_ROOT": str(home / "Applications"),
         }
     )
     if extra is not None:

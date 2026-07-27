@@ -9,7 +9,7 @@
 项目固定使用 CPython `3.9.25`，依赖以 `uv.lock` 为准：
 
 ```bash
-./install.sh --env-only
+./elfienest.sh
 uv sync --locked --extra dev
 uv lock --check
 ```
@@ -21,7 +21,7 @@ uv lock --check
 默认解释器、单个依赖或局部功能修改版本文件、锁文件、CI 或启动脚本。所有 Agent、
 开发者和自动化只能使用 `uv` 与仓库 `.venv/bin/python3`；不要调用系统
 `python`/`python3`、其他虚拟环境或 `ELFIENEST_PYTHON` 覆盖。环境不正确时运行
-`./install.sh --env-only`，再使用 `uv run --no-sync` 执行已锁定的命令。
+`./elfienest.sh` 会先检查并补齐开发依赖；它与 `./install.sh` 的用户安装流程不同。
 
 ## 选择测试层级
 

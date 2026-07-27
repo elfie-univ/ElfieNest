@@ -10,6 +10,7 @@ from ai_runtime.food.models import ExecutionProfile, FoodRecipe
 from ai_runtime.gateway.loop import RuntimeToolLoop, ToolLoopContext
 from ai_runtime.gateway.multimodal import assemble_multimodal_payload
 from ai_runtime.gateway.skills_prompt import inject_skills_system_prompt
+from ai_runtime.models.model_reference import ModelReferenceError, parse_model_reference
 
 
 @dataclass(frozen=True)
@@ -101,7 +102,12 @@ class FoodExecutor:
         images: tuple[str, ...],
         audio: str | None,
     ) -> str:
-        provider, model = _parse_model_ref(profile.model)
+        try:
+            model_reference = parse_model_reference(profile.model)
+        except ModelReferenceError as exc:
+            raise FoodExecutionError(str(exc)) from exc
+        provider = model_reference.provider_id
+        model = model_reference.model_id
         provider_config = self.config.providers.get(provider, {})
         if provider != "ollama" and not provider_config.get("api_key"):
             raise FoodExecutionError(f"Provider '{provider}' 没有可用密钥")
@@ -137,9 +143,3 @@ class FoodExecutor:
             )
 
         return loop.run(messages, max_loops, invoke)
-
-
-def _parse_model_ref(model_ref: str) -> tuple[str, str]:
-    if "/" not in model_ref:
-        return "ollama", model_ref
-    return tuple(model_ref.split("/", 1))  # type: ignore[return-value]

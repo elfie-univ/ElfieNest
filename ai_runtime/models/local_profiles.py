@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -23,3 +24,10 @@ def select_local_profile(memory_gb: int) -> LocalModelProfile:
         if memory_gb >= profile.min_memory_gb:
             selected = profile
     return selected
+
+
+def recommend_local_profile(memory_gb: int) -> Optional[LocalModelProfile]:
+    """Return no default below 4 GB; Ollama remains a user decision there."""
+    if memory_gb < 4:
+        return None
+    return select_local_profile(memory_gb)

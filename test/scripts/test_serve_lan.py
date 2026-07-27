@@ -41,3 +41,16 @@ def test_prepare_godot_web_runtime_checks_only_in_release() -> None:
     # Then: it only validates the staged runtime and fails closed.
     assert prepare_godot_web_runtime("release", run) is False
     assert commands[0][-1] == "--check"
+
+
+def test_frozen_release_core_does_not_try_to_reexecute_the_godot_build_script() -> None:
+    # Given: an installed Core whose staged Godot resources have already passed package validation.
+    class Result:
+        returncode = 1
+
+    def run(_command: list[str]) -> Result:
+        raise AssertionError("the frozen Core must not run build_godot_web.py")
+
+    # When: the installed release runtime starts.
+    # Then: it trusts the already-validated staged bundle instead of treating itself as Python.
+    assert prepare_godot_web_runtime("release", run, is_frozen=True) is True

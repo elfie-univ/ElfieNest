@@ -166,6 +166,9 @@ write_managed_uninstaller() {
     local uninstaller_path="$3"
     local application_root="$4"
     local cli_path="$5"
+    local desktop_file="${6:-}"
+    local icon_file="${7:-}"
+    local source_icon="${8:-}"
 
     {
         printf '#!/bin/bash\n'
@@ -176,6 +179,9 @@ write_managed_uninstaller() {
         printf 'UNINSTALLER_PATH=%q\n' "$uninstaller_path"
         printf 'APPLICATION_ROOT=%q\n' "$application_root"
         printf 'CLI_PATH=%q\n' "$cli_path"
+        printf 'DESKTOP_FILE=%q\n' "$desktop_file"
+        printf 'ICON_FILE=%q\n' "$icon_file"
+        printf 'SOURCE_ICON=%q\n' "$source_icon"
         printf '%s\n' 'wrapper_is_managed() {'
         printf '%s\n' '    local expected_cli_line'
         printf '%s\n' '    local line_count'
@@ -197,6 +203,18 @@ write_managed_uninstaller() {
         printf '%s\n' '    [ ! -L "$CLI_PATH" ] || return 1'
         printf '%s\n' '    [ -x "$CLI_PATH" ] || return 1'
         printf '%s\n' '}'
+        printf '%s\n' 'remove_linux_xdg_integration() {'
+        printf '%s\n' '    if [ -n "$DESKTOP_FILE" ] && { [ -e "$DESKTOP_FILE" ] || [ -L "$DESKTOP_FILE" ]; }; then'
+        printf '%s\n' '        [ -f "$DESKTOP_FILE" ] && [ ! -L "$DESKTOP_FILE" ] || return 1'
+        printf '%s\n' '        grep -Fqx "Exec=$APPLICATION_ROOT/AppRun" "$DESKTOP_FILE" || return 1'
+        printf '%s\n' '        rm -f -- "$DESKTOP_FILE"'
+        printf '%s\n' '    fi'
+        printf '%s\n' '    if [ -n "$ICON_FILE" ] && [ -n "$SOURCE_ICON" ] && [ -e "$ICON_FILE" ]; then'
+        printf '%s\n' '        [ -f "$ICON_FILE" ] && [ ! -L "$ICON_FILE" ] && [ -f "$SOURCE_ICON" ] && [ ! -L "$SOURCE_ICON" ] || return 1'
+        printf '%s\n' '        cmp -s "$ICON_FILE" "$SOURCE_ICON" || return 1'
+        printf '%s\n' '        rm -f -- "$ICON_FILE"'
+        printf '%s\n' '    fi'
+        printf '%s\n' '}'
         printf '%s\n' 'if [ -L "$UNINSTALLER_PATH" ]; then'
         printf '%s\n' '    echo "❌ 卸载入口是符号链接，拒绝操作: $UNINSTALLER_PATH" >&2'
         printf '%s\n' '    exit 1'
@@ -213,6 +231,10 @@ write_managed_uninstaller() {
         printf '%s\n' '        echo "❌ 应用目录已被修改，拒绝删除: $APPLICATION_ROOT" >&2'
         printf '%s\n' '        exit 1'
         printf '%s\n' '    fi'
+        printf '%s\n' '    remove_linux_xdg_integration || {'
+        printf '%s\n' '        echo "❌ XDG 应用集成已被修改，拒绝删除: $DESKTOP_FILE" >&2'
+        printf '%s\n' '        exit 1'
+        printf '%s\n' '    }'
         printf '%s\n' '    rm -rf -- "$APPLICATION_ROOT"'
         printf '%s\n' 'fi'
         printf '%s\n' 'rm -f -- "$UNINSTALLER_PATH"'

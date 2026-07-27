@@ -16,8 +16,8 @@
 
 ElfieNest 使用 `scripts/bootstrap.sh` 统一管理所有依赖，分两种模式：
 
-- **dev（贡献者）**：Python dev + 前端 + Godot web + Ollama + Electron dev deps
-- **prod（使用者）**：Python runtime + 前端产物 + Godot web 产物 + Ollama
+- **dev（贡献者）**：Python dev + 前端 + Godot 编辑器/Web 导出 + Electron dev deps
+- **build（源码/安装包构建）**：当前原生 target 的发行工具链
 
 ### 快速启动
 
@@ -25,7 +25,7 @@ ElfieNest 使用 `scripts/bootstrap.sh` 统一管理所有依赖，分两种模�
 ./elfienest.sh              # 自动检测并补齐依赖，进入交互菜单
 ```
 
-首次运行会自动安装所有依赖。后续运行会跳过已安装的依赖。
+首次源码开发运行会安装必需的开发依赖。公共 Ollama 保持可选，并只在 Setup 中由用户明确选择。
 
 ### 手动依赖管理
 

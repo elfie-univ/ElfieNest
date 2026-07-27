@@ -7,18 +7,23 @@ from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.features.accounts.auth import require_owner
 from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.food.advisor import LLMFoodPlanningAdvisor, select_planning_model
 from ai_runtime.food.evidence import ModelEvidenceStore
 from ai_runtime.food.models import FIXED_FOOD_KINDS, FoodRecipe, FoodValidationStatus
 from ai_runtime.food.planner import FoodPlanner, validate_food_recipe
-from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
+from ai_runtime.food.store import (
+    FoodCatalog,
+    FoodCatalogStore,
+    validate_food_catalog_model_references,
+)
+from ai_runtime.models.model_reference import ModelReferenceError
 from ai_runtime.storage.data_home import (
     get_food_catalog_path,
     get_food_history_dir,
     get_model_evidence_path,
 )
+from app.features.accounts.auth import require_owner
 
 router = APIRouter(prefix="/api/owner/runtime/foods", tags=["runtime-foods"])
 
@@ -101,6 +106,7 @@ async def apply_food_update(
         unknown_foods = set(catalog.recipes) - set(FIXED_FOOD_KINDS)
         if unknown_foods:
             raise HTTPException(status_code=422, detail="候选包含未知粮食")
+        _require_explicit_model_references(catalog)
         for recipe in catalog.recipes.values():
             warnings = validate_food_recipe(recipe, evidence)
             if warnings and recipe.validation_status is not FoodValidationStatus.FAILED:
@@ -129,6 +135,7 @@ async def edit_food(
     recipe_data = dict(body)
     recipe_data["source"] = "manual"
     recipe = FoodRecipe.from_dict(food_key, recipe_data)
+    _require_explicit_model_references(FoodCatalog(recipes={food_key: recipe}))
     warnings = validate_food_recipe(recipe, list(evidence_store.load().values()))
     if warnings:
         recipe = FoodRecipe(
@@ -184,3 +191,10 @@ def _proposal_payload(proposal) -> Dict[str, Any]:
         ],
         "candidate": proposal.catalog.to_dict(),
     }
+
+
+def _require_explicit_model_references(catalog: FoodCatalog) -> None:
+    try:
+        validate_food_catalog_model_references(catalog)
+    except ModelReferenceError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

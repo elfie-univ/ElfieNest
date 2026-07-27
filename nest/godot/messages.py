@@ -77,7 +77,7 @@ class _ManifestAnchorPayload(_Payload):
 class _SceneManifestPayload(_Payload):
     nest_id: str
     world_revision: int = Field(ge=0)
-    bed_count: int = Field(ge=1, le=32)
+    bed_count: int = Field(ge=4, le=32)
     capabilities: List[str] = Field(default_factory=list)
     zones: List[_ManifestZonePayload]
     anchors: List[_ManifestAnchorPayload]
@@ -132,7 +132,7 @@ class _SpeechAudiencePayload(_IntentProgressPayload):
 
 class _ConfigureWorldPayload(_Payload):
     nest_id: str = Field(min_length=1)
-    bed_count: int = Field(ge=1, le=32)
+    bed_count: int = Field(ge=4, le=32)
     world_revision: int = Field(ge=0)
 
 

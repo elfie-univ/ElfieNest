@@ -23,8 +23,8 @@ belongs to.
 ElfieNest manages all dependencies through `scripts/bootstrap.sh`, in two
 tiers:
 
-- **dev (contributors)**: Python dev + frontend + Godot web + Ollama + Electron dev deps
-- **prod (end users)**: Python runtime + frontend artifacts + Godot web artifacts + Ollama
+- **dev (contributors)**: Python dev + frontend + Godot editor/Web export + Electron dev deps
+- **build (source/package build)**: the release toolchain for the current native target
 
 ### Quick start
 
@@ -32,8 +32,8 @@ tiers:
 ./elfienest.sh              # auto-detect and install dependencies, then open the interactive menu
 ```
 
-The first run installs all dependencies automatically. Subsequent runs skip
-already-installed dependencies.
+The first source-development run installs required development dependencies.
+Public Ollama remains optional and is selected explicitly in Setup.
 
 ### Manual dependency management
 

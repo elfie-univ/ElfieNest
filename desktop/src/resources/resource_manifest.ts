@@ -63,7 +63,7 @@ export function isResourceTarget(target: string): target is ResourceTarget {
 
 function executablePathForTarget(
   target: ResourceTarget,
-  directory: "python-core" | "ollama" | "management-cli",
+  directory: "python-core" | "management-cli",
 ): string {
   switch (target) {
     case "darwin-arm64":
@@ -72,16 +72,10 @@ function executablePathForTarget(
       if (directory === "python-core") {
         return "python-core/ElfieNestCore";
       }
-      if (directory === "ollama") {
-        return "ollama/ollama";
-      }
       return "management-cli/ElfieNestCli";
     case "win32-x64":
       if (directory === "python-core") {
         return "python-core/ElfieNestCore.exe";
-      }
-      if (directory === "ollama") {
-        return "ollama/ollama.exe";
       }
       return "management-cli/ElfieNestCli.exe";
     default:
@@ -97,7 +91,6 @@ export function requiredResourcePathsForTarget(
     ...PRODUCT_WEB_RESOURCE_PATHS,
     executablePathForTarget(target, "python-core"),
     executablePathForTarget(target, "management-cli"),
-    executablePathForTarget(target, "ollama"),
   ];
 }
 

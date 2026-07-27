@@ -20,6 +20,8 @@ user_router = APIRouter(prefix="/api/user/nest", tags=["user-nest"])
 RequireOwner = Depends(require_owner)
 RequireUser = Depends(get_current_user)
 DEFAULT_BED_COUNT = 4
+MIN_BED_COUNT = 4
+MAX_BED_COUNT = 32
 
 
 def _rooms_with_beds(
@@ -46,11 +48,17 @@ def _publish_desired_layout(
 
 def _bed_count_from_body(body: dict[str, Any]) -> int:
     try:
-        return int(body.get("bed_count", DEFAULT_BED_COUNT))
+        bed_count = int(body.get("bed_count", DEFAULT_BED_COUNT))
     except (TypeError, ValueError) as exc:
         raise HTTPException(
             status_code=422, detail="bed_count must be an integer"
         ) from exc
+    if not MIN_BED_COUNT <= bed_count <= MAX_BED_COUNT:
+        raise HTTPException(
+            status_code=422,
+            detail=f"bed_count 必须在 {MIN_BED_COUNT} 到 {MAX_BED_COUNT} 之间",
+        )
+    return bed_count
 
 
 @router.get("/rooms")

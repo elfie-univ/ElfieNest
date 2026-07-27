@@ -7,7 +7,9 @@ from pathlib import Path
 from app.interfaces.cli import packaged_runtime
 
 
-def test_frozen_cli_discovers_its_sibling_core_without_a_checkout(tmp_path: Path) -> None:
+def test_frozen_cli_discovers_its_sibling_core_without_a_checkout(
+    tmp_path: Path,
+) -> None:
     # Given: the CLI's standard resource location inside an installed app bundle.
     resources = tmp_path / "ElfieNest.app" / "Contents" / "Resources"
     cli = resources / "management-cli" / "ElfieNestCli"
@@ -27,3 +29,22 @@ def test_frozen_cli_discovers_its_sibling_core_without_a_checkout(tmp_path: Path
 
     # Then: lifecycle operations receive only the sibling Core executable path.
     assert environment == {"ELFIENEST_CORE_BIN": str(core)}
+
+
+def test_frozen_cli_reads_the_packaged_manifest_version_without_distribution_metadata(
+    tmp_path: Path,
+) -> None:
+    # Given: a standalone application bundle whose frozen CLI has no wheel metadata.
+    resources = tmp_path / "ElfieNest.app" / "Contents" / "Resources"
+    cli = resources / "management-cli" / "ElfieNestCli"
+    cli.parent.mkdir(parents=True)
+    cli.write_bytes(b"cli")
+    (resources / "manifest.json").write_text(
+        '{"application_version":"0.1.0"}\n', encoding="utf-8"
+    )
+
+    # When: the installed CLI resolves its application version from its sibling resources.
+    version = packaged_runtime.packaged_application_version(cli)
+
+    # Then: it reports the release version without needing a source checkout or wheel.
+    assert version == "0.1.0"

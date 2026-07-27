@@ -15,11 +15,6 @@ from ai_runtime.storage.config_store import read_yaml_mapping
 from ai_runtime.storage.data_home import get_config_path
 from app.features.configuration.runtime_store import write_runtime_config
 
-# 项目基准路径
-RUNTIME_DIR = os.path.dirname(os.path.abspath(__file__))
-BIN_DIR = os.path.join(RUNTIME_DIR, "bin")
-OLLAMA_PATH = os.path.join(BIN_DIR, "ollama")
-
 DEFAULT_LOCAL_PROFILE = select_local_profile(8)
 MODELS_TO_PULL = [DEFAULT_LOCAL_PROFILE.text_model, DEFAULT_LOCAL_PROFILE.vision_model]
 
@@ -114,66 +109,6 @@ def render_progress_bar(
 
     sys.stdout.write(f"\r{prefix} |{bar}| {percent_str} {size_info} {suffix}")
     sys.stdout.flush()
-
-
-def ensure_bin_dir():
-    """保证 bin 目录存在"""
-    if not os.path.exists(BIN_DIR):
-        os.makedirs(BIN_DIR)
-
-
-def download_ollama_macos() -> bool:
-    """在 macOS 环境下静默下载官方的 Ollama CLI 二进制文件"""
-    if os.path.exists(OLLAMA_PATH):
-        print(f"✅ 检测到 Ollama 二进制已存在于本地: {OLLAMA_PATH}")
-        return True
-
-    if sys.platform != "darwin":
-        print(f"❌ 自动下载仅支持 macOS (Darwin) 系统，当前系统为 {sys.platform}。")
-        print("💡 请前往 Ollama 官网 (https://ollama.com) 手动下载安装并保持服务运行。")
-        return False
-
-    print("🦊 正在为您的 macOS 静默下载轻量级 Ollama 命令行底座...")
-    download_url = "https://ollama.com/download/ollama-darwin"
-
-    ensure_bin_dir()
-
-    try:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-        }
-        req = urllib.request.Request(download_url, headers=headers)
-        with urllib.request.urlopen(req) as response:
-            total_size = int(response.info().get("Content-Length", 0))
-            downloaded = 0
-            block_size = 1024 * 256  # 256KB
-
-            with open(OLLAMA_PATH, "wb") as f:
-                while True:
-                    buffer = response.read(block_size)
-                    if not buffer:
-                        break
-                    downloaded += len(buffer)
-                    f.write(buffer)
-                    render_progress_bar(
-                        downloaded,
-                        total_size,
-                        prefix="📥 下载底座",
-                        suffix="正在写入...",
-                    )
-
-        print("\n🎉 下载完成！正在赋予其可执行权限...")
-        os.chmod(OLLAMA_PATH, 0o755)
-        print("✅ Ollama 底座执行权限配置完毕。")
-        return True
-    except Exception as e:
-        print(f"\n❌ 下载 Ollama 发生致命异常: {e}")
-        if os.path.exists(OLLAMA_PATH):
-            try:
-                os.remove(OLLAMA_PATH)
-            except Exception:
-                pass
-        return False
 
 
 def check_local_ollama_alive() -> bool:
@@ -488,17 +423,12 @@ def main():
     print("🚀 Elfie LLM Runtime 算力底座：一键引导与模型拉取引导程序")
     print("=========================================================================")
 
-    # 1. 确保 Ollama CLI 存在
-    _ = download_ollama_macos()
-
-    # 检查系统自带的 ollama
+    # 1. 仅使用用户自行安装的系统级 Ollama；应用不下载私有副本。
     system_ollama = shutil.which("ollama")
-    ollama_exec = OLLAMA_PATH if os.path.exists(OLLAMA_PATH) else system_ollama
+    ollama_exec = system_ollama
 
     if not ollama_exec:
-        print(
-            "❌ 本地未检测到已安装的 Ollama 二进制，且非 macOS 系统无法自动托管下载。"
-        )
+        print("❌ 本地未检测到已安装的 Ollama 二进制。")
         print("💡 请前往官网手动安装 Ollama：https://ollama.com")
         sys.exit(1)
 

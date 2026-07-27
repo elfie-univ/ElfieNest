@@ -32,12 +32,15 @@
       }
     ],
     "mac": {
+      "icon": "assets/elfienest.png",
       "target": ["dmg"]
     },
     "win": {
+      "icon": "assets/elfienest.png",
       "target": ["nsis"]
     },
     "linux": {
+      "icon": "assets/elfienest.png",
       "target": ["AppImage"]
     },
     "directories": {

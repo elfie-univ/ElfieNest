@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import subprocess
 import sys
 from pathlib import Path
@@ -13,7 +14,14 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import package_python_core
-from scripts.release_planning import ReleasePlan, ReleasePlanError, plan_release
+from scripts.release_planning import (
+    ReleasePlanError,
+    ReleaseRequest,
+    RunnerResult,
+    coordinate_release,
+    plan_release,
+    release_requests,
+)
 
 SUPPORTED_TARGETS: Final[tuple[str, ...]] = package_python_core.TARGETS
 PROJECT_ROOT: Final = Path(__file__).resolve().parents[1]
@@ -33,12 +41,23 @@ def parse_args(arguments: Optional[Sequence[str]] = None) -> argparse.Namespace:
         type=Path,
         help="write the one locally built artifact path for an installer caller",
     )
+    parser.add_argument(
+        "--source-install-artifact-output",
+        type=Path,
+        help="write one current-host artifact for source installation before post-install smoke",
+    )
     return parser.parse_args(arguments)
 
 
 def main(arguments: Optional[Sequence[str]] = None) -> int:
-    """Report the native work executable here and the runners still required."""
+    """Coordinate one complete release matrix without uploading any artifacts."""
     args = parse_args(arguments)
+    if (
+        args.artifact_output is not None
+        and args.source_install_artifact_output is not None
+    ):
+        print("release-artifact-output-options-conflict")
+        return 2
     targets = tuple(args.target) if args.target else SUPPORTED_TARGETS
     try:
         plan = plan_release(targets, package_python_core.host_target())
@@ -59,33 +78,112 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
             return 1
 
     try:
-        artifacts = []
+        requests = release_requests(
+            targets,
+            version=release_version(),
+            source_commit=source_commit(),
+            input_manifest=release_input_manifest(),
+        )
+        adapters = {}
         if plan.native_targets:
             steps = release_pipeline.default_release_steps()
-        for target in plan.native_targets:
-            artifact = release_pipeline.run_native_release(
-                target=target,
-                host_target=package_python_core.host_target(),
-                steps=steps,
+            adapters[package_python_core.host_target()] = _local_runner_adapter(
+                release_pipeline, steps
             )
-            artifacts.append(artifact)
-            print(f"release-target-built target={target} artifact={artifact}")
-    except (release_pipeline.ReleasePipelineError, release_pipeline.NativeReleaseTargetError) as error:
+        session = coordinate_release(requests, adapters)
+    except (
+        ReleasePlanError,
+        release_pipeline.ReleasePipelineError,
+        release_pipeline.NativeReleaseTargetError,
+    ) as error:
         print(str(error))
         return 1
+    artifacts = [
+        result.artifact for result in session.results if result.artifact is not None
+    ]
+    for result in session.results:
+        if result.artifact is not None:
+            print(
+                "release-target-built "
+                f"target={result.target} artifact={result.artifact} "
+                f"sha256={result.artifact_sha256 or 'unverified'}"
+            )
+        if result.status != "complete":
+            print(
+                f"release-target-{result.status} target={result.target} "
+                f"reason={result.error or 'release-evidence-incomplete'}"
+            )
     if args.artifact_output is not None:
-        if len(artifacts) != 1 or not plan.is_complete:
+        if len(artifacts) != 1 or session.status != "complete":
             print("release-artifact-output-requires-one-complete-native-target")
             return 2
         args.artifact_output.write_text(f"{artifacts[0].resolve()}\n", encoding="utf-8")
-    _print_missing_runner_targets(plan)
-    return 0 if plan.is_complete else 3
+    if args.source_install_artifact_output is not None:
+        if (
+            len(artifacts) != 1
+            or len(targets) != 1
+            or targets[0] != package_python_core.host_target()
+        ):
+            print("release-source-install-artifact-requires-one-current-native-target")
+            return 2
+        args.source_install_artifact_output.write_text(
+            f"{artifacts[0].resolve()}\n", encoding="utf-8"
+        )
+    return 0 if session.status == "complete" else 3
 
 
-def _print_missing_runner_targets(plan: ReleasePlan) -> None:
-    """Report incomplete cross-runner work without disguising it as a release."""
-    for target in plan.requires_native_runner:
-        print(f"release-target-requires-native-runner target={target}")
+def _local_runner_adapter(release_pipeline_module, steps):
+    """Return the current-host native builder; install smoke remains a required later gate."""
+    host_target = package_python_core.host_target()
+
+    def run(request: ReleaseRequest) -> RunnerResult:
+        artifact = release_pipeline_module.run_native_release(
+            target=request.target,
+            host_target=host_target,
+            steps=steps,
+        )
+        payload = artifact.read_bytes()
+        return RunnerResult(
+            target=request.target,
+            status="incomplete",
+            artifact=artifact,
+            artifact_size=len(payload),
+            artifact_sha256=hashlib.sha256(payload).hexdigest(),
+            smoke_evidence=None,
+            error="release-install-smoke-unavailable",
+        )
+
+    return run
+
+
+def release_version() -> str:
+    """Read the checked release version without importing packaging-only code."""
+    from scripts import check_release_version
+
+    return check_release_version.project_version()
+
+
+def source_commit() -> str:
+    """Record the exact checkout commit used as a release input."""
+    result = subprocess.run(
+        ("git", "rev-parse", "HEAD"),
+        cwd=PROJECT_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    commit = result.stdout.strip()
+    if result.returncode != 0 or len(commit) != 40:
+        raise ReleasePlanError("release-source-commit-unavailable")
+    return commit
+
+
+def release_input_manifest() -> str:
+    """Hash immutable release inputs before any runner receives a request."""
+    digest = hashlib.sha256()
+    for path in (PROJECT_ROOT / "pyproject.toml", PROJECT_ROOT / "uv.lock"):
+        digest.update(path.read_bytes())
+    return digest.hexdigest()
 
 
 def project_python_path() -> Path:

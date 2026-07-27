@@ -4,6 +4,8 @@ import hashlib
 import json
 from pathlib import Path
 
+from pytest import MonkeyPatch
+
 from nest.godot.bundle import inspect_godot_web_bundle
 
 
@@ -16,6 +18,19 @@ def test_bundle_status_requires_all_runtime_artifacts(tmp_path: Path) -> None:
     assert status.ready is False
     assert ".pck" in status.missing
     assert "build-manifest.json" in status.missing
+
+
+def test_bundle_status_uses_the_packaged_runtime_directory_from_environment(
+    monkeypatch: MonkeyPatch, tmp_path: Path
+) -> None:
+    # Given: an installed Core receives the Godot bundle directory from Desktop.
+    monkeypatch.setenv("ELFIENEST_GODOT_WEB_DIR", str(tmp_path))
+
+    # When: it performs its normal runtime inspection without a source-tree argument.
+    status = inspect_godot_web_bundle()
+
+    # Then: package resources—not PyInstaller's temporary source extraction—are inspected.
+    assert status.directory == tmp_path
 
 
 def test_bundle_status_reads_complete_manifest(tmp_path: Path) -> None:

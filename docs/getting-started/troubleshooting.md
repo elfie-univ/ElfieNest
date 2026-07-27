@@ -5,13 +5,14 @@
 Install uv following its official guide first, then re-run:
 
 ```bash
-./install.sh
+./elfienest.sh
 ```
 
 ## Wrong Python version
 
 The project is pinned to CPython `3.9.25`. Do not reuse other virtual
-environments — just re-run the installer.
+environments — use `./elfienest.sh` for source development or `./install.sh`
+for a complete current-machine installation.
 
 ## Port already in use
 
@@ -31,14 +32,9 @@ Do not use broad `kill` commands against unknown processes.
 
 ## Model connection failure
 
-First validate the basic pipeline with fallback mode:
-
-```bash
-./elfienest.sh serve --fallback
-```
-
-If fallback mode works, check the Ollama address, the provider configuration and
-the environment variables.
+Ollama is optional. If you chose it during Setup, check the one saved Ollama
+endpoint and its Provider configuration; do not replace it by scanning for a
+different local service. You can skip or configure another Provider in Setup.
 
 ## Abnormal data directory
 

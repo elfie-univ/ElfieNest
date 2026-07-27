@@ -12,7 +12,6 @@ from typing import Callable, Dict, Final, Optional, TypeVar
 from scripts import (
     assemble_desktop_resources,
     check_release_version,
-    ollama_sidecar,
     package_python_core,
     release_manifest,
 )
@@ -42,8 +41,7 @@ class NativeReleaseSteps:
     build_godot: Callable[[], None]
     freeze_core: Callable[[str], Path]
     freeze_cli: Callable[[str], Path]
-    download_sidecar: Callable[[str], Path]
-    assemble: Callable[[str, Path, Path, Path], Path]
+    assemble: Callable[[str, Path, Path], Path]
     validate: Callable[[Path], None]
     package: Callable[[str, Path, Dict[str, str]], Path]
 
@@ -63,10 +61,7 @@ def run_native_release(
     _run_stage("dependencies", steps.ensure_dependencies)
     core = _run_stage("python-core", lambda: steps.freeze_core(target))
     cli = _run_stage("management-cli", lambda: steps.freeze_cli(target))
-    archive = _run_stage("ollama-sidecar", lambda: steps.download_sidecar(target))
-    resources = _run_stage(
-        "resources", lambda: steps.assemble(target, core, cli, archive)
-    )
+    resources = _run_stage("resources", lambda: steps.assemble(target, core, cli))
     _run_stage("manifest", lambda: steps.validate(resources))
     environment = dict(os.environ)
     environment["ELFIENEST_TARGET"] = target
@@ -84,9 +79,7 @@ def _run_stage(stage: str, operation: Callable[[], StageResult]) -> StageResult:
         subprocess.CalledProcessError,
         assemble_desktop_resources.ResourceAssemblyError,
         check_release_version.ReleaseVersionError,
-        ollama_sidecar.OllamaSidecarDownloadError,
         package_python_core.NativeTargetRequiredError,
-        package_python_core.OllamaSourceError,
         release_manifest.ReleaseResourceManifestError,
     ) as error:
         raise ReleasePipelineError(
@@ -106,23 +99,25 @@ def default_release_steps() -> NativeReleaseSteps:
         build_godot=_build_godot,
         freeze_core=_freeze_core,
         freeze_cli=_freeze_cli,
-        download_sidecar=_download_sidecar,
-        assemble=lambda target, core, cli, archive: _assemble(
-            target, core, cli, archive, version
-        ),
+        assemble=lambda target, core, cli: _assemble(target, core, cli, version),
         validate=_validate_resources,
         package=_package_installer,
     )
 
 
-def _run_command(command: tuple[str, ...], cwd: Path, environment: Optional[Dict[str, str]] = None) -> None:
+def _run_command(
+    command: tuple[str, ...], cwd: Path, environment: Optional[Dict[str, str]] = None
+) -> None:
     """Run one required build command, propagating nonzero exits as hard failures."""
     subprocess.run(command, cwd=cwd, env=environment, check=True)
 
 
 def _ensure_dependencies() -> None:
     """Verify every production runtime input after the buildable Godot gate ran."""
-    _run_command((str(PROJECT_ROOT / "scripts" / "bootstrap.sh"), "check", "--tier=prod"), PROJECT_ROOT)
+    _run_command(
+        (str(PROJECT_ROOT / "scripts" / "bootstrap.sh"), "check", "--tier=build"),
+        PROJECT_ROOT,
+    )
 
 
 def _build_web() -> None:
@@ -149,7 +144,9 @@ def _build_web() -> None:
 
 def _build_godot() -> None:
     """Export the required Godot Web runtime through the controlled project script."""
-    _run_command((_project_python(), "scripts/build_godot_web.py", "--ensure"), PROJECT_ROOT)
+    _run_command(
+        (_project_python(), "scripts/build_godot_web.py", "--ensure"), PROJECT_ROOT
+    )
 
 
 def _freeze_core(target: str) -> Path:
@@ -170,18 +167,8 @@ def _freeze_cli(target: str) -> Path:
     )
 
 
-def _download_sidecar(target: str) -> Path:
-    """Acquire the checked-in, checksum-pinned sidecar asset for this target."""
-    source = package_python_core.load_ollama_sources().for_target(target)
-    return ollama_sidecar.download_sidecar(
-        source=source,
-        destination=BUILD_DIR / "downloads" / "ollama" / target / source.filename,
-    )
-
-
-def _assemble(target: str, core: Path, cli: Path, archive: Path, version: str) -> Path:
+def _assemble(target: str, core: Path, cli: Path, version: str) -> Path:
     """Assemble the one target-scoped Electron resource root."""
-    source = package_python_core.load_ollama_sources().for_target(target)
     return assemble_desktop_resources.assemble_resources(
         target=target,
         output_root=BUILD_DIR / "staging",
@@ -189,8 +176,6 @@ def _assemble(target: str, core: Path, cli: Path, archive: Path, version: str) -
         godot_source=BUILD_DIR / "components" / "godot-web",
         core_source=core,
         cli_source=cli,
-        ollama_archive=archive,
-        ollama_source=source,
         application_version=version,
     )
 
@@ -200,7 +185,9 @@ def _validate_resources(resources: Path) -> None:
     release_manifest.validate_release_resources(resources)
 
 
-def _package_installer(target: str, resources: Path, environment: Dict[str, str]) -> Path:
+def _package_installer(
+    target: str, resources: Path, environment: Dict[str, str]
+) -> Path:
     """Create one native installer in build first, then publish only a complete file."""
     if resources != BUILD_DIR / "staging" / target / "resources":
         raise ReleasePipelineError(f"release-resources-target-mismatch target={target}")
@@ -208,6 +195,11 @@ def _package_installer(target: str, resources: Path, environment: Dict[str, str]
     if output.exists():
         shutil.rmtree(output)
     try:
+        _run_command(
+            ("npx", "--yes", "pnpm@10.12.1", "build"),
+            DESKTOP_DIR,
+            environment,
+        )
         target_arguments = _electron_target_arguments(target)
         _run_command(
             (
@@ -259,7 +251,9 @@ def _electron_target_arguments(target: str) -> tuple[str, str]:
     try:
         return arguments[target]
     except KeyError as error:
-        raise ReleasePipelineError(f"release-target-unsupported target={target}") from error
+        raise ReleasePipelineError(
+            f"release-target-unsupported target={target}"
+        ) from error
 
 
 def _installer_glob(target: str) -> str:
@@ -273,4 +267,6 @@ def _installer_glob(target: str) -> str:
     try:
         return extensions[target]
     except KeyError as error:
-        raise ReleasePipelineError(f"release-target-unsupported target={target}") from error
+        raise ReleasePipelineError(
+            f"release-target-unsupported target={target}"
+        ) from error

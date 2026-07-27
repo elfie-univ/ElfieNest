@@ -22,6 +22,13 @@ const ClientUserSchema = z.object({
 
 const LoginResponseSchema = z.object({ landing_path: z.union([z.literal("/chat"), z.literal("/manage")]) })
 const SetupResponseSchema = z.object({ id: z.number().int(), username: z.string(), role: z.literal("owner"), csrf_token: z.string() })
+const SetupStatusSchema = z.object({
+  need_setup: z.boolean(), complete: z.boolean(), current_step: z.number().int().min(1).max(5),
+  steps: z.array(z.object({ number: z.number().int().min(1).max(5), name: z.string(), status: z.string(), retry_action: z.string().nullable().optional() })),
+  last_error: z.string().nullable().optional(),
+  task: z.object({ step: z.number().int().min(1).max(5), key: z.string(), state: z.string(), progress: z.number().int().min(0).max(100), error: z.string().nullable().optional() }).nullable().optional(),
+})
+const SetupModelRecommendationSchema = z.object({ memory_gb: z.number().int().min(0), recommended_model: z.string().nullable() })
 
 export const ChatMessageSchema = z.object({
   id: z.number().int(), elfie_id: z.string(),
@@ -76,6 +83,8 @@ export type OwnerElfie = z.infer<typeof OwnerElfieSchema>
 export type NestRoom = z.infer<typeof RoomSchema>
 export type AdoptionInfo = z.infer<typeof AdoptionInfoSchema>
 export type MobileAccess = z.infer<typeof MobileAccessSchema>
+export type SetupStatus = z.infer<typeof SetupStatusSchema>
+export type SetupModelRecommendation = z.infer<typeof SetupModelRecommendationSchema>
 
 export class ApiError extends Error {
   public constructor(readonly status: number, message: string) { super(message) }
@@ -146,9 +155,19 @@ export async function changePassword(oldPassword: string, newPassword: string, c
     body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
   })
 }
-export async function setup(username: string, password: string): Promise<z.infer<typeof SetupResponseSchema>> {
-  return SetupResponseSchema.parse(await requestJson("/api/auth/setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) }))
+export async function setup(username: string, password: string, displayName: string): Promise<z.infer<typeof SetupResponseSchema>> {
+  return SetupResponseSchema.parse(await requestJson("/api/auth/setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password, display_name: displayName || undefined }) }))
 }
+export async function setupStatus(): Promise<SetupStatus> { return SetupStatusSchema.parse(await requestJson("/api/auth/setup-status")) }
+export async function setupSkipOllama(csrfToken: string): Promise<SetupStatus> { return SetupStatusSchema.parse(await requestJson("/api/auth/setup/ollama", { method: "POST", headers: csrfHeaders(csrfToken, true), body: JSON.stringify({ decision: "skipped" }) })) }
+export async function setupBindExistingOllama(endpoint: string, csrfToken: string): Promise<SetupStatus> { return SetupStatusSchema.parse(await requestJson("/api/auth/setup/ollama", { method: "POST", headers: csrfHeaders(csrfToken, true), body: JSON.stringify({ decision: "bound_existing", endpoint }) })) }
+export async function setupInstallOfficialOllama(csrfToken: string): Promise<SetupStatus> { return SetupStatusSchema.parse(await requestJson("/api/auth/setup/ollama/install", { method: "POST", headers: csrfHeaders(csrfToken, true), body: JSON.stringify({ confirmed: true }) })) }
+export async function setupNest(bedCount: number, csrfToken: string): Promise<SetupStatus> { return SetupStatusSchema.parse(await requestJson("/api/auth/setup/nest", { method: "PUT", headers: csrfHeaders(csrfToken, true), body: JSON.stringify({ bed_count: bedCount }) })) }
+export async function setupModelRecommendation(): Promise<SetupModelRecommendation> { return SetupModelRecommendationSchema.parse(await requestJson("/api/auth/setup/model-recommendation")) }
+export async function setupSkipModel(csrfToken: string): Promise<SetupStatus> { return SetupStatusSchema.parse(await requestJson("/api/auth/setup/model", { method: "POST", headers: csrfHeaders(csrfToken, true), body: JSON.stringify({ decision: "skipped" }) })) }
+export async function setupConfiguredModel(modelReference: string, csrfToken: string): Promise<SetupStatus> { return SetupStatusSchema.parse(await requestJson("/api/auth/setup/model", { method: "POST", headers: csrfHeaders(csrfToken, true), body: JSON.stringify({ decision: "configured", model_reference: modelReference }) })) }
+export async function setupPullModel(modelReference: string, csrfToken: string): Promise<SetupStatus> { return SetupStatusSchema.parse(await requestJson("/api/auth/setup/model/pull", { method: "POST", headers: csrfHeaders(csrfToken, true), body: JSON.stringify({ model_reference: modelReference, confirmed: true }) })) }
+export async function setupComplete(csrfToken: string): Promise<SetupStatus> { return SetupStatusSchema.parse(await requestJson("/api/auth/setup/complete", { method: "POST", headers: csrfHeaders(csrfToken) })) }
 export async function login(username: string, password: string, next: string): Promise<string> {
   const target = next === "/chat" || next === "/manage" ? `?next=${next}` : ""
   const result = await requestJson(`/api/auth/login${target}`, { method: "POST", body: new URLSearchParams({ username, password }) })

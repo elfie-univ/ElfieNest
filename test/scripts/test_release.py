@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts import release, release_pipeline
+from scripts import release, release_pipeline, release_planning
 from test.support.paths import PROJECT_ROOT
 
 
@@ -34,12 +34,148 @@ def test_release_plan_rejects_an_unknown_target() -> None:
         )
 
 
+def test_release_session_dispatches_all_targets_and_requires_artifact_hash_and_smoke(
+    tmp_path: Path,
+) -> None:
+    # Given: four native runners, each returning a verified installer and smoke evidence.
+    artifact = tmp_path / "ElfieNest.dmg"
+    artifact.write_bytes(b"installer")
+    requests = release_planning.release_requests(
+        targets=release.SUPPORTED_TARGETS,
+        version="0.1.0",
+        source_commit="a" * 40,
+        input_manifest="b" * 64,
+    )
+    dispatched: list[str] = []
+
+    def runner(
+        request: release_planning.ReleaseRequest,
+    ) -> release_planning.RunnerResult:
+        dispatched.append(request.target)
+        return release_planning.completed_runner_result(
+            request,
+            artifact=artifact,
+            smoke_evidence=f"smoke:{request.target}",
+        )
+
+    # When: one coordinator invocation fans out the complete matrix.
+    session = release_planning.coordinate_release(
+        requests,
+        dict.fromkeys(release.SUPPORTED_TARGETS, runner),
+    )
+
+    # Then: the aggregate is complete only with one hashed installer and smoke per target.
+    assert session.status == "complete"
+    assert set(dispatched) == set(release.SUPPORTED_TARGETS)
+    assert {result.target for result in session.results} == set(
+        release.SUPPORTED_TARGETS
+    )
+    assert all(result.artifact_sha256 for result in session.results)
+    assert all(result.smoke_evidence for result in session.results)
+
+
+def test_release_session_keeps_successful_artifacts_when_one_runner_is_missing(
+    tmp_path: Path,
+) -> None:
+    # Given: only one native runner is configured for a two-target matrix.
+    artifact = tmp_path / "ElfieNest.dmg"
+    artifact.write_bytes(b"installer")
+    requests = release_planning.release_requests(
+        targets=("darwin-arm64", "win32-x64"),
+        version="0.1.0",
+        source_commit="a" * 40,
+        input_manifest="b" * 64,
+    )
+
+    # When: the unavailable Windows target is dispatched with the local target.
+    session = release_planning.coordinate_release(
+        requests,
+        {
+            "darwin-arm64": lambda request: release_planning.completed_runner_result(
+                request,
+                artifact=artifact,
+                smoke_evidence="smoke:darwin-arm64",
+            )
+        },
+    )
+
+    # Then: the completed artifact remains recorded, while the session is explicitly incomplete.
+    assert session.status == "incomplete"
+    results = {result.target: result for result in session.results}
+    assert results["darwin-arm64"].artifact == artifact
+    assert results["win32-x64"].status == "incomplete"
+    assert results["win32-x64"].error == "release-runner-unavailable"
+
+
+def test_release_cli_without_target_requests_the_complete_matrix_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: a runner environment where only the coordinator is observed.
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        release.package_python_core, "host_target", lambda: "darwin-arm64"
+    )
+    monkeypatch.setattr(release, "uses_project_python", lambda: True)
+    monkeypatch.setattr(release, "ensure_release_environment", lambda: True)
+    monkeypatch.setattr(release, "release_version", lambda: "0.1.0")
+    monkeypatch.setattr(release, "source_commit", lambda: "a" * 40)
+    monkeypatch.setattr(release, "release_input_manifest", lambda: "b" * 64)
+    monkeypatch.setattr(release_pipeline, "default_release_steps", lambda: "steps")
+
+    def coordinate(requests, adapters):
+        captured["targets"] = tuple(request.target for request in requests)
+        captured["adapters"] = tuple(adapters)
+        return release_planning.coordinate_release(requests, {})
+
+    monkeypatch.setattr(release, "coordinate_release", coordinate)
+
+    # When: the publish command is invoked without a target argument.
+    result = release.main([])
+
+    # Then: all four targets enter one session, with absent runners reported as incomplete.
+    assert result == 3
+    assert captured["targets"] == release.SUPPORTED_TARGETS
+    assert captured["adapters"] == ("darwin-arm64",)
+
+
+def test_source_install_artifact_output_allows_only_the_current_native_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # Given: a native build whose installer has not yet received post-install smoke evidence.
+    artifact = tmp_path / "ElfieNest.dmg"
+    artifact.write_bytes(b"installer")
+    output = tmp_path / "source-install-artifact"
+    monkeypatch.setattr(
+        release.package_python_core, "host_target", lambda: "darwin-arm64"
+    )
+    monkeypatch.setattr(release, "uses_project_python", lambda: True)
+    monkeypatch.setattr(release, "ensure_release_environment", lambda: True)
+    monkeypatch.setattr(release, "release_version", lambda: "0.1.0")
+    monkeypatch.setattr(release, "source_commit", lambda: "a" * 40)
+    monkeypatch.setattr(release, "release_input_manifest", lambda: "b" * 64)
+    monkeypatch.setattr(release_pipeline, "default_release_steps", lambda: "steps")
+    monkeypatch.setattr(
+        release_pipeline,
+        "run_native_release",
+        lambda **_kwargs: artifact,
+    )
+
+    # When: source installation requests the current host artifact for its own install/smoke phase.
+    result = release.main(
+        ["--target", "darwin-arm64", "--source-install-artifact-output", str(output)]
+    )
+
+    # Then: it may receive one local installer, while release status itself remains incomplete.
+    assert result == 3
+    assert output.read_text(encoding="utf-8") == f"{artifact.resolve()}\n"
+
+
 def test_native_pipeline_passes_the_exact_target_to_the_packager(tmp_path) -> None:
     # Given: every checked release stage on one native runner.
     events: list[str] = []
     core = tmp_path / "ElfieNestCore"
     cli = tmp_path / "ElfieNestCli"
-    archive = tmp_path / "ollama-darwin.tgz"
     resources = tmp_path / "resources"
     artifact = tmp_path / "ElfieNest-0.1.0-internal-mac-arm64.dmg"
 
@@ -55,11 +191,8 @@ def test_native_pipeline_passes_the_exact_target_to_the_packager(tmp_path) -> No
         build_godot=lambda: events.append("godot"),
         freeze_core=lambda target: events.append("core") or core,
         freeze_cli=lambda target: events.append("cli") or cli,
-        download_sidecar=lambda target: events.append("sidecar") or archive,
-        assemble=lambda target, received_core, received_cli, received_archive: (
-            assert_release_inputs(
-                target, received_core, received_cli, received_archive, core, cli, archive
-            ),
+        assemble=lambda target, received_core, received_cli: (
+            assert_release_inputs(target, received_core, received_cli, core, cli),
             events.append("assemble"),
             resources,
         )[-1],
@@ -82,21 +215,17 @@ def test_native_pipeline_passes_the_exact_target_to_the_packager(tmp_path) -> No
         "dependencies",
         "core",
         "cli",
-        "sidecar",
         "assemble",
         "validate",
         "package",
     ]
 
 
-def assert_release_inputs(
-    target, received_core, received_cli, received_archive, core, cli, archive
-) -> None:
+def assert_release_inputs(target, received_core, received_cli, core, cli) -> None:
     """Keep the assembly assertion out of the one-When pipeline test."""
     assert target == "darwin-arm64"
     assert received_core == core
     assert received_cli == cli
-    assert received_archive == archive
 
 
 def test_native_pipeline_stops_before_packaging_when_godot_build_fails() -> None:
@@ -108,8 +237,7 @@ def test_native_pipeline_stops_before_packaging_when_godot_build_fails() -> None
         build_godot=lambda: (_ for _ in ()).throw(OSError("godot missing")),
         freeze_core=lambda target: events.append("core"),
         freeze_cli=lambda target: events.append("cli"),
-        download_sidecar=lambda target: events.append("sidecar"),
-        assemble=lambda target, core, cli, archive: events.append("assemble"),
+        assemble=lambda target, core, cli: events.append("assemble"),
         validate=lambda resources: events.append("validate"),
         package=lambda target, resources, environment: events.append("package"),
     )
@@ -131,9 +259,13 @@ def test_release_cli_only_reports_success_after_its_native_pipeline_finishes(
     # Given: an otherwise native release request with a deterministic pipeline.
     artifact = tmp_path / "ElfieNest-0.1.0-internal-mac-arm64.dmg"
     calls: list[str] = []
-    monkeypatch.setattr(release.package_python_core, "host_target", lambda: "darwin-arm64")
+    monkeypatch.setattr(
+        release.package_python_core, "host_target", lambda: "darwin-arm64"
+    )
     monkeypatch.setattr(release, "uses_project_python", lambda: True)
-    monkeypatch.setattr(release, "ensure_release_environment", lambda: calls.append("sync") or True)
+    monkeypatch.setattr(
+        release, "ensure_release_environment", lambda: calls.append("sync") or True
+    )
     monkeypatch.setattr(release_pipeline, "default_release_steps", lambda: "steps")
     monkeypatch.setattr(
         release_pipeline,
@@ -144,8 +276,8 @@ def test_release_cli_only_reports_success_after_its_native_pipeline_finishes(
     # When: the command coordinates the current host target.
     result = release.main(["--target", "darwin-arm64"])
 
-    # Then: exit zero is only possible after the native installer pipeline ran.
-    assert result == 0
+    # Then: a built artifact is still incomplete until an installation smoke proves it.
+    assert result == 3
     assert calls == ["sync", "darwin-arm64"]
 
 
@@ -156,7 +288,9 @@ def test_release_artifact_output_is_available_only_for_one_complete_native_targe
     # Given: a native build that returns one installer path.
     artifact = tmp_path / "ElfieNest.dmg"
     output = tmp_path / "artifact-path"
-    monkeypatch.setattr(release.package_python_core, "host_target", lambda: "darwin-arm64")
+    monkeypatch.setattr(
+        release.package_python_core, "host_target", lambda: "darwin-arm64"
+    )
     monkeypatch.setattr(release, "uses_project_python", lambda: True)
     monkeypatch.setattr(release, "ensure_release_environment", lambda: True)
     monkeypatch.setattr(release_pipeline, "default_release_steps", lambda: "steps")
@@ -167,11 +301,13 @@ def test_release_artifact_output_is_available_only_for_one_complete_native_targe
     )
 
     # When: an installer caller requests the artifact through its dedicated file.
-    result = release.main(["--target", "darwin-arm64", "--artifact-output", str(output)])
+    result = release.main(
+        ["--target", "darwin-arm64", "--artifact-output", str(output)]
+    )
 
-    # Then: it receives exactly the completed installer path, not parsed console output.
-    assert result == 0
-    assert output.read_text(encoding="utf-8") == f"{artifact.resolve()}\n"
+    # Then: the artifact path stays unavailable until native installation smoke completes.
+    assert result == 2
+    assert not output.exists()
 
 
 def test_release_cli_reports_a_remote_target_without_initializing_local_builds(
@@ -179,7 +315,9 @@ def test_release_cli_reports_a_remote_target_without_initializing_local_builds(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     # Given: a macOS runner asked only to coordinate a Windows release target.
-    monkeypatch.setattr(release.package_python_core, "host_target", lambda: "darwin-arm64")
+    monkeypatch.setattr(
+        release.package_python_core, "host_target", lambda: "darwin-arm64"
+    )
     monkeypatch.setattr(
         release_pipeline,
         "default_release_steps",
@@ -191,7 +329,10 @@ def test_release_cli_reports_a_remote_target_without_initializing_local_builds(
 
     # Then: the result is explicitly incomplete, rather than a local build failure.
     assert result == 3
-    assert "release-target-requires-native-runner target=win32-x64" in capsys.readouterr().out
+    assert (
+        "release-target-incomplete target=win32-x64 reason=release-runner-unavailable"
+        in capsys.readouterr().out
+    )
 
 
 def test_documented_direct_release_script_resolves_the_repository_package() -> None:
@@ -210,7 +351,10 @@ def test_documented_direct_release_script_resolves_the_repository_package() -> N
 
     # Then: it imports the package and explicitly requests the matching native runner.
     assert result.returncode == 3
-    assert f"release-target-requires-native-runner target={remote}" in result.stdout
+    assert (
+        f"release-target-incomplete target={remote} reason=release-runner-unavailable"
+        in result.stdout
+    )
     assert "ModuleNotFoundError" not in result.stderr
 
 
@@ -249,8 +393,12 @@ def test_packager_publishes_only_the_verified_single_native_installer(
 
     def run_builder(command, cwd, environment) -> None:
         observed_environment.update(environment or {})
+        if "electron-builder" not in command:
+            return
         output_argument = next(
-            value for value in command if value.startswith("--config.directories.output=")
+            value
+            for value in command
+            if value.startswith("--config.directories.output=")
         )
         output = Path(output_argument.split("=", 1)[1])
         output.mkdir(parents=True)
@@ -274,6 +422,46 @@ def test_packager_publishes_only_the_verified_single_native_installer(
     assert not (build_root / "package-output" / "darwin-arm64").exists()
 
 
+def test_packager_rebuilds_the_electron_shell_before_creating_the_installer(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # Given: a staging root whose Electron shell must be rebuilt from current TypeScript.
+    build_root = tmp_path / "build"
+    dist_root = tmp_path / "dist"
+    resources = build_root / "staging" / "darwin-arm64" / "resources"
+    resources.mkdir(parents=True)
+    commands: list[tuple[str, ...]] = []
+
+    def run_builder(command, cwd, environment) -> None:
+        commands.append(command)
+        if "electron-builder" not in command:
+            return
+        output_argument = next(
+            value
+            for value in command
+            if value.startswith("--config.directories.output=")
+        )
+        output = Path(output_argument.split("=", 1)[1])
+        output.mkdir(parents=True)
+        (output / "ElfieNest-0.1.0-internal-mac-arm64.dmg").write_bytes(b"installer")
+
+    monkeypatch.setattr(release_pipeline, "BUILD_DIR", build_root)
+    monkeypatch.setattr(release_pipeline, "DIST_DIR", dist_root)
+    monkeypatch.setattr(release_pipeline, "_run_command", run_builder)
+
+    # When: the package stage builds one target-native installer.
+    release_pipeline._package_installer(
+        "darwin-arm64",
+        resources,
+        {"ELFIENEST_TARGET": "darwin-arm64"},
+    )
+
+    # Then: TypeScript compilation is an explicit required predecessor of electron-builder.
+    assert commands[0] == ("npx", "--yes", "pnpm@10.12.1", "build")
+    assert "electron-builder" in commands[1]
+
+
 def test_packager_replaces_a_previous_same_version_local_artifact(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -288,8 +476,12 @@ def test_packager_replaces_a_previous_same_version_local_artifact(
     destination.write_bytes(b"previous")
 
     def run_builder(command, cwd, environment) -> None:
+        if "electron-builder" not in command:
+            return
         output_argument = next(
-            value for value in command if value.startswith("--config.directories.output=")
+            value
+            for value in command
+            if value.startswith("--config.directories.output=")
         )
         output = Path(output_argument.split("=", 1)[1])
         output.mkdir(parents=True)

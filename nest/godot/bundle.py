@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 GODOT_WEB_DIR = PROJECT_ROOT / "build" / "components" / "godot-web"
@@ -25,9 +26,16 @@ class GodotWebBundleStatus:
     integrity_errors: Tuple[str, ...]
 
 
+def configured_godot_web_directory() -> Path:
+    """Resolve an explicitly packaged Godot bundle before the source-tree default."""
+    configured = os.environ.get("ELFIENEST_GODOT_WEB_DIR")
+    return Path(configured) if configured else GODOT_WEB_DIR
+
+
 def inspect_godot_web_bundle(
-    directory: Path = GODOT_WEB_DIR,
+    directory: Optional[Path] = None,
 ) -> GodotWebBundleStatus:
+    directory = configured_godot_web_directory() if directory is None else directory
     files = tuple(path for path in directory.glob("elfienest.*") if path.is_file())
     suffixes = {path.suffix for path in files}
     missing = tuple(suffix for suffix in REQUIRED_SUFFIXES if suffix not in suffixes)
@@ -49,7 +57,9 @@ def inspect_godot_web_bundle(
             integrity_errors.append("manifest.files 缺失或格式无效")
         else:
             for filename, expected in raw_files.items():
-                if not isinstance(filename, str) or not _is_safe_manifest_filename(filename):
+                if not isinstance(filename, str) or not _is_safe_manifest_filename(
+                    filename
+                ):
                     integrity_errors.append(f"manifest 文件名无效: {filename}")
                     continue
                 path = directory / filename
@@ -61,7 +71,9 @@ def inspect_godot_web_bundle(
                     continue
                 expected_bytes = expected.get("bytes")
                 expected_sha256 = expected.get("sha256")
-                if not isinstance(expected_bytes, int) or not isinstance(expected_sha256, str):
+                if not isinstance(expected_bytes, int) or not isinstance(
+                    expected_sha256, str
+                ):
                     integrity_errors.append(f"manifest 校验字段缺失: {filename}")
                     continue
                 actual_bytes = path.stat().st_size

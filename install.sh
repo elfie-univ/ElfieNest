@@ -99,8 +99,16 @@ PYTHON_VERSION="$(read_pinned_python_version)"
 NATIVE_TARGET="$(current_native_target)" || exit 1
 APPLICATION_ROOT="$(native_application_root "$NATIVE_TARGET")" || exit 1
 CLI_PATH="$(native_cli_path "$NATIVE_TARGET" "$APPLICATION_ROOT")" || exit 1
-if ! ensure_safe_user_install_dir "${APPLICATION_ROOT%/*}"; then
-    echo "❌ 原生应用目录不属于当前用户的安全 HOME 路径: ${APPLICATION_ROOT%/*}" >&2
+DESKTOP_FILE=""
+ICON_FILE=""
+SOURCE_ICON=""
+if [[ "$NATIVE_TARGET" == "linux-x64" ]]; then
+    DESKTOP_FILE="$(native_linux_desktop_file)"
+    ICON_FILE="$(native_linux_icon_file)"
+    SOURCE_ICON="$APPLICATION_ROOT/.DirIcon"
+fi
+if ! validate_native_application_destination "$NATIVE_TARGET" "$APPLICATION_ROOT"; then
+    echo "❌ 原生应用目录不符合当前平台的安全安装位置: $APPLICATION_ROOT" >&2
     exit 1
 fi
 
@@ -123,7 +131,10 @@ write_managed_uninstaller \
     "$INSTALLED_WRAPPER" \
     "$INSTALLED_UNINSTALLER" \
     "$APPLICATION_ROOT" \
-    "$CLI_PATH"
+    "$CLI_PATH" \
+    "$DESKTOP_FILE" \
+    "$ICON_FILE" \
+    "$SOURCE_ICON"
 
 if path_contains_dir "$INSTALL_DIR"; then
     reject_shadowing_command "$COMMAND_NAME" "$INSTALLED_WRAPPER"
@@ -149,7 +160,7 @@ if [ -e "$INSTALLED_UNINSTALLER" ] || [ -L "$INSTALLED_UNINSTALLER" ]; then
 fi
 
 # 调用 bootstrap.sh 准备所有运行时依赖
-if ! ELFIENEST_FORCE_LOCKED_SYNC=1 "$SCRIPT_DIR/scripts/bootstrap.sh" ensure --tier=prod; then
+if ! ELFIENEST_FORCE_LOCKED_SYNC=1 "$SCRIPT_DIR/scripts/bootstrap.sh" ensure --tier=build; then
     echo "❌ 运行时依赖准备失败" >&2
     exit 1
 fi
@@ -165,9 +176,14 @@ fi
 
 RELEASE_ARTIFACT_PATH="$(mktemp "${TMPDIR:-/tmp}/elfienest-release-artifact.XXXXXX")"
 PROJECT_PYTHON="$(project_python_executable)" || exit 1
-if ! "$PROJECT_PYTHON" "$PROJECT_ROOT/scripts/release.py" \
+if "$PROJECT_PYTHON" "$PROJECT_ROOT/scripts/release.py" \
     --target "$NATIVE_TARGET" \
-    --artifact-output "$RELEASE_ARTIFACT_PATH"; then
+    --source-install-artifact-output "$RELEASE_ARTIFACT_PATH"; then
+    RELEASE_BUILD_STATUS=0
+else
+    RELEASE_BUILD_STATUS=$?
+fi
+if [[ "$RELEASE_BUILD_STATUS" -ne 0 && "$RELEASE_BUILD_STATUS" -ne 3 ]]; then
     echo "❌ 本机原生应用构建失败，已保留旧应用与旧命令。" >&2
     exit 1
 fi
@@ -182,6 +198,11 @@ if ! install_native_artifact "$NATIVE_TARGET" "$RELEASE_ARTIFACT" "$APPLICATION_
 fi
 if ! validate_native_application_root "$NATIVE_TARGET" "$APPLICATION_ROOT"; then
     echo "❌ 原生应用安装后的资源校验失败。" >&2
+    exit 1
+fi
+if [[ "$NATIVE_TARGET" == "linux-x64" ]] \
+    && ! install_linux_xdg_integration "$APPLICATION_ROOT"; then
+    echo "❌ Linux 应用菜单集成失败，已保留已安装应用。" >&2
     exit 1
 fi
 
@@ -199,6 +220,9 @@ migrate_legacy_installations \
 echo "✅ 已${INSTALL_ACTION} elfienest 命令"
 echo ""
 echo "🎉 安装完成！"
+if ! launch_native_application "$NATIVE_TARGET" "$APPLICATION_ROOT"; then
+    echo "⚠️  应用已安装，但无法自动打开；请从应用菜单或 elfienest 命令启动。" >&2
+fi
 echo ""
 echo "使用方法:"
 echo "  elfienest              # 进入交互式主菜单"

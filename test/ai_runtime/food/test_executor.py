@@ -60,6 +60,22 @@ def test_food_executor_uses_technical_fallback_inside_same_food(monkeypatch, tmp
     assert result.execution_stage == "fallback_1"
 
 
+def test_food_executor_rejects_a_bare_model_reference(monkeypatch, tmp_path):
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    calls = []
+    recipe = FoodRecipe("standard", "标准粮", "默认", ExecutionProfile("qwen2.5:0.5b"))
+
+    try:
+        make_executor(LLMRuntimeConfig(), tmp_path, calls).execute(
+            recipe, [{"role": "user", "content": "hello"}]
+        )
+    except Exception as exc:
+        assert "provider_id/model_id" in str(exc)
+    else:
+        raise AssertionError("裸模型名不得被默认解释为 Ollama")
+    assert calls == []
+
+
 def test_food_executor_can_use_deep_profile_without_changing_food(
     monkeypatch, tmp_path
 ):
@@ -113,9 +129,7 @@ def test_food_executor_builds_multimodal_payload_for_selected_provider(
     image.write_bytes(b"image")
 
     result = executor.execute(
-        FoodRecipe(
-            "vision", "视觉粮", "test", ExecutionProfile("cloud/vision-model")
-        ),
+        FoodRecipe("vision", "视觉粮", "test", ExecutionProfile("cloud/vision-model")),
         [{"role": "user", "content": "这是什么？"}],
         images=(str(image),),
     )
