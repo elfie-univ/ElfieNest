@@ -1,37 +1,26 @@
 import { useEffect, useState, type FormEvent } from "react"
 
-import { ApiError, ownerAssignBed, ownerCameraStatus, ownerElfies, ownerRooms, ownerUpdateBedCount, type CameraStatus, type NestRoom, type OwnerElfie } from "../api/client"
+import { ApiError, ownerAssignBed, ownerElfies, ownerRooms, ownerUpdateBedCount, type NestRoom, type OwnerElfie } from "../api/client"
 import { BedDistribution } from "./BedDistribution"
-import { CameraPreview } from "./CameraPreview"
 import { ClassicNestFloorPlan } from "./ClassicNestFloorPlan"
 import { ConfirmDialog } from "./ConfirmDialog"
-import { Icon } from "./Icon"
-import { ManageDialog } from "./ManageDialog"
 import { Notice } from "./Notice"
 import { NumberField } from "./NumberField"
-
-function cameraSyncLabel(camera: CameraStatus | null): string {
-  if (!camera || camera.reported_bed_count === null) return "等待 Godot 上报"
-  if (camera.layout_syncing) return "同步中"
-  return "已同步"
-}
+import { ObserverSurface } from "./ObserverSurface"
 
 export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
   const [rooms, setRooms] = useState<readonly NestRoom[]>([])
   const [elfies, setElfies] = useState<readonly OwnerElfie[]>([])
   const [bedCount, setBedCount] = useState(4)
-  const [camera, setCamera] = useState<CameraStatus | null>(null)
-  const [showCamera, setShowCamera] = useState(false)
   const [confirmBeds, setConfirmBeds] = useState(false)
   const [savingBeds, setSavingBeds] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const load = async (): Promise<void> => {
     try {
-      const [nextRooms, nextElfies, nextCamera] = await Promise.all([ownerRooms(), ownerElfies(), ownerCameraStatus()])
+      const [nextRooms, nextElfies] = await Promise.all([ownerRooms(), ownerElfies()])
       setRooms(nextRooms)
       setElfies(nextElfies)
-      setCamera(nextCamera)
       const room = nextRooms[0]
       setBedCount(room?.desired_bed_count ?? room?.beds.length ?? 4)
       setError(null)
@@ -52,7 +41,7 @@ export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
     setSavingBeds(true)
     try {
       await ownerUpdateBedCount(bedCount, csrfToken)
-      setNotice("期望床位数已保存，正在等待 Godot 同步布局。")
+      setNotice("期望床位数已保存；3D 观察不可用时，平面图与床位分配仍可继续使用。")
       setConfirmBeds(false)
       await load()
     } catch (reason: unknown) {
@@ -80,13 +69,12 @@ export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
     <div className="nest-console__layout">
       <ClassicNestFloorPlan beds={beds} desiredBedCount={room?.desired_bed_count ?? bedCount} roomName={room?.name ?? "Local Nest"} />
       <aside className="nest-console__side">
-        <section className="nest-side-card"><div className="nest-side-card__title"><h3>摄像头</h3><span className={camera?.online ? "status-dot status-dot--online" : "status-dot"}>{camera?.online ? "实时" : "离线"}</span></div><div className={`camera-preview${camera?.online ? " has-frame" : ""}`}>{camera?.online ? <img alt="精灵巢摄像头缩略图" src={`/api/camera/frame.jpg?v=${camera.frame_version}`} /> : <span>摄像头离线</span>}<strong>{camera?.labels[camera.active_index] ?? "整体总览"}</strong></div><button className="button" onClick={() => setShowCamera(true)} type="button"><Icon name="camera" size={16} />打开预览</button></section>
-        <form className="nest-side-card" onSubmit={requestBedUpdate}><h3>床位数</h3><NumberField hint={`已上报 ${camera?.reported_bed_count ?? "—"} / 期望 ${camera?.desired_bed_count ?? bedCount} · ${cameraSyncLabel(camera)}`} label="期望床位" max={32} min={4} onChange={setBedCount} value={bedCount} /><button className="button" type="submit">保存布局</button></form>
+        <form className="nest-side-card" onSubmit={requestBedUpdate}><h3>床位数</h3><NumberField hint={`期望 ${room?.desired_bed_count ?? bedCount} 个床位；3D 观察不可用时仍可使用平面图。`} label="期望床位" max={32} min={4} onChange={setBedCount} value={bedCount} /><button className="button" type="submit">保存布局</button></form>
         <BedDistribution elfies={elfies} onAssign={assignBed} rooms={rooms} />
         <section className="nest-side-card"><h3>房间事件</h3><ul className="nest-events">{beds.filter((bed) => bed.occupant_name).map((bed) => <li key={bed.anchor_id}>{bed.name}：{bed.occupant_name} 已在位</li>)}{beds.every((bed) => !bed.occupant_name) ? <li>暂无床位占用事件</li> : null}</ul></section>
       </aside>
     </div>
-    <ManageDialog contentClassName="manage-dialog--camera" description="可在此切换 Godot 已上报的摄像机位。" onOpenChange={setShowCamera} open={showCamera} title="实时房间摄像头"><CameraPreview csrfToken={csrfToken} /></ManageDialog>
+    <ObserverSurface kind="room" roomId={room?.id ?? "local-nest"} title="房间 3D 观察" />
     <ConfirmDialog confirmLabel="保存布局" description={`确认向 Godot 提交 ${bedCount} 个期望床位吗？这不会由管理端直接修改 3D 几何。`} onConfirm={() => { void confirmBedUpdate() }} onOpenChange={setConfirmBeds} open={confirmBeds} pending={savingBeds} title="确认调整床位" />
   </section>
 }

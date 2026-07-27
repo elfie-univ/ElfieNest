@@ -218,7 +218,7 @@ ensure_elfie_home() {
 }
 
 check_electron() {
-    local desktop_dir="$PROJECT_ROOT/desktop"
+    local desktop_dir="$PROJECT_ROOT/app/interfaces/desktop"
     [[ -d "$desktop_dir/node_modules" ]]
 }
 
@@ -233,10 +233,10 @@ ensure_electron() {
     ensure_node || return 1
     ensure_pnpm || return 1
 
-    local desktop_dir="$PROJECT_ROOT/desktop"
+    local desktop_dir="$PROJECT_ROOT/app/interfaces/desktop"
 
     if [[ ! -f "$desktop_dir/package.json" ]]; then
-        echo "${YELLOW}  ⚠️  desktop/package.json 不存在，跳过 Electron${RESET}"
+        echo "${YELLOW}  ⚠️  app/interfaces/desktop/package.json 不存在，跳过 Electron${RESET}"
         return 0
     fi
 

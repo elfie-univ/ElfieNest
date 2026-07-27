@@ -42,6 +42,26 @@ def test_register_service_process_reclaims_stale_pid_receipt(
     assert pid_path.read_text(encoding="utf-8") == "6100"
 
 
+def test_register_service_process_reclaims_zombie_pid_receipt(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    elfie_home = tmp_path / "home"
+    service_process.register_service_process(elfie_home, 6099)
+    monkeypatch.setattr(service_process.os, "kill", lambda _pid, _signal: None)
+    monkeypatch.setattr(
+        service_process.subprocess,
+        "run",
+        lambda *_args, **_kwargs: service_process.subprocess.CompletedProcess(
+            args=("ps",), returncode=0, stdout="Z+\n", stderr=""
+        ),
+    )
+
+    pid_path = service_process.register_service_process(elfie_home, 6100)
+
+    assert pid_path.read_text(encoding="utf-8") == "6100"
+
+
 def test_register_and_remove_service_pid_only_removes_own_receipt(
     tmp_path: Path,
 ) -> None:
@@ -185,3 +205,38 @@ def test_default_inspector_reads_linux_proc_without_lsof(tmp_path: Path) -> None
         "--port",
         "8100",
     )
+
+
+def test_default_inspector_treats_linux_zombie_as_stopped(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    pid = 6303
+    process_dir = tmp_path / str(pid)
+    process_dir.mkdir()
+    (process_dir / "stat").write_text(
+        "6303 (python worker) Z 1 2 3 4 5\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(service_process.os, "kill", lambda _pid, _signal: None)
+
+    inspector = service_process.DefaultProcessInspector(proc_root=tmp_path)
+
+    assert inspector.exists(pid) is False
+
+
+def test_default_inspector_treats_macos_zombie_as_stopped(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(service_process.os, "kill", lambda _pid, _signal: None)
+    monkeypatch.setattr(
+        service_process.subprocess,
+        "run",
+        lambda *_args, **_kwargs: service_process.subprocess.CompletedProcess(
+            args=("ps",), returncode=0, stdout="Z+\n", stderr=""
+        ),
+    )
+    inspector = service_process.DefaultProcessInspector(proc_root=tmp_path)
+
+    assert inspector.exists(6304) is False

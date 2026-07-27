@@ -13,7 +13,12 @@ from app.orchestration.scene_manifest import (
     parse_world_snapshot,
 )
 from nest import Nest
-from nest.godot.messages import CommandName, EventName, JsonObject, RuntimeEventFrame
+from nest.godot_gateway.messages import (
+    CommandName,
+    EventName,
+    JsonObject,
+    RuntimeEventFrame,
+)
 from nest.state.models import PersistentResidentState, ResidentPresence
 from nest.state.repository import NestPersistenceError, NestRepository
 from nest.state.store import NoHomeAvailableError
@@ -31,7 +36,7 @@ class ActorDescriptor:
 ActorCatalogProvider = Callable[[], tuple[ActorDescriptor, ...]]
 
 
-class NestRuntimeSynchronizer:  # noqa: MUTABLE_OK - runtime reconciliation state machine.
+class NestRuntimeSynchronizer:
     """Merge desired residents until one authoritative Runtime is ready."""
 
     def __init__(

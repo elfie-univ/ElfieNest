@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1360 1115" role="img" aria-labelledby="title desc">
+  <title id="title">ElfieNest nested module architecture</title>
+  <desc id="desc">Nested application, Elfie, Nest, AI Runtime, Godot Runtime and Godot Project boxes. Black arrows show cross-module data and protocol flow. Red arrows show concrete entrypoint and internal control flow.</desc>
+  <defs>
+    <marker id="black-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 Z" fill="#172033"/></marker>
+    <marker id="red-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 Z" fill="#b42318"/></marker>
+    <style>
+      .outer { fill:#f8fafc; stroke:#172033; stroke-width:2.2; }
+      .inner { fill:#e8eef7; stroke:#172033; stroke-width:1.6; }
+      .source { fill:#fff4d6; stroke:#172033; stroke-width:1.7; stroke-dasharray:7 5; }
+      .title { fill:#172033; font:500 22px system-ui, sans-serif; }
+      .text { fill:#172033; font:400 16px system-ui, sans-serif; }
+      .muted { fill:#526176; font:400 14px system-ui, sans-serif; }
+      .black { fill:none; stroke:#172033; stroke-width:2.3; marker-end:url(#black-arrow); }
+      .red { fill:none; stroke:#b42318; stroke-width:2.6; marker-end:url(#red-arrow); }
+      .legend { stroke:#172033; stroke-width:2.3; }
+      .legend-red { stroke:#b42318; stroke-width:2.6; }
+    </style>
+  </defs>
+  <rect class="outer" x="45" y="34" width="1270" height="344" rx="12"/>
+  <text class="title" x="72" y="70">app</text><text class="muted" x="122" y="70">product composition and entrypoints</text>
+  <rect class="inner" x="72" y="88" width="1216" height="98" rx="8"/>
+  <text class="title" x="94" y="119">app/interfaces</text>
+  <rect class="inner" x="94" y="134" width="278" height="32" rx="8"/><text class="text" x="112" y="156">Web / API</text>
+  <rect class="inner" x="392" y="134" width="278" height="32" rx="8"/><text class="text" x="410" y="156">CLI</text>
+  <rect class="inner" x="690" y="134" width="278" height="32" rx="8"/><text class="text" x="708" y="156">Desktop observer UI</text>
+  <rect class="inner" x="988" y="134" width="278" height="32" rx="8"/><text class="text" x="1006" y="156">HTTP / WebSocket</text>
+  <rect class="inner" x="72" y="208" width="776" height="88" rx="8"/>
+  <text class="title" x="94" y="239">app/orchestration</text><text class="muted" x="299" y="239">cross-domain composition and routing</text>
+  <rect class="inner" x="94" y="252" width="724" height="28" rx="8"/><text class="text" x="111" y="273">NestSession · lifecycle · Runtime Supervisor</text>
+  <rect class="inner" x="874" y="208" width="414" height="38" rx="8"/><text class="title" x="895" y="234">app/features</text>
+  <rect class="inner" x="874" y="258" width="414" height="38" rx="8"/><text class="title" x="895" y="284">app/infrastructure</text>
+  <rect class="outer" x="45" y="402" width="540" height="440" rx="12"/>
+  <text class="title" x="72" y="438">elfie</text><text class="muted" x="134" y="438">one complete individual</text>
+  <rect class="inner" x="76" y="468" width="290" height="54" rx="8"/><text class="title" x="95" y="492">Elfie facade · elfie.py</text><text class="muted" x="95" y="512">public instance lifecycle</text>
+  <rect class="inner" x="388" y="468" width="164" height="54" rx="8"/><text class="title" x="406" y="492">ElfieFactory</text><text class="muted" x="406" y="512">factory.py</text>
+  <rect class="inner" x="76" y="562" width="475" height="44" rx="8"/><text class="title" x="96" y="590">Brain</text>
+  <rect class="inner" x="76" y="642" width="222" height="50" rx="8"/><text class="text" x="95" y="672">Nervous system</text>
+  <rect class="inner" x="328" y="642" width="223" height="50" rx="8"/><text class="text" x="347" y="672">Communication</text>
+  <rect class="inner" x="76" y="730" width="475" height="49" rx="8"/><text class="text" x="96" y="760">Body · profile · skills</text>
+  <rect class="source" x="76" y="800" width="475" height="24" rx="8"/><text class="muted" x="94" y="818">Food port → ai_runtime</text>
+  <rect class="outer" x="745" y="402" width="570" height="440" rx="12"/>
+  <text class="title" x="772" y="438">nest</text><text class="muted" x="827" y="438">activity space and semantic world state</text>
+  <rect class="inner" x="776" y="468" width="508" height="58" rx="8"/><text class="title" x="797" y="492">Nest facade · nest.py</text><text class="muted" x="797" y="513">only public Nest boundary</text>
+  <rect class="inner" x="776" y="562" width="508" height="78" rx="8"/><text class="text" x="797" y="590">state · environment clock · interaction propagation</text><text class="text" x="797" y="616">residents only by Elfie ID</text>
+  <rect class="inner" x="776" y="665" width="508" height="80" rx="8"/><text class="title" x="797" y="697">nest/godot_gateway</text><text class="muted" x="797" y="720">validated protocol and observer artifacts</text>
+  <rect class="inner" x="776" y="779" width="508" height="35" rx="8"/><text class="text" x="797" y="803">semantic commands / physical facts</text>
+  <rect class="outer" x="45" y="900" width="540" height="174" rx="12"/>
+  <text class="title" x="72" y="937">ai_runtime</text>
+  <rect class="inner" x="78" y="960" width="246" height="45" rx="8"/><text class="text" x="99" y="989">Food / inference loop</text>
+  <rect class="inner" x="345" y="960" width="238" height="45" rx="8"/><text class="text" x="367" y="989">tools · safety</text>
+  <rect class="source" x="78" y="1021" width="505" height="34" rx="8"/><text class="text" x="100" y="1044">Public Ollama / cloud provider — external, configured</text>
+  <rect class="outer" x="745" y="900" width="390" height="174" rx="12"/>
+  <text class="title" x="772" y="937">godot_runtime</text>
+  <rect class="inner" x="777" y="960" width="326" height="40" rx="8"/><text class="text" x="800" y="986">graphical: Electron + Web/Wasm</text>
+  <rect class="inner" x="777" y="1012" width="326" height="40" rx="8"/><text class="text" x="800" y="1038">headless Linux: Dedicated</text>
+  <rect class="source" x="1161" y="900" width="154" height="174" rx="8"/>
+  <text class="title" x="1178" y="937">godot</text><text class="title" x="1178" y="961">project</text>
+  <text class="muted" x="1178" y="990">scenes</text><text class="muted" x="1178" y="1011">geometry</text><text class="muted" x="1178" y="1032">physics</text><text class="muted" x="1178" y="1053">rendering</text>
+  <path class="black" d="M330 378 L330 402"/><path class="black" d="M330 402 L330 378"/>
+  <path class="black" d="M1028 378 L1028 402"/><path class="black" d="M1028 402 L1028 378"/>
+  <path class="black" d="M330 842 L330 892"/><path class="black" d="M330 892 L330 842"/>
+  <path class="black" d="M1028 842 L1028 892"/><path class="black" d="M1028 892 L1028 842"/>
+  <path class="black" d="M1153 986 L1138 986"/>
+  <path class="red" d="M420 296 C400 348 250 392 220 466"/><path class="red" d="M505 296 C650 352 940 394 1010 464"/><path class="red" d="M388 495 L367 495"/>
+  <path class="red" d="M323 605 L205 642"/><path class="red" d="M205 692 L226 730"/><path class="red" d="M323 605 L442 642"/><path class="red" d="M323 605 L446 730"/><path class="red" d="M446 779 L446 954"/>
+  <path class="red" d="M1030 526 L1030 665"/><path class="red" d="M1030 745 L1030 894"/>
+  <line class="legend" x1="58" y1="1100" x2="104" y2="1100"/><text class="muted" x="116" y="1105">black: cross-module data / protocol flow</text>
+  <line class="legend-red" x1="522" y1="1100" x2="568" y2="1100"/><text class="muted" x="580" y="1105">red: concrete internal control flow</text>
+</svg>

@@ -102,28 +102,41 @@ def test_web_runtime_accepts_a_loopback_websocket_url_from_its_query() -> None:
 
 def test_nest_lab_web_mode_disables_production_camera_streaming() -> None:
     main_text = (GODOT_ROOT / "main.gd").read_text(encoding="utf-8")
+    lab_runtime_text = (GODOT_ROOT / "runtime" / "lab_runtime.gd").read_text(
+        encoding="utf-8"
+    )
 
     assert '_query_parameter("mode") == "nest_lab"' in main_text
-    assert "func _disable_camera_stream() -> void:" in main_text
-    assert "if _nest_lab_mode:" in main_text
+    assert "_lab_runtime.setup_nest_lab()" in main_text
+    assert "CameraStreamBridge" not in main_text
+    assert "CameraStreamBridge" not in lab_runtime_text
 
 
 def test_elfie_lab_retries_its_web_bridge_until_the_browser_is_ready() -> None:
     main_text = (GODOT_ROOT / "main.gd").read_text(encoding="utf-8")
+    lab_runtime_text = (GODOT_ROOT / "runtime" / "lab_runtime.gd").read_text(
+        encoding="utf-8"
+    )
 
-    assert "_initialize_lab_browser_bridge()" in main_text
-    assert "_lab_browser_bridge_ready" in main_text
+    assert "_lab_runtime.setup_elfie_lab()" in main_text
+    assert "_lab_runtime.process_elfie_lab_frame()" in main_text
+    assert "_initialize_lab_browser_bridge()" in lab_runtime_text
+    assert "_lab_browser_bridge_ready" in lab_runtime_text
 
 
 def test_nest_lab_web_mode_accepts_only_named_camera_presets_and_restore() -> None:
     # Given
     main_text = (GODOT_ROOT / "main.gd").read_text(encoding="utf-8")
+    lab_runtime_text = (GODOT_ROOT / "runtime" / "lab_runtime.gd").read_text(
+        encoding="utf-8"
+    )
 
     # When / Then
-    assert "elfienest-nest-lab" in main_text
-    assert "_poll_nest_lab_camera_messages" in main_text
-    assert "select_observation_view_named" in main_text
-    assert "reset_observation_camera" in main_text
+    assert "_lab_runtime.process_nest_lab_frame()" in main_text
+    assert "elfienest-nest-lab" in lab_runtime_text
+    assert "process_nest_lab_frame" in lab_runtime_text
+    assert "select_observation_view_named" in lab_runtime_text
+    assert "reset_observation_camera" in lab_runtime_text
 
 
 def test_actor_movement_matches_the_imported_model_forward_axis() -> None:
@@ -159,6 +172,5 @@ def test_blender_authoring_sources_are_excluded_from_godot_imports() -> None:
         if not (path / ".gdignore").is_file()
     ]
 
-    assert missing_markers == [], (
-        f"Blender 制作源目录必须用 .gdignore 与 Godot 自动导入隔离: {missing_markers}"
-    )
+    message = "Blender 制作源目录必须用 .gdignore 与 Godot 自动导入隔离"
+    assert missing_markers == [], f"{message}: {missing_markers}"

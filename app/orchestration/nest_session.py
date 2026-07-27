@@ -22,7 +22,8 @@ from elfie import Elfie
 from elfie.brain.runtime_port import CorticalRuntimePort
 from elfie.communication.contracts import InboundDisposition
 from nest import Nest
-from nest.godot.messages import RuntimeEventFrame
+from nest.godot_gateway.messages import RuntimeEventFrame
+from nest.godot_gateway.observer import ObserverSemanticEntity
 from nest.interaction.hub import TactileInput
 from nest.state.repository import (
     NestPersistenceError,
@@ -174,6 +175,24 @@ class NestSession:
     def flush_runtime_state(self) -> None:
         """Send one complete actor catalog when the matching world is ready."""
         self._runtime_sync.flush()
+
+    def observer_semantic_entities(self) -> Dict[str, ObserverSemanticEntity]:
+        """Expose only Nest-owned semantic facts for authenticated Observers."""
+        catalog = self.nest.state.world_catalog
+        room_id = catalog.nest_id if catalog is not None else "local-nest"
+        entities: Dict[str, ObserverSemanticEntity] = {}
+        for elfie_id, resident in self.nest.state.residents.items():
+            mirror = self.nest.state.runtime_mirrors.get(elfie_id)
+            entities[elfie_id] = ObserverSemanticEntity(
+                room_id=room_id,
+                zone_id=mirror.current_zone_id if mirror is not None else None,
+                posture=mirror.posture if mirror is not None else resident.posture,
+                active=resident.active,
+                active_command_id=(
+                    mirror.active_command_id if mirror is not None else None
+                ),
+            )
+        return entities
 
     def tick_elfies(self, seconds: float) -> None:
         """推进活跃精灵自身周期；Nest 环境时钟由 Nest 单独推进。"""

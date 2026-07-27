@@ -2,7 +2,6 @@
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://rooms/nest.tscn" id="2_nest"]
-[ext_resource type="Script" path="res://camera_stream_bridge.gd" id="3_camera_bridge"]
 
 [sub_resource type="Environment" id="Environment_lab"]
 background_mode = 1
@@ -54,6 +53,3 @@ mesh = SubResource("PlaneMesh_lab")
 position = Vector3(0, 0.88, 3.4)
 projection = 1
 size = 2.35
-
-[node name="CameraStreamBridge" type="Node" parent="."]
-script = ExtResource("3_camera_bridge")

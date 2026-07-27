@@ -11,7 +11,6 @@ const ACTOR_SCENES := {
 func _init() -> void:
 	var main_scene := load("res://main.tscn") as PackedScene
 	var main := main_scene.instantiate()
-	main.get_node("CameraStreamBridge").process_mode = Node.PROCESS_MODE_DISABLED
 	root.add_child(main)
 	await process_frame
 	var nest := main.get_node("Nest") as ModularNest

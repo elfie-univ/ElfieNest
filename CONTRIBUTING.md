@@ -89,8 +89,8 @@ has actually changed, and explain why in the PR.
   capabilities.
 - `ai_runtime/`: models, providers, routing, tools, safety and the inference
   runtime.
-- `desktop/`: Electron windows, platform adaptation, resource discovery and
-  process supervision.
+- `app/interfaces/desktop/`: visible Electron windows, platform adaptation and
+  the public Runtime lifecycle client; it does not own Runtime processes.
 - `godot_project/`: standalone Godot source project; the single source project
   for houses, geometry, coordinates, collision, motion and rendering.
 - `devtools/`: module workbenches isolated from the end-user product.
@@ -131,8 +131,8 @@ dedicated quality-debt change may update the baseline.
   assertions.
 - Electron only owns the desktop lifecycle and platform boundary; it carries no
   product business rules.
-- After changing `desktop/`, run its existing tests and TypeScript checks and
-  list the commands in the PR.
+- After changing `app/interfaces/desktop/`, run its existing tests and
+  TypeScript checks and list the commands in the PR.
 
 ### GDScript
 
@@ -215,8 +215,8 @@ tests or an updated quality baseline.
 - Restoring the legacy top-level packages `runtime/` or `elfienest/`.
 - Holding or creating real Elfies inside `nest/`, or copying Godot scene /
   geometry facts into Python.
-- Bypassing product and security boundaries inside `desktop/`, Godot or the
-  debug platform.
+- Bypassing product and security boundaries inside `app/interfaces/desktop/`,
+  Godot or the debug platform.
 - Publishing private worldbuilding, partnership material, unreleased
   capabilities or model-generated intermediate designs.
 - Bypassing pre-commit, Gitleaks, architecture tests or the user review gate.

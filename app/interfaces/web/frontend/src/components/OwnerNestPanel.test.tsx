@@ -2,14 +2,13 @@ import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { ownerCameraStatus, ownerElfies, ownerRooms, type OwnerElfie } from "../api/client"
+import { ownerElfies, ownerRooms, type OwnerElfie } from "../api/client"
 import { OwnerNestPanel } from "./OwnerNestPanel"
 
 vi.mock("../api/client", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/client")>()
   return {
     ...original,
-    ownerCameraStatus: vi.fn(),
     ownerElfies: vi.fn(),
     ownerRooms: vi.fn(),
     ownerWrite: vi.fn(),
@@ -60,16 +59,6 @@ describe("OwnerNestPanel", () => {
   beforeEach(() => {
     vi.mocked(ownerRooms).mockResolvedValue(roomFixture)
     vi.mocked(ownerElfies).mockResolvedValue([happy, stardust])
-    vi.mocked(ownerCameraStatus).mockResolvedValue({
-      online: false,
-      labels: ["整体总览", "区域俯视 01-04"],
-      active_index: 0,
-      desired_index: 0,
-      frame_version: 0,
-      layout_syncing: false,
-      desired_bed_count: 4,
-      reported_bed_count: 4,
-    })
   })
 
   it("migrates the classic floorplan landmarks, bed numbers, and occupants", async () => {
@@ -87,16 +76,13 @@ describe("OwnerNestPanel", () => {
     expect(screen.getByText("聚餐区")).toBeInTheDocument()
   })
 
-  it("shows an offline camera thumbnail and opens the multi-view dialog", async () => {
-    const user = userEvent.setup()
-    const { container } = render(<OwnerNestPanel csrfToken="csrf" />)
+  it("uses Observer with a semantic fallback instead of a fixed camera preview", async () => {
+    render(<OwnerNestPanel csrfToken="csrf" />)
 
-    expect(await screen.findByText("摄像头离线")).toBeInTheDocument()
-    expect(container.querySelector(".camera-preview")).not.toBeNull()
-    await user.click(screen.getByRole("button", { name: "打开预览" }))
-    const dialog = screen.getByRole("dialog", { name: "实时房间摄像头" })
-    expect(within(dialog).getByRole("option", { name: /整体总览/ })).toBeInTheDocument()
-    expect(within(dialog).getByRole("option", { name: /区域俯视 01-04/ })).toBeInTheDocument()
+    expect(await screen.findByRole("region", { name: "房间 3D 观察" })).toBeInTheDocument()
+    expect(screen.getByText("当前设备无法运行 3D 观察，已保留语义状态和页面操作。")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "打开预览" })).toBeNull()
+    expect(screen.queryByRole("dialog", { name: "实时房间摄像头" })).toBeNull()
   })
 
   it("sorts unassigned elfies first and edits only the selected row", async () => {

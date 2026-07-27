@@ -33,4 +33,19 @@ describe("ManagePage", () => {
     expect(managePage).not.toContain("<h2>工具与权限</h2>")
     expect(systemSettings).not.toContain("<h2>系统设置</h2>")
   })
+
+  it("keeps the mobile navigation compact enough for content to enter the first viewport", () => {
+    // Given: the responsive Manage console stylesheet.
+    const styles = readFileSync(resolve(import.meta.dirname, "../manage-console.css"), "utf8")
+    const mobile = styles.slice(styles.indexOf("@media (max-width: 640px)"))
+
+    // When: the narrow-screen navigation contract is inspected.
+    const sidebarRule = mobile.match(/\.manage-sidebar\s*\{[^}]+\}/)?.[0] ?? ""
+    const navigationRule = mobile.match(/\.manage-sidebar__navigation\s*\{[^}]+\}/)?.[0] ?? ""
+
+    // Then: the rail releases viewport height and scrolls its items on one compact axis.
+    expect(sidebarRule).toContain("height: auto")
+    expect(navigationRule).toContain("display: flex")
+    expect(navigationRule).toContain("overflow-x: auto")
+  })
 })

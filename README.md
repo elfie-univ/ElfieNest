@@ -146,7 +146,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 ```
 
 Test paths, Desktop and Godot build commands are maintained separately by the
-[test guide](test/README.md), [Desktop guide](desktop/README.md) and
+[test guide](test/README.md), [Desktop guide](app/interfaces/desktop/README.md) and
 [Godot guide](godot_project/README.md).
 
 ## Minimal directory map
@@ -157,7 +157,7 @@ Test paths, Desktop and Godot build commands are maintained separately by the
 | [`nest/`](nest/README.md) | Activity-space state, environment clock, interaction, Godot protocol boundary |
 | [`ai_runtime/`](ai_runtime/README.md) | Models, providers, routing, food, tools, safety and runtime |
 | [`app/`](app/README.md) | Product use-cases, interfaces, infrastructure and cross-module orchestration |
-| [`desktop/`](desktop/README.md) | Electron lifecycle, resource discovery and process supervision |
+| [`app/interfaces/desktop/`](app/interfaces/desktop/README.md) | Visible Electron windows, system integration and the public Runtime lifecycle client |
 | [`godot_project/`](godot_project/README.md) | Standalone Godot source project: rooms, geometry, coordinates, collision, characters and rendering |
 | [`devtools/`](devtools/README.md) | Module workbenches isolated from the end-user product |
 | [`scripts/`](scripts/README.md) | Launch, build, check and manual diagnosis entry points |

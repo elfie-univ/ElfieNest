@@ -10,7 +10,7 @@ from app.orchestration.runtime_gateway import RuntimeGateway
 from app.orchestration.runtime_sync import NestRuntimeSynchronizer
 from elfie import Elfie
 from nest import Nest
-from nest.godot.messages import RuntimeEventFrame
+from nest.godot_gateway.messages import RuntimeEventFrame
 
 
 class _BroadcasterProvider(Protocol):

@@ -6,7 +6,10 @@ import subprocess
 from pathlib import Path
 
 from app.infrastructure.persistence.store import get_db, hash_password, init_db
-from test.app.interfaces.cli.entrypoint_test_support import PROJECT_ROOT, write_executable
+from test.app.interfaces.cli.entrypoint_test_support import (
+    PROJECT_ROOT,
+    write_executable,
+)
 
 
 def test_cli_help_exposes_owner_account_management() -> None:
@@ -179,7 +182,15 @@ def test_interactive_shell_forwards_owner_command(tmp_path: Path) -> None:
     project_root.mkdir()
     shutil.copy2(PROJECT_ROOT / "elfienest.sh", project_root / "elfienest.sh")
     shutil.copy2(PROJECT_ROOT / ".python-version", project_root / ".python-version")
+    (project_root / "pyproject.toml").write_text(
+        '[project]\nname = "elfienest-test"\n',
+        encoding="utf-8",
+    )
     write_executable(project_root / "install.sh", "#!/bin/bash\nexit 1\n")
+    write_executable(
+        project_root / "scripts" / "bootstrap.sh",
+        "#!/bin/bash\nexit 0\n",
+    )
     invocation_log = tmp_path / "owner-invocation.log"
     write_executable(
         project_root / ".venv" / "bin" / "python3",

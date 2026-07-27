@@ -13,8 +13,9 @@ the code, rather than relying on someone's memory.
 - `ai_runtime/` owns models, providers, tools, food and the safety runtime.
 - `godot_project/` is the single source of truth for rooms, geometry,
   coordinates, collision and rendering.
-- `desktop/` only owns the Electron host, resource discovery and process
-  supervision.
+- `app/orchestration/lifecycle/` owns Runtime supervision and authority
+  lifecycle; `app/interfaces/desktop/` owns the Electron Observer interface and
+  public lifecycle client.
 
 When adding a directory or a cross-boundary dependency, you must update the
 root README, the architecture docs and the `test/architecture/` contract tests
@@ -39,7 +40,7 @@ together.
   Chinese version kept in sync; both describe the final solution, the code
   evidence and how it is verified.
 - Intermediate discussion, unimplemented proposals, private worldbuilding and
-  experiment records go in the ignored `.omo/` directory and never enter the
+  experiment records stay outside public documentation and never enter the
   VitePress sidebar.
 - A README explains "what it is, how to start, where to go deeper"; do not pass
   process logs off as product documentation.

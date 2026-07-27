@@ -121,12 +121,13 @@
 @media (max-width: 640px) {
   .manage-workbench--console { display: block; height: auto; overflow: visible; }
   .manage--console { height: auto; }
-  .manage-sidebar { min-height: auto; padding: 12px; border-right: 0; border-bottom: 1px solid rgba(49, 77, 62, .18); }
+  .manage-sidebar { height: auto; min-height: auto; padding: 12px; border-right: 0; border-bottom: 1px solid rgba(49, 77, 62, .18); }
   .manage-sidebar__brand { display: none; }
-  .manage-sidebar__navigation { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 0; }
-  .manage-nav-group { gap: 2px; }
-  .manage-nav-group > p { margin-left: 6px; font-size: 9px; }
-  .manage-nav-item { padding: 7px; gap: 6px; font-size: 12px; }
+  .manage-sidebar__navigation { display: flex; flex: 0 0 auto; gap: 8px; margin-top: 0; overflow-x: auto; overflow-y: hidden; padding-bottom: 4px; }
+  .manage-nav-group { display: flex; flex: 0 0 auto; gap: 2px; }
+  .manage-nav-group + .manage-nav-group { padding-top: 0; padding-left: 8px; border-top: 0; border-left: 1px dashed color-mix(in srgb, var(--line) 76%, transparent); }
+  .manage-nav-group > p { display: none; }
+  .manage-nav-item { width: auto; min-height: 36px; flex: 0 0 auto; padding: 7px; gap: 6px; font-size: 12px; white-space: nowrap; }
   .manage-sidebar__bottom { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-top: 10px; }
   .manage-sidebar__quick-actions { display: flex; flex: 1; margin: 0; }
   .manage-quick-action { width: auto; padding: 7px; font-size: 12px; }

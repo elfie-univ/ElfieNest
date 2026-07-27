@@ -9,8 +9,8 @@ from time import monotonic
 from devtools.nest_lab.event_log import LabEventLog
 from devtools.nest_lab.models import LabActor
 from nest import Nest
-from nest.godot.api import GodotAPIServer
-from nest.godot.messages import CommandName
+from nest.godot_gateway.api import GodotAPIServer
+from nest.godot_gateway.messages import CommandName
 
 _WANDER_INTERVAL_SECONDS = 2.0
 

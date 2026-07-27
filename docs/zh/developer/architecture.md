@@ -5,20 +5,15 @@
 
 ## 系统地图
 
-```text
-Electron Desktop
-        │ 监督进程、窗口与平台资源
-        ▼
-Python Core: app
-   ├── orchestration ──> elfie
-   │                ├──> nest
-   │                └──> ai_runtime
-   ├── features
-   ├── interfaces
-   └── infrastructure
-        │
-        └──────────────> Godot Web Runtime
-```
+<img src="/assets/elfienest-system-architecture.svg" alt="ElfieNest 的大框嵌套系统架构图：黑色箭头表示跨模块数据或协议流；红色箭头表示具体入口与内部控制流。" />
+
+黑色箭头在两端都画出箭头头部时，表示真实的双向数据或协议关系；红色箭头标出
+具体的内部入口与控制路径。特别是，`ElfieFactory` 负责创建或恢复 `Elfie` 实例；
+运行期操作随后通过返回的 `elfie.py` facade 进行。
+
+`app/orchestration` 直接组合 `elfie`、`nest` 与 `ai_runtime`。它并不位于
+`app/features` 或 `app/infrastructure` 的下游；后两者组成另一条产品用例路径：
+`app/interfaces → app/features → app/infrastructure`。
 
 核心源码按职责分为：
 
@@ -28,14 +23,18 @@ Python Core: app
 | `nest/` | 活动空间状态、环境时钟、互动和 Godot 协议边界 | [Nest README](https://github.com/elfie-univ/ElfieNest/blob/main/nest/README.md) |
 | `ai_runtime/` | 模型、Provider、策略、粮食、工具与安全运行时 | [AI Runtime README](https://github.com/elfie-univ/ElfieNest/blob/main/ai_runtime/README.md) |
 | `app/` | 产品用例、接口、基础设施和跨模块编排 | [App README](https://github.com/elfie-univ/ElfieNest/blob/main/app/README.md) |
-| `desktop/` | Electron 生命周期、资源发现和进程监督 | [Desktop README](https://github.com/elfie-univ/ElfieNest/blob/main/desktop/README.md) |
+| `app/orchestration/lifecycle/` | Runtime 生命周期、完整健康、owner lease 与权威控制 | [运行时与数据](./architecture-runtime) |
+| `godot_runtime/` | 权威宿主选择、已导出 Runtime 启动和产物元数据 | [运行时与数据](./architecture-runtime) |
+| `app/interfaces/desktop/` | Electron Observer 窗口与公开 lifecycle client | [Desktop README](https://github.com/elfie-univ/ElfieNest/blob/main/app/interfaces/desktop/README.md) |
 | `godot_project/` | 独立 Godot 源工程：房间、几何、坐标、碰撞、角色和渲染源码 | [Godot README](https://github.com/elfie-univ/ElfieNest/blob/main/godot_project/README.md) |
 | `devtools/` | 与普通用户产品隔离的模块实验台 | [Devtools README](https://github.com/elfie-univ/ElfieNest/blob/main/devtools/README.md) |
 
 ## 模块边界
 
 `app/orchestration/NestSession` 是真实 `Elfie` 实例与 `Nest` 的唯一组合位置。
-它按 ID 把巢内事件交给对应精灵，也负责把认知 Runtime 注入精灵生命周期。
+它按 ID 把巢内事件交给对应精灵，也负责把认知 Runtime 注入精灵生命周期。公开的
+模块入口分别是 `elfie/elfie.py`（单精灵 facade）、`elfie/factory.py`（创建与恢复）
+以及 `nest/nest.py`（Nest facade）。
 
 `Nest` 自己只维护居民 ID、巢内语义状态、环境时钟与互动传播。它不创建或保存
 真实 Elfie 对象，也不复制 3D 空间事实。
@@ -50,7 +49,7 @@ Python 侧只保存产品规则所需的语义状态，并通过明确协议与�
 ## 精灵、Nest 与 Godot Runtime 的交互
 
 `godot_project/` 是开发时编辑的 Godot 源工程，并不是 Python 在运行时导入的
-目录。构建会把它导出为 Godot Runtime；Python 侧通过 `nest/godot/` 的协议边界
+目录。构建会把它导出为 Godot Runtime；Python 侧通过 `nest/godot_gateway/` 的协议边界
 与这个已运行的 Runtime 交换语义命令和世界事实。
 
 ```mermaid
@@ -60,7 +59,7 @@ flowchart LR
     Elfie["elfie/<br/>认知、身体输出与通信输出"]
     Orchestration["app/orchestration/<br/>真实 Elfie 与 Nest 的组合、路由"]
     Nest["nest/<br/>房间语义、居民状态与世界事件"]
-    Adapter["nest/godot/<br/>Godot Runtime 协议适配"]
+    Adapter["nest/godot_gateway/<br/>Godot Runtime 协议适配"]
 
     Source -->|"导出构建"| Runtime
     Elfie -->|"抽象行动与通信输出"| Orchestration
@@ -76,7 +75,7 @@ flowchart LR
 构建阶段先把 `godot_project/` 导出为可运行的 Godot Runtime。连接使用仅支持
 v2 的 nonce 鉴权和单权威 generation；编排层先配置世界，等待 Runtime 发布语义
 目录并声明导航就绪，再发送完整角色目录。运行期间，精灵输出抽象行动或通信内容；
-`app/orchestration/` 按精灵 ID 经 `nest/godot/` 发送语义命令，Nest 自身不复制
+`app/orchestration/` 按精灵 ID 经 `nest/godot_gateway/` 发送语义命令，Nest 自身不复制
 坐标和家具事实。Runtime 运行空间、导航、动作、碰撞和渲染，并将发生的物理事实
 回传。同一条回程经由编排层更新 Nest 语义状态，并成为对应精灵的身体感知、通信
 感知或动作执行回执。
@@ -121,20 +120,24 @@ Communication ----------------/          │
 
 ## 进程边界
 
-开发态和安装态的组件不都运行在一个进程里：
+`app/orchestration/lifecycle/RuntimeSupervisor` 拥有一个 Runtime generation：
 
 ```text
-Electron Desktop
-  ├── 普通用户窗口
-  ├── Ollama（受管或外部）
-  ├── Python Core
-  └── 隐藏 Godot Web Runtime
+Runtime Supervisor
+  ├── Python Core + Gateway
+  ├── 一个被选中的 Godot 权威宿主
+  │   ├── 图形化 Web 权威
+  │   ├── 图形化 Electron 权威角色
+  │   └── 无显示 Linux dedicated 权威
+  └── 公共 Ollama 健康（可选；可以 degraded）
+
+app/interfaces/desktop/ ──> 已认证 Observer + 公开 lifecycle client
 ```
 
-Desktop 只负责单实例窗口、平台资源发现、进程监督和退出收束。账户、领养、
-聊天、Nest 规则与 Elfie 认知仍属于 Python Core。Godot Web Runtime 在隐藏的
-Chromium 窗口中持续运行，负责空间世界；模型服务可以是本地 Ollama 或由 Runtime
-配置的其他 Provider。
+Desktop 永远不会成为 supervisor 或 Godot 协议端点。它会挂接健康 generation，或在启动时
+取得 owner lease；Observer 窗口不能停止它没有创建的 Runtime。第一阶段的 Observer 是
+语义、非视频的。账户、领养、聊天、Nest 规则与 Elfie 认知仍在 Python 产品层；Godot
+负责空间、导航、碰撞与渲染。
 
 ## 数据与产物边界
 

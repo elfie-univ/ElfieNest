@@ -94,12 +94,31 @@ bootstrap 阶段静默安装。
   `app/infrastructure/` 放持久化、音频、文件系统和设备能力，
   `app/bootstrap/` 只做依赖装配。
 - `ai_runtime/` 放模型、供应商、粮食策略、工具、安全和推理循环。
-- `desktop/` 只负责 Electron 窗口、平台适配、资源发现和进程监督，不承载
-  账户、聊天、领养或 Nest 规则。
+- `app/interfaces/desktop/` 只负责可见 Electron 窗口、系统 UI 集成与公开
+  lifecycle client，不承载 Supervisor、Godot authority、账户、聊天、领养或 Nest 规则。
 - `godot_project/` 是独立 Godot 源工程，也是房屋、几何、坐标、移动、碰撞和渲染的唯一源码来源；禁止在
   Python 中复制场景、3D 布局或家具事实。
 - `devtools/` 是隔离的模块实验台；`docs/` 是公开文档网站内容；
   `test/` 必须镜像源码结构，根目录不得新增 `test_*.py`。
+
+### Runtime / Observer authority contract
+
+- `app/orchestration/lifecycle` 是 Runtime 生命周期、健康状态与收束的唯一
+  编排者；只有该边界可以启动、停止或重启 Core、Gateway 与 Godot authority。
+- `godot_runtime` 只负责选择和承载 Godot authority；不得持有 Nest 业务状态，
+  不得成为产品流程或协议路由层。
+- `nest/godot_gateway` 是 Python 与 Godot Runtime 的唯一协议边界。Python 只能
+  发送高层语义命令、接收已发生的物理事实；不得在 Python 复制空间、导航、碰撞或
+  渲染事实。
+- `app/interfaces/desktop` 是可见的 Observer 与 lifecycle client：只能读取获授权
+  的范围状态、发出获允许的高层意图；不得持有 authority 凭据、启动 Runtime 组件，
+  或导入 Gateway 内部协议实现。
+- `app/interfaces/`、`app/features/`、`app/infrastructure/` 可以使用公开配置、目录
+  和只读 DTO；不得因此构造或接管 Engine、Gateway、Godot authority，或发送原始
+  Runtime 协议帧。
+- 新增跨边界 import、生命周期所有者或 Observer 能力前，必须先扩展
+  `test/architecture/`，再同步中英文 Developer 文档，并由用户确认架构影响。
+
 - 中间构建产物只能写入根 `build/`，最终发行物只能写入根 `dist/`，生产数据
   只能写入 `ELFIE_HOME`；不得把生成物写回源码目录。
 - 生产数据的唯一根是 `${ELFIE_HOME:-~/.elfienest}`：根级 `nest.db` 只保存

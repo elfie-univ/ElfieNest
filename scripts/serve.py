@@ -71,7 +71,7 @@ from app.orchestration.lifecycle.recovery_lock import (
     RecoveryInProgressError,
     acquire_service_start_lease,
 )
-from nest.godot.bundle import inspect_godot_web_bundle
+from nest.godot_gateway.bundle import inspect_godot_web_bundle
 
 
 class FallbackAgent:

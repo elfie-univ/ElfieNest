@@ -6,7 +6,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Callable, Optional, Sequence
+from typing import Callable, Mapping, Optional, Sequence
 
 from app.orchestration.lifecycle.helpers import (
     default_launcher,
@@ -170,6 +170,7 @@ def start_service(
     monotonic: Callable[[], float] = time.monotonic,
     sleeper: Callable[[float], None] = time.sleep,
     service_ports_in_use: Optional[Callable[[Sequence[int]], bool]] = None,
+    child_environment: Optional[Mapping[str, str]] = None,
 ) -> ServiceLifecycleResult:
     """启动服务；健康失败时终止进程并删除 PID 文件。"""
     resolved_root = project_root.resolve()
@@ -182,7 +183,13 @@ def start_service(
             "--fallback",
         )
     )
-    process_launcher = launcher or default_launcher
+    process_launcher = launcher or (
+        lambda requested_command, cwd: default_launcher(
+            requested_command,
+            cwd,
+            child_environment=child_environment,
+        )
+    )
     process_inspector = inspector or DefaultProcessInspector()
     try:
         startup_lease = acquire_service_start_lease(elfie_home)

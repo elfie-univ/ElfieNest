@@ -4,6 +4,7 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.features.setup.service import complete_setup_step
 from app.infrastructure.persistence.store import get_db, hash_password
 from app.interfaces.api.app import create_app
 
@@ -45,6 +46,13 @@ def _create_user(client: TestClient, username: str, role: str) -> None:
             (username, hash_password("pass123"), role),
         )
         connection.commit()
+
+
+def _complete_setup(client: TestClient) -> None:
+    complete_setup_step(client.app.state.db_path, step=2, decision="skipped")
+    complete_setup_step(client.app.state.db_path, step=3)
+    complete_setup_step(client.app.state.db_path, step=4, decision="skipped")
+    complete_setup_step(client.app.state.db_path, step=5)
 
 
 def _login(client: TestClient, username: str) -> None:
@@ -152,6 +160,7 @@ def test_owner_and_user_receive_server_side_landing_routes(client: TestClient) -
     # Given: one Owner and one ordinary user.
     _create_user(client, "owner", "owner")
     _create_user(client, "alice", "user")
+    _complete_setup(client)
 
     # When: each authenticated user opens the root and management page.
     _login(client, "owner")

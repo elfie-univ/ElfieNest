@@ -11,7 +11,7 @@ from app.orchestration.runtime_gateway import RuntimeGateway
 from app.orchestration.world_perception import collect_world_sensory_events
 from elfie.body import BodySensorEvent
 from nest import Nest, NestConfig
-from nest.godot.api import GodotAPIServer
+from nest.godot_gateway.api import GodotAPIServer
 from nest.state.repository import NestRepository
 
 logger = logging.getLogger("app.orchestration.engine")

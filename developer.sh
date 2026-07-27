@@ -38,6 +38,10 @@ if [[ "${1:-}" == "build-godot-web" ]]; then
   shift
   exec "$PYTHON_BIN" scripts/build_godot_web.py "$@"
 fi
+if [[ "${1:-}" == "build-godot-dedicated" ]]; then
+  shift
+  exec "$PYTHON_BIN" scripts/build_godot_dedicated.py "$@"
+fi
 if [[ "${1:-}" == "build-devtools-web" ]]; then
   shift
   exec "$PYTHON_BIN" scripts/build_devtools_web.py "$@"

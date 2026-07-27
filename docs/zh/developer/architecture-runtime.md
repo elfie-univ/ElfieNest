@@ -1,33 +1,74 @@
 # 运行时与数据
 
-## 进程关系
+## 唯一 Runtime 服务与权威
 
-```text
-Electron Desktop
-  ├─ Python Core
-  ├─ Ollama 或其他 Provider
-  └─ Godot Web Runtime
-```
+`app/orchestration/lifecycle/RuntimeSupervisor` 是一个 ElfieNest Runtime
+generation 的唯一生命周期所有者。源码与已安装 CLI 的生命周期命令都经过同一边界。
+它启动和停止 Python Core 及其 Gateway，再启动选中的已导出 Godot 权威宿主；它不会
+打开 Godot Editor。
 
-Desktop 负责窗口、资源和进程监督；Python Core 负责产品、Elfie、Nest 与 Runtime；
-Godot 负责空间事实和渲染；模型服务负责推理能力。
+只有 Core、Gateway 与 Godot 权威都 ready 时 Runtime 才 ready。配置的公共 Ollama
+endpoint 作为第四组件被探测：其不可用会使 Runtime 处于 `degraded`，不会替代权威，
+也不会创建私有模型 sidecar。`status --json` 会报告封闭组件集（`core`、`gateway`、
+`godot_authority`、`ollama`）和生命周期状态。Supervisor 将当前收据写入
+`${ELFIE_HOME:-~/.elfienest}/runtime.json`。
+
+权威宿主由 `godot_runtime/` 选择，不携带 Nest 状态、场景数据或协议凭据：
+
+| 宿主类型 | 显示模式 | 用途 |
+| --- | --- | --- |
+| `web_authority` | 图形化 | 已导出的 Godot Web 权威 |
+| `electron_authority` | 图形化 | 用于已导出 Web 权威的独立 Electron 权威角色 |
+| `linux_dedicated` | 无显示 | Linux x64 已导出的 Dedicated 权威 |
+
+`godot_project/` 仍是可编辑的源工程。Supervisor 承载的是已导出的 Runtime 产物；
+Python 与 Desktop UI 都不会把 Godot 源资产当作 Runtime 依赖读取。
+
+## Owner lease 与 Desktop 挂接
+
+完整健康后，Supervisor 会记录含 `owner_id` 与 Runtime generation 的 owner lease。
+发现健康 Runtime 的客户端只会挂接并取得 generation，不获得停止权；启动该 generation
+的客户端才获得 lease，并且只能停止同一个 lease。这样一个仅观察的 Desktop 窗口不能
+停止它没有创建的 Runtime。
+
+Electron Observer 位于 `app/interfaces/desktop/`，不在已移除的顶层 `desktop/` 目录。
+它的公开 lifecycle client 调用用户可见的 CLI 命令，绝不导入 Supervisor 内部实现、
+Godot Gateway 协议帧或权威凭据。关闭 Observer 窗口没有生命周期副作用；只有客户端
+持有 owner lease 时，显式退出应用才会停止 Runtime。
+
+## Observer 权限与非视频第一阶段
+
+Observer 从已认证的产品会话开始，获得一个与会话绑定的不透明 capability。订阅范围只能
+是一个房间或一只归属自己的 Elfie；interest 只能缩小既有授权结果。帧按
+generation/sequence 顺序携带语义身份和状态，不携带场景 transform、几何、相机状态、
+原始 Runtime 协议帧或权威凭据。
+
+封闭的本地导航 intent 是 `request_resync`、`focus_room` 与 `focus_elfie`。唯一会改变
+世界的请求是单独授权、限流的高层 `request_interaction`（`greet` 或 `rest`），它经由
+应用边界送到 world sink。第一阶段的 Observer 不是相机/视频传输：不发送 JPEG 帧，也
+不提供相机流 API。
+
+## Runtime 产物契约
+
+产物清单只接受四个原生 target：`darwin-arm64`、`darwin-x64`、`win32-x64` 与
+`linux-x64`。每个 target 都有 `godot-web` Observer 组件和 `desktop-observer` 组件；
+只有 `linux-x64` 额外拥有无显示的 `linux-dedicated` 权威组件。清单验证组件模式、入口、
+文件哈希与 target 适用范围。这是产物契约，不表示任何具体安装包已构建或已安装。
 
 ## 数据目录
 
 | 类型 | 位置 | 是否提交 |
 | --- | --- | --- |
-| 用户配置、数据库、精灵档案、本地密钥 | `${ELFIE_HOME:-~/.elfienest}` | 否 |
+| 用户配置、数据库、精灵档案、本地密钥和 Runtime 收据 | `${ELFIE_HOME:-~/.elfienest}` | 否 |
 | 可再生中间产物 | `build/` | 否 |
 | 最终发行物 | `dist/` | 否 |
 | 公开文档源 | `docs/` | 是 |
-| 历史和私有过程材料 | `.omo/`、`.agents/knowledge/` | 否 |
 
 ## 生产目录契约
 
-一台电脑只有一个生产 Nest 根 `${ELFIE_HOME:-~/.elfienest}`。根目录保存 Nest 级
-别事实：`config.yaml`、`.env`、`foods.yaml`、`nest.db`、备份、运行态及日志。
-`nest.db` 只保存账号、权限、精灵登记/归属、Nest 世界与运行状态；它不再接收新的
-聊天消息。
+一台电脑只有一个生产 Nest 根 `${ELFIE_HOME:-~/.elfienest}`。根目录保存 Nest 级别
+事实：`config.yaml`、`.env`、`foods.yaml`、`nest.db`、备份、Runtime 状态与日志。
+`nest.db` 只保存账号、权限、精灵登记/归属、Nest 世界与运行状态；它不接收新的聊天消息。
 
 每只精灵都以不可变的 `elfie_id` 作为工作区名。显示名称可改，但绝不能改动目录：
 
@@ -35,6 +76,7 @@ Godot 负责空间事实和渲染；模型服务负责推理能力。
 ${ELFIE_HOME:-~/.elfienest}/
 ├── nest.db                         # Nest、账号、归属和世界状态
 ├── config.yaml / .env / foods.yaml # 本机生产配置与密钥引用
+├── runtime.json                    # Supervisor 健康、generation 与 owner lease
 └── elfies/
     └── <elfie_id>/                 # 稳定 ID，不使用可变名称
         ├── profile.yaml 等档案、记忆和工作内容
@@ -45,6 +87,15 @@ ${ELFIE_HOME:-~/.elfienest}/
 `history.sqlite` 记录会话、渠道、发送方、用户关系、文本、元数据和附件引用。不会建立
 用户视角的本机聊天副本，也不会把附件二进制塞进数据库。网页、桌面、微信或飞书等
 渠道都按所属精灵写入这一个工作区。
+
+## 开发与安装路径
+
+只有一条源码开发路径：在 checkout 中运行 `./elfienest.sh`；它会先检查锁定的开发
+环境，再进入产品菜单。它不是安装方式。
+
+正式安装方式恰好有三种：面向当前原生 target 的源码安装 `./install.sh`；取得匹配平台
+原生安装包后手动安装；以及在公开 endpoint 发布后使用远程校验 bootstrap。第三种当前
+没有公开下载命令。这三种方式会收敛到同一产物契约；本页不声称目前存在可用产物。
 
 ## 开发边界
 

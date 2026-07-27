@@ -13,10 +13,26 @@ git clone https://github.com/elfie-univ/ElfieNest.git
 cd ElfieNest
 ```
 
-## 三种安装方式
+## 唯一开发路径
 
-开发模式不属于安装方式。源码开发者在 checkout 中运行 `./elfienest.sh`，它会检查并补齐
-开发依赖，然后进入交互菜单。
+源码开发不属于安装方式。在 checkout 中运行唯一开发入口：
+
+```bash
+./elfienest.sh
+```
+
+它会先检查锁定的开发环境，再进入产品菜单。
+
+## 恰好三种安装方式
+
+1. **当前机器的源码安装。** 在 checkout 中运行 `./install.sh`，为当前用户安装当前
+   原生 target。
+2. **手动原生安装包。** 从获授权的分发渠道取得与当前平台匹配的安装包，再按该平台的
+   常规安装流程完成安装。
+3. **远程校验 bootstrap。** 此方式保留给已经发布的 bootstrap endpoint：它下载并校验
+   匹配的原生产物。当前没有公开 bootstrap 命令。
+
+三种安装方式都面向同一 Runtime 产物契约。本页不表示当前存在任何可用安装包。
 
 从源码为当前机器安装：
 
@@ -24,12 +40,8 @@ cd ElfieNest
 ./install.sh
 ```
 
-`install.sh` 使用 `uv.lock` 准备固定环境，构建当前平台的原生应用并安装全局
-`elfienest` 命令。不要用 `sudo`，也不要手工替换 Python 版本。
-
-另外两种正式安装方式与它进入相同的已安装运行态：下载当前平台的原生安装包并双击安装；
-或使用未来的远程 bootstrap 自动下载经校验的原生包。后者的本地契约已验证，但正式 URL
-尚未上线，当前不能作为可复制下载命令。
+`install.sh` 使用 `uv.lock` 准备固定环境，并为当前用户安装全局 `elfienest` 命令。
+不要用 `sudo`，也不要手工替换 Python 版本。
 
 ## 验证
 

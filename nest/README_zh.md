@@ -13,7 +13,7 @@
 
 - 居民注册、移除、长期床位分配、姿态和活动状态；
 - 环境时间推进、说话传播、碰撞和触觉等巢内互动；
-- Godot Runtime v2 的鉴权、单权威会话、命令/事件队列和速率限制；
+- Godot Gateway 语义协议、单权威 Runtime 会话、命令/事件队列和速率限制；
 - 场景语义目录、Runtime 临时镜像和已导出 Web Runtime 的完整性检查。
 
 不负责：
@@ -35,7 +35,7 @@ nest/
 ├── state/          # 配置、居民、住处、世界目录与 Runtime 镜像
 ├── engine/         # 环境时钟推进
 ├── interaction/    # 说话、用户消息、碰撞与触觉传播
-├── godot/          # v2 消息、权威会话、WebSocket 网关与 Runtime 产物检查
+├── godot_gateway/  # 权威消息、Observer 会话与 WebSocket Gateway
 └── events.py       # Nest 领域事件值对象
 ```
 
@@ -45,7 +45,7 @@ nest/
 - `nest.NestConfig`：Nest 容量等配置；
 - `nest.NestFullError`：居民容量已满错误；
 - `nest.NestState`：仅包含巢内状态的运行容器；
-- `nest.godot.GodotAPIServer`：Python 与 Godot Runtime 的 WebSocket 边界。
+- `nest.godot_gateway.GodotAPIServer`：Python 与 Godot Runtime 的 WebSocket 协议边界。
 
 真实精灵注册由 `app.orchestration.NestSession` 完成；不要把真实对象塞入
 `NestState`。
@@ -55,18 +55,20 @@ nest/
 ```text
 app/orchestration ──> nest
 nest.nest ──> state + engine + interaction
-nest.godot ──> Nest/Godot 边界
+nest.godot_gateway ──> Nest/Godot 协议边界
+godot_runtime ──> 宿主选择、启动与产物元数据
 godot_project/ ──> 场景与几何的唯一事实源
 ```
 
 `nest/` 不依赖 `app/`、`elfie/` 或 `ai_runtime/`。需要把 Nest 事件交给真实
 精灵时，由 `app/orchestration/` 按 ID 查找并调用精灵对象。
 
-## Runtime v2 生命周期
+## Runtime 权威与 Observer 生命周期
 
-Godot Runtime 连接后必须先发送带随机 nonce、`runtime_id` 和 `protocol: 2`
-的 `hello`。同一时刻只有一个 Runtime 拥有权威；新一代连接会获得递增
-`generation`，旧代事件不会进入 Nest。
+Godot 权威连接后必须先发送带随机 nonce、`runtime_id` 和 `protocol: 3` 的
+`AuthorityHello`。同一时刻只有一个 Runtime 拥有权威；新一代连接会获得递增
+`generation`，旧代事件不会进入 Nest。Runtime 生命周期选择已导出的宿主；`nest/`
+从不启动 Godot，也不拥有宿主进程。
 
 启动同步按固定顺序收敛：
 
@@ -80,6 +82,11 @@ Godot Runtime 连接后必须先发送带随机 nonce、`runtime_id` 和 `protoc
 取消、超时、触觉接触和说话听众等关键事实回传 Python。Runtime 断线或 generation
 变化时，等待中的身体命令统一进入中断状态，由精灵下一次决策处理。
 
+已认证的产品客户端使用独立 Observer 表面。capability 与产品会话绑定，并收窄到一个
+房间或归属自己的 Elfie；它只暴露 generation/sequence 语义帧。Observer 导航只限于
+resync 与 focus intent，单独授权的高层 interaction 请求会被限流。它没有几何、相机/
+视频帧或权威凭据访问权。
+
 ## 运行与调试
 
 从仓库根目录运行 Nest 领域和 Godot 协议检查：
@@ -91,7 +98,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync pytest -q \
   test/nest/test_nest.py \
-  test/nest/godot/test_api_handshake.py
+  test/nest/godot_gateway/test_api_handshake.py
 ```
 
 如需打开、运行或截图 Godot 项目，必须先遵守仓库的 Godot 操作门；这里的测试不
@@ -101,7 +108,8 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 ## 对应测试
 
 - `test/nest/test_nest.py`：状态、环境时钟和互动传播；
-- `test/nest/godot/`：v2 握手、消息校验、权威会话和 Web 构建产物；
+- `test/nest/godot_gateway/`：权威握手、消息校验、Observer capability 范围与权威会话；
+- `test/godot_runtime/`：宿主选择、启动与产物元数据；
 - `test/e2e/test_nest_runtime_v2.py`：重连后的世界与完整角色目录收敛；
 - `test/architecture/test_project_structure.py`：Nest 目录结构与旧包禁令；
 - `test/app/orchestration/`：真实精灵和 Nest 的组合行为。

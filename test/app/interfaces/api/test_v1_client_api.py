@@ -11,6 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from ai_runtime.storage.data_home import get_elfie_conversations_dir
+from app.features.setup.service import complete_setup_step
 from app.infrastructure.persistence.elfie_chat_history import (
     ElfieChatMessageInput,
     ElfieChatSender,
@@ -62,6 +63,13 @@ def _adopt_elfie(client: TestClient, csrf_token: str) -> str:
     )
     assert response.status_code == 201
     return str(response.json()["elfie_id"])
+
+
+def _complete_setup(client: TestClient) -> None:
+    complete_setup_step(client.app.state.db_path, step=2, decision="skipped")
+    complete_setup_step(client.app.state.db_path, step=3)
+    complete_setup_step(client.app.state.db_path, step=4, decision="skipped")
+    complete_setup_step(client.app.state.db_path, step=5)
 
 
 def test_v1_profile_is_owned_and_exposes_only_the_public_projection(
@@ -193,6 +201,7 @@ def test_v1_profile_and_messages_hide_another_users_elfie(client: TestClient) ->
 
 def test_owner_can_persist_a_safe_default_landing_page(client: TestClient) -> None:
     csrf_token = _login_owner(client)
+    _complete_setup(client)
 
     response = client.put(
         "/api/v1/me/default-landing-page",

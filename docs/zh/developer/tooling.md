@@ -46,6 +46,7 @@ Python `3.9.25` 是产品和开发工具的共同固定运行时。除非负责�
 | `db` | 查看数据库信息，或执行 `backup`、`reset` |
 | `version` | 显示版本 |
 | `build-godot-web` | 构建、增量确保或检查浏览器 3D Runtime |
+| `build-godot-dedicated` | 构建或检查无显示的 Linux x64 权威 Runtime |
 | `developer` | 进入隔离的 Developer Tools |
 
 前台与后台服务支持经代码确认的参数：
@@ -86,10 +87,15 @@ Godot 源项目当前声明 4.7。构建机必须使用同版本 Godot 和 Web E
 GODOT_BIN=/path/to/godot4.7 ./developer.sh build-godot-web
 ./developer.sh build-godot-web --ensure
 ./developer.sh build-godot-web --check
+GODOT_BIN=/path/to/godot4.7 ./developer.sh build-godot-dedicated
+./developer.sh build-godot-dedicated --check
 ```
 
 正式输出位于 `build/components/godot-web/`，不会提交 Git。具体环境、产物和
 打包流程见独立 Godot 源工程内的 `godot_project/WEB_EXPORT.md`。
+Dedicated 权威导出是
+`build/components/godot-linux-dedicated/ElfieNestRuntime` 下的 Linux x64 可执行文件，
+不包含 Web payload，同样不会提交 Git。
 
 源码树中的 `./elfienest.sh serve` 与 `./developer.sh` 默认使用 development 生命周期：
 启动前会比较 Godot 源树指纹，缺失或过期时自动执行 `--ensure`；没有变更时不会重复导出。
@@ -138,7 +144,7 @@ npx --yes pnpm@10.12.1 build
 Desktop 使用 Node.js 20 与独立锁文件：
 
 ```bash
-cd desktop
+cd app/interfaces/desktop
 npx --yes pnpm@10.12.1 install --frozen-lockfile
 npx --yes pnpm@10.12.1 build
 npx --yes pnpm@10.12.1 test

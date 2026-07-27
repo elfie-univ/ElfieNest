@@ -73,7 +73,8 @@ pnpm build
 - `app/features/`：产品用例；`app/interfaces/`：API、Web、CLI；
   `app/infrastructure/`：持久化、文件系统、音频和设备能力。
 - `ai_runtime/`：模型、供应商、路由、工具、安全和推理运行时。
-- `desktop/`：Electron 窗口、平台适配、资源发现和进程监督。
+- `app/interfaces/desktop/`：可见 Electron 窗口、平台适配与公开 Runtime
+  lifecycle client；不持有 Runtime 进程。
 - `godot_project/`：独立 Godot 源工程；房屋、几何、坐标、碰撞、移动和渲染的唯一源项目。
 - `devtools/`：与普通用户产品隔离的模块实验台。
 - `docs/`：唯一会进入公开文档网站的内容。
@@ -100,7 +101,8 @@ pnpm build
 
 - 保持 `strict` 类型检查，不使用无说明的 `any` 或非空断言。
 - Electron 只负责桌面生命周期和平台边界，不承载产品业务规则。
-- 修改 `desktop/` 后运行其现有测试和 TypeScript 检查，并在 PR 中列出命令。
+- 修改 `app/interfaces/desktop/` 后运行其现有测试和 TypeScript 检查，并在 PR
+  中列出命令。
 
 ### GDScript
 
@@ -163,7 +165,7 @@ npx --yes pnpm@10.12.1 build
 - 提交 API Key、Token、密码、私有地址、用户数据或未脱敏日志。
 - 恢复旧顶层包 `runtime/` 或 `elfienest/`。
 - 在 `nest/` 持有或创建真实精灵，或在 Python 中复制 Godot 场景/几何事实。
-- 在 `desktop/`、Godot 或调试平台中绕过产品和安全边界。
+- 在 `app/interfaces/desktop/`、Godot 或调试平台中绕过产品和安全边界。
 - 发布私有世界观、合作材料、未实现能力或模型生成的中间设计稿。
 - 绕过 pre-commit、Gitleaks、架构测试或用户审阅门。
 

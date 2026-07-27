@@ -9,8 +9,9 @@
 - `nest/` 只保存巢内状态和环境；真实 Elfie 与 Nest 的组合只能进入
   `app/orchestration/`。
 - `ai_runtime/` 管模型、Provider、工具、粮食和安全运行时。
-- `godot/` 是房间、几何、坐标、碰撞与渲染的唯一源码来源。
-- `desktop/` 只负责 Electron 宿主、资源发现和进程监督。
+- `godot_project/` 是房间、几何、坐标、碰撞与渲染的唯一源码来源。
+- `app/orchestration/lifecycle/` 负责 Runtime 监督与权威生命周期；
+  `app/interfaces/desktop/` 负责 Electron Observer interface 和公开 lifecycle client。
 
 新增目录或跨边界依赖时，必须同时更新根 README、架构文档和
 `test/architecture/` 契约测试。
@@ -26,9 +27,8 @@
 
 ## 文档约定
 
-- 公开设计文档使用简体中文，描述最终方案、代码证据和验证方式。
-- 中间讨论、未实现方案、私有世界观和实验记录放在被忽略的 `.omo/` 目录，不进入
-  VitePress 侧栏。
+- 公开设计文档默认使用英文，并同步简体中文版本；两侧都描述最终方案、代码证据和验证方式。
+- 中间讨论、未实现方案、私有世界观和实验记录留在公开文档之外，不进入 VitePress 侧栏。
 - README 说明“是什么、怎么开始、去哪里深入”；不要把过程日志当作产品文档。
 
 ## 交付前检查

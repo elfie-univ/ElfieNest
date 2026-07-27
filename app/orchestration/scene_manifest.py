@@ -6,7 +6,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from nest.godot.messages import JsonObject
+from nest.godot_gateway.messages import JsonObject
 from nest.state.models import (
     AnchorKind,
     InteractionAnchor,

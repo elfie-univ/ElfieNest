@@ -5,7 +5,7 @@
 `godot_project/` 是独立、可直接由 Godot Editor 打开的 Godot 源工程，也是
 ElfieNest 3D 世界的唯一源码来源，负责房屋、几何、坐标、移动、碰撞、角色和
 渲染。它不是 Python 包，也不是产品运行时直接读取的目录；Python Core 只通过
-导出的 Godot Web Runtime 及其协议交换巢内事件与状态，且不得复制这里的场景布局
+选中的已导出 Godot Runtime 及其协议交换巢内事件与状态，且不得复制这里的场景布局
 或空间事实。
 
 ## 当前项目
@@ -47,8 +47,8 @@ godot_project/
 
 ## Web Runtime
 
-普通用户运行的是导出后的 Godot Web Runtime，不需要安装 Godot 编辑器。正式
-产物只能进入：
+终端用户的 Observer 客户端使用导出后的 Godot Web Runtime，不需要安装 Godot Editor。
+第一阶段是语义、非视频的，不暴露相机或 JPEG 帧传输。正式产物只能进入：
 
 ```text
 build/components/godot-web/
@@ -62,16 +62,35 @@ GODOT_BIN=/path/to/godot4.7 ./developer.sh build-godot-web
 ```
 
 构建器会核对引擎版本、检查必需产物、生成哈希清单，并在成功后替换正式输出。
-发布打包再把同一份产物复制到单 target staging；不要在 `godot_project/`、`desktop/`
-或普通用户 Web 源码中维护副本。
+Runtime 产物契约可以引用同一份产物；不要在 `godot_project/`、
+`app/interfaces/desktop/` 或普通用户 Web 源码中维护副本。
 
 Web 导出的环境准备、目录和验收细节只在
 [`WEB_EXPORT.md`](WEB_EXPORT.md) 维护，避免出现多份互相漂移的流程。
 
+## Linux Dedicated Runtime
+
+无显示的权威 Runtime 是单独的 Linux x64 导出，只能写入：
+
+```text
+build/components/godot-linux-dedicated/
+```
+
+从仓库根目录使用已安装 Linux x64 Export Template 的 Godot 4.7 构建或检查：
+
+```bash
+GODOT_BIN=/path/to/godot4.7 ./developer.sh build-godot-dedicated
+./developer.sh build-godot-dedicated --check
+```
+
+Dedicated 预设强制启用 Godot 的 `dedicated_server` feature 与 headless 运行。
+它只能作为权威宿主：不会创建显示窗口，也不会上传 JPEG 摄像头帧。
+
 ## 与 Python 的运行边界
 
-Runtime 通过 WebSocket protocol v2 接收 `configure_world`、`sync_actors`、
-`execute_intent` 和 `cancel_intent`。Godot 负责：
+唯一的权威 Runtime 通过 Gateway 语义协议接收 `configure_world`、`sync_actors`、
+`execute_intent` 和 `cancel_intent`。Runtime 生命周期从图形化 Web、图形化 Electron
+权威角色或无显示 Linux Dedicated 中选择一个权威宿主。Godot 负责：
 
 - 根据床位数重建固定房间，并发布稳定的 zone/anchor 语义目录；
 - 生成导航网格、逐物理帧寻路、碰撞与避障；

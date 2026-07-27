@@ -1,30 +1,44 @@
 # Desktop
 
-Electron Desktop 是宿主和监督层，不是产品业务层。
+Electron Desktop 是已认证的 Observer 与公开 lifecycle client，不是 Runtime
+supervisor，也不是产品业务层。它的源码位于 `app/interfaces/desktop/`；原先的顶层
+`desktop/` 目录不是当前模块。
 
-Desktop 窗口固定先打开 Core 的 `/login`。登录后的 `/chat` 或 `/manage` 由 Core
-根据会话角色和 Owner 的个人默认页决定；Electron 不复制任何登录、聊天或管理页面。
+## UI 角色、权威角色与 lease
 
-## 负责
+普通 UI 角色取得 Electron 单实例锁，通过公开 CLI lifecycle client 挂接健康 Runtime
+或启动一个 Runtime，随后打开同源 Core 登录页。认证后的 `/chat` 或 `/manage` 由
+Core 决定，不由 Electron 决定。
 
-- 单实例窗口与生命周期；
-- Python Core、Ollama、Godot Web Runtime 的资源发现和进程监督；
-- 平台路径、打包资源和退出收束；
-- Desktop 端与 Web Runtime 的宿主桥接。
+UI 若只是挂接，只会得到 Runtime generation。若由它启动 Runtime，则会得到 owner
+lease；显式退出应用时，只有该 lease 才能回传给 CLI 停止 Runtime。关闭 Observer 窗口
+不会停止它没有创建的 Runtime。
 
-## 不负责
+Godot 权威宿主由 Runtime lifecycle 边界选择并拥有。`electron_authority` 是独立、
+沙盒化的 Electron 角色，在隐藏窗口加载已导出的 Godot Web 权威；它有独立 instance
+namespace，不是 UI 角色。Desktop UI 不包含 Gateway 协议实现或权威凭据。
 
-- Elfie 认知、人格、记忆和输出路由；
-- 账户、领养、聊天和 Nest 规则；
-- 复制 Python 或 Godot 的领域事实。
+## Observer 表面
 
-修改 Desktop 后，使用 `desktop/` 自己的锁文件和测试，不把 Desktop 生成物写回源码
-目录。
+Desktop 渲染与其他产品客户端相同、已认证且 capability 受限的语义 Observer 表面。
+它可以请求 resync、聚焦已经授权的房间或 Elfie，也可以提交单独授权的高层 interaction
+请求。它不能读取 transform、相机状态或原始 Runtime 帧。第一阶段明确为非视频：本模块
+不承载相机流或 JPEG 帧传输。
 
-开发时可运行：
+## 产物契约与源码检查
+
+Desktop 组件在 Runtime 产物清单中的名字是 `desktop-observer`。它恰好适用于
+`darwin-arm64`、`darwin-x64`、`win32-x64` 与 `linux-x64`；每个 target 也要求
+`godot-web`，只有 Linux 额外需要 `linux-dedicated`。契约验证 target 适用范围、模式、
+入口和文件哈希。它描述必需产物形状，不表示存在安装包。
+
+源码检查使用本模块锁定的 Node 工具链：
 
 ```bash
-cd desktop
-pnpm install --frozen-lockfile
-pnpm test
+cd app/interfaces/desktop
+npx --yes pnpm@10.12.1 install --frozen-lockfile
+npx --yes pnpm@10.12.1 test
 ```
+
+编译后的 Desktop interface 输出属于 `build/components/desktop-interface/`。不要把生成的
+JavaScript、Runtime 产物、模型或用户数据写回 `app/interfaces/desktop/`。

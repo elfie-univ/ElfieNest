@@ -8,29 +8,22 @@ from scripts.check_quality_baseline import MYPY_SOURCE_ROOTS
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 REQUIRED_ROOT_DIRECTORIES = frozenset(
-    {
-        "ai_runtime",
-        "app",
-        "desktop",
-        "devtools",
-        "docs",
-        "elfie",
-        "godot_project",
-        "nest",
-        "scripts",
-        "test",
-    }
+    {"ai_runtime", "app", "devtools", "docs", "elfie", "godot_project", "nest"}
+    | {"scripts", "test"}
 )
-FORBIDDEN_SOURCE_DIRECTORIES = frozenset({"elfienest", "godot", "runtime"})
+FORBIDDEN_SOURCE_DIRECTORIES = frozenset({"desktop", "elfienest", "godot", "runtime"})
 FORBIDDEN_ELFIE_DIRECTORIES = frozenset({"state"})
 REQUIRED_APP_DIRECTORIES = frozenset(
     {"bootstrap", "features", "infrastructure", "interfaces", "orchestration"}
 )
+REQUIRED_APP_INTERFACE_DIRECTORIES = frozenset({"api", "cli", "desktop", "web"})
 REQUIRED_NEST_ENTRIES = frozenset(
-    {"__init__.py", "engine", "events.py", "godot", "interaction", "nest.py", "state"}
+    {"__init__.py", "engine", "events.py", "godot_gateway", "interaction"}
+    | {"nest.py", "state"}
 )
-REQUIRED_DESKTOP_SOURCE_DIRECTORIES = frozenset(
-    {"platform", "resources", "supervisor", "windows"}
+REQUIRED_DESKTOP_SOURCE_DIRECTORIES = frozenset({"resources", "windows"})
+REQUIRED_DESKTOP_SOURCE_FILES = frozenset(
+    {"desktop_role_lifecycle.ts", "lifecycle_client.ts", "main.ts", "role_dispatch.ts"}
 )
 CURRENT_PYTHON_SOURCE_ROOTS = (
     "ai_runtime",
@@ -53,13 +46,8 @@ NEST_SPATIAL_LAYOUT_NAMES = frozenset(
     }
 )
 NEST_LEGACY_GODOT_NAMES = frozenset(
-    {
-        "FurnitureState",
-        "GODOT_INBOUND_EVENTS",
-        "register_scene_furniture",
-        "send_action",
-        "target_furniture",
-    }
+    {"FurnitureState", "GODOT_INBOUND_EVENTS", "register_scene_furniture"}
+    | {"send_action", "target_furniture"}
 )
 
 
@@ -125,30 +113,43 @@ def test_elfie_has_no_persisted_runtime_state_package() -> None:
 def test_app_and_nest_have_the_confirmed_secondary_structure() -> None:
     # Given
     app_entries = {path.name for path in (PROJECT_ROOT / "app").iterdir()}
+    app_interface_entries = {
+        path.name
+        for path in (PROJECT_ROOT / "app" / "interfaces").iterdir()
+        if path.is_dir()
+    }
     nest_entries = {path.name for path in (PROJECT_ROOT / "nest").iterdir()}
 
     # When
     missing_app_entries = REQUIRED_APP_DIRECTORIES - app_entries
+    missing_interface_entries = (
+        REQUIRED_APP_INTERFACE_DIRECTORIES - app_interface_entries
+    )
     missing_nest_entries = REQUIRED_NEST_ENTRIES - nest_entries
 
     # Then
     assert missing_app_entries == frozenset()
+    assert missing_interface_entries == frozenset()
     assert missing_nest_entries == frozenset()
 
 
 def test_desktop_source_has_the_confirmed_secondary_structure() -> None:
     # Given
+    desktop_source_root = PROJECT_ROOT / "app" / "interfaces" / "desktop" / "src"
     source_entries = {
-        path.name
-        for path in (PROJECT_ROOT / "desktop" / "src").iterdir()
-        if path.is_dir()
+        path.name for path in desktop_source_root.iterdir() if path.is_dir()
+    }
+    source_files = {
+        path.name for path in desktop_source_root.iterdir() if path.is_file()
     }
 
     # When
-    missing = REQUIRED_DESKTOP_SOURCE_DIRECTORIES - source_entries
+    missing_directories = REQUIRED_DESKTOP_SOURCE_DIRECTORIES - source_entries
+    missing_files = REQUIRED_DESKTOP_SOURCE_FILES - source_files
 
     # Then
-    assert missing == frozenset()
+    assert missing_directories == frozenset()
+    assert missing_files == frozenset()
 
 
 def test_python_sources_do_not_import_legacy_packages() -> None:
@@ -271,7 +272,9 @@ def test_nest_does_not_retain_v1_godot_or_furniture_mirror_api() -> None:
 
 
 def test_godot_gateway_accepts_protocol_v2_only() -> None:
-    source = (PROJECT_ROOT / "nest" / "godot" / "api.py").read_text(encoding="utf-8")
+    source = (PROJECT_ROOT / "nest" / "godot_gateway" / "api.py").read_text(
+        encoding="utf-8"
+    )
     tree = ast.parse(source)
     protocol_values = {
         node.value.value
@@ -309,10 +312,9 @@ def test_ci_uses_current_python_roots_and_required_quality_gates() -> None:
 
 def test_root_test_directory_contains_no_test_modules() -> None:
     # Given
-    test_root = PROJECT_ROOT / "test"
-
-    # When
-    root_test_modules = sorted(path.name for path in test_root.glob("test_*.py"))
+    root_test_modules = sorted(
+        path.name for path in (PROJECT_ROOT / "test").glob("test_*.py")
+    )
 
     # Then
     assert root_test_modules == []

@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 from pathlib import Path
-from typing import Sequence, Union
+from typing import Mapping, Optional, Sequence, Union
 
 from app.orchestration.lifecycle.process import (
     PID_FILENAME,
@@ -28,10 +28,18 @@ def read_pid(pid_path: Path) -> Union[int, InvalidPidFileError]:
     return pid
 
 
-def default_launcher(command: Sequence[str], cwd: Path) -> int:
+def default_launcher(
+    command: Sequence[str],
+    cwd: Path,
+    *,
+    child_environment: Optional[Mapping[str, str]] = None,
+) -> int:
     """Launch a detached managed service process."""
     environment = os.environ.copy()
     environment[MANAGED_START_ENV] = "1"
+    environment["ELFIENEST_SUPERVISED"] = "1"
+    if child_environment is not None:
+        environment.update(child_environment)
     process = subprocess.Popen(
         command,
         cwd=str(cwd),

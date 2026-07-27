@@ -2,22 +2,31 @@
 
 from __future__ import annotations
 
+import json
 import os
+import secrets
 import sys
 import urllib.error
 import urllib.request
 import webbrowser
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Callable, Optional, Sequence
 
+from ai_runtime.config import LLMRuntimeConfig
+from ai_runtime.providers.ollama import OllamaManager, OllamaNotReadyError
 from ai_runtime.storage.data_home import get_elfie_home
 from app.features.administration.system_service import (
     default_port_statuses,
     service_port_statuses,
 )
 from app.orchestration.lifecycle import desktop as desktop_lifecycle
+from app.orchestration.lifecycle.authority import (
+    AuthorityLifecycleConfig,
+    authority_lifecycle,
+)
 from app.orchestration.lifecycle.helpers import existing_service_command, read_pid
 from app.orchestration.lifecycle.process import (
+    DEFAULT_HTTP_PORT,
     PID_FILENAME,
     DefaultProcessInspector,
     ProcessInspector,
@@ -25,6 +34,13 @@ from app.orchestration.lifecycle.process import (
     service_ports_from_command,
     validate_service_ports,
 )
+from app.orchestration.lifecycle.runtime_health import (
+    ComponentHealth,
+    RuntimeComponent,
+    RuntimeHealth,
+    RuntimeHealthState,
+)
+from app.orchestration.lifecycle.runtime_supervisor import RuntimeSupervisor
 from app.orchestration.lifecycle.service import start_service, stop_service
 from app.orchestration.lifecycle.types import (
     LaunchFailedError,
@@ -35,6 +51,101 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 WEB_URL = "http://127.0.0.1:8000/"
 WEB_HEALTH_URL = "http://127.0.0.1:8000/api/health"
 BACKGROUND_START_TIMEOUT_SECONDS = 60.0
+AUTHORITY_START_TIMEOUT_SECONDS = 30.0
+
+
+def _supervisor_for(command: Sequence[str], http_port: int) -> RuntimeSupervisor:
+    """Build the one Runtime Supervisor used by source and installed CLI commands."""
+    launch_command = tuple(command)
+    _, godot_ws_port, _ = service_ports_from_command(launch_command)
+    generation_nonce = secrets.token_urlsafe(32)
+    start_authority, stop_authority = authority_lifecycle(
+        AuthorityLifecycleConfig(
+            project_root=PROJECT_ROOT,
+            http_port=http_port,
+            ws_port=godot_ws_port,
+            nonce=generation_nonce,
+        )
+    )
+
+    def start_core(healthy: Callable[[], bool]) -> ServiceLifecycleResult:
+        return start_service(
+            get_elfie_home(),
+            PROJECT_ROOT,
+            command=launch_command,
+            health_checker=healthy,
+            timeout_seconds=BACKGROUND_START_TIMEOUT_SECONDS,
+            child_environment={"ELFIENEST_GODOT_NONCE": generation_nonce},
+        )
+
+    return RuntimeSupervisor(
+        elfie_home=get_elfie_home(),
+        project_root=PROJECT_ROOT,
+        health_probe=lambda: _full_runtime_health(http_port),
+        start_core=start_core,
+        stop_core=lambda: stop_service(get_elfie_home(), PROJECT_ROOT),
+        prepare_optional_component=_start_configured_public_ollama,
+        owns_pid_record=lambda: (get_elfie_home() / PID_FILENAME).is_file(),
+        start_authority=start_authority,
+        stop_authority=stop_authority,
+        authority_timeout_seconds=AUTHORITY_START_TIMEOUT_SECONDS,
+    )
+
+
+def _full_runtime_health(port: int) -> RuntimeHealth:
+    """Probe every Runtime component; an HTTP 200 alone is never ready."""
+    failed = RuntimeHealthState.FAILED
+    core = failed
+    gateway = failed
+    authority = failed
+    try:
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/api/health", timeout=2.0
+        ) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        if response.status == 200 and isinstance(payload, dict):
+            engine_ready = payload.get("engine_ready") is True
+            core = RuntimeHealthState.READY if engine_ready else failed
+            gateway = RuntimeHealthState.READY if engine_ready else failed
+            authority = (
+                RuntimeHealthState.READY
+                if payload.get("godot_runtime_ready") is True
+                else failed
+            )
+    except (OSError, TimeoutError, ValueError, urllib.error.URLError):
+        pass
+    ollama = (
+        RuntimeHealthState.READY
+        if _configured_ollama_is_ready()
+        else RuntimeHealthState.FAILED
+    )
+    return RuntimeHealth(
+        state=RuntimeHealthState.STARTING,
+        generation=0,
+        owner_lease=None,
+        components=(
+            ComponentHealth(RuntimeComponent.CORE, core),
+            ComponentHealth(RuntimeComponent.GATEWAY, gateway),
+            ComponentHealth(RuntimeComponent.GODOT_AUTHORITY, authority),
+            ComponentHealth(RuntimeComponent.OLLAMA, ollama),
+        ),
+    )
+
+
+def _configured_ollama_is_ready() -> bool:
+    """Probe Ollama without adopting or stopping a public installation."""
+    return OllamaManager(
+        LLMRuntimeConfig(ollama_host="http://localhost:11434")
+    ).check_health()
+
+
+def _start_configured_public_ollama() -> None:
+    """Only request startup through Ollama's recorded public-installation binding."""
+    manager = OllamaManager(LLMRuntimeConfig(ollama_host="http://localhost:11434"))
+    try:
+        manager.ensure_service_started()
+    except OllamaNotReadyError:
+        return
 
 
 def default_service_command(extra_args: Sequence[str] = ()) -> tuple[str, ...]:
@@ -52,6 +163,8 @@ def default_service_command(extra_args: Sequence[str] = ()) -> tuple[str, ...]:
 
 def start_background_service(
     command: Optional[Sequence[str]] = None,
+    *,
+    owner_id: str = "cli",
 ) -> ServiceLifecycleResult:
     """Start the service once; a verified running process is left untouched."""
     launch_command = (
@@ -65,20 +178,24 @@ def start_background_service(
         )
         _print_start_result(result)
         return result
-    result = start_service(
-        get_elfie_home(),
-        PROJECT_ROOT,
-        command=launch_command,
-        health_checker=lambda: _web_is_healthy(http_port),
-        timeout_seconds=BACKGROUND_START_TIMEOUT_SECONDS,
-    )
+    result = _supervisor_for(launch_command, http_port).start(owner_id=owner_id)
     _print_start_result(result)
     return result
 
 
-def stop_background_service() -> ServiceLifecycleResult:
+def stop_background_service(owner_id: str = "cli") -> ServiceLifecycleResult:
     """Stop only the current project's verified service process."""
-    result = stop_service(get_elfie_home(), PROJECT_ROOT)
+    supervisor = _supervisor_for(default_service_command(), DEFAULT_HTTP_PORT)
+    if owner_id != "cli":
+        health = supervisor.status()
+        if health.owner_lease is not None and health.owner_lease.owner_id != owner_id:
+            result = ServiceLifecycleResult(
+                status="failed",
+                error=LaunchFailedError("Runtime owner lease 不允许当前客户端停止服务"),
+            )
+            print(f"  ❌ 服务停止失败: {result.error}")
+            return result
+    result = supervisor.stop()
     if result.status == "stopped":
         print("  ✅ 服务已停止")
     elif result.status == "already_stopped":
@@ -90,7 +207,7 @@ def stop_background_service() -> ServiceLifecycleResult:
 
 def restart_background_service() -> ServiceLifecycleResult:
     """Stop the current process and start it again with its existing arguments."""
-    stopped = stop_service(get_elfie_home(), PROJECT_ROOT)
+    stopped = _supervisor_for(default_service_command(), DEFAULT_HTTP_PORT).stop()
     if stopped.status == "failed":
         print(f"  ❌ 无法重启服务: {stopped.error}")
         return stopped
@@ -103,13 +220,8 @@ def restart_background_service() -> ServiceLifecycleResult:
         )
         print(f"  ❌ 服务重启失败: {result.error}")
         return result
-    result = start_service(
-        get_elfie_home(),
-        PROJECT_ROOT,
-        command=tuple(argument for argument in command if argument != "--force"),
-        health_checker=lambda: _web_is_healthy(http_port),
-        timeout_seconds=BACKGROUND_START_TIMEOUT_SECONDS,
-    )
+    launch_command = tuple(argument for argument in command if argument != "--force")
+    result = _supervisor_for(launch_command, http_port).start(owner_id="cli")
     if result.status in {"started", "already_running"}:
         print("  ✅ 服务已重启")
     else:
@@ -117,14 +229,46 @@ def restart_background_service() -> ServiceLifecycleResult:
     return result
 
 
-def show_service_status() -> None:
+def show_service_status(*, json_output: bool = False) -> None:
     """Print lifecycle state without duplicating usage/session statistics."""
-    print("  📊 服务状态")
-    print("  " + "=" * 45)
-    print()
     inspector = DefaultProcessInspector()
     elfie_home = get_elfie_home()
     running = existing_service_command(elfie_home, PROJECT_ROOT, inspector)
+    status_command = running[1] if running is not None else default_service_command()
+    status_port = http_port_from_command(status_command)
+    health = _supervisor_for(status_command, status_port).status()
+    if json_output:
+        print(
+            json.dumps(
+                {
+                    "state": health.state.value,
+                    "generation": health.generation,
+                    "owner_lease": (
+                        {
+                            "owner_id": health.owner_lease.owner_id,
+                            "generation": health.owner_lease.generation,
+                        }
+                        if health.owner_lease is not None
+                        else None
+                    ),
+                    "components": [
+                        {
+                            "name": component.component.value,
+                            "state": component.state.value,
+                            "detail": component.detail,
+                            "pid": component.pid,
+                        }
+                        for component in health.components
+                    ],
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+        return
+    print("  📊 服务状态")
+    print("  " + "=" * 45)
+    print()
     if running is None:
         port_statuses = default_port_statuses()
         external = _external_recorded_service(elfie_home, inspector)
@@ -154,6 +298,11 @@ def show_service_status() -> None:
             else "⭕"
         )
         print(f"  {icon} {port_status.name}: {state} (端口 {port_status.port})")
+    if health.components:
+        print()
+        print(f"  Runtime: {health.state.value} (generation {health.generation})")
+        for component in health.components:
+            print(f"  - {component.component.value}: {component.state.value}")
     print()
 
 

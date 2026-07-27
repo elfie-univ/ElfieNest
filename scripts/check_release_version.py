@@ -12,7 +12,9 @@ from typing import Final
 
 PROJECT_ROOT: Final = Path(__file__).resolve().parents[1]
 PYPROJECT_PATH: Final = PROJECT_ROOT / "pyproject.toml"
-DESKTOP_MANIFEST_PATH: Final = PROJECT_ROOT / "desktop" / "package.json"
+DESKTOP_MANIFEST_PATH: Final = (
+    PROJECT_ROOT / "app" / "interfaces" / "desktop" / "package.json"
+)
 FRONTEND_MANIFEST_PATH: Final = (
     PROJECT_ROOT / "app" / "interfaces" / "web" / "frontend" / "package.json"
 )

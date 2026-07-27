@@ -28,8 +28,7 @@ Developer Tools 使用独立 `${ELFIE_DEV_HOME:-~/.elfienest-dev}`，不能默�
 ## 公开文档边界
 
 公开站点只发布已审阅的产品介绍、使用方法和最终开发说明。中间设计稿、实验证据、
-未上线能力和私有世界观统一留在 `.omo/archive/` 或 `.omo/drafts/`，这些目录被
-`.gitignore` 保护，不得被 VitePress 构建引用。
+未上线能力和私有世界观留在公开文档之外，不得被 VitePress 构建引用。
 
 ## 变更检查清单
 

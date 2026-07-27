@@ -4,29 +4,42 @@
 
 | Module | Responsible for | Not responsible for |
 | --- | --- | --- |
-| `elfie/` | Individual profile, brain, body, nervous system, communication and skills | Accounts, Nest, desktop lifecycle |
-| `nest/` | In-nest state, environment time, interaction propagation, Godot semantic protocol | Creating or holding `ElfieIndividual`, house geometry |
-| `app/` | Product use-cases, interfaces, infrastructure, cross-module orchestration | Replacing the internal state of domain modules |
+| `elfie/` | Individual profile, brain, body, nervous system, communication and skills | Accounts, Nest, Runtime lifecycle |
+| `nest/` | In-nest semantic state, environment time and interaction propagation | Creating or holding `ElfieIndividual`, house geometry or authority hosting |
+| `nest/godot_gateway/` | The Python-side semantic Gateway and scoped Observer protocol | Godot process ownership or UI windows |
+| `app/orchestration/lifecycle/` | Runtime lifecycle, full health, owner leases and authority start/stop | Product UI, account rules and raw scene facts |
+| `godot_runtime/` | Authority-host selection, artifact metadata and exported Runtime launch | Nest business state, scene editing or product routing |
+| `app/interfaces/desktop/` | Electron observer windows, platform integration and public lifecycle client | Supervisor, Gateway internals, authority credentials and product rules |
+| `app/` | Product use-cases, interfaces, infrastructure and cross-module orchestration | Replacing the internal state of domain modules |
 | `ai_runtime/` | Providers, models, policy, tools, safety and inference | Account and Nest business rules |
-| `desktop/` | Electron windows, platform resources and process supervision | Elfie cognition, adoption and chat rules |
-| `godot_project/` | Houses, coordinates, motion, collision, characters and rendering | Python-side business state |
+| `godot_project/` | Houses, coordinates, motion, collision, characters and rendering source | Python-side business state or Runtime lifecycle |
 | `devtools/` | Isolated development and debugging entry points | End-user product navigation |
 
-## The single composition point
+## Composition, authority and observation
 
 Real Elfies and the Nest are composed only in
-`app/orchestration/NestSession`. This keeps `Nest` pure in-nest semantics,
-lets `Elfie` be tested as an independent individual, and lets the application
-layer assemble them into a product session.
+`app/orchestration/NestSession`. `app/orchestration/lifecycle` is the sole
+authority for starting, stopping or restarting the Core, Gateway and selected
+Godot authority. The Gateway carries high-level semantic commands to Godot and
+returns physical facts that occurred; Python does not recreate navigation,
+collision, coordinates or rendering.
+
+An Observer is a product-facing, authenticated semantic projection. It may read
+only its authorized room or owned Elfie scope and send only the closed
+high-level intents documented in [Runtime & data](./architecture-runtime). It
+is not a second authority or a pass-through for Godot protocol frames.
 
 ## Dependency direction
 
 ```text
 app/bootstrap → app/orchestration → elfie / nest / ai_runtime
+app/orchestration/lifecycle → godot_runtime → exported Godot authority
+app/interfaces/desktop → public lifecycle CLI and authenticated Observer surface
 app/interfaces → app/features → app/infrastructure
-desktop → Python Core / Godot Web Runtime
 ```
 
-Lower-level modules do not reverse-depend on `app.interfaces`; any cross-boundary
-change must update the architecture tests and the corresponding READMEs in
-lockstep.
+Lower-level modules do not reverse-depend on `app.interfaces`. Interfaces,
+features and infrastructure may use only the public Observer/Gateway read
+surfaces; they cannot construct an authority host or send raw Runtime frames.
+Any cross-boundary change must update the architecture tests and corresponding
+English and Simplified-Chinese documentation in lockstep.

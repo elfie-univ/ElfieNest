@@ -2,7 +2,6 @@ extends SceneTree
 
 const REQUIRED_RESOURCES := [
 	"res://main.tscn",
-	"res://camera_stream_bridge.gd",
 	"res://rooms/nest.tscn",
 	"res://rooms/activity_room.tscn",
 	"res://rooms/dorm_room.tscn",
@@ -22,6 +21,11 @@ const REQUIRED_RESOURCES := [
 	"res://lab_preview_controller.gd",
 	"res://runtime/actor_controller.gd",
 	"res://runtime/world_controller.gd",
+	"res://runtime/runtime_mode.gd",
+	"res://runtime/authority_semantic_events.gd",
+	"res://runtime/lab_runtime.gd",
+	"res://scripts/test/test_runtime_mode_contract.gd",
+	"res://scripts/test/test_authority_semantic_replay.gd",
 	"res://scripts/test/test_runtime_actor_catalog.gd",
 	"res://scripts/test/test_runtime_navigation.gd",
 	"res://scripts/test/test_runtime_interaction.gd",
@@ -54,16 +58,14 @@ func _init() -> void:
 		return
 	var nest := main_instance.get_node_or_null("Nest")
 	var characters := main_instance.get_node_or_null("Characters")
-	var camera_bridge := main_instance.get_node_or_null("CameraStreamBridge")
 	if (
 		nest == null
 		or characters == null
 		or characters.get_child_count() != 0
-		or camera_bridge == null
 	):
 		main_instance.free()
 		push_error(
-			"Main scene must contain Nest, CameraStreamBridge, and an empty Characters container"
+		"Main scene must contain Nest and an empty Characters container"
 		)
 		quit(1)
 		return

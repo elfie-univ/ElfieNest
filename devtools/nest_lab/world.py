@@ -15,8 +15,8 @@ from devtools.nest_lab.models import LabActor, LabSpecies, NestLabConflictError
 from devtools.nest_lab.residents import assign_missing_homes, clear_home_assignments
 from devtools.nest_lab.simulation import WanderScheduler
 from nest import Nest, NestConfig
-from nest.godot.api import GodotAPIServer
-from nest.godot.messages import CommandName, EventName, RuntimeEventFrame
+from nest.godot_gateway.api import GodotAPIServer
+from nest.godot_gateway.messages import CommandName, EventName, RuntimeEventFrame
 
 
 def _synchronized(method: Callable[..., Any]) -> Callable[..., Any]:

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 from app.orchestration.engine import ElfieNestEngine
 from app.orchestration.scene_manifest import parse_scene_manifest
 from elfie import Elfie
-from nest.godot.messages import (
+from nest.godot_gateway.messages import (
     CommandName,
     EventName,
     RuntimeEventFrame,
@@ -439,7 +439,7 @@ def _manifest() -> dict[str, object]:
     return {
         "nest_id": "local-nest",
         "world_revision": 1,
-        "bed_count": 2,
+        "bed_count": 4,
         "zones": [
             {
                 "zone_id": "dorm-01",

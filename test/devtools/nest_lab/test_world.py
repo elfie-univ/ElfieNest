@@ -3,8 +3,8 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 
 from devtools.nest_lab.world import NestLabWorld
-from nest.godot.messages import CommandName
-from test.nest.godot.fake_runtime import FakeRuntime
+from nest.godot_gateway.messages import CommandName
+from test.nest.godot_gateway.fake_runtime import FakeRuntime
 
 
 class _LabGateway(FakeRuntime):

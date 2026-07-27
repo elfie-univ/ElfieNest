@@ -219,9 +219,6 @@ async def complete_setup_nest(
     with get_db(request.app.state.db_path) as conn:
         SQLiteNestRepository(conn).set_desired_bed_count(body.bed_count)
         conn.commit()
-    camera_feed = getattr(request.app.state, "camera_feed", None)
-    if camera_feed is not None:
-        camera_feed.set_desired_bed_count(body.bed_count)
     complete_setup_step(request.app.state.db_path, step=3)
     return _setup_status(request)
 

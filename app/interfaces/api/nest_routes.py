@@ -35,17 +35,6 @@ def _rooms_with_beds(
         return rooms
 
 
-def _publish_desired_layout(
-    request: Request,
-    rooms: List[Dict[str, Any]],
-) -> None:
-    if not rooms:
-        return
-    camera_feed = getattr(request.app.state, "camera_feed", None)
-    if camera_feed is not None:
-        camera_feed.set_desired_bed_count(int(rooms[0]["desired_bed_count"]))
-
-
 def _bed_count_from_body(body: dict[str, Any]) -> int:
     raw_value = body.get("bed_count", DEFAULT_BED_COUNT)
     if isinstance(raw_value, bool) or not isinstance(raw_value, int):
@@ -65,7 +54,6 @@ async def get_rooms(
 ) -> List[Dict[str, Any]]:
     _ = owner
     rooms = _rooms_with_beds(request.app.state.db_path)
-    _publish_desired_layout(request, rooms)
     return rooms
 
 
@@ -75,7 +63,6 @@ async def get_user_rooms(
     user: Dict[str, Any] = RequireUser,
 ) -> List[Dict[str, Any]]:
     rooms = _rooms_with_beds(request.app.state.db_path, user_id=user["id"])
-    _publish_desired_layout(request, rooms)
     return rooms
 
 
@@ -120,7 +107,6 @@ async def update_default_room_bed_count(
     desired_bed_count = result["desired_bed_count"]
     if desired_bed_count is None:
         raise HTTPException(status_code=500, detail="bed_count persistence failed")
-    request.app.state.camera_feed.set_desired_bed_count(desired_bed_count)
     return result
 
 

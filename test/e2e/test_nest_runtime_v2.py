@@ -2,8 +2,8 @@ from unittest.mock import MagicMock
 
 from app.orchestration.engine import ElfieNestEngine
 from elfie import Elfie
-from nest.godot.messages import CommandName
-from test.nest.godot.fake_runtime import FakeRuntime
+from nest.godot_gateway.messages import CommandName
+from test.nest.godot_gateway.fake_runtime import FakeRuntime
 
 
 def test_fake_runtime_reconnect_converges_complete_actor_catalog() -> None:

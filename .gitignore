@@ -48,6 +48,11 @@ dist/
 !/build/metadata/
 /build/metadata/*
 !/build/metadata/.gitignore
+!/build/components/
+/build/components/*
+!/build/components/runtime-contract/
+/build/components/runtime-contract/*
+!/build/components/runtime-contract/runtime-components.json
 
 # 6. IDE/编辑器/工具缓存与日志
 .DS_Store
@@ -87,10 +92,10 @@ data/
 data/temp/
 *.uid
 
-# Electron 本地依赖；旧输出目录继续忽略，但新构建只能写入根 build/dist
-/desktop/node_modules/
-/desktop/dist/
-/desktop/out/
+# Electron 本地依赖；构建产物只能写入根 build/dist
+/app/interfaces/desktop/node_modules/
+/app/interfaces/desktop/dist/
+/app/interfaces/desktop/out/
 
 # Developer Tools Web local dependencies
 /devtools/web/node_modules/

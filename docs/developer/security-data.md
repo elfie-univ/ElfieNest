@@ -38,9 +38,8 @@ upgrade; no compat read or migration entry is kept.
 
 The public site only publishes reviewed product intros, usage guides and
 finalized developer notes. Intermediate design drafts, experiment evidence,
-unreleased capabilities and private worldbuilding stay in `.omo/archive/` or
-`.omo/drafts/`; these directories are protected by `.gitignore` and must not be
-referenced by the VitePress build.
+unreleased capabilities and private worldbuilding stay outside public docs and
+must not be referenced by the VitePress build.
 
 ## Change checklist
 

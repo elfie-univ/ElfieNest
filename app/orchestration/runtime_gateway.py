@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from nest.godot.messages import CommandName, JsonObject, RuntimeEventFrame
-from nest.godot.session import RuntimeConnection
+from nest.godot_gateway.messages import CommandName, JsonObject, RuntimeEventFrame
+from nest.godot_gateway.session import RuntimeConnection
 
 
 class RuntimeGateway(Protocol):

@@ -1,0 +1,182 @@
+{
+  "schema_version": 1,
+  "components": {
+    "godot-web": {
+      "version": "4.7",
+      "mode": "observer",
+      "entrypoint": "elfienest.html",
+      "applicable_targets": [
+        "darwin-arm64",
+        "darwin-x64",
+        "linux-x64",
+        "win32-x64"
+      ],
+      "files": [
+        {
+          "path": "build-manifest.json",
+          "bytes": 1539,
+          "sha256": "0a9bb24fb6135fc366d53326963e8b6da04ab36e34b67eb3ebb4ffb11c6a01ec",
+          "executable": false
+        },
+        {
+          "path": "elfienest.apple-touch-icon.png",
+          "bytes": 11944,
+          "sha256": "01d4f63e525941e06ce74f5187dad030d20a8d52a07ce365ae4e94af97a3b1f5",
+          "executable": false
+        },
+        {
+          "path": "elfienest.audio.position.worklet.js",
+          "bytes": 2973,
+          "sha256": "be33985bc7160d6bf9646f259cd86b259cd67b02ccb297ee5c44f8ac84327bc8",
+          "executable": false
+        },
+        {
+          "path": "elfienest.audio.worklet.js",
+          "bytes": 7298,
+          "sha256": "5b476a9c9ce642c0ee4256436d1bc31d9c38f868aca0f9a8e2a57c18d2dec2a3",
+          "executable": false
+        },
+        {
+          "path": "elfienest.html",
+          "bytes": 5479,
+          "sha256": "602f6b2a8cccd26f9ca1a8606abf1ad2172573411a19c469087f2a09762053e3",
+          "executable": false
+        },
+        {
+          "path": "elfienest.icon.png",
+          "bytes": 5700,
+          "sha256": "ad3c35ad0facf487c618204bd98db543034fc95224eadc7f08c7a9ff38d5b3b5",
+          "executable": false
+        },
+        {
+          "path": "elfienest.js",
+          "bytes": 279815,
+          "sha256": "68586d6daafc93c6e697b3fb258976874aa7459b8931165ebb1dc3c9614cc42c",
+          "executable": false
+        },
+        {
+          "path": "elfienest.pck",
+          "bytes": 55382128,
+          "sha256": "5a8d8995217990598313856352e8409d22a444c740fe88c9fea9112f53e1f948",
+          "executable": false
+        },
+        {
+          "path": "elfienest.png",
+          "bytes": 21443,
+          "sha256": "3cb4495c0b98dfbe4b663cbf2b6836473572339beb66d902367893162a70be0e",
+          "executable": false
+        },
+        {
+          "path": "elfienest.wasm",
+          "bytes": 39513091,
+          "sha256": "35116f68540ac41acf7d71ea457added91b5e960a9cca3e2acc72918eaf01277",
+          "executable": false
+        }
+      ]
+    },
+    "desktop-observer": {
+      "version": "0.1.0",
+      "mode": "observer",
+      "entrypoint": "main.js",
+      "applicable_targets": [
+        "darwin-arm64",
+        "darwin-x64",
+        "linux-x64",
+        "win32-x64"
+      ],
+      "files": [
+        {
+          "path": "desktop_role_lifecycle.js",
+          "bytes": 873,
+          "sha256": "4f69ccad424cf0587ac8f17922784eea1f4e751c0c1a1e246bac4026549f0b04",
+          "executable": false
+        },
+        {
+          "path": "lifecycle_client.js",
+          "bytes": 4113,
+          "sha256": "d214f0df37afc7124f00a35f02496e49da35477f1c8c96c9832c3eb032a85480",
+          "executable": false
+        },
+        {
+          "path": "main.js",
+          "bytes": 3088,
+          "sha256": "22b5efa6a32e9e118c37b5127f6fc9b152c5ab752e8c988ac1072d72c03008f6",
+          "executable": false
+        },
+        {
+          "path": "resources/build_resource_manifest.js",
+          "bytes": 1096,
+          "sha256": "8f1b0082ad61afde8bd4fd53cfaf1ca2526fa1f13534a10f33d95172494cfc98",
+          "executable": false
+        },
+        {
+          "path": "resources/resource_manifest.js",
+          "bytes": 6254,
+          "sha256": "ad19b47c6c095780cb666308b3eb8ea3457bad7eb50ab30b0e81cd6176c6ab68",
+          "executable": false
+        },
+        {
+          "path": "role_dispatch.js",
+          "bytes": 234,
+          "sha256": "07f58e3af28c7a2cad52204b3bed5626fe1c261f9174db5417b664904b054f00",
+          "executable": false
+        },
+        {
+          "path": "windows/runtime_windows.js",
+          "bytes": 1850,
+          "sha256": "64a6c8c3b8dc34a235f2207e279363ee3ef0eb213c58bb8044f1ba93d2f0a0c1",
+          "executable": false
+        }
+      ]
+    },
+    "linux-dedicated": {
+      "version": "4.7",
+      "mode": "dedicated-authority",
+      "entrypoint": "ElfieNestRuntime",
+      "applicable_targets": [
+        "linux-x64"
+      ],
+      "files": [
+        {
+          "path": "ElfieNestRuntime",
+          "bytes": 128852464,
+          "sha256": "cae5eb3c1fbc0f4803050a13e070377e301e8e95d1ef9d255ed341c8f70331fa",
+          "executable": true
+        },
+        {
+          "path": "build-manifest.json",
+          "bytes": 419,
+          "sha256": "dc8df5eff572cdeb4790bb5367c52bf6018e23b30d0688986d066cb640aedc69",
+          "executable": false
+        }
+      ]
+    }
+  },
+  "targets": {
+    "darwin-arm64": {
+      "required_components": [
+        "desktop-observer",
+        "godot-web"
+      ]
+    },
+    "darwin-x64": {
+      "required_components": [
+        "desktop-observer",
+        "godot-web"
+      ]
+    },
+    "win32-x64": {
+      "required_components": [
+        "desktop-observer",
+        "godot-web"
+      ]
+    },
+    "linux-x64": {
+      "required_components": [
+        "desktop-observer",
+        "godot-web",
+        "linux-dedicated"
+      ]
+    }
+  }
+}

@@ -45,7 +45,31 @@ class DefaultProcessInspector:
             return False
         except PermissionError:
             return True
-        return True
+        state = self._state(pid)
+        return state not in {"", "Z"}
+
+    def _state(self, pid: int) -> Optional[str]:
+        stat_path = self._proc_root / str(pid) / "stat"
+        try:
+            if stat_path.is_file():
+                remainder = stat_path.read_text(encoding="utf-8").rpartition(")")[2]
+                fields = remainder.split()
+                return fields[0][:1] if fields else None
+        except OSError:
+            return None
+        try:
+            completed = subprocess.run(
+                ["ps", "-p", str(pid), "-o", "state="],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        state = completed.stdout.strip()
+        if completed.returncode != 0 or not state:
+            return ""
+        return state[:1]
 
     def cwd(self, pid: int) -> Path:
         process_dir = self._proc_root / str(pid)
@@ -182,13 +206,9 @@ def _reject_live_pid_replacement(pid_path: Path, new_pid: int) -> None:
         raise FileExistsError(f"现有 PID 收据无效，拒绝覆盖: {content!r}") from error
     if recorded_pid == new_pid:
         return
-    try:
-        os.kill(recorded_pid, 0)
-    except ProcessLookupError:
+    if not DefaultProcessInspector().exists(recorded_pid):
         pid_path.unlink(missing_ok=True)
         return
-    except PermissionError as error:
-        raise FileExistsError(f"PID {recorded_pid} 状态不可验证，拒绝覆盖") from error
     raise FileExistsError(f"PID {recorded_pid} 仍在运行，拒绝覆盖服务收据")
 
 

@@ -6,20 +6,17 @@ unimplemented designs into the current architecture.
 
 ## System map
 
-```text
-Electron Desktop
-        │ supervises processes, windows and platform resources
-        ▼
-Python Core: app
-   ├── orchestration ──> elfie
-   │                ├──> nest
-   │                └──> ai_runtime
-   ├── features
-   ├── interfaces
-   └── infrastructure
-        │
-        └──────────────> Godot Web Runtime
-```
+<img src="/assets/elfienest-system-architecture.svg" alt="Nested ElfieNest system architecture. Black arrows show cross-module data and protocol flow; red arrows show concrete entrypoint and internal control flow." />
+
+Black arrows are true two-way data or protocol relationships where both arrow
+heads are shown. Red arrows identify the concrete internal entrypoints and
+control path. In particular, `ElfieFactory` creates or restores an `Elfie`
+instance; runtime operations then use the returned `elfie.py` facade.
+
+`app/orchestration` directly composes `elfie`, `nest` and `ai_runtime`. It is
+not downstream of `app/features` or `app/infrastructure`: those two form the
+separate product-use-case path `app/interfaces → app/features →
+app/infrastructure`.
 
 The core source is split by responsibility:
 
@@ -29,7 +26,9 @@ The core source is split by responsibility:
 | `nest/` | Activity-space state, environment clock, interaction and the Godot protocol boundary | [Nest README](https://github.com/elfie-univ/ElfieNest/blob/main/nest/README.md) |
 | `ai_runtime/` | Models, providers, policy, food, tools and the safety runtime | [AI Runtime README](https://github.com/elfie-univ/ElfieNest/blob/main/ai_runtime/README.md) |
 | `app/` | Product use-cases, interfaces, infrastructure and cross-module orchestration | [App README](https://github.com/elfie-univ/ElfieNest/blob/main/app/README.md) |
-| `desktop/` | Electron lifecycle, resource discovery and process supervision | [Desktop README](https://github.com/elfie-univ/ElfieNest/blob/main/desktop/README.md) |
+| `app/orchestration/lifecycle/` | Runtime lifecycle, full health, owner leases and authority control | [Runtime & data](./architecture-runtime) |
+| `godot_runtime/` | Authority-host selection, exported Runtime launch and artifact metadata | [Runtime & data](./architecture-runtime) |
+| `app/interfaces/desktop/` | Electron Observer windows and public lifecycle client | [Desktop README](https://github.com/elfie-univ/ElfieNest/blob/main/app/interfaces/desktop/README.md) |
 | `godot_project/` | Standalone Godot source project: rooms, geometry, coordinates, collision, characters and rendering | [Godot README](https://github.com/elfie-univ/ElfieNest/blob/main/godot_project/README.md) |
 | `devtools/` | Module workbenches isolated from the end-user product | [Devtools README](https://github.com/elfie-univ/ElfieNest/blob/main/devtools/README.md) |
 
@@ -37,7 +36,10 @@ The core source is split by responsibility:
 
 `app/orchestration/NestSession` is the only place where real `Elfie` instances
 and `Nest` are composed. It routes in-nest events to the corresponding Elfie by
-ID, and it injects the cognitive Runtime into the Elfie lifecycle.
+ID, and it injects the cognitive Runtime into the Elfie lifecycle. The public
+module entrances are `elfie/elfie.py` (the individual facade),
+`elfie/factory.py` (creation and restoration), and `nest/nest.py` (the Nest
+facade).
 
 `Nest` itself only maintains resident IDs, in-nest semantic state, the
 environment clock and interaction propagation. It does not create or persist
@@ -58,7 +60,7 @@ call product features.
 `godot_project/` is the Godot source project edited at dev time; it is not a
 directory Python imports at runtime. The build exports it into the Godot
 Runtime; the Python side exchanges semantic commands and world facts with that
-running Runtime through the protocol boundary in `nest/godot/`.
+running Runtime through the protocol boundary in `nest/godot_gateway/`.
 
 ```mermaid
 flowchart LR
@@ -67,7 +69,7 @@ flowchart LR
     Elfie["elfie/<br/>cognition, body output and communication output"]
     Orchestration["app/orchestration/<br/>composition & routing of real Elfie and Nest"]
     Nest["nest/<br/>room semantics, resident state and world events"]
-    Adapter["nest/godot/<br/>Godot Runtime protocol adapter"]
+    Adapter["nest/godot_gateway/<br/>Godot Runtime protocol adapter"]
 
     Source -->|"export build"| Runtime
     Elfie -->|"abstract actions and communication output"| Orchestration
@@ -86,7 +88,7 @@ The connection uses nonce authentication and a single authoritative generation
 Runtime to publish the semantic catalog and declare navigation ready, and only
 then sends the full actor catalog. During the run, an Elfie outputs abstract
 actions or communication content; `app/orchestration/` sends semantic commands
-through `nest/godot/` keyed on the Elfie ID, while the Nest itself does not copy
+through `nest/godot_gateway/` keyed on the Elfie ID, while the Nest itself does not copy
 coordinate or furniture facts. The Runtime runs space, navigation, motion,
 collision and rendering, and reports the physical facts that actually happen
 back. The return path updates the Nest semantic state through the orchestration
@@ -141,22 +143,26 @@ does not maintain a second on-disk Schema.
 
 ## Process boundaries
 
-Dev-time and install-time components do not all run in one process:
+`app/orchestration/lifecycle/RuntimeSupervisor` owns a Runtime generation:
 
 ```text
-Electron Desktop
-  ├── end-user windows
-  ├── Ollama (managed or external)
-  ├── Python Core
-  └── hidden Godot Web Runtime
+Runtime Supervisor
+  ├── Python Core + Gateway
+  ├── one selected Godot authority host
+  │   ├── graphical Web authority
+  │   ├── graphical Electron authority role
+  │   └── displayless Linux dedicated authority
+  └── public Ollama health (optional; may be degraded)
+
+app/interfaces/desktop/ ──> authenticated Observer + public lifecycle client
 ```
 
-Desktop only handles single-instance windows, platform resource discovery,
-process supervision and shutdown convergence. Accounts, adoption, chat, Nest
-rules and Elfie cognition still belong to the Python Core. The Godot Web Runtime
-keeps running inside a hidden Chromium window and owns the spatial world; the
-model service can be local Ollama or another provider configured by the
-Runtime.
+Desktop never becomes the supervisor or a Godot protocol endpoint. It attaches
+to a healthy generation or receives an owner lease when it starts one; an
+observer window cannot stop a Runtime it did not create. Observer projections
+are semantic and non-video in the first phase. Accounts, adoption, chat, Nest
+rules and Elfie cognition remain in the Python product layers, while Godot owns
+space, navigation, collision and rendering.
 
 ## Data and artifact boundaries
 

@@ -6,26 +6,27 @@ const ACTOR_SCENES := {
 }
 const GODOT_WS_URL := "ws://127.0.0.1:8765"
 const GODOT_PROTOCOL_VERSION := 2
-const LAB_PREVIEW_CONTROLLER := preload("res://lab_preview_controller.gd")
 const WORLD_RUNTIME_CONTROLLER := preload("res://runtime/world_controller.gd")
 const ACTOR_RUNTIME_CONTROLLER := preload("res://runtime/actor_controller.gd")
 const RUNTIME_WEBSOCKET_CLIENT := preload("res://runtime/websocket_client.gd")
+const RUNTIME_MODE := preload("res://runtime/runtime_mode.gd")
+const LAB_RUNTIME := preload("res://runtime/lab_runtime.gd")
+const AUTHORITY_SEMANTIC_EVENTS := preload("res://runtime/authority_semantic_events.gd")
 
 @onready var nest: ModularNest = $Nest
 @onready var characters: Node3D = $Characters
 @onready var lab_preview: Node3D = $LabPreview
 @onready var lab_camera: Camera3D = $LabPreview/Camera3D
-@onready var camera_stream_bridge: Node = $CameraStreamBridge
 
 var _ws_url := ""
 var _lab_mode := false
 var _nest_lab_mode := false
-var _lab_controller: Node
-var _lab_window: JavaScriptObject
-var _lab_browser_bridge_ready := false
+var _lab_runtime: Node
 var _world_controller: Node
 var _actor_controller: Node
 var _runtime_client: Node
+var _runtime_mode
+var _semantic_events
 
 
 func add_character(
@@ -38,7 +39,6 @@ func add_character(
 		instance.queue_free()
 		push_error("Character scene root must be CharacterBody3D")
 		return null
-
 	var character := instance as CharacterBody3D
 	if character is ElfieActor:
 		(character as ElfieActor).install_shared_animations = install_animations
@@ -50,12 +50,43 @@ func add_character(
 func _ready() -> void:
 	_lab_mode = OS.has_feature("web") and _query_parameter("mode") == "elfie_lab"
 	_nest_lab_mode = OS.has_feature("web") and _query_parameter("mode") == "nest_lab"
+	_setup_lab_runtime()
 	if _lab_mode:
-		_setup_lab_preview()
+		_lab_runtime.setup_elfie_lab()
 		return
 	if _nest_lab_mode:
-		_disable_camera_stream()
-		_setup_nest_lab_camera_bridge()
+		_lab_runtime.setup_nest_lab()
+		return
+	_runtime_mode = RUNTIME_MODE.new()
+	_runtime_mode.setup(_resolve_runtime_mode())
+	if _runtime_mode.disables_visual_runtime_services():
+		nest.visible = false
+	if not _runtime_mode.allows_authority_transport():
+		if _runtime_mode.requires_web_ready_signal():
+			await _notify_web_runtime_ready()
+		return
+	_start_authority_runtime()
+
+
+func _process(_delta: float) -> void:
+	if _lab_mode:
+		_lab_runtime.process_elfie_lab_frame()
+		return
+	if _nest_lab_mode:
+		_lab_runtime.process_nest_lab_frame()
+		return
+	if _runtime_client != null:
+		_runtime_client.process_frame()
+
+
+func _setup_lab_runtime() -> void:
+	_lab_runtime = LAB_RUNTIME.new()
+	add_child(_lab_runtime)
+	_lab_runtime.setup(nest, characters, lab_preview, lab_camera, ACTOR_SCENES)
+
+
+func _start_authority_runtime() -> void:
+	_semantic_events = AUTHORITY_SEMANTIC_EVENTS.new()
 	_world_controller = WORLD_RUNTIME_CONTROLLER.new()
 	add_child(_world_controller)
 	_world_controller.setup(nest)
@@ -69,18 +100,6 @@ func _ready() -> void:
 	add_child(_runtime_client)
 	_runtime_client.command_message.connect(_handle_runtime_command)
 	_runtime_client.setup(_ws_url, _resolve_handshake_nonce())
-
-
-func _process(_delta: float) -> void:
-	if _lab_mode:
-		_poll_lab_messages()
-		_initialize_lab_browser_bridge()
-		if get_viewport().get_camera_3d() != lab_camera:
-			lab_camera.make_current()
-		return
-	if _nest_lab_mode:
-		_poll_nest_lab_camera_messages()
-	_runtime_client.process_frame()
 
 
 func _handle_runtime_command(message: Dictionary) -> void:
@@ -119,7 +138,7 @@ func _handle_runtime_command(message: Dictionary) -> void:
 		"cancel_intent":
 			_actor_controller.cancel_intent(payload as Dictionary)
 		_:
-			pass
+			return
 
 
 func _runtime_command_is_valid(
@@ -139,10 +158,7 @@ func _runtime_command_is_valid(
 		return false
 	if command_name in ["execute_intent", "cancel_intent"]:
 		var command_id := String(payload.get("command_id", ""))
-		if (
-			command_id.is_empty()
-			or String(message.get("correlation_id", "")) != command_id
-		):
+		if command_id.is_empty() or String(message.get("correlation_id", "")) != command_id:
 			return false
 	return true
 
@@ -152,7 +168,16 @@ func _on_runtime_event(
 	payload: Dictionary,
 	correlation_id: String,
 ) -> void:
-	_send_runtime_event(event_name, payload, correlation_id)
+	var semantic_event: Dictionary = _semantic_events.project(
+		event_name,
+		payload,
+		correlation_id,
+	)
+	_send_runtime_event(
+		String(semantic_event["name"]),
+		semantic_event["payload"] as Dictionary,
+		String(semantic_event.get("correlation_id", "")),
+	)
 
 
 func _resolve_handshake_nonce() -> String:
@@ -162,6 +187,17 @@ func _resolve_handshake_nonce() -> String:
 	if not OS.has_feature("web"):
 		return ""
 	return _query_parameter("nonce")
+
+
+func _resolve_runtime_mode() -> String:
+	var environment_mode := OS.get_environment("ELFIENEST_GODOT_MODE")
+	if not environment_mode.is_empty():
+		return environment_mode
+	if OS.has_feature("dedicated_server") or DisplayServer.get_name() == "headless":
+		return "authority"
+	if OS.has_feature("web"):
+		return _query_parameter("mode")
+	return "authority"
 
 
 func _resolve_runtime_ws_url() -> String:
@@ -213,161 +249,13 @@ func _send_runtime_event(event_name: String, payload: Dictionary, correlation_id
 	)
 
 
-func _setup_lab_preview() -> void:
-	nest.visible = false
-	nest.process_mode = Node.PROCESS_MODE_DISABLED
-	for camera in nest.find_children("*", "Camera3D", true, false):
-		(camera as Camera3D).current = false
-	lab_preview.visible = true
-	lab_camera.make_current()
-	_disable_camera_stream()
-	_lab_controller = LAB_PREVIEW_CONTROLLER.new()
-	add_child(_lab_controller)
-	_lab_controller.setup(characters, lab_camera, ACTOR_SCENES)
-	_lab_controller.capture_requested.connect(_capture_lab_portrait)
-	_disable_nest_cameras.call_deferred()
-	_initialize_lab_browser_bridge()
-
-
-func _initialize_lab_browser_bridge() -> void:
-	"""Retry the Web bridge after Godot's first frame when the browser is not ready yet."""
-	if _lab_browser_bridge_ready:
+func _notify_web_runtime_ready() -> void:
+	"""Emit the existing iframe readiness contract for observer-only Web modes."""
+	if not OS.has_feature("web"):
 		return
-	_lab_window = JavaScriptBridge.get_interface("window")
-	if _lab_window == null:
+	for _frame in range(4):
+		await get_tree().process_frame
+	var window := JavaScriptBridge.get_interface("window")
+	if window == null:
 		return
-	JavaScriptBridge.eval(
-		"(() => { window.__elfieLabQueue = [];"
-		+ " window.elfieLabEnqueue = (data) => {"
-		+ " if (typeof data === 'string') window.__elfieLabQueue.push(data); };"
-		+ " })()"
-	)
-	_lab_browser_bridge_ready = true
-	_post_lab_message("ready", {})
-
-
-func _disable_camera_stream() -> void:
-	"""Keep developer Web previews from calling production camera endpoints."""
-	camera_stream_bridge.process_mode = Node.PROCESS_MODE_DISABLED
-
-
-func _setup_nest_lab_camera_bridge() -> void:
-	"""Accept only same-origin named camera presets from the Nest Lab shell."""
-	JavaScriptBridge.eval(
-		"(() => { window.__elfieNestLabCameraQueue = [];"
-		+ " window.addEventListener('message', (event) => {"
-		+ " if (event.origin !== window.location.origin) return;"
-		+ " const data = event.data;"
-		+ " if (data && data.channel === 'elfienest-nest-lab'"
-		+ " && data.type === 'camera' && typeof data.intent === 'string')"
-		+ " window.__elfieNestLabCameraQueue.push(data.intent);"
-		+ " }); })()"
-	)
-
-
-func _poll_nest_lab_camera_messages() -> void:
-	"""Drain the browser bridge without exposing arbitrary camera coordinates."""
-	var raw_batch: Variant = JavaScriptBridge.eval(
-		"window.__elfieNestLabCameraQueue && window.__elfieNestLabCameraQueue.length"
-		+ " ? JSON.stringify(window.__elfieNestLabCameraQueue.splice(0)) : ''"
-	)
-	if not raw_batch is String or String(raw_batch).is_empty():
-		return
-	var parsed_batch: Variant = JSON.parse_string(String(raw_batch))
-	if not parsed_batch is Array:
-		return
-	for raw_intent: Variant in parsed_batch as Array:
-		if raw_intent is String:
-			_select_nest_lab_camera_preset(String(raw_intent))
-
-
-func _select_nest_lab_camera_preset(intent: String) -> void:
-	"""Map the small public preset vocabulary to native room cameras."""
-	match intent:
-		"overview":
-			nest.select_observation_view(0)
-		"activity":
-			nest.select_observation_view_named("活动")
-		"dorm":
-			nest.select_observation_view_named("宿舍")
-		"portal":
-			nest.select_observation_view_named("传送室")
-		"restore":
-			nest.reset_observation_camera()
-		_:
-			return
-
-
-func _disable_nest_cameras() -> void:
-	await get_tree().process_frame
-	for camera in nest.find_children("*", "Camera3D", true, false):
-		(camera as Camera3D).current = false
-	lab_camera.make_current()
-
-
-func _poll_lab_messages() -> void:
-	var raw_batch: Variant = JavaScriptBridge.eval(
-		"window.__elfieLabQueue && window.__elfieLabQueue.length"
-		+ " ? JSON.stringify(window.__elfieLabQueue.splice(0)) : ''"
-	)
-	if not raw_batch is String or String(raw_batch).is_empty():
-		return
-	var parsed_batch: Variant = JSON.parse_string(String(raw_batch))
-	if not parsed_batch is Array:
-		return
-	for raw_message: Variant in parsed_batch as Array:
-		if raw_message is String:
-			_handle_lab_message(String(raw_message))
-
-
-func _handle_lab_message(raw_message: String) -> void:
-	var parsed: Variant = JSON.parse_string(raw_message)
-	if not parsed is Dictionary:
-		_post_lab_message("protocol_error", {"reason": "invalid_json"})
-		return
-	var message := parsed as Dictionary
-	if String(message.get("channel", "")) != "elfie-lab":
-		_post_lab_message("protocol_error", {"reason": "invalid_channel"})
-		return
-	var normalized := _normalize_lab_message(message)
-	_post_lab_message("accepted", {
-		"request_id": String(normalized.get("request_id", "")),
-		"action": String(normalized.get("action", "")),
-	})
-	var result: Dictionary = _lab_controller.handle_message(normalized)
-	_post_lab_message(String(result.get("event", "unsupported")), result)
-
-
-func _normalize_lab_message(message: Dictionary) -> Dictionary:
-	if message.get("payload") is Dictionary:
-		return message
-	var payload := {}
-	for field in ["elfie_id", "species_id", "spec_revision", "appearance", "delta", "target", "intent"]:
-		if message.has(field):
-			payload[field] = message[field]
-	return message.merged({"payload": payload}, true)
-
-
-func _capture_lab_portrait(request_id: String) -> void:
-	await get_tree().process_frame
-	var image := get_viewport().get_texture().get_image()
-	if image == null or image.is_empty():
-		return
-	if image.get_width() > 720:
-		var target_height := roundi(
-			float(image.get_height()) * 720.0 / float(image.get_width())
-		)
-		image.resize(720, target_height, Image.INTERPOLATE_LANCZOS)
-	var data_url := "data:image/png;base64,%s" % Marshalls.raw_to_base64(
-		image.save_png_to_buffer()
-	)
-	_post_lab_message("portrait", {"request_id": request_id, "data_url": data_url})
-
-
-func _post_lab_message(event_name: String, payload: Dictionary) -> void:
-	if _lab_window == null:
-		return
-	_lab_window.parent.postMessage(
-		JSON.stringify({"channel": "elfie-lab", "event": event_name}.merged(payload)),
-		String(_lab_window.location.origin),
-	)
+	window.parent.postMessage("elfienest:godot-web-ready", window.location.origin)

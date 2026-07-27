@@ -54,6 +54,7 @@
 ./elfienest.sh --help
 ./elfienest.sh serve --fallback
 ./elfienest.sh build-godot-web --check
+./developer.sh build-godot-dedicated --check
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync python scripts/check_quality_baseline.py
 ```

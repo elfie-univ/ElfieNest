@@ -22,6 +22,7 @@ if (
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.interfaces.cli.doctor_commands import run_doctor
+from app.interfaces.cli.foreground_runtime import run_foreground_service
 from app.interfaces.cli.lifecycle_commands import (
     default_service_command,
     open_web_console,
@@ -97,9 +98,7 @@ def main() -> None:
         help=argparse.SUPPRESS,
     )
 
-    serve_parser = subparsers.add_parser(
-        "serve", help="开发/诊断模式前台运行服务并实时显示日志"
-    )
+    serve_parser = subparsers.add_parser("serve", help="开发/诊断模式前台运行服务")
     serve_parser.add_argument("--fallback", action="store_true")
     serve_parser.add_argument("--force", action="store_true")
     serve_parser.add_argument("--port", type=int, default=None)
@@ -115,6 +114,7 @@ def main() -> None:
     start_parser.add_argument("--godot-ws-port", type=int, default=None)
     start_parser.add_argument("--fallback", action="store_true")
     start_parser.add_argument("--no-seed-elfie", action="store_true")
+    start_parser.add_argument("--owner-id", default="cli", help=argparse.SUPPRESS)
     start_network_group = start_parser.add_mutually_exclusive_group()
     start_network_group.add_argument(
         "--lan",
@@ -129,10 +129,12 @@ def main() -> None:
         action="store_false",
         help="仅绑定本机回环地址",
     )
-    subparsers.add_parser("status", help="查看服务状态")
+    status_parser = subparsers.add_parser("status", help="查看服务状态")
+    status_parser.add_argument("--json", action="store_true", help="输出组件健康 JSON")
     subparsers.add_parser("web", help="确保服务可用并打开 Web 管理台")
     subparsers.add_parser("desktop", help="显式启动打包版 ElfieNest Desktop")
-    subparsers.add_parser("stop", help="停止服务")
+    stop_parser = subparsers.add_parser("stop", help="停止服务")
+    stop_parser.add_argument("--owner-id", default="cli", help=argparse.SUPPRESS)
     subparsers.add_parser("restart", help="强制重启服务")
     subparsers.add_parser("owner", help="Owner 账户菜单")
     subparsers.add_parser("doctor", help="运行本地诊断与配置检查")
@@ -163,21 +165,30 @@ def _dispatch_command(args: argparse.Namespace) -> None:
         options = _service_options_from_args(args)
         if args.force:
             options += ("--force",)
-        _exec_foreground_service(options)
+        _exit_on_lifecycle_failure(run_foreground_service(options))
     elif args.command == "status":
-        show_service_status()
+        show_service_status(json_output=getattr(args, "json", False))
     elif args.command == "web":
         _exit_on_lifecycle_failure(open_web_console())
     elif args.command == "desktop":
         _exit_on_lifecycle_failure(start_desktop_application())
     elif args.command == "start":
+        command = default_service_command(_service_options_from_args(args))
+        owner_id = getattr(args, "owner_id", None)
         _exit_on_lifecycle_failure(
             start_background_service(
-                default_service_command(_service_options_from_args(args))
+                command,
+                **({"owner_id": owner_id} if owner_id is not None else {}),
             )
         )
     elif args.command == "stop":
-        _exit_on_lifecycle_failure(stop_background_service())
+        owner_id = getattr(args, "owner_id", None)
+        result = (
+            stop_background_service(owner_id=owner_id)
+            if owner_id is not None
+            else stop_background_service()
+        )
+        _exit_on_lifecycle_failure(result)
     elif args.command == "restart":
         _exit_on_lifecycle_failure(restart_background_service())
     elif args.command == "owner":
@@ -194,14 +205,7 @@ def _dispatch_command(args: argparse.Namespace) -> None:
         print_banner()
         print("  启动服务...")
         print()
-        _exec_foreground_service(tuple(sys.argv[1:]))
-
-
-def _exec_foreground_service(options: tuple[str, ...]) -> NoReturn:
-    """Replace the CLI with the source or packaged Core service command."""
-    command = default_service_command(options)
-    os.execvp(command[0], list(command))
-    raise AssertionError("os.execvp returned unexpectedly")
+        _exit_on_lifecycle_failure(run_foreground_service(tuple(sys.argv[1:])))
 
 
 def _service_options_from_args(args: argparse.Namespace) -> tuple[str, ...]:

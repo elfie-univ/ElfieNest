@@ -17,8 +17,8 @@ Responsible for:
   activity state;
 - Environment time advancement, speech propagation, collision and tactile and
   other in-nest interactions;
-- Godot Runtime v2 authentication, single authoritative session, command/event
-  queues and rate limiting;
+- Godot Gateway semantic protocol, one authoritative Runtime session, command/
+  event queues and rate limiting;
 - The scene semantic catalog, the Runtime's temporary mirror, and integrity
   checks on the exported Web Runtime.
 
@@ -45,7 +45,7 @@ nest/
 ├── state/          # config, residents, homes, world catalog and Runtime mirror
 ├── engine/         # environment clock advancement
 ├── interaction/    # speech, user messages, collision and tactile propagation
-├── godot/          # v2 messages, authoritative session, WebSocket gateway and Runtime artifact checks
+├── godot_gateway/  # authority messages, Observer sessions and WebSocket Gateway
 └── events.py       # Nest domain event value objects
 ```
 
@@ -55,7 +55,7 @@ nest/
 - `nest.NestConfig` — configuration such as Nest capacity;
 - `nest.NestFullError` — raised when resident capacity is full;
 - `nest.NestState` — runtime container holding only in-nest state;
-- `nest.godot.GodotAPIServer` — the WebSocket boundary between Python and the
+- `nest.godot_gateway.GodotAPIServer` — the WebSocket boundary between Python and the
   Godot Runtime.
 
 Real Elfie registration is performed by `app.orchestration.NestSession`; do not
@@ -66,7 +66,8 @@ push real objects into `NestState`.
 ```text
 app/orchestration ──> nest
 nest.nest ──> state + engine + interaction
-nest.godot ──> Nest / Godot boundary
+nest.godot_gateway ──> Nest / Godot protocol boundary
+godot_runtime ──> host selection, launch and artifact metadata
 godot_project/ ──> single source of truth for scenes and geometry
 ```
 
@@ -74,12 +75,13 @@ godot_project/ ──> single source of truth for scenes and geometry
 must reach a real Elfie, `app/orchestration/` looks the Elfie up by ID and
 invokes it.
 
-## Runtime v2 lifecycle
+## Runtime authority and Observer lifecycle
 
-After connecting, the Godot Runtime must first send a `hello` carrying a random
-nonce, a `runtime_id` and `protocol: 2`. Only one Runtime holds authority at a
-time; a newer connection gets an incremented `generation`, and events from
-older generations never enter the Nest.
+After connecting, the Godot authority must first send `AuthorityHello` with a
+random nonce, a `runtime_id` and `protocol: 3`. Only one Runtime holds authority
+at a time; a newer connection gets an incremented `generation`, and events from
+older generations never enter the Nest. Runtime lifecycle selects the exported
+host; `nest/` never launches Godot or owns a host process.
 
 Startup sync converges in a fixed order:
 
@@ -101,6 +103,13 @@ reported back to Python. When the Runtime disconnects or the generation
 changes, any in-flight body command uniformly enters an interrupted state and
 is handled by the Elfie's next decision.
 
+Authenticated product clients use the separate Observer surface. A capability
+is bound to the product session and narrows to a room or owned Elfie; it exposes
+generation/sequence semantic frames only. Observer navigation is limited to
+resync and focus intents, and its separately authorized high-level interaction
+request is rate-limited. It has no geometry, camera/video frame or authority
+credential access.
+
 ## Run & debug
 
 Run Nest domain and Godot protocol checks from the repository root:
@@ -112,7 +121,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 UV_CACHE_DIR=/tmp/elfienest-uv-cache \
   uv run --no-sync pytest -q \
   test/nest/test_nest.py \
-  test/nest/godot/test_api_handshake.py
+  test/nest/godot_gateway/test_api_handshake.py
 ```
 
 Opening, running or screenshotting the Godot project requires following the
@@ -124,8 +133,9 @@ to be running. For the dev environment and the unified quality gate see
 
 - `test/nest/test_nest.py`: state, environment clock and interaction
   propagation;
-- `test/nest/godot/`: v2 handshake, message validation, authoritative session
-  and web build artifacts;
+- `test/nest/godot_gateway/`: authority handshake, message validation, Observer
+  capability scope and authoritative session;
+- `test/godot_runtime/`: host selection, launcher and artifact metadata;
 - `test/e2e/test_nest_runtime_v2.py`: world and full character catalog
   convergence after reconnection;
 - `test/architecture/test_project_structure.py`: Nest directory structure and

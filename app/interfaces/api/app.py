@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 import os
-import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import (
@@ -48,7 +47,7 @@ from app.interfaces.web.build_discovery import (
     WebBuildManifestMissingError,
     discover_web_build,
 )
-from nest.godot.bundle import GODOT_WEB_DIR, inspect_godot_web_bundle
+from nest.godot_gateway.bundle import GODOT_WEB_DIR, inspect_godot_web_bundle
 
 from .page_routes import post_login_landing_path
 from .page_routes import router as page_router
@@ -144,10 +143,6 @@ def create_app(
         migrate_db_if_needed(db_path)
         recover_interrupted_setup_task(db_path)
         seed_initial_owner_if_env_set(db_path)
-        from .nest_routes import _rooms_with_beds  # noqa: PLC0415
-
-        rooms = _rooms_with_beds(db_path)
-        app.state.camera_feed.set_desired_bed_count(rooms[0]["desired_bed_count"])
         if engine is not None and not engine.session.has_repository:
             from app.infrastructure.persistence.nest_state_repository import (  # noqa: PLC0415
                 SQLiteNestStateRepository,
@@ -196,13 +191,6 @@ def create_app(
     except (WebBuildManifestMissingError, WebBuildManifestMalformedError) as error:
         app.state.web_build = None
         app.state.web_build_error = str(error)
-    app.state.godot_camera_token = os.environ.get(
-        "ELFIENEST_GODOT_CAMERA_TOKEN"
-    ) or secrets.token_urlsafe(32)
-    from .camera_routes import CameraFeedStore  # noqa: PLC0415
-
-    app.state.camera_feed = CameraFeedStore()
-
     app.add_middleware(AvatarUploadBodyLimitMiddleware)
 
     service_access = ServiceAccessPolicy.create(service_mode, http_port)
@@ -246,13 +234,7 @@ def create_app(
         if request.method in ("POST", "PUT", "DELETE"):
             path = request.url.path
             csrf_exempt = path in {"/api/auth/login", "/api/auth/setup"}
-            internal_camera_token = path.startswith(
-                "/api/godot-camera/"
-            ) and secrets.compare_digest(
-                request.headers.get("X-ElfieNest-Godot-Token", ""),
-                request.app.state.godot_camera_token,
-            )
-            if not csrf_exempt and not internal_camera_token:
+            if not csrf_exempt:
                 try:
                     verify_csrf_for_session(request)
                 except HTTPException as exc:
@@ -378,6 +360,11 @@ def create_app(
         _ = user  # 确保已登录
         token = request.cookies.get("session_token", "")
         if token:
+            from .observer_routes import session_token_fingerprint  # noqa: PLC0415
+
+            observer_sessions = getattr(request.app.state, "observer_sessions", None)
+            if observer_sessions is not None:
+                observer_sessions.revoke_session(session_token_fingerprint(token))
             delete_session(token, request.app.state.db_path)
         resp = JSONResponse(content={"detail": "已登出"})
         resp.delete_cookie(key="session_token")
@@ -591,11 +578,9 @@ def create_app(
 
     app.include_router(user_router)
 
-    from .camera_routes import godot_router as godot_camera_router  # noqa: PLC0415
-    from .camera_routes import viewer_router as camera_viewer_router  # noqa: PLC0415
+    from .observer_routes import router as observer_router  # noqa: PLC0415
 
-    app.include_router(godot_camera_router)
-    app.include_router(camera_viewer_router)
+    app.include_router(observer_router)
 
     # -------------------------------------------------------------------
     # LLM Config 路由 (Provider/Model/Route 管理)

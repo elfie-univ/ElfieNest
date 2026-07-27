@@ -58,6 +58,7 @@ should pass an explicit subcommand:
 | `db` | Show database info, or run `backup` / `reset` |
 | `version` | Show the version |
 | `build-godot-web` | Build, incrementally ensure, or check the browser 3D Runtime |
+| `build-godot-dedicated` | Build or check the displayless Linux x64 authority Runtime |
 | `developer` | Enter the isolated Developer Tools |
 
 Foreground and background services support code-validated parameters:
@@ -105,11 +106,16 @@ same Godot version and Web Export Templates:
 GODOT_BIN=/path/to/godot4.7 ./developer.sh build-godot-web
 ./developer.sh build-godot-web --ensure
 ./developer.sh build-godot-web --check
+GODOT_BIN=/path/to/godot4.7 ./developer.sh build-godot-dedicated
+./developer.sh build-godot-dedicated --check
 ```
 
 The official output lives at `build/components/godot-web/` and is not committed
 to Git. For the specific environment, artifacts and packaging flow see
 `godot_project/WEB_EXPORT.md` inside the standalone Godot source project.
+The dedicated authority export is a Linux x64 executable at
+`build/components/godot-linux-dedicated/ElfieNestRuntime`; it has no Web
+payload and is also not committed to Git.
 
 `./elfienest.sh serve` and `./developer.sh` in the source tree default to the
 development lifecycle: before starting they compare the Godot source tree
@@ -163,7 +169,7 @@ npx --yes pnpm@10.12.1 build
 Desktop uses Node.js 20 and a separate lockfile:
 
 ```bash
-cd desktop
+cd app/interfaces/desktop
 npx --yes pnpm@10.12.1 install --frozen-lockfile
 npx --yes pnpm@10.12.1 build
 npx --yes pnpm@10.12.1 test

@@ -1,6 +1,6 @@
 import type { ElfieProfile } from "../api/client"
 import { Avatar } from "./Avatar"
-import { Icon } from "./Icon"
+import { ObserverSurface } from "./ObserverSurface"
 
 type ElfieProfilePanelProps = {
   readonly profile: ElfieProfile | null
@@ -14,12 +14,52 @@ const BIG_FIVE_LABELS: Readonly<Record<string, string>> = {
   neuroticism: "敏感",
 }
 
+const SPECIES_LABELS: Readonly<Record<string, string>> = {
+  fox: "狐狸精灵",
+  dog: "小狗精灵",
+}
+
+const EMBODIMENT_LABELS: Readonly<Record<string, string>> = {
+  at_nest: "在精灵巢",
+  switching_to_hosted: "正在连接外部身体",
+  hosted: "外部身体在线",
+  returning_to_nest: "正在返回精灵巢",
+  offline: "暂时离线",
+}
+
+const APPEARANCE_LABELS: Readonly<Record<string, string>> = {
+  short: "娇小",
+  standard: "匀称",
+  tall: "高挑",
+  slim: "轻盈",
+  plump: "圆润",
+}
+
+const POSTURE_LABELS: Readonly<Record<string, string>> = {
+  resting: "休息中",
+  active: "活动中",
+  sleeping: "睡眠中",
+  away: "外出中",
+}
+
+const APPEARANCE_FIELDS = [
+  ["height_label", "身高"],
+  ["build_label", "体型"],
+] as const
+
 function formatAppearance(profile: ElfieProfile): string {
-  return (
-    Object.entries(profile.appearance)
-      .map(([key, value]) => `${key}: ${String(value)}`)
-      .join(" · ") || "外貌资料正在生成"
-  )
+  const summary = APPEARANCE_FIELDS.flatMap(([key, label]) => {
+    const value = profile.appearance[key]
+    return typeof value === "string" && value.trim()
+      ? [`${label}：${APPEARANCE_LABELS[value] ?? "待补全"}`]
+      : []
+  }).join(" · ")
+  return summary || "外貌资料正在生成"
+}
+
+function archiveLabel(elfieId: string): string {
+  const shortId = elfieId.replace(/^elfie[-_]/, "").toUpperCase()
+  return `档案编号：${shortId || "待分配"}`
 }
 
 function percent(value: number): string {
@@ -38,6 +78,9 @@ export function ElfieProfilePanel({ profile }: ElfieProfilePanelProps) {
   const bigFive = Object.entries(profile.big_five)
   const room = profile.nest.room_name ?? "尚未进入精灵巢"
   const bed = profile.nest.bed_name ?? "未设置家位"
+  const species = SPECIES_LABELS[profile.species_id] ?? "未知物种"
+  const embodiment = EMBODIMENT_LABELS[profile.embodiment.state] ?? "状态待同步"
+  const posture = POSTURE_LABELS[profile.nest.posture] ?? "状态待同步"
 
   return (
     <section className="elfie-passport">
@@ -46,13 +89,15 @@ export function ElfieProfilePanel({ profile }: ElfieProfilePanelProps) {
         <div>
           <p className="brand">精灵身份证</p>
           <h1>{profile.name}</h1>
-          <p>{profile.species_id} · {profile.embodiment.state}</p>
+          <p>{species} · {embodiment}</p>
           <div className="passport-tags">
-            <span>{profile.elfie_id}</span>
-            {profile.personality_tags.map((tag) => <span key={tag}>{tag}</span>)}
+            <span>{archiveLabel(profile.elfie_id)}</span>
+            {profile.personality_tags.map((tag) => (
+              <span key={tag}>{BIG_FIVE_LABELS[tag] ?? tag}</span>
+            ))}
           </div>
         </div>
-        <a className="button button--quiet" href="/runtime/godot">打开巢内 3D</a>
+        <span className="passport-tags"><span>本地 3D 观察</span></span>
       </header>
 
       <section className="passport-section">
@@ -65,15 +110,7 @@ export function ElfieProfilePanel({ profile }: ElfieProfilePanelProps) {
           <Avatar name={profile.name} />
           <p>{formatAppearance(profile)}</p>
         </div>
-        <div className="stage-actions">
-          <button aria-label="向左旋转" type="button"><Icon name="rotate-ccw" /></button>
-          <button aria-label="向右旋转" type="button"><Icon name="rotate-cw" /></button>
-          <button aria-label="缩小" type="button"><Icon name="minus" /></button>
-          <button aria-label="放大" type="button"><Icon name="plus" /></button>
-          <button aria-label="回到房间" type="button"><Icon name="house" /></button>
-          <button aria-label="查看精灵" type="button"><Icon name="user" /></button>
-          <a className="button" href="/runtime/godot"><Icon name="camera" size={17} />拍照</a>
-        </div>
+        <ObserverSurface elfieId={profile.elfie_id} kind="elfie" title={`${profile.name} 的 3D 观察`} />
       </section>
 
       <section className="passport-section">
@@ -97,7 +134,7 @@ export function ElfieProfilePanel({ profile }: ElfieProfilePanelProps) {
         <article><span>重要经历</span><strong>待记录</strong><p>保留影响性格与关系变化的事件。</p></article>
         <article><span>关系认知</span><strong>你与家庭</strong><p>展示它对家人、主人和其他精灵的关系理解。</p></article>
         <article><span>知识与信念</span><strong>成长中</strong><p>沉淀它学到的规则、偏好、世界观和边界。</p></article>
-        <article><span>世界理解</span><strong>{room}</strong><p>{bed} · 姿态 {profile.nest.posture}</p></article>
+        <article><span>世界理解</span><strong>{room}</strong><p>{bed} · 姿态 {posture}</p></article>
         <article><span>配置</span><strong>粮食与模型</strong><p>后续在这里配置这只精灵可用的粮食、模型组和能力边界。</p></article>
       </section>
     </section>

@@ -7,7 +7,7 @@ directly by the Godot Editor. It is the single source of truth for the
 ElfieNest 3D world, owning the house, geometry, coordinates, motion, collision,
 characters and rendering. It is not a Python package and not a directory the
 product runtime reads directly; the Python Core only exchanges in-nest events
-and state through the exported Godot Web Runtime and its protocol, and must
+and state through the selected exported Godot Runtime and its protocol, and must
 never copy scene layouts or spatial facts from here.
 
 ## Current project
@@ -52,8 +52,9 @@ formatted, and never commit editor-generated artifacts as source.
 
 ## Web Runtime
 
-End users run the exported Godot Web Runtime; they do not need the Godot
-editor installed. Final artifacts may only go into:
+End-user Observer clients use the exported Godot Web Runtime; they do not need
+the Godot editor installed. The first phase is semantic and non-video; it does
+not expose camera or JPEG-frame transport. Final artifacts may only go into:
 
 ```text
 build/components/godot-web/
@@ -67,18 +68,41 @@ GODOT_BIN=/path/to/godot4.7 ./developer.sh build-godot-web
 ```
 
 The builder verifies the engine version, checks required artifacts, generates a
-hash manifest and replaces the official output on success. Release packaging
-then copies the same artifacts into single-target staging; do not keep copies
-inside `godot_project/`, `desktop/` or end-user web sources.
+hash manifest and replaces the official output on success. The Runtime artifact
+contract can reference the same artifacts; do not keep copies inside
+`godot_project/`, `app/interfaces/desktop/` or end-user web sources.
 
 Environment preparation, directory layout and acceptance details for the Web
 export are maintained only in [`WEB_EXPORT.md`](WEB_EXPORT.md) to avoid multiple
 drifting copies of the flow.
 
+## Linux Dedicated Runtime
+
+The displayless authority runtime is a separate Linux x64 export. It contains
+no browser payload and must only be written to:
+
+```text
+build/components/godot-linux-dedicated/
+```
+
+Build or check it from the repository root with a Godot 4.7 installation that
+has the Linux x64 export template:
+
+```bash
+GODOT_BIN=/path/to/godot4.7 ./developer.sh build-godot-dedicated
+./developer.sh build-godot-dedicated --check
+```
+
+The Dedicated preset forces Godot's `dedicated_server` feature and headless
+execution. It is an authority host only; it does not create a display window or
+upload JPEG camera frames.
+
 ## Runtime boundary with Python
 
-The Runtime receives `configure_world`, `sync_actors`, `execute_intent` and
-`cancel_intent` over WebSocket protocol v2. Godot is responsible for:
+The sole authority Runtime receives `configure_world`, `sync_actors`,
+`execute_intent` and `cancel_intent` over the Gateway semantic protocol. The
+Runtime lifecycle chooses one authority host: graphical Web, graphical Electron
+authority role, or displayless Linux Dedicated. Godot is responsible for:
 
 - Rebuilding fixed rooms based on the bed count and publishing a stable
   zone/anchor semantic catalog;

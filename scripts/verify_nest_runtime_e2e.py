@@ -12,8 +12,8 @@ from unittest.mock import MagicMock
 from app.orchestration.engine import ElfieNestEngine
 from elfie import Elfie
 from elfie.profile import ElfieProfile, create_visual_profile
-from nest.godot.api import GodotAPIServer
-from nest.godot.messages import CommandName, EventName, RuntimeEventFrame
+from nest.godot_gateway.api import GodotAPIServer
+from nest.godot_gateway.messages import CommandName, EventName, RuntimeEventFrame
 
 
 def _profile(elfie_id: str, species: str, seed: int) -> ElfieProfile:

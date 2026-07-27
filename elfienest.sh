@@ -2,37 +2,41 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ============================================================================
-# 运行模式探测（基于 Electron supervisor_config.ts:55-60 的判定）
+# 运行状态探测（源码开发运行或已安装应用运行）
 # ============================================================================
 
-detect_runtime_mode() {
+detect_runtime_state() {
     local script_dir="$1"
 
     # 安装目录标志：存在 resources/python-core/ 或 manifest.json
     if [ -d "$script_dir/resources/python-core" ] || [ -f "$script_dir/manifest.json" ]; then
-        echo "production"
+        echo "installed_runtime"
         return
     fi
 
     # 源码树标志：存在 pyproject.toml 或 scripts/serve.py
     if [ -f "$script_dir/pyproject.toml" ] || [ -f "$script_dir/scripts/serve.py" ]; then
-        echo "development"
+        echo "source_development"
         return
     fi
 
     echo "unknown"
 }
 
-MODE="$(detect_runtime_mode "$SCRIPT_DIR")"
+RUNTIME_STATE="$(detect_runtime_state "$SCRIPT_DIR")"
 
-case "$MODE" in
-    production)
+case "$RUNTIME_STATE" in
+    installed_runtime)
         # 生产模式：直接调 Python Core（依赖已打包）
         exec "$SCRIPT_DIR/resources/python-core/ElfieNestCore" "$@"
         ;;
-    development)
+    source_development)
         # 开发模式：静默检查依赖，缺失时才显示安装过程
-        if ! "$SCRIPT_DIR/scripts/bootstrap.sh" check --tier=dev >/dev/null 2>&1; then
+        if ! "$SCRIPT_DIR/scripts/bootstrap.sh" report --tier=dev >/dev/null 2>&1; then
+            if [ "${ELFIENEST_SKIP_AUTO_REPAIR:-0}" = "1" ]; then
+                echo "  ❌ 依赖检查失败，请运行 ./elfienest.sh version 补齐开发环境。" >&2
+                exit 1
+            fi
             echo "  🦊 检测到缺失依赖，正在安装..." >&2
             if ! "$SCRIPT_DIR/scripts/bootstrap.sh" ensure --tier=dev; then
                 echo "  ❌ 依赖安装失败，请按提示修复" >&2
@@ -74,7 +78,7 @@ show_help() {
     echo "  │  命令列表                                               │"
     echo "  └─────────────────────────────────────────────────────────┘"
     echo ""
-    echo "    serve*         开发/诊断模式前台运行服务并实时显示日志"
+    echo "    serve*         通过 Runtime Supervisor 前台托管服务"
     echo "    start*         后台启动服务（已运行时不重复启动）"
     echo "    stop           停止当前服务"
     echo "    restart        强制重启当前服务"
@@ -126,7 +130,7 @@ interactive_mode() {
             "" ) continue ;;
             exit|quit|q) echo ""; echo "  再见！🦊"; echo ""; exit 0 ;;
             help|h|?) show_help ;;
-            serve) "$PYTHON_BIN" scripts/serve.py "${args[@]}" ;;
+            serve) "$PYTHON_BIN" scripts/elfienest.py serve "${args[@]}" ;;
             config|owner|doctor|status|web|desktop|stop|restart|start|version|v|setup)
                 "$PYTHON_BIN" scripts/elfienest.py "$cmd" "${args[@]}" ;;
             db) "$PYTHON_BIN" scripts/elfienest.py db "${args[@]}" ;;
@@ -147,7 +151,7 @@ else
     case "$command" in
     serve)
         shift
-        "$PYTHON_BIN" scripts/serve.py "$@"
+        "$PYTHON_BIN" scripts/elfienest.py serve "$@"
         ;;
     --help|-h)
         show_logo
