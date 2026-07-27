@@ -56,6 +56,9 @@ class WebBuild:
         css = entry.get("css", [])
         if isinstance(css, list):
             yield from (item for item in css if isinstance(item, str))
+        public_assets = entry.get("assets", [])
+        if isinstance(public_assets, list):
+            yield from (item for item in public_assets if isinstance(item, str))
         imports = entry.get("imports", [])
         if isinstance(imports, list):
             for imported in imports:

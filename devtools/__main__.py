@@ -53,12 +53,16 @@ def _run_nest_lab(args: argparse.Namespace) -> int:
     data_dir = Path(args.data_dir) if args.data_dir else tool.data_root
     godot_ws_port = args.godot_ws_port or args.port + 1
     browser_url = _browser_url(args.host, args.port)
+
+    def open_browser() -> None:
+        webbrowser.open(browser_url)
+
     uvicorn.run(
         create_app(
             data_dir,
             http_port=args.port,
             godot_ws_port=godot_ws_port,
-            on_ready=lambda: webbrowser.open(browser_url),
+            on_ready=open_browser,
         ),
         host=args.host,
         port=args.port,
@@ -101,7 +105,9 @@ def _has_explicit_port_override(raw_args: list[str]) -> bool:
     )
 
 
-def _restart_default_lab_if_requested(args: argparse.Namespace, raw_args: list[str]) -> None:
+def _restart_default_lab_if_requested(
+    args: argparse.Namespace, raw_args: list[str]
+) -> None:
     """默认启动是同类 Lab 的重启；显式端口保留并行实验语义。"""
     if args.tool not in {"elfie-lab", "nest-lab"}:
         return

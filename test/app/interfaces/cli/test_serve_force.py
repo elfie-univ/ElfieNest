@@ -37,7 +37,12 @@ def test_serve_main_does_not_rebind_nest_repository_inside_worker() -> None:
     )
 
     # When / Then
-    assert source.count(
-        "from app.infrastructure.persistence.nest_state_repository import ("
-    ) == 1
-    assert "engine.session.attach_repository(SQLiteNestStateRepository(db_path))" in source
+    assert (
+        source.count(
+            "from app.infrastructure.persistence.nest_state_repository import ("
+        )
+        == 1
+    )
+    assert (
+        "engine.session.attach_repository(SQLiteNestStateRepository(db_path))" in source
+    )

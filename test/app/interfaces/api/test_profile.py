@@ -5,14 +5,18 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
+from app.features.accounts.auth import generate_csrf_token
 from app.infrastructure.persistence.store import get_db, init_db
 from app.interfaces.api.app import create_app
+from app.interfaces.api.profile_routes import _read_avatar_limited
+from app.interfaces.api.request_limits import AvatarUploadBodyLimitMiddleware
 
 from ._helpers import create_test_owner, create_test_user
 
@@ -86,6 +90,7 @@ class TestMe:
             "nickname",
             "avatar_color",
             "avatar_kind",
+            "avatar_url",
             "csrf_token",
             "created_at",
             "elfie_count",
@@ -99,6 +104,7 @@ class TestMe:
         assert data["nickname"] is None
         assert data["avatar_color"] == 0
         assert data["avatar_kind"] == "initials"
+        assert data["avatar_url"] is None
         assert data["default_landing_page"] == "manage"
         assert data["theme_key"] == "warm-paper"
         assert "csrf_token" in data
@@ -152,11 +158,133 @@ class TestGetProfile:
             "nickname",
             "avatar_color",
             "avatar_kind",
+            "avatar_url",
         }
         assert data["username"] == "owner"
         assert data["nickname"] is None
         assert data["avatar_color"] == 0
         assert data["avatar_kind"] == "initials"
+        assert data["avatar_url"] is None
+
+
+class TestAvatarUpload:
+    def test_chunked_oversized_body_is_rejected_before_the_application(self) -> None:
+        application_called = False
+        sent_messages: list[dict[str, object]] = []
+        incoming = iter(
+            [
+                {"type": "http.request", "body": b"x" * 1_500_000, "more_body": True},
+                {"type": "http.request", "body": b"x" * 1_000_000, "more_body": False},
+            ]
+        )
+
+        async def application(scope, receive, send) -> None:
+            nonlocal application_called
+            application_called = True
+
+        async def receive() -> dict[str, object]:
+            return next(incoming)
+
+        async def send(message: dict[str, object]) -> None:
+            sent_messages.append(message)
+
+        middleware = AvatarUploadBodyLimitMiddleware(application)
+        session_token = "session-for-chunked-upload"
+        asyncio.run(
+            middleware(
+                {
+                    "type": "http",
+                    "method": "POST",
+                    "path": "/api/auth/me/avatar",
+                    "headers": [
+                        (b"cookie", f"session_token={session_token}".encode()),
+                        (
+                            b"x-csrf-token",
+                            generate_csrf_token(session_token).encode(),
+                        ),
+                    ],
+                },
+                receive,
+                send,
+            )
+        )
+
+        assert application_called is False
+        assert sent_messages[0]["status"] == 413
+
+    def test_oversized_multipart_is_rejected_before_file_parsing(
+        self, client: TestClient
+    ) -> None:
+        tokens = _login_owner(client)
+
+        with patch(
+            "app.interfaces.api.profile_routes._read_avatar_limited",
+            new=AsyncMock(return_value=b"should-not-run"),
+        ) as avatar_reader:
+            response = client.post(
+                "/api/auth/me/avatar",
+                files={"file": ("large.png", b"x" * (3 * 1024 * 1024), "image/png")},
+                headers={"X-CSRF-Token": tokens["csrf_token"]},
+            )
+
+        assert response.status_code == 413
+        avatar_reader.assert_not_awaited()
+
+    def test_avatar_reader_never_buffers_beyond_the_limit(self) -> None:
+        class OversizedUpload:
+            def __init__(self) -> None:
+                self.remaining = 2 * 1024 * 1024 + 1
+                self.requested_sizes: list[int] = []
+
+            async def read(self, size: int = -1) -> bytes:
+                self.requested_sizes.append(size)
+                chunk_size = min(size, self.remaining)
+                self.remaining -= chunk_size
+                return b"x" * chunk_size
+
+        upload = OversizedUpload()
+
+        with pytest.raises(Exception) as error:
+            asyncio.run(_read_avatar_limited(upload))
+
+        assert getattr(error.value, "status_code", None) == 413
+        assert upload.requested_sizes
+        assert max(upload.requested_sizes) <= 64 * 1024
+
+    def test_upload_avatar_persists_a_local_image_for_the_current_user(
+        self, client: TestClient
+    ) -> None:
+        # Given
+        tokens = _login_owner(client)
+
+        # When
+        upload = client.post(
+            "/api/auth/me/avatar",
+            files={"file": ("portrait.png", b"\x89PNG\r\n\x1a\nimage", "image/png")},
+            headers={"X-CSRF-Token": tokens["csrf_token"]},
+        )
+
+        # Then
+        assert upload.status_code == 201
+        avatar_url = upload.json()["avatar_url"]
+        assert avatar_url == "/api/auth/me/avatar"
+        current = client.get("/api/auth/me", headers=_headers(tokens["csrf_token"]))
+        assert current.json()["avatar_url"] == avatar_url
+        image = client.get(avatar_url)
+        assert image.status_code == 200
+        assert image.headers["content-type"] == "image/png"
+
+    def test_upload_avatar_rejects_mime_spoofing(self, client: TestClient) -> None:
+        tokens = _login_owner(client)
+
+        response = client.post(
+            "/api/auth/me/avatar",
+            files={"file": ("portrait.png", b"not-a-real-png", "image/png")},
+            headers={"X-CSRF-Token": tokens["csrf_token"]},
+        )
+
+        assert response.status_code == 415
+        assert "格式不匹配" in response.json()["detail"]
 
 
 # ===================================================================
@@ -211,9 +339,12 @@ class TestThemePreference:
         )
 
         assert member_update.status_code == 200
-        assert client.get("/api/auth/me", headers=_headers(member_tokens["csrf_token"])).json()[
-            "theme_key"
-        ] == "moss-green"
+        assert (
+            client.get(
+                "/api/auth/me", headers=_headers(member_tokens["csrf_token"])
+            ).json()["theme_key"]
+            == "moss-green"
+        )
         with get_db(db_path) as conn:
             owner_theme = conn.execute(
                 "SELECT theme_key FROM users WHERE username = 'owner'"

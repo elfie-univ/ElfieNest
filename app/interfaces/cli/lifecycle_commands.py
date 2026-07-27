@@ -146,7 +146,13 @@ def show_service_status() -> None:
             if port_status.running
             else "未运行"
         )
-        icon = "✅" if is_current_project and port_status.running else "⚠️" if port_status.running else "⭕"
+        icon = (
+            "✅"
+            if is_current_project and port_status.running
+            else "⚠️"
+            if port_status.running
+            else "⭕"
+        )
         print(f"  {icon} {port_status.name}: {state} (端口 {port_status.port})")
     print()
 
@@ -185,7 +191,9 @@ def open_web_console() -> ServiceLifecycleResult:
         result = start_background_service()
         if result.status not in {"started", "already_running"}:
             return result
-        port = http_port_from_command(result.command or default_service_command(("--lan",)))
+        port = http_port_from_command(
+            result.command or default_service_command(("--lan",))
+        )
         if not _web_is_healthy(port):
             result = ServiceLifecycleResult(
                 status="failed",

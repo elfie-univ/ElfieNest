@@ -15,7 +15,9 @@ def _copy_runtime_entrypoint_fixture(project_root: Path) -> None:
         shutil.copy2(PROJECT_ROOT / relative_path, project_root / relative_path)
     scripts_dir = project_root / "scripts"
     scripts_dir.mkdir()
-    shutil.copy2(PROJECT_ROOT / "scripts" / "bootstrap.sh", scripts_dir / "bootstrap.sh")
+    shutil.copy2(
+        PROJECT_ROOT / "scripts" / "bootstrap.sh", scripts_dir / "bootstrap.sh"
+    )
     shutil.copy2(
         PROJECT_ROOT / "scripts" / "bootstrap_report.sh",
         scripts_dir / "bootstrap_report.sh",
@@ -107,7 +109,9 @@ def test_developer_entrypoint_rejects_external_python_override(
     assert "CPython 3.9.25" in result.stderr
 
 
-def test_packaged_entrypoint_runs_bundled_core_without_bootstrap(tmp_path: Path) -> None:
+def test_packaged_entrypoint_runs_bundled_core_without_bootstrap(
+    tmp_path: Path,
+) -> None:
     # Given
     project_root = tmp_path / "ElfieNest"
     project_root.mkdir()
@@ -115,7 +119,7 @@ def test_packaged_entrypoint_runs_bundled_core_without_bootstrap(tmp_path: Path)
     invocation_log = tmp_path / "packaged-entrypoint.log"
     write_executable(
         project_root / "resources" / "python-core" / "ElfieNestCore",
-        "#!/bin/bash\nprintf '%s\\n' \"$*\" > \"$ENTRYPOINT_LOG\"\n",
+        '#!/bin/bash\nprintf \'%s\\n\' "$*" > "$ENTRYPOINT_LOG"\n',
     )
     environment = os.environ.copy()
     environment["ENTRYPOINT_LOG"] = str(invocation_log)

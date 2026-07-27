@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Mapping, Optional
 
 from elfie.profile import AppearanceResolver, ElfieProfileRepository
 
@@ -28,16 +28,20 @@ def build_public_profile(
     bed_id: Optional[int],
     bed_name: Optional[str],
     embodiment_state: str = "at_nest",
-) -> Dict[str, Any]:
+) -> Dict[str, object]:
     """Return only fields approved for normal product clients.
 
     Config-file paths and raw profile data are inputs to the projection only and
     must never become output fields.
     """
-    result = {
+    result: Dict[str, object] = {
         "elfie_id": elfie_id,
         "name": name,
         "species_id": species_id,
+        "gender": None,
+        "birth_date": None,
+        "summary": personality_style or None,
+        "online_status": _online_status(embodiment_state),
         "portrait_url": "",
         "nest": {
             "room_id": room_id,
@@ -58,8 +62,10 @@ def build_public_profile(
     profile = repository.load()
     personality = profile.personality
     big_five = _public_big_five(personality.get("big_five"))
+    summary = _profile_summary(personality) or personality_style or None
     result.update(
         {
+            "summary": summary,
             "appearance": AppearanceResolver().resolve(profile).to_payload(),
             "big_five": big_five,
             "personality_tags": _personality_tags(personality_style, big_five),
@@ -69,8 +75,8 @@ def build_public_profile(
 
 
 def _unavailable_profile(
-    result: Dict[str, Any], personality_style: str
-) -> Dict[str, Any]:
+    result: Dict[str, object], personality_style: str
+) -> Dict[str, object]:
     result.update(
         {
             "appearance": {},
@@ -97,3 +103,22 @@ def _personality_tags(style: str, big_five: Dict[str, float]) -> List[str]:
     ranked = sorted(big_five.items(), key=lambda item: item[1], reverse=True)
     tags.extend(key for key, _ in ranked[:2])
     return tags
+
+
+def _profile_summary(personality: Mapping[str, object]) -> Optional[str]:
+    metadata = personality.get("metadata")
+    if not isinstance(metadata, dict):
+        return None
+    description = metadata.get("description")
+    if not isinstance(description, str):
+        return None
+    normalized = description.strip()
+    return normalized or None
+
+
+def _online_status(embodiment_state: str) -> str:
+    if embodiment_state == "hosted":
+        return "online"
+    if embodiment_state == "offline":
+        return "offline"
+    return "unknown"

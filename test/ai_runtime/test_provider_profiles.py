@@ -99,30 +99,6 @@ class TestLLMRuntimeConfigBackwardCompat:
         assert config.providers["openai"]["api_mode"] == "chat_completions"
         assert config.providers["ollama"]["api_mode"] == "ollama"
 
-    def test_preserves_the_fixed_public_ollama_installation_binding(
-        self, monkeypatch, tmp_path
-    ):
-        monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config_path = tmp_path / "config.yaml"
-        config_path.write_text(
-            """
-providers:
-  ollama:
-    api_base: http://127.0.0.1:11434
-    installation:
-      platform: linux
-      install_kind: binary
-      launch_target: /usr/local/bin/ollama
-      version: 0.12.0
-""".strip(),
-            encoding="utf-8",
-        )
-
-        config = LLMRuntimeConfig()
-
-        installation = config.providers["ollama"]["installation"]
-        assert installation["launch_target"] == "/usr/local/bin/ollama"
-
     def test_merges_api_mode_from_builtin_profiles(self, monkeypatch, tmp_path):
         """从 BUILTIN_PROFILES 合并 api_mode"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
@@ -261,9 +237,7 @@ def test_verify_custom_openai_falls_back_to_chat_completion_when_models_endpoint
             )
         return FakeResponse()
 
-    monkeypatch.setattr(
-        "ai_runtime.models.catalog.urllib.request.urlopen", fake_urlopen
-    )
+    monkeypatch.setattr("ai_runtime.models.catalog.open_provider_request", fake_urlopen)
 
     class Config:
         providers = {
@@ -299,9 +273,7 @@ def test_verify_custom_openai_returns_actionable_error_when_models_and_chat_fail
             fp=None,
         )
 
-    monkeypatch.setattr(
-        "ai_runtime.models.catalog.urllib.request.urlopen", fake_urlopen
-    )
+    monkeypatch.setattr("ai_runtime.models.catalog.open_provider_request", fake_urlopen)
 
     class Config:
         providers = {

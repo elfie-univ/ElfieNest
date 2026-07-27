@@ -123,11 +123,15 @@ produced by the runtime are written into chat history first and then bridged to
 the same-origin chat connection of the owning user, so history and real-time
 messages stay consistent after refresh.
 
-`/manage` is the only Owner management page and covers monitoring, global
-read-only Elfie filtering, Elfie nest beds/slots, users, providers, models,
-tools, food, runtime logs, system settings and Godot status. Chat, adoption and
-private personal Elfie profiles belong only to `/chat`; the management page has
-no user–Elfie ownership assignment entry.
+`/manage` is the only Owner management page. It is grouped into monitoring,
+business management, model subscriptions and system configuration, and covers
+users, global read-only Elfie filtering, Elfie nest beds/slots, provider
+subscription setup and validation, model lists, food policy, tools/permissions
+and system settings. Runtime-event summaries are folded into monitoring, and
+Godot live preview is entered from the nest camera panel rather than through a
+separate Godot configuration page. Chat, adoption and private personal Elfie
+profiles belong only to `/chat`; the management page has no user-Elfie
+ownership assignment entry.
 
 The frontend source lives in `app/interfaces/web/frontend/`, and its build
 output may only go into the root `build/web/`:

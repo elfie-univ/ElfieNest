@@ -12,7 +12,7 @@ from app.infrastructure.persistence.nest_schema import (
     migrate_legacy_nest_layout_to_semantic_tables,
 )
 
-CURRENT_SCHEMA_VERSION: Final[int] = 13
+CURRENT_SCHEMA_VERSION: Final[int] = 15
 
 
 class OwnerSchemaMigrationError(RuntimeError):
@@ -33,10 +33,13 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             nickname TEXT DEFAULT NULL,
             avatar_color INTEGER DEFAULT 0,
             avatar_kind TEXT DEFAULT 'initials',
+            avatar_path TEXT DEFAULT NULL,
             default_landing_page TEXT NOT NULL DEFAULT 'manage'
             CHECK(default_landing_page IN ('chat', 'manage')),
             theme_key TEXT NOT NULL DEFAULT 'warm-paper'
-            CHECK(theme_key IN ('warm-paper', 'harbor-blue', 'orchid-archive', 'moss-green'))
+            CHECK(theme_key IN ('warm-paper', 'harbor-blue', 'orchid-archive', 'moss-green')),
+            elfie_quota_override INTEGER DEFAULT NULL
+            CHECK(elfie_quota_override IS NULL OR elfie_quota_override BETWEEN 1 AND 32)
         )
         """
     )
@@ -110,6 +113,10 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
         _migrate_v11_to_v12(connection)
     if version < 13:
         _migrate_v12_to_v13(connection)
+    if version < 14:
+        _migrate_v13_to_v14(connection)
+    if version < 15:
+        _migrate_v14_to_v15(connection)
     _ensure_owner_index(connection)
 
 
@@ -268,6 +275,24 @@ def _migrate_v10_to_v11(connection: sqlite3.Connection) -> None:
 
 
 def _migrate_v11_to_v12(connection: sqlite3.Connection) -> None:
+    """Replace generated avatar fields with a private local image reference."""
+    _ignore_duplicate_column(
+        connection, "ALTER TABLE users ADD COLUMN avatar_path TEXT DEFAULT NULL"
+    )
+    connection.execute("PRAGMA user_version = 12")
+
+
+def _migrate_v12_to_v13(connection: sqlite3.Connection) -> None:
+    """Allow one nullable per-user adoption-limit override."""
+    _ignore_duplicate_column(
+        connection,
+        "ALTER TABLE users ADD COLUMN elfie_quota_override INTEGER DEFAULT NULL "
+        "CHECK(elfie_quota_override IS NULL OR elfie_quota_override BETWEEN 1 AND 32)",
+    )
+    connection.execute("PRAGMA user_version = 13")
+
+
+def _migrate_v13_to_v14(connection: sqlite3.Connection) -> None:
     """Persist resumable first-run setup state without storing credentials."""
     connection.execute(
         """
@@ -313,10 +338,10 @@ def _migrate_v11_to_v12(connection: sqlite3.Connection) -> None:
             """,
             (int(owner[0]),),
         )
-    connection.execute("PRAGMA user_version = 12")
+    connection.execute("PRAGMA user_version = 14")
 
 
-def _migrate_v12_to_v13(connection: sqlite3.Connection) -> None:
+def _migrate_v14_to_v15(connection: sqlite3.Connection) -> None:
     """Raise the semantic Nest minimum to four without dropping Nest relations."""
     row = connection.execute(
         "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'nest_config'"
@@ -331,7 +356,7 @@ def _migrate_v12_to_v13(connection: sqlite3.Connection) -> None:
             )
             connection.execute(
                 """
-                CREATE TABLE nest_config_v13 (
+                CREATE TABLE nest_config_v15 (
                     nest_id TEXT PRIMARY KEY,
                     desired_bed_count INTEGER NOT NULL
                         CHECK(desired_bed_count BETWEEN 4 AND 32),
@@ -343,7 +368,7 @@ def _migrate_v12_to_v13(connection: sqlite3.Connection) -> None:
             )
             connection.execute(
                 """
-                INSERT INTO nest_config_v13
+                INSERT INTO nest_config_v15
                     (nest_id, desired_bed_count, applied_world_revision,
                      clock_anchor_seconds, created_at)
                 SELECT nest_id, desired_bed_count, applied_world_revision,
@@ -352,10 +377,10 @@ def _migrate_v12_to_v13(connection: sqlite3.Connection) -> None:
                 """
             )
             connection.execute("DROP TABLE nest_config")
-            connection.execute("ALTER TABLE nest_config_v13 RENAME TO nest_config")
+            connection.execute("ALTER TABLE nest_config_v15 RENAME TO nest_config")
         finally:
             connection.execute("PRAGMA foreign_keys = ON")
-    connection.execute("PRAGMA user_version = 13")
+    connection.execute("PRAGMA user_version = 15")
 
 
 def _validate_owner_roles(connection: sqlite3.Connection) -> None:

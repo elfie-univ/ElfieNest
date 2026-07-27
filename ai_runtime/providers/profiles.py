@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Literal
 
 
 @dataclass
@@ -36,7 +36,11 @@ class ProviderProfile:
     api_mode: str  # "ollama" | "chat_completions" | "anthropic_messages"
     base_url_env_var: str  # 环境变量名，用于覆盖 api_base
     api_key_env_var: str  # 环境变量名，用于读取 API Key
-    default_models: Dict[str, List[str]]  # {"cheap": [...], "deep": [...], "multimodal": [...]}
+    default_models: Dict[
+        str, List[str]
+    ]  # {"cheap": [...], "deep": [...], "multimodal": [...]}
+    connection_method: Literal["local", "api_key", "oauth"]
+    oauth_available: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -56,6 +60,7 @@ BUILTIN_PROFILES: Dict[str, ProviderProfile] = {
             "deep": ["qwen3.5:4b", "qwen2.5:7b", "llama3:8b"],
             "multimodal": ["moondream", "llava"],
         },
+        connection_method="local",
     ),
     "openai": ProviderProfile(
         name="OpenAI",
@@ -69,6 +74,7 @@ BUILTIN_PROFILES: Dict[str, ProviderProfile] = {
             "deep": ["gpt-4o", "o1-mini", "o3-mini"],
             "multimodal": ["gpt-4o"],
         },
+        connection_method="api_key",
     ),
     "anthropic": ProviderProfile(
         name="Anthropic",
@@ -82,6 +88,7 @@ BUILTIN_PROFILES: Dict[str, ProviderProfile] = {
             "deep": ["claude-3-opus-20240229", "claude-3-sonnet-20240229"],
             "multimodal": ["claude-3-sonnet-20240229", "claude-3-opus-20240229"],
         },
+        connection_method="api_key",
     ),
     "deepseek": ProviderProfile(
         name="DeepSeek",
@@ -95,6 +102,7 @@ BUILTIN_PROFILES: Dict[str, ProviderProfile] = {
             "deep": ["deepseek-reasoner", "deepseek-chat"],
             "multimodal": ["deepseek-chat"],  # 暂无原生多模态，用 chat 替代
         },
+        connection_method="api_key",
     ),
     "gemini": ProviderProfile(
         name="Google Gemini",
@@ -108,6 +116,7 @@ BUILTIN_PROFILES: Dict[str, ProviderProfile] = {
             "deep": ["gemini-1.5-pro", "gemini-2.0-pro-exp"],
             "multimodal": ["gemini-1.5-flash", "gemini-1.5-pro"],
         },
+        connection_method="api_key",
     ),
     "qwen": ProviderProfile(
         name="Ali Qwen (DashScope)",
@@ -121,6 +130,7 @@ BUILTIN_PROFILES: Dict[str, ProviderProfile] = {
             "deep": ["qwen-coder-plus", "qwen-max"],
             "multimodal": ["qwen-vl-plus", "qwen-vl-max"],
         },
+        connection_method="api_key",
     ),
     "xai": ProviderProfile(
         name="xAI (Grok)",
@@ -134,6 +144,7 @@ BUILTIN_PROFILES: Dict[str, ProviderProfile] = {
             "deep": ["grok-2-1212", "grok-2-vision-1212"],
             "multimodal": ["grok-2-vision-1212"],
         },
+        connection_method="api_key",
     ),
     "mistral": ProviderProfile(
         name="Mistral AI",
@@ -147,6 +158,7 @@ BUILTIN_PROFILES: Dict[str, ProviderProfile] = {
             "deep": ["mistral-large-latest"],
             "multimodal": ["pixtral-12b-2409"],
         },
+        connection_method="api_key",
     ),
     "groq": ProviderProfile(
         name="Groq",
@@ -160,6 +172,7 @@ BUILTIN_PROFILES: Dict[str, ProviderProfile] = {
             "deep": ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile"],
             "multimodal": ["llava-v1.5-7b-4096-preview"],
         },
+        connection_method="api_key",
     ),
     "custom_openai": ProviderProfile(
         name="自定义 OpenAI 兼容接口",
@@ -173,6 +186,7 @@ BUILTIN_PROFILES: Dict[str, ProviderProfile] = {
             "deep": ["custom-model"],
             "multimodal": ["custom-model"],
         },
+        connection_method="api_key",
     ),
 }
 

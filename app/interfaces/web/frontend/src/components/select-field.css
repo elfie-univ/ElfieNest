@@ -17,7 +17,7 @@
 .select-field__trigger:focus-visible { outline: 3px solid var(--focus-ring, var(--accent-soft)); outline-offset: 2px; }
 .select-field__trigger[data-placeholder] { color: var(--ink-soft); }
 .select-field__content {
-  z-index: 50;
+  z-index: 120;
   min-width: var(--radix-select-trigger-width);
   max-width: min(360px, calc(100vw - 24px));
   max-height: min(300px, var(--radix-select-content-available-height));

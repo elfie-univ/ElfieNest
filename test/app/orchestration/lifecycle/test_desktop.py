@@ -6,7 +6,9 @@ from app.orchestration.lifecycle import desktop as desktop_lifecycle
 from app.orchestration.lifecycle.types import ServiceLifecycleResult
 
 
-def test_find_desktop_executable_prefers_explicit_runtime(tmp_path: Path, monkeypatch) -> None:
+def test_find_desktop_executable_prefers_explicit_runtime(
+    tmp_path: Path, monkeypatch
+) -> None:
     # Given
     executable = tmp_path / "ElfieNestDesktop"
     executable.write_text("", encoding="utf-8")
@@ -17,10 +19,14 @@ def test_find_desktop_executable_prefers_explicit_runtime(tmp_path: Path, monkey
     assert desktop_lifecycle.find_desktop_executable(tmp_path) == executable
 
 
-def test_find_desktop_executable_discovers_a_packaged_macos_app(tmp_path: Path, monkeypatch) -> None:
+def test_find_desktop_executable_discovers_a_packaged_macos_app(
+    tmp_path: Path, monkeypatch
+) -> None:
     # Given: an unsigned internal-test macOS app bundle in the release directory.
     monkeypatch.delenv("ELFIENEST_DESKTOP_BIN", raising=False)
-    executable = tmp_path / "dist" / "ElfieNest.app" / "Contents" / "MacOS" / "ElfieNest"
+    executable = (
+        tmp_path / "dist" / "ElfieNest.app" / "Contents" / "MacOS" / "ElfieNest"
+    )
     executable.parent.mkdir(parents=True)
     executable.write_text("", encoding="utf-8")
     executable.chmod(0o755)

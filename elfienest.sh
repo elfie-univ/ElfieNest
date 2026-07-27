@@ -2,7 +2,7 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ============================================================================
-# 运行状态探测：源码开发路径与安装后运行路径必须严格分开。
+# 运行模式探测（基于 Electron supervisor_config.ts:55-60 的判定）
 # ============================================================================
 
 detect_runtime_mode() {
@@ -10,13 +10,13 @@ detect_runtime_mode() {
 
     # 安装目录标志：存在 resources/python-core/ 或 manifest.json
     if [ -d "$script_dir/resources/python-core" ] || [ -f "$script_dir/manifest.json" ]; then
-        echo "installed_runtime"
+        echo "production"
         return
     fi
 
     # 源码树标志：存在 pyproject.toml 或 scripts/serve.py
     if [ -f "$script_dir/pyproject.toml" ] || [ -f "$script_dir/scripts/serve.py" ]; then
-        echo "source_development"
+        echo "development"
         return
     fi
 
@@ -26,16 +26,16 @@ detect_runtime_mode() {
 MODE="$(detect_runtime_mode "$SCRIPT_DIR")"
 
 case "$MODE" in
-    installed_runtime)
-        # 安装后运行：直接调 Python Core（依赖已打包）
+    production)
+        # 生产模式：直接调 Python Core（依赖已打包）
         exec "$SCRIPT_DIR/resources/python-core/ElfieNestCore" "$@"
         ;;
-    source_development)
-        # 源码开发：先检查；首次缺依赖时再补齐，成功前不进入菜单。
-        if ! "$SCRIPT_DIR/scripts/bootstrap.sh" report --tier=dev >/dev/null; then
-            echo "  ℹ️ 首次准备，正在安装开发依赖..."
+    development)
+        # 开发模式：静默检查依赖，缺失时才显示安装过程
+        if ! "$SCRIPT_DIR/scripts/bootstrap.sh" check --tier=dev >/dev/null 2>&1; then
+            echo "  🦊 检测到缺失依赖，正在安装..." >&2
             if ! "$SCRIPT_DIR/scripts/bootstrap.sh" ensure --tier=dev; then
-                echo "  ❌ 依赖检查失败，请按提示修复" >&2
+                echo "  ❌ 依赖安装失败，请按提示修复" >&2
                 exit 1
             fi
         fi
@@ -84,11 +84,9 @@ show_help() {
     echo "    config         配置中心（方向键菜单）"
     echo "    owner          Owner 账户菜单"
     echo "    doctor         本地诊断并自动修复"
-    echo "    build-godot-web 构建浏览器 3D Runtime"
     echo "    db*            数据库维护工具"
     echo "    version        显示版本信息"
     echo "    setup          首次设置向导"
-    echo "    developer      Developer Tool（仅开发者）"
     echo ""
     echo "  ┌─────────────────────────────────────────────────────────┐"
     echo "  │  带 * 命令支持参数                                      │"
@@ -129,8 +127,6 @@ interactive_mode() {
             exit|quit|q) echo ""; echo "  再见！🦊"; echo ""; exit 0 ;;
             help|h|?) show_help ;;
             serve) "$PYTHON_BIN" scripts/serve.py "${args[@]}" ;;
-            build-godot-web) "$SCRIPT_DIR/developer.sh" build-godot-web "${args[@]}" ;;
-            developer|dev) "$SCRIPT_DIR/developer.sh" "${args[@]}" ;;
             config|owner|doctor|status|web|desktop|stop|restart|start|version|v|setup)
                 "$PYTHON_BIN" scripts/elfienest.py "$cmd" "${args[@]}" ;;
             db) "$PYTHON_BIN" scripts/elfienest.py db "${args[@]}" ;;
@@ -152,14 +148,6 @@ else
     serve)
         shift
         "$PYTHON_BIN" scripts/serve.py "$@"
-        ;;
-    build-godot-web)
-        shift
-        "$SCRIPT_DIR/developer.sh" build-godot-web "$@"
-        ;;
-    developer|dev)
-        shift
-        "$SCRIPT_DIR/developer.sh" "$@"
         ;;
     --help|-h)
         show_logo

@@ -47,18 +47,15 @@ def _publish_desired_layout(
 
 
 def _bed_count_from_body(body: dict[str, Any]) -> int:
-    try:
-        bed_count = int(body.get("bed_count", DEFAULT_BED_COUNT))
-    except (TypeError, ValueError) as exc:
-        raise HTTPException(
-            status_code=422, detail="bed_count must be an integer"
-        ) from exc
-    if not MIN_BED_COUNT <= bed_count <= MAX_BED_COUNT:
+    raw_value = body.get("bed_count", DEFAULT_BED_COUNT)
+    if isinstance(raw_value, bool) or not isinstance(raw_value, int):
+        raise HTTPException(status_code=422, detail="bed_count must be an integer")
+    if not MIN_BED_COUNT <= raw_value <= MAX_BED_COUNT:
         raise HTTPException(
             status_code=422,
             detail=f"bed_count 必须在 {MIN_BED_COUNT} 到 {MAX_BED_COUNT} 之间",
         )
-    return bed_count
+    return raw_value
 
 
 @router.get("/rooms")

@@ -443,6 +443,42 @@ class TestAdoptionInfo:
             "can_adopt": True,
         }
 
+    def test_user_quota_override_controls_info_and_adoption(
+        self, client: TestClient, db_path: str
+    ) -> None:
+        user_id = _create_user_via_owner(client, "alice")
+        with get_db(db_path) as connection:
+            connection.execute(
+                "UPDATE users SET elfie_quota_override = 1 WHERE id = ?", (user_id,)
+            )
+            connection.commit()
+        tokens = _login_user(client, "alice")
+        payload = {
+            "species_id": "dog",
+            "personality_style": "好奇探索",
+            "height": "standard",
+            "build": "standard",
+        }
+
+        before = client.get(
+            "/api/user/adoption-info", headers=_headers(tokens["csrf_token"])
+        )
+        first = client.post(
+            "/api/user/adopt",
+            json={"name": "小白", **payload},
+            headers=_headers(tokens["csrf_token"]),
+        )
+        second = client.post(
+            "/api/user/adopt",
+            json={"name": "小灰", **payload},
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert before.json()["quota"]["max"] == 1
+        assert first.status_code == 201
+        assert second.status_code == 409
+        assert "最多领养 1 只精灵" in second.json()["detail"]
+
 
 # ===================================================================
 # 领养端点

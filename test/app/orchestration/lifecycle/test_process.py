@@ -31,7 +31,11 @@ def test_register_service_process_reclaims_stale_pid_receipt(
 ) -> None:
     elfie_home = tmp_path / "home"
     service_process.register_service_process(elfie_home, 6099)
-    monkeypatch.setattr(service_process.os, "kill", lambda _pid, _signal: (_ for _ in ()).throw(ProcessLookupError()))
+    monkeypatch.setattr(
+        service_process.os,
+        "kill",
+        lambda _pid, _signal: (_ for _ in ()).throw(ProcessLookupError()),
+    )
 
     pid_path = service_process.register_service_process(elfie_home, 6100)
 

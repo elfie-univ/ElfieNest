@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from app.infrastructure.persistence.nest_schema import NestSchemaMigrationError
+from app.infrastructure.persistence.schema import CURRENT_SCHEMA_VERSION
 from app.infrastructure.persistence.store import get_db, migrate_db_if_needed
 
 
@@ -100,7 +101,10 @@ def test_v6_legacy_nest_layout_migrates_to_semantic_tables(tmp_path: Path) -> No
 
     # Then
     with _connect(db_path) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 13
+        assert (
+            connection.execute("PRAGMA user_version").fetchone()[0]
+            == CURRENT_SCHEMA_VERSION
+        )
         assert _table_exists(connection, "nest_config")
         assert _table_exists(connection, "nest_home_assignments")
         anchors = connection.execute(
@@ -183,7 +187,7 @@ def test_legacy_app_v9_database_still_receives_semantic_nest_migration(
         home = connection.execute(
             "SELECT elfie_id, home_anchor_id FROM nest_home_assignments"
         ).fetchone()
-    assert version == 13
+    assert version == CURRENT_SCHEMA_VERSION
     assert "default_landing_page" in {row["name"] for row in landing_column}
     assert home["elfie_id"] == "fox-1"
     assert home["home_anchor_id"] == "legacy-room-10/bed-1"

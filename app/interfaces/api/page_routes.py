@@ -106,7 +106,9 @@ async def generated_asset(asset_path: str, request: Request) -> Response:
             WebBuildManifestMalformedError,
             WebBuildManifestMissingError,
         ) as refresh_error:
-            raise HTTPException(status_code=404, detail="页面资源不存在") from refresh_error
+            raise HTTPException(
+                status_code=404, detail="页面资源不存在"
+            ) from refresh_error
         request.app.state.web_build = refreshed_build
     return FileResponse(path)
 

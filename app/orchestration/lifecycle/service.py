@@ -192,7 +192,9 @@ def start_service(
         )
     lease_released = False
     try:
-        existing = existing_service_command(elfie_home, resolved_root, process_inspector)
+        existing = existing_service_command(
+            elfie_home, resolved_root, process_inspector
+        )
         if existing is not None:
             existing_pid, existing_command = existing
             requested_ports = service_ports_from_command(launch_command)
@@ -220,7 +222,9 @@ def start_service(
                 status="already_running", pid=existing_pid, command=existing_command
             )
 
-        port_checker = any_service_port_in_use if launcher is None else service_ports_in_use
+        port_checker = (
+            any_service_port_in_use if launcher is None else service_ports_in_use
+        )
         if port_checker is not None:
             requested_ports = service_ports_from_command(launch_command)
             if port_checker(requested_ports):

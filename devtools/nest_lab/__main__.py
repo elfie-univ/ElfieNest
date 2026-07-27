@@ -22,12 +22,16 @@ def main() -> None:
     args = parser.parse_args()
     godot_ws_port = args.godot_ws_port or args.port + 1
     browser_url = f"http://{args.host}:{args.port}/?run={token_urlsafe(12)}"
+
+    def open_browser() -> None:
+        webbrowser.open(browser_url)
+
     uvicorn.run(
         create_app(
             args.data_dir,
             http_port=args.port,
             godot_ws_port=godot_ws_port,
-            on_ready=lambda: webbrowser.open(browser_url),
+            on_ready=open_browser,
         ),
         host=args.host,
         port=args.port,

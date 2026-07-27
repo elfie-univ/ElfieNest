@@ -3,26 +3,30 @@
 Test the new api_mode dispatch system for LLM API calls.
 """
 
+import io
 import json
-import os
-import sys
 import urllib.error
 from unittest.mock import Mock, patch
 
 import pytest
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, PROJECT_ROOT)
-
+from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.gateway.agent import RuntimeAgent
 from ai_runtime.providers.dispatch import (
     API_DISPATCH as _API_DISPATCH,
+)
+from ai_runtime.providers.dispatch import (
     call_anthropic_api as _call_anthropic_api,
+)
+from ai_runtime.providers.dispatch import (
     call_ollama_api as _call_ollama_api,
+)
+from ai_runtime.providers.dispatch import (
     call_openai_compatible_api as _call_openai_compatible_api,
+)
+from ai_runtime.providers.dispatch import (
     detect_api_mode_for_url as _detect_api_mode_for_url,
 )
-from ai_runtime.config import LLMRuntimeConfig
 
 
 class TestDetectApiMode:
@@ -30,8 +34,14 @@ class TestDetectApiMode:
 
     def test_anthropic_url_detection(self):
         """Anthropic URL 应检测为 anthropic_messages"""
-        assert _detect_api_mode_for_url("https://api.anthropic.com/v1") == "anthropic_messages"
-        assert _detect_api_mode_for_url("https://api.anthropic.com") == "anthropic_messages"
+        assert (
+            _detect_api_mode_for_url("https://api.anthropic.com/v1")
+            == "anthropic_messages"
+        )
+        assert (
+            _detect_api_mode_for_url("https://api.anthropic.com")
+            == "anthropic_messages"
+        )
 
     def test_ollama_url_detection(self):
         """Ollama URL 应检测为 ollama"""
@@ -40,20 +50,30 @@ class TestDetectApiMode:
 
     def test_openai_url_detection(self):
         """OpenAI URL 应检测为 chat_completions"""
-        assert _detect_api_mode_for_url("https://api.openai.com/v1") == "chat_completions"
+        assert (
+            _detect_api_mode_for_url("https://api.openai.com/v1") == "chat_completions"
+        )
 
     def test_deepseek_url_detection(self):
         """DeepSeek URL 应检测为 chat_completions"""
-        assert _detect_api_mode_for_url("https://api.deepseek.com/v1") == "chat_completions"
+        assert (
+            _detect_api_mode_for_url("https://api.deepseek.com/v1")
+            == "chat_completions"
+        )
 
     def test_unknown_url_default(self):
         """未知 URL 应默认为 chat_completions"""
         assert _detect_api_mode_for_url("https://unknown.api.com") == "chat_completions"
-        assert _detect_api_mode_for_url("https://custom.llm.service") == "chat_completions"
+        assert (
+            _detect_api_mode_for_url("https://custom.llm.service") == "chat_completions"
+        )
 
     def test_case_insensitive(self):
         """URL 检测应忽略大小写"""
-        assert _detect_api_mode_for_url("HTTPS://API.ANTHROPIC.COM/V1") == "anthropic_messages"
+        assert (
+            _detect_api_mode_for_url("HTTPS://API.ANTHROPIC.COM/V1")
+            == "anthropic_messages"
+        )
         assert _detect_api_mode_for_url("HTTP://LOCALHOST:11434") == "ollama"
 
 
@@ -63,15 +83,18 @@ class TestCallAnthropicApi:
     def test_anthropic_headers(self):
         """Anthropic API 应使用正确的 headers"""
         mock_response = Mock()
-        mock_response.read.return_value = json.dumps({
-            "content": [{"text": "Hello from Claude"}]
-        }).encode("utf-8")
+        mock_response.read.return_value = json.dumps(
+            {"content": [{"text": "Hello from Claude"}]}
+        ).encode("utf-8")
         mock_response.__enter__ = Mock(return_value=mock_response)
         mock_response.__exit__ = Mock(return_value=False)
 
-        with patch("urllib.request.urlopen", return_value=mock_response) as mock_urlopen:
+        with patch(
+            "ai_runtime.providers.dispatch.open_provider_request",
+            return_value=mock_response,
+        ):
             with patch("urllib.request.Request") as mock_request:
-                result = _call_anthropic_api(
+                _call_anthropic_api(
                     api_base="https://api.anthropic.com/v1",
                     api_key="sk-ant-test-key",
                     model_name="claude-3-opus-20240229",
@@ -93,9 +116,9 @@ class TestCallAnthropicApi:
     def test_anthropic_system_prompt_extraction(self):
         """Anthropic API 应提取 system prompt 为顶层参数"""
         mock_response = Mock()
-        mock_response.read.return_value = json.dumps({
-            "content": [{"text": "Response"}]
-        }).encode("utf-8")
+        mock_response.read.return_value = json.dumps(
+            {"content": [{"text": "Response"}]}
+        ).encode("utf-8")
         mock_response.__enter__ = Mock(return_value=mock_response)
         mock_response.__exit__ = Mock(return_value=False)
 
@@ -104,7 +127,10 @@ class TestCallAnthropicApi:
             {"role": "user", "content": "Hello"},
         ]
 
-        with patch("urllib.request.urlopen", return_value=mock_response):
+        with patch(
+            "ai_runtime.providers.dispatch.open_provider_request",
+            return_value=mock_response,
+        ):
             with patch("urllib.request.Request") as mock_request:
                 _call_anthropic_api(
                     api_base="https://api.anthropic.com/v1",
@@ -128,14 +154,19 @@ class TestCallAnthropicApi:
     def test_anthropic_response_parsing(self):
         """Anthropic API 应正确解析 response["content"][0]["text"] 并返回 usage"""
         mock_response = Mock()
-        mock_response.read.return_value = json.dumps({
-            "content": [{"text": "This is Claude's response"}],
-            "usage": {"input_tokens": 10, "output_tokens": 5}
-        }).encode("utf-8")
+        mock_response.read.return_value = json.dumps(
+            {
+                "content": [{"text": "This is Claude's response"}],
+                "usage": {"input_tokens": 10, "output_tokens": 5},
+            }
+        ).encode("utf-8")
         mock_response.__enter__ = Mock(return_value=mock_response)
         mock_response.__exit__ = Mock(return_value=False)
 
-        with patch("urllib.request.urlopen", return_value=mock_response):
+        with patch(
+            "ai_runtime.providers.dispatch.open_provider_request",
+            return_value=mock_response,
+        ):
             result, usage = _call_anthropic_api(
                 api_base="https://api.anthropic.com/v1",
                 api_key="test-key",
@@ -159,7 +190,10 @@ class TestCallAnthropicApi:
         )
         mock_error.read = Mock(return_value=b'{"error": "Invalid API key"}')
 
-        with patch("urllib.request.urlopen", side_effect=mock_error):
+        with patch(
+            "ai_runtime.providers.dispatch.open_provider_request",
+            side_effect=mock_error,
+        ):
             with pytest.raises(RuntimeError) as exc_info:
                 _call_anthropic_api(
                     api_base="https://api.anthropic.com/v1",
@@ -172,6 +206,32 @@ class TestCallAnthropicApi:
 
             assert "Anthropic API 返回 HTTP 401 错误" in str(exc_info.value)
 
+    def test_anthropic_oversized_http_error_body_is_not_copied(self):
+        mock_error = urllib.error.HTTPError(
+            url="https://api.anthropic.com/v1/messages",
+            code=429,
+            msg="Too Many Requests",
+            hdrs={},
+            fp=io.BytesIO(b"x" * (65 * 1024)),
+        )
+
+        with patch(
+            "ai_runtime.providers.dispatch.open_provider_request",
+            side_effect=mock_error,
+        ):
+            with pytest.raises(RuntimeError) as exc_info:
+                _call_anthropic_api(
+                    api_base="https://api.anthropic.com/v1",
+                    api_key="test-key",
+                    model_name="claude-test",
+                    messages=[{"role": "user", "content": "Hello"}],
+                    temperature=0.7,
+                    max_tokens=100,
+                )
+
+        assert "错误响应体超过安全上限" in str(exc_info.value)
+        assert len(str(exc_info.value)) < 1_000
+
 
 class TestCallOllamaApi:
     """Ollama API 调用测试"""
@@ -179,15 +239,18 @@ class TestCallOllamaApi:
     def test_ollama_payload_format(self):
         """Ollama API 应使用正确的 payload 格式"""
         mock_response = Mock()
-        mock_response.read.return_value = json.dumps({
-            "message": {"content": "Hello from Ollama"}
-        }).encode("utf-8")
+        mock_response.read.return_value = json.dumps(
+            {"message": {"content": "Hello from Ollama"}}
+        ).encode("utf-8")
         mock_response.__enter__ = Mock(return_value=mock_response)
         mock_response.__exit__ = Mock(return_value=False)
 
-        with patch("urllib.request.urlopen", return_value=mock_response):
+        with patch(
+            "ai_runtime.providers.dispatch.open_provider_request",
+            return_value=mock_response,
+        ):
             with patch("urllib.request.Request") as mock_request:
-                result = _call_ollama_api(
+                _call_ollama_api(
                     ollama_host="http://localhost:11434",
                     model_name="llama3",
                     messages=[{"role": "user", "content": "Hello"}],
@@ -213,15 +276,18 @@ class TestCallOpenaiCompatibleApi:
     def test_openai_authorization_header(self):
         """OpenAI API 应使用 Authorization Bearer header"""
         mock_response = Mock()
-        mock_response.read.return_value = json.dumps({
-            "choices": [{"message": {"content": "Hello from GPT"}}]
-        }).encode("utf-8")
+        mock_response.read.return_value = json.dumps(
+            {"choices": [{"message": {"content": "Hello from GPT"}}]}
+        ).encode("utf-8")
         mock_response.__enter__ = Mock(return_value=mock_response)
         mock_response.__exit__ = Mock(return_value=False)
 
-        with patch("urllib.request.urlopen", return_value=mock_response):
+        with patch(
+            "ai_runtime.providers.dispatch.open_provider_request",
+            return_value=mock_response,
+        ):
             with patch("urllib.request.Request") as mock_request:
-                result = _call_openai_compatible_api(
+                _call_openai_compatible_api(
                     api_base="https://api.openai.com/v1",
                     api_key="sk-test-key",
                     model_name="gpt-4",
@@ -239,14 +305,23 @@ class TestCallOpenaiCompatibleApi:
     def test_openai_response_parsing(self):
         """OpenAI API 应正确解析 response["choices"][0]["message"]["content"] 并返回 usage"""
         mock_response = Mock()
-        mock_response.read.return_value = json.dumps({
-            "choices": [{"message": {"content": "GPT response"}}],
-            "usage": {"prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30}
-        }).encode("utf-8")
+        mock_response.read.return_value = json.dumps(
+            {
+                "choices": [{"message": {"content": "GPT response"}}],
+                "usage": {
+                    "prompt_tokens": 20,
+                    "completion_tokens": 10,
+                    "total_tokens": 30,
+                },
+            }
+        ).encode("utf-8")
         mock_response.__enter__ = Mock(return_value=mock_response)
         mock_response.__exit__ = Mock(return_value=False)
 
-        with patch("urllib.request.urlopen", return_value=mock_response):
+        with patch(
+            "ai_runtime.providers.dispatch.open_provider_request",
+            return_value=mock_response,
+        ):
             result, usage = _call_openai_compatible_api(
                 api_base="https://api.openai.com/v1",
                 api_key="test-key",
@@ -258,7 +333,11 @@ class TestCallOpenaiCompatibleApi:
             )
 
             assert result == "GPT response"
-            assert usage == {"prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30}
+            assert usage == {
+                "prompt_tokens": 20,
+                "completion_tokens": 10,
+                "total_tokens": 30,
+            }
 
     def test_openai_missing_api_base(self):
         """OpenAI API 应在缺少 api_base 时抛出错误"""
@@ -274,6 +353,33 @@ class TestCallOpenaiCompatibleApi:
             )
 
         assert "未找到大模型服务商 'openai' 的有效 API Base 配置" in str(exc_info.value)
+
+    def test_openai_oversized_http_error_body_is_not_copied(self):
+        mock_error = urllib.error.HTTPError(
+            url="https://api.openai.com/v1/chat/completions",
+            code=500,
+            msg="Internal Server Error",
+            hdrs={},
+            fp=io.BytesIO(b"x" * (65 * 1024)),
+        )
+
+        with patch(
+            "ai_runtime.providers.dispatch.open_provider_request",
+            side_effect=mock_error,
+        ):
+            with pytest.raises(RuntimeError) as exc_info:
+                _call_openai_compatible_api(
+                    api_base="https://api.openai.com/v1",
+                    api_key="test-key",
+                    model_name="gpt-test",
+                    messages=[{"role": "user", "content": "Hello"}],
+                    temperature=0.7,
+                    max_tokens=100,
+                    provider="openai",
+                )
+
+        assert "错误响应体超过安全上限" in str(exc_info.value)
+        assert len(str(exc_info.value)) < 1_000
 
 
 class TestApiDispatch:
@@ -296,13 +402,16 @@ class TestApiDispatch:
         agent = RuntimeAgent(config)
 
         mock_response = Mock()
-        mock_response.read.return_value = json.dumps({
-            "message": {"content": "Ollama response"}
-        }).encode("utf-8")
+        mock_response.read.return_value = json.dumps(
+            {"message": {"content": "Ollama response"}}
+        ).encode("utf-8")
         mock_response.__enter__ = Mock(return_value=mock_response)
         mock_response.__exit__ = Mock(return_value=False)
 
-        with patch("urllib.request.urlopen", return_value=mock_response):
+        with patch(
+            "ai_runtime.providers.dispatch.open_provider_request",
+            return_value=mock_response,
+        ):
             result = agent._call_llm_api(
                 provider="ollama",
                 model_name="llama3",
@@ -325,13 +434,16 @@ class TestApiDispatch:
         agent = RuntimeAgent(config)
 
         mock_response = Mock()
-        mock_response.read.return_value = json.dumps({
-            "content": [{"text": "Claude response"}]
-        }).encode("utf-8")
+        mock_response.read.return_value = json.dumps(
+            {"content": [{"text": "Claude response"}]}
+        ).encode("utf-8")
         mock_response.__enter__ = Mock(return_value=mock_response)
         mock_response.__exit__ = Mock(return_value=False)
 
-        with patch("urllib.request.urlopen", return_value=mock_response):
+        with patch(
+            "ai_runtime.providers.dispatch.open_provider_request",
+            return_value=mock_response,
+        ):
             result = agent._call_llm_api(
                 provider="anthropic",
                 model_name="claude-3-opus-20240229",
@@ -354,13 +466,16 @@ class TestApiDispatch:
         agent = RuntimeAgent(config)
 
         mock_response = Mock()
-        mock_response.read.return_value = json.dumps({
-            "choices": [{"message": {"content": "GPT response"}}]
-        }).encode("utf-8")
+        mock_response.read.return_value = json.dumps(
+            {"choices": [{"message": {"content": "GPT response"}}]}
+        ).encode("utf-8")
         mock_response.__enter__ = Mock(return_value=mock_response)
         mock_response.__exit__ = Mock(return_value=False)
 
-        with patch("urllib.request.urlopen", return_value=mock_response):
+        with patch(
+            "ai_runtime.providers.dispatch.open_provider_request",
+            return_value=mock_response,
+        ):
             result = agent._call_llm_api(
                 provider="openai",
                 model_name="gpt-4",
@@ -382,13 +497,16 @@ class TestApiDispatch:
         agent = RuntimeAgent(config)
 
         mock_response = Mock()
-        mock_response.read.return_value = json.dumps({
-            "content": [{"text": "Auto-detected Anthropic"}]
-        }).encode("utf-8")
+        mock_response.read.return_value = json.dumps(
+            {"content": [{"text": "Auto-detected Anthropic"}]}
+        ).encode("utf-8")
         mock_response.__enter__ = Mock(return_value=mock_response)
         mock_response.__exit__ = Mock(return_value=False)
 
-        with patch("urllib.request.urlopen", return_value=mock_response):
+        with patch(
+            "ai_runtime.providers.dispatch.open_provider_request",
+            return_value=mock_response,
+        ):
             result = agent._call_llm_api(
                 provider="anthropic",
                 model_name="claude-3-opus-20240229",
@@ -410,13 +528,16 @@ class TestApiDispatch:
         agent = RuntimeAgent(config)
 
         mock_response = Mock()
-        mock_response.read.return_value = json.dumps({
-            "choices": [{"message": {"content": "Default chat_completions"}}]
-        }).encode("utf-8")
+        mock_response.read.return_value = json.dumps(
+            {"choices": [{"message": {"content": "Default chat_completions"}}]}
+        ).encode("utf-8")
         mock_response.__enter__ = Mock(return_value=mock_response)
         mock_response.__exit__ = Mock(return_value=False)
 
-        with patch("urllib.request.urlopen", return_value=mock_response):
+        with patch(
+            "ai_runtime.providers.dispatch.open_provider_request",
+            return_value=mock_response,
+        ):
             result = agent._call_llm_api(
                 provider="unknown",
                 model_name="model-x",

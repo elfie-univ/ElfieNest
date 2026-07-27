@@ -9,11 +9,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-import yaml
 from fastapi.testclient import TestClient
 
-from app.interfaces.api.app import create_app
 from app.infrastructure.persistence.store import get_db, init_db, verify_password
+from app.interfaces.api.app import create_app
 
 from ._helpers import create_test_owner, create_test_user
 
@@ -49,6 +48,10 @@ def app(db_path: str, runtime_config_path: Path):
         patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
         patch(
             "app.interfaces.api.owner_routes.get_config_path",
+            return_value=runtime_config_path,
+        ),
+        patch(
+            "app.interfaces.api.owner_user_routes.get_config_path",
             return_value=runtime_config_path,
         ),
     ):
@@ -96,7 +99,7 @@ class TestUserCRUD:
         # When
         response = client.put(
             f"/api/owner/users/{owner_id}",
-            json={"username": "attacker", "password": "attacker-password"},
+            json={"elfie_quota_override": 5},
             headers=_headers(tokens["csrf_token"]),
         )
 
@@ -126,7 +129,7 @@ class TestUserCRUD:
         )
 
         # Then
-        assert response.status_code == 403
+        assert response.status_code == 422
         with get_db(db_path) as conn:
             role = conn.execute(
                 "SELECT role FROM users WHERE id = ?", (owner_id,)
@@ -210,6 +213,83 @@ class TestUserCRUD:
         )
         assert resp.status_code == 422
 
+    def test_user_list_projects_quota_and_unknown_online_state(
+        self, client: TestClient
+    ) -> None:
+        tokens = _login_owner(client)
+        client.post(
+            "/api/owner/users",
+            json={"username": "alice", "password": "pass", "role": "user"},
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        response = client.get(
+            "/api/owner/users", headers=_headers(tokens["csrf_token"])
+        )
+
+        assert response.status_code == 200
+        alice = next(user for user in response.json() if user["username"] == "alice")
+        assert alice["elfie_quota_override"] is None
+        assert alice["effective_elfie_limit"] == 3
+        assert alice["online_status"] == "unknown"
+        assert alice["avatar_url"] is None
+
+    def test_update_user_only_accepts_quota_override(self, client: TestClient) -> None:
+        tokens = _login_owner(client)
+        created = client.post(
+            "/api/owner/users",
+            json={"username": "alice", "password": "pass", "role": "user"},
+            headers=_headers(tokens["csrf_token"]),
+        ).json()
+
+        updated = client.put(
+            f"/api/owner/users/{created['id']}",
+            json={"elfie_quota_override": 6},
+            headers=_headers(tokens["csrf_token"]),
+        )
+        forbidden = client.put(
+            f"/api/owner/users/{created['id']}",
+            json={"username": "renamed", "password": "new-pass", "role": "user"},
+            headers=_headers(tokens["csrf_token"]),
+        )
+        out_of_range = client.put(
+            f"/api/owner/users/{created['id']}",
+            json={"elfie_quota_override": 33},
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert updated.status_code == 200
+        assert updated.json()["elfie_quota_override"] == 6
+        assert updated.json()["effective_elfie_limit"] == 6
+        assert forbidden.status_code == 422
+        assert out_of_range.status_code == 422
+
+    def test_quota_override_can_return_to_system_default(
+        self, client: TestClient
+    ) -> None:
+        tokens = _login_owner(client)
+        created = client.post(
+            "/api/owner/users",
+            json={"username": "alice", "password": "pass", "role": "user"},
+            headers=_headers(tokens["csrf_token"]),
+        ).json()
+        headers = _headers(tokens["csrf_token"])
+
+        client.put(
+            f"/api/owner/users/{created['id']}",
+            json={"elfie_quota_override": 8},
+            headers=headers,
+        )
+        response = client.put(
+            f"/api/owner/users/{created['id']}",
+            json={"elfie_quota_override": None},
+            headers=headers,
+        )
+
+        assert response.status_code == 200
+        assert response.json()["elfie_quota_override"] is None
+        assert response.json()["effective_elfie_limit"] == 3
+
     def test_delete_user(self, client: TestClient) -> None:
         """删除用户 → 列表不再包含。"""
         tokens = _login_owner(client)
@@ -231,13 +311,13 @@ class TestUserCRUD:
         assert "alice" not in usernames
 
     def test_cannot_delete_owner(self, client: TestClient) -> None:
-        """不能从 Web 用户管理删除 Owner → 400。"""
+        """不能从 Web 用户管理删除 Owner → 403。"""
         tokens = _login_owner(client)
         resp = client.delete(
             "/api/owner/users/1",
             headers=_headers(tokens["csrf_token"]),
         )
-        assert resp.status_code == 400
+        assert resp.status_code == 403
         assert "Owner" in resp.text
 
     def test_delete_nonexistent_user_404(self, client: TestClient) -> None:
@@ -249,10 +329,10 @@ class TestUserCRUD:
         )
         assert resp.status_code == 404
 
-    def test_delete_user_destroys_elfies(
+    def test_delete_user_with_elfies_is_rejected(
         self, client: TestClient, db_path: str
     ) -> None:
-        """删除用户 → 级联删除其精灵（registry 记录）。"""
+        """删除用户前必须先转移或处理其名下精灵。"""
         tokens = _login_owner(client)
         # 创建用户 → 给用户分配一个精灵
         resp = client.post(
@@ -273,19 +353,20 @@ class TestUserCRUD:
             )
             conn.commit()
 
-        # 删除用户
-        client.delete(
+        # When
+        response = client.delete(
             f"/api/owner/users/{alice_id}",
             headers=_headers(tokens["csrf_token"]),
         )
 
-        # 验证精灵已被完全删除（不再是 NULL，而是记录不存在）
+        # Then
+        assert response.status_code == 409
         with get_db(db_path) as conn:
             cursor = conn.execute(
                 "SELECT * FROM elfie_registry WHERE owner_user_id = ?",
                 (alice_id,),
             )
-            assert cursor.fetchone() is None
+            assert cursor.fetchone() is not None
 
     def test_owner_list_users_excludes_self(self, client: TestClient) -> None:
         """Owner列表不包含自己。"""
@@ -435,8 +516,9 @@ class TestConfig:
     def test_put_config_valid(
         self, client: TestClient, runtime_config_path: Path
     ) -> None:
-        """PUT 写入正确配置。"""
+        """旧原始 PUT 已停用，配置文件保持不变。"""
         tokens = _login_owner(client)
+        before = runtime_config_path.read_text(encoding="utf-8")
         new_config = {
             "providers": {
                 "ollama": {"api_base": "http://127.0.0.1:11434"},
@@ -449,23 +531,20 @@ class TestConfig:
             json=new_config,
             headers=_headers(tokens["csrf_token"]),
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 410
+        assert runtime_config_path.read_text(encoding="utf-8") == before
 
-        # 验证文件已写入
-        written = yaml.safe_load(runtime_config_path.read_text())
-        assert written["providers"]["ollama"]["api_base"] == "http://127.0.0.1:11434"
-        assert written["temperature"] == 0.7
-
-    def test_put_config_missing_providers_400(self, client: TestClient) -> None:
-        """PUT 缺少 providers → 400。"""
+    def test_put_config_missing_providers_is_also_retired(
+        self, client: TestClient
+    ) -> None:
+        """停用边界不因请求体形状而改变。"""
         tokens = _login_owner(client)
         resp = client.put(
             "/api/owner/config",
             json={"temperature": 0.5},
             headers=_headers(tokens["csrf_token"]),
         )
-        assert resp.status_code == 400
-        assert "providers" in resp.text
+        assert resp.status_code == 410
 
     def test_get_config_no_file(
         self, client: TestClient, runtime_config_path: Path

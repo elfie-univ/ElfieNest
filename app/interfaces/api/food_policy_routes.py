@@ -6,14 +6,14 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from app.features.accounts.auth import get_current_user
-from app.infrastructure.persistence.store import get_db
 from ai_runtime.food.elfie_policy import (
     ElfieFoodPolicy,
     load_elfie_food_policy,
     save_elfie_food_policy,
 )
 from ai_runtime.food.models import FIXED_FOOD_KINDS
+from app.features.accounts.auth import get_current_user
+from app.infrastructure.persistence.store import get_db
 
 router = APIRouter(
     prefix="/api/user/elfies/{elfie_id}/food-policy",
@@ -43,12 +43,18 @@ def parse_food_policy_update(elfie_id: str, body: Dict[str, Any]) -> ElfieFoodPo
     )
 
 
-def _owned_config_dir(request: Request, elfie_id: str, user_id: int) -> str:
+def _accessible_config_dir(
+    request: Request, elfie_id: str, user: Dict[str, Any]
+) -> str:
+    """Owner 可管理全巢粮食策略；普通用户仅可管理自己的精灵。"""
+    owner_scope = user.get("role") == "owner"
+    query = "SELECT config_dir FROM elfie_registry WHERE elfie_id=?"
+    parameters: tuple[object, ...] = (elfie_id,)
+    if not owner_scope:
+        query += " AND owner_user_id=?"
+        parameters = (elfie_id, user["id"])
     with get_db(request.app.state.db_path) as conn:
-        row = conn.execute(
-            "SELECT config_dir FROM elfie_registry WHERE elfie_id=? AND owner_user_id=?",
-            (elfie_id, user_id),
-        ).fetchone()
+        row = conn.execute(query, parameters).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="精灵不存在或不属于您")
     return str(row["config_dir"])
@@ -60,7 +66,7 @@ async def get_food_policy(
     request: Request,
     user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
 ) -> Dict[str, Any]:
-    config_dir = _owned_config_dir(request, elfie_id, user["id"])
+    config_dir = _accessible_config_dir(request, elfie_id, user)
     return load_elfie_food_policy(elfie_id, config_dir).to_dict()
 
 
@@ -71,7 +77,7 @@ async def update_food_policy(
     request: Request,
     user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
 ) -> Dict[str, Any]:
-    config_dir = _owned_config_dir(request, elfie_id, user["id"])
+    config_dir = _accessible_config_dir(request, elfie_id, user)
     policy = parse_food_policy_update(elfie_id, body)
     save_elfie_food_policy(policy, config_dir)
     return policy.to_dict()

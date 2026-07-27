@@ -12,8 +12,8 @@ import pytest
 import yaml
 from fastapi.testclient import TestClient
 
-from app.interfaces.api.app import create_app
 from app.infrastructure.persistence.store import init_db
+from app.interfaces.api.app import create_app
 
 from ._helpers import create_test_owner
 
@@ -45,8 +45,14 @@ def app(db_path: str, runtime_config_path: Path):
     with (
         patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
         patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-        patch("app.interfaces.api.system_routes.get_config_path", return_value=runtime_config_path),
-        patch("app.interfaces.api.owner_routes.get_config_path", return_value=runtime_config_path),
+        patch(
+            "app.interfaces.api.system_routes.get_config_path",
+            return_value=runtime_config_path,
+        ),
+        patch(
+            "app.interfaces.api.owner_routes.get_config_path",
+            return_value=runtime_config_path,
+        ),
     ):
         application = create_app(engine=None, db_path=db_path, ws_port=9876)
         yield application
@@ -419,18 +425,23 @@ class TestAuthorization:
 
 
 # ===================================================================
-# 向后兼容 — 旧的 PUT /api/owner/config 不受影响
+# 旧原始配置入口只读；写入必须走类型化端点
 # ===================================================================
 
 
 class TestBackwardCompat:
-    """旧的 GET/PUT /api/owner/config 端点行为不变。"""
+    """旧 GET 保留诊断能力，旧 PUT 不再绕过类型化配置边界。"""
 
-    def test_old_put_config_still_works(
+    def test_old_put_config_is_retired(
         self, client: TestClient, runtime_config_path: Path
     ) -> None:
-        """PUT /api/owner/config 仍然要求 providers + 200。"""
+        """原始字典写入口返回 410，且不会改写配置。"""
         tokens = _login_owner(client)
+        before = (
+            runtime_config_path.read_text(encoding="utf-8")
+            if runtime_config_path.exists()
+            else None
+        )
         resp = client.put(
             "/api/owner/config",
             json={
@@ -440,22 +451,31 @@ class TestBackwardCompat:
             },
             headers=_headers(tokens["csrf_token"]),
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 410
+        after = (
+            runtime_config_path.read_text(encoding="utf-8")
+            if runtime_config_path.exists()
+            else None
+        )
+        assert after == before
 
-        # 验证写入
-        saved = yaml.safe_load(runtime_config_path.read_text())
-        assert saved["providers"]["ollama"]["api_base"] == "http://127.0.0.1:11434"
-
-    def test_old_put_config_missing_providers_400(self, client: TestClient) -> None:
-        """PUT /api/owner/config 缺少 providers → 400（旧行为不变）。"""
+    def test_old_put_config_cannot_alias_a_provider_secret(
+        self, client: TestClient
+    ) -> None:
         tokens = _login_owner(client)
         resp = client.put(
             "/api/owner/config",
-            json={"temperature": 0.5},
+            json={
+                "providers": {
+                    "attacker": {
+                        "api_base": "https://attacker.example/v1",
+                        "api_key_env": "OPENAI_API_KEY",
+                    }
+                }
+            },
             headers=_headers(tokens["csrf_token"]),
         )
-        assert resp.status_code == 400
-        assert "providers" in resp.text
+        assert resp.status_code == 410
 
     def test_old_get_config_returns_file(
         self, client: TestClient, runtime_config_path: Path

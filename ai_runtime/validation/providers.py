@@ -14,6 +14,7 @@ from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.gateway.llm_api import call_llm_api
 from ai_runtime.models.catalog import verify_provider
 from ai_runtime.providers.dispatch import detect_api_mode_for_url
+from ai_runtime.providers.http import open_provider_request, read_provider_response
 from ai_runtime.providers.model_hints import configured_model_specs
 from ai_runtime.validation.models import CheckResult, CheckStatus, ValidationSuite
 
@@ -67,15 +68,19 @@ def discover_provider_models(
     discovery_error: RuntimeError | None = None
     payload: Any = {}
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            payload = json.loads(response.read().decode("utf-8"))
+        with open_provider_request(request, timeout=timeout) as response:
+            payload = json.loads(
+                read_provider_response(
+                    response,
+                    max_bytes=4 * 1024 * 1024,
+                    deadline_seconds=timeout,
+                ).decode("utf-8")
+            )
     except urllib.error.HTTPError as exc:
-        discovery_error = RuntimeError(
-            f"模型发现失败：HTTP {exc.code} {exc.reason}"
-        )
+        discovery_error = RuntimeError(f"模型发现失败：HTTP {exc.code} {exc.reason}")
     except urllib.error.URLError as exc:
         discovery_error = RuntimeError(f"模型发现连接失败：{exc.reason}")
-    except (json.JSONDecodeError, UnicodeDecodeError):
+    except (json.JSONDecodeError, UnicodeDecodeError, ValueError, TimeoutError):
         discovery_error = RuntimeError("模型发现接口返回了无效 JSON")
 
     names = _extract_model_names(api_mode, payload) if discovery_error is None else []

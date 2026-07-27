@@ -133,11 +133,7 @@ def restart_default_lab(
     if not ports:
         return
     active_inspector = inspector or DefaultRestartInspector()
-    owners = {
-        pid
-        for port in ports
-        for pid in active_inspector.listening_pids(port)
-    }
+    owners = {pid for port in ports for pid in active_inspector.listening_pids(port)}
     expected_workspace = workspace.resolve()
     for pid in owners:
         command = active_inspector.command(pid)
@@ -147,7 +143,9 @@ def restart_default_lab(
             expected_workspace,
             tool.name,
         ):
-            raise ForeignPortOwnerError(port=_first_owned_port(pid, ports, active_inspector), command=command)
+            raise ForeignPortOwnerError(
+                port=_first_owned_port(pid, ports, active_inspector), command=command
+            )
     for pid in owners:
         active_inspector.terminate(pid)
     if owners and not active_inspector.wait_until_free(ports):

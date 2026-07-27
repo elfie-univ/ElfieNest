@@ -16,7 +16,9 @@ DESKTOP_MANIFEST_PATH: Final = PROJECT_ROOT / "desktop" / "package.json"
 FRONTEND_MANIFEST_PATH: Final = (
     PROJECT_ROOT / "app" / "interfaces" / "web" / "frontend" / "package.json"
 )
-VERSION_PATTERN: Final = re.compile(r'^version\s*=\s*"(?P<version>[^"]+)"\s*$', re.MULTILINE)
+VERSION_PATTERN: Final = re.compile(
+    r'^version\s*=\s*"(?P<version>[^"]+)"\s*$', re.MULTILINE
+)
 
 
 class ReleaseVersionError(RuntimeError):
@@ -27,7 +29,9 @@ def parse_args() -> argparse.Namespace:
     """Parse optional manifest overrides used by release verification."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--desktop-manifest", type=Path, default=DESKTOP_MANIFEST_PATH)
-    parser.add_argument("--frontend-manifest", type=Path, default=FRONTEND_MANIFEST_PATH)
+    parser.add_argument(
+        "--frontend-manifest", type=Path, default=FRONTEND_MANIFEST_PATH
+    )
     return parser.parse_args()
 
 

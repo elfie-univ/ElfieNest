@@ -131,7 +131,9 @@ a { color: inherit; text-decoration: none; }
   color: var(--surface);
   background: linear-gradient(145deg, var(--accent), var(--accent-hover));
   font-weight: 700;
+  overflow: hidden;
 }
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
 
 .login {
   width: min(430px, calc(100% - 32px));

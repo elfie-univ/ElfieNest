@@ -5,12 +5,15 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
+from ai_runtime.providers.profiles import BUILTIN_PROFILES
+from ai_runtime.storage.secrets import read_secrets
 from ai_runtime.validation.providers import DiscoveredModel
 from app.infrastructure.persistence.store import init_db
 from app.interfaces.api.app import create_app
@@ -46,10 +49,6 @@ def app(db_path: str, runtime_config_path: Path):
     with (
         patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
         patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-        patch(
-            "app.interfaces.api.provider_routes.get_config_path",
-            return_value=runtime_config_path,
-        ),
         patch(
             "app.interfaces.api.model_owner_routes.get_config_path",
             return_value=runtime_config_path,
@@ -99,12 +98,389 @@ def _headers(csrf_token: str) -> dict:
 
 
 class TestProviderRoutes:
+    def test_list_separates_configuration_from_verification(
+        self, client: TestClient
+    ) -> None:
+        tokens = _login_owner(client)
+
+        response = client.get(
+            "/api/owner/providers", headers=_headers(tokens["csrf_token"])
+        )
+
+        assert response.status_code == 200
+        providers = {item["provider_id"]: item for item in response.json()}
+        assert providers["ollama"]["configured"] is True
+        assert providers["ollama"]["verification"] == {
+            "status": "never",
+            "checked_at": None,
+            "latency_ms": None,
+            "error": None,
+        }
+        assert providers["openai"]["configured"] is False
+        assert providers["openai"]["verification"]["status"] == "never"
+
+    def test_saving_api_key_does_not_claim_verification(
+        self, client: TestClient
+    ) -> None:
+        tokens = _login_owner(client)
+
+        response = client.put(
+            "/api/owner/providers/openai",
+            json={"api_key": "sk-written-not-verified"},
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert response.status_code == 200
+        assert response.json()["configured"] is True
+        assert response.json()["verification"]["status"] == "never"
+
+    def test_verification_persists_sanitized_failure(
+        self, client: TestClient, runtime_config_path: Path
+    ) -> None:
+        tokens = _login_owner(client)
+        client.put(
+            "/api/owner/providers/openai",
+            json={"api_key": "sk-secret", "test_model": "gpt-test"},
+            headers=_headers(tokens["csrf_token"]),
+        )
+        fake_result = {
+            "status": "failed",
+            "latency_ms": 12.5,
+            "error": "sk-secret rejected by https://user:pw@example.invalid/v1",
+        }
+
+        with patch(
+            "app.interfaces.api.provider_validation_routes.run_provider_check",
+            new=AsyncMock(return_value=fake_result),
+        ):
+            response = client.post(
+                "/api/owner/providers/openai/verify",
+                headers=_headers(tokens["csrf_token"]),
+            )
+
+        assert response.status_code == 200
+        verification = response.json()["verification"]
+        assert verification["status"] == "failed"
+        assert verification["checked_at"]
+        assert verification["latency_ms"] == 12.5
+        assert "sk-secret" not in verification["error"]
+        assert "user:pw" not in verification["error"]
+        persisted = runtime_config_path.read_text()
+        assert "sk-secret rejected" not in persisted
+        assert "user:pw" not in persisted
+
+    def test_batch_verification_is_partial_and_skips_unconfigured(
+        self, client: TestClient
+    ) -> None:
+        tokens = _login_owner(client)
+        for provider_id in ("openai", "anthropic"):
+            client.put(
+                f"/api/owner/providers/{provider_id}",
+                json={"api_key": f"{provider_id}-key", "test_model": "model"},
+                headers=_headers(tokens["csrf_token"]),
+            )
+
+        async def fake_check(provider_id: str, _config: object) -> dict:
+            if provider_id == "anthropic":
+                return {"status": "failed", "latency_ms": 31.0, "error": "denied"}
+            return {"status": "passed", "latency_ms": 9.0, "error": None}
+
+        with patch(
+            "app.interfaces.api.provider_validation_routes.run_provider_check",
+            side_effect=fake_check,
+        ) as mocked:
+            response = client.post(
+                "/api/owner/providers/verify-batch",
+                json={"provider_ids": ["openai", "anthropic", "deepseek"]},
+                headers=_headers(tokens["csrf_token"]),
+            )
+
+        assert response.status_code == 200
+        results = {item["provider_id"]: item for item in response.json()["results"]}
+        assert results["openai"]["status"] == "passed"
+        assert results["anthropic"]["status"] == "failed"
+        assert results["deepseek"]["status"] == "skipped"
+        assert mocked.await_count == 2
+
+    def test_batch_verification_rejects_more_than_ten(self, client: TestClient) -> None:
+        tokens = _login_owner(client)
+        response = client.post(
+            "/api/owner/providers/verify-batch",
+            json={"provider_ids": [f"provider-{index}" for index in range(11)]},
+            headers=_headers(tokens["csrf_token"]),
+        )
+        assert response.status_code == 422
+
+    def test_model_matrix_uses_only_configured_models_and_unknown_prices(
+        self, client: TestClient
+    ) -> None:
+        tokens = _login_owner(client)
+        client.put(
+            "/api/owner/providers/openai",
+            json={
+                "api_key": "openai-key",
+                "models": [
+                    {"id": "shared-model", "display_name": "Shared Model"},
+                    {"id": "openai-only", "display_name": "OpenAI Only"},
+                ],
+            },
+            headers=_headers(tokens["csrf_token"]),
+        )
+        client.put(
+            "/api/owner/providers/anthropic",
+            json={
+                "api_key": "anthropic-key",
+                "models": [{"id": "shared-model", "display_name": "Shared Model"}],
+            },
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        response = client.get(
+            "/api/owner/providers/model-matrix",
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert response.status_code == 200
+        matrix = response.json()
+        assert {item["provider_id"] for item in matrix["providers"]} >= {
+            "ollama",
+            "openai",
+            "anthropic",
+        }
+        shared = next(
+            row for row in matrix["models"] if row["model_id"] == "shared-model"
+        )
+        cells = {cell["provider_id"]: cell for cell in shared["providers"]}
+        assert cells["openai"]["available"] is True
+        assert cells["anthropic"]["available"] is True
+        assert cells["openai"]["price_estimate"] is None
+        assert all(row["model_id"] != "gpt-4o" for row in matrix["models"])
+
+    def test_model_benchmark_requires_verified_configured_model(
+        self, client: TestClient
+    ) -> None:
+        tokens = _login_owner(client)
+        client.put(
+            "/api/owner/providers/openai",
+            json={
+                "api_key": "openai-key",
+                "models": [{"id": "gpt-test", "display_name": "GPT Test"}],
+            },
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        response = client.post(
+            "/api/owner/providers/models/benchmark",
+            json={"combinations": [{"provider_id": "openai", "model_id": "gpt-test"}]},
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert response.status_code == 422
+        assert "验证通过" in response.text
+
+    def test_verified_model_benchmark_persists_safe_result(
+        self, client: TestClient
+    ) -> None:
+        tokens = _login_owner(client)
+        client.put(
+            "/api/owner/providers/openai",
+            json={
+                "api_key": "benchmark-secret",
+                "models": [{"id": "gpt-test", "display_name": "GPT Test"}],
+            },
+            headers=_headers(tokens["csrf_token"]),
+        )
+        with patch(
+            "app.interfaces.api.provider_validation_routes.run_provider_check",
+            new=AsyncMock(
+                return_value={"status": "passed", "latency_ms": 8.0, "error": None}
+            ),
+        ):
+            verified = client.post(
+                "/api/owner/providers/openai/verify",
+                headers=_headers(tokens["csrf_token"]),
+            )
+        assert verified.status_code == 200
+
+        with patch(
+            "app.interfaces.api.provider_model_routes.run_model_benchmark",
+            new=AsyncMock(
+                return_value={
+                    "status": "passed",
+                    "latency_ms": 22.0,
+                    "latency_class": "fast",
+                    "error": None,
+                }
+            ),
+        ) as mocked:
+            response = client.post(
+                "/api/owner/providers/models/benchmark",
+                json={
+                    "combinations": [{"provider_id": "openai", "model_id": "gpt-test"}]
+                },
+                headers=_headers(tokens["csrf_token"]),
+            )
+
+        assert response.status_code == 200
+        assert response.json()["results"][0]["status"] == "passed"
+        assert response.json()["results"][0]["latency_ms"] == 22.0
+        assert mocked.await_count == 1
+
+    def test_batch_timeout_is_an_item_failure_without_retry(
+        self, client: TestClient
+    ) -> None:
+        tokens = _login_owner(client)
+        client.put(
+            "/api/owner/providers/openai",
+            json={"api_key": "openai-key"},
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        async def slow_check(_provider_id: str, _config: object) -> dict:
+            await asyncio.sleep(0.02)
+            return {"status": "passed", "latency_ms": 1.0, "error": None}
+
+        with (
+            patch(
+                "app.interfaces.api.provider_validation_routes._PROVIDER_TIMEOUT_SECONDS",
+                0.001,
+            ),
+            patch(
+                "app.interfaces.api.provider_validation_routes.run_provider_check",
+                side_effect=slow_check,
+            ) as mocked,
+        ):
+            response = client.post(
+                "/api/owner/providers/verify-batch",
+                json={"provider_ids": ["openai"]},
+                headers=_headers(tokens["csrf_token"]),
+            )
+
+        assert response.status_code == 200
+        result = response.json()["results"][0]
+        assert result["status"] == "failed"
+        assert "超时" in result["verification"]["error"]
+        assert mocked.await_count == 1
+
+    def test_provider_write_and_matrix_keep_owner_csrf_boundary(
+        self, client: TestClient, db_path: str
+    ) -> None:
+        owner_tokens = _login_owner(client)
+        missing_csrf = client.put(
+            "/api/owner/providers/openai", json={"api_key": "secret"}
+        )
+        assert missing_csrf.status_code == 403
+
+        create_test_user(db_path, "matrix-user", "pass123")
+        _login_user(client, "matrix-user", "pass123")
+        forbidden = client.get(
+            "/api/owner/providers/model-matrix",
+            headers=_headers(owner_tokens["csrf_token"]),
+        )
+        assert forbidden.status_code == 403
+
+    def test_profile_connection_methods_are_explicit(self) -> None:
+        assert BUILTIN_PROFILES["ollama"].connection_method == "local"
+        assert all(
+            profile.connection_method in {"local", "api_key", "oauth"}
+            for profile in BUILTIN_PROFILES.values()
+        )
+        assert all(
+            profile.oauth_available is False
+            for profile in BUILTIN_PROFILES.values()
+            if profile.connection_method != "oauth"
+        )
+
+    def test_cancelled_batch_cancels_waiting_checks(self) -> None:
+        from app.interfaces.api.provider_validation_routes import _run_tasks
+
+        async def scenario() -> tuple[int, int]:
+            started = 0
+            cancelled = 0
+            gate = asyncio.Event()
+
+            async def slow_check(_provider_id: str, _config: object) -> dict:
+                nonlocal started, cancelled
+                started += 1
+                try:
+                    await gate.wait()
+                except asyncio.CancelledError:
+                    cancelled += 1
+                    raise
+                return {"status": "passed", "latency_ms": 1.0, "error": None}
+
+            with patch(
+                "app.interfaces.api.provider_validation_routes.run_provider_check",
+                side_effect=slow_check,
+            ):
+                task = asyncio.create_task(
+                    _run_tasks(["p1", "p2", "p3", "p4"], {"providers": {}})
+                )
+                while started < 3:
+                    await asyncio.sleep(0)
+                task.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+            return started, cancelled
+
+        started, cancelled = asyncio.run(scenario())
+        assert started == 3
+        assert cancelled == 3
+
+    def test_cancelled_benchmark_cancels_waiting_models(self) -> None:
+        from app.interfaces.api.provider_model_routes import _run_benchmarks
+        from app.interfaces.api.provider_schemas import BenchmarkCombination
+
+        async def scenario() -> tuple[int, int]:
+            started = 0
+            cancelled = 0
+            gate = asyncio.Event()
+
+            async def slow_benchmark(
+                _combination: BenchmarkCombination, _config: object
+            ) -> dict:
+                nonlocal started, cancelled
+                started += 1
+                try:
+                    await gate.wait()
+                except asyncio.CancelledError:
+                    cancelled += 1
+                    raise
+                return {
+                    "status": "passed",
+                    "latency_ms": 1.0,
+                    "latency_class": "fast",
+                    "error": None,
+                }
+
+            combinations = [
+                BenchmarkCombination(provider_id="p", model_id=f"m{index}")
+                for index in range(3)
+            ]
+            with patch(
+                "app.interfaces.api.provider_model_routes.run_model_benchmark",
+                side_effect=slow_benchmark,
+            ):
+                task = asyncio.create_task(
+                    _run_benchmarks(combinations, {"providers": {}})
+                )
+                while started < 2:
+                    await asyncio.sleep(0)
+                task.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+            return started, cancelled
+
+        started, cancelled = asyncio.run(scenario())
+        assert started == 2
+        assert cancelled == 2
+
     def test_provider_save_can_auto_refresh_model_id_and_display_name(
         self, client: TestClient
     ) -> None:
         tokens = _login_owner(client)
         with patch(
-            "app.interfaces.api.provider_routes.discover_provider_models",
+            "app.interfaces.api.provider_config_routes.discover_provider_models",
             return_value=[
                 DiscoveredModel(
                     "custom_auto",
@@ -128,7 +504,11 @@ class TestProviderRoutes:
 
         assert response.status_code == 201
         assert response.json()["models"] == [
-            {"id": "astron-code-latest", "display_name": "GLM-5"}
+            {
+                "id": "astron-code-latest",
+                "display_name": "GLM-5",
+                "source": "discovered",
+            }
         ]
         assert response.json()["model_refresh"]["status"] == "updated"
 
@@ -147,7 +527,8 @@ class TestProviderRoutes:
         ollama = next((p for p in providers if p["provider_id"] == "ollama"), None)
         assert ollama is not None
         assert ollama["name"] == "Ollama"
-        assert ollama["status"] == "active"
+        assert ollama["configured"] is True
+        assert ollama["verification"]["status"] == "never"
 
     def test_post_providers_adds_new_provider(
         self, client: TestClient, runtime_config_path: Path
@@ -235,7 +616,8 @@ class TestProviderRoutes:
         assert provider["provider_id"] == "openai"
         assert provider["name"] == "OpenAI 网关"
         assert provider["api_base"] == "https://gateway.example.com/v1"
-        assert provider["status"] == "active"
+        assert provider["configured"] is True
+        assert provider["verification"]["status"] == "never"
         assert provider["test_model"] == "gpt-4o-mini"
 
     def test_delete_providers_removes_provider(
@@ -250,10 +632,14 @@ class TestProviderRoutes:
             json={
                 "provider_id": "to_delete",
                 "api_base": "https://delete.com/v1",
-                "api_key": "",
+                "api_key": "delete-me",
                 "api_mode": "chat_completions",
             },
             headers=_headers(tokens["csrf_token"]),
+        )
+        assert (
+            read_secrets(runtime_config_path.parent / ".env")["TO_DELETE_API_KEY"]
+            == "delete-me"
         )
 
         # 删除
@@ -269,6 +655,61 @@ class TestProviderRoutes:
         )
         provider_ids = [p["provider_id"] for p in resp.json()]
         assert "to_delete" not in provider_ids
+        assert "TO_DELETE_API_KEY" not in read_secrets(
+            runtime_config_path.parent / ".env"
+        )
+
+    @pytest.mark.parametrize(
+        ("provider_id", "expected_status"),
+        [
+            ("OPENAI", 422),
+            ("openai!", 422),
+            ("openai---", 422),
+            ("openai", 409),
+            ("custom-openai", 422),
+            ("custom_openai", 409),
+        ],
+    )
+    def test_custom_provider_id_cannot_alias_builtin_secret(
+        self, client: TestClient, provider_id: str, expected_status: int
+    ) -> None:
+        tokens = _login_owner(client)
+
+        response = client.post(
+            "/api/owner/providers",
+            json={
+                "provider_id": provider_id,
+                "api_base": "https://malicious.example/v1",
+                "api_key": "attacker-key",
+                "api_mode": "chat_completions",
+            },
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert response.status_code == expected_status
+
+    @pytest.mark.parametrize(
+        "api_base",
+        ["file:///tmp/provider", "https://user:secret@example.com/v1"],
+    )
+    def test_provider_api_base_rejects_unsafe_urls(
+        self, client: TestClient, api_base: str
+    ) -> None:
+        tokens = _login_owner(client)
+
+        response = client.post(
+            "/api/owner/providers",
+            json={
+                "provider_id": "unsafe_provider",
+                "api_base": api_base,
+                "api_mode": "chat_completions",
+                "auth_type": "bearer",
+                "models": [{"id": "model-a", "display_name": "Model A"}],
+            },
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert response.status_code == 422
 
     def test_cannot_delete_ollama(self, client: TestClient) -> None:
         """不能删除 ollama provider。"""
@@ -280,33 +721,6 @@ class TestProviderRoutes:
         assert resp.status_code == 400
         assert "ollama" in resp.text.lower()
 
-    def test_cannot_change_a_bound_ollama_endpoint_with_generic_provider_update(
-        self, client: TestClient, runtime_config_path: Path
-    ) -> None:
-        runtime_config_path.write_text(
-            """
-providers:
-  ollama:
-    api_base: http://127.0.0.1:11434
-    installation:
-      platform: linux
-      install_kind: binary
-      launch_target: /usr/local/bin/ollama
-      version: 0.12.0
-""".strip(),
-            encoding="utf-8",
-        )
-        tokens = _login_owner(client)
-
-        response = client.put(
-            "/api/owner/providers/ollama",
-            json={"api_base": "http://127.0.0.1:22444"},
-            headers=_headers(tokens["csrf_token"]),
-        )
-
-        assert response.status_code == 409
-        assert "迁移" in response.json()["detail"]
-
     def test_verify_provider_endpoint(self, client: TestClient) -> None:
         """POST /api/owner/providers/{id}/verify 验证连通性。"""
         tokens = _login_owner(client)
@@ -316,8 +730,8 @@ providers:
         )
         assert resp.status_code == 200
         result = resp.json()
-        assert "status" in result
-        assert result["status"] in ("active", "inactive", "unverified")
+        assert result["verification"]["status"] in ("passed", "failed")
+        assert result["verification"]["checked_at"]
 
     def test_verify_custom_provider_uses_saved_openai_compatible_config(
         self, client: TestClient
@@ -328,7 +742,7 @@ providers:
             json={
                 "provider_id": "custom_verify_provider",
                 "api_base": "https://invalid.local/v1",
-                "api_key": "",
+                "api_key": "test-key",
                 "api_mode": "chat_completions",
                 "test_model": "glm-5",
             },
@@ -336,15 +750,25 @@ providers:
         )
         assert create_resp.status_code == 201
 
-        resp = client.post(
-            "/api/owner/providers/custom_verify_provider/verify",
-            headers=_headers(tokens["csrf_token"]),
-        )
+        with patch(
+            "app.interfaces.api.provider_validation_routes.run_provider_check",
+            new=AsyncMock(
+                return_value={
+                    "status": "failed",
+                    "latency_ms": None,
+                    "error": "connection failed",
+                }
+            ),
+        ):
+            resp = client.post(
+                "/api/owner/providers/custom_verify_provider/verify",
+                headers=_headers(tokens["csrf_token"]),
+            )
 
         assert resp.status_code == 200
         result = resp.json()
-        assert result["status"] in ("inactive", "unverified")
-        assert "未知 provider" not in str(result.get("error", ""))
+        assert result["verification"]["status"] == "failed"
+        assert "未知 provider" not in str(result["verification"].get("error", ""))
 
     def test_non_owner_gets_403_on_provider_routes(
         self, client: TestClient, db_path: str

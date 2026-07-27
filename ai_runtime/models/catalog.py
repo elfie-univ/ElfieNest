@@ -17,6 +17,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from ai_runtime.providers.http import open_provider_request
 from ai_runtime.providers.profiles import get_profile
 
 
@@ -365,9 +366,7 @@ class ModelCatalog:
             只包含 active=True 的模型字典
         """
         return {
-            model_id: entry
-            for model_id, entry in self._catalog.items()
-            if entry.active
+            model_id: entry for model_id, entry in self._catalog.items() if entry.active
         }
 
     def get_models_by_capability(self, capability: str) -> List[ModelEntry]:
@@ -394,9 +393,7 @@ class ModelCatalog:
         Returns:
             属于指定服务商的模型列表
         """
-        return [
-            entry for entry in self._catalog.values() if entry.provider == provider
-        ]
+        return [entry for entry in self._catalog.values() if entry.provider == provider]
 
     def update_visibility(self, model_id: str, visible: bool) -> bool:
         """更新模型可见性。
@@ -471,7 +468,7 @@ def _verify_custom_openai_provider(
     start_time = time.time()
     try:
         request = urllib.request.Request(models_url, headers=headers, method="GET")
-        with urllib.request.urlopen(request, timeout=5) as response:
+        with open_provider_request(request, timeout=5) as response:
             if response.status == 200:
                 return {
                     "status": "active",
@@ -500,7 +497,7 @@ def _verify_custom_openai_provider(
             headers=headers,
             method="POST",
         )
-        with urllib.request.urlopen(request, timeout=5) as response:
+        with open_provider_request(request, timeout=5) as response:
             if response.status == 200:
                 return {
                     "status": "active",
@@ -605,7 +602,7 @@ def verify_provider(provider_id: str, config: Any) -> Dict[str, Any]:
         request = urllib.request.Request(url, headers=headers, method="GET")
         start_time = time.time()
 
-        with urllib.request.urlopen(request, timeout=5) as response:
+        with open_provider_request(request, timeout=5) as response:
             latency_ms = (time.time() - start_time) * 1000
             status_code = response.status
 

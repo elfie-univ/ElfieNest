@@ -1,5 +1,5 @@
-type AvatarProps = { readonly name: string }
+type AvatarProps = { readonly imageUrl?: string | null | undefined; readonly name: string }
 
-export function Avatar({ name }: AvatarProps) {
-  return <span className="avatar" aria-hidden="true">{name.slice(0, 1) || "精"}</span>
+export function Avatar({ imageUrl, name }: AvatarProps) {
+  return <span className="avatar" aria-hidden="true">{imageUrl ? <img alt="" src={imageUrl} /> : name.slice(0, 1) || "精"}</span>
 }

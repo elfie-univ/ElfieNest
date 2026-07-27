@@ -78,14 +78,20 @@ def test_food_update_is_previewed_and_requires_confirmation(client, paths):
     )
 
     assert status.json()["update_available"] is True
-    assert preview.json()["has_changes"] is True
-    assert preview.json()["generation_sources"] == ["rules"]
+    preview_data = preview.json()
+    assert preview_data["has_changes"] is True
+    assert preview_data["generation_sources"] == ["rules"]
+    assert preview_data["current"]["foods"] == {}
     assert rejected.status_code == 409
     assert not paths["catalog"].exists()
 
     applied = client.post(
         "/api/owner/runtime/foods/update-apply",
-        json={"confirm": True},
+        json={
+            "confirm": True,
+            "candidate": preview_data["candidate"],
+            "base_catalog_fingerprint": preview_data["base_catalog_fingerprint"],
+        },
         headers=headers,
     )
     assert applied.status_code == 200
@@ -104,7 +110,11 @@ def test_exact_preview_candidate_can_be_applied_but_stale_candidate_is_rejected(
 
     applied = client.post(
         "/api/owner/runtime/foods/update-apply",
-        json={"confirm": True, "candidate": preview["candidate"]},
+        json={
+            "confirm": True,
+            "candidate": preview["candidate"],
+            "base_catalog_fingerprint": preview["base_catalog_fingerprint"],
+        },
         headers=headers,
     )
     assert applied.status_code == 200, applied.text
@@ -113,10 +123,59 @@ def test_exact_preview_candidate_can_be_applied_but_stale_candidate_is_rejected(
     stale["source_fingerprint"] = "stale"
     rejected = client.post(
         "/api/owner/runtime/foods/update-apply",
-        json={"confirm": True, "candidate": stale},
+        json={
+            "confirm": True,
+            "candidate": stale,
+            "base_catalog_fingerprint": preview["base_catalog_fingerprint"],
+        },
         headers=headers,
     )
     assert rejected.status_code == 409
+
+
+def test_confirmed_apply_without_a_preview_candidate_is_rejected(client, paths):
+    headers = auth(client)
+
+    response = client.post(
+        "/api/owner/runtime/foods/update-apply",
+        json={"confirm": True},
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+    assert not paths["catalog"].exists()
+
+
+def test_manual_edit_invalidates_an_older_preview(client):
+    headers = auth(client)
+    preview = client.post(
+        "/api/owner/runtime/foods/update-preview",
+        json={"use_llm": False},
+        headers=headers,
+    ).json()
+    edited = client.put(
+        "/api/owner/runtime/foods/standard",
+        json={
+            "display_name": "标准粮",
+            "description": "后续人工调整",
+            "primary": {"model": "ollama/local"},
+        },
+        headers=headers,
+    )
+
+    applied = client.post(
+        "/api/owner/runtime/foods/update-apply",
+        json={
+            "confirm": True,
+            "candidate": preview["candidate"],
+            "base_catalog_fingerprint": preview["base_catalog_fingerprint"],
+        },
+        headers=headers,
+    )
+
+    assert edited.status_code == 200
+    assert applied.status_code == 409
+    assert "已过期" in applied.json()["detail"]
 
 
 def test_food_can_be_edited_without_separate_expert_mode(client):
@@ -137,7 +196,6 @@ def test_food_can_be_edited_without_separate_expert_mode(client):
 
 def test_food_api_rejects_a_bare_model_reference(client):
     headers = auth(client)
-
     response = client.put(
         "/api/owner/runtime/foods/standard",
         json={
@@ -150,3 +208,28 @@ def test_food_api_rejects_a_bare_model_reference(client):
 
     assert response.status_code == 422
     assert "provider_id/model_id" in response.json()["detail"]
+
+
+def test_food_edit_round_trips_every_execution_role(client):
+    headers = auth(client)
+    response = client.put(
+        "/api/owner/runtime/foods/standard",
+        json={
+            "display_name": "标准粮",
+            "description": "四角色人工配置",
+            "primary": {"model": "ollama/primary", "reasoning_profile": "balanced"},
+            "deep": {"model": "ollama/deep", "reasoning_profile": "deep"},
+            "verifier": {"model": "ollama/verifier", "reasoning_profile": "verify"},
+            "technical_fallbacks": [
+                {"model": "ollama/fallback", "reasoning_profile": "low"}
+            ],
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 200, response.text
+    food = response.json()["food"]
+    assert food["primary"]["model"] == "ollama/primary"
+    assert food["deep"]["model"] == "ollama/deep"
+    assert food["verifier"]["model"] == "ollama/verifier"
+    assert food["technical_fallbacks"][0]["model"] == "ollama/fallback"

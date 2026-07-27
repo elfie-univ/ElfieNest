@@ -40,7 +40,9 @@ def test_status_marks_default_ports_as_external_when_pid_belongs_elsewhere(
     external_root = tmp_path / "other-checkout"
     external_root.mkdir()
     monkeypatch.setattr(lifecycle_commands, "get_elfie_home", lambda: elfie_home)
-    monkeypatch.setattr(lifecycle_commands, "existing_service_command", lambda *args: None)
+    monkeypatch.setattr(
+        lifecycle_commands, "existing_service_command", lambda *args: None
+    )
     monkeypatch.setattr(
         lifecycle_commands,
         "DefaultProcessInspector",
@@ -68,8 +70,12 @@ def test_web_opens_healthy_default_service_without_starting_another_one(
     # Given: no current-project PID receipt is verified, but the default Web is healthy.
     opened: list[str] = []
     start_calls: list[str] = []
-    monkeypatch.setattr(lifecycle_commands, "existing_service_command", lambda *args: None)
-    monkeypatch.setattr(lifecycle_commands, "_web_is_healthy", lambda port=8000: port == 8000)
+    monkeypatch.setattr(
+        lifecycle_commands, "existing_service_command", lambda *args: None
+    )
+    monkeypatch.setattr(
+        lifecycle_commands, "_web_is_healthy", lambda port=8000: port == 8000
+    )
     monkeypatch.setattr(lifecycle_commands.webbrowser, "open", opened.append)
     monkeypatch.setattr(
         lifecycle_commands,
@@ -93,7 +99,9 @@ def test_web_reports_external_port_owner_when_default_health_fails(
     # Given: another process occupies the default Web port but is not healthy.
     opened: list[str] = []
     start_calls: list[str] = []
-    monkeypatch.setattr(lifecycle_commands, "existing_service_command", lambda *args: None)
+    monkeypatch.setattr(
+        lifecycle_commands, "existing_service_command", lambda *args: None
+    )
     monkeypatch.setattr(lifecycle_commands, "_web_is_healthy", lambda port=8000: False)
     monkeypatch.setattr(
         lifecycle_commands,

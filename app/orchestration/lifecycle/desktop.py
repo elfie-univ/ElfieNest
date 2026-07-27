@@ -59,7 +59,11 @@ def start_desktop_application(
     if existing_pid is not None:
         return ServiceLifecycleResult(status="already_running", pid=existing_pid)
     executable = find_desktop_executable(project_root)
-    launch_command = tuple(command) if command is not None else ((str(executable),) if executable else ())
+    launch_command = (
+        tuple(command)
+        if command is not None
+        else ((str(executable),) if executable else ())
+    )
     if not launch_command:
         return ServiceLifecycleResult(
             status="failed",

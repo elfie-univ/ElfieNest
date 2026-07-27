@@ -35,7 +35,7 @@ def configured_provider_ids(config: LLMRuntimeConfig) -> list[str]:
             if api_base:
                 configured.append(provider_id)
             continue
-        if provider.get("api_key") or provider.get("status") == "active":
+        if provider.get("api_key"):
             configured.append(provider_id)
             continue
         if provider_id not in BUILTIN_PROFILES and auth_type == "none" and api_base:

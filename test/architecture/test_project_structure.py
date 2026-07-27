@@ -190,7 +190,10 @@ def test_python_39_sources_do_not_use_dataclass_slots() -> None:
             for decorator in ast.walk(tree):
                 if not isinstance(decorator, ast.Call):
                     continue
-                if not isinstance(decorator.func, ast.Name) or decorator.func.id != "dataclass":
+                if (
+                    not isinstance(decorator.func, ast.Name)
+                    or decorator.func.id != "dataclass"
+                ):
                     continue
                 if any(keyword.arg == "slots" for keyword in decorator.keywords):
                     offenders.append(path.relative_to(PROJECT_ROOT).as_posix())

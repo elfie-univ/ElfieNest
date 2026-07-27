@@ -590,6 +590,7 @@ def main():
         uvicorn.run(
             app,
             host=service_host(args.lan),
+            limit_concurrency=100,
             port=args.port,
             log_level="warning",
         )

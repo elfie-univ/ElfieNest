@@ -1,4 +1,5 @@
 """tests for ai_runtime.models.catalog module"""
+
 import urllib.error
 from unittest.mock import MagicMock, patch
 
@@ -22,7 +23,16 @@ class TestBuiltinModelCatalog:
 
     def test_each_entry_has_required_fields(self):
         """每个 ModelEntry 都有必需字段"""
-        required_fields = ["model_id", "provider", "display_name", "capabilities", "context_window", "cost_tier", "visible", "active"]
+        required_fields = [
+            "model_id",
+            "provider",
+            "display_name",
+            "capabilities",
+            "context_window",
+            "cost_tier",
+            "visible",
+            "active",
+        ]
         for model_id, entry in BUILTIN_MODEL_CATALOG.items():
             for field in required_fields:
                 assert hasattr(entry, field), f"{model_id} 缺少字段 {field}"
@@ -38,7 +48,9 @@ class TestBuiltinModelCatalog:
     def test_ollama_models_are_active(self):
         """Ollama 模型默认为 active"""
         ollama_models = [
-            entry for entry in BUILTIN_MODEL_CATALOG.values() if entry.provider == "ollama"
+            entry
+            for entry in BUILTIN_MODEL_CATALOG.values()
+            if entry.provider == "ollama"
         ]
         assert len(ollama_models) > 0
         for entry in ollama_models:
@@ -47,7 +59,9 @@ class TestBuiltinModelCatalog:
     def test_non_ollama_models_are_inactive_by_default(self):
         """非 Ollama 模型默认为 inactive"""
         non_ollama_models = [
-            entry for entry in BUILTIN_MODEL_CATALOG.values() if entry.provider != "ollama"
+            entry
+            for entry in BUILTIN_MODEL_CATALOG.values()
+            if entry.provider != "ollama"
         ]
         assert len(non_ollama_models) > 0
         for entry in non_ollama_models:
@@ -128,7 +142,9 @@ class TestModelCatalog:
         result = catalog.update_visibility("nonexistent/model", False)
         assert result is False
 
-    def test_refresh_status_updates_active_based_on_api_key(self, monkeypatch, tmp_path):
+    def test_refresh_status_updates_active_based_on_api_key(
+        self, monkeypatch, tmp_path
+    ):
         """refresh_status 根据 API key 更新 active 状态"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
         config = LLMRuntimeConfig()
@@ -185,13 +201,16 @@ class TestVerifyProvider:
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
         config = LLMRuntimeConfig()
 
-        # Mock urllib.request.urlopen
+        # Mock the credential-safe Provider transport.
         mock_response = MagicMock()
         mock_response.status = 200
         mock_response.__enter__ = MagicMock(return_value=mock_response)
         mock_response.__exit__ = MagicMock(return_value=False)
 
-        with patch("urllib.request.urlopen", return_value=mock_response):
+        with patch(
+            "ai_runtime.models.catalog.open_provider_request",
+            return_value=mock_response,
+        ):
             result = verify_provider("ollama", config)
 
         assert result["status"] == "active"
@@ -215,7 +234,10 @@ class TestVerifyProvider:
             captured_request.append(req)
             return mock_response
 
-        with patch("urllib.request.urlopen", side_effect=capture_request):
+        with patch(
+            "ai_runtime.models.catalog.open_provider_request",
+            side_effect=capture_request,
+        ):
             result = verify_provider("openai", config)
 
         assert result["status"] == "active"
@@ -244,7 +266,10 @@ class TestVerifyProvider:
             captured_request.append(req)
             return mock_response
 
-        with patch("urllib.request.urlopen", side_effect=capture_request):
+        with patch(
+            "ai_runtime.models.catalog.open_provider_request",
+            side_effect=capture_request,
+        ):
             result = verify_provider("anthropic", config)
 
         assert result["status"] == "active"
@@ -259,7 +284,10 @@ class TestVerifyProvider:
         def raise_timeout(*args, **kwargs):
             raise TimeoutError("Connection timed out")
 
-        with patch("urllib.request.urlopen", side_effect=raise_timeout):
+        with patch(
+            "ai_runtime.models.catalog.open_provider_request",
+            side_effect=raise_timeout,
+        ):
             result = verify_provider("openai", config)
 
         assert result["status"] == "inactive"
@@ -273,7 +301,10 @@ class TestVerifyProvider:
         def raise_url_error(*args, **kwargs):
             raise urllib.error.URLError("Connection refused")
 
-        with patch("urllib.request.urlopen", side_effect=raise_url_error):
+        with patch(
+            "ai_runtime.models.catalog.open_provider_request",
+            side_effect=raise_url_error,
+        ):
             result = verify_provider("openai", config)
 
         assert result["status"] == "inactive"
@@ -285,9 +316,14 @@ class TestVerifyProvider:
         config = LLMRuntimeConfig()
 
         def raise_http_error(*args, **kwargs):
-            raise urllib.error.HTTPError("http://example.com", 401, "Unauthorized", {}, None)
+            raise urllib.error.HTTPError(
+                "http://example.com", 401, "Unauthorized", {}, None
+            )
 
-        with patch("urllib.request.urlopen", side_effect=raise_http_error):
+        with patch(
+            "ai_runtime.models.catalog.open_provider_request",
+            side_effect=raise_http_error,
+        ):
             result = verify_provider("openai", config)
 
         assert result["status"] == "inactive"
@@ -332,7 +368,13 @@ class TestModelRegistry:
         registry = ModelRegistry(config)
         catalog = registry.get_catalog()
 
-        expected_keys = ["local_fast", "local_vision", "remote_cheap", "remote_deep", "remote_multimodal"]
+        expected_keys = [
+            "local_fast",
+            "local_vision",
+            "remote_cheap",
+            "remote_deep",
+            "remote_multimodal",
+        ]
         for key in expected_keys:
             assert key in catalog, f"缺少槽位: {key}"
 
@@ -343,7 +385,14 @@ class TestModelRegistry:
         registry = ModelRegistry(config)
         catalog = registry.get_catalog()
 
-        required_fields = ["name", "provider", "is_vision", "is_audio", "cost_tier", "active"]
+        required_fields = [
+            "name",
+            "provider",
+            "is_vision",
+            "is_audio",
+            "cost_tier",
+            "active",
+        ]
         for slot_key, entry in catalog.items():
             for field in required_fields:
                 assert field in entry, f"{slot_key} 缺少字段 {field}"

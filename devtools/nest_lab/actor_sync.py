@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from pydantic import JsonValue
+
 from devtools.nest_lab.event_log import LabEventLog
 from devtools.nest_lab.models import LabActor
 from nest import Nest
 from nest.godot.api import GodotAPIServer
-from nest.godot.messages import CommandName
+from nest.godot.messages import CommandName, JsonObject
 
 
 def sync_actors(
@@ -20,19 +22,18 @@ def sync_actors(
     world_revision: int,
 ) -> bool:
     """Send one complete actor catalog; return false while homes are unresolved."""
-    descriptors = []
+    descriptors: list[JsonValue] = []
     for actor in actors:
         home_anchor_id = nest.home_anchor_id(actor.actor_id)
         if home_anchor_id is None:
             return False
-        descriptors.append(
-            {
-                "actor_id": actor.actor_id,
-                "species": actor.species,
-                "home_anchor_id": home_anchor_id,
-                "appearance": {},
-            }
-        )
+        descriptor: JsonObject = {
+            "actor_id": actor.actor_id,
+            "species": actor.species,
+            "home_anchor_id": home_anchor_id,
+            "appearance": {},
+        }
+        descriptors.append(descriptor)
     message_id = gateway.send_runtime_command(
         CommandName.SYNC_ACTORS,
         {"actors": descriptors},

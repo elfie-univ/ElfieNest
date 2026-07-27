@@ -85,7 +85,9 @@ def test_elfienest_entrypoint_dispatches_cli_to_elfienest_script(
     shutil.copy2(PROJECT_ROOT / ".python-version", project_root / ".python-version")
     scripts_dir = project_root / "scripts"
     scripts_dir.mkdir()
-    shutil.copy2(PROJECT_ROOT / "scripts" / "bootstrap.sh", scripts_dir / "bootstrap.sh")
+    shutil.copy2(
+        PROJECT_ROOT / "scripts" / "bootstrap.sh", scripts_dir / "bootstrap.sh"
+    )
     shutil.copy2(
         PROJECT_ROOT / "scripts" / "bootstrap_report.sh",
         scripts_dir / "bootstrap_report.sh",
@@ -150,7 +152,9 @@ def test_entrypoint_explains_missing_dependencies_without_misreporting_python(
     shutil.copy2(PROJECT_ROOT / ".python-version", project_root / ".python-version")
     scripts_dir = project_root / "scripts"
     scripts_dir.mkdir()
-    shutil.copy2(PROJECT_ROOT / "scripts" / "bootstrap.sh", scripts_dir / "bootstrap.sh")
+    shutil.copy2(
+        PROJECT_ROOT / "scripts" / "bootstrap.sh", scripts_dir / "bootstrap.sh"
+    )
     shutil.copy2(
         PROJECT_ROOT / "scripts" / "bootstrap_report.sh",
         scripts_dir / "bootstrap_report.sh",

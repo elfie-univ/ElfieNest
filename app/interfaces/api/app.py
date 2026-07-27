@@ -52,6 +52,9 @@ from nest.godot.bundle import GODOT_WEB_DIR, inspect_godot_web_bundle
 
 from .page_routes import post_login_landing_path
 from .page_routes import router as page_router
+from .profile_routes import avatar_url
+from .profile_routes import router as profile_router
+from .request_limits import AvatarUploadBodyLimitMiddleware
 from .service_access import ServiceAccessPolicy, configure_service_access
 from .v1.realtime import SameOriginChatHub
 from .ws_gateway import AuthenticatedWSManager
@@ -199,6 +202,8 @@ def create_app(
     from .camera_routes import CameraFeedStore  # noqa: PLC0415
 
     app.state.camera_feed = CameraFeedStore()
+
+    app.add_middleware(AvatarUploadBodyLimitMiddleware)
 
     service_access = ServiceAccessPolicy.create(service_mode, http_port)
     configure_service_access(app, service_access)
@@ -387,7 +392,7 @@ def create_app(
         db_path = request.app.state.db_path
         with get_db(db_path) as conn:
             cursor = conn.execute(
-                "SELECT id, username, role, nickname, avatar_color, avatar_kind, "
+                "SELECT id, username, role, nickname, avatar_color, avatar_kind, avatar_path, "
                 "default_landing_page, theme_key, created_at FROM users WHERE id = ?",
                 (user["id"],),
             )
@@ -409,6 +414,7 @@ def create_app(
             "nickname": row["nickname"],
             "avatar_color": row["avatar_color"],
             "avatar_kind": row["avatar_kind"],
+            "avatar_url": avatar_url(row["avatar_path"]),
             "default_landing_page": row["default_landing_page"],
             "theme_key": row["theme_key"],
             "created_at": row["created_at"],
@@ -429,7 +435,7 @@ def create_app(
         db_path = request.app.state.db_path
         with get_db(db_path) as conn:
             cursor = conn.execute(
-                "SELECT username, nickname, avatar_color, avatar_kind "
+                "SELECT username, nickname, avatar_color, avatar_kind, avatar_path "
                 "FROM users WHERE id = ?",
                 (user["id"],),
             )
@@ -440,6 +446,7 @@ def create_app(
             "nickname": row["nickname"],
             "avatar_color": row["avatar_color"],
             "avatar_kind": row["avatar_kind"],
+            "avatar_url": avatar_url(row["avatar_path"]),
         }
 
     @app.put("/api/auth/me/profile")
@@ -479,7 +486,7 @@ def create_app(
             conn.commit()
 
             cursor = conn.execute(
-                "SELECT username, nickname, avatar_color, avatar_kind "
+                "SELECT username, nickname, avatar_color, avatar_kind, avatar_path "
                 "FROM users WHERE id = ?",
                 (user["id"],),
             )
@@ -490,6 +497,7 @@ def create_app(
             "nickname": row["nickname"],
             "avatar_color": row["avatar_color"],
             "avatar_kind": row["avatar_kind"],
+            "avatar_url": avatar_url(row["avatar_path"]),
         }
 
     @app.post("/api/auth/me/password")
@@ -551,6 +559,7 @@ def create_app(
 
     app.include_router(setup_router)
     app.include_router(page_router)
+    app.include_router(profile_router)
     from .v1.client_routes import router as v1_client_router  # noqa: PLC0415
     from .v1.device_routes import router as v1_device_router  # noqa: PLC0415
 
@@ -571,8 +580,10 @@ def create_app(
     from .nest_routes import user_router as user_nest_router  # noqa: PLC0415
     from .owner_elfie_routes import router as owner_elfie_router  # noqa: PLC0415
     from .owner_routes import router as owner_router  # noqa: PLC0415
+    from .owner_user_routes import router as owner_user_router  # noqa: PLC0415
 
     app.include_router(owner_router)
+    app.include_router(owner_user_router)
     app.include_router(owner_elfie_router)
     app.include_router(nest_router)
     app.include_router(user_nest_router)
