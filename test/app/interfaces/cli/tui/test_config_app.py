@@ -70,35 +70,35 @@ def test_config_tui_dispatches_three_runtime_layers(
     assert calls == ["provider", "tools", "food"]
 
 
-def test_config_reuses_owner_and_doctor_entries(
+def test_config_tui_dispatches_view_and_reset(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[str] = []
 
     class FakeRuntimeLab:
         def provider_menu(self):
-            return None
+            calls.append("provider")
 
         def agent_menu(self):
-            return None
+            calls.append("tools")
 
         def food_menu(self):
-            return None
+            calls.append("food")
 
     monkeypatch.setattr(config_app, "RuntimeLab", FakeRuntimeLab)
-    monkeypatch.setattr(config_app, "run_owner_menu", lambda: calls.append("owner"))
-    monkeypatch.setattr(config_app, "run_doctor", lambda: calls.append("doctor"))
     monkeypatch.setattr(config_app, "clear_screen", lambda: None)
     monkeypatch.setattr(config_app, "print_banner", lambda: None)
     monkeypatch.setattr(config_app, "read_user_config", lambda: {})
-    _patch_input(monkeypatch, ["6", "7", "0"])
+    monkeypatch.setattr(config_app, "show_config", lambda _: calls.append("view"))
+    monkeypatch.setattr(config_app, "reset_config", lambda: calls.append("reset"))
+    _patch_input(monkeypatch, ["1", "2", "3", "4", "5", "0"])
 
     config_app.run_config_tui(lambda provider_id: None)
 
-    assert calls == ["owner", "doctor"]
+    assert calls == ["provider", "tools", "food", "view", "reset"]
 
 
-def test_config_menu_does_not_expose_security_policy_editor(
+def test_config_menu_only_shows_runtime_and_basic_config(
     monkeypatch: pytest.MonkeyPatch,
     capsys: CaptureFixture[str],
 ) -> None:
@@ -121,8 +121,13 @@ def test_config_menu_does_not_expose_security_policy_editor(
     config_app.run_config_tui(lambda provider_id: None)
 
     output = capsys.readouterr().out
-    assert "应用 / 会话与安全策略" not in output
-    assert "诊断并自动修复（Doctor）" in output
+    assert "Provider 与模型配置" in output
+    assert "Agent 基础能力验证" in output
+    assert "粮食策略配置" in output
+    assert "查看当前配置" in output
+    assert "重置 Runtime 配置" in output
+    assert "Owner 账户" not in output
+    assert "诊断并自动修复" not in output
 
 
 def test_config_llm_redirects_model_management_to_runtime_lab(

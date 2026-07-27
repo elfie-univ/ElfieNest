@@ -27,5 +27,5 @@ class CodeSandboxPlugin:
         """拒绝执行未隔离代码，避免把宿主进程伪装成沙箱。"""
         _ = code
         raise CodeSandboxUnavailableError(
-            "代码执行已禁用：当前未接入真实隔离 sandbox，不能执行宿主 Python 子进程"
+            "Code execution disabled: no real isolated sandbox connected, cannot execute host Python subprocesses"
         )

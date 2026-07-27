@@ -27,7 +27,7 @@ def print_banner() -> None:
         f"{cyan}██╔══╝  ██║     ██╔══╝  ██║██╔══╝       {yellow}██║╚██╗██║██╔══╝  ╚════██║   ██║   {reset}\n"
         f"{cyan}███████╗███████╗██║     ██║███████╗     {yellow}██║ ╚████║███████╗███████║   ██║   {reset}\n"
         f"{cyan}╚══════╝╚══════╝╚═╝     ╚═╝╚══════╝     {yellow}╚═╝  ╚═══╝╚══════╝╚══════╝   ╚═╝   {reset}\n"
-        "\n            🦊 仿生生命体系统 - Embodied AI Creature Simulation\n"
+        "\n            🦊 Embodied AI Creature Simulation\n"
     )
     print(banner)
 

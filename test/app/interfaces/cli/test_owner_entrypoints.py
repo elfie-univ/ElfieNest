@@ -150,7 +150,7 @@ def test_config_parser_errors_keep_current_choices() -> None:
     assert result.returncode == 2
     assert "invalid-config-path" in result.stderr
     assert "provider" in result.stderr
-    assert "doctor" in result.stderr
+    assert "food" in result.stderr
 
 
 def test_service_entrypoint_rejects_owner_recovery_bypass(tmp_path: Path) -> None:

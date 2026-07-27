@@ -1,4 +1,4 @@
-"""Runtime 本地交互实验室。"""
+"""Runtime local interactive lab."""
 
 from ai_runtime.lab.cli import RuntimeLab, main
 

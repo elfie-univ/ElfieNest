@@ -202,7 +202,7 @@ exit 1
     assert "解释器版本错误" not in result.stderr
 
 
-def test_existing_cli_help_keeps_setup_and_database_commands() -> None:
+def test_existing_cli_help_keeps_setup_and_migration_commands() -> None:
     # Given
     python_cli = PROJECT_ROOT / "scripts" / "elfienest.py"
 
@@ -218,4 +218,5 @@ def test_existing_cli_help_keeps_setup_and_database_commands() -> None:
     # Then
     assert result.returncode == 0
     assert "setup" in result.stdout
-    assert "db" in result.stdout
+    assert "mobile" in result.stdout
+    assert "uninstall" in result.stdout

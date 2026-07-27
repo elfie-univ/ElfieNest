@@ -65,8 +65,8 @@ def service_port_statuses(
     godot_ws_port: int = 8765,
 ) -> List[PortStatus]:
     return [
-        check_port(http_port, "HTTP 服务"),
-        check_port(websocket_port, "WebSocket (管理)"),
+        check_port(http_port, "HTTP"),
+        check_port(websocket_port, "WebSocket (admin)"),
         check_port(godot_ws_port, "WebSocket (Godot)"),
     ]
 

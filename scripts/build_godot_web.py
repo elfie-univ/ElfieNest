@@ -48,7 +48,7 @@ def main() -> int:
     if args.check:
         return _print_bundle_check(output)
     if args.ensure and runtime_is_current(output):
-        print(f"✅ Godot Web Runtime 已是最新: {output / ENTRY_NAME}")
+        print(f"✅ Godot Web Runtime is up-to-date: {output / ENTRY_NAME}")
         return 0
 
     return _export_runtime(output, args.godot, args.allow_version_mismatch)
@@ -237,7 +237,7 @@ class _build_lock:
             except FileExistsError:
                 if time.monotonic() >= deadline:
                     raise RuntimeError(
-                        f"Godot Web Runtime 构建锁超时: {self._path}"
+                        f"Godot Web Runtime build lock timeout: {self._path}"
                     ) from None
                 time.sleep(0.2)
         return self
@@ -296,7 +296,7 @@ def _godot_version(binary: Path) -> Optional[str]:
 
 
 def _print_template_hint(version: str) -> None:
-    print(f"   在 Godot {version} 中打开：Editor > Manage Export Templates。")
+    print(f"   Open in Godot {version}: Editor > Manage Export Templates.")
     print("   安装官方 Export Templates 后重新运行构建命令。")
 
 

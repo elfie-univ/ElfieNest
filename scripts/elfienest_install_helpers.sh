@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh 使用的用户级入口与文件安全函数。
+# User-level entry point and file safety functions for install.sh.
 
 path_contains_dir() {
     local dir="$1"
@@ -91,7 +91,7 @@ choose_user_install_dir() {
     done
 
     if ! ensure_safe_user_install_dir "$HOME/.local/bin"; then
-        echo "❌ 无法创建安全的用户命令目录: $HOME/.local/bin" >&2
+        echo "❌ Cannot create safe user command directory: $HOME/.local/bin" >&2
         return 1
     fi
     printf '%s\n' "$HOME/.local/bin"
@@ -105,11 +105,11 @@ configure_user_path() {
     local shell_name
 
     if path_contains_dir "$install_dir"; then
-        echo "✅ $install_dir 已在当前 PATH 中，本终端可直接使用 elfienest"
+        echo "✅ $install_dir is already in current PATH, this terminal can use elfienest directly"
         return
     fi
     if [ "$install_dir" != "$HOME/.local/bin" ]; then
-        echo "❌ 不能自动配置非标准用户命令目录: $install_dir" >&2
+        echo "❌ Cannot auto-configure non-standard user command directory: $install_dir" >&2
         return 1
     fi
 
@@ -121,15 +121,15 @@ configure_user_path() {
     fi
 
     if ! touch "$profile_file" 2>/dev/null; then
-        echo "❌ 无法创建或更新 PATH 配置文件: $profile_file" >&2
+        echo "❌ Cannot create or update PATH config file: $profile_file" >&2
         return 1
     fi
     if grep -Fqx "$path_line" "$profile_file" 2>/dev/null; then
-        echo "✅ $profile_file 已包含 PATH 配置"
+        echo "✅ $profile_file already contains PATH configuration"
     else
         grep_status=$?
         if [ "$grep_status" -ne 1 ]; then
-            echo "❌ 无法读取 PATH 配置文件: $profile_file" >&2
+            echo "❌ Cannot read PATH config file: $profile_file" >&2
             return 1
         fi
         if ! {
@@ -137,13 +137,13 @@ configure_user_path() {
             builtin printf '%s\n' "# ElfieNest CLI"
             builtin printf '%s\n' "$path_line"
         } >> "$profile_file"; then
-            echo "❌ 无法写入 PATH 配置文件: $profile_file" >&2
+            echo "❌ Cannot write to PATH config file: $profile_file" >&2
             return 1
         fi
-        echo "✅ 已写入 PATH 配置: $profile_file"
+        echo "✅ PATH configuration written to: $profile_file"
     fi
-    echo "✅ 新打开的终端可直接使用 elfienest"
-    echo "ℹ️  当前终端可直接运行: $install_dir/elfienest"
+    echo "✅ New terminals can use elfienest directly"
+    echo "ℹ️  Current terminal can run directly: $install_dir/elfienest"
 }
 
 write_managed_wrapper() {
@@ -216,29 +216,29 @@ write_managed_uninstaller() {
         printf '%s\n' '    fi'
         printf '%s\n' '}'
         printf '%s\n' 'if [ -L "$UNINSTALLER_PATH" ]; then'
-        printf '%s\n' '    echo "❌ 卸载入口是符号链接，拒绝操作: $UNINSTALLER_PATH" >&2'
+        printf '%s\n' '    echo "❌ Uninstall entry is a symlink, refusing to operate: $UNINSTALLER_PATH" >&2'
         printf '%s\n' '    exit 1'
         printf '%s\n' 'fi'
         printf '%s\n' 'if [ -e "$WRAPPER_PATH" ] || [ -L "$WRAPPER_PATH" ]; then'
         printf '%s\n' '    if ! wrapper_is_managed; then'
-        printf '%s\n' '        echo "❌ elfienest 命令已被修改，拒绝删除: $WRAPPER_PATH" >&2'
+        printf '%s\n' '        echo "❌ elfienest command has been modified, refusing to delete: $WRAPPER_PATH" >&2'
         printf '%s\n' '        exit 1'
         printf '%s\n' '    fi'
         printf '%s\n' '    rm -f -- "$WRAPPER_PATH"'
         printf '%s\n' 'fi'
         printf '%s\n' 'if [ -e "$APPLICATION_ROOT" ] || [ -L "$APPLICATION_ROOT" ]; then'
         printf '%s\n' '    if ! application_is_managed; then'
-        printf '%s\n' '        echo "❌ 应用目录已被修改，拒绝删除: $APPLICATION_ROOT" >&2'
+        printf '%s\n' '        echo "❌ Application directory has been modified, refusing to delete: $APPLICATION_ROOT" >&2'
         printf '%s\n' '        exit 1'
         printf '%s\n' '    fi'
         printf '%s\n' '    remove_linux_xdg_integration || {'
-        printf '%s\n' '        echo "❌ XDG 应用集成已被修改，拒绝删除: $DESKTOP_FILE" >&2'
+        printf '%s\n' '        echo "❌ XDG application integration has been modified, refusing to delete: $DESKTOP_FILE" >&2'
         printf '%s\n' '        exit 1'
         printf '%s\n' '    }'
         printf '%s\n' '    rm -rf -- "$APPLICATION_ROOT"'
         printf '%s\n' 'fi'
         printf '%s\n' 'rm -f -- "$UNINSTALLER_PATH"'
-        printf '%s\n' 'echo "✅ ElfieNest 已卸载"'
+        printf '%s\n' 'echo "✅ ElfieNest uninstalled"'
     } > "$output_path"
     chmod 0755 "$output_path"
 }
@@ -276,7 +276,7 @@ previous_uninstaller_matches() {
     [ -f "$uninstaller_path" ] || return 1
     [ ! -L "$uninstaller_path" ] || return 1
     cmp -s "$uninstaller_path" <(
-        printf '#!/bin/bash\nrm -f "%s"\nrm -f "%s"\necho "✅ ElfieNest 已卸载"\n' \
+        printf '#!/bin/bash\nrm -f "%s"\nrm -f "%s"\necho "✅ ElfieNest uninstalled"\n' \
             "$wrapper_path" \
             "$uninstaller_path"
     )
@@ -300,7 +300,7 @@ legacy_uninstaller_matches() {
     [ -f "$uninstaller_path" ] || return 1
     [ ! -L "$uninstaller_path" ] || return 1
     cmp -s "$uninstaller_path" <(
-        printf '#!/bin/bash\nrm -f "%s"\nrm -f "%s"\necho "✅ ElfieNest 已卸载"\n' \
+        printf '#!/bin/bash\nrm -f "%s"\nrm -f "%s"\necho "✅ ElfieNest uninstalled"\n' \
             "$wrapper_path" \
             "$uninstaller_path"
     )
@@ -317,15 +317,15 @@ remove_legacy_installation_if_same_project() {
 
     if legacy_wrapper_matches "$old_path" "$project_root"; then
         if [ ! -w "$old_dir" ] || ! rm -f -- "$old_path"; then
-            echo "⚠️ 无法自动清理旧入口，请确认后手工删除: $old_path" >&2
+            echo "⚠️ Cannot auto-clean old entry, please delete manually after verification: $old_path" >&2
             return 0
         fi
-        echo "🧹 已清理旧入口: $old_path"
+        echo "🧹 Cleaned old entry: $old_path"
         if legacy_uninstaller_matches "$old_uninstaller" "$old_path"; then
             if rm -f -- "$old_uninstaller"; then
-                echo "🧹 已清理旧卸载入口: $old_uninstaller"
+                echo "🧹 Cleaned old uninstall entry: $old_uninstaller"
             else
-                echo "⚠️ 无法自动清理旧卸载入口，请手工删除: $old_uninstaller" >&2
+                echo "⚠️ Cannot auto-clean old uninstall entry, please delete manually: $old_uninstaller" >&2
             fi
         fi
         return 0
@@ -335,10 +335,10 @@ remove_legacy_installation_if_same_project() {
         && [ ! -L "$old_path" ] \
         && legacy_uninstaller_matches "$old_uninstaller" "$old_path"; then
         if [ ! -w "$old_dir" ] || ! rm -f -- "$old_uninstaller"; then
-            echo "⚠️ 无法自动清理旧卸载入口，请手工删除: $old_uninstaller" >&2
+            echo "⚠️ Cannot auto-clean old uninstall entry, please delete manually: $old_uninstaller" >&2
             return 0
         fi
-        echo "🧹 已清理旧卸载入口: $old_uninstaller"
+        echo "🧹 Cleaned old uninstall entry: $old_uninstaller"
     fi
 }
 
@@ -374,8 +374,8 @@ warn_legacy_system_install_if_same_project() {
     local old_uninstaller="${old_path%/*}/uninstall-elfie"
 
     legacy_installation_matches "$old_path" "$project_root" || return 0
-    echo "⚠️ 检测到旧版系统入口: $old_path" >&2
-    echo "   ElfieNest 不会自动修改 /usr/local/bin，请确认新命令可用后手工清理。" >&2
+    echo "⚠️ Detected old system entry: $old_path" >&2
+    echo "   ElfieNest will not auto-modify /usr/local/bin. Please clean manually after verifying new command works." >&2
     if legacy_uninstaller_matches "$old_uninstaller" "$old_path"; then
         printf '   sudo rm -f -- %q %q\n' "$old_path" "$old_uninstaller" >&2
     else
@@ -414,8 +414,8 @@ reject_shadowing_command() {
 
     resolved="$(command -v "$command_name" 2>/dev/null || true)"
     if [ -n "$resolved" ] && [ "$resolved" != "$intended_path" ]; then
-        echo "❌ PATH 中更早位置已有其他 $command_name 命令: $resolved" >&2
-        echo "   请先移除冲突命令，ElfieNest 未修改任何入口。" >&2
+        echo "❌ Another $command_name command exists earlier in PATH: $resolved" >&2
+        echo "   Please remove conflicting command first. ElfieNest did not modify any entries." >&2
         return 1
     fi
 }

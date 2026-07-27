@@ -1,28 +1,28 @@
 #!/usr/bin/env python3
-"""ElfieNest 后端服务 — FastAPI + 引擎后台线程共存 + DB 驱动动态精灵加载。
+"""ElfieNest backend service — FastAPI + engine background thread + DB-driven dynamic Elfie loading.
 
-启动流程:
-    1. 初始化 DB + seed Owner 账号
-    2. 可选项: 为 Owner seed 初始精灵"艾菲" (--seed-elfie，默认开启)
-    3. 引擎后台线程: RuntimeAgent → ElfieNestEngine (不硬编码精灵)
-    4. 从 DB 查询 elfie_registry → 实例化 Elfie → 注册到引擎
-    5. 创建 FastAPI app → uvicorn 阻塞主线程
+Startup flow:
+    1. Initialize DB + seed Owner account
+    2. Optional: seed initial Elfie "Aifei" for Owner (--seed-elfie, default on)
+    3. Engine background thread: RuntimeAgent → ElfieNestEngine (no hardcoded Elfies)
+    4. Query elfie_registry from DB → instantiate Elfie → register to engine
+    5. Create FastAPI app → uvicorn blocks main thread
 
-命令行参数:
-    --fallback      使用内置对话引擎（不连 Ollama）
-    --port          HTTP 端口（默认 8000）
-    --ws-port       鉴权 WebSocket 端口（默认 8766）
-    --no-seed-elfie 不自动 seed 初始精灵
-    --force         强制重启（杀死占用端口的进程）
+Command-line arguments:
+    --fallback      Use built-in dialogue engine (no Ollama connection)
+    --port          HTTP port (default 8000)
+    --ws-port       Auth WebSocket port (default 8766)
+    --no-seed-elfie Do not auto-seed initial Elfie
+    --force         Force restart (kill processes occupying ports)
 
-CLI 工具:
-    .venv/bin/python scripts/elfienest.py config    打开配置 TUI
-    .venv/bin/python scripts/elfienest.py owner     管理 Owner 账户
-    .venv/bin/python scripts/elfienest.py doctor    运行本地诊断
-    .venv/bin/python scripts/elfienest.py status    查看服务状态
-    .venv/bin/python scripts/elfienest.py setup     首次设置向导
-    .venv/bin/python scripts/elfienest.py restart   重启服务
-    .venv/bin/python scripts/elfienest.py stop      停止服务
+CLI tools:
+    .venv/bin/python scripts/elfienest.py config    Open config TUI
+    .venv/bin/python scripts/elfienest.py owner     Manage Owner account
+    .venv/bin/python scripts/elfienest.py doctor    Run local diagnostics
+    .venv/bin/python scripts/elfienest.py status    View service status
+    .venv/bin/python scripts/elfienest.py setup     First-time setup wizard
+    .venv/bin/python scripts/elfienest.py restart   Restart service
+    .venv/bin/python scripts/elfienest.py stop      Stop service
 """
 
 import argparse
@@ -75,7 +75,7 @@ from nest.godot.bundle import inspect_godot_web_bundle
 
 
 class FallbackAgent:
-    """Ollama 不可用时的轻量模拟对话引擎。"""
+    """Lightweight mock dialogue engine when Ollama is unavailable."""
 
     class MockConfig:
         remote_api_key = ""
@@ -233,50 +233,50 @@ def seed_single_elfie(db_path: str) -> bool:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="ElfieNest 后端服务")
+    parser = argparse.ArgumentParser(description="ElfieNest backend service")
     parser.add_argument(
         "--fallback",
         action="store_true",
-        help="使用内置对话引擎（不连 Ollama）",
+        help="Use built-in dialogue engine (no Ollama connection)",
     )
     parser.add_argument(
         "--port",
         type=int,
         default=8000,
-        help="HTTP 端口（默认 8000）",
+        help="HTTP port (default 8000)",
     )
     parser.add_argument(
         "--ws-port",
         type=int,
         default=DEFAULT_MANAGEMENT_WS_PORT,
-        help="鉴权 WebSocket 端口（默认 8766）",
+        help="Auth WebSocket port (default 8766)",
     )
     parser.add_argument(
         "--godot-ws-port",
         type=int,
         default=DEFAULT_GODOT_WS_PORT,
-        help="Godot WebSocket 端口（默认 8765）",
+        help="Godot WebSocket port (default 8765)",
     )
     parser.add_argument(
         "--no-seed-elfie",
         action="store_true",
-        help="不自动 seed 初始精灵",
+        help="Do not auto-seed initial Elfie",
     )
     parser.add_argument(
         "--force",
         action="store_true",
-        help="强制重启：杀死占用端口的进程",
+        help="Force restart: kill processes occupying ports",
     )
     parser.add_argument(
         "--lan",
         action="store_true",
-        help="显式监听家庭局域网 IPv4 地址（默认仅本机）",
+        help="Listen on LAN IPv4 address explicitly (default: localhost only)",
     )
     parser.add_argument(
         "--runtime-mode",
         choices=("development", "release"),
         default=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
-        help="Godot Web Runtime 生命周期模式（默认 development）",
+        help="Godot Web Runtime lifecycle mode (default: development)",
     )
     args = parser.parse_args()
 
@@ -294,16 +294,16 @@ def main():
             get_elfie_home(), blocking=managed_start
         )
     except (OSError, RecoveryInProgressError):
-        print("  ❌ Owner 账号恢复或另一次服务启动正在进行，服务暂不允许启动")
+        print("  ❌ Owner account recovery or another service start in progress, cannot start")
         raise SystemExit(1) from None
 
     godot_ready = prepare_godot_web_runtime(args.runtime_mode)
     if not godot_ready and args.runtime_mode == "release":
-        print("  ❌ 发布模式只接受已验证的 Godot Web Runtime，服务未启动")
+        print("  ❌ Release mode requires verified Godot Web Runtime, service not started")
         raise SystemExit(1)
     if not godot_ready:
         print(
-            "  ⚠️  Godot Web Runtime 自动构建失败，服务仍可用于聊天；请按诊断修复 3D 预览"
+            "  ⚠️  Godot Web Runtime auto-build failed, service still available for chat; please fix 3D preview via diagnostics"
         )
 
     godot_web = inspect_godot_web_bundle()
@@ -368,40 +368,40 @@ def main():
     if occupied:
         if args.force:
             print("\n" + "=" * 56)
-            print("  🔄 强制重启模式：正在终止占用端口的进程...")
+            print("  🔄 Force restart mode: terminating processes on occupied ports...")
             print("=" * 56)
             for port, name in occupied:
                 pids = kill_process_on_port(port)
                 if pids:
-                    print(f"  ✓ 端口 {port} ({name}): 已终止进程 PID {', '.join(pids)}")
+                    print(f"  ✓ Port {port} ({name}): terminated process PID {', '.join(pids)}")
                 else:
-                    print(f"  ⚠ 端口 {port} ({name}): 无法终止")
+                    print(f"  ⚠ Port {port} ({name}): unable to terminate")
             print()
             time.sleep(1)
             remaining = remaining_occupied_ports(occupied, is_port_in_use)
             if remaining:
                 print("=" * 56)
-                print("  ❌ 强制重启失败，以下端口仍被占用")
+                print("  ❌ Force restart failed, ports still occupied")
                 print("=" * 56)
                 for port, name in remaining:
-                    print(f"  ❌ 端口 {port} ({name}) 仍被占用")
-                print("  请手动关闭这些进程后重试。")
+                    print(f"  ❌ Port {port} ({name}) still occupied")
+                print("  Please manually close these processes and retry.")
                 print("=" * 56 + "\n")
                 start_lease.release()
                 sys.exit(1)
         else:
             print("\n" + "=" * 56)
-            print("  ⚠️  端口冲突，无法启动服务")
+            print("  ⚠️  Port conflict, cannot start service")
             print("=" * 56)
             for port, name in occupied:
-                print(f"  ❌ 端口 {port} ({name}) 已被占用")
-            print("\n  💡 解决方法:")
-            print("     1. 强制重启（自动杀死占用进程）:")
+                print(f"  ❌ Port {port} ({name}) already in use")
+            print("\n  💡 Solutions:")
+            print("     1. Force restart (auto-kill occupying processes):")
             print("        ./elfienest.sh --force")
-            print("        或")
+            print("        or")
             print("        elfienest --force")
-            print("     2. 手动关闭后重试")
-            print("     3. 使用其他端口:")
+            print("     2. Manually close and retry")
+            print("     3. Use different ports:")
             print("        ./elfienest.sh --port 8001 --ws-port 8866")
             print("=" * 56 + "\n")
             start_lease.release()
@@ -411,7 +411,7 @@ def main():
         register_current_service(get_elfie_home())
     except OSError as error:
         start_lease.release()
-        print(f"  ❌ 无法登记服务进程: {error}")
+        print(f"  ❌ Cannot register service process: {error}")
         raise SystemExit(1) from None
     start_lease.release()
     db_path = str(get_db_path())
@@ -443,7 +443,7 @@ def main():
         runtime_agent = None
         if args.fallback:
             runtime_agent = FallbackAgent()
-            print("  ⚡ 使用内置对话引擎（--fallback 模式）")
+            print("  ⚡ Using built-in dialogue engine (--fallback mode)")
         else:
             try:
                 from ai_runtime import RuntimeAgent  # noqa: PLC0415
@@ -453,8 +453,8 @@ def main():
                 raw_agent.ollama_manager.ensure_service_started()
 
                 runtime_agent = raw_agent
-                print("  ✅ Runtime 已连接，将按粮食策略选择本地或云端模型")
-                print("  ⏳ 正在预热模型（首次加载需 10-15 秒）...")
+                print("  ✅ Runtime connected, will select local or cloud models via food policy")
+                print("  ⏳ Warming up model (first load takes 10-15 seconds)...")
 
                 def _warmup():
                     try:
@@ -464,9 +464,9 @@ def main():
                             task_complexity=1,
                             allowed_skills=[],
                         )
-                        print("  ✅ 模型预热完成，可以开始聊天了！")
+                        print("  ✅ Model warm-up complete, ready to chat!")
                     except Exception as e:
-                        print(f"  ⚠️  模型预热异常: {e}")
+                        print(f"  ⚠️  Model warm-up error: {e}")
 
                 threading.Thread(target=_warmup, daemon=True).start()
             except Exception:
@@ -474,10 +474,10 @@ def main():
 
         if runtime_agent is None:
             runtime_agent = FallbackAgent()
-            print("  ⚡ Ollama 自动拉起失败或未安装，使用内置对话引擎")
+            print("  ⚡ Ollama auto-start failed or not installed, using built-in dialogue engine")
             print(
-                "  💡 如需真实 AI 回复，请确认本地已安装 Ollama：\n"
-                "     安装引导: .venv/bin/python ai_runtime/setup/runtime_setup.py"
+                "  💡 For real AI responses, ensure Ollama is installed locally:\n"
+                "     Setup guide: .venv/bin/python ai_runtime/setup/runtime_setup.py"
             )
 
         engine = ElfieNestEngine(

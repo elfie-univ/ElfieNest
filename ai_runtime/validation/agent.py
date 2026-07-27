@@ -1,4 +1,4 @@
-"""模型接入 Runtime Agent 后的工具调用集成验证。"""
+"""Tool invocation integration validation after connecting model to Runtime Agent."""
 
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ class ModelAgentValidationRunner:
             return CheckResult(
                 check_id=f"agent.{provider}.{model}.{tool_name}",
                 status=CheckStatus.SKIPPED,
-                message="真实隔离 sandbox 尚未接入，跳过代码执行验证",
+                message="Real isolation sandbox not connected, skipping code execution validation",
                 provider=provider,
                 model=model,
                 details={"tool_called": False},
@@ -65,7 +65,7 @@ class ModelAgentValidationRunner:
             return CheckResult(
                 check_id=f"agent.{provider}.{model}.{tool_name}",
                 status=CheckStatus.SKIPPED,
-                message="尚未定义该工具的模型集成场景",
+                message="Model integration scenario not defined for this tool",
                 provider=provider,
                 model=model,
             )
@@ -113,9 +113,9 @@ class ModelAgentValidationRunner:
                     check_id=f"agent.{provider}.{model}.{tool_name}",
                     status=CheckStatus.PASSED if passed else CheckStatus.FAILED,
                     message=(
-                        "模型 Agent 工具调用通过"
+                        "Model Agent tool invocation passed"
                         if passed
-                        else "模型没有按协议调用工具"
+                        else "Model did not invoke tool per protocol"
                     ),
                     duration_ms=(time.perf_counter() - started) * 1000,
                     provider=provider,

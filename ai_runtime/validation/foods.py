@@ -1,4 +1,4 @@
-"""粮食配方层验证。"""
+"""Food recipe layer validation."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from ai_runtime.validation.models import CheckResult, CheckStatus, ValidationSui
 
 
 class FoodValidationRunner:
-    """验证固定粮食是否能由已验证模型证据完整支撑。"""
+    """Validate that fixed food can be fully supported by verified model evidence."""
 
     def validate(
         self,
@@ -26,7 +26,7 @@ class FoodValidationRunner:
                     CheckResult(
                         check_id=f"food.{food_key}.configuration",
                         status=CheckStatus.FAILED,
-                        message="粮食尚未生成",
+                        message="Food not yet generated",
                     )
                 )
                 continue
@@ -38,9 +38,9 @@ class FoodValidationRunner:
                     check_id=f"food.{food_key}.configuration",
                     status=CheckStatus.PASSED if passed else CheckStatus.FAILED,
                     message=(
-                        f"{kind.display_name}配方验证通过"
+                        f"{kind.display_name} recipe validation passed"
                         if passed
-                        else "; ".join(warnings) or "配方被标记为不可用"
+                        else "; ".join(warnings) or "Recipe marked as unavailable"
                     ),
                     provider=(
                         recipe.primary.model.split("/", 1)[0]

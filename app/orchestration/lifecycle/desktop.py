@@ -1,4 +1,4 @@
-"""打包版 ElfieNest Desktop 的生命周期管理。"""
+"""Lifecycle management for packaged ElfieNest Desktop."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ PID_NAME = "desktop.pid"
 
 
 def find_desktop_executable(project_root: Path) -> Optional[Path]:
-    """寻找打包后的桌面 supervisor；源码环境没有时返回 None。"""
+    """Find packaged desktop supervisor; returns None if not in source environment."""
     configured = os.environ.get("ELFIENEST_DESKTOP_BIN", "").strip()
     candidates = [Path(configured).expanduser()] if configured else []
     candidates.extend(
@@ -53,7 +53,7 @@ def start_desktop_application(
     command: Optional[Sequence[str]] = None,
     health_checker: Callable[[], bool],
 ) -> ServiceLifecycleResult:
-    """启动一个由 Electron 统一监督的完整服务。"""
+    """Start a complete service supervised by Electron."""
     pid_path = _pid_path(elfie_home)
     existing_pid = _read_live_pid(pid_path)
     if existing_pid is not None:
@@ -67,7 +67,7 @@ def start_desktop_application(
     if not launch_command:
         return ServiceLifecycleResult(
             status="failed",
-            error=LaunchFailedError("未找到 ElfieNest Desktop；请先构建桌面应用"),
+            error=LaunchFailedError("ElfieNest Desktop not found; please build desktop app first"),
         )
     try:
         process = subprocess.Popen(

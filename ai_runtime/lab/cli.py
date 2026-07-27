@@ -1,4 +1,4 @@
-"""单入口三层交互式 Runtime Lab。"""
+"""Single-entry three-layer interactive Runtime Lab."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ from ai_runtime.providers.model_hints import (
 )
 from ai_runtime.providers.profiles import BUILTIN_PROFILES
 from ai_runtime.storage.config_store import read_yaml_mapping, write_yaml_mapping
-from ai_runtime.storage.data_home import get_config_path
+from ai_runtime.storage.data_home import get_config_path, get_food_catalog_path
 from ai_runtime.storage.secrets import (
     provider_secret_name,
     set_provider_secret,
@@ -56,6 +56,7 @@ class RuntimeLab:
     def __init__(
         self,
         *,
+        config_home: Path | str | None = None,
         input_fn: Callable[[str], str] = input,
         secret_input_fn: Callable[[str], str] = getpass.getpass,
         output_fn: Callable[[str], None] = print,
@@ -71,6 +72,7 @@ class RuntimeLab:
         self.input = safe_input
         self.secret_input = secret_input_fn
         self.output = output_fn
+        self.config_home = str(config_home) if config_home else None
         custom_io = input_fn is not input or output_fn is not print
         self.menu = TerminalMenu(
             input_fn=input_fn,
@@ -78,61 +80,61 @@ class RuntimeLab:
             key_reader=key_reader,
             interactive=False if custom_io and interactive is None else interactive,
         )
-        self.config = LLMRuntimeConfig.load()
+        self.config = LLMRuntimeConfig.load(config_home=self.config_home)
 
     def run(self) -> None:
         while True:
             choice = self.menu.choose(
-                "ElfieNest Runtime 本地实验室",
+                "ElfieNest Runtime Local Lab",
                 (
-                    MenuItem("1", "运行总览与报告"),
-                    MenuItem("2", "Provider 与原始模型", "第一层"),
-                    MenuItem("3", "Agent 基础能力", "第二层"),
-                    MenuItem("4", "粮食策略", "第三层"),
+                    MenuItem("1", "Provider Config"),
+                    MenuItem("2", "Tool Config"),
+                    MenuItem("3", "Food Config"),
+                    MenuItem("4", "Overview & Reports"),
                 ),
-                back_label="退出",
+                back_label="Exit",
             )
             if choice == "1":
-                self.report_menu()
-            elif choice == "2":
                 self.provider_menu()
+            elif choice == "2":
+                self.tool_menu()
             elif choice == "3":
-                self.agent_menu()
-            elif choice == "4":
                 self.food_menu()
+            elif choice == "4":
+                self.report_menu()
             elif choice is None:
                 self.menu.clear()
                 if not self.menu.interactive:
-                    self.output("已退出 Runtime Lab。")
+                    self.output("Exited Runtime Lab.")
                 return
 
     def report_menu(self) -> None:
         while True:
-            breadcrumb = "Runtime Lab / 运行总览与报告"
+            breadcrumb = "Runtime Lab / Overview & Reports"
             choice = self.menu.choose(
-                "运行总览与报告",
+                "Overview & Reports",
                 (
-                    MenuItem("1", "查看当前总览"),
-                    MenuItem("2", "重新生成验证报告"),
-                    MenuItem("3", "查看历史报告"),
+                    MenuItem("1", "View Current Overview"),
+                    MenuItem("2", "Regenerate Report"),
+                    MenuItem("3", "View Historical Reports"),
                 ),
                 breadcrumb=breadcrumb,
-                back_label="返回上层",
+                back_label="Back",
             )
             if choice is None:
                 return
             if choice == "1":
-                self._action("当前运行总览", breadcrumb, self._show_current_overview)
+                self._action("Current Runtime Overview", breadcrumb, self._show_current_overview)
             elif choice == "2":
-                self._action("重新生成验证报告", breadcrumb, self._regenerate_overview)
+                self._action("Regenerate Validation Report", breadcrumb, self._regenerate_overview)
             elif choice == "3":
                 self._overview_history_menu()
 
     def provider_menu(self) -> None:
         while True:
-            breadcrumb = "Runtime Lab / 第一层"
+            breadcrumb = "Runtime Lab / Provider Config"
             configured = configured_provider_ids(self.config)
-            items = [MenuItem("1", "Provider × 模型概览表")]
+            items = [MenuItem("1", "Provider Overview")]
             provider_by_key: dict[str, str] = {}
             for index, provider_id in enumerate(configured, 2):
                 key = str(index)
@@ -145,18 +147,18 @@ class RuntimeLab:
                     )
                 )
             add_key = str(len(items) + 1)
-            items.append(MenuItem(add_key, "添加或配置其他 Provider"))
+            items.append(MenuItem(add_key, "Add Provider"))
             choice = self.menu.choose(
-                "Provider 与原始模型",
+                "Provider Config",
                 tuple(items),
                 breadcrumb=breadcrumb,
-                back_label="返回上层",
+                back_label="Back",
             )
             if choice is None:
                 return
             if choice == "1":
                 self._action(
-                    "Provider × 模型概览表",
+                    "Provider × Model Overview",
                     breadcrumb,
                     self._show_provider_model_matrix,
                 )
@@ -170,128 +172,166 @@ class RuntimeLab:
 
     def provider_detail_menu(self, provider_id: str) -> None:
         while True:
-            breadcrumb = f"Runtime Lab / 第一层 / {provider_id}"
+            breadcrumb = f"Runtime Lab / Layer 1 / {provider_id}"
             choice = self.menu.choose(
                 self._provider_label(provider_id),
                 (
-                    MenuItem("1", "查看配置与状态"),
-                    MenuItem("2", "修改配置"),
-                    MenuItem("3", "验证连通性"),
-                    MenuItem("4", "更新模型列表"),
-                    MenuItem("5", "编辑手工模型目录"),
-                    MenuItem("6", "批量验证所有模型"),
-                    MenuItem("7", "查看模型验证结果"),
+                    MenuItem("1", "View & Status"),
+                    MenuItem("2", "Modify Configuration"),
+                    MenuItem("3", "Validate Connectivity"),
+                    MenuItem("4", "Delete Provider"),
                 ),
                 breadcrumb=breadcrumb,
-                back_label="返回 Provider 列表",
+                back_label="Back to Provider List",
             )
             if choice is None:
                 return
             if choice == "1":
                 self._action(
-                    f"{provider_id} 配置与状态",
+                    f"{provider_id} Configuration & Status",
                     breadcrumb,
-                    lambda provider_id=provider_id: self._show_provider(provider_id),
+                    lambda provider_id=provider_id: self._show_provider_with_evidence(provider_id),
                 )
             elif choice == "2":
                 self._action(
-                    f"配置 Provider：{provider_id}",
+                    f"Configure Provider: {provider_id}",
                     breadcrumb,
-                    lambda provider_id=provider_id: self._configure_provider(
+                    lambda provider_id=provider_id: self._configure_provider_interactive(
                         provider_id
                     ),
                 )
             elif choice == "3":
                 self._action(
-                    f"验证 Provider：{provider_id}",
+                    f"Validate Provider: {provider_id}",
                     breadcrumb,
-                    lambda provider_id=provider_id: self._print_result(
-                        ProviderValidationRunner(self.config).verify_provider(
-                            provider_id
-                        )
-                    ),
+                    lambda provider_id=provider_id: self._validate_provider_full(provider_id),
                 )
             elif choice == "4":
-                self._action(
-                    f"更新模型列表：{provider_id}",
-                    breadcrumb,
-                    lambda provider_id=provider_id: self._update_provider_models(
-                        provider_id
-                    ),
-                )
-            elif choice == "5":
-                self._action(
-                    f"编辑手工模型目录：{provider_id}",
-                    breadcrumb,
-                    lambda provider_id=provider_id: self._edit_manual_models(
-                        provider_id
-                    ),
-                )
-            elif choice == "6":
-                self._action(
-                    f"批量验证：{provider_id}",
-                    breadcrumb,
-                    lambda provider_id=provider_id: self._batch_verify_models(
-                        provider_id
-                    ),
-                )
-            elif choice == "7":
-                self._action(
-                    f"{provider_id} 模型验证结果",
-                    breadcrumb,
-                    lambda provider_id=provider_id: self._show_provider_evidence(
-                        provider_id
-                    ),
-                )
+                if self._delete_provider(provider_id):
+                    return
 
-    def agent_menu(self) -> None:
+    def tool_menu(self) -> None:
         while True:
-            breadcrumb = "Runtime Lab / 第二层"
+            breadcrumb = "Runtime Lab / Tool Config"
             choice = self.menu.choose(
-                "Agent 基础能力",
+                "Tool Config",
                 (
-                    MenuItem("1", "查看工具配置"),
-                    MenuItem("2", "配置基础工具"),
-                    MenuItem("3", "验证全部本地工具"),
-                    MenuItem("4", "验证网络搜索工具"),
-                    MenuItem("5", "验证模型 + Agent 工具调用"),
+                    MenuItem("1", "Web Search"),
+                    MenuItem("2", "Code Executor"),
+                    MenuItem("3", "File Access"),
+                    MenuItem("4", "Skill Evolution"),
                 ),
                 breadcrumb=breadcrumb,
-                back_label="返回上层",
+                back_label="Back",
             )
             if choice is None:
                 return
             if choice == "1":
-                self._action("工具配置", breadcrumb, self._show_tool_configs)
+                self._web_search_menu()
             elif choice == "2":
-                self._configure_tool_menu()
+                self._code_executor_menu()
             elif choice == "3":
-                self._action(
-                    "本地工具验证",
-                    breadcrumb,
-                    lambda: self._print_suite(
-                        DirectToolValidationRunner(self.config).run()
-                    ),
-                )
+                self._file_access_menu()
             elif choice == "4":
-                self._action("网络搜索验证", breadcrumb, self._verify_web_search)
-            elif choice == "5":
-                self._action("模型 + Agent 验证", breadcrumb, self._verify_model_agent)
+                self._skill_evolution_menu()
 
+    def _web_search_menu(self) -> None:
+        breadcrumb = "Runtime Lab / Tool Config / Web Search"
+        choice = self.menu.choose(
+            "Web Search Config",
+            (
+                MenuItem("1", "View Config"),
+                MenuItem("2", "Modify Config"),
+                MenuItem("3", "Validate"),
+            ),
+            breadcrumb=breadcrumb,
+            back_label="Back",
+        )
+        if choice is None:
+            return
+        if choice == "1":
+            self._action("Web Search Config", breadcrumb, self._show_tool_configs)
+        elif choice == "2":
+            self._configure_tool_menu()
+        elif choice == "3":
+            self._action("Validate Web Search", breadcrumb, self._verify_web_search)
+
+    def _code_executor_menu(self) -> None:
+        breadcrumb = "Runtime Lab / Tool Config / Code Executor"
+        choice = self.menu.choose(
+            "Code Executor Config",
+            (
+                MenuItem("1", "View Config"),
+                MenuItem("2", "Modify Config"),
+                MenuItem("3", "Validate"),
+            ),
+            breadcrumb=breadcrumb,
+            back_label="Back",
+        )
+        if choice is None:
+            return
+        if choice == "1":
+            self._action("Code Executor Config", breadcrumb, self._show_tool_configs)
+        elif choice == "2":
+            self._configure_tool_menu()
+        elif choice == "3":
+            self._action("Validate Code Executor", breadcrumb, self._validate_code_executor)
+
+    def _file_access_menu(self) -> None:
+        breadcrumb = "Runtime Lab / Tool Config / File Access"
+        choice = self.menu.choose(
+            "File Access Config",
+            (
+                MenuItem("1", "View Config"),
+                MenuItem("2", "Modify Config"),
+                MenuItem("3", "Validate"),
+            ),
+            breadcrumb=breadcrumb,
+            back_label="Back",
+        )
+        if choice is None:
+            return
+        if choice == "1":
+            self._action("File Access Config", breadcrumb, self._show_tool_configs)
+        elif choice == "2":
+            self._configure_tool_menu()
+        elif choice == "3":
+            self._action("Validate File Access", breadcrumb, self._validate_file_access)
+
+    def _skill_evolution_menu(self) -> None:
+        breadcrumb = "Runtime Lab / Tool Config / Skill Evolution"
+        choice = self.menu.choose(
+            "Skill Evolution Config",
+            (
+                MenuItem("1", "View Config"),
+                MenuItem("2", "Modify Config"),
+                MenuItem("3", "Validate"),
+            ),
+            breadcrumb=breadcrumb,
+            back_label="Back",
+        )
+        if choice is None:
+            return
+        if choice == "1":
+            self._action("Skill Evolution Config", breadcrumb, self._show_tool_configs)
+        elif choice == "2":
+            self._configure_tool_menu()
+        elif choice == "3":
+            self._action("Validate Skill Evolution", breadcrumb, self._validate_skill_evolution)
     def food_menu(self) -> None:
         store = FoodCatalogStore()
         while True:
-            breadcrumb = "Runtime Lab / 第三层"
+            breadcrumb = "Runtime Lab / Layer 3"
             choice = self.menu.choose(
-                "粮食策略",
+                "Food Strategy",
                 (
-                    MenuItem("1", "查看当前粮食策略"),
-                    MenuItem("2", "自动更新粮食策略"),
-                    MenuItem("3", "验证当前粮食策略"),
-                    MenuItem("4", "历史版本与回滚"),
+                    MenuItem("1", "View Current Food Strategy"),
+                    MenuItem("2", "Auto-Update Food Strategy"),
+                    MenuItem("3", "Validate Current Food Strategy"),
+                    MenuItem("4", "History & Rollback"),
                 ),
                 breadcrumb=breadcrumb,
-                back_label="返回上层",
+                back_label="Back",
             )
             if choice is None:
                 return
@@ -299,13 +339,13 @@ class RuntimeLab:
                 self._food_strategy_menu(store)
             elif choice == "2":
                 self._action(
-                    "自动更新粮食策略",
+                    "Auto-Update Food Strategy",
                     breadcrumb,
                     lambda: self._update_foods(store),
                 )
             elif choice == "3":
                 self._action(
-                    "验证当前粮食配置",
+                    "Validate Current Food Configuration",
                     breadcrumb,
                     lambda: self._validate_foods(store),
                 )
@@ -322,7 +362,7 @@ class RuntimeLab:
         path = report.save()
         self._print_suite(tool_suite)
         self._print_suite(food_suite)
-        self.output(f"报告已保存: {path}")
+        self.output(f"Report saved: {path}")
         return report
 
     def _action(
@@ -337,7 +377,7 @@ class RuntimeLab:
             result = action()
             return result
         except Exception as exc:
-            self.output(f"操作失败：{exc}")
+            self.output(f"Operation failed: {exc}")
             return None
         finally:
             if result is not False:
@@ -347,47 +387,47 @@ class RuntimeLab:
         store = RuntimeOverviewStore()
         report = store.load_current()
         if report is None:
-            self.output("尚无历史验证报告，以下为当前本地配置快照。")
+            self.output("No historical validation reports，Below is current local configuration snapshot。")
             report = RuntimeOverviewGenerator(self.config).snapshot()
         self._render_overview(report)
 
     def _regenerate_overview(self) -> None:
         providers = configured_provider_ids(self.config)
         if not providers:
-            self.output("尚无已配置 Provider，无法生成验证报告。")
+            self.output("No configured Providers, cannot generate validation report.")
             return
-        self.output(f"即将验证 {len(providers)} 个已配置 Provider 及其全部模型：")
+        self.output(f"Validating {len(providers)} configured Providers and all their models:")
         for provider_id in providers:
             self.output(f"- {provider_id}")
-        self.output("真实模型调用可能产生费用。")
-        if self.input("确认重新生成报告吗？[y/N]: ").strip().lower() != "y":
-            self.output("已取消。")
+        self.output("Real model calls may incur costs.")
+        if self.input("Confirm regenerate report? [y/N]: ").strip().lower() != "y":
+            self.output("Cancelled.")
             return
         report = RuntimeOverviewGenerator(self.config).regenerate()
         path = RuntimeOverviewStore().save(report)
         self._render_overview(report)
-        self.output(f"\n报告已保存：{path}")
+        self.output(f"\nReport saved: {path}")
 
     def _render_overview(self, report: dict[str, Any]) -> None:
         summary = report.get("summary", {})
-        self.output(f"报告时间：{report.get('created_at', '未知')}")
+        self.output(f"Report time: {report.get('created_at', 'Unknown')}")
         self.output(
-            "Provider："
-            f"已配置 {summary.get('configured_providers', 0)}，"
-            f"连接通过 {summary.get('reachable_providers', 0)}"
+            "Providers:"
+            f"Configured {summary.get('configured_providers', 0)}，"
+            f"Connected {summary.get('reachable_providers', 0)}"
         )
         self.output(
-            "模型入口："
-            f"共 {summary.get('model_endpoints', 0)}，"
-            f"验证通过 {summary.get('verified_model_endpoints', 0)}，"
-            f"Agent 通过 {summary.get('agent_verified_models', 0)}"
+            "Model Endpoints:"
+            f"Total {summary.get('model_endpoints', 0)}, "
+            f"Verified {summary.get('verified_model_endpoints', 0)}, "
+            f"Agent verified {summary.get('agent_verified_models', 0)}"
         )
         self.output(
-            "粮食："
-            f"可用 {summary.get('available_foods', 0)} / "
+            "Food:"
+            f"Available {summary.get('available_foods', 0)} / "
             f"{summary.get('total_foods', 0)}"
         )
-        self.output("\nProvider 状态：")
+        self.output("\nProvider Status:")
         for provider in report.get("providers", ()):
             if not isinstance(provider, dict):
                 continue
@@ -399,33 +439,33 @@ class RuntimeLab:
             self.output(
                 f"- {status} {provider.get('id')}: {provider.get('api_base', '')}"
             )
-        self.output("\nProvider × 模型：")
+        self.output("\nProvider × Models:")
         width = shutil.get_terminal_size(fallback=(100, 30)).columns
         for line in render_provider_model_matrix(report, width=width):
             self.output(line)
         generation_note = report.get("food_generation_note")
         if generation_note:
-            self.output(f"\n粮食生成来源：{generation_note}")
+            self.output(f"\nFood generation source: {generation_note}")
 
     def _overview_history_menu(self) -> None:
         store = RuntimeOverviewStore()
         versions = store.history()
         if not versions:
             self._action(
-                "历史报告",
-                "Runtime Lab / 运行总览与报告",
-                lambda: self.output("尚无历史报告。"),
+                "Historical Reports",
+                "Runtime Lab / Runtime Overview & Reports",
+                lambda: self.output("No Historical Reports available."),
             )
             return
         while True:
             selected = self.menu.choose(
-                "历史报告",
+                "Historical Reports",
                 tuple(
                     MenuItem(str(index), path.stem.removeprefix("runtime-overview-"))
                     for index, path in enumerate(versions, 1)
                 ),
-                breadcrumb="Runtime Lab / 运行总览与报告 / 历史报告",
-                back_label="返回",
+                breadcrumb="Runtime Lab / Runtime Overview & Reports / Historical Reports",
+                back_label="Back",
             )
             if selected is None:
                 return
@@ -436,7 +476,7 @@ class RuntimeLab:
             if report is not None:
                 self._action(
                     path.name,
-                    "Runtime Lab / 运行总览与报告 / 历史报告",
+                    "Runtime Lab / Runtime Overview & Reports / Historical Reports",
                     lambda report=report: self._render_overview(report),
                 )
 
@@ -451,11 +491,11 @@ class RuntimeLab:
             None,
         )
         if provider is None:
-            return "已配置 / 未验证"
+            return "Configured / Not Verified"
         return {
-            "passed": "已配置 / 连接通过",
-            "failed": "已配置 / 连接失败",
-        }.get(str(provider.get("status")), "已配置 / 未验证")
+            "passed": "Configured / Connected",
+            "failed": "Configured / Connection failed",
+        }.get(str(provider.get("status")), "Configured / Not Verified")
 
     def _provider_label(self, provider_id: str) -> str:
         provider = self.config.providers.get(provider_id, {})
@@ -466,34 +506,34 @@ class RuntimeLab:
         report = RuntimeOverviewStore().load_current()
         if report is None:
             report = RuntimeOverviewGenerator(self.config).snapshot()
-            self.output("当前没有正式报告，以下根据本地模型证据展示。\n")
+            self.output("No formal report available, showing based on local model evidence.\n")
         width = shutil.get_terminal_size(fallback=(100, 30)).columns
         for line in render_provider_model_matrix(report, width=width):
             self.output(line)
 
     def _show_provider(self, provider_id: str) -> None:
         provider = self.config.providers.get(provider_id, {})
-        self.output(f"Provider：{provider_id}")
+        self.output(f"Provider: {provider_id}")
         if provider.get("display_name"):
-            self.output(f"名称：{provider['display_name']}")
+            self.output(f"Name: {provider['display_name']}")
         self.output(f"API Base：{provider.get('api_base', '')}")
-        self.output(f"API 模式：{provider.get('api_mode', '')}")
-        self.output(f"认证方式：{provider.get('auth_type', '')}")
-        self.output(f"密钥：{'已配置' if provider.get('api_key') else '未配置'}")
-        self.output(f"配置状态：{provider.get('status', 'unknown')}")
+        self.output(f"API Mode: {provider.get('api_mode', '')}")
+        self.output(f"Auth Method: {provider.get('auth_type', '')}")
+        self.output(f"Key: {'Configured' if provider.get('api_key') else 'Not Configured'}")
+        self.output(f"Config Status: {provider.get('status', 'unknown')}")
         specs = configured_model_specs(provider)
-        self.output("模型目录：")
+        self.output("Model Catalog:")
         for item in specs:
             capabilities = known_capabilities(item.model_id, item.display_name)
             ability = (
-                f" [已知能力：{_format_capabilities(capabilities)}]"
+                f" [Known Capabilities: {_format_capabilities(capabilities)}]"
                 if capabilities
-                else " [已知能力：待识别]"
+                else " [Known Capabilities: To be identified]"
             )
             self.output(f"- {item.display_name}: {item.model_id}{ability}")
         if not specs:
-            self.output("- 未配置")
-        self.output("注意：配置状态不等于实时连通状态，请执行“验证连通性”。")
+            self.output("- Not Configured")
+        self.output("Note: config status≠real-time connectivity status，please run“Validate Connectivity”。")
 
     def _show_provider_evidence(self, provider_id: str) -> None:
         evidence = [
@@ -502,7 +542,7 @@ class RuntimeLab:
             if item.model.startswith(f"{provider_id}/")
         ]
         if not evidence:
-            self.output("该 Provider 尚无模型验证记录。")
+            self.output("This Provider has no model validation records.")
             return
         for item in evidence:
             status = "✓" if item.verified else "✗"
@@ -511,7 +551,7 @@ class RuntimeLab:
             ability = _format_capabilities(item.capabilities)
             self.output(
                 f"- {status} {label} [{item.model}]: {latency} "
-                f"· 已知能力：{ability}"
+                f"· Known Capability: {ability}"
             )
 
     def _configure_other_provider_menu(self) -> None:
@@ -528,19 +568,19 @@ class RuntimeLab:
             builtin_by_key[key] = provider_id
             items.append(MenuItem(key, provider_id, BUILTIN_PROFILES[provider_id].name))
         custom_key = str(len(items) + 1)
-        items.append(MenuItem(custom_key, "新增 Custom Provider", "可重复添加"))
+        items.append(MenuItem(custom_key, "Add Custom Provider", "Can add multiple"))
         selected = self.menu.choose(
-            "添加或配置其他 Provider",
+            "Add or configure other Provider",
             tuple(items),
-            breadcrumb="Runtime Lab / 第一层 / 添加 Provider",
-            back_label="返回",
+            breadcrumb="Runtime Lab / Layer 1 / Add Provider",
+            back_label="Back",
         )
         if selected is None:
             return
         if selected == custom_key:
             self._action(
-                "新增 Custom Provider",
-                "Runtime Lab / 第一层 / 添加 Provider",
+                "Add Custom Provider",
+                "Runtime Lab / Layer 1 / Add Provider",
                 self._create_custom_provider,
             )
             return
@@ -548,34 +588,34 @@ class RuntimeLab:
         if provider_id is None:
             return
         self._action(
-            f"配置 Provider：{provider_id}",
-            "Runtime Lab / 第一层 / 添加 Provider",
+            f"Configure Provider: {provider_id}",
+            "Runtime Lab / Layer 1 / Add Provider",
             lambda: self._configure_provider(provider_id),
         )
 
     def _verify_web_search(self) -> None:
-        warning = self.input("将访问网络，继续吗？[y/N]: ").strip().lower()
+        warning = self.input("Will access network, continue? [y/N]: ").strip().lower()
         if warning == "y":
             self._print_result(
                 DirectToolValidationRunner(self.config).verify_web_search()
             )
         else:
-            self.output("已取消。")
+            self.output("Cancelled.")
 
     def _show_tool_configs(self) -> None:
         configs = load_tool_configs(self.config.runtime_policy)
         labels = {
-            "web_search": "网络搜索",
-            "local_file": "本地文件",
-            "code_sandbox": "代码沙箱",
-            "skills_evolution": "技能进化",
+            "web_search": "Web Search",
+            "local_file": "Local File",
+            "code_sandbox": "Code Sandbox",
+            "skills_evolution": "Skill Evolution",
         }
         for key in TOOL_KEYS:
             item = configs[key]
-            status = "已启用" if item.get("enabled") else "已停用"
+            status = "Enabled" if item.get("enabled") else "Disabled"
             detail = ""
             if key == "web_search":
-                detail = f" / {item.get('provider', 'duckduckgo')} / 密钥{'已配置' if item.get('api_key') else '未配置'}"
+                detail = f" / {item.get('provider', 'duckduckgo')} / Key{'Configured' if item.get('api_key') else 'Not Configured'}"
             elif key == "local_file":
                 detail = f" / {item.get('root', '')}"
             elif key == "code_sandbox":
@@ -584,26 +624,26 @@ class RuntimeLab:
 
     def _configure_tool_menu(self) -> None:
         labels = {
-            "web_search": "网络搜索",
-            "local_file": "本地文件",
-            "code_sandbox": "代码沙箱",
-            "skills_evolution": "技能进化",
+            "web_search": "Web Search",
+            "local_file": "Local File",
+            "code_sandbox": "Code Sandbox",
+            "skills_evolution": "Skill Evolution",
         }
         choice = self.menu.choose(
-            "配置基础工具",
+            "Configure Basic Tools",
             tuple(
                 MenuItem(str(index), labels[key])
                 for index, key in enumerate(TOOL_KEYS, 1)
             ),
-            breadcrumb="Runtime Lab / 第二层 / 配置工具",
-            back_label="返回上层",
+            breadcrumb="Runtime Lab / Layer 2 / Configure Tools",
+            back_label="Back",
         )
         if choice is None:
             return
         tool_key = TOOL_KEYS[int(choice) - 1]
         self._action(
-            f"配置{labels[tool_key]}",
-            "Runtime Lab / 第二层 / 配置工具",
+            f"Configure {labels[tool_key]}",
+            "Runtime Lab / Layer 2 / Configure Tools",
             lambda: self._configure_tool(tool_key),
         )
 
@@ -611,7 +651,7 @@ class RuntimeLab:
         configs = load_tool_configs(self.config.runtime_policy)
         current = dict(configs[tool_key])
         enabled = self.menu.read_text(
-            f"是否启用 [y/n] [{'y' if current.get('enabled') else 'n'}]: ",
+            f"Enable? [y/n] [{'y' if current.get('enabled') else 'n'}]: ",
             default="y" if current.get("enabled") else "n",
         )
         if enabled is None:
@@ -620,22 +660,22 @@ class RuntimeLab:
         pending_secret: str | None = None
         if tool_key == "web_search":
             provider = self.menu.read_text(
-                "搜索 Provider [duckduckgo/brave/tavily]: ",
+                "Search Provider [duckduckgo/brave/tavily]: ",
                 default=str(current.get("provider") or "duckduckgo"),
             )
             if provider is None or provider not in {"duckduckgo", "brave", "tavily"}:
-                self.output("已取消或 Provider 无效。")
+                self.output("Cancelled or Provider invalid.")
                 return False
             current["provider"] = provider
             api_base = self.menu.read_text(
-                "API Base（空值使用 Provider 默认）: ",
+                "API Base (empty for Provider default): ",
                 default=str(current.get("api_base") or ""),
             )
             if api_base is None:
                 return False
             current["api_base"] = api_base
             api_key = self.menu.read_text(
-                "API Key（空值保留，- 清除，Esc 取消）: ",
+                "API Key (empty to keep, - to clear, Esc to cancel): ",
                 masked=True,
                 line_input=self.secret_input,
             )
@@ -646,7 +686,7 @@ class RuntimeLab:
             elif api_key:
                 pending_secret = api_key
             count = self.menu.read_text(
-                "默认结果数 [1-10]: ",
+                "Default results [1-10]: ",
                 default=str(current.get("max_results") or 3),
             )
             if count is None:
@@ -655,14 +695,14 @@ class RuntimeLab:
             current.pop("api_key", None)
         elif tool_key == "local_file":
             root = self.menu.read_text(
-                "允许访问的本地根目录: ", default=str(current.get("root") or "")
+                "Allowed local root directory: ", default=str(current.get("root") or "")
             )
             if root is None or not root:
                 return False
             current["root"] = root
         elif tool_key == "code_sandbox":
             timeout = self.menu.read_text(
-                "超时秒数 [1-60]: ",
+                "Timeout seconds [1-60]: ",
                 default=str(current.get("timeout_seconds") or 5),
             )
             if timeout is None:
@@ -679,7 +719,7 @@ class RuntimeLab:
         if pending_secret is not None:
             set_tool_secret(tool_key, pending_secret)
         self.config = LLMRuntimeConfig.load()
-        self.output("工具配置已安全保存到本地。")
+        self.output("Tool Configuration saved securely to local storage.")
         return True
 
     def _food_strategy_menu(self, store: FoodCatalogStore) -> None:
@@ -693,7 +733,7 @@ class RuntimeLab:
                 model = (
                     recipe.primary.model
                     if recipe and recipe.primary.model
-                    else "未配置"
+                    else "Not Configured"
                 )
                 status = recipe.validation_status.value if recipe else "missing"
                 items.append(
@@ -704,10 +744,10 @@ class RuntimeLab:
                     )
                 )
             selected = self.menu.choose(
-                "当前粮食策略",
+                "Current Food Strategy",
                 tuple(items),
-                breadcrumb="Runtime Lab / 第三层 / 当前粮食策略",
-                back_label="返回",
+                breadcrumb="Runtime Lab / Layer 3 / Current Food Strategy",
+                back_label="Back",
             )
             if selected is None:
                 return
@@ -716,7 +756,7 @@ class RuntimeLab:
             food_key = keys[int(selected) - 1]
             self._action(
                 FIXED_FOOD_KINDS[food_key].display_name,
-                "Runtime Lab / 第三层 / 当前粮食策略",
+                "Runtime Lab / Layer 3 / Current Food Strategy",
                 lambda food_key=food_key: self._show_food_detail(store, food_key),
             )
 
@@ -724,40 +764,40 @@ class RuntimeLab:
         catalog = store.load()
         recipe = catalog.recipes.get(food_key)
         if recipe is None:
-            self.output("该粮食尚未配置。")
+            self.output("This Food is not configured yet.")
             return
-        self.output(f"主模型：{recipe.primary.model or '未配置'}")
-        self.output(f"推理档位：{recipe.primary.reasoning_profile.value}")
-        self.output(f"深度模型：{recipe.deep.model if recipe.deep else '—'}")
-        self.output(f"验证模型：{recipe.verifier.model if recipe.verifier else '—'}")
+        self.output(f"Primary Model: {recipe.primary.model or 'Not Configured'}")
+        self.output(f"Reasoning Profile: {recipe.primary.reasoning_profile.value}")
+        self.output(f"Deep Model: {recipe.deep.model if recipe.deep else '—'}")
+        self.output(f"Validation Model: {recipe.verifier.model if recipe.verifier else '—'}")
         fallbacks = ", ".join(item.model for item in recipe.technical_fallbacks)
-        self.output(f"技术备用：{fallbacks or '—'}")
-        self.output(f"最大输出：{recipe.primary.max_tokens}")
-        self.output(f"温度：{recipe.primary.temperature}")
-        self.output(f"工具：{', '.join(recipe.primary.tools) or '无'}")
-        self.output(f"状态：{recipe.validation_status.value}")
-        self.output(f"来源：{recipe.source}")
+        self.output(f"Tech Fallback: {fallbacks or '—'}")
+        self.output(f"Max Output: {recipe.primary.max_tokens}")
+        self.output(f"Temperature: {recipe.primary.temperature}")
+        self.output(f"Tools: {', '.join(recipe.primary.tools) or 'None'}")
+        self.output(f"Status：{recipe.validation_status.value}")
+        self.output(f"Source: {recipe.source}")
         if catalog.generation_note:
-            self.output(f"版本生成方式：{catalog.generation_note}")
+            self.output(f"Version Generation Method: {catalog.generation_note}")
 
     def _food_history_menu(self, store: FoodCatalogStore) -> None:
         versions = store.history_versions()
         if not versions:
             self._action(
-                "历史版本与回滚",
-                "Runtime Lab / 第三层",
-                lambda: self.output("尚无粮食历史版本。"),
+                "History & Rollback",
+                "Runtime Lab / Layer 3",
+                lambda: self.output("No Food version history."),
             )
             return
         while True:
             selected = self.menu.choose(
-                "历史版本与回滚",
+                "History & Rollback",
                 tuple(
                     MenuItem(str(index), path.stem.removeprefix("foods-"))
                     for index, path in enumerate(versions, 1)
                 ),
-                breadcrumb="Runtime Lab / 第三层 / 历史版本",
-                back_label="返回",
+                breadcrumb="Runtime Lab / Layer 3 / Version History",
+                back_label="Back",
             )
             if selected is None:
                 return
@@ -766,29 +806,29 @@ class RuntimeLab:
             path = versions[int(selected) - 1]
             self._action(
                 path.name,
-                "Runtime Lab / 第三层 / 历史版本",
+                "Runtime Lab / Layer 3 / Version History",
                 lambda path=path: self._show_food_history_version(store, path),
             )
 
     def _show_food_history_version(self, store: FoodCatalogStore, path: Path) -> None:
         catalog = FoodCatalog.from_dict(read_yaml_mapping(path))
-        self.output(f"版本：{catalog.version}")
-        self.output(f"生成时间：{catalog.generated_at or '未知'}")
-        self.output(f"生成方式：{catalog.generation_note or '旧版本未记录'}")
+        self.output(f"Version: {catalog.version}")
+        self.output(f"Generated: {catalog.generated_at or 'Unknown'}")
+        self.output(f"Generation Method: {catalog.generation_note or 'Old version, not recorded'}")
         for key, kind in FIXED_FOOD_KINDS.items():
             recipe = catalog.recipes.get(key)
             self.output(
                 f"- {kind.display_name}: "
-                f"{recipe.primary.model if recipe and recipe.primary.model else '未配置'}"
+                f"{recipe.primary.model if recipe and recipe.primary.model else 'Not Configured'}"
             )
-        if self.input("恢复这个版本吗？[y/N]: ").strip().lower() == "y":
+        if self.input("Restore this version? [y/N]: ").strip().lower() == "y":
             restored = store.restore_version(path)
-            self.output(f"已恢复粮食版本 {restored.version}。")
+            self.output(f"Restored Food version {restored.version}.")
 
     def _update_foods(self, store: FoodCatalogStore) -> None:
         evidence = list(ModelEvidenceStore().load().values())
         if not evidence:
-            self.output("尚无模型验证证据，请先在第一层批量验证模型。")
+            self.output("No model validation evidence yet. Please batch-validate models in Layer 1 first.")
             return
         planning_model = select_planning_model(self.config, evidence)
         planner = (
@@ -797,24 +837,24 @@ class RuntimeLab:
             else FoodPlanner()
         )
         if planning_model:
-            self.output(f"尝试使用规划模型生成粮食建议: {planning_model}")
+            self.output(f"Attempting to generate Food suggestions using planning model: {planning_model}")
         else:
-            self.output("没有可用规划模型，将使用确定性规则生成。")
+            self.output("No available planning model, will use deterministic rules.")
         current_catalog = store.load()
         proposal = planner.propose(evidence, current_catalog)
         if proposal.generation_sources == ("model", "rules"):
-            self.output("生成来源：模型建议 + 确定性规则校验")
+            self.output("Generation Source: Model suggestions + Deterministic rule validation")
         elif proposal.advisor_error:
-            self.output(f"规划模型调用失败：{proposal.advisor_error}")
-            self.output("生成来源：确定性规则（模型不可用时自动降级）")
+            self.output(f"Planning model call failed: {proposal.advisor_error}")
+            self.output("Generation Source: Deterministic rules (auto fallback when model unavailable)")
         else:
-            self.output("生成来源：确定性规则（当前没有可用规划模型）")
+            self.output("Generation Source: Deterministic rules (no available planning model)")
         changed = [item for item in proposal.changes if item.change_type != "unchanged"]
         unchanged_count = len(proposal.changes) - len(changed)
-        self.output("\n粮食更新预览")
+        self.output("\nFood Update Preview")
         self.output("─" * 48)
         self.output(
-            f"计划修改 {len(changed)} 种粮食，保持不变 {unchanged_count} 种。"
+            f"Planning to modify {len(changed)} foods, keeping {unchanged_count} unchanged."
         )
         for change in proposal.changes:
             if change.change_type == "unchanged":
@@ -829,22 +869,22 @@ class RuntimeLab:
             ):
                 self.output(f"  {label}: {old_value} → {new_value}")
             for warning in change.warnings:
-                self.output(f"  警告: {warning}")
+                self.output(f"  Warning: {warning}")
         if not proposal.has_changes:
-            self.output("当前粮食已经是最新配置。")
+            self.output("Current Food is already the latest configuration.")
             return
-        self.output("\n未确认前不会写入配置或生成新版本。")
-        if self.menu.confirm("确认应用以上粮食更新吗？"):
+        self.output("\nChanges won't be written or new version created until confirmed.")
+        if self.menu.confirm("Confirm applying above Food updates?"):
             store.save(proposal.catalog)
-            self.output("粮食更新已应用，并保留了旧版本。")
+            self.output("Food updates applied, old version preserved.")
             if proposal.generation_sources == ("model", "rules"):
-                self.output("本次粮食策略由模型建议与确定性规则共同生成。")
+                self.output("This Food Strategy co-generated by model suggestions and deterministic rules.")
             elif proposal.advisor_error:
-                self.output("本次规划模型不可用，粮食策略已由确定性规则生成。")
+                self.output("Planning model not available, Food Strategy generated by deterministic rules.")
             else:
-                self.output("本次粮食策略由确定性规则生成。")
+                self.output("This Food Strategy generated by deterministic rules.")
         else:
-            self.output("未应用更新。")
+            self.output("Updates not applied.")
 
     @staticmethod
     def _food_recipe_diff(old_recipe, new_recipe) -> list[tuple[str, str, str]]:
@@ -852,18 +892,18 @@ class RuntimeLab:
             if recipe is None:
                 return {}
             return {
-                "主模型": recipe.primary.model or "不可用",
-                "推理档位": recipe.primary.reasoning_profile.value,
-                "最大输出": str(recipe.primary.max_tokens),
-                "温度": str(recipe.primary.temperature),
-                "工具": ", ".join(recipe.primary.tools) or "无",
-                "深度模型": recipe.deep.model if recipe.deep else "无",
-                "验证模型": recipe.verifier.model if recipe.verifier else "无",
-                "技术备用": (
+                "Primary Model": recipe.primary.model or "Not Available",
+                "Reasoning Profile": recipe.primary.reasoning_profile.value,
+                "Max Output": str(recipe.primary.max_tokens),
+                "Temperature": str(recipe.primary.temperature),
+                "Tools": ", ".join(recipe.primary.tools) or "None",
+                "Deep Model": recipe.deep.model if recipe.deep else "None",
+                "Validation Model": recipe.verifier.model if recipe.verifier else "None",
+                "Tech Fallback": (
                     ", ".join(item.model for item in recipe.technical_fallbacks)
-                    or "无"
+                    or "None"
                 ),
-                "验证状态": recipe.validation_status.value,
+                "Validation Status": recipe.validation_status.value,
             }
 
         old_values = values(old_recipe)
@@ -878,19 +918,19 @@ class RuntimeLab:
         catalog = store.load()
         referenced = self._food_referenced_models(catalog)
         if not referenced:
-            self.output("当前粮食策略没有可调用的模型，请先自动更新粮食策略。")
+            self.output("Current Food Strategy has no callable models, please Auto-Update Food Strategy first.")
             return
         model_count = sum(len(models) for models in referenced.values())
         self.output(
-            f"将真实调用粮食策略引用的 {model_count} 个模型后再验证，"
-            "云端模型可能产生费用。"
+            f"Will make real calls to {model_count} models referenced by Food Strategy, then validate,"
+            "Cloud models may incur costs."
         )
         if not self.menu.confirm(
-            "确认开始粮食集成验证吗？",
-            accept_label="开始验证",
-            reject_label="取消",
+            "Confirm starting Food integration validation?",
+            accept_label="Start Validation",
+            reject_label="Cancel",
         ):
-            self.output("已取消，未生成伪失败报告。")
+            self.output("Cancelled, no pseudo-failure report generated.")
             return
 
         evidence_store = ModelEvidenceStore()
@@ -971,11 +1011,11 @@ class RuntimeLab:
         )
         self._print_suite(suite)
         path = ValidationReport((*live_suites, suite)).save()
-        self.output(f"粮食验证报告已保存: {path}")
+        self.output(f"Food Validation Report Saved: {path}")
 
     @staticmethod
     def _food_referenced_models(catalog: FoodCatalog) -> dict[str, list[str]]:
-        """收集配方实际引用的模型，按 Provider 去重，空占位不参与调用。"""
+        """Collect models actually referenced by recipes, dedupe by Provider, empty placeholders excluded."""
         grouped: dict[str, list[str]] = {}
         for recipe in catalog.recipes.values():
             profiles = [recipe.primary, recipe.deep, recipe.verifier]
@@ -998,14 +1038,14 @@ class RuntimeLab:
         is_custom = provider_id not in BUILTIN_PROFILES or provider_id == "custom_openai"
         if is_custom:
             display_name = self.menu.read_text(
-                f"Provider 名称 [{provider.get('display_name', '')}]: ",
+                f"Provider Name [{provider.get('display_name', '')}]: ",
                 default=str(provider.get("display_name", "")),
             )
             if display_name is None:
-                self.output("已取消，配置未修改。")
+                self.output("Cancelled, configuration not modified.")
                 return False
             if not display_name:
-                self.output("Provider 名称不能为空，配置未修改。")
+                self.output("Provider name cannot be empty, configuration not modified.")
                 return False
             provider["display_name"] = display_name
         current_base = str(provider.get("api_base") or profile.api_base)
@@ -1013,7 +1053,7 @@ class RuntimeLab:
             f"API Base [{current_base}]: ", default=current_base
         )
         if api_base is None:
-            self.output("已取消，配置未修改。")
+            self.output("Cancelled, configuration not modified.")
             return False
         provider["api_base"] = api_base
         provider["api_mode"] = str(provider.get("api_mode") or profile.api_mode)
@@ -1021,12 +1061,12 @@ class RuntimeLab:
         pending_secret: str | None = None
         if provider["auth_type"] != "none" or is_custom:
             api_key = self.menu.read_text(
-                "API Key（空值保留原值，输入 - 清除，Esc 取消）: ",
+                "API Key (empty to keep original, - to clear, Esc to cancel): ",
                 masked=True,
                 line_input=self.secret_input,
             )
             if api_key is None:
-                self.output("已取消，配置未修改。")
+                self.output("Cancelled, configuration not modified.")
                 return False
             if api_key == "-":
                 pending_secret = ""
@@ -1052,25 +1092,25 @@ class RuntimeLab:
             is_new=False,
         )
         if specs is None:
-            self.output("已取消，配置未修改。")
+            self.output("Cancelled, configuration not modified.")
             return False
         self._set_provider_specs(provider, specs)
         self._commit_provider(provider_id, provider, pending_secret)
-        self.output("Provider 配置已安全保存到本地。")
+        self.output("Provider configuration saved securely to local storage.")
         if provider_id == "ollama":
             self.output(
-                "提示：这里只配置 Ollama 地址。模型需继续完成“批量验证”，"
-                "并在第三层生成/更新粮食后才会进入新路由。"
+                "Tip: Only configure Ollama address here.Models need“Batch Validation”,"
+                "and will enter new routing only after Layer 3 Food generation/update."
             )
         return True
 
     def _create_custom_provider(self) -> bool:
-        display_name = self.menu.read_text("Provider 名称（Esc 取消）: ")
+        display_name = self.menu.read_text("Provider Name (Esc to cancel): ")
         if display_name is None:
-            self.output("已取消，未创建 Provider。")
+            self.output("Cancelled, Provider not created.")
             return False
         if not display_name:
-            self.output("Provider 名称不能为空，未创建。")
+            self.output("Provider name cannot be empty, not created.")
             return False
         provider_id = self._next_custom_provider_id(display_name)
         template = BUILTIN_PROFILES["custom_openai"]
@@ -1078,15 +1118,15 @@ class RuntimeLab:
             f"API Base [{template.api_base}]: ", default=template.api_base
         )
         if api_base is None:
-            self.output("已取消，未创建 Provider。")
+            self.output("Cancelled, Provider not created.")
             return False
         api_key = self.menu.read_text(
-            "API Key（可选，Esc 取消）: ",
+            "API Key (optional, Esc to cancel): ",
             masked=True,
             line_input=self.secret_input,
         )
         if api_key is None:
-            self.output("已取消，未创建 Provider。")
+            self.output("Cancelled, Provider not created.")
             return False
 
         provider: dict[str, Any] = {
@@ -1106,11 +1146,11 @@ class RuntimeLab:
             is_new=True,
         )
         if not specs:
-            self.output("未配置可用模型，未创建 Provider。")
+            self.output("Not Configured available models, no Provider created.")
             return False
         self._set_provider_specs(provider, specs)
         self._commit_provider(provider_id, provider, api_key if api_key else None)
-        self.output(f"已创建 Custom Provider：{display_name} ({provider_id})")
+        self.output(f"Created Custom Provider: {display_name} ({provider_id})")
         return True
 
     def _refresh_specs_after_configuration(
@@ -1121,16 +1161,16 @@ class RuntimeLab:
         existing_specs: tuple[ProviderModelSpec, ...] | list[ProviderModelSpec],
         is_new: bool,
     ) -> list[ProviderModelSpec] | None:
-        self.output("正在自动拉取模型列表…")
+        self.output("Auto-pulling model list…")
         try:
             specs = self._auto_discover_model_specs(provider_id, provider)
         except Exception as exc:
-            self.output(f"自动拉取失败：{exc}")
+            self.output(f"Auto-pull failed: {exc}")
         else:
             if specs:
-                self.output(f"已自动更新 {len(specs)} 个模型。")
+                self.output(f"Auto-updated {len(specs)} models.")
                 return specs
-            self.output("自动拉取未返回任何模型。")
+            self.output("Auto-pull returned no models.")
 
         defaults = list(existing_specs) or [
             ProviderModelSpec(model_id, model_id)
@@ -1138,16 +1178,16 @@ class RuntimeLab:
         ]
         if existing_specs and not is_new:
             edit = self.menu.read_text(
-                "将保留当前模型目录，是否现在手工编辑？[y/N]: ",
+                "Will keep current model catalog, edit manually now? [y/N]: ",
                 default="n",
             )
             if edit is None:
                 return None
             if edit.lower() != "y":
-                self.output("自动更新失败，已保留原模型目录。")
+                self.output("Auto-update failed, original model directory preserved.")
                 return list(existing_specs)
         else:
-            self.output("请至少手工配置一个模型后继续。")
+            self.output("Please manually configure at least one model to continue.")
         return self._prompt_manual_model_specs(defaults)
 
     def _auto_discover_model_specs(
@@ -1173,18 +1213,18 @@ class RuntimeLab:
         while True:
             default = defaults[index] if index < len(defaults) else None
             model_id = self.menu.read_text(
-                f"模型 {index + 1} ID"
+                f"Model {index + 1} ID"
                 f" [{default.model_id if default else ''}]: ",
                 default=default.model_id if default else "",
             )
             if model_id is None:
                 return None
             if not model_id:
-                self.output("模型 ID 不能为空。")
+                self.output("Model ID cannot be empty.")
                 return None
             display_default = default.display_name if default else model_id
             display_name = self.menu.read_text(
-                f"显示名称 [{display_default}]: ", default=display_default
+                f"Display Name [{display_default}]: ", default=display_default
             )
             if display_name is None:
                 return None
@@ -1192,9 +1232,9 @@ class RuntimeLab:
             has_more_defaults = index + 1 < len(defaults)
             more_default = "y" if has_more_defaults else "n"
             more = self.menu.read_text(
-                "继续下一个模型？[Y/n]: "
+                "Continue to next model? [Y/n]: "
                 if has_more_defaults
-                else "继续添加模型？[y/N]: ",
+                else "Continue adding models? [y/N]: ",
                 default=more_default,
             )
             if more is None:
@@ -1240,29 +1280,29 @@ class RuntimeLab:
     def _update_provider_models(self, provider_id: str) -> bool:
         provider = copy.deepcopy(self.config.providers.get(provider_id, {}))
         existing = configured_model_specs(provider)
-        self.output("正在基于当前 Provider 配置更新模型列表…")
+        self.output("Updating Model List based on current Provider configuration…")
         try:
             specs = self._auto_discover_model_specs(provider_id, provider)
             if not specs:
-                raise RuntimeError("Provider 未返回任何模型")
+                raise RuntimeError("Provider returned no models")
         except Exception as exc:
-            self.output(f"自动更新失败：{exc}")
+            self.output(f"Auto-update failed: {exc}")
             edit = self.menu.read_text(
-                "是否编辑手工模型目录？[y/N]: ", default="n"
+                "Edit Manual Model Catalog? [y/N]: ", default="n"
             )
             if edit is None or edit.lower() != "y":
-                self.output("已保留当前模型目录。")
+                self.output("Current model catalog preserved.")
                 return False
             specs = self._prompt_manual_model_specs(existing)
             if not specs:
-                self.output("未修改模型目录。")
+                self.output("Model catalog not modified.")
                 return False
         if not specs:
-            self.output("Provider 未返回任何模型，已保留原目录。")
+            self.output("Provider returned no models, original catalog preserved.")
             return False
         self._set_provider_specs(provider, specs)
         self._commit_provider(provider_id, provider, None)
-        self.output(f"模型目录已更新，共 {len(specs)} 个模型：")
+        self.output(f"Model catalog updated, total {len(specs)} models:")
         for item in specs:
             self.output(f"- {item.display_name}: {item.model_id}")
         return True
@@ -1271,46 +1311,46 @@ class RuntimeLab:
         provider = copy.deepcopy(self.config.providers.get(provider_id, {}))
         specs = self._prompt_manual_model_specs(configured_model_specs(provider))
         if not specs:
-            self.output("未修改模型目录。")
+            self.output("Model catalog not modified.")
             return False
         self._set_provider_specs(provider, specs)
         self._commit_provider(provider_id, provider, None)
-        self.output(f"手工模型目录已保存，共 {len(specs)} 个模型。")
+        self.output(f"Manual model catalog saved, total {len(specs)} models.")
         return True
 
     def _batch_verify_models(self, provider_id: str) -> None:
         try:
             models = discover_provider_models(provider_id, self.config)
         except Exception as exc:
-            self.output(f"模型发现失败: {exc}")
+            self.output(f"Model discovery failed: {exc}")
             return
 
         if not models:
-            self.output("没有可验证模型。")
+            self.output("No models to validate.")
             return
 
         provider = self.config.providers.get(provider_id, {})
         test_model = str(provider.get("test_model", "")).strip()
 
-        self.output(f"\n发现 {len(models)} 个模型:")
+        self.output(f"\nFound {len(models)} models:")
         for idx, model in enumerate(models, 1):
             test_mark = " ✓" if model.name == test_model else ""
             self.output(f"  {idx}. {model.display_name or model.name} ({model.name}){test_mark}")
 
         if all(model.source == "configured" for model in models):
-            self.output("\n未能自动拉取模型，将验证手工配置的模型 ID。")
+            self.output("\nFailed to auto-pull models, will validate manually configured model IDs.")
 
         recommended_model = test_model or (models[0].name if models else "")
         choice = self.menu.choose(
-            "选择验证范围",
+            "Select Validation Scope",
             (
-                MenuItem("1", f"验证测试模型: {recommended_model}", "推荐"),
-                MenuItem("2", "验证前 N 个模型"),
-                MenuItem("3", "手动选择模型"),
-                MenuItem("4", f"验证所有 {len(models)} 个模型", "耗时较长"),
+                MenuItem("1", f"Validation test model: {recommended_model}", "Recommended"),
+                MenuItem("2", "Validate first N models"),
+                MenuItem("3", "Manually select models"),
+                MenuItem("4", f"Validate all {len(models)} models", "May take long"),
             ),
-            breadcrumb=f"Runtime Lab / 第一层 / {provider_id}",
-            back_label="返回",
+            breadcrumb=f"Runtime Lab / Layer 1 / {provider_id}",
+            back_label="Back",
         )
 
         if choice is None:
@@ -1323,41 +1363,41 @@ class RuntimeLab:
             if not selected_models and models:
                 selected_models = [models[0]]
         elif choice == "2":
-            n_str = self.input(f"验证前几个模型？[1-{len(models)}]: ").strip()
+            n_str = self.input(f"Validate first N models? [1-{len(models)}]: ").strip()
             try:
                 n = int(n_str)
                 n = max(1, min(n, len(models)))
                 selected_models = models[:n]
             except ValueError:
-                self.output("无效输入，已取消。")
+                self.output("Invalid input, cancelled.")
                 return
         elif choice == "3":
-            self.output("\n请输入要验证的模型编号，用空格分隔（如: 1 3 5）:")
-            indices_str = self.input("编号: ").strip()
+            self.output("\nEnter model numbers to validate, space-separated (e.g., 1 3 5):")
+            indices_str = self.input("Numbers: ").strip()
             try:
                 indices = [int(x) for x in indices_str.split()]
                 selected_models = [models[i-1] for i in indices if 1 <= i <= len(models)]
             except (ValueError, IndexError):
-                self.output("无效输入，已取消。")
+                self.output("Invalid input, cancelled.")
                 return
         elif choice == "4":
             selected_models = models
-            self.output(f"\n⚠️  即将验证所有 {len(models)} 个模型，可能需要较长时间。")
-            if self.input("确认继续吗？[y/N]: ").strip().lower() != "y":
-                self.output("已取消。")
+            self.output(f"\n⚠️  Validating all {len(models)} models, may take a while.")
+            if self.input("Confirm to continue? [y/N]: ").strip().lower() != "y":
+                self.output("Cancelled.")
                 return
 
         if not selected_models:
-            self.output("未选择任何模型。")
+            self.output("No models selected.")
             return
 
-        self.output(f"\n开始验证 {len(selected_models)} 个模型...\n")
+        self.output(f"\nStarting validation of {len(selected_models)} models...\n")
 
         results = []
         runner = ProviderValidationRunner(self.config)
 
         for idx, model in enumerate(selected_models, 1):
-            self.output(f"[{idx}/{len(selected_models)}] 正在验证: {model.display_name or model.name} ({model.name})...")
+            self.output(f"[{idx}/{len(selected_models)}] Validating: {model.display_name or model.name} ({model.name})...")
 
             try:
                 result = runner.verify_model(provider_id, model.name)
@@ -1366,14 +1406,14 @@ class RuntimeLab:
                 status_mark = "✓" if result.status == CheckStatus.PASSED else "✗"
                 self.output(f"  {status_mark} {result.message} ({result.duration_ms:.0f}ms)")
             except KeyboardInterrupt:
-                self.output("\n\n用户中断验证。")
+                self.output("\n\nUser interrupted validation.")
                 break
             except Exception as exc:
-                self.output(f"  ✗ 验证失败: {exc}")
+                self.output(f"  ✗ Validation failed: {exc}")
                 if idx < len(selected_models):
-                    cont = self.input("\n是否继续验证剩余模型？[Y/n]: ").strip().lower()
+                    cont = self.input("\nContinue validating remaining models? [Y/n]: ").strip().lower()
                     if cont == "n":
-                        self.output("已取消剩余验证。")
+                        self.output("Cancelled remaining validations.")
                         break
 
         if results:
@@ -1413,8 +1453,8 @@ class RuntimeLab:
                 )
             ModelEvidenceStore().merge(evidence)
             path = ValidationReport((suite,)).save()
-            self.output(f"\n验证证据和报告已保存: {path}")
-            self.output("下一步：进入第三层生成/更新粮食，验证模型才会正式进入路由。")
+            self.output(f"\nValidation evidence and Report Saved: {path}")
+            self.output("Next: Enter Layer 3 to generate/update Food, validated models will enter routing.")
 
     def _verify_model_agent(self) -> None:
         store = ModelEvidenceStore()
@@ -1423,20 +1463,20 @@ class RuntimeLab:
             key=lambda item: (item.display_name or item.model, item.model),
         )
         if not available:
-            self.output("尚无已验证模型，请先在第一层批量验证模型。")
+            self.output("No validated models yet. Please batch-validate models in Layer 1 first.")
             return
         model_by_key: dict[str, ModelEvidence] = {}
-        items = [MenuItem("1", "验证所有可用模型", f"共 {len(available)} 个")]
+        items = [MenuItem("1", "Validate all available models", f"Total {len(available)} ")]
         for index, item in enumerate(available, 2):
             key = str(index)
             model_by_key[key] = item
             label = item.display_name or item.model
             items.append(MenuItem(key, label, item.model))
         choice = self.menu.choose(
-            "选择模型 + Agent 验证范围",
+            "Select Model + Agent Validation scope",
             tuple(items),
-            breadcrumb="Runtime Lab / 第二层 / 模型 + Agent 验证",
-            back_label="取消",
+            breadcrumb="Runtime Lab / Layer 2 / Model + Agent Validation",
+            back_label="Cancel",
         )
         if choice is None:
             return
@@ -1445,15 +1485,15 @@ class RuntimeLab:
         if not selected_models:
             return
         self.output(
-            f"即将真实调用 {len(selected_models)} 个模型，"
-            "分别验证代码与本地文件工具，可能产生费用。"
+            f"Will make real calls to {len(selected_models)} models,"
+            "Will validate code and local file tools separately, may incur costs."
         )
         if not self.menu.confirm(
-            "确认开始模型 + Agent 验证吗？",
-            accept_label="开始验证",
-            reject_label="取消",
+            "Confirm starting Model + Agent Validation?",
+            accept_label="Start Validation",
+            reject_label="Cancel",
         ):
-            self.output("已取消。")
+            self.output("Cancelled.")
             return
         runner = ModelAgentValidationRunner(self.config)
         suites: list[ValidationSuite] = []
@@ -1462,7 +1502,7 @@ class RuntimeLab:
             provider, model = selected.model.split("/", 1)
             self.output(
                 f"\n[{index}/{len(selected_models)}] "
-                f"正在验证 {selected.display_name or selected.model}…"
+                f"Validating {selected.display_name or selected.model}…"
             )
             suite = runner.verify(provider, model)
             suites.append(suite)
@@ -1483,14 +1523,78 @@ class RuntimeLab:
         path = ValidationReport(tuple(suites)).save()
         passed_count = sum(suite.passed for suite in suites)
         self.output(
-            f"\n模型 + Agent 验证完成：通过 {passed_count} / {len(suites)}。"
+            f"\nModel + Agent Validation complete: Passed {passed_count} / {len(suites)}."
         )
-        self.output(f"汇总证据和报告已保存: {path}")
+        self.output(f"Summary evidence and report saved: {path}")
 
     def _print_suite(self, suite: ValidationSuite) -> None:
-        self.output(f"\n[{suite.name}] {'通过' if suite.passed else '失败'}")
+        self.output(f"\n[{suite.name}] {'PASSED' if suite.passed else 'FAILED'}")
         for result in suite.results:
             self._print_result(result)
+
+    def _delete_provider(self, provider_id: str) -> bool:
+        """Delete a provider configuration after safety checks and confirmation.
+        
+        Returns True if provider was deleted (caller should return to parent menu),
+        False if deletion was cancelled or failed.
+        """
+        from ai_runtime.providers.profiles import BUILTIN_PROFILES
+        
+        if provider_id in BUILTIN_PROFILES and provider_id != "custom_openai":
+            self.output(f"Cannot delete builtin provider: {provider_id}")
+            self.output("Builtin providers can only be deactivated by clearing their API key.")
+            return False
+        
+        food_catalog_path = get_food_catalog_path()
+        if food_catalog_path.exists():
+            from ai_runtime.food.store import FoodCatalogStore
+            store = FoodCatalogStore()
+            catalog = store.load()
+            used_by_foods = []
+            for food in catalog.foods:
+                if food.provider == provider_id:
+                    used_by_foods.append(food.name)
+            
+            if used_by_foods:
+                self.output(f"⚠️  Provider '{provider_id}' is used by {len(used_by_foods)} food configuration(s):")
+                for name in used_by_foods[:5]:
+                    self.output(f"  - {name}")
+                if len(used_by_foods) > 5:
+                    self.output(f"  ... and {len(used_by_foods) - 5} more")
+                self.output()
+                self.output("Please update or remove these food configurations before deleting the provider.")
+                return False
+        
+        self.output(f"⚠️  You are about to delete provider: {provider_id}")
+        self.output("This action cannot be undone.")
+        confirm = self.menu.read_text(
+            "Type 'DELETE' to confirm, or press Enter to cancel: ",
+            default="",
+        )
+        
+        if confirm != "DELETE":
+            self.output("Deletion cancelled.")
+            return False
+        
+        try:
+            if provider_id in self.config.providers:
+                del self.config.providers[provider_id]
+            
+            payload = self.config.to_safe_dict()
+            payload["config_version"] = 2
+            write_yaml_mapping(get_config_path(), payload)
+            
+            from ai_runtime.storage.secrets import set_provider_secret
+            set_provider_secret(provider_id, "")
+            
+            self.config = LLMRuntimeConfig.load(config_home=self.config_home)
+            
+            self.output(f"✓ Provider '{provider_id}' has been deleted.")
+            return True
+            
+        except Exception as e:
+            self.output(f"✗ Failed to delete provider: {e}")
+            return False
 
     def _print_result(self, result: Any) -> None:
         icon = {
@@ -1507,18 +1611,80 @@ class RuntimeLab:
 
 def _format_capabilities(capabilities: frozenset[str] | set[str]) -> str:
     labels = {
-        "text": "文本",
-        "reasoning": "推理",
-        "vision": "视觉",
-        "audio": "音频",
-        "code": "代码",
-        "tools": "工具",
+        "text": "Text",
+        "reasoning": "Reasoning",
+        "vision": "Vision",
+        "audio": "Audio",
+        "code": "Code",
+        "tools": "Tools",
     }
     order = ("text", "reasoning", "vision", "audio", "code", "tools")
     known = [labels[item] for item in order if item in capabilities]
     extra = sorted(item for item in capabilities if item not in labels)
-    return "/".join((*known, *extra)) or "能力未知"
+    return "/".join((*known, *extra)) or "Unknown"
 
+
+    def _show_provider_with_evidence(self, provider_id: str) -> None:
+        """Show provider config and validation evidence together."""
+        self._show_provider(provider_id)
+        self.output()
+        self.output("Model Validation Results:")
+        self.output("─" * 60)
+        self._show_provider_evidence(provider_id)
+
+
+    def _validate_code_executor(self) -> None:
+        self.output("Code Executor validation not implemented yet")
+
+    def _validate_file_access(self) -> None:
+        self.output("File Access validation not implemented yet")
+
+    def _validate_skill_evolution(self) -> None:
+        self.output("Skill Evolution validation not implemented yet")
+
+    def _validate_provider_full(self, provider_id: str) -> None:
+        """Validate provider connectivity and all models."""
+        self.output("Validating connectivity...")
+        result = ProviderValidationRunner(self.config).verify_provider(provider_id)
+        self._print_result(result)
+        self.output()
+        self.output("Validating all models...")
+        self._batch_verify_models(provider_id)
+
+    def _configure_provider_interactive(self, provider_id: str) -> bool:
+        """Interactive configuration with current values display."""
+        return self._configure_provider(provider_id)
+
+    def _show_provider_with_evidence(self, provider_id: str) -> None:
+        """Show provider config and validation evidence together."""
+        self._show_provider(provider_id)
+        self.output()
+        self.output("Model Validation Results:")
+        self.output("─" * 60)
+        self._show_provider_evidence(provider_id)
+
+
+    def _validate_code_executor(self) -> None:
+        self.output("Code Executor validation not implemented yet")
+
+    def _validate_file_access(self) -> None:
+        self.output("File Access validation not implemented yet")
+
+    def _validate_skill_evolution(self) -> None:
+        self.output("Skill Evolution validation not implemented yet")
+
+    def _validate_provider_full(self, provider_id: str) -> None:
+        """Validate provider connectivity and all models."""
+        self.output("Validating connectivity...")
+        result = ProviderValidationRunner(self.config).verify_provider(provider_id)
+        self._print_result(result)
+        self.output()
+        self.output("Validating all models...")
+        self._batch_verify_models(provider_id)
+
+    def _configure_provider_interactive(self, provider_id: str) -> bool:
+        """Interactive configuration with current values display."""
+        return self._configure_provider(provider_id)
 
 def main() -> None:
     RuntimeLab().run()

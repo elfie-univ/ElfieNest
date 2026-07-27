@@ -38,14 +38,14 @@ class FoodKind:
 
 
 FIXED_FOOD_KINDS: Mapping[str, FoodKind] = {
-    "coarse": FoodKind("coarse", "粗粮", "本地优先、低成本的简单任务"),
-    "standard": FoodKind("standard", "标准粮", "日常默认，平衡质量、速度和成本"),
-    "focus": FoodKind("focus", "清醒粮", "逻辑分析和复杂问题", ("text", "reasoning")),
-    "creative": FoodKind("creative", "灵感粮", "创作、想象和表达"),
+    "coarse": FoodKind("coarse", "Coarse", "Local-first, low-cost simple tasks"),
+    "standard": FoodKind("standard", "Standard", "Daily default, balanced quality/speed/cost"),
+    "focus": FoodKind("focus", "Focus", "Logic analysis and complex problems", ("text", "reasoning")),
+    "creative": FoodKind("creative", "Creative", "Writing, imagination and expression"),
     "tool": FoodKind("tool", "工具粮", "搜索、文件和代码工具调用", ("text", "tools")),
-    "vision": FoodKind("vision", "视觉粮", "图片理解与视觉任务", ("text", "vision")),
-    "premium": FoodKind("premium", "精粮", "高质量深度推理", ("text", "reasoning")),
-    "emergency": FoodKind("emergency", "紧急粮", "高紧迫场景下优先可靠性和响应速度"),
+    "vision": FoodKind("vision", "Vision", "Image understanding and visual tasks", ("text", "vision")),
+    "premium": FoodKind("premium", "Premium", "High-quality deep reasoning", ("text", "reasoning")),
+    "emergency": FoodKind("emergency", "Emergency", "High-urgency scenarios prioritizing reliability and speed"),
 }
 
 

@@ -14,8 +14,8 @@ if (
 ):
     actual_version = ".".join(str(part) for part in sys.version_info[:3])
     sys.stderr.write(
-        "❌ ElfieNest 必须使用 CPython 3.9.25；"
-        f"当前是 {sys.implementation.name} {actual_version}。\n"
+        "❌ ElfieNest requires CPython 3.9.25; "
+        f"current is {sys.implementation.name} {actual_version}.\n"
     )
     raise SystemExit(1)
 
@@ -31,19 +31,17 @@ from app.interfaces.cli.lifecycle_commands import (
     start_desktop_application,
     stop_background_service,
 )
+from app.interfaces.cli.mobile_commands import show_mobile_access
 from app.interfaces.cli.owner_commands import run_owner_menu
 from app.interfaces.cli.packaged_runtime import (
     PackagedCliRuntimeError,
     configure_frozen_cli_runtime,
 )
 from app.interfaces.cli.provider_commands import login_provider
-from app.interfaces.cli.runtime_commands import (
-    dispatch_db,
-    show_version,
-)
+from app.interfaces.cli.runtime_commands import show_version
 from app.interfaces.cli.tui.common import print_banner
 from app.interfaces.cli.tui.config_app import run_config_tui
-from app.interfaces.cli.tui.setup_app import run_setup_wizard
+from app.interfaces.cli.uninstall_commands import run_uninstall_menu
 from app.orchestration.lifecycle.types import ServiceLifecycleResult
 
 if getattr(sys, "frozen", False):
@@ -69,36 +67,36 @@ class SecretSafeArgumentParser(argparse.ArgumentParser):
         )
         if has_sensitive_argument:
             self.print_usage(sys.stderr)
-            self.exit(2, f"{self.prog}: 参数无效\n")
+            self.exit(2, f"{self.prog}: invalid argument\n")
         if "owner" in sys.argv[1:]:
             self.print_usage(sys.stderr)
-            self.exit(2, f"{self.prog}: Owner 参数无效\n")
+            self.exit(2, f"{self.prog}: invalid Owner argument\n")
         super().error(message)
 
 
 def main() -> None:
     parser = SecretSafeArgumentParser(
         prog="elfienest",
-        description="ElfieNest CLI - 仿生生命体系统命令行工具",
+        description="ElfieNest CLI - Embodied AI Creature System",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     subparsers = parser.add_subparsers(
         dest="command",
-        help="命令",
+        help="commands",
         parser_class=SecretSafeArgumentParser,
     )
 
-    config_parser = subparsers.add_parser("config", help="配置中心（方向键菜单）")
+    config_parser = subparsers.add_parser("config", help="Config center (interactive menu)")
     config_parser.add_argument(
         "config_path",
         nargs="?",
-        choices=["provider", "providers", "agent", "tools", "food", "owner", "doctor"],
+        choices=["provider", "providers", "agent", "tools", "food", "foods"],
         help=argparse.SUPPRESS,
     )
 
     serve_parser = subparsers.add_parser(
-        "serve", help="开发/诊断模式前台运行服务并实时显示日志"
+        "serve", help="Run service in foreground (dev mode)"
     )
     serve_parser.add_argument("--fallback", action="store_true")
     serve_parser.add_argument("--force", action="store_true")
@@ -108,7 +106,7 @@ def main() -> None:
     serve_parser.add_argument("--no-seed-elfie", action="store_true")
 
     start_parser = subparsers.add_parser(
-        "start", help="后台启动服务（已运行时不重复启动）"
+        "start", help="Start background service"
     )
     start_parser.add_argument("--port", type=int, default=None)
     start_parser.add_argument("--ws-port", type=int, default=None)
@@ -121,27 +119,25 @@ def main() -> None:
         dest="lan",
         action="store_true",
         default=True,
-        help="允许局域网访问（产品后台启动默认开启）",
+        help="Allow LAN access (default for background start)",
     )
     start_network_group.add_argument(
         "--loopback",
         dest="lan",
         action="store_false",
-        help="仅绑定本机回环地址",
+        help="Bind to loopback only",
     )
-    subparsers.add_parser("status", help="查看服务状态")
-    subparsers.add_parser("web", help="确保服务可用并打开 Web 管理台")
-    subparsers.add_parser("desktop", help="显式启动打包版 ElfieNest Desktop")
-    subparsers.add_parser("stop", help="停止服务")
-    subparsers.add_parser("restart", help="强制重启服务")
-    subparsers.add_parser("owner", help="Owner 账户菜单")
-    subparsers.add_parser("doctor", help="运行本地诊断与配置检查")
-    subparsers.add_parser("version", help="显示版本")
-    subparsers.add_parser("setup", help="首次设置向导")
-    db_parser = subparsers.add_parser("db", help="数据库工具")
-    db_parser.add_argument(
-        "db_command", nargs="?", choices=["backup", "reset"], help="数据库命令"
-    )
+    subparsers.add_parser("status", help="Show service status")
+    subparsers.add_parser("web", help="Ensure service running and open Web console")
+    subparsers.add_parser("desktop", help="Launch packaged ElfieNest Desktop")
+    subparsers.add_parser("mobile", help="Show mobile access URL and QR code")
+    subparsers.add_parser("stop", help="Stop service")
+    subparsers.add_parser("restart", help="Force restart service")
+    subparsers.add_parser("owner", help="Owner account menu")
+    subparsers.add_parser("doctor", help="Run local diagnostics and config check")
+    subparsers.add_parser("uninstall", help="Uninstall and data cleanup")
+    subparsers.add_parser("version", help="Show version")
+    subparsers.add_parser("setup", help="First-time setup wizard")
 
     args = parser.parse_args()
     dispatch_command(args)
@@ -152,7 +148,7 @@ def dispatch_command(args: argparse.Namespace) -> None:
         _dispatch_command(args)
     except KeyboardInterrupt as error:
         print()
-        print("  已取消。")
+        print("  Cancelled.")
         raise SystemExit(130) from error
 
 
@@ -170,6 +166,8 @@ def _dispatch_command(args: argparse.Namespace) -> None:
         _exit_on_lifecycle_failure(open_web_console())
     elif args.command == "desktop":
         _exit_on_lifecycle_failure(start_desktop_application())
+    elif args.command == "mobile":
+        raise SystemExit(show_mobile_access())
     elif args.command == "start":
         _exit_on_lifecycle_failure(
             start_background_service(
@@ -184,15 +182,16 @@ def _dispatch_command(args: argparse.Namespace) -> None:
         raise SystemExit(run_owner_menu())
     elif args.command == "doctor":
         raise SystemExit(run_doctor())
-    elif args.command == "db":
-        dispatch_db(args.db_command)
+    elif args.command == "uninstall":
+        raise SystemExit(run_uninstall_menu())
     elif args.command == "version":
         show_version()
     elif args.command == "setup":
+        from app.interfaces.cli.tui.setup_app import run_setup_wizard
         run_setup_wizard()
     else:
         print_banner()
-        print("  启动服务...")
+        print("  Starting service...")
         print()
         _exec_foreground_service(tuple(sys.argv[1:]))
 

@@ -1,4 +1,4 @@
-"""本机 Owner 账号菜单。"""
+"""Local Owner account menu."""
 
 from __future__ import annotations
 
@@ -24,20 +24,19 @@ from ai_runtime.storage.data_home import get_db_path
 
 
 def show_owner_account(db_path: Optional[str] = None) -> int:
-    """显示 Owner 登录信息和时间信息，不显示可恢复的密码。"""
     path = db_path or str(get_db_path())
     try:
         account = get_owner_account(path)
     except OwnerServiceError as error:
-        print(f"  ❌ 无法读取 Owner 账户: {error}")
+        print(f"  ❌ Cannot read Owner account: {error}")
         return 1
-    print("  👤 Owner 账户信息")
+    print("  👤 Owner Account Information")
     print("  " + "=" * 45)
     print(f"  User ID: {account.user_id}")
-    print(f"  登录名: {account.username}")
-    print(f"  密码状态: {account.password_status}")
-    print(f"  创建时间: {account.created_at or '未知'}")
-    print(f"  最后修改: {account.updated_at or '未知'}")
+    print(f"  Username: {account.username}")
+    print(f"  Password status: {account.password_status}")
+    print(f"  Created at: {account.created_at or 'unknown'}")
+    print(f"  Last updated: {account.updated_at or 'unknown'}")
     print()
     return 0
 
@@ -46,10 +45,9 @@ def show_owner_account_page(
     menu: TerminalMenu,
     db_path: Optional[str] = None,
 ) -> int:
-    """显示 Owner 账号详情页，并等待用户返回。"""
-    menu.action_header("Owner 账号信息", "ElfieNest / Owner / 查看账号")
+    menu.action_header("Owner Account Information", "ElfieNest / Owner / View Account")
     exit_code = show_owner_account(db_path)
-    menu.pause("按 Enter、← 或 Esc 返回 Owner 菜单…")
+    menu.pause("Press Enter, ← or Esc to return to Owner menu…")
     return exit_code
 
 
@@ -58,86 +56,84 @@ def recover_owner_interactive(
     *,
     menu: TerminalMenu | None = None,
 ) -> int:
-    """交互式同时恢复 Owner 登录名和密码。"""
     owner_menu = menu or TerminalMenu(input_fn=input, output_fn=print)
     if menu is not None:
-        owner_menu.action_header("恢复 Owner 账号", "ElfieNest / Owner / 恢复账号")
-        print("  此操作会同时修改 Owner 登录名和密码，并撤销旧会话。")
-        print("  可按 Esc、← 或选择返回取消。")
+        owner_menu.action_header("Recover Owner Account", "ElfieNest / Owner / Recover Account")
+        print("  This operation will modify both Owner username and password, and revoke old sessions.")
+        print("  Press Esc, ← or select Back to cancel.")
         print()
         if not owner_menu.confirm(
-            "是否开始恢复？",
-            accept_label="开始恢复",
-            reject_label="返回",
+            "Start recovery?",
+            accept_label="Start Recovery",
+            reject_label="Back",
         ):
-            print("  已取消，未执行任何修改")
+            print("  Cancelled, no changes made")
             return 1
 
     path = db_path or str(get_db_path())
     if not Path(path).expanduser().is_file():
-        print(f"  ❌ 无法恢复 Owner: 数据库不存在 ({Path(path).expanduser()})")
+        print(f"  ❌ Cannot recover Owner: database not found ({Path(path).expanduser()})")
         return 1
     if menu is None:
-        username = input_text("  新 Owner 登录名")
+        username = input_text("  New Owner username")
     else:
-        username = owner_menu.read_text("  新 Owner 登录名（Esc 取消）: ")
+        username = owner_menu.read_text("  New Owner username (Esc to cancel): ")
     if not username:
-        print("  ❌ 已取消，未执行任何修改")
+        print("  ❌ Cancelled, no changes made")
         return 1
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("error", getpass.GetPassWarning)
             if menu is None:
-                first = input_password("  新 Owner 密码")
-                second = input_password("  再次输入新 Owner 密码")
+                first = input_password("  New Owner password")
+                second = input_password("  Re-enter new Owner password")
             else:
                 first = owner_menu.read_text(
-                    "  新 Owner 密码（Esc 取消）: ",
+                    "  New Owner password (Esc to cancel): ",
                     masked=True,
                 )
                 second = owner_menu.read_text(
-                    "  再次输入新 Owner 密码（Esc 取消）: ",
+                    "  Re-enter new Owner password (Esc to cancel): ",
                     masked=True,
                 )
     except (EOFError, KeyboardInterrupt, getpass.GetPassWarning):
-        print("  ❌ 密码输入已中断，未执行任何修改")
+        print("  ❌ Password input interrupted, no changes made")
         return 1
     if first is None or second is None:
-        print("  ❌ 已取消，未执行任何修改")
+        print("  ❌ Cancelled, no changes made")
         return 1
     if first != second:
-        print("  ❌ 两次输入的密码不一致，未执行任何修改")
+        print("  ❌ Passwords do not match, no changes made")
         return 1
     if not MIN_OWNER_PASSWORD_LENGTH <= len(first) <= MAX_OWNER_PASSWORD_LENGTH:
         print(
-            f"  ❌ 新密码长度必须为 {MIN_OWNER_PASSWORD_LENGTH}-{MAX_OWNER_PASSWORD_LENGTH} 个字符"
+            f"  ❌ New password must be {MIN_OWNER_PASSWORD_LENGTH}-{MAX_OWNER_PASSWORD_LENGTH} characters"
         )
         return 1
     try:
         with owner_recovery_lock(Path(path).resolve().parent):
             account = recover_owner_account(path, username, first)
     except (OwnerServiceError, OSError, RecoveryInProgressError) as error:
-        print(f"  ❌ Owner 恢复失败: {error}")
+        print(f"  ❌ Owner recovery failed: {error}")
         return 1
-    print(f"  ✅ Owner 账户已恢复: {account.username}")
-    print("  旧会话已撤销，请使用新登录名和密码进入 Web。")
+    print(f"  ✅ Owner account recovered: {account.username}")
+    print("  Old sessions revoked. Use new username and password to access Web.")
     return 0
 
 
 def run_owner_menu() -> int:
-    """运行固定三项 Owner 菜单，TTY 下支持方向键。"""
     menu = TerminalMenu(input_fn=input, output_fn=print)
     last_exit_code = 0
     while True:
         try:
             choice = menu.choose(
-                "Owner 账户",
+                "Owner Account",
                 (
-                    MenuItem("1", "查看 Owner 账号信息"),
-                    MenuItem("2", "恢复 Owner 账号"),
+                    MenuItem("1", "View Owner Account Information"),
+                    MenuItem("2", "Recover Owner Account"),
                 ),
                 breadcrumb="ElfieNest / Owner",
-                back_label="返回首页",
+                back_label="Back to Home",
             )
         except (EOFError, KeyboardInterrupt):
             return 1

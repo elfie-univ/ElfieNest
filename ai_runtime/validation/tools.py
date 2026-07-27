@@ -41,7 +41,7 @@ class DirectToolValidationRunner:
             else CheckResult(
                 check_id="tool.web_search",
                 status=CheckStatus.SKIPPED,
-                message="离线验证未启用真实网络搜索",
+                message="Offline validation: real web search not enabled",
             )
         )
         return ValidationSuite("agent:direct-tools", tuple(results))
@@ -54,7 +54,7 @@ class DirectToolValidationRunner:
             return CheckResult(
                 check_id="tool.code_sandbox",
                 status=CheckStatus.PASSED if passed else CheckStatus.FAILED,
-                message="代码沙箱验证通过" if passed else "代码沙箱返回异常结果",
+                message="Code sandbox validation passed" if passed else "Code sandbox returned abnormal results",
                 duration_ms=(time.perf_counter() - started) * 1000,
             )
         except CodeSandboxUnavailableError as exc:
@@ -81,7 +81,7 @@ class DirectToolValidationRunner:
             return CheckResult(
                 check_id="tool.local_file",
                 status=CheckStatus.PASSED if passed else CheckStatus.FAILED,
-                message="本地文件沙箱验证通过" if passed else "本地文件沙箱结果异常",
+                message="Local file sandbox validation passed" if passed else "Local file sandbox results abnormal",
                 duration_ms=(time.perf_counter() - started) * 1000,
             )
         except Exception as exc:
@@ -96,7 +96,7 @@ class DirectToolValidationRunner:
             return CheckResult(
                 check_id="tool.permission_boundary",
                 status=CheckStatus.PASSED,
-                message="路径越界请求已被阻止",
+                message="Path boundary violation blocked",
                 duration_ms=(time.perf_counter() - started) * 1000,
             )
         except Exception as exc:
@@ -104,7 +104,7 @@ class DirectToolValidationRunner:
         return CheckResult(
             check_id="tool.permission_boundary",
             status=CheckStatus.FAILED,
-            message="路径越界请求未被阻止",
+            message="Path boundary violation not blocked",
             duration_ms=(time.perf_counter() - started) * 1000,
         )
 
@@ -128,7 +128,7 @@ class DirectToolValidationRunner:
             return CheckResult(
                 check_id="tool.skill_lifecycle",
                 status=CheckStatus.PASSED if passed else CheckStatus.FAILED,
-                message="技能生命周期验证通过" if passed else "技能生命周期结果异常",
+                message="Skill lifecycle validation passed" if passed else "Skill lifecycle results abnormal",
                 duration_ms=(time.perf_counter() - started) * 1000,
             )
         except CodeSandboxUnavailableError as exc:
@@ -149,7 +149,7 @@ class DirectToolValidationRunner:
             return CheckResult(
                 check_id="tool.web_search",
                 status=CheckStatus.PASSED if passed else CheckStatus.FAILED,
-                message="网络搜索验证通过" if passed else "网络搜索返回空结果",
+                message="Web search validation passed" if passed else "Web search returned empty results",
                 duration_ms=(time.perf_counter() - started) * 1000,
             )
         except Exception as exc:

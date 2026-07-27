@@ -15,6 +15,8 @@ dependencies = [
     "uvicorn>=0.27.0",
     "python-multipart>=0.0.9",
     "PyYAML>=6.0.1",
+    "qrcode>=7.4",
+    "pillow>=10.0.0",
 ]
 
 [project.optional-dependencies]

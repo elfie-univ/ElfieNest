@@ -22,24 +22,24 @@ def config_providers(config: UserConfig, provider_login: ProviderLogin) -> None:
         config = read_user_config() or config
         clear_screen()
         print_banner()
-        print("  🔑 服务商配置")
+        print("  🔑 Provider Configuration")
         print("  " + "=" * 45)
         print()
 
-        print("  【已配置服务商】")
+        print("  【Configured Providers】")
         for row in list_configured_provider_rows(config):
             status_icon = "✅" if row.status == "active" else "⭕"
             print(f"    {status_icon} {row.name}")
         print()
 
-        print("  1. 配置服务商 (使用 elfienest login)")
-        print("  2. 测试服务商连通性")
-        print("  3. 查看所有服务商")
-        print("  0. 返回")
+        print("  1. Configure provider (use elfienest login)")
+        print("  2. Test provider connectivity")
+        print("  3. View all providers")
+        print("  0. Back")
         print()
 
         try:
-            choice = input("请选择 [0-3]: ").strip()
+            choice = input("Choose [0-3]: ").strip()
         except KeyboardInterrupt:
             return
 
@@ -52,18 +52,18 @@ def config_providers(config: UserConfig, provider_login: ProviderLogin) -> None:
             _test_configured_providers(config)
         elif choice == "3":
             _print_all_providers(read_user_config())
-            input("  按回车键继续...")
+            input("  Press Enter to continue...")
 
 
 def _prompt_provider_login(provider_login: ProviderLogin) -> None:
-    print("\n  可用服务商:")
+    print("\n  Available providers:")
     providers = _ordered_provider_ids()
     for i, pid in enumerate(providers, 1):
         profile = BUILTIN_PROFILES[pid]
         print(f"    {i}. {pid:12s} - {profile.name}")
 
     try:
-        idx = int(input(f"\n  请选择 [1-{len(providers)}]: ")) - 1
+        idx = int(input(f"\n  Choose [1-{len(providers)}]: ")) - 1
     except (KeyboardInterrupt, ValueError):
         return
     if 0 <= idx < len(providers):
@@ -81,7 +81,7 @@ def _ordered_provider_ids() -> list[str]:
 
 
 def _test_configured_providers(config: UserConfig) -> None:
-    print("\n  测试所有已配置服务商...\n")
+    print("\n  Testing all configured providers...\n")
     rt_config = LLMRuntimeConfig.load()
     providers_config = config.get("providers", {})
     rows = {row.provider_id: row for row in list_configured_provider_rows(config)}
@@ -95,17 +95,17 @@ def _test_configured_providers(config: UserConfig) -> None:
 
         if result["status"] == "active":
             latency = result.get("latency_ms", 0)
-            print(f"    ✅ {name}: 可用 ({latency:.0f}ms)")
+            print(f"    ✅ {name}: available ({latency:.0f}ms)")
         else:
-            error = result.get("error", "未知错误")
+            error = result.get("error", "unknown error")
             print(f"    ❌ {name}: {error}")
 
-    input("\n  按回车键继续...")
+    input("\n  Press Enter to continue...")
 
 
 def _print_all_providers(config: UserConfig) -> None:
-    print("\n  📋 服务商列表\n")
-    print(f"  {'ID':<12s} {'名称':<20s} {'状态':<8s} {'API模式':<20s}")
+    print("\n  📋 Provider List\n")
+    print(f"  {'ID':<12s} {'Name':<20s} {'Status':<8s} {'API Mode':<20s}")
     print("  " + "-" * 70)
     for row in list_provider_rows(config):
         status_icon = "✅" if row.status == "active" else "⭕"

@@ -18,11 +18,11 @@ def dispatch_models(subcmd: Optional[str]) -> None:
 
 
 def list_models() -> None:
-    print("\n  📦 模型目录\n")
+    print("\n  📦 Model Catalog\n")
 
     config = read_user_config()
 
-    print(f"  {'模型ID':<35s} {'能力':<25s} {'费用等级':<8s} {'状态':<8s}")
+    print(f"  {'Model ID':<35s} {'Capabilities':<25s} {'Cost':<8s} {'Status':<8s}")
     print("  " + "-" * 85)
 
     for row in list_model_rows(config):
@@ -35,29 +35,29 @@ def list_models() -> None:
 
 
 def scan_models() -> None:
-    print("\n  🔍 扫描 Ollama 本地模型...\n")
+    print("\n  🔍 Scanning Ollama local models...\n")
 
     try:
         resp = urllib.request.urlopen("http://localhost:11434/api/tags", timeout=5.0)
         data = json.loads(resp.read().decode())
     except urllib.error.URLError:
-        print("  ❌ Ollama 未运行")
-        print("  💡 启动 Ollama: ollama serve")
+        print("  ❌ Ollama not running")
+        print("  💡 Start Ollama: ollama serve")
         print()
         return
     except (OSError, TimeoutError, json.JSONDecodeError) as e:
-        print(f"  ❌ 扫描失败: {e}")
+        print(f"  ❌ Scan failed: {e}")
         print()
         return
 
     models = data.get("models", [])
     if not models:
-        print("  ⚠️  Ollama 中没有模型")
-        print("  💡 使用 'ollama pull qwen3.5:0.8b' 下载模型")
+        print("  ⚠️  No models in Ollama")
+        print("  💡 Use 'ollama pull qwen3.5:0.8b' to download a model")
         return
 
-    print(f"  发现 {len(models)} 个本地模型:\n")
-    print(f"  {'模型名称':<30s} {'大小':<12s} {'修改时间'}")
+    print(f"  Found {len(models)} local models:\n")
+    print(f"  {'Model Name':<30s} {'Size':<12s} {'Modified'}")
     print("  " + "-" * 70)
 
     for model in models:
@@ -73,5 +73,5 @@ def scan_models() -> None:
 
         print(f"  {name:<30s} {size_str:<12s} {modified}")
 
-    print("\n  ✅ Ollama 模型已列出")
+    print("\n  ✅ Ollama models listed")
     print()

@@ -28,46 +28,46 @@ CONFIG_FILE: Final = str(get_config_path())
 def show_config(config: UserConfig) -> None:
     clear_screen()
     print_banner()
-    print("  📄 当前配置")
+    print("  📄 Current Configuration")
     print("  " + "=" * 45)
     print()
 
-    print("  【大模型与粮食策略】")
-    print("    统一由 Runtime Lab 管理：.venv/bin/python -m ai_runtime.lab")
-    print("    精灵只选择默认/允许/兜底粮食，不直接绑定模型")
+    print("  【LLM and Food Strategy】")
+    print("    Managed by Runtime Lab: .venv/bin/python -m ai_runtime.lab")
+    print("    Elfies choose default/allowed/fallback food, not direct model binding")
     print()
 
     if config.get("providers", {}):
-        print("  【已配置服务商】")
+        print("  【Configured Providers】")
         for row in list_configured_provider_rows(config):
             status_icon = "✅" if row.status == "active" else "⭕"
             print(f"    {status_icon} {row.name}")
         print()
 
     engine = config.get("system", {}).get("engine", {})
-    print("  【引擎配置】")
-    print(f"    Tick 间隔: {engine.get('tick_interval_sec', 1.5)} 秒")
-    print(f"    房间精灵上限: {engine.get('max_elfies_per_room', 10)}")
+    print("  【Engine Config】")
+    print(f"    Tick interval: {engine.get('tick_interval_sec', 1.5)}s")
+    print(f"    Max elfies per room: {engine.get('max_elfies_per_room', 10)}")
     print()
 
     security = config.get("system", {}).get("security", {})
     rate_limit = security.get("rate_limit", {})
-    print("  【安全配置】")
-    print(f"    Session TTL: {security.get('session_ttl_days', 7)} 天")
-    print(f"    登录失败次数: {rate_limit.get('max_attempts', 5)}")
-    print(f"    限流窗口: {rate_limit.get('window_seconds', 300)} 秒")
+    print("  【Security Config】")
+    print(f"    Session TTL: {security.get('session_ttl_days', 7)} days")
+    print(f"    Max login attempts: {rate_limit.get('max_attempts', 5)}")
+    print(f"    Rate limit window: {rate_limit.get('window_seconds', 300)}s")
     print()
 
     adoption = config.get("system", {}).get("adoption", {})
-    print("  【领养配置】")
-    print(f"    每用户精灵上限: {adoption.get('max_elfies_per_user', 3)}")
+    print("  【Adoption Config】")
+    print(f"    Max elfies per user: {adoption.get('max_elfies_per_user', 3)}")
     print(
-        "    允许物种: "
+        "    Allowed species: "
         + ", ".join(adoption.get("allowed_species_ids", ["dog", "fox"]))
     )
     enabled = adoption.get("personality_presets_enabled", {})
     enabled_names = [name for name, is_enabled in enabled.items() if is_enabled]
-    print(f"    启用性格预设: {', '.join(enabled_names) or '默认'}")
+    print(f"    Enabled personality presets: {', '.join(enabled_names) or 'default'}")
     print()
 
     _pause()
@@ -76,37 +76,37 @@ def show_config(config: UserConfig) -> None:
 def test_config(config: UserConfig) -> None:
     clear_screen()
     print_banner()
-    print("  🧪 测试配置")
+    print("  🧪 Testing Configuration")
     print("  " + "=" * 45)
     print()
 
-    print("  [1/3] 测试 Ollama 连接...")
+    print("  [1/3] Testing Ollama connection...")
     try:
         resp = urllib.request.urlopen("http://localhost:11434/api/tags", timeout=2.0)
     except (OSError, TimeoutError, urllib.error.URLError):
-        print("  ⚠️  Ollama 未运行（将使用 fallback 模式）")
+        print("  ⚠️  Ollama not running (will use fallback mode)")
     else:
         if resp.status == 200:
-            print("  ✅ Ollama 连接成功")
+            print("  ✅ Ollama connection successful")
         else:
-            print("  ❌ Ollama 响应异常")
+            print("  ❌ Ollama response abnormal")
 
-    print("\n  [2/3] 测试数据库...")
+    print("\n  [2/3] Testing database...")
     try:
         stats = collect_usage_stats()
-        print(f"  ✅ 数据库正常（{stats.user_count} 个用户）")
+        print(f"  ✅ Database OK ({stats.user_count} users)")
     except (DatabaseUnavailableError, OSError, sqlite3.Error) as e:
-        print(f"  ❌ 数据库错误: {e}")
+        print(f"  ❌ Database error: {e}")
 
-    print("\n  [3/3] 测试配置文件...")
+    print("\n  [3/3] Testing config file...")
     if read_user_config():
-        print(f"  ✅ 配置文件存在: {CONFIG_FILE}")
+        print(f"  ✅ Config file exists: {CONFIG_FILE}")
     else:
-        print("  ⚠️  配置文件不存在（将使用默认配置）")
+        print("  ⚠️  Config file missing (will use defaults)")
 
     providers_config = config.get("providers", {})
     if providers_config:
-        print("\n  [4/4] 测试服务商连通性...")
+        print("\n  [4/4] Testing provider connectivity...")
         rt_config = LLMRuntimeConfig.load()
         for provider_id in providers_config.keys():
             profile = get_profile(provider_id)
@@ -118,33 +118,33 @@ def test_config(config: UserConfig) -> None:
 
             if result["status"] == "active":
                 latency = result.get("latency_ms", 0)
-                print(f"    ✅ {name}: 可用 ({latency:.0f}ms)")
+                print(f"    ✅ {name}: available ({latency:.0f}ms)")
             else:
-                print(f"    ❌ {name}: 不可用")
+                print(f"    ❌ {name}: unavailable")
 
-    print("\n✅ 测试完成")
+    print("\n✅ Tests completed")
     _pause()
 
 
 def reset_config() -> None:
-    print("\n⚠️  这将重置应用配置为默认值，Provider 与其他账户数据会保留，是否继续？")
+    print("\n⚠️  This will reset app config to defaults. Provider and account data will be kept. Continue?")
     try:
-        choice = input("输入 'yes' 确认: ").strip()
+        choice = input("Type 'yes' to confirm: ").strip()
     except (EOFError, KeyboardInterrupt):
         return
     if choice.lower() == "yes":
         updated = copy.deepcopy(read_user_config())
         updated["system"] = copy.deepcopy(DEFAULT_SYSTEM_SETTINGS)
         write_user_config(updated)
-        print("✅ 配置已重置")
+        print("✅ Config reset")
     else:
-        print("已取消")
+        print("Cancelled")
     _pause()
 
 
 def _pause() -> None:
-    """等待用户返回；重定向输入结束时安静退出。"""
+    """Wait for user to return; exit silently when input is redirected."""
     try:
-        input("\n按回车键继续...")
+        input("\nPress Enter to continue...")
     except (EOFError, KeyboardInterrupt):
         return
