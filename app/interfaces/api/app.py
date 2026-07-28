@@ -370,6 +370,8 @@ def create_app(
         resp.delete_cookie(key="session_token")
         return resp
 
+    @app.get("/session/current.json")
+    @app.get("/api/session/me")
     @app.get("/api/auth/me")
     async def me(
         request: Request,

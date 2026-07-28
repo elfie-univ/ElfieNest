@@ -52,6 +52,9 @@
       "output": "../../../dist"
     }
   },
+  "pnpm": {
+    "onlyBuiltDependencies": ["electron", "electron-winstaller"]
+  },
   "packageManager": "pnpm@10.12.1",
   "engines": {
     "node": ">=20"

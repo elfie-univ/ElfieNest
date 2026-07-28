@@ -10,7 +10,8 @@ export const ThemeKeySchema = z.union([
 ])
 
 const ClientUserSchema = z.object({
-  account_id: z.string().min(1),
+  account_id: z.string().min(1).optional(),
+  id: z.number().int().optional(),
   username: z.string().optional(),
   role: z.union([z.literal("owner"), z.literal("user")]),
   nickname: z.string().nullable().optional(),
@@ -20,7 +21,13 @@ const ClientUserSchema = z.object({
   theme_key: ThemeKeySchema.default("warm-paper"),
   default_landing_page: z.union([z.literal("chat"), z.literal("manage")]).optional(),
   csrf_token: z.string().optional(),
-}).transform((user) => ({ ...user, username: user.username ?? user.account_id }))
+}).refine((user) => user.account_id !== undefined || user.id !== undefined, {
+  message: "account identity is required",
+  path: ["account_id"],
+}).transform((user) => {
+  const accountId = user.account_id ?? String(user.id ?? "")
+  return { ...user, account_id: accountId, username: user.username ?? accountId }
+})
 
 const LoginResponseSchema = z.object({
   landing_path: z.union([z.literal("/chat"), z.literal("/manage")]),
@@ -35,7 +42,7 @@ export type ClientUser = z.infer<typeof ClientUserSchema>
 export type ThemeKey = z.infer<typeof ThemeKeySchema>
 
 export async function currentUser(): Promise<ClientUser> {
-  return ClientUserSchema.parse(await requestJson("/api/auth/me"))
+  return ClientUserSchema.parse(await requestJson("/session/current.json"))
 }
 
 export async function saveTheme(themeKey: ThemeKey, csrfToken: string): Promise<ThemeKey> {

@@ -219,16 +219,38 @@ ensure_elfie_home() {
 
 check_electron() {
     local desktop_dir="$PROJECT_ROOT/app/interfaces/desktop"
-    [[ -d "$desktop_dir/node_modules" ]]
+    local electron_bin="$desktop_dir/node_modules/.bin/electron"
+    local desktop_main="$PROJECT_ROOT/build/components/desktop-interface/main.js"
+    [[ -d "$desktop_dir/node_modules" ]] && \
+    [[ -x "$electron_bin" ]] && \
+    check_electron_runtime && \
+    [[ -f "$desktop_main" ]]
+}
+
+check_electron_runtime() {
+    local desktop_dir="$PROJECT_ROOT/app/interfaces/desktop"
+    local electron_bin="$desktop_dir/node_modules/.bin/electron"
+    local electron_package="$desktop_dir/node_modules/electron"
+    local electron_path_file="$electron_package/path.txt"
+    local electron_executable
+    [[ -x "$electron_bin" ]] || return 1
+    [[ -f "$electron_path_file" ]] || return 1
+    electron_executable="$(tr -d '\r\n' < "$electron_path_file")"
+    [[ -n "$electron_executable" ]] || return 1
+    [[ -x "$electron_package/dist/$electron_executable" ]]
+}
+
+check_electron_authority_main() {
+    [[ -f "$PROJECT_ROOT/build/components/desktop-interface/main.js" ]]
 }
 
 ensure_electron() {
     if check_electron; then
-        echo "${GREEN}  ✅ Electron 依赖已就绪${RESET}"
+        echo "${GREEN}  ✅ Electron authority host 已就绪${RESET}"
         return 0
     fi
 
-    echo "${CYAN}  🔧 正在准备 Electron 依赖...${RESET}"
+    echo "${CYAN}  🔧 正在准备 Electron authority host...${RESET}"
 
     ensure_node || return 1
     ensure_pnpm || return 1
@@ -236,19 +258,40 @@ ensure_electron() {
     local desktop_dir="$PROJECT_ROOT/app/interfaces/desktop"
 
     if [[ ! -f "$desktop_dir/package.json" ]]; then
-        echo "${YELLOW}  ⚠️  app/interfaces/desktop/package.json does not exist, skipping Electron${RESET}"
-        return 0
+        echo "${RED}  ❌ Electron authority host package 缺失: $desktop_dir/package.json${RESET}" >&2
+        return 1
     fi
 
     cd "$desktop_dir"
 
     if ! pnpm install --frozen-lockfile >&2; then
         echo "${RED}  ❌ Electron 依赖安装失败${RESET}" >&2
+        cd "$PROJECT_ROOT"
+        return 1
+    fi
+
+    if ! ELECTRON_MIRROR="${ELECTRON_MIRROR:-https://npmmirror.com/mirrors/electron/}" pnpm rebuild electron >&2; then
+        echo "${RED}  ❌ Electron 运行时安装失败${RESET}" >&2
+        cd "$PROJECT_ROOT"
+        return 1
+    fi
+
+    if ! pnpm build >&2; then
+        echo "${RED}  ❌ Electron authority host 构建失败${RESET}" >&2
+        cd "$PROJECT_ROOT"
         return 1
     fi
 
     cd "$PROJECT_ROOT"
-    echo "${GREEN}  ✅ Electron 依赖已就绪${RESET}"
+    if ! check_electron_runtime; then
+        echo "${RED}  ❌ Electron 运行时不可用；请允许 electron 的安装脚本后重试${RESET}" >&2
+        return 1
+    fi
+    if ! check_electron_authority_main; then
+        echo "${RED}  ❌ Electron authority host 构建产物缺失${RESET}" >&2
+        return 1
+    fi
+    echo "${GREEN}  ✅ Electron authority host 已就绪${RESET}"
 }
 
 RUNTIME_DEPENDENCIES_HELPER="$SCRIPT_DIR/bootstrap_runtime_dependencies.sh"
@@ -335,9 +378,9 @@ main() {
         ensure_godot_toolchain || exit_code=1
     else
         if check_godot_toolchain; then
-            echo "${GREEN}  ✅ Godot $GODOT_TOOLCHAIN_VERSION 编辑器已就绪${RESET}"
+            echo "${GREEN}  ✅ Godot $GODOT_PROJECT_VERSION.x 编辑器已就绪${RESET}"
         else
-            echo "${RED}  ❌ Godot $GODOT_TOOLCHAIN_VERSION 编辑器缺失或版本不匹配${RESET}" >&2
+            echo "${RED}  ❌ Godot $GODOT_PROJECT_VERSION.x 编辑器缺失或版本不匹配${RESET}" >&2
             exit_code=1
         fi
     fi
@@ -384,16 +427,17 @@ main() {
     fi
     echo ""
 
-    # Electron（dev tier only）
+    # Electron authority host（dev tier only）
     if [[ "$TIER" == "dev" ]]; then
-        echo "📦 Electron 依赖"
+        echo "📦 Electron authority host"
         if [[ "$ACTION" == "ensure" ]]; then
             ensure_electron || exit_code=1
         else
             if check_electron; then
-                echo "${GREEN}  ✅ Electron 依赖已就绪${RESET}"
+                echo "${GREEN}  ✅ Electron authority host 已就绪${RESET}"
             else
-                echo "${YELLOW}  ⚠️  Electron 依赖缺失（改 desktop 才需要）${RESET}"
+                echo "${RED}  ❌ Electron authority host 缺失；完整产品无法启动${RESET}"
+                exit_code=1
             fi
         fi
         echo ""

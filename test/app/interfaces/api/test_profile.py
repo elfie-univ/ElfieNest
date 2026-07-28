@@ -108,8 +108,35 @@ class TestMe:
         assert data["default_landing_page"] == "manage"
         assert data["theme_key"] == "warm-paper"
         assert "csrf_token" in data
-        assert "created_at" in data
-        assert data["elfie_count"] == 0
+
+    def test_session_bootstrap_routes_return_the_same_schema(
+        self,
+        client: TestClient,
+    ) -> None:
+        """Session bootstrap routes avoid extension-prone API startup paths."""
+        tokens = _login_owner(client)
+
+        for path in ("/api/session/me", "/session/current.json"):
+            response = client.get(path, headers=_headers(tokens["csrf_token"]))
+
+            assert response.status_code == 200
+            data = response.json()
+            assert set(data.keys()) == {
+                "id",
+                "username",
+                "role",
+                "nickname",
+                "avatar_color",
+                "avatar_kind",
+                "avatar_url",
+                "csrf_token",
+                "created_at",
+                "elfie_count",
+                "default_landing_page",
+                "theme_key",
+            }
+            assert "created_at" in data
+            assert data["elfie_count"] == 0
 
     def test_me_returns_elfie_count(self, client: TestClient, db_path: str) -> None:
         """elfie_count 反映用户拥有的精灵数量。"""

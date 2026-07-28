@@ -75,6 +75,86 @@ def test_bootstrap_report_marks_missing_godot_as_required_failure(
     }
 
 
+def test_bootstrap_dev_report_requires_built_electron_authority_host(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    scripts_dir = copy_bootstrap(project_root)
+    prepare_build_runtime(project_root)
+    make_executable(
+        project_root / ".fake-bin/node",
+        "#!/bin/sh\necho 'v20.12.0'\n",
+    )
+    (project_root / "app/interfaces/desktop/node_modules").mkdir(parents=True)
+    elfie_home = tmp_path / "elfie-home"
+    elfie_home.mkdir()
+
+    result = subprocess.run(
+        ["bash", str(scripts_dir / "bootstrap.sh"), "report", "--tier=dev"],
+        cwd=project_root,
+        env={
+            **os.environ,
+            "ELFIE_HOME": str(elfie_home),
+            "HOME": str(tmp_path / "home"),
+            "PATH": f"{project_root / '.fake-bin'}:/usr/bin:/bin:/usr/sbin:/sbin",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1, result.stderr
+    report = json.loads(result.stdout)
+    assert report["overall_state"] == "failed"
+    assert report["components"]["electron"] == {
+        "required": True,
+        "state": "missing",
+    }
+
+
+def test_bootstrap_dev_report_rejects_broken_electron_binary(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    scripts_dir = copy_bootstrap(project_root)
+    prepare_build_runtime(project_root)
+    make_executable(
+        project_root / ".fake-bin/node",
+        "#!/bin/sh\necho 'v20.12.0'\n",
+    )
+    make_executable(
+        project_root / "app/interfaces/desktop/node_modules/.bin/electron",
+        "#!/bin/sh\nexit 1\n",
+    )
+    (project_root / "build/components/desktop-interface").mkdir(parents=True)
+    (project_root / "build/components/desktop-interface/main.js").write_text(
+        "main\n", encoding="utf-8"
+    )
+    elfie_home = tmp_path / "elfie-home"
+    elfie_home.mkdir()
+
+    result = subprocess.run(
+        ["bash", str(scripts_dir / "bootstrap.sh"), "report", "--tier=dev"],
+        cwd=project_root,
+        env={
+            **os.environ,
+            "ELFIE_HOME": str(elfie_home),
+            "HOME": str(tmp_path / "home"),
+            "PATH": f"{project_root / '.fake-bin'}:/usr/bin:/bin:/usr/sbin:/sbin",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1, result.stderr
+    report = json.loads(result.stdout)
+    assert report["components"]["electron"] == {
+        "required": True,
+        "state": "missing",
+    }
+
+
 def test_bootstrap_report_requires_the_godot_editor_even_when_web_output_exists(
     tmp_path: Path,
     monkeypatch,
@@ -170,6 +250,20 @@ def test_bootstrap_pnpm_preparation_uses_repository_pinned_version() -> None:
     assert 'PNPM_VERSION="10.12.1"' in runtime_source
     assert "pnpm@${PNPM_VERSION}" in runtime_source
     assert "pnpm@latest" not in bootstrap_source + runtime_source
+
+
+def test_desktop_bootstrap_allows_electron_install_scripts() -> None:
+    bootstrap_source = (PROJECT_ROOT / "scripts/bootstrap.sh").read_text(
+        encoding="utf-8"
+    )
+    desktop_package = json.loads(
+        (PROJECT_ROOT / "app/interfaces/desktop/package.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert "electron" in desktop_package["pnpm"]["onlyBuiltDependencies"]
+    assert "https://npmmirror.com/mirrors/electron/" in bootstrap_source
 
 
 def test_bootstrap_accepts_only_dev_and_build_tiers(tmp_path: Path) -> None:
