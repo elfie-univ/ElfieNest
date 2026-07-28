@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button"
 import { useEffect, useState, type FormEvent } from "react"
 
 import type { ProviderDraft, ProviderModelDraft, ProviderView } from "../api/owner-providers"
@@ -96,8 +97,8 @@ export function ProviderFormDialog({ onOpenChange, onSave, open, provider }: Pro
             value={apiKey}
           /> : null}
           <SelectField
-            ariaLabel="认证方式"
             disabled
+            label="认证方式"
             onValueChange={() => undefined}
             options={[
               { label: "无认证", value: "none" },
@@ -109,26 +110,24 @@ export function ProviderFormDialog({ onOpenChange, onSave, open, provider }: Pro
           <TextField hint="可选；用于单项连通性验证。" label="测试模型" onChange={setTestModel} value={testModel} />
           <fieldset className="provider-model-editor">
             <legend>手动模型</legend>
-            {models.map((model) => <div className="provider-model-editor__row" key={model.key}>
-              <TextField label="模型 ID" onChange={(value) => updateModel(model.key, "id", value)} value={model.id} />
-              <TextField label="显示名称" onChange={(value) => updateModel(model.key, "displayName", value)} value={model.displayName} />
-              <button
+            {models.map((model, index) => <div className="provider-model-editor__row" key={model.key}>
+              <TextField label={`模型 ${index + 1} ID`} onChange={(value) => updateModel(model.key, "id", value)} value={model.id} />
+              <TextField label={`模型 ${index + 1} 显示名称`} onChange={(value) => updateModel(model.key, "displayName", value)} value={model.displayName} />
+              <Button variant="outline"
                 aria-label={`删除模型 ${model.id || model.key + 1}`}
-                className="button button--quiet"
                 disabled={models.length === 1}
                 onClick={() => setModels((current) => current.filter((item) => item.key !== model.key))}
                 type="button"
-              >删除</button>
+              >删除</Button>
             </div>)}
-            <button
-              className="button button--quiet"
+            <Button variant="outline"
               onClick={() => setModels((current) => [...current, { key: Math.max(-1, ...current.map((item) => item.key)) + 1, id: "", displayName: "" }])}
               type="button"
-            >添加模型</button>
+            >添加模型</Button>
           </fieldset>
           <div className="manage-actions">
-            <button className="button" disabled={pending} type="submit">{pending ? "保存中…" : "保存配置"}</button>
-            <button className="button button--quiet" disabled={pending} onClick={() => onOpenChange(false)} type="button">取消</button>
+            <Button disabled={pending} type="submit">{pending ? "保存中…" : "保存配置"}</Button>
+            <Button variant="outline" disabled={pending} onClick={() => onOpenChange(false)} type="button">取消</Button>
           </div>
         </>}
     </form>

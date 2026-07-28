@@ -12,6 +12,7 @@ const profile = {
   birth_date: null,
   summary: null,
   online_status: "unknown",
+  status: { code: "unknown", label: "状态未知", tone: "muted" },
   portrait_url: "",
   appearance: {
     species_id: "fox",

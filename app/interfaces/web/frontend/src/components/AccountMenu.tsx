@@ -1,3 +1,5 @@
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react"
 
 import {
@@ -13,6 +15,7 @@ import {
 import { Avatar } from "./Avatar"
 import { Icon, type IconName } from "./Icon"
 import { SelectField } from "./SelectField"
+import { TextField } from "./TextField"
 
 const THEMES = [
   { key: "warm-paper", label: "暖纸与陶土", description: "默认" },
@@ -34,10 +37,6 @@ type AccountMenuPanelProps = {
   readonly onClose: () => void
   readonly onUpdated: () => Promise<void>
   readonly user: ClientUser
-}
-
-function errorMessage(reason: unknown, fallback: string): string {
-  return reason instanceof ApiError ? reason.message : fallback
 }
 
 function sectionSummary(section: AccountSection, user: ClientUser): string {
@@ -64,7 +63,7 @@ function SettingRow({
   readonly summary: string
 }) {
   return <section className={active ? "account-menu__setting account-menu__setting--active" : "account-menu__setting"}>
-    <button aria-expanded={active} className="account-menu__setting-toggle" onClick={onToggle} type="button">
+    <button aria-expanded={active} className="account-menu__setting-toggle" data-slot="button" data-variant="ghost" onClick={onToggle} type="button">
       <Icon name={icon} size={17} />
       <span><strong>{label}</strong><small>{summary}</small></span>
       <Icon name={active ? "chevron-up" : "chevron-down"} size={17} />
@@ -102,7 +101,9 @@ export function AccountMenuPanel({ onClose, onUpdated, user }: AccountMenuPanelP
     try {
       await updateProfile({ nickname: nickname.trim() }, csrfToken)
       await onUpdated(); setEditingIdentity(false)
-    } catch (reason: unknown) { report("theme", "error", errorMessage(reason, "显示名称没有保存")) }
+    } catch (reason: unknown) {
+      report("theme", "error", reason instanceof ApiError ? reason.message : "显示名称没有保存")
+    }
     finally { setSaving(null) }
   }
   const saveIdentityOnEnter = (event: ReactKeyboardEvent<HTMLInputElement>): void => {
@@ -115,7 +116,9 @@ export function AccountMenuPanel({ onClose, onUpdated, user }: AccountMenuPanelP
     try {
       await uploadAvatar(file, csrfToken)
       await onUpdated()
-    } catch (reason: unknown) { report("theme", "error", errorMessage(reason, "头像没有上传")) }
+    } catch (reason: unknown) {
+      report("theme", "error", reason instanceof ApiError ? reason.message : "头像没有上传")
+    }
     finally { setSaving(null) }
   }
   const selectTheme = async (themeKey: ThemeKey): Promise<void> => {
@@ -123,7 +126,9 @@ export function AccountMenuPanel({ onClose, onUpdated, user }: AccountMenuPanelP
     try {
       await saveTheme(themeKey, csrfToken)
       await onUpdated(); report("theme", "info", "系统配色已保存。")
-    } catch (reason: unknown) { report("theme", "error", errorMessage(reason, "系统配色没有保存")) }
+    } catch (reason: unknown) {
+      report("theme", "error", reason instanceof ApiError ? reason.message : "系统配色没有保存")
+    }
     finally { setSaving(null) }
   }
   const savePassword = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
@@ -131,7 +136,9 @@ export function AccountMenuPanel({ onClose, onUpdated, user }: AccountMenuPanelP
     try {
       await changePassword(oldPassword, newPassword, csrfToken)
       setOldPassword(""); setNewPassword(""); report("password", "info", "密码已更新。")
-    } catch (reason: unknown) { report("password", "error", errorMessage(reason, "密码没有更新")) }
+    } catch (reason: unknown) {
+      report("password", "error", reason instanceof ApiError ? reason.message : "密码没有更新")
+    }
     finally { setSaving(null) }
   }
   const saveLanding = async (): Promise<void> => {
@@ -139,30 +146,32 @@ export function AccountMenuPanel({ onClose, onUpdated, user }: AccountMenuPanelP
     try {
       await saveLandingPage(landing, csrfToken)
       await onUpdated(); report("landing", "info", "默认登录页已保存。")
-    } catch (reason: unknown) { report("landing", "error", errorMessage(reason, "默认登录页没有保存")) }
+    } catch (reason: unknown) {
+      report("landing", "error", reason instanceof ApiError ? reason.message : "默认登录页没有保存")
+    }
     finally { setSaving(null) }
   }
 
   return <section aria-label="个人与外观设置" className="account-menu__panel">
-    <header><p className="brand"><Icon name="user" size={14} />个人设置</p><button aria-label="关闭个人设置" className="account-menu__close" onClick={onClose} type="button"><Icon name="x" /></button></header>
+    <header><p className="brand"><Icon name="user" size={14} />个人设置</p><Button aria-label="关闭个人设置" className="account-menu__close" onClick={onClose} size="icon" type="button" variant="ghost"><Icon name="x" /></Button></header>
     <section className="account-menu__identity">
       <input accept="image/png,image/jpeg,image/webp" aria-label="上传本地头像" className="account-menu__avatar-input" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadIdentityAvatar(file); event.target.value = "" }} ref={fileInput} type="file" />
-      <button aria-label="上传本地头像" className="account-menu__avatar-button" disabled={saving !== null} onClick={() => fileInput.current?.click()} type="button"><Avatar imageUrl={user.avatar_url} name={displayName} /></button>
-      <div>{editingIdentity ? <input aria-label="显示名称" autoFocus maxLength={32} onChange={(event) => setNickname(event.target.value)} onKeyDown={saveIdentityOnEnter} placeholder={user.username} value={nickname} /> : <h2>{displayName}</h2>}<p>ID: {user.id} · @{user.username}</p><small>{roleDescription}</small></div>
-      <button aria-label={editingIdentity ? "保存显示名称" : "编辑显示名称"} className="account-menu__edit" disabled={saving !== null} onClick={() => { if (editingIdentity) void saveIdentity(); else setEditingIdentity(true) }} type="button"><Icon name="pencil" size={16} /></button>
+      <button aria-label="上传本地头像" className="account-menu__avatar-button" data-slot="button" data-variant="ghost" disabled={saving !== null} onClick={() => fileInput.current?.click()} type="button"><Avatar imageUrl={user.avatar_url} name={displayName} /></button>
+      <div>{editingIdentity ? <Input aria-label="显示名称" autoFocus maxLength={32} onChange={(event) => setNickname(event.target.value)} onKeyDown={saveIdentityOnEnter} placeholder={user.username} value={nickname} /> : <h2>{displayName}</h2>}<p>@{user.account_id}</p><small>{roleDescription}</small></div>
+      <Button aria-label={editingIdentity ? "保存显示名称" : "编辑显示名称"} className="account-menu__edit" disabled={saving !== null} onClick={() => { if (editingIdentity) void saveIdentity(); else setEditingIdentity(true) }} size="icon" type="button" variant="ghost"><Icon name="pencil" size={16} /></Button>
     </section>
     <SettingRow active={expanded === "password"} icon="lock-keyhole" label="修改密码" onToggle={() => toggle("password")} summary={sectionSummary("password", user)}>
       <form className="account-menu__form" onSubmit={(event) => { void savePassword(event) }}>
-        <label>当前密码<input autoComplete="current-password" onChange={(event) => setOldPassword(event.target.value)} required type="password" value={oldPassword} /></label>
-        <label>新密码<input autoComplete="new-password" minLength={6} onChange={(event) => setNewPassword(event.target.value)} required type="password" value={newPassword} /></label>
-        <button className="button button--quiet" disabled={saving === "password"} type="submit">{saving === "password" ? "正在更新…" : "更新密码"}</button>
+        <TextField autoComplete="current-password" label="当前密码" onChange={setOldPassword} required type="password" value={oldPassword} />
+        <TextField autoComplete="new-password" label="新密码" minLength={6} onChange={setNewPassword} required type="password" value={newPassword} />
+        <Button variant="outline" disabled={saving === "password"} type="submit">{saving === "password" ? "正在更新…" : "更新密码"}</Button>
       </form>
     </SettingRow>
     <SettingRow active={expanded === "theme"} icon="palette" label="系统配色" onToggle={() => toggle("theme")} summary={sectionSummary("theme", user)}>
-      <div className="account-menu__themes">{THEMES.map((theme) => <button aria-pressed={user.theme_key === theme.key} className={user.theme_key === theme.key ? "theme-choice theme-choice--active" : "theme-choice"} disabled={saving === "theme"} key={theme.key} onClick={() => { void selectTheme(theme.key) }} type="button"><i aria-hidden="true" className={`theme-choice__swatch theme-choice__swatch--${theme.key}`} /><span><strong>{theme.label}</strong><small>{theme.description}</small></span></button>)}</div>
+      <div className="account-menu__themes">{THEMES.map((theme) => <button aria-pressed={user.theme_key === theme.key} className={user.theme_key === theme.key ? "theme-choice theme-choice--active" : "theme-choice"} data-slot="button" data-variant="outline" disabled={saving === "theme"} key={theme.key} onClick={() => { void selectTheme(theme.key) }} type="button"><i aria-hidden="true" className={`theme-choice__swatch theme-choice__swatch--${theme.key}`} /><span><strong>{theme.label}</strong><small>{theme.description}</small></span></button>)}</div>
     </SettingRow>
     {user.role === "owner" ? <SettingRow active={expanded === "landing"} icon="house" label="默认登录页" onToggle={() => toggle("landing")} summary={sectionSummary("landing", user)}>
-      <div className="account-menu__landing"><SelectField ariaLabel="选择默认登录页" onValueChange={(value) => setLanding(value === "chat" ? "chat" : "manage")} options={[{ label: "管理页", value: "manage" }, { label: "聊天页", value: "chat" }]} value={landing} /><button className="button button--quiet" disabled={saving === "landing"} onClick={() => { void saveLanding() }} type="button">{saving === "landing" ? "正在保存…" : "保存默认页"}</button></div>
+      <div className="account-menu__landing"><SelectField label="默认登录页" onValueChange={(value) => setLanding(value === "chat" ? "chat" : "manage")} options={[{ label: "管理页", value: "manage" }, { label: "聊天页", value: "chat" }]} value={landing} /><Button variant="outline" disabled={saving === "landing"} onClick={() => { void saveLanding() }} type="button">{saving === "landing" ? "正在保存…" : "保存默认页"}</Button></div>
     </SettingRow> : null}
     {feedback && expanded === feedback.section ? <p className={feedback.kind === "error" ? "notice notice--error" : "notice notice--info"}>{feedback.message}</p> : null}
   </section>
@@ -178,7 +187,7 @@ export function AccountMenu({ compact = false, onUpdated, user }: AccountMenuPro
     const closeWhenOutside = (event: MouseEvent): void => {
       if (!(event.target instanceof Element)) return
       const isInsideAccountMenu = root.current?.contains(event.target) ?? false
-      const isInsideSelectPortal = event.target.closest(".select-field__content") !== null
+      const isInsideSelectPortal = event.target.closest('[data-slot="select-content"], [role="listbox"], [role="option"]') !== null
       if (!isInsideAccountMenu && !isInsideSelectPortal) setOpen(false)
     }
     const closeOnEscape = (event: KeyboardEvent): void => { if (event.key === "Escape") setOpen(false) }
@@ -188,7 +197,7 @@ export function AccountMenu({ compact = false, onUpdated, user }: AccountMenuPro
   }, [open])
 
   return <div className={compact ? "account-menu account-menu--compact" : "account-menu"} ref={root}>
-    <button aria-expanded={open} aria-haspopup="dialog" aria-label={compact ? "打开个人设置" : undefined} className="account-menu__trigger" data-tooltip={compact ? "个人设置" : undefined} onClick={() => setOpen((current) => !current)} type="button">
+    <button aria-expanded={open} aria-haspopup="dialog" aria-label={compact ? "打开个人设置" : undefined} className="account-menu__trigger" data-slot="button" data-tooltip={compact ? "个人设置" : undefined} data-variant="ghost" onClick={() => setOpen((current) => !current)} type="button">
       <Avatar imageUrl={user.avatar_url} name={displayName} />
       {!compact ? <span><strong>{displayName}</strong><small>{user.role === "owner" ? "Owner" : "用户设置"}</small></span> : null}
     </button>

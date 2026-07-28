@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button"
 import { useEffect, useState } from "react"
 import { z } from "zod"
 
@@ -5,6 +6,7 @@ import { ApiError, ownerRead, ownerWrite } from "../api/client"
 import { CheckboxField } from "./CheckboxField"
 import { Notice } from "./Notice"
 import { NumberField } from "./NumberField"
+import { RefreshButton } from "./RefreshButton"
 
 const EngineSchema = z.object({ tick_interval_sec: z.number(), max_elfies_per_room: z.number().nullable() })
 const AdoptionSchema = z.object({ max_elfies_per_user: z.number(), allowed_species_ids: z.array(z.string()), personality_presets_enabled: z.record(z.string(), z.boolean()) })
@@ -55,7 +57,7 @@ export function SystemSettingsPanel({ csrfToken }: { readonly csrfToken: string 
   }
 
   return <section className="system-settings">
-    <div className="manage-head"><p>常用本机参数按模块保存，所有数值在提交前均有明确范围。</p><button className="button button--quiet" disabled={saving !== null} onClick={() => { void load() }} type="button">重新读取</button></div>
+    <div className="manage-head"><p>常用本机参数按模块保存，所有数值在提交前均有明确范围。</p><RefreshButton disabled={saving !== null} label="重新读取" onClick={() => { void load() }} /></div>
     {error ? <Notice kind="error" message={error} /> : null}
     {notice ? <Notice message={notice} /> : null}
     {!engine && !adoption && !security && !error ? <p className="empty-state">正在加载系统设置…</p> : null}
@@ -74,7 +76,7 @@ function EngineCard({ disabled, onChange, onSave, value }: { readonly disabled: 
     <NumberField disabled={disabled} hint="0.1–3600 秒" label="运行 Tick（秒）" max={3600} min={0.1} onChange={(tick) => onChange({ ...value, tick_interval_sec: tick })} step={0.1} value={value.tick_interval_sec} />
     <CheckboxField checked={roomLimitEnabled} disabled={disabled} hint="关闭时不限制每个房间的精灵数量" label="限制每房精灵数" onChange={(checked) => onChange({ ...value, max_elfies_per_room: checked ? 1 : null })} />
     {roomLimitEnabled ? <NumberField disabled={disabled} hint="1–32 位" label="每房最大精灵数" max={32} min={1} onChange={(limit) => onChange({ ...value, max_elfies_per_room: limit })} value={value.max_elfies_per_room ?? 1} /> : null}
-    <button className="button" disabled={disabled} onClick={onSave} type="button">保存引擎设置</button>
+    <Button disabled={disabled} onClick={onSave} type="button">保存引擎设置</Button>
   </section>
 }
 
@@ -90,7 +92,7 @@ function AdoptionCard({ disabled, onChange, onSave, value }: { readonly disabled
       const checked = value.allowed_species_ids.includes(species.id)
       return <CheckboxField checked={checked} disabled={disabled || (checked && value.allowed_species_ids.length === 1)} hint={checked && value.allowed_species_ids.length === 1 ? "至少保留一个物种" : ""} key={species.id} label={species.label} onChange={(next) => toggleSpecies(species.id, next)} />
     })}</fieldset>
-    <button className="button" disabled={disabled} onClick={onSave} type="button">保存领养设置</button>
+    <Button disabled={disabled} onClick={onSave} type="button">保存领养设置</Button>
   </section>
 }
 
@@ -100,6 +102,6 @@ function SecurityCard({ disabled, onChange, onSave, value }: { readonly disabled
     <NumberField disabled={disabled} hint="1–3650 天" label="会话有效期（天）" max={3650} min={1} onChange={(days) => onChange({ ...value, session_ttl_days: days })} value={value.session_ttl_days} />
     <NumberField disabled={disabled} hint="1–1000 次" label="尝试次数上限" max={1000} min={1} onChange={(attempts) => onChange({ ...value, rate_limit: { ...value.rate_limit, max_attempts: attempts } })} value={value.rate_limit.max_attempts} />
     <NumberField disabled={disabled} hint="1–86400 秒" label="限制窗口（秒）" max={86400} min={1} onChange={(seconds) => onChange({ ...value, rate_limit: { ...value.rate_limit, window_seconds: seconds } })} value={value.rate_limit.window_seconds} />
-    <button className="button" disabled={disabled} onClick={onSave} type="button">保存安全设置</button>
+    <Button disabled={disabled} onClick={onSave} type="button">保存安全设置</Button>
   </section>
 }

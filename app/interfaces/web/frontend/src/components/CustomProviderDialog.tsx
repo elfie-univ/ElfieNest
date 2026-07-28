@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button"
 import { useEffect, useState, type FormEvent } from "react"
 
 import type { ProviderDraft } from "../api/owner-providers"
@@ -61,20 +62,20 @@ export function CustomProviderDialog({ onOpenChange, onSave, open }: Props) {
       <TextField label="显示名称" onChange={setDisplayName} placeholder="例如 家庭模型网关" required value={displayName} />
       <TextField label="API Base URL" onChange={setApiBase} placeholder="https://host.example/v1" required type="url" value={apiBase} />
       {authType === "none" ? null : <TextField autoComplete="new-password" label="API 密钥" onChange={setApiKey} required type="password" value={apiKey} />}
-      <SelectField ariaLabel="API 协议" onValueChange={setApiMode} options={[
+      <SelectField label="API 协议" onValueChange={setApiMode} options={[
         { label: "OpenAI Chat Completions", value: "chat_completions" },
         { label: "Anthropic Messages", value: "anthropic_messages" },
         { label: "Ollama", value: "ollama" },
       ]} value={apiMode} />
-      <SelectField ariaLabel="认证方式" onValueChange={setAuthType} options={[
+      <SelectField label="认证方式" onValueChange={setAuthType} options={[
         { label: "Bearer", value: "bearer" },
         { label: "X-API-Key", value: "x-api-key" },
         { label: "无认证", value: "none" },
       ]} value={authType} />
       <TextField hint="可选；用于单项连通性验证。" label="测试模型" onChange={setTestModel} value={testModel} />
       <div className="manage-actions">
-        <button className="button" disabled={pending} type="submit">{pending ? "保存中…" : "添加供应商"}</button>
-        <button className="button button--quiet" disabled={pending} onClick={() => onOpenChange(false)} type="button">取消</button>
+        <Button disabled={pending} type="submit">{pending ? "保存中…" : "添加供应商"}</Button>
+        <Button variant="outline" disabled={pending} onClick={() => onOpenChange(false)} type="button">取消</Button>
       </div>
     </form>
   </ManageDialog>

@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button"
 import { useEffect, useState } from "react"
 
 import {
@@ -7,8 +8,17 @@ import {
   type ModelMatrix,
 } from "../api/owner-providers"
 import { ApiError } from "../api/client"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "./ui/table"
 import { ManageDialog } from "./ManageDialog"
 import { Notice } from "./Notice"
+import { RefreshButton } from "./RefreshButton"
 
 type ModelMatrixDialogProps = {
   readonly csrfToken: string
@@ -35,14 +45,17 @@ export function ModelMatrixDialog({ csrfToken, onOpenChange, open }: ModelMatrix
 
   const benchmarkCombinations = matrix ? collectBenchmarkCombinations(matrix) : []
 
-  const benchmark = async (): Promise<void> => {
-    if (benchmarkCombinations.length === 0) {
-      setNotice("暂无已验证通过且可测速的模型。")
+  const benchmark = async (
+    combinations: readonly BenchmarkCombination[],
+    emptyNotice: string,
+  ): Promise<void> => {
+    if (combinations.length === 0) {
+      setNotice(emptyNotice)
       return
     }
     setPending(true)
     try {
-      const result = await benchmarkProviderModels(benchmarkCombinations.slice(0, 12), csrfToken)
+      const result = await benchmarkProviderModels(combinations.slice(0, 12), csrfToken)
       const passed = result.results.filter((item) => item.status === "passed").length
       setNotice(`测速完成：${passed} 个成功，${result.results.length - passed} 个失败。`)
       await load()
@@ -61,30 +74,43 @@ export function ModelMatrixDialog({ csrfToken, onOpenChange, open }: ModelMatrix
     title="支持模型与测速"
   >
     <div className="model-matrix-toolbar">
-      <button className="button" disabled={pending || benchmarkCombinations.length === 0} onClick={() => { void benchmark() }} type="button">
+      <Button disabled={pending || benchmarkCombinations.length === 0} onClick={() => { void benchmark(benchmarkCombinations, "暂无已验证通过且可测速的模型。") }} type="button">
         {pending ? "测速中…" : "批量测速"}
-      </button>
-      <button className="button button--quiet" disabled={pending} onClick={() => { void load() }} type="button">重新读取</button>
+      </Button>
+      <RefreshButton disabled={pending} label="重新读取" onClick={() => { void load() }} />
     </div>
     {error ? <Notice kind="error" message={error} /> : null}
     {notice ? <Notice message={notice} /> : null}
     {matrix && matrix.models.length === 0 ? <p className="empty-state">尚无已配置供应商声明的模型。</p> : null}
     {matrix && matrix.models.length > 0 ? <div className="model-matrix-scroll">
-      <table aria-label="模型供应商矩阵" className="model-matrix">
-        <thead><tr><th scope="col">模型</th>{matrix.providers.map((provider) => <th key={provider.provider_id} scope="col">{provider.name}</th>)}</tr></thead>
-        <tbody>{matrix.models.map((model) => <tr key={model.model_id}>
-          <th scope="row">{model.display_name}</th>
+      <Table aria-label="模型供应商矩阵" className="model-matrix">
+        <TableHeader><TableRow><TableHead scope="col">模型</TableHead>{matrix.providers.map((provider) => <TableHead key={provider.provider_id} scope="col">{provider.name}</TableHead>)}</TableRow></TableHeader>
+        <TableBody>{matrix.models.map((model) => <TableRow key={model.model_id}>
+          <TableHead scope="row">{model.display_name}</TableHead>
           {matrix.providers.map((provider) => {
             const cell = model.providers.find((item) => item.provider_id === provider.provider_id)
-            if (!cell?.available) return <td className="model-matrix__cell model-matrix__cell--unavailable" key={provider.provider_id}>不支持</td>
-            return <td className="model-matrix__cell" key={provider.provider_id}>
-              <strong>{cell.verification_status === "passed" ? "✓ 可用" : cell.verification_status === "failed" ? "验证失败" : "未验证"}</strong>
-              <span className={cell.latency_class ? `latency--${cell.latency_class}` : undefined}>{cell.latency_ms === null ? "未测速" : `${Math.round(cell.latency_ms)}ms`}</span>
-              <small>价格：<span>{cell.price_estimate === null ? "未提供" : cell.price_estimate}</span></small>
-            </td>
+            const canBenchmark = Boolean(cell?.available && provider.verification.status === "passed")
+            if (!cell?.available) return <TableCell className="model-matrix__cell model-matrix__cell--unavailable" key={provider.provider_id}>不支持</TableCell>
+            return <TableCell className="model-matrix__cell" key={provider.provider_id}>
+              <div className="model-matrix__cell-content">
+                <strong>{cell.verification_status === "passed" ? "✓ 可用" : cell.verification_status === "failed" ? "验证失败" : "未验证"}</strong>
+                <span className={cell.latency_class ? `latency--${cell.latency_class}` : undefined}>{cell.latency_ms === null ? "未测速" : `${Math.round(cell.latency_ms)}ms`}</span>
+                <small>价格：<span>{cell.price_estimate === null ? "未提供" : cell.price_estimate}</span></small>
+                <Button
+                  aria-label={`测速 ${provider.name} ${model.display_name}`}
+                  disabled={pending || !canBenchmark}
+                  onClick={() => { void benchmark([{ provider_id: provider.provider_id, model_id: model.model_id }], "这个模型组合尚不可测速。") }}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  测速
+                </Button>
+              </div>
+            </TableCell>
           })}
-        </tr>)}</tbody>
-      </table>
+        </TableRow>)}</TableBody>
+      </Table>
     </div> : null}
   </ManageDialog>
 }

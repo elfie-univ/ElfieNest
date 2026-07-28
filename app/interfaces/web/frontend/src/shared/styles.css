@@ -3,6 +3,7 @@
 :root {
   color-scheme: light;
   font-family: "Noto Serif SC", "Songti SC", serif;
+  --radius: 0.75rem;
   --accent: #a45f3d;
   --accent-hover: #8c4e31;
   --accent-soft: #f2dfcf;
@@ -39,6 +40,32 @@
   --surface: #fffaf1;
   --surface-muted: #f6eee3;
   --nav-hover: var(--hover-bg);
+  /* shadcn/Tailwind semantic aliases: each user theme continues to override
+     the project palette above, while generated components consume these roles. */
+  --background: var(--surface);
+  --foreground: var(--text);
+  --card: var(--surface-raised);
+  --card-foreground: var(--text);
+  --popover: var(--surface-raised);
+  --popover-foreground: var(--text);
+  --primary: var(--accent);
+  --primary-foreground: var(--surface);
+  --secondary: var(--surface-field);
+  --secondary-foreground: var(--text);
+  --muted: var(--surface-code);
+  --muted-foreground: var(--text-muted);
+  --accent-foreground: var(--active-ink);
+  --destructive: var(--error-text);
+  --input: var(--border);
+  --ring: var(--focus-ring);
+  --sidebar: var(--rail-a);
+  --sidebar-foreground: var(--text);
+  --sidebar-primary: var(--accent);
+  --sidebar-primary-foreground: var(--surface);
+  --sidebar-accent: var(--surface-hover);
+  --sidebar-accent-foreground: var(--active-ink);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--focus-ring);
   color: var(--ink);
   background: var(--page-bg);
 }
@@ -61,6 +88,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   outline: 3px solid color-mix(in srgb, var(--focus-ring) 45%, transparent);
   outline-offset: 2px;
 }
+button[data-slot="checkbox"] { border-color: var(--border); background: var(--surface-field); }
+button[data-slot="checkbox"][data-state="checked"] { border-color: var(--accent); color: var(--surface); background: var(--accent); }
 a { color: inherit; text-decoration: none; }
 
 [data-tooltip] { position: relative; }
@@ -76,7 +105,7 @@ a { color: inherit; text-decoration: none; }
   background: var(--active-ink);
   box-shadow: var(--shadow-float);
   content: attr(data-tooltip);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1;
   pointer-events: none;
@@ -95,7 +124,7 @@ a { color: inherit; text-decoration: none; }
 .brand {
   margin: 0 0 5px;
   color: var(--ink-soft);
-  font-size: 12px;
+  font-size: 14px;
   letter-spacing: .12em;
   text-transform: uppercase;
 }
@@ -144,6 +173,8 @@ a { color: inherit; text-decoration: none; }
 .login h1 { margin: 10px 0; font-size: clamp(32px, 7vw, 48px); }
 .login form { display: grid; gap: 16px; margin-top: 28px; }
 .login label { display: grid; gap: 7px; font-size: 14px; }
+.login label.check { display: flex; align-items: flex-start; gap: 8px; line-height: 1.55; }
+.login label.check > button { flex: 0 0 auto; margin-top: 2px; outline: 2px solid var(--accent); outline-offset: -2px; }
 .login input,
 .composer textarea,
 .manage select,
@@ -161,7 +192,7 @@ a { color: inherit; text-decoration: none; }
   .chat-workbench { grid-template-columns: 58px minmax(220px, 38vw) minmax(0, 1fr); }
   .manage-workbench { grid-template-columns: 58px minmax(0, 1fr); }
   .app-rail { padding-inline: 5px; }
-  .rail-button { width: 42px; height: 42px; }
+  .rail-button { width: 48px; height: 48px; }
   .passport-identity { grid-template-columns: auto minmax(0, 1fr); }
   .passport-identity .button { grid-column: 1 / -1; }
   .stage-actions { grid-template-columns: repeat(3, 1fr); }

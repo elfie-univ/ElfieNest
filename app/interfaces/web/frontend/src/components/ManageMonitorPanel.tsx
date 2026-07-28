@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import { ApiError, ownerRead } from "../api/client"
 import { Notice } from "./Notice"
+import { RefreshButton } from "./RefreshButton"
 
 const RuntimeStatusSchema = z.object({
   status: z.string(),
@@ -31,7 +32,7 @@ export function ManageMonitorPanel({ elfieCount }: ManageMonitorPanelProps) {
   useEffect(() => { void load() }, [])
   const health = status?.status === "ok" ? "正常" : "待检查"
   return <section className="monitor-panel">
-    <div className="manage-head"><div><h2>综合监控</h2><p>本机服务、模型、精灵巢连接与最近运行事件的可读摘要。</p></div><button className="button button--quiet" onClick={() => { void load() }} type="button">刷新状态</button></div>
+    <div className="manage-head"><div><h2>综合监控</h2><p>本机服务、模型、精灵巢连接与最近运行事件的可读摘要。</p></div><RefreshButton label="刷新状态" onClick={() => { void load() }} /></div>
     {error && <Notice kind="error" message={error} />}
     <div className="monitor-metrics">
       <Metric label="系统健康" value={health} detail={status?.fallback.configured ? `默认回退：${status.fallback.provider}` : "默认回退尚未配置"} state={status?.status === "ok" ? "good" : "warning"} />

@@ -5,11 +5,11 @@ import { MobileAccessSchema, ThemeKeySchema, ownerElfiePath } from "./client"
 describe("ownerElfiePath", () => {
   it("includes each supported management filter when supplied", () => {
     expect(ownerElfiePath({
-      ownerUserId: "14",
+      ownerAccountId: "alice",
       speciesId: "fox spirit",
       foodKey: "daily",
       embodimentState: "offline"
-    })).toBe("/api/owner/elfies?owner_user_id=14&species_id=fox+spirit&food_key=daily&embodiment_state=offline")
+    })).toBe("/api/owner/elfies?owner_account_id=alice&species_id=fox+spirit&food_key=daily&embodiment_state=offline")
   })
 
   it("keeps the unfiltered endpoint stable", () => {

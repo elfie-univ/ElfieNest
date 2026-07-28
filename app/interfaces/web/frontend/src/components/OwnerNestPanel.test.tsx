@@ -16,16 +16,17 @@ vi.mock("../api/client", async (loadOriginal) => {
 })
 
 const happy = {
-  elfie_id: "elfie-happy",
-  owner: { user_id: 1, username: "owner" },
+  elfie_id: "00000001",
+  owner: { account_id: "owner", username: "owner" },
   profile: {
-    elfie_id: "elfie-happy",
+    elfie_id: "00000001",
     name: "Happy",
     species_id: "fox",
     gender: null,
     birth_date: null,
     summary: null,
     online_status: "unknown",
+    status: { code: "unknown", label: "状态未知", tone: "muted" },
     portrait_url: "",
     appearance: {},
     big_five: {},
@@ -39,8 +40,8 @@ const happy = {
 
 const stardust = {
   ...happy,
-  elfie_id: "elfie-stardust",
-  profile: { ...happy.profile, elfie_id: "elfie-stardust", name: "星尘", nest: { room_name: null, bed_name: null, posture: "unknown" } },
+  elfie_id: "00000002",
+  profile: { ...happy.profile, elfie_id: "00000002", name: "星尘", nest: { room_name: null, bed_name: null, posture: "unknown" } },
 } satisfies OwnerElfie
 
 const roomFixture = [{
@@ -48,7 +49,7 @@ const roomFixture = [{
   name: "Local Nest",
   desired_bed_count: 4,
   beds: [
-    { anchor_id: "dorm-01/bed-01", id: "dorm-01/bed-01", name: "01号床", occupant_id: "elfie-happy", occupant_name: "Happy", occupant_species_id: "fox" },
+    { anchor_id: "dorm-01/bed-01", id: "dorm-01/bed-01", name: "01号床", occupant_id: "00000001", occupant_name: "Happy", occupant_species_id: "fox" },
     { anchor_id: "dorm-01/bed-02", id: "dorm-01/bed-02", name: "02号床", occupant_id: null, occupant_name: null, occupant_species_id: null },
     { anchor_id: "dorm-01/bed-03", id: "dorm-01/bed-03", name: "03号床", occupant_id: null, occupant_name: null, occupant_species_id: null },
     { anchor_id: "dorm-01/bed-04", id: "dorm-01/bed-04", name: "04号床", occupant_id: null, occupant_name: null, occupant_species_id: null },
@@ -97,7 +98,7 @@ describe("OwnerNestPanel", () => {
     expect(within(firstRow).getByText("星尘")).toBeInTheDocument()
     expect(within(secondRow).getByText("Happy")).toBeInTheDocument()
     await user.click(within(firstRow).getByRole("button", { name: "编辑星尘的床位" }))
-    expect(within(firstRow).getByRole("combobox", { name: "为星尘选择床位" })).toBeInTheDocument()
+    expect(within(firstRow).getByRole("combobox", { name: "星尘 床位" })).toBeInTheDocument()
     expect(within(secondRow).queryByRole("combobox")).not.toBeInTheDocument()
   })
 })

@@ -1,47 +1,71 @@
-import * as Select from "@radix-ui/react-select"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { useId } from "react"
 
-import { Icon } from "./Icon"
-import "./select-field.css"
+import { FieldRow } from "./FieldRow"
 
 export type SelectOption = {
+  readonly group?: string
   readonly disabled?: boolean
   readonly label: string
   readonly value: string
 }
+export type SelectOptionGroup = {
+  readonly label: string
+  readonly options: readonly SelectOption[]
+}
+export type SelectFieldOption = SelectOption | SelectOptionGroup
 
 type SelectFieldProps = {
-  readonly ariaLabel: string
   readonly disabled?: boolean
+  readonly label: string
   readonly onValueChange: (value: string) => void
-  readonly options: readonly SelectOption[]
+  readonly options: readonly SelectFieldOption[]
   readonly placeholder?: string
   readonly value: string
 }
 
 export function SelectField({
-  ariaLabel,
   disabled = false,
+  label,
   onValueChange,
   options,
   placeholder,
   value,
 }: SelectFieldProps) {
-  const selectedOption = options.find((option) => option.value === value)
+  const id = useId()
+  const selectedOption = flattenOptions(options).find((option) => option.value === value)
 
-  return <Select.Root disabled={disabled} onValueChange={onValueChange} value={value}>
-    <Select.Trigger aria-label={ariaLabel} className="select-field__trigger">
-      <Select.Value placeholder={placeholder}>{selectedOption?.label}</Select.Value>
-      <Select.Icon asChild><Icon name="chevron-down" size={16} /></Select.Icon>
-    </Select.Trigger>
-    <Select.Portal>
-      <Select.Content className="select-field__content" position="popper" sideOffset={6}>
-        <Select.Viewport className="select-field__viewport">
-          {options.map((option) => <Select.Item className="select-field__item" disabled={option.disabled ?? false} key={option.value} value={option.value}>
-            <Select.ItemText>{option.label}</Select.ItemText>
-            <Select.ItemIndicator className="select-field__indicator"><Icon name="check" size={15} /></Select.ItemIndicator>
-          </Select.Item>)}
-        </Select.Viewport>
-      </Select.Content>
-    </Select.Portal>
-  </Select.Root>
+  return <FieldRow
+    control={({ inputId, labelId }) => <Select disabled={disabled} onValueChange={onValueChange} value={value}>
+      <SelectTrigger aria-labelledby={labelId} className="w-full bg-secondary" id={inputId}>
+        <SelectValue placeholder={placeholder}>{selectedOption?.label}</SelectValue>
+      </SelectTrigger>
+      <SelectContent position="popper">
+        {options.map((entry) => isOptionGroup(entry)
+          ? <SelectGroup key={entry.label}>
+            <SelectLabel>{entry.label}</SelectLabel>
+            {entry.options.map((option) => <SelectItem disabled={option.disabled ?? false} key={option.value} value={option.value}>{option.label}</SelectItem>)}
+          </SelectGroup>
+          : <SelectItem disabled={entry.disabled ?? false} key={entry.value} value={entry.value}>{entry.label}</SelectItem>)}
+      </SelectContent>
+    </Select>}
+    inputId={id}
+    label={label}
+  />
+}
+
+function isOptionGroup(entry: SelectFieldOption): entry is SelectOptionGroup {
+  return "options" in entry
+}
+
+function flattenOptions(entries: readonly SelectFieldOption[]): readonly SelectOption[] {
+  return entries.flatMap((entry) => isOptionGroup(entry) ? entry.options : [entry])
 }

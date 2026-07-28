@@ -1,3 +1,6 @@
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { useEffect, useRef, useState, type FormEvent } from "react"
 
 import { ChatSocket, type ChatSocketStatus } from "../api/chat-socket"
@@ -20,6 +23,7 @@ import { Icon } from "../components/Icon"
 import { MobileAccessDialog } from "../components/MobileAccessDialog"
 import { Notice } from "../components/Notice"
 import { useSession } from "../stores/session"
+import { usePresenceHeartbeat } from "../stores/heartbeat"
 
 type ChatData = {
   readonly elfies: readonly ElfieProfile[]
@@ -44,6 +48,7 @@ function connectionCopy(status: ChatSocketStatus): string {
 
 export function ChatPage() {
   const { user, loading, refresh } = useSession()
+  usePresenceHeartbeat(user)
   const socket = useRef<ChatSocket | null>(null)
   const [data, setData] = useState<ChatData | null>(null)
   const [activePane, setActivePane] = useState<ChatPane>("chats")
@@ -165,13 +170,13 @@ export function ChatPage() {
       <section className="chat-workbench">
         <aside className="app-rail" aria-label="ElfieNest 导航">
           <nav className="rail-nav">
-            <button aria-label="聊天记录" className={activePane === "chats" ? "rail-button rail-button--active" : "rail-button"} data-tooltip="聊天记录" onClick={() => setActivePane("chats")} type="button"><Icon name="messages-square" /></button>
-            <button aria-label="我的精灵" className={activePane === "elfies" ? "rail-button rail-button--active" : "rail-button"} data-tooltip="我的精灵" onClick={() => setActivePane("elfies")} type="button"><Icon name="users" /></button>
+            <Button aria-label="聊天记录" className={activePane === "chats" ? "rail-button rail-button--active" : "rail-button"} data-tooltip="聊天记录" onClick={() => setActivePane("chats")} size="icon" type="button" variant="ghost"><Icon name="messages-square" /></Button>
+            <Button aria-label="我的精灵" className={activePane === "elfies" ? "rail-button rail-button--active" : "rail-button"} data-tooltip="我的精灵" onClick={() => setActivePane("elfies")} size="icon" type="button" variant="ghost"><Icon name="users" /></Button>
           </nav>
           <div className="rail-bottom">
             <div className="rail-quick-actions">
-              {user.role === "owner" ? <a aria-label="进入管理" className="rail-button rail-button--manage" data-tooltip="进入管理" href="/manage"><Icon name="house" /></a> : null}
-              <button aria-label="扫码用手机打开聊天" className="rail-button" data-tooltip="扫码用手机打开聊天" onClick={() => setShowMobileAccess(true)} type="button"><Icon name="qr-code" /></button>
+              {user.role === "owner" ? <Button asChild className="rail-button rail-button--manage" data-tooltip="进入管理" size="icon" variant="ghost"><a aria-label="进入管理" href="/manage"><Icon name="house" /></a></Button> : null}
+              <Button aria-label="扫码用手机打开聊天" className="rail-button" data-tooltip="扫码用手机打开聊天" onClick={() => setShowMobileAccess(true)} size="icon" type="button" variant="ghost"><Icon name="qr-code" /></Button>
             </div>
             <AccountMenu compact onUpdated={refresh} user={user} />
           </div>
@@ -180,32 +185,31 @@ export function ChatPage() {
         <aside className="chat-list-pane">
           <header className="list-pane-head">
             <div>
-              <p className="brand">{activePane === "chats" ? "聊天记录" : "我的精灵"}</p>
               <h1>{activePane === "chats" ? "消息" : "精灵"}</h1>
             </div>
-            <button className="add-button" onClick={() => setShowAdoption(true)} type="button" aria-label="领养精灵"><Icon name="plus" /></button>
+            <Button className="add-button" onClick={() => setShowAdoption(true)} size="icon-sm" type="button" variant="outline" aria-label="领养精灵"><Icon name="plus" /></Button>
           </header>
           <label className="search-box" aria-label="搜索">
             <Icon name="search" size={16} />
-            <input placeholder={activePane === "chats" ? "搜索聊天" : "搜索精灵"} />
+            <Input placeholder={activePane === "chats" ? "搜索聊天" : "搜索精灵"} />
           </label>
           {activePane === "chats" ? (
             <div className="chat-list">
               {data?.conversations.map((row) => (
-                <button className={row.elfie_id === selectedId ? "wechat-row wechat-row--active" : "wechat-row"} key={row.elfie_id} onClick={() => chooseChat(row.elfie_id)} type="button">
+                <Button className={row.elfie_id === selectedId ? "wechat-row wechat-row--active" : "wechat-row"} key={row.elfie_id} onClick={() => chooseChat(row.elfie_id)} type="button" variant="ghost">
                   <Avatar name={row.name} />
                   <span className="list-copy"><strong>{row.name}</strong><small>{row.last_message_preview || "还没有消息"}</small></span>
-                </button>
+                </Button>
               ))}
               {data?.conversations.length === 0 ? <p className="empty">还没有聊天记录。</p> : null}
             </div>
           ) : (
             <div className="chat-list">
               {data?.elfies.map((entry) => (
-                <button className={entry.elfie_id === selectedId ? "wechat-row wechat-row--active" : "wechat-row"} key={entry.elfie_id} onClick={() => chooseElfie(entry.elfie_id)} type="button">
+                <Button className={entry.elfie_id === selectedId ? "wechat-row wechat-row--active" : "wechat-row"} key={entry.elfie_id} onClick={() => chooseElfie(entry.elfie_id)} type="button" variant="ghost">
                   <Avatar name={entry.name} />
                   <span className="list-copy"><strong>{entry.name}</strong><small>{entry.species_id} · {entry.embodiment.state}</small></span>
-                </button>
+                </Button>
               ))}
               {data?.elfies.length === 0 ? <p className="empty">还没有精灵，点右上角的添加按钮领养。</p> : null}
             </div>
@@ -217,15 +221,15 @@ export function ChatPage() {
           <section className="conversation">
             <div className="topline">
               <h1>{selected?.name ?? "选择一只精灵"}</h1>
-              <button className="button button--quiet" disabled={selected === undefined} onClick={openDetail} type="button">详情</button>
+              <Button variant="outline" disabled={selected === undefined} onClick={openDetail} type="button">详情</Button>
             </div>
             <section className="message-list">
               {selectedId === null ? <p className="empty">先在“我的精灵”中领养或选择一只精灵。</p> : history.map((message) => <MessageBubble key={message.id} message={message} />)}
               {error && <Notice kind="error" message={error} />}
             </section>
             <form className="composer" onSubmit={(event) => { void submit(event) }}>
-              <textarea disabled={selected === undefined} onChange={(event) => setDraft(event.target.value)} placeholder={selected ? `对 ${selected.name} 说点什么…` : "请选择精灵"} value={draft} />
-              <button className="button" disabled={selected === undefined || !draft.trim()} type="submit">发送</button>
+              <Textarea disabled={selected === undefined} onChange={(event) => setDraft(event.target.value)} placeholder={selected ? `对 ${selected.name} 说点什么…` : "请选择精灵"} value={draft} />
+              <Button disabled={selected === undefined || !draft.trim()} type="submit">发送</Button>
             </form>
           </section>
         ) : (
@@ -235,7 +239,7 @@ export function ChatPage() {
       {showAdoption ? (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <div className="adoption-modal">
-            <button className="modal-close" onClick={() => setShowAdoption(false)} type="button" aria-label="关闭"><Icon name="x" /></button>
+            <Button aria-label="关闭" className="modal-close" onClick={() => setShowAdoption(false)} size="icon" type="button" variant="ghost"><Icon name="x" /></Button>
             <AdoptionPanel csrfToken={user.csrf_token ?? ""} onAdopted={adoptionCompleted} />
           </div>
         </div>

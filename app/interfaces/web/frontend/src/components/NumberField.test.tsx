@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { useState } from "react"
 import { describe, expect, it } from "vitest"
@@ -15,10 +15,17 @@ describe("NumberField", () => {
     const user = userEvent.setup()
     render(<NumberFixture />)
 
+    const row = screen.getByRole("group", { name: "床位数" })
     const field = screen.getByRole("textbox", { name: "床位数" })
-    await user.click(screen.getByRole("button", { name: "增加床位数" }))
+    expect(within(row).getAllByText("床位数")).toHaveLength(1)
+    expect(within(row).getByRole("textbox", { name: "床位数" })).toBe(field)
+    expect(within(row).getByRole("button", { name: "减少床位数" })).toBeEnabled()
+
+    const increment = screen.getByRole("button", { name: "增加床位数" })
+    await user.click(increment)
     expect(field).toHaveValue("5")
-    await user.click(screen.getByRole("button", { name: "增加床位数" }))
+    expect(increment).toBeDisabled()
+    await user.click(increment)
     expect(field).toHaveValue("5")
 
     await user.clear(field)

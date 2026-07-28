@@ -10,8 +10,8 @@ export const ThemeKeySchema = z.union([
 ])
 
 const ClientUserSchema = z.object({
-  id: z.number().int(),
-  username: z.string(),
+  account_id: z.string().min(1),
+  username: z.string().optional(),
   role: z.union([z.literal("owner"), z.literal("user")]),
   nickname: z.string().nullable().optional(),
   avatar_url: z.string().nullable().optional(),
@@ -20,17 +20,16 @@ const ClientUserSchema = z.object({
   theme_key: ThemeKeySchema.default("warm-paper"),
   default_landing_page: z.union([z.literal("chat"), z.literal("manage")]).optional(),
   csrf_token: z.string().optional(),
-})
+}).transform((user) => ({ ...user, username: user.username ?? user.account_id }))
 
 const LoginResponseSchema = z.object({
   landing_path: z.union([z.literal("/chat"), z.literal("/manage")]),
 })
 const SetupResponseSchema = z.object({
-  id: z.number().int(),
-  username: z.string(),
+  account_id: z.string().min(1),
   role: z.literal("owner"),
   csrf_token: z.string(),
-})
+}).transform((user) => ({ ...user, username: user.account_id }))
 
 export type ClientUser = z.infer<typeof ClientUserSchema>
 export type ThemeKey = z.infer<typeof ThemeKeySchema>
@@ -122,4 +121,15 @@ export async function logout(csrfToken: string): Promise<void> {
     method: "POST",
     headers: csrfHeaders(csrfToken),
   })
+}
+
+export async function heartbeat(csrfToken: string): Promise<number> {
+  const result = z.object({
+    status: z.literal("ok"),
+    last_seen_at: z.number(),
+  }).parse(await requestJson("/api/auth/heartbeat", {
+    method: "POST",
+    headers: csrfHeaders(csrfToken, true),
+  }))
+  return result.last_seen_at
 }

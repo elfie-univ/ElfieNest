@@ -1,5 +1,6 @@
 import { resolve } from "node:path"
 
+import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vitest/config"
 
@@ -8,7 +9,12 @@ const webBuildDirectory = resolve(frontendRoot, "../../../../build/web")
 
 export default defineConfig({
   root: frontendRoot,
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      "@": resolve(frontendRoot, "src"),
+    },
+  },
   test: {
     environment: "jsdom",
     setupFiles: [resolve(frontendRoot, "src/test/setup.ts")],

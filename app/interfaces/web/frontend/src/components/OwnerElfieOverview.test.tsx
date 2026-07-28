@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { ownerElfies, ownerUsers, type OwnerElfie } from "../api/client"
+import { ownerElfies, ownerUsers, ownerWrite, type OwnerElfie } from "../api/client"
 import { OwnerElfieOverview } from "./OwnerElfieOverview"
 
 vi.mock("../api/client", async (loadOriginal) => {
@@ -16,16 +16,17 @@ vi.mock("../api/client", async (loadOriginal) => {
 })
 
 const elfie = {
-  elfie_id: "elfie_with_a_very_long_stable_identifier_001",
-  owner: { user_id: 2, username: "alice" },
+  elfie_id: "00000001",
+  owner: { account_id: "alice", username: "alice" },
   profile: {
-    elfie_id: "elfie_with_a_very_long_stable_identifier_001",
+    elfie_id: "00000001",
     name: "星尘",
     species_id: "dog",
     gender: null,
     birth_date: null,
     summary: null,
-    online_status: "unknown",
+    online_status: "online",
+    status: { code: "at_nest", label: "在巢中", tone: "active" },
     portrait_url: "",
     appearance: {},
     big_five: {},
@@ -45,54 +46,80 @@ describe("OwnerElfieOverview", () => {
   beforeEach(() => {
     vi.mocked(ownerUsers).mockResolvedValue([
       {
-        id: 2,
+        account_id: "alice",
         username: "alice",
         display_name: "Alice",
         role: "user",
         created_at: "2026-07-26",
+        gender: null,
+        birth_date: null,
         elfie_count: 1,
         elfie_quota_override: null,
         effective_elfie_limit: 3,
-        online_status: "unknown",
+        online_status: "offline",
         avatar_url: null,
       },
     ])
     vi.mocked(ownerElfies).mockResolvedValue([elfie])
+    vi.mocked(ownerWrite).mockResolvedValue({})
   })
 
   it("shows explicit all-filter labels and keeps the initial API request unfiltered", async () => {
     render(<OwnerElfieOverview csrfToken="csrf" onCountChange={vi.fn()} />)
 
     expect(await screen.findByText("星尘")).toBeInTheDocument()
-    expect(screen.getByRole("combobox", { name: "按用户筛选精灵" })).toHaveTextContent("全部用户")
-    expect(screen.getByRole("combobox", { name: "按物种筛选精灵" })).toHaveTextContent("全部物种")
-    expect(screen.getByRole("combobox", { name: "按粮食筛选精灵" })).toHaveTextContent("全部粮食")
-    expect(screen.getByRole("combobox", { name: "按具身状态筛选精灵" })).toHaveTextContent("全部状态")
+    expect(screen.getByRole("combobox", { name: "所属用户" })).toHaveTextContent("全部用户")
+    expect(screen.getByRole("combobox", { name: "物种" })).toHaveTextContent("全部物种")
+    expect(screen.getByRole("combobox", { name: "粮食" })).toHaveTextContent("全部粮食")
+    expect(screen.getByRole("combobox", { name: "具身状态" })).toHaveTextContent("全部状态")
     expect(vi.mocked(ownerElfies)).toHaveBeenCalledWith({})
   })
 
-  it("renders the fixed identity-card fields with honest missing-data fallbacks", async () => {
+  it("renders the fixed identity-card fields, food rows, and authoritative status", async () => {
     render(<OwnerElfieOverview csrfToken="csrf" onCountChange={vi.fn()} />)
 
     expect(await screen.findByText("星尘")).toBeInTheDocument()
     const card = within(screen.getByRole("article"))
-    for (const label of ["姓名", "主人", "物种", "性别", "出生日期", "床位号", "唯一 ID", "简介"]) {
-      expect(card.getByText(label)).toBeInTheDocument()
-    }
+    expect(card.getByText("在巢中")).toBeInTheDocument()
+    expect(card.getAllByRole("term").map((node) => node.textContent)).toEqual([
+      "姓名",
+      "主人姓名",
+      "物种",
+      "性别",
+      "出生日期",
+      "床位",
+      "身份ID",
+      "主粮",
+      "回退粮",
+      "其他粮",
+      "简介",
+    ])
     expect(card.getAllByText("未登记")).toHaveLength(2)
     expect(card.getByText("未分配")).toBeInTheDocument()
     expect(card.getByText("暂无简介")).toBeInTheDocument()
-    expect(card.getByText("elfie_with_a_very_long_stable_identifier_001")).toBeInTheDocument()
+    expect(card.getByText("00000001")).toBeInTheDocument()
+    expect(card.getByText("focus")).toBeInTheDocument()
   })
 
-  it("opens the shared food editor without making identity fields editable", async () => {
+  it("edits food policy inline without making identity fields editable", async () => {
     const user = userEvent.setup()
     render(<OwnerElfieOverview csrfToken="csrf" onCountChange={vi.fn()} />)
 
-    await user.click(await screen.findByRole("button", { name: "编辑 星尘 的粮食策略" }))
+    await user.click(await screen.findByRole("button", { name: "编辑 星尘" }))
 
-    expect(screen.getByRole("dialog", { name: "编辑粮食策略" })).toBeInTheDocument()
-    expect(screen.getByRole("combobox", { name: "选择默认粮食" })).toBeInTheDocument()
+    expect(screen.queryByRole("dialog", { name: "编辑粮食策略" })).not.toBeInTheDocument()
+    expect(screen.getByRole("combobox", { name: "主粮" })).toBeInTheDocument()
     expect(screen.queryByRole("textbox", { name: "姓名" })).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "保存 星尘" }))
+    expect(vi.mocked(ownerWrite)).toHaveBeenCalledWith(
+      "/api/user/elfies/00000001/food-policy/",
+      "PUT",
+      "csrf",
+      {
+        default_food: "standard",
+        allowed_foods: ["standard", "focus"],
+        fallback_food: "coarse",
+      },
+    )
   })
 })
