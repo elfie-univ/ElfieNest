@@ -12,6 +12,7 @@ import { ElfieIdentityCard } from "./ElfieIdentityCard"
 import { Notice } from "./Notice"
 import { RefreshButton } from "./RefreshButton"
 import { SelectField } from "./SelectField"
+import { MOCK_ELFIES, MOCK_USERS } from "./owner-card-mock-data"
 
 const ALL_USERS = "all-users"
 const ALL_SPECIES = "all-species"
@@ -59,6 +60,7 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
   const [selection, setSelection] = useState<FilterSelection>(INITIAL_SELECTION)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [mockMode, setMockMode] = useState(false)
 
   const load = async (nextSelection: FilterSelection): Promise<void> => {
     try {
@@ -73,10 +75,18 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
       setUsers(loadedUsers)
       setAllElfies(loadedAll)
       setElfies(loadedElfies)
+      setMockMode(false)
       onCountChange(loadedAll.length)
       setError(null)
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "精灵总览加载失败")
+      const filtered = filterMockElfies(nextSelection)
+      setUsers(MOCK_USERS)
+      setAllElfies(MOCK_ELFIES)
+      setElfies(filtered)
+      setMockMode(true)
+      onCountChange(MOCK_ELFIES.length)
+      setError(null)
+      setNotice(reason instanceof ApiError ? `后端暂不可用，当前显示演示数据：${reason.message}` : "后端暂不可用，当前显示演示数据")
     }
   }
 
@@ -156,6 +166,7 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
           csrfToken={csrfToken}
           elfie={elfie}
           key={elfie.elfie_id}
+          mockMode={mockMode}
           onError={setError}
           onSaved={async () => {
             setNotice(`${elfie.profile.name} 的粮食策略已更新。`)
@@ -164,4 +175,13 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
         />)}
     </div>
   </section>
+}
+
+function filterMockElfies(selection: FilterSelection): readonly OwnerElfie[] {
+  return MOCK_ELFIES.filter((elfie) =>
+    (selection.ownerAccountId === ALL_USERS || elfie.owner.account_id === selection.ownerAccountId)
+    && (selection.speciesId === ALL_SPECIES || elfie.profile.species_id === selection.speciesId)
+    && (selection.foodKey === ALL_FOODS || elfie.food_policy.default_food === selection.foodKey)
+    && (selection.embodimentState === ALL_STATES || elfie.profile.embodiment.state === selection.embodimentState),
+  )
 }

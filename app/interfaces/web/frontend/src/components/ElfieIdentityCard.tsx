@@ -13,11 +13,12 @@ const zhWordSegmenter = new Intl.Segmenter("zh-CN", { granularity: "word" })
 type ElfieIdentityCardProps = {
   readonly csrfToken: string
   readonly elfie: OwnerElfie
+  readonly mockMode?: boolean
   readonly onError: (message: string) => void
   readonly onSaved: () => Promise<void>
 }
 
-export function ElfieIdentityCard({ csrfToken, elfie, onError, onSaved }: ElfieIdentityCardProps) {
+export function ElfieIdentityCard({ csrfToken, elfie, mockMode = false, onError, onSaved }: ElfieIdentityCardProps) {
   const [editing, setEditing] = useState(false)
   const [defaultFood, setDefaultFood] = useState(elfie.food_policy.default_food)
   const [saving, setSaving] = useState(false)
@@ -68,7 +69,7 @@ export function ElfieIdentityCard({ csrfToken, elfie, onError, onSaved }: ElfieI
       </dl>
     </div>
     {editing ? <div className="elfie-id-card__editor">
-      <SelectField
+        <SelectField
         disabled={saving}
         label="主粮"
         onValueChange={setDefaultFood}
@@ -90,8 +91,8 @@ export function ElfieIdentityCard({ csrfToken, elfie, onError, onSaved }: ElfieI
     {saving ? <Notice message="正在保存粮食策略…" /> : null}
     <div className="elfie-id-card__actions">
       {editing
-        ? <><Button aria-label={`保存 ${profile.name}`} disabled={saving} onClick={() => { void save() }} type="button">保存</Button><Button aria-label={`取消 ${profile.name}`} disabled={saving} onClick={cancel} type="button" variant="outline">取消</Button></>
-        : <Button aria-label={`编辑 ${profile.name}`} onClick={() => setEditing(true)} type="button" variant="outline">编辑</Button>}
+        ? <><Button aria-label={`保存 ${profile.name}`} disabled={saving || mockMode} onClick={() => { void save() }} type="button">保存</Button><Button aria-label={`取消 ${profile.name}`} disabled={saving} onClick={cancel} type="button" variant="outline">取消</Button></>
+        : <Button aria-label={`编辑 ${profile.name}`} disabled={mockMode} onClick={() => setEditing(true)} type="button" variant="outline">编辑</Button>}
     </div>
   </article></Card>
 }

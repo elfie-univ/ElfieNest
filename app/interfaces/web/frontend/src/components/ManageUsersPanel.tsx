@@ -12,6 +12,7 @@ import { Notice } from "./Notice"
 import { RefreshButton } from "./RefreshButton"
 import { StatusIndicator } from "./StatusIndicator"
 import { TextField } from "./TextField"
+import { MOCK_USERS } from "./owner-card-mock-data"
 
 export function ManageUsersPanel({ csrfToken }: { readonly csrfToken: string }) {
   const [users, setUsers] = useState<readonly OwnerUser[]>([])
@@ -21,9 +22,15 @@ export function ManageUsersPanel({ csrfToken }: { readonly csrfToken: string }) 
   const [deletePending, setDeletePending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [mockMode, setMockMode] = useState(false)
   const load = async (): Promise<void> => {
-    try { setUsers(await ownerUsers()); setError(null) }
-    catch (reason: unknown) { setError(reason instanceof ApiError ? reason.message : "用户列表加载失败") }
+    try { setUsers(await ownerUsers()); setMockMode(false); setError(null) }
+    catch (reason: unknown) {
+      setUsers(MOCK_USERS)
+      setMockMode(true)
+      setError(null)
+      setNotice(reason instanceof ApiError ? `后端暂不可用，当前显示演示数据：${reason.message}` : "后端暂不可用，当前显示演示数据")
+    }
   }
   useEffect(() => { void load() }, [])
   const remove = async (entry: OwnerUser): Promise<void> => {
@@ -48,14 +55,14 @@ export function ManageUsersPanel({ csrfToken }: { readonly csrfToken: string }) 
   return <section className="manage-card manage-card--wide">
     <div className="manage-head"><div><h2>本地成员</h2><p>管理员只维护成员关系、领养上限与移除权限；头像、名称和密码<span className="manage-copy__phrase">由用户本人管理</span>。</p></div><div className="manage-actions"><Button onClick={() => setCreating(true)} type="button"><Icon name="plus" size={16} />添加用户</Button><RefreshButton label="刷新" onClick={() => { void load() }} /></div></div>
     {error ? <Notice kind="error" message={error} /> : null}{notice ? <Notice message={notice} /> : null}
-    <div className="user-id-grid">{users.length === 0 ? <p className="empty">暂无成员。</p> : users.map((entry) => <UserCard csrfToken={csrfToken} key={entry.account_id} onError={setError} onRemove={() => setDeleting(entry)} onReset={() => setResetting(entry)} onSaved={async () => { setNotice("领养上限已更新。"); await load() }} user={entry} />)}</div>
+    <div className="user-id-grid">{users.length === 0 ? <p className="empty">暂无成员。</p> : users.map((entry) => <UserCard csrfToken={csrfToken} key={entry.account_id} mockMode={mockMode} onError={setError} onRemove={() => setDeleting(entry)} onReset={() => setResetting(entry)} onSaved={async () => { setNotice("领养上限已更新。"); await load() }} user={entry} />)}</div>
     <CreateUserDialog csrfToken={csrfToken} onClose={() => setCreating(false)} onSaved={async () => { setCreating(false); setNotice("本地用户已创建。"); await load() }} open={creating} />
     <ConfirmDialog confirmLabel="确认移除" danger description={deleting ? `确认移除 ${deleting.display_name} 吗？该操作只移除本地成员账号，不会删除精灵。` : "确认移除这个用户吗？"} onConfirm={() => { if (deleting) void remove(deleting) }} onOpenChange={(open) => { if (!open && !deletePending) setDeleting(null) }} open={deleting !== null} pending={deletePending} title="移除本地用户" />
     <ConfirmDialog confirmLabel="重置为 123456" description={resetting ? `确认将 ${resetting.display_name} 的密码重置为 123456 吗？该账号的所有会话会立即失效。` : "确认重置密码吗？"} onConfirm={() => { if (resetting) void resetPassword(resetting) }} onOpenChange={(open) => { if (!open) setResetting(null) }} open={resetting !== null} title="重置登录密码" />
   </section>
 }
 
-function UserCard({ csrfToken, onError, onRemove, onReset, onSaved, user }: { readonly csrfToken: string; readonly onError: (message: string) => void; readonly onRemove: () => void; readonly onReset: () => void; readonly onSaved: () => Promise<void>; readonly user: OwnerUser }) {
+function UserCard({ csrfToken, mockMode, onError, onRemove, onReset, onSaved, user }: { readonly csrfToken: string; readonly mockMode: boolean; readonly onError: (message: string) => void; readonly onRemove: () => void; readonly onReset: () => void; readonly onSaved: () => Promise<void>; readonly user: OwnerUser }) {
   const [editing, setEditing] = useState(false)
   const [quota, setQuota] = useState(String(user.effective_elfie_limit))
   const [saving, setSaving] = useState(false)
@@ -104,7 +111,7 @@ function UserCard({ csrfToken, onError, onRemove, onReset, onSaved, user }: { re
       </dl>
       <div className="user-id-card__actions">{editing
         ? <><Button aria-label={`保存 ${user.account_id}`} disabled={saving} onClick={() => { void save() }} type="button">保存</Button><Button aria-label={`取消 ${user.account_id}`} disabled={saving} onClick={cancel} type="button" variant="outline">取消</Button></>
-        : <Button aria-label={`编辑 ${user.account_id}`} onClick={() => setEditing(true)} type="button" variant="outline"><Icon name="pencil" size={15} />编辑</Button>}<Button aria-label={`重置密码 ${user.account_id}`} onClick={onReset} type="button" variant="outline"><Icon name="lock-keyhole" size={15} />重置密码</Button><Button aria-label={`删除用户 ${user.account_id}`} aria-describedby={deleteReason ? `delete-reason-${user.account_id}` : undefined} disabled={protectedRemoval} onClick={onRemove} title={deleteReason ?? "删除用户"} type="button" variant="destructive"><Icon name="x" size={15} />删除用户</Button>{deleteReason ? <small id={`delete-reason-${user.account_id}`}>{deleteReason}</small> : null}</div>
+        : <Button aria-label={`编辑 ${user.account_id}`} disabled={mockMode} onClick={() => setEditing(true)} type="button" variant="outline"><Icon name="pencil" size={15} />编辑</Button>}<Button aria-label={`重置密码 ${user.account_id}`} disabled={mockMode} onClick={onReset} type="button" variant="outline"><Icon name="lock-keyhole" size={15} />重置密码</Button><Button aria-label={`删除用户 ${user.account_id}`} aria-describedby={deleteReason ? `delete-reason-${user.account_id}` : undefined} disabled={mockMode || protectedRemoval} onClick={onRemove} title={mockMode ? "演示数据不可操作" : deleteReason ?? "删除用户"} type="button" variant="destructive"><Icon name="x" size={15} />删除用户</Button>{mockMode ? <small>演示数据仅供查看。</small> : deleteReason ? <small id={`delete-reason-${user.account_id}`}>{deleteReason}</small> : null}</div>
     </div>
   </article></Card>
 }
