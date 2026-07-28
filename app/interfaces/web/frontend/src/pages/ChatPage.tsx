@@ -216,7 +216,7 @@ export function ChatPage() {
   }
 
   return (
-    <main className="app-page">
+    <main className="app-page chat-page">
       <section className="chat-workbench">
         <aside className="app-rail" aria-label="ElfieNest 导航">
           <nav className="rail-nav">

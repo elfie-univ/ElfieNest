@@ -112,6 +112,7 @@ describe("ChatPage list pane headings", () => {
     render(<ChatPage />)
 
     const mobileTabs = screen.getByLabelText("聊天移动导航")
+    expect(mobileTabs.closest(".chat-page")).toBeInTheDocument()
     expect(await within(mobileTabs).findByRole("button", { name: "聊天记录" })).toHaveTextContent("消息")
     expect(within(mobileTabs).getByRole("button", { name: "我的精灵" })).toHaveTextContent("精灵")
     expect(within(mobileTabs).getByRole("button", { name: "我的" })).toHaveTextContent("我的")
@@ -123,6 +124,10 @@ describe("ChatPage list pane headings", () => {
     const workbenchRule = finalMobileRules.match(/\.chat-workbench\s*\{[^}]+\}/)?.[0] ?? ""
     expect(workbenchRule).toContain("grid-template-columns: 1fr")
     expect(workbenchRule).toContain("grid-template-rows: minmax(0, 1fr)")
+    expect(workbenchRule).toContain("overflow: hidden")
+    expect(finalMobileRules).toContain("body:has(.chat-page)")
+    expect(finalMobileRules).toContain("overscroll-behavior: none")
+    expect(finalMobileRules).toContain("overscroll-behavior: contain")
     expect(workbenchRule).not.toContain("padding-bottom")
     expect(finalMobileRules).toContain(".app-rail { display: none; }")
     expect(finalMobileRules).toContain(".connection-state { display: none; }")
