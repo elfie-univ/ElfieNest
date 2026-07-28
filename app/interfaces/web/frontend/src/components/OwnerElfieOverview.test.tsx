@@ -87,14 +87,16 @@ describe("OwnerElfieOverview", () => {
       "物种",
       "性别",
       "出生日期",
-      "床位",
-      "身份ID",
+      "领养日期",
+      "ID",
+      "床位号",
       "主粮",
-      "回退粮",
+      "紧急粮",
       "其他粮",
       "简介",
     ])
     expect(card.getAllByText("未登记")).toHaveLength(2)
+    expect(card.getByText("2026-07-26")).toBeInTheDocument()
     expect(card.getByText("未分配")).toBeInTheDocument()
     expect(card.getByText("暂无简介")).toBeInTheDocument()
     expect(card.getByText("00000001")).toBeInTheDocument()
@@ -121,5 +123,15 @@ describe("OwnerElfieOverview", () => {
         fallback_food: "coarse",
       },
     )
+  })
+
+  it("uses the frontend demo cards when the legacy APIs return empty lists", async () => {
+    vi.mocked(ownerUsers).mockResolvedValue([])
+    vi.mocked(ownerElfies).mockResolvedValue([])
+
+    render(<OwnerElfieOverview csrfToken="csrf" onCountChange={vi.fn()} />)
+
+    expect(await screen.findByText("Happy")).toBeInTheDocument()
+    expect(screen.getByText("后端暂不可用，当前显示演示数据")).toBeInTheDocument()
   })
 })

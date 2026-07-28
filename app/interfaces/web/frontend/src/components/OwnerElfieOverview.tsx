@@ -62,6 +62,16 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
   const [notice, setNotice] = useState<string | null>(null)
   const [mockMode, setMockMode] = useState(false)
 
+  const showDemoData = (nextSelection: FilterSelection, reason?: unknown): void => {
+    setUsers(MOCK_USERS)
+    setAllElfies(MOCK_ELFIES)
+    setElfies(filterMockElfies(nextSelection))
+    setMockMode(true)
+    onCountChange(MOCK_ELFIES.length)
+    setError(null)
+    setNotice(reason instanceof ApiError ? `后端暂不可用，当前显示演示数据：${reason.message}` : "后端暂不可用，当前显示演示数据")
+  }
+
   const load = async (nextSelection: FilterSelection): Promise<void> => {
     try {
       const filters = toApiFilters(nextSelection)
@@ -72,21 +82,19 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
         allPromise,
         filteredPromise,
       ])
+      if (loadedAll.length === 0) {
+        showDemoData(nextSelection)
+        return
+      }
       setUsers(loadedUsers)
       setAllElfies(loadedAll)
       setElfies(loadedElfies)
       setMockMode(false)
       onCountChange(loadedAll.length)
       setError(null)
+      setNotice(null)
     } catch (reason: unknown) {
-      const filtered = filterMockElfies(nextSelection)
-      setUsers(MOCK_USERS)
-      setAllElfies(MOCK_ELFIES)
-      setElfies(filtered)
-      setMockMode(true)
-      onCountChange(MOCK_ELFIES.length)
-      setError(null)
-      setNotice(reason instanceof ApiError ? `后端暂不可用，当前显示演示数据：${reason.message}` : "后端暂不可用，当前显示演示数据")
+      showDemoData(nextSelection, reason)
     }
   }
 

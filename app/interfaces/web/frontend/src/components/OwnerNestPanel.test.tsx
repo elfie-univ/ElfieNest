@@ -77,13 +77,18 @@ describe("OwnerNestPanel", () => {
     expect(screen.getByText("聚餐区")).toBeInTheDocument()
   })
 
-  it("uses Observer with a semantic fallback instead of a fixed camera preview", async () => {
+  it("opens the Observer only from the camera dialog instead of reserving an inline preview", async () => {
+    const user = userEvent.setup()
     render(<OwnerNestPanel csrfToken="csrf" />)
 
-    expect(await screen.findByRole("region", { name: "房间 3D 观察" })).toBeInTheDocument()
-    expect(screen.getByText("当前设备无法运行 3D 观察，已保留语义状态和页面操作。")).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "打开预览" })).toBeNull()
-    expect(screen.queryByRole("dialog", { name: "实时房间摄像头" })).toBeNull()
+    expect(await screen.findByRole("button", { name: "打开预览" })).toBeInTheDocument()
+    expect(screen.queryByRole("region", { name: "房间 3D 观察" })).toBeNull()
+
+    await user.click(screen.getByRole("button", { name: "打开预览" }))
+
+    expect(screen.getByRole("dialog", { name: "实时房间摄像头" })).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "房间 3D 观察" })).toBeInTheDocument()
+    expect(screen.queryByRole("img", { name: "精灵巢实时摄像头画面" })).toBeNull()
   })
 
   it("sorts unassigned elfies first and edits only the selected row", async () => {

@@ -23,13 +23,25 @@ export function ManageUsersPanel({ csrfToken }: { readonly csrfToken: string }) 
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [mockMode, setMockMode] = useState(false)
+  const showDemoData = (reason?: unknown): void => {
+    setUsers(MOCK_USERS)
+    setMockMode(true)
+    setError(null)
+    setNotice(reason instanceof ApiError ? `后端暂不可用，当前显示演示数据：${reason.message}` : "后端暂不可用，当前显示演示数据")
+  }
   const load = async (): Promise<void> => {
-    try { setUsers(await ownerUsers()); setMockMode(false); setError(null) }
-    catch (reason: unknown) {
-      setUsers(MOCK_USERS)
-      setMockMode(true)
+    try {
+      const loadedUsers = await ownerUsers()
+      if (loadedUsers.length === 0) {
+        showDemoData()
+        return
+      }
+      setUsers(loadedUsers)
+      setMockMode(false)
       setError(null)
-      setNotice(reason instanceof ApiError ? `后端暂不可用，当前显示演示数据：${reason.message}` : "后端暂不可用，当前显示演示数据")
+      setNotice(null)
+    } catch (reason: unknown) {
+      showDemoData(reason)
     }
   }
   useEffect(() => { void load() }, [])
@@ -100,7 +112,7 @@ function UserCard({ csrfToken, mockMode, onError, onRemove, onReset, onSaved, us
         <IdentityField label="登录账号" value={`@${user.account_id}`} />
         <IdentityField label="出生日期" value={user.birth_date ?? "未登记"} />
         <IdentityField label="当前角色" value={user.role === "owner" ? "Owner" : "普通成员"} />
-        <IdentityField label="加入时间" value={user.created_at} />
+        <IdentityField label="加入时间" value={formatDateOnly(user.created_at)} />
         <IdentityField label="当前精灵数" value={String(user.elfie_count)} />
         <div>
           <dt><label htmlFor={`quota-${user.account_id}`}>精灵上限</label></dt>
@@ -122,6 +134,10 @@ function IdentityField({ className, label, value }: {
   readonly value: string
 }) {
   return <div className={className}><dt>{label}</dt><dd>{value}</dd></div>
+}
+
+function formatDateOnly(value: string): string {
+  return value.split(/[ T]/)[0] ?? value
 }
 
 function CreateUserDialog({ csrfToken, onClose, onSaved, open }: { readonly csrfToken: string; readonly onClose: () => void; readonly onSaved: () => Promise<void>; readonly open: boolean }) {

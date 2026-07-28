@@ -101,4 +101,14 @@ describe("ChatPage list pane headings", () => {
     expect(screen.queryByText("我的精灵", { selector: ".brand" })).not.toBeInTheDocument()
     expect(screen.getByPlaceholderText("搜索精灵")).toBeInTheDocument()
   })
+
+  it("keeps the chat layout reviewable with demo data when the legacy chat API is unavailable", async () => {
+    chatApi.conversations.mockRejectedValue(new Error("Not Found"))
+    chatApi.elfies.mockRejectedValue(new Error("Not Found"))
+
+    render(<ChatPage />)
+
+    expect((await screen.findAllByText("Happy")).length).toBeGreaterThan(0)
+    expect(screen.getByText("后端暂不可用，当前显示演示数据")).toBeInTheDocument()
+  })
 })

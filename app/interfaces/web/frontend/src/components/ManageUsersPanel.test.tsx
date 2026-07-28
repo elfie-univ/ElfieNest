@@ -116,4 +116,13 @@ describe("ManageUsersPanel", () => {
 
     expect(vi.mocked(resetManagedUserPassword)).toHaveBeenCalledWith("bob", "csrf")
   })
+
+  it("uses the frontend demo cards when the legacy API returns no manageable members", async () => {
+    vi.mocked(ownerUsers).mockResolvedValue([])
+
+    render(<ManageUsersPanel csrfToken="csrf" />)
+
+    expect(await screen.findByText("管理员")).toBeInTheDocument()
+    expect(screen.getByText("后端暂不可用，当前显示演示数据")).toBeInTheDocument()
+  })
 })

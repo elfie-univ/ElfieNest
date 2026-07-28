@@ -10,7 +10,11 @@ export const ThemeKeySchema = z.union([
 ])
 
 const ClientUserSchema = z.object({
-  account_id: z.string().min(1),
+  // The current server response identifies the signed-in account by `username`
+  // (and retains a database-only `id`).  Keep the frontend's business-facing
+  // account identifier stable without requiring a backend migration.
+  account_id: z.string().min(1).optional(),
+  id: z.union([z.string(), z.number()]).optional(),
   username: z.string().optional(),
   role: z.union([z.literal("owner"), z.literal("user")]),
   nickname: z.string().nullable().optional(),
@@ -20,7 +24,13 @@ const ClientUserSchema = z.object({
   theme_key: ThemeKeySchema.default("warm-paper"),
   default_landing_page: z.union([z.literal("chat"), z.literal("manage")]).optional(),
   csrf_token: z.string().optional(),
-}).transform((user) => ({ ...user, username: user.username ?? user.account_id }))
+}).refine(
+  (user) => user.account_id !== undefined || user.username !== undefined || user.id !== undefined,
+  { message: "当前会话缺少账号标识" },
+).transform((user) => {
+  const accountId = user.account_id ?? user.username ?? String(user.id)
+  return { ...user, account_id: accountId, username: user.username ?? accountId }
+})
 
 const LoginResponseSchema = z.object({
   landing_path: z.union([z.literal("/chat"), z.literal("/manage")]),

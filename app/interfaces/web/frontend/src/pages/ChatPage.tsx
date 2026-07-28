@@ -22,6 +22,7 @@ import { ElfieProfilePanel } from "../components/ElfieProfilePanel"
 import { Icon } from "../components/Icon"
 import { MobileAccessDialog } from "../components/MobileAccessDialog"
 import { Notice } from "../components/Notice"
+import { MOCK_ELFIES } from "../components/owner-card-mock-data"
 import { useSession } from "../stores/session"
 import { usePresenceHeartbeat } from "../stores/heartbeat"
 
@@ -31,6 +32,20 @@ type ChatData = {
 }
 
 type ChatPane = "chats" | "elfies"
+
+function createDemoChatData(): ChatData {
+  const demoElfies = MOCK_ELFIES.map((entry) => entry.profile)
+  return {
+    elfies: demoElfies,
+    conversations: demoElfies.map((entry) => ({
+      elfie_id: entry.elfie_id,
+      name: entry.name,
+      portrait_url: entry.portrait_url,
+      last_message_preview: "演示聊天记录",
+      last_message_at: null,
+    })),
+  }
+}
 
 function MessageBubble({ message }: { readonly message: ChatMessage }) {
   const senderName = message.sender === "user" ? "我" : "精"
@@ -57,6 +72,8 @@ export function ChatPage() {
   const [selectedProfile, setSelectedProfile] = useState<ElfieProfile | null>(null)
   const [status, setStatus] = useState<ChatSocketStatus>("offline")
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [demoMode, setDemoMode] = useState(false)
   const [draft, setDraft] = useState("")
   const [showAdoption, setShowAdoption] = useState(false)
   const [showMobileAccess, setShowMobileAccess] = useState(false)
@@ -65,17 +82,34 @@ export function ChatPage() {
     if (user === null) return
     void Promise.all([elfies(), conversations()])
       .then(([ownedElfies, rows]) => {
+        if (ownedElfies.length === 0 && rows.length === 0) {
+          const demoData = createDemoChatData()
+          setData(demoData)
+          setSelectedId(demoData.elfies[0]?.elfie_id ?? null)
+          setDemoMode(true)
+          setError(null)
+          setNotice("后端暂不可用，当前显示演示数据")
+          return
+        }
         setData({ elfies: ownedElfies, conversations: rows })
         const requested = new URLSearchParams(window.location.search).get("elfie")
         setSelectedId(requested ?? rows[0]?.elfie_id ?? ownedElfies[0]?.elfie_id ?? null)
+        setDemoMode(false)
+        setError(null)
+        setNotice(null)
       })
-      .catch((reason: unknown) => {
-        setError(reason instanceof ApiError ? reason.message : "聊天资料加载失败")
+      .catch(() => {
+        const demoData = createDemoChatData()
+        setData(demoData)
+        setSelectedId(demoData.elfies[0]?.elfie_id ?? null)
+        setDemoMode(true)
+        setError(null)
+        setNotice("后端暂不可用，当前显示演示数据")
       })
   }, [user])
 
   useEffect(() => {
-    if (selectedId === null) {
+    if (selectedId === null || demoMode) {
       setHistory([])
       return
     }
@@ -84,19 +118,19 @@ export function ChatPage() {
       .catch((reason: unknown) => {
         setError(reason instanceof ApiError ? reason.message : "聊天记录加载失败")
       })
-  }, [selectedId])
+  }, [demoMode, selectedId])
 
   useEffect(() => {
-    if (selectedId === null || activePane !== "elfies") return
+    if (selectedId === null || activePane !== "elfies" || demoMode) return
     void profile(selectedId)
       .then(setSelectedProfile)
       .catch((reason: unknown) => {
         setError(reason instanceof ApiError ? reason.message : "精灵资料加载失败")
       })
-  }, [activePane, selectedId])
+  }, [activePane, demoMode, selectedId])
 
   useEffect(() => {
-    if (user === null) return undefined
+    if (user === null || demoMode) return undefined
     const realtime = new ChatSocket({
       onStatus: setStatus,
       onEvent: (event) => {
@@ -116,7 +150,7 @@ export function ChatPage() {
     socket.current = realtime
     realtime.connect()
     return () => realtime.close()
-  }, [selectedId, user])
+  }, [demoMode, selectedId, user])
 
   if (loading) return <main className="page"><p className="empty">正在验证会话…</p></main>
   if (user === null) {
@@ -149,10 +183,12 @@ export function ChatPage() {
     setSelectedProfile(loadedProfile)
     setActivePane("elfies")
     setShowAdoption(false)
+    setDemoMode(false)
+    setNotice(null)
   }
   const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault()
-    if (selectedId === null || !draft.trim()) return
+    if (selectedId === null || !draft.trim() || demoMode) return
     const text = draft.trim()
     setDraft("")
     try {
@@ -225,11 +261,12 @@ export function ChatPage() {
             </div>
             <section className="message-list">
               {selectedId === null ? <p className="empty">先在“我的精灵”中领养或选择一只精灵。</p> : history.map((message) => <MessageBubble key={message.id} message={message} />)}
+              {notice ? <Notice message={notice} /> : null}
               {error && <Notice kind="error" message={error} />}
             </section>
             <form className="composer" onSubmit={(event) => { void submit(event) }}>
-              <Textarea disabled={selected === undefined} onChange={(event) => setDraft(event.target.value)} placeholder={selected ? `对 ${selected.name} 说点什么…` : "请选择精灵"} value={draft} />
-              <Button disabled={selected === undefined || !draft.trim()} type="submit">发送</Button>
+              <Textarea disabled={selected === undefined || demoMode} onChange={(event) => setDraft(event.target.value)} placeholder={selected ? `对 ${selected.name} 说点什么…` : "请选择精灵"} value={draft} />
+              <Button disabled={selected === undefined || !draft.trim() || demoMode} type="submit">发送</Button>
             </form>
           </section>
         ) : (

@@ -15,15 +15,33 @@
 .search-box { display: flex; align-items: center; gap: 6px; margin: 0 18px 14px; padding: 0 10px; border-radius: 10px; background: var(--surface); color: var(--ink-soft); }
 .search-box > svg { flex: 0 0 auto; }
 .search-box input { min-width: 0; width: 100%; border: 0; background: transparent; }
-.chat-list { min-height: 0; overflow: auto; }
-.wechat-row { width: 100%; display: flex; align-items: center; gap: 14px; padding: 15px 18px; border-radius: 0; background: transparent; text-align: left; }
+.chat-list { display: grid; align-content: start; min-height: 0; overflow: auto; }
+.wechat-row {
+  display: grid !important;
+  grid-template-columns: 56px minmax(0, 1fr);
+  align-items: center;
+  justify-items: start;
+  justify-content: stretch !important;
+  place-content: center start;
+  width: 100%;
+  max-width: 100%;
+  min-height: 80px;
+  height: auto !important;
+  gap: 14px;
+  padding: 12px 18px;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+  white-space: normal;
+}
+.wechat-row .avatar { width: 56px; height: 56px; border-radius: 14px; }
 .wechat-row:hover { background: var(--nav-hover); }
 .wechat-row--active { background: var(--active-bg); color: var(--active-ink); }
 .wechat-row--active:hover { background: var(--active-hover); }
 .wechat-row--active small { color: var(--ink-soft); }
-.list-copy { min-width: 0; }
+.list-copy { display: grid; min-width: 0; gap: 4px; justify-items: start; }
 .list-copy strong, .list-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.list-copy small { color: var(--ink-soft); font-size: 14px; margin-top: 4px; }
+.list-copy small { color: var(--ink-soft); font-size: 14px; }
 .connection-state { margin: 10px 18px 16px; color: var(--ink-soft); line-height: 1.45; }
 .conversation { min-width: 0; display: grid; grid-template-rows: auto 1fr auto; background: var(--surface); }
 .topline { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 17px 26px; background: var(--surface); border-bottom: 1px solid var(--line); }
@@ -35,6 +53,14 @@
 .message--user .bubble { background: var(--accent-soft); color: var(--active-ink); }
 .composer { display: flex; gap: 10px; padding: 18px 24px; background: var(--surface); border-top: 1px solid var(--line); }
 .composer textarea { min-height: 68px; flex: 1; resize: none; }
+.composer [data-slot="button"][type="submit"] {
+  align-self: stretch;
+  min-width: 76px;
+  min-height: 68px;
+  padding-inline: 20px;
+  border-radius: 14px;
+  font-size: 16px;
+}
 
 .elfie-passport {
   min-width: 0;

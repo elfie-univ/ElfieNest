@@ -1,17 +1,22 @@
 import { useEffect, useState, type FormEvent } from "react"
 
+import { Button } from "@/components/ui/button"
 import { ApiError, ownerAssignBed, ownerElfies, ownerRooms, ownerUpdateBedCount, type NestRoom, type OwnerElfie } from "../api/client"
 import { BedDistribution } from "./BedDistribution"
 import { ClassicNestFloorPlan } from "./ClassicNestFloorPlan"
 import { ConfirmDialog } from "./ConfirmDialog"
+import { Icon } from "./Icon"
+import { ManageDialog } from "./ManageDialog"
 import { Notice } from "./Notice"
 import { NumberField } from "./NumberField"
 import { ObserverSurface } from "./ObserverSurface"
+import { RefreshButton } from "./RefreshButton"
 
 export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
   const [rooms, setRooms] = useState<readonly NestRoom[]>([])
   const [elfies, setElfies] = useState<readonly OwnerElfie[]>([])
   const [bedCount, setBedCount] = useState(4)
+  const [showObserver, setShowObserver] = useState(false)
   const [confirmBeds, setConfirmBeds] = useState(false)
   const [savingBeds, setSavingBeds] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -64,17 +69,18 @@ export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
   const room = rooms[0]
   const beds = room?.beds ?? []
   return <section className="nest-console">
-    <div className="manage-head"><div><h2>宿舍平面与床位</h2><p>经典宿舍俯视图呈现公共活动带、主干道与床位；几何事实仍由 Godot Runtime 管理。</p></div><button className="button button--quiet" onClick={() => { void load() }} type="button">刷新房间数据</button></div>
+    <div className="manage-head"><div><h2>宿舍平面与床位</h2><p>经典宿舍俯视图呈现公共活动带、主干道与床位；几何事实仍由 Godot Runtime 管理。</p></div><RefreshButton label="刷新房间数据" onClick={() => { void load() }} /></div>
     {error ? <Notice kind="error" message={error} /> : null}{notice ? <Notice message={notice} /> : null}
     <div className="nest-console__layout">
       <ClassicNestFloorPlan beds={beds} desiredBedCount={room?.desired_bed_count ?? bedCount} roomName={room?.name ?? "Local Nest"} />
       <aside className="nest-console__side">
-        <form className="nest-side-card" onSubmit={requestBedUpdate}><h3>床位数</h3><NumberField hint={`期望 ${room?.desired_bed_count ?? bedCount} 个床位；3D 观察不可用时仍可使用平面图。`} label="期望床位" max={32} min={4} onChange={setBedCount} value={bedCount} /><button className="button" type="submit">保存布局</button></form>
+        <section className="nest-side-card nest-camera-launch"><div className="nest-side-card__title"><h3>摄像头</h3><span className="status-indicator status-indicator--inactive"><i />按需打开</span></div><Button onClick={() => setShowObserver(true)} type="button"><Icon name="camera" size={16} />打开预览</Button></section>
+        <form aria-label="床位数量设置" className="nest-side-card nest-bed-count-form" onSubmit={requestBedUpdate}><NumberField label="床位数" max={32} min={4} onChange={setBedCount} value={bedCount} /><Button type="submit">保存布局</Button></form>
         <BedDistribution elfies={elfies} onAssign={assignBed} rooms={rooms} />
         <section className="nest-side-card"><h3>房间事件</h3><ul className="nest-events">{beds.filter((bed) => bed.occupant_name).map((bed) => <li key={bed.anchor_id}>{bed.name}：{bed.occupant_name} 已在位</li>)}{beds.every((bed) => !bed.occupant_name) ? <li>暂无床位占用事件</li> : null}</ul></section>
       </aside>
     </div>
-    <ObserverSurface kind="room" roomId={room?.id ?? "local-nest"} title="房间 3D 观察" />
+    <ManageDialog contentClassName="manage-dialog--camera" description="在弹窗中按需打开 3D 观察，不占用管理页面空间。" onOpenChange={setShowObserver} open={showObserver} title="实时房间摄像头"><ObserverSurface kind="room" roomId={room?.id ?? "local-nest"} title="房间 3D 观察" /></ManageDialog>
     <ConfirmDialog confirmLabel="保存布局" description={`确认向 Godot 提交 ${bedCount} 个期望床位吗？这不会由管理端直接修改 3D 几何。`} onConfirm={() => { void confirmBedUpdate() }} onOpenChange={setConfirmBeds} open={confirmBeds} pending={savingBeds} title="确认调整床位" />
   </section>
 }

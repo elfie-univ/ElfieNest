@@ -64,8 +64,9 @@ export function ElfieIdentityCard({ csrfToken, elfie, mockMode = false, onError,
         <IdentityField label="物种" value={profile.species_id} />
         <IdentityField label="性别" value={profile.gender ?? "未登记"} />
         <IdentityField label="出生日期" value={profile.birth_date ?? "未登记"} />
-        <IdentityField label="床位" value={profile.nest.bed_name ?? "未分配"} />
-        <IdentityField className="elfie-id-card__wide" label="身份ID" value={elfie.elfie_id} />
+        <IdentityField label="领养日期" value={formatDateOnly(elfie.created_at)} />
+        <IdentityField label="ID" value={elfie.elfie_id} />
+        <IdentityField label="床位号" value={profile.nest.bed_name ?? "未分配"} />
       </dl>
     </div>
     {editing ? <div className="elfie-id-card__editor">
@@ -78,7 +79,7 @@ export function ElfieIdentityCard({ csrfToken, elfie, mockMode = false, onError,
       />
     </div> : <dl className="elfie-id-card__food">
       <IdentityField label="主粮" value={elfie.food_policy.default_food} />
-      <IdentityField label="回退粮" value={elfie.food_policy.fallback_food} />
+      <IdentityField label="紧急粮" value={elfie.food_policy.fallback_food} />
       <IdentityField label="其他粮" value={otherFoods.length ? otherFoods.join("、") : "无"} />
     </dl>}
     <dl className="elfie-id-card__summary">
@@ -104,6 +105,10 @@ function IdentityField({ className, label, phraseAware = false, value }: {
   readonly value: string
 }) {
   return <div className={className}><dt>{label}</dt><dd>{phraseAware ? <PhraseAwareText value={value} /> : value}</dd></div>
+}
+
+function formatDateOnly(value: string): string {
+  return value.split(/[ T]/)[0] ?? value
 }
 
 function PhraseAwareText({ value }: { readonly value: string }) {

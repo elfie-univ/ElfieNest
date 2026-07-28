@@ -1,4 +1,5 @@
 import type { ElfieProfile } from "../api/client"
+import { Button } from "@/components/ui/button"
 import { Avatar } from "./Avatar"
 import { ObserverSurface } from "./ObserverSurface"
 
@@ -116,7 +117,7 @@ export function ElfieProfilePanel({ profile }: ElfieProfilePanelProps) {
       <section className="passport-section">
         <div className="section-title section-title--row">
           <div><span>内在画像</span><strong>大五人格</strong></div>
-          <button className="button button--quiet" type="button">修改</button>
+          <Button type="button" variant="outline">修改</Button>
         </div>
         <div className="personality-bars">
           {bigFive.length === 0 ? <p className="empty">人格数据正在补全。</p> : bigFive.map(([key, value]) => (
