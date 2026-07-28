@@ -1,4 +1,4 @@
-"""Owner 恢复与普通服务启动之间的本机进程锁。"""
+"""Local process locks between owner recovery and normal service startup."""
 
 from __future__ import annotations
 
@@ -25,11 +25,11 @@ class RecoveryInProgressError(Exception):
     path: Path
 
     def __str__(self) -> str:
-        return f"已有 Owner 恢复操作正在执行: {self.path}"
+        return f"Owner recovery is already in progress: {self.path}"
 
 
 class ServiceStartLease:
-    """普通服务启动期间持有的独占锁，PID 登记后主动释放。"""
+    """Exclusive lock held during normal service startup and released after PID registration."""
 
     def __init__(self, descriptor: int) -> None:
         self._descriptor: Optional[int] = descriptor
@@ -80,7 +80,7 @@ def _unlock(descriptor: int) -> None:
 
 @contextmanager
 def owner_recovery_lock(elfie_home: Path) -> Iterator[None]:
-    """持有 Owner 恢复独占锁，阻止并发恢复和普通服务启动。"""
+    """Hold the owner recovery lock to block concurrent recovery and normal startup."""
     descriptor = _open_lock(elfie_home)
     try:
         try:
@@ -94,7 +94,7 @@ def owner_recovery_lock(elfie_home: Path) -> Iterator[None]:
 
 
 def service_start_is_blocked(elfie_home: Path) -> bool:
-    """检测普通服务启动是否与 Owner 恢复临界区冲突。"""
+    """Detect whether normal service startup conflicts with owner recovery."""
     try:
         lease = acquire_service_start_lease(elfie_home)
     except (OSError, RecoveryInProgressError):
@@ -106,7 +106,7 @@ def service_start_is_blocked(elfie_home: Path) -> bool:
 def acquire_service_start_lease(
     elfie_home: Path, *, blocking: bool = False
 ) -> ServiceStartLease:
-    """串行化服务启动，并持锁到 PID 已登记可被精确停止。"""
+    """Serialize service startup and hold the lock until the PID can be stopped precisely."""
     descriptor = _open_lock(elfie_home)
     try:
         _lock(descriptor, blocking=blocking)

@@ -1,4 +1,4 @@
-"""ElfieNest 服务进程的本机身份、端口与 PID 收据操作。"""
+"""Local identity, port, and PID receipt operations for ElfieNest service processes."""
 
 from __future__ import annotations
 
@@ -20,20 +20,20 @@ INTERNAL_SERVICE_PORTS: Final[Tuple[int, ...]] = (8765,)
 
 
 class ProcessInspector(Protocol):
-    """读取本地进程身份与状态所需的最小接口。"""
+    """Minimum interface needed to read local process identity and state."""
 
     def exists(self, pid: int) -> bool:
-        """返回 PID 是否仍存在。"""
+        """Return whether the PID still exists."""
 
     def cwd(self, pid: int) -> Path:
-        """返回进程当前工作目录。"""
+        """Return the process current working directory."""
 
     def command(self, pid: int) -> Tuple[str, ...]:
-        """返回进程命令及参数。"""
+        """Return the process command and arguments."""
 
 
 class DefaultProcessInspector:
-    """使用操作系统命令读取本地进程信息。"""
+    """Read local process information through operating-system commands."""
 
     def __init__(self, proc_root: Optional[Path] = None) -> None:
         self._proc_root = proc_root or Path("/proc")
@@ -86,7 +86,7 @@ class DefaultProcessInspector:
             line[1:] for line in completed.stdout.splitlines() if line.startswith("n")
         ]
         if not paths:
-            raise OSError("lsof 未返回 cwd")
+            raise OSError("lsof did not return cwd")
         return Path(paths[0])
 
     def command(self, pid: int) -> Tuple[str, ...]:
@@ -110,7 +110,7 @@ class DefaultProcessInspector:
 def command_runs_service(
     command: Sequence[str], process_cwd: Path, expected_script: Path
 ) -> bool:
-    """识别绝对或相对当前工作目录的 scripts/serve.py 参数。"""
+    """Identify absolute or cwd-relative scripts/serve.py arguments."""
     for argument in command[1:]:
         if argument in ("-c", "-m"):
             return False
@@ -120,13 +120,13 @@ def command_runs_service(
 
 
 def restart_command_from_process(command: Sequence[str]) -> Tuple[str, ...]:
-    """保留原服务参数，但移除只应由人工启动使用的 --force。"""
+    """Preserve service arguments while removing the foreground-only --force flag."""
     transient_flags = {"--force"}
     return tuple(argument for argument in command if argument not in transient_flags)
 
 
 def http_port_from_command(command: Sequence[str]) -> int:
-    """从已由 argparse 验证过的服务命令中读取 HTTP 端口。"""
+    """Read the HTTP port from a service command already validated by argparse."""
     for index, argument in enumerate(command):
         if argument.startswith("--port="):
             return int(argument.split("=", maxsplit=1)[1])
@@ -136,7 +136,7 @@ def http_port_from_command(command: Sequence[str]) -> int:
 
 
 def service_ports_from_command(command: Sequence[str]) -> Tuple[int, ...]:
-    """返回当前服务命令实际使用的 HTTP、WebSocket 和固定内部端口。"""
+    """Return the HTTP, WebSocket, and fixed internal ports used by a service command."""
     websocket_port = DEFAULT_MANAGEMENT_WS_PORT
     godot_ws_port = DEFAULT_GODOT_WS_PORT
     for index, argument in enumerate(command):
@@ -159,14 +159,14 @@ def validate_service_ports(
     """Validate externally configurable and fixed service ports."""
     ports = (http_port, websocket_port, godot_ws_port)
     if any(port < 1 or port > 65535 for port in ports):
-        return "端口必须在 1-65535 范围内"
+        return "Ports must be in the 1-65535 range"
     if len(set(ports)) != len(ports):
-        return "HTTP、管理 WebSocket 和 Godot WebSocket 端口不能重复"
+        return "HTTP, management WebSocket, and Godot WebSocket ports must be distinct"
     return None
 
 
 def any_service_port_in_use(ports: Sequence[int] = DEFAULT_SERVICE_PORTS) -> bool:
-    """返回任一 ElfieNest 默认服务端口是否正在监听。"""
+    """Return whether any default ElfieNest service port is listening."""
     for port in ports:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as connection:
             connection.settimeout(0.2)
@@ -176,7 +176,7 @@ def any_service_port_in_use(ports: Sequence[int] = DEFAULT_SERVICE_PORTS) -> boo
 
 
 def register_service_process(elfie_home: Path, pid: int) -> Path:
-    """原子写入当前服务进程的 PID 收据。"""
+    """Atomically write the PID receipt for the current service process."""
     secure_elfie_home(elfie_home)
     pid_path = elfie_home / PID_FILENAME
     _reject_live_pid_replacement(pid_path, pid)
@@ -203,24 +203,24 @@ def _reject_live_pid_replacement(pid_path: Path, new_pid: int) -> None:
     try:
         recorded_pid = int(content)
     except ValueError as error:
-        raise FileExistsError(f"现有 PID 收据无效，拒绝覆盖: {content!r}") from error
+        raise FileExistsError(f"Existing PID receipt is invalid; refusing to overwrite: {content!r}") from error
     if recorded_pid == new_pid:
         return
     if not DefaultProcessInspector().exists(recorded_pid):
         pid_path.unlink(missing_ok=True)
         return
-    raise FileExistsError(f"PID {recorded_pid} 仍在运行，拒绝覆盖服务收据")
+    raise FileExistsError(f"PID {recorded_pid} is still running; refusing to overwrite service receipt")
 
 
 def secure_elfie_home(elfie_home: Path) -> None:
-    """确保本地数据目录仅当前系统用户可访问。"""
+    """Ensure the local data directory is accessible only to the current system user."""
     elfie_home.mkdir(mode=0o700, parents=True, exist_ok=True)
     if os.name != "nt":
         elfie_home.chmod(0o700)
 
 
 def register_current_service(elfie_home: Path) -> Path:
-    """登记当前服务进程，并在正常退出时清理自己的 PID 收据。"""
+    """Register the current service process and clean up its PID receipt on normal exit."""
     pid = os.getpid()
     pid_path = register_service_process(elfie_home, pid)
     atexit.register(remove_service_process, elfie_home, pid)
@@ -228,7 +228,7 @@ def register_current_service(elfie_home: Path) -> Path:
 
 
 def remove_service_process(elfie_home: Path, pid: int) -> None:
-    """仅在 PID 收据仍属于调用进程时删除它。"""
+    """Remove the PID receipt only while it still belongs to the calling process."""
     pid_path = elfie_home / PID_FILENAME
     try:
         recorded_pid = pid_path.read_text(encoding="utf-8").strip()

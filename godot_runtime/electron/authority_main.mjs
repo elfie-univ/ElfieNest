@@ -1,7 +1,8 @@
 import { app, BrowserWindow } from "electron";
 import { join } from "node:path";
 
-const authorityNamespace = "elfienest.godot-authority";
+const authorityNamespace =
+  process.env.ELFIENEST_AUTHORITY_NAMESPACE ?? "elfienest.godot-authority";
 const authorityUrl = process.env.ELFIENEST_GODOT_URL;
 
 if (authorityUrl === undefined || authorityUrl === "") {

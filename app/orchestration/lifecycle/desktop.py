@@ -93,12 +93,12 @@ def start_desktop_application(
         status="failed",
         pid=process.pid,
         command=launch_command,
-        error=LaunchFailedError("Desktop 启动后未通过 Web 健康检查"),
+        error=LaunchFailedError("Desktop did not pass the Web health check after startup"),
     )
 
 
 def stop_desktop_application(elfie_home: Path) -> ServiceLifecycleResult:
-    """停止 PID 收据指向的 Electron Desktop。"""
+    """Stop the Electron Desktop process referenced by the PID receipt."""
     pid_path = _pid_path(elfie_home, create=False)
     pid = _read_pid(pid_path)
     if pid is None:
@@ -120,7 +120,7 @@ def stop_desktop_application(elfie_home: Path) -> ServiceLifecycleResult:
 
 
 def desktop_process_id(elfie_home: Path) -> Optional[int]:
-    """返回当前 Desktop supervisor 的 PID，没有收据或进程已退出则返回 None。"""
+    """Return the current Desktop supervisor PID, or None when absent or exited."""
     return _read_live_pid(_pid_path(elfie_home, create=False))
 
 

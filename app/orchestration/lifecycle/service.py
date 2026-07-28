@@ -1,4 +1,4 @@
-"""ElfieNest 本地服务的安全生命周期管理。"""
+"""Safe lifecycle management for the local ElfieNest service."""
 
 import os
 import signal
@@ -58,13 +58,13 @@ def stop_service(
     sleeper: Callable[[float], None] = time.sleep,
     service_ports_in_use: Callable[[Sequence[int]], bool] = any_service_port_in_use,
 ) -> ServiceLifecycleResult:
-    """仅在 PID 身份与当前项目完全匹配时停止服务。"""
+    """Stop the service only when the PID identity exactly matches this project."""
     pid_path = elfie_home / PID_FILENAME
     if not pid_path.exists():
         if service_ports_in_use(DEFAULT_SERVICE_PORTS):
             return ServiceLifecycleResult(
                 status="failed",
-                error=ServicePortsActiveError("缺少可验证的 PID 收据"),
+                error=ServicePortsActiveError("Missing verifiable PID receipt"),
             )
         return ServiceLifecycleResult(status="already_stopped")
 
@@ -85,7 +85,7 @@ def stop_service(
                 return ServiceLifecycleResult(
                     status="failed",
                     pid=pid,
-                    error=ServicePortsActiveError("PID 已失效"),
+                    error=ServicePortsActiveError("PID is no longer valid"),
                 )
             remove_service_process(elfie_home, pid)
             return ServiceLifecycleResult(status="already_stopped", pid=pid)
@@ -140,13 +140,15 @@ def stop_service(
         return ServiceLifecycleResult(
             status="failed",
             pid=pid,
-            error=ProcessInspectionError(pid, f"服务端口参数无效: {error}"),
+            error=ProcessInspectionError(pid, f"Invalid service port arguments: {error}"),
         )
     if service_ports_in_use(target_ports):
         return ServiceLifecycleResult(
             status="failed",
             pid=pid,
-            error=ServicePortsActiveError("目标进程退出后服务端口仍被占用"),
+            error=ServicePortsActiveError(
+                "Service ports are still occupied after the target process exited"
+            ),
         )
     remove_service_process(elfie_home, pid)
     return ServiceLifecycleResult(
@@ -172,7 +174,7 @@ def start_service(
     service_ports_in_use: Optional[Callable[[Sequence[int]], bool]] = None,
     child_environment: Optional[Mapping[str, str]] = None,
 ) -> ServiceLifecycleResult:
-    """启动服务；健康失败时终止进程并删除 PID 文件。"""
+    """Start the service; terminate it and remove the PID file when health fails."""
     resolved_root = project_root.resolve()
     launch_command = (
         tuple(command)
@@ -195,7 +197,7 @@ def start_service(
         startup_lease = acquire_service_start_lease(elfie_home)
     except (OSError, RecoveryInProgressError) as error:
         return ServiceLifecycleResult(
-            status="failed", error=LaunchFailedError(f"服务启动被阻止: {error}")
+            status="failed", error=LaunchFailedError(f"Service startup blocked: {error}")
         )
     lease_released = False
     try:
@@ -211,7 +213,7 @@ def start_service(
                     status="failed",
                     pid=existing_pid,
                     error=LaunchFailedError(
-                        "已有服务正在使用其他端口，先执行 restart 或 stop 再更改端口"
+                        "An existing service is using different ports; run restart or stop before changing ports"
                     ),
                 )
             try:
@@ -237,20 +239,22 @@ def start_service(
             if port_checker(requested_ports):
                 return ServiceLifecycleResult(
                     status="failed",
-                    error=ServicePortsActiveError("目标端口已被其他进程占用"),
+                    error=ServicePortsActiveError(
+                        "Target ports are already occupied by another process"
+                    ),
                 )
 
         pid = process_launcher(launch_command, resolved_root)
         if pid <= 0:
             return ServiceLifecycleResult(
-                status="failed", error=LaunchFailedError(f"launcher 返回无效 PID {pid}")
+                status="failed", error=LaunchFailedError(f"Launcher returned invalid PID {pid}")
             )
 
         pid_path = elfie_home / PID_FILENAME
         try:
             register_service_process(elfie_home, pid)
         except OSError as error:
-            launch_error = LaunchFailedError(f"无法登记 PID {pid}: {error}")
+            launch_error = LaunchFailedError(f"Unable to register PID {pid}: {error}")
             return cleanup_failed_start(
                 pid=pid,
                 pid_path=pid_path,
@@ -274,7 +278,9 @@ def start_service(
                 return ServiceLifecycleResult(
                     status="failed",
                     pid=pid,
-                    error=LaunchFailedError("服务在健康检查通过前退出"),
+                    error=LaunchFailedError(
+                        "Service exited before passing the health check"
+                    ),
                     command=launch_command,
                 )
             try:

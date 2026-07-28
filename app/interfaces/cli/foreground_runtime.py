@@ -32,7 +32,7 @@ def run_foreground_service(
         result = ServiceLifecycleResult(
             status="failed",
             command=command,
-            error=LaunchFailedError(f"服务端口参数无效: {error}"),
+            error=LaunchFailedError(f"Invalid service port arguments: {error}"),
         )
         lifecycle_commands._print_start_result(result)
         return result
@@ -61,10 +61,10 @@ def run_foreground_service(
                         pid=started.pid,
                         command=started.command or command,
                         error=LaunchFailedError(
-                            f"前台 Runtime 健康状态变为 {health.state.value}"
+                            f"Foreground Runtime health changed to {health.state.value}"
                         ),
                     )
-                    print(f"  ❌ 前台 Runtime 已停止: {failure.error}")
+                    print(f"  ❌ Foreground Runtime stopped: {failure.error}")
                     return failure
                 if wait(shutdown_requested):
                     stopped = supervisor.stop()
@@ -80,9 +80,9 @@ def run_foreground_service(
 
 def _print_stop_result(result: ServiceLifecycleResult) -> None:
     if result.status == "stopped":
-        print("  ✅ 前台 Runtime 已停止")
+        print("  ✅ Foreground Runtime stopped")
         return
     if result.status == "already_stopped":
-        print("  ⭕ 前台 Runtime 已停止")
+        print("  ⭕ Foreground Runtime already stopped")
         return
-    print(f"  ❌ 前台 Runtime 停止失败: {result.error}")
+    print(f"  ❌ Failed to stop foreground Runtime: {result.error}")

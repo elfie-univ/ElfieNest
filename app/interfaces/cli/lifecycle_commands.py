@@ -229,9 +229,11 @@ def stop_background_service(owner_id: str = "cli") -> ServiceLifecycleResult:
         if health.owner_lease is not None and health.owner_lease.owner_id != owner_id:
             result = ServiceLifecycleResult(
                 status="failed",
-                error=LaunchFailedError("Runtime owner lease 不允许当前客户端停止服务"),
+                error=LaunchFailedError(
+                    "Runtime owner lease does not allow this client to stop the service"
+                ),
             )
-            print(f"  ❌ 服务停止失败: {result.error}")
+            print(f"  ❌ Failed to stop service: {result.error}")
             return result
     result = supervisor.stop()
     if result.status == "stopped":

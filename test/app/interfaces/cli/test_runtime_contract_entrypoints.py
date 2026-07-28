@@ -50,7 +50,7 @@ def test_elfienest_entrypoint_rejects_malformed_python_version_file(
     # Then
     assert result.returncode != 0
     assert ".python-version" in result.stderr
-    assert "complete Python 3.9 patch version" in result.stderr
+    assert "full Python 3.9 patch version" in result.stderr
 
 
 def test_elfienest_entrypoint_rejects_wrong_venv_interpreter(

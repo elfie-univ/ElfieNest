@@ -1,4 +1,4 @@
-"""服务启动失败后的进程与 PID 收据清理。"""
+"""Process and PID receipt cleanup after service startup failure."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def cleanup_failed_start(
     monotonic: Callable[[], float],
     sleeper: Callable[[float], None],
 ) -> ServiceLifecycleResult:
-    """停止未健康启动的进程，只删除仍属于该 PID 的收据。"""
+    """Stop a process that failed health startup, removing only receipts still owned by that PID."""
     if not inspector.exists(pid):
         remove_service_process(pid_path.parent, pid)
         return ServiceLifecycleResult(status="failed", pid=pid, error=original_error)
@@ -54,7 +54,9 @@ def cleanup_failed_start(
         return ServiceLifecycleResult(
             status="failed",
             pid=pid,
-            error=CleanupFailedError(pid, "PID 已被其他进程复用，拒绝发送信号"),
+            error=CleanupFailedError(
+                pid, "PID has been reused by another process; refusing to send signal"
+            ),
         )
     try:
         signaler(pid, signal.SIGTERM)
@@ -71,7 +73,7 @@ def cleanup_failed_start(
             return ServiceLifecycleResult(
                 status="failed",
                 pid=pid,
-                error=CleanupFailedError(pid, "SIGTERM 后进程未退出"),
+                error=CleanupFailedError(pid, "Process did not exit after SIGTERM"),
             )
         sleeper(poll_interval_seconds)
     remove_service_process(pid_path.parent, pid)

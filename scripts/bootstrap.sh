@@ -1,24 +1,24 @@
 #!/bin/bash
-# ElfieNest 统一依赖编排器
-# 用法: bootstrap <check|ensure|report> [--tier=dev|build]
+# ElfieNest unified dependency orchestrator
+# Usage: bootstrap <check|ensure|report> [--tier=dev|build]
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-# 默认参数
+# Default arguments
 TIER="dev"
 ACTION="check"
 
-# 颜色输出
+# Colored output
 RED=$'\e[1;31m'
 GREEN=$'\e[1;32m'
 YELLOW=$'\e[1;33m'
 CYAN=$'\e[1;36m'
 RESET=$'\e[0m'
 
-# 解析参数
+# Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
         check|ensure|report)
@@ -34,33 +34,33 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         *)
-            echo "${RED}❌ 未知参数: $1${RESET}" >&2
+            echo "${RED}❌ Unknown argument: $1${RESET}" >&2
             exit 1
             ;;
     esac
 done
 
-# 验证 tier
+# Validate tier
 if [[ "$TIER" != "dev" && "$TIER" != "build" ]]; then
-    echo "${RED}❌ Tier 必须是 dev 或 build，当前: $TIER${RESET}" >&2
+    echo "${RED}❌ Tier must be dev or build, got: $TIER${RESET}" >&2
     exit 1
 fi
 
-# 读取固定 Python 版本
+# Read the pinned Python version
 PYTHON_VERSION_FILE="$PROJECT_ROOT/.python-version"
 if [[ ! -f "$PYTHON_VERSION_FILE" ]]; then
-    echo "${RED}❌ 缺少 Python 版本文件: $PYTHON_VERSION_FILE${RESET}" >&2
+    echo "${RED}❌ Missing Python version file: $PYTHON_VERSION_FILE${RESET}" >&2
     exit 1
 fi
 
 PINNED_PYTHON_VERSION="$(tr -d '[:space:]' < "$PYTHON_VERSION_FILE")"
 if [[ ! "$PINNED_PYTHON_VERSION" =~ ^3\.9\.[0-9]+$ ]]; then
-    echo "${RED}❌ .python-version 必须固定到 Python 3.9 的完整补丁版本。${RESET}" >&2
+    echo "${RED}❌ .python-version must pin a full Python 3.9 patch version.${RESET}" >&2
     exit 1
 fi
 
 # ============================================================================
-# 检测函数（幂等）
+# Idempotent check functions
 # ============================================================================
 
 check_python() {
@@ -70,12 +70,12 @@ check_python() {
         return 1
     fi
 
-    # 检查版本
+    # Check version
     if ! "$venv_python" -c "import platform, sys; ok = sys.implementation.name == 'cpython' and platform.python_version() == sys.argv[1]; raise SystemExit(0 if ok else 1)" "$PINNED_PYTHON_VERSION" 2>/dev/null; then
         return 1
     fi
 
-    # 检查运行依赖
+    # Check runtime dependencies
     local runtime_check='import fastapi, httpx, multipart, pydantic, rich, uvicorn, websockets, yaml'
     if ! "$venv_python" -c "$runtime_check" 2>/dev/null; then
         return 1
@@ -86,40 +86,40 @@ check_python() {
 
 ensure_python() {
     if check_python && [[ "${ELFIENEST_FORCE_LOCKED_SYNC:-0}" != "1" ]]; then
-        echo "${GREEN}  ✅ Python $PINNED_PYTHON_VERSION 已就绪${RESET}"
+        echo "${GREEN}  ✅ Python $PINNED_PYTHON_VERSION is ready${RESET}"
         return 0
     fi
 
-    echo "${CYAN}  🔧 正在准备 Python 环境...${RESET}"
+    echo "${CYAN}  🔧 Preparing Python environment...${RESET}"
 
-    # 检查 uv
+    # Check uv
     local uv_bin
     uv_bin="$(command -v uv 2>/dev/null || true)"
     if [[ -z "$uv_bin" ]]; then
-        echo "${RED}  ❌ 缺少 uv 包管理器${RESET}" >&2
+        echo "${RED}  ❌ Missing uv package manager${RESET}" >&2
         echo "     macOS: brew install uv" >&2
-        echo "     其他: https://docs.astral.sh/uv/getting-started/installation/" >&2
+        echo "     Other platforms: https://docs.astral.sh/uv/getting-started/installation/" >&2
         return 1
     fi
 
-    # 安装 Python
+    # Install Python
     if ! "$uv_bin" python install "$PINNED_PYTHON_VERSION" >&2; then
-        echo "${RED}  ❌ Python $PINNED_PYTHON_VERSION 安装失败${RESET}" >&2
+        echo "${RED}  ❌ Failed to install Python $PINNED_PYTHON_VERSION${RESET}" >&2
         return 1
     fi
 
-    # 同步依赖
+    # Sync dependencies
     local sync_args="--locked"
     if [[ "$TIER" == "build" ]]; then
         sync_args="$sync_args --no-dev --extra release"
     fi
 
     if ! UV_PROJECT_ENVIRONMENT="$PROJECT_ROOT/.venv" "$uv_bin" sync $sync_args >&2; then
-        echo "${RED}  ❌ 依赖同步失败${RESET}" >&2
+        echo "${RED}  ❌ Dependency sync failed${RESET}" >&2
         return 1
     fi
 
-    echo "${GREEN}  ✅ Python 环境已就绪${RESET}"
+    echo "${GREEN}  ✅ Python environment is ready${RESET}"
 }
 
 check_node() {
@@ -130,12 +130,12 @@ check_node() {
         return 1
     fi
 
-    # 检查版本 >= 20
+    # Check version >= 20
     local major_version
     major_version="$(echo "$node_version" | sed 's/^v//' | cut -d. -f1)"
 
     if [[ "$major_version" -lt 20 ]]; then
-        echo "${YELLOW}  ⚠️  Node.js 版本过低: $node_version (需要 >= 20)${RESET}" >&2
+        echo "${YELLOW}  ⚠️  Node.js version is too old: $node_version (requires >= 20)${RESET}" >&2
         return 1
     fi
 
@@ -144,14 +144,14 @@ check_node() {
 
 ensure_node() {
     if check_node; then
-        echo "${GREEN}  ✅ Node.js 已就绪${RESET}"
+        echo "${GREEN}  ✅ Node.js is ready${RESET}"
         return 0
     fi
 
-    echo "${RED}  ❌ 缺少 Node.js 20+${RESET}" >&2
+    echo "${RED}  ❌ Missing Node.js 20+${RESET}" >&2
     echo "     macOS: brew install node" >&2
-    echo "     或使用 nvm: nvm install 20" >&2
-    echo "     其他: https://nodejs.org/" >&2
+    echo "     Or use nvm: nvm install 20" >&2
+    echo "     Other platforms: https://nodejs.org/" >&2
     return 1
 }
 
@@ -161,39 +161,39 @@ check_frontend() {
 
 ensure_frontend() {
     if check_frontend; then
-        echo "${GREEN}  ✅ 前端构建产物已就绪${RESET}"
+        echo "${GREEN}  ✅ Frontend build artifacts are ready${RESET}"
         return 0
     fi
 
-    echo "${CYAN}  🔧 正在构建前端...${RESET}"
+    echo "${CYAN}  🔧 Building frontend...${RESET}"
 
-    # 检查 Node 和 pnpm
+    # Check Node and pnpm
     ensure_node || return 1
     ensure_pnpm || return 1
 
     local frontend_dir="$PROJECT_ROOT/app/interfaces/web/frontend"
 
     if [[ ! -d "$frontend_dir" ]]; then
-        echo "${RED}  ❌ 前端目录不存在: $frontend_dir${RESET}" >&2
+        echo "${RED}  ❌ Frontend directory does not exist: $frontend_dir${RESET}" >&2
         return 1
     fi
 
     cd "$frontend_dir"
 
-    # 安装依赖
+    # Install dependencies
     if ! pnpm install --frozen-lockfile >&2; then
-        echo "${RED}  ❌ 前端依赖安装失败${RESET}" >&2
+        echo "${RED}  ❌ Failed to install frontend dependencies${RESET}" >&2
         return 1
     fi
 
-    # 构建
+    # Build
     if ! pnpm build >&2; then
-        echo "${RED}  ❌ 前端构建失败${RESET}" >&2
+        echo "${RED}  ❌ Frontend build failed${RESET}" >&2
         return 1
     fi
 
     cd "$PROJECT_ROOT"
-    echo "${GREEN}  ✅ 前端构建完成${RESET}"
+    echo "${GREEN}  ✅ Frontend build completed${RESET}"
 }
 
 check_elfie_home() {
@@ -203,32 +203,37 @@ check_elfie_home() {
 
 ensure_elfie_home() {
     if check_elfie_home; then
-        echo "${GREEN}  ✅ ELFIE_HOME 已就绪${RESET}"
+        echo "${GREEN}  ✅ ELFIE_HOME is ready${RESET}"
         return 0
     fi
 
-    echo "${CYAN}  🔧 正在创建数据目录...${RESET}"
+    echo "${CYAN}  🔧 Creating data directory...${RESET}"
 
     if ! "$PROJECT_ROOT/.venv/bin/python" -c "from ai_runtime.storage.data_home import ensure_elfie_home; ensure_elfie_home()" >&2; then
-        echo "${RED}  ❌ ELFIE_HOME 创建失败${RESET}" >&2
+        echo "${RED}  ❌ Failed to create ELFIE_HOME${RESET}" >&2
         return 1
     fi
 
-    echo "${GREEN}  ✅ ELFIE_HOME 已创建${RESET}"
+    echo "${GREEN}  ✅ ELFIE_HOME has been created${RESET}"
 }
 
 check_electron() {
     local desktop_dir="$PROJECT_ROOT/app/interfaces/desktop"
-    [[ -d "$desktop_dir/node_modules" ]]
+    local electron_bin="$desktop_dir/node_modules/.bin/electron"
+    local authority_main="$PROJECT_ROOT/build/components/desktop-interface/main.js"
+
+    [[ -x "$electron_bin" ]] && \
+    (cd "$desktop_dir" && node -e "const electron = require('electron'); process.exit(typeof electron === 'string' && electron.length > 0 ? 0 : 1)") >/dev/null 2>&1 && \
+    [[ -f "$authority_main" ]]
 }
 
 ensure_electron() {
     if check_electron; then
-        echo "${GREEN}  ✅ Electron 依赖已就绪${RESET}"
+        echo "${GREEN}  ✅ Electron authority host is ready${RESET}"
         return 0
     fi
 
-    echo "${CYAN}  🔧 正在准备 Electron 依赖...${RESET}"
+    echo "${CYAN}  🔧 Preparing Electron authority host...${RESET}"
 
     ensure_node || return 1
     ensure_pnpm || return 1
@@ -243,17 +248,27 @@ ensure_electron() {
     cd "$desktop_dir"
 
     if ! pnpm install --frozen-lockfile >&2; then
-        echo "${RED}  ❌ Electron 依赖安装失败${RESET}" >&2
+        echo "${RED}  ❌ Failed to install Electron dependencies${RESET}" >&2
+        return 1
+    fi
+
+    if ! ELECTRON_MIRROR="${ELECTRON_MIRROR:-https://npmmirror.com/mirrors/electron/}" pnpm rebuild electron >&2; then
+        echo "${RED}  ❌ Failed to prepare Electron native runtime${RESET}" >&2
+        return 1
+    fi
+
+    if ! pnpm build >&2; then
+        echo "${RED}  ❌ Electron authority host build failed${RESET}" >&2
         return 1
     fi
 
     cd "$PROJECT_ROOT"
-    echo "${GREEN}  ✅ Electron 依赖已就绪${RESET}"
+    echo "${GREEN}  ✅ Electron authority host is ready${RESET}"
 }
 
 RUNTIME_DEPENDENCIES_HELPER="$SCRIPT_DIR/bootstrap_runtime_dependencies.sh"
 if [[ ! -f "$RUNTIME_DEPENDENCIES_HELPER" ]]; then
-    echo "${RED}❌ 缺少运行时依赖模块: $RUNTIME_DEPENDENCIES_HELPER${RESET}" >&2
+    echo "${RED}❌ Missing runtime dependency module: $RUNTIME_DEPENDENCIES_HELPER${RESET}" >&2
     exit 1
 fi
 # shellcheck source=scripts/bootstrap_runtime_dependencies.sh
@@ -261,14 +276,14 @@ source "$RUNTIME_DEPENDENCIES_HELPER"
 
 REPORT_HELPER="$SCRIPT_DIR/bootstrap_report.sh"
 if [[ ! -f "$REPORT_HELPER" ]]; then
-    echo "${RED}❌ 缺少依赖报告模块: $REPORT_HELPER${RESET}" >&2
+    echo "${RED}❌ Missing dependency report module: $REPORT_HELPER${RESET}" >&2
     exit 1
 fi
 # shellcheck source=scripts/bootstrap_report.sh
 source "$REPORT_HELPER"
 
 # ============================================================================
-# 主流程
+# Main flow
 # ============================================================================
 
 main() {
@@ -278,66 +293,66 @@ main() {
     fi
 
     echo ""
-    echo "${CYAN}🦊 ElfieNest 依赖检查${RESET}"
-    echo "   模式: ${TIER} | 动作: ${ACTION}"
+    echo "${CYAN}🦊 ElfieNest dependency check${RESET}"
+    echo "   mode: ${TIER} | action: ${ACTION}"
     echo ""
 
     local exit_code=0
     local has_warning=false
 
-    # Python（所有 tier）
-    echo "📦 Python 运行时"
+    # Python (all tiers)
+    echo "📦 Python runtime"
     if [[ "$ACTION" == "ensure" ]]; then
         ensure_python || exit_code=1
     else
         if check_python; then
-            echo "${GREEN}  ✅ Python $PINNED_PYTHON_VERSION 已就绪${RESET}"
+            echo "${GREEN}  ✅ Python $PINNED_PYTHON_VERSION is ready${RESET}"
         else
-            echo "${RED}  ❌ Python 缺失或版本不匹配${RESET}"
+            echo "${RED}  ❌ Python is missing or version mismatched${RESET}"
             exit_code=1
         fi
     fi
     echo ""
 
-    # Node.js（dev tier）
+    # Node.js (dev tier)
     if [[ "$TIER" == "dev" ]]; then
-        echo "📦 Node.js 运行时"
+        echo "📦 Node.js runtime"
         if [[ "$ACTION" == "ensure" ]]; then
             ensure_node || exit_code=1
         else
             if check_node; then
-                echo "${GREEN}  ✅ Node.js 已就绪${RESET}"
+                echo "${GREEN}  ✅ Node.js is ready${RESET}"
             else
-                echo "${RED}  ❌ Node.js 缺失${RESET}"
+                echo "${RED}  ❌ Node.js is missing${RESET}"
                 exit_code=1
             fi
         fi
         echo ""
     fi
 
-    # 前端（所有 tier）
-    echo "📦 前端构建产物"
+    # Frontend (all tiers)
+    echo "📦 Frontend build artifacts"
     if [[ "$ACTION" == "ensure" ]]; then
         ensure_frontend || exit_code=1
     else
         if check_frontend; then
-            echo "${GREEN}  ✅ 前端构建产物已就绪${RESET}"
+            echo "${GREEN}  ✅ Frontend build artifacts are ready${RESET}"
         else
-            echo "${RED}  ❌ 前端构建产物缺失${RESET}"
+            echo "${RED}  ❌ Frontend build artifacts are missing${RESET}"
             exit_code=1
         fi
     fi
     echo ""
 
-    # Godot source toolchain + Web runtime（所有 bootstrap tier 的硬门）
-    echo "📦 Godot 源码构建工具链"
+    # Godot source toolchain + Web runtime (hard gate for every bootstrap tier)
+    echo "📦 Godot source build toolchain"
     if [[ "$ACTION" == "ensure" ]]; then
         ensure_godot_toolchain || exit_code=1
     else
         if check_godot_toolchain; then
-            echo "${GREEN}  ✅ Godot $GODOT_TOOLCHAIN_VERSION 编辑器已就绪${RESET}"
+            echo "${GREEN}  ✅ Godot $GODOT_PROJECT_VERSION.x editor is ready${RESET}"
         else
-            echo "${RED}  ❌ Godot $GODOT_TOOLCHAIN_VERSION 编辑器缺失或版本不匹配${RESET}" >&2
+            echo "${RED}  ❌ Godot $GODOT_PROJECT_VERSION.x editor is missing or version mismatched${RESET}" >&2
             exit_code=1
         fi
     fi
@@ -348,15 +363,15 @@ main() {
         ensure_godot_web || exit_code=1
     else
         if check_godot_web; then
-            echo "${GREEN}  ✅ Godot Web Runtime 已就绪${RESET}"
+            echo "${GREEN}  ✅ Godot Web Runtime is ready${RESET}"
         else
-            echo "${RED}  ❌ Godot Web Runtime 缺失；完整产品无法启动${RESET}"
+            echo "${RED}  ❌ Godot Web Runtime is missing; the full product cannot start${RESET}"
             exit_code=1
         fi
     fi
     echo ""
 
-    # Ollama（可选能力；首次 Setup 才能经用户确认后调用官方安装）
+    # Ollama (optional capability; official install requires explicit Setup confirmation)
     echo "📦 Ollama"
     if [[ "$ACTION" == "ensure" ]]; then
         local ollama_result
@@ -374,11 +389,11 @@ main() {
         local ollama_capability
         ollama_capability="$(ollama_capability_state)"
         if [[ "$ollama_capability" == "managed" ]]; then
-            echo "${GREEN}  ✅ 公共 Ollama 已就绪（可选能力）${RESET}"
+            echo "${GREEN}  ✅ Public Ollama is ready (optional capability)${RESET}"
         elif [[ "$ollama_capability" == "external" ]]; then
-            echo "${GREEN}  ✅ Ollama 已就绪（外部运行时健康）${RESET}"
+            echo "${GREEN}  ✅ Ollama is ready (external runtime healthy)${RESET}"
         else
-            echo "${YELLOW}  ⚠️  Ollama 可选且尚未安装：建议在 Setup 中配置离线保障${RESET}"
+            echo "${YELLOW}  ⚠️  Ollama is optional and not installed; configure offline fallback in Setup if needed${RESET}"
             has_warning=true
         fi
     fi
@@ -386,28 +401,29 @@ main() {
 
     # Electron（dev tier only）
     if [[ "$TIER" == "dev" ]]; then
-        echo "📦 Electron 依赖"
+        echo "📦 Electron authority host"
         if [[ "$ACTION" == "ensure" ]]; then
             ensure_electron || exit_code=1
         else
             if check_electron; then
-                echo "${GREEN}  ✅ Electron 依赖已就绪${RESET}"
+                echo "${GREEN}  ✅ Electron authority host is ready${RESET}"
             else
-                echo "${YELLOW}  ⚠️  Electron 依赖缺失（改 desktop 才需要）${RESET}"
+                echo "${RED}  ❌ Electron authority host is missing; the full macOS/Windows product cannot start${RESET}"
+                exit_code=1
             fi
         fi
         echo ""
     fi
 
-    # 总结
+    # Summary
     if [[ $exit_code -eq 0 ]]; then
         if [[ "$has_warning" == "true" ]]; then
-            echo "${YELLOW}⚠️  部分依赖缺失（警告），但不影响核心功能${RESET}"
+            echo "${YELLOW}⚠️  Some optional dependencies are missing, but core features are available${RESET}"
         else
-            echo "${GREEN}✅ 所有必需依赖已就绪${RESET}"
+            echo "${GREEN}✅ All required dependencies are ready${RESET}"
         fi
     else
-        echo "${RED}❌ 部分依赖缺失或失败${RESET}"
+        echo "${RED}❌ Some dependencies are missing or failed${RESET}"
     fi
 
     echo ""

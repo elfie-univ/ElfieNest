@@ -1,6 +1,6 @@
 # scripts directory
 
-> 中文版：[`README_zh.md`](README_zh.md)
+> Chinese version: [`README_zh.md`](README_zh.md)
 
 `scripts/` holds repo-level launch, build, quality-check and manual diagnosis
 entry points. Both end users and contributors should prefer the stable entry

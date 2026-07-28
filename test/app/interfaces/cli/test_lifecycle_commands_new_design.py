@@ -11,6 +11,13 @@ from app.orchestration.lifecycle.types import ServiceLifecycleResult
 from scripts import elfienest
 
 
+@pytest.fixture(autouse=True)
+def isolate_lifecycle_home(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(
+        lifecycle_commands, "get_elfie_home", lambda: tmp_path / "elfie-home"
+    )
+
+
 def test_lifecycle_commands_use_repository_root_for_service_command() -> None:
     # Given
     repo_root = Path(__file__).resolve().parents[4]

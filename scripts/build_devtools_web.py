@@ -45,7 +45,7 @@ def ensure_bundle(*, pnpm_command: str | None = None) -> Path:
         return OUTPUT_DIRECTORY
     pnpm = pnpm_command or shutil.which("pnpm")
     if pnpm is None:
-        raise RuntimeError("未找到 pnpm，无法构建 Developer Tools 前端")
+        raise RuntimeError("pnpm was not found, cannot build the Developer Tools frontend")
     install = [pnpm, "install", "--frozen-lockfile"]
     if not (WEB_SOURCE / "node_modules").is_dir():
         subprocess.run(install, cwd=WEB_SOURCE, check=True)
@@ -71,7 +71,7 @@ def main() -> int:
     parser.add_argument("--ensure", action="store_true")
     parser.parse_args()
     output = ensure_bundle()
-    print(f"✅ Developer Tools Web 已是最新: {output}")
+    print(f"✅ Developer Tools Web is up-to-date: {output}")
     return 0
 
 

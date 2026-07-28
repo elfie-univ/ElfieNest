@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""将 Godot 项目导出为 ElfieNest 内置的 Web Runtime。"""
+"""Export the Godot project as ElfieNest's bundled Web Runtime."""
 
 from __future__ import annotations
 
@@ -25,19 +25,19 @@ REQUIRED_SUFFIXES = (".html", ".js", ".wasm", ".pck")
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="构建 ElfieNest Godot Web Runtime")
-    parser.add_argument("--godot", type=Path, help="Godot 4 可执行文件")
+    parser = argparse.ArgumentParser(description="Build the ElfieNest Godot Web Runtime")
+    parser.add_argument("--godot", type=Path, help="Godot 4 executable")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
-    parser.add_argument("--check", action="store_true", help="只检查现有产物")
+    parser.add_argument("--check", action="store_true", help="only check existing artifacts")
     parser.add_argument(
         "--ensure",
         action="store_true",
-        help="仅在 Web Runtime 缺失或与 Godot 源码不一致时导出",
+        help="export only when the Web Runtime is missing or stale",
     )
     parser.add_argument(
         "--allow-version-mismatch",
         action="store_true",
-        help="允许 Godot 与项目版本不同（不建议用于发布）",
+        help="allow a Godot version different from the project version (not recommended for release)",
     )
     return parser.parse_args()
 
@@ -59,10 +59,10 @@ def _export_runtime(
     explicit_binary: Optional[Path],
     allow_version_mismatch: bool,
 ) -> int:
-    """导出 Godot Runtime，并在完整性检查后原子替换当前 bundle。"""
+    """Export the Godot Runtime and atomically replace the current bundle after validation."""
     binary = _find_godot(explicit_binary)
     if binary is None:
-        print("❌ 未找到 Godot 4。请通过 --godot 或 GODOT_BIN 指定构建工具。")
+        print("❌ Godot 4 was not found. Specify the build tool with --godot or GODOT_BIN.")
         return 2
     required_version = _project_version()
     actual_version = _godot_version(binary)
@@ -73,14 +73,14 @@ def _export_runtime(
         and not allow_version_mismatch
     ):
         print(
-            f"❌ 项目要求 Godot {required_version}，当前构建工具是 {actual_version}。"
+            f"❌ Project requires Godot {required_version}; current build tool is {actual_version}."
         )
-        print("   发布构建必须使用同版本 Godot 和同版本 Web Export Templates。")
+        print("   Release builds must use matching Godot and Web Export Templates versions.")
         return 2
 
     with _build_lock(output):
         if runtime_is_current(output):
-            print(f"✅ Godot Web Runtime 已由其他进程更新: {output / ENTRY_NAME}")
+            print(f"✅ Godot Web Runtime was updated by another process: {output / ENTRY_NAME}")
             return 0
         return _export_runtime_locked(output, binary, actual_version, required_version)
 
@@ -91,7 +91,7 @@ def _export_runtime_locked(
     actual_version: Optional[str],
     required_version: Optional[str],
 ) -> int:
-    """在排他锁内执行一次真实 Godot 导出。"""
+    """Run one real Godot export while holding the exclusive lock."""
     staging = output.parent / f".{output.name}.staging"
     previous = output.parent / f".{output.name}.previous"
     shutil.rmtree(staging, ignore_errors=True)
@@ -106,18 +106,18 @@ def _export_runtime_locked(
         PRESET_NAME,
         str(entry),
     ]
-    print(f"🔨 使用 Godot {actual_version or 'unknown'} 构建 Web Runtime...")
+    print(f"🔨 Building Web Runtime with Godot {actual_version or 'unknown'}...")
     result = subprocess.run(command, cwd=GODOT_PROJECT, check=False)
     if result.returncode != 0:
         shutil.rmtree(staging, ignore_errors=True)
-        print("❌ Godot Web 导出失败。请确认已安装同版本 Web Export Templates。")
-        _print_template_hint(required_version or actual_version or "对应")
+        print("❌ Godot Web export failed. Confirm that matching Web Export Templates are installed.")
+        _print_template_hint(required_version or actual_version or "matching")
         return result.returncode or 1
 
     missing = _missing_artifacts(staging)
     if missing:
         shutil.rmtree(staging, ignore_errors=True)
-        print("❌ 导出命令完成，但产物不完整: " + ", ".join(missing))
+        print("❌ Export command completed, but artifacts are incomplete: " + ", ".join(missing))
         return 1
 
     _write_manifest(staging, actual_version or "unknown", current_source_fingerprint())
@@ -126,8 +126,8 @@ def _export_runtime_locked(
         output.replace(previous)
     staging.replace(output)
     shutil.rmtree(previous, ignore_errors=True)
-    print(f"✅ Godot Web Runtime 已生成: {output}")
-    print(f"   入口: {output / ENTRY_NAME}")
+    print(f"✅ Godot Web Runtime generated: {output}")
+    print(f"   Entry: {output / ENTRY_NAME}")
     return 0
 
 
@@ -137,10 +137,10 @@ def _print_bundle_check(output: Path) -> int:
     if not manifest.is_file():
         missing.append("build-manifest.json")
     if missing:
-        print(f"❌ Godot Web Runtime 不完整: {', '.join(missing)}")
-        print("   运行: ./elfienest.sh build-godot-web")
+        print(f"❌ Godot Web Runtime is incomplete: {', '.join(missing)}")
+        print("   Run: ./elfienest.sh build-godot-web")
         return 1
-    print(f"✅ Godot Web Runtime 可用: {output / ENTRY_NAME}")
+    print(f"✅ Godot Web Runtime is available: {output / ENTRY_NAME}")
     return 0
 
 
@@ -173,7 +173,7 @@ def _write_manifest(
 
 
 def current_source_fingerprint() -> str:
-    """返回影响 Web 导出的 Godot 源树内容指纹，不纳入编辑器缓存。"""
+    """Return a fingerprint of Godot source files that affect Web export, excluding editor cache."""
     digest = hashlib.sha256()
     if not GODOT_PROJECT.is_dir():
         return digest.hexdigest()
@@ -189,7 +189,7 @@ def current_source_fingerprint() -> str:
 
 
 def runtime_is_current(output: Path) -> bool:
-    """检查 bundle 完整性以及 manifest 是否对应当前 Godot 源码。"""
+    """Check bundle integrity and whether the manifest matches current Godot source."""
     missing = _missing_artifacts(output)
     manifest_path = output / "build-manifest.json"
     if missing or not manifest_path.is_file():
@@ -219,7 +219,7 @@ def runtime_is_current(output: Path) -> bool:
 
 
 class _build_lock:
-    """文件锁：同一 source tree 中只允许一个 Godot Web 导出。"""
+    """File lock allowing only one Godot Web export per source tree."""
 
     def __init__(self, output: Path) -> None:
         self._path = output.parent / f".{output.name}.lock"
@@ -297,7 +297,7 @@ def _godot_version(binary: Path) -> Optional[str]:
 
 def _print_template_hint(version: str) -> None:
     print(f"   Open in Godot {version}: Editor > Manage Export Templates.")
-    print("   安装官方 Export Templates 后重新运行构建命令。")
+    print("   Install the official Export Templates, then rerun the build command.")
 
 
 if __name__ == "__main__":

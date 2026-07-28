@@ -28,9 +28,9 @@ def test_default_seed_uses_a_workspace_safe_id(monkeypatch, tmp_path: Path) -> N
     # When: the service creates its default elfie.
     assert serve.seed_single_elfie(db_path) is True
 
-    # Then: the stable directory ID is separate from the visible Chinese name.
+    # Then: the stable directory ID is separate from the visible display name.
     with get_db(db_path) as connection:
         row = connection.execute("SELECT elfie_id, name FROM elfie_registry").fetchone()
     assert row["elfie_id"] == "elfie_default"
-    assert row["name"] == "艾菲"
+    assert row["name"] == "Aifei"
     assert generator.elfie_id == "elfie_default"

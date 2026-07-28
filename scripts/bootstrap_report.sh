@@ -1,5 +1,5 @@
 #!/bin/bash
-# 统一依赖编排器的机器可读报告职责。
+# Machine-readable report duties for the unified dependency orchestrator.
 
 bootstrap_component_state() {
     local check_function="$1"

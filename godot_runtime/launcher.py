@@ -8,6 +8,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from enum import Enum
+from hashlib import sha256
 from pathlib import Path
 from typing import Final, Mapping, Optional, Protocol
 from urllib.parse import urlencode
@@ -157,6 +158,12 @@ def _authority_url(request: AuthorityLaunchRequest) -> str:
     return f"http://127.0.0.1:{request.http_port}/runtime/godot/elfienest.html?{query}"
 
 
+def _authority_namespace(project_root: Path) -> str:
+    """Scope Electron's single-instance lock to one resolved checkout."""
+    digest = sha256(str(project_root.resolve()).encode("utf-8")).hexdigest()[:16]
+    return f"elfienest.godot-authority.{digest}"
+
+
 def plan_godot_runtime_launch(
     request: AuthorityLaunchRequest,
     *,
@@ -189,6 +196,7 @@ def plan_godot_runtime_launch(
         additions = (
             ("ELFIENEST_PROJECT_ROOT", str(root)),
             ("ELFIENEST_GODOT_URL", _authority_url(request)),
+            ("ELFIENEST_AUTHORITY_NAMESPACE", _authority_namespace(root)),
         )
         command = electron_command
     elif host.kind is RuntimeHostKind.LINUX_DEDICATED:

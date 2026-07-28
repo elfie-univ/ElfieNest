@@ -112,7 +112,7 @@ class RuntimeSupervisor:
                 pid=result.pid,
                 command=result.command,
                 error=LaunchFailedError(
-                    "已有 Runtime generation 的 authority 未就绪；请执行 restart"
+                    "Existing Runtime generation authority is not ready; run restart"
                 ),
             )
         if self._start_authority is not None:
@@ -122,12 +122,13 @@ class RuntimeSupervisor:
                 return self._cleanup_after_authority_failure(result, str(error))
             if authority is None:
                 return self._cleanup_after_authority_failure(
-                    result, "Godot authority Runtime 未能启动"
+                    result, "Godot authority Runtime failed to start"
                 )
             self._authority_process = authority
             if not self._wait_for_full_health():
                 return self._cleanup_after_authority_failure(
-                    result, "Godot authority Runtime 未在超时内满足就绪契约"
+                    result,
+                    "Godot authority Runtime did not satisfy the readiness contract before timeout",
                 )
         health = self._health_probe()
         health = self._with_authority_process(health)

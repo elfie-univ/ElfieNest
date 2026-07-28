@@ -117,7 +117,7 @@ def run(port: int, nonce: str, *, verify_reconnect: bool) -> dict[str, object]:
                 "command_id": speech_id,
                 "actor_id": "fox-1",
                 "intent": "speak",
-                "text": "真实链路你好",
+                "text": "Hello from the real runtime path",
                 "deadline_seconds": 5.0,
             },
             world_revision=revision,

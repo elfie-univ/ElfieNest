@@ -54,7 +54,7 @@ if getattr(sys, "frozen", False):
 
 
 class SecretSafeArgumentParser(argparse.ArgumentParser):
-    """避免 argparse 在错误信息中回显可能误输的秘密。"""
+    """Prevent argparse errors from echoing secrets that may have been mistyped."""
 
     def error(self, message: str) -> NoReturn:
         sensitive_options = {
@@ -234,7 +234,7 @@ def _service_options_from_args(args: argparse.Namespace) -> tuple[str, ...]:
 
 
 def _exit_on_lifecycle_failure(result: ServiceLifecycleResult) -> None:
-    """将生命周期失败转换为可脚本判断的非零退出码。"""
+    """Convert lifecycle failures into a non-zero exit code for scripts."""
     if getattr(result, "status", None) == "failed":
         raise SystemExit(1)
 

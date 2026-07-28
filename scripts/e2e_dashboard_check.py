@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""ElfieNest 管理面板端到端验证脚本
+"""ElfieNest management dashboard end-to-end verification script.
 
-启动 serve.py（fallback 模式 + 随机端口），执行 5 步验证：
+Starts serve.py in fallback mode on random ports, then runs five checks:
 
-  Step 1: Owner 登录 → 创建用户 alice
-  Step 2: Alice 登录 → POST adopt → 验证精灵入房
-  Step 3: Alice 领养 3 只后第 4 只 → 409
-  Step 4: Alice WS 连接（或 HTTP 降级）→ 验证精灵存在
-  Step 5: Owner 看到所有精灵（验证隔离）
+  Step 1: Owner login -> create user alice
+  Step 2: Alice login -> POST adopt -> verify Elfie appears
+  Step 3: Alice adopts 3 Elfies, then the 4th request returns 409
+  Step 4: Verify Elfies via HTTP
+  Step 5: Owner can see all Elfies, proving owner visibility
 
-输出 5/5 或 N/5 报告。
+Prints a 5/5 or N/5 report.
 """
 
 import json
@@ -46,7 +46,7 @@ def find_distinct_free_ports(count: int) -> list[int]:
 
 
 def _header_lower(d: dict, key: str) -> str:
-    """从 headers dict 中 case-insensitive 取值。"""
+    """Read a header value from a dict case-insensitively."""
     kl = key.lower()
     for k, v in d.items():
         if k.lower() == kl:
@@ -55,7 +55,7 @@ def _header_lower(d: dict, key: str) -> str:
 
 
 def _cookie_val(headers: dict) -> str:
-    """从响应头提取 session_token。"""
+    """Extract session_token from response headers."""
     raw = _header_lower(headers, "set-cookie")
     if raw:
         m = re.search(r"session_token=([^;]+)", raw)
@@ -65,7 +65,7 @@ def _cookie_val(headers: dict) -> str:
 
 
 class E2ESession:
-    """带 session 持久化的 HTTP 会话。"""
+    """HTTP session with cookie persistence."""
 
     def __init__(self, base_url: str):
         self.base_url = base_url.rstrip("/")
@@ -113,7 +113,7 @@ class E2ESession:
         return self._request("POST", path, data=encoded, headers=hdrs)
 
     def login(self, username: str, password: str) -> tuple[bool, str]:
-        """登录，返回 (成功, csrf_token)。"""
+        """Log in and return (success, csrf_token)."""
         form_data = urllib.parse.urlencode(
             {"username": username, "password": password}
         ).encode("utf-8")
@@ -148,14 +148,14 @@ def main() -> None:
     )
 
     print("=" * 60)
-    print("  ElfieNest 管理面板 E2E 验证")
+    print("  ElfieNest management dashboard E2E verification")
     print("=" * 60)
-    print(f"  HTTP 端口: {port}")
-    print(f"  管理 WS 端口: {ws_port}")
-    print(f"  Godot WS 端口: {godot_ws_port}")
+    print(f"  HTTP port: {port}")
+    print(f"  Management WS port: {ws_port}")
+    print(f"  Godot WS port: {godot_ws_port}")
     print()
 
-    print("  🚀 启动 serve.py --fallback ...")
+    print("  🚀 Starting serve.py --fallback ...")
     process = subprocess.Popen(
         [sys.executable, "scripts/serve.py",
          "--fallback",
@@ -172,18 +172,18 @@ def main() -> None:
     if not wait_for_server(f"{base_url}/api/health", timeout=25.0):
         try:
             out, _ = process.communicate(timeout=2.0)
-            print("  ❌ 服务启动失败，输出:")
+            print("  ❌ Service failed to start; output:")
             print(out.decode("utf-8", errors="replace")[:2000])
         except subprocess.TimeoutExpired:
             process.kill()
             out, _ = process.communicate(timeout=1.0)
             if out:
                 print(out.decode("utf-8", errors="replace")[:2000])
-        print("\n❌ serve.py 未能在 25 秒内就绪")
+        print("\n❌ serve.py did not become ready within 25 seconds")
         shutil.rmtree(data_home, ignore_errors=True)
         sys.exit(1)
 
-    print("  ✅ 服务就绪\n")
+    print("  ✅ Service is ready\n")
 
     owner = E2ESession(base_url)
     alice = E2ESession(base_url)
@@ -191,55 +191,55 @@ def main() -> None:
 
     try:
         # ==================================================================
-        # Step 0: 首启设置（如无用户，先创建 Owner）
+        # Step 0: First-run setup; create Owner if no user exists.
         # ==================================================================
-        print("  [Step 0/5] 检查首启状态")
+        print("  [Step 0/5] Checking first-run setup state")
         status, data, raw = owner.get("/api/auth/setup-status")
         if status == 200 and data.get("need_setup"):
-            print("    ⚡ 系统无用户，执行首启设置...")
+            print("    ⚡ No users exist; running first-run setup...")
             status, data, raw, _ = owner.post_json(
                 "/api/auth/setup",
                 {"username": "owner", "password": owner_password},
             )
             aok = status == 201
-            print(f"    {'✅' if aok else '❌'} 首启设置 {'成功' if aok else f'失败: {status} {raw[:200]}'}")
+            print(f"    {'✅' if aok else '❌'} First-run setup {'succeeded' if aok else f'failed: {status} {raw[:200]}'}")
         else:
-            print("    ✅ 系统已有用户，跳过首启设置")
+            print("    ✅ Users already exist; skipping first-run setup")
 
         # ==================================================================
-        # Step 1: Owner 登录 → 创建用户 alice
+        # Step 1: Owner login -> create user alice.
         # ==================================================================
-        print("  [Step 1/5] Owner 登录 → 创建用户 alice")
+        print("  [Step 1/5] Owner login -> create user alice")
         ok, owner_csrf = owner.login("owner", owner_password)
         if ok:
-            print("    ✅ Owner 登录成功")
+            print("    ✅ Owner login succeeded")
             status, data, raw, _ = owner.post_json(
                 "/api/owner/users",
                 {"username": "alice", "password": "alice123", "role": "user"},
                 headers={"X-CSRF-Token": owner_csrf},
             )
             if status == 201:
-                print(f"    ✅ 创建用户 alice 成功 (id={data.get('id')})")
+                print(f"    ✅ Created user alice (id={data.get('id')})")
                 results[0] = True
             else:
-                print(f"    ❌ 创建用户失败: {status} {raw[:200]}")
+                print(f"    ❌ Failed to create user: {status} {raw[:200]}")
         else:
-            print("    ❌ Owner 登录失败")
+            print("    ❌ Owner login failed")
 
         # ==================================================================
-        # Step 2: Alice 登录 → POST adopt → 验证精灵入房
+        # Step 2: Alice login -> POST adopt -> verify Elfie appears.
         # ==================================================================
-        print("  [Step 2/5] Alice 登录 → 领养精灵")
+        print("  [Step 2/5] Alice login -> adopt an Elfie")
 
         ok, alice_csrf = alice.login("alice", "alice123")
         if ok:
-            print("    ✅ Alice 登录成功")
+            print("    ✅ Alice login succeeded")
             status, data, raw, _ = alice.post_json(
                 "/api/user/adopt",
                 {
-                    "name": "小白",
+                    "name": "Snow",
                     "anatomy_type": "biped",
-                    "personality_style": "好奇探索",
+                    "personality_style": "curious explorer",
                     "height": "tall",
                     "build": "plump",
                 },
@@ -247,7 +247,7 @@ def main() -> None:
             )
             if status == 201:
                 elfie_id_1 = data.get("elfie_id", "")
-                print(f"    ✅ 领养「小白」成功 (elfie_id={elfie_id_1})")
+                print(f"    ✅ Adopted Snow (elfie_id={elfie_id_1})")
 
                 status, data, raw = alice.get(
                     "/api/user/elfies",
@@ -255,70 +255,70 @@ def main() -> None:
                 )
                 if status == 200 and isinstance(data, list) and len(data) >= 1:
                     names = [e["name"] for e in data]
-                    if "小白" in names:
-                        print("    ✅ 精灵「小白」出现在 Alice 列表中")
+                    if "Snow" in names:
+                        print("    ✅ Snow appears in Alice's Elfie list")
                         results[1] = True
                     else:
-                        print(f"    ❌ 精灵未出现在列表中: {names}")
+                        print(f"    ❌ Elfie did not appear in the list: {names}")
                 else:
-                    print(f"    ❌ 查询精灵列表失败: {status} {raw[:200]}")
+                    print(f"    ❌ Failed to query Elfie list: {status} {raw[:200]}")
             else:
-                print(f"    ❌ 领养失败: {status} {raw[:200]}")
+                print(f"    ❌ Adoption failed: {status} {raw[:200]}")
         else:
-            print("    ❌ Alice 登录失败")
+            print("    ❌ Alice login failed")
 
         # ==================================================================
-        # Step 3: 领养 3 只上限验证
+        # Step 3: Verify the 3-Elfie adoption limit.
         # ==================================================================
-        print("  [Step 3/5] Alice 领养 3 只上限验证")
+        print("  [Step 3/5] Verify Alice's 3-Elfie adoption limit")
 
         def _adopt(name: str) -> int:
             s, d, r, _ = alice.post_json(
                 "/api/user/adopt",
                 {"name": name, "anatomy_type": "biped",
-                 "personality_style": "活泼好动", "height": "standard", "build": "standard"},
+                 "personality_style": "playful and energetic", "height": "standard", "build": "standard"},
                 headers={"X-CSRF-Token": alice_csrf},
             )
             return s
 
-        s2 = _adopt("小黄")
+        s2 = _adopt("Sunny")
         if s2 != 201:
-            print(f"    ❌ 第2只领养失败 ({s2})，跳过上限验证")
+            print(f"    ❌ Second adoption failed ({s2}); skipping limit check")
         else:
-            s3 = _adopt("小蓝")
+            s3 = _adopt("Blue")
             if s3 != 201:
-                print(f"    ❌ 第3只领养失败 ({s3})，跳过上限验证")
+                print(f"    ❌ Third adoption failed ({s3}); skipping limit check")
             else:
-                s4 = _adopt("小绿")
+                s4 = _adopt("Clover")
                 if s4 == 409:
-                    print("    ✅ 第4只被拒绝 (409 上限正确)")
+                    print("    ✅ Fourth adoption was rejected (409 limit is correct)")
                     results[2] = True
                 else:
-                    print(f"    ❌ 第4只预期 409 但得到 {s4}")
+                    print(f"    ❌ Fourth adoption expected 409 but got {s4}")
 
         # ==================================================================
-        # Step 4: HTTP 验证精灵存在
+        # Step 4: Verify Elfies via HTTP.
         # ==================================================================
-        print("  [Step 4/5] 验证精灵存在（HTTP）")
+        print("  [Step 4/5] Verify Elfies exist (HTTP)")
         status, data, raw = alice.get(
             "/api/user/elfies",
             headers={"X-CSRF-Token": alice_csrf},
         )
         if status == 200 and isinstance(data, list):
             count = len(data)
-            print(f"    ✅ Alice 有 {count} 只精灵")
+            print(f"    ✅ Alice has {count} Elfies")
             if count == 3:
                 results[3] = True
-                print("    ✅ 3 只上限生效")
+                print("    ✅ The 3-Elfie limit is enforced")
             else:
-                print(f"    ⚠️ 精灵数为 {count}，预期 3")
+                print(f"    ⚠️ Elfie count is {count}; expected 3")
         else:
-            print(f"    ❌ 查询失败: {status} {raw[:200]}")
+            print(f"    ❌ Query failed: {status} {raw[:200]}")
 
         # ==================================================================
-        # Step 5: Owner 查看所有精灵
+        # Step 5: Owner can view all Elfies.
         # ==================================================================
-        print("  [Step 5/5] Owner 查看所有精灵")
+        print("  [Step 5/5] Owner views all Elfies")
         ok, owner_csrf2 = owner.login("owner", owner_password)
         if ok:
             status, data, raw = owner.get(
@@ -327,24 +327,24 @@ def main() -> None:
             )
             if status == 200 and isinstance(data, list):
                 names = [e["name"] for e in data]
-                print(f"    ✅ Owner 看到 {len(data)} 只精灵: {names}")
+                print(f"    ✅ Owner sees {len(data)} Elfies: {names}")
                 if len(data) >= 3:
                     results[4] = True
                 else:
-                    print(f"    ⚠️ Owner 只看到 {len(data)} 只，预期至少 3")
+                    print(f"    ⚠️ Owner sees only {len(data)}; expected at least 3")
             else:
-                print(f"    ❌ Owner 查询精灵失败: {status} {raw[:200]}")
+                print(f"    ❌ Owner failed to query Elfies: {status} {raw[:200]}")
         else:
-            print("    ❌ Owner 重新登录失败")
+            print("    ❌ Owner re-login failed")
 
     except Exception as exc:
-        print(f"\n  ❌ 测试异常: {exc}")
+        print(f"\n  ❌ Test raised an exception: {exc}")
         import traceback
         traceback.print_exc()
 
     finally:
         print()
-        print("  🧹 清理子进程...")
+        print("  🧹 Cleaning up child process...")
         process.terminate()
         try:
             process.wait(timeout=5.0)
@@ -353,18 +353,18 @@ def main() -> None:
             process.wait(timeout=2.0)
         shutil.rmtree(data_home, ignore_errors=True)
 
-    # 报告
+    # Report
     print()
     print("=" * 60)
-    print("  E2E 验证报告")
+    print("  E2E verification report")
     print("=" * 60)
 
     labels = [
-        "Step 1: Owner 登录 → 创建 alice",
-        "Step 2: Alice 领养 → 精灵入房",
-        "Step 3: 3 只上限 → 第 4 只 409",
-        "Step 4: 精灵存在 (HTTP 验证)",
-        "Step 5: Owner 多租户隔离",
+        "Step 1: Owner login -> create alice",
+        "Step 2: Alice adoption -> Elfie appears",
+        "Step 3: 3-Elfie limit -> 4th request returns 409",
+        "Step 4: Elfies exist (HTTP verification)",
+        "Step 5: Owner multi-tenant visibility",
     ]
 
     passed = sum(1 for r in results if r)
@@ -375,9 +375,9 @@ def main() -> None:
     print("=" * 60)
     total = len(labels)
     if passed == total:
-        print(f"  结果: {passed}/{total} 通过 — 🎉 全部验证通过！")
+        print(f"  Result: {passed}/{total} passed — all checks passed!")
     else:
-        print(f"  结果: {passed}/{total} 通过 — ⚠️ {total - passed} 项失败")
+        print(f"  Result: {passed}/{total} passed — {total - passed} checks failed")
     print()
 
     sys.exit(0 if passed == total else 1)

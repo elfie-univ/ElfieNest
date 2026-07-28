@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""ElfieNest 交互式聊天客户端
+"""ElfieNest interactive chat client.
 
-启动完整服务栈，让用户可以在终端里跟精灵 "艾菲" 对话。
+Starts the full service stack so the user can chat with Elfie "Aifei" in the terminal.
 """
 import os
 import sys
@@ -24,12 +24,13 @@ from elfie import ElfieFactory
 
 
 def main():
-    # 使用线程内共享容器，让精灵和引擎在同一线程中创建，避免 SQLite 跨线程报错
+    # Share a container so the Elfie and engine are created in the same thread,
+    # avoiding SQLite cross-thread errors.
     engine_holder: dict = {}
     engine_ready = threading.Event()
 
     def engine_worker():
-        # 1. 装配服务（复刻 main.py 流程，全部在同一线程内完成）
+        # 1. Assemble services, mirroring the main.py flow in one thread.
         config = LLMRuntimeConfig(
             ollama_host="http://localhost:11434",
             ollama_model_fast="qwen3.5:0.8b",
@@ -37,13 +38,13 @@ def main():
         runtime_agent = RuntimeAgent(config)
         engine = ElfieNestEngine()
         elfie = ElfieFactory().create(
-            elfie_id="艾菲",
+            elfie_id="Aifei",
             godot_api=engine.api_server,
         )
-        engine.session.register_elfie("艾菲", elfie)
+        engine.session.register_elfie("Aifei", elfie)
         engine_holder["engine"] = engine
         engine_ready.set()
-        # 2. 启动引擎主循环（阻塞）
+        # 2. Start the blocking engine loop.
         engine.start_loop(
             runtime_agent=runtime_agent, ticks_to_run=100000, interval_sec=3.0
         )
@@ -51,38 +52,38 @@ def main():
     engine_thread = threading.Thread(target=engine_worker, daemon=True)
     engine_thread.start()
 
-    # 等待引擎线程把 engine 实例准备好
+    # Wait until the engine worker has prepared the engine instance.
     engine_ready.wait(timeout=5.0)
     if "engine" not in engine_holder:
-        print("❌ 引擎未能在 5 秒内就绪")
+        print("❌ Engine did not become ready within 5 seconds")
         sys.exit(1)
     engine = engine_holder["engine"]
-    time.sleep(2.0)  # 等服务就绪
+    time.sleep(2.0)  # Wait for service readiness.
 
-    # 3. 交互式循环
+    # 3. Interactive loop.
     print("=" * 60)
-    print("🦊 ElfieNest 交互式聊天")
-    print("输入消息跟艾菲聊天，输入 quit/exit/q 退出")
+    print("🦊 ElfieNest interactive chat")
+    print("Type a message to chat with Aifei; type quit/exit/q to exit")
     print("=" * 60)
 
     while True:
         try:
-            user_input = input("\n👤 你说: ").strip()
+            user_input = input("\n👤 You: ").strip()
         except (EOFError, KeyboardInterrupt):
-            print("\n再见！")
+            print("\nGoodbye!")
             break
 
         if not user_input:
             continue
         if user_input.lower() in ("quit", "exit", "q"):
-            print("再见！")
+            print("Goodbye!")
             break
 
-        # 发送消息给精灵
-        engine.session.send_user_message("艾菲", user_input)
-        print("⏳ 艾菲正在思考...")
+        # Send the message to the Elfie.
+        engine.session.send_user_message("Aifei", user_input)
+        print("⏳ Aifei is thinking...")
 
-    # 4. 清理
+    # 4. Cleanup.
     engine.api_server.stop()
 
 

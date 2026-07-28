@@ -61,6 +61,45 @@ def test_graphical_source_platform_routes_to_hidden_electron_authority(
     assert "ws=ws%3A%2F%2F127.0.0.1%3A18101" in authority_url
     assert "nonce=generation-nonce" in authority_url
     assert "generation-nonce" not in plan.command
+    assert environment["ELFIENEST_AUTHORITY_NAMESPACE"].startswith(
+        "elfienest.godot-authority."
+    )
+
+
+def test_electron_authority_namespace_is_scoped_to_the_checkout(
+    tmp_path: Path,
+) -> None:
+    # Given: two source checkouts on one machine both have Electron authority artifacts.
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    _source_electron(first)
+    _source_electron(second)
+
+    # When: each checkout resolves its authority launch plan.
+    first_plan = launcher.plan_godot_runtime_launch(
+        launcher.AuthorityLaunchRequest(first, 18102, 18103, "first-nonce"),
+        platform_name="darwin",
+        environment={},
+    )
+    repeated_first_plan = launcher.plan_godot_runtime_launch(
+        launcher.AuthorityLaunchRequest(first, 18104, 18105, "second-nonce"),
+        platform_name="darwin",
+        environment={},
+    )
+    second_plan = launcher.plan_godot_runtime_launch(
+        launcher.AuthorityLaunchRequest(second, 18106, 18107, "third-nonce"),
+        platform_name="darwin",
+        environment={},
+    )
+
+    # Then: Electron single-instance locks are stable per checkout, not global.
+    first_namespace = dict(first_plan.environment)["ELFIENEST_AUTHORITY_NAMESPACE"]
+    assert first_namespace == dict(repeated_first_plan.environment)[
+        "ELFIENEST_AUTHORITY_NAMESPACE"
+    ]
+    assert first_namespace != dict(second_plan.environment)[
+        "ELFIENEST_AUTHORITY_NAMESPACE"
+    ]
 
 
 def test_displayless_linux_routes_to_the_single_dedicated_artifact(

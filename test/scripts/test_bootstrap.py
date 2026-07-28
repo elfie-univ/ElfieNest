@@ -75,6 +75,88 @@ def test_bootstrap_report_marks_missing_godot_as_required_failure(
     }
 
 
+def test_bootstrap_dev_report_requires_electron_authority_host(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    scripts_dir = copy_bootstrap(project_root)
+    prepare_build_runtime(project_root)
+    elfie_home = tmp_path / "elfie-home"
+    elfie_home.mkdir()
+    make_executable(
+        project_root / ".fake-bin/node",
+        "#!/bin/sh\nprintf 'v20.12.0\\n'\n",
+    )
+    make_executable(
+        project_root / "app/interfaces/desktop/node_modules/.bin/electron"
+    )
+
+    result = subprocess.run(
+        ["bash", str(scripts_dir / "bootstrap.sh"), "report", "--tier=dev"],
+        cwd=project_root,
+        env={
+            **os.environ,
+            "ELFIE_HOME": str(elfie_home),
+            "HOME": str(tmp_path / "home"),
+            "PATH": f"{project_root / '.fake-bin'}:/usr/bin:/bin:/usr/sbin:/sbin",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    report = json.loads(result.stdout)
+    assert report["overall_state"] == "failed"
+    assert report["components"]["electron"] == {
+        "required": True,
+        "state": "missing",
+    }
+
+
+def test_bootstrap_ensure_dev_builds_electron_authority_host(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    scripts_dir = copy_bootstrap(project_root)
+    prepare_build_runtime(project_root)
+    elfie_home = tmp_path / "elfie-home"
+    elfie_home.mkdir()
+    desktop_dir = project_root / "app/interfaces/desktop"
+    desktop_dir.mkdir(parents=True)
+    (desktop_dir / "package.json").write_text("{}\n", encoding="utf-8")
+    make_executable(
+        project_root / ".fake-bin/node",
+        "#!/bin/sh\nprintf 'v20.12.0\\n'\n",
+    )
+    make_executable(
+        project_root / ".fake-bin/pnpm",
+        "#!/bin/sh\n"
+        'if [ "$1" = "--version" ]; then printf "10.12.1\\n"; exit 0; fi\n'
+        'if [ "$1" = "install" ]; then mkdir -p node_modules/.bin; '
+        'printf "#!/bin/sh\\nexit 0\\n" > node_modules/.bin/electron; '
+        'chmod +x node_modules/.bin/electron; exit 0; fi\n'
+        'if [ "$1" = "rebuild" ] && [ "$2" = "electron" ]; then exit 0; fi\n'
+        'if [ "$1" = "build" ]; then mkdir -p ../../../build/components/desktop-interface; '
+        'printf "built\\n" > ../../../build/components/desktop-interface/main.js; exit 0; fi\n'
+        "exit 1\n",
+    )
+
+    result = subprocess.run(
+        ["bash", str(scripts_dir / "bootstrap.sh"), "ensure", "--tier=dev"],
+        cwd=project_root,
+        env={
+            **os.environ,
+            "ELFIE_HOME": str(elfie_home),
+            "HOME": str(tmp_path / "home"),
+            "PATH": f"{project_root / '.fake-bin'}:/usr/bin:/bin:/usr/sbin:/sbin",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert (project_root / "build/components/desktop-interface/main.js").is_file()
+    assert "Electron authority host is ready" in result.stdout
+
+
 def test_bootstrap_report_requires_the_godot_editor_even_when_web_output_exists(
     tmp_path: Path,
     monkeypatch,
@@ -190,7 +272,7 @@ def test_bootstrap_accepts_only_dev_and_build_tiers(tmp_path: Path) -> None:
 
     # Then: it is rejected instead of selecting an installed-runtime dependency path.
     assert result.returncode != 0
-    assert "dev 或 build" in result.stderr
+    assert "dev or build" in result.stderr
 
 
 def test_bootstrap_pins_the_official_godot_toolchain_for_source_builds() -> None:

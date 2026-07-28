@@ -73,4 +73,4 @@ def test_dedicated_builder_is_importable_when_executed_as_a_script() -> None:
 
     # Then: it reaches its bundle check rather than failing to import its helpers.
     assert result.returncode == 1
-    assert "Linux Dedicated Runtime 不完整" in result.stdout
+    assert "Linux Dedicated Runtime is incomplete" in result.stdout

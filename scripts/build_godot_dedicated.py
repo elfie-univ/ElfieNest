@@ -61,7 +61,7 @@ _project_version: ProjectVersion = project_version_helper
 def parse_args() -> argparse.Namespace:
     """Parse the constrained Dedicated Runtime build interface."""
     parser = argparse.ArgumentParser(
-        description="构建 ElfieNest Linux Dedicated Runtime"
+        description="Build the ElfieNest Linux Dedicated Runtime"
     )
     parser.add_argument("--godot", type=Path, help="Godot 4 executable")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
@@ -82,7 +82,7 @@ def main() -> int:
         return _print_bundle_check(output)
     binary = _find_godot(args.godot)
     if binary is None:
-        print("❌ 未找到 Godot 4。请通过 --godot 或 GODOT_BIN 指定构建工具。")
+        print("❌ Godot 4 was not found. Specify the build tool with --godot or GODOT_BIN.")
         return 2
     required_version = _project_version()
     actual_version = _godot_version(binary)
@@ -93,7 +93,7 @@ def main() -> int:
         and not args.allow_version_mismatch
     ):
         print(
-            f"❌ 项目要求 Godot {required_version}，当前构建工具是 {actual_version}。"
+            f"❌ Project requires Godot {required_version}; current build tool is {actual_version}."
         )
         return 2
     return _export_runtime(output, binary, actual_version or "unknown")
@@ -115,16 +115,16 @@ def _export_runtime(output: Path, binary: Path, godot_version: str) -> int:
         PRESET_NAME,
         str(entry),
     ]
-    print(f"🔨 使用 Godot {godot_version} 构建 Linux Dedicated Runtime...")
+    print(f"🔨 Building Linux Dedicated Runtime with Godot {godot_version}...")
     result = subprocess.run(command, cwd=GODOT_PROJECT, check=False)
     if result.returncode != 0:
         shutil.rmtree(staging, ignore_errors=True)
-        print("❌ Linux Dedicated 导出失败。请确认已安装 Linux x64 Export Templates。")
+        print("❌ Linux Dedicated export failed. Confirm that Linux x64 Export Templates are installed.")
         return result.returncode or 1
     missing = _missing_artifacts(staging)
     if missing:
         shutil.rmtree(staging, ignore_errors=True)
-        print("❌ Dedicated 导出命令完成，但产物不完整: " + ", ".join(missing))
+        print("❌ Dedicated export command completed, but artifacts are incomplete: " + ", ".join(missing))
         return 1
     _write_manifest(staging, godot_version, current_source_fingerprint())
     shutil.rmtree(previous, ignore_errors=True)
@@ -132,7 +132,7 @@ def _export_runtime(output: Path, binary: Path, godot_version: str) -> int:
         output.replace(previous)
     staging.replace(output)
     shutil.rmtree(previous, ignore_errors=True)
-    print(f"✅ Linux Dedicated Runtime 已生成: {output / ENTRY_NAME}")
+    print(f"✅ Linux Dedicated Runtime generated: {output / ENTRY_NAME}")
     return 0
 
 
@@ -156,9 +156,9 @@ def _print_bundle_check(output: Path) -> int:
     if not manifest.is_file():
         missing.append("build-manifest.json")
     if missing:
-        print(f"❌ Linux Dedicated Runtime 不完整: {', '.join(missing)}")
+        print(f"❌ Linux Dedicated Runtime is incomplete: {', '.join(missing)}")
         return 1
-    print(f"✅ Linux Dedicated Runtime 可用: {output / ENTRY_NAME}")
+    print(f"✅ Linux Dedicated Runtime is available: {output / ENTRY_NAME}")
     return 0
 
 
