@@ -1,6 +1,6 @@
 import { act, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { openObserverSession } from "../api/observer"
 import { ObserverProvider } from "../stores/observer"
@@ -13,6 +13,14 @@ vi.mock("../api/observer", () => ({
 }))
 
 describe("ObserverSurface", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    Object.defineProperty(window, "isSecureContext", {
+      configurable: true,
+      value: true,
+    })
+  })
+
   it("returns to idle immediately when observation ends", async () => {
     // Given: a supported local Observer that has started loading a room.
     Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
@@ -67,5 +75,22 @@ describe("ObserverSurface", () => {
     expect(screen.queryByText("房间 3D 观察")).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "进入 3D" })).not.toBeInTheDocument()
     expect(openObserverSession).toHaveBeenCalledWith({ kind: "room", room_id: "local-nest" }, "csrf")
+  })
+
+  it("explains insecure mobile HTTP instead of loading the Godot iframe", async () => {
+    Object.defineProperty(window, "isSecureContext", {
+      configurable: true,
+      value: false,
+    })
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
+      configurable: true,
+      value: () => ({}),
+    })
+
+    render(<ObserverProvider csrfToken="csrf" enabled><ObserverSurface autoStart kind="room" roomId="local-nest" showHeader={false} title="房间 3D 观察" /></ObserverProvider>)
+
+    expect(await screen.findByText("手机浏览器需要安全连接才能打开 3D 房间观察。")).toBeInTheDocument()
+    expect(screen.getByText(/HTTP 的 192\.168\.\* 地址会被浏览器拦截/)).toBeInTheDocument()
+    expect(openObserverSession).not.toHaveBeenCalled()
   })
 })

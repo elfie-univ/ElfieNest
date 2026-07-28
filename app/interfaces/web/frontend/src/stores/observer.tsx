@@ -11,6 +11,7 @@ import {
 } from "../api/observer"
 
 export type ObserverStatus = "idle" | "loading" | "ready" | "fallback"
+export type ObserverFallbackReason = "disabled" | "insecure-context" | "unsupported-device" | "runtime"
 type ObserverScope =
   | { readonly kind: "room"; readonly roomId: string }
   | { readonly kind: "elfie"; readonly elfieId: string }
@@ -20,6 +21,7 @@ type ObserverState = {
   readonly entities: Readonly<Record<string, ObserverEntity>>
   readonly openElfie: (elfieId: string) => Promise<void>
   readonly openRoom: (roomId: string) => Promise<void>
+  readonly fallbackReason: ObserverFallbackReason | null
   readonly status: ObserverStatus
 }
 
@@ -81,6 +83,7 @@ export function ObserverProvider({
   readonly enabled: boolean
 }) {
   const [status, setStatus] = useState<ObserverStatus>("idle")
+  const [fallbackReason, setFallbackReason] = useState<ObserverFallbackReason | null>(null)
   const [entities, setEntities] = useState<Readonly<Record<string, ObserverEntity>>>({})
   const parkingRef = useRef<HTMLDivElement | null>(null)
   const targetRef = useRef<HTMLElement | null>(null)
@@ -115,6 +118,7 @@ export function ObserverProvider({
     activeScopeRef.current = null
     cursorRef.current = null
     setStatus("idle")
+    setFallbackReason(null)
     setEntities({})
     entitiesRef.current = {}
   }, [])
@@ -124,6 +128,7 @@ export function ObserverProvider({
     clearTimer(readinessProbeTimerRef)
     restartRequiredRef.current = false
     engineReadyRef.current = true
+    setFallbackReason(null)
     if (!detachedRef.current) setStatus("ready")
   }, [])
 
@@ -166,6 +171,7 @@ export function ObserverProvider({
   const requireRestart = useCallback((): void => {
     resetEngine()
     restartRequiredRef.current = true
+    setFallbackReason("runtime")
     setStatus("fallback")
   }, [resetEngine])
 
@@ -221,10 +227,17 @@ export function ObserverProvider({
 
   const open = useCallback(async (scope: ObserverScope): Promise<void> => {
     if (!enabled || !csrfToken) {
+      setFallbackReason("disabled")
+      setStatus("fallback")
+      return
+    }
+    if (window.isSecureContext === false) {
+      setFallbackReason("insecure-context")
       setStatus("fallback")
       return
     }
     if (!supportsWebGl2() || isLowMemoryDevice()) {
+      setFallbackReason("unsupported-device")
       setStatus("fallback")
       return
     }
@@ -233,6 +246,7 @@ export function ObserverProvider({
       resetEngine()
       restartRequiredRef.current = false
     }
+    setFallbackReason(null)
     setStatus("loading")
     const nextKey = scopeKey(scope)
     const attempt = attemptRef.current
@@ -295,8 +309,9 @@ export function ObserverProvider({
     entities,
     openElfie: async (elfieId: string): Promise<void> => open({ kind: "elfie", elfieId }),
     openRoom: async (roomId: string): Promise<void> => open({ kind: "room", roomId }),
+    fallbackReason,
     status,
-  }), [attach, detach, entities, open, status])
+  }), [attach, detach, entities, fallbackReason, open, status])
 
   return <ObserverContext.Provider value={value}>{children}<div aria-hidden className="observer-engine-parking" ref={parkingRef} /></ObserverContext.Provider>
 }

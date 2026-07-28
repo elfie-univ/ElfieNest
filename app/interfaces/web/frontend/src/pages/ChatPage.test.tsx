@@ -1,8 +1,13 @@
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
 import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ChatPage } from "./ChatPage"
+
+const chatStyles = readFileSync(resolve(import.meta.dirname, "../shared/chat-profile.css"), "utf8")
+const sharedStyles = readFileSync(resolve(import.meta.dirname, "../shared/styles.css"), "utf8")
 
 const session = vi.hoisted(() => ({
   refresh: vi.fn(async () => undefined),
@@ -95,11 +100,32 @@ describe("ChatPage list pane headings", () => {
     const user = userEvent.setup()
     render(<ChatPage />)
 
-    await user.click(await screen.findByRole("button", { name: "我的精灵" }))
+    const rail = screen.getByLabelText("ElfieNest 导航")
+    await user.click(await within(rail).findByRole("button", { name: "我的精灵" }))
 
     expect(screen.getByRole("heading", { level: 1, name: "精灵" })).toBeInTheDocument()
     expect(screen.queryByText("我的精灵", { selector: ".brand" })).not.toBeInTheDocument()
     expect(screen.getByPlaceholderText("搜索精灵")).toBeInTheDocument()
+  })
+
+  it("uses a three-item mobile tab bar without manage or QR shortcuts", async () => {
+    render(<ChatPage />)
+
+    const mobileTabs = screen.getByLabelText("聊天移动导航")
+    expect(await within(mobileTabs).findByRole("button", { name: "聊天记录" })).toHaveTextContent("消息")
+    expect(within(mobileTabs).getByRole("button", { name: "我的精灵" })).toHaveTextContent("精灵")
+    expect(within(mobileTabs).getByRole("button", { name: "我的" })).toHaveTextContent("我的")
+    expect(within(mobileTabs).queryByRole("button", { name: "进入管理" })).not.toBeInTheDocument()
+    expect(within(mobileTabs).queryByRole("button", { name: "扫码用手机打开聊天" })).not.toBeInTheDocument()
+    expect(chatStyles).toContain(".app-rail { display: none; }")
+    expect(chatStyles).toContain(".mobile-tabbar")
+    const finalMobileRules = sharedStyles.slice(sharedStyles.indexOf("@media (max-width: 640px)"))
+    const workbenchRule = finalMobileRules.match(/\.chat-workbench\s*\{[^}]+\}/)?.[0] ?? ""
+    expect(workbenchRule).toContain("grid-template-columns: 1fr")
+    expect(workbenchRule).toContain("grid-template-rows: minmax(0, 1fr)")
+    expect(workbenchRule).not.toContain("padding-bottom")
+    expect(finalMobileRules).toContain(".app-rail { display: none; }")
+    expect(finalMobileRules).toContain(".connection-state { display: none; }")
   })
 
   it("keeps the chat layout reviewable with demo data when the legacy chat API is unavailable", async () => {

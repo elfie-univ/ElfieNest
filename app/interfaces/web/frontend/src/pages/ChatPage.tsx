@@ -16,7 +16,7 @@ import {
   type ElfieProfile,
 } from "../api/client"
 import { AdoptionPanel } from "../components/AdoptionPanel"
-import { AccountMenu } from "../components/AccountMenu"
+import { AccountMenu, AccountMenuPanel } from "../components/AccountMenu"
 import { Avatar } from "../components/Avatar"
 import { ElfieProfilePanel } from "../components/ElfieProfilePanel"
 import { Icon } from "../components/Icon"
@@ -32,6 +32,7 @@ type ChatData = {
 }
 
 type ChatPane = "chats" | "elfies"
+type MobileSection = ChatPane | "me"
 
 function createDemoChatData(): ChatData {
   const demoElfies = MOCK_ELFIES.map((entry) => entry.profile)
@@ -67,6 +68,8 @@ export function ChatPage() {
   const socket = useRef<ChatSocket | null>(null)
   const [data, setData] = useState<ChatData | null>(null)
   const [activePane, setActivePane] = useState<ChatPane>("chats")
+  const [mobileSection, setMobileSection] = useState<MobileSection>("chats")
+  const [mobileDetail, setMobileDetail] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [history, setHistory] = useState<readonly ChatMessage[]>([])
   const [selectedProfile, setSelectedProfile] = useState<ElfieProfile | null>(null)
@@ -162,15 +165,26 @@ export function ChatPage() {
   const detailProfile = selectedProfile ?? selected ?? null
   const chooseChat = (elfieId: string): void => {
     setActivePane("chats")
+    setMobileSection("chats")
+    setMobileDetail(true)
     setSelectedId(elfieId)
   }
   const chooseElfie = (elfieId: string): void => {
     setActivePane("elfies")
+    setMobileSection("elfies")
+    setMobileDetail(true)
     setSelectedId(elfieId)
   }
   const openDetail = (): void => {
     if (selectedId === null) return
     setActivePane("elfies")
+    setMobileSection("elfies")
+    setMobileDetail(true)
+  }
+  const openMobileSection = (section: MobileSection): void => {
+    setMobileSection(section)
+    if (section !== "me") setActivePane(section)
+    setMobileDetail(false)
   }
   const adoptionCompleted = async (elfieId: string): Promise<void> => {
     const [ownedElfies, rows, loadedProfile] = await Promise.all([
@@ -212,13 +226,13 @@ export function ChatPage() {
           <div className="rail-bottom">
             <div className="rail-quick-actions">
               {user.role === "owner" ? <Button asChild className="rail-button rail-button--manage" data-tooltip="进入管理" size="icon" variant="ghost"><a aria-label="进入管理" href="/manage"><Icon name="house" /></a></Button> : null}
-              <Button aria-label="扫码用手机打开聊天" className="rail-button" data-tooltip="扫码用手机打开聊天" onClick={() => setShowMobileAccess(true)} size="icon" type="button" variant="ghost"><Icon name="qr-code" /></Button>
+              <Button aria-label="扫码用手机打开聊天" className="rail-button rail-button--mobile-access" data-tooltip="扫码用手机打开聊天" onClick={() => setShowMobileAccess(true)} size="icon" type="button" variant="ghost"><Icon name="qr-code" /></Button>
             </div>
             <AccountMenu compact onUpdated={refresh} user={user} />
           </div>
         </aside>
 
-        <aside className="chat-list-pane">
+        <aside className={mobileSection === "me" || mobileDetail ? "chat-list-pane chat-list-pane--mobile-hidden" : "chat-list-pane"}>
           <header className="list-pane-head">
             <div>
               <h1>{activePane === "chats" ? "消息" : "精灵"}</h1>
@@ -253,9 +267,14 @@ export function ChatPage() {
           <p className="connection-state">通道：{connectionCopy(status)}</p>
         </aside>
 
-        {activePane === "chats" ? (
-          <section className="conversation">
+        {mobileSection === "me" ? (
+          <section className="mobile-me-pane">
+            <AccountMenuPanel onClose={() => openMobileSection("chats")} onUpdated={refresh} user={user} />
+          </section>
+        ) : activePane === "chats" ? (
+          <section className={mobileDetail ? "conversation conversation--mobile-active" : "conversation"}>
             <div className="topline">
+              <Button aria-label="返回聊天记录" className="mobile-back-button" onClick={() => setMobileDetail(false)} size="icon-sm" type="button" variant="ghost"><Icon name="chevron-down" /></Button>
               <h1>{selected?.name ?? "选择一只精灵"}</h1>
               <Button variant="outline" disabled={selected === undefined} onClick={openDetail} type="button">详情</Button>
             </div>
@@ -270,8 +289,16 @@ export function ChatPage() {
             </form>
           </section>
         ) : (
-          <ElfieProfilePanel profile={detailProfile} />
+          <section className={mobileDetail ? "elfie-detail-pane elfie-detail-pane--mobile-active" : "elfie-detail-pane"}>
+            <div className="mobile-detail-head"><Button aria-label="返回我的精灵" className="mobile-back-button" onClick={() => setMobileDetail(false)} size="icon-sm" type="button" variant="ghost"><Icon name="chevron-down" /></Button></div>
+            <ElfieProfilePanel profile={detailProfile} />
+          </section>
         )}
+        <nav className="mobile-tabbar" aria-label="聊天移动导航">
+          <Button aria-label="聊天记录" className={mobileSection === "chats" ? "mobile-tabbar__item mobile-tabbar__item--active" : "mobile-tabbar__item"} onClick={() => openMobileSection("chats")} type="button" variant="ghost"><Icon name="messages-square" size={20} /><span>消息</span></Button>
+          <Button aria-label="我的精灵" className={mobileSection === "elfies" ? "mobile-tabbar__item mobile-tabbar__item--active" : "mobile-tabbar__item"} onClick={() => openMobileSection("elfies")} type="button" variant="ghost"><Icon name="users" size={20} /><span>精灵</span></Button>
+          <Button aria-label="我的" className={mobileSection === "me" ? "mobile-tabbar__item mobile-tabbar__item--active" : "mobile-tabbar__item"} onClick={() => openMobileSection("me")} type="button" variant="ghost"><Avatar imageUrl={user.avatar_url} name={user.nickname?.trim() || user.username} /><span>我的</span></Button>
+        </nav>
       </section>
       {showAdoption ? (
         <div className="modal-backdrop" role="dialog" aria-modal="true">

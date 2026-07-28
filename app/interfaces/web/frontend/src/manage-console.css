@@ -136,6 +136,7 @@
   .manage-nav-item > svg { width: 18px; height: 18px; flex-basis: 18px; }
   .manage-sidebar__bottom { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding-top: 10px; }
   .manage-sidebar__quick-actions { display: flex; flex: 1; gap: 4px; margin: 0; }
+  .manage-quick-action--mobile-access { display: none; }
   .manage-quick-action { width: 44px; height: 44px; min-height: 44px; flex-basis: 44px; padding: 0; }
   .manage-sidebar .account-menu__trigger { width: 44px; height: 44px; min-height: 44px; justify-content: center; padding: 0; }
   .manage-sidebar .account-menu__trigger > span:not(.avatar) { display: none; }
