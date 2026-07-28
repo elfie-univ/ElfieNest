@@ -25,6 +25,7 @@ type ObserverState = {
 
 const IDLE_RELEASE_MILLISECONDS = 5 * 60 * 1000
 const READY_TIMEOUT_MILLISECONDS = 20 * 1000
+const READY_PROBE_MILLISECONDS = 250
 const POLL_MILLISECONDS = 1000
 const ObserverContext = createContext<ObserverState | null>(null)
 
@@ -86,6 +87,7 @@ export function ObserverProvider({
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const releaseTimerRef = useRef<number | null>(null)
   const readyTimerRef = useRef<number | null>(null)
+  const readinessProbeTimerRef = useRef<number | null>(null)
   const pollTimerRef = useRef<number | null>(null)
   const capabilityRef = useRef<string | null>(null)
   const activeScopeRef = useRef<string | null>(null)
@@ -103,6 +105,7 @@ export function ObserverProvider({
 
   const resetEngine = useCallback((): void => {
     clearTimer(readyTimerRef)
+    clearTimer(readinessProbeTimerRef)
     clearTimer(pollTimerRef)
     attemptRef.current += 1
     iframeRef.current?.remove()
@@ -115,6 +118,43 @@ export function ObserverProvider({
     setEntities({})
     entitiesRef.current = {}
   }, [])
+
+  const markEngineReady = useCallback((): void => {
+    clearTimer(readyTimerRef)
+    clearTimer(readinessProbeTimerRef)
+    restartRequiredRef.current = false
+    engineReadyRef.current = true
+    if (!detachedRef.current) setStatus("ready")
+  }, [])
+
+  const exportLooksReady = (engine: HTMLIFrameElement): boolean => {
+    try {
+      const document = engine.contentDocument
+      if (document === null) return false
+      const canvas = document.querySelector("#canvas")
+      const statusElement = document.querySelector<HTMLElement>("#status")
+      if (canvas === null) return false
+      if (statusElement === null) return true
+      const style = window.getComputedStyle(statusElement)
+      return statusElement.hidden || style.display === "none" || style.visibility === "hidden"
+    } catch (reason: unknown) {
+      if (reason instanceof DOMException) return false
+      throw reason
+    }
+  }
+
+  const probeExportReadiness = useCallback((engine: HTMLIFrameElement): void => {
+    clearTimer(readinessProbeTimerRef)
+    const probe = (): void => {
+      if (iframeRef.current !== engine || engineReadyRef.current) return
+      if (exportLooksReady(engine)) {
+        markEngineReady()
+        return
+      }
+      readinessProbeTimerRef.current = window.setTimeout(probe, READY_PROBE_MILLISECONDS)
+    }
+    readinessProbeTimerRef.current = window.setTimeout(probe, READY_PROBE_MILLISECONDS)
+  }, [markEngineReady])
 
   const releaseEngine = useCallback((): void => {
     clearTimer(releaseTimerRef)
@@ -202,6 +242,7 @@ export function ObserverProvider({
         iframeRef.current = engine
         const parent = targetRef.current ?? parkingRef.current
         parent?.appendChild(engine)
+        probeExportReadiness(engine)
         clearTimer(readyTimerRef)
         readyTimerRef.current = window.setTimeout(requireRestart, READY_TIMEOUT_MILLISECONDS)
       }
@@ -240,14 +281,11 @@ export function ObserverProvider({
       const engine = iframeRef.current
       if (event.origin !== window.location.origin || event.source !== engine?.contentWindow) return
       if (event.data !== "elfienest:godot-web-ready") return
-      clearTimer(readyTimerRef)
-      restartRequiredRef.current = false
-      engineReadyRef.current = true
-      if (!detachedRef.current) setStatus("ready")
+      markEngineReady()
     }
     window.addEventListener("message", onMessage)
     return (): void => window.removeEventListener("message", onMessage)
-  }, [])
+  }, [markEngineReady])
 
   useEffect(() => releaseEngine, [releaseEngine])
 

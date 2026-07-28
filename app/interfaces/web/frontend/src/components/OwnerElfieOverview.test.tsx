@@ -70,8 +70,8 @@ describe("OwnerElfieOverview", () => {
     expect(await screen.findByText("星尘")).toBeInTheDocument()
     expect(screen.getByRole("combobox", { name: "所属用户" })).toHaveTextContent("全部用户")
     expect(screen.getByRole("combobox", { name: "物种" })).toHaveTextContent("全部物种")
-    expect(screen.getByRole("combobox", { name: "粮食" })).toHaveTextContent("全部粮食")
-    expect(screen.getByRole("combobox", { name: "具身状态" })).toHaveTextContent("全部状态")
+    expect(screen.getByRole("combobox", { name: "主粮" })).toHaveTextContent("全部主粮")
+    expect(screen.getByRole("combobox", { name: "状态" })).toHaveTextContent("全部状态")
     expect(vi.mocked(ownerElfies)).toHaveBeenCalledWith({})
   })
 
@@ -110,7 +110,7 @@ describe("OwnerElfieOverview", () => {
     await user.click(await screen.findByRole("button", { name: "编辑 星尘" }))
 
     expect(screen.queryByRole("dialog", { name: "编辑粮食策略" })).not.toBeInTheDocument()
-    expect(screen.getByRole("combobox", { name: "主粮" })).toBeInTheDocument()
+    expect(screen.getAllByRole("combobox", { name: "主粮" })).toHaveLength(2)
     expect(screen.queryByRole("textbox", { name: "姓名" })).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "保存 星尘" }))
     expect(vi.mocked(ownerWrite)).toHaveBeenCalledWith(

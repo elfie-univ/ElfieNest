@@ -83,12 +83,28 @@ describe("OwnerNestPanel", () => {
 
     expect(await screen.findByRole("button", { name: "打开预览" })).toBeInTheDocument()
     expect(screen.queryByRole("region", { name: "房间 3D 观察" })).toBeNull()
+    expect(screen.getByRole("heading", { name: "房间床位数" })).toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: "打开预览" }))
 
-    expect(screen.getByRole("dialog", { name: "实时房间摄像头" })).toBeInTheDocument()
+    expect(screen.getByRole("dialog", { name: "实时房间摄像头" })).toHaveClass("manage-dialog--camera")
     expect(screen.getByRole("region", { name: "房间 3D 观察" })).toBeInTheDocument()
+    expect(screen.queryByText("房间 3D 观察")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "进入 3D" })).not.toBeInTheDocument()
     expect(screen.queryByRole("img", { name: "精灵巢实时摄像头画面" })).toBeNull()
+  })
+
+  it("keeps the bed distribution readable when the backend returns no room state", async () => {
+    vi.mocked(ownerRooms).mockResolvedValue([])
+    vi.mocked(ownerElfies).mockResolvedValue([])
+
+    render(<OwnerNestPanel csrfToken="csrf" />)
+
+    const list = await screen.findByRole("list", { name: "床位分布" })
+    expect(within(list).getByText("Happy")).toBeInTheDocument()
+    expect(within(list).getByText("床位 1")).toBeInTheDocument()
+    expect(within(list).getByText("Kettle")).toBeInTheDocument()
+    expect(within(list).getByText("床位 2")).toBeInTheDocument()
   })
 
   it("sorts unassigned elfies first and edits only the selected row", async () => {

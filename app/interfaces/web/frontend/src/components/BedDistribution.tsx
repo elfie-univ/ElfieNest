@@ -40,7 +40,7 @@ export function BedDistribution({ elfies, onAssign, rooms }: BedDistributionProp
     if (saved) setEditingId(null)
   }
   return <section className="nest-side-card bed-distribution"><h3>床位分布</h3>
-    <ul aria-label="床位分布">{ordered.map((elfie) => {
+    <ul aria-label="床位分布">{ordered.length === 0 ? <li className="bed-distribution__empty">暂无精灵床位分配</li> : ordered.map((elfie) => {
       const bed = assignedBed(elfie, beds)
       const editing = editingId === elfie.elfie_id
       return <li key={elfie.elfie_id}>

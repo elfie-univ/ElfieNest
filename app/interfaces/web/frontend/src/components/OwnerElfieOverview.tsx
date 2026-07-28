@@ -147,16 +147,16 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
         value={selection.speciesId}
       />
       <SelectField
-        label="粮食"
+        label="主粮"
         onValueChange={(value) => update("foodKey", value)}
         options={[
-          { label: "全部粮食", value: ALL_FOODS },
+          { label: "全部主粮", value: ALL_FOODS },
           ...foods.map((value) => ({ label: value, value })),
         ]}
         value={selection.foodKey}
       />
       <SelectField
-        label="具身状态"
+        label="状态"
         onValueChange={(value) => update("embodimentState", value)}
         options={[
           { label: "全部状态", value: ALL_STATES },

@@ -2,6 +2,7 @@ import { act, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
+import { openObserverSession } from "../api/observer"
 import { ObserverProvider } from "../stores/observer"
 import { ObserverSurface } from "./ObserverSurface"
 
@@ -52,5 +53,19 @@ describe("ObserverSurface", () => {
     // Then: the ready viewport returns without another loading handshake.
     expect(screen.queryByText("正在建立本地观察视角…")).toBeNull()
     expect(container.querySelectorAll("iframe[title='ElfieNest 3D Observer']")).toHaveLength(1)
+  })
+
+  it("can auto-start without rendering its own header controls inside a dialog", async () => {
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
+      configurable: true,
+      value: () => ({}),
+    })
+
+    render(<ObserverProvider csrfToken="csrf" enabled><ObserverSurface autoStart kind="room" roomId="local-nest" showHeader={false} title="房间 3D 观察" /></ObserverProvider>)
+
+    expect(screen.getByRole("region", { name: "房间 3D 观察" })).toBeInTheDocument()
+    expect(screen.queryByText("房间 3D 观察")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "进入 3D" })).not.toBeInTheDocument()
+    expect(openObserverSession).toHaveBeenCalledWith({ kind: "room", room_id: "local-nest" }, "csrf")
   })
 })

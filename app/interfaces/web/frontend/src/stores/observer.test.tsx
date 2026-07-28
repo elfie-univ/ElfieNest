@@ -46,6 +46,25 @@ describe("ObserverProvider", () => {
     expect(screen.getByText("ready")).toBeInTheDocument()
   })
 
+  it("marks the observer ready when the same-origin Godot export reaches canvas without a ready message", async () => {
+    vi.useFakeTimers()
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { configurable: true, value: () => ({}) })
+    const { container } = render(<ObserverProvider csrfToken="csrf" enabled><TestObserver /></ObserverProvider>)
+
+    fireEvent.click(screen.getByRole("button", { name: "打开房间" }))
+    await act(async () => {})
+    const engine = container.querySelector<HTMLIFrameElement>("iframe[title='ElfieNest 3D Observer']")
+    if (engine?.contentDocument === null || engine === null) throw new Error("observer iframe missing")
+    expect(screen.getByText("loading")).toBeInTheDocument()
+
+    engine.contentDocument.open()
+    engine.contentDocument.write("<!doctype html><html><body><canvas id=\"canvas\"></canvas></body></html>")
+    engine.contentDocument.close()
+    await act(async () => { vi.advanceTimersByTime(250) })
+
+    expect(screen.getByText("ready")).toBeInTheDocument()
+  })
+
   it("reuses one observer engine across room and Elfie scopes, then releases it after five idle minutes", async () => {
     vi.useFakeTimers()
     Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { configurable: true, value: () => ({}) })
