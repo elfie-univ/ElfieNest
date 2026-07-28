@@ -1,7 +1,6 @@
-import * as Checkbox from "@radix-ui/react-checkbox"
 import { useId } from "react"
 
-import { Icon } from "./Icon"
+import { Checkbox } from "@/components/ui/checkbox"
 import "./manage-controls.css"
 
 type CheckboxFieldProps = {
@@ -15,9 +14,7 @@ type CheckboxFieldProps = {
 export function CheckboxField({ checked, disabled = false, hint, label, onChange }: CheckboxFieldProps) {
   const id = useId()
   return <div className="manage-checkbox-field">
-    <Checkbox.Root aria-label={label} checked={checked} disabled={disabled} id={id} onCheckedChange={(next) => onChange(next === true)}>
-      <Checkbox.Indicator><Icon name="check" size={15} /></Checkbox.Indicator>
-    </Checkbox.Root>
+    <Checkbox aria-label={label} checked={checked} className="size-5 border-2 border-[var(--border)] bg-[var(--surface-field)] data-checked:border-[var(--accent)] data-checked:bg-[var(--accent)]" disabled={disabled} id={id} onCheckedChange={(next) => onChange(next === true)} />
     <label htmlFor={id}>
       <span>{label}</span>
       {hint ? <small>{hint}</small> : null}

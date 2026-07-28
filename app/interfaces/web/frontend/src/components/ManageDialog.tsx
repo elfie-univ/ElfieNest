@@ -1,8 +1,16 @@
-import * as Dialog from "@radix-ui/react-dialog"
 import { useRef, type ReactElement, type ReactNode } from "react"
 
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { Icon } from "./Icon"
-import "./manage-controls.css"
 
 type ManageDialogProps = {
   readonly children: ReactNode
@@ -24,12 +32,10 @@ export function ManageDialog({
   trigger,
 }: ManageDialogProps) {
   const openerRef = useRef<HTMLElement | null>(null)
-  const contentClasses = ["manage-dialog", contentClassName].filter(Boolean).join(" ")
-  return <Dialog.Root onOpenChange={onOpenChange} open={open}>
-    {trigger ? <Dialog.Trigger asChild>{trigger}</Dialog.Trigger> : null}
-    <Dialog.Portal>
-      <Dialog.Overlay className="manage-dialog-backdrop" />
-      <Dialog.Content
+  const contentClasses = ["max-w-[35rem] max-h-[min(47.5rem,calc(100vh-2rem))] overflow-y-auto p-6 sm:max-w-[35rem]", contentClassName].filter(Boolean).join(" ")
+  return <Dialog onOpenChange={onOpenChange} open={open}>
+    {trigger ? <DialogTrigger asChild>{trigger}</DialogTrigger> : null}
+      <DialogContent
         className={contentClasses}
         onCloseAutoFocus={(event) => {
           if (!openerRef.current) return
@@ -40,18 +46,18 @@ export function ManageDialog({
         onOpenAutoFocus={() => {
           openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
         }}
+        showCloseButton={false}
       >
-        <header className="manage-dialog__header">
-          <div>
-            <Dialog.Title>{title}</Dialog.Title>
-            {description ? <Dialog.Description>{description}</Dialog.Description> : null}
-          </div>
-        </header>
-        <div className="manage-dialog__body">{children}</div>
-        <Dialog.Close aria-label={`关闭${title}`} className="manage-dialog__close">
-          <Icon name="x" size={18} />
-        </Dialog.Close>
-      </Dialog.Content>
-    </Dialog.Portal>
-  </Dialog.Root>
+        <DialogHeader className="gap-2 pr-9">
+          <DialogTitle className="text-[1.375rem] leading-tight">{title}</DialogTitle>
+          {description ? <DialogDescription className="leading-relaxed">{description}</DialogDescription> : null}
+        </DialogHeader>
+        <div className="grid gap-3.5">{children}</div>
+        <DialogClose asChild>
+          <Button aria-label={`关闭${title}`} className="absolute top-4 right-4" size="icon-sm" type="button" variant="ghost">
+            <Icon name="x" size={18} />
+          </Button>
+        </DialogClose>
+      </DialogContent>
+  </Dialog>
 }

@@ -9,6 +9,7 @@ import { ManageUsersPanel } from "../components/ManageUsersPanel"
 import { ManageSidebar } from "../components/ManageSidebar"
 import { SystemSettingsPanel } from "../components/SystemSettingsPanel"
 import { useSession } from "../stores/session"
+import { usePresenceHeartbeat } from "../stores/heartbeat"
 import { IconCatalogPage } from "./IconCatalogPage"
 import { isManageTab, manageNavItem, type ManageTab } from "./manageNavigation"
 
@@ -19,6 +20,7 @@ function initialTab(): ManageTab {
 
 export function ManagePage() {
   const { user, loading, refresh } = useSession()
+  usePresenceHeartbeat(user)
   const [tab, setTab] = useState<ManageTab>(initialTab)
   const [elfieCount, setElfieCount] = useState(0)
   if (loading) return <main className="page"><p className="empty">正在验证会话…</p></main>

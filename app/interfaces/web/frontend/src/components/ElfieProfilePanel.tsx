@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button"
 import type { ElfieProfile } from "../api/client"
 import { Avatar } from "./Avatar"
 import { Icon } from "./Icon"
@@ -52,7 +53,7 @@ export function ElfieProfilePanel({ profile }: ElfieProfilePanelProps) {
             {profile.personality_tags.map((tag) => <span key={tag}>{tag}</span>)}
           </div>
         </div>
-        <a className="button button--quiet" href="/runtime/godot">打开巢内 3D</a>
+        <Button asChild variant="outline"><a href="/runtime/godot">打开巢内 3D</a></Button>
       </header>
 
       <section className="passport-section">
@@ -66,20 +67,20 @@ export function ElfieProfilePanel({ profile }: ElfieProfilePanelProps) {
           <p>{formatAppearance(profile)}</p>
         </div>
         <div className="stage-actions">
-          <button aria-label="向左旋转" type="button"><Icon name="rotate-ccw" /></button>
-          <button aria-label="向右旋转" type="button"><Icon name="rotate-cw" /></button>
-          <button aria-label="缩小" type="button"><Icon name="minus" /></button>
-          <button aria-label="放大" type="button"><Icon name="plus" /></button>
-          <button aria-label="回到房间" type="button"><Icon name="house" /></button>
-          <button aria-label="查看精灵" type="button"><Icon name="user" /></button>
-          <a className="button" href="/runtime/godot"><Icon name="camera" size={17} />拍照</a>
+          <Button aria-label="向左旋转" size="icon" type="button" variant="outline"><Icon name="rotate-ccw" /></Button>
+          <Button aria-label="向右旋转" size="icon" type="button" variant="outline"><Icon name="rotate-cw" /></Button>
+          <Button aria-label="缩小" size="icon" type="button" variant="outline"><Icon name="minus" /></Button>
+          <Button aria-label="放大" size="icon" type="button" variant="outline"><Icon name="plus" /></Button>
+          <Button aria-label="回到房间" size="icon" type="button" variant="outline"><Icon name="house" /></Button>
+          <Button aria-label="查看精灵" size="icon" type="button" variant="outline"><Icon name="user" /></Button>
+          <Button asChild><a href="/runtime/godot"><Icon name="camera" size={17} />拍照</a></Button>
         </div>
       </section>
 
       <section className="passport-section">
         <div className="section-title section-title--row">
           <div><span>内在画像</span><strong>大五人格</strong></div>
-          <button className="button button--quiet" type="button">修改</button>
+          <Button variant="outline" type="button">修改</Button>
         </div>
         <div className="personality-bars">
           {bigFive.length === 0 ? <p className="empty">人格数据正在补全。</p> : bigFive.map(([key, value]) => (

@@ -34,20 +34,53 @@
 .manage-confirm-dialog__danger { background: var(--error-text); }
 .manage-confirm-dialog__danger:hover { background: color-mix(in srgb, var(--error-text) 84%, black); }
 
-.manage-field { display: grid; gap: 6px; min-width: 0; color: var(--text-muted); font-size: 13px; }
-.manage-field > span, .manage-field > label { color: var(--text); font-weight: 700; }
+.manage-field {
+  display: grid;
+  grid-template-columns: minmax(88px, 0.42fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 8px 12px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+.manage-field__label-column,
+.manage-field__control-column { display: grid; min-width: 0; gap: 6px; }
+.manage-field .manage-field__label { display: block; min-width: 0; overflow-wrap: anywhere; color: var(--text); font-weight: 700; line-height: 1.35; }
 .manage-field input { width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; color: var(--text); background: var(--surface-field); }
+.number-stepper {
+  height: 40px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-field);
+}
+.number-stepper:focus-within {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 24%, transparent);
+}
+.number-stepper > [data-slot="button"] {
+  width: 42px;
+  height: 38px;
+  flex: 0 0 42px;
+  border: 0;
+  border-radius: 0 !important;
+  background: transparent;
+}
+.number-stepper > [data-slot="button"]:first-child { border-right: 1px solid var(--border); }
+.number-stepper > [data-slot="button"]:last-child { border-left: 1px solid var(--border); }
+.number-stepper > [data-slot="button"]:hover { color: var(--text); background: var(--surface-hover); }
+.manage-field .number-stepper > .number-stepper__input {
+  height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: 0;
+}
 .manage-field input[aria-invalid="true"] { border-color: var(--error-text); }
-.manage-field small { color: var(--text-muted); line-height: 1.45; }
+.manage-field small { min-width: 0; overflow-wrap: anywhere; color: var(--text-muted); font-size: 14px; line-height: 1.45; }
 .manage-field .manage-field__error { color: var(--error-text); }
-.manage-number-field__control { display: grid; grid-template-columns: 38px minmax(0, 1fr) 38px; }
-.manage-number-field__control input { border-radius: 0; text-align: center; }
-.manage-number-field__control button { display: grid; place-items: center; border: 1px solid var(--border); color: var(--active-ink); background: var(--surface-hover); }
-.manage-number-field__control button:first-child { border-radius: 10px 0 0 10px; }
-.manage-number-field__control button:last-child { border-radius: 0 10px 10px 0; }
-
 .manage-checkbox-field { display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: start; gap: 10px; }
-.manage-checkbox-field > button { display: grid; width: 22px; height: 22px; place-items: center; border: 1px solid var(--border); border-radius: 6px; color: var(--surface-raised); background: var(--surface-field); }
-.manage-checkbox-field > button[data-state="checked"] { border-color: var(--accent); background: var(--accent); }
 .manage-checkbox-field label { display: grid; gap: 3px; color: var(--text); }
-.manage-checkbox-field small { color: var(--text-muted); }
+.manage-checkbox-field small { color: var(--text-muted); font-size: 14px; }

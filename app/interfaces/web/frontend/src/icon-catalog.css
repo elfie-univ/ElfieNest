@@ -61,12 +61,12 @@
   border-radius: 50%;
   color: var(--accent-hover);
   background: var(--surface);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
 }
 .icon-catalog-choice svg { color: var(--accent-hover); }
 .icon-catalog-choice strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.icon-catalog-choice a { display: inline-block; margin: 0 12px 10px 73px; color: var(--ink-soft); font-size: 11px; text-decoration: underline; text-underline-offset: 3px; }
+.icon-catalog-choice a { display: inline-block; margin: 0 12px 10px 73px; color: var(--ink-soft); font-size: 14px; text-decoration: underline; text-underline-offset: 3px; }
 .icon-catalog-choice a:hover { color: var(--accent-hover); }
 
 @media (max-width: 860px) {

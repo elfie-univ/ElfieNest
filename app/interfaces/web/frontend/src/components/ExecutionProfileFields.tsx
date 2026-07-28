@@ -1,6 +1,7 @@
+import { Button } from "@/components/ui/button"
 import type { ExecutionProfile } from "../api/owner-foods"
 import { NumberField } from "./NumberField"
-import { SelectField, type SelectOption } from "./SelectField"
+import { SelectField, type SelectFieldOption, type SelectOption } from "./SelectField"
 import { TextField } from "./TextField"
 
 const NONE_MODEL = "__none__"
@@ -15,7 +16,7 @@ const REASONING_OPTIONS: readonly SelectOption[] = [
 
 type ExecutionProfileFieldsProps = {
   readonly label: string
-  readonly modelOptions: readonly SelectOption[]
+  readonly modelOptions: readonly SelectFieldOption[]
   readonly onChange: (profile: ExecutionProfile | null) => void
   readonly optional?: boolean
   readonly profile: ExecutionProfile | null
@@ -47,14 +48,14 @@ export function ExecutionProfileFields({
   return <fieldset className="food-profile-fields">
     <legend>{label}</legend>
     <SelectField
-      ariaLabel={`${label}模型`}
+      label={`${label}模型`}
       onValueChange={(model) => onChange(model === NONE_MODEL ? null : { ...(profile ?? defaultProfile()), model })}
       options={options}
       value={value}
     />
     {profile ? <>
       <SelectField
-        ariaLabel={`${label}推理档位`}
+        label={`${label}推理档位`}
         onValueChange={(reasoning_profile) => update({ reasoning_profile })}
         options={REASONING_OPTIONS}
         value={profile.reasoning_profile}
@@ -75,17 +76,23 @@ export function ExecutionProfileFields({
 }
 
 function withCurrentModel(
-  options: readonly SelectOption[],
+  options: readonly SelectFieldOption[],
   current: string | undefined,
   optional: boolean,
-): readonly SelectOption[] {
-  const result: SelectOption[] = optional ? [{ label: "未配置", value: NONE_MODEL }] : []
-  if (current && !options.some((option) => option.value === current)) {
+): readonly SelectFieldOption[] {
+  const result: SelectFieldOption[] = optional ? [{ label: "未配置", value: NONE_MODEL }] : []
+  if (current && !hasModelOption(options, current)) {
     result.push({ label: `${current}（当前）`, value: current })
   }
   result.push(...options)
   if (!optional && result.length === 0) result.push({ label: "未配置", value: NONE_MODEL, disabled: true })
   return result
+}
+
+function hasModelOption(options: readonly SelectFieldOption[], value: string): boolean {
+  return options.some((option) => "options" in option
+    ? option.options.some((nested) => nested.value === value)
+    : option.value === value)
 }
 
 function ProviderOptionFields({ label, onChange, options }: {
@@ -101,15 +108,14 @@ function ProviderOptionFields({ label, onChange, options }: {
     onChange(Object.fromEntries(nextEntries.filter(([key]) => key.trim().length > 0)))
   }
   return <div className="food-provider-options">
-    <div className="food-provider-options__heading"><span>Provider 参数</span><button
-      className="button button--quiet"
+    <div className="food-provider-options__heading"><span>Provider 参数</span><Button variant="outline"
       onClick={() => onChange({ ...options, [`option_${entries.length + 1}`]: "" })}
       type="button"
-    >添加参数</button></div>
+    >添加参数</Button></div>
     {entries.length === 0 ? <p className="form-hint">没有额外 Provider 参数。</p> : entries.map(([key, value], index) => <div className="food-provider-options__row" key={`${key}-${index}`}>
       <TextField label={`${label}参数名 ${index + 1}`} onChange={(nextKey) => updateEntry(index, nextKey, String(value))} value={key} />
       <TextField label={`${label}参数值 ${index + 1}`} onChange={(nextValue) => updateEntry(index, key, nextValue)} value={String(value)} />
-      <button className="button button--quiet" onClick={() => onChange(Object.fromEntries(entries.filter((_, entryIndex) => entryIndex !== index)))} type="button">删除</button>
+      <Button variant="outline" onClick={() => onChange(Object.fromEntries(entries.filter((_, entryIndex) => entryIndex !== index)))} type="button">删除</Button>
     </div>)}
   </div>
 }

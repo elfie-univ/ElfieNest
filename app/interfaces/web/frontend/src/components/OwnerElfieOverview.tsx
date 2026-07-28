@@ -8,9 +8,9 @@ import {
   type OwnerElfieFilters,
   type OwnerUser,
 } from "../api/client"
-import { ElfieFoodPolicyDialog } from "./ElfieFoodPolicyDialog"
 import { ElfieIdentityCard } from "./ElfieIdentityCard"
 import { Notice } from "./Notice"
+import { RefreshButton } from "./RefreshButton"
 import { SelectField } from "./SelectField"
 
 const ALL_USERS = "all-users"
@@ -19,14 +19,14 @@ const ALL_FOODS = "all-foods"
 const ALL_STATES = "all-states"
 
 type FilterSelection = {
-  readonly ownerUserId: string
+  readonly ownerAccountId: string
   readonly speciesId: string
   readonly foodKey: string
   readonly embodimentState: string
 }
 
 const INITIAL_SELECTION: FilterSelection = {
-  ownerUserId: ALL_USERS,
+  ownerAccountId: ALL_USERS,
   speciesId: ALL_SPECIES,
   foodKey: ALL_FOODS,
   embodimentState: ALL_STATES,
@@ -39,7 +39,7 @@ type OwnerElfieOverviewProps = {
 
 function toApiFilters(selection: FilterSelection): OwnerElfieFilters {
   return {
-    ...(selection.ownerUserId === ALL_USERS ? {} : { ownerUserId: selection.ownerUserId }),
+    ...(selection.ownerAccountId === ALL_USERS ? {} : { ownerAccountId: selection.ownerAccountId }),
     ...(selection.speciesId === ALL_SPECIES ? {} : { speciesId: selection.speciesId }),
     ...(selection.foodKey === ALL_FOODS ? {} : { foodKey: selection.foodKey }),
     ...(selection.embodimentState === ALL_STATES
@@ -57,7 +57,6 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
   const [allElfies, setAllElfies] = useState<readonly OwnerElfie[]>([])
   const [elfies, setElfies] = useState<readonly OwnerElfie[]>([])
   const [selection, setSelection] = useState<FilterSelection>(INITIAL_SELECTION)
-  const [editing, setEditing] = useState<OwnerElfie | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
@@ -106,49 +105,47 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
     <div className="manage-head">
       <div>
         <h2>全部精灵</h2>
-        <p>以可读身份证卡查看公开运营信息；只有粮食策略可由 Owner 在这里修改。</p>
+        <p>以可读身份证卡查看<span className="manage-copy__phrase">公开运营信息</span>；只有粮食策略可由 <span className="manage-copy__phrase">Owner 在这里修改</span>。</p>
       </div>
-      <button className="button button--quiet" onClick={() => { void load(selection) }} type="button">
-        刷新
-      </button>
+      <RefreshButton label="刷新" onClick={() => { void load(selection) }} />
     </div>
     <div className="manage-filters">
-      <label>所属用户<SelectField
-        ariaLabel="按用户筛选精灵"
-        onValueChange={(value) => update("ownerUserId", value)}
+      <SelectField
+        label="所属用户"
+        onValueChange={(value) => update("ownerAccountId", value)}
         options={[
           { label: "全部用户", value: ALL_USERS },
-          ...users.map((user) => ({ label: user.username, value: String(user.id) })),
+          ...users.map((user) => ({ label: user.username, value: user.account_id })),
         ]}
-        value={selection.ownerUserId}
-      /></label>
-      <label>物种<SelectField
-        ariaLabel="按物种筛选精灵"
+        value={selection.ownerAccountId}
+      />
+      <SelectField
+        label="物种"
         onValueChange={(value) => update("speciesId", value)}
         options={[
           { label: "全部物种", value: ALL_SPECIES },
           ...species.map((value) => ({ label: value, value })),
         ]}
         value={selection.speciesId}
-      /></label>
-      <label>粮食<SelectField
-        ariaLabel="按粮食筛选精灵"
+      />
+      <SelectField
+        label="粮食"
         onValueChange={(value) => update("foodKey", value)}
         options={[
           { label: "全部粮食", value: ALL_FOODS },
           ...foods.map((value) => ({ label: value, value })),
         ]}
         value={selection.foodKey}
-      /></label>
-      <label>具身状态<SelectField
-        ariaLabel="按具身状态筛选精灵"
+      />
+      <SelectField
+        label="具身状态"
         onValueChange={(value) => update("embodimentState", value)}
         options={[
           { label: "全部状态", value: ALL_STATES },
           ...states.map((value) => ({ label: value, value })),
         ]}
         value={selection.embodimentState}
-      /></label>
+      />
     </div>
     {error ? <Notice kind="error" message={error} /> : null}
     {notice ? <Notice message={notice} /> : null}
@@ -156,20 +153,15 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
       {elfies.length === 0
         ? <p className="empty">没有符合筛选条件的精灵。</p>
         : elfies.map((elfie) => <ElfieIdentityCard
+          csrfToken={csrfToken}
           elfie={elfie}
           key={elfie.elfie_id}
-          onEdit={() => setEditing(elfie)}
+          onError={setError}
+          onSaved={async () => {
+            setNotice(`${elfie.profile.name} 的粮食策略已更新。`)
+            await reloadElfies()
+          }}
         />)}
     </div>
-    {editing ? <ElfieFoodPolicyDialog
-      csrfToken={csrfToken}
-      elfie={editing}
-      onClose={() => setEditing(null)}
-      onSaved={async () => {
-        setNotice(`${editing.profile.name} 的粮食策略已更新。`)
-        setEditing(null)
-        await reloadElfies()
-      }}
-    /> : null}
   </section>
 }

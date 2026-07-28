@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button"
 import { useEffect, useState } from "react"
 
 import {
@@ -17,6 +18,7 @@ import { Icon } from "./Icon"
 import { ModelMatrixDialog } from "./ModelMatrixDialog"
 import { Notice } from "./Notice"
 import { ProviderFormDialog } from "./ProviderFormDialog"
+import { RefreshButton } from "./RefreshButton"
 
 export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }) {
   const [providers, setProviders] = useState<readonly ProviderView[]>([])
@@ -112,9 +114,9 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
     <div className="manage-head">
       <div><h2>供应商与模型连接</h2><p>配置与验证分开记录；只有真实验证通过后才显示可用。</p></div>
       <div className="manage-actions">
-        <button className="button" disabled={pending !== null || configured.length === 0} onClick={() => { void verifyBatch() }} type="button">{pending === "batch" ? "验证中…" : "批量验证"}</button>
-        <button className="button button--quiet" onClick={() => setMatrixOpen(true)} type="button">查看支持模型</button>
-        <button className="button button--quiet" disabled={pending !== null} onClick={() => { void load() }} type="button">重新读取</button>
+        <Button disabled={pending !== null || configured.length === 0} onClick={() => { void verifyBatch() }} type="button">{pending === "batch" ? "验证中…" : "批量验证"}</Button>
+        <Button onClick={() => setMatrixOpen(true)} type="button">查看支持模型</Button>
+        <RefreshButton disabled={pending !== null} label="重新读取" onClick={() => { void load() }} />
       </div>
     </div>
     {error ? <Notice kind="error" message={error} /> : null}
@@ -135,8 +137,8 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
       <div className="provider-grid">{available.map((provider) => <article className="provider-card provider-card--available" key={provider.provider_id}>
         <div className="provider-card__title"><h4>{provider.name}</h4><span className="status-badge status-badge--muted">待配置</span></div>
         <p>{connectionLabel(provider)}</p>
-        <button aria-label={`配置 ${provider.name}`} className="button button--quiet" onClick={() => setEditing(provider)} type="button">配置</button>
-      </article>)}<button aria-label="添加自定义供应商" className="provider-card provider-card--add" onClick={() => setCreating(true)} type="button"><Icon name="plus" size={28} /><strong>添加自定义供应商</strong><span>配置其他兼容接口或本地网关</span></button></div>
+        <Button variant="outline" aria-label={`配置 ${provider.name}`} onClick={() => setEditing(provider)} type="button">配置</Button>
+      </article>)}<button aria-label="添加自定义供应商" className="provider-card provider-card--add" data-slot="button" data-variant="outline" onClick={() => setCreating(true)} type="button"><Icon name="plus" size={28} /><strong>添加自定义供应商</strong><span>配置其他兼容接口或本地网关</span></button></div>
     </section>
     <ProviderFormDialog onOpenChange={(open) => { if (!open) setEditing(null) }} onSave={save} open={editing !== null} provider={editing} />
     <CustomProviderDialog onOpenChange={setCreating} onSave={saveCustom} open={creating} />
@@ -168,9 +170,9 @@ function ConfiguredProviderCard({ busy, onDelete, onEdit, onVerify, provider }: 
     <dl><dt>上次验证</dt><dd>{verification.checked_at ? new Date(verification.checked_at).toLocaleString() : "从未验证"}</dd><dt>延迟</dt><dd>{verification.latency_ms === null ? "未提供" : `${Math.round(verification.latency_ms)}ms`}</dd></dl>
     {verification.error ? <p className="provider-card__error">{verification.error}</p> : null}
     <div className="manage-actions">
-      <button aria-label={`修改 ${provider.name}`} className="button button--quiet" disabled={busy} onClick={onEdit} type="button">修改</button>
-      <button aria-label={`验证 ${provider.name}`} className="button button--quiet" disabled={busy} onClick={onVerify} type="button">{busy ? "验证中…" : "验证"}</button>
-      <button aria-label={`删除 ${provider.name}`} className="button button--quiet" disabled={busy || provider.provider_id === "ollama"} onClick={onDelete} type="button">删除</button>
+      <Button variant="outline" aria-label={`修改 ${provider.name}`} disabled={busy} onClick={onEdit} type="button">修改</Button>
+      <Button variant="outline" aria-label={`验证 ${provider.name}`} disabled={busy} onClick={onVerify} type="button">{busy ? "验证中…" : "验证"}</Button>
+      <Button variant="outline" aria-label={`删除 ${provider.name}`} disabled={busy || provider.provider_id === "ollama"} onClick={onDelete} type="button">删除</Button>
     </div>
   </article>
 }

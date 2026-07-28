@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button"
 import { useState } from "react"
 
 import { ApiError, ownerWrite, type OwnerElfie } from "../api/client"
@@ -50,23 +51,23 @@ export function ElfieFoodPolicyDialog({
     title="编辑粮食策略"
   >
     {error ? <Notice kind="error" message={error} /> : null}
-    <label>默认粮食<SelectField
-      ariaLabel="选择默认粮食"
+    <SelectField
       disabled={saving}
+      label="默认粮食"
       onValueChange={setDefaultFood}
       options={elfie.food_policy.allowed_foods.map((food) => ({ label: food, value: food }))}
       value={defaultFood}
-    /></label>
+    />
     <p className="form-hint">
       允许：{elfie.food_policy.allowed_foods.join("、")}；回退：{elfie.food_policy.fallback_food}
     </p>
     <div className="manage-actions">
-      <button className="button" disabled={saving} onClick={() => { void save() }} type="button">
+      <Button disabled={saving} onClick={() => { void save() }} type="button">
         {saving ? "保存中…" : "保存粮食策略"}
-      </button>
-      <button className="button button--quiet" disabled={saving} onClick={onClose} type="button">
+      </Button>
+      <Button variant="outline" disabled={saving} onClick={onClose} type="button">
         取消
-      </button>
+      </Button>
     </div>
   </ManageDialog>
 }

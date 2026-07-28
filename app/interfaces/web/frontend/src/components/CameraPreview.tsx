@@ -39,7 +39,7 @@ export function CameraPreview({ csrfToken }: { readonly csrfToken: string }) {
       <strong>{labels[status?.desired_index ?? 0] ?? "整体总览"}</strong>
       <small>{status?.online ? "Godot 正在上报实时画面" : `期望 ${status?.desired_bed_count ?? "—"} 床位，已上报 ${status?.reported_bed_count ?? "—"}`}</small>
     </div>
-    <div aria-label="摄像头机位" className="camera-view-strip" role="listbox">{labels.map((label, index) => <button aria-selected={status?.desired_index === index} className={status?.desired_index === index ? "camera-view-button active" : "camera-view-button"} key={label} onClick={() => { void select(index) }} role="option" type="button"><span>{cameraCategory(label, index)}</span><strong>{label}</strong></button>)}</div>
+    <div aria-label="摄像头机位" className="camera-view-strip" role="listbox">{labels.map((label, index) => <button aria-selected={status?.desired_index === index} className={status?.desired_index === index ? "camera-view-button active" : "camera-view-button"} data-slot="button" data-variant="outline" key={label} onClick={() => { void select(index) }} role="option" type="button"><span>{cameraCategory(label, index)}</span><strong>{label}</strong></button>)}</div>
     {status?.layout_syncing ? <p className="connection-state">Godot 正在同步床位布局。</p> : null}
   </section>
 }

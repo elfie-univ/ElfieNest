@@ -1,61 +1,111 @@
+import { useState } from "react"
+
 import type { OwnerElfie } from "../api/client"
-import { Icon } from "./Icon"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { ApiError, ownerWrite } from "../api/client"
+import { Notice } from "./Notice"
+import { SelectField } from "./SelectField"
+import { StatusIndicator } from "./StatusIndicator"
+
+const zhWordSegmenter = new Intl.Segmenter("zh-CN", { granularity: "word" })
 
 type ElfieIdentityCardProps = {
+  readonly csrfToken: string
   readonly elfie: OwnerElfie
-  readonly onEdit: () => void
+  readonly onError: (message: string) => void
+  readonly onSaved: () => Promise<void>
 }
 
-export function ElfieIdentityCard({ elfie, onEdit }: ElfieIdentityCardProps) {
+export function ElfieIdentityCard({ csrfToken, elfie, onError, onSaved }: ElfieIdentityCardProps) {
+  const [editing, setEditing] = useState(false)
+  const [defaultFood, setDefaultFood] = useState(elfie.food_policy.default_food)
+  const [saving, setSaving] = useState(false)
   const profile = elfie.profile
-  const statusLabel = profile.online_status === "online"
-    ? "在线"
-    : profile.online_status === "offline" ? "离线" : "状态未知"
-  return <article className="elfie-id-card">
+  const statusLabel = profile.status.label || "状态未知"
+  const otherFoods = elfie.food_policy.allowed_foods.filter((food) => food !== elfie.food_policy.default_food && food !== elfie.food_policy.fallback_food)
+  const save = async (): Promise<void> => {
+    setSaving(true)
+    try {
+      await ownerWrite(
+        `/api/user/elfies/${encodeURIComponent(elfie.elfie_id)}/food-policy/`,
+        "PUT",
+        csrfToken,
+        {
+          default_food: defaultFood,
+          allowed_foods: elfie.food_policy.allowed_foods,
+          fallback_food: elfie.food_policy.fallback_food,
+        },
+      )
+      setEditing(false)
+      await onSaved()
+    } catch (reason: unknown) {
+      onError(reason instanceof ApiError ? reason.message : "粮食策略没有保存")
+    } finally {
+      setSaving(false)
+    }
+  }
+  const cancel = (): void => {
+    setDefaultFood(elfie.food_policy.default_food)
+    setEditing(false)
+  }
+  return <Card asChild><article className="elfie-id-card">
     <div aria-label={`${profile.name} 的头像`} className="elfie-id-card__portrait">
       {profile.portrait_url
         ? <img alt={`${profile.name} 的头像`} src={profile.portrait_url} />
         : <span>{profile.name.slice(0, 1)}</span>}
     </div>
     <div className="elfie-id-card__body">
-      <span
-        className={`status-dot status-dot--${profile.online_status}`}
-        title={`在线状态：${statusLabel}`}
-      />
+      <StatusIndicator label={statusLabel} tone={profile.status.tone} />
       <dl className="elfie-id-card__identity">
         <IdentityField label="姓名" value={profile.name} />
-        <IdentityField label="主人" value={elfie.owner.username || "未分配"} />
+        <IdentityField label="主人姓名" value={elfie.owner.username || "未分配"} />
         <IdentityField label="物种" value={profile.species_id} />
         <IdentityField label="性别" value={profile.gender ?? "未登记"} />
         <IdentityField label="出生日期" value={profile.birth_date ?? "未登记"} />
-        <IdentityField label="床位号" value={profile.nest.bed_name ?? "未分配"} />
-        <IdentityField className="elfie-id-card__wide" label="唯一 ID" value={elfie.elfie_id} />
-        <IdentityField
-          className="elfie-id-card__wide elfie-id-card__summary"
-          label="简介"
-          value={profile.summary ?? "暂无简介"}
-        />
+        <IdentityField label="床位" value={profile.nest.bed_name ?? "未分配"} />
+        <IdentityField className="elfie-id-card__wide" label="身份ID" value={elfie.elfie_id} />
       </dl>
-      <div className="elfie-id-card__food">
-        <div>
-          <span>粮食策略：<strong>{elfie.food_policy.default_food}</strong></span>
-          <small>回退粮：{elfie.food_policy.fallback_food}</small>
-        </div>
-        <button
-          aria-label={`编辑 ${profile.name} 的粮食策略`}
-          className="icon-button"
-          onClick={onEdit}
-          type="button"
-        ><Icon name="pencil" size={16} /></button>
-      </div>
     </div>
-  </article>
+    {editing ? <div className="elfie-id-card__editor">
+      <SelectField
+        disabled={saving}
+        label="主粮"
+        onValueChange={setDefaultFood}
+        options={elfie.food_policy.allowed_foods.map((food) => ({ label: food, value: food }))}
+        value={defaultFood}
+      />
+    </div> : <dl className="elfie-id-card__food">
+      <IdentityField label="主粮" value={elfie.food_policy.default_food} />
+      <IdentityField label="回退粮" value={elfie.food_policy.fallback_food} />
+      <IdentityField label="其他粮" value={otherFoods.length ? otherFoods.join("、") : "无"} />
+    </dl>}
+    <dl className="elfie-id-card__summary">
+      <IdentityField
+        label="简介"
+        phraseAware={Boolean(profile.summary)}
+        value={profile.summary ?? "暂无简介"}
+      />
+    </dl>
+    {saving ? <Notice message="正在保存粮食策略…" /> : null}
+    <div className="elfie-id-card__actions">
+      {editing
+        ? <><Button aria-label={`保存 ${profile.name}`} disabled={saving} onClick={() => { void save() }} type="button">保存</Button><Button aria-label={`取消 ${profile.name}`} disabled={saving} onClick={cancel} type="button" variant="outline">取消</Button></>
+        : <Button aria-label={`编辑 ${profile.name}`} onClick={() => setEditing(true)} type="button" variant="outline">编辑</Button>}
+    </div>
+  </article></Card>
 }
 
-function IdentityField({ className, label, value }: {
+function IdentityField({ className, label, phraseAware = false, value }: {
   readonly className?: string
   readonly label: string
+  readonly phraseAware?: boolean
   readonly value: string
 }) {
-  return <div className={className}><dt>{label}</dt><dd>{value}</dd></div>
+  return <div className={className}><dt>{label}</dt><dd>{phraseAware ? <PhraseAwareText value={value} /> : value}</dd></div>
+}
+
+function PhraseAwareText({ value }: { readonly value: string }) {
+  const segments = [...zhWordSegmenter.segment(value)]
+  return <>{segments.map((entry) => <span key={entry.index}>{entry.segment}</span>)}</>
 }

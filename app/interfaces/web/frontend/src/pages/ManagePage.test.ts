@@ -1,36 +1,79 @@
-import { readFileSync } from "node:fs"
-import { resolve } from "node:path"
-import { describe, expect, it } from "vitest"
+import { createElement } from "react"
+import { render, screen, within } from "@testing-library/react"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+
+import { ManagePage } from "./ManagePage"
+
+const session = vi.hoisted(() => ({
+  refresh: vi.fn(async () => undefined),
+  user: {
+    avatar_color: 2,
+    avatar_kind: "initials" as const,
+    csrf_token: "test-token",
+    default_landing_page: "manage" as const,
+    account_id: "admin123",
+    nickname: "阿尔法",
+    role: "owner" as const,
+    theme_key: "warm-paper" as const,
+    username: "admin123",
+  },
+}))
+
+vi.mock("../stores/session", () => ({
+  useSession: () => ({ user: session.user, loading: false, refresh: session.refresh }),
+}))
+
+vi.mock("../stores/heartbeat", () => ({
+  usePresenceHeartbeat: () => undefined,
+}))
+
+vi.mock("../components/ManageMonitorPanel", () => ({ ManageMonitorPanel: () => "监控内容" }))
+vi.mock("../components/ManageUsersPanel", () => ({ ManageUsersPanel: () => "用户内容" }))
+vi.mock("../components/OwnerElfieOverview", () => ({ OwnerElfieOverview: () => "精灵内容" }))
+vi.mock("../components/OwnerNestPanel", () => ({ OwnerNestPanel: () => "精灵巢内容" }))
+vi.mock("../components/OwnerProviderPanel", () => ({ OwnerProviderPanel: () => "模型订阅内容" }))
+vi.mock("../components/OwnerFoodPanel", () => ({ OwnerFoodPanel: () => "粮食内容" }))
+vi.mock("../components/SystemSettingsPanel", () => ({ SystemSettingsPanel: () => "系统设置内容" }))
+vi.mock("./IconCatalogPage", () => ({ IconCatalogPage: () => "图标目录" }))
+
+function renderManagePage(section = "monitor"): void {
+  window.history.replaceState({}, "", `/manage?section=${section}`)
+  render(createElement(ManagePage))
+}
 
 describe("ManagePage", () => {
-  it("does not keep the account default-login preference inside the monitor panel", () => {
-    const source = readFileSync(resolve(import.meta.dirname, "ManagePage.tsx"), "utf8")
+  beforeEach(() => {
+    session.refresh.mockClear()
+  })
 
-    expect(source).not.toContain('title="默认打开页面"')
-    expect(source).not.toContain("saveLandingPage")
+  it("does not render the account default-login preference inside the monitor panel", () => {
+    renderManagePage("monitor")
+
+    expect(screen.getByRole("heading", { level: 1, name: "状态监控" })).toBeInTheDocument()
+    expect(screen.queryByText("默认打开页面")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "保存默认页" })).not.toBeInTheDocument()
   })
 
   it("renders one page title without the repeated eyebrow and fixed Owner subtitle", () => {
-    const source = readFileSync(resolve(import.meta.dirname, "ManagePage.tsx"), "utf8")
+    renderManagePage("users")
 
-    expect(source).not.toContain('<p className="brand">')
-    expect(source).not.toContain("管理、聊天与领养保持分离")
-    expect(source.match(/<h1>/g)).toHaveLength(1)
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1)
+    expect(screen.queryByText("管理、聊天与领养保持分离")).not.toBeInTheDocument()
   })
 
-  it("uses the documented ElfieNest logo in the manage sidebar", () => {
-    const source = readFileSync(resolve(import.meta.dirname, "../components/ManageSidebar.tsx"), "utf8")
+  it("renders the ElfieNest logo and single sidebar brand without the console subtitle", () => {
+    renderManagePage("users")
+    const sidebar = screen.getByLabelText("ElfieNest 管理导航")
 
-    expect(source).toContain("docs/public/assets/logo.png")
-    expect(source).toContain('<img alt="ElfieNest"')
-    expect(source).toContain("管理系统")
+    expect(within(sidebar).getByAltText("ElfieNest")).toBeInTheDocument()
+    expect(within(sidebar).getAllByText("ELFIE NEST")).toHaveLength(1)
+    expect(within(sidebar).queryByText(/管理系统|OWNER CONSOLE/)).not.toBeInTheDocument()
   })
 
-  it("does not repeat page titles inside reachable panel content", () => {
-    const managePage = readFileSync(resolve(import.meta.dirname, "ManagePage.tsx"), "utf8")
-    const systemSettings = readFileSync(resolve(import.meta.dirname, "../components/SystemSettingsPanel.tsx"), "utf8")
+  it("does not repeat active page titles inside reachable panel content", () => {
+    renderManagePage("tools")
 
-    expect(managePage).not.toContain("<h2>工具与权限</h2>")
-    expect(systemSettings).not.toContain("<h2>系统设置</h2>")
+    expect(screen.getByRole("heading", { level: 1, name: "工具与权限" })).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { level: 2, name: "工具与权限" })).not.toBeInTheDocument()
   })
 })

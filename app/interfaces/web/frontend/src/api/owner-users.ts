@@ -3,15 +3,17 @@ import { z } from "zod"
 import { csrfHeaders, ownerWrite, requestJson } from "./http"
 
 const OwnerUserSchema = z.object({
-  id: z.number().int(),
+  account_id: z.string().min(1),
   username: z.string(),
-  role: z.literal("user"),
+  role: z.union([z.literal("owner"), z.literal("user")]),
   created_at: z.string(),
+  gender: z.string().nullable(),
+  birth_date: z.string().nullable(),
   elfie_count: z.number().int(),
   display_name: z.string(),
   elfie_quota_override: z.number().int().nullable(),
   effective_elfie_limit: z.number().int(),
-  online_status: z.literal("unknown"),
+  online_status: z.union([z.literal("online"), z.literal("offline")]),
   avatar_url: z.string().nullable(),
 })
 const CreatedOwnerUserSchema = OwnerUserSchema
@@ -36,15 +38,29 @@ export async function createManagedUser(
 }
 
 export async function updateManagedUser(
-  userId: number,
+  accountId: string,
   changes: { readonly elfie_quota_override: number | null },
   csrfToken: string,
 ): Promise<CreatedOwnerUser> {
   return CreatedOwnerUserSchema.parse(
-    await ownerWrite(`/api/owner/users/${userId}`, "PUT", csrfToken, changes),
+    await ownerWrite("/api/owner/users/quota", "PUT", csrfToken, {
+      account_id: accountId,
+      ...changes,
+    }),
   )
 }
 
-export async function deleteManagedUser(userId: number, csrfToken: string): Promise<void> {
-  await ownerWrite(`/api/owner/users/${userId}`, "DELETE", csrfToken)
+export async function resetManagedUserPassword(
+  accountId: string,
+  csrfToken: string,
+): Promise<void> {
+  await ownerWrite("/api/owner/users/reset-password", "POST", csrfToken, {
+    account_id: accountId,
+  })
+}
+
+export async function deleteManagedUser(accountId: string, csrfToken: string): Promise<void> {
+  await ownerWrite("/api/owner/users/delete", "POST", csrfToken, {
+    account_id: accountId,
+  })
 }

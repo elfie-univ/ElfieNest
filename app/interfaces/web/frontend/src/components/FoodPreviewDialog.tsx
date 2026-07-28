@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button"
 import type { ExecutionProfile, FoodPreview, FoodRecipe } from "../api/owner-foods"
 import { ManageDialog } from "./ManageDialog"
 
@@ -32,7 +33,7 @@ export function FoodPreviewDialog({ onContinue, onOpenChange, open, preview }: F
         </article>
       })}
       {preview.warnings.map((warning) => <p className="form-hint" key={warning}>{warning}</p>)}
-      <div className="manage-actions"><button className="button" disabled={!preview.has_changes} onClick={onContinue} type="button">继续应用</button><button className="button button--quiet" onClick={() => onOpenChange(false)} type="button">关闭预览</button></div>
+      <div className="manage-actions"><Button disabled={!preview.has_changes} onClick={onContinue} type="button">继续应用</Button><Button variant="outline" onClick={() => onOpenChange(false)} type="button">关闭预览</Button></div>
     </div>
   </ManageDialog>
 }

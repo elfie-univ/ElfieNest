@@ -4,8 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   createProvider,
+  benchmarkProviderModels,
+  ownerModelMatrix,
   ownerProviders,
   verifyProvidersBatch,
+  type ModelMatrix,
   type ProviderView,
 } from "../api/owner-providers"
 import { OwnerProviderPanel } from "./OwnerProviderPanel"
@@ -14,8 +17,10 @@ vi.mock("../api/owner-providers", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/owner-providers")>()
   return {
     ...original,
+    benchmarkProviderModels: vi.fn(),
     createProvider: vi.fn(),
     deleteProvider: vi.fn(),
+    ownerModelMatrix: vi.fn(),
     ownerProviders: vi.fn(),
     updateProvider: vi.fn(),
     verifyProvider: vi.fn(),
@@ -65,10 +70,28 @@ const anthropic = {
   models: [],
 } satisfies ProviderView
 
+const modelMatrix = {
+  providers: [
+    { provider_id: "ollama", name: "Ollama", verification: { status: "passed", checked_at: "2026-07-26T00:00:00Z", latency_ms: 12, error: null } },
+    { provider_id: "openai", name: "OpenAI", verification: { status: "never", checked_at: null, latency_ms: null, error: null } },
+  ],
+  models: [{
+    model_id: "qwen3:4b",
+    display_name: "Qwen 3 4B",
+    capabilities: ["text"],
+    providers: [
+      { provider_id: "ollama", available: true, verification_status: "passed", benchmark_status: "passed", latency_ms: 12, latency_class: "fast", price_estimate: null },
+      { provider_id: "openai", available: false, verification_status: "never", benchmark_status: null, latency_ms: null, latency_class: null, price_estimate: null },
+    ],
+  }],
+} satisfies ModelMatrix
+
 describe("OwnerProviderPanel", () => {
   beforeEach(() => {
     vi.mocked(ownerProviders).mockResolvedValue([anthropic, openai, baseProvider])
     vi.mocked(verifyProvidersBatch).mockResolvedValue({ results: [] })
+    vi.mocked(ownerModelMatrix).mockResolvedValue(modelMatrix)
+    vi.mocked(benchmarkProviderModels).mockResolvedValue({ results: [] })
   })
 
   it("separates configured subscriptions from new configuration and constrains actions", async () => {
@@ -77,7 +100,10 @@ describe("OwnerProviderPanel", () => {
     const configured = await screen.findByRole("region", { name: "已配置的订阅" })
     const available = screen.getByRole("region", { name: "配置新的订阅" })
     const configuredCards = within(configured).getAllByRole("article")
-    expect(within(configuredCards[0]!).getByRole("heading", { name: "Ollama" })).toBeInTheDocument()
+    const primaryConfiguredCard = configuredCards[0]
+    expect(primaryConfiguredCard).toBeDefined()
+    if (primaryConfiguredCard === undefined) throw new Error("Expected at least one configured provider card")
+    expect(within(primaryConfiguredCard).getByRole("heading", { name: "Ollama" })).toBeInTheDocument()
     expect(within(configured).getAllByText("已配置")).toHaveLength(2)
     expect(within(configured).getByText("未验证")).toBeInTheDocument()
     expect(within(configured).getByRole("button", { name: "删除 Ollama" })).toBeDisabled()
@@ -88,6 +114,22 @@ describe("OwnerProviderPanel", () => {
     expect(within(anthropicCard).queryByRole("button", { name: /删除/ })).not.toBeInTheDocument()
   })
 
+  it("uses a filled support-model action and returns focus after keyboard close", async () => {
+    const user = userEvent.setup()
+    render(<OwnerProviderPanel csrfToken="csrf" />)
+
+    const supportModels = await screen.findByRole("button", { name: "查看支持模型" })
+    expect(supportModels).toBeEnabled()
+
+    await user.click(supportModels)
+    expect(await screen.findByRole("dialog", { name: "支持模型与测速" })).toBeInTheDocument()
+    expect(await screen.findByRole("columnheader", { name: "Ollama" })).toBeInTheDocument()
+
+    await user.keyboard("{Escape}")
+    expect(screen.queryByRole("dialog", { name: "支持模型与测速" })).not.toBeInTheDocument()
+    expect(supportModels).toHaveFocus()
+  })
+
   it("uses a provider-specific vertical form with model rows instead of pipe text", async () => {
     const user = userEvent.setup()
     render(<OwnerProviderPanel csrfToken="csrf" />)
@@ -96,7 +138,7 @@ describe("OwnerProviderPanel", () => {
 
     const dialog = screen.getByRole("dialog", { name: "配置 Anthropic" })
     expect(within(dialog).getByText("anthropic")).toBeInTheDocument()
-    expect(within(dialog).getByLabelText(/API 密钥/)).toHaveAttribute("type", "password")
+    expect(within(dialog).getByLabelText("API 密钥", { selector: "input" })).toHaveAttribute("type", "password")
     expect(within(dialog).getByRole("button", { name: "添加模型" })).toBeInTheDocument()
     expect(within(dialog).queryByPlaceholderText(/\|/)).not.toBeInTheDocument()
     expect(within(dialog).queryByRole("textbox", { name: "供应商 ID" })).not.toBeInTheDocument()
@@ -110,10 +152,10 @@ describe("OwnerProviderPanel", () => {
 
     await user.click(screen.getByRole("button", { name: "添加自定义供应商" }))
     const dialog = screen.getByRole("dialog", { name: "添加自定义供应商" })
-    fireEvent.change(within(dialog).getByLabelText("供应商 ID"), { target: { value: "home_gateway" } })
-    fireEvent.change(within(dialog).getByLabelText("显示名称"), { target: { value: "家庭网关" } })
-    fireEvent.change(within(dialog).getByLabelText("API Base URL"), { target: { value: "https://gateway.example/v1" } })
-    fireEvent.change(within(dialog).getByLabelText("API 密钥"), { target: { value: "local-key" } })
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "供应商 ID" }), { target: { value: "home_gateway" } })
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "显示名称" }), { target: { value: "家庭网关" } })
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "API Base URL" }), { target: { value: "https://gateway.example/v1" } })
+    fireEvent.change(within(dialog).getByLabelText("API 密钥", { selector: "input" }), { target: { value: "local-key" } })
     await user.click(within(dialog).getByRole("button", { name: "添加供应商" }))
 
     expect(createProvider).toHaveBeenCalledWith(expect.objectContaining({

@@ -1,5 +1,7 @@
 import { useId, type HTMLInputAutoCompleteAttribute, type HTMLInputTypeAttribute } from "react"
 
+import { Input } from "@/components/ui/input"
+import { FieldRow } from "./FieldRow"
 import "./manage-controls.css"
 
 type TextFieldProps = {
@@ -9,6 +11,7 @@ type TextFieldProps = {
   readonly error?: string
   readonly hint?: string
   readonly label: string
+  readonly minLength?: number
   readonly name?: string
   readonly onChange: (value: string) => void
   readonly placeholder?: string
@@ -25,6 +28,7 @@ export function TextField({
   error,
   hint,
   label,
+  minLength,
   name,
   onChange,
   placeholder,
@@ -34,16 +38,13 @@ export function TextField({
   value,
 }: TextFieldProps) {
   const id = useId()
-  const descriptionId = error || hint ? `${id}-description` : undefined
-  return <label className="manage-field" htmlFor={id}>
-    <span>{label}</span>
-    <input
-      aria-describedby={descriptionId}
-      aria-invalid={error ? true : undefined}
+  return <FieldRow
+    control={<Input
       autoComplete={autoComplete}
       autoFocus={autoFocus}
       disabled={disabled}
       id={id}
+      minLength={minLength}
       name={name}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
@@ -51,8 +52,10 @@ export function TextField({
       required={required}
       type={type}
       value={value}
-    />
-    {error ? <small className="manage-field__error" id={descriptionId}>{error}</small> : null}
-    {!error && hint ? <small id={descriptionId}>{hint}</small> : null}
-  </label>
+    />}
+    error={error}
+    hint={hint}
+    inputId={id}
+    label={label}
+  />
 }

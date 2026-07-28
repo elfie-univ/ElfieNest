@@ -3,13 +3,18 @@ import { z } from "zod"
 import { requestJson } from "./http"
 
 export const ProfileSchema = z.object({
-  elfie_id: z.string(),
+  elfie_id: z.string().regex(/^\d{8}$/),
   name: z.string(),
   species_id: z.string(),
   gender: z.string().nullable(),
   birth_date: z.string().nullable(),
   summary: z.string().nullable(),
   online_status: z.union([z.literal("online"), z.literal("offline"), z.literal("unknown")]),
+  status: z.object({
+    code: z.string(),
+    label: z.string().min(1),
+    tone: z.string().min(1),
+  }),
   portrait_url: z.string(),
   appearance: z.record(z.string(), z.unknown()),
   big_five: z.record(z.string(), z.number()),
@@ -23,8 +28,8 @@ export const ProfileSchema = z.object({
 })
 
 const OwnerElfieSchema = z.object({
-  elfie_id: z.string(),
-  owner: z.object({ user_id: z.number().int(), username: z.string() }),
+  elfie_id: z.string().regex(/^\d{8}$/),
+  owner: z.object({ account_id: z.string().min(1), username: z.string() }),
   profile: ProfileSchema,
   food_policy: z.object({
     default_food: z.string(),
@@ -37,7 +42,7 @@ const OwnerElfieSchema = z.object({
 export type ElfieProfile = z.infer<typeof ProfileSchema>
 export type OwnerElfie = z.infer<typeof OwnerElfieSchema>
 export type OwnerElfieFilters = {
-  readonly ownerUserId?: string
+  readonly ownerAccountId?: string
   readonly speciesId?: string
   readonly foodKey?: string
   readonly embodimentState?: string
@@ -45,7 +50,7 @@ export type OwnerElfieFilters = {
 
 export function ownerElfiePath(filters: OwnerElfieFilters = {}): string {
   const query = new URLSearchParams()
-  if (filters.ownerUserId) query.set("owner_user_id", filters.ownerUserId)
+  if (filters.ownerAccountId) query.set("owner_account_id", filters.ownerAccountId)
   if (filters.speciesId) query.set("species_id", filters.speciesId)
   if (filters.foodKey) query.set("food_key", filters.foodKey)
   if (filters.embodimentState) query.set("embodiment_state", filters.embodimentState)

@@ -1,4 +1,12 @@
 import type { ExecutionProfile, FoodRecipe } from "../api/owner-foods"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "./ui/table"
 
 export function FoodRoleTable({ food }: { readonly food: FoodRecipe }) {
   const roles: readonly (readonly [string, ExecutionProfile | null])[] = [
@@ -7,17 +15,17 @@ export function FoodRoleTable({ food }: { readonly food: FoodRecipe }) {
     ["校验模型", food.verifier],
     ...food.technical_fallbacks.map((profile, index) => [`技术回退 ${index + 1}`, profile] as const),
   ]
-  return <div className="food-role-table-wrap"><table aria-label={`${food.display_name}角色配置`} className="food-role-table">
-    <thead><tr><th>角色</th><th>模型</th><th>推理档位</th><th>Tokens / 温度</th><th>工具</th><th>Provider 参数</th></tr></thead>
-    <tbody>{roles.map(([role, profile]) => <tr key={role}>
-      <th scope="row">{role}</th>
-      <td>{profile?.model || "未配置"}</td>
-      <td>{profile?.reasoning_profile ?? "未配置"}</td>
-      <td>{profile ? `${profile.max_tokens} / ${profile.temperature}` : "未配置"}</td>
-      <td>{profile?.tools.length ? profile.tools.join("、") : "无"}</td>
-      <td>{profile && Object.keys(profile.provider_options).length > 0
+  return <div className="food-role-table-wrap"><Table aria-label={`${food.display_name}角色配置`} className="food-role-table">
+    <TableHeader><TableRow><TableHead scope="col">角色</TableHead><TableHead scope="col">模型</TableHead><TableHead scope="col">推理档位</TableHead><TableHead scope="col">Tokens / 温度</TableHead><TableHead scope="col">工具</TableHead><TableHead scope="col">Provider 参数</TableHead></TableRow></TableHeader>
+    <TableBody>{roles.map(([role, profile]) => <TableRow key={role}>
+      <TableHead scope="row">{role}</TableHead>
+      <TableCell>{profile?.model || "未配置"}</TableCell>
+      <TableCell>{profile?.reasoning_profile ?? "未配置"}</TableCell>
+      <TableCell>{profile ? `${profile.max_tokens} / ${profile.temperature}` : "未配置"}</TableCell>
+      <TableCell>{profile?.tools.length ? profile.tools.join("、") : "无"}</TableCell>
+      <TableCell>{profile && Object.keys(profile.provider_options).length > 0
         ? Object.entries(profile.provider_options).map(([key, value]) => `${key}: ${String(value)}`).join("；")
-        : "无"}</td>
-    </tr>)}</tbody>
-  </table></div>
+        : "无"}</TableCell>
+    </TableRow>)}</TableBody>
+  </Table></div>
 }

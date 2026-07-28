@@ -1,7 +1,16 @@
-import * as AlertDialog from "@radix-ui/react-alert-dialog"
 import { useRef, type ReactElement } from "react"
 
-import "./manage-controls.css"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 type ConfirmDialogProps = {
   readonly cancelLabel?: string
@@ -29,12 +38,9 @@ export function ConfirmDialog({
   trigger,
 }: ConfirmDialogProps) {
   const openerRef = useRef<HTMLElement | null>(null)
-  return <AlertDialog.Root onOpenChange={onOpenChange} open={open}>
-    {trigger ? <AlertDialog.Trigger asChild>{trigger}</AlertDialog.Trigger> : null}
-    <AlertDialog.Portal>
-      <AlertDialog.Overlay className="manage-dialog-backdrop" />
-      <AlertDialog.Content
-        className="manage-dialog manage-confirm-dialog"
+  return <AlertDialog onOpenChange={onOpenChange} open={open}>
+    {trigger ? <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger> : null}
+      <AlertDialogContent
         onCloseAutoFocus={(event) => {
           if (!openerRef.current) return
           event.preventDefault()
@@ -45,20 +51,20 @@ export function ConfirmDialog({
           openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
         }}
       >
-        <AlertDialog.Title>{title}</AlertDialog.Title>
-        <AlertDialog.Description>{description}</AlertDialog.Description>
-        <div className="manage-dialog__actions">
-          <AlertDialog.Cancel className="button button--quiet" disabled={pending}>{cancelLabel}</AlertDialog.Cancel>
-          <button
-            className={danger ? "button manage-confirm-dialog__danger" : "button"}
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={pending}>{cancelLabel}</AlertDialogCancel>
+          <AlertDialogAction
             disabled={pending}
             onClick={onConfirm}
-            type="button"
+            variant={danger ? "destructive" : "default"}
           >
             {pending ? "处理中…" : confirmLabel}
-          </button>
-        </div>
-      </AlertDialog.Content>
-    </AlertDialog.Portal>
-  </AlertDialog.Root>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+  </AlertDialog>
 }

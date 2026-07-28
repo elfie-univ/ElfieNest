@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import QRCode from "qrcode"
 
+import { Button } from "@/components/ui/button"
 import { ApiError, mobileAccess, type MobileAccess } from "../api/client"
 import { Icon } from "./Icon"
 import { SelectField } from "./SelectField"
@@ -60,7 +61,7 @@ export function MobileAccessDialog({ onClose, targetPath = "/chat" }: MobileAcce
   const unavailable = access !== null && !access.available
   return <section aria-labelledby="mobile-access-title" aria-modal="true" className="modal-backdrop" role="dialog">
     <article className="mobile-access-dialog">
-      <button aria-label="关闭手机访问二维码" className="modal-close" onClick={onClose} type="button"><Icon name="x" /></button>
+      <Button aria-label="关闭手机访问二维码" className="modal-close" onClick={onClose} size="icon" type="button" variant="ghost"><Icon name="x" /></Button>
       <p className="brand">MOBILE ACCESS</p>
       <h2 id="mobile-access-title">用手机打开 ElfieNest</h2>
       {error ? <p className="notice notice--error">{error}</p> : null}
@@ -68,7 +69,7 @@ export function MobileAccessDialog({ onClose, targetPath = "/chat" }: MobileAcce
       {unavailable ? <p className="mobile-access-dialog__hint">当前服务只允许本机访问。请以局域网模式启动后再扫码：<code>elfienest start --lan</code></p> : null}
       {access?.available && selectedUrl ? <>
         <img alt={`访问 ${selectedUrl} 的二维码`} className="mobile-access-dialog__qr" src={imageUrl} />
-        {access.urls.length > 1 ? <label className="mobile-access-dialog__select">本机地址<SelectField ariaLabel="选择本机地址" onValueChange={setSelectedUrl} options={access.urls.map((url) => ({ label: url, value: url }))} value={selectedUrl} /></label> : null}
+        {access.urls.length > 1 ? <div className="mobile-access-dialog__select"><SelectField label="本机地址" onValueChange={setSelectedUrl} options={access.urls.map((url) => ({ label: url, value: url }))} value={selectedUrl} /></div> : null}
         <p className="mobile-access-dialog__url">{selectedUrl}</p>
         <p className="mobile-access-dialog__hint">手机和电脑接入同一个家庭网络后扫码。登录 Owner 账号进入管理台，普通账号进入聊天。</p>
       </> : null}

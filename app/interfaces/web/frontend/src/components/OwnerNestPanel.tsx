@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react"
 
+import { Button } from "@/components/ui/button"
 import { ApiError, ownerAssignBed, ownerCameraStatus, ownerElfies, ownerRooms, ownerUpdateBedCount, type CameraStatus, type NestRoom, type OwnerElfie } from "../api/client"
 import { BedDistribution } from "./BedDistribution"
 import { CameraPreview } from "./CameraPreview"
@@ -9,12 +10,7 @@ import { Icon } from "./Icon"
 import { ManageDialog } from "./ManageDialog"
 import { Notice } from "./Notice"
 import { NumberField } from "./NumberField"
-
-function cameraSyncLabel(camera: CameraStatus | null): string {
-  if (!camera || camera.reported_bed_count === null) return "等待 Godot 上报"
-  if (camera.layout_syncing) return "同步中"
-  return "已同步"
-}
+import { RefreshButton } from "./RefreshButton"
 
 export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
   const [rooms, setRooms] = useState<readonly NestRoom[]>([])
@@ -75,13 +71,13 @@ export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
   const room = rooms[0]
   const beds = room?.beds ?? []
   return <section className="nest-console">
-    <div className="manage-head"><div><h2>宿舍平面与床位</h2><p>经典宿舍俯视图呈现公共活动带、主干道与床位；几何事实仍由 Godot Runtime 管理。</p></div><button className="button button--quiet" onClick={() => { void load() }} type="button">刷新房间数据</button></div>
+    <div className="manage-head"><div><h2>宿舍平面与床位</h2><p>经典宿舍俯视图呈现公共活动带、主干道与床位；几何事实仍由 Godot Runtime 管理。</p></div><RefreshButton label="刷新房间数据" onClick={() => { void load() }} /></div>
     {error ? <Notice kind="error" message={error} /> : null}{notice ? <Notice message={notice} /> : null}
     <div className="nest-console__layout">
       <ClassicNestFloorPlan beds={beds} desiredBedCount={room?.desired_bed_count ?? bedCount} roomName={room?.name ?? "Local Nest"} />
       <aside className="nest-console__side">
-        <section className="nest-side-card"><div className="nest-side-card__title"><h3>摄像头</h3><span className={camera?.online ? "status-dot status-dot--online" : "status-dot"}>{camera?.online ? "实时" : "离线"}</span></div><div className={`camera-preview${camera?.online ? " has-frame" : ""}`}>{camera?.online ? <img alt="精灵巢摄像头缩略图" src={`/api/camera/frame.jpg?v=${camera.frame_version}`} /> : <span>摄像头离线</span>}<strong>{camera?.labels[camera.active_index] ?? "整体总览"}</strong></div><button className="button" onClick={() => setShowCamera(true)} type="button"><Icon name="camera" size={16} />打开预览</button></section>
-        <form className="nest-side-card" onSubmit={requestBedUpdate}><h3>床位数</h3><NumberField hint={`已上报 ${camera?.reported_bed_count ?? "—"} / 期望 ${camera?.desired_bed_count ?? bedCount} · ${cameraSyncLabel(camera)}`} label="期望床位" max={32} min={1} onChange={setBedCount} value={bedCount} /><button className="button" type="submit">保存布局</button></form>
+        <section className="nest-side-card nest-camera-launch"><div className="nest-side-card__title"><h3>摄像头</h3><span className={camera?.online ? "status-dot status-dot--online" : "status-dot"}>{camera?.online ? "实时" : "离线"}</span></div><Button onClick={() => setShowCamera(true)} type="button"><Icon name="camera" size={16} />打开预览</Button></section>
+        <form aria-label="床位数量设置" className="nest-side-card nest-bed-count-form" onSubmit={requestBedUpdate}><NumberField label="床位数" max={32} min={1} onChange={setBedCount} value={bedCount} /><Button type="submit">保存布局</Button></form>
         <BedDistribution elfies={elfies} onAssign={assignBed} rooms={rooms} />
         <section className="nest-side-card"><h3>房间事件</h3><ul className="nest-events">{beds.filter((bed) => bed.occupant_name).map((bed) => <li key={bed.anchor_id}>{bed.name}：{bed.occupant_name} 已在位</li>)}{beds.every((bed) => !bed.occupant_name) ? <li>暂无床位占用事件</li> : null}</ul></section>
       </aside>

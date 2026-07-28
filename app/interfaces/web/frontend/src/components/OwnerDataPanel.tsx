@@ -1,7 +1,11 @@
+import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
 import { useEffect, useState, type FormEvent } from "react"
 
 import { ApiError, ownerRead, ownerWrite } from "../api/client"
+import { FieldRow } from "./FieldRow"
 import { Notice } from "./Notice"
+import { RefreshButton } from "./RefreshButton"
 
 type OwnerDataPanelProps = {
   readonly title: string
@@ -28,5 +32,5 @@ export function OwnerDataPanel({ title, description, readPath, csrfToken, writeP
     try { const body: unknown = JSON.parse(editor); const updated = await ownerWrite(writePath, "PUT", csrfToken, body); setData(updated); setEditor(renderJson(updated)); setNotice("配置已保存。"); setError(null) }
     catch (reason: unknown) { setError(reason instanceof ApiError ? reason.message : reason instanceof SyntaxError ? "请输入合法 JSON。" : "配置未保存") }
   }
-  return <section className="manage-card"><div className="manage-head"><div><h2>{title}</h2><p>{description}</p></div><button className="button button--quiet" onClick={() => { void load() }} type="button">刷新</button></div>{error && <Notice kind="error" message={error} />}{notice && <Notice message={notice} />}{writePath === undefined ? <pre className="manage-json">{data === null ? "正在加载…" : renderJson(data)}</pre> : <form onSubmit={(event) => { void save(event) }}><textarea aria-label={`${title} JSON 配置`} className="manage-json-input" onChange={(event) => setEditor(event.target.value)} value={editor} /><button className="button" type="submit">保存配置</button></form>}</section>
+  return <section className="manage-card"><div className="manage-head"><div><h2>{title}</h2><p>{description}</p></div><RefreshButton label="刷新" onClick={() => { void load() }} /></div>{error && <Notice kind="error" message={error} />}{notice && <Notice message={notice} />}{writePath === undefined ? <pre className="manage-json">{data === null ? "正在加载…" : renderJson(data)}</pre> : <form onSubmit={(event) => { void save(event) }}><FieldRow control={({ describedBy, inputId, labelId }) => <Textarea aria-describedby={describedBy} aria-labelledby={labelId} className="manage-json-input" id={inputId} onChange={(event) => setEditor(event.target.value)} value={editor} />} inputId={`${title}-json-config`} label={`${title} JSON 配置`} /><Button type="submit">保存配置</Button></form>}</section>
 }
