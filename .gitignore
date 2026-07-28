@@ -99,3 +99,6 @@ data/temp/
 
 # Developer Tools Web local dependencies
 /devtools/web/node_modules/
+
+# ZCode CLI workspace metadata
+.zcode/
