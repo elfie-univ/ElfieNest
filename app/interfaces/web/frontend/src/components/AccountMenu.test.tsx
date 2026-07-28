@@ -48,4 +48,15 @@ describe("AccountMenu", () => {
     expect(html).not.toContain('aria-label="显示名称"')
     expect(html).not.toContain("select-field__trigger")
   })
+
+  it("uses a primary action for saving the default landing page", async () => {
+    const user = userEvent.setup()
+    render(<AccountMenuPanel onClose={() => undefined} onUpdated={async () => undefined} user={owner} />)
+
+    await user.click(screen.getByRole("button", { name: /默认登录页/ }))
+
+    const saveButton = screen.getByRole("button", { name: "保存默认页" })
+    expect(saveButton).toHaveClass("account-menu__landing-action")
+    expect(saveButton).toHaveAttribute("data-variant", "default")
+  })
 })
