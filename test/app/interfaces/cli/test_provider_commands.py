@@ -47,7 +47,7 @@ def test_login_provider_accepts_custom_openai_endpoint(monkeypatch) -> None:
     saved_configs = []
     saved_env_vars = []
     prompts = []
-    text_answers = iter(["我的代理", "https://proxy.example.com/v1", "gpt-4o-mini"])
+    text_answers = iter(["My Proxy", "https://proxy.example.com/v1", "gpt-4o-mini"])
 
     def input_text(prompt: str) -> str:
         prompts.append(prompt)
@@ -68,8 +68,8 @@ def test_login_provider_accepts_custom_openai_endpoint(monkeypatch) -> None:
     provider_commands.login_provider("custom_openai")
 
     provider = saved_configs[0]["providers"]["custom_openai"]
-    assert prompts == ["  名称", "  Endpoint / Base URL", "  测试模型"]
-    assert provider["display_name"] == "我的代理"
+    assert prompts == ["  Name", "  Endpoint / Base URL", "  Test model"]
+    assert provider["display_name"] == "My Proxy"
     assert provider["api_base"] == "https://proxy.example.com/v1"
     assert provider["test_model"] == "gpt-4o-mini"
     assert provider["api_mode"] == "chat_completions"
@@ -79,7 +79,7 @@ def test_login_provider_accepts_custom_openai_endpoint(monkeypatch) -> None:
 def test_login_provider_saves_custom_endpoint_when_verify_fails(monkeypatch) -> None:
     saved_configs = []
     saved_env_vars = []
-    text_answers = iter(["我的代理", "https://proxy.example.com/v1", "gpt-4o-mini"])
+    text_answers = iter(["My Proxy", "https://proxy.example.com/v1", "gpt-4o-mini"])
     monkeypatch.setattr(provider_commands, "input_password", lambda prompt: "test-key")
     monkeypatch.setattr(
         provider_commands, "input_text", lambda prompt: next(text_answers)
@@ -97,7 +97,7 @@ def test_login_provider_saves_custom_endpoint_when_verify_fails(monkeypatch) -> 
     provider_commands.login_provider("custom_openai")
 
     provider = saved_configs[0]["providers"]["custom_openai"]
-    assert provider["display_name"] == "我的代理"
+    assert provider["display_name"] == "My Proxy"
     assert provider["status"] == "active"
     assert saved_env_vars[0]["CUSTOM_OPENAI_API_BASE"] == "https://proxy.example.com/v1"
 
@@ -112,7 +112,7 @@ def test_show_route_prints_food_policy_without_models(
     route_commands.show_route("elfie_test")
 
     output = capsys.readouterr().out
-    assert "elfie_test 粮食权限" in output
-    assert "默认粮食: standard" in output
+    assert "elfie_test Food Permissions" in output
+    assert "Default food: standard" in output
     assert "vision" in output
-    assert "模型由 Runtime 粮食策略统一管理" in output
+    assert "Models are managed by Runtime food policy" in output

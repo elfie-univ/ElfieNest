@@ -103,7 +103,7 @@ def test_elfienest_entrypoint_dispatches_cli_to_elfienest_script(
     for suffix in ("html", "js", "wasm", "pck"):
         (godot_web / f"elfienest.{suffix}").parent.mkdir(parents=True, exist_ok=True)
         (godot_web / f"elfienest.{suffix}").write_text("runtime\n", encoding="utf-8")
-    (project_root / "app/interfaces/desktop/node_modules").mkdir(parents=True)
+    (project_root / "desktop/node_modules").mkdir(parents=True)
     write_executable(project_root / "install.sh", "#!/bin/bash\nexit 1\n")
 
     invocation_log = tmp_path / "invocation.log"
@@ -198,8 +198,8 @@ exit 1
 
     # Then
     assert result.returncode != 0
-    assert "Dependency check failed" in result.stderr
-    assert "解释器版本错误" not in result.stderr
+    assert "Dependency installation failed" in result.stderr
+    assert "interpreter version error" not in result.stderr
 
 
 def test_existing_cli_help_keeps_setup_and_migration_commands() -> None:

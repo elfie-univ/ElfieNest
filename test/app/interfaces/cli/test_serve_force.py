@@ -27,7 +27,7 @@ def test_python_core_does_not_start_godot_processes() -> None:
 
     # When / Then
     assert "start_godot_runtime(" not in source
-    assert "Godot Web Runtime 由 ElfieNest Desktop" in source
+    assert "Godot Web Runtime is hosted by ElfieNest Desktop" in source
 
 
 def test_serve_main_does_not_rebind_nest_repository_inside_worker() -> None:

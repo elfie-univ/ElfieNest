@@ -2,17 +2,11 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
-from app.interfaces.cli.doctor_commands import run_doctor
-from app.interfaces.cli.owner_commands import run_owner_menu
-from app.interfaces.cli.tui.common import clear_screen, print_banner, print_tui_panel
-from app.interfaces.cli.tui.config_editors import (
-    config_adoption,
-    config_engine,
-)
-from app.interfaces.cli.tui.config_views import reset_config, show_config
-from app.features.configuration.user_config import read_user_config
 from ai_runtime.lab.cli import RuntimeLab
 from ai_runtime.lab.menu import MenuItem, TerminalMenu
+from app.features.configuration.user_config import read_user_config
+from app.interfaces.cli.tui.common import clear_screen, print_banner, print_tui_panel
+from app.interfaces.cli.tui.config_views import reset_config, show_config
 
 ProviderLogin = Callable[[str], None]
 
@@ -71,7 +65,7 @@ def _dispatch_initial_path(
     if path in {"provider", "providers"}:
         runtime_lab.provider_menu()
     elif path in {"agent", "tools"}:
-            runtime_lab.tool_menu()
+        runtime_lab.tool_menu()
     elif path in {"food", "foods"}:
         runtime_lab.food_menu()
     elif path == "login":

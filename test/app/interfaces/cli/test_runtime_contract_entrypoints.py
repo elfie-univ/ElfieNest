@@ -79,7 +79,7 @@ def test_elfienest_entrypoint_rejects_wrong_venv_interpreter(
 
     # Then
     assert result.returncode != 0
-    assert "Dependency check failed" in result.stderr
+    assert "Dependency installation failed" in result.stderr
 
 
 def test_developer_entrypoint_rejects_external_python_override(

@@ -22,8 +22,8 @@ def test_run_config_tui_exits_from_main_menu(
     config_app.run_config_tui(lambda provider_id: None)
 
     output = capsys.readouterr().out
-    assert "核心配置" in output
-    assert "再见" in output
+    assert "Runtime Config" in output
+    assert "Goodbye" in output
 
 
 def test_run_config_tui_exits_cleanly_on_eof(
@@ -41,7 +41,7 @@ def test_run_config_tui_exits_cleanly_on_eof(
 
     config_app.run_config_tui(lambda _provider_id: None)
 
-    assert "再见" in capsys.readouterr().out
+    assert "Goodbye" in capsys.readouterr().out
 
 
 def test_config_tui_dispatches_three_runtime_layers(
@@ -53,7 +53,7 @@ def test_config_tui_dispatches_three_runtime_layers(
         def provider_menu(self):
             calls.append("provider")
 
-        def agent_menu(self):
+        def tool_menu(self):
             calls.append("tools")
 
         def food_menu(self):
@@ -79,7 +79,7 @@ def test_config_tui_dispatches_view_and_reset(
         def provider_menu(self):
             calls.append("provider")
 
-        def agent_menu(self):
+        def tool_menu(self):
             calls.append("tools")
 
         def food_menu(self):
@@ -106,7 +106,7 @@ def test_config_menu_only_shows_runtime_and_basic_config(
         def provider_menu(self):
             return None
 
-        def agent_menu(self):
+        def tool_menu(self):
             return None
 
         def food_menu(self):
@@ -121,13 +121,13 @@ def test_config_menu_only_shows_runtime_and_basic_config(
     config_app.run_config_tui(lambda provider_id: None)
 
     output = capsys.readouterr().out
-    assert "Provider 与模型配置" in output
-    assert "Agent 基础能力验证" in output
-    assert "粮食策略配置" in output
-    assert "查看当前配置" in output
-    assert "重置 Runtime 配置" in output
+    assert "Provider and Model Configuration" in output
+    assert "Agent Capability Validation" in output
+    assert "Food Strategy Configuration" in output
+    assert "View Current Config" in output
+    assert "Reset Runtime Config" in output
     assert "Owner Account" not in output
-    assert "诊断并自动修复" not in output
+    assert "Diagnostics and auto-repair" not in output
 
 
 def test_config_llm_redirects_model_management_to_runtime_lab(
@@ -240,7 +240,7 @@ def test_config_providers_displays_custom_provider_name_after_reload(
     config = {
         "providers": {
             "custom_openai": {
-                "display_name": "我的代理",
+                "display_name": "My Proxy",
                 "status": "active",
             }
         }
@@ -253,8 +253,8 @@ def test_config_providers_displays_custom_provider_name_after_reload(
     provider_menu.config_providers({}, lambda provider_id: None)
 
     output = capsys.readouterr().out
-    assert "我的代理" in output
-    assert "自定义 OpenAI 兼容接口" not in output
+    assert "My Proxy" in output
+    assert "Custom OpenAI-compatible endpoint" not in output
 
 
 def test_config_providers_tests_custom_provider_with_custom_name(
@@ -264,7 +264,7 @@ def test_config_providers_tests_custom_provider_with_custom_name(
     config = {
         "providers": {
             "custom_openai": {
-                "display_name": "我的代理",
+                "display_name": "My Proxy",
                 "status": "active",
             }
         }
@@ -287,7 +287,7 @@ def test_config_providers_tests_custom_provider_with_custom_name(
     provider_menu.config_providers({}, lambda provider_id: None)
 
     output = capsys.readouterr().out
-    assert "❌ 我的代理: HTTP 400" in output
+    assert "❌ My Proxy: HTTP 400" in output
 
 
 def _patch_input(

@@ -49,7 +49,7 @@ def discover_provider_models(
     api_key = str(provider.get("api_key", ""))
     api_mode = str(provider.get("api_mode", "")) or detect_api_mode_for_url(api_base)
     if not api_base:
-        raise ValueError(f"Provider '{provider_id}' 缺少 api_base")
+        raise ValueError(f"Provider '{provider_id}' is missing api_base")
 
     if api_mode == "ollama":
         url = f"{api_base}/api/tags"
@@ -81,7 +81,7 @@ def discover_provider_models(
     except urllib.error.URLError as exc:
         discovery_error = RuntimeError(f"Model discovery connection failed: {exc.reason}")
     except (json.JSONDecodeError, UnicodeDecodeError, ValueError, TimeoutError):
-        discovery_error = RuntimeError("模型发现接口返回了无效 JSON")
+        discovery_error = RuntimeError("Model discovery endpoint returned invalid JSON")
 
     names = _extract_model_names(api_mode, payload) if discovery_error is None else []
     if not names and allow_configured_fallback:

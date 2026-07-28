@@ -329,7 +329,7 @@ def test_installer_removes_exact_orphaned_legacy_uninstaller(tmp_path: Path) -> 
             "#!/bin/bash\n"
             f'rm -f "{legacy_wrapper}"\n'
             f'rm -f "{legacy_uninstaller}"\n'
-            'echo "✅ ElfieNest 已卸载"\n'
+            'echo "✅ ElfieNest uninstalled"\n'
         ),
     )
     environment = installer_environment(home, fake_bin, uv_log)

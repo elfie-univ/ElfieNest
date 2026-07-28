@@ -181,9 +181,8 @@ def test_source_development_entrypoint_bootstraps_before_dispatch(
 
     # Then: it prepares development dependencies before dispatching the checkout CLI.
     assert result.returncode == 0, result.stdout + result.stderr
-    assert bootstrap_log.read_text(encoding="utf-8") == (
-        "report --tier=dev\nensure --tier=dev\n"
-    )
+    # Bootstrap does silent check first, only ensure if missing
+    assert bootstrap_log.read_text(encoding="utf-8") == "check --tier=dev\n"
     assert command_log.read_text(encoding="utf-8") == "scripts/elfienest.py version\n"
 
 

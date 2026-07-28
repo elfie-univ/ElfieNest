@@ -22,4 +22,4 @@ def test_dispatch_reports_keyboard_interrupt_without_traceback(
     with pytest.raises(SystemExit) as error:
         elfienest.dispatch_command(Namespace(command="restart"))
     assert error.value.code == 130
-    assert "已取消" in capsys.readouterr().out
+    assert "Cancelled" in capsys.readouterr().out

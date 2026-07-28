@@ -63,7 +63,7 @@ def test_installer_no_argument_invocation_completes_user_install_in_isolated_hom
 
     # Then
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "安装完成" in result.stdout
+    assert "Installation complete" in result.stdout
     assert (home / ".local" / "bin" / "elfienest").is_file()
 
 
@@ -92,7 +92,7 @@ def test_installer_env_only_redirects_to_full_user_install(tmp_path: Path) -> No
 
     # Then
     assert result.returncode != 0
-    assert "请直接运行 ./install.sh" in result.stdout + result.stderr
+    assert "Please run ./install.sh directly" in result.stdout + result.stderr
 
 
 def test_install_script_delegates_locked_environment_sync_to_bootstrap() -> None:
@@ -142,7 +142,7 @@ def test_installer_exposes_elfienest_and_safely_migrates_legacy_wrapper(
             "#!/bin/bash\n"
             f'rm -f "{home_bin / "elfie"}"\n'
             f'rm -f "{home_bin / "uninstall-elfie"}"\n'
-            'echo "✅ ElfieNest 已卸载"\n'
+            'echo "✅ ElfieNest uninstalled"\n'
         ),
     )
     write_executable(local_bin / "elfie", "#!/bin/bash\necho unrelated\n")
@@ -236,7 +236,7 @@ chmod +x .venv/bin/python3
     assert unrelated_wrapper.read_text(encoding="utf-8").endswith(
         "echo unrelated elfienest\n"
     )
-    assert "不属于当前项目" in result.stdout + result.stderr
+    assert "Command already exists from another project" in result.stdout + result.stderr
 
 
 def test_elfienest_entrypoint_delegates_development_dependencies_to_bootstrap() -> None:
@@ -245,20 +245,18 @@ def test_elfienest_entrypoint_delegates_development_dependencies_to_bootstrap() 
 
     # When
     uses_bootstrap = 'scripts/bootstrap.sh" ensure --tier=dev' in script
-    checks_before_ensure = 'scripts/bootstrap.sh" report --tier=dev' in script
+    checks_before_ensure = 'scripts/bootstrap.sh" check --tier=dev' in script
 
     # Then
     assert uses_bootstrap
     assert checks_before_ensure
-    assert "首次准备，正在安装" in script
+    assert "missing dependencies" in script.lower()
     assert "--env-only" not in script
     assert "serve)" in script
     assert "serve|server)" not in script
-    assert (
-        "config|owner|doctor|status|web|desktop|stop|restart|start|version|v|setup)"
-        in script
-    )
-    assert "build-godot-web)" in script
+    # Commands include mobile and uninstall in interactive mode
+    assert "config|owner|doctor|status|web|desktop|mobile|stop|restart|start|version|v|setup|uninstall)" in script
+    # Direct command routing delegates to Python CLI, no build-godot-web case
     assert '""|exit|quit|q)' not in script
     assert '"" ) continue ;;' in script
 
@@ -275,6 +273,6 @@ def test_installer_detects_but_does_not_modify_legacy_system_entrypoint() -> Non
 
     # Then
     assert detects_legacy_system_install
-    assert "旧版系统入口" in script + helpers
+    assert "old system entry" in script + helpers
     assert 'rm -f -- "/usr/local/bin/elfie"' not in script + helpers
     assert "sudo rm -f" in script + helpers

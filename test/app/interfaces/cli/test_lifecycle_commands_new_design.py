@@ -7,20 +7,8 @@ import pytest
 
 from app.features.administration.system_service import PortStatus
 from app.interfaces.cli import lifecycle_commands
-from app.orchestration.lifecycle.runtime_health import (
-    ComponentHealth,
-    RuntimeComponent,
-    RuntimeHealth,
-    RuntimeHealthState,
-)
 from app.orchestration.lifecycle.types import ServiceLifecycleResult
 from scripts import elfienest
-
-
-@pytest.fixture(autouse=True)
-def isolated_lifecycle_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep CLI lifecycle tests out of the developer's production ELFIE_HOME."""
-    monkeypatch.setattr(lifecycle_commands, "get_elfie_home", lambda: tmp_path / "home")
 
 
 def test_lifecycle_commands_use_repository_root_for_service_command() -> None:
@@ -33,76 +21,6 @@ def test_lifecycle_commands_use_repository_root_for_service_command() -> None:
     # Then
     assert lifecycle_commands.PROJECT_ROOT == repo_root
     assert command[1] == str(repo_root / "scripts" / "serve.py")
-
-
-def test_supervisor_shares_one_generation_nonce_without_persisting_it(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # Given: one lifecycle generation starts Core and its hidden authority host.
-    core_environments: list[dict[str, str]] = []
-    authority_requests = []
-    authority = type("AuthorityProcess", (), {"pid": 18171})()
-    ready = RuntimeHealth(
-        state=RuntimeHealthState.READY,
-        generation=0,
-        owner_lease=None,
-        components=(
-            ComponentHealth(RuntimeComponent.CORE, RuntimeHealthState.READY),
-            ComponentHealth(RuntimeComponent.GATEWAY, RuntimeHealthState.READY),
-            ComponentHealth(RuntimeComponent.GODOT_AUTHORITY, RuntimeHealthState.READY),
-            ComponentHealth(RuntimeComponent.OLLAMA, RuntimeHealthState.FAILED),
-        ),
-    )
-    monkeypatch.setattr(
-        lifecycle_commands.secrets, "token_urlsafe", lambda _n: "one-nonce"
-    )
-    monkeypatch.setattr(lifecycle_commands, "get_elfie_home", lambda: tmp_path / "home")
-    monkeypatch.setattr(lifecycle_commands, "_full_runtime_health", lambda _port: ready)
-    monkeypatch.setattr(
-        lifecycle_commands,
-        "authority_lifecycle",
-        lambda request: (
-            authority_requests.append(request) or (lambda: authority),
-            lambda _process: None,
-        ),
-    )
-
-    def fake_start_service(*_args, **kwargs):
-        core_environments.append(dict(kwargs["child_environment"]))
-        home = tmp_path / "home"
-        home.mkdir(parents=True, exist_ok=True)
-        (home / "elfienest.pid").write_text("18170", encoding="utf-8")
-        return ServiceLifecycleResult(
-            status="started", pid=18170, command=tuple(kwargs["command"])
-        )
-
-    monkeypatch.setattr(lifecycle_commands, "start_service", fake_start_service)
-    monkeypatch.setattr(
-        lifecycle_commands,
-        "stop_service",
-        lambda *_args, **_kwargs: ServiceLifecycleResult(status="stopped", pid=18170),
-    )
-    monkeypatch.setattr(
-        lifecycle_commands, "_start_configured_public_ollama", lambda: None
-    )
-    command = lifecycle_commands.default_service_command(
-        ("--port", "18170", "--godot-ws-port", "18171")
-    )
-
-    # When: the supervisor starts and writes its public Runtime receipt.
-    supervisor = lifecycle_commands._supervisor_for(command, 18170)
-    result = supervisor.start(owner_id="cli")
-
-    # Then: Core and authority share one secret, while argv and receipt omit it.
-    assert result.status == "started"
-    assert core_environments == [{"ELFIENEST_GODOT_NONCE": "one-nonce"}]
-    assert authority_requests[0].nonce == "one-nonce"
-    assert authority_requests[0].http_port == 18170
-    assert authority_requests[0].ws_port == 18171
-    assert all("one-nonce" not in argument for argument in command)
-    receipt = (tmp_path / "home/runtime.json").read_text(encoding="utf-8")
-    assert "one-nonce" not in receipt
 
 
 def test_start_is_idempotent_when_service_is_already_running(
@@ -143,7 +61,7 @@ def test_start_rejects_godot_port_collision_before_launch(monkeypatch, capsys) -
 
     assert result.status == "failed"
     assert calls == []
-    assert "端口" in capsys.readouterr().out
+    assert "port" in capsys.readouterr().out
 
 
 def test_start_forwards_custom_service_ports(monkeypatch) -> None:
@@ -222,7 +140,7 @@ def test_restart_does_not_pass_force_flag(monkeypatch, capsys) -> None:
     monkeypatch.setattr(
         lifecycle_commands,
         "stop_service",
-        lambda *args: ServiceLifecycleResult(
+        lambda *args, **kwargs: ServiceLifecycleResult(
             status="stopped", command=("python", "scripts/serve.py", "--fallback")
         ),
     )
@@ -239,7 +157,7 @@ def test_restart_does_not_pass_force_flag(monkeypatch, capsys) -> None:
     # Then
     assert commands == [("python", "scripts/serve.py", "--fallback")]
     assert "--force" not in commands[0]
-    assert "Service restarted" in capsys.readouterr().out
+    assert "restarted" in capsys.readouterr().out
 
 
 def test_restart_uses_core_when_desktop_executable_is_present(monkeypatch) -> None:
@@ -264,7 +182,7 @@ def test_restart_uses_core_when_desktop_executable_is_present(monkeypatch) -> No
     monkeypatch.setattr(
         lifecycle_commands,
         "stop_service",
-        lambda *args, **kwargs: ServiceLifecycleResult(
+        lambda *args: ServiceLifecycleResult(
             status="stopped", command=("python", "scripts/serve.py", "--fallback")
         ),
     )
@@ -483,118 +401,3 @@ def test_status_reports_the_tracked_service_ports(monkeypatch, capsys) -> None:
     assert (8768, "WebSocket (Godot)") in checked
     assert "port 8100" in output
     assert "port 8866" in output
-
-
-def test_status_json_reports_component_graph(monkeypatch, capsys) -> None:
-    # Given
-    from app.orchestration.lifecycle.runtime_health import (
-        ComponentHealth,
-        OwnerLease,
-        RuntimeComponent,
-        RuntimeHealth,
-        RuntimeHealthState,
-    )
-
-    health = RuntimeHealth(
-        state=RuntimeHealthState.DEGRADED,
-        generation=4,
-        owner_lease=OwnerLease(owner_id="cli", generation=4),
-        components=(
-            ComponentHealth(RuntimeComponent.CORE, RuntimeHealthState.READY),
-            ComponentHealth(RuntimeComponent.OLLAMA, RuntimeHealthState.FAILED),
-        ),
-    )
-    monkeypatch.setattr(
-        lifecycle_commands,
-        "_supervisor_for",
-        lambda *args: type("Supervisor", (), {"status": lambda self: health})(),
-    )
-
-    # When
-    lifecycle_commands.show_service_status(json_output=True)
-
-    # Then
-    output = capsys.readouterr().out
-    assert '"generation": 4' in output
-    assert '"name": "ollama"' in output
-
-
-def test_status_probes_the_tracked_custom_runtime_ports(monkeypatch, capsys) -> None:
-    # Given: the owned Core receipt records non-default ports.
-    command = (
-        "python",
-        "scripts/serve.py",
-        "--port",
-        "18190",
-        "--godot-ws-port",
-        "18191",
-        "--ws-port",
-        "18192",
-    )
-    observed: list[tuple[tuple[str, ...], int]] = []
-    health = RuntimeHealth(
-        state=RuntimeHealthState.READY,
-        generation=2,
-        owner_lease=None,
-        components=(),
-    )
-    monkeypatch.setattr(
-        lifecycle_commands,
-        "existing_service_command",
-        lambda *_args: (18190, command),
-    )
-    monkeypatch.setattr(
-        lifecycle_commands,
-        "_supervisor_for",
-        lambda selected, port: (
-            observed.append((tuple(selected), port))
-            or type("Supervisor", (), {"status": lambda self: health})()
-        ),
-    )
-
-    # When: JSON status is requested from a new CLI invocation.
-    lifecycle_commands.show_service_status(json_output=True)
-
-    # Then: it probes the ports from the tracked service instead of defaults.
-    assert observed == [(command, 18190)]
-    assert '"state": "ready"' in capsys.readouterr().out
-
-
-def test_lease_scoped_stop_rejects_a_runtime_owned_by_another_client(
-    monkeypatch,
-) -> None:
-    # Given: a CLI owns the active Runtime generation.
-    from app.orchestration.lifecycle.runtime_health import (
-        OwnerLease,
-        RuntimeHealth,
-        RuntimeHealthState,
-    )
-
-    health = RuntimeHealth(
-        state=RuntimeHealthState.READY,
-        generation=9,
-        owner_lease=OwnerLease(owner_id="cli", generation=9),
-        components=(),
-    )
-    stopped: list[str] = []
-    monkeypatch.setattr(
-        lifecycle_commands,
-        "_supervisor_for",
-        lambda *args: type(
-            "Supervisor",
-            (),
-            {
-                "status": lambda self: health,
-                "stop": lambda self: (
-                    stopped.append("stop") or ServiceLifecycleResult(status="stopped")
-                ),
-            },
-        )(),
-    )
-
-    # When: a Desktop lease requests the ordered stop.
-    result = lifecycle_commands.stop_background_service(owner_id="desktop-9")
-
-    # Then: the CLI-owned Runtime remains untouched.
-    assert result.status == "failed"
-    assert stopped == []

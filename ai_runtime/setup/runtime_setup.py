@@ -230,7 +230,7 @@ def setup_code_plan_interactive():
     # ----------------------------------------------------
     while True:
         print("\n┌────────────────────────────────────────────────────────┐")
-        print("│       Elfie 算力订阅源注册中心 (Providers Config)       │")
+        print("│       Elfie Compute Provider Registry (Providers Config)       │")
         print("├────────────────────────────────────────────────────────┤")
         for idx, (p_key, meta) in enumerate(PROVIDER_METADATA.items(), 1):
             status = "🔴 Inactive"
@@ -277,7 +277,7 @@ def setup_code_plan_interactive():
         success = test_api_connectivity(selected_provider, key, base_to_save)
         if not success:
             ignore = (
-                input("   ⚠️  物理连通测试未通过。是否强制保留该配置？(y/n) [默认 n]: ")
+                input("   ⚠️  Connectivity test failed. Keep this config anyway? (y/n) [default n]: ")
                 .strip()
                 .lower()
             )

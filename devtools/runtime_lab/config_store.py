@@ -83,7 +83,7 @@ class RuntimeLabConfigStore:
         with self.config_path.open(encoding="utf-8") as handle:
             document = yaml.safe_load(handle) or {}
         if not isinstance(document, dict):
-            raise ValueError(f"Runtime 开发配置格式错误: {self.config_path}")
+            raise ValueError(f"Invalid Runtime dev config format: {self.config_path}")
         return document
 
     def configure_provider(
@@ -98,18 +98,18 @@ class RuntimeLabConfigStore:
     ) -> Dict[str, Any]:
         provider = provider.strip().lower()
         if provider not in PROVIDER_DEFAULTS:
-            raise ValueError(f"不支持的服务商: {provider}")
+            raise ValueError(f"Unsupported provider: {provider}")
         if model_key not in {
             "local_fast",
             "remote_cheap",
             "remote_deep",
             "remote_multimodal",
         }:
-            raise ValueError(f"不支持的模型槽位: {model_key}")
+            raise ValueError(f"Unsupported model slot: {model_key}")
         if model_key == "local_fast" and provider != "ollama":
-            raise ValueError("local_fast 槽位只能配置 Ollama")
+            raise ValueError("local_fast slot can only be configured with Ollama")
         if not api_base.strip() or not model.strip():
-            raise ValueError("API Base 和模型名称不能为空")
+            raise ValueError("API Base and model name cannot be empty")
 
         document = self.read_document()
         providers = document.setdefault("providers", {})

@@ -30,8 +30,8 @@ def test_run_setup_wizard_creates_first_owner(
 
     output = capsys.readouterr().out
     assert owner_count == 1
-    assert "设置完成" in output
-    assert "步骤 5/5" in output
+    assert "Setup complete" in output
+    assert "Step 5/5" in output
     assert "setup-secret" not in output
 
 
@@ -55,7 +55,7 @@ def test_run_setup_wizard_fails_closed_without_hidden_password_input(
     with sqlite3.connect(get_db_path()) as conn:
         owner_count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     assert owner_count == 0
-    assert "无法安全输入" in capsys.readouterr().out
+    assert "Cannot safely input" in capsys.readouterr().out
 
 
 def test_tui_invalid_ollama_choice_does_not_advance_setup(

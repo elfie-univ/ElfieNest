@@ -310,8 +310,8 @@ def main():
     if godot_web.ready:
         print(f"  ✅ Godot Web Runtime: {godot_web.entry_url}")
     else:
-        print("  ⚠️  Godot Web Runtime 尚未构建，3D 房间暂不可用")
-        print("  💡 修改 Godot 资源或发布前运行: ./elfienest.sh build-godot-web")
+        print("  ⚠️  Godot Web Runtime not built yet; 3D room unavailable")
+        print("  💡 Run after modifying Godot assets or before release: ./elfienest.sh build-godot-web")
 
     # 检测端口是否被占用
     import socket
@@ -424,7 +424,7 @@ def main():
     # 2. 可选：为 Owner seed 初始精灵（默认开启）
     if not args.no_seed_elfie:
         if seed_single_elfie(db_path):
-            print("  🌱 已为 Owner 自动 seed 精灵「艾菲」(--seed-elfie)")
+            print("  🌱 Auto-seeded Elfie \"Aifei\" for Owner (--seed-elfie)")
 
     # 3. 启动引擎后台线程（容器 + 就绪事件不变）
     engine_holder: dict = {}
@@ -499,11 +499,11 @@ def main():
 
     engine_ready.wait(timeout=5.0)
     if "engine" not in engine_holder:
-        print("❌ 引擎未能在 5 秒内就绪")
+        print("❌ Engine failed to become ready within 5s")
         sys.exit(1)
     engine = engine_holder["engine"]
     time.sleep(2.0)  # 等服务就绪
-    print("  ℹ️ Godot Web Runtime 由 ElfieNest Desktop 隐藏窗口托管")
+    print("  ℹ️ Godot Web Runtime is hosted by ElfieNest Desktop hidden window")
 
     # 读取 engine 配置（用于检查房间上限）
     config = LLMRuntimeConfig(
@@ -534,7 +534,7 @@ def main():
         # 检查上限警告（现有精灵超过新限制时仍全部加载）
         if max_elfies_per_room is not None and existing_count > max_elfies_per_room:
             print(
-                f"  ⚠️  现有 {existing_count} 只精灵超过新上限 {max_elfies_per_room}，仍全部加载"
+                f"  ⚠️  Existing {existing_count}  Elfie(s) exceed new limit of {max_elfies_per_room}; all loaded anyway"
             )
 
         for row in rows:
@@ -552,26 +552,26 @@ def main():
                 engine.session.register_elfie(elfie_id, elfie)
                 loaded_elfies.append({"id": elfie_id, "name": name})
             except Exception as e:
-                print(f"  ⚠️  加载精灵 {name} ({elfie_id}) 失败: {e}")
+                print(f"  ⚠️  Failed to load Elfie {name} ({elfie_id}) failed: {e}")
     except Exception as e:
-        print(f"  ⚠️  查询精灵列表失败: {e}")
+        print(f"  ⚠️  Failed to query Elfie list: {e}")
 
     # 5. 打印启动信息
     print()
     print("=" * 56)
-    print("  🦊 ElfieNest 仿生生命体服务")
+    print("  🦊 ElfieNest Embodied AI Creature Service")
     print("=" * 56)
     print(f"  🌐 HTTP:    http://127.0.0.1:{args.port}")
-    print(f"  🔌 WebSocket(管理): ws://127.0.0.1:{args.ws_port}")
+    print(f"  🔌 WebSocket (admin): ws://127.0.0.1:{args.ws_port}")
     print(f"  🔌 WebSocket(Godot): ws://127.0.0.1:{args.godot_ws_port}")
     if loaded_elfies:
         names_str = ", ".join(e["name"] for e in loaded_elfies)
-        print(f"  ✨ 已加载 {len(loaded_elfies)} 只精灵: {names_str}")
+        print(f"  ✨ Loaded {len(loaded_elfies)}  Elfie(s): {names_str}")
     else:
-        print("  ✨ 暂未加载精灵（请登录后领养）")
+        print("  ✨ No Elfie loaded (adopt one after login)")
     print()
-    print(f"  📖 浏览器打开: http://127.0.0.1:{args.port}/")
-    print("  ⌨️  Ctrl+C 停止服务")
+    print(f"  📖 Open in browser: http://127.0.0.1:{args.port}/")
+    print("  ⌨️  Press Ctrl+C to stop")
     print("=" * 56)
     print()
 
@@ -595,10 +595,10 @@ def main():
             log_level="warning",
         )
     except KeyboardInterrupt:
-        print("\n正在关闭服务...")
+        print("\nShutting down service...")
     finally:
         engine.api_server.stop()
-        print("服务已关闭。")
+        print("Service stopped.")
 
 
 if __name__ == "__main__":

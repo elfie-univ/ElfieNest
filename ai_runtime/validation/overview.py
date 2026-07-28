@@ -324,10 +324,10 @@ def render_provider_model_matrix(report: Mapping[str, Any], *, width: int) -> li
                     cell = "—"
                 elif endpoint.get("verified"):
                     latency = endpoint.get("latency_ms")
-                    cell = f"✓ {float(latency):.0f}ms" if latency is not None else "✓"
+                    cell = f"✅ {float(latency):.0f}ms" if latency is not None else "✅"
                 else:
                     latency = endpoint.get("latency_ms")
-                    cell = f"✗ {float(latency):.0f}ms" if latency is not None else "✗"
+                    cell = f"❌ {float(latency):.0f}ms" if latency is not None else "❌"
                 cells.append(f"{cell:<{provider_width}}")
             lines.append(
                 f"{str(row.get('model', ''))[: model_width - 1]:<{model_width}}"

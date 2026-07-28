@@ -42,7 +42,7 @@ def test_terminal_menu_line_mode_returns_none_on_eof() -> None:
         interactive=False,
     )
 
-    assert menu.choose("菜单", (MenuItem("1", "继续"),)) is None
+    assert menu.choose("Menu", (MenuItem("1", "Continue"),)) is None
 
 
 def test_terminal_menu_read_text_returns_none_on_eof() -> None:
@@ -55,7 +55,7 @@ def test_terminal_menu_read_text_returns_none_on_eof() -> None:
         interactive=False,
     )
 
-    assert menu.read_text("输入") is None
+    assert menu.read_text("Input") is None
 
 
 def test_config_llm_stops_cleanly_when_model_input_hits_eof(

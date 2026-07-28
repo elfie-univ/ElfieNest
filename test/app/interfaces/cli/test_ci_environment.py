@@ -73,8 +73,9 @@ def test_engineering_guides_use_the_locked_environment_contract() -> None:
     assert 'requires-python = "==3.9.25"' in project_config
     assert 'target-version = "py39"' in project_config
     assert 'target-version = "py311"' not in project_config
-    assert "uv sync --locked --extra dev" in contributing_guide
-    assert "uv sync --locked --extra dev" in agents_guide
+    # Bootstrap-based dependency management instead of direct uv sync
+    assert "bootstrap.sh" in contributing_guide
+    assert "bootstrap.sh" in agents_guide
     assert "uv run --no-sync" in contributing_guide
     assert "uv run --no-sync" in agents_guide
     assert "./developer.sh" in tooling_guide

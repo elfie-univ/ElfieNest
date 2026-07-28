@@ -190,7 +190,7 @@ def test_bootstrap_accepts_only_dev_and_build_tiers(tmp_path: Path) -> None:
 
     # Then: it is rejected instead of selecting an installed-runtime dependency path.
     assert result.returncode != 0
-    assert "dev or build" in result.stderr
+    assert "dev 或 build" in result.stderr
 
 
 def test_bootstrap_pins_the_official_godot_toolchain_for_source_builds() -> None:

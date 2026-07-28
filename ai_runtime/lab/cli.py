@@ -124,9 +124,15 @@ class RuntimeLab:
             if choice is None:
                 return
             if choice == "1":
-                self._action("Current Runtime Overview", breadcrumb, self._show_current_overview)
+                self._action(
+                    "Current Runtime Overview", breadcrumb, self._show_current_overview
+                )
             elif choice == "2":
-                self._action("Regenerate Validation Report", breadcrumb, self._regenerate_overview)
+                self._action(
+                    "Regenerate Validation Report",
+                    breadcrumb,
+                    self._regenerate_overview,
+                )
             elif choice == "3":
                 self._overview_history_menu()
 
@@ -190,21 +196,25 @@ class RuntimeLab:
                 self._action(
                     f"{provider_id} Configuration & Status",
                     breadcrumb,
-                    lambda provider_id=provider_id: self._show_provider_with_evidence(provider_id),
+                    lambda provider_id=provider_id: self._show_provider_with_evidence(
+                        provider_id
+                    ),
                 )
             elif choice == "2":
                 self._action(
                     f"Configure Provider: {provider_id}",
                     breadcrumb,
-                    lambda provider_id=provider_id: self._configure_provider_interactive(
-                        provider_id
+                    lambda provider_id=provider_id: (
+                        self._configure_provider_interactive(provider_id)
                     ),
                 )
             elif choice == "3":
                 self._action(
                     f"Validate Provider: {provider_id}",
                     breadcrumb,
-                    lambda provider_id=provider_id: self._validate_provider_full(provider_id),
+                    lambda provider_id=provider_id: self._validate_provider_full(
+                        provider_id
+                    ),
                 )
             elif choice == "4":
                 if self._delete_provider(provider_id):
@@ -275,7 +285,9 @@ class RuntimeLab:
         elif choice == "2":
             self._configure_tool_menu()
         elif choice == "3":
-            self._action("Validate Code Executor", breadcrumb, self._validate_code_executor)
+            self._action(
+                "Validate Code Executor", breadcrumb, self._validate_code_executor
+            )
 
     def _file_access_menu(self) -> None:
         breadcrumb = "Runtime Lab / Tool Config / File Access"
@@ -317,7 +329,10 @@ class RuntimeLab:
         elif choice == "2":
             self._configure_tool_menu()
         elif choice == "3":
-            self._action("Validate Skill Evolution", breadcrumb, self._validate_skill_evolution)
+            self._action(
+                "Validate Skill Evolution", breadcrumb, self._validate_skill_evolution
+            )
+
     def food_menu(self) -> None:
         store = FoodCatalogStore()
         while True:
@@ -387,7 +402,9 @@ class RuntimeLab:
         store = RuntimeOverviewStore()
         report = store.load_current()
         if report is None:
-            self.output("No historical validation reports，Below is current local configuration snapshot。")
+            self.output(
+                "No historical validation reports，Below is current local configuration snapshot。"
+            )
             report = RuntimeOverviewGenerator(self.config).snapshot()
         self._render_overview(report)
 
@@ -396,7 +413,9 @@ class RuntimeLab:
         if not providers:
             self.output("No configured Providers, cannot generate validation report.")
             return
-        self.output(f"Validating {len(providers)} configured Providers and all their models:")
+        self.output(
+            f"Validating {len(providers)} configured Providers and all their models:"
+        )
         for provider_id in providers:
             self.output(f"- {provider_id}")
         self.output("Real model calls may incur costs.")
@@ -432,8 +451,8 @@ class RuntimeLab:
             if not isinstance(provider, dict):
                 continue
             status = {
-                "passed": "✓",
-                "failed": "✗",
+                "passed": "✅",
+                "failed": "❌",
                 "unknown": "?",
             }.get(str(provider.get("status")), "?")
             self.output(
@@ -506,7 +525,9 @@ class RuntimeLab:
         report = RuntimeOverviewStore().load_current()
         if report is None:
             report = RuntimeOverviewGenerator(self.config).snapshot()
-            self.output("No formal report available, showing based on local model evidence.\n")
+            self.output(
+                "No formal report available, showing based on local model evidence.\n"
+            )
         width = shutil.get_terminal_size(fallback=(100, 30)).columns
         for line in render_provider_model_matrix(report, width=width):
             self.output(line)
@@ -519,7 +540,9 @@ class RuntimeLab:
         self.output(f"API Base：{provider.get('api_base', '')}")
         self.output(f"API Mode: {provider.get('api_mode', '')}")
         self.output(f"Auth Method: {provider.get('auth_type', '')}")
-        self.output(f"Key: {'Configured' if provider.get('api_key') else 'Not Configured'}")
+        self.output(
+            f"Key: {'Configured' if provider.get('api_key') else 'Not Configured'}"
+        )
         self.output(f"Config Status: {provider.get('status', 'unknown')}")
         specs = configured_model_specs(provider)
         self.output("Model Catalog:")
@@ -533,7 +556,9 @@ class RuntimeLab:
             self.output(f"- {item.display_name}: {item.model_id}{ability}")
         if not specs:
             self.output("- Not Configured")
-        self.output("Note: config status≠real-time connectivity status，please run“Validate Connectivity”。")
+        self.output(
+            "Note: config status≠real-time connectivity status，please run“Validate Connectivity”。"
+        )
 
     def _show_provider_evidence(self, provider_id: str) -> None:
         evidence = [
@@ -545,7 +570,7 @@ class RuntimeLab:
             self.output("This Provider has no model validation records.")
             return
         for item in evidence:
-            status = "✓" if item.verified else "✗"
+            status = "✅" if item.verified else "❌"
             latency = f"{item.latency_ms:.0f}ms" if item.latency_ms else "—"
             label = item.display_name or item.model
             ability = _format_capabilities(item.capabilities)
@@ -769,7 +794,9 @@ class RuntimeLab:
         self.output(f"Primary Model: {recipe.primary.model or 'Not Configured'}")
         self.output(f"Reasoning Profile: {recipe.primary.reasoning_profile.value}")
         self.output(f"Deep Model: {recipe.deep.model if recipe.deep else '—'}")
-        self.output(f"Validation Model: {recipe.verifier.model if recipe.verifier else '—'}")
+        self.output(
+            f"Validation Model: {recipe.verifier.model if recipe.verifier else '—'}"
+        )
         fallbacks = ", ".join(item.model for item in recipe.technical_fallbacks)
         self.output(f"Tech Fallback: {fallbacks or '—'}")
         self.output(f"Max Output: {recipe.primary.max_tokens}")
@@ -814,7 +841,9 @@ class RuntimeLab:
         catalog = FoodCatalog.from_dict(read_yaml_mapping(path))
         self.output(f"Version: {catalog.version}")
         self.output(f"Generated: {catalog.generated_at or 'Unknown'}")
-        self.output(f"Generation Method: {catalog.generation_note or 'Old version, not recorded'}")
+        self.output(
+            f"Generation Method: {catalog.generation_note or 'Old version, not recorded'}"
+        )
         for key, kind in FIXED_FOOD_KINDS.items():
             recipe = catalog.recipes.get(key)
             self.output(
@@ -828,7 +857,9 @@ class RuntimeLab:
     def _update_foods(self, store: FoodCatalogStore) -> None:
         evidence = list(ModelEvidenceStore().load().values())
         if not evidence:
-            self.output("No model validation evidence yet. Please batch-validate models in Layer 1 first.")
+            self.output(
+                "No model validation evidence yet. Please batch-validate models in Layer 1 first."
+            )
             return
         planning_model = select_planning_model(self.config, evidence)
         planner = (
@@ -837,18 +868,26 @@ class RuntimeLab:
             else FoodPlanner()
         )
         if planning_model:
-            self.output(f"Attempting to generate Food suggestions using planning model: {planning_model}")
+            self.output(
+                f"Attempting to generate Food suggestions using planning model: {planning_model}"
+            )
         else:
             self.output("No available planning model, will use deterministic rules.")
         current_catalog = store.load()
         proposal = planner.propose(evidence, current_catalog)
         if proposal.generation_sources == ("model", "rules"):
-            self.output("Generation Source: Model suggestions + Deterministic rule validation")
+            self.output(
+                "Generation Source: Model suggestions + Deterministic rule validation"
+            )
         elif proposal.advisor_error:
             self.output(f"Planning model call failed: {proposal.advisor_error}")
-            self.output("Generation Source: Deterministic rules (auto fallback when model unavailable)")
+            self.output(
+                "Generation Source: Deterministic rules (auto fallback when model unavailable)"
+            )
         else:
-            self.output("Generation Source: Deterministic rules (no available planning model)")
+            self.output(
+                "Generation Source: Deterministic rules (no available planning model)"
+            )
         changed = [item for item in proposal.changes if item.change_type != "unchanged"]
         unchanged_count = len(proposal.changes) - len(changed)
         self.output("\nFood Update Preview")
@@ -873,14 +912,20 @@ class RuntimeLab:
         if not proposal.has_changes:
             self.output("Current Food is already the latest configuration.")
             return
-        self.output("\nChanges won't be written or new version created until confirmed.")
+        self.output(
+            "\nChanges won't be written or new version created until confirmed."
+        )
         if self.menu.confirm("Confirm applying above Food updates?"):
             store.save(proposal.catalog)
             self.output("Food updates applied, old version preserved.")
             if proposal.generation_sources == ("model", "rules"):
-                self.output("This Food Strategy co-generated by model suggestions and deterministic rules.")
+                self.output(
+                    "This Food Strategy co-generated by model suggestions and deterministic rules."
+                )
             elif proposal.advisor_error:
-                self.output("Planning model not available, Food Strategy generated by deterministic rules.")
+                self.output(
+                    "Planning model not available, Food Strategy generated by deterministic rules."
+                )
             else:
                 self.output("This Food Strategy generated by deterministic rules.")
         else:
@@ -898,7 +943,9 @@ class RuntimeLab:
                 "Temperature": str(recipe.primary.temperature),
                 "Tools": ", ".join(recipe.primary.tools) or "None",
                 "Deep Model": recipe.deep.model if recipe.deep else "None",
-                "Validation Model": recipe.verifier.model if recipe.verifier else "None",
+                "Validation Model": recipe.verifier.model
+                if recipe.verifier
+                else "None",
                 "Tech Fallback": (
                     ", ".join(item.model for item in recipe.technical_fallbacks)
                     or "None"
@@ -918,7 +965,9 @@ class RuntimeLab:
         catalog = store.load()
         referenced = self._food_referenced_models(catalog)
         if not referenced:
-            self.output("Current Food Strategy has no callable models, please Auto-Update Food Strategy first.")
+            self.output(
+                "Current Food Strategy has no callable models, please Auto-Update Food Strategy first."
+            )
             return
         model_count = sum(len(models) for models in referenced.values())
         self.output(
@@ -960,9 +1009,7 @@ class RuntimeLab:
                 refreshed.append(
                     ModelEvidence(
                         model=model_id,
-                        display_name=canonical_display_name(
-                            result.model, display_name
-                        ),
+                        display_name=canonical_display_name(result.model, display_name),
                         capabilities=capabilities,
                         verified=result.status is CheckStatus.PASSED,
                         cost_grade=(
@@ -1035,7 +1082,9 @@ class RuntimeLab:
         profile = BUILTIN_PROFILES.get(provider_id, BUILTIN_PROFILES["custom_openai"])
         original = self.config.providers.get(provider_id, {})
         provider = copy.deepcopy(original)
-        is_custom = provider_id not in BUILTIN_PROFILES or provider_id == "custom_openai"
+        is_custom = (
+            provider_id not in BUILTIN_PROFILES or provider_id == "custom_openai"
+        )
         if is_custom:
             display_name = self.menu.read_text(
                 f"Provider Name [{provider.get('display_name', '')}]: ",
@@ -1045,7 +1094,9 @@ class RuntimeLab:
                 self.output("Cancelled, configuration not modified.")
                 return False
             if not display_name:
-                self.output("Provider name cannot be empty, configuration not modified.")
+                self.output(
+                    "Provider name cannot be empty, configuration not modified."
+                )
                 return False
             provider["display_name"] = display_name
         current_base = str(provider.get("api_base") or profile.api_base)
@@ -1078,7 +1129,9 @@ class RuntimeLab:
                 provider["api_key"] = api_key
                 if is_custom:
                     provider["auth_type"] = "bearer"
-            provider["api_key_env"] = provider.get("api_key_env") or profile.api_key_env_var
+            provider["api_key_env"] = (
+                provider.get("api_key_env") or profile.api_key_env_var
+            )
         provider["status"] = (
             "active"
             if provider_id == "ollama" or provider.get("api_key") or is_custom
@@ -1213,8 +1266,7 @@ class RuntimeLab:
         while True:
             default = defaults[index] if index < len(defaults) else None
             model_id = self.menu.read_text(
-                f"Model {index + 1} ID"
-                f" [{default.model_id if default else ''}]: ",
+                f"Model {index + 1} ID [{default.model_id if default else ''}]: ",
                 default=default.model_id if default else "",
             )
             if model_id is None:
@@ -1247,8 +1299,7 @@ class RuntimeLab:
         self, provider: dict[str, Any], specs: list[ProviderModelSpec]
     ) -> None:
         provider["models"] = [
-            {"id": item.model_id, "display_name": item.display_name}
-            for item in specs
+            {"id": item.model_id, "display_name": item.display_name} for item in specs
         ]
         if specs:
             provider["test_model"] = specs[0].model_id
@@ -1334,17 +1385,23 @@ class RuntimeLab:
 
         self.output(f"\nFound {len(models)} models:")
         for idx, model in enumerate(models, 1):
-            test_mark = " ✓" if model.name == test_model else ""
-            self.output(f"  {idx}. {model.display_name or model.name} ({model.name}){test_mark}")
+            test_mark = " ✅" if model.name == test_model else ""
+            self.output(
+                f"  {idx}. {model.display_name or model.name} ({model.name}){test_mark}"
+            )
 
         if all(model.source == "configured" for model in models):
-            self.output("\nFailed to auto-pull models, will validate manually configured model IDs.")
+            self.output(
+                "\nFailed to auto-pull models, will validate manually configured model IDs."
+            )
 
         recommended_model = test_model or (models[0].name if models else "")
         choice = self.menu.choose(
             "Select Validation Scope",
             (
-                MenuItem("1", f"Validation test model: {recommended_model}", "Recommended"),
+                MenuItem(
+                    "1", f"Validation test model: {recommended_model}", "Recommended"
+                ),
                 MenuItem("2", "Validate first N models"),
                 MenuItem("3", "Manually select models"),
                 MenuItem("4", f"Validate all {len(models)} models", "May take long"),
@@ -1372,11 +1429,15 @@ class RuntimeLab:
                 self.output("Invalid input, cancelled.")
                 return
         elif choice == "3":
-            self.output("\nEnter model numbers to validate, space-separated (e.g., 1 3 5):")
+            self.output(
+                "\nEnter model numbers to validate, space-separated (e.g., 1 3 5):"
+            )
             indices_str = self.input("Numbers: ").strip()
             try:
                 indices = [int(x) for x in indices_str.split()]
-                selected_models = [models[i-1] for i in indices if 1 <= i <= len(models)]
+                selected_models = [
+                    models[i - 1] for i in indices if 1 <= i <= len(models)
+                ]
             except (ValueError, IndexError):
                 self.output("Invalid input, cancelled.")
                 return
@@ -1397,21 +1458,29 @@ class RuntimeLab:
         runner = ProviderValidationRunner(self.config)
 
         for idx, model in enumerate(selected_models, 1):
-            self.output(f"[{idx}/{len(selected_models)}] Validating: {model.display_name or model.name} ({model.name})...")
+            self.output(
+                f"[{idx}/{len(selected_models)}] Validating: {model.display_name or model.name} ({model.name})..."
+            )
 
             try:
                 result = runner.verify_model(provider_id, model.name)
                 results.append(result)
 
-                status_mark = "✓" if result.status == CheckStatus.PASSED else "✗"
-                self.output(f"  {status_mark} {result.message} ({result.duration_ms:.0f}ms)")
+                status_mark = "✅" if result.status == CheckStatus.PASSED else "❌"
+                self.output(
+                    f"  {status_mark} {result.message} ({result.duration_ms:.0f}ms)"
+                )
             except KeyboardInterrupt:
                 self.output("\n\nUser interrupted validation.")
                 break
             except Exception as exc:
-                self.output(f"  ✗ Validation failed: {exc}")
+                self.output(f"  ❌ Validation failed: {exc}")
                 if idx < len(selected_models):
-                    cont = self.input("\nContinue validating remaining models? [Y/n]: ").strip().lower()
+                    cont = (
+                        self.input("\nContinue validating remaining models? [Y/n]: ")
+                        .strip()
+                        .lower()
+                    )
                     if cont == "n":
                         self.output("Cancelled remaining validations.")
                         break
@@ -1454,7 +1523,9 @@ class RuntimeLab:
             ModelEvidenceStore().merge(evidence)
             path = ValidationReport((suite,)).save()
             self.output(f"\nValidation evidence and Report Saved: {path}")
-            self.output("Next: Enter Layer 3 to generate/update Food, validated models will enter routing.")
+            self.output(
+                "Next: Enter Layer 3 to generate/update Food, validated models will enter routing."
+            )
 
     def _verify_model_agent(self) -> None:
         store = ModelEvidenceStore()
@@ -1463,10 +1534,14 @@ class RuntimeLab:
             key=lambda item: (item.display_name or item.model, item.model),
         )
         if not available:
-            self.output("No validated models yet. Please batch-validate models in Layer 1 first.")
+            self.output(
+                "No validated models yet. Please batch-validate models in Layer 1 first."
+            )
             return
         model_by_key: dict[str, ModelEvidence] = {}
-        items = [MenuItem("1", "Validate all available models", f"Total {len(available)} ")]
+        items = [
+            MenuItem("1", "Validate all available models", f"Total {len(available)} ")
+        ]
         for index, item in enumerate(available, 2):
             key = str(index)
             model_by_key[key] = item
@@ -1542,12 +1617,15 @@ class RuntimeLab:
 
         if provider_id in BUILTIN_PROFILES and provider_id != "custom_openai":
             self.output(f"Cannot delete builtin provider: {provider_id}")
-            self.output("Builtin providers can only be deactivated by clearing their API key.")
+            self.output(
+                "Builtin providers can only be deactivated by clearing their API key."
+            )
             return False
 
         food_catalog_path = get_food_catalog_path()
         if food_catalog_path.exists():
             from ai_runtime.food.store import FoodCatalogStore
+
             store = FoodCatalogStore()
             catalog = store.load()
             used_by_foods = []
@@ -1556,13 +1634,17 @@ class RuntimeLab:
                     used_by_foods.append(food.name)
 
             if used_by_foods:
-                self.output(f"⚠️  Provider '{provider_id}' is used by {len(used_by_foods)} food configuration(s):")
+                self.output(
+                    f"⚠️  Provider '{provider_id}' is used by {len(used_by_foods)} food configuration(s):"
+                )
                 for name in used_by_foods[:5]:
                     self.output(f"  - {name}")
                 if len(used_by_foods) > 5:
                     self.output(f"  ... and {len(used_by_foods) - 5} more")
                 self.output()
-                self.output("Please update or remove these food configurations before deleting the provider.")
+                self.output(
+                    "Please update or remove these food configurations before deleting the provider."
+                )
                 return False
 
         self.output(f"⚠️  You are about to delete provider: {provider_id}")
@@ -1585,21 +1667,22 @@ class RuntimeLab:
             write_yaml_mapping(get_config_path(), payload)
 
             from ai_runtime.storage.secrets import set_provider_secret
+
             set_provider_secret(provider_id, "")
 
             self.config = LLMRuntimeConfig.load(config_home=self.config_home)
 
-            self.output(f"✓ Provider '{provider_id}' has been deleted.")
+            self.output(f"✅ Provider '{provider_id}' has been deleted.")
             return True
 
         except Exception as e:
-            self.output(f"✗ Failed to delete provider: {e}")
+            self.output(f"❌ Failed to delete provider: {e}")
             return False
 
     def _print_result(self, result: Any) -> None:
         icon = {
-            CheckStatus.PASSED: "✓",
-            CheckStatus.FAILED: "✗",
+            CheckStatus.PASSED: "✅",
+            CheckStatus.FAILED: "❌",
             CheckStatus.WARNING: "!",
             CheckStatus.SKIPPED: "-",
         }.get(result.status, "-")
@@ -1623,7 +1706,6 @@ def _format_capabilities(capabilities: frozenset[str] | set[str]) -> str:
     extra = sorted(item for item in capabilities if item not in labels)
     return "/".join((*known, *extra)) or "Unknown"
 
-
     def _show_provider_with_evidence(self, provider_id: str) -> None:
         """Show provider config and validation evidence together."""
         self._show_provider(provider_id)
@@ -1631,7 +1713,6 @@ def _format_capabilities(capabilities: frozenset[str] | set[str]) -> str:
         self.output("Model Validation Results:")
         self.output("─" * 60)
         self._show_provider_evidence(provider_id)
-
 
     def _validate_code_executor(self) -> None:
         self.output("Code Executor validation not implemented yet")
@@ -1663,7 +1744,6 @@ def _format_capabilities(capabilities: frozenset[str] | set[str]) -> str:
         self.output("─" * 60)
         self._show_provider_evidence(provider_id)
 
-
     def _validate_code_executor(self) -> None:
         self.output("Code Executor validation not implemented yet")
 
@@ -1685,6 +1765,7 @@ def _format_capabilities(capabilities: frozenset[str] | set[str]) -> str:
     def _configure_provider_interactive(self, provider_id: str) -> bool:
         """Interactive configuration with current values display."""
         return self._configure_provider(provider_id)
+
 
 def main() -> None:
     RuntimeLab().run()

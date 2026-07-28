@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import shutil
-import sys
 from pathlib import Path
 
+from ai_runtime.lab.menu import MenuItem, TerminalMenu
 from ai_runtime.storage.data_home import get_elfie_home
 from app.interfaces.cli.tui.common import clear_screen, print_banner, print_tui_panel
-from ai_runtime.lab.menu import MenuItem, TerminalMenu
 
 
 def run_uninstall_menu() -> int:
@@ -26,7 +25,6 @@ def run_uninstall_menu() -> int:
     home_exists = elfie_home.exists()
     config_exists = (elfie_home / "config.yaml").exists()
     env_exists = (elfie_home / ".env").exists()
-    db_exists = (elfie_home / "nest.db").exists()
 
     choice = menu.choose(
         "Uninstall Options",
@@ -42,13 +40,12 @@ def run_uninstall_menu() -> int:
                 "Uninstall and delete all data",
                 _status_hint([home_exists], [str(elfie_home)]),
             ),
-            MenuItem("0", "Cancel", "No changes made"),
         ),
         breadcrumb="ElfieNest / Uninstall",
-        back_label="Back",
+        back_label="Cancel",
     )
 
-    if choice is None or choice == "0":
+    if choice is None:
         print("\nCancelled.")
         return 0
 
@@ -123,10 +120,10 @@ def _delete_config(elfie_home: Path) -> int:
 
 def _delete_all(elfie_home: Path) -> int:
     print("\n⚠️  Will delete all data, including:")
-    print(f"   - Config files (config.yaml, .env)")
-    print(f"   - Database (nest.db)")
-    print(f"   - Elfie data (elfies/)")
-    print(f"   - All other user data")
+    print("   - Config files (config.yaml, .env)")
+    print("   - Database (nest.db)")
+    print("   - Elfie data (elfies/)")
+    print("   - All other user data")
     print()
     print(f"   Data directory: {elfie_home}")
     print()

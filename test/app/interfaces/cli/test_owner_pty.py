@@ -53,7 +53,7 @@ def _read_until(master_fd: int, marker: bytes, transcript: bytearray) -> None:
     deadline = time.monotonic() + 10.0
     while marker not in transcript:
         if time.monotonic() >= deadline:
-            raise AssertionError(f"PTY 未出现预期提示: {marker!r}")
+            raise AssertionError(f"PTY did not see expected prompt: {marker!r}")
         readable, _, _ = select.select([master_fd], [], [], 0.2)
         if not readable:
             continue

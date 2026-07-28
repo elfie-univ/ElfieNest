@@ -2,10 +2,10 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ============================================================================
-# Runtime state detection for source development or installed runtime
+# Runtime mode detection (based on Electron supervisor_config.ts:55-60)
 # ============================================================================
 
-detect_runtime_state() {
+detect_runtime_mode() {
     local script_dir="$1"
 
     # Install directory flags: resources/python-core/ or manifest.json
@@ -23,20 +23,16 @@ detect_runtime_state() {
     echo "unknown"
 }
 
-RUNTIME_STATE="$(detect_runtime_state "$SCRIPT_DIR")"
+MODE="$(detect_runtime_mode "$SCRIPT_DIR")"
 
-case "$RUNTIME_STATE" in
+case "$MODE" in
     installed_runtime)
         # Production mode: direct Python Core call (dependencies packaged)
         exec "$SCRIPT_DIR/resources/python-core/ElfieNestCore" "$@"
         ;;
     source_development)
         # Development mode: silent dependency check, only show install when missing
-        if ! "$SCRIPT_DIR/scripts/bootstrap.sh" report --tier=dev >/dev/null 2>&1; then
-            if [ "${ELFIENEST_SKIP_AUTO_REPAIR:-0}" = "1" ]; then
-                echo "  ❌ Dependency check failed; run ./elfienest.sh version to repair the development environment." >&2
-                exit 1
-            fi
+        if ! "$SCRIPT_DIR/scripts/bootstrap.sh" check --tier=dev >/dev/null 2>&1; then
             echo "  🦊 Detected missing dependencies, installing..." >&2
             if ! "$SCRIPT_DIR/scripts/bootstrap.sh" ensure --tier=dev; then
                 echo "  ❌ Dependency installation failed, please fix as instructed" >&2
@@ -92,7 +88,6 @@ show_help() {
     echo "    uninstall      Uninstall and data cleanup"
     echo "    setup          First-time setup wizard"
     echo "    version        Show version info"
-    echo "    db*            Database tools"
     echo "    help           Show this help"
     echo "    exit           Exit interactive mode"
     echo ""
@@ -121,7 +116,7 @@ interactive_mode() {
     HISTFILE="${HOME}/.elfienest/.cli_history"
     mkdir -p "$(dirname "$HISTFILE")"
     touch "$HISTFILE" 2>/dev/null || true
-
+    
     show_logo
     show_help
     while true; do
@@ -133,8 +128,8 @@ interactive_mode() {
             "" ) continue ;;
             exit|quit|q) echo ""; echo "  Goodbye! 🦊"; echo ""; exit 0 ;;
             help|h|?) show_help ;;
-            serve) "$PYTHON_BIN" scripts/elfienest.py serve "${args[@]}" ;;
-            config|owner|doctor|status|web|desktop|mobile|stop|restart|start|version|v|setup|uninstall|db)
+            serve) "$PYTHON_BIN" scripts/serve.py "${args[@]}" ;;
+            config|owner|doctor|status|web|desktop|mobile|stop|restart|start|version|v|setup|uninstall)
                 "$PYTHON_BIN" scripts/elfienest.py "$cmd" "${args[@]}" ;;
             *)
                 echo ""
@@ -153,7 +148,7 @@ else
     case "$command" in
     serve)
         shift
-        "$PYTHON_BIN" scripts/elfienest.py serve "$@"
+        "$PYTHON_BIN" scripts/serve.py "$@"
         ;;
     --help|-h)
         show_logo

@@ -56,7 +56,7 @@ def test_show_status_reports_database_unavailable(
     runtime_commands.show_status()
 
     output = capsys.readouterr().out
-    assert "数据库未初始化" in output
+    assert "Database not initialized" in output
 
 
 def test_runtime_commands_does_not_expose_legacy_process_killers() -> None:
