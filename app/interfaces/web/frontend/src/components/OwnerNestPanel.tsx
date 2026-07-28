@@ -98,7 +98,7 @@ export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
         <section className="nest-side-card"><h3>房间事件</h3><ul className="nest-events">{beds.filter((bed) => bed.occupant_name).map((bed) => <li key={bed.anchor_id}>{bed.name}：{bed.occupant_name} 已在位</li>)}{beds.every((bed) => !bed.occupant_name) ? <li>暂无床位占用事件</li> : null}</ul></section>
       </aside>
     </div>
-    <ManageDialog contentClassName="manage-dialog--camera" description="打开后直接进入房间 3D 观察；拖动可查看房间，滚轮或双指缩放。" onOpenChange={setShowObserver} open={showObserver} title="实时房间摄像头"><ObserverSurface autoStart kind="room" roomId={room?.id ?? "local-nest"} showHeader={false} title="房间 3D 观察" /></ManageDialog>
+    <ManageDialog contentClassName="manage-dialog--camera" description="在弹窗中进入房间 3D 观察；拖动可查看房间，滚轮或双指缩放。" onOpenChange={setShowObserver} open={showObserver} title="实时房间摄像头"><ObserverSurface kind="room" roomId={room?.id ?? "local-nest"} title="房间 3D 观察" /></ManageDialog>
     <ConfirmDialog confirmLabel="保存布局" description={`确认向 Godot 提交 ${bedCount} 个期望床位吗？这不会由管理端直接修改 3D 几何。`} onConfirm={() => { void confirmBedUpdate() }} onOpenChange={setConfirmBeds} open={confirmBeds} pending={savingBeds} title="确认调整床位" />
   </section>
 }

@@ -198,7 +198,7 @@ export function ObserverProvider({
     const engine = document.createElement("iframe")
     engine.allow = "fullscreen"
     engine.className = "observer-engine"
-    engine.src = "/runtime/godot/elfienest.html?mode=observer_room"
+    engine.src = "/runtime/godot/elfienest.html"
     engine.title = "ElfieNest 3D Observer"
     engine.addEventListener("error", requireRestart)
     return engine

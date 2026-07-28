@@ -55,6 +55,7 @@ describe("ObserverProvider", () => {
     await act(async () => {})
     const engine = container.querySelector<HTMLIFrameElement>("iframe[title='ElfieNest 3D Observer']")
     if (engine?.contentDocument === null || engine === null) throw new Error("observer iframe missing")
+    expect(engine.getAttribute("src")).toBe("/runtime/godot/elfienest.html")
     expect(screen.getByText("loading")).toBeInTheDocument()
 
     engine.contentDocument.open()

@@ -89,8 +89,11 @@ describe("OwnerNestPanel", () => {
 
     expect(screen.getByRole("dialog", { name: "实时房间摄像头" })).toHaveClass("manage-dialog--camera")
     expect(screen.getByRole("region", { name: "房间 3D 观察" })).toBeInTheDocument()
-    expect(screen.queryByText("房间 3D 观察")).not.toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "进入 3D" })).not.toBeInTheDocument()
+    expect(screen.getByText("房间 3D 观察")).toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: "进入 3D" })
+      ?? screen.getByRole("button", { name: "结束观察" }),
+    ).toBeInTheDocument()
     expect(screen.queryByRole("img", { name: "精灵巢实时摄像头画面" })).toBeNull()
   })
 
