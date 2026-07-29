@@ -66,11 +66,16 @@ describe("ManageSidebar", () => {
   it("exposes quick entries and account controls as accessible sidebar actions", async () => {
     const user = userEvent.setup()
     renderSidebar("users")
+    const quickActions = screen.getByLabelText("快捷入口")
+    const monitorLink = screen.getByRole("link", { name: "进入监控" })
     const chatLink = screen.getByRole("link", { name: "进入聊天" })
     const mobileAccessButton = screen.getByRole("button", { name: "用手机打开管理台" })
     const accountTrigger = screen.getByRole("button", { name: /阿尔法/ })
 
+    expect(monitorLink).toHaveAttribute("href", "/monitor")
+    expect(monitorLink.querySelector("svg")).toHaveClass("lucide-cctv")
     expect(chatLink).toHaveAttribute("href", "/chat")
+    expect(within(quickActions).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/monitor", "/chat"])
     expect(mobileAccessButton).toHaveAttribute("type", "button")
     expect(accountTrigger).toHaveAttribute("aria-haspopup", "dialog")
     expect(accountTrigger).toHaveAttribute("aria-expanded", "false")

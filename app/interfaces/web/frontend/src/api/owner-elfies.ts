@@ -1,9 +1,11 @@
 import { z } from "zod"
 
+import { ElfieIdValueSchema } from "@/shared/elfie-id"
+
 import { requestJson } from "./http"
 
 export const ProfileSchema = z.object({
-  elfie_id: z.string().regex(/^\d{8}$/),
+  elfie_id: ElfieIdValueSchema,
   name: z.string(),
   species_id: z.string(),
   gender: z.string().nullable(),
@@ -28,7 +30,7 @@ export const ProfileSchema = z.object({
 })
 
 const OwnerElfieSchema = z.object({
-  elfie_id: z.string().regex(/^\d{8}$/),
+  elfie_id: ElfieIdValueSchema,
   owner: z.object({ account_id: z.string().min(1), username: z.string() }),
   profile: ProfileSchema,
   food_policy: z.object({

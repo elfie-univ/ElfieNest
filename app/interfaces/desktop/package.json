@@ -56,6 +56,11 @@
   "engines": {
     "node": ">=20"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron"
+    ]
+  },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "electron": "^37.0.0",

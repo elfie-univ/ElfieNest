@@ -77,7 +77,7 @@ describe("OwnerNestPanel", () => {
     expect(screen.getByText("聚餐区")).toBeInTheDocument()
   })
 
-  it("opens the Observer only from the camera dialog instead of reserving an inline preview", async () => {
+  it("opens the shared observation monitor only from the camera dialog instead of reserving an inline preview", async () => {
     const user = userEvent.setup()
     render(<OwnerNestPanel csrfToken="csrf" />)
 
@@ -88,12 +88,13 @@ describe("OwnerNestPanel", () => {
     await user.click(screen.getByRole("button", { name: "打开预览" }))
 
     expect(screen.getByRole("dialog", { name: "实时房间摄像头" })).toHaveClass("manage-dialog--camera")
+    expect(screen.getByRole("dialog", { name: "实时房间摄像头" }).querySelectorAll("[data-slot='observation-monitor']")).toHaveLength(1)
+    expect(screen.getByRole("toolbar", { name: "监控工具栏" })).toBeInTheDocument()
     expect(screen.getByRole("region", { name: "房间 3D 观察" })).toBeInTheDocument()
-    expect(screen.getByText("房间 3D 观察")).toBeInTheDocument()
-    expect(
-      screen.queryByRole("button", { name: "进入 3D" })
-      ?? screen.getByRole("button", { name: "结束观察" }),
-    ).toBeInTheDocument()
+    expect(screen.queryByText("房间 3D 观察")).toBeNull()
+    expect(screen.queryByText("在弹窗中进入房间 3D 观察；拖动可查看房间，滚轮或双指缩放。")).toBeNull()
+    expect(screen.queryByRole("button", { name: "进入 3D" })).toBeNull()
+    expect(screen.getByRole("button", { name: "关闭实时房间摄像头" })).toBeInTheDocument()
     expect(screen.queryByRole("img", { name: "精灵巢实时摄像头画面" })).toBeNull()
   })
 

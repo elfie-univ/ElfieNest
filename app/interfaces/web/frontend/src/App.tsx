@@ -1,6 +1,7 @@
 import { ChatPage } from "./pages/ChatPage"
 import { LoginPage } from "./pages/LoginPage"
 import { ManagePage } from "./pages/ManagePage"
+import { MonitorPage } from "./pages/MonitorPage"
 import { SetupPage } from "./pages/SetupPage"
 import { useAppLocation } from "./stores/history"
 
@@ -10,6 +11,7 @@ export function App() {
     case "/setup": return <SetupPage />
     case "/login": return <LoginPage />
     case "/manage": return <ManagePage />
+    case "/monitor": return <MonitorPage />
     case "/chat": return <ChatPage />
     default: window.location.assign("/login"); return <main />
   }

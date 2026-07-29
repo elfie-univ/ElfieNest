@@ -167,10 +167,6 @@ ensure_frontend() {
 
     echo "${CYAN}  🔧 Building frontend...${RESET}"
 
-    # Check Node and pnpm
-    ensure_node || return 1
-    ensure_pnpm || return 1
-
     local frontend_dir="$PROJECT_ROOT/app/interfaces/web/frontend"
 
     if [[ ! -d "$frontend_dir" ]]; then
@@ -178,21 +174,22 @@ ensure_frontend() {
         return 1
     fi
 
-    cd "$frontend_dir"
+    # Check Node and the package-scoped pnpm release.
+    ensure_node || return 1
+    ensure_pnpm "$frontend_dir" || return 1
 
     # Install dependencies
-    if ! pnpm install --frozen-lockfile >&2; then
+    if ! run_pnpm "$frontend_dir" install --frozen-lockfile >&2; then
         echo "${RED}  ❌ Failed to install frontend dependencies${RESET}" >&2
         return 1
     fi
 
     # Build
-    if ! pnpm build >&2; then
+    if ! run_pnpm "$frontend_dir" build >&2; then
         echo "${RED}  ❌ Frontend build failed${RESET}" >&2
         return 1
     fi
 
-    cd "$PROJECT_ROOT"
     echo "${GREEN}  ✅ Frontend build completed${RESET}"
 }
 
@@ -235,9 +232,6 @@ ensure_electron() {
 
     echo "${CYAN}  🔧 Preparing Electron authority host...${RESET}"
 
-    ensure_node || return 1
-    ensure_pnpm || return 1
-
     local desktop_dir="$PROJECT_ROOT/app/interfaces/desktop"
 
     if [[ ! -f "$desktop_dir/package.json" ]]; then
@@ -245,24 +239,29 @@ ensure_electron() {
         return 0
     fi
 
-    cd "$desktop_dir"
+    ensure_node || return 1
+    ensure_pnpm "$desktop_dir" || return 1
 
-    if ! pnpm install --frozen-lockfile >&2; then
+    if ! run_pnpm "$desktop_dir" install --frozen-lockfile >&2; then
         echo "${RED}  ❌ Failed to install Electron dependencies${RESET}" >&2
         return 1
     fi
 
-    if ! ELECTRON_MIRROR="${ELECTRON_MIRROR:-https://npmmirror.com/mirrors/electron/}" pnpm rebuild electron >&2; then
+    if ! ELECTRON_MIRROR="${ELECTRON_MIRROR:-https://npmmirror.com/mirrors/electron/}" run_pnpm "$desktop_dir" rebuild electron >&2; then
         echo "${RED}  ❌ Failed to prepare Electron native runtime${RESET}" >&2
         return 1
     fi
 
-    if ! pnpm build >&2; then
+    if ! run_pnpm "$desktop_dir" build >&2; then
         echo "${RED}  ❌ Electron authority host build failed${RESET}" >&2
         return 1
     fi
 
-    cd "$PROJECT_ROOT"
+    if ! check_electron; then
+        echo "${RED}  ❌ Electron authority host is still unavailable after preparation${RESET}" >&2
+        return 1
+    fi
+
     echo "${GREEN}  ✅ Electron authority host is ready${RESET}"
 }
 

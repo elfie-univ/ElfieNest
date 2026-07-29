@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { MobileAccessSchema, ThemeKeySchema, ownerElfiePath } from "./client"
+import { ChatMessageSchema, MobileAccessSchema, ThemeKeySchema, ownerElfiePath } from "./client"
 
 describe("ownerElfiePath", () => {
   it("includes each supported management filter when supplied", () => {
@@ -32,5 +32,15 @@ describe("ownerElfiePath", () => {
     expect(ThemeKeySchema.parse("orchid-archive")).toBe("orchid-archive")
     expect(ThemeKeySchema.parse("moss-green")).toBe("moss-green")
     expect(ThemeKeySchema.safeParse("graphite").success).toBe(false)
+  })
+
+  it("accepts stable non-numeric Elfie ids from the product API", () => {
+    expect(ChatMessageSchema.parse({
+      id: 1,
+      elfie_id: "elfie_default",
+      sender: "elfie",
+      text: "你好",
+      created_at: "2026-07-28T00:00:00Z",
+    }).elfie_id).toBe("elfie_default")
   })
 })

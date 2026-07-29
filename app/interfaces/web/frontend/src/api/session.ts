@@ -9,6 +9,12 @@ export const ThemeKeySchema = z.union([
   z.literal("moss-green"),
 ])
 
+export const SafeLoginNextPathSchema = z.union([
+  z.literal("/chat"),
+  z.literal("/manage"),
+  z.literal("/monitor"),
+])
+
 const ClientUserSchema = z.object({
   // The current server response identifies the signed-in account by `username`
   // (and retains a database-only `id`).  Keep the frontend's business-facing
@@ -32,9 +38,7 @@ const ClientUserSchema = z.object({
   return { ...user, account_id: accountId, username: user.username ?? accountId }
 })
 
-const LoginResponseSchema = z.object({
-  landing_path: z.union([z.literal("/chat"), z.literal("/manage")]),
-})
+const LoginResponseSchema = z.object({ landing_path: SafeLoginNextPathSchema })
 const SetupResponseSchema = z.object({
   account_id: z.string().min(1),
   role: z.literal("owner"),
@@ -43,6 +47,12 @@ const SetupResponseSchema = z.object({
 
 export type ClientUser = z.infer<typeof ClientUserSchema>
 export type ThemeKey = z.infer<typeof ThemeKeySchema>
+export type SafeLoginNextPath = z.infer<typeof SafeLoginNextPathSchema>
+
+export function safeLoginNextPath(rawNext: string | null): SafeLoginNextPath | "" {
+  const parsed = SafeLoginNextPathSchema.safeParse(rawNext)
+  return parsed.success ? parsed.data : ""
+}
 
 export async function currentUser(): Promise<ClientUser> {
   return ClientUserSchema.parse(await requestJson("/api/auth/me"))
@@ -107,7 +117,8 @@ export async function setup(
 }
 
 export async function login(username: string, password: string, next: string): Promise<string> {
-  const target = next === "/chat" || next === "/manage" ? `?next=${next}` : ""
+  const safeNext = safeLoginNextPath(next)
+  const target = safeNext ? `?next=${safeNext}` : ""
   const result = await requestJson(`/api/auth/login${target}`, {
     method: "POST",
     body: new URLSearchParams({ username, password }),
