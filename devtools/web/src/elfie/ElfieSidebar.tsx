@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type RefObject } from "react";
 
 import type { BigFive, ElfieListItem, ElfieSession, FoodItem } from "./contracts";
+import { ImpactTimeline, KnowledgeGraph, RelationshipGraph, TopicWall, WorldRings } from "./MemoryVisualizations";
 import { orbitButtonDelta } from "./previewProtocol";
 
 type Preview = (action: string, payload?: Record<string, unknown>) => void;
@@ -69,41 +70,15 @@ function Personality({ session, onEdit }: Readonly<{ session: ElfieSession; onEd
   return <section className="portrait-section"><div className="section-heading"><div><span>内在画像</span><strong>大五人格</strong></div><button className="section-action" onClick={onEdit} type="button">修改</button></div><div className="personality-layout"><PersonalityRadar values={session.profile.big_five} /><div className="personality-tags">{session.profile.personality_tags.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}</div></div></section>;
 }
 
-function MemoryGraph({ graph, relation }: Readonly<{ graph: ElfieSession["profile"]["memory_cognition"]["relations"]; relation: boolean }>): React.JSX.Element {
-  const nodes = graph.nodes.slice(0, relation ? 9 : 12);
-  const positions = new Map(nodes.map((node, index) => {
-    const angle = -Math.PI / 2 + index * Math.PI * 2 / Math.max(nodes.length, 1);
-    const position: readonly [number, number] = relation && index === 0 ? [170, 105] : [170 + Math.cos(angle) * 112, 105 + Math.sin(angle) * 72];
-    return [node.id, position] as const;
-  }));
-  const empty = !nodes.length || (relation && nodes.length === 1);
-  return <svg aria-label={relation ? "关系认知网络" : "知识与信念图"} className="memory-graph" role="img" viewBox="0 0 340 210">
-    {empty ? <text className="graph-empty" textAnchor="middle" x="170" y="108">{relation ? "互动后将形成关系网络" : "尚未沉淀知识与信念"}</text> : <>
-      {graph.links.map((link) => {
-        const from = positions.get(link.source);
-        const to = positions.get(link.target);
-        return from && to ? <line className="graph-link" key={`${link.source}-${link.target}`} x1={from[0]} x2={to[0]} y1={from[1]} y2={to[1]} /> : null;
-      })}
-      {relation && nodes.slice(1).filter((node) => !graph.links.some((link) => link.source === node.id || link.target === node.id)).map((node) => {
-        const root = nodes[0];
-        const from = root === undefined ? undefined : positions.get(root.id);
-        const to = positions.get(node.id);
-        return from && to ? <line className="graph-link muted" key={`muted-${node.id}`} x1={from[0]} x2={to[0]} y1={from[1]} y2={to[1]} /> : null;
-      })}
-      {nodes.map((node, index) => {
-        const position = positions.get(node.id);
-        if (position === undefined) return null;
-        const self = relation && index === 0;
-        return <g key={node.id}><circle className={self ? "graph-node self" : "graph-node"} cx={position[0]} cy={position[1]} r={self ? 24 : 15 + Math.min(7, (node.weight ?? 0.4) * 7)} /><text className="graph-label" textAnchor="middle" x={position[0]} y={position[1] + (self ? 34 : 29)}>{node.label.slice(0, 10)}</text></g>;
-      })}
-    </>}
-  </svg>;
-}
-
 function Memory({ session }: Readonly<{ session: ElfieSession }>): React.JSX.Element {
   const memory = session.profile.memory_cognition;
-  const maximum = Math.max(1, ...memory.topics.map((topic) => topic.weight ?? 1));
-  return <section className="memory-section"><div className="section-heading"><div><span>Memory + Cognition</span><strong>记忆与认知</strong></div><small><b>{session.current_state.memory_count}</b> 条经历</small></div><div className="topic-cloud">{memory.topics.length ? memory.topics.map((topic, index) => <span className={`topic-${index % 4}`} key={topic.label} style={{ fontSize: `${10 + (8 * (topic.weight ?? 1)) / maximum}px` }}>{topic.label}</span>) : <small>互动后将在这里形成记忆主题</small>}</div><details open><summary><span>重要经历</span><i>＋</i></summary><div className="event-timeline">{memory.important_events.length ? memory.important_events.map((item) => <article key={`${item.timestamp}-${item.content}`}><time>{item.timestamp ? new Date(item.timestamp).toLocaleDateString("zh-CN") : "未标记日期"}</time><p>{item.content}</p></article>) : <p className="projection-empty">尚无重要经历</p>}</div></details><details><summary><span>关系认知</span><i>＋</i></summary><MemoryGraph graph={memory.relations} relation /></details><details><summary><span>知识与信念</span><i>＋</i></summary><MemoryGraph graph={memory.knowledge} relation={false} /></details><details><summary><span>世界理解</span><i>＋</i></summary><p className="world-understanding">{memory.world_understanding}</p></details></section>;
+  return <section className="memory-section"><div className="section-heading"><div><span>Memory + Cognition</span><strong>记忆与认知</strong></div><small><b>{session.current_state.memory_count}</b> 条经历</small></div>
+    <details data-memory-panel="topics"><summary><span>记忆主题</span><i>＋</i></summary><TopicWall topics={memory.topics} /></details>
+    <details data-memory-panel="timeline"><summary><span>重要经历</span><i>＋</i></summary><ImpactTimeline events={memory.important_events} /></details>
+    <details data-memory-panel="relationship"><summary><span>关系认知</span><i>＋</i></summary><RelationshipGraph graph={memory.relations} /></details>
+    <details data-memory-panel="knowledge"><summary><span>知识与信念</span><i>＋</i></summary><KnowledgeGraph graph={memory.knowledge} /></details>
+    <details data-memory-panel="world"><summary><span>世界理解</span><i>＋</i></summary><WorldRings model={memory.world_model} /></details>
+  </section>;
 }
 
 function Preview({ iframeRef, preview, status }: Readonly<{ iframeRef: Props["iframeRef"]; preview: Preview; status: string }>): React.JSX.Element {

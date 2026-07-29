@@ -1,0 +1,33 @@
+.memory-section details { border-bottom: 1px solid var(--border-subtle); }
+.memory-section summary { min-height: 39px; display: flex; align-items: center; justify-content: space-between; list-style: none; color: var(--text-secondary); cursor: pointer; font-size: 10px; font-weight: 650; }
+.memory-section summary::-webkit-details-marker { display: none; }
+.memory-section summary i { color: var(--text-tertiary); font-style: normal; transition: transform 150ms ease; }
+.memory-section details[open] summary i { transform: rotate(45deg); }
+.memory-section details[open] { padding-bottom: 10px; }
+.memory-visual { overflow: auto; max-height: 540px; border: 1px solid var(--border-subtle); border-radius: 8px; background: linear-gradient(145deg, rgba(255,255,255,.72), rgba(231,241,235,.76)); }
+.topic-memory { overflow: hidden; }
+.topic-cloud { min-height: 210px; display: flex; align-content: center; align-items: baseline; justify-content: center; flex-wrap: wrap; gap: 2px 10px; padding: 18px 14px; background: radial-gradient(circle at 48% 44%, #ffffff, var(--surface-inset)); }
+.topic-cloud span { flex: 0 0 auto; line-height: .98; font-weight: 700; letter-spacing: -.045em; white-space: nowrap; }
+.topic-cloud .topic-people { color: var(--accent-primary); }.topic-cloud .topic-location { color: var(--accent-indigo); }.topic-cloud .topic-emotion { color: #9a5368; }.topic-cloud .topic-activity { color: var(--accent-amber); }.topic-cloud .topic-other { color: var(--text-secondary); }
+.topic-cloud small, .projection-empty { margin: 0; color: var(--text-tertiary); font-size: 9px; text-align: center; }
+.event-timeline { position: relative; max-height: 430px; overflow-y: auto; padding: 14px 10px 8px 12px; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--surface-inset); }
+.event-timeline::before { content: ""; position: absolute; top: 18px; bottom: 18px; left: 25px; width: 2px; border-radius: 2px; background: linear-gradient(var(--accent-primary), var(--border-default)); }
+.event-timeline article { position: relative; min-height: 62px; padding: 0 0 18px 48px; }
+.event-impact { position: absolute; z-index: 1; top: 1px; left: 13px; border: 2px solid #f8faf9; border-radius: 50%; background: var(--accent-primary); box-shadow: 0 0 0 2px rgba(33,122,92,.22); transform: translateX(-50%); }
+.event-timeline time { display: block; min-height: 18px; color: var(--accent-primary); font-family: "SF Mono", Menlo, monospace; font-size: 9px; font-weight: 700; line-height: 1.4; }
+.event-card { margin-top: 4px; padding: 9px 10px; border: 1px solid rgba(93,130,112,.18); border-radius: 8px; background: rgba(255,255,255,.74); box-shadow: 0 2px 8px rgba(37,70,55,.05); }
+.event-timeline p { margin: 0; color: var(--text-secondary); font-size: 10px; font-weight: 650; line-height: 1.45; }
+.event-timeline article small { display: block; margin-top: 4px; color: var(--text-tertiary); font-size: 8px; line-height: 1.45; }.event-timeline .event-changed { color: var(--accent-primary); }
+.memory-graph { width: 100%; display: block; background: radial-gradient(circle at center, rgba(255,255,255,.88), rgba(227,239,232,.68)); }
+.relationship-graph { height: 300px; }.knowledge-graph { height: 320px; }.world-graph { height: 340px; }
+.memory-link { fill: none; stroke: #77988a; opacity: .52; vector-effect: non-scaling-stroke; transition: opacity 140ms ease, stroke 140ms ease; }.memory-link.is-adjacent { stroke: var(--accent-primary); opacity: .98; }
+.memory-link-label { fill: #60796d; paint-order: stroke; stroke: rgba(248,250,249,.9); stroke-width: 3px; font-size: 7px; }
+.knowledge-link-label { fill: var(--accent-primary); paint-order: stroke; stroke: rgba(248,250,249,.96); stroke-width: 3px; font-size: 7px; font-weight: 750; }
+.memory-node circle, .memory-node rect { fill: #e3f0e9; stroke: #397d62; stroke-width: 1.2; vector-effect: non-scaling-stroke; }.memory-node.self circle { fill: var(--accent-primary); stroke: #155f45; }.memory-node.elfie rect { fill: #e5e9f5; stroke: var(--accent-indigo); }.knowledge-node.belief rect { fill: #f2e9dc; stroke: var(--accent-amber); }
+.memory-node-label { fill: #274538; pointer-events: none; font-size: 7px; font-weight: 650; }.memory-node.self .memory-node-label { fill: #ffffff; }.graph-empty { fill: var(--text-tertiary); font-size: 9px; }
+.knowledge-controls { display: flex; gap: 4px; overflow-x: auto; padding: 7px; border-top: 1px solid var(--border-subtle); }.knowledge-controls button { flex: 0 0 auto; max-width: 92px; overflow: hidden; padding: 4px 7px; border: 1px solid var(--border-default); border-radius: 10px; color: var(--text-tertiary); background: rgba(255,255,255,.7); cursor: pointer; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }.knowledge-controls button[aria-pressed="true"] { color: #ffffff; border-color: var(--accent-primary); background: var(--accent-primary); }
+.knowledge-legend { display: flex; justify-content: center; gap: 10px; padding: 6px 8px; border-top: 1px solid var(--border-subtle); color: var(--text-tertiary); font-size: 8px; }.knowledge-legend span::before { content: "→"; margin-right: 3px; color: var(--accent-primary); }
+.knowledge-detail { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; padding: 9px 10px; border-top: 1px solid var(--border-subtle); color: var(--text-secondary); font-size: 9px; }.knowledge-detail span { color: var(--accent-primary); }.knowledge-detail small { grid-column: 1 / -1; color: var(--text-tertiary); }
+.world-ring { fill: none; stroke: #a9beb3; stroke-dasharray: 2 3; stroke-width: 1; vector-effect: non-scaling-stroke; }.world-ring.family { stroke: #7eb49c; }.world-ring.nest { stroke: #87a8c6; }.world-ring.society { stroke: #b19c79; }.world-ring.outside { stroke: #b49aaa; }
+.world-ring-label { fill: var(--text-tertiary); paint-order: stroke; stroke: rgba(248,250,249,.94); stroke-width: 3px; font-size: 7px; font-weight: 700; }.world-node circle { fill: #ffffff; }
+.world-understanding { margin: 0; padding: 10px 12px 12px; border-top: 1px solid var(--border-subtle); color: var(--text-secondary); font-size: 10px; line-height: 1.6; }

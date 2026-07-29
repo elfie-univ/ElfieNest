@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import re
-from collections import Counter
 from dataclasses import asdict
 from typing import Any, Dict, List
 
+from devtools.elfie_lab.memory_projection import build_memory_cognition
 from devtools.elfie_lab.schemas import ElfieSpec
 from devtools.elfie_lab.storage import ElfieLabStorage
 from elfie import Elfie
@@ -121,92 +120,4 @@ def _memory_cognition_projection(
     elfie: Elfie,
     spec: ElfieSpec,
 ) -> Dict[str, Any]:
-    episodes = elfie.memory.get_all_episodes()
-    core = elfie.memory.get_core_cognition()
-    nodes_by_type = {
-        node_type: elfie.memory.storage.get_nodes_by_type(node_type, limit=40)
-        for node_type in ("entity", "knowledge", "pattern")
-    }
-    token_counts: Counter[str] = Counter()
-    for episode in episodes:
-        content = str(episode.get("content", ""))
-        for token in re.findall(
-            r"[\u4e00-\u9fff]{2,6}|[A-Za-z][A-Za-z0-9_-]{2,}", content
-        ):
-            if token not in {"什么", "这个", "那个", "然后", "可以", "精灵"}:
-                token_counts[token] += 1
-    topics = [
-        {"label": label, "weight": count}
-        for label, count in token_counts.most_common(12)
-    ]
-    events = sorted(
-        (
-            {
-                "content": str(item.get("content", "")),
-                "timestamp": str(item.get("metadata", {}).get("timestamp", "")),
-                "emotion": str(item.get("metadata", {}).get("emotion", "")),
-                "importance": float(item.get("metadata", {}).get("intensity", 0.0)),
-            }
-            for item in episodes
-        ),
-        key=lambda item: str(item["timestamp"]),
-        reverse=True,
-    )[:8]
-    entities = nodes_by_type["entity"][:9]
-    relation_nodes = [{"id": "self", "label": spec.name, "weight": 1.0}]
-    relation_nodes.extend(
-        {
-            "id": node.id,
-            "label": node.content[:24],
-            "weight": float(node.metadata.get("importance", 0.55)),
-        }
-        for node in entities
-    )
-    relation_links = []
-    for node in entities:
-        edges = elfie.memory.storage.get_edges(node.id, "both")
-        if not edges:
-            relation_links.append(
-                {
-                    "source": "self",
-                    "target": node.id,
-                    "label": "认识",
-                    "weight": 0.5,
-                }
-            )
-        relation_links.extend(
-            {
-                "source": node.id,
-                "target": edge.target,
-                "label": edge.rel,
-                "weight": edge.weight,
-            }
-            for edge in edges
-            if any(candidate.id == edge.target for candidate in entities)
-        )
-    knowledge_nodes = [
-        {"id": node.id, "label": node.content[:48], "type": node.type}
-        for node in [
-            *nodes_by_type["knowledge"][:8],
-            *nodes_by_type["pattern"][:4],
-        ]
-    ]
-    knowledge_links = []
-    known_ids = {item["id"] for item in knowledge_nodes}
-    for item in knowledge_nodes:
-        for edge in elfie.memory.storage.get_edges(item["id"], "both"):
-            if edge.target in known_ids:
-                knowledge_links.append(
-                    {
-                        "source": item["id"],
-                        "target": edge.target,
-                        "label": edge.rel,
-                    }
-                )
-    return {
-        "topics": topics,
-        "important_events": events,
-        "relations": {"nodes": relation_nodes, "links": relation_links},
-        "knowledge": {"nodes": knowledge_nodes, "links": knowledge_links},
-        "world_understanding": str(core.get("world", "")),
-    }
+    return build_memory_cognition(elfie.memory, spec.name)

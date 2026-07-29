@@ -36,6 +36,7 @@ def test_mock_turn_records_full_debug_chain(tmp_path, session_factory):
         "important_events",
         "relations",
         "knowledge",
+        "world_model",
         "world_understanding",
     }
 

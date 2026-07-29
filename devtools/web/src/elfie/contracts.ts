@@ -5,18 +5,87 @@ const bigFiveSchema = z.object({
   agreeableness: z.number(), neuroticism: z.number(),
 });
 
-const graphSchema = z.object({
-  nodes: z.array(z.object({ id: z.string(), label: z.string(), weight: z.number().optional() }).passthrough()).default([]),
-  links: z.array(z.object({ source: z.string(), target: z.string() }).passthrough()).default([]),
-}).passthrough();
+const normalizedScalarSchema = z.number().min(0).max(1);
 
-const memorySchema = z.object({
-  topics: z.array(z.object({ label: z.string(), weight: z.number().optional() }).passthrough()).default([]),
-  important_events: z.array(z.object({ content: z.string(), timestamp: z.string().optional() }).passthrough()).default([]),
-  relations: graphSchema.default({ nodes: [], links: [] }),
-  knowledge: graphSchema.default({ nodes: [], links: [] }),
+const graphLinkSchema = z.object({
+  source: z.string(),
+  target: z.string(),
+  label: z.string().default(""),
+  relation_kind: z.string().default(""),
+  weight: normalizedScalarSchema.default(0.5),
+}).passthrough().readonly();
+
+const denseGraphSchema = z.object({
+  nodes: z.array(z.object({
+    id: z.string(),
+    label: z.string(),
+    kind: z.enum(["self", "human", "elfie", "knowledge", "belief", "pattern"]).optional(),
+    weight: normalizedScalarSchema.default(0.5),
+    confidence: normalizedScalarSchema.optional(),
+    source_event_ids: z.array(z.string()).default([]),
+  }).passthrough().readonly()).max(20).default([]),
+  links: z.array(graphLinkSchema).default([]),
+}).passthrough().readonly();
+
+const worldNodeSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  weight: normalizedScalarSchema.default(0.5),
+}).passthrough().readonly();
+
+const worldRingSchema = <Kind extends "self" | "family" | "nest" | "society" | "outside">(kind: Kind) => z.object({
+  kind: z.literal(kind),
+  label: z.string().default(kind),
+  nodes: z.array(worldNodeSchema).default([]),
+}).passthrough().readonly();
+
+const worldModelSchema = z.object({
+  summary: z.string().default(""),
+  rings: z.tuple([
+    worldRingSchema("self"),
+    worldRingSchema("family"),
+    worldRingSchema("nest"),
+    worldRingSchema("society"),
+    worldRingSchema("outside"),
+  ]),
+}).passthrough().readonly();
+
+function emptyWorldModel(summary: string) {
+  return {
+    summary,
+    rings: [
+      { kind: "self", label: "自我", nodes: [] },
+      { kind: "family", label: "家庭", nodes: [] },
+      { kind: "nest", label: "巢穴", nodes: [] },
+      { kind: "society", label: "社会", nodes: [] },
+      { kind: "outside", label: "外部世界", nodes: [] },
+    ],
+  } as const;
+}
+
+export const memoryCognitionSchema = z.object({
+  topics: z.array(z.object({
+    label: z.string(),
+    weight: normalizedScalarSchema.default(0.5),
+    category: z.string().default("uncategorized"),
+  }).passthrough().readonly()).max(20).default([]),
+  important_events: z.array(z.object({
+    id: z.string().default(""),
+    content: z.string(),
+    timestamp: z.string().optional(),
+    emotion: z.string().default(""),
+    importance: normalizedScalarSchema.default(0.5),
+    people: z.array(z.string()).default([]),
+    changed: z.string().default(""),
+  }).passthrough().readonly()).max(20).default([]),
+  relations: denseGraphSchema.default({ nodes: [], links: [] }),
+  knowledge: denseGraphSchema.default({ nodes: [], links: [] }),
   world_understanding: z.string().default("尚未形成稳定的世界理解"),
-}).passthrough();
+  world_model: worldModelSchema.optional(),
+}).passthrough().transform((memory) => ({
+  ...memory,
+  world_model: memory.world_model ?? emptyWorldModel(memory.world_understanding),
+}));
 
 const intentSchema = z.object({
   intent_id: z.string().optional(),
@@ -58,7 +127,7 @@ export const sessionSchema = z.object({
     description: z.string().default(""), appearance_description: z.string().default(""),
     personality_summary: z.string().default(""), personality_tags: z.array(z.string()).default([]),
     big_five: bigFiveSchema, portrait_url: z.string().default(""), appearance: z.record(z.string(), z.unknown()),
-    memory_cognition: memorySchema.default({ topics: [], important_events: [], relations: { nodes: [], links: [] }, knowledge: { nodes: [], links: [] }, world_understanding: "尚未形成稳定的世界理解" }),
+    memory_cognition: memoryCognitionSchema.prefault({ topics: [], important_events: [], relations: { nodes: [], links: [] }, knowledge: { nodes: [], links: [] }, world_understanding: "尚未形成稳定的世界理解" }),
     spec_revision: z.number().optional(), updated_at: z.string().optional(),
   }).passthrough(),
   current_state: z.object({ energy: z.number(), fatigue: z.number(), dominant_emotion: z.string(), is_sleeping: z.boolean(), memory_count: z.number().default(0) }).passthrough(),
