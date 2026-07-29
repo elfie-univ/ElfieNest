@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { ElfieIdValueSchema } from "@/shared/elfie-id"
+
 import { csrfHeaders, requestJson } from "./http"
 import { ProfileSchema } from "./owner-elfies"
 
@@ -13,7 +15,7 @@ export * from "./session"
 
 export const ChatMessageSchema = z.object({
   id: z.number().int(),
-  elfie_id: z.string().regex(/^\d{8}$/),
+  elfie_id: ElfieIdValueSchema,
   sender: z.union([z.literal("user"), z.literal("elfie"), z.literal("system")]),
   text: z.string(),
   created_at: z.string(),
@@ -48,7 +50,7 @@ const SetupModelRecommendationSchema = z.object({
   recommended_model: z.string().nullable(),
 })
 const ConversationSchema = z.object({
-  elfie_id: z.string().regex(/^\d{8}$/),
+  elfie_id: ElfieIdValueSchema,
   name: z.string(),
   portrait_url: z.string(),
   last_message_preview: z.string(),
@@ -67,7 +69,7 @@ const AdoptionInfoSchema = z.object({
   }),
 })
 const AdoptionResultSchema = z.object({
-  elfie_id: z.string().regex(/^\d{8}$/),
+  elfie_id: ElfieIdValueSchema,
   name: z.string(),
   species_id: z.string(),
 })

@@ -30,6 +30,11 @@ export function navigate(path: string): void {
   window.dispatchEvent(new Event(LOCATION_EVENT))
 }
 
+export function replaceLocation(path: string): void {
+  window.history.replaceState({}, "", path)
+  window.dispatchEvent(new Event(LOCATION_EVENT))
+}
+
 export function useAppLocation(): AppLocation {
   const key = useSyncExternalStore(
     (listener) => subscribeToLocation(() => listener()),
