@@ -16,11 +16,109 @@ class ProviderModelInput(BaseModel):
 
     id: str = Field(min_length=1, max_length=200)
     display_name: str = Field(default="", max_length=200)
+    canonical_model_id: Optional[str] = Field(default=None, max_length=200)
+    context_window_tokens: Optional[int] = Field(default=None, gt=0)
+    max_output_tokens: Optional[int] = Field(default=None, gt=0)
+    supports_tools: Optional[bool] = None
+    supports_vision: Optional[bool] = None
+    supports_reasoning: Optional[bool] = None
 
     @field_validator("id", "display_name")
     @classmethod
     def strip_text(cls, value: str) -> str:
         return value.strip()
+
+    @field_validator("canonical_model_id")
+    @classmethod
+    def strip_optional_model_identity(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+
+class ProviderConnectionWriteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    catalog_id: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z][a-z0-9_]{0,63}$",
+    )
+    alias: Optional[str] = Field(default=None, max_length=100)
+    api_base: Optional[str] = Field(default=None, max_length=500)
+    api_key: Optional[str] = Field(default=None, max_length=10_000)
+    api_mode: Optional[ApiMode] = None
+    auth_type: Optional[AuthType] = None
+    models: Optional[List[ProviderModelInput]] = None
+    verify: bool = True
+    refresh_models: bool = False
+
+    @field_validator("catalog_id", "alias", "api_base")
+    @classmethod
+    def strip_connection_text(cls, value: Optional[str]) -> Optional[str]:
+        return value.strip() if value is not None else None
+
+    @field_validator("api_base")
+    @classmethod
+    def validate_connection_api_base(
+        cls,
+        value: Optional[str],
+    ) -> Optional[str]:
+        return ProviderWriteRequest.validate_api_base(value)
+
+
+class ProviderConnectionUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    alias: Optional[str] = Field(default=None, max_length=100)
+    api_base: Optional[str] = Field(default=None, max_length=500)
+    api_key: Optional[str] = Field(default=None, max_length=10_000)
+    api_mode: Optional[ApiMode] = None
+    auth_type: Optional[AuthType] = None
+    models: Optional[List[ProviderModelInput]] = None
+    verify: bool = False
+    refresh_models: bool = False
+
+    @field_validator("alias", "api_base")
+    @classmethod
+    def strip_connection_update_text(
+        cls,
+        value: Optional[str],
+    ) -> Optional[str]:
+        return value.strip() if value is not None else None
+
+    @field_validator("api_base")
+    @classmethod
+    def validate_connection_update_api_base(
+        cls,
+        value: Optional[str],
+    ) -> Optional[str]:
+        return ProviderWriteRequest.validate_api_base(value)
+
+
+class ProviderModelUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    display_name: Optional[str] = Field(default=None, max_length=200)
+    canonical_model_id: Optional[str] = Field(default=None, max_length=200)
+    context_window_tokens: Optional[int] = Field(default=None, gt=0)
+    max_output_tokens: Optional[int] = Field(default=None, gt=0)
+    supports_tools: Optional[bool] = None
+    supports_vision: Optional[bool] = None
+    supports_reasoning: Optional[bool] = None
+    hidden: Optional[bool] = None
+
+    @field_validator("display_name", "canonical_model_id")
+    @classmethod
+    def strip_model_update_text(
+        cls,
+        value: Optional[str],
+    ) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
 
 
 class ProviderWriteRequest(BaseModel):

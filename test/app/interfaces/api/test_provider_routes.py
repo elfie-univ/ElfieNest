@@ -107,6 +107,214 @@ def _headers(csrf_token: str) -> dict:
 
 
 class TestProviderRoutes:
+    def test_connection_catalog_and_multiple_accounts_use_stable_ids(
+        self,
+        client: TestClient,
+        runtime_config_path: Path,
+    ) -> None:
+        tokens = _login_owner(client)
+
+        catalog = client.get(
+            "/api/owner/providers/catalog",
+            headers=_headers(tokens["csrf_token"]),
+        )
+        first = client.post(
+            "/api/owner/providers/connections",
+            json={
+                "catalog_id": "anthropic_api",
+                "api_key": "first-key",
+                "verify": False,
+            },
+            headers=_headers(tokens["csrf_token"]),
+        )
+        second = client.post(
+            "/api/owner/providers/connections",
+            json={
+                "catalog_id": "anthropic_api",
+                "alias": "工作账号",
+                "api_key": "second-key",
+                "verify": False,
+            },
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert catalog.status_code == 200
+        assert any(
+            item["catalog_id"] == "anthropic_api"
+            and item["brand"]["name"] == "Anthropic"
+            for item in catalog.json()
+        )
+        assert first.status_code == 201
+        assert second.status_code == 201
+        assert first.json()["connection_id"] == "anthropic_api_0001"
+        assert first.json()["alias"] == "Anthropic"
+        assert second.json()["connection_id"] == "anthropic_api_0002"
+        assert second.json()["alias"] == "工作账号"
+        assert first.json()["has_api_key"] is True
+        secrets = read_secrets(
+            runtime_config_path.parent / "configs" / "credentials" / "api-keys.env"
+        )
+        assert secrets["ELFIE_PROVIDER_ANTHROPIC_API_0001_API_KEY"] == "first-key"
+        assert secrets["ELFIE_PROVIDER_ANTHROPIC_API_0002_API_KEY"] == "second-key"
+
+    def test_connection_model_refresh_automatically_matches_known_model(
+        self,
+        client: TestClient,
+    ) -> None:
+        tokens = _login_owner(client)
+        created = client.post(
+            "/api/owner/providers/connections",
+            json={
+                "catalog_id": "custom_openai",
+                "alias": "讯飞 Coding Plan",
+                "api_base": "https://example.invalid/v2",
+                "api_key": "test-key",
+                "verify": False,
+            },
+            headers=_headers(tokens["csrf_token"]),
+        )
+        assert created.status_code == 201
+        connection_id = created.json()["connection_id"]
+
+        with patch(
+            "app.interfaces.api.provider_connection_routes.discover_provider_models",
+            return_value=[
+                DiscoveredModel(
+                    connection_id,
+                    "xopglm5",
+                    display_name="GLM-5",
+                )
+            ],
+        ):
+            refreshed = client.post(
+                f"/api/owner/providers/connections/{connection_id}/models/refresh",
+                headers=_headers(tokens["csrf_token"]),
+            )
+
+        assert refreshed.status_code == 200
+        assert refreshed.json()["status"] == "updated"
+        assert refreshed.json()["models"] == [
+            {
+                "id": "xopglm5",
+                "display_name": "GLM-5",
+                "canonical_model_id": "zhipu/glm-5",
+                "source": "discovered",
+                "context_window_tokens": 204800,
+                "max_output_tokens": 131072,
+                "supports_tools": True,
+                "supports_vision": False,
+                "supports_reasoning": True,
+                "hidden": False,
+            }
+        ]
+
+    def test_connection_model_refresh_failure_keeps_connection_for_manual_models(
+        self,
+        client: TestClient,
+    ) -> None:
+        tokens = _login_owner(client)
+        created = client.post(
+            "/api/owner/providers/connections",
+            json={
+                "catalog_id": "custom_openai",
+                "alias": "私人网关",
+                "api_base": "https://example.invalid/v1",
+                "api_key": "test-key",
+                "verify": False,
+            },
+            headers=_headers(tokens["csrf_token"]),
+        )
+        connection_id = created.json()["connection_id"]
+
+        with patch(
+            "app.interfaces.api.provider_connection_routes.discover_provider_models",
+            side_effect=RuntimeError("no /models"),
+        ):
+            refreshed = client.post(
+                f"/api/owner/providers/connections/{connection_id}/models/refresh",
+                headers=_headers(tokens["csrf_token"]),
+            )
+        listed = client.get(
+            "/api/owner/providers/connections",
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert refreshed.status_code == 200
+        assert refreshed.json()["status"] == "failed"
+        assert "手工添加" in refreshed.json()["message"]
+        assert any(
+            item["connection_id"] == connection_id for item in listed.json()
+        )
+
+    def test_connection_models_support_manual_delete_and_discovered_hide(
+        self,
+        client: TestClient,
+    ) -> None:
+        tokens = _login_owner(client)
+        created = client.post(
+            "/api/owner/providers/connections",
+            json={
+                "catalog_id": "custom_openai",
+                "alias": "模型管理测试",
+                "api_base": "https://example.invalid/v1",
+                "models": [{"id": "manual/model", "display_name": "Manual"}],
+                "verify": False,
+            },
+            headers=_headers(tokens["csrf_token"]),
+        )
+        connection_id = created.json()["connection_id"]
+
+        deleted = client.delete(
+            f"/api/owner/providers/connections/{connection_id}/models/manual/model",
+            headers=_headers(tokens["csrf_token"]),
+        )
+        added = client.post(
+            f"/api/owner/providers/connections/{connection_id}/models",
+            json={"id": "manual-two", "display_name": "Manual Two"},
+            headers=_headers(tokens["csrf_token"]),
+        )
+        hidden = client.put(
+            f"/api/owner/providers/connections/{connection_id}/models/manual-two",
+            json={"hidden": True},
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert deleted.status_code == 200
+        assert added.status_code == 201
+        assert hidden.status_code == 200
+        assert hidden.json()["hidden"] is True
+
+    def test_connection_save_verifies_by_default_and_writes_report(
+        self,
+        client: TestClient,
+    ) -> None:
+        tokens = _login_owner(client)
+        with patch(
+            "app.interfaces.api.provider_connection_routes._verify_with_slot",
+            return_value={
+                "status": "active",
+                "latency_ms": 42.0,
+                "error": None,
+            },
+        ):
+            created = client.post(
+                "/api/owner/providers/connections",
+                json={
+                    "catalog_id": "deepseek_api",
+                    "api_key": "test-key",
+                },
+                headers=_headers(tokens["csrf_token"]),
+            )
+
+        assert created.status_code == 201
+        connection_id = created.json()["connection_id"]
+        assert created.json()["verification"]["status"] == "passed"
+        report = read_yaml_mapping(
+            get_provider_validation_dir() / connection_id / "latest.yaml"
+        )
+        assert report["provider_id"] == connection_id
+        assert report["status"] == "passed"
+
     def test_list_separates_configuration_from_verification(
         self, client: TestClient
     ) -> None:
