@@ -1,6 +1,39 @@
-version: 1
-providers:
+version: 2
+brands:
   ollama:
+    name: Ollama
+    logo_asset: brands/ollama.svg
+  openai:
+    name: OpenAI
+    logo_asset: brands/openai.svg
+  anthropic:
+    name: Anthropic
+    logo_asset: brands/anthropic.svg
+  deepseek:
+    name: DeepSeek
+    logo_asset: brands/deepseek.svg
+  google:
+    name: Google
+    logo_asset: brands/google.svg
+  alibaba:
+    name: Alibaba Cloud
+    logo_asset: brands/alibaba-cloud.svg
+  xai:
+    name: xAI
+    logo_asset: brands/xai.svg
+  mistral:
+    name: Mistral AI
+    logo_asset: brands/mistral.svg
+  groq:
+    name: Groq
+    logo_asset: brands/groq.svg
+  custom:
+    name: Custom
+    logo_asset: ""
+products:
+  ollama:
+    brand_id: ollama
+    legacy_provider_id: ollama
     name: Ollama
     api_base: http://localhost:11434
     auth_type: none
@@ -8,6 +41,8 @@ providers:
     base_url_env_var: OLLAMA_HOST
     api_key_env_var: ""
     connection_method: local
+    usage_scope: local
+    discovery_strategy: ollama
     oauth_available: false
     test_model: qwen3.5:0.8b
     default_models:
@@ -22,7 +57,9 @@ providers:
       multimodal:
         - moondream
         - llava
-  openai:
+  openai_api:
+    brand_id: openai
+    legacy_provider_id: openai
     name: OpenAI
     api_base: https://api.openai.com/v1
     auth_type: bearer
@@ -30,6 +67,8 @@ providers:
     base_url_env_var: OPENAI_API_BASE
     api_key_env_var: OPENAI_API_KEY
     connection_method: api_key
+    usage_scope: general
+    discovery_strategy: standard_models
     oauth_available: false
     test_model: gpt-4o-mini
     default_models:
@@ -42,7 +81,9 @@ providers:
         - o3-mini
       multimodal:
         - gpt-4o
-  anthropic:
+  anthropic_api:
+    brand_id: anthropic
+    legacy_provider_id: anthropic
     name: Anthropic
     api_base: https://api.anthropic.com/v1
     auth_type: x-api-key
@@ -50,6 +91,8 @@ providers:
     base_url_env_var: ANTHROPIC_API_BASE
     api_key_env_var: ANTHROPIC_API_KEY
     connection_method: api_key
+    usage_scope: general
+    discovery_strategy: standard_models
     oauth_available: false
     test_model: claude-3-haiku-20240307
     default_models:
@@ -61,7 +104,9 @@ providers:
       multimodal:
         - claude-3-sonnet-20240229
         - claude-3-opus-20240229
-  deepseek:
+  deepseek_api:
+    brand_id: deepseek
+    legacy_provider_id: deepseek
     name: DeepSeek
     api_base: https://api.deepseek.com/v1
     auth_type: bearer
@@ -69,6 +114,8 @@ providers:
     base_url_env_var: DEEPSEEK_API_BASE
     api_key_env_var: DEEPSEEK_API_KEY
     connection_method: api_key
+    usage_scope: general
+    discovery_strategy: standard_models
     oauth_available: false
     test_model: deepseek-chat
     default_models:
@@ -79,7 +126,9 @@ providers:
         - deepseek-chat
       multimodal:
         - deepseek-chat
-  gemini:
+  gemini_api:
+    brand_id: google
+    legacy_provider_id: gemini
     name: Google Gemini
     api_base: https://generativelanguage.googleapis.com/v1beta/openai
     auth_type: bearer
@@ -87,6 +136,8 @@ providers:
     base_url_env_var: GEMINI_API_BASE
     api_key_env_var: GEMINI_API_KEY
     connection_method: api_key
+    usage_scope: general
+    discovery_strategy: standard_models
     oauth_available: false
     test_model: gemini-1.5-flash
     default_models:
@@ -99,7 +150,9 @@ providers:
       multimodal:
         - gemini-1.5-flash
         - gemini-1.5-pro
-  qwen:
+  qwen_api:
+    brand_id: alibaba
+    legacy_provider_id: qwen
     name: Ali Qwen (DashScope)
     api_base: https://dashscope.aliyuncs.com/compatible-mode/v1
     auth_type: bearer
@@ -107,6 +160,8 @@ providers:
     base_url_env_var: QWEN_API_BASE
     api_key_env_var: QWEN_API_KEY
     connection_method: api_key
+    usage_scope: general
+    discovery_strategy: standard_models
     oauth_available: false
     test_model: qwen-coder-turbo
     default_models:
@@ -120,7 +175,9 @@ providers:
       multimodal:
         - qwen-vl-plus
         - qwen-vl-max
-  xai:
+  xai_api:
+    brand_id: xai
+    legacy_provider_id: xai
     name: xAI (Grok)
     api_base: https://api.x.ai/v1
     auth_type: bearer
@@ -128,6 +185,8 @@ providers:
     base_url_env_var: XAI_API_BASE
     api_key_env_var: XAI_API_KEY
     connection_method: api_key
+    usage_scope: general
+    discovery_strategy: standard_models
     oauth_available: false
     test_model: grok-beta
     default_models:
@@ -138,7 +197,9 @@ providers:
         - grok-2-vision-1212
       multimodal:
         - grok-2-vision-1212
-  mistral:
+  mistral_api:
+    brand_id: mistral
+    legacy_provider_id: mistral
     name: Mistral AI
     api_base: https://api.mistral.ai/v1
     auth_type: bearer
@@ -146,6 +207,8 @@ providers:
     base_url_env_var: MISTRAL_API_BASE
     api_key_env_var: MISTRAL_API_KEY
     connection_method: api_key
+    usage_scope: general
+    discovery_strategy: standard_models
     oauth_available: false
     test_model: mistral-small-latest
     default_models:
@@ -156,7 +219,9 @@ providers:
         - mistral-large-latest
       multimodal:
         - pixtral-12b-2409
-  groq:
+  groq_api:
+    brand_id: groq
+    legacy_provider_id: groq
     name: Groq
     api_base: https://api.groq.com/openai/v1
     auth_type: bearer
@@ -164,6 +229,8 @@ providers:
     base_url_env_var: GROQ_API_BASE
     api_key_env_var: GROQ_API_KEY
     connection_method: api_key
+    usage_scope: general
+    discovery_strategy: standard_models
     oauth_available: false
     test_model: llama-3.1-8b-instant
     default_models:
@@ -176,6 +243,8 @@ providers:
       multimodal:
         - llava-v1.5-7b-4096-preview
   custom_openai:
+    brand_id: custom
+    legacy_provider_id: custom_openai
     name: 自定义 OpenAI 兼容接口
     api_base: http://localhost:8000/v1
     auth_type: bearer
@@ -183,6 +252,8 @@ providers:
     base_url_env_var: CUSTOM_OPENAI_API_BASE
     api_key_env_var: CUSTOM_OPENAI_API_KEY
     connection_method: api_key
+    usage_scope: general
+    discovery_strategy: standard_models
     oauth_available: false
     test_model: custom-model
     default_models:

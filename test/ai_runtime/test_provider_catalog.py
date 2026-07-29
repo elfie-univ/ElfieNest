@@ -13,6 +13,8 @@ from ai_runtime.providers.profiles import BUILTIN_PROFILES
 
 def _provider(
     *,
+    brand_id: str,
+    legacy_provider_id: str,
     name: str,
     api_base: str,
     connection_method: str,
@@ -21,6 +23,8 @@ def _provider(
 ) -> dict:
     env_prefix = name.upper().replace(" ", "_")
     return {
+        "brand_id": brand_id,
+        "legacy_provider_id": legacy_provider_id,
         "name": name,
         "api_base": api_base,
         "auth_type": auth_type,
@@ -28,6 +32,10 @@ def _provider(
         "base_url_env_var": f"{env_prefix}_API_BASE",
         "api_key_env_var": f"{env_prefix}_API_KEY",
         "connection_method": connection_method,
+        "usage_scope": "local" if connection_method == "local" else "general",
+        "discovery_strategy": (
+            "ollama" if connection_method == "local" else "standard_models"
+        ),
         "oauth_available": False,
         "test_model": "example-model",
         "default_models": {
@@ -40,9 +48,16 @@ def _provider(
 
 def _override_document() -> dict:
     return {
-        "version": 1,
-        "providers": {
+        "version": 2,
+        "brands": {
+            "ollama": {"name": "Ollama", "logo_asset": "brands/ollama.svg"},
+            "custom": {"name": "Custom", "logo_asset": ""},
+            "example": {"name": "Example", "logo_asset": "brands/example.svg"},
+        },
+        "products": {
             "ollama": _provider(
+                brand_id="ollama",
+                legacy_provider_id="ollama",
                 name="Ollama",
                 api_base="http://localhost:11434",
                 connection_method="local",
@@ -50,11 +65,15 @@ def _override_document() -> dict:
                 api_mode="ollama",
             ),
             "custom_openai": _provider(
+                brand_id="custom",
+                legacy_provider_id="custom_openai",
                 name="Custom OpenAI",
                 api_base="http://localhost:8000/v1",
                 connection_method="api_key",
             ),
-            "new_gateway": _provider(
+            "example_api": _provider(
+                brand_id="example",
+                legacy_provider_id="new_gateway",
                 name="New Gateway",
                 api_base="https://gateway.example/v1",
                 connection_method="api_key",
@@ -73,8 +92,11 @@ def test_builtin_provider_profiles_are_loaded_from_versioned_catalog() -> None:
     catalog = load_provider_catalog(Path("/definitely/missing/provider-catalog.yaml"))
 
     assert catalog.source == BUNDLED_PROVIDER_CATALOG_PATH
-    assert catalog.version == 1
+    assert catalog.version == 2
     assert catalog.profiles == BUILTIN_PROFILES
+    assert catalog.products["openai_api"].legacy_provider_id == "openai"
+    assert catalog.products["openai_api"].usage_scope == "general"
+    assert catalog.brands["openai"].logo_asset == "brands/openai.svg"
     assert {
         "ollama",
         "openai",
@@ -99,7 +121,8 @@ def test_local_provider_catalog_can_add_supported_provider(tmp_path) -> None:
     catalog = load_provider_catalog(override_path)
 
     assert catalog.source == override_path
-    assert catalog.profiles["new_gateway"].api_base == ("https://gateway.example/v1")
+    assert catalog.products["example_api"].api_base == ("https://gateway.example/v1")
+    assert catalog.profiles["new_gateway"].catalog_id == "example_api"
     assert catalog.suggested_models("https://gateway.example/v1") == ["gateway-model"]
 
 
@@ -108,7 +131,7 @@ def test_invalid_local_provider_catalog_falls_back_to_bundled(
 ) -> None:
     override_path = tmp_path / "provider-catalog.yaml"
     override_path.write_text(
-        yaml.safe_dump({"version": 999, "providers": {}}),
+        yaml.safe_dump({"version": 999, "products": {}}),
         encoding="utf-8",
     )
 
@@ -120,7 +143,7 @@ def test_invalid_local_provider_catalog_falls_back_to_bundled(
 
 def test_provider_catalog_rejects_plaintext_credentials(tmp_path) -> None:
     document = _override_document()
-    document["providers"]["new_gateway"]["api_key"] = "must-not-load"
+    document["products"]["example_api"]["api_key"] = "must-not-load"
     override_path = tmp_path / "provider-catalog.yaml"
     override_path.write_text(
         yaml.safe_dump(document, sort_keys=False),

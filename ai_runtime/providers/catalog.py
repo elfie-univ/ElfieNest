@@ -18,7 +18,7 @@ from ai_runtime.storage.data_home import get_provider_catalog_path
 
 logger = logging.getLogger("ai_runtime.providers.catalog")
 
-PROVIDER_CATALOG_VERSION = 1
+PROVIDER_CATALOG_VERSION = 2
 BUNDLED_PROVIDER_CATALOG_PATH = Path(__file__).with_name("provider-catalog.yaml")
 _PROVIDER_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 _ENV_NAME_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*$")
@@ -37,6 +37,10 @@ _MODEL_ROLES = ("cheap", "deep", "multimodal")
 _AUTH_TYPES = frozenset({"bearer", "none", "x-api-key"})
 _API_MODES = frozenset({"anthropic_messages", "chat_completions", "ollama"})
 _CONNECTION_METHODS = frozenset({"api_key", "local", "oauth"})
+_USAGE_SCOPES = frozenset({"coding_only", "general", "local"})
+_DISCOVERY_STRATEGIES = frozenset(
+    {"catalog_only", "ollama", "provider_adapter", "standard_models"}
+)
 
 
 class ProviderCatalogError(ConfigStoreError):
@@ -45,8 +49,11 @@ class ProviderCatalogError(ConfigStoreError):
 
 @dataclass
 class ProviderProfile:
-    """Declarative connection and model defaults for one Provider."""
+    """Declarative defaults for one connectable Provider product."""
 
+    catalog_id: str
+    brand_id: str
+    legacy_provider_id: str
     name: str
     api_base: str
     auth_type: str
@@ -58,6 +65,19 @@ class ProviderProfile:
     oauth_available: bool = False
     test_model: str = ""
     model_descriptions: Dict[str, str] = field(default_factory=dict)
+    usage_scope: Literal["general", "coding_only", "local"] = "general"
+    discovery_strategy: Literal[
+        "standard_models",
+        "provider_adapter",
+        "catalog_only",
+        "ollama",
+    ] = "standard_models"
+
+
+@dataclass(frozen=True)
+class ProviderBrand:
+    name: str
+    logo_asset: str = ""
 
 
 @dataclass(frozen=True)
@@ -69,9 +89,18 @@ class EndpointModelHint:
 @dataclass(frozen=True)
 class ProviderCatalog:
     version: int
-    profiles: Dict[str, ProviderProfile]
+    brands: Dict[str, ProviderBrand]
+    products: Dict[str, ProviderProfile]
     endpoint_model_hints: tuple[EndpointModelHint, ...]
     source: Path
+
+    @property
+    def profiles(self) -> Dict[str, ProviderProfile]:
+        """Return the legacy Provider-keyed view during the staged migration."""
+        return {
+            profile.legacy_provider_id: profile
+            for profile in self.products.values()
+        }
 
     def suggested_models(self, api_base: str) -> list[str]:
         normalized = api_base.lower().rstrip("/")
@@ -118,31 +147,57 @@ def _parse_catalog(document: Mapping[str, Any], source: Path) -> ProviderCatalog
         raise ProviderCatalogError(
             f"Unsupported Provider catalog version {version!r}: {source}"
         )
-    raw_providers = document.get("providers")
-    if not isinstance(raw_providers, Mapping) or not raw_providers:
-        raise ProviderCatalogError(f"Provider catalog has no providers: {source}")
-
-    profiles: Dict[str, ProviderProfile] = {}
-    for provider_id, raw_profile in raw_providers.items():
-        if not isinstance(provider_id, str) or not _PROVIDER_ID_PATTERN.fullmatch(
-            provider_id
+    raw_brands = document.get("brands")
+    if not isinstance(raw_brands, Mapping) or not raw_brands:
+        raise ProviderCatalogError(f"Provider catalog has no brands: {source}")
+    brands: Dict[str, ProviderBrand] = {}
+    for brand_id, raw_brand in raw_brands.items():
+        if not isinstance(brand_id, str) or not _PROVIDER_ID_PATTERN.fullmatch(
+            brand_id
         ):
-            raise ProviderCatalogError(f"Invalid Provider ID {provider_id!r}: {source}")
-        if not isinstance(raw_profile, Mapping):
+            raise ProviderCatalogError(f"Invalid brand ID {brand_id!r}: {source}")
+        if not isinstance(raw_brand, Mapping):
             raise ProviderCatalogError(
-                f"Provider {provider_id!r} must be an object: {source}"
+                f"Brand {brand_id!r} must be an object: {source}"
             )
-        profiles[provider_id] = _parse_profile(
-            provider_id,
-            raw_profile,
-            source,
+        brands[brand_id] = ProviderBrand(
+            name=_required_string(raw_brand, "name", brand_id, source),
+            logo_asset=str(raw_brand.get("logo_asset") or "").strip(),
         )
 
-    required_profiles = {"ollama", "custom_openai"}
-    missing = required_profiles - profiles.keys()
+    raw_products = document.get("products")
+    if not isinstance(raw_products, Mapping) or not raw_products:
+        raise ProviderCatalogError(f"Provider catalog has no products: {source}")
+
+    products: Dict[str, ProviderProfile] = {}
+    legacy_ids: set[str] = set()
+    for catalog_id, raw_profile in raw_products.items():
+        if not isinstance(catalog_id, str) or not _PROVIDER_ID_PATTERN.fullmatch(
+            catalog_id
+        ):
+            raise ProviderCatalogError(f"Invalid catalog ID {catalog_id!r}: {source}")
+        if not isinstance(raw_profile, Mapping):
+            raise ProviderCatalogError(
+                f"Provider product {catalog_id!r} must be an object: {source}"
+            )
+        profile = _parse_profile(
+            catalog_id,
+            raw_profile,
+            brands,
+            source,
+        )
+        if profile.legacy_provider_id in legacy_ids:
+            raise ProviderCatalogError(
+                f"Duplicate legacy_provider_id {profile.legacy_provider_id!r}: {source}"
+            )
+        legacy_ids.add(profile.legacy_provider_id)
+        products[catalog_id] = profile
+
+    required_products = {"ollama", "custom_openai"}
+    missing = required_products - products.keys()
     if missing:
         raise ProviderCatalogError(
-            f"Provider catalog is missing required profiles {sorted(missing)}: {source}"
+            f"Provider catalog is missing required products {sorted(missing)}: {source}"
         )
 
     raw_hints = document.get("endpoint_model_hints", ())
@@ -151,82 +206,113 @@ def _parse_catalog(document: Mapping[str, Any], source: Path) -> ProviderCatalog
     hints = tuple(_parse_hint(item, source) for item in raw_hints)
     return ProviderCatalog(
         version=PROVIDER_CATALOG_VERSION,
-        profiles=profiles,
+        brands=brands,
+        products=products,
         endpoint_model_hints=hints,
         source=source,
     )
 
 
 def _parse_profile(
-    provider_id: str,
+    catalog_id: str,
     raw: Mapping[str, Any],
+    brands: Mapping[str, ProviderBrand],
     source: Path,
 ) -> ProviderProfile:
-    name = _required_string(raw, "name", provider_id, source)
-    api_base = _required_string(raw, "api_base", provider_id, source)
+    brand_id = _required_string(raw, "brand_id", catalog_id, source)
+    if brand_id not in brands:
+        raise ProviderCatalogError(
+            f"Provider {catalog_id!r} references unknown brand {brand_id!r}: {source}"
+        )
+    legacy_provider_id = _required_string(
+        raw,
+        "legacy_provider_id",
+        catalog_id,
+        source,
+    )
+    if not _PROVIDER_ID_PATTERN.fullmatch(legacy_provider_id):
+        raise ProviderCatalogError(
+            f"Provider {catalog_id!r} has invalid legacy_provider_id: {source}"
+        )
+    name = _required_string(raw, "name", catalog_id, source)
+    api_base = _required_string(raw, "api_base", catalog_id, source)
     auth_type = _choice(
         raw,
         "auth_type",
         _AUTH_TYPES,
-        provider_id,
+        catalog_id,
         source,
     )
     api_mode = _choice(
         raw,
         "api_mode",
         _API_MODES,
-        provider_id,
+        catalog_id,
         source,
     )
     connection_method = _choice(
         raw,
         "connection_method",
         _CONNECTION_METHODS,
-        provider_id,
+        catalog_id,
+        source,
+    )
+    usage_scope = _choice(
+        raw,
+        "usage_scope",
+        _USAGE_SCOPES,
+        catalog_id,
+        source,
+    )
+    discovery_strategy = _choice(
+        raw,
+        "discovery_strategy",
+        _DISCOVERY_STRATEGIES,
+        catalog_id,
         source,
     )
     base_url_env_var = _env_name(
         raw.get("base_url_env_var", ""),
         "base_url_env_var",
-        provider_id,
+        catalog_id,
         source,
     )
     api_key_env_var = _env_name(
         raw.get("api_key_env_var", ""),
         "api_key_env_var",
-        provider_id,
+        catalog_id,
         source,
     )
     oauth_available = raw.get("oauth_available", False)
     if not isinstance(oauth_available, bool):
         raise ProviderCatalogError(
-            f"Provider {provider_id!r} oauth_available must be boolean: {source}"
+            f"Provider {catalog_id!r} oauth_available must be boolean: {source}"
         )
     if connection_method == "local" and auth_type != "none":
         raise ProviderCatalogError(
-            f"Local Provider {provider_id!r} must use auth_type 'none': {source}"
+            f"Local Provider {catalog_id!r} must use auth_type 'none': {source}"
         )
     if connection_method == "api_key" and not api_key_env_var:
         raise ProviderCatalogError(
-            f"API-key Provider {provider_id!r} requires api_key_env_var: {source}"
+            f"API-key Provider {catalog_id!r} requires api_key_env_var: {source}"
         )
 
     raw_models = raw.get("default_models")
     if not isinstance(raw_models, Mapping):
         raise ProviderCatalogError(
-            f"Provider {provider_id!r} default_models must be an object: {source}"
+            f"Provider {catalog_id!r} default_models must be an object: {source}"
         )
     default_models: Dict[str, List[str]] = {}
     for role in _MODEL_ROLES:
         values = raw_models.get(role)
         if not isinstance(values, list) or not values:
             raise ProviderCatalogError(
-                f"Provider {provider_id!r} requires non-empty {role} models: {source}"
+                f"Provider {catalog_id!r} requires non-empty {role} models: {source}"
             )
         models = [str(item).strip() for item in values]
         if any(not item for item in models):
             raise ProviderCatalogError(
-                f"Provider {provider_id!r} has an empty {role} model: {source}"
+                f"Provider {catalog_id!r} has an empty {role} model: {source}"
             )
         default_models[role] = list(dict.fromkeys(models))
 
@@ -234,7 +320,7 @@ def _parse_profile(
     raw_descriptions = raw.get("model_descriptions", {})
     if not isinstance(raw_descriptions, Mapping):
         raise ProviderCatalogError(
-            f"Provider {provider_id!r} model_descriptions must be an object: {source}"
+            f"Provider {catalog_id!r} model_descriptions must be an object: {source}"
         )
     descriptions = {
         str(role): str(description)
@@ -242,6 +328,9 @@ def _parse_profile(
         if str(role) in _MODEL_ROLES and str(description).strip()
     }
     return ProviderProfile(
+        catalog_id=catalog_id,
+        brand_id=brand_id,
+        legacy_provider_id=legacy_provider_id,
         name=name,
         api_base=api_base,
         auth_type=auth_type,
@@ -253,6 +342,8 @@ def _parse_profile(
         oauth_available=oauth_available,
         test_model=test_model,
         model_descriptions=descriptions,
+        usage_scope=usage_scope,  # type: ignore[arg-type]
+        discovery_strategy=discovery_strategy,  # type: ignore[arg-type]
     )
 
 

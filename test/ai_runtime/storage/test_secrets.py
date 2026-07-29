@@ -8,6 +8,7 @@ from ai_runtime.storage.secrets import (
     read_secrets,
     redact_secret,
     resolve_secret,
+    set_connection_secret,
     set_provider_secret,
 )
 
@@ -15,6 +16,26 @@ from ai_runtime.storage.secrets import (
 def test_provider_secret_name_uses_profile_and_custom_fallback():
     assert provider_secret_name("openai") == "OPENAI_API_KEY"
     assert provider_secret_name("my-gateway") == "MY_GATEWAY_API_KEY"
+
+
+def test_connection_secret_names_are_isolated_for_multiple_accounts(tmp_path):
+    first = set_connection_secret(
+        "anthropic_api_0001",
+        "first-secret",
+        tmp_path / ".env",
+    )
+    second = set_connection_secret(
+        "anthropic_api_0002",
+        "second-secret",
+        tmp_path / ".env",
+    )
+
+    assert first == "ELFIE_PROVIDER_ANTHROPIC_API_0001_API_KEY"
+    assert second == "ELFIE_PROVIDER_ANTHROPIC_API_0002_API_KEY"
+    assert read_secrets(tmp_path / ".env") == {
+        first: "first-secret",
+        second: "second-secret",
+    }
 
 
 def test_set_provider_secret_round_trip_and_secure_mode(tmp_path):

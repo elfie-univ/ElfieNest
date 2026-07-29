@@ -31,6 +31,13 @@ from ai_runtime.storage.oauth_credentials import (
     OAuthCredentialStore,
     OAuthCredentialStoreError,
 )
+from ai_runtime.storage.provider_connections import (
+    ProviderConnection,
+    ProviderConnectionDocument,
+    ProviderConnectionStore,
+    ProviderConnectionStoreError,
+    ProviderModelRecord,
+)
 from ai_runtime.storage.runtime_config_bundle import (
     read_runtime_config_bundle,
     write_runtime_config_bundle,
@@ -44,9 +51,11 @@ from ai_runtime.storage.validation_reports import (
 
 _SECRET_EXPORTS = frozenset(
     {
+        "connection_secret_name",
         "provider_secret_name",
         "read_secrets",
         "resolve_secret",
+        "set_connection_secret",
         "set_provider_secret",
     }
 )
@@ -66,6 +75,11 @@ __all__ = [
     "OAuthCredential",
     "OAuthCredentialStore",
     "OAuthCredentialStoreError",
+    "ProviderConnection",
+    "ProviderConnectionDocument",
+    "ProviderConnectionStore",
+    "ProviderConnectionStoreError",
+    "ProviderModelRecord",
     "get_config_path",
     "get_configs_dir",
     "get_credentials_dir",
@@ -91,12 +105,14 @@ __all__ = [
     "get_tool_config_path",
     "get_validation_dir",
     "provider_secret_name",
+    "connection_secret_name",
     "read_secrets",
     "read_yaml_mapping",
     "read_runtime_config_bundle",
     "read_latest_provider_validation",
     "resolve_secret",
     "set_provider_secret",
+    "set_connection_secret",
     "write_yaml_mapping",
     "write_runtime_config_bundle",
     "write_model_validation_report",
