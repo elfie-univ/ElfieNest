@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, field
+import shutil
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
@@ -13,11 +14,14 @@ from ai_runtime.food.models import FoodRecipe
 from ai_runtime.models.model_reference import ModelReferenceError, parse_model_reference
 from ai_runtime.storage.config_store import read_yaml_mapping, write_yaml_mapping
 from ai_runtime.storage.data_home import get_food_catalog_path, get_food_history_dir
+from ai_runtime.storage.provider_connections import ProviderConnectionStore
+
+FOOD_CATALOG_VERSION = 2
 
 
 @dataclass(frozen=True)
 class FoodCatalog:
-    version: int = 1
+    version: int = FOOD_CATALOG_VERSION
     default_food: str = ""
     fallback_food: str = ""
     source_fingerprint: str = ""
@@ -70,7 +74,17 @@ class FoodCatalogStore:
         self.history_dir = history_dir or get_food_history_dir()
 
     def load(self) -> FoodCatalog:
-        return FoodCatalog.from_dict(read_yaml_mapping(self.path))
+        raw = read_yaml_mapping(self.path)
+        catalog = FoodCatalog.from_dict(raw)
+        if raw and catalog.version < FOOD_CATALOG_VERSION:
+            migrated = _migrate_legacy_model_references(catalog)
+            if migrated is not None:
+                backup = self.path.with_suffix(f"{self.path.suffix}.v1.bak")
+                if not backup.exists():
+                    shutil.copy2(self.path, backup)
+                write_yaml_mapping(self.path, migrated.to_dict())
+                return migrated
+        return catalog
 
     def save(self, catalog: FoodCatalog, *, keep_history: bool = True) -> None:
         validate_food_catalog_model_references(catalog)
@@ -147,3 +161,81 @@ def validate_food_catalog_selections(catalog: FoodCatalog) -> None:
     ):
         if food_key and food_key not in catalog.recipes:
             raise ValueError(f"{field_name} 指向不存在的粮食套餐: {food_key}")
+
+
+def foods_referencing_connection(
+    catalog: FoodCatalog,
+    connection_id: str,
+) -> tuple[str, ...]:
+    """Return food keys that still depend on a connection instance."""
+    referenced: list[str] = []
+    for recipe in catalog.recipes.values():
+        profiles = [recipe.primary, recipe.deep, recipe.vision, recipe.verifier]
+        profiles.extend(recipe.technical_fallbacks)
+        for profile in profiles:
+            if profile is None or not profile.model:
+                continue
+            try:
+                reference = parse_model_reference(profile.model)
+            except ModelReferenceError:
+                continue
+            if reference.connection_id == connection_id:
+                referenced.append(recipe.key)
+                break
+    return tuple(sorted(set(referenced)))
+
+
+def _migrate_legacy_model_references(
+    catalog: FoodCatalog,
+) -> FoodCatalog | None:
+    document = ProviderConnectionStore().load()
+    legacy_map = {
+        connection.legacy_provider_id: connection.connection_id
+        for connection in document.connections.values()
+        if connection.legacy_provider_id
+    }
+    connection_ids = set(document.connections)
+    changed = False
+    recipes: dict[str, FoodRecipe] = {}
+    for key, recipe in catalog.recipes.items():
+        profiles = [
+            recipe.primary,
+            recipe.deep,
+            recipe.vision,
+            recipe.verifier,
+            *recipe.technical_fallbacks,
+        ]
+        migrated_profiles = []
+        for profile in profiles:
+            if profile is None or not profile.model:
+                migrated_profiles.append(profile)
+                continue
+            reference = parse_model_reference(profile.model)
+            if reference.connection_id in connection_ids:
+                migrated_profiles.append(profile)
+                continue
+            connection_id = legacy_map.get(reference.connection_id)
+            if not connection_id:
+                return None
+            changed = True
+            migrated_profiles.append(
+                replace(
+                    profile,
+                    model=f"{connection_id}/{reference.model_id}",
+                )
+            )
+        primary, deep, vision, verifier, *fallbacks = migrated_profiles
+        assert primary is not None
+        recipes[key] = replace(
+            recipe,
+            primary=primary,
+            deep=deep,
+            vision=vision,
+            verifier=verifier,
+            technical_fallbacks=tuple(
+                profile for profile in fallbacks if profile is not None
+            ),
+        )
+    if not changed and catalog.version == FOOD_CATALOG_VERSION:
+        return catalog
+    return replace(catalog, version=FOOD_CATALOG_VERSION, recipes=recipes)

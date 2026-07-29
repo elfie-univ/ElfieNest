@@ -6,11 +6,17 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict
 
-from .providers.profiles import BUILTIN_PROFILES, get_default_api_mode
+from .providers.profiles import BUILTIN_PROFILES, get_default_api_mode, get_product
 from .storage.config_store import ConfigStoreError, read_yaml_mapping
-from .storage.data_home import get_env_path
+from .storage.data_home import get_env_path, get_provider_config_path
+from .storage.provider_connections import ProviderConnectionStore
 from .storage.runtime_config_bundle import read_runtime_config_bundle
-from .storage.secrets import provider_secret_name, read_secrets, resolve_secret
+from .storage.secrets import (
+    connection_secret_name,
+    provider_secret_name,
+    read_secrets,
+    resolve_secret,
+)
 
 
 def _load_env_file_values(env_path: Path | None = None) -> Dict[str, str]:
@@ -55,6 +61,40 @@ def _default_providers(
             "auth_type": profile.auth_type,
         }
     providers["custom_openai"]["test_model"] = "custom-model"
+    return providers
+
+
+def _connection_providers() -> Dict[str, Dict[str, Any]]:
+    """Project stable connection instances into the Runtime provider grid."""
+    path = get_provider_config_path()
+    if not path.exists():
+        return {}
+    document = ProviderConnectionStore(path).load()
+    providers: Dict[str, Dict[str, Any]] = {}
+    for connection_id, connection in document.connections.items():
+        if not connection.enabled:
+            continue
+        profile = get_product(connection.catalog_id)
+        if profile is None:
+            continue
+        secret_name = connection.credential_ref or connection_secret_name(connection_id)
+        providers[connection_id] = {
+            "catalog_id": connection.catalog_id,
+            "display_name": connection.alias,
+            "api_base": connection.api_base or profile.api_base,
+            "api_mode": connection.api_mode or profile.api_mode,
+            "auth_type": connection.auth_type or profile.auth_type,
+            "api_key_env": secret_name,
+            "api_key": resolve_secret(secret_name),
+            "models": [
+                {
+                    "id": model.endpoint_model_id,
+                    "display_name": model.display_name,
+                }
+                for model in connection.models
+                if not model.hidden
+            ],
+        }
     return providers
 
 
@@ -275,6 +315,9 @@ class LLMRuntimeConfig:
             except Exception:
                 pass
 
+        if config_home is None:
+            self.providers.update(_connection_providers())
+
         # 确保 providers 字典中所有条目都有 api_mode 和 status
         for provider in self.providers:
             secret_name = self.providers[provider].get(
@@ -308,7 +351,10 @@ class LLMRuntimeConfig:
             else:
                 api_key = self.providers[provider].get("api_key", "")
                 self.providers[provider]["status"] = (
-                    "active" if api_key or provider == "ollama" else "inactive"
+                    "active"
+                    if api_key
+                    or self.providers[provider].get("api_mode") == "ollama"
+                    else "inactive"
                 )
 
         # 同步本地 ollama_host 的最新变更到 providers 字典中

@@ -40,6 +40,10 @@ class ProviderConnectionStoreError(ConfigStoreError):
     """Provider connection configuration is malformed."""
 
 
+def is_connection_id(value: str) -> bool:
+    return _CONNECTION_ID_PATTERN.fullmatch(value) is not None
+
+
 @dataclass(frozen=True)
 class ProviderModelRecord:
     """One endpoint-specific model exposed by a connection."""

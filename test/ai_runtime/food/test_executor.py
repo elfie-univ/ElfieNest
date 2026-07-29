@@ -70,7 +70,7 @@ def test_food_executor_rejects_a_bare_model_reference(monkeypatch, tmp_path):
             recipe, [{"role": "user", "content": "hello"}]
         )
     except Exception as exc:
-        assert "provider_id/model_id" in str(exc)
+        assert "connection_id/model_id" in str(exc)
     else:
         raise AssertionError("裸模型名不得被默认解释为 Ollama")
     assert calls == []
@@ -99,6 +99,32 @@ def test_food_executor_can_use_deep_profile_without_changing_food(
     assert calls == [("ollama", "deep", {})]
     assert result.execution_stage == "deep"
     assert result.technical_fallback_used is False
+
+
+def test_food_executor_treats_local_connection_instance_as_keyless(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    config = LLMRuntimeConfig()
+    config.providers["ollama_0001"] = {
+        "api_mode": "ollama",
+        "api_base": "http://localhost:11434",
+        "api_key": "",
+    }
+    calls = []
+
+    result = make_executor(config, tmp_path, calls).execute(
+        FoodRecipe(
+            "local",
+            "本地粮",
+            "本地",
+            ExecutionProfile("ollama_0001/qwen3"),
+        ),
+        [{"role": "user", "content": "hello"}],
+    )
+
+    assert result.text == "ok"
+    assert calls == [("ollama_0001", "qwen3", {})]
 
 
 def test_food_executor_builds_multimodal_payload_for_selected_provider(

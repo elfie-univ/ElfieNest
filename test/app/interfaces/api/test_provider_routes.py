@@ -12,6 +12,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from ai_runtime.food.models import ExecutionProfile, FoodRecipe
+from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
 from ai_runtime.providers.profiles import BUILTIN_PROFILES
 from ai_runtime.storage.config_store import read_yaml_mapping, write_yaml_mapping
 from ai_runtime.storage.data_home import (
@@ -314,6 +316,46 @@ class TestProviderRoutes:
         )
         assert report["provider_id"] == connection_id
         assert report["status"] == "passed"
+
+    def test_connection_cannot_be_deleted_while_food_references_it(
+        self,
+        client: TestClient,
+    ) -> None:
+        tokens = _login_owner(client)
+        created = client.post(
+            "/api/owner/providers/connections",
+            json={
+                "catalog_id": "deepseek_api",
+                "api_key": "test-key",
+                "models": [{"id": "deepseek-chat", "display_name": "DeepSeek Chat"}],
+                "verify": False,
+            },
+            headers=_headers(tokens["csrf_token"]),
+        )
+        connection_id = created.json()["connection_id"]
+        FoodCatalogStore().save(
+            FoodCatalog(
+                default_food="daily",
+                recipes={
+                    "daily": FoodRecipe(
+                        key="daily",
+                        display_name="日常粮",
+                        description="",
+                        primary=ExecutionProfile(
+                            model=f"{connection_id}/deepseek-chat"
+                        ),
+                    )
+                },
+            )
+        )
+
+        response = client.delete(
+            f"/api/owner/providers/connections/{connection_id}",
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert response.status_code == 409
+        assert "daily" in response.text
 
     def test_list_separates_configuration_from_verification(
         self, client: TestClient

@@ -109,18 +109,19 @@ class FoodExecutor:
             model_reference = parse_model_reference(profile.model)
         except ModelReferenceError as exc:
             raise FoodExecutionError(str(exc)) from exc
-        provider = model_reference.provider_id
+        connection_id = model_reference.connection_id
         model = model_reference.model_id
-        provider_config = self.config.providers.get(provider, {})
-        if provider != "ollama" and not provider_config.get("api_key"):
-            raise FoodExecutionError(f"Provider '{provider}' 没有可用密钥")
+        provider_config = self.config.providers.get(connection_id, {})
+        api_mode = str(provider_config.get("api_mode") or "")
+        if api_mode != "ollama" and not provider_config.get("api_key"):
+            raise FoodExecutionError(f"Provider 连接 '{connection_id}' 没有可用密钥")
         tools = allowed_tools
         if images or audio:
             messages = assemble_multimodal_payload(
                 messages,
                 list(images),
                 audio,
-                provider,
+                "ollama" if api_mode == "ollama" else connection_id,
             )
         if tools:
             messages = inject_skills_system_prompt(messages, list(tools))
@@ -137,7 +138,7 @@ class FoodExecutor:
 
         def invoke(loop_messages: list[dict[str, Any]]) -> str:
             return self.model_caller(
-                provider,
+                connection_id,
                 model,
                 loop_messages,
                 profile.temperature,

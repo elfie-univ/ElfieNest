@@ -4,8 +4,16 @@ from ai_runtime.providers.profiles import (
     get_default_api_mode,
     get_profile,
 )
+from ai_runtime.storage.provider_connections import (
+    ProviderConnectionStore,
+    ProviderModelRecord,
+)
 from ai_runtime.storage.runtime_config_bundle import write_runtime_config_bundle
-from ai_runtime.storage.secrets import set_provider_secret, write_secrets
+from ai_runtime.storage.secrets import (
+    set_connection_secret,
+    set_provider_secret,
+    write_secrets,
+)
 
 
 class TestBuiltinProfiles:
@@ -186,6 +194,33 @@ class TestLLMRuntimeConfigBackwardCompat:
         assert provider["api_key"] == "test-key"
         assert provider["api_base"] == "https://proxy.example.com/v1"
         assert provider["status"] == "active"
+
+    def test_loads_stable_connection_instance_for_runtime(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+        connection = ProviderConnectionStore().create(
+            catalog_id="openai_api",
+            alias="工作账号",
+            api_base="https://api.openai.com/v1",
+            api_mode="chat_completions",
+            auth_type="bearer",
+            models=(
+                ProviderModelRecord(
+                    endpoint_model_id="gpt-test",
+                    display_name="GPT Test",
+                ),
+            ),
+        )
+        set_connection_secret(connection.connection_id, "connection-key")
+
+        config = LLMRuntimeConfig()
+
+        runtime_provider = config.providers[connection.connection_id]
+        assert runtime_provider["catalog_id"] == "openai_api"
+        assert runtime_provider["display_name"] == "工作账号"
+        assert runtime_provider["api_key"] == "connection-key"
+        assert runtime_provider["models"] == [
+            {"id": "gpt-test", "display_name": "GPT Test"}
+        ]
 
 
 def test_verify_custom_openai_falls_back_to_chat_completion_when_models_endpoint_fails(

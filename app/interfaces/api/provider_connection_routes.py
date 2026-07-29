@@ -12,6 +12,7 @@ from typing import Any, Dict, Iterable, Optional
 from fastapi import APIRouter, Depends, HTTPException
 
 from ai_runtime.config import LLMRuntimeConfig
+from ai_runtime.food.store import FoodCatalogStore, foods_referencing_connection
 from ai_runtime.models.catalog import _verify_custom_openai_provider, verify_provider
 from ai_runtime.providers.model_identity import match_model_identity
 from ai_runtime.providers.profiles import PROVIDER_CATALOG, get_product
@@ -217,6 +218,15 @@ async def delete_connection(
     connection = _require_connection(store, connection_id)
     if connection.catalog_id == "ollama":
         raise HTTPException(status_code=400, detail="不能删除默认 Ollama 连接")
+    food_keys = foods_referencing_connection(FoodCatalogStore().load(), connection_id)
+    if food_keys:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"连接 '{connection_id}' 仍被粮食套餐引用："
+                + "、".join(food_keys)
+            ),
+        )
     store.delete(connection_id)
     set_connection_secret(connection_id, "")
     return {"detail": f"连接 '{connection_id}' 已删除"}

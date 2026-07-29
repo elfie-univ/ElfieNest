@@ -194,7 +194,11 @@ class RuntimeAgent:
         selected_food = self._select_food_key(catalog, food_key)
         profile = catalog.recipes[selected_food].primary
         provider = self._provider_for_model(profile.model)
-        native = provider == "openai"
+        provider_config = self.config.providers.get(provider, {})
+        native = (
+            provider == "openai"
+            or provider_config.get("catalog_id") == "openai_api"
+        )
         return StructuredRuntimeCapabilities(
             provider=provider,
             model_key=profile.model,

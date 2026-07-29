@@ -207,7 +207,7 @@ def test_food_api_rejects_a_bare_model_reference(client):
     )
 
     assert response.status_code == 422
-    assert "provider_id/model_id" in response.json()["detail"]
+    assert "connection_id/model_id" in response.json()["detail"]
 
 
 def test_food_edit_round_trips_every_execution_role(client):

@@ -23,11 +23,15 @@ from ai_runtime.models.model_reference import (
     ModelReferenceError,
     parse_model_reference,
 )
-from ai_runtime.providers.profiles import get_profile
+from ai_runtime.providers.profiles import get_product, get_profile
 from ai_runtime.storage.data_home import (
     get_food_catalog_path,
     get_food_history_dir,
     get_model_evidence_path,
+)
+from ai_runtime.storage.provider_connections import (
+    ProviderConnectionStore,
+    is_connection_id,
 )
 from app.features.accounts.auth import require_owner
 from app.infrastructure.persistence.food_assignments import (
@@ -426,8 +430,16 @@ def _with_locality(recipe: FoodRecipe) -> FoodRecipe:
 
 def _model_reference_is_local(model: str) -> bool:
     try:
-        provider_id = parse_model_reference(model).provider_id
+        connection_id = parse_model_reference(model).connection_id
     except ModelReferenceError:
         return False
-    profile = get_profile(provider_id)
-    return bool(profile and profile.connection_method == "local")
+    legacy_profile = get_profile(connection_id)
+    if legacy_profile is not None:
+        return legacy_profile.connection_method == "local"
+    if not is_connection_id(connection_id):
+        return False
+    connection = ProviderConnectionStore().load().connections.get(connection_id)
+    if connection is not None:
+        profile = get_product(connection.catalog_id)
+        return bool(profile and profile.connection_method == "local")
+    return False

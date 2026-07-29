@@ -3,6 +3,7 @@ import pytest
 from ai_runtime.food.models import ExecutionProfile, FoodRecipe
 from ai_runtime.food.store import FoodCatalog, FoodCatalogStore, fingerprint_source
 from ai_runtime.models.model_reference import ModelReferenceError
+from ai_runtime.storage.provider_connections import ProviderConnectionStore
 
 
 def test_food_catalog_store_versions_and_detects_source_updates(tmp_path):
@@ -62,10 +63,44 @@ def test_food_catalog_store_rejects_a_bare_model_on_new_write(tmp_path):
         }
     )
 
-    with pytest.raises(ModelReferenceError, match="provider_id/model_id"):
+    with pytest.raises(ModelReferenceError, match="connection_id/model_id"):
         store.save(catalog)
 
-    assert not store.path.exists()
+
+def test_food_store_migrates_legacy_provider_reference_to_connection(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    connection_store = ProviderConnectionStore()
+    connection_store.create(
+        catalog_id="openai_api",
+        alias="OpenAI",
+        legacy_provider_id="openai",
+    )
+    food_path = tmp_path / "configs" / "food-packages.yaml"
+    food_path.parent.mkdir(parents=True, exist_ok=True)
+    food_path.write_text(
+        """
+version: 1
+default_food: standard
+foods:
+  standard:
+    display_name: Standard
+    description: Daily
+    primary:
+      model: openai/gpt-test
+""".strip(),
+        encoding="utf-8",
+    )
+
+    catalog = FoodCatalogStore(food_path, tmp_path / "history").load()
+
+    assert catalog.version == 2
+    assert catalog.recipes["standard"].primary.model == (
+        "openai_api_0001/gpt-test"
+    )
+    assert food_path.with_suffix(".yaml.v1.bak").exists()
 
 
 def test_food_catalog_allows_stable_custom_package_ids_and_mutable_names(tmp_path):
