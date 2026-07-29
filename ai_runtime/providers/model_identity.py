@@ -46,9 +46,7 @@ def load_model_identities(
         display_name = str(raw.get("display_name") or "").strip()
         raw_aliases = raw.get("aliases", [])
         if not display_name or not isinstance(raw_aliases, list):
-            raise ModelIdentityCatalogError(
-                f"标准模型 {canonical_id!r} 缺少名称或别名"
-            )
+            raise ModelIdentityCatalogError(f"标准模型 {canonical_id!r} 缺少名称或别名")
         aliases = tuple(
             dict.fromkeys(
                 str(alias).strip()

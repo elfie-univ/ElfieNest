@@ -77,9 +77,7 @@ async def benchmark_connection_models(
         stored_status = "passed" if raw["status"] == "passed" else "failed"
         latency = raw.get("latency_ms")
         latency_ms = float(latency) if isinstance(latency, (int, float)) else None
-        latency_class = (
-            str(raw["latency_class"]) if raw.get("latency_class") else None
-        )
+        latency_class = str(raw["latency_class"]) if raw.get("latency_class") else None
         error = sanitize_error(
             raw.get("error"),
             secrets=(resolve_secret(secret_name),),
@@ -138,8 +136,8 @@ def _matrix(
         cells: list[dict[str, Any]] = []
         capabilities: set[str] = set()
         for connection in enabled:
-            model = entries_by_connection.get(connection.connection_id)
-            if model is None:
+            entry_model = entries_by_connection.get(connection.connection_id)
+            if entry_model is None:
                 cells.append(
                     {
                         "connection_id": connection.connection_id,
@@ -155,15 +153,15 @@ def _matrix(
                     }
                 )
                 continue
-            capabilities.update(_model_capabilities(model))
+            capabilities.update(_model_capabilities(entry_model))
             benchmark = read_latest_model_validation(
                 connection.connection_id,
-                model.endpoint_model_id,
+                entry_model.endpoint_model_id,
             )
             cells.append(
                 {
                     "connection_id": connection.connection_id,
-                    "model_id": model.endpoint_model_id,
+                    "model_id": entry_model.endpoint_model_id,
                     "available": True,
                     "verification_status": _provider_verification(
                         connection.connection_id
@@ -239,8 +237,7 @@ def _validate_combinations(
             raise HTTPException(
                 status_code=422,
                 detail=(
-                    f"{combination.connection_id} 未声明模型 "
-                    f"{combination.model_id}"
+                    f"{combination.connection_id} 未声明模型 {combination.model_id}"
                 ),
             )
 

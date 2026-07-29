@@ -196,8 +196,7 @@ class RuntimeAgent:
         provider = self._provider_for_model(profile.model)
         provider_config = self.config.providers.get(provider, {})
         native = (
-            provider == "openai"
-            or provider_config.get("catalog_id") == "openai_api"
+            provider == "openai" or provider_config.get("catalog_id") == "openai_api"
         )
         return StructuredRuntimeCapabilities(
             provider=provider,

@@ -103,8 +103,7 @@ async def list_connections(
     store = _store()
     _ensure_local_connection(store)
     return [
-        _connection_view(connection)
-        for connection in store.load().connections.values()
+        _connection_view(connection) for connection in store.load().connections.values()
     ]
 
 
@@ -183,9 +182,21 @@ async def update_connection(
     updated = replace(
         connection,
         alias=body.alias if "alias" in fields and body.alias else connection.alias,
-        api_base=body.api_base if "api_base" in fields else connection.api_base,
-        api_mode=body.api_mode if "api_mode" in fields else connection.api_mode,
-        auth_type=body.auth_type if "auth_type" in fields else connection.auth_type,
+        api_base=(
+            body.api_base
+            if "api_base" in fields and body.api_base is not None
+            else connection.api_base
+        ),
+        api_mode=(
+            body.api_mode
+            if "api_mode" in fields and body.api_mode is not None
+            else connection.api_mode
+        ),
+        auth_type=(
+            body.auth_type
+            if "auth_type" in fields and body.auth_type is not None
+            else connection.auth_type
+        ),
         models=(
             _manual_models(body.models or ())
             if "models" in fields
@@ -223,8 +234,7 @@ async def delete_connection(
         raise HTTPException(
             status_code=409,
             detail=(
-                f"连接 '{connection_id}' 仍被粮食套餐引用："
-                + "、".join(food_keys)
+                f"连接 '{connection_id}' 仍被粮食套餐引用：" + "、".join(food_keys)
             ),
         )
     store.delete(connection_id)
@@ -324,7 +334,11 @@ async def update_connection_model(
             if "supports_reasoning" in fields
             else current.supports_reasoning
         ),
-        hidden=body.hidden if "hidden" in fields else current.hidden,
+        hidden=(
+            body.hidden
+            if "hidden" in fields and body.hidden is not None
+            else current.hidden
+        ),
     )
     models = tuple(
         updated if model.endpoint_model_id == model_id else model
@@ -404,17 +418,23 @@ def _model_record(
         supports_tools=(
             item.supports_tools
             if item.supports_tools is not None
-            else match.supports_tools if match else None
+            else match.supports_tools
+            if match
+            else None
         ),
         supports_vision=(
             item.supports_vision
             if item.supports_vision is not None
-            else match.supports_vision if match else None
+            else match.supports_vision
+            if match
+            else None
         ),
         supports_reasoning=(
             item.supports_reasoning
             if item.supports_reasoning is not None
-            else match.supports_reasoning if match else None
+            else match.supports_reasoning
+            if match
+            else None
         ),
     )
 
@@ -457,7 +477,9 @@ async def _refresh_connection_models(connection_id: str) -> dict[str, Any]:
         }
     models = tuple(
         _model_record(
-            ProviderModelInput(id=item.name, display_name=item.display_name or item.name),
+            ProviderModelInput(
+                id=item.name, display_name=item.display_name or item.name
+            ),
             source="discovered",
         )
         for item in discovered
@@ -525,21 +547,25 @@ async def _verify_connection(connection: ProviderConnection) -> dict[str, Any]:
     status = "passed" if result.get("status") in {"active", "passed"} else "failed"
     checked_at = datetime.now(timezone.utc).isoformat()
     latency = result.get("latency_ms")
-    error = sanitize_error(
-        str(result["error"]) if result.get("error") else "",
-        secrets=(_connection_api_key(connection),),
-    ) or None
+    error = (
+        sanitize_error(
+            str(result["error"]) if result.get("error") else "",
+            secrets=(_connection_api_key(connection),),
+        )
+        or None
+    )
+    latency_ms = float(latency) if isinstance(latency, (int, float)) else None
     verification = {
         "status": status,
         "checked_at": checked_at,
-        "latency_ms": float(latency) if isinstance(latency, (int, float)) else None,
+        "latency_ms": latency_ms,
         "error": error,
     }
     write_provider_validation_report(
         connection.connection_id,
         status=status,
         checked_at=checked_at,
-        latency_ms=verification["latency_ms"],
+        latency_ms=latency_ms,
         error=error,
         trigger="single",
     )
@@ -618,9 +644,7 @@ def _connection_view(
     refresh_result: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     profile = get_product(connection.catalog_id)
-    latest = verification or read_latest_provider_validation(
-        connection.connection_id
-    )
+    latest = verification or read_latest_provider_validation(connection.connection_id)
     if not latest:
         latest = {
             "status": "never",

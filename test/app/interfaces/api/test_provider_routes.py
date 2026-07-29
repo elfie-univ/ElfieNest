@@ -245,9 +245,7 @@ class TestProviderRoutes:
         assert refreshed.status_code == 200
         assert refreshed.json()["status"] == "failed"
         assert "手工添加" in refreshed.json()["message"]
-        assert any(
-            item["connection_id"] == connection_id for item in listed.json()
-        )
+        assert any(item["connection_id"] == connection_id for item in listed.json())
 
     def test_connection_models_support_manual_delete_and_discovered_hide(
         self,

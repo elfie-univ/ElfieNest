@@ -54,6 +54,21 @@ ai_runtime/
 adding a capability, confirm it truly belongs to the Runtime rather than to the
 product, a single Elfie, or the Nest domain.
 
+## Provider and food identity
+
+The bundled Provider catalog describes connectable products and contains no
+credentials. User connections live in `ELFIE_HOME/configs/providers.yaml`; one
+product may have multiple immutable connection IDs such as
+`openai_api_0001`. Models preserve the endpoint model ID required by that
+connection. Food roles reference models strictly as
+`connection_id/endpoint_model_id`, so aliases may change without breaking an
+Elfie's package and Runtime never silently crosses subscriptions.
+
+Model discovery, connection verification and model benchmarks are separate
+facts. Failed discovery preserves manually entered models. Sanitized reports
+are written below `ELFIE_HOME/reports/`, while API keys and OAuth material stay
+below `ELFIE_HOME/configs/credentials/`.
+
 ## Public entry points
 
 - `ai_runtime.LLMRuntimeConfig` — loads models, providers and Runtime policy;

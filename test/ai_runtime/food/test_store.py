@@ -97,9 +97,7 @@ foods:
     catalog = FoodCatalogStore(food_path, tmp_path / "history").load()
 
     assert catalog.version == 2
-    assert catalog.recipes["standard"].primary.model == (
-        "openai_api_0001/gpt-test"
-    )
+    assert catalog.recipes["standard"].primary.model == ("openai_api_0001/gpt-test")
     assert food_path.with_suffix(".yaml.v1.bak").exists()
 
 

@@ -352,8 +352,7 @@ class LLMRuntimeConfig:
                 api_key = self.providers[provider].get("api_key", "")
                 self.providers[provider]["status"] = (
                     "active"
-                    if api_key
-                    or self.providers[provider].get("api_mode") == "ollama"
+                    if api_key or self.providers[provider].get("api_mode") == "ollama"
                     else "inactive"
                 )
 

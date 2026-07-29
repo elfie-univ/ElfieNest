@@ -95,7 +95,9 @@ class ProviderModelRecord:
             "supports_vision": self.supports_vision,
             "supports_reasoning": self.supports_reasoning,
         }
-        result.update({key: value for key, value in optional.items() if value is not None})
+        result.update(
+            {key: value for key, value in optional.items() if value is not None}
+        )
         if self.hidden:
             result["hidden"] = True
         return result
@@ -280,7 +282,9 @@ class ProviderConnectionStore:
         connections[connection_id] = connection
         counters = dict(document.counters)
         counters[catalog_id] = next_value
-        self.save(ProviderConnectionDocument(counters=counters, connections=connections))
+        self.save(
+            ProviderConnectionDocument(counters=counters, connections=connections)
+        )
         return connection
 
     def replace(self, connection: ProviderConnection) -> None:
@@ -294,7 +298,9 @@ class ProviderConnectionStore:
             counters.get(connection.catalog_id, 0),
             int(match.group(2)),
         )
-        self.save(ProviderConnectionDocument(counters=counters, connections=connections))
+        self.save(
+            ProviderConnectionDocument(counters=counters, connections=connections)
+        )
 
     def delete(self, connection_id: str) -> bool:
         document = self.load()
@@ -338,7 +344,9 @@ class ProviderConnectionStore:
 def _parse_document(raw: Mapping[str, Any]) -> ProviderConnectionDocument:
     raw_counters = raw.get("connection_counters", {})
     raw_connections = raw.get("connections", {})
-    if not isinstance(raw_counters, Mapping) or not isinstance(raw_connections, Mapping):
+    if not isinstance(raw_counters, Mapping) or not isinstance(
+        raw_connections, Mapping
+    ):
         raise ProviderConnectionStoreError(
             "connection_counters 和 connections 必须是对象"
         )

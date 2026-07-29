@@ -46,6 +46,18 @@ ai_runtime/
 `custom_skills/` 是运行时自定义技能包入口；新增能力前应先确认它属于 Runtime，
 而不是产品、单精灵或 Nest 领域。
 
+## Provider 与粮食标识
+
+内置 Provider 目录描述系统可连接的产品，不含任何凭据。用户连接保存在
+`ELFIE_HOME/configs/providers.yaml`；同一个产品可以有多个不可变的连接 ID，例如
+`openai_api_0001`。模型保留对应连接实际要求的 endpoint 模型 ID。粮食角色严格使用
+`connection_id/endpoint_model_id` 引用模型，因此连接别名可以安全修改，Runtime
+也不会静默跨到另一个订阅。
+
+模型发现、连接验证和模型测速是三类独立事实。发现失败时会保留用户手工添加的模型。
+脱敏报告写入 `ELFIE_HOME/reports/`，API Key 与 OAuth 材料则只保存在
+`ELFIE_HOME/configs/credentials/`。
+
 ## 公开入口
 
 - `ai_runtime.LLMRuntimeConfig`：加载模型、Provider 与 Runtime 策略；

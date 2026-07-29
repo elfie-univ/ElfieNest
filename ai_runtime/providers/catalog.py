@@ -98,8 +98,7 @@ class ProviderCatalog:
     def profiles(self) -> Dict[str, ProviderProfile]:
         """Return the legacy Provider-keyed view during the staged migration."""
         return {
-            profile.legacy_provider_id: profile
-            for profile in self.products.values()
+            profile.legacy_provider_id: profile for profile in self.products.values()
         }
 
     def suggested_models(self, api_base: str) -> list[str]:
