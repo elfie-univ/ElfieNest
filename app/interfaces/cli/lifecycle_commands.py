@@ -53,7 +53,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 WEB_URL = "http://127.0.0.1:8000/"
 WEB_HEALTH_URL = "http://127.0.0.1:8000/api/health"
 BACKGROUND_START_TIMEOUT_SECONDS = 60.0
-AUTHORITY_START_TIMEOUT_SECONDS = 30.0
+AUTHORITY_START_TIMEOUT_SECONDS = 120.0
 
 
 def _supervisor_for(command: Sequence[str], http_port: int) -> RuntimeSupervisor:
