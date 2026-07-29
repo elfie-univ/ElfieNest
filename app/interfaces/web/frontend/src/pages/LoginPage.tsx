@@ -1,13 +1,12 @@
 import { useState, type FormEvent } from "react"
 
 import { Button } from "@/components/ui/button"
-import { ApiError, login } from "../api/client"
+import { ApiError, login, safeLoginNextPath } from "../api/client"
 import { Notice } from "../components/Notice"
 import { TextField } from "../components/TextField"
 
 function safeNext(): string {
-  const next = new URLSearchParams(window.location.search).get("next")
-  return next === "/chat" || next === "/manage" ? next : ""
+  return safeLoginNextPath(new URLSearchParams(window.location.search).get("next"))
 }
 
 export function LoginPage() {

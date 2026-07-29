@@ -2,6 +2,8 @@
 class_name ModularNest
 extends Node3D
 
+signal observer_camera_catalog_changed(catalog: Dictionary)
+
 const D := preload("res://rooms/room_dimensions.gd")
 const G := preload("res://rooms/room_geometry.gd")
 const P := preload("res://rooms/assets/themes/room_palette.gd")
@@ -59,6 +61,9 @@ var _camera_default_distance: float = TOP_DOWN_MIN_HEIGHT
 var _camera_default_size: float = 22.0
 var _camera_views: Array[Dictionary] = []
 var _active_camera_index: int = 0
+var _active_camera_id := "overview"
+var _observer_presentation_paused := false
+var camera_catalog_revision: int = 0
 var world_revision: int = 0
 var _nest_id := "local-nest"
 var _suppress_deferred_rebuild := false
@@ -80,6 +85,8 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if Engine.is_editor_hint():
+		return
+	if _observer_presentation_paused:
 		return
 	var camera := _active_camera()
 	if camera == null:
@@ -665,12 +672,12 @@ func _build_portal_room(parent: Node3D) -> void:
 
 
 func _build_observation_views(generated: Node3D, room_count: int) -> void:
-	var previous_index := _active_camera_index
+	var previous_id := _active_camera_id
 	_camera_views.clear()
 	var overview := get_node_or_null("Camera3D") as Camera3D
 	if overview == null:
 		return
-	_register_observation_view("整体总览", overview, _camera_default_target)
+	_register_observation_view("overview", "整体总览", overview, _camera_default_target)
 	_build_section_observation_views(generated, room_count)
 
 	for index in range(room_count):
@@ -681,6 +688,7 @@ func _build_observation_views(generated: Node3D, room_count: int) -> void:
 		_attach_room_camera(
 			activity,
 			"ActivityObservationCamera",
+			"activity-%02d" % (index + 1),
 			"%02d %s" % [index + 1, activity_label],
 			activity.position + Vector3(0.0, 0.65, 0.0),
 			ROOM_CAMERA_FOV
@@ -690,6 +698,7 @@ func _build_observation_views(generated: Node3D, room_count: int) -> void:
 		_attach_room_camera(
 			dorm,
 			"DormObservationCamera",
+			"dorm-%02d" % (index + 1),
 			"%02d 宿舍" % (index + 1),
 			dorm.position + Vector3(0.0, 0.65, 0.0),
 			ROOM_CAMERA_FOV
@@ -699,6 +708,7 @@ func _build_observation_views(generated: Node3D, room_count: int) -> void:
 	_attach_room_camera(
 		portal,
 		"PortalObservationCamera",
+		"portal",
 		"传送室",
 		Vector3(0.0, 0.65, 1.5),
 		PORTAL_CAMERA_FOV
@@ -707,9 +717,15 @@ func _build_observation_views(generated: Node3D, room_count: int) -> void:
 	var labels := PackedStringArray()
 	for view in _camera_views:
 		labels.append(String(view["label"]))
-	_active_camera_index = clampi(previous_index, 0, _camera_views.size() - 1)
+	camera_catalog_revision += 1
+	_active_camera_index = _observation_view_index_by_id(previous_id)
+	if _active_camera_index < 0:
+		_active_camera_index = _observation_view_index_by_id("overview")
+	if _active_camera_index < 0:
+		_active_camera_index = 0
 	_observation_hud.call("set_views", labels, _active_camera_index)
 	select_observation_view(_active_camera_index)
+	_emit_observer_camera_catalog_changed()
 
 
 func _build_section_observation_views(generated: Node3D, room_count: int) -> void:
@@ -736,6 +752,7 @@ func _build_section_observation_views(generated: Node3D, room_count: int) -> voi
 		cameras.add_child(camera)
 		_set_top_down_transform(camera, target, TOP_DOWN_MIN_HEIGHT)
 		_register_observation_view(
+			"section-%02d" % (section_index + 1),
 			"区域俯视 %02d-%02d" % [first_room + 1, last_room + 1],
 			camera,
 			target
@@ -745,6 +762,7 @@ func _build_section_observation_views(generated: Node3D, room_count: int) -> voi
 func _attach_room_camera(
 	room: Node3D,
 	camera_name: String,
+	view_id: String,
 	label: String,
 	target: Vector3,
 	fov: float
@@ -762,11 +780,17 @@ func _attach_room_camera(
 	camera.current = false
 	anchor.add_child(camera)
 	anchor.force_update_transform()
-	_register_observation_view(label, camera, target)
+	_register_observation_view(view_id, label, camera, target)
 
 
-func _register_observation_view(label: String, camera: Camera3D, target: Vector3) -> void:
+func _register_observation_view(
+	view_id: String,
+	label: String,
+	camera: Camera3D,
+	target: Vector3
+) -> void:
 	_camera_views.append({
+		"id": view_id,
 		"label": label,
 		"camera": camera,
 		"target": target,
@@ -787,8 +811,33 @@ func observation_view_labels() -> PackedStringArray:
 	return labels
 
 
+func observer_camera_catalog() -> Dictionary:
+	var views: Array[Dictionary] = []
+	for view in _camera_views:
+		views.append({
+			"id": String(view["id"]),
+			"label": String(view["label"]),
+		})
+	return {
+		"revision": camera_catalog_revision,
+		"views": views,
+		"active_id": _active_camera_id,
+		"presentation_paused": _observer_presentation_paused,
+	}
+
+
 func observation_active_view_index() -> int:
 	return _active_camera_index
+
+
+func observer_presentation_paused() -> bool:
+	return _observer_presentation_paused
+
+
+func set_observation_hud_visible(visible: bool) -> void:
+	show_observation_hud = visible
+	if _observation_hud != null:
+		_observation_hud.visible = visible
 
 
 func select_observation_view(index: int) -> void:
@@ -796,6 +845,7 @@ func select_observation_view(index: int) -> void:
 		return
 	_active_camera_index = index
 	var view := _camera_views[index]
+	_active_camera_id = String(view["id"])
 	var camera := view["camera"] as Camera3D
 	camera.current = true
 	_camera_target = view["target"] as Vector3
@@ -804,6 +854,21 @@ func select_observation_view(index: int) -> void:
 	camera.fov = float(view["fov"])
 	_sync_orbit_state(camera)
 	_observation_hud.call("set_selected_view", index)
+	_emit_observer_camera_catalog_changed()
+
+
+func select_observer_camera_by_id(view_id: String) -> bool:
+	if _observer_presentation_paused:
+		return false
+	var index := _observation_view_index_by_id(view_id)
+	if index < 0:
+		return false
+	select_observation_view(index)
+	return true
+
+
+func select_observer_overview() -> bool:
+	return select_observer_camera_by_id("overview")
 
 
 func select_observation_view_named(label_fragment: String) -> bool:
@@ -819,6 +884,32 @@ func select_observation_view_named(label_fragment: String) -> bool:
 func reset_observation_camera() -> void:
 	"""Restore the current preset after direct orbit, pan, or zoom input."""
 	_reset_camera()
+	_emit_observer_camera_catalog_changed()
+
+
+func reset_observer_camera() -> void:
+	if _observer_presentation_paused:
+		return
+	reset_observation_camera()
+
+
+func set_observer_presentation_paused(paused: bool) -> void:
+	if _observer_presentation_paused == paused:
+		return
+	_observer_presentation_paused = paused
+	_emit_observer_camera_catalog_changed()
+
+
+func _observation_view_index_by_id(view_id: String) -> int:
+	for index in range(_camera_views.size()):
+		var view := _camera_views[index]
+		if String(view["id"]) == view_id:
+			return index
+	return -1
+
+
+func _emit_observer_camera_catalog_changed() -> void:
+	observer_camera_catalog_changed.emit(observer_camera_catalog())
 
 
 func _cycle_observation_view(direction: int) -> void:

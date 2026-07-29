@@ -1,0 +1,102 @@
+.camera-frame { width: 100%; min-height: 180px; margin-top: 12px; border-radius: 12px; background: var(--code-bg); object-fit: cover; }
+.observer-engine-parking { display: none; }
+.observer-surface { display: grid; gap: 10px; min-width: 0; }
+.observer-surface__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.observer-surface__head > div { display: grid; gap: 3px; }
+.observer-surface__head small { color: var(--text-muted); }
+.observer-surface__viewport, .observer-surface__fallback { display: grid; min-height: 260px; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--code-bg); }
+.observer-surface__viewport { position: relative; }
+.observer-surface__viewport > p { position: absolute; z-index: 1; inset: 12px auto auto 12px; margin: 0; padding: 5px 8px; border-radius: 6px; color: var(--surface); background: color-mix(in srgb, var(--ink) 76%, transparent); }
+.observer-engine { width: 100%; height: 100%; min-height: 260px; border: 0; background: var(--code-bg); }
+.observer-surface__fallback { place-content: center; gap: 10px; padding: 20px; text-align: center; }
+.observer-surface__fallback p { margin: 0; color: var(--text-muted); }
+
+.manage-dialog--camera { width: min(86vw, 1320px) !important; max-width: min(86vw, 1320px) !important; max-height: min(86vh, 920px) !important; }
+.manage-dialog--camera .manage-card { border: 0; padding: 0; background: transparent; }
+.manage-dialog--camera .observer-surface { min-height: 0; }
+.manage-dialog--camera .observer-surface__viewport,
+.manage-dialog--camera .observer-surface__fallback { height: min(66vh, 720px); min-height: 520px; }
+
+@media (max-width: 760px) {
+  .manage-dialog--camera { width: calc(100vw - 20px) !important; max-width: calc(100vw - 20px) !important; }
+  .manage-dialog--camera .observer-surface__viewport,
+  .manage-dialog--camera .observer-surface__fallback { height: min(58vh, 560px); min-height: 360px; }
+}
+
+.monitor-page {
+  display: grid;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--code-bg);
+}
+.monitor-page > .observation-monitor { height: 100%; }
+.observation-monitor {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--code-bg);
+}
+.observation-monitor > .observer-surface { height: 100%; min-height: 0; }
+.observation-monitor .observer-surface__viewport,
+.observation-monitor .observer-surface__fallback {
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+}
+.observation-monitor__toolbar {
+  position: absolute;
+  z-index: 5;
+  inset: 12px 12px auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 6px;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 78%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-raised) 92%, transparent);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--shadow-color) 16%, transparent);
+  scrollbar-gutter: stable;
+  scrollbar-color: color-mix(in srgb, var(--border-strong) 72%, transparent) transparent;
+  scrollbar-width: thin;
+  touch-action: pan-x;
+  white-space: nowrap;
+}
+.observation-monitor__toolbar::-webkit-scrollbar { height: 4px; }
+.observation-monitor__toolbar::-webkit-scrollbar-track { background: transparent; }
+.observation-monitor__toolbar::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--border-strong) 72%, transparent);
+}
+.observation-monitor__toolbar [data-slot="button"] { flex: 0 0 auto; }
+.observation-monitor__camera[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--active-ink);
+  background: var(--accent-soft);
+}
+.observation-monitor__pause { min-inline-size: 94px; }
+.observation-monitor__restore {
+  position: absolute;
+  z-index: 5;
+  top: 12px;
+  right: 12px;
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--shadow-color) 16%, transparent);
+}
+.manage-dialog--camera .observation-monitor { height: min(66vh, 720px); min-height: 520px; }
+.manage-dialog--camera .observation-monitor .observer-surface__viewport,
+.manage-dialog--camera .observation-monitor .observer-surface__fallback { height: 100%; min-height: 0; }
+
+@media (max-width: 760px) {
+  .monitor-page { height: 100dvh; }
+  .observation-monitor__toolbar { inset: 8px 8px auto; }
+  .observation-monitor__restore { top: 8px; right: 8px; }
+  .manage-dialog--camera .observation-monitor { height: min(58vh, 560px); min-height: 360px; }
+}

@@ -49,7 +49,10 @@ export function interceptProductNavigation(event: MouseEvent): void {
   const anchor = target.closest("a[href]")
   if (!(anchor instanceof HTMLAnchorElement)) return
   const url = new URL(anchor.href, window.location.origin)
-  if (url.origin !== window.location.origin || (url.pathname !== "/chat" && url.pathname !== "/manage")) return
+  if (
+    url.origin !== window.location.origin
+    || (url.pathname !== "/chat" && url.pathname !== "/manage" && url.pathname !== "/monitor")
+  ) return
   event.preventDefault()
   navigate(`${url.pathname}${url.search}${url.hash}`)
 }

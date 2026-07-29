@@ -10,27 +10,59 @@ GODOT_RESOLVED_USER_HOME=""
 GODOT_RESOLVED_VERSION=""
 
 check_pnpm() {
+    local package_dir="$1"
+    local pnpm_bin
     local pnpm_version
-    pnpm_version="$(pnpm --version 2>/dev/null || true)"
+
+    pnpm_bin="$(command -v pnpm 2>/dev/null || true)"
+    [[ -n "$pnpm_bin" ]] || return 1
+
+    pnpm_version="$(cd "$package_dir" && "$pnpm_bin" --version 2>/dev/null || true)"
     [[ "$pnpm_version" == "$PNPM_VERSION" ]]
 }
 
 ensure_pnpm() {
-    if check_pnpm; then
+    local package_dir="$1"
+    local npx_bin
+    local pnpm_version
+
+    if check_pnpm "$package_dir"; then
         echo "${GREEN}  ✅ pnpm $PNPM_VERSION ready${RESET}"
         return 0
     fi
 
-    echo "${CYAN}  🔧 Installing pnpm $PNPM_VERSION...${RESET}"
-    if ! npm install -g "pnpm@${PNPM_VERSION}" >&2; then
-        echo "${RED}  ❌ pnpm $PNPM_VERSION installation failed${RESET}" >&2
+    npx_bin="$(command -v npx 2>/dev/null || true)"
+    if [[ -z "$npx_bin" ]]; then
+        echo "${RED}  ❌ pnpm $PNPM_VERSION is unavailable and npx was not found${RESET}" >&2
         return 1
     fi
-    if ! check_pnpm; then
+
+    echo "${CYAN}  🔧 Preparing repository-pinned pnpm $PNPM_VERSION...${RESET}"
+    if ! pnpm_version="$(cd "$package_dir" && "$npx_bin" --yes "pnpm@${PNPM_VERSION}" --version)"; then
+        echo "${RED}  ❌ Failed to prepare repository-pinned pnpm $PNPM_VERSION${RESET}" >&2
+        return 1
+    fi
+    if [[ "$pnpm_version" != "$PNPM_VERSION" ]]; then
         echo "${RED}  ❌ pnpm version mismatch (need $PNPM_VERSION)${RESET}" >&2
         return 1
     fi
-    echo "${GREEN}  ✅ pnpm $PNPM_VERSION installed${RESET}"
+    echo "${GREEN}  ✅ pnpm $PNPM_VERSION ready through npx${RESET}"
+}
+
+run_pnpm() {
+    local package_dir="$1"
+    shift
+
+    if check_pnpm "$package_dir"; then
+        local pnpm_bin
+        pnpm_bin="$(command -v pnpm)"
+        (cd "$package_dir" && "$pnpm_bin" "$@")
+        return
+    fi
+
+    local npx_bin
+    npx_bin="$(command -v npx)"
+    (cd "$package_dir" && "$npx_bin" --yes "pnpm@${PNPM_VERSION}" "$@")
 }
 
 check_godot_web() {

@@ -23,7 +23,7 @@ from app.interfaces.web.build_discovery import (
 
 router = APIRouter(include_in_schema=False)
 
-_SAFE_NEXT_PATHS = frozenset({"/chat", "/manage"})
+_SAFE_NEXT_PATHS = frozenset({"/chat", "/manage", "/monitor"})
 _SHELL_CACHE_HEADERS = {
     "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
     "Pragma": "no-cache",
@@ -52,6 +52,8 @@ def post_login_landing_path(user: Dict[str, Any], raw_next: Optional[str]) -> st
     safe_next = safe_next_path(raw_next)
     if user.get("role") == "owner" and safe_next == "/manage":
         return "/manage"
+    if user.get("role") == "owner" and safe_next == "/monitor":
+        return "/monitor"
     if user.get("role") == "user" and safe_next == "/chat":
         return "/chat"
     return default_landing_path(user)
@@ -166,6 +168,19 @@ async def manage_page(request: Request) -> Response:
     user = _current_page_user(request)
     if user is None:
         return _login_redirect("/manage")
+    if user.get("role") != "owner":
+        return RedirectResponse("/chat", status_code=303)
+    return _serve_generated_page(request)
+
+
+@router.get("/monitor")
+async def monitor_page(request: Request) -> Response:
+    """Enforce the Owner-only monitor landing route on the server."""
+    if needs_setup(request.app.state.db_path):
+        return RedirectResponse("/setup", status_code=303)
+    user = _current_page_user(request)
+    if user is None:
+        return _login_redirect("/monitor")
     if user.get("role") != "owner":
         return RedirectResponse("/chat", status_code=303)
     return _serve_generated_page(request)

@@ -119,6 +119,16 @@ primary-content horizontal scrolling.
 - **States:** default, hover, focus-visible, active, and pressed all use existing
   semantic tokens only.
 
+### Observation Monitor Toolbar
+- **Structure:** one compact horizontal reel overlays the 3D surface; commands
+  never wrap or create a second control row.
+- **Scrolling:** the reel keeps native horizontal input while rendering a 4px
+  visual scrollbar with a transparent track and semantic divider-colored thumb.
+- **Icon semantics:** Owner monitor entry points and the toolbar overview command
+  use the Lucide `Cctv` icon. Generic camera preview actions may retain `Camera`.
+- **States:** default, hover, focus-visible, pressed camera, paused, hidden, and
+  restored.
+
 ### Identity Card
 - **Structure:** a reusable shadcn Card shell with one fixed square portrait on
   the left and a horizontal `label：value` grid on the right.

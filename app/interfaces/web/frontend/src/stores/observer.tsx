@@ -9,6 +9,8 @@ import {
   type ObserverFrame,
   type ObserverSubscription,
 } from "../api/observer"
+import { PRODUCT_OBSERVER_URL, useObserverCameraBridge } from "./observer-camera-bridge"
+import type { ObserverCameraCatalog } from "./observer-protocol"
 
 export type ObserverStatus = "idle" | "loading" | "ready" | "fallback"
 export type ObserverFallbackReason = "disabled" | "insecure-context" | "unsupported-device" | "runtime"
@@ -17,11 +19,16 @@ type ObserverScope =
   | { readonly kind: "elfie"; readonly elfieId: string }
 type ObserverState = {
   readonly attach: (target: HTMLElement | null) => void
+  readonly cameraCatalog: ObserverCameraCatalog | null
   readonly detach: () => void
   readonly entities: Readonly<Record<string, ObserverEntity>>
   readonly openElfie: (elfieId: string) => Promise<void>
   readonly openRoom: (roomId: string) => Promise<void>
   readonly fallbackReason: ObserverFallbackReason | null
+  readonly overview: () => void
+  readonly reset: () => void
+  readonly select: (viewId: string) => void
+  readonly setLocalPresentationPaused: (paused: boolean) => void
   readonly status: ObserverStatus
 }
 
@@ -100,6 +107,14 @@ export function ObserverProvider({
   const entitiesRef = useRef<Readonly<Record<string, ObserverEntity>>>({})
   const restartRequiredRef = useRef(false)
   const attemptRef = useRef(0)
+  const {
+    cameraCatalog,
+    clearCameraCatalog,
+    overview,
+    reset,
+    select,
+    setLocalPresentationPaused,
+  } = useObserverCameraBridge(iframeRef)
 
   const clearTimer = (timerRef: MutableRefObject<number | null>): void => {
     if (timerRef.current !== null) window.clearTimeout(timerRef.current)
@@ -121,7 +136,8 @@ export function ObserverProvider({
     setFallbackReason(null)
     setEntities({})
     entitiesRef.current = {}
-  }, [])
+    clearCameraCatalog()
+  }, [clearCameraCatalog])
 
   const markEngineReady = useCallback((): void => {
     clearTimer(readyTimerRef)
@@ -202,9 +218,8 @@ export function ObserverProvider({
 
   const createEngine = useCallback((): HTMLIFrameElement => {
     const engine = document.createElement("iframe")
-    engine.allow = "fullscreen"
     engine.className = "observer-engine"
-    engine.src = "/runtime/godot/elfienest.html"
+    engine.src = PRODUCT_OBSERVER_URL
     engine.title = "ElfieNest 3D Observer"
     engine.addEventListener("error", requireRestart)
     return engine
@@ -305,13 +320,18 @@ export function ObserverProvider({
 
   const value = useMemo<ObserverState>(() => ({
     attach,
+    cameraCatalog,
     detach,
     entities,
     openElfie: async (elfieId: string): Promise<void> => open({ kind: "elfie", elfieId }),
     openRoom: async (roomId: string): Promise<void> => open({ kind: "room", roomId }),
     fallbackReason,
+    overview,
+    reset,
+    select,
+    setLocalPresentationPaused,
     status,
-  }), [attach, detach, entities, fallbackReason, open, status])
+  }), [attach, cameraCatalog, detach, entities, fallbackReason, open, overview, reset, select, setLocalPresentationPaused, status])
 
   return <ObserverContext.Provider value={value}>{children}<div aria-hidden className="observer-engine-parking" ref={parkingRef} /></ObserverContext.Provider>
 }

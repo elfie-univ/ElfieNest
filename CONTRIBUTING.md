@@ -45,6 +45,10 @@ Public Ollama remains optional and is selected explicitly in Setup.
 ./scripts/bootstrap.sh ensure --tier=dev
 ```
 
+Bootstrap resolves the repository-pinned pnpm release from each package
+directory. If no compatible pnpm command is available, it runs the exact
+pinned release through `npx`; it never installs or overwrites a global pnpm.
+
 ### Python environment contract
 The 3.9.25 contract in `requires-python`, lockfile, CI and launch scripts. All
 install, dev, test, code review and script runs go through `scripts/bootstrap.sh`

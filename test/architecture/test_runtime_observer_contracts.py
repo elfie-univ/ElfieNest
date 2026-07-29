@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import configparser
+import re
 from pathlib import Path
 
 from app.interfaces.cli.packaged_runtime import NativeTarget
@@ -16,6 +17,8 @@ FORBIDDEN_RUNTIME_DIRECTORIES = frozenset({"desktop", "nest/godot", "nest/runtim
 RUNTIME_HEALTH_PATH = PROJECT_ROOT / "app/orchestration/lifecycle/runtime_health.py"
 HOST_CONTRACT_PATH = PROJECT_ROOT / "godot_runtime/host_contract.py"
 OBSERVER_DESCRIPTOR_PATH = PROJECT_ROOT / "nest/godot_gateway/observer.py"
+GODOT_MAIN_PATH = PROJECT_ROOT / "godot_project/main.gd"
+GODOT_NEST_PATH = PROJECT_ROOT / "godot_project/rooms/nest.gd"
 LIFECYCLE_CLIENT_PATH = PROJECT_ROOT / "app/interfaces/desktop/src/lifecycle_client.ts"
 REQUIRED_RUNTIME_HEALTH_TYPES = frozenset(
     {"RuntimeComponent", "RuntimeHealthState", "RuntimeHealth", "OwnerLease"}
@@ -39,6 +42,51 @@ EXPECTED_HOST_KINDS = frozenset(
 )
 REQUIRED_HOST_SELECTORS = frozenset({"select_authority_host"})
 EXPECTED_OBSERVER_INTENTS = frozenset({"request_resync", "focus_room", "focus_elfie"})
+EXPECTED_GODOT_OBSERVER_ACTIONS = frozenset(
+    {
+        "overview",
+        "select",
+        "reset",
+        "set_local_presentation_paused",
+    }
+)
+EXPECTED_GODOT_OBSERVER_CATALOG_FIELDS = frozenset(
+    {"revision", "views", "active_id", "presentation_paused"}
+)
+EXPECTED_GODOT_OBSERVER_VIEW_FIELDS = frozenset({"id", "label"})
+EXPECTED_GODOT_OBSERVER_TRANSPORT_FIELDS = frozenset(
+    {"channel", "version", "kind"}
+)
+FORBIDDEN_GODOT_OBSERVER_BOUNDARY_FIELDS = frozenset(
+    {
+        "x",
+        "y",
+        "z",
+        "position",
+        "positions",
+        "transform",
+        "transforms",
+        "fov",
+        "coordinates",
+        "frame",
+        "frames",
+        "credential",
+        "credentials",
+        "token",
+        "nonce",
+        "authority",
+    }
+)
+FORBIDDEN_GODOT_OBSERVER_ACTIONS = frozenset({"previous", "next"})
+EXPECTED_GODOT_OBSERVER_ACTION_KEY_RULES = {
+    "overview": frozenset(),
+    "select": frozenset({"view_id"}),
+    "reset": frozenset(),
+    "set_local_presentation_paused": frozenset({"paused"}),
+}
+EXPECTED_GODOT_OBSERVER_VIEW_IDS = frozenset(
+    {"overview", "section-%02d", "activity-%02d", "dorm-%02d", "portal"}
+)
 EXPECTED_NATIVE_TARGETS = frozenset(
     {
         "darwin-arm64",
@@ -115,6 +163,77 @@ def _class_bases(path: Path, class_name: str) -> set[str]:
 def _function_names(path: Path) -> set[str]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     return {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
+
+
+def _gdscript_function_body(path: Path, function_name: str) -> str:
+    lines = path.read_text(encoding="utf-8").splitlines()
+    signature_prefix = f"func {function_name}("
+    start_index = next(
+        (index for index, line in enumerate(lines) if line.startswith(signature_prefix)),
+        None,
+    )
+    if start_index is None:
+        raise AssertionError(f"GDScript function not found: {function_name}")
+    end_index = next(
+        (
+            index
+            for index in range(start_index + 1, len(lines))
+            if lines[index].startswith("func ")
+        ),
+        len(lines),
+    )
+    return "\n".join(lines[start_index:end_index])
+
+
+def _gdscript_braced_block(source: str, marker: str) -> str:
+    marker_index = source.find(marker)
+    if marker_index < 0:
+        raise AssertionError(f"GDScript marker not found: {marker}")
+    open_index = source.find("{", marker_index)
+    if open_index < 0:
+        raise AssertionError(f"GDScript braced block not found after: {marker}")
+    depth = 0
+    for index in range(open_index, len(source)):
+        character = source[index]
+        if character == "{":
+            depth += 1
+        elif character == "}":
+            depth -= 1
+            if depth == 0:
+                return source[open_index : index + 1]
+    raise AssertionError(f"GDScript braced block is unterminated after: {marker}")
+
+
+def _gdscript_literal_keys(source: str) -> set[str]:
+    return set(re.findall(r'^\s*"([^"]+)":', source, flags=re.MULTILINE))
+
+
+def _gdscript_string_literals(source: str) -> set[str]:
+    return set(re.findall(r'"([^"]*)"', source))
+
+
+def _gdscript_match_cases(source: str) -> set[str]:
+    return set(re.findall(r'^\s*"([^"]+)":\s*$', source, flags=re.MULTILINE))
+
+
+def _assert_tokens_in_order(source: str, tokens: tuple[str, ...]) -> None:
+    position = -1
+    for token in tokens:
+        next_position = source.find(token, position + 1)
+        assert next_position > position, token
+        position = next_position
+
+
+def _gdscript_observer_action_key_rules(source: str) -> dict[str, frozenset[str]]:
+    matches = re.findall(
+        r'"([^"]+)":\s*\n\s*return _observer_message_has_exact_keys\('
+        r'message,\s*\[([^\]]*)\]\s*\)',
+        source,
+    )
+    return {
+        action: frozenset(re.findall(r'"([^"]+)"', allowed_keys))
+        for action, allowed_keys in matches
+    }
 
 
 def _desktop_files(root: Path) -> tuple[Path, ...]:
@@ -268,6 +387,203 @@ def test_observer_descriptor_has_only_scoped_read_capability_and_high_level_inte
     assert _enum_values(OBSERVER_DESCRIPTOR_PATH, "ObserverIntent") == (
         EXPECTED_OBSERVER_INTENTS
     )
+
+
+def test_godot_observer_catalog_is_semantic_versioned_and_not_authority() -> None:
+    # Given: Product web observes Godot through a semantic camera catalog only.
+    catalog_body = _gdscript_function_body(GODOT_NEST_PATH, "observer_camera_catalog")
+    register_body = _gdscript_function_body(GODOT_NEST_PATH, "_register_observation_view")
+    rebuild_body = _gdscript_function_body(GODOT_NEST_PATH, "_build_observation_views")
+    section_views_body = _gdscript_function_body(
+        GODOT_NEST_PATH, "_build_section_observation_views"
+    )
+    select_view_body = _gdscript_function_body(GODOT_NEST_PATH, "select_observation_view")
+    select_by_id_body = _gdscript_function_body(
+        GODOT_NEST_PATH, "select_observer_camera_by_id"
+    )
+    reset_observer_body = _gdscript_function_body(
+        GODOT_NEST_PATH, "reset_observer_camera"
+    )
+    public_catalog_api_bodies = "\n".join(
+        _gdscript_function_body(GODOT_NEST_PATH, function_name)
+        for function_name in (
+            "observer_camera_catalog",
+            "observer_presentation_paused",
+            "select_observer_camera_by_id",
+            "select_observer_overview",
+            "reset_observer_camera",
+            "set_observer_presentation_paused",
+        )
+    )
+    ready_body = _gdscript_function_body(GODOT_MAIN_PATH, "_ready")
+    setup_body = _gdscript_function_body(
+        GODOT_MAIN_PATH, "_setup_product_observer_bridge"
+    )
+    poll_body = _gdscript_function_body(GODOT_MAIN_PATH, "_poll_observer_commands")
+    accepts_body = _gdscript_function_body(GODOT_MAIN_PATH, "_accepts_observer_message")
+    exact_keys_body = _gdscript_function_body(
+        GODOT_MAIN_PATH, "_observer_message_has_exact_keys"
+    )
+    parser_body = _gdscript_function_body(GODOT_MAIN_PATH, "_parse_observer_command")
+    presentation_mode_body = _gdscript_function_body(
+        GODOT_MAIN_PATH, "_enter_product_observer_presentation_mode"
+    )
+    local_pause_body = _gdscript_function_body(
+        GODOT_MAIN_PATH, "_set_local_observer_presentation_paused"
+    )
+    publish_body = _gdscript_function_body(GODOT_MAIN_PATH, "_publish_observer_catalog")
+
+    # When / Then: the internal catalog is exactly semantic id/label metadata.
+    assert _gdscript_literal_keys(
+        _gdscript_braced_block(catalog_body, "views.append")
+    ) == EXPECTED_GODOT_OBSERVER_VIEW_FIELDS
+    assert _gdscript_literal_keys(
+        _gdscript_braced_block(catalog_body, "return")
+    ) == EXPECTED_GODOT_OBSERVER_CATALOG_FIELDS
+    assert FORBIDDEN_GODOT_OBSERVER_BOUNDARY_FIELDS.isdisjoint(
+        _gdscript_string_literals(public_catalog_api_bodies)
+    )
+
+    # And: registrations preserve stable semantic ids, while unknown selection
+    # returns false before any active-camera mutation or fallback selection.
+    registration_sources = rebuild_body + "\n" + section_views_body
+    assert EXPECTED_GODOT_OBSERVER_VIEW_IDS <= _gdscript_string_literals(
+        registration_sources
+    )
+    assert _gdscript_literal_keys(
+        _gdscript_braced_block(register_body, "_camera_views.append")
+    ) == frozenset({"id", "label", "camera", "target", "transform", "size", "fov"})
+    _assert_tokens_in_order(
+        rebuild_body,
+        (
+            "var previous_id := _active_camera_id",
+            "_active_camera_index = _observation_view_index_by_id(previous_id)",
+            '_active_camera_index = _observation_view_index_by_id("overview")',
+            "_active_camera_index = 0",
+            "select_observation_view(_active_camera_index)",
+        ),
+    )
+    _assert_tokens_in_order(
+        select_by_id_body,
+        (
+            "if _observer_presentation_paused:",
+            "return false",
+            "var index := _observation_view_index_by_id(view_id)",
+            "if index < 0:",
+            "return false",
+            "select_observation_view(index)",
+            "return true",
+        ),
+    )
+    assert "_active_camera_index =" not in select_by_id_body
+    assert "_active_camera_id =" not in select_by_id_body
+    assert "_observer_presentation_paused" not in select_view_body
+    assert '_active_camera_id = String(view["id"])' in select_view_body
+    assert "_observer_presentation_paused" in reset_observer_body
+
+    # And: the Web transport adds only channel/version/kind around the catalog.
+    assert 'OBSERVER_CHANNEL := "elfienest.observer"' in GODOT_MAIN_PATH.read_text(
+        encoding="utf-8"
+    )
+    assert "OBSERVER_PROTOCOL_VERSION := 1" in GODOT_MAIN_PATH.read_text(
+        encoding="utf-8"
+    )
+    assert "nest.observer_camera_catalog()" in publish_body
+    assert _gdscript_literal_keys(
+        _gdscript_braced_block(publish_body, ".merged")
+    ) == EXPECTED_GODOT_OBSERVER_TRANSPORT_FIELDS
+    assert '"kind": "camera_catalog"' in publish_body
+    assert "_observer_window.parent.postMessage" in publish_body
+
+    # And: the bridge exists only in product observer mode and its injected
+    # listener checks origin, then parent source, before queueing parsed commands.
+    _assert_tokens_in_order(
+        ready_body,
+        (
+            "_product_observer_mode = (",
+            "_query_parameter(OBSERVER_MODE_PARAMETER) == OBSERVER_MODE_VALUE",
+            "if _product_observer_mode:",
+            "_enter_product_observer_presentation_mode()",
+            "nest.show_observation_hud = false",
+            "_setup_product_observer_bridge()",
+        ),
+    )
+    _assert_tokens_in_order(
+        setup_body,
+        (
+            'if not OS.has_feature("web"):',
+            "JavaScriptBridge.get_interface",
+            "event.origin !== window.location.origin",
+            "event.source !== window.parent",
+            "data.channel === 'elfienest.observer'",
+            "data.version === 1",
+            "data.kind === 'camera_command'",
+            "__elfieNestObserverQueue.push",
+        ),
+    )
+    _assert_tokens_in_order(
+        poll_body,
+        (
+            "JSON.parse_string(String(raw_message))",
+            "_parse_observer_command",
+            "_handle_observer_command",
+        ),
+    )
+
+    # And: command parsing is a closed semantic vocabulary with exact
+    # action-specific key allowlists; free-form, previous, next, nested payloads,
+    # extra fields and coordinate-bearing commands are rejected outside those cases.
+    assert _gdscript_match_cases(parser_body) == EXPECTED_GODOT_OBSERVER_ACTIONS
+    assert FORBIDDEN_GODOT_OBSERVER_ACTIONS.isdisjoint(
+        _gdscript_string_literals(parser_body)
+    )
+    assert _gdscript_observer_action_key_rules(
+        accepts_body
+    ) == EXPECTED_GODOT_OBSERVER_ACTION_KEY_RULES
+    assert '["channel", "version", "kind", "action"]' in exact_keys_body
+    assert "message.keys().size() != allowed_keys.size()" in exact_keys_body
+    assert "for key: Variant in message.keys():" in exact_keys_body
+    assert "if typeof(key) != TYPE_STRING:" in exact_keys_body
+    assert "if key not in allowed_keys:" in exact_keys_body
+    assert "typeof(message.get(\"channel\")) != TYPE_STRING" in accepts_body
+    assert "var version: Variant = message.get(\"version\")" in accepts_body
+    assert "if typeof(version) == TYPE_INT:" in accepts_body
+    assert "elif typeof(version) == TYPE_FLOAT:" in accepts_body
+    assert "if version != float(OBSERVER_PROTOCOL_VERSION):" in accepts_body
+    assert "typeof(message.get(\"kind\")) != TYPE_STRING" in accepts_body
+    assert "typeof(message.get(\"action\")) != TYPE_STRING" in accepts_body
+    assert "String(message.get" not in accepts_body
+    assert "int(message.get" not in accepts_body
+    assert "return false" in accepts_body
+    assert "not _product_observer_mode or not _accepts_observer_message(message)" in (
+        parser_body
+    )
+    _assert_tokens_in_order(parser_body, ("_:", "return {}"))
+    assert FORBIDDEN_GODOT_OBSERVER_BOUNDARY_FIELDS.isdisjoint(
+        _gdscript_string_literals(parser_body)
+    )
+
+    # And: observer pause is local presentation only. Product observer keeps
+    # polling parent bridge commands while the local SceneTree is paused, and the
+    # pause path does not own or invoke authority transport state.
+    assert "process_mode = Node.PROCESS_MODE_ALWAYS" in presentation_mode_body
+    _assert_tokens_in_order(
+        local_pause_body,
+        (
+            "nest.set_observer_presentation_paused(paused)",
+            "if is_inside_tree():",
+            "get_tree().paused = paused",
+        ),
+    )
+    for runtime_token in (
+        "_runtime_client",
+        "_world_controller",
+        "_actor_controller",
+        "_semantic_events",
+        "_start_authority_runtime",
+        "_send_runtime_event",
+    ):
+        assert runtime_token not in local_pause_body
 
 
 def test_godot_export_configuration_declares_web_and_linux_dedicated_outputs() -> None:
