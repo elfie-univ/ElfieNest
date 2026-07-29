@@ -11,6 +11,7 @@ import {
   type ModelMatrix,
   type ProviderView,
 } from "../api/owner-providers"
+import { ApiError } from "../api/http"
 import { OwnerProviderPanel } from "./OwnerProviderPanel"
 
 vi.mock("../api/owner-providers", async (loadOriginal) => {
@@ -88,6 +89,7 @@ const modelMatrix = {
 
 describe("OwnerProviderPanel", () => {
   beforeEach(() => {
+    vi.clearAllMocks()
     vi.mocked(ownerProviders).mockResolvedValue([anthropic, openai, baseProvider])
     vi.mocked(verifyProvidersBatch).mockResolvedValue({ results: [] })
     vi.mocked(ownerModelMatrix).mockResolvedValue(modelMatrix)
@@ -163,5 +165,48 @@ describe("OwnerProviderPanel", () => {
       api_base: "https://gateway.example/v1",
       api_key: "local-key",
     }), "csrf")
+  })
+
+  it("keeps invalid custom provider ids in the dialog with an inline error", async () => {
+    const user = userEvent.setup()
+    render(<OwnerProviderPanel csrfToken="csrf" />)
+    await screen.findByRole("region", { name: "配置新的订阅" })
+
+    await user.click(screen.getByRole("button", { name: "添加自定义供应商" }))
+    const dialog = screen.getByRole("dialog", { name: "添加自定义供应商" })
+    const providerId = within(dialog).getByRole("textbox", { name: "供应商 ID" })
+    await user.type(providerId, "jd-codeplan")
+    await user.type(within(dialog).getByRole("textbox", { name: "显示名称" }), "京东")
+    await user.type(
+      within(dialog).getByRole("textbox", { name: "API Base URL" }),
+      "https://gateway.example/v1",
+    )
+    await user.type(within(dialog).getByLabelText("API 密钥", { selector: "input" }), "local-key")
+    await user.click(within(dialog).getByRole("button", { name: "添加供应商" }))
+
+    expect(providerId).toHaveAttribute("aria-invalid", "true")
+    expect(within(dialog).getByText("只能使用小写字母、数字和下划线，并以字母开头。")).toBeInTheDocument()
+    expect(createProvider).not.toHaveBeenCalled()
+  })
+
+  it("shows provider API failures inside the open dialog", async () => {
+    const user = userEvent.setup()
+    vi.mocked(createProvider).mockRejectedValueOnce(new ApiError(409, "供应商 ID 已存在"))
+    render(<OwnerProviderPanel csrfToken="csrf" />)
+    await screen.findByRole("region", { name: "配置新的订阅" })
+
+    await user.click(screen.getByRole("button", { name: "添加自定义供应商" }))
+    const dialog = screen.getByRole("dialog", { name: "添加自定义供应商" })
+    await user.type(within(dialog).getByRole("textbox", { name: "供应商 ID" }), "jd_codeplan")
+    await user.type(within(dialog).getByRole("textbox", { name: "显示名称" }), "京东")
+    await user.type(
+      within(dialog).getByRole("textbox", { name: "API Base URL" }),
+      "https://gateway.example/v1",
+    )
+    await user.type(within(dialog).getByLabelText("API 密钥", { selector: "input" }), "local-key")
+    await user.click(within(dialog).getByRole("button", { name: "添加供应商" }))
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("供应商 ID 已存在")
+    expect(dialog).toBeInTheDocument()
   })
 })

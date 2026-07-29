@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent } from "react"
 
 import type { ProviderDraft } from "../api/owner-providers"
 import { ManageDialog } from "./ManageDialog"
+import { Notice } from "./Notice"
 import { SelectField } from "./SelectField"
 import { TextField } from "./TextField"
 
@@ -21,6 +22,8 @@ export function CustomProviderDialog({ onOpenChange, onSave, open }: Props) {
   const [authType, setAuthType] = useState("bearer")
   const [testModel, setTestModel] = useState("")
   const [pending, setPending] = useState(false)
+  const [providerIdError, setProviderIdError] = useState<string | undefined>()
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -31,14 +34,23 @@ export function CustomProviderDialog({ onOpenChange, onSave, open }: Props) {
     setApiMode("chat_completions")
     setAuthType("bearer")
     setTestModel("")
+    setProviderIdError(undefined)
+    setError(null)
   }, [open])
 
   const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault()
+    const normalizedProviderId = providerId.trim()
+    if (!/^[a-z][a-z0-9_]{0,63}$/.test(normalizedProviderId)) {
+      setProviderIdError("只能使用小写字母、数字和下划线，并以字母开头。")
+      return
+    }
+    setProviderIdError(undefined)
+    setError(null)
     setPending(true)
     try {
       await onSave({
-        provider_id: providerId.trim(),
+        provider_id: normalizedProviderId,
         display_name: displayName.trim(),
         api_base: apiBase.trim(),
         api_key: apiKey,
@@ -46,6 +58,8 @@ export function CustomProviderDialog({ onOpenChange, onSave, open }: Props) {
         auth_type: authType,
         test_model: testModel.trim(),
       })
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "自定义供应商没有添加")
     } finally {
       setPending(false)
     }
@@ -58,7 +72,19 @@ export function CustomProviderDialog({ onOpenChange, onSave, open }: Props) {
     title="添加自定义供应商"
   >
     <form className="provider-form" onSubmit={(event) => { void submit(event) }}>
-      <TextField autoFocus label="供应商 ID" onChange={setProviderId} placeholder="例如 home_gateway" required value={providerId} />
+      {error ? <Notice kind="error" message={error} /> : null}
+      <TextField
+        {...(providerIdError ? { error: providerIdError } : {})}
+        autoFocus
+        label="供应商 ID"
+        onChange={(value) => {
+          setProviderId(value)
+          if (providerIdError) setProviderIdError(undefined)
+        }}
+        placeholder="例如 home_gateway"
+        required
+        value={providerId}
+      />
       <TextField label="显示名称" onChange={setDisplayName} placeholder="例如 家庭模型网关" required value={displayName} />
       <TextField label="API Base URL" onChange={setApiBase} placeholder="https://host.example/v1" required type="url" value={apiBase} />
       {authType === "none" ? null : <TextField autoComplete="new-password" label="API 密钥" onChange={setApiKey} required type="password" value={apiKey} />}

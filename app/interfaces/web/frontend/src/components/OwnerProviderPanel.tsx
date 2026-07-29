@@ -59,15 +59,11 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
     }
   }
   const saveCustom = async (draft: ProviderDraft): Promise<void> => {
-    try {
-      await createProvider(draft, csrfToken)
-      setNotice(`${draft.display_name || draft.provider_id || "自定义供应商"} 已添加；验证通过后才会标记可用。`)
-      setCreating(false)
-      await load()
-    } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "自定义供应商没有添加")
-      throw reason
-    }
+    await createProvider(draft, csrfToken)
+    setError(null)
+    setNotice(`${draft.display_name || draft.provider_id || "自定义供应商"} 已添加；验证通过后才会标记可用。`)
+    setCreating(false)
+    await load()
   }
   const verify = async (provider: ProviderView): Promise<void> => {
     setPending(`verify:${provider.provider_id}`)
