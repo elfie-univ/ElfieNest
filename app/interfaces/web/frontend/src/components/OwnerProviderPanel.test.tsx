@@ -3,86 +3,112 @@ import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
-  createProvider,
+  addProviderModel,
   benchmarkProviderModels,
+  createProviderConnection,
   ownerModelMatrix,
-  ownerProviders,
-  verifyProvidersBatch,
+  ownerProviderCatalog,
+  ownerProviderConnections,
   type ModelMatrix,
-  type ProviderView,
+  type ProviderConnection,
+  type ProviderProduct,
 } from "../api/owner-providers"
-import { ApiError } from "../api/http"
 import { OwnerProviderPanel } from "./OwnerProviderPanel"
 
 vi.mock("../api/owner-providers", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/owner-providers")>()
   return {
     ...original,
+    addProviderModel: vi.fn(),
     benchmarkProviderModels: vi.fn(),
-    createProvider: vi.fn(),
-    deleteProvider: vi.fn(),
+    createProviderConnection: vi.fn(),
+    deleteProviderConnection: vi.fn(),
+    deleteProviderModel: vi.fn(),
     ownerModelMatrix: vi.fn(),
-    ownerProviders: vi.fn(),
-    updateProvider: vi.fn(),
-    verifyProvider: vi.fn(),
-    verifyProvidersBatch: vi.fn(),
+    ownerProviderCatalog: vi.fn(),
+    ownerProviderConnections: vi.fn(),
+    refreshProviderModels: vi.fn(),
+    updateProviderConnection: vi.fn(),
+    updateProviderModel: vi.fn(),
+    verifyProviderConnection: vi.fn(),
   }
 })
 
-const baseProvider = {
-  provider_id: "ollama",
-  name: "Ollama",
-  display_name: "",
+const product = (catalogId: string, name: string, brandId = catalogId): ProviderProduct => ({
+  catalog_id: catalogId,
+  name,
+  brand: { brand_id: brandId, name, logo_asset: `brands/${brandId}.svg` },
+  connection_method: catalogId === "ollama" ? "local" : "api_key",
+  oauth_available: false,
+  usage_scope: catalogId === "ollama" ? "local" : "general",
+  discovery_strategy: "standard_models",
+  api_mode: catalogId === "ollama" ? "ollama" : "chat_completions",
+})
+
+const catalog = [
+  product("ollama", "Ollama"),
+  product("openai_api", "OpenAI", "openai"),
+  product("anthropic_api", "Anthropic", "anthropic"),
+  product("qwen_api", "Ali Qwen", "alibaba"),
+  product("deepseek_api", "DeepSeek", "deepseek"),
+  product("gemini_api", "Google Gemini", "google"),
+  product("groq_api", "Groq", "groq"),
+] satisfies readonly ProviderProduct[]
+
+const model = {
+  id: "qwen3:4b",
+  display_name: "Qwen 3 4B",
+  canonical_model_id: null,
+  source: "discovered" as const,
+  context_window_tokens: null,
+  max_output_tokens: null,
+  supports_tools: null,
+  supports_vision: null,
+  supports_reasoning: null,
+  hidden: false,
+}
+
+const ollama = {
+  connection_id: "ollama_0001",
+  catalog_id: "ollama",
+  alias: "Ollama",
   api_base: "http://localhost:11434",
   api_mode: "ollama",
   auth_type: "none",
-  test_model: "",
-  configured: true,
-  configuration_status: "configured",
-  verification: { status: "passed", checked_at: "2026-07-26T00:00:00Z", latency_ms: 12, error: null },
   has_api_key: false,
-  models: [{ id: "qwen3:4b", display_name: "Qwen 3 4B", source: "discovered" }],
-  model_refresh: {},
-  capabilities: { connection_method: "local", oauth_available: false, oauth_unavailable: false, model_discovery: true },
-} satisfies ProviderView
+  enabled: true,
+  usage_scope: "local",
+  verification: { status: "passed", checked_at: "2026-07-26T00:00:00Z", latency_ms: 12, error: null },
+  models: [model],
+  model_refresh: null,
+} satisfies ProviderConnection
 
 const openai = {
-  ...baseProvider,
-  provider_id: "openai",
-  name: "OpenAI",
+  ...ollama,
+  connection_id: "openai_api_0001",
+  catalog_id: "openai_api",
+  alias: "工作账号",
   api_base: "https://api.openai.com/v1",
   api_mode: "chat_completions",
   auth_type: "bearer",
-  verification: { status: "never", checked_at: null, latency_ms: null, error: null },
   has_api_key: true,
-  models: [{ id: "gpt-test", display_name: "GPT Test", source: "manual" }],
-  capabilities: { connection_method: "api_key", oauth_available: false, oauth_unavailable: false, model_discovery: true },
-} satisfies ProviderView
-
-const anthropic = {
-  ...openai,
-  provider_id: "anthropic",
-  name: "Anthropic",
-  api_base: "https://api.anthropic.com/v1",
-  auth_type: "x-api-key",
-  configured: false,
-  configuration_status: "unconfigured",
-  has_api_key: false,
-  models: [],
-} satisfies ProviderView
+  usage_scope: "general",
+  verification: { status: "never", checked_at: null, latency_ms: null, error: null },
+  models: [{ ...model, id: "gpt-test", display_name: "GPT Test", source: "manual" as const }],
+} satisfies ProviderConnection
 
 const modelMatrix = {
-  providers: [
-    { provider_id: "ollama", name: "Ollama", verification: { status: "passed", checked_at: "2026-07-26T00:00:00Z", latency_ms: 12, error: null } },
-    { provider_id: "openai", name: "OpenAI", verification: { status: "never", checked_at: null, latency_ms: null, error: null } },
+  connections: [
+    { connection_id: "ollama_0001", name: "Ollama", verification: ollama.verification },
+    { connection_id: "openai_api_0001", name: "工作账号", verification: openai.verification },
   ],
   models: [{
-    model_id: "qwen3:4b",
+    model_key: "qwen-3",
     display_name: "Qwen 3 4B",
     capabilities: ["text"],
-    providers: [
-      { provider_id: "ollama", available: true, verification_status: "passed", benchmark_status: "passed", latency_ms: 12, latency_class: "fast", price_estimate: null },
-      { provider_id: "openai", available: false, verification_status: "never", benchmark_status: null, latency_ms: null, latency_class: null, price_estimate: null },
+    connections: [
+      { connection_id: "ollama_0001", model_id: "qwen3:4b", available: true, verification_status: "passed", benchmark_status: "passed", latency_ms: 12, latency_class: "fast", price_estimate: null },
+      { connection_id: "openai_api_0001", model_id: null, available: false, verification_status: "never", benchmark_status: null, latency_ms: null, latency_class: null, price_estimate: null },
     ],
   }],
 } satisfies ModelMatrix
@@ -90,123 +116,78 @@ const modelMatrix = {
 describe("OwnerProviderPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(ownerProviders).mockResolvedValue([anthropic, openai, baseProvider])
-    vi.mocked(verifyProvidersBatch).mockResolvedValue({ results: [] })
+    vi.mocked(ownerProviderCatalog).mockResolvedValue(catalog)
+    vi.mocked(ownerProviderConnections).mockResolvedValue([openai, ollama])
     vi.mocked(ownerModelMatrix).mockResolvedValue(modelMatrix)
     vi.mocked(benchmarkProviderModels).mockResolvedValue({ results: [] })
   })
 
-  it("separates configured subscriptions from new configuration and constrains actions", async () => {
+  it("shows configured connection instances and featured products separately", async () => {
     render(<OwnerProviderPanel csrfToken="csrf" />)
 
     const configured = await screen.findByRole("region", { name: "已配置的订阅" })
-    const available = screen.getByRole("region", { name: "配置新的订阅" })
-    const configuredCards = within(configured).getAllByRole("article")
-    const primaryConfiguredCard = configuredCards[0]
-    expect(primaryConfiguredCard).toBeDefined()
-    if (primaryConfiguredCard === undefined) throw new Error("Expected at least one configured provider card")
-    expect(within(primaryConfiguredCard).getByRole("heading", { name: "Ollama" })).toBeInTheDocument()
-    expect(within(configured).getAllByText("已配置")).toHaveLength(2)
-    expect(within(configured).getByText("未验证")).toBeInTheDocument()
-    expect(within(configured).getByRole("button", { name: "删除 Ollama" })).toBeDisabled()
-
-    const anthropicCard = within(available).getByRole("article")
-    expect(within(anthropicCard).getByRole("button", { name: "配置 Anthropic" })).toBeInTheDocument()
-    expect(within(anthropicCard).queryByRole("button", { name: /验证/ })).not.toBeInTheDocument()
-    expect(within(anthropicCard).queryByRole("button", { name: /删除/ })).not.toBeInTheDocument()
+    const available = screen.getByRole("region", { name: "添加新的订阅" })
+    expect(within(configured).getByRole("heading", { name: "Ollama" })).toBeInTheDocument()
+    expect(within(configured).getByRole("heading", { name: "工作账号" })).toBeInTheDocument()
+    expect(within(available).getByRole("button", { name: "配置 Anthropic" })).toBeInTheDocument()
+    expect(within(available).getByRole("button", { name: "添加其他订阅" })).toBeInTheDocument()
   })
 
-  it("uses a filled support-model action and returns focus after keyboard close", async () => {
+  it("keeps known-product setup to alias and API key", async () => {
     const user = userEvent.setup()
     render(<OwnerProviderPanel csrfToken="csrf" />)
-
-    const supportModels = await screen.findByRole("button", { name: "查看支持模型" })
-    expect(supportModels).toBeEnabled()
-
-    await user.click(supportModels)
-    expect(await screen.findByRole("dialog", { name: "支持模型与测速" })).toBeInTheDocument()
-    expect(await screen.findByRole("columnheader", { name: "Ollama" })).toBeInTheDocument()
-
-    await user.keyboard("{Escape}")
-    expect(screen.queryByRole("dialog", { name: "支持模型与测速" })).not.toBeInTheDocument()
-    expect(supportModels).toHaveFocus()
-  })
-
-  it("uses a provider-specific vertical form with model rows instead of pipe text", async () => {
-    const user = userEvent.setup()
-    render(<OwnerProviderPanel csrfToken="csrf" />)
-    const available = await screen.findByRole("region", { name: "配置新的订阅" })
+    const available = await screen.findByRole("region", { name: "添加新的订阅" })
     await user.click(within(available).getByRole("button", { name: "配置 Anthropic" }))
 
     const dialog = screen.getByRole("dialog", { name: "配置 Anthropic" })
-    expect(within(dialog).getByText("anthropic")).toBeInTheDocument()
+    expect(within(dialog).getByRole("textbox", { name: "订阅别名" })).toBeInTheDocument()
     expect(within(dialog).getByLabelText("API 密钥", { selector: "input" })).toHaveAttribute("type", "password")
-    expect(within(dialog).getByRole("button", { name: "添加模型" })).toBeInTheDocument()
-    expect(within(dialog).queryByPlaceholderText(/\|/)).not.toBeInTheDocument()
-    expect(within(dialog).queryByRole("textbox", { name: "供应商 ID" })).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole("textbox", { name: /ID|URL/ })).not.toBeInTheDocument()
+    expect(within(dialog).queryByText("认证方式")).not.toBeInTheDocument()
   })
 
-  it("creates a custom provider from the add card", async () => {
+  it("creates a custom connection without asking for an internal id", async () => {
     const user = userEvent.setup()
-    vi.mocked(createProvider).mockResolvedValue({ ...openai, provider_id: "home_gateway", name: "家庭网关" })
+    vi.mocked(createProviderConnection).mockResolvedValue(openai)
     render(<OwnerProviderPanel csrfToken="csrf" />)
-    await screen.findByRole("region", { name: "配置新的订阅" })
+    await screen.findByRole("region", { name: "添加新的订阅" })
 
-    await user.click(screen.getByRole("button", { name: "添加自定义供应商" }))
-    const dialog = screen.getByRole("dialog", { name: "添加自定义供应商" })
-    fireEvent.change(within(dialog).getByRole("textbox", { name: "供应商 ID" }), { target: { value: "home_gateway" } })
-    fireEvent.change(within(dialog).getByRole("textbox", { name: "显示名称" }), { target: { value: "家庭网关" } })
+    await user.click(screen.getByRole("button", { name: "添加自定义连接" }))
+    const dialog = screen.getByRole("dialog", { name: "添加自定义连接" })
+    expect(within(dialog).queryByRole("textbox", { name: /供应商 ID/ })).not.toBeInTheDocument()
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "显示名称" }), { target: { value: "京东" } })
     fireEvent.change(within(dialog).getByRole("textbox", { name: "API Base URL" }), { target: { value: "https://gateway.example/v1" } })
     fireEvent.change(within(dialog).getByLabelText("API 密钥", { selector: "input" }), { target: { value: "local-key" } })
-    await user.click(within(dialog).getByRole("button", { name: "添加供应商" }))
+    await user.click(within(dialog).getByRole("button", { name: "验证并保存" }))
 
-    expect(createProvider).toHaveBeenCalledWith(expect.objectContaining({
-      provider_id: "home_gateway",
+    expect(createProviderConnection).toHaveBeenCalledWith(expect.objectContaining({
+      catalog_id: "custom_openai",
+      alias: "京东",
       api_base: "https://gateway.example/v1",
       api_key: "local-key",
     }), "csrf")
   })
 
-  it("keeps invalid custom provider ids in the dialog with an inline error", async () => {
-    const user = userEvent.setup()
+  it("orders configured actions as models verify edit delete", async () => {
     render(<OwnerProviderPanel csrfToken="csrf" />)
-    await screen.findByRole("region", { name: "配置新的订阅" })
-
-    await user.click(screen.getByRole("button", { name: "添加自定义供应商" }))
-    const dialog = screen.getByRole("dialog", { name: "添加自定义供应商" })
-    const providerId = within(dialog).getByRole("textbox", { name: "供应商 ID" })
-    await user.type(providerId, "jd-codeplan")
-    await user.type(within(dialog).getByRole("textbox", { name: "显示名称" }), "京东")
-    await user.type(
-      within(dialog).getByRole("textbox", { name: "API Base URL" }),
-      "https://gateway.example/v1",
-    )
-    await user.type(within(dialog).getByLabelText("API 密钥", { selector: "input" }), "local-key")
-    await user.click(within(dialog).getByRole("button", { name: "添加供应商" }))
-
-    expect(providerId).toHaveAttribute("aria-invalid", "true")
-    expect(within(dialog).getByText("只能使用小写字母、数字和下划线，并以字母开头。")).toBeInTheDocument()
-    expect(createProvider).not.toHaveBeenCalled()
+    const configured = await screen.findByRole("region", { name: "已配置的订阅" })
+    const card = within(configured).getByRole("heading", { name: "工作账号" }).closest("article")
+    expect(card).not.toBeNull()
+    if (!card) return
+    expect(within(card).getAllByRole("button").map((button) => button.textContent)).toEqual([
+      "查看模型", "验证", "修改", "删除",
+    ])
   })
 
-  it("shows provider API failures inside the open dialog", async () => {
+  it("opens the connection model panel and supports manual model input", async () => {
     const user = userEvent.setup()
-    vi.mocked(createProvider).mockRejectedValueOnce(new ApiError(409, "供应商 ID 已存在"))
+    vi.mocked(addProviderModel).mockResolvedValue(openai.models[0]!)
     render(<OwnerProviderPanel csrfToken="csrf" />)
-    await screen.findByRole("region", { name: "配置新的订阅" })
-
-    await user.click(screen.getByRole("button", { name: "添加自定义供应商" }))
-    const dialog = screen.getByRole("dialog", { name: "添加自定义供应商" })
-    await user.type(within(dialog).getByRole("textbox", { name: "供应商 ID" }), "jd_codeplan")
-    await user.type(within(dialog).getByRole("textbox", { name: "显示名称" }), "京东")
-    await user.type(
-      within(dialog).getByRole("textbox", { name: "API Base URL" }),
-      "https://gateway.example/v1",
-    )
-    await user.type(within(dialog).getByLabelText("API 密钥", { selector: "input" }), "local-key")
-    await user.click(within(dialog).getByRole("button", { name: "添加供应商" }))
-
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("供应商 ID 已存在")
-    expect(dialog).toBeInTheDocument()
+    await user.click(await screen.findByRole("button", { name: "查看 工作账号 的模型" }))
+    const dialog = screen.getByRole("dialog", { name: "工作账号 的模型" })
+    expect(within(dialog).getByRole("cell", { name: "gpt-test" })).toBeInTheDocument()
+    await user.click(within(dialog).getByRole("button", { name: "手工添加模型" }))
+    expect(within(dialog).getByRole("textbox", { name: "Model ID" })).toBeInTheDocument()
+    expect(within(dialog).getByRole("button", { name: "高级参数" })).toBeInTheDocument()
   })
 })

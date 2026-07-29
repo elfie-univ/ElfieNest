@@ -11,7 +11,7 @@ import {
   type FoodCatalog,
   type FoodPreview,
 } from "../api/owner-foods"
-import { ownerProviders } from "../api/owner-providers"
+import { ownerProviderConnections } from "../api/owner-providers"
 import { ApiError } from "../api/http"
 import { OwnerFoodPanel } from "./OwnerFoodPanel"
 
@@ -28,7 +28,7 @@ vi.mock("../api/owner-foods", async (loadOriginal) => {
 })
 vi.mock("../api/owner-providers", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/owner-providers")>()
-  return { ...original, ownerProviders: vi.fn() }
+  return { ...original, ownerProviderConnections: vi.fn() }
 })
 
 const profile = (model: string, reasoning = "balanced") => ({
@@ -92,28 +92,21 @@ const preview = {
   candidate,
 } satisfies FoodPreview
 const configuredProviders = [{
-  provider_id: "ollama",
-  name: "Ollama",
-  display_name: "Ollama 本地",
+  connection_id: "ollama_0001",
+  catalog_id: "ollama",
+  alias: "Ollama 本地",
   api_base: "http://127.0.0.1:11434",
   api_mode: "ollama",
   auth_type: "none",
-  test_model: "llama3",
-  configured: true,
-  configuration_status: "configured" as const,
+  enabled: true,
+  usage_scope: "local",
   verification: { status: "passed" as const, checked_at: null, latency_ms: null, error: null },
   has_api_key: false,
   models: [
-    { id: "primary", display_name: "Primary", source: "configured" as const },
-    { id: "deep", display_name: "Deep", source: "configured" as const },
+    { id: "primary", display_name: "Primary", canonical_model_id: null, source: "provider_catalog" as const, context_window_tokens: null, max_output_tokens: null, supports_tools: null, supports_vision: null, supports_reasoning: null, hidden: false },
+    { id: "deep", display_name: "Deep", canonical_model_id: null, source: "provider_catalog" as const, context_window_tokens: null, max_output_tokens: null, supports_tools: null, supports_vision: null, supports_reasoning: null, hidden: false },
   ],
-  model_refresh: {},
-  capabilities: {
-    connection_method: "local" as const,
-    oauth_available: false,
-    oauth_unavailable: false,
-    model_discovery: true,
-  },
+  model_refresh: null,
 }]
 
 describe("OwnerFoodPanel", () => {
@@ -126,7 +119,7 @@ describe("OwnerFoodPanel", () => {
 
   beforeEach(() => {
     vi.mocked(ownerFoods).mockResolvedValue(catalog)
-    vi.mocked(ownerProviders).mockResolvedValue(configuredProviders)
+    vi.mocked(ownerProviderConnections).mockResolvedValue(configuredProviders)
     vi.mocked(previewFoodUpdate).mockResolvedValue(preview)
     vi.mocked(applyFoodUpdate).mockResolvedValue(candidate)
     vi.mocked(editFood).mockResolvedValue({ food: standardFood, warnings: [] })

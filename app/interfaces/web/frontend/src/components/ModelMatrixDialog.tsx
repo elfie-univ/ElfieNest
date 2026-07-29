@@ -68,7 +68,7 @@ export function ModelMatrixDialog({ csrfToken, onOpenChange, open }: ModelMatrix
 
   return <ManageDialog
     contentClassName="model-matrix-dialog"
-    description="按模型查看已配置供应商的支持、验证和最近测速；未知价格不会估造。"
+    description="按模型查看各订阅连接的支持、验证和最近测速；未知价格不会估造。"
     onOpenChange={onOpenChange}
     open={open}
     title="支持模型与测速"
@@ -84,22 +84,22 @@ export function ModelMatrixDialog({ csrfToken, onOpenChange, open }: ModelMatrix
     {matrix && matrix.models.length === 0 ? <p className="empty-state">尚无已配置供应商声明的模型。</p> : null}
     {matrix && matrix.models.length > 0 ? <div className="model-matrix-scroll">
       <Table aria-label="模型供应商矩阵" className="model-matrix">
-        <TableHeader><TableRow><TableHead scope="col">模型</TableHead>{matrix.providers.map((provider) => <TableHead key={provider.provider_id} scope="col">{provider.name}</TableHead>)}</TableRow></TableHeader>
-        <TableBody>{matrix.models.map((model) => <TableRow key={model.model_id}>
+        <TableHeader><TableRow><TableHead scope="col">模型</TableHead>{matrix.connections.map((connection) => <TableHead key={connection.connection_id} scope="col">{connection.name}</TableHead>)}</TableRow></TableHeader>
+        <TableBody>{matrix.models.map((model) => <TableRow key={model.model_key}>
           <TableHead scope="row">{model.display_name}</TableHead>
-          {matrix.providers.map((provider) => {
-            const cell = model.providers.find((item) => item.provider_id === provider.provider_id)
-            const canBenchmark = Boolean(cell?.available && provider.verification.status === "passed")
-            if (!cell?.available) return <TableCell className="model-matrix__cell model-matrix__cell--unavailable" key={provider.provider_id}>不支持</TableCell>
-            return <TableCell className="model-matrix__cell" key={provider.provider_id}>
+          {matrix.connections.map((connection) => {
+            const cell = model.connections.find((item) => item.connection_id === connection.connection_id)
+            const canBenchmark = Boolean(cell?.available && cell.model_id && connection.verification.status === "passed")
+            if (!cell?.available) return <TableCell className="model-matrix__cell model-matrix__cell--unavailable" key={connection.connection_id}>不支持</TableCell>
+            return <TableCell className="model-matrix__cell" key={connection.connection_id}>
               <div className="model-matrix__cell-content">
                 <strong>{cell.verification_status === "passed" ? "✓ 可用" : cell.verification_status === "failed" ? "验证失败" : "未验证"}</strong>
                 <span className={cell.latency_class ? `latency--${cell.latency_class}` : undefined}>{cell.latency_ms === null ? "未测速" : `${Math.round(cell.latency_ms)}ms`}</span>
                 <small>价格：<span>{cell.price_estimate === null ? "未提供" : cell.price_estimate}</span></small>
                 <Button
-                  aria-label={`测速 ${provider.name} ${model.display_name}`}
+                  aria-label={`测速 ${connection.name} ${model.display_name}`}
                   disabled={pending || !canBenchmark}
-                  onClick={() => { void benchmark([{ provider_id: provider.provider_id, model_id: model.model_id }], "这个模型组合尚不可测速。") }}
+                  onClick={() => { if (cell.model_id) void benchmark([{ connection_id: connection.connection_id, model_id: cell.model_id }], "这个模型组合尚不可测速。") }}
                   size="sm"
                   type="button"
                   variant="outline"
@@ -116,12 +116,12 @@ export function ModelMatrixDialog({ csrfToken, onOpenChange, open }: ModelMatrix
 }
 
 function collectBenchmarkCombinations(matrix: ModelMatrix): BenchmarkCombination[] {
-  const passedProviders = new Set(
-    matrix.providers
-      .filter((provider) => provider.verification.status === "passed")
-      .map((provider) => provider.provider_id),
+  const passedConnections = new Set(
+    matrix.connections
+      .filter((connection) => connection.verification.status === "passed")
+      .map((connection) => connection.connection_id),
   )
-  return matrix.models.flatMap((model) => model.providers
-    .filter((cell) => cell.available && passedProviders.has(cell.provider_id))
-    .map((cell) => ({ provider_id: cell.provider_id, model_id: model.model_id })))
+  return matrix.models.flatMap((model) => model.connections
+    .filter((cell) => cell.available && cell.model_id && passedConnections.has(cell.connection_id))
+    .map((cell) => ({ connection_id: cell.connection_id, model_id: cell.model_id ?? "" })))
 }

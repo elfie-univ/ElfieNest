@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { SelectGroup, SelectLabel } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { ClientUser } from "../api/client"
-import { ownerProviders } from "../api/owner-providers"
+import { ownerProviderConnections } from "../api/owner-providers"
 import {
   ownerFoods,
   type FoodCatalog,
@@ -28,7 +28,7 @@ vi.mock("../api/owner-providers", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/owner-providers")>()
   return {
     ...original,
-    ownerProviders: vi.fn(),
+    ownerProviderConnections: vi.fn(),
   }
 })
 
@@ -84,7 +84,7 @@ describe("Manage shared controls", () => {
 
   beforeEach(() => {
     vi.mocked(ownerFoods).mockResolvedValue(catalog)
-    vi.mocked(ownerProviders).mockResolvedValue([])
+    vi.mocked(ownerProviderConnections).mockResolvedValue([])
   })
 
   it("renders small shared actions and select group labels as accessible controls", () => {

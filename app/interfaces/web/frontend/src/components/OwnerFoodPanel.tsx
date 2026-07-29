@@ -15,7 +15,10 @@ import {
   type FoodPreview,
   type FoodRecipe,
 } from "../api/owner-foods"
-import { ownerProviders, type ProviderView } from "../api/owner-providers"
+import {
+  ownerProviderConnections,
+  type ProviderConnection,
+} from "../api/owner-providers"
 import { ApiError } from "../api/http"
 import { ConfirmDialog } from "./ConfirmDialog"
 import { FoodPreviewDialog } from "./FoodPreviewDialog"
@@ -40,7 +43,7 @@ const NO_FALLBACK = "__none__"
 
 export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
   const [catalog, setCatalog] = useState<FoodCatalog | null>(null)
-  const [providers, setProviders] = useState<readonly ProviderView[]>([])
+  const [providers, setProviders] = useState<readonly ProviderConnection[]>([])
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
   const [editing, setEditing] = useState<FoodRecipe | null>(null)
   const [visibilityFood, setVisibilityFood] = useState<FoodRecipe | null>(null)
@@ -56,7 +59,7 @@ export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
 
   const load = async (): Promise<void> => {
     try {
-      const [nextCatalog, nextProviders] = await Promise.all([ownerFoods(), ownerProviders()])
+      const [nextCatalog, nextProviders] = await Promise.all([ownerFoods(), ownerProviderConnections()])
       setCatalog(nextCatalog)
       setProviders(nextProviders)
       setError(null)
@@ -240,13 +243,13 @@ function addKey(current: ReadonlySet<string>, key: string): ReadonlySet<string> 
   return next
 }
 
-function collectModelOptions(providers: readonly ProviderView[]): readonly SelectFieldOption[] {
-  return providers.filter((provider) => provider.configured && provider.models.length > 0).map((provider) => ({
-    label: provider.display_name || provider.name,
-    options: provider.models.map((model) => ({
-      group: provider.display_name || provider.name,
-      label: `${provider.display_name || provider.name} · ${model.display_name || model.id}`,
-      value: model.id.includes("/") ? model.id : `${provider.provider_id}/${model.id}`,
+function collectModelOptions(providers: readonly ProviderConnection[]): readonly SelectFieldOption[] {
+  return providers.filter((provider) => provider.enabled && provider.models.some((model) => !model.hidden)).map((provider) => ({
+    label: provider.alias,
+    options: provider.models.filter((model) => !model.hidden).map((model) => ({
+      group: provider.alias,
+      label: `${provider.alias} · ${model.display_name || model.id}`,
+      value: `${provider.connection_id}/${model.id}`,
     })),
   }))
 }
@@ -258,12 +261,11 @@ function validationLabel(status: string): string {
   return "未验证"
 }
 
-function firstModelReference(providers: readonly ProviderView[]): string | null {
+function firstModelReference(providers: readonly ProviderConnection[]): string | null {
   for (const provider of providers) {
-    const firstModel = provider.models[0]
-    if (!provider.configured || !firstModel) continue
-    const model = firstModel.id
-    return model.includes("/") ? model : `${provider.provider_id}/${model}`
+    const firstModel = provider.models.find((model) => !model.hidden)
+    if (!provider.enabled || !firstModel) continue
+    return `${provider.connection_id}/${firstModel.id}`
   }
   return null
 }

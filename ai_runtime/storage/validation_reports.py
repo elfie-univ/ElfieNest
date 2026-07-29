@@ -104,6 +104,20 @@ def write_model_validation_report(
     )
 
 
+def read_latest_model_validation(
+    provider_id: str,
+    model_id: str,
+) -> dict[str, Any]:
+    _validate_provider_id(provider_id)
+    normalized_model_id = model_id.strip()
+    if not normalized_model_id or len(normalized_model_id) > 200:
+        raise InvalidReportIdentityError(model_id)
+    model_key = hashlib.sha256(normalized_model_id.encode("utf-8")).hexdigest()[:16]
+    return read_yaml_mapping(
+        get_model_validation_dir() / provider_id / model_key / "latest.yaml"
+    )
+
+
 def _validate_provider_id(provider_id: str) -> None:
     if _PROVIDER_ID_PATTERN.fullmatch(provider_id) is None:
         raise InvalidReportIdentityError(provider_id)

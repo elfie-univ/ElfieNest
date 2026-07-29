@@ -196,3 +196,39 @@ class BenchmarkRequest(BaseModel):
         if len(set(keys)) != len(keys):
             raise ValueError("测速组合不能重复")
         return values
+
+
+class ConnectionBenchmarkCombination(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    connection_id: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z][a-z0-9_]{0,63}$",
+    )
+    model_id: str = Field(min_length=1, max_length=200)
+
+    @field_validator("connection_id", "model_id")
+    @classmethod
+    def strip_connection_benchmark_text(cls, value: str) -> str:
+        return value.strip()
+
+
+class ConnectionBenchmarkRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    combinations: List[ConnectionBenchmarkCombination] = Field(
+        min_length=1,
+        max_length=12,
+    )
+
+    @field_validator("combinations")
+    @classmethod
+    def unique_connection_combinations(
+        cls,
+        values: List[ConnectionBenchmarkCombination],
+    ) -> List[ConnectionBenchmarkCombination]:
+        keys = [(item.connection_id, item.model_id) for item in values]
+        if len(set(keys)) != len(keys):
+            raise ValueError("测速组合不能重复")
+        return values

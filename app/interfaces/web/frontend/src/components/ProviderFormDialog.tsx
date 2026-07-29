@@ -1,66 +1,51 @@
 import { Button } from "@/components/ui/button"
 import { useEffect, useState, type FormEvent } from "react"
 
-import type { ProviderDraft, ProviderModelDraft, ProviderView } from "../api/owner-providers"
+import type {
+  ProviderConnection,
+  ProviderConnectionUpdate,
+  ProviderProduct,
+} from "../api/owner-providers"
 import { ManageDialog } from "./ManageDialog"
-import { SelectField } from "./SelectField"
 import { TextField } from "./TextField"
 
 type ProviderFormDialogProps = {
+  readonly connection: ProviderConnection | null
   readonly onOpenChange: (open: boolean) => void
-  readonly onSave: (draft: ProviderDraft) => Promise<void>
+  readonly onSave: (draft: ProviderConnectionUpdate) => Promise<void>
   readonly open: boolean
-  readonly provider: ProviderView | null
+  readonly product: ProviderProduct | null
 }
 
-type EditableModel = { readonly key: number; readonly id: string; readonly displayName: string }
-
-function initialModels(provider: ProviderView): readonly EditableModel[] {
-  const source = provider.models.length > 0
-    ? provider.models
-    : [{ id: "", display_name: "" } satisfies ProviderModelDraft]
-  return source.map((model, index) => ({ key: index, id: model.id, displayName: model.display_name }))
-}
-
-export function ProviderFormDialog({ onOpenChange, onSave, open, provider }: ProviderFormDialogProps) {
-  const [displayName, setDisplayName] = useState("")
-  const [apiBase, setApiBase] = useState("")
+export function ProviderFormDialog({
+  connection,
+  onOpenChange,
+  onSave,
+  open,
+  product,
+}: ProviderFormDialogProps) {
+  const [alias, setAlias] = useState("")
   const [apiKey, setApiKey] = useState("")
-  const [testModel, setTestModel] = useState("")
-  const [models, setModels] = useState<readonly EditableModel[]>([])
   const [pending, setPending] = useState(false)
 
   useEffect(() => {
-    if (!provider || !open) return
-    setDisplayName(provider.display_name)
-    setApiBase(provider.api_base)
+    if (!product || !open) return
+    setAlias(connection?.alias ?? "")
     setApiKey("")
-    setTestModel(provider.test_model)
-    setModels(initialModels(provider))
-  }, [open, provider])
+  }, [connection, open, product])
 
-  if (!provider) return null
-  const method = provider.capabilities.connection_method
-  const title = `${provider.configured ? "修改" : "配置"} ${provider.name}`
-  const updateModel = (key: number, field: "id" | "displayName", value: string): void => {
-    setModels((current) => current.map((model) => model.key === key ? { ...model, [field]: value } : model))
-  }
+  if (!product) return null
+  const method = product.connection_method
+  const title = `${connection ? "修改" : "配置"} ${product.name}`
   const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault()
-    const draft: ProviderDraft = {
-      display_name: displayName.trim(),
-      api_base: apiBase.trim(),
-      api_mode: provider.api_mode,
-      auth_type: provider.auth_type,
-      test_model: testModel.trim(),
-      models: models
-        .map((model) => ({ id: model.id.trim(), display_name: model.displayName.trim() || model.id.trim() }))
-        .filter((model) => model.id.length > 0),
-      ...(!provider.configured || apiKey ? { api_key: apiKey } : {}),
-    }
     setPending(true)
     try {
-      await onSave(draft)
+      await onSave({
+        ...(alias.trim() ? { alias: alias.trim() } : {}),
+        ...(!connection || apiKey ? { api_key: apiKey } : {}),
+        ...(!connection ? { refresh_models: true, verify: true } : {}),
+      })
     } finally {
       setPending(false)
     }
@@ -68,68 +53,40 @@ export function ProviderFormDialog({ onOpenChange, onSave, open, provider }: Pro
 
   return <ManageDialog
     contentClassName="provider-form-dialog"
-    description={method === "local" ? "连接本机模型服务并读取可用模型。" : "密钥只写入本机；读取时只返回是否已配置。"}
+    description={method === "local"
+      ? "连接本机模型服务，保存后自动读取模型。"
+      : "地址、协议与认证方式由内置目录维护；密钥只保存在本机。"}
     onOpenChange={onOpenChange}
     open={open}
     title={title}
   >
     <form className="provider-form" onSubmit={(event) => { void submit(event) }}>
-      <div className="provider-form__identity"><span>供应商 ID</span><code>{provider.provider_id}</code></div>
-      {method === "oauth" && provider.capabilities.oauth_unavailable
-        ? <p className="provider-form__unavailable" role="status">登录授权尚未接入；当前版本不会显示不可用的伪登录按钮。</p>
-        : <>
-          <TextField label="显示名称" onChange={setDisplayName} value={displayName} />
-          <TextField
-            hint={method === "local" ? "例如 http://localhost:11434" : "使用供应商默认地址；仅在网关或兼容接口场景修改。"}
-            label="API Base URL"
-            onChange={setApiBase}
-            required
-            type="url"
-            value={apiBase}
-          />
-          {method === "api_key" ? <TextField
-            autoComplete="new-password"
-            hint={provider.configured ? "留空表示保留本机现有密钥。" : "仅写入本机配置，页面不会回显。"}
-            label="API 密钥"
-            onChange={setApiKey}
-            required={!provider.configured}
-            type="password"
-            value={apiKey}
-          /> : null}
-          <SelectField
-            disabled
-            label="认证方式"
-            onValueChange={() => undefined}
-            options={[
-              { label: "无认证", value: "none" },
-              { label: "Bearer", value: "bearer" },
-              { label: "X-API-Key", value: "x-api-key" },
-            ]}
-            value={provider.auth_type}
-          />
-          <TextField hint="可选；用于单项连通性验证。" label="测试模型" onChange={setTestModel} value={testModel} />
-          <fieldset className="provider-model-editor">
-            <legend>手动模型</legend>
-            {models.map((model, index) => <div className="provider-model-editor__row" key={model.key}>
-              <TextField label={`模型 ${index + 1} ID`} onChange={(value) => updateModel(model.key, "id", value)} value={model.id} />
-              <TextField label={`模型 ${index + 1} 显示名称`} onChange={(value) => updateModel(model.key, "displayName", value)} value={model.displayName} />
-              <Button variant="outline"
-                aria-label={`删除模型 ${model.id || model.key + 1}`}
-                disabled={models.length === 1}
-                onClick={() => setModels((current) => current.filter((item) => item.key !== model.key))}
-                type="button"
-              >删除</Button>
-            </div>)}
-            <Button variant="outline"
-              onClick={() => setModels((current) => [...current, { key: Math.max(-1, ...current.map((item) => item.key)) + 1, id: "", displayName: "" }])}
-              type="button"
-            >添加模型</Button>
-          </fieldset>
-          <div className="manage-actions">
-            <Button disabled={pending} type="submit">{pending ? "保存中…" : "保存配置"}</Button>
-            <Button variant="outline" disabled={pending} onClick={() => onOpenChange(false)} type="button">取消</Button>
-          </div>
-        </>}
+      <TextField
+        hint="可选；配置同一品牌的多个账号时，用别名区分。"
+        label="订阅别名"
+        onChange={setAlias}
+        placeholder={product.name}
+        value={alias}
+      />
+      {method === "api_key" ? <TextField
+        autoComplete="new-password"
+        autoFocus
+        hint={connection ? "留空表示保留本机现有密钥。" : "保存后会自动验证并读取模型清单。"}
+        label="API 密钥"
+        onChange={setApiKey}
+        required={!connection}
+        type="password"
+        value={apiKey}
+      /> : null}
+      {method === "oauth" ? <p className="provider-form__unavailable" role="status">
+        {product.oauth_available ? "保存后将打开官方登录授权页面。" : "这个产品的登录授权尚未接入。"}
+      </p> : null}
+      <div className="manage-actions">
+        <Button disabled={pending || (method === "oauth" && !product.oauth_available)} type="submit">
+          {pending ? "保存并验证中…" : connection ? "保存配置" : "验证并保存"}
+        </Button>
+        <Button variant="outline" disabled={pending} onClick={() => onOpenChange(false)} type="button">取消</Button>
+      </div>
     </form>
   </ManageDialog>
 }

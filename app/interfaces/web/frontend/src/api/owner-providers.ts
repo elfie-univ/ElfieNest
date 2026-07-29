@@ -12,33 +12,56 @@ const VerificationSchema = z.object({
 const ProviderModelSchema = z.object({
   id: z.string(),
   display_name: z.string(),
-  source: z.enum(["discovered", "configured", "manual"]),
+  canonical_model_id: z.string().nullable(),
+  source: z.enum(["discovered", "manual", "provider_catalog"]),
+  context_window_tokens: z.number().nullable(),
+  max_output_tokens: z.number().nullable(),
+  supports_tools: z.boolean().nullable(),
+  supports_vision: z.boolean().nullable(),
+  supports_reasoning: z.boolean().nullable(),
+  hidden: z.boolean(),
 })
 
-const ProviderViewSchema = z.object({
-  provider_id: z.string(),
+const ProviderProductSchema = z.object({
+  catalog_id: z.string(),
   name: z.string(),
-  display_name: z.string(),
+  brand: z.object({
+    brand_id: z.string(),
+    name: z.string(),
+    logo_asset: z.string(),
+  }),
+  connection_method: z.enum(["local", "api_key", "oauth"]),
+  oauth_available: z.boolean(),
+  usage_scope: z.string(),
+  discovery_strategy: z.string(),
+  api_mode: z.string(),
+})
+
+const ModelRefreshSchema = z.object({
+  status: z.string(),
+  checked_at: z.string(),
+  message: z.string().nullable(),
+  models: z.array(ProviderModelSchema),
+}).nullable()
+
+const ProviderConnectionSchema = z.object({
+  connection_id: z.string(),
+  catalog_id: z.string(),
+  alias: z.string(),
   api_base: z.string(),
   api_mode: z.string(),
   auth_type: z.string(),
-  test_model: z.string(),
-  configured: z.boolean(),
-  configuration_status: z.enum(["configured", "unconfigured"]),
-  verification: VerificationSchema,
   has_api_key: z.boolean(),
+  enabled: z.boolean(),
+  usage_scope: z.string(),
+  verification: VerificationSchema,
   models: z.array(ProviderModelSchema),
-  model_refresh: z.record(z.unknown()),
-  capabilities: z.object({
-    connection_method: z.enum(["local", "api_key", "oauth"]),
-    oauth_available: z.boolean(),
-    oauth_unavailable: z.boolean(),
-    model_discovery: z.boolean(),
-  }),
+  model_refresh: ModelRefreshSchema,
 })
 
 const MatrixCellSchema = z.object({
-  provider_id: z.string(),
+  connection_id: z.string(),
+  model_id: z.string().nullable(),
   available: z.boolean(),
   verification_status: z.enum(["never", "passed", "failed"]),
   benchmark_status: z.enum(["passed", "failed"]).nullable(),
@@ -48,31 +71,22 @@ const MatrixCellSchema = z.object({
 })
 
 const ModelMatrixSchema = z.object({
-  providers: z.array(z.object({
-    provider_id: z.string(),
+  connections: z.array(z.object({
+    connection_id: z.string(),
     name: z.string(),
     verification: VerificationSchema,
   })),
   models: z.array(z.object({
-    model_id: z.string(),
+    model_key: z.string(),
     display_name: z.string(),
     capabilities: z.array(z.string()),
-    providers: z.array(MatrixCellSchema),
-  })),
-})
-
-const BatchResultSchema = z.object({
-  results: z.array(z.object({
-    provider_id: z.string(),
-    configured: z.boolean(),
-    status: z.enum(["passed", "failed", "skipped"]),
-    verification: VerificationSchema.nullable(),
+    connections: z.array(MatrixCellSchema),
   })),
 })
 
 const BenchmarkResultSchema = z.object({
   results: z.array(z.object({
-    provider_id: z.string(),
+    connection_id: z.string(),
     model_id: z.string(),
     status: z.enum(["passed", "failed"]),
     checked_at: z.string(),
@@ -83,57 +97,149 @@ const BenchmarkResultSchema = z.object({
 })
 
 export type ProviderVerification = z.infer<typeof VerificationSchema>
-export type ProviderView = z.infer<typeof ProviderViewSchema>
+export type ProviderProduct = z.infer<typeof ProviderProductSchema>
+export type ProviderConnection = z.infer<typeof ProviderConnectionSchema>
+export type ProviderModel = z.infer<typeof ProviderModelSchema>
 export type ModelMatrix = z.infer<typeof ModelMatrixSchema>
-export type ProviderModelDraft = { readonly id: string; readonly display_name: string }
-export type ProviderDraft = {
-  readonly provider_id?: string
+export type ProviderModelDraft = {
+  readonly id: string
   readonly display_name?: string
+  readonly context_window_tokens?: number
+  readonly max_output_tokens?: number
+  readonly supports_tools?: boolean
+  readonly supports_vision?: boolean
+  readonly supports_reasoning?: boolean
+}
+export type ProviderConnectionDraft = {
+  readonly catalog_id: string
+  readonly alias?: string
   readonly api_base?: string
   readonly api_key?: string
   readonly api_mode?: string
   readonly auth_type?: string
-  readonly test_model?: string
   readonly models?: readonly ProviderModelDraft[]
   readonly refresh_models?: boolean
+  readonly verify?: boolean
 }
-export type BenchmarkCombination = { readonly provider_id: string; readonly model_id: string }
-
-export async function ownerProviders(): Promise<readonly ProviderView[]> {
-  return z.array(ProviderViewSchema).parse(await ownerRead("/api/owner/providers/"))
+export type ProviderConnectionUpdate = Omit<ProviderConnectionDraft, "catalog_id">
+export type BenchmarkCombination = {
+  readonly connection_id: string
+  readonly model_id: string
 }
 
-export async function createProvider(
-  draft: ProviderDraft,
+export async function ownerProviderCatalog(): Promise<readonly ProviderProduct[]> {
+  return z.array(ProviderProductSchema).parse(
+    await ownerRead("/api/owner/providers/catalog"),
+  )
+}
+
+export async function ownerProviderConnections(): Promise<readonly ProviderConnection[]> {
+  return z.array(ProviderConnectionSchema).parse(
+    await ownerRead("/api/owner/providers/connections"),
+  )
+}
+
+export async function createProviderConnection(
+  draft: ProviderConnectionDraft,
   csrfToken: string,
-): Promise<ProviderView> {
-  return ProviderViewSchema.parse(await ownerWrite("/api/owner/providers/", "POST", csrfToken, draft))
+): Promise<ProviderConnection> {
+  return ProviderConnectionSchema.parse(await ownerWrite(
+    "/api/owner/providers/connections",
+    "POST",
+    csrfToken,
+    draft,
+  ))
 }
 
-export async function updateProvider(
-  providerId: string,
-  draft: ProviderDraft,
+export async function updateProviderConnection(
+  connectionId: string,
+  draft: ProviderConnectionUpdate,
   csrfToken: string,
-): Promise<ProviderView> {
-  return ProviderViewSchema.parse(await ownerWrite(`/api/owner/providers/${encodeURIComponent(providerId)}`, "PUT", csrfToken, draft))
+): Promise<ProviderConnection> {
+  return ProviderConnectionSchema.parse(await ownerWrite(
+    `/api/owner/providers/connections/${encodeURIComponent(connectionId)}`,
+    "PUT",
+    csrfToken,
+    draft,
+  ))
 }
 
-export async function deleteProvider(providerId: string, csrfToken: string): Promise<void> {
-  await ownerWrite(`/api/owner/providers/${encodeURIComponent(providerId)}`, "DELETE", csrfToken)
-}
-
-export async function verifyProvider(providerId: string, csrfToken: string): Promise<void> {
-  await ownerWrite(`/api/owner/providers/${encodeURIComponent(providerId)}/verify`, "POST", csrfToken)
-}
-
-export async function verifyProvidersBatch(
+export async function deleteProviderConnection(
+  connectionId: string,
   csrfToken: string,
-): Promise<z.infer<typeof BatchResultSchema>> {
-  return BatchResultSchema.parse(await ownerWrite("/api/owner/providers/verify-batch", "POST", csrfToken, {}))
+): Promise<void> {
+  await ownerWrite(
+    `/api/owner/providers/connections/${encodeURIComponent(connectionId)}`,
+    "DELETE",
+    csrfToken,
+  )
+}
+
+export async function verifyProviderConnection(
+  connectionId: string,
+  csrfToken: string,
+): Promise<void> {
+  await ownerWrite(
+    `/api/owner/providers/connections/${encodeURIComponent(connectionId)}/verify`,
+    "POST",
+    csrfToken,
+  )
+}
+
+export async function refreshProviderModels(
+  connectionId: string,
+  csrfToken: string,
+): Promise<z.infer<typeof ModelRefreshSchema>> {
+  return ModelRefreshSchema.parse(await ownerWrite(
+    `/api/owner/providers/connections/${encodeURIComponent(connectionId)}/models/refresh`,
+    "POST",
+    csrfToken,
+  ))
+}
+
+export async function addProviderModel(
+  connectionId: string,
+  model: ProviderModelDraft,
+  csrfToken: string,
+): Promise<ProviderModel> {
+  return ProviderModelSchema.parse(await ownerWrite(
+    `/api/owner/providers/connections/${encodeURIComponent(connectionId)}/models`,
+    "POST",
+    csrfToken,
+    model,
+  ))
+}
+
+export async function updateProviderModel(
+  connectionId: string,
+  modelId: string,
+  update: Readonly<Partial<Omit<ProviderModelDraft, "id">> & { readonly hidden?: boolean }>,
+  csrfToken: string,
+): Promise<ProviderModel> {
+  return ProviderModelSchema.parse(await ownerWrite(
+    `/api/owner/providers/connections/${encodeURIComponent(connectionId)}/models/${encodeURIComponent(modelId)}`,
+    "PUT",
+    csrfToken,
+    update,
+  ))
+}
+
+export async function deleteProviderModel(
+  connectionId: string,
+  modelId: string,
+  csrfToken: string,
+): Promise<void> {
+  await ownerWrite(
+    `/api/owner/providers/connections/${encodeURIComponent(connectionId)}/models/${encodeURIComponent(modelId)}`,
+    "DELETE",
+    csrfToken,
+  )
 }
 
 export async function ownerModelMatrix(): Promise<ModelMatrix> {
-  return ModelMatrixSchema.parse(await ownerRead("/api/owner/providers/model-matrix"))
+  return ModelMatrixSchema.parse(
+    await ownerRead("/api/owner/providers/connection-model-matrix"),
+  )
 }
 
 export async function benchmarkProviderModels(
@@ -141,7 +247,7 @@ export async function benchmarkProviderModels(
   csrfToken: string,
 ): Promise<z.infer<typeof BenchmarkResultSchema>> {
   return BenchmarkResultSchema.parse(await ownerWrite(
-    "/api/owner/providers/models/benchmark",
+    "/api/owner/providers/connection-models/benchmark",
     "POST",
     csrfToken,
     { combinations },

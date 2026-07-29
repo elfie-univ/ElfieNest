@@ -21,6 +21,7 @@ from ai_runtime.storage.data_home import (
     get_provider_validation_dir,
 )
 from ai_runtime.storage.secrets import read_secrets
+from ai_runtime.storage.validation_reports import write_provider_validation_report
 from ai_runtime.validation.providers import DiscoveredModel
 from app.infrastructure.persistence.store import init_db
 from app.interfaces.api.app import create_app
@@ -356,6 +357,109 @@ class TestProviderRoutes:
 
         assert response.status_code == 409
         assert "daily" in response.text
+
+    def test_connection_model_matrix_uses_connection_ids_and_endpoint_models(
+        self,
+        client: TestClient,
+    ) -> None:
+        tokens = _login_owner(client)
+        first = client.post(
+            "/api/owner/providers/connections",
+            json={
+                "catalog_id": "custom_openai",
+                "alias": "订阅甲",
+                "api_base": "https://first.example/v1",
+                "models": [{"id": "vendor-glm5", "display_name": "GLM-5"}],
+                "verify": False,
+            },
+            headers=_headers(tokens["csrf_token"]),
+        ).json()
+        second = client.post(
+            "/api/owner/providers/connections",
+            json={
+                "catalog_id": "custom_openai",
+                "alias": "订阅乙",
+                "api_base": "https://second.example/v1",
+                "models": [{"id": "glm-5", "display_name": "GLM-5"}],
+                "verify": False,
+            },
+            headers=_headers(tokens["csrf_token"]),
+        ).json()
+
+        response = client.get(
+            "/api/owner/providers/connection-model-matrix",
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert response.status_code == 200
+        matrix = response.json()
+        assert {item["connection_id"] for item in matrix["connections"]} >= {
+            first["connection_id"],
+            second["connection_id"],
+        }
+        glm = next(row for row in matrix["models"] if row["display_name"] == "GLM-5")
+        cells = {cell["connection_id"]: cell for cell in glm["connections"]}
+        assert cells[first["connection_id"]]["model_id"] == "vendor-glm5"
+        assert cells[second["connection_id"]]["model_id"] == "glm-5"
+
+    def test_connection_model_benchmark_uses_endpoint_model_and_writes_report(
+        self,
+        client: TestClient,
+    ) -> None:
+        tokens = _login_owner(client)
+        created = client.post(
+            "/api/owner/providers/connections",
+            json={
+                "catalog_id": "custom_openai",
+                "alias": "测速订阅",
+                "api_base": "https://benchmark.example/v1",
+                "api_key": "benchmark-secret",
+                "models": [{"id": "vendor-model", "display_name": "Shared Model"}],
+                "verify": False,
+            },
+            headers=_headers(tokens["csrf_token"]),
+        ).json()
+        connection_id = created["connection_id"]
+        write_provider_validation_report(
+            connection_id,
+            status="passed",
+            checked_at="2026-07-29T00:00:00+00:00",
+            latency_ms=8.0,
+            error=None,
+            trigger="single",
+        )
+
+        with patch(
+            "app.interfaces.api.provider_connection_model_routes."
+            "run_connection_model_benchmark",
+            new=AsyncMock(
+                return_value={
+                    "status": "passed",
+                    "latency_ms": 21.0,
+                    "latency_class": "fast",
+                    "error": None,
+                }
+            ),
+        ):
+            response = client.post(
+                "/api/owner/providers/connection-models/benchmark",
+                json={
+                    "combinations": [
+                        {
+                            "connection_id": connection_id,
+                            "model_id": "vendor-model",
+                        }
+                    ]
+                },
+                headers=_headers(tokens["csrf_token"]),
+            )
+
+        assert response.status_code == 200
+        assert response.json()["results"][0]["connection_id"] == connection_id
+        model_dirs = list((get_model_validation_dir() / connection_id).iterdir())
+        assert len(model_dirs) == 1
+        report = read_yaml_mapping(model_dirs[0] / "latest.yaml")
+        assert report["model_id"] == "vendor-model"
 
     def test_list_separates_configuration_from_verification(
         self, client: TestClient
