@@ -45,6 +45,7 @@ where = ["."]
 include = ["ai_runtime*", "app*", "elfie*", "nest*"]
 
 [tool.setuptools.package-data]
+"ai_runtime.providers" = ["provider-catalog.yaml"]
 
 [tool.ruff]
 line-length = 88

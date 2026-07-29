@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ai_runtime.models.capabilities import known_capabilities
 from ai_runtime.providers.profiles import BUILTIN_PROFILES
+from ai_runtime.storage.validation_reports import write_model_validation_report
 from ai_runtime.validation.providers import ProviderValidationRunner, classify_latency
 from app.features.accounts.auth import require_owner
 
@@ -238,16 +239,36 @@ async def benchmark_models(
     checked_at = datetime.now(timezone.utc).isoformat()
     for combination, raw in zip(body.combinations, raw_results):
         info = config["providers"][combination.provider_id]
-        stored = {
-            "status": "passed" if raw["status"] == "passed" else "failed",
+        stored_status = "passed" if raw["status"] == "passed" else "failed"
+        stored_latency = (
+            float(raw["latency_ms"])
+            if isinstance(raw.get("latency_ms"), (int, float))
+            else None
+        )
+        stored_latency_class = (
+            str(raw["latency_class"]) if raw.get("latency_class") else None
+        )
+        stored_error = sanitize_error(
+            raw.get("error"), secrets=(str(info.get("api_key") or ""),)
+        )
+        stored: dict[str, Any] = {
+            "status": stored_status,
             "checked_at": checked_at,
-            "latency_ms": raw.get("latency_ms"),
-            "latency_class": raw.get("latency_class"),
-            "error": sanitize_error(
-                raw.get("error"), secrets=(str(info.get("api_key") or ""),)
-            ),
+            "latency_ms": stored_latency,
+            "latency_class": stored_latency_class,
+            "error": stored_error,
         }
         info.setdefault("benchmarks", {})[combination.model_id] = stored
+        write_model_validation_report(
+            combination.provider_id,
+            combination.model_id,
+            status=stored_status,
+            checked_at=checked_at,
+            latency_ms=stored_latency,
+            latency_class=stored_latency_class,
+            error=stored_error,
+            trigger="benchmark",
+        )
         results.append(
             {
                 "provider_id": combination.provider_id,

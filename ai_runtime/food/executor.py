@@ -55,11 +55,14 @@ class FoodExecutor:
         allowed_tools: tuple[str, ...] = (),
         max_loops: int = 3,
         prefer_deep: bool = False,
+        prefer_vision: bool = False,
         images: tuple[str, ...] = (),
         audio: str | None = None,
     ) -> FoodExecutionResult:
         candidates: list[tuple[str, ExecutionProfile]] = []
-        if prefer_deep and recipe.deep is not None:
+        if prefer_vision and recipe.vision is not None:
+            candidates.append(("vision", recipe.vision))
+        elif prefer_deep and recipe.deep is not None:
             candidates.append(("deep", recipe.deep))
         candidates.append(("primary", recipe.primary))
         candidates.extend(
@@ -111,7 +114,7 @@ class FoodExecutor:
         provider_config = self.config.providers.get(provider, {})
         if provider != "ollama" and not provider_config.get("api_key"):
             raise FoodExecutionError(f"Provider '{provider}' 没有可用密钥")
-        tools = tuple(tool for tool in profile.tools if tool in allowed_tools)
+        tools = allowed_tools
         if images or audio:
             messages = assemble_multimodal_payload(
                 messages,

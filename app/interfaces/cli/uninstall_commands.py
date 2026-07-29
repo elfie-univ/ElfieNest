@@ -23,17 +23,23 @@ def run_uninstall_menu() -> int:
     elfie_home = get_elfie_home()
 
     home_exists = elfie_home.exists()
-    config_exists = (elfie_home / "config.yaml").exists()
-    env_exists = (elfie_home / ".env").exists()
+    configs_exists = (elfie_home / "configs").exists()
 
     choice = menu.choose(
         "Uninstall Options",
         (
-            MenuItem("1", "Uninstall app only (keep all data and config)", "App files managed by installer"),
+            MenuItem(
+                "1",
+                "Uninstall app only (keep all data and config)",
+                "App files managed by installer",
+            ),
             MenuItem(
                 "2",
                 "Uninstall and delete config",
-                _status_hint([config_exists, env_exists], ["config.yaml", ".env"]),
+                _status_hint(
+                    [configs_exists],
+                    ["configs"],
+                ),
             ),
             MenuItem(
                 "3",
@@ -90,23 +96,14 @@ def _delete_config(elfie_home: Path) -> int:
         return 0
 
     deleted = []
-    config_file = elfie_home / "config.yaml"
-    env_file = elfie_home / ".env"
+    configs_dir = elfie_home / "configs"
 
-    if config_file.exists():
+    if configs_dir.exists():
         try:
-            config_file.unlink()
-            deleted.append("config.yaml")
+            shutil.rmtree(configs_dir)
+            deleted.append("configs")
         except OSError as error:
-            print(f"\n❌ Failed to delete config.yaml: {error}")
-            return 1
-
-    if env_file.exists():
-        try:
-            env_file.unlink()
-            deleted.append(".env")
-        except OSError as error:
-            print(f"\n❌ Failed to delete .env: {error}")
+            print(f"\n❌ Failed to delete configs: {error}")
             return 1
 
     if deleted:
@@ -120,7 +117,7 @@ def _delete_config(elfie_home: Path) -> int:
 
 def _delete_all(elfie_home: Path) -> int:
     print("\n⚠️  Will delete all data, including:")
-    print("   - Config files (config.yaml, .env)")
+    print("   - Config files and credentials")
     print("   - Database (nest.db)")
     print("   - Elfie data (elfies/)")
     print("   - All other user data")

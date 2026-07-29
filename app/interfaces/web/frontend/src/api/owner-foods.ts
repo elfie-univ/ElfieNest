@@ -7,7 +7,6 @@ export const ExecutionProfileSchema = z.object({
   reasoning_profile: z.string(),
   max_tokens: z.number(),
   temperature: z.number(),
-  tools: z.array(z.string()),
   provider_options: z.record(z.string(), z.unknown()),
 })
 export const FoodRecipeSchema = z.object({
@@ -16,14 +15,18 @@ export const FoodRecipeSchema = z.object({
   description: z.string(),
   primary: ExecutionProfileSchema,
   deep: ExecutionProfileSchema.nullable(),
+  vision: ExecutionProfileSchema.nullable(),
   verifier: ExecutionProfileSchema.nullable(),
   technical_fallbacks: z.array(ExecutionProfileSchema),
+  local_only: z.boolean(),
   validation_status: z.string(),
   source: z.string(),
   locked_fields: z.array(z.string()),
 })
 export const FoodCatalogSchema = z.object({
   version: z.number(),
+  default_food: z.string(),
+  fallback_food: z.string(),
   source_fingerprint: z.string(),
   generated_at: z.string(),
   generation_sources: z.array(z.string()),
@@ -48,12 +51,31 @@ export const FoodPreviewSchema = z.object({
 })
 
 const EditResultSchema = z.object({ food: FoodRecipeSchema, warnings: z.array(z.string()) })
+const CreateResultSchema = z.object({
+  food: FoodRecipeSchema,
+  warnings: z.array(z.string()),
+  catalog: FoodCatalogSchema,
+})
+const SettingsResultSchema = z.object({
+  catalog: FoodCatalogSchema,
+  warnings: z.array(z.string()),
+})
+const FoodVisibilitySchema = z.object({
+  food_key: z.string(),
+  user_ids: z.array(z.number().int()),
+  users: z.array(z.object({
+    user_id: z.number().int(),
+    display_name: z.string(),
+    assigned: z.boolean(),
+  })).optional().default([]),
+})
 const ApplyResultSchema = z.object({ applied: z.boolean(), candidate: FoodCatalogSchema })
 
 export type ExecutionProfile = z.infer<typeof ExecutionProfileSchema>
 export type FoodRecipe = z.infer<typeof FoodRecipeSchema>
 export type FoodCatalog = z.infer<typeof FoodCatalogSchema>
 export type FoodPreview = z.infer<typeof FoodPreviewSchema>
+export type FoodVisibility = z.infer<typeof FoodVisibilitySchema>
 
 export async function ownerFoods(): Promise<FoodCatalog> {
   return FoodCatalogSchema.parse(await ownerRead("/api/owner/runtime/foods/"))
@@ -93,6 +115,58 @@ export async function editFood(
     csrfToken,
     recipe,
   ))
+}
+
+export async function createFood(
+  draft: Pick<FoodRecipe, "display_name" | "description" | "primary">,
+  csrfToken: string,
+): Promise<z.infer<typeof CreateResultSchema>> {
+  return CreateResultSchema.parse(await ownerWrite(
+    "/api/owner/runtime/foods/",
+    "POST",
+    csrfToken,
+    draft,
+  ))
+}
+
+export async function updateFoodSettings(
+  defaultFood: string,
+  fallbackFood: string,
+  csrfToken: string,
+): Promise<z.infer<typeof SettingsResultSchema>> {
+  return SettingsResultSchema.parse(await ownerWrite(
+    "/api/owner/runtime/foods/settings",
+    "PUT",
+    csrfToken,
+    { default_food: defaultFood, fallback_food: fallbackFood },
+  ))
+}
+
+export async function deleteFood(foodKey: string, csrfToken: string): Promise<FoodCatalog> {
+  return FoodCatalogSchema.parse(await ownerWrite(
+    `/api/owner/runtime/foods/${encodeURIComponent(foodKey)}`,
+    "DELETE",
+    csrfToken,
+  ))
+}
+
+export async function foodVisibility(foodKey: string): Promise<FoodVisibility> {
+  return FoodVisibilitySchema.parse(await ownerRead(
+    `/api/owner/runtime/foods/${encodeURIComponent(foodKey)}/visibility`,
+  ))
+}
+
+export async function updateFoodVisibility(
+  foodKey: string,
+  userIds: readonly number[],
+  csrfToken: string,
+): Promise<void> {
+  await ownerWrite(
+    `/api/owner/runtime/foods/${encodeURIComponent(foodKey)}/visibility`,
+    "PUT",
+    csrfToken,
+    { user_ids: userIds },
+  )
 }
 
 export async function rollbackFoods(csrfToken: string): Promise<FoodCatalog> {

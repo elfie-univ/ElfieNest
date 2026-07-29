@@ -11,84 +11,41 @@ import urllib.request
 from typing import Any, Dict, List
 
 from ai_runtime.models.local_profiles import select_local_profile
-from ai_runtime.storage.config_store import read_yaml_mapping
+from ai_runtime.providers.profiles import BUILTIN_PROFILES
 from ai_runtime.storage.data_home import get_config_path
-from app.features.configuration.runtime_store import write_runtime_config
+from app.features.configuration.runtime_store import (
+    read_runtime_config,
+    write_runtime_config,
+)
 
 DEFAULT_LOCAL_PROFILE = select_local_profile(8)
 MODELS_TO_PULL = [DEFAULT_LOCAL_PROFILE.text_model, DEFAULT_LOCAL_PROFILE.vision_model]
 
-# 经典大模型预设元数据（多级高中低三档候选库）
+_SETUP_PROVIDER_IDS = ("openai", "deepseek", "gemini", "qwen", "ollama")
+
+
+def _setup_provider_metadata(provider_id: str) -> Dict[str, Any]:
+    profile = BUILTIN_PROFILES[provider_id]
+    metadata: Dict[str, Any] = {
+        "name": profile.name,
+        "api_base": profile.api_base,
+        "test_model": profile.test_model,
+    }
+    for role in ("cheap", "deep", "multimodal"):
+        model = profile.default_models[role][0]
+        metadata[role] = {
+            "model": model,
+            "desc": profile.model_descriptions.get(
+                role,
+                f"{profile.name} recommended {role} model",
+            ),
+        }
+    return metadata
+
+
 PROVIDER_METADATA: Dict[str, Dict[str, Any]] = {
-    "openai": {
-        "name": "OpenAI Official",
-        "api_base": "https://api.openai.com/v1",
-        "test_model": "gpt-4o-mini",
-        "cheap": {"model": "gpt-4o-mini", "desc": "GPT-4o-Mini (Low energy, fast response)"},
-        "deep": {"model": "gpt-4o", "desc": "GPT-4o (Deep reasoning & advanced code)"},
-        "multimodal": {"model": "gpt-4o", "desc": "GPT-4o (Native video & audio multimodal)"},
-    },
-    "deepseek": {
-        "name": "DeepSeek Official",
-        "api_base": "https://api.deepseek.com/v1",
-        "test_model": "deepseek-chat",
-        "cheap": {
-            "model": "deepseek-chat",
-            "desc": "DeepSeek V3 (Excellent cost-performance, strong Chinese)",
-        },
-        "deep": {
-            "model": "deepseek-reasoner",
-            "desc": "DeepSeek R1 (Deep thinking & superior logic)",
-        },
-        "multimodal": {
-            "model": "deepseek-chat",
-            "desc": "DeepSeek V3 (No native multimodal, using Chat fallback)",
-        },
-    },
-    "gemini": {
-        "name": "Google Gemini",
-        "api_base": "https://generativelanguage.googleapis.com/v1beta",
-        "test_model": "gemini-1.5-flash",
-        "cheap": {
-            "model": "gemini-1.5-flash",
-            "desc": "Gemini 1.5 Flash (Large context, high cost-performance)",
-        },
-        "deep": {
-            "model": "gemini-1.5-pro",
-            "desc": "Gemini 1.5 Pro (Top-tier reasoning, ultra-long memory)",
-        },
-        "multimodal": {
-            "model": "gemini-1.5-pro",
-            "desc": "Gemini 1.5 Pro (Ultimate multimodal, native audio vision)",
-        },
-    },
-    "qwen": {
-        "name": "Alibaba Tongyi Qianwen (DashScope)",
-        "api_base": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "test_model": "qwen-coder-turbo",
-        "cheap": {
-            "model": "qwen-coder-turbo",
-            "desc": "Qwen-Coder-Turbo (High-efficiency daily code)",
-        },
-        "deep": {
-            "model": "qwen-coder-plus",
-            "desc": "Qwen-Coder-Plus (Strong reasoning professional code)",
-        },
-        "multimodal": {
-            "model": "qwen-vl-plus",
-            "desc": "Qwen-VL-Plus (Alibaba native high-quality vision model)",
-        },
-    },
-    "ollama": {
-        "name": "Local Ollama (Fully offline)",
-        "api_base": "http://localhost:11434",
-        "cheap": {"model": "qwen3.5:0.8b", "desc": "Qwen3.5 0.8B (Ultra low energy, instant response)"},
-        "deep": {"model": "qwen3.5:4b", "desc": "Qwen3.5 4B (Local moderate reasoning)"},
-        "multimodal": {
-            "model": "moondream",
-            "desc": "Moondream 2 (Local lightweight multimodal vision)",
-        },
-    },
+    provider_id: _setup_provider_metadata(provider_id)
+    for provider_id in _SETUP_PROVIDER_IDS
 }
 
 
@@ -181,7 +138,9 @@ def test_api_connectivity(provider: str, api_key: str, api_base: str) -> bool:
         req = urllib.request.Request(url, data=data, headers=headers, method="POST")
         with urllib.request.urlopen(req, timeout=8) as response:
             if response.status == 200:
-                print(f"  🟢 Congratulations! {meta['name']} compute handshake successful, response normal!")
+                print(
+                    f"  🟢 Congratulations! {meta['name']} compute handshake successful, response normal!"
+                )
                 return True
     except Exception as e:
         print(f"  ⚠️  Channel handshake failed. Error details: {e}")
@@ -197,7 +156,9 @@ def test_api_connectivity(provider: str, api_key: str, api_base: str) -> bool:
 def setup_code_plan_interactive():
     """Two-step wizard: 1. Activate providers 2. Cross-provider high/mid/low tier binding"""
     print("\n" + "=" * 70)
-    print("🎨 Elfie LLM Hybrid Distributed Compute Grid: Personalized Provider & Tier Configuration")
+    print(
+        "🎨 Elfie LLM Hybrid Distributed Compute Grid: Personalized Provider & Tier Configuration"
+    )
     print("=" * 70)
 
     # 初始化配置容器
@@ -216,7 +177,7 @@ def setup_code_plan_interactive():
     config_path = get_config_path()
     if config_path.exists():
         try:
-            saved = read_yaml_mapping(config_path)
+            saved = read_runtime_config(config_path)
             if "providers" in saved:
                 for k, v in saved["providers"].items():
                     if k in providers:
@@ -255,7 +216,9 @@ def setup_code_plan_interactive():
         meta = PROVIDER_METADATA[selected_provider]
 
         if selected_provider == "ollama":
-            print("🦊 Local Ollama is a password-free managed service, always active by default!")
+            print(
+                "🦊 Local Ollama is a password-free managed service, always active by default!"
+            )
             custom_base = input(
                 f"   Enter Ollama listen host address [Enter for default: {providers['ollama']['api_base']}]: "
             ).strip()
@@ -270,14 +233,18 @@ def setup_code_plan_interactive():
             print(f"❌ Provider {meta['name']} has been disabled.")
             continue
 
-        base = input(f"   Enter API Base [Enter for recommended default: {meta['api_base']}]: ").strip()
+        base = input(
+            f"   Enter API Base [Enter for recommended default: {meta['api_base']}]: "
+        ).strip()
         base_to_save = base if base else meta["api_base"]
 
         # 开展连通性检测
         success = test_api_connectivity(selected_provider, key, base_to_save)
         if not success:
             ignore = (
-                input("   ⚠️  Connectivity test failed. Keep this config anyway? (y/n) [default n]: ")
+                input(
+                    "   ⚠️  Connectivity test failed. Keep this config anyway? (y/n) [default n]: "
+                )
                 .strip()
                 .lower()
             )
@@ -330,7 +297,9 @@ def setup_code_plan_interactive():
 
         for idx, cand in enumerate(candidate_list, 1):
             print(f"  {idx}) {cand['model']:<24} (from {cand['provider_name']})")
-        print(f"  {len(candidate_list) + 1}) ✍️  Manually configure custom model & provider")
+        print(
+            f"  {len(candidate_list) + 1}) ✍️  Manually configure custom model & provider"
+        )
 
         selected_idx = input("Enter option number [default 1]: ").strip()
         if not selected_idx:
@@ -360,7 +329,9 @@ def setup_code_plan_interactive():
             ).strip()
 
             if not prov_input or not model_input:
-                print("❌ Input cannot be empty! Falling back to option 1 recommendation.")
+                print(
+                    "❌ Input cannot be empty! Falling back to option 1 recommendation."
+                )
                 routing[tier] = {
                     "model": candidate_list[0]["model"],
                     "provider": candidate_list[0]["provider"],
@@ -376,7 +347,7 @@ def setup_code_plan_interactive():
         )
 
     # ----------------------------------------------------
-    # 数据落盘保存至 json
+    # 数据按正式 Runtime 配置边界落盘。
     # ----------------------------------------------------
     final_config = {
         "providers": providers,
@@ -393,7 +364,9 @@ def setup_code_plan_interactive():
         write_runtime_config(config_path, final_config)
 
         print("\n" + "=" * 70)
-        print("🎉 Congratulations! Cross-provider multi-source compute routing grid configuration complete!")
+        print(
+            "🎉 Congratulations! Cross-provider multi-source compute routing grid configuration complete!"
+        )
         print(f"   Configuration saved to ➡️ {config_path}")
         print(
             "   - [Cheap tier]: {} ({})".format(
@@ -437,7 +410,9 @@ def main():
     process = None
 
     if not service_already_running:
-        print("🔌 Detected local 11434 compute port not responding. Attempting to start Ollama service in background...")
+        print(
+            "🔌 Detected local 11434 compute port not responding. Attempting to start Ollama service in background..."
+        )
         try:
             process = subprocess.Popen(
                 [ollama_exec, "serve"],
@@ -448,7 +423,9 @@ def main():
             for _ in range(15):
                 time.sleep(1)
                 if check_local_ollama_alive():
-                    print("✅ Ollama compute service successfully started in background!")
+                    print(
+                        "✅ Ollama compute service successfully started in background!"
+                    )
                     break
             else:
                 print(
@@ -483,7 +460,9 @@ def main():
     finally:
         # 回收我们刚刚启动的临时后台服务，保证不残留僵尸进程
         if process:
-            print("💤 Recycling temporary bootstrapped local compute service process...")
+            print(
+                "💤 Recycling temporary bootstrapped local compute service process..."
+            )
             process.terminate()
             process.wait()
             print("👋 Temporary service cleanup complete.")

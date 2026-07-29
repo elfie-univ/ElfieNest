@@ -42,6 +42,7 @@ function roleDiffs(current: FoodRecipe | undefined, candidate: FoodRecipe | unde
   const pairs: readonly [string, ExecutionProfile | null | undefined, ExecutionProfile | null | undefined][] = [
     ["主模型", current?.primary, candidate?.primary],
     ["深度模型", current?.deep, candidate?.deep],
+    ["视觉模型", current?.vision, candidate?.vision],
     ["校验模型", current?.verifier, candidate?.verifier],
   ]
   const fallbackCount = Math.max(current?.technical_fallbacks.length ?? 0, candidate?.technical_fallbacks.length ?? 0)

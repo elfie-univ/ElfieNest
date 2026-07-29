@@ -1,6 +1,7 @@
 """基础工具的本地配置契约。
 
-界面只编辑工具语义配置；密钥仅保存在 ``~/.elfienest/.env``。
+界面只编辑工具语义配置；密钥仅保存在
+``~/.elfienest/configs/credentials/api-keys.env``。
 """
 
 from __future__ import annotations
@@ -37,9 +38,13 @@ def default_tool_configs() -> dict[str, dict[str, Any]]:
     }
 
 
-def load_tool_configs(runtime_policy: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
+def load_tool_configs(
+    runtime_policy: Mapping[str, Any] | None,
+) -> dict[str, dict[str, Any]]:
     configs = default_tool_configs()
-    raw_tools = runtime_policy.get("tools", {}) if isinstance(runtime_policy, Mapping) else {}
+    raw_tools = (
+        runtime_policy.get("tools", {}) if isinstance(runtime_policy, Mapping) else {}
+    )
     if isinstance(raw_tools, Mapping):
         for tool_key in TOOL_KEYS:
             raw = raw_tools.get(tool_key)
@@ -52,7 +57,9 @@ def load_tool_configs(runtime_policy: Mapping[str, Any] | None) -> dict[str, dic
     return configs
 
 
-def public_tool_configs(runtime_policy: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
+def public_tool_configs(
+    runtime_policy: Mapping[str, Any] | None,
+) -> dict[str, dict[str, Any]]:
     configs = deepcopy(load_tool_configs(runtime_policy))
     for config in configs.values():
         api_key = str(config.pop("api_key", "") or "")

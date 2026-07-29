@@ -8,7 +8,8 @@ from typing import Any, Dict
 
 from .providers.profiles import BUILTIN_PROFILES, get_default_api_mode
 from .storage.config_store import ConfigStoreError, read_yaml_mapping
-from .storage.data_home import get_config_path, get_env_path
+from .storage.data_home import get_env_path
+from .storage.runtime_config_bundle import read_runtime_config_bundle
 from .storage.secrets import provider_secret_name, read_secrets, resolve_secret
 
 
@@ -57,43 +58,16 @@ def _default_providers(
     return providers
 
 
-# 🌟 大模型跨服务商算力预设与精选推荐清单
+# 开发工具仍使用旧字段名；值由同一 Provider 目录派生。
 PROVIDER_RECOMMENDS: Dict[str, Dict[str, Any]] = {
-    "deepseek": {
-        "name": "DeepSeek",
-        "api_base": "https://api.deepseek.com/v1",
-        "cheap_models": ["deepseek-chat"],
-        "deep_models": ["deepseek-reasoner", "deepseek-chat"],
-        "multimodal_models": ["deepseek-chat"],  # 暂无原生多模态，用 chat 替代
-    },
-    "openai": {
-        "name": "OpenAI",
-        "api_base": "https://api.openai.com/v1",
-        "cheap_models": ["gpt-4o-mini", "gpt-3.5-turbo"],
-        "deep_models": ["gpt-4o", "o1-mini", "o3-mini"],
-        "multimodal_models": ["gpt-4o"],
-    },
-    "gemini": {
-        "name": "Gemini",
-        "api_base": "https://generativelanguage.googleapis.com/v1beta",
-        "cheap_models": ["gemini-1.5-flash", "gemini-2.0-flash"],
-        "deep_models": ["gemini-1.5-pro", "gemini-2.0-pro-exp"],
-        "multimodal_models": ["gemini-1.5-flash", "gemini-1.5-pro"],
-    },
-    "qwen": {
-        "name": "Ali Qwen (DashScope)",
-        "api_base": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "cheap_models": ["qwen-coder-turbo", "qwen-turbo", "qwen-plus"],
-        "deep_models": ["qwen-coder-plus", "qwen-max"],
-        "multimodal_models": ["qwen-vl-plus", "qwen-vl-max"],
-    },
-    "ollama": {
-        "name": "本地 Ollama",
-        "api_base": "http://localhost:11434",
-        "cheap_models": ["qwen3.5:0.8b", "qwen2.5:0.5b", "llama3.2:1b"],
-        "deep_models": ["qwen3.5:4b", "qwen2.5:7b", "llama3:8b"],
-        "multimodal_models": ["moondream", "llava"],
-    },
+    provider_id: {
+        "name": profile.name,
+        "api_base": profile.api_base,
+        "cheap_models": list(profile.default_models["cheap"]),
+        "deep_models": list(profile.default_models["deep"]),
+        "multimodal_models": list(profile.default_models["multimodal"]),
+    }
+    for provider_id, profile in BUILTIN_PROFILES.items()
 }
 
 
@@ -210,18 +184,20 @@ class LLMRuntimeConfig:
 
         # 尝试自检测并热加载持久化的本地 YAML 配置文件
         saved_cfg = None
-        yaml_path = (
-            config_home / "config.yaml"
-            if config_home is not None
-            else get_config_path()
-        )
-        # 生产配置只允许从 ELFIE_HOME/config.yaml 读取；不再兼容旧版 JSON。
-        if yaml_path.exists():
+        # 生产配置由 configs/ 下三份 YAML 合并；开发 Lab 继续使用独立单文件。
+        if config_home is None:
             try:
-                saved_cfg = read_yaml_mapping(yaml_path)
+                saved_cfg = read_runtime_config_bundle()
             except ConfigStoreError:
                 # 损坏的当前配置不会触发旧格式 fallback；继续使用内置默认值。
                 saved_cfg = None
+        else:
+            yaml_path = config_home / "config.yaml"
+            if yaml_path.exists():
+                try:
+                    saved_cfg = read_yaml_mapping(yaml_path)
+                except ConfigStoreError:
+                    saved_cfg = None
 
         # 合并配置到当前实例
         if saved_cfg is not None:

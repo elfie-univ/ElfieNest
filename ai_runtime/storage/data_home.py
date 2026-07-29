@@ -43,24 +43,83 @@ def get_elfie_developer_home() -> Path:
     return Path(os.environ.get("ELFIE_DEV_HOME", str(default)))
 
 
+def get_configs_dir() -> Path:
+    """返回生产配置目录。"""
+    return get_elfie_home() / "configs"
+
+
+def get_credentials_dir() -> Path:
+    """返回生产凭据目录。"""
+    return get_configs_dir() / "credentials"
+
+
+def get_oauth_credentials_dir() -> Path:
+    """返回结构化 OAuth 凭据目录。"""
+    return get_credentials_dir() / "oauth"
+
+
+def get_reports_dir() -> Path:
+    """返回可重新生成的运行报告目录。"""
+    return get_elfie_home() / "reports"
+
+
+def get_provider_validation_dir() -> Path:
+    """返回 Provider 连通性验证报告目录。"""
+    return get_reports_dir() / "provider-validations"
+
+
+def get_model_validation_dir() -> Path:
+    """返回具体模型验证报告目录。"""
+    return get_reports_dir() / "model-validations"
+
+
+def get_runtime_validation_dir() -> Path:
+    """返回 Runtime 整体验证报告目录。"""
+    return get_reports_dir() / "runtime-validations"
+
+
 def get_config_path() -> Path:
-    """主配置文件路径 (YAML 格式)"""
-    return get_elfie_home() / "config.yaml"
+    """Runtime 主配置文件路径。"""
+    return get_configs_dir() / "runtime.yaml"
+
+
+def get_provider_config_path() -> Path:
+    """Provider 实例配置文件路径。"""
+    return get_configs_dir() / "providers.yaml"
+
+
+def get_provider_catalog_path() -> Path:
+    """可远程更新的 Provider 元数据覆盖包路径。"""
+    return get_configs_dir() / "provider-catalog.yaml"
+
+
+def get_tool_config_path() -> Path:
+    """工具配置文件路径。"""
+    return get_configs_dir() / "tools.yaml"
+
+
+def get_runtime_config_paths() -> tuple[Path, Path, Path]:
+    """返回影响 Runtime 热加载的全部正式配置文件。"""
+    return (
+        get_config_path(),
+        get_provider_config_path(),
+        get_tool_config_path(),
+    )
 
 
 def get_env_path() -> Path:
     """API Keys 和 secrets (权限 600, gitignored)"""
-    return get_elfie_home() / ".env"
+    return get_credentials_dir() / "api-keys.env"
 
 
 def get_food_catalog_path() -> Path:
-    """当前生效的粮食配方目录。"""
-    return get_elfie_home() / "foods.yaml"
+    """当前生效的粮食配方文件。"""
+    return get_configs_dir() / "food-packages.yaml"
 
 
 def get_food_history_dir() -> Path:
     """粮食配方历史版本目录。"""
-    return get_elfie_home() / "food_history"
+    return get_configs_dir() / "food-packages-history"
 
 
 def get_validation_dir() -> Path:
@@ -164,6 +223,14 @@ def ensure_elfie_home() -> None:
 
     subdirs = [
         "elfies",
+        "configs",
+        "configs/credentials",
+        "configs/credentials/oauth",
+        "configs/food-packages-history",
+        "reports",
+        "reports/provider-validations",
+        "reports/model-validations",
+        "reports/runtime-validations",
         "cache",
         "models",
         "runtime",
@@ -171,7 +238,6 @@ def ensure_elfie_home() -> None:
         "logs",
         "skills",
         "sessions",
-        "food_history",
         "validations",
         "files",
     ]

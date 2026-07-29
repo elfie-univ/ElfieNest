@@ -7,6 +7,7 @@ import getpass
 import re
 import shutil
 from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +30,8 @@ from ai_runtime.providers.model_hints import (
 )
 from ai_runtime.providers.profiles import BUILTIN_PROFILES
 from ai_runtime.storage.config_store import read_yaml_mapping, write_yaml_mapping
-from ai_runtime.storage.data_home import get_config_path, get_food_catalog_path
+from ai_runtime.storage.data_home import get_config_path
+from ai_runtime.storage.runtime_config_bundle import write_runtime_config_bundle
 from ai_runtime.storage.secrets import (
     provider_secret_name,
     set_provider_secret,
@@ -81,6 +83,28 @@ class RuntimeLab:
             interactive=False if custom_io and interactive is None else interactive,
         )
         self.config = LLMRuntimeConfig.load(config_home=self.config_home)
+
+    def _config_file_path(self) -> Path:
+        if self.config_home:
+            return Path(self.config_home) / "config.yaml"
+        return get_config_path()
+
+    def _secret_file_path(self) -> Path | None:
+        if self.config_home:
+            return Path(self.config_home) / ".env"
+        return None
+
+    def _write_runtime_config(self, payload: dict[str, Any]) -> None:
+        if self.config_home:
+            write_yaml_mapping(self._config_file_path(), payload)
+            return
+        write_runtime_config_bundle(payload)
+
+    def _food_store(self) -> FoodCatalogStore:
+        if self.config_home:
+            root = Path(self.config_home)
+            return FoodCatalogStore(root / "foods.yaml", root / "food_history")
+        return FoodCatalogStore()
 
     def run(self) -> None:
         while True:
@@ -172,9 +196,9 @@ class RuntimeLab:
             if choice == add_key:
                 self._configure_other_provider_menu()
                 continue
-            provider_id = provider_by_key.get(str(choice))
-            if provider_id:
-                self.provider_detail_menu(provider_id)
+            selected_provider_id = provider_by_key.get(str(choice))
+            if selected_provider_id:
+                self.provider_detail_menu(selected_provider_id)
 
     def provider_detail_menu(self, provider_id: str) -> None:
         while True:
@@ -196,25 +220,19 @@ class RuntimeLab:
                 self._action(
                     f"{provider_id} Configuration & Status",
                     breadcrumb,
-                    lambda provider_id=provider_id: self._show_provider_with_evidence(
-                        provider_id
-                    ),
+                    partial(self._show_provider_with_evidence, provider_id),
                 )
             elif choice == "2":
                 self._action(
                     f"Configure Provider: {provider_id}",
                     breadcrumb,
-                    lambda provider_id=provider_id: (
-                        self._configure_provider_interactive(provider_id)
-                    ),
+                    partial(self._configure_provider_interactive, provider_id),
                 )
             elif choice == "3":
                 self._action(
                     f"Validate Provider: {provider_id}",
                     breadcrumb,
-                    lambda provider_id=provider_id: self._validate_provider_full(
-                        provider_id
-                    ),
+                    partial(self._validate_provider_full, provider_id),
                 )
             elif choice == "4":
                 if self._delete_provider(provider_id):
@@ -334,7 +352,7 @@ class RuntimeLab:
             )
 
     def food_menu(self) -> None:
-        store = FoodCatalogStore()
+        store = self._food_store()
         while True:
             breadcrumb = "Runtime Lab / Layer 3"
             choice = self.menu.choose(
@@ -370,7 +388,7 @@ class RuntimeLab:
     def run_offline_validation(self) -> ValidationReport:
         tool_suite = DirectToolValidationRunner(self.config).run(include_network=False)
         food_suite = FoodValidationRunner().validate(
-            FoodCatalogStore().load(),
+            self._food_store().load(),
             list(ModelEvidenceStore().load().values()),
         )
         report = ValidationReport((tool_suite, food_suite))
@@ -496,7 +514,7 @@ class RuntimeLab:
                 self._action(
                     path.name,
                     "Runtime Lab / Runtime Overview & Reports / Historical Reports",
-                    lambda report=report: self._render_overview(report),
+                    partial(self._render_overview, report),
                 )
 
     def _provider_hint(self, provider_id: str) -> str:
@@ -740,10 +758,14 @@ class RuntimeLab:
         self.config.runtime_policy = policy
         payload = self.config.to_safe_dict()
         payload["config_version"] = 2
-        write_yaml_mapping(get_config_path(), payload)
+        self._write_runtime_config(payload)
         if pending_secret is not None:
-            set_tool_secret(tool_key, pending_secret)
-        self.config = LLMRuntimeConfig.load()
+            set_tool_secret(
+                tool_key,
+                pending_secret,
+                self._secret_file_path(),
+            )
+        self.config = LLMRuntimeConfig.load(config_home=self.config_home)
         self.output("Tool Configuration saved securely to local storage.")
         return True
 
@@ -782,7 +804,7 @@ class RuntimeLab:
             self._action(
                 FIXED_FOOD_KINDS[food_key].display_name,
                 "Runtime Lab / Layer 3 / Current Food Strategy",
-                lambda food_key=food_key: self._show_food_detail(store, food_key),
+                partial(self._show_food_detail, store, food_key),
             )
 
     def _show_food_detail(self, store: FoodCatalogStore, food_key: str) -> None:
@@ -834,7 +856,7 @@ class RuntimeLab:
             self._action(
                 path.name,
                 "Runtime Lab / Layer 3 / Version History",
-                lambda path=path: self._show_food_history_version(store, path),
+                partial(self._show_food_history_version, store, path),
             )
 
     def _show_food_history_version(self, store: FoodCatalogStore, path: Path) -> None:
@@ -1313,10 +1335,14 @@ class RuntimeLab:
         self.config.providers[provider_id] = provider
         payload = self.config.to_safe_dict()
         payload["config_version"] = 2
-        write_yaml_mapping(get_config_path(), payload)
+        self._write_runtime_config(payload)
         if pending_secret is not None:
-            set_provider_secret(provider_id, pending_secret)
-        self.config = LLMRuntimeConfig.load()
+            set_provider_secret(
+                provider_id,
+                pending_secret,
+                self._secret_file_path(),
+            )
+        self.config = LLMRuntimeConfig.load(config_home=self.config_home)
 
     def _next_custom_provider_id(self, display_name: str) -> str:
         slug = re.sub(r"[^a-z0-9]+", "_", display_name.lower()).strip("_")
@@ -1344,10 +1370,11 @@ class RuntimeLab:
             if edit is None or edit.lower() != "y":
                 self.output("Current model catalog preserved.")
                 return False
-            specs = self._prompt_manual_model_specs(existing)
-            if not specs:
+            manual_specs = self._prompt_manual_model_specs(existing)
+            if not manual_specs:
                 self.output("Model catalog not modified.")
                 return False
+            specs = manual_specs
         if not specs:
             self.output("Provider returned no models, original catalog preserved.")
             return False
@@ -1555,10 +1582,13 @@ class RuntimeLab:
         )
         if choice is None:
             return
-        selected_models = available if choice == "1" else [model_by_key.get(choice)]
-        selected_models = [item for item in selected_models if item is not None]
-        if not selected_models:
-            return
+        if choice == "1":
+            selected_models = available
+        else:
+            selected_model = model_by_key.get(choice)
+            if selected_model is None:
+                return
+            selected_models = [selected_model]
         self.output(
             f"Will make real calls to {len(selected_models)} models,"
             "Will validate code and local file tools separately, may incur costs."
@@ -1622,16 +1652,24 @@ class RuntimeLab:
             )
             return False
 
-        food_catalog_path = get_food_catalog_path()
+        food_catalog_path = self._food_store().path
         if food_catalog_path.exists():
-            from ai_runtime.food.store import FoodCatalogStore
-
-            store = FoodCatalogStore()
+            store = self._food_store()
             catalog = store.load()
             used_by_foods = []
-            for food in catalog.foods:
-                if food.provider == provider_id:
-                    used_by_foods.append(food.name)
+            for recipe in catalog.recipes.values():
+                profiles = (
+                    recipe.primary,
+                    recipe.deep,
+                    recipe.vision,
+                    recipe.verifier,
+                    *recipe.technical_fallbacks,
+                )
+                if any(
+                    profile is not None and profile.model.startswith(f"{provider_id}/")
+                    for profile in profiles
+                ):
+                    used_by_foods.append(recipe.display_name)
 
             if used_by_foods:
                 self.output(
@@ -1641,7 +1679,7 @@ class RuntimeLab:
                     self.output(f"  - {name}")
                 if len(used_by_foods) > 5:
                     self.output(f"  ... and {len(used_by_foods) - 5} more")
-                self.output()
+                self.output("")
                 self.output(
                     "Please update or remove these food configurations before deleting the provider."
                 )
@@ -1664,11 +1702,15 @@ class RuntimeLab:
 
             payload = self.config.to_safe_dict()
             payload["config_version"] = 2
-            write_yaml_mapping(get_config_path(), payload)
+            self._write_runtime_config(payload)
 
             from ai_runtime.storage.secrets import set_provider_secret
 
-            set_provider_secret(provider_id, "")
+            set_provider_secret(
+                provider_id,
+                "",
+                self._secret_file_path(),
+            )
 
             self.config = LLMRuntimeConfig.load(config_home=self.config_home)
 
@@ -1691,6 +1733,36 @@ class RuntimeLab:
         )
         self.output(f"{icon} {result.check_id}: {result.message}{latency}")
 
+    def _show_provider_with_evidence(self, provider_id: str) -> None:
+        """Show provider config and validation evidence together."""
+        self._show_provider(provider_id)
+        self.output("")
+        self.output("Model Validation Results:")
+        self.output("─" * 60)
+        self._show_provider_evidence(provider_id)
+
+    def _validate_code_executor(self) -> None:
+        self.output("Code Executor validation not implemented yet")
+
+    def _validate_file_access(self) -> None:
+        self.output("File Access validation not implemented yet")
+
+    def _validate_skill_evolution(self) -> None:
+        self.output("Skill Evolution validation not implemented yet")
+
+    def _validate_provider_full(self, provider_id: str) -> None:
+        """Validate provider connectivity and all models."""
+        self.output("Validating connectivity...")
+        result = ProviderValidationRunner(self.config).verify_provider(provider_id)
+        self._print_result(result)
+        self.output("")
+        self.output("Validating all models...")
+        self._batch_verify_models(provider_id)
+
+    def _configure_provider_interactive(self, provider_id: str) -> bool:
+        """Interactive configuration with current values display."""
+        return self._configure_provider(provider_id)
+
 
 def _format_capabilities(capabilities: frozenset[str] | set[str]) -> str:
     labels = {
@@ -1705,66 +1777,6 @@ def _format_capabilities(capabilities: frozenset[str] | set[str]) -> str:
     known = [labels[item] for item in order if item in capabilities]
     extra = sorted(item for item in capabilities if item not in labels)
     return "/".join((*known, *extra)) or "Unknown"
-
-    def _show_provider_with_evidence(self, provider_id: str) -> None:
-        """Show provider config and validation evidence together."""
-        self._show_provider(provider_id)
-        self.output()
-        self.output("Model Validation Results:")
-        self.output("─" * 60)
-        self._show_provider_evidence(provider_id)
-
-    def _validate_code_executor(self) -> None:
-        self.output("Code Executor validation not implemented yet")
-
-    def _validate_file_access(self) -> None:
-        self.output("File Access validation not implemented yet")
-
-    def _validate_skill_evolution(self) -> None:
-        self.output("Skill Evolution validation not implemented yet")
-
-    def _validate_provider_full(self, provider_id: str) -> None:
-        """Validate provider connectivity and all models."""
-        self.output("Validating connectivity...")
-        result = ProviderValidationRunner(self.config).verify_provider(provider_id)
-        self._print_result(result)
-        self.output()
-        self.output("Validating all models...")
-        self._batch_verify_models(provider_id)
-
-    def _configure_provider_interactive(self, provider_id: str) -> bool:
-        """Interactive configuration with current values display."""
-        return self._configure_provider(provider_id)
-
-    def _show_provider_with_evidence(self, provider_id: str) -> None:
-        """Show provider config and validation evidence together."""
-        self._show_provider(provider_id)
-        self.output()
-        self.output("Model Validation Results:")
-        self.output("─" * 60)
-        self._show_provider_evidence(provider_id)
-
-    def _validate_code_executor(self) -> None:
-        self.output("Code Executor validation not implemented yet")
-
-    def _validate_file_access(self) -> None:
-        self.output("File Access validation not implemented yet")
-
-    def _validate_skill_evolution(self) -> None:
-        self.output("Skill Evolution validation not implemented yet")
-
-    def _validate_provider_full(self, provider_id: str) -> None:
-        """Validate provider connectivity and all models."""
-        self.output("Validating connectivity...")
-        result = ProviderValidationRunner(self.config).verify_provider(provider_id)
-        self._print_result(result)
-        self.output()
-        self.output("Validating all models...")
-        self._batch_verify_models(provider_id)
-
-    def _configure_provider_interactive(self, provider_id: str) -> bool:
-        """Interactive configuration with current values display."""
-        return self._configure_provider(provider_id)
 
 
 def main() -> None:

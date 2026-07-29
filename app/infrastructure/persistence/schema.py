@@ -12,7 +12,7 @@ from app.infrastructure.persistence.nest_schema import (
     migrate_legacy_nest_layout_to_semantic_tables,
 )
 
-CURRENT_SCHEMA_VERSION: Final[int] = 15
+CURRENT_SCHEMA_VERSION: Final[int] = 16
 
 
 class OwnerSchemaMigrationError(RuntimeError):
@@ -117,6 +117,8 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
         _migrate_v13_to_v14(connection)
     if version < 15:
         _migrate_v14_to_v15(connection)
+    if version < 16:
+        _migrate_v15_to_v16(connection)
     _ensure_owner_index(connection)
 
 
@@ -381,6 +383,37 @@ def _migrate_v14_to_v15(connection: sqlite3.Connection) -> None:
         finally:
             connection.execute("PRAGMA foreign_keys = ON")
     connection.execute("PRAGMA user_version = 15")
+
+
+def _migrate_v15_to_v16(connection: sqlite3.Connection) -> None:
+    """Store only food-package access and stable Elfie selections in Nest DB."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS food_package_access (
+            user_id INTEGER NOT NULL,
+            food_key TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY(user_id, food_key),
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS elfie_food_preferences (
+            elfie_id TEXT PRIMARY KEY,
+            primary_food_key TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(elfie_id) REFERENCES elfie_registry(elfie_id)
+                ON DELETE CASCADE
+        )
+        """
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_food_package_access_food "
+        "ON food_package_access(food_key)"
+    )
+    connection.execute("PRAGMA user_version = 16")
 
 
 def _validate_owner_roles(connection: sqlite3.Connection) -> None:

@@ -1,6 +1,6 @@
 """领养配置共享模块 — 从 system.adoption 读取动态配置。
 
-所有函数在调用时重新读取 ``~/.elfienest/config.yaml``（不缓存），
+所有函数在调用时重新读取正式 Runtime 配置（不缓存），
 确保配置更改即时生效。
 
 与 ``system_routes.py`` 使用相同的配置文件路径和默认值，
@@ -20,8 +20,8 @@ import copy
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-from app.features.configuration.runtime_store import read_runtime_config
 from ai_runtime.storage.data_home import get_config_path
+from app.features.configuration.runtime_store import read_runtime_config
 
 _RUNTIME_CONFIG_PATH: Path = get_config_path()
 _DEFAULT_RUNTIME_CONFIG_PATH: Path = _RUNTIME_CONFIG_PATH

@@ -4,6 +4,11 @@ import os
 import stat
 from pathlib import Path
 
+from ai_runtime.storage.data_home import (
+    get_config_path,
+    get_provider_config_path,
+    get_tool_config_path,
+)
 from app.features.configuration.user_config import (
     read_env_file,
     read_user_config,
@@ -34,6 +39,24 @@ def test_write_user_config_round_trips_yaml(tmp_path: Path) -> None:
     assert read_user_config(config_path) == config
     if os.name == "posix":
         assert stat.S_IMODE(config_path.stat().st_mode) == 0o600
+
+
+def test_default_user_config_uses_split_runtime_bundle(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    config = {
+        "providers": {"ollama": {"api_base": "http://localhost:11434"}},
+        "runtime_policy": {"tools": {"web_search": {"enabled": True}}},
+    }
+
+    write_user_config(config)
+
+    assert read_user_config() == config
+    assert get_config_path().exists()
+    assert get_provider_config_path().exists()
+    assert get_tool_config_path().exists()
 
 
 def test_read_env_file_ignores_comments_and_blank_lines(tmp_path: Path) -> None:

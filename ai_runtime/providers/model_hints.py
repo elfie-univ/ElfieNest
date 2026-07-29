@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from ai_runtime.models.capabilities import canonical_display_name
+from ai_runtime.providers.profiles import PROVIDER_CATALOG
 
 _PLACEHOLDER_MODELS = {"custom-model"}
 
@@ -59,10 +60,7 @@ def configured_model_names(provider: Mapping[str, Any]) -> list[str]:
 
 def suggested_model_names(api_base: str) -> list[str]:
     """仅对官方明确规定固定调用 ID 的已知端点给出建议。"""
-    normalized = api_base.lower().rstrip("/")
-    if "maas-coding-api.cn-huabei-1.xf-yun.com" in normalized:
-        return ["astron-code-latest"]
-    return []
+    return PROVIDER_CATALOG.suggested_models(api_base)
 
 
 def parse_model_input(value: str) -> list[str]:

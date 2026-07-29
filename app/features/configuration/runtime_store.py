@@ -11,6 +11,11 @@ from ai_runtime.storage.config_store import (
     read_yaml_mapping,
     write_yaml_mapping,
 )
+from ai_runtime.storage.data_home import get_config_path
+from ai_runtime.storage.runtime_config_bundle import (
+    read_runtime_config_bundle,
+    write_runtime_config_bundle,
+)
 from ai_runtime.storage.secrets import (
     provider_secret_name,
     resolve_secret,
@@ -20,9 +25,9 @@ from ai_runtime.storage.secrets import (
 
 def read_runtime_config(path: Path) -> Dict[str, Any]:
     if path.suffix not in {".yaml", ".yml"}:
-        raise ConfigStoreError(
-            f"生产配置必须使用 ELFIE_HOME/config.yaml，拒绝读取旧格式: {path}"
-        )
+        raise ConfigStoreError(f"Runtime 配置必须使用 YAML，拒绝读取旧格式: {path}")
+    if path == get_config_path():
+        return read_runtime_config_bundle()
     return read_yaml_mapping(path)
 
 
@@ -50,10 +55,9 @@ def write_runtime_config(
     backup_existing: bool = True,
 ) -> None:
     if path.suffix not in {".yaml", ".yml"}:
-        raise ConfigStoreError(
-            f"生产配置必须使用 ELFIE_HOME/config.yaml，拒绝写入旧格式: {path}"
-        )
-    if backup_existing and path.exists():
+        raise ConfigStoreError(f"Runtime 配置必须使用 YAML，拒绝写入旧格式: {path}")
+    is_production_bundle = path == get_config_path()
+    if backup_existing and path.exists() and not is_production_bundle:
         backup_path = path.with_suffix(f"{path.suffix}.bak")
         shutil.copy2(str(path), str(backup_path))
 
@@ -71,7 +75,13 @@ def write_runtime_config(
             provider["api_key_env"] = secret_name
             if has_api_key_field:
                 set_provider_secret(provider_id, api_key)
-    write_yaml_mapping(path, safe_config)
+    if is_production_bundle:
+        write_runtime_config_bundle(
+            safe_config,
+            backup_existing=backup_existing,
+        )
+    else:
+        write_yaml_mapping(path, safe_config)
 
 
 def read_system_section(path: Path, section: str) -> Dict[str, Any]:

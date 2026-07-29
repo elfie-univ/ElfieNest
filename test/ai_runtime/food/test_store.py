@@ -12,6 +12,8 @@ def test_food_catalog_store_versions_and_detects_source_updates(tmp_path):
     source = {"providers": {"ollama": ["local-model"]}}
     fingerprint = fingerprint_source(source)
     catalog = FoodCatalog(
+        default_food="coarse",
+        fallback_food="coarse",
         source_fingerprint=fingerprint,
         generation_sources=("model", "rules"),
         generation_note="模型建议与规则校验共同生成",
@@ -28,6 +30,8 @@ def test_food_catalog_store_versions_and_detects_source_updates(tmp_path):
     store.save(catalog)
 
     assert store.load().recipes["coarse"].primary.model == "ollama/local-model"
+    assert store.load().default_food == "coarse"
+    assert store.load().fallback_food == "coarse"
     assert store.load().generation_sources == ("model", "rules")
     assert store.has_update(fingerprint) is False
     assert store.has_update(fingerprint_source({"providers": {}})) is True
@@ -62,3 +66,39 @@ def test_food_catalog_store_rejects_a_bare_model_on_new_write(tmp_path):
         store.save(catalog)
 
     assert not store.path.exists()
+
+
+def test_food_catalog_allows_stable_custom_package_ids_and_mutable_names(tmp_path):
+    store = FoodCatalogStore(tmp_path / "foods.yaml", tmp_path / "history")
+    food_id = "food_a1b2c3d4e5f6"
+    catalog = FoodCatalog(
+        default_food=food_id,
+        recipes={
+            food_id: FoodRecipe(
+                key=food_id,
+                display_name="原名称",
+                description="",
+                primary=ExecutionProfile(model="ollama/local"),
+                local_only=True,
+            )
+        },
+    )
+    store.save(catalog)
+    renamed = FoodRecipe(
+        **{
+            **store.load().recipes[food_id].__dict__,
+            "display_name": "新名称",
+        }
+    )
+    store.save(
+        FoodCatalog(
+            version=2,
+            default_food=food_id,
+            recipes={food_id: renamed},
+        )
+    )
+
+    loaded = store.load()
+    assert loaded.default_food == food_id
+    assert list(loaded.recipes) == [food_id]
+    assert loaded.recipes[food_id].display_name == "新名称"

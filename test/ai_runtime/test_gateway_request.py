@@ -14,11 +14,12 @@ from ai_runtime.gateway.request import (
 def _save_food(agent, food_key, model):
     agent.food_catalog_store.save(
         FoodCatalog(
+            default_food=food_key,
             recipes={
                 food_key: FoodRecipe(
                     food_key, food_key, "test", ExecutionProfile(model)
                 )
-            }
+            },
         )
     )
 
@@ -32,7 +33,7 @@ def test_think_uses_request_and_returns_runtime_result(monkeypatch, tmp_path):
         prompt="Hello",
         energy=75.0,
         task_complexity=1,
-        allowed_tools=("web_search", "code_sandbox"),
+        allowed_tools=(),
     )
 
     def fake_call(provider, model, messages, temperature, max_tokens, options):
@@ -69,7 +70,10 @@ def test_ask_keeps_returning_plain_text():
     assert agent.ask("Hello") == "Hi"
 
 
-def test_think_maps_legacy_task_type_to_food(monkeypatch, tmp_path):
+def test_think_uses_catalog_default_instead_of_legacy_task_route(
+    monkeypatch,
+    tmp_path,
+):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     agent = RuntimeAgent()
     _save_food(agent, "focus", "cloud/reasoner")
@@ -97,7 +101,10 @@ def test_think_maps_legacy_task_type_to_food(monkeypatch, tmp_path):
     assert result.decision["food"]["actual"] == "focus"
 
 
-def test_runtime_task_route_can_only_override_with_food_key(monkeypatch, tmp_path):
+def test_runtime_task_route_does_not_override_the_selected_package(
+    monkeypatch,
+    tmp_path,
+):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     agent = RuntimeAgent()
     _save_food(agent, "premium", "ollama/premium")

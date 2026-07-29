@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import type { ExecutionProfile, FoodRecipe } from "../api/owner-foods"
 import type { SelectFieldOption } from "./SelectField"
 import { ExecutionProfileFields } from "./ExecutionProfileFields"
+import { TextField } from "./TextField"
 
 type FoodRecipeEditorProps = {
   readonly food: FoodRecipe
@@ -22,9 +23,11 @@ export function FoodRecipeEditor({ food, modelOptions, onCancel, onSave }: FoodR
     try { await onSave(draft) } finally { setPending(false) }
   }
   return <div aria-label={`编辑 ${food.display_name}`} className="food-recipe-editor" role="group">
-    <p className="form-hint">只修改这一种粮食；保存后保留后端验证警告。</p>
+    <TextField label="套餐名称" onChange={(display_name) => update({ display_name })} value={draft.display_name} />
+    <TextField label="套餐说明" onChange={(description) => update({ description })} value={draft.description} />
     <ExecutionProfileFields label="主" modelOptions={modelOptions} onChange={(primary) => { if (primary) update({ primary }) }} profile={draft.primary} />
     <ExecutionProfileFields label="深度" modelOptions={modelOptions} onChange={(deep) => update({ deep })} optional profile={draft.deep} />
+    <ExecutionProfileFields label="视觉" modelOptions={modelOptions} onChange={(vision) => update({ vision })} optional profile={draft.vision} />
     <ExecutionProfileFields label="校验" modelOptions={modelOptions} onChange={(verifier) => update({ verifier })} optional profile={draft.verifier} />
     <section className="food-fallback-editor"><div className="food-fallback-editor__heading"><h3>技术回退</h3><Button variant="outline"
       onClick={() => update({ technical_fallbacks: [...draft.technical_fallbacks, defaultFallback()] })}
@@ -42,5 +45,5 @@ export function FoodRecipeEditor({ food, modelOptions, onCancel, onSave }: FoodR
 }
 
 function defaultFallback(): ExecutionProfile {
-  return { model: "", reasoning_profile: "low", max_tokens: 1500, temperature: 0.7, tools: [], provider_options: {} }
+  return { model: "", reasoning_profile: "low", max_tokens: 1500, temperature: 0.7, provider_options: {} }
 }

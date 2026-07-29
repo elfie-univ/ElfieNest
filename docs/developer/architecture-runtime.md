@@ -82,10 +82,89 @@ particular installer has been built or installed.
 ## Production directory contract
 
 A single computer has one production Nest root:
-`${ELFIE_HOME:-~/.elfienest}`. The root holds Nest-level facts: `config.yaml`,
-`.env`, `foods.yaml`, `nest.db`, backups, Runtime state and logs. `nest.db`
-only stores accounts, permissions, Elfie registration/ownership, the Nest world
-and Runtime state; it does not accept new chat messages.
+`${ELFIE_HOME:-~/.elfienest}`. The root holds Nest-level facts such as
+`nest.db`, backups, Runtime state and logs. Production Runtime configuration is
+split by responsibility under `configs/`: `runtime.yaml`, `providers.yaml`,
+`tools.yaml` and `food-packages.yaml`. API keys and structured OAuth credentials
+live under `configs/credentials/`. `nest.db` only stores accounts, permissions,
+Elfie registration/ownership, the Nest world and Runtime state; it does not
+accept new chat messages.
+
+Runtime callers still receive one composite configuration object. The storage
+boundary merges the three Runtime, Provider and Tool documents when reading and
+splits that object again when writing; this is an internal persistence detail
+and does not change the Owner API shape. `reports/` is reserved for reproducible
+validation output. These directories and their sensitive subdirectories are
+created with owner-only permissions. Old root-level `config.yaml`, `foods.yaml`
+and `food_history/` are not read or implicitly migrated. Development Runtime
+Labs with an explicit `config_home` keep their isolated `config.yaml`, `.env`,
+`foods.yaml` and `food_history/` format.
+
+Supported Provider metadata has a separate versioned catalog. The bundled
+`ai_runtime/providers/provider-catalog.yaml` is the offline baseline and is
+included in wheel and frozen executable builds. A complete, schema-valid
+`configs/provider-catalog.yaml` overrides that baseline on the next process
+start. Invalid versions, malformed profiles and catalogs containing credential
+fields are rejected and the bundled baseline remains active. There is no remote
+catalog downloader yet; this override path is the persistence boundary for that
+future feature. `configs/providers.yaml` remains user instance configuration and
+must not be confused with the metadata catalog.
+
+Provider setup keeps configuration, discovery and verification as separate
+facts. Saving a key or endpoint only marks a Provider as configured. Model
+discovery records its source, time and result; a failed or empty discovery never
+replaces manually entered models. Explicit single or bounded batch checks then
+record connectivity status and latency. The current status remains in
+`configs/providers.yaml` for fast projection, while every sanitized check is
+also written to
+`reports/provider-validations/<provider_id>/latest.yaml` and immutable
+`history/` entries. Model benchmarks use the same latest-plus-history pattern
+under `reports/model-validations/`, with an opaque hashed model directory so a
+model ID never becomes a path.
+
+The Owner API exposes an alert-oriented Provider health summary. A passed check
+older than 24 hours is `stale`; failed, stale and never-checked configured
+Providers require attention. This is a read-time projection, not a background
+scheduler. The current phase supports explicit single and bounded batch checks;
+periodic scheduling must later be owned by the Runtime lifecycle rather than an
+API or Desktop process.
+
+Food packages are versioned YAML configuration, not database-owned model
+definitions. Each custom package receives an opaque immutable `food_<hex>` key;
+its display name and role assignments may change without changing references.
+A package can assign primary, deep-reasoning, vision and verifier models plus
+technical model fallbacks. Tool permissions are deliberately absent from the
+persisted execution profiles: tools are enabled by Runtime policy and later
+bounded by the calling Elfie/request, independently of model selection.
+
+The catalog records one global default package and an optional global fallback
+package. The fallback may be remote, but the Owner API returns a warning because
+it cannot cover an offline condition. `local_only` is true only when every
+configured role uses a Provider declared as local. Built-in semantic recipes
+remain available as automatic-generation templates during the transition, but
+the persisted catalog and Owner editor accept arbitrary stable package IDs.
+
+Package contents and assignments have different owners. YAML remains the only
+source for model roles and parameters. `nest.db.food_package_access` stores
+which stable package IDs each user may select, and
+`nest.db.elfie_food_preferences` stores at most one primary package ID for each
+Elfie. The global default and fallback are always included in the effective
+range. An Elfie selection outside that range, or a selection whose YAML package
+is missing, projects to the global default while retaining the stored ID for
+diagnostics. Deleting a package is rejected while user or Elfie assignments
+still reference it.
+
+The application orchestration layer resolves that effective package for each
+Elfie at generation time and injects only its stable key into the Brain-to-
+Runtime adapter. The Brain does not import the database, Provider catalog or
+food models. Runtime keeps task specialization inside the selected package:
+complex requests may use its deep role, multimodal requests may use its vision
+role, and technical fallbacks remain within that package. If every candidate in
+the selected package fails, Runtime makes one attempt with the catalog's global
+fallback package. Structured generation downgrades that fallback attempt to
+plain JSON text so a local or otherwise less capable fallback is not falsely
+treated as supporting native schema mode. Package assignments are resolved for
+each generation, so an Owner change takes effect without rebuilding the Elfie.
 
 Each Elfie uses an immutable `elfie_id` as its workspace name. Display names may
 change, but the directory must never move:
@@ -93,7 +172,21 @@ change, but the directory must never move:
 ```text
 ${ELFIE_HOME:-~/.elfienest}/
 ├── nest.db                         # Nest, accounts, ownership and world state
-├── config.yaml / .env / foods.yaml # local production config and key references
+├── configs/
+│   ├── runtime.yaml                # system settings and Runtime policy
+│   ├── providers.yaml              # configured Provider instances and models
+│   ├── provider-catalog.yaml        # optional validated full metadata override
+│   ├── tools.yaml                  # tool settings, without plaintext keys
+│   ├── food-packages.yaml          # active food package catalog
+│   ├── food-packages-history/      # food package revisions
+│   └── credentials/
+│       ├── api-keys.env            # Provider and tool API keys
+│       └── oauth/
+│           └── <provider_id>.json  # structured refreshable OAuth credentials
+├── reports/
+│   ├── provider-validations/       # sanitized Provider latest + history
+│   ├── model-validations/          # sanitized model benchmark latest + history
+│   └── runtime-validations/        # reserved Runtime-wide reports
 ├── runtime.json                    # Supervisor health, generation and owner lease
 └── elfies/
     └── <elfie_id>/                 # stable ID, never a mutable name

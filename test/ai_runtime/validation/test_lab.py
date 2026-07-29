@@ -5,6 +5,12 @@ from ai_runtime.food.store import FoodCatalog
 from ai_runtime.lab.cli import RuntimeLab
 from ai_runtime.providers.model_hints import ProviderModelSpec
 from ai_runtime.storage.config_store import read_yaml_mapping
+from ai_runtime.storage.data_home import (
+    get_config_path,
+    get_env_path,
+    get_food_catalog_path,
+    get_provider_config_path,
+)
 from ai_runtime.validation.models import CheckResult, CheckStatus, ValidationSuite
 
 
@@ -50,7 +56,7 @@ def test_food_update_requires_explicit_confirmation(monkeypatch, tmp_path):
 
     lab.food_menu()
 
-    assert not (tmp_path / "foods.yaml").exists()
+    assert not get_food_catalog_path().exists()
     assert "未应用更新。" in output
     assert any("计划修改" in line for line in output)
     assert any("未确认前不会写入" in line for line in output)
@@ -114,7 +120,9 @@ def test_food_validation_refreshes_referenced_model_before_catalog_check(
                 ),
             )
 
-    monkeypatch.setattr("ai_runtime.lab.cli.ProviderValidationRunner", FakeProviderRunner)
+    monkeypatch.setattr(
+        "ai_runtime.lab.cli.ProviderValidationRunner", FakeProviderRunner
+    )
     output = []
     lab = RuntimeLab(output_fn=output.append)
     monkeypatch.setattr(lab.menu, "confirm", lambda *args, **kwargs: True)
@@ -124,7 +132,9 @@ def test_food_validation_refreshes_referenced_model_before_catalog_check(
     assert calls == [("cloud", ["model-a"])]
     evidence = ModelEvidenceStore().load()["cloud/model-a"]
     assert evidence.verified is True
-    assert any("food.standard.configuration: 标准粮配方验证通过" in line for line in output)
+    assert any(
+        "food.standard.configuration: 标准粮配方验证通过" in line for line in output
+    )
 
 
 def test_food_update_reports_rule_generation_after_apply(monkeypatch, tmp_path):
@@ -144,7 +154,7 @@ def test_food_update_reports_rule_generation_after_apply(monkeypatch, tmp_path):
 
     lab.food_menu()
 
-    assert (tmp_path / "foods.yaml").exists()
+    assert get_food_catalog_path().exists()
     assert "本次粮食策略由确定性规则生成。" in output
     assert any("主模型:" in line for line in output)
 
@@ -188,8 +198,8 @@ def test_provider_edit_escape_does_not_persist_partial_changes(monkeypatch, tmp_
 
     assert changed is False
     assert lab.config.providers["ollama"]["api_base"] == original_base
-    assert not (tmp_path / "config.yaml").exists()
-    assert not (tmp_path / ".env").exists()
+    assert not get_config_path().exists()
+    assert not get_env_path().exists()
 
 
 def test_provider_edit_escape_at_secret_discards_changed_base(monkeypatch, tmp_path):
@@ -205,8 +215,38 @@ def test_provider_edit_escape_at_secret_discards_changed_base(monkeypatch, tmp_p
 
     assert changed is False
     assert lab.config.providers["openai"]["api_base"] == original_base
-    assert not (tmp_path / "config.yaml").exists()
-    assert not (tmp_path / ".env").exists()
+    assert not get_config_path().exists()
+    assert not get_env_path().exists()
+
+
+def test_explicit_runtime_lab_home_keeps_single_file_development_format(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    production_home = tmp_path / "production"
+    development_home = tmp_path / "development"
+    monkeypatch.setenv("ELFIE_HOME", str(production_home))
+    lab = RuntimeLab(
+        config_home=development_home,
+        output_fn=lambda message: None,
+    )
+    provider = {
+        "api_base": "https://development.example/v1",
+        "api_mode": "chat_completions",
+        "auth_type": "bearer",
+    }
+
+    lab._commit_provider("custom_development", provider, "development-secret")
+
+    saved = read_yaml_mapping(development_home / "config.yaml")
+    assert saved["providers"]["custom_development"]["api_base"].endswith("/v1")
+    assert lab.config.config_home == str(development_home)
+    assert "custom_development" in lab.config.providers
+    assert "CUSTOM_DEVELOPMENT_API_KEY=development-secret" in (
+        development_home / ".env"
+    ).read_text(encoding="utf-8")
+    assert lab._food_store().path == development_home / "foods.yaml"
+    assert not production_home.exists()
 
 
 def test_multiple_named_custom_providers_can_be_created(monkeypatch, tmp_path):
@@ -239,7 +279,7 @@ def test_multiple_named_custom_providers_can_be_created(monkeypatch, tmp_path):
     assert lab._create_custom_provider() is True
     assert lab._create_custom_provider() is True
 
-    providers = read_yaml_mapping(tmp_path / "config.yaml")["providers"]
+    providers = read_yaml_mapping(get_provider_config_path())["providers"]
     assert providers["custom_my_gateway"]["display_name"] == "My Gateway"
     assert providers["custom_my_gateway_2"]["display_name"] == "My Gateway"
     assert providers["custom_my_gateway"]["models"] == [
@@ -249,14 +289,12 @@ def test_multiple_named_custom_providers_can_be_created(monkeypatch, tmp_path):
         "CUSTOM_MY_GATEWAY_API_KEY"
     )
     assert "api_key" not in providers["custom_my_gateway"]
-    env_text = (tmp_path / ".env").read_text(encoding="utf-8")
+    env_text = get_env_path().read_text(encoding="utf-8")
     assert "CUSTOM_MY_GATEWAY_API_KEY=first-secret" in env_text
     assert "CUSTOM_MY_GATEWAY_2_API_KEY=second-secret" in env_text
 
 
-def test_custom_provider_escape_at_secret_prompt_creates_nothing(
-    monkeypatch, tmp_path
-):
+def test_custom_provider_escape_at_secret_prompt_creates_nothing(monkeypatch, tmp_path):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     answers = iter(["Cancelled Gateway", "https://example.test/v1"])
     lab = RuntimeLab(
@@ -268,8 +306,8 @@ def test_custom_provider_escape_at_secret_prompt_creates_nothing(
     created = lab._create_custom_provider()
 
     assert created is False
-    assert not (tmp_path / "config.yaml").exists()
-    assert not (tmp_path / ".env").exists()
+    assert not get_config_path().exists()
+    assert not get_env_path().exists()
 
 
 def test_new_provider_falls_back_to_required_manual_id_and_display_name(
@@ -298,12 +336,10 @@ def test_new_provider_falls_back_to_required_manual_id_and_display_name(
 
     assert lab._create_custom_provider() is True
 
-    provider = read_yaml_mapping(tmp_path / "config.yaml")["providers"][
+    provider = read_yaml_mapping(get_provider_config_path())["providers"][
         "custom_xfyun_coding"
     ]
-    assert provider["models"] == [
-        {"id": "astron-code-latest", "display_name": "GLM-5"}
-    ]
+    assert provider["models"] == [{"id": "astron-code-latest", "display_name": "GLM-5"}]
 
 
 def test_provider_modify_keeps_existing_manual_models_when_refresh_fails(
@@ -332,7 +368,7 @@ def test_provider_modify_keeps_existing_manual_models_when_refresh_fails(
 
     assert lab._configure_provider("custom_gateway") is True
 
-    provider = read_yaml_mapping(tmp_path / "config.yaml")["providers"][
+    provider = read_yaml_mapping(get_provider_config_path())["providers"][
         "custom_gateway"
     ]
     assert provider["models"] == [{"id": "odd-id", "display_name": "GLM-5"}]

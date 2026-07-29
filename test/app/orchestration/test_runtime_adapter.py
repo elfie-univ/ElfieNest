@@ -52,8 +52,10 @@ class FakeStructuredRuntime:
     def __init__(self, capabilities):
         self._capabilities = capabilities
         self.requests = []
+        self.capability_food_keys = []
 
-    def structured_capabilities(self):
+    def structured_capabilities(self, food_key=None):
+        self.capability_food_keys.append(food_key)
         return self._capabilities
 
     def generate_structured(self, request):
@@ -103,6 +105,25 @@ def test_adapter_uses_schema_mode_for_schema_capable_runtime():
     assert result.model_key == "openai/gpt-test"
     assert len(runtime.requests) == 1
     assert runtime.requests[0].selected_mode.value == "json_schema"
+
+
+def test_adapter_resolves_elfie_food_for_each_generation():
+    runtime = FakeStructuredRuntime(_schema_capabilities())
+    selected = {"food_key": "food_primary"}
+    adapter = SerializedRuntimeAdapter(
+        runtime,
+        food_key_resolver=lambda: selected["food_key"],
+    )
+
+    adapter.generate(_request("turn-1"))
+    selected["food_key"] = "food_updated"
+    adapter.generate(_request("turn-2"))
+
+    assert runtime.capability_food_keys == ["food_primary", "food_updated"]
+    assert [request.food_key for request in runtime.requests] == [
+        "food_primary",
+        "food_updated",
+    ]
 
 
 def test_adapter_uses_json_text_for_plain_runtime():

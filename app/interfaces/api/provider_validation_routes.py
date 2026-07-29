@@ -6,12 +6,13 @@ import asyncio
 import logging
 import threading
 import urllib.error
-from typing import Any, Dict
+from typing import Any, Dict, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ai_runtime.models.catalog import _verify_custom_openai_provider, verify_provider
 from ai_runtime.providers.profiles import BUILTIN_PROFILES
+from ai_runtime.storage.validation_reports import write_provider_validation_report
 from ai_runtime.usage.observer import (
     ProviderVerifyObservation,
     RuntimeEventStatus,
@@ -22,6 +23,7 @@ from app.features.accounts.auth import require_owner
 from .provider_schemas import VerifyBatchRequest
 from .provider_support import (
     is_configured,
+    provider_health_summary,
     read_provider_config,
     runtime_config,
     stored_verification,
@@ -76,7 +78,11 @@ async def run_provider_check(
 
 
 def _store_result(
-    provider_id: str, config: Dict[str, Any], result: dict[str, Any]
+    provider_id: str,
+    config: Dict[str, Any],
+    result: dict[str, Any],
+    *,
+    trigger: Literal["batch", "single"],
 ) -> dict[str, Any]:
     info = config.setdefault("providers", {}).setdefault(provider_id, {})
     latency = result.get("latency_ms")
@@ -100,6 +106,14 @@ def _store_result(
             latency_ms=float(verification["latency_ms"] or 0.0),
             error=str(verification["error"] or ""),
         )
+    )
+    write_provider_validation_report(
+        provider_id,
+        status=verification["status"],
+        checked_at=verification["checked_at"],
+        latency_ms=verification["latency_ms"],
+        error=verification["error"],
+        trigger=trigger,
     )
     return verification
 
@@ -194,7 +208,12 @@ async def verify_batch(
                 }
             )
             continue
-        verification = _store_result(provider_id, config, checked_by_id[provider_id])
+        verification = _store_result(
+            provider_id,
+            config,
+            checked_by_id[provider_id],
+            trigger="batch",
+        )
         results.append(
             {
                 "provider_id": provider_id,
@@ -205,6 +224,14 @@ async def verify_batch(
         )
     write_provider_config(config)
     return {"results": results}
+
+
+@router.get("/health-summary")
+async def health_summary(
+    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+) -> dict[str, Any]:
+    _ = owner
+    return provider_health_summary(read_provider_config())
 
 
 @router.post("/{provider_id}/verify")
@@ -220,6 +247,6 @@ async def verify_one(
     if not is_configured(provider_id, providers.get(provider_id, {})):
         raise HTTPException(status_code=422, detail="Provider 尚未完成配置")
     raw = await _bounded_check(provider_id, config, asyncio.Semaphore(1))
-    verification = _store_result(provider_id, config, raw)
+    verification = _store_result(provider_id, config, raw, trigger="single")
     write_provider_config(config)
     return {"provider_id": provider_id, "verification": verification}

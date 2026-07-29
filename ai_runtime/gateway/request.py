@@ -90,7 +90,7 @@ class StructuredRuntimeRequest(_FrozenRuntimeModel):
     allowed_tools: Tuple[_NonBlankText, ...]
     provider: Optional[_NonBlankText] = None
     model_key: Optional[_NonBlankText] = None
-    food_key: _NonBlankText = "standard"
+    food_key: Optional[_NonBlankText] = None
     temperature: Annotated[float, Field(strict=True, ge=0.0, le=2.0)] = 0.2
     max_tokens: Annotated[int, Field(strict=True, ge=1)] = 512
 

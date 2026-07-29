@@ -39,13 +39,25 @@ class FoodKind:
 
 FIXED_FOOD_KINDS: Mapping[str, FoodKind] = {
     "coarse": FoodKind("coarse", "Coarse", "Local-first, low-cost simple tasks"),
-    "standard": FoodKind("standard", "Standard", "Daily default, balanced quality/speed/cost"),
-    "focus": FoodKind("focus", "Focus", "Logic analysis and complex problems", ("text", "reasoning")),
+    "standard": FoodKind(
+        "standard", "Standard", "Daily default, balanced quality/speed/cost"
+    ),
+    "focus": FoodKind(
+        "focus", "Focus", "Logic analysis and complex problems", ("text", "reasoning")
+    ),
     "creative": FoodKind("creative", "Creative", "Writing, imagination and expression"),
     "tool": FoodKind("tool", "工具粮", "搜索、文件和代码工具调用", ("text", "tools")),
-    "vision": FoodKind("vision", "Vision", "Image understanding and visual tasks", ("text", "vision")),
-    "premium": FoodKind("premium", "Premium", "High-quality deep reasoning", ("text", "reasoning")),
-    "emergency": FoodKind("emergency", "Emergency", "High-urgency scenarios prioritizing reliability and speed"),
+    "vision": FoodKind(
+        "vision", "Vision", "Image understanding and visual tasks", ("text", "vision")
+    ),
+    "premium": FoodKind(
+        "premium", "Premium", "High-quality deep reasoning", ("text", "reasoning")
+    ),
+    "emergency": FoodKind(
+        "emergency",
+        "Emergency",
+        "High-urgency scenarios prioritizing reliability and speed",
+    ),
 }
 
 
@@ -61,7 +73,8 @@ class ExecutionProfile:
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["reasoning_profile"] = self.reasoning_profile.value
-        payload["tools"] = list(self.tools)
+        # Tool authorization belongs to Runtime/Elfie policy, not a model package.
+        payload.pop("tools", None)
         payload["provider_options"] = dict(self.provider_options)
         return payload
 
@@ -72,7 +85,7 @@ class ExecutionProfile:
             reasoning_profile=_parse_reasoning(data.get("reasoning_profile")),
             max_tokens=int(data.get("max_tokens", 1500)),
             temperature=float(data.get("temperature", 0.7)),
-            tools=tuple(str(tool) for tool in data.get("tools", ()) if str(tool)),
+            tools=(),
             provider_options=(
                 dict(data.get("provider_options", {}))
                 if isinstance(data.get("provider_options", {}), Mapping)
@@ -88,8 +101,10 @@ class FoodRecipe:
     description: str
     primary: ExecutionProfile
     deep: ExecutionProfile | None = None
+    vision: ExecutionProfile | None = None
     verifier: ExecutionProfile | None = None
     technical_fallbacks: tuple[ExecutionProfile, ...] = ()
+    local_only: bool = False
     validation_status: FoodValidationStatus = FoodValidationStatus.UNVERIFIED
     source: str = "auto"
     locked_fields: tuple[str, ...] = ()
@@ -101,10 +116,12 @@ class FoodRecipe:
             "description": self.description,
             "primary": self.primary.to_dict(),
             "deep": self.deep.to_dict() if self.deep else None,
+            "vision": self.vision.to_dict() if self.vision else None,
             "verifier": self.verifier.to_dict() if self.verifier else None,
             "technical_fallbacks": [
                 profile.to_dict() for profile in self.technical_fallbacks
             ],
+            "local_only": self.local_only,
             "validation_status": self.validation_status.value,
             "source": self.source,
             "locked_fields": list(self.locked_fields),
@@ -124,12 +141,14 @@ class FoodRecipe:
             description=str(data.get("description", kind.description if kind else "")),
             primary=ExecutionProfile.from_dict(primary),
             deep=_optional_profile(data.get("deep")),
+            vision=_optional_profile(data.get("vision")),
             verifier=_optional_profile(data.get("verifier")),
             technical_fallbacks=tuple(
                 ExecutionProfile.from_dict(item)
                 for item in data.get("technical_fallbacks", ())
                 if isinstance(item, Mapping)
             ),
+            local_only=bool(data.get("local_only", False)),
             validation_status=_parse_validation_status(data.get("validation_status")),
             source=str(data.get("source", "auto")),
             locked_fields=tuple(

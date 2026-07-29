@@ -1,7 +1,7 @@
 """Model Catalog 管理 REST API — 模型目录的查看、更新、扫描。
 
 所有端点通过 ``Depends(require_owner)`` 保护。
-模型数据来自 BUILTIN_MODEL_CATALOG + ELFIE_HOME/config.yaml 的覆盖配置。
+模型数据来自 BUILTIN_MODEL_CATALOG + ELFIE_HOME/configs/runtime.yaml 的覆盖配置。
 """
 
 from __future__ import annotations
@@ -14,16 +14,16 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from ai_runtime.config import LLMRuntimeConfig
+from ai_runtime.models.catalog import BUILTIN_MODEL_CATALOG, ModelCatalog, ModelEntry
+from ai_runtime.providers.profiles import get_profile
+from ai_runtime.storage.data_home import get_config_path
 from app.features.accounts.auth import require_owner
 from app.features.configuration.runtime_store import (
     hydrate_runtime_secrets,
     read_runtime_config,
     write_runtime_config,
 )
-from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.models.catalog import BUILTIN_MODEL_CATALOG, ModelCatalog, ModelEntry
-from ai_runtime.providers.profiles import get_profile
-from ai_runtime.storage.data_home import get_config_path
 
 logger = logging.getLogger("app.interfaces.api.model_owner_routes")
 
@@ -51,7 +51,9 @@ def _write_runtime_config(config: Dict[str, Any]) -> None:
     write_runtime_config(get_config_path(), config)
 
 
-def _build_model_response(entry: ModelEntry, overrides: Dict[str, Any]) -> Dict[str, Any]:
+def _build_model_response(
+    entry: ModelEntry, overrides: Dict[str, Any]
+) -> Dict[str, Any]:
     """构建单个 model 的响应对象，合并覆盖配置。"""
     visible = overrides.get("visible", entry.visible)
     cost_tier = overrides.get("cost_tier", entry.cost_tier)
@@ -178,7 +180,9 @@ async def scan_models(
 
     # 获取 Ollama API base
     profile = get_profile("ollama")
-    api_base = ollama_config.get("api_base", profile.api_base if profile else "http://localhost:11434")
+    api_base = ollama_config.get(
+        "api_base", profile.api_base if profile else "http://localhost:11434"
+    )
 
     # 尝试获取 Ollama 本地模型列表
     try:
@@ -198,14 +202,16 @@ async def scan_models(
                     model_id = f"ollama/{model_name}"
 
                     if model_id not in existing_ids:
-                        discovered.append({
-                            "model_id": model_id,
-                            "provider": "ollama",
-                            "display_name": model_name,
-                            "capabilities": ["text"],  # 默认能力
-                            "context_window": 4096,  # 默认上下文
-                            "cost_tier": 0,  # 免费本地模型
-                        })
+                        discovered.append(
+                            {
+                                "model_id": model_id,
+                                "provider": "ollama",
+                                "display_name": model_name,
+                                "capabilities": ["text"],  # 默认能力
+                                "context_window": 4096,  # 默认上下文
+                                "cost_tier": 0,  # 免费本地模型
+                            }
+                        )
 
     except urllib.error.URLError as e:
         logger.warning("Ollama 扫描失败: %s", e)

@@ -9,14 +9,13 @@ from typing import Any, Dict, Optional
 import yaml
 
 from ai_runtime.config import PROVIDER_RECOMMENDS, LLMRuntimeConfig
+from ai_runtime.providers.profiles import BUILTIN_PROFILES
 from ai_runtime.storage.data_home import get_elfie_developer_home
 
 SECRET_ENV_KEYS = {
-    "deepseek": "DEEPSEEK_API_KEY",
-    "openai": "OPENAI_API_KEY",
-    "custom_openai": "CUSTOM_OPENAI_API_KEY",
-    "gemini": "GEMINI_API_KEY",
-    "qwen": "QWEN_API_KEY",
+    provider_id: profile.api_key_env_var
+    for provider_id, profile in BUILTIN_PROFILES.items()
+    if profile.api_key_env_var
 }
 
 PROVIDER_DEFAULTS: Dict[str, Dict[str, str]] = {

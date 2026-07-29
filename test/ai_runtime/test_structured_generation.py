@@ -106,3 +106,57 @@ def test_generate_structured_plain_json_does_not_claim_native(monkeypatch, tmp_p
     assert result.text == "plain text"
     assert result.selected_mode is StructuredGenerationMode.JSON_TEXT
     assert calls == [("ollama", "qwen3.5:0.8b", {})]
+
+
+def test_generate_structured_uses_global_fallback_as_plain_json(
+    monkeypatch,
+    tmp_path,
+):
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    agent = RuntimeAgent()
+    agent.food_catalog_store.save(
+        FoodCatalog(
+            default_food="food_primary",
+            fallback_food="food_relief",
+            recipes={
+                "food_primary": FoodRecipe(
+                    "food_primary",
+                    "Primary",
+                    "test",
+                    ExecutionProfile("openai/gpt-test"),
+                ),
+                "food_relief": FoodRecipe(
+                    "food_relief",
+                    "Relief",
+                    "test",
+                    ExecutionProfile("ollama/local"),
+                ),
+            },
+        )
+    )
+    calls: list[tuple[str, str, dict[str, JsonValue]]] = []
+
+    def fake_call(provider, model, messages, temperature, max_tokens, options):
+        calls.append((provider, model, options))
+        if provider == "openai":
+            raise RuntimeError("subscription expired")
+        return '{"ok": true}'
+
+    agent._call_food_llm_api = fake_call
+
+    result = agent.generate_structured(
+        StructuredRuntimeRequest(
+            prompt="Return JSON.",
+            messages=(),
+            response_schema_name="DecisionPlan",
+            response_schema={"type": "object"},
+            selected_mode=StructuredGenerationMode.JSON_SCHEMA,
+            allowed_tools=(),
+            food_key="food_primary",
+        )
+    )
+
+    assert result.selected_mode is StructuredGenerationMode.JSON_TEXT
+    assert result.model_key == "ollama/local"
+    assert calls[0][2]["response_format"]["type"] == "json_schema"
+    assert calls[1] == ("ollama", "local", {})

@@ -155,6 +155,19 @@ class FoodPlanner:
                 f"{kind.display_name}: {item}" for item in warnings
             )
 
+        for food_key, existing in current_catalog.recipes.items():
+            if food_key in recipes:
+                continue
+            recipes[food_key] = existing
+            changes.append(
+                FoodChange(
+                    food_key=food_key,
+                    change_type="unchanged",
+                    old_model=existing.primary.model or None,
+                    new_model=existing.primary.model or None,
+                )
+            )
+
         source_data = {
             "models": [item.to_fingerprint_dict() for item in evidence],
             "fixed_foods": sorted(FIXED_FOOD_KINDS),
@@ -172,6 +185,8 @@ class FoodPlanner:
         return FoodUpdateProposal(
             catalog=FoodCatalog(
                 version=max(current_catalog.version + 1, 1),
+                default_food=current_catalog.default_food or "standard",
+                fallback_food=current_catalog.fallback_food or "emergency",
                 source_fingerprint=fingerprint_source(source_data),
                 generation_sources=generation_sources,
                 generation_note=generation_note,
@@ -264,11 +279,10 @@ class FoodPlanner:
             if food_key in {"coarse", "emergency"}
             else ReasoningProfile.BALANCED
         )
-        tools = (
-            ("web_search", "local_file", "code_sandbox") if food_key == "tool" else ()
-        )
         fallbacks = _fallback_profiles(food_key, selected, evidence)
         deep_candidate = _deep_candidate(selected, evidence)
+        vision_candidate = _vision_candidate(selected, evidence)
+        evidence_by_model = {item.model: item for item in evidence}
         return FoodRecipe(
             key=food_key,
             display_name=kind.display_name,
@@ -278,7 +292,6 @@ class FoodPlanner:
                 reasoning_profile=reasoning,
                 max_tokens=4000 if food_key in {"focus", "premium"} else 1500,
                 temperature=0.2 if food_key in {"focus", "tool", "premium"} else 0.7,
-                tools=tools,
                 provider_options=_default_provider_options(selected.model, reasoning),
             ),
             deep=(
@@ -287,12 +300,25 @@ class FoodPlanner:
                     reasoning_profile=ReasoningProfile.DEEP,
                     max_tokens=5000,
                     temperature=0.1,
-                    tools=tools,
                     provider_options=_default_provider_options(
                         deep_candidate.model, ReasoningProfile.DEEP
                     ),
                 )
                 if deep_candidate and deep_candidate.model != selected.model
+                else None
+            ),
+            vision=(
+                ExecutionProfile(
+                    model=vision_candidate.model,
+                    reasoning_profile=ReasoningProfile.BALANCED,
+                    max_tokens=2000,
+                    temperature=0.2,
+                    provider_options=_default_provider_options(
+                        vision_candidate.model,
+                        ReasoningProfile.BALANCED,
+                    ),
+                )
+                if vision_candidate
                 else None
             ),
             verifier=ExecutionProfile(
@@ -305,6 +331,17 @@ class FoodPlanner:
                 ),
             ),
             technical_fallbacks=fallbacks,
+            local_only=all(
+                evidence_by_model.get(profile.model)
+                and evidence_by_model[profile.model].local
+                for profile in (
+                    selected,
+                    deep_candidate,
+                    vision_candidate,
+                    *(evidence_by_model.get(item.model) for item in fallbacks),
+                )
+                if profile is not None
+            ),
             validation_status=FoodValidationStatus.UNVERIFIED,
             source="auto",
             locked_fields=existing.locked_fields if existing else (),
@@ -322,7 +359,8 @@ def validate_food_recipe(
         return ["主模型尚无真实验证记录"]
     if not selected.verified:
         return ["主模型最近一次真实调用验证失败"]
-    required = FIXED_FOOD_KINDS[recipe.key].required_capabilities
+    kind = FIXED_FOOD_KINDS.get(recipe.key)
+    required = kind.required_capabilities if kind else ("text",)
     missing = [
         capability for capability in required if not _supports(selected, capability)
     ]
@@ -393,6 +431,15 @@ def _deep_candidate(
         if "reasoning" in item.capabilities and item.model != selected.model
     ]
     return max(candidates, key=lambda item: item.cost_grade, default=None)
+
+
+def _vision_candidate(
+    selected: ModelEvidence, evidence: Sequence[ModelEvidence]
+) -> ModelEvidence | None:
+    if "vision" in selected.capabilities:
+        return selected
+    candidates = [item for item in evidence if "vision" in item.capabilities]
+    return min(candidates, key=_balanced_score, default=None)
 
 
 def _fallback_profiles(

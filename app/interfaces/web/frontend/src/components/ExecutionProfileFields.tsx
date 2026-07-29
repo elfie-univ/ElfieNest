@@ -28,7 +28,6 @@ function defaultProfile(model = ""): ExecutionProfile {
     reasoning_profile: "balanced",
     max_tokens: 1500,
     temperature: 0.7,
-    tools: [],
     provider_options: {},
   }
 }
@@ -64,12 +63,6 @@ export function ExecutionProfileFields({
         <NumberField label={`${label}最大 Tokens`} max={128000} min={1} onChange={(max_tokens) => update({ max_tokens })} step={100} value={profile.max_tokens} />
         <NumberField label={`${label}温度`} max={2} min={0} onChange={(temperature) => update({ temperature })} step={0.1} value={profile.temperature} />
       </div>
-      <TextField
-        hint="多个工具用逗号分隔；留空表示不额外启用工具。"
-        label={`${label}工具`}
-        onChange={(tools) => update({ tools: tools.split(",").map((item) => item.trim()).filter(Boolean) })}
-        value={profile.tools.join(", ")}
-      />
       <ProviderOptionFields label={label} onChange={(provider_options) => update({ provider_options })} options={profile.provider_options} />
     </> : <p className="form-hint">该角色当前未配置。</p>}
   </fieldset>

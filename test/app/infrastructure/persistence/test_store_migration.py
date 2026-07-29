@@ -229,6 +229,23 @@ class TestMigrationV1ToV2:
         connection.close()
         assert legacy_table is None
 
+    def test_food_access_and_elfie_primary_food_tables_are_created(
+        self, tmp_path: Path
+    ) -> None:
+        db = str(tmp_path / "nest.db")
+        init_db(db)
+
+        with sqlite3.connect(db) as connection:
+            tables = {
+                str(row[0])
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                ).fetchall()
+            }
+
+        assert "food_package_access" in tables
+        assert "elfie_food_preferences" in tables
+
     def test_v9_database_deletes_the_unreleased_legacy_chat_table(
         self, tmp_path: Path
     ) -> None:

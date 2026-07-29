@@ -18,6 +18,8 @@ from ai_runtime.storage.data_home import get_food_catalog_path, get_food_history
 @dataclass(frozen=True)
 class FoodCatalog:
     version: int = 1
+    default_food: str = ""
+    fallback_food: str = ""
     source_fingerprint: str = ""
     generated_at: str = ""
     generation_sources: tuple[str, ...] = ()
@@ -27,6 +29,8 @@ class FoodCatalog:
     def to_dict(self) -> dict[str, Any]:
         return {
             "version": self.version,
+            "default_food": self.default_food,
+            "fallback_food": self.fallback_food,
             "source_fingerprint": self.source_fingerprint,
             "generated_at": self.generated_at,
             "generation_sources": list(self.generation_sources),
@@ -40,6 +44,8 @@ class FoodCatalog:
         foods = raw_foods if isinstance(raw_foods, Mapping) else {}
         return cls(
             version=int(data.get("version", 1)),
+            default_food=str(data.get("default_food", "")),
+            fallback_food=str(data.get("fallback_food", "")),
             source_fingerprint=str(data.get("source_fingerprint", "")),
             generated_at=str(data.get("generated_at", "")),
             generation_sources=tuple(
@@ -68,6 +74,7 @@ class FoodCatalogStore:
 
     def save(self, catalog: FoodCatalog, *, keep_history: bool = True) -> None:
         validate_food_catalog_model_references(catalog)
+        validate_food_catalog_selections(catalog)
         if keep_history and self.path.exists():
             self._snapshot_current()
         payload = catalog.to_dict()
@@ -120,7 +127,7 @@ def fingerprint_source(data: Mapping[str, Any]) -> str:
 def validate_food_catalog_model_references(catalog: FoodCatalog) -> None:
     """Reject new food writes that leave provider selection implicit."""
     for recipe in catalog.recipes.values():
-        profiles = [recipe.primary, recipe.deep, recipe.verifier]
+        profiles = [recipe.primary, recipe.deep, recipe.vision, recipe.verifier]
         profiles.extend(recipe.technical_fallbacks)
         for profile in profiles:
             if profile is None or not profile.model:
@@ -131,3 +138,12 @@ def validate_food_catalog_model_references(catalog: FoodCatalog) -> None:
                 raise ModelReferenceError(
                     f"粮食 '{recipe.key}' 的模型无效: {exc}"
                 ) from exc
+
+
+def validate_food_catalog_selections(catalog: FoodCatalog) -> None:
+    for field_name, food_key in (
+        ("default_food", catalog.default_food),
+        ("fallback_food", catalog.fallback_food),
+    ):
+        if food_key and food_key not in catalog.recipes:
+            raise ValueError(f"{field_name} 指向不存在的粮食套餐: {food_key}")

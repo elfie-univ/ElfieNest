@@ -11,7 +11,12 @@ from pathlib import Path
 import yaml
 
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.storage.data_home import get_config_path, get_elfie_home
+from ai_runtime.storage.data_home import (
+    get_config_path,
+    get_elfie_home,
+    get_provider_config_path,
+)
+from ai_runtime.storage.runtime_config_bundle import write_runtime_config_bundle
 
 
 def _write_legacy_runtime_config(path: Path, provider_id: str = "legacy_only") -> None:
@@ -51,7 +56,7 @@ def test_isolated_home_does_not_read_legacy_json(monkeypatch, tmp_path):
 
     # Then: 路径解析已隔离，legacy JSON 不得进入正常配置。
     assert get_elfie_home() == isolated_home
-    assert get_config_path() == isolated_home / "config.yaml"
+    assert get_config_path() == isolated_home / "configs" / "runtime.yaml"
     assert not get_config_path().exists()
     assert "legacy_only" not in config.providers
 
@@ -76,8 +81,9 @@ def test_normal_load_does_not_read_legacy_runtime_json(monkeypatch, tmp_path):
 def test_malformed_yaml_does_not_trigger_legacy_fallback(monkeypatch, tmp_path):
     """Given 损坏 YAML 和有效 legacy JSON，When 正常加载，Then 不应回退到旧 JSON。"""
     isolated_home = tmp_path / "isolated-home"
-    isolated_home.mkdir()
-    (isolated_home / "config.yaml").write_text("providers: [broken\n", encoding="utf-8")
+    malformed_path = isolated_home / "configs" / "runtime.yaml"
+    malformed_path.parent.mkdir(parents=True)
+    malformed_path.write_text("system: [broken\n", encoding="utf-8")
     legacy_path = tmp_path / "runtime" / "runtime_config.json"
     _write_legacy_runtime_config(legacy_path, provider_id="legacy_after_bad_yaml")
     _patch_legacy_runtime_path(monkeypatch, legacy_path)
@@ -109,16 +115,17 @@ def test_malformed_legacy_json_is_ignored_without_side_effects(monkeypatch, tmp_
     assert not isolated_home.exists()
 
 
-def test_existing_config_yaml_is_authoritative_over_legacy(monkeypatch, tmp_path):
-    """Given 已有 config.yaml 和旧 JSON，When 正常加载，Then 只使用当前 YAML。"""
+def test_split_config_is_authoritative_over_legacy(monkeypatch, tmp_path):
+    """Given 已有拆分配置和旧文件，When 正常加载，Then 只使用当前配置。"""
     isolated_home = tmp_path / "isolated-home"
     isolated_home.mkdir()
+    monkeypatch.setenv("ELFIE_HOME", str(isolated_home))
     (isolated_home / "config.yaml").write_text(
         yaml.safe_dump(
             {
                 "providers": {
-                    "current_only": {
-                        "api_base": "https://current.invalid/v1",
+                    "stale_root": {
+                        "api_base": "https://stale-root.invalid/v1",
                         "api_mode": "chat_completions",
                     }
                 }
@@ -127,10 +134,19 @@ def test_existing_config_yaml_is_authoritative_over_legacy(monkeypatch, tmp_path
         ),
         encoding="utf-8",
     )
+    write_runtime_config_bundle(
+        {
+            "providers": {
+                "current_only": {
+                    "api_base": "https://current.invalid/v1",
+                    "api_mode": "chat_completions",
+                }
+            }
+        }
+    )
     legacy_path = tmp_path / "runtime" / "runtime_config.json"
     _write_legacy_runtime_config(legacy_path, provider_id="stale_legacy")
     _patch_legacy_runtime_path(monkeypatch, legacy_path)
-    monkeypatch.setenv("ELFIE_HOME", str(isolated_home))
 
     # When: 读取已有当前配置。
     config = LLMRuntimeConfig.load()
@@ -139,6 +155,8 @@ def test_existing_config_yaml_is_authoritative_over_legacy(monkeypatch, tmp_path
     assert config.providers["current_only"]["api_base"] == "https://current.invalid/v1"
     provider_ids = tuple(config.providers)
     assert "stale_legacy" not in provider_ids
+    assert "stale_root" not in provider_ids
+    assert get_provider_config_path().exists()
 
 
 def test_normal_load_does_not_migrate_old_data_directory(monkeypatch, tmp_path):
@@ -163,18 +181,17 @@ def test_runtime_api_reads_current_elfie_home_after_environment_switch(
     monkeypatch, tmp_path
 ):
     """Given two homes, When ELFIE_HOME changes, Then API helpers follow it."""
-    from ai_runtime.storage.config_store import write_yaml_mapping
     from app.interfaces.api import runtime_routes
 
     first_home = tmp_path / "first"
     second_home = tmp_path / "second"
-    write_yaml_mapping(
-        first_home / "config.yaml",
-        {"providers": {"first": {"api_base": "http://first"}}},
-    )
-    write_yaml_mapping(
-        second_home / "config.yaml",
-        {"providers": {"second": {"api_base": "http://second"}}},
+
+    monkeypatch.setenv("ELFIE_HOME", str(first_home))
+    write_runtime_config_bundle({"providers": {"first": {"api_base": "http://first"}}})
+
+    monkeypatch.setenv("ELFIE_HOME", str(second_home))
+    write_runtime_config_bundle(
+        {"providers": {"second": {"api_base": "http://second"}}}
     )
 
     monkeypatch.setenv("ELFIE_HOME", str(first_home))

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from _thread import LockType
 from threading import Lock
-from typing import Dict, Protocol, Set
+from typing import Callable, Dict, Protocol, Set
 
 from ai_runtime.gateway.request import (
     StructuredGenerationMode,
@@ -24,7 +24,10 @@ from elfie.message_types import TurnId
 class StructuredRuntime(Protocol):
     """Narrow RuntimeAgent surface consumed by this adapter."""
 
-    def structured_capabilities(self) -> StructuredCapabilityView:
+    def structured_capabilities(
+        self,
+        food_key: str | None = None,
+    ) -> StructuredCapabilityView:
         """Return the selected runtime target's capabilities."""
 
     def generate_structured(
@@ -62,8 +65,14 @@ class RuntimeRequestAbandonedError(RuntimeError):
 class SerializedRuntimeAdapter:
     """Serialize healthy calls and rotate the lease after a hard timeout."""
 
-    def __init__(self, runtime: StructuredRuntime) -> None:
+    def __init__(
+        self,
+        runtime: StructuredRuntime,
+        *,
+        food_key_resolver: Callable[[], str | None] | None = None,
+    ) -> None:
         self._runtime = runtime
+        self._food_key_resolver = food_key_resolver or (lambda: None)
         self._state_lock = Lock()
         self._current_lease = Lock()
         self._request_leases: Dict[TurnId, LockType] = {}
@@ -71,7 +80,7 @@ class SerializedRuntimeAdapter:
 
     def capabilities(self) -> ModelGenerationCapabilities:
         """Convert Runtime capabilities into the Brain-owned contract."""
-        raw = self._runtime.structured_capabilities()
+        raw = self._runtime.structured_capabilities(self._food_key_resolver())
         return self._convert_capabilities(raw)
 
     @staticmethod
@@ -90,7 +99,10 @@ class SerializedRuntimeAdapter:
 
     def generate(self, request: ModelGenerationRequest) -> ModelGenerationResult:
         """Select one mode, call Runtime once, and translate the result."""
-        capabilities = self.capabilities()
+        food_key = self._food_key_resolver()
+        capabilities = self._convert_capabilities(
+            self._runtime.structured_capabilities(food_key)
+        )
         selected_mode = self._select_mode(capabilities)
         runtime_request = StructuredRuntimeRequest(
             prompt=request.user_prompt,
@@ -104,6 +116,7 @@ class SerializedRuntimeAdapter:
             allowed_tools=request.allowed_tools,
             provider=capabilities.provider,
             model_key=capabilities.model_key,
+            food_key=food_key,
             temperature=request.temperature,
             max_tokens=min(request.max_tokens, capabilities.max_output_tokens),
         )

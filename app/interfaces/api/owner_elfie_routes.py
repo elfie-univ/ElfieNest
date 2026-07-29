@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ai_runtime.food.elfie_policy import load_elfie_food_policy
+from ai_runtime.food.store import FoodCatalogStore
 from app.features.accounts.auth import require_owner
+from app.features.configuration.food_access import elfie_food_policy_projection
 from app.features.elfie_profile.public_projection import build_public_profile
 from app.infrastructure.persistence.embodiment_sessions import get_embodiment_session
 from app.infrastructure.persistence.store import get_db
@@ -95,14 +98,29 @@ def _filter_monitoring_rows(
     embodiment_state: Optional[str],
 ) -> List[Dict[str, Any]]:
     projections = []
+    catalog = FoodCatalogStore(
+        Path(db_path).parent / "configs" / "food-packages.yaml"
+    ).load()
     for row in rows:
         state = get_embodiment_session(db_path, str(row["elfie_id"])).state.value
-        policy = load_elfie_food_policy(str(row["elfie_id"]), str(row["config_dir"]))
-        if food_key is not None and food_key != policy.default_food:
+        policy = (
+            elfie_food_policy_projection(
+                db_path,
+                str(row["elfie_id"]),
+                int(row["owner_user_id"]),
+                catalog,
+            )
+            if catalog.recipes
+            else load_elfie_food_policy(
+                str(row["elfie_id"]),
+                str(row["config_dir"]),
+            ).to_dict()
+        )
+        if food_key is not None and food_key != policy["default_food"]:
             continue
         if embodiment_state is not None and embodiment_state != state:
             continue
-        projections.append(_monitoring_projection(row, state, policy.to_dict()))
+        projections.append(_monitoring_projection(row, state, policy))
     return projections
 
 

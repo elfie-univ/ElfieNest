@@ -13,6 +13,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from ai_runtime.providers.profiles import BUILTIN_PROFILES
+from ai_runtime.storage.config_store import read_yaml_mapping, write_yaml_mapping
+from ai_runtime.storage.data_home import (
+    get_model_validation_dir,
+    get_provider_validation_dir,
+)
 from ai_runtime.storage.secrets import read_secrets
 from ai_runtime.validation.providers import DiscoveredModel
 from app.infrastructure.persistence.store import init_db
@@ -51,6 +56,10 @@ def app(db_path: str, runtime_config_path: Path):
         patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
         patch(
             "app.interfaces.api.model_owner_routes.get_config_path",
+            return_value=runtime_config_path,
+        ),
+        patch(
+            "app.interfaces.api.provider_support.get_config_path",
             return_value=runtime_config_path,
         ),
     ):
@@ -168,6 +177,13 @@ class TestProviderRoutes:
         persisted = runtime_config_path.read_text()
         assert "sk-secret rejected" not in persisted
         assert "user:pw" not in persisted
+        report = read_yaml_mapping(
+            get_provider_validation_dir() / "openai" / "latest.yaml"
+        )
+        assert report["status"] == "failed"
+        assert report["trigger"] == "single"
+        assert "sk-secret" not in str(report)
+        assert "user:pw" not in str(report)
 
     def test_batch_verification_is_partial_and_skips_unconfigured(
         self, client: TestClient
@@ -201,6 +217,59 @@ class TestProviderRoutes:
         assert results["anthropic"]["status"] == "failed"
         assert results["deepseek"]["status"] == "skipped"
         assert mocked.await_count == 2
+        assert (
+            read_yaml_mapping(get_provider_validation_dir() / "openai" / "latest.yaml")[
+                "trigger"
+            ]
+            == "batch"
+        )
+        assert not (get_provider_validation_dir() / "deepseek").exists()
+
+    def test_provider_health_summary_marks_stale_and_failed_checks(
+        self, client: TestClient, runtime_config_path: Path
+    ) -> None:
+        tokens = _login_owner(client)
+        client.put(
+            "/api/owner/providers/openai",
+            json={"api_key": "openai-key"},
+            headers=_headers(tokens["csrf_token"]),
+        )
+        config = read_yaml_mapping(runtime_config_path)
+        config["providers"]["openai"]["verification"] = {
+            "status": "passed",
+            "checked_at": "2020-01-01T00:00:00+00:00",
+            "latency_ms": 8.0,
+            "error": None,
+        }
+        write_yaml_mapping(runtime_config_path, config)
+        client.put(
+            "/api/owner/providers/anthropic",
+            json={"api_key": "anthropic-key"},
+            headers=_headers(tokens["csrf_token"]),
+        )
+        with patch(
+            "app.interfaces.api.provider_validation_routes.run_provider_check",
+            new=AsyncMock(
+                return_value={"status": "failed", "latency_ms": 31.0, "error": "denied"}
+            ),
+        ):
+            client.post(
+                "/api/owner/providers/anthropic/verify",
+                headers=_headers(tokens["csrf_token"]),
+            )
+
+        response = client.get(
+            "/api/owner/providers/health-summary",
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert response.status_code == 200
+        summary = response.json()
+        items = {item["provider_id"]: item for item in summary["providers"]}
+        assert items["openai"]["health"] == "stale"
+        assert items["openai"]["needs_attention"] is True
+        assert items["anthropic"]["health"] == "failed"
+        assert summary["counts"]["needs_attention"] >= 2
 
     def test_batch_verification_rejects_more_than_ten(self, client: TestClient) -> None:
         tokens = _login_owner(client)
@@ -325,6 +394,11 @@ class TestProviderRoutes:
         assert response.json()["results"][0]["status"] == "passed"
         assert response.json()["results"][0]["latency_ms"] == 22.0
         assert mocked.await_count == 1
+        model_dirs = list((get_model_validation_dir() / "openai").iterdir())
+        assert len(model_dirs) == 1
+        report = read_yaml_mapping(model_dirs[0] / "latest.yaml")
+        assert report["model_id"] == "gpt-test"
+        assert report["trigger"] == "benchmark"
 
     def test_batch_timeout_is_an_item_failure_without_retry(
         self, client: TestClient
@@ -511,6 +585,71 @@ class TestProviderRoutes:
             }
         ]
         assert response.json()["model_refresh"]["status"] == "updated"
+        assert response.json()["model_refresh"]["checked_at"]
+        assert response.json()["model_refresh"]["source"] == "api"
+
+    def test_failed_model_refresh_preserves_manual_models(
+        self, client: TestClient
+    ) -> None:
+        tokens = _login_owner(client)
+        created = client.post(
+            "/api/owner/providers",
+            json={
+                "provider_id": "custom_manual",
+                "api_base": "https://example.invalid/v1",
+                "api_key": "test-key",
+                "models": [{"id": "manual-model", "display_name": "Manual Model"}],
+            },
+            headers=_headers(tokens["csrf_token"]),
+        )
+        assert created.status_code == 201
+
+        with patch(
+            "app.interfaces.api.provider_config_routes.discover_provider_models",
+            return_value=[],
+        ):
+            response = client.put(
+                "/api/owner/providers/custom_manual",
+                json={"refresh_models": True},
+                headers=_headers(tokens["csrf_token"]),
+            )
+
+        assert response.status_code == 200
+        assert [item["id"] for item in response.json()["models"]] == ["manual-model"]
+        assert response.json()["models"][0]["source"] == "manual"
+        assert response.json()["model_refresh"]["status"] == "failed"
+        assert response.json()["model_refresh"]["checked_at"]
+
+    def test_manual_model_write_replaces_discovery_source(
+        self, client: TestClient
+    ) -> None:
+        tokens = _login_owner(client)
+        with patch(
+            "app.interfaces.api.provider_config_routes.discover_provider_models",
+            return_value=[DiscoveredModel("custom_source", "discovered-model")],
+        ):
+            created = client.post(
+                "/api/owner/providers",
+                json={
+                    "provider_id": "custom_source",
+                    "api_base": "https://example.invalid/v1",
+                    "api_key": "test-key",
+                    "refresh_models": True,
+                },
+                headers=_headers(tokens["csrf_token"]),
+            )
+        assert created.status_code == 201
+        assert created.json()["models"][0]["source"] == "discovered"
+
+        updated = client.put(
+            "/api/owner/providers/custom_source",
+            json={"models": [{"id": "manual-model", "display_name": "Manual"}]},
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert updated.status_code == 200
+        assert updated.json()["models"][0]["source"] == "manual"
+        assert updated.json()["model_refresh"]["status"] == "manual"
 
     def test_get_providers_returns_list(self, client: TestClient) -> None:
         """GET /api/owner/providers 返回 provider 列表。"""
@@ -638,7 +777,9 @@ class TestProviderRoutes:
             headers=_headers(tokens["csrf_token"]),
         )
         assert (
-            read_secrets(runtime_config_path.parent / ".env")["TO_DELETE_API_KEY"]
+            read_secrets(
+                runtime_config_path.parent / "configs" / "credentials" / "api-keys.env"
+            )["TO_DELETE_API_KEY"]
             == "delete-me"
         )
 
@@ -656,7 +797,7 @@ class TestProviderRoutes:
         provider_ids = [p["provider_id"] for p in resp.json()]
         assert "to_delete" not in provider_ids
         assert "TO_DELETE_API_KEY" not in read_secrets(
-            runtime_config_path.parent / ".env"
+            runtime_config_path.parent / "configs" / "credentials" / "api-keys.env"
         )
 
     @pytest.mark.parametrize(

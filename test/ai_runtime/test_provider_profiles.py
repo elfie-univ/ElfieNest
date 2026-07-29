@@ -4,6 +4,8 @@ from ai_runtime.providers.profiles import (
     get_default_api_mode,
     get_profile,
 )
+from ai_runtime.storage.runtime_config_bundle import write_runtime_config_bundle
+from ai_runtime.storage.secrets import set_provider_secret, write_secrets
 
 
 class TestBuiltinProfiles:
@@ -76,23 +78,18 @@ class TestLLMRuntimeConfigBackwardCompat:
     def test_loads_old_config_without_api_mode(self, monkeypatch, tmp_path):
         """加载无 api_mode 字段的旧配置时自动补充"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config_path = tmp_path / "config.yaml"
         old_config = {
             "providers": {
                 "openai": {
-                    "api_key": "sk-test",
                     "api_base": "https://api.openai.com/v1",
                 },
                 "ollama": {
-                    "api_key": "",
                     "api_base": "http://localhost:11434",
                 },
             }
         }
-        import yaml
-
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.dump(old_config, f)
+        write_runtime_config_bundle(old_config)
+        set_provider_secret("openai", "sk-test")
 
         config = LLMRuntimeConfig()
         assert "api_mode" in config.providers["openai"]
@@ -102,20 +99,16 @@ class TestLLMRuntimeConfigBackwardCompat:
     def test_merges_api_mode_from_builtin_profiles(self, monkeypatch, tmp_path):
         """从 BUILTIN_PROFILES 合并 api_mode"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config_path = tmp_path / "config.yaml"
         # 使用默认已知的 provider (deepseek) 来测试 api_mode 合并
         old_config = {
             "providers": {
                 "deepseek": {
-                    "api_key": "sk-test",
                     "api_base": "https://api.deepseek.com/v1",
                 },
             }
         }
-        import yaml
-
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.dump(old_config, f)
+        write_runtime_config_bundle(old_config)
+        set_provider_secret("deepseek", "sk-test")
 
         config = LLMRuntimeConfig()
         assert "api_mode" in config.providers["deepseek"]
@@ -124,19 +117,15 @@ class TestLLMRuntimeConfigBackwardCompat:
     def test_unknown_provider_defaults_to_chat_completions(self, monkeypatch, tmp_path):
         """未知服务商默认使用 chat_completions API 模式"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config_path = tmp_path / "config.yaml"
         old_config = {
             "providers": {
                 "custom_provider": {
-                    "api_key": "test-key",
                     "api_base": "https://custom.api.com/v1",
                 },
             }
         }
-        import yaml
-
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.dump(old_config, f)
+        write_runtime_config_bundle(old_config)
+        set_provider_secret("custom_provider", "test-key")
 
         config = LLMRuntimeConfig()
         assert config.providers["custom_provider"]["api_mode"] == "chat_completions"
@@ -150,23 +139,18 @@ class TestLLMRuntimeConfigBackwardCompat:
     def test_status_defaults_based_on_api_key(self, monkeypatch, tmp_path):
         """status 根据是否有 api_key 自动设置"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config_path = tmp_path / "config.yaml"
         old_config = {
             "providers": {
                 "openai": {
-                    "api_key": "sk-test",
                     "api_base": "https://api.openai.com/v1",
                 },
                 "deepseek": {
-                    "api_key": "",
                     "api_base": "https://api.deepseek.com/v1",
                 },
             }
         }
-        import yaml
-
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.dump(old_config, f)
+        write_runtime_config_bundle(old_config)
+        set_provider_secret("openai", "sk-test")
 
         config = LLMRuntimeConfig()
         assert config.providers["openai"]["status"] == "active"
@@ -175,30 +159,25 @@ class TestLLMRuntimeConfigBackwardCompat:
     def test_ollama_status_always_active(self, monkeypatch, tmp_path):
         """Ollama status 始终为 active"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config_path = tmp_path / "config.yaml"
         old_config = {
             "providers": {
                 "ollama": {
-                    "api_key": "",
                     "api_base": "http://localhost:11434",
                 },
             }
         }
-        import yaml
-
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.dump(old_config, f)
+        write_runtime_config_bundle(old_config)
 
         config = LLMRuntimeConfig()
         assert config.providers["ollama"]["status"] == "active"
 
     def test_loads_custom_openai_credentials_from_env_file(self, monkeypatch, tmp_path):
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        env_path = tmp_path / ".env"
-        env_path.write_text(
-            "CUSTOM_OPENAI_API_KEY=test-key\n"
-            "CUSTOM_OPENAI_API_BASE=https://proxy.example.com/v1\n",
-            encoding="utf-8",
+        write_secrets(
+            {
+                "CUSTOM_OPENAI_API_KEY": "test-key",
+                "CUSTOM_OPENAI_API_BASE": "https://proxy.example.com/v1",
+            }
         )
 
         config = LLMRuntimeConfig()

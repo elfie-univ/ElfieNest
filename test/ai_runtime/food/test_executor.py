@@ -129,10 +129,18 @@ def test_food_executor_builds_multimodal_payload_for_selected_provider(
     image.write_bytes(b"image")
 
     result = executor.execute(
-        FoodRecipe("vision", "视觉粮", "test", ExecutionProfile("cloud/vision-model")),
+        FoodRecipe(
+            "daily",
+            "Daily",
+            "test",
+            ExecutionProfile("ollama/text-model"),
+            vision=ExecutionProfile("cloud/vision-model"),
+        ),
         [{"role": "user", "content": "这是什么？"}],
+        prefer_vision=True,
         images=(str(image),),
     )
 
     assert result.text == "看到了"
+    assert result.execution_stage == "vision"
     assert captured[0][0]["content"][1]["type"] == "image_url"

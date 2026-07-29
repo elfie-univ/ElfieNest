@@ -36,7 +36,6 @@ const profile = (model: string, reasoning = "balanced") => ({
   reasoning_profile: reasoning,
   max_tokens: 1500,
   temperature: 0.7,
-  tools: [],
   provider_options: {},
 })
 const standardFood = {
@@ -45,14 +44,18 @@ const standardFood = {
   description: "日常默认",
   primary: profile("ollama/primary"),
   deep: profile("ollama/deep", "deep"),
+  vision: null,
   verifier: profile("ollama/verifier", "verify"),
   technical_fallbacks: [profile("ollama/fallback", "low")],
+  local_only: true,
   validation_status: "passed",
   source: "manual",
   locked_fields: [],
 }
 const catalog = {
   version: 2,
+  default_food: "standard",
+  fallback_food: "",
   source_fingerprint: "current",
   generated_at: "2026-07-26T00:00:00Z",
   generation_sources: ["manual"],

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -78,6 +79,13 @@ def _apply_write(
             }
             for item in body.models or []
         ]
+        info["model_refresh"] = {
+            "status": "manual",
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "source": "manual",
+            "count": len(info["models"]),
+            "message": None,
+        }
     connection_fields = {
         "api_base",
         "api_key",
@@ -94,6 +102,7 @@ def _refresh_models(
     provider_id: str, config: Dict[str, Any], *, require_models: bool
 ) -> None:
     info = config["providers"][provider_id]
+    checked_at = datetime.now(timezone.utc).isoformat()
     try:
         discovered = discover_provider_models(
             provider_id,
@@ -103,18 +112,45 @@ def _refresh_models(
         )
     except Exception as exc:
         message = sanitize_error(str(exc), secrets=(str(info.get("api_key") or ""),))
-        info["model_refresh"] = {"status": "failed", "message": message}
+        info["model_refresh"] = {
+            "status": "failed",
+            "checked_at": checked_at,
+            "source": "api",
+            "count": len(info.get("models") or []),
+            "message": message,
+        }
         if require_models:
             raise HTTPException(
                 status_code=422,
                 detail=f"自动拉取模型失败，请手工填写模型 ID 和显示名：{message}",
             ) from exc
         return
+    if not discovered:
+        message = "模型发现接口未返回模型，已保留现有手工模型"
+        info["model_refresh"] = {
+            "status": "failed",
+            "checked_at": checked_at,
+            "source": "api",
+            "count": len(info.get("models") or []),
+            "message": message,
+        }
+        if require_models:
+            raise HTTPException(
+                status_code=422,
+                detail="自动拉取模型未返回结果，请手工填写模型 ID 和显示名",
+            )
+        return
     info["models"] = [
         {"id": item.name, "display_name": item.display_name or item.name}
         for item in discovered
     ]
-    info["model_refresh"] = {"status": "updated", "count": len(discovered)}
+    info["model_refresh"] = {
+        "status": "updated",
+        "checked_at": checked_at,
+        "source": "api",
+        "count": len(discovered),
+        "message": None,
+    }
 
 
 def _refresh_models_with_slot(

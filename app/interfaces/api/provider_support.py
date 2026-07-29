@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable
 
 from ai_runtime.config import LLMRuntimeConfig
@@ -159,6 +159,86 @@ def stored_verification(
         "latency_ms": latency_ms,
         "error": sanitize_error(error, secrets=secrets),
     }
+
+
+def provider_health_summary(
+    config: Dict[str, Any],
+    *,
+    now: datetime | None = None,
+    stale_after: timedelta = timedelta(hours=24),
+) -> dict[str, Any]:
+    """Project configured Provider checks into one alert-friendly summary."""
+    current_time = now or datetime.now(timezone.utc)
+    providers = config.get("providers", {})
+    items: list[dict[str, Any]] = []
+    ordered_ids = list(dict.fromkeys([*get_profile_ids(), *providers.keys()]))
+    for provider_id in ordered_ids:
+        info = providers.get(provider_id, {})
+        if not isinstance(info, dict) or not is_configured(provider_id, info):
+            continue
+        verification = verification_view(info)
+        health = _verification_health(
+            verification,
+            now=current_time,
+            stale_after=stale_after,
+        )
+        items.append(
+            {
+                "provider_id": provider_id,
+                "health": health,
+                "needs_attention": health != "healthy",
+                "verification": verification,
+            }
+        )
+    counts = {
+        "configured": len(items),
+        "healthy": sum(item["health"] == "healthy" for item in items),
+        "failed": sum(item["health"] == "failed" for item in items),
+        "stale": sum(item["health"] == "stale" for item in items),
+        "unverified": sum(item["health"] == "unverified" for item in items),
+        "needs_attention": sum(bool(item["needs_attention"]) for item in items),
+    }
+    return {
+        "generated_at": current_time.isoformat(),
+        "stale_after_seconds": int(stale_after.total_seconds()),
+        "counts": counts,
+        "providers": items,
+    }
+
+
+def get_profile_ids() -> tuple[str, ...]:
+    from ai_runtime.providers.profiles import BUILTIN_PROFILES
+
+    return tuple(BUILTIN_PROFILES)
+
+
+def _verification_health(
+    verification: dict[str, Any],
+    *,
+    now: datetime,
+    stale_after: timedelta,
+) -> str:
+    status = verification["status"]
+    if status == "failed":
+        return "failed"
+    if status != "passed":
+        return "unverified"
+    checked_at = _parse_checked_at(verification.get("checked_at"))
+    if checked_at is None or now - checked_at > stale_after:
+        return "stale"
+    return "healthy"
+
+
+def _parse_checked_at(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def sanitize_error(error: str | None, *, secrets: Iterable[str]) -> str | None:

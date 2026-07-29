@@ -219,6 +219,7 @@ def test_food_edit_round_trips_every_execution_role(client):
             "description": "四角色人工配置",
             "primary": {"model": "ollama/primary", "reasoning_profile": "balanced"},
             "deep": {"model": "ollama/deep", "reasoning_profile": "deep"},
+            "vision": {"model": "ollama/vision", "reasoning_profile": "balanced"},
             "verifier": {"model": "ollama/verifier", "reasoning_profile": "verify"},
             "technical_fallbacks": [
                 {"model": "ollama/fallback", "reasoning_profile": "low"}
@@ -231,5 +232,71 @@ def test_food_edit_round_trips_every_execution_role(client):
     food = response.json()["food"]
     assert food["primary"]["model"] == "ollama/primary"
     assert food["deep"]["model"] == "ollama/deep"
+    assert food["vision"]["model"] == "ollama/vision"
     assert food["verifier"]["model"] == "ollama/verifier"
     assert food["technical_fallbacks"][0]["model"] == "ollama/fallback"
+    assert food["local_only"] is True
+
+
+def test_custom_food_package_keeps_stable_id_when_renamed(client):
+    headers = auth(client)
+    created = client.post(
+        "/api/owner/runtime/foods/",
+        json={
+            "display_name": "日常套餐",
+            "description": "默认使用",
+            "primary": {"model": "ollama/local"},
+        },
+        headers=headers,
+    )
+
+    assert created.status_code == 201, created.text
+    food_id = created.json()["food"]["key"]
+    assert food_id.startswith("food_")
+    assert created.json()["catalog"]["default_food"] == food_id
+    assert created.json()["food"]["local_only"] is True
+
+    renamed = client.put(
+        f"/api/owner/runtime/foods/{food_id}",
+        json={
+            "key": "food_should_not_replace_identity",
+            "display_name": "改名后的日常套餐",
+            "description": "默认使用",
+            "primary": {"model": "ollama/local"},
+        },
+        headers=headers,
+    )
+
+    assert renamed.status_code == 200, renamed.text
+    assert renamed.json()["food"]["key"] == food_id
+    assert renamed.json()["food"]["display_name"] == "改名后的日常套餐"
+
+
+def test_owner_can_choose_global_fallback_and_cannot_delete_selected_food(client):
+    headers = auth(client)
+    first = client.post(
+        "/api/owner/runtime/foods/",
+        json={"display_name": "常用粮", "primary": {"model": "ollama/local"}},
+        headers=headers,
+    ).json()["food"]["key"]
+    second = client.post(
+        "/api/owner/runtime/foods/",
+        json={"display_name": "保底粮", "primary": {"model": "cloud/cheap"}},
+        headers=headers,
+    ).json()["food"]["key"]
+
+    selected = client.put(
+        "/api/owner/runtime/foods/settings",
+        json={"default_food": first, "fallback_food": second},
+        headers=headers,
+    )
+
+    assert selected.status_code == 200, selected.text
+    assert selected.json()["catalog"]["default_food"] == first
+    assert selected.json()["catalog"]["fallback_food"] == second
+    assert selected.json()["warnings"] == ["所选保底粮包含远程模型，断网时可能不可用"]
+    rejected = client.delete(
+        f"/api/owner/runtime/foods/{second}",
+        headers=headers,
+    )
+    assert rejected.status_code == 409

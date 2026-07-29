@@ -67,15 +67,87 @@ generation/sequence 顺序携带语义身份和状态，不携带场景 transfor
 ## 生产目录契约
 
 一台电脑只有一个生产 Nest 根 `${ELFIE_HOME:-~/.elfienest}`。根目录保存 Nest 级别
-事实：`config.yaml`、`.env`、`foods.yaml`、`nest.db`、备份、Runtime 状态与日志。
-`nest.db` 只保存账号、权限、精灵登记/归属、Nest 世界与运行状态；它不接收新的聊天消息。
+事实，例如 `nest.db`、备份、Runtime 状态与日志。正式 Runtime 配置按职责拆分到
+`configs/` 下的 `runtime.yaml`、`providers.yaml`、`tools.yaml` 和
+`food-packages.yaml`。API Key 和结构化 OAuth 凭据位于
+`configs/credentials/`。`nest.db` 只保存账号、权限、精灵登记/归属、Nest 世界与
+运行状态；它不接收新的聊天消息。
+
+Runtime 调用方仍看到一份合并配置对象。存储边界在读取时合并 Runtime、Provider 和
+Tool 三份文件，在写入时再次按职责拆开；这是内部持久化细节，不改变 Owner API 的
+数据形状。`reports/` 预留给可重建的验证结果。这些目录及其敏感子目录都以仅所有者
+可访问的权限创建。程序不会读取或隐式迁移旧根目录下的 `config.yaml`、`foods.yaml`
+和 `food_history/`。显式传入 `config_home` 的开发 Runtime Lab 继续使用彼此隔离的
+`config.yaml`、`.env`、`foods.yaml` 与 `food_history/`。
+
+系统支持的 Provider 元数据使用另一份带版本的目录。内置
+`ai_runtime/providers/provider-catalog.yaml` 是离线基线，并会进入 wheel 与冻结
+可执行文件。完整且通过 schema 校验的 `configs/provider-catalog.yaml` 会在下次
+进程启动时覆盖内置基线；版本不兼容、档案损坏或包含凭据字段的目录会被拒绝，程序
+继续使用内置基线。当前尚未实现远程目录下载器，这个覆盖路径只是为后续更新机制
+保留的落盘边界。`configs/providers.yaml` 仍只保存用户实际配置的 Provider 实例，
+不能与元数据目录混为一谈。
+
+Provider 配置把“已配置”“模型发现”和“已验证”作为三类独立事实。保存 Key 或
+endpoint 只会标记为已配置。模型发现会记录来源、时间和结果；拉取失败或返回空列表
+时绝不会覆盖用户手工填写的模型。随后由显式的单个验证或有并发上限的批量验证记录
+连通状态与时延。当前状态保存在 `configs/providers.yaml` 里供快速投影，每一次经过
+脱敏的验证也会写入
+`reports/provider-validations/<provider_id>/latest.yaml` 和不可变的
+`history/` 记录。模型测速在 `reports/model-validations/` 下采用相同的
+latest 加 history 方式；模型目录使用不透明哈希，模型 ID 不会直接成为路径。
+
+Owner API 提供面向提醒的 Provider 健康摘要。验证通过但超过 24 小时的结果会标记为
+`stale`；失败、过期和从未验证的已配置 Provider 都需要提醒。这里是读取时投影，不是
+后台调度器。当前阶段支持显式单个验证和有上限的批量验证；后续定时调度必须由 Runtime
+生命周期统一持有，不能让 API 或 Desktop 进程自行创建新的生命周期所有者。
+
+粮食套餐是带版本的 YAML 配置，不是由数据库持有的模型定义。每个自定义套餐会取得
+不透明且不可变的 `food_<hex>` key；显示名称和角色模型可以修改，外部引用不会随之
+变化。一个套餐可以配置主模型、深度推理模型、视觉模型、校验模型和技术模型回退。
+落盘的执行档位中不再保存工具权限：工具由 Runtime 策略启用，再由调用它的精灵或请求
+收窄，与模型选择相互独立。
+
+目录记录一个全局默认套餐和一个可选的全局保底套餐。保底套餐允许使用远程模型，但
+Owner API 会给出警告，因为它无法覆盖断网情况。只有所有已配置角色都使用声明为本地的
+Provider 时，套餐的 `local_only` 才为 true。迁移阶段仍保留内置语义配方作为自动生成
+模板，但正式落盘目录和 Owner 编辑器已经允许任意稳定套餐 ID。
+
+套餐内容和分配关系由不同事实源持有。YAML 仍是模型角色与参数的唯一事实源；
+`nest.db.food_package_access` 只保存每个用户可选择的稳定套餐 ID，
+`nest.db.elfie_food_preferences` 只保存每只精灵最多一个主粮套餐 ID。全局默认粮和
+保底粮始终进入有效可用范围。精灵保存的选择如果超出范围，或者对应 YAML 套餐已经
+缺失，投影会回到全局默认粮，同时保留数据库中的原 ID 供诊断。只要仍有用户或精灵
+引用某个套餐，删除操作就会被拒绝。
+
+应用编排层会在每次生成时解析该精灵当前生效的套餐，只把稳定套餐 ID 注入
+Brain 到 Runtime 的适配器。Brain 不导入数据库、Provider 目录或粮食领域模型。
+任务差异始终在所选套餐内部处理：复杂请求可以使用该套餐的深度推理角色，多模态请求
+可以使用视觉角色，技术回退仍限定在同一套餐内。只有所选套餐的所有候选模型都失败时，
+Runtime 才会再尝试一次目录中的全局保底粮。结构化生成进入保底粮时会降为普通 JSON
+文本模式，避免把本地或能力较弱的保底模型误判为支持原生 Schema。套餐关系按每次生成
+动态解析，因此 Owner 修改主粮后无需重建精灵即可生效。
 
 每只精灵都以不可变的 `elfie_id` 作为工作区名。显示名称可改，但绝不能改动目录：
 
 ```text
 ${ELFIE_HOME:-~/.elfienest}/
 ├── nest.db                         # Nest、账号、归属和世界状态
-├── config.yaml / .env / foods.yaml # 本机生产配置与密钥引用
+├── configs/
+│   ├── runtime.yaml                # 系统设置与 Runtime 策略
+│   ├── providers.yaml              # Provider 实例与模型配置
+│   ├── provider-catalog.yaml        # 可选、经校验的完整元数据覆盖包
+│   ├── tools.yaml                  # 工具设置，不含明文密钥
+│   ├── food-packages.yaml          # 当前生效的粮食套餐目录
+│   ├── food-packages-history/      # 粮食套餐历史版本
+│   └── credentials/
+│       ├── api-keys.env            # Provider 与工具 API Key
+│       └── oauth/
+│           └── <provider_id>.json  # 结构化、可刷新的 OAuth 凭据
+├── reports/
+│   ├── provider-validations/       # 脱敏的 Provider latest 与 history
+│   ├── model-validations/          # 脱敏的模型测速 latest 与 history
+│   └── runtime-validations/        # 预留的 Runtime 整体报告
 ├── runtime.json                    # Supervisor 健康、generation 与 owner lease
 └── elfies/
     └── <elfie_id>/                 # 稳定 ID，不使用可变名称

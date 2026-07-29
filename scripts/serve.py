@@ -33,7 +33,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Callable, Protocol, Sequence
+from typing import Any, Callable, Optional, Protocol, Sequence
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -46,6 +46,7 @@ from ai_runtime.storage.data_home import (
     get_elfie_home,
 )
 from app.features.adoption.generator import ElfieGenerator
+from app.features.configuration.food_access import resolve_elfie_food_key
 from app.infrastructure.persistence.nest_state_repository import (
     SQLiteNestStateRepository,
 )
@@ -111,19 +112,14 @@ class FallbackAgent:
                 "[ACTION]stretch[/ACTION]"
             )
         if any(kw in prompt_lower for kw in ["happy", "joy", "glad"]):
-            return (
-                "I am happy you came to chat with me. "
-                " [ACTION]waggle_ears[/ACTION]"
-            )
+            return "I am happy you came to chat with me.  [ACTION]waggle_ears[/ACTION]"
         if any(kw in prompt_lower for kw in ["eat", "hungry", "food", "snack"]):
             return (
                 "Snacks sound lovely. I may not need food the way people do, "
                 "but I still like imagining something tasty. [ACTION]lick_lips[/ACTION]"
             )
         if any(kw in prompt_lower for kw in ["sleep", "tired", "good night"]):
-            return (
-                "I am getting a little sleepy, but I can stay with you a bit longer. [ACTION]yawn[/ACTION]"
-            )
+            return "I am getting a little sleepy, but I can stay with you a bit longer. [ACTION]yawn[/ACTION]"
         if any(kw in prompt_lower for kw in ["bye", "goodbye", "quit", "exit"]):
             return "Goodbye! Come back whenever you want to talk. [ACTION]wave[/ACTION]"
 
@@ -293,12 +289,16 @@ def main():
             get_elfie_home(), blocking=managed_start
         )
     except (OSError, RecoveryInProgressError):
-        print("  ❌ Owner account recovery or another service start in progress, cannot start")
+        print(
+            "  ❌ Owner account recovery or another service start in progress, cannot start"
+        )
         raise SystemExit(1) from None
 
     godot_ready = prepare_godot_web_runtime(args.runtime_mode)
     if not godot_ready and args.runtime_mode == "release":
-        print("  ❌ Release mode requires verified Godot Web Runtime, service not started")
+        print(
+            "  ❌ Release mode requires verified Godot Web Runtime, service not started"
+        )
         raise SystemExit(1)
     if not godot_ready:
         print(
@@ -310,7 +310,9 @@ def main():
         print(f"  ✅ Godot Web Runtime: {godot_web.entry_url}")
     else:
         print("  ⚠️  Godot Web Runtime not built yet; 3D room unavailable")
-        print("  💡 Run after modifying Godot assets or before release: ./elfienest.sh build-godot-web")
+        print(
+            "  💡 Run after modifying Godot assets or before release: ./elfienest.sh build-godot-web"
+        )
 
     # Check whether service ports are occupied.
     import socket
@@ -372,7 +374,9 @@ def main():
             for port, name in occupied:
                 pids = kill_process_on_port(port)
                 if pids:
-                    print(f"  ✓ Port {port} ({name}): terminated process PID {', '.join(pids)}")
+                    print(
+                        f"  ✓ Port {port} ({name}): terminated process PID {', '.join(pids)}"
+                    )
                 else:
                     print(f"  ⚠ Port {port} ({name}): unable to terminate")
             print()
@@ -423,7 +427,7 @@ def main():
     # 2. Optionally seed the initial Owner Elfie (enabled by default).
     if not args.no_seed_elfie:
         if seed_single_elfie(db_path):
-            print("  🌱 Auto-seeded Elfie \"Aifei\" for Owner (--seed-elfie)")
+            print('  🌱 Auto-seeded Elfie "Aifei" for Owner (--seed-elfie)')
 
     # 3. Start the engine worker thread.
     engine_holder: dict = {}
@@ -439,7 +443,7 @@ def main():
         tick_interval_sec = engine_config.get("tick_interval_sec", 1.5)
         max_elfies_per_room = engine_config.get("max_elfies_per_room")
 
-        runtime_agent = None
+        runtime_agent: Optional[Any] = None
         if args.fallback:
             runtime_agent = FallbackAgent()
             print("  ⚡ Using built-in dialogue engine (--fallback mode)")
@@ -452,7 +456,9 @@ def main():
                 raw_agent.ollama_manager.ensure_service_started()
 
                 runtime_agent = raw_agent
-                print("  ✅ Runtime connected, will select local or cloud models via food policy")
+                print(
+                    "  ✅ Runtime connected, will select local or cloud models via food policy"
+                )
                 print("  ⏳ Warming up model (first load takes 10-15 seconds)...")
 
                 def _warmup():
@@ -473,7 +479,9 @@ def main():
 
         if runtime_agent is None:
             runtime_agent = FallbackAgent()
-            print("  ⚡ Ollama auto-start failed or not installed, using built-in dialogue engine")
+            print(
+                "  ⚡ Ollama auto-start failed or not installed, using built-in dialogue engine"
+            )
             print(
                 "  💡 For real AI responses, ensure Ollama is installed locally:\n"
                 "     Setup guide: .venv/bin/python ai_runtime/setup/runtime_setup.py"
@@ -485,6 +493,17 @@ def main():
             tick_interval_sec=tick_interval_sec,
             max_elfies_per_room=max_elfies_per_room,
             nest_repository=SQLiteNestStateRepository(db_path),
+            food_key_resolver=(
+                lambda elfie_id: (
+                    resolve_elfie_food_key(
+                        db_path,
+                        elfie_id,
+                        runtime_agent.food_catalog_store.load(),
+                    )
+                    if hasattr(runtime_agent, "food_catalog_store")
+                    else None
+                )
+            ),
         )
         engine_holder["engine"] = engine
         engine_ready.set()

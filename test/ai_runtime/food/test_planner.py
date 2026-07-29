@@ -79,9 +79,7 @@ def test_emergency_food_ignores_cloud_recommendation_and_requires_local_model():
 
     proposal = FoodPlanner(CloudAdvisor()).propose(evidence())
 
-    assert proposal.catalog.recipes["emergency"].primary.model == (
-        "ollama/local-small"
-    )
+    assert proposal.catalog.recipes["emergency"].primary.model == ("ollama/local-small")
 
 
 def test_emergency_food_is_unavailable_without_verified_local_model():
@@ -143,6 +141,29 @@ def test_planner_preserves_manual_recipe():
         item for item in proposal.changes if item.food_key == "standard"
     )
     assert "人工管理" in standard_change.warnings[0]
+
+
+def test_planner_preserves_custom_packages_and_catalog_selections():
+    custom = FoodRecipe(
+        key="food_000000000001",
+        display_name="我的套餐",
+        description="人工配置",
+        primary=ExecutionProfile("ollama/local-small"),
+        source="manual",
+        local_only=True,
+    )
+    current = FoodCatalog(
+        version=3,
+        default_food=custom.key,
+        fallback_food=custom.key,
+        recipes={custom.key: custom},
+    )
+
+    proposal = FoodPlanner().propose(evidence(), current)
+
+    assert proposal.catalog.default_food == custom.key
+    assert proposal.catalog.fallback_food == custom.key
+    assert proposal.catalog.recipes[custom.key] == custom
 
 
 class InvalidAdvisor:
