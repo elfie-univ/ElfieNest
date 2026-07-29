@@ -30,6 +30,12 @@ def test_lifecycle_commands_use_repository_root_for_service_command() -> None:
     assert command[1] == str(repo_root / "scripts" / "serve.py")
 
 
+def test_authority_start_budget_covers_cold_godot_web_boot() -> None:
+    # Given: a real cold Godot Web authority remained unready after 30 seconds.
+    # When / Then: the product budget preserves the observed successful 120-second window.
+    assert lifecycle_commands.AUTHORITY_START_TIMEOUT_SECONDS == 120.0
+
+
 def test_start_is_idempotent_when_service_is_already_running(
     monkeypatch, capsys
 ) -> None:

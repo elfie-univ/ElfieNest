@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import { requestJson } from "./http"
-import { currentUser } from "./session"
+import { currentUser, login, safeLoginNextPath } from "./session"
 
 vi.mock("./http", () => ({ requestJson: vi.fn() }))
 
@@ -27,5 +27,27 @@ describe("currentUser", () => {
       username: "admin123",
       role: "owner",
     })
+  })
+})
+
+describe("safe login destinations", () => {
+  it("accepts only known local product pages", () => {
+    expect(safeLoginNextPath("/chat")).toBe("/chat")
+    expect(safeLoginNextPath("/manage")).toBe("/manage")
+    expect(safeLoginNextPath("/monitor")).toBe("/monitor")
+    expect(safeLoginNextPath("https://attacker.invalid")).toBe("")
+    expect(safeLoginNextPath("//attacker.invalid")).toBe("")
+    expect(safeLoginNextPath("/monitor?mode=unexpected")).toBe("")
+  })
+
+  it("sends and accepts the Owner monitor return destination", async () => {
+    vi.mocked(requestJson).mockResolvedValue({ landing_path: "/monitor" })
+
+    await expect(login("owner", "pass123", "/monitor")).resolves.toBe("/monitor")
+
+    expect(requestJson).toHaveBeenCalledWith(
+      "/api/auth/login?next=/monitor",
+      expect.objectContaining({ method: "POST" }),
+    )
   })
 })

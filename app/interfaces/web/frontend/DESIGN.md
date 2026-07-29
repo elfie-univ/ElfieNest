@@ -119,6 +119,16 @@ primary-content horizontal scrolling.
 - **States:** default, hover, focus-visible, active, and pressed all use existing
   semantic tokens only.
 
+### Observation Monitor Toolbar
+- **Structure:** one compact horizontal reel overlays the 3D surface; commands
+  never wrap or create a second control row.
+- **Scrolling:** the reel keeps native horizontal input while rendering a 4px
+  visual scrollbar with a transparent track and semantic divider-colored thumb.
+- **Icon semantics:** Owner monitor entry points and the toolbar overview command
+  use the Lucide `Cctv` icon. Generic camera preview actions may retain `Camera`.
+- **States:** default, hover, focus-visible, pressed camera, paused, hidden, and
+  restored.
+
 ### Identity Card
 - **Structure:** a reusable shadcn Card shell with one fixed square portrait on
   the left and a horizontal `label：value` grid on the right.
@@ -132,6 +142,46 @@ primary-content horizontal scrolling.
   panel, with the display value replaced by its labelled control and save/cancel
   affordance in the same row. Dialogs are reserved for multi-field or destructive
   decisions.
+
+### Personal dossier
+- **Reference priority:** the profile dossier follows
+  `.omo/evidence/elfie-profile-ui-redo/references/elfie-lab-profile-primary.png`
+  for portrait/identity, stage dominance, and radar composition. The private
+  module rhythm follows `elfie-lab-private-modules.png`. These references define
+  geometry and hierarchy only; product colors continue to come from semantic
+  theme tokens.
+- **Shell and scroll owner:** the dossier fills the available chat detail pane
+  with no fixed dossier max-width. The detail pane remains bounded by the
+  fixed-sidenav/list-detail shell, and the dossier body is the vertical scroll
+  owner. Internal sections do not introduce nested vertical scroll except chart
+  detail dialogs.
+- **Identity geometry:** desktop uses portrait-left/identity-right anatomy with
+  a direct chat action aligned to the header action edge. Mobile at 760px or
+  below keeps the portrait and identity in a compact two-column header, then
+  stacks sections into one readable column with a mobile back action outside the
+  desktop header hierarchy.
+- **Stage primitive:** `profile-dossier__stage` is the dominant media frame. On
+  desktop its width follows the detail pane and its aspect ratio must remain
+  landscape, 1.5-1.8. On mobile it becomes compact at 0.9-1.2. The stage uses
+  theme field/raised/divider/focus tokens, never page-local green or screenshot
+  color literals.
+- **Sections and actions:** section headers use a small semantic label, a
+  22-26px title, and a compact action cluster. Controls must be keyboard
+  reachable, 44px or taller on touch breakpoints, and preserve visible
+  `--focus-ring` outlines.
+- **Radar and chart text alternatives:** Big Five is public and read-only.
+  Radar/graph canvases are always paired with a semantic value list or edge
+  summary that communicates the same meaning without color, position, or canvas
+  access.
+- **Private modules:** adopter-only modules use divider-led accordion rows:
+  plain section dividers, chevron state, `aria-expanded`, and bodies mounted
+  only when open. Visitors receive no private headings, placeholder locks, or
+  hidden private copy in the DOM.
+- **Motion and adaptive states:** direct-manipulation stage motion is purposeful
+  and GPU-composited. Under `prefers-reduced-motion`, transitions are reduced to
+  state changes without decorative movement. Long CJK copy, empty data, missing
+  portraits, theme switching, and 200% zoom must not create horizontal page
+  overflow.
 
 ## 6. Motion & Interaction
 

@@ -95,6 +95,8 @@
 .account-menu__form label { display: grid; gap: 5px; color: var(--ink-soft); font-size: 14px; }
 .account-menu__form input { width: 100%; padding: 9px 10px; border: 1px solid var(--border-soft, var(--line)); border-radius: 10px; color: var(--ink); background: var(--surface-field, var(--surface-muted)); }
 .account-menu__form .button { justify-self: start; padding: 7px 12px; }
+.account-menu__landing-action { width: 100%; min-height: 46px; border-radius: 12px; background: var(--accent); color: var(--surface); font-size: 15px; }
+.account-menu__landing-action:hover { background: var(--accent-hover); color: var(--surface); }
 .account-menu__themes > p { margin: -2px 0 2px; color: var(--ink-soft); font-size: 14px; line-height: 1.45; }
 .account-menu__panel .brand, .account-menu__panel h3 { display: flex; align-items: center; gap: 6px; }
 .account-menu__themes { grid-template-columns: 1fr 1fr; }

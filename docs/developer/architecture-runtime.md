@@ -44,7 +44,7 @@ protocol frames or authority credentials. Closing an observer window has no
 lifecycle effect; an explicit application exit stops the Runtime only when the
 client holds the owner lease.
 
-## Observer permissions and the non-video first phase
+## Observer permissions, camera catalog and the non-video first phase
 
 An Observer starts from an authenticated product session and receives an opaque,
 session-bound capability. Its subscription is restricted to either one room or
@@ -52,6 +52,25 @@ one owned Elfie, and its interest can only reduce that authorized result. Frames
 carry semantic identity and state in a generation/sequence order; they do not
 carry scene transforms, geometry, camera state, raw Runtime protocol frames or
 authority credentials.
+
+For the product Observer, Godot owns the complete, versioned camera catalog.
+Each strict catalog envelope carries semantic view `id` and `label` values,
+`active_id`, a positive `revision`, and `presentation_paused`. It describes the
+currently selectable views without exporting camera coordinates, transforms or
+room geometry. React consumes that catalog and may emit only the closed semantic
+commands `overview`, `select`, `reset` and `set_local_presentation_paused`.
+`select` uses an ID from the current catalog; React neither calculates nor sends
+camera positions, transforms or layout facts.
+
+The product bridge accepts a catalog only from the current same-origin Godot
+iframe and only in its strict, versioned message format. It exposes no raw
+Runtime frames, authority credentials or simulation controls. Local presentation
+pause is an Observer input/presentation state only: it must never pause the
+Runtime, Gateway, Core or backend simulation.
+
+`/monitor` is an Owner-only full observation page. The Owner Nest-management
+dialog embeds the same `ObservationMonitor` surface and bridge rather than a
+separate camera implementation.
 
 The closed local navigation intents are `request_resync`, `focus_room` and
 `focus_elfie`. The only world-changing request is the separately authorized,

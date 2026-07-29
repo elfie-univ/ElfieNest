@@ -12,6 +12,10 @@ const RUNTIME_WEBSOCKET_CLIENT := preload("res://runtime/websocket_client.gd")
 const RUNTIME_MODE := preload("res://runtime/runtime_mode.gd")
 const LAB_RUNTIME := preload("res://runtime/lab_runtime.gd")
 const AUTHORITY_SEMANTIC_EVENTS := preload("res://runtime/authority_semantic_events.gd")
+const OBSERVER_CHANNEL := "elfienest.observer"
+const OBSERVER_PROTOCOL_VERSION := 1
+const OBSERVER_MODE_PARAMETER := "observer"
+const OBSERVER_MODE_VALUE := "product"
 
 @onready var nest: ModularNest = $Nest
 @onready var characters: Node3D = $Characters
@@ -21,12 +25,15 @@ const AUTHORITY_SEMANTIC_EVENTS := preload("res://runtime/authority_semantic_eve
 var _ws_url := ""
 var _lab_mode := false
 var _nest_lab_mode := false
+var _product_observer_mode := false
 var _lab_runtime: Node
 var _world_controller: Node
 var _actor_controller: Node
 var _runtime_client: Node
 var _runtime_mode
 var _semantic_events
+var _observer_window: JavaScriptObject
+var _observer_origin := ""
 
 
 func add_character(
@@ -50,12 +57,24 @@ func add_character(
 func _ready() -> void:
 	_lab_mode = OS.has_feature("web") and _query_parameter("mode") == "elfie_lab"
 	_nest_lab_mode = OS.has_feature("web") and _query_parameter("mode") == "nest_lab"
+	_product_observer_mode = (
+		OS.has_feature("web")
+		and _query_parameter(OBSERVER_MODE_PARAMETER) == OBSERVER_MODE_VALUE
+	)
 	_setup_lab_runtime()
 	if _lab_mode:
 		_lab_runtime.setup_elfie_lab()
 		return
 	if _nest_lab_mode:
 		_lab_runtime.setup_nest_lab()
+		return
+	if _product_observer_mode:
+		_enter_product_observer_presentation_mode()
+		nest.show_observation_hud = false
+		nest.set_observation_hud_visible(false)
+		_setup_product_observer_bridge()
+		await _notify_web_runtime_ready()
+		_publish_observer_catalog()
 		return
 	_runtime_mode = RUNTIME_MODE.new()
 	_runtime_mode.setup(_resolve_runtime_mode())
@@ -74,6 +93,9 @@ func _process(_delta: float) -> void:
 		return
 	if _nest_lab_mode:
 		_lab_runtime.process_nest_lab_frame()
+		return
+	if _product_observer_mode:
+		_poll_observer_commands()
 		return
 	if _runtime_client != null:
 		_runtime_client.process_frame()
@@ -227,6 +249,158 @@ func _is_loopback_websocket_url(value: String) -> bool:
 		return false
 	var port_number := int(port)
 	return port_number >= 1 and port_number <= 65535
+
+
+func _setup_product_observer_bridge() -> void:
+	if not OS.has_feature("web"):
+		return
+	_observer_window = JavaScriptBridge.get_interface("window")
+	if _observer_window == null:
+		return
+	_observer_origin = String(_observer_window.location.origin)
+	nest.observer_camera_catalog_changed.connect(_on_observer_camera_catalog_changed)
+	JavaScriptBridge.eval(
+		"(() => { window.__elfieNestObserverQueue = [];"
+		+ " window.addEventListener('message', (event) => {"
+		+ " if (event.origin !== window.location.origin) return;"
+		+ " if (event.source !== window.parent) return;"
+		+ " const data = event.data;"
+		+ " if (data && data.channel === 'elfienest.observer'"
+		+ " && data.version === 1 && data.kind === 'camera_command')"
+		+ " window.__elfieNestObserverQueue.push(JSON.stringify(data));"
+		+ " }); })()"
+	)
+
+
+func _enter_product_observer_presentation_mode() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+
+
+func _poll_observer_commands() -> void:
+	if not OS.has_feature("web"):
+		return
+	var raw_batch: Variant = JavaScriptBridge.eval(
+		"window.__elfieNestObserverQueue && window.__elfieNestObserverQueue.length"
+		+ " ? JSON.stringify(window.__elfieNestObserverQueue.splice(0)) : ''"
+	)
+	if not raw_batch is String or String(raw_batch).is_empty():
+		return
+	var parsed_batch: Variant = JSON.parse_string(String(raw_batch))
+	if not parsed_batch is Array:
+		return
+	for raw_message: Variant in parsed_batch as Array:
+		if raw_message is String:
+			var parsed_message: Variant = JSON.parse_string(String(raw_message))
+			if parsed_message is Dictionary:
+				var command := _parse_observer_command(parsed_message as Dictionary)
+				if not command.is_empty():
+					_handle_observer_command(command)
+
+
+func _accepts_observer_message(message: Dictionary) -> bool:
+	if typeof(message.get("channel")) != TYPE_STRING:
+		return false
+	if message["channel"] != OBSERVER_CHANNEL:
+		return false
+	var version: Variant = message.get("version")
+	if typeof(version) == TYPE_INT:
+		if version != OBSERVER_PROTOCOL_VERSION:
+			return false
+	elif typeof(version) == TYPE_FLOAT:
+		if version != float(OBSERVER_PROTOCOL_VERSION):
+			return false
+	else:
+		return false
+	if typeof(message.get("kind")) != TYPE_STRING:
+		return false
+	if message["kind"] != "camera_command":
+		return false
+	if typeof(message.get("action")) != TYPE_STRING:
+		return false
+	var action := message["action"] as String
+	match action:
+		"overview":
+			return _observer_message_has_exact_keys(message, [])
+		"select":
+			return _observer_message_has_exact_keys(message, ["view_id"])
+		"reset":
+			return _observer_message_has_exact_keys(message, [])
+		"set_local_presentation_paused":
+			return _observer_message_has_exact_keys(message, ["paused"])
+		_:
+			return false
+
+
+func _observer_message_has_exact_keys(message: Dictionary, optional_keys: Array) -> bool:
+	var allowed_keys := ["channel", "version", "kind", "action"]
+	allowed_keys.append_array(optional_keys)
+	if message.keys().size() != allowed_keys.size():
+		return false
+	for key: Variant in message.keys():
+		if typeof(key) != TYPE_STRING:
+			return false
+		if key not in allowed_keys:
+			return false
+	return true
+
+
+func _parse_observer_command(message: Dictionary) -> Dictionary:
+	if not _product_observer_mode or not _accepts_observer_message(message):
+		return {}
+	var action := message["action"] as String
+	match action:
+		"overview":
+			return {"action": action}
+		"select":
+			if typeof(message.get("view_id")) != TYPE_STRING:
+				return {}
+			var view_id := message["view_id"] as String
+			if view_id.is_empty():
+				return {}
+			return {"action": action, "view_id": view_id}
+		"reset":
+			return {"action": action}
+		"set_local_presentation_paused":
+			if not message.get("paused") is bool:
+				return {}
+			return {"action": action, "paused": bool(message["paused"])}
+		_:
+			return {}
+
+
+func _handle_observer_command(command: Dictionary) -> void:
+	match String(command["action"]):
+		"overview":
+			nest.select_observer_overview()
+		"select":
+			nest.select_observer_camera_by_id(String(command["view_id"]))
+		"reset":
+			nest.reset_observer_camera()
+		"set_local_presentation_paused":
+			_set_local_observer_presentation_paused(bool(command["paused"]))
+		_:
+			return
+
+
+func _set_local_observer_presentation_paused(paused: bool) -> void:
+	nest.set_observer_presentation_paused(paused)
+	if is_inside_tree():
+		get_tree().paused = paused
+
+
+func _on_observer_camera_catalog_changed(_catalog: Dictionary) -> void:
+	_publish_observer_catalog()
+
+
+func _publish_observer_catalog() -> void:
+	if _observer_window == null:
+		return
+	var catalog := nest.observer_camera_catalog().merged({
+		"channel": OBSERVER_CHANNEL,
+		"version": OBSERVER_PROTOCOL_VERSION,
+		"kind": "camera_catalog",
+	})
+	_observer_window.parent.postMessage(JSON.stringify(catalog), _observer_origin)
 
 
 func _query_parameter(name: String) -> String:

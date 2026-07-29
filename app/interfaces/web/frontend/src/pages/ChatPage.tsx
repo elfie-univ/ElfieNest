@@ -1,7 +1,5 @@
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { useEffect, useRef, useState, type FormEvent } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { ChatSocket, type ChatSocketStatus } from "../api/chat-socket"
 import {
@@ -12,65 +10,32 @@ import {
   profile,
   sendMessage,
   type ChatMessage,
-  type Conversation,
   type ElfieProfile,
 } from "../api/client"
 import { AdoptionPanel } from "../components/AdoptionPanel"
 import { AccountMenu, AccountMenuPanel } from "../components/AccountMenu"
 import { Avatar } from "../components/Avatar"
 import { ElfieProfilePanel } from "../components/ElfieProfilePanel"
+import { ChatConversationPane } from "../components/elfie-profile/ChatConversationPane"
+import { ChatListPane } from "../components/elfie-profile/ChatListPane"
+import { createDemoChatData, createElfieListItems, createOwnedChatData, type ChatData } from "../components/elfie-profile/chat-data"
+import type { ElfieListFilter } from "../components/elfie-profile/elfie-list-model"
+import { presentElfieProfile } from "../components/elfie-profile/profile-presentation"
 import { Icon } from "../components/Icon"
 import { MobileAccessDialog } from "../components/MobileAccessDialog"
-import { Notice } from "../components/Notice"
-import { MOCK_ELFIES } from "../components/owner-card-mock-data"
 import { useSession } from "../stores/session"
 import { usePresenceHeartbeat } from "../stores/heartbeat"
+import { useChatView } from "./use-chat-view"
 
-type ChatData = {
-  readonly elfies: readonly ElfieProfile[]
-  readonly conversations: readonly Conversation[]
-}
-
-type ChatPane = "chats" | "elfies"
-type MobileSection = ChatPane | "me"
-
-function createDemoChatData(): ChatData {
-  const demoElfies = MOCK_ELFIES.map((entry) => entry.profile)
-  return {
-    elfies: demoElfies,
-    conversations: demoElfies.map((entry) => ({
-      elfie_id: entry.elfie_id,
-      name: entry.name,
-      portrait_url: entry.portrait_url,
-      last_message_preview: "演示聊天记录",
-      last_message_at: null,
-    })),
-  }
-}
-
-function MessageBubble({ message }: { readonly message: ChatMessage }) {
-  const senderName = message.sender === "user" ? "我" : "精"
-  return (
-    <article className={`message${message.sender === "user" ? " message--user" : ""}`}>
-      <Avatar name={senderName} />
-      <div className="bubble">{message.text}</div>
-    </article>
-  )
-}
-
-function connectionCopy(status: ChatSocketStatus): string {
-  return status === "online" ? "实时" : "离线备用"
-}
+type MobileSection = "chats" | "elfies" | "me"
 
 export function ChatPage() {
   const { user, loading, refresh } = useSession()
   usePresenceHeartbeat(user)
+  const { activePane, correct, go, mobileDetail, selectedId, state: viewState } = useChatView()
   const socket = useRef<ChatSocket | null>(null)
   const [data, setData] = useState<ChatData | null>(null)
-  const [activePane, setActivePane] = useState<ChatPane>("chats")
-  const [mobileSection, setMobileSection] = useState<MobileSection>("chats")
-  const [mobileDetail, setMobileDetail] = useState(false)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [showMobileMe, setShowMobileMe] = useState(false)
   const [history, setHistory] = useState<readonly ChatMessage[]>([])
   const [selectedProfile, setSelectedProfile] = useState<ElfieProfile | null>(null)
   const [status, setStatus] = useState<ChatSocketStatus>("offline")
@@ -80,6 +45,8 @@ export function ChatPage() {
   const [draft, setDraft] = useState("")
   const [showAdoption, setShowAdoption] = useState(false)
   const [showMobileAccess, setShowMobileAccess] = useState(false)
+  const [elfieQuery, setElfieQuery] = useState("")
+  const [elfieFilter, setElfieFilter] = useState<ElfieListFilter>("all")
 
   useEffect(() => {
     if (user === null) return
@@ -88,15 +55,12 @@ export function ChatPage() {
         if (ownedElfies.length === 0 && rows.length === 0) {
           const demoData = createDemoChatData()
           setData(demoData)
-          setSelectedId(demoData.elfies[0]?.elfie_id ?? null)
           setDemoMode(true)
           setError(null)
           setNotice("后端暂不可用，当前显示演示数据")
           return
         }
-        setData({ elfies: ownedElfies, conversations: rows })
-        const requested = new URLSearchParams(window.location.search).get("elfie")
-        setSelectedId(requested ?? rows[0]?.elfie_id ?? ownedElfies[0]?.elfie_id ?? null)
+        setData(createOwnedChatData(ownedElfies, rows, user.account_id))
         setDemoMode(false)
         setError(null)
         setNotice(null)
@@ -104,12 +68,16 @@ export function ChatPage() {
       .catch(() => {
         const demoData = createDemoChatData()
         setData(demoData)
-        setSelectedId(demoData.elfies[0]?.elfie_id ?? null)
         setDemoMode(true)
         setError(null)
         setNotice("后端暂不可用，当前显示演示数据")
       })
   }, [user])
+
+  useEffect(() => {
+    if (data === null || selectedId === null) return
+    if (!data.elfies.some((entry) => entry.elfie_id === selectedId)) correct({ view: "elfies" })
+  }, [correct, data, selectedId])
 
   useEffect(() => {
     if (selectedId === null || demoMode) {
@@ -124,13 +92,14 @@ export function ChatPage() {
   }, [demoMode, selectedId])
 
   useEffect(() => {
-    if (selectedId === null || activePane !== "elfies" || demoMode) return
+    setSelectedProfile(null)
+    if (selectedId === null || viewState.view !== "profile" || demoMode) return
     void profile(selectedId)
       .then(setSelectedProfile)
       .catch((reason: unknown) => {
         setError(reason instanceof ApiError ? reason.message : "精灵资料加载失败")
       })
-  }, [activePane, demoMode, selectedId])
+  }, [demoMode, selectedId, viewState.view])
 
   useEffect(() => {
     if (user === null || demoMode) return undefined
@@ -162,29 +131,27 @@ export function ChatPage() {
   }
 
   const selected = data?.elfies.find((entry) => entry.elfie_id === selectedId)
-  const detailProfile = selectedProfile ?? selected ?? null
+  const mobileSection: MobileSection = showMobileMe ? "me" : activePane
   const chooseChat = (elfieId: string): void => {
-    setActivePane("chats")
-    setMobileSection("chats")
-    setMobileDetail(true)
-    setSelectedId(elfieId)
+    setShowMobileMe(false)
+    go({ view: "conversation", elfie: elfieId })
   }
   const chooseElfie = (elfieId: string): void => {
-    setActivePane("elfies")
-    setMobileSection("elfies")
-    setMobileDetail(true)
-    setSelectedId(elfieId)
-  }
-  const openDetail = (): void => {
-    if (selectedId === null) return
-    setActivePane("elfies")
-    setMobileSection("elfies")
-    setMobileDetail(true)
+    setShowMobileMe(false)
+    go({ view: "profile", elfie: elfieId })
   }
   const openMobileSection = (section: MobileSection): void => {
-    setMobileSection(section)
-    if (section !== "me") setActivePane(section)
-    setMobileDetail(false)
+    if (section === "me") {
+      setShowMobileMe(true)
+      return
+    }
+    setShowMobileMe(false)
+    if (section === "elfies") {
+      go({ view: "elfies" })
+      return
+    }
+    const chatId = selectedId ?? data?.conversations[0]?.elfie_id ?? data?.elfies[0]?.elfie_id
+    if (chatId !== undefined) go({ view: "conversation", elfie: chatId })
   }
   const adoptionCompleted = async (elfieId: string): Promise<void> => {
     const [ownedElfies, rows, loadedProfile] = await Promise.all([
@@ -192,16 +159,14 @@ export function ChatPage() {
       conversations(),
       profile(elfieId),
     ])
-    setData({ elfies: ownedElfies, conversations: rows })
-    setSelectedId(elfieId)
+    setData(createOwnedChatData(ownedElfies, rows, user.account_id))
     setSelectedProfile(loadedProfile)
-    setActivePane("elfies")
+    go({ view: "profile", elfie: elfieId })
     setShowAdoption(false)
     setDemoMode(false)
     setNotice(null)
   }
-  const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
-    event.preventDefault()
+  const submit = async (): Promise<void> => {
     if (selectedId === null || !draft.trim() || demoMode) return
     const text = draft.trim()
     setDraft("")
@@ -216,12 +181,12 @@ export function ChatPage() {
   }
 
   return (
-    <main className="app-page">
+    <main className="app-page chat-page">
       <section className="chat-workbench">
         <aside className="app-rail" aria-label="ElfieNest 导航">
           <nav className="rail-nav">
-            <Button aria-label="聊天记录" className={activePane === "chats" ? "rail-button rail-button--active" : "rail-button"} data-tooltip="聊天记录" onClick={() => setActivePane("chats")} size="icon" type="button" variant="ghost"><Icon name="messages-square" /></Button>
-            <Button aria-label="我的精灵" className={activePane === "elfies" ? "rail-button rail-button--active" : "rail-button"} data-tooltip="我的精灵" onClick={() => setActivePane("elfies")} size="icon" type="button" variant="ghost"><Icon name="users" /></Button>
+            <Button aria-label="聊天记录" className={activePane === "chats" ? "rail-button rail-button--active" : "rail-button"} data-tooltip="聊天记录" onClick={() => openMobileSection("chats")} size="icon" type="button" variant="ghost"><Icon name="messages-square" /></Button>
+            <Button aria-label="我的精灵" className={activePane === "elfies" ? "rail-button rail-button--active" : "rail-button"} data-tooltip="我的精灵" onClick={() => openMobileSection("elfies")} size="icon" type="button" variant="ghost"><Icon name="users" /></Button>
           </nav>
           <div className="rail-bottom">
             <div className="rail-quick-actions">
@@ -232,66 +197,49 @@ export function ChatPage() {
           </div>
         </aside>
 
-        <aside className={mobileSection === "me" || mobileDetail ? "chat-list-pane chat-list-pane--mobile-hidden" : "chat-list-pane"}>
-          <header className="list-pane-head">
-            <div>
-              <h1>{activePane === "chats" ? "消息" : "精灵"}</h1>
-            </div>
-            <Button className="add-button" onClick={() => setShowAdoption(true)} size="icon-sm" type="button" variant="outline" aria-label="领养精灵"><Icon name="plus" /></Button>
-          </header>
-          <label className="search-box" aria-label="搜索">
-            <Icon name="search" size={16} />
-            <Input placeholder={activePane === "chats" ? "搜索聊天" : "搜索精灵"} />
-          </label>
-          {activePane === "chats" ? (
-            <div className="chat-list">
-              {data?.conversations.map((row) => (
-                <Button className={row.elfie_id === selectedId ? "wechat-row wechat-row--active" : "wechat-row"} key={row.elfie_id} onClick={() => chooseChat(row.elfie_id)} type="button" variant="ghost">
-                  <Avatar name={row.name} />
-                  <span className="list-copy"><strong>{row.name}</strong><small>{row.last_message_preview || "还没有消息"}</small></span>
-                </Button>
-              ))}
-              {data?.conversations.length === 0 ? <p className="empty">还没有聊天记录。</p> : null}
-            </div>
-          ) : (
-            <div className="chat-list">
-              {data?.elfies.map((entry) => (
-                <Button className={entry.elfie_id === selectedId ? "wechat-row wechat-row--active" : "wechat-row"} key={entry.elfie_id} onClick={() => chooseElfie(entry.elfie_id)} type="button" variant="ghost">
-                  <Avatar name={entry.name} />
-                  <span className="list-copy"><strong>{entry.name}</strong><small>{entry.species_id} · {entry.embodiment.state}</small></span>
-                </Button>
-              ))}
-              {data?.elfies.length === 0 ? <p className="empty">还没有精灵，点右上角的添加按钮领养。</p> : null}
-            </div>
-          )}
-          <p className="connection-state">通道：{connectionCopy(status)}</p>
-        </aside>
+        <ChatListPane
+          activePane={activePane}
+          conversations={data?.conversations ?? []}
+          elfieFilter={elfieFilter}
+          elfieItems={createElfieListItems(data)}
+          elfieQuery={elfieQuery}
+          hiddenOnMobile={mobileSection === "me" || mobileDetail}
+          onAdopt={() => setShowAdoption(true)}
+          onChat={chooseChat}
+          onElfieFilterChange={setElfieFilter}
+          onElfieProfile={chooseElfie}
+          onElfieQueryChange={setElfieQuery}
+          selectedId={selectedId}
+          status={status}
+          viewerAccountId={user.account_id}
+        />
 
         {mobileSection === "me" ? (
           <section className="mobile-me-pane">
             <AccountMenuPanel onClose={() => openMobileSection("chats")} onUpdated={refresh} user={user} />
           </section>
         ) : activePane === "chats" ? (
-          <section className={mobileDetail ? "conversation conversation--mobile-active" : "conversation"}>
-            <div className="topline">
-              <Button aria-label="返回聊天记录" className="mobile-back-button" onClick={() => setMobileDetail(false)} size="icon-sm" type="button" variant="ghost"><Icon name="chevron-down" /></Button>
-              <h1>{selected?.name ?? "选择一只精灵"}</h1>
-              <Button variant="outline" disabled={selected === undefined} onClick={openDetail} type="button">详情</Button>
-            </div>
-            <section className="message-list">
-              {selectedId === null ? <p className="empty">先在“我的精灵”中领养或选择一只精灵。</p> : history.map((message) => <MessageBubble key={message.id} message={message} />)}
-              {notice ? <Notice message={notice} /> : null}
-              {error && <Notice kind="error" message={error} />}
-            </section>
-            <form className="composer" onSubmit={(event) => { void submit(event) }}>
-              <Textarea disabled={selected === undefined || demoMode} onChange={(event) => setDraft(event.target.value)} placeholder={selected ? `对 ${selected.name} 说点什么…` : "请选择精灵"} value={draft} />
-              <Button disabled={selected === undefined || !draft.trim() || demoMode} type="submit">发送</Button>
-            </form>
-          </section>
+          <ChatConversationPane
+            demoMode={demoMode}
+            draft={draft}
+            error={error}
+            history={history}
+            mobileDetail={mobileDetail}
+            notice={notice}
+            onBack={() => go({ view: "elfies" })}
+            onDraftChange={setDraft}
+            onOpenDetail={() => { if (selectedId !== null) go({ view: "profile", elfie: selectedId }) }}
+            onSubmit={submit}
+            selected={selected}
+            selectedId={selectedId}
+          />
         ) : (
           <section className={mobileDetail ? "elfie-detail-pane elfie-detail-pane--mobile-active" : "elfie-detail-pane"}>
-            <div className="mobile-detail-head"><Button aria-label="返回我的精灵" className="mobile-back-button" onClick={() => setMobileDetail(false)} size="icon-sm" type="button" variant="ghost"><Icon name="chevron-down" /></Button></div>
-            <ElfieProfilePanel profile={detailProfile} />
+            <ElfieProfilePanel
+              onBack={() => go({ view: "elfies" })}
+              onChat={() => { if (selectedId !== null) go({ view: "conversation", elfie: selectedId }) }}
+              projection={presentElfieProfile(selectedProfile ?? selected ?? null, user.account_id, selectedId === null ? null : data?.adopterAccountIds[selectedId] ?? null)}
+            />
           </section>
         )}
         <nav className="mobile-tabbar" aria-label="聊天移动导航">

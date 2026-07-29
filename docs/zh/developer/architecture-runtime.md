@@ -36,12 +36,26 @@ Electron Observer 位于 `app/interfaces/desktop/`，不在已移除的顶层 `d
 Godot Gateway 协议帧或权威凭据。关闭 Observer 窗口没有生命周期副作用；只有客户端
 持有 owner lease 时，显式退出应用才会停止 Runtime。
 
-## Observer 权限与非视频第一阶段
+## Observer 权限、相机目录与非视频第一阶段
 
 Observer 从已认证的产品会话开始，获得一个与会话绑定的不透明 capability。订阅范围只能
 是一个房间或一只归属自己的 Elfie；interest 只能缩小既有授权结果。帧按
 generation/sequence 顺序携带语义身份和状态，不携带场景 transform、几何、相机状态、
 原始 Runtime 协议帧或权威凭据。
+
+产品 Observer 的完整、版本化相机目录由 Godot 拥有。每个严格的目录 envelope 都携带
+语义 view `id` 与 `label`、`active_id`、正数 `revision` 以及
+`presentation_paused`。它描述当前可选择的视角，不导出相机坐标、transform 或房间几何。
+React 消费该目录后，只能发出封闭的语义命令 `overview`、`select`、`reset` 与
+`set_local_presentation_paused`。`select` 只能使用当前目录中的 ID；React 既不计算，也不
+发送相机位置、transform 或布局事实。
+
+产品 bridge 只接受来自当前同源 Godot iframe、且满足严格版本化消息格式的目录。它不暴露
+原始 Runtime 帧、权威凭据或模拟控制。local presentation pause 仅是 Observer 的输入/呈现
+状态；它绝不能暂停 Runtime、Gateway、Core 或后端模拟。
+
+`/monitor` 是仅 Owner 可访问的完整观察页面。Owner 的精灵巢管理弹窗嵌入同一个
+`ObservationMonitor` 表面与 bridge，而不是实现另一套相机能力。
 
 封闭的本地导航 intent 是 `request_resync`、`focus_room` 与 `focus_elfie`。唯一会改变
 世界的请求是单独授权、限流的高层 `request_interaction`（`greet` 或 `rest`），它经由

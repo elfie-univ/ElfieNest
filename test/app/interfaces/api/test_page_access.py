@@ -145,15 +145,37 @@ def test_login_returns_only_an_allowed_post_login_page(client: TestClient) -> No
         data={"username": "owner", "password": "pass123"},
     )
     client.cookies.clear()
+    monitor_next = client.post(
+        "/api/auth/login?next=/monitor",
+        data={"username": "owner", "password": "pass123"},
+    )
+    client.cookies.clear()
     hostile = client.post(
         "/api/auth/login?next=https://attacker.invalid",
         data={"username": "owner", "password": "pass123"},
     )
 
-    # Then: generic chat redirects cannot steal the Owner's management default.
+    # Then: only Owner product pages may override the established default.
     assert chat_next.json()["landing_path"] == "/manage"
     assert manage_next.json()["landing_path"] == "/manage"
+    assert monitor_next.json()["landing_path"] == "/monitor"
     assert hostile.json()["landing_path"] == "/manage"
+
+
+def test_owner_chat_next_keeps_the_management_default_landing(
+    client: TestClient,
+) -> None:
+    # Given: an Owner whose existing default landing is management.
+    _create_user(client, "owner", "owner")
+
+    # When: the login request carries the generic chat return target.
+    response = client.post(
+        "/api/auth/login?next=/chat",
+        data={"username": "owner", "password": "pass123"},
+    )
+
+    # Then: chat cannot override the Owner's established management default.
+    assert response.json()["landing_path"] == "/manage"
 
 
 def test_owner_and_user_receive_server_side_landing_routes(client: TestClient) -> None:
@@ -166,17 +188,40 @@ def test_owner_and_user_receive_server_side_landing_routes(client: TestClient) -
     _login(client, "owner")
     owner_root = client.get("/", follow_redirects=False)
     owner_manage = client.get("/manage", follow_redirects=False)
+    owner_monitor = client.get("/monitor", follow_redirects=False)
     client.post("/api/auth/logout", headers={"X-CSRF-Token": ""})
     client.cookies.clear()
     _login(client, "alice")
     user_root = client.get("/", follow_redirects=False)
     user_manage = client.get("/manage", follow_redirects=False)
+    user_monitor = client.get("/monitor", follow_redirects=False)
 
-    # Then: the Owner defaults to manage; a user cannot enter it.
+    # Then: the Owner defaults to manage; a user cannot enter Owner pages.
     assert owner_root.headers["location"] == "/manage"
     assert owner_manage.status_code == 200
+    assert owner_monitor.status_code == 200
+    assert "no-store" in owner_monitor.headers["cache-control"]
     assert user_root.headers["location"] == "/chat"
     assert user_manage.headers["location"] == "/chat"
+    assert user_monitor.headers["location"] == "/chat"
+
+
+def test_monitor_route_redirects_setup_and_anonymous_requests_safely(
+    client: TestClient,
+) -> None:
+    # Given: first a fresh installation, then a configured application without a session.
+    before_setup = client.get("/monitor", follow_redirects=False)
+    _create_user(client, "owner", "owner")
+    _complete_setup(client)
+
+    # When: the monitor route is requested at each lifecycle stage.
+    anonymous = client.get("/monitor", follow_redirects=False)
+
+    # Then: setup owns first run and anonymous users receive only a local login target.
+    assert before_setup.status_code == 303
+    assert before_setup.headers["location"] == "/setup"
+    assert anonymous.status_code == 303
+    assert anonymous.headers["location"] == "/login?next=/monitor"
 
 
 def test_owner_manage_query_still_returns_the_react_shell(

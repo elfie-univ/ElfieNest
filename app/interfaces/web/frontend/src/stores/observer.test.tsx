@@ -36,6 +36,7 @@ describe("ObserverProvider", () => {
     await act(async () => {})
     const engine = container.querySelector<HTMLIFrameElement>("iframe[title='ElfieNest 3D Observer']")
     if (engine?.contentWindow === null || engine === null) throw new Error("observer iframe missing")
+    expect(Reflect.get(engine, "allow")).toBeUndefined()
     window.dispatchEvent(new MessageEvent("message", {
       data: "elfienest:godot-web-ready",
       origin: window.location.origin,
@@ -55,7 +56,7 @@ describe("ObserverProvider", () => {
     await act(async () => {})
     const engine = container.querySelector<HTMLIFrameElement>("iframe[title='ElfieNest 3D Observer']")
     if (engine?.contentDocument === null || engine === null) throw new Error("observer iframe missing")
-    expect(engine.getAttribute("src")).toBe("/runtime/godot/elfienest.html")
+    expect(engine.getAttribute("src")).toBe("/runtime/godot/elfienest.html?observer=product")
     expect(screen.getByText("loading")).toBeInTheDocument()
 
     engine.contentDocument.open()

@@ -26,7 +26,9 @@ describe("React Vite product build", () => {
     expect(packageManifest.devDependencies?.["@vitejs/plugin-react"]).toBeDefined()
     expect(viteSource).toContain('import react from "@vitejs/plugin-react"')
     expect(viteSource).toContain('import tailwindcss from "@tailwindcss/vite"')
-    expect(viteSource).toContain("plugins: [react(), tailwindcss()]")
+    expect(viteSource).toContain(
+      "plugins: [react(), tailwindcss(), exposeLazyAssetsToWebHost()]",
+    )
     expect(entrySource).toContain('from "react-dom/client"')
     expect(entrySource).toContain("createRoot")
     expect(entrySource).toContain("<App />")
