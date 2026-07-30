@@ -119,7 +119,8 @@ def test_packaged_entrypoint_runs_bundled_core_without_bootstrap(
     invocation_log = tmp_path / "packaged-entrypoint.log"
     write_executable(
         project_root / "resources" / "python-core" / "ElfieNestCore",
-        '#!/bin/bash\nprintf \'%s\\n\' "$*" > "$ENTRYPOINT_LOG"\n',
+        "#!/bin/bash\n"
+        'printf \'%s\\n%s\\n\' "$ELFIENEST_RUNTIME_MODE" "$*" > "$ENTRYPOINT_LOG"\n',
     )
     environment = os.environ.copy()
     environment["ENTRYPOINT_LOG"] = str(invocation_log)
@@ -136,4 +137,37 @@ def test_packaged_entrypoint_runs_bundled_core_without_bootstrap(
 
     # Then
     assert result.returncode == 0, result.stdout + result.stderr
-    assert invocation_log.read_text(encoding="utf-8").strip() == "version"
+    assert invocation_log.read_text(encoding="utf-8").splitlines() == [
+        "release",
+        "version",
+    ]
+
+
+def test_source_entrypoint_exports_worktree_runtime_context(tmp_path: Path) -> None:
+    """Given 源码入口，When 分发命令，Then 子进程收到 development 与 worktree 根。"""
+    project_root = tmp_path / "ElfieNest"
+    _copy_runtime_entrypoint_fixture(project_root)
+    write_executable(project_root / "scripts" / "bootstrap.sh", "#!/bin/bash\nexit 0\n")
+    invocation_log = tmp_path / "source-entrypoint.log"
+    write_executable(
+        project_root / ".venv" / "bin" / "python3",
+        "#!/bin/bash\n"
+        'printf \'%s\\n%s\\n\' "$ELFIENEST_RUNTIME_MODE" "$ELFIENEST_SOURCE_ROOT" > "$ENTRYPOINT_LOG"\n',
+    )
+    environment = os.environ.copy()
+    environment["ENTRYPOINT_LOG"] = str(invocation_log)
+
+    result = subprocess.run(
+        [str(project_root / "elfienest.sh"), "version"],
+        cwd=project_root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert invocation_log.read_text(encoding="utf-8").splitlines() == [
+        "development",
+        str(project_root),
+    ]

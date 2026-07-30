@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from ai_runtime.storage import data_home
 from ai_runtime.storage.data_home import (
     ensure_elfie_home,
     get_cache_dir,
@@ -18,6 +19,80 @@ from ai_runtime.storage.data_home import (
     get_sessions_dir,
     get_skills_dir,
 )
+
+
+def test_explicit_data_home_overrides_environment(monkeypatch, tmp_path):
+    """Given 显式路径和环境变量，When 解析数据根，Then 显式路径优先。"""
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path / "environment"))
+
+    selected = data_home.resolve_elfie_home(
+        "explicit",
+        invoking_cwd=tmp_path,
+        runtime_mode="development",
+        source_root=tmp_path / "source",
+    )
+
+    assert selected == (tmp_path / "explicit").resolve()
+
+
+def test_environment_data_home_overrides_source_default(monkeypatch, tmp_path):
+    """Given ELFIE_HOME，When 源码模式解析数据根，Then 环境变量优先。"""
+    environment_home = tmp_path / "environment"
+    monkeypatch.setenv("ELFIE_HOME", str(environment_home))
+
+    selected = data_home.resolve_elfie_home(
+        runtime_mode="development",
+        source_root=tmp_path / "source",
+    )
+
+    assert selected == environment_home.resolve()
+
+
+def test_source_mode_defaults_to_worktree_local_home(monkeypatch, tmp_path):
+    """Given 无覆盖值，When 源码模式解析数据根，Then 使用当前 worktree 本地根。"""
+    monkeypatch.delenv("ELFIE_HOME", raising=False)
+    source_root = tmp_path / "worktree"
+
+    selected = data_home.resolve_elfie_home(
+        runtime_mode="development",
+        source_root=source_root,
+    )
+
+    assert selected == (source_root / ".elfienest.local").resolve()
+
+
+def test_release_mode_defaults_to_user_production_home(monkeypatch):
+    """Given 无覆盖值，When 正式模式解析数据根，Then 使用用户生产根。"""
+    monkeypatch.delenv("ELFIE_HOME", raising=False)
+
+    selected = data_home.resolve_elfie_home(runtime_mode="release")
+
+    assert selected == (Path.home() / ".elfienest").resolve()
+
+
+def test_select_data_home_publishes_selected_root(monkeypatch, tmp_path):
+    """Given 显式路径，When 选择数据根，Then 后续路径助手共享同一根。"""
+    monkeypatch.delenv("ELFIE_HOME", raising=False)
+
+    selected = data_home.select_elfie_home(
+        "selected",
+        invoking_cwd=tmp_path,
+        runtime_mode="development",
+        source_root=tmp_path / "source",
+    )
+
+    assert data_home.get_elfie_home() == selected
+    assert data_home.get_db_path() == selected / "nest.db"
+    assert data_home.get_logs_dir() == selected / "logs"
+
+
+def test_data_home_rejects_existing_file(tmp_path):
+    """Given 文件路径，When 解析数据根，Then 拒绝把文件当作目录。"""
+    target = tmp_path / "not-a-directory"
+    target.write_text("x", encoding="utf-8")
+
+    with pytest.raises(data_home.DataHomeSelectionError, match="不是目录"):
+        data_home.resolve_elfie_home(str(target), invoking_cwd=tmp_path)
 
 
 def test_get_elfie_home_default(monkeypatch):

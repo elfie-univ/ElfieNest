@@ -3,9 +3,15 @@
 ElfieNest 把“精灵的长期生活数据”和“源码、构建物、公开文档”分开管理。任何新
 功能都要先说明数据写到哪里、由谁拥有、如何清理。
 
-## 生产数据
+## 产品数据根
 
-- 生产数据只写入 `${ELFIE_HOME:-~/.elfienest}/`。
+- 正式安装运行按 `--data-home PATH`、`ELFIE_HOME`、`~/.elfienest` 的顺序解析
+  数据根。
+- 源码与 worktree 运行按 `--data-home PATH`、`ELFIE_HOME`、
+  `<当前worktree>/.elfienest.local` 的顺序解析数据根。
+- `serve` 和 `start` 支持 `--data-home PATH`。生命周期命令会记住该选择，让
+  `status`、`stop`、`restart` 使用同一数据根；PID、锁、`runtime.json`、日志、
+  CLI history 和 `nest.db` 都跟随该根。
 - 测试、实验台和文档验收必须使用独立的 `ELFIE_HOME` 或临时目录。
 - `build/` 只存中间产物，`dist/` 只存最终发行物；两者都不属于源码文档。
 
@@ -15,8 +21,9 @@ ElfieNest 把“精灵的长期生活数据”和“源码、构建物、公开�
 新聊天只能写入 `elfies/<elfie_id>/conversations/history.sqlite`，不创建用户聊天
 目录，也不在 `nest.db.chat_messages` 写入副本。
 
-Developer Tools 使用独立 `${ELFIE_DEV_HOME:-~/.elfienest-dev}`，不能默认读取或
-写入生产根。`nest.db.chat_messages` 是未发布阶段的废弃表，会在数据库升级时删除；
+Developer Tools 使用独立 `${ELFIE_DEV_HOME:-~/.elfienest-dev}`，并继续分别使用
+`elfie_lab/`、`nest_lab/`、`runtime_lab/` 子目录；不能默认读取或写入产品数据根。
+`nest.db.chat_messages` 是未发布阶段的废弃表，会在数据库升级时删除；
 不保留兼容读取或迁移入口。
 
 ## 密钥与外部服务

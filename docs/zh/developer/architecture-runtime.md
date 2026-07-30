@@ -11,7 +11,7 @@ generation 的唯一生命周期所有者。源码与已安装 CLI 的生命周�
 endpoint 作为第四组件被探测：其不可用会使 Runtime 处于 `degraded`，不会替代权威，
 也不会创建私有模型 sidecar。`status --json` 会报告封闭组件集（`core`、`gateway`、
 `godot_authority`、`ollama`）和生命周期状态。Supervisor 将当前收据写入
-`${ELFIE_HOME:-~/.elfienest}/runtime.json`。
+`<所选数据根>/runtime.json`。
 
 权威宿主由 `godot_runtime/` 选择，不携带 Nest 状态、场景数据或协议凭据：
 
@@ -73,12 +73,16 @@ React 消费该目录后，只能发出封闭的语义命令 `overview`、`selec
 
 | 类型 | 位置 | 是否提交 |
 | --- | --- | --- |
-| 用户配置、数据库、精灵档案、本地密钥和 Runtime 收据 | `${ELFIE_HOME:-~/.elfienest}` | 否 |
+| 用户配置、数据库、精灵档案、本地密钥和 Runtime 收据 | 所选产品数据根 | 否 |
 | 可再生中间产物 | `build/` | 否 |
 | 最终发行物 | `dist/` | 否 |
 | 公开文档源 | `docs/` | 是 |
 
 ## 生产目录契约
+
+正式安装默认使用 `~/.elfienest`；源码与 worktree 运行默认使用
+`<当前worktree>/.elfienest.local`。`--data-home PATH` 与 `ELFIE_HOME` 可以覆盖
+默认值，全部生命周期收据与产品数据都跟随唯一所选数据根。
 
 一台电脑只有一个生产 Nest 根 `${ELFIE_HOME:-~/.elfienest}`。根目录保存 Nest 级别
 事实：`config.yaml`、`.env`、`foods.yaml`、`nest.db`、备份、Runtime 状态与日志。

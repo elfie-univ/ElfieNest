@@ -4,9 +4,16 @@ ElfieNest keeps "an Elfie's long-term life data" separate from "source code,
 build artifacts and public docs". Any new feature must first explain where its
 data is written, who owns it, and how it is cleaned up.
 
-## Production data
+## Product data roots
 
-- Production data is written only under `${ELFIE_HOME:-~/.elfienest}/`.
+- Installed runs resolve the data root in this order: `--data-home PATH`,
+  `ELFIE_HOME`, then `~/.elfienest`.
+- Source and worktree runs resolve it in this order: `--data-home PATH`,
+  `ELFIE_HOME`, then `<current-worktree>/.elfienest.local`.
+- `serve` and `start` accept `--data-home PATH`. Lifecycle commands remember
+  that selection so `status`, `stop`, and `restart` use the same root. PID and
+  lock receipts, `runtime.json`, logs, CLI history, and `nest.db` all follow the
+  selected root.
 - Tests, workbenches and doc acceptance must use an isolated `ELFIE_HOME` or a
   temporary directory.
 - `build/` stores only intermediate artifacts, `dist/` only final release
@@ -20,8 +27,9 @@ never move data. New chat may only be written into
 `elfies/<elfie_id>/conversations/history.sqlite`; do not create user chat
 directories and do not write copies into `nest.db.chat_messages`.
 
-Developer Tools uses an independent `${ELFIE_DEV_HOME:-~/.elfienest-dev}` and
-must not read or write the production root by default. `nest.db.chat_messages`
+Developer Tools uses an independent `${ELFIE_DEV_HOME:-~/.elfienest-dev}` with
+separate `elfie_lab/`, `nest_lab/`, and `runtime_lab/` children. It must not
+read or write the product root by default. `nest.db.chat_messages`
 is a deprecated table from the unreleased phase and is deleted on database
 upgrade; no compat read or migration entry is kept.
 

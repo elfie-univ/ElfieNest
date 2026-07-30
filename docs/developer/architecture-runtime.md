@@ -14,7 +14,7 @@ absence makes the Runtime `degraded`, not an excuse to replace the authority
 or to create a private model sidecar. `status --json` reports the closed
 component set (`core`, `gateway`, `godot_authority`, `ollama`) and the lifecycle
 state. The Supervisor writes the current receipt to
-`${ELFIE_HOME:-~/.elfienest}/runtime.json`.
+`<selected-data-home>/runtime.json`.
 
 The authority host is selected by `godot_runtime/` without Nest state, scene
 data or protocol credentials:
@@ -93,12 +93,17 @@ particular installer has been built or installed.
 
 | Type | Location | Committed? |
 | --- | --- | --- |
-| User configuration, databases, Elfie profiles, local keys and Runtime receipt | `${ELFIE_HOME:-~/.elfienest}` | No |
+| User configuration, databases, Elfie profiles, local keys and Runtime receipt | Selected product data root | No |
 | Reproducible intermediate artifacts | `build/` | No |
 | Final release artifacts | `dist/` | No |
 | Public documentation source | `docs/` | Yes |
 
 ## Production directory contract
+
+Installed runs default to `~/.elfienest`; source and worktree runs default to
+`<current-worktree>/.elfienest.local`. `--data-home PATH` and `ELFIE_HOME` may
+override those defaults, and all lifecycle receipts and product data follow the
+one selected root.
 
 A single computer has one production Nest root:
 `${ELFIE_HOME:-~/.elfienest}`. The root holds Nest-level facts: `config.yaml`,

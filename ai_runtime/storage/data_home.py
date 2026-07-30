@@ -1,9 +1,6 @@
-"""ElfieNest 数据目录管理 — 所有用户数据存放于 ~/.elfienest/
+"""ElfieNest 数据目录管理。
 
-参考 Hermes Agent 的 ~/.hermes/ 和 OpenClaw 的 ~/.openclaw/ 模式，
-项目代码留在 git 仓库，运行时数据全部在用户主目录下。
-
-可通过 ELFIE_HOME 环境变量覆盖默认路径。
+数据根优先级为显式命令参数、``ELFIE_HOME``、运行模式默认值。
 """
 
 import os
@@ -11,9 +8,12 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final
+from typing import Final, Mapping, Optional
 
 _ELFIE_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^elfie_[A-Za-z0-9_-]+$")
+ELFIENEST_RUNTIME_MODE_ENV: Final[str] = "ELFIENEST_RUNTIME_MODE"
+ELFIENEST_SOURCE_ROOT_ENV: Final[str] = "ELFIENEST_SOURCE_ROOT"
+SOURCE_DATA_HOME_NAME: Final[str] = ".elfienest.local"
 
 
 @dataclass(frozen=True)
@@ -26,15 +26,97 @@ class InvalidElfieIdError(ValueError):
         return f"精灵 ID 不合法，不能用于数据目录: {self.elfie_id!r}"
 
 
-def get_elfie_home() -> Path:
-    """获取 ElfieNest 数据主目录（默认 ~/.elfienest/，可通过 ELFIE_HOME 覆盖）
+@dataclass(frozen=True)
+class DataHomeSelectionError(ValueError):
+    """数据根参数无法安全解析。"""
 
-    参考: Hermes get_hermes_home() — HERMES_HOME 环境变量 + ~/.hermes 默认值
-    参考: OpenClaw resolveStateDir() — OPENCLAW_STATE_DIR 环境变量 + ~/.openclaw 默认值
-    两者都不用 XDG，我们也不用。
-    """
-    home = Path(os.environ.get("ELFIE_HOME", str(Path.home() / ".elfienest")))
-    return home
+    reason: str
+    path: Optional[Path] = None
+
+    def __str__(self) -> str:
+        if self.path is None:
+            return self.reason
+        return f"{self.reason}: {self.path}"
+
+
+def resolve_elfie_home(
+    explicit_home: Optional[str] = None,
+    *,
+    invoking_cwd: Optional[Path] = None,
+    runtime_mode: Optional[str] = None,
+    source_root: Optional[Path] = None,
+    env: Optional[Mapping[str, str]] = None,
+    is_frozen: Optional[bool] = None,
+) -> Path:
+    """解析权威数据根但不创建目录。"""
+    environment = os.environ if env is None else env
+    cwd = Path.cwd() if invoking_cwd is None else invoking_cwd
+
+    if explicit_home is not None:
+        selected = _resolve_user_path(explicit_home, cwd)
+        _validate_selected_home(selected)
+        return selected
+
+    environment_home = environment.get("ELFIE_HOME")
+    if environment_home:
+        selected = _resolve_user_path(environment_home, cwd)
+        _validate_selected_home(selected)
+        return selected
+
+    frozen = bool(getattr(sys, "frozen", False)) if is_frozen is None else is_frozen
+    mode = runtime_mode or environment.get(ELFIENEST_RUNTIME_MODE_ENV)
+    if frozen or mode == "release" or mode is None:
+        return (Path.home() / ".elfienest").resolve(strict=False)
+    if mode == "development":
+        root = _source_root(source_root, environment)
+        return (root / SOURCE_DATA_HOME_NAME).resolve(strict=False)
+    raise DataHomeSelectionError(f"不支持的运行模式: {mode!r}")
+
+
+def select_elfie_home(
+    explicit_home: Optional[str] = None,
+    *,
+    invoking_cwd: Optional[Path] = None,
+    runtime_mode: Optional[str] = None,
+    source_root: Optional[Path] = None,
+) -> Path:
+    """解析数据根并发布给当前进程的所有路径助手。"""
+    selected = resolve_elfie_home(
+        explicit_home,
+        invoking_cwd=invoking_cwd,
+        runtime_mode=runtime_mode,
+        source_root=source_root,
+    )
+    os.environ["ELFIE_HOME"] = str(selected)
+    return selected
+
+
+def get_elfie_home() -> Path:
+    """获取当前进程已经选择的数据主目录。"""
+    return resolve_elfie_home()
+
+
+def _resolve_user_path(value: str, base: Path) -> Path:
+    if value == "":
+        raise DataHomeSelectionError("数据根不能为空")
+    path = Path(value).expanduser()
+    if path.is_absolute():
+        return path.resolve(strict=False)
+    return (base / path).resolve(strict=False)
+
+
+def _source_root(source_root: Optional[Path], env: Mapping[str, str]) -> Path:
+    if source_root is not None:
+        return source_root.expanduser().resolve(strict=False)
+    environment_root = env.get(ELFIENEST_SOURCE_ROOT_ENV)
+    if environment_root:
+        return Path(environment_root).expanduser().resolve(strict=False)
+    return Path(__file__).resolve().parents[2]
+
+
+def _validate_selected_home(path: Path) -> None:
+    if path.exists() and not path.is_dir():
+        raise DataHomeSelectionError("数据根已存在但不是目录", path)
 
 
 def get_elfie_developer_home() -> Path:

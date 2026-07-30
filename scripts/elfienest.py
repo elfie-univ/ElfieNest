@@ -21,6 +21,7 @@ if (
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from ai_runtime.storage.data_home import DataHomeSelectionError, resolve_elfie_home
 from app.interfaces.cli.doctor_commands import run_doctor
 from app.interfaces.cli.foreground_runtime import run_foreground_service
 from app.interfaces.cli.lifecycle_commands import (
@@ -88,7 +89,9 @@ def main() -> None:
         parser_class=SecretSafeArgumentParser,
     )
 
-    config_parser = subparsers.add_parser("config", help="Config center (interactive menu)")
+    config_parser = subparsers.add_parser(
+        "config", help="Config center (interactive menu)"
+    )
     config_parser.add_argument(
         "config_path",
         nargs="?",
@@ -105,6 +108,7 @@ def main() -> None:
     serve_parser.add_argument("--ws-port", type=int, default=None)
     serve_parser.add_argument("--godot-ws-port", type=int, default=None)
     serve_parser.add_argument("--no-seed-elfie", action="store_true")
+    serve_parser.add_argument("--data-home", default=None)
 
     start_parser = subparsers.add_parser("start", help="Start background service")
     start_parser.add_argument("--port", type=int, default=None)
@@ -112,6 +116,7 @@ def main() -> None:
     start_parser.add_argument("--godot-ws-port", type=int, default=None)
     start_parser.add_argument("--fallback", action="store_true")
     start_parser.add_argument("--no-seed-elfie", action="store_true")
+    start_parser.add_argument("--data-home", default=None)
     start_parser.add_argument("--owner-id", default="cli", help=argparse.SUPPRESS)
     start_network_group = start_parser.add_mutually_exclusive_group()
     start_network_group.add_argument(
@@ -154,6 +159,9 @@ def main() -> None:
 def dispatch_command(args: argparse.Namespace) -> None:
     try:
         _dispatch_command(args)
+    except DataHomeSelectionError as error:
+        sys.stderr.write(f"elfienest: {error}\n")
+        raise SystemExit(2) from error
     except KeyboardInterrupt as error:
         print()
         print("  Cancelled.")
@@ -205,6 +213,7 @@ def _dispatch_command(args: argparse.Namespace) -> None:
         show_version()
     elif args.command == "setup":
         from app.interfaces.cli.tui.setup_app import run_setup_wizard
+
         run_setup_wizard()
     elif args.command == "db":
         dispatch_db(getattr(args, "db_command", None))
@@ -228,6 +237,14 @@ def _service_options_from_args(args: argparse.Namespace) -> tuple[str, ...]:
         options.append("--fallback")
     if args.no_seed_elfie:
         options.append("--no-seed-elfie")
+    if getattr(args, "data_home", None) is not None:
+        selected_home = resolve_elfie_home(
+            args.data_home,
+            invoking_cwd=Path.cwd(),
+            runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
+            source_root=Path(__file__).resolve().parent.parent,
+        )
+        options.extend(("--data-home", str(selected_home)))
     if getattr(args, "lan", False):
         options.append("--lan")
     return tuple(options)
