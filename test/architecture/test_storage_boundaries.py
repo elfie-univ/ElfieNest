@@ -20,9 +20,13 @@ APPLICATION_SQL_ROOTS = (
     "app/interfaces",
     "app/orchestration",
 )
+GENERATED_DIRECTORY_NAMES = frozenset(
+    {".git", ".venv", "__pycache__", "build", "dist", "node_modules"}
+)
 SQL_LITERAL_PATTERN = re.compile(
     r"\b(?:SELECT|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|"
-    r"CREATE\s+TABLE|ALTER\s+TABLE|DROP\s+TABLE|PRAGMA\s+\w+)\b",
+    r"CREATE\s+TABLE|ALTER\s+TABLE|DROP\s+TABLE|PRAGMA\s+\w+|"
+    r"BEGIN\s+(?:DEFERRED|IMMEDIATE|EXCLUSIVE))\b",
     re.IGNORECASE,
 )
 
@@ -61,6 +65,8 @@ def test_legacy_nest_chat_storage_has_no_runtime_path() -> None:
     ).exists()
     assert not (PROJECT_ROOT / "app/infrastructure/persistence/schema.py").exists()
     assert not (PROJECT_ROOT / "app/infrastructure/persistence/nest_schema.py").exists()
+    graph_storage = PROJECT_ROOT / "elfie/brain/memory/graph_storage.py"
+    assert "graph_memory.db" not in graph_storage.read_text(encoding="utf-8")
 
 
 def test_data_home_declares_production_developer_and_elfie_workspace_roots() -> None:
@@ -83,6 +89,8 @@ def test_application_layers_do_not_own_sql() -> None:
     offenders: list[str] = []
     for relative_root in APPLICATION_SQL_ROOTS:
         for path in (PROJECT_ROOT / relative_root).rglob("*.py"):
+            if GENERATED_DIRECTORY_NAMES.intersection(path.parts):
+                continue
             tree = ast.parse(path.read_text(encoding="utf-8"))
             has_sql = any(
                 isinstance(node, ast.Constant)
@@ -99,6 +107,23 @@ def test_application_layers_do_not_own_sql() -> None:
                 for node in ast.walk(tree)
             )
             if has_sql or imports_sqlite:
+                offenders.append(path.relative_to(PROJECT_ROOT).as_posix())
+
+    assert offenders == []
+
+
+def test_application_layers_do_not_derive_data_home_from_database_paths() -> None:
+    offenders: list[str] = []
+    for relative_root in APPLICATION_SQL_ROOTS:
+        for path in (PROJECT_ROOT / relative_root).rglob("*.py"):
+            if GENERATED_DIRECTORY_NAMES.intersection(path.parts):
+                continue
+            source = path.read_text(encoding="utf-8")
+            if re.search(
+                r"Path\([^)]*(?:db_path|database_path)[^)]*\)"
+                r"(?:\.expanduser\(\)|\.resolve\(\))*\.parent",
+                source,
+            ):
                 offenders.append(path.relative_to(PROJECT_ROOT).as_posix())
 
     assert offenders == []

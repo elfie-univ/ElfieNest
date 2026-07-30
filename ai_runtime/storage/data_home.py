@@ -7,7 +7,7 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final, Mapping, Optional
+from typing import Final, Mapping, Optional, Union
 
 from ai_runtime.storage.data_layout import (
     FinalRootLayout,
@@ -162,6 +162,11 @@ def get_local_files_dir(user_id: str) -> Path:
 def get_db_path() -> Path:
     """系统数据库 (用户、精灵注册、会话)"""
     return get_final_root_layout().nest_database
+
+
+def data_home_from_db_path(db_path: Union[str, Path]) -> Path:
+    """Resolve the selected product root associated with one Nest database."""
+    return Path(db_path).expanduser().resolve(strict=False).parent
 
 
 def get_elfie_config_dir(elfie_id: str) -> Path:

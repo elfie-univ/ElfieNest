@@ -1,6 +1,6 @@
 """基础工具的本地配置契约。
 
-界面只编辑工具语义配置；密钥仅保存在 ``~/.elfienest/.env``。
+界面只编辑工具语义配置；密钥仅保存在所选数据根的 ``configs/auth.env``。
 """
 
 from __future__ import annotations

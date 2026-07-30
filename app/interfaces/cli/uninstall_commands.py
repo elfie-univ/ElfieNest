@@ -23,8 +23,8 @@ def run_uninstall_menu() -> int:
     elfie_home = get_elfie_home()
 
     home_exists = elfie_home.exists()
-    config_exists = (elfie_home / "config.yaml").exists()
-    env_exists = (elfie_home / ".env").exists()
+    config_exists = (elfie_home / "configs" / "runtime.yaml").exists()
+    env_exists = (elfie_home / "configs" / "auth.env").exists()
 
     choice = menu.choose(
         "Uninstall Options",
@@ -33,7 +33,10 @@ def run_uninstall_menu() -> int:
             MenuItem(
                 "2",
                 "Uninstall and delete config",
-                _status_hint([config_exists, env_exists], ["config.yaml", ".env"]),
+                _status_hint(
+                    [config_exists, env_exists],
+                    ["configs/runtime.yaml", "configs/auth.env"],
+                ),
             ),
             MenuItem(
                 "3",
@@ -90,23 +93,23 @@ def _delete_config(elfie_home: Path) -> int:
         return 0
 
     deleted = []
-    config_file = elfie_home / "config.yaml"
-    env_file = elfie_home / ".env"
+    config_file = elfie_home / "configs" / "runtime.yaml"
+    env_file = elfie_home / "configs" / "auth.env"
 
     if config_file.exists():
         try:
             config_file.unlink()
-            deleted.append("config.yaml")
+            deleted.append("configs/runtime.yaml")
         except OSError as error:
-            print(f"\n❌ Failed to delete config.yaml: {error}")
+            print(f"\n❌ Failed to delete configs/runtime.yaml: {error}")
             return 1
 
     if env_file.exists():
         try:
             env_file.unlink()
-            deleted.append(".env")
+            deleted.append("configs/auth.env")
         except OSError as error:
-            print(f"\n❌ Failed to delete .env: {error}")
+            print(f"\n❌ Failed to delete configs/auth.env: {error}")
             return 1
 
     if deleted:
@@ -120,9 +123,9 @@ def _delete_config(elfie_home: Path) -> int:
 
 def _delete_all(elfie_home: Path) -> int:
     print("\n⚠️  Will delete all data, including:")
-    print("   - Config files (config.yaml, .env)")
-    print("   - Database (nest.db)")
-    print("   - Elfie data (elfies/)")
+    print("   - Config files (configs/runtime.yaml, configs/auth.env)")
+    print("   - Databases (nest.db, history.sqlite, knowledge.sqlite)")
+    print("   - Elfie workspaces (elfies/)")
     print("   - All other user data")
     print()
     print(f"   Data directory: {elfie_home}")

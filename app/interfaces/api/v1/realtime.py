@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 from typing import Any, Dict, Set
 
 from fastapi import WebSocket
 
+from ai_runtime.storage.data_home import data_home_from_db_path
 from app.infrastructure.persistence.elfie_chat_history import list_elfie_chat_history
 from app.infrastructure.persistence.runtime_query_repository import (
     RuntimeQueryRepository,
@@ -44,7 +44,7 @@ class SameOriginChatHub:
         history = list_elfie_chat_history(
             elfie_id,
             user_id=owner_id,
-            data_home=Path(self._db_path).expanduser().parent,
+            data_home=data_home_from_db_path(self._db_path),
         )
         latest = next(
             (

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import logging
+import os
 import secrets
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from ai_runtime.storage.data_home import data_home_from_db_path
+from ai_runtime.storage.data_layout import final_root_layout
 from app.features.adoption.config import (
     get_allowed_personality_styles,
     get_allowed_species_ids,
@@ -102,7 +105,8 @@ def adopt_elfie_for_user(
     _validate_adoption_request(db_path, request=request)
 
     elfie_id = f"{secrets.randbelow(100_000_000):08d}"
-    config_dir = str(_get_elfie_config_dir(db_path, elfie_id))
+    config_path = _get_elfie_config_dir(db_path, elfie_id)
+    config_dir = str(config_path)
     _reserve_adoption_slot(
         db_path,
         user_id=user_id,
@@ -112,6 +116,9 @@ def adopt_elfie_for_user(
 
     generated = False
     try:
+        config_path.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if os.name != "nt":
+            os.chmod(config_path, 0o700)
         ElfieGenerator().generate_for_species(
             name=request.name,
             species_id=request.species_id,
@@ -221,4 +228,4 @@ def _register_with_engine(
 
 
 def _get_elfie_config_dir(db_path: str, elfie_id: str) -> Path:
-    return Path(db_path).expanduser().parent / "elfies" / elfie_id
+    return final_root_layout(data_home_from_db_path(db_path)).elfie(elfie_id).workspace

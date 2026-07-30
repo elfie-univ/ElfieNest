@@ -11,9 +11,11 @@ data is written, who owns it, and how it is cleaned up.
 - Source and worktree runs resolve it in this order: `--data-home PATH`,
   `ELFIE_HOME`, then `<current-worktree>/.elfienest.local`.
 - `serve` and `start` accept `--data-home PATH`. Lifecycle commands remember
-  that selection so `status`, `stop`, and `restart` use the same root. PID and
-  lock receipts, `runtime.json`, logs, CLI history, and `nest.db` all follow the
-  selected root.
+  that selection so `status`, `stop`, and `restart` use the same root. Product
+  PID/lock state, `runtime.json`, logs, CLI history, and databases all follow
+  the selected root. A checkout-local `selected-data-home` control receipt may
+  contain only the selected path so a later no-argument lifecycle command can
+  find that root; it is not product data.
 - Tests, workbenches and doc acceptance must use an isolated `ELFIE_HOME` or a
   temporary directory.
 - `build/` stores only intermediate artifacts, `dist/` only final release
@@ -26,6 +28,10 @@ Elfie's profile, memory, work content and chat live under
 never move data. New chat may only be written into
 `elfies/<elfie_id>/conversations/history.sqlite`; do not create user chat
 directories and do not write copies into `nest.db.chat_messages`.
+Created data directories are owner-only (`0700`); databases, profiles,
+configuration, secrets, and lifecycle receipts are owner-only files (`0600`).
+`db backup` writes all three database kinds to a sibling backup tree, while
+`db reset` removes all three database kinds and preserves non-database files.
 
 Developer Tools uses an independent `${ELFIE_DEV_HOME:-~/.elfienest-dev}` with
 separate `elfie_lab/`, `nest_lab/`, and `runtime_lab/` children. It must not

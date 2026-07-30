@@ -135,8 +135,7 @@ async def assign_bed(
         anchor_id = str(anchor_id)
     try:
         with get_db(request.app.state.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
-            SQLiteNestRepository(conn).assign_home(
+            SQLiteNestRepository(conn).assign_home_immediately(
                 elfie_id=elfie_id,
                 anchor_id=anchor_id,
             )

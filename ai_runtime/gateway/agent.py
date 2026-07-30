@@ -366,7 +366,7 @@ class RuntimeAgent:
         catalog = self.food_catalog_store.load()
         if not catalog.recipes:
             raise RuntimeError(
-                "正式粮食目录 foods.yaml 不存在或为空，请先运行 setup/doctor 初始化"
+                "正式粮食配置 configs/food-packages.yaml 不存在或为空，请先运行 setup/doctor 初始化"
             )
         return catalog
 

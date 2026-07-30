@@ -3,7 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from app.interfaces.cli.tui.common import input_password, input_text
+from ai_runtime.config import LLMRuntimeConfig
+from ai_runtime.models.catalog import verify_provider
+from ai_runtime.providers.profiles import BUILTIN_PROFILES, ProviderProfile, get_profile
 from app.features.configuration.provider_service import (
     CUSTOM_OPENAI_PROVIDER_ID,
     get_known_profile,
@@ -17,9 +19,7 @@ from app.features.configuration.user_config import (
     write_env_file,
     write_user_config,
 )
-from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.models.catalog import verify_provider
-from ai_runtime.providers.profiles import BUILTIN_PROFILES, ProviderProfile, get_profile
+from app.interfaces.cli.tui.common import input_password, input_text
 
 
 @dataclass(frozen=True)
@@ -217,15 +217,21 @@ def remove_provider(provider_id: str) -> None:
     name = _configured_provider_name(provider_id, remove_result.profile.name)
     if remove_result.removed_config:
         write_user_config(remove_result.config)
-        print(f"  ✅ Removed {name} from config.yaml")
+        print(f"  ✅ Removed {name} from configs/runtime.yaml")
 
     if remove_result.removed_env_key or remove_result.removed_base_url_env_key:
         write_env_file(remove_result.env_vars)
 
     if remove_result.removed_env_key:
-        print(f"  ✅ Removed {remove_result.profile.api_key_env_var} from .env")
+        print(
+            f"  ✅ Removed {remove_result.profile.api_key_env_var} "
+            "from configs/auth.env"
+        )
     if remove_result.removed_base_url_env_key:
-        print(f"  ✅ Removed {remove_result.profile.base_url_env_var} from .env")
+        print(
+            f"  ✅ Removed {remove_result.profile.base_url_env_var} "
+            "from configs/auth.env"
+        )
 
     print(f"\n  ✅ {name} configuration removed")
 

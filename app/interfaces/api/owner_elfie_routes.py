@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ai_runtime.food.elfie_policy import DEFAULT_ALLOWED_FOODS
 from ai_runtime.food.models import FIXED_FOOD_KINDS
+from ai_runtime.storage.data_home import data_home_from_db_path
 from ai_runtime.storage.data_layout import final_root_layout
 from app.features.accounts.auth import require_owner
 from app.features.elfie_profile.public_projection import build_public_profile
@@ -99,7 +99,7 @@ def _monitoring_projection(
     state: str,
     policy: Dict[str, Any],
 ) -> Dict[str, Any]:
-    data_home = Path(db_path).expanduser().resolve().parent
+    data_home = data_home_from_db_path(db_path)
     profile = build_public_profile(
         elfie_id=row.elfie_id,
         name=row.name,

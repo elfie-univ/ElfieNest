@@ -1,7 +1,7 @@
 """Model Catalog 管理 REST API — 模型目录的查看、更新、扫描。
 
 所有端点通过 ``Depends(require_owner)`` 保护。
-模型数据来自 BUILTIN_MODEL_CATALOG + ELFIE_HOME/config.yaml 的覆盖配置。
+模型数据来自 BUILTIN_MODEL_CATALOG + 所选数据根 ``configs/runtime.yaml`` 的覆盖配置。
 """
 
 from __future__ import annotations
@@ -14,16 +14,16 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from ai_runtime.config import LLMRuntimeConfig
+from ai_runtime.models.catalog import BUILTIN_MODEL_CATALOG, ModelCatalog, ModelEntry
+from ai_runtime.providers.profiles import get_profile
+from ai_runtime.storage.data_home import get_config_path
 from app.features.accounts.auth import require_owner
 from app.features.configuration.runtime_store import (
     hydrate_runtime_secrets,
     read_runtime_config,
     write_runtime_config,
 )
-from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.models.catalog import BUILTIN_MODEL_CATALOG, ModelCatalog, ModelEntry
-from ai_runtime.providers.profiles import get_profile
-from ai_runtime.storage.data_home import get_config_path
 
 logger = logging.getLogger("app.interfaces.api.model_owner_routes")
 

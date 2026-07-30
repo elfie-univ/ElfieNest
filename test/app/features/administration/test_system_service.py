@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -131,9 +132,32 @@ def test_list_table_counts_handles_quoted_table_names(tmp_path: Path) -> None:
 def test_backup_and_reset_database(tmp_path: Path) -> None:
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
+    history_path = tmp_path / "elfies" / "00000001" / "conversations" / "history.sqlite"
+    knowledge_path = tmp_path / "elfies" / "00000001" / "memory" / "knowledge.sqlite"
+    history_path.parent.mkdir(parents=True)
+    knowledge_path.parent.mkdir(parents=True)
+    with sqlite3.connect(history_path) as connection:
+        connection.execute("CREATE TABLE marker(value TEXT)")
+        connection.execute("INSERT INTO marker VALUES ('history')")
+    with sqlite3.connect(knowledge_path) as connection:
+        connection.execute("CREATE TABLE marker(value TEXT)")
+        connection.execute("INSERT INTO marker VALUES ('knowledge')")
 
     backup_path = backup_database(db_path)
     reset_database(db_path)
 
     assert backup_path.exists()
+    assert (backup_path / "nest.db").exists()
+    backup_history = (
+        backup_path / "elfies" / "00000001" / "conversations" / "history.sqlite"
+    )
+    backup_knowledge = (
+        backup_path / "elfies" / "00000001" / "memory" / "knowledge.sqlite"
+    )
+    with sqlite3.connect(backup_history) as connection:
+        assert connection.execute("SELECT value FROM marker").fetchone()[0] == "history"
+    with sqlite3.connect(backup_knowledge) as connection:
+        assert connection.execute("SELECT value FROM marker").fetchone()[0] == "knowledge"
     assert not Path(db_path).exists()
+    assert not history_path.exists()
+    assert not knowledge_path.exists()

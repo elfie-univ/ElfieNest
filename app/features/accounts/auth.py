@@ -12,13 +12,15 @@ import logging
 import secrets
 import time
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import Depends, HTTPException, Request
 from typing_extensions import TypedDict
 
+from ai_runtime.storage.data_home import data_home_from_db_path, get_config_path
 from ai_runtime.storage.data_home import get_db_path as _get_db_path
+from ai_runtime.storage.data_layout import final_root_layout
+from app.features.configuration.runtime_store import read_system_section
 from app.infrastructure.persistence.session_repository import SessionRepository
 from app.infrastructure.persistence.store import get_db
 
@@ -78,13 +80,12 @@ class AuthenticatedUser(TypedDict):
     default_landing_page: str
 
 
-def _runtime_config_for_db(db_path: Optional[str]):
-    """加载与数据库同一数据根目录的 Runtime 配置。"""
-    from ai_runtime.config import LLMRuntimeConfig  # noqa: PLC0415
-
+def _security_config_for_db(db_path: Optional[str]) -> Dict[str, Any]:
+    """Load final security settings from the database-selected product root."""
+    config_path = get_config_path()
     if db_path and db_path != ":memory:":
-        return LLMRuntimeConfig(config_home=str(Path(db_path).expanduser().parent))
-    return LLMRuntimeConfig()
+        config_path = final_root_layout(data_home_from_db_path(db_path)).runtime_config
+    return read_system_section(config_path, "security")
 
 
 def get_session_ttl_seconds(db_path: Optional[str] = None) -> int:
@@ -96,8 +97,7 @@ def get_session_ttl_seconds(db_path: Optional[str] = None) -> int:
     Returns:
         TTL 秒数
     """
-    config = _runtime_config_for_db(db_path)
-    ttl_days = config.system.get("security", {}).get("session_ttl_days", 7)
+    ttl_days = _security_config_for_db(db_path).get("session_ttl_days", 7)
     ttl_seconds = ttl_days * 86400
 
     # 更新缓存
@@ -288,8 +288,7 @@ def get_rate_limiter(db_path: Optional[str] = None) -> RateLimiter:
     Returns:
         RateLimiter 实例
     """
-    config = _runtime_config_for_db(db_path)
-    security = config.system.get("security", {})
+    security = _security_config_for_db(db_path)
     rate_config = security.get("rate_limit", {})
 
     max_attempts = rate_config.get("max_attempts", 5)

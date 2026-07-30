@@ -1,10 +1,7 @@
 """图记忆系统的 SQLite 持久化存储层。"""
 
 import logging
-import os
 import sqlite3
-from pathlib import Path
-from typing import Optional
 
 from .graph_content_search import GraphContentSearchMixin
 from .graph_edge_store import GraphEdgeStoreMixin
@@ -16,13 +13,8 @@ logger = logging.getLogger("elfie.brain.memory.graph_storage")
 class GraphStorage(GraphNodeStoreMixin, GraphEdgeStoreMixin, GraphContentSearchMixin):
     """图记忆的 SQLite 存储后端"""
 
-    def __init__(self, db_path: Optional[str] = None):
-        if db_path is None:
-            data_home = Path(os.environ.get("ELFIE_HOME", "~/.elfienest")).expanduser()
-            db_path = str(data_home / "graph_memory.db")
+    def __init__(self, db_path: str):
         self.db_path = db_path
-        if db_path != ":memory:":
-            Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         # 启用WAL模式（内存数据库不支持WAL，跳过）

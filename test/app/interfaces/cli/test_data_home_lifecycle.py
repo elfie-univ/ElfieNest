@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import stat
 from argparse import Namespace
 from pathlib import Path
 
@@ -80,6 +81,30 @@ def test_started_service_remembers_selected_home_for_later_commands(
 
     assert result.status == "started"
     assert remembered == selected_home.resolve()
+
+
+def test_lifecycle_receipt_repairs_owner_only_control_directories(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    # Given: an existing checkout-local control root with permissive modes.
+    receipt_home = tmp_path / ".elfienest.local"
+    runtime_dir = receipt_home / "runtime"
+    runtime_dir.mkdir(parents=True, mode=0o755)
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "_lifecycle_receipt_home",
+        lambda: receipt_home,
+    )
+
+    # When: the selected data-home receipt is recorded.
+    lifecycle_commands._remember_lifecycle_data_home(tmp_path / "selected")
+
+    # Then: the control root, runtime directory, and receipt are owner-only.
+    receipt = runtime_dir / lifecycle_commands.SELECTED_DATA_HOME_RECEIPT
+    assert stat.S_IMODE(receipt_home.stat().st_mode) == 0o700
+    assert stat.S_IMODE(runtime_dir.stat().st_mode) == 0o700
+    assert stat.S_IMODE(receipt.stat().st_mode) == 0o600
 
 
 def test_lifecycle_supervisor_uses_command_data_home(

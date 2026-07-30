@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing_extensions import TypedDict
 
-from ai_runtime.storage.data_home import get_config_path
+from ai_runtime.storage.data_home import data_home_from_db_path, get_config_path
 from ai_runtime.storage.data_layout import final_root_layout
 from app.features.accounts.auth import hash_password, require_owner
 from app.features.configuration.runtime_store import read_system_section
@@ -161,7 +161,7 @@ async def user_avatar(
     row = InterfaceQueryRepository(request.app.state.db_path).get_user(user_id)
     if row is None or row.role == "owner" or not row.avatar_path:
         raise HTTPException(status_code=404, detail="用户头像不存在")
-    data_home = Path(request.app.state.db_path).expanduser().resolve().parent
+    data_home = data_home_from_db_path(request.app.state.db_path)
     candidate = (
         final_root_layout(data_home).user(str(user_id)).assets
         / Path(row.avatar_path).name

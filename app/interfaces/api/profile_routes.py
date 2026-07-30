@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from typing_extensions import Annotated, TypedDict
 
+from ai_runtime.storage.data_home import data_home_from_db_path
 from ai_runtime.storage.data_layout import ensure_final_user_layout, final_root_layout
 from app.features.accounts.auth import get_current_user
 from app.infrastructure.persistence.interface_query_repository import (
@@ -53,7 +54,7 @@ def avatar_url(avatar_path: Optional[str]) -> Optional[str]:
 
 
 def _data_home(db_path: str) -> Path:
-    return Path(db_path).expanduser().resolve().parent
+    return data_home_from_db_path(db_path)
 
 
 async def _read_avatar_limited(file: AvatarUpload) -> bytes:

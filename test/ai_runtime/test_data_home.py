@@ -6,6 +6,7 @@ import pytest
 
 from ai_runtime.storage import data_home
 from ai_runtime.storage.data_home import (
+    data_home_from_db_path,
     ensure_elfie_home,
     get_config_path,
     get_db_path,
@@ -91,6 +92,15 @@ def test_select_data_home_publishes_selected_root(monkeypatch, tmp_path):
     assert data_home.get_elfie_home() == selected
     assert data_home.get_db_path() == selected / "nest.db"
     assert data_home.get_logs_dir() == selected / "logs"
+
+
+def test_database_path_resolves_through_the_shared_data_home_policy(tmp_path):
+    """Given a database path, When callers need its root, Then one resolver owns it."""
+    database = tmp_path / "selected" / "nest.db"
+
+    resolved = data_home_from_db_path(database)
+
+    assert resolved == database.parent.resolve()
 
 
 def test_data_home_rejects_existing_file(tmp_path):

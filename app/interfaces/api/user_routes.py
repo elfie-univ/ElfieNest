@@ -6,12 +6,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from ai_runtime.storage.data_home import data_home_from_db_path
 from ai_runtime.storage.data_layout import final_root_layout
 from app.features.accounts.auth import get_current_user
 from app.features.adoption.generator import ElfieGenerator
@@ -48,7 +48,7 @@ BUILDS: tuple = ("slim", "standard", "plump")
 
 
 def _profile_dir(db_path: str, elfie_id: str) -> str:
-    data_home = Path(db_path).expanduser().resolve().parent
+    data_home = data_home_from_db_path(db_path)
     return str(final_root_layout(data_home).elfie(elfie_id).profile.parent)
 
 

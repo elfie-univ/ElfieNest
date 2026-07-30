@@ -12,6 +12,10 @@ from pathlib import Path
 from typing import Final, Iterator
 
 from ai_runtime.storage.data_home import get_elfie_conversations_dir
+from app.infrastructure.persistence.elfie_chat_history_queries import (
+    select_history_rows,
+    select_source_message,
+)
 from app.infrastructure.persistence.elfie_chat_history_support import (
     ensure_chat_conversation,
 )
@@ -147,7 +151,7 @@ def record_elfie_chat_message(
             (created_at, created_at, storage_conversation_id),
         )
         connection.commit()
-        row = _select_source_message(connection, message.channel, message.message_id)
+        row = select_source_message(connection, message.channel, message.message_id)
     if row is None:
         raise ElfieChatPersistenceError(message.message_id)
     return _row_to_record(row)
@@ -169,65 +173,33 @@ def list_elfie_chat_history(
     if not db_path.exists():
         return []
     create_history_schema(db_path)
-    clauses: list[str] = []
-    parameters: list[str | int] = []
-    if conversation_id is not None:
-        clauses.append("json_extract(meta_json, '$.legacy_conversation_id') = ?")
-        parameters.append(conversation_id)
-    if user_id is not None:
-        clauses.append("json_extract(meta_json, '$.legacy_user_id') = ?")
-        parameters.append(user_id)
     range_start = _range_start(history_range, now or datetime.now(timezone.utc))
-    if range_start is not None:
-        clauses.append("created_at >= ?")
-        parameters.append(range_start)
-    normalized_keyword = keyword.strip()
-    if normalized_keyword:
-        pattern = f"%{normalized_keyword}%"
-        clauses.append(
-            "(text LIKE ? OR json_extract(meta_json, '$.legacy_meta') LIKE ? "
-            "OR CASE sender_type WHEN 'external' THEN 'user' WHEN 'self' THEN "
-            "'elfie' ELSE 'system' END LIKE ? OR channel LIKE ?)"
-        )
-        parameters.extend((pattern, pattern, pattern, pattern))
-    parameters.append(max(1, min(200, limit)))
-    where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     with _open_history(db_path) as connection:
-        rows = connection.execute(
-            f"""SELECT rowid AS id, message_id, conversation_id, sender_type,
-                       text, channel, created_at, meta_json
-                FROM messages {where_clause}
-                ORDER BY created_at ASC, message_id ASC LIMIT ?""",
-            tuple(parameters),
-        ).fetchall()
+        rows = select_history_rows(
+            connection,
+            conversation_id=conversation_id,
+            user_id=user_id,
+            range_start=range_start,
+            keyword=keyword,
+            limit=limit,
+        )
     return [_row_to_record(row) for row in rows]
-
-
-def _select_source_message(
-    connection: sqlite3.Connection, channel: str, source_message_key: str
-) -> sqlite3.Row | None:
-    return connection.execute(
-        """SELECT rowid AS id, message_id, conversation_id, sender_type,
-                  text, channel, created_at, meta_json
-           FROM messages WHERE channel = ? AND source_message_key = ?""",
-        (channel, source_message_key),
-    ).fetchone()
 
 
 def _row_to_record(row: sqlite3.Row) -> ElfieChatMessageRecord:
     metadata = json.loads(str(row["meta_json"]))
-    user_id_value = metadata.get("legacy_user_id")
+    user_id_value = metadata.get("user_id")
     attachment_refs = metadata.get("attachment_refs", [])
     return ElfieChatMessageRecord(
         id=int(row["id"]),
         message_id=str(row["message_id"]),
-        conversation_id=str(metadata["legacy_conversation_id"]),
+        conversation_id=str(row["external_thread_id"]),
         sender=_PUBLIC_SENDERS[str(row["sender_type"])],
         text=str(row["text"] or ""),
         channel=str(row["channel"]),
         created_at=str(row["created_at"]),
         user_id=int(user_id_value) if user_id_value is not None else None,
-        meta=str(metadata.get("legacy_meta", "")),
+        meta=str(metadata.get("meta", "")),
         attachment_refs_json=json.dumps(attachment_refs, ensure_ascii=False),
     )
 
@@ -236,9 +208,8 @@ def _encode_meta(message: ElfieChatMessageInput) -> str:
     return json.dumps(
         {
             "attachment_refs": list(message.attachment_refs),
-            "legacy_conversation_id": message.conversation_id,
-            "legacy_meta": message.meta,
-            "legacy_user_id": message.user_id,
+            "meta": message.meta,
+            "user_id": message.user_id,
         },
         ensure_ascii=False,
         separators=(",", ":"),

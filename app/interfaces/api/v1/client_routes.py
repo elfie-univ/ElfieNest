@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, Dict, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket
 from pydantic import BaseModel, Field
 from starlette.websockets import WebSocketDisconnect
 
+from ai_runtime.storage.data_home import data_home_from_db_path
 from app.features.accounts.auth import get_current_user, verify_session
 from app.features.elfie_profile.public_projection import build_public_profile
 from app.infrastructure.persistence.elfie_chat_history import (
@@ -167,7 +167,7 @@ async def list_conversation_messages(
         for message in list_elfie_chat_history(
             elfie_id,
             user_id=user_id,
-            data_home=Path(db_path).expanduser().parent,
+            data_home=data_home_from_db_path(db_path),
         )
     ]
 
@@ -184,7 +184,7 @@ async def send_conversation_message(
 
 
 def _owned_public_profiles(db_path: str, user_id: int) -> list[Dict[str, Any]]:
-    data_home = Path(db_path).expanduser().parent
+    data_home = data_home_from_db_path(db_path)
     profiles: list[Dict[str, Any]] = []
     for record in RuntimeQueryRepository(db_path).list_elfies_for_owner(user_id):
         profile_dir = data_home / "elfies" / record.elfie_id / "profile"
@@ -221,7 +221,7 @@ def _conversation_summary(
     messages = list_elfie_chat_history(
         str(profile["elfie_id"]),
         user_id=user_id,
-        data_home=Path(db_path).expanduser().parent,
+        data_home=data_home_from_db_path(db_path),
     )
     latest = messages[-1] if messages else None
     return {

@@ -216,6 +216,16 @@ class SQLiteNestRepository:
             raise NestRepositoryNotFoundError("bed anchor not found")
         self.assign_bed(elfie_id=elfie_id, bed_number=int(matched.group(1)))
 
+    def assign_home_immediately(
+        self,
+        *,
+        elfie_id: str,
+        anchor_id: str | None,
+    ) -> None:
+        """Acquire the write lock inside persistence before assigning a home."""
+        self._connection.execute("BEGIN IMMEDIATE")
+        self.assign_home(elfie_id=elfie_id, anchor_id=anchor_id)
+
 
 def _bed_payload(number: int, occupant: sqlite3.Row | None) -> BedPayload:
     return BedPayload(

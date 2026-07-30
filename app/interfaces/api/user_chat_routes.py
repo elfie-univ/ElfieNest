@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from ai_runtime.storage.data_home import data_home_from_db_path
 from app.features.accounts.auth import get_current_user
 from app.infrastructure.persistence.elfie_chat_history import (
     ElfieChatHistoryRange,
@@ -49,6 +49,6 @@ async def get_elfie_chat_history(
             history_range=range,
             keyword=q,
             limit=limit,
-            data_home=Path(request.app.state.db_path).expanduser().parent,
+            data_home=data_home_from_db_path(request.app.state.db_path),
         )
     ]

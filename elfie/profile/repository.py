@@ -34,7 +34,9 @@ class ElfieProfileRepository:
 
     def save(self, profile: ElfieProfile) -> Path:
         profile.validate()
-        self.config_dir.mkdir(parents=True, exist_ok=True)
+        self.config_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if os.name != "nt":
+            os.chmod(self.config_dir, 0o700)
         temporary = self.path.with_suffix(".yaml.tmp")
         try:
             with temporary.open("w", encoding="utf-8") as handle:
@@ -48,6 +50,8 @@ class ElfieProfileRepository:
                 handle.flush()
                 os.fsync(handle.fileno())
             os.replace(temporary, self.path)
+            if os.name != "nt":
+                os.chmod(self.path, 0o600)
         finally:
             if temporary.exists():
                 temporary.unlink()

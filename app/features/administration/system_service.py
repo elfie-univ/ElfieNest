@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import shutil
 import socket
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -8,6 +7,10 @@ from pathlib import Path
 from typing import List, Optional
 
 from ai_runtime.storage.data_home import get_db_path
+from app.infrastructure.persistence.database_maintenance import (
+    backup_final_databases,
+    reset_final_databases,
+)
 from app.infrastructure.persistence.session_repository import SessionRepository
 from app.infrastructure.persistence.store import get_db
 from app.infrastructure.persistence.system_repository import SystemRepository
@@ -126,17 +129,12 @@ def backup_database(
     timestamp: Optional[datetime] = None,
 ) -> Path:
     database_path = _resolve_existing_db_path(db_path)
-    backup_time = timestamp or datetime.now()
-    backup_path = database_path.with_name(
-        f"{database_path.name}.backup.{backup_time.strftime('%Y%m%d_%H%M%S')}"
-    )
-    shutil.copy2(str(database_path), str(backup_path))
-    return backup_path
+    return backup_final_databases(database_path, timestamp or datetime.now())
 
 
 def reset_database(db_path: Optional[str] = None) -> None:
     database_path = _resolve_existing_db_path(db_path)
-    database_path.unlink()
+    reset_final_databases(database_path)
 
 
 def _resolve_existing_db_path(db_path: Optional[str]) -> Path:

@@ -256,8 +256,13 @@ def _option_value(command: Sequence[str], option: str) -> Optional[str]:
 
 def _remember_lifecycle_data_home(selected_home: Path) -> None:
     """原子记录当前 checkout 最近一次成功选择的数据根。"""
-    receipt_path = _lifecycle_data_home_receipt_path()
+    receipt_home = _lifecycle_receipt_home()
+    receipt_path = receipt_home / "runtime" / SELECTED_DATA_HOME_RECEIPT
+    receipt_home.mkdir(mode=0o700, parents=True, exist_ok=True)
     receipt_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if os.name != "nt":
+        os.chmod(receipt_home, 0o700)
+        os.chmod(receipt_path.parent, 0o700)
     descriptor, temporary_name = tempfile.mkstemp(
         prefix=f".{SELECTED_DATA_HOME_RECEIPT}.",
         dir=str(receipt_path.parent),
