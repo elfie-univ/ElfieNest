@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -23,24 +23,27 @@ def test_application_lifespan_accepts_engine_with_registered_elfies(tmp_path) ->
             ("owner", "hash", "owner"),
         )
         connection.execute(
-            """INSERT INTO elfie_registry
-               (elfie_id, name, owner_user_id, anatomy_type, config_dir)
-               VALUES (?, ?, ?, ?, ?)""",
+            """INSERT INTO elfies
+               (elfie_id, name, owner_user_id, species, adopted_at, status)
+               VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, 'offline')""",
             (
-                "elfie_default",
+                "00000001",
                 "艾菲",
                 cursor.lastrowid,
-                "biped",
-                "elfies/elfie_default",
+                "human",
             ),
         )
         connection.commit()
     engine = ElfieNestEngine(nest_repository=SQLiteNestStateRepository(db_path))
-    engine.session.register_elfie("elfie_default", MagicMock(spec=Elfie))
+    engine.session.register_elfie("00000001", MagicMock(spec=Elfie))
     application = create_app(engine=engine, db_path=db_path, ws_port=19876)
 
     # When: the HTTP application's lifespan starts after the Elfie is loaded.
-    with TestClient(application) as client:
+    with (
+        patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
+        patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
+        TestClient(application) as client,
+    ):
         response = client.get("/api/health")
 
     # Then: startup succeeds instead of attempting to attach a second repository.

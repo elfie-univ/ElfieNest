@@ -3,12 +3,40 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Mapping, Optional
 
 FOOD_EMERGENCY_ID = "food_emergency"
 FOOD_COMMON_ID = "food_common"
 SYSTEM_FOOD_IDS = frozenset({FOOD_EMERGENCY_ID, FOOD_COMMON_ID})
 FOOD_ROLES = ("primary", "reasoning", "vision", "tool", "fallback")
+
+
+class FoodValidationStatus(str, Enum):
+    UNVERIFIED = "unverified"
+    PASSED = "passed"
+    WARNING = "warning"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True)
+class FoodKind:
+    key: str
+    display_name: str
+    description: str
+    required_capabilities: tuple[str, ...] = ("text",)
+
+
+FIXED_FOOD_KINDS: Mapping[str, FoodKind] = {
+    "coarse": FoodKind("coarse", "Coarse", "Local-first, low-cost simple tasks"),
+    "standard": FoodKind("standard", "Standard", "Daily default, balanced quality/speed/cost"),
+    "focus": FoodKind("focus", "Focus", "Logic analysis and complex problems", ("text", "reasoning")),
+    "creative": FoodKind("creative", "Creative", "Writing, imagination and expression"),
+    "tool": FoodKind("tool", "工具粮", "搜索、文件和代码工具调用", ("text", "tools")),
+    "vision": FoodKind("vision", "Vision", "Image understanding and visual tasks", ("text", "vision")),
+    "premium": FoodKind("premium", "Premium", "High-quality deep reasoning", ("text", "reasoning")),
+    "emergency": FoodKind("emergency", "Emergency", "High-urgency scenarios prioritizing reliability and speed"),
+}
 
 
 @dataclass(frozen=True)

@@ -27,10 +27,13 @@ MODE="$(detect_runtime_mode "$SCRIPT_DIR")"
 
 case "$MODE" in
     installed_runtime)
+        export ELFIENEST_RUNTIME_MODE="release"
         # Production mode: direct Python Core call (dependencies packaged)
         exec "$SCRIPT_DIR/resources/python-core/ElfieNestCore" "$@"
         ;;
     source_development)
+        export ELFIENEST_RUNTIME_MODE="development"
+        export ELFIENEST_SOURCE_ROOT="$SCRIPT_DIR"
         # Development mode: silent dependency check, only show install when missing
         if ! "$SCRIPT_DIR/scripts/bootstrap.sh" check --tier=dev >/dev/null 2>&1; then
             echo "  🦊 Detected missing dependencies, installing..." >&2
@@ -99,8 +102,10 @@ show_help() {
     echo "    serve --force          Force takeover conflicting ports"
     echo "    serve --port <PORT>    Specify HTTP port"
     echo "    serve --ws-port <PORT> Specify WebSocket port"
+    echo "    serve --data-home PATH  Use an explicit data root"
     echo "    start --port <PORT>    Specify HTTP port for background start"
     echo "    start --fallback       Use built-in engine for background start"
+    echo "    start --data-home PATH  Use an explicit data root"
     echo ""
     echo "  ┌─────────────────────────────────────────────────────────┐"
     echo "  │  Examples                                               │"
@@ -113,7 +118,7 @@ show_help() {
 
 interactive_mode() {
     # Enable command history
-    HISTFILE="${HOME}/.elfienest/.cli_history"
+    HISTFILE="${ELFIE_HOME:-$SCRIPT_DIR/.elfienest.local}/.cli_history"
     mkdir -p "$(dirname "$HISTFILE")"
     touch "$HISTFILE" 2>/dev/null || true
     

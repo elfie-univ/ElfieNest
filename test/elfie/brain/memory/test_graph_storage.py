@@ -267,18 +267,9 @@ class TestGraphStorage:
             if os.path.exists(db_path):
                 os.remove(db_path)
 
-    def test_default_db_path_creates_elfie_home(self, monkeypatch, tmp_path):
-        elfie_home = tmp_path / "fresh_home"
-        monkeypatch.setenv("ELFIE_HOME", str(elfie_home))
-
-        gs = GraphStorage()
-
-        try:
-            assert elfie_home.exists()
-            assert (elfie_home / "graph_memory.db").exists()
-            assert gs.conn.execute("SELECT COUNT(*) FROM nodes").fetchone()[0] == 0
-        finally:
-            gs.close()
+    def test_database_path_is_required(self):
+        with pytest.raises(TypeError):
+            GraphStorage()
 
 
 class TestGraphStorageCRUD:

@@ -1,7 +1,14 @@
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 
-import { ApiError, ownerWrite, type OwnerElfie } from "../api/client"
+import { ownerWrite, type OwnerElfie } from "../api/client"
+import {
+  describeApiError,
+  resolveLocalizedError,
+  type LocalizedErrorState,
+} from "../i18n/errors"
+import { currentLocale } from "../i18n/format"
 import { ManageDialog } from "./ManageDialog"
 import { Notice } from "./Notice"
 import { SelectField } from "./SelectField"
@@ -19,8 +26,9 @@ export function ElfieFoodPolicyDialog({
   onClose,
   onSaved,
 }: ElfieFoodPolicyDialogProps) {
-  const [mainFood, setMainFood] = useState(elfie.food_policy.main_food_id || elfie.food_policy.effective_main_food_id)
-  const [error, setError] = useState<string | null>(null)
+  const { t, i18n } = useTranslation("manage")
+  const [defaultFood, setDefaultFood] = useState(elfie.food_policy.default_food)
+  const [error, setError] = useState<LocalizedErrorState>(null)
   const [saving, setSaving] = useState(false)
 
   const save = async (): Promise<void> => {
@@ -31,37 +39,46 @@ export function ElfieFoodPolicyDialog({
         "PUT",
         csrfToken,
         {
-          main_food_id: mainFood,
+          default_food: defaultFood,
+          allowed_foods: [defaultFood],
+          fallback_food: elfie.food_policy.fallback_food,
         },
       )
       await onSaved()
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "粮食策略没有保存")
+      setError(describeApiError(reason, "manage.save"))
     } finally {
       setSaving(false)
     }
   }
 
   return <ManageDialog
-    description={`${elfie.profile.name} · 这里只选择一份主粮；保底策略由全局粮食配置负责。`}
+    description={t("elfieFoodPolicy.description", { name: elfie.profile.name })}
     onOpenChange={(open) => { if (!open) onClose() }}
     open
-    title="选择主粮"
+    title={t("elfieFoodPolicy.title")}
+>>>>>>> origin/main
   >
-    {error ? <Notice kind="error" message={error} /> : null}
+    {error ? <Notice kind="error" message={resolveLocalizedError(error, currentLocale(i18n)) ?? t("errors.save")} /> : null}
     <SelectField
       disabled={saving}
-      label="主粮"
-      onValueChange={setMainFood}
-      options={elfie.food_policy.main_food_options.map((food) => ({ label: food.display_name, value: food.food_id }))}
-      value={mainFood}
+      label={t("elfieFoodPolicy.fields.defaultFood")}
+      onValueChange={setDefaultFood}
+      options={elfie.food_policy.allowed_foods.map((food) => ({ label: food, value: food }))}
+      value={defaultFood}
     />
+    <p className="form-hint">
+      {t("elfieFoodPolicy.hint", {
+        allowed: elfie.food_policy.allowed_foods.join(t("elfies.values.foodSeparator")),
+        fallback: elfie.food_policy.fallback_food,
+      })}
+    </p>
     <div className="manage-actions">
       <Button disabled={saving} onClick={() => { void save() }} type="button">
-        {saving ? "保存中…" : "保存主粮"}
+        {saving ? t("elfieFoodPolicy.actions.saving") : t("elfieFoodPolicy.actions.save")}
       </Button>
       <Button variant="outline" disabled={saving} onClick={onClose} type="button">
-        取消
+        {t("elfieFoodPolicy.actions.cancel")}
       </Button>
     </div>
   </ManageDialog>

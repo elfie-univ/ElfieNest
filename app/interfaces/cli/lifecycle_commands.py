@@ -6,17 +6,22 @@ import json
 import os
 import secrets
 import sys
+import tempfile
 import threading
 import time
 import urllib.error
 import urllib.request
 import webbrowser
 from pathlib import Path
-from typing import Callable, Optional, Sequence
+from typing import Callable, Final, Optional, Sequence
 
 from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.providers.ollama import OllamaManager, OllamaNotReadyError
-from ai_runtime.storage.data_home import get_elfie_home
+from ai_runtime.storage.data_home import (
+    DataHomeSelectionError,
+    get_elfie_home,
+    resolve_elfie_home,
+)
 from app.features.administration.system_service import (
     default_port_statuses,
     service_port_statuses,
@@ -54,11 +59,21 @@ WEB_URL = "http://127.0.0.1:8000/"
 WEB_HEALTH_URL = "http://127.0.0.1:8000/api/health"
 BACKGROUND_START_TIMEOUT_SECONDS = 60.0
 AUTHORITY_START_TIMEOUT_SECONDS = 120.0
+SELECTED_DATA_HOME_RECEIPT: Final = "selected-data-home"
 
 
-def _supervisor_for(command: Sequence[str], http_port: int) -> RuntimeSupervisor:
+def _supervisor_for(
+    command: Sequence[str],
+    http_port: int,
+    *,
+    use_remembered_home: bool = False,
+) -> RuntimeSupervisor:
     """Build the one Runtime Supervisor used by source and installed CLI commands."""
     launch_command = tuple(command)
+    selected_home = _data_home_for_command(
+        launch_command,
+        use_remembered_home=use_remembered_home,
+    )
     _, godot_ws_port, _ = service_ports_from_command(launch_command)
     generation_nonce = secrets.token_urlsafe(32)
     start_authority, stop_authority = authority_lifecycle(
@@ -72,22 +87,25 @@ def _supervisor_for(command: Sequence[str], http_port: int) -> RuntimeSupervisor
 
     def start_core(healthy: Callable[[], bool]) -> ServiceLifecycleResult:
         return start_service(
-            get_elfie_home(),
+            selected_home,
             PROJECT_ROOT,
             command=launch_command,
             health_checker=healthy,
             timeout_seconds=BACKGROUND_START_TIMEOUT_SECONDS,
-            child_environment={"ELFIENEST_GODOT_NONCE": generation_nonce},
+            child_environment={
+                "ELFIE_HOME": str(selected_home),
+                "ELFIENEST_GODOT_NONCE": generation_nonce,
+            },
         )
 
     return RuntimeSupervisor(
-        elfie_home=get_elfie_home(),
+        elfie_home=selected_home,
         project_root=PROJECT_ROOT,
         health_probe=lambda: _full_runtime_health(http_port),
         start_core=start_core,
-        stop_core=lambda: stop_service(get_elfie_home(), PROJECT_ROOT),
+        stop_core=lambda: stop_service(selected_home, PROJECT_ROOT),
         prepare_optional_component=_start_configured_public_ollama,
-        owns_pid_record=lambda: (get_elfie_home() / PID_FILENAME).is_file(),
+        owns_pid_record=lambda: (selected_home / PID_FILENAME).is_file(),
         start_authority=start_authority,
         stop_authority=stop_authority,
         authority_timeout_seconds=AUTHORITY_START_TIMEOUT_SECONDS,
@@ -197,6 +215,105 @@ def default_service_command(extra_args: Sequence[str] = ()) -> tuple[str, ...]:
     )
 
 
+def _data_home_for_command(
+    command: Sequence[str],
+    *,
+    use_remembered_home: bool = False,
+) -> Path:
+    """从服务命令与已记录生命周期选择中解析数据根。"""
+    explicit_home = _option_value(command, "--data-home")
+    if explicit_home is not None:
+        return resolve_elfie_home(
+            explicit_home,
+            invoking_cwd=PROJECT_ROOT,
+            runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
+            source_root=PROJECT_ROOT,
+        )
+    if use_remembered_home:
+        remembered_home = _remembered_lifecycle_data_home()
+        if remembered_home is not None:
+            return remembered_home
+    return resolve_elfie_home(
+        None,
+        invoking_cwd=PROJECT_ROOT,
+        runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
+        source_root=PROJECT_ROOT,
+    )
+
+
+def _option_value(command: Sequence[str], option: str) -> Optional[str]:
+    for index, argument in enumerate(command):
+        if argument == option:
+            value_index = index + 1
+            if value_index >= len(command):
+                raise DataHomeSelectionError(f"{option} requires a value")
+            return command[value_index]
+        prefix = f"{option}="
+        if argument.startswith(prefix):
+            return argument[len(prefix) :]
+    return None
+
+
+def _remember_lifecycle_data_home(selected_home: Path) -> None:
+    """原子记录当前 checkout 最近一次成功选择的数据根。"""
+    receipt_home = _lifecycle_receipt_home()
+    receipt_path = receipt_home / "runtime" / SELECTED_DATA_HOME_RECEIPT
+    receipt_home.mkdir(mode=0o700, parents=True, exist_ok=True)
+    receipt_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if os.name != "nt":
+        os.chmod(receipt_home, 0o700)
+        os.chmod(receipt_path.parent, 0o700)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{SELECTED_DATA_HOME_RECEIPT}.",
+        dir=str(receipt_path.parent),
+    )
+    temporary_path = Path(temporary_name)
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as receipt:
+            receipt.write(str(selected_home.resolve(strict=False)))
+            receipt.write("\n")
+        temporary_path.replace(receipt_path)
+    except OSError:
+        temporary_path.unlink(missing_ok=True)
+        raise
+
+
+def _remembered_lifecycle_data_home() -> Optional[Path]:
+    """读取当前 checkout 最近一次有效的数据根选择。"""
+    try:
+        selected_home = (
+            _lifecycle_data_home_receipt_path().read_text(encoding="utf-8").strip()
+        )
+    except OSError:
+        return None
+    if not selected_home:
+        return None
+    try:
+        return resolve_elfie_home(
+            selected_home,
+            invoking_cwd=PROJECT_ROOT,
+            runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
+            source_root=PROJECT_ROOT,
+        )
+    except DataHomeSelectionError:
+        return None
+
+
+def _lifecycle_data_home_receipt_path() -> Path:
+    return _lifecycle_receipt_home() / "runtime" / SELECTED_DATA_HOME_RECEIPT
+
+
+def _lifecycle_receipt_home() -> Path:
+    return resolve_elfie_home(
+        None,
+        invoking_cwd=PROJECT_ROOT,
+        runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
+        source_root=PROJECT_ROOT,
+        env={},
+    )
+
+
 def start_background_service(
     command: Optional[Sequence[str]] = None,
     *,
@@ -219,6 +336,16 @@ def start_background_service(
         _print_start_result(result)
         return result
     result = _supervisor_for(launch_command, http_port).start(owner_id=owner_id)
+    if result.status in {"started", "already_running"}:
+        try:
+            _remember_lifecycle_data_home(_data_home_for_command(launch_command))
+        except OSError as error:
+            result = ServiceLifecycleResult(
+                status="failed",
+                pid=result.pid,
+                command=result.command,
+                error=LaunchFailedError(f"Cannot record selected data home: {error}"),
+            )
     progress.stop(success=result.status in {"started", "already_running"})
     _print_start_result(result)
     return result
@@ -226,7 +353,11 @@ def start_background_service(
 
 def stop_background_service(owner_id: str = "cli") -> ServiceLifecycleResult:
     """Stop only the current project's verified service process."""
-    supervisor = _supervisor_for(default_service_command(), DEFAULT_HTTP_PORT)
+    supervisor = _supervisor_for(
+        default_service_command(),
+        DEFAULT_HTTP_PORT,
+        use_remembered_home=True,
+    )
     if owner_id != "cli":
         health = supervisor.status()
         if health.owner_lease is not None and health.owner_lease.owner_id != owner_id:
@@ -253,7 +384,11 @@ def restart_background_service() -> ServiceLifecycleResult:
     progress = ProgressIndicator("Restarting service")
     progress.start()
 
-    stopped = _supervisor_for(default_service_command(), DEFAULT_HTTP_PORT).stop()
+    stopped = _supervisor_for(
+        default_service_command(),
+        DEFAULT_HTTP_PORT,
+        use_remembered_home=True,
+    ).stop()
     if stopped.status == "failed":
         progress.stop(success=False)
         print(f"  ❌ Cannot restart service: {stopped.error}")
@@ -281,11 +416,18 @@ def restart_background_service() -> ServiceLifecycleResult:
 def show_service_status(*, json_output: bool = False) -> None:
     """Print lifecycle state without duplicating usage/session statistics."""
     inspector = DefaultProcessInspector()
-    elfie_home = get_elfie_home()
+    elfie_home = _data_home_for_command(
+        default_service_command(),
+        use_remembered_home=True,
+    )
     running = existing_service_command(elfie_home, PROJECT_ROOT, inspector)
     status_command = running[1] if running is not None else default_service_command()
     status_port = http_port_from_command(status_command)
-    health = _supervisor_for(status_command, status_port).status()
+    health = _supervisor_for(
+        status_command,
+        status_port,
+        use_remembered_home=running is None,
+    ).status()
     if json_output:
         print(
             json.dumps(

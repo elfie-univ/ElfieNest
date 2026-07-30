@@ -45,23 +45,9 @@ class TestSensoryIndexer:
         }
         indexer.index_sensory(sample_node.id, sensory)
 
-        # 验证数据已写入 sensory_index 表
-        cursor = indexer.storage.conn.execute(
-            "SELECT COUNT(*) FROM sensory_index WHERE node_id=?",
-            (sample_node.id,),
-        )
-        assert cursor.fetchone()[0] == 4
-
-        # 验证每种感官类型都正确存储
-        for sense_type, sense_key in sensory.items():
-            cursor = indexer.storage.conn.execute(
-                "SELECT sense_key, sense_type FROM sensory_index WHERE node_id=? AND sense_type=?",
-                (sample_node.id, sense_type),
-            )
-            row = cursor.fetchone()
-            assert row is not None
-            assert row["sense_key"] == sense_key
-            assert row["sense_type"] == sense_type
+        node = indexer.storage.get_node(sample_node.id)
+        assert node is not None
+        assert node.metadata["sensory"] == sensory
 
     def test_search_by_sensory(self, indexer, sample_node):
         """按感官类型和关键词检索节点"""
@@ -114,20 +100,11 @@ class TestSensoryIndexer:
         sensory = {"olfactory": "鱼味", "visual": "温暖色调"}
         indexer.index_sensory(sample_node.id, sensory)
 
-        # 确认索引已存在
-        cursor = indexer.storage.conn.execute(
-            "SELECT COUNT(*) FROM sensory_index WHERE node_id=?",
-            (sample_node.id,),
-        )
-        assert cursor.fetchone()[0] == 2
+        assert indexer.get_sensory_for_node(sample_node.id)
 
         # 删除索引后验证已清空
         indexer.remove_sensory_index(sample_node.id)
-        cursor = indexer.storage.conn.execute(
-            "SELECT COUNT(*) FROM sensory_index WHERE node_id=?",
-            (sample_node.id,),
-        )
-        assert cursor.fetchone()[0] == 0
+        assert indexer.get_sensory_for_node(sample_node.id) == {}
 
     def test_index_multiple_sensory(self, indexer, sample_node):
         """一个节点多个感官类型"""
@@ -139,25 +116,14 @@ class TestSensoryIndexer:
         }
         indexer.index_sensory(sample_node.id, sensory)
 
-        # 验证所有感官类型都已索引
-        for sense_type in ["olfactory", "visual", "auditory", "tactile"]:
-            cursor = indexer.storage.conn.execute(
-                "SELECT sense_key FROM sensory_index WHERE node_id=? AND sense_type=?",
-                (sample_node.id, sense_type),
-            )
-            row = cursor.fetchone()
-            assert row is not None, f"缺少感官类型: {sense_type}"
+        assert set(indexer.get_sensory_for_node(sample_node.id)) == set(sensory)
 
     def test_index_sensory_upsert(self, indexer, sample_node):
         """重复索引同一感官类型应覆盖而非重复"""
         indexer.index_sensory(sample_node.id, {"olfactory": "鱼味"})
         indexer.index_sensory(sample_node.id, {"olfactory": "鱼味"})
 
-        cursor = indexer.storage.conn.execute(
-            "SELECT COUNT(*) FROM sensory_index WHERE node_id=? AND sense_type='olfactory'",
-            (sample_node.id,),
-        )
-        assert cursor.fetchone()[0] == 1
+        assert indexer.get_sensory_for_node(sample_node.id) == {"olfactory": ["鱼味"]}
 
     def test_search_by_sensory_multiple_nodes(self, indexer, storage):
         """多个节点具有相同感官关键词的检索"""

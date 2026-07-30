@@ -1,7 +1,7 @@
 """Provider 密钥的本地安全存储。
 
-密钥只保存在 ``~/.elfienest/configs/credentials/api-keys.env``。普通配置仅
-保存环境变量名，API 和日志只能暴露 ``has_api_key``，不得返回明文值。
+密钥只保存在 ``ELFIE_HOME/configs/auth.env``。普通配置仅保存环境变量名，API 和
+日志只能暴露 ``has_api_key``，不得返回明文值。
 """
 
 from __future__ import annotations
@@ -66,7 +66,9 @@ def write_secrets(values: Mapping[str, str], path: Path | None = None) -> None:
     if path is None:
         ensure_elfie_home()
     secret_path = path or get_env_path()
-    secret_path.parent.mkdir(parents=True, exist_ok=True)
+    secret_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if os.name != "nt":
+        os.chmod(secret_path.parent, 0o700)
     temp_path = secret_path.with_name(f".{secret_path.name}.tmp")
     sanitized: dict[str, str] = {}
     for key, value in values.items():

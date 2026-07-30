@@ -118,14 +118,16 @@ class TestMe:
         # 插入两个精灵给 owner
         with get_db(db_path) as conn:
             conn.execute(
-                "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) "
-                "VALUES (?, ?, (SELECT id FROM users WHERE username='owner'))",
-                ("e1", "精灵一"),
+                """INSERT INTO elfies
+                   (elfie_id,name,owner_user_id,species,adopted_at,status)
+                   VALUES (?,?,(SELECT id FROM users WHERE username='owner'),?,?,'offline')""",
+                ("00000001", "精灵一", "fox", "2026-07-30T00:00:00Z"),
             )
             conn.execute(
-                "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) "
-                "VALUES (?, ?, (SELECT id FROM users WHERE username='owner'))",
-                ("e2", "精灵二"),
+                """INSERT INTO elfies
+                   (elfie_id,name,owner_user_id,species,adopted_at,status)
+                   VALUES (?,?,(SELECT id FROM users WHERE username='owner'),?,?,'offline')""",
+                ("00000002", "精灵二", "fox", "2026-07-30T00:00:00Z"),
             )
             conn.commit()
 

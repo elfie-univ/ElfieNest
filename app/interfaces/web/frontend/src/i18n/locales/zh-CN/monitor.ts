@@ -1,0 +1,64 @@
+export const monitor = {
+  session: {
+    verifying: "正在验证会话…",
+  },
+  surface: {
+    title: "房间 3D 观察",
+    roomHint: "拖动以自由查看房间，滚轮或双指缩放。",
+    elfieHint: "拖动环绕精灵，滚轮或双指缩放。",
+    enter: "进入 3D",
+    end: "结束观察",
+    idle: "3D 将在首次打开时加载；聊天与管理不会因此等待。",
+    loading: "正在建立本地观察视角…",
+    retry: "重试 3D",
+    fallback: {
+      insecureTitle: "手机浏览器需要安全连接才能打开 3D 房间观察。",
+      insecureDetail: "请改用本机 localhost 访问，或把局域网地址配置为 HTTPS 后再打开预览。HTTP 的 192.168.* 地址会被浏览器拦截。",
+      unsupportedTitle: "当前设备暂时无法运行 3D 房间观察。",
+      unavailableTitle: "当前无法运行 3D 观察。",
+      entityCount: "当前可见 {{count}} 位精灵。",
+      continue: "可继续使用聊天、资料和房间管理。",
+    },
+  },
+  toolbar: {
+    label: "监控工具栏",
+  },
+  controls: {
+    resetAria: "复位视角",
+    reset: "复位",
+    overview: "总览",
+    pause: "暂停观察",
+    resume: "继续观察",
+    hide: "隐藏工具栏",
+    show: "显示工具栏",
+    retry: "重试 3D 监控",
+  },
+  status: {
+    offline: "监控当前不可用。",
+    idle: "监控尚未连接。",
+    loading: "正在连接 {{endpoint}}…",
+    fallback: "监控当前不可用。",
+    unknown: "监控状态不可用。",
+  },
+  empty: {
+    cameras: "等待运行时提供可用机位。",
+  },
+  help: {
+    controls: "可切换总览或运行时机位、复位视角，并暂停或恢复观察。",
+    disabled: "当前会话未启用 3D 监控，可继续使用其他功能。",
+    idle: "3D 场景会在监控打开时加载，不会阻塞聊天或管理。",
+    insecureContext: "手机浏览器需要 HTTPS 安全连接；可改用本机 localhost。",
+    loading: "本地 3D 场景正在启动，请稍候。",
+    offline: "当前会话没有可用的 Observer。",
+    runtime: "本地 3D Runtime 已停止响应，可留在本页重试。",
+    unknown: "监控返回了未知状态，可稍后重试。",
+    unsupportedDevice: "当前设备暂时无法运行 3D 监控，可继续使用其他功能。",
+  },
+  connection: {
+    connectedTo: "已连接至 {{endpoint}}",
+  },
+  errors: {
+    connect: "无法连接监控服务。",
+    control: "监控控制未能完成。",
+  },
+} as const

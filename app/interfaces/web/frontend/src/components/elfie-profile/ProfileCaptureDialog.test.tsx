@@ -3,8 +3,12 @@ import userEvent from "@testing-library/user-event"
 import { useState } from "react"
 import { describe, expect, it, vi } from "vitest"
 
+import { createI18n } from "../../i18n/config"
+
 import type { AppearanceCapture } from "./appearance-capture"
 import { ProfileCaptureDialog } from "./ProfileCaptureDialog"
+
+createI18n()
 
 const captureBlob = new Blob(["same-png"], { type: "image/png" })
 const capture: AppearanceCapture = {

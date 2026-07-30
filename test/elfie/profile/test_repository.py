@@ -1,6 +1,5 @@
+import stat
 from pathlib import Path
-
-import yaml
 
 from elfie.profile import ElfieProfileRepository, create_visual_profile
 
@@ -21,22 +20,20 @@ def test_profile_yaml_round_trip(tmp_path: Path) -> None:
     assert not (tmp_path / "profile.yaml.tmp").exists()
 
 
-def test_old_profile_is_hydrated_from_legacy_yaml_once(tmp_path: Path) -> None:
+def test_profile_save_repairs_owner_only_permissions(tmp_path: Path) -> None:
+    # Given: a profile directory inherited permissive default modes.
+    profile_dir = tmp_path / "profile"
+    profile_dir.mkdir(mode=0o755)
     profile = create_visual_profile(
-        elfie_id="elfie-migrate",
-        display_name="迁移测试",
-        species_id="dog",
+        elfie_id="elfie-private",
+        display_name="小栗",
+        species_id="fox",
         seed=789,
     )
-    repository = ElfieProfileRepository(tmp_path)
-    repository.save(profile)
-    personality = {"metadata": {"name": "迁移测试"}, "big_five": {"openness": 0.8}}
-    (tmp_path / "personality.yaml").write_text(
-        yaml.safe_dump(personality, allow_unicode=True),
-        encoding="utf-8",
-    )
 
-    migrated = repository.load()
+    # When: the canonical profile is saved.
+    path = ElfieProfileRepository(profile_dir).save(profile)
 
-    assert migrated.personality == personality
-    assert repository.load(migrate_legacy=False).personality == personality
+    # Then: both the directory and file are owner-only.
+    assert stat.S_IMODE(profile_dir.stat().st_mode) == 0o700
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600

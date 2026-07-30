@@ -11,7 +11,7 @@ from app.features.setup.service import (
 )
 from app.infrastructure.ollama_platform import OllamaPlatformAdapter
 from app.infrastructure.persistence.nest_repository import SQLiteNestRepository
-from app.infrastructure.persistence.store import get_db, init_db, migrate_db_if_needed
+from app.infrastructure.persistence.store import get_db, init_db
 from app.interfaces.cli.tui.common import (
     clear_screen,
     input_password,
@@ -29,7 +29,6 @@ def run_setup_wizard() -> None:
     print_tui_panel("ElfieNest Setup", "Initialization wizard before first launch")
     db_path = str(get_db_path())
     init_db(db_path)
-    migrate_db_if_needed(db_path)
 
     progress = get_setup_progress(db_path)
 

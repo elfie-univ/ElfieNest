@@ -14,10 +14,11 @@ def test_doctor_repair_creates_home_dirs_without_implicit_foods(
     report = doctor_commands.repair_local_runtime_state()
 
     # Then
-    assert (tmp_path / "reports").is_dir()
-    assert (tmp_path / "reports" / "exports").is_dir()
+    assert (tmp_path / "reports" / "runtime-validations").is_dir()
     assert "Created missing ~/.elfienest data directories" in report.repaired
     assert not (tmp_path / "configs" / "food-packages.yaml").exists()
+    retired = {"backups", "cache", "developer", "files", "models", "sessions", "skills"}
+    assert retired.isdisjoint(path.name for path in tmp_path.iterdir())
 
 
 def test_doctor_runs_repair_before_offline_validation(

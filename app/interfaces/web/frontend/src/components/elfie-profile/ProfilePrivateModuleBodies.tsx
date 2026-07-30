@@ -1,4 +1,5 @@
 import { useId } from "react"
+import { useTranslation } from "react-i18next"
 
 import {
   Select,
@@ -15,31 +16,33 @@ type TimelineModule = PrivateCognition["modules"][1]
 type ConfigModule = PrivateCognition["modules"][5]
 
 export function MemoryModuleBody({ module }: { readonly module: MemoryModule }) {
+  const { t } = useTranslation("chat")
   return (
     <div className="profile-private-module__memory">
-      <p className="profile-private-module__count">{module.experienceCount} 条经历</p>
+      <p className="profile-private-module__count">{t("profile.private.experienceCount", { count: module.experienceCount })}</p>
       {module.topics.length > 0 ? (
-        <ul className="profile-private-module__topics" aria-label="记忆主题">
+        <ul className="profile-private-module__topics" aria-label={t("profile.private.memoryTopics")}>
           {module.topics.map((topic) => (
             <li key={topic.label}>
               <span>{topic.label}</span>
-              <small>{topic.count} 次</small>
+              <small>{t("profile.private.topicCount", { count: topic.count })}</small>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="profile-private-module__empty">尚未形成记忆主题。</p>
+        <p className="profile-private-module__empty">{t("profile.private.noTopics")}</p>
       )}
     </div>
   )
 }
 
 export function TimelineModuleBody({ module }: { readonly module: TimelineModule }) {
+  const { t } = useTranslation("chat")
   if (module.entries.length === 0) {
-    return <p className="profile-private-module__empty">还没有被标记为重要的经历。</p>
+    return <p className="profile-private-module__empty">{t("profile.private.noTimeline")}</p>
   }
   return (
-    <ol className="profile-private-module__timeline" aria-label="重要经历时间线">
+    <ol className="profile-private-module__timeline" aria-label={t("profile.private.timeline")}>
       {module.entries.map((entry) => (
         <li key={`${entry.date}-${entry.title}`}>
           <time dateTime={entry.date}>{entry.date}</time>
@@ -52,19 +55,29 @@ export function TimelineModuleBody({ module }: { readonly module: TimelineModule
 }
 
 export function ConfigModuleBody({ module }: { readonly module: ConfigModule }) {
+  const { t } = useTranslation("chat")
   const foodId = useId()
   return (
     <div className="profile-private-module__config">
       <MockSelect
         id={foodId}
-        label="主粮"
+        label={t("profile.private.primaryFood")}
         options={module.food.allowed}
         value={module.food.selected}
       />
+<<<<<<< HEAD
+=======
+      <MockSelect
+        id={fallbackId}
+        label={t("profile.private.fallbackFood")}
+        options={module.food.allowed}
+        value={module.food.fallback}
+      />
+>>>>>>> origin/main
       <dl className="profile-private-module__config-notes">
-        <div><dt>可选粮食</dt><dd>{module.food.allowed.join("、")}</dd></div>
+        <div><dt>{t("profile.private.allowedFood")}</dt><dd>{module.food.allowed.join(t("profile.private.foodSeparator"))}</dd></div>
       </dl>
-      <p className="profile-private-module__notice">可选粮食由管理员维护，此处不能增删。</p>
+      <p className="profile-private-module__notice">{t("profile.private.foodNotice")}</p>
     </div>
   )
 }

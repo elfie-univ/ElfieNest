@@ -24,7 +24,7 @@ from collections import Counter
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
-from elfie.brain.memory.graph_storage import GraphStorage
+from elfie.brain.memory.memory_store import MemoryStore
 from elfie.brain.memory.node_types import EdgeTypes, MemoryNode, NodeTypes
 from elfie.brain.memory.runtime_food import ask_memory_model
 from elfie.brain.memory.tokenizer import tokenize
@@ -37,7 +37,7 @@ class MemoryConsolidator:
 
     def __init__(
         self,
-        storage: GraphStorage,
+        storage: MemoryStore,
         core_cognition=None,
         elfie_id: str | None = None,
         config_dir: str | None = None,

@@ -1,6 +1,6 @@
 """领养配置共享模块 — 从 system.adoption 读取动态配置。
 
-所有函数在调用时重新读取正式 Runtime 配置（不缓存），
+所有函数在调用时重新读取所选数据根的 ``configs/runtime.yaml``（不缓存），
 确保配置更改即时生效。
 
 与 ``system_routes.py`` 使用相同的配置文件路径和默认值，

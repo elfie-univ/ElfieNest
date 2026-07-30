@@ -1,6 +1,6 @@
 """Runtime 本地 YAML 配置存储。
 
-运行时配置属于用户数据，统一保存在 ``~/.elfienest``，不写入源码目录。
+运行时配置属于用户数据，统一保存在 ``ELFIE_HOME/configs``，不写入源码目录。
 写入采用同目录临时文件替换，避免进程中断留下半个 YAML 文件。
 """
 
@@ -36,7 +36,9 @@ def write_yaml_mapping(
     *,
     mode: int = 0o600,
 ) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if os.name != "nt":
+        os.chmod(path.parent, 0o700)
     temp_path = path.with_name(f".{path.name}.tmp")
     try:
         with temp_path.open("w", encoding="utf-8") as file:

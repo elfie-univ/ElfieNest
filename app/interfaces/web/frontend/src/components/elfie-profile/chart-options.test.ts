@@ -18,9 +18,22 @@ const THEME = {
   textMuted: "token-muted",
 }
 
+const TRAIT_LABELS = {
+  agreeableness: "Agreeableness",
+  conscientiousness: "Conscientiousness",
+  extraversion: "Extraversion",
+  neuroticism: "Neuroticism",
+  openness: "Openness",
+} as const
+
 describe("Big Five chart options", () => {
   it("builds five bounded radar axes from semantic theme tokens", () => {
-    const option = buildBigFiveRadarOption(HAPPY_EXPERIENCE.publicProfile.bigFive, THEME)
+    const option = buildBigFiveRadarOption(
+      HAPPY_EXPERIENCE.publicProfile.bigFive,
+      THEME,
+      TRAIT_LABELS,
+      "Big Five",
+    )
 
     expect(option.radar.indicator).toHaveLength(5)
     expect(option.radar.indicator.every((axis) => axis.max === 100 && axis.min === 0)).toBe(true)

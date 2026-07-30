@@ -16,6 +16,11 @@ def isolate_lifecycle_home(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
         lifecycle_commands, "get_elfie_home", lambda: tmp_path / "elfie-home"
     )
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "_lifecycle_receipt_home",
+        lambda: tmp_path / "lifecycle-home",
+    )
 
 
 def test_lifecycle_commands_use_repository_root_for_service_command() -> None:

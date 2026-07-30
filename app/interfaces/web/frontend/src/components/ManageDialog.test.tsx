@@ -1,8 +1,10 @@
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { useState } from "react"
+import { I18nextProvider } from "react-i18next"
 import { describe, expect, it } from "vitest"
 
+import { createI18n } from "../i18n/config"
 import { ManageDialog } from "./ManageDialog"
 
 function DialogFixture() {
@@ -32,7 +34,7 @@ function ExternalTriggerFixture() {
 describe("ManageDialog", () => {
   it("moves focus into the dialog and restores it after Escape", async () => {
     const user = userEvent.setup()
-    render(<DialogFixture />)
+    render(<I18nextProvider i18n={createI18n()}><DialogFixture /></I18nextProvider>)
 
     const trigger = screen.getByRole("button", { name: "打开编辑" })
     await user.click(trigger)
@@ -48,7 +50,7 @@ describe("ManageDialog", () => {
 
   it("restores focus when the opener lives outside the dialog primitive", async () => {
     const user = userEvent.setup()
-    render(<ExternalTriggerFixture />)
+    render(<I18nextProvider i18n={createI18n()}><ExternalTriggerFixture /></I18nextProvider>)
 
     const opener = screen.getByRole("button", { name: "外部打开" })
     await user.click(opener)

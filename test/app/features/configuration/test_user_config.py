@@ -81,3 +81,20 @@ def test_write_env_file_uses_owner_only_permissions(tmp_path: Path) -> None:
     if os.name == "posix":
         mode = stat.S_IMODE(env_path.stat().st_mode)
         assert mode == 0o600
+
+
+def test_default_user_config_and_env_use_final_paths(
+    monkeypatch, tmp_path: Path
+) -> None:
+    # Given
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+
+    # When
+    write_user_config({"system": {"enabled": True}})
+    write_env_file({"OPENAI_API_KEY": "local-secret"})
+
+    # Then
+    assert read_user_config() == {"system": {"enabled": True}}
+    assert read_env_file() == {"OPENAI_API_KEY": "local-secret"}
+    assert (tmp_path / "configs" / "runtime.yaml").is_file()
+    assert (tmp_path / "configs" / "auth.env").is_file()

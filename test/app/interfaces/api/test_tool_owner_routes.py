@@ -4,8 +4,8 @@ from unittest.mock import patch
 import yaml
 from fastapi.testclient import TestClient
 
-from app.interfaces.api.app import create_app
 from app.infrastructure.persistence.store import init_db
+from app.interfaces.api.app import create_app
 
 from ._helpers import create_test_owner
 
@@ -18,7 +18,10 @@ def _client(tmp_path: Path):
     patches = (
         patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
         patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-        patch("app.interfaces.api.tool_owner_routes.get_config_path", return_value=config_path),
+        patch(
+            "app.interfaces.api.tool_owner_routes.get_config_path",
+            return_value=config_path,
+        ),
         patch("app.interfaces.api.tool_owner_routes.set_tool_secret"),
     )
     return db_path, config_path, patches
@@ -47,7 +50,7 @@ def test_tool_config_round_trip_uses_runtime_policy_and_local_secret(tmp_path):
             )
 
     assert initial.status_code == 200
-    assert initial.json()["tools"]["local_file"]["enabled"] is True
+    assert initial.json()["tools"]["local_file"]["enabled"] is False
     assert saved.status_code == 200
     assert saved.json()["config"]["provider"] == "brave"
     secret_writer.assert_called_once_with("web_search", "local-only-key")

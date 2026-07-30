@@ -1,8 +1,8 @@
 from pathlib import Path
 
+from app.features.adoption.service import AdoptionRequest, _register_with_engine
 from elfie import Elfie
 from elfie.profile import ElfieProfileRepository, create_visual_profile
-from app.features.adoption.service import AdoptionRequest, _register_with_engine
 
 
 class FakeSession:
@@ -27,7 +27,7 @@ def test_adoption_engine_registration_uses_canonical_factory(tmp_path: Path) -> 
         species_id="dog",
         seed=123,
     )
-    ElfieProfileRepository(tmp_path).save(profile)
+    ElfieProfileRepository(tmp_path / "profile").save(profile)
     engine = FakeEngine()
 
     _register_with_engine(

@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button"
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 
 import {
   changeProviderConnectionLifecycle,
@@ -15,7 +16,13 @@ import {
   type ProviderConnectionUpdate,
   type ProviderProduct,
 } from "../api/owner-providers"
-import { ApiError } from "../api/client"
+import {
+  compareLocalizedText,
+  currentLocale,
+  formatDateTime,
+} from "../i18n/format"
+import { describeApiError, localizeBackendDetail, resolveLocalizedError, type LocalizedErrorState } from "../i18n/errors"
+import type { SupportedLocale } from "../i18n/locale"
 import { ConfirmDialog } from "./ConfirmDialog"
 import { CustomProviderDialog } from "./CustomProviderDialog"
 import { Icon } from "./Icon"
@@ -51,21 +58,17 @@ type EditTarget = {
 }
 
 export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }) {
-  const [catalog, setCatalog] = useState<readonly ProviderProduct[]>([])
-  const [connections, setConnections] = useState<readonly ProviderConnection[]>([])
-  const [editing, setEditing] = useState<EditTarget | null>(null)
-  const [viewingModels, setViewingModels] = useState<ProviderConnection | null>(null)
-  const [deleting, setDeleting] = useState<ProviderConnection | null>(null)
-  const [moreTarget, setMoreTarget] = useState<ProviderConnection | null>(null)
-  const [creatingCustom, setCreatingCustom] = useState(false)
-  const [otherOpen, setOtherOpen] = useState(false)
-  const [otherProductId, setOtherProductId] = useState(NO_PRODUCT)
+  const { i18n, t } = useTranslation("manage")
+  const locale = currentLocale(i18n)
+  const [providers, setProviders] = useState<readonly ProviderView[]>([])
+  const [editing, setEditing] = useState<ProviderView | null>(null)
+  const [deleting, setDeleting] = useState<ProviderView | null>(null)
+  const [creating, setCreating] = useState(false)
   const [matrixOpen, setMatrixOpen] = useState(false)
   const [pending, setPending] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<LocalizedErrorState>(null)
   const [notice, setNotice] = useState<string | null>(null)
-
-  const load = async (): Promise<void> => {
+  const load = useCallback(async (): Promise<void> => {
     try {
       const [nextCatalog, nextConnections] = await Promise.all([
         ownerProviderCatalog(),
@@ -78,61 +81,55 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
         : null)
       setError(null)
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "模型订阅加载失败")
+      if (!(reason instanceof Error)) throw reason
+      setError(describeApiError(reason, "manage.load"))
     }
-  }
-  useEffect(() => { void load() }, [])
+  }, [])
+  useEffect(() => { void load() }, [load])
 
-  const productsById = useMemo(
-    () => new Map(catalog.map((product) => [product.catalog_id, product])),
-    [catalog],
-  )
-  const configured = [...connections].sort(
-    (left, right) => connectionPriority(left) - connectionPriority(right) || left.alias.localeCompare(right.alias),
-  )
-  const featured = catalog.filter((product) => FEATURED_PRODUCTS.has(product.catalog_id))
-  const otherProducts = catalog.filter(
-    (product) => !FEATURED_PRODUCTS.has(product.catalog_id)
-      && product.catalog_id !== "ollama",
-  )
+  const configured = providers
+    .filter((provider) => provider.configured)
+    .sort((left, right) => providerPriority(left) - providerPriority(right) || compareLocalizedText(left.name, right.name, locale))
+  const available = providers
+    .filter((provider) => !provider.configured)
+    .sort((left, right) => compareLocalizedText(left.name, right.name, locale))
 
   const save = async (draft: ProviderConnectionUpdate): Promise<void> => {
     if (!editing) return
     try {
-      const result = editing.connection
-        ? await updateProviderConnection(editing.connection.connection_id, draft, csrfToken)
-        : await createProviderConnection(
-          { catalog_id: editing.product.catalog_id, ...draft },
-          csrfToken,
-        )
-      setNotice(result.model_refresh?.message
-        ?? `${result.alias} 已保存并完成验证；可在“查看模型”中维护模型清单。`)
+      await updateProvider(editing.provider_id, draft, csrfToken)
+      setNotice(t("providers.notices.saved", { name: editing.name }))
       setEditing(null)
       await load()
       if (result.model_refresh?.status === "failed") setViewingModels(result)
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "订阅配置没有保存")
+      if (!(reason instanceof Error)) throw reason
+      setError(describeApiError(reason, "manage.save"))
       throw reason
     }
   }
-
-  const saveCustom = async (draft: ProviderConnectionDraft): Promise<void> => {
-    const result = await createProviderConnection(draft, csrfToken)
-    setError(null)
-    setNotice(result.model_refresh?.message ?? `${result.alias} 已添加并完成验证。`)
-    setCreatingCustom(false)
-    await load()
-    if (result.model_refresh?.status === "failed") setViewingModels(result)
+  const saveCustom = async (draft: ProviderDraft): Promise<void> => {
+    try {
+      await createProvider(draft, csrfToken)
+      setNotice(t("providers.notices.added", { name: draft.display_name || draft.provider_id || t("providers.custom.title") }))
+      setCreating(false)
+      await load()
+    } catch (reason: unknown) {
+      if (!(reason instanceof Error)) throw reason
+      setError(describeApiError(reason, "manage.save"))
+      throw reason
+    }
   }
 
   const verify = async (connection: ProviderConnection): Promise<void> => {
     setPending(`verify:${connection.connection_id}`)
     try {
-      await verifyProviderConnection(connection.connection_id, csrfToken)
-      setNotice(`${connection.alias} 验证已完成。`)
+      await verifyProvider(provider.provider_id, csrfToken)
+      setNotice(t("providers.notices.verified", { name: provider.name }))
       await load()
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "订阅验证失败")
+      if (!(reason instanceof Error)) throw reason
+      setError(describeApiError(reason, "manage.save"))
     } finally {
       setPending(null)
     }
@@ -143,10 +140,12 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
     try {
       const result = await validateAllProviderModels(csrfToken)
       const passed = result.results.filter((item) => item.status === "passed").length
-      setNotice(`全部验证完成：${passed} 项通过，报告 ${result.run_id}。`)
+      const failed = result.results.filter((item) => item.status === "failed").length
+      setNotice(t("providers.notices.batchVerified", { failed, passed }))
       await load()
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "批量验证失败")
+      if (!(reason instanceof Error)) throw reason
+      setError(describeApiError(reason, "manage.save"))
     } finally {
       setPending(null)
     }
@@ -156,12 +155,13 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
     if (!moreTarget) return
     setPending(`${action}:${moreTarget.connection_id}`)
     try {
-      await changeProviderConnectionLifecycle(moreTarget.connection_id, action, csrfToken)
-      setNotice(`${moreTarget.alias} 状态已更新。`)
-      setMoreTarget(null)
+      await deleteProvider(deleting.provider_id, csrfToken)
+      setNotice(t("providers.notices.deleted", { name: deleting.name }))
+      setDeleting(null)
       await load()
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "连接状态没有更新")
+      if (!(reason instanceof Error)) throw reason
+      setError(describeApiError(reason, "manage.delete"))
     } finally {
       setPending(null)
     }
@@ -193,43 +193,34 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
 
   return <section className="manage-card manage-card--wide provider-page">
     <div className="manage-head">
-      <div><h2>供应商与模型连接</h2><p>一个品牌可以配置多个订阅账号；模型和粮食始终引用稳定的连接实例。</p></div>
+      <div><h2>{t("providers.title")}</h2><p>{t("providers.description")}</p></div>
       <div className="manage-actions">
-        <Button disabled={pending !== null || configured.length === 0} onClick={() => { void verifyBatch() }} type="button">{pending === "batch" ? "验证中…" : "批量验证"}</Button>
-        <Button onClick={() => setMatrixOpen(true)} type="button">跨订阅模型对比</Button>
-        <RefreshButton disabled={pending !== null} label="重新读取" onClick={() => { void load() }} />
+        <Button disabled={pending !== null || configured.length === 0} onClick={() => { void verifyBatch() }} type="button">{pending === "batch" ? t("providers.actions.verifying") : t("providers.actions.batchVerify")}</Button>
+        <Button onClick={() => setMatrixOpen(true)} type="button">{t("providers.actions.showModels")}</Button>
+        <RefreshButton disabled={pending !== null} label={t("providers.actions.refresh")} onClick={() => { void load() }} />
       </div>
     </div>
-    {error ? <Notice kind="error" message={error} /> : null}
+    {error ? <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("errors.save")} /> : null}
     {notice ? <Notice message={notice} /> : null}
     <section aria-labelledby="configured-provider-title" className="provider-section">
-      <div className="provider-section__heading"><div><h3 id="configured-provider-title">已配置的订阅</h3><p>连接状态、模型数量和验证结果分别记录。</p></div><span>{configured.length} 个</span></div>
-      {configured.length === 0 ? <p className="empty-state">尚未配置模型订阅。</p> : <div className="provider-grid">{configured.map((connection) => <ConfiguredProviderCard
-        busy={pending?.endsWith(connection.connection_id) ?? false}
-        connection={connection}
-        key={connection.connection_id}
-        onEdit={() => {
-          const product = productsById.get(connection.catalog_id)
-          if (product) setEditing({ connection, product })
-        }}
-        onModels={() => setViewingModels(connection)}
-        onMore={() => setMoreTarget(connection)}
-        onVerify={() => { void verify(connection) }}
-        product={productsById.get(connection.catalog_id)}
+      <div className="provider-section__heading"><div><h3 id="configured-provider-title">{t("providers.section.configuredTitle")}</h3><p>{t("providers.section.configuredDescription")}</p></div><span>{t("providers.section.configuredCount", { count: configured.length })}</span></div>
+      {configured.length === 0 ? <p className="empty-state">{t("providers.section.configuredEmpty")}</p> : <div className="provider-grid">{configured.map((provider) => <ConfiguredProviderCard
+        busy={pending?.endsWith(provider.provider_id) ?? false}
+        key={provider.provider_id}
+        onDelete={() => setDeleting(provider)}
+        onEdit={() => setEditing(provider)}
+        onVerify={() => { void verify(provider) }}
+        provider={provider}
+        locale={locale}
       />)}</div>}
     </section>
     <section aria-labelledby="available-provider-title" className="provider-section provider-section--available">
-      <div className="provider-section__heading"><div><h3 id="available-provider-title">添加新的订阅</h3><p>常用产品只需填写 API Key；系统自动生成 ID、验证连接并读取模型。</p></div></div>
-      <div className="provider-grid">{featured.map((product) => <button
-        aria-label={`配置 ${product.name}`}
-        className="provider-card provider-card--available provider-product-card"
-        key={product.catalog_id}
-        onClick={() => setEditing({ connection: null, product })}
-        type="button"
-      >
-        <BrandMark product={product} />
-        <span>{connectionMethodLabel(product)}</span>
-      </button>)}<button aria-label="添加其他订阅" className="provider-card provider-card--add" onClick={() => setOtherOpen(true)} type="button"><Icon name="plus" size={28} /><strong>添加其他订阅</strong><span>选择内置产品或自定义连接</span></button></div>
+      <div className="provider-section__heading"><div><h3 id="available-provider-title">{t("providers.section.availableTitle")}</h3><p>{t("providers.section.availableDescription")}</p></div><span>{t("providers.section.availableCount", { count: available.length })}</span></div>
+      <div className="provider-grid">{available.map((provider) => <article className="provider-card provider-card--available" key={provider.provider_id}>
+        <div className="provider-card__title"><h4>{provider.name}</h4><span className="status-badge status-badge--muted">{t("providers.status.pending")}</span></div>
+        <p>{t(connectionKey(provider))}</p>
+        <Button variant="outline" aria-label={t("providers.actions.configureFor", { name: provider.name })} onClick={() => setEditing(provider)} type="button">{t("providers.actions.configure")}</Button>
+      </article>)}<button aria-label={t("providers.actions.addCustom")} className="provider-card provider-card--add" data-slot="button" data-variant="outline" onClick={() => setCreating(true)} type="button"><Icon name="plus" size={28} /><strong>{t("providers.actions.addCustom")}</strong><span>{t("providers.custom.description")}</span></button></div>
     </section>
     <ProviderFormDialog
       connection={editing?.connection ?? null}
@@ -252,14 +243,14 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
       </div>
     </ManageDialog>
     <ConfirmDialog
-      confirmLabel="确认删除"
+      confirmLabel={t("providers.actions.confirmDelete")}
       danger
-      description={deleting ? `将删除 ${deleting.alias} 的本机密钥和模型清单。若粮食仍在引用，系统会拒绝删除。` : "确认删除这个订阅连接吗？"}
+      description={deleting ? t("providers.delete.description", { name: deleting.name }) : t("providers.delete.descriptionGeneric")}
       onConfirm={() => { void remove() }}
       onOpenChange={(open) => { if (!open && pending === null) setDeleting(null) }}
       open={deleting !== null}
       pending={pending?.startsWith("delete:") ?? false}
-      title="删除模型订阅"
+      title={t("providers.delete.title")}
     />
     <ManageDialog description={moreTarget ? `管理 ${moreTarget.alias} 的生命周期；连接归档后才允许删除。` : ""} onOpenChange={(open) => { if (!open) setMoreTarget(null) }} open={moreTarget !== null} title="更多操作">
       {moreTarget ? <div className="manage-actions">
@@ -275,26 +266,27 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
   </section>
 }
 
-function ConfiguredProviderCard({ busy, connection, onEdit, onModels, onMore, onVerify, product }: {
+function ConfiguredProviderCard({ busy, locale, onDelete, onEdit, onVerify, provider }: {
   readonly busy: boolean
-  readonly connection: ProviderConnection
+  readonly locale: SupportedLocale
+  readonly onDelete: () => void
   readonly onEdit: () => void
   readonly onModels: () => void
   readonly onMore: () => void
   readonly onVerify: () => void
   readonly product: ProviderProduct | undefined
 }) {
-  const verification = connection.verification
+  const { t } = useTranslation("manage")
+  const verification = provider.verification
   return <article className={`provider-card provider-card--${verification.status}`}>
-    <div className="provider-card__title"><div><h4>{connection.alias}</h4>{product && connection.alias !== product.name ? <p>{product.name}</p> : null}</div><div className="provider-card__badges"><span className="status-badge status-badge--configured">已配置</span><span className={`status-badge status-badge--${verification.status}`}>{verificationLabel(verification.status)}</span></div></div>
-    <p>{product ? connectionMethodLabel(product) : connection.api_mode} · {connection.models.filter((model) => !model.hidden).length} 个模型</p>
-    <dl><dt>上次验证</dt><dd>{verification.checked_at ? new Date(verification.checked_at).toLocaleString() : "从未验证"}</dd><dt>延迟</dt><dd>{verification.latency_ms === null ? "未提供" : `${Math.round(verification.latency_ms)}ms`}</dd></dl>
-    {verification.error ? <p className="provider-card__error">{verification.error}</p> : null}
+    <div className="provider-card__title"><h4>{provider.name}</h4><div className="provider-card__badges"><span className="status-badge status-badge--configured">{t("providers.card.configured")}</span><span className={`status-badge status-badge--${verification.status}`}>{t(verificationKey(verification.status))}</span></div></div>
+    <p>{t(connectionKey(provider))} · {t("providers.card.knownModels", { count: provider.models.length })}</p>
+    <dl><dt>{t("providers.card.lastVerified")}</dt><dd>{verification.checked_at ? formatDateTime(verification.checked_at, locale) : t("providers.card.neverVerified")}</dd><dt>{t("providers.card.latency")}</dt><dd>{verification.latency_ms === null ? t("providers.card.notProvided") : `${Math.round(verification.latency_ms)}ms`}</dd></dl>
+    {verification.error ? <p className="provider-card__error">{localizeBackendDetail(verification.error, "manage.load", locale)}</p> : null}
     <div className="manage-actions">
-      <Button aria-label={`查看 ${connection.alias} 的模型`} disabled={busy} onClick={onModels} type="button" variant="outline">模型</Button>
-      <Button aria-label={`验证 ${connection.alias}`} disabled={busy} onClick={onVerify} type="button" variant="outline">{busy ? "验证中…" : "验证"}</Button>
-      <Button aria-label={`修改 ${connection.alias}`} disabled={busy || !product} onClick={onEdit} type="button" variant="outline">修改</Button>
-      <Button aria-label={`${connection.alias} 更多操作`} disabled={busy} onClick={onMore} type="button" variant="outline">更多</Button>
+      <Button variant="outline" aria-label={t("providers.actions.editFor", { name: provider.name })} disabled={busy} onClick={onEdit} type="button">{t("providers.actions.edit")}</Button>
+      <Button variant="outline" aria-label={t("providers.actions.verifyFor", { name: provider.name })} disabled={busy} onClick={onVerify} type="button">{busy ? t("providers.actions.verifying") : t("providers.actions.verify")}</Button>
+      <Button variant="outline" aria-label={t("providers.actions.deleteFor", { name: provider.name })} disabled={busy || provider.provider_id === "ollama"} onClick={onDelete} type="button">{t("providers.actions.delete")}</Button>
     </div>
   </article>
 }
@@ -310,17 +302,13 @@ function BrandMark({ product }: { readonly product: ProviderProduct }) {
   </div>
 }
 
-function connectionPriority(connection: ProviderConnection): number {
-  if (connection.catalog_id === "ollama") return 0
-  return connection.verification.status === "passed" ? 1 : connection.verification.status === "never" ? 2 : 3
+function verificationKey(status: ProviderView["verification"]["status"]): "providers.status.failed" | "providers.status.never" | "providers.status.passed" {
+  return status === "passed" ? "providers.status.passed" : status === "failed" ? "providers.status.failed" : "providers.status.never"
 }
 
-function verificationLabel(status: ProviderConnection["verification"]["status"]): string {
-  return status === "passed" ? "验证通过" : status === "failed" ? "验证失败" : "未验证"
-}
-
-function connectionMethodLabel(product: ProviderProduct): string {
-  if (product.connection_method === "local") return "本地服务"
-  if (product.connection_method === "oauth") return product.oauth_available ? "登录授权" : "登录授权待接入"
-  return "API Key"
+function connectionKey(provider: ProviderView): "providers.connection.apiKey" | "providers.connection.local" | "providers.connection.oauth" | "providers.connection.oauthUnavailable" {
+  const method = provider.capabilities.connection_method
+  if (method === "local") return "providers.connection.local"
+  if (method === "oauth") return provider.capabilities.oauth_available ? "providers.connection.oauth" : "providers.connection.oauthUnavailable"
+  return "providers.connection.apiKey"
 }

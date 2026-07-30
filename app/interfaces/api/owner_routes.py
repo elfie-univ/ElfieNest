@@ -35,7 +35,7 @@ router = APIRouter(prefix="/api/owner", tags=["owner"])
 async def get_config(
     owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
 ) -> Dict[str, Any]:
-    """读取 ``ELFIE_HOME/configs/`` 下的合并 Runtime 配置。
+    """读取所选数据根的 ``configs/runtime.yaml``。
 
     文件可能不存在（gitignored 且尚未创建），此时返回 ``{}``。
     解析失败同样返回 ``{}``。

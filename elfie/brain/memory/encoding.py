@@ -15,7 +15,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from .graph_storage import GraphStorage
+from .memory_store import MemoryStore
 from .node_types import EdgeTypes, MemoryNode, NodeTypes
 from .runtime_food import ask_memory_model
 from .sensory_buffer import SensoryBuffer
@@ -43,7 +43,7 @@ class MemoryEncoder:
 
     def __init__(
         self,
-        storage: GraphStorage,
+        storage: MemoryStore,
         sensory_buffer: SensoryBuffer,
         sensory_indexer: SensoryIndexer = None,
         elfie_id: str | None = None,
@@ -138,6 +138,7 @@ class MemoryEncoder:
             "recall_count": 0,
             "consolidated": False,
             "timestamp": timestamp,
+            "sensory": dict(sensory or {}),
         }
 
         node = MemoryNode(
@@ -335,12 +336,10 @@ class MemoryEncoder:
         Returns:
             节点ID或None
         """
-        cursor = self.storage.conn.execute(
-            "SELECT id FROM nodes WHERE type=? AND content=? LIMIT 1",
-            (NodeTypes.ENTITY.value, entity_name),
-        )
-        row = cursor.fetchone()
-        return row["id"] if row else None
+        for node in self.storage.get_nodes_by_type(NodeTypes.ENTITY.value, limit=1000):
+            if node.content == entity_name:
+                return node.id
+        return None
 
     def create_or_get_entity(self, entity_name: str, properties: dict = None) -> str:
         """创建或获取实体节点（去重）

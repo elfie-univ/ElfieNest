@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react"
+import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
 import { ButtonGroup } from "@/components/ui/button-group"
@@ -34,6 +35,7 @@ export function NumberField({
   step = 1,
   value,
 }: NumberFieldProps) {
+  const { t } = useTranslation("common")
   const id = useId()
   const [draft, setDraft] = useState(String(value))
   useEffect(() => setDraft(String(value)), [value])
@@ -56,7 +58,7 @@ export function NumberField({
   const descriptionId = error ? `${id}-error` : hint ? `${id}-hint` : undefined
   return <FieldRow
     control={<ButtonGroup className="number-stepper w-full">
-      <Button aria-label={`减少${label}`} disabled={disabled || value <= min} onClick={() => stepValue(-1)} size="icon" type="button" variant="ghost">
+      <Button aria-label={t("aria.decrease", { label })} disabled={disabled || value <= min} onClick={() => stepValue(-1)} size="icon" type="button" variant="ghost">
         <Icon name="minus" size={16} />
       </Button>
       <Input
@@ -71,7 +73,7 @@ export function NumberField({
         type="text"
         value={draft}
       />
-      <Button aria-label={`增加${label}`} disabled={disabled || value >= max} onClick={() => stepValue(1)} size="icon" type="button" variant="ghost">
+      <Button aria-label={t("aria.increase", { label })} disabled={disabled || value >= max} onClick={() => stepValue(1)} size="icon" type="button" variant="ghost">
         <Icon name="plus" size={16} />
       </Button>
     </ButtonGroup>}

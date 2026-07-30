@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import sqlite3
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -12,10 +11,14 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing_extensions import TypedDict
 
-from ai_runtime.storage.data_home import get_config_path
+from ai_runtime.storage.data_home import data_home_from_db_path, get_config_path
+from ai_runtime.storage.data_layout import final_root_layout
 from app.features.accounts.auth import hash_password, require_owner
 from app.features.configuration.runtime_store import read_system_section
-from app.infrastructure.persistence.store import get_db
+from app.infrastructure.persistence.interface_query_repository import (
+    InterfaceQueryRepository,
+    InterfaceUserRecord,
+)
 
 logger = logging.getLogger("app.interfaces.api.owner_user_routes")
 router = APIRouter(prefix="/api/owner/users", tags=["owner-users"])
@@ -61,38 +64,28 @@ def _system_limit() -> int:
     return int(settings.get("max_elfies_per_user", 3))
 
 
-def _project(row: sqlite3.Row, system_limit: int) -> OwnerUserView:
-    override = row["elfie_quota_override"]
-    user_id = int(row["id"])
+def _project(row: InterfaceUserRecord, system_limit: int) -> OwnerUserView:
+    override = row.elfie_limit
+    user_id = row.user_id
     return {
         "id": user_id,
-        "username": str(row["username"]),
-        "display_name": str(row["nickname"] or row["username"]),
+        "username": row.username,
+        "display_name": row.nickname or row.username,
         "role": "user",
-        "created_at": str(row["created_at"]),
-        "elfie_count": int(row["elfie_count"]),
-        "elfie_quota_override": None if override is None else int(override),
-        "effective_elfie_limit": system_limit if override is None else int(override),
+        "created_at": row.created_at,
+        "elfie_count": row.elfie_count,
+        "elfie_quota_override": override,
+        "effective_elfie_limit": system_limit if override is None else override,
         "online_status": "unknown",
-        "avatar_url": f"/api/owner/users/{user_id}/avatar"
-        if row["avatar_path"]
-        else None,
+        "avatar_url": f"/api/owner/users/{user_id}/avatar" if row.avatar_path else None,
     }
 
 
 def _load_user(db_path: str, user_id: int, system_limit: int) -> OwnerUserView:
-    with get_db(db_path) as connection:
-        row = connection.execute(
-            """SELECT u.id, u.username, u.nickname, u.role, u.created_at,
-                      u.avatar_path, u.elfie_quota_override,
-                      (SELECT COUNT(*) FROM elfie_registry
-                       WHERE owner_user_id = u.id) AS elfie_count
-               FROM users u WHERE u.id = ?""",
-            (user_id,),
-        ).fetchone()
+    row = InterfaceQueryRepository(db_path).get_user(user_id)
     if row is None:
         raise HTTPException(status_code=404, detail="用户不存在")
-    if row["role"] == "owner":
+    if row.role == "owner":
         raise HTTPException(status_code=403, detail="Owner 账户只能在个人设置中管理")
     return _project(row, system_limit)
 
@@ -103,15 +96,9 @@ async def list_users(
     owner: dict[str, object] = Depends(require_owner),  # noqa: B008
 ) -> list[OwnerUserView]:
     system_limit = _system_limit()
-    with get_db(request.app.state.db_path) as connection:
-        rows = connection.execute(
-            """SELECT u.id, u.username, u.nickname, u.role, u.created_at,
-                      u.avatar_path, u.elfie_quota_override,
-                      (SELECT COUNT(*) FROM elfie_registry
-                       WHERE owner_user_id = u.id) AS elfie_count
-               FROM users u WHERE u.id != ? ORDER BY u.id""",
-            (owner["id"],),
-        ).fetchall()
+    rows = InterfaceQueryRepository(request.app.state.db_path).list_members(
+        int(owner["id"])
+    )
     return [_project(row, system_limit) for row in rows]
 
 
@@ -122,20 +109,11 @@ async def create_user(
     owner: dict[str, object] = Depends(require_owner),  # noqa: B008
 ) -> OwnerUserView:
     _ = owner
-    with get_db(request.app.state.db_path) as connection:
-        exists = connection.execute(
-            "SELECT 1 FROM users WHERE username = ?", (body.username,)
-        ).fetchone()
-        if exists is not None:
-            raise HTTPException(status_code=409, detail="用户名已存在")
-        cursor = connection.execute(
-            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'user')",
-            (body.username, hash_password(body.password)),
-        )
-        connection.commit()
-        if cursor.lastrowid is None:
-            raise RuntimeError("创建用户后数据库未返回用户 ID")
-        user_id = cursor.lastrowid
+    user_id = InterfaceQueryRepository(request.app.state.db_path).create_member(
+        body.username, hash_password(body.password)
+    )
+    if user_id is None:
+        raise HTTPException(status_code=409, detail="用户名已存在")
     return _load_user(request.app.state.db_path, user_id, _system_limit())
 
 
@@ -150,12 +128,9 @@ async def update_quota(
     if "elfie_quota_override" not in body.model_fields_set:
         raise HTTPException(status_code=422, detail="必须提供 elfie_quota_override")
     _load_user(request.app.state.db_path, user_id, _system_limit())
-    with get_db(request.app.state.db_path) as connection:
-        connection.execute(
-            "UPDATE users SET elfie_quota_override = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-            (body.elfie_quota_override, user_id),
-        )
-        connection.commit()
+    InterfaceQueryRepository(request.app.state.db_path).update_member_limit(
+        user_id, body.elfie_quota_override
+    )
     return _load_user(request.app.state.db_path, user_id, _system_limit())
 
 
@@ -171,10 +146,7 @@ async def delete_user(
         raise HTTPException(
             status_code=409, detail="该用户仍有名下精灵，请先处理精灵归属后再移除"
         )
-    with get_db(request.app.state.db_path) as connection:
-        connection.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
-        connection.execute("DELETE FROM users WHERE id = ?", (user_id,))
-        connection.commit()
+    InterfaceQueryRepository(request.app.state.db_path).delete_member(user_id)
     logger.info("Owner removed user %s (id=%d)", user["username"], user_id)
     return {"detail": f"用户 {user['username']} 已移除"}
 
@@ -186,18 +158,14 @@ async def user_avatar(
     owner: dict[str, object] = Depends(require_owner),  # noqa: B008
 ) -> FileResponse:
     _ = owner
-    with get_db(request.app.state.db_path) as connection:
-        row = connection.execute(
-            "SELECT avatar_path, role FROM users WHERE id = ?", (user_id,)
-        ).fetchone()
-    if row is None or row["role"] == "owner" or not row["avatar_path"]:
+    row = InterfaceQueryRepository(request.app.state.db_path).get_user(user_id)
+    if row is None or row.role == "owner" or not row.avatar_path:
         raise HTTPException(status_code=404, detail="用户头像不存在")
-    root = (
-        Path(request.app.state.db_path).expanduser().resolve().parent
-        / "avatars"
-        / "users"
+    data_home = data_home_from_db_path(request.app.state.db_path)
+    candidate = (
+        final_root_layout(data_home).user(str(user_id)).assets
+        / Path(row.avatar_path).name
     )
-    candidate = root / Path(str(row["avatar_path"])).name
     if not candidate.is_file():
         raise HTTPException(status_code=404, detail="用户头像文件不存在")
     return FileResponse(candidate, headers={"Cache-Control": "no-store"})

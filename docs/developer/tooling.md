@@ -77,9 +77,11 @@ cleanup tool.
 
 ## Data and high-risk commands
 
-Default product data lives at `${ELFIE_HOME:-~/.elfienest}`. Tests, doc
-verification and experiments must set a temporary `ELFIE_HOME` to avoid
-polluting day-to-day data.
+Installed product data defaults to `~/.elfienest`; source and worktree runs
+default to `<current-worktree>/.elfienest.local`. In both modes,
+`--data-home PATH` takes precedence over `ELFIE_HOME`, which takes precedence
+over the mode default. Tests, doc verification and experiments must set a
+temporary `ELFIE_HOME` to avoid polluting day-to-day data.
 
 Owner recovery is offered only in the local terminal; the password is entered
 via hidden input and must never go into command arguments, environment

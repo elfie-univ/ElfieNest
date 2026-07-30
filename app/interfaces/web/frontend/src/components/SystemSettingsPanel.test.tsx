@@ -1,8 +1,12 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ownerRead, ownerWrite } from "../api/client"
+import { ApiError } from "../api/http"
+import { createI18n } from "../i18n/config"
+import type { SupportedLocale } from "../i18n/locale"
 import { SystemSettingsPanel } from "./SystemSettingsPanel"
 
 vi.mock("../api/client", async (loadOriginal) => {
@@ -26,7 +30,7 @@ describe("SystemSettingsPanel", () => {
 
   it("uses shared bounded controls and saves only the selected module", async () => {
     const user = userEvent.setup()
-    render(<SystemSettingsPanel csrfToken="csrf" />)
+    renderSettingsPanel()
 
     await user.click(await screen.findByRole("button", { name: "增加运行 Tick（秒）" }))
     await user.click(screen.getByRole("button", { name: "保存引擎设置" }))
@@ -40,4 +44,30 @@ describe("SystemSettingsPanel", () => {
     expect(screen.getByRole("checkbox", { name: "狗" })).toBeChecked()
     expect(screen.getByRole("checkbox", { name: "狐狸" })).toBeChecked()
   })
+
+  it("renders English settings and hides backend save detail", async () => {
+    // Given: English system settings and a backend save failure with Chinese detail.
+    const user = userEvent.setup()
+    vi.mocked(ownerWrite).mockRejectedValueOnce(new ApiError(400, "后端拒绝了系统设置"))
+    renderSettingsPanel("en-US")
+
+    // When: only the engine module is changed and saved.
+    expect(await screen.findByRole("heading", { name: "Engine settings" })).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Save engine settings" }))
+
+    // Then: the English fallback is shown and backend detail remains hidden.
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to save management data.")
+    expect(screen.queryByText("后端拒绝了系统设置")).not.toBeInTheDocument()
+  })
 })
+
+function renderSettingsPanel(locale: SupportedLocale = "zh-CN"): void {
+  const instance = createI18n()
+  void instance.changeLanguage(locale)
+  document.documentElement.lang = locale
+  render(
+    <I18nextProvider i18n={instance}>
+      <SystemSettingsPanel csrfToken="csrf" />
+    </I18nextProvider>,
+  )
+}

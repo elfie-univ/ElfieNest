@@ -3,7 +3,10 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { applicationMenuTemplate } from "./application_menu.js";
+import {
+  applicationMenuTemplate,
+  normalizeApplicationMenuLocale,
+} from "./application_menu.js";
 import { DESKTOP_UI_INSTANCE_NAMESPACE, DesktopRoleController } from "./desktop_role_lifecycle.js";
 import { ManagedRuntimeLifecycleClient } from "./lifecycle_client.js";
 import { resolveElectronRole } from "./role_dispatch.js";
@@ -49,7 +52,13 @@ function startDesktopUiRole(): void {
     .whenReady()
     .then(() => {
       Menu.setApplicationMenu(
-        Menu.buildFromTemplate(applicationMenuTemplate(process.platform, requestExplicitApplicationExit)),
+        Menu.buildFromTemplate(
+          applicationMenuTemplate(
+            process.platform,
+            requestExplicitApplicationExit,
+            normalizeApplicationMenuLocale(app.getLocale()),
+          ),
+        ),
       );
       return startDesktop();
     })

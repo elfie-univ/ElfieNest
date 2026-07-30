@@ -1,9 +1,15 @@
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import type { i18n } from "i18next"
+import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import type { ChatSocketEvent, ChatSocketStatus } from "../api/chat-socket"
+import { ApiError } from "../api/http"
+import { createI18n } from "../i18n/config"
+import type { SupportedLocale } from "../i18n/locale"
 import { ChatPage } from "./ChatPage"
 
 const chatStyles = readFileSync(resolve(import.meta.dirname, "../shared/chat-profile.css"), "utf8")
@@ -31,6 +37,15 @@ const chatApi = vi.hoisted(() => ({
   sendMessage: vi.fn(),
 }))
 
+type SocketCallbacks = {
+  readonly onEvent: (event: ChatSocketEvent) => void
+  readonly onStatus: (status: ChatSocketStatus) => void
+}
+
+const socketState = vi.hoisted<{ callbacks: SocketCallbacks | null }>(() => ({
+  callbacks: null,
+}))
+
 vi.mock("../stores/session", () => ({
   useSession: () => ({ user: session.user, loading: false, refresh: session.refresh }),
 }))
@@ -46,6 +61,7 @@ vi.mock("../api/client", async (loadOriginal) => {
 
 vi.mock("../api/chat-socket", () => ({
   ChatSocket: class {
+    public constructor(callbacks: SocketCallbacks) { socketState.callbacks = callbacks }
     public connect(): void {}
     public send(): boolean { return false }
     public close(): void {}
@@ -100,10 +116,18 @@ describe("ChatPage list pane headings", () => {
     chatApi.elfies.mockResolvedValue([elfie])
     chatApi.messages.mockResolvedValue([])
     chatApi.profile.mockResolvedValue(elfie)
+    chatApi.sendMessage.mockResolvedValue({
+      id: 1,
+      elfie_id: "00000001",
+      sender: "user",
+      text: "hello",
+      created_at: "2026-07-29T00:00:00Z",
+    })
+    socketState.callbacks = null
   })
 
   it("shows only the large messages heading while preserving rail names and tooltips", async () => {
-    render(<ChatPage />)
+    renderChatPage("zh-CN")
 
     const listPane = await screen.findByRole("heading", { level: 1, name: "消息" })
     expect(screen.queryByText("聊天记录", { selector: ".brand" })).not.toBeInTheDocument()
@@ -116,7 +140,7 @@ describe("ChatPage list pane headings", () => {
 
   it("switches to one visible Elfie heading without the repeated eyebrow", async () => {
     const user = userEvent.setup()
-    render(<ChatPage />)
+    renderChatPage("zh-CN")
 
     const rail = screen.getByLabelText("ElfieNest 导航")
     await user.click(await within(rail).findByRole("button", { name: "我的精灵" }))
@@ -127,7 +151,7 @@ describe("ChatPage list pane headings", () => {
   })
 
   it("uses a three-item mobile tab bar without manage or QR shortcuts", async () => {
-    render(<ChatPage />)
+    renderChatPage("zh-CN")
 
     const mobileTabs = screen.getByLabelText("聊天移动导航")
     expect(mobileTabs.closest(".chat-page")).toBeInTheDocument()
@@ -160,7 +184,7 @@ describe("ChatPage list pane headings", () => {
     chatApi.elfies.mockRejectedValue(new Error("Not Found"))
     window.history.replaceState({}, "", "/chat?view=conversation&elfie=12345678&mock=1")
 
-    render(<ChatPage />)
+    renderChatPage("zh-CN")
 
     expect((await screen.findAllByText("Happy")).length).toBeGreaterThan(0)
     expect(screen.getByText("后端暂不可用，当前显示演示数据")).toBeInTheDocument()
@@ -169,7 +193,7 @@ describe("ChatPage list pane headings", () => {
   it("searches Elfies and shows account-owned filter counts in deterministic groups", async () => {
     const user = userEvent.setup()
     useDemoElfies()
-    render(<ChatPage />)
+    renderChatPage("zh-CN")
 
     const allFilter = await screen.findByRole("button", { name: "全部 2" })
     expect(screen.getByRole("button", { name: "我的 1" })).toBeInTheDocument()
@@ -207,7 +231,7 @@ describe("ChatPage list pane headings", () => {
     useDemoElfies()
     session.user.account_id = "unrelated-owner"
     session.user.role = "owner"
-    render(<ChatPage />)
+    renderChatPage("zh-CN")
 
     expect(await screen.findByRole("button", { name: "我的 0" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "其他 2" })).toBeInTheDocument()
@@ -218,7 +242,7 @@ describe("ChatPage list pane headings", () => {
   it("keeps row profile and chat navigation distinct without nested controls", async () => {
     const user = userEvent.setup()
     useDemoElfies()
-    render(<ChatPage />)
+    renderChatPage("zh-CN")
 
     const chat = await screen.findByRole("button", { name: "与 Kettle 聊天" })
     const listRow = chat.closest("article")
@@ -242,7 +266,7 @@ describe("ChatPage list pane headings", () => {
   it("announces no results and recovers when the controlled search is cleared", async () => {
     const user = userEvent.setup()
     useDemoElfies()
-    render(<ChatPage />)
+    renderChatPage("zh-CN")
 
     const search = await screen.findByPlaceholderText("搜索精灵")
     await user.type(search, "999999999999999999")
@@ -253,4 +277,148 @@ describe("ChatPage list pane headings", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument()
     expect(screen.getByText("Happy")).toBeInTheDocument()
   })
+
+  it("hides REST load detail in English and preserves it in Chinese", async () => {
+    // Given: history loading rejects with backend detail.
+    chatApi.messages.mockRejectedValue(new ApiError(503, "后端失败"))
+
+    // When: the real page loads in English.
+    renderChatPage("en-US")
+
+    // Then: only the closed chat-load fallback is visible.
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load chat content.")
+    expect(screen.queryByText("后端失败")).not.toBeInTheDocument()
+  })
+
+  it("renders the Chat shell in English without translating conversation content", async () => {
+    // Given: the Chat page has an active conversation with Chinese user content.
+    chatApi.messages.mockResolvedValue([{
+      id: 7,
+      elfie_id: "00000001",
+      sender: "elfie",
+      text: "这是不会翻译的消息",
+      created_at: "2026-07-29T00:00:00Z",
+    }])
+
+    // When: the page renders in English.
+    renderChatPage("en-US")
+
+    // Then: UI chrome is English while names, previews, and messages are byte-identical.
+    expect(await screen.findByRole("heading", { level: 1, name: "Messages" })).toBeInTheDocument()
+    expect(screen.getByLabelText("ElfieNest navigation")).toBeInTheDocument()
+    expect(screen.getByPlaceholderText("Say something to 小羽...")).toBeInTheDocument()
+    expect(screen.getByText("Send")).toBeInTheDocument()
+    expect(screen.getByText("早上好")).toBeInTheDocument()
+    expect(screen.getByText("这是不会翻译的消息")).toBeInTheDocument()
+  })
+
+  it("preserves live Chat state and closes existing backend detail when locale changes", async () => {
+    // Given: an active Chinese conversation has a draft, search text, scroll, and live error state.
+    const user = userEvent.setup()
+    const instance = renderChatPage("zh-CN")
+    const composer = await screen.findByPlaceholderText("对 小羽 说点什么…")
+    const search = screen.getByPlaceholderText("搜索聊天")
+    await user.type(composer, "逐字保留 draft 123")
+    await user.type(search, "小羽 search 456")
+    const messageList = document.querySelector(".message-list")
+    if (!(messageList instanceof HTMLElement)) throw new TypeError("Expected message list")
+    messageList.scrollTop = 137
+    const callbacks = socketState.callbacks
+    if (callbacks === null) throw new TypeError("Expected socket callbacks")
+    act(() => {
+      callbacks.onStatus("online")
+      callbacks.onEvent({ event: "error", detail: "后端内部 detail" })
+    })
+    const locationBefore = `${window.location.pathname}${window.location.search}`
+    expect(await screen.findByRole("alert")).toHaveTextContent("后端内部 detail")
+
+    // When: the same mounted page changes locale.
+    await act(async () => { await instance.changeLanguage("en-US") })
+
+    // Then: chrome and privacy update, while product state remains byte-identical.
+    expect(screen.getByRole("heading", { level: 1, name: "Messages" })).toBeInTheDocument()
+    expect(screen.getByDisplayValue("逐字保留 draft 123")).toBe(composer)
+    expect(screen.getByDisplayValue("小羽 search 456")).toBe(search)
+    expect(messageList.scrollTop).toBe(137)
+    expect(window.location.pathname + window.location.search).toBe(locationBefore)
+    expect(screen.getByText("Channel: Live")).toBeInTheDocument()
+    expect(screen.getByRole("alert")).toHaveTextContent("Unable to connect to chat.")
+    expect(screen.queryByText("后端内部 detail")).not.toBeInTheDocument()
+  })
+
+  it("distinguishes offline and reconnecting connection states in English", async () => {
+    // Given: the English Chat shell has installed its socket callbacks.
+    renderChatPage("en-US")
+    await screen.findByRole("heading", { level: 1, name: "Messages" })
+    const callbacks = socketState.callbacks
+    if (callbacks === null) throw new TypeError("Expected socket callbacks")
+
+    // When: the connection drops and begins reconnecting.
+    act(() => callbacks.onStatus("offline"))
+    expect(screen.getByText("Channel: Offline fallback")).toBeInTheDocument()
+    act(() => callbacks.onStatus("connecting"))
+
+    // Then: reconnecting is not misreported as offline.
+    expect(screen.getByText("Channel: Reconnecting...")).toBeInTheDocument()
+  })
+
+  it.each(["后端失败", "upstream socket rejected credentials"])(
+    "hides WebSocket detail in English: %s",
+    async (detail) => {
+      // Given: the real page is connected through the typed socket callback.
+      renderChatPage("en-US")
+      await screen.findByRole("heading", { name: "小羽" })
+      const callbacks = socketState.callbacks
+      if (callbacks === null) throw new TypeError("Expected socket callbacks")
+
+      // When: a typed backend error event arrives.
+      act(() => callbacks.onEvent({ event: "error", detail }))
+
+      // Then: English shows only the closed connect fallback.
+      expect(await screen.findByRole("alert")).toHaveTextContent("Unable to connect to chat.")
+      expect(screen.queryByText(detail)).not.toBeInTheDocument()
+    },
+  )
+
+  it("preserves WebSocket detail in Chinese", async () => {
+    // Given: the real page is connected through the typed socket callback.
+    renderChatPage("zh-CN")
+    await screen.findByRole("heading", { name: "小羽" })
+    const callbacks = socketState.callbacks
+    if (callbacks === null) throw new TypeError("Expected socket callbacks")
+
+    // When: a typed backend error event arrives.
+    act(() => callbacks.onEvent({ event: "error", detail: "后端失败" }))
+
+    // Then: Chinese preserves the useful detail.
+    expect(await screen.findByRole("alert")).toHaveTextContent("后端失败")
+  })
+
+  it("hides REST send detail in English", async () => {
+    // Given: the REST fallback sender rejects with backend detail.
+    const user = userEvent.setup()
+    chatApi.sendMessage.mockRejectedValue(new ApiError(500, "send failed upstream"))
+    renderChatPage("en-US")
+
+    // When: the user submits a message while the socket cannot send.
+    const composer = await screen.findByPlaceholderText("Say something to 小羽...")
+    await user.type(composer, "hello")
+    await user.click(screen.getByRole("button", { name: "Send" }))
+
+    // Then: only the closed send fallback is visible.
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to send the message.")
+    expect(screen.queryByText("send failed upstream")).not.toBeInTheDocument()
+  })
 })
+
+function renderChatPage(locale: SupportedLocale): i18n {
+  const instance = createI18n()
+  void instance.changeLanguage(locale)
+  document.documentElement.lang = locale
+  render(
+    <I18nextProvider i18n={instance}>
+      <ChatPage />
+    </I18nextProvider>,
+  )
+  return instance
+}

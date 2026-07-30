@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 
 from ai_runtime.storage.data_home import get_elfie_conversations_dir
 from app.features.setup.service import complete_setup_step
+from app.infrastructure.devices import DeviceRegistry
 from app.infrastructure.persistence.elfie_chat_history import (
     ElfieChatMessageInput,
     ElfieChatSender,
@@ -29,7 +30,7 @@ from ._helpers import create_test_owner
 @pytest.fixture
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     db_path = str(tmp_path / "nest.db")
-    monkeypatch.setenv("ELFIE_HOME", str(tmp_path / "elfienest-home"))
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     init_db(db_path)
     create_test_owner(db_path)
     with (
@@ -218,7 +219,10 @@ def test_owner_can_persist_a_safe_default_landing_page(client: TestClient) -> No
 def test_v1_profile_reads_the_persisted_embodiment_state(client: TestClient) -> None:
     csrf_token = _login_owner(client)
     elfie_id = _adopt_elfie(client, csrf_token)
-    begin_hosting(client.app.state.db_path, elfie_id, "simulated-toy", lease_seconds=30)
+    body = DeviceRegistry(client.app.state.db_path).enroll(
+        elfie_id, "模拟身体", "simulated"
+    )
+    begin_hosting(client.app.state.db_path, elfie_id, body.body_id, lease_seconds=30)
 
     profile = client.get(f"/api/v1/elfies/{elfie_id}/profile")
 
@@ -229,24 +233,27 @@ def test_owner_can_enroll_rotate_and_revoke_a_hashed_device_credential(
     client: TestClient,
 ) -> None:
     csrf_token = _login_owner(client)
+    elfie_id = _adopt_elfie(client, csrf_token)
     enrolled = client.post(
         "/api/v1/owner/devices",
-        json={"display_name": "客厅玩具"},
+        json={"elfie_id": elfie_id, "display_name": "客厅玩具", "body_type": "toy"},
         headers={"X-CSRF-Token": csrf_token},
     )
-    device_id = enrolled.json()["device_id"]
+    body_id = enrolled.json()["body_id"]
     original_bearer = enrolled.json()["bearer_token"]
     rotated = client.post(
-        f"/api/v1/owner/devices/{device_id}/rotate",
+        f"/api/v1/owner/devices/{body_id}/rotate?elfie_id={elfie_id}",
         headers={"X-CSRF-Token": csrf_token},
     )
     revoked = client.delete(
-        f"/api/v1/owner/devices/{device_id}",
+        f"/api/v1/owner/devices/{body_id}?elfie_id={elfie_id}",
         headers={"X-CSRF-Token": csrf_token},
     )
 
     assert enrolled.status_code == 200
-    assert original_bearer not in str(client.get("/api/v1/owner/devices").json())
+    assert original_bearer not in str(
+        client.get(f"/api/v1/owner/devices?elfie_id={elfie_id}").json()
+    )
     assert rotated.status_code == 200
     assert rotated.json()["bearer_token"] != original_bearer
     assert revoked.status_code == 200
@@ -256,12 +263,13 @@ def test_device_websocket_routes_typed_sensor_events_and_command_polls(
     client: TestClient,
 ) -> None:
     csrf_token = _login_owner(client)
+    elfie_id = _adopt_elfie(client, csrf_token)
     enrolled = client.post(
         "/api/v1/owner/devices",
-        json={"display_name": "客厅玩具"},
+        json={"elfie_id": elfie_id, "display_name": "客厅玩具", "body_type": "toy"},
         headers={"X-CSRF-Token": csrf_token},
     )
-    device_id = str(enrolled.json()["device_id"])
+    body_id = str(enrolled.json()["body_id"])
     bearer_token = str(enrolled.json()["bearer_token"])
     event = BodySensorEvent(
         event_id=EventId("device-sensor-1"),
@@ -272,13 +280,13 @@ def test_device_websocket_routes_typed_sensor_events_and_command_polls(
         payload=UtteranceFinal(kind="utterance_final", text="听见了吗？"),
     )
     received: list[BodySensorEvent] = []
-    client.app.state.device_gateway.attach_sensor_handler(device_id, received.append)
+    client.app.state.device_gateway.attach_sensor_handler(body_id, received.append)
 
     with client.websocket_connect(
         "/api/v1/ws/devices",
         headers={"Authorization": f"Bearer {bearer_token}"},
     ) as websocket:
-        assert websocket.receive_json()["event"] == "ready"
+        assert websocket.receive_json() == {"event": "ready", "body_id": body_id}
         websocket.send_json(
             {"event": "sensor_event", "sensor_event": event.model_dump(mode="json")}
         )
@@ -296,9 +304,7 @@ def test_device_websocket_routes_typed_sensor_events_and_command_polls(
             capability_revision=1,
             text="你好，玩具。",
         )
-        assert (
-            client.app.state.device_gateway.enqueue_command(device_id, command) is True
-        )
+        assert client.app.state.device_gateway.enqueue_command(body_id, command) is True
         websocket.send_json({"event": "command_poll"})
         command_batch = websocket.receive_json()
 

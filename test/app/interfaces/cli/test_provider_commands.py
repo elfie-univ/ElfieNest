@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from _pytest.capture import CaptureFixture
 
+from app.infrastructure.persistence.account_repository import AccountRepository
+from app.infrastructure.persistence.elfie_repository import ElfieRepository
+from app.infrastructure.persistence.store import get_db, init_db
 from app.interfaces.cli import provider_commands, route_commands
 
 
@@ -108,10 +111,35 @@ def test_show_route_prints_food_policy_without_models(
     capsys: CaptureFixture[str],
 ) -> None:
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    database_path = init_db()
+    with get_db(database_path) as connection:
+        owner_id = AccountRepository(connection).create_owner(
+            username="owner",
+            password_hash="test-hash",
+            nickname="Owner",
+            avatar_color=0,
+        )
+        connection.commit()
+    elfies = ElfieRepository(database_path)
+    elfies.reserve_adoption(
+        elfie_id="00000001",
+        owner_user_id=owner_id,
+        name="Elfie",
+        species="fox",
+        summary=None,
+        max_elfies=3,
+    )
+    elfies.update_foods(
+        "00000001",
+        main_food="premium",
+        emergency_food="coarse",
+        other_foods=("vision", "tool"),
+    )
 
-    route_commands.show_route("elfie_test")
+    route_commands.show_route("00000001")
 
     output = capsys.readouterr().out
-    assert "elfie_test uses the Nest DB Main-food assignment" in output
-    assert "Inspect or change it from the Elfie page" in output
-    assert "model" not in output.lower()
+    assert "00000001 Food Permissions" in output
+    assert "Default food: premium" in output
+    assert "vision" in output
+    assert "Models are managed by Runtime food policy" in output

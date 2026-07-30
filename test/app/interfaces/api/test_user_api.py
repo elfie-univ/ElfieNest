@@ -37,7 +37,7 @@ def db_path(tmp_path: Path) -> str:
 def app(db_path: str, monkeypatch: pytest.MonkeyPatch):
     # 预填充 owner 用户（ lifespan 不再硬编码 owner/ownerchangeme ）
     init_db(db_path)
-    monkeypatch.setenv("ELFIE_HOME", str(Path(db_path).parent / "elfienest-home"))
+    monkeypatch.setenv("ELFIE_HOME", str(Path(db_path).parent))
     create_test_owner(db_path)
 
     with (
@@ -449,7 +449,7 @@ class TestAdoptionInfo:
         user_id = _create_user_via_owner(client, "alice")
         with get_db(db_path) as connection:
             connection.execute(
-                "UPDATE users SET elfie_quota_override = 1 WHERE id = ?", (user_id,)
+                "UPDATE users SET elfie_limit = 1 WHERE id = ?", (user_id,)
             )
             connection.commit()
         tokens = _login_user(client, "alice")
@@ -506,7 +506,8 @@ class TestAdopt:
         data = resp.json()
         assert data["name"] == "小白"
         assert data["species_id"] == "dog"
-        assert data["elfie_id"].startswith("elfie_")
+        assert len(data["elfie_id"]) == 8
+        assert data["elfie_id"].isdigit()
         assert "config_dir" not in data
 
         # 验证精灵出现在列表中
@@ -539,12 +540,13 @@ class TestAdopt:
 
         assert resp.status_code == 201, resp.text
         elfie_id = str(resp.json()["elfie_id"])
-        with get_db(client.app.state.db_path) as conn:
-            row = conn.execute(
-                "SELECT config_dir FROM elfie_registry WHERE elfie_id = ?", (elfie_id,)
-            ).fetchone()
-        assert row is not None
-        profile_path = Path(str(row["config_dir"])) / "profile.yaml"
+        profile_path = (
+            Path(client.app.state.db_path).resolve().parent
+            / "elfies"
+            / elfie_id
+            / "profile"
+            / "profile.yaml"
+        )
         profile = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
         assert profile["appearance"]["macro"]["stature_z"] == -1.6
         assert profile["appearance"]["macro"]["body_fat_z"] == 1.4

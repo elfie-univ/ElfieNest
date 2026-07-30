@@ -72,3 +72,17 @@ def test_secret_rejects_newlines_and_redacts_values(tmp_path):
     with pytest.raises(ValueError):
         set_provider_secret("openai", "bad\nsecret", tmp_path / ".env")
     assert redact_secret("abcdefgh") == "****efgh"
+
+
+def test_secret_store_defaults_to_final_auth_path(monkeypatch, tmp_path):
+    # Given
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+
+    # When
+    set_provider_secret("openai", "local-secret")
+
+    # Then
+    path = tmp_path / "configs" / "auth.env"
+    assert read_secrets(path)["OPENAI_API_KEY"] == "local-secret"
+    if os.name != "nt":
+        assert path.stat().st_mode & 0o777 == 0o600

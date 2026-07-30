@@ -6,6 +6,8 @@ import hashlib
 from dataclasses import replace
 from pathlib import Path
 
+import yaml
+
 from elfie.body import BipedAnatomy, QuadrupedAnatomy
 from elfie.body.native.anatomy.base import SomaticAnatomy
 from elfie.profile import ElfieProfile, ElfieProfileRepository, create_visual_profile
@@ -24,7 +26,9 @@ def assemble_profile(
     repository = ElfieProfileRepository(_profile_source(config_dir))
     if repository.exists():
         return repository.load()
-    sections = repository.load_legacy_sections()
+    if config_dir is not None:
+        raise FileNotFoundError(f"精灵最终档案不存在: {repository.path}")
+    sections = _load_packaged_defaults(repository.config_dir)
     personality = sections["personality"]
     metadata = personality.get("metadata", {})
     appearance = metadata.get("appearance", {}) if isinstance(metadata, dict) else {}
@@ -67,8 +71,20 @@ def assemble_anatomy(
 
 def _profile_source(config_dir: str | None) -> Path:
     if config_dir is not None:
-        return Path(config_dir)
+        return Path(config_dir) / "profile"
     return Path(__file__).resolve().parent / "profile" / "defaults"
+
+
+def _load_packaged_defaults(defaults_dir: Path) -> dict[str, dict]:
+    sections: dict[str, dict] = {}
+    for field_name in ("personality", "capabilities", "system_limits"):
+        path = defaults_dir / f"{field_name}.yaml"
+        with path.open(encoding="utf-8") as handle:
+            raw = yaml.safe_load(handle) or {}
+        if not isinstance(raw, dict):
+            raise ValueError(f"默认精灵配置必须是映射: {path}")
+        sections[field_name] = dict(raw)
+    return sections
 
 
 __all__ = ("assemble_anatomy", "assemble_profile")

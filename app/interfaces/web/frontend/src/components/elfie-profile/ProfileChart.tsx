@@ -1,5 +1,6 @@
 import type { EChartsCoreOption, EChartsType } from "echarts/core"
 import { useEffect, useId, useRef, useState, type ReactNode } from "react"
+import { useTranslation } from "react-i18next"
 
 export type ProfileChartRuntime = {
   readonly init: (element: HTMLElement) => Pick<EChartsType, "dispose" | "resize" | "setOption">
@@ -22,6 +23,7 @@ export function ProfileChart({
   option,
   summary,
 }: ProfileChartProps) {
+  const { t } = useTranslation("chat")
   const summaryId = useId()
   const hostRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<Pick<EChartsType, "dispose" | "resize" | "setOption"> | null>(null)
@@ -69,9 +71,9 @@ export function ProfileChart({
         ref={hostRef}
         role="img"
       />
-      {state === "loading" && <p className="profile-chart__status" role="status">图表加载中…</p>}
+      {state === "loading" && <p className="profile-chart__status" role="status">{t("profile.chart.loading")}</p>}
       {state === "error" && (
-        <p className="profile-chart__status" role="alert">图表暂时无法显示，请参考下方数值。</p>
+        <p className="profile-chart__status" role="alert">{t("profile.chart.error")}</p>
       )}
       <div className="profile-chart__text-alternative" id={summaryId}>{summary}</div>
     </div>

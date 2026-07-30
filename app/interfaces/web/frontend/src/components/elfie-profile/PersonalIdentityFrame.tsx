@@ -1,4 +1,6 @@
 import { Button } from "@/components/ui/button"
+import type { TFunction } from "i18next"
+import { useTranslation } from "react-i18next"
 
 import { Icon } from "../Icon"
 import type { ElfieProfileProjection } from "./projection"
@@ -10,27 +12,21 @@ type PersonalIdentityFrameProps = {
   readonly projection: ElfieProfileProjection
 }
 
-const SPECIES_LABELS: Readonly<Record<string, string>> = {
-  dog: "小狗精灵",
-  fox: "狐狸精灵",
-}
-
-const MISSING_BIOGRAPHY = "这只精灵还没有留下自我介绍。"
-
 export function PersonalIdentityFrame({
   onBack,
   onChat,
   portraitOverride = "",
   projection,
 }: PersonalIdentityFrameProps) {
+  const { t } = useTranslation("chat")
   const profile = projection.publicProfile
-  const species = SPECIES_LABELS[profile.speciesId] ?? profile.speciesId
+  const species = speciesLabel(profile.speciesId, t)
   const gender = normalizedGender(profile.gender)
 
   return (
     <header className="profile-dossier__identity">
       <Button
-        aria-label="返回我的精灵"
+        aria-label={t("profile.identity.back")}
         className="profile-dossier__back"
         onClick={onBack}
         size="icon-sm"
@@ -40,41 +36,44 @@ export function PersonalIdentityFrame({
         <Icon name="chevron-down" />
       </Button>
 
-      <Portrait name={profile.name} portraitUrl={portraitOverride || profile.portraitUrl} />
+      <Portrait name={profile.name} portraitUrl={portraitOverride || profile.portraitUrl} t={t} />
 
       <div className="profile-dossier__identity-copy">
         <p className="profile-dossier__eyebrow">
-          {projection.kind === "adopter" ? "你的精灵" : "精灵资料"}
+          {projection.kind === "adopter" ? t("profile.identity.adopterEyebrow") : t("profile.identity.visitorEyebrow")}
         </p>
         <h1>{profile.name}</h1>
-        <div className="profile-dossier__attributes" aria-label="公开属性">
+        <div className="profile-dossier__attributes" aria-label={t("profile.identity.publicAttributes")}>
           <span>{species}</span>
           {gender === null ? null : <span>{gender}</span>}
         </div>
-        <IdentityMetadata projection={projection} />
+        <IdentityMetadata projection={projection} t={t} />
       </div>
 
       <Button className="profile-dossier__chat" onClick={onChat} type="button">
         <Icon name="messages-square" />
-        进入聊天
+        {t("profile.identity.enterChat")}
       </Button>
 
       <div className="profile-dossier__biography">
-        <span>关于我</span>
-        <p>{profile.biography.trim() || MISSING_BIOGRAPHY}</p>
+        <span>{t("profile.identity.about")}</span>
+        <p>{profile.biography.trim() || t("profile.identity.missingBiography")}</p>
       </div>
     </header>
   )
 }
 
-function IdentityMetadata({ projection }: { readonly projection: ElfieProfileProjection }) {
+function IdentityMetadata({ projection, t }: {
+  readonly projection: ElfieProfileProjection
+  readonly t: TFunction<"chat">
+}) {
   return (
     <dl className="profile-dossier__metadata">
-      <div><dt>领养人</dt><dd>{projection.kind === "adopter" ? <strong>我</strong> : projection.ownerDisplayName}</dd></div>
+      <div><dt>{t("profile.identity.adopter")}</dt><dd>{projection.kind === "adopter" ? <strong>{t("profile.identity.me")}</strong> : projection.ownerDisplayName}</dd></div>
       {projection.kind === "adopter" ? (
         <>
-          <div><dt>领养日期</dt><dd>{projection.adoption.adoptedAt}</dd></div>
-          <div><dt>年龄</dt><dd>{projection.adoption.ageLabel}</dd></div>
+          <div><dt>{t("profile.identity.adoptedAt")}</dt><dd>{displayFallback(projection.adoption.adoptedAt, t)}</dd></div>
+          <div><dt>{t("profile.identity.age")}</dt><dd>{localizedAge(projection.adoption.ageLabel, t)}</dd></div>
           <div><dt>ID</dt><dd>{projection.publicProfile.elfieId}</dd></div>
         </>
       ) : null}
@@ -85,15 +84,36 @@ function IdentityMetadata({ projection }: { readonly projection: ElfieProfilePro
 type PortraitProps = {
   readonly name: string
   readonly portraitUrl: string
+  readonly t: TFunction<"chat">
 }
 
-function Portrait({ name, portraitUrl }: PortraitProps) {
+function Portrait({ name, portraitUrl, t }: PortraitProps) {
   const initial = name.trim().slice(0, 1) || "精"
   return (
-    <span className="profile-dossier__portrait" aria-label={`${name} 的头像`}>
+    <span className="profile-dossier__portrait" aria-label={t("profile.identity.portrait", { name })}>
       {portraitUrl.trim() ? <img alt="" src={portraitUrl} /> : initial}
     </span>
   )
+}
+
+function speciesLabel(speciesId: string, t: TFunction<"chat">): string {
+  switch (speciesId) {
+    case "dog": return t("profile.identity.species.dog")
+    case "fox": return t("profile.identity.species.fox")
+    default: return speciesId
+  }
+}
+
+function displayFallback(value: string, t: TFunction<"chat">): string {
+  return value === "未登记" ? t("profile.identity.notRegistered") : value
+}
+
+function localizedAge(value: string, t: TFunction<"chat">): string {
+  const months = /^(\d+) 个月$/.exec(value)
+  if (months?.[1] !== undefined) return t("profile.identity.months", { count: Number(months[1]) })
+  const years = /^(\d+) 岁$/.exec(value)
+  if (years?.[1] !== undefined) return t("profile.identity.years", { count: Number(years[1]) })
+  return displayFallback(value, t)
 }
 
 function normalizedGender(gender: string | null): string | null {

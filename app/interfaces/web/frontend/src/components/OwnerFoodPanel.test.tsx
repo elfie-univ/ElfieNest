@@ -1,34 +1,297 @@
-import { createElement } from "react"
-import { renderToStaticMarkup } from "react-dom/server"
-import { describe, expect, it } from "vitest"
+import { render, screen, waitFor, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { I18nextProvider } from "react-i18next"
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { FoodRoleTable } from "./FoodRoleTable"
+import {
+  applyFoodUpdate,
+  editFood,
+  ownerFoods,
+  previewFoodUpdate,
+  rollbackFoods,
+  type FoodCatalog,
+  type FoodPreview,
+} from "../api/owner-foods"
+import { ownerProviders } from "../api/owner-providers"
+import { ApiError } from "../api/http"
+import { createI18n } from "../i18n/config"
+import type { SupportedLocale } from "../i18n/locale"
+import { OwnerFoodPanel } from "./OwnerFoodPanel"
 
-describe("Owner food roles", () => {
-  it("renders the five contract roles without model tuning fields", () => {
-    const html = renderToStaticMarkup(createElement(FoodRoleTable, {
-      food: {
-        key: "food_common",
-        display_name: "常用粮",
-        system_role: "common",
-        enabled: true,
-        archived: false,
-        roles: {
-          primary: { model: "openai_api_0001/gpt" },
-          reasoning: null,
-          vision: null,
-          tool: null,
-          fallback: [],
-        },
-        health: "healthy",
-        locality: "remote",
-        latest_evidence_at: "2026-07-30T00:00:00+00:00",
-      },
-    }))
-    for (const role of ["Primary", "Reasoning", "Vision", "Tool", "Fallback"]) {
-      expect(html).toContain(role)
-    }
-    expect(html).not.toContain("Token")
-    expect(html).not.toContain("温度")
+vi.mock("../api/owner-foods", async (loadOriginal) => {
+  const original = await loadOriginal<typeof import("../api/owner-foods")>()
+  return {
+    ...original,
+    applyFoodUpdate: vi.fn(),
+    editFood: vi.fn(),
+    ownerFoods: vi.fn(),
+    previewFoodUpdate: vi.fn(),
+    rollbackFoods: vi.fn(),
+  }
+})
+vi.mock("../api/owner-providers", async (loadOriginal) => {
+  const original = await loadOriginal<typeof import("../api/owner-providers")>()
+  return { ...original, ownerProviders: vi.fn() }
+})
+
+const profile = (model: string, reasoning = "balanced") => ({
+  model,
+  reasoning_profile: reasoning,
+  max_tokens: 1500,
+  temperature: 0.7,
+  tools: [],
+  provider_options: {},
+})
+const standardFood = {
+  key: "standard",
+  display_name: "标准粮",
+  description: "日常默认",
+  primary: profile("ollama/primary"),
+  deep: profile("ollama/deep", "deep"),
+  verifier: profile("ollama/verifier", "verify"),
+  technical_fallbacks: [profile("ollama/fallback", "low")],
+  validation_status: "passed",
+  source: "manual",
+  locked_fields: [],
+}
+const catalog = {
+  version: 2,
+  source_fingerprint: "current",
+  generated_at: "2026-07-26T00:00:00Z",
+  generation_sources: ["manual"],
+  generation_note: "",
+  foods: { standard: standardFood },
+} satisfies FoodCatalog
+const candidate = {
+  ...catalog,
+  version: 3,
+  source_fingerprint: "candidate",
+  foods: {
+    standard: {
+      ...standardFood,
+      primary: profile("ollama/new-primary"),
+      verifier: profile("ollama/new-verifier", "verify"),
+      source: "auto",
+    },
+  },
+} satisfies FoodCatalog
+const preview = {
+  has_changes: true,
+  base_catalog_fingerprint: "current-catalog-fingerprint",
+  generation_sources: ["rules"],
+  advisor_error: null,
+  warnings: [],
+  changes: [{
+    food_key: "standard",
+    change_type: "updated",
+    old_model: "ollama/primary",
+    new_model: "ollama/new-primary",
+    warnings: [],
+  }],
+  current: catalog,
+  candidate,
+} satisfies FoodPreview
+const configuredProviders = [{
+  provider_id: "ollama",
+  name: "Ollama",
+  display_name: "Ollama 本地",
+  api_base: "http://127.0.0.1:11434",
+  api_mode: "ollama",
+  auth_type: "none",
+  test_model: "llama3",
+  configured: true,
+  configuration_status: "configured" as const,
+  verification: { status: "passed" as const, checked_at: null, latency_ms: null, error: null },
+  has_api_key: false,
+  models: [
+    { id: "primary", display_name: "Primary", source: "configured" as const },
+    { id: "deep", display_name: "Deep", source: "configured" as const },
+  ],
+  model_refresh: {},
+  capabilities: {
+    connection_method: "local" as const,
+    oauth_available: false,
+    oauth_unavailable: false,
+    model_discovery: true,
+  },
+}]
+
+describe("OwnerFoodPanel", () => {
+  beforeAll(() => {
+    Element.prototype.hasPointerCapture = vi.fn(() => false)
+    Element.prototype.setPointerCapture = vi.fn()
+    Element.prototype.releasePointerCapture = vi.fn()
+    Element.prototype.scrollIntoView = vi.fn()
+  })
+
+  beforeEach(() => {
+    vi.mocked(ownerFoods).mockResolvedValue(catalog)
+    vi.mocked(ownerProviders).mockResolvedValue(configuredProviders)
+    vi.mocked(previewFoodUpdate).mockResolvedValue(preview)
+    vi.mocked(applyFoodUpdate).mockResolvedValue(candidate)
+    vi.mocked(editFood).mockResolvedValue({ food: standardFood, warnings: [] })
+    vi.mocked(rollbackFoods).mockResolvedValue(catalog)
+  })
+
+  it("expands all execution roles without exposing JSON", async () => {
+    const user = userEvent.setup()
+    renderFoodPanel()
+
+    await user.click(await screen.findByRole("button", { name: "展开 标准粮" }))
+
+    const roles = screen.getByRole("table", { name: "标准粮角色配置" })
+    expect(within(roles).getByRole("row", { name: /主模型.*ollama\/primary/ })).toBeInTheDocument()
+    expect(within(roles).getByRole("row", { name: /深度模型.*ollama\/deep/ })).toBeInTheDocument()
+    expect(within(roles).getByRole("row", { name: /校验模型.*ollama\/verifier/ })).toBeInTheDocument()
+    expect(within(roles).getByRole("row", { name: /技术回退 1.*ollama\/fallback/ })).toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: /JSON/i })).not.toBeInTheDocument()
+  })
+
+  it("edits only the selected recipe inline through grouped role controls", async () => {
+    const user = userEvent.setup()
+    renderFoodPanel()
+
+    await user.click(await screen.findByRole("button", { name: "编辑 标准粮" }))
+    expect(screen.queryByRole("dialog", { name: "编辑 标准粮" })).not.toBeInTheDocument()
+    const inlineEditor = screen.getByRole("group", { name: "编辑 标准粮" })
+    expect(within(inlineEditor).getByRole("combobox", { name: "主模型" })).toBeInTheDocument()
+    expect(within(inlineEditor).getByRole("combobox", { name: "深度模型" })).toBeInTheDocument()
+    expect(within(inlineEditor).getByRole("combobox", { name: "校验模型" })).toBeInTheDocument()
+    expect(within(inlineEditor).getByRole("button", { name: "添加技术回退" })).toBeInTheDocument()
+
+    await user.click(within(inlineEditor).getByRole("combobox", { name: "主模型" }))
+    expect(await screen.findByText("Ollama 本地")).toBeInTheDocument()
+    await user.click(screen.getByRole("option", { name: "Ollama 本地 · Primary" }))
+
+    await user.click(within(inlineEditor).getByRole("button", { name: "保存标准粮" }))
+
+    expect(vi.mocked(editFood)).toHaveBeenCalledWith("standard", expect.objectContaining({ key: "standard" }), "csrf")
+  }, 10_000)
+
+  it("keeps food page actions in the header action slot", async () => {
+    renderFoodPanel()
+
+    const page = await screen.findByRole("region", { name: "粮食策略管理" })
+    const header = within(page).getByRole("group", { name: "粮食页面动作" })
+
+    expect(within(header).getByRole("button", { name: "重新读取" })).toBeInTheDocument()
+    expect(within(header).getByRole("button", { name: "生成更新预览" })).toBeInTheDocument()
+    expect(within(header).getByRole("button", { name: "回滚最近版本" })).toBeInTheDocument()
+  })
+
+  it("keeps generated changes in a diff preview until explicit confirmation", async () => {
+    const user = userEvent.setup()
+    renderFoodPanel()
+
+    await user.click(await screen.findByRole("button", { name: "生成更新预览" }))
+
+    const diff = screen.getByRole("dialog", { name: "粮食更新预览" })
+    expect(within(diff).getByText("ollama/primary → ollama/new-primary")).toBeInTheDocument()
+    expect(within(diff).getByText("ollama/verifier → ollama/new-verifier")).toBeInTheDocument()
+    expect(vi.mocked(applyFoodUpdate)).not.toHaveBeenCalled()
+
+    await user.click(within(diff).getByRole("button", { name: "继续应用" }))
+    await user.click(screen.getByRole("button", { name: "确认应用" }))
+
+    expect(vi.mocked(applyFoodUpdate)).toHaveBeenCalledWith(preview, "csrf")
+  })
+
+  it("restores focus to the preview trigger when the diff closes", async () => {
+    const user = userEvent.setup()
+    renderFoodPanel()
+
+    const trigger = await screen.findByRole("button", { name: "生成更新预览" })
+    await user.click(trigger)
+    await user.click(screen.getByRole("button", { name: "关闭预览" }))
+
+    await waitFor(() => expect(trigger).toHaveFocus())
+  })
+
+  it("discards an expired candidate and requires a fresh preview", async () => {
+    const user = userEvent.setup()
+    vi.mocked(applyFoodUpdate).mockRejectedValueOnce(new ApiError(409, "candidate stale"))
+    renderFoodPanel()
+
+    await user.click(await screen.findByRole("button", { name: "生成更新预览" }))
+    await user.click(screen.getByRole("button", { name: "继续应用" }))
+    await user.click(screen.getByRole("button", { name: "确认应用" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("粮食候选已过期，请重新生成预览。")
+    expect(screen.queryByRole("dialog", { name: "粮食更新预览" })).not.toBeInTheDocument()
+  })
+
+  it("hides REST load detail in English", async () => {
+    // Given: the food endpoint rejects with a Chinese backend detail.
+    vi.mocked(ownerFoods).mockRejectedValue(new ApiError(503, "后端失败"))
+
+    // When: the real panel loads in English.
+    renderFoodPanel("en-US")
+
+    // Then: only the closed load fallback is visible.
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load management data.")
+    expect(screen.queryByText("后端失败")).not.toBeInTheDocument()
+  })
+
+  it("renders English food controls and preserves open work across locale switching", async () => {
+    // Given: the food catalog is open in English with an inline edit and a preview draft.
+    const user = userEvent.setup()
+    const instance = renderFoodPanel("en-US")
+
+    const page = await screen.findByRole("region", { name: "Food strategy management" })
+    expect(within(page).getByRole("button", { name: "Generate update preview" })).toBeInTheDocument()
+    expect(screen.queryByText("生成更新预览")).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Expand 标准粮" }))
+    await user.click(screen.getByRole("button", { name: "Edit 标准粮" }))
+
+    expect(screen.getByRole("group", { name: "Edit 标准粮" })).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Generate update preview" }))
+    expect(screen.getByRole("dialog", { name: "Food update preview" })).toBeInTheDocument()
+
+    // When: the shared locale changes while expanded/editing/preview state exists.
+    await instance.changeLanguage("zh-CN")
+
+    // Then: state remains intact while visible chrome moves to Chinese.
+    expect(screen.getByRole("dialog", { name: "粮食更新预览" })).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "关闭预览" }))
+    expect(screen.getByRole("group", { name: "编辑 标准粮" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "收起 标准粮" })).toBeInTheDocument()
+  })
+
+  it("preserves REST load detail in Chinese", async () => {
+    // Given: the food endpoint rejects with useful backend detail.
+    vi.mocked(ownerFoods).mockRejectedValue(new ApiError(503, "后端失败"))
+
+    // When: the real panel loads in Chinese.
+    renderFoodPanel("zh-CN")
+
+    // Then: the detail remains visible.
+    expect(await screen.findByRole("alert")).toHaveTextContent("后端失败")
+  })
+
+  it("removes an already-visible Chinese backend detail after switching to English", async () => {
+    vi.mocked(ownerFoods).mockRejectedValue(new ApiError(503, "后端失败"))
+    const instance = renderFoodPanel("zh-CN")
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("后端失败")
+
+    await instance.changeLanguage("en-US")
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Unable to load management data.")
+    expect(screen.queryByText("后端失败")).not.toBeInTheDocument()
   })
 })
+
+function renderFoodPanel(locale: SupportedLocale = "zh-CN"): ReturnType<typeof createI18n> {
+  const instance = createI18n()
+  void instance.changeLanguage(locale)
+  document.documentElement.lang = locale
+  document.documentElement.dir = "ltr"
+  render(
+    <I18nextProvider i18n={instance}>
+      <OwnerFoodPanel csrfToken="csrf" />
+    </I18nextProvider>,
+  )
+  return instance
+}

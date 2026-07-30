@@ -14,7 +14,7 @@ absence makes the Runtime `degraded`, not an excuse to replace the authority
 or to create a private model sidecar. `status --json` reports the closed
 component set (`core`, `gateway`, `godot_authority`, `ollama`) and the lifecycle
 state. The Supervisor writes the current receipt to
-`${ELFIE_HOME:-~/.elfienest}/runtime.json`.
+`<selected-data-home>/runtime.json`.
 
 The authority host is selected by `godot_runtime/` without Nest state, scene
 data or protocol credentials:
@@ -93,33 +93,42 @@ particular installer has been built or installed.
 
 | Type | Location | Committed? |
 | --- | --- | --- |
-| User configuration, databases, Elfie profiles, local keys and Runtime receipt | `${ELFIE_HOME:-~/.elfienest}` | No |
+| User configuration, databases, Elfie profiles, local keys and Runtime receipt | Selected product data root | No |
 | Reproducible intermediate artifacts | `build/` | No |
 | Final release artifacts | `dist/` | No |
 | Public documentation source | `docs/` | Yes |
 
 ## Production directory contract
 
+Installed runs default to `~/.elfienest`; source and worktree runs default to
+`<current-worktree>/.elfienest.local`. `--data-home PATH` and `ELFIE_HOME` may
+override those defaults, and all lifecycle receipts and product data follow the
+one selected root.
+
 A single computer has one production Nest root:
-`${ELFIE_HOME:-~/.elfienest}`. The root holds Nest-level facts such as
-`nest.db`, configuration, reports, Runtime state and logs. `nest.db` only stores
-accounts, permissions, Elfie registration/ownership, the Nest world and Runtime
-state; it does not accept new chat messages.
-
-Provider, model, food, tool, credential, report and Runtime-receipt ownership is
-defined only by the
-[AI Runtime design contract](./architecture-ai-runtime). That contract also owns
-the complete production directory tree and the rule that each persisted fact
-has exactly one typed writer. This page does not duplicate those schemas.
-
-Sensitive directories are created with owner-only permissions. Obsolete
-development schemas are not implicit fallback sources; before v0.5, temporary
-data homes are rebuilt instead of adding permanent dual-read or dual-write
-compatibility.
+`${ELFIE_HOME:-~/.elfienest}`. `nest.db` contains exactly the eight final
+Nest-level tables for users, sessions, installation/setup, Nest settings,
+Elfies, external bodies, body audit events and embodiment leases. Chat and
+memory never use the root database.
 
 Each Elfie uses an immutable `elfie_id` as its workspace name. Display names may
-change, but the directory must never move. Its exact location is part of the
-same AI Runtime data contract.
+change, but the directory must never move:
+
+```text
+${ELFIE_HOME:-~/.elfienest}/
+├── nest.db                         # final eight Nest-level tables
+├── configs/                        # runtime/auth/food configuration
+├── reports/                        # model evidence and validation reports
+├── assets/users/<user_id>/         # avatar and isolated local files
+├── runtime/                        # runtime.json and locks
+├── logs/                           # runtime events and token usage
+└── elfies/
+    └── <8-digit-elfie_id>/          # stable ID, never a mutable name
+        ├── profile/profile.yaml
+        ├── assets/ godot/ skills/
+        ├── conversations/history.sqlite # final seven chat tables
+        └── memory/knowledge.sqlite      # final nine knowledge tables
+```
 
 `history.sqlite` records sessions, channels, senders, user relationships, text,
 metadata and attachment references. It does not build user-view local chat
@@ -147,10 +156,10 @@ Developer Tools defaults to an independent root
 `runtime_lab/` underneath must never fall back to reading the production root.
 Tests should set both a temporary `ELFIE_HOME` and `ELFIE_DEV_HOME`.
 
-`nest.db.chat_messages` is a deprecated table left over from the unreleased
-phase. A database upgrade deletes it outright; no compatibility read, copy or
-migration path is provided. New chat lives only inside the corresponding Elfie
-workspace.
+Old roots and schemas are rejected before the application writes anything.
+Back up and rebuild the selected data root; there is no compatibility read,
+copy, replay, dual write or automatic migration path. New chat lives only
+inside the corresponding Elfie workspace.
 
 ## Internal contracts
 

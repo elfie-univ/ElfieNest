@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button"
+import { useTranslation } from "react-i18next"
 
 import { Avatar } from "../Avatar"
 import { Icon } from "../Icon"
@@ -19,42 +20,42 @@ type ElfieListProps = {
   readonly viewerAccountId: string
 }
 
-const FILTERS = [
-  { key: "all", label: "全部" },
-  { key: "mine", label: "我的" },
-  { key: "other", label: "其他" },
-] as const
+const FILTERS = ["all", "mine", "other"] as const
 
 export function ElfieList({
   filter, items, onChat, onFilterChange, onProfile, query, selectedId, viewerAccountId,
 }: ElfieListProps) {
+  const { t } = useTranslation("chat")
   const result = filterElfieList(items, viewerAccountId, query, filter)
   return (
     <div className="elfie-list">
-      <div aria-label="精灵范围" className="elfie-list__filters" role="group">
-        {FILTERS.map((option) => (
+      <div aria-label={t("profile.list.scope")} className="elfie-list__filters" role="group">
+        {FILTERS.map((option) => {
+          const label = t(`profile.list.${option}`)
+          return (
           <Button
-            aria-label={`${option.label} ${result.counts[option.key]}`}
-            aria-pressed={filter === option.key}
+            aria-label={t("profile.list.filterLabel", { count: result.counts[option], label })}
+            aria-pressed={filter === option}
             className="elfie-list__filter"
-            key={option.key}
-            onClick={() => onFilterChange(option.key)}
+            key={option}
+            onClick={() => onFilterChange(option)}
             size="sm"
             type="button"
             variant="ghost"
           >
-            {option.label} <span>{result.counts[option.key]}</span>
+            {label} <span>{result.counts[option]}</span>
           </Button>
-        ))}
+          )
+        })}
       </div>
       <div className="elfie-list__scroll">
         {result.groups.map((group) => (
-          <section className="elfie-list__group" key={group.label}>
-            <h2>{group.label}</h2>
+          <section className="elfie-list__group" key={group.kind}>
+            <h2>{group.kind === "mine" ? t("profile.list.mineGroup") : t("profile.list.otherGroup")}</h2>
             {group.items.map((item) => (
               <article className="elfie-list__row" key={item.profile.elfie_id}>
                 <Button
-                  aria-label={`查看 ${item.profile.name} 的个人档案`}
+                  aria-label={t("profile.list.openProfile", { name: item.profile.name })}
                   className={item.profile.elfie_id === selectedId
                     ? "elfie-list__profile elfie-list__profile--active"
                     : "elfie-list__profile"}
@@ -69,7 +70,7 @@ export function ElfieList({
                   </span>
                 </Button>
                 <Button
-                  aria-label={`与 ${item.profile.name} 聊天`}
+                  aria-label={t("profile.list.chatWith", { name: item.profile.name })}
                   className="elfie-list__chat"
                   onClick={() => onChat(item.profile.elfie_id)}
                   size="icon-sm"
@@ -83,7 +84,7 @@ export function ElfieList({
           </section>
         ))}
         {result.visibleCount === 0 ? (
-          <p className="elfie-list__empty" role="status">没有符合条件的精灵。请清除搜索或切换筛选。</p>
+          <p className="elfie-list__empty" role="status">{t("profile.list.empty")}</p>
         ) : null}
       </div>
     </div>

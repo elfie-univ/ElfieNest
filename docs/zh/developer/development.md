@@ -89,10 +89,41 @@ pre-commit 与 CI 还会运行 Gitleaks。不要用 `--no-verify` 绕过密钥�
 
 ## 产品 Web 与局域网模式
 
-Core 提供四个同源页面：本机首启的 `/setup`，以及 `/login`、`/chat` 与 `/manage`。
+Core 提供五个同源产品页面：本机首启的 `/setup`，以及 `/login`、`/chat`、`/manage`
+与 `/monitor`。
 首次 Owner 只能经本机或 Electron 回环服务创建；完成后，同网段设备直接进入登录页。
 普通用户固定进入聊天页，`/manage` 在服务端重定向到 `/chat`。Owner 默认进入管理页，
 并可将自己的默认页改为聊天页。
+
+### Web 多语言契约
+
+产品 Web 界面支持简体中文（`zh-CN`）与美式英文（`en-US`）。初始化语言按以下
+顺序确定：
+
+1. 本地存储键 `elfienest.locale` 中的有效值；
+2. `navigator.languages` 里第一个受支持的匹配项（`zh-*` 归一为 `zh-CN`，
+   `en-*` 归一为 `en-US`）；
+3. 两者均不支持或不可用时回退中文。
+
+无效的已存语言会被移除。切换语言会立即更新 i18n 实例以及文档的 `lang`/`dir`
+元数据，并在浏览器存储可用时持久化闭集 locale。该偏好只属于 Web 展示层：不会
+改变会话、URL、已选实体、草稿、Setup 进度或已保存的配色主题。
+
+产品自有的标签、操作、帮助文案、校验文案和无障碍名称必须进入带类型约束的
+`common`、`auth`、`setup`、`account`、`chat`、`manage` 或 `monitor` 资源。用户内容、
+后端业务数据、ID、供应商/模型名称和原始协议 payload 不翻译。英文错误界面不会
+直接显示任意后端 `detail`，而是按闭集操作码显示本地化回退文案；中文可在后端
+detail 非空且更利于本机诊断时保留它。
+
+Electron 原生应用菜单单独跟随操作系统语言，使用相同的中英文闭集，不支持的系统
+语言回退中文。它不读取 `elfienest.locale`，原生菜单与 Web 语言切换器之间没有
+preload、IPC 或存储桥。
+
+多语言验收覆盖 `/setup`、`/login`、`/chat`、`/manage`、`/monitor` 五个路由，
+两种语言分别检查 375、768、1280 CSS 像素宽度；另检查移动端与桌面端 200% 缩放、
+纯键盘切换、长英文、离线/错误、刷新、深链，以及 `warm-paper`、`harbor-blue`、
+`orchid-archive`、`moss-green` 四种主题 smoke。切换语言后不得出现页面级横向滚动、
+裁切、焦点丢失或产品状态丢失。
 
 聊天页通过同源 `/api/v1/ws/chat` 使用与 REST 相同的会话认证。用户消息会获得实时确认；
 运行时产生的精灵回复先写入聊天历史，再桥接给该精灵所属用户的同源聊天连接，因此刷新后
@@ -123,7 +154,8 @@ LAN 不会放宽账户、角色、CSRF、Host/Origin 或设备凭证检查。安
 排入已连接设备的下一次 `command_poll`。设备凭证只在登记或轮换时显示一次，不能写入
 浏览器日志、测试夹具或版本库。
 
-当前阶段的产品验收聚焦 `/setup`、`/login`、`/chat`、`/manage`、Electron 登录入口和移动浏览器。
+当前阶段的产品验收聚焦 `/setup`、`/login`、`/chat`、`/manage`、`/monitor`、
+Electron 登录入口和移动浏览器。
 设备—具身 lease—能力声明的 Owner 配置、设备节流策略以及真实安装包 staging/双客户端
 自动化仍保留二期；产品旧单页控制台已经退役。
 

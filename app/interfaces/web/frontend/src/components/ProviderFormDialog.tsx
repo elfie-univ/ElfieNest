@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button"
 import { useEffect, useState, type FormEvent } from "react"
+import { useTranslation } from "react-i18next"
 
 import type {
   ProviderConnection,
@@ -17,14 +18,19 @@ type ProviderFormDialogProps = {
   readonly product: ProviderProduct | null
 }
 
-export function ProviderFormDialog({
-  connection,
-  onOpenChange,
-  onSave,
-  open,
-  product,
-}: ProviderFormDialogProps) {
-  const [alias, setAlias] = useState("")
+type EditableModel = { readonly key: number; readonly id: string; readonly displayName: string }
+
+function initialModels(provider: ProviderView): readonly EditableModel[] {
+  const source = provider.models.length > 0
+    ? provider.models
+    : [{ id: "", display_name: "" } satisfies ProviderModelDraft]
+  return source.map((model, index) => ({ key: index, id: model.id, displayName: model.display_name }))
+}
+
+export function ProviderFormDialog({ onOpenChange, onSave, open, provider }: ProviderFormDialogProps) {
+  const { t } = useTranslation("manage")
+  const [displayName, setDisplayName] = useState("")
+  const [apiBase, setApiBase] = useState("")
   const [apiKey, setApiKey] = useState("")
   const [pending, setPending] = useState(false)
 
@@ -34,9 +40,12 @@ export function ProviderFormDialog({
     setApiKey("")
   }, [connection, open, product])
 
-  if (!product) return null
-  const method = product.connection_method
-  const title = `${connection ? "修改" : "配置"} ${product.name}`
+  if (!provider) return null
+  const method = provider.capabilities.connection_method
+  const title = t(provider.configured ? "providers.form.titleEdit" : "providers.form.titleConfigure", { name: provider.name })
+  const updateModel = (key: number, field: "id" | "displayName", value: string): void => {
+    setModels((current) => current.map((model) => model.key === key ? { ...model, [field]: value } : model))
+  }
   const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault()
     setPending(true)
@@ -53,40 +62,68 @@ export function ProviderFormDialog({
 
   return <ManageDialog
     contentClassName="provider-form-dialog"
-    description={method === "local"
-      ? "连接本机模型服务，保存后自动读取模型。"
-      : "地址、协议与认证方式由内置目录维护；密钥只保存在本机。"}
+    description={t(method === "local" ? "providers.form.descriptionLocal" : "providers.form.descriptionRemote")}
     onOpenChange={onOpenChange}
     open={open}
     title={title}
   >
     <form className="provider-form" onSubmit={(event) => { void submit(event) }}>
-      <TextField
-        hint="可选；配置同一品牌的多个账号时，用别名区分。"
-        label="订阅别名"
-        onChange={setAlias}
-        placeholder={product.name}
-        value={alias}
-      />
-      {method === "api_key" ? <TextField
-        autoComplete="new-password"
-        autoFocus
-        hint={connection ? "留空表示保留本机现有密钥。" : "保存后会自动验证并读取模型清单。"}
-        label="API 密钥"
-        onChange={setApiKey}
-        required={!connection}
-        type="password"
-        value={apiKey}
-      /> : null}
-      {method === "oauth" ? <p className="provider-form__unavailable" role="status">
-        {product.oauth_available ? "保存后将打开官方登录授权页面。" : "这个产品的登录授权尚未接入。"}
-      </p> : null}
-      <div className="manage-actions">
-        <Button disabled={pending || (method === "oauth" && !product.oauth_available)} type="submit">
-          {pending ? "保存并验证中…" : connection ? "保存配置" : "验证并保存"}
-        </Button>
-        <Button variant="outline" disabled={pending} onClick={() => onOpenChange(false)} type="button">取消</Button>
-      </div>
+      <div className="provider-form__identity"><span>{t("providers.form.providerId")}</span><code>{provider.provider_id}</code></div>
+      {method === "oauth" && provider.capabilities.oauth_unavailable
+        ? <p className="provider-form__unavailable" role="status">{t("providers.form.oauthUnavailable")}</p>
+        : <>
+          <TextField label={t("providers.form.displayName")} onChange={setDisplayName} value={displayName} />
+          <TextField
+            hint={t(method === "local" ? "providers.form.apiBaseLocalHint" : "providers.form.apiBaseHint")}
+            label="API Base URL"
+            onChange={setApiBase}
+            required
+            type="url"
+            value={apiBase}
+          />
+          {method === "api_key" ? <TextField
+            autoComplete="new-password"
+            hint={t(provider.configured ? "providers.form.apiKeyConfiguredHint" : "providers.form.apiKeyNewHint")}
+            label={t("providers.form.apiKey")}
+            onChange={setApiKey}
+            required={!provider.configured}
+            type="password"
+            value={apiKey}
+          /> : null}
+          <SelectField
+            disabled
+            label={t("providers.form.authType")}
+            onValueChange={() => undefined}
+            options={[
+              { label: t("providers.custom.noAuth"), value: "none" },
+              { label: "Bearer", value: "bearer" },
+              { label: "X-API-Key", value: "x-api-key" },
+            ]}
+            value={provider.auth_type}
+          />
+          <TextField hint={t("providers.form.testModelHint")} label={t("providers.form.testModel")} onChange={setTestModel} value={testModel} />
+          <fieldset className="provider-model-editor">
+            <legend>{t("providers.form.models")}</legend>
+            {models.map((model, index) => <div className="provider-model-editor__row" key={model.key}>
+              <TextField label={t("providers.form.modelId", { number: index + 1 })} onChange={(value) => updateModel(model.key, "id", value)} value={model.id} />
+              <TextField label={t("providers.form.modelDisplayName", { number: index + 1 })} onChange={(value) => updateModel(model.key, "displayName", value)} value={model.displayName} />
+              <Button variant="outline"
+                aria-label={t("providers.form.removeModel", { name: model.id || model.key + 1 })}
+                disabled={models.length === 1}
+                onClick={() => setModels((current) => current.filter((item) => item.key !== model.key))}
+                type="button"
+              >{t("providers.actions.delete")}</Button>
+            </div>)}
+            <Button variant="outline"
+              onClick={() => setModels((current) => [...current, { key: Math.max(-1, ...current.map((item) => item.key)) + 1, id: "", displayName: "" }])}
+              type="button"
+            >{t("providers.form.addModel")}</Button>
+          </fieldset>
+          <div className="manage-actions">
+            <Button disabled={pending} type="submit">{pending ? t("providers.actions.saving") : t("providers.actions.save")}</Button>
+            <Button variant="outline" disabled={pending} onClick={() => onOpenChange(false)} type="button">{t("providers.actions.cancel")}</Button>
+          </div>
+        </>}
     </form>
   </ManageDialog>
 }

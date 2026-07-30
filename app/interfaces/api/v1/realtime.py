@@ -7,8 +7,11 @@ from typing import Any, Dict, Set
 
 from fastapi import WebSocket
 
+from ai_runtime.storage.data_home import data_home_from_db_path
 from app.infrastructure.persistence.elfie_chat_history import list_elfie_chat_history
-from app.infrastructure.persistence.store import get_db
+from app.infrastructure.persistence.runtime_query_repository import (
+    RuntimeQueryRepository,
+)
 
 
 class SameOriginChatHub:
@@ -38,7 +41,11 @@ class SameOriginChatHub:
         owner_id = self._owner_id(elfie_id)
         if owner_id is None:
             return
-        history = list_elfie_chat_history(elfie_id, user_id=owner_id)
+        history = list_elfie_chat_history(
+            elfie_id,
+            user_id=owner_id,
+            data_home=data_home_from_db_path(self._db_path),
+        )
         latest = next(
             (
                 message
@@ -79,9 +86,4 @@ class SameOriginChatHub:
             await self.disconnect(user_id, socket)
 
     def _owner_id(self, elfie_id: str) -> int | None:
-        with get_db(self._db_path) as connection:
-            row = connection.execute(
-                "SELECT owner_user_id FROM elfie_registry WHERE elfie_id = ?",
-                (elfie_id,),
-            ).fetchone()
-        return int(row["owner_user_id"]) if row is not None else None
+        return RuntimeQueryRepository(self._db_path).owner_id_for_elfie(elfie_id)

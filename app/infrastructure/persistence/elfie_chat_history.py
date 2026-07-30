@@ -1,4 +1,4 @@
-"""单精灵工作区的持久化聊天历史。"""
+"""Persist public Elfie chat DTOs in the final per-Elfie history store."""
 
 from __future__ import annotations
 
@@ -9,13 +9,25 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Iterator
+from typing import Final, Iterator
 
 from ai_runtime.storage.data_home import get_elfie_conversations_dir
+from app.infrastructure.persistence.elfie_chat_history_queries import (
+    select_history_rows,
+    select_source_message,
+)
+from app.infrastructure.persistence.elfie_chat_history_support import (
+    ensure_chat_conversation,
+)
+from app.infrastructure.persistence.history_schema import (
+    HISTORY_FILENAME,
+    create_history_schema,
+)
+from app.infrastructure.persistence.sqlite_connection import app_sqlite_connection
 
 
 class ElfieChatSender(str, Enum):
-    """精灵会话中可持久化的发送方类型。"""
+    """Public sender values consumed by existing chat clients."""
 
     USER = "user"
     ELFIE = "elfie"
@@ -23,7 +35,7 @@ class ElfieChatSender(str, Enum):
 
 
 class ElfieChatHistoryRange(str, Enum):
-    """精灵聊天历史的时间窗口。"""
+    """Public history time windows."""
 
     ALL = "all"
     LAST_15_MINUTES = "15m"
@@ -33,7 +45,7 @@ class ElfieChatHistoryRange(str, Enum):
 
 @dataclass(frozen=True)
 class ElfieChatPersistenceError(RuntimeError):
-    """已提交的精灵聊天消息无法重新读取。"""
+    """A committed chat source key could not be read back."""
 
     message_id: str
 
@@ -43,7 +55,7 @@ class ElfieChatPersistenceError(RuntimeError):
 
 @dataclass(frozen=True)
 class ElfieChatMessageInput:
-    """写入精灵聊天历史的不可变消息。"""
+    """Immutable public message input shared by HTTP and WebSocket callers."""
 
     message_id: str
     conversation_id: str
@@ -58,7 +70,7 @@ class ElfieChatMessageInput:
 
 @dataclass(frozen=True)
 class ElfieChatMessageRecord:
-    """精灵聊天历史中的已持久化消息。"""
+    """Public record shape retained while the backing schema changes."""
 
     id: int
     message_id: str
@@ -72,45 +84,74 @@ class ElfieChatMessageRecord:
     attachment_refs_json: str
 
 
+_STORAGE_SENDERS: Final = {
+    ElfieChatSender.USER: ("external", "inbound"),
+    ElfieChatSender.ELFIE: ("self", "outbound"),
+    ElfieChatSender.SYSTEM: ("internal", "internal"),
+}
+_PUBLIC_SENDERS: Final = {
+    "external": ElfieChatSender.USER,
+    "self": ElfieChatSender.ELFIE,
+    "internal": ElfieChatSender.SYSTEM,
+}
+
+
 def record_elfie_chat_message(
     elfie_id: str,
     message: ElfieChatMessageInput,
     *,
     data_home: Path | None = None,
 ) -> ElfieChatMessageRecord:
-    """追加消息；对相同消息 ID 的重试返回原有记录。"""
+    """Append once by channel/source key and return the stable public record."""
     created_at = message.created_at or _utc_now_iso()
-    attachment_refs_json = json.dumps(message.attachment_refs, ensure_ascii=False)
-    with _open_history(elfie_id, data_home) as connection:
-        _initialize_schema(connection)
+    db_path = _history_path(elfie_id, data_home)
+    create_history_schema(db_path)
+    with _open_history(db_path) as connection:
+        self_account_id, external_account_id, storage_conversation_id = (
+            ensure_chat_conversation(
+                connection,
+                elfie_id=elfie_id,
+                conversation_id=message.conversation_id,
+                channel=message.channel,
+                user_id=message.user_id,
+                created_at=created_at,
+                needs_external_account=(
+                    message.sender is ElfieChatSender.USER
+                    or message.user_id is not None
+                ),
+            )
+        )
+        sender_type, direction = _STORAGE_SENDERS[message.sender]
         connection.execute(
-            """
-            INSERT OR IGNORE INTO messages (
-                message_id, conversation_id, sender, text, channel, created_at,
-                user_id, meta, attachment_refs_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
+            """INSERT OR IGNORE INTO messages (
+                   message_id, conversation_id, channel, source_message_key,
+                   sender_type, self_account_id, channel_account_id, direction,
+                   message_type, text, created_at, ingested_at, meta_json
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'text', ?, ?, ?, ?)""",
             (
                 message.message_id,
-                message.conversation_id,
-                message.sender.value,
-                message.text,
+                storage_conversation_id,
                 message.channel,
+                message.message_id,
+                sender_type,
+                self_account_id if message.sender is ElfieChatSender.ELFIE else None,
+                external_account_id if message.sender is ElfieChatSender.USER else None,
+                direction,
+                message.text,
                 created_at,
-                message.user_id,
-                message.meta,
-                attachment_refs_json,
+                _utc_now_iso(),
+                _encode_meta(message),
             ),
         )
+        connection.execute(
+            """UPDATE conversations SET last_message_at =
+                   CASE WHEN last_message_at IS NULL OR last_message_at < ?
+                        THEN ? ELSE last_message_at END
+               WHERE conversation_id = ?""",
+            (created_at, created_at, storage_conversation_id),
+        )
         connection.commit()
-        row = connection.execute(
-            """
-            SELECT rowid AS id, message_id, conversation_id, sender, text, channel, created_at,
-                   user_id, meta, attachment_refs_json
-            FROM messages WHERE message_id = ?
-            """,
-            (message.message_id,),
-        ).fetchone()
+        row = select_source_message(connection, message.channel, message.message_id)
     if row is None:
         raise ElfieChatPersistenceError(message.message_id)
     return _row_to_record(row)
@@ -127,103 +168,68 @@ def list_elfie_chat_history(
     now: datetime | None = None,
     data_home: Path | None = None,
 ) -> list[ElfieChatMessageRecord]:
-    """按时间顺序读取一只精灵的全部或指定会话消息。"""
-    history_path = _history_path(elfie_id, data_home)
-    if not history_path.exists():
+    """Read final messages through the unchanged public filters and ordering."""
+    db_path = _history_path(elfie_id, data_home)
+    if not db_path.exists():
         return []
-    with _open_history(elfie_id, data_home) as connection:
-        _initialize_schema(connection)
-        clauses: list[str] = []
-        parameters: list[str | int] = []
-        if conversation_id is not None:
-            clauses.append("conversation_id = ?")
-            parameters.append(conversation_id)
-        if user_id is not None:
-            clauses.append("user_id = ?")
-            parameters.append(user_id)
-        range_start = _range_start(history_range, now or datetime.now(timezone.utc))
-        if range_start is not None:
-            clauses.append("created_at >= ?")
-            parameters.append(range_start)
-        normalized_keyword = keyword.strip()
-        if normalized_keyword:
-            pattern = f"%{normalized_keyword}%"
-            clauses.append(
-                "(text LIKE ? OR meta LIKE ? OR sender LIKE ? OR channel LIKE ?)"
-            )
-            parameters.extend((pattern, pattern, pattern, pattern))
-        parameters.append(max(1, min(200, limit)))
-        where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-        rows = connection.execute(
-            f"""
-            SELECT rowid AS id, message_id, conversation_id, sender, text, channel,
-                   created_at, user_id, meta, attachment_refs_json
-            FROM messages {where_clause}
-            ORDER BY created_at ASC, message_id ASC LIMIT ?
-            """,
-            tuple(parameters),
-        ).fetchall()
+    create_history_schema(db_path)
+    range_start = _range_start(history_range, now or datetime.now(timezone.utc))
+    with _open_history(db_path) as connection:
+        rows = select_history_rows(
+            connection,
+            conversation_id=conversation_id,
+            user_id=user_id,
+            range_start=range_start,
+            keyword=keyword,
+            limit=limit,
+        )
     return [_row_to_record(row) for row in rows]
 
 
-def _history_path(elfie_id: str, data_home: Path | None) -> Path:
-    default_conversations_dir = get_elfie_conversations_dir(elfie_id)
-    if data_home is None:
-        return default_conversations_dir / "history.sqlite"
-    return data_home / "elfies" / elfie_id / "conversations" / "history.sqlite"
-
-
-@contextmanager
-def _open_history(
-    elfie_id: str, data_home: Path | None
-) -> Iterator[sqlite3.Connection]:
-    history_path = _history_path(elfie_id, data_home)
-    history_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    connection = sqlite3.connect(str(history_path))
-    connection.row_factory = sqlite3.Row
-    try:
-        yield connection
-    finally:
-        connection.close()
-
-
-def _initialize_schema(connection: sqlite3.Connection) -> None:
-    connection.execute(
-        """
-        CREATE TABLE IF NOT EXISTS messages (
-            message_id TEXT PRIMARY KEY,
-            conversation_id TEXT NOT NULL,
-            sender TEXT NOT NULL CHECK(sender IN ('user', 'elfie', 'system')),
-            text TEXT NOT NULL,
-            channel TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            user_id INTEGER,
-            meta TEXT NOT NULL DEFAULT '',
-            attachment_refs_json TEXT NOT NULL DEFAULT '[]'
-        )
-        """
-    )
-    connection.execute(
-        """
-        CREATE INDEX IF NOT EXISTS idx_messages_conversation_time
-        ON messages(conversation_id, created_at, message_id)
-        """
-    )
-
-
 def _row_to_record(row: sqlite3.Row) -> ElfieChatMessageRecord:
+    metadata = json.loads(str(row["meta_json"]))
+    user_id_value = metadata.get("user_id")
+    attachment_refs = metadata.get("attachment_refs", [])
     return ElfieChatMessageRecord(
         id=int(row["id"]),
         message_id=str(row["message_id"]),
-        conversation_id=str(row["conversation_id"]),
-        sender=ElfieChatSender(str(row["sender"])),
-        text=str(row["text"]),
+        conversation_id=str(row["external_thread_id"]),
+        sender=_PUBLIC_SENDERS[str(row["sender_type"])],
+        text=str(row["text"] or ""),
         channel=str(row["channel"]),
         created_at=str(row["created_at"]),
-        user_id=int(row["user_id"]) if row["user_id"] is not None else None,
-        meta=str(row["meta"]),
-        attachment_refs_json=str(row["attachment_refs_json"]),
+        user_id=int(user_id_value) if user_id_value is not None else None,
+        meta=str(metadata.get("meta", "")),
+        attachment_refs_json=json.dumps(attachment_refs, ensure_ascii=False),
     )
+
+
+def _encode_meta(message: ElfieChatMessageInput) -> str:
+    return json.dumps(
+        {
+            "attachment_refs": list(message.attachment_refs),
+            "meta": message.meta,
+            "user_id": message.user_id,
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+
+def _history_path(elfie_id: str, data_home: Path | None) -> Path:
+    default_dir = get_elfie_conversations_dir(elfie_id)
+    conversations_dir = (
+        default_dir
+        if data_home is None
+        else data_home / "elfies" / elfie_id / "conversations"
+    )
+    return conversations_dir / HISTORY_FILENAME
+
+
+@contextmanager
+def _open_history(db_path: Path) -> Iterator[sqlite3.Connection]:
+    with app_sqlite_connection(db_path) as connection:
+        yield connection
 
 
 def _utc_now_iso() -> str:

@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from typing import Dict, List
 
-from .graph_storage import GraphStorage
+from .memory_store import MemoryStore
 from .node_types import EdgeTypes, MemoryNode, NodeTypes, RetrievalQuery
 
 logger = logging.getLogger("elfie.brain.memory.retrieval")
@@ -13,7 +13,7 @@ logger = logging.getLogger("elfie.brain.memory.retrieval")
 class MemoryRetriever:
     """多维检索引擎：从多个入口检索相关记忆"""
 
-    def __init__(self, storage: GraphStorage):
+    def __init__(self, storage: MemoryStore):
         self.storage = storage
 
     def retrieve(self, query: RetrievalQuery, top_k: int = 10) -> List[MemoryNode]:
@@ -48,8 +48,12 @@ class MemoryRetriever:
         return self._merge_and_deduplicate(result_lists, top_k)
 
     def retrieve_by_text(self, text_query: str, top_k: int = 5) -> List[MemoryNode]:
-        """文字检索：调用storage.search_by_content"""
-        results = self.storage.search_by_content(text_query, top_k)
+        """文字检索：仅返回可公开召回的情景记忆。"""
+        results = self.storage.search_by_content(
+            text_query,
+            top_k,
+            node_type=NodeTypes.EPISODIC.value,
+        )
         nodes: List[MemoryNode] = []
         for node_id, score in results:
             node = self.storage.get_node(node_id)
@@ -168,21 +172,17 @@ class MemoryRetriever:
         遍历每个(感官类型, 关键词)对，在sensory_index中匹配，
         累计匹配到的权重，返回权重最高的节点。
         """
-        cursor = self.storage.conn.cursor()
         scored: Dict[str, float] = {}
-
-        for sense_type, sense_key in sensory.items():
-            if not sense_key:
+        for node in self.storage.get_nodes_by_type(
+            NodeTypes.EPISODIC.value, limit=1000
+        ):
+            indexed = node.metadata.get("sensory", {})
+            if not isinstance(indexed, dict):
                 continue
-            cursor.execute(
-                """SELECT node_id, weight FROM sensory_index
-                   WHERE sense_type=? AND sense_key LIKE ?""",
-                (sense_type, f"%{sense_key}%"),
-            )
-            for row in cursor.fetchall():
-                node_id = row["node_id"]
-                weight = row["weight"]
-                scored[node_id] = scored.get(node_id, 0.0) + weight
+            for sense_type, sense_key in sensory.items():
+                stored_key = indexed.get(sense_type, "")
+                if sense_key and sense_key in stored_key:
+                    scored[node.id] = scored.get(node.id, 0.0) + 0.8
 
         sorted_ids = sorted(scored.items(), key=lambda x: x[1], reverse=True)
         nodes: List[MemoryNode] = []

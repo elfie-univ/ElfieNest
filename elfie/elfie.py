@@ -270,17 +270,17 @@ class Elfie:
 
     @staticmethod
     def _default_memory_path(config_dir: str | None) -> str:
-        return str(Path(config_dir) / "graph_memory.db") if config_dir else ":memory:"
+        return (
+            str(Path(config_dir) / "memory" / "knowledge.sqlite")
+            if config_dir
+            else ":memory:"
+        )
 
     @staticmethod
     def _personality_path(config_dir: str | None) -> str | None:
-        if config_dir is None:
-            return None
-        for filename in ("profile.yaml", "personality.yaml"):
-            candidate = Path(config_dir) / filename
-            if candidate.is_file():
-                return str(candidate)
-        return None
+        candidate = (
+            Path(config_dir) / "profile" / "profile.yaml" if config_dir else None
+        )
+        return str(candidate) if candidate is not None and candidate.is_file() else None
 
 
-__all__ = ("Elfie",)

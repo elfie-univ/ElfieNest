@@ -1,7 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react"
+import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
-import { ApiError, ownerAssignBed, ownerElfies, ownerRooms, ownerUpdateBedCount, type NestRoom, type OwnerElfie } from "../api/client"
+import { ownerAssignBed, ownerElfies, ownerRooms, ownerUpdateBedCount, type NestRoom, type OwnerElfie } from "../api/client"
+import { describeApiError, resolveLocalizedError, type LocalizedErrorState } from "../i18n/errors"
+import { currentLocale } from "../i18n/format"
 import { BedDistribution } from "./BedDistribution"
 import { ClassicNestFloorPlan } from "./ClassicNestFloorPlan"
 import { ConfirmDialog } from "./ConfirmDialog"
@@ -26,13 +29,15 @@ const DEMO_ROOM: NestRoom = {
 }
 
 export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
+  const { i18n, t } = useTranslation("manage")
+  const locale = currentLocale(i18n)
   const [rooms, setRooms] = useState<readonly NestRoom[]>([])
   const [elfies, setElfies] = useState<readonly OwnerElfie[]>([])
   const [bedCount, setBedCount] = useState(4)
   const [showObserver, setShowObserver] = useState(false)
   const [confirmBeds, setConfirmBeds] = useState(false)
   const [savingBeds, setSavingBeds] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<LocalizedErrorState>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const load = async (): Promise<void> => {
     try {
@@ -45,7 +50,7 @@ export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
       setBedCount(room?.desired_bed_count ?? room?.beds.length ?? 4)
       setError(null)
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "精灵巢数据加载失败")
+      setError(describeApiError(reason, "manage.load"))
       setRooms([DEMO_ROOM])
       setElfies(MOCK_ELFIES)
       setBedCount(DEMO_ROOM.desired_bed_count ?? DEMO_ROOM.beds.length)
@@ -55,7 +60,7 @@ export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
   const requestBedUpdate = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault()
     if (!Number.isInteger(bedCount) || bedCount < 4 || bedCount > 32) {
-      setError("床位数必须是 4 到 32 的整数。")
+      setError(t("nest.bedCount.validation"))
       return
     }
     setConfirmBeds(true)
@@ -64,11 +69,11 @@ export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
     setSavingBeds(true)
     try {
       await ownerUpdateBedCount(bedCount, csrfToken)
-      setNotice("期望床位数已保存；3D 观察不可用时，平面图与床位分配仍可继续使用。")
+      setNotice(t("nest.notices.layoutSaved"))
       setConfirmBeds(false)
       await load()
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "床位布局没有保存")
+      setError(describeApiError(reason, "manage.save"))
     } finally {
       setSavingBeds(false)
     }
@@ -76,29 +81,29 @@ export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
   const assignBed = async (elfieId: string, anchorId: string | null): Promise<boolean> => {
     try {
       await ownerAssignBed(elfieId, anchorId, csrfToken)
-      setNotice(anchorId ? "床位已分配。" : "床位分配已清除。")
+      setNotice(anchorId ? t("nest.notices.assigned") : t("nest.notices.cleared"))
       await load()
       return true
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "床位分配没有保存")
+      setError(describeApiError(reason, "manage.save"))
       return false
     }
   }
   const room = rooms[0]
   const beds = room?.beds ?? []
   return <section className="nest-console">
-    <div className="manage-head"><div><h2>宿舍平面与床位</h2><p>经典宿舍俯视图呈现公共活动带、主干道与床位；几何事实仍由 Godot Runtime 管理。</p></div><RefreshButton label="刷新房间数据" onClick={() => { void load() }} /></div>
-    {error ? <Notice kind="error" message={error} /> : null}{notice ? <Notice message={notice} /> : null}
+    <div className="manage-head"><div><h2>{t("nest.title")}</h2><p>{t("nest.description")}</p></div><RefreshButton label={t("nest.refresh")} onClick={() => { void load() }} /></div>
+    {error ? <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("errors.save")} /> : null}{notice ? <Notice message={notice} /> : null}
     <div className="nest-console__layout">
       <ClassicNestFloorPlan beds={beds} desiredBedCount={room?.desired_bed_count ?? bedCount} roomName={room?.name ?? "Local Nest"} />
       <aside className="nest-console__side">
-        <section className="nest-side-card nest-camera-launch"><div className="nest-side-card__title"><h3>摄像头</h3><span className="status-indicator status-indicator--inactive"><i />按需打开</span></div><Button onClick={() => setShowObserver(true)} type="button"><Icon name="camera" size={16} />打开预览</Button></section>
-        <form aria-label="床位数量设置" className="nest-side-card nest-bed-count-form" onSubmit={requestBedUpdate}><h3>房间床位数</h3><NumberField label="床位数" max={32} min={4} onChange={setBedCount} value={bedCount} /><Button type="submit">保存布局</Button></form>
+        <section className="nest-side-card nest-camera-launch"><div className="nest-side-card__title"><h3>{t("nest.camera.title")}</h3><span className="status-indicator status-indicator--inactive"><i />{t("nest.camera.availableOnDemand")}</span></div><Button onClick={() => setShowObserver(true)} type="button"><Icon name="camera" size={16} />{t("nest.actions.openPreview")}</Button></section>
+        <form aria-label={t("nest.bedCount.formLabel")} className="nest-side-card nest-bed-count-form" onSubmit={requestBedUpdate}><h3>{t("nest.bedCount.title")}</h3><NumberField label={t("nest.bedCount.label")} max={32} min={4} onChange={setBedCount} value={bedCount} /><Button type="submit">{t("nest.actions.saveLayout")}</Button></form>
         <BedDistribution elfies={elfies} onAssign={assignBed} rooms={rooms} />
-        <section className="nest-side-card"><h3>房间事件</h3><ul className="nest-events">{beds.filter((bed) => bed.occupant_name).map((bed) => <li key={bed.anchor_id}>{bed.name}：{bed.occupant_name} 已在位</li>)}{beds.every((bed) => !bed.occupant_name) ? <li>暂无床位占用事件</li> : null}</ul></section>
+        <section className="nest-side-card"><h3>{t("nest.events.title")}</h3><ul className="nest-events">{beds.flatMap((bed) => bed.occupant_name ? [<li key={bed.anchor_id}>{t("nest.events.occupied", { bed: bed.name, name: bed.occupant_name })}</li>] : [])}{beds.every((bed) => !bed.occupant_name) ? <li>{t("nest.events.empty")}</li> : null}</ul></section>
       </aside>
     </div>
-    <ManageDialog contentClassName="manage-dialog--camera" onOpenChange={setShowObserver} open={showObserver} title="实时房间摄像头"><ObservationMonitor roomId={room?.id ?? "local-nest"} /></ManageDialog>
-    <ConfirmDialog confirmLabel="保存布局" description={`确认向 Godot 提交 ${bedCount} 个期望床位吗？这不会由管理端直接修改 3D 几何。`} onConfirm={() => { void confirmBedUpdate() }} onOpenChange={setConfirmBeds} open={confirmBeds} pending={savingBeds} title="确认调整床位" />
+    <ManageDialog contentClassName="manage-dialog--camera" onOpenChange={setShowObserver} open={showObserver} title={t("nest.camera.dialogTitle")}><ObservationMonitor roomId={room?.id ?? "local-nest"} /></ManageDialog>
+    <ConfirmDialog confirmLabel={t("nest.actions.saveLayout")} description={t("nest.bedCount.confirmDescription", { count: bedCount })} onConfirm={() => { void confirmBedUpdate() }} onOpenChange={setConfirmBeds} open={confirmBeds} pending={savingBeds} title={t("nest.bedCount.confirmTitle")} />
   </section>
 }

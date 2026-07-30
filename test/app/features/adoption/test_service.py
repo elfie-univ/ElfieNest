@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import stat
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -33,7 +34,7 @@ def test_concurrent_adoptions_cannot_exceed_user_quota(tmp_path: Path) -> None:
         user_id = int(
             connection.execute(
                 """INSERT INTO users
-                   (username, password_hash, role, elfie_quota_override)
+                   (username, password_hash, role, elfie_limit)
                    VALUES ('alice', 'unused', 'user', 1)"""
             ).lastrowid
         )
@@ -72,7 +73,7 @@ def test_concurrent_adoptions_cannot_exceed_user_quota(tmp_path: Path) -> None:
     with get_db(db_path) as connection:
         persisted_count = int(
             connection.execute(
-                "SELECT COUNT(*) FROM elfie_registry WHERE owner_user_id = ?",
+                "SELECT COUNT(*) FROM elfies WHERE owner_user_id = ?",
                 (user_id,),
             ).fetchone()[0]
         )
@@ -86,7 +87,7 @@ def test_failed_generation_releases_reserved_slot(tmp_path: Path) -> None:
         user_id = int(
             connection.execute(
                 """INSERT INTO users
-                   (username, password_hash, role, elfie_quota_override)
+                   (username, password_hash, role, elfie_limit)
                    VALUES ('alice', 'unused', 'user', 1)"""
             ).lastrowid
         )
@@ -106,8 +107,34 @@ def test_failed_generation_releases_reserved_slot(tmp_path: Path) -> None:
     with get_db(db_path) as connection:
         persisted_count = int(
             connection.execute(
-                "SELECT COUNT(*) FROM elfie_registry WHERE owner_user_id = ?",
+                "SELECT COUNT(*) FROM elfies WHERE owner_user_id = ?",
                 (user_id,),
             ).fetchone()[0]
         )
     assert persisted_count == 0
+
+
+def test_adoption_creates_owner_only_elfie_workspace(tmp_path: Path) -> None:
+    # Given: an initialized final Nest database with one owner.
+    db_path = str(tmp_path / "nest.db")
+    init_db(db_path)
+    with get_db(db_path) as connection:
+        user_id = int(
+            connection.execute(
+                """INSERT INTO users
+                   (username, password_hash, role, elfie_limit)
+                   VALUES ('owner', 'unused', 'owner', 1)"""
+            ).lastrowid
+        )
+        connection.commit()
+
+    # When: the owner adopts an Elfie through the product service.
+    result = adopt_elfie_for_user(
+        db_path,
+        user_id=user_id,
+        request=_request("小栗"),
+    )
+
+    # Then: the stable Elfie workspace is accessible only to the current owner.
+    workspace = Path(result.config_dir)
+    assert stat.S_IMODE(workspace.stat().st_mode) == 0o700

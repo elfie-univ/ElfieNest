@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import re
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -13,6 +14,20 @@ ACTIVE_CHAT_ROUTE_FILES = (
     "app/interfaces/api/v1/client_routes.py",
     "app/interfaces/api/v1/realtime.py",
     "app/interfaces/api/ws_gateway.py",
+)
+APPLICATION_SQL_ROOTS = (
+    "app/features",
+    "app/interfaces",
+    "app/orchestration",
+)
+GENERATED_DIRECTORY_NAMES = frozenset(
+    {".git", ".venv", "__pycache__", "build", "dist", "node_modules"}
+)
+SQL_LITERAL_PATTERN = re.compile(
+    r"\b(?:SELECT|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|"
+    r"CREATE\s+TABLE|ALTER\s+TABLE|DROP\s+TABLE|PRAGMA\s+\w+|"
+    r"BEGIN\s+(?:DEFERRED|IMMEDIATE|EXCLUSIVE))\b",
+    re.IGNORECASE,
 )
 
 
@@ -48,10 +63,10 @@ def test_legacy_nest_chat_storage_has_no_runtime_path() -> None:
     assert not (
         PROJECT_ROOT / "app/infrastructure/persistence/legacy_chat_migration.py"
     ).exists()
-    schema_source = (
-        PROJECT_ROOT / "app/infrastructure/persistence/schema.py"
-    ).read_text(encoding="utf-8")
-    assert "CREATE TABLE IF NOT EXISTS chat_messages" not in schema_source
+    assert not (PROJECT_ROOT / "app/infrastructure/persistence/schema.py").exists()
+    assert not (PROJECT_ROOT / "app/infrastructure/persistence/nest_schema.py").exists()
+    graph_storage = PROJECT_ROOT / "elfie/brain/memory/graph_storage.py"
+    assert "graph_memory.db" not in graph_storage.read_text(encoding="utf-8")
 
 
 def test_data_home_declares_production_developer_and_elfie_workspace_roots() -> None:
@@ -78,20 +93,47 @@ def test_data_home_declares_production_developer_and_elfie_workspace_roots() -> 
         "get_runtime_config_paths",
         "get_tool_config_path",
     } <= functions
-    assert {
-        "get_provider_validation_dir",
-        "get_model_validation_dir",
-        "get_runtime_validation_dir",
-        "get_validation_dir",
-        "get_model_evidence_path",
-    }.isdisjoint(functions)
 
 
-def test_product_interfaces_do_not_write_legacy_elfie_food_policy() -> None:
-    interface_root = PROJECT_ROOT / "app"
-    offenders = []
-    for path in interface_root.rglob("*.py"):
-        if "save_elfie_food_policy" in path.read_text(encoding="utf-8"):
-            offenders.append(path.relative_to(PROJECT_ROOT).as_posix())
+def test_application_layers_do_not_own_sql() -> None:
+    offenders: list[str] = []
+    for relative_root in APPLICATION_SQL_ROOTS:
+        for path in (PROJECT_ROOT / relative_root).rglob("*.py"):
+            if GENERATED_DIRECTORY_NAMES.intersection(path.parts):
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            has_sql = any(
+                isinstance(node, ast.Constant)
+                and isinstance(node.value, str)
+                and SQL_LITERAL_PATTERN.search(node.value) is not None
+                for node in ast.walk(tree)
+            )
+            imports_sqlite = any(
+                (
+                    isinstance(node, ast.Import)
+                    and any(alias.name == "sqlite3" for alias in node.names)
+                )
+                or (isinstance(node, ast.ImportFrom) and node.module == "sqlite3")
+                for node in ast.walk(tree)
+            )
+            if has_sql or imports_sqlite:
+                offenders.append(path.relative_to(PROJECT_ROOT).as_posix())
+
+    assert offenders == []
+
+
+def test_application_layers_do_not_derive_data_home_from_database_paths() -> None:
+    offenders: list[str] = []
+    for relative_root in APPLICATION_SQL_ROOTS:
+        for path in (PROJECT_ROOT / relative_root).rglob("*.py"):
+            if GENERATED_DIRECTORY_NAMES.intersection(path.parts):
+                continue
+            source = path.read_text(encoding="utf-8")
+            if re.search(
+                r"Path\([^)]*(?:db_path|database_path)[^)]*\)"
+                r"(?:\.expanduser\(\)|\.resolve\(\))*\.parent",
+                source,
+            ):
+                offenders.append(path.relative_to(PROJECT_ROOT).as_posix())
 
     assert offenders == []

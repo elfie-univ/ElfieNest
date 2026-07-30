@@ -12,10 +12,13 @@ from nest.godot_gateway.observer import WorldChangingIntent
 
 from ._helpers import create_test_owner, create_test_user
 
+_ALICE_ELFIE_ID = "00000001"
+_OWNER_ELFIE_ID = "00000002"
+
 
 @pytest.fixture
 def db_path(tmp_path: Path) -> str:
-    return str(tmp_path / "observer.db")
+    return str(tmp_path / "nest.db")
 
 
 @pytest.fixture
@@ -40,21 +43,23 @@ def test_observer_intent_requires_authenticated_owner_or_elfie_family(
     create_test_user(db_path, "bob", "bob-password")
     with get_db(db_path) as connection:
         connection.execute(
-            "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) VALUES (?, ?, ?)",
-            ("fox-1", "Fox", alice_id),
+            """INSERT INTO elfies
+               (elfie_id,name,owner_user_id,species,adopted_at,status)
+               VALUES (?,?,?,?,?,'offline')""",
+            (_ALICE_ELFIE_ID, "Fox", alice_id, "fox", "2026-07-30T00:00:00Z"),
         )
         connection.commit()
     observed: list[WorldChangingIntent] = []
     client.app.state.observer_intent_sink = observed.append
     alice_csrf = _login(client, "alice", "alice-password")
-    capability = _open_elfie_observer(client, alice_csrf, "fox-1")
+    capability = _open_elfie_observer(client, alice_csrf, _ALICE_ELFIE_ID)
 
     # When: Alice sends one typed high-level interaction through her capability.
     accepted = client.post(
         "/api/observer/intents",
         json={
             "kind": "request_interaction",
-            "actor_id": "fox-1",
+            "actor_id": _ALICE_ELFIE_ID,
             "interaction": "greet",
         },
         headers=_headers(alice_csrf, capability),
@@ -64,7 +69,7 @@ def test_observer_intent_requires_authenticated_owner_or_elfie_family(
         "/api/observer/intents",
         json={
             "kind": "request_interaction",
-            "actor_id": "fox-1",
+            "actor_id": _ALICE_ELFIE_ID,
             "interaction": "greet",
         },
         headers=_headers(bob_csrf, capability),
@@ -76,7 +81,7 @@ def test_observer_intent_requires_authenticated_owner_or_elfie_family(
     assert observed == [
         WorldChangingIntent(
             kind="request_interaction",
-            actor_id="fox-1",
+            actor_id=_ALICE_ELFIE_ID,
             interaction="greet",
         )
     ]
@@ -126,14 +131,16 @@ def test_observer_capability_rejects_new_same_user_session_and_logout_replay(
     alice_id = create_test_user(db_path, "alice", "alice-password")
     with get_db(db_path) as connection:
         connection.execute(
-            "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) VALUES (?, ?, ?)",
-            ("fox-1", "Fox", alice_id),
+            """INSERT INTO elfies
+               (elfie_id,name,owner_user_id,species,adopted_at,status)
+               VALUES (?,?,?,?,?,'offline')""",
+            (_ALICE_ELFIE_ID, "Fox", alice_id, "fox", "2026-07-30T00:00:00Z"),
         )
         connection.commit()
     observed: list[WorldChangingIntent] = []
     client.app.state.observer_intent_sink = observed.append
     first_csrf = _login(client, "alice", "alice-password")
-    capability = _open_elfie_observer(client, first_csrf, "fox-1")
+    capability = _open_elfie_observer(client, first_csrf, _ALICE_ELFIE_ID)
 
     # When: Alice logs out and signs in again, then replays the old capability.
     logout = client.post("/api/auth/logout", headers=_headers(first_csrf))
@@ -142,7 +149,7 @@ def test_observer_capability_rejects_new_same_user_session_and_logout_replay(
         "/api/observer/intents",
         json={
             "kind": "request_interaction",
-            "actor_id": "fox-1",
+            "actor_id": _ALICE_ELFIE_ID,
             "interaction": "greet",
         },
         headers=_headers(second_csrf, capability),
@@ -283,19 +290,24 @@ def test_interest_cannot_widen_an_existing_elfie_capability(
     alice_id = create_test_user(db_path, "alice", "alice-password")
     with get_db(db_path) as connection:
         connection.executemany(
-            "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) VALUES (?, ?, ?)",
-            [("fox-1", "Fox", alice_id), ("owl-1", "Owl", 1)],
+            """INSERT INTO elfies
+               (elfie_id,name,owner_user_id,species,adopted_at,status)
+               VALUES (?,?,?,?,?,'offline')""",
+            [
+                (_ALICE_ELFIE_ID, "Fox", alice_id, "fox", "2026-07-30T00:00:00Z"),
+                (_OWNER_ELFIE_ID, "Owl", 1, "owl", "2026-07-30T00:00:00Z"),
+            ],
         )
         connection.commit()
     csrf_token = _login(client, "alice", "alice-password")
-    capability = _open_elfie_observer(client, csrf_token, "fox-1")
+    capability = _open_elfie_observer(client, csrf_token, _ALICE_ELFIE_ID)
 
     # When: the capability tries to replace its exact scope with the whole room.
     widened = client.put(
         "/api/observer/interest",
         json={
             "subscription": {"kind": "room", "room_id": "local-nest"},
-            "visible_entity_ids": ["fox-1", "owl-1"],
+            "visible_entity_ids": [_ALICE_ELFIE_ID, _OWNER_ELFIE_ID],
         },
         headers=_headers(csrf_token, capability),
     )

@@ -6,12 +6,15 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from ai_runtime.storage.data_home import data_home_from_db_path
 from app.features.accounts.auth import get_current_user
 from app.infrastructure.persistence.elfie_chat_history import (
     ElfieChatHistoryRange,
     list_elfie_chat_history,
 )
-from app.infrastructure.persistence.store import get_db
+from app.infrastructure.persistence.runtime_query_repository import (
+    RuntimeQueryRepository,
+)
 
 router = APIRouter()
 
@@ -27,7 +30,9 @@ async def get_elfie_chat_history(
 ) -> list[Dict[str, Any]]:
     """保持旧返回字段，同时只读取该精灵自己的历史库。"""
     user_id = int(user["id"])
-    if not _owns_elfie(request.app.state.db_path, elfie_id, user_id):
+    if not RuntimeQueryRepository(request.app.state.db_path).elfie_is_owned_by(
+        elfie_id, user_id
+    ):
         raise HTTPException(status_code=404, detail="精灵不存在")
     return [
         {
@@ -44,14 +49,6 @@ async def get_elfie_chat_history(
             history_range=range,
             keyword=q,
             limit=limit,
+            data_home=data_home_from_db_path(request.app.state.db_path),
         )
     ]
-
-
-def _owns_elfie(db_path: str, elfie_id: str, user_id: int) -> bool:
-    with get_db(db_path) as connection:
-        row = connection.execute(
-            "SELECT 1 FROM elfie_registry WHERE elfie_id = ? AND owner_user_id = ?",
-            (elfie_id, user_id),
-        ).fetchone()
-    return row is not None

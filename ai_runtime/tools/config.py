@@ -1,7 +1,6 @@
 """基础工具的本地配置契约。
 
-界面只编辑工具语义配置；密钥仅保存在
-``~/.elfienest/configs/credentials/api-keys.env``。
+界面只编辑工具语义配置；密钥仅保存在所选数据根的 ``configs/auth.env``。
 """
 
 from __future__ import annotations
@@ -27,8 +26,13 @@ def default_tool_configs() -> dict[str, dict[str, Any]]:
             "max_results": 3,
             "max_result_bytes": 16000,
         },
+        "code_sandbox": {
+            "enabled": False,
+            "timeout_seconds": 5.0,
+        },
         "local_file": {
-            "enabled": True,
+            "enabled": False,
+            "root": "",
             "root_policy": "elfie_workspace",
             "max_read_bytes": 65536,
         },

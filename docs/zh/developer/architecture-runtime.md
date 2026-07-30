@@ -11,7 +11,7 @@ generation 的唯一生命周期所有者。源码与已安装 CLI 的生命周�
 endpoint 作为第四组件被探测：其不可用会使 Runtime 处于 `degraded`，不会替代权威，
 也不会创建私有模型 sidecar。`status --json` 会报告封闭组件集（`core`、`gateway`、
 `godot_authority`、`ollama`）和生命周期状态。Supervisor 将当前收据写入
-`${ELFIE_HOME:-~/.elfienest}/runtime.json`。
+`<所选数据根>/runtime.json`。
 
 权威宿主由 `godot_runtime/` 选择，不携带 Nest 状态、场景数据或协议凭据：
 
@@ -73,27 +73,41 @@ React 消费该目录后，只能发出封闭的语义命令 `overview`、`selec
 
 | 类型 | 位置 | 是否提交 |
 | --- | --- | --- |
-| 用户配置、数据库、精灵档案、本地密钥和 Runtime 收据 | `${ELFIE_HOME:-~/.elfienest}` | 否 |
+| 用户配置、数据库、精灵档案、本地密钥和 Runtime 收据 | 所选产品数据根 | 否 |
 | 可再生中间产物 | `build/` | 否 |
 | 最终发行物 | `dist/` | 否 |
 | 公开文档源 | `docs/` | 是 |
 
 ## 生产目录契约
 
-一台电脑只有一个生产 Nest 根 `${ELFIE_HOME:-~/.elfienest}`。根目录保存 Nest 级别
-事实，例如 `nest.db`、配置、报告、Runtime 状态与日志。`nest.db` 只保存账号、权限、
-精灵登记/归属、Nest 世界与运行状态；它不接收新的聊天消息。
+正式安装默认使用 `~/.elfienest`；源码与 worktree 运行默认使用
+`<当前worktree>/.elfienest.local`。`--data-home PATH` 与 `ELFIE_HOME` 可以覆盖
+默认值，全部生命周期收据与产品数据都跟随唯一所选数据根。
+
+一台电脑只有一个生产 Nest 根 `${ELFIE_HOME:-~/.elfienest}`。`nest.db` 只包含最终
+8 张 Nest 级表：用户、会话、本机安装/Setup、Nest 设置、精灵、外部身体、身体审计
+和具身租约。聊天与记忆不使用根数据库。
 
 Provider、模型、粮食、工具、凭据、报告和 Runtime 收据的所有权只由
 [AI Runtime 设计契约](./architecture-ai-runtime) 定义。完整生产目录树以及
 “每项持久化事实只能有一个类型化写入者”的规则也只在该契约中维护，本页不再复制这些
 Schema。
 
-敏感目录统一以仅所有者可访问的权限创建。过时开发 Schema 不能成为隐式回退源；
-在 v0.5 之前优先重建临时数据目录，不增加永久双读或双写兼容。
-
-每只精灵都以不可变的 `elfie_id` 作为工作区名。显示名称可改，但目录不能移动；
-精确位置同样属于上述 AI Runtime 数据契约。
+```text
+${ELFIE_HOME:-~/.elfienest}/
+├── nest.db                         # 最终 8 张 Nest 级表
+├── configs/                        # Runtime、鉴权和粮食配置
+├── reports/                        # 模型证据与验证报告
+├── assets/users/<user_id>/         # 头像与隔离的本地文件
+├── runtime/                        # runtime.json 与锁
+├── logs/                           # Runtime 事件与 Token 用量
+└── elfies/
+    └── <8位elfie_id>/               # 稳定 ID，不使用可变名称
+        ├── profile/profile.yaml
+        ├── assets/ godot/ skills/
+        ├── conversations/history.sqlite # 最终 7 张聊天表
+        └── memory/knowledge.sqlite      # 最终 9 张知识表
+```
 
 `history.sqlite` 记录会话、渠道、发送方、用户关系、文本、元数据和附件引用。不会建立
 用户视角的本机聊天副本，也不会把附件二进制塞进数据库。网页、桌面、微信或飞书等
@@ -114,8 +128,8 @@ Developer Tools 默认使用独立根 `${ELFIE_DEV_HOME:-~/.elfienest-dev}`，�
 `elfie_lab/`、`nest_lab/`、`runtime_lab/` 不得回退读取生产根。测试应同时设置临时
 `ELFIE_HOME` 与 `ELFIE_DEV_HOME`。
 
-`nest.db.chat_messages` 是未发布阶段遗留的废弃表。数据库升级会直接删除它；不提供
-兼容读取、复制或迁移工具。新聊天只能位于对应精灵工作区。
+应用在产生写入前就会拒绝旧数据根和旧 schema。请先备份，再重建所选数据根；不提供
+兼容读取、复制、重放、双写或自动迁移。新聊天只能位于对应精灵工作区。
 
 ## 内部契约
 

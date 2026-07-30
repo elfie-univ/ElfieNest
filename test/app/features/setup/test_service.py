@@ -19,7 +19,7 @@ from app.features.setup.service import (
     needs_setup,
     record_setup_task_failure,
 )
-from app.infrastructure.persistence.store import get_db, init_db, migrate_db_if_needed
+from app.infrastructure.persistence.store import get_db, init_db
 
 
 def test_create_first_owner_account_does_not_create_session(tmp_path: Path) -> None:
@@ -135,35 +135,23 @@ def test_create_first_owner_account_rejects_existing_user(tmp_path: Path) -> Non
         create_first_owner_account(db_path, username="other", password="secret123")
 
 
-def test_existing_owner_migration_keeps_recorded_ollama_endpoint(
-    tmp_path: Path,
-) -> None:
+def test_setup_uses_only_final_installation_table(tmp_path: Path) -> None:
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
-    with get_db(db_path) as conn:
-        conn.execute(
-            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'owner')",
-            ("legacy-owner", "not-a-real-password-hash"),
-        )
-        conn.execute(
-            """
-            UPDATE setup_progress
-            SET ollama_endpoint = ?, ollama_decision = 'bound_existing'
-            WHERE singleton_id = 1
-            """,
-            ("http://127.0.0.1:11434",),
-        )
-        conn.execute("PRAGMA user_version = 11")
-        conn.commit()
-
-    migrate_db_if_needed(db_path)
-    migrate_db_if_needed(db_path)
+    create_first_owner(db_path, username="owner", password="secret123")
+    complete_setup_step(db_path, step=2, decision="skipped")
 
     with get_db(db_path) as conn:
+        tables = {
+            str(row[0])
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
         row = conn.execute(
-            "SELECT owner_user_id, ollama_endpoint, ollama_decision FROM setup_progress"
+            "SELECT owner_user_id, setup_state, setup_step "
+            "FROM local_installations WHERE installation_id='local'"
         ).fetchone()
     assert row is not None
     assert row["owner_user_id"] is not None
-    assert row["ollama_endpoint"] == "http://127.0.0.1:11434"
-    assert row["ollama_decision"] == "bound_existing"
+    assert row["setup_state"] == "in_progress"
+    assert row["setup_step"] == "providers"
+    assert "setup_progress" not in tables

@@ -1,20 +1,28 @@
 from __future__ import annotations
 
 import logging
+import os
 import secrets
 import shutil
-import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from ai_runtime.storage.data_home import data_home_from_db_path
+from ai_runtime.storage.data_layout import final_root_layout
 from app.features.adoption.config import (
     get_allowed_personality_styles,
     get_allowed_species_ids,
     get_max_elfies_per_user,
 )
 from app.features.adoption.generator import ElfieGenerator
-from app.infrastructure.persistence.store import count_elfies_by_owner, get_db
+from app.infrastructure.persistence.account_repository import AccountRepository
+from app.infrastructure.persistence.elfie_repository import (
+    ElfieCapacityExceeded,
+    ElfieOwnerNotFound,
+    ElfieRepository,
+)
+from app.infrastructure.persistence.store import get_db
 from nest import NestFullError
 
 logger = logging.getLogger("app.features.adoption.service")
@@ -29,6 +37,8 @@ class AdoptionValidationError(Exception):
 
 @dataclass(frozen=True)
 class AdoptionCapacityError(Exception):
+    __slots__ = ("detail",)
+
     detail: str
 
     def __str__(self) -> str:
@@ -47,6 +57,8 @@ class AdoptionRequest:
 
 @dataclass(frozen=True)
 class AdoptionResult:
+    __slots__ = ("elfie_id", "name", "species_id", "config_dir")
+
     elfie_id: str
     name: str
     species_id: str
@@ -65,17 +77,13 @@ def adoption_options(db_path: str) -> dict[str, list[str]]:
 def _effective_user_limit(db_path: str, user_id: int) -> int:
     system_limit = get_max_elfies_per_user(db_path)
     with get_db(db_path) as connection:
-        row = connection.execute(
-            "SELECT elfie_quota_override FROM users WHERE id = ?", (user_id,)
-        ).fetchone()
-    if row is None or row["elfie_quota_override"] is None:
-        return system_limit
-    return int(row["elfie_quota_override"])
+        limit = AccountRepository(connection).elfie_limit(user_id, system_limit)
+    return system_limit if limit is None else limit
 
 
 def adoption_options_for_user(db_path: str, *, user_id: int) -> dict[str, Any]:
     max_per_user = _effective_user_limit(db_path, user_id)
-    used = count_elfies_by_owner(user_id, db_path)
+    used = ElfieRepository(db_path).count_for_owner(user_id)
     remaining = max(0, max_per_user - used)
     options = adoption_options(db_path)
     options["quota"] = {
@@ -96,17 +104,21 @@ def adopt_elfie_for_user(
 ) -> AdoptionResult:
     _validate_adoption_request(db_path, request=request)
 
-    elfie_id = f"elfie_{int(time.time())}_{secrets.token_hex(2)}"
-    config_dir = str(_get_elfie_config_dir(db_path, elfie_id))
+    elfie_id = f"{secrets.randbelow(100_000_000):08d}"
+    config_path = _get_elfie_config_dir(db_path, elfie_id)
+    config_dir = str(config_path)
     _reserve_adoption_slot(
         db_path,
         user_id=user_id,
         request=request,
         elfie_id=elfie_id,
-        config_dir=config_dir,
     )
 
+    generated = False
     try:
+        config_path.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if os.name != "nt":
+            os.chmod(config_path, 0o700)
         ElfieGenerator().generate_for_species(
             name=request.name,
             species_id=request.species_id,
@@ -117,12 +129,12 @@ def adopt_elfie_for_user(
             elfie_id=elfie_id,
             appearance_overrides=request.appearance_overrides,
         )
+        generated = True
     except ValueError as exc:
-        _release_adoption_slot(db_path, elfie_id=elfie_id, config_dir=config_dir)
         raise AdoptionValidationError(str(exc)) from None
-    except Exception:
-        _release_adoption_slot(db_path, elfie_id=elfie_id, config_dir=config_dir)
-        raise
+    finally:
+        if not generated:
+            _release_adoption_slot(db_path, elfie_id=elfie_id, config_dir=config_dir)
 
     if engine is not None:
         _register_with_engine(engine, elfie_id, request, config_dir, db_path)
@@ -166,55 +178,25 @@ def _reserve_adoption_slot(
     user_id: int,
     request: AdoptionRequest,
     elfie_id: str,
-    config_dir: str,
 ) -> None:
     system_limit = get_max_elfies_per_user(db_path)
-    with get_db(db_path) as connection:
-        connection.execute("BEGIN IMMEDIATE")
-        user = connection.execute(
-            "SELECT elfie_quota_override FROM users WHERE id = ?", (user_id,)
-        ).fetchone()
-        if user is None:
-            connection.rollback()
-            raise AdoptionValidationError("用户不存在")
-        quota = (
-            system_limit
-            if user["elfie_quota_override"] is None
-            else int(user["elfie_quota_override"])
+    try:
+        ElfieRepository(db_path).reserve_adoption(
+            elfie_id=elfie_id,
+            owner_user_id=user_id,
+            name=request.name,
+            species=request.species_id,
+            summary=request.personality_style,
+            max_elfies=system_limit,
         )
-        current_count = int(
-            connection.execute(
-                "SELECT COUNT(*) FROM elfie_registry WHERE owner_user_id = ?",
-                (user_id,),
-            ).fetchone()[0]
-        )
-        if current_count >= quota:
-            connection.rollback()
-            raise AdoptionCapacityError(f"每用户最多领养 {quota} 只精灵")
-        connection.execute(
-            """INSERT INTO elfie_registry
-               (elfie_id, name, owner_user_id, species_id,
-                profile_schema_version, config_dir, personality_style, height, build)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                elfie_id,
-                request.name,
-                user_id,
-                request.species_id,
-                1,
-                config_dir,
-                request.personality_style,
-                request.height,
-                request.build,
-            ),
-        )
-        connection.commit()
+    except ElfieOwnerNotFound:
+        raise AdoptionValidationError("用户不存在") from None
+    except ElfieCapacityExceeded as error:
+        raise AdoptionCapacityError(f"每用户最多领养 {error.limit} 只精灵") from None
 
 
 def _release_adoption_slot(db_path: str, *, elfie_id: str, config_dir: str) -> None:
-    with get_db(db_path) as connection:
-        connection.execute("DELETE FROM elfie_registry WHERE elfie_id = ?", (elfie_id,))
-        connection.commit()
+    ElfieRepository(db_path).delete(elfie_id)
     shutil.rmtree(config_dir, ignore_errors=True)
 
 
@@ -241,9 +223,9 @@ def _register_with_engine(
         )
     except NestFullError:
         raise
-    except Exception as exc:  # noqa: BLE001 - adapter boundary keeps adoption persisted.
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
         logger.warning("Failed to register elfie %s to engine: %s", elfie_id, exc)
 
 
 def _get_elfie_config_dir(db_path: str, elfie_id: str) -> Path:
-    return Path(db_path).expanduser().parent / "elfies" / elfie_id
+    return final_root_layout(data_home_from_db_path(db_path)).elfie(elfie_id).workspace

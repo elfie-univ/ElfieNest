@@ -1,8 +1,10 @@
 """核心认知：4段核心信念，持久化到SQLite，注入LLM prompt。
 
 从 personality.yaml 的 big_five 人格维度通过模板生成4段核心认知，
-存储到 GraphStorage 的 SQLite 数据库，支持增量更新和周期性全量重写。
+存储到最终知识数据库，支持增量更新和周期性全量重写。
 """
+
+from __future__ import annotations
 
 import json
 import logging
@@ -13,7 +15,9 @@ from typing import Any, Dict, Optional
 
 import yaml
 
-from elfie.brain.memory.graph_storage import GraphStorage
+from elfie.brain.memory.knowledge_store import KnowledgeStore
+from elfie.brain.memory.memory_store import MemoryStore
+from elfie.brain.memory.node_types import MemoryNode
 
 logger = logging.getLogger("elfie.brain.memory.core_cognition")
 
@@ -202,6 +206,7 @@ class CoreCognition:
         db_path: str = ":memory:",
         personality_path: Optional[str] = None,
         personality_data: Optional[Dict[str, Any]] = None,
+        storage: MemoryStore | None = None,
     ):
         """从SQLite加载核心认知，如不存在则从personality.yaml初始化。
 
@@ -218,7 +223,8 @@ class CoreCognition:
             if self._personality_data is not None
             else self._get_default_personality_path()
         )
-        self.storage = GraphStorage(db_path)
+        self._owns_storage = storage is None
+        self.storage = storage or KnowledgeStore(db_path)
         self._core_text: Dict[str, str] = {}
         self._update_count: int = 0
         self._current_personality: Optional[Dict[str, float]] = None
@@ -280,16 +286,19 @@ class CoreCognition:
                 "trait_levels": {k: _trait_level(v) for k, v in big_five.items()},
             }
 
-            self.storage.conn.execute(
-                """INSERT OR REPLACE INTO nodes
-                   (id, type, content, metadata, edges, created_at, updated_at)
-                   VALUES (?, 'core', ?, ?, '[]', ?, ?)""",
-                (node_id, text, json.dumps(meta, ensure_ascii=False), now, now),
+            self.storage.add_node(
+                MemoryNode(
+                    id=node_id,
+                    type="core",
+                    content=text,
+                    metadata=meta,
+                    created_at=now,
+                    updated_at=now,
+                )
             )
 
             self._core_text[core_key] = text
 
-        self.storage.conn.commit()
         logger.info(
             "🧠 [核心认知] 从personality.yaml初始化完成，共%d段",
             len(self._core_text),
@@ -343,17 +352,10 @@ class CoreCognition:
                     continue
 
                 node_id = f"core_{core_key}"
-                cursor = self.storage.conn.execute(
-                    "SELECT metadata FROM nodes WHERE id = ?", (node_id,)
-                )
-                row = cursor.fetchone()
-                if not row:
+                node = self.storage.get_node(node_id)
+                if node is None:
                     continue
-
-                try:
-                    meta = json.loads(row["metadata"])
-                except (json.JSONDecodeError, TypeError):
-                    meta = {}
+                meta = dict(node.metadata)
 
                 meta.setdefault("consolidation_updates", []).append(
                     {
@@ -364,14 +366,7 @@ class CoreCognition:
                 # 保留最近10条
                 meta["consolidation_updates"] = meta["consolidation_updates"][-10:]
 
-                self.storage.conn.execute(
-                    "UPDATE nodes SET metadata = ?, updated_at = ? WHERE id = ?",
-                    (
-                        json.dumps(meta, ensure_ascii=False),
-                        datetime.now(timezone.utc).isoformat(),
-                        node_id,
-                    ),
-                )
+                self.storage.update_node(node_id, metadata=meta)
 
         # --- 周期性全量重写 ---
         if self._update_count % self.FULL_REWRITE_INTERVAL == 0:
@@ -417,17 +412,18 @@ class CoreCognition:
             }
 
             # 保留原始的 created_at
-            cursor = self.storage.conn.execute(
-                "SELECT created_at FROM nodes WHERE id = ?", (node_id,)
-            )
-            existing = cursor.fetchone()
-            created_at = existing["created_at"] if existing else now
+            existing = self.storage.get_node(node_id)
+            created_at = existing.created_at if existing is not None else now
 
-            self.storage.conn.execute(
-                """INSERT OR REPLACE INTO nodes
-                   (id, type, content, metadata, edges, created_at, updated_at)
-                   VALUES (?, 'core', ?, ?, '[]', ?, ?)""",
-                (node_id, text, json.dumps(meta, ensure_ascii=False), created_at, now),
+            self.storage.add_node(
+                MemoryNode(
+                    id=node_id,
+                    type="core",
+                    content=text,
+                    metadata=meta,
+                    created_at=created_at,
+                    updated_at=now,
+                )
             )
 
             self._core_text[core_key] = text
@@ -455,18 +451,11 @@ class CoreCognition:
         target_key = "relation"
         node_id = f"core_{target_key}"
 
-        cursor = self.storage.conn.execute(
-            "SELECT content, metadata FROM nodes WHERE id = ?", (node_id,)
-        )
-        row = cursor.fetchone()
-        if not row:
+        node = self.storage.get_node(node_id)
+        if node is None:
             return
-
-        current_text = row["content"]
-        try:
-            meta = json.loads(row["metadata"])
-        except (json.JSONDecodeError, TypeError):
-            meta = {}
+        current_text = node.content
+        meta = dict(node.metadata)
 
         # 更新metadata中的entity_properties
         entity_props = meta.setdefault("entity_properties", {})
@@ -481,11 +470,7 @@ class CoreCognition:
                 current_text += desc
 
         # 更新数据库和内存
-        now = datetime.now(timezone.utc).isoformat()
-        self.storage.conn.execute(
-            "UPDATE nodes SET content = ?, metadata = ?, updated_at = ? WHERE id = ?",
-            (current_text, json.dumps(meta, ensure_ascii=False), now, node_id),
-        )
+        self.storage.update_node(node_id, content=current_text, metadata=meta)
         self._core_text[target_key] = current_text
 
     @staticmethod
@@ -522,32 +507,26 @@ class CoreCognition:
         }
         for core_key in self.CORE_KEYS:
             node_id = f"core_{core_key}"
-            cursor = self.storage.conn.execute(
-                "SELECT content, metadata, created_at, updated_at FROM nodes WHERE id = ?",
-                (node_id,),
-            )
-            row = cursor.fetchone()
-            if row:
+            node = self.storage.get_node(node_id)
+            if node is not None:
                 backup["nodes"][core_key] = {
-                    "content": row["content"],
-                    "metadata": row["metadata"],
-                    "created_at": row["created_at"],
-                    "updated_at": row["updated_at"],
+                    "content": node.content,
+                    "metadata": dict(node.metadata),
+                    "created_at": node.created_at,
+                    "updated_at": node.updated_at,
                 }
         return backup
 
     def _restore_core(self, backup: dict) -> None:
         """从备份恢复核心认知（回滚）。"""
         self._core_text = backup["core_text"]
-        now = datetime.now(timezone.utc).isoformat()
         for core_key, node_data in backup["nodes"].items():
             node_id = f"core_{core_key}"
-            self.storage.conn.execute(
-                """UPDATE nodes SET content = ?, metadata = ?, updated_at = ?
-                   WHERE id = ?""",
-                (node_data["content"], node_data["metadata"], now, node_id),
+            self.storage.update_node(
+                node_id,
+                content=node_data["content"],
+                metadata=node_data["metadata"],
             )
-        self.storage.conn.commit()
         logger.info("🧠 [核心认知] 已回滚到上一版本")
 
     # ------------------------------------------------------------------
@@ -556,16 +535,11 @@ class CoreCognition:
 
     def _save_core_to_db(self) -> None:
         """将当前核心认知同步到SQLite并提交。"""
-        now = datetime.now(timezone.utc).isoformat()
         for core_key in self.CORE_KEYS:
             if core_key not in self._core_text:
                 continue
             node_id = f"core_{core_key}"
-            self.storage.conn.execute(
-                "UPDATE nodes SET content = ?, updated_at = ? WHERE id = ?",
-                (self._core_text[core_key], now, node_id),
-            )
-        self.storage.conn.commit()
+            self.storage.update_node(node_id, content=self._core_text[core_key])
 
     # ------------------------------------------------------------------
     # 文件缓存
@@ -606,18 +580,15 @@ class CoreCognition:
         查询 type='core' 的节点，按id排序后填充 _core_text。
         如果没有core节点且personality_path存在，自动初始化。
         """
-        cursor = self.storage.conn.execute(
-            "SELECT id, content, metadata FROM nodes WHERE type='core' ORDER BY id"
-        )
-        rows = cursor.fetchall()
+        nodes = self.storage.get_nodes_by_type("core", limit=100)
 
-        if rows:
-            for row in rows:
-                core_key = row["id"].replace("core_", "")
+        if nodes:
+            for node in nodes:
+                core_key = node.id.replace("core_", "")
                 if core_key in self.CORE_KEYS:
-                    self._core_text[core_key] = row["content"]
+                    self._core_text[core_key] = node.content
             self._update_count = 0
-            logger.info("🧠 [核心认知] 从数据库加载%d条核心认知", len(rows))
+            logger.info("🧠 [核心认知] 从数据库加载%d条核心认知", len(nodes))
         elif self._personality_data is not None or (
             self.personality_path and os.path.exists(self.personality_path)
         ):
@@ -626,4 +597,5 @@ class CoreCognition:
 
     def close(self) -> None:
         """关闭底层数据库连接"""
-        self.storage.close()
+        if self._owns_storage:
+            self.storage.close()

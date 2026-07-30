@@ -12,7 +12,7 @@ export type ElfieListItem = {
   readonly profile: ElfieListProfile
 }
 export type ElfieListGroup = {
-  readonly label: "我的精灵" | "其他精灵"
+  readonly kind: "mine" | "other"
   readonly items: readonly ElfieListItem[]
 }
 export type ElfieListResult = {
@@ -29,14 +29,14 @@ export function filterElfieList(
 ): ElfieListResult {
   const mine = items.filter((item) => isAdopterAccount(viewerAccountId, item.adopterAccountId))
   const other = items.filter((item) => !isAdopterAccount(viewerAccountId, item.adopterAccountId))
-  const normalizedQuery = query.trim().toLocaleLowerCase()
+  const normalizedQuery = query.trim().toLowerCase()
   const searchable = items.filter((item) => matchesQuery(item, normalizedQuery))
   const visible = searchable.filter((item) => matchesFilter(item, viewerAccountId, filter))
   const visibleMine = visible.filter((item) => isAdopterAccount(viewerAccountId, item.adopterAccountId))
   const visibleOther = visible.filter((item) => !isAdopterAccount(viewerAccountId, item.adopterAccountId))
   const groups: ElfieListGroup[] = []
-  if (visibleMine.length > 0) groups.push({ label: "我的精灵", items: visibleMine })
-  if (visibleOther.length > 0) groups.push({ label: "其他精灵", items: visibleOther })
+  if (visibleMine.length > 0) groups.push({ kind: "mine", items: visibleMine })
+  if (visibleOther.length > 0) groups.push({ kind: "other", items: visibleOther })
   return {
     counts: { all: items.length, mine: mine.length, other: other.length },
     groups,
@@ -48,7 +48,7 @@ function matchesQuery(item: ElfieListItem, query: string): boolean {
   if (query === "") return true
   const profile = item.profile
   return [profile.name, profile.species_id, profile.elfie_id]
-    .some((value) => value.toLocaleLowerCase().includes(query))
+    .some((value) => value.toLowerCase().includes(query))
 }
 
 function matchesFilter(item: ElfieListItem, viewerAccountId: string, filter: ElfieListFilter): boolean {

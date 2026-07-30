@@ -1,4 +1,6 @@
 import { useMemo } from "react"
+import type { TFunction } from "i18next"
+import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -35,46 +37,48 @@ export function ProfileGraphSection({
   loadChartRuntime = loadProfileChartRuntime,
   module,
 }: ProfileGraphSectionProps) {
+  const { t } = useTranslation("chat")
   const theme = useProfileChartTheme()
   const preview = projectGraph(module.graph, "preview")
   const detail = projectGraph(module.graph, "detail")
   const previewOption = useMemo(() => buildGraphOption(preview, theme), [preview, theme])
   const detailOption = useMemo(() => buildGraphOption(detail, theme), [detail, theme])
 
+  const title = moduleTitle(module.title, t)
   return (
-    <section className="profile-graph" aria-label={`${module.title}图谱`}>
+    <section className="profile-graph" aria-label={t("profile.graph.graphLabel", { title })}>
       <header className="profile-graph__header">
         <div>
-          <strong>{graphLabel(module.title)}</strong>
-          <span>{module.graph.nodes.length} 个节点 · {module.graph.edges.length} 条连接</span>
+          <strong>{graphLabel(module.title, t)}</strong>
+          <span>{t("profile.graph.counts", { edges: module.graph.edges.length, nodes: module.graph.nodes.length })}</span>
         </div>
         <Dialog>
           <DialogTrigger asChild>
             <Button
-              aria-label={`查看${module.title}详情`}
+              aria-label={t("profile.graph.viewDetails", { title })}
               className="profile-graph__detail-trigger"
               type="button"
               variant="outline"
             >
-              查看详情
+              {t("profile.graph.details")}
             </Button>
           </DialogTrigger>
           <DialogContent className="profile-graph-dialog" showCloseButton={false}>
             <DialogHeader>
-              <DialogTitle>{module.title}详情</DialogTitle>
-              <DialogDescription>详情最多展示 50 个节点，并保留可阅读的连接说明。</DialogDescription>
+              <DialogTitle>{t("profile.graph.detailTitle", { title })}</DialogTitle>
+              <DialogDescription>{t("profile.graph.detailDescription")}</DialogDescription>
             </DialogHeader>
             <GraphView
               chartKey={`${elfieId}-${module.title}-detail`}
               graph={detail}
-              label={`${module.title}详情图`}
+              label={t("profile.graph.detailChart", { title })}
               loadChartRuntime={loadChartRuntime}
               option={detailOption}
-              title={module.title}
+              title={title}
               variant="detail"
             />
             <DialogFooter>
-              <DialogClose asChild><Button type="button" variant="outline">关闭详情</Button></DialogClose>
+              <DialogClose asChild><Button type="button" variant="outline">{t("profile.graph.closeDetails")}</Button></DialogClose>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -82,10 +86,10 @@ export function ProfileGraphSection({
       <GraphView
         chartKey={`${elfieId}-${module.title}-preview`}
         graph={preview}
-        label={`${module.title}预览图`}
+        label={t("profile.graph.previewChart", { title })}
         loadChartRuntime={loadChartRuntime}
         option={previewOption}
-        title={module.title}
+        title={title}
         variant="preview"
       />
     </section>
@@ -98,7 +102,7 @@ type GraphViewProps = {
   readonly label: string
   readonly loadChartRuntime: () => Promise<ProfileChartRuntime>
   readonly option: ReturnType<typeof buildGraphOption>
-  readonly title: GraphModule["title"]
+  readonly title: string
   readonly variant: "preview" | "detail"
 }
 
@@ -131,45 +135,55 @@ function GraphView({
 
 function GraphSummary({ graph, title }: {
   readonly graph: GraphProjection
-  readonly title: GraphModule["title"]
+  readonly title: string
 }) {
+  const { t } = useTranslation("chat")
   const labels = new Map(graph.nodes.map((node) => [node.id, node.label]))
   return (
     <div className="profile-graph__summary">
-      {graph.nodes.length === 0 && <p>暂无可呈现的{title}节点。</p>}
+      {graph.nodes.length === 0 && <p>{t("profile.graph.emptyNodes", { title })}</p>}
       {graph.truncatedNodeCount > 0 && (
         <p className="profile-graph__truncation">
-          已显示前 {graph.nodes.length} 个节点，另有 {graph.truncatedNodeCount} 个未显示。
+          {t("profile.graph.truncated", { hidden: graph.truncatedNodeCount, shown: graph.nodes.length })}
         </p>
       )}
       {graph.edges.length > 0 ? (
-        <ul aria-label={`${title}连接说明`} className="profile-graph__edges">
+        <ul aria-label={t("profile.graph.edgeList", { title })} className="profile-graph__edges">
           {graph.edges.map((edge, index) => (
             <li key={`${edge.source}-${edge.target}-${index}`}>
               <span>{labels.get(edge.source) ?? edge.source}</span>
-              <b aria-label={edge.directed ? "指向" : "连接"}>{edge.directed ? "→" : "—"}</b>
+              <b aria-label={edge.directed ? t("profile.graph.directed") : t("profile.graph.connected")}>{edge.directed ? "→" : "—"}</b>
               <span>{labels.get(edge.target) ?? edge.target}</span>
               <small>：{edge.label}</small>
             </li>
           ))}
         </ul>
       ) : (
-        <p>暂无连接说明。</p>
+        <p>{t("profile.graph.noEdges")}</p>
       )}
     </div>
   )
 }
 
-function graphLabel(title: GraphModule["title"]): string {
+function graphLabel(title: GraphModule["title"], t: TFunction<"chat">): string {
   switch (title) {
     case "关系认知":
-      return "关系网络"
+      return t("profile.graph.labels.relationships")
     case "知识与信念":
-      return "有向知识网络"
+      return t("profile.graph.labels.knowledge")
     case "世界理解":
-      return "世界理解地图"
+      return t("profile.graph.labels.world")
     default:
       return assertNever(title)
+  }
+}
+
+function moduleTitle(title: GraphModule["title"], t: TFunction<"chat">): string {
+  switch (title) {
+    case "关系认知": return t("profile.private.titles.relationships")
+    case "知识与信念": return t("profile.private.titles.knowledge")
+    case "世界理解": return t("profile.private.titles.world")
+    default: return assertNever(title)
   }
 }
 

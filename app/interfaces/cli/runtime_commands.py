@@ -144,11 +144,11 @@ def backup_db() -> None:
     except DatabaseUnavailableError as e:
         print(f"  ❌ Backup failed: {e}")
         return
-    print(f"  ✅ Database backed up to: {backup_path}")
+    print(f"  ✅ Databases backed up to: {backup_path}")
 
 
 def reset_db() -> None:
-    print("  ⚠️  This will delete all data. Continue?")
+    print("  ⚠️  This will reset Nest, chat, and memory databases. Continue?")
     choice = input("Type 'yes' to confirm: ").strip()
     if choice.lower() != "yes":
         return
@@ -157,13 +157,13 @@ def reset_db() -> None:
     except DatabaseUnavailableError as e:
         print(f"  ❌ Delete failed: {e}")
         return
-    print("  ✅ Database deleted; restart service to create new database")
+    print("  ✅ Databases deleted; restart service to create fresh databases")
 
 
 def show_db() -> None:
     print("  Available commands:")
-    print("    elfienest db backup  - Backup database")
-    print("    elfienest db reset   - Reset database")
+    print("    elfienest db backup  - Backup all databases")
+    print("    elfienest db reset   - Reset all databases")
     print()
 
     try:

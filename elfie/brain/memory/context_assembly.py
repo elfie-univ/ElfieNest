@@ -10,7 +10,7 @@ from typing import Dict, List
 from elfie.brain.memory.core_cognition import CoreCognition
 from elfie.brain.memory.ebbinghaus_decay import EbbinghausDecay
 from elfie.brain.memory.emotion_weighting import EmotionWeighting
-from elfie.brain.memory.graph_storage import GraphStorage
+from elfie.brain.memory.memory_store import MemoryStore
 from elfie.brain.memory.node_types import MemoryNode, NodeTypes, RetrievalQuery
 from elfie.brain.memory.retrieval import MemoryRetriever
 from elfie.brain.memory.spreading_activation import SpreadingActivation
@@ -23,7 +23,7 @@ class ContextAssembler:
 
     def __init__(
         self,
-        storage: GraphStorage,
+        storage: MemoryStore,
         retriever: MemoryRetriever,
         spreading: SpreadingActivation,
         decay: EbbinghausDecay,

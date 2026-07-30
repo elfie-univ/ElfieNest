@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Mapping
 
-from ai_runtime.storage.data_home import get_report_exports_dir
+from ai_runtime.storage.data_home import get_runtime_validation_dir
 
 
 class CheckStatus(str, Enum):
@@ -78,8 +79,10 @@ class ValidationReport:
         }
 
     def save(self, directory: Path | None = None) -> Path:
-        report_dir = directory or get_report_exports_dir()
-        report_dir.mkdir(parents=True, exist_ok=True)
+        report_dir = directory or get_runtime_validation_dir()
+        report_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if os.name != "nt":
+            os.chmod(report_dir, 0o700)
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         path = report_dir / f"runtime-validation-{stamp}.json"
         temp_path = path.with_name(f".{path.name}.tmp")
@@ -87,5 +90,7 @@ class ValidationReport:
             json.dumps(self.to_dict(), ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+        if os.name != "nt":
+            os.chmod(temp_path, 0o600)
         temp_path.replace(path)
         return path

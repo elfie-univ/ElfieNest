@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import sqlite3
 import threading
 from http.cookies import SimpleCookie
 from typing import Any, Dict, Optional, Set
@@ -20,7 +19,9 @@ import websockets.asyncio.server
 
 from ai_runtime.storage.data_home import get_db_path as _get_db_path
 from app.features.accounts.auth import verify_session
-from app.infrastructure.persistence.store import get_db
+from app.infrastructure.persistence.runtime_query_repository import (
+    RuntimeQueryRepository,
+)
 from app.interfaces.api.chat_persistence import (
     record_elfie_chat_reply,
     record_owner_chat_message,
@@ -422,7 +423,7 @@ class AuthenticatedWSManager:
                         else None
                     ),
                 )
-            except sqlite3.Error as exc:
+            except RuntimeError as exc:
                 logger.warning("用户聊天消息持久化失败: %s", exc)
 
     # -------------------------------------------------------------------
@@ -431,27 +432,11 @@ class AuthenticatedWSManager:
 
     def _is_elfie_owned_by(self, elfie_id: str, user_id: int) -> bool:
         """检查 elfie_id 是否属于 user_id。"""
-        with get_db(self.db_path) as db:
-            cursor = db.execute(
-                "SELECT owner_user_id FROM elfie_registry WHERE elfie_id = ?",
-                (elfie_id,),
-            )
-            row = cursor.fetchone()
-            if row is None:
-                return False
-            return row["owner_user_id"] == user_id
+        return RuntimeQueryRepository(self.db_path).elfie_is_owned_by(elfie_id, user_id)
 
     def _get_elfie_owner(self, elfie_id: str) -> Optional[int]:
         """查询精灵的 owner_user_id。"""
-        with get_db(self.db_path) as db:
-            cursor = db.execute(
-                "SELECT owner_user_id FROM elfie_registry WHERE elfie_id = ?",
-                (elfie_id,),
-            )
-            row = cursor.fetchone()
-            if row is None:
-                return None
-            return row["owner_user_id"]
+        return RuntimeQueryRepository(self.db_path).owner_id_for_elfie(elfie_id)
 
     # -------------------------------------------------------------------
     # 对外广播接口（线程安全，主线程调用）
@@ -548,7 +533,7 @@ class AuthenticatedWSManager:
                 channel="web",
                 meta=f"情绪：{emotion}" if emotion else "实时回复",
             )
-        except sqlite3.Error as exc:
+        except RuntimeError as exc:
             logger.warning("精灵聊天消息持久化失败: %s", exc)
             return False
         return True

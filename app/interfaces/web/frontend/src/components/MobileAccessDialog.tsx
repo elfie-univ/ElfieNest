@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import QRCode from "qrcode"
 
 import { Button } from "@/components/ui/button"
-import { ApiError, mobileAccess, type MobileAccess } from "../api/client"
+import { mobileAccess, type MobileAccess } from "../api/client"
+import { localizeApiError } from "../i18n/errors"
+import { currentLocale } from "../i18n/format"
 import { Icon } from "./Icon"
 import { SelectField } from "./SelectField"
 
 type MobileAccessDialogProps = { readonly onClose: () => void; readonly targetPath?: "/chat" | "/manage" }
-
-function accessError(reason: unknown): string {
-  return reason instanceof ApiError ? reason.message : "手机访问地址读取失败"
-}
+type MobileAccessError =
+  | { readonly kind: "api"; readonly reason: unknown }
+  | { readonly kind: "qr" }
 
 function withTargetPath(url: string, targetPath: "/chat" | "/manage"): string {
   const target = new URL(url)
@@ -19,10 +21,11 @@ function withTargetPath(url: string, targetPath: "/chat" | "/manage"): string {
 }
 
 export function MobileAccessDialog({ onClose, targetPath = "/chat" }: MobileAccessDialogProps) {
+  const { i18n, t } = useTranslation("common")
   const [access, setAccess] = useState<MobileAccess | null>(null)
   const [selectedUrl, setSelectedUrl] = useState("")
   const [imageUrl, setImageUrl] = useState("")
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<MobileAccessError | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -34,7 +37,7 @@ export function MobileAccessDialog({ onClose, targetPath = "/chat" }: MobileAcce
         setSelectedUrl(targetUrls[0] ?? "")
       })
       .catch((reason: unknown) => {
-        if (!cancelled) setError(accessError(reason))
+        if (!cancelled) setError({ kind: "api", reason })
       })
     return () => { cancelled = true }
   }, [targetPath])
@@ -53,7 +56,7 @@ export function MobileAccessDialog({ onClose, targetPath = "/chat" }: MobileAcce
     }).then((value) => {
       if (!cancelled) setImageUrl(value)
     }).catch(() => {
-      if (!cancelled) setError("二维码生成失败")
+      if (!cancelled) setError({ kind: "qr" })
     })
     return () => { cancelled = true }
   }, [selectedUrl])
@@ -61,17 +64,17 @@ export function MobileAccessDialog({ onClose, targetPath = "/chat" }: MobileAcce
   const unavailable = access !== null && !access.available
   return <section aria-labelledby="mobile-access-title" aria-modal="true" className="modal-backdrop" role="dialog">
     <article className="mobile-access-dialog">
-      <Button aria-label="关闭手机访问二维码" className="modal-close" onClick={onClose} size="icon" type="button" variant="ghost"><Icon name="x" /></Button>
-      <p className="brand">MOBILE ACCESS</p>
-      <h2 id="mobile-access-title">用手机打开 ElfieNest</h2>
-      {error ? <p className="notice notice--error">{error}</p> : null}
-      {access === null && error === null ? <p>正在查找本机局域网地址…</p> : null}
-      {unavailable ? <p className="mobile-access-dialog__hint">当前服务只允许本机访问。请以局域网模式启动后再扫码：<code>elfienest start --lan</code></p> : null}
+      <Button aria-label={t("mobileAccess.close")} className="modal-close" onClick={onClose} size="icon" type="button" variant="ghost"><Icon name="x" /></Button>
+      <p className="brand">{t("mobileAccess.brand")}</p>
+      <h2 id="mobile-access-title">{t("mobileAccess.title")}</h2>
+      {error ? <p className="notice notice--error">{error.kind === "qr" ? t("mobileAccess.qrError") : localizeApiError(error.reason, "manage.load", currentLocale(i18n))}</p> : null}
+      {access === null && error === null ? <p>{t("mobileAccess.loading")}</p> : null}
+      {unavailable ? <p className="mobile-access-dialog__hint">{t("mobileAccess.unavailable")} <code>elfienest start --lan</code></p> : null}
       {access?.available && selectedUrl ? <>
-        <img alt={`访问 ${selectedUrl} 的二维码`} className="mobile-access-dialog__qr" src={imageUrl} />
-        {access.urls.length > 1 ? <div className="mobile-access-dialog__select"><SelectField label="本机地址" onValueChange={setSelectedUrl} options={access.urls.map((url) => ({ label: url, value: url }))} value={selectedUrl} /></div> : null}
+        <img alt={t("mobileAccess.qrAlt", { url: selectedUrl })} className="mobile-access-dialog__qr" src={imageUrl} />
+        {access.urls.length > 1 ? <div className="mobile-access-dialog__select"><SelectField label={t("mobileAccess.localAddress")} onValueChange={setSelectedUrl} options={access.urls.map((url) => ({ label: url, value: url }))} value={selectedUrl} /></div> : null}
         <p className="mobile-access-dialog__url">{selectedUrl}</p>
-        <p className="mobile-access-dialog__hint">手机和电脑接入同一个家庭网络后扫码。登录 Owner 账号进入管理台，普通账号进入聊天。</p>
+        <p className="mobile-access-dialog__hint">{t("mobileAccess.hint")}</p>
       </> : null}
     </article>
   </section>

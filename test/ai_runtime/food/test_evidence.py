@@ -132,7 +132,15 @@ def test_replace_provider_hides_removed_model_observation(monkeypatch, tmp_path)
         ],
     )
 
-    assert set(store.load()) == {
-        "ollama_0001/current",
-        "custom_openai_0001/vision",
-    }
+    assert set(store.load()) == {"ollama_0001/current", "custom_openai_0001/vision"}
+
+
+def test_model_evidence_store_defaults_to_final_report_path(monkeypatch, tmp_path):
+    # Given
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+
+    # When
+    store = ModelEvidenceStore()
+
+    # Then
+    assert store.repository.path == tmp_path / "reports" / "ai-runtime.sqlite"

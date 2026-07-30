@@ -16,7 +16,7 @@ from app.features.configuration.runtime_store import (
 
 def test_yaml_runtime_store_splits_provider_secrets(monkeypatch, tmp_path):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    path = tmp_path / "config.yaml"
+    path = tmp_path / "configs" / "runtime.yaml"
 
     write_runtime_config(
         path,
@@ -31,7 +31,7 @@ def test_yaml_runtime_store_splits_provider_secrets(monkeypatch, tmp_path):
     )
 
     stored = path.read_text(encoding="utf-8")
-    secret_path = tmp_path / "configs" / "credentials" / "api-keys.env"
+    secret_path = tmp_path / "configs" / "auth.env"
     secret_file = secret_path.read_text(encoding="utf-8")
     assert "local-secret" not in stored
     assert "api_key_env: OPENAI_API_KEY" in stored

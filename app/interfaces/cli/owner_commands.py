@@ -64,7 +64,7 @@ def recover_owner_interactive(
         print(
             "  This operation will modify both Owner username and password, and revoke old sessions."
         )
-        print("  Press Esc, ← or select Back to cancel.")
+        print("  Press Esc, ← or choose Back to cancel.")
         print()
         if not owner_menu.confirm(
             "Start recovery?",

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from "react"
+import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
 import { useOptionalObserver } from "../stores/observer"
@@ -9,6 +10,7 @@ type ObserverSurfaceProps =
   | { readonly autoStart?: boolean; readonly elfieId: string; readonly kind: "elfie"; readonly showHeader?: boolean; readonly title: string }
 
 export function ObserverSurface(props: ObserverSurfaceProps) {
+  const { t } = useTranslation("monitor")
   const observer = useOptionalObserver()
   const surfaceRef = useRef<HTMLDivElement | null>(null)
   const autoStartedRef = useRef(false)
@@ -38,28 +40,28 @@ export function ObserverSurface(props: ObserverSurfaceProps) {
   }, [open, props.autoStart])
 
   const statusCopy = isRoom
-    ? "拖动以自由查看房间，滚轮或双指缩放。"
-    : "拖动环绕精灵，滚轮或双指缩放。"
+    ? t("surface.roomHint")
+    : t("surface.elfieHint")
   const status = observer?.status ?? "fallback"
   const fallbackReason = observer?.fallbackReason ?? "disabled"
   const entityCount = Object.keys(observer?.entities ?? {}).length
   const showHeader = props.showHeader ?? true
   const fallbackTitle = fallbackReason === "insecure-context"
-    ? "手机浏览器需要安全连接才能打开 3D 房间观察。"
+    ? t("surface.fallback.insecureTitle")
     : fallbackReason === "unsupported-device"
-      ? "当前设备暂时无法运行 3D 房间观察。"
-      : "当前无法运行 3D 观察。"
+      ? t("surface.fallback.unsupportedTitle")
+      : t("surface.fallback.unavailableTitle")
   const fallbackDetail = fallbackReason === "insecure-context"
-    ? "请改用本机 localhost 访问，或把局域网地址配置为 HTTPS 后再打开预览。HTTP 的 192.168.* 地址会被浏览器拦截。"
+    ? t("surface.fallback.insecureDetail")
     : entityCount > 0
-      ? `当前可见 ${entityCount} 位精灵。`
-      : "可继续使用聊天、资料和房间管理。"
+      ? t("surface.fallback.entityCount", { count: entityCount })
+      : t("surface.fallback.continue")
   return <section aria-label={props.title} className="observer-surface">
-    {showHeader ? <div className="observer-surface__head"><div><strong>{props.title}</strong><small>{statusCopy}</small></div>{status === "idle" ? <Button onClick={open} type="button"><Icon name="cuboid" size={16} />进入 3D</Button> : <Button onClick={() => observer?.detach()} type="button" variant="outline">结束观察</Button>}</div> : null}
+    {showHeader ? <div className="observer-surface__head"><div><strong>{props.title}</strong><small>{statusCopy}</small></div>{status === "idle" ? <Button onClick={open} type="button"><Icon name="cuboid" size={16} />{t("surface.enter")}</Button> : <Button onClick={() => observer?.detach()} type="button" variant="outline">{t("surface.end")}</Button>}</div> : null}
     <div className={status === "ready" || status === "loading" ? "observer-surface__viewport" : "observer-surface__fallback"} ref={surfaceRef}>
-      {status === "idle" ? <p>3D 将在首次打开时加载；聊天与管理不会因此等待。</p> : null}
-      {status === "loading" ? <p>正在建立本地观察视角…</p> : null}
-      {status === "fallback" ? <><p>{fallbackTitle}</p><p>{fallbackDetail}</p>{observer !== null && fallbackReason !== "insecure-context" ? <Button onClick={open} type="button">重试 3D</Button> : null}</> : null}
+      {status === "idle" ? <p>{t("surface.idle")}</p> : null}
+      {status === "loading" ? <p>{t("surface.loading")}</p> : null}
+      {status === "fallback" ? <><p>{fallbackTitle}</p><p>{fallbackDetail}</p>{observer !== null && fallbackReason !== "insecure-context" ? <Button onClick={open} type="button">{t("surface.retry")}</Button> : null}</> : null}
     </div>
   </section>
 }

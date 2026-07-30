@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 
-import type { ElfieId } from "./model"
+import { BIG_FIVE_TRAITS, type ElfieId } from "./model"
 import {
-  BIG_FIVE_COPY,
   buildBigFiveRadarOption,
   resolveChartTheme,
   strongestBigFiveDescriptors,
@@ -25,18 +25,33 @@ export function ProfileBigFive({
   loadChartRuntime = loadProfileChartRuntime,
   values,
 }: ProfileBigFiveProps) {
+  const { t, i18n } = useTranslation("chat")
   const theme = useDocumentTheme()
+  const traitCopy = BIG_FIVE_TRAITS.map((trait) => ({
+    trait,
+    label: t(`profile.bigFive.traits.${trait}.label`),
+    description: t(`profile.bigFive.traits.${trait}.description`),
+  }))
+  const traitLabels = {
+    openness: t("profile.bigFive.traits.openness.label"),
+    conscientiousness: t("profile.bigFive.traits.conscientiousness.label"),
+    extraversion: t("profile.bigFive.traits.extraversion.label"),
+    agreeableness: t("profile.bigFive.traits.agreeableness.label"),
+    neuroticism: t("profile.bigFive.traits.neuroticism.label"),
+  } satisfies Readonly<Record<keyof BigFiveValues, string>>
   const option = useMemo(() => buildBigFiveRadarOption(
     values,
     resolveChartTheme(window.getComputedStyle(document.documentElement)),
-  ), [theme, values])
-  const descriptors = strongestBigFiveDescriptors(values)
+    traitLabels,
+    t("profile.bigFive.title"),
+  ), [i18n.resolvedLanguage, theme, values])
+  const descriptorTraits = strongestBigFiveDescriptors(values).map((copy) => copy.trait)
   const valueList = (
-    <ul aria-label="大五人格数值" className="profile-radar__values">
-      {Object.values(BIG_FIVE_COPY).map((copy) => (
+    <ul aria-label={t("profile.bigFive.values")} className="profile-radar__values">
+      {traitCopy.map((copy) => (
         <li key={copy.trait}>
           <span>{copy.label}</span>
-          <strong>{Math.round(values[copy.trait] * 100)} 分</strong>
+          <strong>{t("profile.bigFive.score", { score: Math.round(values[copy.trait] * 100) })}</strong>
         </li>
       ))}
     </ul>
@@ -45,28 +60,32 @@ export function ProfileBigFive({
   return (
     <section aria-labelledby={`big-five-${elfieId}`} className="profile-dossier__section profile-radar">
       <header className="profile-dossier__section-title">
-        <span>内在画像</span>
-        <h2 id={`big-five-${elfieId}`}>大五人格</h2>
+        <span>{t("profile.bigFive.eyebrow")}</span>
+        <h2 id={`big-five-${elfieId}`}>{t("profile.bigFive.title")}</h2>
       </header>
       <div className="profile-dossier__radar">
         <div className="profile-radar__chart">
           <ProfileChart
             chartKey={elfieId}
-            label="大五人格雷达图"
+            label={t("profile.bigFive.chart")}
             loadRuntime={loadChartRuntime}
             option={option}
             summary={valueList}
           />
         </div>
         <div className="profile-radar__descriptors">
-          <p>最突出的公开特征</p>
-          <ul aria-label="突出人格特征">
-            {descriptors.map((copy) => (
-              <li key={copy.trait}>
+          <p>{t("profile.bigFive.strongest")}</p>
+          <ul aria-label={t("profile.bigFive.strongestList")}>
+            {descriptorTraits.map((trait) => {
+              const copy = traitCopy.find((candidate) => candidate.trait === trait)
+              if (copy === undefined) throw new RangeError(`Missing trait copy: ${trait}`)
+              return (
+              <li key={trait}>
                 <strong>{copy.label}</strong>
                 <span>{copy.description}</span>
               </li>
-            ))}
+              )
+            })}
           </ul>
         </div>
       </div>

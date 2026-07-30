@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 
 import type { AppearanceCaptureAdapter } from "./elfie-profile/appearance-capture"
 import type { ElfieProfileProjection } from "./elfie-profile/projection"
@@ -25,6 +26,7 @@ export function ElfieProfilePanel({
   onChat,
   projection,
 }: ElfieProfilePanelProps) {
+  const { t } = useTranslation("chat")
   const [localAvatar, setLocalAvatar] = useState<LocalAvatar | null>(null)
 
   useEffect(() => {
@@ -34,7 +36,7 @@ export function ElfieProfilePanel({
   if (projection === null) {
     return (
       <section className="profile-dossier profile-dossier--empty">
-        <p className="empty">选择一只精灵，查看它的个人资料。</p>
+        <p className="empty">{t("profile.empty")}</p>
       </section>
     )
   }

@@ -1,7 +1,10 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { z } from "zod"
 
-import { ApiError, ownerRead } from "../api/client"
+import { ownerRead } from "../api/client"
+import { describeApiError, resolveLocalizedError, type LocalizedErrorState } from "../i18n/errors"
+import { currentLocale } from "../i18n/format"
 import { Notice } from "./Notice"
 import { RefreshButton } from "./RefreshButton"
 
@@ -17,32 +20,35 @@ const RuntimeStatusSchema = z.object({
 type ManageMonitorPanelProps = { readonly elfieCount: number }
 
 export function ManageMonitorPanel({ elfieCount }: ManageMonitorPanelProps) {
+  const { i18n, t } = useTranslation("manage")
+  const locale = currentLocale(i18n)
   const [status, setStatus] = useState<z.infer<typeof RuntimeStatusSchema> | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<LocalizedErrorState>(null)
 
-  const load = async (): Promise<void> => {
+  const load = useCallback(async (): Promise<void> => {
     try {
       setStatus(RuntimeStatusSchema.parse(await ownerRead("/api/owner/runtime/status")))
       setError(null)
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "运行状态加载失败")
+      if (!(reason instanceof Error)) throw reason
+      setError(describeApiError(reason, "manage.load"))
     }
-  }
+  }, [])
 
-  useEffect(() => { void load() }, [])
-  const health = status?.status === "ok" ? "正常" : "待检查"
+  useEffect(() => { void load() }, [load])
+  const health = status?.status === "ok" ? t("runtimeMonitor.health.ok") : t("runtimeMonitor.health.attention")
   return <section className="monitor-panel">
-    <div className="manage-head"><div><h2>综合监控</h2><p>本机服务、模型、精灵巢连接与最近运行事件的可读摘要。</p></div><RefreshButton label="刷新状态" onClick={() => { void load() }} /></div>
-    {error && <Notice kind="error" message={error} />}
+    <div className="manage-head"><div><h2>{t("runtimeMonitor.title")}</h2><p>{t("runtimeMonitor.description")}</p></div><RefreshButton label={t("runtimeMonitor.refresh")} onClick={() => { void load() }} /></div>
+    {error && <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("errors.load")} />}
     <div className="monitor-metrics">
-      <Metric label="系统健康" value={health} detail={status?.fallback.configured ? `默认回退：${status.fallback.provider}` : "默认回退尚未配置"} state={status?.status === "ok" ? "good" : "warning"} />
-      <Metric label="已登记精灵" value={String(elfieCount)} detail="当前管理范围内的精灵" state="neutral" />
-      <Metric label="可用供应商" value={status ? `${status.providers.active}/${status.providers.total}` : "—"} detail={status ? `${status.providers.inactive} 个待配置或离线` : "正在读取"} state={status?.providers.active ? "good" : "warning"} />
-      <Metric label="可见模型" value={status ? String(status.models.visible) : "—"} detail={status ? `目录共 ${status.models.total} 个模型` : "正在读取"} state="neutral" />
+      <Metric label={t("runtimeMonitor.labels.health")} value={health} detail={status?.fallback.configured ? t("runtimeMonitor.fallback.configured", { provider: status.fallback.provider }) : t("runtimeMonitor.fallback.missing")} state={status?.status === "ok" ? "good" : "warning"} />
+      <Metric label={t("runtimeMonitor.labels.elfies")} value={String(elfieCount)} detail={t("runtimeMonitor.labels.elfiesDetail")} state="neutral" />
+      <Metric label={t("runtimeMonitor.labels.providers")} value={status ? `${status.providers.active}/${status.providers.total}` : "—"} detail={status ? `${status.providers.inactive} ${t("runtimeMonitor.labels.fallbackProviders")}` : t("runtimeMonitor.labels.reading")} state={status?.providers.active ? "good" : "warning"} />
+      <Metric label={t("runtimeMonitor.labels.models")} value={status ? String(status.models.visible) : "—"} detail={status ? t("runtimeMonitor.labels.modelsDetail", { count: status.models.total }) : t("runtimeMonitor.labels.reading")} state="neutral" />
     </div>
     <div className="monitor-layout">
-      <section className="monitor-module"><h3>模型服务</h3><p>按连接结果，而不是密钥文本展示。</p><dl><div><dt>已启用</dt><dd>{status?.providers.active ?? "—"}</dd></div><div><dt>待配置 / 离线</dt><dd>{status?.providers.inactive ?? "—"}</dd></div><div><dt>运行事件</dt><dd>{status?.observer.event_count ?? "—"}</dd></div></dl></section>
-      <section className="monitor-module"><h3>系统提醒</h3>{status === null ? <p className="empty">正在读取运行状态…</p> : <ul className="monitor-notices">{status.notes.length === 0 ? <li>各项指标平稳，暂无额外提醒。</li> : status.notes.map((note) => <li key={note}>{note}</li>)}</ul>}<p className="monitor-last-event">最近事件：{status?.observer.last_event ?? "暂无"}</p></section>
+      <section className="monitor-module"><h3>{t("runtimeMonitor.modules.models")}</h3><p>{t("runtimeMonitor.modules.modelsDescription")}</p><dl><div><dt>{t("runtimeMonitor.labels.active")}</dt><dd>{status?.providers.active ?? "—"}</dd></div><div><dt>{t("runtimeMonitor.labels.fallbackProviders")}</dt><dd>{status?.providers.inactive ?? "—"}</dd></div><div><dt>{t("runtimeMonitor.labels.runtimeEvents")}</dt><dd>{status?.observer.event_count ?? "—"}</dd></div></dl></section>
+      <section className="monitor-module"><h3>{t("runtimeMonitor.modules.alerts")}</h3>{status === null ? <p className="empty">{t("runtimeMonitor.readingStatus")}</p> : <ul className="monitor-notices">{status.notes.length === 0 || locale === "en-US" ? <li>{t("runtimeMonitor.noAlerts")}</li> : status.notes.map((note) => <li key={note}>{note}</li>)}</ul>}<p className="monitor-last-event">{t("runtimeMonitor.labels.lastEvent", { event: status?.observer.last_event ?? t("runtimeMonitor.labels.noEvent") })}</p></section>
     </div>
   </section>
 }

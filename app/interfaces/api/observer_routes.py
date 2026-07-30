@@ -14,7 +14,9 @@ from app.features.accounts.auth import (
     get_session_ttl_seconds,
     verify_session,
 )
-from app.infrastructure.persistence.store import get_db
+from app.infrastructure.persistence.interface_query_repository import (
+    InterfaceQueryRepository,
+)
 from nest.godot_gateway.observer import (
     ObserverHello,
     ObserverInterest,
@@ -160,12 +162,10 @@ def _session_fingerprint(request: Request, user: Dict[str, Any]) -> str:
 
 
 def _owns_elfie(db_path: str, user_id: int, elfie_id: str) -> bool:
-    with get_db(db_path) as connection:
-        row = connection.execute(
-            "SELECT 1 FROM elfie_registry WHERE elfie_id = ? AND owner_user_id = ?",
-            (elfie_id, user_id),
-        ).fetchone()
-    return row is not None
+    return (
+        InterfaceQueryRepository(db_path).get_elfie(elfie_id, owner_user_id=user_id)
+        is not None
+    )
 
 
 def _sink(request: Request) -> Callable[[WorldChangingIntent], None]:

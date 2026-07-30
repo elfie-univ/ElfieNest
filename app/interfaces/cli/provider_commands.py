@@ -219,7 +219,7 @@ def remove_provider(provider_id: str) -> None:
     name = _configured_provider_name(provider_id, remove_result.profile.name)
     if remove_result.removed_config:
         write_user_config(remove_result.config)
-        print(f"  ✅ Removed {name} from configs/providers.yaml")
+        print(f"  ✅ Removed {name} from configs/runtime.yaml")
 
     if remove_result.removed_env_key or remove_result.removed_base_url_env_key:
         write_env_file(remove_result.env_vars)
@@ -227,12 +227,12 @@ def remove_provider(provider_id: str) -> None:
     if remove_result.removed_env_key:
         print(
             f"  ✅ Removed {remove_result.profile.api_key_env_var} "
-            "from configs/credentials/api-keys.env"
+            "from configs/auth.env"
         )
     if remove_result.removed_base_url_env_key:
         print(
             f"  ✅ Removed {remove_result.profile.base_url_env_var} "
-            "from configs/credentials/api-keys.env"
+            "from configs/auth.env"
         )
 
     print(f"\n  ✅ {name} configuration removed")

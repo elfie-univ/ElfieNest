@@ -1,4 +1,4 @@
-"""精灵领养生成器：创建稳定外貌档案及现有大脑兼容配置。
+"""精灵领养生成器：创建最终稳定档案。
 
 Usage::
 
@@ -12,8 +12,8 @@ Usage::
         personality_style="好奇探索",
         height="tall",
         build="plump",
-        config_dir=str(get_elfie_config_dir("elfie_001")),
-        elfie_id="elfie_001",
+        config_dir=str(get_elfie_config_dir("00000001")),
+        elfie_id="00000001",
     )
 """
 
@@ -25,8 +25,6 @@ import secrets
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
-
-import yaml
 
 from elfie.profile import (
     PERSONALITY_PRESETS,
@@ -132,7 +130,7 @@ VALID_LEGACY_ANATOMY_TYPES: Tuple[str, ...] = ("biped", "quadruped")
 
 
 class ElfieGenerator:
-    """根据领养偏好生成 ``profile.yaml`` 和三个兼容配置文件。
+    """根据领养偏好生成最终 ``profile/profile.yaml``。
 
     类属性暴露常量，方便前端 / API 层读取可选值：
 
@@ -353,7 +351,7 @@ class ElfieGenerator:
         appearance_seed: int | None = None,
         appearance_overrides: Dict[str, Any] | None = None,
     ) -> Dict[str, str]:
-        """生成稳定视觉档案及现有大脑兼容配置。
+        """生成最终稳定视觉与认知档案。
 
         Args:
             name: 精灵名字。
@@ -457,33 +455,14 @@ class ElfieGenerator:
         )
         system_limits = self._build_system_limits_yaml(depletion_rate)
 
-        # profile.yaml 是稳定事实来源；旧三份 YAML 在迁移期继续双写给现有 API。
+        # The final profile is the only persisted Elfie configuration source.
         profile = replace(
             profile,
             personality=personality,
             capabilities=capabilities,
             system_limits=system_limits,
         )
-        ElfieProfileRepository(cfg_path).save(profile)
-
-        # ------------------------------------------------------------------
-        # 写入 YAML 文件
-        # ------------------------------------------------------------------
-        yaml_options: Dict[str, Any] = {
-            "allow_unicode": True,
-            "sort_keys": False,
-            "default_flow_style": False,
-            "encoding": "utf-8",
-        }
-
-        with open(cfg_path / "personality.yaml", "w", encoding="utf-8") as f:
-            yaml.dump(personality, f, **yaml_options)
-
-        with open(cfg_path / "capabilities.yaml", "w", encoding="utf-8") as f:
-            yaml.dump(capabilities, f, **yaml_options)
-
-        with open(cfg_path / "system_limits.yaml", "w", encoding="utf-8") as f:
-            yaml.dump(system_limits, f, **yaml_options)
+        ElfieProfileRepository(cfg_path / "profile").save(profile)
 
         logger.info(
             "Generated config for elfie %s (%s) at %s",

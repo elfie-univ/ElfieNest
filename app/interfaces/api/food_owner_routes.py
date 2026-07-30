@@ -19,6 +19,7 @@ from ai_runtime.food.planner import FoodPlanner
 from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
 from ai_runtime.models.model_reference import ModelReferenceError
 from app.features.accounts.auth import require_owner
+from app.infrastructure.persistence.account_repository import AccountRepository
 from app.infrastructure.persistence.food_assignments import (
     food_assignment_usage,
     list_food_access_users,
@@ -208,9 +209,8 @@ async def get_food_visibility(
         else set(list_food_access_users(request.app.state.db_path, food_id))
     )
     with get_db(request.app.state.db_path) as connection:
-        users = connection.execute(
-            "SELECT id, username, nickname FROM users WHERE role = 'user' ORDER BY id"
-        ).fetchall()
+        repo = AccountRepository(connection)
+        users = repo.list_non_owner_users()
     return {
         "food_key": food_id,
         "global": system,

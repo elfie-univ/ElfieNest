@@ -11,12 +11,17 @@ import hmac
 import logging
 import secrets
 import time
-from pathlib import Path
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import Depends, HTTPException, Request
+from typing_extensions import TypedDict
 
+from ai_runtime.storage.data_home import data_home_from_db_path, get_config_path
 from ai_runtime.storage.data_home import get_db_path as _get_db_path
+from ai_runtime.storage.data_layout import final_root_layout
+from app.features.configuration.runtime_store import read_system_section
+from app.infrastructure.persistence.session_repository import SessionRepository
 from app.infrastructure.persistence.store import get_db
 
 # 重导出 store.py 中的哈希函数，便于 auth 层统一 import
@@ -68,13 +73,19 @@ def verify_csrf_token(session_token: str, csrf_token: str) -> bool:
 _session_config: Dict[str, int] = {"ttl_seconds": 7 * 86_400}
 
 
-def _runtime_config_for_db(db_path: Optional[str]):
-    """加载与数据库同一数据根目录的 Runtime 配置。"""
-    from ai_runtime.config import LLMRuntimeConfig  # noqa: PLC0415
+class AuthenticatedUser(TypedDict):
+    id: int
+    username: str
+    role: str
+    default_landing_page: str
 
+
+def _security_config_for_db(db_path: Optional[str]) -> Dict[str, Any]:
+    """Load final security settings from the database-selected product root."""
+    config_path = get_config_path()
     if db_path and db_path != ":memory:":
-        return LLMRuntimeConfig(config_home=str(Path(db_path).expanduser().parent))
-    return LLMRuntimeConfig()
+        config_path = final_root_layout(data_home_from_db_path(db_path)).runtime_config
+    return read_system_section(config_path, "security")
 
 
 def get_session_ttl_seconds(db_path: Optional[str] = None) -> int:
@@ -86,8 +97,7 @@ def get_session_ttl_seconds(db_path: Optional[str] = None) -> int:
     Returns:
         TTL 秒数
     """
-    config = _runtime_config_for_db(db_path)
-    ttl_days = config.system.get("security", {}).get("session_ttl_days", 7)
+    ttl_days = _security_config_for_db(db_path).get("session_ttl_days", 7)
     ttl_seconds = ttl_days * 86400
 
     # 更新缓存
@@ -113,21 +123,19 @@ def create_session(user_id: int, db_path: str = None) -> str:
     """
     if db_path is None:
         db_path = str(_get_db_path())
-    token = secrets.token_hex(32)
-    expires_at = time.time() + get_session_ttl_seconds(db_path)
+    expires_at = datetime.now(timezone.utc) + timedelta(
+        seconds=get_session_ttl_seconds(db_path)
+    )
 
     with get_db(db_path) as conn:
-        conn.execute(
-            "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
-            (token, user_id, expires_at),
-        )
+        token = SessionRepository(conn).issue(user_id, expires_at)
         conn.commit()
 
     logger.debug("Session created for user_id=%d", user_id)
     return token
 
 
-def verify_session(token: str, db_path: str) -> Optional[Dict[str, Any]]:
+def verify_session(token: str, db_path: str) -> Optional[AuthenticatedUser]:
     """验证 *token* 对应的 session 是否有效且未过期。
 
     检查 sessions 表 + JOIN users 表获取用户信息。
@@ -136,26 +144,18 @@ def verify_session(token: str, db_path: str) -> Optional[Dict[str, Any]]:
     Returns:
         ``{"id": ..., "username": ..., "role": ...}`` 或 ``None``（无效/过期）。
     """
-    now = time.time()
-
     with get_db(db_path) as conn:
-        cursor = conn.execute(
-            """SELECT u.id, u.username, u.role, u.default_landing_page
-               FROM sessions s
-               JOIN users u ON s.user_id = u.id
-               WHERE s.token = ? AND s.expires_at > ?""",
-            (token, now),
+        principal = SessionRepository(conn).find_active(
+            token, datetime.now(timezone.utc)
         )
-        row = cursor.fetchone()
-
-    if row is None:
+    if principal is None:
         return None
 
     return {
-        "id": row["id"],
-        "username": row["username"],
-        "role": row["role"],
-        "default_landing_page": row["default_landing_page"],
+        "id": principal.user_id,
+        "username": principal.username,
+        "role": principal.role,
+        "default_landing_page": principal.default_landing_page,
     }
 
 
@@ -164,7 +164,7 @@ def delete_session(token: str, db_path: str = None) -> None:
     if db_path is None:
         db_path = str(_get_db_path())
     with get_db(db_path) as conn:
-        conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
+        SessionRepository(conn).revoke(token, datetime.now(timezone.utc))
         conn.commit()
 
     logger.debug("Session deleted for token=%s...", token[:16])
@@ -175,7 +175,7 @@ def delete_session(token: str, db_path: str = None) -> None:
 # ---------------------------------------------------------------------------
 
 
-def get_current_user(request: Request) -> Dict[str, Any]:
+def get_current_user(request: Request) -> AuthenticatedUser:
     """FastAPI ``Depends`` 用鉴权中间件。
 
     从 cookie ``session_token`` 读取 token，调 ``verify_session`` 验证。
@@ -202,15 +202,15 @@ def get_current_user(request: Request) -> Dict[str, Any]:
 
 
 def require_user(  # noqa: B008
-    user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
-) -> Dict[str, Any]:
+    user: AuthenticatedUser = Depends(get_current_user),  # noqa: B008
+) -> AuthenticatedUser:
     """要求请求已通过当前应用数据库的 session 鉴权。"""
     return user
 
 
 def require_owner(  # noqa: B008
-    user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
-) -> Dict[str, Any]:
+    user: AuthenticatedUser = Depends(get_current_user),  # noqa: B008
+) -> AuthenticatedUser:
     """要求当前用户为唯一 Owner 角色。"""
     if user.get("role") != "owner":
         raise HTTPException(status_code=403, detail="需要 Owner 权限")
@@ -288,8 +288,7 @@ def get_rate_limiter(db_path: Optional[str] = None) -> RateLimiter:
     Returns:
         RateLimiter 实例
     """
-    config = _runtime_config_for_db(db_path)
-    security = config.system.get("security", {})
+    security = _security_config_for_db(db_path)
     rate_config = security.get("rate_limit", {})
 
     max_attempts = rate_config.get("max_attempts", 5)

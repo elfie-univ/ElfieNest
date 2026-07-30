@@ -5,7 +5,7 @@ Startup flow:
     1. Initialize DB + seed Owner account
     2. Optional: seed initial Elfie "Aifei" for Owner (--seed-elfie, default on)
     3. Engine background thread: RuntimeAgent → ElfieNestEngine (no hardcoded Elfies)
-    4. Query elfie_registry from DB → instantiate Elfie → register to engine
+    4. Load final Elfie records → instantiate Elfie → register to engine
     5. Create FastAPI app → uvicorn blocks main thread
 
 Command-line arguments:
@@ -41,23 +41,26 @@ logging.basicConfig(level=logging.WARNING, format="%(message)s")
 
 from ai_runtime import LLMRuntimeConfig
 from ai_runtime.storage.data_home import (
+    DataHomeSelectionError,
     get_db_path,
     get_elfie_config_dir,
     get_elfie_home,
+    select_elfie_home,
 )
 from app.features.adoption.generator import ElfieGenerator
-from app.features.configuration.food_access import resolve_elfie_food_key
+from app.infrastructure.persistence.account_repository import AccountRepository
+from app.infrastructure.persistence.elfie_repository import ElfieRepository
 from app.infrastructure.persistence.nest_state_repository import (
     SQLiteNestStateRepository,
 )
 from app.infrastructure.persistence.store import (
     get_db,
     init_db,
-    migrate_db_if_needed,
     seed_initial_owner_if_env_set,
 )
 from app.interfaces.api.app import create_app
 from app.interfaces.api.service_access import ServiceMode
+from app.interfaces.cli.lifecycle_commands import _remember_lifecycle_data_home
 from app.orchestration.engine import ElfieNestEngine
 from app.orchestration.lifecycle.process import (
     DEFAULT_GODOT_WS_PORT,
@@ -173,56 +176,42 @@ def prepare_godot_web_runtime(
 
 
 def seed_single_elfie(db_path: str) -> bool:
-    """Seed one default Elfie named "Aifei" for the Owner when elfie_registry is empty.
+    """Seed one final default Elfie named "Aifei" for an otherwise empty Nest.
 
     Returns:
         True when a new Elfie was seeded, False when existing Elfies require no action.
     """
-    with get_db(db_path) as conn:
-        cursor = conn.execute("SELECT COUNT(*) AS cnt FROM elfie_registry")
-        row = cursor.fetchone()
-        if row and row["cnt"] > 0:
-            return False
+    repository = ElfieRepository(db_path)
+    if repository.count_all() > 0:
+        return False
+    with get_db(db_path) as connection:
+        owner = AccountRepository(connection).find_owner()
+    if owner is None:
+        return False
 
-        cursor = conn.execute(
-            "SELECT id FROM users WHERE role = 'owner' ORDER BY id LIMIT 1"
-        )
-        owner_row = cursor.fetchone()
-        if owner_row is None:
-            return False
-
-    owner_id = owner_row["id"]
-    elfie_id = "elfie_default"
+    elfie_id = "00000001"
     config_dir = str(get_elfie_config_dir(elfie_id))
-
-    ElfieGenerator().generate(
-        name="Aifei",
-        anatomy_type="biped",
-        personality_style="playful and energetic",
-        height="tall",
-        build="plump",
-        config_dir=config_dir,
+    repository.reserve_adoption(
         elfie_id=elfie_id,
+        owner_user_id=owner.user_id,
+        name="Aifei",
+        species="fox",
+        summary=None,
+        max_elfies=1,
     )
-
-    with get_db(db_path) as conn:
-        conn.execute(
-            """INSERT INTO elfie_registry
-               (elfie_id, name, owner_user_id, anatomy_type, config_dir,
-                personality_style, height, build)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                elfie_id,
-                "Aifei",
-                owner_id,
-                "biped",
-                config_dir,
-                "playful and energetic",
-                "tall",
-                "plump",
-            ),
+    try:
+        ElfieGenerator().generate_for_species(
+            name="Aifei",
+            species_id="fox",
+            personality_style="好奇探索",
+            height="tall",
+            build="plump",
+            config_dir=config_dir,
+            elfie_id=elfie_id,
         )
-        conn.commit()
+    except Exception:
+        repository.delete(elfie_id)
+        raise
 
     return True
 
@@ -273,7 +262,22 @@ def main():
         default=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
         help="Godot Web Runtime lifecycle mode (default: development)",
     )
+    parser.add_argument(
+        "--data-home",
+        default=None,
+        help="Use an explicit ElfieNest data root for this serve process",
+    )
     args = parser.parse_args()
+
+    try:
+        select_elfie_home(
+            args.data_home,
+            invoking_cwd=Path.cwd(),
+            runtime_mode=args.runtime_mode,
+            source_root=Path(__file__).resolve().parent.parent,
+        )
+    except DataHomeSelectionError as error:
+        parser.error(str(error))
 
     port_error = validate_service_ports(
         args.port,
@@ -412,6 +416,7 @@ def main():
 
     try:
         register_current_service(get_elfie_home())
+        _remember_lifecycle_data_home(get_elfie_home())
     except OSError as error:
         start_lease.release()
         print(f"  ❌ Cannot register service process: {error}")
@@ -419,9 +424,8 @@ def main():
     start_lease.release()
     db_path = str(get_db_path())
 
-    # 1. Initialize database, run migrations, and seed Owner from environment.
+    # 1. Initialize the final database and seed Owner from environment.
     init_db(db_path)
-    migrate_db_if_needed(db_path)
     seed_initial_owner_if_env_set(db_path)
 
     # 2. Optionally seed the initial Owner Elfie (enabled by default).
@@ -450,8 +454,15 @@ def main():
         else:
             try:
                 from ai_runtime import RuntimeAgent  # noqa: PLC0415
+                from app.bootstrap.runtime_food import (  # noqa: PLC0415
+                    final_food_policy_loader,
+                )
 
-                raw_agent = RuntimeAgent(config, live_reload=True)
+                raw_agent = RuntimeAgent(
+                    config,
+                    live_reload=True,
+                    food_policy_loader=final_food_policy_loader(db_path),
+                )
                 # Ask the self-healing manager to reuse or start Ollama.
                 raw_agent.ollama_manager.ensure_service_started()
 
@@ -539,15 +550,8 @@ def main():
 
         elfie_factory = ElfieFactory()
 
-        with get_db(db_path) as conn:
-            cursor = conn.execute("SELECT COUNT(*) AS cnt FROM elfie_registry")
-            count_row = cursor.fetchone()
-            existing_count = count_row["cnt"] if count_row else 0
-
-            cursor = conn.execute(
-                "SELECT elfie_id, config_dir, anatomy_type, name FROM elfie_registry"
-            )
-            rows = cursor.fetchall()
+        rows = ElfieRepository(db_path).list_all()
+        existing_count = len(rows)
 
         # Warn when existing Elfies exceed the new limit; still load all of them.
         if max_elfies_per_room is not None and existing_count > max_elfies_per_room:
@@ -556,14 +560,12 @@ def main():
             )
 
         for row in rows:
-            elfie_id = row["elfie_id"]
-            config_dir = row["config_dir"]
-            anatomy_type = row["anatomy_type"]
-            name = row["name"]
+            elfie_id = row.elfie_id
+            config_dir = str(get_elfie_config_dir(elfie_id))
+            name = row.name
             try:
                 elfie = elfie_factory.restore(
                     config_dir,
-                    anatomy_type=anatomy_type,
                     godot_api=engine.api_server,
                     elfie_id=elfie_id,
                 )

@@ -4,9 +4,8 @@ from elfie.brain.memory.core_cognition import CoreCognition
 from elfie.brain.memory.ebbinghaus_decay import EbbinghausDecay
 from elfie.brain.memory.emotion_weighting import EmotionWeighting
 from elfie.brain.memory.encoding import MemoryEncoder
-from elfie.brain.memory.graph_storage import GraphStorage
+from elfie.brain.memory.knowledge_store import KnowledgeStore
 from elfie.brain.memory.memory_system import MemorySystem
-from elfie.brain.memory.migration import migrate_from_json
 from elfie.brain.memory.node_types import (
     Edge,
     EdgeTypes,
@@ -22,7 +21,7 @@ from elfie.brain.memory.tokenizer import tokenize
 
 __all__ = [
     "MemorySystem",
-    "GraphStorage",
+    "KnowledgeStore",
     "MemoryNode",
     "Edge",
     "RetrievalQuery",
@@ -39,5 +38,4 @@ __all__ = [
     "ContextAssembler",
     "SensoryIndexer",
     "tokenize",
-    "migrate_from_json",
 ]

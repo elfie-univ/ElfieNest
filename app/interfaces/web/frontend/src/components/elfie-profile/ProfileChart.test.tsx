@@ -1,7 +1,11 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
+import { createI18n } from "../../i18n/config"
+
 import { ProfileChart, type ProfileChartRuntime } from "./ProfileChart"
+
+createI18n()
 
 function runtime() {
   const chart = {

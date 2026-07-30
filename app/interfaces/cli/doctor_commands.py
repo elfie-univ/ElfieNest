@@ -7,15 +7,12 @@ from dataclasses import dataclass
 from ai_runtime.lab.cli import RuntimeLab
 from ai_runtime.storage.data_home import (
     ensure_elfie_home,
-    get_cache_dir,
     get_elfie_home,
     get_food_history_dir,
-    get_local_files_dir,
     get_logs_dir,
-    get_report_exports_dir,
-    get_reports_dir,
-    get_sessions_dir,
-    get_skills_dir,
+    get_model_validation_dir,
+    get_runtime_locks_dir,
+    get_runtime_validation_dir,
 )
 
 
@@ -58,15 +55,15 @@ def repair_local_runtime_state() -> DoctorRepairReport:
     repaired: list[str] = []
     expected_dirs = (
         get_elfie_home(),
+        get_elfie_home() / "assets",
+        get_elfie_home() / "assets" / "users",
+        get_elfie_home() / "configs",
         get_elfie_home() / "elfies",
-        get_cache_dir(),
         get_logs_dir(),
-        get_skills_dir(),
-        get_sessions_dir(),
         get_food_history_dir(),
-        get_reports_dir(),
-        get_report_exports_dir(),
-        get_local_files_dir(),
+        get_model_validation_dir(),
+        get_runtime_validation_dir(),
+        get_runtime_locks_dir(),
     )
     missing_dirs = [path for path in expected_dirs if not path.exists()]
     ensure_elfie_home()

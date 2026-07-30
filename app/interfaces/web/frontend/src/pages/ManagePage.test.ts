@@ -2,11 +2,16 @@ import { createElement } from "react"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { render, screen, within } from "@testing-library/react"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import userEvent from "@testing-library/user-event"
+import { I18nextProvider } from "react-i18next"
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { createI18n } from "../i18n/config"
+import { initializeLocale, type SupportedLocale } from "../i18n/locale"
 import { ManagePage } from "./ManagePage"
 
 const session = vi.hoisted(() => ({
+  loading: false,
   refresh: vi.fn(async () => undefined),
   user: {
     avatar_color: 2,
@@ -22,7 +27,7 @@ const session = vi.hoisted(() => ({
 }))
 
 vi.mock("../stores/session", () => ({
-  useSession: () => ({ user: session.user, loading: false, refresh: session.refresh }),
+  useSession: () => ({ user: session.user, loading: session.loading, refresh: session.refresh }),
 }))
 
 vi.mock("../stores/heartbeat", () => ({
@@ -38,13 +43,27 @@ vi.mock("../components/OwnerFoodPanel", () => ({ OwnerFoodPanel: () => "粮食�
 vi.mock("../components/SystemSettingsPanel", () => ({ SystemSettingsPanel: () => "系统设置内容" }))
 vi.mock("./IconCatalogPage", () => ({ IconCatalogPage: () => "图标目录" }))
 
-function renderManagePage(section = "monitor"): void {
+function renderManagePage(section = "monitor", locale: SupportedLocale = "zh-CN"): void {
   window.history.replaceState({}, "", `/manage?section=${section}`)
-  render(createElement(ManagePage))
+  const instance = createI18n()
+  initializeLocale(instance, {
+    browserLanguages: [locale],
+    documentElement: document.documentElement,
+    storage: localStorage,
+  })
+  render(createElement(I18nextProvider, { i18n: instance }, createElement(ManagePage)))
 }
 
 describe("ManagePage", () => {
+  beforeAll(() => {
+    Element.prototype.hasPointerCapture = vi.fn(() => false)
+    Element.prototype.setPointerCapture = vi.fn()
+    Element.prototype.releasePointerCapture = vi.fn()
+    Element.prototype.scrollIntoView = vi.fn()
+  })
+
   beforeEach(() => {
+    session.loading = false
     session.refresh.mockClear()
   })
 
@@ -92,5 +111,34 @@ describe("ManagePage", () => {
     expect(sidebarRule).toContain("height: auto")
     expect(navigationRule).toContain("display: flex")
     expect(navigationRule).toContain("overflow-x: auto")
+  })
+
+  it("falls back from an unknown section to the localized monitor without rewriting the query", () => {
+    renderManagePage("retired-section", "en-US")
+
+    expect(screen.getByRole("heading", { level: 1, name: "Status monitor" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Status monitor" })).toHaveAttribute("aria-current", "page")
+    expect(window.location.search).toBe("?section=retired-section")
+  })
+
+  it("switches the shell language without losing the active section or query", async () => {
+    const user = userEvent.setup()
+    renderManagePage("users")
+    const originalUrl = window.location.href
+
+    await user.click(screen.getByRole("button", { name: /阿尔法/ }))
+    await user.click(screen.getByRole("combobox", { name: "语言" }))
+    await user.click(screen.getByRole("option", { name: "English" }))
+
+    expect(screen.getByRole("heading", { level: 1, name: "User management" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "User management" })).toHaveAttribute("aria-current", "page")
+    expect(window.location.href).toBe(originalUrl)
+  })
+
+  it("localizes the session verification state", () => {
+    session.loading = true
+    renderManagePage("monitor", "en-US")
+
+    expect(screen.getByText("Verifying your session...")).toBeInTheDocument()
   })
 })

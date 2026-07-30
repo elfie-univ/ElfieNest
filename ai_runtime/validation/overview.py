@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -18,7 +19,7 @@ from ai_runtime.models.capabilities import (
 )
 from ai_runtime.models.catalog import BUILTIN_MODEL_CATALOG
 from ai_runtime.providers.profiles import BUILTIN_PROFILES
-from ai_runtime.storage.data_home import get_report_exports_dir
+from ai_runtime.storage.data_home import get_model_validation_dir
 from ai_runtime.validation.models import CheckResult, CheckStatus, ValidationSuite
 from ai_runtime.validation.providers import (
     ProviderValidationRunner,
@@ -46,11 +47,13 @@ def configured_provider_ids(config: LLMRuntimeConfig) -> list[str]:
 
 class RuntimeOverviewStore:
     def __init__(self, directory: Path | None = None) -> None:
-        self.directory = directory or get_report_exports_dir()
+        self.directory = directory or get_model_validation_dir()
         self.current_path = self.directory / "runtime-overview-current.json"
 
     def save(self, report: Mapping[str, Any]) -> Path:
-        self.directory.mkdir(parents=True, exist_ok=True)
+        self.directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if os.name != "nt":
+            os.chmod(self.directory, 0o700)
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
         history_path = self.directory / f"runtime-overview-{stamp}.json"
         payload = json.dumps(dict(report), ensure_ascii=False, indent=2)
@@ -62,6 +65,8 @@ class RuntimeOverviewStore:
     def _atomic_write(path: Path, payload: str) -> None:
         temp_path = path.with_name(f".{path.name}.tmp")
         temp_path.write_text(payload, encoding="utf-8")
+        if os.name != "nt":
+            os.chmod(temp_path, 0o600)
         temp_path.replace(path)
 
 

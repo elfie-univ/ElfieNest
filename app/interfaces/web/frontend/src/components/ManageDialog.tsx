@@ -1,4 +1,5 @@
 import { useRef, type ReactElement, type ReactNode } from "react"
+import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -31,6 +32,7 @@ export function ManageDialog({
   title,
   trigger,
 }: ManageDialogProps) {
+  const { t } = useTranslation("common")
   const openerRef = useRef<HTMLElement | null>(null)
   const contentClasses = ["max-w-[35rem] max-h-[min(47.5rem,calc(100vh-2rem))] overflow-y-auto p-6 sm:max-w-[35rem]", contentClassName].filter(Boolean).join(" ")
   return <Dialog onOpenChange={onOpenChange} open={open}>
@@ -54,7 +56,7 @@ export function ManageDialog({
         </DialogHeader>
         <div className="grid gap-3.5">{children}</div>
         <DialogClose asChild>
-          <Button aria-label={`关闭${title}`} className="absolute top-4 right-4" size="icon-sm" type="button" variant="ghost">
+          <Button aria-label={t("aria.closeDialog", { title })} className="absolute top-4 right-4" size="icon-sm" type="button" variant="ghost">
             <Icon name="x" size={18} />
           </Button>
         </DialogClose>

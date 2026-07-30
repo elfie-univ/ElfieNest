@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { ApiError, createManagedUser, deleteManagedUser, ownerUsers, resetManagedUserPassword, updateManagedUser, type OwnerUser } from "../api/client"
+import { createManagedUser, deleteManagedUser, ownerUsers, resetManagedUserPassword, updateManagedUser, type OwnerUser } from "../api/client"
+import { describeApiError, resolveLocalizedError, type LocalizedErrorState } from "../i18n/errors"
+import { compareLocalizedText, currentLocale } from "../i18n/format"
 import { Avatar } from "./Avatar"
 import { ConfirmDialog } from "./ConfirmDialog"
 import { Icon } from "./Icon"
@@ -15,19 +18,21 @@ import { TextField } from "./TextField"
 import { MOCK_USERS } from "./owner-card-mock-data"
 
 export function ManageUsersPanel({ csrfToken }: { readonly csrfToken: string }) {
+  const { i18n, t } = useTranslation("manage")
+  const locale = currentLocale(i18n)
   const [users, setUsers] = useState<readonly OwnerUser[]>([])
   const [creating, setCreating] = useState(false)
   const [deleting, setDeleting] = useState<OwnerUser | null>(null)
   const [resetting, setResetting] = useState<OwnerUser | null>(null)
   const [deletePending, setDeletePending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<LocalizedErrorState>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [mockMode, setMockMode] = useState(false)
   const showDemoData = (reason?: unknown): void => {
-    setUsers(MOCK_USERS)
+    setUsers([...MOCK_USERS].sort((left, right) => compareLocalizedText(left.display_name, right.display_name, locale)))
     setMockMode(true)
     setError(null)
-    setNotice(reason instanceof ApiError ? `后端暂不可用，当前显示演示数据：${reason.message}` : "后端暂不可用，当前显示演示数据")
+    setNotice(t("users.notices.demo"))
   }
   const load = async (): Promise<void> => {
     try {
@@ -36,7 +41,7 @@ export function ManageUsersPanel({ csrfToken }: { readonly csrfToken: string }) 
         showDemoData()
         return
       }
-      setUsers(loadedUsers)
+      setUsers([...loadedUsers].sort((left, right) => compareLocalizedText(left.display_name, right.display_name, locale)))
       setMockMode(false)
       setError(null)
       setNotice(null)
@@ -49,8 +54,8 @@ export function ManageUsersPanel({ csrfToken }: { readonly csrfToken: string }) 
     setDeletePending(true)
     try {
       await deleteManagedUser(entry.account_id, csrfToken)
-      setDeleting(null); setNotice("用户已从本地精灵巢移除。"); await load()
-    } catch (reason: unknown) { setError(reason instanceof ApiError ? reason.message : "用户没有移除") }
+      setDeleting(null); setNotice(t("users.notices.removed")); await load()
+    } catch (reason: unknown) { setError(describeApiError(reason, "manage.delete")) }
     finally { setDeletePending(false) }
   }
   const resetPassword = async (entry: OwnerUser): Promise<void> => {
@@ -61,30 +66,32 @@ export function ManageUsersPanel({ csrfToken }: { readonly csrfToken: string }) 
         window.location.assign("/login")
         return
       }
-      setNotice("密码已重置为 123456。")
-    } catch (reason: unknown) { setError(reason instanceof ApiError ? reason.message : "密码没有重置") }
+      setNotice(t("users.notices.reset"))
+    } catch (reason: unknown) { setError(describeApiError(reason, "manage.save")) }
   }
   return <section className="manage-card manage-card--wide">
-    <div className="manage-head"><div><h2>本地成员</h2><p>管理员只维护成员关系、领养上限与移除权限；头像、名称和密码<span className="manage-copy__phrase">由用户本人管理</span>。</p></div><div className="manage-actions"><Button onClick={() => setCreating(true)} type="button"><Icon name="plus" size={16} />添加用户</Button><RefreshButton label="刷新" onClick={() => { void load() }} /></div></div>
-    {error ? <Notice kind="error" message={error} /> : null}{notice ? <Notice message={notice} /> : null}
-    <div className="user-id-grid">{users.length === 0 ? <p className="empty">暂无成员。</p> : users.map((entry) => <UserCard csrfToken={csrfToken} key={entry.account_id} mockMode={mockMode} onError={setError} onRemove={() => setDeleting(entry)} onReset={() => setResetting(entry)} onSaved={async () => { setNotice("领养上限已更新。"); await load() }} user={entry} />)}</div>
-    <CreateUserDialog csrfToken={csrfToken} onClose={() => setCreating(false)} onSaved={async () => { setCreating(false); setNotice("本地用户已创建。"); await load() }} open={creating} />
-    <ConfirmDialog confirmLabel="确认移除" danger description={deleting ? `确认移除 ${deleting.display_name} 吗？该操作只移除本地成员账号，不会删除精灵。` : "确认移除这个用户吗？"} onConfirm={() => { if (deleting) void remove(deleting) }} onOpenChange={(open) => { if (!open && !deletePending) setDeleting(null) }} open={deleting !== null} pending={deletePending} title="移除本地用户" />
-    <ConfirmDialog confirmLabel="重置为 123456" description={resetting ? `确认将 ${resetting.display_name} 的密码重置为 123456 吗？该账号的所有会话会立即失效。` : "确认重置密码吗？"} onConfirm={() => { if (resetting) void resetPassword(resetting) }} onOpenChange={(open) => { if (!open) setResetting(null) }} open={resetting !== null} title="重置登录密码" />
+    <div className="manage-head"><div><h2>{t("users.title")}</h2><p>{t("users.description")}</p></div><div className="manage-actions"><Button onClick={() => setCreating(true)} type="button"><Icon name="plus" size={16} />{t("users.actions.add")}</Button><RefreshButton label={t("users.actions.refresh")} onClick={() => { void load() }} /></div></div>
+    {error ? <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("errors.save")} /> : null}{notice ? <Notice message={notice} /> : null}
+    <div className="user-id-grid">{users.length === 0 ? <p className="empty">{t("users.empty")}</p> : users.map((entry) => <UserCard csrfToken={csrfToken} key={entry.account_id} mockMode={mockMode} onError={setError} onRemove={() => setDeleting(entry)} onReset={() => setResetting(entry)} onSaved={async () => { setNotice(t("users.notices.quotaSaved")); await load() }} user={entry} />)}</div>
+    <CreateUserDialog csrfToken={csrfToken} onClose={() => setCreating(false)} onSaved={async () => { setCreating(false); setNotice(t("users.notices.created")); await load() }} open={creating} />
+    <ConfirmDialog confirmLabel={t("users.actions.confirmDelete")} danger description={deleting ? t("users.delete.confirm", { name: deleting.display_name }) : t("users.delete.confirmGeneric")} onConfirm={() => { if (deleting) void remove(deleting) }} onOpenChange={(open) => { if (!open && !deletePending) setDeleting(null) }} open={deleting !== null} pending={deletePending} title={t("users.delete.title")} />
+    <ConfirmDialog confirmLabel={t("users.actions.resetToDefault")} description={resetting ? t("users.reset.confirm", { name: resetting.display_name }) : t("users.reset.confirmGeneric")} onConfirm={() => { if (resetting) void resetPassword(resetting) }} onOpenChange={(open) => { if (!open) setResetting(null) }} open={resetting !== null} title={t("users.reset.title")} />
   </section>
 }
 
-function UserCard({ csrfToken, mockMode, onError, onRemove, onReset, onSaved, user }: { readonly csrfToken: string; readonly mockMode: boolean; readonly onError: (message: string) => void; readonly onRemove: () => void; readonly onReset: () => void; readonly onSaved: () => Promise<void>; readonly user: OwnerUser }) {
+function UserCard({ csrfToken, mockMode, onError, onRemove, onReset, onSaved, user }: { readonly csrfToken: string; readonly mockMode: boolean; readonly onError: (error: LocalizedErrorState) => void; readonly onRemove: () => void; readonly onReset: () => void; readonly onSaved: () => Promise<void>; readonly user: OwnerUser }) {
+  const { i18n, t } = useTranslation("manage")
+  const locale = currentLocale(i18n)
   const [editing, setEditing] = useState(false)
   const [quota, setQuota] = useState(String(user.effective_elfie_limit))
   const [saving, setSaving] = useState(false)
   const protectedRemoval = user.role === "owner" || user.elfie_count > 0
-  const presenceLabel = user.online_status === "online" ? "在线" : "离线"
-  const deleteReason = user.role === "owner" ? "Owner 不能删除。" : user.elfie_count > 0 ? "名下仍有精灵，不能删除。" : null
+  const presenceLabel = user.online_status === "online" ? t("users.values.online") : t("users.values.offline")
+  const deleteReason = user.role === "owner" ? t("users.delete.ownerProtected") : user.elfie_count > 0 ? t("users.delete.hasElfies") : null
   const save = async (): Promise<void> => {
     const nextQuota = Number.parseInt(quota, 10)
     if (!Number.isInteger(nextQuota) || nextQuota < 1) {
-      onError("精灵上限必须是不小于 1 的整数。")
+      onError(t("users.quotaValidation"))
       return
     }
     setSaving(true)
@@ -93,7 +100,7 @@ function UserCard({ csrfToken, mockMode, onError, onRemove, onReset, onSaved, us
       setEditing(false)
       await onSaved()
     } catch (reason: unknown) {
-      onError(reason instanceof ApiError ? reason.message : "领养上限没有保存")
+      onError(describeApiError(reason, "manage.save"))
     } finally {
       setSaving(false)
     }
@@ -107,23 +114,23 @@ function UserCard({ csrfToken, mockMode, onError, onRemove, onReset, onSaved, us
     <div className="user-id-card__body">
       <StatusIndicator label={presenceLabel} tone={user.online_status === "online" ? "active" : "inactive"} />
       <dl className="user-id-card__identity">
-        <IdentityField label="姓名" value={user.display_name} />
-        <IdentityField label="性别" value={user.gender ?? "未登记"} />
-        <IdentityField label="登录账号" value={`@${user.account_id}`} />
-        <IdentityField label="出生日期" value={user.birth_date ?? "未登记"} />
-        <IdentityField label="当前角色" value={user.role === "owner" ? "Owner" : "普通成员"} />
-        <IdentityField label="加入时间" value={formatDateOnly(user.created_at)} />
-        <IdentityField label="当前精灵数" value={String(user.elfie_count)} />
+        <IdentityField label={t("users.fields.name")} value={user.display_name} />
+        <IdentityField label={t("users.fields.gender")} value={user.gender ?? t("users.values.notRegistered")} />
+        <IdentityField label={t("users.fields.account")} value={`@${user.account_id}`} />
+        <IdentityField label={t("users.fields.birthDate")} value={user.birth_date ?? t("users.values.notRegistered")} />
+        <IdentityField label={t("users.fields.role")} value={user.role === "owner" ? t("users.values.owner") : t("users.values.member")} />
+        <IdentityField label={t("users.fields.joinedAt")} value={formatDateOnly(user.created_at)} />
+        <IdentityField label={t("users.fields.elfieCount")} value={String(user.elfie_count)} />
         <div>
-          <dt><label htmlFor={`quota-${user.account_id}`}>精灵上限</label></dt>
+          <dt><label htmlFor={`quota-${user.account_id}`}>{t("users.fields.quota")}</label></dt>
           <dd>{editing
-            ? <Input aria-label="精灵上限" disabled={saving} id={`quota-${user.account_id}`} inputMode="numeric" min={1} onChange={(event) => setQuota(event.target.value)} type="number" value={quota} />
+            ? <Input aria-label={t("users.fields.quota")} disabled={saving} id={`quota-${user.account_id}`} inputMode="numeric" min={1} onChange={(event) => setQuota(event.target.value)} type="number" value={quota} />
             : user.effective_elfie_limit}</dd>
         </div>
       </dl>
       <div className="user-id-card__actions">{editing
-        ? <><Button aria-label={`保存 ${user.account_id}`} disabled={saving} onClick={() => { void save() }} type="button">保存</Button><Button aria-label={`取消 ${user.account_id}`} disabled={saving} onClick={cancel} type="button" variant="outline">取消</Button></>
-        : <Button aria-label={`编辑 ${user.account_id}`} disabled={mockMode} onClick={() => setEditing(true)} type="button" variant="outline"><Icon name="pencil" size={15} />编辑</Button>}<Button aria-label={`重置密码 ${user.account_id}`} disabled={mockMode} onClick={onReset} type="button" variant="outline"><Icon name="lock-keyhole" size={15} />重置密码</Button><Button aria-label={`删除用户 ${user.account_id}`} aria-describedby={deleteReason ? `delete-reason-${user.account_id}` : undefined} disabled={mockMode || protectedRemoval} onClick={onRemove} title={mockMode ? "演示数据不可操作" : deleteReason ?? "删除用户"} type="button" variant="destructive"><Icon name="x" size={15} />删除用户</Button>{mockMode ? <small>演示数据仅供查看。</small> : deleteReason ? <small id={`delete-reason-${user.account_id}`}>{deleteReason}</small> : null}</div>
+        ? <><Button aria-label={t("users.actions.saveFor", { accountId: user.account_id })} disabled={saving} onClick={() => { void save() }} type="button">{t("users.actions.save")}</Button><Button aria-label={t("users.actions.cancelFor", { accountId: user.account_id })} disabled={saving} onClick={cancel} type="button" variant="outline">{t("users.actions.cancel")}</Button></>
+        : <Button aria-label={t("users.actions.editFor", { accountId: user.account_id })} disabled={mockMode} onClick={() => setEditing(true)} type="button" variant="outline"><Icon name="pencil" size={15} />{t("users.actions.edit")}</Button>}<Button aria-label={t("users.actions.resetFor", { accountId: user.account_id })} disabled={mockMode} onClick={onReset} type="button" variant="outline"><Icon name="lock-keyhole" size={15} />{t("users.actions.reset")}</Button><Button aria-label={t("users.actions.deleteFor", { accountId: user.account_id })} aria-describedby={deleteReason ? `delete-reason-${user.account_id}` : undefined} disabled={mockMode || protectedRemoval} onClick={onRemove} title={mockMode ? t("users.mock.readOnly") : deleteReason ?? t("users.actions.delete")} type="button" variant="destructive"><Icon name="x" size={15} />{t("users.actions.delete")}</Button>{mockMode ? <small>{t("users.mock.readOnlyDescription")}</small> : deleteReason ? <small id={`delete-reason-${user.account_id}`}>{deleteReason}</small> : null}</div>
     </div>
   </article></Card>
 }
@@ -141,13 +148,15 @@ function formatDateOnly(value: string): string {
 }
 
 function CreateUserDialog({ csrfToken, onClose, onSaved, open }: { readonly csrfToken: string; readonly onClose: () => void; readonly onSaved: () => Promise<void>; readonly open: boolean }) {
+  const { i18n, t } = useTranslation("manage")
+  const locale = currentLocale(i18n)
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<LocalizedErrorState>(null)
   const save = async (): Promise<void> => {
-    if (!username.trim() || !password) { setError("请输入用户名和初始密码。"); return }
+    if (!username.trim() || !password) { setError(t("users.create.required")); return }
     try { await createManagedUser(username.trim(), password, csrfToken); await onSaved() }
-    catch (reason: unknown) { setError(reason instanceof ApiError ? reason.message : "本地用户没有创建") }
+    catch (reason: unknown) { setError(describeApiError(reason, "manage.save")) }
   }
-  return <ManageDialog description="当前阶段账号保存在本机。二维码邀请与统一身份将在账户中心接入后实现。" onOpenChange={(next) => { if (!next) onClose() }} open={open} title="添加本地用户"><form onSubmit={(event) => { event.preventDefault(); void save() }}>{error ? <Notice kind="error" message={error} /> : null}<TextField autoFocus label="用户名" onChange={setUsername} required value={username} /><TextField autoComplete="new-password" label="初始密码" onChange={setPassword} required type="password" value={password} /><div className="manage-actions"><Button type="submit">创建用户</Button><Button onClick={onClose} type="button" variant="outline">取消</Button></div></form></ManageDialog>
+  return <ManageDialog description={t("users.create.description")} onOpenChange={(next) => { if (!next) onClose() }} open={open} title={t("users.create.title")}><form onSubmit={(event) => { event.preventDefault(); void save() }}>{error ? <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("errors.save")} /> : null}<TextField autoFocus label={t("users.create.username")} onChange={setUsername} required value={username} /><TextField autoComplete="new-password" label={t("users.create.initialPassword")} onChange={setPassword} required type="password" value={password} /><div className="manage-actions"><Button type="submit">{t("users.actions.create")}</Button><Button onClick={onClose} type="button" variant="outline">{t("users.actions.cancel")}</Button></div></form></ManageDialog>
 }

@@ -220,12 +220,12 @@ def _validate_range(section: str, data: Dict[str, Any]) -> None:
 
 
 def _read_system_section(section: str) -> Dict[str, Any]:
-    """从 ``ELFIE_HOME/configs/runtime.yaml`` 读取并合并指定 section。"""
+    """从 ``configs/runtime.yaml`` 读取指定 section，与默认值深层合并后返回。"""
     return read_system_section(get_config_path(), section)
 
 
 def _write_system_section(section: str, data: Dict[str, Any]) -> Dict[str, Any]:
-    """将 section 数据深层合并到正式 Runtime 配置并持久化。
+    """将 section 数据深层合并到 ``configs/runtime.yaml`` 并持久化。
 
     Returns:
         写入后的完整 section 字典（已合并默认值）。
