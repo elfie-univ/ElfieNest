@@ -112,7 +112,6 @@ def test_show_route_prints_food_policy_without_models(
     route_commands.show_route("elfie_test")
 
     output = capsys.readouterr().out
-    assert "elfie_test Food Permissions" in output
-    assert "Default food: standard" in output
-    assert "vision" in output
-    assert "Models are managed by Runtime food policy" in output
+    assert "elfie_test uses the Nest DB Main-food assignment" in output
+    assert "Inspect or change it from the Elfie page" in output
+    assert "model" not in output.lower()

@@ -11,7 +11,10 @@ def test_food_provider_options_are_sent_without_overriding_core_fields():
     context.__enter__.return_value = response
     context.__exit__.return_value = False
 
-    with patch("urllib.request.urlopen", return_value=context) as urlopen:
+    with patch(
+        "ai_runtime.providers.dispatch.open_provider_request",
+        return_value=context,
+    ) as urlopen:
         call_ollama_api(
             "http://localhost:11434",
             "qwen",

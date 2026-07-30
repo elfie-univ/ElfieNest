@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from ai_runtime.food.elfie_policy import load_elfie_food_policy
 from ai_runtime.food.store import FoodCatalogStore
 from app.features.accounts.auth import require_owner
 from app.features.configuration.food_access import elfie_food_policy_projection
@@ -98,25 +96,16 @@ def _filter_monitoring_rows(
     embodiment_state: Optional[str],
 ) -> List[Dict[str, Any]]:
     projections = []
-    catalog = FoodCatalogStore(
-        Path(db_path).parent / "configs" / "food-packages.yaml"
-    ).load()
+    catalog = FoodCatalogStore().load()
     for row in rows:
         state = get_embodiment_session(db_path, str(row["elfie_id"])).state.value
-        policy = (
-            elfie_food_policy_projection(
-                db_path,
-                str(row["elfie_id"]),
-                int(row["owner_user_id"]),
-                catalog,
-            )
-            if catalog.recipes
-            else load_elfie_food_policy(
-                str(row["elfie_id"]),
-                str(row["config_dir"]),
-            ).to_dict()
+        policy = elfie_food_policy_projection(
+            db_path,
+            str(row["elfie_id"]),
+            int(row["owner_user_id"]),
+            catalog,
         )
-        if food_key is not None and food_key != policy["default_food"]:
+        if food_key is not None and food_key != policy["main_food_id"]:
             continue
         if embodiment_state is not None and embodiment_state != state:
             continue
@@ -147,9 +136,10 @@ def _monitoring_projection(
         },
         "profile": profile,
         "food_policy": {
-            "default_food": policy["default_food"],
-            "allowed_foods": policy["allowed_foods"],
-            "fallback_food": policy["fallback_food"],
+            "main_food_id": policy["main_food_id"],
+            "effective_main_food_id": policy["effective_main_food_id"],
+            "main_food_options": policy["main_food_options"],
+            "main_food_unavailable": policy["main_food_unavailable"],
         },
         "created_at": str(row["created_at"]),
     }

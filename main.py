@@ -1,9 +1,9 @@
 import logging
 import sys
 
-from elfie import ElfieFactory
-from app.orchestration.engine import ElfieNestEngine
 from ai_runtime import LLMRuntimeConfig, RuntimeAgent
+from app.orchestration.engine import ElfieNestEngine
+from elfie import ElfieFactory
 
 
 def setup_logging():
@@ -31,9 +31,7 @@ def main():
 
     # 1. 启动外包大模型算力底座 (Runtime)
     # 本地未跑 Ollama 时会优雅自动降级到底座内建的“轻量模拟器”，100% 可完美体验三层大脑！
-    config = LLMRuntimeConfig(
-        ollama_host="http://localhost:11434", ollama_model_fast="qwen3.5:0.8b"
-    )
+    config = LLMRuntimeConfig(ollama_host="http://localhost:11434")
     runtime_agent = RuntimeAgent(config, live_reload=True)
     logger.info("⚡ [底座算力底座就绪] 本地快速大模型及云端路由检测完毕。")
 

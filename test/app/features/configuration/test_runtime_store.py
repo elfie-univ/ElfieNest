@@ -80,12 +80,11 @@ def test_default_runtime_store_uses_split_production_documents(
     )
 
     assert path.exists()
-    assert get_provider_config_path().exists()
+    assert not get_provider_config_path().exists()
     assert get_tool_config_path().exists()
     assert "providers" not in path.read_text(encoding="utf-8")
-    assert "split-secret" not in get_provider_config_path().read_text(encoding="utf-8")
 
     restored = read_runtime_config(path)
-    assert restored["providers"]["openai"]["api_base"].endswith("/v1")
+    assert "providers" not in restored
     assert restored["runtime_policy"]["task_routes"]["reasoning"] == "focus"
     assert restored["runtime_policy"]["tools"]["web_search"]["enabled"] is True

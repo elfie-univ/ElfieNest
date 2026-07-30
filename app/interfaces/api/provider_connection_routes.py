@@ -12,11 +12,20 @@ from typing import Any, Dict, Iterable, Optional
 from fastapi import APIRouter, Depends, HTTPException
 
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.food.store import FoodCatalogStore, foods_referencing_connection
+from ai_runtime.food.store import (
+    FoodCatalogStore,
+    foods_referencing_connection,
+    foods_referencing_model,
+)
 from ai_runtime.models.catalog import _verify_custom_openai_provider, verify_provider
 from ai_runtime.providers.model_identity import match_model_identity
 from ai_runtime.providers.profiles import PROVIDER_CATALOG, get_product
+from ai_runtime.providers.remote_catalog import (
+    RemoteCatalogUnavailable,
+    fetch_remote_models,
+)
 from ai_runtime.storage.provider_connections import (
+    ModelSource,
     ProviderConnection,
     ProviderConnectionStore,
     ProviderModelRecord,
@@ -33,13 +42,13 @@ from ai_runtime.storage.validation_reports import (
 from ai_runtime.validation.providers import discover_provider_models
 from app.features.accounts.auth import require_owner
 
+from .provider_errors import sanitize_error
 from .provider_schemas import (
     ProviderConnectionUpdateRequest,
     ProviderConnectionWriteRequest,
     ProviderModelInput,
     ProviderModelUpdateRequest,
 )
-from .provider_support import sanitize_error
 
 router = APIRouter()
 _CREATE_LOCK = threading.Lock()
@@ -229,6 +238,8 @@ async def delete_connection(
     connection = _require_connection(store, connection_id)
     if connection.catalog_id == "ollama":
         raise HTTPException(status_code=400, detail="不能删除默认 Ollama 连接")
+    if not connection.archived:
+        raise HTTPException(status_code=409, detail="连接必须先归档才能删除")
     food_keys = foods_referencing_connection(FoodCatalogStore().load(), connection_id)
     if food_keys:
         raise HTTPException(
@@ -240,6 +251,60 @@ async def delete_connection(
     store.delete(connection_id)
     set_connection_secret(connection_id, "")
     return {"detail": f"连接 '{connection_id}' 已删除"}
+
+
+@router.post("/connections/{connection_id}/enable")
+async def enable_connection(
+    connection_id: str,
+    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+) -> dict[str, Any]:
+    _ = owner
+    store = _store()
+    connection = _require_connection(store, connection_id)
+    if connection.archived:
+        raise HTTPException(status_code=409, detail="归档连接必须先恢复")
+    updated = replace(connection, enabled=True)
+    store.replace(updated)
+    return _connection_view(updated)
+
+
+@router.post("/connections/{connection_id}/disable")
+async def disable_connection(
+    connection_id: str,
+    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+) -> dict[str, Any]:
+    _ = owner
+    store = _store()
+    connection = _require_connection(store, connection_id)
+    updated = replace(connection, enabled=False)
+    store.replace(updated)
+    return _connection_view(updated)
+
+
+@router.post("/connections/{connection_id}/archive")
+async def archive_connection(
+    connection_id: str,
+    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+) -> dict[str, Any]:
+    _ = owner
+    store = _store()
+    connection = _require_connection(store, connection_id)
+    updated = replace(connection, enabled=False, archived=True)
+    store.replace(updated)
+    return _connection_view(updated)
+
+
+@router.post("/connections/{connection_id}/restore")
+async def restore_connection(
+    connection_id: str,
+    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+) -> dict[str, Any]:
+    _ = owner
+    store = _store()
+    connection = _require_connection(store, connection_id)
+    updated = replace(connection, enabled=False, archived=False)
+    store.replace(updated)
+    return _connection_view(updated)
 
 
 @router.post("/connections/{connection_id}/verify")
@@ -339,6 +404,11 @@ async def update_connection_model(
             if "hidden" in fields and body.hidden is not None
             else current.hidden
         ),
+        retired=(
+            body.retired
+            if "retired" in fields and body.retired is not None
+            else current.retired
+        ),
     )
     models = tuple(
         updated if model.endpoint_model_id == model_id else model
@@ -367,6 +437,16 @@ async def delete_connection_model(
         raise HTTPException(
             status_code=409,
             detail="自动发现或目录模型不能删除，请改为隐藏",
+        )
+    referenced = foods_referencing_model(
+        FoodCatalogStore().load(),
+        connection_id,
+        model_id,
+    )
+    if referenced:
+        raise HTTPException(
+            status_code=409,
+            detail="模型仍被粮食套餐引用：" + "、".join(referenced),
         )
     store.replace(
         replace(
@@ -400,7 +480,7 @@ def _manual_models(
 def _model_record(
     item: ProviderModelInput,
     *,
-    source: str,
+    source: ModelSource,
 ) -> ProviderModelRecord:
     match = match_model_identity(item.id, item.display_name)
     canonical_model_id = item.canonical_model_id or (
@@ -410,7 +490,7 @@ def _model_record(
         endpoint_model_id=item.id,
         display_name=item.display_name or item.id,
         canonical_model_id=canonical_model_id,
-        source=source,  # type: ignore[arg-type]
+        source=source,
         context_window_tokens=item.context_window_tokens
         or (match.context_window_tokens if match else None),
         max_output_tokens=item.max_output_tokens
@@ -452,18 +532,20 @@ async def _refresh_connection_models(connection_id: str) -> dict[str, Any]:
             timeout=_DISCOVERY_TIMEOUT_SECONDS,
         )
     except Exception as exc:
-        catalog_models = (
-            _catalog_models(profile.default_models)
-            if connection.catalog_id != "custom_openai"
-            else ()
-        )
+        catalog_models: tuple[ProviderModelRecord, ...] = ()
+        if connection.catalog_id != "custom_openai":
+            try:
+                catalog_models = _remote_catalog_models(connection.catalog_id)
+            except RemoteCatalogUnavailable:
+                catalog_models = _catalog_models(profile.default_models)
         if catalog_models:
-            store.replace(replace(connection, models=catalog_models))
+            merged = _merge_refreshed_models(connection.models, catalog_models)
+            store.replace(replace(connection, models=merged))
             return {
-                "status": "catalog",
+                "status": catalog_models[0].source,
                 "checked_at": checked_at,
                 "message": "模型接口不可用，已使用内置产品清单",
-                "models": [_model_view(model) for model in catalog_models],
+                "models": [_model_view(model) for model in merged],
             }
         message = sanitize_error(
             str(exc),
@@ -480,7 +562,7 @@ async def _refresh_connection_models(connection_id: str) -> dict[str, Any]:
             ProviderModelInput(
                 id=item.name, display_name=item.display_name or item.name
             ),
-            source="discovered",
+            source="official",
         )
         for item in discovered
     )
@@ -491,12 +573,13 @@ async def _refresh_connection_models(connection_id: str) -> dict[str, Any]:
             "message": "模型接口未返回结果，请手工添加模型",
             "models": [_model_view(model) for model in connection.models],
         }
-    store.replace(replace(connection, models=models))
+    merged = _merge_refreshed_models(connection.models, models)
+    store.replace(replace(connection, models=merged))
     return {
         "status": "updated",
         "checked_at": checked_at,
         "message": None,
-        "models": [_model_view(model) for model in models],
+        "models": [_model_view(model) for model in merged],
     }
 
 
@@ -526,13 +609,32 @@ def _catalog_models(
     return tuple(
         _model_record(
             ProviderModelInput(id=model_id, display_name=model_id),
-            source="provider_catalog",
+            source="bundled_catalog",
         )
         for model_id in model_ids
     )
 
 
+def _remote_catalog_models(catalog_id: str) -> tuple[ProviderModelRecord, ...]:
+    return tuple(
+        _model_record(
+            ProviderModelInput(id=model_id, display_name=model_id),
+            source="remote_catalog",
+        )
+        for model_id in fetch_remote_models(catalog_id)
+    )
+
+
 async def _verify_connection(connection: ProviderConnection) -> dict[str, Any]:
+    return await _verify_connection_in_run(connection)
+
+
+async def _verify_connection_in_run(
+    connection: ProviderConnection,
+    *,
+    run_id: str | None = None,
+    trigger: str = "single",
+) -> dict[str, Any]:
     try:
         result = await asyncio.wait_for(
             asyncio.to_thread(_verify_with_slot, connection),
@@ -567,7 +669,8 @@ async def _verify_connection(connection: ProviderConnection) -> dict[str, Any]:
         checked_at=checked_at,
         latency_ms=latency_ms,
         error=error,
-        trigger="single",
+        trigger="batch" if trigger == "batch" else "single",
+        run_id=run_id,
     )
     return verification
 
@@ -661,6 +764,7 @@ def _connection_view(
         "auth_type": connection.auth_type,
         "has_api_key": bool(_connection_api_key(connection)),
         "enabled": connection.enabled,
+        "archived": connection.archived,
         "usage_scope": profile.usage_scope if profile else "general",
         "verification": {
             "status": latest.get("status", "never"),
@@ -685,4 +789,74 @@ def _model_view(model: ProviderModelRecord) -> dict[str, Any]:
         "supports_vision": model.supports_vision,
         "supports_reasoning": model.supports_reasoning,
         "hidden": model.hidden,
+        "retired": model.retired,
+        "available": model.available,
     }
+
+
+def _merge_refreshed_models(
+    existing_models: tuple[ProviderModelRecord, ...],
+    refreshed_models: tuple[ProviderModelRecord, ...],
+) -> tuple[ProviderModelRecord, ...]:
+    existing_by_id = {
+        model.endpoint_model_id: model for model in existing_models
+    }
+    refreshed_by_id = {
+        model.endpoint_model_id: model for model in refreshed_models
+    }
+    merged: list[ProviderModelRecord] = []
+    for refreshed in refreshed_models:
+        existing = existing_by_id.get(refreshed.endpoint_model_id)
+        if existing is None:
+            merged.append(refreshed)
+            continue
+        merged.append(
+            replace(
+                refreshed,
+                display_name=(
+                    existing.display_name
+                    if existing.source == "manual"
+                    else refreshed.display_name
+                ),
+                canonical_model_id=(
+                    existing.canonical_model_id or refreshed.canonical_model_id
+                ),
+                source=(
+                    "manual" if existing.source == "manual" else refreshed.source
+                ),
+                context_window_tokens=(
+                    existing.context_window_tokens
+                    or refreshed.context_window_tokens
+                ),
+                max_output_tokens=(
+                    existing.max_output_tokens or refreshed.max_output_tokens
+                ),
+                supports_tools=(
+                    existing.supports_tools
+                    if existing.supports_tools is not None
+                    else refreshed.supports_tools
+                ),
+                supports_vision=(
+                    existing.supports_vision
+                    if existing.supports_vision is not None
+                    else refreshed.supports_vision
+                ),
+                supports_reasoning=(
+                    existing.supports_reasoning
+                    if existing.supports_reasoning is not None
+                    else refreshed.supports_reasoning
+                ),
+                hidden=existing.hidden,
+                retired=existing.retired,
+                available=True,
+            )
+        )
+    for existing in existing_models:
+        if existing.endpoint_model_id in refreshed_by_id:
+            continue
+        merged.append(
+            existing
+            if existing.source == "manual"
+            else replace(existing, available=False)
+        )
+    return tuple(merged)

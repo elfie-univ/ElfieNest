@@ -63,19 +63,14 @@ def get_reports_dir() -> Path:
     return get_elfie_home() / "reports"
 
 
-def get_provider_validation_dir() -> Path:
-    """返回 Provider 连通性验证报告目录。"""
-    return get_reports_dir() / "provider-validations"
+def get_report_database_path() -> Path:
+    """返回 AI Runtime 追加式报告数据库。"""
+    return get_reports_dir() / "ai-runtime.sqlite"
 
 
-def get_model_validation_dir() -> Path:
-    """返回具体模型验证报告目录。"""
-    return get_reports_dir() / "model-validations"
-
-
-def get_runtime_validation_dir() -> Path:
-    """返回 Runtime 整体验证报告目录。"""
-    return get_reports_dir() / "runtime-validations"
+def get_report_exports_dir() -> Path:
+    """返回按需生成、永不读回的人工报告导出目录。"""
+    return get_reports_dir() / "exports"
 
 
 def get_config_path() -> Path:
@@ -120,16 +115,6 @@ def get_food_catalog_path() -> Path:
 def get_food_history_dir() -> Path:
     """粮食配方历史版本目录。"""
     return get_configs_dir() / "food-packages-history"
-
-
-def get_validation_dir() -> Path:
-    """Runtime 三层本地验证报告目录。"""
-    return get_elfie_home() / "validations"
-
-
-def get_model_evidence_path() -> Path:
-    """已验证模型能力证据。"""
-    return get_elfie_home() / "model_evidence.yaml"
 
 
 def get_local_files_dir() -> Path:
@@ -228,17 +213,15 @@ def ensure_elfie_home() -> None:
         "configs/credentials/oauth",
         "configs/food-packages-history",
         "reports",
-        "reports/provider-validations",
-        "reports/model-validations",
-        "reports/runtime-validations",
+        "reports/exports",
         "cache",
         "models",
         "runtime",
+        "runtime/locks",
         "backups",
         "logs",
         "skills",
         "sessions",
-        "validations",
         "files",
     ]
     for subdir in subdirs:

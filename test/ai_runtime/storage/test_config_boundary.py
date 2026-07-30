@@ -16,6 +16,7 @@ from ai_runtime.storage.data_home import (
     get_elfie_home,
     get_provider_config_path,
 )
+from ai_runtime.storage.provider_connections import ProviderConnectionStore
 from ai_runtime.storage.runtime_config_bundle import write_runtime_config_bundle
 
 
@@ -134,15 +135,11 @@ def test_split_config_is_authoritative_over_legacy(monkeypatch, tmp_path):
         ),
         encoding="utf-8",
     )
-    write_runtime_config_bundle(
-        {
-            "providers": {
-                "current_only": {
-                    "api_base": "https://current.invalid/v1",
-                    "api_mode": "chat_completions",
-                }
-            }
-        }
+    ProviderConnectionStore().create(
+        catalog_id="custom_openai",
+        alias="Current only",
+        api_base="https://current.invalid/v1",
+        api_mode="chat_completions",
     )
     legacy_path = tmp_path / "runtime" / "runtime_config.json"
     _write_legacy_runtime_config(legacy_path, provider_id="stale_legacy")
@@ -152,7 +149,10 @@ def test_split_config_is_authoritative_over_legacy(monkeypatch, tmp_path):
     config = LLMRuntimeConfig.load()
 
     # Then: 当前 YAML 是唯一来源，不被 legacy 状态污染。
-    assert config.providers["current_only"]["api_base"] == "https://current.invalid/v1"
+    assert (
+        config.providers["custom_openai_0001"]["api_base"]
+        == "https://current.invalid/v1"
+    )
     provider_ids = tuple(config.providers)
     assert "stale_legacy" not in provider_ids
     assert "stale_root" not in provider_ids
@@ -181,23 +181,46 @@ def test_runtime_api_reads_current_elfie_home_after_environment_switch(
     monkeypatch, tmp_path
 ):
     """Given two homes, When ELFIE_HOME changes, Then API helpers follow it."""
-    from app.interfaces.api import runtime_routes
 
     first_home = tmp_path / "first"
     second_home = tmp_path / "second"
 
     monkeypatch.setenv("ELFIE_HOME", str(first_home))
-    write_runtime_config_bundle({"providers": {"first": {"api_base": "http://first"}}})
+    ProviderConnectionStore().create(catalog_id="openai_api", alias="First")
 
     monkeypatch.setenv("ELFIE_HOME", str(second_home))
-    write_runtime_config_bundle(
-        {"providers": {"second": {"api_base": "http://second"}}}
-    )
+    ProviderConnectionStore().create(catalog_id="anthropic_api", alias="Second")
 
     monkeypatch.setenv("ELFIE_HOME", str(first_home))
-    assert "first" in runtime_routes._read_runtime_config()["providers"]
+    assert set(ProviderConnectionStore().load().connections) == {"openai_api_0001"}
 
     monkeypatch.setenv("ELFIE_HOME", str(second_home))
-    config = runtime_routes._read_runtime_config()
-    assert "second" in config["providers"]
-    assert "first" not in config["providers"]
+    assert set(ProviderConnectionStore().load().connections) == {
+        "anthropic_api_0001"
+    }
+
+
+def test_runtime_bundle_write_never_changes_provider_connections(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    store = ProviderConnectionStore()
+    connection = store.create(catalog_id="openai_api", alias="工作账号")
+    provider_bytes = get_provider_config_path().read_bytes()
+
+    write_runtime_config_bundle(
+        {
+            "system": {"appearance": {"theme": "dark"}},
+            "runtime_policy": {
+                "tools": {"web_search": {"enabled": False}},
+            },
+            "providers": {
+                "legacy": {"api_base": "https://must-not-be-written.invalid"}
+            },
+        }
+    )
+
+    assert get_provider_config_path().read_bytes() == provider_bytes
+    assert ProviderConnectionStore().load().connections == {
+        connection.connection_id: connection
+    }

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 import yaml
 
 from ai_runtime.storage.provider_connections import (
@@ -38,7 +39,7 @@ def test_connection_models_keep_endpoint_identity_and_optional_internal_match(tm
                 endpoint_model_id="xopglm5",
                 display_name="GLM-5",
                 canonical_model_id="zhipu/glm-5",
-                source="provider_catalog",
+                source="bundled_catalog",
                 context_window_tokens=204800,
                 max_output_tokens=131072,
                 supports_tools=True,
@@ -112,3 +113,55 @@ def test_connection_store_never_persists_plaintext_credentials(tmp_path):
     content = path.read_text(encoding="utf-8")
     assert "api_key:" not in content
     assert "ELFIE_PROVIDER_OPENAI_API_0001_API_KEY" in content
+
+
+def test_connection_and_model_lifecycle_round_trip(tmp_path):
+    store = ProviderConnectionStore(tmp_path / "providers.yaml")
+    connection = ProviderConnection(
+        connection_id="openai_api_0001",
+        catalog_id="openai_api",
+        alias="OpenAI",
+        enabled=False,
+        archived=True,
+        models=(
+            ProviderModelRecord(
+                endpoint_model_id="gpt-test",
+                source="official",
+                available=False,
+                retired=True,
+            ),
+            ProviderModelRecord(
+                endpoint_model_id="manual-test",
+                source="manual",
+            ),
+        ),
+    )
+
+    store.replace(connection)
+    restored = store.load().connections[connection.connection_id]
+
+    assert restored.archived is True
+    assert restored.enabled is False
+    assert restored.models[0].source == "official"
+    assert restored.models[0].available is False
+    assert restored.models[0].retired is True
+
+
+@pytest.mark.parametrize(
+    "source",
+    ["discovered", "provider_catalog", "configured"],
+)
+def test_model_rejects_legacy_discovery_sources(source):
+    with pytest.raises(ValueError, match="未知模型来源"):
+        ProviderModelRecord(endpoint_model_id="test", source=source)
+
+
+def test_archived_connection_cannot_be_enabled():
+    with pytest.raises(ValueError, match="归档连接不能启用"):
+        ProviderConnection(
+            connection_id="openai_api_0001",
+            catalog_id="openai_api",
+            alias="OpenAI",
+            archived=True,
+            enabled=True,
+        )

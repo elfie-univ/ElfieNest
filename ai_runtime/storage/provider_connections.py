@@ -21,7 +21,20 @@ from ai_runtime.storage.data_home import (
 CONNECTION_DOCUMENT_VERSION = 2
 _ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 _CONNECTION_ID_PATTERN = re.compile(r"^([a-z][a-z0-9_]{0,54})_(\d{4,})$")
-_MODEL_SOURCES = frozenset({"discovered", "manual", "provider_catalog"})
+ModelSource = Literal[
+    "official",
+    "remote_catalog",
+    "bundled_catalog",
+    "manual",
+]
+_MODEL_SOURCES = frozenset(
+    {"official", "remote_catalog", "bundled_catalog", "manual"}
+)
+_LEGACY_MODEL_SOURCES = {
+    "discovered": "official",
+    "provider_catalog": "bundled_catalog",
+    "configured": "manual",
+}
 _LEGACY_CATALOG_IDS = {
     "ollama": "ollama",
     "openai": "openai_api",
@@ -51,13 +64,15 @@ class ProviderModelRecord:
     endpoint_model_id: str
     display_name: str = ""
     canonical_model_id: Optional[str] = None
-    source: Literal["discovered", "manual", "provider_catalog"] = "manual"
+    source: ModelSource = "manual"
     context_window_tokens: Optional[int] = None
     max_output_tokens: Optional[int] = None
     supports_tools: Optional[bool] = None
     supports_vision: Optional[bool] = None
     supports_reasoning: Optional[bool] = None
     hidden: bool = False
+    retired: bool = False
+    available: bool = True
 
     def __post_init__(self) -> None:
         endpoint_model_id = self.endpoint_model_id.strip()
@@ -100,15 +115,20 @@ class ProviderModelRecord:
         )
         if self.hidden:
             result["hidden"] = True
+        if self.retired:
+            result["retired"] = True
+        if not self.available:
+            result["available"] = False
         return result
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> ProviderModelRecord:
+        source = str(raw.get("source") or "manual")
         return cls(
             endpoint_model_id=str(raw.get("id") or ""),
             display_name=str(raw.get("display_name") or ""),
             canonical_model_id=_optional_string(raw.get("canonical_model_id")),
-            source=str(raw.get("source") or "manual"),  # type: ignore[arg-type]
+            source=_LEGACY_MODEL_SOURCES.get(source, source),  # type: ignore[arg-type]
             context_window_tokens=_optional_positive_int(
                 raw.get("context_window_tokens"),
                 "context_window_tokens",
@@ -127,6 +147,8 @@ class ProviderModelRecord:
                 "supports_reasoning",
             ),
             hidden=bool(raw.get("hidden", False)),
+            retired=bool(raw.get("retired", False)),
+            available=bool(raw.get("available", True)),
         )
 
 
@@ -141,8 +163,10 @@ class ProviderConnection:
     api_mode: str = ""
     auth_type: str = ""
     credential_ref: str = ""
+    installation: Mapping[str, str] = field(default_factory=dict)
     models: Tuple[ProviderModelRecord, ...] = ()
     enabled: bool = True
+    archived: bool = False
     legacy_provider_id: Optional[str] = None
 
     def __post_init__(self) -> None:
@@ -156,6 +180,8 @@ class ProviderConnection:
         model_ids = [model.endpoint_model_id for model in self.models]
         if len(set(model_ids)) != len(model_ids):
             raise ValueError("连接中的模型 ID 不能重复")
+        if self.archived and self.enabled:
+            raise ValueError("归档连接不能启用")
         object.__setattr__(self, "alias", alias)
 
     def to_dict(self) -> dict[str, Any]:
@@ -163,6 +189,7 @@ class ProviderConnection:
             "catalog_id": self.catalog_id,
             "alias": self.alias,
             "enabled": self.enabled,
+            "archived": self.archived,
         }
         optional = {
             "api_base": self.api_base,
@@ -172,6 +199,8 @@ class ProviderConnection:
             "legacy_provider_id": self.legacy_provider_id,
         }
         result.update({key: value for key, value in optional.items() if value})
+        if self.installation:
+            result["installation"] = dict(self.installation)
         result["models"] = [model.to_dict() for model in self.models]
         return result
 
@@ -184,6 +213,9 @@ class ProviderConnection:
         raw_models = raw.get("models", [])
         if not isinstance(raw_models, list):
             raise ValueError("models 必须是数组")
+        raw_installation = raw.get("installation", {})
+        if not isinstance(raw_installation, Mapping):
+            raise ValueError("installation 必须是对象")
         return cls(
             connection_id=connection_id,
             catalog_id=str(raw.get("catalog_id") or ""),
@@ -192,12 +224,18 @@ class ProviderConnection:
             api_mode=str(raw.get("api_mode") or ""),
             auth_type=str(raw.get("auth_type") or ""),
             credential_ref=str(raw.get("credential_ref") or ""),
+            installation={
+                str(key): str(value)
+                for key, value in raw_installation.items()
+                if value is not None
+            },
             models=tuple(
                 ProviderModelRecord.from_dict(model)
                 for model in raw_models
                 if isinstance(model, Mapping)
             ),
             enabled=bool(raw.get("enabled", True)),
+            archived=bool(raw.get("archived", False)),
             legacy_provider_id=_optional_string(raw.get("legacy_provider_id")),
         )
 
@@ -258,6 +296,7 @@ class ProviderConnectionStore:
         api_mode: str = "",
         auth_type: str = "",
         credential_ref: str = "",
+        installation: Mapping[str, str] | None = None,
         models: Tuple[ProviderModelRecord, ...] = (),
         legacy_provider_id: Optional[str] = None,
     ) -> ProviderConnection:
@@ -275,6 +314,7 @@ class ProviderConnectionStore:
             api_mode=api_mode,
             auth_type=auth_type,
             credential_ref=credential_ref,
+            installation=dict(installation or {}),
             models=models,
             legacy_provider_id=legacy_provider_id,
         )

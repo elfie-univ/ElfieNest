@@ -1,4 +1,4 @@
-import type { ExecutionProfile, FoodRecipe } from "../api/owner-foods"
+import type { FoodPackage } from "../api/owner-foods"
 import {
   Table,
   TableBody,
@@ -8,24 +8,20 @@ import {
   TableRow,
 } from "./ui/table"
 
-export function FoodRoleTable({ food }: { readonly food: FoodRecipe }) {
-  const roles: readonly (readonly [string, ExecutionProfile | null])[] = [
-    ["主模型", food.primary],
-    ["深度模型", food.deep],
-    ["视觉模型", food.vision],
-    ["校验模型", food.verifier],
-    ...food.technical_fallbacks.map((profile, index) => [`技术回退 ${index + 1}`, profile] as const),
+export function FoodRoleTable({ food }: { readonly food: FoodPackage }) {
+  const roles = [
+    ["Primary", food.roles.primary?.model ?? ""],
+    ["Reasoning", food.roles.reasoning?.model ?? ""],
+    ["Vision", food.roles.vision?.model ?? ""],
+    ["Tool", food.roles.tool?.model ?? ""],
+    ["Fallback", food.roles.fallback.map((item) => item.model).join(" → ")],
   ]
-  return <div className="food-role-table-wrap"><Table aria-label={`${food.display_name}角色配置`} className="food-role-table">
-    <TableHeader><TableRow><TableHead scope="col">角色</TableHead><TableHead scope="col">模型</TableHead><TableHead scope="col">推理档位</TableHead><TableHead scope="col">Tokens / 温度</TableHead><TableHead scope="col">Provider 参数</TableHead></TableRow></TableHeader>
-    <TableBody>{roles.map(([role, profile]) => <TableRow key={role}>
+  return <Table aria-label={`${food.display_name}角色配置`} className="food-role-table">
+    <TableHeader><TableRow><TableHead>角色</TableHead><TableHead>连接 / 模型</TableHead><TableHead>状态</TableHead></TableRow></TableHeader>
+    <TableBody>{roles.map(([role, model]) => <TableRow key={role}>
       <TableHead scope="row">{role}</TableHead>
-      <TableCell>{profile?.model || "未配置"}</TableCell>
-      <TableCell>{profile?.reasoning_profile ?? "未配置"}</TableCell>
-      <TableCell>{profile ? `${profile.max_tokens} / ${profile.temperature}` : "未配置"}</TableCell>
-      <TableCell>{profile && Object.keys(profile.provider_options).length > 0
-        ? Object.entries(profile.provider_options).map(([key, value]) => `${key}: ${String(value)}`).join("；")
-        : "无"}</TableCell>
+      <TableCell>{model || "未配置"}</TableCell>
+      <TableCell>{model ? "可用模型候选" : "未配置"}</TableCell>
     </TableRow>)}</TableBody>
-  </Table></div>
+  </Table>
 }

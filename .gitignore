@@ -102,3 +102,4 @@ data/temp/
 
 # ZCode CLI workspace metadata
 .zcode/
+.pnpm-store/

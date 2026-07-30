@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import json
 import logging
 import threading
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Union
 
-from ai_runtime.storage.data_home import get_elfie_home
+from ai_runtime.storage.report_repository import ReportRepository
 
 logger = logging.getLogger("ai_runtime.usage.observer")
 
@@ -20,6 +19,7 @@ class RuntimeEventType(str, Enum):
     PERMISSION_DECISION = "permission_decision"
     FALLBACK = "fallback"
     PROVIDER_VERIFY = "provider_verify"
+    FOOD_DECISION = "food_decision"
 
 
 class RuntimeEventStatus(str, Enum):
@@ -152,6 +152,32 @@ class ProviderVerifyObservation:
         )
 
 
+@dataclass(frozen=True)
+class FoodDecisionObservation:
+    food_id: str
+    status: RuntimeEventStatus
+    requested_food_id: str
+    semantic_role: str
+    model: str = ""
+    reason: str = ""
+
+    def to_event(self) -> RuntimeEvent:
+        metadata: dict[str, RuntimeMetadataValue] = {
+            "requested_food_id": self.requested_food_id,
+            "semantic_role": self.semantic_role,
+        }
+        if self.model:
+            metadata["model"] = self.model
+        if self.reason:
+            metadata["reason"] = self.reason
+        return RuntimeEvent(
+            event_type=RuntimeEventType.FOOD_DECISION,
+            status=self.status,
+            subject=self.food_id,
+            metadata=metadata,
+        )
+
+
 class RuntimeObserver:
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -174,31 +200,17 @@ class RuntimeObserver:
     def record_provider_verify(self, observation: ProviderVerifyObservation) -> None:
         self._record(observation.to_event())
 
+    def record_food_decision(self, observation: FoodDecisionObservation) -> None:
+        self._record(observation.to_event())
+
     def snapshot(self) -> tuple[RuntimeEvent, ...]:
         with self._lock:
             return tuple(self._events)
 
     def flush(self, batch_id: str) -> None:
+        _ = batch_id
         with self._lock:
-            events = tuple(self._events)
             self._events = []
-
-        if not events:
-            return
-
-        try:
-            home = get_elfie_home()
-            home.mkdir(parents=True, exist_ok=True)
-            path = home / "runtime_events.jsonl"
-            with path.open("a", encoding="utf-8") as handle:
-                for event in events:
-                    record = {
-                        "batch_id": batch_id,
-                        "event": event.to_dict(),
-                    }
-                    handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-        except OSError as failure:
-            logger.warning("Runtime 观测事件持久化失败: %s", failure)
 
     def reset(self) -> None:
         with self._lock:
@@ -207,6 +219,41 @@ class RuntimeObserver:
     def _record(self, event: RuntimeEvent) -> None:
         with self._lock:
             self._events.append(event)
+        try:
+            repository = ReportRepository()
+            run_id = repository.start_run(
+                scope=f"runtime:{event.event_type.value}",
+                trigger="runtime",
+            )
+            repository.append_observation(
+                run_id=run_id,
+                subject_kind=_report_subject_kind(event.event_type),
+                subject_id=event.subject,
+                status=(
+                    "passed"
+                    if event.status is RuntimeEventStatus.OK
+                    else "failed"
+                ),
+                details={
+                    "event_type": event.event_type.value,
+                    **event.metadata,
+                },
+            )
+            repository.finish_run(run_id, status="complete")
+        except Exception as failure:
+            logger.warning("Runtime 观测事件持久化失败: %s", failure)
+
+
+def _report_subject_kind(event_type: RuntimeEventType) -> str:
+    if event_type is RuntimeEventType.TOOL_CALL:
+        return "tool"
+    if event_type is RuntimeEventType.FALLBACK:
+        return "fallback"
+    if event_type is RuntimeEventType.FOOD_DECISION:
+        return "food"
+    if event_type is RuntimeEventType.PROVIDER_VERIFY:
+        return "provider"
+    return "runtime"
 
 
 _runtime_observer: RuntimeObserver | None = None

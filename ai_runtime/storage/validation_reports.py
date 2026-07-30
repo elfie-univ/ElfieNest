@@ -1,20 +1,14 @@
-"""Durable, credential-free Provider and model validation reports."""
+"""Compatibility-shaped validation API backed by the report database."""
 
 from __future__ import annotations
 
-import hashlib
-import os
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 
-from ai_runtime.storage.config_store import read_yaml_mapping, write_yaml_mapping
-from ai_runtime.storage.data_home import (
-    ensure_elfie_home,
-    get_model_validation_dir,
-    get_provider_validation_dir,
+from ai_runtime.storage.report_repository import (
+    ReportRepository,
+    ValidationObservation,
 )
 
 REPORT_VERSION = 1
@@ -37,33 +31,60 @@ def write_provider_validation_report(
     *,
     status: str,
     checked_at: str,
-    latency_ms: float | None,
-    error: str | None,
+    latency_ms: Optional[float],
+    error: Optional[str],
     trigger: Literal["batch", "single"],
-) -> Path:
-    """Write one immutable Provider report and replace its latest projection."""
+    run_id: Optional[str] = None,
+) -> int:
+    """Append one Provider observation and return its database identity."""
     _validate_provider_id(provider_id)
     _validate_status(status)
     if trigger not in _PROVIDER_TRIGGER:
         raise ValueError(f"不支持的 Provider 验证触发方式: {trigger}")
-    report = {
-        "version": REPORT_VERSION,
-        "kind": "provider_validation",
-        "provider_id": provider_id,
-        "trigger": trigger,
-        "checked_at": checked_at,
-        "status": status,
-        "latency_ms": latency_ms,
-        "error": error,
-    }
-    return _write_report(get_provider_validation_dir() / provider_id, report)
+    repository = ReportRepository()
+    owns_run = run_id is None
+    if run_id is None:
+        run_id = repository.start_run(
+            scope=f"provider:{provider_id}",
+            trigger=trigger,
+            started_at=checked_at,
+        )
+    observation_id = repository.append_observation(
+        run_id=run_id,
+        subject_kind="provider",
+        subject_id=provider_id,
+        observed_at=checked_at,
+        status=status,
+        latency_ms=latency_ms,
+        error_category=_error_category(error),
+        error_message=error,
+    )
+    if owns_run:
+        repository.finish_run(
+            run_id,
+            status="complete" if status == "passed" else "failed",
+            finished_at=checked_at,
+        )
+    return observation_id
 
 
 def read_latest_provider_validation(provider_id: str) -> dict[str, Any]:
     _validate_provider_id(provider_id)
-    return read_yaml_mapping(
-        get_provider_validation_dir() / provider_id / "latest.yaml"
-    )
+    repository = ReportRepository()
+    observation = repository.latest("provider", provider_id)
+    if observation is None:
+        return {}
+    run = repository.get_run(observation.run_id)
+    return {
+        "version": REPORT_VERSION,
+        "kind": "provider_validation",
+        "provider_id": provider_id,
+        "trigger": run.trigger,
+        "checked_at": observation.observed_at,
+        "status": observation.status,
+        "latency_ms": observation.latency_ms,
+        "error": observation.error_message,
+    }
 
 
 def write_model_validation_report(
@@ -72,36 +93,44 @@ def write_model_validation_report(
     *,
     status: str,
     checked_at: str,
-    latency_ms: float | None,
-    latency_class: str | None,
-    error: str | None,
+    latency_ms: Optional[float],
+    latency_class: Optional[str],
+    error: Optional[str],
     trigger: Literal["benchmark"],
-) -> Path:
-    """Write one model report without using the model ID as a path component."""
+    run_id: Optional[str] = None,
+) -> int:
+    """Append one endpoint-model observation without creating report files."""
     _validate_provider_id(provider_id)
-    normalized_model_id = model_id.strip()
-    if not normalized_model_id or len(normalized_model_id) > 200:
-        raise InvalidReportIdentityError(model_id)
+    normalized_model_id = _validate_model_id(model_id)
     _validate_status(status)
     if trigger not in _MODEL_TRIGGER:
         raise ValueError(f"不支持的模型验证触发方式: {trigger}")
-    model_key = hashlib.sha256(normalized_model_id.encode("utf-8")).hexdigest()[:16]
-    report = {
-        "version": REPORT_VERSION,
-        "kind": "model_validation",
-        "provider_id": provider_id,
-        "model_id": normalized_model_id,
-        "trigger": trigger,
-        "checked_at": checked_at,
-        "status": status,
-        "latency_ms": latency_ms,
-        "latency_class": latency_class,
-        "error": error,
-    }
-    return _write_report(
-        get_model_validation_dir() / provider_id / model_key,
-        report,
+    repository = ReportRepository()
+    owns_run = run_id is None
+    if run_id is None:
+        run_id = repository.start_run(
+            scope=f"model:{provider_id}/{normalized_model_id}",
+            trigger=trigger,
+            started_at=checked_at,
+        )
+    observation_id = repository.append_observation(
+        run_id=run_id,
+        subject_kind="model",
+        subject_id=f"{provider_id}/{normalized_model_id}",
+        observed_at=checked_at,
+        status=status,
+        latency_ms=latency_ms,
+        error_category=_error_category(error),
+        error_message=error,
+        details={"latency_class": latency_class},
     )
+    if owns_run:
+        repository.finish_run(
+            run_id,
+            status="complete" if status == "passed" else "failed",
+            finished_at=checked_at,
+        )
+    return observation_id
 
 
 def read_latest_model_validation(
@@ -109,13 +138,41 @@ def read_latest_model_validation(
     model_id: str,
 ) -> dict[str, Any]:
     _validate_provider_id(provider_id)
-    normalized_model_id = model_id.strip()
-    if not normalized_model_id or len(normalized_model_id) > 200:
-        raise InvalidReportIdentityError(model_id)
-    model_key = hashlib.sha256(normalized_model_id.encode("utf-8")).hexdigest()[:16]
-    return read_yaml_mapping(
-        get_model_validation_dir() / provider_id / model_key / "latest.yaml"
+    normalized_model_id = _validate_model_id(model_id)
+    repository = ReportRepository()
+    observation = repository.latest(
+        "model",
+        f"{provider_id}/{normalized_model_id}",
     )
+    if observation is None:
+        return {}
+    run = repository.get_run(observation.run_id)
+    return _model_payload(
+        provider_id,
+        normalized_model_id,
+        observation,
+        run.trigger,
+    )
+
+
+def _model_payload(
+    provider_id: str,
+    model_id: str,
+    observation: ValidationObservation,
+    trigger: str,
+) -> dict[str, Any]:
+    return {
+        "version": REPORT_VERSION,
+        "kind": "model_validation",
+        "provider_id": provider_id,
+        "model_id": model_id,
+        "trigger": trigger,
+        "checked_at": observation.observed_at,
+        "status": observation.status,
+        "latency_ms": observation.latency_ms,
+        "latency_class": observation.details.get("latency_class"),
+        "error": observation.error_message,
+    }
 
 
 def _validate_provider_id(provider_id: str) -> None:
@@ -123,28 +180,26 @@ def _validate_provider_id(provider_id: str) -> None:
         raise InvalidReportIdentityError(provider_id)
 
 
+def _validate_model_id(model_id: str) -> str:
+    normalized_model_id = model_id.strip()
+    if not normalized_model_id or len(normalized_model_id) > 200:
+        raise InvalidReportIdentityError(model_id)
+    return normalized_model_id
+
+
 def _validate_status(status: str) -> None:
     if status not in _REPORT_STATUS:
         raise ValueError(f"不支持的验证报告状态: {status}")
 
 
-def _write_report(directory: Path, report: dict[str, Any]) -> Path:
-    ensure_elfie_home()
-    history_dir = directory / "history"
-    history_dir.mkdir(parents=True, exist_ok=True)
-    _secure_directory(directory)
-    _secure_directory(history_dir)
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
-    history_path = history_dir / f"{stamp}.yaml"
-    write_yaml_mapping(history_path, report)
-    write_yaml_mapping(directory / "latest.yaml", report)
-    return history_path
-
-
-def _secure_directory(path: Path) -> None:
-    if os.name == "nt":
-        return
-    try:
-        os.chmod(path, 0o700)
-    except OSError:
-        pass
+def _error_category(error: Optional[str]) -> Optional[str]:
+    if not error:
+        return None
+    normalized = error.lower()
+    if "auth" in normalized or "credential" in normalized or "401" in normalized:
+        return "authentication"
+    if "quota" in normalized or "billing" in normalized or "429" in normalized:
+        return "quota"
+    if "timeout" in normalized or "network" in normalized:
+        return "network"
+    return "unknown"

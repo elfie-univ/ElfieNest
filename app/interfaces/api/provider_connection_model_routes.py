@@ -5,9 +5,9 @@ from __future__ import annotations
 import asyncio
 import re
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.models.capabilities import known_capabilities
@@ -15,6 +15,10 @@ from ai_runtime.storage.provider_connections import (
     ProviderConnection,
     ProviderConnectionStore,
     ProviderModelRecord,
+)
+from ai_runtime.storage.report_repository import (
+    ReportRepository,
+    ValidationObservation,
 )
 from ai_runtime.storage.secrets import connection_secret_name, resolve_secret
 from ai_runtime.storage.validation_reports import (
@@ -25,11 +29,12 @@ from ai_runtime.storage.validation_reports import (
 from ai_runtime.validation.providers import ProviderValidationRunner, classify_latency
 from app.features.accounts.auth import require_owner
 
+from .provider_connection_routes import _verify_connection_in_run
+from .provider_errors import sanitize_error
 from .provider_schemas import (
     ConnectionBenchmarkCombination,
     ConnectionBenchmarkRequest,
 )
-from .provider_support import sanitize_error
 
 router = APIRouter()
 _BENCHMARK_TIMEOUT_SECONDS = 20.0
@@ -38,10 +43,46 @@ _BENCHMARK_CONCURRENCY = 2
 
 @router.get("/connection-model-matrix")
 async def connection_model_matrix(
+    as_of: Optional[str] = Query(default=None),
+    run_id: Optional[str] = Query(default=None),
     owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
-    return _matrix(ProviderConnectionStore().load().connections)
+    repository = ReportRepository()
+    if as_of and run_id:
+        raise HTTPException(status_code=422, detail="as_of 和 run_id 不能同时使用")
+    try:
+        observations = (
+            repository.observations_for_run(run_id)
+            if run_id
+            else repository.as_of(as_of)
+            if as_of
+            else repository.current()
+        )
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(status_code=404, detail="报告快照不存在") from exc
+    snapshot = {
+        "mode": "run" if run_id else "as_of" if as_of else "current",
+        "run_id": run_id,
+        "as_of": as_of,
+    }
+    if run_id:
+        try:
+            run = repository.get_run(run_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="报告运行不存在") from exc
+        snapshot.update(
+            {
+                "status": run.status,
+                "started_at": run.started_at,
+                "finished_at": run.finished_at,
+            }
+        )
+    return _matrix(
+        ProviderConnectionStore().load().connections,
+        observations=observations,
+        snapshot=snapshot,
+    )
 
 
 @router.post("/connection-models/benchmark")
@@ -68,6 +109,12 @@ async def benchmark_connection_models(
         await asyncio.gather(*tasks, return_exceptions=True)
         raise
     checked_at = datetime.now(timezone.utc).isoformat()
+    repository = ReportRepository()
+    run_id = repository.start_run(
+        scope="model-selection",
+        trigger="benchmark",
+        started_at=checked_at,
+    )
     results: list[dict[str, Any]] = []
     for combination, raw in zip(body.combinations, raw_results):
         connection = connections[combination.connection_id]
@@ -91,6 +138,7 @@ async def benchmark_connection_models(
             latency_class=latency_class,
             error=error,
             trigger="benchmark",
+            run_id=run_id,
         )
         results.append(
             {
@@ -103,25 +151,139 @@ async def benchmark_connection_models(
                 "error": error,
             }
         )
-    return {"results": results}
+    repository.finish_run(run_id, status="complete", finished_at=checked_at)
+    return {"run_id": run_id, "status": "complete", "results": results}
+
+
+@router.post("/connection-models/validate-all")
+async def validate_all_connection_models(
+    request: Request,
+    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+) -> dict[str, Any]:
+    _ = owner
+    connections = [
+        connection
+        for connection in ProviderConnectionStore().load().connections.values()
+        if connection.enabled and not connection.archived
+    ]
+    repository = ReportRepository()
+    started_at = datetime.now(timezone.utc).isoformat()
+    run_id = repository.start_run(
+        scope="all-enabled-connections-and-models",
+        trigger="validate_all",
+        started_at=started_at,
+    )
+    results: list[dict[str, Any]] = []
+    status = "complete"
+    try:
+        for connection in connections:
+            if await request.is_disconnected():
+                status = "partial"
+                break
+            verification = await _verify_connection_in_run(
+                connection,
+                run_id=run_id,
+                trigger="batch",
+            )
+            results.append(
+                {
+                    "subject": f"provider:{connection.connection_id}",
+                    **verification,
+                }
+            )
+            for model in connection.models:
+                if model.hidden or model.retired or not model.available:
+                    continue
+                raw = await _bounded_benchmark(
+                    ConnectionBenchmarkCombination(
+                        connection_id=connection.connection_id,
+                        model_id=model.endpoint_model_id,
+                    ),
+                    asyncio.Semaphore(_BENCHMARK_CONCURRENCY),
+                )
+                checked_at = datetime.now(timezone.utc).isoformat()
+                result_status = (
+                    "passed" if raw.get("status") == "passed" else "failed"
+                )
+                latency = raw.get("latency_ms")
+                write_model_validation_report(
+                    connection.connection_id,
+                    model.endpoint_model_id,
+                    status=result_status,
+                    checked_at=checked_at,
+                    latency_ms=(
+                        float(latency)
+                        if isinstance(latency, (int, float))
+                        else None
+                    ),
+                    latency_class=(
+                        str(raw["latency_class"])
+                        if raw.get("latency_class")
+                        else None
+                    ),
+                    error=sanitize_error(
+                        raw.get("error"),
+                        secrets=(
+                            resolve_secret(
+                                connection.credential_ref
+                                or connection_secret_name(connection.connection_id)
+                            ),
+                        ),
+                    ),
+                    trigger="benchmark",
+                    run_id=run_id,
+                )
+                results.append(
+                    {
+                        "subject": (
+                            f"model:{connection.connection_id}/"
+                            f"{model.endpoint_model_id}"
+                        ),
+                        "status": result_status,
+                        "checked_at": checked_at,
+                    }
+                )
+    except Exception:
+        status = "partial" if results else "failed"
+        raise
+    finally:
+        repository.finish_run(
+            run_id,
+            status=status,
+            finished_at=datetime.now(timezone.utc).isoformat(),
+        )
+    return {"run_id": run_id, "status": status, "results": results}
 
 
 def _matrix(
     connections: Dict[str, ProviderConnection],
+    *,
+    observations: tuple[ValidationObservation, ...] = (),
+    snapshot: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
-    enabled = [connection for connection in connections.values() if connection.enabled]
+    evidence = {
+        (item.subject_kind, item.subject_id): item for item in observations
+    }
+    enabled = [
+        connection
+        for connection in connections.values()
+        if connection.enabled and not connection.archived
+    ]
     connection_views = [
         {
             "connection_id": connection.connection_id,
             "name": connection.alias,
-            "verification": _provider_verification(connection.connection_id),
+            "verification": _provider_verification(
+                connection.connection_id,
+                evidence.get(("provider", connection.connection_id)),
+            ),
         }
         for connection in enabled
     ]
     grouped: dict[str, list[tuple[ProviderConnection, ProviderModelRecord]]] = {}
     for connection in enabled:
         for model in connection.models:
-            if model.hidden:
+            if model.hidden or model.retired:
                 continue
             grouped.setdefault(_model_identity(model), []).append((connection, model))
     rows: list[dict[str, Any]] = []
@@ -144,7 +306,8 @@ def _matrix(
                         "model_id": None,
                         "available": False,
                         "verification_status": _provider_verification(
-                            connection.connection_id
+                            connection.connection_id,
+                            evidence.get(("provider", connection.connection_id)),
                         )["status"],
                         "benchmark_status": None,
                         "latency_ms": None,
@@ -154,17 +317,28 @@ def _matrix(
                 )
                 continue
             capabilities.update(_model_capabilities(entry_model))
-            benchmark = read_latest_model_validation(
-                connection.connection_id,
-                entry_model.endpoint_model_id,
+            observation = evidence.get(
+                (
+                    "model",
+                    f"{connection.connection_id}/{entry_model.endpoint_model_id}",
+                )
+            )
+            benchmark = (
+                _observation_payload(observation)
+                if observation is not None
+                else read_latest_model_validation(
+                    connection.connection_id,
+                    entry_model.endpoint_model_id,
+                )
             )
             cells.append(
                 {
                     "connection_id": connection.connection_id,
                     "model_id": entry_model.endpoint_model_id,
-                    "available": True,
+                        "available": entry_model.available,
                     "verification_status": _provider_verification(
-                        connection.connection_id
+                        connection.connection_id,
+                        evidence.get(("provider", connection.connection_id)),
                     )["status"],
                     "benchmark_status": benchmark.get("status"),
                     "latency_ms": benchmark.get("latency_ms"),
@@ -180,16 +354,39 @@ def _matrix(
                 "connections": cells,
             }
         )
-    return {"connections": connection_views, "models": rows}
+    return {
+        "snapshot": snapshot or {"mode": "current"},
+        "connections": connection_views,
+        "models": rows,
+    }
 
 
-def _provider_verification(connection_id: str) -> dict[str, Any]:
-    latest = read_latest_provider_validation(connection_id)
+def _provider_verification(
+    connection_id: str,
+    observation: Optional[ValidationObservation] = None,
+) -> dict[str, Any]:
+    latest = (
+        _observation_payload(observation)
+        if observation is not None
+        else read_latest_provider_validation(connection_id)
+    )
     return {
         "status": latest.get("status", "never"),
         "checked_at": latest.get("checked_at"),
         "latency_ms": latest.get("latency_ms"),
         "error": latest.get("error"),
+    }
+
+
+def _observation_payload(
+    observation: ValidationObservation,
+) -> dict[str, Any]:
+    return {
+        "status": observation.status,
+        "checked_at": observation.observed_at,
+        "latency_ms": observation.latency_ms,
+        "latency_class": observation.details.get("latency_class"),
+        "error": observation.error_message,
     }
 
 
@@ -219,7 +416,7 @@ def _validate_combinations(
 ) -> None:
     for combination in combinations:
         connection = connections.get(combination.connection_id)
-        if connection is None or not connection.enabled:
+        if connection is None or not connection.enabled or connection.archived:
             raise HTTPException(
                 status_code=422,
                 detail=f"{combination.connection_id} 尚未完成配置",
@@ -231,7 +428,10 @@ def _validate_combinations(
                 detail=f"{combination.connection_id} 尚未验证通过",
             )
         if not any(
-            model.endpoint_model_id == combination.model_id and not model.hidden
+            model.endpoint_model_id == combination.model_id
+            and not model.hidden
+            and not model.retired
+            and model.available
             for model in connection.models
         ):
             raise HTTPException(

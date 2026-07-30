@@ -34,9 +34,13 @@ const OwnerElfieSchema = z.object({
   owner: z.object({ account_id: z.string().min(1), username: z.string() }),
   profile: ProfileSchema,
   food_policy: z.object({
-    default_food: z.string(),
-    allowed_foods: z.array(z.string()),
-    fallback_food: z.string(),
+    main_food_id: z.string(),
+    effective_main_food_id: z.string(),
+    main_food_options: z.array(z.object({
+      food_id: z.string(),
+      display_name: z.string(),
+    })),
+    main_food_unavailable: z.boolean(),
   }),
   created_at: z.string(),
 })

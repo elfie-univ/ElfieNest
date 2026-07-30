@@ -225,7 +225,8 @@ export function ProviderModelsDialog({
 }
 
 function sourceLabel(source: string): string {
-  if (source === "discovered") return "自动发现"
-  if (source === "provider_catalog") return "内置目录"
+  if (source === "official") return "官方发现"
+  if (source === "remote_catalog") return "远程目录"
+  if (source === "bundled_catalog") return "内置目录"
   return "手工添加"
 }

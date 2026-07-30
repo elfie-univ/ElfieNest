@@ -9,7 +9,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Mapping
 
-from ai_runtime.storage.data_home import get_validation_dir
+from ai_runtime.storage.data_home import get_report_exports_dir
 
 
 class CheckStatus(str, Enum):
@@ -78,7 +78,7 @@ class ValidationReport:
         }
 
     def save(self, directory: Path | None = None) -> Path:
-        report_dir = directory or get_validation_dir()
+        report_dir = directory or get_report_exports_dir()
         report_dir.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         path = report_dir / f"runtime-validation-{stamp}.json"

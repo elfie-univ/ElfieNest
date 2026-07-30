@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 
 import yaml
 
-from ai_runtime.config import PROVIDER_RECOMMENDS, LLMRuntimeConfig
+from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.providers.profiles import BUILTIN_PROFILES
 from ai_runtime.storage.data_home import get_elfie_developer_home
 
@@ -20,12 +20,13 @@ SECRET_ENV_KEYS = {
 
 PROVIDER_DEFAULTS: Dict[str, Dict[str, str]] = {
     name: {
-        "display_name": str(info["name"]),
-        "api_base": str(info["api_base"]),
+        "display_name": profile.name,
+        "api_base": profile.api_base,
         "api_mode": "ollama" if name == "ollama" else "chat_completions",
-        "test_model": str(info["cheap_models"][0]),
+        "test_model": profile.default_models["cheap"][0],
+        "vision_model": profile.default_models["multimodal"][0],
     }
-    for name, info in PROVIDER_RECOMMENDS.items()
+    for name, profile in BUILTIN_PROFILES.items()
 }
 PROVIDER_DEFAULTS["custom_openai"] = {
     "display_name": "自定义 OpenAI 兼容服务",
@@ -64,12 +65,10 @@ class RuntimeLabConfigStore:
             "deep_provider": "ollama",
             "deep_model": providers["ollama"]["test_model"],
             "multimodal_provider": "ollama",
-            "multimodal_model": PROVIDER_RECOMMENDS["ollama"]["multimodal_models"][0],
+            "multimodal_model": providers["ollama"]["vision_model"],
             "ollama_host": providers["ollama"]["api_base"],
             "ollama_model_fast": providers["ollama"]["test_model"],
-            "ollama_model_vision": PROVIDER_RECOMMENDS["ollama"]["multimodal_models"][
-                0
-            ],
+            "ollama_model_vision": providers["ollama"]["vision_model"],
             "runtime_policy": {"elfie_lab_model_key": "local_fast"},
         }
 
@@ -150,8 +149,9 @@ class RuntimeLabConfigStore:
 
     def status(self) -> Dict[str, Any]:
         config = self.load_runtime_config()
+        document = self.read_document()
         model_key = str(config.runtime_policy.get("elfie_lab_model_key", "local_fast"))
-        provider, model = self._resolve_model(config, model_key)
+        provider, model = self._resolve_model(document, model_key)
         provider_info = config.providers.get(provider, {})
         credential_configured = provider == "ollama" or bool(
             provider_info.get("api_key")
@@ -184,14 +184,25 @@ class RuntimeLabConfigStore:
         }
 
     @staticmethod
-    def _resolve_model(config: LLMRuntimeConfig, model_key: str) -> tuple[str, str]:
+    def _resolve_model(
+        document: Dict[str, Any], model_key: str
+    ) -> tuple[str, str]:
         mapping = {
-            "local_fast": ("ollama", config.ollama_model_fast),
-            "remote_cheap": (config.cheap_provider, config.cheap_model),
-            "remote_deep": (config.deep_provider, config.deep_model),
+            "local_fast": (
+                "ollama",
+                str(document.get("ollama_model_fast", "")),
+            ),
+            "remote_cheap": (
+                str(document.get("cheap_provider", "")),
+                str(document.get("cheap_model", "")),
+            ),
+            "remote_deep": (
+                str(document.get("deep_provider", "")),
+                str(document.get("deep_model", "")),
+            ),
             "remote_multimodal": (
-                config.multimodal_provider,
-                config.multimodal_model,
+                str(document.get("multimodal_provider", "")),
+                str(document.get("multimodal_model", "")),
             ),
         }
         return mapping.get(model_key, mapping["local_fast"])

@@ -21,14 +21,13 @@ from ai_runtime.storage.data_home import (
     get_food_catalog_path,
     get_food_history_dir,
     get_logs_dir,
-    get_model_validation_dir,
     get_oauth_credentials_dir,
     get_provider_catalog_path,
     get_provider_config_path,
-    get_provider_validation_dir,
+    get_report_database_path,
+    get_report_exports_dir,
     get_reports_dir,
     get_runtime_config_paths,
-    get_runtime_validation_dir,
     get_sessions_dir,
     get_skills_dir,
     get_tool_config_path,
@@ -66,9 +65,9 @@ def test_ensure_elfie_home_creates_structure(monkeypatch, tmp_path):
         "configs/credentials/oauth",
         "configs/food-packages-history",
         "reports",
-        "reports/provider-validations",
-        "reports/model-validations",
-        "reports/runtime-validations",
+        "reports/exports",
+        "runtime",
+        "runtime/locks",
     ]:
         assert (home / subdir).exists()
 
@@ -80,9 +79,8 @@ def test_path_helpers(monkeypatch, tmp_path):
     assert get_credentials_dir() == get_configs_dir() / "credentials"
     assert get_oauth_credentials_dir() == get_credentials_dir() / "oauth"
     assert get_reports_dir() == get_elfie_home() / "reports"
-    assert get_provider_validation_dir() == get_reports_dir() / "provider-validations"
-    assert get_model_validation_dir() == get_reports_dir() / "model-validations"
-    assert get_runtime_validation_dir() == get_reports_dir() / "runtime-validations"
+    assert get_report_database_path() == get_reports_dir() / "ai-runtime.sqlite"
+    assert get_report_exports_dir() == get_reports_dir() / "exports"
     assert get_config_path() == get_configs_dir() / "runtime.yaml"
     assert get_provider_config_path() == get_configs_dir() / "providers.yaml"
     assert get_provider_catalog_path() == get_configs_dir() / "provider-catalog.yaml"
@@ -120,9 +118,7 @@ def test_ensure_elfie_home_secures_config_and_report_directories(
         get_credentials_dir(),
         get_oauth_credentials_dir(),
         get_reports_dir(),
-        get_provider_validation_dir(),
-        get_model_validation_dir(),
-        get_runtime_validation_dir(),
+        get_report_exports_dir(),
     ):
         assert stat.S_IMODE(directory.stat().st_mode) == 0o700
 

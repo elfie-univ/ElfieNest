@@ -51,7 +51,7 @@ export const MOCK_ELFIES: readonly OwnerElfie[] = [
       nest: { room_name: "主巢", bed_name: "床位 1", posture: "standing" },
       embodiment: { state: "awake" },
     },
-    food_policy: { default_food: "standard", allowed_foods: ["standard", "fruit", "snack"], fallback_food: "coarse" },
+    food_policy: { main_food_id: "food_common", effective_main_food_id: "food_common", main_food_options: [{ food_id: "food_common", display_name: "常用粮" }], main_food_unavailable: false },
     created_at: "2026-06-30 13:45:00",
   },
   {
@@ -73,7 +73,7 @@ export const MOCK_ELFIES: readonly OwnerElfie[] = [
       nest: { room_name: "主巢", bed_name: "床位 2", posture: "sleeping" },
       embodiment: { state: "sleeping" },
     },
-    food_policy: { default_food: "standard", allowed_foods: ["standard", "fruit"], fallback_food: "coarse" },
+    food_policy: { main_food_id: "food_common", effective_main_food_id: "food_common", main_food_options: [{ food_id: "food_common", display_name: "常用粮" }], main_food_unavailable: false },
     created_at: "2026-07-01 09:18:00",
   },
 ]

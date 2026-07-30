@@ -186,7 +186,7 @@ class RuntimeSupervisor:
         )
 
     def _record_path(self) -> Path:
-        return self._elfie_home / RUNTIME_RECORD_FILENAME
+        return self._elfie_home / "runtime" / RUNTIME_RECORD_FILENAME
 
     def _read_record(self) -> RuntimeHealth:
         try:
@@ -292,8 +292,10 @@ class RuntimeSupervisor:
 
     def _write_record(self, health: RuntimeHealth) -> None:
         self._elfie_home.mkdir(mode=0o700, parents=True, exist_ok=True)
+        runtime_dir = self._elfie_home / "runtime"
+        runtime_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
         descriptor, temporary_name = tempfile.mkstemp(
-            prefix=".runtime.", dir=str(self._elfie_home)
+            prefix=".runtime.", dir=str(runtime_dir)
         )
         temporary_path = Path(temporary_name)
         payload = json.dumps(

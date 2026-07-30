@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -20,6 +18,11 @@ from ai_runtime.usage.observer import (
     ToolCallObservation,
     get_runtime_observer,
 )
+
+
+@pytest.fixture(autouse=True)
+def isolated_runtime_reports(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
 
 
 class FakeSearchPlugin:
@@ -125,7 +128,7 @@ def test_runtime_observer_records_permission_fallback_and_provider_events():
     assert events[2].metadata["latency_ms"] == 12.5
 
 
-def test_runtime_observer_flushes_jsonl_and_resets(tmp_path: Path):
+def test_runtime_observer_flush_resets_without_creating_legacy_jsonl(tmp_path: Path):
     observer = RuntimeObserver()
     observer.record_tool_call(
         ToolCallObservation(
@@ -135,15 +138,10 @@ def test_runtime_observer_flushes_jsonl_and_resets(tmp_path: Path):
         )
     )
 
-    with patch("ai_runtime.usage.observer.get_elfie_home", return_value=tmp_path):
-        observer.flush("tick_001")
+    observer.flush("tick_001")
 
     assert observer.snapshot() == ()
-    events_file = tmp_path / "runtime_events.jsonl"
-    record = json.loads(events_file.read_text(encoding="utf-8").strip())
-    assert record["batch_id"] == "tick_001"
-    assert record["event"]["event_type"] == "tool_call"
-    assert record["event"]["status"] == "error"
+    assert not (tmp_path / "runtime_events.jsonl").exists()
 
 
 def test_call_llm_api_records_successful_model_call(monkeypatch: pytest.MonkeyPatch):
@@ -236,8 +234,6 @@ def test_tool_executor_records_tool_observation():
         ToolExecutionContext(
             allowed_skills=("web_search",),
             search_plugin=FakeSearchPlugin(),
-            sandbox_plugin=FakeSandboxPlugin(),
-            skills_evolution_plugin=FakeSkillsPlugin(),
             permission_manager=FakePermissionManager(),
         )
     )

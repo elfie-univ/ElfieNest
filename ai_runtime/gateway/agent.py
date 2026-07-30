@@ -5,15 +5,17 @@ from time import perf_counter
 from typing import Any, Dict, List
 
 from ai_runtime.config import LLMRuntimeConfig
+from ai_runtime.food.evidence import ModelEvidenceStore
 from ai_runtime.food.executor import (
     FoodExecutionError,
     FoodExecutionResult,
     FoodExecutor,
+    NoAvailableFoodError,
 )
-from ai_runtime.food.models import FoodRecipe
+from ai_runtime.food.health import project_food_health
+from ai_runtime.food.models import FOOD_COMMON_ID, FOOD_EMERGENCY_ID, FoodPackage
 from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
 from ai_runtime.gateway.llm_api import call_llm_api
-from ai_runtime.gateway.model_guard import ensure_model_ready
 from ai_runtime.gateway.multimodal import assemble_multimodal_payload
 from ai_runtime.gateway.request import (
     RuntimeRequest,
@@ -23,18 +25,18 @@ from ai_runtime.gateway.request import (
     StructuredRuntimeRequest,
     StructuredRuntimeResult,
 )
-from ai_runtime.gateway.skills_prompt import inject_skills_system_prompt
-from ai_runtime.gateway.streaming import RuntimeStreamRequest, stream_runtime_response
 from ai_runtime.models.model_reference import parse_model_reference
-from ai_runtime.models.registry import ModelRegistry
-from ai_runtime.providers.ollama import OllamaManager
 from ai_runtime.safety.permissions import PermissionManager
 from ai_runtime.storage.data_home import get_runtime_config_paths
-from ai_runtime.tools.code import CodeSandboxPlugin
-from ai_runtime.tools.config import enabled_tool_keys, load_tool_configs
+from ai_runtime.tools.config import enabled_tool_keys
 from ai_runtime.tools.local_files import LocalFileAccessPlugin
 from ai_runtime.tools.search import WebSearchPlugin
-from ai_runtime.tools.skills_evolution import SkillsSelfEvolutionPlugin
+from ai_runtime.usage.observer import (
+    FallbackObservation,
+    FoodDecisionObservation,
+    RuntimeEventStatus,
+    get_runtime_observer,
+)
 
 logger = logging.getLogger("ai_runtime.gateway.agent")
 
@@ -54,26 +56,12 @@ class RuntimeAgent:
         self._mount_runtime_dependencies()
 
     def _mount_runtime_dependencies(self) -> None:
-        self.registry = ModelRegistry(self.config)
-        self.ollama_manager = OllamaManager(self.config)
         self.permission_manager = PermissionManager(self.config)
 
-        # 2. 挂载能力插件
-        tool_configs = load_tool_configs(self.config.runtime_policy)
         self.search_plugin = WebSearchPlugin.from_runtime_policy(
             self.config.runtime_policy
         )
-        self.sandbox_plugin = CodeSandboxPlugin(
-            timeout_seconds=float(
-                tool_configs["code_sandbox"].get("timeout_seconds") or 5.0
-            )
-        )
-        self.skills_evolution_plugin = SkillsSelfEvolutionPlugin(
-            self.permission_manager
-        )
-        self.file_access_plugin = LocalFileAccessPlugin(
-            root=str(tool_configs["local_file"].get("root") or "") or None
-        )
+        self.file_access_plugin = LocalFileAccessPlugin()
 
         self.food_catalog_store = FoodCatalogStore()
 
@@ -108,7 +96,7 @@ class RuntimeAgent:
         tools = (
             tuple(allowed_skills)
             if allowed_skills is not None
-            else ("web_search", "local_file", "code_sandbox", "skills_evolution")
+            else ("web_search", "local_file")
         )
         return self.run_with_food(
             prompt=prompt,
@@ -128,6 +116,7 @@ class RuntimeAgent:
         energy: float = 100.0,
         task_complexity: int = 1,
         allowed_skills: List[str] | None = None,
+        semantic_role: str = "primary",
         images: List[str] | None = None,
         audio: str | None = None,
     ) -> str:
@@ -141,6 +130,7 @@ class RuntimeAgent:
             energy=energy,
             task_complexity=task_complexity,
             allowed_skills=allowed_skills,
+            semantic_role=semantic_role,
             images=images,
             audio=audio,
         ).text
@@ -156,6 +146,7 @@ class RuntimeAgent:
         energy: float = 100.0,
         task_complexity: int = 1,
         allowed_skills: List[str] | None = None,
+        semantic_role: str = "primary",
         images: List[str] | None = None,
         audio: str | None = None,
     ) -> RuntimeResult:
@@ -171,6 +162,7 @@ class RuntimeAgent:
             elfie_id=elfie_id,
             elfie_config_dir=elfie_config_dir,
             food_key=food_key,
+            semantic_role=semantic_role,
             scene=scene,
             images=tuple(images or ()),
             audio=audio,
@@ -192,20 +184,22 @@ class RuntimeAgent:
         """Describe the primary role of the selected food package."""
         catalog = self._load_food_catalog()
         selected_food = self._select_food_key(catalog, food_key)
-        profile = catalog.recipes[selected_food].primary
-        provider = self._provider_for_model(profile.model)
+        assignment = catalog.packages[selected_food].primary
+        if assignment is None:
+            raise NoAvailableFoodError("no_available_food")
+        provider = self._provider_for_model(assignment.model)
         provider_config = self.config.providers.get(provider, {})
         native = (
             provider == "openai" or provider_config.get("catalog_id") == "openai_api"
         )
         return StructuredRuntimeCapabilities(
             provider=provider,
-            model_key=profile.model,
+            model_key=assignment.model,
             supports_json_schema=native,
             supports_tool_calling=native,
             supports_json_mode=native,
             supports_plain_text=True,
-            max_output_tokens=profile.max_tokens,
+            max_output_tokens=4096,
         )
 
     def generate_structured(
@@ -216,57 +210,50 @@ class RuntimeAgent:
         self._reload_config_if_changed()
         catalog = self._load_food_catalog()
         selected_food = self._select_food_key(catalog, request.food_key)
-        attempts = [
-            (
-                selected_food,
-                catalog.recipes[selected_food].primary,
-                request.selected_mode,
-            )
-        ]
-        fallback_food = catalog.fallback_food
-        if (
-            fallback_food
-            and fallback_food != selected_food
-            and fallback_food in catalog.recipes
-        ):
-            attempts.append(
-                (
-                    fallback_food,
-                    catalog.recipes[fallback_food].primary,
-                    StructuredGenerationMode.JSON_TEXT,
-                )
-            )
+        attempts = [(selected_food, request.selected_mode)]
+        if selected_food != FOOD_EMERGENCY_ID:
+            emergency = catalog.packages.get(FOOD_EMERGENCY_ID)
+            if emergency and self._package_usable(emergency):
+                attempts.append((FOOD_EMERGENCY_ID, StructuredGenerationMode.JSON_TEXT))
         messages = (
             [message.model_dump(mode="python") for message in request.messages]
             if request.messages
             else [{"role": "user", "content": request.prompt}]
         )
         failures: list[str] = []
-        for attempt_food, profile, selected_mode in attempts:
-            provider = self._provider_for_model(profile.model)
-            model_name = self._model_name(profile.model)
+        for attempt_food, selected_mode in attempts:
+            package = catalog.packages[attempt_food]
+            assignment = package.primary
+            if assignment is None:
+                continue
+            provider = self._provider_for_model(assignment.model)
             started = perf_counter()
+            executor = self._food_executor(
+                provider_options=self._structured_request_options(
+                    request, selected_mode
+                ),
+                temperature=request.temperature,
+                max_tokens=request.max_tokens,
+            )
             try:
-                text = self._call_food_llm_api(
-                    provider,
-                    model_name,
+                execution = executor.execute(
+                    package,
                     messages,
-                    request.temperature,
-                    min(request.max_tokens, profile.max_tokens),
-                    self._structured_request_options(request, selected_mode),
+                    semantic_role="primary",
+                    allowed_tools=tuple(request.allowed_tools),
                 )
             except Exception as exc:
                 failures.append(f"{attempt_food}: {exc}")
                 continue
             return StructuredRuntimeResult(
-                text=text,
+                text=execution.text,
                 selected_mode=selected_mode,
                 provider=provider,
-                model_key=profile.model,
+                model_key=execution.model,
                 latency_ms=(perf_counter() - started) * 1000.0,
             )
-        raise RuntimeError(
-            "结构化生成的主粮与全局保底粮均不可用：" + " | ".join(failures)
+        raise NoAvailableFoodError(
+            "no_available_food: " + " | ".join(failures)
         )
 
     @staticmethod
@@ -313,41 +300,40 @@ class RuntimeAgent:
 
     def _think_with_food(self, request: RuntimeRequest) -> RuntimeResult:
         catalog = self._load_food_catalog()
+        requested_food = request.food_key or FOOD_COMMON_ID
         selected_food = self._select_food_key(catalog, request.food_key)
-        requested_food = request.food_key or selected_food
-        recipe = catalog.recipes[selected_food]
+        package = catalog.packages[selected_food]
         messages = (
             [dict(message) for message in request.messages]
             if request.messages
             else [{"role": "user", "content": request.prompt}]
         )
-        executor = FoodExecutor(
-            config=self.config,
-            search_plugin=self.search_plugin,
-            sandbox_plugin=self.sandbox_plugin,
-            skills_evolution_plugin=self.skills_evolution_plugin,
-            permission_manager=self.permission_manager,
-            file_access_plugin=self.file_access_plugin,
-            model_caller=self._call_food_llm_api,
+        executor = self._food_executor(
+            file_access_plugin=(
+                LocalFileAccessPlugin(request.elfie_config_dir)
+                if request.elfie_config_dir
+                else self.file_access_plugin
+            )
         )
         fallback_used = False
+        failed_attempts: tuple[dict[str, str], ...] = ()
         try:
-            execution = self._execute_recipe(executor, recipe, messages, request)
-        except FoodExecutionError:
-            fallback_food = catalog.fallback_food
-            if (
-                not fallback_food
-                or fallback_food == selected_food
-                or fallback_food not in catalog.recipes
-            ):
-                raise
-            execution = self._execute_recipe(
+            execution = self._execute_package(executor, package, messages, request)
+        except FoodExecutionError as exc:
+            failed_attempts = exc.attempts
+            emergency = catalog.packages.get(FOOD_EMERGENCY_ID)
+            if selected_food == FOOD_EMERGENCY_ID or emergency is None or not self._package_usable(emergency):
+                raise NoAvailableFoodError(
+                    "no_available_food",
+                    failed_attempts,
+                ) from exc
+            execution = self._execute_package(
                 executor,
-                catalog.recipes[fallback_food],
+                emergency,
                 messages,
                 request,
             )
-            selected_food = fallback_food
+            selected_food = FOOD_EMERGENCY_ID
             fallback_used = True
         provider = (
             execution.model.split("/", 1)[0] if "/" in execution.model else "ollama"
@@ -359,6 +345,48 @@ class RuntimeAgent:
             selection_reason = "requested_food_unavailable"
         else:
             selection_reason = "requested_food_available"
+        observer = get_runtime_observer()
+        if fallback_used or (
+            selected_food == FOOD_EMERGENCY_ID
+            and requested_food != FOOD_EMERGENCY_ID
+        ):
+            previous_model = (
+                failed_attempts[-1].get("model", "")
+                if failed_attempts
+                else (
+                    catalog.packages[requested_food].primary.model
+                    if requested_food in catalog.packages
+                    and catalog.packages[requested_food].primary is not None
+                    else ""
+                )
+            )
+            observer.record_fallback(
+                FallbackObservation(
+                    from_model_key=previous_model,
+                    from_provider=(
+                        previous_model.split("/", 1)[0]
+                        if "/" in previous_model
+                        else ""
+                    ),
+                    to_model_key=execution.model,
+                    to_provider=provider,
+                    reason=(
+                        "selected food execution failed"
+                        if fallback_used
+                        else "requested food unavailable"
+                    ),
+                )
+            )
+        observer.record_food_decision(
+            FoodDecisionObservation(
+                food_id=selected_food,
+                status=RuntimeEventStatus.OK,
+                requested_food_id=requested_food,
+                semantic_role=request.semantic_role,
+                model=execution.model,
+                reason=selection_reason,
+            )
+        )
         return RuntimeResult(
             text=execution.text,
             mode="local" if provider == "ollama" else "remote",
@@ -370,6 +398,7 @@ class RuntimeAgent:
                     "reason": selection_reason,
                 },
                 "scene": request.scene,
+                "attempts": [*failed_attempts, *execution.attempts],
             },
             degraded=execution.technical_fallback_used or clamped,
             food_requested=requested_food,
@@ -382,23 +411,26 @@ class RuntimeAgent:
             actual_model=execution.model,
             food_clamped=clamped,
         )
-
-    def _execute_recipe(
+    def _execute_package(
         self,
         executor: FoodExecutor,
-        recipe: FoodRecipe,
+        package: FoodPackage,
         messages: list[dict[str, Any]],
         request: RuntimeRequest,
     ) -> FoodExecutionResult:
         return executor.execute(
-            recipe,
+            package,
             messages,
             allowed_tools=request.allowed_tools,
             max_loops=3,
-            prefer_deep=(
-                request.task_complexity >= self.config.complexity_threshold_deep
+            semantic_role=(
+                "vision"
+                if request.images or request.audio
+                else "reasoning"
+                if request.semantic_role == "reasoning"
+                or request.task_complexity >= self.config.complexity_threshold_deep
+                else request.semantic_role
             ),
-            prefer_vision=bool(request.images or request.audio),
             images=request.images,
             audio=request.audio,
         )
@@ -408,15 +440,54 @@ class RuntimeAgent:
         catalog: FoodCatalog,
         requested_food: str | None,
     ) -> str:
-        for food_key in (
-            requested_food,
-            catalog.default_food,
-            catalog.fallback_food,
-            *catalog.recipes,
-        ):
-            if food_key and food_key in catalog.recipes:
-                return food_key
-        raise RuntimeError("正式粮食配置中没有可执行的套餐")
+        primary_id = requested_food or FOOD_COMMON_ID
+        primary = catalog.packages.get(primary_id)
+        if primary is not None and RuntimeAgent._package_usable(primary):
+            return primary_id
+        emergency = catalog.packages.get(FOOD_EMERGENCY_ID)
+        if emergency is not None and RuntimeAgent._package_usable(emergency):
+            return FOOD_EMERGENCY_ID
+        raise NoAvailableFoodError("no_available_food")
+
+    @staticmethod
+    def _package_usable(package: FoodPackage) -> bool:
+        if not package.enabled or package.archived or package.primary is None:
+            return False
+        health = project_food_health(package, ModelEvidenceStore().load())
+        return health.status in {"healthy", "degraded"}
+
+    def _food_executor(
+        self,
+        *,
+        provider_options: Dict[str, Any] | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 1500,
+        file_access_plugin: Any | None = None,
+    ) -> FoodExecutor:
+        def caller(
+            provider: str,
+            model: str,
+            messages: list[dict[str, Any]],
+            _temperature: float,
+            _max_tokens: int,
+            options: dict[str, Any],
+        ) -> str:
+            return self._call_food_llm_api(
+                provider,
+                model,
+                messages,
+                temperature,
+                max_tokens,
+                {**options, **(provider_options or {})},
+            )
+
+        return FoodExecutor(
+            config=self.config,
+            search_plugin=self.search_plugin,
+            permission_manager=self.permission_manager,
+            file_access_plugin=file_access_plugin or self.file_access_plugin,
+            model_caller=caller,
+        )
 
     def _load_food_catalog(self):
         catalog = self.food_catalog_store.load()
@@ -437,12 +508,6 @@ class RuntimeAgent:
         """供粮食执行器适配层复用的多模态载荷组装。"""
         return assemble_multimodal_payload(messages, images, audio, provider)
 
-    def _inject_skills_system_prompt(
-        self, messages: List[Dict[str, Any]], allowed_skills: List[str]
-    ) -> List[Dict[str, Any]]:
-        """供粮食执行器适配层复用的技能提示注入。"""
-        return inject_skills_system_prompt(messages, allowed_skills)
-
     def _call_llm_api(
         self,
         provider: str,
@@ -454,45 +519,6 @@ class RuntimeAgent:
         """执行底层 Provider 调用；正式请求由 FoodExecutor 统一调度。"""
         return call_llm_api(
             self.config, provider, model_name, messages, temperature, max_tokens
-        )
-
-    def generate_stream(
-        self,
-        model_key: str,
-        messages: List[Dict[str, Any]],
-        images: List[str] | None = None,
-        audio: str | None = None,
-        temperature: float | None = None,
-        max_tokens: int | None = None,
-        allowed_skills: List[str] | None = None,
-    ):
-        """底层流式传输适配；同步业务请求必须使用粮食执行链。"""
-        target = ensure_model_ready(
-            model_key, self.registry, self.ollama_manager, images, audio
-        )
-        local_messages = [dict(message) for message in messages]
-        if images or audio:
-            local_messages = self._assemble_multimodal_payload(
-                local_messages, images, audio, target.provider
-            )
-        if allowed_skills:
-            local_messages = self._inject_skills_system_prompt(
-                local_messages, allowed_skills
-            )
-        yield from stream_runtime_response(
-            RuntimeStreamRequest(
-                config=self.config,
-                provider=target.provider,
-                model_name=target.model_name,
-                messages=local_messages,
-                temperature=(
-                    self.config.temperature if temperature is None else temperature
-                ),
-                max_tokens=(
-                    self.config.max_tokens if max_tokens is None else max_tokens
-                ),
-                allowed_skills=tuple(allowed_skills or ()),
-            )
         )
 
     def _call_food_llm_api(

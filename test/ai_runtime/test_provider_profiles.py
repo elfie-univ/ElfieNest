@@ -122,8 +122,8 @@ class TestLLMRuntimeConfigBackwardCompat:
         assert "api_mode" in config.providers["deepseek"]
         assert config.providers["deepseek"]["api_mode"] == "chat_completions"
 
-    def test_unknown_provider_defaults_to_chat_completions(self, monkeypatch, tmp_path):
-        """未知服务商默认使用 chat_completions API 模式"""
+    def test_unknown_legacy_provider_is_not_loaded(self, monkeypatch, tmp_path):
+        """Provider 实例只从 providers.yaml 加载，不复活旧 runtime 配置。"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
         old_config = {
             "providers": {
@@ -136,13 +136,7 @@ class TestLLMRuntimeConfigBackwardCompat:
         set_provider_secret("custom_provider", "test-key")
 
         config = LLMRuntimeConfig()
-        assert config.providers["custom_provider"]["api_mode"] == "chat_completions"
-        assert (
-            config.providers["custom_provider"]["api_base"]
-            == "https://custom.api.com/v1"
-        )
-        assert config.providers["custom_provider"]["api_key"] == "test-key"
-        assert config.providers["custom_provider"]["status"] == "active"
+        assert "custom_provider" not in config.providers
 
     def test_status_defaults_based_on_api_key(self, monkeypatch, tmp_path):
         """status 根据是否有 api_key 自动设置"""

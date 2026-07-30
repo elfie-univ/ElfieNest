@@ -65,7 +65,7 @@ def test_owner_account_never_returns_recoverable_password(tmp_path: Path) -> Non
 
     # Then
     assert account.username == "owner"
-    assert account.password_status == "已设置（不可查看）"
+    assert account.password_status == "Set (not viewable)"
     assert not hasattr(account, "password_hash")
 
 

@@ -13,11 +13,8 @@ from ai_runtime.gateway.llm_api import call_llm_api
 from ai_runtime.gateway.loop import RuntimeToolLoop, ToolLoopContext
 from ai_runtime.gateway.skills_prompt import inject_skills_system_prompt
 from ai_runtime.safety.permissions import PermissionManager
-from ai_runtime.tools.code import CodeSandboxPlugin
-from ai_runtime.tools.file import FileSandbox
 from ai_runtime.tools.local_files import LocalFileAccessPlugin
 from ai_runtime.tools.search import WebSearchPlugin
-from ai_runtime.tools.skills_evolution import SkillsSelfEvolutionPlugin
 from ai_runtime.validation.models import CheckResult, CheckStatus, ValidationSuite
 
 AgentModelCaller = Callable[
@@ -42,7 +39,7 @@ class ModelAgentValidationRunner:
         self,
         provider: str,
         model: str,
-        tools: Sequence[str] = ("code_sandbox", "local_file"),
+        tools: Sequence[str] = ("local_file",),
     ) -> ValidationSuite:
         return ValidationSuite(
             name=f"agent:{provider}/{model}",
@@ -52,16 +49,7 @@ class ModelAgentValidationRunner:
         )
 
     def verify_tool(self, provider: str, model: str, tool_name: str) -> CheckResult:
-        if tool_name == "code_sandbox":
-            return CheckResult(
-                check_id=f"agent.{provider}.{model}.{tool_name}",
-                status=CheckStatus.SKIPPED,
-                message="Real isolation sandbox not connected, skipping code execution validation",
-                provider=provider,
-                model=model,
-                details={"tool_called": False},
-            )
-        if tool_name not in {"code_sandbox", "local_file", "web_search"}:
+        if tool_name not in {"local_file", "web_search"}:
             return CheckResult(
                 check_id=f"agent.{provider}.{model}.{tool_name}",
                 status=CheckStatus.SKIPPED,
@@ -75,7 +63,6 @@ class ModelAgentValidationRunner:
             with tempfile.TemporaryDirectory(prefix="elfie-agent-check-") as temp_dir:
                 root = Path(temp_dir)
                 files_root = root / "files"
-                skills_root = root / "skills"
                 files_root.mkdir()
                 (files_root / "probe.txt").write_text(
                     "ELFIE_LOCAL_FILE_OK", encoding="utf-8"
@@ -84,10 +71,6 @@ class ModelAgentValidationRunner:
                 context = ToolLoopContext(
                     allowed_skills=(tool_name,),
                     search_plugin=self.search_plugin,
-                    sandbox_plugin=CodeSandboxPlugin(timeout_seconds=3),
-                    skills_evolution_plugin=SkillsSelfEvolutionPlugin(
-                        permission, FileSandbox(skills_root)
-                    ),
                     permission_manager=permission,
                     file_access_plugin=LocalFileAccessPlugin(files_root),
                 )
@@ -152,8 +135,6 @@ class ModelAgentValidationRunner:
 
 
 def _tool_probe_prompt(tool_name: str) -> str:
-    if tool_name == "code_sandbox":
-        return "请必须使用代码工具计算 123 * 456，再根据工具结果回答。"
     if tool_name == "local_file":
         return "请必须读取本地文件 probe.txt，并根据文件内容回答。"
     return "请必须使用联网搜索工具搜索 ElfieNest，并根据搜索结果回答。"

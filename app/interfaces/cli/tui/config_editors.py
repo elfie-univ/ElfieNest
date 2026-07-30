@@ -2,39 +2,21 @@ from __future__ import annotations
 
 from ai_runtime.lab.menu import MenuItem, TerminalMenu
 from app.features.configuration.user_config import UserConfig, write_user_config
-from app.interfaces.cli.tui.common import clear_screen, input_text, print_banner
+from app.interfaces.cli.tui.common import clear_screen, print_banner
 
 
 def config_llm(config: UserConfig) -> None:
-    while True:
-        clear_screen()
-        print_banner()
-        print("  🤖 LLM and Food Strategy")
-        print("  " + "=" * 45)
-        print()
-        print("  Elfies no longer bind directly to Provider and model.")
-        print("  Use Runtime Lab for Provider, model validation and food recipes:")
-        print("    .venv/bin/python -m ai_runtime.lab")
-        print("\n  1. Modify legacy default model (compatibility setting)")
-        print("  0. Back")
-        try:
-            choice = input("\nChoose [0-1]: ").strip()
-        except (KeyboardInterrupt, EOFError):
-            return
-        if choice == "0" or choice == "":
-            return
-        if choice == "1":
-            llm = config.setdefault("system", {}).setdefault("llm", {})
-            current = llm.get("default_cheap_model", "qwen3.5:0.8b")
-            value = input_text(f"Enter default model [{current}]: ")
-            if value:
-                llm["default_cheap_model"] = value
-                write_user_config(config)
-                print("\n✅ Compatibility default model saved; actual calls still determined by food strategy.")
-                try:
-                    input("Press Enter to continue...")
-                except (EOFError, KeyboardInterrupt):
-                    return
+    _ = config
+    clear_screen()
+    print_banner()
+    print("  🤖 LLM and Food Strategy")
+    print("  " + "=" * 45)
+    print()
+    print("  Provider connections, models and food packages are managed in AI Runtime.")
+    try:
+        input("Press Enter to return...")
+    except (EOFError, KeyboardInterrupt):
+        return
 
 
 def config_engine(config: UserConfig) -> None:

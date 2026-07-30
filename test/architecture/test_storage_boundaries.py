@@ -73,9 +73,25 @@ def test_data_home_declares_production_developer_and_elfie_workspace_roots() -> 
         "get_provider_catalog_path",
         "get_provider_config_path",
         "get_reports_dir",
+        "get_report_database_path",
+        "get_report_exports_dir",
         "get_runtime_config_paths",
+        "get_tool_config_path",
+    } <= functions
+    assert {
         "get_provider_validation_dir",
         "get_model_validation_dir",
         "get_runtime_validation_dir",
-        "get_tool_config_path",
-    } <= functions
+        "get_validation_dir",
+        "get_model_evidence_path",
+    }.isdisjoint(functions)
+
+
+def test_product_interfaces_do_not_write_legacy_elfie_food_policy() -> None:
+    interface_root = PROJECT_ROOT / "app"
+    offenders = []
+    for path in interface_root.rglob("*.py"):
+        if "save_elfie_food_policy" in path.read_text(encoding="utf-8"):
+            offenders.append(path.relative_to(PROJECT_ROOT).as_posix())
+
+    assert offenders == []

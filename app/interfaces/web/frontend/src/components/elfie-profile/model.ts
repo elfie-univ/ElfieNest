@@ -119,7 +119,6 @@ const FoodStrategyModuleSchema = z.object({
   food: z.object({
     selected: z.string().min(1),
     allowed: z.array(z.string().min(1)).min(1).readonly(),
-    fallback: z.string().min(1),
   }).readonly(),
 }).readonly()
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import {
   benchmarkProviderModels,
   ownerModelMatrix,
+  validateAllProviderModels,
   type BenchmarkCombination,
   type ModelMatrix,
 } from "../api/owner-providers"
@@ -45,6 +46,19 @@ export function ModelMatrixDialog({ csrfToken, onOpenChange, open }: ModelMatrix
 
   const benchmarkCombinations = matrix ? collectBenchmarkCombinations(matrix) : []
 
+  const validateAll = async (): Promise<void> => {
+    setPending(true)
+    try {
+      const result = await validateAllProviderModels(csrfToken)
+      setNotice(`验证完成，已生成完整报告 ${result.run_id}。`)
+      await load()
+    } catch (reason: unknown) {
+      setError(reason instanceof ApiError ? reason.message : "全部验证失败")
+    } finally {
+      setPending(false)
+    }
+  }
+
   const benchmark = async (
     combinations: readonly BenchmarkCombination[],
     emptyNotice: string,
@@ -74,8 +88,8 @@ export function ModelMatrixDialog({ csrfToken, onOpenChange, open }: ModelMatrix
     title="支持模型与测速"
   >
     <div className="model-matrix-toolbar">
-      <Button disabled={pending || benchmarkCombinations.length === 0} onClick={() => { void benchmark(benchmarkCombinations, "暂无已验证通过且可测速的模型。") }} type="button">
-        {pending ? "测速中…" : "批量测速"}
+      <Button disabled={pending} onClick={() => { void validateAll() }} type="button">
+        {pending ? "验证中…" : "验证全部"}
       </Button>
       <RefreshButton disabled={pending} label="重新读取" onClick={() => { void load() }} />
     </div>

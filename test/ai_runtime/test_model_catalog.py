@@ -3,15 +3,12 @@
 import urllib.error
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.models.catalog import (
     BUILTIN_MODEL_CATALOG,
     ModelCatalog,
     verify_provider,
 )
-from ai_runtime.models.registry import ModelRegistry
 
 
 class TestBuiltinModelCatalog:
@@ -360,91 +357,3 @@ class TestVerifyProvider:
         verify_custom.assert_called_once()
 
 
-class TestModelRegistry:
-    def test_get_catalog_returns_five_slots(self, monkeypatch, tmp_path):
-        """get_catalog 仍返回 5 槽位格式"""
-        monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = LLMRuntimeConfig()
-        registry = ModelRegistry(config)
-        catalog = registry.get_catalog()
-
-        expected_keys = [
-            "local_fast",
-            "local_vision",
-            "remote_cheap",
-            "remote_deep",
-            "remote_multimodal",
-        ]
-        for key in expected_keys:
-            assert key in catalog, f"缺少槽位: {key}"
-
-    def test_get_catalog_entry_has_required_fields(self, monkeypatch, tmp_path):
-        """get_catalog 返回的条目有必需字段"""
-        monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = LLMRuntimeConfig()
-        registry = ModelRegistry(config)
-        catalog = registry.get_catalog()
-
-        required_fields = [
-            "name",
-            "provider",
-            "is_vision",
-            "is_audio",
-            "cost_tier",
-            "active",
-        ]
-        for slot_key, entry in catalog.items():
-            for field in required_fields:
-                assert field in entry, f"{slot_key} 缺少字段 {field}"
-
-    def test_list_available_models(self, monkeypatch, tmp_path):
-        """list_available_models 返回可用模型"""
-        monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = LLMRuntimeConfig()
-        registry = ModelRegistry(config)
-        available = registry.list_available_models()
-
-        # 所有返回的模型都应该是 active
-        for _key, entry in available.items():
-            assert entry["active"] is True
-
-    def test_get_model_info(self, monkeypatch, tmp_path):
-        """get_model_info 返回模型信息"""
-        monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = LLMRuntimeConfig()
-        registry = ModelRegistry(config)
-        info = registry.get_model_info("local_fast")
-
-        assert "name" in info
-        assert "provider" in info
-
-    def test_get_model_info_raises_for_unknown(self, monkeypatch, tmp_path):
-        """get_model_info 对未知模型抛出 KeyError"""
-        monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = LLMRuntimeConfig()
-        registry = ModelRegistry(config)
-
-        with pytest.raises(KeyError):
-            registry.get_model_info("unknown_slot")
-
-    def test_get_full_catalog_returns_model_catalog(self, monkeypatch, tmp_path):
-        """get_full_catalog 返回 ModelCatalog 实例"""
-        monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = LLMRuntimeConfig()
-        registry = ModelRegistry(config)
-        full_catalog = registry.get_full_catalog()
-
-        assert isinstance(full_catalog, ModelCatalog)
-
-    def test_is_provider_active(self, monkeypatch, tmp_path):
-        """_is_provider_active 正确判断 provider 状态"""
-        monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config = LLMRuntimeConfig()
-        config.providers["openai"]["api_key"] = "sk-test"
-        config.providers["deepseek"]["api_key"] = ""
-
-        registry = ModelRegistry(config)
-
-        assert registry._is_provider_active("ollama") is True
-        assert registry._is_provider_active("openai") is True
-        assert registry._is_provider_active("deepseek") is False

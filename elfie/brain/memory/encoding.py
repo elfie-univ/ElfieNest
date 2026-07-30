@@ -302,7 +302,7 @@ class MemoryEncoder:
                     prompt,
                     elfie_id=self.elfie_id,
                     config_dir=self.config_dir,
-                    food_key="coarse",
+                    semantic_role="primary",
                     complexity=1,
                 )
                 if response and response.strip():

@@ -20,11 +20,10 @@ type ElfieIdentityCardProps = {
 
 export function ElfieIdentityCard({ csrfToken, elfie, mockMode = false, onError, onSaved }: ElfieIdentityCardProps) {
   const [editing, setEditing] = useState(false)
-  const [defaultFood, setDefaultFood] = useState(elfie.food_policy.default_food)
+  const [defaultFood, setDefaultFood] = useState(elfie.food_policy.main_food_id || elfie.food_policy.effective_main_food_id)
   const [saving, setSaving] = useState(false)
   const profile = elfie.profile
   const statusLabel = profile.status.label || "状态未知"
-  const otherFoods = elfie.food_policy.allowed_foods.filter((food) => food !== elfie.food_policy.default_food && food !== elfie.food_policy.fallback_food)
   const save = async (): Promise<void> => {
     setSaving(true)
     try {
@@ -33,9 +32,7 @@ export function ElfieIdentityCard({ csrfToken, elfie, mockMode = false, onError,
         "PUT",
         csrfToken,
         {
-          default_food: defaultFood,
-          allowed_foods: elfie.food_policy.allowed_foods,
-          fallback_food: elfie.food_policy.fallback_food,
+          main_food_id: defaultFood,
         },
       )
       setEditing(false)
@@ -47,7 +44,7 @@ export function ElfieIdentityCard({ csrfToken, elfie, mockMode = false, onError,
     }
   }
   const cancel = (): void => {
-    setDefaultFood(elfie.food_policy.default_food)
+    setDefaultFood(elfie.food_policy.main_food_id || elfie.food_policy.effective_main_food_id)
     setEditing(false)
   }
   return <Card asChild><article className="elfie-id-card">
@@ -74,13 +71,11 @@ export function ElfieIdentityCard({ csrfToken, elfie, mockMode = false, onError,
         disabled={saving}
         label="主粮"
         onValueChange={setDefaultFood}
-        options={elfie.food_policy.allowed_foods.map((food) => ({ label: food, value: food }))}
+        options={elfie.food_policy.main_food_options.map((food) => ({ label: food.display_name, value: food.food_id }))}
         value={defaultFood}
       />
     </div> : <dl className="elfie-id-card__food">
-      <IdentityField label="主粮" value={elfie.food_policy.default_food} />
-      <IdentityField label="紧急粮" value={elfie.food_policy.fallback_food} />
-      <IdentityField label="其他粮" value={otherFoods.length ? otherFoods.join("、") : "无"} />
+      <IdentityField label="主粮" value={elfie.food_policy.main_food_options.find((food) => food.food_id === elfie.food_policy.effective_main_food_id)?.display_name ?? "未配置"} />
     </dl>}
     <dl className="elfie-id-card__summary">
       <IdentityField

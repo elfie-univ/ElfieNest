@@ -12,9 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.food.advisor import LLMFoodPlanningAdvisor, select_planning_model
 from ai_runtime.food.evidence import ModelEvidenceStore
-from ai_runtime.food.models import FIXED_FOOD_KINDS
 from ai_runtime.food.planner import FoodPlanner, ModelEvidence
 from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
 from ai_runtime.lab.menu import MenuItem, TerminalMenu
@@ -417,13 +415,7 @@ class RuntimeLab:
                 self.menu.pause()
 
     def _show_current_overview(self) -> None:
-        store = RuntimeOverviewStore()
-        report = store.load_current()
-        if report is None:
-            self.output(
-                "No historical validation reports，Below is current local configuration snapshot。"
-            )
-            report = RuntimeOverviewGenerator(self.config).snapshot()
+        report = RuntimeOverviewGenerator(self.config).snapshot()
         self._render_overview(report)
 
     def _regenerate_overview(self) -> None:
@@ -485,40 +477,16 @@ class RuntimeLab:
             self.output(f"\nFood generation source: {generation_note}")
 
     def _overview_history_menu(self) -> None:
-        store = RuntimeOverviewStore()
-        versions = store.history()
-        if not versions:
-            self._action(
-                "Historical Reports",
-                "Runtime Lab / Runtime Overview & Reports",
-                lambda: self.output("No Historical Reports available."),
-            )
-            return
-        while True:
-            selected = self.menu.choose(
-                "Historical Reports",
-                tuple(
-                    MenuItem(str(index), path.stem.removeprefix("runtime-overview-"))
-                    for index, path in enumerate(versions, 1)
-                ),
-                breadcrumb="Runtime Lab / Runtime Overview & Reports / Historical Reports",
-                back_label="Back",
-            )
-            if selected is None:
-                return
-            if not selected.isdigit() or not 1 <= int(selected) <= len(versions):
-                continue
-            path = versions[int(selected) - 1]
-            report = store.load_path(path)
-            if report is not None:
-                self._action(
-                    path.name,
-                    "Runtime Lab / Runtime Overview & Reports / Historical Reports",
-                    partial(self._render_overview, report),
-                )
+        self._action(
+            "Historical Reports",
+            "Runtime Lab / Runtime Overview & Reports",
+            lambda: self.output(
+                "Report exports are write-only artifacts. Query report history from ai-runtime.sqlite."
+            ),
+        )
 
     def _provider_hint(self, provider_id: str) -> str:
-        report = RuntimeOverviewStore().load_current() or {}
+        report = RuntimeOverviewGenerator(self.config).snapshot()
         provider = next(
             (
                 item
@@ -540,12 +508,7 @@ class RuntimeLab:
         return f"{display_name} ({provider_id})" if display_name else provider_id
 
     def _show_provider_model_matrix(self) -> None:
-        report = RuntimeOverviewStore().load_current()
-        if report is None:
-            report = RuntimeOverviewGenerator(self.config).snapshot()
-            self.output(
-                "No formal report available, showing based on local model evidence.\n"
-            )
+        report = RuntimeOverviewGenerator(self.config).snapshot()
         width = shutil.get_terminal_size(fallback=(100, 30)).columns
         for line in render_provider_model_matrix(report, width=width):
             self.output(line)
@@ -650,8 +613,6 @@ class RuntimeLab:
         labels = {
             "web_search": "Web Search",
             "local_file": "Local File",
-            "code_sandbox": "Code Sandbox",
-            "skills_evolution": "Skill Evolution",
         }
         for key in TOOL_KEYS:
             item = configs[key]
@@ -661,16 +622,12 @@ class RuntimeLab:
                 detail = f" / {item.get('provider', 'duckduckgo')} / Key{'Configured' if item.get('api_key') else 'Not Configured'}"
             elif key == "local_file":
                 detail = f" / {item.get('root', '')}"
-            elif key == "code_sandbox":
-                detail = f" / {item.get('timeout_seconds', 5)}s"
             self.output(f"- {labels[key]}: {status}{detail}")
 
     def _configure_tool_menu(self) -> None:
         labels = {
             "web_search": "Web Search",
             "local_file": "Local File",
-            "code_sandbox": "Code Sandbox",
-            "skills_evolution": "Skill Evolution",
         }
         choice = self.menu.choose(
             "Configure Basic Tools",
@@ -737,20 +694,16 @@ class RuntimeLab:
             current["max_results"] = max(1, min(int(count), 10))
             current.pop("api_key", None)
         elif tool_key == "local_file":
-            root = self.menu.read_text(
-                "Allowed local root directory: ", default=str(current.get("root") or "")
+            max_bytes = self.menu.read_text(
+                "Maximum read bytes [1024-1048576]: ",
+                default=str(current.get("max_read_bytes") or 65536),
             )
-            if root is None or not root:
+            if max_bytes is None:
                 return False
-            current["root"] = root
-        elif tool_key == "code_sandbox":
-            timeout = self.menu.read_text(
-                "Timeout seconds [1-60]: ",
-                default=str(current.get("timeout_seconds") or 5),
+            current["max_read_bytes"] = max(
+                1024,
+                min(int(max_bytes), 1024 * 1024),
             )
-            if timeout is None:
-                return False
-            current["timeout_seconds"] = max(1.0, min(float(timeout), 60.0))
         policy = dict(self.config.runtime_policy)
         tools = dict(policy.get("tools", {}))
         tools[tool_key] = current
@@ -773,20 +726,14 @@ class RuntimeLab:
         while True:
             catalog = store.load()
             items = []
-            keys = list(FIXED_FOOD_KINDS)
-            for index, key in enumerate(keys, 1):
-                kind = FIXED_FOOD_KINDS[key]
-                recipe = catalog.recipes.get(key)
-                model = (
-                    recipe.primary.model
-                    if recipe and recipe.primary.model
-                    else "Not Configured"
-                )
-                status = recipe.validation_status.value if recipe else "missing"
+            packages = catalog.ordered_packages()
+            for index, package in enumerate(packages, 1):
+                model = package.primary.model if package.primary else "Not Configured"
+                status = "archived" if package.archived else "enabled" if package.enabled else "disabled"
                 items.append(
                     MenuItem(
                         str(index),
-                        f"{kind.display_name:<6} {model}",
+                        f"{package.display_name:<12} {model}",
                         status,
                     )
                 )
@@ -798,36 +745,27 @@ class RuntimeLab:
             )
             if selected is None:
                 return
-            if not selected.isdigit() or not 1 <= int(selected) <= len(keys):
+            if not selected.isdigit() or not 1 <= int(selected) <= len(packages):
                 continue
-            food_key = keys[int(selected) - 1]
+            package = packages[int(selected) - 1]
             self._action(
-                FIXED_FOOD_KINDS[food_key].display_name,
+                package.display_name,
                 "Runtime Lab / Layer 3 / Current Food Strategy",
-                partial(self._show_food_detail, store, food_key),
+                partial(self._show_food_detail, store, package.key),
             )
 
     def _show_food_detail(self, store: FoodCatalogStore, food_key: str) -> None:
         catalog = store.load()
-        recipe = catalog.recipes.get(food_key)
-        if recipe is None:
+        package = catalog.packages.get(food_key)
+        if package is None:
             self.output("This Food is not configured yet.")
             return
-        self.output(f"Primary Model: {recipe.primary.model or 'Not Configured'}")
-        self.output(f"Reasoning Profile: {recipe.primary.reasoning_profile.value}")
-        self.output(f"Deep Model: {recipe.deep.model if recipe.deep else '—'}")
-        self.output(
-            f"Validation Model: {recipe.verifier.model if recipe.verifier else '—'}"
-        )
-        fallbacks = ", ".join(item.model for item in recipe.technical_fallbacks)
-        self.output(f"Tech Fallback: {fallbacks or '—'}")
-        self.output(f"Max Output: {recipe.primary.max_tokens}")
-        self.output(f"Temperature: {recipe.primary.temperature}")
-        self.output(f"Tools: {', '.join(recipe.primary.tools) or 'None'}")
-        self.output(f"Status：{recipe.validation_status.value}")
-        self.output(f"Source: {recipe.source}")
-        if catalog.generation_note:
-            self.output(f"Version Generation Method: {catalog.generation_note}")
+        self.output(f"Primary: {package.primary.model if package.primary else '—'}")
+        self.output(f"Reasoning: {package.reasoning.model if package.reasoning else '—'}")
+        self.output(f"Vision: {package.vision.model if package.vision else '—'}")
+        self.output(f"Tool: {package.tool.model if package.tool else '—'}")
+        self.output(f"Fallback: {', '.join(item.model for item in package.fallback) or '—'}")
+        self.output(f"State: {'archived' if package.archived else 'enabled' if package.enabled else 'disabled'}")
 
     def _food_history_menu(self, store: FoodCatalogStore) -> None:
         versions = store.history_versions()
@@ -862,18 +800,14 @@ class RuntimeLab:
     def _show_food_history_version(self, store: FoodCatalogStore, path: Path) -> None:
         catalog = FoodCatalog.from_dict(read_yaml_mapping(path))
         self.output(f"Version: {catalog.version}")
-        self.output(f"Generated: {catalog.generated_at or 'Unknown'}")
-        self.output(
-            f"Generation Method: {catalog.generation_note or 'Old version, not recorded'}"
-        )
-        for key, kind in FIXED_FOOD_KINDS.items():
-            recipe = catalog.recipes.get(key)
+        for package in catalog.ordered_packages():
             self.output(
-                f"- {kind.display_name}: "
-                f"{recipe.primary.model if recipe and recipe.primary.model else 'Not Configured'}"
+                f"- {package.display_name}: "
+                f"{package.primary.model if package.primary else 'Not Configured'}"
             )
         if self.input("Restore this version? [y/N]: ").strip().lower() == "y":
-            restored = store.restore_version(path)
+            restored = FoodCatalog.from_dict(read_yaml_mapping(path))
+            store.save(restored)
             self.output(f"Restored Food version {restored.version}.")
 
     def _update_foods(self, store: FoodCatalogStore) -> None:
@@ -883,100 +817,63 @@ class RuntimeLab:
                 "No model validation evidence yet. Please batch-validate models in Layer 1 first."
             )
             return
-        planning_model = select_planning_model(self.config, evidence)
-        planner = (
-            FoodPlanner(LLMFoodPlanningAdvisor(self.config, planning_model))
-            if planning_model
-            else FoodPlanner()
-        )
-        if planning_model:
-            self.output(
-                f"Attempting to generate Food suggestions using planning model: {planning_model}"
-            )
-        else:
-            self.output("No available planning model, will use deterministic rules.")
         current_catalog = store.load()
-        proposal = planner.propose(evidence, current_catalog)
-        if proposal.generation_sources == ("model", "rules"):
-            self.output(
-                "Generation Source: Model suggestions + Deterministic rule validation"
+        planner = FoodPlanner()
+        packages = {}
+        changes = []
+        warnings = []
+        for package in current_catalog.ordered_packages():
+            proposal = planner.propose_package(
+                package,
+                evidence,
+                local_first=package.system_role == "emergency",
+                allow_remote=package.system_role != "emergency",
             )
-        elif proposal.advisor_error:
-            self.output(f"Planning model call failed: {proposal.advisor_error}")
-            self.output(
-                "Generation Source: Deterministic rules (auto fallback when model unavailable)"
+            packages[package.key] = proposal.package
+            changes.extend(
+                (package.display_name, item)
+                for item in proposal.changes
+                if item.old_model != item.new_model
             )
-        else:
-            self.output(
-                "Generation Source: Deterministic rules (no available planning model)"
-            )
-        changed = [item for item in proposal.changes if item.change_type != "unchanged"]
-        unchanged_count = len(proposal.changes) - len(changed)
+            warnings.extend(proposal.warnings)
         self.output("\nFood Update Preview")
         self.output("─" * 48)
-        self.output(
-            f"Planning to modify {len(changed)} foods, keeping {unchanged_count} unchanged."
-        )
-        for change in proposal.changes:
-            if change.change_type == "unchanged":
-                continue
-            kind = FIXED_FOOD_KINDS[change.food_key]
-            marker = "+" if change.change_type == "added" else "~"
-            self.output(f"\n{marker} {kind.display_name} ({change.food_key})")
-            old_recipe = current_catalog.recipes.get(change.food_key)
-            new_recipe = proposal.catalog.recipes.get(change.food_key)
-            for label, old_value, new_value in self._food_recipe_diff(
-                old_recipe, new_recipe
-            ):
-                self.output(f"  {label}: {old_value} → {new_value}")
-            for warning in change.warnings:
-                self.output(f"  Warning: {warning}")
-        if not proposal.has_changes:
+        for display_name, change in changes:
+            self.output(
+                f"{display_name} / {change.role}: "
+                f"{change.old_model or '—'} → {change.new_model or '—'}"
+            )
+        for warning in warnings:
+            self.output(f"Warning: {warning}")
+        if not changes:
             self.output("Current Food is already the latest configuration.")
             return
         self.output(
             "\nChanges won't be written or new version created until confirmed."
         )
         if self.menu.confirm("Confirm applying above Food updates?"):
-            store.save(proposal.catalog)
+            store.save(
+                FoodCatalog(
+                    packages=packages,
+                )
+            )
             self.output("Food updates applied, old version preserved.")
-            if proposal.generation_sources == ("model", "rules"):
-                self.output(
-                    "This Food Strategy co-generated by model suggestions and deterministic rules."
-                )
-            elif proposal.advisor_error:
-                self.output(
-                    "Planning model not available, Food Strategy generated by deterministic rules."
-                )
-            else:
-                self.output("This Food Strategy generated by deterministic rules.")
         else:
             self.output("Updates not applied.")
 
     @staticmethod
     def _food_recipe_diff(old_recipe, new_recipe) -> list[tuple[str, str, str]]:
-        def values(recipe) -> dict[str, str]:
-            if recipe is None:
+        def values(package) -> dict[str, str]:
+            if package is None:
                 return {}
             return {
-                "Primary Model": recipe.primary.model or "Not Available",
-                "Reasoning Profile": recipe.primary.reasoning_profile.value,
-                "Max Output": str(recipe.primary.max_tokens),
-                "Temperature": str(recipe.primary.temperature),
-                "Tools": ", ".join(recipe.primary.tools) or "None",
-                "Deep Model": recipe.deep.model if recipe.deep else "None",
-                "Validation Model": recipe.verifier.model
-                if recipe.verifier
-                else "None",
-                "Tech Fallback": (
-                    ", ".join(item.model for item in recipe.technical_fallbacks)
-                    or "None"
-                ),
-                "Validation Status": recipe.validation_status.value,
+                "Primary": package.primary.model if package.primary else "None",
+                "Reasoning": package.reasoning.model if package.reasoning else "None",
+                "Vision": package.vision.model if package.vision else "None",
+                "Tool": package.tool.model if package.tool else "None",
+                "Fallback": ", ".join(item.model for item in package.fallback) or "None",
             }
-
-        old_values = values(old_recipe)
-        new_values = values(new_recipe)
+        old_values, new_values = values(old_recipe), values(new_recipe)
         return [
             (label, old_values.get(label, "—"), new_values.get(label, "—"))
             for label in dict.fromkeys((*old_values, *new_values))
@@ -1086,13 +983,11 @@ class RuntimeLab:
     def _food_referenced_models(catalog: FoodCatalog) -> dict[str, list[str]]:
         """Collect models actually referenced by recipes, dedupe by Provider, empty placeholders excluded."""
         grouped: dict[str, list[str]] = {}
-        for recipe in catalog.recipes.values():
-            profiles = [recipe.primary, recipe.deep, recipe.verifier]
-            profiles.extend(recipe.technical_fallbacks)
-            for profile in profiles:
-                if profile is None or not profile.model or "/" not in profile.model:
+        for package in catalog.packages.values():
+            for model_reference in package.model_references:
+                if "/" not in model_reference:
                     continue
-                provider_id, model_name = profile.model.split("/", 1)
+                provider_id, model_name = model_reference.split("/", 1)
                 if not provider_id or not model_name:
                     continue
                 grouped.setdefault(provider_id, [])
@@ -1657,19 +1552,12 @@ class RuntimeLab:
             store = self._food_store()
             catalog = store.load()
             used_by_foods = []
-            for recipe in catalog.recipes.values():
-                profiles = (
-                    recipe.primary,
-                    recipe.deep,
-                    recipe.vision,
-                    recipe.verifier,
-                    *recipe.technical_fallbacks,
-                )
+            for package in catalog.packages.values():
                 if any(
-                    profile is not None and profile.model.startswith(f"{provider_id}/")
-                    for profile in profiles
+                    reference.startswith(f"{provider_id}/")
+                    for reference in package.model_references
                 ):
-                    used_by_foods.append(recipe.display_name)
+                    used_by_foods.append(package.display_name)
 
             if used_by_foods:
                 self.output(

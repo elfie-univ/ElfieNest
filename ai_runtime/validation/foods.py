@@ -1,59 +1,40 @@
-"""Food recipe layer validation."""
+"""Food package validation from current evidence."""
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 
-from ai_runtime.food.models import FIXED_FOOD_KINDS
-from ai_runtime.food.planner import ModelEvidence, validate_food_recipe
+from ai_runtime.food.health import project_food_health
+from ai_runtime.food.planner import ModelEvidence
 from ai_runtime.food.store import FoodCatalog
 from ai_runtime.validation.models import CheckResult, CheckStatus, ValidationSuite
 
 
 class FoodValidationRunner:
-    """Validate that fixed food can be fully supported by verified model evidence."""
-
     def validate(
         self,
         catalog: FoodCatalog,
         evidence: Sequence[ModelEvidence],
     ) -> ValidationSuite:
-        results: list[CheckResult] = []
-        for food_key, kind in FIXED_FOOD_KINDS.items():
-            recipe = catalog.recipes.get(food_key)
-            if recipe is None:
-                results.append(
-                    CheckResult(
-                        check_id=f"food.{food_key}.configuration",
-                        status=CheckStatus.FAILED,
-                        message="Food not yet generated",
-                    )
-                )
-                continue
-            warnings = validate_food_recipe(recipe, evidence)
-            # validation_status 是上次生成时的快照，不能覆盖本次实时验证结果。
-            passed = not warnings
+        evidence_by_model = {item.model: item for item in evidence}
+        results = []
+        for package in catalog.ordered_packages():
+            health = project_food_health(package, evidence_by_model)
+            passed = health.status in {"healthy", "degraded", "disabled"}
             results.append(
                 CheckResult(
-                    check_id=f"food.{food_key}.configuration",
+                    check_id=f"food.{package.key}.configuration",
                     status=CheckStatus.PASSED if passed else CheckStatus.FAILED,
-                    message=(
-                        f"{kind.display_name} recipe validation passed"
-                        if passed
-                        else "; ".join(warnings) or "Recipe marked as unavailable"
-                    ),
+                    message=f"{package.display_name}: {health.status}",
                     provider=(
-                        recipe.primary.model.split("/", 1)[0]
-                        if "/" in recipe.primary.model
-                        else "ollama"
+                        package.primary.model.split("/", 1)[0]
+                        if package.primary
+                        else None
                     ),
-                    model=recipe.primary.model,
+                    model=package.primary.model if package.primary else None,
                     details={
-                        "reasoning_profile": recipe.primary.reasoning_profile.value,
-                        "technical_fallbacks": len(recipe.technical_fallbacks),
-                        "provider_options_configured": bool(
-                            recipe.primary.provider_options
-                        ),
+                        "health": health.status,
+                        "fallbacks": len(package.fallback),
                     },
                 )
             )

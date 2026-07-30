@@ -45,10 +45,12 @@ class ServiceStartLease:
 
 def _open_lock(elfie_home: Path) -> int:
     secure_elfie_home(elfie_home)
+    lock_dir = elfie_home / "runtime" / "locks"
+    lock_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     flags = os.O_CREAT | os.O_RDWR
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
-    descriptor = os.open(elfie_home / LOCK_FILENAME, flags, 0o600)
+    descriptor = os.open(lock_dir / LOCK_FILENAME, flags, 0o600)
     if os.name != "nt":
         os.fchmod(descriptor, 0o600)
     if os.fstat(descriptor).st_size == 0:
@@ -86,7 +88,9 @@ def owner_recovery_lock(elfie_home: Path) -> Iterator[None]:
         try:
             _lock(descriptor, blocking=False)
         except BlockingIOError as error:
-            raise RecoveryInProgressError(elfie_home / LOCK_FILENAME) from error
+            raise RecoveryInProgressError(
+                elfie_home / "runtime" / "locks" / LOCK_FILENAME
+            ) from error
         yield
     finally:
         _unlock(descriptor)
@@ -112,7 +116,9 @@ def acquire_service_start_lease(
         _lock(descriptor, blocking=blocking)
     except BlockingIOError as error:
         os.close(descriptor)
-        raise RecoveryInProgressError(elfie_home / LOCK_FILENAME) from error
+        raise RecoveryInProgressError(
+            elfie_home / "runtime" / "locks" / LOCK_FILENAME
+        ) from error
     lease = ServiceStartLease(descriptor)
     atexit.register(lease.release)
     return lease

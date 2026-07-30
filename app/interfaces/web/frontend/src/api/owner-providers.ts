@@ -13,13 +13,15 @@ const ProviderModelSchema = z.object({
   id: z.string(),
   display_name: z.string(),
   canonical_model_id: z.string().nullable(),
-  source: z.enum(["discovered", "manual", "provider_catalog"]),
+  source: z.enum(["official", "remote_catalog", "bundled_catalog", "manual"]),
   context_window_tokens: z.number().nullable(),
   max_output_tokens: z.number().nullable(),
   supports_tools: z.boolean().nullable(),
   supports_vision: z.boolean().nullable(),
   supports_reasoning: z.boolean().nullable(),
   hidden: z.boolean(),
+  retired: z.boolean(),
+  available: z.boolean(),
 })
 
 const ProviderProductSchema = z.object({
@@ -53,6 +55,7 @@ const ProviderConnectionSchema = z.object({
   auth_type: z.string(),
   has_api_key: z.boolean(),
   enabled: z.boolean(),
+  archived: z.boolean(),
   usage_scope: z.string(),
   verification: VerificationSchema,
   models: z.array(ProviderModelSchema),
@@ -71,6 +74,14 @@ const MatrixCellSchema = z.object({
 })
 
 const ModelMatrixSchema = z.object({
+  snapshot: z.object({
+    mode: z.string(),
+    run_id: z.string().nullable().optional(),
+    as_of: z.string().nullable().optional(),
+    status: z.string().optional(),
+    started_at: z.string().optional(),
+    finished_at: z.string().nullable().optional(),
+  }),
   connections: z.array(z.object({
     connection_id: z.string(),
     name: z.string(),
@@ -85,6 +96,8 @@ const ModelMatrixSchema = z.object({
 })
 
 const BenchmarkResultSchema = z.object({
+  run_id: z.string(),
+  status: z.string(),
   results: z.array(z.object({
     connection_id: z.string(),
     model_id: z.string(),
@@ -93,6 +106,16 @@ const BenchmarkResultSchema = z.object({
     latency_ms: z.number().nullable(),
     latency_class: z.enum(["fast", "normal", "slow"]).nullable(),
     error: z.string().nullable(),
+  })),
+})
+
+const ValidateAllResultSchema = z.object({
+  run_id: z.string(),
+  status: z.string(),
+  results: z.array(z.object({
+    subject: z.string(),
+    status: z.string(),
+    checked_at: z.string().nullable().optional(),
   })),
 })
 
@@ -186,6 +209,28 @@ export async function verifyProviderConnection(
   )
 }
 
+export async function changeProviderConnectionLifecycle(
+  connectionId: string,
+  action: "enable" | "disable" | "archive" | "restore",
+  csrfToken: string,
+): Promise<ProviderConnection> {
+  return ProviderConnectionSchema.parse(await ownerWrite(
+    `/api/owner/providers/connections/${encodeURIComponent(connectionId)}/${action}`,
+    "POST",
+    csrfToken,
+  ))
+}
+
+export async function validateAllProviderModels(
+  csrfToken: string,
+): Promise<z.infer<typeof ValidateAllResultSchema>> {
+  return ValidateAllResultSchema.parse(await ownerWrite(
+    "/api/owner/providers/connection-models/validate-all",
+    "POST",
+    csrfToken,
+  ))
+}
+
 export async function refreshProviderModels(
   connectionId: string,
   csrfToken: string,
@@ -213,7 +258,10 @@ export async function addProviderModel(
 export async function updateProviderModel(
   connectionId: string,
   modelId: string,
-  update: Readonly<Partial<Omit<ProviderModelDraft, "id">> & { readonly hidden?: boolean }>,
+  update: Readonly<Partial<Omit<ProviderModelDraft, "id">> & {
+    readonly hidden?: boolean
+    readonly retired?: boolean
+  }>,
   csrfToken: string,
 ): Promise<ProviderModel> {
   return ProviderModelSchema.parse(await ownerWrite(

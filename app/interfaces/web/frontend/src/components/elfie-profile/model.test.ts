@@ -36,7 +36,7 @@ describe("elfie profile model", () => {
           { title: "世界理解", graph: { nodes: [{ id: "room", label: "主巢" }], edges: [] } },
           {
             title: "粮食策略",
-            food: { selected: "standard", allowed: ["standard", "coarse"], fallback: "coarse" },
+            food: { selected: "food_common", allowed: ["food_common", "food_custom"] },
           },
         ],
       },
@@ -84,7 +84,7 @@ describe("elfie profile model", () => {
           { title: "世界理解", graph: { nodes: [], edges: [] } },
           {
             title: "粮食策略",
-            food: { selected: "standard", allowed: ["standard", "coarse"], fallback: "coarse" },
+            food: { selected: "food_common", allowed: ["food_common", "food_custom"] },
           },
         ],
       },
@@ -116,7 +116,7 @@ describe("elfie profile model", () => {
           { title: "世界理解", graph: { nodes: [], edges: [] } },
           {
             title: "粮食策略",
-            food: { selected: "standard", allowed: ["standard", "coarse"], fallback: "coarse" },
+            food: { selected: "food_common", allowed: ["food_common", "food_custom"] },
           },
         ],
       },
@@ -156,7 +156,7 @@ describe("elfie profile model", () => {
           { title: "世界理解", graph: { nodes: [], edges: [] } },
           {
             title: "粮食策略",
-            food: { selected: "standard", allowed: ["standard", "coarse"], fallback: "coarse" },
+            food: { selected: "food_common", allowed: ["food_common", "food_custom"] },
           },
         ],
       },

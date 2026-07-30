@@ -1,7 +1,13 @@
 from ai_runtime import RuntimeAgent
-from ai_runtime.food.models import FIXED_FOOD_KINDS, ExecutionProfile, FoodRecipe
+from ai_runtime.food.models import (
+    FOOD_COMMON_ID,
+    FOOD_EMERGENCY_ID,
+    FoodPackage,
+    ModelAssignment,
+)
 from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
 from ai_runtime.gateway.request import RuntimeResult
+from ai_runtime.storage.config_store import write_yaml_mapping
 from devtools.elfie_lab.app import create_app
 from devtools.runtime_lab import RuntimeLabConfigStore
 
@@ -23,31 +29,28 @@ def _write_foods(
     focus_model="ollama/focus",
     standard_model="ollama/qwen3.5:0.8b",
 ):
-    FoodCatalogStore(runtime_dir / "foods.yaml", runtime_dir / "food_history").save(
-        FoodCatalog(
-            recipes={
-                "coarse": FoodRecipe(
-                    "coarse",
-                    "粗粮",
-                    "",
-                    ExecutionProfile("ollama/qwen3.5:0.8b"),
-                ),
-                "standard": FoodRecipe(
-                    "standard",
-                    "标准粮",
-                    "",
-                    ExecutionProfile(standard_model),
-                ),
-                "focus": FoodRecipe(
-                    "focus",
-                    "清醒粮",
-                    "",
-                    ExecutionProfile(focus_model),
-                    technical_fallbacks=(ExecutionProfile("ollama/qwen3.5:0.8b"),),
-                ),
-            }
-        )
+    store = FoodCatalogStore(runtime_dir / "foods.yaml", runtime_dir / "food_history")
+    catalog = FoodCatalog(
+        packages={
+            "coarse": FoodPackage(
+                key="coarse",
+                display_name="粗粮",
+                primary=ModelAssignment("ollama/qwen3.5:0.8b"),
+            ),
+            "standard": FoodPackage(
+                key="standard",
+                display_name="标准粮",
+                primary=ModelAssignment(standard_model),
+            ),
+            "focus": FoodPackage(
+                key="focus",
+                display_name="清醒粮",
+                primary=ModelAssignment(focus_model),
+                fallback=(ModelAssignment("ollama/qwen3.5:0.8b"),),
+            ),
+        }
     )
+    write_yaml_mapping(store.path, catalog.to_dict())
 
 
 def test_default_app_uses_developer_runtime_and_keeps_production_isolated(
@@ -216,10 +219,14 @@ def test_default_elfie_lab_shows_unconfigured_foods_as_disabled_when_catalog_is_
     # Then
     assert response.status_code == 200
     items = response.json()["items"]
-    assert [item["key"] for item in items] == ["mock", *FIXED_FOOD_KINDS]
+    assert [item["key"] for item in items] == [
+        "mock",
+        FOOD_EMERGENCY_ID,
+        FOOD_COMMON_ID,
+    ]
     assert all(
         not item["ready_for_attempt"]
-        and item["unavailable_reason"] == "粮食目录尚未初始化"
+        and item["unavailable_reason"] == "模型尚未配置"
         for item in items[1:]
     )
 

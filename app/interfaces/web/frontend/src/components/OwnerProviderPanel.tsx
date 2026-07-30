@@ -2,11 +2,13 @@ import { Button } from "@/components/ui/button"
 import { useEffect, useMemo, useState } from "react"
 
 import {
+  changeProviderConnectionLifecycle,
   createProviderConnection,
   deleteProviderConnection,
   ownerProviderCatalog,
   ownerProviderConnections,
   updateProviderConnection,
+  validateAllProviderModels,
   verifyProviderConnection,
   type ProviderConnection,
   type ProviderConnectionDraft,
@@ -54,6 +56,7 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
   const [editing, setEditing] = useState<EditTarget | null>(null)
   const [viewingModels, setViewingModels] = useState<ProviderConnection | null>(null)
   const [deleting, setDeleting] = useState<ProviderConnection | null>(null)
+  const [moreTarget, setMoreTarget] = useState<ProviderConnection | null>(null)
   const [creatingCustom, setCreatingCustom] = useState(false)
   const [otherOpen, setOtherOpen] = useState(false)
   const [otherProductId, setOtherProductId] = useState(NO_PRODUCT)
@@ -90,8 +93,7 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
   const featured = catalog.filter((product) => FEATURED_PRODUCTS.has(product.catalog_id))
   const otherProducts = catalog.filter(
     (product) => !FEATURED_PRODUCTS.has(product.catalog_id)
-      && product.catalog_id !== "ollama"
-      && product.catalog_id !== "custom_openai",
+      && product.catalog_id !== "ollama",
   )
 
   const save = async (draft: ProviderConnectionUpdate): Promise<void> => {
@@ -138,16 +140,28 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
 
   const verifyBatch = async (): Promise<void> => {
     setPending("batch")
-    const targets = connections.filter((connection) => connection.enabled)
     try {
-      const results = await Promise.allSettled(
-        targets.map((connection) => verifyProviderConnection(connection.connection_id, csrfToken)),
-      )
-      const passed = results.filter((result) => result.status === "fulfilled").length
-      setNotice(`批量验证完成：${passed} 个完成，${results.length - passed} 个失败。`)
+      const result = await validateAllProviderModels(csrfToken)
+      const passed = result.results.filter((item) => item.status === "passed").length
+      setNotice(`全部验证完成：${passed} 项通过，报告 ${result.run_id}。`)
       await load()
     } catch (reason: unknown) {
       setError(reason instanceof ApiError ? reason.message : "批量验证失败")
+    } finally {
+      setPending(null)
+    }
+  }
+
+  const lifecycle = async (action: "enable" | "disable" | "archive" | "restore"): Promise<void> => {
+    if (!moreTarget) return
+    setPending(`${action}:${moreTarget.connection_id}`)
+    try {
+      await changeProviderConnectionLifecycle(moreTarget.connection_id, action, csrfToken)
+      setNotice(`${moreTarget.alias} 状态已更新。`)
+      setMoreTarget(null)
+      await load()
+    } catch (reason: unknown) {
+      setError(reason instanceof ApiError ? reason.message : "连接状态没有更新")
     } finally {
       setPending(null)
     }
@@ -173,7 +187,8 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
     if (!product) return
     setOtherOpen(false)
     setOtherProductId(NO_PRODUCT)
-    setEditing({ connection: null, product })
+    if (product.catalog_id === "custom_openai") setCreatingCustom(true)
+    else setEditing({ connection: null, product })
   }
 
   return <section className="manage-card manage-card--wide provider-page">
@@ -193,12 +208,12 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
         busy={pending?.endsWith(connection.connection_id) ?? false}
         connection={connection}
         key={connection.connection_id}
-        onDelete={() => setDeleting(connection)}
         onEdit={() => {
           const product = productsById.get(connection.catalog_id)
           if (product) setEditing({ connection, product })
         }}
         onModels={() => setViewingModels(connection)}
+        onMore={() => setMoreTarget(connection)}
         onVerify={() => { void verify(connection) }}
         product={productsById.get(connection.catalog_id)}
       />)}</div>}
@@ -214,7 +229,7 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
       >
         <BrandMark product={product} />
         <span>{connectionMethodLabel(product)}</span>
-      </button>)}<button aria-label="添加其他订阅" className="provider-card provider-card--add" onClick={() => setOtherOpen(true)} type="button"><Icon name="plus" size={28} /><strong>添加其他订阅</strong><span>选择其他内置产品</span></button><button aria-label="添加自定义连接" className="provider-card provider-card--add" onClick={() => setCreatingCustom(true)} type="button"><Icon name="plug-zap" size={28} /><strong>自定义连接</strong><span>OpenAI 兼容接口或自建网关</span></button></div>
+      </button>)}<button aria-label="添加其他订阅" className="provider-card provider-card--add" onClick={() => setOtherOpen(true)} type="button"><Icon name="plus" size={28} /><strong>添加其他订阅</strong><span>选择内置产品或自定义连接</span></button></div>
     </section>
     <ProviderFormDialog
       connection={editing?.connection ?? null}
@@ -246,15 +261,26 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
       pending={pending?.startsWith("delete:") ?? false}
       title="删除模型订阅"
     />
+    <ManageDialog description={moreTarget ? `管理 ${moreTarget.alias} 的生命周期；连接归档后才允许删除。` : ""} onOpenChange={(open) => { if (!open) setMoreTarget(null) }} open={moreTarget !== null} title="更多操作">
+      {moreTarget ? <div className="manage-actions">
+        {moreTarget.archived
+          ? <Button onClick={() => { void lifecycle("restore") }} type="button">恢复</Button>
+          : moreTarget.enabled
+            ? <Button onClick={() => { void lifecycle("disable") }} type="button" variant="outline">停用</Button>
+            : <Button onClick={() => { void lifecycle("enable") }} type="button">启用</Button>}
+        {!moreTarget.archived ? <Button onClick={() => { void lifecycle("archive") }} type="button" variant="outline">归档</Button> : null}
+        <Button disabled={!moreTarget.archived || moreTarget.catalog_id === "ollama"} onClick={() => { setDeleting(moreTarget); setMoreTarget(null) }} type="button" variant="outline">删除</Button>
+      </div> : null}
+    </ManageDialog>
   </section>
 }
 
-function ConfiguredProviderCard({ busy, connection, onDelete, onEdit, onModels, onVerify, product }: {
+function ConfiguredProviderCard({ busy, connection, onEdit, onModels, onMore, onVerify, product }: {
   readonly busy: boolean
   readonly connection: ProviderConnection
-  readonly onDelete: () => void
   readonly onEdit: () => void
   readonly onModels: () => void
+  readonly onMore: () => void
   readonly onVerify: () => void
   readonly product: ProviderProduct | undefined
 }) {
@@ -265,10 +291,10 @@ function ConfiguredProviderCard({ busy, connection, onDelete, onEdit, onModels, 
     <dl><dt>上次验证</dt><dd>{verification.checked_at ? new Date(verification.checked_at).toLocaleString() : "从未验证"}</dd><dt>延迟</dt><dd>{verification.latency_ms === null ? "未提供" : `${Math.round(verification.latency_ms)}ms`}</dd></dl>
     {verification.error ? <p className="provider-card__error">{verification.error}</p> : null}
     <div className="manage-actions">
-      <Button aria-label={`查看 ${connection.alias} 的模型`} disabled={busy} onClick={onModels} type="button" variant="outline">查看模型</Button>
+      <Button aria-label={`查看 ${connection.alias} 的模型`} disabled={busy} onClick={onModels} type="button" variant="outline">模型</Button>
       <Button aria-label={`验证 ${connection.alias}`} disabled={busy} onClick={onVerify} type="button" variant="outline">{busy ? "验证中…" : "验证"}</Button>
       <Button aria-label={`修改 ${connection.alias}`} disabled={busy || !product} onClick={onEdit} type="button" variant="outline">修改</Button>
-      <Button aria-label={`删除 ${connection.alias}`} disabled={busy || connection.catalog_id === "ollama"} onClick={onDelete} type="button" variant="outline">删除</Button>
+      <Button aria-label={`${connection.alias} 更多操作`} disabled={busy} onClick={onMore} type="button" variant="outline">更多</Button>
     </div>
   </article>
 }

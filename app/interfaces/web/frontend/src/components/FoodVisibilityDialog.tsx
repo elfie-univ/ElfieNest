@@ -5,7 +5,7 @@ import { useEffect, useState } from "react"
 import {
   foodVisibility,
   updateFoodVisibility,
-  type FoodRecipe,
+  type FoodPackage,
   type FoodVisibility,
 } from "../api/owner-foods"
 import { ApiError } from "../api/http"
@@ -19,7 +19,7 @@ export function FoodVisibilityDialog({
   onSaved,
 }: {
   readonly csrfToken: string
-  readonly food: FoodRecipe
+  readonly food: FoodPackage
   readonly onClose: () => void
   readonly onSaved: () => void
 }) {

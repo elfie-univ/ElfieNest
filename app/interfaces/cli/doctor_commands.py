@@ -12,9 +12,10 @@ from ai_runtime.storage.data_home import (
     get_food_history_dir,
     get_local_files_dir,
     get_logs_dir,
+    get_report_exports_dir,
+    get_reports_dir,
     get_sessions_dir,
     get_skills_dir,
-    get_validation_dir,
 )
 
 
@@ -59,7 +60,8 @@ def repair_local_runtime_state() -> DoctorRepairReport:
         get_skills_dir(),
         get_sessions_dir(),
         get_food_history_dir(),
-        get_validation_dir(),
+        get_reports_dir(),
+        get_report_exports_dir(),
         get_local_files_dir(),
     )
     missing_dirs = [path for path in expected_dirs if not path.exists()]

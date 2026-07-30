@@ -31,10 +31,7 @@ def main():
 
     def engine_worker():
         # 1. Assemble services, mirroring the main.py flow in one thread.
-        config = LLMRuntimeConfig(
-            ollama_host="http://localhost:11434",
-            ollama_model_fast="qwen3.5:0.8b",
-        )
+        config = LLMRuntimeConfig(ollama_host="http://localhost:11434")
         runtime_agent = RuntimeAgent(config)
         engine = ElfieNestEngine()
         elfie = ElfieFactory().create(

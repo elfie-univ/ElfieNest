@@ -156,15 +156,8 @@ def test_provider_catalog_rejects_plaintext_credentials(tmp_path) -> None:
     assert "new_gateway" not in catalog.profiles
 
 
-def test_legacy_provider_views_are_derived_from_catalog() -> None:
-    from ai_runtime.config import PROVIDER_RECOMMENDS
+def test_setup_provider_metadata_is_derived_from_catalog() -> None:
     from ai_runtime.setup.runtime_setup import PROVIDER_METADATA
-
-    assert set(PROVIDER_RECOMMENDS) == set(BUILTIN_PROFILES)
-    for provider_id, profile in BUILTIN_PROFILES.items():
-        recommendation = PROVIDER_RECOMMENDS[provider_id]
-        assert recommendation["api_base"] == profile.api_base
-        assert recommendation["cheap_models"] == profile.default_models["cheap"]
 
     for provider_id, metadata in PROVIDER_METADATA.items():
         profile = BUILTIN_PROFILES[provider_id]

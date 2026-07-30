@@ -2,17 +2,12 @@
 
 from __future__ import annotations
 
-from ai_runtime.storage.data_home import get_config_path, get_db_path
-from app.features.configuration.runtime_store import (
-    read_runtime_config,
-    write_runtime_config,
-)
+from ai_runtime.storage.data_home import get_db_path
 from app.features.setup.ollama import OllamaSetupService
 from app.features.setup.progress import complete_setup_step, get_setup_progress
 from app.features.setup.service import (
     SetupAlreadyCompleteError,
     create_first_owner_account,
-    needs_setup,
 )
 from app.infrastructure.ollama_platform import OllamaPlatformAdapter
 from app.infrastructure.persistence.nest_repository import SQLiteNestRepository
@@ -42,11 +37,11 @@ def run_setup_wizard() -> None:
         print("  ✅ System initialized")
         print()
         print("  Setup completed the following steps:")
-        print(f"    1. Owner account")
-        print(f"    2. Device and offline support")
-        print(f"    3. Nest settings")
-        print(f"    4. Model and food")
-        print(f"    5. Confirmation")
+        print("    1. Owner account")
+        print("    2. Device and offline support")
+        print("    3. Nest settings")
+        print("    4. Model and food")
+        print("    5. Confirmation")
         print()
         print("  💡 To re-run Setup, use 'uninstall' to clean data first")
         print()
@@ -230,11 +225,8 @@ def _complete_confirmation(db_path: str) -> None:
 
 
 def _ollama_service() -> OllamaSetupService:
-    config_path = get_config_path()
     return OllamaSetupService(
         adapter=OllamaPlatformAdapter(),
-        read_config=lambda: read_runtime_config(config_path),
-        write_config=lambda config: write_runtime_config(config_path, config),
     )
 
 

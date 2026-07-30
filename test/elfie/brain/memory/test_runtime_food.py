@@ -18,11 +18,12 @@ def test_memory_work_uses_food_interface_without_model_details(tmp_path):
         "整理记忆",
         elfie_id="elfie-1",
         config_dir=str(tmp_path),
-        food_key="focus",
+        semantic_role="reasoning",
         complexity=2,
     )
 
     assert result == "memory-result"
-    assert runtime.kwargs["food_key"] == "focus"
+    assert runtime.kwargs["food_key"] is None
+    assert runtime.kwargs["semantic_role"] == "reasoning"
     assert runtime.kwargs["elfie_config_dir"] == str(tmp_path)
     assert "model" not in runtime.kwargs

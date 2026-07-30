@@ -81,106 +81,19 @@ React 消费该目录后，只能发出封闭的语义命令 `overview`、`selec
 ## 生产目录契约
 
 一台电脑只有一个生产 Nest 根 `${ELFIE_HOME:-~/.elfienest}`。根目录保存 Nest 级别
-事实，例如 `nest.db`、备份、Runtime 状态与日志。正式 Runtime 配置按职责拆分到
-`configs/` 下的 `runtime.yaml`、`providers.yaml`、`tools.yaml` 和
-`food-packages.yaml`。API Key 和结构化 OAuth 凭据位于
-`configs/credentials/`。`nest.db` 只保存账号、权限、精灵登记/归属、Nest 世界与
-运行状态；它不接收新的聊天消息。
+事实，例如 `nest.db`、配置、报告、Runtime 状态与日志。`nest.db` 只保存账号、权限、
+精灵登记/归属、Nest 世界与运行状态；它不接收新的聊天消息。
 
-Runtime 调用方仍看到一份合并配置对象。存储边界在读取时合并 Runtime、Provider 和
-Tool 三份文件，在写入时再次按职责拆开；这是内部持久化细节，不改变 Owner API 的
-数据形状。`reports/` 预留给可重建的验证结果。这些目录及其敏感子目录都以仅所有者
-可访问的权限创建。程序不会读取或隐式迁移旧根目录下的 `config.yaml`、`foods.yaml`
-和 `food_history/`。显式传入 `config_home` 的开发 Runtime Lab 继续使用彼此隔离的
-`config.yaml`、`.env`、`foods.yaml` 与 `food_history/`。
+Provider、模型、粮食、工具、凭据、报告和 Runtime 收据的所有权只由
+[AI Runtime 设计契约](./architecture-ai-runtime) 定义。完整生产目录树以及
+“每项持久化事实只能有一个类型化写入者”的规则也只在该契约中维护，本页不再复制这些
+Schema。
 
-系统支持的 Provider 产品元数据使用另一份带版本的目录。内置
-`ai_runtime/providers/provider-catalog.yaml` 是离线基线，并会进入 wheel 与冻结
-可执行文件。完整且通过 schema 校验的 `configs/provider-catalog.yaml` 会在下次
-进程启动时覆盖内置基线；版本不兼容、档案损坏或包含凭据字段的目录会被拒绝，程序
-继续使用内置基线。当前尚未实现远程目录下载器，这个覆盖路径只是为后续更新机制
-保留的落盘边界。产品目录向 Owner 界面提供官方显示名、endpoint、协议、认证方式、
-模型发现策略和默认模型提示，绝不保存用户凭据。`configs/providers.yaml` 仍只保存
-用户实际配置的连接实例，不能与产品元数据目录混为一谈。
+敏感目录统一以仅所有者可访问的权限创建。过时开发 Schema 不能成为隐式回退源；
+在 v0.5 之前优先重建临时数据目录，不增加永久双读或双写兼容。
 
-同一个目录产品可以创建多个连接实例。存储层生成
-`anthropic_api_0001` 这类可读且不可变的 ID；配置已知产品时，用户只需填写可选别名
-和凭据。自定义连接会额外填写 endpoint、协议和认证方式，但 ID 仍由后端生成。修改
-别名不会破坏外部引用。每个连接下的模型保存服务端真实 `id`、显示名、发现来源和
-可选的高级能力上限。`canonical_model_id` 只是系统或目录可提供的可选提示，界面不
-要求用户编造；缺失时，模型对比矩阵使用规范化后的显示名进行归组。
-
-Provider 配置把“已配置”“模型发现”和“已验证”作为三类独立事实。保存 Key 或
-endpoint 只会标记为已配置。模型发现会记录来源、时间和结果；拉取失败或返回空列表
-时绝不会覆盖用户手工填写的模型。随后由显式的单个验证或有并发上限的批量验证记录
-连通状态与时延。当前状态保存在 `configs/providers.yaml` 里供快速投影，每一次经过
-脱敏的验证也会写入
-`reports/provider-validations/<connection_id>/latest.yaml` 和不可变的
-`history/` 记录。模型测速在 `reports/model-validations/` 下采用相同的
-latest 加 history 方式，并按 `connection_id` 分组；模型目录使用不透明哈希，
-endpoint 模型 ID 不会直接成为路径。Owner 模型矩阵会把等价的显示模型归在一起，
-同时为每个连接单元保留真实 endpoint 模型 ID，用于验证与测速。
-
-Owner API 提供面向提醒的 Provider 健康摘要。验证通过但超过 24 小时的结果会标记为
-`stale`；失败、过期和从未验证的已配置 Provider 都需要提醒。这里是读取时投影，不是
-后台调度器。当前阶段支持显式单个验证和有上限的批量验证；后续定时调度必须由 Runtime
-生命周期统一持有，不能让 API 或 Desktop 进程自行创建新的生命周期所有者。
-
-粮食套餐是带版本的 YAML 配置，不是由数据库持有的模型定义。每个自定义套餐会取得
-不透明且不可变的 `food_<hex>` key；显示名称和角色模型可以修改，外部引用不会随之
-变化。一个套餐可以配置主模型、深度推理模型、视觉模型、校验模型和技术模型回退。
-落盘的执行档位中不再保存工具权限：工具由 Runtime 策略启用，再由调用它的精灵或请求
-收窄，与模型选择相互独立。每个模型都以严格的
-`<connection_id>/<endpoint_model_id>` 形式保存；Runtime 不会根据产品名猜测连接，
-也不会静默跨到另一个订阅。
-
-目录记录一个全局默认套餐和一个可选的全局保底套餐。保底套餐允许使用远程模型，但
-Owner API 会给出警告，因为它无法覆盖断网情况。只有所有已配置角色都使用声明为本地的
-Provider 时，套餐的 `local_only` 才为 true。迁移阶段仍保留内置语义配方作为自动生成
-模板，但正式落盘目录和 Owner 编辑器已经允许任意稳定套餐 ID。
-
-套餐内容和分配关系由不同事实源持有。YAML 仍是模型角色与参数的唯一事实源；
-`nest.db.food_package_access` 只保存每个用户可选择的稳定套餐 ID，
-`nest.db.elfie_food_preferences` 只保存每只精灵最多一个主粮套餐 ID。全局默认粮和
-保底粮始终进入有效可用范围。精灵保存的选择如果超出范围，或者对应 YAML 套餐已经
-缺失，投影会回到全局默认粮，同时保留数据库中的原 ID 供诊断。只要仍有用户或精灵
-引用某个套餐，删除操作就会被拒绝。
-
-应用编排层会在每次生成时解析该精灵当前生效的套餐，只把稳定套餐 ID 注入
-Brain 到 Runtime 的适配器。Brain 不导入数据库、Provider 目录或粮食领域模型。
-任务差异始终在所选套餐内部处理：复杂请求可以使用该套餐的深度推理角色，多模态请求
-可以使用视觉角色，技术回退仍限定在同一套餐内。只有所选套餐的所有候选模型都失败时，
-Runtime 才会再尝试一次目录中的全局保底粮。结构化生成进入保底粮时会降为普通 JSON
-文本模式，避免把本地或能力较弱的保底模型误判为支持原生 Schema。套餐关系按每次生成
-动态解析，因此 Owner 修改主粮后无需重建精灵即可生效。
-
-每只精灵都以不可变的 `elfie_id` 作为工作区名。显示名称可改，但绝不能改动目录：
-
-```text
-${ELFIE_HOME:-~/.elfienest}/
-├── nest.db                         # Nest、账号、归属和世界状态
-├── configs/
-│   ├── runtime.yaml                # 系统设置与 Runtime 策略
-│   ├── providers.yaml              # Provider 实例与模型配置
-│   ├── provider-catalog.yaml        # 可选、经校验的完整元数据覆盖包
-│   ├── tools.yaml                  # 工具设置，不含明文密钥
-│   ├── food-packages.yaml          # 当前生效的粮食套餐目录
-│   ├── food-packages-history/      # 粮食套餐历史版本
-│   └── credentials/
-│       ├── api-keys.env            # Provider 与工具 API Key
-│       └── oauth/
-│           └── <connection_id>.json # 结构化、可刷新的 OAuth 凭据
-├── reports/
-│   ├── provider-validations/       # 脱敏的 Provider latest 与 history
-│   ├── model-validations/          # 脱敏的模型测速 latest 与 history
-│   └── runtime-validations/        # 预留的 Runtime 整体报告
-├── runtime.json                    # Supervisor 健康、generation 与 owner lease
-└── elfies/
-    └── <elfie_id>/                 # 稳定 ID，不使用可变名称
-        ├── profile.yaml 等档案、记忆和工作内容
-        └── conversations/
-            └── history.sqlite      # 该精灵的所有本机渠道聊天
-```
+每只精灵都以不可变的 `elfie_id` 作为工作区名。显示名称可改，但目录不能移动；
+精确位置同样属于上述 AI Runtime 数据契约。
 
 `history.sqlite` 记录会话、渠道、发送方、用户关系、文本、元数据和附件引用。不会建立
 用户视角的本机聊天副本，也不会把附件二进制塞进数据库。网页、桌面、微信或飞书等

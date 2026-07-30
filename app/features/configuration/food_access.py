@@ -1,9 +1,12 @@
-"""Resolve database food assignments against the external package catalog."""
+"""Resolve user-visible primary food from Nest DB and Runtime facts."""
 
 from __future__ import annotations
 
 from typing import Any
 
+from ai_runtime.food.evidence import ModelEvidenceStore
+from ai_runtime.food.health import project_food_health
+from ai_runtime.food.models import FOOD_COMMON_ID, FOOD_EMERGENCY_ID
 from ai_runtime.food.store import FoodCatalog
 from app.infrastructure.persistence.food_assignments import (
     get_elfie_owner_user_id,
@@ -18,8 +21,14 @@ def visible_food_keys(
     catalog: FoodCatalog,
 ) -> tuple[str, ...]:
     granted = set(list_user_food_access(db_path, user_id))
-    granted.update(key for key in (catalog.default_food, catalog.fallback_food) if key)
-    return tuple(key for key in catalog.recipes if key in granted)
+    granted.add(FOOD_COMMON_ID)
+    return tuple(
+        package.key
+        for package in catalog.ordered_packages()
+        if package.key != FOOD_EMERGENCY_ID
+        and package.key in granted
+        and not package.archived
+    )
 
 
 def elfie_food_policy_projection(
@@ -28,25 +37,32 @@ def elfie_food_policy_projection(
     owner_user_id: int,
     catalog: FoodCatalog,
 ) -> dict[str, Any]:
+    evidence = ModelEvidenceStore().load()
     configured = get_elfie_primary_food(db_path, elfie_id)
     visible = visible_food_keys(db_path, owner_user_id, catalog)
-    selected = (
+    options = [
+        {
+            "food_id": key,
+            "display_name": catalog.packages[key].display_name,
+        }
+        for key in visible
+        if catalog.packages[key].enabled
+        and project_food_health(catalog.packages[key], evidence).status
+        in {"healthy", "degraded"}
+    ]
+    option_ids = {item["food_id"] for item in options}
+    effective = (
         configured
-        if configured in visible and configured in catalog.recipes
-        else catalog.default_food
-        if catalog.default_food in visible
-        else visible[0]
-        if visible
+        if configured in option_ids
+        else FOOD_COMMON_ID
+        if not configured and FOOD_COMMON_ID in option_ids
         else ""
     )
     return {
-        "default_food": selected,
-        "allowed_foods": list(visible),
-        "fallback_food": (
-            catalog.fallback_food if catalog.fallback_food in catalog.recipes else ""
-        ),
-        "configured_primary_food": configured,
-        "primary_food_missing": bool(configured and configured not in catalog.recipes),
+        "main_food_id": configured or "",
+        "effective_main_food_id": effective,
+        "main_food_options": options,
+        "main_food_unavailable": bool(configured and configured not in option_ids),
     }
 
 
@@ -55,15 +71,14 @@ def resolve_elfie_food_key(
     elfie_id: str,
     catalog: FoodCatalog,
 ) -> str | None:
-    """Resolve one Elfie's current package without leaking DB facts to Runtime."""
     owner_user_id = get_elfie_owner_user_id(db_path, elfie_id)
     if owner_user_id is None:
-        return catalog.default_food or next(iter(catalog.recipes), None)
+        return None
     projection = elfie_food_policy_projection(
         db_path,
         elfie_id,
         owner_user_id,
         catalog,
     )
-    selected = str(projection["default_food"])
-    return selected or None
+    selected = str(projection["effective_main_food_id"])
+    return selected or str(projection["main_food_id"]) or None

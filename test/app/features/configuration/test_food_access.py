@@ -1,4 +1,11 @@
-from ai_runtime.food.models import ExecutionProfile, FoodRecipe
+from types import SimpleNamespace
+
+from ai_runtime.food.models import (
+    FOOD_COMMON_ID,
+    FOOD_EMERGENCY_ID,
+    FoodPackage,
+    ModelAssignment,
+)
 from ai_runtime.food.store import FoodCatalog
 from app.features.configuration.food_access import resolve_elfie_food_key
 from app.infrastructure.persistence.food_assignments import (
@@ -8,7 +15,14 @@ from app.infrastructure.persistence.food_assignments import (
 from app.infrastructure.persistence.store import get_db, init_db
 
 
-def test_runtime_food_resolution_tracks_current_elfie_assignment(tmp_path):
+def test_runtime_food_resolution_tracks_current_elfie_assignment(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    monkeypatch.setattr(
+        "app.features.configuration.food_access.project_food_health",
+        lambda package, evidence: SimpleNamespace(status="healthy"),
+    )
     db_path = init_db(str(tmp_path / "nest.db"))
     with get_db(db_path) as connection:
         connection.execute(
@@ -26,21 +40,29 @@ def test_runtime_food_resolution_tracks_current_elfie_assignment(tmp_path):
         )
         connection.commit()
     catalog = FoodCatalog(
-        default_food="food_default",
-        fallback_food="food_relief",
-        recipes={
-            key: FoodRecipe(
-                key,
-                key,
-                "test",
-                ExecutionProfile(f"ollama/{key}"),
-            )
-            for key in ("food_default", "food_custom", "food_relief")
+        packages={
+            FOOD_EMERGENCY_ID: FoodPackage(
+                key=FOOD_EMERGENCY_ID,
+                display_name="保底粮",
+                system_role="emergency",
+                primary=ModelAssignment("ollama/emergency"),
+            ),
+            FOOD_COMMON_ID: FoodPackage(
+                key=FOOD_COMMON_ID,
+                display_name="常用粮",
+                system_role="common",
+                primary=ModelAssignment("ollama/common"),
+            ),
+            "food_custom": FoodPackage(
+                key="food_custom",
+                display_name="自定义粮",
+                primary=ModelAssignment("ollama/custom"),
+            ),
         },
     )
     replace_user_food_access(db_path, user_id, ("food_custom",))
 
-    assert resolve_elfie_food_key(db_path, "12345678", catalog) == "food_default"
+    assert resolve_elfie_food_key(db_path, "12345678", catalog) == FOOD_COMMON_ID
 
     set_elfie_primary_food(db_path, "12345678", "food_custom")
 

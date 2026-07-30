@@ -268,7 +268,7 @@ class MemoryConsolidator:
                     prompt,
                     elfie_id=self.elfie_id,
                     config_dir=self.config_dir,
-                    food_key="focus",
+                    semantic_role="reasoning",
                     complexity=2,
                 )
                 self._llm_calls_this_cycle += 1
@@ -501,7 +501,7 @@ class MemoryConsolidator:
                     prompt,
                     elfie_id=self.elfie_id,
                     config_dir=self.config_dir,
-                    food_key="focus",
+                    semantic_role="reasoning",
                     complexity=2,
                 )
                 self._llm_calls_this_cycle += 1
@@ -689,7 +689,7 @@ class MemoryConsolidator:
                     prompt,
                     elfie_id=self.elfie_id,
                     config_dir=self.config_dir,
-                    food_key="focus",
+                    semantic_role="reasoning",
                     complexity=2,
                 )
                 self._llm_calls_this_cycle += 1

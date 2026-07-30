@@ -5,9 +5,14 @@ import builtins
 import pytest
 from _pytest.capture import CaptureFixture
 
-from app.interfaces.cli.tui import config_app, config_editors, config_views, provider_menu
-from app.features.configuration.user_config import write_user_config
 from ai_runtime.config import LLMRuntimeConfig
+from app.features.configuration.user_config import write_user_config
+from app.interfaces.cli.tui import (
+    config_app,
+    config_editors,
+    config_views,
+    provider_menu,
+)
 
 
 def test_run_config_tui_exits_from_main_menu(
@@ -142,7 +147,7 @@ def test_config_llm_redirects_model_management_to_runtime_lab(
     config_editors.config_llm(config)
 
     output = capsys.readouterr().out
-    assert ".venv/bin/python -m ai_runtime.lab" in output
+    assert "managed in AI Runtime" in output
     assert config["system"]["llm"]["default_cheap_model"] == "old-model"
 
 

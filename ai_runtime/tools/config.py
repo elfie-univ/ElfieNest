@@ -9,14 +9,11 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, Mapping
 
-from ai_runtime.storage.data_home import get_local_files_dir
 from ai_runtime.storage.secrets import resolve_secret, tool_secret_name
 
 TOOL_KEYS: tuple[str, ...] = (
     "web_search",
     "local_file",
-    "code_sandbox",
-    "skills_evolution",
 )
 
 
@@ -28,13 +25,13 @@ def default_tool_configs() -> dict[str, dict[str, Any]]:
             "api_base": "",
             "api_key_env": tool_secret_name("web_search"),
             "max_results": 3,
+            "max_result_bytes": 16000,
         },
         "local_file": {
             "enabled": True,
-            "root": str(get_local_files_dir()),
+            "root_policy": "elfie_workspace",
+            "max_read_bytes": 65536,
         },
-        "code_sandbox": {"enabled": True, "timeout_seconds": 5.0},
-        "skills_evolution": {"enabled": True},
     }
 
 

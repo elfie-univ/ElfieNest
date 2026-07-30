@@ -108,6 +108,7 @@ class ProviderModelUpdateRequest(BaseModel):
     supports_vision: Optional[bool] = None
     supports_reasoning: Optional[bool] = None
     hidden: Optional[bool] = None
+    retired: Optional[bool] = None
 
     @field_validator("display_name", "canonical_model_id")
     @classmethod

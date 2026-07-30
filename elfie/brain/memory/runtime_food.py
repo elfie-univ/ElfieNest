@@ -11,14 +11,15 @@ def ask_memory_model(
     *,
     elfie_id: str | None,
     config_dir: str | None,
-    food_key: str,
+    semantic_role: str,
     complexity: int,
 ) -> str:
     ask_with_food = getattr(runtime_agent, "ask_with_food", None)
     if callable(ask_with_food):
         return ask_with_food(
             prompt=prompt,
-            food_key=food_key,
+            food_key=None,
+            semantic_role=semantic_role,
             elfie_id=elfie_id,
             elfie_config_dir=config_dir,
             scene="memory",

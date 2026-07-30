@@ -14,7 +14,7 @@
 - 统一文本、多模态、流式与结构化生成请求；
 - 模型目录、Provider 配置、路由策略和本地 Ollama 回退；
 - 面向精灵的粮食配方、选择、验证和执行；
-- 搜索、代码、文件与技能演化等原生工具及权限检查；
+- 共享原生工具实现、权限检查和有边界的执行；
 - `ELFIE_HOME` 数据路径、Runtime 配置、密钥解析和迁移辅助；
 - 模型/工具调用观测、用量统计和本地 Runtime 验证。
 
@@ -43,20 +43,15 @@ ai_runtime/
 └── lab/         # Runtime 本地交互实验室
 ```
 
-`custom_skills/` 是运行时自定义技能包入口；新增能力前应先确认它属于 Runtime，
-而不是产品、单精灵或 Nest 领域。
+共享工具实现属于本模块；个人 Skill 定义和学习状态属于对应精灵工作区，不属于
+Runtime。
 
-## Provider 与粮食标识
+## 设计权威
 
-内置 Provider 目录描述系统可连接的产品，不含任何凭据。用户连接保存在
-`ELFIE_HOME/configs/providers.yaml`；同一个产品可以有多个不可变的连接 ID，例如
-`openai_api_0001`。模型保留对应连接实际要求的 endpoint 模型 ID。粮食角色严格使用
-`connection_id/endpoint_model_id` 引用模型，因此连接别名可以安全修改，Runtime
-也不会静默跨到另一个订阅。
-
-模型发现、连接验证和模型测速是三类独立事实。发现失败时会保留用户手工添加的模型。
-脱敏报告写入 `ELFIE_HOME/reports/`，API Key 与 OAuth 材料则只保存在
-`ELFIE_HOME/configs/credentials/`。
+Provider、模型、粮食、工具、持久化和验收的规范性定义统一位于
+[AI Runtime 设计契约](../docs/zh/developer/architecture-ai-runtime.md)。本 README
+只提供模块地图，不重新定义这些行为。当前实现偏差单独记录在
+[AI Runtime 实现一致性台账](../docs/zh/developer/ai-runtime-conformance.md)。
 
 ## 公开入口
 

@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 
+from ai_runtime.food.models import FOOD_COMMON_ID, FoodPackage, system_food_packages
+from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
 from app.infrastructure.persistence.embodiment_sessions import begin_hosting
 from app.infrastructure.persistence.store import init_db
 from app.interfaces.api.app import create_app
@@ -20,6 +23,18 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     """Create a session-isolated API client with an Owner account."""
     db_path = str(tmp_path / "nest.db")
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path / "elfienest-home"))
+    monkeypatch.setattr(
+        "app.features.configuration.food_access.project_food_health",
+        lambda package, evidence: SimpleNamespace(status="healthy"),
+    )
+    packages = system_food_packages()
+    packages[FOOD_COMMON_ID] = FoodPackage(
+        key=FOOD_COMMON_ID,
+        display_name="常用粮",
+        system_role="common",
+        enabled=True,
+    )
+    FoodCatalogStore().save(FoodCatalog(packages=packages))
     init_db(db_path)
     create_test_owner(db_path)
     with (
@@ -81,11 +96,7 @@ def monitoring_world(client: TestClient) -> dict:
     alice_fox = _adopt_elfie(client, str(alice["csrf_token"]), "月光", "fox")
     policy = client.put(
         f"/api/user/elfies/{alice_dog}/food-policy/",
-        json={
-            "default_food": "focus",
-            "allowed_foods": ["coarse", "focus"],
-            "fallback_food": "coarse",
-        },
+        json={"main_food_id": FOOD_COMMON_ID},
         headers=_headers(str(alice["csrf_token"])),
     )
     assert policy.status_code == 200, policy.text
@@ -150,9 +161,12 @@ def test_owner_elfie_monitoring_projection_is_safe_and_structured(
     assert row["profile"]["online_status"] == "unknown"
     assert row["profile"]["embodiment"] == {"state": "switching_to_hosted"}
     assert row["food_policy"] == {
-        "default_food": "focus",
-        "allowed_foods": ["coarse", "focus"],
-        "fallback_food": "coarse",
+        "main_food_id": FOOD_COMMON_ID,
+        "effective_main_food_id": FOOD_COMMON_ID,
+        "main_food_options": [
+            {"food_id": FOOD_COMMON_ID, "display_name": "常用粮"}
+        ],
+        "main_food_unavailable": False,
     }
     rendered = str(row)
     for forbidden in (
@@ -173,7 +187,7 @@ def test_owner_elfie_monitoring_projection_is_safe_and_structured(
     [
         ("owner_user_id", "alice_user_id", "alice"),
         ("species_id", "dog", "dogs"),
-        ("food_key", "focus", "alice_dog"),
+        ("food_key", FOOD_COMMON_ID, "alice_dog"),
         ("embodiment_state", "switching_to_hosted", "alice_dog"),
         ("owner_user_id", "999999", "none"),
     ],
@@ -279,10 +293,12 @@ def test_food_policy_is_structured_for_the_owner(
     # Then: the owner receives the structured policy.
     assert response.status_code == 200, response.text
     assert response.json() == {
-        "elfie_id": elfie_id,
-        "default_food": "focus",
-        "allowed_foods": ["coarse", "focus"],
-        "fallback_food": "coarse",
+        "main_food_id": FOOD_COMMON_ID,
+        "effective_main_food_id": FOOD_COMMON_ID,
+        "main_food_options": [
+            {"food_id": FOOD_COMMON_ID, "display_name": "常用粮"}
+        ],
+        "main_food_unavailable": False,
     }
 
 

@@ -1,4 +1,4 @@
-"""Runtime Agent 基础工具的直接验证。"""
+"""Direct validation for the two phase-one safe tools."""
 
 from __future__ import annotations
 
@@ -6,17 +6,12 @@ import tempfile
 import time
 from pathlib import Path
 
-from ai_runtime.safety.permissions import PermissionDeniedError, PermissionManager
-from ai_runtime.tools.code import CodeSandboxPlugin, CodeSandboxUnavailableError
-from ai_runtime.tools.file import FileSandbox
+from ai_runtime.tools.local_files import LocalFileAccessPlugin
 from ai_runtime.tools.search import WebSearchPlugin
-from ai_runtime.tools.skills_evolution import SkillsSelfEvolutionPlugin
 from ai_runtime.validation.models import CheckResult, CheckStatus, ValidationSuite
 
 
 class DirectToolValidationRunner:
-    """不经过模型，定位工具自身和安全边界是否正常。"""
-
     def __init__(
         self,
         config,
@@ -29,12 +24,7 @@ class DirectToolValidationRunner:
         )
 
     def run(self, *, include_network: bool = False) -> ValidationSuite:
-        results = [
-            self.verify_code_sandbox(),
-            self.verify_file_sandbox(),
-            self.verify_permission_boundary(),
-            self.verify_skill_lifecycle(),
-        ]
+        results = [self.verify_file_sandbox()]
         results.append(
             self.verify_web_search()
             if include_network
@@ -46,100 +36,29 @@ class DirectToolValidationRunner:
         )
         return ValidationSuite("agent:direct-tools", tuple(results))
 
-    def verify_code_sandbox(self) -> CheckResult:
-        started = time.perf_counter()
-        try:
-            result = CodeSandboxPlugin(timeout_seconds=3).execute("print(6 * 7)")
-            passed = result.get("stdout") == "42" and result.get("exit_code") == 0
-            return CheckResult(
-                check_id="tool.code_sandbox",
-                status=CheckStatus.PASSED if passed else CheckStatus.FAILED,
-                message="Code sandbox validation passed" if passed else "Code sandbox returned abnormal results",
-                duration_ms=(time.perf_counter() - started) * 1000,
-            )
-        except CodeSandboxUnavailableError as exc:
-            return CheckResult(
-                check_id="tool.code_sandbox",
-                status=CheckStatus.SKIPPED,
-                message=str(exc),
-                duration_ms=(time.perf_counter() - started) * 1000,
-            )
-        except Exception as exc:
-            return _failure("tool.code_sandbox", exc, started)
-
     def verify_file_sandbox(self) -> CheckResult:
         started = time.perf_counter()
         try:
             with tempfile.TemporaryDirectory(prefix="elfie-file-check-") as temp_dir:
-                sandbox = FileSandbox(temp_dir)
-                saved_name = sandbox.write_file("probe.txt", "runtime-ok")
+                root = Path(temp_dir)
+                (root / "probe.txt").write_text("runtime-ok", encoding="utf-8")
+                sandbox = LocalFileAccessPlugin(root)
                 passed = (
-                    saved_name == "probe.txt"
-                    and sandbox.read_file("probe.txt") == "runtime-ok"
+                    sandbox.read_text("probe.txt") == "runtime-ok"
                     and "probe.txt" in sandbox.list_files()
                 )
             return CheckResult(
                 check_id="tool.local_file",
                 status=CheckStatus.PASSED if passed else CheckStatus.FAILED,
-                message="Local file sandbox validation passed" if passed else "Local file sandbox results abnormal",
+                message=(
+                    "Read-only local file validation passed"
+                    if passed
+                    else "Read-only local file validation failed"
+                ),
                 duration_ms=(time.perf_counter() - started) * 1000,
             )
         except Exception as exc:
             return _failure("tool.local_file", exc, started)
-
-    def verify_permission_boundary(self) -> CheckResult:
-        started = time.perf_counter()
-        manager = PermissionManager(self.config)
-        try:
-            manager.verify_action("CREATE_SKILL", "../escape.py")
-        except PermissionDeniedError:
-            return CheckResult(
-                check_id="tool.permission_boundary",
-                status=CheckStatus.PASSED,
-                message="Path boundary violation blocked",
-                duration_ms=(time.perf_counter() - started) * 1000,
-            )
-        except Exception as exc:
-            return _failure("tool.permission_boundary", exc, started)
-        return CheckResult(
-            check_id="tool.permission_boundary",
-            status=CheckStatus.FAILED,
-            message="Path boundary violation not blocked",
-            duration_ms=(time.perf_counter() - started) * 1000,
-        )
-
-    def verify_skill_lifecycle(self) -> CheckResult:
-        started = time.perf_counter()
-        try:
-            with tempfile.TemporaryDirectory(prefix="elfie-skill-check-") as temp_dir:
-                sandbox = FileSandbox(Path(temp_dir))
-                plugin = SkillsSelfEvolutionPlugin(
-                    PermissionManager(self.config),
-                    file_sandbox=sandbox,
-                )
-                plugin.write_skill("probe", "print('skill-ok')")
-                listed = plugin.list_skills()
-                executed = plugin.run_skill("probe")
-                passed = (
-                    "probe.py" in listed
-                    and executed.get("exit_code") == 0
-                    and executed.get("stdout") == "skill-ok"
-                )
-            return CheckResult(
-                check_id="tool.skill_lifecycle",
-                status=CheckStatus.PASSED if passed else CheckStatus.FAILED,
-                message="Skill lifecycle validation passed" if passed else "Skill lifecycle results abnormal",
-                duration_ms=(time.perf_counter() - started) * 1000,
-            )
-        except CodeSandboxUnavailableError as exc:
-            return CheckResult(
-                check_id="tool.skill_lifecycle",
-                status=CheckStatus.SKIPPED,
-                message=str(exc),
-                duration_ms=(time.perf_counter() - started) * 1000,
-            )
-        except Exception as exc:
-            return _failure("tool.skill_lifecycle", exc, started)
 
     def verify_web_search(self) -> CheckResult:
         started = time.perf_counter()
@@ -149,7 +68,11 @@ class DirectToolValidationRunner:
             return CheckResult(
                 check_id="tool.web_search",
                 status=CheckStatus.PASSED if passed else CheckStatus.FAILED,
-                message="Web search validation passed" if passed else "Web search returned empty results",
+                message=(
+                    "Web search validation passed"
+                    if passed
+                    else "Web search returned empty results"
+                ),
                 duration_ms=(time.perf_counter() - started) * 1000,
             )
         except Exception as exc:

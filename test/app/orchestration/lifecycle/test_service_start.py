@@ -156,7 +156,7 @@ def test_start_rejects_a_running_service_on_a_different_port(tmp_path: Path) -> 
     # Then
     assert result.status == "failed"
     assert result.pid == 5103
-    assert "其他端口" in str(result.error)
+    assert "different ports" in str(result.error)
     assert launcher.calls == []
 
 

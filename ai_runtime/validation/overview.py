@@ -9,6 +9,7 @@ from typing import Any, Mapping, Sequence
 
 from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.food.evidence import ModelEvidenceStore
+from ai_runtime.food.health import project_food_health
 from ai_runtime.food.planner import ModelEvidence
 from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
 from ai_runtime.models.capabilities import (
@@ -17,7 +18,7 @@ from ai_runtime.models.capabilities import (
 )
 from ai_runtime.models.catalog import BUILTIN_MODEL_CATALOG
 from ai_runtime.providers.profiles import BUILTIN_PROFILES
-from ai_runtime.storage.data_home import get_validation_dir
+from ai_runtime.storage.data_home import get_report_exports_dir
 from ai_runtime.validation.models import CheckResult, CheckStatus, ValidationSuite
 from ai_runtime.validation.providers import (
     ProviderValidationRunner,
@@ -45,11 +46,8 @@ def configured_provider_ids(config: LLMRuntimeConfig) -> list[str]:
 
 class RuntimeOverviewStore:
     def __init__(self, directory: Path | None = None) -> None:
-        self.directory = directory or get_validation_dir()
+        self.directory = directory or get_report_exports_dir()
         self.current_path = self.directory / "runtime-overview-current.json"
-
-    def load_current(self) -> dict[str, Any] | None:
-        return self._read(self.current_path)
 
     def save(self, report: Mapping[str, Any]) -> Path:
         self.directory.mkdir(parents=True, exist_ok=True)
@@ -59,29 +57,6 @@ class RuntimeOverviewStore:
         self._atomic_write(history_path, payload)
         self._atomic_write(self.current_path, payload)
         return history_path
-
-    def history(self) -> list[Path]:
-        if not self.directory.exists():
-            return []
-        return sorted(
-            (
-                path
-                for path in self.directory.glob("runtime-overview-*.json")
-                if path.name != self.current_path.name
-            ),
-            reverse=True,
-        )
-
-    def load_path(self, path: Path) -> dict[str, Any] | None:
-        return self._read(path)
-
-    @staticmethod
-    def _read(path: Path) -> dict[str, Any] | None:
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return None
-        return payload if isinstance(payload, dict) else None
 
     @staticmethod
     def _atomic_write(path: Path, payload: str) -> None:
@@ -229,10 +204,13 @@ def build_overview(
     foods = [
         {
             "key": key,
-            "model": recipe.primary.model,
-            "status": recipe.validation_status.value,
+            "model": package.primary.model if package.primary else "",
+            "status": project_food_health(
+                package,
+                {item.model: item for item in evidence},
+            ).status,
         }
-        for key, recipe in catalog.recipes.items()
+        for key, package in catalog.packages.items()
     ]
     return {
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -257,8 +235,6 @@ def build_overview(
         "providers": providers,
         "models": model_rows,
         "foods": foods,
-        "food_generation_sources": list(catalog.generation_sources),
-        "food_generation_note": catalog.generation_note,
     }
 
 

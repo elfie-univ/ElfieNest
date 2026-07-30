@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ai_runtime.storage.data_home import get_local_files_dir
+from ai_runtime.storage.data_home import get_runtime_dir
 
 
 class LocalFileAccessError(RuntimeError):
@@ -12,14 +12,29 @@ class LocalFileAccessError(RuntimeError):
 
 
 class LocalFileAccessPlugin:
-    def __init__(self, root: str | Path | None = None) -> None:
-        self.root = Path(root) if root is not None else get_local_files_dir()
+    def __init__(
+        self,
+        root: str | Path | None = None,
+        *,
+        max_read_bytes: int = 65536,
+        max_items: int = 200,
+    ) -> None:
+        self.root = (
+            Path(root)
+            if root is not None
+            else get_runtime_dir() / "unbound-elfie-workspace"
+        )
+        self.max_read_bytes = max_read_bytes
+        self.max_items = max_items
 
     def read_text(self, relative_path: str) -> str:
         target = self._resolve(relative_path)
         if not target.is_file():
             raise FileNotFoundError(f"本地文件不存在: {relative_path}")
-        return target.read_text(encoding="utf-8")
+        raw = target.read_bytes()
+        if len(raw) > self.max_read_bytes:
+            raw = raw[: self.max_read_bytes]
+        return raw.decode("utf-8", errors="replace")
 
     def list_files(self, relative_path: str = ".") -> list[str]:
         target = self._resolve(relative_path)
@@ -31,7 +46,7 @@ class LocalFileAccessPlugin:
             str(item.relative_to(self.root.resolve()))
             for item in target.iterdir()
             if item.is_file()
-        )
+        )[: self.max_items]
 
     def _resolve(self, relative_path: str) -> Path:
         root = self.root.resolve()

@@ -85,8 +85,6 @@ def make_executor(
             ToolExecutionContext(
                 allowed_skills=allowed_skills,
                 search_plugin=search_plugin,
-                sandbox_plugin=sandbox_plugin,
-                skills_evolution_plugin=skills_plugin,
                 permission_manager=permission_manager,
             )
         ),
@@ -125,52 +123,34 @@ def test_tool_executor_handles_search_and_preserves_feedback_text():
     assert "Search result" in result.content
 
 
-def test_tool_executor_handles_code_with_permission_and_feedback_text():
+def test_tool_executor_ignores_code_sandbox_tags():
     executor, _, sandbox_plugin, _, permission_manager = make_executor(("code_sandbox",))
 
     result = executor.execute("[CODE]print(2 + 2)[/CODE]")
 
-    assert result is not None
-    assert result.tool_name == "code_sandbox"
-    assert result.ok is True
-    assert sandbox_plugin.code == "print(2 + 2)"
-    assert permission_manager.action == "RUN_CODE"
-    assert permission_manager.file_path == "code_sandbox"
-    assert "标准输出: 4" in result.content
-    assert "去掉 [CODE] 标签" in result.content
+    assert result is None
+    assert sandbox_plugin.code == ""
+    assert permission_manager.action == ""
 
 
-def test_tool_executor_handles_write_skill_and_parse_error():
+def test_tool_executor_ignores_skill_mutation_tags():
     executor, _, _, skills_plugin, _ = make_executor(("skills_evolution",))
 
     result = executor.execute("[WRITE_SKILL]math_tool|print('ok')[/WRITE_SKILL]")
     parse_error = executor.execute("[WRITE_SKILL]bad-format[/WRITE_SKILL]")
 
-    assert result is not None
-    assert result.tool_name == "write_skill"
-    assert result.ok is True
-    assert skills_plugin.skill_name == "math_tool"
-    assert skills_plugin.skill_args == "print('ok')"
-    assert result.content == "Skill written"
-
-    assert parse_error is not None
-    assert parse_error.tool_name == "write_skill"
-    assert parse_error.ok is False
-    assert "格式必须是 [WRITE_SKILL]文件名|Python代码[/WRITE_SKILL]" in parse_error.content
+    assert result is None
+    assert parse_error is None
+    assert skills_plugin.skill_name == ""
 
 
-def test_tool_executor_handles_run_skill_success_and_failure_feedback():
+def test_tool_executor_ignores_skill_execution_tags():
     executor, _, _, skills_plugin, _ = make_executor(("skills_evolution",))
 
     success = executor.execute("[RUN_SKILL]math_tool|1,2[/RUN_SKILL]")
 
-    assert success is not None
-    assert success.tool_name == "run_skill"
-    assert success.ok is True
-    assert skills_plugin.skill_name == "math_tool"
-    assert skills_plugin.skill_args == "1,2"
-    assert "【习得技能 'math_tool' 运行成功】" in success.content
-    assert "标准输出 (stdout): Skill output" in success.content
+    assert success is None
+    assert skills_plugin.skill_name == ""
 
     skills_plugin.run_skill = lambda filename, args="": {
         "exit_code": 1,
@@ -179,23 +159,16 @@ def test_tool_executor_handles_run_skill_success_and_failure_feedback():
     }
     failure = executor.execute("[RUN_SKILL]math_tool[/RUN_SKILL]")
 
-    assert failure is not None
-    assert failure.tool_name == "run_skill"
-    assert failure.ok is False
-    assert "【习得技能 'math_tool' 运行故障】" in failure.content
-    assert "错误流 (stderr): boom" in failure.content
+    assert failure is None
 
 
-def test_tool_executor_handles_list_skills_and_ignores_disallowed_tags():
+def test_tool_executor_ignores_list_skills_tags():
     executor, _, _, _, _ = make_executor(("skills_evolution",))
     disallowed, _, _, _, _ = make_executor(())
 
     result = executor.execute("[LIST_SKILLS][/LIST_SKILLS]")
 
-    assert result is not None
-    assert result.tool_name == "list_skills"
-    assert result.ok is True
-    assert result.content == "Skill list"
+    assert result is None
     assert disallowed.execute("[LIST_SKILLS][/LIST_SKILLS]") is None
 
 
@@ -205,8 +178,6 @@ def test_tool_executor_handles_controlled_local_file_access():
     executor.context = ToolExecutionContext(
         allowed_skills=("local_file",),
         search_plugin=search,
-        sandbox_plugin=sandbox,
-        skills_evolution_plugin=skills,
         permission_manager=permission,
         file_access_plugin=file_access,
     )

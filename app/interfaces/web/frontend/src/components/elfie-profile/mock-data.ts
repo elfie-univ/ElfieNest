@@ -69,9 +69,8 @@ export const HAPPY_EXPERIENCE = parseExperienceFixture({
       {
         title: "粮食策略",
         food: {
-          selected: happySource.food_policy.default_food,
-          allowed: [...happySource.food_policy.allowed_foods, happySource.food_policy.fallback_food],
-          fallback: happySource.food_policy.fallback_food,
+          selected: happySource.food_policy.effective_main_food_id,
+          allowed: happySource.food_policy.main_food_options.map((item) => item.food_id),
         },
       },
     ],
@@ -111,9 +110,8 @@ export const KETTLE_EXPERIENCE = parseExperienceFixture({
       {
         title: "粮食策略",
         food: {
-          selected: kettleSource.food_policy.default_food,
-          allowed: [...kettleSource.food_policy.allowed_foods, kettleSource.food_policy.fallback_food],
-          fallback: kettleSource.food_policy.fallback_food,
+          selected: kettleSource.food_policy.effective_main_food_id,
+          allowed: kettleSource.food_policy.main_food_options.map((item) => item.food_id),
         },
       },
     ],

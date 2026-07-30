@@ -53,7 +53,6 @@ export function TimelineModuleBody({ module }: { readonly module: TimelineModule
 
 export function ConfigModuleBody({ module }: { readonly module: ConfigModule }) {
   const foodId = useId()
-  const fallbackId = useId()
   return (
     <div className="profile-private-module__config">
       <MockSelect
@@ -61,12 +60,6 @@ export function ConfigModuleBody({ module }: { readonly module: ConfigModule }) 
         label="主粮"
         options={module.food.allowed}
         value={module.food.selected}
-      />
-      <MockSelect
-        id={fallbackId}
-        label="备用粮"
-        options={module.food.allowed}
-        value={module.food.fallback}
       />
       <dl className="profile-private-module__config-notes">
         <div><dt>可选粮食</dt><dd>{module.food.allowed.join("、")}</dd></div>

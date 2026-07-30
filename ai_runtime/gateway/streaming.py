@@ -83,13 +83,8 @@ def detect_stream_skill_tags(response_text: str, allowed_skills: tuple[str, ...]
     detected_skills = []
     if "web_search" in allowed_skills and "[SEARCH]" in response_text:
         detected_skills.append("web_search")
-    if "code_sandbox" in allowed_skills and "[CODE]" in response_text:
-        detected_skills.append("code_sandbox")
-    if "skills_evolution" in allowed_skills:
-        if "[WRITE_SKILL]" in response_text:
-            detected_skills.append("write_skill")
-        if "[RUN_SKILL]" in response_text:
-            detected_skills.append("run_skill")
-        if "[LIST_SKILLS]" in response_text:
-            detected_skills.append("list_skills")
+    if "local_file" in allowed_skills and (
+        "[READ_FILE]" in response_text or "[LIST_FILES]" in response_text
+    ):
+        detected_skills.append("local_file")
     return detected_skills

@@ -106,7 +106,8 @@ class HypothalamusEnergy:
                 )
         else:
             # 清醒状态下缓慢自然消耗体能、累积疲劳
-            self.energy = max(self.energy - self.depletion_rate * dt, 0.0)
+            remaining_energy = self.energy - self.depletion_rate * dt
+            self.energy = 0.0 if remaining_energy <= 1e-12 else remaining_energy
             self.fatigue = min(
                 self.fatigue + self.accumulation_rate * dt, self.max_fatigue
             )

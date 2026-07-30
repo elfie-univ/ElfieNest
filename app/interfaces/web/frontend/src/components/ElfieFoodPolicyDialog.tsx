@@ -19,7 +19,7 @@ export function ElfieFoodPolicyDialog({
   onClose,
   onSaved,
 }: ElfieFoodPolicyDialogProps) {
-  const [defaultFood, setDefaultFood] = useState(elfie.food_policy.default_food)
+  const [mainFood, setMainFood] = useState(elfie.food_policy.main_food_id || elfie.food_policy.effective_main_food_id)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -31,9 +31,7 @@ export function ElfieFoodPolicyDialog({
         "PUT",
         csrfToken,
         {
-          default_food: defaultFood,
-          allowed_foods: elfie.food_policy.allowed_foods,
-          fallback_food: elfie.food_policy.fallback_food,
+          main_food_id: mainFood,
         },
       )
       await onSaved()
@@ -45,25 +43,22 @@ export function ElfieFoodPolicyDialog({
   }
 
   return <ManageDialog
-    description={`${elfie.profile.name} · 仅允许调整默认粮食，其他公开档案保持只读。`}
+    description={`${elfie.profile.name} · 这里只选择一份主粮；保底策略由全局粮食配置负责。`}
     onOpenChange={(open) => { if (!open) onClose() }}
     open
-    title="编辑粮食策略"
+    title="选择主粮"
   >
     {error ? <Notice kind="error" message={error} /> : null}
     <SelectField
       disabled={saving}
-      label="默认粮食"
-      onValueChange={setDefaultFood}
-      options={elfie.food_policy.allowed_foods.map((food) => ({ label: food, value: food }))}
-      value={defaultFood}
+      label="主粮"
+      onValueChange={setMainFood}
+      options={elfie.food_policy.main_food_options.map((food) => ({ label: food.display_name, value: food.food_id }))}
+      value={mainFood}
     />
-    <p className="form-hint">
-      允许：{elfie.food_policy.allowed_foods.join("、")}；回退：{elfie.food_policy.fallback_food}
-    </p>
     <div className="manage-actions">
       <Button disabled={saving} onClick={() => { void save() }} type="button">
-        {saving ? "保存中…" : "保存粮食策略"}
+        {saving ? "保存中…" : "保存主粮"}
       </Button>
       <Button variant="outline" disabled={saving} onClick={onClose} type="button">
         取消

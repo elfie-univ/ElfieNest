@@ -53,9 +53,9 @@ def test_default_user_config_uses_split_runtime_bundle(
 
     write_user_config(config)
 
-    assert read_user_config() == config
+    assert read_user_config() == {"runtime_policy": config["runtime_policy"]}
     assert get_config_path().exists()
-    assert get_provider_config_path().exists()
+    assert not get_provider_config_path().exists()
     assert get_tool_config_path().exists()
 
 
