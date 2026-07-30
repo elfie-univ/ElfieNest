@@ -196,6 +196,7 @@ def _root_directories(layout: FinalRootLayout) -> tuple[Path, ...]:
     return (
         root,
         root / "configs",
+        root / "configs" / "credentials",
         layout.food_packages_history,
         root / "reports",
         layout.model_validations,

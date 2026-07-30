@@ -59,6 +59,7 @@ def test_ensure_final_root_layout_creates_exact_secure_directories(
         Path("assets"),
         Path("assets/users"),
         Path("configs"),
+        Path("configs/credentials"),
         Path("configs/food-packages-history"),
         Path("elfies"),
         Path("logs"),

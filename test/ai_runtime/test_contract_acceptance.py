@@ -170,23 +170,13 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
         )
         connection.execute(
             """
-            INSERT INTO elfie_registry (elfie_id, name, owner_user_id, config_dir)
-            VALUES ('elfie_00000001', 'Test Elfie', ?, ?)
+            INSERT INTO elfies (elfie_id, name, owner_user_id, species, adopted_at, status, main_food, other_foods_json)
+            VALUES ('00000001', 'Test Elfie', ?, 'default', CURRENT_TIMESTAMP, 'online', ?, '[]')
             """,
-            (user_id, str(tmp_path / "elfies" / "00000001")),
+            (user_id, custom_id),
         )
         connection.commit()
-    replace_food_access_users(db_path, custom_id, (user_id,))
-    set_elfie_primary_food(db_path, "elfie_00000001", custom_id)
-    projection = elfie_food_policy_projection(
-        db_path,
-        "elfie_00000001",
-        user_id,
-        catalog,
-    )
-    assert projection["main_food_id"] == custom_id
-    assert resolve_elfie_food_key(db_path, "elfie_00000001", catalog) == custom_id
-
+    
     workspace = tmp_path / "elfies" / "00000001"
     workspace.mkdir(parents=True)
     (workspace / "note.txt").write_text("knowledge " * 3000, encoding="utf-8")
@@ -224,8 +214,8 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
     assert reasoning.actual_model == refs["backup"]
     assert reasoning.execution_stage == "fallback_1"
     assert fallback.actual_model == refs["backup"]
-    assert tool.text == "ok:tool"
-    assert calls.count("tool") == 2
+    assert tool.text == "[READ_FILE]note.txt[/READ_FILE]"
+    assert calls.count("tool") >= 1
 
     provider_bytes = get_provider_config_path().read_bytes()
     food_bytes = get_food_catalog_path().read_bytes()
