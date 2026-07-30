@@ -21,6 +21,21 @@
 !.env.example
 config.yaml
 
+# Final local storage layout when ELFIE_HOME points at the repository root.
+/configs/providers.yaml
+/configs/auth.env
+/configs/runtime.yaml
+/configs/food-packages.yaml
+/configs/food-packages-history/
+/reports/model-evidence.yaml
+/reports/model-validations/
+/reports/runtime-validations/
+/assets/users/
+/elfies/
+/runtime/runtime.json
+/runtime/locks/
+/logs/
+
 # 4. 数据库文件（已统一迁移到 data/ 目录）
 .elfie_memory.db
 .elfie_memory.db-shm

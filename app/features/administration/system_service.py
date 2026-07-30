@@ -4,11 +4,13 @@ import shutil
 import socket
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
 from ai_runtime.storage.data_home import get_db_path
+from app.infrastructure.persistence.session_repository import SessionRepository
+from app.infrastructure.persistence.store import get_db
 
 
 class DatabaseUnavailableError(Exception):
@@ -38,9 +40,9 @@ class UsageStats:
 
 @dataclass(frozen=True)
 class ActiveSession:
-    token: str
+    token_hash: str
     username: str
-    expires_at: float
+    expires_at: str
 
 
 @dataclass(frozen=True)
@@ -65,19 +67,21 @@ def service_port_statuses(
     godot_ws_port: int = 8765,
 ) -> List[PortStatus]:
     return [
-        check_port(http_port, "HTTP"),
-        check_port(websocket_port, "WebSocket (admin)"),
+        check_port(http_port, "HTTP 服务"),
+        check_port(websocket_port, "WebSocket (管理)"),
         check_port(godot_ws_port, "WebSocket (Godot)"),
     ]
 
 
 def collect_usage_stats(db_path: Optional[str] = None) -> UsageStats:
     database_path = _resolve_existing_db_path(db_path)
-    with sqlite3.connect(database_path) as conn:
+    with get_db(str(database_path)) as conn:
         user_count = _count_rows(conn, "users")
         owner_count = _count_rows(conn, "users", "WHERE role='owner'")
         elfie_count = _count_rows(conn, "elfie_registry")
-        session_count = _count_rows(conn, "sessions")
+        session_count = SessionRepository(conn).count_active(
+            datetime.now(timezone.utc)
+        )
         cursor = conn.execute(
             """
             SELECT species_id, COUNT(*)
@@ -104,22 +108,17 @@ def list_active_sessions(
     limit: int = 20,
 ) -> List[ActiveSession]:
     database_path = _resolve_existing_db_path(db_path)
-    with sqlite3.connect(database_path) as conn:
-        cursor = conn.execute(
-            """
-            SELECT s.token, u.username, s.expires_at
-            FROM sessions s
-            JOIN users u ON s.user_id = u.id
-            ORDER BY s.expires_at DESC
-            LIMIT ?
-            """,
-            (limit,),
+    with get_db(str(database_path)) as conn:
+        records = SessionRepository(conn).list_active(
+            datetime.now(timezone.utc), limit
         )
         return [
             ActiveSession(
-                token=str(row[0]), username=str(row[1]), expires_at=float(row[2])
+                token_hash=record.token_hash,
+                username=record.username,
+                expires_at=record.expires_at,
             )
-            for row in cursor.fetchall()
+            for record in records
         ]
 
 

@@ -8,8 +8,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from app.infrastructure.persistence.store import get_db, hash_password, migrate_db_if_needed
 from ai_runtime.storage.data_home import get_db_path
+from app.infrastructure.persistence.account_repository import (
+    AccountRepository,
+    LegacyAccount,
+)
+from app.infrastructure.persistence.account_storage_cutover import (
+    ensure_account_storage_cutover,
+)
+from app.infrastructure.persistence.session_repository import SessionRepository
+from app.infrastructure.persistence.store import (
+    get_db,
+    hash_password,
+    migrate_db_if_needed,
+)
 
 MIN_OWNER_PASSWORD_LENGTH = 6
 MAX_OWNER_PASSWORD_LENGTH = 128
@@ -51,7 +63,7 @@ class OwnerAccount:
     username: str
     created_at: Optional[str]
     updated_at: Optional[str]
-    password_status: str = "Set (not viewable)"
+    password_status: str = "已设置（不可查看）"
 
 
 def get_owner_account(db_path: Optional[str] = None) -> OwnerAccount:
@@ -59,16 +71,14 @@ def get_owner_account(db_path: Optional[str] = None) -> OwnerAccount:
     path = _existing_database_path(db_path or str(get_db_path()))
     try:
         migrate_db_if_needed(str(path))
+        ensure_account_storage_cutover(str(path))
         with get_db(str(path)) as connection:
-            row = connection.execute(
-                "SELECT id, username, created_at, updated_at "
-                "FROM users WHERE role = 'owner' ORDER BY id LIMIT 1"
-            ).fetchone()
+            account = AccountRepository(connection).find_owner()
     except sqlite3.DatabaseError as error:
         raise OwnerDatabaseError(path, str(error)) from error
-    if row is None:
+    if account is None:
         raise OwnerNotFoundError()
-    return _account_from_row(row)
+    return _owner_account(account)
 
 
 def recover_owner_account(
@@ -83,33 +93,28 @@ def recover_owner_account(
     path = _existing_database_path(db_path)
     password_hash = hash_password(new_password)
     updated_at = datetime.now(timezone.utc).isoformat()
-    updated: Optional[sqlite3.Row] = None
+    updated: Optional[LegacyAccount] = None
     try:
         migrate_db_if_needed(str(path))
+        ensure_account_storage_cutover(str(path))
         with get_db(str(path)) as connection:
             connection.execute("BEGIN IMMEDIATE")
-            row = connection.execute(
-                "SELECT id FROM users WHERE role = 'owner' ORDER BY id LIMIT 1"
-            ).fetchone()
-            if row is None:
+            repository = AccountRepository(connection)
+            owner = repository.find_owner()
+            if owner is None:
                 raise OwnerNotFoundError()
-            owner_id = int(row[0])
-            conflict = connection.execute(
-                "SELECT id FROM users WHERE username = ? AND id != ?",
-                (username, owner_id),
-            ).fetchone()
-            if conflict is not None:
+            owner_id = owner.user_id
+            if repository.username_exists(username, excluding_user_id=owner_id):
                 raise InvalidOwnerInputError("Owner 登录名", "用户名已存在")
-            connection.execute(
-                "UPDATE users SET username = ?, password_hash = ?, "
-                "updated_at = ? WHERE id = ? AND role = 'owner'",
-                (username, password_hash, updated_at, owner_id),
+            repository.recover_owner_credentials(
+                owner_id, username, password_hash, updated_at
             )
-            connection.execute("DELETE FROM sessions WHERE user_id = ?", (owner_id,))
-            updated = connection.execute(
-                "SELECT id, username, created_at, updated_at FROM users WHERE id = ?",
-                (owner_id,),
-            ).fetchone()
+            sessions = SessionRepository(connection)
+            sessions.activate_cutover()
+            sessions.revoke_for_user(
+                owner_id, datetime.now(timezone.utc)
+            )
+            updated = repository.find_by_id(owner_id)
             connection.commit()
     except OwnerServiceError:
         raise
@@ -117,7 +122,7 @@ def recover_owner_account(
         raise OwnerDatabaseError(path, str(error)) from error
     if updated is None:
         raise OwnerDatabaseError(path, "Owner 更新结果为空")
-    return _account_from_row(updated)
+    return _owner_account(updated)
 
 
 def _validate_username(username: str) -> None:
@@ -147,10 +152,10 @@ def _existing_database_path(db_path: str) -> Path:
     return path
 
 
-def _account_from_row(row: sqlite3.Row) -> OwnerAccount:
+def _owner_account(account: LegacyAccount) -> OwnerAccount:
     return OwnerAccount(
-        user_id=int(row[0]),
-        username=str(row[1]),
-        created_at=None if row[2] is None else str(row[2]),
-        updated_at=None if row[3] is None else str(row[3]),
+        user_id=account.user_id,
+        username=account.username,
+        created_at=account.created_at,
+        updated_at=account.updated_at,
     )

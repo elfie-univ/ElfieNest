@@ -11,12 +11,15 @@ import hmac
 import logging
 import secrets
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from fastapi import Depends, HTTPException, Request
+from typing_extensions import TypedDict
 
 from ai_runtime.storage.data_home import get_db_path as _get_db_path
+from app.infrastructure.persistence.session_repository import SessionRepository
 from app.infrastructure.persistence.store import get_db
 
 # 重导出 store.py 中的哈希函数，便于 auth 层统一 import
@@ -68,6 +71,13 @@ def verify_csrf_token(session_token: str, csrf_token: str) -> bool:
 _session_config: Dict[str, int] = {"ttl_seconds": 7 * 86_400}
 
 
+class AuthenticatedUser(TypedDict):
+    id: int
+    username: str
+    role: str
+    default_landing_page: str
+
+
 def _runtime_config_for_db(db_path: Optional[str]):
     """加载与数据库同一数据根目录的 Runtime 配置。"""
     from ai_runtime.config import LLMRuntimeConfig  # noqa: PLC0415
@@ -108,66 +118,53 @@ def invalidate_session_cache() -> None:
 def create_session(user_id: int, db_path: str = None) -> str:
     """为 *user_id* 创建新 session，返回 64 字符 hex token。
 
-    生成 32 字节随机 token（secrets.token_hex），插入 ``sessions`` 表，
-    ``expires_at`` 设为当前时间 + ``system.security.session_ttl_days`` 天。
+    Cookie receives the random raw value while SQLite stores only its SHA-256 digest.
     """
     if db_path is None:
         db_path = str(_get_db_path())
-    token = secrets.token_hex(32)
-    expires_at = time.time() + get_session_ttl_seconds(db_path)
+    expires_at = datetime.now(timezone.utc) + timedelta(
+        seconds=get_session_ttl_seconds(db_path)
+    )
 
     with get_db(db_path) as conn:
-        conn.execute(
-            "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
-            (token, user_id, expires_at),
-        )
+        token = SessionRepository(conn).issue(user_id, expires_at)
         conn.commit()
 
     logger.debug("Session created for user_id=%d", user_id)
     return token
 
 
-def verify_session(token: str, db_path: str) -> Optional[Dict[str, Any]]:
+def verify_session(token: str, db_path: str) -> Optional[AuthenticatedUser]:
     """验证 *token* 对应的 session 是否有效且未过期。
 
-    检查 sessions 表 + JOIN users 表获取用户信息。
-    自动过滤已过期 session（expires_at > 当前时间戳）。
+    Only the hash-only v2 table is authoritative; legacy raw tokens never fall back.
 
     Returns:
         ``{"id": ..., "username": ..., "role": ...}`` 或 ``None``（无效/过期）。
     """
-    now = time.time()
-
     with get_db(db_path) as conn:
-        cursor = conn.execute(
-            """SELECT u.id, u.username, u.role, u.default_landing_page
-               FROM sessions s
-               JOIN users u ON s.user_id = u.id
-               WHERE s.token = ? AND s.expires_at > ?""",
-            (token, now),
+        principal = SessionRepository(conn).find_active(
+            token, datetime.now(timezone.utc)
         )
-        row = cursor.fetchone()
-
-    if row is None:
+    if principal is None:
         return None
-
     return {
-        "id": row["id"],
-        "username": row["username"],
-        "role": row["role"],
-        "default_landing_page": row["default_landing_page"],
+        "id": principal.user_id,
+        "username": principal.username,
+        "role": principal.role,
+        "default_landing_page": principal.default_landing_page,
     }
 
 
 def delete_session(token: str, db_path: str = None) -> None:
-    """从 ``sessions`` 表中删除 *token* 对应的 session。"""
+    """Revoke the hash-only session represented by the raw cookie token."""
     if db_path is None:
         db_path = str(_get_db_path())
     with get_db(db_path) as conn:
-        conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
+        SessionRepository(conn).revoke(token, datetime.now(timezone.utc))
         conn.commit()
 
-    logger.debug("Session deleted for token=%s...", token[:16])
+    logger.debug("Session revoked")
 
 
 # ---------------------------------------------------------------------------
@@ -175,7 +172,7 @@ def delete_session(token: str, db_path: str = None) -> None:
 # ---------------------------------------------------------------------------
 
 
-def get_current_user(request: Request) -> Dict[str, Any]:
+def get_current_user(request: Request) -> AuthenticatedUser:
     """FastAPI ``Depends`` 用鉴权中间件。
 
     从 cookie ``session_token`` 读取 token，调 ``verify_session`` 验证。
@@ -202,15 +199,15 @@ def get_current_user(request: Request) -> Dict[str, Any]:
 
 
 def require_user(  # noqa: B008
-    user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
-) -> Dict[str, Any]:
+    user: AuthenticatedUser = Depends(get_current_user),  # noqa: B008
+) -> AuthenticatedUser:
     """要求请求已通过当前应用数据库的 session 鉴权。"""
     return user
 
 
 def require_owner(  # noqa: B008
-    user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
-) -> Dict[str, Any]:
+    user: AuthenticatedUser = Depends(get_current_user),  # noqa: B008
+) -> AuthenticatedUser:
     """要求当前用户为唯一 Owner 角色。"""
     if user.get("role") != "owner":
         raise HTTPException(status_code=403, detail="需要 Owner 权限")

@@ -44,10 +44,12 @@ def test_create_first_owner_creates_login_session(tmp_path: Path) -> None:
     setup_result = create_first_owner(db_path, username="owner", password="secret123")
 
     with get_db(db_path) as conn:
-        session_count = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
+        session_count = conn.execute("SELECT COUNT(*) FROM sessions_v2").fetchone()[0]
+        legacy_count = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
     assert setup_result.session_token
     assert setup_result.csrf_token
     assert session_count == 1
+    assert legacy_count == 0
 
 
 def test_owner_creation_advances_only_first_setup_step(tmp_path: Path) -> None:

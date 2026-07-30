@@ -11,6 +11,8 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from ai_runtime.storage.config_store import read_yaml_mapping
+from app.infrastructure.ollama_platform import OllamaBinding, OllamaProbe
 from app.interfaces.api.app import create_app
 
 from ._helpers import create_test_owner
@@ -49,6 +51,14 @@ class _QueuedOllamaJobs:
             progress=1,
             error=None,
         )
+
+
+class _HealthySetupAdapter:
+    platform = "darwin"
+
+    def probe(self, binding: OllamaBinding | None) -> OllamaProbe:
+        assert binding is not None
+        return OllamaProbe("healthy", binding.api_base, version="0.12.0")
 
 
 @pytest.fixture
@@ -96,6 +106,40 @@ class TestSetupStatus:
 
 
 class TestSetup:
+    def test_bound_ollama_config_uses_database_root(
+        self,
+        client: TestClient,
+        db_path: str,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ambient_home = tmp_path / "ambient-home"
+        monkeypatch.setenv("ELFIE_HOME", str(ambient_home))
+        monkeypatch.setattr(
+            "app.features.setup.runtime_config.OllamaPlatformAdapter",
+            lambda: _HealthySetupAdapter(),
+        )
+        owner = client.post(
+            "/api/auth/setup",
+            json={"username": "owner", "password": "securePass123"},
+        )
+
+        response = client.post(
+            "/api/auth/setup/ollama",
+            json={
+                "decision": "bound_existing",
+                "endpoint": "http://127.0.0.1:11434",
+            },
+            headers={"X-CSRF-Token": owner.json()["csrf_token"]},
+        )
+
+        database_config = Path(db_path).parent / "config.yaml"
+        assert response.status_code == 200, response.text
+        assert read_yaml_mapping(database_config)["providers"]["ollama"][
+            "api_base"
+        ] == "http://127.0.0.1:11434"
+        assert not (ambient_home / "config.yaml").exists()
+
     def test_setup_rejects_lan_client_before_owner_exists(
         self, app, monkeypatch: pytest.MonkeyPatch
     ) -> None:

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 
 import pytest
 
 from ai_runtime.food.evidence import ModelEvidenceStore
 from ai_runtime.food.store import FoodCatalogStore
+from ai_runtime.storage.config_store import read_yaml_mapping, write_yaml_mapping
 from app.features.setup.ollama import OllamaSetupService
+from app.features.setup.runtime_config import build_ollama_setup_service
 from app.features.setup.service import (
     complete_setup_step,
     create_first_owner,
@@ -44,6 +47,13 @@ class _HealthyAdapter:
         return OllamaProbe("healthy", binding.api_base, version="0.12.0")
 
 
+def _write_bound_config(root: Path) -> None:
+    write_yaml_mapping(
+        root / "config.yaml",
+        {"providers": {"ollama": {"api_base": "http://127.0.0.1:11434"}}},
+    )
+
+
 def test_healthy_existing_ollama_binds_without_installer_or_endpoint_switch(
     tmp_path: Path,
 ) -> None:
@@ -67,6 +77,98 @@ def test_healthy_existing_ollama_binds_without_installer_or_endpoint_switch(
     assert get_setup_progress(db_path).current_step == 3
     with pytest.raises(ValueError, match="已固定"):
         service.bind_existing(db_path=db_path, endpoint="http://127.0.0.1:22444")
+
+
+def test_binding_rolls_back_config_when_setup_step_is_invalid(tmp_path: Path) -> None:
+    db_path = str(tmp_path / "nest.db")
+    init_db(db_path)
+    stored: dict[str, object] = {"providers": {}}
+    original = copy.deepcopy(stored)
+
+    def write_config(config: dict[str, object]) -> None:
+        stored.clear()
+        stored.update(copy.deepcopy(config))
+
+    service = OllamaSetupService(
+        adapter=_HealthyAdapter(),  # type: ignore[arg-type]
+        read_config=lambda: copy.deepcopy(stored),
+        write_config=write_config,
+    )
+
+    with pytest.raises(ValueError, match="第 1 步"):
+        service.bind_existing(
+            db_path=db_path,
+            endpoint="http://127.0.0.1:11434",
+        )
+
+    assert stored == original
+
+
+def test_runtime_builder_rollback_does_not_backup_rejected_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path = str(tmp_path / "nest.db")
+    init_db(db_path)
+    create_first_owner(db_path, username="owner", password="secret123")
+    original: dict[str, object] = {"providers": {}}
+    write_yaml_mapping(tmp_path / "config.yaml", original)
+    service = build_ollama_setup_service(
+        db_path,
+        adapter=_HealthyAdapter(),  # type: ignore[arg-type]
+    )
+
+    def reject_milestone(*_args: object, **_kwargs: object) -> None:
+        raise ValueError("forced milestone rejection")
+
+    monkeypatch.setattr(
+        "app.features.setup.config_commit.complete_setup_step",
+        reject_milestone,
+    )
+    with pytest.raises(ValueError, match="forced milestone rejection"):
+        service.bind_existing(
+            db_path=db_path,
+            endpoint="http://127.0.0.1:11434",
+        )
+
+    assert read_yaml_mapping(tmp_path / "config.yaml") == original
+    assert read_yaml_mapping(tmp_path / "config.yaml.bak") == original
+
+
+def test_invalid_model_step_leaves_no_food_or_evidence_files(tmp_path: Path) -> None:
+    db_path = str(tmp_path / "nest.db")
+    init_db(db_path)
+    create_first_owner(db_path, username="owner", password="secret123")
+    config: dict[str, object] = {
+        "providers": {
+            "ollama": {
+                "api_base": "http://127.0.0.1:11434",
+                "installation": {
+                    "platform": "linux",
+                    "install_kind": "existing-public",
+                    "launch_target": "",
+                    "version": "",
+                },
+            }
+        }
+    }
+    foods_path = tmp_path / "foods.yaml"
+    evidence_path = tmp_path / "models.yaml"
+    service = OllamaSetupService(
+        adapter=_ModelAdapter(),  # type: ignore[arg-type]
+        read_config=lambda: copy.deepcopy(config),
+        write_config=lambda updated: config.update(copy.deepcopy(updated)),
+        food_catalog_store=FoodCatalogStore(foods_path, tmp_path / "food-history"),
+        model_evidence_store=ModelEvidenceStore(evidence_path),
+    )
+
+    with pytest.raises(ValueError, match="第 2 步"):
+        service.configure_installed_model(
+            db_path=db_path,
+            model_reference="ollama/qwen2.5:0.5b",
+        )
+
+    assert not foods_path.exists()
+    assert not evidence_path.exists()
 
 
 def test_adapter_reports_deleted_binding_without_scanning_another_endpoint() -> None:
@@ -228,6 +330,7 @@ def test_configured_model_must_exist_on_the_one_saved_ollama_endpoint(
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
     create_first_owner(db_path, username="owner", password="secret123")
+    _write_bound_config(tmp_path)
     complete_setup_step(
         db_path,
         step=2,
@@ -272,6 +375,109 @@ def test_configured_model_must_exist_on_the_one_saved_ollama_endpoint(
     assert get_setup_progress(db_path).current_step == 5
 
 
+def test_runtime_builder_keeps_model_artifacts_beside_explicit_db(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    explicit_root = tmp_path / "explicit"
+    ambient_root = tmp_path / "ambient"
+    explicit_root.mkdir()
+    db_path = str(explicit_root / "nest.db")
+    init_db(db_path)
+    create_first_owner(db_path, username="owner", password="secret123")
+    write_yaml_mapping(
+        explicit_root / "config.yaml",
+        {
+            "providers": {
+                "ollama": {
+                    "api_base": "http://127.0.0.1:11434",
+                    "installation": {
+                        "platform": "linux",
+                        "install_kind": "existing-public",
+                        "launch_target": "",
+                        "version": "",
+                    },
+                }
+            }
+        },
+    )
+    complete_setup_step(
+        db_path,
+        step=2,
+        decision="bound_existing",
+        ollama_endpoint="http://127.0.0.1:11434",
+    )
+    complete_setup_step(db_path, step=3)
+    monkeypatch.setenv("ELFIE_HOME", str(ambient_root))
+    service = build_ollama_setup_service(
+        db_path,
+        adapter=_ModelAdapter(),  # type: ignore[arg-type]
+    )
+
+    service.configure_installed_model(
+        db_path=db_path,
+        model_reference="ollama/qwen2.5:0.5b",
+    )
+
+    assert (explicit_root / "foods.yaml").is_file()
+    assert (explicit_root / "model_evidence.yaml").is_file()
+    assert not (ambient_root / "foods.yaml").exists()
+    assert not (ambient_root / "model_evidence.yaml").exists()
+
+
+def test_runtime_builder_removes_model_artifacts_when_milestone_rejects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path = str(tmp_path / "nest.db")
+    init_db(db_path)
+    create_first_owner(db_path, username="owner", password="secret123")
+    write_yaml_mapping(
+        tmp_path / "config.yaml",
+        {
+            "providers": {
+                "ollama": {
+                    "api_base": "http://127.0.0.1:11434",
+                    "installation": {
+                        "platform": "linux",
+                        "install_kind": "existing-public",
+                        "launch_target": "",
+                        "version": "",
+                    },
+                }
+            }
+        },
+    )
+    complete_setup_step(
+        db_path,
+        step=2,
+        decision="bound_existing",
+        ollama_endpoint="http://127.0.0.1:11434",
+    )
+    complete_setup_step(db_path, step=3)
+    service = build_ollama_setup_service(
+        db_path,
+        adapter=_ModelAdapter(),  # type: ignore[arg-type]
+    )
+
+    def reject_milestone(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("forced milestone rejection after side effects")
+
+    monkeypatch.setattr(
+        "app.features.setup.config_commit.complete_setup_step",
+        reject_milestone,
+    )
+    with pytest.raises(RuntimeError, match="forced milestone rejection"):
+        service.configure_installed_model(
+            db_path=db_path,
+            model_reference="ollama/qwen2.5:0.5b",
+        )
+
+    assert not (tmp_path / "foods.yaml").exists()
+    assert not (tmp_path / "model_evidence.yaml").exists()
+    assert not (tmp_path / "food_history").exists()
+    config = read_yaml_mapping(tmp_path / "config.yaml")
+    assert "selected_model" not in config["providers"]["ollama"]  # type: ignore[index]
+
+
 def test_model_pull_rechecks_the_fixed_endpoint_before_configuring(
     tmp_path: Path,
 ) -> None:
@@ -279,6 +485,7 @@ def test_model_pull_rechecks_the_fixed_endpoint_before_configuring(
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
     create_first_owner(db_path, username="owner", password="secret123")
+    _write_bound_config(tmp_path)
     complete_setup_step(
         db_path,
         step=2,

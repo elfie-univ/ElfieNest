@@ -2,19 +2,13 @@
 
 from __future__ import annotations
 
-from ai_runtime.storage.data_home import get_config_path, get_db_path
-from app.features.configuration.runtime_store import (
-    read_runtime_config,
-    write_runtime_config,
-)
-from app.features.setup.ollama import OllamaSetupService
+from ai_runtime.storage.data_home import get_db_path
 from app.features.setup.progress import complete_setup_step, get_setup_progress
+from app.features.setup.runtime_config import build_ollama_setup_service
 from app.features.setup.service import (
     SetupAlreadyCompleteError,
     create_first_owner_account,
-    needs_setup,
 )
-from app.infrastructure.ollama_platform import OllamaPlatformAdapter
 from app.infrastructure.persistence.nest_repository import SQLiteNestRepository
 from app.infrastructure.persistence.store import get_db, init_db, migrate_db_if_needed
 from app.interfaces.cli.tui.common import (
@@ -42,11 +36,11 @@ def run_setup_wizard() -> None:
         print("  ✅ System initialized")
         print()
         print("  Setup completed the following steps:")
-        print(f"    1. Owner account")
-        print(f"    2. Device and offline support")
-        print(f"    3. Nest settings")
-        print(f"    4. Model and food")
-        print(f"    5. Confirmation")
+        print("    1. Owner account")
+        print("    2. Device and offline support")
+        print("    3. Nest settings")
+        print("    4. Model and food")
+        print("    5. Confirmation")
         print()
         print("  💡 To re-run Setup, use 'uninstall' to clean data first")
         print()
@@ -129,7 +123,10 @@ def _complete_ollama(db_path: str) -> bool:
             print("  ❌ Endpoint required")
             return False
         try:
-            _ollama_service().bind_existing(db_path=db_path, endpoint=endpoint.strip())
+            build_ollama_setup_service(db_path).bind_existing(
+                db_path=db_path,
+                endpoint=endpoint.strip(),
+            )
         except (RuntimeError, ValueError) as error:
             print(f"  ❌ Cannot bind Ollama: {error}")
             return False
@@ -142,7 +139,7 @@ def _complete_ollama(db_path: str) -> bool:
             print("  Ollama installation cancelled")
             return False
         try:
-            _ollama_service().install_official(
+            build_ollama_setup_service(db_path).install_official(
                 db_path=db_path,
                 endpoint="http://127.0.0.1:11434",
                 user_confirmed=True,
@@ -192,7 +189,7 @@ def _complete_model(db_path: str) -> bool:
         print("  ❌ Full provider_id/model_id required")
         return False
     try:
-        service = _ollama_service()
+        service = build_ollama_setup_service(db_path)
         if choice == "existing":
             service.configure_installed_model(
                 db_path=db_path,
@@ -227,15 +224,6 @@ def _complete_confirmation(db_path: str) -> None:
         return
     complete_setup_step(db_path, step=5)
     print_success_panel(["Setup complete!", "Start service: elfienest"])
-
-
-def _ollama_service() -> OllamaSetupService:
-    config_path = get_config_path()
-    return OllamaSetupService(
-        adapter=OllamaPlatformAdapter(),
-        read_config=lambda: read_runtime_config(config_path),
-        write_config=lambda config: write_runtime_config(config_path, config),
-    )
 
 
 def _print_step(step: str, title: str) -> None:

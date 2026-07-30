@@ -5,12 +5,18 @@ from pathlib import Path
 
 import pytest
 
+from app.features.accounts.auth import create_session, verify_session
 from app.features.administration.owner_service import (
     OwnerDatabaseError,
     get_owner_account,
     recover_owner_account,
 )
-from app.infrastructure.persistence.store import get_db, hash_password, init_db, verify_password
+from app.infrastructure.persistence.store import (
+    get_db,
+    hash_password,
+    init_db,
+    verify_password,
+)
 
 
 def test_owner_recovery_preserves_user_id_and_elfie_ownership(tmp_path: Path) -> None:
@@ -47,6 +53,37 @@ def test_owner_recovery_preserves_user_id_and_elfie_ownership(tmp_path: Path) ->
     assert row["updated_at"]
     assert verify_password("after-reset", row["password_hash"])
     assert elfie_owner == owner_id
+
+
+def test_owner_recovery_revokes_every_hash_only_session(tmp_path: Path) -> None:
+    # Given
+    db_path = str(tmp_path / "nest.db")
+    init_db(db_path)
+    with get_db(db_path) as connection:
+        owner_id = int(
+            connection.execute(
+                "INSERT INTO users (username, password_hash, role) "
+                "VALUES (?, ?, 'owner')",
+                ("old-owner", hash_password("before-reset")),
+            ).lastrowid
+        )
+        connection.commit()
+    first = create_session(owner_id, db_path)
+    second = create_session(owner_id, db_path)
+
+    # When
+    recover_owner_account(db_path, "new-owner", "after-reset")
+
+    # Then
+    assert verify_session(first, db_path) is None
+    assert verify_session(second, db_path) is None
+    with get_db(db_path) as connection:
+        revoked = connection.execute(
+            "SELECT COUNT(*) FROM sessions_v2 "
+            "WHERE user_id = ? AND revoked_at IS NOT NULL",
+            (owner_id,),
+        ).fetchone()[0]
+    assert revoked == 2
 
 
 def test_owner_account_never_returns_recoverable_password(tmp_path: Path) -> None:

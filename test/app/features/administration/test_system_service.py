@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from app.features.accounts.auth import create_session, delete_session
 from app.features.administration.system_service import (
     backup_database,
     collect_usage_stats,
@@ -12,7 +13,6 @@ from app.features.administration.system_service import (
     service_port_statuses,
 )
 from app.infrastructure.persistence.store import get_db, init_db
-
 from test.app.interfaces.api._helpers import create_test_owner
 
 
@@ -80,19 +80,18 @@ def test_list_active_sessions_uses_expires_at_schema(tmp_path: Path) -> None:
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
     owner_id = create_test_owner(db_path, "owner")
-    with get_db(db_path) as conn:
-        conn.execute(
-            "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
-            ("abcdef123456", owner_id, 12345.0),
-        )
-        conn.commit()
+    raw_token = create_session(owner_id, db_path)
 
     sessions = list_active_sessions(db_path)
 
     assert len(sessions) == 1
-    assert sessions[0].token == "abcdef123456"
+    assert sessions[0].token_hash != raw_token
+    assert len(sessions[0].token_hash) == 64
     assert sessions[0].username == "owner"
-    assert sessions[0].expires_at == 12345.0
+    assert "+00:00" in sessions[0].expires_at
+
+    delete_session(raw_token, db_path)
+    assert list_active_sessions(db_path) == []
 
 
 def test_list_table_counts_reports_existing_tables(tmp_path: Path) -> None:

@@ -10,26 +10,19 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from ai_runtime.models.local_profiles import recommend_local_profile
-from ai_runtime.storage.data_home import get_config_path
 from app.features.accounts.auth import get_session_ttl_seconds, require_owner
-from app.features.configuration.runtime_store import (
-    read_runtime_config,
-    write_runtime_config,
-)
+from app.features.setup import service as setup_service
 from app.features.setup.hardware import get_available_memory_gb
-from app.features.setup.ollama import OllamaSetupService
-from app.features.setup.progress import SetupTask, get_setup_task
+from app.features.setup.runtime_config import build_ollama_setup_service
 from app.features.setup.service import (
     SetupAlreadyCompleteError,
     complete_setup_step,
     create_first_owner,
     get_setup_progress,
 )
-from app.infrastructure.ollama_platform import OllamaPlatformAdapter
 from app.infrastructure.persistence.nest_repository import SQLiteNestRepository
 from app.infrastructure.persistence.store import get_db
-
-_LOCAL_SETUP_CLIENTS = frozenset({"127.0.0.1", "::1", "testclient"})
+from app.interfaces.api.setup_access import require_local_setup_client
 
 logger = logging.getLogger("app.interfaces.api.setup_routes")
 
@@ -96,13 +89,6 @@ class SetupModelPullRequest(BaseModel):
     confirmed: Literal[True]
 
 
-def _require_local_setup_client(request: Request) -> None:
-    """首次 Owner 只能由本机/Electron 回环请求创建。"""
-    client_host = request.client.host if request.client is not None else ""
-    if client_host not in _LOCAL_SETUP_CLIENTS:
-        raise HTTPException(status_code=403, detail="首次设置仅允许在本机完成")
-
-
 @router.get("/setup-status")
 async def get_setup_status(request: Request) -> SetupStatus:
     """返回可恢复的五步首启状态，不能用 Owner 是否存在代替完成状态。"""
@@ -112,7 +98,7 @@ async def get_setup_status(request: Request) -> SetupStatus:
 @router.post("/setup", status_code=201)
 async def do_setup(body: SetupRequest, request: Request) -> JSONResponse:
     """首启设置 — 创建第一个 Owner 账号。仅在无用户时允许。"""
-    _require_local_setup_client(request)
+    require_local_setup_client(request)
     db_path = request.app.state.db_path
     try:
         setup_result = create_first_owner(
@@ -158,12 +144,7 @@ async def complete_setup_ollama(
     else:
         if not body.endpoint:
             raise HTTPException(status_code=422, detail="绑定已有 Ollama 需要 endpoint")
-        config_path = get_config_path()
-        service = OllamaSetupService(
-            adapter=OllamaPlatformAdapter(),
-            read_config=lambda: read_runtime_config(config_path),
-            write_config=lambda config: write_runtime_config(config_path, config),
-        )
+        service = build_ollama_setup_service(request.app.state.db_path)
         try:
             service.bind_existing(
                 db_path=request.app.state.db_path,
@@ -183,14 +164,8 @@ async def install_setup_ollama(
     """Queue one explicitly confirmed official installer; the request never runs it."""
     _ = body
     _ = owner
-    config_path = get_config_path()
-
     def install() -> None:
-        service = OllamaSetupService(
-            adapter=OllamaPlatformAdapter(),
-            read_config=lambda: read_runtime_config(config_path),
-            write_config=lambda config: write_runtime_config(config_path, config),
-        )
+        service = build_ollama_setup_service(request.app.state.db_path)
         service.install_official(
             db_path=request.app.state.db_path,
             endpoint="http://127.0.0.1:11434",
@@ -251,12 +226,7 @@ async def complete_setup_model(
         raise HTTPException(
             status_code=422, detail="配置模型需要完整 provider_id/model_id"
         )
-    config_path = get_config_path()
-    service = OllamaSetupService(
-        adapter=OllamaPlatformAdapter(),
-        read_config=lambda: read_runtime_config(config_path),
-        write_config=lambda config: write_runtime_config(config_path, config),
-    )
+    service = build_ollama_setup_service(request.app.state.db_path)
     try:
         service.configure_installed_model(
             db_path=request.app.state.db_path,
@@ -276,14 +246,8 @@ async def pull_setup_model(
     """Queue an explicitly confirmed model pull against the fixed Ollama endpoint."""
     _ = body.confirmed
     _ = owner
-    config_path = get_config_path()
-
     def pull() -> None:
-        service = OllamaSetupService(
-            adapter=OllamaPlatformAdapter(),
-            read_config=lambda: read_runtime_config(config_path),
-            write_config=lambda config: write_runtime_config(config_path, config),
-        )
+        service = build_ollama_setup_service(request.app.state.db_path)
         service.pull_and_configure_model(
             db_path=request.app.state.db_path,
             model_reference=body.model_reference,
@@ -313,7 +277,7 @@ async def complete_setup_confirmation(
 
 def _setup_status(request: Request) -> SetupStatus:
     progress = get_setup_progress(request.app.state.db_path)
-    task = get_setup_task(request.app.state.db_path)
+    task = setup_service.get_setup_task(request.app.state.db_path)
     return SetupStatus(
         need_setup=not progress.complete,
         complete=progress.complete,
@@ -324,7 +288,7 @@ def _setup_status(request: Request) -> SetupStatus:
     )
 
 
-def _task_status(task: SetupTask | None) -> SetupTaskStatus | None:
+def _task_status(task: setup_service.SetupTask | None) -> SetupTaskStatus | None:
     if task is None:
         return None
     return SetupTaskStatus(

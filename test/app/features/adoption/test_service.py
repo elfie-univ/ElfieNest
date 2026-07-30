@@ -12,7 +12,9 @@ from app.features.adoption.service import (
     AdoptionRequest,
     AdoptionValidationError,
     adopt_elfie_for_user,
+    adoption_options_for_user,
 )
+from app.infrastructure.persistence.account_repository import AccountRepository
 from app.infrastructure.persistence.store import get_db, init_db
 
 
@@ -111,3 +113,33 @@ def test_failed_generation_releases_reserved_slot(tmp_path: Path) -> None:
             ).fetchone()[0]
         )
     assert persisted_count == 0
+
+
+def test_final_null_limit_follows_current_config_and_override_wins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Given: config.yaml sets the global limit and the legacy account follows it.
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    (tmp_path / "config.yaml").write_text(
+        "system:\n  adoption:\n    max_elfies_per_user: 5\n",
+        encoding="utf-8",
+    )
+    db_path = init_db(str(tmp_path / "nest.db"))
+    with get_db(db_path) as connection:
+        user_id = int(
+            connection.execute(
+                """
+                INSERT INTO users
+                    (username, password_hash, role, elfie_quota_override)
+                VALUES ('alice', 'unused', 'user', NULL)
+                """
+            ).lastrowid
+        )
+        connection.commit()
+
+    # When/Then: NULL is dynamic config policy, while the final override wins.
+    assert adoption_options_for_user(db_path, user_id=user_id)["quota"]["max"] == 5
+    with get_db(db_path) as connection:
+        AccountRepository(connection).update_quota(user_id, 2)
+        connection.commit()
+    assert adoption_options_for_user(db_path, user_id=user_id)["quota"]["max"] == 2

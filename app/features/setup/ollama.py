@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import copy
 from dataclasses import asdict
 from typing import Any, Callable, Dict, cast
 
 from ai_runtime.food.evidence import ModelEvidenceStore
-from ai_runtime.food.planner import FoodPlanner, ModelEvidence
 from ai_runtime.food.store import FoodCatalogStore
-from ai_runtime.models.capabilities import canonical_display_name, known_capabilities
 from ai_runtime.models.model_reference import ModelReferenceError, parse_model_reference
-from app.features.setup.progress import complete_setup_step
+from app.features.setup.artifact_rollback import rollback_artifacts
+from app.features.setup.config_commit import complete_configured_setup_step
+from app.features.setup.food_generation import generate_model_foods
+from app.features.setup.progress import complete_setup_step, require_setup_step
 from app.infrastructure.ollama_platform import (
     OllamaBinding,
     OllamaPlatformAdapter,
@@ -28,12 +30,14 @@ class OllamaSetupService:
         adapter: OllamaPlatformAdapter,
         read_config: Callable[[], Dict[str, Any]],
         write_config: Callable[[Dict[str, Any]], None],
+        restore_config: Callable[[Dict[str, Any]], None] | None = None,
         food_catalog_store: FoodCatalogStore | None = None,
         model_evidence_store: ModelEvidenceStore | None = None,
     ) -> None:
         self._adapter = adapter
         self._read_config = read_config
         self._write_config = write_config
+        self._restore_config = restore_config or write_config
         self._food_catalog_store = food_catalog_store or FoodCatalogStore()
         self._model_evidence_store = model_evidence_store or ModelEvidenceStore()
 
@@ -44,6 +48,7 @@ class OllamaSetupService:
         existing = self._saved_binding()
         if existing is not None and existing.api_base != endpoint:
             raise ValueError("Ollama endpoint 已固定；变更必须走 Owner 迁移")
+        require_setup_step(db_path, 2)
         binding = existing or OllamaBinding(
             api_base=endpoint,
             platform=self._adapter.platform,
@@ -54,7 +59,7 @@ class OllamaSetupService:
         probe = self._adapter.probe(binding)
         if probe.state != "healthy":
             raise RuntimeError("指定的 Ollama endpoint 未健康，不能绑定")
-        self._save_binding(
+        previous_config, config = self._save_binding(
             OllamaBinding(
                 api_base=endpoint,
                 platform=binding.platform,
@@ -63,8 +68,11 @@ class OllamaSetupService:
                 version=probe.version or binding.version,
             )
         )
-        complete_setup_step(
-            db_path,
+        complete_configured_setup_step(
+            restore_config=self._restore_config,
+            previous_config=previous_config,
+            config_snapshot=config,
+            db_path=db_path,
             step=2,
             decision="bound_existing",
             ollama_endpoint=endpoint,
@@ -84,6 +92,7 @@ class OllamaSetupService:
         """Install only once, from the fixed official source, after user consent."""
         if self._saved_binding() is not None:
             raise ValueError("已有 Ollama 绑定；升级或修复必须单独确认")
+        require_setup_step(db_path, 2)
         installer = self._adapter.download_official_installer()
         self._adapter.run_confirmed_installer(installer, user_confirmed=user_confirmed)
         binding = self._adapter.official_binding_after_install(
@@ -95,7 +104,7 @@ class OllamaSetupService:
         if probe.state != "healthy":
             raise RuntimeError("官方 Ollama 安装后未通过健康检查")
         self._adapter.list_models(binding)
-        self._save_binding(
+        previous_config, config = self._save_binding(
             OllamaBinding(
                 api_base=binding.api_base,
                 platform=binding.platform,
@@ -106,8 +115,11 @@ class OllamaSetupService:
                 installer_sha256=binding.installer_sha256,
             )
         )
-        complete_setup_step(
-            db_path,
+        complete_configured_setup_step(
+            restore_config=self._restore_config,
+            previous_config=previous_config,
+            config_snapshot=config,
+            db_path=db_path,
             step=2,
             decision="install_official",
             ollama_endpoint=endpoint,
@@ -133,6 +145,7 @@ class OllamaSetupService:
             step=2,
             decision="bound_existing",
             ollama_endpoint=binding.api_base,
+            config_snapshot=self._read_config(),
         )
         return repaired
 
@@ -149,6 +162,7 @@ class OllamaSetupService:
             raise ValueError(str(exc)) from exc
         if reference.provider_id != "ollama":
             raise ValueError("本地模型必须使用已绑定的 ollama/provider_id")
+        require_setup_step(db_path, 4)
         binding = self._saved_binding()
         if binding is None:
             raise ValueError("尚未绑定 Ollama，不能配置本地模型")
@@ -157,6 +171,7 @@ class OllamaSetupService:
         if reference.model_id not in self._adapter.list_models(binding):
             raise ValueError("所选模型不在已绑定的 Ollama endpoint 中")
         config = self._read_config()
+        previous_config = copy.deepcopy(config)
         providers = config.get("providers")
         if not isinstance(providers, dict):
             raise ValueError("providers 配置无效")
@@ -164,14 +179,22 @@ class OllamaSetupService:
         if not isinstance(provider, dict):
             raise ValueError("Ollama 配置缺失")
         provider["selected_model"] = model_reference
-        self._generate_foods(model_reference)
-        self._write_config(config)
-        complete_setup_step(
-            db_path,
-            step=4,
-            decision="configured",
-            model_reference=model_reference,
-        )
+        with rollback_artifacts(self._model_evidence_store, self._food_catalog_store):
+            generate_model_foods(
+                model_reference,
+                self._model_evidence_store,
+                self._food_catalog_store,
+            )
+            self._write_config(config)
+            complete_configured_setup_step(
+                restore_config=self._restore_config,
+                previous_config=previous_config,
+                config_snapshot=config,
+                db_path=db_path,
+                step=4,
+                decision="configured",
+                model_reference=model_reference,
+            )
 
     def pull_and_configure_model(
         self,
@@ -186,6 +209,7 @@ class OllamaSetupService:
             raise ValueError(str(exc)) from exc
         if reference.provider_id != "ollama":
             raise ValueError("本地模型必须使用已绑定的 ollama/provider_id")
+        require_setup_step(db_path, 4)
         binding = self._saved_binding()
         if binding is None:
             raise ValueError("尚未绑定 Ollama，不能拉取本地模型")
@@ -197,22 +221,6 @@ class OllamaSetupService:
             db_path=db_path,
             model_reference=model_reference,
         )
-
-    def _generate_foods(self, model_reference: str) -> None:
-        """Generate only evidence-backed recipes for the verified local model."""
-        evidence = ModelEvidence(
-            model=model_reference,
-            display_name=canonical_display_name(model_reference, model_reference),
-            capabilities=frozenset({"text"})
-            | known_capabilities(model_reference, model_reference),
-            verified=True,
-            cost_grade=0,
-            local=True,
-        )
-        self._model_evidence_store.merge((evidence,))
-        all_evidence = tuple(self._model_evidence_store.load().values())
-        proposal = FoodPlanner().propose(all_evidence, self._food_catalog_store.load())
-        self._food_catalog_store.save(proposal.catalog)
 
     def _saved_binding(self) -> OllamaBinding | None:
         providers = self._read_config().get("providers", {})
@@ -237,8 +245,11 @@ class OllamaSetupService:
         except KeyError:
             return None
 
-    def _save_binding(self, binding: OllamaBinding) -> None:
+    def _save_binding(
+        self, binding: OllamaBinding
+    ) -> tuple[Dict[str, Any], Dict[str, Any]]:
         config = self._read_config()
+        previous_config = copy.deepcopy(config)
         providers = config.setdefault("providers", {})
         if not isinstance(providers, dict):
             raise ValueError("providers 配置无效")
@@ -250,3 +261,4 @@ class OllamaSetupService:
             "installation": asdict(binding),
         }
         self._write_config(config)
+        return previous_config, config

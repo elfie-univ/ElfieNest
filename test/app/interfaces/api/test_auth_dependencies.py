@@ -1,13 +1,17 @@
 from types import SimpleNamespace
+from unittest.mock import patch
+
+from fastapi.testclient import TestClient
 
 from app.features.accounts.auth import create_session, get_current_user, require_owner
-from app.infrastructure.persistence.store import init_db
+from app.infrastructure.persistence.store import get_db, init_db
 from app.interfaces.api import (
     food_policy_routes,
     nest_routes,
     owner_routes,
     user_routes,
 )
+from app.interfaces.api.app import create_app
 
 
 class _Request:
@@ -44,3 +48,37 @@ def test_session_verification_uses_request_database(tmp_path):
         assert getattr(exc, "status_code", None) == 401
     else:
         raise AssertionError("session token 不得跨数据库复用")
+
+
+def test_application_cutover_rejects_and_removes_legacy_raw_token(tmp_path) -> None:
+    # Given
+    db_path = str(tmp_path / "nest.db")
+    init_db(db_path)
+    from test.app.interfaces.api._helpers import create_test_owner
+
+    owner_id = create_test_owner(db_path)
+    legacy_token = "legacy-cookie-token"
+    with get_db(db_path) as connection:
+        connection.execute(
+            "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
+            (legacy_token, owner_id, 9_999_999_999.0),
+        )
+        connection.commit()
+
+    # When
+    with (
+        patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
+        patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
+    ):
+        application = create_app(engine=None, db_path=db_path, ws_port=9876)
+        with TestClient(application) as client:
+            client.cookies.set("session_token", legacy_token)
+            response = client.get("/api/auth/me")
+
+    # Then
+    assert response.status_code == 401
+    with get_db(db_path) as connection:
+        legacy_count = connection.execute(
+            "SELECT COUNT(*) FROM sessions"
+        ).fetchone()[0]
+    assert legacy_count == 0

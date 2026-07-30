@@ -13,7 +13,8 @@
 
 from __future__ import annotations
 
-import time
+import hashlib
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -148,11 +149,12 @@ class TestSessionTtlLive:
             token = create_session(uid, db_path)
             with get_db(db_path) as conn:
                 row = conn.execute(
-                    "SELECT expires_at FROM sessions WHERE token=?", (token,)
+                    "SELECT expires_at FROM sessions_v2 WHERE token_hash=?",
+                    (hashlib.sha256(token.encode("utf-8")).hexdigest(),),
                 ).fetchone()
 
-            expires_at = float(row["expires_at"])
-            now = time.time()
+            expires_at = datetime.fromisoformat(row["expires_at"]).timestamp()
+            now = datetime.now(timezone.utc).timestamp()
             assert expires_at > now
             # 应该在 now + 86400 附近（允许 5 秒误差）
             assert abs((expires_at - now) - 86400) < 5
@@ -190,16 +192,18 @@ class TestSessionTtlLive:
             token = create_session(uid, db_path)
             with get_db(db_path) as conn:
                 row = conn.execute(
-                    "SELECT expires_at FROM sessions WHERE token=?", (token,)
+                    "SELECT expires_at FROM sessions_v2 WHERE token_hash=?",
+                    (hashlib.sha256(token.encode("utf-8")).hexdigest(),),
                 ).fetchone()
-            original_expires = float(row["expires_at"])
+            original_expires = str(row["expires_at"])
 
         # 再次读取同一个 session，expires_at 不变（已在 DB 中固化）
         with get_db(db_path) as conn:
             row = conn.execute(
-                "SELECT expires_at FROM sessions WHERE token=?", (token,)
+                "SELECT expires_at FROM sessions_v2 WHERE token_hash=?",
+                (hashlib.sha256(token.encode("utf-8")).hexdigest(),),
             ).fetchone()
-        assert float(row["expires_at"]) == original_expires
+        assert str(row["expires_at"]) == original_expires
 
 
 # ===================================================================

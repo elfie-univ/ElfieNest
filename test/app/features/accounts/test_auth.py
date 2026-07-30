@@ -5,7 +5,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # store.py 和 auth.py 导出的是相同的函数
@@ -97,21 +99,29 @@ class TestCreateSession:
         assert len(token) == 64
         int(token, 16)  # 确保是 hex
 
-    def test_inserts_into_sessions_table(self, tmp_path: Path) -> None:
-        """session 记录在 sessions 表中可查。"""
+    def test_stores_only_sha256_hash_in_sessions_v2(self, tmp_path: Path) -> None:
+        """Session cookie remains raw while SQLite stores only its SHA-256 digest."""
         db = str(tmp_path / "nest.db")
         uid = _ensure_owner_user(db)
+        with get_db(db) as conn:
+            conn.execute(
+                "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
+                ("legacy-raw-token", uid, time.time() + 3600),
+            )
+            conn.commit()
         token = create_session(uid, db)
 
         with get_db(db) as conn:
             row = conn.execute(
-                "SELECT token, user_id, expires_at FROM sessions WHERE token=?",
-                (token,),
+                "SELECT token_hash, user_id, expires_at FROM sessions_v2",
             ).fetchone()
+            legacy_count = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
         assert row is not None
-        assert row["token"] == token
+        assert row["token_hash"] == hashlib.sha256(token.encode("utf-8")).hexdigest()
+        assert row["token_hash"] != token
         assert row["user_id"] == uid
-        assert float(row["expires_at"]) > time.time()
+        assert datetime.fromisoformat(row["expires_at"]) > datetime.now(timezone.utc)
+        assert legacy_count == 0
 
 
 class TestVerifySession:
@@ -147,17 +157,49 @@ class TestVerifySession:
         db = str(tmp_path / "nest.db")
         uid = _ensure_owner_user(db)
 
-        # 插入已过期的 session
-        token = "expired_token_hex_" + "a" * 48
-        past = time.time() - 3600  # 1 小时前
+        token = "a" * 64
+        create_session(uid, db)
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        past = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
         with get_db(db) as conn:
             conn.execute(
-                "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
-                (token, uid, past),
+                "INSERT INTO sessions_v2 (token_hash, user_id, expires_at) "
+                "VALUES (?, ?, ?)",
+                (token_hash, uid, past),
             )
             conn.commit()
 
         assert verify_session(token, db) is None
+
+    def test_revoked_session_is_invalid(self, tmp_path: Path) -> None:
+        """A revoked v2 row cannot authenticate even before expiry."""
+        db = str(tmp_path / "nest.db")
+        uid = _ensure_owner_user(db)
+        token = create_session(uid, db)
+
+        with get_db(db) as conn:
+            conn.execute(
+                "UPDATE sessions_v2 SET revoked_at = CURRENT_TIMESTAMP "
+                "WHERE token_hash = ?",
+                (hashlib.sha256(token.encode("utf-8")).hexdigest(),),
+            )
+            conn.commit()
+
+        assert verify_session(token, db) is None
+
+    def test_legacy_raw_session_is_not_accepted(self, tmp_path: Path) -> None:
+        """Card 16 never copies, hashes, or falls back to a legacy raw token."""
+        db = str(tmp_path / "nest.db")
+        uid = _ensure_owner_user(db)
+        legacy_token = "legacy-raw-token"
+        with get_db(db) as conn:
+            conn.execute(
+                "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
+                (legacy_token, uid, time.time() + 3600),
+            )
+            conn.commit()
+
+        assert verify_session(legacy_token, db) is None
 
 
 # ===================================================================

@@ -22,6 +22,7 @@ from app.infrastructure.persistence.schema import (
     initialize_schema,
     migrate_schema,
 )
+from app.infrastructure.persistence.sqlite_connection import app_sqlite_connection
 
 logger = logging.getLogger("app.infrastructure.persistence.store")
 
@@ -106,12 +107,9 @@ def init_db(db_path: Optional[str] = None) -> str:
     if os.name != "nt" and not parent_existed:
         resolved.parent.chmod(0o700)
 
-    conn = sqlite3.connect(str(resolved))
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    initialize_schema(conn)
-    conn.commit()
-    conn.close()
+    with app_sqlite_connection(str(resolved)) as conn:
+        initialize_schema(conn)
+        conn.commit()
     if os.name != "nt":
         resolved.chmod(0o600)
     logger.info("Database initialized at %s", resolved)
@@ -141,7 +139,7 @@ def _backup_before_migration(db_path: str) -> Optional[Path]:
     database_path = Path(db_path).expanduser().resolve()
     if not database_path.is_file():
         return None
-    with sqlite3.connect(str(database_path)) as connection:
+    with app_sqlite_connection(str(database_path)) as connection:
         version = int(connection.execute("PRAGMA user_version").fetchone()[0])
         semantic_nest_schema_missing = (
             connection.execute(
@@ -243,13 +241,8 @@ def get_db(db_path: Optional[str] = None) -> Iterator[sqlite3.Connection]:
         database_path = Path(db_path).expanduser().resolve()
         if database_path.exists() and os.name != "nt":
             database_path.chmod(0o600)
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    try:
+    with app_sqlite_connection(str(db_path)) as conn:
         yield conn
-    finally:
-        conn.close()
 
 
 # ---------------------------------------------------------------------------

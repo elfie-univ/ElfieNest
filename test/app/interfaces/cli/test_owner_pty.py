@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 from typing import Final, Tuple
 
+from app.features.accounts.auth import create_session
 from app.infrastructure.persistence.store import (
     get_db,
     hash_password,
@@ -31,6 +32,13 @@ def _create_owner_database(elfie_home: Path) -> Path:
             "INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'owner')",
             ("doctor-bai", hash_password("before-reset")),
         ).lastrowid
+        connection.execute(
+            "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
+            ("old-session", user_id, 12345.0),
+        )
+        connection.commit()
+    create_session(int(user_id), str(db_path))
+    with get_db(str(db_path)) as connection:
         connection.execute(
             "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
             ("old-session", user_id, 12345.0),
@@ -82,15 +90,18 @@ def _wait_for_child(child_pid: int, master_fd: int, transcript: bytearray) -> in
     return os.waitstatus_to_exitcode(status)
 
 
-def _password_and_session_state(db_path: Path) -> Tuple[str, int]:
+def _password_and_session_state(db_path: Path) -> Tuple[str, int, int]:
     with get_db(str(db_path)) as connection:
         password_hash = connection.execute(
             "SELECT password_hash FROM users WHERE role = 'owner'"
         ).fetchone()[0]
-        session_count = connection.execute("SELECT COUNT(*) FROM sessions").fetchone()[
-            0
-        ]
-    return str(password_hash), int(session_count)
+        active_session_count = connection.execute(
+            "SELECT COUNT(*) FROM sessions_v2 WHERE revoked_at IS NULL"
+        ).fetchone()[0]
+        legacy_session_count = connection.execute(
+            "SELECT COUNT(*) FROM sessions"
+        ).fetchone()[0]
+    return str(password_hash), int(active_session_count), int(legacy_session_count)
 
 
 def test_owner_recovery_pty_hides_password_and_updates_database(tmp_path: Path) -> None:
@@ -100,57 +111,58 @@ def test_owner_recovery_pty_hides_password_and_updates_database(tmp_path: Path) 
     transcript = bytearray()
     child_pid, master_fd = _spawn_reset(elfie_home)
 
-    _read_until(master_fd, "New Owner username".encode(), transcript)
+    _read_until(master_fd, b"New Owner username", transcript)
     os.write(master_fd, b"new-owner\n")
-    _read_until(master_fd, "New Owner password".encode(), transcript)
+    _read_until(master_fd, b"New Owner password", transcript)
     os.write(master_fd, f"{new_password}\n".encode())
-    _read_until(master_fd, "Re-enter new Owner password".encode(), transcript)
+    _read_until(master_fd, b"Re-enter new Owner password", transcript)
     os.write(master_fd, f"{new_password}\n".encode())
     exit_code = _wait_for_child(child_pid, master_fd, transcript)
 
-    password_hash, session_count = _password_and_session_state(db_path)
+    password_hash, session_count, legacy_session_count = _password_and_session_state(
+        db_path
+    )
     output = transcript.decode(errors="replace")
     assert exit_code == 0
     assert new_password not in output
     assert verify_password("before-reset", password_hash) is False
     assert verify_password(new_password, password_hash) is True
     assert session_count == 0
+    assert legacy_session_count == 0
 
 
 def test_owner_recovery_pty_eof_keeps_database_unchanged(tmp_path: Path) -> None:
     elfie_home = tmp_path / "home"
     db_path = _create_owner_database(elfie_home)
-    original_hash, original_sessions = _password_and_session_state(db_path)
+    original_state = _password_and_session_state(db_path)
     transcript = bytearray()
     child_pid, master_fd = _spawn_reset(elfie_home)
 
-    _read_until(master_fd, "New Owner username".encode(), transcript)
+    _read_until(master_fd, b"New Owner username", transcript)
     os.write(master_fd, b"new-owner\n")
-    _read_until(master_fd, "New Owner password".encode(), transcript)
+    _read_until(master_fd, b"New Owner password", transcript)
     os.write(master_fd, b"first-entry\n")
-    _read_until(master_fd, "Re-enter new Owner password".encode(), transcript)
+    _read_until(master_fd, b"Re-enter new Owner password", transcript)
     os.write(master_fd, b"\x04")
     exit_code = _wait_for_child(child_pid, master_fd, transcript)
 
-    password_hash, session_count = _password_and_session_state(db_path)
+    state = _password_and_session_state(db_path)
     assert exit_code == 1
     assert "first-entry" not in transcript.decode(errors="replace")
-    assert password_hash == original_hash
-    assert session_count == original_sessions
+    assert state == original_state
 
 
 def test_owner_recovery_pty_ctrl_c_keeps_database_unchanged(tmp_path: Path) -> None:
     elfie_home = tmp_path / "home"
     db_path = _create_owner_database(elfie_home)
-    original_hash, original_sessions = _password_and_session_state(db_path)
+    original_state = _password_and_session_state(db_path)
     transcript = bytearray()
     child_pid, master_fd = _spawn_reset(elfie_home)
 
-    _read_until(master_fd, "New Owner username".encode(), transcript)
+    _read_until(master_fd, b"New Owner username", transcript)
     os.write(master_fd, b"\x03")
     exit_code = _wait_for_child(child_pid, master_fd, transcript)
 
-    password_hash, session_count = _password_and_session_state(db_path)
+    state = _password_and_session_state(db_path)
     assert exit_code == 1
-    assert password_hash == original_hash
-    assert session_count == original_sessions
+    assert state == original_state

@@ -12,7 +12,11 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from app.features.accounts.auth import generate_csrf_token
+from app.features.accounts.auth import (
+    create_session,
+    generate_csrf_token,
+    verify_session,
+)
 from app.infrastructure.persistence.store import get_db, init_db
 from app.interfaces.api.app import create_app
 from app.interfaces.api.profile_routes import _read_avatar_limited
@@ -252,7 +256,7 @@ class TestAvatarUpload:
         assert max(upload.requested_sizes) <= 64 * 1024
 
     def test_upload_avatar_persists_a_local_image_for_the_current_user(
-        self, client: TestClient
+        self, client: TestClient, db_path: str
     ) -> None:
         # Given
         tokens = _login_owner(client)
@@ -273,6 +277,14 @@ class TestAvatarUpload:
         image = client.get(avatar_url)
         assert image.status_code == 200
         assert image.headers["content-type"] == "image/png"
+        final_avatar = Path(db_path).parent / "assets" / "users" / "1" / "avatar.png"
+        assert final_avatar.read_bytes() == b"\x89PNG\r\n\x1a\nimage"
+        assert not (Path(db_path).parent / "avatars").exists()
+        with get_db(db_path) as conn:
+            stored_path = conn.execute(
+                "SELECT avatar_path FROM users WHERE id = 1"
+            ).fetchone()["avatar_path"]
+        assert stored_path == "assets/users/1/avatar.png"
 
     def test_upload_avatar_rejects_mime_spoofing(self, client: TestClient) -> None:
         tokens = _login_owner(client)
@@ -508,6 +520,25 @@ class TestChangePassword:
             data={"username": "owner", "password": "ownerchangeme"},
         )
         assert resp.status_code == 401
+
+    def test_change_password_revokes_other_sessions_but_keeps_current(
+        self, client: TestClient, db_path: str
+    ) -> None:
+        # Given
+        tokens = _login_owner(client)
+        other_token = create_session(1, db_path)
+
+        # When
+        response = client.post(
+            "/api/auth/me/password",
+            json={"old_password": "ownerchangeme", "new_password": "newpass123"},
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        # Then
+        assert response.status_code == 200
+        assert verify_session(other_token, db_path) is None
+        assert client.get("/api/auth/me").status_code == 200
 
     def test_change_password_updates_account_timestamp(
         self, client: TestClient, db_path: str

@@ -7,10 +7,15 @@ from app.features.accounts.auth import create_session, generate_csrf_token
 from app.features.setup.progress import (
     SetupProgress,
     SetupStep,
+    SetupTask,
     complete_setup_step,
     get_setup_progress,
-    mark_owner_step_completed,
+    get_setup_task,
     record_setup_task_failure,
+)
+from app.infrastructure.persistence.account_repository import AccountRepository
+from app.infrastructure.persistence.installation_repository import (
+    InstallationRepository,
 )
 from app.infrastructure.persistence.store import get_db, hash_password
 
@@ -19,10 +24,12 @@ __all__ = [
     "SetupProgress",
     "SetupResult",
     "SetupStep",
+    "SetupTask",
     "complete_setup_step",
     "create_first_owner",
     "create_first_owner_account",
     "get_setup_progress",
+    "get_setup_task",
     "needs_setup",
     "record_setup_task_failure",
 ]
@@ -63,32 +70,25 @@ def create_first_owner_account(
     """Create the single product Owner during first-time setup."""
     with get_db(db_path) as conn:
         conn.execute("BEGIN IMMEDIATE")
-        if conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] > 0:
+        accounts = AccountRepository(conn)
+        if accounts.has_any_account():
             raise SetupAlreadyCompleteError("系统已有用户，无法执行首启设置")
         try:
-            cursor = conn.execute(
-                "INSERT INTO users "
-                "(username, password_hash, role, nickname, avatar_color, avatar_kind) "
-                "VALUES (?, ?, 'owner', ?, ?, 'initials')",
-                (
-                    username,
-                    hash_password(password),
+            user_id = accounts.create_owner(
+                username=username,
+                password_hash=hash_password(password),
+                nickname=(
                     display_name.strip()
                     if display_name and display_name.strip()
-                    else username,
-                    avatar_color,
+                    else username
                 ),
+                avatar_color=avatar_color,
             )
         except sqlite3.IntegrityError as error:
             raise SetupAlreadyCompleteError("系统已有用户，无法执行首启设置") from error
-        user_id = cursor.lastrowid
-        if user_id is None:
-            raise SetupAlreadyCompleteError("Owner 账户创建结果无效")
-        mark_owner_step_completed(conn, int(user_id))
+        InstallationRepository(db_path).mark_owner_step_completed(conn, user_id)
         conn.commit()
-    if user_id is None:
-        raise SetupAlreadyCompleteError("Owner 账户创建结果无效")
-    return OwnerAccount(user_id=int(user_id), username=username)
+    return OwnerAccount(user_id=user_id, username=username)
 
 
 def create_first_owner(

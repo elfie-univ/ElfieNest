@@ -11,6 +11,7 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.features.accounts.auth import create_session, verify_session
 from app.infrastructure.persistence.store import get_db, init_db, verify_password
 from app.interfaces.api.app import create_app
 
@@ -257,12 +258,18 @@ class TestUserCRUD:
             json={"elfie_quota_override": 33},
             headers=_headers(tokens["csrf_token"]),
         )
+        zero = client.put(
+            f"/api/owner/users/{created['id']}",
+            json={"elfie_quota_override": 0},
+            headers=_headers(tokens["csrf_token"]),
+        )
 
         assert updated.status_code == 200
         assert updated.json()["elfie_quota_override"] == 6
         assert updated.json()["effective_elfie_limit"] == 6
         assert forbidden.status_code == 422
         assert out_of_range.status_code == 422
+        assert zero.status_code == 422
 
     def test_quota_override_can_return_to_system_default(
         self, client: TestClient
@@ -290,7 +297,59 @@ class TestUserCRUD:
         assert response.json()["elfie_quota_override"] is None
         assert response.json()["effective_elfie_limit"] == 3
 
-    def test_delete_user(self, client: TestClient) -> None:
+    def test_owner_avatar_reader_uses_only_final_user_assets(
+        self, client: TestClient, db_path: str
+    ) -> None:
+        # Given: a managed user whose avatar is in the final asset root.
+        tokens = _login_owner(client)
+        created = client.post(
+            "/api/owner/users",
+            json={"username": "alice", "password": "pass", "role": "user"},
+            headers=_headers(tokens["csrf_token"]),
+        ).json()
+        user_id = int(created["id"])
+        final_avatar = (
+            Path(db_path).parent
+            / "assets"
+            / "users"
+            / str(user_id)
+            / "avatar.png"
+        )
+        final_avatar.parent.mkdir(parents=True)
+        final_avatar.write_bytes(b"\x89PNG\r\n\x1a\nimage")
+        with get_db(db_path) as connection:
+            connection.execute(
+                "UPDATE users SET avatar_path = ? WHERE id = ?",
+                (f"assets/users/{user_id}/avatar.png", user_id),
+            )
+            connection.commit()
+
+        # When/Then: the Owner route serves final storage with no local path leak.
+        response = client.get(
+            f"/api/owner/users/{user_id}/avatar",
+            headers=_headers(tokens["csrf_token"]),
+        )
+        assert response.status_code == 200
+        assert response.content == b"\x89PNG\r\n\x1a\nimage"
+        assert str(Path(db_path).parent) not in response.text
+
+        # Given/When/Then: a tampered legacy path is never used as a read fallback.
+        legacy_avatar = Path(db_path).parent / "avatars" / "users" / f"{user_id}.png"
+        legacy_avatar.parent.mkdir(parents=True)
+        legacy_avatar.write_bytes(b"\x89PNG\r\n\x1a\nlegacy")
+        with get_db(db_path) as connection:
+            connection.execute(
+                "UPDATE users SET avatar_path = ? WHERE id = ?",
+                (f"avatars/users/{user_id}.png", user_id),
+            )
+            connection.commit()
+        rejected = client.get(
+            f"/api/owner/users/{user_id}/avatar",
+            headers=_headers(tokens["csrf_token"]),
+        )
+        assert rejected.status_code == 404
+
+    def test_delete_user(self, client: TestClient, db_path: str) -> None:
         """删除用户 → 列表不再包含。"""
         tokens = _login_owner(client)
         resp = client.post(
@@ -299,6 +358,7 @@ class TestUserCRUD:
             headers=_headers(tokens["csrf_token"]),
         )
         user_id = resp.json()["id"]
+        raw_token = create_session(user_id, db_path)
 
         resp = client.delete(
             f"/api/owner/users/{user_id}",
@@ -309,6 +369,12 @@ class TestUserCRUD:
         resp = client.get("/api/owner/users", headers=_headers(tokens["csrf_token"]))
         usernames = [u["username"] for u in resp.json()]
         assert "alice" not in usernames
+        assert verify_session(raw_token, db_path) is None
+        with get_db(db_path) as connection:
+            stored = connection.execute(
+                "SELECT COUNT(*) FROM sessions_v2 WHERE user_id = ?", (user_id,)
+            ).fetchone()[0]
+        assert stored == 0
 
     def test_cannot_delete_owner(self, client: TestClient) -> None:
         """不能从 Web 用户管理删除 Owner → 403。"""

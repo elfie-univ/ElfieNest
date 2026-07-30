@@ -84,10 +84,10 @@ def show_sessions() -> None:
     if sessions:
         print("  【Online Users】")
         for session in sessions:
-            token_short = session.token[:8] + "..."
+            token_short = session.token_hash[:8] + "..."
             print(
                 f"    • {session.username} "
-                f"(token: {token_short}, expires: {session.expires_at})"
+                f"(token hash: {token_short}, expires: {session.expires_at})"
             )
     else:
         print("  No active sessions")

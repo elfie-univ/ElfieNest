@@ -2,13 +2,13 @@
 
 import logging
 import os
-import sqlite3
 from pathlib import Path
 from typing import Optional
 
 from .graph_content_search import GraphContentSearchMixin
 from .graph_edge_store import GraphEdgeStoreMixin
 from .graph_node_store import GraphNodeStoreMixin
+from .sqlite_connection import connect_memory_sqlite
 
 logger = logging.getLogger("elfie.brain.memory.graph_storage")
 
@@ -23,8 +23,7 @@ class GraphStorage(GraphNodeStoreMixin, GraphEdgeStoreMixin, GraphContentSearchM
         self.db_path = db_path
         if db_path != ":memory:":
             Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(db_path, check_same_thread=False)
-        self.conn.row_factory = sqlite3.Row
+        self.conn = connect_memory_sqlite(db_path, check_same_thread=False)
         # 启用WAL模式（内存数据库不支持WAL，跳过）
         if db_path != ":memory:":
             self.conn.execute("PRAGMA journal_mode=WAL")
