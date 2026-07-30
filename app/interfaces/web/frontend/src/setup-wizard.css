@@ -43,7 +43,9 @@
 .setup-step--completed { color: var(--active-ink); }
 .setup-rail__footnote { margin: auto 4px 0; padding-top: 18px; border-top: 1px solid var(--line); color: var(--ink-soft); font-size: 12px; line-height: 1.65; }
 
-.setup-main { display: grid; min-width: 0; place-items: center; padding: clamp(28px, 6vw, 88px); }
+.setup-main { position: relative; display: grid; min-width: 0; place-items: center; padding: clamp(28px, 6vw, 88px); }
+.setup-locale-control { position: absolute; z-index: 2; top: clamp(20px, 3vw, 34px); right: clamp(20px, 4vw, 54px); width: min(180px, calc(100% - 40px)); }
+.setup-locale-control__trigger { width: 100%; justify-content: flex-start; box-shadow: 0 8px 20px color-mix(in srgb, var(--shadow-color) 12%, transparent); }
 .setup-card { width: min(720px, 100%); overflow: hidden; border-radius: 24px; }
 .setup-card__header { padding: clamp(28px, 5vw, 48px) clamp(28px, 6vw, 58px) 30px; background: linear-gradient(145deg, color-mix(in srgb, var(--accent-soft) 66%, var(--surface-raised)), var(--surface-raised)); border-bottom: 1px solid var(--line); }
 .setup-card__header h1 { max-width: 12ch; margin: 9px 0 10px; color: var(--text); font-size: clamp(32px, 5vw, 48px); line-height: 1.08; }
@@ -70,11 +72,14 @@
   .setup-step > span:last-child { display: none; }
   .setup-step__number { margin: auto; }
   .setup-main { display: block; padding: 20px; }
+  .setup-locale-control { top: 32px; right: 32px; }
+  .setup-card__header { padding-top: 76px; }
   .setup-card { margin: 0 auto; }
 }
 
 @media (max-width: 480px) {
   .setup-main { padding: 0; }
+  .setup-locale-control { top: 16px; right: 16px; }
   .setup-card { min-height: calc(100vh - 128px); border-right: 0; border-left: 0; border-radius: 0; }
   .setup-actions { display: grid; grid-template-columns: 1fr; }
   .setup-actions .button { width: 100%; }

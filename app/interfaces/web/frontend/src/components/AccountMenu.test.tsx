@@ -86,19 +86,36 @@ describe("AccountMenu", () => {
     expect(saveButton).toHaveAttribute("data-variant", "default")
   })
 
-  it("switches the open menu locally without collapsing settings or saving an account locale", async () => {
+  it("keeps language collapsed as a Globe setting below the theme row", () => {
+    // Given: profile settings open in Chinese.
+    renderLocalized("zh-CN", true)
+
+    // When: the collapsed settings are inspected before any interaction.
+    const languageToggle = screen.getByRole("button", { name: /语言/ })
+    const themeToggle = screen.getByRole("button", { name: /系统配色/ })
+
+    // Then: language follows the same disclosure pattern and carries its Globe icon.
+    expect(languageToggle).toHaveAttribute("aria-expanded", "false")
+    expect(languageToggle.compareDocumentPosition(themeToggle) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
+    expect(languageToggle.querySelector("svg.lucide-earth")).not.toBeNull()
+    expect(screen.queryByRole("combobox", { name: "语言" })).not.toBeInTheDocument()
+  })
+
+  it("switches the open menu locally through its language disclosure without saving an account locale", async () => {
     const user = userEvent.setup()
     window.history.replaceState({ source: "account" }, "", "/manage?section=users")
     const initialUrl = window.location.href
     renderLocalized("zh-CN")
     await user.click(screen.getByRole("button", { name: /阿尔法/ }))
     await user.click(screen.getByRole("button", { name: /系统配色/ }))
+    await user.click(screen.getByRole("button", { name: /语言/ }))
 
     await user.click(screen.getByRole("combobox", { name: "语言" }))
     await user.click(screen.getByRole("option", { name: "English" }))
 
     expect(screen.getByRole("region", { name: "Profile and appearance settings" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /Color theme/ })).toHaveAttribute("aria-expanded", "true")
+    expect(screen.getByRole("button", { name: /Language/ })).toHaveAttribute("aria-expanded", "true")
+    expect(screen.getByRole("button", { name: /Color theme/ })).toHaveAttribute("aria-expanded", "false")
     expect(window.location.href).toBe(initialUrl)
     expect(kyMock).not.toHaveBeenCalled()
   })
@@ -122,7 +139,7 @@ describe("AccountMenu", () => {
     expect(JSON.parse(String(request?.[1]?.body))).toEqual({ theme_key: "harbor-blue" })
   })
 
-  it("recomputes a visible backend error after switching from Chinese to English", async () => {
+  it("switches language from the disclosure after a Chinese theme error", async () => {
     const user = userEvent.setup()
     kyMock.mockResolvedValue(new Response(
       JSON.stringify({ detail: "后端配色详情" }),
@@ -133,10 +150,11 @@ describe("AccountMenu", () => {
     await user.click(screen.getByRole("button", { name: /系统配色/ }))
     await user.click(screen.getByRole("button", { name: /港湾蓝/ }))
     expect(await screen.findByRole("alert")).toHaveTextContent("后端配色详情")
+    await user.click(screen.getByRole("button", { name: /语言/ }))
     await user.click(screen.getByRole("combobox", { name: "语言" }))
     await user.click(screen.getByRole("option", { name: "English" }))
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Unable to save management data.")
-    expect(screen.getByRole("alert")).not.toHaveTextContent("后端配色详情")
+    expect(screen.getByRole("button", { name: /Language/ })).toHaveAttribute("aria-expanded", "true")
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   })
 })

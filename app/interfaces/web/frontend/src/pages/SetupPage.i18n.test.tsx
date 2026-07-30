@@ -106,6 +106,18 @@ describe("localized setup wizard", () => {
     expect(window.location.href).toBe(initialUrl)
   })
 
+  it("keeps the language control in the setup frame instead of the active step card", async () => {
+    // Given: the wizard is on a later step where owner-account fields are no longer visible.
+    renderSetup("zh-CN", statusForStep(4))
+
+    // When: the persistent setup frame is inspected.
+    const localeControl = await screen.findByRole("region", { name: "语言" })
+
+    // Then: every step retains one globe language control outside the changing step card.
+    expect(localeControl).toContainElement(screen.getByRole("combobox", { name: "语言" }))
+    expect(localeControl.closest(".setup-card")).toBeNull()
+  })
+
   it("shows localized running progress without backend task detail", async () => {
     // Given: setup refresh reports a running Ollama task with backend detail fields.
     renderSetup("en-US", statusForStep(2, {

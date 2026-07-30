@@ -54,6 +54,7 @@ function normalizeSetupStep(value: number | undefined): SetupStepNumber {
 
 export function SetupPage() {
   const { i18n, t } = useTranslation("setup")
+  const { t: commonT } = useTranslation("common")
   const [username, setUsername] = useState("")
   const [displayName, setDisplayName] = useState("")
   const [password, setPassword] = useState("")
@@ -163,12 +164,12 @@ export function SetupPage() {
       <p className="setup-rail__footnote">{t("rail.footnote")}</p>
     </aside>
     <section className="setup-main">
+      <section aria-label={commonT("language.label")} className="setup-locale-control"><LanguageSwitcher variant="compact" /></section>
       <section aria-labelledby="setup-title" className="panel setup-card">
         <header className="setup-card__header">
           <p className="brand">{t("progress.stepCount", { current: currentStep, total: 5 })}</p>
           <h1 id="setup-title">{t(currentStepCopy.title)}</h1>
           <p>{t(currentStepCopy.description)}</p>
-          <LanguageSwitcher />
         </header>
         <div className="setup-card__content">
           {currentStep === 1 && <form className="setup-form" onSubmit={(event) => { void submitOwner(event) }}>

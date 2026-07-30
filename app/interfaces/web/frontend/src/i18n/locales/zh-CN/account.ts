@@ -12,6 +12,7 @@ export const account = {
     userRole: "用户 · 聊天与精灵空间",
   },
   language: {
+    current: "简体中文",
     sectionLabel: "语言偏好",
   },
   landing: {
@@ -37,6 +38,7 @@ export const account = {
   },
   sections: {
     landing: "默认登录页",
+    language: "语言",
     password: "修改密码",
     passwordSummary: "更新登录凭据",
     theme: "系统配色",

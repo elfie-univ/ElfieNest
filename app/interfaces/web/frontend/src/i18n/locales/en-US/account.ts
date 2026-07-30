@@ -12,6 +12,7 @@ export const account = {
     userRole: "User · chat and Elfie space",
   },
   language: {
+    current: "English",
     sectionLabel: "Language preference",
   },
   landing: {
@@ -37,6 +38,7 @@ export const account = {
   },
   sections: {
     landing: "Default landing page",
+    language: "Language",
     password: "Change password",
     passwordSummary: "Update sign-in credentials",
     theme: "Color theme",

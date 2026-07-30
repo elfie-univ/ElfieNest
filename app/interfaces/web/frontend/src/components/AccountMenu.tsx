@@ -32,7 +32,7 @@ const THEMES = [
   readonly labelKey: "themes.warmPaper.label" | "themes.harborBlue.label" | "themes.orchidArchive.label" | "themes.mossGreen.label"
 }[]
 
-type AccountSection = "landing" | "password" | "theme"
+type AccountSection = "landing" | "language" | "password" | "theme"
 type Feedback =
   | { readonly kind: "error"; readonly reason: unknown; readonly section: AccountSection }
   | { readonly kind: "info"; readonly messageKey: "feedback.landingSaved" | "feedback.passwordSaved" | "feedback.themeSaved"; readonly section: AccountSection }
@@ -98,6 +98,7 @@ export function AccountMenuPanel({ onClose, onUpdated, user }: AccountMenuPanelP
         case "warm-paper": return t("themes.warmPaper.label")
       }
       case "landing": return user.default_landing_page === "chat" ? t("landing.chat") : t("landing.manage")
+      case "language": return t("language.current")
     }
   }
 
@@ -176,7 +177,6 @@ export function AccountMenuPanel({ onClose, onUpdated, user }: AccountMenuPanelP
       <div>{editingIdentity ? <Input aria-label={t("identity.editDisplayName")} autoFocus maxLength={32} onChange={(event) => setNickname(event.target.value)} onKeyDown={saveIdentityOnEnter} placeholder={user.username} value={nickname} /> : <h2>{displayName}</h2>}<p>@{user.account_id}</p><small>{roleDescription}</small></div>
       <Button aria-label={editingIdentity ? t("identity.saveDisplayName") : t("identity.editDisplayName")} className="account-menu__edit" disabled={saving !== null} onClick={() => { if (editingIdentity) void saveIdentity(); else setEditingIdentity(true) }} size="icon" type="button" variant="ghost"><Icon name="pencil" size={16} /></Button>
     </section>
-    <section aria-label={t("language.sectionLabel")} className="account-menu__language"><LanguageSwitcher /></section>
     <SettingRow active={expanded === "password"} icon="lock-keyhole" label={t("sections.password")} onToggle={() => toggle("password")} summary={sectionSummary("password")}>
       <form className="account-menu__form" onSubmit={(event) => { void savePassword(event) }}>
         <TextField autoComplete="current-password" label={t("password.current")} onChange={setOldPassword} required type="password" value={oldPassword} />
@@ -186,6 +186,9 @@ export function AccountMenuPanel({ onClose, onUpdated, user }: AccountMenuPanelP
     </SettingRow>
     <SettingRow active={expanded === "theme"} icon="palette" label={t("sections.theme")} onToggle={() => toggle("theme")} summary={sectionSummary("theme")}>
       <div className="account-menu__themes">{THEMES.map((theme) => <button aria-pressed={user.theme_key === theme.key} className={user.theme_key === theme.key ? "theme-choice theme-choice--active" : "theme-choice"} data-slot="button" data-variant="outline" disabled={saving === "theme"} key={theme.key} onClick={() => { void selectTheme(theme.key) }} type="button"><i aria-hidden="true" className={`theme-choice__swatch theme-choice__swatch--${theme.key}`} /><span><strong>{t(theme.labelKey)}</strong><small>{t(theme.descriptionKey)}</small></span></button>)}</div>
+    </SettingRow>
+    <SettingRow active={expanded === "language"} icon="globe-2" label={t("sections.language")} onToggle={() => toggle("language")} summary={sectionSummary("language")}>
+      <section aria-label={t("language.sectionLabel")} className="account-menu__language"><LanguageSwitcher /></section>
     </SettingRow>
     {user.role === "owner" ? <SettingRow active={expanded === "landing"} icon="house" label={t("sections.landing")} onToggle={() => toggle("landing")} summary={sectionSummary("landing")}>
       <div className="account-menu__landing"><SelectField label={t("landing.field")} onValueChange={(value) => setLanding(value === "chat" ? "chat" : "manage")} options={[{ label: t("landing.manage"), value: "manage" }, { label: t("landing.chat"), value: "chat" }]} value={landing} /><Button className="account-menu__landing-action" disabled={saving === "landing"} onClick={() => { void saveLanding() }} type="button">{saving === "landing" ? t("landing.saving") : t("landing.action")}</Button></div>
