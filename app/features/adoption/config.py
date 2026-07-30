@@ -20,8 +20,8 @@ import copy
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-from app.features.configuration.runtime_store import read_runtime_config
 from ai_runtime.storage.data_home import get_config_path
+from app.features.configuration.runtime_store import read_runtime_config
 
 _RUNTIME_CONFIG_PATH: Path = get_config_path()
 _DEFAULT_RUNTIME_CONFIG_PATH: Path = _RUNTIME_CONFIG_PATH

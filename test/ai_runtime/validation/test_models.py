@@ -1,4 +1,5 @@
 import json
+import os
 
 from ai_runtime.validation.models import (
     CheckResult,
@@ -38,3 +39,21 @@ def test_failed_check_marks_suite_and_report_failed():
 
     assert suite.passed is False
     assert ValidationReport((suite,)).passed is False
+
+
+def test_validation_report_defaults_to_runtime_validation_directory(
+    monkeypatch,
+    tmp_path,
+):
+    # Given
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    report = ValidationReport(())
+
+    # When
+    path = report.save()
+
+    # Then
+    assert path.parent == tmp_path / "reports" / "runtime-validations"
+    if os.name != "nt":
+        assert path.parent.stat().st_mode & 0o777 == 0o700
+        assert path.stat().st_mode & 0o777 == 0o600

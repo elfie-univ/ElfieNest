@@ -638,7 +638,9 @@ class TestProviderRoutes:
             headers=_headers(tokens["csrf_token"]),
         )
         assert (
-            read_secrets(runtime_config_path.parent / ".env")["TO_DELETE_API_KEY"]
+            read_secrets(runtime_config_path.parent / "configs" / "auth.env")[
+                "TO_DELETE_API_KEY"
+            ]
             == "delete-me"
         )
 
@@ -656,7 +658,7 @@ class TestProviderRoutes:
         provider_ids = [p["provider_id"] for p in resp.json()]
         assert "to_delete" not in provider_ids
         assert "TO_DELETE_API_KEY" not in read_secrets(
-            runtime_config_path.parent / ".env"
+            runtime_config_path.parent / "configs" / "auth.env"
         )
 
     @pytest.mark.parametrize(

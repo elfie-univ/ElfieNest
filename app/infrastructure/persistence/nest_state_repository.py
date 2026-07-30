@@ -1,243 +1,110 @@
-"""Database-path-backed adapter for the orchestration Nest repository port."""
+"""Final database adapter for orchestration-owned semantic Nest state."""
 
 from __future__ import annotations
 
 import sqlite3
+from typing import Final
 
-from app.infrastructure.persistence.nest_repository import SQLiteNestRepository
+from app.infrastructure.persistence.nest_repository import (
+    DEFAULT_NEST_ID,
+    SQLiteNestRepository,
+)
 from app.infrastructure.persistence.store import get_db
-from nest.state.models import (
-    AnchorKind,
-    InteractionAnchor,
-    PersistentResidentState,
-    ResidentPresence,
-    WorldCatalog,
-    ZoneDescriptor,
-)
-from nest.state.repository import (
-    NestPersistenceError,
-    NestPersistenceSnapshot,
-)
+from nest.state.models import PersistentResidentState, ResidentPresence, WorldCatalog
+from nest.state.repository import NestPersistenceError, NestPersistenceSnapshot
+
+_PRESENCE_TO_STATUS: Final = {
+    ResidentPresence.ACTIVE: "online",
+    ResidentPresence.AWAY: "away",
+    ResidentPresence.PENDING_RUNTIME: "offline",
+}
+_STATUS_TO_PRESENCE: Final = {
+    "online": ResidentPresence.ACTIVE,
+    "away": ResidentPresence.AWAY,
+    "offline": ResidentPresence.PENDING_RUNTIME,
+}
 
 
 class SQLiteNestStateRepository:
-    """Open one SQLite transaction per orchestration persistence mutation."""
+    """Persist settings and resident semantics without Godot geometry or catalogs."""
 
     def __init__(self, db_path: str) -> None:
         self._db_path = db_path
 
     def load_snapshot(self) -> NestPersistenceSnapshot:
+        """Restore final settings and Elfie presence; Runtime supplies its catalog."""
         try:
             with get_db(self._db_path) as connection:
-                repository = SQLiteNestRepository(connection)
-                repository.ensure_default_config()
+                SQLiteNestRepository(connection).ensure_default_config()
                 config = connection.execute(
-                    """
-                    SELECT nest_id, desired_bed_count, applied_world_revision,
-                           clock_anchor_seconds
-                    FROM nest_config
-                    LIMIT 1
-                    """
+                    """SELECT bed_count, clock_anchor_seconds
+                       FROM nest_settings WHERE nest_id=?""",
+                    (DEFAULT_NEST_ID,),
                 ).fetchone()
-                catalog = self._load_catalog(
-                    connection,
-                    nest_id=str(config["nest_id"]),
-                    revision=config["applied_world_revision"],
-                )
-                residents = self._load_residents(connection)
+                rows = connection.execute(
+                    "SELECT elfie_id, status FROM elfies ORDER BY elfie_id"
+                ).fetchall()
                 connection.commit()
-        except sqlite3.Error as exc:
-            raise NestPersistenceError(str(exc)) from exc
+        except sqlite3.Error as error:
+            raise NestPersistenceError(str(error)) from error
         return NestPersistenceSnapshot(
-            desired_bed_count=int(config["desired_bed_count"]),
+            desired_bed_count=int(config["bed_count"]),
             elapsed_seconds=float(config["clock_anchor_seconds"]),
-            catalog=catalog,
-            residents=residents,
+            catalog=None,
+            residents=tuple(
+                PersistentResidentState(
+                    elfie_id=str(row["elfie_id"]),
+                    presence=_STATUS_TO_PRESENCE[str(row["status"])],
+                )
+                for row in rows
+            ),
         )
 
     def save_catalog(self, catalog: WorldCatalog) -> None:
+        """Save only the applied revision; Runtime remains catalog authority."""
+        if catalog.nest_id != DEFAULT_NEST_ID:
+            raise NestPersistenceError(f"unsupported nest_id: {catalog.nest_id}")
         try:
             with get_db(self._db_path) as connection:
-                connection.execute("BEGIN IMMEDIATE")
                 SQLiteNestRepository(connection).ensure_default_config()
-                connection.execute("UPDATE nest_zones SET active = 0")
-                connection.execute("UPDATE nest_anchors SET active = 0")
-                for zone in catalog.zones:
-                    connection.execute(
-                        """
-                        INSERT INTO nest_zones
-                            (zone_id, nest_id, label, zone_order, active)
-                        VALUES (?, ?, ?, ?, 1)
-                        ON CONFLICT(zone_id) DO UPDATE SET
-                            nest_id = excluded.nest_id,
-                            label = excluded.label,
-                            zone_order = excluded.zone_order,
-                            active = 1
-                        """,
-                        (zone.zone_id, catalog.nest_id, zone.label, zone.order),
-                    )
-                    for anchor in zone.anchors:
-                        connection.execute(
-                            """
-                            INSERT INTO nest_anchors
-                                (anchor_id, zone_id, kind, label, anchor_order, active)
-                            VALUES (?, ?, ?, ?, ?, ?)
-                            ON CONFLICT(anchor_id) DO UPDATE SET
-                                zone_id = excluded.zone_id,
-                                kind = excluded.kind,
-                                label = excluded.label,
-                                anchor_order = excluded.anchor_order,
-                                active = excluded.active
-                            """,
-                            (
-                                anchor.anchor_id,
-                                zone.zone_id,
-                                anchor.kind.value,
-                                anchor.label,
-                                anchor.order,
-                                int(anchor.active),
-                            ),
-                        )
                 connection.execute(
-                    """
-                    UPDATE nest_config
-                    SET applied_world_revision = ?
-                    WHERE nest_id = ?
-                    """,
-                    (catalog.revision, catalog.nest_id),
+                    """UPDATE nest_settings SET applied_world_revision=?,
+                       updated_at=CURRENT_TIMESTAMP WHERE nest_id=?""",
+                    (catalog.revision, DEFAULT_NEST_ID),
                 )
                 connection.commit()
-        except sqlite3.Error as exc:
-            raise NestPersistenceError(str(exc)) from exc
+        except sqlite3.Error as error:
+            raise NestPersistenceError(str(error)) from error
 
     def save_resident(self, resident: PersistentResidentState) -> None:
+        """Persist only the resident presence; home anchors remain Runtime facts."""
         try:
             with get_db(self._db_path) as connection:
-                connection.execute("BEGIN IMMEDIATE")
-                connection.execute(
-                    """
-                    INSERT INTO nest_memberships (elfie_id, presence)
-                    VALUES (?, ?)
-                    ON CONFLICT(elfie_id) DO UPDATE SET
-                        presence = excluded.presence
-                    """,
-                    (resident.elfie_id, resident.presence.value),
+                cursor = connection.execute(
+                    """UPDATE elfies SET status=?, updated_at=CURRENT_TIMESTAMP
+                       WHERE elfie_id=?""",
+                    (_PRESENCE_TO_STATUS[resident.presence], resident.elfie_id),
                 )
-                if resident.home_anchor_id is None or resident.home_zone_id is None:
-                    connection.execute(
-                        "DELETE FROM nest_home_assignments WHERE elfie_id = ?",
-                        (resident.elfie_id,),
-                    )
-                else:
-                    connection.execute(
-                        """
-                        INSERT INTO nest_home_assignments
-                            (elfie_id, home_zone_id, home_anchor_id)
-                        VALUES (?, ?, ?)
-                        ON CONFLICT(elfie_id) DO UPDATE SET
-                            home_zone_id = excluded.home_zone_id,
-                            home_anchor_id = excluded.home_anchor_id
-                        """,
-                        (
-                            resident.elfie_id,
-                            resident.home_zone_id,
-                            resident.home_anchor_id,
-                        ),
-                    )
+                if cursor.rowcount != 1:
+                    raise NestPersistenceError(f"elfie not found: {resident.elfie_id}")
                 connection.commit()
-        except sqlite3.Error as exc:
-            raise NestPersistenceError(str(exc)) from exc
+        except sqlite3.Error as error:
+            raise NestPersistenceError(str(error)) from error
 
     def remove_resident(self, elfie_id: str) -> None:
+        """Make a resident offline and unassigned without deleting its Elfie row."""
         try:
             with get_db(self._db_path) as connection:
-                connection.execute("BEGIN IMMEDIATE")
-                connection.execute(
-                    "DELETE FROM nest_home_assignments WHERE elfie_id = ?",
+                cursor = connection.execute(
+                    """UPDATE elfies SET status='offline', bed_number=NULL,
+                       updated_at=CURRENT_TIMESTAMP WHERE elfie_id=?""",
                     (elfie_id,),
                 )
-                connection.execute(
-                    "DELETE FROM nest_memberships WHERE elfie_id = ?",
-                    (elfie_id,),
-                )
+                if cursor.rowcount != 1:
+                    raise NestPersistenceError(f"elfie not found: {elfie_id}")
                 connection.commit()
-        except sqlite3.Error as exc:
-            raise NestPersistenceError(str(exc)) from exc
-
-    @staticmethod
-    def _load_catalog(
-        connection: sqlite3.Connection,
-        *,
-        nest_id: str,
-        revision: int | None,
-    ) -> WorldCatalog | None:
-        zone_rows = connection.execute(
-            """
-            SELECT zone_id, label, zone_order
-            FROM nest_zones
-            WHERE nest_id = ? AND active = 1
-            ORDER BY zone_order, zone_id
-            """,
-            (nest_id,),
-        ).fetchall()
-        if not zone_rows:
-            return None
-        zones: list[ZoneDescriptor] = []
-        for zone_row in zone_rows:
-            anchor_rows = connection.execute(
-                """
-                SELECT anchor_id, kind, label, anchor_order, active
-                FROM nest_anchors
-                WHERE zone_id = ?
-                ORDER BY anchor_order, anchor_id
-                """,
-                (zone_row["zone_id"],),
-            ).fetchall()
-            zones.append(
-                ZoneDescriptor(
-                    zone_id=str(zone_row["zone_id"]),
-                    label=str(zone_row["label"]),
-                    order=int(zone_row["zone_order"]),
-                    anchors=tuple(
-                        InteractionAnchor(
-                            anchor_id=str(anchor["anchor_id"]),
-                            kind=AnchorKind(str(anchor["kind"])),
-                            label=str(anchor["label"]),
-                            order=int(anchor["anchor_order"]),
-                            active=bool(anchor["active"]),
-                        )
-                        for anchor in anchor_rows
-                    ),
-                )
-            )
-        return WorldCatalog(
-            nest_id=nest_id,
-            revision=int(revision or 0),
-            zones=tuple(zones),
-        )
-
-    @staticmethod
-    def _load_residents(
-        connection: sqlite3.Connection,
-    ) -> tuple[PersistentResidentState, ...]:
-        rows = connection.execute(
-            """
-            SELECT m.elfie_id, m.presence,
-                   h.home_zone_id, h.home_anchor_id
-            FROM nest_memberships m
-            LEFT JOIN nest_home_assignments h ON h.elfie_id = m.elfie_id
-            ORDER BY m.elfie_id
-            """
-        ).fetchall()
-        return tuple(
-            PersistentResidentState(
-                elfie_id=str(row["elfie_id"]),
-                presence=ResidentPresence(str(row["presence"])),
-                home_zone_id=row["home_zone_id"],
-                home_anchor_id=row["home_anchor_id"],
-            )
-            for row in rows
-        )
+        except sqlite3.Error as error:
+            raise NestPersistenceError(str(error)) from error
 
 
 __all__ = ("SQLiteNestStateRepository",)

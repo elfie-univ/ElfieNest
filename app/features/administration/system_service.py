@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import shutil
 import socket
-import sqlite3
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
 from ai_runtime.storage.data_home import get_db_path
+from app.infrastructure.persistence.session_repository import SessionRepository
+from app.infrastructure.persistence.store import get_db
+from app.infrastructure.persistence.system_repository import SystemRepository
 
 
 class DatabaseUnavailableError(Exception):
@@ -36,11 +38,12 @@ class UsageStats:
     session_count: int
     species_stats: List[SpeciesCount]
 
+
 @dataclass(frozen=True)
 class ActiveSession:
-    token: str
+    token_hash: str
     username: str
-    expires_at: float
+    expires_at: str
 
 
 @dataclass(frozen=True)
@@ -73,21 +76,13 @@ def service_port_statuses(
 
 def collect_usage_stats(db_path: Optional[str] = None) -> UsageStats:
     database_path = _resolve_existing_db_path(db_path)
-    with sqlite3.connect(database_path) as conn:
-        user_count = _count_rows(conn, "users")
-        owner_count = _count_rows(conn, "users", "WHERE role='owner'")
-        elfie_count = _count_rows(conn, "elfie_registry")
-        session_count = _count_rows(conn, "sessions")
-        cursor = conn.execute(
-            """
-            SELECT species_id, COUNT(*)
-            FROM elfie_registry
-            GROUP BY species_id
-            """
-        )
+    with get_db(str(database_path)) as conn:
+        repository = SystemRepository(conn)
+        user_count, owner_count, elfie_count = repository.usage_counts()
+        session_count = SessionRepository(conn).count_active(datetime.now(timezone.utc))
         species_stats = [
-            SpeciesCount(species_id=str(row[0]), count=int(row[1]))
-            for row in cursor.fetchall()
+            SpeciesCount(species_id=species, count=count)
+            for species, count in repository.species_counts()
         ]
 
     return UsageStats(
@@ -104,35 +99,25 @@ def list_active_sessions(
     limit: int = 20,
 ) -> List[ActiveSession]:
     database_path = _resolve_existing_db_path(db_path)
-    with sqlite3.connect(database_path) as conn:
-        cursor = conn.execute(
-            """
-            SELECT s.token, u.username, s.expires_at
-            FROM sessions s
-            JOIN users u ON s.user_id = u.id
-            ORDER BY s.expires_at DESC
-            LIMIT ?
-            """,
-            (limit,),
-        )
+    with get_db(str(database_path)) as conn:
         return [
             ActiveSession(
-                token=str(row[0]), username=str(row[1]), expires_at=float(row[2])
+                token_hash=row.token_hash,
+                username=row.username,
+                expires_at=row.expires_at,
             )
-            for row in cursor.fetchall()
+            for row in SessionRepository(conn).list_active(
+                datetime.now(timezone.utc), limit
+            )
         ]
 
 
 def list_table_counts(db_path: Optional[str] = None) -> List[TableCount]:
     database_path = _resolve_existing_db_path(db_path)
-    with sqlite3.connect(database_path) as conn:
-        cursor = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-        )
-        table_names = [str(row[0]) for row in cursor.fetchall()]
+    with get_db(str(database_path)) as conn:
         return [
-            TableCount(name=table_name, count=_count_rows(conn, table_name))
-            for table_name in table_names
+            TableCount(name=name, count=count)
+            for name, count in SystemRepository(conn).table_counts()
         ]
 
 
@@ -159,18 +144,3 @@ def _resolve_existing_db_path(db_path: Optional[str]) -> Path:
     if not database_path.exists():
         raise DatabaseUnavailableError(f"数据库不存在: {database_path}")
     return database_path
-
-
-def _count_rows(
-    conn: sqlite3.Connection,
-    table_name: str,
-    where_clause: str = "",
-) -> int:
-    cursor = conn.execute(
-        f"SELECT COUNT(*) FROM {_quote_identifier(table_name)} {where_clause}"
-    )
-    return int(cursor.fetchone()[0])
-
-
-def _quote_identifier(identifier: str) -> str:
-    return '"' + identifier.replace('"', '""') + '"'

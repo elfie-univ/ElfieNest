@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from ai_runtime.food.elfie_policy import load_elfie_food_policy
+from ai_runtime.food.elfie_policy import DEFAULT_ALLOWED_FOODS
+from ai_runtime.food.models import FIXED_FOOD_KINDS
+from ai_runtime.storage.data_layout import final_root_layout
 from app.features.accounts.auth import require_owner
 from app.features.elfie_profile.public_projection import build_public_profile
 from app.infrastructure.persistence.embodiment_sessions import get_embodiment_session
-from app.infrastructure.persistence.store import get_db
+from app.infrastructure.persistence.interface_query_repository import (
+    InterfaceElfieRecord,
+    InterfaceQueryRepository,
+)
 
 router = APIRouter(prefix="/api/owner", tags=["owner-elfie-monitoring"])
 
@@ -59,73 +65,61 @@ def _load_registered_elfies(
     db_path: str,
     owner_user_id: Optional[int],
     species_id: Optional[str],
-) -> List[Dict[str, Any]]:
-    clauses = []
-    parameters: List[Any] = []
-    if owner_user_id is not None:
-        clauses.append("e.owner_user_id = ?")
-        parameters.append(owner_user_id)
-    if species_id is not None:
-        clauses.append("e.species_id = ?")
-        parameters.append(species_id)
-    where_clause = " WHERE " + " AND ".join(clauses) if clauses else ""
-    query = (
-        """
-        SELECT e.elfie_id, e.name, e.owner_user_id, u.username AS owner_username,
-               e.species_id, e.personality_style, e.height, e.build, e.config_dir,
-               e.bed_id, b.name AS bed_name, r.id AS room_id, r.name AS room_name,
-               e.created_at
-        FROM elfie_registry e
-        LEFT JOIN users u ON u.id = e.owner_user_id
-        LEFT JOIN beds b ON b.id = e.bed_id
-        LEFT JOIN rooms r ON r.id = b.room_id
-    """
-        + where_clause
-        + " ORDER BY e.created_at DESC"
+) -> List[InterfaceElfieRecord]:
+    return list(
+        InterfaceQueryRepository(db_path).list_elfies(
+            owner_user_id=owner_user_id,
+            species=species_id,
+        )
     )
-    with get_db(db_path) as connection:
-        return [dict(row) for row in connection.execute(query, parameters).fetchall()]
 
 
 def _filter_monitoring_rows(
     db_path: str,
-    rows: List[Dict[str, Any]],
+    rows: List[InterfaceElfieRecord],
     *,
     food_key: Optional[str],
     embodiment_state: Optional[str],
 ) -> List[Dict[str, Any]]:
     projections = []
     for row in rows:
-        state = get_embodiment_session(db_path, str(row["elfie_id"])).state.value
-        policy = load_elfie_food_policy(str(row["elfie_id"]), str(row["config_dir"]))
-        if food_key is not None and food_key != policy.default_food:
+        state = get_embodiment_session(db_path, row.elfie_id).state.value
+        policy = _food_policy(row)
+        if food_key is not None and food_key != policy["default_food"]:
             continue
         if embodiment_state is not None and embodiment_state != state:
             continue
-        projections.append(_monitoring_projection(row, state, policy.to_dict()))
+        projections.append(_monitoring_projection(db_path, row, state, policy))
     return projections
 
 
 def _monitoring_projection(
-    row: Dict[str, Any], state: str, policy: Dict[str, Any]
+    db_path: str,
+    row: InterfaceElfieRecord,
+    state: str,
+    policy: Dict[str, Any],
 ) -> Dict[str, Any]:
+    data_home = Path(db_path).expanduser().resolve().parent
     profile = build_public_profile(
-        elfie_id=str(row["elfie_id"]),
-        name=str(row["name"]),
-        species_id=str(row["species_id"]),
-        personality_style=str(row["personality_style"] or ""),
-        config_dir=str(row["config_dir"]) if row["config_dir"] else None,
-        room_id=int(row["room_id"]) if row["room_id"] is not None else None,
-        room_name=str(row["room_name"]) if row["room_name"] is not None else None,
-        bed_id=int(row["bed_id"]) if row["bed_id"] is not None else None,
-        bed_name=str(row["bed_name"]) if row["bed_name"] is not None else None,
+        elfie_id=row.elfie_id,
+        name=row.name,
+        species_id=row.species,
+        personality_style=row.summary or "",
+        config_dir=str(final_root_layout(data_home).elfie(row.elfie_id).profile.parent),
+        room_id=None,
+        room_name=None,
+        bed_id=row.bed_number,
+        bed_name=None if row.bed_number is None else f"Bed {row.bed_number}",
         embodiment_state=state,
     )
+    profile["gender"] = row.gender
+    profile["birth_date"] = row.birth_date
+    profile["summary"] = row.summary
     return {
-        "elfie_id": str(row["elfie_id"]),
+        "elfie_id": row.elfie_id,
         "owner": {
-            "user_id": int(row["owner_user_id"]),
-            "username": str(row["owner_username"] or ""),
+            "user_id": row.owner_user_id,
+            "username": row.owner_username,
         },
         "profile": profile,
         "food_policy": {
@@ -133,5 +127,18 @@ def _monitoring_projection(
             "allowed_foods": policy["allowed_foods"],
             "fallback_food": policy["fallback_food"],
         },
-        "created_at": str(row["created_at"]),
+        "created_at": row.adopted_at,
+    }
+
+
+def _food_policy(row: InterfaceElfieRecord) -> Dict[str, Any]:
+    default_food = row.main_food or "standard"
+    fallback_food = row.emergency_food or "coarse"
+    allowed_set = {default_food, fallback_food, *row.other_foods}
+    allowed = [key for key in FIXED_FOOD_KINDS if key in allowed_set]
+    return {
+        "elfie_id": row.elfie_id,
+        "default_food": default_food,
+        "allowed_foods": allowed or list(DEFAULT_ALLOWED_FOODS),
+        "fallback_food": fallback_food,
     }

@@ -89,7 +89,7 @@ class SerializedRuntimeAdapter:
         )
 
     def generate(self, request: ModelGenerationRequest) -> ModelGenerationResult:
-        """Select one mode, call Runtime once, and translate the result."""
+        """Choose one mode, call Runtime once, and translate the result."""
         capabilities = self.capabilities()
         selected_mode = self._select_mode(capabilities)
         runtime_request = StructuredRuntimeRequest(

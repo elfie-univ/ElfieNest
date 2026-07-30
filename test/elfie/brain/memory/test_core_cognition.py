@@ -48,9 +48,7 @@ class TestCoreCognition:
 
     def test_initialize_from_personality(self):
         """从yaml初始化，4段核心认知全部生成"""
-        cc = CoreCognition(
-            db_path=":memory:", personality_path=_NONEXISTENT_PATH
-        )
+        cc = CoreCognition(db_path=":memory:", personality_path=_NONEXISTENT_PATH)
         # 初始状态：无核心认知
         assert len(cc._core_text) == 0
         assert cc.get_core_text() == {}
@@ -68,10 +66,7 @@ class TestCoreCognition:
             )
 
         # 数据库中也应有记录
-        cursor = cc.storage.conn.execute(
-            "SELECT COUNT(*) AS cnt FROM nodes WHERE type='core'"
-        )
-        assert cursor.fetchone()["cnt"] == 4
+        assert cc.storage.count_nodes("core") == 4
 
     def test_get_core_text_format(self):
         """返回dict包含identity/relation/world/tendency"""
@@ -101,9 +96,7 @@ class TestCoreCognition:
 
         # 每段至少10个字符
         for key, text in core_text.items():
-            assert len(text) >= 10, (
-                f"{key} 段长度不足: {len(text)} 字符"
-            )
+            assert len(text) >= 10, f"{key} 段长度不足: {len(text)} 字符"
 
         # 打印总统计以供调试
         char_counts = {k: len(v) for k, v in core_text.items()}
@@ -111,10 +104,8 @@ class TestCoreCognition:
 
     def test_load_from_db(self):
         """从SQLite加载已存在的核心认知"""
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
-            db_path = f.name
-
-        try:
+        with tempfile.TemporaryDirectory() as directory:
+            db_path = str(Path(directory).resolve() / "knowledge.sqlite")
             # 第一个实例：初始化数据并写入SQLite
             cc1 = _make_cc(db_path=db_path)
             expected_text = dict(cc1._core_text)
@@ -122,20 +113,13 @@ class TestCoreCognition:
             cc1.close()
 
             # 第二个实例：从同一文件加载，不自动初始化
-            cc2 = CoreCognition(
-                db_path=db_path, personality_path=_NONEXISTENT_PATH
-            )
+            cc2 = CoreCognition(db_path=db_path, personality_path=_NONEXISTENT_PATH)
             # _load_from_db 应找到已存在的 core 节点
             loaded = cc2.get_core_text()
             assert loaded == expected_text, (
-                f"加载的内容与期望不符\n"
-                f"期望: {expected_text}\n"
-                f"实际: {loaded}"
+                f"加载的内容与期望不符\n期望: {expected_text}\n实际: {loaded}"
             )
             cc2.close()
-        finally:
-            if os.path.exists(db_path):
-                os.unlink(db_path)
 
     def test_update_incremental(self):
         """增量更新核心认知（metadata）"""
@@ -151,12 +135,9 @@ class TestCoreCognition:
         assert cc.get_core_text() == original_text
 
         # metadata 应包含 consolidation_updates 记录
-        cursor = cc.storage.conn.execute(
-            "SELECT metadata FROM nodes WHERE id='core_identity'"
-        )
-        row = cursor.fetchone()
-        assert row is not None
-        meta = json.loads(row["metadata"])
+        node = cc.storage.get_node("core_identity")
+        assert node is not None
+        meta = node.metadata
         assert "consolidation_updates" in meta
         assert len(meta["consolidation_updates"]) == 1
         assert "update_number" in meta["consolidation_updates"][0]
@@ -165,10 +146,9 @@ class TestCoreCognition:
         cc.update(consolidation_results={"emotion": "sad"})
         assert cc._update_count == 2
 
-        cursor = cc.storage.conn.execute(
-            "SELECT metadata FROM nodes WHERE id='core_identity'"
-        )
-        meta = json.loads(cursor.fetchone()["metadata"])
+        node = cc.storage.get_node("core_identity")
+        assert node is not None
+        meta = node.metadata
         assert len(meta["consolidation_updates"]) == 2
 
     def test_update_triggers_rewrite(self):
@@ -182,26 +162,18 @@ class TestCoreCognition:
         assert cc._update_count == CoreCognition.FULL_REWRITE_INTERVAL
 
         # 全量重写后，metadata 应包含 rewritten_at
-        cursor = cc.storage.conn.execute(
-            "SELECT metadata FROM nodes WHERE id='core_identity'"
-        )
-        row = cursor.fetchone()
-        assert row is not None
-        meta = json.loads(row["metadata"])
+        node = cc.storage.get_node("core_identity")
+        assert node is not None
+        meta = node.metadata
         assert "rewritten_at" in meta, (
             f"第{CoreCognition.FULL_REWRITE_INTERVAL}次update应触发全量重写"
         )
         assert meta.get("rewrite_count") == CoreCognition.FULL_REWRITE_INTERVAL
 
         # 所有core节点都应包含 rewrite 标记
-        cursor = cc.storage.conn.execute(
-            "SELECT id, metadata FROM nodes WHERE type='core'"
-        )
-        for row in cursor.fetchall():
-            meta = json.loads(row["metadata"])
-            assert "rewritten_at" in meta, (
-                f"节点 {row['id']} 缺少 rewritten_at"
-            )
+        for node in cc.storage.get_nodes_by_type("core"):
+            meta = node.metadata
+            assert "rewritten_at" in meta, f"节点 {node.id} 缺少 rewritten_at"
 
     def test_update_entity_properties(self):
         """增量更新entity属性到核心认知"""
@@ -209,11 +181,13 @@ class TestCoreCognition:
         original_text = dict(cc.get_core_text())
 
         # 更新entity属性
-        cc.update(consolidation_results={
-            "entity_updates": [
-                {"name": "主人", "properties": {"温柔": True}},
-            ],
-        })
+        cc.update(
+            consolidation_results={
+                "entity_updates": [
+                    {"name": "主人", "properties": {"温柔": True}},
+                ],
+            }
+        )
 
         # relation段文本应包含属性描述
         relation_text = cc.get_core_text()["relation"]
@@ -223,15 +197,12 @@ class TestCoreCognition:
 
         # 其他段文本不应变化
         for key in ["identity", "world", "tendency"]:
-            assert cc.get_core_text()[key] == original_text[key], (
-                f"{key}段不应变化"
-            )
+            assert cc.get_core_text()[key] == original_text[key], f"{key}段不应变化"
 
         # metadata应包含entity_properties
-        cursor = cc.storage.conn.execute(
-            "SELECT metadata FROM nodes WHERE id='core_relation'"
-        )
-        meta = json.loads(cursor.fetchone()["metadata"])
+        node = cc.storage.get_node("core_relation")
+        assert node is not None
+        meta = node.metadata
         assert "entity_properties" in meta
         assert "主人" in meta["entity_properties"]
         assert meta["entity_properties"]["主人"]["温柔"] is True
@@ -251,37 +222,29 @@ class TestCoreCognition:
         assert cc._update_count == 7
 
         # 全量重写后，metadata应包含rewritten_at
-        cursor = cc.storage.conn.execute(
-            "SELECT metadata FROM nodes WHERE id='core_identity'"
-        )
-        row = cursor.fetchone()
-        assert row is not None
-        meta = json.loads(row["metadata"])
-        assert "rewritten_at" in meta, (
-            f"第7次update应触发全量重写，metadata: {meta}"
-        )
+        node = cc.storage.get_node("core_identity")
+        assert node is not None
+        meta = node.metadata
+        assert "rewritten_at" in meta, f"第7次update应触发全量重写，metadata: {meta}"
         assert meta.get("rewrite_count") == 7
 
         # 所有core节点都应包含rewrite标记
-        cursor = cc.storage.conn.execute(
-            "SELECT id, metadata FROM nodes WHERE type='core'"
-        )
-        for row in cursor.fetchall():
-            meta = json.loads(row["metadata"])
-            assert "rewritten_at" in meta, (
-                f"节点 {row['id']} 缺少 rewritten_at"
-            )
+        for node in cc.storage.get_nodes_by_type("core"):
+            meta = node.metadata
+            assert "rewritten_at" in meta, f"节点 {node.id} 缺少 rewritten_at"
 
     def test_update_rollback(self):
         """全量重写失败时回滚到旧版本"""
         cc = _make_cc()
 
         # 先做一次entity更新，使核心认知有变化
-        cc.update(consolidation_results={
-            "entity_updates": [
-                {"name": "主人", "properties": {"温柔": True}},
-            ],
-        })
+        cc.update(
+            consolidation_results={
+                "entity_updates": [
+                    {"name": "主人", "properties": {"温柔": True}},
+                ],
+            }
+        )
         assert "主人很温柔" in cc.get_core_text()["relation"]
 
         # 执行5次普通update
@@ -293,6 +256,7 @@ class TestCoreCognition:
 
         # 模拟_rewrite_all抛出异常
         from unittest import mock
+
         with mock.patch.object(
             cc, "_rewrite_all", side_effect=RuntimeError("模拟重写失败")
         ):

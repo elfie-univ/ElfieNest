@@ -9,15 +9,18 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from typing_extensions import Annotated, TypedDict
 
+from ai_runtime.storage.data_layout import ensure_final_user_layout, final_root_layout
 from app.features.accounts.auth import get_current_user
-from app.infrastructure.persistence.store import get_db
+from app.infrastructure.persistence.interface_query_repository import (
+    InterfaceQueryRepository,
+)
 
 router = APIRouter(prefix="/api/auth/me", tags=["account-avatar"])
 
 _MAX_AVATAR_BYTES: Final[int] = 2 * 1024 * 1024
 _AVATAR_READ_CHUNK: Final[int] = 64 * 1024
 _AVATAR_EXTENSIONS: Final[dict[str, str]] = {
-    "image/jpeg": "jpg",
+    "image/jpeg": "jpeg",
     "image/png": "png",
     "image/webp": "webp",
 }
@@ -49,9 +52,8 @@ def avatar_url(avatar_path: Optional[str]) -> Optional[str]:
     return "/api/auth/me/avatar" if avatar_path else None
 
 
-def _avatar_root(db_path: str) -> Path:
-    """Keep avatars inside the local Nest data root."""
-    return Path(db_path).expanduser().resolve().parent / "avatars" / "users"
+def _data_home(db_path: str) -> Path:
+    return Path(db_path).expanduser().resolve().parent
 
 
 async def _read_avatar_limited(file: AvatarUpload) -> bytes:
@@ -82,23 +84,15 @@ async def upload_avatar(
     if not _matches_image_signature(file.content_type or "", image):
         raise HTTPException(status_code=415, detail="头像内容与图片格式不匹配")
     user_id = int(user["id"])
-    avatar_root = _avatar_root(request.app.state.db_path)
-    avatar_root.mkdir(mode=0o700, parents=True, exist_ok=True)
-    for existing in avatar_root.glob(f"{user_id}.*"):
+    data_home = _data_home(request.app.state.db_path)
+    user_layout = ensure_final_user_layout(data_home, str(user_id))
+    for existing in user_layout.assets.glob("avatar.*"):
         existing.unlink()
-    target = avatar_root / f"{user_id}.{extension}"
+    target = user_layout.avatar(extension)
     target.write_bytes(image)
-    with get_db(request.app.state.db_path) as conn:
-        conn.execute(
-            "UPDATE users SET avatar_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-            (
-                str(
-                    target.relative_to(Path(request.app.state.db_path).resolve().parent)
-                ),
-                user_id,
-            ),
-        )
-        conn.commit()
+    InterfaceQueryRepository(request.app.state.db_path).update_avatar_path(
+        user_id, str(target.relative_to(data_home))
+    )
     return {"avatar_url": "/api/auth/me/avatar"}
 
 
@@ -108,14 +102,17 @@ async def current_avatar(
     user: AuthenticatedUser = Depends(get_current_user),  # noqa: B008
 ) -> FileResponse:
     """Serve only the current user's local avatar image."""
-    with get_db(request.app.state.db_path) as conn:
-        row = conn.execute(
-            "SELECT avatar_path FROM users WHERE id = ?", (user["id"],)
-        ).fetchone()
-    avatar_path = row["avatar_path"] if row else None
+    user_id = int(user["id"])
+    record = InterfaceQueryRepository(request.app.state.db_path).get_user(user_id)
+    avatar_path = None if record is None else record.avatar_path
     if not avatar_path:
         raise HTTPException(status_code=404, detail="尚未上传头像")
-    candidate = _avatar_root(request.app.state.db_path) / Path(avatar_path).name
+    candidate = (
+        final_root_layout(_data_home(request.app.state.db_path))
+        .user(str(user_id))
+        .assets
+        / Path(avatar_path).name
+    )
     if not candidate.is_file():
         raise HTTPException(status_code=404, detail="头像文件不存在")
     return FileResponse(candidate, headers={"Cache-Control": "no-store"})

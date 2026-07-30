@@ -36,7 +36,11 @@ class ElfieFactory:
         cortical_runtime: Optional[CorticalRuntimePort] = None,
     ) -> Elfie:
         normalized_config_dir = str(config_dir) if config_dir is not None else None
-        profile = self._resolve_profile(normalized_config_dir, character_profile)
+        profile = self._resolve_profile(
+            normalized_config_dir,
+            character_profile,
+            elfie_id,
+        )
         resolved_elfie_id = self._resolve_elfie_id(elfie_id, profile)
         auto_native_body = body is None and godot_api is not None
         if auto_native_body:
@@ -81,12 +85,13 @@ class ElfieFactory:
         skills: Optional[SkillManager] = None,
         cortical_runtime: Optional[CorticalRuntimePort] = None,
     ) -> Elfie:
-        """从已有目录恢复；旧目录没有 profile.yaml 时沿用原兼容加载逻辑。"""
+        """Restore one Elfie from its final workspace."""
         path = Path(config_dir).expanduser()
         if not path.is_dir():
             raise FileNotFoundError(f"精灵配置目录不存在: {path}")
-        profile_repository = ElfieProfileRepository(path)
-        had_profile = profile_repository.exists()
+        profile_repository = ElfieProfileRepository(path / "profile")
+        if not profile_repository.exists():
+            raise FileNotFoundError(f"精灵最终档案不存在: {profile_repository.path}")
         elfie = self.create(
             config_dir=path,
             anatomy_type=anatomy_type,
@@ -100,21 +105,27 @@ class ElfieFactory:
             skills=skills,
             cortical_runtime=cortical_runtime,
         )
-        if not had_profile:
-            profile_repository.save(elfie.profile)
         return elfie
 
     @staticmethod
     def _resolve_profile(
-        config_dir: Optional[str], supplied: Optional[ElfieProfile]
+        config_dir: Optional[str],
+        supplied: Optional[ElfieProfile],
+        elfie_id: Optional[str],
     ) -> Optional[ElfieProfile]:
         if supplied is not None:
             supplied.validate()
             return supplied
         if config_dir is None:
             return None
-        repository = ElfieProfileRepository(config_dir)
-        return repository.load() if repository.exists() else None
+        repository = ElfieProfileRepository(Path(config_dir) / "profile")
+        if repository.exists():
+            return repository.load()
+        from elfie.initialization import assemble_profile  # noqa: PLC0415
+
+        profile = assemble_profile(config_dir=None, elfie_id=elfie_id, supplied=None)
+        repository.save(profile)
+        return profile
 
     @staticmethod
     def _resolve_elfie_id(

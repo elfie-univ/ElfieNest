@@ -7,13 +7,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Mapping
 
 from ai_runtime.food.models import FIXED_FOOD_KINDS, FoodValidationStatus
 from ai_runtime.food.store import FoodCatalog
-from ai_runtime.storage.config_store import read_yaml_mapping, write_yaml_mapping
-from ai_runtime.storage.data_home import get_elfie_config_dir
 
 DEFAULT_ALLOWED_FOODS: tuple[str, ...] = (
     "coarse",
@@ -120,33 +117,6 @@ def resolve_food_selection(
         clamped=actual != requested,
         reason="requested_food_unavailable",
     )
-
-
-def load_elfie_food_policy(
-    elfie_id: str,
-    config_dir: str | Path | None = None,
-) -> ElfieFoodPolicy:
-    path = _policy_path(elfie_id, config_dir)
-    if not path.exists():
-        return ElfieFoodPolicy(elfie_id)
-    try:
-        return ElfieFoodPolicy.from_dict(elfie_id, read_yaml_mapping(path))
-    except RuntimeError:
-        return ElfieFoodPolicy(elfie_id)
-
-
-def save_elfie_food_policy(
-    policy: ElfieFoodPolicy,
-    config_dir: str | Path | None = None,
-) -> None:
-    write_yaml_mapping(_policy_path(policy.elfie_id, config_dir), policy.to_dict())
-
-
-def _policy_path(elfie_id: str, config_dir: str | Path | None) -> Path:
-    root = (
-        Path(config_dir) if config_dir is not None else get_elfie_config_dir(elfie_id)
-    )
-    return root / "food_policy.yaml"
 
 
 def _food_available(food_key: str, catalog: FoodCatalog) -> bool:

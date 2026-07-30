@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import sqlite3
 import urllib.error
 import urllib.request
 from typing import Final
@@ -95,7 +94,7 @@ def test_config(config: UserConfig) -> None:
     try:
         stats = collect_usage_stats()
         print(f"  ✅ Database OK ({stats.user_count} users)")
-    except (DatabaseUnavailableError, OSError, sqlite3.Error) as e:
+    except (DatabaseUnavailableError, OSError) as e:
         print(f"  ❌ Database error: {e}")
 
     print("\n  [3/3] Testing config file...")
@@ -127,7 +126,9 @@ def test_config(config: UserConfig) -> None:
 
 
 def reset_config() -> None:
-    print("\n⚠️  This will reset app config to defaults. Provider and account data will be kept. Continue?")
+    print(
+        "\n⚠️  This will reset app config to defaults. Provider and account data will be kept. Continue?"
+    )
     try:
         choice = input("Type 'yes' to confirm: ").strip()
     except (EOFError, KeyboardInterrupt):

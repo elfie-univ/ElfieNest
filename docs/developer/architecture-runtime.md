@@ -106,24 +106,28 @@ override those defaults, and all lifecycle receipts and product data follow the
 one selected root.
 
 A single computer has one production Nest root:
-`${ELFIE_HOME:-~/.elfienest}`. The root holds Nest-level facts: `config.yaml`,
-`.env`, `foods.yaml`, `nest.db`, backups, Runtime state and logs. `nest.db`
-only stores accounts, permissions, Elfie registration/ownership, the Nest world
-and Runtime state; it does not accept new chat messages.
+`${ELFIE_HOME:-~/.elfienest}`. `nest.db` contains exactly the eight final
+Nest-level tables for users, sessions, installation/setup, Nest settings,
+Elfies, external bodies, body audit events and embodiment leases. Chat and
+memory never use the root database.
 
 Each Elfie uses an immutable `elfie_id` as its workspace name. Display names may
 change, but the directory must never move:
 
 ```text
 ${ELFIE_HOME:-~/.elfienest}/
-├── nest.db                         # Nest, accounts, ownership and world state
-├── config.yaml / .env / foods.yaml # local production config and key references
-├── runtime.json                    # Supervisor health, generation and owner lease
+├── nest.db                         # final eight Nest-level tables
+├── configs/                        # runtime/auth/food configuration
+├── reports/                        # model evidence and validation reports
+├── assets/users/<user_id>/         # avatar and isolated local files
+├── runtime/                        # runtime.json and locks
+├── logs/                           # runtime events and token usage
 └── elfies/
-    └── <elfie_id>/                 # stable ID, never a mutable name
-        ├── profile.yaml and other profile, memory and work content
-        └── conversations/
-            └── history.sqlite      # all local-channel chat for this Elfie
+    └── <8-digit-elfie_id>/          # stable ID, never a mutable name
+        ├── profile/profile.yaml
+        ├── assets/ godot/ skills/
+        ├── conversations/history.sqlite # final seven chat tables
+        └── memory/knowledge.sqlite      # final nine knowledge tables
 ```
 
 `history.sqlite` records sessions, channels, senders, user relationships, text,
@@ -152,10 +156,10 @@ Developer Tools defaults to an independent root
 `runtime_lab/` underneath must never fall back to reading the production root.
 Tests should set both a temporary `ELFIE_HOME` and `ELFIE_DEV_HOME`.
 
-`nest.db.chat_messages` is a deprecated table left over from the unreleased
-phase. A database upgrade deletes it outright; no compatibility read, copy or
-migration path is provided. New chat lives only inside the corresponding Elfie
-workspace.
+Old roots and schemas are rejected before the application writes anything.
+Back up and rebuild the selected data root; there is no compatibility read,
+copy, replay, dual write or automatic migration path. New chat lives only
+inside the corresponding Elfie workspace.
 
 ## Internal contracts
 

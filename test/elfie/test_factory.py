@@ -1,3 +1,4 @@
+import sqlite3
 from dataclasses import replace
 from pathlib import Path
 
@@ -12,6 +13,28 @@ from elfie.profile import (
 )
 
 
+def test_factory_defaults_workspace_memory_to_knowledge_sqlite(tmp_path: Path) -> None:
+    # Given
+    workspace = tmp_path / "workspace"
+
+    # When
+    elfie = ElfieFactory().create(config_dir=workspace, elfie_id="elfie-final-store")
+
+    # Then
+    db_path = workspace / "memory" / "knowledge.sqlite"
+    assert db_path.is_file()
+    with sqlite3.connect(db_path) as connection:
+        tables = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+            )
+        }
+    assert len(tables) == 9
+    assert not (workspace / "graph_memory.db").exists()
+    elfie.memory.close()
+
+
 def make_profile(config_dir: Path, elfie_id: str = "elfie-profile"):
     profile = create_visual_profile(
         elfie_id=elfie_id,
@@ -19,7 +42,7 @@ def make_profile(config_dir: Path, elfie_id: str = "elfie-profile"):
         species_id="fox",
         seed=42,
     )
-    ElfieProfileRepository(config_dir).save(profile)
+    ElfieProfileRepository(config_dir / "profile").save(profile)
     return profile
 
 
@@ -114,7 +137,7 @@ def test_factory_uses_profile_embodiment_when_legacy_anatomy_is_absent(
             capability_profile_id="fox_quadruped_v1",
         ),
     )
-    ElfieProfileRepository(tmp_path).save(profile)
+    ElfieProfileRepository(tmp_path / "profile").save(profile)
 
     elfie = ElfieFactory().restore(tmp_path, memory_db_path=":memory:")
 
@@ -151,94 +174,3 @@ def test_factory_registers_multiple_bodies_and_selects_current_body() -> None:
         "first",
         "second",
     ]
-
-
-def test_factory_restore_preserves_legacy_directory_without_profile(
-    tmp_path: Path,
-) -> None:
-    elfie = ElfieFactory().restore(
-        tmp_path,
-        elfie_id="legacy-elfie",
-        memory_db_path=":memory:",
-    )
-
-    assert elfie.identity.elfie_id == "legacy-elfie"
-    assert elfie.species_id == "fox"
-    assert ElfieProfileRepository(tmp_path).load() == elfie.profile
-
-
-def test_factory_migrates_legacy_config_into_canonical_profile(tmp_path: Path) -> None:
-    (tmp_path / "personality.yaml").write_text(
-        "metadata:\n  name: 老精灵\nbig_five:\n  openness: 0.75\n",
-        encoding="utf-8",
-    )
-    (tmp_path / "capabilities.yaml").write_text(
-        "actuators:\n  motion:\n    supported_actions: [walk]\n",
-        encoding="utf-8",
-    )
-    (tmp_path / "system_limits.yaml").write_text(
-        "limits:\n  energy:\n    max_value: 100\n",
-        encoding="utf-8",
-    )
-
-    elfie = ElfieFactory().restore(
-        tmp_path,
-        elfie_id="legacy-config",
-        memory_db_path=":memory:",
-    )
-    migrated = ElfieProfileRepository(tmp_path).load()
-
-    assert migrated == elfie.profile
-    assert migrated.identity.display_name == "老精灵"
-    assert migrated.personality["big_five"]["openness"] == 0.75
-    assert migrated.capabilities["actuators"]["motion"]["supported_actions"] == ["walk"]
-    assert migrated.system_limits["limits"]["energy"]["max_value"] == 100
-
-
-def test_restore_ignores_legacy_state_yaml(tmp_path: Path) -> None:
-    # Given
-    make_profile(tmp_path)
-    explicit = HeadlessBody(body_id="headless-new")
-    legacy_state = tmp_path / "state.yaml"
-    legacy_content = (
-        "schema_version: 1\nenergy: 1\nemotions:\n  fear: 99\ncurrent_body_id: old\n"
-    )
-    legacy_state.write_text(legacy_content, encoding="utf-8")
-
-    # When
-    elfie = ElfieFactory().restore(
-        tmp_path,
-        bodies=[explicit],
-        current_body_id="headless-new",
-        memory_db_path=":memory:",
-    )
-
-    # Then
-    assert elfie.hypothalamus.energy == elfie.hypothalamus.max_energy
-    assert elfie.amygdala.emotions["fear"] == 10.0
-    assert elfie.current_body is explicit
-    assert legacy_state.read_text(encoding="utf-8") == legacy_content
-
-
-def test_restore_does_not_use_legacy_binding_without_explicit_body(
-    tmp_path: Path,
-) -> None:
-    # Given
-    make_profile(tmp_path)
-    available = HeadlessBody(body_id="available")
-    legacy_state = tmp_path / "state.yaml"
-    legacy_content = "energy: 1\ncurrent_body_id: missing-body\n"
-    legacy_state.write_text(legacy_content, encoding="utf-8")
-
-    # When
-    elfie = ElfieFactory().restore(
-        tmp_path,
-        bodies=[available],
-        memory_db_path=":memory:",
-    )
-
-    # Then
-    assert elfie.hypothalamus.energy == elfie.hypothalamus.max_energy
-    assert elfie.current_body is None
-    assert available.connected is False
-    assert legacy_state.read_text(encoding="utf-8") == legacy_content

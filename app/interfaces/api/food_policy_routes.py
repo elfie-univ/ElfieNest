@@ -7,13 +7,12 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ai_runtime.food.elfie_policy import (
+    DEFAULT_ALLOWED_FOODS,
     ElfieFoodPolicy,
-    load_elfie_food_policy,
-    save_elfie_food_policy,
 )
 from ai_runtime.food.models import FIXED_FOOD_KINDS
 from app.features.accounts.auth import get_current_user
-from app.infrastructure.persistence.store import get_db
+from app.infrastructure.persistence.elfie_repository import ElfieRecord, ElfieRepository
 
 router = APIRouter(
     prefix="/api/user/elfies/{elfie_id}/food-policy",
@@ -43,21 +42,36 @@ def parse_food_policy_update(elfie_id: str, body: Dict[str, Any]) -> ElfieFoodPo
     )
 
 
-def _accessible_config_dir(
+def _accessible_elfie(
     request: Request, elfie_id: str, user: Dict[str, Any]
-) -> str:
+) -> ElfieRecord:
     """Owner 可管理全巢粮食策略；普通用户仅可管理自己的精灵。"""
-    owner_scope = user.get("role") == "owner"
-    query = "SELECT config_dir FROM elfie_registry WHERE elfie_id=?"
-    parameters: tuple[object, ...] = (elfie_id,)
-    if not owner_scope:
-        query += " AND owner_user_id=?"
-        parameters = (elfie_id, user["id"])
-    with get_db(request.app.state.db_path) as conn:
-        row = conn.execute(query, parameters).fetchone()
-    if row is None:
+    repository = ElfieRepository(request.app.state.db_path)
+    record = (
+        repository.get(elfie_id)
+        if user.get("role") == "owner"
+        else repository.get_for_owner(elfie_id, owner_user_id=int(user["id"]))
+    )
+    if record is None:
         raise HTTPException(status_code=404, detail="精灵不存在或不属于您")
-    return str(row["config_dir"])
+    return record
+
+
+def _policy_from_record(record: ElfieRecord) -> ElfieFoodPolicy:
+    if record.main_food is None or record.emergency_food is None:
+        return ElfieFoodPolicy(record.elfie_id)
+    allowed_set = {
+        record.main_food,
+        record.emergency_food,
+        *record.other_foods,
+    }
+    allowed = tuple(key for key in FIXED_FOOD_KINDS if key in allowed_set)
+    return ElfieFoodPolicy(
+        elfie_id=record.elfie_id,
+        default_food=record.main_food,
+        allowed_foods=allowed or DEFAULT_ALLOWED_FOODS,
+        fallback_food=record.emergency_food,
+    )
 
 
 @router.get("/")
@@ -66,8 +80,7 @@ async def get_food_policy(
     request: Request,
     user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
 ) -> Dict[str, Any]:
-    config_dir = _accessible_config_dir(request, elfie_id, user)
-    return load_elfie_food_policy(elfie_id, config_dir).to_dict()
+    return _policy_from_record(_accessible_elfie(request, elfie_id, user)).to_dict()
 
 
 @router.put("/")
@@ -77,7 +90,16 @@ async def update_food_policy(
     request: Request,
     user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
 ) -> Dict[str, Any]:
-    config_dir = _accessible_config_dir(request, elfie_id, user)
+    _accessible_elfie(request, elfie_id, user)
     policy = parse_food_policy_update(elfie_id, body)
-    save_elfie_food_policy(policy, config_dir)
+    ElfieRepository(request.app.state.db_path).update_foods(
+        elfie_id,
+        main_food=policy.default_food,
+        emergency_food=policy.fallback_food,
+        other_foods=tuple(
+            food
+            for food in policy.allowed_foods
+            if food not in {policy.default_food, policy.fallback_food}
+        ),
+    )
     return policy.to_dict()

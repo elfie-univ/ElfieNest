@@ -19,7 +19,6 @@ from elfie.brain.memory import (
     CoreCognition,
     EbbinghausDecay,
     EmotionWeighting,
-    GraphStorage,
     MemoryConsolidator,
     MemoryEncoder,
     MemoryRetriever,
@@ -28,6 +27,7 @@ from elfie.brain.memory import (
     SensoryIndexer,
     SpreadingActivation,
 )
+from elfie.brain.memory.knowledge_store import KnowledgeStore
 
 
 class TestMemorySystem:
@@ -37,7 +37,7 @@ class TestMemorySystem:
         """初始化所有组件"""
         ms = MemorySystem(db_path=":memory:", personality_path=None)
         assert ms.storage is not None
-        assert isinstance(ms.storage, GraphStorage)
+        assert isinstance(ms.storage, KnowledgeStore)
         assert ms.sensory_buffer is not None
         assert isinstance(ms.sensory_buffer, SensoryBuffer)
         assert ms.core_cognition is not None

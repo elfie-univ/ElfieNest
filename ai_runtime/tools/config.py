@@ -8,7 +8,6 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, Mapping
 
-from ai_runtime.storage.data_home import get_local_files_dir
 from ai_runtime.storage.secrets import resolve_secret, tool_secret_name
 
 TOOL_KEYS: tuple[str, ...] = (
@@ -29,17 +28,21 @@ def default_tool_configs() -> dict[str, dict[str, Any]]:
             "max_results": 3,
         },
         "local_file": {
-            "enabled": True,
-            "root": str(get_local_files_dir()),
+            "enabled": False,
+            "root": "",
         },
         "code_sandbox": {"enabled": True, "timeout_seconds": 5.0},
         "skills_evolution": {"enabled": True},
     }
 
 
-def load_tool_configs(runtime_policy: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
+def load_tool_configs(
+    runtime_policy: Mapping[str, Any] | None,
+) -> dict[str, dict[str, Any]]:
     configs = default_tool_configs()
-    raw_tools = runtime_policy.get("tools", {}) if isinstance(runtime_policy, Mapping) else {}
+    raw_tools = (
+        runtime_policy.get("tools", {}) if isinstance(runtime_policy, Mapping) else {}
+    )
     if isinstance(raw_tools, Mapping):
         for tool_key in TOOL_KEYS:
             raw = raw_tools.get(tool_key)
@@ -52,7 +55,9 @@ def load_tool_configs(runtime_policy: Mapping[str, Any] | None) -> dict[str, dic
     return configs
 
 
-def public_tool_configs(runtime_policy: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
+def public_tool_configs(
+    runtime_policy: Mapping[str, Any] | None,
+) -> dict[str, dict[str, Any]]:
     configs = deepcopy(load_tool_configs(runtime_policy))
     for config in configs.values():
         api_key = str(config.pop("api_key", "") or "")

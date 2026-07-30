@@ -33,7 +33,7 @@ def test_concurrent_adoptions_cannot_exceed_user_quota(tmp_path: Path) -> None:
         user_id = int(
             connection.execute(
                 """INSERT INTO users
-                   (username, password_hash, role, elfie_quota_override)
+                   (username, password_hash, role, elfie_limit)
                    VALUES ('alice', 'unused', 'user', 1)"""
             ).lastrowid
         )
@@ -72,7 +72,7 @@ def test_concurrent_adoptions_cannot_exceed_user_quota(tmp_path: Path) -> None:
     with get_db(db_path) as connection:
         persisted_count = int(
             connection.execute(
-                "SELECT COUNT(*) FROM elfie_registry WHERE owner_user_id = ?",
+                "SELECT COUNT(*) FROM elfies WHERE owner_user_id = ?",
                 (user_id,),
             ).fetchone()[0]
         )
@@ -86,7 +86,7 @@ def test_failed_generation_releases_reserved_slot(tmp_path: Path) -> None:
         user_id = int(
             connection.execute(
                 """INSERT INTO users
-                   (username, password_hash, role, elfie_quota_override)
+                   (username, password_hash, role, elfie_limit)
                    VALUES ('alice', 'unused', 'user', 1)"""
             ).lastrowid
         )
@@ -106,7 +106,7 @@ def test_failed_generation_releases_reserved_slot(tmp_path: Path) -> None:
     with get_db(db_path) as connection:
         persisted_count = int(
             connection.execute(
-                "SELECT COUNT(*) FROM elfie_registry WHERE owner_user_id = ?",
+                "SELECT COUNT(*) FROM elfies WHERE owner_user_id = ?",
                 (user_id,),
             ).fetchone()[0]
         )

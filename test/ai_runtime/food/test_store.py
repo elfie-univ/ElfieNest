@@ -62,3 +62,15 @@ def test_food_catalog_store_rejects_a_bare_model_on_new_write(tmp_path):
         store.save(catalog)
 
     assert not store.path.exists()
+
+
+def test_food_catalog_store_defaults_to_final_config_paths(monkeypatch, tmp_path):
+    # Given
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+
+    # When
+    store = FoodCatalogStore()
+
+    # Then
+    assert store.path == tmp_path / "configs" / "food-packages.yaml"
+    assert store.history_dir == tmp_path / "configs" / "food-packages-history"

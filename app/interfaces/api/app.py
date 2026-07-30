@@ -36,10 +36,11 @@ from app.features.accounts.auth import (
 from app.features.setup.jobs import OllamaInstallJobManager
 from app.features.setup.progress import recover_interrupted_setup_task
 from app.infrastructure.devices import DeviceGateway
+from app.infrastructure.persistence.runtime_query_repository import (
+    RuntimeQueryRepository,
+)
 from app.infrastructure.persistence.store import (
-    get_db,
     init_db,
-    migrate_db_if_needed,
     seed_initial_owner_if_env_set,
 )
 from app.interfaces.web.build_discovery import (
@@ -140,7 +141,6 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         init_db(db_path)
-        migrate_db_if_needed(db_path)
         recover_interrupted_setup_task(db_path)
         seed_initial_owner_if_env_set(db_path)
         if engine is not None and not engine.session.has_repository:
@@ -307,28 +307,22 @@ def create_app(
             )
 
         # 验证凭据
-        with get_db(db) as conn:
-            cursor = conn.execute(
-                "SELECT id, username, password_hash, role, default_landing_page "
-                "FROM users WHERE username = ?",
-                (username,),
-            )
-            row = cursor.fetchone()
+        account = RuntimeQueryRepository(db).find_account_by_username(username)
 
-        if row is None or not verify_password(password, row["password_hash"]):
+        if account is None or not verify_password(password, account.password_hash):
             limiter.record_failure(client_ip, username)
             raise HTTPException(status_code=401, detail="用户名或密码错误")
 
         # 登录成功 — 清零速率限制，创建 session
         limiter.clear(client_ip, username)
-        session_token = create_session(row["id"], db)
+        session_token = create_session(account.user_id, db)
         csrf_token = generate_csrf_token(session_token)
 
         user_data = {
-            "id": row["id"],
-            "username": row["username"],
-            "role": row["role"],
-            "default_landing_page": row["default_landing_page"],
+            "id": account.user_id,
+            "username": account.username,
+            "role": account.role,
+            "default_landing_page": account.default_landing_page,
         }
 
         resp = JSONResponse(
@@ -377,34 +371,26 @@ def create_app(
     ) -> Dict[str, Any]:
         """返回当前登录用户完整信息（含 CSRF token, profile, elfie_count）。"""
         db_path = request.app.state.db_path
-        with get_db(db_path) as conn:
-            cursor = conn.execute(
-                "SELECT id, username, role, nickname, avatar_color, avatar_kind, avatar_path, "
-                "default_landing_page, theme_key, created_at FROM users WHERE id = ?",
-                (user["id"],),
-            )
-            row = cursor.fetchone()
-
-            cursor = conn.execute(
-                "SELECT COUNT(*) FROM elfie_registry WHERE owner_user_id = ?",
-                (user["id"],),
-            )
-            elfie_count = cursor.fetchone()[0]
+        repository = RuntimeQueryRepository(db_path)
+        account = repository.find_account_by_id(int(user["id"]))
+        if account is None:
+            raise HTTPException(status_code=401, detail="账户不存在")
+        elfie_count = len(repository.list_elfies_for_owner(account.user_id))
 
         session_token = request.cookies.get("session_token", "")
         csrf_token = generate_csrf_token(session_token) if session_token else ""
 
         return {
-            "id": row["id"],
-            "username": row["username"],
-            "role": row["role"],
-            "nickname": row["nickname"],
-            "avatar_color": row["avatar_color"],
-            "avatar_kind": row["avatar_kind"],
-            "avatar_url": avatar_url(row["avatar_path"]),
-            "default_landing_page": row["default_landing_page"],
-            "theme_key": row["theme_key"],
-            "created_at": row["created_at"],
+            "id": account.user_id,
+            "username": account.username,
+            "role": account.role,
+            "nickname": account.nickname,
+            "avatar_color": account.avatar_color,
+            "avatar_kind": account.avatar_kind,
+            "avatar_url": avatar_url(account.avatar_path),
+            "default_landing_page": account.default_landing_page,
+            "theme_key": account.theme_key,
+            "created_at": account.created_at,
             "elfie_count": elfie_count,
             "csrf_token": csrf_token,
         }
@@ -420,20 +406,16 @@ def create_app(
     ) -> Dict[str, Any]:
         """返回当前用户 profile 子集（username, nickname, avatar_color, avatar_kind）。"""
         db_path = request.app.state.db_path
-        with get_db(db_path) as conn:
-            cursor = conn.execute(
-                "SELECT username, nickname, avatar_color, avatar_kind, avatar_path "
-                "FROM users WHERE id = ?",
-                (user["id"],),
-            )
-            row = cursor.fetchone()
+        account = RuntimeQueryRepository(db_path).find_account_by_id(int(user["id"]))
+        if account is None:
+            raise HTTPException(status_code=401, detail="账户不存在")
 
         return {
-            "username": row["username"],
-            "nickname": row["nickname"],
-            "avatar_color": row["avatar_color"],
-            "avatar_kind": row["avatar_kind"],
-            "avatar_url": avatar_url(row["avatar_path"]),
+            "username": account.username,
+            "nickname": account.nickname,
+            "avatar_color": account.avatar_color,
+            "avatar_kind": account.avatar_kind,
+            "avatar_url": avatar_url(account.avatar_path),
         }
 
     @app.put("/api/auth/me/profile")
@@ -445,46 +427,37 @@ def create_app(
         """更新当前用户 profile（nickname, avatar_color, avatar_kind）。"""
         db_path = request.app.state.db_path
 
-        updates: list[str] = []
-        params: list[Any] = []
-
-        if body.nickname is not None:
-            updates.append("nickname = ?")
-            params.append(body.nickname or None)
-
-        if body.avatar_color is not None:
-            updates.append("avatar_color = ?")
-            params.append(body.avatar_color)
-
-        if body.avatar_kind is not None:
-            updates.append("avatar_kind = ?")
-            params.append(body.avatar_kind)
-
-        if not updates:
+        if (
+            body.nickname is None
+            and body.avatar_color is None
+            and body.avatar_kind is None
+        ):
             raise HTTPException(status_code=400, detail="没有提供要更新的字段")
-
-        params.append(user["id"])
-
-        with get_db(db_path) as conn:
-            conn.execute(
-                f"UPDATE users SET {', '.join(updates)} WHERE id = ?",
-                params,
-            )
-            conn.commit()
-
-            cursor = conn.execute(
-                "SELECT username, nickname, avatar_color, avatar_kind, avatar_path "
-                "FROM users WHERE id = ?",
-                (user["id"],),
-            )
-            row = cursor.fetchone()
+        repository = RuntimeQueryRepository(db_path)
+        current = repository.find_account_by_id(int(user["id"]))
+        if current is None:
+            raise HTTPException(status_code=401, detail="账户不存在")
+        account = repository.update_profile(
+            current.user_id,
+            nickname=(
+                body.nickname or None if body.nickname is not None else current.nickname
+            ),
+            avatar_color=(
+                body.avatar_color
+                if body.avatar_color is not None
+                else current.avatar_color
+            ),
+            avatar_kind=body.avatar_kind or current.avatar_kind,
+        )
+        if account is None:
+            raise HTTPException(status_code=401, detail="账户不存在")
 
         return {
-            "username": row["username"],
-            "nickname": row["nickname"],
-            "avatar_color": row["avatar_color"],
-            "avatar_kind": row["avatar_kind"],
-            "avatar_url": avatar_url(row["avatar_path"]),
+            "username": account.username,
+            "nickname": account.nickname,
+            "avatar_color": account.avatar_color,
+            "avatar_kind": account.avatar_kind,
+            "avatar_url": avatar_url(account.avatar_path),
         }
 
     @app.post("/api/auth/me/password")
@@ -496,31 +469,23 @@ def create_app(
         """修改当前用户密码。需要旧密码校验。"""
         db_path = request.app.state.db_path
 
-        with get_db(db_path) as conn:
-            cursor = conn.execute(
-                "SELECT password_hash FROM users WHERE id = ?",
-                (user["id"],),
-            )
-            row = cursor.fetchone()
+        repository = RuntimeQueryRepository(db_path)
+        account = repository.find_account_by_id(int(user["id"]))
+        if account is None:
+            raise HTTPException(status_code=401, detail="账户不存在")
 
-        if not verify_password(body.old_password, row["password_hash"]):
+        if not verify_password(body.old_password, account.password_hash):
             raise HTTPException(status_code=400, detail="旧密码错误")
 
         if body.old_password == body.new_password:
             raise HTTPException(status_code=400, detail="新密码不能与旧密码相同")
 
         new_hash = hash_password(body.new_password)
-        with get_db(db_path) as conn:
-            conn.execute(
-                "UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                (new_hash, user["id"]),
-            )
-            current_token = request.cookies.get("session_token", "")
-            conn.execute(
-                "DELETE FROM sessions WHERE user_id = ? AND token != ?",
-                (user["id"], current_token),
-            )
-            conn.commit()
+        repository.update_password_and_revoke_other_sessions(
+            account.user_id,
+            new_hash,
+            request.cookies.get("session_token", ""),
+        )
 
         return {"detail": "密码已更新"}
 
@@ -531,12 +496,9 @@ def create_app(
         user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
     ) -> Dict[str, str]:
         """Persist the authenticated user's selected visual theme."""
-        with get_db(request.app.state.db_path) as conn:
-            conn.execute(
-                "UPDATE users SET theme_key = ? WHERE id = ?",
-                (body.theme_key, user["id"]),
-            )
-            conn.commit()
+        RuntimeQueryRepository(request.app.state.db_path).update_theme(
+            int(user["id"]), body.theme_key
+        )
         return {"theme_key": body.theme_key}
 
     # -------------------------------------------------------------------

@@ -20,8 +20,8 @@ data is written, who owns it, and how it is cleaned up.
   artifacts; neither is a source-doc location.
 
 Inside the production root, ownership is split into the Nest layer and the
-Elfie layer. `nest.db` stores Nest identity, account/ownership, rooms and
-runtime state; each Elfie's profile, memory, work content and chat live under
+Elfie layer. `nest.db` stores only the final eight Nest-level tables; each
+Elfie's profile, memory, work content and chat live under
 `elfies/<elfie_id>/`. `elfie_id` is an immutable directory ID; renaming must
 never move data. New chat may only be written into
 `elfies/<elfie_id>/conversations/history.sqlite`; do not create user chat
@@ -29,9 +29,8 @@ directories and do not write copies into `nest.db.chat_messages`.
 
 Developer Tools uses an independent `${ELFIE_DEV_HOME:-~/.elfienest-dev}` with
 separate `elfie_lab/`, `nest_lab/`, and `runtime_lab/` children. It must not
-read or write the product root by default. `nest.db.chat_messages`
-is a deprecated table from the unreleased phase and is deleted on database
-upgrade; no compat read or migration entry is kept.
+read or write the product root by default. A legacy root is rejected before
+write; the supported MVP operation is backup followed by a fresh-root rebuild.
 
 ## Keys and external services
 

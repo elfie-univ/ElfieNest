@@ -15,6 +15,7 @@ from elfie.brain.memory.node_types import (
     RetrievalQuery,
 )
 from elfie.brain.memory.retrieval import MemoryRetriever
+from elfie.brain.memory.sensory_index import SensoryIndexer
 
 
 def _seed_test_data(gs: GraphStorage):
@@ -92,12 +93,9 @@ def _seed_test_data(gs: GraphStorage):
         ("鹿", "visual", "ep_2", 0.85),
         ("花香", "olfactory", "ep_3", 0.75),
     ]
-    for sense_key, sense_type, node_id, weight in sensory_data:
-        gs.conn.execute(
-            "INSERT OR REPLACE INTO sensory_index (sense_key, sense_type, node_id, weight) VALUES (?, ?, ?, ?)",
-            (sense_key, sense_type, node_id, weight),
-        )
-    gs.conn.commit()
+    indexer = SensoryIndexer(gs)
+    for sense_key, sense_type, node_id, _weight in sensory_data:
+        indexer.index_sensory(node_id, {sense_type: sense_key})
 
 
 class TestMemoryRetriever:
@@ -121,6 +119,17 @@ class TestMemoryRetriever:
         results = retriever.retrieve_by_text("公园", top_k=5)
         ids = [n.id for n in results]
         assert "ep_1" in ids, "ep_1内容包含'公园'，应该被检索到"
+
+    def test_retrieve_by_text_only_returns_episodic_memories(self, retriever):
+        """公开文字检索不暴露内部实体、知识或核心认知节点。"""
+        # Given: "公园"同时命中一个情景节点和内部实体节点。
+
+        # When
+        results = retriever.retrieve_by_text("公园", top_k=5)
+
+        # Then
+        assert results
+        assert {node.type for node in results} == {NodeTypes.EPISODIC.value}
 
     def test_retrieve_by_text_no_match(self, retriever):
         """文字检索：无匹配返回空列表"""
@@ -193,7 +202,7 @@ class TestMemoryRetriever:
     # ──────────── 感官检索 ────────────
 
     def test_retrieve_by_sensory(self, retriever):
-        """感官检索：通过sensory_index表查找感官匹配的记忆"""
+        """感官检索：通过节点语义元数据查找感官匹配的记忆"""
         results = retriever.retrieve_by_sensory({"visual": "红色"}, top_k=5)
         ids = [n.id for n in results]
         assert "ep_1" in ids, "红色在感官索引中关联到ep_1"

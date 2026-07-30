@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.infrastructure.devices import DeviceRegistry
 from app.infrastructure.persistence.embodiment_sessions import begin_hosting
 from app.infrastructure.persistence.store import init_db
 from app.interfaces.api.app import create_app
@@ -89,7 +90,10 @@ def monitoring_world(client: TestClient) -> dict:
         headers=_headers(str(alice["csrf_token"])),
     )
     assert policy.status_code == 200, policy.text
-    begin_hosting(client.app.state.db_path, alice_dog, "test-body", lease_seconds=30)
+    body = DeviceRegistry(client.app.state.db_path).enroll(
+        alice_dog, "Test Body", "toy"
+    )
+    begin_hosting(client.app.state.db_path, alice_dog, body.body_id, lease_seconds=30)
 
     bob = _login(client, "bob", "bob-pass")
     bob_dog = _adopt_elfie(client, str(bob["csrf_token"]), "晨星", "dog")

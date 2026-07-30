@@ -51,7 +51,7 @@ def test_isolated_home_does_not_read_legacy_json(monkeypatch, tmp_path):
 
     # Then: 路径解析已隔离，legacy JSON 不得进入正常配置。
     assert get_elfie_home() == isolated_home
-    assert get_config_path() == isolated_home / "config.yaml"
+    assert get_config_path() == isolated_home / "configs" / "runtime.yaml"
     assert not get_config_path().exists()
     assert "legacy_only" not in config.providers
 
@@ -76,8 +76,9 @@ def test_normal_load_does_not_read_legacy_runtime_json(monkeypatch, tmp_path):
 def test_malformed_yaml_does_not_trigger_legacy_fallback(monkeypatch, tmp_path):
     """Given 损坏 YAML 和有效 legacy JSON，When 正常加载，Then 不应回退到旧 JSON。"""
     isolated_home = tmp_path / "isolated-home"
-    isolated_home.mkdir()
-    (isolated_home / "config.yaml").write_text("providers: [broken\n", encoding="utf-8")
+    config_path = isolated_home / "configs" / "runtime.yaml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text("providers: [broken\n", encoding="utf-8")
     legacy_path = tmp_path / "runtime" / "runtime_config.json"
     _write_legacy_runtime_config(legacy_path, provider_id="legacy_after_bad_yaml")
     _patch_legacy_runtime_path(monkeypatch, legacy_path)
@@ -112,8 +113,9 @@ def test_malformed_legacy_json_is_ignored_without_side_effects(monkeypatch, tmp_
 def test_existing_config_yaml_is_authoritative_over_legacy(monkeypatch, tmp_path):
     """Given 已有 config.yaml 和旧 JSON，When 正常加载，Then 只使用当前 YAML。"""
     isolated_home = tmp_path / "isolated-home"
-    isolated_home.mkdir()
-    (isolated_home / "config.yaml").write_text(
+    config_path = isolated_home / "configs" / "runtime.yaml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
         yaml.safe_dump(
             {
                 "providers": {
@@ -169,11 +171,11 @@ def test_runtime_api_reads_current_elfie_home_after_environment_switch(
     first_home = tmp_path / "first"
     second_home = tmp_path / "second"
     write_yaml_mapping(
-        first_home / "config.yaml",
+        first_home / "configs" / "runtime.yaml",
         {"providers": {"first": {"api_base": "http://first"}}},
     )
     write_yaml_mapping(
-        second_home / "config.yaml",
+        second_home / "configs" / "runtime.yaml",
         {"providers": {"second": {"api_base": "http://second"}}},
     )
 

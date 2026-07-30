@@ -7,7 +7,7 @@ from scripts import serve
 
 
 class _CapturingGenerator:
-    def generate(self, **kwargs: str) -> None:
+    def generate_for_species(self, **kwargs: str) -> None:
         self.elfie_id = kwargs["elfie_id"]
 
 
@@ -30,7 +30,7 @@ def test_default_seed_uses_a_workspace_safe_id(monkeypatch, tmp_path: Path) -> N
 
     # Then: the stable directory ID is separate from the visible display name.
     with get_db(db_path) as connection:
-        row = connection.execute("SELECT elfie_id, name FROM elfie_registry").fetchone()
-    assert row["elfie_id"] == "elfie_default"
+        row = connection.execute("SELECT elfie_id, name FROM elfies").fetchone()
+    assert row["elfie_id"] == "00000001"
     assert row["name"] == "Aifei"
-    assert generator.elfie_id == "elfie_default"
+    assert generator.elfie_id == "00000001"

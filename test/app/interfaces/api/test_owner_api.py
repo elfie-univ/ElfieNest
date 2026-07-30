@@ -347,9 +347,10 @@ class TestUserCRUD:
 
         with get_db(db_path) as conn:
             conn.execute(
-                "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) "
-                "VALUES (?, ?, ?)",
-                ("test_elfie", "测试精灵", alice_id),
+                """INSERT INTO elfies
+                   (elfie_id,name,owner_user_id,species,adopted_at,status)
+                   VALUES (?,?,?,?,?,'offline')""",
+                ("00000001", "测试精灵", alice_id, "fox", "2026-07-30T00:00:00Z"),
             )
             conn.commit()
 
@@ -363,7 +364,7 @@ class TestUserCRUD:
         assert response.status_code == 409
         with get_db(db_path) as conn:
             cursor = conn.execute(
-                "SELECT * FROM elfie_registry WHERE owner_user_id = ?",
+                "SELECT * FROM elfies WHERE owner_user_id = ?",
                 (alice_id,),
             )
             assert cursor.fetchone() is not None
@@ -462,30 +463,24 @@ class TestOwnerElfieList:
                 "SELECT id FROM users WHERE username = ?",
                 ("owner",),
             ).fetchone()["id"]
-            room_cursor = conn.execute(
-                "INSERT INTO rooms (name, max_capacity) VALUES (?, ?)",
-                ("主精灵巢", 4),
-            )
-            room_id = room_cursor.lastrowid
-            cursor = conn.execute(
-                "INSERT INTO beds (room_id, name, grid_x, grid_y) VALUES (?, ?, ?, ?)",
-                (room_id, "Bed 1", 0, 0),
-            )
-            bed_id = cursor.lastrowid
             conn.execute(
-                "INSERT INTO elfie_registry "
-                "(elfie_id, name, owner_user_id, anatomy_type, bed_id) "
-                "VALUES (?, ?, ?, ?, ?)",
-                ("elfie_001", "小白", owner_id, "biped", bed_id),
+                """INSERT INTO nest_settings
+                   (nest_id,bed_count,tick_interval_sec) VALUES ('local',4,1.0)"""
+            )
+            conn.execute(
+                """INSERT INTO elfies
+                   (elfie_id,name,owner_user_id,species,adopted_at,bed_number,status)
+                   VALUES (?,?,?,?,?,1,'offline')""",
+                ("00000001", "小白", owner_id, "fox", "2026-07-30T00:00:00Z"),
             )
             conn.commit()
 
         resp = client.get("/api/owner/elfies", headers=headers)
         assert resp.status_code == 200
         data = resp.json()
-        assert data[0]["elfie_id"] == "elfie_001"
-        assert data[0]["profile"]["nest"]["bed_id"] == bed_id
-        assert data[0]["profile"]["nest"]["room_name"] == "主精灵巢"
+        assert data[0]["elfie_id"] == "00000001"
+        assert data[0]["profile"]["nest"]["bed_id"] == 1
+        assert data[0]["profile"]["nest"]["room_name"] is None
         assert data[0]["profile"]["appearance"] == {}
         assert "config_dir" not in data[0]
 

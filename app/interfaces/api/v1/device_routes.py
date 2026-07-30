@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import json
-from typing import Annotated, Any, Dict, Final, Literal, Union
+from typing import Annotated, Final, Literal, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket
 from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 from starlette.websockets import WebSocketDisconnect
 
-from app.features.accounts.auth import require_owner
+from app.features.accounts.auth import AuthenticatedUser, require_owner
 from app.infrastructure.devices import DeviceRegistry
-from app.infrastructure.devices.registry import DeviceCredentialError
+from app.infrastructure.devices.registry import DeviceCredentialError, DeviceRecord
+from app.infrastructure.persistence.interface_query_repository import (
+    InterfaceQueryRepository,
+)
 from elfie.body.contracts import BodySensorEvent, CommandReceipt
 
 router = APIRouter(prefix="/api/v1", tags=["v1-devices"])
@@ -20,7 +23,26 @@ MAX_DEVICE_FRAME_BYTES: Final = 64 * 1024
 
 
 class DeviceEnrollRequest(BaseModel):
+    elfie_id: str = Field(..., pattern=r"^[0-9]{8}$")
     display_name: str = Field(..., min_length=1, max_length=120)
+    body_type: str = Field(..., min_length=1, max_length=80)
+
+
+class BodyCredentialResponse(BaseModel):
+    body_id: str
+    bearer_token: str
+
+
+class BodyRecordResponse(BaseModel):
+    body_id: str
+    display_name: str
+    body_type: str
+    status: str
+    last_heartbeat_at: Optional[float]
+
+
+class DetailResponse(BaseModel):
+    detail: str
 
 
 class DeviceHeartbeatFrame(BaseModel):
@@ -70,11 +92,13 @@ def _registry(request: Request) -> DeviceRegistry:
 @router.get("/owner/devices")
 async def list_devices(
     request: Request,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
-) -> list[Dict[str, Any]]:
+    elfie_id: str,
+    owner: AuthenticatedUser = Depends(require_owner),  # noqa: B008
+) -> list[BodyRecordResponse]:
+    _require_owned_elfie(request, owner, elfie_id)
     return [
         _device_payload(record)
-        for record in _registry(request).list_for_owner(int(owner["id"]))
+        for record in _registry(request).list_for_elfie(elfie_id)
     ]
 
 
@@ -82,36 +106,47 @@ async def list_devices(
 async def enroll_device(
     body: DeviceEnrollRequest,
     request: Request,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
-) -> Dict[str, str]:
-    credential = _registry(request).enroll(int(owner["id"]), body.display_name)
-    return {"device_id": credential.device_id, "bearer_token": credential.bearer_token}
+    owner: AuthenticatedUser = Depends(require_owner),  # noqa: B008
+) -> BodyCredentialResponse:
+    _require_owned_elfie(request, owner, body.elfie_id)
+    credential = _registry(request).enroll(
+        body.elfie_id, body.display_name, body.body_type
+    )
+    return BodyCredentialResponse(
+        body_id=credential.body_id, bearer_token=credential.bearer_token
+    )
 
 
-@router.post("/owner/devices/{device_id}/rotate")
+@router.post("/owner/devices/{body_id}/rotate")
 async def rotate_device(
-    device_id: str,
+    body_id: str,
     request: Request,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
-) -> Dict[str, str]:
+    elfie_id: str,
+    owner: AuthenticatedUser = Depends(require_owner),  # noqa: B008
+) -> BodyCredentialResponse:
+    _require_owned_elfie(request, owner, elfie_id)
     try:
-        credential = _registry(request).rotate(int(owner["id"]), device_id)
+        credential = _registry(request).rotate(elfie_id, body_id)
     except DeviceCredentialError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
-    return {"device_id": credential.device_id, "bearer_token": credential.bearer_token}
+    return BodyCredentialResponse(
+        body_id=credential.body_id, bearer_token=credential.bearer_token
+    )
 
 
-@router.delete("/owner/devices/{device_id}")
+@router.delete("/owner/devices/{body_id}")
 async def revoke_device(
-    device_id: str,
+    body_id: str,
     request: Request,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
-) -> Dict[str, str]:
+    elfie_id: str,
+    owner: AuthenticatedUser = Depends(require_owner),  # noqa: B008
+) -> DetailResponse:
+    _require_owned_elfie(request, owner, elfie_id)
     try:
-        _registry(request).revoke(int(owner["id"]), device_id)
+        _registry(request).revoke(elfie_id, body_id)
     except DeviceCredentialError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
-    return {"detail": "设备已撤销"}
+    return DetailResponse(detail="设备已撤销")
 
 
 @router.websocket("/ws/devices")
@@ -129,8 +164,8 @@ async def device_websocket(websocket: WebSocket) -> None:
         return
     await websocket.accept()
     gateway = websocket.app.state.device_gateway
-    gateway.connect_device(device.device_id)
-    await websocket.send_json({"event": "ready", "device_id": device.device_id})
+    gateway.connect_device(device.body_id)
+    await websocket.send_json({"event": "ready", "body_id": device.body_id})
     registry = DeviceRegistry(websocket.app.state.db_path)
     try:
         while True:
@@ -149,27 +184,27 @@ async def device_websocket(websocket: WebSocket) -> None:
                     {"event": "error", "detail": "设备协议帧无效或过大"}
                 )
                 continue
-            registry.heartbeat(device.device_id)
+            registry.heartbeat(device.body_id)
             # CPython 3.9.25 is the supported runtime, so structural matching is unavailable.
             if isinstance(frame, DeviceHeartbeatFrame):
                 await websocket.send_json(
-                    {"event": "heartbeat", "device_id": device.device_id}
+                    {"event": "heartbeat", "body_id": device.body_id}
                 )
             elif isinstance(frame, DeviceSensorFrame):
                 delivered = gateway.deliver_sensor_event(
-                    device.device_id, frame.sensor_event
+                    device.body_id, frame.sensor_event
                 )
-                registry.record_protocol_event(device.device_id, "sensor_event")
+                registry.record_protocol_event(device.body_id, "sensor_event")
                 await websocket.send_json(
                     {"event": "sensor_event", "delivered": delivered}
                 )
             elif isinstance(frame, DeviceReceiptFrame):
-                delivered = gateway.deliver_receipt(device.device_id, frame.receipt)
-                registry.record_protocol_event(device.device_id, "receipt")
+                delivered = gateway.deliver_receipt(device.body_id, frame.receipt)
+                registry.record_protocol_event(device.body_id, "receipt")
                 await websocket.send_json({"event": "receipt", "delivered": delivered})
             elif isinstance(frame, DeviceCommandPollFrame):
-                commands = gateway.drain_commands(device.device_id)
-                registry.record_protocol_event(device.device_id, "command_poll")
+                commands = gateway.drain_commands(device.body_id)
+                registry.record_protocol_event(device.body_id, "command_poll")
                 await websocket.send_json(
                     {
                         "event": "commands",
@@ -181,7 +216,7 @@ async def device_websocket(websocket: WebSocket) -> None:
             else:
                 raise RuntimeError("无法分派已验证的设备协议帧")
     finally:
-        gateway.disconnect_device(device.device_id)
+        gateway.disconnect_device(device.body_id)
 
 
 def _parse_device_frame(raw_frame: str) -> DeviceProtocolFrame | None:
@@ -195,10 +230,21 @@ def _parse_device_frame(raw_frame: str) -> DeviceProtocolFrame | None:
         return None
 
 
-def _device_payload(record) -> Dict[str, Any]:
-    return {
-        "device_id": record.device_id,
-        "display_name": record.display_name,
-        "revoked": record.revoked,
-        "last_heartbeat_at": record.last_heartbeat_at,
-    }
+def _device_payload(record: DeviceRecord) -> BodyRecordResponse:
+    return BodyRecordResponse(
+        body_id=record.body_id,
+        display_name=record.display_name,
+        body_type=record.body_type,
+        status=record.status,
+        last_heartbeat_at=record.last_heartbeat_at,
+    )
+
+
+def _require_owned_elfie(
+    request: Request, owner: AuthenticatedUser, elfie_id: str
+) -> None:
+    record = InterfaceQueryRepository(request.app.state.db_path).get_elfie(
+        elfie_id, owner_user_id=int(owner["id"])
+    )
+    if record is None:
+        raise HTTPException(status_code=404, detail="精灵不存在")

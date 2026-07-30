@@ -70,3 +70,14 @@ def test_replace_provider_removes_deleted_models_and_preserves_other_providers(
     )
 
     assert set(store.load()) == {"ollama/current", "cloud/vision"}
+
+
+def test_model_evidence_store_defaults_to_final_report_path(monkeypatch, tmp_path):
+    # Given
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+
+    # When
+    store = ModelEvidenceStore()
+
+    # Then
+    assert store.path == tmp_path / "reports" / "model-evidence.yaml"

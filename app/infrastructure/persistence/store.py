@@ -1,29 +1,60 @@
-"""SQLite 持久化层 — users/sessions/elfie_registry 表 + Owner seed。
+"""Final root database activation, connection policy, and Owner seed."""
 
-首次启动自动创建 nest.db，含 3 张表。
-提供 get_db() 上下文管理器保证线程安全连接。
-"""
+from __future__ import annotations
 
 import hashlib
 import logging
 import os
 import secrets
-import shutil
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator, Optional
+from typing import Final, Iterator, Optional
 
 from ai_runtime.storage.data_home import get_db_path as _get_db_path
-from app.infrastructure.persistence.schema import (
-    CURRENT_SCHEMA_VERSION,
-    OwnerSchemaMigrationError,
-    initialize_schema,
-    migrate_schema,
+from ai_runtime.storage.data_layout import ensure_final_root_layout
+from app.infrastructure.persistence.final_schema import (
+    create_final_nest_database,
+)
+from app.infrastructure.persistence.sqlite_connection import (
+    app_sqlite_connection,
 )
 
 logger = logging.getLogger("app.infrastructure.persistence.store")
+
+_FINAL_TABLES: Final[frozenset[str]] = frozenset(
+    {
+        "device_audit_events",
+        "elfies",
+        "embodiment_sessions",
+        "external_bodies",
+        "local_installations",
+        "nest_settings",
+        "sessions",
+        "users",
+    }
+)
+_RETIRED_ROOT_ENTRIES: Final[tuple[str, ...]] = (
+    "backups",
+    "cache",
+    "developer",
+    "files",
+    "food_history",
+    "models",
+    "sessions",
+    "skills",
+    "validations",
+)
+
+
+class LegacyDataRootError(RuntimeError):
+    """The selected root contains data that this MVP does not migrate."""
+
+    __slots__ = ()
+
+    def __str__(self) -> str:
+        return "检测到旧 ElfieNest 数据根；请先备份后重建。不会自动迁移或删除。"
+
 
 # ---------------------------------------------------------------------------
 # Password Hashing (PBKDF2-HMAC-SHA256)
@@ -83,81 +114,36 @@ def verify_password(password: str, hashed: str) -> bool:
 
 
 def init_db(db_path: Optional[str] = None) -> str:
-    """Initialize the database and create all required tables.
-
-    Creates the configured database parent directory if it does not exist.
-    Tables are created with ``CREATE TABLE IF NOT EXISTS`` so the call is idempotent.
-
-    Args:
-        db_path: Path to the SQLite database file. Defaults to
-            ``ELFIE_HOME/nest.db``.
-
-    Returns:
-        The resolved absolute path of the database file.
-    """
+    """Activate the final eight-table database at an explicit fresh root."""
     if db_path is None:
         db_path = str(_get_db_path())
-
-    resolved = Path(db_path).resolve()
-    parent_existed = resolved.parent.exists()
-    resolved.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    # 仅收紧为此数据库新建的目录；显式配置的路径可能位于 /tmp 等共享目录，
-    # 初始化数据库时不能修改共享目录权限。
-    if os.name != "nt" and not parent_existed:
-        resolved.parent.chmod(0o700)
-
-    conn = sqlite3.connect(str(resolved))
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    initialize_schema(conn)
-    conn.commit()
-    conn.close()
-    if os.name != "nt":
-        resolved.chmod(0o600)
+    resolved = Path(db_path).expanduser().absolute()
+    _reject_legacy_root(resolved)
+    ensure_final_root_layout(resolved.parent)
+    create_final_nest_database(resolved)
     logger.info("Database initialized at %s", resolved)
     return str(resolved)
 
 
-def migrate_db_if_needed(db_path: Optional[str] = None) -> None:
-    """检查并执行必要的数据库迁移。使用 PRAGMA user_version 跟踪版本。"""
-    if db_path is None:
-        db_path = str(_get_db_path())
-    backup_path = _backup_before_migration(db_path)
+def _reject_legacy_root(database_path: Path) -> None:
+    root = database_path.parent
+    if any((root / entry).exists() for entry in _RETIRED_ROOT_ENTRIES):
+        raise LegacyDataRootError
+    if not database_path.exists() or database_path.stat().st_size == 0:
+        return
+    uri = f"{database_path.as_uri()}?mode=ro&immutable=1"
     try:
-        with get_db(db_path) as conn:
-            migrate_schema(conn)
-    except OwnerSchemaMigrationError as error:
-        if backup_path is None:
-            raise
-        raise OwnerSchemaMigrationError(
-            f"{error}；原数据库备份已保留: {backup_path}"
-        ) from error
-
-
-def _backup_before_migration(db_path: str) -> Optional[Path]:
-    """为落后版本创建同目录备份，避免迁移失败后无法恢复。"""
-    if db_path == ":memory:":
-        return None
-    database_path = Path(db_path).expanduser().resolve()
-    if not database_path.is_file():
-        return None
-    with sqlite3.connect(str(database_path)) as connection:
-        version = int(connection.execute("PRAGMA user_version").fetchone()[0])
-        semantic_nest_schema_missing = (
-            connection.execute(
-                "SELECT 1 FROM sqlite_master "
-                "WHERE type = 'table' AND name = 'nest_config'"
-            ).fetchone()
-            is None
-        )
-    if version >= CURRENT_SCHEMA_VERSION and not semantic_nest_schema_missing:
-        return None
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-    backup_path = database_path.with_name(
-        f"{database_path.name}.migration-backup.{timestamp}"
-    )
-    shutil.copy2(str(database_path), str(backup_path))
-    return backup_path
+        with sqlite3.connect(uri, uri=True) as connection:
+            tables = {
+                str(row[0])
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                )
+            }
+    except sqlite3.DatabaseError as error:
+        raise LegacyDataRootError from error
+    if tables != _FINAL_TABLES:
+        raise LegacyDataRootError
 
 
 def seed_initial_owner_if_env_set(
@@ -239,17 +225,8 @@ def get_db(db_path: Optional[str] = None) -> Iterator[sqlite3.Connection]:
     if db_path is None:
         db_path = str(_get_db_path())
 
-    if db_path != ":memory:":
-        database_path = Path(db_path).expanduser().resolve()
-        if database_path.exists() and os.name != "nt":
-            database_path.chmod(0o600)
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    try:
-        yield conn
-    finally:
-        conn.close()
+    with app_sqlite_connection(db_path) as connection:
+        yield connection
 
 
 # ---------------------------------------------------------------------------
@@ -271,7 +248,7 @@ def count_elfies_by_owner(user_id: int, db_path: Optional[str] = None) -> int:
     """
     with get_db(db_path) as db:
         cursor = db.execute(
-            "SELECT COUNT(*) AS cnt FROM elfie_registry WHERE owner_user_id = ?",
+            "SELECT COUNT(*) AS cnt FROM elfies WHERE owner_user_id = ?",
             (user_id,),
         )
         row = cursor.fetchone()

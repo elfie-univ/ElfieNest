@@ -6,11 +6,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from ai_runtime.storage.data_layout import final_root_layout
 from app.features.accounts.auth import get_current_user
 from app.features.adoption.generator import ElfieGenerator
 from app.features.adoption.service import (
@@ -22,7 +24,10 @@ from app.features.adoption.service import (
 )
 from app.features.elfie_profile.public_projection import build_public_profile
 from app.infrastructure.persistence.embodiment_sessions import get_embodiment_session
-from app.infrastructure.persistence.store import get_db
+from app.infrastructure.persistence.interface_query_repository import (
+    InterfaceElfieRecord,
+    InterfaceQueryRepository,
+)
 from app.interfaces.api.user_chat_routes import router as user_chat_router
 from nest import NestFullError
 
@@ -42,14 +47,28 @@ BUILDS: tuple = ("slim", "standard", "plump")
 # ---------------------------------------------------------------------------
 
 
-def _check_ownership(conn, elfie_id: str, user_id: int) -> bool:
-    """检查 *elfie_id* 的 owner_user_id 是否等于 *user_id*。"""
-    cur = conn.execute(
-        "SELECT owner_user_id FROM elfie_registry WHERE elfie_id=?",
-        (elfie_id,),
+def _profile_dir(db_path: str, elfie_id: str) -> str:
+    data_home = Path(db_path).expanduser().resolve().parent
+    return str(final_root_layout(data_home).elfie(elfie_id).profile.parent)
+
+
+def _public_profile(db_path: str, record: InterfaceElfieRecord) -> Dict[str, object]:
+    profile = build_public_profile(
+        elfie_id=record.elfie_id,
+        name=record.name,
+        species_id=record.species,
+        personality_style=record.summary or "",
+        config_dir=_profile_dir(db_path, record.elfie_id),
+        room_id=None,
+        room_name=None,
+        bed_id=record.bed_number,
+        bed_name=(None if record.bed_number is None else f"Bed {record.bed_number}"),
+        embodiment_state=get_embodiment_session(db_path, record.elfie_id).state.value,
     )
-    row = cur.fetchone()
-    return row is not None and row[0] == user_id
+    profile["gender"] = record.gender
+    profile["birth_date"] = record.birth_date
+    profile["summary"] = record.summary
+    return profile
 
 
 # ===================================================================
@@ -64,42 +83,22 @@ async def list_my_elfies(
 ):
     """返回当前用户名下所有精灵及其稳定物种和领养摘要。"""
     db = request.app.state.db_path
-    with get_db(db) as conn:
-        cursor = conn.execute(
-            """SELECT e.elfie_id,
-                      e.name,
-                      e.species_id,
-                      e.personality_style,
-                      e.height,
-                      e.build,
-                      e.bed_id,
-                      b.name AS bed_name,
-                      r.id AS room_id,
-                      r.name AS room_name,
-                      e.created_at
-               FROM elfie_registry e
-               LEFT JOIN beds b ON b.id = e.bed_id
-               LEFT JOIN rooms r ON r.id = b.room_id
-               WHERE e.owner_user_id = ?
-               ORDER BY e.created_at DESC""",
-            (user["id"],),
-        )
-        rows = cursor.fetchall()
+    rows = InterfaceQueryRepository(db).list_elfies(owner_user_id=int(user["id"]))
     return [
         {
-            "elfie_id": r["elfie_id"],
-            "name": r["name"],
-            "species_id": r["species_id"],
-            "personality_style": r["personality_style"],
-            "height": r["height"],
-            "build": r["build"],
-            "bed_id": r["bed_id"],
-            "bed_name": r["bed_name"],
-            "room_id": r["room_id"],
-            "room_name": r["room_name"],
-            "created_at": r["created_at"],
+            "elfie_id": row.elfie_id,
+            "name": row.name,
+            "species_id": row.species,
+            "personality_style": row.summary,
+            "height": None,
+            "build": None,
+            "bed_id": row.bed_number,
+            "bed_name": (None if row.bed_number is None else f"Bed {row.bed_number}"),
+            "room_id": None,
+            "room_name": None,
+            "created_at": row.adopted_at,
         }
-        for r in rows
+        for row in rows
     ]
 
 
@@ -111,37 +110,12 @@ async def get_elfie_detail(
 ):
     """返回当前用户自己精灵的安全公开资料，不暴露原始配置。"""
     db = request.app.state.db_path
-    with get_db(db) as conn:
-        if not _check_ownership(conn, elfie_id, user["id"]):
-            raise HTTPException(status_code=404, detail="精灵不存在")
-
-        cursor = conn.execute(
-            """SELECT e.elfie_id, e.name, e.species_id, e.personality_style,
-                      e.config_dir, e.bed_id, b.name AS bed_name,
-                      r.id AS room_id, r.name AS room_name
-               FROM elfie_registry e
-               LEFT JOIN beds b ON b.id = e.bed_id
-               LEFT JOIN rooms r ON r.id = b.room_id
-               WHERE e.elfie_id = ?""",
-            (elfie_id,),
-        )
-        row = cursor.fetchone()
-
-    if row is None:
-        raise HTTPException(status_code=404, detail="精灵不存在")
-
-    return build_public_profile(
-        elfie_id=str(row["elfie_id"]),
-        name=str(row["name"]),
-        species_id=str(row["species_id"]),
-        personality_style=str(row["personality_style"] or ""),
-        config_dir=str(row["config_dir"]) if row["config_dir"] else None,
-        room_id=int(row["room_id"]) if row["room_id"] is not None else None,
-        room_name=str(row["room_name"]) if row["room_name"] is not None else None,
-        bed_id=int(row["bed_id"]) if row["bed_id"] is not None else None,
-        bed_name=str(row["bed_name"]) if row["bed_name"] is not None else None,
-        embodiment_state=get_embodiment_session(db, elfie_id).state.value,
+    record = InterfaceQueryRepository(db).get_elfie(
+        elfie_id, owner_user_id=int(user["id"])
     )
+    if record is None:
+        raise HTTPException(status_code=404, detail="精灵不存在")
+    return _public_profile(db, record)
 
 
 @router.post("/adopt")
@@ -153,7 +127,7 @@ async def adopt_elfie(
     """核心领养端点 — 创建新精灵并分配至当前用户。
 
     前置检查：领养上限、名字、物种、性格方向和外貌生成方向。
-    通过后：生成 elfie_id → 调用 ElfieGenerator → 插入 elfie_registry → 可选注册到 engine。
+    通过后：生成 elfie_id → 调用 ElfieGenerator → 写入最终 Elfie 存储 → 可选注册到 engine。
     """
     db = request.app.state.db_path
     adoption_request = AdoptionRequest(

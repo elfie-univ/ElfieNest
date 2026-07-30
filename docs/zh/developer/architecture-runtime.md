@@ -84,22 +84,26 @@ React 消费该目录后，只能发出封闭的语义命令 `overview`、`selec
 `<当前worktree>/.elfienest.local`。`--data-home PATH` 与 `ELFIE_HOME` 可以覆盖
 默认值，全部生命周期收据与产品数据都跟随唯一所选数据根。
 
-一台电脑只有一个生产 Nest 根 `${ELFIE_HOME:-~/.elfienest}`。根目录保存 Nest 级别
-事实：`config.yaml`、`.env`、`foods.yaml`、`nest.db`、备份、Runtime 状态与日志。
-`nest.db` 只保存账号、权限、精灵登记/归属、Nest 世界与运行状态；它不接收新的聊天消息。
+一台电脑只有一个生产 Nest 根 `${ELFIE_HOME:-~/.elfienest}`。`nest.db` 只包含最终
+8 张 Nest 级表：用户、会话、本机安装/Setup、Nest 设置、精灵、外部身体、身体审计
+和具身租约。聊天与记忆不使用根数据库。
 
 每只精灵都以不可变的 `elfie_id` 作为工作区名。显示名称可改，但绝不能改动目录：
 
 ```text
 ${ELFIE_HOME:-~/.elfienest}/
-├── nest.db                         # Nest、账号、归属和世界状态
-├── config.yaml / .env / foods.yaml # 本机生产配置与密钥引用
-├── runtime.json                    # Supervisor 健康、generation 与 owner lease
+├── nest.db                         # 最终 8 张 Nest 级表
+├── configs/                        # Runtime、鉴权和粮食配置
+├── reports/                        # 模型证据与验证报告
+├── assets/users/<user_id>/         # 头像与隔离的本地文件
+├── runtime/                        # runtime.json 与锁
+├── logs/                           # Runtime 事件与 Token 用量
 └── elfies/
-    └── <elfie_id>/                 # 稳定 ID，不使用可变名称
-        ├── profile.yaml 等档案、记忆和工作内容
-        └── conversations/
-            └── history.sqlite      # 该精灵的所有本机渠道聊天
+    └── <8位elfie_id>/               # 稳定 ID，不使用可变名称
+        ├── profile/profile.yaml
+        ├── assets/ godot/ skills/
+        ├── conversations/history.sqlite # 最终 7 张聊天表
+        └── memory/knowledge.sqlite      # 最终 9 张知识表
 ```
 
 `history.sqlite` 记录会话、渠道、发送方、用户关系、文本、元数据和附件引用。不会建立
@@ -121,8 +125,8 @@ Developer Tools 默认使用独立根 `${ELFIE_DEV_HOME:-~/.elfienest-dev}`，�
 `elfie_lab/`、`nest_lab/`、`runtime_lab/` 不得回退读取生产根。测试应同时设置临时
 `ELFIE_HOME` 与 `ELFIE_DEV_HOME`。
 
-`nest.db.chat_messages` 是未发布阶段遗留的废弃表。数据库升级会直接删除它；不提供
-兼容读取、复制或迁移工具。新聊天只能位于对应精灵工作区。
+应用在产生写入前就会拒绝旧数据根和旧 schema。请先备份，再重建所选数据根；不提供
+兼容读取、复制、重放、双写或自动迁移。新聊天只能位于对应精灵工作区。
 
 ## 内部契约
 

@@ -106,10 +106,9 @@ class TestBigFiveRanges:
             result = _generate(
                 generator, cfg, personality_style=style, elfie_id=f"test_{style}"
             )
-            # 读取 personality.yaml 验证
-            with open(Path(result["config_dir"]) / "personality.yaml") as f:
+            with open(Path(result["config_dir"]) / "profile" / "profile.yaml") as f:
                 data = yaml.safe_load(f)
-            bf = data["big_five"]
+            bf = data["personality"]["big_five"]
             for trait in (
                 "openness",
                 "conscientiousness",
@@ -138,9 +137,9 @@ class TestBigFiveRanges:
             result = _generate(
                 generator, cfg, personality_style="完全随机", elfie_id=f"r{i}"
             )
-            with open(Path(result["config_dir"]) / "personality.yaml") as f:
+            with open(Path(result["config_dir"]) / "profile" / "profile.yaml") as f:
                 data = yaml.safe_load(f)
-            bf = data["big_five"]
+            bf = data["personality"]["big_five"]
             for t in traits:
                 values[t].append(bf[t])
 
@@ -162,25 +161,26 @@ class TestBigFiveRanges:
 
 
 class TestYamlStructure:
-    def test_three_yaml_files_exist(
+    def test_only_final_profile_file_exists(
         self, generator: ElfieGenerator, config_dir: str
     ) -> None:
-        """生成的 YAML 文件存在。"""
+        """Only the final profile file is generated."""
         result = _generate(generator, config_dir)
         base = Path(result["config_dir"])
-        assert (base / "personality.yaml").exists()
-        assert (base / "capabilities.yaml").exists()
-        assert (base / "system_limits.yaml").exists()
+        assert (base / "profile" / "profile.yaml").exists()
+        assert not (base / "personality.yaml").exists()
+        assert not (base / "capabilities.yaml").exists()
+        assert not (base / "system_limits.yaml").exists()
 
     def test_personality_has_big_five(
         self, generator: ElfieGenerator, config_dir: str
     ) -> None:
-        """personality.yaml 包含 big_five 节。"""
+        """profile.yaml contains the personality section."""
         _generate(generator, config_dir)
-        with open(Path(config_dir) / "personality.yaml") as f:
+        with open(Path(config_dir) / "profile" / "profile.yaml") as f:
             data = yaml.safe_load(f)
-        assert "big_five" in data
-        bf = data["big_five"]
+        assert "big_five" in data["personality"]
+        bf = data["personality"]["big_five"]
         assert set(bf.keys()) == {
             "openness",
             "conscientiousness",
@@ -192,32 +192,32 @@ class TestYamlStructure:
     def test_capabilities_has_actuators(
         self, generator: ElfieGenerator, config_dir: str
     ) -> None:
-        """capabilities.yaml 包含 actuators 节。"""
+        """profile.yaml contains the capabilities section."""
         _generate(generator, config_dir)
-        with open(Path(config_dir) / "capabilities.yaml") as f:
+        with open(Path(config_dir) / "profile" / "profile.yaml") as f:
             data = yaml.safe_load(f)
-        assert "actuators" in data
+        assert "actuators" in data["capabilities"]
 
     def test_system_limits_has_limits(
         self, generator: ElfieGenerator, config_dir: str
     ) -> None:
-        """system_limits.yaml 包含 limits 节。"""
+        """profile.yaml contains the system limits section."""
         _generate(generator, config_dir)
-        with open(Path(config_dir) / "system_limits.yaml") as f:
+        with open(Path(config_dir) / "profile" / "profile.yaml") as f:
             data = yaml.safe_load(f)
-        assert "limits" in data
-        assert "energy" in data["limits"]
-        assert "runtime_usage" in data["limits"]
-        assert data["limits"]["runtime_usage"]["observe_only"] is True
-        assert "lingbi" not in data["limits"]
+        limits = data["system_limits"]["limits"]
+        assert "energy" in limits
+        assert "runtime_usage" in limits
+        assert limits["runtime_usage"]["observe_only"] is True
+        assert "lingbi" not in limits
 
 
 # ===================================================================
-# ElfieProfile 兼容性
+# Final ElfieProfile contract
 # ===================================================================
 
 
-class TestElfieProfileCompatibility:
+class TestFinalElfieProfile:
     def test_elfie_profile_loads(
         self, generator: ElfieGenerator, config_dir: str
     ) -> None:
@@ -225,18 +225,18 @@ class TestElfieProfileCompatibility:
         _generate(generator, config_dir)
         from elfie.profile import ElfieProfileRepository
 
-        profile = ElfieProfileRepository(config_dir).load()
+        profile = ElfieProfileRepository(Path(config_dir) / "profile").load()
         assert profile is not None
         # 验证能读取 big_five
         assert profile.personality is not None
 
-    def test_canonical_profile_contains_legacy_config_sections(
+    def test_canonical_profile_contains_runtime_sections(
         self, generator: ElfieGenerator, config_dir: str
     ) -> None:
         _generate(generator, config_dir)
         from elfie.profile import ElfieProfileRepository
 
-        profile = ElfieProfileRepository(config_dir).load()
+        profile = ElfieProfileRepository(Path(config_dir) / "profile").load()
         assert "big_five" in profile.personality
         assert "actuators" in profile.capabilities
         assert "limits" in profile.system_limits
@@ -245,8 +245,7 @@ class TestElfieProfileCompatibility:
         self, generator: ElfieGenerator, config_dir: str
     ) -> None:
         """supported_actions 包含 nod_head + blink_eyes。"""
-        # 需要读取 capabilities.yaml 中的 supported_actions
-        # 因为 generate 内部调用 _pick_supported_actions，我们直接测试该方法
+        # generate 内部调用 _pick_supported_actions，直接验证该稳定约束。
         for _ in range(20):
             actions = generator._pick_supported_actions()
             assert "nod_head" in actions

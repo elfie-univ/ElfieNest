@@ -1,7 +1,7 @@
 import pytest
 
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.food.elfie_policy import ElfieFoodPolicy, save_elfie_food_policy
+from ai_runtime.food.elfie_policy import ElfieFoodPolicy
 from ai_runtime.food.models import ExecutionProfile, FoodRecipe
 from ai_runtime.food.store import FoodCatalog
 from ai_runtime.gateway.agent import RuntimeAgent
@@ -92,7 +92,7 @@ def test_unauthorized_upgrade_uses_deep_profile_inside_allowed_food(
     result = agent.think(
         RuntimeRequest(
             prompt="hard",
-            elfie_id="elfie_test_1",
+            elfie_id="00000001",
             food_key="premium",
             scene="emotion_peak",
             allowed_tools=(),
@@ -106,19 +106,18 @@ def test_unauthorized_upgrade_uses_deep_profile_inside_allowed_food(
     assert result.execution_stage == "deep"
 
 
-def test_runtime_reads_policy_from_elfie_actual_config_directory(monkeypatch, tmp_path):
+def test_runtime_reads_policy_from_injected_final_store(monkeypatch, tmp_path):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path / "global"))
-    config_dir = tmp_path / "custom-elfie"
-    save_elfie_food_policy(
-        ElfieFoodPolicy(
-            "elfie-1",
-            "focus",
-            ("coarse", "standard", "focus"),
-            "coarse",
-        ),
-        config_dir,
+    policy = ElfieFoodPolicy(
+        "00000001",
+        "focus",
+        ("coarse", "standard", "focus"),
+        "coarse",
     )
-    agent = RuntimeAgent(LLMRuntimeConfig())
+    agent = RuntimeAgent(
+        LLMRuntimeConfig(),
+        food_policy_loader=lambda elfie_id: policy,
+    )
     agent.food_catalog_store.save(
         FoodCatalog(
             recipes={
@@ -139,8 +138,7 @@ def test_runtime_reads_policy_from_elfie_actual_config_directory(monkeypatch, tm
     result = agent.run_with_food(
         prompt="分析",
         food_key="focus",
-        elfie_id="elfie-1",
-        elfie_config_dir=str(config_dir),
+        elfie_id="00000001",
         allowed_skills=[],
     )
 

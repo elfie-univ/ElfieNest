@@ -275,11 +275,20 @@ class TestWsGatewayOwnerCheck:
     def _setup_owner_with_elfie(self, db_path: str) -> tuple[int, str]:
         """创建 DB + owner + 一个精灵，返回 (owner_id, elfie_id)。"""
         uid = _init_db_with_owner(db_path)
-        elfie_id = "e_owner"
+        elfie_id = "00000001"
         with get_db(db_path) as conn:
             conn.execute(
-                "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) VALUES (?, ?, ?)",
-                (elfie_id, "owner_elfie", uid),
+                """INSERT INTO elfies(
+                       elfie_id,name,owner_user_id,species,adopted_at,status
+                   ) VALUES(?,?,?,?,?,?)""",
+                (
+                    elfie_id,
+                    "owner_elfie",
+                    uid,
+                    "biped",
+                    "2026-07-30T00:00:00Z",
+                    "offline",
+                ),
             )
             conn.commit()
         return uid, elfie_id
@@ -313,7 +322,7 @@ class TestWsGatewayOwnerCheck:
         alice_id = self._setup_alice(db)
 
         manager = AuthenticatedWSManager(port=0, db_path=db)
-        assert manager._is_elfie_owned_by("e_owner", alice_id) is False
+        assert manager._is_elfie_owned_by("00000001", alice_id) is False
 
     def test_nonexistent_elfie_returns_false(self, tmp_path: Path) -> None:
         """不存在的精灵 → _is_elfie_owned_by 返回 False。"""

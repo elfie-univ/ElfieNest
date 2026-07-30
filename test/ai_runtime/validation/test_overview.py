@@ -1,3 +1,5 @@
+import os
+
 from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.food.evidence import ModelEvidenceStore
 from ai_runtime.food.models import ExecutionProfile, FoodRecipe, FoodValidationStatus
@@ -79,6 +81,21 @@ def test_overview_store_keeps_current_and_history(tmp_path):
     assert first != second
     assert store.load_current()["created_at"] == "second"
     assert len(store.history()) == 2
+
+
+def test_overview_store_defaults_to_model_validation_directory(monkeypatch, tmp_path):
+    # Given
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+
+    # When
+    store = RuntimeOverviewStore()
+
+    # Then
+    assert store.directory == tmp_path / "reports" / "model-validations"
+    path = store.save({"created_at": "manual", "summary": {}})
+    if os.name != "nt":
+        assert store.directory.stat().st_mode & 0o777 == 0o700
+        assert path.stat().st_mode & 0o777 == 0o600
 
 
 def test_regenerate_removes_models_deleted_from_provider(monkeypatch, tmp_path):

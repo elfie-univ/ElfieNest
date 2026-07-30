@@ -4,16 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ai_runtime.storage.data_home import get_local_files_dir
-
 
 class LocalFileAccessError(RuntimeError):
     pass
 
 
 class LocalFileAccessPlugin:
-    def __init__(self, root: str | Path | None = None) -> None:
-        self.root = Path(root) if root is not None else get_local_files_dir()
+    def __init__(self, root: str | Path) -> None:
+        self.root = Path(root)
 
     def read_text(self, relative_path: str) -> str:
         target = self._resolve(relative_path)

@@ -5,17 +5,15 @@ import os
 from pathlib import Path
 from typing import List
 
-from ai_runtime.storage.data_home import get_skills_dir
-
 logger = logging.getLogger("ai_runtime.tools.file")
 
 
 class FileSandbox:
     """技能文件专用安全沙箱，物理隔离防路径穿梭"""
 
-    def __init__(self, skills_root: str | Path | None = None):
-        # 运行时技能属于用户数据，不能写入源码目录。
-        self.skills_root = str(Path(skills_root) if skills_root else get_skills_dir())
+    def __init__(self, skills_root: str | Path):
+        # 调用方必须传入当前精灵的 final workspace，不能回退到共享根。
+        self.skills_root = str(Path(skills_root))
 
     def _ensure_skills_root(self):
         if not os.path.exists(self.skills_root):

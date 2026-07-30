@@ -19,6 +19,11 @@ def _registry_with_owner(tmp_path: Path) -> DeviceRegistry:
             "INSERT INTO users (id, username, password_hash, role) VALUES (1, ?, ?, ?)",
             ("owner", "hash", "owner"),
         )
+        connection.execute(
+            """INSERT INTO elfies(
+                   elfie_id, name, owner_user_id, species, adopted_at, status
+               ) VALUES ('00000001', '测试精灵', 1, 'test', CURRENT_TIMESTAMP, 'offline')"""
+        )
         connection.commit()
     return DeviceRegistry(db_path)
 
@@ -29,13 +34,13 @@ def test_enrolled_device_authenticates_with_a_secret_not_stored_in_database(
     registry = _registry_with_owner(tmp_path)
     db_path = str(tmp_path / "nest.db")
 
-    credential = registry.enroll(1, "客厅玩具")
+    credential = registry.enroll("00000001", "客厅玩具", "toy")
     record = registry.authenticate(credential.bearer_token)
     with get_db(db_path) as connection:
         saved_hash = str(
             connection.execute(
-                "SELECT secret_hash FROM devices WHERE device_id = ?",
-                (credential.device_id,),
+                "SELECT secret_hash FROM external_bodies WHERE body_id = ?",
+                (credential.body_id,),
             ).fetchone()["secret_hash"]
         )
 
@@ -46,16 +51,13 @@ def test_enrolled_device_authenticates_with_a_secret_not_stored_in_database(
 
 def test_rotate_and_revoke_invalidate_old_device_credentials(tmp_path: Path) -> None:
     registry = _registry_with_owner(tmp_path)
-    credential = registry.enroll(1, "客厅玩具")
+    credential = registry.enroll("00000001", "客厅玩具", "toy")
 
-    replacement = registry.rotate(1, credential.device_id)
+    replacement = registry.rotate("00000001", credential.body_id)
     with pytest.raises(DeviceCredentialError):
         registry.authenticate(credential.bearer_token)
-    assert (
-        registry.authenticate(replacement.bearer_token).device_id
-        == credential.device_id
-    )
+    assert registry.authenticate(replacement.bearer_token).body_id == credential.body_id
 
-    registry.revoke(1, credential.device_id)
+    registry.revoke("00000001", credential.body_id)
     with pytest.raises(DeviceCredentialError):
         registry.authenticate(replacement.bearer_token)

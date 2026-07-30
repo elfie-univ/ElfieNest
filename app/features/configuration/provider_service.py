@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Optional
 
-from app.features.configuration.user_config import EnvVars, UserConfig
 from ai_runtime.models.catalog import BUILTIN_MODEL_CATALOG
 from ai_runtime.providers.profiles import BUILTIN_PROFILES, ProviderProfile, get_profile
+from app.features.configuration.user_config import EnvVars, UserConfig
 
 CUSTOM_OPENAI_PROVIDER_ID = "custom_openai"
 

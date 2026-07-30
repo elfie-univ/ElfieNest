@@ -11,9 +11,9 @@ logger = logging.getLogger("ai_runtime.tools.skills_evolution")
 class SkillsSelfEvolutionPlugin:
     """模型技能自进化与沉淀复用插件 (Tool Synthesis)"""
 
-    def __init__(self, permission_manager, file_sandbox: FileSandbox = None):
+    def __init__(self, permission_manager, file_sandbox: FileSandbox):
         self.permission_manager = permission_manager
-        self.file_sandbox = file_sandbox or FileSandbox()
+        self.file_sandbox = file_sandbox
         self.sandbox_plugin = CodeSandboxPlugin(timeout_seconds=5.0)
 
     def write_skill(self, filename: str, code: str, owner_token: str = None) -> str:

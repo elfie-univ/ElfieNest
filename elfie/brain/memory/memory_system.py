@@ -4,7 +4,7 @@ MemorySystem 是图记忆系统的统一入口门面（Facade），
 将所有子系统组合在一起，对外暴露简洁的 API 接口。
 
 子系统列表：
-- GraphStorage: SQLite图存储
+- KnowledgeStore: final SQLite knowledge storage
 - SensoryBuffer: 短期感知缓冲
 - CoreCognition: 核心认知（4段人格信念）
 - MemoryEncoder: 编码引擎
@@ -20,6 +20,7 @@ MemorySystem 是图记忆系统的统一入口门面（Facade），
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .consolidation import MemoryConsolidator
@@ -28,7 +29,7 @@ from .core_cognition import CoreCognition
 from .ebbinghaus_decay import EbbinghausDecay
 from .emotion_weighting import EmotionWeighting
 from .encoding import MemoryEncoder
-from .graph_storage import GraphStorage
+from .knowledge_store import KnowledgeStore
 from .node_types import RetrievalQuery
 from .retrieval import MemoryRetriever
 from .sensory_buffer import SensoryBuffer
@@ -55,12 +56,20 @@ class MemorySystem:
             db_path: SQLite数据库路径（默认:memory:用于测试）
             personality_path: personality.yaml路径（默认自动查找）
         """
-        self.storage = GraphStorage(db_path)
+        resolved_db_path = db_path
+        if resolved_db_path is None:
+            resolved_db_path = (
+                str(Path(config_dir) / "memory" / "knowledge.sqlite")
+                if config_dir is not None
+                else ":memory:"
+            )
+        self.storage = KnowledgeStore(resolved_db_path)
         self.sensory_buffer = SensoryBuffer()
         self.core_cognition = CoreCognition(
-            db_path,
+            resolved_db_path,
             personality_path,
             personality_data=personality_data,
+            storage=self.storage,
         )
         self.sensory_indexer = SensoryIndexer(self.storage)
         self.encoder = MemoryEncoder(
@@ -188,7 +197,7 @@ class MemorySystem:
     def get_all_episodes(self) -> List[Dict[str, Any]]:
         """获取所有episodic节点（兼容旧API EpisodeMemoryManager.get_all_episodes()）
 
-        将GraphStorage中的episodic节点转换为旧格式的字典列表，
+        将知识存储中的episodic节点转换为旧格式的字典列表，
         每个字典包含 content 和 metadata 键。
 
         Returns:
@@ -244,3 +253,7 @@ class MemorySystem:
             current_time=current_time or "",
         )
         return self.context_assembler.assemble(retrieval_query, top_k=top_k)
+
+    def close(self) -> None:
+        """Close the final knowledge database owned by this facade."""
+        self.storage.close()

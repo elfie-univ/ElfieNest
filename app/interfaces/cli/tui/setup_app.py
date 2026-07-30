@@ -12,11 +12,10 @@ from app.features.setup.progress import complete_setup_step, get_setup_progress
 from app.features.setup.service import (
     SetupAlreadyCompleteError,
     create_first_owner_account,
-    needs_setup,
 )
 from app.infrastructure.ollama_platform import OllamaPlatformAdapter
 from app.infrastructure.persistence.nest_repository import SQLiteNestRepository
-from app.infrastructure.persistence.store import get_db, init_db, migrate_db_if_needed
+from app.infrastructure.persistence.store import get_db, init_db
 from app.interfaces.cli.tui.common import (
     clear_screen,
     input_password,
@@ -34,7 +33,6 @@ def run_setup_wizard() -> None:
     print_tui_panel("ElfieNest Setup", "Initialization wizard before first launch")
     db_path = str(get_db_path())
     init_db(db_path)
-    migrate_db_if_needed(db_path)
 
     progress = get_setup_progress(db_path)
 
@@ -42,11 +40,11 @@ def run_setup_wizard() -> None:
         print("  ✅ System initialized")
         print()
         print("  Setup completed the following steps:")
-        print(f"    1. Owner account")
-        print(f"    2. Device and offline support")
-        print(f"    3. Nest settings")
-        print(f"    4. Model and food")
-        print(f"    5. Confirmation")
+        print("    1. Owner account")
+        print("    2. Device and offline support")
+        print("    3. Nest settings")
+        print("    4. Model and food")
+        print("    5. Confirmation")
         print()
         print("  💡 To re-run Setup, use 'uninstall' to clean data first")
         print()
@@ -91,7 +89,9 @@ def _complete_owner(db_path: str) -> bool:
     display_name = input_text("  Owner display name", username) or username
     password = input_password("  Owner password")
     if password is None:
-        print("  ❌ Cannot safely input Owner password in this terminal, setup cancelled")
+        print(
+            "  ❌ Cannot safely input Owner password in this terminal, setup cancelled"
+        )
         return False
     if not 3 <= len(username.strip()) <= 32 or not 6 <= len(password) <= 128:
         print("  ❌ Owner credentials do not meet requirements, setup cancelled")
@@ -115,8 +115,12 @@ def _complete_ollama(db_path: str) -> bool:
     if progress.current_step != 2:
         return True
     _print_step("2/5", "Device and offline support")
-    print("  Ollama is a local backup when offline or cloud unavailable, can maintain basic elfie capabilities.")
-    print("  Optional: bind existing public Ollama, install from official site, or skip for now.")
+    print(
+        "  Ollama is a local backup when offline or cloud unavailable, can maintain basic elfie capabilities."
+    )
+    print(
+        "  Optional: bind existing public Ollama, install from official site, or skip for now."
+    )
     choice = (
         (input_text("  Choose [skip/bind/install]", "skip") or "skip").strip().lower()
     )
@@ -136,7 +140,11 @@ def _complete_ollama(db_path: str) -> bool:
         return True
     if choice == "install":
         confirmed = (
-            input_text("  Confirm download and run installer from official Ollama site? [y/N]", "n") or "n"
+            input_text(
+                "  Confirm download and run installer from official Ollama site? [y/N]",
+                "n",
+            )
+            or "n"
         ).lower()
         if confirmed != "y":
             print("  Ollama installation cancelled")
@@ -200,7 +208,9 @@ def _complete_model(db_path: str) -> bool:
             )
             return True
         if choice == "pull":
-            confirmed = (input_text("  Confirm downloading this model? [y/N]", "n") or "n").lower()
+            confirmed = (
+                input_text("  Confirm downloading this model? [y/N]", "n") or "n"
+            ).lower()
             if confirmed != "y":
                 print("  Model download cancelled")
                 return False
@@ -221,7 +231,9 @@ def _complete_confirmation(db_path: str) -> None:
     if progress.current_step != 5 or progress.complete:
         return
     _print_step("5/5", "Confirmation")
-    confirmed = (input_text("  Complete initialization and enter admin menu? [y/N]", "y") or "y").lower()
+    confirmed = (
+        input_text("  Complete initialization and enter admin menu? [y/N]", "y") or "y"
+    ).lower()
     if confirmed != "y":
         print("  Current progress saved; continue later.")
         return

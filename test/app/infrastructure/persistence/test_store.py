@@ -58,10 +58,16 @@ class TestInitDb:
         tables = _table_names(db)
         assert "users" in tables
         assert "sessions" in tables
-        assert "elfie_registry" in tables
-        assert "rooms" in tables
-        assert "beds" in tables
-        assert len(tables) >= 5
+        assert tables == {
+            "device_audit_events",
+            "elfies",
+            "embodiment_sessions",
+            "external_bodies",
+            "local_installations",
+            "nest_settings",
+            "sessions",
+            "users",
+        }
 
     def test_creates_indices(self, tmp_path: Path) -> None:
         """init_db 创建必要的索引（至少 users.username 有 UNIQUE 索引）。"""
@@ -212,9 +218,10 @@ class TestCountElfiesByOwner:
 
         with get_db(db) as conn:
             conn.execute(
-                "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) "
-                "VALUES (?, ?, ?)",
-                ("elfie_001", "小白", owner_id),
+                "INSERT INTO elfies "
+                "(elfie_id, name, owner_user_id, species, adopted_at, status) "
+                "VALUES (?, ?, ?, 'fox', CURRENT_TIMESTAMP, 'offline')",
+                ("00000001", "小白", owner_id),
             )
             conn.commit()
 
@@ -228,14 +235,16 @@ class TestCountElfiesByOwner:
 
         with get_db(db) as conn:
             conn.execute(
-                "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) "
-                "VALUES (?, ?, ?)",
-                ("elfie_001", "小白", owner_id),
+                "INSERT INTO elfies "
+                "(elfie_id, name, owner_user_id, species, adopted_at, status) "
+                "VALUES (?, ?, ?, 'fox', CURRENT_TIMESTAMP, 'offline')",
+                ("00000001", "小白", owner_id),
             )
             conn.execute(
-                "INSERT INTO elfie_registry (elfie_id, name, owner_user_id) "
-                "VALUES (?, ?, ?)",
-                ("elfie_002", "小黑", owner_id),
+                "INSERT INTO elfies "
+                "(elfie_id, name, owner_user_id, species, adopted_at, status) "
+                "VALUES (?, ?, ?, 'fox', CURRENT_TIMESTAMP, 'offline')",
+                ("00000002", "小黑", owner_id),
             )
             conn.commit()
 

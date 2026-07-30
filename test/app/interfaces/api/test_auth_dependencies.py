@@ -28,8 +28,12 @@ def test_all_http_routes_share_auth_dependency_functions():
 
 def test_session_verification_uses_request_database(tmp_path):
     """Given two databases, When the token belongs to the other one, Then it is rejected."""
-    first_db = str(tmp_path / "first.db")
-    second_db = str(tmp_path / "second.db")
+    first_root = tmp_path / "first"
+    second_root = tmp_path / "second"
+    first_root.mkdir()
+    second_root.mkdir()
+    first_db = str(first_root / "nest.db")
+    second_db = str(second_root / "nest.db")
     init_db(first_db)
     init_db(second_db)
     from test.app.interfaces.api._helpers import create_test_owner

@@ -18,7 +18,7 @@ def test_records_multi_channel_history_in_the_elfie_workspace(
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path / "production"))
 
     record_elfie_chat_message(
-        "elfie_alpha",
+        "00000001",
         ElfieChatMessageInput(
             message_id="msg_web_1",
             conversation_id="conv_owner",
@@ -29,7 +29,7 @@ def test_records_multi_channel_history_in_the_elfie_workspace(
         ),
     )
     record_elfie_chat_message(
-        "elfie_alpha",
+        "00000001",
         ElfieChatMessageInput(
             message_id="msg_feishu_1",
             conversation_id="conv_owner",
@@ -40,11 +40,11 @@ def test_records_multi_channel_history_in_the_elfie_workspace(
         ),
     )
 
-    history = list_elfie_chat_history("elfie_alpha", "conv_owner")
+    history = list_elfie_chat_history("00000001", "conv_owner")
 
     assert [record.text for record in history] == ["网页来的消息", "飞书回复"]
     assert [record.channel for record in history] == ["web", "feishu"]
-    assert (get_elfie_conversations_dir("elfie_alpha") / "history.sqlite").is_file()
+    assert (get_elfie_conversations_dir("00000001") / "history.sqlite").is_file()
 
 
 def test_retries_are_idempotent_and_elfies_are_isolated(monkeypatch, tmp_path) -> None:
@@ -59,12 +59,12 @@ def test_retries_are_idempotent_and_elfies_are_isolated(monkeypatch, tmp_path) -
         created_at="2026-07-24T09:00:00.000Z",
     )
 
-    first = record_elfie_chat_message("elfie_alpha", message)
-    second = record_elfie_chat_message("elfie_alpha", message)
+    first = record_elfie_chat_message("00000001", message)
+    second = record_elfie_chat_message("00000001", message)
 
     assert first == second
-    assert len(list_elfie_chat_history("elfie_alpha")) == 1
-    assert list_elfie_chat_history("elfie_beta") == []
+    assert len(list_elfie_chat_history("00000001")) == 1
+    assert list_elfie_chat_history("00000002") == []
 
 
 def test_preserves_attachment_references_without_storing_binary_content(
@@ -74,7 +74,7 @@ def test_preserves_attachment_references_without_storing_binary_content(
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path / "production"))
 
     record = record_elfie_chat_message(
-        "elfie_alpha",
+        "00000001",
         ElfieChatMessageInput(
             message_id="msg_attachment_1",
             conversation_id="conv_owner",
@@ -93,7 +93,7 @@ def test_uses_the_explicit_nest_data_root_for_embedded_application(tmp_path) -> 
     data_home = tmp_path / "embedded-nest"
 
     record_elfie_chat_message(
-        "elfie_alpha",
+        "00000001",
         ElfieChatMessageInput(
             message_id="msg_embedded_1",
             conversation_id="conv_owner",
@@ -105,5 +105,5 @@ def test_uses_the_explicit_nest_data_root_for_embedded_application(tmp_path) -> 
     )
 
     assert (
-        data_home / "elfies" / "elfie_alpha" / "conversations" / "history.sqlite"
+        data_home / "elfies" / "00000001" / "conversations" / "history.sqlite"
     ).is_file()

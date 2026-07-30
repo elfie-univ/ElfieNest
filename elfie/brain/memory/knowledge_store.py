@@ -7,6 +7,8 @@ from pathlib import Path
 from types import TracebackType
 from typing import Final
 
+from .knowledge_edge_store import KnowledgeEdgeStoreMixin
+from .knowledge_node_store import KnowledgeNodeStoreMixin
 from .knowledge_schema import KNOWLEDGE_SCHEMA_SQL
 from .sqlite_connection import SQLitePathError, connect_memory_sqlite
 
@@ -26,7 +28,7 @@ class KnowledgeStorePathError(Exception):
         return f"KnowledgeStore requires {_FINAL_FILENAME}: {self.db_path}"
 
 
-class KnowledgeStore:
+class KnowledgeStore(KnowledgeNodeStoreMixin, KnowledgeEdgeStoreMixin):
     """Own a connection initialized with the final nine-table schema."""
 
     def __init__(self, db_path: str | Path) -> None:

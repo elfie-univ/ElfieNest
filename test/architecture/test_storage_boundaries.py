@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import re
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -13,6 +14,16 @@ ACTIVE_CHAT_ROUTE_FILES = (
     "app/interfaces/api/v1/client_routes.py",
     "app/interfaces/api/v1/realtime.py",
     "app/interfaces/api/ws_gateway.py",
+)
+APPLICATION_SQL_ROOTS = (
+    "app/features",
+    "app/interfaces",
+    "app/orchestration",
+)
+SQL_LITERAL_PATTERN = re.compile(
+    r"\b(?:SELECT|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|"
+    r"CREATE\s+TABLE|ALTER\s+TABLE|DROP\s+TABLE|PRAGMA\s+\w+)\b",
+    re.IGNORECASE,
 )
 
 
@@ -48,10 +59,8 @@ def test_legacy_nest_chat_storage_has_no_runtime_path() -> None:
     assert not (
         PROJECT_ROOT / "app/infrastructure/persistence/legacy_chat_migration.py"
     ).exists()
-    schema_source = (
-        PROJECT_ROOT / "app/infrastructure/persistence/schema.py"
-    ).read_text(encoding="utf-8")
-    assert "CREATE TABLE IF NOT EXISTS chat_messages" not in schema_source
+    assert not (PROJECT_ROOT / "app/infrastructure/persistence/schema.py").exists()
+    assert not (PROJECT_ROOT / "app/infrastructure/persistence/nest_schema.py").exists()
 
 
 def test_data_home_declares_production_developer_and_elfie_workspace_roots() -> None:
@@ -68,3 +77,28 @@ def test_data_home_declares_production_developer_and_elfie_workspace_roots() -> 
         "get_elfie_workspace_dir",
         "get_elfie_conversations_dir",
     } <= functions
+
+
+def test_application_layers_do_not_own_sql() -> None:
+    offenders: list[str] = []
+    for relative_root in APPLICATION_SQL_ROOTS:
+        for path in (PROJECT_ROOT / relative_root).rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            has_sql = any(
+                isinstance(node, ast.Constant)
+                and isinstance(node.value, str)
+                and SQL_LITERAL_PATTERN.search(node.value) is not None
+                for node in ast.walk(tree)
+            )
+            imports_sqlite = any(
+                (
+                    isinstance(node, ast.Import)
+                    and any(alias.name == "sqlite3" for alias in node.names)
+                )
+                or (isinstance(node, ast.ImportFrom) and node.module == "sqlite3")
+                for node in ast.walk(tree)
+            )
+            if has_sql or imports_sqlite:
+                offenders.append(path.relative_to(PROJECT_ROOT).as_posix())
+
+    assert offenders == []

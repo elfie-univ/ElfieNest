@@ -1,9 +1,7 @@
 from ai_runtime.food.elfie_policy import (
     DEFAULT_ALLOWED_FOODS,
     ElfieFoodPolicy,
-    load_elfie_food_policy,
     resolve_food_selection,
-    save_elfie_food_policy,
 )
 from ai_runtime.food.models import ExecutionProfile, FoodRecipe, FoodValidationStatus
 from ai_runtime.food.store import FoodCatalog
@@ -41,14 +39,12 @@ def catalog():
     )
 
 
-def test_food_policy_round_trip(tmp_path):
+def test_food_policy_mapping_round_trip():
     policy = ElfieFoodPolicy(
         "elfie-1", "standard", ("coarse", "standard", "focus"), "coarse"
     )
 
-    save_elfie_food_policy(policy, tmp_path)
-
-    assert load_elfie_food_policy("elfie-1", tmp_path) == policy
+    assert ElfieFoodPolicy.from_dict("elfie-1", policy.to_dict()) == policy
 
 
 def test_unauthorized_premium_is_clamped_to_strongest_allowed_reasoning_food():

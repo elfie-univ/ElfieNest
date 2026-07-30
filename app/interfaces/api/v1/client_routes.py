@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Dict, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket
@@ -14,7 +15,9 @@ from app.infrastructure.persistence.elfie_chat_history import (
     list_elfie_chat_history,
 )
 from app.infrastructure.persistence.embodiment_sessions import get_embodiment_session
-from app.infrastructure.persistence.store import get_db
+from app.infrastructure.persistence.runtime_query_repository import (
+    RuntimeQueryRepository,
+)
 from app.interfaces.api.chat_persistence import record_owner_chat_message
 
 router = APIRouter(prefix="/api/v1", tags=["v1-client"])
@@ -83,7 +86,7 @@ async def chat_websocket(websocket: WebSocket) -> None:
 async def current_client_user(
     user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
 ) -> Dict[str, Any]:
-    """Expose the minimum session identity needed to select a product page."""
+    """Expose the minimum session identity needed to choose a product page."""
     return {
         "id": user["id"],
         "username": user["username"],
@@ -101,12 +104,9 @@ async def update_owner_default_landing_page(
     """Persist an Owner-only landing preference; normal users always use chat."""
     if user["role"] != "owner":
         raise HTTPException(status_code=403, detail="只有 Owner 可以设置管理默认页")
-    with get_db(request.app.state.db_path) as connection:
-        connection.execute(
-            "UPDATE users SET default_landing_page = ? WHERE id = ?",
-            (body.default_landing_page, int(user["id"])),
-        )
-        connection.commit()
+    RuntimeQueryRepository(request.app.state.db_path).update_default_landing_page(
+        int(user["id"]), body.default_landing_page
+    )
     return {"default_landing_page": body.default_landing_page}
 
 
@@ -164,7 +164,11 @@ async def list_conversation_messages(
             "text": message.text,
             "created_at": message.created_at,
         }
-        for message in list_elfie_chat_history(elfie_id, user_id=user_id)
+        for message in list_elfie_chat_history(
+            elfie_id,
+            user_id=user_id,
+            data_home=Path(db_path).expanduser().parent,
+        )
     ]
 
 
@@ -180,49 +184,45 @@ async def send_conversation_message(
 
 
 def _owned_public_profiles(db_path: str, user_id: int) -> list[Dict[str, Any]]:
-    with get_db(db_path) as connection:
-        rows = connection.execute(
-            """SELECT e.elfie_id, e.name, e.species_id, e.personality_style,
-                      e.config_dir, e.bed_id, b.name AS bed_name,
-                      r.id AS room_id, r.name AS room_name
-               FROM elfie_registry e
-               LEFT JOIN beds b ON b.id = e.bed_id
-               LEFT JOIN rooms r ON r.id = b.room_id
-               WHERE e.owner_user_id = ? ORDER BY e.created_at DESC""",
-            (user_id,),
-        ).fetchall()
-    return [
-        build_public_profile(
-            elfie_id=str(row["elfie_id"]),
-            name=str(row["name"]),
-            species_id=str(row["species_id"]),
-            personality_style=str(row["personality_style"] or ""),
-            config_dir=str(row["config_dir"]),
-            room_id=int(row["room_id"]) if row["room_id"] is not None else None,
-            room_name=str(row["room_name"]) if row["room_name"] is not None else None,
-            bed_id=int(row["bed_id"]) if row["bed_id"] is not None else None,
-            bed_name=str(row["bed_name"]) if row["bed_name"] is not None else None,
+    data_home = Path(db_path).expanduser().parent
+    profiles: list[Dict[str, Any]] = []
+    for record in RuntimeQueryRepository(db_path).list_elfies_for_owner(user_id):
+        profile_dir = data_home / "elfies" / record.elfie_id / "profile"
+        profile = build_public_profile(
+            elfie_id=record.elfie_id,
+            name=record.name,
+            species_id=record.species,
+            personality_style=record.summary or "",
+            config_dir=str(profile_dir),
+            room_id=None,
+            room_name=None,
+            bed_id=record.bed_number,
+            bed_name=(
+                f"Bed {record.bed_number}" if record.bed_number is not None else None
+            ),
             embodiment_state=get_embodiment_session(
-                db_path, str(row["elfie_id"])
+                db_path, record.elfie_id
             ).state.value,
         )
-        for row in rows
-    ]
+        profile["gender"] = record.gender
+        profile["birth_date"] = record.birth_date
+        profile["summary"] = record.summary
+        profiles.append(profile)
+    return profiles
 
 
 def _owns_elfie(db_path: str, user_id: int, elfie_id: str) -> bool:
-    with get_db(db_path) as connection:
-        row = connection.execute(
-            "SELECT 1 FROM elfie_registry WHERE elfie_id = ? AND owner_user_id = ?",
-            (elfie_id, user_id),
-        ).fetchone()
-    return row is not None
+    return RuntimeQueryRepository(db_path).elfie_is_owned_by(elfie_id, user_id)
 
 
 def _conversation_summary(
     db_path: str, user_id: int, profile: Dict[str, Any]
 ) -> Dict[str, Any]:
-    messages = list_elfie_chat_history(str(profile["elfie_id"]), user_id=user_id)
+    messages = list_elfie_chat_history(
+        str(profile["elfie_id"]),
+        user_id=user_id,
+        data_home=Path(db_path).expanduser().parent,
+    )
     latest = messages[-1] if messages else None
     return {
         "elfie_id": profile["elfie_id"],

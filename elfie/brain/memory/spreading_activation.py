@@ -2,13 +2,13 @@
 
 from typing import Dict, List, Tuple
 
-from .graph_storage import GraphStorage
+from .memory_store import MemoryStore
 
 
 class SpreadingActivation:
     """扩散激活：从种子节点出发，沿边扩散激活值"""
 
-    def __init__(self, storage: GraphStorage):
+    def __init__(self, storage: MemoryStore):
         self.storage = storage
 
     def spread(

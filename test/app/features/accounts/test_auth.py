@@ -5,7 +5,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # store.py 和 auth.py 导出的是相同的函数
@@ -105,13 +107,13 @@ class TestCreateSession:
 
         with get_db(db) as conn:
             row = conn.execute(
-                "SELECT token, user_id, expires_at FROM sessions WHERE token=?",
-                (token,),
+                "SELECT token_hash, user_id, expires_at FROM sessions"
             ).fetchone()
         assert row is not None
-        assert row["token"] == token
+        assert row["token_hash"] == hashlib.sha256(token.encode()).hexdigest()
+        assert row["token_hash"] != token
         assert row["user_id"] == uid
-        assert float(row["expires_at"]) > time.time()
+        assert datetime.fromisoformat(row["expires_at"]) > datetime.now(timezone.utc)
 
 
 class TestVerifySession:
@@ -147,13 +149,13 @@ class TestVerifySession:
         db = str(tmp_path / "nest.db")
         uid = _ensure_owner_user(db)
 
-        # 插入已过期的 session
-        token = "expired_token_hex_" + "a" * 48
-        past = time.time() - 3600  # 1 小时前
+        token = "a" * 64
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        past = datetime.now(timezone.utc) - timedelta(hours=1)
         with get_db(db) as conn:
             conn.execute(
-                "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
-                (token, uid, past),
+                "INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)",
+                (token_hash, uid, past.isoformat()),
             )
             conn.commit()
 

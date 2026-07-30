@@ -7,17 +7,24 @@ import pytest
 from ai_runtime.storage import data_home
 from ai_runtime.storage.data_home import (
     ensure_elfie_home,
-    get_cache_dir,
     get_config_path,
     get_db_path,
-    get_elfie_config_dir,
     get_elfie_conversations_dir,
     get_elfie_developer_home,
     get_elfie_home,
     get_env_path,
+    get_food_catalog_path,
+    get_food_history_dir,
+    get_local_files_dir,
     get_logs_dir,
-    get_sessions_dir,
+    get_model_evidence_path,
+    get_model_validation_dir,
+    get_runtime_events_log_path,
+    get_runtime_locks_dir,
+    get_runtime_state_path,
+    get_runtime_validation_dir,
     get_skills_dir,
+    get_token_usage_log_path,
 )
 
 
@@ -110,28 +117,65 @@ def test_get_elfie_home_env_override(monkeypatch, tmp_path):
 
 
 def test_ensure_elfie_home_creates_structure(monkeypatch, tmp_path):
-    """ensure_elfie_home 创建所有子目录"""
+    """Given 空生产根，When ensure，Then 只创建最终共享目录。"""
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path / "test_elfie"))
     ensure_elfie_home()
     home = get_elfie_home()
-    assert home.exists()
-    for subdir in ["elfies", "cache", "logs", "skills", "sessions"]:
-        assert (home / subdir).exists()
+    actual = {path.relative_to(home) for path in home.rglob("*") if path.is_dir()}
+    assert actual == {
+        Path("assets"),
+        Path("assets/users"),
+        Path("configs"),
+        Path("configs/food-packages-history"),
+        Path("elfies"),
+        Path("logs"),
+        Path("reports"),
+        Path("reports/model-validations"),
+        Path("reports/runtime-validations"),
+        Path("runtime"),
+        Path("runtime/locks"),
+    }
 
 
 def test_path_helpers(monkeypatch, tmp_path):
-    """各路径辅助函数返回正确路径"""
+    """Given 生产根，When 解析共享路径，Then 全部来自 FinalRootLayout。"""
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path / "paths_test"))
-    assert get_config_path() == get_elfie_home() / "config.yaml"
-    assert get_env_path() == get_elfie_home() / ".env"
+    assert get_config_path() == get_elfie_home() / "configs" / "runtime.yaml"
+    assert get_env_path() == get_elfie_home() / "configs" / "auth.env"
     assert get_db_path() == get_elfie_home() / "nest.db"
     assert (
-        get_elfie_config_dir("elfie_123") == get_elfie_home() / "elfies" / "elfie_123"
+        get_food_catalog_path() == get_elfie_home() / "configs" / "food-packages.yaml"
     )
-    assert get_cache_dir() == get_elfie_home() / "cache"
+    assert (
+        get_food_history_dir() == get_elfie_home() / "configs" / "food-packages-history"
+    )
+    assert (
+        get_model_evidence_path()
+        == get_elfie_home() / "reports" / "model-evidence.yaml"
+    )
+    assert (
+        get_model_validation_dir() == get_elfie_home() / "reports" / "model-validations"
+    )
+    assert (
+        get_runtime_validation_dir()
+        == get_elfie_home() / "reports" / "runtime-validations"
+    )
+    assert get_runtime_state_path() == get_elfie_home() / "runtime" / "runtime.json"
+    assert get_runtime_locks_dir() == get_elfie_home() / "runtime" / "locks"
     assert get_logs_dir() == get_elfie_home() / "logs"
-    assert get_skills_dir() == get_elfie_home() / "skills"
-    assert get_sessions_dir() == get_elfie_home() / "sessions"
+    assert (
+        get_runtime_events_log_path()
+        == get_elfie_home() / "logs" / "runtime_events.jsonl"
+    )
+    assert get_token_usage_log_path() == get_elfie_home() / "logs" / "token_usage.jsonl"
+    assert (
+        get_local_files_dir("42")
+        == get_elfie_home() / "assets" / "users" / "42" / "files"
+    )
+    assert (
+        get_skills_dir("00000042")
+        == get_elfie_home() / "elfies" / "00000042" / "skills"
+    )
 
 
 def test_developer_home_is_independent_from_production_home(monkeypatch, tmp_path):
@@ -159,5 +203,5 @@ def test_elfie_conversation_path_rejects_path_traversal(monkeypatch, tmp_path):
     """精灵会话目录不得接受跳出生产根的 ID。"""
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path / "production"))
 
-    with pytest.raises(ValueError, match="精灵 ID"):
+    with pytest.raises(ValueError, match="exactly eight ASCII digits"):
         get_elfie_conversations_dir("../escape")

@@ -5,9 +5,7 @@ from ai_runtime.food.elfie_policy import (
     DEFAULT_ALLOWED_FOODS,
     ElfieFoodPolicy,
     FoodSelection,
-    load_elfie_food_policy,
     resolve_food_selection,
-    save_elfie_food_policy,
 )
 from ai_runtime.food.evidence import ModelEvidenceStore
 from ai_runtime.food.executor import FoodExecutionResult, FoodExecutor
@@ -47,8 +45,6 @@ __all__ = [
     "ModelEvidenceStore",
     "LLMFoodPlanningAdvisor",
     "validate_food_recipe",
-    "load_elfie_food_policy",
     "resolve_food_selection",
-    "save_elfie_food_policy",
     "select_planning_model",
 ]

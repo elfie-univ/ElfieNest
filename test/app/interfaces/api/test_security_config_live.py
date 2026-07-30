@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import time
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -27,6 +28,7 @@ from app.features.accounts.auth import (
     invalidate_rate_limiter_cache,
     invalidate_session_cache,
 )
+from app.infrastructure.persistence.session_repository import hash_session_token
 from app.infrastructure.persistence.store import get_db, init_db
 from app.interfaces.api.app import create_app
 
@@ -148,10 +150,11 @@ class TestSessionTtlLive:
             token = create_session(uid, db_path)
             with get_db(db_path) as conn:
                 row = conn.execute(
-                    "SELECT expires_at FROM sessions WHERE token=?", (token,)
+                    "SELECT expires_at FROM sessions WHERE token_hash=?",
+                    (hash_session_token(token),),
                 ).fetchone()
 
-            expires_at = float(row["expires_at"])
+            expires_at = datetime.fromisoformat(row["expires_at"]).timestamp()
             now = time.time()
             assert expires_at > now
             # 应该在 now + 86400 附近（允许 5 秒误差）
@@ -190,16 +193,18 @@ class TestSessionTtlLive:
             token = create_session(uid, db_path)
             with get_db(db_path) as conn:
                 row = conn.execute(
-                    "SELECT expires_at FROM sessions WHERE token=?", (token,)
+                    "SELECT expires_at FROM sessions WHERE token_hash=?",
+                    (hash_session_token(token),),
                 ).fetchone()
-            original_expires = float(row["expires_at"])
+            original_expires = row["expires_at"]
 
         # 再次读取同一个 session，expires_at 不变（已在 DB 中固化）
         with get_db(db_path) as conn:
             row = conn.execute(
-                "SELECT expires_at FROM sessions WHERE token=?", (token,)
+                "SELECT expires_at FROM sessions WHERE token_hash=?",
+                (hash_session_token(token),),
             ).fetchone()
-        assert float(row["expires_at"]) == original_expires
+        assert row["expires_at"] == original_expires
 
 
 # ===================================================================

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -105,8 +106,11 @@ class FoodCatalogStore:
         digest = hashlib.sha256(current).hexdigest()[:12]
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         history_path = self.history_dir / f"foods-{stamp}-{digest}.yaml"
-        self.history_dir.mkdir(parents=True, exist_ok=True)
+        self.history_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
         history_path.write_bytes(current)
+        if os.name != "nt":
+            os.chmod(self.history_dir, 0o700)
+            os.chmod(history_path, 0o600)
         return history_path
 
 

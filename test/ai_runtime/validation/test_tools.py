@@ -9,13 +9,10 @@ class FakeSearch:
         return f"result for {query}"
 
 
-def test_file_sandbox_defaults_to_user_data_home(monkeypatch, tmp_path):
-    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+def test_file_sandbox_uses_explicit_elfie_workspace(tmp_path):
+    sandbox = FileSandbox(tmp_path / "elfies" / "00000042" / "skills")
 
-    sandbox = FileSandbox()
-
-    assert sandbox.skills_root == str(tmp_path / "skills")
-    assert "runtime/custom_skills" not in sandbox.skills_root
+    assert sandbox.skills_root == str(tmp_path / "elfies" / "00000042" / "skills")
 
 
 def test_direct_tool_suite_validates_local_tools_and_skips_network(
