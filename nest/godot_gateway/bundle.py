@@ -32,6 +32,14 @@ def configured_godot_web_directory() -> Path:
     return Path(configured) if configured else GODOT_WEB_DIR
 
 
+def godot_web_bundle_present(directory: Optional[Path] = None) -> bool:
+    """Return whether the required bundle files exist without hashing them."""
+    resolved = configured_godot_web_directory() if directory is None else directory
+    return (resolved / GODOT_WEB_MANIFEST.name).is_file() and all(
+        (resolved / f"elfienest{suffix}").is_file() for suffix in REQUIRED_SUFFIXES
+    )
+
+
 def inspect_godot_web_bundle(
     directory: Optional[Path] = None,
 ) -> GodotWebBundleStatus:

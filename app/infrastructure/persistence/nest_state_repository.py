@@ -18,6 +18,7 @@ _PRESENCE_TO_STATUS: Final = {
     ResidentPresence.AWAY: "away",
     ResidentPresence.PENDING_RUNTIME: "offline",
 }
+_SEMANTIC_NEST_ID: Final = "local-nest"
 _STATUS_TO_PRESENCE: Final = {
     "online": ResidentPresence.ACTIVE,
     "away": ResidentPresence.AWAY,
@@ -62,7 +63,7 @@ class SQLiteNestStateRepository:
 
     def save_catalog(self, catalog: WorldCatalog) -> None:
         """Save only the applied revision; Runtime remains catalog authority."""
-        if catalog.nest_id != DEFAULT_NEST_ID:
+        if catalog.nest_id != _SEMANTIC_NEST_ID:
             raise NestPersistenceError(f"unsupported nest_id: {catalog.nest_id}")
         try:
             with get_db(self._db_path) as connection:

@@ -28,7 +28,9 @@ def test_repository_persists_only_runtime_revision_and_presence(tmp_path) -> Non
     _seed_elfie(db_path)
     repository = SQLiteNestStateRepository(db_path)
 
-    repository.save_catalog(WorldCatalog(nest_id="local", revision=3, zones=()))
+    repository.save_catalog(
+        WorldCatalog(nest_id="local-nest", revision=3, zones=())
+    )
     repository.save_resident(
         PersistentResidentState(
             elfie_id="00000001",
@@ -37,6 +39,11 @@ def test_repository_persists_only_runtime_revision_and_presence(tmp_path) -> Non
     )
 
     restored = repository.load_snapshot()
+    with get_db(db_path) as connection:
+        applied_revision = connection.execute(
+            "SELECT applied_world_revision FROM nest_settings WHERE nest_id='local'"
+        ).fetchone()[0]
+    assert applied_revision == 3
     assert restored.catalog is None
     assert restored.residents == (
         PersistentResidentState(

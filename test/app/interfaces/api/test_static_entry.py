@@ -53,9 +53,15 @@ def test_godot_web_status_reports_missing_bundle(client: TestClient) -> None:
         manifest={},
         integrity_errors=(),
     )
-    with patch(
-        "app.interfaces.api.app.inspect_godot_web_bundle",
-        return_value=missing_bundle,
+    with (
+        patch(
+            "app.interfaces.api.app.inspect_godot_web_bundle",
+            return_value=missing_bundle,
+        ),
+        patch(
+            "app.interfaces.api.app.godot_web_bundle_present",
+            return_value=False,
+        ),
     ):
         status = client.get("/api/godot-web/status")
         health = client.get("/api/health")
@@ -64,3 +70,18 @@ def test_godot_web_status_reports_missing_bundle(client: TestClient) -> None:
     assert status.json()["ready"] is False
     assert ".wasm" in status.json()["missing"]
     assert health.json()["godot_web_ready"] is False
+
+
+def test_health_does_not_run_full_godot_bundle_integrity_check(
+    client: TestClient,
+) -> None:
+    # Given: full Godot bundle verification is too expensive for a readiness probe.
+    with patch(
+        "app.interfaces.api.app.inspect_godot_web_bundle",
+        side_effect=AssertionError("health must not hash the Godot bundle"),
+    ):
+        # When: the lifecycle supervisor polls the public health endpoint.
+        response = client.get("/api/health")
+
+    # Then: health remains a cheap probe and leaves integrity checks to the status route.
+    assert response.status_code == 200

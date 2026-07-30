@@ -48,7 +48,11 @@ from app.interfaces.web.build_discovery import (
     WebBuildManifestMissingError,
     discover_web_build,
 )
-from nest.godot_gateway.bundle import GODOT_WEB_DIR, inspect_godot_web_bundle
+from nest.godot_gateway.bundle import (
+    GODOT_WEB_DIR,
+    godot_web_bundle_present,
+    inspect_godot_web_bundle,
+)
 
 from .page_routes import post_login_landing_path
 from .page_routes import router as page_router
@@ -251,11 +255,10 @@ def create_app(
     @app.get("/api/health")
     async def health():
         """健康检查"""
-        godot_web = inspect_godot_web_bundle()
         return {
             "status": "ok",
             "engine_ready": engine is not None,
-            "godot_web_ready": godot_web.ready,
+            "godot_web_ready": godot_web_bundle_present(),
             "godot_runtime_ready": bool(
                 engine is not None and engine.api_server.runtime_ready
             ),
