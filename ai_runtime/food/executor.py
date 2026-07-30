@@ -138,7 +138,8 @@ class FoodExecutor:
         connection_id = reference.connection_id
         provider_config = self.config.providers.get(connection_id, {})
         api_mode = str(provider_config.get("api_mode") or "")
-        if api_mode != "ollama" and not provider_config.get("api_key"):
+        # When model_caller is provided (e.g., for testing), bypass API key check
+        if api_mode != "ollama" and not provider_config.get("api_key") and self.model_caller is None:
             raise FoodExecutionError(f"Provider 连接 '{connection_id}' 没有可用密钥")
         if images or audio:
             messages = assemble_multimodal_payload(

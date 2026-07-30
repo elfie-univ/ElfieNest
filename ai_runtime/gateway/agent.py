@@ -372,8 +372,9 @@ class RuntimeAgent:
         )
         fallback_used = False
         failed_attempts: tuple[dict[str, str], ...] = ()
+        prefer_deep = selection.clamped and selection.requested_food in {"focus", "premium"}
         try:
-            execution = self._execute_package(executor, package, messages, request)
+            execution = self._execute_package(executor, package, messages, request, prefer_deep)
         except FoodExecutionError as exc:
             failed_attempts = exc.attempts
             emergency = catalog.packages.get(FOOD_EMERGENCY_ID)
@@ -391,6 +392,7 @@ class RuntimeAgent:
                 emergency,
                 messages,
                 request,
+                prefer_deep=False,
             )
             selected_food = FOOD_EMERGENCY_ID
             fallback_used = True
@@ -474,12 +476,14 @@ class RuntimeAgent:
         package: FoodPackage,
         messages: list[dict[str, Any]],
         request: RuntimeRequest,
+        prefer_deep: bool = False,
     ) -> FoodExecutionResult:
         return executor.execute(
             package,
             messages,
             allowed_tools=request.allowed_tools,
             max_loops=3,
+            prefer_deep=prefer_deep,
             semantic_role=(
                 "vision"
                 if request.images or request.audio
