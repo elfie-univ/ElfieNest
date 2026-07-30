@@ -174,24 +174,53 @@ def test_runtime_api_reads_current_elfie_home_after_environment_switch(
     monkeypatch, tmp_path
 ):
     """Given two homes, When ELFIE_HOME changes, Then API helpers follow it."""
-    from ai_runtime.storage.config_store import write_yaml_mapping
-    from app.interfaces.api import runtime_routes
+    from ai_runtime.storage.provider_connections import (
+        ProviderConnection,
+        ProviderConnectionDocument,
+        ProviderConnectionStore,
+    )
 
     first_home = tmp_path / "first"
     second_home = tmp_path / "second"
-    write_yaml_mapping(
-        first_home / "configs" / "runtime.yaml",
-        {"providers": {"first": {"api_base": "http://first"}}},
+    
+    first_provider_path = first_home / "configs" / "providers.yaml"
+    first_provider_path.parent.mkdir(parents=True, exist_ok=True)
+    ProviderConnectionStore(first_provider_path).save(
+        ProviderConnectionDocument(
+            connections={
+                "custom_openai_0001": ProviderConnection(
+                    connection_id="custom_openai_0001",
+                    catalog_id="custom_openai",
+                    alias="First Provider",
+                    api_base="http://first",
+                    enabled=True,
+                )
+            }
+        )
     )
-    write_yaml_mapping(
-        second_home / "configs" / "runtime.yaml",
-        {"providers": {"second": {"api_base": "http://second"}}},
+    
+    second_provider_path = second_home / "configs" / "providers.yaml"
+    second_provider_path.parent.mkdir(parents=True, exist_ok=True)
+    ProviderConnectionStore(second_provider_path).save(
+        ProviderConnectionDocument(
+            connections={
+                "custom_openai_0002": ProviderConnection(
+                    connection_id="custom_openai_0002",
+                    catalog_id="custom_openai",
+                    alias="Second Provider",
+                    api_base="http://second",
+                    enabled=True,
+                )
+            }
+        )
     )
 
     monkeypatch.setenv("ELFIE_HOME", str(first_home))
-    assert "first" in runtime_routes._read_runtime_config()["providers"]
+    first_store = ProviderConnectionStore()
+    assert "custom_openai_0001" in first_store.load().connections
 
     monkeypatch.setenv("ELFIE_HOME", str(second_home))
-    config = runtime_routes._read_runtime_config()
-    assert "second" in config["providers"]
-    assert "first" not in config["providers"]
+    second_store = ProviderConnectionStore()
+    connections = second_store.load().connections
+    assert "custom_openai_0002" in connections
+    assert "custom_openai_0001" not in connections
