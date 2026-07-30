@@ -37,6 +37,15 @@ from ai_runtime.tools.config import enabled_tool_keys, load_tool_configs
 from ai_runtime.tools.file import FileSandbox
 from ai_runtime.tools.local_files import LocalFileAccessPlugin
 from ai_runtime.tools.search import WebSearchPlugin
+from ai_runtime.tools.skills_evolution import SkillsSelfEvolutionPlugin
+from ai_runtime.models.model_reference import parse_model_reference
+from ai_runtime.safety.permissions import PermissionManager
+from ai_runtime.storage.data_home import get_config_path, get_runtime_config_paths, get_skills_dir
+from ai_runtime.tools.code import CodeSandboxPlugin
+from ai_runtime.tools.config import enabled_tool_keys, load_tool_configs
+from ai_runtime.tools.file import FileSandbox
+from ai_runtime.tools.local_files import LocalFileAccessPlugin
+from ai_runtime.tools.search import WebSearchPlugin
 from ai_runtime.usage.observer import (
     FallbackObservation,
     FoodDecisionObservation,
@@ -315,6 +324,7 @@ class RuntimeAgent:
 
     def _think_with_food(self, request: RuntimeRequest) -> RuntimeResult:
         catalog = self._load_food_catalog()
+        requested_food = request.food_key or FOOD_COMMON_ID
         if request.elfie_id:
             policy = (
                 self._food_policy_loader(request.elfie_id)
@@ -329,9 +339,10 @@ class RuntimeAgent:
                 fallback_food="coarse",
             )
         selection = resolve_food_selection(policy, request.food_key, catalog)
-        recipe = catalog.recipes.get(selection.actual_food)
-        if recipe is None:
-            raise ValueError(f"粮食 '{selection.actual_food}' 尚未配置")
+        selected_food = selection.actual_food
+        package = catalog.packages.get(selected_food)
+        if package is None:
+            raise ValueError(f"粮食 '{selected_food}' 尚未配置")
         messages = (
             [dict(message) for message in request.messages]
             if request.messages
@@ -350,7 +361,7 @@ class RuntimeAgent:
             for tool in request.allowed_tools
             if tool != "skills_evolution" or skills_plugin is not None
         )
-        execution = FoodExecutor(
+        executor = FoodExecutor(
             config=self.config,
             search_plugin=self.search_plugin,
             sandbox_plugin=self.sandbox_plugin,
@@ -358,16 +369,6 @@ class RuntimeAgent:
             permission_manager=self.permission_manager,
             file_access_plugin=self.file_access_plugin,
             model_caller=self._call_food_llm_api,
-        ).execute(
-            recipe,
-            messages,
-            allowed_tools=allowed_tools,
-            max_loops=3,
-            prefer_deep=(
-                selection.clamped and selection.requested_food in {"focus", "premium"}
-            ),
-            images=request.images,
-            audio=request.audio,
         )
         fallback_used = False
         failed_attempts: tuple[dict[str, str], ...] = ()

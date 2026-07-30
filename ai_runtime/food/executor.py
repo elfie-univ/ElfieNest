@@ -38,6 +38,8 @@ class FoodExecutor:
         *,
         config: LLMRuntimeConfig,
         search_plugin: Any,
+        sandbox_plugin: Any = None,
+        skills_evolution_plugin: Any = None,
         permission_manager: Any,
         file_access_plugin: Any,
         model_caller: Callable[
@@ -46,6 +48,8 @@ class FoodExecutor:
     ) -> None:
         self.config = config
         self.search_plugin = search_plugin
+        self.sandbox_plugin = sandbox_plugin
+        self.skills_evolution_plugin = skills_evolution_plugin
         self.permission_manager = permission_manager
         self.file_access_plugin = file_access_plugin
         self.model_caller = model_caller
@@ -58,9 +62,12 @@ class FoodExecutor:
         semantic_role: str = "primary",
         allowed_tools: tuple[str, ...] = (),
         max_loops: int = 3,
+        prefer_deep: bool = False,
         images: tuple[str, ...] = (),
         audio: str | None = None,
     ) -> FoodExecutionResult:
+        if prefer_deep and semantic_role == "primary":
+            semantic_role = "reasoning"
         selected = package.assignment_for(semantic_role)
         stage = semantic_role
         if selected is None and semantic_role != "primary":
