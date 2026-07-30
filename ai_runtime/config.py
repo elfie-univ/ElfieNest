@@ -154,9 +154,7 @@ class LLMRuntimeConfig:
 
     ollama_host: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 
-    energy_threshold_fast: float = (
-        30.0
-    )
+    energy_threshold_fast: float = 30.0
     complexity_threshold_deep: int = 3
 
     temperature: float = 0.7

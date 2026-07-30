@@ -33,9 +33,7 @@ class RuntimeSkillAdapter:
                 getattr(self.runtime_agent, "run_with_food", None)
             ):
                 kwargs = dict(kwargs)
-                kwargs["allowed_skills"] = list(
-                    self.manager.allowed_runtime_tools()
-                )
+                kwargs["allowed_skills"] = list(self.manager.allowed_runtime_tools())
             return attribute(*args, **kwargs)
 
         return invoke

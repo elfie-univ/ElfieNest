@@ -166,9 +166,7 @@ class OllamaSetupService:
         connection = self._saved_connection()
         if connection is None:
             raise ValueError("Ollama 连接配置缺失")
-        models = {
-            model.endpoint_model_id: model for model in connection.models
-        }
+        models = {model.endpoint_model_id: model for model in connection.models}
         models[reference.model_id] = ProviderModelRecord(
             endpoint_model_id=reference.model_id,
             display_name=reference.model_id,

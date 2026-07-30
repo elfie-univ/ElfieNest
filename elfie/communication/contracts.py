@@ -137,6 +137,7 @@ class CommunicationEnvelope(FrozenContractModel):
             )
         return self
 
+
 @unique
 class DeliveryStatus(str, Enum):
     """A delivery lifecycle state reported by a channel boundary."""
@@ -166,11 +167,15 @@ class DeliveryReceipt(FrozenContractModel):
     @model_validator(mode="after")
     def validate_status_details(self) -> DeliveryReceipt:
         """Require errors and retry timestamps only for matching statuses."""
-        if self.status in {
-            DeliveryStatus.FAILED,
-            DeliveryStatus.RETRY_SCHEDULED,
-            DeliveryStatus.CANCELLED,
-        } and self.error is None:
+        if (
+            self.status
+            in {
+                DeliveryStatus.FAILED,
+                DeliveryStatus.RETRY_SCHEDULED,
+                DeliveryStatus.CANCELLED,
+            }
+            and self.error is None
+        ):
             raise PydanticCustomError(
                 "missing_receipt_error",
                 "terminal failure receipt requires error",

@@ -29,6 +29,8 @@ class BodyDescriptor:
             "display_name": self.display_name,
             "capabilities": self.capabilities.to_dict(),
         }
+
+
 __all__ = (
     "BodyDescriptor",
     "BodyMode",

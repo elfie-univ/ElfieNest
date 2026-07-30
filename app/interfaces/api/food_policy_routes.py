@@ -64,9 +64,7 @@ async def update_food_policy(
         catalog,
     )
     food_id = str(body.get("main_food_id") or "").strip()
-    if food_id not in {
-        str(item["food_id"]) for item in current["main_food_options"]
-    }:
+    if food_id not in {str(item["food_id"]) for item in current["main_food_options"]}:
         raise HTTPException(status_code=422, detail="所选主粮当前不可用或未授权")
     set_elfie_primary_food(request.app.state.db_path, elfie_id, food_id)
     return elfie_food_policy_projection(

@@ -42,7 +42,9 @@ def project_food_health(
             _locality(package, evidence),
             latest,
         )
-    optional_failed = any(item is None or not item.is_fresh() for item in referenced[1:])
+    optional_failed = any(
+        item is None or not item.is_fresh() for item in referenced[1:]
+    )
     return FoodHealth(
         "degraded" if optional_failed else "healthy",
         _locality(package, evidence),

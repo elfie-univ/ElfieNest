@@ -178,7 +178,10 @@ class ProgressIndicator:
         self.running = False
         if self.thread:
             self.thread.join(timeout=0.2)
-        print(f"\r  {'✅' if success else '❌'} {self.message}{' ✓' if success else ' ✗'}    ", flush=True)
+        print(
+            f"\r  {'✅' if success else '❌'} {self.message}{' ✓' if success else ' ✗'}    ",
+            flush=True,
+        )
 
 
 def default_service_command(extra_args: Sequence[str] = ()) -> tuple[str, ...]:
@@ -322,7 +325,9 @@ def show_service_status(*, json_output: bool = False) -> None:
             pid, cwd, _ = external
             print(f"  ⚠️  Registered PID {pid} from another ElfieNest checkout: {cwd}")
         elif any(port_status.running for port_status in port_statuses):
-            print("  ⚠️  Default service ports occupied by external process, no verified service for current project.")
+            print(
+                "  ⚠️  Default service ports occupied by external process, no verified service for current project."
+            )
     else:
         _, command = running
         ports = service_ports_from_command(command)
@@ -363,7 +368,9 @@ def open_web_console() -> ServiceLifecycleResult:
         if not _web_is_healthy(port):
             result = ServiceLifecycleResult(
                 status="failed",
-                error=LaunchFailedError(f"Registered service but Web port {port} failed health check"),
+                error=LaunchFailedError(
+                    f"Registered service but Web port {port} failed health check"
+                ),
             )
             print(f"  ❌ Cannot open Web console: {result.error}")
             return result
@@ -371,7 +378,9 @@ def open_web_console() -> ServiceLifecycleResult:
         if _web_is_healthy(8000):
             webbrowser.open(WEB_URL)
             print(f"  🌐 Opened running Web console: {WEB_URL}")
-            print("  ⚠️  Service not verified by current project PID receipt; start/restart won't take over.")
+            print(
+                "  ⚠️  Service not verified by current project PID receipt; start/restart won't take over."
+            )
             return ServiceLifecycleResult(status="already_running")
         if any(port_status.running for port_status in default_port_statuses()):
             result = ServiceLifecycleResult(
@@ -392,7 +401,9 @@ def open_web_console() -> ServiceLifecycleResult:
         if not _web_is_healthy(port):
             result = ServiceLifecycleResult(
                 status="failed",
-                error=LaunchFailedError(f"Service started but Web port {port} failed health check"),
+                error=LaunchFailedError(
+                    f"Service started but Web port {port} failed health check"
+                ),
             )
             print(f"  ❌ Cannot open Web console: {result.error}")
             return result

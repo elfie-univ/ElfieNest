@@ -140,7 +140,9 @@ def stop_service(
         return ServiceLifecycleResult(
             status="failed",
             pid=pid,
-            error=ProcessInspectionError(pid, f"Invalid service port arguments: {error}"),
+            error=ProcessInspectionError(
+                pid, f"Invalid service port arguments: {error}"
+            ),
         )
     if service_ports_in_use(target_ports):
         return ServiceLifecycleResult(
@@ -197,7 +199,8 @@ def start_service(
         startup_lease = acquire_service_start_lease(elfie_home)
     except (OSError, RecoveryInProgressError) as error:
         return ServiceLifecycleResult(
-            status="failed", error=LaunchFailedError(f"Service startup blocked: {error}")
+            status="failed",
+            error=LaunchFailedError(f"Service startup blocked: {error}"),
         )
     lease_released = False
     try:
@@ -247,7 +250,8 @@ def start_service(
         pid = process_launcher(launch_command, resolved_root)
         if pid <= 0:
             return ServiceLifecycleResult(
-                status="failed", error=LaunchFailedError(f"Launcher returned invalid PID {pid}")
+                status="failed",
+                error=LaunchFailedError(f"Launcher returned invalid PID {pid}"),
             )
 
         pid_path = elfie_home / PID_FILENAME

@@ -152,7 +152,9 @@ class ModelContextCompiler:
         )
         reserved = 30 if has_data else 0
         cursor = _BudgetCursor(max(1, budget.max_tokens - reserved))
-        events = tuple(self._compile_event(event, cursor) for event in context.frame.events)
+        events = tuple(
+            self._compile_event(event, cursor) for event in context.frame.events
+        )
         state_updates = tuple(
             self._compile_state(update, cursor)
             for update in context.frame.state_updates
@@ -213,8 +215,7 @@ class ModelContextCompiler:
             label = "execution:receipt"
             channel_id = None
             content = (
-                f"{payload.executor} {payload.status.value} "
-                f"intent {payload.intent_id}"
+                f"{payload.executor} {payload.status.value} intent {payload.intent_id}"
             )
         elif isinstance(payload, InternalPayload):
             label = f"internal:{payload.signal.value}"

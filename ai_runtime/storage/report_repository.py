@@ -15,9 +15,7 @@ from ai_runtime.storage.data_home import get_report_database_path
 
 SCHEMA_VERSION = 2
 _RUN_STATUSES = frozenset({"running", "complete", "partial", "failed"})
-_SUBJECT_KINDS = frozenset(
-    {"provider", "model", "food", "fallback", "tool", "runtime"}
-)
+_SUBJECT_KINDS = frozenset({"provider", "model", "food", "fallback", "tool", "runtime"})
 _OBSERVATION_STATUSES = frozenset({"passed", "failed", "warning", "skipped"})
 
 
@@ -255,7 +253,9 @@ class ReportRepository:
             ORDER BY candidate.subject_kind, candidate.subject_id
         """
         if not filters:
-            sql = sql.replace("\n            AND NOT EXISTS", "\n            WHERE NOT EXISTS", 1)
+            sql = sql.replace(
+                "\n            AND NOT EXISTS", "\n            WHERE NOT EXISTS", 1
+            )
         with self._connect() as connection:
             rows = connection.execute(sql, parameters).fetchall()
         return tuple(_observation_from_row(row) for row in rows)

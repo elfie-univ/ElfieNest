@@ -97,7 +97,12 @@ class FoodPlanner:
         )[:2]
         if primary is None:
             warnings.append("没有符合范围且最近验证通过的主模型")
-        if local_first and allow_remote and primary and not _is_local(primary, eligible):
+        if (
+            local_first
+            and allow_remote
+            and primary
+            and not _is_local(primary, eligible)
+        ):
             warnings.append("没有可用本地模型，候选保底粮依赖网络")
         proposed = replace(
             package,

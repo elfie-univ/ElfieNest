@@ -175,6 +175,7 @@ async def install_setup_ollama(
     """Queue one explicitly confirmed official installer; the request never runs it."""
     _ = body
     _ = owner
+
     def install() -> None:
         service = OllamaSetupService(
             adapter=OllamaPlatformAdapter(),
@@ -261,6 +262,7 @@ async def pull_setup_model(
     """Queue an explicitly confirmed model pull against the fixed Ollama endpoint."""
     _ = body.confirmed
     _ = owner
+
     def pull() -> None:
         service = OllamaSetupService(
             adapter=OllamaPlatformAdapter(),

@@ -34,7 +34,9 @@ class RuntimeEvent:
     subject: str
     metadata: dict[str, RuntimeMetadataValue] = field(default_factory=dict)
 
-    def to_dict(self) -> dict[str, RuntimeMetadataValue | dict[str, RuntimeMetadataValue]]:
+    def to_dict(
+        self,
+    ) -> dict[str, RuntimeMetadataValue | dict[str, RuntimeMetadataValue]]:
         return {
             "event_type": self.event_type.value,
             "status": self.status.value,
@@ -230,9 +232,7 @@ class RuntimeObserver:
                 subject_kind=_report_subject_kind(event.event_type),
                 subject_id=event.subject,
                 status=(
-                    "passed"
-                    if event.status is RuntimeEventStatus.OK
-                    else "failed"
+                    "passed" if event.status is RuntimeEventStatus.OK else "failed"
                 ),
                 details={
                     "event_type": event.event_type.value,

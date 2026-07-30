@@ -203,13 +203,17 @@ def _reject_live_pid_replacement(pid_path: Path, new_pid: int) -> None:
     try:
         recorded_pid = int(content)
     except ValueError as error:
-        raise FileExistsError(f"Existing PID receipt is invalid; refusing to overwrite: {content!r}") from error
+        raise FileExistsError(
+            f"Existing PID receipt is invalid; refusing to overwrite: {content!r}"
+        ) from error
     if recorded_pid == new_pid:
         return
     if not DefaultProcessInspector().exists(recorded_pid):
         pid_path.unlink(missing_ok=True)
         return
-    raise FileExistsError(f"PID {recorded_pid} is still running; refusing to overwrite service receipt")
+    raise FileExistsError(
+        f"PID {recorded_pid} is still running; refusing to overwrite service receipt"
+    )
 
 
 def secure_elfie_home(elfie_home: Path) -> None:

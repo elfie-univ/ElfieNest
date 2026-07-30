@@ -798,12 +798,8 @@ def _merge_refreshed_models(
     existing_models: tuple[ProviderModelRecord, ...],
     refreshed_models: tuple[ProviderModelRecord, ...],
 ) -> tuple[ProviderModelRecord, ...]:
-    existing_by_id = {
-        model.endpoint_model_id: model for model in existing_models
-    }
-    refreshed_by_id = {
-        model.endpoint_model_id: model for model in refreshed_models
-    }
+    existing_by_id = {model.endpoint_model_id: model for model in existing_models}
+    refreshed_by_id = {model.endpoint_model_id: model for model in refreshed_models}
     merged: list[ProviderModelRecord] = []
     for refreshed in refreshed_models:
         existing = existing_by_id.get(refreshed.endpoint_model_id)
@@ -821,12 +817,9 @@ def _merge_refreshed_models(
                 canonical_model_id=(
                     existing.canonical_model_id or refreshed.canonical_model_id
                 ),
-                source=(
-                    "manual" if existing.source == "manual" else refreshed.source
-                ),
+                source=("manual" if existing.source == "manual" else refreshed.source),
                 context_window_tokens=(
-                    existing.context_window_tokens
-                    or refreshed.context_window_tokens
+                    existing.context_window_tokens or refreshed.context_window_tokens
                 ),
                 max_output_tokens=(
                     existing.max_output_tokens or refreshed.max_output_tokens

@@ -77,9 +77,13 @@ def discover_provider_models(
                 ).decode("utf-8")
             )
     except urllib.error.HTTPError as exc:
-        discovery_error = RuntimeError(f"Model discovery failed: HTTP {exc.code} {exc.reason}")
+        discovery_error = RuntimeError(
+            f"Model discovery failed: HTTP {exc.code} {exc.reason}"
+        )
     except urllib.error.URLError as exc:
-        discovery_error = RuntimeError(f"Model discovery connection failed: {exc.reason}")
+        discovery_error = RuntimeError(
+            f"Model discovery connection failed: {exc.reason}"
+        )
     except (json.JSONDecodeError, UnicodeDecodeError, ValueError, TimeoutError):
         discovery_error = RuntimeError("Model discovery endpoint returned invalid JSON")
 

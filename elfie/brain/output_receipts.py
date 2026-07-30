@@ -109,9 +109,7 @@ class ExecutionReceiptPublisher:
     def receipts_for(self, turn_id: str) -> Tuple[ExecutionReceipt, ...]:
         with self._lock:
             return tuple(
-                receipt
-                for receipt in self._receipts
-                if str(receipt.turn_id) == turn_id
+                receipt for receipt in self._receipts if str(receipt.turn_id) == turn_id
             )
 
     @property

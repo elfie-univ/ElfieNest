@@ -86,7 +86,9 @@ def _complete_owner(db_path: str) -> bool:
     display_name = input_text("  Owner display name", username) or username
     password = input_password("  Owner password")
     if password is None:
-        print("  ❌ Cannot safely input Owner password in this terminal, setup cancelled")
+        print(
+            "  ❌ Cannot safely input Owner password in this terminal, setup cancelled"
+        )
         return False
     if not 3 <= len(username.strip()) <= 32 or not 6 <= len(password) <= 128:
         print("  ❌ Owner credentials do not meet requirements, setup cancelled")
@@ -110,8 +112,12 @@ def _complete_ollama(db_path: str) -> bool:
     if progress.current_step != 2:
         return True
     _print_step("2/5", "Device and offline support")
-    print("  Ollama is a local backup when offline or cloud unavailable, can maintain basic elfie capabilities.")
-    print("  Optional: bind existing public Ollama, install from official site, or skip for now.")
+    print(
+        "  Ollama is a local backup when offline or cloud unavailable, can maintain basic elfie capabilities."
+    )
+    print(
+        "  Optional: bind existing public Ollama, install from official site, or skip for now."
+    )
     choice = (
         (input_text("  Choose [skip/bind/install]", "skip") or "skip").strip().lower()
     )
@@ -131,7 +137,11 @@ def _complete_ollama(db_path: str) -> bool:
         return True
     if choice == "install":
         confirmed = (
-            input_text("  Confirm download and run installer from official Ollama site? [y/N]", "n") or "n"
+            input_text(
+                "  Confirm download and run installer from official Ollama site? [y/N]",
+                "n",
+            )
+            or "n"
         ).lower()
         if confirmed != "y":
             print("  Ollama installation cancelled")
@@ -195,7 +205,9 @@ def _complete_model(db_path: str) -> bool:
             )
             return True
         if choice == "pull":
-            confirmed = (input_text("  Confirm downloading this model? [y/N]", "n") or "n").lower()
+            confirmed = (
+                input_text("  Confirm downloading this model? [y/N]", "n") or "n"
+            ).lower()
             if confirmed != "y":
                 print("  Model download cancelled")
                 return False
@@ -216,7 +228,9 @@ def _complete_confirmation(db_path: str) -> None:
     if progress.current_step != 5 or progress.complete:
         return
     _print_step("5/5", "Confirmation")
-    confirmed = (input_text("  Complete initialization and enter admin menu? [y/N]", "y") or "y").lower()
+    confirmed = (
+        input_text("  Complete initialization and enter admin menu? [y/N]", "y") or "y"
+    ).lower()
     if confirmed != "y":
         print("  Current progress saved; continue later.")
         return

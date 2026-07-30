@@ -250,7 +250,9 @@ def render_provider_model_matrix(report: Mapping[str, Any], *, width: int) -> li
     if not models:
         return ["尚无模型验证证据。"]
     if width < 96:
-        lines = ["Model                              Available Endpoints   Fastest Latency"]
+        lines = [
+            "Model                              Available Endpoints   Fastest Latency"
+        ]
         lines.append("─" * min(width, 60))
         for row in models:
             endpoints = [

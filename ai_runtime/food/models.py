@@ -105,9 +105,7 @@ class FoodPackage:
         return cls(
             key=key,
             display_name=str(data.get("display_name") or key).strip(),
-            system_role=(
-                str(data["system_role"]) if data.get("system_role") else None
-            ),
+            system_role=(str(data["system_role"]) if data.get("system_role") else None),
             enabled=bool(data.get("enabled", True)),
             archived=bool(data.get("archived", False)),
             primary=ModelAssignment.from_value(roles.get("primary")),

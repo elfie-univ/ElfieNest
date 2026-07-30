@@ -77,7 +77,7 @@ class TokenTracker:
             估算的 token 数
         """
         # 统计中文字符数 (CJK 基本区)
-        chinese_chars = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+        chinese_chars = sum(1 for c in text if "\u4e00" <= c <= "\u9fff")
         # 其他字符按 4 个字符 ≈ 1 token 估算
         other_chars = len(text) - chinese_chars
         return int(chinese_chars * 1.5 + other_chars / 4)
@@ -89,7 +89,9 @@ class TokenTracker:
             深拷贝的累计使用量字典
         """
         with self._lock:
-            return {provider: dict(totals) for provider, totals in self._tick_totals.items()}
+            return {
+                provider: dict(totals) for provider, totals in self._tick_totals.items()
+            }
 
     def flush_tick(self, tick_id: str) -> None:
         """将当前 tick 数据持久化到文件，并重置计数器

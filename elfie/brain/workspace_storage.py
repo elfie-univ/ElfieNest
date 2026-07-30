@@ -222,4 +222,5 @@ class WorkspaceStorage:
         self._media_count += 1
         return disposition
 
+
 __all__ = ("WorkspaceStorage",)

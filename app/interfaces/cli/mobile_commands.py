@@ -5,15 +5,13 @@ from __future__ import annotations
 import platform
 import socket
 import subprocess
-import sys
-from pathlib import Path
 
 from app.interfaces.cli.tui.common import clear_screen, print_banner
-from app.interfaces.cli.lifecycle_commands import show_service_status
 
 try:
     import qrcode
     import qrcode.constants
+
     QRCODE_AVAILABLE = True
 except ImportError:
     QRCODE_AVAILABLE = False
@@ -28,6 +26,7 @@ def show_mobile_access() -> int:
     print()
 
     from app.features.administration.system_service import default_port_statuses
+
     port_statuses = default_port_statuses()
 
     http_port = None
@@ -56,7 +55,7 @@ def show_mobile_access() -> int:
     print(f"  URL: {url}")
     if wifi_name:
         if wifi_name == "<redacted>":
-            print(f"  Network: WiFi Connected (name hidden by system)")
+            print("  Network: WiFi Connected (name hidden by system)")
         else:
             print(f"  Network: {wifi_name}")
     print()
@@ -90,7 +89,7 @@ def show_mobile_access() -> int:
     print()
     if wifi_name:
         if wifi_name == "<redacted>":
-            print(f"  ℹ️  Phone and computer should be on the same WiFi network")
+            print("  ℹ️  Phone and computer should be on the same WiFi network")
         else:
             print(f"  ℹ️  Connect phone to: {wifi_name}")
     else:
@@ -104,6 +103,7 @@ def _get_local_ip() -> str | None:
     """Get local IP address, preferring real LAN interfaces over VPN/USB."""
     try:
         import subprocess
+
         result = subprocess.run(
             ["ifconfig"],
             capture_output=True,
@@ -113,6 +113,7 @@ def _get_local_ip() -> str | None:
         output = result.stdout
 
         import re
+
         ips = []
         for match in re.finditer(r"inet (\d+\.\d+\.\d+\.\d+)", output):
             ip = match.group(1)
@@ -151,7 +152,10 @@ def _get_current_wifi() -> str | None:
                 text=True,
                 timeout=5,
             )
-            if result.returncode == 0 and "Current Network Information:" in result.stdout:
+            if (
+                result.returncode == 0
+                and "Current Network Information:" in result.stdout
+            ):
                 lines = result.stdout.split("\n")
                 for i, line in enumerate(lines):
                     if "Current Network Information:" in line and i + 1 < len(lines):

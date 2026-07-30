@@ -202,9 +202,7 @@ async def validate_all_connection_models(
                     asyncio.Semaphore(_BENCHMARK_CONCURRENCY),
                 )
                 checked_at = datetime.now(timezone.utc).isoformat()
-                result_status = (
-                    "passed" if raw.get("status") == "passed" else "failed"
-                )
+                result_status = "passed" if raw.get("status") == "passed" else "failed"
                 latency = raw.get("latency_ms")
                 write_model_validation_report(
                     connection.connection_id,
@@ -212,14 +210,10 @@ async def validate_all_connection_models(
                     status=result_status,
                     checked_at=checked_at,
                     latency_ms=(
-                        float(latency)
-                        if isinstance(latency, (int, float))
-                        else None
+                        float(latency) if isinstance(latency, (int, float)) else None
                     ),
                     latency_class=(
-                        str(raw["latency_class"])
-                        if raw.get("latency_class")
-                        else None
+                        str(raw["latency_class"]) if raw.get("latency_class") else None
                     ),
                     error=sanitize_error(
                         raw.get("error"),
@@ -261,9 +255,7 @@ def _matrix(
     observations: tuple[ValidationObservation, ...] = (),
     snapshot: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
-    evidence = {
-        (item.subject_kind, item.subject_id): item for item in observations
-    }
+    evidence = {(item.subject_kind, item.subject_id): item for item in observations}
     enabled = [
         connection
         for connection in connections.values()
@@ -335,7 +327,7 @@ def _matrix(
                 {
                     "connection_id": connection.connection_id,
                     "model_id": entry_model.endpoint_model_id,
-                        "available": entry_model.available,
+                    "available": entry_model.available,
                     "verification_status": _provider_verification(
                         connection.connection_id,
                         evidence.get(("provider", connection.connection_id)),

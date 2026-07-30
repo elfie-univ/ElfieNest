@@ -79,7 +79,10 @@ class WebSearchPlugin:
         url = f"{base}?q={urllib.parse.quote(query)}&count={max_results}"
         request = urllib.request.Request(
             url,
-            headers={"Accept": "application/json", "X-Subscription-Token": self.api_key},
+            headers={
+                "Accept": "application/json",
+                "X-Subscription-Token": self.api_key,
+            },
         )
         with urllib.request.urlopen(request, timeout=8) as response:
             payload = json.loads(response.read().decode("utf-8"))

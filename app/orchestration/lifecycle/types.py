@@ -90,7 +90,9 @@ class ServicePortsActiveError(ServiceLifecycleError):
     detail: str
 
     def __str__(self) -> str:
-        return f"Service port still in use, cannot confirm service stopped: {self.detail}"
+        return (
+            f"Service port still in use, cannot confirm service stopped: {self.detail}"
+        )
 
 
 @dataclass(frozen=True)

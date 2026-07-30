@@ -106,9 +106,7 @@ async def preview_food_generation(
         not isinstance(item, str) for item in raw_scope
     ):
         raise HTTPException(status_code=422, detail="connection_ids 必须是字符串数组")
-    local_first = bool(
-        body.get("local_first", package.key == FOOD_EMERGENCY_ID)
-    )
+    local_first = bool(body.get("local_first", package.key == FOOD_EMERGENCY_ID))
     allow_remote = bool(body.get("allow_remote", package.key != FOOD_EMERGENCY_ID))
     proposal = FoodPlanner().propose_package(
         package,
@@ -204,8 +202,10 @@ async def get_food_visibility(
     _ = owner
     _require_package(FoodCatalogStore().load(), food_id)
     system = food_id in SYSTEM_FOOD_IDS
-    assigned = set() if system else set(
-        list_food_access_users(request.app.state.db_path, food_id)
+    assigned = (
+        set()
+        if system
+        else set(list_food_access_users(request.app.state.db_path, food_id))
     )
     with get_db(request.app.state.db_path) as connection:
         users = connection.execute(
@@ -339,8 +339,7 @@ def _catalog_view(
         "global_default_food_id": catalog.global_default_food_id,
         "global_emergency_food_id": catalog.global_emergency_food_id,
         "packages": [
-            _package_view(package, evidence)
-            for package in catalog.ordered_packages()
+            _package_view(package, evidence) for package in catalog.ordered_packages()
         ],
         "eligible_models": [
             {

@@ -79,7 +79,9 @@ def stream_runtime_response(request: RuntimeStreamRequest) -> Iterator[str]:
         yield f"\n⚠️ [流式模式提示] 检测到技能标签: {', '.join(detected_skills)}。流式模式下不支持自动回调执行，请使用粮食执行链完成完整工具调用。"
 
 
-def detect_stream_skill_tags(response_text: str, allowed_skills: tuple[str, ...]) -> list[str]:
+def detect_stream_skill_tags(
+    response_text: str, allowed_skills: tuple[str, ...]
+) -> list[str]:
     detected_skills = []
     if "web_search" in allowed_skills and "[SEARCH]" in response_text:
         detected_skills.append("web_search")

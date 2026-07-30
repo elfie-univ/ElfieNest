@@ -7,7 +7,8 @@ import warnings
 from pathlib import Path
 from typing import Optional
 
-from app.interfaces.cli.tui.common import input_password, input_text
+from ai_runtime.lab.menu import MenuItem, TerminalMenu
+from ai_runtime.storage.data_home import get_db_path
 from app.features.administration.owner_service import (
     MAX_OWNER_PASSWORD_LENGTH,
     MIN_OWNER_PASSWORD_LENGTH,
@@ -15,12 +16,11 @@ from app.features.administration.owner_service import (
     get_owner_account,
     recover_owner_account,
 )
+from app.interfaces.cli.tui.common import input_password, input_text
 from app.orchestration.lifecycle.recovery_lock import (
     RecoveryInProgressError,
     owner_recovery_lock,
 )
-from ai_runtime.lab.menu import MenuItem, TerminalMenu
-from ai_runtime.storage.data_home import get_db_path
 
 
 def show_owner_account(db_path: Optional[str] = None) -> int:
@@ -58,8 +58,12 @@ def recover_owner_interactive(
 ) -> int:
     owner_menu = menu or TerminalMenu(input_fn=input, output_fn=print)
     if menu is not None:
-        owner_menu.action_header("Recover Owner Account", "ElfieNest / Owner / Recover Account")
-        print("  This operation will modify both Owner username and password, and revoke old sessions.")
+        owner_menu.action_header(
+            "Recover Owner Account", "ElfieNest / Owner / Recover Account"
+        )
+        print(
+            "  This operation will modify both Owner username and password, and revoke old sessions."
+        )
         print("  Press Esc, ← or select Back to cancel.")
         print()
         if not owner_menu.confirm(
@@ -72,7 +76,9 @@ def recover_owner_interactive(
 
     path = db_path or str(get_db_path())
     if not Path(path).expanduser().is_file():
-        print(f"  ❌ Cannot recover Owner: database not found ({Path(path).expanduser()})")
+        print(
+            f"  ❌ Cannot recover Owner: database not found ({Path(path).expanduser()})"
+        )
         return 1
     if menu is None:
         username = input_text("  New Owner username")

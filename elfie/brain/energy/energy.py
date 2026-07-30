@@ -148,7 +148,9 @@ class HypothalamusEnergy:
         self.energy = max(self.energy - cost, 0.0)
         if self.energy != previous_energy:
             self.revision += 1
-        logger.info(f"⚡ [动作耗能] 消耗 {cost:.2f} 能量，当前精力剩余: {self.energy:.1f}%")
+        logger.info(
+            f"⚡ [动作耗能] 消耗 {cost:.2f} 能量，当前精力剩余: {self.energy:.1f}%"
+        )
 
     def get_energy(self) -> float:
         return self.energy

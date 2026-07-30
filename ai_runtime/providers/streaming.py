@@ -59,9 +59,7 @@ def stream_openai_compatible_api(
     import httpx
 
     if not api_base:
-        raise ValueError(
-            f"❌ 未找到大模型服务商 '{provider}' 的有效 API Base 配置！"
-        )
+        raise ValueError(f"❌ 未找到大模型服务商 '{provider}' 的有效 API Base 配置！")
 
     url = f"{api_base.rstrip('/')}/chat/completions"
     headers = {"Content-Type": "application/json"}
@@ -77,7 +75,9 @@ def stream_openai_compatible_api(
     }
 
     try:
-        with httpx.stream("POST", url, json=payload, headers=headers, timeout=60) as response:
+        with httpx.stream(
+            "POST", url, json=payload, headers=headers, timeout=60
+        ) as response:
             for line in response.iter_lines():
                 if line.startswith("data: "):
                     data_str = line[6:]
@@ -133,7 +133,9 @@ def stream_anthropic_api(
         payload["system"] = system_prompt.strip()
 
     try:
-        with httpx.stream("POST", url, json=payload, headers=headers, timeout=60) as response:
+        with httpx.stream(
+            "POST", url, json=payload, headers=headers, timeout=60
+        ) as response:
             for line in response.iter_lines():
                 if line.startswith("data: "):
                     data_str = line[6:]

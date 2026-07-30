@@ -234,7 +234,10 @@ class BrainCoordinator:
         self._inflight = None
 
     def _ensure_autonomous_event(self) -> bool:
-        if self._next_autonomous_at is None or self._timestamp < self._next_autonomous_at:
+        if (
+            self._next_autonomous_at is None
+            or self._timestamp < self._next_autonomous_at
+        ):
             return False
         self._workspace.publish(
             self._turn_factory.autonomous_event(self._elfie_id, self._timestamp)
@@ -257,5 +260,6 @@ class BrainCoordinator:
             "coordinator_stopped",
         )
         self._inflight = None
+
 
 __all__ = ("BrainCoordinator",)

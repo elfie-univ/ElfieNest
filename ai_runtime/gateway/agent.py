@@ -252,9 +252,7 @@ class RuntimeAgent:
                 model_key=execution.model,
                 latency_ms=(perf_counter() - started) * 1000.0,
             )
-        raise NoAvailableFoodError(
-            "no_available_food: " + " | ".join(failures)
-        )
+        raise NoAvailableFoodError("no_available_food: " + " | ".join(failures))
 
     @staticmethod
     def _provider_for_model(model_key: str) -> str:
@@ -322,7 +320,11 @@ class RuntimeAgent:
         except FoodExecutionError as exc:
             failed_attempts = exc.attempts
             emergency = catalog.packages.get(FOOD_EMERGENCY_ID)
-            if selected_food == FOOD_EMERGENCY_ID or emergency is None or not self._package_usable(emergency):
+            if (
+                selected_food == FOOD_EMERGENCY_ID
+                or emergency is None
+                or not self._package_usable(emergency)
+            ):
                 raise NoAvailableFoodError(
                     "no_available_food",
                     failed_attempts,
@@ -347,8 +349,7 @@ class RuntimeAgent:
             selection_reason = "requested_food_available"
         observer = get_runtime_observer()
         if fallback_used or (
-            selected_food == FOOD_EMERGENCY_ID
-            and requested_food != FOOD_EMERGENCY_ID
+            selected_food == FOOD_EMERGENCY_ID and requested_food != FOOD_EMERGENCY_ID
         ):
             previous_model = (
                 failed_attempts[-1].get("model", "")
@@ -364,9 +365,7 @@ class RuntimeAgent:
                 FallbackObservation(
                     from_model_key=previous_model,
                     from_provider=(
-                        previous_model.split("/", 1)[0]
-                        if "/" in previous_model
-                        else ""
+                        previous_model.split("/", 1)[0] if "/" in previous_model else ""
                     ),
                     to_model_key=execution.model,
                     to_provider=provider,
@@ -411,6 +410,7 @@ class RuntimeAgent:
             actual_model=execution.model,
             food_clamped=clamped,
         )
+
     def _execute_package(
         self,
         executor: FoodExecutor,

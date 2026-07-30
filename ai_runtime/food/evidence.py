@@ -88,14 +88,10 @@ class ModelEvidenceStore:
         prefix = f"{provider_id}/"
         replacements = {item.model: item for item in evidence}
         invalid = [
-            model_id
-            for model_id in replacements
-            if not model_id.startswith(prefix)
+            model_id for model_id in replacements if not model_id.startswith(prefix)
         ]
         if invalid:
-            raise ValueError(
-                f"Provider '{provider_id}' 证据归属不匹配: {invalid[0]}"
-            )
+            raise ValueError(f"Provider '{provider_id}' 证据归属不匹配: {invalid[0]}")
         current = self.load()
         run_id = self.repository.start_run(
             scope=f"provider_models:{provider_id}",
@@ -132,7 +128,11 @@ class ModelEvidenceStore:
             run_id=run_id,
             subject_kind="model",
             subject_id=item.model,
-            status="skipped" if unavailable else "passed" if item.verified else "failed",
+            status="skipped"
+            if unavailable
+            else "passed"
+            if item.verified
+            else "failed",
             latency_ms=item.latency_ms,
             details={
                 "display_name": item.display_name,

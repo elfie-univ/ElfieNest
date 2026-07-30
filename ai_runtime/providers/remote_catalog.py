@@ -59,9 +59,7 @@ def fetch_remote_models(
             )
         ]
     models = tuple(
-        dict.fromkeys(
-            str(model).strip() for model in raw_models if str(model).strip()
-        )
+        dict.fromkeys(str(model).strip() for model in raw_models if str(model).strip())
     )
     if not models:
         raise RemoteCatalogUnavailable("远程模型目录没有当前产品模型")

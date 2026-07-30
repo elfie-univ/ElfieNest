@@ -133,13 +133,17 @@ class ElfieContextSource:
             top_k=5,
         ).strip()
         items = (
-            MemoryItem(
-                memory_id=EventId(f"memory-context:{frame.frame_id}"),
-                content=content,
-                relevance=1.0,
-                source_event_ids=tuple(source_ids),
-            ),
-        ) if content else ()
+            (
+                MemoryItem(
+                    memory_id=EventId(f"memory-context:{frame.frame_id}"),
+                    content=content,
+                    relevance=1.0,
+                    source_event_ids=tuple(source_ids),
+                ),
+            )
+            if content
+            else ()
+        )
         return MemoryContext(
             revision=frame.revision,
             captured_at=captured_at,

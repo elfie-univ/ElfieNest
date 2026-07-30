@@ -392,9 +392,7 @@ class CoreCognition:
         elif self._personality_data is not None:
             data = dict(self._personality_data)
         else:
-            logger.warning(
-                "🧠 [核心认知] 无法全量重写：没有可用的性格档案"
-            )
+            logger.warning("🧠 [核心认知] 无法全量重写：没有可用的性格档案")
             return
 
         big_five = data.get("big_five", {})
@@ -620,9 +618,8 @@ class CoreCognition:
                     self._core_text[core_key] = row["content"]
             self._update_count = 0
             logger.info("🧠 [核心认知] 从数据库加载%d条核心认知", len(rows))
-        elif (
-            self._personality_data is not None
-            or (self.personality_path and os.path.exists(self.personality_path))
+        elif self._personality_data is not None or (
+            self.personality_path and os.path.exists(self.personality_path)
         ):
             logger.info("🧠 [核心认知] 数据库为空，从个体性格档案自动初始化")
             self.initialize_from_personality()

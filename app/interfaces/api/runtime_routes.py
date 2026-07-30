@@ -18,6 +18,7 @@ from app.features.configuration.runtime_store import (
 
 router = APIRouter(prefix="/api/owner/runtime", tags=["runtime"])
 
+
 def _read_runtime_config() -> Dict[str, Any]:
     return read_runtime_config(get_config_path())
 
@@ -33,7 +34,9 @@ def build_runtime_status() -> Dict[str, Any]:
     observer_events = get_runtime_observer().snapshot()
 
     provider_total = len(connections)
-    provider_active = sum(1 for connection in connections.values() if connection.enabled)
+    provider_active = sum(
+        1 for connection in connections.values() if connection.enabled
+    )
     model_total = len(BUILTIN_MODEL_CATALOG)
     hidden_models = {
         model_id
@@ -82,7 +85,9 @@ def build_runtime_status() -> Dict[str, Any]:
         "usage": get_token_tracker().get_tick_summary(),
         "observer": {
             "event_count": len(observer_events),
-            "last_event": _event_payload(observer_events[-1]) if observer_events else None,
+            "last_event": _event_payload(observer_events[-1])
+            if observer_events
+            else None,
         },
         "notes": notes,
     }
@@ -219,7 +224,6 @@ def _validate_runtime_policy(runtime_policy: Dict[str, Any]) -> None:
                 )
 
 
-
 def _event_payload(event: RuntimeEvent) -> Dict[str, Any]:
     return event.to_dict()
 
@@ -232,11 +236,15 @@ def _build_notes(
 ) -> list[str]:
     notes: list[str] = []
     if not fallback_configured:
-        notes.append("[模型] Ollama 兜底未配置，请先运行 ai_runtime/setup/runtime_setup.py。")
+        notes.append(
+            "[模型] Ollama 兜底未配置，请先运行 ai_runtime/setup/runtime_setup.py。"
+        )
     if provider_total == 0 or provider_active == 0:
         notes.append("[Provider] 尚未检测到可用模型供应商。")
     if observer_events:
-        notes.append(f"[运行时] 已记录 {len(observer_events)} 条模型/工具调用观测事件。")
+        notes.append(
+            f"[运行时] 已记录 {len(observer_events)} 条模型/工具调用观测事件。"
+        )
     else:
         notes.append("[运行时] 暂无模型或工具调用观测事件。")
     return notes

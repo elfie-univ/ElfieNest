@@ -8,8 +8,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from app.infrastructure.persistence.store import get_db, hash_password, migrate_db_if_needed
 from ai_runtime.storage.data_home import get_db_path
+from app.infrastructure.persistence.store import (
+    get_db,
+    hash_password,
+    migrate_db_if_needed,
+)
 
 MIN_OWNER_PASSWORD_LENGTH = 6
 MAX_OWNER_PASSWORD_LENGTH = 128

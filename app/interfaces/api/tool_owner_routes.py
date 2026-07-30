@@ -19,6 +19,8 @@ from app.features.configuration.runtime_store import (
 )
 
 router = APIRouter(prefix="/api/owner/runtime/tools", tags=["runtime-tools"])
+
+
 def _read_policy() -> tuple[dict[str, Any], dict[str, Any]]:
     config = read_runtime_config(get_config_path())
     policy = config.get("runtime_policy", {})

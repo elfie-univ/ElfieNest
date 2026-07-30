@@ -45,7 +45,11 @@ def run_doctor() -> int:
     except (OSError, RuntimeError, ValueError) as error:
         print(f"  ❌ Doctor failed: {error}")
         return 1
-    print("  ✅ Repair and diagnostics complete" if report.passed else "  ⚠️  Repair complete, diagnostics found issues")
+    print(
+        "  ✅ Repair and diagnostics complete"
+        if report.passed
+        else "  ⚠️  Repair complete, diagnostics found issues"
+    )
     return 0 if report.passed else 1
 
 

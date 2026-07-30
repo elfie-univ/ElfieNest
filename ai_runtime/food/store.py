@@ -150,9 +150,7 @@ def validate_food_catalog_model_references(catalog: FoodCatalog) -> None:
                 ) from exc
             connection = connections.get(reference.connection_id)
             if connection is None or not connection.enabled or connection.archived:
-                raise ModelReferenceError(
-                    f"粮食 '{package.key}' 引用了不可用连接"
-                )
+                raise ModelReferenceError(f"粮食 '{package.key}' 引用了不可用连接")
             model = next(
                 (
                     item
@@ -161,15 +159,8 @@ def validate_food_catalog_model_references(catalog: FoodCatalog) -> None:
                 ),
                 None,
             )
-            if (
-                model is None
-                or model.hidden
-                or model.retired
-                or not model.available
-            ):
-                raise ModelReferenceError(
-                    f"粮食 '{package.key}' 引用了不可用模型"
-                )
+            if model is None or model.hidden or model.retired or not model.available:
+                raise ModelReferenceError(f"粮食 '{package.key}' 引用了不可用模型")
 
 
 def foods_referencing_connection(

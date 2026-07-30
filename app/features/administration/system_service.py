@@ -36,6 +36,7 @@ class UsageStats:
     session_count: int
     species_stats: List[SpeciesCount]
 
+
 @dataclass(frozen=True)
 class ActiveSession:
     token: str

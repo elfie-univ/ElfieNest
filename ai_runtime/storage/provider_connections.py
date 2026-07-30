@@ -27,9 +27,7 @@ ModelSource = Literal[
     "bundled_catalog",
     "manual",
 ]
-_MODEL_SOURCES = frozenset(
-    {"official", "remote_catalog", "bundled_catalog", "manual"}
-)
+_MODEL_SOURCES = frozenset({"official", "remote_catalog", "bundled_catalog", "manual"})
 _LEGACY_MODEL_SOURCES = {
     "discovered": "official",
     "provider_catalog": "bundled_catalog",

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import Callable
 
-from app.interfaces.cli.tui.common import clear_screen, print_banner
+from ai_runtime.config import LLMRuntimeConfig
+from ai_runtime.models.catalog import verify_provider
+from ai_runtime.providers.profiles import BUILTIN_PROFILES
 from app.features.configuration.provider_service import (
     CUSTOM_OPENAI_PROVIDER_ID,
     get_known_profile,
@@ -10,9 +12,7 @@ from app.features.configuration.provider_service import (
     list_provider_rows,
 )
 from app.features.configuration.user_config import UserConfig, read_user_config
-from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.models.catalog import verify_provider
-from ai_runtime.providers.profiles import BUILTIN_PROFILES
+from app.interfaces.cli.tui.common import clear_screen, print_banner
 
 ProviderLogin = Callable[[str], None]
 

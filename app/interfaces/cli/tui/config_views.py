@@ -127,7 +127,9 @@ def test_config(config: UserConfig) -> None:
 
 
 def reset_config() -> None:
-    print("\n⚠️  This will reset app config to defaults. Provider and account data will be kept. Continue?")
+    print(
+        "\n⚠️  This will reset app config to defaults. Provider and account data will be kept. Continue?"
+    )
     try:
         choice = input("Type 'yes' to confirm: ").strip()
     except (EOFError, KeyboardInterrupt):

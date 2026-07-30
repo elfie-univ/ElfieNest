@@ -729,7 +729,13 @@ class RuntimeLab:
             packages = catalog.ordered_packages()
             for index, package in enumerate(packages, 1):
                 model = package.primary.model if package.primary else "Not Configured"
-                status = "archived" if package.archived else "enabled" if package.enabled else "disabled"
+                status = (
+                    "archived"
+                    if package.archived
+                    else "enabled"
+                    if package.enabled
+                    else "disabled"
+                )
                 items.append(
                     MenuItem(
                         str(index),
@@ -761,11 +767,17 @@ class RuntimeLab:
             self.output("This Food is not configured yet.")
             return
         self.output(f"Primary: {package.primary.model if package.primary else '—'}")
-        self.output(f"Reasoning: {package.reasoning.model if package.reasoning else '—'}")
+        self.output(
+            f"Reasoning: {package.reasoning.model if package.reasoning else '—'}"
+        )
         self.output(f"Vision: {package.vision.model if package.vision else '—'}")
         self.output(f"Tool: {package.tool.model if package.tool else '—'}")
-        self.output(f"Fallback: {', '.join(item.model for item in package.fallback) or '—'}")
-        self.output(f"State: {'archived' if package.archived else 'enabled' if package.enabled else 'disabled'}")
+        self.output(
+            f"Fallback: {', '.join(item.model for item in package.fallback) or '—'}"
+        )
+        self.output(
+            f"State: {'archived' if package.archived else 'enabled' if package.enabled else 'disabled'}"
+        )
 
     def _food_history_menu(self, store: FoodCatalogStore) -> None:
         versions = store.history_versions()
@@ -871,8 +883,10 @@ class RuntimeLab:
                 "Reasoning": package.reasoning.model if package.reasoning else "None",
                 "Vision": package.vision.model if package.vision else "None",
                 "Tool": package.tool.model if package.tool else "None",
-                "Fallback": ", ".join(item.model for item in package.fallback) or "None",
+                "Fallback": ", ".join(item.model for item in package.fallback)
+                or "None",
             }
+
         old_values, new_values = values(old_recipe), values(new_recipe)
         return [
             (label, old_values.get(label, "—"), new_values.get(label, "—"))
