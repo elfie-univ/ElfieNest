@@ -2,10 +2,14 @@ import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
+import { createI18n } from "../../i18n/config"
+
 import { HAPPY_EXPERIENCE } from "./mock-data"
 import type { Graph } from "./model"
 import { ProfileGraphSection } from "./ProfileGraphSection"
 import type { ProfileChartRuntime } from "./ProfileChart"
+
+createI18n()
 
 const pendingRuntime = () => new Promise<ProfileChartRuntime>(() => undefined)
 

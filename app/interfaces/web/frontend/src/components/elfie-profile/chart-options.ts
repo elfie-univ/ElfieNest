@@ -17,22 +17,22 @@ export type ChartTheme = {
 }
 
 export type TraitCopy = {
-  readonly description: string
-  readonly label: string
   readonly trait: keyof BigFiveValues
 }
 
 export const BIG_FIVE_COPY = {
-  openness: { trait: "openness", label: "开放", description: "愿意探索新鲜经验" },
-  conscientiousness: { trait: "conscientiousness", label: "尽责", description: "做事有秩序和持续性" },
-  extraversion: { trait: "extraversion", label: "外向", description: "乐于主动表达与靠近" },
-  agreeableness: { trait: "agreeableness", label: "亲和", description: "重视合作和温柔回应" },
-  neuroticism: { trait: "neuroticism", label: "敏感", description: "容易留意压力与变化" },
+  openness: { trait: "openness" },
+  conscientiousness: { trait: "conscientiousness" },
+  extraversion: { trait: "extraversion" },
+  agreeableness: { trait: "agreeableness" },
+  neuroticism: { trait: "neuroticism" },
 } satisfies Record<keyof BigFiveValues, TraitCopy>
 
 export function buildBigFiveRadarOption(
   values: BigFiveValues,
   theme: ChartTheme,
+  labels: Readonly<Record<keyof BigFiveValues, string>>,
+  seriesName: string,
 ) {
   return {
     animationDuration: 280,
@@ -43,14 +43,14 @@ export function buildBigFiveRadarOption(
       indicator: BIG_FIVE_TRAITS.map((trait) => ({
         max: 100,
         min: 0,
-        name: BIG_FIVE_COPY[trait].label,
+        name: labels[trait],
       })),
       splitArea: { areaStyle: { color: [theme.surface] } },
       splitLine: { lineStyle: { color: theme.border } },
       axisLine: { lineStyle: { color: theme.border } },
     },
     series: [{
-      data: [{ name: "大五人格", value: BIG_FIVE_TRAITS.map((trait) => score(values[trait])) }],
+      data: [{ name: seriesName, value: BIG_FIVE_TRAITS.map((trait) => score(values[trait])) }],
       lineStyle: { color: theme.accent, width: 2 },
       areaStyle: { color: theme.accent, opacity: 0.2 },
       symbolSize: 7,

@@ -8,6 +8,7 @@ const ErrorEventSchema = z.object({ event: z.literal("error"), detail: z.string(
 const ChatSocketEventSchema = z.discriminatedUnion("event", [ReadyEventSchema, MessageEventSchema, ErrorEventSchema])
 
 export type ChatSocketEvent = z.infer<typeof ChatSocketEventSchema>
+export type ChatSocketErrorEvent = Extract<ChatSocketEvent, { readonly event: "error" }>
 export type ChatSocketStatus = "connecting" | "online" | "offline"
 
 export function parseChatSocketEvent(payload: unknown): ChatSocketEvent { return ChatSocketEventSchema.parse(payload) }
@@ -28,9 +29,9 @@ export class ChatSocket {
     socket.addEventListener("close", () => { if (this.socket === socket) this.callbacks.onStatus("offline") })
     socket.addEventListener("message", (event) => {
       const payload = parsePayload(event.data)
-      if (payload === null) { this.callbacks.onEvent({ event: "error", detail: "收到无法识别的实时消息" }); return }
+      if (payload === null) { this.callbacks.onEvent({ event: "error", detail: "" }); return }
       const parsed = ChatSocketEventSchema.safeParse(payload)
-      this.callbacks.onEvent(parsed.success ? parsed.data : { event: "error", detail: "收到不符合协议的实时消息" })
+      this.callbacks.onEvent(parsed.success ? parsed.data : { event: "error", detail: "" })
     })
   }
 

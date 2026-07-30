@@ -2,6 +2,8 @@ import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it } from "vitest"
 
+import { createI18n } from "../../i18n/config"
+
 import {
   HAPPY_EXPERIENCE,
   KETTLE_EXPERIENCE,
@@ -13,6 +15,8 @@ import { ProfilePrivateModules } from "./ProfilePrivateModules"
 import type { ProfileChartRuntime } from "./ProfileChart"
 import type { ElfieProfileProjection } from "./projection"
 import { projectElfieProfile } from "./projection"
+
+createI18n()
 
 const kettleAdopter = parseViewer({
   accountId: "user123",

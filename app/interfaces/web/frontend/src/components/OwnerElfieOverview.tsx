@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 
 import {
-  ApiError,
   ownerElfies,
   ownerUsers,
   type OwnerElfie,
   type OwnerElfieFilters,
   type OwnerUser,
 } from "../api/client"
+import { resolveLocalizedError, type LocalizedErrorState } from "../i18n/errors"
+import { compareLocalizedText, currentLocale } from "../i18n/format"
 import { ElfieIdentityCard } from "./ElfieIdentityCard"
 import { Notice } from "./Notice"
 import { RefreshButton } from "./RefreshButton"
@@ -54,22 +56,24 @@ function hasFilters(filters: OwnerElfieFilters): boolean {
 }
 
 export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverviewProps) {
+  const { i18n, t } = useTranslation("manage")
+  const locale = currentLocale(i18n)
   const [users, setUsers] = useState<readonly OwnerUser[]>([])
   const [allElfies, setAllElfies] = useState<readonly OwnerElfie[]>([])
   const [elfies, setElfies] = useState<readonly OwnerElfie[]>([])
   const [selection, setSelection] = useState<FilterSelection>(INITIAL_SELECTION)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<LocalizedErrorState>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [mockMode, setMockMode] = useState(false)
 
-  const showDemoData = (nextSelection: FilterSelection, reason?: unknown): void => {
+  const showDemoData = (nextSelection: FilterSelection): void => {
     setUsers(MOCK_USERS)
     setAllElfies(MOCK_ELFIES)
     setElfies(filterMockElfies(nextSelection))
     setMockMode(true)
     onCountChange(MOCK_ELFIES.length)
     setError(null)
-    setNotice(reason instanceof ApiError ? `后端暂不可用，当前显示演示数据：${reason.message}` : "后端暂不可用，当前显示演示数据")
+    setNotice(t("elfies.notices.demo"))
   }
 
   const load = async (nextSelection: FilterSelection): Promise<void> => {
@@ -93,8 +97,8 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
       onCountChange(loadedAll.length)
       setError(null)
       setNotice(null)
-    } catch (reason: unknown) {
-      showDemoData(nextSelection, reason)
+    } catch {
+      showDemoData(nextSelection)
     }
   }
 
@@ -115,69 +119,71 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
   const update = (key: keyof FilterSelection, value: string): void => {
     setSelection((current) => ({ ...current, [key]: value }))
   }
-  const species = [...new Set(allElfies.map((elfie) => elfie.profile.species_id))]
-  const foods = [...new Set(allElfies.map((elfie) => elfie.food_policy.default_food))]
-  const states = [...new Set(allElfies.map((elfie) => elfie.profile.embodiment.state))]
+  const species = [...new Set(allElfies.map((elfie) => elfie.profile.species_id))].sort((left, right) => compareLocalizedText(left, right, locale))
+  const foods = [...new Set(allElfies.map((elfie) => elfie.food_policy.default_food))].sort((left, right) => compareLocalizedText(left, right, locale))
+  const states = [...new Set(allElfies.map((elfie) => elfie.profile.embodiment.state))].sort((left, right) => compareLocalizedText(left, right, locale))
+  const orderedUsers = [...users].sort((left, right) => compareLocalizedText(left.username, right.username, locale))
+  const orderedElfies = [...elfies].sort((left, right) => compareLocalizedText(left.profile.name, right.profile.name, locale))
 
   return <section className="manage-card manage-card--wide">
     <div className="manage-head">
       <div>
-        <h2>全部精灵</h2>
-        <p>以可读身份证卡查看<span className="manage-copy__phrase">公开运营信息</span>；只有粮食策略可由 <span className="manage-copy__phrase">Owner 在这里修改</span>。</p>
+        <h2>{t("elfies.title")}</h2>
+        <p>{t("elfies.description")}</p>
       </div>
-      <RefreshButton label="刷新" onClick={() => { void load(selection) }} />
+      <RefreshButton label={t("users.actions.refresh")} onClick={() => { void load(selection) }} />
     </div>
     <div className="manage-filters">
       <SelectField
-        label="所属用户"
+        label={t("elfies.filters.owner")}
         onValueChange={(value) => update("ownerAccountId", value)}
         options={[
-          { label: "全部用户", value: ALL_USERS },
-          ...users.map((user) => ({ label: user.username, value: user.account_id })),
+          { label: t("elfies.filters.allUsers"), value: ALL_USERS },
+          ...orderedUsers.map((user) => ({ label: user.username, value: user.account_id })),
         ]}
         value={selection.ownerAccountId}
       />
       <SelectField
-        label="物种"
+        label={t("elfies.filters.species")}
         onValueChange={(value) => update("speciesId", value)}
         options={[
-          { label: "全部物种", value: ALL_SPECIES },
+          { label: t("elfies.filters.allSpecies"), value: ALL_SPECIES },
           ...species.map((value) => ({ label: value, value })),
         ]}
         value={selection.speciesId}
       />
       <SelectField
-        label="主粮"
+        label={t("elfies.filters.food")}
         onValueChange={(value) => update("foodKey", value)}
         options={[
-          { label: "全部主粮", value: ALL_FOODS },
+          { label: t("elfies.filters.allFoods"), value: ALL_FOODS },
           ...foods.map((value) => ({ label: value, value })),
         ]}
         value={selection.foodKey}
       />
       <SelectField
-        label="状态"
+        label={t("elfies.filters.status")}
         onValueChange={(value) => update("embodimentState", value)}
         options={[
-          { label: "全部状态", value: ALL_STATES },
+          { label: t("elfies.filters.allStates"), value: ALL_STATES },
           ...states.map((value) => ({ label: value, value })),
         ]}
         value={selection.embodimentState}
       />
     </div>
-    {error ? <Notice kind="error" message={error} /> : null}
+    {error ? <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("errors.save")} /> : null}
     {notice ? <Notice message={notice} /> : null}
     <div className="elfie-id-grid">
-      {elfies.length === 0
-        ? <p className="empty">没有符合筛选条件的精灵。</p>
-        : elfies.map((elfie) => <ElfieIdentityCard
+      {orderedElfies.length === 0
+        ? <p className="empty">{t("elfies.empty")}</p>
+        : orderedElfies.map((elfie) => <ElfieIdentityCard
           csrfToken={csrfToken}
           elfie={elfie}
           key={elfie.elfie_id}
           mockMode={mockMode}
           onError={setError}
           onSaved={async () => {
-            setNotice(`${elfie.profile.name} 的粮食策略已更新。`)
+            setNotice(t("elfies.notices.foodSaved", { name: elfie.profile.name }))
             await reloadElfies()
           }}
         />)}

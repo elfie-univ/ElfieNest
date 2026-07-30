@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button"
-import { Fragment, useEffect, useMemo, useRef, useState } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 
 import {
   applyFoodUpdate,
@@ -12,6 +13,8 @@ import {
   type FoodRecipe,
 } from "../api/owner-foods"
 import { ownerProviders, type ProviderView } from "../api/owner-providers"
+import { currentLocale, formatDateTime, formatNumber } from "../i18n/format"
+import { describeApiError, resolveLocalizedError, type LocalizedErrorState } from "../i18n/errors"
 import { ApiError } from "../api/http"
 import { ConfirmDialog } from "./ConfirmDialog"
 import { FoodPreviewDialog } from "./FoodPreviewDialog"
@@ -32,6 +35,8 @@ import {
 type PendingAction = "apply" | "preview" | "rollback" | "save" | null
 
 export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
+  const { i18n, t } = useTranslation("manage")
+  const locale = currentLocale(i18n)
   const [catalog, setCatalog] = useState<FoodCatalog | null>(null)
   const [providers, setProviders] = useState<readonly ProviderView[]>([])
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
@@ -41,22 +46,23 @@ export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
   const [applyConfirm, setApplyConfirm] = useState(false)
   const [rollbackConfirm, setRollbackConfirm] = useState(false)
   const [pending, setPending] = useState<PendingAction>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<LocalizedErrorState>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [foodWarnings, setFoodWarnings] = useState<Readonly<Record<string, readonly string[]>>>({})
   const previewButtonRef = useRef<HTMLButtonElement | null>(null)
 
-  const load = async (): Promise<void> => {
+  const load = useCallback(async (): Promise<void> => {
     try {
       const [nextCatalog, nextProviders] = await Promise.all([ownerFoods(), ownerProviders()])
       setCatalog(nextCatalog)
       setProviders(nextProviders)
       setError(null)
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "粮食目录加载失败")
+      if (!(reason instanceof Error)) throw reason
+      setError(describeApiError(reason, "manage.load"))
     }
-  }
-  useEffect(() => { void load() }, [])
+  }, [])
+  useEffect(() => { void load() }, [load])
   const foods = catalog ? Object.values(catalog.foods) : []
   const modelOptions = useMemo(() => collectModelOptions(providers), [providers])
 
@@ -66,10 +72,11 @@ export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
       const next = await previewFoodUpdate(csrfToken)
       setPreview(next)
       setPreviewOpen(true)
-      setNotice("已生成更新预览；关闭预览不会写入。")
+      setNotice(t("foods.notices.previewGenerated"))
       setError(null)
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "无法生成粮食预览")
+      if (!(reason instanceof Error)) throw reason
+      setError(describeApiError(reason, "manage.save"))
     } finally {
       setPending(null)
     }
@@ -81,16 +88,17 @@ export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
       setCatalog(await applyFoodUpdate(preview, csrfToken))
       setPreview(null)
       setApplyConfirm(false)
-      setNotice("粮食更新已应用。")
+      setNotice(t("foods.notices.applied"))
       setError(null)
     } catch (reason: unknown) {
       setApplyConfirm(false)
       if (reason instanceof ApiError && reason.status === 409) {
         setPreview(null)
         setPreviewOpen(false)
-        setError("粮食候选已过期，请重新生成预览。")
+        setError(t("foods.notices.expired"))
       } else {
-        setError(reason instanceof ApiError ? reason.message : "粮食更新没有应用")
+        if (!(reason instanceof Error)) throw reason
+        setError(describeApiError(reason, "manage.save"))
       }
     } finally {
       setPending(null)
@@ -102,10 +110,11 @@ export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
       const result = await editFood(food.key, food, csrfToken)
       setFoodWarnings((current) => ({ ...current, [food.key]: result.warnings }))
       setEditing(null)
-      setNotice(result.warnings.length > 0 ? `${food.display_name} 已保存，但仍有验证警告。` : `${food.display_name} 已保存。`)
+      setNotice(t(result.warnings.length > 0 ? "foods.notices.savedWithWarnings" : "foods.notices.saved", { name: food.display_name }))
       await load()
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "粮食配置没有保存")
+      if (!(reason instanceof Error)) throw reason
+      setError(describeApiError(reason, "manage.save"))
       throw reason
     } finally {
       setPending(null)
@@ -116,36 +125,37 @@ export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
     try {
       setCatalog(await rollbackFoods(csrfToken))
       setRollbackConfirm(false)
-      setNotice("粮食目录已回滚。")
+      setNotice(t("foods.notices.rolledBack"))
       setError(null)
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "没有可回滚的粮食版本")
+      if (!(reason instanceof Error)) throw reason
+      setError(describeApiError(reason, "manage.save"))
     } finally {
       setPending(null)
     }
   }
 
-  return <section aria-label="粮食策略管理" className="manage-card manage-card--wide food-page">
+  return <section aria-label={t("foods.title")} className="manage-card manage-card--wide food-page">
     <div className="manage-head">
-      <p>展开查看每个执行角色；人工编辑只改当前粮食，自动生成必须先预览差异。</p>
-      <div aria-label="粮食页面动作" className="manage-actions food-page__header-actions" role="group">
-        <RefreshButton disabled={pending !== null} label="重新读取" onClick={() => { void load() }} />
-        <Button disabled={pending !== null} onClick={() => { void generatePreview() }} ref={previewButtonRef} type="button">{pending === "preview" ? "生成中…" : "生成更新预览"}</Button>
-        <Button variant="outline" disabled={pending !== null} onClick={() => setRollbackConfirm(true)} type="button">回滚最近版本</Button>
+      <p>{t("foods.description")}</p>
+      <div aria-label={t("foods.labels.headerActions")} className="manage-actions food-page__header-actions" role="group">
+        <RefreshButton disabled={pending !== null} label={t("foods.actions.refresh")} onClick={() => { void load() }} />
+        <Button disabled={pending !== null} onClick={() => { void generatePreview() }} ref={previewButtonRef} type="button">{pending === "preview" ? t("foods.actions.generating") : t("foods.actions.generatePreview")}</Button>
+        <Button variant="outline" disabled={pending !== null} onClick={() => setRollbackConfirm(true)} type="button">{t("foods.actions.rollback")}</Button>
       </div>
     </div>
-    {error ? <Notice kind="error" message={error} /> : null}
+    {error ? <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("errors.save")} /> : null}
     {notice ? <Notice message={notice} /> : null}
-    {foods.length === 0 ? <div className="manage-empty-state"><h3>尚无粮食策略</h3><p>先生成更新预览，检查模型角色差异后再确认应用。</p></div> : <div className="food-table-wrap"><Table aria-label="粮食策略" className="food-table"><TableHeader><TableRow><TableHead scope="col">粮食</TableHead><TableHead scope="col">主模型</TableHead><TableHead scope="col">验证状态</TableHead><TableHead scope="col">来源 / 更新时间</TableHead><TableHead scope="col">操作</TableHead></TableRow></TableHeader><TableBody>{foods.map((food) => {
+    {foods.length === 0 ? <div className="manage-empty-state"><h3>{t("foods.empty.title")}</h3><p>{t("foods.empty.description")}</p></div> : <div className="food-table-wrap"><Table aria-label={t("foods.labels.table")} className="food-table"><TableHeader><TableRow><TableHead scope="col">{t("foods.columns.food")}</TableHead><TableHead scope="col">{t("foods.columns.primaryModel")}</TableHead><TableHead scope="col">{t("foods.columns.validation")}</TableHead><TableHead scope="col">{t("foods.columns.sourceUpdated")}</TableHead><TableHead scope="col">{t("foods.columns.actions")}</TableHead></TableRow></TableHeader><TableBody>{foods.map((food) => {
       const isExpanded = expanded.has(food.key)
       const warnings = foodWarnings[food.key] ?? []
       return <Fragment key={food.key}>
         <TableRow key={food.key}>
           <TableHead scope="row"><strong>{food.display_name}</strong><small>{food.description}</small></TableHead>
-          <TableCell>{food.primary.model || "未配置"}<small>{food.primary.reasoning_profile} · {food.primary.max_tokens} tokens</small></TableCell>
-          <TableCell><span className={`status-badge status-badge--${food.validation_status}`}>{validationLabel(food.validation_status)}</span>{warnings.map((warning) => <small className="food-warning" key={warning}>{warning}</small>)}</TableCell>
-          <TableCell>{food.source === "manual" ? "手动配置" : "自动生成"}<small>{catalog?.generated_at ? new Date(catalog.generated_at).toLocaleString() : "未记录"}</small></TableCell>
-          <TableCell><div className="manage-actions"><Button variant="outline" aria-label={`${isExpanded ? "收起" : "展开"} ${food.display_name}`} onClick={() => setExpanded((current) => toggleKey(current, food.key))} type="button">{isExpanded ? "收起" : "展开"}</Button><Button variant="outline" aria-label={`编辑 ${food.display_name}`} onClick={() => { setEditing(food); setExpanded((current) => addKey(current, food.key)) }} type="button">编辑</Button></div></TableCell>
+          <TableCell>{food.primary.model || t("foods.values.notConfigured")}<small>{food.primary.reasoning_profile} · {formatNumber(food.primary.max_tokens, locale)} {t("foods.values.tokenUnit")}</small></TableCell>
+          <TableCell><span className={`status-badge status-badge--${food.validation_status}`}>{validationLabel(food.validation_status, t)}</span>{warnings.map((warning) => <small className="food-warning" key={warning}>{warning}</small>)}</TableCell>
+          <TableCell>{food.source === "manual" ? t("foods.values.manual") : t("foods.values.auto")}<small>{catalog?.generated_at ? formatDateTime(catalog.generated_at, locale) : t("foods.values.notConfigured")}</small></TableCell>
+          <TableCell><div className="manage-actions"><Button variant="outline" aria-label={t(isExpanded ? "foods.actions.collapseFor" : "foods.actions.expandFor", { name: food.display_name })} onClick={() => setExpanded((current) => toggleKey(current, food.key))} type="button">{isExpanded ? t("foods.actions.collapse") : t("foods.actions.expand")}</Button><Button variant="outline" aria-label={t("foods.actions.editFor", { name: food.display_name })} onClick={() => { setEditing(food); setExpanded((current) => addKey(current, food.key)) }} type="button">{t("foods.actions.edit")}</Button></div></TableCell>
         </TableRow>
         {isExpanded ? <TableRow className="food-role-row" key={`${food.key}-roles`}><TableCell colSpan={5}>{editing?.key === food.key
           ? <FoodRecipeEditor food={editing} modelOptions={modelOptions} onCancel={() => setEditing(null)} onSave={saveFood} />
@@ -153,8 +163,8 @@ export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
       </Fragment>
     })}</TableBody></Table></div>}
     <FoodPreviewDialog onContinue={() => { setPreviewOpen(false); setApplyConfirm(true) }} onOpenChange={(open) => { setPreviewOpen(open); if (!open) window.requestAnimationFrame(() => previewButtonRef.current?.focus()) }} open={previewOpen} preview={preview} />
-    <ConfirmDialog confirmLabel="确认应用" description="只应用刚才预览的候选版本；候选过期时会要求重新生成。" onConfirm={() => { void apply() }} onOpenChange={setApplyConfirm} open={applyConfirm} pending={pending === "apply"} title="应用粮食更新" />
-    <ConfirmDialog confirmLabel="确认回滚" danger description="当前目录将替换为最近一次历史版本。" onConfirm={() => { void rollback() }} onOpenChange={setRollbackConfirm} open={rollbackConfirm} pending={pending === "rollback"} title="回滚粮食版本" />
+    <ConfirmDialog confirmLabel={t("foods.actions.applyConfirm")} description={t("foods.dialogs.applyDescription")} onConfirm={() => { void apply() }} onOpenChange={setApplyConfirm} open={applyConfirm} pending={pending === "apply"} title={t("foods.dialogs.applyTitle")} />
+    <ConfirmDialog confirmLabel={t("foods.actions.rollbackConfirm")} danger description={t("foods.dialogs.rollbackDescription")} onConfirm={() => { void rollback() }} onOpenChange={setRollbackConfirm} open={rollbackConfirm} pending={pending === "rollback"} title={t("foods.dialogs.rollbackTitle")} />
   </section>
 }
 
@@ -182,9 +192,9 @@ function collectModelOptions(providers: readonly ProviderView[]): readonly Selec
   }))
 }
 
-function validationLabel(status: string): string {
-  if (status === "passed") return "通过"
-  if (status === "warning") return "有警告"
-  if (status === "failed") return "失败"
-  return "未验证"
+function validationLabel(status: string, t: (key: string) => string): string {
+  if (status === "passed") return t("foods.validation.passed")
+  if (status === "warning") return t("foods.validation.warning")
+  if (status === "failed") return t("foods.validation.failed")
+  return t("foods.validation.unknown")
 }

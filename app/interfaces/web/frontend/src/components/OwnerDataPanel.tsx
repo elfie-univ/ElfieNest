@@ -1,8 +1,11 @@
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { useEffect, useState, type FormEvent } from "react"
+import { useCallback, useEffect, useState, type FormEvent } from "react"
+import { useTranslation } from "react-i18next"
 
-import { ApiError, ownerRead, ownerWrite } from "../api/client"
+import { ownerRead, ownerWrite } from "../api/client"
+import { describeApiError, resolveLocalizedError, type LocalizedErrorState } from "../i18n/errors"
+import { currentLocale } from "../i18n/format"
 import { FieldRow } from "./FieldRow"
 import { Notice } from "./Notice"
 import { RefreshButton } from "./RefreshButton"
@@ -18,19 +21,21 @@ type OwnerDataPanelProps = {
 function renderJson(value: unknown): string { return JSON.stringify(value, null, 2) }
 
 export function OwnerDataPanel({ title, description, readPath, csrfToken, writePath }: OwnerDataPanelProps) {
+  const { i18n, t } = useTranslation("manage")
+  const locale = currentLocale(i18n)
   const [data, setData] = useState<unknown>(null)
   const [editor, setEditor] = useState("")
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<LocalizedErrorState>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const load = async (): Promise<void> => {
+  const load = useCallback(async (): Promise<void> => {
     try { const loaded = await ownerRead(readPath); setData(loaded); setEditor(renderJson(loaded)); setError(null) }
-    catch (reason: unknown) { setError(reason instanceof ApiError ? reason.message : "管理数据加载失败") }
-  }
-  useEffect(() => { void load() }, [readPath])
+    catch (reason: unknown) { if (!(reason instanceof Error)) throw reason; setError(describeApiError(reason, "manage.load")) }
+  }, [readPath])
+  useEffect(() => { void load() }, [load])
   const save = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault(); if (writePath === undefined) return
-    try { const body: unknown = JSON.parse(editor); const updated = await ownerWrite(writePath, "PUT", csrfToken, body); setData(updated); setEditor(renderJson(updated)); setNotice("配置已保存。"); setError(null) }
-    catch (reason: unknown) { setError(reason instanceof ApiError ? reason.message : reason instanceof SyntaxError ? "请输入合法 JSON。" : "配置未保存") }
+    try { const body: unknown = JSON.parse(editor); const updated = await ownerWrite(writePath, "PUT", csrfToken, body); setData(updated); setEditor(renderJson(updated)); setNotice(t("rawData.noticeSaved")); setError(null) }
+    catch (reason: unknown) { if (reason instanceof SyntaxError) { setError(t("rawData.validationSyntax")); return } if (!(reason instanceof Error)) throw reason; setError(describeApiError(reason, "manage.save")) }
   }
-  return <section className="manage-card"><div className="manage-head"><div><h2>{title}</h2><p>{description}</p></div><RefreshButton label="刷新" onClick={() => { void load() }} /></div>{error && <Notice kind="error" message={error} />}{notice && <Notice message={notice} />}{writePath === undefined ? <pre className="manage-json">{data === null ? "正在加载…" : renderJson(data)}</pre> : <form onSubmit={(event) => { void save(event) }}><FieldRow control={({ describedBy, inputId, labelId }) => <Textarea aria-describedby={describedBy} aria-labelledby={labelId} className="manage-json-input" id={inputId} onChange={(event) => setEditor(event.target.value)} value={editor} />} inputId={`${title}-json-config`} label={`${title} JSON 配置`} /><Button type="submit">保存配置</Button></form>}</section>
+  return <section className="manage-card"><div className="manage-head"><div><h2>{title}</h2><p>{description}</p></div><RefreshButton label={t("rawData.actions.refresh")} onClick={() => { void load() }} /></div>{error && <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("errors.save")} />}{notice && <Notice message={notice} />}{writePath === undefined ? <pre className="manage-json">{data === null ? t("rawData.loading") : renderJson(data)}</pre> : <form onSubmit={(event) => { void save(event) }}><FieldRow control={({ describedBy, inputId, labelId }) => <Textarea aria-describedby={describedBy} aria-labelledby={labelId} className="manage-json-input" id={inputId} onChange={(event) => setEditor(event.target.value)} value={editor} />} inputId={`${title}-json-config`} label={t("rawData.jsonLabel", { title })} /><Button type="submit">{t("rawData.actions.save")}</Button></form>}</section>
 }

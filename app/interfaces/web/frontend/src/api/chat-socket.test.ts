@@ -14,4 +14,23 @@ describe("parseChatSocketEvent", () => {
   it("rejects an untyped WebSocket payload before it reaches the page", () => {
     expect(() => parseChatSocketEvent({ event: "message", message: { text: "缺少字段" } })).toThrow()
   })
+
+  it("preserves an unknown backend error payload as protocol data", () => {
+    // Given: the server sends an error detail unknown to the UI.
+    const payload = { event: "error", detail: "upstream-private-detail-123" }
+
+    // When: the WebSocket boundary parses the payload.
+    const event = parseChatSocketEvent(payload)
+
+    // Then: protocol data remains unchanged for the localized-error boundary to handle.
+    expect(event).toEqual(payload)
+  })
+
+  it("rejects malformed error payloads before localized UI handling", () => {
+    // Given: an error event has no typed string detail.
+    const payload = { event: "error", detail: { nested: "not-a-string" } }
+
+    // When/Then: parsing fails at the WebSocket boundary.
+    expect(() => parseChatSocketEvent(payload)).toThrow()
+  })
 })

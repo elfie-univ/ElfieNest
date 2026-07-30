@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react"
+import { I18nextProvider } from "react-i18next"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import "../styles.css"
@@ -6,6 +7,8 @@ import { Button } from "@/components/ui/button"
 import { SelectGroup, SelectLabel } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { ClientUser } from "../api/client"
+import { createI18n } from "../i18n/config"
+import { initializeLocale } from "../i18n/locale"
 import { ownerProviders } from "../api/owner-providers"
 import {
   ownerFoods,
@@ -101,11 +104,17 @@ describe("Manage shared controls", () => {
   })
 
   it("exposes sidebar actions as named buttons and navigation links", () => {
-    render(<ManageSidebar activeTab="providers" onSelect={() => undefined} onUserUpdated={async () => undefined} user={ownerUser} />)
+    const instance = createI18n()
+    initializeLocale(instance, {
+      browserLanguages: ["zh-CN"],
+      documentElement: document.documentElement,
+      storage: localStorage,
+    })
+    render(<I18nextProvider i18n={instance}><ManageSidebar activeTab="providers" onSelect={() => undefined} onUserUpdated={async () => undefined} user={ownerUser} /></I18nextProvider>)
 
     expect(screen.getByRole("button", { name: "模型订阅" })).toBeEnabled()
     expect(screen.getByRole("button", { name: "用手机打开管理台" })).toBeEnabled()
-    expect(screen.getByRole("button", { name: "OwnerOwner" })).toHaveAttribute("aria-haspopup", "dialog")
+    expect(screen.getByRole("button", { name: "Owner管理员" })).toHaveAttribute("aria-haspopup", "dialog")
     expect(screen.getByRole("link", { name: "进入聊天" })).toHaveAttribute("href", "/chat")
   })
 
@@ -138,7 +147,13 @@ describe("Manage shared controls", () => {
   })
 
   it("renders food catalog and role tables through the shared Table primitive", async () => {
-    render(<OwnerFoodPanel csrfToken="csrf" />)
+    const instance = createI18n()
+    document.documentElement.lang = "zh-CN"
+    render(
+      <I18nextProvider i18n={instance}>
+        <OwnerFoodPanel csrfToken="csrf" />
+      </I18nextProvider>,
+    )
 
     const foodTable = await screen.findByRole("table", { name: "粮食策略" })
     expect(within(foodTable).getByRole("columnheader", { name: "验证状态" })).toBeInTheDocument()

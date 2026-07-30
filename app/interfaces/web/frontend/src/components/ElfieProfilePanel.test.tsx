@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
-import { render, screen, within } from "@testing-library/react"
+import { act, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import type { ReactElement } from "react"
+import { I18nextProvider } from "react-i18next"
 import { describe, expect, it, vi } from "vitest"
 
 import {
@@ -14,6 +16,8 @@ import {
 } from "./elfie-profile/mock-data"
 import { parseViewer } from "./elfie-profile/model"
 import { projectElfieProfile } from "./elfie-profile/projection"
+import { createI18n } from "../i18n/config"
+import type { SupportedLocale } from "../i18n/locale"
 import { ElfieProfilePanel } from "./ElfieProfilePanel"
 
 const profileStyles = readFileSync(resolve(import.meta.dirname, "../shared/chat-profile.css"), "utf8")
@@ -28,7 +32,35 @@ vi.mock("./elfie-profile/ProfileChart", async (loadOriginal) => {
   }
 })
 
+function renderWithI18n(ui: ReactElement, locale: SupportedLocale = "zh-CN") {
+  const instance = createI18n()
+  void instance.changeLanguage(locale)
+  return { instance, ...render(<I18nextProvider i18n={instance}>{ui}</I18nextProvider>) }
+}
+
 describe("ElfieProfilePanel", () => {
+  it("renders English chrome while preserving profile content and open state across a locale switch", async () => {
+    // Given: an adopter profile with one private panel open in Chinese.
+    const user = userEvent.setup()
+    const projection = projectElfieProfile(SIGNED_IN_ADMIN, HAPPY_EXPERIENCE)
+    const { instance } = renderWithI18n(
+      <ElfieProfilePanel onBack={vi.fn()} onChat={vi.fn()} projection={projection} />,
+    )
+    await user.click(screen.getByRole("button", { name: "记忆与认知" }))
+
+    // When: the shared locale changes without remounting the profile.
+    await act(async () => { await instance.changeLanguage("en-US") })
+
+    // Then: chrome is English, the private panel remains open, and business content is unchanged.
+    expect(screen.getByRole("heading", { name: "3D individual view" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Big Five personality" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Memory and cognition" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    )
+    expect(screen.getByText(HAPPY_EXPERIENCE.publicProfile.biography)).toBeInTheDocument()
+    expect(screen.getByText("晨间巡游")).toBeInTheDocument()
+  })
   it("keeps the desktop portrait track bound to the visible portrait width", () => {
     // Given: the responsive profile stylesheet.
     const identityRule = profileStyles.match(/\.profile-dossier__identity\s*\{[^}]+\}/)?.[0] ?? ""
@@ -62,7 +94,7 @@ describe("ElfieProfilePanel", () => {
     const projection = projectElfieProfile(SIGNED_IN_ADMIN, HAPPY_EXPERIENCE)
 
     // When: the personal dossier identity frame is rendered.
-    render(<ElfieProfilePanel onBack={vi.fn()} onChat={vi.fn()} projection={projection} />)
+    renderWithI18n(<ElfieProfilePanel onBack={vi.fn()} onChat={vi.fn()} projection={projection} />)
 
     // Then: the reference-led public hierarchy and adopter relationship are visible.
     expect(screen.getByRole("heading", { level: 1, name: "Happy" })).toBeInTheDocument()
@@ -80,7 +112,7 @@ describe("ElfieProfilePanel", () => {
     const onBack = vi.fn()
     const onChat = vi.fn()
     const projection = projectElfieProfile(SIGNED_IN_ADMIN, HAPPY_EXPERIENCE)
-    render(<ElfieProfilePanel onBack={onBack} onChat={onChat} projection={projection} />)
+    renderWithI18n(<ElfieProfilePanel onBack={onBack} onChat={onChat} projection={projection} />)
 
     // When: each identity action is invoked.
     await user.click(screen.getByRole("button", { name: "返回我的精灵" }))
@@ -97,7 +129,7 @@ describe("ElfieProfilePanel", () => {
     const projection = projectElfieProfile(SIGNED_IN_ADMIN, LONG_BIOGRAPHY_EXPERIENCE)
 
     // When: the visitor dossier is rendered.
-    const { container } = render(
+    const { container } = renderWithI18n(
       <ElfieProfilePanel onBack={vi.fn()} onChat={vi.fn()} projection={projection} />,
     )
 
@@ -116,7 +148,7 @@ describe("ElfieProfilePanel", () => {
     const projection = projectElfieProfile(SIGNED_IN_ADMIN, MISSING_PUBLIC_FIELDS_EXPERIENCE)
 
     // When: the identity frame renders its fallbacks.
-    render(<ElfieProfilePanel onBack={vi.fn()} onChat={vi.fn()} projection={projection} />)
+    renderWithI18n(<ElfieProfilePanel onBack={vi.fn()} onChat={vi.fn()} projection={projection} />)
 
     // Then: it uses a portrait initial and honest copy without fake gender.
     expect(screen.getByText("M", { selector: ".profile-dossier__portrait" })).toBeInTheDocument()
@@ -129,7 +161,7 @@ describe("ElfieProfilePanel", () => {
     const projection = projectElfieProfile(SIGNED_IN_ADMIN, HAPPY_EXPERIENCE)
 
     // When: the complete profile experience renders.
-    const { container } = render(
+    const { container } = renderWithI18n(
       <ElfieProfilePanel onBack={vi.fn()} onChat={vi.fn()} projection={projection} />,
     )
 
@@ -158,7 +190,7 @@ describe("ElfieProfilePanel", () => {
     const projection = projectElfieProfile(SIGNED_IN_ADMIN, KETTLE_EXPERIENCE)
 
     // When: the complete public profile renders.
-    const { container } = render(
+    const { container } = renderWithI18n(
       <ElfieProfilePanel onBack={vi.fn()} onChat={vi.fn()} projection={projection} />,
     )
 
@@ -187,7 +219,7 @@ describe("ElfieProfilePanel", () => {
       role: "user",
     })
     const kettleProjection = projectElfieProfile(kettleViewer, KETTLE_EXPERIENCE)
-    const view = render(
+    const view = renderWithI18n(
       <ElfieProfilePanel
         appearanceCapture={capture}
         onBack={vi.fn()}

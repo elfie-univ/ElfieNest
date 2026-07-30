@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button"
 import { useEffect, useState, type FormEvent } from "react"
+import { useTranslation } from "react-i18next"
 
 import type { ProviderDraft, ProviderModelDraft, ProviderView } from "../api/owner-providers"
 import { ManageDialog } from "./ManageDialog"
@@ -23,6 +24,7 @@ function initialModels(provider: ProviderView): readonly EditableModel[] {
 }
 
 export function ProviderFormDialog({ onOpenChange, onSave, open, provider }: ProviderFormDialogProps) {
+  const { t } = useTranslation("manage")
   const [displayName, setDisplayName] = useState("")
   const [apiBase, setApiBase] = useState("")
   const [apiKey, setApiKey] = useState("")
@@ -41,7 +43,7 @@ export function ProviderFormDialog({ onOpenChange, onSave, open, provider }: Pro
 
   if (!provider) return null
   const method = provider.capabilities.connection_method
-  const title = `${provider.configured ? "修改" : "配置"} ${provider.name}`
+  const title = t(provider.configured ? "providers.form.titleEdit" : "providers.form.titleConfigure", { name: provider.name })
   const updateModel = (key: number, field: "id" | "displayName", value: string): void => {
     setModels((current) => current.map((model) => model.key === key ? { ...model, [field]: value } : model))
   }
@@ -68,19 +70,19 @@ export function ProviderFormDialog({ onOpenChange, onSave, open, provider }: Pro
 
   return <ManageDialog
     contentClassName="provider-form-dialog"
-    description={method === "local" ? "连接本机模型服务并读取可用模型。" : "密钥只写入本机；读取时只返回是否已配置。"}
+    description={t(method === "local" ? "providers.form.descriptionLocal" : "providers.form.descriptionRemote")}
     onOpenChange={onOpenChange}
     open={open}
     title={title}
   >
     <form className="provider-form" onSubmit={(event) => { void submit(event) }}>
-      <div className="provider-form__identity"><span>供应商 ID</span><code>{provider.provider_id}</code></div>
+      <div className="provider-form__identity"><span>{t("providers.form.providerId")}</span><code>{provider.provider_id}</code></div>
       {method === "oauth" && provider.capabilities.oauth_unavailable
-        ? <p className="provider-form__unavailable" role="status">登录授权尚未接入；当前版本不会显示不可用的伪登录按钮。</p>
+        ? <p className="provider-form__unavailable" role="status">{t("providers.form.oauthUnavailable")}</p>
         : <>
-          <TextField label="显示名称" onChange={setDisplayName} value={displayName} />
+          <TextField label={t("providers.form.displayName")} onChange={setDisplayName} value={displayName} />
           <TextField
-            hint={method === "local" ? "例如 http://localhost:11434" : "使用供应商默认地址；仅在网关或兼容接口场景修改。"}
+            hint={t(method === "local" ? "providers.form.apiBaseLocalHint" : "providers.form.apiBaseHint")}
             label="API Base URL"
             onChange={setApiBase}
             required
@@ -89,8 +91,8 @@ export function ProviderFormDialog({ onOpenChange, onSave, open, provider }: Pro
           />
           {method === "api_key" ? <TextField
             autoComplete="new-password"
-            hint={provider.configured ? "留空表示保留本机现有密钥。" : "仅写入本机配置，页面不会回显。"}
-            label="API 密钥"
+            hint={t(provider.configured ? "providers.form.apiKeyConfiguredHint" : "providers.form.apiKeyNewHint")}
+            label={t("providers.form.apiKey")}
             onChange={setApiKey}
             required={!provider.configured}
             type="password"
@@ -98,36 +100,36 @@ export function ProviderFormDialog({ onOpenChange, onSave, open, provider }: Pro
           /> : null}
           <SelectField
             disabled
-            label="认证方式"
+            label={t("providers.form.authType")}
             onValueChange={() => undefined}
             options={[
-              { label: "无认证", value: "none" },
+              { label: t("providers.custom.noAuth"), value: "none" },
               { label: "Bearer", value: "bearer" },
               { label: "X-API-Key", value: "x-api-key" },
             ]}
             value={provider.auth_type}
           />
-          <TextField hint="可选；用于单项连通性验证。" label="测试模型" onChange={setTestModel} value={testModel} />
+          <TextField hint={t("providers.form.testModelHint")} label={t("providers.form.testModel")} onChange={setTestModel} value={testModel} />
           <fieldset className="provider-model-editor">
-            <legend>手动模型</legend>
+            <legend>{t("providers.form.models")}</legend>
             {models.map((model, index) => <div className="provider-model-editor__row" key={model.key}>
-              <TextField label={`模型 ${index + 1} ID`} onChange={(value) => updateModel(model.key, "id", value)} value={model.id} />
-              <TextField label={`模型 ${index + 1} 显示名称`} onChange={(value) => updateModel(model.key, "displayName", value)} value={model.displayName} />
+              <TextField label={t("providers.form.modelId", { number: index + 1 })} onChange={(value) => updateModel(model.key, "id", value)} value={model.id} />
+              <TextField label={t("providers.form.modelDisplayName", { number: index + 1 })} onChange={(value) => updateModel(model.key, "displayName", value)} value={model.displayName} />
               <Button variant="outline"
-                aria-label={`删除模型 ${model.id || model.key + 1}`}
+                aria-label={t("providers.form.removeModel", { name: model.id || model.key + 1 })}
                 disabled={models.length === 1}
                 onClick={() => setModels((current) => current.filter((item) => item.key !== model.key))}
                 type="button"
-              >删除</Button>
+              >{t("providers.actions.delete")}</Button>
             </div>)}
             <Button variant="outline"
               onClick={() => setModels((current) => [...current, { key: Math.max(-1, ...current.map((item) => item.key)) + 1, id: "", displayName: "" }])}
               type="button"
-            >添加模型</Button>
+            >{t("providers.form.addModel")}</Button>
           </fieldset>
           <div className="manage-actions">
-            <Button disabled={pending} type="submit">{pending ? "保存中…" : "保存配置"}</Button>
-            <Button variant="outline" disabled={pending} onClick={() => onOpenChange(false)} type="button">取消</Button>
+            <Button disabled={pending} type="submit">{pending ? t("providers.actions.saving") : t("providers.actions.save")}</Button>
+            <Button variant="outline" disabled={pending} onClick={() => onOpenChange(false)} type="button">{t("providers.actions.cancel")}</Button>
           </div>
         </>}
     </form>

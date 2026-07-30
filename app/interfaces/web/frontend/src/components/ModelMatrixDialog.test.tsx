@@ -1,5 +1,6 @@
 import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
@@ -7,6 +8,8 @@ import {
   ownerModelMatrix,
   type ModelMatrix,
 } from "../api/owner-providers"
+import { createI18n } from "../i18n/config"
+import type { SupportedLocale } from "../i18n/locale"
 import "../styles.css"
 import { ModelMatrixDialog } from "./ModelMatrixDialog"
 
@@ -65,7 +68,7 @@ describe("ModelMatrixDialog", () => {
         models: [openAiOnlyModel],
       })
 
-    render(<ModelMatrixDialog csrfToken="csrf" onOpenChange={vi.fn()} open />)
+    renderMatrixDialog()
 
     expect(await screen.findByRole("rowheader", { name: "Shared Model" })).toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "重新读取" }))
@@ -76,7 +79,7 @@ describe("ModelMatrixDialog", () => {
   })
 
   it("renders a real model by provider matrix with unknown prices", async () => {
-    render(<ModelMatrixDialog csrfToken="csrf" onOpenChange={vi.fn()} open />)
+    renderMatrixDialog()
 
     const dialog = await screen.findByRole("dialog", { name: "支持模型与测速" })
     const table = within(dialog).getByRole("table", { name: "模型供应商矩阵" })
@@ -89,7 +92,7 @@ describe("ModelMatrixDialog", () => {
   })
 
   it("uses the shared table primitive while keeping semantic rows, columns, and table-cell display", async () => {
-    render(<ModelMatrixDialog csrfToken="csrf" onOpenChange={vi.fn()} open />)
+    renderMatrixDialog()
 
     const table = await screen.findByRole("table", { name: "模型供应商矩阵" })
     expect(within(table).getAllByRole("columnheader")).toHaveLength(matrix.providers.length + 1)
@@ -104,7 +107,7 @@ describe("ModelMatrixDialog", () => {
 
   it("offers per-cell speed tests only for benchmarkable provider-model pairs", async () => {
     const user = userEvent.setup()
-    render(<ModelMatrixDialog csrfToken="csrf" onOpenChange={vi.fn()} open />)
+    renderMatrixDialog()
 
     await user.click(await screen.findByRole("button", { name: "测速 OpenAI Shared Model" }))
 
@@ -117,7 +120,7 @@ describe("ModelMatrixDialog", () => {
 
   it("benchmarks only available cells from passed providers", async () => {
     const user = userEvent.setup()
-    render(<ModelMatrixDialog csrfToken="csrf" onOpenChange={vi.fn()} open />)
+    renderMatrixDialog()
 
     await user.click(await screen.findByRole("button", { name: "批量测速" }))
 
@@ -140,8 +143,34 @@ describe("ModelMatrixDialog", () => {
       })),
     })
 
-    render(<ModelMatrixDialog csrfToken="csrf" onOpenChange={vi.fn()} open />)
+    renderMatrixDialog()
 
     expect(await screen.findByRole("button", { name: "批量测速" })).toBeDisabled()
   })
+
+  it("renders English matrix copy without translating provider or model identifiers", async () => {
+    // Given: a real provider-model matrix rendered in English.
+    renderMatrixDialog("en-US")
+
+    // When: the matrix dialog finishes loading.
+    const dialog = await screen.findByRole("dialog", { name: "Supported models and benchmarks" })
+    const table = within(dialog).getByRole("table", { name: "Provider-model matrix" })
+
+    // Then: semantic copy is English and technical names stay exact.
+    expect(within(table).getByRole("rowheader", { name: "Shared Model" })).toBeInTheDocument()
+    expect(within(table).getByRole("columnheader", { name: "OpenAI" })).toBeInTheDocument()
+    expect(within(table).getAllByText("Not provided")).toHaveLength(3)
+    expect(screen.queryByText("支持模型与测速")).not.toBeInTheDocument()
+  })
 })
+
+function renderMatrixDialog(locale: SupportedLocale = "zh-CN"): void {
+  const instance = createI18n()
+  void instance.changeLanguage(locale)
+  document.documentElement.lang = locale
+  render(
+    <I18nextProvider i18n={instance}>
+      <ModelMatrixDialog csrfToken="csrf" onOpenChange={vi.fn()} open />
+    </I18nextProvider>,
+  )
+}

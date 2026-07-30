@@ -1,7 +1,9 @@
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
+import { I18nextProvider } from "react-i18next"
 import { describe, expect, it } from "vitest"
 
+import { createI18n } from "../i18n/config"
 import { iconCatalog } from "./iconCatalog"
 import { IconCatalogPage } from "./IconCatalogPage"
 
@@ -13,7 +15,9 @@ describe("iconCatalog", () => {
   })
 
   it("renders each candidate as a real selection button instead of a layout-only wrapper", () => {
-    const html = renderToStaticMarkup(createElement(IconCatalogPage))
+    const html = renderToStaticMarkup(
+      createElement(I18nextProvider, { i18n: createI18n() }, createElement(IconCatalogPage)),
+    )
     const choiceButtons = html.match(/class="icon-catalog-choice__select"/g) ?? []
 
     expect(choiceButtons).toHaveLength(iconCatalog.length * 3)

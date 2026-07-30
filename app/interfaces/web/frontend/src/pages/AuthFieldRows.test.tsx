@@ -1,14 +1,20 @@
 import { render, screen, within } from "@testing-library/react"
+import { I18nextProvider } from "react-i18next"
 import { describe, expect, it, vi } from "vitest"
 
 import * as client from "../api/client"
 import { AdoptionPanel } from "../components/AdoptionPanel"
+import { createI18n } from "../i18n/config"
 import { LoginPage } from "./LoginPage"
 import { SetupPage } from "./SetupPage"
 
 describe("auth and adoption field rows", () => {
   it("renders login fields as horizontal field rows with unique labels", () => {
-    render(<LoginPage />)
+    render(
+      <I18nextProvider i18n={createI18n()}>
+        <LoginPage />
+      </I18nextProvider>,
+    )
 
     expect(screen.getAllByLabelText("账号").some((node) => node.tagName === "INPUT")).toBe(true)
     expect(screen.getAllByLabelText("密码").some((node) => node.tagName === "INPUT")).toBe(true)
@@ -30,7 +36,7 @@ describe("auth and adoption field rows", () => {
       species_ids: ["cat"],
     })
 
-    render(<AdoptionPanel csrfToken="csrf" onAdopted={async () => undefined} />)
+    render(<I18nextProvider i18n={createI18n()}><AdoptionPanel csrfToken="csrf" onAdopted={async () => undefined} /></I18nextProvider>)
 
     for (const label of ["精灵名字", "物种", "人格风格", "身高", "体型"]) {
       const field = await screen.findByRole("group", { name: label })

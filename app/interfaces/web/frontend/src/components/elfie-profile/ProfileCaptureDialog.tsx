@@ -1,5 +1,6 @@
 import type { ReactElement } from "react"
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -40,6 +41,7 @@ export function ProfileCaptureDialog({
   open,
   trigger,
 }: ProfileCaptureDialogProps) {
+  const { t } = useTranslation("chat")
   const [downloadError, setDownloadError] = useState("")
 
   function chooseAvatar(): void {
@@ -59,7 +61,7 @@ export function ProfileCaptureDialog({
       onDownload(capture, `${elfieName}-elfie.png`)
     } catch (error) {
       if (error instanceof DOMException) {
-        setDownloadError("下载没有开始，请重试或选择设为头像。")
+        setDownloadError(t("profile.captureDialog.downloadError"))
         return
       }
       throw error
@@ -81,16 +83,16 @@ export function ProfileCaptureDialog({
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="profile-capture" showCloseButton={false}>
         <DialogHeader>
-          <DialogTitle>确认这张照片</DialogTitle>
+          <DialogTitle>{t("profile.captureDialog.title")}</DialogTitle>
           <DialogDescription>
-            你可以先设为本地头像预览，或下载 PNG 图片保存。
+            {t("profile.captureDialog.description")}
           </DialogDescription>
         </DialogHeader>
         {capture === null ? (
-          <p className="profile-capture__loading" role="status">正在生成照片…</p>
+          <p className="profile-capture__loading" role="status">{t("profile.captureDialog.loading")}</p>
         ) : (
           <img
-            alt={`${elfieName} 的拍照预览`}
+            alt={t("profile.captureDialog.preview", { name: elfieName })}
             className="profile-capture__preview"
             src={capture.previewUrl}
           />
@@ -99,16 +101,16 @@ export function ProfileCaptureDialog({
         {captureError.length > 0 && <p className="profile-capture__error" role="alert">{captureError}</p>}
         <DialogFooter className="profile-capture__actions">
           <DialogClose asChild>
-            <Button type="button" variant="ghost">取消</Button>
+            <Button type="button" variant="ghost">{t("profile.captureDialog.cancel")}</Button>
           </DialogClose>
           <Button disabled={capturePending} onClick={recapture} type="button" variant="outline">
-            {capturePending ? "正在拍摄…" : "重新拍摄"}
+            {capturePending ? t("profile.captureDialog.recapturing") : t("profile.captureDialog.recapture")}
           </Button>
           <Button disabled={capture === null || capturePending} onClick={download} type="button" variant="outline">
-            下载图片
+            {t("profile.captureDialog.download")}
           </Button>
           <Button disabled={capture === null || capturePending} onClick={chooseAvatar} type="button">
-            设为头像
+            {t("profile.captureDialog.avatar")}
           </Button>
         </DialogFooter>
       </DialogContent>

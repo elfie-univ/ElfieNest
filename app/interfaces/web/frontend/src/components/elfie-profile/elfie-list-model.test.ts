@@ -35,7 +35,7 @@ describe("Elfie list model", () => {
     const result = filterElfieList(ITEMS, "admin123", "", "all")
 
     expect(result.counts).toEqual({ all: 2, mine: 1, other: 1 })
-    expect(result.groups.map((group) => group.label)).toEqual(["我的精灵", "其他精灵"])
+    expect(result.groups.map((group) => group.kind)).toEqual(["mine", "other"])
     expect(result.groups[0]?.items[0]?.profile.name).toBe("Happy")
     expect(result.groups[1]?.items[0]?.profile.name).toBe("Kettle")
   })

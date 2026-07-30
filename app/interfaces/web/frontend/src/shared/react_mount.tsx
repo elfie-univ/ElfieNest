@@ -6,7 +6,7 @@ import "./styles.css"
 export function mountProductPage(content: ReactNode): void {
   const mountPoint = document.getElementById("app")
   if (mountPoint === null) {
-    throw new Error("页面缺少 #app 挂载点")
+    throw new Error("ERR_MISSING_APP_MOUNT")
   }
   createRoot(mountPoint).render(content)
 }

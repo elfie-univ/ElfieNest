@@ -202,3 +202,63 @@ and text contrast appropriate to the active theme. Current accepted debt: legacy
 native or pseudo-table surfaces for model, food, and runtime catalog data remain
 until their scoped shadcn Table migration tasks; no accepted sidebar, field-row,
 status, or identity-card visual debt.
+
+## 9. Bilingual Interface Contract
+
+The bilingual interface extends the existing warm-paper design language; it does
+not introduce a second layout, palette, or component set for English. Both
+`zh-CN` and `en-US` use the same semantic tokens, spacing scale, information
+architecture, and responsive shells.
+
+### Language Switcher
+
+- **Anatomy:** use one shared labelled `LanguageSwitcher`, built from the
+  existing `SelectField` and shadcn/Radix Select primitives. It has one visible
+  label, one trigger, and a portal listbox with exactly two self-named options:
+  `简体中文` and `English`.
+- **Placement:** login, setup, and the account menu may place the shared control
+  in their existing action areas. Placement must not change navigation hierarchy
+  or create a page-specific language state.
+- **States:** default, hover, focus-visible, expanded, selected, and disabled
+  use existing semantic tokens. The current option remains selected when the
+  list opens; changing locale keeps the trigger focused and does not reset URL,
+  scroll, form, dialog, or application state.
+- **Keyboard:** Tab reaches the trigger in document order; Enter or Space opens
+  it; Arrow keys move between options; Enter commits; Escape closes without a
+  change; Tab closes and advances. The trigger and portal items retain a visible
+  `--focus-ring`, and the accessible name is localized with the surrounding UI.
+
+### Script, Metadata, and Text Expansion
+
+- `--font-sans` remains the single UI typography owner. Its fallback chain must
+  cover Latin through `Noto Serif` or the Latin glyphs in `Noto Serif SC`, CJK
+  through `Noto Serif SC` and `Songti SC`, then generic `serif`. Components must
+  not introduce language-specific local font stacks; monospace remains reserved
+  for machine values.
+- The document root is the metadata authority. It is updated synchronously to
+  `lang="zh-CN"` or `lang="en-US"`; both supported locales use `dir="ltr"`.
+  Portals inherit the active document language and direction. A component must
+  not infer locale from rendered text or own a competing `lang` state.
+- English UI copy must be designed for at least 30% expansion over the Chinese
+  label. Buttons and field rows may grow or wrap; use `min-width: 0`, intrinsic
+  sizing, and natural line wrapping instead of fixed widths derived from CJK
+  copy. Operational labels and instructions may not be ellipsized when that
+  would hide an action or required meaning.
+- User content, IDs, model/provider names, JSON, and other machine values are not
+  translated. They wrap within their owning region without changing the
+  bilingual UI typography contract.
+
+### Responsive and Accessibility Acceptance
+
+- Validate both locales at 375px, 768px, and 1280px. Also validate reflow at
+  200% zoom at narrow and desktop widths. Locale changes must not cause clipped
+  controls, overlapping text, hidden focus indicators, or lost keyboard focus.
+- The document and primary product shell must never acquire horizontal page
+  scrolling. Long English and CJK text wrap inside the existing grid/flex owner;
+  children that can shrink use `min-width: 0`. Purpose-built local scrollers,
+  such as the monitor toolbar or a data table, remain locally bounded and do not
+  make `html`, `body`, or the application root wider than the viewport.
+- Keyboard-only acceptance covers opening and committing the language switch,
+  cancelling it with Escape, continuing with Tab, and operating the surrounding
+  page after the locale changes. Focus order, focus return, and visible
+  focus-visible styling must be equivalent in both languages.

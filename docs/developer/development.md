@@ -110,12 +110,50 @@ boundaries see the
 
 ## Product Web and LAN mode
 
-The Core serves four same-origin pages: `/setup` for local first-run, plus
-`/login`, `/chat` and `/manage`. The first Owner can only be created through
+The Core serves five same-origin product pages: `/setup` for local first-run,
+plus `/login`, `/chat`, `/manage` and `/monitor`. The first Owner can only be
+created through
 the local or Electron loopback service; afterwards, devices on the same network
 segment go straight to the login page. Regular users always land on the chat
 page, and `/manage` server-redirects to `/chat`. The Owner lands on the
 management page by default and may switch their own default page to chat.
+
+### Web localization contract
+
+The product Web UI supports Simplified Chinese (`zh-CN`) and US English
+(`en-US`). Locale initialization uses this order:
+
+1. a valid saved value from local storage key `elfienest.locale`;
+2. the first supported match in `navigator.languages` (`zh-*` maps to
+   `zh-CN`, and `en-*` maps to `en-US`);
+3. Chinese fallback when neither source is supported or available.
+
+An invalid saved value is discarded. Switching language updates the i18n
+instance and the document `lang`/`dir` metadata immediately, then persists the
+closed locale value when browser storage is available. The preference is a Web
+presentation setting: it does not change session, URL, selected entities,
+drafts, setup progress or the saved color theme.
+
+All product-owned labels, actions, help text, validation and accessible names
+belong in the typed `common`, `auth`, `setup`, `account`, `chat`, `manage` or
+`monitor` resources. User content, backend business data, IDs, provider/model
+names and raw protocol payloads are not translated. English error surfaces do
+not display arbitrary backend `detail`; they use the localized fallback for a
+closed operation code. Chinese may retain a non-empty backend detail when it is
+the most useful local diagnostic.
+
+The Electron application menu follows the operating-system locale separately
+and supports the same Chinese/English closed set, with Chinese fallback. It
+does not read `elfienest.locale` and there is no preload, IPC or storage bridge
+between the native menu and the Web language switcher.
+
+Localization acceptance covers all five routes (`/setup`, `/login`, `/chat`,
+`/manage`, `/monitor`) in both languages at 375, 768 and 1280 CSS pixels. It
+also includes 200% zoom at mobile and desktop widths, keyboard-only switching,
+long English copy, offline/error states, refresh and deep links, and smoke tests
+for `warm-paper`, `harbor-blue`, `orchid-archive` and `moss-green`. A language
+change must not introduce horizontal page scrolling, clipping, lost focus or
+lost product state.
 
 The chat page uses the same-session authentication as REST over the same-origin
 `/api/v1/ws/chat`. User messages get real-time confirmation; Elfie replies
@@ -159,7 +197,7 @@ credentials are shown only once, at registration or rotation, and must never be
 written into browser logs, test fixtures or the repository.
 
 The current product acceptance focuses on `/setup`, `/login`, `/chat`,
-`/manage`, the Electron login entry and mobile browsers. Owner configuration of
+`/manage`, `/monitor`, the Electron login entry and mobile browsers. Owner configuration of
 the device–embodiment lease–capability claim, device throttling policy and the
 real-installer staging / dual-client automation remain in phase two; the legacy
 single-page console has been retired.

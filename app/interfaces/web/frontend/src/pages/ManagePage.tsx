@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 
 import { OwnerElfieOverview } from "../components/OwnerElfieOverview"
 import { OwnerFoodPanel } from "../components/OwnerFoodPanel"
@@ -19,11 +20,12 @@ function initialTab(): ManageTab {
 }
 
 export function ManagePage() {
+  const { t } = useTranslation("manage")
   const { user, loading, refresh } = useSession()
   usePresenceHeartbeat(user)
   const [tab, setTab] = useState<ManageTab>(initialTab)
   const [elfieCount, setElfieCount] = useState(0)
-  if (loading) return <main className="page"><p className="empty">正在验证会话…</p></main>
+  if (loading) return <main className="page"><p className="empty">{t("page.verifyingSession")}</p></main>
   if (user?.role !== "owner") { window.location.assign(user === null ? "/login?next=/manage" : "/chat"); return <main /> }
   if (new URLSearchParams(window.location.search).get("icon-catalog") === "1") return <IconCatalogPage />
   const csrfToken = user.csrf_token ?? ""
@@ -35,7 +37,7 @@ export function ManagePage() {
   return <main className="app-page"><section className="manage-workbench manage-workbench--console">
     <ManageSidebar activeTab={tab} onSelect={chooseTab} onUserUpdated={refresh} user={user} />
     <section className="panel manage manage--console">
-      <header className="manage-console-head"><h1>{currentItem?.label ?? "管理台"}</h1></header>
+      <header className="manage-console-head"><h1>{currentItem ? t(`navigation.items.${currentItem.id}`) : t("page.title")}</h1></header>
       <ManageContent csrfToken={csrfToken} elfieCount={elfieCount} onElfieCountChange={setElfieCount} tab={tab} />
     </section>
   </section></main>
@@ -55,5 +57,6 @@ function ManageContent({ csrfToken, elfieCount, onElfieCountChange, tab }: { rea
 }
 
 function ToolPlaceholder() {
-  return <section className="manage-card manage-card--wide manage-empty-state"><p>这部分需要先定义"谁可调用什么工具、权限如何继承和审计"的产品规则；在规则确定前，不展示不可读的原始配置。</p><span>即将设计</span></section>
+  const { t } = useTranslation("manage")
+  return <section className="manage-card manage-card--wide manage-empty-state"><p>{t("tools.description")}</p><span>{t("tools.status")}</span></section>
 }

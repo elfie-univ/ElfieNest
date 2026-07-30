@@ -6,11 +6,12 @@ type StatusIndicatorProps = {
 }
 
 export function StatusIndicator({ label, tone }: StatusIndicatorProps) {
+  const { t } = useTranslation("common")
   const normalizedTone = normalizeTone(tone)
   return (
     <span className={`status-indicator status-indicator--${normalizedTone}`}>
       <i aria-hidden="true" />
-      {label || "状态未知"}
+      {label || t("status.unknown")}
     </span>
   )
 }
@@ -27,3 +28,4 @@ function normalizeTone(tone: string): StatusTone {
       return "unknown"
   }
 }
+import { useTranslation } from "react-i18next"

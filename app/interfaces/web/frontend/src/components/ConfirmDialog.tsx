@@ -1,4 +1,5 @@
 import { useRef, type ReactElement } from "react"
+import { useTranslation } from "react-i18next"
 
 import {
   AlertDialog,
@@ -26,8 +27,8 @@ type ConfirmDialogProps = {
 }
 
 export function ConfirmDialog({
-  cancelLabel = "取消",
-  confirmLabel = "确认",
+  cancelLabel,
+  confirmLabel,
   danger = false,
   description,
   onConfirm,
@@ -37,7 +38,10 @@ export function ConfirmDialog({
   title,
   trigger,
 }: ConfirmDialogProps) {
+  const { t } = useTranslation("common")
   const openerRef = useRef<HTMLElement | null>(null)
+  const localizedCancelLabel = cancelLabel ?? t("actions.cancel")
+  const localizedConfirmLabel = confirmLabel ?? t("actions.confirm")
   return <AlertDialog onOpenChange={onOpenChange} open={open}>
     {trigger ? <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger> : null}
       <AlertDialogContent
@@ -56,13 +60,13 @@ export function ConfirmDialog({
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending}>{cancelLabel}</AlertDialogCancel>
+          <AlertDialogCancel disabled={pending}>{localizedCancelLabel}</AlertDialogCancel>
           <AlertDialogAction
             disabled={pending}
             onClick={onConfirm}
             variant={danger ? "destructive" : "default"}
           >
-            {pending ? "处理中…" : confirmLabel}
+            {pending ? t("actions.processing") : localizedConfirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

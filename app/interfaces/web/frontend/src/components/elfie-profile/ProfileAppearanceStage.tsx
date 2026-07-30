@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { Camera, RotateCcw, Scan } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
 
@@ -29,6 +30,7 @@ export function ProfileAppearanceStage({
   onAvatarPreview,
   profile,
 }: ProfileAppearanceStageProps) {
+  const { t } = useTranslation("chat")
   const [active, setActive] = useState(false)
   const [captureOpen, setCaptureOpen] = useState(false)
   const [captureError, setCaptureError] = useState("")
@@ -94,7 +96,7 @@ export function ProfileAppearanceStage({
         if (kind === "initial") {
           setCaptureOpen(false)
         }
-        setCaptureError("照片生成失败，请重试。")
+        setCaptureError(t("profile.appearance.captureError"))
         return false
       }
       throw error
@@ -119,15 +121,15 @@ export function ProfileAppearanceStage({
     <section className="profile-appearance profile-dossier__section" aria-labelledby={`appearance-${profile.elfieId}`}>
       <header className="profile-appearance__header">
         <div>
-          <span>外观</span>
-          <h2 id={`appearance-${profile.elfieId}`}>3D 个体视图</h2>
+          <span>{t("profile.appearance.eyebrow")}</span>
+          <h2 id={`appearance-${profile.elfieId}`}>{t("profile.appearance.title")}</h2>
         </div>
         <div className="profile-appearance__actions">
           <Button onClick={() => setActive((current) => !current)} size="sm" type="button" variant="outline">
-            <Scan aria-hidden="true" />{active ? "关闭3D" : "打开3D"}
+            <Scan aria-hidden="true" />{active ? t("profile.appearance.close") : t("profile.appearance.open")}
           </Button>
           <Button disabled={!active} onClick={interaction.reset} size="sm" type="button" variant="ghost">
-            <RotateCcw aria-hidden="true" />复位视角
+            <RotateCcw aria-hidden="true" />{t("profile.appearance.reset")}
           </Button>
           {canCapture && (
             <ProfileCaptureDialog
@@ -138,7 +140,7 @@ export function ProfileAppearanceStage({
               onAvatar={(nextCapture) => {
                 setLocalAvatar(nextCapture.previewUrl)
                 onAvatarPreview?.(nextCapture.previewUrl)
-                setNotice("仅更新本地预览，刷新页面后会恢复。")
+                setNotice(t("profile.appearance.localNotice"))
                 setCaptureOpen(false)
               }}
               onOpenChange={changeCaptureOpen}
@@ -146,7 +148,7 @@ export function ProfileAppearanceStage({
               open={captureOpen}
               trigger={(
                 <Button onClick={() => { void captureStage("initial") }} size="sm" type="button">
-                  <Camera aria-hidden="true" />拍照
+                  <Camera aria-hidden="true" />{t("profile.appearance.capture")}
                 </Button>
               )}
             />
@@ -154,7 +156,7 @@ export function ProfileAppearanceStage({
         </div>
       </header>
       <div
-        aria-label={`${profile.name} 的可交互 3D 外观`}
+        aria-label={t("profile.appearance.stage", { name: profile.name })}
         className={`profile-appearance__stage${active ? " profile-appearance__stage--active" : ""}`}
         onKeyDown={interaction.onKeyDown}
         onLostPointerCapture={interaction.onPointerLost}
@@ -176,7 +178,9 @@ export function ProfileAppearanceStage({
         >
           {visiblePortrait.length > 0 ? (
             <img
-              alt={localAvatar.length > 0 ? `${profile.name} 的本地头像预览` : `${profile.name} 的外观`}
+              alt={localAvatar.length > 0
+                ? t("profile.appearance.localPreview", { name: profile.name })
+                : t("profile.appearance.appearanceAlt", { name: profile.name })}
               draggable={false}
               src={visiblePortrait}
             />
@@ -187,7 +191,7 @@ export function ProfileAppearanceStage({
         </div>
         <div aria-hidden="true" className="profile-appearance__platform" />
         <p className="profile-appearance__hint">
-          {active ? "拖拽旋转，滚轮或双指缩放；键盘方向键、加减键与 Home 也可操作。" : "打开 3D 后可直接拖拽查看。"}
+          {active ? t("profile.appearance.activeHint") : t("profile.appearance.inactiveHint")}
         </p>
       </div>
       {!captureOpen && captureError.length > 0 && <p className="profile-appearance__error" role="alert">{captureError}</p>}

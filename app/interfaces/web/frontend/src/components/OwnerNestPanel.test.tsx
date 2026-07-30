@@ -1,8 +1,12 @@
-import { render, screen, within } from "@testing-library/react"
+import { act, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import type { ReactElement } from "react"
+import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { ownerElfies, ownerRooms, type OwnerElfie } from "../api/client"
+import { ApiError, ownerAssignBed, ownerElfies, ownerRooms, ownerUpdateBedCount, type OwnerElfie } from "../api/client"
+import { createI18n } from "../i18n/config"
+import type { SupportedLocale } from "../i18n/locale"
 import { OwnerNestPanel } from "./OwnerNestPanel"
 
 vi.mock("../api/client", async (loadOriginal) => {
@@ -10,8 +14,9 @@ vi.mock("../api/client", async (loadOriginal) => {
   return {
     ...original,
     ownerElfies: vi.fn(),
+    ownerAssignBed: vi.fn(),
     ownerRooms: vi.fn(),
-    ownerWrite: vi.fn(),
+    ownerUpdateBedCount: vi.fn(),
   }
 })
 
@@ -56,14 +61,23 @@ const roomFixture = [{
   ],
 }]
 
+function renderWithI18n(ui: ReactElement, locale: SupportedLocale = "zh-CN") {
+  const instance = createI18n()
+  void instance.changeLanguage(locale)
+  document.documentElement.lang = locale
+  return { instance, ...render(<I18nextProvider i18n={instance}>{ui}</I18nextProvider>) }
+}
+
 describe("OwnerNestPanel", () => {
   beforeEach(() => {
     vi.mocked(ownerRooms).mockResolvedValue(roomFixture)
     vi.mocked(ownerElfies).mockResolvedValue([happy, stardust])
+    vi.mocked(ownerAssignBed).mockResolvedValue()
+    vi.mocked(ownerUpdateBedCount).mockResolvedValue()
   })
 
   it("migrates the classic floorplan landmarks, bed numbers, and occupants", async () => {
-    const { container } = render(<OwnerNestPanel csrfToken="csrf" />)
+    const { container } = renderWithI18n(<OwnerNestPanel csrfToken="csrf" />)
 
     expect(await screen.findAllByText("Happy")).not.toHaveLength(0)
     for (const selector of [".room-map", ".nest-floorplan", ".portal-entrance", ".floor-module", ".main-corridor", ".room-entry", ".inner-corridor"]) {
@@ -79,7 +93,7 @@ describe("OwnerNestPanel", () => {
 
   it("opens the shared observation monitor only from the camera dialog instead of reserving an inline preview", async () => {
     const user = userEvent.setup()
-    render(<OwnerNestPanel csrfToken="csrf" />)
+    renderWithI18n(<OwnerNestPanel csrfToken="csrf" />)
 
     expect(await screen.findByRole("button", { name: "打开预览" })).toBeInTheDocument()
     expect(screen.queryByRole("region", { name: "房间 3D 观察" })).toBeNull()
@@ -102,7 +116,7 @@ describe("OwnerNestPanel", () => {
     vi.mocked(ownerRooms).mockResolvedValue([])
     vi.mocked(ownerElfies).mockResolvedValue([])
 
-    render(<OwnerNestPanel csrfToken="csrf" />)
+    renderWithI18n(<OwnerNestPanel csrfToken="csrf" />)
 
     const list = await screen.findByRole("list", { name: "床位分布" })
     expect(within(list).getByText("Happy")).toBeInTheDocument()
@@ -113,7 +127,7 @@ describe("OwnerNestPanel", () => {
 
   it("sorts unassigned elfies first and edits only the selected row", async () => {
     const user = userEvent.setup()
-    render(<OwnerNestPanel csrfToken="csrf" />)
+    renderWithI18n(<OwnerNestPanel csrfToken="csrf" />)
 
     const list = await screen.findByRole("list", { name: "床位分布" })
     const rows = within(list).getAllByRole("listitem")
@@ -125,5 +139,58 @@ describe("OwnerNestPanel", () => {
     await user.click(within(firstRow).getByRole("button", { name: "编辑星尘的床位" }))
     expect(within(firstRow).getByRole("combobox", { name: "星尘 床位" })).toBeInTheDocument()
     expect(within(secondRow).queryByRole("combobox")).not.toBeInTheDocument()
+  })
+
+  it("renders English Nest, floorplan, room, bed, and assignment copy", async () => {
+    // Given: the Nest API returns stable room, bed, Elfie, and ID values.
+
+    // When: the panel renders in English.
+    renderWithI18n(<OwnerNestPanel csrfToken="csrf" />, "en-US")
+
+    // Then: UI chrome is English while entity values stay byte-identical.
+    expect(await screen.findByRole("heading", { name: "Dorm floorplan and beds" })).toBeInTheDocument()
+    expect(screen.getByText("Wormhole terminal")).toBeInTheDocument()
+    expect(screen.getByText("Dining area")).toBeInTheDocument()
+    expect(screen.getAllByText("Happy")).not.toHaveLength(0)
+    expect(screen.getByText("01号床")).toBeInTheDocument()
+    expect(screen.getByRole("list", { name: "Bed assignments" })).toBeInTheDocument()
+  })
+
+  it("preserves the selected assignment editor when locale changes mid-edit", async () => {
+    // Given: the unassigned Elfie row is being edited.
+    const user = userEvent.setup()
+    const { instance } = renderWithI18n(<OwnerNestPanel csrfToken="csrf" />)
+    await user.click(await screen.findByRole("button", { name: "编辑星尘的床位" }))
+    expect(screen.getByRole("combobox", { name: "星尘 床位" })).toHaveTextContent("未分配")
+
+    // When: locale changes on the mounted panel.
+    await act(async () => { await instance.changeLanguage("en-US") })
+
+    // Then: the same entity remains selected with the same assignment value.
+    expect(screen.getByRole("combobox", { name: "Bed for 星尘" })).toHaveTextContent("Unassigned")
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument()
+  })
+
+  it("localizes invalid bed counts and closes English 409 assignment detail", async () => {
+    // Given: English UI and an assignment conflict with backend detail.
+    const user = userEvent.setup()
+    vi.mocked(ownerAssignBed).mockRejectedValue(new ApiError(409, "该床位已被占用"))
+    renderWithI18n(<OwnerNestPanel csrfToken="csrf" />, "en-US")
+    const bedCount = await screen.findByRole("textbox", { name: "Bed count" })
+
+    // When: an invalid count is submitted, then an assignment is attempted.
+    await user.clear(bedCount)
+    await user.type(bedCount, "3")
+    await user.tab()
+    expect(bedCount).toHaveValue("4")
+    const list = screen.getByRole("list", { name: "Bed assignments" })
+    const unassigned = within(list).getAllByRole("listitem")[0]
+    if (!(unassigned instanceof HTMLElement)) throw new TypeError("Expected unassigned Elfie row")
+    await user.click(within(unassigned).getByRole("button", { name: "Edit bed for 星尘" }))
+    await user.click(within(unassigned).getByRole("button", { name: "Save" }))
+
+    // Then: the localized conflict fallback is shown without raw detail.
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to save management data.")
+    expect(screen.queryByText("该床位已被占用")).not.toBeInTheDocument()
   })
 })

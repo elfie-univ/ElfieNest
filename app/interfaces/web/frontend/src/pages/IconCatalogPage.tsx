@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import {
   Activity, Blocks, Bot, Box, Boxes, BrainCircuit, Cable, Castle, ChartNoAxesCombined,
   CircleUserRound, ContactRound, CookingPot, Cuboid, FileText, Gauge, House, KeyRound,
@@ -9,7 +10,11 @@ import {
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
-import { iconCatalog, type CatalogIconName } from "./iconCatalog"
+import {
+  iconCatalog,
+  type CatalogIconName,
+  type IconCatalogGroupId,
+} from "./iconCatalog"
 
 const iconComponents = {
   activity: Activity,
@@ -56,36 +61,43 @@ const iconComponents = {
 
 type ChoiceState = Readonly<Record<string, CatalogIconName>>
 
-function selectionSummary(selected: ChoiceState): string {
+function selectionSummary(
+  selected: ChoiceState,
+  groupLabel: (id: IconCatalogGroupId) => string,
+): string {
   return iconCatalog.map((group) => {
     const choice = selected[group.id] ?? group.choices[0].id
-    return `${group.label}=${choice}`
-  }).join("，")
+    return `${groupLabel(group.id)}=${choice}`
+  }).join("\n")
 }
 
 export function IconCatalogPage() {
+  const { t } = useTranslation("manage")
   const [selected, setSelected] = useState<ChoiceState>({})
   const [copyNotice, setCopyNotice] = useState("")
   const copySelection = async (): Promise<void> => {
-    await navigator.clipboard.writeText(selectionSummary(selected))
-    setCopyNotice("已复制。直接粘贴回聊天即可。")
+    await navigator.clipboard.writeText(selectionSummary(
+      selected,
+      (id) => t(`iconCatalog.groups.${id}`),
+    ))
+    setCopyNotice(t("iconCatalog.noticeCopied"))
   }
   return <main className="icon-catalog-page">
     <header className="icon-catalog-head">
       <div>
-        <p className="brand">ELFIENEST · DESKTOP REVIEW</p>
-        <h1>图标挑选页</h1>
-        <p>图标已内嵌在本页，不依赖外部图片加载。每项点击一个候选，最后复制结果给我即可。</p>
+        <p className="brand">{t("iconCatalog.brand")}</p>
+        <h1>{t("iconCatalog.title")}</h1>
+        <p>{t("iconCatalog.description")}</p>
       </div>
       <div className="icon-catalog-actions">
-        <Button asChild variant="outline"><a href="https://lucide.dev/icons/" rel="noreferrer" target="_blank">浏览 Lucide 全部图标</a></Button>
-        <Button onClick={() => { void copySelection() }} type="button">复制当前选择</Button>
+        <Button asChild variant="outline"><a href="https://lucide.dev/icons/" rel="noreferrer" target="_blank">{t("iconCatalog.actions.browse")}</a></Button>
+        <Button onClick={() => { void copySelection() }} type="button">{t("iconCatalog.actions.copy")}</Button>
       </div>
       {copyNotice && <p className="icon-catalog-notice">{copyNotice}</p>}
     </header>
-    <section aria-label="图标候选" className="icon-catalog-grid">
+    <section aria-label={t("iconCatalog.gridLabel")} className="icon-catalog-grid">
       {iconCatalog.map((group) => <section className="icon-catalog-group" key={group.id}>
-        <h2>{group.label}</h2>
+        <h2>{t(`iconCatalog.groups.${group.id}`)}</h2>
         <div className="icon-catalog-choices">
           {group.choices.map((choice, index) => {
             const Icon = iconComponents[choice.id]
@@ -96,7 +108,7 @@ export function IconCatalogPage() {
               <Icon aria-hidden="true" size={34} strokeWidth={1.75} />
               <strong>{choice.label}</strong>
               </button>
-              <a data-slot="button" data-variant="link" href={choice.url} rel="noreferrer" target="_blank">查看原图</a>
+              <a data-slot="button" data-variant="link" href={choice.url} rel="noreferrer" target="_blank">{t("iconCatalog.actions.source")}</a>
             </article>
           })}
         </div>

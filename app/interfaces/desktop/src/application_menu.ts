@@ -1,8 +1,35 @@
 import type { MenuItemConstructorOptions } from "electron";
 
-function explicitQuitItem(onExplicitQuit: () => void): MenuItemConstructorOptions {
+export type ApplicationMenuLocale = "zh-CN" | "en-US";
+
+const MENU_LABELS = {
+  "zh-CN": {
+    file: "文件",
+    edit: "编辑",
+    window: "窗口",
+    quit: "退出 ElfieNest",
+  },
+  "en-US": {
+    file: "File",
+    edit: "Edit",
+    window: "Window",
+    quit: "Quit ElfieNest",
+  },
+} as const satisfies Record<
+  ApplicationMenuLocale,
+  Readonly<Record<"file" | "edit" | "window" | "quit", string>>
+>;
+
+export function normalizeApplicationMenuLocale(systemLocale: string): ApplicationMenuLocale {
+  return systemLocale.trim().toLowerCase().startsWith("en") ? "en-US" : "zh-CN";
+}
+
+function explicitQuitItem(
+  onExplicitQuit: () => void,
+  label: string,
+): MenuItemConstructorOptions {
   return {
-    label: "退出 ElfieNest",
+    label,
     accelerator: "CommandOrControl+Q",
     click: onExplicitQuit,
   };
@@ -11,7 +38,9 @@ function explicitQuitItem(onExplicitQuit: () => void): MenuItemConstructorOption
 export function applicationMenuTemplate(
   platform: NodeJS.Platform,
   onExplicitQuit: () => void,
+  locale: ApplicationMenuLocale,
 ): MenuItemConstructorOptions[] {
+  const labels = MENU_LABELS[locale];
   const applicationMenu: MenuItemConstructorOptions =
     platform === "darwin"
       ? {
@@ -23,17 +52,17 @@ export function applicationMenuTemplate(
             { role: "hideOthers" },
             { role: "unhide" },
             { type: "separator" },
-            explicitQuitItem(onExplicitQuit),
+            explicitQuitItem(onExplicitQuit, labels.quit),
           ],
         }
       : {
-          label: "文件",
-          submenu: [explicitQuitItem(onExplicitQuit)],
+          label: labels.file,
+          submenu: [explicitQuitItem(onExplicitQuit, labels.quit)],
         };
   return [
     applicationMenu,
     {
-      label: "编辑",
+      label: labels.edit,
       submenu: [
         { role: "undo" },
         { role: "redo" },
@@ -45,7 +74,7 @@ export function applicationMenuTemplate(
       ],
     },
     {
-      label: "窗口",
+      label: labels.window,
       submenu: [{ role: "minimize" }, { role: "close" }],
     },
   ];

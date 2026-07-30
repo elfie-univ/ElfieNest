@@ -1,11 +1,21 @@
-import { render, screen, within } from "@testing-library/react"
+import { act, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { I18nextProvider } from "react-i18next"
 import { describe, expect, it, vi } from "vitest"
 
-import type { ClientUser } from "../api/client"
+import { ApiError, type ClientUser } from "../api/client"
+import { createI18n } from "../i18n/config"
+import { initializeLocale, type SupportedLocale } from "../i18n/locale"
 import type { ManageTab } from "../pages/manageNavigation"
 import { MANAGE_NAV_GROUPS } from "../pages/manageNavigation"
 import { ManageSidebar } from "./ManageSidebar"
+
+const mobileAccessMock = vi.hoisted(() => vi.fn())
+
+vi.mock("../api/client", async (loadOriginal) => {
+  const original = await loadOriginal<typeof import("../api/client")>()
+  return { ...original, mobileAccess: mobileAccessMock }
+})
 
 const owner = {
   account_id: "admin123",
@@ -19,10 +29,16 @@ const owner = {
   username: "admin123",
 } satisfies ClientUser
 
-function renderSidebar(activeTab: ManageTab = "users") {
+function renderSidebar(activeTab: ManageTab = "users", locale: SupportedLocale = "zh-CN") {
   const onSelect = vi.fn()
-  render(<ManageSidebar activeTab={activeTab} onSelect={onSelect} onUserUpdated={async () => undefined} user={owner} />)
-  return { onSelect }
+  const instance = createI18n()
+  initializeLocale(instance, {
+    browserLanguages: [locale],
+    documentElement: document.documentElement,
+    storage: localStorage,
+  })
+  render(<I18nextProvider i18n={instance}><ManageSidebar activeTab={activeTab} onSelect={onSelect} onUserUpdated={async () => undefined} user={owner} /></I18nextProvider>)
+  return { instance, onSelect }
 }
 
 describe("ManageSidebar", () => {
@@ -31,7 +47,7 @@ describe("ManageSidebar", () => {
     const { onSelect } = renderSidebar("users")
     const navigation = screen.getByRole("navigation")
     const navButtons = within(navigation).getAllByRole("button")
-    const expectedLabels = MANAGE_NAV_GROUPS.flatMap((group) => group.items.map((item) => item.label))
+    const expectedLabels = ["状态监控", "用户管理", "精灵管理", "精灵巢管理", "模型订阅", "粮食策略", "工具与权限", "系统设置"]
 
     expect(navButtons.map((button) => button.textContent)).toEqual(expectedLabels)
     expect(within(navigation).getByRole("button", { name: "用户管理" })).toHaveAttribute("aria-current", "page")
@@ -54,11 +70,18 @@ describe("ManageSidebar", () => {
     renderSidebar("monitor")
     const navigation = screen.getByRole("navigation")
 
-    for (const group of MANAGE_NAV_GROUPS) {
+    const expectedGroups = [
+      { id: "operations", label: "运行维护", labels: ["状态监控"] },
+      { id: "business", label: "业务管理", labels: ["用户管理", "精灵管理", "精灵巢管理"] },
+      { id: "models", label: "模型订阅", labels: ["模型订阅", "粮食策略"] },
+      { id: "system", label: "系统配置", labels: ["工具与权限", "系统设置"] },
+    ] as const
+    expect(MANAGE_NAV_GROUPS.map((group) => group.id)).toEqual(expectedGroups.map((group) => group.id))
+    for (const group of expectedGroups) {
       const renderedGroup = within(navigation).getByRole("group", { name: group.label })
 
       expect(within(renderedGroup).getAllByRole("button").map((button) => button.textContent)).toEqual(
-        group.items.map((item) => item.label),
+        group.labels,
       )
     }
   })
@@ -86,13 +109,20 @@ describe("ManageSidebar", () => {
     expect(accountTrigger).toHaveAttribute("aria-expanded", "true")
   })
 
-  it("opens the mobile management access dialog from the sidebar action", async () => {
+  it("renders long English navigation and opens a localized mobile access dialog", async () => {
     const user = userEvent.setup()
-    renderSidebar("users")
+    mobileAccessMock.mockRejectedValueOnce(new ApiError(500, "后端中文详情"))
+    const { instance } = renderSidebar("users", "zh-CN")
 
     await user.click(screen.getByRole("button", { name: "用手机打开管理台" }))
+    expect(await screen.findByText("后端中文详情")).toBeInTheDocument()
+    await act(async () => { await instance.changeLanguage("en-US") })
 
-    const dialog = screen.getByRole("dialog", { name: "用手机打开 ElfieNest" })
-    expect(within(dialog).getByRole("button", { name: "关闭手机访问二维码" })).toBeInTheDocument()
+    const dialog = screen.getByRole("dialog", { name: "Open ElfieNest on your phone" })
+    expect(screen.getByRole("button", { name: "Elfie Nest management" })).toBeInTheDocument()
+    expect(screen.getByRole("group", { name: "System configuration" })).toBeInTheDocument()
+    expect(within(dialog).getByRole("button", { name: "Close mobile access QR code" })).toBeInTheDocument()
+    expect(await within(dialog).findByText("Unable to load management data.")).toBeInTheDocument()
+    expect(within(dialog).queryByText("后端中文详情")).not.toBeInTheDocument()
   })
 })

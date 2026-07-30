@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { I18nextProvider } from "react-i18next"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
@@ -13,6 +14,8 @@ import {
 } from "../api/owner-foods"
 import { ownerProviders } from "../api/owner-providers"
 import { ApiError } from "../api/http"
+import { createI18n } from "../i18n/config"
+import type { SupportedLocale } from "../i18n/locale"
 import { OwnerFoodPanel } from "./OwnerFoodPanel"
 
 vi.mock("../api/owner-foods", async (loadOriginal) => {
@@ -132,7 +135,7 @@ describe("OwnerFoodPanel", () => {
 
   it("expands all execution roles without exposing JSON", async () => {
     const user = userEvent.setup()
-    render(<OwnerFoodPanel csrfToken="csrf" />)
+    renderFoodPanel()
 
     await user.click(await screen.findByRole("button", { name: "展开 标准粮" }))
 
@@ -146,7 +149,7 @@ describe("OwnerFoodPanel", () => {
 
   it("edits only the selected recipe inline through grouped role controls", async () => {
     const user = userEvent.setup()
-    render(<OwnerFoodPanel csrfToken="csrf" />)
+    renderFoodPanel()
 
     await user.click(await screen.findByRole("button", { name: "编辑 标准粮" }))
     expect(screen.queryByRole("dialog", { name: "编辑 标准粮" })).not.toBeInTheDocument()
@@ -166,7 +169,7 @@ describe("OwnerFoodPanel", () => {
   }, 10_000)
 
   it("keeps food page actions in the header action slot", async () => {
-    render(<OwnerFoodPanel csrfToken="csrf" />)
+    renderFoodPanel()
 
     const page = await screen.findByRole("region", { name: "粮食策略管理" })
     const header = within(page).getByRole("group", { name: "粮食页面动作" })
@@ -178,7 +181,7 @@ describe("OwnerFoodPanel", () => {
 
   it("keeps generated changes in a diff preview until explicit confirmation", async () => {
     const user = userEvent.setup()
-    render(<OwnerFoodPanel csrfToken="csrf" />)
+    renderFoodPanel()
 
     await user.click(await screen.findByRole("button", { name: "生成更新预览" }))
 
@@ -195,7 +198,7 @@ describe("OwnerFoodPanel", () => {
 
   it("restores focus to the preview trigger when the diff closes", async () => {
     const user = userEvent.setup()
-    render(<OwnerFoodPanel csrfToken="csrf" />)
+    renderFoodPanel()
 
     const trigger = await screen.findByRole("button", { name: "生成更新预览" })
     await user.click(trigger)
@@ -207,7 +210,7 @@ describe("OwnerFoodPanel", () => {
   it("discards an expired candidate and requires a fresh preview", async () => {
     const user = userEvent.setup()
     vi.mocked(applyFoodUpdate).mockRejectedValueOnce(new ApiError(409, "candidate stale"))
-    render(<OwnerFoodPanel csrfToken="csrf" />)
+    renderFoodPanel()
 
     await user.click(await screen.findByRole("button", { name: "生成更新预览" }))
     await user.click(screen.getByRole("button", { name: "继续应用" }))
@@ -216,4 +219,79 @@ describe("OwnerFoodPanel", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("粮食候选已过期，请重新生成预览。")
     expect(screen.queryByRole("dialog", { name: "粮食更新预览" })).not.toBeInTheDocument()
   })
+
+  it("hides REST load detail in English", async () => {
+    // Given: the food endpoint rejects with a Chinese backend detail.
+    vi.mocked(ownerFoods).mockRejectedValue(new ApiError(503, "后端失败"))
+
+    // When: the real panel loads in English.
+    renderFoodPanel("en-US")
+
+    // Then: only the closed load fallback is visible.
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load management data.")
+    expect(screen.queryByText("后端失败")).not.toBeInTheDocument()
+  })
+
+  it("renders English food controls and preserves open work across locale switching", async () => {
+    // Given: the food catalog is open in English with an inline edit and a preview draft.
+    const user = userEvent.setup()
+    const instance = renderFoodPanel("en-US")
+
+    const page = await screen.findByRole("region", { name: "Food strategy management" })
+    expect(within(page).getByRole("button", { name: "Generate update preview" })).toBeInTheDocument()
+    expect(screen.queryByText("生成更新预览")).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Expand 标准粮" }))
+    await user.click(screen.getByRole("button", { name: "Edit 标准粮" }))
+
+    expect(screen.getByRole("group", { name: "Edit 标准粮" })).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Generate update preview" }))
+    expect(screen.getByRole("dialog", { name: "Food update preview" })).toBeInTheDocument()
+
+    // When: the shared locale changes while expanded/editing/preview state exists.
+    await instance.changeLanguage("zh-CN")
+
+    // Then: state remains intact while visible chrome moves to Chinese.
+    expect(screen.getByRole("dialog", { name: "粮食更新预览" })).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "关闭预览" }))
+    expect(screen.getByRole("group", { name: "编辑 标准粮" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "收起 标准粮" })).toBeInTheDocument()
+  })
+
+  it("preserves REST load detail in Chinese", async () => {
+    // Given: the food endpoint rejects with useful backend detail.
+    vi.mocked(ownerFoods).mockRejectedValue(new ApiError(503, "后端失败"))
+
+    // When: the real panel loads in Chinese.
+    renderFoodPanel("zh-CN")
+
+    // Then: the detail remains visible.
+    expect(await screen.findByRole("alert")).toHaveTextContent("后端失败")
+  })
+
+  it("removes an already-visible Chinese backend detail after switching to English", async () => {
+    vi.mocked(ownerFoods).mockRejectedValue(new ApiError(503, "后端失败"))
+    const instance = renderFoodPanel("zh-CN")
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("后端失败")
+
+    await instance.changeLanguage("en-US")
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Unable to load management data.")
+    expect(screen.queryByText("后端失败")).not.toBeInTheDocument()
+  })
 })
+
+function renderFoodPanel(locale: SupportedLocale = "zh-CN"): ReturnType<typeof createI18n> {
+  const instance = createI18n()
+  void instance.changeLanguage(locale)
+  document.documentElement.lang = locale
+  document.documentElement.dir = "ltr"
+  render(
+    <I18nextProvider i18n={instance}>
+      <OwnerFoodPanel csrfToken="csrf" />
+    </I18nextProvider>,
+  )
+  return instance
+}

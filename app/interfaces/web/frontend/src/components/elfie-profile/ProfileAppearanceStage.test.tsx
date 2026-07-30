@@ -4,12 +4,16 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
+import { createI18n } from "../../i18n/config"
+
 import {
   HAPPY_EXPERIENCE,
   LONG_BIOGRAPHY_EXPERIENCE,
   MISSING_PUBLIC_FIELDS_EXPERIENCE,
 } from "./mock-data"
 import { ProfileAppearanceStage } from "./ProfileAppearanceStage"
+
+createI18n()
 
 const profileStyles = readFileSync(resolve(import.meta.dirname, "../../shared/chat-profile.css"), "utf8")
 

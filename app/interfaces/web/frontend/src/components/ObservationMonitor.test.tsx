@@ -1,10 +1,15 @@
 import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import type { i18n } from "i18next"
+import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { createI18n } from "../i18n/config"
+import { localizeBackendDetail } from "../i18n/errors"
+import type { SupportedLocale } from "../i18n/locale"
 import type { ObserverCameraCatalog } from "../stores/observer-protocol"
 import { useOptionalObserver } from "../stores/observer"
-import { ObservationMonitor } from "./ObservationMonitor"
+import { monitorStatusKey, ObservationMonitor } from "./ObservationMonitor"
 
 vi.mock("../stores/observer", () => ({
   useOptionalObserver: vi.fn(),
@@ -15,11 +20,13 @@ vi.mock("./ObserverSurface", () => ({
     autoStart,
     roomId,
     showHeader,
+    title,
   }: {
     readonly autoStart?: boolean
     readonly roomId: string
     readonly showHeader?: boolean
-  }) => <div data-auto-start={String(autoStart)} data-room-id={roomId} data-show-header={String(showHeader)} data-testid="observer-surface" />,
+    readonly title: string
+  }) => <div aria-label={title} data-auto-start={String(autoStart)} data-room-id={roomId} data-show-header={String(showHeader)} data-testid="observer-surface" role="region" />,
 }))
 
 type ObserverState = NonNullable<ReturnType<typeof useOptionalObserver>>
@@ -75,6 +82,13 @@ function createObserver(cameraCatalog: ObserverCameraCatalog | null): ObserverFi
   }
 }
 
+function renderMonitor(locale: SupportedLocale = "zh-CN"): i18n {
+  const instance = createI18n()
+  void instance.changeLanguage(locale)
+  render(<I18nextProvider i18n={instance}><ObservationMonitor roomId="local-nest" /></I18nextProvider>)
+  return instance
+}
+
 describe("ObservationMonitor", () => {
   let fixture: ObserverFixture
 
@@ -85,7 +99,7 @@ describe("ObservationMonitor", () => {
   })
 
   it("keeps reset, overview, generated cameras, pause, and hide in one ordered toolbar", () => {
-    render(<ObservationMonitor roomId="local-nest" />)
+    renderMonitor()
 
     const toolbar = screen.getByRole("toolbar", { name: "监控工具栏" })
     expect(within(toolbar).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
@@ -107,7 +121,7 @@ describe("ObservationMonitor", () => {
 
   it("dispatches only high-level view and local-presentation commands", async () => {
     const user = userEvent.setup()
-    render(<ObservationMonitor roomId="local-nest" />)
+    renderMonitor()
 
     await user.click(screen.getByRole("button", { name: "复位视角" }))
     await user.click(screen.getByRole("button", { name: "总览" }))
@@ -126,7 +140,7 @@ describe("ObservationMonitor", () => {
     const user = userEvent.setup()
     fixture = createObserver({ ...catalog, presentationPaused: true })
     vi.mocked(useOptionalObserver).mockReturnValue(fixture.observer)
-    render(<ObservationMonitor roomId="local-nest" />)
+    renderMonitor()
 
     await user.click(screen.getByRole("button", { name: "继续观察" }))
 
@@ -138,7 +152,7 @@ describe("ObservationMonitor", () => {
     const user = userEvent.setup()
     fixture = createObserver({ ...catalog, presentationPaused: true })
     vi.mocked(useOptionalObserver).mockReturnValue(fixture.observer)
-    render(<ObservationMonitor roomId="local-nest" />)
+    renderMonitor()
 
     expect(screen.getByRole("button", { name: "复位视角" })).toBeDisabled()
     expect(screen.getByRole("button", { name: "总览" })).toBeDisabled()
@@ -164,7 +178,7 @@ describe("ObservationMonitor", () => {
     const user = userEvent.setup()
     fixture = createObserver(null)
     vi.mocked(useOptionalObserver).mockReturnValue(fixture.observer)
-    render(<ObservationMonitor roomId="local-nest" />)
+    renderMonitor()
 
     const pause = screen.getByRole("button", { name: "暂停观察" })
     expect(pause).toBeEnabled()
@@ -179,7 +193,7 @@ describe("ObservationMonitor", () => {
 
   it("removes the complete toolbar until the small restore affordance is used", async () => {
     const user = userEvent.setup()
-    render(<ObservationMonitor roomId="local-nest" />)
+    renderMonitor()
 
     await user.click(screen.getByRole("button", { name: "隐藏工具栏" }))
 
@@ -190,5 +204,111 @@ describe("ObservationMonitor", () => {
     await user.click(screen.getByRole("button", { name: "显示工具栏" }))
 
     expect(screen.getByRole("toolbar", { name: "监控工具栏" })).toBeInTheDocument()
+  })
+
+  it("renders English controls and connection status while preserving runtime camera data", () => {
+    // Given: a ready observer publishes runtime-owned camera labels and IDs.
+    renderMonitor("en-US")
+
+    // When: the English monitor toolbar is inspected.
+    const toolbar = screen.getByRole("toolbar", { name: "Monitoring controls" })
+
+    // Then: UI-owned controls are English while runtime labels remain byte-for-byte unchanged.
+    expect(within(toolbar).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Reset view",
+      "Overview",
+      "活动区",
+      "宿舍区",
+      "Pause monitoring",
+      "Hide controls",
+    ])
+    expect(screen.getByRole("status")).toHaveTextContent("Connected to local-nest")
+    expect(screen.getByRole("region", { name: "3D room monitor" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "活动区" })).toHaveAttribute("aria-pressed", "true")
+  })
+
+  it("preserves the deep link and paused hidden-control state across a locale switch", async () => {
+    // Given: a paused deep-linked monitor has its toolbar hidden.
+    const user = userEvent.setup()
+    window.history.replaceState({ source: "camera" }, "", "/monitor?room=local-nest#live")
+    const originalUrl = window.location.href
+    const originalHistoryState = window.history.state
+    fixture = createObserver({ ...catalog, presentationPaused: true })
+    vi.mocked(useOptionalObserver).mockReturnValue(fixture.observer)
+    const instance = renderMonitor()
+    await user.click(screen.getByRole("button", { name: "隐藏工具栏" }))
+
+    // When: the global locale changes in place and controls are restored.
+    await instance.changeLanguage("en-US")
+    await user.click(screen.getByRole("button", { name: "Show controls" }))
+
+    // Then: route and control state survive without reopening the observer.
+    expect(window.location.href).toBe(originalUrl)
+    expect(window.history.state).toEqual(originalHistoryState)
+    expect(screen.getByRole("button", { name: "Resume monitoring" })).toBeEnabled()
+    expect(screen.getByRole("button", { name: "Reset view" })).toBeDisabled()
+    expect(fixture.calls.openRoom).not.toHaveBeenCalled()
+    expect(fixture.calls.detach).not.toHaveBeenCalled()
+  })
+
+  it("reports offline and unknown monitor states with localized safe copy", () => {
+    // Given: the observer context is offline and a foreign status value is probed.
+    vi.mocked(useOptionalObserver).mockReturnValue(null)
+
+    // When: the English monitor renders and the closed status mapper sees an unknown value.
+    renderMonitor("en-US")
+    const unknownKey = monitorStatusKey("stale-external-status")
+
+    // Then: controls are disabled and neither state exposes raw external data.
+    expect(screen.getByRole("status")).toHaveTextContent("Monitoring is unavailable.")
+    expect(screen.getByRole("button", { name: "Reset view" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Pause monitoring" })).toBeDisabled()
+    expect(unknownKey).toBe("status.unknown")
+  })
+
+  it("keeps long English controls in the single horizontally scrollable toolbar", () => {
+    // Given: the English locale uses its longest control labels.
+    renderMonitor("en-US")
+
+    // When: the control surface is inspected as one toolbar.
+    const toolbar = screen.getByRole("toolbar", { name: "Monitoring controls" })
+
+    // Then: every label remains inside the existing overflow container.
+    expect(toolbar).toHaveClass("observation-monitor__toolbar")
+    expect(within(toolbar).getByRole("button", { name: "Pause monitoring" })).toHaveTextContent("Pause monitoring")
+    expect(within(toolbar).getByRole("button", { name: "Hide controls" })).toHaveAttribute("title", "Hide controls")
+    expect(screen.getAllByRole("toolbar")).toHaveLength(1)
+  })
+
+  it("hides backend detail from English monitor errors", () => {
+    // Given: an observer failure includes misleading raw backend payload text.
+    const detail = "连接失败: capability=secret-token payload={raw:true}"
+
+    // When: the established localized monitor error boundary formats it for English.
+    const message = localizeBackendDetail(detail, "monitor.connect", "en-US")
+
+    // Then: only the local fallback is exposed.
+    expect(message).toBe("Unable to connect to monitoring.")
+    expect(message).not.toContain(detail)
+  })
+
+  it("replaces a stale runtime fallback with localized help and a high-level retry", async () => {
+    // Given: the Observer reports a stale runtime readiness failure.
+    const user = userEvent.setup()
+    fixture = createObserver(null)
+    vi.mocked(useOptionalObserver).mockReturnValue({
+      ...fixture.observer,
+      fallbackReason: "runtime",
+      status: "fallback",
+    })
+
+    // When: the English fallback is rendered and retried.
+    renderMonitor("en-US")
+    await user.click(screen.getByRole("button", { name: "Retry 3D monitoring" }))
+
+    // Then: safe local help replaces runtime detail and only the existing room action runs.
+    expect(screen.getByText("The local 3D runtime stopped responding. You can retry without leaving this page.")).toBeInTheDocument()
+    expect(fixture.calls.openRoom).toHaveBeenCalledWith("local-nest")
+    expect(fixture.calls.detach).not.toHaveBeenCalled()
   })
 })

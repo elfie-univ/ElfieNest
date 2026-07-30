@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button"
 import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 
 import type { ExecutionProfile, FoodRecipe } from "../api/owner-foods"
 import type { SelectFieldOption } from "./SelectField"
@@ -13,6 +14,7 @@ type FoodRecipeEditorProps = {
 }
 
 export function FoodRecipeEditor({ food, modelOptions, onCancel, onSave }: FoodRecipeEditorProps) {
+  const { t } = useTranslation("manage")
   const [draft, setDraft] = useState<FoodRecipe>(food)
   const [pending, setPending] = useState(false)
   useEffect(() => setDraft(food), [food])
@@ -21,23 +23,23 @@ export function FoodRecipeEditor({ food, modelOptions, onCancel, onSave }: FoodR
     setPending(true)
     try { await onSave(draft) } finally { setPending(false) }
   }
-  return <div aria-label={`编辑 ${food.display_name}`} className="food-recipe-editor" role="group">
-    <p className="form-hint">只修改这一种粮食；保存后保留后端验证警告。</p>
-    <ExecutionProfileFields label="主" modelOptions={modelOptions} onChange={(primary) => { if (primary) update({ primary }) }} profile={draft.primary} />
-    <ExecutionProfileFields label="深度" modelOptions={modelOptions} onChange={(deep) => update({ deep })} optional profile={draft.deep} />
-    <ExecutionProfileFields label="校验" modelOptions={modelOptions} onChange={(verifier) => update({ verifier })} optional profile={draft.verifier} />
-    <section className="food-fallback-editor"><div className="food-fallback-editor__heading"><h3>技术回退</h3><Button variant="outline"
+  return <div aria-label={t("foods.editor.ariaLabel", { name: food.display_name })} className="food-recipe-editor" role="group">
+    <p className="form-hint">{t("foods.editor.hint")}</p>
+    <ExecutionProfileFields label={t("foods.roles.primaryShort")} modelOptions={modelOptions} onChange={(primary) => { if (primary) update({ primary }) }} profile={draft.primary} />
+    <ExecutionProfileFields label={t("foods.roles.deepShort")} modelOptions={modelOptions} onChange={(deep) => update({ deep })} optional profile={draft.deep} />
+    <ExecutionProfileFields label={t("foods.roles.verifierShort")} modelOptions={modelOptions} onChange={(verifier) => update({ verifier })} optional profile={draft.verifier} />
+    <section className="food-fallback-editor"><div className="food-fallback-editor__heading"><h3>{t("foods.editor.fallbackTitle")}</h3><Button variant="outline"
       onClick={() => update({ technical_fallbacks: [...draft.technical_fallbacks, defaultFallback()] })}
       type="button"
-    >添加技术回退</Button></div>
-    {draft.technical_fallbacks.length === 0 ? <p className="form-hint">没有技术回退模型。</p> : draft.technical_fallbacks.map((fallback, index) => <div className="food-fallback-editor__item" key={index}>
-      <ExecutionProfileFields label={`技术回退 ${index + 1}`} modelOptions={modelOptions} onChange={(next) => {
+    >{t("foods.actions.addFallback")}</Button></div>
+    {draft.technical_fallbacks.length === 0 ? <p className="form-hint">{t("foods.editor.emptyFallbacks")}</p> : draft.technical_fallbacks.map((fallback, index) => <div className="food-fallback-editor__item" key={index}>
+      <ExecutionProfileFields label={t("foods.roles.fallback", { number: index + 1 })} modelOptions={modelOptions} onChange={(next) => {
         if (!next) return
         update({ technical_fallbacks: draft.technical_fallbacks.map((item, itemIndex) => itemIndex === index ? next : item) })
       }} profile={fallback} />
-      <Button variant="outline" onClick={() => update({ technical_fallbacks: draft.technical_fallbacks.filter((_, itemIndex) => itemIndex !== index) })} type="button">移除此回退</Button>
+      <Button variant="outline" onClick={() => update({ technical_fallbacks: draft.technical_fallbacks.filter((_, itemIndex) => itemIndex !== index) })} type="button">{t("foods.actions.removeFallback")}</Button>
     </div>)}</section>
-    <div className="manage-actions"><Button aria-label={`保存${food.display_name}`} disabled={pending} onClick={() => { void save() }} type="button">{pending ? "保存中…" : "保存"}</Button><Button variant="outline" disabled={pending} onClick={onCancel} type="button">取消</Button></div>
+    <div className="manage-actions"><Button aria-label={t("foods.actions.saveFor", { name: food.display_name })} disabled={pending} onClick={() => { void save() }} type="button">{pending ? t("foods.actions.saving") : t("foods.actions.save")}</Button><Button variant="outline" disabled={pending} onClick={onCancel} type="button">{t("foods.actions.cancel")}</Button></div>
   </div>
 }
 

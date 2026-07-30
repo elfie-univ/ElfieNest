@@ -1,41 +1,42 @@
 import type { IconName } from "../components/Icon"
 
 export const MANAGE_NAV_ITEMS = [
-  { id: "monitor", label: "状态监控", icon: "activity" },
-  { id: "users", label: "用户管理", icon: "users" },
-  { id: "elfies", label: "精灵管理", icon: "cat" },
-  { id: "nest", label: "精灵巢管理", icon: "house" },
-  { id: "providers", label: "模型订阅", icon: "plug-zap" },
-  { id: "foods", label: "粮食策略", icon: "utensils" },
-  { id: "tools", label: "工具与权限", icon: "wrench" },
-  { id: "system", label: "系统设置", icon: "settings" },
-] as const satisfies readonly { readonly id: string; readonly label: string; readonly icon: IconName }[]
+  { id: "monitor", icon: "activity" },
+  { id: "users", icon: "users" },
+  { id: "elfies", icon: "cat" },
+  { id: "nest", icon: "house" },
+  { id: "providers", icon: "plug-zap" },
+  { id: "foods", icon: "utensils" },
+  { id: "tools", icon: "wrench" },
+  { id: "system", icon: "settings" },
+] as const satisfies readonly { readonly id: string; readonly icon: IconName }[]
 
 export type ManageTab = (typeof MANAGE_NAV_ITEMS)[number]["id"]
 type ManageNavItem = (typeof MANAGE_NAV_ITEMS)[number]
-type ManageNavGroup = { readonly label: string; readonly items: readonly ManageNavItem[] }
+export type ManageNavGroupId = "operations" | "business" | "models" | "system"
+type ManageNavGroup = { readonly id: ManageNavGroupId; readonly items: readonly ManageNavItem[] }
 
 export const MANAGE_NAV_GROUPS: readonly ManageNavGroup[] = [
   {
-    label: "运行维护",
+    id: "operations",
     items: [
       MANAGE_NAV_ITEMS[0],
     ],
   },
   {
-    label: "业务管理",
+    id: "business",
     items: [
       MANAGE_NAV_ITEMS[1], MANAGE_NAV_ITEMS[2], MANAGE_NAV_ITEMS[3],
     ],
   },
   {
-    label: "模型订阅",
+    id: "models",
     items: [
       MANAGE_NAV_ITEMS[4], MANAGE_NAV_ITEMS[5],
     ],
   },
   {
-    label: "系统配置",
+    id: "system",
     items: [
       MANAGE_NAV_ITEMS[6], MANAGE_NAV_ITEMS[7],
     ],

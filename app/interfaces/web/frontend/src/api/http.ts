@@ -2,6 +2,8 @@ import ky from "ky"
 import { z } from "zod"
 
 export class ApiError extends Error {
+  public readonly name = "ApiError"
+
   public constructor(readonly status: number, message: string) {
     super(message)
   }
@@ -16,7 +18,7 @@ export async function requestJson(path: string, init?: RequestInit): Promise<unk
   const payload: unknown = await response.json().catch(() => ({}))
   if (!response.ok) {
     const detail = z.object({ detail: z.string().optional() }).safeParse(payload)
-    const message = detail.success && detail.data.detail ? detail.data.detail : "请求未完成"
+    const message = detail.success && detail.data.detail ? detail.data.detail : ""
     throw new ApiError(response.status, message)
   }
   return payload

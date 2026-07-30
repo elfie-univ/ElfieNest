@@ -32,7 +32,7 @@ const ClientUserSchema = z.object({
   csrf_token: z.string().optional(),
 }).refine(
   (user) => user.account_id !== undefined || user.username !== undefined || user.id !== undefined,
-  { message: "当前会话缺少账号标识" },
+  { message: "ERR_SESSION_ACCOUNT_ID_MISSING" },
 ).transform((user) => {
   const accountId = user.account_id ?? user.username ?? String(user.id)
   return { ...user, account_id: accountId, username: user.username ?? accountId }

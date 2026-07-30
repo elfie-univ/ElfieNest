@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 
 import {
   createProvider,
@@ -11,7 +12,13 @@ import {
   type ProviderDraft,
   type ProviderView,
 } from "../api/owner-providers"
-import { ApiError } from "../api/client"
+import {
+  compareLocalizedText,
+  currentLocale,
+  formatDateTime,
+} from "../i18n/format"
+import { describeApiError, localizeBackendDetail, resolveLocalizedError, type LocalizedErrorState } from "../i18n/errors"
+import type { SupportedLocale } from "../i18n/locale"
 import { ConfirmDialog } from "./ConfirmDialog"
 import { CustomProviderDialog } from "./CustomProviderDialog"
 import { Icon } from "./Icon"
@@ -21,51 +28,56 @@ import { ProviderFormDialog } from "./ProviderFormDialog"
 import { RefreshButton } from "./RefreshButton"
 
 export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }) {
+  const { i18n, t } = useTranslation("manage")
+  const locale = currentLocale(i18n)
   const [providers, setProviders] = useState<readonly ProviderView[]>([])
   const [editing, setEditing] = useState<ProviderView | null>(null)
   const [deleting, setDeleting] = useState<ProviderView | null>(null)
   const [creating, setCreating] = useState(false)
   const [matrixOpen, setMatrixOpen] = useState(false)
   const [pending, setPending] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<LocalizedErrorState>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const load = async (): Promise<void> => {
+  const load = useCallback(async (): Promise<void> => {
     try {
       setProviders(await ownerProviders())
       setError(null)
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "模型订阅加载失败")
+      if (!(reason instanceof Error)) throw reason
+      setError(describeApiError(reason, "manage.load"))
     }
-  }
-  useEffect(() => { void load() }, [])
+  }, [])
+  useEffect(() => { void load() }, [load])
 
   const configured = providers
     .filter((provider) => provider.configured)
-    .sort((left, right) => providerPriority(left) - providerPriority(right) || left.name.localeCompare(right.name))
+    .sort((left, right) => providerPriority(left) - providerPriority(right) || compareLocalizedText(left.name, right.name, locale))
   const available = providers
     .filter((provider) => !provider.configured)
-    .sort((left, right) => left.name.localeCompare(right.name))
+    .sort((left, right) => compareLocalizedText(left.name, right.name, locale))
 
   const save = async (draft: ProviderDraft): Promise<void> => {
     if (!editing) return
     try {
       await updateProvider(editing.provider_id, draft, csrfToken)
-      setNotice(`${editing.name} 已保存；需要验证后才会标记可用。`)
+      setNotice(t("providers.notices.saved", { name: editing.name }))
       setEditing(null)
       await load()
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "供应商配置没有保存")
+      if (!(reason instanceof Error)) throw reason
+      setError(describeApiError(reason, "manage.save"))
       throw reason
     }
   }
   const saveCustom = async (draft: ProviderDraft): Promise<void> => {
     try {
       await createProvider(draft, csrfToken)
-      setNotice(`${draft.display_name || draft.provider_id || "自定义供应商"} 已添加；验证通过后才会标记可用。`)
+      setNotice(t("providers.notices.added", { name: draft.display_name || draft.provider_id || t("providers.custom.title") }))
       setCreating(false)
       await load()
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "自定义供应商没有添加")
+      if (!(reason instanceof Error)) throw reason
+      setError(describeApiError(reason, "manage.save"))
       throw reason
     }
   }
@@ -73,10 +85,11 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
     setPending(`verify:${provider.provider_id}`)
     try {
       await verifyProvider(provider.provider_id, csrfToken)
-      setNotice(`${provider.name} 验证已完成。`)
+      setNotice(t("providers.notices.verified", { name: provider.name }))
       await load()
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "供应商验证失败")
+      if (!(reason instanceof Error)) throw reason
+      setError(describeApiError(reason, "manage.save"))
     } finally {
       setPending(null)
     }
@@ -87,10 +100,11 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
       const result = await verifyProvidersBatch(csrfToken)
       const passed = result.results.filter((item) => item.status === "passed").length
       const failed = result.results.filter((item) => item.status === "failed").length
-      setNotice(`批量验证完成：${passed} 个通过，${failed} 个失败。`)
+      setNotice(t("providers.notices.batchVerified", { failed, passed }))
       await load()
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "批量验证失败")
+      if (!(reason instanceof Error)) throw reason
+      setError(describeApiError(reason, "manage.save"))
     } finally {
       setPending(null)
     }
@@ -100,11 +114,12 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
     setPending(`delete:${deleting.provider_id}`)
     try {
       await deleteProvider(deleting.provider_id, csrfToken)
-      setNotice(`${deleting.name} 的本机配置已删除。`)
+      setNotice(t("providers.notices.deleted", { name: deleting.name }))
       setDeleting(null)
       await load()
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "供应商配置没有删除")
+      if (!(reason instanceof Error)) throw reason
+      setError(describeApiError(reason, "manage.delete"))
     } finally {
       setPending(null)
     }
@@ -112,67 +127,70 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
 
   return <section className="manage-card manage-card--wide provider-page">
     <div className="manage-head">
-      <div><h2>供应商与模型连接</h2><p>配置与验证分开记录；只有真实验证通过后才显示可用。</p></div>
+      <div><h2>{t("providers.title")}</h2><p>{t("providers.description")}</p></div>
       <div className="manage-actions">
-        <Button disabled={pending !== null || configured.length === 0} onClick={() => { void verifyBatch() }} type="button">{pending === "batch" ? "验证中…" : "批量验证"}</Button>
-        <Button onClick={() => setMatrixOpen(true)} type="button">查看支持模型</Button>
-        <RefreshButton disabled={pending !== null} label="重新读取" onClick={() => { void load() }} />
+        <Button disabled={pending !== null || configured.length === 0} onClick={() => { void verifyBatch() }} type="button">{pending === "batch" ? t("providers.actions.verifying") : t("providers.actions.batchVerify")}</Button>
+        <Button onClick={() => setMatrixOpen(true)} type="button">{t("providers.actions.showModels")}</Button>
+        <RefreshButton disabled={pending !== null} label={t("providers.actions.refresh")} onClick={() => { void load() }} />
       </div>
     </div>
-    {error ? <Notice kind="error" message={error} /> : null}
+    {error ? <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("errors.save")} /> : null}
     {notice ? <Notice message={notice} /> : null}
     <section aria-labelledby="configured-provider-title" className="provider-section">
-      <div className="provider-section__heading"><div><h3 id="configured-provider-title">已配置的订阅</h3><p>Ollama 固定置顶；验证时间与延迟只来自真实检查。</p></div><span>{configured.length} 个</span></div>
-      {configured.length === 0 ? <p className="empty-state">尚无完整配置的模型订阅。</p> : <div className="provider-grid">{configured.map((provider) => <ConfiguredProviderCard
+      <div className="provider-section__heading"><div><h3 id="configured-provider-title">{t("providers.section.configuredTitle")}</h3><p>{t("providers.section.configuredDescription")}</p></div><span>{t("providers.section.configuredCount", { count: configured.length })}</span></div>
+      {configured.length === 0 ? <p className="empty-state">{t("providers.section.configuredEmpty")}</p> : <div className="provider-grid">{configured.map((provider) => <ConfiguredProviderCard
         busy={pending?.endsWith(provider.provider_id) ?? false}
         key={provider.provider_id}
         onDelete={() => setDeleting(provider)}
         onEdit={() => setEditing(provider)}
         onVerify={() => { void verify(provider) }}
         provider={provider}
+        locale={locale}
       />)}</div>}
     </section>
     <section aria-labelledby="available-provider-title" className="provider-section provider-section--available">
-      <div className="provider-section__heading"><div><h3 id="available-provider-title">配置新的订阅</h3><p>未配置项只提供“配置”，不会出现无意义的验证或删除操作。</p></div><span>{available.length} 个</span></div>
+      <div className="provider-section__heading"><div><h3 id="available-provider-title">{t("providers.section.availableTitle")}</h3><p>{t("providers.section.availableDescription")}</p></div><span>{t("providers.section.availableCount", { count: available.length })}</span></div>
       <div className="provider-grid">{available.map((provider) => <article className="provider-card provider-card--available" key={provider.provider_id}>
-        <div className="provider-card__title"><h4>{provider.name}</h4><span className="status-badge status-badge--muted">待配置</span></div>
-        <p>{connectionLabel(provider)}</p>
-        <Button variant="outline" aria-label={`配置 ${provider.name}`} onClick={() => setEditing(provider)} type="button">配置</Button>
-      </article>)}<button aria-label="添加自定义供应商" className="provider-card provider-card--add" data-slot="button" data-variant="outline" onClick={() => setCreating(true)} type="button"><Icon name="plus" size={28} /><strong>添加自定义供应商</strong><span>配置其他兼容接口或本地网关</span></button></div>
+        <div className="provider-card__title"><h4>{provider.name}</h4><span className="status-badge status-badge--muted">{t("providers.status.pending")}</span></div>
+        <p>{t(connectionKey(provider))}</p>
+        <Button variant="outline" aria-label={t("providers.actions.configureFor", { name: provider.name })} onClick={() => setEditing(provider)} type="button">{t("providers.actions.configure")}</Button>
+      </article>)}<button aria-label={t("providers.actions.addCustom")} className="provider-card provider-card--add" data-slot="button" data-variant="outline" onClick={() => setCreating(true)} type="button"><Icon name="plus" size={28} /><strong>{t("providers.actions.addCustom")}</strong><span>{t("providers.custom.description")}</span></button></div>
     </section>
     <ProviderFormDialog onOpenChange={(open) => { if (!open) setEditing(null) }} onSave={save} open={editing !== null} provider={editing} />
     <CustomProviderDialog onOpenChange={setCreating} onSave={saveCustom} open={creating} />
     <ModelMatrixDialog csrfToken={csrfToken} onOpenChange={setMatrixOpen} open={matrixOpen} />
     <ConfirmDialog
-      confirmLabel="确认删除"
+      confirmLabel={t("providers.actions.confirmDelete")}
       danger
-      description={deleting ? `将删除 ${deleting.name} 的本机密钥、模型清单和验证记录。此操作不会删除供应商账户。` : "确认删除这个供应商配置吗？"}
+      description={deleting ? t("providers.delete.description", { name: deleting.name }) : t("providers.delete.descriptionGeneric")}
       onConfirm={() => { void remove() }}
       onOpenChange={(open) => { if (!open && pending === null) setDeleting(null) }}
       open={deleting !== null}
       pending={pending?.startsWith("delete:") ?? false}
-      title="删除模型订阅"
+      title={t("providers.delete.title")}
     />
   </section>
 }
 
-function ConfiguredProviderCard({ busy, onDelete, onEdit, onVerify, provider }: {
+function ConfiguredProviderCard({ busy, locale, onDelete, onEdit, onVerify, provider }: {
   readonly busy: boolean
+  readonly locale: SupportedLocale
   readonly onDelete: () => void
   readonly onEdit: () => void
   readonly onVerify: () => void
   readonly provider: ProviderView
 }) {
+  const { t } = useTranslation("manage")
   const verification = provider.verification
   return <article className={`provider-card provider-card--${verification.status}`}>
-    <div className="provider-card__title"><h4>{provider.name}</h4><div className="provider-card__badges"><span className="status-badge status-badge--configured">已配置</span><span className={`status-badge status-badge--${verification.status}`}>{verificationLabel(verification.status)}</span></div></div>
-    <p>{connectionLabel(provider)} · {provider.models.length} 个已知模型</p>
-    <dl><dt>上次验证</dt><dd>{verification.checked_at ? new Date(verification.checked_at).toLocaleString() : "从未验证"}</dd><dt>延迟</dt><dd>{verification.latency_ms === null ? "未提供" : `${Math.round(verification.latency_ms)}ms`}</dd></dl>
-    {verification.error ? <p className="provider-card__error">{verification.error}</p> : null}
+    <div className="provider-card__title"><h4>{provider.name}</h4><div className="provider-card__badges"><span className="status-badge status-badge--configured">{t("providers.card.configured")}</span><span className={`status-badge status-badge--${verification.status}`}>{t(verificationKey(verification.status))}</span></div></div>
+    <p>{t(connectionKey(provider))} · {t("providers.card.knownModels", { count: provider.models.length })}</p>
+    <dl><dt>{t("providers.card.lastVerified")}</dt><dd>{verification.checked_at ? formatDateTime(verification.checked_at, locale) : t("providers.card.neverVerified")}</dd><dt>{t("providers.card.latency")}</dt><dd>{verification.latency_ms === null ? t("providers.card.notProvided") : `${Math.round(verification.latency_ms)}ms`}</dd></dl>
+    {verification.error ? <p className="provider-card__error">{localizeBackendDetail(verification.error, "manage.load", locale)}</p> : null}
     <div className="manage-actions">
-      <Button variant="outline" aria-label={`修改 ${provider.name}`} disabled={busy} onClick={onEdit} type="button">修改</Button>
-      <Button variant="outline" aria-label={`验证 ${provider.name}`} disabled={busy} onClick={onVerify} type="button">{busy ? "验证中…" : "验证"}</Button>
-      <Button variant="outline" aria-label={`删除 ${provider.name}`} disabled={busy || provider.provider_id === "ollama"} onClick={onDelete} type="button">删除</Button>
+      <Button variant="outline" aria-label={t("providers.actions.editFor", { name: provider.name })} disabled={busy} onClick={onEdit} type="button">{t("providers.actions.edit")}</Button>
+      <Button variant="outline" aria-label={t("providers.actions.verifyFor", { name: provider.name })} disabled={busy} onClick={onVerify} type="button">{busy ? t("providers.actions.verifying") : t("providers.actions.verify")}</Button>
+      <Button variant="outline" aria-label={t("providers.actions.deleteFor", { name: provider.name })} disabled={busy || provider.provider_id === "ollama"} onClick={onDelete} type="button">{t("providers.actions.delete")}</Button>
     </div>
   </article>
 }
@@ -182,13 +200,13 @@ function providerPriority(provider: ProviderView): number {
   return provider.verification.status === "passed" ? 1 : provider.verification.status === "never" ? 2 : 3
 }
 
-function verificationLabel(status: ProviderView["verification"]["status"]): string {
-  return status === "passed" ? "验证通过" : status === "failed" ? "验证失败" : "未验证"
+function verificationKey(status: ProviderView["verification"]["status"]): "providers.status.failed" | "providers.status.never" | "providers.status.passed" {
+  return status === "passed" ? "providers.status.passed" : status === "failed" ? "providers.status.failed" : "providers.status.never"
 }
 
-function connectionLabel(provider: ProviderView): string {
+function connectionKey(provider: ProviderView): "providers.connection.apiKey" | "providers.connection.local" | "providers.connection.oauth" | "providers.connection.oauthUnavailable" {
   const method = provider.capabilities.connection_method
-  if (method === "local") return "本地服务"
-  if (method === "oauth") return provider.capabilities.oauth_available ? "登录授权" : "登录授权尚未接入"
-  return "API Key"
+  if (method === "local") return "providers.connection.local"
+  if (method === "oauth") return provider.capabilities.oauth_available ? "providers.connection.oauth" : "providers.connection.oauthUnavailable"
+  return "providers.connection.apiKey"
 }

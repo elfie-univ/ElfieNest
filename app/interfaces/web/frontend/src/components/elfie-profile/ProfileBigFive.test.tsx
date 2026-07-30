@@ -1,9 +1,13 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
+import { createI18n } from "../../i18n/config"
+
 import { HAPPY_EXPERIENCE } from "./mock-data"
 import { ProfileBigFive } from "./ProfileBigFive"
 import type { ProfileChartRuntime } from "./ProfileChart"
+
+createI18n()
 
 function chartRuntime() {
   const chart = { dispose: vi.fn(), resize: vi.fn(), setOption: vi.fn() }

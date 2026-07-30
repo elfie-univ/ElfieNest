@@ -1,8 +1,10 @@
 import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { useState } from "react"
+import { I18nextProvider } from "react-i18next"
 import { describe, expect, it } from "vitest"
 
+import { createI18n } from "../i18n/config"
 import { NumberField } from "./NumberField"
 
 function NumberFixture() {
@@ -13,7 +15,7 @@ function NumberFixture() {
 describe("NumberField", () => {
   it("steps within bounds and normalizes malformed input on blur", async () => {
     const user = userEvent.setup()
-    render(<NumberFixture />)
+    render(<I18nextProvider i18n={createI18n()}><NumberFixture /></I18nextProvider>)
 
     const row = screen.getByRole("group", { name: "床位数" })
     const field = screen.getByRole("textbox", { name: "床位数" })
