@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from ai_runtime.config import LLMRuntimeConfig
+from ai_runtime.food.executor import NoAvailableFoodError
 from ai_runtime.food.models import FIXED_FOOD_KINDS
 from ai_runtime.food.store import FoodCatalog
 
@@ -121,13 +123,15 @@ def resolve_food_selection(
 
 def _food_available(food_key: str, catalog: FoodCatalog) -> bool:
     recipe = catalog.recipes.get(food_key)
-    return bool(
-        recipe
-        and recipe.enabled
-        and not recipe.archived
-        and recipe.primary
-        and recipe.primary.model
-    )
+    if not recipe or not recipe.enabled or recipe.archived or not recipe.primary or not recipe.primary.model:
+        return False
+    try:
+        from ai_runtime.gateway.agent import RuntimeAgent
+        provider = RuntimeAgent._provider_for_model(recipe.primary.model)
+        config = LLMRuntimeConfig.load()
+        return provider in config.providers
+    except Exception:
+        return False
 
 
 def _first_available(candidates: tuple[str, ...], catalog: FoodCatalog) -> str:

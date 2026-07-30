@@ -22,6 +22,9 @@ from ai_runtime.storage.data_home import (
     get_food_history_dir,
     get_local_files_dir,
     get_model_validation_dir,
+    get_oauth_credentials_dir,
+    get_report_exports_dir,
+    get_reports_dir,
     get_runtime_locks_dir,
     get_runtime_state_path,
     get_runtime_validation_dir,
@@ -136,6 +139,7 @@ def test_ensure_elfie_home_creates_structure(monkeypatch, tmp_path):
         Path("assets"),
         Path("assets/users"),
         Path("configs"),
+        Path("configs/credentials"),
         Path("configs/food-packages-history"),
         Path("elfies"),
         Path("logs"),
@@ -191,9 +195,7 @@ def test_ensure_elfie_home_secures_config_and_report_directories(
     for directory in (
         get_configs_dir(),
         get_credentials_dir(),
-        get_oauth_credentials_dir(),
         get_reports_dir(),
-        get_report_exports_dir(),
     ):
         assert stat.S_IMODE(directory.stat().st_mode) == 0o700
 

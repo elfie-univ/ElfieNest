@@ -1,3 +1,5 @@
+import pytest
+
 from ai_runtime.food.elfie_policy import (
     DEFAULT_ALLOWED_FOODS,
     ElfieFoodPolicy,
@@ -5,25 +7,54 @@ from ai_runtime.food.elfie_policy import (
 )
 from ai_runtime.food.models import FoodPackage, ModelAssignment
 from ai_runtime.food.store import FoodCatalog
+from ai_runtime.storage.provider_connections import (
+    ProviderConnection,
+    ProviderConnectionStore,
+    ProviderModelRecord,
+)
 
 
-def catalog():
+@pytest.fixture
+def catalog(tmp_path, monkeypatch):
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    store = ProviderConnectionStore()
+    store.replace(
+        ProviderConnection(
+            connection_id="ollama_0001",
+            catalog_id="ollama",
+            alias="Ollama",
+            models=(ProviderModelRecord("local"),),
+        )
+    )
+    store.replace(
+        ProviderConnection(
+            connection_id="custom_openai_0001",
+            catalog_id="custom_openai",
+            alias="Custom",
+            api_base="https://example.com/v1",
+            api_mode="chat_completions",
+            models=(
+                ProviderModelRecord("standard"),
+                ProviderModelRecord("focus"),
+            ),
+        )
+    )
     return FoodCatalog(
         packages={
             "coarse": FoodPackage(
                 key="coarse",
                 display_name="粗粮",
-                primary=ModelAssignment(model="ollama/local"),
+                primary=ModelAssignment(model="ollama_0001/local"),
             ),
             "standard": FoodPackage(
                 key="standard",
                 display_name="标准粮",
-                primary=ModelAssignment(model="cloud/standard"),
+                primary=ModelAssignment(model="custom_openai_0001/standard"),
             ),
             "focus": FoodPackage(
                 key="focus",
                 display_name="清醒粮",
-                primary=ModelAssignment(model="cloud/focus"),
+                primary=ModelAssignment(model="custom_openai_0001/focus"),
             ),
             "premium": FoodPackage(
                 key="premium",
@@ -43,24 +74,24 @@ def test_food_policy_mapping_round_trip():
     assert ElfieFoodPolicy.from_dict("elfie-1", policy.to_dict()) == policy
 
 
-def test_unauthorized_premium_is_clamped_to_strongest_allowed_reasoning_food():
+def test_unauthorized_premium_is_clamped_to_strongest_allowed_reasoning_food(catalog):
     policy = ElfieFoodPolicy(
         "elfie-1", "standard", ("coarse", "standard", "focus"), "coarse"
     )
 
-    selection = resolve_food_selection(policy, "premium", catalog())
+    selection = resolve_food_selection(policy, "premium", catalog)
 
     assert selection.actual_food == "focus"
     assert selection.clamped is True
     assert selection.reason == "food_not_allowed"
 
 
-def test_unavailable_allowed_food_uses_configured_fallback():
+def test_unavailable_allowed_food_uses_configured_fallback(catalog):
     policy = ElfieFoodPolicy(
         "elfie-1", "standard", ("coarse", "standard", "premium"), "coarse"
     )
 
-    selection = resolve_food_selection(policy, "premium", catalog())
+    selection = resolve_food_selection(policy, "premium", catalog)
 
     assert selection.actual_food == "coarse"
     assert selection.reason == "requested_food_unavailable"

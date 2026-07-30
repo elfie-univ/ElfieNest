@@ -31,9 +31,9 @@ def _setup_provider_connections():
     )
     store.replace(
         ProviderConnection(
-            connection_id="cloud_0001",
-            catalog_id="cloud",
-            alias="Cloud",
+            connection_id="openai_api_0001",
+            catalog_id="openai_api",
+            alias="OpenAI",
             models=(
                 ProviderModelRecord("standard"),
                 ProviderModelRecord("focus"),
@@ -110,8 +110,8 @@ def test_unauthorized_upgrade_uses_reasoning_role_inside_allowed_food(
                 "standard": FoodPackage(
                     key="standard",
                     display_name="标准粮",
-                    primary=ModelAssignment(model="cloud_0001/normal"),
-                    reasoning=ModelAssignment(model="cloud_0001/standard-reasoning"),
+                    primary=ModelAssignment(model="openai_api_0001/normal"),
+                    reasoning=ModelAssignment(model="openai_api_0001/standard-reasoning"),
                 ),
                 "coarse": FoodPackage(
                     key="coarse",
@@ -136,7 +136,7 @@ def test_unauthorized_upgrade_uses_reasoning_role_inside_allowed_food(
     assert result.food_requested == "premium"
     assert result.food_used == "standard"
     assert result.food_clamped is True
-    assert result.actual_model == "cloud_0001/standard-reasoning"
+    assert result.actual_model == "openai_api_0001/standard-reasoning"
     assert result.execution_stage == "reasoning"
 
 
@@ -164,12 +164,12 @@ def test_runtime_reads_policy_from_injected_final_store(monkeypatch, tmp_path):
                 "standard": FoodPackage(
                     key="standard",
                     display_name="标准粮",
-                    primary=ModelAssignment(model="cloud_0001/standard"),
+                    primary=ModelAssignment(model="openai_api_0001/standard"),
                 ),
                 "focus": FoodPackage(
                     key="focus",
                     display_name="清醒粮",
-                    primary=ModelAssignment(model="cloud_0001/focus"),
+                    primary=ModelAssignment(model="openai_api_0001/focus"),
                 ),
             }
         )
@@ -184,7 +184,7 @@ def test_runtime_reads_policy_from_injected_final_store(monkeypatch, tmp_path):
     )
 
     assert result.food_used == "focus"
-    assert result.actual_model == "cloud_0001/focus"
+    assert result.actual_model == "openai_api_0001/focus"
 
 
 def test_missing_food_file_requires_explicit_initialization(monkeypatch, tmp_path):

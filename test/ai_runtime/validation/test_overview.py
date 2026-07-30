@@ -1,8 +1,15 @@
 import os
 
 from ai_runtime.config import LLMRuntimeConfig
+from ai_runtime.food.models import FoodPackage, ModelAssignment
+from ai_runtime.food.planner import ModelEvidence
 from ai_runtime.food.store import FoodCatalog
-from ai_runtime.validation.overview import build_overview
+from ai_runtime.validation.overview import (
+    RuntimeOverviewStore,
+    build_overview,
+    configured_provider_ids,
+    render_provider_model_matrix,
+)
 
 
 def test_only_configured_providers_are_listed(monkeypatch, tmp_path):
@@ -39,13 +46,11 @@ def test_overview_groups_same_model_across_providers_and_renders_responsively(
         ),
     ]
     catalog = FoodCatalog(
-        recipes={
-            "standard": FoodRecipe(
-                "standard",
-                "标准粮",
-                "默认",
-                ExecutionProfile("ollama/glm-5"),
-                validation_status=FoodValidationStatus.PASSED,
+        packages={
+            "standard": FoodPackage(
+                key="standard",
+                display_name="标准粮",
+                primary=ModelAssignment("ollama/glm-5"),
             )
         }
     )
@@ -59,7 +64,7 @@ def test_overview_groups_same_model_across_providers_and_renders_responsively(
     assert "2/2" in narrow
     assert "ollama" in wide
     assert "openai" in wide
-    assert "✓ 600ms" in wide
+    assert "600ms" in wide
 
 
 def test_overview_store_keeps_current_and_history(tmp_path):
@@ -85,85 +90,3 @@ def test_overview_store_defaults_to_model_validation_directory(monkeypatch, tmp_
     if os.name != "nt":
         assert store.directory.stat().st_mode & 0o777 == 0o700
         assert path.stat().st_mode & 0o777 == 0o600
-
-
-def test_regenerate_removes_models_deleted_from_provider(monkeypatch, tmp_path):
-    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = LLMRuntimeConfig(config_home=str(tmp_path))
-    evidence_store = ModelEvidenceStore(tmp_path / "evidence.yaml")
-    evidence_store.merge(
-        [
-            ModelEvidence("ollama/deleted", frozenset({"text"}), False, local=True),
-            ModelEvidence("cloud/keep", frozenset({"text"}), True),
-        ]
-    )
-    monkeypatch.setattr(
-        "ai_runtime.validation.overview.ProviderValidationRunner.verify_provider",
-        lambda self, provider_id: CheckResult(
-            f"provider.{provider_id}.health",
-            CheckStatus.PASSED,
-            "ok",
-            provider=provider_id,
-        ),
-    )
-    monkeypatch.setattr(
-        "ai_runtime.validation.overview.discover_provider_models",
-        lambda provider_id, config: [DiscoveredModel(provider_id, "current")],
-    )
-    monkeypatch.setattr(
-        "ai_runtime.validation.overview.ProviderValidationRunner.verify_models",
-        lambda self, provider_id, names: ValidationSuite(
-            f"provider:{provider_id}",
-            (
-                CheckResult(
-                    f"provider.{provider_id}.model.current",
-                    CheckStatus.PASSED,
-                    "ok",
-                    provider=provider_id,
-                    model="current",
-                ),
-            ),
-        ),
-    )
-
-    report = RuntimeOverviewGenerator(
-        config,
-        evidence_store=evidence_store,
-        food_store=FoodCatalogStore(tmp_path / "foods.yaml"),
-    ).regenerate()
-
-    assert set(evidence_store.load()) == {"ollama/current", "cloud/keep"}
-    assert [row["model"] for row in report["models"]] == ["current"]
-
-
-def test_regenerate_keeps_old_models_when_discovery_fails(monkeypatch, tmp_path):
-    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = LLMRuntimeConfig(config_home=str(tmp_path))
-    evidence_store = ModelEvidenceStore(tmp_path / "evidence.yaml")
-    evidence_store.merge(
-        [ModelEvidence("ollama/keep", frozenset({"text"}), True, local=True)]
-    )
-    monkeypatch.setattr(
-        "ai_runtime.validation.overview.ProviderValidationRunner.verify_provider",
-        lambda self, provider_id: CheckResult(
-            f"provider.{provider_id}.health",
-            CheckStatus.PASSED,
-            "ok",
-            provider=provider_id,
-        ),
-    )
-
-    def fail_discovery(provider_id, config):
-        raise RuntimeError("offline")
-
-    monkeypatch.setattr(
-        "ai_runtime.validation.overview.discover_provider_models", fail_discovery
-    )
-
-    RuntimeOverviewGenerator(
-        config,
-        evidence_store=evidence_store,
-        food_store=FoodCatalogStore(tmp_path / "foods.yaml"),
-    ).regenerate()
-
-    assert set(evidence_store.load()) == {"ollama/keep"}

@@ -334,15 +334,17 @@ class RuntimeAgent:
         else:
             policy = ElfieFoodPolicy(
                 elfie_id="",
-                default_food=request.food_key or "standard",
-                allowed_foods=tuple(FIXED_FOOD_KINDS),
-                fallback_food="coarse",
+                default_food=catalog.default_food,
+                allowed_foods=tuple(catalog.packages.keys()),
+                fallback_food=catalog.fallback_food,
             )
         selection = resolve_food_selection(policy, request.food_key, catalog)
         selected_food = selection.actual_food
         package = catalog.packages.get(selected_food)
-        if package is None:
+        if package is None or package.primary is None:
             raise ValueError(f"粮食 '{selected_food}' 尚未配置")
+        if not package.enabled or package.archived:
+            raise NoAvailableFoodError("no_available_food", ())
         messages = (
             [dict(message) for message in request.messages]
             if request.messages
@@ -515,7 +517,14 @@ class RuntimeAgent:
         if not package.enabled or package.archived or package.primary is None:
             return False
         health = project_food_health(package, ModelEvidenceStore().load())
-        return health.status in {"healthy", "degraded"}
+        if health.status not in {"healthy", "degraded"}:
+            return False
+        try:
+            provider = RuntimeAgent._provider_for_model(package.primary.model)
+            config = LLMRuntimeConfig.load()
+            return provider in config.providers
+        except Exception:
+            return False
 
     def _food_executor(
         self,
