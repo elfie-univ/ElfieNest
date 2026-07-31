@@ -143,7 +143,17 @@ def main() -> None:
     stop_parser.add_argument("--owner-id", default="cli", help=argparse.SUPPRESS)
     subparsers.add_parser("restart", help="Force restart service")
     subparsers.add_parser("owner", help="Owner account menu")
-    subparsers.add_parser("doctor", help="Run local diagnostics and config check")
+    doctor_parser = subparsers.add_parser("doctor", help="Run local diagnostics and config check")
+    doctor_parser.add_argument(
+        "--fix-ports",
+        action="store_true",
+        help="Detect and clean up occupied service ports",
+    )
+    doctor_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Skip confirmation prompts when cleaning ports",
+    )
     subparsers.add_parser("uninstall", help="Uninstall and data cleanup")
     subparsers.add_parser("version", help="Show version")
     subparsers.add_parser("setup", help="First-time setup wizard")
@@ -206,7 +216,13 @@ def _dispatch_command(args: argparse.Namespace) -> None:
     elif args.command == "owner":
         raise SystemExit(run_owner_menu())
     elif args.command == "doctor":
-        raise SystemExit(run_doctor())
+        fix_ports = getattr(args, "fix_ports", False)
+        force = getattr(args, "force", False)
+        if fix_ports:
+            from app.interfaces.cli.doctor_commands import run_doctor_with_port_fix
+            raise SystemExit(run_doctor_with_port_fix(fix_ports=True, force=force))
+        else:
+            raise SystemExit(run_doctor())
     elif args.command == "uninstall":
         raise SystemExit(run_uninstall_menu())
     elif args.command == "version":

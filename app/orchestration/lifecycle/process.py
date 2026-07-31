@@ -240,3 +240,66 @@ def remove_service_process(elfie_home: Path, pid: int) -> None:
         return
     if recorded_pid == str(pid):
         pid_path.unlink(missing_ok=True)
+
+
+def get_port_occupant_pid(port: int) -> Optional[int]:
+    """Get the PID of the process occupying a port, if any."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as connection:
+        connection.settimeout(0.2)
+        if connection.connect_ex(("127.0.0.1", port)) != 0:
+            return None
+
+    try:
+        completed = subprocess.run(
+            ["lsof", "-ti", f":{port}"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2.0,
+        )
+        if completed.returncode != 0 or not completed.stdout.strip():
+            return None
+        return int(completed.stdout.strip().split("\n")[0])
+    except (OSError, subprocess.SubprocessError, ValueError, subprocess.TimeoutExpired):
+        return None
+
+
+def kill_port_occupant(port: int, timeout_seconds: float = 5.0) -> Tuple[bool, Optional[str]]:
+    """
+    Kill the process occupying a port.
+
+    Returns:
+        Tuple of (success, error_message)
+    """
+    import signal
+    import time
+
+    pid = get_port_occupant_pid(port)
+    if pid is None:
+        return True, None
+
+    try:
+        # Try SIGTERM first
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return True, None
+    except PermissionError as error:
+        return False, f"Permission denied: {error}"
+    except OSError as error:
+        return False, str(error)
+
+    # Wait for process to exit
+    inspector = DefaultProcessInspector()
+    deadline = time.monotonic() + timeout_seconds
+    while inspector.exists(pid) and time.monotonic() < deadline:
+        time.sleep(0.1)
+
+    # Force kill if still running
+    if inspector.exists(pid):
+        try:
+            os.kill(pid, signal.SIGKILL)
+            time.sleep(0.5)
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
+
+    return True, None if not inspector.exists(pid) else (False, f"PID {pid} did not exit")

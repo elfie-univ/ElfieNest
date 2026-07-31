@@ -52,6 +52,7 @@ from app.orchestration.lifecycle.service import start_service, stop_service
 from app.orchestration.lifecycle.types import (
     LaunchFailedError,
     ServiceLifecycleResult,
+    ServicePortsActiveError,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -392,6 +393,32 @@ def restart_background_service() -> ServiceLifecycleResult:
     if stopped.status == "failed":
         progress.stop(success=False)
         print(f"  ❌ Cannot restart service: {stopped.error}")
+
+        # Enhanced error message for port occupation
+        if isinstance(stopped.error, ServicePortsActiveError):
+            print()
+            from app.interfaces.cli.doctor_commands import diagnose_ports
+
+            occupied = diagnose_ports()
+            if occupied:
+                print("  ⚠️  Port occupation detected:")
+                print()
+                for port, proc_info in occupied.items():
+                    print(f"  - Port {port}:")
+                    print(f"    PID: {proc_info.pid}")
+                    if proc_info.command:
+                        cmd_str = " ".join(proc_info.command)
+                        if len(cmd_str) > 80:
+                            cmd_str = cmd_str[:77] + "..."
+                        print(f"    Command: {cmd_str}")
+                    if proc_info.cwd:
+                        cwd_str = str(proc_info.cwd)
+                        if len(cwd_str) > 80:
+                            cwd_str = cwd_str[:77] + "..."
+                        print(f"    Working directory: {cwd_str}")
+                    print()
+                print("  💡 Run 'elfienest doctor --fix-ports' to diagnose and clean occupied ports")
+
         return stopped
     command = stopped.command or default_service_command(("--lan",))
     try:
@@ -410,6 +437,32 @@ def restart_background_service() -> ServiceLifecycleResult:
         print("  ✅ Service restarted")
     else:
         print(f"  ❌ Service restart failed: {result.error}")
+
+        # Enhanced error message for port occupation
+        if isinstance(result.error, ServicePortsActiveError):
+            print()
+            from app.interfaces.cli.doctor_commands import diagnose_ports
+
+            occupied = diagnose_ports()
+            if occupied:
+                print("  ⚠️  Port occupation detected:")
+                print()
+                for port, proc_info in occupied.items():
+                    print(f"  - Port {port}:")
+                    print(f"    PID: {proc_info.pid}")
+                    if proc_info.command:
+                        cmd_str = " ".join(proc_info.command)
+                        if len(cmd_str) > 80:
+                            cmd_str = cmd_str[:77] + "..."
+                        print(f"    Command: {cmd_str}")
+                    if proc_info.cwd:
+                        cwd_str = str(proc_info.cwd)
+                        if len(cwd_str) > 80:
+                            cwd_str = cwd_str[:77] + "..."
+                        print(f"    Working directory: {cwd_str}")
+                    print()
+                print("  💡 Run 'elfienest doctor --fix-ports' to diagnose and clean occupied ports")
+
     return result
 
 
@@ -617,3 +670,31 @@ def _print_start_result(result: ServiceLifecycleResult) -> None:
         print(f"  ⭕ Service already running (PID {result.pid})")
     else:
         print(f"  ❌ Service failed to start: {result.error}")
+
+        # Enhanced error message for port occupation
+        if isinstance(result.error, ServicePortsActiveError):
+            print()
+            from app.interfaces.cli.doctor_commands import diagnose_ports
+
+            occupied = diagnose_ports()
+            if occupied:
+                print("  ⚠️  Port occupation detected:")
+                print()
+                for port, proc_info in occupied.items():
+                    print(f"  - Port {port}:")
+                    print(f"    PID: {proc_info.pid}")
+                    if proc_info.command:
+                        cmd_str = " ".join(proc_info.command)
+                        if len(cmd_str) > 80:
+                            cmd_str = cmd_str[:77] + "..."
+                        print(f"    Command: {cmd_str}")
+                    if proc_info.cwd:
+                        cwd_str = str(proc_info.cwd)
+                        if len(cwd_str) > 80:
+                            cwd_str = cwd_str[:77] + "..."
+                        print(f"    Working directory: {cwd_str}")
+                    print()
+                print("  💡 Run 'elfienest doctor --fix-ports' to diagnose and clean occupied ports")
+            else:
+                print("  ℹ️  Service ports appear free but were occupied during startup.")
+                print("     This might indicate a race condition or transient issue.")
