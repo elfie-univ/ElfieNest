@@ -7,17 +7,13 @@
 /docs/.vitepress/cache/
 /docs/.vitepress/dist/
 
-# 2. AI Runtime 本地敏感配置
-/ai_runtime/runtime_config.json
-/ai_runtime/runtime_config*.bak
-
-# 3. 敏感环境变量与密钥
+# 2. 敏感环境变量与密钥
 .env
 .env.*
 !.env.example
 config.yaml
 
-# 4. Python 标准临时文件与缓存
+# 3. Python 标准临时文件与缓存
 __pycache__/
 *.py[cod]
 *$py.class
@@ -44,7 +40,7 @@ dist/
 /build/components/runtime-contract/*
 !/build/components/runtime-contract/runtime-components.json
 
-# 5. IDE/编辑器/工具缓存与日志
+# 4. IDE/编辑器/工具缓存与日志
 .DS_Store
 .vscode/
 .idea/
@@ -59,15 +55,15 @@ dist/
 .ruff_cache/
 .playwright-mcp/
 
-# 6. 运行时数据（DB、精灵配置等）
+# 5. 运行时数据（DB、精灵配置等）
 /.elfienest.local/
 
-# 7. 本地过程材料与代理知识（只供本机整理，不提交、不参与 Docs 构建）
+# 6. 本地过程材料与代理知识（只供本机整理，不提交、不参与 Docs 构建）
 /.omo/
 /.sisyphus/
 /.agents/knowledge/
 
-# 8. Godot 4+ 虚拟空间本地编译与导入缓存 (防止二进制资产及缓存进入仓库)
+# 7. Godot 4+ 虚拟空间本地编译与导入缓存 (防止二进制资产及缓存进入仓库)
 /godot_project/.godot/
 /godot_project/android/
 
