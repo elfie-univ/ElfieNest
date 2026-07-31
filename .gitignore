@@ -7,13 +7,9 @@
 /docs/.vitepress/cache/
 /docs/.vitepress/dist/
 
-# 2. AI Runtime 本地敏感配置与托管二进制（保留旧路径用于升级迁移）
+# 2. AI Runtime 本地敏感配置
 /ai_runtime/runtime_config.json
 /ai_runtime/runtime_config*.bak
-/ai_runtime/bin/
-/runtime/runtime_config.json
-/runtime/runtime_config*.bak
-/runtime/bin/
 
 # 3. 敏感环境变量与密钥
 .env
@@ -21,13 +17,7 @@
 !.env.example
 config.yaml
 
-# 4. 数据库文件（已统一迁移到 data/ 目录）
-.elfie_memory.db
-.elfie_memory.db-shm
-.elfie_memory.db-wal
-.elfie_memory.db.backup
-
-# 5. Python 标准临时文件与缓存
+# 4. Python 标准临时文件与缓存
 __pycache__/
 *.py[cod]
 *$py.class
@@ -54,7 +44,7 @@ dist/
 /build/components/runtime-contract/*
 !/build/components/runtime-contract/runtime-components.json
 
-# 6. IDE/编辑器/工具缓存与日志
+# 5. IDE/编辑器/工具缓存与日志
 .DS_Store
 .vscode/
 .idea/
@@ -70,16 +60,14 @@ dist/
 .playwright-mcp/
 
 # 6. 运行时数据（DB、精灵配置等）
-data/
 /.elfienest.local/
 
 # 7. 本地过程材料与代理知识（只供本机整理，不提交、不参与 Docs 构建）
 /.omo/
 /.sisyphus/
 /.agents/knowledge/
-/ElfieNest.worktree/
 
-# 7. Godot 4+ 虚拟空间本地编译与导入缓存 (防止二进制资产及缓存进入仓库)
+# 8. Godot 4+ 虚拟空间本地编译与导入缓存 (防止二进制资产及缓存进入仓库)
 /godot_project/.godot/
 /godot_project/android/
 
@@ -90,7 +78,6 @@ data/
 !/.agents/skills/**
 
 # Runtime temp files (audio, cache, etc.)
-data/temp/
 *.uid
 
 # Electron 本地依赖；构建产物只能写入根 build/dist
