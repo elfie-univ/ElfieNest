@@ -5,19 +5,16 @@ from time import perf_counter
 from typing import Any, Callable, Dict, List
 
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.food.evidence import ModelEvidenceStore
+from ai_runtime.food.evidence import query_model_evidence
 from ai_runtime.food.executor import (
     FoodExecutionError,
     FoodExecutionResult,
     FoodExecutor,
     NoAvailableFoodError,
 )
-from ai_runtime.food.elfie_policy import (
-    ElfieFoodPolicy,
-    resolve_food_selection,
-)
 from ai_runtime.food.health import project_food_health
-from ai_runtime.food.models import FIXED_FOOD_KINDS, FOOD_COMMON_ID, FOOD_EMERGENCY_ID, FoodPackage
+from ai_runtime.food.models import FOOD_COMMON_ID, FOOD_EMERGENCY_ID, FoodPackage
+from ai_runtime.food.resolver import MainFoodSelection, resolve_main_food
 from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
 from ai_runtime.gateway.llm_api import call_llm_api
 from ai_runtime.gateway.multimodal import assemble_multimodal_payload
@@ -31,19 +28,8 @@ from ai_runtime.gateway.request import (
 )
 from ai_runtime.models.model_reference import parse_model_reference
 from ai_runtime.safety.permissions import PermissionManager
-from ai_runtime.storage.data_home import get_config_path, get_runtime_config_paths, get_skills_dir
-from ai_runtime.tools.code import CodeSandboxPlugin
-from ai_runtime.tools.config import enabled_tool_keys, load_tool_configs
-from ai_runtime.tools.file import FileSandbox
-from ai_runtime.tools.local_files import LocalFileAccessPlugin
-from ai_runtime.tools.search import WebSearchPlugin
-from ai_runtime.tools.skills_evolution import SkillsSelfEvolutionPlugin
-from ai_runtime.models.model_reference import parse_model_reference
-from ai_runtime.safety.permissions import PermissionManager
-from ai_runtime.storage.data_home import get_config_path, get_runtime_config_paths, get_skills_dir
-from ai_runtime.tools.code import CodeSandboxPlugin
-from ai_runtime.tools.config import enabled_tool_keys, load_tool_configs
-from ai_runtime.tools.file import FileSandbox
+from ai_runtime.storage.data_home import get_runtime_config_paths
+from ai_runtime.tools.config import effective_tool_keys, load_tool_configs
 from ai_runtime.tools.local_files import LocalFileAccessPlugin
 from ai_runtime.tools.search import WebSearchPlugin
 from ai_runtime.usage.observer import (
@@ -54,7 +40,7 @@ from ai_runtime.usage.observer import (
 )
 
 logger = logging.getLogger("ai_runtime.gateway.agent")
-FoodPolicyLoader = Callable[[str], ElfieFoodPolicy]
+MainFoodLoader = Callable[[str], MainFoodSelection]
 
 
 class RuntimeAgent:
@@ -65,11 +51,11 @@ class RuntimeAgent:
         config: LLMRuntimeConfig = None,
         *,
         live_reload: bool = False,
-        food_policy_loader: FoodPolicyLoader | None = None,
+        main_food_loader: MainFoodLoader | None = None,
     ):
         self.config = config or LLMRuntimeConfig()
         self._live_reload = live_reload
-        self._food_policy_loader = food_policy_loader
+        self._main_food_loader = main_food_loader
         self._config_mtimes_ns = self._config_mtimes()
         self._mount_runtime_dependencies()
 
@@ -79,15 +65,9 @@ class RuntimeAgent:
         self.search_plugin = WebSearchPlugin.from_runtime_policy(
             self.config.runtime_policy
         )
-        
         tool_configs = load_tool_configs(self.config.runtime_policy)
-        self.sandbox_plugin = CodeSandboxPlugin(
-            timeout_seconds=float(
-                tool_configs["code_sandbox"].get("timeout_seconds") or 5.0
-            )
-        )
-        local_files_root = str(tool_configs["local_file"].get("root") or "")
-        self.file_access_plugin = LocalFileAccessPlugin(local_files_root) if local_files_root else None
+        self._local_file_config = tool_configs["local_file"]
+        self.file_access_plugin = None
 
         self.food_catalog_store = FoodCatalogStore()
 
@@ -178,8 +158,10 @@ class RuntimeAgent:
     ) -> RuntimeResult:
         """返回完整执行结果，调用者仍只提交粮食语义和任务上下文。"""
         self._reload_config_if_changed()
-        enabled_tools = set(enabled_tool_keys(self.config.runtime_policy))
-        tools = tuple(tool for tool in (allowed_skills or ()) if tool in enabled_tools)
+        tools = effective_tool_keys(
+            self.config.runtime_policy,
+            tuple(allowed_skills or ()),
+        )
         request = RuntimeRequest(
             prompt=prompt,
             energy=energy,
@@ -206,10 +188,15 @@ class RuntimeAgent:
     def structured_capabilities(
         self,
         food_key: str | None = None,
+        food_unavailable: bool = False,
     ) -> StructuredRuntimeCapabilities:
         """Describe the primary role of the selected food package."""
         catalog = self._load_food_catalog()
-        selected_food = self._select_food_key(catalog, food_key)
+        selected_food = self._select_food_key(
+            catalog,
+            food_key,
+            unavailable=food_unavailable,
+        )
         assignment = catalog.packages[selected_food].primary
         if assignment is None:
             raise NoAvailableFoodError("no_available_food")
@@ -235,7 +222,11 @@ class RuntimeAgent:
         """Execute exactly one structured generation using the selected mode."""
         self._reload_config_if_changed()
         catalog = self._load_food_catalog()
-        selected_food = self._select_food_key(catalog, request.food_key)
+        selected_food = self._select_food_key(
+            catalog,
+            request.food_key,
+            unavailable=request.food_unavailable,
+        )
         attempts = [(selected_food, request.selected_mode)]
         if selected_food != FOOD_EMERGENCY_ID:
             emergency = catalog.packages.get(FOOD_EMERGENCY_ID)
@@ -260,6 +251,11 @@ class RuntimeAgent:
                 ),
                 temperature=request.temperature,
                 max_tokens=request.max_tokens,
+                file_access_plugin=(
+                    self._local_file_access(request.elfie_workspace)
+                    if request.elfie_workspace
+                    else None
+                ),
             )
             try:
                 execution = executor.execute(
@@ -324,22 +320,14 @@ class RuntimeAgent:
 
     def _think_with_food(self, request: RuntimeRequest) -> RuntimeResult:
         catalog = self._load_food_catalog()
-        requested_food = request.food_key or FOOD_COMMON_ID
-        if request.elfie_id:
-            policy = (
-                self._food_policy_loader(request.elfie_id)
-                if self._food_policy_loader is not None
-                else ElfieFoodPolicy(request.elfie_id)
-            )
-        else:
-            policy = ElfieFoodPolicy(
-                elfie_id="",
-                default_food=catalog.default_food,
-                allowed_foods=tuple(catalog.packages.keys()),
-                fallback_food=catalog.fallback_food,
-            )
-        selection = resolve_food_selection(policy, request.food_key, catalog)
-        selected_food = selection.actual_food
+        selection = self._main_food_selection(request)
+        requested_food = selection.food_id or FOOD_COMMON_ID
+        route = resolve_main_food(
+            catalog,
+            selection,
+            is_usable=self._package_usable,
+        )
+        selected_food = route.food_id
         package = catalog.packages.get(selected_food)
         if package is None or package.primary is None:
             raise ValueError(f"粮食 '{selected_food}' 尚未配置")
@@ -350,33 +338,27 @@ class RuntimeAgent:
             if request.messages
             else [{"role": "user", "content": request.prompt}]
         )
-        skills_plugin = (
-            SkillsSelfEvolutionPlugin(
-                self.permission_manager,
-                FileSandbox(get_skills_dir(request.elfie_id)),
-            )
-            if request.elfie_id
-            else None
-        )
-        allowed_tools = tuple(
-            tool
-            for tool in request.allowed_tools
-            if tool != "skills_evolution" or skills_plugin is not None
-        )
         executor = FoodExecutor(
             config=self.config,
             search_plugin=self.search_plugin,
-            sandbox_plugin=self.sandbox_plugin,
-            skills_evolution_plugin=skills_plugin,
             permission_manager=self.permission_manager,
-            file_access_plugin=self.file_access_plugin,
+            file_access_plugin=(
+                self._local_file_access(request.elfie_config_dir)
+                if request.elfie_config_dir
+                else None
+            ),
             model_caller=self._call_food_llm_api,
         )
         fallback_used = False
         failed_attempts: tuple[dict[str, str], ...] = ()
-        prefer_deep = selection.clamped and selection.requested_food in {"focus", "premium"}
         try:
-            execution = self._execute_package(executor, package, messages, request, prefer_deep)
+            execution = self._execute_package(
+                executor,
+                package,
+                messages,
+                request,
+                tuple(request.allowed_tools),
+            )
         except FoodExecutionError as exc:
             failed_attempts = exc.attempts
             emergency = catalog.packages.get(FOOD_EMERGENCY_ID)
@@ -394,14 +376,14 @@ class RuntimeAgent:
                 emergency,
                 messages,
                 request,
-                prefer_deep=False,
+                tuple(request.allowed_tools),
             )
             selected_food = FOOD_EMERGENCY_ID
             fallback_used = True
         provider = (
             execution.model.split("/", 1)[0] if "/" in execution.model else "ollama"
         )
-        clamped = selected_food != requested_food
+        clamped = route.used_emergency or selected_food != requested_food
         if fallback_used:
             selection_reason = "global_fallback_after_failure"
         elif clamped:
@@ -478,21 +460,15 @@ class RuntimeAgent:
         package: FoodPackage,
         messages: list[dict[str, Any]],
         request: RuntimeRequest,
-        prefer_deep: bool = False,
+        allowed_tools: tuple[str, ...],
     ) -> FoodExecutionResult:
         return executor.execute(
             package,
             messages,
-            allowed_tools=request.allowed_tools,
+            allowed_tools=allowed_tools,
             max_loops=3,
-            prefer_deep=prefer_deep,
             semantic_role=(
-                "vision"
-                if request.images or request.audio
-                else "reasoning"
-                if request.semantic_role == "reasoning"
-                or request.task_complexity >= self.config.complexity_threshold_deep
-                else request.semantic_role
+                request.semantic_role
             ),
             images=request.images,
             audio=request.audio,
@@ -502,21 +478,25 @@ class RuntimeAgent:
     def _select_food_key(
         catalog: FoodCatalog,
         requested_food: str | None,
+        *,
+        unavailable: bool = False,
     ) -> str:
-        primary_id = requested_food or FOOD_COMMON_ID
-        primary = catalog.packages.get(primary_id)
-        if primary is not None and RuntimeAgent._package_usable(primary):
-            return primary_id
-        emergency = catalog.packages.get(FOOD_EMERGENCY_ID)
-        if emergency is not None and RuntimeAgent._package_usable(emergency):
-            return FOOD_EMERGENCY_ID
-        raise NoAvailableFoodError("no_available_food")
+        return resolve_main_food(
+            catalog,
+            MainFoodSelection(requested_food, unavailable=unavailable),
+            is_usable=RuntimeAgent._package_usable,
+        ).food_id
+
+    def _main_food_selection(self, request: RuntimeRequest) -> MainFoodSelection:
+        if request.elfie_id and self._main_food_loader is not None:
+            return self._main_food_loader(request.elfie_id)
+        return MainFoodSelection(request.food_key)
 
     @staticmethod
     def _package_usable(package: FoodPackage) -> bool:
         if not package.enabled or package.archived or package.primary is None:
             return False
-        health = project_food_health(package, ModelEvidenceStore().load())
+        health = project_food_health(package, query_model_evidence())
         if health.status not in {"healthy", "degraded"}:
             return False
         try:
@@ -555,8 +535,15 @@ class RuntimeAgent:
             config=self.config,
             search_plugin=self.search_plugin,
             permission_manager=self.permission_manager,
-            file_access_plugin=file_access_plugin or self.file_access_plugin,
+            file_access_plugin=file_access_plugin,
             model_caller=caller,
+        )
+
+    def _local_file_access(self, root: str) -> LocalFileAccessPlugin:
+        return LocalFileAccessPlugin(
+            root,
+            max_read_bytes=int(self._local_file_config.get("max_read_bytes") or 65536),
+            max_items=int(self._local_file_config.get("max_items") or 200),
         )
 
     def _load_food_catalog(self):

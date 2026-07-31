@@ -4,10 +4,10 @@ from pathlib import Path
 
 import pytest
 
-from ai_runtime.food.evidence import ModelEvidenceStore
 from ai_runtime.food.models import FOOD_COMMON_ID, FOOD_EMERGENCY_ID
 from ai_runtime.food.store import FoodCatalogStore
 from ai_runtime.storage.provider_connections import ProviderConnectionStore
+from ai_runtime.storage.report_repository import ReportRepository
 from app.features.setup.ollama import OllamaSetupService
 from app.features.setup.service import (
     complete_setup_step,
@@ -253,7 +253,7 @@ def test_configured_model_must_exist_on_the_one_saved_ollama_endpoint(
         food_catalog_store=FoodCatalogStore(
             tmp_path / "foods.yaml", tmp_path / "food-history"
         ),
-        model_evidence_store=ModelEvidenceStore(tmp_path / "models.yaml"),
+        report_repository=ReportRepository(tmp_path / "reports.db"),
     )
 
     service.configure_installed_model(
@@ -310,7 +310,7 @@ def test_model_pull_rechecks_the_fixed_endpoint_before_configuring(
         food_catalog_store=FoodCatalogStore(
             tmp_path / "foods.yaml", tmp_path / "food-history"
         ),
-        model_evidence_store=ModelEvidenceStore(tmp_path / "models.yaml"),
+        report_repository=ReportRepository(tmp_path / "reports.db"),
     )
 
     service.pull_and_configure_model(

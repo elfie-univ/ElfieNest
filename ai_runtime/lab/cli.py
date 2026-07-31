@@ -12,10 +12,14 @@ from pathlib import Path
 from typing import Any
 
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.food.evidence import ModelEvidenceStore
+from ai_runtime.food.evidence import query_model_evidence, record_model_evidence
 from ai_runtime.food.planner import FoodPlanner, ModelEvidence
 from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
 from ai_runtime.lab.menu import MenuItem, TerminalMenu
+from ai_runtime.lab.provider_storage import (
+    delete_provider_connection,
+    save_provider_connection,
+)
 from ai_runtime.models.capabilities import (
     canonical_display_name,
     known_capabilities,
@@ -29,7 +33,7 @@ from ai_runtime.providers.model_hints import (
 from ai_runtime.providers.profiles import BUILTIN_PROFILES
 from ai_runtime.storage.config_store import read_yaml_mapping, write_yaml_mapping
 from ai_runtime.storage.data_home import get_config_path
-from ai_runtime.storage.runtime_config_bundle import write_runtime_config_bundle
+from ai_runtime.storage.runtime_settings import write_runtime_settings
 from ai_runtime.storage.secrets import (
     provider_secret_name,
     set_provider_secret,
@@ -96,7 +100,9 @@ class RuntimeLab:
         if self.config_home:
             write_yaml_mapping(self._config_file_path(), payload)
             return
-        write_runtime_config_bundle(payload)
+        runtime_payload = dict(payload)
+        runtime_payload.pop("providers", None)
+        write_runtime_settings(runtime_payload)
 
     def _food_store(self) -> FoodCatalogStore:
         if self.config_home:
@@ -387,7 +393,7 @@ class RuntimeLab:
         tool_suite = DirectToolValidationRunner(self.config).run(include_network=False)
         food_suite = FoodValidationRunner().validate(
             self._food_store().load(),
-            list(ModelEvidenceStore().load().values()),
+            list(query_model_evidence().values()),
         )
         report = ValidationReport((tool_suite, food_suite))
         path = report.save()
@@ -544,7 +550,7 @@ class RuntimeLab:
     def _show_provider_evidence(self, provider_id: str) -> None:
         evidence = [
             item
-            for item in ModelEvidenceStore().load().values()
+            for item in query_model_evidence().values()
             if item.model.startswith(f"{provider_id}/")
         ]
         if not evidence:
@@ -823,7 +829,7 @@ class RuntimeLab:
             self.output(f"Restored Food version {restored.version}.")
 
     def _update_foods(self, store: FoodCatalogStore) -> None:
-        evidence = list(ModelEvidenceStore().load().values())
+        evidence = list(query_model_evidence().values())
         if not evidence:
             self.output(
                 "No model validation evidence yet. Please batch-validate models in Layer 1 first."
@@ -915,8 +921,7 @@ class RuntimeLab:
             self.output("Cancelled, no pseudo-failure report generated.")
             return
 
-        evidence_store = ModelEvidenceStore()
-        evidence_before = evidence_store.load()
+        evidence_before = query_model_evidence()
         provider_runner = ProviderValidationRunner(self.config)
         live_suites: list[ValidationSuite] = []
         refreshed: list[ModelEvidence] = []
@@ -959,11 +964,15 @@ class RuntimeLab:
                         local=provider_id == "ollama",
                     )
                 )
-        evidence_store.merge(refreshed)
+        record_model_evidence(
+            refreshed,
+            scope="runtime-lab:food-validation",
+            trigger="runtime_lab",
+        )
 
         tool_recipe = catalog.recipes.get("tool")
         if tool_recipe and tool_recipe.primary.model:
-            tool_model = evidence_store.load().get(tool_recipe.primary.model)
+            tool_model = query_model_evidence().get(tool_recipe.primary.model)
             if tool_model and tool_model.verified:
                 provider_id, model_name = tool_recipe.primary.model.split("/", 1)
                 agent_suite = ModelAgentValidationRunner(self.config).verify(
@@ -971,7 +980,7 @@ class RuntimeLab:
                 )
                 live_suites.append(agent_suite)
                 self._print_suite(agent_suite)
-                evidence_store.merge(
+                record_model_evidence(
                     [
                         ModelEvidence(
                             model=tool_model.model,
@@ -983,11 +992,13 @@ class RuntimeLab:
                             tool_test_passed=agent_suite.passed,
                             local=tool_model.local,
                         )
-                    ]
+                    ],
+                    scope="runtime-lab:agent-validation",
+                    trigger="runtime_lab",
                 )
 
         suite = FoodValidationRunner().validate(
-            catalog, list(evidence_store.load().values())
+            catalog, list(query_model_evidence().values())
         )
         self._print_suite(suite)
         path = ValidationReport((*live_suites, suite)).save()
@@ -1241,16 +1252,19 @@ class RuntimeLab:
         provider: dict[str, Any],
         pending_secret: str | None,
     ) -> None:
-        self.config.providers[provider_id] = provider
-        payload = self.config.to_safe_dict()
-        payload["config_version"] = 2
-        self._write_runtime_config(payload)
-        if pending_secret is not None:
-            set_provider_secret(
-                provider_id,
-                pending_secret,
-                self._secret_file_path(),
-            )
+        if self.config_home:
+            self.config.providers[provider_id] = provider
+            payload = self.config.to_safe_dict()
+            payload["config_version"] = 2
+            self._write_runtime_config(payload)
+            if pending_secret is not None:
+                set_provider_secret(
+                    provider_id,
+                    pending_secret,
+                    self._secret_file_path(),
+                )
+        else:
+            save_provider_connection(provider_id, provider, pending_secret)
         self.config = LLMRuntimeConfig.load(config_home=self.config_home)
 
     def _next_custom_provider_id(self, display_name: str) -> str:
@@ -1456,7 +1470,11 @@ class RuntimeLab:
                         local=provider_id == "ollama",
                     )
                 )
-            ModelEvidenceStore().merge(evidence)
+            record_model_evidence(
+                evidence,
+                scope=f"runtime-lab:provider:{provider_id}",
+                trigger="runtime_lab",
+            )
             path = ValidationReport((suite,)).save()
             self.output(f"\nValidation evidence and Report Saved: {path}")
             self.output(
@@ -1464,9 +1482,8 @@ class RuntimeLab:
             )
 
     def _verify_model_agent(self) -> None:
-        store = ModelEvidenceStore()
         available = sorted(
-            (item for item in store.load().values() if item.verified),
+            (item for item in query_model_evidence().values() if item.verified),
             key=lambda item: (item.display_name or item.model, item.model),
         )
         if not available:
@@ -1533,7 +1550,11 @@ class RuntimeLab:
                     local=selected.local,
                 )
             )
-        store.merge(evidence_updates)
+        record_model_evidence(
+            evidence_updates,
+            scope="runtime-lab:model-agent",
+            trigger="runtime_lab",
+        )
         path = ValidationReport(tuple(suites)).save()
         passed_count = sum(suite.passed for suite in suites)
         self.output(
@@ -1554,7 +1575,7 @@ class RuntimeLab:
         """
         from ai_runtime.providers.profiles import BUILTIN_PROFILES
 
-        if provider_id in BUILTIN_PROFILES and provider_id != "custom_openai":
+        if provider_id in BUILTIN_PROFILES:
             self.output(f"Cannot delete builtin provider: {provider_id}")
             self.output(
                 "Builtin providers can only be deactivated by clearing their API key."
@@ -1599,20 +1620,19 @@ class RuntimeLab:
             return False
 
         try:
-            if provider_id in self.config.providers:
-                del self.config.providers[provider_id]
-
-            payload = self.config.to_safe_dict()
-            payload["config_version"] = 2
-            self._write_runtime_config(payload)
-
-            from ai_runtime.storage.secrets import set_provider_secret
-
-            set_provider_secret(
-                provider_id,
-                "",
-                self._secret_file_path(),
-            )
+            if self.config_home:
+                if provider_id in self.config.providers:
+                    del self.config.providers[provider_id]
+                payload = self.config.to_safe_dict()
+                payload["config_version"] = 2
+                self._write_runtime_config(payload)
+                set_provider_secret(
+                    provider_id,
+                    "",
+                    self._secret_file_path(),
+                )
+            elif not delete_provider_connection(provider_id):
+                raise ValueError(f"Provider connection not found: {provider_id}")
 
             self.config = LLMRuntimeConfig.load(config_home=self.config_home)
 

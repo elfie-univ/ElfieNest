@@ -34,7 +34,6 @@ export function ElfieIdentityCard({ csrfToken, elfie, mockMode = false, onError,
       : profile.status.code === "sleeping"
         ? t("elfies.values.sleeping")
         : t("elfies.values.unknownStatus")
-  const otherFoods = elfie.food_policy.allowed_foods.filter((food) => food !== elfie.food_policy.default_food && food !== elfie.food_policy.fallback_food)
   const save = async (): Promise<void> => {
     setSaving(true)
     try {
@@ -86,9 +85,7 @@ export function ElfieIdentityCard({ csrfToken, elfie, mockMode = false, onError,
         value={defaultFood}
       />
     </div> : <dl className="elfie-id-card__food">
-      <IdentityField label={t("elfies.fields.stapleFood")} value={elfie.food_policy.default_food} />
-      <IdentityField label={t("elfies.fields.emergencyFood")} value={elfie.food_policy.fallback_food} />
-      <IdentityField label={t("elfies.fields.otherFood")} value={otherFoods.length ? otherFoods.join(t("elfies.values.foodSeparator")) : t("elfies.values.none")} />
+      <IdentityField label={t("elfies.fields.stapleFood")} value={elfie.food_policy.main_food_options.find((food) => food.food_id === elfie.food_policy.effective_main_food_id)?.display_name ?? t("elfies.values.none")} />
     </dl>}
     <dl className="elfie-id-card__summary">
       <IdentityField

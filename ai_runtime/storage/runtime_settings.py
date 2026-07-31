@@ -1,4 +1,4 @@
-"""Runtime and Tool configuration storage with a read-only Provider projection."""
+"""Storage boundary for Runtime settings and Tool settings documents."""
 
 from __future__ import annotations
 
@@ -7,7 +7,11 @@ import shutil
 from pathlib import Path
 from typing import Any, Mapping
 
-from ai_runtime.storage.config_store import read_yaml_mapping, write_yaml_mapping
+from ai_runtime.storage.config_store import (
+    ConfigStoreError,
+    read_yaml_mapping,
+    write_yaml_mapping,
+)
 from ai_runtime.storage.data_home import (
     ensure_elfie_home,
     get_config_path,
@@ -44,19 +48,20 @@ def _without_plaintext_api_keys(value: Any) -> Any:
     return value
 
 
-def read_runtime_config_bundle() -> dict[str, Any]:
-    """读取并合并正式 Runtime 配置，保持既有调用方数据形状。"""
-    runtime_path = get_config_path()
-    tool_path = get_tool_config_path()
-
-    config = copy.deepcopy(read_yaml_mapping(runtime_path))
+def read_runtime_settings() -> dict[str, Any]:
+    """Read Runtime settings with Tool settings projected into the public shape."""
+    config = copy.deepcopy(read_yaml_mapping(get_config_path()))
     config.pop("version", None)
-    config.pop("providers", None)
+    if "providers" in config:
+        raise ConfigStoreError(
+            "Runtime 设置不接受 providers；请使用 ProviderConnectionStore"
+        )
 
     runtime_policy = config.get("runtime_policy")
     if isinstance(runtime_policy, dict):
         runtime_policy.pop("tools", None)
 
+    tool_path = get_tool_config_path()
     if tool_path.exists():
         tool_document = read_yaml_mapping(tool_path)
         runtime_policy = config.get("runtime_policy")
@@ -64,19 +69,21 @@ def read_runtime_config_bundle() -> dict[str, Any]:
             runtime_policy = {}
             config["runtime_policy"] = runtime_policy
         runtime_policy["tools"] = copy.deepcopy(tool_document.get("tools", {}))
-
     return config
 
 
-def write_runtime_config_bundle(
+def write_runtime_settings(
     config: Mapping[str, Any],
     *,
     backup_existing: bool = True,
 ) -> None:
-    """把合并配置按职责写入三份正式 YAML。"""
+    """Write Runtime and Tool settings without reading or writing Provider data."""
+    if "providers" in config:
+        raise ConfigStoreError(
+            "Runtime 设置不接受 providers；请使用 ProviderConnectionStore"
+        )
     ensure_elfie_home()
     safe_config = copy.deepcopy(dict(config))
-    safe_config.pop("providers", None)
     for field_name in _LEGACY_ROUTING_FIELDS:
         safe_config.pop(field_name, None)
     system = safe_config.get("system")
@@ -96,18 +103,12 @@ def write_runtime_config_bundle(
     if isinstance(runtime_policy, dict):
         tools = _without_plaintext_api_keys(runtime_policy.pop("tools", {}))
 
-    runtime_document = {
-        "version": CONFIG_DOCUMENT_VERSION,
-        **safe_config,
-    }
-    tool_document = {
-        "version": CONFIG_DOCUMENT_VERSION,
-        "tools": tools,
-    }
-
     documents = (
-        (get_config_path(), runtime_document),
-        (get_tool_config_path(), tool_document),
+        (get_config_path(), {"version": CONFIG_DOCUMENT_VERSION, **safe_config}),
+        (
+            get_tool_config_path(),
+            {"version": CONFIG_DOCUMENT_VERSION, "tools": tools},
+        ),
     )
     for path, document in documents:
         if read_yaml_mapping(path) == document:

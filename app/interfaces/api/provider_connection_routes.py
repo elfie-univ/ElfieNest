@@ -18,11 +18,21 @@ from ai_runtime.food.store import (
     foods_referencing_model,
 )
 from ai_runtime.models.catalog import _verify_custom_openai_provider, verify_provider
+from ai_runtime.providers.discovery import (
+    bundled_catalog_models,
+    merge_refreshed_models,
+    remote_catalog_models,
+)
 from ai_runtime.providers.model_identity import match_model_identity
 from ai_runtime.providers.profiles import PROVIDER_CATALOG, get_product
 from ai_runtime.providers.remote_catalog import (
     RemoteCatalogUnavailable,
     fetch_remote_models,
+)
+from ai_runtime.storage.provider_connection_mutations import (
+    delete_connection_with_secret,
+    finalize_created_connection,
+    replace_connection_with_secret,
 )
 from ai_runtime.storage.provider_connections import (
     ModelSource,
@@ -33,7 +43,6 @@ from ai_runtime.storage.provider_connections import (
 from ai_runtime.storage.secrets import (
     connection_secret_name,
     resolve_secret,
-    set_connection_secret,
 )
 from ai_runtime.storage.validation_reports import (
     read_latest_provider_validation,
@@ -150,17 +159,11 @@ async def create_connection(
             auth_type=body.auth_type or profile.auth_type,
             models=models,
         )
-        try:
-            if body.api_key is not None:
-                credential_ref = set_connection_secret(
-                    connection.connection_id,
-                    body.api_key,
-                )
-                connection = replace(connection, credential_ref=credential_ref)
-                store.replace(connection)
-        except Exception:
-            store.delete(connection.connection_id)
-            raise
+        connection = finalize_created_connection(
+            store,
+            connection,
+            body.api_key,
+        )
     refresh_result = None
     if body.refresh_models:
         refresh_result = await _refresh_connection_models(connection.connection_id)
@@ -212,10 +215,7 @@ async def update_connection(
             else connection.models
         ),
     )
-    if body.api_key is not None:
-        credential_ref = set_connection_secret(connection_id, body.api_key)
-        updated = replace(updated, credential_ref=credential_ref)
-    store.replace(updated)
+    updated = replace_connection_with_secret(store, updated, body.api_key)
     refresh_result = None
     if body.refresh_models:
         refresh_result = await _refresh_connection_models(connection_id)
@@ -248,8 +248,7 @@ async def delete_connection(
                 f"连接 '{connection_id}' 仍被粮食套餐引用：" + "、".join(food_keys)
             ),
         )
-    store.delete(connection_id)
-    set_connection_secret(connection_id, "")
+    delete_connection_with_secret(store, connection_id)
     return {"detail": f"连接 '{connection_id}' 已删除"}
 
 
@@ -535,11 +534,16 @@ async def _refresh_connection_models(connection_id: str) -> dict[str, Any]:
         catalog_models: tuple[ProviderModelRecord, ...] = ()
         if connection.catalog_id != "custom_openai":
             try:
-                catalog_models = _remote_catalog_models(connection.catalog_id)
+                catalog_models = remote_catalog_models(
+                    connection.catalog_id,
+                    fetcher=fetch_remote_models,
+                )
             except RemoteCatalogUnavailable:
-                catalog_models = _catalog_models(profile.default_models)
+                catalog_models = ()
+            if not catalog_models:
+                catalog_models = bundled_catalog_models(profile.bundled_models)
         if catalog_models:
-            merged = _merge_refreshed_models(connection.models, catalog_models)
+            merged = merge_refreshed_models(connection.models, catalog_models)
             store.replace(replace(connection, models=merged))
             return {
                 "status": catalog_models[0].source,
@@ -573,7 +577,7 @@ async def _refresh_connection_models(connection_id: str) -> dict[str, Any]:
             "message": "模型接口未返回结果，请手工添加模型",
             "models": [_model_view(model) for model in connection.models],
         }
-    merged = _merge_refreshed_models(connection.models, models)
+    merged = merge_refreshed_models(connection.models, models)
     store.replace(replace(connection, models=merged))
     return {
         "status": "updated",
@@ -596,33 +600,6 @@ def _discover_with_slot(connection: ProviderConnection):
         )
     finally:
         _DISCOVERY_SLOTS.release()
-
-
-def _catalog_models(
-    roles: Dict[str, list[str]],
-) -> tuple[ProviderModelRecord, ...]:
-    model_ids = dict.fromkeys(
-        model_id
-        for role in ("cheap", "deep", "multimodal")
-        for model_id in roles.get(role, [])
-    )
-    return tuple(
-        _model_record(
-            ProviderModelInput(id=model_id, display_name=model_id),
-            source="bundled_catalog",
-        )
-        for model_id in model_ids
-    )
-
-
-def _remote_catalog_models(catalog_id: str) -> tuple[ProviderModelRecord, ...]:
-    return tuple(
-        _model_record(
-            ProviderModelInput(id=model_id, display_name=model_id),
-            source="remote_catalog",
-        )
-        for model_id in fetch_remote_models(catalog_id)
-    )
 
 
 async def _verify_connection(connection: ProviderConnection) -> dict[str, Any]:
@@ -792,64 +769,3 @@ def _model_view(model: ProviderModelRecord) -> dict[str, Any]:
         "retired": model.retired,
         "available": model.available,
     }
-
-
-def _merge_refreshed_models(
-    existing_models: tuple[ProviderModelRecord, ...],
-    refreshed_models: tuple[ProviderModelRecord, ...],
-) -> tuple[ProviderModelRecord, ...]:
-    existing_by_id = {model.endpoint_model_id: model for model in existing_models}
-    refreshed_by_id = {model.endpoint_model_id: model for model in refreshed_models}
-    merged: list[ProviderModelRecord] = []
-    for refreshed in refreshed_models:
-        existing = existing_by_id.get(refreshed.endpoint_model_id)
-        if existing is None:
-            merged.append(refreshed)
-            continue
-        merged.append(
-            replace(
-                refreshed,
-                display_name=(
-                    existing.display_name
-                    if existing.source == "manual"
-                    else refreshed.display_name
-                ),
-                canonical_model_id=(
-                    existing.canonical_model_id or refreshed.canonical_model_id
-                ),
-                source=("manual" if existing.source == "manual" else refreshed.source),
-                context_window_tokens=(
-                    existing.context_window_tokens or refreshed.context_window_tokens
-                ),
-                max_output_tokens=(
-                    existing.max_output_tokens or refreshed.max_output_tokens
-                ),
-                supports_tools=(
-                    existing.supports_tools
-                    if existing.supports_tools is not None
-                    else refreshed.supports_tools
-                ),
-                supports_vision=(
-                    existing.supports_vision
-                    if existing.supports_vision is not None
-                    else refreshed.supports_vision
-                ),
-                supports_reasoning=(
-                    existing.supports_reasoning
-                    if existing.supports_reasoning is not None
-                    else refreshed.supports_reasoning
-                ),
-                hidden=existing.hidden,
-                retired=existing.retired,
-                available=True,
-            )
-        )
-    for existing in existing_models:
-        if existing.endpoint_model_id in refreshed_by_id:
-            continue
-        merged.append(
-            existing
-            if existing.source == "manual"
-            else replace(existing, available=False)
-        )
-    return tuple(merged)

@@ -11,9 +11,9 @@ from ai_runtime.storage.data_home import (
     get_config_path,
     get_env_path,
 )
-from ai_runtime.storage.runtime_config_bundle import (
-    read_runtime_config_bundle,
-    write_runtime_config_bundle,
+from ai_runtime.storage.runtime_settings import (
+    read_runtime_settings,
+    write_runtime_settings,
 )
 
 UserConfig = Dict[str, Any]
@@ -23,7 +23,7 @@ EnvVars = Dict[str, str]
 def read_user_config(path: Optional[Path] = None) -> UserConfig:
     if path is None:
         try:
-            return read_runtime_config_bundle()
+            return read_runtime_settings()
         except RuntimeError:
             return {}
 
@@ -42,7 +42,7 @@ def read_user_config(path: Optional[Path] = None) -> UserConfig:
 
 def write_user_config(config: UserConfig, path: Optional[Path] = None) -> None:
     if path is None:
-        write_runtime_config_bundle(config)
+        write_runtime_settings(config)
         return
 
     config_path = path or get_config_path()

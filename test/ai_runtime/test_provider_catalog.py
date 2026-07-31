@@ -38,11 +38,7 @@ def _provider(
         ),
         "oauth_available": False,
         "test_model": "example-model",
-        "default_models": {
-            "cheap": ["example-model"],
-            "deep": ["example-model"],
-            "multimodal": ["example-model"],
-        },
+        "bundled_models": ["example-model"],
     }
 
 
@@ -144,6 +140,23 @@ def test_invalid_local_provider_catalog_falls_back_to_bundled(
 def test_provider_catalog_rejects_plaintext_credentials(tmp_path) -> None:
     document = _override_document()
     document["products"]["example_api"]["api_key"] = "must-not-load"
+    override_path = tmp_path / "provider-catalog.yaml"
+    override_path.write_text(
+        yaml.safe_dump(document, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    catalog = load_provider_catalog(override_path)
+
+    assert catalog.source == BUNDLED_PROVIDER_CATALOG_PATH
+    assert "new_gateway" not in catalog.profiles
+
+
+def test_provider_catalog_rejects_grouped_bundled_models(tmp_path) -> None:
+    document = _override_document()
+    document["products"]["example_api"]["bundled_models"] = {
+        "legacy": ["example-model"]
+    }
     override_path = tmp_path / "provider-catalog.yaml"
     override_path.write_text(
         yaml.safe_dump(document, sort_keys=False),

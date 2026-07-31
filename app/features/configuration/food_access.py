@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from ai_runtime.food.evidence import ModelEvidenceStore
+from ai_runtime.food.evidence import query_model_evidence
 from ai_runtime.food.health import project_food_health
 from ai_runtime.food.models import FOOD_COMMON_ID, FOOD_EMERGENCY_ID
+from ai_runtime.food.resolver import MainFoodSelection
 from ai_runtime.food.store import FoodCatalog
 from app.infrastructure.persistence.food_assignments import (
+    get_elfie_main_food_id,
     get_elfie_owner_user_id,
-    get_elfie_primary_food,
     list_user_food_access,
 )
 
@@ -37,8 +38,8 @@ def elfie_food_policy_projection(
     owner_user_id: int,
     catalog: FoodCatalog,
 ) -> dict[str, Any]:
-    evidence = ModelEvidenceStore().load()
-    configured = get_elfie_primary_food(db_path, elfie_id)
+    evidence = query_model_evidence()
+    configured = get_elfie_main_food_id(db_path, elfie_id)
     visible = visible_food_keys(db_path, owner_user_id, catalog)
     options = [
         {
@@ -82,3 +83,24 @@ def resolve_elfie_food_key(
     )
     selected = str(projection["effective_main_food_id"])
     return selected or str(projection["main_food_id"]) or None
+
+
+def resolve_elfie_main_food_selection(
+    db_path: str,
+    elfie_id: str,
+    catalog: FoodCatalog,
+) -> MainFoodSelection:
+    owner_user_id = get_elfie_owner_user_id(db_path, elfie_id)
+    if owner_user_id is None:
+        return MainFoodSelection(None, unavailable=True)
+    projection = elfie_food_policy_projection(
+        db_path,
+        elfie_id,
+        owner_user_id,
+        catalog,
+    )
+    configured = str(projection["main_food_id"]) or None
+    return MainFoodSelection(
+        configured,
+        unavailable=bool(projection["main_food_unavailable"]),
+    )

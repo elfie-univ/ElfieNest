@@ -8,7 +8,6 @@ from ai_runtime.storage.provider_connections import (
     ProviderConnectionStore,
     ProviderModelRecord,
 )
-from ai_runtime.storage.runtime_config_bundle import write_runtime_config_bundle
 from ai_runtime.storage.secrets import (
     set_connection_secret,
     set_provider_secret,
@@ -46,13 +45,11 @@ class TestBuiltinProfiles:
         assert ollama.auth_type == "none"
         assert ollama.api_mode == "ollama"
 
-    def test_default_models_structure(self):
-        """每个 profile 的 default_models 包含 cheap/deep/multimodal 分类"""
+    def test_bundled_models_are_a_flat_nonempty_list(self):
+        """Bundled model candidates do not encode runtime selection groups."""
         for provider_name, profile in BUILTIN_PROFILES.items():
-            models = profile.default_models
-            assert "cheap" in models, f"{provider_name} 缺少 cheap 模型列表"
-            assert "deep" in models, f"{provider_name} 缺少 deep 模型列表"
-            assert "multimodal" in models, f"{provider_name} 缺少 multimodal 模型列表"
+            assert profile.bundled_models, f"{provider_name} 缺少内置模型列表"
+            assert len(profile.bundled_models) == len(set(profile.bundled_models))
 
 
 class TestProviderProfileHelpers:
@@ -80,23 +77,12 @@ class TestProviderProfileHelpers:
         assert get_default_api_mode("unknown_provider") == "chat_completions"
 
 
-class TestLLMRuntimeConfigBackwardCompat:
-    """LLMRuntimeConfig 向后兼容性测试"""
+class TestLLMRuntimeConfigProviderProfiles:
+    """LLMRuntimeConfig 内置 Provider 档案投影测试。"""
 
     def test_loads_old_config_without_api_mode(self, monkeypatch, tmp_path):
         """加载无 api_mode 字段的旧配置时自动补充"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        old_config = {
-            "providers": {
-                "openai": {
-                    "api_base": "https://api.openai.com/v1",
-                },
-                "ollama": {
-                    "api_base": "http://localhost:11434",
-                },
-            }
-        }
-        write_runtime_config_bundle(old_config)
         set_provider_secret("openai", "sk-test")
 
         config = LLMRuntimeConfig()
@@ -108,14 +94,6 @@ class TestLLMRuntimeConfigBackwardCompat:
         """从 BUILTIN_PROFILES 合并 api_mode"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
         # 使用默认已知的 provider (deepseek) 来测试 api_mode 合并
-        old_config = {
-            "providers": {
-                "deepseek": {
-                    "api_base": "https://api.deepseek.com/v1",
-                },
-            }
-        }
-        write_runtime_config_bundle(old_config)
         set_provider_secret("deepseek", "sk-test")
 
         config = LLMRuntimeConfig()
@@ -125,14 +103,6 @@ class TestLLMRuntimeConfigBackwardCompat:
     def test_unknown_legacy_provider_is_not_loaded(self, monkeypatch, tmp_path):
         """Provider 实例只从 providers.yaml 加载，不复活旧 runtime 配置。"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        old_config = {
-            "providers": {
-                "custom_provider": {
-                    "api_base": "https://custom.api.com/v1",
-                },
-            }
-        }
-        write_runtime_config_bundle(old_config)
         set_provider_secret("custom_provider", "test-key")
 
         config = LLMRuntimeConfig()
@@ -141,17 +111,6 @@ class TestLLMRuntimeConfigBackwardCompat:
     def test_status_defaults_based_on_api_key(self, monkeypatch, tmp_path):
         """status 根据是否有 api_key 自动设置"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        old_config = {
-            "providers": {
-                "openai": {
-                    "api_base": "https://api.openai.com/v1",
-                },
-                "deepseek": {
-                    "api_base": "https://api.deepseek.com/v1",
-                },
-            }
-        }
-        write_runtime_config_bundle(old_config)
         set_provider_secret("openai", "sk-test")
 
         config = LLMRuntimeConfig()
@@ -161,15 +120,6 @@ class TestLLMRuntimeConfigBackwardCompat:
     def test_ollama_status_always_active(self, monkeypatch, tmp_path):
         """Ollama status 始终为 active"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        old_config = {
-            "providers": {
-                "ollama": {
-                    "api_base": "http://localhost:11434",
-                },
-            }
-        }
-        write_runtime_config_bundle(old_config)
-
         config = LLMRuntimeConfig()
         assert config.providers["ollama"]["status"] == "active"
 

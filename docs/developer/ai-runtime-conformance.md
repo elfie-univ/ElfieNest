@@ -35,7 +35,7 @@
 | AR-015 | P2 | open | Provider UI differs from the agreed configured-card actions and unified add flow; bundled brand assets are missing or served from the wrong URL. | Cards expose Models, Validate, Edit and More. More owns lifecycle actions. One searchable chooser includes featured, categorized and custom products. Local assets load successfully. |
 | AR-016 | P2 | open | Provider and model catalogs are incomplete and stale, and discovery does not implement the official, ElfieNest remote, bundled local, then manual source chain. | Catalog entries identify real products and authentication modes; discovery follows the four-level precedence, preserves manual records and requires validation before food eligibility. |
 | AR-017 | P2 | open | Tool configuration advertises unavailable code and shared skill-evolution capabilities as enabled. | Phase-one defaults expose only implemented safe tools. Deferred tools are disabled and cannot be advertised to a model. Personal skills remain under the Elfie workspace. |
-| AR-018 | P1 | closed | There is no end-to-end contract test for Provider to model evidence to food to Elfie execution to emergency fallback. | A clean temporary `ELFIE_HOME` passes all 13 steps in the contract, including discovery precedence, comparison snapshots, lifecycle guards and `no_available_food`. Verified by test_contract_acceptance.py on 2026-07-30. |
+| AR-018 | P1 | in progress | A clean temporary `ELFIE_HOME` passes the focused semantic and architecture acceptance checks, and browser interaction covers Provider and food flows. The whole-repository Python gate is still failing, and screenshot-capable desktop/mobile visual review has not been completed. | A clean temporary `ELFIE_HOME` passes all 13 contract steps, including discovery precedence, comparison snapshots, lifecycle guards and `no_available_food`; Provider, matrix, food and Elfie browser acceptance has durable visual evidence; and the full quality gate passes. |
 | AR-019 | P1 | open | The cross-connection model matrix does not use report runs or provide a Validate-all workflow. | Bounded Validate-all writes one complete run; single validation appends one subject observation; current, as-of and run-specific matrix queries preserve measurement times. |
 | AR-020 | P1 | open | The food UI and planner do not implement permanent row ordering, connection-scoped generation, fresh-validation eligibility, the five-role table or dynamic package health. | Browser and API tests prove Emergency/Common ordering, scoped local-first generation, diff/manual/save flow, Primary/Reasoning/Vision/Tool/Fallback assignments and evidence-derived health, without food-level model capability fields. |
 
@@ -197,10 +197,10 @@ Gate:
 
 - all 13 contract steps pass without legacy files or fallback readers;
 - the conformance register contains no open item;
-- current code and both language mirrors agree with contract version 1.0;
+- current code and both language mirrors agree with contract version 1.1;
 - the frozen contract SHA-256 values remain
-  `f668a206a558436edc097589f23ac466a69c7296667016f08ebced759deb9045` and
-  `2db55ae541e3d4a25c3b9d1aafdddeb73f19dfc8d473b71ad2f93f9eff36f321`.
+  `da93036aeef2448cc2632e09d77af59bec31dd109dec9008a0f2e6d08209ac69` and
+  `9a5511cedfbed80abf291362b61033c25788fa4d52371e28dc7dd25b118e0fab`.
 
 Closes: AR-018 and every remaining open row.
 

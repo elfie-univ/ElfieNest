@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 
 import {
   foodVisibility,
@@ -23,6 +24,7 @@ export function FoodVisibilityDialog({
   readonly onClose: () => void
   readonly onSaved: () => void
 }) {
+  const { t } = useTranslation("manage")
   const [visibility, setVisibility] = useState<FoodVisibility | null>(null)
   const [selected, setSelected] = useState<ReadonlySet<number>>(new Set())
   const [error, setError] = useState<string | null>(null)
@@ -32,7 +34,7 @@ export function FoodVisibilityDialog({
       setVisibility(result)
       setSelected(new Set(result.user_ids))
     }).catch((reason: unknown) => {
-      setError(reason instanceof ApiError ? reason.message : "用户范围加载失败")
+      setError(reason instanceof ApiError ? reason.message : t("foodPackages.errors.visibilityLoad"))
     })
   }, [food.key])
   const save = async (): Promise<void> => {
@@ -42,20 +44,20 @@ export function FoodVisibilityDialog({
       onSaved()
       onClose()
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "用户范围没有保存")
+      setError(reason instanceof ApiError ? reason.message : t("foodPackages.errors.visibilitySave"))
     } finally {
       setSaving(false)
     }
   }
   return <ManageDialog
-    description="勾选后，该用户名下的精灵可以把此套餐设为主粮。全局默认粮和保底粮始终可用。"
+    description={t("foodPackages.visibility.description")}
     onOpenChange={(open) => { if (!open) onClose() }}
     open
-    title={`分配 ${food.display_name}`}
+    title={t("foodPackages.visibility.title", { name: food.display_name })}
   >
     {error ? <Notice kind="error" message={error} /> : null}
     <div className="food-visibility-list">
-      {visibility?.users.length === 0 ? <p className="form-hint">暂无普通用户。</p> : visibility?.users.map((user) => <label className="food-visibility-row" key={user.user_id}>
+      {visibility?.users.length === 0 ? <p className="form-hint">{t("foodPackages.visibility.empty")}</p> : visibility?.users.map((user) => <label className="food-visibility-row" key={user.user_id}>
         <Checkbox
           checked={selected.has(user.user_id)}
           disabled={saving}
@@ -70,8 +72,8 @@ export function FoodVisibilityDialog({
       </label>)}
     </div>
     <div className="manage-actions">
-      <Button disabled={saving || visibility === null} onClick={() => { void save() }} type="button">{saving ? "保存中…" : "保存分配"}</Button>
-      <Button variant="outline" disabled={saving} onClick={onClose} type="button">取消</Button>
+      <Button disabled={saving || visibility === null} onClick={() => { void save() }} type="button">{saving ? t("foodPackages.actions.saving") : t("foodPackages.actions.saveVisibility")}</Button>
+      <Button variant="outline" disabled={saving} onClick={onClose} type="button">{t("foodPackages.actions.cancel")}</Button>
     </div>
   </ManageDialog>
 }

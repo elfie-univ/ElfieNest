@@ -27,7 +27,7 @@ export function ElfieFoodPolicyDialog({
   onSaved,
 }: ElfieFoodPolicyDialogProps) {
   const { t, i18n } = useTranslation("manage")
-  const [defaultFood, setDefaultFood] = useState(elfie.food_policy.default_food)
+  const [mainFood, setMainFood] = useState(elfie.food_policy.main_food_id || elfie.food_policy.effective_main_food_id)
   const [error, setError] = useState<LocalizedErrorState>(null)
   const [saving, setSaving] = useState(false)
 
@@ -39,9 +39,7 @@ export function ElfieFoodPolicyDialog({
         "PUT",
         csrfToken,
         {
-          default_food: defaultFood,
-          allowed_foods: [defaultFood],
-          fallback_food: elfie.food_policy.fallback_food,
+          main_food_id: mainFood,
         },
       )
       await onSaved()
@@ -57,22 +55,15 @@ export function ElfieFoodPolicyDialog({
     onOpenChange={(open) => { if (!open) onClose() }}
     open
     title={t("elfieFoodPolicy.title")}
->>>>>>> origin/main
   >
     {error ? <Notice kind="error" message={resolveLocalizedError(error, currentLocale(i18n)) ?? t("errors.save")} /> : null}
     <SelectField
       disabled={saving}
       label={t("elfieFoodPolicy.fields.defaultFood")}
-      onValueChange={setDefaultFood}
-      options={elfie.food_policy.allowed_foods.map((food) => ({ label: food, value: food }))}
-      value={defaultFood}
+      onValueChange={setMainFood}
+      options={elfie.food_policy.main_food_options.map((food) => ({ label: food.display_name, value: food.food_id }))}
+      value={mainFood}
     />
-    <p className="form-hint">
-      {t("elfieFoodPolicy.hint", {
-        allowed: elfie.food_policy.allowed_foods.join(t("elfies.values.foodSeparator")),
-        fallback: elfie.food_policy.fallback_food,
-      })}
-    </p>
     <div className="manage-actions">
       <Button disabled={saving} onClick={() => { void save() }} type="button">
         {saving ? t("elfieFoodPolicy.actions.saving") : t("elfieFoodPolicy.actions.save")}

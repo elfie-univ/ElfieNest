@@ -10,7 +10,7 @@ from ai_runtime.food.store import FoodCatalog
 from app.features.configuration.food_access import resolve_elfie_food_key
 from app.infrastructure.persistence.food_assignments import (
     replace_user_food_access,
-    set_elfie_primary_food,
+    set_elfie_main_food_id,
 )
 from app.infrastructure.persistence.store import get_db, init_db
 
@@ -33,8 +33,8 @@ def test_runtime_food_resolution_tracks_current_elfie_assignment(
         )
         connection.execute(
             """
-            INSERT INTO elfie_registry (elfie_id, name, owner_user_id)
-            VALUES ('12345678', 'Elfie', ?)
+            INSERT INTO elfies (elfie_id, name, owner_user_id, species, adopted_at, status)
+            VALUES ('12345678', 'Elfie', ?, 'fox', '2026-07-31T00:00:00Z', 'offline')
             """,
             (user_id,),
         )
@@ -64,6 +64,6 @@ def test_runtime_food_resolution_tracks_current_elfie_assignment(
 
     assert resolve_elfie_food_key(db_path, "12345678", catalog) == FOOD_COMMON_ID
 
-    set_elfie_primary_food(db_path, "12345678", "food_custom")
+    set_elfie_main_food_id(db_path, "12345678", "food_custom")
 
     assert resolve_elfie_food_key(db_path, "12345678", catalog) == "food_custom"

@@ -6,7 +6,7 @@ from dataclasses import asdict, replace
 from datetime import datetime, timezone
 from typing import cast
 
-from ai_runtime.food.evidence import ModelEvidenceStore
+from ai_runtime.food.evidence import query_model_evidence, record_model_evidence
 from ai_runtime.food.models import FOOD_COMMON_ID, FOOD_EMERGENCY_ID
 from ai_runtime.food.planner import FoodPlanner, ModelEvidence
 from ai_runtime.food.store import FoodCatalogStore
@@ -17,6 +17,7 @@ from ai_runtime.storage.provider_connections import (
     ProviderConnectionStore,
     ProviderModelRecord,
 )
+from ai_runtime.storage.report_repository import ReportRepository
 from app.features.setup.progress import complete_setup_step
 from app.infrastructure.ollama_platform import (
     OllamaBinding,
@@ -35,14 +36,14 @@ class OllamaSetupService:
         adapter: OllamaPlatformAdapter,
         provider_connection_store: ProviderConnectionStore | None = None,
         food_catalog_store: FoodCatalogStore | None = None,
-        model_evidence_store: ModelEvidenceStore | None = None,
+        report_repository: ReportRepository | None = None,
     ) -> None:
         self._adapter = adapter
         self._provider_connection_store = (
             provider_connection_store or ProviderConnectionStore()
         )
         self._food_catalog_store = food_catalog_store or FoodCatalogStore()
-        self._model_evidence_store = model_evidence_store or ModelEvidenceStore()
+        self._report_repository = report_repository or ReportRepository()
 
     def detect(self) -> OllamaProbe:
         return self._adapter.probe(self._saved_binding())
@@ -221,8 +222,18 @@ class OllamaSetupService:
             local=True,
             observed_at=datetime.now(timezone.utc).isoformat(),
         )
-        self._model_evidence_store.merge((evidence,))
-        all_evidence = tuple(self._model_evidence_store.load().values())
+        record_model_evidence(
+            (evidence,),
+            repository=self._report_repository,
+            scope=f"setup:{model_reference}",
+            trigger="setup",
+        )
+        all_evidence = tuple(
+            query_model_evidence(
+                repository=self._report_repository,
+                connection_store=self._provider_connection_store,
+            ).values()
+        )
         catalog = self._food_catalog_store.load()
         packages = dict(catalog.packages)
         planner = FoodPlanner()

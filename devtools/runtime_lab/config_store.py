@@ -22,9 +22,9 @@ PROVIDER_DEFAULTS: Dict[str, Dict[str, str]] = {
     name: {
         "display_name": profile.name,
         "api_base": profile.api_base,
-        "api_mode": "ollama" if name == "ollama" else "chat_completions",
-        "test_model": profile.default_models["cheap"][0],
-        "vision_model": profile.default_models["multimodal"][0],
+        "api_mode": profile.api_mode,
+        "test_model": profile.test_model,
+        "vision_model": profile.test_model,
     }
     for name, profile in BUILTIN_PROFILES.items()
 }
@@ -184,9 +184,7 @@ class RuntimeLabConfigStore:
         }
 
     @staticmethod
-    def _resolve_model(
-        document: Dict[str, Any], model_key: str
-    ) -> tuple[str, str]:
+    def _resolve_model(document: Dict[str, Any], model_key: str) -> tuple[str, str]:
         mapping = {
             "local_fast": (
                 "ollama",

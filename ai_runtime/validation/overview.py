@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.food.evidence import ModelEvidenceStore
+from ai_runtime.food.evidence import query_model_evidence, record_model_evidence
 from ai_runtime.food.health import project_food_health
 from ai_runtime.food.planner import ModelEvidence
 from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
@@ -20,6 +20,7 @@ from ai_runtime.models.capabilities import (
 from ai_runtime.models.catalog import BUILTIN_MODEL_CATALOG
 from ai_runtime.providers.profiles import BUILTIN_PROFILES
 from ai_runtime.storage.data_home import get_model_validation_dir
+from ai_runtime.storage.report_repository import ReportRepository
 from ai_runtime.validation.models import CheckResult, CheckStatus, ValidationSuite
 from ai_runtime.validation.providers import (
     ProviderValidationRunner,
@@ -101,22 +102,24 @@ class RuntimeOverviewGenerator:
         self,
         config: LLMRuntimeConfig,
         *,
-        evidence_store: ModelEvidenceStore | None = None,
+        report_repository: ReportRepository | None = None,
         food_store: FoodCatalogStore | None = None,
     ) -> None:
         self.config = config
-        self.evidence_store = evidence_store or ModelEvidenceStore()
+        self.report_repository = report_repository or ReportRepository()
         self.food_store = food_store or FoodCatalogStore()
 
     def snapshot(self) -> dict[str, Any]:
         return build_overview(
             self.config,
-            list(self.evidence_store.load().values()),
+            list(
+                query_model_evidence(repository=self.report_repository).values()
+            ),
             self.food_store.load(),
         )
 
     def regenerate(self) -> dict[str, Any]:
-        evidence_before = self.evidence_store.load()
+        evidence_before = query_model_evidence(repository=self.report_repository)
         provider_evidence: dict[str, list[ModelEvidence]] = {}
         suites: list[ValidationSuite] = []
         provider_health: dict[str, str] = {}
@@ -203,10 +206,17 @@ class RuntimeOverviewGenerator:
             suites.append(ValidationSuite(f"provider:{provider_id}", tuple(results)))
 
         for provider_id, evidence in provider_evidence.items():
-            self.evidence_store.replace_provider(provider_id, evidence)
+            record_model_evidence(
+                evidence,
+                repository=self.report_repository,
+                scope=f"overview:{provider_id}",
+                trigger="overview",
+            )
         report = build_overview(
             self.config,
-            list(self.evidence_store.load().values()),
+            list(
+                query_model_evidence(repository=self.report_repository).values()
+            ),
             self.food_store.load(),
             provider_health=provider_health,
         )

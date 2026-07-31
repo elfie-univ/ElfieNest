@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from threading import Event, Lock, Thread
 
+from ai_runtime.food.resolver import MainFoodSelection
 from app.orchestration.runtime_adapter import (
     RuntimeRequestAbandonedError,
     SerializedRuntimeAdapter,
@@ -54,7 +55,7 @@ class FakeStructuredRuntime:
         self.requests = []
         self.capability_food_keys = []
 
-    def structured_capabilities(self, food_key=None):
+    def structured_capabilities(self, food_key=None, food_unavailable=False):
         self.capability_food_keys.append(food_key)
         return self._capabilities
 
@@ -124,6 +125,21 @@ def test_adapter_resolves_elfie_food_for_each_generation():
         "food_primary",
         "food_updated",
     ]
+
+
+def test_adapter_preserves_main_food_unavailability_and_workspace():
+    runtime = FakeStructuredRuntime(_schema_capabilities())
+    adapter = SerializedRuntimeAdapter(
+        runtime,
+        food_key_resolver=lambda: MainFoodSelection("food_primary", unavailable=True),
+        elfie_workspace_resolver=lambda: "/tmp/elfie-workspace",
+    )
+
+    adapter.generate(_request())
+
+    assert runtime.requests[0].food_key == "food_primary"
+    assert runtime.requests[0].food_unavailable is True
+    assert runtime.requests[0].elfie_workspace == "/tmp/elfie-workspace"
 
 
 def test_adapter_uses_json_text_for_plain_runtime():

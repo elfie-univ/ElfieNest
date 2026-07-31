@@ -36,14 +36,6 @@ class FoodCatalog:
     def recipes(self) -> Mapping[str, FoodPackage]:
         return self.packages
 
-    @property
-    def default_food(self) -> str:
-        return self.global_default_food_id
-
-    @property
-    def fallback_food(self) -> str:
-        return self.global_emergency_food_id
-
     def ordered_packages(self) -> tuple[FoodPackage, ...]:
         ordered = [
             self.packages[food_id]

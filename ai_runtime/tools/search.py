@@ -21,11 +21,13 @@ class WebSearchPlugin:
         api_base: str = "",
         api_key: str = "",
         max_results: int = 3,
+        timeout_seconds: float = 5.0,
     ):
         self.provider = provider
         self.api_base = api_base
         self.api_key = api_key
         self.max_results = max(1, min(int(max_results), 10))
+        self.timeout_seconds = max(0.1, min(float(timeout_seconds), 30.0))
         # 默认的 Mock 检索库，以备网络不可用或无 API Key 时使用
         self._mock_database = {
             "elfie": "Elfie 仿生生命体是新一代智能宠物系统，采用三层大脑架构（顶层认知、中层生理情绪记忆、底层感知驱动）结合算力底座，具有生命涌现感。",
@@ -42,6 +44,7 @@ class WebSearchPlugin:
             api_base=str(config.get("api_base") or ""),
             api_key=str(config.get("api_key") or ""),
             max_results=int(config.get("max_results") or 3),
+            timeout_seconds=float(config.get("timeout_seconds") or 5.0),
         )
 
     def search(self, query: str, max_results: int | None = None) -> str:
@@ -84,7 +87,7 @@ class WebSearchPlugin:
                 "X-Subscription-Token": self.api_key,
             },
         )
-        with urllib.request.urlopen(request, timeout=8) as response:
+        with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
             payload = json.loads(response.read().decode("utf-8"))
         return [
             {
@@ -108,7 +111,7 @@ class WebSearchPlugin:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(request, timeout=8) as response:
+        with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
             payload = json.loads(response.read().decode("utf-8"))
         return [
             {
@@ -128,7 +131,7 @@ class WebSearchPlugin:
         url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
         req = urllib.request.Request(url, headers=headers)
 
-        with urllib.request.urlopen(req, timeout=5) as response:
+        with urllib.request.urlopen(req, timeout=self.timeout_seconds) as response:
             html = response.read().decode("utf-8")
 
         # 使用极简规则从 HTML 中解析标题和 Snippet（避免引入 bs4 额外依赖）

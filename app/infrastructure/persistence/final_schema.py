@@ -1,4 +1,4 @@
-"""Inactive builder for the final eight-table root ``nest.db`` contract."""
+"""Builder for the final root ``nest.db`` contract."""
 
 from __future__ import annotations
 
@@ -117,11 +117,14 @@ _TABLE_STATEMENTS: Final = (
         species TEXT NOT NULL CHECK(length(trim(species))>0), gender TEXT, birth_date TEXT,
         adopted_at TEXT NOT NULL, bed_number INTEGER CHECK(bed_number IS NULL OR bed_number BETWEEN 1 AND 32),
         status TEXT NOT NULL CHECK(status IN ('online','away','offline')), summary TEXT,
-        main_food TEXT, emergency_food TEXT,
-        other_foods_json TEXT NOT NULL DEFAULT '[]'
-            CHECK(json_valid(other_foods_json) AND json_type(other_foods_json)='array'),
-        food_updated_at TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        main_food_id TEXT CHECK(main_food_id IS NULL OR length(trim(main_food_id)) > 0),
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )""",
+    """CREATE TABLE IF NOT EXISTS food_package_access (
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        food_key TEXT NOT NULL CHECK(length(trim(food_key)) > 0),
+        PRIMARY KEY(user_id, food_key)
     )""",
     """CREATE TABLE IF NOT EXISTS external_bodies (
         body_id TEXT PRIMARY KEY, owner_elfie_id TEXT NOT NULL REFERENCES elfies(elfie_id),
@@ -157,6 +160,7 @@ _INDEX_STATEMENTS: Final = (
     "CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_local_installations_owner ON local_installations(owner_user_id)",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_elfies_bed_number ON elfies(bed_number) WHERE bed_number IS NOT NULL",
+    "CREATE INDEX IF NOT EXISTS idx_food_package_access_food ON food_package_access(food_key)",
     "CREATE INDEX IF NOT EXISTS idx_device_audit_events_body ON device_audit_events(body_id)",
 )
 

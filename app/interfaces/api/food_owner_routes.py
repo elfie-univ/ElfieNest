@@ -8,7 +8,7 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from ai_runtime.food.evidence import ModelEvidenceStore
+from ai_runtime.food.evidence import query_model_evidence
 from ai_runtime.food.health import project_food_health
 from ai_runtime.food.models import (
     FOOD_EMERGENCY_ID,
@@ -33,8 +33,8 @@ router = APIRouter(
 )
 
 
-def _stores() -> tuple[FoodCatalogStore, ModelEvidenceStore]:
-    return FoodCatalogStore(), ModelEvidenceStore()
+def _stores() -> tuple[FoodCatalogStore, dict[str, Any]]:
+    return FoodCatalogStore(), query_model_evidence()
 
 
 @router.get("/")
@@ -42,8 +42,8 @@ async def list_foods(
     owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
-    store, evidence_store = _stores()
-    return _catalog_view(store.load(), evidence_store.load())
+    store, evidence = _stores()
+    return _catalog_view(store.load(), evidence)
 
 
 @router.post("/", status_code=201)
@@ -52,7 +52,7 @@ async def create_food(
     owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
-    store, evidence_store = _stores()
+    store, evidence = _stores()
     current = store.load()
     key = _new_food_key(current)
     package = _parse_package(key, body, default_enabled=False)
@@ -60,10 +60,10 @@ async def create_food(
         current,
         packages={**current.packages, key: package},
     )
-    _save_checked(store, updated, evidence_store.load())
+    _save_checked(store, updated, evidence)
     return {
-        "food": _package_view(package, evidence_store.load()),
-        "catalog": _catalog_view(updated, evidence_store.load()),
+        "food": _package_view(package, evidence),
+        "catalog": _catalog_view(updated, evidence),
     }
 
 
@@ -74,7 +74,7 @@ async def edit_food(
     owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
-    store, evidence_store = _stores()
+    store, evidence = _stores()
     current = store.load()
     existing = _require_package(current, food_id)
     package = _parse_package(
@@ -88,7 +88,6 @@ async def edit_food(
         current,
         packages={**current.packages, food_id: package},
     )
-    evidence = evidence_store.load()
     _save_checked(store, updated, evidence)
     return {"food": _package_view(package, evidence), "warnings": []}
 
@@ -100,7 +99,7 @@ async def preview_food_generation(
     owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
-    store, evidence_store = _stores()
+    store, evidence = _stores()
     package = _require_package(store.load(), food_id)
     raw_scope = body.get("connection_ids", [])
     if not isinstance(raw_scope, list) or any(
@@ -111,7 +110,7 @@ async def preview_food_generation(
     allow_remote = bool(body.get("allow_remote", package.key != FOOD_EMERGENCY_ID))
     proposal = FoodPlanner().propose_package(
         package,
-        tuple(evidence_store.load().values()),
+        tuple(evidence.values()),
         connection_ids=tuple(raw_scope),
         local_first=local_first,
         allow_remote=allow_remote,
@@ -179,7 +178,7 @@ async def delete_food(
     _ = owner
     if food_id in SYSTEM_FOOD_IDS:
         raise HTTPException(status_code=409, detail="系统粮食不能删除")
-    store, evidence_store = _stores()
+    store, evidence = _stores()
     current = store.load()
     package = _require_package(current, food_id)
     if not package.archived:
@@ -191,7 +190,7 @@ async def delete_food(
     del packages[food_id]
     updated = replace(current, packages=packages)
     store.save(updated)
-    return _catalog_view(updated, evidence_store.load())
+    return _catalog_view(updated, evidence)
 
 
 @router.get("/{food_id}/visibility")
@@ -258,12 +257,12 @@ async def rollback_foods(
     _ = owner
     if body.get("confirm") is not True:
         raise HTTPException(status_code=409, detail="必须明确确认回滚")
-    store, evidence_store = _stores()
+    store, evidence = _stores()
     try:
         catalog = store.rollback_latest()
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return _catalog_view(catalog, evidence_store.load())
+    return _catalog_view(catalog, evidence)
 
 
 def _set_lifecycle(
@@ -272,7 +271,7 @@ def _set_lifecycle(
     enabled: bool,
     archived: bool | None = None,
 ) -> dict[str, Any]:
-    store, evidence_store = _stores()
+    store, evidence = _stores()
     current = store.load()
     package = _require_package(current, food_id)
     if package.archived and enabled:
@@ -287,7 +286,7 @@ def _set_lifecycle(
         packages={**current.packages, food_id: updated_package},
     )
     store.save(updated)
-    return _package_view(updated_package, evidence_store.load())
+    return _package_view(updated_package, evidence)
 
 
 def _parse_package(

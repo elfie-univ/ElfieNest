@@ -9,13 +9,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { ClientUser } from "../api/client"
 import { createI18n } from "../i18n/config"
 import { initializeLocale } from "../i18n/locale"
-import { ownerProviders } from "../api/owner-providers"
+import { ownerProviderConnections } from "../api/owner-providers"
 import {
   ownerFoods,
   type FoodCatalog,
-  type FoodRecipe,
+  type FoodPackage,
 } from "../api/owner-foods"
-import { FoodRoleTable } from "./FoodRoleTable"
 import { ManageSidebar } from "./ManageSidebar"
 import { OwnerFoodPanel } from "./OwnerFoodPanel"
 
@@ -31,39 +30,28 @@ vi.mock("../api/owner-providers", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/owner-providers")>()
   return {
     ...original,
-    ownerProviders: vi.fn(),
+    ownerProviderConnections: vi.fn(),
   }
 })
-
-const profile = {
-  model: "ollama/primary",
-  reasoning_profile: "balanced",
-  max_tokens: 1500,
-  temperature: 0.7,
-  tools: [],
-  provider_options: {},
-}
 
 const food = {
   key: "standard",
   display_name: "标准粮",
-  description: "日常默认",
-  primary: profile,
-  deep: null,
-  verifier: null,
-  technical_fallbacks: [],
-  validation_status: "passed",
-  source: "manual",
-  locked_fields: [],
-} satisfies FoodRecipe
+  system_role: "common",
+  enabled: true,
+  archived: false,
+  roles: { primary: { model: "ollama/primary" }, reasoning: null, vision: null, tool: null, fallback: [] },
+  health: "passed",
+  locality: "local",
+  latest_evidence_at: null,
+} satisfies FoodPackage
 
 const catalog = {
   version: 2,
-  source_fingerprint: "current",
-  generated_at: "2026-07-26T00:00:00Z",
-  generation_sources: ["manual"],
-  generation_note: "",
-  foods: { standard: food },
+  global_default_food_id: "standard",
+  global_emergency_food_id: "emergency",
+  packages: [food],
+  eligible_models: [],
 } satisfies FoodCatalog
 
 const ownerUser = {
@@ -84,7 +72,7 @@ describe("Manage shared controls", () => {
 
   beforeEach(() => {
     vi.mocked(ownerFoods).mockResolvedValue(catalog)
-    vi.mocked(ownerProviders).mockResolvedValue([])
+    vi.mocked(ownerProviderConnections).mockResolvedValue([])
   })
 
   it("renders small shared actions and select group labels as accessible controls", () => {
@@ -155,11 +143,11 @@ describe("Manage shared controls", () => {
       </I18nextProvider>,
     )
 
-    const foodTable = await screen.findByRole("table", { name: "粮食策略" })
-    expect(within(foodTable).getByRole("columnheader", { name: "验证状态" })).toBeInTheDocument()
+    const foodTable = await screen.findByRole("table", { name: "粮食套餐" })
+    expect(within(foodTable).getAllByRole("columnheader", { name: "状态" }).length).toBeGreaterThan(0)
 
-    render(<FoodRoleTable food={food} />)
-    const roleTable = screen.getByRole("table", { name: "标准粮角色配置" })
-    expect(within(roleTable).getByRole("rowheader", { name: "主模型" })).toBeInTheDocument()
+    const roleTable = screen.getAllByRole("table", { name: "标准粮角色配置" })[0]
+    if (roleTable === undefined) throw new Error("Expected a rendered food role table")
+    expect(within(roleTable).getByRole("rowheader", { name: "Primary" })).toBeInTheDocument()
   })
 })

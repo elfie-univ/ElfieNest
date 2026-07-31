@@ -13,7 +13,7 @@ from ai_runtime.food.models import (
 from ai_runtime.food.store import FoodCatalog
 from app.infrastructure.persistence.food_assignments import (
     replace_food_access_users,
-    set_elfie_primary_food,
+    set_elfie_main_food_id,
 )
 from app.infrastructure.persistence.store import get_db, init_db
 from app.interfaces.api.app import create_app
@@ -32,8 +32,8 @@ def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     with get_db(db_path) as connection:
         connection.execute(
             """
-            INSERT INTO elfie_registry (elfie_id, name, owner_user_id)
-            VALUES ('elfie_00000001', 'Test Elfie', ?)
+            INSERT INTO elfies (elfie_id, name, owner_user_id, species, adopted_at, status)
+            VALUES ('00000001', 'Test Elfie', ?, 'fox', '2026-07-31T00:00:00Z', 'offline')
             """,
             (user_id,),
         )
@@ -98,7 +98,7 @@ def test_custom_food_lifecycle_and_guarded_delete(client: TestClient) -> None:
     food_id = created.json()["food"]["key"]
     user_id = int(client.app.state.test_user_id)
     replace_food_access_users(client.app.state.db_path, food_id, (user_id,))
-    set_elfie_primary_food(client.app.state.db_path, "elfie_00000001", food_id)
+    set_elfie_main_food_id(client.app.state.db_path, "00000001", food_id)
 
     archived = client.post(
         f"/api/owner/runtime/foods/{food_id}/archive",
@@ -113,8 +113,8 @@ def test_custom_food_lifecycle_and_guarded_delete(client: TestClient) -> None:
     replace_food_access_users(client.app.state.db_path, food_id, ())
     with get_db(client.app.state.db_path) as connection:
         connection.execute(
-            "DELETE FROM elfie_food_preferences WHERE elfie_id = ?",
-            ("elfie_00000001",),
+            "UPDATE elfies SET main_food_id = NULL WHERE elfie_id = ?",
+            ("00000001",),
         )
         connection.commit()
     deleted = client.delete(

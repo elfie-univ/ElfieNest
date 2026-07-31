@@ -5,6 +5,8 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
+from ai_runtime.food.resolver import MainFoodSelection
+from ai_runtime.storage.data_home import get_elfie_workspace_dir
 from app.orchestration.nest_session import NestSession
 from app.orchestration.runtime_adapter import SerializedRuntimeAdapter
 from app.orchestration.runtime_gateway import RuntimeGateway
@@ -32,7 +34,8 @@ class ElfieNestEngine:
         max_elfies_per_room: Optional[int] = None,
         api_server: RuntimeGateway | None = None,
         nest_repository: NestRepository | None = None,
-        food_key_resolver: Callable[[str], str | None] | None = None,
+        food_key_resolver: Callable[[str], MainFoodSelection | None] | None = None,
+        elfie_workspace_resolver: Callable[[str], str | None] | None = None,
     ):
         """初始化引擎。
 
@@ -45,6 +48,10 @@ class ElfieNestEngine:
         """
         self.tick_interval_sec = tick_interval_sec
         self._food_key_resolver = food_key_resolver or (lambda _elfie_id: None)
+        self._elfie_workspace_resolver = (
+            elfie_workspace_resolver
+            or (lambda elfie_id: str(get_elfie_workspace_dir(elfie_id)))
+        )
 
         # 1. 实例化核心组件
         self.nest = Nest(NestConfig(max_residents=max_elfies_per_room))
@@ -112,6 +119,9 @@ class ElfieNestEngine:
             lambda elfie_id: SerializedRuntimeAdapter(
                 runtime_agent,
                 food_key_resolver=lambda: self._food_key_resolver(elfie_id),
+                elfie_workspace_resolver=lambda: self._elfie_workspace_resolver(
+                    elfie_id
+                ),
             )
         )
         self.session.start_elfies()

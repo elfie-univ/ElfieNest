@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import pytest
 
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.food.evidence import ModelEvidenceStore
+from ai_runtime.food.evidence import query_model_evidence, record_model_evidence
 from ai_runtime.food.executor import NoAvailableFoodError
 from ai_runtime.food.models import (
     FOOD_COMMON_ID,
@@ -24,16 +24,8 @@ from ai_runtime.storage.provider_connections import (
     ProviderModelRecord,
 )
 from ai_runtime.storage.report_repository import ReportRepository
-from ai_runtime.storage.runtime_config_bundle import write_runtime_config_bundle
+from ai_runtime.storage.runtime_settings import write_runtime_settings
 from ai_runtime.storage.secrets import set_connection_secret
-from app.features.configuration.food_access import (
-    elfie_food_policy_projection,
-    resolve_elfie_food_key,
-)
-from app.infrastructure.persistence.food_assignments import (
-    replace_food_access_users,
-    set_elfie_primary_food,
-)
 from app.infrastructure.persistence.store import get_db, init_db
 
 
@@ -100,17 +92,18 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
         "tool": f"{remote_a.connection_id}/tool",
         "backup": f"{remote_a.connection_id}/backup",
     }
-    evidence_store = ModelEvidenceStore()
-    evidence_store.merge(
+    record_model_evidence(
         [
             _evidence(refs["local"], {"text"}, local=True),
             _evidence(refs["main"], {"text"}),
             _evidence(refs["reason"], {"text", "reasoning"}),
             _evidence(refs["tool"], {"text", "tools"}),
             _evidence(refs["backup"], {"text"}),
-        ]
+        ],
+        scope="contract-acceptance",
+        trigger="test",
     )
-    evidence = tuple(evidence_store.load().values())
+    evidence = tuple(query_model_evidence().values())
 
     emergency_preview = FoodPlanner().propose_package(
         initial.packages[FOOD_EMERGENCY_ID],
@@ -170,16 +163,25 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
         )
         connection.execute(
             """
-            INSERT INTO elfies (elfie_id, name, owner_user_id, species, adopted_at, status, main_food, other_foods_json)
-            VALUES ('00000001', 'Test Elfie', ?, 'default', CURRENT_TIMESTAMP, 'online', ?, '[]')
+            INSERT INTO elfies (elfie_id, name, owner_user_id, species, adopted_at, status, main_food_id)
+            VALUES ('00000001', 'Test Elfie', ?, 'default', CURRENT_TIMESTAMP, 'online', ?)
             """,
             (user_id, custom_id),
         )
         connection.commit()
-    
     workspace = tmp_path / "elfies" / "00000001"
     workspace.mkdir(parents=True)
     (workspace / "note.txt").write_text("knowledge " * 3000, encoding="utf-8")
+    write_runtime_settings(
+        {
+            "runtime_policy": {
+                "tools": {
+                    "web_search": {"enabled": False},
+                    "local_file": {"enabled": True},
+                }
+            }
+        }
+    )
     agent = RuntimeAgent(LLMRuntimeConfig(), live_reload=True)
     calls: list[str] = []
 
@@ -214,12 +216,12 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
     assert reasoning.actual_model == refs["backup"]
     assert reasoning.execution_stage == "fallback_1"
     assert fallback.actual_model == refs["backup"]
-    assert tool.text == "[READ_FILE]note.txt[/READ_FILE]"
-    assert calls.count("tool") >= 1
+    assert tool.text == "ok:tool"
+    assert calls.count("tool") >= 2
 
     provider_bytes = get_provider_config_path().read_bytes()
     food_bytes = get_food_catalog_path().read_bytes()
-    write_runtime_config_bundle(
+    write_runtime_settings(
         {
             "runtime_policy": {
                 "tools": {

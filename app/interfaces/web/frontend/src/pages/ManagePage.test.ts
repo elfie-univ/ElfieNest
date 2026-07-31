@@ -127,6 +127,7 @@ describe("ManagePage", () => {
     const originalUrl = window.location.href
 
     await user.click(screen.getByRole("button", { name: /阿尔法/ }))
+    await user.click(screen.getByRole("button", { name: /语言/ }))
     await user.click(screen.getByRole("combobox", { name: "语言" }))
     await user.click(screen.getByRole("option", { name: "English" }))
 

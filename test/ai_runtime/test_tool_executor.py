@@ -34,6 +34,13 @@ class FakePermissionManager:
 
 
 @dataclass
+class DenyingPermissionManager(FakePermissionManager):
+    def verify_action(self, action: str, file_path: str, token: str | None = None) -> None:
+        super().verify_action(action, file_path, token)
+        raise PermissionError("policy denied")
+
+
+@dataclass
 class FakeSkillsPlugin:
     skill_name: str = ""
     skill_args: str = ""
@@ -191,3 +198,76 @@ def test_tool_executor_handles_controlled_local_file_access():
     assert list_result is not None
     assert list_result.tool_name == "local_file_list"
     assert "one.txt" in list_result.content
+    assert "notes/probe.txt" not in read_result.content
+    assert "notes" not in list_result.content
+    assert "path" not in read_result.metadata
+    assert "path" not in list_result.metadata
+
+
+def test_tool_executor_requires_runtime_request_and_safe_implementation_intersection():
+    executor, search, _, _, _ = make_executor(("web_search",))
+    executor.context = ToolExecutionContext(
+        allowed_skills=("web_search",),
+        runtime_enabled_tools=(),
+        search_plugin=search,
+        permission_manager=FakePermissionManager(),
+    )
+
+    assert executor.execute("[SEARCH]ElfieNest[/SEARCH]") is None
+    assert search.query == ""
+
+
+def test_tool_executor_still_refuses_unsafe_tools_when_all_callers_request_them():
+    executor, _, sandbox, _, permission = make_executor(("code_sandbox",))
+    executor.context = ToolExecutionContext(
+        allowed_skills=("code_sandbox",),
+        runtime_enabled_tools=("code_sandbox",),
+        search_plugin=FakeSearchPlugin(),
+        permission_manager=permission,
+    )
+
+    assert executor.execute("[CODE]print(2 + 2)[/CODE]") is None
+    assert sandbox.code == ""
+    assert permission.action == ""
+
+
+def test_tool_executor_returns_safe_feedback_when_permission_denies_a_tool():
+    search = FakeSearchPlugin()
+    permission = DenyingPermissionManager()
+    executor = ToolExecutor(
+        ToolExecutionContext(
+            allowed_skills=("web_search",),
+            search_plugin=search,
+            permission_manager=permission,
+        )
+    )
+
+    result = executor.execute("[SEARCH]ElfieNest[/SEARCH]")
+
+    assert result is not None
+    assert result.ok is False
+    assert result.metadata["error_type"] == "PermissionError"
+    assert search.query == ""
+
+
+def test_tool_executor_enforces_the_total_result_budget_across_tool_calls():
+    search = FakeSearchPlugin()
+    executor = ToolExecutor(
+        ToolExecutionContext(
+            allowed_skills=("web_search",),
+            search_plugin=search,
+            permission_manager=FakePermissionManager(),
+            max_total_result_bytes=len(b"Search result"),
+            tool_configs={"web_search": {"max_result_bytes": 100}},
+        )
+    )
+
+    first = executor.execute("[SEARCH]first[/SEARCH]")
+    second = executor.execute("[SEARCH]second[/SEARCH]")
+
+    assert first is not None
+    assert first.ok is True
+    assert second is not None
+    assert second.ok is False
+    assert second.metadata["limit"] == "total_result_bytes"
+    assert search.query == "first"

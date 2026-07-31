@@ -10,6 +10,7 @@ from devtools.elfie_lab.runtime_adapters import (
     default_runtime_config_dir,
 )
 from devtools.runtime_lab import RuntimeLabConfigStore
+from devtools.runtime_lab.config_store import PROVIDER_DEFAULTS
 
 
 def _write_foods(root):
@@ -69,6 +70,17 @@ def test_elfie_lab_runtime_adapter_defaults_to_developer_root(tmp_path, monkeypa
 
     assert config_dir == str(developer_home / "runtime_lab")
     assert config_dir != str(production_home)
+
+
+def test_runtime_lab_defaults_use_the_catalog_test_model_for_vision(tmp_path):
+    # Given: the Runtime Lab builds its isolated default document from the Provider catalog.
+    store = RuntimeLabConfigStore(str(tmp_path / "runtime_lab"))
+
+    # When: the document is materialized without any manual provider configuration.
+    document = store.default_document()
+
+    # Then: its vision slot keeps a current catalog model instead of the retired role map.
+    assert document["multimodal_model"] == PROVIDER_DEFAULTS["ollama"]["test_model"]
 
 
 def test_provider_configuration_separates_secret_and_non_secret_data(tmp_path):

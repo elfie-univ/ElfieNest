@@ -40,6 +40,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 logging.basicConfig(level=logging.WARNING, format="%(message)s")
 
 from ai_runtime import LLMRuntimeConfig
+from ai_runtime.gateway.request import (
+    StructuredRuntimeCapabilities,
+    StructuredRuntimeRequest,
+    StructuredRuntimeResult,
+)
 from ai_runtime.storage.data_home import (
     DataHomeSelectionError,
     get_db_path,
@@ -48,6 +53,7 @@ from ai_runtime.storage.data_home import (
     select_elfie_home,
 )
 from app.features.adoption.generator import ElfieGenerator
+from app.features.configuration.food_access import resolve_elfie_main_food_selection
 from app.infrastructure.persistence.account_repository import AccountRepository
 from app.infrastructure.persistence.elfie_repository import ElfieRepository
 from app.infrastructure.persistence.nest_state_repository import (
@@ -93,7 +99,7 @@ class FallbackAgent:
 
     config = MockConfig()
 
-    def ask(self, prompt, energy=100, task_complexity=1):
+    def ask(self, prompt, energy=100, task_complexity=1, allowed_skills=None):
         import random  # noqa: PLC0415
 
         prompt_lower = prompt.lower()
@@ -134,6 +140,31 @@ class FallbackAgent:
             "I am here with you, and I like hearing what you think. [ACTION]nod_head[/ACTION]",
         ]
         return random.choice(replies)
+
+    def structured_capabilities(
+        self,
+        food_key=None,
+        food_unavailable=False,
+    ) -> StructuredRuntimeCapabilities:
+        """Expose the deterministic fallback through Brain's Runtime contract."""
+        return StructuredRuntimeCapabilities(
+            provider="fallback",
+            model_key="fallback/local",
+            supports_json_schema=False,
+            supports_tool_calling=False,
+            supports_json_mode=False,
+            supports_plain_text=True,
+            max_output_tokens=512,
+        )
+
+    def generate_structured(
+        self,
+        request: StructuredRuntimeRequest,
+    ) -> StructuredRuntimeResult:
+        """Return a deterministic fallback turn without advertising tools."""
+        return request.to_result(
+            text=self.ask(request.prompt, allowed_skills=[]),
+        )
 
 
 def remaining_occupied_ports(
@@ -455,17 +486,14 @@ def main():
             try:
                 from ai_runtime import RuntimeAgent  # noqa: PLC0415
                 from app.bootstrap.runtime_food import (  # noqa: PLC0415
-                    final_food_policy_loader,
+                    final_main_food_loader,
                 )
 
                 raw_agent = RuntimeAgent(
                     config,
                     live_reload=True,
-                    food_policy_loader=final_food_policy_loader(db_path),
+                    main_food_loader=final_main_food_loader(db_path),
                 )
-                # Ask the self-healing manager to reuse or start Ollama.
-                raw_agent.ollama_manager.ensure_service_started()
-
                 runtime_agent = raw_agent
                 print(
                     "  ✅ Runtime connected, will select local or cloud models via food policy"
@@ -485,8 +513,8 @@ def main():
                         print(f"  ⚠️  Model warm-up error: {e}")
 
                 threading.Thread(target=_warmup, daemon=True).start()
-            except Exception:
-                pass
+            except Exception as error:  # noqa: BLE001
+                print(f"  ⚠️  Runtime initialization failed: {error}")
 
         if runtime_agent is None:
             runtime_agent = FallbackAgent()
@@ -506,7 +534,7 @@ def main():
             nest_repository=SQLiteNestStateRepository(db_path),
             food_key_resolver=(
                 lambda elfie_id: (
-                    resolve_elfie_food_key(
+                    resolve_elfie_main_food_selection(
                         db_path,
                         elfie_id,
                         runtime_agent.food_catalog_store.load(),

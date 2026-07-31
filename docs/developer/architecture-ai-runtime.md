@@ -1,7 +1,7 @@
 # AI Runtime design contract
 
-**Contract version:** 1.0  
-**Frozen on:** 2026-07-30
+**Contract version:** 1.1
+**Frozen on:** 2026-07-31
 
 > **Normative authority.** This document is the single design authority for the
 > ElfieNest AI Runtime. Code, APIs, UI, persistence and tests must conform to it.
@@ -423,6 +423,7 @@ the same prompts, scoring method and execution conditions for every candidate.
 flowchart LR
   SK["Elfie skills"] --> AL["Requested allowed tools"]
   GC["Global tools.yaml"] --> IX["Authorization intersection"]
+  IR["Implemented safe-tool registry"] --> IX
   AL --> IX
   PM["Safety permissions"] --> IX
   IX --> TL["Runtime tool loop"]
@@ -443,7 +444,8 @@ implemented. Disabled tools are not advertised to a model.
 
 There is one global tool configuration surface in phase one and no per-Elfie
 switch UI. The effective tool set is the intersection of globally enabled
-tools, the Elfie's internal skill request and safety permissions. Skills live
+tools, the Elfie's internal skill request, the implemented safe-tool registry
+and a per-invocation safety permission decision. Skills live
 under `elfies/<elfie_id>/skills/`; shared tool implementations live in
 `ai_runtime/tools/`. Tools never live in food configuration.
 
@@ -452,8 +454,9 @@ request. Read-only file access is confined to that workspace plus explicitly
 approved shared asset roots; it cannot read another Elfie's workspace,
 credentials, reports or Runtime state.
 
-Every tool defines timeout, item and byte limits. The executor wraps output in a
-bounded result envelope with `truncated`, original size and retained size.
+Every tool defines timeout, item and byte limits. The shared normal/structured
+tool loop also enforces one total byte and call budget. The executor wraps output
+in a bounded result envelope with `truncated`, original size and retained size.
 Secrets, paths outside the allowed root and unsafe command capabilities never
 reach the model. Tool calls, decisions, duration and truncation are observed in
 sanitized form.
@@ -511,7 +514,7 @@ Each file has exactly one typed owner:
 | Tool settings | `configs/tools.yaml` |
 | Food definitions and global default/emergency IDs | `configs/food-packages.yaml` |
 | User-to-food grants | `nest.db.food_package_access` |
-| Elfie primary food ID | `nest.db.elfie_food_preferences` |
+| Elfie main-food ID | `nest.db.elfies.main_food_id` |
 | Validation runs and immutable observations | `reports/ai-runtime.sqlite` |
 | Current, as-of and cross-connection reports | SQL projections from `reports/ai-runtime.sqlite` |
 | Derived planner evidence and food health | configured inventory joined with the report database |
@@ -578,12 +581,17 @@ tools:
     provider: duckduckgo
     max_results: 3
     max_result_bytes: 16000
+    timeout_seconds: 5
+    max_tool_calls: 3
+    max_total_result_bytes: 48000
   local_file:
     enabled: true
     root_policy: elfie_workspace
     max_read_bytes: 65536
-  code_sandbox:
-    enabled: false
+    max_items: 200
+    max_result_bytes: 16000
+    max_tool_calls: 3
+    max_total_result_bytes: 48000
 ```
 
 Schema models in code remain the machine-readable contract. These examples

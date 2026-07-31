@@ -39,9 +39,13 @@ const elfie = {
     embodiment: { state: "at_nest" },
   },
   food_policy: {
-    default_food: "standard",
-    allowed_foods: ["standard", "focus"],
-    fallback_food: "coarse",
+    main_food_id: "standard",
+    effective_main_food_id: "standard",
+    main_food_options: [
+      { food_id: "standard", display_name: "标准粮" },
+      { food_id: "focus", display_name: "专注粮" },
+    ],
+    main_food_unavailable: false,
   },
   created_at: "2026-07-26T00:00:00Z",
 } satisfies OwnerElfie
@@ -102,8 +106,6 @@ describe("OwnerElfieOverview", () => {
       "ID",
       "床位号",
       "主粮",
-      "紧急粮",
-      "其他粮",
       "简介",
     ])
     expect(card.getAllByText("未登记")).toHaveLength(2)
@@ -111,7 +113,7 @@ describe("OwnerElfieOverview", () => {
     expect(card.getByText("未分配")).toBeInTheDocument()
     expect(card.getByText("暂无简介")).toBeInTheDocument()
     expect(card.getByText("00000001")).toBeInTheDocument()
-    expect(card.getByText("focus")).toBeInTheDocument()
+    expect(card.getByText("标准粮")).toBeInTheDocument()
   })
 
   it("edits food policy inline without making identity fields editable", async () => {
@@ -129,9 +131,7 @@ describe("OwnerElfieOverview", () => {
       "PUT",
       "csrf",
       {
-        default_food: "standard",
-        allowed_foods: ["standard", "focus"],
-        fallback_food: "coarse",
+        main_food_id: "standard",
       },
     )
   })
@@ -160,7 +160,7 @@ describe("OwnerElfieOverview", () => {
     expect(screen.getByText("星尘")).toBeInTheDocument()
     expect(screen.getByText("00000001")).toBeInTheDocument()
     expect(screen.getByText("dog")).toBeInTheDocument()
-    expect(screen.getByText("standard")).toBeInTheDocument()
+    expect(screen.getByText("标准粮")).toBeInTheDocument()
   })
 
   it("preserves the selected Elfie and food edit state when locale changes", async () => {
@@ -177,7 +177,7 @@ describe("OwnerElfieOverview", () => {
     // Then: the same card stays in edit mode with its selection unchanged.
     expect(screen.getAllByRole("combobox", { name: "Staple food" })).toHaveLength(2)
     expect(screen.getByRole("button", { name: "Save 星尘" })).toBeInTheDocument()
-    expect(screen.getByText("standard")).toBeInTheDocument()
+    expect(screen.getByText("标准粮")).toBeInTheDocument()
   })
 
   it("hides backend load detail behind the English demo fallback", async () => {

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from dataclasses import dataclass
 
@@ -38,9 +37,6 @@ class InterfaceElfieRecord:
     bed_number: int | None
     status: str
     summary: str | None
-    main_food: str | None
-    emergency_food: str | None
-    other_foods: tuple[str, ...]
 
 
 class InterfaceQueryRepository:
@@ -143,8 +139,7 @@ FROM users
 _ELFIE_SELECT = """
 SELECT elfies.elfie_id,elfies.name,elfies.owner_user_id,users.username AS owner_username,
        elfies.species,elfies.gender,elfies.birth_date,elfies.adopted_at,
-       elfies.bed_number,elfies.status,elfies.summary,elfies.main_food,
-       elfies.emergency_food,elfies.other_foods_json
+       elfies.bed_number,elfies.status,elfies.summary
 FROM elfies JOIN users ON users.id=elfies.owner_user_id
 """
 
@@ -175,11 +170,6 @@ def _elfie_record(row: sqlite3.Row) -> InterfaceElfieRecord:
         bed_number=None if row["bed_number"] is None else int(row["bed_number"]),
         status=str(row["status"]),
         summary=None if row["summary"] is None else str(row["summary"]),
-        main_food=None if row["main_food"] is None else str(row["main_food"]),
-        emergency_food=(
-            None if row["emergency_food"] is None else str(row["emergency_food"])
-        ),
-        other_foods=tuple(str(item) for item in json.loads(row["other_foods_json"])),
     )
 
 

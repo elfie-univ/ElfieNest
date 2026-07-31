@@ -1,7 +1,7 @@
 # AI Runtime 设计契约
 
-**契约版本：** 1.0  
-**冻结日期：** 2026-07-30
+**契约版本：** 1.1
+**冻结日期：** 2026-07-31
 
 > **规范性权威。** 本文档是 ElfieNest AI Runtime 的唯一设计权威。代码、API、
 > 页面、持久化和测试都必须遵守本文档。其他文档只能摘要或链接本文档，不能重新
@@ -341,6 +341,7 @@ YAML/JSON 到 `reports/exports/`，但程序绝不能把导出文件读回事实
 flowchart LR
   SK["精灵 Skills"] --> AL["请求允许工具"]
   GC["全局 tools.yaml"] --> IX["授权交集"]
+  IR["已实现的安全工具注册表"] --> IX
   AL --> IX
   PM["安全权限"] --> IX
   IX --> TL["Runtime 工具循环"]
@@ -359,15 +360,15 @@ flowchart LR
 完成前保持停用。停用工具不能提供给模型。
 
 一期只有一个全局工具配置页面，不提供按精灵开关。实际可用工具是“全局启用工具、
-精灵内部 Skill 请求、安全权限”三者交集。Skills 位于
+精灵内部 Skill 请求、已实现的安全工具注册表、逐次调用的安全权限决策”四者交集。Skills 位于
 `elfies/<elfie_id>/skills/`，共享工具实现位于 `ai_runtime/tools/`，工具绝不写入
 粮食配置。
 
 应用编排层随每次请求传入当前精灵工作区根目录。只读文件工具只能访问该工作区和明确
 获准的共享资源根，不能读取其他精灵工作区、凭据、报告或 Runtime 状态。
 
-每个工具都必须定义超时、条目和字节限制。执行器用统一有界结果信封包装输出，记录
-`truncated`、原始大小和保留大小。密钥、允许根目录外路径和不安全命令能力不能进入
+每个工具都必须定义超时、条目和字节限制。普通与结构化生成共用的工具循环还会强制一份
+总字节和调用次数预算。执行器用统一有界结果信封包装输出，记录 `truncated`、原始大小和保留大小。密钥、允许根目录外路径和不安全命令能力不能进入
 模型。工具调用、权限决策、耗时和裁剪情况使用脱敏观测记录。
 
 ## 持久化数据契约
@@ -406,7 +407,7 @@ ${ELFIE_HOME:-~/.elfienest}/
 | 工具设置 | `configs/tools.yaml` |
 | 粮食定义和全局默认/保底 ID | `configs/food-packages.yaml` |
 | 用户粮食授权 | `nest.db.food_package_access` |
-| 精灵主粮 ID | `nest.db.elfie_food_preferences` |
+| 精灵主粮 ID | `nest.db.elfies.main_food_id` |
 | 验证 run 与不可变观测 | `reports/ai-runtime.sqlite` |
 | 当前、历史时点和跨连接报告 | 基于 `reports/ai-runtime.sqlite` 的 SQL 投影 |
 | 规划器证据和粮食健康 | 已配置模型清单与报告数据库的查询组合 |
@@ -470,12 +471,17 @@ tools:
     provider: duckduckgo
     max_results: 3
     max_result_bytes: 16000
+    timeout_seconds: 5
+    max_tool_calls: 3
+    max_total_result_bytes: 48000
   local_file:
     enabled: true
     root_policy: elfie_workspace
     max_read_bytes: 65536
-  code_sandbox:
-    enabled: false
+    max_items: 200
+    max_result_bytes: 16000
+    max_tool_calls: 3
+    max_total_result_bytes: 48000
 ```
 
 代码中的 Schema 模型仍是机器可读契约。这里的示例只说明所有权，不能成为第二套解析

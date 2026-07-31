@@ -246,4 +246,5 @@ def test_tool_executor_records_tool_observation():
     assert events[-1].event_type == RuntimeEventType.TOOL_CALL
     assert events[-1].status == RuntimeEventStatus.OK
     assert events[-1].subject == "web_search"
-    assert events[-1].metadata["query"] == "ElfieNest"
+    assert "query" not in events[-1].metadata
+    assert events[-1].metadata["tool_call_index"] == 1

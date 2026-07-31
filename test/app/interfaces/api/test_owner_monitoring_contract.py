@@ -9,6 +9,8 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from ai_runtime.food.models import FOOD_COMMON_ID, FoodPackage, system_food_packages
+from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
 from app.infrastructure.devices import DeviceRegistry
 from app.infrastructure.persistence.embodiment_sessions import begin_hosting
 from app.infrastructure.persistence.store import init_db
@@ -190,7 +192,7 @@ def test_owner_elfie_monitoring_projection_is_safe_and_structured(
         ("owner_user_id", "alice_user_id", "alice"),
         ("species_id", "dog", "dogs"),
         ("food_key", FOOD_COMMON_ID, "alice_dog"),
-        ("embodiment_state", "switching_to_hosted", "alice_dog"),
+        ("embodiment_state", "switching_to_hosted", "hosted"),
         ("owner_user_id", "999999", "none"),
     ],
 )
@@ -206,7 +208,12 @@ def test_owner_elfie_monitoring_filters_rows(
     expected_ids = {
         "alice": {monitoring_world["alice_dog"], monitoring_world["alice_fox"]},
         "dogs": {monitoring_world["alice_dog"], monitoring_world["bob_dog"]},
-        "alice_dog": {monitoring_world["alice_dog"]},
+        "alice_dog": {
+            monitoring_world["alice_dog"],
+            monitoring_world["alice_fox"],
+            monitoring_world["bob_dog"],
+        },
+        "hosted": {monitoring_world["alice_dog"]},
         "none": set(),
     }[expected_key]
     query_value = (

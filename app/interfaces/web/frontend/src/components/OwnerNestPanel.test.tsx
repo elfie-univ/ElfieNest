@@ -39,7 +39,12 @@ const happy = {
     nest: { room_name: "Local Nest", bed_name: "01号床", posture: "unknown" },
     embodiment: { state: "at_nest" },
   },
-  food_policy: { default_food: "standard", allowed_foods: ["standard"], fallback_food: "coarse" },
+  food_policy: {
+    main_food_id: "standard",
+    effective_main_food_id: "standard",
+    main_food_options: [{ food_id: "standard", display_name: "标准粮" }],
+    main_food_unavailable: false,
+  },
   created_at: "2026-07-26T00:00:00Z",
 } satisfies OwnerElfie
 

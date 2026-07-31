@@ -6,6 +6,7 @@ import yaml
 from ai_runtime.storage.provider_connections import (
     ProviderConnection,
     ProviderConnectionStore,
+    ProviderConnectionStoreError,
     ProviderModelRecord,
 )
 
@@ -55,7 +56,7 @@ def test_connection_models_keep_endpoint_identity_and_optional_internal_match(tm
     assert restored.models[1].context_window_tokens == 204800
 
 
-def test_connection_store_migrates_legacy_provider_document_once(tmp_path):
+def test_connection_store_rejects_legacy_provider_document_without_rewriting(tmp_path):
     path = tmp_path / "providers.yaml"
     path.write_text(
         yaml.safe_dump(
@@ -81,20 +82,13 @@ def test_connection_store_migrates_legacy_provider_document_once(tmp_path):
         encoding="utf-8",
     )
 
-    document = ProviderConnectionStore(path).load()
+    original = path.read_bytes()
 
-    assert set(document.connections) == {
-        "openai_api_0001",
-        "custom_openai_0001",
-    }
-    assert document.connections["openai_api_0001"].alias == "工作 OpenAI"
-    assert document.connections["custom_openai_0001"].legacy_provider_id == (
-        "home_gateway"
-    )
-    persisted = yaml.safe_load(path.read_text(encoding="utf-8"))
-    assert persisted["version"] == 2
-    assert "providers" not in persisted
-    assert path.with_suffix(".yaml.v1.bak").exists()
+    with pytest.raises(ProviderConnectionStoreError, match="只支持.*v2"):
+        ProviderConnectionStore(path).load()
+
+    assert path.read_bytes() == original
+    assert not path.with_suffix(".yaml.v1.bak").exists()
 
 
 def test_connection_store_never_persists_plaintext_credentials(tmp_path):

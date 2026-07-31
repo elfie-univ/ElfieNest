@@ -22,6 +22,7 @@ class ModelEvidence:
     tool_test_passed: bool = False
     local: bool = False
     observed_at: str = ""
+    status: str = "never_verified"
 
     def is_fresh(self, now: Optional[datetime] = None) -> bool:
         if not self.verified or not self.observed_at:

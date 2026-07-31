@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button"
 import { useEffect, useState, type FormEvent } from "react"
+import { useTranslation } from "react-i18next"
 
 import {
   addProviderModel,
@@ -38,6 +39,7 @@ export function ProviderModelsDialog({
   onOpenChange,
   open,
 }: Props) {
+  const { t } = useTranslation("manage")
   const [adding, setAdding] = useState(false)
   const [editingModel, setEditingModel] = useState<ProviderModel | null>(null)
   const [advanced, setAdvanced] = useState(false)
@@ -68,12 +70,12 @@ export function ProviderModelsDialog({
     setPending(true)
     try {
       const result = await refreshProviderModels(connection.connection_id, csrfToken)
-      setNotice(result?.message ?? "模型清单已更新。")
+      setNotice(result?.message ?? t("providerModels.notices.refreshed"))
       setError(null)
       if (result?.status === "failed") setAdding(true)
       await onChanged()
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "模型清单读取失败")
+      setError(reason instanceof ApiError ? reason.message : t("providerModels.errors.load"))
       setAdding(true)
     } finally {
       setPending(false)
@@ -110,11 +112,11 @@ export function ProviderModelsDialog({
       setMaxOutput("")
       setAdding(false)
       setEditingModel(null)
-      setNotice(editingModel ? "模型信息已更新。" : "手工模型已添加。")
+      setNotice(editingModel ? t("providerModels.notices.updated") : t("providerModels.notices.added"))
       setError(null)
       await onChanged()
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "模型信息没有保存")
+      setError(reason instanceof ApiError ? reason.message : t("providerModels.errors.save"))
     } finally {
       setPending(false)
     }
@@ -158,11 +160,11 @@ export function ProviderModelsDialog({
           csrfToken,
         )
       }
-      setNotice(source === "manual" ? "手工模型已删除。" : hidden ? "模型已恢复显示。" : "模型已隐藏。")
+      setNotice(source === "manual" ? t("providerModels.notices.deleted") : hidden ? t("providerModels.notices.restored") : t("providerModels.notices.hidden"))
       setError(null)
       await onChanged()
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "模型没有更新")
+      setError(reason instanceof ApiError ? reason.message : t("providerModels.errors.update"))
     } finally {
       setPending(false)
     }
@@ -170,53 +172,53 @@ export function ProviderModelsDialog({
 
   return <ManageDialog
     contentClassName="provider-models-dialog"
-    description="模型 ID 会原样发送给当前订阅；显示名称用于跨订阅识别同一模型。"
+    description={t("providerModels.description")}
     onOpenChange={onOpenChange}
     open={open}
-    title={`${connection.alias} 的模型`}
+    title={t("providerModels.labels.title", { name: connection.alias })}
   >
     {error ? <Notice kind="error" message={error} /> : null}
     {notice ? <Notice message={notice} /> : null}
     <div className="manage-actions">
       <Button disabled={pending} onClick={() => { void refresh() }} type="button" variant="outline">
-        {pending ? "读取中…" : "重新读取模型"}
+        {pending ? t("providerModels.actions.refreshing") : t("providerModels.actions.refresh")}
       </Button>
       <Button disabled={pending} onClick={toggleModelEditor} type="button">
-        {adding ? "收起模型编辑" : "手工添加模型"}
+        {adding ? t("providerModels.actions.collapseEditor") : t("providerModels.actions.addManual")}
       </Button>
     </div>
     {adding ? <form className="provider-manual-model-form" onSubmit={(event) => { void saveModel(event) }}>
-      <TextField autoFocus={!editingModel} label="Model ID" onChange={setModelId} placeholder="服务端实际模型 ID" readOnly={editingModel !== null} required value={modelId} />
-      <TextField label="显示名称" onChange={setDisplayName} placeholder="例如 GLM-5" value={displayName} />
+      <TextField autoFocus={!editingModel} label="Model ID" onChange={setModelId} placeholder={t("providerModels.fields.modelIdPlaceholder")} readOnly={editingModel !== null} required value={modelId} />
+      <TextField label={t("providerModels.fields.displayName")} onChange={setDisplayName} placeholder={t("providerModels.fields.displayNamePlaceholder")} value={displayName} />
       <Button onClick={() => setAdvanced((value) => !value)} type="button" variant="ghost">
-        {advanced ? "收起高级参数" : "高级参数"}
+        {advanced ? t("providerModels.actions.collapseAdvanced") : t("providerModels.actions.showAdvanced")}
       </Button>
       {advanced ? <div className="provider-manual-model-form__advanced">
-        <TextField label="上下文窗口" min={1} onChange={setContextWindow} type="number" value={contextWindow} />
-        <TextField label="最大输出 Token" min={1} onChange={setMaxOutput} type="number" value={maxOutput} />
+        <TextField label={t("providerModels.fields.context")} min={1} onChange={setContextWindow} type="number" value={contextWindow} />
+        <TextField label={t("providerModels.fields.maxOutput")} min={1} onChange={setMaxOutput} type="number" value={maxOutput} />
       </div> : null}
       <div className="manage-actions">
-        <Button disabled={pending} type="submit">{editingModel ? "保存模型" : "添加模型"}</Button>
-        <Button disabled={pending} onClick={() => { setAdding(false); setEditingModel(null) }} type="button" variant="outline">取消</Button>
+        <Button disabled={pending} type="submit">{editingModel ? t("providerModels.actions.save") : t("providerModels.actions.add")}</Button>
+        <Button disabled={pending} onClick={() => { setAdding(false); setEditingModel(null) }} type="button" variant="outline">{t("providerModels.actions.cancel")}</Button>
       </div>
     </form> : null}
-    {connection.models.length === 0 ? <p className="empty-state">尚未发现模型，可以重新读取或手工添加。</p> : <div className="provider-model-table-wrap">
-      <Table aria-label={`${connection.alias} 模型列表`}>
-        <TableHeader><TableRow><TableHead>显示名称</TableHead><TableHead>Model ID</TableHead><TableHead>来源</TableHead><TableHead>限制</TableHead><TableHead>操作</TableHead></TableRow></TableHeader>
+    {connection.models.length === 0 ? <p className="empty-state">{t("providerModels.empty")}</p> : <div className="provider-model-table-wrap">
+      <Table aria-label={t("providerModels.labels.list", { name: connection.alias })}>
+        <TableHeader><TableRow><TableHead>{t("providerModels.columns.displayName")}</TableHead><TableHead>Model ID</TableHead><TableHead>{t("providerModels.columns.source")}</TableHead><TableHead>{t("providerModels.columns.limits")}</TableHead><TableHead>{t("providerModels.columns.actions")}</TableHead></TableRow></TableHeader>
         <TableBody>{connection.models.map((model) => <TableRow key={model.id}>
-          <TableHead scope="row">{model.display_name}{model.hidden ? <small>已隐藏</small> : null}</TableHead>
+          <TableHead scope="row">{model.display_name}{model.hidden ? <small>{t("providerModels.labels.hidden")}</small> : null}</TableHead>
           <TableCell><code>{model.id}</code></TableCell>
-          <TableCell>{sourceLabel(model.source)}</TableCell>
-          <TableCell><small>上下文 {model.context_window_tokens ?? "未知"}</small><small>输出 {model.max_output_tokens ?? "未知"}</small></TableCell>
+          <TableCell>{t(sourceKey(model.source))}</TableCell>
+          <TableCell><small>{t("providerModels.labels.context", { value: model.context_window_tokens ?? t("providerModels.labels.unknown") })}</small><small>{t("providerModels.labels.output", { value: model.max_output_tokens ?? t("providerModels.labels.unknown") })}</small></TableCell>
           <TableCell><div className="manage-actions">
-            <Button aria-label={`编辑 ${model.display_name}`} disabled={pending} onClick={() => beginEdit(model)} type="button" variant="outline">编辑</Button>
+            <Button aria-label={`${t("providerModels.actions.edit")} ${model.display_name}`} disabled={pending} onClick={() => beginEdit(model)} type="button" variant="outline">{t("providerModels.actions.edit")}</Button>
             <Button
-              aria-label={`${model.source === "manual" ? "删除" : model.hidden ? "恢复" : "隐藏"} ${model.display_name}`}
+              aria-label={`${model.source === "manual" ? t("providerModels.actions.delete") : model.hidden ? t("providerModels.actions.restore") : t("providerModels.actions.hide")} ${model.display_name}`}
               disabled={pending}
               onClick={() => { void removeOrHide(model.id, model.source, model.hidden) }}
               type="button"
               variant="outline"
-            >{model.source === "manual" ? "删除" : model.hidden ? "恢复" : "隐藏"}</Button>
+            >{model.source === "manual" ? t("providerModels.actions.delete") : model.hidden ? t("providerModels.actions.restore") : t("providerModels.actions.hide")}</Button>
           </div></TableCell>
         </TableRow>)}</TableBody>
       </Table>
@@ -224,9 +226,9 @@ export function ProviderModelsDialog({
   </ManageDialog>
 }
 
-function sourceLabel(source: string): string {
-  if (source === "official") return "官方发现"
-  if (source === "remote_catalog") return "远程目录"
-  if (source === "bundled_catalog") return "内置目录"
-  return "手工添加"
+function sourceKey(source: string): "providerModels.sources.bundled" | "providerModels.sources.manual" | "providerModels.sources.official" | "providerModels.sources.remote" {
+  if (source === "official") return "providerModels.sources.official"
+  if (source === "remote_catalog") return "providerModels.sources.remote"
+  if (source === "bundled_catalog") return "providerModels.sources.bundled"
+  return "providerModels.sources.manual"
 }

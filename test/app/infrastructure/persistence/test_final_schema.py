@@ -24,6 +24,7 @@ EXPECTED_TABLES: Final = {
     "external_bodies",
     "device_audit_events",
     "embodiment_sessions",
+    "food_package_access",
 }
 EXPECTED_COLUMNS: Final = {
     "users": {
@@ -46,9 +47,7 @@ EXPECTED_COLUMNS: Final = {
     },
     "elfies": {
         "elfie_id", "name", "owner_user_id", "species", "gender", "birth_date",
-        "adopted_at", "bed_number", "status", "summary", "main_food",
-        "emergency_food", "other_foods_json", "food_updated_at", "created_at",
-        "updated_at",
+        "adopted_at", "bed_number", "status", "summary", "main_food_id", "created_at", "updated_at",
     },
     "external_bodies": {
         "body_id", "owner_elfie_id", "display_name", "body_type", "secret_hash",
@@ -58,6 +57,7 @@ EXPECTED_COLUMNS: Final = {
     "embodiment_sessions": {
         "elfie_id", "body_id", "state", "lease_expires_at", "lease_version", "updated_at",
     },
+    "food_package_access": {"user_id", "food_key"},
 }
 VALID_HASH: Final = "a" * 64
 
@@ -70,7 +70,7 @@ def test_final_nest_builder_creates_exact_schema_idempotently(tmp_path: Path) ->
     assert create_final_nest_database(db_path) == db_path
     assert create_final_nest_database(db_path) == db_path
 
-    # Then: only the eight approved tables and every approved column exist.
+    # Then: only the contract-approved tables and every approved column exist.
     with app_sqlite_connection(db_path) as connection:
         tables = {
             str(row[0])
@@ -111,7 +111,7 @@ def test_final_account_constraints_reject_unsafe_direct_sql(tmp_path: Path) -> N
     with app_sqlite_connection(db_path) as connection:
         owner_id = _insert_user(connection, "owner", "owner")
 
-        # When/Then: owner uniqueness, hashes, FKs, JSON and unsafe paths fail.
+        # When/Then: owner uniqueness, hashes, FKs and unsafe paths fail.
         with pytest.raises(sqlite3.IntegrityError):
             _insert_user(connection, "second-owner", "owner")
         for token_hash in ("raw-token", "A" * 64):
@@ -140,8 +140,16 @@ def test_final_account_constraints_reject_unsafe_direct_sql(tmp_path: Path) -> N
         connection.execute(
             "INSERT INTO nest_settings(nest_id,bed_count,tick_interval_sec) VALUES('local',4,0.5)"
         )
+        _insert_elfie(connection, owner_id)
         with pytest.raises(sqlite3.IntegrityError):
-            _insert_elfie(connection, owner_id, other_foods_json="{}")
+            connection.execute(
+                "INSERT INTO food_package_access(user_id,food_key) VALUES(?, '')",
+                (owner_id,),
+            )
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "UPDATE elfies SET main_food_id='' WHERE elfie_id='00000001'"
+            )
 
 
 def test_final_body_constraints_enforce_owner_json_and_revocation(tmp_path: Path) -> None:
@@ -216,10 +224,9 @@ def _insert_elfie(
     owner_id: int,
     *,
     elfie_id: str = "00000001",
-    other_foods_json: str = "[]",
 ) -> None:
     connection.execute(
-        "INSERT INTO elfies(elfie_id,name,owner_user_id,species,adopted_at,status,other_foods_json) "
-        "VALUES(?, 'Elfie', ?, 'fox', '2026-07-30T00:00:00Z', 'offline', ?)",
-        (elfie_id, owner_id, other_foods_json),
+        "INSERT INTO elfies(elfie_id,name,owner_user_id,species,adopted_at,status) "
+        "VALUES(?, 'Elfie', ?, 'fox', '2026-07-30T00:00:00Z', 'offline')",
+        (elfie_id, owner_id),
     )

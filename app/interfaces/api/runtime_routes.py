@@ -5,7 +5,10 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException
 
 from ai_runtime.models.catalog import BUILTIN_MODEL_CATALOG
-from ai_runtime.safety.permissions import DEFAULT_TOOL_PERMISSIONS
+from ai_runtime.safety.permissions import (
+    DEFAULT_TOOL_PERMISSIONS,
+    SAFE_TOOL_PERMISSION_ACTIONS,
+)
 from ai_runtime.storage.data_home import get_config_path
 from ai_runtime.storage.provider_connections import ProviderConnectionStore
 from ai_runtime.usage.observer import RuntimeEvent, get_runtime_observer
@@ -172,7 +175,11 @@ def _tool_permissions_payload(runtime_policy: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(raw_permissions, dict):
         return permissions
     for action, rule in raw_permissions.items():
-        if isinstance(action, str) and isinstance(rule, dict):
+        if (
+            isinstance(action, str)
+            and action in SAFE_TOOL_PERMISSION_ACTIONS
+            and isinstance(rule, dict)
+        ):
             permissions[action] = {
                 "mode": str(rule.get("mode", "")),
                 "reason": str(rule.get("reason", "")),
@@ -203,9 +210,19 @@ def _merge_runtime_policy(
             value = updates[field_name]
             if not isinstance(value, dict):
                 raise HTTPException(status_code=422, detail=f"{field_name} 必须是对象")
+            unsafe_actions = set(value) - SAFE_TOOL_PERMISSION_ACTIONS
+            if unsafe_actions:
+                raise HTTPException(
+                    status_code=422,
+                    detail="只允许配置已实现的安全工具权限",
+                )
             current_value = merged.get(field_name, {})
             current_mapping = current_value if isinstance(current_value, dict) else {}
-            merged[field_name] = {**current_mapping, **value}
+            merged[field_name] = {
+                action: rule
+                for action, rule in {**current_mapping, **value}.items()
+                if action in SAFE_TOOL_PERMISSION_ACTIONS
+            }
     return merged
 
 
@@ -216,6 +233,11 @@ def _validate_runtime_policy(runtime_policy: Dict[str, Any]) -> None:
         for action, rule in permissions.items():
             if not isinstance(action, str) or not isinstance(rule, dict):
                 raise HTTPException(status_code=422, detail="tool_permissions 格式错误")
+            if action not in SAFE_TOOL_PERMISSION_ACTIONS:
+                raise HTTPException(
+                    status_code=422,
+                    detail="只允许配置已实现的安全工具权限",
+                )
             mode = rule.get("mode")
             if mode not in valid_modes:
                 raise HTTPException(

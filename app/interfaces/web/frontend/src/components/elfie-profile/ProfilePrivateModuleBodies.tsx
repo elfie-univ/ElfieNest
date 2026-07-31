@@ -65,15 +65,6 @@ export function ConfigModuleBody({ module }: { readonly module: ConfigModule }) 
         options={module.food.allowed}
         value={module.food.selected}
       />
-<<<<<<< HEAD
-=======
-      <MockSelect
-        id={fallbackId}
-        label={t("profile.private.fallbackFood")}
-        options={module.food.allowed}
-        value={module.food.fallback}
-      />
->>>>>>> origin/main
       <dl className="profile-private-module__config-notes">
         <div><dt>{t("profile.private.allowedFood")}</dt><dd>{module.food.allowed.join(t("profile.private.foodSeparator"))}</dd></div>
       </dl>

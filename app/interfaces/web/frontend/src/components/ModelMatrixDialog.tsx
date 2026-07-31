@@ -55,10 +55,11 @@ export function ModelMatrixDialog({ csrfToken, onOpenChange, open }: ModelMatrix
     setPending(true)
     try {
       const result = await validateAllProviderModels(csrfToken)
-      setNotice(`验证完成，已生成完整报告 ${result.run_id}。`)
+      setNotice(t("modelMatrix.validationNotice", { runId: result.run_id }))
       await load()
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "全部验证失败")
+      if (!(reason instanceof Error)) throw reason
+      setError(describeApiError(reason, "manage.save"))
     } finally {
       setPending(false)
     }
@@ -104,22 +105,22 @@ export function ModelMatrixDialog({ csrfToken, onOpenChange, open }: ModelMatrix
     {matrix && matrix.models.length === 0 ? <p className="empty-state">{t("modelMatrix.empty")}</p> : null}
     {matrix && matrix.models.length > 0 ? <div className="model-matrix-scroll">
       <Table aria-label={t("modelMatrix.tableLabel")} className="model-matrix">
-        <TableHeader><TableRow><TableHead scope="col">{t("modelMatrix.labels.model")}</TableHead>{matrix.providers.map((provider) => <TableHead key={provider.provider_id} scope="col">{provider.name}</TableHead>)}</TableRow></TableHeader>
-        <TableBody>{matrix.models.map((model) => <TableRow key={model.model_id}>
+        <TableHeader><TableRow><TableHead scope="col">{t("modelMatrix.labels.model")}</TableHead>{matrix.connections.map((connection) => <TableHead key={connection.connection_id} scope="col">{connection.name}</TableHead>)}</TableRow></TableHeader>
+        <TableBody>{matrix.models.map((model) => <TableRow key={model.model_key}>
           <TableHead scope="row">{model.display_name}</TableHead>
-          {matrix.providers.map((provider) => {
-            const cell = model.providers.find((item) => item.provider_id === provider.provider_id)
-            const canBenchmark = Boolean(cell?.available && provider.verification.status === "passed")
-            if (!cell?.available) return <TableCell className="model-matrix__cell model-matrix__cell--unavailable" key={provider.provider_id}>{t("modelMatrix.labels.unavailable")}</TableCell>
-            return <TableCell className="model-matrix__cell" key={provider.provider_id}>
+          {matrix.connections.map((connection) => {
+            const cell = model.connections.find((item) => item.connection_id === connection.connection_id)
+            const canBenchmark = Boolean(cell?.available && cell.model_id && connection.verification.status === "passed")
+            if (!cell?.available) return <TableCell className="model-matrix__cell model-matrix__cell--unavailable" key={connection.connection_id}>{t("modelMatrix.labels.unavailable")}</TableCell>
+            return <TableCell className="model-matrix__cell" key={connection.connection_id}>
               <div className="model-matrix__cell-content">
                 <strong>{cell.verification_status === "passed" ? `✓ ${t("modelMatrix.labels.available")}` : cell.verification_status === "failed" ? t("modelMatrix.labels.failed") : t("modelMatrix.labels.never")}</strong>
                 <span className={cell.latency_class ? `latency--${cell.latency_class}` : undefined}>{cell.latency_ms === null ? t("modelMatrix.labels.noBenchmark") : `${Math.round(cell.latency_ms)}ms`}</span>
                 <small>{t("modelMatrix.labels.price")}: <span>{cell.price_estimate === null ? t("modelMatrix.labels.notProvided") : cell.price_estimate}</span></small>
                 <Button
-                  aria-label={t("modelMatrix.actions.benchmarkFor", { model: model.display_name, provider: provider.name })}
+                  aria-label={t("modelMatrix.actions.benchmarkFor", { model: model.display_name, provider: connection.name })}
                   disabled={pending || !canBenchmark}
-                  onClick={() => { void benchmark([{ provider_id: provider.provider_id, model_id: model.model_id }], t("modelMatrix.emptyCombination")) }}
+                  onClick={() => { if (cell.model_id) void benchmark([{ connection_id: connection.connection_id, model_id: cell.model_id }], t("modelMatrix.emptyCombination")) }}
                   size="sm"
                   type="button"
                   variant="outline"

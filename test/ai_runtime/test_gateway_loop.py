@@ -75,6 +75,30 @@ def test_runtime_tool_loop_runs_search_then_returns_final_response():
     assert messages[-1]["content"].startswith("【联网搜索反馈】")
 
 
+def test_runtime_tool_loop_does_not_echo_local_workspace_paths_to_the_model():
+    class FileAccess:
+        def read_text(self, relative_path: str) -> str:
+            assert relative_path == "private/notes.txt"
+            return "private content"
+
+        def list_files(self, relative_path: str = ".") -> list[str]:
+            return []
+
+    messages = [{"role": "user", "content": "read"}]
+    loop = RuntimeToolLoop(
+        ToolLoopContext(
+            allowed_skills=("local_file",),
+            search_plugin=FakeSearchPlugin(),
+            permission_manager=FakePermissionManager(),
+            file_access_plugin=FileAccess(),
+        )
+    )
+    responses = iter(["[READ_FILE]private/notes.txt[/READ_FILE]", "final"])
+
+    assert loop.run(messages, 2, lambda _messages: next(responses)) == "final"
+    assert "private/notes.txt" not in messages[-1]["content"]
+
+
 def test_runtime_tool_loop_does_not_run_unavailable_code_sandbox():
     sandbox_plugin = FakeSandboxPlugin()
     permission_manager = FakePermissionManager()

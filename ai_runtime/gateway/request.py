@@ -90,6 +90,8 @@ class StructuredRuntimeRequest(_FrozenRuntimeModel):
     provider: Optional[_NonBlankText] = None
     model_key: Optional[_NonBlankText] = None
     food_key: Optional[_NonBlankText] = None
+    food_unavailable: bool = False
+    elfie_workspace: Optional[_NonBlankText] = None
     temperature: Annotated[float, Field(strict=True, ge=0.0, le=2.0)] = 0.2
     max_tokens: Annotated[int, Field(strict=True, ge=1)] = 512
 

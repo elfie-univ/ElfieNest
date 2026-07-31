@@ -209,8 +209,8 @@ def test_owner_runtime_policy_returns_only_tool_permissions(client: TestClient) 
     payload = response.json()
     assert "task_routes" not in payload
     assert "food_keys" not in payload
-    assert payload["tool_permissions"]["RUN_SKILL"]["mode"] == "allow"
-    assert payload["tool_permissions"]["DELETE_SKILL"]["mode"] == "owner"
+    assert set(payload["tool_permissions"]) == {"READ", "WEB_SEARCH"}
+    assert "RUN_SKILL" not in payload["tool_permissions"]
 
 
 def test_owner_runtime_policy_rejects_task_routes(client: TestClient) -> None:
@@ -221,7 +221,7 @@ def test_owner_runtime_policy_rejects_task_routes(client: TestClient) -> None:
         json={
             "task_routes": {"reasoning": "standard"},
             "tool_permissions": {
-                "RUN_SKILL": {
+                "WEB_SEARCH": {
                     "mode": "ask",
                     "reason": "需要人工确认",
                 }
@@ -257,7 +257,19 @@ def test_owner_runtime_policy_rejects_invalid_permission_mode(
 
     response = client.put(
         "/api/owner/runtime/policy",
-        json={"tool_permissions": {"RUN_SKILL": {"mode": "unknown"}}},
+        json={"tool_permissions": {"WEB_SEARCH": {"mode": "unknown"}}},
+        headers={"X-CSRF-Token": tokens["csrf_token"]},
+    )
+
+    assert response.status_code == 422
+
+
+def test_owner_runtime_policy_rejects_unsafe_tool_permissions(client: TestClient) -> None:
+    tokens = _login(client, "owner", "ownerchangeme")
+
+    response = client.put(
+        "/api/owner/runtime/policy",
+        json={"tool_permissions": {"RUN_SKILL": {"mode": "allow"}}},
         headers={"X-CSRF-Token": tokens["csrf_token"]},
     )
 

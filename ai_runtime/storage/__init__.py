@@ -43,9 +43,9 @@ from ai_runtime.storage.report_repository import (
     ReportRun,
     ValidationObservation,
 )
-from ai_runtime.storage.runtime_config_bundle import (
-    read_runtime_config_bundle,
-    write_runtime_config_bundle,
+from ai_runtime.storage.runtime_settings import (
+    read_runtime_settings,
+    write_runtime_settings,
 )
 from ai_runtime.storage.validation_reports import (
     InvalidReportIdentityError,
@@ -117,14 +117,14 @@ __all__ = [
     "connection_secret_name",
     "read_secrets",
     "read_yaml_mapping",
-    "read_runtime_config_bundle",
+    "read_runtime_settings",
     "read_latest_model_validation",
     "read_latest_provider_validation",
     "resolve_secret",
     "set_provider_secret",
     "set_connection_secret",
     "write_yaml_mapping",
-    "write_runtime_config_bundle",
+    "write_runtime_settings",
     "write_model_validation_report",
     "write_provider_validation_report",
 ]

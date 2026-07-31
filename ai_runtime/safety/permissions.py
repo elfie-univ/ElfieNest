@@ -36,20 +36,10 @@ class ToolPermissionRule:
 
 DEFAULT_TOOL_PERMISSIONS: Mapping[str, ToolPermissionRule] = {
     "WEB_SEARCH": ToolPermissionRule(PermissionMode.ALLOW, "联网检索工具自动放行"),
-    "RUN_CODE": ToolPermissionRule(
-        PermissionMode.DENY,
-        "真实代码隔离尚未接入，生产环境默认禁止执行代码",
-    ),
     "READ": ToolPermissionRule(PermissionMode.ALLOW, "只读工具自动放行"),
-    "RUN_SKILL": ToolPermissionRule(PermissionMode.ALLOW, "运行已登记技能自动放行"),
-    "LIST_SKILLS": ToolPermissionRule(PermissionMode.ALLOW, "读取技能清单自动放行"),
-    "CREATE_SKILL": ToolPermissionRule(
-        PermissionMode.ALLOW, "新增技能允许，但文件名必须留在技能根目录"
-    ),
-    "DELETE_SKILL": ToolPermissionRule(
-        PermissionMode.OWNER, "技能删除或覆盖需要Owner令牌"
-    ),
 }
+
+SAFE_TOOL_PERMISSION_ACTIONS = frozenset(DEFAULT_TOOL_PERMISSIONS)
 
 
 class PermissionManager:

@@ -49,15 +49,7 @@ def fetch_remote_models(
         raise RemoteCatalogUnavailable("远程模型目录没有当前产品")
     raw_models = product.get("models")
     if not isinstance(raw_models, list):
-        raw_models = [
-            model
-            for role in ("cheap", "deep", "multimodal")
-            for model in (
-                product.get("default_models", {}).get(role, [])
-                if isinstance(product.get("default_models"), dict)
-                else []
-            )
-        ]
+        raise RemoteCatalogUnavailable("远程模型目录没有当前产品模型")
     models = tuple(
         dict.fromkeys(str(model).strip() for model in raw_models if str(model).strip())
     )

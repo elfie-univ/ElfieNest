@@ -10,10 +10,12 @@ from typing import Any, Mapping
 
 from ai_runtime.storage.secrets import resolve_secret, tool_secret_name
 
-TOOL_KEYS: tuple[str, ...] = (
+SAFE_TOOL_KEYS: tuple[str, ...] = (
     "web_search",
     "local_file",
 )
+# Compatibility name for callers that enumerate the phase-one safe registry.
+TOOL_KEYS = SAFE_TOOL_KEYS
 
 
 def default_tool_configs() -> dict[str, dict[str, Any]]:
@@ -25,16 +27,19 @@ def default_tool_configs() -> dict[str, dict[str, Any]]:
             "api_key_env": tool_secret_name("web_search"),
             "max_results": 3,
             "max_result_bytes": 16000,
-        },
-        "code_sandbox": {
-            "enabled": False,
             "timeout_seconds": 5.0,
+            "max_tool_calls": 3,
+            "max_total_result_bytes": 48000,
         },
         "local_file": {
             "enabled": False,
             "root": "",
             "root_policy": "elfie_workspace",
             "max_read_bytes": 65536,
+            "max_items": 200,
+            "max_result_bytes": 16000,
+            "max_tool_calls": 3,
+            "max_total_result_bytes": 48000,
         },
     }
 
@@ -47,7 +52,7 @@ def load_tool_configs(
         runtime_policy.get("tools", {}) if isinstance(runtime_policy, Mapping) else {}
     )
     if isinstance(raw_tools, Mapping):
-        for tool_key in TOOL_KEYS:
+        for tool_key in SAFE_TOOL_KEYS:
             raw = raw_tools.get(tool_key)
             if isinstance(raw, Mapping):
                 configs[tool_key].update(dict(raw))
@@ -74,3 +79,20 @@ def enabled_tool_keys(runtime_policy: Mapping[str, Any] | None) -> tuple[str, ..
         for key, config in load_tool_configs(runtime_policy).items()
         if config.get("enabled") is True
     )
+
+
+def effective_tool_keys(
+    runtime_policy: Mapping[str, Any] | None,
+    requested_tools: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Return the ordered, duplicate-free safe tool authorization intersection."""
+    enabled = set(enabled_tool_keys(runtime_policy))
+    result: list[str] = []
+    for tool_key in requested_tools:
+        if (
+            tool_key in SAFE_TOOL_KEYS
+            and tool_key in enabled
+            and tool_key not in result
+        ):
+            result.append(tool_key)
+    return tuple(result)

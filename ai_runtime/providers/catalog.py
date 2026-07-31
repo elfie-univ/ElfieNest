@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Mapping
+from typing import Any, Dict, Literal, Mapping
 
 from ai_runtime.storage.config_store import ConfigStoreError, read_yaml_mapping
 from ai_runtime.storage.data_home import get_provider_catalog_path
@@ -33,7 +33,6 @@ _SECRET_FIELDS = frozenset(
         "token",
     }
 )
-_MODEL_ROLES = ("cheap", "deep", "multimodal")
 _AUTH_TYPES = frozenset({"bearer", "none", "x-api-key"})
 _API_MODES = frozenset({"anthropic_messages", "chat_completions", "ollama"})
 _CONNECTION_METHODS = frozenset({"api_key", "local", "oauth"})
@@ -60,11 +59,10 @@ class ProviderProfile:
     api_mode: str
     base_url_env_var: str
     api_key_env_var: str
-    default_models: Dict[str, List[str]]
+    bundled_models: list[str]
     connection_method: Literal["local", "api_key", "oauth"]
     oauth_available: bool = False
     test_model: str = ""
-    model_descriptions: Dict[str, str] = field(default_factory=dict)
     usage_scope: Literal["general", "coding_only", "local"] = "general"
     discovery_strategy: Literal[
         "standard_models",
@@ -296,36 +294,17 @@ def _parse_profile(
             f"API-key Provider {catalog_id!r} requires api_key_env_var: {source}"
         )
 
-    raw_models = raw.get("default_models")
-    if not isinstance(raw_models, Mapping):
+    raw_models = raw.get("bundled_models")
+    if not isinstance(raw_models, list):
         raise ProviderCatalogError(
-            f"Provider {catalog_id!r} default_models must be an object: {source}"
+            f"Provider {catalog_id!r} bundled_models must be a list: {source}"
         )
-    default_models: Dict[str, List[str]] = {}
-    for role in _MODEL_ROLES:
-        values = raw_models.get(role)
-        if not isinstance(values, list) or not values:
-            raise ProviderCatalogError(
-                f"Provider {catalog_id!r} requires non-empty {role} models: {source}"
-            )
-        models = [str(item).strip() for item in values]
-        if any(not item for item in models):
-            raise ProviderCatalogError(
-                f"Provider {catalog_id!r} has an empty {role} model: {source}"
-            )
-        default_models[role] = list(dict.fromkeys(models))
-
-    test_model = str(raw.get("test_model") or default_models["cheap"][0]).strip()
-    raw_descriptions = raw.get("model_descriptions", {})
-    if not isinstance(raw_descriptions, Mapping):
+    bundled_models = list(dict.fromkeys(str(item).strip() for item in raw_models))
+    if not bundled_models or any(not item for item in bundled_models):
         raise ProviderCatalogError(
-            f"Provider {catalog_id!r} model_descriptions must be an object: {source}"
+            f"Provider {catalog_id!r} has no usable bundled models: {source}"
         )
-    descriptions = {
-        str(role): str(description)
-        for role, description in raw_descriptions.items()
-        if str(role) in _MODEL_ROLES and str(description).strip()
-    }
+    test_model = str(raw.get("test_model") or bundled_models[0]).strip()
     return ProviderProfile(
         catalog_id=catalog_id,
         brand_id=brand_id,
@@ -336,11 +315,10 @@ def _parse_profile(
         api_mode=api_mode,
         base_url_env_var=base_url_env_var,
         api_key_env_var=api_key_env_var,
-        default_models=default_models,
+        bundled_models=bundled_models,
         connection_method=connection_method,  # type: ignore[arg-type]
         oauth_available=oauth_available,
         test_model=test_model,
-        model_descriptions=descriptions,
         usage_scope=usage_scope,  # type: ignore[arg-type]
         discovery_strategy=discovery_strategy,  # type: ignore[arg-type]
     )

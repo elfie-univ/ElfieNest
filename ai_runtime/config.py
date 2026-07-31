@@ -10,7 +10,7 @@ from .providers.profiles import BUILTIN_PROFILES, get_default_api_mode, get_prod
 from .storage.config_store import ConfigStoreError, read_yaml_mapping
 from .storage.data_home import get_env_path, get_provider_config_path
 from .storage.provider_connections import ProviderConnectionStore
-from .storage.runtime_config_bundle import read_runtime_config_bundle
+from .storage.runtime_settings import read_runtime_settings
 from .storage.secrets import (
     connection_secret_name,
     provider_secret_name,
@@ -187,7 +187,7 @@ class LLMRuntimeConfig:
         # 生产配置由 configs/ 下三份 YAML 合并；开发 Lab 继续使用独立单文件。
         if config_home is None:
             try:
-                saved_cfg = read_runtime_config_bundle()
+                saved_cfg = read_runtime_settings()
             except ConfigStoreError:
                 # 损坏的当前配置不会触发旧格式 fallback；继续使用内置默认值。
                 saved_cfg = None
