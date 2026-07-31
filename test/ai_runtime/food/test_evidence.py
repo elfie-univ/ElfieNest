@@ -1,83 +1,160 @@
-from ai_runtime.food.evidence import ModelEvidenceStore
+from datetime import datetime, timedelta, timezone
+
+from ai_runtime.food.evidence import query_model_evidence, record_model_evidence
 from ai_runtime.food.planner import ModelEvidence
+from ai_runtime.storage.provider_connections import (
+    ProviderConnection,
+    ProviderConnectionStore,
+    ProviderModelRecord,
+)
+from ai_runtime.storage.report_repository import ReportRepository
 
 
-def test_model_evidence_store_merges_without_losing_previous_models(tmp_path):
-    store = ModelEvidenceStore(tmp_path / "evidence.yaml")
-    store.merge([ModelEvidence("ollama/local", frozenset({"text"}), True, local=True)])
-    store.merge(
-        [
-            ModelEvidence(
-                "cloud/vision", frozenset({"text", "vision"}), True, cost_grade=3
-            )
-        ]
+def _configure_inventory(store: ProviderConnectionStore) -> None:
+    store.replace(
+        ProviderConnection(
+            connection_id="ollama_0001",
+            catalog_id="ollama",
+            alias="Ollama",
+            models=(
+                ProviderModelRecord("local", supports_tools=True),
+                ProviderModelRecord("hidden", hidden=True),
+                ProviderModelRecord("unavailable", available=False),
+                ProviderModelRecord("odd-id", display_name="GLM-5"),
+            ),
+        )
+    )
+    store.replace(
+        ProviderConnection(
+            connection_id="custom_openai_0001",
+            catalog_id="custom_openai",
+            alias="Archived",
+            enabled=False,
+            archived=True,
+            models=(ProviderModelRecord("archived-model"),),
+        )
     )
 
-    loaded = store.load()
-    assert set(loaded) == {"ollama/local", "cloud/vision"}
-    assert loaded["cloud/vision"].capabilities == frozenset({"text", "vision"})
 
+def test_projection_changes_immediately_from_never_to_passed_to_failed(tmp_path):
+    provider_path = tmp_path / "providers.yaml"
+    provider_store = ProviderConnectionStore(provider_path)
+    repository = ReportRepository(tmp_path / "reports.db")
+    _configure_inventory(provider_store)
+    now = datetime.now(timezone.utc)
 
-def test_model_evidence_store_preserves_display_name(tmp_path):
-    store = ModelEvidenceStore(tmp_path / "evidence.yaml")
-    store.merge(
-        [
+    initial = query_model_evidence(
+        repository=repository,
+        connection_store=provider_store,
+        now=now,
+    )
+    provider_bytes = provider_path.read_bytes()
+    record_model_evidence(
+        (
             ModelEvidence(
-                "custom/odd-id",
+                "ollama_0001/local",
+                frozenset({"text", "tools"}),
+                True,
+                observed_at=now.isoformat(),
+                tool_test_passed=True,
+            ),
+        ),
+        repository=repository,
+        scope="test",
+        trigger="benchmark",
+    )
+    passed = query_model_evidence(
+        repository=repository,
+        connection_store=provider_store,
+        now=now,
+    )
+    record_model_evidence(
+        (
+            ModelEvidence(
+                "ollama_0001/local",
+                frozenset({"text", "tools"}),
+                False,
+                observed_at=(now + timedelta(seconds=1)).isoformat(),
+            ),
+        ),
+        repository=repository,
+        scope="test",
+        trigger="benchmark",
+    )
+    failed = query_model_evidence(
+        repository=repository,
+        connection_store=provider_store,
+        now=now + timedelta(seconds=1),
+    )
+
+    assert initial["ollama_0001/local"].status == "never_verified"
+    assert passed["ollama_0001/local"].status == "verified"
+    assert passed["ollama_0001/local"].is_fresh(now)
+    assert failed["ollama_0001/local"].status == "failed"
+    assert not failed["ollama_0001/local"].verified
+    assert provider_path.read_bytes() == provider_bytes
+
+
+def test_projection_marks_stale_hidden_and_unavailable_as_ineligible(tmp_path):
+    provider_store = ProviderConnectionStore(tmp_path / "providers.yaml")
+    repository = ReportRepository(tmp_path / "reports.db")
+    _configure_inventory(provider_store)
+    now = datetime.now(timezone.utc)
+    record_model_evidence(
+        (
+            ModelEvidence(
+                "ollama_0001/local",
                 frozenset({"text"}),
                 True,
-                display_name="GLM-5",
-            )
-        ]
+                observed_at=(now - timedelta(hours=25)).isoformat(),
+            ),
+        ),
+        repository=repository,
+        scope="test",
+        trigger="benchmark",
     )
 
-    assert store.load()["custom/odd-id"].display_name == "GLM-5"
+    evidence = query_model_evidence(
+        repository=repository,
+        connection_store=provider_store,
+        now=now,
+    )
+
+    assert evidence["ollama_0001/local"].status == "stale"
+    assert not evidence["ollama_0001/local"].verified
+    assert evidence["ollama_0001/hidden"].status == "hidden"
+    assert evidence["ollama_0001/unavailable"].status == "unavailable"
+    assert "custom_openai_0001/archived-model" not in evidence
+    assert not any(item.is_fresh(now) for item in evidence.values())
 
 
-def test_store_enriches_old_evidence_from_known_model_catalog(tmp_path):
-    store = ModelEvidenceStore(tmp_path / "evidence.yaml")
-    store.merge(
-        [
+def test_projection_uses_inventory_identity_and_ignores_fake_yaml(tmp_path):
+    provider_store = ProviderConnectionStore(tmp_path / "providers.yaml")
+    repository = ReportRepository(tmp_path / "reports.db")
+    _configure_inventory(provider_store)
+    now = datetime.now(timezone.utc)
+    record_model_evidence(
+        (
             ModelEvidence(
-                "custom/xopkimik25",
+                "ollama_0001/odd-id",
                 frozenset({"text"}),
                 True,
-                display_name="MiniMax-M2.5",
-            )
-        ]
+                display_name="Forged observation name",
+                observed_at=now.isoformat(),
+            ),
+        ),
+        repository=repository,
+        scope="test",
+        trigger="benchmark",
+    )
+    fake = tmp_path / "model_evidence.yaml"
+    fake.write_text("ollama_0001/forged:\n  verified: true\n", encoding="utf-8")
+
+    evidence = query_model_evidence(
+        repository=repository,
+        connection_store=provider_store,
+        now=now,
     )
 
-    loaded = store.load()["custom/xopkimik25"]
-    assert loaded.display_name == "Kimi-K2.5"
-    assert {"text", "reasoning", "vision"} <= loaded.capabilities
-
-
-def test_replace_provider_removes_deleted_models_and_preserves_other_providers(
-    tmp_path,
-):
-    store = ModelEvidenceStore(tmp_path / "evidence.yaml")
-    store.merge(
-        [
-            ModelEvidence("ollama/deleted", frozenset({"text"}), False, local=True),
-            ModelEvidence("ollama/current", frozenset({"text"}), True, local=True),
-            ModelEvidence("cloud/vision", frozenset({"vision"}), True),
-        ]
-    )
-
-    store.replace_provider(
-        "ollama",
-        [ModelEvidence("ollama/current", frozenset({"text"}), True, local=True)],
-    )
-
-    assert set(store.load()) == {"ollama/current", "cloud/vision"}
-
-
-def test_model_evidence_store_defaults_to_final_report_path(monkeypatch, tmp_path):
-    # Given
-    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-
-    # When
-    store = ModelEvidenceStore()
-
-    # Then
-    assert store.path == tmp_path / "reports" / "model-evidence.yaml"
+    assert evidence["ollama_0001/odd-id"].display_name == "GLM-5"
+    assert "ollama_0001/forged" not in evidence

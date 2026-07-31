@@ -2,28 +2,34 @@ import stat
 
 import yaml
 
-from ai_runtime.food.models import ExecutionProfile, FoodRecipe
+from ai_runtime.food.models import FoodPackage, ModelAssignment
 from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
+from ai_runtime.storage.config_store import write_yaml_mapping
 from devtools.elfie_lab.runtime_adapters import (
     create_runtime,
     default_runtime_config_dir,
 )
 from devtools.runtime_lab import RuntimeLabConfigStore
+from devtools.runtime_lab.config_store import PROVIDER_DEFAULTS
 
 
 def _write_foods(root):
-    FoodCatalogStore(root / "foods.yaml", root / "food_history").save(
-        FoodCatalog(
-            recipes={
-                "standard": FoodRecipe(
-                    "standard", "标准粮", "", ExecutionProfile("ollama/qwen3.5:0.8b")
-                ),
-                "focus": FoodRecipe(
-                    "focus", "清醒粮", "", ExecutionProfile("openai/example-model")
-                ),
-            }
-        )
+    store = FoodCatalogStore(root / "foods.yaml", root / "food_history")
+    catalog = FoodCatalog(
+        packages={
+            "standard": FoodPackage(
+                key="standard",
+                display_name="标准粮",
+                primary=ModelAssignment("ollama/qwen3.5:0.8b"),
+            ),
+            "focus": FoodPackage(
+                key="focus",
+                display_name="清醒粮",
+                primary=ModelAssignment("openai/example-model"),
+            ),
+        }
     )
+    write_yaml_mapping(store.path, catalog.to_dict())
 
 
 def test_development_runtime_config_does_not_read_production_config(
@@ -64,6 +70,17 @@ def test_elfie_lab_runtime_adapter_defaults_to_developer_root(tmp_path, monkeypa
 
     assert config_dir == str(developer_home / "runtime_lab")
     assert config_dir != str(production_home)
+
+
+def test_runtime_lab_defaults_use_the_catalog_test_model_for_vision(tmp_path):
+    # Given: the Runtime Lab builds its isolated default document from the Provider catalog.
+    store = RuntimeLabConfigStore(str(tmp_path / "runtime_lab"))
+
+    # When: the document is materialized without any manual provider configuration.
+    document = store.default_document()
+
+    # Then: its vision slot keeps a current catalog model instead of the retired role map.
+    assert document["multimodal_model"] == PROVIDER_DEFAULTS["ollama"]["test_model"]
 
 
 def test_provider_configuration_separates_secret_and_non_secret_data(tmp_path):

@@ -17,7 +17,11 @@ def test_register_service_process_rejects_replacing_live_pid(
 ) -> None:
     elfie_home = tmp_path / "home"
     service_process.register_service_process(elfie_home, 6099)
-    monkeypatch.setattr(service_process.os, "kill", lambda _pid, _signal: None)
+    monkeypatch.setattr(
+        service_process.DefaultProcessInspector,
+        "exists",
+        lambda _self, _pid: True,
+    )
 
     with pytest.raises(FileExistsError):
         service_process.register_service_process(elfie_home, 6100)

@@ -156,10 +156,6 @@ class FinalRootLayout:
         return self.data_home / "configs" / "food-packages-history"
 
     @property
-    def model_evidence(self) -> Path:
-        return self.data_home / "reports" / "model-evidence.yaml"
-
-    @property
     def model_validations(self) -> Path:
         return self.data_home / "reports" / "model-validations"
 
@@ -174,10 +170,6 @@ class FinalRootLayout:
     @property
     def runtime_locks(self) -> Path:
         return self.data_home / "runtime" / "locks"
-
-    @property
-    def runtime_events_log(self) -> Path:
-        return self.data_home / "logs" / "runtime_events.jsonl"
 
     @property
     def token_usage_log(self) -> Path:
@@ -204,6 +196,7 @@ def _root_directories(layout: FinalRootLayout) -> tuple[Path, ...]:
     return (
         root,
         root / "configs",
+        root / "configs" / "credentials",
         layout.food_packages_history,
         root / "reports",
         layout.model_validations,

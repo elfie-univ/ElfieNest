@@ -82,7 +82,9 @@ class CoordinatorTurnFactory:
             capabilities=capabilities,
             captured_at=captured_at,
         )
-        compiled = self._compiler.compile(context, budget=ModelTokenBudget(max_tokens=1024))
+        compiled = self._compiler.compile(
+            context, budget=ModelTokenBudget(max_tokens=1024)
+        )
         cause_ids = tuple(
             item.meta.event_id
             for item in frame.events + frame.state_updates + frame.media_samples

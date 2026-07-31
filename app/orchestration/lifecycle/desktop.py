@@ -67,7 +67,9 @@ def start_desktop_application(
     if not launch_command:
         return ServiceLifecycleResult(
             status="failed",
-            error=LaunchFailedError("ElfieNest Desktop not found; please build desktop app first"),
+            error=LaunchFailedError(
+                "ElfieNest Desktop not found; please build desktop app first"
+            ),
         )
     try:
         process = subprocess.Popen(
@@ -93,7 +95,9 @@ def start_desktop_application(
         status="failed",
         pid=process.pid,
         command=launch_command,
-        error=LaunchFailedError("Desktop did not pass the Web health check after startup"),
+        error=LaunchFailedError(
+            "Desktop did not pass the Web health check after startup"
+        ),
     )
 
 

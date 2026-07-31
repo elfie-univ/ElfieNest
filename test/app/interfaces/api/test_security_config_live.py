@@ -120,15 +120,13 @@ class TestSessionTtlLive:
 
     def test_get_session_ttl_seconds_from_config(self) -> None:
         """get_session_ttl_seconds 从 LLMRuntimeConfig 读取 session_ttl_days。"""
-        with patch("ai_runtime.config.LLMRuntimeConfig") as MockConfig:
-            instance = MockConfig.return_value
-            instance.system = {
-                "security": {
-                    "session_ttl_days": 1,
-                    "rate_limit": {"max_attempts": 5, "window_seconds": 300},
-                }
-            }
-
+        with patch(
+            "app.features.accounts.auth.read_system_section",
+            return_value={
+                "session_ttl_days": 1,
+                "rate_limit": {"max_attempts": 5, "window_seconds": 300},
+            },
+        ):
             ttl = get_session_ttl_seconds()
             assert ttl == 86400  # 1 天
 
@@ -138,15 +136,13 @@ class TestSessionTtlLive:
         init_db(db_path)
         uid = create_test_owner(db_path)
 
-        with patch("ai_runtime.config.LLMRuntimeConfig") as MockConfig:
-            instance = MockConfig.return_value
-            instance.system = {
-                "security": {
-                    "session_ttl_days": 1,
-                    "rate_limit": {"max_attempts": 5, "window_seconds": 300},
-                }
-            }
-
+        with patch(
+            "app.features.accounts.auth.read_system_section",
+            return_value={
+                "session_ttl_days": 1,
+                "rate_limit": {"max_attempts": 5, "window_seconds": 300},
+            },
+        ):
             token = create_session(uid, db_path)
             with get_db(db_path) as conn:
                 row = conn.execute(
@@ -162,15 +158,13 @@ class TestSessionTtlLive:
 
     def test_session_ttl_default_7_days(self) -> None:
         """默认 session TTL 为 7 天。"""
-        with patch("ai_runtime.config.LLMRuntimeConfig") as MockConfig:
-            instance = MockConfig.return_value
-            instance.system = {
-                "security": {
-                    "session_ttl_days": 7,
-                    "rate_limit": {"max_attempts": 5, "window_seconds": 300},
-                }
-            }
-
+        with patch(
+            "app.features.accounts.auth.read_system_section",
+            return_value={
+                "session_ttl_days": 7,
+                "rate_limit": {"max_attempts": 5, "window_seconds": 300},
+            },
+        ):
             ttl = get_session_ttl_seconds()
             assert ttl == 7 * 86400
 
@@ -181,15 +175,13 @@ class TestSessionTtlLive:
         uid = create_test_owner(db_path)
 
         # 先用 7 天 TTL 创建 session
-        with patch("ai_runtime.config.LLMRuntimeConfig") as MockConfig:
-            instance = MockConfig.return_value
-            instance.system = {
-                "security": {
-                    "session_ttl_days": 7,
-                    "rate_limit": {"max_attempts": 5, "window_seconds": 300},
-                }
-            }
-
+        with patch(
+            "app.features.accounts.auth.read_system_section",
+            return_value={
+                "session_ttl_days": 7,
+                "rate_limit": {"max_attempts": 5, "window_seconds": 300},
+            },
+        ):
             token = create_session(uid, db_path)
             with get_db(db_path) as conn:
                 row = conn.execute(
@@ -217,30 +209,26 @@ class TestRateLimitLive:
 
     def test_get_rate_limiter_from_config(self) -> None:
         """get_rate_limiter 从配置读取 max_attempts 和 window_seconds。"""
-        with patch("ai_runtime.config.LLMRuntimeConfig") as MockConfig:
-            instance = MockConfig.return_value
-            instance.system = {
-                "security": {
-                    "session_ttl_days": 7,
-                    "rate_limit": {"max_attempts": 2, "window_seconds": 60},
-                }
-            }
-
+        with patch(
+            "app.features.accounts.auth.read_system_section",
+            return_value={
+                "session_ttl_days": 7,
+                "rate_limit": {"max_attempts": 2, "window_seconds": 60},
+            },
+        ):
             limiter = get_rate_limiter()
             assert limiter._max_attempts == 2
             assert limiter._window_seconds == 60
 
     def test_rate_limiter_blocks_after_max_attempts(self) -> None:
         """max_attempts=2 → 2 次失败后第 3 次 is_limited 返回 True。"""
-        with patch("ai_runtime.config.LLMRuntimeConfig") as MockConfig:
-            instance = MockConfig.return_value
-            instance.system = {
-                "security": {
-                    "session_ttl_days": 7,
-                    "rate_limit": {"max_attempts": 2, "window_seconds": 300},
-                }
-            }
-
+        with patch(
+            "app.features.accounts.auth.read_system_section",
+            return_value={
+                "session_ttl_days": 7,
+                "rate_limit": {"max_attempts": 2, "window_seconds": 300},
+            },
+        ):
             limiter = get_rate_limiter()
             assert not limiter.is_limited("1.2.3.4", "owner")
             limiter.record_failure("1.2.3.4", "owner")
@@ -263,15 +251,13 @@ class TestRateLimitLive:
         assert resp.status_code == 200
 
         # Mock LLMRuntimeConfig 让登录端点使用新的限流配置
-        with patch("ai_runtime.config.LLMRuntimeConfig") as MockConfig:
-            instance = MockConfig.return_value
-            instance.system = {
-                "security": {
-                    "session_ttl_days": 7,
-                    "rate_limit": {"max_attempts": 2, "window_seconds": 300},
-                }
-            }
-
+        with patch(
+            "app.features.accounts.auth.read_system_section",
+            return_value={
+                "session_ttl_days": 7,
+                "rate_limit": {"max_attempts": 2, "window_seconds": 300},
+            },
+        ):
             # 连续 3 次错误密码
             resp1 = client.post(
                 "/api/auth/login", data={"username": "owner", "password": "wrong1"}

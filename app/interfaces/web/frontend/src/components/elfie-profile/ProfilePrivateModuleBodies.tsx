@@ -57,7 +57,6 @@ export function TimelineModuleBody({ module }: { readonly module: TimelineModule
 export function ConfigModuleBody({ module }: { readonly module: ConfigModule }) {
   const { t } = useTranslation("chat")
   const foodId = useId()
-  const fallbackId = useId()
   return (
     <div className="profile-private-module__config">
       <MockSelect
@@ -65,12 +64,6 @@ export function ConfigModuleBody({ module }: { readonly module: ConfigModule }) 
         label={t("profile.private.primaryFood")}
         options={module.food.allowed}
         value={module.food.selected}
-      />
-      <MockSelect
-        id={fallbackId}
-        label={t("profile.private.fallbackFood")}
-        options={module.food.allowed}
-        value={module.food.fallback}
       />
       <dl className="profile-private-module__config-notes">
         <div><dt>{t("profile.private.allowedFood")}</dt><dd>{module.food.allowed.join(t("profile.private.foodSeparator"))}</dd></div>

@@ -6,13 +6,27 @@ from typing import Any, Dict, Optional
 
 import yaml
 
-from ai_runtime.storage.data_home import get_config_path, get_env_path
+from ai_runtime.storage.data_home import (
+    ensure_elfie_home,
+    get_config_path,
+    get_env_path,
+)
+from ai_runtime.storage.runtime_settings import (
+    read_runtime_settings,
+    write_runtime_settings,
+)
 
 UserConfig = Dict[str, Any]
 EnvVars = Dict[str, str]
 
 
 def read_user_config(path: Optional[Path] = None) -> UserConfig:
+    if path is None:
+        try:
+            return read_runtime_settings()
+        except RuntimeError:
+            return {}
+
     config_path = path or get_config_path()
     if not config_path.exists():
         return {}
@@ -27,6 +41,10 @@ def read_user_config(path: Optional[Path] = None) -> UserConfig:
 
 
 def write_user_config(config: UserConfig, path: Optional[Path] = None) -> None:
+    if path is None:
+        write_runtime_settings(config)
+        return
+
     config_path = path or get_config_path()
     config_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     with open(config_path, "w", encoding="utf-8") as file:
@@ -53,6 +71,8 @@ def read_env_file(path: Optional[Path] = None) -> EnvVars:
 
 
 def write_env_file(env_vars: EnvVars, path: Optional[Path] = None) -> None:
+    if path is None:
+        ensure_elfie_home()
     env_path = path or get_env_path()
     env_path.parent.mkdir(parents=True, exist_ok=True)
     with open(env_path, "w", encoding="utf-8") as file:

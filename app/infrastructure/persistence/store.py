@@ -24,10 +24,11 @@ logger = logging.getLogger("app.infrastructure.persistence.store")
 
 _FINAL_TABLES: Final[frozenset[str]] = frozenset(
     {
-        "device_audit_events",
-        "elfies",
-        "embodiment_sessions",
-        "external_bodies",
+    "device_audit_events",
+    "elfies",
+    "embodiment_sessions",
+    "external_bodies",
+    "food_package_access",
         "local_installations",
         "nest_settings",
         "sessions",
@@ -114,7 +115,7 @@ def verify_password(password: str, hashed: str) -> bool:
 
 
 def init_db(db_path: Optional[str] = None) -> str:
-    """Activate the final eight-table database at an explicit fresh root."""
+    """Activate the final-contract database at an explicit fresh root."""
     if db_path is None:
         db_path = str(_get_db_path())
     resolved = Path(db_path).expanduser().absolute()

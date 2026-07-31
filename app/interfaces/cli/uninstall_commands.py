@@ -29,7 +29,11 @@ def run_uninstall_menu() -> int:
     choice = menu.choose(
         "Uninstall Options",
         (
-            MenuItem("1", "Uninstall app only (keep all data and config)", "App files managed by installer"),
+            MenuItem(
+                "1",
+                "Uninstall app only (keep all data and config)",
+                "App files managed by installer",
+            ),
             MenuItem(
                 "2",
                 "Uninstall and delete config",
@@ -93,23 +97,14 @@ def _delete_config(elfie_home: Path) -> int:
         return 0
 
     deleted = []
-    config_file = elfie_home / "configs" / "runtime.yaml"
-    env_file = elfie_home / "configs" / "auth.env"
+    configs_dir = elfie_home / "configs"
 
-    if config_file.exists():
+    if configs_dir.exists():
         try:
-            config_file.unlink()
-            deleted.append("configs/runtime.yaml")
+            shutil.rmtree(configs_dir)
+            deleted.append("configs/")
         except OSError as error:
-            print(f"\n❌ Failed to delete configs/runtime.yaml: {error}")
-            return 1
-
-    if env_file.exists():
-        try:
-            env_file.unlink()
-            deleted.append("configs/auth.env")
-        except OSError as error:
-            print(f"\n❌ Failed to delete configs/auth.env: {error}")
+            print(f"\n❌ Failed to delete config directory: {error}")
             return 1
 
     if deleted:

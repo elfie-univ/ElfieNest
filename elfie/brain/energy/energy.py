@@ -106,7 +106,8 @@ class HypothalamusEnergy:
                 )
         else:
             # 清醒状态下缓慢自然消耗体能、累积疲劳
-            self.energy = max(self.energy - self.depletion_rate * dt, 0.0)
+            remaining_energy = self.energy - self.depletion_rate * dt
+            self.energy = 0.0 if remaining_energy <= 1e-12 else remaining_energy
             self.fatigue = min(
                 self.fatigue + self.accumulation_rate * dt, self.max_fatigue
             )
@@ -147,7 +148,9 @@ class HypothalamusEnergy:
         self.energy = max(self.energy - cost, 0.0)
         if self.energy != previous_energy:
             self.revision += 1
-        logger.info(f"⚡ [动作耗能] 消耗 {cost:.2f} 能量，当前精力剩余: {self.energy:.1f}%")
+        logger.info(
+            f"⚡ [动作耗能] 消耗 {cost:.2f} 能量，当前精力剩余: {self.energy:.1f}%"
+        )
 
     def get_energy(self) -> float:
         return self.energy

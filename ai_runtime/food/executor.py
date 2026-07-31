@@ -1,4 +1,4 @@
-"""粮食配方的正式 Runtime Agent 执行器。"""
+"""Execute one food package role and its ordered internal fallbacks."""
 
 from __future__ import annotations
 
@@ -6,11 +6,16 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.food.models import ExecutionProfile, FoodRecipe
+from ai_runtime.food.models import FoodPackage, ModelAssignment
 from ai_runtime.gateway.loop import RuntimeToolLoop, ToolLoopContext
 from ai_runtime.gateway.multimodal import assemble_multimodal_payload
 from ai_runtime.gateway.skills_prompt import inject_skills_system_prompt
 from ai_runtime.models.model_reference import ModelReferenceError, parse_model_reference
+from ai_runtime.tools.config import (
+    effective_tool_keys,
+    enabled_tool_keys,
+    load_tool_configs,
+)
 
 
 @dataclass(frozen=True)
@@ -19,10 +24,17 @@ class FoodExecutionResult:
     model: str
     execution_stage: str
     technical_fallback_used: bool
+    attempts: tuple[dict[str, str], ...] = ()
 
 
 class FoodExecutionError(RuntimeError):
-    pass
+    def __init__(self, message: str, attempts: tuple[dict[str, str], ...] = ()) -> None:
+        super().__init__(message)
+        self.attempts = attempts
+
+
+class NoAvailableFoodError(FoodExecutionError):
+    code = "no_available_food"
 
 
 class FoodExecutor:
@@ -31,8 +43,6 @@ class FoodExecutor:
         *,
         config: LLMRuntimeConfig,
         search_plugin: Any,
-        sandbox_plugin: Any,
-        skills_evolution_plugin: Any,
         permission_manager: Any,
         file_access_plugin: Any,
         model_caller: Callable[
@@ -41,60 +51,77 @@ class FoodExecutor:
     ) -> None:
         self.config = config
         self.search_plugin = search_plugin
-        self.sandbox_plugin = sandbox_plugin
-        self.skills_evolution_plugin = skills_evolution_plugin
         self.permission_manager = permission_manager
         self.file_access_plugin = file_access_plugin
         self.model_caller = model_caller
 
     def execute(
         self,
-        recipe: FoodRecipe,
+        package: FoodPackage,
         messages: list[dict[str, Any]],
         *,
+        semantic_role: str = "primary",
         allowed_tools: tuple[str, ...] = (),
         max_loops: int = 3,
-        prefer_deep: bool = False,
         images: tuple[str, ...] = (),
         audio: str | None = None,
     ) -> FoodExecutionResult:
-        candidates: list[tuple[str, ExecutionProfile]] = []
-        if prefer_deep and recipe.deep is not None:
-            candidates.append(("deep", recipe.deep))
-        candidates.append(("primary", recipe.primary))
+        selected = package.assignment_for(semantic_role)
+        stage = semantic_role
+        if selected is None and semantic_role != "primary":
+            selected = package.primary
+            stage = "primary"
+        candidates: list[tuple[str, ModelAssignment]] = []
+        if selected is not None:
+            candidates.append((stage, selected))
         candidates.extend(
-            (f"fallback_{index}", profile)
-            for index, profile in enumerate(recipe.technical_fallbacks, 1)
+            (f"fallback_{index}", assignment)
+            for index, assignment in enumerate(package.fallback, 1)
+            if assignment != selected
         )
-        failures: list[str] = []
-        for stage, profile in candidates:
-            if not profile.model:
-                failures.append(f"{stage}: 模型未配置")
-                continue
+        attempts: list[dict[str, str]] = []
+        for candidate_stage, assignment in candidates:
             try:
-                text = self._execute_profile(
-                    profile,
+                text = self._execute_assignment(
+                    assignment,
                     [dict(message) for message in messages],
                     allowed_tools=allowed_tools,
                     max_loops=max_loops,
                     images=images,
                     audio=audio,
                 )
+                attempts.append(
+                    {
+                        "food_id": package.key,
+                        "stage": candidate_stage,
+                        "model": assignment.model,
+                        "result": "passed",
+                    }
+                )
                 return FoodExecutionResult(
                     text=text,
-                    model=profile.model,
-                    execution_stage=stage,
-                    technical_fallback_used=stage.startswith("fallback_"),
+                    model=assignment.model,
+                    execution_stage=candidate_stage,
+                    technical_fallback_used=candidate_stage.startswith("fallback_"),
+                    attempts=tuple(attempts),
                 )
             except Exception as exc:
-                failures.append(f"{stage} ({profile.model}): {exc}")
+                attempts.append(
+                    {
+                        "food_id": package.key,
+                        "stage": candidate_stage,
+                        "model": assignment.model,
+                        "result": type(exc).__name__,
+                    }
+                )
         raise FoodExecutionError(
-            f"粮食 '{recipe.key}' 的所有执行模型均失败：" + " | ".join(failures)
+            f"粮食 '{package.key}' 没有可执行模型",
+            tuple(attempts),
         )
 
-    def _execute_profile(
+    def _execute_assignment(
         self,
-        profile: ExecutionProfile,
+        assignment: ModelAssignment,
         messages: list[dict[str, Any]],
         *,
         allowed_tools: tuple[str, ...],
@@ -103,43 +130,77 @@ class FoodExecutor:
         audio: str | None,
     ) -> str:
         try:
-            model_reference = parse_model_reference(profile.model)
+            reference = parse_model_reference(assignment.model)
         except ModelReferenceError as exc:
             raise FoodExecutionError(str(exc)) from exc
-        provider = model_reference.provider_id
-        model = model_reference.model_id
-        provider_config = self.config.providers.get(provider, {})
-        if provider != "ollama" and not provider_config.get("api_key"):
-            raise FoodExecutionError(f"Provider '{provider}' 没有可用密钥")
-        tools = tuple(tool for tool in profile.tools if tool in allowed_tools)
+        connection_id = reference.connection_id
+        provider_config = self.config.providers.get(connection_id, {})
+        api_mode = str(provider_config.get("api_mode") or "")
+        # When model_caller is provided (e.g., for testing), bypass API key check
+        if api_mode != "ollama" and not provider_config.get("api_key") and self.model_caller is None:
+            raise FoodExecutionError(f"Provider 连接 '{connection_id}' 没有可用密钥")
         if images or audio:
             messages = assemble_multimodal_payload(
                 messages,
                 list(images),
                 audio,
-                provider,
+                "ollama" if api_mode == "ollama" else connection_id,
             )
-        if tools:
-            messages = inject_skills_system_prompt(messages, list(tools))
+        effective_tools = effective_tool_keys(
+            self.config.runtime_policy,
+            allowed_tools,
+        )
+        if self.file_access_plugin is None:
+            effective_tools = tuple(
+                tool for tool in effective_tools if tool != "local_file"
+            )
+        if effective_tools:
+            messages = inject_skills_system_prompt(messages, list(effective_tools))
+        tool_configs = load_tool_configs(self.config.runtime_policy)
         loop = RuntimeToolLoop(
             ToolLoopContext(
-                allowed_skills=tools,
+                allowed_skills=effective_tools,
                 search_plugin=self.search_plugin,
-                sandbox_plugin=self.sandbox_plugin,
-                skills_evolution_plugin=self.skills_evolution_plugin,
                 permission_manager=self.permission_manager,
                 file_access_plugin=self.file_access_plugin,
+                runtime_enabled_tools=enabled_tool_keys(self.config.runtime_policy),
+                tool_configs=tool_configs,
+                max_tool_calls=_tool_limit(tool_configs, "max_tool_calls", 3),
+                max_total_result_bytes=_tool_limit(
+                    tool_configs,
+                    "max_total_result_bytes",
+                    48000,
+                ),
             )
         )
 
         def invoke(loop_messages: list[dict[str, Any]]) -> str:
             return self.model_caller(
-                provider,
-                model,
+                connection_id,
+                reference.model_id,
                 loop_messages,
-                profile.temperature,
-                profile.max_tokens,
-                dict(profile.provider_options),
+                0.7,
+                1500,
+                {},
             )
 
         return loop.run(messages, max_loops, invoke)
+
+
+def _tool_limit(
+    tool_configs: dict[str, dict[str, Any]],
+    limit_key: str,
+    default: int,
+) -> int:
+    configured = [
+        config.get(limit_key)
+        for config in tool_configs.values()
+        if config.get("enabled") is True
+    ]
+    values: list[int] = []
+    for value in configured:
+        try:
+            values.append(max(1, int(value)))
+        except (TypeError, ValueError):
+            continue
+    return min(*values, default) if values else default

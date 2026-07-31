@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict
+from typing import Callable, Dict
 
 from app.orchestration.godot_owner_channel import (
     GodotOwnerChannel,
@@ -48,6 +48,9 @@ class NestSession:
         self.api_server = api_server
         self.elfies: Dict[str, Elfie] = {}
         self._cortical_runtime: CorticalRuntimePort | None = None
+        self._cortical_runtime_factory: Callable[[str], CorticalRuntimePort] | None = (
+            None
+        )
         self.owner_broadcaster: OwnerMessageBroadcaster | None = None
         self._runtime_token: tuple[str, int] | None = None
         self._repository = repository
@@ -109,8 +112,14 @@ class NestSession:
             connect=True,
             replace=True,
         )
-        if self._cortical_runtime is not None and not elfie.cognition_configured:
-            elfie.configure_cognition(self._cortical_runtime)
+        if not elfie.cognition_configured:
+            runtime = (
+                self._cortical_runtime_factory(elfie_id)
+                if self._cortical_runtime_factory is not None
+                else self._cortical_runtime
+            )
+            if runtime is not None:
+                elfie.configure_cognition(runtime)
         self.elfies[elfie_id] = elfie
         self._runtime_sync.mark_actor_catalog_dirty()
         logger.info("精灵 '%s' 已进入 Nest", elfie_id)
@@ -204,9 +213,21 @@ class NestSession:
     def configure_cognition(self, runtime: CorticalRuntimePort) -> None:
         """Inject the serialized Runtime boundary into every registered Elfie."""
         self._cortical_runtime = runtime
+        self._cortical_runtime_factory = lambda _elfie_id: runtime
         for elfie in self.elfies.values():
             if not elfie.cognition_configured:
                 elfie.configure_cognition(runtime)
+
+    def configure_cognition_factory(
+        self,
+        factory: Callable[[str], CorticalRuntimePort],
+    ) -> None:
+        """Inject an independently configured Runtime boundary per Elfie."""
+        self._cortical_runtime = None
+        self._cortical_runtime_factory = factory
+        for elfie_id, elfie in self.elfies.items():
+            if not elfie.cognition_configured:
+                elfie.configure_cognition(factory(elfie_id))
 
     def start_elfies(self) -> None:
         for elfie in self.elfies.values():

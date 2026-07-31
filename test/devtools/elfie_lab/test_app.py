@@ -107,7 +107,9 @@ def test_app_create_elfie_and_chat(tmp_path, client_for):
     elfie_id = created.json()["elfie_id"]
     assert created.json()["profile"]["species_id"] == "dog"
     assert created.json()["profile"]["appearance"]["species_id"] == "dog"
-    assert (tmp_path / "data" / "elfies" / elfie_id / "profile.yaml").is_file()
+    assert (
+        tmp_path / "data" / "elfies" / elfie_id / "profile" / "profile.yaml"
+    ).is_file()
 
     turn = client.post(
         f"/api/elfies/{elfie_id}/turns",

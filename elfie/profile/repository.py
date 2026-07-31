@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Union
+from typing import Any, Dict, Union
 
 import yaml
 
@@ -15,6 +15,11 @@ class ElfieProfileRepository:
     """在精灵配置目录中原子读写 ``profile.yaml``。"""
 
     filename = "profile.yaml"
+    default_sections = {
+        "personality": "personality.yaml",
+        "capabilities": "capabilities.yaml",
+        "system_limits": "system_limits.yaml",
+    }
 
     def __init__(self, config_dir: Union[str, Path]):
         self.config_dir = Path(config_dir).expanduser()
@@ -31,6 +36,13 @@ class ElfieProfileRepository:
         if not isinstance(raw, dict):
             raise ValueError(f"精灵档案根节点必须是映射: {self.path}")
         return ElfieProfile.from_dict(raw)
+
+    def load_default_sections(self) -> Dict[str, Dict[str, Any]]:
+        """Read bundled profile sections without requiring a canonical profile."""
+        return {
+            field_name: self._load_mapping(self.config_dir / filename)
+            for field_name, filename in self.default_sections.items()
+        }
 
     def save(self, profile: ElfieProfile) -> Path:
         profile.validate()
@@ -56,3 +68,14 @@ class ElfieProfileRepository:
             if temporary.exists():
                 temporary.unlink()
         return self.path
+
+    @staticmethod
+    def _load_mapping(path: Path) -> Dict[str, Any]:
+        if not path.is_file():
+            return {}
+        try:
+            with path.open("r", encoding="utf-8") as handle:
+                raw = yaml.safe_load(handle)
+        except (OSError, yaml.YAMLError):
+            return {}
+        return dict(raw) if isinstance(raw, dict) else {}

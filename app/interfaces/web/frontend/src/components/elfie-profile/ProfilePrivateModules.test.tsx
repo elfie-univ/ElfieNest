@@ -129,8 +129,8 @@ describe("ProfilePrivateModules", () => {
 
     await user.click(screen.getByRole("button", { name: "粮食策略" }))
     const foodStrategy = screen.getByRole("region", { name: "粮食策略" })
-    expect(within(foodStrategy).getByRole("combobox", { name: "主粮" })).toHaveTextContent("standard")
-    expect(within(foodStrategy).getByRole("combobox", { name: "备用粮" })).toHaveTextContent("coarse")
+    expect(within(foodStrategy).getByRole("combobox", { name: "主粮" })).toHaveTextContent("food_common")
+    expect(within(foodStrategy).queryByRole("combobox", { name: "备用粮" })).not.toBeInTheDocument()
     expect(within(foodStrategy).getByText("可选粮食由管理员维护，此处不能增删。")).toBeInTheDocument()
     expect(within(foodStrategy).queryByText(/模型|温度|提供方/)).not.toBeInTheDocument()
   })

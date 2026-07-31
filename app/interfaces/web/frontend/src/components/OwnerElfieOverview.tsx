@@ -120,7 +120,7 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
     setSelection((current) => ({ ...current, [key]: value }))
   }
   const species = [...new Set(allElfies.map((elfie) => elfie.profile.species_id))].sort((left, right) => compareLocalizedText(left, right, locale))
-  const foods = [...new Set(allElfies.map((elfie) => elfie.food_policy.default_food))].sort((left, right) => compareLocalizedText(left, right, locale))
+  const foods = [...new Set(allElfies.map((elfie) => elfie.food_policy.effective_main_food_id))].sort((left, right) => compareLocalizedText(left, right, locale))
   const states = [...new Set(allElfies.map((elfie) => elfie.profile.embodiment.state))].sort((left, right) => compareLocalizedText(left, right, locale))
   const orderedUsers = [...users].sort((left, right) => compareLocalizedText(left.username, right.username, locale))
   const orderedElfies = [...elfies].sort((left, right) => compareLocalizedText(left.profile.name, right.profile.name, locale))
@@ -195,7 +195,7 @@ function filterMockElfies(selection: FilterSelection): readonly OwnerElfie[] {
   return MOCK_ELFIES.filter((elfie) =>
     (selection.ownerAccountId === ALL_USERS || elfie.owner.account_id === selection.ownerAccountId)
     && (selection.speciesId === ALL_SPECIES || elfie.profile.species_id === selection.speciesId)
-    && (selection.foodKey === ALL_FOODS || elfie.food_policy.default_food === selection.foodKey)
+    && (selection.foodKey === ALL_FOODS || elfie.food_policy.effective_main_food_id === selection.foodKey)
     && (selection.embodimentState === ALL_STATES || elfie.profile.embodiment.state === selection.embodimentState),
   )
 }

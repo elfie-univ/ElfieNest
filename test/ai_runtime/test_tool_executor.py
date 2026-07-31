@@ -34,6 +34,13 @@ class FakePermissionManager:
 
 
 @dataclass
+class DenyingPermissionManager(FakePermissionManager):
+    def verify_action(self, action: str, file_path: str, token: str | None = None) -> None:
+        super().verify_action(action, file_path, token)
+        raise PermissionError("policy denied")
+
+
+@dataclass
 class FakeSkillsPlugin:
     skill_name: str = ""
     skill_args: str = ""
@@ -85,8 +92,6 @@ def make_executor(
             ToolExecutionContext(
                 allowed_skills=allowed_skills,
                 search_plugin=search_plugin,
-                sandbox_plugin=sandbox_plugin,
-                skills_evolution_plugin=skills_plugin,
                 permission_manager=permission_manager,
             )
         ),
@@ -125,52 +130,34 @@ def test_tool_executor_handles_search_and_preserves_feedback_text():
     assert "Search result" in result.content
 
 
-def test_tool_executor_handles_code_with_permission_and_feedback_text():
+def test_tool_executor_ignores_code_sandbox_tags():
     executor, _, sandbox_plugin, _, permission_manager = make_executor(("code_sandbox",))
 
     result = executor.execute("[CODE]print(2 + 2)[/CODE]")
 
-    assert result is not None
-    assert result.tool_name == "code_sandbox"
-    assert result.ok is True
-    assert sandbox_plugin.code == "print(2 + 2)"
-    assert permission_manager.action == "RUN_CODE"
-    assert permission_manager.file_path == "code_sandbox"
-    assert "标准输出: 4" in result.content
-    assert "去掉 [CODE] 标签" in result.content
+    assert result is None
+    assert sandbox_plugin.code == ""
+    assert permission_manager.action == ""
 
 
-def test_tool_executor_handles_write_skill_and_parse_error():
+def test_tool_executor_ignores_skill_mutation_tags():
     executor, _, _, skills_plugin, _ = make_executor(("skills_evolution",))
 
     result = executor.execute("[WRITE_SKILL]math_tool|print('ok')[/WRITE_SKILL]")
     parse_error = executor.execute("[WRITE_SKILL]bad-format[/WRITE_SKILL]")
 
-    assert result is not None
-    assert result.tool_name == "write_skill"
-    assert result.ok is True
-    assert skills_plugin.skill_name == "math_tool"
-    assert skills_plugin.skill_args == "print('ok')"
-    assert result.content == "Skill written"
-
-    assert parse_error is not None
-    assert parse_error.tool_name == "write_skill"
-    assert parse_error.ok is False
-    assert "格式必须是 [WRITE_SKILL]文件名|Python代码[/WRITE_SKILL]" in parse_error.content
+    assert result is None
+    assert parse_error is None
+    assert skills_plugin.skill_name == ""
 
 
-def test_tool_executor_handles_run_skill_success_and_failure_feedback():
+def test_tool_executor_ignores_skill_execution_tags():
     executor, _, _, skills_plugin, _ = make_executor(("skills_evolution",))
 
     success = executor.execute("[RUN_SKILL]math_tool|1,2[/RUN_SKILL]")
 
-    assert success is not None
-    assert success.tool_name == "run_skill"
-    assert success.ok is True
-    assert skills_plugin.skill_name == "math_tool"
-    assert skills_plugin.skill_args == "1,2"
-    assert "【习得技能 'math_tool' 运行成功】" in success.content
-    assert "标准输出 (stdout): Skill output" in success.content
+    assert success is None
+    assert skills_plugin.skill_name == ""
 
     skills_plugin.run_skill = lambda filename, args="": {
         "exit_code": 1,
@@ -179,23 +166,16 @@ def test_tool_executor_handles_run_skill_success_and_failure_feedback():
     }
     failure = executor.execute("[RUN_SKILL]math_tool[/RUN_SKILL]")
 
-    assert failure is not None
-    assert failure.tool_name == "run_skill"
-    assert failure.ok is False
-    assert "【习得技能 'math_tool' 运行故障】" in failure.content
-    assert "错误流 (stderr): boom" in failure.content
+    assert failure is None
 
 
-def test_tool_executor_handles_list_skills_and_ignores_disallowed_tags():
+def test_tool_executor_ignores_list_skills_tags():
     executor, _, _, _, _ = make_executor(("skills_evolution",))
     disallowed, _, _, _, _ = make_executor(())
 
     result = executor.execute("[LIST_SKILLS][/LIST_SKILLS]")
 
-    assert result is not None
-    assert result.tool_name == "list_skills"
-    assert result.ok is True
-    assert result.content == "Skill list"
+    assert result is None
     assert disallowed.execute("[LIST_SKILLS][/LIST_SKILLS]") is None
 
 
@@ -205,8 +185,6 @@ def test_tool_executor_handles_controlled_local_file_access():
     executor.context = ToolExecutionContext(
         allowed_skills=("local_file",),
         search_plugin=search,
-        sandbox_plugin=sandbox,
-        skills_evolution_plugin=skills,
         permission_manager=permission,
         file_access_plugin=file_access,
     )
@@ -220,3 +198,76 @@ def test_tool_executor_handles_controlled_local_file_access():
     assert list_result is not None
     assert list_result.tool_name == "local_file_list"
     assert "one.txt" in list_result.content
+    assert "notes/probe.txt" not in read_result.content
+    assert "notes" not in list_result.content
+    assert "path" not in read_result.metadata
+    assert "path" not in list_result.metadata
+
+
+def test_tool_executor_requires_runtime_request_and_safe_implementation_intersection():
+    executor, search, _, _, _ = make_executor(("web_search",))
+    executor.context = ToolExecutionContext(
+        allowed_skills=("web_search",),
+        runtime_enabled_tools=(),
+        search_plugin=search,
+        permission_manager=FakePermissionManager(),
+    )
+
+    assert executor.execute("[SEARCH]ElfieNest[/SEARCH]") is None
+    assert search.query == ""
+
+
+def test_tool_executor_still_refuses_unsafe_tools_when_all_callers_request_them():
+    executor, _, sandbox, _, permission = make_executor(("code_sandbox",))
+    executor.context = ToolExecutionContext(
+        allowed_skills=("code_sandbox",),
+        runtime_enabled_tools=("code_sandbox",),
+        search_plugin=FakeSearchPlugin(),
+        permission_manager=permission,
+    )
+
+    assert executor.execute("[CODE]print(2 + 2)[/CODE]") is None
+    assert sandbox.code == ""
+    assert permission.action == ""
+
+
+def test_tool_executor_returns_safe_feedback_when_permission_denies_a_tool():
+    search = FakeSearchPlugin()
+    permission = DenyingPermissionManager()
+    executor = ToolExecutor(
+        ToolExecutionContext(
+            allowed_skills=("web_search",),
+            search_plugin=search,
+            permission_manager=permission,
+        )
+    )
+
+    result = executor.execute("[SEARCH]ElfieNest[/SEARCH]")
+
+    assert result is not None
+    assert result.ok is False
+    assert result.metadata["error_type"] == "PermissionError"
+    assert search.query == ""
+
+
+def test_tool_executor_enforces_the_total_result_budget_across_tool_calls():
+    search = FakeSearchPlugin()
+    executor = ToolExecutor(
+        ToolExecutionContext(
+            allowed_skills=("web_search",),
+            search_plugin=search,
+            permission_manager=FakePermissionManager(),
+            max_total_result_bytes=len(b"Search result"),
+            tool_configs={"web_search": {"max_result_bytes": 100}},
+        )
+    )
+
+    first = executor.execute("[SEARCH]first[/SEARCH]")
+    second = executor.execute("[SEARCH]second[/SEARCH]")
+
+    assert first is not None
+    assert first.ok is True
+    assert second is not None
+    assert second.ok is False
+    assert second.metadata["limit"] == "total_result_bytes"
+    assert search.query == "first"

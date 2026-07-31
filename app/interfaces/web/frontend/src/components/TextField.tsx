@@ -11,6 +11,7 @@ type TextFieldProps = {
   readonly error?: string
   readonly hint?: string
   readonly label: string
+  readonly min?: number
   readonly minLength?: number
   readonly name?: string
   readonly onChange: (value: string) => void
@@ -28,6 +29,7 @@ export function TextField({
   error,
   hint,
   label,
+  min,
   minLength,
   name,
   onChange,
@@ -44,6 +46,7 @@ export function TextField({
       autoFocus={autoFocus}
       disabled={disabled}
       id={id}
+      min={min}
       minLength={minLength}
       name={name}
       onChange={(event) => onChange(event.target.value)}

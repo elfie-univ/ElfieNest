@@ -42,12 +42,6 @@ MAX_ELFIES_PER_MACHINE: Final = 32
 # 内部辅助：校验嵌套字典（如 security.rate_limit）
 _SECTION_SCHEMAS: Dict[str, Dict[str, Any]] = {
     "llm": {
-        "default_cheap_model": str,
-        "default_cheap_provider": str,
-        "default_deep_model": str,
-        "default_deep_provider": str,
-        "default_multimodal_model": str,
-        "default_multimodal_provider": str,
         "temperature": (float, int),
         "max_tokens": int,
         "energy_threshold_fast": (float, int),

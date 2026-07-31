@@ -2,6 +2,7 @@
 
 import logging
 import sqlite3
+from pathlib import Path
 
 from .graph_content_search import GraphContentSearchMixin
 from .graph_edge_store import GraphEdgeStoreMixin
@@ -15,6 +16,8 @@ class GraphStorage(GraphNodeStoreMixin, GraphEdgeStoreMixin, GraphContentSearchM
 
     def __init__(self, db_path: str):
         self.db_path = db_path
+        if db_path != ":memory:":
+            Path(db_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         # 启用WAL模式（内存数据库不支持WAL，跳过）

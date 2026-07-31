@@ -34,7 +34,9 @@ class KnowledgeStore(KnowledgeNodeStoreMixin, KnowledgeEdgeStoreMixin):
     def __init__(self, db_path: str | Path) -> None:
         self._db_path = self._parse_path(db_path)
         try:
-            self.conn = connect_memory_sqlite(self._db_path)
+            # Cognition owns the logical write sequence, but the provider worker
+            # runs on its own thread and reads the same per-Elfie store.
+            self.conn = connect_memory_sqlite(self._db_path, check_same_thread=False)
         except SQLitePathError as error:
             raise KnowledgeStorePathError(db_path=str(db_path)) from error
         self._initialize_schema()

@@ -1,4 +1,4 @@
-"""粮食目录的本地版本化存储。"""
+"""Versioned storage for stable food packages."""
 
 from __future__ import annotations
 
@@ -10,48 +10,72 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
-from ai_runtime.food.models import FoodRecipe
+from ai_runtime.food.models import (
+    FOOD_COMMON_ID,
+    FOOD_EMERGENCY_ID,
+    SYSTEM_FOOD_IDS,
+    FoodPackage,
+    system_food_packages,
+)
 from ai_runtime.models.model_reference import ModelReferenceError, parse_model_reference
 from ai_runtime.storage.config_store import read_yaml_mapping, write_yaml_mapping
 from ai_runtime.storage.data_home import get_food_catalog_path, get_food_history_dir
+from ai_runtime.storage.provider_connections import ProviderConnectionStore
+
+FOOD_CATALOG_VERSION = 1
 
 
 @dataclass(frozen=True)
 class FoodCatalog:
-    version: int = 1
-    source_fingerprint: str = ""
-    generated_at: str = ""
-    generation_sources: tuple[str, ...] = ()
-    generation_note: str = ""
-    recipes: Mapping[str, FoodRecipe] = field(default_factory=dict)
+    version: int = FOOD_CATALOG_VERSION
+    global_default_food_id: str = FOOD_COMMON_ID
+    global_emergency_food_id: str = FOOD_EMERGENCY_ID
+    packages: Mapping[str, FoodPackage] = field(default_factory=system_food_packages)
+
+    @property
+    def recipes(self) -> Mapping[str, FoodPackage]:
+        return self.packages
+
+    def ordered_packages(self) -> tuple[FoodPackage, ...]:
+        ordered = [
+            self.packages[food_id]
+            for food_id in (FOOD_EMERGENCY_ID, FOOD_COMMON_ID)
+            if food_id in self.packages
+        ]
+        ordered.extend(
+            package
+            for key, package in self.packages.items()
+            if key not in SYSTEM_FOOD_IDS
+        )
+        return tuple(ordered)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "version": self.version,
-            "source_fingerprint": self.source_fingerprint,
-            "generated_at": self.generated_at,
-            "generation_sources": list(self.generation_sources),
-            "generation_note": self.generation_note,
-            "foods": {key: recipe.to_dict() for key, recipe in self.recipes.items()},
+            "global_default_food_id": self.global_default_food_id,
+            "global_emergency_food_id": self.global_emergency_food_id,
+            "packages": {
+                key: package.to_dict() for key, package in self.packages.items()
+            },
         }
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> FoodCatalog:
-        raw_foods = data.get("foods", {})
-        foods = raw_foods if isinstance(raw_foods, Mapping) else {}
+        raw_packages = data.get("packages")
+        if not isinstance(raw_packages, Mapping):
+            return cls()
+        packages = {
+            str(key): FoodPackage.from_dict(str(key), value)
+            for key, value in raw_packages.items()
+            if isinstance(value, Mapping)
+        }
+        for key, package in system_food_packages().items():
+            packages.setdefault(key, package)
         return cls(
-            version=int(data.get("version", 1)),
-            source_fingerprint=str(data.get("source_fingerprint", "")),
-            generated_at=str(data.get("generated_at", "")),
-            generation_sources=tuple(
-                str(item) for item in data.get("generation_sources", ()) if str(item)
-            ),
-            generation_note=str(data.get("generation_note", "")),
-            recipes={
-                str(key): FoodRecipe.from_dict(str(key), value)
-                for key, value in foods.items()
-                if isinstance(value, Mapping)
-            },
+            version=FOOD_CATALOG_VERSION,
+            global_default_food_id=FOOD_COMMON_ID,
+            global_emergency_food_id=FOOD_EMERGENCY_ID,
+            packages=packages,
         )
 
 
@@ -65,19 +89,17 @@ class FoodCatalogStore:
         self.history_dir = history_dir or get_food_history_dir()
 
     def load(self) -> FoodCatalog:
+        if not self.path.exists():
+            catalog = FoodCatalog()
+            self.save(catalog, keep_history=False)
+            return catalog
         return FoodCatalog.from_dict(read_yaml_mapping(self.path))
 
     def save(self, catalog: FoodCatalog, *, keep_history: bool = True) -> None:
         validate_food_catalog_model_references(catalog)
         if keep_history and self.path.exists():
             self._snapshot_current()
-        payload = catalog.to_dict()
-        if not payload["generated_at"]:
-            payload["generated_at"] = datetime.now(timezone.utc).isoformat()
-        write_yaml_mapping(self.path, payload)
-
-    def has_update(self, source_fingerprint: str) -> bool:
-        return self.load().source_fingerprint != source_fingerprint
+        write_yaml_mapping(self.path, catalog.to_dict())
 
     def history_versions(self) -> list[Path]:
         if not self.history_dir.exists():
@@ -88,17 +110,8 @@ class FoodCatalogStore:
         versions = self.history_versions()
         if not versions:
             raise FileNotFoundError("没有可回滚的粮食历史版本")
-        return self.restore_version(versions[0])
-
-    def restore_version(self, path: Path) -> FoodCatalog:
-        resolved = path.resolve()
-        history_root = self.history_dir.resolve()
-        if resolved.parent != history_root or resolved not in {
-            item.resolve() for item in self.history_versions()
-        }:
-            raise ValueError("粮食历史版本路径无效")
-        catalog = FoodCatalog.from_dict(read_yaml_mapping(resolved))
-        self.save(catalog, keep_history=True)
+        catalog = FoodCatalog.from_dict(read_yaml_mapping(versions[0]))
+        self.save(catalog)
         return catalog
 
     def _snapshot_current(self) -> Path:
@@ -118,20 +131,63 @@ def fingerprint_source(data: Mapping[str, Any]) -> str:
     serialized = json.dumps(
         data, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     )
-    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+    return hashlib.sha256(serialized.encode()).hexdigest()
 
 
 def validate_food_catalog_model_references(catalog: FoodCatalog) -> None:
-    """Reject new food writes that leave provider selection implicit."""
-    for recipe in catalog.recipes.values():
-        profiles = [recipe.primary, recipe.deep, recipe.verifier]
-        profiles.extend(recipe.technical_fallbacks)
-        for profile in profiles:
-            if profile is None or not profile.model:
-                continue
+    connections = ProviderConnectionStore().load().connections
+    for package in catalog.packages.values():
+        for reference_value in package.model_references:
             try:
-                parse_model_reference(profile.model)
+                reference = parse_model_reference(reference_value)
             except ModelReferenceError as exc:
                 raise ModelReferenceError(
-                    f"粮食 '{recipe.key}' 的模型无效: {exc}"
+                    f"粮食 '{package.key}' 的模型无效: {exc}"
                 ) from exc
+            connection = connections.get(reference.connection_id)
+            if connection is None or not connection.enabled or connection.archived:
+                raise ModelReferenceError(f"粮食 '{package.key}' 引用了不可用连接")
+            model = next(
+                (
+                    item
+                    for item in connection.models
+                    if item.endpoint_model_id == reference.model_id
+                ),
+                None,
+            )
+            if model is None or model.hidden or model.retired or not model.available:
+                raise ModelReferenceError(f"粮食 '{package.key}' 引用了不可用模型")
+
+
+def foods_referencing_connection(
+    catalog: FoodCatalog,
+    connection_id: str,
+) -> tuple[str, ...]:
+    return tuple(
+        package.key
+        for package in catalog.packages.values()
+        if any(
+            _connection_id(reference) == connection_id
+            for reference in package.model_references
+        )
+    )
+
+
+def foods_referencing_model(
+    catalog: FoodCatalog,
+    connection_id: str,
+    model_id: str,
+) -> tuple[str, ...]:
+    target = f"{connection_id}/{model_id}"
+    return tuple(
+        package.key
+        for package in catalog.packages.values()
+        if target in package.model_references
+    )
+
+
+def _connection_id(reference: str) -> str:
+    try:
+        return parse_model_reference(reference).connection_id
+    except ModelReferenceError:
+        return ""

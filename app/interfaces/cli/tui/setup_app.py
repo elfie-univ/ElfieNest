@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-from ai_runtime.storage.data_home import get_config_path, get_db_path
-from app.features.configuration.runtime_store import (
-    read_runtime_config,
-    write_runtime_config,
-)
+from ai_runtime.storage.data_home import get_db_path
 from app.features.setup.ollama import OllamaSetupService
 from app.features.setup.progress import complete_setup_step, get_setup_progress
 from app.features.setup.service import (
@@ -242,11 +238,8 @@ def _complete_confirmation(db_path: str) -> None:
 
 
 def _ollama_service() -> OllamaSetupService:
-    config_path = get_config_path()
     return OllamaSetupService(
         adapter=OllamaPlatformAdapter(),
-        read_config=lambda: read_runtime_config(config_path),
-        write_config=lambda config: write_runtime_config(config_path, config),
     )
 
 

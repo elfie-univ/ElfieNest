@@ -1,7 +1,7 @@
 import type { SupportedLocale } from "./locale"
 
 import type { ChatSocketErrorEvent } from "../api/chat-socket"
-import { ApiError } from "../api/http"
+import { ApiError, type ApiValidationDetail } from "../api/http"
 import { resources } from "./resources"
 
 export const errorOperations = [
@@ -84,11 +84,50 @@ export function localizeApiError(
   operation: ErrorOperation,
   locale: SupportedLocale,
 ): string {
+  if (reason instanceof ApiError && reason.validationDetails.length > 0) {
+    return localizeValidationDetails(reason.validationDetails, locale)
+  }
   return localizeBackendDetail(
     reason instanceof ApiError ? reason.message : null,
     operation,
     locale,
   )
+}
+
+function validationField(field: string, locale: SupportedLocale): string {
+  const fields = resources[locale].manage.apiValidation.fields
+  switch (field) {
+    case "provider_id": return fields.providerId
+    case "api_base": return fields.apiBase
+    case "api_key": return fields.apiKey
+    case "display_name": return fields.displayName
+    case "test_model": return fields.testModel
+    default: return field
+  }
+}
+
+function validationMessage(detail: ApiValidationDetail, locale: SupportedLocale): string {
+  const messages = resources[locale].manage.apiValidation.messages
+  switch (detail.type) {
+    case "missing": return messages.missing
+    case "string_pattern_mismatch": return messages.pattern
+    case "string_too_long": return messages.tooLong
+    case "url_parsing": return messages.url
+    default: return messages.invalid
+  }
+}
+
+function localizeValidationDetails(
+  details: readonly ApiValidationDetail[],
+  locale: SupportedLocale,
+): string {
+  const copy = resources[locale].manage.apiValidation
+  return details.map((detail) => {
+    const rawField = detail.loc?.at(-1)
+    const field = typeof rawField === "string" ? validationField(rawField, locale) : null
+    const message = validationMessage(detail, locale)
+    return field === null ? message : `${field}${copy.fieldSeparator}${message}`
+  }).join(copy.detailSeparator)
 }
 
 export function describeApiError(reason: unknown, operation: ErrorOperation): Exclude<LocalizedErrorState, string | null> {

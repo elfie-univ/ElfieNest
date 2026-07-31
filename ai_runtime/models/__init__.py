@@ -9,7 +9,6 @@ from ai_runtime.models.local_profiles import (
     LocalModelProfile,
     select_local_profile,
 )
-from ai_runtime.models.registry import ModelRegistry
 
 __all__ = [
     "BUILTIN_MODEL_CATALOG",
@@ -17,7 +16,6 @@ __all__ = [
     "LocalModelProfile",
     "ModelCatalog",
     "ModelEntry",
-    "ModelRegistry",
     "select_local_profile",
     "verify_provider",
 ]

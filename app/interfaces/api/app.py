@@ -553,12 +553,9 @@ def create_app(
     from .provider_routes import router as provider_router  # noqa: PLC0415
 
     app.include_router(provider_router)
-    from .model_owner_routes import router as model_owner_router  # noqa: PLC0415
+    from .elfie_food_routes import router as elfie_food_router  # noqa: PLC0415
 
-    app.include_router(model_owner_router)
-    from .food_policy_routes import router as food_policy_router  # noqa: PLC0415
-
-    app.include_router(food_policy_router)
+    app.include_router(elfie_food_router)
     from .food_owner_routes import router as food_owner_router  # noqa: PLC0415
 
     app.include_router(food_owner_router)

@@ -4,6 +4,15 @@ from ai_runtime.providers.profiles import (
     get_default_api_mode,
     get_profile,
 )
+from ai_runtime.storage.provider_connections import (
+    ProviderConnectionStore,
+    ProviderModelRecord,
+)
+from ai_runtime.storage.secrets import (
+    set_connection_secret,
+    set_provider_secret,
+    write_secrets,
+)
 
 
 class TestBuiltinProfiles:
@@ -36,13 +45,11 @@ class TestBuiltinProfiles:
         assert ollama.auth_type == "none"
         assert ollama.api_mode == "ollama"
 
-    def test_default_models_structure(self):
-        """每个 profile 的 default_models 包含 cheap/deep/multimodal 分类"""
+    def test_bundled_models_are_a_flat_nonempty_list(self):
+        """Bundled model candidates do not encode runtime selection groups."""
         for provider_name, profile in BUILTIN_PROFILES.items():
-            models = profile.default_models
-            assert "cheap" in models, f"{provider_name} 缺少 cheap 模型列表"
-            assert "deep" in models, f"{provider_name} 缺少 deep 模型列表"
-            assert "multimodal" in models, f"{provider_name} 缺少 multimodal 模型列表"
+            assert profile.bundled_models, f"{provider_name} 缺少内置模型列表"
+            assert len(profile.bundled_models) == len(set(profile.bundled_models))
 
 
 class TestProviderProfileHelpers:
@@ -70,29 +77,13 @@ class TestProviderProfileHelpers:
         assert get_default_api_mode("unknown_provider") == "chat_completions"
 
 
-class TestLLMRuntimeConfigBackwardCompat:
-    """LLMRuntimeConfig 向后兼容性测试"""
+class TestLLMRuntimeConfigProviderProfiles:
+    """LLMRuntimeConfig 内置 Provider 档案投影测试。"""
 
     def test_loads_old_config_without_api_mode(self, monkeypatch, tmp_path):
         """加载无 api_mode 字段的旧配置时自动补充"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config_path = tmp_path / "config.yaml"
-        old_config = {
-            "providers": {
-                "openai": {
-                    "api_key": "sk-test",
-                    "api_base": "https://api.openai.com/v1",
-                },
-                "ollama": {
-                    "api_key": "",
-                    "api_base": "http://localhost:11434",
-                },
-            }
-        }
-        import yaml
-
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.dump(old_config, f)
+        set_provider_secret("openai", "sk-test")
 
         config = LLMRuntimeConfig()
         assert "api_mode" in config.providers["openai"]
@@ -102,71 +93,25 @@ class TestLLMRuntimeConfigBackwardCompat:
     def test_merges_api_mode_from_builtin_profiles(self, monkeypatch, tmp_path):
         """从 BUILTIN_PROFILES 合并 api_mode"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config_path = tmp_path / "config.yaml"
         # 使用默认已知的 provider (deepseek) 来测试 api_mode 合并
-        old_config = {
-            "providers": {
-                "deepseek": {
-                    "api_key": "sk-test",
-                    "api_base": "https://api.deepseek.com/v1",
-                },
-            }
-        }
-        import yaml
-
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.dump(old_config, f)
+        set_provider_secret("deepseek", "sk-test")
 
         config = LLMRuntimeConfig()
         assert "api_mode" in config.providers["deepseek"]
         assert config.providers["deepseek"]["api_mode"] == "chat_completions"
 
-    def test_unknown_provider_defaults_to_chat_completions(self, monkeypatch, tmp_path):
-        """未知服务商默认使用 chat_completions API 模式"""
+    def test_unknown_legacy_provider_is_not_loaded(self, monkeypatch, tmp_path):
+        """Provider 实例只从 providers.yaml 加载，不复活旧 runtime 配置。"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config_path = tmp_path / "config.yaml"
-        old_config = {
-            "providers": {
-                "custom_provider": {
-                    "api_key": "test-key",
-                    "api_base": "https://custom.api.com/v1",
-                },
-            }
-        }
-        import yaml
-
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.dump(old_config, f)
+        set_provider_secret("custom_provider", "test-key")
 
         config = LLMRuntimeConfig()
-        assert config.providers["custom_provider"]["api_mode"] == "chat_completions"
-        assert (
-            config.providers["custom_provider"]["api_base"]
-            == "https://custom.api.com/v1"
-        )
-        assert config.providers["custom_provider"]["api_key"] == "test-key"
-        assert config.providers["custom_provider"]["status"] == "active"
+        assert "custom_provider" not in config.providers
 
     def test_status_defaults_based_on_api_key(self, monkeypatch, tmp_path):
         """status 根据是否有 api_key 自动设置"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config_path = tmp_path / "config.yaml"
-        old_config = {
-            "providers": {
-                "openai": {
-                    "api_key": "sk-test",
-                    "api_base": "https://api.openai.com/v1",
-                },
-                "deepseek": {
-                    "api_key": "",
-                    "api_base": "https://api.deepseek.com/v1",
-                },
-            }
-        }
-        import yaml
-
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.dump(old_config, f)
+        set_provider_secret("openai", "sk-test")
 
         config = LLMRuntimeConfig()
         assert config.providers["openai"]["status"] == "active"
@@ -175,30 +120,16 @@ class TestLLMRuntimeConfigBackwardCompat:
     def test_ollama_status_always_active(self, monkeypatch, tmp_path):
         """Ollama status 始终为 active"""
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        config_path = tmp_path / "config.yaml"
-        old_config = {
-            "providers": {
-                "ollama": {
-                    "api_key": "",
-                    "api_base": "http://localhost:11434",
-                },
-            }
-        }
-        import yaml
-
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.dump(old_config, f)
-
         config = LLMRuntimeConfig()
         assert config.providers["ollama"]["status"] == "active"
 
     def test_loads_custom_openai_credentials_from_env_file(self, monkeypatch, tmp_path):
         monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-        env_path = tmp_path / ".env"
-        env_path.write_text(
-            "CUSTOM_OPENAI_API_KEY=test-key\n"
-            "CUSTOM_OPENAI_API_BASE=https://proxy.example.com/v1\n",
-            encoding="utf-8",
+        write_secrets(
+            {
+                "CUSTOM_OPENAI_API_KEY": "test-key",
+                "CUSTOM_OPENAI_API_BASE": "https://proxy.example.com/v1",
+            }
         )
 
         config = LLMRuntimeConfig()
@@ -207,6 +138,33 @@ class TestLLMRuntimeConfigBackwardCompat:
         assert provider["api_key"] == "test-key"
         assert provider["api_base"] == "https://proxy.example.com/v1"
         assert provider["status"] == "active"
+
+    def test_loads_stable_connection_instance_for_runtime(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+        connection = ProviderConnectionStore().create(
+            catalog_id="openai_api",
+            alias="工作账号",
+            api_base="https://api.openai.com/v1",
+            api_mode="chat_completions",
+            auth_type="bearer",
+            models=(
+                ProviderModelRecord(
+                    endpoint_model_id="gpt-test",
+                    display_name="GPT Test",
+                ),
+            ),
+        )
+        set_connection_secret(connection.connection_id, "connection-key")
+
+        config = LLMRuntimeConfig()
+
+        runtime_provider = config.providers[connection.connection_id]
+        assert runtime_provider["catalog_id"] == "openai_api"
+        assert runtime_provider["display_name"] == "工作账号"
+        assert runtime_provider["api_key"] == "connection-key"
+        assert runtime_provider["models"] == [
+            {"id": "gpt-test", "display_name": "GPT Test"}
+        ]
 
 
 def test_verify_custom_openai_falls_back_to_chat_completion_when_models_endpoint_fails(

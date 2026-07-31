@@ -111,24 +111,33 @@ def test_malformed_legacy_json_is_ignored_without_side_effects(monkeypatch, tmp_
 
 
 def test_existing_config_yaml_is_authoritative_over_legacy(monkeypatch, tmp_path):
-    """Given 已有 config.yaml 和旧 JSON，When 正常加载，Then 只使用当前 YAML。"""
+    """Given 已有 providers.yaml 和旧 JSON，When 正常加载，Then 只使用当前 Provider 配置。"""
     isolated_home = tmp_path / "isolated-home"
-    config_path = isolated_home / "configs" / "runtime.yaml"
-    config_path.parent.mkdir(parents=True)
-    config_path.write_text(
-        yaml.safe_dump(
-            {
-                "providers": {
-                    "current_only": {
-                        "api_base": "https://current.invalid/v1",
-                        "api_mode": "chat_completions",
-                    }
-                }
-            },
-            sort_keys=False,
-        ),
-        encoding="utf-8",
+    provider_path = isolated_home / "configs" / "providers.yaml"
+    provider_path.parent.mkdir(parents=True)
+    
+    from ai_runtime.storage.provider_connections import (
+        ProviderConnection,
+        ProviderConnectionDocument,
+        ProviderConnectionStore,
     )
+    
+    store = ProviderConnectionStore(provider_path)
+    store.save(
+        ProviderConnectionDocument(
+            connections={
+                "custom_openai_0001": ProviderConnection(
+                    connection_id="custom_openai_0001",
+                    catalog_id="custom_openai",
+                    alias="Current Provider",
+                    api_base="https://current.invalid/v1",
+                    api_mode="chat_completions",
+                    enabled=True,
+                )
+            }
+        )
+    )
+    
     legacy_path = tmp_path / "runtime" / "runtime_config.json"
     _write_legacy_runtime_config(legacy_path, provider_id="stale_legacy")
     _patch_legacy_runtime_path(monkeypatch, legacy_path)
@@ -137,8 +146,8 @@ def test_existing_config_yaml_is_authoritative_over_legacy(monkeypatch, tmp_path
     # When: 读取已有当前配置。
     config = LLMRuntimeConfig.load()
 
-    # Then: 当前 YAML 是唯一来源，不被 legacy 状态污染。
-    assert config.providers["current_only"]["api_base"] == "https://current.invalid/v1"
+    # Then: 当前 providers.yaml 是唯一来源，不被 legacy 状态污染。
+    assert config.providers["custom_openai_0001"]["api_base"] == "https://current.invalid/v1"
     provider_ids = tuple(config.providers)
     assert "stale_legacy" not in provider_ids
 
@@ -165,24 +174,53 @@ def test_runtime_api_reads_current_elfie_home_after_environment_switch(
     monkeypatch, tmp_path
 ):
     """Given two homes, When ELFIE_HOME changes, Then API helpers follow it."""
-    from ai_runtime.storage.config_store import write_yaml_mapping
-    from app.interfaces.api import runtime_routes
+    from ai_runtime.storage.provider_connections import (
+        ProviderConnection,
+        ProviderConnectionDocument,
+        ProviderConnectionStore,
+    )
 
     first_home = tmp_path / "first"
     second_home = tmp_path / "second"
-    write_yaml_mapping(
-        first_home / "configs" / "runtime.yaml",
-        {"providers": {"first": {"api_base": "http://first"}}},
+    
+    first_provider_path = first_home / "configs" / "providers.yaml"
+    first_provider_path.parent.mkdir(parents=True, exist_ok=True)
+    ProviderConnectionStore(first_provider_path).save(
+        ProviderConnectionDocument(
+            connections={
+                "custom_openai_0001": ProviderConnection(
+                    connection_id="custom_openai_0001",
+                    catalog_id="custom_openai",
+                    alias="First Provider",
+                    api_base="http://first",
+                    enabled=True,
+                )
+            }
+        )
     )
-    write_yaml_mapping(
-        second_home / "configs" / "runtime.yaml",
-        {"providers": {"second": {"api_base": "http://second"}}},
+    
+    second_provider_path = second_home / "configs" / "providers.yaml"
+    second_provider_path.parent.mkdir(parents=True, exist_ok=True)
+    ProviderConnectionStore(second_provider_path).save(
+        ProviderConnectionDocument(
+            connections={
+                "custom_openai_0002": ProviderConnection(
+                    connection_id="custom_openai_0002",
+                    catalog_id="custom_openai",
+                    alias="Second Provider",
+                    api_base="http://second",
+                    enabled=True,
+                )
+            }
+        )
     )
 
     monkeypatch.setenv("ELFIE_HOME", str(first_home))
-    assert "first" in runtime_routes._read_runtime_config()["providers"]
+    first_store = ProviderConnectionStore()
+    assert "custom_openai_0001" in first_store.load().connections
 
     monkeypatch.setenv("ELFIE_HOME", str(second_home))
-    config = runtime_routes._read_runtime_config()
-    assert "second" in config["providers"]
-    assert "first" not in config["providers"]
+    second_store = ProviderConnectionStore()
+    connections = second_store.load().connections
+    assert "custom_openai_0002" in connections
+    assert "custom_openai_0001" not in connections

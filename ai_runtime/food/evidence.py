@@ -1,101 +1,155 @@
-"""粮食规划使用的模型证据存储。"""
+"""Read-only model evidence derived from Provider inventory and SQLite reports."""
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any, Mapping, Sequence
+from datetime import datetime, timezone
+from typing import Any, Mapping, Optional, Sequence
 
-from ai_runtime.food.planner import ModelEvidence
-from ai_runtime.models.capabilities import (
-    canonical_display_name,
-    known_capabilities,
+from ai_runtime.food.planner import EVIDENCE_MAX_AGE, ModelEvidence
+from ai_runtime.models.capabilities import canonical_display_name, known_capabilities
+from ai_runtime.providers.profiles import get_product
+from ai_runtime.storage.provider_connections import (
+    ProviderConnection,
+    ProviderConnectionStore,
+    ProviderModelRecord,
 )
-from ai_runtime.storage.config_store import read_yaml_mapping, write_yaml_mapping
-from ai_runtime.storage.data_home import get_model_evidence_path
+from ai_runtime.storage.report_repository import (
+    ReportRepository,
+    ValidationObservation,
+)
 
 
-class ModelEvidenceStore:
-    def __init__(self, path: Path | None = None) -> None:
-        self.path = path or get_model_evidence_path()
+def query_model_evidence(
+    *,
+    repository: Optional[ReportRepository] = None,
+    connection_store: Optional[ProviderConnectionStore] = None,
+    connections: Optional[Mapping[str, ProviderConnection]] = None,
+    observations: Optional[Sequence[ValidationObservation]] = None,
+    now: Optional[datetime] = None,
+) -> dict[str, ModelEvidence]:
+    """Project endpoint models and their latest immutable validation facts."""
+    latest = observations
+    if latest is None:
+        latest = (repository or ReportRepository()).current(subject_kind="model")
+    by_subject = {item.subject_id: item for item in latest if item.subject_kind == "model"}
+    current = now or datetime.now(timezone.utc)
+    result: dict[str, ModelEvidence] = {}
+    inventory = (
+        connections
+        if connections is not None
+        else (connection_store or ProviderConnectionStore()).load().connections
+    )
+    for connection in inventory.values():
+        if not connection.enabled or connection.archived:
+            continue
+        profile = get_product(connection.catalog_id)
+        is_local = bool(profile and profile.connection_method == "local")
+        for model in connection.models:
+            subject_id = f"{connection.connection_id}/{model.endpoint_model_id}"
+            result[subject_id] = _project_model(
+                subject_id,
+                model,
+                by_subject.get(subject_id),
+                is_local=is_local,
+                now=current,
+            )
+    return result
 
-    def load(self) -> dict[str, ModelEvidence]:
-        payload = read_yaml_mapping(self.path)
-        raw_models = payload.get("models", {})
-        if not isinstance(raw_models, Mapping):
-            return {}
-        return {
-            str(model_id): _from_dict(str(model_id), data)
-            for model_id, data in raw_models.items()
-            if isinstance(data, Mapping)
-        }
 
-    def merge(self, evidence: Sequence[ModelEvidence]) -> None:
-        models = self.load()
-        models.update({item.model: item for item in evidence})
-        self._save(models)
-
-    def replace_provider(
-        self,
-        provider_id: str,
-        evidence: Sequence[ModelEvidence],
-    ) -> None:
-        """以 Provider 当前完整模型列表替换旧证据。
-
-        只应在 Provider 模型发现成功后调用；这样能清理已删除模型，
-        同时不会因临时断网而误删历史证据。
-        """
-        prefix = f"{provider_id}/"
-        replacements = {item.model: item for item in evidence}
-        invalid = [model_id for model_id in replacements if not model_id.startswith(prefix)]
-        if invalid:
-            raise ValueError(f"Provider '{provider_id}' 证据归属不匹配: {invalid[0]}")
-        models = {
-            model_id: item
-            for model_id, item in self.load().items()
-            if not model_id.startswith(prefix)
-        }
-        models.update(replacements)
-        self._save(models)
-
-    def _save(self, models: Mapping[str, ModelEvidence]) -> None:
-        write_yaml_mapping(
-            self.path,
-            {"models": {model_id: _to_dict(item) for model_id, item in models.items()}},
+def record_model_evidence(
+    evidence: Sequence[ModelEvidence],
+    *,
+    repository: Optional[ReportRepository] = None,
+    scope: str,
+    trigger: str,
+) -> Optional[str]:
+    """Append validation results through the report repository's only writer API."""
+    if not evidence:
+        return None
+    report_repository = repository or ReportRepository()
+    run_id = report_repository.start_run(scope=scope, trigger=trigger)
+    for item in evidence:
+        report_repository.append_observation(
+            run_id=run_id,
+            subject_kind="model",
+            subject_id=item.model,
+            observed_at=item.observed_at or None,
+            status="passed" if item.verified else "failed",
+            latency_ms=item.latency_ms,
+            details={
+                "capabilities": sorted(item.capabilities),
+                "cost_grade": item.cost_grade,
+                "tool_test_passed": item.tool_test_passed,
+            },
         )
+    report_repository.finish_run(run_id, status="complete")
+    return run_id
 
 
-def _to_dict(item: ModelEvidence) -> dict[str, Any]:
-    return {
-        "display_name": item.display_name,
-        "capabilities": sorted(item.capabilities),
-        "verified": item.verified,
-        "cost_grade": item.cost_grade,
-        "latency_ms": item.latency_ms,
-        "tool_test_passed": item.tool_test_passed,
-        "local": item.local,
-    }
-
-
-def _from_dict(model_id: str, data: Mapping[str, Any]) -> ModelEvidence:
-    raw_capabilities = data.get("capabilities", ())
-    capabilities = (
+def _project_model(
+    subject_id: str,
+    model: ProviderModelRecord,
+    observation: Optional[ValidationObservation],
+    *,
+    is_local: bool,
+    now: datetime,
+) -> ModelEvidence:
+    state = _validation_state(model, observation, now)
+    details: Mapping[str, Any] = observation.details if observation else {}
+    raw_capabilities = details.get("capabilities", ())
+    observed_capabilities = (
         frozenset(str(item) for item in raw_capabilities)
         if isinstance(raw_capabilities, (list, tuple, set))
         else frozenset()
     )
-    display_name = str(data.get("display_name", ""))
-    capabilities = capabilities | known_capabilities(model_id, display_name)
-    return ModelEvidence(
-        model=model_id,
-        display_name=canonical_display_name(model_id, display_name),
-        capabilities=capabilities,
-        verified=bool(data.get("verified", False)),
-        cost_grade=int(data.get("cost_grade", 2)),
-        latency_ms=(
-            float(data["latency_ms"])
-            if isinstance(data.get("latency_ms"), (int, float))
-            else None
-        ),
-        tool_test_passed=bool(data.get("tool_test_passed", False)),
-        local=bool(data.get("local", False)),
+    capabilities = observed_capabilities | known_capabilities(
+        model.endpoint_model_id,
+        model.display_name,
     )
+    if model.supports_tools:
+        capabilities |= {"tools"}
+    if model.supports_vision:
+        capabilities |= {"vision"}
+    if model.supports_reasoning:
+        capabilities |= {"reasoning"}
+    return ModelEvidence(
+        model=subject_id,
+        display_name=canonical_display_name(subject_id, model.display_name),
+        capabilities=capabilities or frozenset({"text"}),
+        verified=state == "verified",
+        cost_grade=_int_value(details, "cost_grade", 2),
+        latency_ms=observation.latency_ms if observation else None,
+        tool_test_passed=bool(details.get("tool_test_passed", False)),
+        local=is_local,
+        observed_at=observation.observed_at if observation else "",
+        status=state,
+    )
+
+
+def _validation_state(
+    model: ProviderModelRecord,
+    observation: Optional[ValidationObservation],
+    now: datetime,
+) -> str:
+    if model.hidden:
+        return "hidden"
+    if model.retired:
+        return "retired"
+    if not model.available:
+        return "unavailable"
+    if observation is None:
+        return "never_verified"
+    if observation.status != "passed":
+        return "failed"
+    try:
+        observed = datetime.fromisoformat(observation.observed_at.replace("Z", "+00:00"))
+    except ValueError:
+        return "stale"
+    if observed.tzinfo is None:
+        observed = observed.replace(tzinfo=timezone.utc)
+    return "verified" if now - observed <= EVIDENCE_MAX_AGE else "stale"
+
+
+def _int_value(data: Mapping[str, Any], key: str, default: int) -> int:
+    value = data.get(key)
+    return int(value) if isinstance(value, int) and not isinstance(value, bool) else default

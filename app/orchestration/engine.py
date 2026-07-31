@@ -3,8 +3,10 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
+from ai_runtime.food.resolver import MainFoodSelection
+from ai_runtime.storage.data_home import get_elfie_workspace_dir
 from app.orchestration.nest_session import NestSession
 from app.orchestration.runtime_adapter import SerializedRuntimeAdapter
 from app.orchestration.runtime_gateway import RuntimeGateway
@@ -32,6 +34,8 @@ class ElfieNestEngine:
         max_elfies_per_room: Optional[int] = None,
         api_server: RuntimeGateway | None = None,
         nest_repository: NestRepository | None = None,
+        food_key_resolver: Callable[[str], MainFoodSelection | None] | None = None,
+        elfie_workspace_resolver: Callable[[str], str | None] | None = None,
     ):
         """初始化引擎。
 
@@ -43,6 +47,11 @@ class ElfieNestEngine:
             max_elfies_per_room: 房间最大精灵数
         """
         self.tick_interval_sec = tick_interval_sec
+        self._food_key_resolver = food_key_resolver or (lambda _elfie_id: None)
+        self._elfie_workspace_resolver = (
+            elfie_workspace_resolver
+            or (lambda elfie_id: str(get_elfie_workspace_dir(elfie_id)))
+        )
 
         # 1. 实例化核心组件
         self.nest = Nest(NestConfig(max_residents=max_elfies_per_room))
@@ -106,7 +115,15 @@ class ElfieNestEngine:
         if interval_sec is None:
             interval_sec = self.tick_interval_sec
         # 1. 先装配并启动每只精灵的独立认知生命周期，再启动传输。
-        self.session.configure_cognition(SerializedRuntimeAdapter(runtime_agent))
+        self.session.configure_cognition_factory(
+            lambda elfie_id: SerializedRuntimeAdapter(
+                runtime_agent,
+                food_key_resolver=lambda: self._food_key_resolver(elfie_id),
+                elfie_workspace_resolver=lambda: self._elfie_workspace_resolver(
+                    elfie_id
+                ),
+            )
+        )
         self.session.start_elfies()
         self.api_server.start()
         if self.ws_manager:

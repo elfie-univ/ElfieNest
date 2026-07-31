@@ -1,43 +1,26 @@
 from ai_runtime.food.models import (
-    FIXED_FOOD_KINDS,
-    ExecutionProfile,
-    FoodRecipe,
-    ReasoningProfile,
+    FOOD_COMMON_ID,
+    FOOD_EMERGENCY_ID,
+    FoodPackage,
+    ModelAssignment,
+    system_food_packages,
 )
 
 
-def test_fixed_food_kinds_are_stable_and_semantic():
-    assert set(FIXED_FOOD_KINDS) == {
-        "coarse",
-        "standard",
-        "focus",
-        "creative",
-        "tool",
-        "vision",
-        "premium",
-        "emergency",
-    }
-    assert "reasoning" in FIXED_FOOD_KINDS["focus"].required_capabilities
-    assert "vision" in FIXED_FOOD_KINDS["vision"].required_capabilities
+def test_clean_catalog_has_exactly_two_ordered_system_packages():
+    packages = system_food_packages()
+    assert list(packages) == [FOOD_EMERGENCY_ID, FOOD_COMMON_ID]
+    assert all(not package.enabled for package in packages.values())
 
 
-def test_food_recipe_round_trip_hides_provider_details_behind_recipe():
-    recipe = FoodRecipe(
-        key="focus",
-        display_name="清醒粮",
-        description="逻辑分析",
-        primary=ExecutionProfile(
-            model="provider/fast-model",
-            reasoning_profile=ReasoningProfile.BALANCED,
-        ),
-        deep=ExecutionProfile(
-            model="provider/deep-model",
-            reasoning_profile=ReasoningProfile.DEEP,
-        ),
+def test_food_serialization_contains_only_role_references_and_lifecycle():
+    package = FoodPackage(
+        "food_custom",
+        "工作粮",
+        primary=ModelAssignment("openai_api_0001/gpt"),
     )
-
-    restored = FoodRecipe.from_dict("focus", recipe.to_dict())
-
-    assert restored.primary.model == "provider/fast-model"
-    assert restored.deep is not None
-    assert restored.deep.reasoning_profile is ReasoningProfile.DEEP
+    payload = package.to_dict()
+    assert payload["roles"]["primary"] == {"model": "openai_api_0001/gpt"}
+    serialized = str(payload)
+    assert "max_tokens" not in serialized
+    assert "tools_permissions" not in serialized

@@ -24,11 +24,9 @@ def test_direct_tool_suite_validates_local_tools_and_skips_network(
     suite = runner.run()
 
     by_id = {result.check_id: result for result in suite.results}
-    assert by_id["tool.code_sandbox"].status is CheckStatus.SKIPPED
     assert by_id["tool.local_file"].status is CheckStatus.PASSED
-    assert by_id["tool.permission_boundary"].status is CheckStatus.PASSED
-    assert by_id["tool.skill_lifecycle"].status is CheckStatus.SKIPPED
     assert by_id["tool.web_search"].status is CheckStatus.SKIPPED
+    assert set(by_id) == {"tool.local_file", "tool.web_search"}
     assert suite.passed is True
 
 

@@ -6,16 +6,21 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.features.accounts.auth import require_owner
-from app.features.configuration.runtime_store import read_runtime_config, write_runtime_config
 from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.storage.data_home import get_config_path
 from ai_runtime.storage.secrets import set_tool_secret, tool_secret_name
 from ai_runtime.tools.config import TOOL_KEYS, public_tool_configs
 from ai_runtime.validation.models import ValidationSuite
 from ai_runtime.validation.tools import DirectToolValidationRunner
+from app.features.accounts.auth import require_owner
+from app.features.configuration.runtime_store import (
+    read_runtime_config,
+    write_runtime_config,
+)
 
 router = APIRouter(prefix="/api/owner/runtime/tools", tags=["runtime-tools"])
+
+
 def _read_policy() -> tuple[dict[str, Any], dict[str, Any]]:
     config = read_runtime_config(get_config_path())
     policy = config.get("runtime_policy", {})
@@ -51,10 +56,14 @@ async def update_tool(
     if not isinstance(current, dict):
         current = {}
     allowed_fields = {
-        "web_search": {"enabled", "provider", "api_base", "max_results"},
-        "local_file": {"enabled", "root"},
-        "code_sandbox": {"enabled", "timeout_seconds"},
-        "skills_evolution": {"enabled"},
+        "web_search": {
+            "enabled",
+            "provider",
+            "api_base",
+            "max_results",
+            "max_result_bytes",
+        },
+        "local_file": {"enabled", "max_read_bytes"},
     }[tool_key]
     current.update({key: body[key] for key in allowed_fields if key in body})
     if tool_key == "web_search":
@@ -68,10 +77,6 @@ async def update_tool(
         current["api_key_env"] = tool_secret_name(tool_key)
         if "api_key" in body:
             set_tool_secret(tool_key, str(body.get("api_key") or ""))
-    elif tool_key == "code_sandbox":
-        current["timeout_seconds"] = max(
-            1.0, min(float(current.get("timeout_seconds") or 5.0), 60.0)
-        )
     tools[tool_key] = current
     config["runtime_policy"] = policy
     write_runtime_config(get_config_path(), config)
@@ -91,7 +96,5 @@ async def verify_tool(
     result = {
         "web_search": runner.verify_web_search,
         "local_file": runner.verify_file_sandbox,
-        "code_sandbox": runner.verify_code_sandbox,
-        "skills_evolution": runner.verify_skill_lifecycle,
     }[tool_key]()
     return ValidationSuite(f"tool:{tool_key}", (result,)).to_dict()

@@ -60,6 +60,7 @@ export default defineConfig({
                 { text: "Current architecture", link: "/developer/architecture" },
                 { text: "Module boundaries", link: "/developer/architecture-boundaries" },
                 { text: "Cognitive information flow", link: "/developer/architecture-cognitive-flow" },
+                { text: "AI Runtime contract", link: "/developer/architecture-ai-runtime" },
                 { text: "Runtime & data", link: "/developer/architecture-runtime" }
               ]
             },
@@ -155,6 +156,7 @@ export default defineConfig({
                 { text: "当前架构", link: "/zh/developer/architecture" },
                 { text: "模块边界", link: "/zh/developer/architecture-boundaries" },
                 { text: "认知信息流", link: "/zh/developer/architecture-cognitive-flow" },
+                { text: "AI Runtime 契约", link: "/zh/developer/architecture-ai-runtime" },
                 { text: "运行时与数据", link: "/zh/developer/architecture-runtime" }
               ]
             },

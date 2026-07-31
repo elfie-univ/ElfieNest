@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import List, TypedDict
 
-from ai_runtime.food.models import FIXED_FOOD_KINDS, FoodKind
+from ai_runtime.food.models import FoodPackage, system_food_packages
 from ai_runtime.food.store import FoodCatalogStore
 from devtools.elfie_lab.runtime_foods import (
     list_installed_ollama_models,
@@ -41,25 +41,26 @@ def build_food_items(
     catalog = load_runtime_food_catalog(runtime_store, food_store)
     installed_models = list_installed_ollama_models(config)
     foods: List[FoodStatusItem] = []
-    for key, recipe in catalog.recipes.items():
+    for key, package in catalog.packages.items():
+        primary_model = package.primary.model if package.primary else ""
         primary = model_availability(
-            recipe.primary.model,
+            primary_model,
             config,
             installed_models,
             configure_runtime_command,
         )
         fallback_states = [
             model_availability(
-                profile.model,
+                assignment.model,
                 config,
                 installed_models,
                 configure_runtime_command,
             )
-            for profile in recipe.technical_fallbacks
-            if profile.model
+            for assignment in package.fallback
+            if assignment.model
         ]
         fallback_models = [
-            profile.model for profile in recipe.technical_fallbacks if profile.model
+            assignment.model for assignment in package.fallback if assignment.model
         ]
         fallback_ready = any(item["ready"] for item in fallback_states)
         ready_for_attempt = bool(primary["ready"] or fallback_ready)
@@ -71,10 +72,10 @@ def build_food_items(
         foods.append(
             {
                 "key": key,
-                "display_name": recipe.display_name,
-                "description": recipe.description,
-                "model": recipe.primary.model,
-                "reasoning": recipe.primary.reasoning_profile.value,
+                "display_name": package.display_name,
+                "description": "",
+                "model": primary_model,
+                "reasoning": "on" if package.reasoning else "off",
                 "primary_ready": primary["ready"],
                 "fallback_ready": fallback_ready,
                 "fallback_models": fallback_models,
@@ -89,7 +90,10 @@ def build_food_items(
             }
         )
     if not foods:
-        foods = [unconfigured_food_item(kind) for kind in FIXED_FOOD_KINDS.values()]
+        foods = [
+            unconfigured_food_item(package)
+            for package in system_food_packages().values()
+        ]
     return [mock_food_item(), *foods]
 
 
@@ -111,12 +115,12 @@ def mock_food_item() -> FoodStatusItem:
     }
 
 
-def unconfigured_food_item(kind: FoodKind) -> FoodStatusItem:
-    """Expose an unavailable fixed food when the Lab catalog has not been initialized."""
+def unconfigured_food_item(package: FoodPackage) -> FoodStatusItem:
+    """Expose an unavailable system food before the Lab catalog is configured."""
     return {
-        "key": kind.key,
-        "display_name": kind.display_name,
-        "description": kind.description,
+        "key": package.key,
+        "display_name": package.display_name,
+        "description": "",
         "model": "",
         "reasoning": "",
         "primary_ready": False,

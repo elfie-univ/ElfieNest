@@ -19,7 +19,7 @@ def test_arrow_navigation_and_right_enter_selected_item(capsys):
     )
 
     assert selected == "2"
-    assert "↑↓ 选择" in capsys.readouterr().out
+    assert "↑↓ Navigate" in capsys.readouterr().out
 
 
 def test_number_enters_directly_and_left_returns(capsys):

@@ -7,7 +7,7 @@ import re
 import time
 from typing import Any, Dict, List
 
-from ai_runtime.food.models import FoodRecipe
+from ai_runtime.food.models import FoodPackage
 from ai_runtime.storage.data_home import get_elfie_developer_home
 from devtools.elfie_lab.runtime_foods import (
     load_runtime_food_catalog,
@@ -44,9 +44,6 @@ class MockRuntimeAgent:
             "gemini": {"api_key": "", "api_base": ""},
             "qwen": {"api_key": "", "api_base": ""},
         }
-        cheap_model = "elfie-mock"
-        deep_model = "elfie-mock"
-
     config = MockConfig()
 
     def ask(self, prompt: str, energy: float, task_complexity: int) -> str:
@@ -137,9 +134,7 @@ class TracingRuntimeAgent:
             return "elfie-mock"
         if hasattr(self.inner, "selected_model"):
             return str(self.inner.selected_model)
-        if task_complexity >= getattr(self.config, "complexity_threshold_deep", 3):
-            return str(getattr(self.config, "deep_model", "runtime-selected"))
-        return str(getattr(self.config, "cheap_model", "runtime-selected"))
+        return "runtime-selected"
 
     def _provider_name(self) -> str:
         if self.food_key == "mock":
@@ -188,11 +183,11 @@ def _mock_decision_json(request: ModelGenerationRequest, speech: str) -> str:
 class FoodRuntimeAgent:
     """让精灵实验通过粮食语义调用 Runtime。"""
 
-    def __init__(self, runtime: Any, food_key: str, recipe: FoodRecipe):
+    def __init__(self, runtime: Any, food_key: str, package: FoodPackage):
         self.runtime = runtime
         self.config = runtime.config
         self.food_key = food_key
-        self.selected_model = recipe.primary.model
+        self.selected_model = package.primary.model if package.primary else ""
         self.selected_provider = _provider_from_model(self.selected_model)
         self.last_result = None
 
@@ -222,13 +217,13 @@ def create_runtime(food_key: str, config_dir: str | None = None) -> TracingRunti
     config = store.load_runtime_config()
     food_store = runtime_food_catalog_store(store)
     catalog = load_runtime_food_catalog(store, food_store)
-    recipe = catalog.recipes.get(normalized)
-    if recipe is None:
+    package = catalog.packages.get(normalized)
+    if package is None:
         raise ValueError(f"Runtime 粮食目录中不存在粮食: {normalized}")
 
     agent = RuntimeAgent(config)
     agent.food_catalog_store = food_store
-    food_agent = FoodRuntimeAgent(agent, normalized, recipe)
+    food_agent = FoodRuntimeAgent(agent, normalized, package)
     return TracingRuntimeAgent(food_agent, normalized)
 
 

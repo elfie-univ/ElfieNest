@@ -17,8 +17,7 @@ Responsible for:
 - Model catalog, Provider configuration, routing policy and local Ollama
   fallback;
 - Elfie-facing food recipes, selection, validation and execution;
-- Native tools (search, code, file, skill evolution) and their permission
-  checks;
+- Shared native tool implementations, permission checks and bounded execution;
 - `ELFIE_HOME` data paths, Runtime configuration, key resolution and migration
   helpers;
 - Model / tool invocation observability, usage accounting and local Runtime
@@ -50,9 +49,16 @@ ai_runtime/
 └── lab/         # Local interactive runtime lab
 ```
 
-`custom_skills/` is the entry point for runtime custom skill packs; before
-adding a capability, confirm it truly belongs to the Runtime rather than to the
-product, a single Elfie, or the Nest domain.
+Shared tool implementations belong here. Personal skill definitions and learned
+skill state belong to the corresponding Elfie workspace, not to the Runtime.
+
+## Design authority
+
+The normative Provider, model, food, tool, persistence and acceptance contract
+is [AI Runtime design contract](../docs/developer/architecture-ai-runtime.md).
+This README is only a module map and does not redefine that behavior. Current
+implementation deviations are tracked separately in
+[AI Runtime conformance](../docs/developer/ai-runtime-conformance.md).
 
 ## Public entry points
 

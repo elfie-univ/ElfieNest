@@ -105,7 +105,7 @@ def test_login_provider_saves_custom_endpoint_when_verify_fails(monkeypatch) -> 
     assert saved_env_vars[0]["CUSTOM_OPENAI_API_BASE"] == "https://proxy.example.com/v1"
 
 
-def test_show_route_prints_food_policy_without_models(
+def test_show_route_prints_main_food_without_models(
     tmp_path,
     monkeypatch,
     capsys: CaptureFixture[str],
@@ -129,17 +129,13 @@ def test_show_route_prints_food_policy_without_models(
         summary=None,
         max_elfies=3,
     )
-    elfies.update_foods(
-        "00000001",
-        main_food="premium",
-        emergency_food="coarse",
-        other_foods=("vision", "tool"),
-    )
+    from app.infrastructure.persistence.food_assignments import set_elfie_main_food_id
+
+    set_elfie_main_food_id(database_path, "00000001", "premium")
 
     route_commands.show_route("00000001")
 
     output = capsys.readouterr().out
-    assert "00000001 Food Permissions" in output
-    assert "Default food: premium" in output
-    assert "vision" in output
-    assert "Models are managed by Runtime food policy" in output
+    assert "00000001 Main Food" in output
+    assert "Main food: premium" in output
+    assert "Models are managed by Runtime food packages" in output

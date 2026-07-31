@@ -73,11 +73,11 @@ def test_tui_invalid_ollama_choice_does_not_advance_setup(
 
     with sqlite3.connect(get_db_path()) as conn:
         row = conn.execute(
-            "SELECT owner_user_id, ollama_decision FROM setup_progress"
+            "SELECT owner_user_id, setup_step FROM local_installations"
         ).fetchone()
     assert row is not None
     assert row[0] is not None
-    assert row[1] is None
+    assert row[1] == "owner"
 
 
 def _patch_input(

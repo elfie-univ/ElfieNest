@@ -122,6 +122,8 @@ def _freeze_entrypoint(
         "--noconfirm",
         "--clean",
         "--onefile",
+        "--collect-data",
+        "ai_runtime.providers",
         "--name",
         executable.rsplit(".", 1)[0],
         "--distpath",

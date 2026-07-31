@@ -4,8 +4,10 @@ from pathlib import Path
 
 import pytest
 
-from ai_runtime.food.evidence import ModelEvidenceStore
+from ai_runtime.food.models import FOOD_COMMON_ID, FOOD_EMERGENCY_ID
 from ai_runtime.food.store import FoodCatalogStore
+from ai_runtime.storage.provider_connections import ProviderConnectionStore
+from ai_runtime.storage.report_repository import ReportRepository
 from app.features.setup.ollama import OllamaSetupService
 from app.features.setup.service import (
     complete_setup_step,
@@ -46,24 +48,22 @@ class _HealthyAdapter:
 
 def test_healthy_existing_ollama_binds_without_installer_or_endpoint_switch(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
     create_first_owner(db_path, username="owner", password="secret123")
-    config: dict[str, object] = {"providers": {}}
-    writes: list[dict[str, object]] = []
     service = OllamaSetupService(
         adapter=_HealthyAdapter(),  # type: ignore[arg-type]
-        read_config=lambda: config,
-        write_config=writes.append,
     )
 
     probe = service.bind_existing(db_path=db_path, endpoint="http://127.0.0.1:11434")
 
     assert probe.state == "healthy"
-    assert len(writes) == 1
-    provider = writes[0]["providers"]["ollama"]  # type: ignore[index]
-    assert provider["api_base"] == "http://127.0.0.1:11434"  # type: ignore[index]
+    connection = next(iter(ProviderConnectionStore().load().connections.values()))
+    assert connection.connection_id == "ollama_0001"
+    assert connection.api_base == "http://127.0.0.1:11434"
     assert get_setup_progress(db_path).current_step == 3
     with pytest.raises(ValueError, match="已固定"):
         service.bind_existing(db_path=db_path, endpoint="http://127.0.0.1:22444")
@@ -158,31 +158,32 @@ def test_linux_official_binding_requires_recorded_script_provenance(
     assert probe.state == "repair_required"
 
 
-def test_repair_starts_only_the_saved_public_ollama_binding(tmp_path: Path) -> None:
+def test_repair_starts_only_the_saved_public_ollama_binding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
     create_first_owner(db_path, username="owner", password="secret123")
     executable = tmp_path / "ollama"
     executable.write_text("binary", encoding="utf-8")
-    config: dict[str, object] = {
-        "providers": {
-            "ollama": {
-                "api_base": "http://127.0.0.1:11434",
-                "installation": {
-                    "api_base": "http://127.0.0.1:11434",
-                    "platform": "linux",
-                    "install_kind": "binary",
-                    "launch_target": str(executable),
-                    "version": "0.12.0",
-                },
-            }
-        }
-    }
+    ProviderConnectionStore().create(
+        catalog_id="ollama",
+        alias="Ollama",
+        api_base="http://127.0.0.1:11434",
+        api_mode="ollama",
+        auth_type="none",
+        installation={
+            "platform": "linux",
+            "install_kind": "binary",
+            "launch_target": str(executable),
+            "version": "0.12.0",
+        },
+    )
     adapter = _RepairAdapter()
     service = OllamaSetupService(
         adapter=adapter,  # type: ignore[arg-type]
-        read_config=lambda: config,
-        write_config=lambda _config: None,
     )
 
     probe = service.repair_bound(db_path=db_path)
@@ -193,17 +194,15 @@ def test_repair_starts_only_the_saved_public_ollama_binding(tmp_path: Path) -> N
 
 def test_official_install_saves_one_verified_binding_only_after_confirmation(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
     create_first_owner(db_path, username="owner", password="secret123")
-    config: dict[str, object] = {"providers": {}}
-    writes: list[dict[str, object]] = []
     adapter = _OfficialAdapter(tmp_path)
     service = OllamaSetupService(
         adapter=adapter,  # type: ignore[arg-type]
-        read_config=lambda: config,
-        write_config=writes.append,
     )
 
     probe = service.install_official(
@@ -215,15 +214,16 @@ def test_official_install_saves_one_verified_binding_only_after_confirmation(
     assert probe.state == "healthy"
     assert adapter.confirmations == [True]
     assert adapter.models_checked == ["http://127.0.0.1:11434"]
-    assert len(writes) == 1
-    installation = writes[0]["providers"]["ollama"]["installation"]  # type: ignore[index]
-    assert installation["installer_source_url"] == OFFICIAL_INSTALL_URLS["linux"]  # type: ignore[index]
+    connection = next(iter(ProviderConnectionStore().load().connections.values()))
+    assert connection.installation["installer_source_url"] == OFFICIAL_INSTALL_URLS["linux"]
     assert get_setup_progress(db_path).current_step == 3
 
 
 def test_configured_model_must_exist_on_the_one_saved_ollama_endpoint(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     """模型选择保存完整引用，且不会靠另一个本地 endpoint 侥幸通过。"""
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
@@ -235,28 +235,25 @@ def test_configured_model_must_exist_on_the_one_saved_ollama_endpoint(
         ollama_endpoint="http://127.0.0.1:11434",
     )
     complete_setup_step(db_path, step=3)
-    config: dict[str, object] = {
-        "providers": {
-            "ollama": {
-                "api_base": "http://127.0.0.1:11434",
-                "installation": {
-                    "platform": "linux",
-                    "install_kind": "existing-public",
-                    "launch_target": "",
-                    "version": "",
-                },
-            }
-        }
-    }
-    writes: list[dict[str, object]] = []
+    ProviderConnectionStore().create(
+        catalog_id="ollama",
+        alias="Ollama",
+        api_base="http://127.0.0.1:11434",
+        api_mode="ollama",
+        auth_type="none",
+        installation={
+            "platform": "linux",
+            "install_kind": "existing-public",
+            "launch_target": "",
+            "version": "",
+        },
+    )
     service = OllamaSetupService(
         adapter=_ModelAdapter(),  # type: ignore[arg-type]
-        read_config=lambda: config,
-        write_config=writes.append,
         food_catalog_store=FoodCatalogStore(
             tmp_path / "foods.yaml", tmp_path / "food-history"
         ),
-        model_evidence_store=ModelEvidenceStore(tmp_path / "models.yaml"),
+        report_repository=ReportRepository(tmp_path / "reports.db"),
     )
 
     service.configure_installed_model(
@@ -264,17 +261,25 @@ def test_configured_model_must_exist_on_the_one_saved_ollama_endpoint(
         model_reference="ollama/qwen2.5:0.5b",
     )
 
-    assert writes[0]["providers"]["ollama"]["selected_model"] == "ollama/qwen2.5:0.5b"  # type: ignore[index]
+    connection = ProviderConnectionStore().load().connections["ollama_0001"]
+    assert connection.models[0].endpoint_model_id == "qwen2.5:0.5b"
     catalog = FoodCatalogStore(
         tmp_path / "foods.yaml", tmp_path / "food-history"
     ).load()
-    assert catalog.recipes["standard"].primary.model == "ollama/qwen2.5:0.5b"
+    assert catalog.packages[FOOD_EMERGENCY_ID].primary.model == (
+        "ollama_0001/qwen2.5:0.5b"
+    )
+    assert catalog.packages[FOOD_COMMON_ID].primary.model == (
+        "ollama_0001/qwen2.5:0.5b"
+    )
     assert get_setup_progress(db_path).current_step == 5
 
 
 def test_model_pull_rechecks_the_fixed_endpoint_before_configuring(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     """模型拉取后必须再次在同一 endpoint 看到模型，才会写入配置。"""
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
@@ -286,28 +291,26 @@ def test_model_pull_rechecks_the_fixed_endpoint_before_configuring(
         ollama_endpoint="http://127.0.0.1:11434",
     )
     complete_setup_step(db_path, step=3)
-    config: dict[str, object] = {
-        "providers": {
-            "ollama": {
-                "api_base": "http://127.0.0.1:11434",
-                "installation": {
-                    "platform": "linux",
-                    "install_kind": "existing-public",
-                    "launch_target": "",
-                    "version": "",
-                },
-            }
-        }
-    }
+    ProviderConnectionStore().create(
+        catalog_id="ollama",
+        alias="Ollama",
+        api_base="http://127.0.0.1:11434",
+        api_mode="ollama",
+        auth_type="none",
+        installation={
+            "platform": "linux",
+            "install_kind": "existing-public",
+            "launch_target": "",
+            "version": "",
+        },
+    )
     adapter = _PullAdapter()
     service = OllamaSetupService(
         adapter=adapter,  # type: ignore[arg-type]
-        read_config=lambda: config,
-        write_config=lambda _config: None,
         food_catalog_store=FoodCatalogStore(
             tmp_path / "foods.yaml", tmp_path / "food-history"
         ),
-        model_evidence_store=ModelEvidenceStore(tmp_path / "models.yaml"),
+        report_repository=ReportRepository(tmp_path / "reports.db"),
     )
 
     service.pull_and_configure_model(

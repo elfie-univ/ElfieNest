@@ -6,11 +6,11 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from ai_runtime.food.elfie_policy import DEFAULT_ALLOWED_FOODS
-from ai_runtime.food.models import FIXED_FOOD_KINDS
+from ai_runtime.food.store import FoodCatalogStore
 from ai_runtime.storage.data_home import data_home_from_db_path
 from ai_runtime.storage.data_layout import final_root_layout
 from app.features.accounts.auth import require_owner
+from app.features.configuration.food_access import elfie_food_policy_projection
 from app.features.elfie_profile.public_projection import build_public_profile
 from app.infrastructure.persistence.embodiment_sessions import get_embodiment_session
 from app.infrastructure.persistence.interface_query_repository import (
@@ -82,10 +82,16 @@ def _filter_monitoring_rows(
     embodiment_state: Optional[str],
 ) -> List[Dict[str, Any]]:
     projections = []
+    catalog = FoodCatalogStore().load()
     for row in rows:
         state = get_embodiment_session(db_path, row.elfie_id).state.value
-        policy = _food_policy(row)
-        if food_key is not None and food_key != policy["default_food"]:
+        policy = elfie_food_policy_projection(
+            db_path,
+            row.elfie_id,
+            row.owner_user_id,
+            catalog,
+        )
+        if food_key is not None and food_key != policy["effective_main_food_id"]:
             continue
         if embodiment_state is not None and embodiment_state != state:
             continue
@@ -123,22 +129,10 @@ def _monitoring_projection(
         },
         "profile": profile,
         "food_policy": {
-            "default_food": policy["default_food"],
-            "allowed_foods": policy["allowed_foods"],
-            "fallback_food": policy["fallback_food"],
+            "main_food_id": policy["main_food_id"],
+            "effective_main_food_id": policy["effective_main_food_id"],
+            "main_food_options": policy["main_food_options"],
+            "main_food_unavailable": policy["main_food_unavailable"],
         },
         "created_at": row.adopted_at,
-    }
-
-
-def _food_policy(row: InterfaceElfieRecord) -> Dict[str, Any]:
-    default_food = row.main_food or "standard"
-    fallback_food = row.emergency_food or "coarse"
-    allowed_set = {default_food, fallback_food, *row.other_foods}
-    allowed = [key for key in FIXED_FOOD_KINDS if key in allowed_set]
-    return {
-        "elfie_id": row.elfie_id,
-        "default_food": default_food,
-        "allowed_foods": allowed or list(DEFAULT_ALLOWED_FOODS),
-        "fallback_food": fallback_food,
     }

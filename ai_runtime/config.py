@@ -6,10 +6,17 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict
 
-from .providers.profiles import BUILTIN_PROFILES, get_default_api_mode
+from .providers.profiles import BUILTIN_PROFILES, get_default_api_mode, get_product
 from .storage.config_store import ConfigStoreError, read_yaml_mapping
-from .storage.data_home import get_config_path, get_env_path
-from .storage.secrets import provider_secret_name, read_secrets, resolve_secret
+from .storage.data_home import get_env_path, get_provider_config_path
+from .storage.provider_connections import ProviderConnectionStore
+from .storage.runtime_settings import read_runtime_settings
+from .storage.secrets import (
+    connection_secret_name,
+    provider_secret_name,
+    read_secrets,
+    resolve_secret,
+)
 
 
 def _load_env_file_values(env_path: Path | None = None) -> Dict[str, str]:
@@ -57,44 +64,38 @@ def _default_providers(
     return providers
 
 
-# 🌟 大模型跨服务商算力预设与精选推荐清单
-PROVIDER_RECOMMENDS: Dict[str, Dict[str, Any]] = {
-    "deepseek": {
-        "name": "DeepSeek",
-        "api_base": "https://api.deepseek.com/v1",
-        "cheap_models": ["deepseek-chat"],
-        "deep_models": ["deepseek-reasoner", "deepseek-chat"],
-        "multimodal_models": ["deepseek-chat"],  # 暂无原生多模态，用 chat 替代
-    },
-    "openai": {
-        "name": "OpenAI",
-        "api_base": "https://api.openai.com/v1",
-        "cheap_models": ["gpt-4o-mini", "gpt-3.5-turbo"],
-        "deep_models": ["gpt-4o", "o1-mini", "o3-mini"],
-        "multimodal_models": ["gpt-4o"],
-    },
-    "gemini": {
-        "name": "Gemini",
-        "api_base": "https://generativelanguage.googleapis.com/v1beta",
-        "cheap_models": ["gemini-1.5-flash", "gemini-2.0-flash"],
-        "deep_models": ["gemini-1.5-pro", "gemini-2.0-pro-exp"],
-        "multimodal_models": ["gemini-1.5-flash", "gemini-1.5-pro"],
-    },
-    "qwen": {
-        "name": "Ali Qwen (DashScope)",
-        "api_base": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "cheap_models": ["qwen-coder-turbo", "qwen-turbo", "qwen-plus"],
-        "deep_models": ["qwen-coder-plus", "qwen-max"],
-        "multimodal_models": ["qwen-vl-plus", "qwen-vl-max"],
-    },
-    "ollama": {
-        "name": "本地 Ollama",
-        "api_base": "http://localhost:11434",
-        "cheap_models": ["qwen3.5:0.8b", "qwen2.5:0.5b", "llama3.2:1b"],
-        "deep_models": ["qwen3.5:4b", "qwen2.5:7b", "llama3:8b"],
-        "multimodal_models": ["moondream", "llava"],
-    },
-}
+def _connection_providers() -> Dict[str, Dict[str, Any]]:
+    """Project stable connection instances into the Runtime provider grid."""
+    path = get_provider_config_path()
+    if not path.exists():
+        return {}
+    document = ProviderConnectionStore(path).load()
+    providers: Dict[str, Dict[str, Any]] = {}
+    for connection_id, connection in document.connections.items():
+        if not connection.enabled or connection.archived:
+            continue
+        profile = get_product(connection.catalog_id)
+        if profile is None:
+            continue
+        secret_name = connection.credential_ref or connection_secret_name(connection_id)
+        providers[connection_id] = {
+            "catalog_id": connection.catalog_id,
+            "display_name": connection.alias,
+            "api_base": connection.api_base or profile.api_base,
+            "api_mode": connection.api_mode or profile.api_mode,
+            "auth_type": connection.auth_type or profile.auth_type,
+            "api_key_env": secret_name,
+            "api_key": resolve_secret(secret_name),
+            "models": [
+                {
+                    "id": model.endpoint_model_id,
+                    "display_name": model.display_name,
+                }
+                for model in connection.models
+                if not model.hidden and not model.retired and model.available
+            ],
+        }
+    return providers
 
 
 # ---------------------------------------------------------------------------
@@ -117,12 +118,6 @@ def deep_update(base: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]
 
 DEFAULT_SYSTEM_SETTINGS: Dict[str, Dict[str, Any]] = {
     "llm": {
-        "default_cheap_model": "qwen3.5:0.8b",
-        "default_cheap_provider": "ollama",
-        "default_deep_model": "qwen3.5:0.8b",
-        "default_deep_provider": "ollama",
-        "default_multimodal_model": "moondream",
-        "default_multimodal_provider": "ollama",
         "temperature": 0.7,
         "max_tokens": 1500,
         "energy_threshold_fast": 30,
@@ -153,37 +148,18 @@ DEFAULT_SYSTEM_SETTINGS: Dict[str, Dict[str, Any]] = {
 
 @dataclass
 class LLMRuntimeConfig:
-    """大模型运行时跨服务商混合算力网格配置"""
+    """Provider adapters and non-routing Runtime settings."""
 
-    # 1. 多订阅源字典：存储各个 Provider 的 API Key、Base 节点、API 模式与状态
     providers: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
-    # 2. 算力分档路由映射 (模型名称 + 归属 Provider 绑定)
-    cheap_model: str = "qwen3.5:0.8b"
-    cheap_provider: str = "ollama"
-
-    deep_model: str = "qwen3.5:0.8b"
-    deep_provider: str = "ollama"
-
-    multimodal_model: str = "moondream"
-    multimodal_provider: str = "ollama"
-
-    # 3. 本地 Ollama 参数 (向下兼容与心跳拉起)
     ollama_host: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-    ollama_model_fast: str = os.getenv("OLLAMA_MODEL_FAST", "qwen3.5:0.8b")
-    ollama_model_vision: str = os.getenv("OLLAMA_MODEL_VISION", "moondream")
 
-    # 4. 路由与能耗控制阈值
-    energy_threshold_fast: float = (
-        30.0  # 物理精力低于 30% 强制降级使用 cheap 模型以省钱/省电
-    )
-    complexity_threshold_deep: int = 3  # 复杂度大于等于 3 使用 deep 深度模型
+    energy_threshold_fast: float = 30.0
+    complexity_threshold_deep: int = 3
 
-    # 5. 超参数
     temperature: float = 0.7
     max_tokens: int = 1500
 
-    # 6. 系统设置（深层合并持久化文件中保存的部分）
     system: Dict[str, Dict[str, Any]] = field(
         default_factory=lambda: copy.deepcopy(DEFAULT_SYSTEM_SETTINGS)
     )
@@ -203,25 +179,25 @@ class LLMRuntimeConfig:
         self.providers = defaults
 
         if config_home is not None:
-            # 开发配置不能继承正式进程的 Ollama 地址和模型选择。
+            # 开发配置不能继承正式进程的 Ollama 地址。
             self.ollama_host = self.providers["ollama"]["api_base"]
-            self.ollama_model_fast = "qwen3.5:0.8b"
-            self.ollama_model_vision = "moondream"
 
         # 尝试自检测并热加载持久化的本地 YAML 配置文件
         saved_cfg = None
-        yaml_path = (
-            config_home / "config.yaml"
-            if config_home is not None
-            else get_config_path()
-        )
-        # 生产配置只允许从 ELFIE_HOME/config.yaml 读取；不再兼容旧版 JSON。
-        if yaml_path.exists():
+        # 生产配置由 configs/ 下三份 YAML 合并；开发 Lab 继续使用独立单文件。
+        if config_home is None:
             try:
-                saved_cfg = read_yaml_mapping(yaml_path)
+                saved_cfg = read_runtime_settings()
             except ConfigStoreError:
                 # 损坏的当前配置不会触发旧格式 fallback；继续使用内置默认值。
                 saved_cfg = None
+        else:
+            yaml_path = config_home / "config.yaml"
+            if yaml_path.exists():
+                try:
+                    saved_cfg = read_yaml_mapping(yaml_path)
+                except ConfigStoreError:
+                    saved_cfg = None
 
         # 合并配置到当前实例
         if saved_cfg is not None:
@@ -269,17 +245,7 @@ class LLMRuntimeConfig:
 
                 # 更新其他字段属性（system 键深层合并，其余直接覆盖）
                 explicit_defaults = {
-                    "cheap_model": "qwen3.5:0.8b",
-                    "cheap_provider": "ollama",
-                    "deep_model": "qwen3.5:0.8b",
-                    "deep_provider": "ollama",
-                    "multimodal_model": "moondream",
-                    "multimodal_provider": "ollama",
                     "ollama_host": os.getenv("OLLAMA_HOST", "http://localhost:11434"),
-                    "ollama_model_fast": os.getenv("OLLAMA_MODEL_FAST", "qwen3.5:0.8b"),
-                    "ollama_model_vision": os.getenv(
-                        "OLLAMA_MODEL_VISION", "moondream"
-                    ),
                     "energy_threshold_fast": 30.0,
                     "complexity_threshold_deep": 3,
                     "temperature": 0.7,
@@ -298,6 +264,9 @@ class LLMRuntimeConfig:
                             setattr(self, k, v)
             except Exception:
                 pass
+
+        if config_home is None:
+            self.providers.update(_connection_providers())
 
         # 确保 providers 字典中所有条目都有 api_mode 和 status
         for provider in self.providers:
@@ -332,7 +301,9 @@ class LLMRuntimeConfig:
             else:
                 api_key = self.providers[provider].get("api_key", "")
                 self.providers[provider]["status"] = (
-                    "active" if api_key or provider == "ollama" else "inactive"
+                    "active"
+                    if api_key or self.providers[provider].get("api_mode") == "ollama"
+                    else "inactive"
                 )
 
         # 同步本地 ollama_host 的最新变更到 providers 字典中
@@ -348,15 +319,7 @@ class LLMRuntimeConfig:
         """将当前混配配置全量转化为字典格式以供持久化保存"""
         return {
             "providers": self.providers,
-            "cheap_model": self.cheap_model,
-            "cheap_provider": self.cheap_provider,
-            "deep_model": self.deep_model,
-            "deep_provider": self.deep_provider,
-            "multimodal_model": self.multimodal_model,
-            "multimodal_provider": self.multimodal_provider,
             "ollama_host": self.ollama_host,
-            "ollama_model_fast": self.ollama_model_fast,
-            "ollama_model_vision": self.ollama_model_vision,
             "energy_threshold_fast": self.energy_threshold_fast,
             "complexity_threshold_deep": self.complexity_threshold_deep,
             "temperature": self.temperature,

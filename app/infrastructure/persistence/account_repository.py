@@ -152,9 +152,15 @@ class AccountRepository:
 
     def update_theme(self, user_id: int, theme_key: str) -> None:
         self._connection.execute(
-            "UPDATE users SET theme_key=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            "UPDATE users SET theme_key = ?,updated_at=CURRENT_TIMESTAMP WHERE id = ?",
             (theme_key, user_id),
         )
+
+    def list_non_owner_users(self) -> list[sqlite3.Row]:
+        """List all non-owner users with their basic profile."""
+        return self._connection.execute(
+            "SELECT id, username, nickname FROM users WHERE role = 'user' ORDER BY id"
+        ).fetchall()
 
 
 _ACCOUNT_SELECT = """

@@ -2,14 +2,22 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict
-from typing import Any, Callable, Dict, cast
+from dataclasses import asdict, replace
+from datetime import datetime, timezone
+from typing import cast
 
-from ai_runtime.food.evidence import ModelEvidenceStore
+from ai_runtime.food.evidence import query_model_evidence, record_model_evidence
+from ai_runtime.food.models import FOOD_COMMON_ID, FOOD_EMERGENCY_ID
 from ai_runtime.food.planner import FoodPlanner, ModelEvidence
 from ai_runtime.food.store import FoodCatalogStore
 from ai_runtime.models.capabilities import canonical_display_name, known_capabilities
 from ai_runtime.models.model_reference import ModelReferenceError, parse_model_reference
+from ai_runtime.storage.provider_connections import (
+    ProviderConnection,
+    ProviderConnectionStore,
+    ProviderModelRecord,
+)
+from ai_runtime.storage.report_repository import ReportRepository
 from app.features.setup.progress import complete_setup_step
 from app.infrastructure.ollama_platform import (
     OllamaBinding,
@@ -26,16 +34,16 @@ class OllamaSetupService:
         self,
         *,
         adapter: OllamaPlatformAdapter,
-        read_config: Callable[[], Dict[str, Any]],
-        write_config: Callable[[Dict[str, Any]], None],
+        provider_connection_store: ProviderConnectionStore | None = None,
         food_catalog_store: FoodCatalogStore | None = None,
-        model_evidence_store: ModelEvidenceStore | None = None,
+        report_repository: ReportRepository | None = None,
     ) -> None:
         self._adapter = adapter
-        self._read_config = read_config
-        self._write_config = write_config
+        self._provider_connection_store = (
+            provider_connection_store or ProviderConnectionStore()
+        )
         self._food_catalog_store = food_catalog_store or FoodCatalogStore()
-        self._model_evidence_store = model_evidence_store or ModelEvidenceStore()
+        self._report_repository = report_repository or ReportRepository()
 
     def detect(self) -> OllamaProbe:
         return self._adapter.probe(self._saved_binding())
@@ -156,16 +164,20 @@ class OllamaSetupService:
             raise RuntimeError("已绑定的 Ollama 不健康，不能配置模型")
         if reference.model_id not in self._adapter.list_models(binding):
             raise ValueError("所选模型不在已绑定的 Ollama endpoint 中")
-        config = self._read_config()
-        providers = config.get("providers")
-        if not isinstance(providers, dict):
-            raise ValueError("providers 配置无效")
-        provider = providers.get("ollama")
-        if not isinstance(provider, dict):
-            raise ValueError("Ollama 配置缺失")
-        provider["selected_model"] = model_reference
-        self._generate_foods(model_reference)
-        self._write_config(config)
+        connection = self._saved_connection()
+        if connection is None:
+            raise ValueError("Ollama 连接配置缺失")
+        models = {model.endpoint_model_id: model for model in connection.models}
+        models[reference.model_id] = ProviderModelRecord(
+            endpoint_model_id=reference.model_id,
+            display_name=reference.model_id,
+            source="official",
+        )
+        self._provider_connection_store.replace(
+            replace(connection, models=tuple(models.values()))
+        )
+        exact_reference = f"{connection.connection_id}/{reference.model_id}"
+        self._generate_foods(exact_reference)
         complete_setup_step(
             db_path,
             step=4,
@@ -208,25 +220,51 @@ class OllamaSetupService:
             verified=True,
             cost_grade=0,
             local=True,
+            observed_at=datetime.now(timezone.utc).isoformat(),
         )
-        self._model_evidence_store.merge((evidence,))
-        all_evidence = tuple(self._model_evidence_store.load().values())
-        proposal = FoodPlanner().propose(all_evidence, self._food_catalog_store.load())
-        self._food_catalog_store.save(proposal.catalog)
+        record_model_evidence(
+            (evidence,),
+            repository=self._report_repository,
+            scope=f"setup:{model_reference}",
+            trigger="setup",
+        )
+        all_evidence = tuple(
+            query_model_evidence(
+                repository=self._report_repository,
+                connection_store=self._provider_connection_store,
+            ).values()
+        )
+        catalog = self._food_catalog_store.load()
+        packages = dict(catalog.packages)
+        planner = FoodPlanner()
+        for food_id in (FOOD_EMERGENCY_ID, FOOD_COMMON_ID):
+            packages[food_id] = planner.propose_package(
+                packages[food_id],
+                all_evidence,
+                connection_ids=(model_reference.split("/", 1)[0],),
+                local_first=food_id == FOOD_EMERGENCY_ID,
+                allow_remote=False,
+            ).package
+        self._food_catalog_store.save(replace(catalog, packages=packages))
+
+    def _saved_connection(self) -> ProviderConnection | None:
+        return next(
+            (
+                connection
+                for connection in self._provider_connection_store.load().connections.values()
+                if connection.catalog_id == "ollama"
+            ),
+            None,
+        )
 
     def _saved_binding(self) -> OllamaBinding | None:
-        providers = self._read_config().get("providers", {})
-        if not isinstance(providers, dict):
+        connection = self._saved_connection()
+        if connection is None or not connection.installation or not connection.api_base:
             return None
-        provider = providers.get("ollama", {})
-        if not isinstance(provider, dict):
-            return None
-        raw = provider.get("installation")
-        if not isinstance(raw, dict) or not provider.get("api_base"):
-            return None
+        raw = connection.installation
         try:
             return OllamaBinding(
-                api_base=str(provider["api_base"]),
+                api_base=connection.api_base,
                 platform=cast(PlatformName, str(raw["platform"])),
                 install_kind=str(raw["install_kind"]),
                 launch_target=str(raw["launch_target"]),
@@ -238,15 +276,30 @@ class OllamaSetupService:
             return None
 
     def _save_binding(self, binding: OllamaBinding) -> None:
-        config = self._read_config()
-        providers = config.setdefault("providers", {})
-        if not isinstance(providers, dict):
-            raise ValueError("providers 配置无效")
-        providers["ollama"] = {
-            "api_base": binding.api_base,
-            "api_mode": "ollama",
-            "auth_type": "none",
-            "status": "configured",
-            "installation": asdict(binding),
+        installation = {
+            key: str(value)
+            for key, value in asdict(binding).items()
+            if value is not None
         }
-        self._write_config(config)
+        connection = self._saved_connection()
+        if connection is None:
+            self._provider_connection_store.create(
+                catalog_id="ollama",
+                alias="Ollama",
+                api_base=binding.api_base,
+                api_mode="ollama",
+                auth_type="none",
+                installation=installation,
+            )
+            return
+        self._provider_connection_store.replace(
+            replace(
+                connection,
+                api_base=binding.api_base,
+                api_mode="ollama",
+                auth_type="none",
+                installation=installation,
+                enabled=True,
+                archived=False,
+            )
+        )

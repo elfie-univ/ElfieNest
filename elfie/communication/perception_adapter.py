@@ -212,6 +212,7 @@ class CommunicationPerceptionAdapter:
             self._pending_delivery.popitem(last=False)
             self._dropped_delivery_count += 1
 
+
 __all__ = (
     "AdapterDirectionError",
     "CommunicationPerceptionAdapter",

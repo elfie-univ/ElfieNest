@@ -1,4 +1,4 @@
-"""Final eight-table integration coverage for Elfie, Nest, body, and leases."""
+"""Final-root integration coverage for Elfie, Nest, food, body, and leases."""
 
 from __future__ import annotations
 
@@ -19,8 +19,11 @@ from app.infrastructure.persistence.embodiment_sessions import (
     start_return,
 )
 from app.infrastructure.persistence.final_schema import create_final_nest_database
+from app.infrastructure.persistence.food_assignments import set_elfie_main_food_id
 from app.infrastructure.persistence.nest_repository import SQLiteNestRepository
-from app.infrastructure.persistence.nest_state_repository import SQLiteNestStateRepository
+from app.infrastructure.persistence.nest_state_repository import (
+    SQLiteNestStateRepository,
+)
 from app.infrastructure.persistence.store import get_db
 from nest.embodiment import EmbodimentState
 from nest.state.models import PersistentResidentState, ResidentPresence, WorldCatalog
@@ -30,6 +33,7 @@ FINAL_TABLES = {
     "elfies",
     "embodiment_sessions",
     "external_bodies",
+    "food_package_access",
     "local_installations",
     "nest_settings",
     "sessions",
@@ -63,14 +67,14 @@ def _assert_only_final_tables(db_path: str) -> None:
     assert tables == FINAL_TABLES
 
 
-def test_elfie_repository_persists_owner_profile_food_and_nullable_bed(
+def test_elfie_repository_persists_owner_profile_main_food_and_nullable_bed(
     tmp_path: Path,
 ) -> None:
     # Given: an exact final root database and its Owner.
     db_path = _final_database(tmp_path)
     repository = ElfieRepository(db_path)
 
-    # When: one final Elfie is adopted and its profile/food fields are updated.
+    # When: one final Elfie is adopted and its profile/main-food fields are updated.
     repository.reserve_adoption(
         elfie_id="00000001",
         owner_user_id=1,
@@ -82,12 +86,7 @@ def test_elfie_repository_persists_owner_profile_food_and_nullable_bed(
     repository.update_profile(
         "00000001", gender="female", birth_date="2026-07-30", summary="爱探索"
     )
-    repository.update_foods(
-        "00000001",
-        main_food="local-main",
-        emergency_food="local-safe",
-        other_foods=("snack-a", "snack-b"),
-    )
+    set_elfie_main_food_id(db_path, "00000001", "local-main")
 
     # Then: the final row is owner-scoped, complete, and no legacy table appeared.
     record = repository.get_for_owner("00000001", owner_user_id=1)
@@ -96,8 +95,7 @@ def test_elfie_repository_persists_owner_profile_food_and_nullable_bed(
     assert record.owner_user_id == 1
     assert record.gender == "female"
     assert record.summary == "爱探索"
-    assert record.main_food == "local-main"
-    assert record.other_foods == ("snack-a", "snack-b")
+    assert record.main_food_id == "local-main"
     assert record.bed_number is None
     assert repository.list_for_owner(1) == [record]
     _assert_only_final_tables(db_path)

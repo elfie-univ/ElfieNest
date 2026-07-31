@@ -67,11 +67,15 @@ def validate_command(
     now: UTCDateTime,
 ) -> CommandReceipt | None:
     if str(command.body_id) != expected_body_id:
-        return rejected(command, "body_mismatch", "command targets a different body", now)
+        return rejected(
+            command, "body_mismatch", "command targets a different body", now
+        )
     if not connected:
         return rejected(command, "body_disconnected", "body is not connected", now)
     if command.deadline < now:
-        return rejected(command, "deadline_expired", "command deadline has expired", now)
+        return rejected(
+            command, "deadline_expired", "command deadline has expired", now
+        )
     if command.capability_revision != capabilities.revision:
         return rejected(
             command,

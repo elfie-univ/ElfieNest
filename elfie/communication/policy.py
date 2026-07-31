@@ -43,7 +43,9 @@ class CommunicationPolicy:
     def validate(self, envelope: CommunicationEnvelope) -> None:
         """Raise one typed denial before an envelope reaches storage/transport."""
         if self.allowed_channels and envelope.channel_id not in self.allowed_channels:
-            self._deny("channel_not_allowed", f"不允许使用通信通道: {envelope.channel_id}")
+            self._deny(
+                "channel_not_allowed", f"不允许使用通信通道: {envelope.channel_id}"
+            )
         sender_id = str(envelope.sender.actor_id)
         if sender_id in self.blocked_sender_ids:
             self._deny("sender_blocked", f"通信发送者已被拒绝: {sender_id}")

@@ -119,23 +119,77 @@ def get_elfie_developer_home() -> Path:
     return Path(os.environ.get("ELFIE_DEV_HOME", str(default)))
 
 
+def get_configs_dir() -> Path:
+    """返回生产配置目录。"""
+    return get_elfie_home() / "configs"
+
+
+def get_credentials_dir() -> Path:
+    """返回生产凭据目录。"""
+    return get_configs_dir() / "credentials"
+
+
+def get_oauth_credentials_dir() -> Path:
+    """返回结构化 OAuth 凭据目录。"""
+    return get_credentials_dir() / "oauth"
+
+
+def get_reports_dir() -> Path:
+    """返回可重新生成的运行报告目录。"""
+    return get_elfie_home() / "reports"
+
+
+def get_report_database_path() -> Path:
+    """返回 AI Runtime 追加式报告数据库。"""
+    return get_reports_dir() / "ai-runtime.sqlite"
+
+
+def get_report_exports_dir() -> Path:
+    """返回按需生成、永不读回的人工报告导出目录。"""
+    return get_reports_dir() / "exports"
+
+
 def get_config_path() -> Path:
-    """Return the final runtime policy configuration path."""
+    """Runtime 主配置文件路径。"""
     return get_final_root_layout().runtime_config
 
 
+def get_provider_config_path() -> Path:
+    """Provider 实例配置文件路径。"""
+    return get_configs_dir() / "providers.yaml"
+
+
+def get_provider_catalog_path() -> Path:
+    """可远程更新的 Provider 元数据覆盖包路径。"""
+    return get_configs_dir() / "provider-catalog.yaml"
+
+
+def get_tool_config_path() -> Path:
+    """工具配置文件路径。"""
+    return get_configs_dir() / "tools.yaml"
+
+
+def get_runtime_config_paths() -> tuple[Path, Path, Path]:
+    """返回影响 Runtime 热加载的全部正式配置文件。"""
+    return (
+        get_config_path(),
+        get_provider_config_path(),
+        get_tool_config_path(),
+    )
+
+
 def get_env_path() -> Path:
-    """Return the final owner-only secrets path."""
+    """API Keys 和 secrets (权限 600, gitignored)"""
     return get_final_root_layout().auth_env
 
 
 def get_food_catalog_path() -> Path:
-    """Return the active food package catalog path."""
+    """当前生效的粮食配方文件。"""
     return get_final_root_layout().food_packages
 
 
 def get_food_history_dir() -> Path:
-    """Return the food package history directory."""
+    """粮食配方历史版本目录。"""
     return get_final_root_layout().food_packages_history
 
 
@@ -147,11 +201,6 @@ def get_model_validation_dir() -> Path:
 def get_runtime_validation_dir() -> Path:
     """Return the runtime validation report directory."""
     return get_final_root_layout().runtime_validations
-
-
-def get_model_evidence_path() -> Path:
-    """Return the verified model evidence path."""
-    return get_final_root_layout().model_evidence
 
 
 def get_local_files_dir(user_id: str) -> Path:
@@ -200,18 +249,8 @@ def get_runtime_locks_dir() -> Path:
 
 
 def get_logs_dir() -> Path:
-    """日志目录"""
-    return get_final_root_layout().runtime_events_log.parent
-
-
-def get_runtime_events_log_path() -> Path:
-    """Return the append-only runtime event log path."""
-    return get_final_root_layout().runtime_events_log
-
-
-def get_token_usage_log_path() -> Path:
-    """Return the append-only token usage log path."""
-    return get_final_root_layout().token_usage_log
+    """返回日志目录。"""
+    return get_elfie_home() / "logs"
 
 
 def get_skills_dir(elfie_id: str) -> Path:
@@ -225,5 +264,5 @@ def get_final_root_layout() -> FinalRootLayout:
 
 
 def ensure_elfie_home() -> None:
-    """Create only the shared directories in the final product layout."""
+    """确保数据根及所有子目录存在，并设置安全权限。"""
     ensure_final_root_layout(get_elfie_home())

@@ -38,7 +38,7 @@ async def get_config(
     """读取所选数据根的 ``configs/runtime.yaml``。
 
     文件可能不存在（gitignored 且尚未创建），此时返回 ``{}``。
-    解析失败（非法 JSON）同样返回 ``{}``。
+    解析失败同样返回 ``{}``。
     """
     _ = owner
     return read_runtime_config(get_config_path())

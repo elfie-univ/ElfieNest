@@ -35,6 +35,7 @@ _NEST_TABLES = {
     "elfies",
     "embodiment_sessions",
     "external_bodies",
+    "food_package_access",
     "local_installations",
     "nest_settings",
     "sessions",

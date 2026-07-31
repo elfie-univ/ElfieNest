@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from _thread import LockType
 from threading import Lock
-from typing import Dict, Protocol, Set
+from typing import Callable, Dict, Protocol, Set
 
+from ai_runtime.food.resolver import MainFoodSelection
 from ai_runtime.gateway.request import (
     StructuredGenerationMode,
     StructuredMessage,
@@ -24,7 +25,11 @@ from elfie.message_types import TurnId
 class StructuredRuntime(Protocol):
     """Narrow RuntimeAgent surface consumed by this adapter."""
 
-    def structured_capabilities(self) -> StructuredCapabilityView:
+    def structured_capabilities(
+        self,
+        food_key: str | None = None,
+        food_unavailable: bool = False,
+    ) -> StructuredCapabilityView:
         """Return the selected runtime target's capabilities."""
 
     def generate_structured(
@@ -62,8 +67,16 @@ class RuntimeRequestAbandonedError(RuntimeError):
 class SerializedRuntimeAdapter:
     """Serialize healthy calls and rotate the lease after a hard timeout."""
 
-    def __init__(self, runtime: StructuredRuntime) -> None:
+    def __init__(
+        self,
+        runtime: StructuredRuntime,
+        *,
+        food_key_resolver: Callable[[], str | MainFoodSelection | None] | None = None,
+        elfie_workspace_resolver: Callable[[], str | None] | None = None,
+    ) -> None:
         self._runtime = runtime
+        self._food_key_resolver = food_key_resolver or (lambda: None)
+        self._elfie_workspace_resolver = elfie_workspace_resolver or (lambda: None)
         self._state_lock = Lock()
         self._current_lease = Lock()
         self._request_leases: Dict[TurnId, LockType] = {}
@@ -71,7 +84,11 @@ class SerializedRuntimeAdapter:
 
     def capabilities(self) -> ModelGenerationCapabilities:
         """Convert Runtime capabilities into the Brain-owned contract."""
-        raw = self._runtime.structured_capabilities()
+        selection = self._food_selection()
+        raw = self._runtime.structured_capabilities(
+            selection.food_id,
+            selection.unavailable,
+        )
         return self._convert_capabilities(raw)
 
     @staticmethod
@@ -90,7 +107,12 @@ class SerializedRuntimeAdapter:
 
     def generate(self, request: ModelGenerationRequest) -> ModelGenerationResult:
         """Choose one mode, call Runtime once, and translate the result."""
-        capabilities = self.capabilities()
+        selection = self._food_selection()
+        raw_capabilities = self._runtime.structured_capabilities(
+            selection.food_id,
+            selection.unavailable,
+        )
+        capabilities = self._convert_capabilities(raw_capabilities)
         selected_mode = self._select_mode(capabilities)
         runtime_request = StructuredRuntimeRequest(
             prompt=request.user_prompt,
@@ -104,6 +126,9 @@ class SerializedRuntimeAdapter:
             allowed_tools=request.allowed_tools,
             provider=capabilities.provider,
             model_key=capabilities.model_key,
+            food_key=selection.food_id,
+            food_unavailable=selection.unavailable,
+            elfie_workspace=self._elfie_workspace_resolver(),
             temperature=request.temperature,
             max_tokens=min(request.max_tokens, capabilities.max_output_tokens),
         )
@@ -153,6 +178,12 @@ class SerializedRuntimeAdapter:
                 if lease is self._current_lease:
                     return lease
             lease.release()
+
+    def _food_selection(self) -> MainFoodSelection:
+        resolved = self._food_key_resolver()
+        if isinstance(resolved, MainFoodSelection):
+            return resolved
+        return MainFoodSelection(resolved)
 
     @staticmethod
     def _select_mode(

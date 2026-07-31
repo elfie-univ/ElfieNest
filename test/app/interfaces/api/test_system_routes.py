@@ -99,9 +99,9 @@ class TestGetDefaults:
         assert isinstance(data, dict)
         assert data["temperature"] == 0.7
         assert data["max_tokens"] == 1500
-        assert data["default_cheap_model"] == "qwen3.5:0.8b"
-        assert data["default_deep_model"] == "qwen3.5:0.8b"
-        assert data["default_multimodal_model"] == "moondream"
+        assert "default_cheap_model" not in data
+        assert "default_deep_model" not in data
+        assert "default_multimodal_model" not in data
 
     def test_get_adoption_defaults(self, client: TestClient) -> None:
         """无文件时 GET adoption → 返回系统默认 adoption 配置。"""

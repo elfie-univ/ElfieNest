@@ -2,39 +2,21 @@ from __future__ import annotations
 
 from ai_runtime.lab.menu import MenuItem, TerminalMenu
 from app.features.configuration.user_config import UserConfig, write_user_config
-from app.interfaces.cli.tui.common import clear_screen, input_text, print_banner
+from app.interfaces.cli.tui.common import clear_screen, print_banner
 
 
 def config_llm(config: UserConfig) -> None:
-    while True:
-        clear_screen()
-        print_banner()
-        print("  🤖 LLM and Food Strategy")
-        print("  " + "=" * 45)
-        print()
-        print("  Elfies no longer bind directly to Provider and model.")
-        print("  Use Runtime Lab for Provider, model validation and food recipes:")
-        print("    .venv/bin/python -m ai_runtime.lab")
-        print("\n  1. Modify legacy default model (compatibility setting)")
-        print("  0. Back")
-        try:
-            choice = input("\nChoose [0-1]: ").strip()
-        except (KeyboardInterrupt, EOFError):
-            return
-        if choice == "0" or choice == "":
-            return
-        if choice == "1":
-            llm = config.setdefault("system", {}).setdefault("llm", {})
-            current = llm.get("default_cheap_model", "qwen3.5:0.8b")
-            value = input_text(f"Enter default model [{current}]: ")
-            if value:
-                llm["default_cheap_model"] = value
-                write_user_config(config)
-                print("\n✅ Compatibility default model saved; actual calls still determined by food strategy.")
-                try:
-                    input("Press Enter to continue...")
-                except (EOFError, KeyboardInterrupt):
-                    return
+    _ = config
+    clear_screen()
+    print_banner()
+    print("  🤖 LLM and Food Strategy")
+    print("  " + "=" * 45)
+    print()
+    print("  Provider connections, models and food packages are managed in AI Runtime.")
+    try:
+        input("Press Enter to return...")
+    except (EOFError, KeyboardInterrupt):
+        return
 
 
 def config_engine(config: UserConfig) -> None:
@@ -44,8 +26,12 @@ def config_engine(config: UserConfig) -> None:
         choice = menu.choose(
             "Engine Parameters",
             (
-                MenuItem("1", f"Tick interval (sec): {engine.get('tick_interval_sec', 1.5)}"),
-                MenuItem("2", f"Max elfies per room: {engine.get('max_elfies_per_room', 10)}"),
+                MenuItem(
+                    "1", f"Tick interval (sec): {engine.get('tick_interval_sec', 1.5)}"
+                ),
+                MenuItem(
+                    "2", f"Max elfies per room: {engine.get('max_elfies_per_room', 10)}"
+                ),
             ),
             breadcrumb="ElfieNest / Config / App / Engine",
             back_label="Save and return",
@@ -82,9 +68,16 @@ def config_security(config: UserConfig) -> None:
         choice = menu.choose(
             "Session and Security",
             (
-                MenuItem("1", f"Session TTL (days): {security.get('session_ttl_days', 7)}"),
-                MenuItem("2", f"Max login attempts: {rate_limit.get('max_attempts', 5)}"),
-                MenuItem("3", f"Rate limit window (sec): {rate_limit.get('window_seconds', 300)}"),
+                MenuItem(
+                    "1", f"Session TTL (days): {security.get('session_ttl_days', 7)}"
+                ),
+                MenuItem(
+                    "2", f"Max login attempts: {rate_limit.get('max_attempts', 5)}"
+                ),
+                MenuItem(
+                    "3",
+                    f"Rate limit window (sec): {rate_limit.get('window_seconds', 300)}",
+                ),
             ),
             breadcrumb="ElfieNest / Config / Owner and Security",
             back_label="Save and return",
@@ -135,7 +128,10 @@ def config_adoption(config: UserConfig) -> None:
         choice = menu.choose(
             "Elfie Adoption",
             (
-                MenuItem("1", f"Max elfies per user: {adoption.get('max_elfies_per_user', 3)}"),
+                MenuItem(
+                    "1",
+                    f"Max elfies per user: {adoption.get('max_elfies_per_user', 3)}",
+                ),
                 MenuItem("2", f"Allowed species: {', '.join(allowed)}"),
                 MenuItem("3", "Personality preset toggles"),
             ),
@@ -171,7 +167,10 @@ def _toggle_species_menu(menu: TerminalMenu, adoption: UserConfig) -> None:
         choice = menu.choose(
             "Allowed Elfie Species",
             tuple(
-                MenuItem(str(index), f"{labels[key]}: {'enabled' if key in allowed else 'disabled'}")
+                MenuItem(
+                    str(index),
+                    f"{labels[key]}: {'enabled' if key in allowed else 'disabled'}",
+                )
                 for index, key in enumerate(labels, 1)
             ),
             breadcrumb="ElfieNest / Config / App / Elfie Adoption / Species",
@@ -195,7 +194,10 @@ def _toggle_personality_menu(menu: TerminalMenu, enabled: UserConfig) -> None:
         choice = menu.choose(
             "Personality Preset Toggles",
             tuple(
-                MenuItem(str(index), f"{name}: {'enabled' if enabled.get(name, True) else 'disabled'}")
+                MenuItem(
+                    str(index),
+                    f"{name}: {'enabled' if enabled.get(name, True) else 'disabled'}",
+                )
                 for index, name in enumerate(_PERSONALITY_PRESETS, 1)
             ),
             breadcrumb="ElfieNest / Config / App / Elfie Adoption / Personality",
@@ -206,7 +208,9 @@ def _toggle_personality_menu(menu: TerminalMenu, enabled: UserConfig) -> None:
         if not choice.isdigit() or not 1 <= int(choice) <= len(_PERSONALITY_PRESETS):
             continue
         name = _PERSONALITY_PRESETS[int(choice) - 1]
-        if sum(bool(value) for value in enabled.values()) == 1 and enabled.get(name, True):
+        if sum(bool(value) for value in enabled.values()) == 1 and enabled.get(
+            name, True
+        ):
             continue
         enabled[name] = not enabled.get(name, True)
 
@@ -222,7 +226,9 @@ def _set_float(
     maximum: float | None = None,
 ) -> None:
     try:
-        raw = menu.read_text(f"{prompt} [{section.get(key, default)}]: ", default=str(default))
+        raw = menu.read_text(
+            f"{prompt} [{section.get(key, default)}]: ", default=str(default)
+        )
         if raw is None:
             return
         value = float(raw)
@@ -247,7 +253,9 @@ def _set_int(
     maximum: int | None = None,
 ) -> None:
     try:
-        raw = menu.read_text(f"{prompt} [{section.get(key, default)}]: ", default=str(default))
+        raw = menu.read_text(
+            f"{prompt} [{section.get(key, default)}]: ", default=str(default)
+        )
         if raw is None:
             return
         value = int(raw)

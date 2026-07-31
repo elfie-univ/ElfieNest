@@ -12,9 +12,10 @@ from pathlib import Path
 from typing import Mapping
 
 from ai_runtime.providers.profiles import get_profile
-from ai_runtime.storage.data_home import get_env_path
+from ai_runtime.storage.data_home import ensure_elfie_home, get_env_path
 
 _ENV_NAME_PATTERN = re.compile(r"[^A-Z0-9_]+")
+_CONNECTION_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 
 
 def provider_secret_name(provider_id: str) -> str:
@@ -23,6 +24,13 @@ def provider_secret_name(provider_id: str) -> str:
         return profile.api_key_env_var
     normalized = _ENV_NAME_PATTERN.sub("_", provider_id.upper()).strip("_")
     return f"{normalized or 'CUSTOM'}_API_KEY"
+
+
+def connection_secret_name(connection_id: str) -> str:
+    """Return a unique credential name for one stable connection instance."""
+    if _CONNECTION_ID_PATTERN.fullmatch(connection_id) is None:
+        raise ValueError(f"无效 connection_id: {connection_id!r}")
+    return f"ELFIE_PROVIDER_{connection_id.upper()}_API_KEY"
 
 
 def tool_secret_name(tool_id: str) -> str:
@@ -55,6 +63,8 @@ def resolve_secret(name: str, path: Path | None = None) -> str:
 
 
 def write_secrets(values: Mapping[str, str], path: Path | None = None) -> None:
+    if path is None:
+        ensure_elfie_home()
     secret_path = path or get_env_path()
     secret_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     if os.name != "nt":
@@ -85,6 +95,21 @@ def set_provider_secret(
     path: Path | None = None,
 ) -> str:
     name = provider_secret_name(provider_id)
+    values = read_secrets(path)
+    if api_key:
+        values[name] = api_key
+    else:
+        values.pop(name, None)
+    write_secrets(values, path)
+    return name
+
+
+def set_connection_secret(
+    connection_id: str,
+    api_key: str,
+    path: Path | None = None,
+) -> str:
+    name = connection_secret_name(connection_id)
     values = read_secrets(path)
     if api_key:
         values[name] = api_key

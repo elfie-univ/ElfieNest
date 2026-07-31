@@ -5,8 +5,7 @@ import pytest
 import yaml
 from fastapi.testclient import TestClient
 
-from app.interfaces.api.app import create_app
-from app.infrastructure.persistence.store import init_db
+from ai_runtime.storage.provider_connections import ProviderConnectionStore
 from ai_runtime.usage.observer import (
     FallbackObservation,
     RuntimeEventStatus,
@@ -14,6 +13,8 @@ from ai_runtime.usage.observer import (
     ToolCallObservation,
 )
 from ai_runtime.usage.token_tracker import TokenTracker
+from app.infrastructure.persistence.store import init_db
+from app.interfaces.api.app import create_app
 
 from ._helpers import create_test_owner, create_test_user
 
@@ -26,22 +27,24 @@ def db_path(tmp_path: Path) -> str:
 @pytest.fixture
 def runtime_config_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    connection_store = ProviderConnectionStore()
+    connection_store.create(
+        catalog_id="ollama",
+        alias="Ollama",
+        api_base="http://localhost:11434",
+        api_mode="ollama",
+    )
+    connection_store.create(
+        catalog_id="deepseek_api",
+        alias="DeepSeek",
+        api_base="https://api.deepseek.com/v1",
+        api_mode="chat_completions",
+    )
     path = tmp_path / "config.yaml"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         yaml.safe_dump(
             {
-                "providers": {
-                    "ollama": {
-                        "api_base": "http://localhost:11434",
-                        "api_mode": "ollama",
-                    },
-                    "deepseek": {
-                        "api_base": "https://api.deepseek.com/v1",
-                        "api_key": "configured",
-                        "api_mode": "chat_completions",
-                    },
-                },
                 "models": {
                     "openai/gpt-4o-mini": {"visible": False, "cost_tier": 2}
                 },
@@ -147,7 +150,8 @@ def test_owner_runtime_status_returns_diagnostic_snapshot(client: TestClient) ->
     assert payload["fallback"]["provider"] == "ollama"
     assert payload["fallback"]["configured"] is True
     assert payload["tools"]["web_search"]["available"] is True
-    assert payload["tools"]["code_sandbox"]["available"] is True
+    assert payload["tools"]["local_file"]["available"] is True
+    assert set(payload["tools"]) == {"web_search", "local_file"}
     assert payload["usage"]["deepseek"]["total_tokens"] == 15
     assert payload["observer"]["event_count"] == 2
     assert payload["observer"]["last_event"]["subject"] == "local_fast"
@@ -177,8 +181,8 @@ def test_owner_runtime_status_tolerates_malformed_config_fields(
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "ok"
-    assert payload["providers"]["total"] == 0
-    assert payload["fallback"]["configured"] is False
+    assert payload["providers"]["total"] == 2
+    assert payload["fallback"]["configured"] is True
     assert payload["notes"]
 
 
@@ -193,7 +197,7 @@ def test_non_owner_cannot_read_runtime_status(client: TestClient) -> None:
     assert response.status_code == 403
 
 
-def test_owner_runtime_policy_returns_configured_strategy(client: TestClient) -> None:
+def test_owner_runtime_policy_returns_only_tool_permissions(client: TestClient) -> None:
     tokens = _login(client, "owner", "ownerchangeme")
 
     response = client.get(
@@ -203,17 +207,13 @@ def test_owner_runtime_policy_returns_configured_strategy(client: TestClient) ->
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["task_routes"]["reasoning"] == "premium"
-    assert "model_groups_deprecated" not in payload
-    assert "focus" in payload["food_keys"]
-    assert payload["tool_permissions"]["RUN_SKILL"]["mode"] == "allow"
-    assert payload["tool_permissions"]["DELETE_SKILL"]["mode"] == "owner"
+    assert "task_routes" not in payload
+    assert "food_keys" not in payload
+    assert set(payload["tool_permissions"]) == {"READ", "WEB_SEARCH"}
+    assert "RUN_SKILL" not in payload["tool_permissions"]
 
 
-def test_owner_runtime_policy_put_persists_strategy(
-    client: TestClient,
-    runtime_config_path: Path,
-) -> None:
+def test_owner_runtime_policy_rejects_task_routes(client: TestClient) -> None:
     tokens = _login(client, "owner", "ownerchangeme")
 
     response = client.put(
@@ -221,7 +221,7 @@ def test_owner_runtime_policy_put_persists_strategy(
         json={
             "task_routes": {"reasoning": "standard"},
             "tool_permissions": {
-                "RUN_SKILL": {
+                "WEB_SEARCH": {
                     "mode": "ask",
                     "reason": "需要人工确认",
                 }
@@ -230,13 +230,7 @@ def test_owner_runtime_policy_put_persists_strategy(
         headers={"X-CSRF-Token": tokens["csrf_token"]},
     )
 
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["task_routes"]["reasoning"] == "standard"
-    assert payload["tool_permissions"]["RUN_SKILL"]["mode"] == "ask"
-
-    saved = yaml.safe_load(runtime_config_path.read_text(encoding="utf-8"))
-    assert saved["runtime_policy"]["task_routes"]["reasoning"] == "standard"
+    assert response.status_code == 410
 
 
 def test_owner_runtime_policy_rejects_direct_model_groups(client: TestClient) -> None:
@@ -263,7 +257,19 @@ def test_owner_runtime_policy_rejects_invalid_permission_mode(
 
     response = client.put(
         "/api/owner/runtime/policy",
-        json={"tool_permissions": {"RUN_SKILL": {"mode": "unknown"}}},
+        json={"tool_permissions": {"WEB_SEARCH": {"mode": "unknown"}}},
+        headers={"X-CSRF-Token": tokens["csrf_token"]},
+    )
+
+    assert response.status_code == 422
+
+
+def test_owner_runtime_policy_rejects_unsafe_tool_permissions(client: TestClient) -> None:
+    tokens = _login(client, "owner", "ownerchangeme")
+
+    response = client.put(
+        "/api/owner/runtime/policy",
+        json={"tool_permissions": {"RUN_SKILL": {"mode": "allow"}}},
         headers={"X-CSRF-Token": tokens["csrf_token"]},
     )
 
@@ -281,7 +287,7 @@ def test_owner_runtime_policy_rejects_invalid_task_route(
         headers={"X-CSRF-Token": tokens["csrf_token"]},
     )
 
-    assert response.status_code == 422
+    assert response.status_code == 410
 
 
 def test_owner_runtime_audit_returns_recent_events(client: TestClient) -> None:

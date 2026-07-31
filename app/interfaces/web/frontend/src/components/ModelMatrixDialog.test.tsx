@@ -6,11 +6,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import {
   benchmarkProviderModels,
   ownerModelMatrix,
+  validateAllProviderModels,
   type ModelMatrix,
 } from "../api/owner-providers"
 import { createI18n } from "../i18n/config"
-import type { SupportedLocale } from "../i18n/locale"
-import "../styles.css"
 import { ModelMatrixDialog } from "./ModelMatrixDialog"
 
 vi.mock("../api/owner-providers", async (loadOriginal) => {
@@ -19,158 +18,96 @@ vi.mock("../api/owner-providers", async (loadOriginal) => {
     ...original,
     benchmarkProviderModels: vi.fn(),
     ownerModelMatrix: vi.fn(),
+    validateAllProviderModels: vi.fn(),
   }
 })
 
-const sharedModel = {
-  model_id: "shared-model",
-  display_name: "Shared Model",
-  capabilities: ["text"],
-  providers: [
-    { provider_id: "openai", available: true, verification_status: "passed", benchmark_status: "passed", latency_ms: 120, latency_class: "fast", price_estimate: null },
-    { provider_id: "anthropic", available: true, verification_status: "failed", benchmark_status: null, latency_ms: null, latency_class: null, price_estimate: null },
-    { provider_id: "ollama", available: true, verification_status: "passed", benchmark_status: "passed", latency_ms: 32, latency_class: "fast", price_estimate: null },
-  ],
-} satisfies ModelMatrix["models"][number]
-
-const openAiOnlyModel = {
-  model_id: "openai-only",
-  display_name: "OpenAI Only",
-  capabilities: ["text"],
-  providers: [
-    { provider_id: "openai", available: true, verification_status: "passed", benchmark_status: null, latency_ms: null, latency_class: null, price_estimate: 0.2 },
-    { provider_id: "anthropic", available: false, verification_status: "never", benchmark_status: null, latency_ms: null, latency_class: null, price_estimate: null },
-    { provider_id: "ollama", available: false, verification_status: "never", benchmark_status: null, latency_ms: null, latency_class: null, price_estimate: null },
-  ],
-} satisfies ModelMatrix["models"][number]
-
 const matrix = {
-  providers: [
-    { provider_id: "openai", name: "OpenAI", verification: { status: "passed", checked_at: "2026-07-26T00:00:00Z", latency_ms: 8, error: null } },
-    { provider_id: "anthropic", name: "Anthropic", verification: { status: "failed", checked_at: "2026-07-26T00:00:00Z", latency_ms: null, error: "denied" } },
-    { provider_id: "ollama", name: "Ollama", verification: { status: "passed", checked_at: "2026-07-26T00:00:00Z", latency_ms: 3, error: null } },
-  ],
-  models: [sharedModel, openAiOnlyModel],
+  snapshot: { mode: "latest", run_id: "run-1", status: "passed" },
+  connections: [{
+    connection_id: "conn-openai",
+    name: "OpenAI Main",
+    verification: { status: "passed", checked_at: "2026-07-30T00:00:00Z", latency_ms: 45, error: null },
+  }],
+  models: [{
+    model_key: "gpt-test",
+    display_name: "GPT Test",
+    capabilities: ["text"],
+    connections: [{
+      connection_id: "conn-openai",
+      model_id: "gpt-test",
+      available: true,
+      verification_status: "passed",
+      benchmark_status: "passed",
+      latency_ms: 45,
+      latency_class: "fast",
+      price_estimate: null,
+    }],
+  }],
 } satisfies ModelMatrix
 
-describe("ModelMatrixDialog", () => {
+describe("ModelMatrixDialog v2 behavior", () => {
   beforeEach(() => {
     vi.mocked(ownerModelMatrix).mockResolvedValue(matrix)
-    vi.mocked(benchmarkProviderModels).mockResolvedValue({ results: [] })
+    vi.mocked(benchmarkProviderModels).mockResolvedValue({
+      run_id: "bench-2",
+      status: "passed",
+      results: [{
+        connection_id: "conn-openai",
+        model_id: "gpt-test",
+        status: "passed",
+        checked_at: "2026-07-30T00:00:01Z",
+        latency_ms: 40,
+        latency_class: "fast",
+        error: null,
+      }],
+    })
+    vi.mocked(validateAllProviderModels).mockResolvedValue({
+      run_id: "validate-2",
+      status: "passed",
+      results: [{ subject: "conn-openai/gpt-test", status: "passed" }],
+    })
   })
 
-  it("opens with current matrix data and refreshes the visible model list", async () => {
+  it("renders the connection-model matrix from current report evidence", async () => {
+    renderDialog()
+
+    const dialog = screen.getByRole("dialog", { name: "支持模型与测速" })
+    expect(await within(dialog).findByRole("columnheader", { name: "OpenAI Main" })).toBeInTheDocument()
+    expect(within(dialog).getByRole("row", { name: /GPT Test.*可用.*45ms/ })).toBeInTheDocument()
+  })
+
+  it("benchmarks the visible verified combinations and refreshes the matrix", async () => {
     const user = userEvent.setup()
-    vi.mocked(ownerModelMatrix)
-      .mockResolvedValueOnce(matrix)
-      .mockResolvedValueOnce({
-        ...matrix,
-        models: [openAiOnlyModel],
-      })
-
-    renderMatrixDialog()
-
-    expect(await screen.findByRole("rowheader", { name: "Shared Model" })).toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: "重新读取" }))
-
-    expect(await screen.findByRole("rowheader", { name: "OpenAI Only" })).toBeInTheDocument()
-    expect(screen.queryByRole("rowheader", { name: "Shared Model" })).not.toBeInTheDocument()
-    expect(ownerModelMatrix).toHaveBeenCalledTimes(2)
-  })
-
-  it("renders a real model by provider matrix with unknown prices", async () => {
-    renderMatrixDialog()
-
-    const dialog = await screen.findByRole("dialog", { name: "支持模型与测速" })
-    const table = within(dialog).getByRole("table", { name: "模型供应商矩阵" })
-    expect(within(table).getByRole("columnheader", { name: "OpenAI" })).toBeInTheDocument()
-    expect(within(table).getByRole("columnheader", { name: "Anthropic" })).toBeInTheDocument()
-    expect(within(table).getByRole("columnheader", { name: "Ollama" })).toBeInTheDocument()
-    expect(within(table).getByRole("rowheader", { name: "Shared Model" })).toBeInTheDocument()
-    expect(within(table).getAllByText("未提供")).toHaveLength(3)
-    expect(within(table).getByText("120ms")).toBeVisible()
-  })
-
-  it("uses the shared table primitive while keeping semantic rows, columns, and table-cell display", async () => {
-    renderMatrixDialog()
-
-    const table = await screen.findByRole("table", { name: "模型供应商矩阵" })
-    expect(within(table).getAllByRole("columnheader")).toHaveLength(matrix.providers.length + 1)
-    expect(within(table).getAllByRole("row")).toHaveLength(matrix.models.length + 1)
-    expect(within(table).getAllByRole("rowheader")).toHaveLength(matrix.models.length)
-
-    const availableCell = within(table).getByRole("cell", { name: /可用.*120ms/ })
-    expect(availableCell).toBeInstanceOf(HTMLTableCellElement)
-    if (!(availableCell instanceof HTMLTableCellElement)) return
-    expect(getComputedStyle(availableCell).display).toBe("table-cell")
-  })
-
-  it("offers per-cell speed tests only for benchmarkable provider-model pairs", async () => {
-    const user = userEvent.setup()
-    renderMatrixDialog()
-
-    await user.click(await screen.findByRole("button", { name: "测速 OpenAI Shared Model" }))
-
-    expect(benchmarkProviderModels).toHaveBeenCalledWith(
-      [{ provider_id: "openai", model_id: "shared-model" }],
-      "csrf",
-    )
-    expect(screen.getByRole("button", { name: "测速 Anthropic Shared Model" })).toBeDisabled()
-  })
-
-  it("benchmarks only available cells from passed providers", async () => {
-    const user = userEvent.setup()
-    renderMatrixDialog()
+    renderDialog()
 
     await user.click(await screen.findByRole("button", { name: "批量测速" }))
-
-    expect(vi.mocked(benchmarkProviderModels)).toHaveBeenCalledWith(
-      [
-        { provider_id: "openai", model_id: "shared-model" },
-        { provider_id: "ollama", model_id: "shared-model" },
-        { provider_id: "openai", model_id: "openai-only" },
-      ],
+    expect(benchmarkProviderModels).toHaveBeenCalledWith(
+      [{ connection_id: "conn-openai", model_id: "gpt-test" }],
       "csrf",
     )
+    expect(await screen.findByText("测速完成：1 个成功，0 个失败。")).toBeInTheDocument()
+    expect(vi.mocked(ownerModelMatrix).mock.calls.length).toBeGreaterThanOrEqual(2)
   })
 
-  it("disables benchmarking when no verified provider-model pair exists", async () => {
-    vi.mocked(ownerModelMatrix).mockResolvedValue({
-      ...matrix,
-      providers: matrix.providers.map((provider) => ({
-        ...provider,
-        verification: { ...provider.verification, status: "failed" as const },
-      })),
-    })
+  it("switches visible copy without losing the loaded report", async () => {
+    const instance = renderDialog()
+    expect(await screen.findByText("GPT Test")).toBeInTheDocument()
 
-    renderMatrixDialog()
-
-    expect(await screen.findByRole("button", { name: "批量测速" })).toBeDisabled()
-  })
-
-  it("renders English matrix copy without translating provider or model identifiers", async () => {
-    // Given: a real provider-model matrix rendered in English.
-    renderMatrixDialog("en-US")
-
-    // When: the matrix dialog finishes loading.
-    const dialog = await screen.findByRole("dialog", { name: "Supported models and benchmarks" })
-    const table = within(dialog).getByRole("table", { name: "Provider-model matrix" })
-
-    // Then: semantic copy is English and technical names stay exact.
-    expect(within(table).getByRole("rowheader", { name: "Shared Model" })).toBeInTheDocument()
-    expect(within(table).getByRole("columnheader", { name: "OpenAI" })).toBeInTheDocument()
-    expect(within(table).getAllByText("Not provided")).toHaveLength(3)
-    expect(screen.queryByText("支持模型与测速")).not.toBeInTheDocument()
+    await instance.changeLanguage("en-US")
+    expect(screen.getByRole("dialog", { name: "Supported models and benchmarks" })).toBeInTheDocument()
+    expect(screen.getByText("GPT Test")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Benchmark all" })).toBeInTheDocument()
   })
 })
 
-function renderMatrixDialog(locale: SupportedLocale = "zh-CN"): void {
+function renderDialog(): ReturnType<typeof createI18n> {
   const instance = createI18n()
-  void instance.changeLanguage(locale)
-  document.documentElement.lang = locale
+  document.documentElement.lang = "zh-CN"
   render(
     <I18nextProvider i18n={instance}>
       <ModelMatrixDialog csrfToken="csrf" onOpenChange={vi.fn()} open />
     </I18nextProvider>,
   )
+  return instance
 }

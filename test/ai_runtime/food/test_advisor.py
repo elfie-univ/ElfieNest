@@ -1,42 +1,30 @@
-from ai_runtime.config import LLMRuntimeConfig
+from datetime import datetime, timezone
+
 from ai_runtime.food.advisor import LLMFoodPlanningAdvisor, select_planning_model
 from ai_runtime.food.planner import ModelEvidence
 
 
-def test_llm_advisor_sends_only_model_evidence_and_parses_json(monkeypatch, tmp_path):
-    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    captured = []
-
-    def fake_call(config, provider, model, messages, temperature, max_tokens):
-        captured.append(messages[0]["content"])
-        return '```json\n{"standard":"cloud/balanced"}\n```'
-
-    config = LLMRuntimeConfig()
-    advisor = LLMFoodPlanningAdvisor(config, "cloud/planner", model_caller=fake_call)
+def test_llm_advisor_is_an_optional_noop_boundary():
+    advisor = LLMFoodPlanningAdvisor({}, "cloud/planner")
     result = advisor.recommend(
-        ["standard"],
+        ["food_common"],
         [ModelEvidence("cloud/balanced", frozenset({"text"}), True, latency_ms=200)],
     )
 
-    assert result == {"standard": "cloud/balanced"}
-    assert "api_key" not in captured[0]
+    assert result == {}
 
 
-def test_select_planning_model_requires_reasoning_and_configured_provider(
-    monkeypatch, tmp_path
-):
-    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = LLMRuntimeConfig()
-    config.providers["cloud"] = {"api_key": "configured"}
+def test_select_planning_model_uses_first_fresh_verified_model():
     selected = select_planning_model(
-        config,
+        {},
         [
-            ModelEvidence("cloud/plain", frozenset({"text"}), True),
+            ModelEvidence("cloud/stale", frozenset({"text"}), False),
             ModelEvidence(
                 "cloud/reasoner",
                 frozenset({"text", "reasoning"}),
                 True,
                 cost_grade=4,
+                observed_at=datetime.now(timezone.utc).isoformat(),
             ),
         ],
     )
@@ -44,13 +32,10 @@ def test_select_planning_model_requires_reasoning_and_configured_provider(
     assert selected == "cloud/reasoner"
 
 
-def test_select_planning_model_falls_back_to_verified_text_model(monkeypatch, tmp_path):
-    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = LLMRuntimeConfig()
-
+def test_select_planning_model_returns_none_without_fresh_evidence():
     selected = select_planning_model(
-        config,
-        [ModelEvidence("ollama/gemma", frozenset({"text"}), True)],
+        {},
+        [ModelEvidence("ollama/gemma", frozenset({"text"}), False)],
     )
 
-    assert selected == "ollama/gemma"
+    assert selected is None

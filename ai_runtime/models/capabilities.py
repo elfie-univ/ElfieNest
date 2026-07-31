@@ -19,12 +19,8 @@ class ModelCapabilityProfile:
 # 讯飞官方模型 ID 是确定性映射；ID 比用户手工填写的显示名更可信。
 _EXACT_MODEL_IDS: dict[str, ModelCapabilityProfile] = {
     "xopglm5": ModelCapabilityProfile("GLM-5", frozenset({"text", "reasoning"})),
-    "xopglm51": ModelCapabilityProfile(
-        "GLM-5.1", frozenset({"text", "reasoning"})
-    ),
-    "xopglm52": ModelCapabilityProfile(
-        "GLM-5.2", frozenset({"text", "reasoning"})
-    ),
+    "xopglm51": ModelCapabilityProfile("GLM-5.1", frozenset({"text", "reasoning"})),
+    "xopglm52": ModelCapabilityProfile("GLM-5.2", frozenset({"text", "reasoning"})),
     "xopkimik25": ModelCapabilityProfile(
         "Kimi-K2.5", frozenset({"text", "reasoning", "vision"})
     ),
@@ -62,9 +58,7 @@ def resolve_model_capability_profile(
                 f"GLM-{version}", frozenset({"text", "reasoning"})
             )
     if "minimax-m2.5" in name or "minimax-m2-5" in name:
-        return ModelCapabilityProfile(
-            "MiniMax-M2.5", frozenset({"text", "reasoning"})
-        )
+        return ModelCapabilityProfile("MiniMax-M2.5", frozenset({"text", "reasoning"}))
     return None
 
 

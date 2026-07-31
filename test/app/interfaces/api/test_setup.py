@@ -313,7 +313,7 @@ class TestSetup:
         )
 
         assert response.status_code == 422
-        assert "provider_id/model_id" in response.text
+        assert "connection_id/model_id" in response.text
 
     def test_setup_model_pull_requires_confirmation_and_queues_work(
         self, client: TestClient, app

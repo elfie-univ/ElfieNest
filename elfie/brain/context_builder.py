@@ -35,11 +35,11 @@ class ThalamusContextBuilder:
         revision: Optional[int] = None,
     ) -> BrainContext:
         """Assemble one immutable context without reading or draining sources."""
-        context_captured_at = captured_at if captured_at is not None else frame.captured_at
-        context_revision = revision if revision is not None else frame.revision
-        logger.info(
-            "丘脑已接收 sealed PerceptionFrame，正在组装不可变 BrainContext。"
+        context_captured_at = (
+            captured_at if captured_at is not None else frame.captured_at
         )
+        context_revision = revision if revision is not None else frame.revision
+        logger.info("丘脑已接收 sealed PerceptionFrame，正在组装不可变 BrainContext。")
         return BrainContext(
             revision=context_revision,
             captured_at=context_captured_at,

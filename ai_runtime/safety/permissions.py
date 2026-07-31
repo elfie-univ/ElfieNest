@@ -36,16 +36,10 @@ class ToolPermissionRule:
 
 DEFAULT_TOOL_PERMISSIONS: Mapping[str, ToolPermissionRule] = {
     "WEB_SEARCH": ToolPermissionRule(PermissionMode.ALLOW, "联网检索工具自动放行"),
-    "RUN_CODE": ToolPermissionRule(
-        PermissionMode.DENY,
-        "真实代码隔离尚未接入，生产环境默认禁止执行代码",
-    ),
     "READ": ToolPermissionRule(PermissionMode.ALLOW, "只读工具自动放行"),
-    "RUN_SKILL": ToolPermissionRule(PermissionMode.ALLOW, "运行已登记技能自动放行"),
-    "LIST_SKILLS": ToolPermissionRule(PermissionMode.ALLOW, "读取技能清单自动放行"),
-    "CREATE_SKILL": ToolPermissionRule(PermissionMode.ALLOW, "新增技能允许，但文件名必须留在技能根目录"),
-    "DELETE_SKILL": ToolPermissionRule(PermissionMode.OWNER, "技能删除或覆盖需要Owner令牌"),
 }
+
+SAFE_TOOL_PERMISSION_ACTIONS = frozenset(DEFAULT_TOOL_PERMISSIONS)
 
 
 class PermissionManager:
@@ -72,7 +66,9 @@ class PermissionManager:
 
         if action == "CREATE_SKILL" and _has_path_escape(resource):
             reason = f"路径审计拦截，不允许跨越自定义技能根目录：'{resource}'"
-            self._record_decision(action, resource, allowed=False, mode="deny", reason=reason)
+            self._record_decision(
+                action, resource, allowed=False, mode="deny", reason=reason
+            )
             raise PermissionDeniedError(f"❌ {reason}")
 
         rule = self._rule_for(action)
@@ -86,8 +82,10 @@ class PermissionManager:
             )
             return True
         if rule.mode == PermissionMode.OWNER:
-            if self._owner_token and token and secrets.compare_digest(
-                token, self._owner_token
+            if (
+                self._owner_token
+                and token
+                and secrets.compare_digest(token, self._owner_token)
             ):
                 logger.info("🔑 [特权令牌校验通过] 允许执行离线技能库代谢与去重操作")
                 self._record_decision(

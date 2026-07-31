@@ -20,14 +20,13 @@ class RuntimeRequest:
     allowed_tools: tuple[str, ...] = (
         "web_search",
         "local_file",
-        "code_sandbox",
-        "skills_evolution",
     )
     messages: tuple[dict[str, Any], ...] = ()
     metadata: tuple[tuple[str, Any], ...] = ()
     elfie_id: str | None = None
     elfie_config_dir: str | None = None
     food_key: str | None = None
+    semantic_role: str = "primary"
     scene: str = "chat"
     images: tuple[str, ...] = ()
     audio: str | None = None
@@ -90,7 +89,9 @@ class StructuredRuntimeRequest(_FrozenRuntimeModel):
     allowed_tools: Tuple[_NonBlankText, ...]
     provider: Optional[_NonBlankText] = None
     model_key: Optional[_NonBlankText] = None
-    food_key: _NonBlankText = "standard"
+    food_key: Optional[_NonBlankText] = None
+    food_unavailable: bool = False
+    elfie_workspace: Optional[_NonBlankText] = None
     temperature: Annotated[float, Field(strict=True, ge=0.0, le=2.0)] = 0.2
     max_tokens: Annotated[int, Field(strict=True, ge=1)] = 512
 

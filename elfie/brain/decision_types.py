@@ -170,9 +170,7 @@ class DecisionPlan(FrozenContractModel):
             )
         known_intent_ids = set(intent_ids)
         known_cause_ids = set(self.cause_event_ids)
-        graph = {
-            intent.intent_id: intent.dependency_ids for intent in self.intents
-        }
+        graph = {intent.intent_id: intent.dependency_ids for intent in self.intents}
 
         for intent in self.intents:
             if intent.deadline <= self.created_at or intent.deadline > self.deadline:

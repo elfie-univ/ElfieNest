@@ -1,8 +1,7 @@
-"""Persistence boundary for final Elfie ownership, profile, and food fields."""
+"""Persistence boundary for final Elfie ownership, profile, and main food."""
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -24,9 +23,7 @@ class ElfieRecord:
         "bed_number",
         "status",
         "summary",
-        "main_food",
-        "emergency_food",
-        "other_foods",
+        "main_food_id",
     )
 
     elfie_id: str
@@ -38,9 +35,7 @@ class ElfieRecord:
     bed_number: int | None
     status: str
     summary: str | None
-    main_food: str | None
-    emergency_food: str | None
-    other_foods: tuple[str, ...]
+    main_food_id: str | None
 
 
 @dataclass(frozen=True)
@@ -143,30 +138,6 @@ class ElfieRepository:
             )
             connection.commit()
 
-    def update_foods(
-        self,
-        elfie_id: str,
-        *,
-        main_food: str | None,
-        emergency_food: str | None,
-        other_foods: tuple[str, ...],
-    ) -> None:
-        """Persist the final per-Elfie food selection fields."""
-        with get_db(self._db_path) as connection:
-            connection.execute(
-                """UPDATE elfies
-                   SET main_food=?, emergency_food=?, other_foods_json=?,
-                       food_updated_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP
-                   WHERE elfie_id=?""",
-                (
-                    main_food,
-                    emergency_food,
-                    json.dumps(other_foods, ensure_ascii=False),
-                    elfie_id,
-                ),
-            )
-            connection.commit()
-
     def count_for_owner(self, owner_user_id: int) -> int:
         """Count final Elfies owned by one user."""
         with get_db(self._db_path) as connection:
@@ -219,7 +190,6 @@ class ElfieRepository:
 
 
 def _record(row: sqlite3.Row) -> ElfieRecord:
-    other_foods = json.loads(str(row["other_foods_json"]))
     return ElfieRecord(
         elfie_id=str(row["elfie_id"]),
         name=str(row["name"]),
@@ -230,11 +200,9 @@ def _record(row: sqlite3.Row) -> ElfieRecord:
         bed_number=None if row["bed_number"] is None else int(row["bed_number"]),
         status=str(row["status"]),
         summary=None if row["summary"] is None else str(row["summary"]),
-        main_food=None if row["main_food"] is None else str(row["main_food"]),
-        emergency_food=(
-            None if row["emergency_food"] is None else str(row["emergency_food"])
+        main_food_id=(
+            None if row["main_food_id"] is None else str(row["main_food_id"])
         ),
-        other_foods=tuple(str(item) for item in other_foods),
     )
 
 

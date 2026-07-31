@@ -284,4 +284,3 @@ class Elfie:
         return str(candidate) if candidate is not None and candidate.is_file() else None
 
 
-__all__ = ("Elfie",)

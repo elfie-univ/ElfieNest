@@ -82,6 +82,16 @@ def test_data_home_declares_production_developer_and_elfie_workspace_roots() -> 
         "get_elfie_developer_home",
         "get_elfie_workspace_dir",
         "get_elfie_conversations_dir",
+        "get_configs_dir",
+        "get_credentials_dir",
+        "get_oauth_credentials_dir",
+        "get_provider_catalog_path",
+        "get_provider_config_path",
+        "get_reports_dir",
+        "get_report_database_path",
+        "get_report_exports_dir",
+        "get_runtime_config_paths",
+        "get_tool_config_path",
     } <= functions
 
 

@@ -26,7 +26,7 @@ const EMPTY_PRIVATE_COGNITION = {
     { title: "世界理解", graph: { nodes: [], edges: [] } },
     {
       title: "粮食策略",
-      food: { selected: "未配置", allowed: ["未配置"], fallback: "未配置" },
+      food: { selected: "未配置", allowed: ["未配置"] },
     },
   ],
 } satisfies PrivateCognition

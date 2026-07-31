@@ -1,5 +1,7 @@
 """tests for ai_runtime.storage.data_home module"""
 
+import os
+import stat
 from pathlib import Path
 
 import pytest
@@ -9,6 +11,8 @@ from ai_runtime.storage.data_home import (
     data_home_from_db_path,
     ensure_elfie_home,
     get_config_path,
+    get_configs_dir,
+    get_credentials_dir,
     get_db_path,
     get_elfie_conversations_dir,
     get_elfie_developer_home,
@@ -17,15 +21,14 @@ from ai_runtime.storage.data_home import (
     get_food_catalog_path,
     get_food_history_dir,
     get_local_files_dir,
-    get_logs_dir,
-    get_model_evidence_path,
     get_model_validation_dir,
-    get_runtime_events_log_path,
+    get_oauth_credentials_dir,
+    get_report_exports_dir,
+    get_reports_dir,
     get_runtime_locks_dir,
     get_runtime_state_path,
     get_runtime_validation_dir,
     get_skills_dir,
-    get_token_usage_log_path,
 )
 
 
@@ -136,6 +139,7 @@ def test_ensure_elfie_home_creates_structure(monkeypatch, tmp_path):
         Path("assets"),
         Path("assets/users"),
         Path("configs"),
+        Path("configs/credentials"),
         Path("configs/food-packages-history"),
         Path("elfies"),
         Path("logs"),
@@ -160,10 +164,6 @@ def test_path_helpers(monkeypatch, tmp_path):
         get_food_history_dir() == get_elfie_home() / "configs" / "food-packages-history"
     )
     assert (
-        get_model_evidence_path()
-        == get_elfie_home() / "reports" / "model-evidence.yaml"
-    )
-    assert (
         get_model_validation_dir() == get_elfie_home() / "reports" / "model-validations"
     )
     assert (
@@ -172,12 +172,6 @@ def test_path_helpers(monkeypatch, tmp_path):
     )
     assert get_runtime_state_path() == get_elfie_home() / "runtime" / "runtime.json"
     assert get_runtime_locks_dir() == get_elfie_home() / "runtime" / "locks"
-    assert get_logs_dir() == get_elfie_home() / "logs"
-    assert (
-        get_runtime_events_log_path()
-        == get_elfie_home() / "logs" / "runtime_events.jsonl"
-    )
-    assert get_token_usage_log_path() == get_elfie_home() / "logs" / "token_usage.jsonl"
     assert (
         get_local_files_dir("42")
         == get_elfie_home() / "assets" / "users" / "42" / "files"
@@ -186,6 +180,24 @@ def test_path_helpers(monkeypatch, tmp_path):
         get_skills_dir("00000042")
         == get_elfie_home() / "elfies" / "00000042" / "skills"
     )
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows does not expose POSIX modes")
+def test_ensure_elfie_home_secures_config_and_report_directories(
+    monkeypatch,
+    tmp_path,
+):
+    """配置、凭据和报告目录只允许当前用户访问。"""
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path / "secure-home"))
+
+    ensure_elfie_home()
+
+    for directory in (
+        get_configs_dir(),
+        get_credentials_dir(),
+        get_reports_dir(),
+    ):
+        assert stat.S_IMODE(directory.stat().st_mode) == 0o700
 
 
 def test_developer_home_is_independent_from_production_home(monkeypatch, tmp_path):

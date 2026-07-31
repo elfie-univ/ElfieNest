@@ -32,8 +32,8 @@ def test_default_port_statuses_include_application_services(monkeypatch) -> None
     default_port_statuses()
 
     assert calls == [
-        (8000, "HTTP 服务"),
-        (8766, "WebSocket (管理)"),
+        (8000, "HTTP"),
+        (8766, "WebSocket (admin)"),
         (8765, "WebSocket (Godot)"),
     ]
 
@@ -52,8 +52,8 @@ def test_service_port_statuses_uses_custom_http_and_ws_ports(monkeypatch) -> Non
     service_port_statuses(8100, 8866, 8768)
 
     assert calls == [
-        (8100, "HTTP 服务"),
-        (8866, "WebSocket (管理)"),
+        (8100, "HTTP"),
+        (8866, "WebSocket (admin)"),
         (8768, "WebSocket (Godot)"),
     ]
 

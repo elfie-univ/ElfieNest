@@ -1,43 +1,23 @@
-"""Compose Runtime food selection with the final Nest repository."""
+"""Compose Runtime main-food selection with the final Nest repository."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 
-from ai_runtime.food.elfie_policy import ElfieFoodPolicy
-from app.infrastructure.persistence.elfie_repository import ElfieRepository
+from ai_runtime.food.resolver import MainFoodSelection
+from ai_runtime.food.store import FoodCatalogStore
+from app.features.configuration.food_access import resolve_elfie_main_food_selection
 
 
-def final_food_policy_loader(db_path: str) -> Callable[[str], ElfieFoodPolicy]:
-    repository = ElfieRepository(db_path)
-
-    def load(elfie_id: str) -> ElfieFoodPolicy:
-        record = repository.get(elfie_id)
-        if record is None:
-            return ElfieFoodPolicy(elfie_id)
-        allowed = tuple(
-            dict.fromkeys(
-                food
-                for food in (
-                    record.main_food,
-                    record.emergency_food,
-                    *record.other_foods,
-                )
-                if food
-            )
-        )
-        if not allowed:
-            return ElfieFoodPolicy(elfie_id)
-        return ElfieFoodPolicy.from_dict(
+def final_main_food_loader(db_path: str) -> Callable[[str], MainFoodSelection]:
+    def load(elfie_id: str) -> MainFoodSelection:
+        return resolve_elfie_main_food_selection(
+            db_path,
             elfie_id,
-            {
-                "default_food": record.main_food or allowed[0],
-                "fallback_food": record.emergency_food or allowed[0],
-                "allowed_foods": allowed,
-            },
+            FoodCatalogStore().load(),
         )
 
     return load
 
 
-__all__ = ("final_food_policy_loader",)
+__all__ = ("final_main_food_loader",)

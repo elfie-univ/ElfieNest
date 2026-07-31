@@ -10,12 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from ai_runtime.models.local_profiles import recommend_local_profile
-from ai_runtime.storage.data_home import get_config_path
 from app.features.accounts.auth import get_session_ttl_seconds, require_owner
-from app.features.configuration.runtime_store import (
-    read_runtime_config,
-    write_runtime_config,
-)
 from app.features.setup.hardware import get_available_memory_gb
 from app.features.setup.ollama import OllamaSetupService
 from app.features.setup.progress import SetupTask, get_setup_task
@@ -158,11 +153,8 @@ async def complete_setup_ollama(
     else:
         if not body.endpoint:
             raise HTTPException(status_code=422, detail="绑定已有 Ollama 需要 endpoint")
-        config_path = get_config_path()
         service = OllamaSetupService(
             adapter=OllamaPlatformAdapter(),
-            read_config=lambda: read_runtime_config(config_path),
-            write_config=lambda config: write_runtime_config(config_path, config),
         )
         try:
             service.bind_existing(
@@ -183,13 +175,10 @@ async def install_setup_ollama(
     """Queue one explicitly confirmed official installer; the request never runs it."""
     _ = body
     _ = owner
-    config_path = get_config_path()
 
     def install() -> None:
         service = OllamaSetupService(
             adapter=OllamaPlatformAdapter(),
-            read_config=lambda: read_runtime_config(config_path),
-            write_config=lambda config: write_runtime_config(config_path, config),
         )
         service.install_official(
             db_path=request.app.state.db_path,
@@ -251,11 +240,8 @@ async def complete_setup_model(
         raise HTTPException(
             status_code=422, detail="配置模型需要完整 provider_id/model_id"
         )
-    config_path = get_config_path()
     service = OllamaSetupService(
         adapter=OllamaPlatformAdapter(),
-        read_config=lambda: read_runtime_config(config_path),
-        write_config=lambda config: write_runtime_config(config_path, config),
     )
     try:
         service.configure_installed_model(
@@ -276,13 +262,10 @@ async def pull_setup_model(
     """Queue an explicitly confirmed model pull against the fixed Ollama endpoint."""
     _ = body.confirmed
     _ = owner
-    config_path = get_config_path()
 
     def pull() -> None:
         service = OllamaSetupService(
             adapter=OllamaPlatformAdapter(),
-            read_config=lambda: read_runtime_config(config_path),
-            write_config=lambda config: write_runtime_config(config_path, config),
         )
         service.pull_and_configure_model(
             db_path=request.app.state.db_path,

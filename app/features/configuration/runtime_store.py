@@ -11,10 +11,10 @@ from ai_runtime.storage.config_store import (
     read_yaml_mapping,
     write_yaml_mapping,
 )
-from ai_runtime.storage.secrets import (
-    provider_secret_name,
-    resolve_secret,
-    set_provider_secret,
+from ai_runtime.storage.data_home import get_config_path
+from ai_runtime.storage.runtime_settings import (
+    read_runtime_settings,
+    write_runtime_settings,
 )
 
 
@@ -23,24 +23,9 @@ def read_runtime_config(path: Path) -> Dict[str, Any]:
         raise ConfigStoreError(
             f"生产配置必须使用 ELFIE_HOME/configs/runtime.yaml，拒绝读取旧格式: {path}"
         )
+    if path == get_config_path():
+        return read_runtime_settings()
     return read_yaml_mapping(path)
-
-
-def hydrate_runtime_secrets(config: Dict[str, Any]) -> Dict[str, Any]:
-    """仅供内部调用链使用，返回注入本地密钥的配置副本。"""
-    hydrated = copy.deepcopy(config)
-    providers = hydrated.get("providers", {})
-    if not isinstance(providers, dict):
-        return hydrated
-    for provider_id, provider in providers.items():
-        if not isinstance(provider_id, str) or not isinstance(provider, dict):
-            continue
-        secret_name = str(
-            provider.get("api_key_env") or provider_secret_name(provider_id)
-        )
-        provider["api_key_env"] = secret_name
-        provider["api_key"] = resolve_secret(secret_name)
-    return hydrated
 
 
 def write_runtime_config(
@@ -53,24 +38,22 @@ def write_runtime_config(
         raise ConfigStoreError(
             f"生产配置必须使用 ELFIE_HOME/configs/runtime.yaml，拒绝写入旧格式: {path}"
         )
-    if backup_existing and path.exists():
+    if "providers" in config:
+        raise ConfigStoreError(
+            "Runtime 设置不接受 providers；请使用 ProviderConnectionStore"
+        )
+    is_production_bundle = path == get_config_path()
+    if is_production_bundle:
+        write_runtime_settings(
+            config,
+            backup_existing=backup_existing,
+        )
+        return
+    if backup_existing and path.exists() and not is_production_bundle:
         backup_path = path.with_suffix(f"{path.suffix}.bak")
         shutil.copy2(str(path), str(backup_path))
 
     safe_config = copy.deepcopy(config)
-    providers = safe_config.get("providers", {})
-    if isinstance(providers, dict):
-        for provider_id, provider in providers.items():
-            if not isinstance(provider_id, str) or not isinstance(provider, dict):
-                continue
-            has_api_key_field = "api_key" in provider
-            api_key = str(provider.pop("api_key", "") or "")
-            secret_name = str(
-                provider.get("api_key_env") or provider_secret_name(provider_id)
-            )
-            provider["api_key_env"] = secret_name
-            if has_api_key_field:
-                set_provider_secret(provider_id, api_key)
     write_yaml_mapping(path, safe_config)
 
 

@@ -180,16 +180,13 @@ class ElfieProfile:
             raise ValueError("当前只支持 appearance genome_version=1")
         if self.embodiment.primary_morphology not in SUPPORTED_MORPHOLOGIES:
             raise ValueError(
-                "primary_morphology 必须是 "
-                f"{', '.join(SUPPORTED_MORPHOLOGIES)}"
+                f"primary_morphology 必须是 {', '.join(SUPPORTED_MORPHOLOGIES)}"
             )
         if not self.embodiment.supported_morphologies:
             raise ValueError("supported_morphologies 至少包含一个形态")
         for morphology in self.embodiment.supported_morphologies:
             if morphology not in SUPPORTED_MORPHOLOGIES:
-                raise ValueError(
-                    f"不支持的 supported_morphologies 项: {morphology!r}"
-                )
+                raise ValueError(f"不支持的 supported_morphologies 项: {morphology!r}")
         if (
             self.embodiment.primary_morphology
             not in self.embodiment.supported_morphologies

@@ -468,7 +468,8 @@ def show_service_status(*, json_output: bool = False) -> None:
             print(f"  ⚠️  Registered PID {pid} from another ElfieNest checkout: {cwd}")
         elif any(port_status.running for port_status in port_statuses):
             print(
-                "  ⚠️  Default service ports occupied by external process, no verified service for current project."
+                "  ⚠️  Default service ports occupied by external process from another ElfieNest checkout; "
+                "no verified service for current project."
             )
     else:
         _, command = running

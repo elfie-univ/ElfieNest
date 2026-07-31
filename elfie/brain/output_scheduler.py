@@ -54,7 +54,9 @@ class OutputBatchScheduler:
             pending = self._cancel_blocked(runtime, pending)
             if not pending:
                 break
-            ready = tuple(intent for intent in pending if self._is_ready(runtime, intent, pending))
+            ready = tuple(
+                intent for intent in pending if self._is_ready(runtime, intent, pending)
+            )
             if not ready:
                 self._cancel_deadlock(runtime, pending)
                 break
@@ -78,7 +80,9 @@ class OutputBatchScheduler:
                     runtime.statuses[intent.intent_id] = result.status
                     runtime.running.pop(intent.intent_id, None)
             ready_ids = {intent.intent_id for intent in ready}
-            pending = [intent for intent in pending if intent.intent_id not in ready_ids]
+            pending = [
+                intent for intent in pending if intent.intent_id not in ready_ids
+            ]
         runtime.done.set()
 
     def _start_ready(
@@ -117,10 +121,14 @@ class OutputBatchScheduler:
         executor: IntentExecutor,
     ) -> IntentExecutionResult:
         send_after = intent_send_after(intent)
-        if send_after is not None and not self._wait_until(send_after, runtime.cancelled):
+        if send_after is not None and not self._wait_until(
+            send_after, runtime.cancelled
+        ):
             return IntentExecutionResult(
                 ExecutionStatus.CANCELLED,
-                ErrorInfo(code="stale_turn", message=runtime.cancel_reason or "stale turn"),
+                ErrorInfo(
+                    code="stale_turn", message=runtime.cancel_reason or "stale turn"
+                ),
             )
         capability_error = self._capability_check(runtime.plan, intent)
         if capability_error is not None:
@@ -138,7 +146,8 @@ class OutputBatchScheduler:
         retained: list[DecisionIntent] = []
         for intent in pending:
             dependency_failed = any(
-                runtime.statuses.get(dependency) not in {None, ExecutionStatus.COMPLETED}
+                runtime.statuses.get(dependency)
+                not in {None, ExecutionStatus.COMPLETED}
                 for dependency in intent.dependency_ids
             )
             stale_cancel = runtime.cancelled.is_set() and (
@@ -180,7 +189,9 @@ class OutputBatchScheduler:
 
 
 @singledispatch
-def _sequence_ready(_intent: DecisionIntent, _pending: Iterable[DecisionIntent]) -> bool:
+def _sequence_ready(
+    _intent: DecisionIntent, _pending: Iterable[DecisionIntent]
+) -> bool:
     return True
 
 

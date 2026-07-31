@@ -24,6 +24,17 @@ describe("localized operation errors", () => {
     expect(resolveLocalizedError(descriptor, "en-US")).toBe("Unable to load management data.")
   })
 
+  it("localizes typed FastAPI validation details at the UI boundary", () => {
+    const reason = new ApiError(422, "", [{
+      loc: ["body", "provider_id"],
+      msg: "String should match pattern",
+      type: "string_pattern_mismatch",
+    }])
+
+    expect(localizeApiError(reason, "manage.save", "zh-CN")).toBe("供应商 ID：格式不正确")
+    expect(localizeApiError(reason, "manage.save", "en-US")).toBe("Provider ID: has an invalid format")
+  })
+
   it("keeps the operation key set exact and closed", () => {
     // Given: every operation allowed to choose a localized fallback.
     const expected = [

@@ -88,7 +88,10 @@ React 消费该目录后，只能发出封闭的语义命令 `overview`、`selec
 8 张 Nest 级表：用户、会话、本机安装/Setup、Nest 设置、精灵、外部身体、身体审计
 和具身租约。聊天与记忆不使用根数据库。
 
-每只精灵都以不可变的 `elfie_id` 作为工作区名。显示名称可改，但绝不能改动目录：
+Provider、模型、粮食、工具、凭据、报告和 Runtime 收据的所有权只由
+[AI Runtime 设计契约](./architecture-ai-runtime) 定义。完整生产目录树以及
+“每项持久化事实只能有一个类型化写入者”的规则也只在该契约中维护，本页不再复制这些
+Schema。
 
 ```text
 ${ELFIE_HOME:-~/.elfienest}/

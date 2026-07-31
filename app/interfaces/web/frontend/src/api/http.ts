@@ -4,9 +4,39 @@ import { z } from "zod"
 export class ApiError extends Error {
   public readonly name = "ApiError"
 
-  public constructor(readonly status: number, message: string) {
+  public constructor(
+    readonly status: number,
+    message: string,
+    readonly validationDetails: readonly ApiValidationDetail[] = [],
+  ) {
     super(message)
   }
+}
+
+const ValidationDetailSchema = z.object({
+  loc: z.array(z.union([z.string(), z.number()])).optional(),
+  msg: z.string(),
+  type: z.string().optional(),
+})
+
+export type ApiValidationDetail = z.infer<typeof ValidationDetailSchema>
+
+const ErrorPayloadSchema = z.object({
+  detail: z.union([z.string(), z.array(ValidationDetailSchema)]).optional(),
+})
+
+function parseApiError(payload: unknown): {
+  readonly message: string
+  readonly validationDetails: readonly ApiValidationDetail[]
+} {
+  const parsed = ErrorPayloadSchema.safeParse(payload)
+  if (!parsed.success || parsed.data.detail === undefined) {
+    return { message: "", validationDetails: [] }
+  }
+  if (typeof parsed.data.detail === "string") {
+    return { message: parsed.data.detail, validationDetails: [] }
+  }
+  return { message: "", validationDetails: parsed.data.detail }
 }
 
 export async function requestJson(path: string, init?: RequestInit): Promise<unknown> {
@@ -17,9 +47,8 @@ export async function requestJson(path: string, init?: RequestInit): Promise<unk
   })
   const payload: unknown = await response.json().catch(() => ({}))
   if (!response.ok) {
-    const detail = z.object({ detail: z.string().optional() }).safeParse(payload)
-    const message = detail.success && detail.data.detail ? detail.data.detail : ""
-    throw new ApiError(response.status, message)
+    const error = parseApiError(payload)
+    throw new ApiError(response.status, error.message, error.validationDetails)
   }
   return payload
 }

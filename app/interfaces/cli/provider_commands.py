@@ -56,7 +56,9 @@ def login_provider(provider_id: str) -> None:
     if result["status"] != "active":
         error = result.get("error", "unknown error")
         print(f"  ⚠️  Connectivity verification failed: {error}")
-        print("  Config will still be saved. Test again later with: elfienest providers test\n")
+        print(
+            "  Config will still be saved. Test again later with: elfienest providers test\n"
+        )
     else:
         latency = result.get("latency_ms", 0)
         print(f"  ✅ Connectivity verified! Latency: {latency:.0f}ms\n")

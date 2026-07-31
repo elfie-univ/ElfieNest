@@ -1,157 +1,221 @@
 import pytest
 
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.food.elfie_policy import ElfieFoodPolicy
-from ai_runtime.food.models import ExecutionProfile, FoodRecipe
+from ai_runtime.food.executor import NoAvailableFoodError
+from ai_runtime.food.models import FOOD_EMERGENCY_ID, FoodPackage, ModelAssignment
+from ai_runtime.food.resolver import MainFoodSelection
 from ai_runtime.food.store import FoodCatalog
 from ai_runtime.gateway.agent import RuntimeAgent
-from ai_runtime.gateway.request import RuntimeRequest
+from ai_runtime.gateway.request import (
+    RuntimeRequest,
+    StructuredGenerationMode,
+    StructuredRuntimeRequest,
+)
+from ai_runtime.storage.provider_connections import (
+    ProviderConnection,
+    ProviderConnectionStore,
+    ProviderModelRecord,
+)
 
 
-def test_runtime_agent_does_not_expose_direct_model_generation(monkeypatch, tmp_path):
-    """Given a runtime agent, When inspecting its public surface, Then only food APIs exist."""
-    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    agent = RuntimeAgent(LLMRuntimeConfig())
-
-    assert not hasattr(agent, "generate")
-    assert not hasattr(agent, "router")
-
-
-def test_runtime_agent_requires_formal_food_catalog(monkeypatch, tmp_path):
-    """Given no foods.yaml, When a request runs, Then initialization is explicit."""
-    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    agent = RuntimeAgent(LLMRuntimeConfig())
-
-    with pytest.raises(RuntimeError, match="foods.yaml"):
-        agent.ask("你好")
-
-
-def test_runtime_agent_accepts_food_interface_without_exposing_reasoning(
-    monkeypatch, tmp_path
-):
-    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    config = LLMRuntimeConfig()
-    agent = RuntimeAgent(config)
-    agent.food_catalog_store.save(
-        FoodCatalog(
-            recipes={
-                "standard": FoodRecipe(
-                    "standard",
-                    "标准粮",
-                    "默认",
-                    ExecutionProfile("ollama/food-model"),
-                ),
-                "coarse": FoodRecipe(
-                    "coarse",
-                    "粗粮",
-                    "本地",
-                    ExecutionProfile("ollama/local"),
-                ),
-            }
+def _configure_models() -> None:
+    ProviderConnectionStore().replace(
+        ProviderConnection(
+            connection_id="ollama_0001",
+            catalog_id="ollama",
+            alias="Ollama",
+            models=(
+                ProviderModelRecord("main"),
+                ProviderModelRecord("reason"),
+                ProviderModelRecord("emergency"),
+            ),
         )
     )
-    monkeypatch.setattr(agent, "_call_food_llm_api", lambda *args: "food response")
 
-    result = agent.think(
-        RuntimeRequest(prompt="hello", food_key="standard", allowed_tools=())
+
+def _catalog() -> FoodCatalog:
+    return FoodCatalog(
+        packages={
+            FOOD_EMERGENCY_ID: FoodPackage(
+                FOOD_EMERGENCY_ID,
+                "保底粮",
+                system_role="emergency",
+                primary=ModelAssignment("ollama_0001/emergency"),
+            ),
+            "food_main": FoodPackage(
+                "food_main",
+                "主粮",
+                primary=ModelAssignment("ollama_0001/main"),
+                reasoning=ModelAssignment("ollama_0001/reason"),
+            ),
+        }
     )
 
-    assert result.text == "food response"
-    assert result.food_used == "standard"
-    assert result.actual_model == "ollama/food-model"
-    assert result.execution_stage == "primary"
-    assert result.decision["food"]["actual"] == "standard"
+
+def _agent(monkeypatch: pytest.MonkeyPatch, selection: MainFoodSelection) -> RuntimeAgent:
+    _configure_models()
+    agent = RuntimeAgent(
+        LLMRuntimeConfig(),
+        main_food_loader=lambda _elfie_id: selection,
+    )
+    agent.food_catalog_store.save(_catalog())
+    monkeypatch.setattr(agent, "_package_usable", lambda package: True)
+    return agent
 
 
-def test_unauthorized_upgrade_uses_deep_profile_inside_allowed_food(
-    monkeypatch, tmp_path
-):
+def test_runtime_uses_the_injected_main_food_for_an_elfie(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    # Given: an Elfie whose final-record main food is usable.
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    agent = RuntimeAgent(LLMRuntimeConfig())
-    agent.food_catalog_store.save(
-        FoodCatalog(
-            recipes={
-                "standard": FoodRecipe(
-                    "standard",
-                    "标准粮",
-                    "默认",
-                    ExecutionProfile("ollama/normal"),
-                    deep=ExecutionProfile("ollama/standard-deep"),
-                ),
-                "coarse": FoodRecipe(
-                    "coarse",
-                    "粗粮",
-                    "本地",
-                    ExecutionProfile("ollama/local"),
-                ),
-            }
-        )
-    )
-    monkeypatch.setattr(agent, "_call_food_llm_api", lambda *args: "deep response")
+    agent = _agent(monkeypatch, MainFoodSelection("food_main"))
+    monkeypatch.setattr(agent, "_call_food_llm_api", lambda *_args: "main response")
 
+    # When: the Runtime receives a request carrying an arbitrary caller food ID.
     result = agent.think(
         RuntimeRequest(
-            prompt="hard",
+            prompt="hello",
             elfie_id="00000001",
-            food_key="premium",
-            scene="emotion_peak",
+            food_key="food_not_authoritative",
             allowed_tools=(),
         )
     )
 
-    assert result.food_requested == "premium"
-    assert result.food_used == "standard"
-    assert result.food_clamped is True
-    assert result.actual_model == "ollama/standard-deep"
-    assert result.execution_stage == "deep"
+    # Then: it executes only the persisted main food.
+    assert result.food_used == "food_main"
+    assert result.actual_model == "ollama_0001/main"
 
 
-def test_runtime_reads_policy_from_injected_final_store(monkeypatch, tmp_path):
-    monkeypatch.setenv("ELFIE_HOME", str(tmp_path / "global"))
-    policy = ElfieFoodPolicy(
-        "00000001",
-        "focus",
-        ("coarse", "standard", "focus"),
-        "coarse",
+def test_runtime_uses_emergency_when_the_persisted_main_food_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    # Given: an Elfie with a retained but unavailable selected food.
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    agent = _agent(monkeypatch, MainFoodSelection("food_main", unavailable=True))
+    monkeypatch.setattr(
+        agent,
+        "_package_usable",
+        lambda package: package.key == FOOD_EMERGENCY_ID,
     )
-    agent = RuntimeAgent(
-        LLMRuntimeConfig(),
-        food_policy_loader=lambda elfie_id: policy,
+    monkeypatch.setattr(agent, "_call_food_llm_api", lambda *_args: "emergency response")
+
+    # When: the Runtime executes the request.
+    result = agent.think(
+        RuntimeRequest(prompt="hello", elfie_id="00000001", allowed_tools=())
     )
-    agent.food_catalog_store.save(
-        FoodCatalog(
-            recipes={
-                "coarse": FoodRecipe(
-                    "coarse", "粗粮", "", ExecutionProfile("ollama/coarse")
-                ),
-                "standard": FoodRecipe(
-                    "standard", "标准粮", "", ExecutionProfile("ollama/standard")
-                ),
-                "focus": FoodRecipe(
-                    "focus", "清醒粮", "", ExecutionProfile("ollama/focus")
-                ),
-            }
+
+    # Then: it starts with the one global emergency package.
+    assert result.food_used == FOOD_EMERGENCY_ID
+    assert result.actual_model == "ollama_0001/emergency"
+
+
+def test_structured_runtime_uses_emergency_when_main_food_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    agent = _agent(monkeypatch, MainFoodSelection("food_main"))
+    monkeypatch.setattr(
+        RuntimeAgent,
+        "_package_usable",
+        staticmethod(lambda package: package.key == FOOD_EMERGENCY_ID),
+    )
+    monkeypatch.setattr(agent, "_call_food_llm_api", lambda *_args: "emergency")
+
+    result = agent.generate_structured(
+        StructuredRuntimeRequest(
+            prompt="structured",
+            messages=(),
+            response_schema_name="answer",
+            response_schema={"type": "object"},
+            selected_mode=StructuredGenerationMode.JSON_TEXT,
+            allowed_tools=(),
+            food_key="food_main",
+            food_unavailable=True,
         )
     )
-    agent._call_food_llm_api = lambda *args: "focused"
 
-    result = agent.run_with_food(
-        prompt="分析",
-        food_key="focus",
-        elfie_id="00000001",
-        allowed_skills=[],
+    assert result.model_key == "ollama_0001/emergency"
+
+
+def test_runtime_does_not_upgrade_primary_to_reasoning_from_task_complexity(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    # Given: an explicit primary request with an available reasoning role.
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    agent = _agent(monkeypatch, MainFoodSelection("food_main"))
+    monkeypatch.setattr(agent, "_call_food_llm_api", lambda *_args: "primary response")
+
+    # When: the caller supplies high complexity without requesting reasoning.
+    result = agent.think(
+        RuntimeRequest(
+            prompt="hello",
+            elfie_id="00000001",
+            semantic_role="primary",
+            task_complexity=99,
+            allowed_tools=(),
+        )
     )
 
-    assert result.food_used == "focus"
-    assert result.actual_model == "ollama/focus"
+    # Then: the semantic role remains primary.
+    assert result.actual_model == "ollama_0001/main"
+    assert result.execution_stage == "primary"
 
 
-def test_missing_food_file_requires_explicit_initialization(monkeypatch, tmp_path):
-    """Given missing foods.yaml, When asking, Then no compatibility recipe is created."""
+def test_runtime_returns_typed_error_for_an_unconfigured_clean_catalog(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    # Given: a clean Runtime home with only disabled system food.
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    _configure_models()
     agent = RuntimeAgent(LLMRuntimeConfig())
 
-    with pytest.raises(RuntimeError, match="foods.yaml"):
+    # When/Then: no provider call is attempted without a usable food.
+    with pytest.raises(NoAvailableFoodError) as error:
         agent.ask("你好")
+    assert error.value.code == "no_available_food"
 
-    assert not (tmp_path / "foods.yaml").exists()
+
+def test_normal_and_structured_requests_share_the_safe_tool_intersection(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    agent = _agent(monkeypatch, MainFoodSelection("food_main"))
+    monkeypatch.setattr(
+        RuntimeAgent,
+        "_package_usable",
+        staticmethod(lambda _package: True),
+    )
+    captured_messages: list[list[dict[str, object]]] = []
+
+    def caller(*args):
+        captured_messages.append(args[2])
+        return "ok"
+
+    monkeypatch.setattr(agent, "_call_food_llm_api", caller)
+    requested_tools = ("code_sandbox", "web_search", "local_file")
+
+    agent.think(
+        RuntimeRequest(
+            prompt="normal",
+            elfie_id="00000001",
+            allowed_tools=requested_tools,
+        )
+    )
+    agent.generate_structured(
+        StructuredRuntimeRequest(
+            prompt="structured",
+            messages=(),
+            response_schema_name="answer",
+            response_schema={"type": "object"},
+            selected_mode=StructuredGenerationMode.JSON_TEXT,
+            allowed_tools=requested_tools,
+            food_key="food_main",
+        )
+    )
+
+    assert len(captured_messages) == 2
+    for messages in captured_messages:
+        rendered = "\n".join(str(message["content"]) for message in messages)
+        assert "[SEARCH]" in rendered
+        assert "[CODE]" not in rendered
+        assert "[READ_FILE]" not in rendered
