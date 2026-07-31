@@ -146,7 +146,7 @@ def test_nest_repositories_store_only_settings_presence_and_bed_number(
         summary=None,
         max_elfies=2,
     )
-    catalog = WorldCatalog(nest_id="local", revision=7, zones=())
+    catalog = WorldCatalog(nest_id="local-nest", revision=7, zones=())
     state_repository = SQLiteNestStateRepository(db_path)
 
     # When: Runtime revision/resident presence and a nullable bed are persisted.
