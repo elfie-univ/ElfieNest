@@ -152,7 +152,7 @@ class AccountRepository:
 
     def update_theme(self, user_id: int, theme_key: str) -> None:
         self._connection.execute(
-            "UPDATE accounts SET theme_key = ? WHERE id = ?",
+            "UPDATE users SET theme_key = ?,updated_at=CURRENT_TIMESTAMP WHERE id = ?",
             (theme_key, user_id),
         )
 
@@ -161,7 +161,6 @@ class AccountRepository:
         return self._connection.execute(
             "SELECT id, username, nickname FROM users WHERE role = 'user' ORDER BY id"
         ).fetchall()
-
 
 
 _ACCOUNT_SELECT = """

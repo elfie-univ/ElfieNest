@@ -14,6 +14,7 @@ _FINAL_ROOT_TABLES = {
     "elfies",
     "embodiment_sessions",
     "external_bodies",
+    "food_package_access",
     "local_installations",
     "nest_settings",
     "sessions",
@@ -21,7 +22,7 @@ _FINAL_ROOT_TABLES = {
 }
 
 
-def test_init_db_activates_only_the_final_eight_table_contract(
+def test_init_db_activates_only_the_final_nine_table_contract(
     tmp_path: Path,
 ) -> None:
     # Given: an empty explicit product data root.

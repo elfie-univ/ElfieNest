@@ -47,13 +47,12 @@ def test_default_user_config_uses_split_runtime_bundle(
 ) -> None:
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     config = {
-        "providers": {"ollama": {"api_base": "http://localhost:11434"}},
         "runtime_policy": {"tools": {"web_search": {"enabled": True}}},
     }
 
     write_user_config(config)
 
-    assert read_user_config() == {"runtime_policy": config["runtime_policy"]}
+    assert read_user_config() == config
     assert get_config_path().exists()
     assert not get_provider_config_path().exists()
     assert get_tool_config_path().exists()
@@ -94,7 +93,10 @@ def test_default_user_config_and_env_use_final_paths(
     write_env_file({"OPENAI_API_KEY": "local-secret"})
 
     # Then
-    assert read_user_config() == {"system": {"enabled": True}}
+    assert read_user_config() == {
+        "system": {"enabled": True},
+        "runtime_policy": {"tools": {}},
+    }
     assert read_env_file() == {"OPENAI_API_KEY": "local-secret"}
     assert (tmp_path / "configs" / "runtime.yaml").is_file()
     assert (tmp_path / "configs" / "auth.env").is_file()

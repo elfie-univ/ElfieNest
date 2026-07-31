@@ -32,8 +32,8 @@ def _create_owner_database(elfie_home: Path) -> Path:
             ("doctor-bai", hash_password("before-reset")),
         ).lastrowid
         connection.execute(
-            "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
-            ("old-session", user_id, 12345.0),
+            "INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)",
+            ("a" * 64, user_id, "2099-01-01T00:00:00+00:00"),
         )
         connection.commit()
     return db_path
@@ -87,9 +87,9 @@ def _password_and_session_state(db_path: Path) -> Tuple[str, int]:
         password_hash = connection.execute(
             "SELECT password_hash FROM users WHERE role = 'owner'"
         ).fetchone()[0]
-        session_count = connection.execute("SELECT COUNT(*) FROM sessions").fetchone()[
-            0
-        ]
+        session_count = connection.execute(
+            "SELECT COUNT(*) FROM sessions WHERE revoked_at IS NULL"
+        ).fetchone()[0]
     return str(password_hash), int(session_count)
 
 
@@ -100,11 +100,11 @@ def test_owner_recovery_pty_hides_password_and_updates_database(tmp_path: Path) 
     transcript = bytearray()
     child_pid, master_fd = _spawn_reset(elfie_home)
 
-    _read_until(master_fd, "New Owner username".encode(), transcript)
+    _read_until(master_fd, b"New Owner username", transcript)
     os.write(master_fd, b"new-owner\n")
-    _read_until(master_fd, "New Owner password".encode(), transcript)
+    _read_until(master_fd, b"New Owner password", transcript)
     os.write(master_fd, f"{new_password}\n".encode())
-    _read_until(master_fd, "Re-enter new Owner password".encode(), transcript)
+    _read_until(master_fd, b"Re-enter new Owner password", transcript)
     os.write(master_fd, f"{new_password}\n".encode())
     exit_code = _wait_for_child(child_pid, master_fd, transcript)
 
@@ -124,11 +124,11 @@ def test_owner_recovery_pty_eof_keeps_database_unchanged(tmp_path: Path) -> None
     transcript = bytearray()
     child_pid, master_fd = _spawn_reset(elfie_home)
 
-    _read_until(master_fd, "New Owner username".encode(), transcript)
+    _read_until(master_fd, b"New Owner username", transcript)
     os.write(master_fd, b"new-owner\n")
-    _read_until(master_fd, "New Owner password".encode(), transcript)
+    _read_until(master_fd, b"New Owner password", transcript)
     os.write(master_fd, b"first-entry\n")
-    _read_until(master_fd, "Re-enter new Owner password".encode(), transcript)
+    _read_until(master_fd, b"Re-enter new Owner password", transcript)
     os.write(master_fd, b"\x04")
     exit_code = _wait_for_child(child_pid, master_fd, transcript)
 
@@ -146,7 +146,7 @@ def test_owner_recovery_pty_ctrl_c_keeps_database_unchanged(tmp_path: Path) -> N
     transcript = bytearray()
     child_pid, master_fd = _spawn_reset(elfie_home)
 
-    _read_until(master_fd, "New Owner username".encode(), transcript)
+    _read_until(master_fd, b"New Owner username", transcript)
     os.write(master_fd, b"\x03")
     exit_code = _wait_for_child(child_pid, master_fd, transcript)
 

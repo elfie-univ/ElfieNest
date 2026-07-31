@@ -82,7 +82,7 @@ class ElfieLabStorage:
     ) -> Callable[[], None]:
         """持久化人工校准的人格五维，并保留派生来源。"""
         spec = self.get_elfie(elfie_id)
-        repository = ElfieProfileRepository(self.elfie_dir(elfie_id))
+        repository = ElfieProfileRepository(self.elfie_dir(elfie_id) / "profile")
         profile = repository.load()
         derivation = derive_personality(
             elfie_id,
@@ -112,7 +112,7 @@ class ElfieLabStorage:
         if not path.exists():
             raise KeyError(f"测试精灵不存在: {elfie_id}")
         spec = ElfieSpec.from_dict(self._read_json(path))
-        repository = ElfieProfileRepository(self.elfie_dir(elfie_id))
+        repository = ElfieProfileRepository(self.elfie_dir(elfie_id) / "profile")
         if repository.exists():
             profile = repository.load()
             if profile.identity.species_id != spec.species_id:
@@ -134,7 +134,7 @@ class ElfieLabStorage:
 
     def memory_path(self, elfie_id: str) -> Path:
         self._validate_id(elfie_id)
-        path = self.elfies_dir / elfie_id / "memory.db"
+        path = self.elfies_dir / elfie_id / "memory" / "knowledge.sqlite"
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
 
@@ -172,8 +172,8 @@ class ElfieLabStorage:
             seed=seed,
         )
         defaults_dir = Path(__file__).parents[2] / "elfie" / "profile" / "defaults"
-        legacy = ElfieProfileRepository(defaults_dir).load_legacy_sections()
-        profile = replace(profile, **legacy)
+        defaults = ElfieProfileRepository(defaults_dir).load_default_sections()
+        profile = replace(profile, **defaults)
         derivation = derive_personality(
             spec.elfie_id,
             spec.personality_description,
@@ -191,7 +191,7 @@ class ElfieLabStorage:
             },
         }
         profile = replace(profile, personality=personality)
-        ElfieProfileRepository(self.elfie_dir(spec.elfie_id)).save(profile)
+        ElfieProfileRepository(self.elfie_dir(spec.elfie_id) / "profile").save(profile)
 
     def session_path(self, elfie_id: str, session_id: str) -> Path:
         self._validate_id(elfie_id)

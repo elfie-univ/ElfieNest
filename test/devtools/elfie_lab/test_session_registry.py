@@ -47,7 +47,7 @@ def test_reload_rolls_back_profile_when_rebuild_fails(
     storage, elfie_id = _create_storage(tmp_path)
     registry = SessionRegistry(storage, str(tmp_path / "runtime"))
     existing = registry.get(elfie_id)
-    profile_path = storage.elfie_dir(elfie_id) / "profile.yaml"
+    profile_path = storage.elfie_dir(elfie_id) / "profile" / "profile.yaml"
     original_profile = profile_path.read_bytes()
 
     def fail_rebuild(*_args, **_kwargs):

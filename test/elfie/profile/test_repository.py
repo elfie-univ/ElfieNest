@@ -37,3 +37,19 @@ def test_profile_save_repairs_owner_only_permissions(tmp_path: Path) -> None:
     # Then: both the directory and file are owner-only.
     assert stat.S_IMODE(profile_dir.stat().st_mode) == 0o700
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+
+def test_default_profile_sections_are_loaded_without_a_profile_file(
+    tmp_path: Path,
+) -> None:
+    # Given: bundled default sections without a canonical profile.yaml.
+    (tmp_path / "personality.yaml").write_text(
+        "big_five:\n  openness: 0.8\n", encoding="utf-8"
+    )
+
+    # When: the profile repository reads the default sections.
+    sections = ElfieProfileRepository(tmp_path).load_default_sections()
+
+    # Then: the section is available without requiring a user profile file.
+    assert sections["personality"] == {"big_five": {"openness": 0.8}}
+    assert sections["capabilities"] == {}
