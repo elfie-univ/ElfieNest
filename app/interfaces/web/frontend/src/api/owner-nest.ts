@@ -2,14 +2,33 @@ import { z } from "zod"
 
 import { ownerWrite, requestJson } from "./http"
 
-export const NestBedSchema = z.object({
-  id: z.string(),
+const BedPayloadFields = {
   anchor_id: z.string(),
-  name: z.string(),
   occupant_id: z.string().nullable(),
   occupant_name: z.string().nullable(),
   occupant_species_id: z.string().nullable(),
+}
+
+const UiNestBedSchema = z.object({
+  ...BedPayloadFields,
+  id: z.string(),
+  name: z.string(),
 })
+
+const BackendNestBedSchema = z.object({
+  ...BedPayloadFields,
+  id: z.number().int(),
+  label: z.string(),
+})
+
+export const NestBedSchema = z.union([UiNestBedSchema, BackendNestBedSchema]).transform((bed) => ({
+  id: typeof bed.id === "number" ? String(bed.id) : bed.id,
+  anchor_id: bed.anchor_id,
+  name: "label" in bed ? bed.label : bed.name,
+  occupant_id: bed.occupant_id,
+  occupant_name: bed.occupant_name,
+  occupant_species_id: bed.occupant_species_id,
+}))
 
 export const RoomSchema = z.object({
   id: z.string(),

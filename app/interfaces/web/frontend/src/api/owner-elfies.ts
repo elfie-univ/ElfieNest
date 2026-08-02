@@ -4,7 +4,13 @@ import { ElfieIdValueSchema } from "@/shared/elfie-id"
 
 import { requestJson } from "./http"
 
-export const ProfileSchema = z.object({
+const ProfileStatusSchema = z.object({
+  code: z.string(),
+  label: z.string().min(1),
+  tone: z.string().min(1),
+})
+
+const ProfilePayloadSchema = z.object({
   elfie_id: ElfieIdValueSchema,
   name: z.string(),
   species_id: z.string(),
@@ -12,11 +18,7 @@ export const ProfileSchema = z.object({
   birth_date: z.string().nullable(),
   summary: z.string().nullable(),
   online_status: z.union([z.literal("online"), z.literal("offline"), z.literal("unknown")]),
-  status: z.object({
-    code: z.string(),
-    label: z.string().min(1),
-    tone: z.string().min(1),
-  }),
+  status: ProfileStatusSchema.optional(),
   portrait_url: z.string(),
   appearance: z.record(z.string(), z.unknown()),
   big_five: z.record(z.string(), z.number()),
@@ -28,6 +30,29 @@ export const ProfileSchema = z.object({
   }),
   embodiment: z.object({ state: z.string() }),
 })
+
+type ProfilePayload = z.infer<typeof ProfilePayloadSchema>
+type ProfileStatus = z.infer<typeof ProfileStatusSchema>
+
+export const ProfileSchema = ProfilePayloadSchema.transform(({ status, ...profile }) => ({
+  ...profile,
+  status: status ?? deriveProfileStatus(profile),
+}))
+
+function deriveProfileStatus(profile: Omit<ProfilePayload, "status">): ProfileStatus {
+  switch (profile.embodiment.state) {
+    case "at_nest":
+      return { code: "at_nest", label: "at_nest", tone: "active" }
+    case "hosted":
+      return { code: "awake", label: "awake", tone: "active" }
+    case "sleeping":
+      return { code: "sleeping", label: "sleeping", tone: "resting" }
+    case "offline":
+      return { code: "unknown", label: "offline", tone: "inactive" }
+    default:
+      return { code: "unknown", label: profile.embodiment.state || profile.online_status, tone: "transition" }
+  }
+}
 
 export const OwnerSchema = z.object({
   user_id: z.number().int().positive(),
