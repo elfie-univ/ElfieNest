@@ -8,7 +8,7 @@ import {
   resetManagedUserPassword,
   type OwnerUser,
 } from "../api/client"
-import { canManageRole, isManagerRole, MAX_ACCOUNTS, MAX_ADMINS, type AccountRole } from "../api/roles"
+import { canManageRole, compareAccountListOrder, isManagerRole, MAX_ACCOUNTS, MAX_ADMINS, type AccountRole } from "../api/roles"
 import { describeApiError, resolveLocalizedError, type LocalizedErrorState } from "../i18n/errors"
 import { compareLocalizedText, currentLocale } from "../i18n/format"
 import { ConfirmDialog } from "./ConfirmDialog"
@@ -57,11 +57,7 @@ export function ManageUsersPanel({ actorRole, csrfToken }: { readonly actorRole:
     setUsers(null)
     try {
       const loadedUsers = await ownerUsers()
-      setUsers([...loadedUsers].sort((left, right) => compareLocalizedText(
-        left.display_name ?? left.account_id,
-        right.display_name ?? right.account_id,
-        locale,
-      )))
+      setUsers([...loadedUsers].sort(compareAccountListOrder))
       setError(null)
     } catch (reason: unknown) {
       if (!(reason instanceof Error)) throw reason

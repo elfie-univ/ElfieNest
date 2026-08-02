@@ -77,6 +77,10 @@ function cardForAccount(cards: readonly HTMLElement[], accountId: string): HTMLE
   return cards.find((card) => card.querySelectorAll(".user-id-card__identity > div dd")[2]?.textContent === accountId)
 }
 
+function accountIdForCard(card: HTMLElement): string | undefined {
+  return card.querySelectorAll(".user-id-card__identity > div dd")[2]?.textContent ?? undefined
+}
+
 describe("ManageUsersPanel real-data states", () => {
   beforeAll(() => {
     Element.prototype.hasPointerCapture = vi.fn(() => false)
@@ -144,6 +148,23 @@ describe("ManageUsersPanel real-data states", () => {
     for (const name of ["编辑 member01", "重置密码 member01", "删除用户 member01"]) {
       expect(within(memberActions).getByRole("button", { name })).toBeEnabled()
     }
+  })
+
+  it("orders cards by role and then ascending numeric user ID", async () => {
+    // Given: the API returns records in an arbitrary order, including two Users.
+    vi.mocked(ownerUsers).mockResolvedValue([
+      member,
+      admin,
+      { ...member, user_id: 3, account_id: "member03" },
+      owner,
+    ])
+
+    // When: the user list renders.
+    renderPanel()
+    const cards = await screen.findAllByRole("article")
+
+    // Then: role groups are fixed and IDs are ascending within each group.
+    expect(cards.map(accountIdForCard)).toEqual(["owner01", "admin02", "member03", "member01"])
   })
 
   it("creates a user with account ID, optional display name, and password", async () => {

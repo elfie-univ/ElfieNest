@@ -19,10 +19,23 @@ const ROLE_RANK: Readonly<Record<AccountRole, number>> = {
   user: 1,
 }
 
+const ROLE_LIST_ORDER: Readonly<Record<AccountRole, number>> = {
+  owner: 0,
+  admin: 1,
+  user: 2,
+}
+
 export function isManagerRole(role: AccountRole): role is "owner" | "admin" {
   return role === "owner" || role === "admin"
 }
 
 export function canManageRole(actorRole: AccountRole, targetRole: AccountRole): boolean {
   return ROLE_RANK[actorRole] > ROLE_RANK[targetRole]
+}
+
+export function compareAccountListOrder(
+  left: { readonly role: AccountRole; readonly user_id: number },
+  right: { readonly role: AccountRole; readonly user_id: number },
+): number {
+  return ROLE_LIST_ORDER[left.role] - ROLE_LIST_ORDER[right.role] || left.user_id - right.user_id
 }
