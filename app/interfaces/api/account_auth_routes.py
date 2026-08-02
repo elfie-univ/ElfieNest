@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Dict, Final, Optional, Union
+from datetime import date
+from typing import Dict, Final, Literal, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -20,6 +21,10 @@ from app.features.accounts.auth import (
     verify_password,
 )
 from app.features.accounts.password_policy import validate_password_strength
+from app.infrastructure.persistence.account_repository import (
+    AccountConflictError,
+    AccountValidationError,
+)
 from app.infrastructure.persistence.runtime_query_repository import (
     RuntimeAccount,
     RuntimeQueryRepository,
@@ -36,7 +41,10 @@ _MODEL_CONFIG: Final[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
 class ProfileUpdate(BaseModel):
     model_config = _MODEL_CONFIG
 
+    account_id: Optional[str] = Field(None, min_length=3, max_length=32)
     display_name: Optional[str] = Field(None, max_length=64)
+    gender: Optional[Literal["male", "female"]] = None
+    birth_date: Optional[date] = None
     avatar_color: Optional[int] = Field(None, ge=0, le=7)
     avatar_kind: Optional[str] = Field(None, pattern="^(initials|emoji)$")
 
@@ -68,6 +76,8 @@ def _account_profile(account: RuntimeAccount) -> Dict[str, Union[str, int, None]
         "user_id": account.user_id,
         "account_id": account.account_id,
         "display_name": account.display_name,
+        "gender": account.gender,
+        "birth_date": account.birth_date,
         "avatar_color": account.avatar_color,
         "avatar_kind": account.avatar_kind,
         "avatar_url": avatar_url(account.avatar_path),
@@ -192,27 +202,48 @@ async def update_profile(
     user: AuthenticatedUser = CurrentUser,
 ) -> Dict[str, Union[str, int, None]]:
     """Update display name and the existing avatar presentation fields."""
-    if (
-        body.display_name is None
-        and body.avatar_color is None
-        and body.avatar_kind is None
-    ):
+    if not body.model_fields_set:
         raise HTTPException(status_code=400, detail="没有提供要更新的字段")
     repository = RuntimeQueryRepository(request.app.state.db_path)
     current = repository.find_account_by_id(user["user_id"])
     if current is None:
         raise HTTPException(status_code=401, detail="账户不存在")
+    if "account_id" in body.model_fields_set and body.account_id is None:
+        raise HTTPException(status_code=422, detail="登录账号不能为空")
+    if "gender" in body.model_fields_set and body.gender is None:
+        raise HTTPException(status_code=422, detail="性别只能是男或女")
+    account_id = current.account_id
     display_name = current.display_name
-    if body.display_name is not None:
-        display_name = body.display_name.strip() or None
-    account = repository.update_profile(
-        current.user_id,
-        display_name=display_name,
-        avatar_color=(
-            body.avatar_color if body.avatar_color is not None else current.avatar_color
-        ),
-        avatar_kind=body.avatar_kind or current.avatar_kind,
-    )
+    gender = current.gender or "male"
+    birth_date = current.birth_date
+    if "account_id" in body.model_fields_set and body.account_id is not None:
+        account_id = body.account_id
+    if "display_name" in body.model_fields_set:
+        display_name = (
+            None if body.display_name is None else body.display_name.strip() or None
+        )
+    if "gender" in body.model_fields_set and body.gender is not None:
+        gender = body.gender
+    if "birth_date" in body.model_fields_set:
+        birth_date = None if body.birth_date is None else body.birth_date.isoformat()
+    try:
+        account = repository.update_profile(
+            current.user_id,
+            account_id=account_id,
+            display_name=display_name,
+            avatar_color=(
+                body.avatar_color
+                if body.avatar_color is not None
+                else current.avatar_color
+            ),
+            avatar_kind=body.avatar_kind or current.avatar_kind,
+            gender=gender,
+            birth_date=birth_date,
+        )
+    except AccountValidationError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except AccountConflictError as error:
+        raise HTTPException(status_code=409, detail="登录账号已存在") from error
     if account is None:
         raise HTTPException(status_code=401, detail="账户不存在")
     return _account_profile(account)

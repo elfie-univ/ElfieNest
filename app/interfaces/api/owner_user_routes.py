@@ -34,7 +34,7 @@ class OwnerUserView(TypedDict):
     account_id: str
     display_name: Optional[str]
     role: Literal["owner", "user"]
-    gender: Optional[str]
+    gender: str
     birth_date: Optional[str]
     presence: Literal["online", "away", "offline"]
     last_seen_at: Optional[str]
@@ -110,7 +110,7 @@ def _project(row: InterfaceUserRecord, system_limit: int) -> OwnerUserView:
         "account_id": row.account_id,
         "display_name": row.display_name,
         "role": role,
-        "gender": row.gender,
+        "gender": row.gender or "male",
         "birth_date": row.birth_date,
         "presence": presence,
         "last_seen_at": row.last_seen_at,

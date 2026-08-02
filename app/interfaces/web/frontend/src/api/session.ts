@@ -8,6 +8,7 @@ export const ThemeKeySchema = z.union([
   z.literal("orchid-archive"),
   z.literal("moss-green"),
 ])
+export const GenderSchema = z.union([z.literal("male"), z.literal("female")])
 
 export const SafeLoginNextPathSchema = z.union([
   z.literal("/chat"),
@@ -19,6 +20,8 @@ const ClientUserSchema = z.object({
   user_id: z.number().int().positive(),
   account_id: z.string().min(1),
   display_name: z.string().nullable(),
+  gender: GenderSchema.optional(),
+  birth_date: z.string().nullable().optional(),
   role: z.union([z.literal("owner"), z.literal("user")]),
   avatar_url: z.string().nullable().optional(),
   avatar_color: z.number().int().min(0).max(7).optional(),
@@ -40,6 +43,7 @@ const SetupResponseSchema = z.object({
 }).strict()
 
 export type ClientUser = z.infer<typeof ClientUserSchema>
+export type Gender = z.infer<typeof GenderSchema>
 export type ThemeKey = z.infer<typeof ThemeKeySchema>
 export type SafeLoginNextPath = z.infer<typeof SafeLoginNextPathSchema>
 
@@ -64,13 +68,24 @@ export async function saveTheme(themeKey: ThemeKey, csrfToken: string): Promise<
 }
 
 export async function updateProfile(
-  profileInput: { readonly display_name: string },
+  profileInput: {
+    readonly account_id?: string
+    readonly birth_date?: string | null
+    readonly display_name?: string
+    readonly gender?: Gender
+  },
   csrfToken: string,
 ): Promise<void> {
+  const body = {
+    ...(profileInput.account_id === undefined ? {} : { account_id: profileInput.account_id }),
+    ...(profileInput.birth_date === undefined ? {} : { birth_date: profileInput.birth_date }),
+    ...(profileInput.display_name === undefined ? {} : { display_name: profileInput.display_name }),
+    ...(profileInput.gender === undefined ? {} : { gender: profileInput.gender }),
+  }
   await requestJson("/api/auth/me/profile", {
     method: "PUT",
     headers: csrfHeaders(csrfToken, true),
-    body: JSON.stringify({ display_name: profileInput.display_name }),
+    body: JSON.stringify(body),
   })
 }
 

@@ -67,7 +67,7 @@ _TABLE_STATEMENTS: Final = (
             AND instr(avatar_path,':')=0
             AND avatar_path<>'..' AND avatar_path NOT LIKE '../%'
             AND avatar_path NOT LIKE '%/../%' AND avatar_path NOT LIKE '%/..')),
-        gender TEXT, birth_date TEXT,
+        gender TEXT NOT NULL DEFAULT 'male' CHECK(gender IN ('male','female')), birth_date TEXT,
         role TEXT NOT NULL CHECK(role IN ('owner','user')),
         password_hash TEXT NOT NULL CHECK(length(password_hash)>0),
         presence TEXT NOT NULL DEFAULT 'offline' CHECK(presence IN ('online','away','offline')),

@@ -8,6 +8,7 @@ from typing import Final, NamedTuple
 ACCOUNT_ID_MIN_LENGTH: Final = 3
 ACCOUNT_ID_MAX_LENGTH: Final = 32
 DISPLAY_NAME_MAX_LENGTH: Final = 64
+GENDER_VALUES: Final = frozenset(("male", "female"))
 
 
 class AccountRecord(NamedTuple):
@@ -171,6 +172,43 @@ class AccountRepository:
             (avatar_path, user_id),
         )
 
+    def update_profile(
+        self,
+        user_id: int,
+        *,
+        account_id: str,
+        display_name: str | None,
+        avatar_color: int,
+        avatar_kind: str,
+        gender: str,
+        birth_date: str | None,
+    ) -> None:
+        """Replace the editable identity projection in one guarded write."""
+        normalized_account_id = _normalize_account_id(account_id)
+        normalized_display_name = _normalize_display_name(display_name)
+        normalized_gender = _normalize_gender(gender)
+        if self.account_id_exists(normalized_account_id, excluding_user_id=user_id):
+            raise AccountConflictError("account_id already exists")
+        try:
+            self._connection.execute(
+                """UPDATE users SET account_id=?,display_name=?,avatar_color=?,
+                   avatar_kind=?,gender=?,birth_date=?,updated_at=CURRENT_TIMESTAMP
+                   WHERE id=?""",
+                (
+                    normalized_account_id,
+                    normalized_display_name,
+                    avatar_color,
+                    avatar_kind,
+                    normalized_gender,
+                    birth_date,
+                    user_id,
+                ),
+            )
+        except sqlite3.IntegrityError as error:
+            raise AccountConflictError(str(error)) from error
+        except sqlite3.DatabaseError as error:
+            raise AccountRepositoryError(str(error)) from error
+
     def update_quota(self, user_id: int, quota: int | None) -> None:
         self._connection.execute(
             "UPDATE users SET elfie_limit=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
@@ -246,4 +284,11 @@ def _normalize_display_name(display_name: str | None) -> str | None:
         return None
     if len(normalized) > DISPLAY_NAME_MAX_LENGTH:
         raise AccountValidationError("display_name must be at most 64 characters")
+    return normalized
+
+
+def _normalize_gender(gender: str) -> str:
+    normalized = gender.strip().lower()
+    if normalized not in GENDER_VALUES:
+        raise AccountValidationError("gender must be male or female")
     return normalized

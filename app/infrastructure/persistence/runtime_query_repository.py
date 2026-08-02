@@ -5,6 +5,7 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass
 
+from app.infrastructure.persistence.account_repository import AccountRepository
 from app.infrastructure.persistence.elfie_repository import ElfieRecord, ElfieRepository
 from app.infrastructure.persistence.session_repository import hash_session_token
 from app.infrastructure.persistence.store import get_db
@@ -22,6 +23,8 @@ class RuntimeAccount:
     avatar_color: int
     avatar_kind: str
     avatar_path: str | None
+    gender: str
+    birth_date: str | None
     default_landing_page: str
     theme_key: str
     created_at: str
@@ -34,6 +37,8 @@ class RuntimeAccount:
         "avatar_color",
         "avatar_kind",
         "avatar_path",
+        "gender",
+        "birth_date",
         "default_landing_page",
         "theme_key",
         "created_at",
@@ -66,16 +71,24 @@ class RuntimeQueryRepository:
         self,
         user_id: int,
         *,
+        account_id: str,
         display_name: str | None,
         avatar_color: int,
         avatar_kind: str,
+        gender: str,
+        birth_date: str | None,
     ) -> RuntimeAccount | None:
         """Replace the editable profile projection and reload the account."""
         with get_db(self._db_path) as connection:
-            connection.execute(
-                """UPDATE users SET display_name=?,avatar_color=?,avatar_kind=?,
-                          updated_at=CURRENT_TIMESTAMP WHERE id=?""",
-                (display_name, avatar_color, avatar_kind, user_id),
+            connection.execute("BEGIN IMMEDIATE")
+            AccountRepository(connection).update_profile(
+                user_id,
+                account_id=account_id,
+                display_name=display_name,
+                avatar_color=avatar_color,
+                avatar_kind=avatar_kind,
+                gender=gender,
+                birth_date=birth_date,
             )
             connection.commit()
         return self.find_account_by_id(user_id)
@@ -138,7 +151,7 @@ class RuntimeQueryRepository:
 
 _ACCOUNT_SELECT = """
 SELECT id,account_id,password_hash,role,display_name,avatar_color,avatar_kind,
-       avatar_path,default_landing_page,theme_key,created_at
+       avatar_path,gender,birth_date,default_landing_page,theme_key,created_at
 FROM users
 """
 
@@ -155,6 +168,8 @@ def _account(row: sqlite3.Row) -> RuntimeAccount:
         avatar_color=int(row["avatar_color"]),
         avatar_kind=str(row["avatar_kind"]),
         avatar_path=None if row["avatar_path"] is None else str(row["avatar_path"]),
+        gender="male" if row["gender"] is None else str(row["gender"]),
+        birth_date=None if row["birth_date"] is None else str(row["birth_date"]),
         default_landing_page=str(row["default_landing_page"]),
         theme_key=str(row["theme_key"]),
         created_at=str(row["created_at"]),

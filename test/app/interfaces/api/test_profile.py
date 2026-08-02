@@ -89,6 +89,8 @@ class TestMe:
             "account_id",
             "role",
             "display_name",
+            "gender",
+            "birth_date",
             "avatar_color",
             "avatar_kind",
             "avatar_url",
@@ -103,6 +105,8 @@ class TestMe:
         assert data["account_id"] == "owner"
         assert data["role"] == "owner"
         assert data["display_name"] is None
+        assert data["gender"] == "male"
+        assert data["birth_date"] is None
         assert data["avatar_color"] == 0
         assert data["avatar_kind"] == "initials"
         assert data["avatar_url"] is None
@@ -160,6 +164,8 @@ class TestGetProfile:
             "user_id",
             "account_id",
             "display_name",
+            "gender",
+            "birth_date",
             "avatar_color",
             "avatar_kind",
             "avatar_url",
@@ -167,6 +173,8 @@ class TestGetProfile:
         assert data["user_id"] == 1
         assert data["account_id"] == "owner"
         assert data["display_name"] is None
+        assert data["gender"] == "male"
+        assert data["birth_date"] is None
         assert data["avatar_color"] == 0
         assert data["avatar_kind"] == "initials"
         assert data["avatar_url"] is None
@@ -408,6 +416,63 @@ class TestUpdateProfile:
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp2.json()["display_name"] == "Owner"
+
+    def test_update_profile_identity_fields(self, client: TestClient) -> None:
+        """PUT updates the editable identity fields as one profile projection."""
+        tokens = _login_owner(client)
+        response = client.put(
+            "/api/auth/me/profile",
+            json={
+                "account_id": "owner-renamed",
+                "display_name": "Owner Renamed",
+                "gender": "female",
+                "birth_date": "1990-02-03",
+            },
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert response.status_code == 200
+        assert response.json()["account_id"] == "owner-renamed"
+        assert response.json()["display_name"] == "Owner Renamed"
+        assert response.json()["gender"] == "female"
+        assert response.json()["birth_date"] == "1990-02-03"
+
+        current = client.get(
+            "/api/auth/me", headers=_headers(tokens["csrf_token"])
+        ).json()
+        assert current["account_id"] == "owner-renamed"
+        assert current["gender"] == "female"
+        assert current["birth_date"] == "1990-02-03"
+
+    def test_update_profile_rejects_duplicate_account_id(
+        self, client: TestClient, db_path: str
+    ) -> None:
+        """Changing the login identifier cannot take another user's account."""
+        create_test_user(db_path, "member", "memberchangeme")
+        tokens = _login_owner(client)
+
+        response = client.put(
+            "/api/auth/me/profile",
+            json={"account_id": "member"},
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert response.status_code == 409
+        assert "已存在" in response.json()["detail"]
+        current = client.get(
+            "/api/auth/me", headers=_headers(tokens["csrf_token"])
+        ).json()
+        assert current["account_id"] == "owner"
+
+    def test_update_profile_rejects_unknown_gender(self, client: TestClient) -> None:
+        tokens = _login_owner(client)
+        response = client.put(
+            "/api/auth/me/profile",
+            json={"gender": "unknown"},
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert response.status_code == 422
 
     def test_update_profile_avatar_color(self, client: TestClient) -> None:
         """PUT 更新 avatar_color 成功。"""

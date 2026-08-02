@@ -36,12 +36,22 @@ vi.mock("../api/owner-providers", async (loadOriginal) => {
 const product = {
   catalog_id: "openai",
   name: "OpenAI",
-  brand: { brand_id: "openai", name: "OpenAI", logo_asset: "openai.svg" },
+  brand: { brand_id: "openai", name: "OpenAI", logo_asset: "brands/openai.svg" },
   connection_method: "api_key",
   oauth_available: false,
   usage_scope: "remote",
   discovery_strategy: "remote",
   api_mode: "chat_completions",
+} satisfies ProviderProduct
+
+const ollamaProduct = {
+  ...product,
+  catalog_id: "ollama",
+  name: "Ollama",
+  brand: { brand_id: "ollama", name: "Ollama", logo_asset: "brands/ollama.svg" },
+  connection_method: "local",
+  usage_scope: "local",
+  api_mode: "ollama",
 } satisfies ProviderProduct
 
 const model = {
@@ -75,6 +85,18 @@ const connection = {
   model_refresh: null,
 } satisfies ProviderConnection
 
+const ollamaConnection = {
+  ...connection,
+  connection_id: "conn-ollama",
+  catalog_id: "ollama",
+  alias: "Ollama",
+  api_base: "http://localhost:11434",
+  api_mode: "ollama",
+  auth_type: "none",
+  has_api_key: false,
+  usage_scope: "local",
+} satisfies ProviderConnection
+
 describe("OwnerProviderPanel v2 behavior", () => {
   beforeEach(() => {
     vi.mocked(ownerProviderCatalog).mockResolvedValue([product])
@@ -99,7 +121,37 @@ describe("OwnerProviderPanel v2 behavior", () => {
 
     const available = screen.getByRole("region", { name: "添加新的订阅" })
     expect(within(available).getByRole("button", { name: "配置 OpenAI" })).toBeInTheDocument()
-    expect(within(available).getByRole("button", { name: "添加自定义连接" })).toBeInTheDocument()
+    expect(within(available).getByRole("button", { name: "添加其他订阅" })).toBeInTheDocument()
+    expect(within(available).queryByRole("button", { name: "添加自定义连接" })).not.toBeInTheDocument()
+    expect(within(available).getByRole("button", { name: "配置 OpenAI" }).querySelector("img")).toHaveAttribute(
+      "src",
+      "/brands/openai.svg",
+    )
+  })
+
+  it("does not repeat the configured Ollama in the add-subscription grid", async () => {
+    vi.mocked(ownerProviderCatalog).mockResolvedValue([ollamaProduct, product])
+    vi.mocked(ownerProviderConnections).mockResolvedValue([ollamaConnection, connection])
+    renderPanel()
+
+    const available = await screen.findByRole("region", { name: "添加新的订阅" })
+    expect(within(available).queryByRole("button", { name: "配置 Ollama" })).not.toBeInTheDocument()
+  })
+
+  it("shows eight featured products and one add-other entry", async () => {
+    const catalog = Array.from({ length: 10 }, (_, index) => ({
+      ...product,
+      catalog_id: `provider-${index}`,
+      name: `Provider ${index + 1}`,
+      brand: { ...product.brand, brand_id: `provider-${index}`, name: `Provider ${index + 1}`, logo_asset: "" },
+    })) satisfies ProviderProduct[]
+    vi.mocked(ownerProviderCatalog).mockResolvedValue(catalog)
+    renderPanel()
+
+    const available = await screen.findByRole("region", { name: "添加新的订阅" })
+    expect(within(available).getAllByRole("button")).toHaveLength(9)
+    expect(within(available).getAllByRole("button", { name: /^配置 Provider/ })).toHaveLength(8)
+    expect(within(available).queryByText("api_key")).not.toBeInTheDocument()
   })
 
   it("verifies one connection and refreshes visible state", async () => {
@@ -129,13 +181,15 @@ describe("OwnerProviderPanel v2 behavior", () => {
     )
   })
 
-  it("archives an existing connection only through the lifecycle dialog", async () => {
+  it("archives an existing connection from the anchored lifecycle menu", async () => {
     const user = userEvent.setup()
     renderPanel()
 
     const card = within(await screen.findByRole("region", { name: "已配置的订阅" })).getByRole("article")
     await user.click(within(card).getByRole("button", { name: "更多" }))
-    await user.click(within(screen.getByRole("dialog", { name: "更多操作" })).getByRole("button", { name: "归档" }))
+    const menu = screen.getByRole("menu")
+    expect(screen.queryByRole("dialog", { name: "更多操作" })).not.toBeInTheDocument()
+    await user.click(within(menu).getByRole("menuitem", { name: "归档" }))
 
     expect(changeProviderConnectionLifecycle).toHaveBeenCalledWith("conn-openai", "archive", "csrf")
   })
