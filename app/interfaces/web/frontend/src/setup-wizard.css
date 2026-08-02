@@ -48,7 +48,7 @@
 .setup-locale-control__trigger { width: 100%; justify-content: flex-start; box-shadow: 0 8px 20px color-mix(in srgb, var(--shadow-color) 12%, transparent); }
 .setup-card { width: min(720px, 100%); overflow: hidden; border-radius: 24px; }
 .setup-card__header { padding: clamp(28px, 5vw, 48px) clamp(28px, 6vw, 58px) 30px; background: linear-gradient(145deg, color-mix(in srgb, var(--accent-soft) 66%, var(--surface-raised)), var(--surface-raised)); border-bottom: 1px solid var(--line); }
-.setup-card__header h1 { max-width: 12ch; margin: 9px 0 10px; color: var(--text); font-size: clamp(32px, 5vw, 48px); line-height: 1.08; }
+.setup-card__header h1 { width: 100%; max-width: 100%; margin: 9px 0 10px; color: var(--text); font-size: clamp(32px, 5vw, 48px); line-height: 1.08; overflow-wrap: normal; }
 .setup-card__header > p:last-child { max-width: 580px; margin: 0; color: var(--text-muted); line-height: 1.7; }
 .setup-card__content { padding: clamp(26px, 5vw, 48px) clamp(28px, 6vw, 58px); }
 .setup-form { display: grid; gap: 17px; }

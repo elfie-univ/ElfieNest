@@ -27,6 +27,7 @@ from .setup_models import (
     SetupModelRecommendation,
     SetupModelRequest,
     SetupNestRequest,
+    SetupOllamaDetection,
     SetupOllamaInstallRequest,
     SetupOllamaRequest,
     SetupRequest,
@@ -119,6 +120,22 @@ async def complete_setup_ollama(
     return _setup_status(request)
 
 
+@router.get("/setup/ollama-detection")
+async def get_setup_ollama_detection(
+    owner: dict = RequireOwner,
+) -> SetupOllamaDetection:
+    """Inspect the saved or documented local Ollama endpoint without installing it."""
+    _ = owner
+    observation = OllamaSetupService(
+        adapter=OllamaPlatformAdapter(),
+    ).inspect()
+    return SetupOllamaDetection(
+        state=observation.probe.state,
+        endpoint=observation.probe.endpoint or None,
+        version=observation.probe.version,
+    )
+
+
 @router.post("/setup/ollama/install", status_code=202)
 async def install_setup_ollama(
     body: SetupOllamaInstallRequest,
@@ -171,9 +188,26 @@ async def get_setup_model_recommendation(
     _ = owner
     memory_gb = get_available_memory_gb()
     profile = recommend_local_profile(memory_gb)
+    if profile is None:
+        return SetupModelRecommendation(
+            memory_gb=memory_gb,
+            recommended_model=None,
+            ollama_state="absent",
+            ollama_endpoint=None,
+            installed_models=[],
+            recommended_model_available=False,
+        )
+    observation = OllamaSetupService(
+        adapter=OllamaPlatformAdapter(),
+    ).inspect()
+    recommended_model = f"ollama/{profile.text_model}"
     return SetupModelRecommendation(
         memory_gb=memory_gb,
-        recommended_model=(f"ollama/{profile.text_model}" if profile else None),
+        recommended_model=recommended_model,
+        ollama_state=observation.probe.state,
+        ollama_endpoint=observation.probe.endpoint or None,
+        installed_models=list(observation.models),
+        recommended_model_available=profile.text_model in observation.models,
     )
 
 
