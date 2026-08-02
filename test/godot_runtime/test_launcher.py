@@ -94,12 +94,14 @@ def test_electron_authority_namespace_is_scoped_to_the_checkout(
 
     # Then: Electron single-instance locks are stable per checkout, not global.
     first_namespace = dict(first_plan.environment)["ELFIENEST_AUTHORITY_NAMESPACE"]
-    assert first_namespace == dict(repeated_first_plan.environment)[
-        "ELFIENEST_AUTHORITY_NAMESPACE"
-    ]
-    assert first_namespace != dict(second_plan.environment)[
-        "ELFIENEST_AUTHORITY_NAMESPACE"
-    ]
+    assert (
+        first_namespace
+        == dict(repeated_first_plan.environment)["ELFIENEST_AUTHORITY_NAMESPACE"]
+    )
+    assert (
+        first_namespace
+        != dict(second_plan.environment)["ELFIENEST_AUTHORITY_NAMESPACE"]
+    )
 
 
 def test_displayless_linux_routes_to_the_single_dedicated_artifact(

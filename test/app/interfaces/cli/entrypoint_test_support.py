@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from test.support.paths import PROJECT_ROOT
+from test.support.paths import PROJECT_ROOT as PROJECT_ROOT
 
 
 def write_executable(path: Path, content: str) -> None:

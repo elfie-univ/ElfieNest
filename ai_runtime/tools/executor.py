@@ -26,8 +26,8 @@ class SearchPlugin(Protocol):
 
 class PermissionManager(Protocol):
     def verify_action(
-        self, action: str, file_path: str, token: str | None = None
-    ) -> None: ...
+        self, action: str, file_path: str | None = None, token: str | None = None
+    ) -> object: ...
 
 
 class FileAccessPlugin(Protocol):
@@ -55,9 +55,7 @@ class ToolExecutionContext:
     max_total_result_bytes: int = 48000
     max_tool_calls: int = 3
     runtime_enabled_tools: tuple[str, ...] = SAFE_TOOL_KEYS
-    tool_configs: Mapping[str, Mapping[str, Any]] = field(
-        default_factory=dict
-    )
+    tool_configs: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
 
 
 class ToolExecutor:
@@ -233,7 +231,9 @@ class ToolExecutor:
 
     def _result_budget(self, tool_key: str) -> int:
         configured = self.context.tool_configs.get(tool_key, {})
-        configured_max = configured.get("max_result_bytes", self.context.max_result_bytes)
+        configured_max = configured.get(
+            "max_result_bytes", self.context.max_result_bytes
+        )
         try:
             per_tool = max(1, int(configured_max))
         except (TypeError, ValueError):
@@ -266,7 +266,7 @@ def _bounded(content: str, max_bytes: int) -> tuple[str, bool]:
     raw = content.encode("utf-8")
     if len(raw) <= max_bytes:
         return content, False
-    envelope = {
+    envelope: dict[str, Any] = {
         "truncated": True,
         "original_bytes": len(raw),
         "content": "",

@@ -25,6 +25,7 @@ from elfie.brain.memory.node_types import Edge, EdgeTypes, MemoryNode, NodeTypes
 # 辅助函数
 # ---------------------------------------------------------------------------
 
+
 def _setup_basic_data(storage: GraphStorage):
     """设置基础测试数据：实体 + 未巩固的episodic（带involves边）"""
     # 实体
@@ -38,8 +39,8 @@ def _setup_basic_data(storage: GraphStorage):
         ep = MemoryNode(
             id=f"ep_{i}",
             type="episodic",
-            content=f"和主人一起玩的第{i+1}次",
-            metadata={"emotion": "happy", "timestamp": f"2026-06-0{i+1}T10:00:00"},
+            content=f"和主人一起玩的第{i + 1}次",
+            metadata={"emotion": "happy", "timestamp": f"2026-06-0{i + 1}T10:00:00"},
             edges=[Edge(target="ent_1", rel="involves", weight=0.7)],
         )
         storage.add_node(ep)
@@ -49,8 +50,8 @@ def _setup_basic_data(storage: GraphStorage):
         ep = MemoryNode(
             id=f"ep_{i}",
             type="episodic",
-            content=f"玩猫玩具追来追去第{i-2}次",
-            metadata={"emotion": "excited", "timestamp": f"2026-06-0{i+1}T14:00:00"},
+            content=f"玩猫玩具追来追去第{i - 2}次",
+            metadata={"emotion": "excited", "timestamp": f"2026-06-0{i + 1}T14:00:00"},
             edges=[Edge(target="ent_2", rel="involves", weight=0.6)],
         )
         storage.add_node(ep)
@@ -78,6 +79,7 @@ def _setup_basic_data(storage: GraphStorage):
 # ---------------------------------------------------------------------------
 # 测试类
 # ---------------------------------------------------------------------------
+
 
 class TestMemoryConsolidator:
     """MemoryConsolidator 基础功能测试"""
@@ -120,7 +122,9 @@ class TestMemoryConsolidator:
     def test_collect_unconsolidated_all_done(self, storage, consolidator):
         """所有节点已巩固时返回空列表"""
         ep = MemoryNode(
-            id="ep_done", type="episodic", content="done",
+            id="ep_done",
+            type="episodic",
+            content="done",
             metadata={"consolidated": True},
         )
         storage.add_node(ep)
@@ -169,15 +173,21 @@ class TestMemoryConsolidator:
         """规则提取：频率模式、情绪模式、去重"""
         group = [
             MemoryNode(
-                id="e1", type="episodic", content="test1",
+                id="e1",
+                type="episodic",
+                content="test1",
                 metadata={"emotion": "happy"},
             ),
             MemoryNode(
-                id="e2", type="episodic", content="test2",
+                id="e2",
+                type="episodic",
+                content="test2",
                 metadata={"emotion": "happy"},
             ),
             MemoryNode(
-                id="e3", type="episodic", content="test3",
+                id="e3",
+                type="episodic",
+                content="test3",
                 metadata={"emotion": "happy"},
             ),
         ]
@@ -229,7 +239,8 @@ class TestMemoryConsolidator:
         source_ids = ["ep_0", "ep_1"]
 
         knowledge_ids = consolidator._create_knowledge_nodes(
-            knowledge_items, source_ids,
+            knowledge_items,
+            source_ids,
         )
 
         assert len(knowledge_ids) == 2
@@ -262,17 +273,22 @@ class TestMemoryConsolidator:
         """建语义边：supports（knowledge→episodic）和 about（knowledge→entity）"""
         # 准备前置节点
         for nid in ["k_1", "k_2", "ep_src_1", "ep_src_2", "ent_target"]:
-            storage.add_node(MemoryNode(
-                id=nid, type="episodic" if nid.startswith("ep") else "entity",
-                content=nid,
-            ))
+            storage.add_node(
+                MemoryNode(
+                    id=nid,
+                    type="episodic" if nid.startswith("ep") else "entity",
+                    content=nid,
+                )
+            )
 
         knowledge_ids = ["k_1", "k_2"]
         source_ids = ["ep_src_1", "ep_src_2"]
         entity_ids = ["ent_target"]
 
         edge_count = consolidator._build_semantic_edges(
-            knowledge_ids, source_ids, entity_ids,
+            knowledge_ids,
+            source_ids,
+            entity_ids,
         )
 
         # 2 knowledge × 2 source × 1 supports + 2 knowledge × 1 entity × 1 about = 6
@@ -287,15 +303,13 @@ class TestMemoryConsolidator:
 
             # supports指向原始episodic
             supports_targets = {
-                e.target for e in outgoing
-                if e.rel == EdgeTypes.SUPPORTS.value
+                e.target for e in outgoing if e.rel == EdgeTypes.SUPPORTS.value
             }
             assert supports_targets == set(source_ids)
 
             # about指向entity
             about_targets = {
-                e.target for e in outgoing
-                if e.rel == EdgeTypes.ABOUT.value
+                e.target for e in outgoing if e.rel == EdgeTypes.ABOUT.value
             }
             assert about_targets == set(entity_ids)
 
@@ -305,7 +319,9 @@ class TestMemoryConsolidator:
         storage.add_node(MemoryNode(id="ep_src", type="episodic", content="src"))
 
         edge_count = consolidator._build_semantic_edges(
-            ["k_1"], ["ep_src"], [],
+            ["k_1"],
+            ["ep_src"],
+            [],
         )
         assert edge_count == 1
 
@@ -321,9 +337,13 @@ class TestMemoryConsolidator:
     def test_mark_consolidated(self, storage, consolidator):
         """标记episodic节点为consolidated=True"""
         for i in range(3):
-            storage.add_node(MemoryNode(
-                id=f"ep_{i}", type="episodic", content=f"test{i}",
-            ))
+            storage.add_node(
+                MemoryNode(
+                    id=f"ep_{i}",
+                    type="episodic",
+                    content=f"test{i}",
+                )
+            )
 
         consolidator._mark_consolidated(["ep_0", "ep_1", "ep_2"])
 
@@ -391,15 +411,24 @@ class TestMemoryConsolidator:
         assert ent_2.metadata["consolidationEmotions"].get("excited") == 2
 
         # 验证正确返回
-        assert result["consolidated_count"] + result["knowledge_created"] + result["edges_created"] > 0
+        assert (
+            result["consolidated_count"]
+            + result["knowledge_created"]
+            + result["edges_created"]
+            > 0
+        )
 
     def test_run_consolidation_empty(self, storage, consolidator):
         """无未巩固节点时返回空结果"""
         # 只有已巩固节点
-        storage.add_node(MemoryNode(
-            id="ep_done", type="episodic", content="done",
-            metadata={"consolidated": True},
-        ))
+        storage.add_node(
+            MemoryNode(
+                id="ep_done",
+                type="episodic",
+                content="done",
+                metadata={"consolidated": True},
+            )
+        )
 
         result = consolidator.run_consolidation()
 
@@ -486,8 +515,17 @@ class TestMemoryConsolidator:
         assert after_count > before_count
 
         # 所有原始节点仍然存在
-        for nid in ["ep_0", "ep_1", "ep_2", "ep_3", "ep_4", "ep_orphan",
-                     "ep_consolidated", "ent_1", "ent_2"]:
+        for nid in [
+            "ep_0",
+            "ep_1",
+            "ep_2",
+            "ep_3",
+            "ep_4",
+            "ep_orphan",
+            "ep_consolidated",
+            "ent_1",
+            "ent_2",
+        ]:
             assert storage.get_node(nid) is not None
 
     # ------------------------------------------------------------------
@@ -548,18 +586,23 @@ class TestPatternDiscovery:
 
     def test_discover_patterns_with_llm(self, storage, consolidator):
         """LLM发现pattern：模拟LLM返回pattern，验证节点和边被创建"""
+
         class PatternAgent:
             @staticmethod
             def ask(prompt, **kwargs):
                 return "- 固定时间预示着好事发生\n- 主人的行为有规律可循"
 
-        knowledge_ids = self._add_knowledge_nodes(storage, [
-            "主人每天8点会喂我吃饭",
-            "主人喜欢摸我的头",
-        ])
+        knowledge_ids = self._add_knowledge_nodes(
+            storage,
+            [
+                "主人每天8点会喂我吃饭",
+                "主人喜欢摸我的头",
+            ],
+        )
 
         pattern_ids = consolidator._discover_patterns(
-            knowledge_ids, runtime_agent=PatternAgent(),
+            knowledge_ids,
+            runtime_agent=PatternAgent(),
         )
 
         assert len(pattern_ids) == 2
@@ -585,14 +628,18 @@ class TestPatternDiscovery:
 
     def test_discover_patterns_rule_fallback(self, storage, consolidator):
         """规则降级发现pattern：无LLM时通过共同关键词发现pattern"""
-        knowledge_ids = self._add_knowledge_nodes(storage, [
-            "master feeds me every day",
-            "master likes petting",
-        ])
+        knowledge_ids = self._add_knowledge_nodes(
+            storage,
+            [
+                "master feeds me every day",
+                "master likes petting",
+            ],
+        )
 
         # 不传入runtime_agent，触发规则降级
         pattern_ids = consolidator._discover_patterns(
-            knowledge_ids, runtime_agent=None,
+            knowledge_ids,
+            runtime_agent=None,
         )
 
         assert len(pattern_ids) == 1
@@ -602,16 +649,22 @@ class TestPatternDiscovery:
         assert "master" in node.content
 
     def test_discover_patterns_rule_fallback_no_common(
-        self, storage, consolidator,
+        self,
+        storage,
+        consolidator,
     ):
         """规则降级且无共同关键词时跳过pattern发现"""
-        knowledge_ids = self._add_knowledge_nodes(storage, [
-            "master feeds me every day",
-            "sunny weather outside",
-        ])
+        knowledge_ids = self._add_knowledge_nodes(
+            storage,
+            [
+                "master feeds me every day",
+                "sunny weather outside",
+            ],
+        )
 
         pattern_ids = consolidator._discover_patterns(
-            knowledge_ids, runtime_agent=None,
+            knowledge_ids,
+            runtime_agent=None,
         )
 
         # 无共同关键词，不创建pattern
@@ -622,15 +675,21 @@ class TestPatternDiscovery:
     # ------------------------------------------------------------------
 
     def test_discover_patterns_insufficient_knowledge(
-        self, storage, consolidator,
+        self,
+        storage,
+        consolidator,
     ):
         """只有1个knowledge节点时跳过pattern发现"""
-        knowledge_ids = self._add_knowledge_nodes(storage, [
-            "master feeds me every day",
-        ])
+        knowledge_ids = self._add_knowledge_nodes(
+            storage,
+            [
+                "master feeds me every day",
+            ],
+        )
 
         pattern_ids = consolidator._discover_patterns(
-            knowledge_ids, runtime_agent=None,
+            knowledge_ids,
+            runtime_agent=None,
         )
 
         assert pattern_ids == []
@@ -638,7 +697,8 @@ class TestPatternDiscovery:
     def test_discover_patterns_empty_list(self, storage, consolidator):
         """空列表时跳过pattern发现"""
         pattern_ids = consolidator._discover_patterns(
-            [], runtime_agent=None,
+            [],
+            runtime_agent=None,
         )
         assert pattern_ids == []
 
@@ -648,13 +708,17 @@ class TestPatternDiscovery:
 
     def test_pattern_node_has_correct_metadata(self, storage, consolidator):
         """pattern节点metadata包含正确的字段"""
-        knowledge_ids = self._add_knowledge_nodes(storage, [
-            "master feeds me every day",
-            "master likes petting",
-        ])
+        knowledge_ids = self._add_knowledge_nodes(
+            storage,
+            [
+                "master feeds me every day",
+                "master likes petting",
+            ],
+        )
 
         pattern_ids = consolidator._discover_patterns(
-            knowledge_ids, runtime_agent=None,
+            knowledge_ids,
+            runtime_agent=None,
         )
 
         assert len(pattern_ids) == 1
@@ -678,13 +742,17 @@ class TestPatternDiscovery:
 
     def test_implies_edges_created(self, storage, consolidator):
         """knowledge → pattern的implies边被正确创建"""
-        knowledge_ids = self._add_knowledge_nodes(storage, [
-            "master feeds me every day",
-            "master likes petting",
-        ])
+        knowledge_ids = self._add_knowledge_nodes(
+            storage,
+            [
+                "master feeds me every day",
+                "master likes petting",
+            ],
+        )
 
         pattern_ids = consolidator._discover_patterns(
-            knowledge_ids, runtime_agent=None,
+            knowledge_ids,
+            runtime_agent=None,
         )
 
         assert len(pattern_ids) > 0
@@ -699,13 +767,17 @@ class TestPatternDiscovery:
 
     def test_implies_edge_weight_matches_confidence(self, storage, consolidator):
         """implies边权重匹配pattern_confidence"""
-        knowledge_ids = self._add_knowledge_nodes(storage, [
-            "master feeds me every day",
-            "master likes petting",
-        ])
+        knowledge_ids = self._add_knowledge_nodes(
+            storage,
+            [
+                "master feeds me every day",
+                "master likes petting",
+            ],
+        )
 
         pattern_ids = consolidator._discover_patterns(
-            knowledge_ids, runtime_agent=None,
+            knowledge_ids,
+            runtime_agent=None,
         )
 
         assert len(pattern_ids) > 0
@@ -774,7 +846,8 @@ class TestPatternDiscovery:
         )
 
         result = assembler._assemble_prediction_zone(
-            ["现在8点主人走过来"], ["主人"],
+            ["现在8点主人走过来"],
+            ["主人"],
         )
 
         assert "预测灵感：" in result

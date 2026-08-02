@@ -81,11 +81,11 @@ def build_model_matrix(
                     }
                 )
                 continue
-            subject_id = (
-                f"{connection.connection_id}/{entry_model.endpoint_model_id}"
-            )
+            subject_id = f"{connection.connection_id}/{entry_model.endpoint_model_id}"
             projected = model_evidence[subject_id]
-            capabilities.update(projected.capabilities or _model_capabilities(entry_model))
+            capabilities.update(
+                projected.capabilities or _model_capabilities(entry_model)
+            )
             observation = evidence.get(("model", subject_id))
             cells.append(
                 {

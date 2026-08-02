@@ -45,7 +45,9 @@ class MemoryCognitionPayload(TypedDict):
 
 
 class ProjectionStorage(Protocol):
-    def get_nodes_by_type(self, node_type: str, limit: int = 100) -> List[MemoryNode]: ...
+    def get_nodes_by_type(
+        self, node_type: str, limit: int = 100
+    ) -> List[MemoryNode]: ...
 
     def get_edges(self, node_id: str, direction: str = "outgoing") -> List[Edge]: ...
 
@@ -109,7 +111,10 @@ def _rank_nodes(nodes: Sequence[MemoryNode]) -> List[MemoryNode]:
 def _important_events(episodes: Sequence[MemoryNode]) -> List[Dict[str, Any]]:
     ranked = sorted(
         episodes,
-        key=lambda node: (str(node.metadata.get("timestamp", node.created_at or "")), node.id),
+        key=lambda node: (
+            str(node.metadata.get("timestamp", node.created_at or "")),
+            node.id,
+        ),
         reverse=True,
     )[:MAX_ITEMS]
     events: List[Dict[str, Any]] = []
@@ -120,7 +125,9 @@ def _important_events(episodes: Sequence[MemoryNode]) -> List[Dict[str, Any]]:
             people = []
         importance = metadata.get("importance")
         if importance is None:
-            importance = metadata.get("emotion_intensity", metadata.get("intensity", 0.0))
+            importance = metadata.get(
+                "emotion_intensity", metadata.get("intensity", 0.0)
+            )
         events.append(
             {
                 "id": node.id,
@@ -130,7 +137,9 @@ def _important_events(episodes: Sequence[MemoryNode]) -> List[Dict[str, Any]]:
                 "importance": _weight(importance),
                 "people": [person for person in people if isinstance(person, str)],
                 "changed": (
-                    metadata["changed"] if isinstance(metadata.get("changed"), str) else ""
+                    metadata["changed"]
+                    if isinstance(metadata.get("changed"), str)
+                    else ""
                 ),
             }
         )
@@ -170,7 +179,9 @@ def _relation_graph(
                     "source": "self",
                     "target": node.id,
                     "label": relationship.strip(),
-                    "relation_kind": str(node.metadata.get("relation_kind", "relationship")),
+                    "relation_kind": str(
+                        node.metadata.get("relation_kind", "relationship")
+                    ),
                     "weight": _weight(node.metadata.get("importance"), 0.55),
                 }
             )
@@ -259,7 +270,9 @@ def _world_model(summary: str, candidates: Sequence[MemoryNode]) -> WorldModelPa
             {
                 "id": node.id,
                 "label": node.content[:48],
-                "kind": _knowledge_kind(node) if node.type != "entity" else _entity_kind(node),
+                "kind": _knowledge_kind(node)
+                if node.type != "entity"
+                else _entity_kind(node),
                 "weight": _weight(node.metadata.get("importance"), 0.55),
             }
             for node in ranked

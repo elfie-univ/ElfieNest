@@ -31,7 +31,9 @@ def query_model_evidence(
     latest = observations
     if latest is None:
         latest = (repository or ReportRepository()).current(subject_kind="model")
-    by_subject = {item.subject_id: item for item in latest if item.subject_kind == "model"}
+    by_subject = {
+        item.subject_id: item for item in latest if item.subject_kind == "model"
+    }
     current = now or datetime.now(timezone.utc)
     result: dict[str, ModelEvidence] = {}
     inventory = (
@@ -142,7 +144,9 @@ def _validation_state(
     if observation.status != "passed":
         return "failed"
     try:
-        observed = datetime.fromisoformat(observation.observed_at.replace("Z", "+00:00"))
+        observed = datetime.fromisoformat(
+            observation.observed_at.replace("Z", "+00:00")
+        )
     except ValueError:
         return "stale"
     if observed.tzinfo is None:
@@ -152,4 +156,8 @@ def _validation_state(
 
 def _int_value(data: Mapping[str, Any], key: str, default: int) -> int:
     value = data.get(key)
-    return int(value) if isinstance(value, int) and not isinstance(value, bool) else default
+    return (
+        int(value)
+        if isinstance(value, int) and not isinstance(value, bool)
+        else default
+    )

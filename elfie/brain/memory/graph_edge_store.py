@@ -1,9 +1,12 @@
+import sqlite3
 from typing import List
 
 from .node_types import Edge
 
 
 class GraphEdgeStoreMixin:
+    conn: sqlite3.Connection
+
     def add_edge(
         self, source_id: str, target_id: str, rel: str, weight: float = 0.5
     ) -> int:
@@ -12,6 +15,8 @@ class GraphEdgeStoreMixin:
             (source_id, target_id, rel, weight),
         )
         self.conn.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("edge insert did not return a row id")
         return cursor.lastrowid
 
     def get_edges(self, node_id: str, direction: str = "outgoing") -> List[Edge]:

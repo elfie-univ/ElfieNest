@@ -90,6 +90,7 @@ def repair_local_runtime_state() -> DoctorRepairReport:
 @dataclass(frozen=True)
 class ProcessInfo:
     """Information about a running process."""
+
     pid: int
     command: Tuple[str, ...]
     cwd: Optional[Path]
@@ -153,19 +154,23 @@ def find_all_elfienest_processes() -> Tuple[ProcessInfo, ...]:
                 try:
                     cmd_tuple = tuple(command.split())
                     cwd = inspector.cwd(pid) if inspector.exists(pid) else None
-                    processes.append(ProcessInfo(
-                        pid=pid,
-                        command=cmd_tuple,
-                        cwd=cwd,
-                        process_type=process_type,
-                    ))
+                    processes.append(
+                        ProcessInfo(
+                            pid=pid,
+                            command=cmd_tuple,
+                            cwd=cwd,
+                            process_type=process_type,
+                        )
+                    )
                 except (OSError, subprocess.SubprocessError):
-                    processes.append(ProcessInfo(
-                        pid=pid,
-                        command=(command,),
-                        cwd=None,
-                        process_type=process_type,
-                    ))
+                    processes.append(
+                        ProcessInfo(
+                            pid=pid,
+                            command=(command,),
+                            cwd=None,
+                            process_type=process_type,
+                        )
+                    )
 
         # Second pass: find Electron helper processes
         if godot_authority_pids:
@@ -191,19 +196,23 @@ def find_all_elfienest_processes() -> Tuple[ProcessInfo, ...]:
                     try:
                         cmd_tuple = tuple(command.split())
                         cwd = inspector.cwd(pid) if inspector.exists(pid) else None
-                        processes.append(ProcessInfo(
-                            pid=pid,
-                            command=cmd_tuple,
-                            cwd=cwd,
-                            process_type="electron",
-                        ))
+                        processes.append(
+                            ProcessInfo(
+                                pid=pid,
+                                command=cmd_tuple,
+                                cwd=cwd,
+                                process_type="electron",
+                            )
+                        )
                     except (OSError, subprocess.SubprocessError):
-                        processes.append(ProcessInfo(
-                            pid=pid,
-                            command=(command,),
-                            cwd=None,
-                            process_type="electron",
-                        ))
+                        processes.append(
+                            ProcessInfo(
+                                pid=pid,
+                                command=(command,),
+                                cwd=None,
+                                process_type="electron",
+                            )
+                        )
 
     except (OSError, subprocess.SubprocessError, subprocess.TimeoutExpired):
         pass
@@ -256,9 +265,9 @@ def kill_processes_safely(
 
     # Update results
     final_results: list[Tuple[int, bool, Optional[str]]] = []
-    for pid, _, error in results:
-        if error:
-            final_results.append((pid, False, error))
+    for pid, _, error_message in results:
+        if error_message:
+            final_results.append((pid, False, error_message))
         elif inspector.exists(pid):
             final_results.append((pid, False, "Process did not exit"))
         else:
@@ -381,7 +390,9 @@ def interactive_port_cleanup(
         print("     Killing them will stop any ElfieNest instances or other services.")
         print()
         try:
-            response = input("  Kill these processes and clean up? [y/N]: ").strip().lower()
+            response = (
+                input("  Kill these processes and clean up? [y/N]: ").strip().lower()
+            )
         except (EOFError, KeyboardInterrupt):
             print("\n  Cancelled.")
             return False

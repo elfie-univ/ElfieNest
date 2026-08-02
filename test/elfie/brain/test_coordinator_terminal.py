@@ -28,9 +28,7 @@ def test_urgent_event_discards_late_plan_without_routing_it() -> None:
     coordinator.notify_perception()
     runtime.started.wait()
 
-    workspace.publish(
-        _physical(2, 50, salience=1.0, priority=Priority.CRITICAL)
-    )
+    workspace.publish(_physical(2, 50, salience=1.0, priority=Priority.CRITICAL))
     coordinator.notify_perception(urgent_reason="emergency_stop")
     sink.cancel_seen.wait()
     runtime.release.set()

@@ -7,7 +7,6 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFont, ImageOps
 
-
 CHARACTERS_ROOT = Path(__file__).resolve().parents[1]
 PREVIEWS = CHARACTERS_ROOT / "fox/source/previews/morph_prototype"
 OUTPUT = PREVIEWS / "contact_sheets"
@@ -36,7 +35,9 @@ def load(name: str) -> Image.Image:
 
 def labeled(image: Image.Image, label: str) -> Image.Image:
     canvas = Image.new("RGB", (CELL, CELL + LABEL_HEIGHT), BACKGROUND)
-    canvas.paste(image.resize((CELL, CELL), Image.Resampling.LANCZOS), (0, LABEL_HEIGHT))
+    canvas.paste(
+        image.resize((CELL, CELL), Image.Resampling.LANCZOS), (0, LABEL_HEIGHT)
+    )
     draw = ImageDraw.Draw(canvas)
     bounds = draw.textbbox((0, 0), label, font=LABEL_FONT)
     x = (CELL - (bounds[2] - bounds[0])) // 2
@@ -72,7 +73,9 @@ def difference_sheet() -> None:
         "Face_CheekFullness",
         "Face_EyeSocketSize",
     )
-    canvas = Image.new("RGB", (2 * CELL, len(families) * (CELL + LABEL_HEIGHT)), BACKGROUND)
+    canvas = Image.new(
+        "RGB", (2 * CELL, len(families) * (CELL + LABEL_HEIGHT)), BACKGROUND
+    )
     for row, family in enumerate(families):
         for column, suffix in enumerate(("Neg", "Pos")):
             image = load(f"{family}_{suffix}__head_front.png")

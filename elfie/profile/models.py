@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field, fields
-from typing import Any, Dict, Type, TypeVar
+from typing import Any, Dict, Type, TypeVar, cast
 
 PROFILE_SCHEMA_VERSION = 1
 SUPPORTED_SPECIES = ("dog", "fox")
@@ -316,7 +316,7 @@ def _mapping(value: Any) -> Dict[str, Any]:
 
 
 def _construct(model: Type[T], raw: Dict[str, Any]) -> T:
-    allowed = {item.name for item in fields(model)}
+    allowed = {item.name for item in fields(cast(Any, model))}
     return model(**{key: value for key, value in raw.items() if key in allowed})
 
 

@@ -8,8 +8,6 @@ import importlib
 import json
 from pathlib import Path
 
-import yaml
-
 from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.storage.data_home import get_config_path, get_elfie_home
 
@@ -115,13 +113,13 @@ def test_existing_config_yaml_is_authoritative_over_legacy(monkeypatch, tmp_path
     isolated_home = tmp_path / "isolated-home"
     provider_path = isolated_home / "configs" / "providers.yaml"
     provider_path.parent.mkdir(parents=True)
-    
+
     from ai_runtime.storage.provider_connections import (
         ProviderConnection,
         ProviderConnectionDocument,
         ProviderConnectionStore,
     )
-    
+
     store = ProviderConnectionStore(provider_path)
     store.save(
         ProviderConnectionDocument(
@@ -137,7 +135,7 @@ def test_existing_config_yaml_is_authoritative_over_legacy(monkeypatch, tmp_path
             }
         )
     )
-    
+
     legacy_path = tmp_path / "runtime" / "runtime_config.json"
     _write_legacy_runtime_config(legacy_path, provider_id="stale_legacy")
     _patch_legacy_runtime_path(monkeypatch, legacy_path)
@@ -147,7 +145,10 @@ def test_existing_config_yaml_is_authoritative_over_legacy(monkeypatch, tmp_path
     config = LLMRuntimeConfig.load()
 
     # Then: 当前 providers.yaml 是唯一来源，不被 legacy 状态污染。
-    assert config.providers["custom_openai_0001"]["api_base"] == "https://current.invalid/v1"
+    assert (
+        config.providers["custom_openai_0001"]["api_base"]
+        == "https://current.invalid/v1"
+    )
     provider_ids = tuple(config.providers)
     assert "stale_legacy" not in provider_ids
 
@@ -182,7 +183,7 @@ def test_runtime_api_reads_current_elfie_home_after_environment_switch(
 
     first_home = tmp_path / "first"
     second_home = tmp_path / "second"
-    
+
     first_provider_path = first_home / "configs" / "providers.yaml"
     first_provider_path.parent.mkdir(parents=True, exist_ok=True)
     ProviderConnectionStore(first_provider_path).save(
@@ -198,7 +199,7 @@ def test_runtime_api_reads_current_elfie_home_after_environment_switch(
             }
         )
     )
-    
+
     second_provider_path = second_home / "configs" / "providers.yaml"
     second_provider_path.parent.mkdir(parents=True, exist_ok=True)
     ProviderConnectionStore(second_provider_path).save(

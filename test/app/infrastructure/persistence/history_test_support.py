@@ -37,7 +37,9 @@ def insert_participants(connection: sqlite3.Connection) -> None:
     )
 
 
-def insert_self_message(connection: sqlite3.Connection, message_id: str = "msg_1") -> None:
+def insert_self_message(
+    connection: sqlite3.Connection, message_id: str = "msg_1"
+) -> None:
     """Insert one valid outbound self message."""
     connection.execute(
         """

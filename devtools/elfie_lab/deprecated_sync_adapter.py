@@ -29,7 +29,7 @@ from elfie.brain.runtime_port import (
     ModelGenerationResult,
 )
 from elfie.brain.turn_outcome import TurnOutcome
-from elfie.message_types import ActorRef, EventId, MediaRef
+from elfie.message_types import ActorId, ActorRef, EventId, MediaRef
 
 
 class RuntimeSelectionMissingError(RuntimeError):
@@ -102,7 +102,7 @@ class DeprecatedSyncCognitionAdapter:
         event_id: str,
     ) -> tuple[BodySensorEvent, ...]:
         now = self._elfie.cognitive_datetime
-        source = ActorRef(actor_id="elfie-lab", source_kind="developer_tool")
+        source = ActorRef(actor_id=ActorId("elfie-lab"), source_kind="developer_tool")
         body_id = BodyId(
             self._elfie.current_body.body_id
             if self._elfie.current_body is not None

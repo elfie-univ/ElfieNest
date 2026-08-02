@@ -62,9 +62,7 @@ def test_dev_bootstrap_uses_package_pnpm_when_root_corepack_version_differs(
     )
     make_executable(
         fake_bin / "npm",
-        "#!/bin/sh\n"
-        'printf "called\\n" > "$GLOBAL_INSTALL_MARKER"\n'
-        "exit 91\n",
+        '#!/bin/sh\nprintf "called\\n" > "$GLOBAL_INSTALL_MARKER"\nexit 91\n',
     )
 
     # When: a new worktree prepares its missing Electron authority host.
@@ -96,9 +94,7 @@ def test_dev_bootstrap_uses_pinned_npx_when_pnpm_is_absent(tmp_path: Path) -> No
     npx_calls = tmp_path / "npx-calls"
     make_executable(
         fake_bin / "npm",
-        "#!/bin/sh\n"
-        'printf "called\\n" > "$GLOBAL_INSTALL_MARKER"\n'
-        "exit 91\n",
+        '#!/bin/sh\nprintf "called\\n" > "$GLOBAL_INSTALL_MARKER"\nexit 91\n',
     )
     make_executable(
         fake_bin / "npx",

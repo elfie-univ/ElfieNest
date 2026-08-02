@@ -10,6 +10,7 @@ from elfie.nervous_system.signal_filter import SensoryDamSignalFilter
 # 关节安全限制测试
 # =============================================================================
 
+
 class TestJointSafetyLimits:
     """验证数字孪生关节的旋转弧度安全限位"""
 
@@ -19,9 +20,7 @@ class TestJointSafetyLimits:
 
         actual = anatomy.joints["head_yaw"].set_angle(3.14)
 
-        assert actual == 1.57, (
-            f"head_yaw 超出上限 1.57 应被截断，实际返回 {actual}"
-        )
+        assert actual == 1.57, f"head_yaw 超出上限 1.57 应被截断，实际返回 {actual}"
 
     def test_joint_below_min_clamped(self):
         """left_knee最小0.0，set_angle(-1.0)返回0.0（被截断）"""
@@ -37,6 +36,7 @@ class TestJointSafetyLimits:
 # =============================================================================
 # 信号过滤测试
 # =============================================================================
+
 
 class TestSignalFilter:
     """验证感知大坝对重复信号的过滤"""

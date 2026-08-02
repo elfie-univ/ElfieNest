@@ -21,10 +21,7 @@ def main() -> None:
         (obj for obj in bpy.context.scene.objects if obj.type == "MESH"),
         key=lambda item: len(item.data.vertices),
     )
-    output = (
-        Path(__file__).resolve().parents[1]
-        / "fox/source/previews/morph_prototype"
-    )
+    output = Path(__file__).resolve().parents[1] / "fox/source/previews/morph_prototype"
     render_previews(mesh, output, variants)
     print("MORPH_PREVIEW_BATCH_DONE " + ",".join(sorted(variants)))
 

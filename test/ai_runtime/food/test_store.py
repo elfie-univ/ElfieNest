@@ -1,7 +1,12 @@
 import pytest
 
-from ai_runtime.food.models import FOOD_COMMON_ID, FOOD_EMERGENCY_ID, FoodPackage, ModelAssignment
-from ai_runtime.food.store import FoodCatalog, FoodCatalogStore, fingerprint_source
+from ai_runtime.food.models import (
+    FOOD_COMMON_ID,
+    FOOD_EMERGENCY_ID,
+    FoodPackage,
+    ModelAssignment,
+)
+from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
 from ai_runtime.models.model_reference import ModelReferenceError
 from ai_runtime.storage.provider_connections import (
     ProviderConnection,
@@ -33,11 +38,11 @@ def _setup_provider_connections():
 def test_food_catalog_store_saves_and_loads_packages(tmp_path, monkeypatch):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     _setup_provider_connections()
-    
+
     path = tmp_path / "foods.yaml"
     history = tmp_path / "history"
     store = FoodCatalogStore(path, history)
-    
+
     catalog = FoodCatalog(
         packages={
             "coarse": FoodPackage(
@@ -59,11 +64,11 @@ def test_food_catalog_store_saves_and_loads_packages(tmp_path, monkeypatch):
 def test_food_catalog_store_keeps_version_history(tmp_path, monkeypatch):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     _setup_provider_connections()
-    
+
     path = tmp_path / "foods.yaml"
     history = tmp_path / "history"
     store = FoodCatalogStore(path, history)
-    
+
     catalog = FoodCatalog(
         packages={
             "standard": FoodPackage(
@@ -73,10 +78,10 @@ def test_food_catalog_store_keeps_version_history(tmp_path, monkeypatch):
             )
         }
     )
-    
+
     store.save(catalog)
     assert len(list(history.glob("foods-*.yaml"))) == 0
-    
+
     catalog2 = FoodCatalog(
         packages={
             "standard": FoodPackage(
@@ -88,14 +93,14 @@ def test_food_catalog_store_keeps_version_history(tmp_path, monkeypatch):
     )
     store.save(catalog2)
     assert len(list(history.glob("foods-*.yaml"))) == 1
-    
+
     restored = store.rollback_latest()
     assert restored.packages["standard"].display_name == "标准粮"
 
 
 def test_food_catalog_store_rejects_invalid_model_reference(tmp_path, monkeypatch):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    
+
     store = FoodCatalogStore(tmp_path / "foods.yaml", tmp_path / "history")
     catalog = FoodCatalog(
         packages={

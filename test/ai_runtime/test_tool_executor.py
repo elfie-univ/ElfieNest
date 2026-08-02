@@ -28,14 +28,18 @@ class FakePermissionManager:
     action: str = ""
     file_path: str = ""
 
-    def verify_action(self, action: str, file_path: str, token: str | None = None) -> None:
+    def verify_action(
+        self, action: str, file_path: str, token: str | None = None
+    ) -> None:
         self.action = action
         self.file_path = file_path
 
 
 @dataclass
 class DenyingPermissionManager(FakePermissionManager):
-    def verify_action(self, action: str, file_path: str, token: str | None = None) -> None:
+    def verify_action(
+        self, action: str, file_path: str, token: str | None = None
+    ) -> None:
         super().verify_action(action, file_path, token)
         raise PermissionError("policy denied")
 
@@ -131,7 +135,9 @@ def test_tool_executor_handles_search_and_preserves_feedback_text():
 
 
 def test_tool_executor_ignores_code_sandbox_tags():
-    executor, _, sandbox_plugin, _, permission_manager = make_executor(("code_sandbox",))
+    executor, _, sandbox_plugin, _, permission_manager = make_executor(
+        ("code_sandbox",)
+    )
 
     result = executor.execute("[CODE]print(2 + 2)[/CODE]")
 

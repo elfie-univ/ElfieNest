@@ -193,9 +193,7 @@ class TestBipedAnatomy(unittest.TestCase):
     def test_default_initialization(self):
         """测试默认初始化"""
         anatomy = BipedAnatomy()
-        self.assertEqual(
-            anatomy.gltf_path, "res://characters/dog/dog.tscn"
-        )
+        self.assertEqual(anatomy.gltf_path, "res://characters/dog/dog.tscn")
         self.assertIsInstance(anatomy.voice_profile, VoiceProfile)
 
     def test_custom_gltf_path(self):

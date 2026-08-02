@@ -112,9 +112,7 @@ class RuntimeOverviewGenerator:
     def snapshot(self) -> dict[str, Any]:
         return build_overview(
             self.config,
-            list(
-                query_model_evidence(repository=self.report_repository).values()
-            ),
+            list(query_model_evidence(repository=self.report_repository).values()),
             self.food_store.load(),
         )
 
@@ -214,9 +212,7 @@ class RuntimeOverviewGenerator:
             )
         report = build_overview(
             self.config,
-            list(
-                query_model_evidence(repository=self.report_repository).values()
-            ),
+            list(query_model_evidence(repository=self.report_repository).values()),
             self.food_store.load(),
             provider_health=provider_health,
         )
@@ -291,10 +287,10 @@ def render_provider_model_matrix(report: Mapping[str, Any], *, width: int) -> li
     if not models:
         return ["尚无模型验证证据。"]
     if width < 96:
-        lines = [
+        compact_lines = [
             "Model                              Available Endpoints   Fastest Latency"
         ]
-        lines.append("─" * min(width, 60))
+        compact_lines.append("─" * min(width, 60))
         for row in models:
             endpoints = [
                 endpoint
@@ -309,10 +305,10 @@ def render_provider_model_matrix(report: Mapping[str, Any], *, width: int) -> li
             ]
             fastest = f"{min(latencies):.0f}ms" if latencies else "—"
             name = str(row.get("model", ""))[:30]
-            lines.append(
+            compact_lines.append(
                 f"{name:<32}{len(verified):>2}/{len(endpoints):<7}{fastest:>8}"
             )
-        return lines
+        return compact_lines
 
     model_width = 30
     provider_width = 16
@@ -331,14 +327,14 @@ def render_provider_model_matrix(report: Mapping[str, Any], *, width: int) -> li
         )
         lines.append("─" * min(width, model_width + provider_width * len(page)))
         for row in models:
-            endpoints = {
+            endpoint_by_provider = {
                 str(item.get("provider", "")): item
                 for item in row.get("endpoints", ())
                 if isinstance(item, Mapping)
             }
-            cells = []
+            cells: list[str] = []
             for provider in page:
-                endpoint = endpoints.get(provider)
+                endpoint = endpoint_by_provider.get(provider)
                 if endpoint is None:
                     cell = "—"
                 elif endpoint.get("verified"):

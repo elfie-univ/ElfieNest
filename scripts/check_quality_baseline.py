@@ -24,9 +24,18 @@ MYPY_SOURCE_ROOTS: Tuple[str, ...] = (
     "devtools",
     "scripts",
 )
-RUFF_CHECK_COMMAND = ("ruff", "check", "--output-format", "json", ".")
-RUFF_FORMAT_COMMAND = ("ruff", "format", "--check", ".")
-MYPY_COMMAND = ("mypy", "-O", "json", *MYPY_SOURCE_ROOTS)
+
+
+def _tool_command(tool: str, *arguments: str) -> Tuple[str, ...]:
+    """Prefer quality tools installed beside the interpreter running this script."""
+    sibling = Path(sys.executable).with_name(tool)
+    executable = str(sibling) if sibling.is_file() else tool
+    return (executable, *arguments)
+
+
+RUFF_CHECK_COMMAND = _tool_command("ruff", "check", "--output-format", "json", ".")
+RUFF_FORMAT_COMMAND = _tool_command("ruff", "format", "--check", ".")
+MYPY_COMMAND = _tool_command("mypy", "-O", "json", *MYPY_SOURCE_ROOTS)
 
 
 class RuffLocation(BaseModel):

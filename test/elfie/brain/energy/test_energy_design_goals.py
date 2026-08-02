@@ -9,6 +9,7 @@ from elfie.brain.energy.energy import HypothalamusEnergy
 # 睡眠熔断测试
 # =============================================================================
 
+
 class TestHibernationFuse:
     """验证疲劳度达到阈值时的自动休眠熔断机制"""
 
@@ -33,14 +34,13 @@ class TestHibernationFuse:
 
         energy.update_clock(0.0)
 
-        assert energy.is_sleeping is True, (
-            "边界值 95.0 应触发休眠熔断"
-        )
+        assert energy.is_sleeping is True, "边界值 95.0 应触发休眠熔断"
 
 
 # =============================================================================
 # 唤醒恢复测试
 # =============================================================================
+
 
 class TestWakeupRecovery:
     """验证疲劳消退后自动唤醒及能量恢复"""

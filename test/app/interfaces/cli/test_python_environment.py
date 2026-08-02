@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from test.support.paths import PROJECT_ROOT
 
 PINNED_PYTHON_VERSION = "3.9.25"

@@ -30,7 +30,9 @@ def test_factory_workspace_uses_only_final_knowledge_database(tmp_path: Path) ->
     elfie.memory.close()
 
 
-def test_record_reopen_retrieve_and_consolidate_uses_final_store(tmp_path: Path) -> None:
+def test_record_reopen_retrieve_and_consolidate_uses_final_store(
+    tmp_path: Path,
+) -> None:
     # Given
     workspace = tmp_path / "elfie-workspace"
     first = ElfieFactory().create(config_dir=workspace, elfie_id="elfie-runtime")
@@ -68,7 +70,10 @@ def test_product_memory_modules_do_not_reference_legacy_graph_store() -> None:
     )
 
     # When
-    sources = {name: (memory_dir / name).read_text(encoding="utf-8") for name in product_modules}
+    sources = {
+        name: (memory_dir / name).read_text(encoding="utf-8")
+        for name in product_modules
+    }
 
     # Then
     for name, source in sources.items():

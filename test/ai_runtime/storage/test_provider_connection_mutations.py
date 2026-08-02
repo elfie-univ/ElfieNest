@@ -13,7 +13,9 @@ from ai_runtime.storage.provider_connections import ProviderConnectionStore
 from ai_runtime.storage.secrets import read_secrets, set_connection_secret
 
 
-def test_failed_create_finalization_removes_connection_and_secret(tmp_path, monkeypatch):
+def test_failed_create_finalization_removes_connection_and_secret(
+    tmp_path, monkeypatch
+):
     provider_path = tmp_path / "providers.yaml"
     secret_path = tmp_path / "auth.env"
     store = ProviderConnectionStore(provider_path)

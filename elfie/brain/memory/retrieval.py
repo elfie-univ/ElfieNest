@@ -187,11 +187,11 @@ class MemoryRetriever:
         sorted_ids = sorted(scored.items(), key=lambda x: x[1], reverse=True)
         nodes: List[MemoryNode] = []
         for node_id, score in sorted_ids[:top_k]:
-            node = self.storage.get_node(node_id)
-            if node:
-                node.metadata["_retrieval_score"] = score
-                node.metadata["_retrieval_dimension"] = "sensory"
-                nodes.append(node)
+            matched_node = self.storage.get_node(node_id)
+            if matched_node:
+                matched_node.metadata["_retrieval_score"] = score
+                matched_node.metadata["_retrieval_dimension"] = "sensory"
+                nodes.append(matched_node)
 
         return nodes
 
@@ -216,9 +216,9 @@ class MemoryRetriever:
 
         result: List[MemoryNode] = []
         for node_id, total_score in sorted_ids[:top_k]:
-            node = self.storage.get_node(node_id)
-            if node:
-                node.metadata["_retrieval_score"] = total_score
-                result.append(node)
+            matched_node = self.storage.get_node(node_id)
+            if matched_node:
+                matched_node.metadata["_retrieval_score"] = total_score
+                result.append(matched_node)
 
         return result

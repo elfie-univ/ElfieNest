@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import datetime, timezone
 from typing import Final
 
@@ -26,6 +27,8 @@ _SUBTYPE_TABLES: Final[tuple[str, ...]] = (
 
 class KnowledgeNodeStoreMixin:
     """Preserve legacy memory-node behavior using final entity semantics."""
+
+    conn: sqlite3.Connection
 
     def add_node(self, node: MemoryNode) -> str:
         now = datetime.now(timezone.utc).isoformat()
@@ -105,9 +108,7 @@ class KnowledgeNodeStoreMixin:
         ).fetchall()
         return [self._row_to_node(row) for row in rows]
 
-    def get_unconsolidated_nodes(
-        self, node_type: str = "episodic"
-    ) -> list[MemoryNode]:
+    def get_unconsolidated_nodes(self, node_type: str = "episodic") -> list[MemoryNode]:
         return [
             node
             for node in self.get_nodes_by_type(node_type, limit=100000)

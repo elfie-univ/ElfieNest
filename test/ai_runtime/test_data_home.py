@@ -22,8 +22,6 @@ from ai_runtime.storage.data_home import (
     get_food_history_dir,
     get_local_files_dir,
     get_model_validation_dir,
-    get_oauth_credentials_dir,
-    get_report_exports_dir,
     get_reports_dir,
     get_runtime_locks_dir,
     get_runtime_state_path,

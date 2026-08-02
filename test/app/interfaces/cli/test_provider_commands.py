@@ -114,9 +114,9 @@ def test_show_route_prints_main_food_without_models(
     database_path = init_db()
     with get_db(database_path) as connection:
         owner_id = AccountRepository(connection).create_owner(
-            username="owner",
+            account_id="owner",
             password_hash="test-hash",
-            nickname="Owner",
+            display_name="Owner",
             avatar_color=0,
         )
         connection.commit()

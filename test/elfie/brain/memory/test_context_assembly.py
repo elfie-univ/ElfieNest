@@ -161,18 +161,14 @@ class TestContextAssembler:
 
     def test_assemble_prediction_zone(self, assembler):
         """预测区域：基于最近事件和实体推测"""
-        result = assembler._assemble_prediction_zone(
-            ["现在8点主人走过来"], ["主人"]
-        )
+        result = assembler._assemble_prediction_zone(["现在8点主人走过来"], ["主人"])
         assert "预测灵感：" in result
         assert "主人走过来" in result
         assert "与主人相关的可能事件" in result
 
     def test_assemble_prediction_zone_only_events(self, assembler):
         """预测区域：只有事件，没有实体"""
-        result = assembler._assemble_prediction_zone(
-            ["天快黑了"], []
-        )
+        result = assembler._assemble_prediction_zone(["天快黑了"], [])
         assert "预测灵感：" in result
         assert "天快黑了" in result
 
@@ -280,9 +276,7 @@ class TestContextAssembler:
         assert "当前情绪对你记忆的影响：" in result
 
         # 总字符数不超过2000（≈800 tokens）
-        assert len(result) <= 2000, (
-            f"上下文过长: {len(result)}字符，超过了2000限制"
-        )
+        assert len(result) <= 2000, f"上下文过长: {len(result)}字符，超过了2000限制"
 
     def test_assemble_empty_query(self, assembler):
         """空查询：只返回核心认知"""
@@ -294,9 +288,7 @@ class TestContextAssembler:
         # 只包含核心认知
         assert "【核心认知】" in result
         # 不包含任何区域内容
-        assert "关于" not in result or "关于" not in result.split(
-            "【核心认知】"
-        )[1]
+        assert "关于" not in result or "关于" not in result.split("【核心认知】")[1]
         assert "最近相关经历" not in result
         assert "联想到" not in result
         assert "预测灵感" not in result

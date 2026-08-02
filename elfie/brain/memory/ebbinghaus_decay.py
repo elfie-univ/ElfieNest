@@ -93,7 +93,7 @@ class EbbinghausDecay:
         Returns:
             半衰期（天）
         """
-        half_life = self.HALF_LIVES.get(node_type, 30)
+        half_life: float = self.HALF_LIVES.get(node_type, 30)
         if emotion_intensity > 0.7:
             half_life *= 1.5
         return half_life

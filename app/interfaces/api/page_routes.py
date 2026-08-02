@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Mapping, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import (
@@ -12,7 +12,11 @@ from fastapi.responses import (
     Response,
 )
 
-from app.features.accounts.auth import get_current_user, require_owner
+from app.features.accounts.auth import (
+    AuthenticatedUser,
+    get_current_user,
+    require_owner,
+)
 from app.features.setup.service import needs_setup
 from app.interfaces.api.service_access import LOOPBACK_HOSTS, ServiceMode
 from app.interfaces.web.build_discovery import (
@@ -37,7 +41,7 @@ def safe_next_path(raw_next: Optional[str]) -> Optional[str]:
     return None
 
 
-def default_landing_path(user: Dict[str, Any]) -> str:
+def default_landing_path(user: Mapping[str, Any]) -> str:
     """Resolve the current role's server-enforced default landing page."""
     if user.get("role") == "owner":
         preference = user.get("default_landing_page")
@@ -47,7 +51,7 @@ def default_landing_path(user: Dict[str, Any]) -> str:
     return "/chat"
 
 
-def post_login_landing_path(user: Dict[str, Any], raw_next: Optional[str]) -> str:
+def post_login_landing_path(user: Mapping[str, Any], raw_next: Optional[str]) -> str:
     """Resolve login landing without letting generic chat redirects steal Owner flow."""
     safe_next = safe_next_path(raw_next)
     if user.get("role") == "owner" and safe_next == "/manage":
@@ -63,7 +67,7 @@ def _login_redirect(target: str) -> RedirectResponse:
     return RedirectResponse(url=f"/login?next={target}", status_code=303)
 
 
-def _current_page_user(request: Request) -> Optional[Dict[str, Any]]:
+def _current_page_user(request: Request) -> Optional[AuthenticatedUser]:
     """Translate an absent or expired session into the page-login flow."""
     try:
         return get_current_user(request)

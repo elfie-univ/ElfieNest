@@ -67,7 +67,9 @@ def test_write_creates_only_final_tables_and_columns(tmp_path: Path) -> None:
             "WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
         ).fetchall()
         columns = connection.execute("PRAGMA table_info(messages)").fetchall()
-        metadata = str(connection.execute("SELECT meta_json FROM messages").fetchone()[0])
+        metadata = str(
+            connection.execute("SELECT meta_json FROM messages").fetchone()[0]
+        )
     assert {str(row[0]) for row in tables} == EXPECTED_TABLES
     assert [str(row[1]) for row in columns] == EXPECTED_MESSAGE_COLUMNS
     assert stat.S_IMODE(db_path.stat().st_mode) == 0o600

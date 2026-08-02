@@ -82,7 +82,9 @@ def main() -> int:
         return _print_bundle_check(output)
     binary = _find_godot(args.godot)
     if binary is None:
-        print("❌ Godot 4 was not found. Specify the build tool with --godot or GODOT_BIN.")
+        print(
+            "❌ Godot 4 was not found. Specify the build tool with --godot or GODOT_BIN."
+        )
         return 2
     required_version = _project_version()
     actual_version = _godot_version(binary)
@@ -119,12 +121,17 @@ def _export_runtime(output: Path, binary: Path, godot_version: str) -> int:
     result = subprocess.run(command, cwd=GODOT_PROJECT, check=False)
     if result.returncode != 0:
         shutil.rmtree(staging, ignore_errors=True)
-        print("❌ Linux Dedicated export failed. Confirm that Linux x64 Export Templates are installed.")
+        print(
+            "❌ Linux Dedicated export failed. Confirm that Linux x64 Export Templates are installed."
+        )
         return result.returncode or 1
     missing = _missing_artifacts(staging)
     if missing:
         shutil.rmtree(staging, ignore_errors=True)
-        print("❌ Dedicated export command completed, but artifacts are incomplete: " + ", ".join(missing))
+        print(
+            "❌ Dedicated export command completed, but artifacts are incomplete: "
+            + ", ".join(missing)
+        )
         return 1
     _write_manifest(staging, godot_version, current_source_fingerprint())
     shutil.rmtree(previous, ignore_errors=True)

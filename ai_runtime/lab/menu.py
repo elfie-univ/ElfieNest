@@ -8,6 +8,7 @@ import subprocess
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from typing import Any, cast
 
 
 @dataclass(frozen=True)
@@ -265,14 +266,16 @@ def _read_key() -> str:
     if os.name == "nt":
         import msvcrt  # noqa: PLC0415
 
-        char = msvcrt.getwch()
+        msvcrt_module = cast(Any, msvcrt)
+        read_wide_char = cast(Callable[[], str], msvcrt_module.getwch)
+        char = read_wide_char()
         if char in {"\x00", "\xe0"}:
             return {
                 "H": "up",
                 "P": "down",
                 "K": "left",
                 "M": "right",
-            }.get(msvcrt.getwch(), "unknown")
+            }.get(read_wide_char(), "unknown")
         return _normalize_char(char)
 
     import termios  # noqa: PLC0415

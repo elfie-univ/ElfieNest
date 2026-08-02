@@ -128,8 +128,7 @@ def test_direct_sql_enforces_single_owner_self_and_known_elfie_id() -> None:
                 ("owner-2",),
             )
         store.connection.execute(
-            "INSERT INTO known_elfies (entity_id, elfie_id, is_self) "
-            "VALUES (?, ?, 1)",
+            "INSERT INTO known_elfies (entity_id, elfie_id, is_self) VALUES (?, ?, 1)",
             ("self-1", "12345678"),
         )
         with pytest.raises(sqlite3.IntegrityError):

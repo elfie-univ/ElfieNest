@@ -50,13 +50,15 @@ class TestStreamOllamaApi:
         mock_response = MockHttpResponse(lines)
 
         with patch("httpx.stream", return_value=mock_response):
-            chunks = list(_stream_ollama_api(
-                ollama_host="http://localhost:11434",
-                model_name="llama3",
-                messages=[{"role": "user", "content": "Hi"}],
-                temperature=0.7,
-                max_tokens=100,
-            ))
+            chunks = list(
+                _stream_ollama_api(
+                    ollama_host="http://localhost:11434",
+                    model_name="llama3",
+                    messages=[{"role": "user", "content": "Hi"}],
+                    temperature=0.7,
+                    max_tokens=100,
+                )
+            )
 
             assert chunks == ["Hello", " world", "!"]
 
@@ -71,13 +73,15 @@ class TestStreamOllamaApi:
         mock_response = MockHttpResponse(lines)
 
         with patch("httpx.stream", return_value=mock_response):
-            chunks = list(_stream_ollama_api(
-                ollama_host="http://localhost:11434",
-                model_name="llama3",
-                messages=[{"role": "user", "content": "Hi"}],
-                temperature=0.7,
-                max_tokens=100,
-            ))
+            chunks = list(
+                _stream_ollama_api(
+                    ollama_host="http://localhost:11434",
+                    model_name="llama3",
+                    messages=[{"role": "user", "content": "Hi"}],
+                    temperature=0.7,
+                    max_tokens=100,
+                )
+            )
 
             assert chunks == ["text"]
 
@@ -92,13 +96,15 @@ class TestStreamOllamaApi:
         mock_response = MockHttpResponse(lines)
 
         with patch("httpx.stream", return_value=mock_response):
-            chunks = list(_stream_ollama_api(
-                ollama_host="http://localhost:11434",
-                model_name="llama3",
-                messages=[{"role": "user", "content": "Hi"}],
-                temperature=0.7,
-                max_tokens=100,
-            ))
+            chunks = list(
+                _stream_ollama_api(
+                    ollama_host="http://localhost:11434",
+                    model_name="llama3",
+                    messages=[{"role": "user", "content": "Hi"}],
+                    temperature=0.7,
+                    max_tokens=100,
+                )
+            )
 
             assert chunks == ["valid", "also valid"]
 
@@ -106,13 +112,15 @@ class TestStreamOllamaApi:
         """连接错误应抛出 OllamaNotReadyError"""
         with patch("httpx.stream", side_effect=Exception("Connection refused")):
             with pytest.raises(OllamaNotReadyError) as exc_info:
-                list(_stream_ollama_api(
-                    ollama_host="http://localhost:11434",
-                    model_name="llama3",
-                    messages=[{"role": "user", "content": "Hi"}],
-                    temperature=0.7,
-                    max_tokens=100,
-                ))
+                list(
+                    _stream_ollama_api(
+                        ollama_host="http://localhost:11434",
+                        model_name="llama3",
+                        messages=[{"role": "user", "content": "Hi"}],
+                        temperature=0.7,
+                        max_tokens=100,
+                    )
+                )
 
             assert "Connection refused" in str(exc_info.value)
 
@@ -130,14 +138,16 @@ class TestStreamOpenaiCompatibleApi:
         mock_response = MockHttpResponse(lines)
 
         with patch("httpx.stream", return_value=mock_response):
-            chunks = list(_stream_openai_compatible_api(
-                api_base="https://api.openai.com/v1",
-                api_key="sk-test",
-                model_name="gpt-4",
-                messages=[{"role": "user", "content": "Hi"}],
-                temperature=0.7,
-                max_tokens=100,
-            ))
+            chunks = list(
+                _stream_openai_compatible_api(
+                    api_base="https://api.openai.com/v1",
+                    api_key="sk-test",
+                    model_name="gpt-4",
+                    messages=[{"role": "user", "content": "Hi"}],
+                    temperature=0.7,
+                    max_tokens=100,
+                )
+            )
 
             assert chunks == ["Hello", " world"]
 
@@ -152,14 +162,16 @@ class TestStreamOpenaiCompatibleApi:
         mock_response = MockHttpResponse(lines)
 
         with patch("httpx.stream", return_value=mock_response):
-            chunks = list(_stream_openai_compatible_api(
-                api_base="https://api.openai.com/v1",
-                api_key="sk-test",
-                model_name="gpt-4",
-                messages=[{"role": "user", "content": "Hi"}],
-                temperature=0.7,
-                max_tokens=100,
-            ))
+            chunks = list(
+                _stream_openai_compatible_api(
+                    api_base="https://api.openai.com/v1",
+                    api_key="sk-test",
+                    model_name="gpt-4",
+                    messages=[{"role": "user", "content": "Hi"}],
+                    temperature=0.7,
+                    max_tokens=100,
+                )
+            )
 
             assert chunks == ["text"]
             assert "should not appear" not in chunks
@@ -175,28 +187,32 @@ class TestStreamOpenaiCompatibleApi:
         mock_response = MockHttpResponse(lines)
 
         with patch("httpx.stream", return_value=mock_response):
-            chunks = list(_stream_openai_compatible_api(
-                api_base="https://api.openai.com/v1",
-                api_key="sk-test",
-                model_name="gpt-4",
-                messages=[{"role": "user", "content": "Hi"}],
-                temperature=0.7,
-                max_tokens=100,
-            ))
+            chunks = list(
+                _stream_openai_compatible_api(
+                    api_base="https://api.openai.com/v1",
+                    api_key="sk-test",
+                    model_name="gpt-4",
+                    messages=[{"role": "user", "content": "Hi"}],
+                    temperature=0.7,
+                    max_tokens=100,
+                )
+            )
 
             assert chunks == ["valid", "also valid"]
 
     def test_requires_api_base(self):
         """缺少 api_base 应抛出错误"""
         with pytest.raises(ValueError) as exc_info:
-            list(_stream_openai_compatible_api(
-                api_base="",
-                api_key="test",
-                model_name="gpt-4",
-                messages=[{"role": "user", "content": "Hi"}],
-                temperature=0.7,
-                max_tokens=100,
-            ))
+            list(
+                _stream_openai_compatible_api(
+                    api_base="",
+                    api_key="test",
+                    model_name="gpt-4",
+                    messages=[{"role": "user", "content": "Hi"}],
+                    temperature=0.7,
+                    max_tokens=100,
+                )
+            )
 
         assert "未找到大模型服务商" in str(exc_info.value)
 
@@ -206,14 +222,16 @@ class TestStreamOpenaiCompatibleApi:
         mock_response = MockHttpResponse(lines)
 
         with patch("httpx.stream", return_value=mock_response) as mock_stream:
-            list(_stream_openai_compatible_api(
-                api_base="https://api.openai.com/v1",
-                api_key="sk-test-key",
-                model_name="gpt-4",
-                messages=[{"role": "user", "content": "Hi"}],
-                temperature=0.7,
-                max_tokens=100,
-            ))
+            list(
+                _stream_openai_compatible_api(
+                    api_base="https://api.openai.com/v1",
+                    api_key="sk-test-key",
+                    model_name="gpt-4",
+                    messages=[{"role": "user", "content": "Hi"}],
+                    temperature=0.7,
+                    max_tokens=100,
+                )
+            )
 
             call_args = mock_stream.call_args
             headers = call_args[1]["headers"]
@@ -233,14 +251,16 @@ class TestStreamAnthropicApi:
         mock_response = MockHttpResponse(lines)
 
         with patch("httpx.stream", return_value=mock_response):
-            chunks = list(_stream_anthropic_api(
-                api_base="https://api.anthropic.com/v1",
-                api_key="sk-ant-test",
-                model_name="claude-3-opus-20240229",
-                messages=[{"role": "user", "content": "Hi"}],
-                temperature=0.7,
-                max_tokens=100,
-            ))
+            chunks = list(
+                _stream_anthropic_api(
+                    api_base="https://api.anthropic.com/v1",
+                    api_key="sk-ant-test",
+                    model_name="claude-3-opus-20240229",
+                    messages=[{"role": "user", "content": "Hi"}],
+                    temperature=0.7,
+                    max_tokens=100,
+                )
+            )
 
             assert chunks == ["Hello", " world"]
 
@@ -255,14 +275,16 @@ class TestStreamAnthropicApi:
         mock_response = MockHttpResponse(lines)
 
         with patch("httpx.stream", return_value=mock_response):
-            chunks = list(_stream_anthropic_api(
-                api_base="https://api.anthropic.com/v1",
-                api_key="sk-ant-test",
-                model_name="claude-3-opus-20240229",
-                messages=[{"role": "user", "content": "Hi"}],
-                temperature=0.7,
-                max_tokens=100,
-            ))
+            chunks = list(
+                _stream_anthropic_api(
+                    api_base="https://api.anthropic.com/v1",
+                    api_key="sk-ant-test",
+                    model_name="claude-3-opus-20240229",
+                    messages=[{"role": "user", "content": "Hi"}],
+                    temperature=0.7,
+                    max_tokens=100,
+                )
+            )
 
             assert chunks == ["text"]
 
@@ -277,14 +299,16 @@ class TestStreamAnthropicApi:
         ]
 
         with patch("httpx.stream", return_value=mock_response) as mock_stream:
-            list(_stream_anthropic_api(
-                api_base="https://api.anthropic.com/v1",
-                api_key="sk-ant-test",
-                model_name="claude-3-opus-20240229",
-                messages=messages,
-                temperature=0.7,
-                max_tokens=100,
-            ))
+            list(
+                _stream_anthropic_api(
+                    api_base="https://api.anthropic.com/v1",
+                    api_key="sk-ant-test",
+                    model_name="claude-3-opus-20240229",
+                    messages=messages,
+                    temperature=0.7,
+                    max_tokens=100,
+                )
+            )
 
             call_args = mock_stream.call_args
             payload = call_args[1]["json"]
@@ -300,14 +324,16 @@ class TestStreamAnthropicApi:
         mock_response = MockHttpResponse(lines)
 
         with patch("httpx.stream", return_value=mock_response) as mock_stream:
-            list(_stream_anthropic_api(
-                api_base="https://api.anthropic.com/v1",
-                api_key="sk-ant-test",
-                model_name="claude-3-opus-20240229",
-                messages=[{"role": "user", "content": "Hi"}],
-                temperature=0.7,
-                max_tokens=100,
-            ))
+            list(
+                _stream_anthropic_api(
+                    api_base="https://api.anthropic.com/v1",
+                    api_key="sk-ant-test",
+                    model_name="claude-3-opus-20240229",
+                    messages=[{"role": "user", "content": "Hi"}],
+                    temperature=0.7,
+                    max_tokens=100,
+                )
+            )
 
             call_args = mock_stream.call_args
             headers = call_args[1]["headers"]

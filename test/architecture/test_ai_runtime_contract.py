@@ -183,6 +183,8 @@ def test_elfie_main_food_uses_the_final_elfie_row_without_legacy_policy() -> Non
     offenders = {
         path.relative_to(PROJECT_ROOT).as_posix()
         for path in product_sources
-        if any(symbol in path.read_text(encoding="utf-8") for symbol in legacy_food_symbols)
+        if any(
+            symbol in path.read_text(encoding="utf-8") for symbol in legacy_food_symbols
+        )
     }
     assert offenders == set()

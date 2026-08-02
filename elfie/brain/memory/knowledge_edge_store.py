@@ -3,15 +3,30 @@
 from __future__ import annotations
 
 import math
+import sqlite3
 from datetime import datetime, timezone
+from typing import Protocol, cast
 from uuid import uuid4
 
-from .node_types import Edge
+from .node_types import Edge, MemoryNode
 from .tokenizer import tokenize
+
+
+class _KnowledgeNodeReader(Protocol):
+    conn: sqlite3.Connection
+
+    def get_nodes_by_type(
+        self, node_type: str, limit: int = 100
+    ) -> list[MemoryNode]: ...
+
+    @staticmethod
+    def _row_to_node(row: object) -> MemoryNode: ...
 
 
 class KnowledgeEdgeStoreMixin:
     """Project graph operations onto entity_edges without legacy tables."""
+
+    conn: sqlite3.Connection
 
     def add_edge(
         self,
@@ -83,12 +98,13 @@ class KnowledgeEdgeStoreMixin:
         query_words = tokenize(query)
         if not query_words:
             return []
+        store = cast(_KnowledgeNodeReader, self)
         nodes = (
-            self.get_nodes_by_type(node_type, limit=100000)
+            store.get_nodes_by_type(node_type, limit=100000)
             if node_type is not None
             else [
-                self._row_to_node(row)
-                for row in self.conn.execute("SELECT * FROM entities").fetchall()
+                store._row_to_node(row)
+                for row in store.conn.execute("SELECT * FROM entities").fetchall()
             ]
         )
         scored: list[tuple[str, float]] = []

@@ -56,7 +56,9 @@ class EnvelopeChannel:
         )
 
 
-def inbound(*, event_id: str, dedupe_key: str, external_id: str) -> CommunicationEnvelope:
+def inbound(
+    *, event_id: str, dedupe_key: str, external_id: str
+) -> CommunicationEnvelope:
     sender = ActorRef(actor_id="owner-1", source_kind="platform")
     return CommunicationEnvelope(
         meta=MessageMeta(
@@ -89,7 +91,9 @@ def inbound(*, event_id: str, dedupe_key: str, external_id: str) -> Communicatio
     )
 
 
-def outbound(*, event_id: str, channel_id: str = "test", ordinal: int = 0) -> CommunicationEnvelope:
+def outbound(
+    *, event_id: str, channel_id: str = "test", ordinal: int = 0
+) -> CommunicationEnvelope:
     sender = ActorRef(actor_id="elfie-1", source_kind="elfie")
     return CommunicationEnvelope(
         meta=MessageMeta(
@@ -154,7 +158,9 @@ def test_policy_denial_leaves_inbox_unchanged_and_is_typed() -> None:
     hub.register_channel(EnvelopeChannel())
 
     disposition = hub.receive_envelope(
-        inbound(event_id="message-denied", dedupe_key="denied-1", external_id="denied-1")
+        inbound(
+            event_id="message-denied", dedupe_key="denied-1", external_id="denied-1"
+        )
     )
 
     assert disposition.status is InboundDispositionStatus.REJECTED
@@ -179,7 +185,9 @@ def test_outbound_policy_denial_returns_typed_failure_receipt() -> None:
 def test_unknown_channel_and_adapter_failure_return_typed_receipts() -> None:
     hub = CommunicationHub("elfie-1")
 
-    unknown = hub.send_envelope(outbound(event_id="message-unknown", channel_id="missing"))
+    unknown = hub.send_envelope(
+        outbound(event_id="message-unknown", channel_id="missing")
+    )
     hub.register_channel(EnvelopeChannel(fail=True), connect=True)
     failed = hub.send_envelope(outbound(event_id="message-failed"))
 

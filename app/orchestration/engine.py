@@ -48,9 +48,8 @@ class ElfieNestEngine:
         """
         self.tick_interval_sec = tick_interval_sec
         self._food_key_resolver = food_key_resolver or (lambda _elfie_id: None)
-        self._elfie_workspace_resolver = (
-            elfie_workspace_resolver
-            or (lambda elfie_id: str(get_elfie_workspace_dir(elfie_id)))
+        self._elfie_workspace_resolver = elfie_workspace_resolver or (
+            lambda elfie_id: str(get_elfie_workspace_dir(elfie_id))
         )
 
         # 1. 实例化核心组件

@@ -4,16 +4,7 @@ import getpass
 import os
 import sys
 import warnings
-from typing import Optional
-
-try:
-    from rich.console import Console
-    from rich.panel import Panel
-    from rich.text import Text
-except ImportError:
-    Console = None
-    Panel = None
-    Text = None
+from typing import Any, Optional
 
 
 def print_banner() -> None:
@@ -36,21 +27,26 @@ def clear_screen() -> None:
     os.system("clear" if os.name == "posix" else "cls")
 
 
-def rich_console() -> Optional[Console]:
-    if Console is None:
+def rich_console() -> Optional[Any]:
+    try:
+        from rich.console import Console
+    except ImportError:
         return None
     return Console()
 
 
 def print_tui_panel(title: str, subtitle: Optional[str] = None) -> None:
     console = rich_console()
-    if console is None or Panel is None or Text is None:
+    if console is None:
         print(f"  {title}")
         print("  " + "=" * 45)
         if subtitle:
             print(f"  {subtitle}")
         print()
         return
+
+    from rich.panel import Panel
+    from rich.text import Text
 
     content = Text(title, style="bold cyan")
     if subtitle:
@@ -68,12 +64,15 @@ def print_tui_panel(title: str, subtitle: Optional[str] = None) -> None:
 
 def print_success_panel(lines: list[str]) -> None:
     console = rich_console()
-    if console is None or Panel is None or Text is None:
+    if console is None:
         print("  " + "=" * 45)
         for line in lines:
             print(f"  {line}")
         print()
         return
+
+    from rich.panel import Panel
+    from rich.text import Text
 
     content = Text()
     for index, line in enumerate(lines):

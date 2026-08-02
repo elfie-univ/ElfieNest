@@ -78,6 +78,7 @@ class TestEdge:
     def test_edge_is_dataclass(self):
         """验证 Edge 是 dataclass（有 __dataclass_fields__）"""
         import dataclasses
+
         assert dataclasses.is_dataclass(Edge)
 
 
@@ -119,7 +120,9 @@ class TestMemoryNode:
 
     def test_with_node_types_enum(self):
         """验证可以使用 NodeTypes 枚举值设置 type"""
-        node = MemoryNode(id="n2", type=NodeTypes.KNOWLEDGE.value, content="猫是哺乳动物")
+        node = MemoryNode(
+            id="n2", type=NodeTypes.KNOWLEDGE.value, content="猫是哺乳动物"
+        )
         assert node.type == "knowledge"
 
     def test_metadata_mutable_defaults(self):
@@ -145,6 +148,7 @@ class TestMemoryNode:
     def test_memory_node_is_dataclass(self):
         """验证 MemoryNode 是 dataclass"""
         import dataclasses
+
         assert dataclasses.is_dataclass(MemoryNode)
 
 
@@ -183,4 +187,5 @@ class TestRetrievalQuery:
     def test_retrieval_query_is_dataclass(self):
         """验证 RetrievalQuery 是 dataclass"""
         import dataclasses
+
         assert dataclasses.is_dataclass(RetrievalQuery)

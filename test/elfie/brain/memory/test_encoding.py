@@ -146,9 +146,7 @@ class TestMemoryEncoder:
         )
 
         # 构建involves边
-        encoder.build_encoding_edges(
-            node_id=node_id, entities=[entity1_id, entity2_id]
-        )
+        encoder.build_encoding_edges(node_id=node_id, entities=[entity1_id, entity2_id])
 
         # 验证边
         edges = storage.get_edges(node_id, direction="outgoing")
@@ -188,9 +186,7 @@ class TestMemoryEncoder:
         )
 
         # 构建边（传入前驱节点ID）
-        encoder.build_encoding_edges(
-            node_id=current_id, prev_node_id=prev_id
-        )
+        encoder.build_encoding_edges(node_id=current_id, prev_node_id=prev_id)
 
         # 验证 temporal 边（10分钟 → <30min → weight=0.7）
         edges = storage.get_edges(prev_id, direction="outgoing")
@@ -202,10 +198,10 @@ class TestMemoryEncoder:
     def test_build_encoding_edges_temporal_weight_ranges(self, encoder, storage):
         """temporal边在不同时间范围的权重"""
         test_cases = [
-            (timedelta(minutes=2), 0.9),   # <5min
+            (timedelta(minutes=2), 0.9),  # <5min
             (timedelta(minutes=15), 0.7),  # <30min
-            (timedelta(hours=1), 0.5),     # <2h
-            (timedelta(hours=3), 0.3),     # >2h
+            (timedelta(hours=1), 0.5),  # <2h
+            (timedelta(hours=3), 0.3),  # >2h
         ]
 
         for offset, expected_weight in test_cases:
@@ -246,9 +242,7 @@ class TestMemoryEncoder:
                 )
             )
 
-            encoder.build_encoding_edges(
-                node_id=current_id, prev_node_id=prev_id
-            )
+            encoder.build_encoding_edges(node_id=current_id, prev_node_id=prev_id)
 
             edges = storage.get_edges(prev_id, direction="outgoing")
             temporal_edges = [e for e in edges if e.rel == EdgeTypes.TEMPORAL.value]
@@ -276,15 +270,11 @@ class TestMemoryEncoder:
         )
 
         # 构建边（传入 emotion）
-        encoder.build_encoding_edges(
-            node_id=new_happy_id, emotion="开心"
-        )
+        encoder.build_encoding_edges(node_id=new_happy_id, emotion="开心")
 
         # 验证 emotional 边存在：旧开心 → 新开心
         edges = storage.get_edges(old_happy_id, direction="outgoing")
-        emotional_edges = [
-            e for e in edges if e.rel == EdgeTypes.EMOTIONAL.value
-        ]
+        emotional_edges = [e for e in edges if e.rel == EdgeTypes.EMOTIONAL.value]
 
         assert len(emotional_edges) == 1
         assert emotional_edges[0].target == new_happy_id
@@ -331,12 +321,8 @@ class TestMemoryEncoder:
     def test_get_similar_emotion_episodic_no_match(self, encoder, storage):
         """当没有同情绪节点时，get_similar_emotion_episodic返回None"""
         # 创建一些不同情绪的事件
-        encoder.create_episodic_node(
-            content="开心的事", emotion="开心", intensity=50.0
-        )
-        encoder.create_episodic_node(
-            content="悲伤的事", emotion="悲伤", intensity=50.0
-        )
+        encoder.create_episodic_node(content="开心的事", emotion="开心", intensity=50.0)
+        encoder.create_episodic_node(content="悲伤的事", emotion="悲伤", intensity=50.0)
 
         # 查询不存在的情绪
         result = encoder.get_similar_emotion_episodic("愤怒")
@@ -378,9 +364,7 @@ class TestMemoryEncoder:
         assert "花园" in entities_with_agent_none
         assert "猫" in entities_with_agent_none
         # 无规则匹配时返回空列表（即使内容非空）
-        entities_no_match = encoder.extract_entities(
-            "今天心情不错", runtime_agent=None
-        )
+        entities_no_match = encoder.extract_entities("今天心情不错", runtime_agent=None)
         assert entities_no_match == []
 
     def test_check_entity_exists(self, encoder, storage):
@@ -458,9 +442,7 @@ class TestMemoryEncoder:
         )
 
         # 构建边
-        encoder.build_encoding_edges(
-            node_id=current_id, prev_node_id=prev_id
-        )
+        encoder.build_encoding_edges(node_id=current_id, prev_node_id=prev_id)
 
         # 验证 temporal 边权重
         edges = storage.get_edges(prev_id, direction="outgoing")
@@ -491,9 +473,7 @@ class TestMemoryEncoder:
             content="当前事件", emotion="平静", intensity=40.0
         )
 
-        encoder.build_encoding_edges(
-            node_id=current_id, prev_node_id=prev_id
-        )
+        encoder.build_encoding_edges(node_id=current_id, prev_node_id=prev_id)
 
         edges = storage.get_edges(prev_id, direction="outgoing")
         temporal_edges = [e for e in edges if e.rel == EdgeTypes.TEMPORAL.value]
@@ -523,9 +503,7 @@ class TestMemoryEncoder:
             content="当前事件", emotion="平静", intensity=40.0
         )
 
-        encoder.build_encoding_edges(
-            node_id=current_id, prev_node_id=prev_id
-        )
+        encoder.build_encoding_edges(node_id=current_id, prev_node_id=prev_id)
 
         edges = storage.get_edges(prev_id, direction="outgoing")
         temporal_edges = [e for e in edges if e.rel == EdgeTypes.TEMPORAL.value]

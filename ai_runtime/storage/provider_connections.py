@@ -84,7 +84,9 @@ class ProviderConnectionStore:
         connections[connection_id] = connection
         counters = dict(document.counters)
         counters[catalog_id] = next_value
-        self.save(ProviderConnectionDocument(counters=counters, connections=connections))
+        self.save(
+            ProviderConnectionDocument(counters=counters, connections=connections)
+        )
         return connection
 
     def replace(self, connection: ProviderConnection) -> None:
@@ -100,7 +102,9 @@ class ProviderConnectionStore:
         counters[connection.catalog_id] = max(
             counters.get(connection.catalog_id, 0), int(match.group(2))
         )
-        self.save(ProviderConnectionDocument(counters=counters, connections=connections))
+        self.save(
+            ProviderConnectionDocument(counters=counters, connections=connections)
+        )
 
     def delete(self, connection_id: str) -> bool:
         document = self.load()

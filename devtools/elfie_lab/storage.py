@@ -5,7 +5,7 @@ import os
 import tempfile
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, cast
 
 from ai_runtime.storage.data_home import get_elfie_developer_home
 from devtools.elfie_lab.schemas import ElfieSpec, derive_life_stage, new_id
@@ -173,7 +173,7 @@ class ElfieLabStorage:
         )
         defaults_dir = Path(__file__).parents[2] / "elfie" / "profile" / "defaults"
         defaults = ElfieProfileRepository(defaults_dir).load_default_sections()
-        profile = replace(profile, **defaults)
+        profile = replace(profile, **cast(Dict[str, Any], defaults))
         derivation = derive_personality(
             spec.elfie_id,
             spec.personality_description,

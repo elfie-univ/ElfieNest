@@ -236,7 +236,9 @@ chmod +x .venv/bin/python3
     assert unrelated_wrapper.read_text(encoding="utf-8").endswith(
         "echo unrelated elfienest\n"
     )
-    assert "Command already exists from another project" in result.stdout + result.stderr
+    assert (
+        "Command already exists from another project" in result.stdout + result.stderr
+    )
 
 
 def test_elfienest_entrypoint_delegates_development_dependencies_to_bootstrap() -> None:
@@ -255,7 +257,10 @@ def test_elfienest_entrypoint_delegates_development_dependencies_to_bootstrap() 
     assert "serve)" in script
     assert "serve|server)" not in script
     # Commands include mobile and uninstall in interactive mode
-    assert "config|owner|doctor|status|web|desktop|mobile|stop|restart|start|version|v|setup|uninstall)" in script
+    assert (
+        "config|owner|doctor|status|web|desktop|mobile|stop|restart|start|version|v|setup|uninstall)"
+        in script
+    )
     # Direct command routing delegates to Python CLI, no build-godot-web case
     assert '""|exit|quit|q)' not in script
     assert '"" ) continue ;;' in script

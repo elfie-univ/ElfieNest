@@ -56,7 +56,9 @@ class ProviderModelRecord:
             if value is not None and value <= 0:
                 raise ValueError(f"{name} 必须为正整数")
         object.__setattr__(self, "endpoint_model_id", endpoint_model_id)
-        object.__setattr__(self, "display_name", self.display_name.strip() or endpoint_model_id)
+        object.__setattr__(
+            self, "display_name", self.display_name.strip() or endpoint_model_id
+        )
         if self.canonical_model_id is not None:
             canonical = self.canonical_model_id.strip()
             object.__setattr__(self, "canonical_model_id", canonical or None)
@@ -75,7 +77,9 @@ class ProviderModelRecord:
             "supports_vision": self.supports_vision,
             "supports_reasoning": self.supports_reasoning,
         }
-        result.update({key: value for key, value in optional.items() if value is not None})
+        result.update(
+            {key: value for key, value in optional.items() if value is not None}
+        )
         if self.hidden:
             result["hidden"] = True
         if self.retired:
@@ -94,11 +98,19 @@ class ProviderModelRecord:
             display_name=str(raw.get("display_name") or ""),
             canonical_model_id=_optional_string(raw.get("canonical_model_id")),
             source=cast(ModelSource, raw_source),
-            context_window_tokens=_optional_positive_int(raw.get("context_window_tokens"), "context_window_tokens"),
-            max_output_tokens=_optional_positive_int(raw.get("max_output_tokens"), "max_output_tokens"),
+            context_window_tokens=_optional_positive_int(
+                raw.get("context_window_tokens"), "context_window_tokens"
+            ),
+            max_output_tokens=_optional_positive_int(
+                raw.get("max_output_tokens"), "max_output_tokens"
+            ),
             supports_tools=_optional_bool(raw.get("supports_tools"), "supports_tools"),
-            supports_vision=_optional_bool(raw.get("supports_vision"), "supports_vision"),
-            supports_reasoning=_optional_bool(raw.get("supports_reasoning"), "supports_reasoning"),
+            supports_vision=_optional_bool(
+                raw.get("supports_vision"), "supports_vision"
+            ),
+            supports_reasoning=_optional_bool(
+                raw.get("supports_reasoning"), "supports_reasoning"
+            ),
             hidden=_required_bool(raw.get("hidden", False), "hidden"),
             retired=_required_bool(raw.get("retired", False), "retired"),
             available=_required_bool(raw.get("available", True), "available"),
@@ -156,7 +168,9 @@ class ProviderConnection:
         return result
 
     @classmethod
-    def from_dict(cls, connection_id: str, raw: Mapping[str, Any]) -> ProviderConnection:
+    def from_dict(
+        cls, connection_id: str, raw: Mapping[str, Any]
+    ) -> ProviderConnection:
         raw_models = raw.get("models", [])
         raw_installation = raw.get("installation", {})
         if not isinstance(raw_models, list):
@@ -173,7 +187,11 @@ class ProviderConnection:
             api_mode=str(raw.get("api_mode") or ""),
             auth_type=str(raw.get("auth_type") or ""),
             credential_ref=str(raw.get("credential_ref") or ""),
-            installation={str(key): str(value) for key, value in raw_installation.items() if value is not None},
+            installation={
+                str(key): str(value)
+                for key, value in raw_installation.items()
+                if value is not None
+            },
             models=tuple(ProviderModelRecord.from_dict(model) for model in raw_models),
             enabled=_required_bool(raw.get("enabled", True), "enabled"),
             archived=_required_bool(raw.get("archived", False), "archived"),
@@ -190,7 +208,9 @@ class ProviderConnectionDocument:
         return {
             "version": CONNECTION_DOCUMENT_VERSION,
             "connection_counters": dict(sorted(self.counters.items())),
-            "connections": {key: value.to_dict() for key, value in self.connections.items()},
+            "connections": {
+                key: value.to_dict() for key, value in self.connections.items()
+            },
         }
 
 
@@ -202,8 +222,12 @@ def parse_provider_document(raw: Mapping[str, Any]) -> ProviderConnectionDocumen
         )
     raw_counters = raw.get("connection_counters", {})
     raw_connections = raw.get("connections", {})
-    if not isinstance(raw_counters, Mapping) or not isinstance(raw_connections, Mapping):
-        raise InvalidProviderConnectionDocument("connection_counters 和 connections 必须是对象")
+    if not isinstance(raw_counters, Mapping) or not isinstance(
+        raw_connections, Mapping
+    ):
+        raise InvalidProviderConnectionDocument(
+            "connection_counters 和 connections 必须是对象"
+        )
     counters: Dict[str, int] = {}
     for catalog_id, value in raw_counters.items():
         if not isinstance(catalog_id, str) or _ID_PATTERN.fullmatch(catalog_id) is None:
@@ -216,7 +240,9 @@ def parse_provider_document(raw: Mapping[str, Any]) -> ProviderConnectionDocumen
         for connection_id, value in raw_connections.items():
             if not isinstance(connection_id, str) or not isinstance(value, Mapping):
                 raise ValueError("连接配置必须是对象")
-            connections[connection_id] = ProviderConnection.from_dict(connection_id, value)
+            connections[connection_id] = ProviderConnection.from_dict(
+                connection_id, value
+            )
     except ValueError as exc:
         raise InvalidProviderConnectionDocument(str(exc)) from exc
     return ProviderConnectionDocument(counters=counters, connections=connections)

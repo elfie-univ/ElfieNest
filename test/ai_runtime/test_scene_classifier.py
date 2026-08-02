@@ -3,13 +3,11 @@
 测试场景分类器的各种输入组合。
 """
 
-import pytest
-
 from ai_runtime.policy.scene_classifier import (
-    SCENE_SLOTS,
     DEEP_KEYWORDS,
-    VISION_KEYWORDS,
+    SCENE_SLOTS,
     TOOL_USE_KEYWORDS,
+    VISION_KEYWORDS,
     classify_scene,
 )
 
@@ -125,59 +123,49 @@ class TestKeywordClassification:
     """关键词分类测试"""
 
     def test_search_keyword_returns_deep(self):
-        """"搜索" 关键词 → deep（不含 tool_use 关键词）"""
+        """ "搜索" 关键词 → deep（不含 tool_use 关键词）"""
         # 注意："搜索一下" 在 TOOL_USE_KEYWORDS 中，所以用 "搜索" 不带 "一下"
         result = classify_scene(prompt="搜索最新的新闻")
         assert result == "deep"
 
     def test_calculate_keyword_returns_deep(self):
-        """"计算" 关键词 → deep（不含 tool_use 关键词）"""
+        """ "计算" 关键词 → deep（不含 tool_use 关键词）"""
         result = classify_scene(prompt="计算一下 123 + 456")
         assert result == "deep"
 
     def test_code_keyword_returns_deep(self):
-        """"代码" 关键词 → deep（不含 tool_use 关键词）"""
+        """ "代码" 关键词 → deep（不含 tool_use 关键词）"""
         result = classify_scene(prompt="写一段代码")
         assert result == "deep"
 
     def test_analyze_keyword_returns_deep(self):
-        """"分析" 关键词 → deep"""
+        """ "分析" 关键词 → deep"""
         result = classify_scene(prompt="分析这个问题")
         assert result == "deep"
 
     def test_image_keyword_returns_vision(self):
-        """"看看这张图片" → vision"""
+        """ "看看这张图片" → vision"""
         result = classify_scene(prompt="看看这张图片")
         assert result == "vision"
 
     def test_photo_keyword_returns_vision(self):
-        """"照片" 关键词 → vision"""
+        """ "照片" 关键词 → vision"""
         result = classify_scene(prompt="这是一张什么照片")
         assert result == "vision"
 
     def test_help_keyword_returns_tool_use(self):
-        """"帮我" 关键词 → tool_use"""
+        """ "帮我" 关键词 → tool_use"""
         result = classify_scene(prompt="帮我做这件事")
         assert result == "tool_use"
 
     def test_execute_keyword_returns_tool_use(self):
-        """"执行" 关键词 → tool_use"""
+        """ "执行" 关键词 → tool_use"""
         result = classify_scene(prompt="执行这个命令")
         assert result == "tool_use"
 
     def test_help_with_search_returns_tool_use(self):
-        """"帮我搜索一下" → tool_use（因为"帮我"先匹配）"""
+        """ "帮我搜索一下" → tool_use（因为"帮我"先匹配）"""
         result = classify_scene(prompt="帮我搜索一下最新的新闻")
-        assert result == "tool_use"
-
-    def test_help_keyword_returns_tool_use(self):
-        """"帮我" 关键词 → tool_use"""
-        result = classify_scene(prompt="帮我做这件事")
-        assert result == "tool_use"
-
-    def test_execute_keyword_returns_tool_use(self):
-        """"执行" 关键词 → tool_use"""
-        result = classify_scene(prompt="执行这个命令")
         assert result == "tool_use"
 
 

@@ -69,4 +69,6 @@ def test_ensure_model_ready_rejects_unsupported_image_input():
     )
 
     with pytest.raises(UnsupportedModalError):
-        ensure_model_ready("remote_deep", registry, FakeOllamaManager(), images=["a.jpg"])
+        ensure_model_ready(
+            "remote_deep", registry, FakeOllamaManager(), images=["a.jpg"]
+        )

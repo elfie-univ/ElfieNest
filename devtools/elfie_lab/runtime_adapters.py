@@ -44,6 +44,7 @@ class MockRuntimeAgent:
             "gemini": {"api_key": "", "api_base": ""},
             "qwen": {"api_key": "", "api_base": ""},
         }
+
     config = MockConfig()
 
     def ask(self, prompt: str, energy: float, task_complexity: int) -> str:

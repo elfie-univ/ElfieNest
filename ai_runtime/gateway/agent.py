@@ -467,9 +467,7 @@ class RuntimeAgent:
             messages,
             allowed_tools=allowed_tools,
             max_loops=3,
-            semantic_role=(
-                request.semantic_role
-            ),
+            semantic_role=(request.semantic_role),
             images=request.images,
             audio=request.audio,
         )

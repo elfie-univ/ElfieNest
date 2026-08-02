@@ -211,10 +211,13 @@ def test_json_mode_uses_at_most_one_successful_repair() -> None:
     assert plan.intents[0].type == "speech"
     assert plan.intents[0].text == "repaired hello"
     assert report.repair_count == 1
-    assert report.to_turn_outcome(
-        plan=plan,
-        status=TerminalStatus.COMPLETED,
-    ).model_mode is ModelMode.REPAIRED
+    assert (
+        report.to_turn_outcome(
+            plan=plan,
+            status=TerminalStatus.COMPLETED,
+        ).model_mode
+        is ModelMode.REPAIRED
+    )
 
 
 def test_failed_json_repair_falls_back_to_one_speech_from_same_raw_text() -> None:
@@ -238,10 +241,13 @@ def test_failed_json_repair_falls_back_to_one_speech_from_same_raw_text() -> Non
     assert plan.intents[0].text == raw_text
     assert report.repair_count == 1
     assert report.fallback_reason == "json_validation_failed"
-    assert report.to_turn_outcome(
-        plan=plan,
-        status=TerminalStatus.COMPLETED,
-    ).model_mode is ModelMode.TEXT_FALLBACK
+    assert (
+        report.to_turn_outcome(
+            plan=plan,
+            status=TerminalStatus.COMPLETED,
+        ).model_mode
+        is ModelMode.TEXT_FALLBACK
+    )
 
 
 def test_plain_only_never_guesses_motion_or_message_from_json_like_text() -> None:
@@ -286,10 +292,13 @@ def test_empty_or_meaningless_output_becomes_noop() -> None:
     assert report.provider == "mock-provider"
     assert report.token_count == 18
     assert report.latency_ms == 13
-    assert report.to_turn_outcome(
-        plan=plan,
-        status=TerminalStatus.COMPLETED,
-    ).model_mode is ModelMode.NO_OP
+    assert (
+        report.to_turn_outcome(
+            plan=plan,
+            status=TerminalStatus.COMPLETED,
+        ).model_mode
+        is ModelMode.NO_OP
+    )
 
 
 def test_decode_report_carries_timeout_and_error_into_turn_outcome() -> None:
