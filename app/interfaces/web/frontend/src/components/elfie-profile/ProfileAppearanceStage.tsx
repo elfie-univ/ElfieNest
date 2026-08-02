@@ -1,19 +1,15 @@
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Camera, RotateCcw, Scan } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
 
-import type { PublicProfile } from "./model"
-import {
-  AppearanceCaptureError,
-  captureAppearance,
-  type AppearanceCapture,
-  type AppearanceCaptureAdapter,
-  type AppearanceCaptureInput,
-} from "./appearance-capture"
+import type { AppearanceCapture, AppearanceCaptureAdapter, AppearanceCaptureInput } from "./appearance-capture"
+import { AppearanceCaptureError } from "./appearance-capture"
 import { ProfileCaptureDialog } from "./ProfileCaptureDialog"
-import { useAppearanceInteraction } from "./use-appearance-interaction"
+import { ProfileGodotViewport, type PreviewStatus } from "./ProfileGodotViewport"
+import { ProfileGodotPreviewError, type ProfileGodotPreview } from "./profile-godot-preview"
+import type { PublicProfile } from "./model"
 
 type ProfileAppearanceStageProps = {
   readonly canCapture: boolean
@@ -26,34 +22,44 @@ type CaptureRequestKind = "initial" | "recapture"
 
 export function ProfileAppearanceStage({
   canCapture,
-  capture = captureAppearance,
+  capture,
   onAvatarPreview,
   profile,
 }: ProfileAppearanceStageProps) {
   const { t } = useTranslation("chat")
-  const [active, setActive] = useState(false)
+  const previewRef = useRef<ProfileGodotPreview | null>(null)
+  const stageRef = useRef<HTMLDivElement | null>(null)
+  const objectUrlsRef = useRef(new Set<string>())
+  const captureGenerationRef = useRef(0)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewStatus, setPreviewStatus] = useState<PreviewStatus>("idle")
   const [captureOpen, setCaptureOpen] = useState(false)
   const [captureError, setCaptureError] = useState("")
   const [capturePending, setCapturePending] = useState(false)
   const [currentCapture, setCurrentCapture] = useState<AppearanceCapture | null>(null)
   const [localAvatar, setLocalAvatar] = useState("")
   const [notice, setNotice] = useState("")
-  const interaction = useAppearanceInteraction(active)
-  const stageRef = useRef<HTMLDivElement>(null)
-  const objectUrlsRef = useRef(new Set<string>())
-  const captureGenerationRef = useRef(0)
-  const fallback = profile.name.slice(0, 1).toUpperCase()
+
+  const onPreviewChange = useCallback((preview: ProfileGodotPreview | null): void => {
+    previewRef.current = preview
+  }, [])
+  const onStageChange = useCallback((stage: HTMLDivElement | null): void => {
+    stageRef.current = stage
+  }, [])
+  const onStatusChange = useCallback((status: PreviewStatus): void => {
+    setPreviewStatus(status)
+  }, [])
 
   useEffect(() => {
     captureGenerationRef.current += 1
-    setActive(false)
+    setPreviewOpen(false)
+    setPreviewStatus("idle")
     setCaptureOpen(false)
     setCaptureError("")
     setCapturePending(false)
     setCurrentCapture(null)
     setLocalAvatar("")
     setNotice("")
-    interaction.reset()
     revokeCapturedUrls(objectUrlsRef.current)
   }, [profile.elfieId])
 
@@ -64,21 +70,15 @@ export function ProfileAppearanceStage({
 
   async function captureStage(kind: CaptureRequestKind): Promise<boolean> {
     const stage = stageRef.current
-    if (stage === null) {
-      return false
-    }
+    if (stage === null) return false
     const generation = captureGenerationRef.current + 1
     captureGenerationRef.current = generation
     setCaptureError("")
     setCapturePending(true)
     try {
-      const nextCapture = await capture(buildCaptureInput(
-        stage,
-        profile,
-        localAvatar,
-        interaction.yaw,
-        interaction.scale,
-      ))
+      const nextCapture = capture === undefined
+        ? await captureWithGodot()
+        : await capture(buildCaptureInput(stage, profile, localAvatar))
       if (generation !== captureGenerationRef.current) {
         revokeCaptureUrl(nextCapture.previewUrl)
         return false
@@ -88,14 +88,12 @@ export function ProfileAppearanceStage({
       setCapturePending(false)
       return true
     } catch (error) {
-      if (generation !== captureGenerationRef.current) {
-        return false
-      }
-      if (error instanceof AppearanceCaptureError || error instanceof DOMException) {
+      if (generation !== captureGenerationRef.current) return false
+      if (error instanceof AppearanceCaptureError
+        || error instanceof DOMException
+        || error instanceof ProfileGodotPreviewError) {
         setCapturePending(false)
-        if (kind === "initial") {
-          setCaptureOpen(false)
-        }
+        if (kind === "initial") setCaptureOpen(false)
         setCaptureError(t("profile.appearance.captureError"))
         return false
       }
@@ -103,8 +101,10 @@ export function ProfileAppearanceStage({
     }
   }
 
-  async function recapture(): Promise<void> {
-    await captureStage("recapture")
+  async function captureWithGodot(): Promise<AppearanceCapture> {
+    const preview = previewRef.current
+    if (preview === null) throw new ProfileGodotPreviewError("preview_not_ready")
+    return preview.capture()
   }
 
   function changeCaptureOpen(open: boolean): void {
@@ -115,20 +115,37 @@ export function ProfileAppearanceStage({
     setCaptureOpen(open)
   }
 
+  function changePreviewOpen(open: boolean): void {
+    if (!open) {
+      captureGenerationRef.current += 1
+      setCaptureOpen(false)
+      setCapturePending(false)
+      setPreviewStatus("idle")
+    }
+    setPreviewOpen(open)
+  }
+
+  function resetPreview(): void {
+    previewRef.current?.send("reset")
+  }
+
+  const fallback = profile.name.slice(0, 1).toUpperCase()
   const visiblePortrait = localAvatar || profile.portraitUrl
 
   return (
-    <section className="profile-appearance profile-dossier__section" aria-labelledby={`appearance-${profile.elfieId}`}>
+    <section aria-labelledby={`appearance-${profile.elfieId}`} className="profile-appearance profile-dossier__section">
       <header className="profile-appearance__header">
         <div>
           <span>{t("profile.appearance.eyebrow")}</span>
-          <h2 id={`appearance-${profile.elfieId}`}>{t("profile.appearance.title")}</h2>
+          <p className="profile-appearance__title" id={`appearance-${profile.elfieId}`}>
+            {t("profile.appearance.title")}
+          </p>
         </div>
         <div className="profile-appearance__actions">
-          <Button onClick={() => setActive((current) => !current)} size="sm" type="button" variant="outline">
-            <Scan aria-hidden="true" />{active ? t("profile.appearance.close") : t("profile.appearance.open")}
+          <Button onClick={() => changePreviewOpen(!previewOpen)} size="sm" type="button" variant="outline">
+            <Scan aria-hidden="true" />{previewOpen ? t("profile.appearance.close") : t("profile.appearance.open")}
           </Button>
-          <Button disabled={!active} onClick={interaction.reset} size="sm" type="button" variant="ghost">
+          <Button disabled={!previewOpen || previewStatus !== "ready"} onClick={resetPreview} size="sm" type="button" variant="ghost">
             <RotateCcw aria-hidden="true" />{t("profile.appearance.reset")}
           </Button>
           {canCapture && (
@@ -144,10 +161,10 @@ export function ProfileAppearanceStage({
                 setCaptureOpen(false)
               }}
               onOpenChange={changeCaptureOpen}
-              onRecapture={recapture}
+              onRecapture={() => { void captureStage("recapture") }}
               open={captureOpen}
               trigger={(
-                <Button onClick={() => { void captureStage("initial") }} size="sm" type="button">
+                <Button disabled={previewStatus !== "ready"} onClick={() => { void captureStage("initial") }} size="sm" type="button">
                   <Camera aria-hidden="true" />{t("profile.appearance.capture")}
                 </Button>
               )}
@@ -155,45 +172,36 @@ export function ProfileAppearanceStage({
           )}
         </div>
       </header>
-      <div
-        aria-label={t("profile.appearance.stage", { name: profile.name })}
-        className={`profile-appearance__stage${active ? " profile-appearance__stage--active" : ""}`}
-        onKeyDown={interaction.onKeyDown}
-        onLostPointerCapture={interaction.onPointerLost}
-        onPointerCancel={interaction.onPointerEnd}
-        onPointerDown={interaction.onPointerDown}
-        onPointerMove={interaction.onPointerMove}
-        onPointerUp={interaction.onPointerEnd}
-        onWheel={interaction.onWheel}
-        ref={stageRef}
-        role="application"
-        tabIndex={active ? 0 : -1}
-      >
+      {previewOpen ? (
+        <ProfileGodotViewport
+          onPreviewChange={onPreviewChange}
+          onStageChange={onStageChange}
+          onStatusChange={onStatusChange}
+          profile={profile}
+        />
+      ) : (
         <div
-          className="profile-appearance__model"
-          data-scale={interaction.scale}
-          data-testid="appearance-model"
-          data-yaw={interaction.yaw}
-          style={{ transform: `rotateY(${interaction.yaw}deg) scale(${interaction.scale})` }}
+          aria-label={t("profile.appearance.stage", { name: profile.name })}
+          className="profile-appearance__stage profile-appearance__stage--idle"
+          data-testid="appearance-idle-placeholder"
+          ref={onStageChange}
+          role="img"
         >
-          {visiblePortrait.length > 0 ? (
-            <img
-              alt={localAvatar.length > 0
-                ? t("profile.appearance.localPreview", { name: profile.name })
-                : t("profile.appearance.appearanceAlt", { name: profile.name })}
-              draggable={false}
-              src={visiblePortrait}
-            />
-          ) : (
-            <span className="profile-appearance__fallback">{fallback}</span>
-          )}
-          {active && <i aria-hidden="true" className="profile-appearance__model-body" />}
+          <div className="profile-appearance__idle-card">
+            {visiblePortrait.length > 0 ? (
+              <img
+                alt={t("profile.appearance.appearanceAlt", { name: profile.name })}
+                className="profile-appearance__idle-portrait"
+                draggable={false}
+                src={visiblePortrait}
+              />
+            ) : (
+              <span className="profile-appearance__idle-fallback">{fallback}</span>
+            )}
+          </div>
+          <p className="profile-appearance__hint">{t("profile.appearance.inactiveHint")}</p>
         </div>
-        <div aria-hidden="true" className="profile-appearance__platform" />
-        <p className="profile-appearance__hint">
-          {active ? t("profile.appearance.activeHint") : t("profile.appearance.inactiveHint")}
-        </p>
-      </div>
+      )}
       {!captureOpen && captureError.length > 0 && <p className="profile-appearance__error" role="alert">{captureError}</p>}
       {notice.length > 0 && <p className="profile-appearance__notice" role="status">{notice}</p>}
     </section>
@@ -204,8 +212,6 @@ function buildCaptureInput(
   stage: HTMLDivElement,
   profile: PublicProfile,
   localAvatar: string,
-  yaw: number,
-  scale: number,
 ): AppearanceCaptureInput {
   const styles = getComputedStyle(stage)
   return {
@@ -215,23 +221,17 @@ function buildCaptureInput(
     foreground: styles.getPropertyValue("--text").trim(),
     name: profile.name,
     portraitUrl: localAvatar || profile.portraitUrl,
-    scale,
+    scale: 1,
     surface: styles.getPropertyValue("--surface-raised").trim(),
-    yaw,
+    yaw: 0,
   }
 }
 
 function revokeCapturedUrls(urls: Set<string>): void {
-  for (const url of urls) {
-    if (typeof URL.revokeObjectURL === "function") {
-      URL.revokeObjectURL(url)
-    }
-  }
+  for (const url of urls) revokeCaptureUrl(url)
   urls.clear()
 }
 
 function revokeCaptureUrl(url: string): void {
-  if (typeof URL.revokeObjectURL === "function") {
-    URL.revokeObjectURL(url)
-  }
+  if (typeof URL.revokeObjectURL === "function") URL.revokeObjectURL(url)
 }

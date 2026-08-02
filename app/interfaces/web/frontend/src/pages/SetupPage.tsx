@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react"
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
 
 import {
@@ -10,6 +10,7 @@ import {
   setupInstallOfficialOllama,
   setupModelRecommendation,
   setupNest,
+  setupOllamaDetection,
   setupPullModel,
   setupSkipModel,
   setupSkipOllama,
@@ -69,6 +70,8 @@ export function SetupPage() {
   const [csrfToken, setCsrfToken] = useState("")
   const [error, setError] = useState<SetupError | null>(null)
   const [saving, setSaving] = useState(false)
+  const autoBindStep = useRef<number | null>(null)
+  const autoBindRevision = useRef(0)
 
   useEffect(() => {
     const load = (): void => {
@@ -86,7 +89,10 @@ export function SetupPage() {
 
   useEffect(() => {
     if (progress?.current_step !== 4) return
-    void setupModelRecommendation().then(setModelRecommendation).catch(() => setModelRecommendation(null))
+    void setupModelRecommendation().then((recommendation) => {
+      setModelRecommendation(recommendation)
+      setModelReference((current) => current.trim() || recommendation.recommended_model || "")
+    }).catch(() => setModelRecommendation(null))
   }, [progress?.current_step])
 
   const submitOwner = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
@@ -108,7 +114,7 @@ export function SetupPage() {
     }
   }
 
-  const completeStep = async (
+  const completeStep = useCallback(async (
     action: () => Promise<SetupStatus>,
     operation: ErrorOperation,
   ): Promise<void> => {
@@ -123,7 +129,40 @@ export function SetupPage() {
     } finally {
       setSaving(false)
     }
+  }, [])
+
+  const cancelAutoBind = (): void => {
+    autoBindRevision.current += 1
   }
+
+  useEffect(() => {
+    if (progress?.current_step !== 2 || !csrfToken) return
+    if (progress.task?.step === 2 && progress.task.state === "running") return
+    if (autoBindStep.current === 2) return
+    autoBindStep.current = 2
+    const requestRevision = autoBindRevision.current
+    let cancelled = false
+    void setupOllamaDetection().then((detection) => {
+      const endpoint = detection.endpoint
+      if (
+        cancelled
+        || autoBindRevision.current !== requestRevision
+        || progress?.current_step !== 2
+        || detection.state !== "healthy"
+        || !endpoint
+      ) return
+      setOllamaEndpoint(endpoint)
+      return completeStep(
+        () => setupBindExistingOllama(endpoint, csrfToken),
+        "setup.save",
+      )
+    }).catch(() => {
+      // A missing local Ollama is a valid optional state; manual actions remain available.
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [completeStep, csrfToken, progress?.current_step, progress?.task?.state, progress?.task?.step])
 
   const saveNest = (): void => {
     if (!Number.isInteger(bedCount) || bedCount < 4 || bedCount > 32) {
@@ -136,6 +175,11 @@ export function SetupPage() {
   const currentStep = normalizeSetupStep(progress?.current_step)
   const currentStepCopy = setupStepCopy[currentStep]
   const runningTask = progress?.task?.state === "running" ? progress.task : null
+  const installedRecommendedModel = Boolean(
+    modelRecommendation?.recommended_model
+      && modelRecommendation.recommended_model_available
+      && modelReference.trim() === modelRecommendation.recommended_model,
+  )
 
   return <main className="setup-page">
     <aside className="setup-rail">
@@ -168,7 +212,7 @@ export function SetupPage() {
       <section aria-labelledby="setup-title" className="panel setup-card">
         <header className="setup-card__header">
           <p className="brand">{t("progress.stepCount", { current: currentStep, total: 5 })}</p>
-          <h1 id="setup-title">{t(currentStepCopy.title)}</h1>
+          <h1 className="setup-card__title" id="setup-title">{t(currentStepCopy.title)}</h1>
           <p>{t(currentStepCopy.description)}</p>
         </header>
         <div className="setup-card__content">
@@ -181,10 +225,10 @@ export function SetupPage() {
           </form>}
           {currentStep === 2 && <section className="setup-form">
             <p className="setup-callout">{t("ollama.callout")}</p>
-            <TextField label={t("ollama.fields.endpoint")} onChange={setOllamaEndpoint} type="url" value={ollamaEndpoint} />
+            <TextField label={t("ollama.fields.endpoint")} onChange={(value) => { cancelAutoBind(); setOllamaEndpoint(value) }} type="url" value={ollamaEndpoint} />
             {runningTask?.step === 2 ? <p className="setup-task">{t("ollama.running", { progress: runningTask.progress })}<span>{t("ollama.runningHint")}</span></p> : <>
               <label className="setup-check"><input checked={ollamaInstallConfirmed} onChange={(event) => setOllamaInstallConfirmed(event.target.checked)} type="checkbox" />{t("ollama.confirmInstall")}</label>
-              <div className="setup-actions"><button className="button" disabled={saving || !csrfToken || !ollamaInstallConfirmed} onClick={() => { void completeStep(() => setupInstallOfficialOllama(csrfToken), "setup.install") }} type="button">{t("ollama.actions.install")}</button><button className="button button--quiet" disabled={saving || !csrfToken} onClick={() => { void completeStep(() => setupBindExistingOllama(ollamaEndpoint.trim(), csrfToken), "setup.save") }} type="button">{t("ollama.actions.bind")}</button><button className="button button--quiet" disabled={saving || !csrfToken} onClick={() => { void completeStep(() => setupSkipOllama(csrfToken), "setup.save") }} type="button">{t("ollama.actions.skip")}</button></div>
+              <div className="setup-actions"><button className="button" disabled={saving || !csrfToken || !ollamaInstallConfirmed} onClick={() => { cancelAutoBind(); void completeStep(() => setupInstallOfficialOllama(csrfToken), "setup.install") }} type="button">{t("ollama.actions.install")}</button><button className="button button--quiet" disabled={saving || !csrfToken} onClick={() => { cancelAutoBind(); void completeStep(() => setupBindExistingOllama(ollamaEndpoint.trim(), csrfToken), "setup.save") }} type="button">{t("ollama.actions.bind")}</button><button className="button button--quiet" disabled={saving || !csrfToken} onClick={() => { cancelAutoBind(); void completeStep(() => setupSkipOllama(csrfToken), "setup.save") }} type="button">{t("ollama.actions.skip")}</button></div>
             </>}
           </section>}
           {currentStep === 3 && <section className="setup-form">
@@ -195,10 +239,10 @@ export function SetupPage() {
           {currentStep === 4 && <section className="setup-form">
             <p className="setup-callout">{t("model.callout")}</p>
             {runningTask?.step === 4 ? <p className="setup-task">{t("model.running", { progress: runningTask.progress })}<span>{t("model.runningHint")}</span></p> : <>
-              {modelRecommendation?.recommended_model ? <p className="setup-hint">{t("model.recommended", { memory: modelRecommendation.memory_gb, model: modelRecommendation.recommended_model })}</p> : <p className="setup-hint">{t("model.noRecommendation")}</p>}
-              <TextField label={t("model.fields.reference")} onChange={setModelReference} placeholder="ollama/qwen2.5:0.5b" value={modelReference} />
-              <label className="setup-check"><input checked={modelPullConfirmed} onChange={(event) => setModelPullConfirmed(event.target.checked)} type="checkbox" />{t("model.confirmPull")}</label>
-              <div className="setup-actions"><button className="button" disabled={saving || !csrfToken || !modelReference.trim()} onClick={() => { void completeStep(() => setupConfiguredModel(modelReference.trim(), csrfToken), "setup.save") }} type="button">{t("model.actions.save")}</button><button className="button button--quiet" disabled={saving || !csrfToken || !modelReference.trim() || !modelPullConfirmed} onClick={() => { void completeStep(() => setupPullModel(modelReference.trim(), csrfToken), "setup.pull") }} type="button">{t("model.actions.pull")}</button><button className="button button--quiet" disabled={saving || !csrfToken} onClick={() => { void completeStep(() => setupSkipModel(csrfToken), "setup.save") }} type="button">{t("model.actions.skip")}</button></div>
+              {modelRecommendation?.recommended_model_available && modelRecommendation.recommended_model ? <p className="setup-hint">{t("model.alreadyInstalled", { model: modelRecommendation.recommended_model.replace(/^ollama\//, "") })}</p> : modelRecommendation?.recommended_model ? <p className="setup-hint">{t("model.recommended", { memory: modelRecommendation.memory_gb, model: modelRecommendation.recommended_model })}</p> : <p className="setup-hint">{t("model.noRecommendation")}</p>}
+              <TextField label={t("model.fields.reference")} onChange={setModelReference} placeholder={modelRecommendation?.recommended_model ?? "ollama/qwen2.5:0.5b"} value={modelReference} />
+              {!installedRecommendedModel && <label className="setup-check"><input checked={modelPullConfirmed} onChange={(event) => setModelPullConfirmed(event.target.checked)} type="checkbox" />{t("model.confirmPull")}</label>}
+              <div className="setup-actions"><button className="button" disabled={saving || !csrfToken || !modelReference.trim()} onClick={() => { void completeStep(() => setupConfiguredModel(modelReference.trim(), csrfToken), "setup.save") }} type="button">{installedRecommendedModel ? t("model.actions.useInstalled") : t("model.actions.save")}</button>{!installedRecommendedModel && <button className="button button--quiet" disabled={saving || !csrfToken || !modelReference.trim() || !modelPullConfirmed} onClick={() => { void completeStep(() => setupPullModel(modelReference.trim(), csrfToken), "setup.pull") }} type="button">{t("model.actions.pull")}</button>}<button className="button button--quiet" disabled={saving || !csrfToken} onClick={() => { void completeStep(() => setupSkipModel(csrfToken), "setup.save") }} type="button">{t("model.actions.skip")}</button></div>
             </>}
           </section>}
           {currentStep === 5 && <section className="setup-form">

@@ -36,6 +36,8 @@ describe("Big Five chart options", () => {
     )
 
     expect(option.radar.indicator).toHaveLength(5)
+    expect(option.radar.radius).toBe("84%")
+    expect(option.radar.axisNameGap).toBe(8)
     expect(option.radar.indicator.every((axis) => axis.max === 100 && axis.min === 0)).toBe(true)
     expect(option.series[0]?.data[0]?.value).toEqual([80, 60, 80, 70, 20])
     expect(option.color).toEqual(["token-accent"])

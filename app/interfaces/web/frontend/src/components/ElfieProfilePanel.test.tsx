@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
-import { act, render, screen, within } from "@testing-library/react"
+import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { ReactElement } from "react"
 import { I18nextProvider } from "react-i18next"
@@ -52,8 +52,8 @@ describe("ElfieProfilePanel", () => {
     await act(async () => { await instance.changeLanguage("en-US") })
 
     // Then: chrome is English, the private panel remains open, and business content is unchanged.
-    expect(screen.getByRole("heading", { name: "3D individual view" })).toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: "Big Five personality" })).toBeInTheDocument()
+    expect(screen.getByText("3D individual view", { selector: ".profile-appearance__title" })).toBeInTheDocument()
+    expect(screen.getByText("Big Five personality", { selector: ".profile-dossier__section-name" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Memory and cognition" })).toHaveAttribute(
       "aria-expanded",
       "true",
@@ -85,7 +85,7 @@ describe("ElfieProfilePanel", () => {
       /@media \(max-width: 760px\)[\s\S]*\.profile-appearance__actions \[disabled\]\s*\{\s*display: none;/,
     )
     expect(profileStyles).toMatch(
-      /@media \(max-width: 760px\)[\s\S]*\.profile-appearance__header h2\s*\{[^}]*white-space: nowrap;/,
+      /@media \(max-width: 760px\)[\s\S]*\.profile-appearance__title\s*\{[^}]*white-space: nowrap;/,
     )
   })
 
@@ -140,7 +140,8 @@ describe("ElfieProfilePanel", () => {
     expect(screen.queryByText("年龄")).not.toBeInTheDocument()
     expect(screen.queryByText("23456789")).not.toBeInTheDocument()
     expect(container).not.toHaveTextContent(/精灵身份证|档案编号|管理员|本地 3D 观察/)
-    expect(container.querySelector("iframe")).toBeNull()
+    expect(container.querySelector("iframe")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "打开3D" })).toBeInTheDocument()
   })
 
   it("keeps missing portrait, gender, and biography concise and readable", () => {
@@ -166,8 +167,8 @@ describe("ElfieProfilePanel", () => {
     )
 
     // Then: identity, appearance, public personality, and private modules appear in order.
-    expect(screen.getByRole("heading", { level: 2, name: "3D 个体视图" })).toBeInTheDocument()
-    expect(screen.getByRole("heading", { level: 2, name: "大五人格" })).toBeInTheDocument()
+    expect(screen.getByText("3D 个体视图", { selector: ".profile-appearance__title" })).toBeInTheDocument()
+    expect(screen.getByText("大五人格", { selector: ".profile-dossier__section-name" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "拍照" })).toBeInTheDocument()
     for (const title of PRIVATE_MODULE_TITLES) {
       expect(screen.getByRole("button", { name: title })).toBeInTheDocument()
@@ -196,7 +197,7 @@ describe("ElfieProfilePanel", () => {
 
     // Then: public identity and Big Five remain, while capture and private data are omitted.
     expect(screen.getByRole("heading", { level: 1, name: "Kettle" })).toBeInTheDocument()
-    expect(screen.getByRole("heading", { level: 2, name: "大五人格" })).toBeInTheDocument()
+    expect(screen.getByText("大五人格", { selector: ".profile-dossier__section-name" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "拍照" })).not.toBeInTheDocument()
     for (const title of PRIVATE_MODULE_TITLES) {
       expect(screen.queryByRole("button", { name: title })).not.toBeInTheDocument()
@@ -227,6 +228,21 @@ describe("ElfieProfilePanel", () => {
         projection={happyProjection}
       />,
     )
+    await user.click(screen.getByRole("button", { name: "打开3D" }))
+    const frame = view.container.querySelector<HTMLIFrameElement>(".profile-appearance__frame")
+    if (frame === null || frame.contentWindow === null) throw new TypeError("Expected the Godot preview frame")
+    const enqueue = vi.fn<(payload: string) => void>()
+    Object.defineProperty(frame.contentWindow, "elfieLabEnqueue", { configurable: true, value: enqueue })
+    sendGodotEvent(frame, { channel: "elfie-lab", event: "ready" })
+    await waitFor(() => expect(enqueue).toHaveBeenCalledOnce())
+    const configure = JSON.parse(String(enqueue.mock.calls[0]?.[0])) as { request_id?: string }
+    sendGodotEvent(frame, {
+      action: "configure",
+      channel: "elfie-lab",
+      event: "completed",
+      request_id: configure.request_id,
+    })
+    await waitFor(() => expect(screen.getByRole("button", { name: "拍照" })).not.toBeDisabled())
 
     // When: the capture is selected as the session-local avatar.
     await user.click(screen.getByRole("button", { name: "拍照" }))
@@ -268,3 +284,12 @@ describe("ElfieProfilePanel", () => {
     expect(screen.getByText("H", { selector: ".profile-dossier__portrait" })).toBeInTheDocument()
   })
 })
+
+function sendGodotEvent(frame: HTMLIFrameElement, data: Readonly<Record<string, unknown>>): void {
+  if (frame.contentWindow === null) throw new TypeError("Expected the Godot frame window")
+  window.dispatchEvent(new MessageEvent("message", {
+    data,
+    origin: window.location.origin,
+    source: frame.contentWindow,
+  }))
+}

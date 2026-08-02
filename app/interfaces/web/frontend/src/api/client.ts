@@ -40,9 +40,28 @@ const SetupStatusSchema = z.object({
     error: z.string().nullable().optional(),
   }).nullable().optional(),
 })
+const SetupOllamaStateSchema = z.enum([
+  "absent",
+  "healthy",
+  "stopped",
+  "deleted",
+  "installing",
+  "failed",
+  "cancelled",
+  "repair_required",
+])
+const SetupOllamaDetectionSchema = z.object({
+  state: SetupOllamaStateSchema,
+  endpoint: z.string().nullable(),
+  version: z.string().nullable(),
+})
 const SetupModelRecommendationSchema = z.object({
   memory_gb: z.number().int().min(0),
   recommended_model: z.string().nullable(),
+  ollama_state: SetupOllamaStateSchema,
+  ollama_endpoint: z.string().nullable(),
+  installed_models: z.array(z.string()),
+  recommended_model_available: z.boolean(),
 })
 const ConversationSchema = z.object({
   elfie_id: ElfieIdValueSchema,
@@ -73,6 +92,7 @@ export type ChatMessage = z.infer<typeof ChatMessageSchema>
 export type Conversation = z.infer<typeof ConversationSchema>
 export type AdoptionInfo = z.infer<typeof AdoptionInfoSchema>
 export type SetupStatus = z.infer<typeof SetupStatusSchema>
+export type SetupOllamaDetection = z.infer<typeof SetupOllamaDetectionSchema>
 export type SetupModelRecommendation = z.infer<typeof SetupModelRecommendationSchema>
 
 export async function setupStatus(): Promise<SetupStatus> {
@@ -103,6 +123,12 @@ export function setupBindExistingOllama(
     decision: "bound_existing",
     endpoint,
   })
+}
+
+export async function setupOllamaDetection(): Promise<SetupOllamaDetection> {
+  return SetupOllamaDetectionSchema.parse(
+    await requestJson("/api/auth/setup/ollama-detection"),
+  )
 }
 
 export function setupInstallOfficialOllama(csrfToken: string): Promise<SetupStatus> {

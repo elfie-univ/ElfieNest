@@ -78,6 +78,10 @@ export const chat = {
     appearance: {
       eyebrow: "Appearance",
       title: "3D individual view",
+      loading: "Connecting to the 3D character...",
+      ready: "Character loaded · interactive",
+      unavailable: "No 3D appearance data is available",
+      error: "The 3D character is temporarily unavailable. Try again.",
       open: "Open 3D",
       close: "Close 3D",
       reset: "Reset view",
@@ -108,7 +112,7 @@ export const chat = {
     },
     chart: {
       loading: "Loading chart...",
-      error: "The chart is unavailable. Use the values below instead.",
+      error: "The chart is unavailable. Try again later.",
     },
     graph: {
       graphLabel: "{{title}} graph",

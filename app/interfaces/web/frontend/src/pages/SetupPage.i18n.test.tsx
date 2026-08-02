@@ -4,7 +4,7 @@ import { I18nextProvider } from "react-i18next"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
 import * as client from "../api/client"
-import { ApiError, type SetupStatus } from "../api/client"
+import { ApiError, type SetupModelRecommendation, type SetupOllamaDetection, type SetupStatus } from "../api/client"
 import { createI18n } from "../i18n/config"
 import { initializeLocale, type SupportedLocale } from "../i18n/locale"
 import { SetupPage } from "./SetupPage"
@@ -26,7 +26,23 @@ function statusForStep(currentStep: number, task?: SetupStatus["task"]): SetupSt
   }
 }
 
-function renderSetup(locale: SupportedLocale, status: SetupStatus): void {
+function renderSetup(
+  locale: SupportedLocale,
+  status: SetupStatus,
+  recommendation: SetupModelRecommendation = {
+    memory_gb: 8,
+    recommended_model: "ollama/qwen2.5:0.5b",
+    ollama_state: "absent",
+    ollama_endpoint: null,
+    installed_models: [],
+    recommended_model_available: false,
+  },
+  detection: SetupOllamaDetection | Promise<SetupOllamaDetection> = {
+    state: "absent",
+    endpoint: null,
+    version: null,
+  },
+): void {
   vi.spyOn(client, "setupStatus").mockResolvedValue(status)
   vi.spyOn(client, "currentUser").mockResolvedValue({
     account_id: "owner",
@@ -36,10 +52,8 @@ function renderSetup(locale: SupportedLocale, status: SetupStatus): void {
     theme_key: "warm-paper",
     user_id: 1,
   })
-  vi.spyOn(client, "setupModelRecommendation").mockResolvedValue({
-    memory_gb: 8,
-    recommended_model: "ollama/qwen2.5:0.5b",
-  })
+  vi.spyOn(client, "setupModelRecommendation").mockResolvedValue(recommendation)
+  vi.spyOn(client, "setupOllamaDetection").mockImplementation(() => Promise.resolve(detection))
   const instance = createI18n()
   initializeLocale(instance, {
     browserLanguages: [locale],
@@ -142,6 +156,57 @@ describe("localized setup wizard", () => {
     // Then: every step retains one globe language control outside the changing step card.
     expect(localeControl).toContainElement(screen.getByRole("combobox", { name: "语言" }))
     expect(localeControl.closest(".setup-card")).toBeNull()
+  })
+
+  it("binds a healthy default Ollama endpoint when the offline step opens", async () => {
+    const bind = vi.spyOn(client, "setupBindExistingOllama").mockResolvedValue(statusForStep(3))
+    renderSetup("en-US", statusForStep(2), undefined, {
+      endpoint: "http://127.0.0.1:11434",
+      state: "healthy",
+      version: "0.12.0",
+    })
+
+    await waitFor(() => expect(bind).toHaveBeenCalledWith("http://127.0.0.1:11434", "csrf-token"))
+  })
+
+  it("does not auto-bind after the user skips while detection is pending", async () => {
+    const user = userEvent.setup()
+    let resolveDetection!: (detection: SetupOllamaDetection) => void
+    const detection = new Promise<SetupOllamaDetection>((resolve) => {
+      resolveDetection = resolve
+    })
+    const bind = vi.spyOn(client, "setupBindExistingOllama").mockResolvedValue(statusForStep(3))
+    const skip = vi.spyOn(client, "setupSkipOllama").mockImplementation(
+      () => new Promise((resolve) => {
+        resolveDetection({
+          endpoint: "http://127.0.0.1:11434",
+          state: "healthy",
+          version: "0.12.0",
+        })
+        resolve(statusForStep(3))
+      }),
+    )
+    renderSetup("en-US", statusForStep(2), undefined, detection)
+
+    await user.click(await screen.findByRole("button", { name: "Skip for now" }))
+
+    await waitFor(() => expect(skip).toHaveBeenCalledWith("csrf-token"))
+    expect(bind).not.toHaveBeenCalled()
+  })
+
+  it("uses an already downloaded recommended model without showing a download action", async () => {
+    renderSetup("en-US", statusForStep(4), {
+      memory_gb: 16,
+      recommended_model: "ollama/qwen2.5:3b",
+      ollama_state: "healthy",
+      ollama_endpoint: "http://127.0.0.1:11434",
+      installed_models: ["qwen2.5:3b"],
+      recommended_model_available: true,
+    })
+
+    expect(await screen.findByDisplayValue("ollama/qwen2.5:3b")).toBeInTheDocument()
+    expect(screen.getByText("Detected qwen2.5:3b already installed. Use it directly.")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Download and verify model" })).not.toBeInTheDocument()
   })
 
   it("shows localized running progress without backend task detail", async () => {

@@ -30,6 +30,7 @@ OllamaState = Literal[
     "cancelled",
     "repair_required",
 ]
+DEFAULT_OLLAMA_ENDPOINT: Final[str] = "http://127.0.0.1:11434"
 OFFICIAL_INSTALL_URLS: Final[dict[PlatformName, str]] = {
     "darwin": "https://ollama.com/install.sh",
     "linux": "https://ollama.com/install.sh",

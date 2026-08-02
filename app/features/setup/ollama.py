@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from typing import cast
 
@@ -20,11 +20,20 @@ from ai_runtime.storage.provider_connections import (
 from ai_runtime.storage.report_repository import ReportRepository
 from app.features.setup.progress import complete_setup_step
 from app.infrastructure.ollama_platform import (
+    DEFAULT_OLLAMA_ENDPOINT,
     OllamaBinding,
     OllamaPlatformAdapter,
     OllamaProbe,
     PlatformName,
 )
+
+
+@dataclass(frozen=True)
+class OllamaSetupObservation:
+    """One fixed-endpoint inspection used by Setup UI recommendations."""
+
+    probe: OllamaProbe
+    models: tuple[str, ...]
 
 
 class OllamaSetupService:
@@ -47,6 +56,31 @@ class OllamaSetupService:
 
     def detect(self) -> OllamaProbe:
         return self._adapter.probe(self._saved_binding())
+
+    def inspect(
+        self,
+        *,
+        default_endpoint: str = DEFAULT_OLLAMA_ENDPOINT,
+    ) -> OllamaSetupObservation:
+        """Inspect the saved endpoint or the documented local endpoint once."""
+        saved_binding = self._saved_binding()
+        binding = saved_binding or OllamaBinding(
+            api_base=default_endpoint.rstrip("/"),
+            platform=self._adapter.platform,
+            install_kind="existing-public",
+            launch_target="",
+            version="",
+        )
+        probe = self._adapter.probe(binding)
+        if saved_binding is None and probe.state == "deleted":
+            probe = OllamaProbe("absent", probe.endpoint, detail=probe.detail)
+        if probe.state != "healthy":
+            return OllamaSetupObservation(probe=probe, models=())
+        try:
+            models = self._adapter.list_models(binding)
+        except RuntimeError:
+            models = ()
+        return OllamaSetupObservation(probe=probe, models=models)
 
     def bind_existing(self, *, db_path: str, endpoint: str) -> OllamaProbe:
         existing = self._saved_binding()

@@ -5,6 +5,7 @@ import {
 } from "./mock-data"
 import {
   ElfieIdSchema,
+  parseGodotAppearance,
   parseViewer,
   type ExperienceFixture,
   type PrivateCognition,
@@ -86,6 +87,7 @@ function presentApiProfile(
     gender: profile.gender,
     name: profile.name,
     portraitUrl: profile.portrait_url,
+    runtimeAppearance: parseGodotAppearance(profile.appearance),
     speciesId: profile.species_id,
   }
   if (adopterAccountId !== null && viewerAccountId === adopterAccountId) {

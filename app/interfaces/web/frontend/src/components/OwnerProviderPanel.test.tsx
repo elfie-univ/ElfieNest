@@ -36,12 +36,22 @@ vi.mock("../api/owner-providers", async (loadOriginal) => {
 const product = {
   catalog_id: "openai",
   name: "OpenAI",
-  brand: { brand_id: "openai", name: "OpenAI", logo_asset: "openai.svg" },
+  brand: { brand_id: "openai", name: "OpenAI", logo_asset: "brands/openai.svg" },
   connection_method: "api_key",
   oauth_available: false,
   usage_scope: "remote",
   discovery_strategy: "remote",
   api_mode: "chat_completions",
+} satisfies ProviderProduct
+
+const ollamaProduct = {
+  ...product,
+  catalog_id: "ollama",
+  name: "Ollama",
+  brand: { brand_id: "ollama", name: "Ollama", logo_asset: "brands/ollama.svg" },
+  connection_method: "local",
+  usage_scope: "local",
+  api_mode: "ollama",
 } satisfies ProviderProduct
 
 const model = {
@@ -75,8 +85,24 @@ const connection = {
   model_refresh: null,
 } satisfies ProviderConnection
 
+const ollamaConnection = {
+  ...connection,
+  connection_id: "conn-ollama",
+  catalog_id: "ollama",
+  alias: "Ollama",
+  api_base: "http://localhost:11434",
+  api_mode: "ollama",
+  auth_type: "none",
+  has_api_key: false,
+  usage_scope: "local",
+} satisfies ProviderConnection
+
 describe("OwnerProviderPanel v2 behavior", () => {
   beforeEach(() => {
+    Element.prototype.hasPointerCapture = vi.fn(() => false)
+    Element.prototype.setPointerCapture = vi.fn()
+    Element.prototype.releasePointerCapture = vi.fn()
+    Element.prototype.scrollIntoView = vi.fn()
     vi.mocked(ownerProviderCatalog).mockResolvedValue([product])
     vi.mocked(ownerProviderConnections).mockResolvedValue([connection])
     vi.mocked(createProviderConnection).mockResolvedValue(connection)
@@ -99,7 +125,103 @@ describe("OwnerProviderPanel v2 behavior", () => {
 
     const available = screen.getByRole("region", { name: "添加新的订阅" })
     expect(within(available).getByRole("button", { name: "配置 OpenAI" })).toBeInTheDocument()
-    expect(within(available).getByRole("button", { name: "添加自定义连接" })).toBeInTheDocument()
+    expect(within(available).getByRole("button", { name: "添加其他订阅" })).toBeInTheDocument()
+    expect(within(available).queryByRole("button", { name: "添加自定义连接" })).not.toBeInTheDocument()
+    expect(within(available).getByRole("button", { name: "配置 OpenAI" }).querySelector("img")).toHaveAttribute(
+      "src",
+      "/brands/openai.svg",
+    )
+  })
+
+  it("does not repeat the configured Ollama in the add-subscription grid", async () => {
+    vi.mocked(ownerProviderCatalog).mockResolvedValue([ollamaProduct, product])
+    vi.mocked(ownerProviderConnections).mockResolvedValue([ollamaConnection, connection])
+    renderPanel()
+
+    const available = await screen.findByRole("region", { name: "添加新的订阅" })
+    expect(within(available).queryByRole("button", { name: "配置 Ollama" })).not.toBeInTheDocument()
+  })
+
+  it("shows eight featured products and one add-other entry", async () => {
+    const catalog = Array.from({ length: 10 }, (_, index) => ({
+      ...product,
+      catalog_id: `provider-${index}`,
+      name: `Provider ${index + 1}`,
+      brand: { ...product.brand, brand_id: `provider-${index}`, name: `Provider ${index + 1}`, logo_asset: "" },
+    })) satisfies ProviderProduct[]
+    vi.mocked(ownerProviderCatalog).mockResolvedValue(catalog)
+    renderPanel()
+
+    const available = await screen.findByRole("region", { name: "添加新的订阅" })
+    expect(within(available).getAllByRole("button")).toHaveLength(9)
+    expect(within(available).getAllByRole("button", { name: /^配置 Provider/ })).toHaveLength(8)
+    expect(within(available).queryByText("api_key")).not.toBeInTheDocument()
+  })
+
+  it("lists only non-featured products before the OpenAI and Anthropic interface entries", async () => {
+    const user = userEvent.setup()
+    const catalog = [
+      ...Array.from({ length: 8 }, (_, index) => ({
+        ...product,
+        catalog_id: `provider-${index}`,
+        name: `Provider ${index + 1}`,
+        brand: { ...product.brand, brand_id: `provider-${index}`, name: `Provider ${index + 1}`, logo_asset: "" },
+      })),
+      { ...product, catalog_id: "provider-extra-1", name: "Provider Extra 1", brand: { ...product.brand, brand_id: "provider-extra-1", name: "Provider Extra 1", logo_asset: "" } },
+      { ...product, catalog_id: "provider-extra-2", name: "Provider Extra 2", brand: { ...product.brand, brand_id: "provider-extra-2", name: "Provider Extra 2", logo_asset: "" } },
+      { ...product, catalog_id: "custom_openai", name: "自定义 OpenAI 兼容接口", brand: { ...product.brand, brand_id: "custom", name: "Custom", logo_asset: "" } },
+    ] satisfies ProviderProduct[]
+    vi.mocked(ownerProviderCatalog).mockResolvedValue(catalog)
+    renderPanel()
+
+    await user.click(await screen.findByRole("button", { name: "添加其他订阅" }))
+    const dialog = screen.getByRole("dialog", { name: "添加其他订阅" })
+    await user.click(within(dialog).getByRole("combobox", { name: "订阅产品" }))
+
+    expect(screen.getByRole("option", { name: "Provider Extra 1" })).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "Provider Extra 2" })).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "OpenAI 接口" })).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "Anthropic 接口" })).toBeInTheDocument()
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "请选择",
+      "Provider Extra 1",
+      "Provider Extra 2",
+      "OpenAI 接口",
+      "Anthropic 接口",
+    ])
+    expect(screen.queryByRole("option", { name: "Provider 1" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("option", { name: "自定义 OpenAI 兼容接口" })).not.toBeInTheDocument()
+  })
+
+  it("opens Anthropic interface configuration with its protocol and auth defaults", async () => {
+    const user = userEvent.setup()
+    vi.mocked(ownerProviderCatalog).mockResolvedValue([product])
+    renderPanel()
+
+    await user.click(await screen.findByRole("button", { name: "添加其他订阅" }))
+    const dialog = screen.getByRole("dialog", { name: "添加其他订阅" })
+    await user.click(within(dialog).getByRole("combobox", { name: "订阅产品" }))
+    await user.click(screen.getByRole("option", { name: "Anthropic 接口" }))
+    await user.click(within(dialog).getByRole("button", { name: "继续" }))
+
+    const formDialog = screen.getByRole("dialog", { name: "配置 Anthropic 接口" })
+    expect(within(formDialog).getByRole("combobox", { name: "API 协议" })).toHaveTextContent("Anthropic Messages")
+    expect(within(formDialog).getByRole("combobox", { name: "认证方式" })).toHaveTextContent("X-API-Key")
+  })
+
+  it("opens OpenAI interface configuration with its protocol and auth defaults", async () => {
+    const user = userEvent.setup()
+    renderPanel()
+
+    await user.click(await screen.findByRole("button", { name: "添加其他订阅" }))
+    const dialog = screen.getByRole("dialog", { name: "添加其他订阅" })
+    await user.click(within(dialog).getByRole("combobox", { name: "订阅产品" }))
+    await user.click(screen.getByRole("option", { name: "OpenAI 接口" }))
+    await user.click(within(dialog).getByRole("button", { name: "继续" }))
+
+    const formDialog = screen.getByRole("dialog", { name: "配置 OpenAI 接口" })
+    expect(within(formDialog).getByRole("combobox", { name: "API 协议" })).toHaveTextContent("OpenAI Chat Completions")
+    expect(within(formDialog).getByRole("combobox", { name: "认证方式" })).toHaveTextContent("Bearer")
   })
 
   it("verifies one connection and refreshes visible state", async () => {
@@ -129,13 +251,15 @@ describe("OwnerProviderPanel v2 behavior", () => {
     )
   })
 
-  it("archives an existing connection only through the lifecycle dialog", async () => {
+  it("archives an existing connection from the anchored lifecycle menu", async () => {
     const user = userEvent.setup()
     renderPanel()
 
     const card = within(await screen.findByRole("region", { name: "已配置的订阅" })).getByRole("article")
     await user.click(within(card).getByRole("button", { name: "更多" }))
-    await user.click(within(screen.getByRole("dialog", { name: "更多操作" })).getByRole("button", { name: "归档" }))
+    const menu = screen.getByRole("menu")
+    expect(screen.queryByRole("dialog", { name: "更多操作" })).not.toBeInTheDocument()
+    await user.click(within(menu).getByRole("menuitem", { name: "归档" }))
 
     expect(changeProviderConnectionLifecycle).toHaveBeenCalledWith("conn-openai", "archive", "csrf")
   })

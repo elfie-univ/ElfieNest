@@ -82,11 +82,35 @@ class SetupModelRequest(BaseModel):
     model_reference: Optional[str] = Field(None, min_length=3, max_length=256)
 
 
+SetupOllamaState = Literal[
+    "absent",
+    "healthy",
+    "stopped",
+    "deleted",
+    "installing",
+    "failed",
+    "cancelled",
+    "repair_required",
+]
+
+
+class SetupOllamaDetection(BaseModel):
+    model_config = _STRICT_MODEL
+
+    state: SetupOllamaState
+    endpoint: Optional[str] = None
+    version: Optional[str] = None
+
+
 class SetupModelRecommendation(BaseModel):
     model_config = _STRICT_MODEL
 
     memory_gb: int
     recommended_model: Optional[str] = None
+    ollama_state: SetupOllamaState
+    ollama_endpoint: Optional[str] = None
+    installed_models: List[str]
+    recommended_model_available: bool
 
 
 class SetupModelPullRequest(BaseModel):

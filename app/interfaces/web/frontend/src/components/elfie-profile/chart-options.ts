@@ -40,11 +40,14 @@ export function buildBigFiveRadarOption(
     color: [theme.accent],
     radar: {
       axisName: { color: theme.textMuted },
+      axisNameGap: 8,
+      center: ["50%", "50%"],
       indicator: BIG_FIVE_TRAITS.map((trait) => ({
         max: 100,
         min: 0,
         name: labels[trait],
       })),
+      radius: "84%",
       splitArea: { areaStyle: { color: [theme.surface] } },
       splitLine: { lineStyle: { color: theme.border } },
       axisLine: { lineStyle: { color: theme.border } },

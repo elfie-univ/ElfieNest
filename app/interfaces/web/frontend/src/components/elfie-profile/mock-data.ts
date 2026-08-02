@@ -1,5 +1,5 @@
 import { MOCK_ELFIES } from "../owner-card-mock-data"
-import { parseExperienceFixture, parseViewer } from "./model"
+import { parseExperienceFixture, parseViewer, type GodotAppearance } from "./model"
 
 export const PRIVATE_MODULE_TITLES = [
   "记忆与认知",
@@ -18,6 +18,19 @@ class FixtureSourceError extends Error {
     this.name = "FixtureSourceError"
     this.elfieId = elfieId
   }
+}
+
+const FOX_RUNTIME_APPEARANCE: GodotAppearance = {
+  species_id: "fox",
+  profile_version: 1,
+  height_scale: 1,
+  build_scale: 1,
+  height_label: "standard",
+  build_label: "standard",
+  bone_scales: {},
+  blend_shapes: {},
+  material_parameters: {},
+  species_traits: {},
 }
 
 const happySource = sourceElfie("12345678")
@@ -43,6 +56,7 @@ export const HAPPY_EXPERIENCE = parseExperienceFixture({
     biography: "Happy 会在晨光里把新鲜发现排成小队，先贴近主人的脚边，再把窗台、床位和食物碗逐一检查。它喜欢把被夸奖的瞬间记成发光的路标。",
     portraitUrl: happySource.profile.portrait_url,
     appearance: { bodyPlan: "fox", palette: "sunlit amber", signature: "soft ears" },
+    runtimeAppearance: FOX_RUNTIME_APPEARANCE,
     bigFive: happySource.profile.big_five,
   },
   privateCognition: {
@@ -91,6 +105,7 @@ export const KETTLE_EXPERIENCE = parseExperienceFixture({
     biography: "Kettle 常在窗边静静观察风声，像一只给每个角落编号的小记录员。它把陌生访客先放进安全距离，再用很轻的点头回应。",
     portraitUrl: kettleSource.profile.portrait_url,
     appearance: { bodyPlan: "fox", palette: "mist grey", signature: "quiet tail" },
+    runtimeAppearance: FOX_RUNTIME_APPEARANCE,
     bigFive: kettleSource.profile.big_five,
   },
   privateCognition: {

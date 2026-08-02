@@ -82,7 +82,7 @@ describe("ProfileChart", () => {
       />,
     )
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("图表暂时无法显示，请参考下方数值。")
+    expect(await screen.findByRole("alert")).toHaveTextContent("图表暂时无法显示，请稍后重试。")
     expect(screen.getByText("亲和 91 分")).toBeInTheDocument()
   })
 })
