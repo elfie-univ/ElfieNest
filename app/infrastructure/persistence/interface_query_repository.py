@@ -5,6 +5,7 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass
 
+from app.features.accounts.roles import AccountRole, parse_account_role
 from app.infrastructure.persistence.account_repository import (
     ACCOUNT_ID_MAX_LENGTH,
     ACCOUNT_ID_MIN_LENGTH,
@@ -20,7 +21,7 @@ class InterfaceUserRecord:
     user_id: int
     account_id: str  # 登录账号
     display_name: str | None  # 显示名称
-    role: str
+    role: AccountRole
     created_at: str
     avatar_path: str | None
     elfie_limit: int | None
@@ -85,37 +86,49 @@ class InterfaceQueryRepository:
             rows = connection.execute(f"{_USER_SELECT} ORDER BY users.id").fetchall()
         return tuple(_user_record(row) for row in rows)
 
+    def update_member_limit(self, user_id: int, limit: int | None) -> bool:
+        """Update only the adoption limit for a mutable member account."""
+        with get_db(self._db_path) as connection:
+            cursor = connection.execute(
+                """UPDATE users SET elfie_limit=?,updated_at=CURRENT_TIMESTAMP
+                   WHERE id=? AND role IN ('admin','user')""",
+                (limit, user_id),
+            )
+            connection.commit()
+        return cursor.rowcount == 1
+
     def create_member(
         self,
         *,
         account_id: str,
         display_name: str | None,
         password_hash: str,
+        role: AccountRole,
     ) -> int | None:
         normalized_account_id, normalized_display_name = _normalize_member_identity(
             account_id, display_name
         )
         with get_db(self._db_path) as connection:
+            connection.execute("BEGIN IMMEDIATE")
             try:
                 cursor = connection.execute(
                     """INSERT INTO users
                        (account_id,display_name,password_hash,role)
-                       VALUES (?,?,?,'user')""",
-                    (normalized_account_id, normalized_display_name, password_hash),
+                       VALUES (?,?,?,?)""",
+                    (
+                        normalized_account_id,
+                        normalized_display_name,
+                        password_hash,
+                        role,
+                    ),
                 )
-            except sqlite3.IntegrityError:
+            except sqlite3.IntegrityError as error:
+                connection.rollback()
+                if "maximum" in str(error):
+                    raise MemberCapacityError(str(error)) from error
                 return None
             connection.commit()
         return None if cursor.lastrowid is None else int(cursor.lastrowid)
-
-    def update_member_limit(self, user_id: int, limit: int | None) -> None:
-        with get_db(self._db_path) as connection:
-            connection.execute(
-                """UPDATE users SET elfie_limit=?,updated_at=CURRENT_TIMESTAMP
-                   WHERE id=? AND role='user'""",
-                (limit, user_id),
-            )
-            connection.commit()
 
     def reset_member_password_and_revoke_sessions(
         self, user_id: int, password_hash: str
@@ -124,7 +137,7 @@ class InterfaceQueryRepository:
         with get_db(self._db_path) as connection:
             cursor = connection.execute(
                 """UPDATE users SET password_hash=?,updated_at=CURRENT_TIMESTAMP
-                   WHERE id=? AND role='user'""",
+                   WHERE id=? AND role IN ('admin','user')""",
                 (password_hash, user_id),
             )
             if cursor.rowcount != 1:
@@ -141,11 +154,11 @@ class InterfaceQueryRepository:
             connection.execute("BEGIN IMMEDIATE")
             connection.execute(
                 "DELETE FROM sessions WHERE user_id=? "
-                "AND EXISTS (SELECT 1 FROM users WHERE id=? AND role='user')",
+                "AND EXISTS (SELECT 1 FROM users WHERE id=? AND role IN ('admin','user'))",
                 (user_id, user_id),
             )
             cursor = connection.execute(
-                "DELETE FROM users WHERE id=? AND role='user' "
+                "DELETE FROM users WHERE id=? AND role IN ('admin','user') "
                 "AND NOT EXISTS (SELECT 1 FROM elfies WHERE owner_user_id=?)",
                 (user_id, user_id),
             )
@@ -210,7 +223,7 @@ def _user_record(row: sqlite3.Row) -> InterfaceUserRecord:
         user_id=int(row["id"]),
         account_id=str(row["account_id"]),
         display_name=None if row["display_name"] is None else str(row["display_name"]),
-        role=str(row["role"]),
+        role=parse_account_role(str(row["role"])),
         created_at=str(row["created_at"]),
         avatar_path=None if row["avatar_path"] is None else str(row["avatar_path"]),
         elfie_limit=None if row["elfie_limit"] is None else int(row["elfie_limit"]),
@@ -227,6 +240,10 @@ def _user_record(row: sqlite3.Row) -> InterfaceUserRecord:
 
 class MemberIdentityValidationError(ValueError):
     """A member identity violates the final account contract."""
+
+
+class MemberCapacityError(RuntimeError):
+    """A role or total-account capacity rejected a member insert."""
 
 
 class MemberMutationTargetError(RuntimeError):
@@ -278,6 +295,7 @@ __all__ = (
     "InterfaceElfieRecord",
     "InterfaceQueryRepository",
     "InterfaceUserRecord",
+    "MemberCapacityError",
     "MemberIdentityValidationError",
     "MemberMutationTargetError",
 )

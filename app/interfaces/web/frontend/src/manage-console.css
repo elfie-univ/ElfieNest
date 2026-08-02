@@ -106,6 +106,9 @@
 .account-menu__setting-toggle span { display: grid; gap: 2px; }
 .account-menu__setting-toggle small { color: var(--ink-soft); font-size: 14px; }
 .account-menu__setting-body { padding: 0 3px 13px; }
+.account-menu__session { margin-top: 13px; padding-top: 13px; border-top: 1px solid var(--border-soft, var(--line)); }
+.account-menu__logout { width: 100%; min-height: 44px; justify-content: flex-start; gap: 9px; padding: 10px 3px; color: var(--error-text); }
+.account-menu__logout:hover { color: var(--error-text); background: var(--error-bg); }
 .account-menu__form, .account-menu__themes, .account-menu__landing { display: grid; gap: 9px; }
 .account-menu__form label { display: grid; gap: 5px; color: var(--ink-soft); font-size: 14px; }
 .account-menu__form input { width: 100%; padding: 9px 10px; border: 1px solid var(--border-soft, var(--line)); border-radius: 10px; color: var(--ink); background: var(--surface-field, var(--surface-muted)); }

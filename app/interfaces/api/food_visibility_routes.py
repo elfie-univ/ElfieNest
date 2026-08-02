@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 from ai_runtime.food.models import SYSTEM_FOOD_IDS
 from ai_runtime.food.store import FoodCatalogStore
-from app.features.accounts.auth import AuthenticatedUser, require_owner
+from app.features.accounts.auth import AuthenticatedUser, require_manager
 from app.infrastructure.persistence.account_repository import AccountRepository
 from app.infrastructure.persistence.food_assignments import (
     list_food_access_users,
@@ -58,7 +58,7 @@ class FoodVisibilityUpdateResponse(BaseModel):
 async def get_food_visibility(
     food_id: str,
     request: Request,
-    owner: AuthenticatedUser = Depends(require_owner),  # noqa: B008
+    owner: AuthenticatedUser = Depends(require_manager),  # noqa: B008
 ) -> FoodVisibilityView:
     _ = owner
     require_package(FoodCatalogStore().load(), food_id)
@@ -93,7 +93,7 @@ async def edit_food_visibility(
     food_id: str,
     body: FoodVisibilityUpdateRequest,
     request: Request,
-    owner: AuthenticatedUser = Depends(require_owner),  # noqa: B008
+    owner: AuthenticatedUser = Depends(require_manager),  # noqa: B008
 ) -> FoodVisibilityUpdateResponse:
     _ = owner
     require_package(FoodCatalogStore().load(), food_id)

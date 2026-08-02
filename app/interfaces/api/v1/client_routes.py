@@ -108,9 +108,11 @@ async def update_owner_default_landing_page(
     request: Request,
     user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
 ) -> Dict[str, str]:
-    """Persist an Owner-only landing preference; normal users always use chat."""
-    if user["role"] != "owner":
-        raise HTTPException(status_code=403, detail="只有 Owner 可以设置管理默认页")
+    """Persist a manager landing preference; normal users always use chat."""
+    if user["role"] not in {"owner", "admin"}:
+        raise HTTPException(
+            status_code=403, detail="只有 Owner 或 Admin 可以设置管理默认页"
+        )
     RuntimeQueryRepository(request.app.state.db_path).update_default_landing_page(
         user["user_id"], body.default_landing_page
     )

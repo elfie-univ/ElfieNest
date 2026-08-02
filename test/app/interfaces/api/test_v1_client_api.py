@@ -24,7 +24,7 @@ from app.interfaces.api.app import create_app
 from elfie.body import BodyId, BodySensorEvent, SpeechCommand, UtteranceFinal
 from elfie.message_types import ActorId, ActorRef, CommandId, EventId, IntentId, TurnId
 
-from ._helpers import create_test_owner
+from ._helpers import create_test_owner, create_test_user
 
 
 @pytest.fixture
@@ -208,6 +208,26 @@ def test_owner_can_persist_a_safe_default_landing_page(client: TestClient) -> No
         "/api/v1/me/default-landing-page",
         json={"default_landing_page": "chat"},
         headers={"X-CSRF-Token": csrf_token},
+    )
+    root = client.get("/", follow_redirects=False)
+
+    assert response.status_code == 200
+    assert response.json() == {"default_landing_page": "chat"}
+    assert root.headers["location"] == "/chat"
+
+
+def test_admin_can_persist_a_safe_default_landing_page(client: TestClient) -> None:
+    create_test_user(client.app.state.db_path, "admin", "admin-password", "admin")
+    _complete_setup(client)
+    login = client.post(
+        "/api/auth/login", data={"account_id": "admin", "password": "admin-password"}
+    )
+    assert login.status_code == 200
+
+    response = client.put(
+        "/api/v1/me/default-landing-page",
+        json={"default_landing_page": "chat"},
+        headers={"X-CSRF-Token": login.headers["X-CSRF-Token"]},
     )
     root = client.get("/", follow_redirects=False)
 

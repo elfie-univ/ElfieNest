@@ -27,8 +27,8 @@ Desktop 渲染与其他产品客户端相同、已认证且 capability 受限的
 
 ## 产品相机观察
 
-同源、仅 Owner 可访问的 `/monitor` 路由渲染完整产品观察表面；Owner 的精灵巢管理弹窗
-复用同一个 `ObservationMonitor` 表面，而不是创建另一套相机客户端。其完整、版本化的
+同源、Owner 与 Admin 可访问的 `/monitor` 路由渲染完整产品观察表面；Owner/Admin 的精灵巢
+管理弹窗复用同一个 `ObservationMonitor` 表面，而不是创建另一套相机客户端。其完整、版本化的
 相机目录由 Godot 拥有：语义 view `id` 与 `label`、`active_id`、正数 `revision` 和
 `presentation_paused`。目录绝不暴露相机坐标、transform 或房间几何。
 

@@ -1,4 +1,4 @@
-"""Owner-only monitoring projections for every registered Elfie."""
+"""Manager monitoring projections for every registered Elfie."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from ai_runtime.food.store import FoodCatalogStore
 from ai_runtime.storage.data_home import data_home_from_db_path
 from ai_runtime.storage.data_layout import final_root_layout
-from app.features.accounts.auth import require_owner
+from app.features.accounts.auth import require_manager
 from app.features.configuration.food_access import elfie_food_policy_projection
 from app.features.elfie_profile.public_projection import build_public_profile
 from app.infrastructure.persistence.embodiment_sessions import get_embodiment_session
@@ -29,7 +29,7 @@ async def list_owner_elfie_monitoring(
     food_key: Optional[str] = None,
     embodiment_state: Optional[str] = None,
     status: Optional[str] = None,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> List[Dict[str, Any]]:
     """List safe operational summaries without private configuration or chats."""
     _ = owner

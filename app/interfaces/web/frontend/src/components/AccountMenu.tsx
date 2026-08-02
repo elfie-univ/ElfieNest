@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next"
 
 import {
   changePassword,
+  logout,
   saveLandingPage,
   saveTheme,
   type ClientUser,
@@ -13,6 +14,7 @@ import {
   uploadAvatar,
   updateProfile,
 } from "../api/client"
+import { isManagerRole } from "../api/roles"
 import { Avatar } from "./Avatar"
 import { accountDisplayName } from "./AccountIdentity"
 import { Icon } from "./Icon"
@@ -49,11 +51,12 @@ type AccountMenuProps = {
 
 type AccountMenuPanelProps = {
   readonly onClose: () => void
+  readonly onLoggedOut?: () => void
   readonly onUpdated: () => Promise<void>
   readonly user: ClientUser
 }
 
-export function AccountMenuPanel({ onClose, onUpdated, user }: AccountMenuPanelProps) {
+export function AccountMenuPanel({ onClose, onLoggedOut, onUpdated, user }: AccountMenuPanelProps) {
   const { i18n, t } = useTranslation("account")
   const [expanded, setExpanded] = useState<AccountSection | null>(null)
   const [accountIdInput, setAccountIdInput] = useState(user.account_id)
@@ -66,12 +69,16 @@ export function AccountMenuPanel({ onClose, onUpdated, user }: AccountMenuPanelP
   const [newPassword, setNewPassword] = useState("")
   const [landing, setLanding] = useState<"chat" | "manage">(user.default_landing_page === "chat" ? "chat" : "manage")
   const [feedback, setFeedback] = useState<Feedback | null>(null)
+  const [loggingOut, setLoggingOut] = useState(false)
+  const [logoutError, setLogoutError] = useState<unknown | null>(null)
   const [saving, setSaving] = useState<AccountSection | null>(null)
   const fileInput = useRef<HTMLInputElement | null>(null)
   const panelRef = useRef<HTMLElement | null>(null)
   const csrfToken = user.csrf_token ?? ""
   const displayName = accountDisplayName(user)
-  const roleDescription = user.role === "owner" ? t("identity.ownerRole") : t("identity.userRole")
+  const roleDescription = user.role === "owner"
+    ? t("identity.ownerRole")
+    : user.role === "admin" ? t("identity.adminRole") : t("identity.userRole")
   const gender = user.gender === "female" ? "female" : "male"
   const genderLabel = gender === "female" ? t("identity.genderFemale") : t("identity.genderMale")
   const sectionSummary = (section: AccountSection): string => {
@@ -174,6 +181,19 @@ export function AccountMenuPanel({ onClose, onUpdated, user }: AccountMenuPanelP
     } catch (reason: unknown) { if (!(reason instanceof Error)) throw reason; reportError("landing", reason) }
     finally { setSaving(null) }
   }
+  const logoutSession = async (): Promise<void> => {
+    setLoggingOut(true)
+    setLogoutError(null)
+    try {
+      await logout(csrfToken)
+      if (onLoggedOut) onLoggedOut()
+      else window.location.assign("/login")
+    } catch (reason: unknown) {
+      if (!(reason instanceof Error)) throw reason
+      setLogoutError(reason)
+      setLoggingOut(false)
+    }
+  }
 
   return <section aria-label={t("panel.label")} className="account-menu__panel" ref={panelRef}>
     <section className="account-menu__identity">
@@ -211,11 +231,18 @@ export function AccountMenuPanel({ onClose, onUpdated, user }: AccountMenuPanelP
     <AccountSettingRow active={expanded === "language"} icon="globe-2" label={t("sections.language")} onToggle={() => toggle("language")} summary={sectionSummary("language")}>
       <section aria-label={t("language.sectionLabel")} className="account-menu__language"><LanguageSwitcher /></section>
     </AccountSettingRow>
-    {user.role === "owner" ? <AccountSettingRow active={expanded === "landing"} icon="house" label={t("sections.landing")} onToggle={() => toggle("landing")} summary={sectionSummary("landing")}>
+    {isManagerRole(user.role) ? <AccountSettingRow active={expanded === "landing"} icon="house" label={t("sections.landing")} onToggle={() => toggle("landing")} summary={sectionSummary("landing")}>
       <div className="account-menu__landing"><SelectField label={t("landing.field")} onValueChange={(value) => setLanding(value === "chat" ? "chat" : "manage")} options={[{ label: t("landing.manage"), value: "manage" }, { label: t("landing.chat"), value: "chat" }]} value={landing} /><Button className="account-menu__landing-action" disabled={saving === "landing"} onClick={() => { void saveLanding() }} type="button">{saving === "landing" ? t("landing.saving") : t("landing.action")}</Button></div>
     </AccountSettingRow> : null}
-    {feedback && (feedback.section === "identity" || expanded === feedback.section) ? <Notice kind={feedback.kind} message={feedback.kind === "error" ? localizeApiError(feedback.reason, "manage.save", currentLocale(i18n)) : t(feedback.messageKey)} /> : null}
     <ConfirmDialog description={t("identity.confirmDescription")} onConfirm={() => { void saveIdentity() }} onOpenChange={setIdentityConfirmOpen} open={identityConfirmOpen} pending={saving === "identity"} title={t("identity.confirmTitle")} />
+    {feedback && (feedback.section === "identity" || expanded === feedback.section) ? <Notice kind={feedback.kind} message={feedback.kind === "error" ? localizeApiError(feedback.reason, "manage.save", currentLocale(i18n)) : t(feedback.messageKey)} /> : null}
+    {logoutError ? <Notice kind="error" message={localizeApiError(logoutError, "manage.save", currentLocale(i18n))} /> : null}
+    <section aria-label={t("session.sectionLabel")} className="account-menu__session">
+      <Button className="account-menu__logout" disabled={loggingOut || saving !== null} onClick={() => { void logoutSession() }} type="button" variant="ghost">
+        <Icon name="log-out" size={17} />
+        {loggingOut ? t("session.loggingOut") : t("session.logout")}
+      </Button>
+    </section>
   </section>
 }
 
@@ -227,7 +254,7 @@ export function AccountMenu({ compact = false, onUpdated, user }: AccountMenuPro
   return <div className={compact ? "account-menu account-menu--compact" : "account-menu"}>
     <button aria-expanded={open} aria-haspopup="dialog" aria-label={compact ? t("trigger.compact") : undefined} className="account-menu__trigger" data-slot="button" data-tooltip={compact ? t("trigger.tooltip") : undefined} data-variant="ghost" onClick={() => setOpen((current) => !current)} type="button">
       <Avatar imageUrl={user.avatar_url} name={displayName} />
-      {!compact ? <span><strong>{displayName}</strong><small>{user.role === "owner" ? t("trigger.owner") : t("trigger.user")}</small></span> : null}
+      {!compact ? <span><strong>{displayName}</strong><small>{user.role === "owner" ? t("trigger.owner") : user.role === "admin" ? t("trigger.admin") : t("trigger.user")}</small></span> : null}
     </button>
     {open ? <AccountMenuPanel onClose={() => setOpen(false)} onUpdated={onUpdated} user={user} /> : null}
   </div>

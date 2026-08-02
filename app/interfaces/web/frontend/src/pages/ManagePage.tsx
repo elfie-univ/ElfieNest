@@ -11,6 +11,7 @@ import { ManageSidebar } from "../components/ManageSidebar"
 import { SystemSettingsPanel } from "../components/SystemSettingsPanel"
 import { useSession } from "../stores/session"
 import { usePresenceHeartbeat } from "../stores/heartbeat"
+import { isManagerRole, type AccountRole } from "../api/roles"
 import { IconCatalogPage } from "./IconCatalogPage"
 import { isManageTab, manageNavItem, type ManageTab } from "./manageNavigation"
 
@@ -26,7 +27,7 @@ export function ManagePage() {
   const [tab, setTab] = useState<ManageTab>(initialTab)
   const [elfieCount, setElfieCount] = useState(0)
   if (loading) return <main className="page"><p className="empty">{t("page.verifyingSession")}</p></main>
-  if (user?.role !== "owner") { window.location.assign(user === null ? "/login?next=/manage" : "/chat"); return <main /> }
+  if (user === null || !isManagerRole(user.role)) { window.location.assign(user === null ? "/login?next=/manage" : "/chat"); return <main /> }
   if (new URLSearchParams(window.location.search).get("icon-catalog") === "1") return <IconCatalogPage />
   const csrfToken = user.csrf_token ?? ""
   const chooseTab = (next: ManageTab): void => {
@@ -38,17 +39,17 @@ export function ManagePage() {
     <ManageSidebar activeTab={tab} onSelect={chooseTab} onUserUpdated={refresh} user={user} />
     <section className="panel manage manage--console">
       <header className="manage-console-head"><h1>{currentItem ? t(`navigation.items.${currentItem.id}`) : t("page.title")}</h1></header>
-      <ManageContent csrfToken={csrfToken} elfieCount={elfieCount} onElfieCountChange={setElfieCount} tab={tab} />
+      <ManageContent actorRole={user.role} csrfToken={csrfToken} elfieCount={elfieCount} onElfieCountChange={setElfieCount} tab={tab} />
     </section>
   </section></main>
 }
 
-function ManageContent({ csrfToken, elfieCount, onElfieCountChange, tab }: { readonly csrfToken: string; readonly elfieCount: number; readonly onElfieCountChange: (count: number) => void; readonly tab: ManageTab }) {
+function ManageContent({ actorRole, csrfToken, elfieCount, onElfieCountChange, tab }: { readonly actorRole: AccountRole; readonly csrfToken: string; readonly elfieCount: number; readonly onElfieCountChange: (count: number) => void; readonly tab: ManageTab }) {
   switch (tab) {
     case "monitor": return <ManageMonitorPanel elfieCount={elfieCount} />
     case "elfies": return <OwnerElfieOverview csrfToken={csrfToken} onCountChange={onElfieCountChange} />
     case "nest": return <OwnerNestPanel csrfToken={csrfToken} />
-    case "users": return <ManageUsersPanel csrfToken={csrfToken} />
+    case "users": return <ManageUsersPanel actorRole={actorRole} csrfToken={csrfToken} />
     case "providers": return <OwnerProviderPanel csrfToken={csrfToken} />
     case "tools": return <ToolPlaceholder />
     case "foods": return <OwnerFoodPanel csrfToken={csrfToken} />

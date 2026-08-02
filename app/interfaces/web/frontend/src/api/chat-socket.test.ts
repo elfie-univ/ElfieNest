@@ -8,6 +8,13 @@ describe("parseChatSocketEvent", () => {
     expect(event).toEqual({ event: "ready", principal: { role: "owner", account_id: "owner" } })
   })
 
+  it("accepts an Admin principal in the ready event", () => {
+    expect(parseChatSocketEvent({ event: "ready", principal: { role: "admin", account_id: "admin" } })).toEqual({
+      event: "ready",
+      principal: { role: "admin", account_id: "admin" },
+    })
+  })
+
   it("accepts the typed message acknowledgement emitted by the Core", () => {
     const event = parseChatSocketEvent({
       event: "message",

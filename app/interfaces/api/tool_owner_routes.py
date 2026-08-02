@@ -12,7 +12,7 @@ from ai_runtime.storage.secrets import set_tool_secret, tool_secret_name
 from ai_runtime.tools.config import TOOL_KEYS, public_tool_configs
 from ai_runtime.validation.models import ValidationSuite
 from ai_runtime.validation.tools import DirectToolValidationRunner
-from app.features.accounts.auth import require_owner
+from app.features.accounts.auth import require_manager
 from app.features.configuration.runtime_store import (
     read_runtime_config,
     write_runtime_config,
@@ -31,7 +31,7 @@ def _read_policy() -> tuple[dict[str, Any], dict[str, Any]]:
 
 @router.get("/")
 async def list_tools(
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> Dict[str, Any]:
     _ = owner
     _config, policy = _read_policy()
@@ -42,7 +42,7 @@ async def list_tools(
 async def update_tool(
     tool_key: str,
     body: Dict[str, Any],
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> Dict[str, Any]:
     _ = owner
     if tool_key not in TOOL_KEYS:
@@ -86,7 +86,7 @@ async def update_tool(
 @router.post("/{tool_key}/verify")
 async def verify_tool(
     tool_key: str,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> Dict[str, Any]:
     _ = owner
     if tool_key not in TOOL_KEYS:

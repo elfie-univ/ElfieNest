@@ -14,7 +14,7 @@ from ai_runtime.food.models import (
 )
 from ai_runtime.food.planner import FoodPlanner
 from ai_runtime.food.store import FoodCatalogStore
-from app.features.accounts.auth import require_owner
+from app.features.accounts.auth import require_manager
 from app.infrastructure.persistence.food_assignments import food_assignment_usage
 from app.interfaces.api.food_catalog_support import (
     catalog_view as _catalog_view,
@@ -52,7 +52,7 @@ def _stores() -> tuple[FoodCatalogStore, dict[str, Any]]:
 
 @router.get("/")
 async def list_foods(
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
     store, evidence = _stores()
@@ -62,7 +62,7 @@ async def list_foods(
 @router.post("/", status_code=201)
 async def create_food(
     body: Dict[str, Any],
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
     store, evidence = _stores()
@@ -84,7 +84,7 @@ async def create_food(
 async def edit_food(
     food_id: str,
     body: Dict[str, Any],
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
     store, evidence = _stores()
@@ -109,7 +109,7 @@ async def edit_food(
 async def preview_food_generation(
     food_id: str,
     body: Dict[str, Any],
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
     store, evidence = _stores()
@@ -147,7 +147,7 @@ async def preview_food_generation(
 @router.post("/{food_id}/enable")
 async def enable_food(
     food_id: str,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
     return _set_lifecycle(food_id, enabled=True, archived=False)
@@ -156,7 +156,7 @@ async def enable_food(
 @router.post("/{food_id}/disable")
 async def disable_food(
     food_id: str,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
     return _set_lifecycle(food_id, enabled=False)
@@ -165,7 +165,7 @@ async def disable_food(
 @router.post("/{food_id}/archive")
 async def archive_food(
     food_id: str,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
     if food_id in SYSTEM_FOOD_IDS:
@@ -176,7 +176,7 @@ async def archive_food(
 @router.post("/{food_id}/restore")
 async def restore_food(
     food_id: str,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
     return _set_lifecycle(food_id, enabled=False, archived=False)
@@ -186,7 +186,7 @@ async def restore_food(
 async def delete_food(
     food_id: str,
     request: Request,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
     if food_id in SYSTEM_FOOD_IDS:
@@ -209,7 +209,7 @@ async def delete_food(
 @router.post("/rollback")
 async def rollback_foods(
     body: Dict[str, Any],
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
     if body.get("confirm") is not True:

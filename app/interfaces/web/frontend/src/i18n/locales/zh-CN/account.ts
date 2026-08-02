@@ -6,6 +6,7 @@ export const account = {
   },
   identity: {
     accountLabel: "账号：",
+    adminRole: "Admin",
     birthDate: "出生日期：",
     cancelEdit: "取消编辑",
     confirmDescription: "保存后，账号和个人资料会立即更新。确定继续吗？",
@@ -45,6 +46,9 @@ export const account = {
   },
   session: {
     currentAccount: "当前账号：{{accountName}}",
+    loggingOut: "正在退出…",
+    logout: "退出登录",
+    sectionLabel: "会话操作",
   },
   sections: {
     landing: "默认登录页",
@@ -60,6 +64,7 @@ export const account = {
     warmPaper: { description: "默认", label: "暖纸与陶土" },
   },
   trigger: {
+    admin: "管理员",
     compact: "打开个人设置",
     owner: "管理员",
     tooltip: "个人设置",

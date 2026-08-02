@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { requestJson } from "./http"
-import { currentUser, login, safeLoginNextPath, setup, updateProfile } from "./session"
+import { currentUser, login, logout, safeLoginNextPath, setup, updateProfile } from "./session"
 
 vi.mock("./http", () => ({
-  csrfHeaders: vi.fn(() => ({ "Content-Type": "application/json", "X-CSRF-Token": "csrf-token" })),
+  csrfHeaders: vi.fn((_csrfToken: string, json = false) => json
+    ? { "Content-Type": "application/json", "X-CSRF-Token": "csrf-token" }
+    : { "X-CSRF-Token": "csrf-token" }),
   requestJson: vi.fn(),
 }))
 
@@ -45,6 +47,17 @@ describe("currentUser", () => {
     expect(user).not.toHaveProperty("id")
     expect(user).not.toHaveProperty("username")
     expect(user).not.toHaveProperty("nickname")
+  })
+
+  it("accepts the canonical Admin role without treating it as an Owner", async () => {
+    vi.mocked(requestJson).mockResolvedValue({
+      account_id: "admin01",
+      display_name: "Admin",
+      role: "admin",
+      user_id: 2,
+    })
+
+    await expect(currentUser()).resolves.toMatchObject({ account_id: "admin01", role: "admin" })
   })
 
   it.each([
@@ -131,6 +144,20 @@ describe("canonical account requests", () => {
       }),
       method: "PUT",
     }))
+  })
+
+  it("revokes the current session with the canonical CSRF header", async () => {
+    // Given: the logout endpoint accepts an authenticated request.
+    vi.mocked(requestJson).mockResolvedValue({ detail: "已登出" })
+
+    // When: the current session is closed.
+    await logout("csrf-token")
+
+    // Then: the request targets the canonical endpoint and carries the CSRF token.
+    expect(requestJson).toHaveBeenCalledWith("/api/auth/logout", {
+      headers: { "X-CSRF-Token": "csrf-token" },
+      method: "POST",
+    })
   })
 })
 

@@ -1,6 +1,10 @@
 import { z } from "zod"
 
 import { csrfHeaders, requestJson } from "./http"
+import { AccountRoleSchema } from "./roles"
+
+export { AccountRoleSchema }
+export type { AccountRole } from "./roles"
 
 export const ThemeKeySchema = z.union([
   z.literal("warm-paper"),
@@ -22,7 +26,7 @@ const ClientUserSchema = z.object({
   display_name: z.string().nullable(),
   gender: GenderSchema.optional(),
   birth_date: z.string().nullable().optional(),
-  role: z.union([z.literal("owner"), z.literal("user")]),
+  role: AccountRoleSchema,
   avatar_url: z.string().nullable().optional(),
   avatar_color: z.number().int().min(0).max(7).optional(),
   avatar_kind: z.union([z.literal("initials"), z.literal("emoji")]).optional(),

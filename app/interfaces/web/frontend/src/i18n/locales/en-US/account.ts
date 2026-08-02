@@ -6,6 +6,7 @@ export const account = {
   },
   identity: {
     accountLabel: "Account:",
+    adminRole: "Admin",
     birthDate: "Birth date:",
     cancelEdit: "Cancel editing",
     confirmDescription: "The account and profile details will be updated immediately. Continue?",
@@ -45,6 +46,9 @@ export const account = {
   },
   session: {
     currentAccount: "Current account: {{accountName}}",
+    loggingOut: "Signing out…",
+    logout: "Sign out",
+    sectionLabel: "Session actions",
   },
   sections: {
     landing: "Default landing page",
@@ -60,6 +64,7 @@ export const account = {
     warmPaper: { description: "Default", label: "Warm Paper and Clay" },
   },
   trigger: {
+    admin: "Admin",
     compact: "Open profile settings",
     owner: "Owner",
     tooltip: "Profile settings",

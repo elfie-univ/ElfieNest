@@ -69,7 +69,7 @@ describe("owner user API boundary", () => {
     vi.mocked(requestJson).mockResolvedValue(member)
 
     // When: an Owner creates a member.
-    const result = await createManagedUser("member01", "Member", "secret", "csrf")
+    const result = await createManagedUser("member01", "Member", "secret", "user", "csrf")
 
     // Then: the request and response both use the final contract.
     expect(requestJson).toHaveBeenCalledWith("/api/owner/users", expect.objectContaining({
@@ -84,10 +84,20 @@ describe("owner user API boundary", () => {
     expect(result.user_id).toBe(7)
   })
 
+  it("sends the selected Admin role without exposing a quota mutation", async () => {
+    vi.mocked(requestJson).mockResolvedValue({ ...member, role: "admin" })
+
+    await createManagedUser("admin01", "Admin", "secret", "admin", "csrf")
+
+    expect(requestJson).toHaveBeenCalledWith("/api/owner/users", expect.objectContaining({
+      body: JSON.stringify({ account_id: "admin01", display_name: "Admin", password: "secret", role: "admin" }),
+    }))
+  })
+
   it("uses numeric IDs for quota, reset, and delete mutations", async () => {
     // Given: every mutation endpoint returns valid JSON.
     vi.mocked(ownerWrite)
-      .mockResolvedValueOnce(member)
+      .mockResolvedValueOnce({ ...member, elfie_quota_override: 6, effective_elfie_limit: 6 })
       .mockResolvedValueOnce({ detail: "removed" })
     vi.mocked(requestJson).mockResolvedValue({ temporary_password: "Temp12345678" })
 

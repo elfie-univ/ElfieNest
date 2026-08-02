@@ -179,8 +179,9 @@ def test_owner_chat_next_keeps_the_management_default_landing(
 
 
 def test_owner_and_user_receive_server_side_landing_routes(client: TestClient) -> None:
-    # Given: one Owner and one ordinary user.
+    # Given: one Owner, one Admin and one ordinary user.
     _create_user(client, "owner", "owner")
+    _create_user(client, "admin", "admin")
     _create_user(client, "alice", "user")
     _complete_setup(client)
 
@@ -201,9 +202,20 @@ def test_owner_and_user_receive_server_side_landing_routes(client: TestClient) -
     assert owner_manage.status_code == 200
     assert owner_monitor.status_code == 200
     assert "no-store" in owner_monitor.headers["cache-control"]
+    client.post("/api/auth/logout", headers={"X-CSRF-Token": ""})
+    client.cookies.clear()
+    _login(client, "admin")
+    admin_root = client.get("/", follow_redirects=False)
+    admin_manage = client.get("/manage", follow_redirects=False)
+    admin_monitor = client.get("/monitor", follow_redirects=False)
+    client.post("/api/auth/logout", headers={"X-CSRF-Token": ""})
+    client.cookies.clear()
     assert user_root.headers["location"] == "/chat"
     assert user_manage.headers["location"] == "/chat"
     assert user_monitor.headers["location"] == "/chat"
+    assert admin_root.headers["location"] == "/manage"
+    assert admin_manage.status_code == 200
+    assert admin_monitor.status_code == 200
 
 
 def test_monitor_route_redirects_setup_and_anonymous_requests_safely(

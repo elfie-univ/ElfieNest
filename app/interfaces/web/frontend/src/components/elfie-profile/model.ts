@@ -2,6 +2,8 @@ import { z } from "zod"
 
 import { ElfieIdValueSchema } from "@/shared/elfie-id"
 
+import { AccountRoleSchema } from "../../api/roles"
+
 export const GRAPH_PREVIEW_LIMIT = 20
 export const GRAPH_DETAIL_LIMIT = 50
 
@@ -25,7 +27,7 @@ export type GraphMode = (typeof GraphModes)[number]
 
 const ViewerSchema = z.object({
   accountId: AccountIdSchema,
-  role: z.union([z.literal("owner"), z.literal("user")]),
+  role: AccountRoleSchema,
   displayName: z.string().min(1),
 }).readonly()
 

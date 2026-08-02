@@ -41,6 +41,7 @@ describe("ManageDialog", () => {
 
     expect(screen.getByRole("dialog", { name: "编辑连接" })).toBeVisible()
     expect(screen.getByRole("textbox", { name: "名称" })).toHaveFocus()
+    expect(screen.getByRole("dialog", { name: "编辑连接" }).querySelector(".manage-dialog__fields")).toBeInTheDocument()
 
     await user.keyboard("{Escape}")
 

@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from app.features.accounts.auth import get_current_user, require_owner
+from app.features.accounts.auth import get_current_user, require_manager
 from app.infrastructure.persistence.nest_repository import (
     NestRepositoryConflictError,
     NestRepositoryNotFoundError,
@@ -18,7 +18,7 @@ logger = logging.getLogger("app.interfaces.api.nest_routes")
 
 router = APIRouter(prefix="/api/owner/nest", tags=["nest"])
 user_router = APIRouter(prefix="/api/user/nest", tags=["user-nest"])
-RequireOwner = Depends(require_owner)
+RequireOwner = Depends(require_manager)
 RequireUser = Depends(get_current_user)
 DEFAULT_BED_COUNT = 4
 MIN_BED_COUNT = 4

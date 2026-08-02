@@ -8,12 +8,20 @@ from fastapi.testclient import TestClient
 
 from app.infrastructure.persistence.store import get_db, init_db
 from app.interfaces.api.app import create_app
+from app.interfaces.api.observer_routes import _principal
 from nest.godot_gateway.observer import WorldChangingIntent
 
 from ._helpers import create_test_owner, create_test_user
 
 _ALICE_ELFIE_ID = "00000001"
 _OWNER_ELFIE_ID = "00000002"
+
+
+def test_admin_uses_the_existing_manager_observer_projection() -> None:
+    principal = _principal({"user_id": 7, "role": "admin"})
+
+    assert principal.user_id == 7
+    assert principal.role == "owner"
 
 
 @pytest.fixture

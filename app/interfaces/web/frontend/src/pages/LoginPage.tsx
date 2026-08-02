@@ -15,6 +15,7 @@ function safeNext(): string {
 
 export function LoginPage() {
   const { i18n, t } = useTranslation("auth")
+  const { t: commonT } = useTranslation("common")
   const [accountId, setAccountId] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<unknown | null>(null)
@@ -33,12 +34,14 @@ export function LoginPage() {
   }
 
   return (
-    <main className="page">
+    <main className="page login-page">
+      <section aria-label={commonT("language.label")} className="setup-locale-control">
+        <LanguageSwitcher variant="compact" />
+      </section>
       <section className="panel login">
         <p className="brand">{t("login.brand")}</p>
         <h1>{t("login.title")}</h1>
         <p>{t("login.description")}</p>
-        <LanguageSwitcher />
         <form onSubmit={(event) => { void submit(event) }}>
           <TextField
             autoComplete="username"

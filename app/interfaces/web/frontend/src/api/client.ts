@@ -11,6 +11,7 @@ export * from "./owner-foods"
 export * from "./owner-nest"
 export * from "./owner-providers"
 export * from "./owner-users"
+export * from "./roles"
 export * from "./session"
 
 export const ChatMessageSchema = z.object({

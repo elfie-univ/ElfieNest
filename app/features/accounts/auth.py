@@ -1,7 +1,7 @@
 """Auth 核心 — PBKDF2 密码哈希 + session token + 鉴权中间件 + CSRF + 速率限制。
 
 重用了 store.py 中的 hash_password / verify_password 实现。
-FastAPI 依赖（get_current_user / require_owner）仅在对应的函数中按需导入，
+FastAPI 依赖（get_current_user / require_manager / require_owner）仅在对应的函数中按需导入，
 不在模块顶层强依赖 FastAPI。
 """
 
@@ -20,6 +20,7 @@ from typing_extensions import TypedDict
 from ai_runtime.storage.data_home import data_home_from_db_path, get_config_path
 from ai_runtime.storage.data_home import get_db_path as _get_db_path
 from ai_runtime.storage.data_layout import final_root_layout
+from app.features.accounts.roles import AccountRole, is_manager, parse_account_role
 from app.features.configuration.runtime_store import read_system_section
 from app.infrastructure.persistence.session_repository import SessionRepository
 from app.infrastructure.persistence.store import get_db
@@ -76,7 +77,7 @@ _session_config: Dict[str, int] = {"ttl_seconds": 7 * 86_400}
 class AuthenticatedUser(TypedDict):
     user_id: int
     account_id: str
-    role: str
+    role: AccountRole
     default_landing_page: str
 
 
@@ -154,7 +155,7 @@ def verify_session(token: str, db_path: str) -> Optional[AuthenticatedUser]:
     return {
         "user_id": principal.user_id,
         "account_id": principal.account_id,
-        "role": principal.role,
+        "role": parse_account_role(principal.role),
         "default_landing_page": principal.default_landing_page,
     }
 
@@ -214,6 +215,15 @@ def require_owner(  # noqa: B008
     """要求当前用户为唯一 Owner 角色。"""
     if user.get("role") != "owner":
         raise HTTPException(status_code=403, detail="需要 Owner 权限")
+    return user
+
+
+def require_manager(  # noqa: B008
+    user: AuthenticatedUser = Depends(get_current_user),  # noqa: B008
+) -> AuthenticatedUser:
+    """要求当前用户为 Owner 或 Admin 管理员角色。"""
+    if not is_manager(user["role"]):
+        raise HTTPException(status_code=403, detail="需要 Owner 或 Admin 权限")
     return user
 
 

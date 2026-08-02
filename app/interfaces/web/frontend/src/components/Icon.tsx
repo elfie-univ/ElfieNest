@@ -1,13 +1,13 @@
 import {
   Activity, Camera, Cat, Cctv, Check, ChevronDown, ChevronUp, Cuboid, Eye, EyeOff, Globe2, House,
-  LockKeyhole, Menu, MessagesSquare, Minus, Palette, Pause, Pencil, Play, PlugZap, Plus,
+  LockKeyhole, LogOut, Menu, MessagesSquare, Minus, Palette, Pause, Pencil, Play, PlugZap, Plus,
   QrCode, RotateCcw, RotateCw, ScrollText, Search, Settings, User, Users, Utensils, Venus, Wrench, X, Mars,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
 export type IconName =
   | "activity" | "camera" | "cat" | "cctv" | "check" | "chevron-down" | "chevron-up" | "cuboid"
-  | "eye" | "eye-off" | "globe-2" | "house" | "lock-keyhole" | "menu" | "messages-square" | "minus"
+  | "eye" | "eye-off" | "globe-2" | "house" | "lock-keyhole" | "log-out" | "menu" | "messages-square" | "minus"
   | "palette" | "pause" | "pencil" | "play" | "plug-zap" | "plus" | "qr-code" | "rotate-ccw" | "rotate-cw" | "search" | "scroll"
   | "settings" | "user" | "users" | "utensils" | "venus" | "wrench" | "x" | "mars"
 
@@ -25,6 +25,7 @@ const iconComponents = {
   "globe-2": Globe2,
   house: House,
   "lock-keyhole": LockKeyhole,
+  "log-out": LogOut,
   menu: Menu,
   "messages-square": MessagesSquare,
   minus: Minus,

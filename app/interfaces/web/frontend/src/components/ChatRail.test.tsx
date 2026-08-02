@@ -19,6 +19,7 @@ const owner = {
 } as const satisfies ClientUser
 
 const member = { ...owner, role: "user" } as const satisfies ClientUser
+const admin = { ...owner, role: "admin" } as const satisfies ClientUser
 
 function renderRail(user: ClientUser): void {
   const instance = createI18n()
@@ -58,5 +59,12 @@ describe("ChatRail", () => {
     // Then: neither Owner-only destination is present.
     expect(screen.queryByRole("link", { name: "进入管理" })).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "进入监控" })).not.toBeInTheDocument()
+  })
+
+  it("shows management and monitor links for an Admin", () => {
+    renderRail(admin)
+
+    expect(screen.getByRole("link", { name: "进入管理" })).toHaveAttribute("href", "/manage")
+    expect(screen.getByRole("link", { name: "进入监控" })).toHaveAttribute("href", "/monitor")
   })
 })

@@ -12,7 +12,7 @@ from ai_runtime.storage.provider_connections import ProviderConnectionStore
 from ai_runtime.storage.report_repository import ReportRepository
 from ai_runtime.storage.secrets import connection_secret_name, resolve_secret
 from ai_runtime.storage.validation_reports import write_model_validation_report
-from app.features.accounts.auth import require_owner
+from app.features.accounts.auth import require_manager
 
 from .provider_connection_routes import _verify_connection_in_run
 from .provider_errors import sanitize_error
@@ -31,7 +31,7 @@ _BENCHMARK_CONCURRENCY = 2
 async def connection_model_matrix(
     as_of: Optional[str] = Query(default=None),
     run_id: Optional[str] = Query(default=None),
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
     repository = ReportRepository()
@@ -77,7 +77,7 @@ async def connection_model_matrix(
 async def benchmark_connection_models(
     body: ConnectionBenchmarkRequest,
     request: Request,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
     connections = ProviderConnectionStore().load().connections
@@ -146,7 +146,7 @@ async def benchmark_connection_models(
 @router.post("/connection-models/validate-all")
 async def validate_all_connection_models(
     request: Request,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
     connections = [

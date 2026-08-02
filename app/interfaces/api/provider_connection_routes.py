@@ -49,7 +49,7 @@ from ai_runtime.storage.validation_reports import (
     write_provider_validation_report,
 )
 from ai_runtime.validation.providers import discover_provider_models
-from app.features.accounts.auth import require_owner
+from app.features.accounts.auth import require_manager
 
 from .provider_errors import sanitize_error
 from .provider_schemas import (
@@ -91,7 +91,7 @@ def _ensure_local_connection(store: ProviderConnectionStore) -> None:
 
 @router.get("/catalog")
 async def list_connection_products(
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> list[dict[str, Any]]:
     _ = owner
     return [
@@ -115,7 +115,7 @@ async def list_connection_products(
 
 @router.get("/connections")
 async def list_connections(
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> list[dict[str, Any]]:
     _ = owner
     store = _store()
@@ -128,7 +128,7 @@ async def list_connections(
 @router.post("/connections", status_code=201)
 async def create_connection(
     body: ProviderConnectionWriteRequest,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
     profile = get_product(body.catalog_id)
@@ -182,7 +182,7 @@ async def create_connection(
 async def update_connection(
     connection_id: str,
     body: ProviderConnectionUpdateRequest,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
     store = _store()
@@ -231,7 +231,7 @@ async def update_connection(
 @router.delete("/connections/{connection_id}")
 async def delete_connection(
     connection_id: str,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, str]:
     _ = owner
     store = _store()
@@ -255,7 +255,7 @@ async def delete_connection(
 @router.post("/connections/{connection_id}/enable")
 async def enable_connection(
     connection_id: str,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
     store = _store()
@@ -270,7 +270,7 @@ async def enable_connection(
 @router.post("/connections/{connection_id}/disable")
 async def disable_connection(
     connection_id: str,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
     store = _store()
@@ -283,7 +283,7 @@ async def disable_connection(
 @router.post("/connections/{connection_id}/archive")
 async def archive_connection(
     connection_id: str,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
     store = _store()
@@ -296,7 +296,7 @@ async def archive_connection(
 @router.post("/connections/{connection_id}/restore")
 async def restore_connection(
     connection_id: str,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
     store = _store()
@@ -309,7 +309,7 @@ async def restore_connection(
 @router.post("/connections/{connection_id}/verify")
 async def verify_connection_route(
     connection_id: str,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
     connection = _require_connection(_store(), connection_id)
@@ -322,7 +322,7 @@ async def verify_connection_route(
 @router.post("/connections/{connection_id}/models/refresh")
 async def refresh_connection_models(
     connection_id: str,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
     return await _refresh_connection_models(connection_id)
@@ -332,7 +332,7 @@ async def refresh_connection_models(
 async def add_connection_model(
     connection_id: str,
     body: ProviderModelInput,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
     store = _store()
@@ -349,7 +349,7 @@ async def update_connection_model(
     connection_id: str,
     model_id: str,
     body: ProviderModelUpdateRequest,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
     store = _store()
@@ -421,7 +421,7 @@ async def update_connection_model(
 async def delete_connection_model(
     connection_id: str,
     model_id: str,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, str]:
     _ = owner
     store = _store()
