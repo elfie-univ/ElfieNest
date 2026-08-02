@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button"
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
-import { ChatSocket, type ChatSocketStatus } from "../api/chat-socket"
+import { ChatSocket } from "../api/chat-socket"
 import { ApiError } from "../api/http"
 import {
   conversations,
@@ -14,8 +14,9 @@ import {
   type ElfieProfile,
 } from "../api/client"
 import { AdoptionPanel } from "../components/AdoptionPanel"
-import { AccountMenu, AccountMenuPanel } from "../components/AccountMenu"
+import { AccountMenuPanel } from "../components/AccountMenu"
 import { AccountIdentityAvatar } from "../components/AccountIdentity"
+import { ChatRail } from "../components/ChatRail"
 import { ElfieProfilePanel } from "../components/ElfieProfilePanel"
 import { ChatConversationPane } from "../components/elfie-profile/ChatConversationPane"
 import { ChatListPane } from "../components/elfie-profile/ChatListPane"
@@ -43,7 +44,6 @@ export function ChatPage() {
   const [showMobileMe, setShowMobileMe] = useState(false)
   const [history, setHistory] = useState<readonly ChatMessage[]>([])
   const [selectedProfile, setSelectedProfile] = useState<ElfieProfile | null>(null)
-  const [status, setStatus] = useState<ChatSocketStatus>("offline")
   const [failure, setFailure] = useState<ChatFailure | null>(null)
   const [demoMode, setDemoMode] = useState(false)
   const [draft, setDraft] = useState("")
@@ -105,7 +105,7 @@ export function ChatPage() {
   useEffect(() => {
     if (user === null || demoMode) return undefined
     const realtime = new ChatSocket({
-      onStatus: setStatus,
+      onStatus: () => undefined,
       onEvent: (event) => {
         switch (event.event) {
           case "error": setFailure({ detail: event.detail, operation: "chat.connect" }); return
@@ -182,19 +182,7 @@ export function ChatPage() {
   return (
     <main className="app-page chat-page">
       <section className="chat-workbench">
-        <aside className="app-rail" aria-label={t("navigation.railLabel")}>
-          <nav className="rail-nav">
-            <Button aria-label={t("navigation.chats")} className={activePane === "chats" ? "rail-button rail-button--active" : "rail-button"} data-tooltip={t("navigation.chats")} onClick={() => openMobileSection("chats")} size="icon" type="button" variant="ghost"><Icon name="messages-square" /></Button>
-            <Button aria-label={t("navigation.elfies")} className={activePane === "elfies" ? "rail-button rail-button--active" : "rail-button"} data-tooltip={t("navigation.elfies")} onClick={() => openMobileSection("elfies")} size="icon" type="button" variant="ghost"><Icon name="users" /></Button>
-          </nav>
-          <div className="rail-bottom">
-            <div className="rail-quick-actions">
-              {user.role === "owner" ? <Button asChild className="rail-button rail-button--manage" data-tooltip={t("navigation.manage")} size="icon" variant="ghost"><a aria-label={t("navigation.manage")} href="/manage"><Icon name="house" /></a></Button> : null}
-              <Button aria-label={t("navigation.mobileAccess")} className="rail-button rail-button--mobile-access" data-tooltip={t("navigation.mobileAccess")} onClick={() => setShowMobileAccess(true)} size="icon" type="button" variant="ghost"><Icon name="qr-code" /></Button>
-            </div>
-            <AccountMenu compact onUpdated={refresh} user={user} />
-          </div>
-        </aside>
+        <ChatRail activePane={activePane} onMobileAccess={() => setShowMobileAccess(true)} onOpenSection={openMobileSection} onUpdated={refresh} user={user} />
 
         <ChatListPane
           activePane={activePane}
@@ -209,7 +197,6 @@ export function ChatPage() {
           onElfieProfile={chooseElfie}
           onElfieQueryChange={setElfieQuery}
           selectedId={selectedId}
-          status={status}
           viewerAccountId={user.account_id}
         />
 

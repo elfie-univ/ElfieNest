@@ -176,7 +176,7 @@ describe("ChatPage list pane headings", () => {
     expect(chatStyles).toContain("height: 32px")
     expect(workbenchRule).not.toContain("padding-bottom")
     expect(finalMobileRules).toContain(".app-rail { display: none; }")
-    expect(finalMobileRules).toContain(".connection-state { display: none; }")
+    expect(chatStyles).not.toContain(".connection-state")
   })
 
   it("keeps the chat layout reviewable with demo data when the legacy chat API is unavailable", async () => {
@@ -237,30 +237,6 @@ describe("ChatPage list pane headings", () => {
     expect(screen.getByRole("button", { name: "其他 2" })).toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "我的 0" }))
     expect(screen.getByRole("status")).toHaveTextContent("没有符合条件的精灵")
-  })
-
-  it("keeps row profile and chat navigation distinct without nested controls", async () => {
-    const user = userEvent.setup()
-    useDemoElfies()
-    renderChatPage("zh-CN")
-
-    const chat = await screen.findByRole("button", { name: "与 Kettle 聊天" })
-    const listRow = chat.closest("article")
-    if (!(listRow instanceof HTMLElement)) throw new TypeError("Expected an Elfie list row")
-    expect(within(listRow).getAllByRole("button")).toHaveLength(2)
-    expect(chat.closest(".elfie-list__profile")).toBeNull()
-    await user.click(chat)
-    await waitFor(() => {
-      expect(window.location.search).toBe("?view=conversation&elfie=23456789&mock=1")
-    })
-
-    window.history.replaceState({}, "", "/chat?view=elfies&mock=1")
-    window.dispatchEvent(new PopStateEvent("popstate"))
-    const profileRow = await screen.findByRole("button", { name: "查看 Happy 的个人档案" })
-    await user.click(profileRow)
-    await waitFor(() => {
-      expect(window.location.search).toBe("?view=profile&elfie=12345678&mock=1")
-    })
   })
 
   it("announces no results and recovers when the controlled search is cleared", async () => {
@@ -341,25 +317,25 @@ describe("ChatPage list pane headings", () => {
     expect(screen.getByDisplayValue("小羽 search 456")).toBe(search)
     expect(messageList.scrollTop).toBe(137)
     expect(window.location.pathname + window.location.search).toBe(locationBefore)
-    expect(screen.getByText("Channel: Live")).toBeInTheDocument()
+    expect(screen.queryByText("Channel: Live")).not.toBeInTheDocument()
     expect(screen.getByRole("alert")).toHaveTextContent("Unable to connect to chat.")
     expect(screen.queryByText("后端内部 detail")).not.toBeInTheDocument()
   })
 
-  it("distinguishes offline and reconnecting connection states in English", async () => {
-    // Given: the English Chat shell has installed its socket callbacks.
+  it("removes the connection status from both chat list panes", async () => {
+    // Given: the English Chat shell is showing the conversation list.
+    const user = userEvent.setup()
     renderChatPage("en-US")
     await screen.findByRole("heading", { level: 1, name: "Messages" })
-    const callbacks = socketState.callbacks
-    if (callbacks === null) throw new TypeError("Expected socket callbacks")
 
-    // When: the connection drops and begins reconnecting.
-    act(() => callbacks.onStatus("offline"))
-    expect(screen.getByText("Channel: Offline fallback")).toBeInTheDocument()
-    act(() => callbacks.onStatus("connecting"))
+    // When: the user switches to the Elfie list.
+    expect(screen.queryByText("Channel: Live")).not.toBeInTheDocument()
+    const rail = screen.getByLabelText("ElfieNest navigation")
+    await user.click(within(rail).getByRole("button", { name: "My Elfies" }))
 
-    // Then: reconnecting is not misreported as offline.
-    expect(screen.getByText("Channel: Reconnecting...")).toBeInTheDocument()
+    // Then: neither list pane renders a connection status.
+    await screen.findByRole("heading", { level: 1, name: "Elfies" })
+    expect(screen.queryByText("Channel: Live")).not.toBeInTheDocument()
   })
 
   it.each(["后端失败", "upstream socket rejected credentials"])(
