@@ -129,7 +129,7 @@ describe("OwnerElfieOverview", () => {
     expect(card.getByText("在巢中")).toBeInTheDocument()
     expect(card.getAllByRole("term").map((node) => node.textContent)).toEqual([
       "姓名",
-      "主人姓名",
+      "主人",
       "物种",
       "性别",
       "出生日期",

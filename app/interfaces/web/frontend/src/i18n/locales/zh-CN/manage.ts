@@ -18,7 +18,7 @@ export const manage = {
     aria: { portrait: "{{name}} 的头像" },
     description: "以可读身份证卡查看公开运营信息；只有粮食策略可由 Owner 在这里修改。",
     empty: "没有符合筛选条件的精灵。",
-    fields: { adoptionDate: "领养日期", bed: "床位号", birthDate: "出生日期", emergencyFood: "紧急粮", gender: "性别", id: "ID", name: "姓名", otherFood: "其他粮", owner: "主人姓名", species: "物种", stapleFood: "主粮", summary: "简介" },
+    fields: { adoptionDate: "领养日期", bed: "床位号", birthDate: "出生日期", emergencyFood: "紧急粮", gender: "性别", id: "ID", name: "姓名", otherFood: "其他粮", owner: "主人", species: "物种", stapleFood: "主粮", summary: "简介" },
     filters: { allFoods: "全部主粮", allSpecies: "全部物种", allStates: "全部状态", allUsers: "全部用户", food: "主粮", owner: "所属用户", species: "物种", status: "状态" },
     notices: { demo: "后端暂不可用，当前显示演示数据", demoDetail: "后端暂不可用，当前显示演示数据：{{detail}}", foodSaved: "{{name}} 的粮食策略已更新。", savingFood: "正在保存粮食策略…" },
     title: "全部精灵",
