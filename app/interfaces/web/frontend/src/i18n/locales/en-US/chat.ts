@@ -5,6 +5,7 @@ export const chat = {
     chats: "Chat history",
     elfies: "My Elfies",
     manage: "Open management",
+    monitor: "Open monitor",
     mobileAccess: "Open chat on a phone",
     mobileLabel: "Chat mobile navigation",
     chatsShort: "Messages",
@@ -20,12 +21,6 @@ export const chat = {
     searchChats: "Search chats",
     noPreview: "No messages yet",
     empty: "No chat history yet.",
-  },
-  connection: {
-    label: "Channel: {{state}}",
-    online: "Live",
-    offline: "Offline fallback",
-    connecting: "Reconnecting...",
   },
   conversation: {
     withElfie: "Chatting with {{elfieName}}",
@@ -58,7 +53,6 @@ export const chat = {
       otherGroup: "Other Elfies",
       filterLabel: "{{label}} {{count}}",
       openProfile: "View {{name}}'s profile",
-      chatWith: "Chat with {{name}}",
       empty: "No Elfies match. Clear the search or change the filter.",
     },
     identity: {

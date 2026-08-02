@@ -2,7 +2,6 @@ import { Button } from "@/components/ui/button"
 import { useTranslation } from "react-i18next"
 
 import { Avatar } from "../Avatar"
-import { Icon } from "../Icon"
 import {
   filterElfieList,
   type ElfieListFilter,
@@ -12,7 +11,6 @@ import {
 type ElfieListProps = {
   readonly filter: ElfieListFilter
   readonly items: readonly ElfieListItem[]
-  readonly onChat: (elfieId: string) => void
   readonly onFilterChange: (filter: ElfieListFilter) => void
   readonly onProfile: (elfieId: string) => void
   readonly query: string
@@ -23,7 +21,7 @@ type ElfieListProps = {
 const FILTERS = ["all", "mine", "other"] as const
 
 export function ElfieList({
-  filter, items, onChat, onFilterChange, onProfile, query, selectedId, viewerAccountId,
+  filter, items, onFilterChange, onProfile, query, selectedId, viewerAccountId,
 }: ElfieListProps) {
   const { t } = useTranslation("chat")
   const result = filterElfieList(items, viewerAccountId, query, filter)
@@ -68,16 +66,6 @@ export function ElfieList({
                     <strong>{item.profile.name}</strong>
                     <small>{item.profile.species_id} · {item.profile.elfie_id}</small>
                   </span>
-                </Button>
-                <Button
-                  aria-label={t("profile.list.chatWith", { name: item.profile.name })}
-                  className="elfie-list__chat"
-                  onClick={() => onChat(item.profile.elfie_id)}
-                  size="icon-sm"
-                  type="button"
-                  variant="ghost"
-                >
-                  <Icon name="messages-square" size={17} />
                 </Button>
               </article>
             ))}
