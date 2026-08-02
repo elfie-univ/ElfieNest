@@ -19,6 +19,8 @@ describe("currentUser", () => {
       user_id: 1,
       account_id: "admin123",
       display_name: "Owner",
+      gender: "male",
+      birth_date: null,
       role: "owner",
       avatar_color: 0,
       avatar_kind: "initials",
@@ -106,6 +108,27 @@ describe("canonical account requests", () => {
     // Then: the request contains no nickname alias.
     expect(requestJson).toHaveBeenCalledWith("/api/auth/me/profile", expect.objectContaining({
       body: JSON.stringify({ display_name: "Owner Renamed" }),
+      method: "PUT",
+    }))
+  })
+
+  it("sends the editable identity projection for profile updates", async () => {
+    vi.mocked(requestJson).mockResolvedValue({})
+
+    await updateProfile({
+      account_id: "owner-renamed",
+      birth_date: "1990-02-03",
+      display_name: "Owner Renamed",
+      gender: "female",
+    }, "csrf-token")
+
+    expect(requestJson).toHaveBeenCalledWith("/api/auth/me/profile", expect.objectContaining({
+      body: JSON.stringify({
+        account_id: "owner-renamed",
+        birth_date: "1990-02-03",
+        display_name: "Owner Renamed",
+        gender: "female",
+      }),
       method: "PUT",
     }))
   })

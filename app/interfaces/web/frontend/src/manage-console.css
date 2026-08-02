@@ -76,14 +76,29 @@
 .account-menu__close > svg { width: 18px; height: 18px; }
 .account-menu__close:hover { background: var(--nav-hover); color: var(--active-ink); }
 .account-menu__identity { display: grid; grid-template-columns: 62px minmax(0, 1fr) auto; align-items: center; gap: 12px; margin: 12px 0; padding: 12px; border: 1px solid var(--border-soft, var(--line)); border-radius: 14px; background: var(--surface-field, var(--surface-muted)); }
-.account-menu__identity .avatar { width: 62px; height: 62px; border-radius: 14px; font-size: 22px; }
+.account-menu__identity .avatar { width: 62px; height: 62px; border-radius: 14px; font-size: 30px; }
 .account-menu__avatar-input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
 .account-menu__avatar-button { display: grid; padding: 0; border-radius: 14px; background: transparent; }
 .account-menu__avatar-button:hover .avatar { outline: 2px solid var(--accent); outline-offset: 3px; }
 .account-menu__identity input[aria-label="显示名称"] { width: 100%; min-width: 0; border: 1px solid var(--accent); border-radius: 8px; padding: 5px 7px; color: var(--ink); background: var(--surface-raised); font: inherit; font-size: 18px; font-weight: 700; }
 .account-menu__identity h2 { font-size: 18px; }
 .account-menu__identity p, .account-menu__identity small { display: block; margin: 3px 0 0; color: var(--ink-soft); font-size: 14px; }
-.account-menu__edit { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 9px; color: var(--accent-hover); background: transparent; }
+.account-menu__identity-content { min-width: 0; }
+.account-menu__identity-display { min-width: 0; }
+.account-menu__identity-name-line { display: flex; align-items: center; gap: 7px; }
+.account-menu__identity-name-line h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-menu__gender-icon { display: inline-grid; width: 20px; height: 20px; flex: 0 0 auto; place-items: center; color: var(--accent-hover); }
+.account-menu__identity-label { margin-right: 5px; color: var(--ink-soft); }
+.account-menu__identity-edit { display: grid; gap: 7px; }
+.account-menu__identity-name-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(92px, .6fr); align-items: end; gap: 7px; }
+.account-menu__identity-name-row input { min-width: 0; }
+.account-menu__gender-field, .account-menu__identity-edit-row { display: grid; gap: 3px; color: var(--ink-soft); font-size: 12px; }
+.account-menu__gender-field select, .account-menu__identity-edit-row input { width: 100%; min-width: 0; padding: 6px 7px; border: 1px solid var(--border-soft, var(--line)); border-radius: 8px; color: var(--ink); background: var(--surface-raised); font: inherit; }
+.account-menu__identity-edit-row { grid-template-columns: minmax(5.5em, max-content) minmax(0, 1fr); align-items: center; }
+.account-menu__identity-edit-label { min-width: max-content; white-space: nowrap; }
+.account-menu__identity-edit-row input[readonly] { color: var(--ink-soft); background: var(--surface-muted); }
+.account-menu__identity-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 2px; }
+.account-menu__edit { display: grid; align-self: start; width: 32px; height: 32px; place-items: center; border-radius: 9px; color: var(--accent-hover); background: transparent; }
 .account-menu__edit:hover { background: var(--surface-hover, var(--nav-hover)); }
 .account-menu__setting { border-top: 1px solid var(--border-soft, var(--line)); }
 .account-menu__setting-toggle { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 9px; width: 100%; padding: 12px 3px; color: var(--ink); background: transparent; text-align: left; }

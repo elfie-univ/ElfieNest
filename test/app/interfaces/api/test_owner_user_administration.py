@@ -88,6 +88,7 @@ def test_owner_user_view_and_create_payload_use_only_final_fields(
     assert isinstance(created["user_id"], int)
     assert created["account_id"] == "member01"
     assert created["display_name"] == "Member"
+    assert created["gender"] == "male"
     listed = administration_client.get("/api/owner/users")
     assert listed.status_code == 200
     assert [row["role"] for row in listed.json()] == ["owner", "user"]

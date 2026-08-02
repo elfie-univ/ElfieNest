@@ -18,6 +18,8 @@ const owner = {
   csrf_token: "test-token",
   default_landing_page: "manage",
   display_name: "阿尔法",
+  gender: "male",
+  birth_date: "1990-02-03",
   role: "owner",
   theme_key: "warm-paper",
   user_id: 1,
@@ -73,12 +75,17 @@ describe("AccountMenu", () => {
     renderLocalized("zh-CN", true)
 
     expect(screen.getByText("阿尔法")).toBeInTheDocument()
-    expect(screen.getByText("@admin123")).toBeInTheDocument()
+    expect(screen.getByText("账号：")).toBeInTheDocument()
+    expect(screen.getByText("admin123")).toBeInTheDocument()
+    expect(screen.getByText("角色：")).toBeInTheDocument()
+    expect(screen.getByText("出生日期：")).toBeInTheDocument()
+    expect(screen.getByLabelText("男")).toBeInTheDocument()
+    expect(screen.queryByText("个人设置")).not.toBeInTheDocument()
     expect(screen.getAllByLabelText("上传本地头像")).toHaveLength(2)
     expect(screen.queryByLabelText("显示名称")).not.toBeInTheDocument()
   })
 
-  it("saves a canonical display_name while preserving the account identifier", async () => {
+  it("edits the complete identity projection after a second confirmation", async () => {
     // Given: the canonical profile editor is open for one account.
     const user = userEvent.setup()
     kyMock.mockResolvedValue(new Response(JSON.stringify({}), {
@@ -87,19 +94,52 @@ describe("AccountMenu", () => {
     }))
     renderLocalized("en-US", true)
     await user.click(screen.getByRole("button", { name: "Edit display name" }))
+    expect(document.querySelector(".account-menu__edit")).not.toBeInTheDocument()
+    expect(screen.getByText("Birth date:")).toHaveClass("account-menu__identity-edit-label")
 
-    // When: the display name is changed and saved.
+    // When: the identity fields are changed and the confirmation is accepted.
     const input = screen.getByRole("textbox", { name: "Edit display name" })
     await user.clear(input)
     await user.type(input, "Owner Renamed")
-    await user.click(screen.getByRole("button", { name: "Save display name" }))
+    const accountInput = screen.getByRole("textbox", { name: "Account:" })
+    await user.clear(accountInput)
+    await user.type(accountInput, "owner-renamed")
+    await user.selectOptions(screen.getByRole("combobox", { name: "Gender" }), "female")
+    const birthDateInput = screen.getByLabelText("Birth date:")
+    await user.clear(birthDateInput)
+    await user.type(birthDateInput, "2000-01-02")
+    await user.click(screen.getByRole("button", { name: "Save profile" }))
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("Confirm profile changes")
+    await user.click(screen.getByRole("button", { name: "Confirm" }))
 
-    // Then: the request uses display_name and the account label stays stable.
+    // Then: the request uses all editable identity fields.
     expect(kyMock).toHaveBeenCalledOnce()
     const request = kyMock.mock.calls[0]
     expect(request?.[0]).toBe("/api/auth/me/profile")
-    expect(JSON.parse(String(request?.[1]?.body))).toEqual({ display_name: "Owner Renamed" })
-    expect(screen.getByText("@admin123")).toBeInTheDocument()
+    expect(JSON.parse(String(request?.[1]?.body))).toEqual({
+      account_id: "owner-renamed",
+      birth_date: "2000-01-02",
+      display_name: "Owner Renamed",
+      gender: "female",
+    })
+  }, 10_000)
+
+  it("keeps the role read-only and closes a directly mounted panel from outside clicks", async () => {
+    const onClose = vi.fn()
+    const instance = createI18n()
+    initializeLocale(instance, {
+      browserLanguages: ["zh-CN"],
+      documentElement: document.documentElement,
+      storage: localStorage,
+    })
+    render(<I18nextProvider i18n={instance}><AccountMenuPanel onClose={onClose} onUpdated={async () => undefined} user={owner} /></I18nextProvider>)
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "编辑显示名称" }))
+    expect(screen.getByRole("textbox", { name: "角色：" })).toHaveAttribute("readonly")
+
+    fireEvent.mouseDown(document.body)
+    expect(onClose).toHaveBeenCalledOnce()
   })
 
   it("uses a primary action for saving the default landing page", async () => {
