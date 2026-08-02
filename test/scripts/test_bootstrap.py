@@ -85,9 +85,7 @@ def test_bootstrap_dev_report_requires_electron_authority_host(tmp_path: Path) -
         project_root / ".fake-bin/node",
         "#!/bin/sh\nprintf 'v20.12.0\\n'\n",
     )
-    make_executable(
-        project_root / "app/interfaces/desktop/node_modules/.bin/electron"
-    )
+    make_executable(project_root / "app/interfaces/desktop/node_modules/.bin/electron")
 
     result = subprocess.run(
         ["bash", str(scripts_dir / "bootstrap.sh"), "report", "--tier=dev"],
@@ -131,7 +129,7 @@ def test_bootstrap_ensure_dev_builds_electron_authority_host(tmp_path: Path) -> 
         'if [ "$1" = "--version" ]; then printf "10.12.1\\n"; exit 0; fi\n'
         'if [ "$1" = "install" ]; then mkdir -p node_modules/.bin; '
         'printf "#!/bin/sh\\nexit 0\\n" > node_modules/.bin/electron; '
-        'chmod +x node_modules/.bin/electron; exit 0; fi\n'
+        "chmod +x node_modules/.bin/electron; exit 0; fi\n"
         'if [ "$1" = "rebuild" ] && [ "$2" = "electron" ]; then exit 0; fi\n'
         'if [ "$1" = "build" ]; then mkdir -p ../../../build/components/desktop-interface; '
         'printf "built\\n" > ../../../build/components/desktop-interface/main.js; exit 0; fi\n'
@@ -286,7 +284,10 @@ def test_bootstrap_pins_the_official_godot_toolchain_for_source_builds() -> None
     default_download = 'GODOT_DEFAULT_DOWNLOAD_VERSION="4.7.1"' in runtime_source
     uses_official_download = "https://downloads.godotengine.org/" in runtime_source
     requires_templates = "Web Export Templates" in runtime_source
-    refuses_noninteractive_download = "Non-interactive environment cannot confirm Godot installation" in runtime_source
+    refuses_noninteractive_download = (
+        "Non-interactive environment cannot confirm Godot installation"
+        in runtime_source
+    )
 
     # Then: only an explicit developer confirmation can initiate the fixed toolchain.
     assert accepts_any_47x

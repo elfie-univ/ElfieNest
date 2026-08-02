@@ -14,7 +14,7 @@ _AVATAR_EXTENSIONS: Final[frozenset[str]] = frozenset({"png", "jpeg", "webp"})
 _DIRECTORY_MODE: Final[int] = 0o700
 
 
-@dataclass(frozen=True)  # CPython 3.9 uses explicit __slots__; # noqa: SLOTS_OK
+@dataclass(frozen=True)  # CPython 3.9 uses explicit __slots__.
 class InvalidFinalUserIdError(ValueError):
     """A user ID cannot be used in the final asset layout."""
 
@@ -25,7 +25,7 @@ class InvalidFinalUserIdError(ValueError):
         return f"final user ID must contain ASCII digits only: {self.user_id!r}"
 
 
-@dataclass(frozen=True)  # CPython 3.9 uses explicit __slots__; # noqa: SLOTS_OK
+@dataclass(frozen=True)  # CPython 3.9 uses explicit __slots__.
 class InvalidFinalElfieIdError(ValueError):
     """An Elfie ID cannot be used in the final workspace layout."""
 
@@ -33,10 +33,12 @@ class InvalidFinalElfieIdError(ValueError):
     __slots__ = ("elfie_id",)
 
     def __str__(self) -> str:
-        return f"final Elfie ID must contain exactly eight ASCII digits: {self.elfie_id!r}"
+        return (
+            f"final Elfie ID must contain exactly eight ASCII digits: {self.elfie_id!r}"
+        )
 
 
-@dataclass(frozen=True)  # CPython 3.9 uses explicit __slots__; # noqa: SLOTS_OK
+@dataclass(frozen=True)  # CPython 3.9 uses explicit __slots__.
 class InvalidAvatarExtensionError(ValueError):
     """An avatar extension is outside the final image allowlist."""
 
@@ -47,7 +49,7 @@ class InvalidAvatarExtensionError(ValueError):
         return f"avatar extension must be png, jpeg, or webp: {self.extension!r}"
 
 
-@dataclass(frozen=True)  # CPython 3.9 uses explicit __slots__; # noqa: SLOTS_OK
+@dataclass(frozen=True)  # CPython 3.9 uses explicit __slots__.
 class UnsafeDataLayoutPathError(ValueError):
     """A final data directory is a symlink or a non-directory entry."""
 
@@ -58,7 +60,7 @@ class UnsafeDataLayoutPathError(ValueError):
         return f"final data directory must be a real directory, not a symlink or file: {self.path}"
 
 
-@dataclass(frozen=True)  # CPython 3.9 uses explicit __slots__; # noqa: SLOTS_OK
+@dataclass(frozen=True)  # CPython 3.9 uses explicit __slots__.
 class FinalUserLayout:
     """Resolved final paths for one user's managed assets."""
 
@@ -76,7 +78,7 @@ class FinalUserLayout:
         return self.assets / f"avatar.{normalized}"
 
 
-@dataclass(frozen=True)  # CPython 3.9 uses explicit __slots__; # noqa: SLOTS_OK
+@dataclass(frozen=True)  # CPython 3.9 uses explicit __slots__.
 class FinalElfieLayout:
     """Resolved final paths for one stable Elfie workspace."""
 
@@ -124,7 +126,7 @@ class FinalElfieLayout:
         return self.workspace / "memory" / "concepts"
 
 
-@dataclass(frozen=True)  # CPython 3.9 uses explicit __slots__; # noqa: SLOTS_OK
+@dataclass(frozen=True)  # CPython 3.9 uses explicit __slots__.
 class FinalRootLayout:
     """Resolved final paths below one explicit product data root."""
 
@@ -234,7 +236,9 @@ def ensure_final_user_layout(data_home: Path, user_id: str) -> FinalUserLayout:
     """Create one parsed user's final asset directories."""
     root_layout = final_root_layout(data_home)
     user_layout = root_layout.user(user_id)
-    _ensure_directories((*_root_directories(root_layout), user_layout.assets, user_layout.files))
+    _ensure_directories(
+        (*_root_directories(root_layout), user_layout.assets, user_layout.files)
+    )
     return user_layout
 
 

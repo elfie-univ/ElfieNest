@@ -37,4 +37,6 @@ class SystemRepository:
 
     def _count(self, table_name: str) -> int:
         quoted = '"' + table_name.replace('"', '""') + '"'
-        return int(self._connection.execute(f"SELECT COUNT(*) FROM {quoted}").fetchone()[0])
+        return int(
+            self._connection.execute(f"SELECT COUNT(*) FROM {quoted}").fetchone()[0]
+        )

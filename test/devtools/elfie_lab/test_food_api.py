@@ -225,8 +225,7 @@ def test_default_elfie_lab_shows_unconfigured_foods_as_disabled_when_catalog_is_
         FOOD_COMMON_ID,
     ]
     assert all(
-        not item["ready_for_attempt"]
-        and item["unavailable_reason"] == "模型尚未配置"
+        not item["ready_for_attempt"] and item["unavailable_reason"] == "模型尚未配置"
         for item in items[1:]
     )
 

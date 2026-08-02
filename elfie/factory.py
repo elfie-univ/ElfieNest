@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Iterable, Optional, Union
+from typing import Any, Iterable, Optional, Union, cast
 
-from elfie.body.native import GodotTransport, NativeBody
+from elfie.body.native import GodotGateway, GodotTransport, NativeBody
 from elfie.body.port import BodyPort
 from elfie.brain.runtime_port import CorticalRuntimePort
 from elfie.communication import CommunicationHub
@@ -46,7 +46,7 @@ class ElfieFactory:
         if auto_native_body:
             body = NativeBody(
                 body_id=resolved_elfie_id or "elfie_default",
-                transport=GodotTransport(godot_api),
+                transport=GodotTransport(cast(GodotGateway, godot_api)),
             )
 
         elfie = Elfie(

@@ -144,7 +144,9 @@ def test_ensure_final_elfie_layout_creates_complete_secure_workspace(
         layout.concepts_memory,
     }
     assert layout.profile == layout.workspace / "profile" / "profile.yaml"
-    assert layout.history_database == layout.workspace / "conversations" / "history.sqlite"
+    assert (
+        layout.history_database == layout.workspace / "conversations" / "history.sqlite"
+    )
     assert layout.knowledge_database == layout.workspace / "memory" / "knowledge.sqlite"
     assert all(path.is_dir() for path in expected)
     assert all(stat.S_IMODE(path.stat().st_mode) == 0o700 for path in expected)

@@ -12,7 +12,9 @@ def reset_keys(mesh: bpy.types.Object) -> None:
     bpy.context.view_layer.update()
 
 
-def evaluated_vertex_world(mesh: bpy.types.Object, index: int) -> tuple[float, float, float]:
+def evaluated_vertex_world(
+    mesh: bpy.types.Object, index: int
+) -> tuple[float, float, float]:
     depsgraph = bpy.context.evaluated_depsgraph_get()
     evaluated = mesh.evaluated_get(depsgraph)
     evaluated_mesh = evaluated.to_mesh()
@@ -23,7 +25,9 @@ def evaluated_vertex_world(mesh: bpy.types.Object, index: int) -> tuple[float, f
         evaluated.to_mesh_clear()
 
 
-def distance(first: tuple[float, float, float], second: tuple[float, float, float]) -> float:
+def distance(
+    first: tuple[float, float, float], second: tuple[float, float, float]
+) -> float:
     return sum((a - b) ** 2 for a, b in zip(first, second)) ** 0.5
 
 
@@ -40,7 +44,9 @@ def main() -> None:
     for key in keys[1:]:
         max_index = max(
             range(len(mesh.data.vertices)),
-            key=lambda index: (key.data[index].co - basis.data[index].co).length_squared,
+            key=lambda index: (
+                (key.data[index].co - basis.data[index].co).length_squared
+            ),
         )
         stored_delta = (key.data[max_index].co - basis.data[max_index].co).length
         before = evaluated_vertex_world(mesh, max_index)

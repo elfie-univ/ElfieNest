@@ -264,7 +264,9 @@ def get_port_occupant_pid(port: int) -> Optional[int]:
         return None
 
 
-def kill_port_occupant(port: int, timeout_seconds: float = 5.0) -> Tuple[bool, Optional[str]]:
+def kill_port_occupant(
+    port: int, timeout_seconds: float = 5.0
+) -> Tuple[bool, Optional[str]]:
     """
     Kill the process occupying a port.
 
@@ -302,4 +304,6 @@ def kill_port_occupant(port: int, timeout_seconds: float = 5.0) -> Tuple[bool, O
         except (ProcessLookupError, PermissionError, OSError):
             pass
 
-    return True, None if not inspector.exists(pid) else (False, f"PID {pid} did not exit")
+    if inspector.exists(pid):
+        return False, f"PID {pid} did not exit"
+    return True, None

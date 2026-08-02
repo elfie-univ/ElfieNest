@@ -81,9 +81,9 @@ class TestGraphStorage:
         cursor = storage.conn.execute("PRAGMA table_info(nodes)")
         columns = {row[1]: row for row in cursor.fetchall()}
         # metadata 默认 '{}'
-        assert columns["metadata"][4] == "'{}'" or columns["metadata"][4] == '{}'
+        assert columns["metadata"][4] == "'{}'" or columns["metadata"][4] == "{}"
         # edges 默认 '[]'
-        assert columns["edges"][4] == "'[]'" or columns["edges"][4] == '[]'
+        assert columns["edges"][4] == "'[]'" or columns["edges"][4] == "[]"
 
     def test_edges_table_exists(self, storage):
         """验证 edges 表存在且有正确字段"""
@@ -141,7 +141,9 @@ class TestGraphStorage:
 
     def test_sensory_index_primary_key(self, storage):
         """验证 sensory_index 的复合主键 (sense_key, node_id)"""
-        cursor = storage.conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='sensory_index'")
+        cursor = storage.conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='sensory_index'"
+        )
         row = cursor.fetchone()
         assert row is not None
         create_sql = row[0].upper()
@@ -175,7 +177,7 @@ class TestGraphStorage:
         storage.conn.execute(
             "INSERT INTO nodes (id, type, content, metadata, edges) "
             "VALUES (?, ?, ?, ?, ?)",
-            ("n1", "episodic", "测试记忆", '{"emotion":"happy"}', '[]'),
+            ("n1", "episodic", "测试记忆", '{"emotion":"happy"}', "[]"),
         )
         storage.conn.commit()
 
@@ -319,7 +321,9 @@ class TestGraphStorageCRUD:
         storage.add_node(node1)
 
         node2 = MemoryNode(
-            id="upsert_1", type="episodic", content="更新后的内容",
+            id="upsert_1",
+            type="episodic",
+            content="更新后的内容",
             metadata={"updated": True},
         )
         storage.add_node(node2)
@@ -349,7 +353,9 @@ class TestGraphStorageCRUD:
         """metadata合并更新：新字段覆盖旧字段，旧字段保留"""
         storage.add_node(sample_node)
 
-        storage.update_node("test_1", metadata={"importance": 1.0, "new_field": "value"})
+        storage.update_node(
+            "test_1", metadata={"importance": 1.0, "new_field": "value"}
+        )
 
         retrieved = storage.get_node("test_1")
         # 旧字段保留
@@ -422,9 +428,13 @@ class TestGraphStorageCRUD:
     def test_get_nodes_by_type(self, storage):
         """按类型查询节点"""
         for i in range(5):
-            storage.add_node(MemoryNode(id=f"ep_{i}", type="episodic", content=f"记忆{i}"))
+            storage.add_node(
+                MemoryNode(id=f"ep_{i}", type="episodic", content=f"记忆{i}")
+            )
         for i in range(3):
-            storage.add_node(MemoryNode(id=f"ent_{i}", type="entity", content=f"实体{i}"))
+            storage.add_node(
+                MemoryNode(id=f"ent_{i}", type="entity", content=f"实体{i}")
+            )
 
         episodic_nodes = storage.get_nodes_by_type("episodic")
         assert len(episodic_nodes) == 5
@@ -435,7 +445,9 @@ class TestGraphStorageCRUD:
     def test_get_nodes_by_type_limit(self, storage):
         """按类型查询带limit"""
         for i in range(10):
-            storage.add_node(MemoryNode(id=f"n_{i}", type="episodic", content=f"记忆{i}"))
+            storage.add_node(
+                MemoryNode(id=f"n_{i}", type="episodic", content=f"记忆{i}")
+            )
 
         nodes = storage.get_nodes_by_type("episodic", limit=3)
         assert len(nodes) == 3
@@ -448,14 +460,26 @@ class TestGraphStorageCRUD:
     def test_get_unconsolidated_nodes(self, storage):
         """获取未巩固节点"""
         storage.add_node(
-            MemoryNode(id="c1", type="episodic", content="已巩固", metadata={"consolidated": True}),
+            MemoryNode(
+                id="c1",
+                type="episodic",
+                content="已巩固",
+                metadata={"consolidated": True},
+            ),
         )
         storage.add_node(MemoryNode(id="u1", type="episodic", content="未巩固1"))
         storage.add_node(
-            MemoryNode(id="u2", type="episodic", content="未巩固2", metadata={"consolidated": False}),
+            MemoryNode(
+                id="u2",
+                type="episodic",
+                content="未巩固2",
+                metadata={"consolidated": False},
+            ),
         )
         storage.add_node(
-            MemoryNode(id="u3", type="episodic", content="未巩固3", metadata={"foo": "bar"}),
+            MemoryNode(
+                id="u3", type="episodic", content="未巩固3", metadata={"foo": "bar"}
+            ),
         )
 
         unconsolidated = storage.get_unconsolidated_nodes()
@@ -468,7 +492,12 @@ class TestGraphStorageCRUD:
     def test_get_unconsolidated_nodes_no_match(self, storage):
         """没有未巩固节点时返回空列表"""
         storage.add_node(
-            MemoryNode(id="c1", type="episodic", content="已巩固", metadata={"consolidated": True}),
+            MemoryNode(
+                id="c1",
+                type="episodic",
+                content="已巩固",
+                metadata={"consolidated": True},
+            ),
         )
         unconsolidated = storage.get_unconsolidated_nodes()
         assert len(unconsolidated) == 0
@@ -478,16 +507,22 @@ class TestGraphStorageCRUD:
         assert storage.count_nodes() == 0
 
         for i in range(5):
-            storage.add_node(MemoryNode(id=f"n_{i}", type="episodic", content=f"记忆{i}"))
+            storage.add_node(
+                MemoryNode(id=f"n_{i}", type="episodic", content=f"记忆{i}")
+            )
 
         assert storage.count_nodes() == 5
 
     def test_count_nodes_by_type(self, storage):
         """按类型计数节点"""
         for i in range(3):
-            storage.add_node(MemoryNode(id=f"ep_{i}", type="episodic", content=f"记忆{i}"))
+            storage.add_node(
+                MemoryNode(id=f"ep_{i}", type="episodic", content=f"记忆{i}")
+            )
         for i in range(2):
-            storage.add_node(MemoryNode(id=f"ent_{i}", type="entity", content=f"实体{i}"))
+            storage.add_node(
+                MemoryNode(id=f"ent_{i}", type="entity", content=f"实体{i}")
+            )
 
         assert storage.count_nodes("episodic") == 3
         assert storage.count_nodes("entity") == 2

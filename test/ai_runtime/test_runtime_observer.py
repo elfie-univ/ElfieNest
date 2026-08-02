@@ -49,7 +49,9 @@ class FakeSkillsPlugin:
 
 
 class FakePermissionManager:
-    def verify_action(self, action: str, file_path: str, token: str | None = None) -> None:
+    def verify_action(
+        self, action: str, file_path: str, token: str | None = None
+    ) -> None:
         return None
 
 

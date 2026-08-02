@@ -5,9 +5,9 @@ import warnings
 
 from _pytest.monkeypatch import MonkeyPatch
 
+from ai_runtime.lab.menu import MenuItem, TerminalMenu
 from app.interfaces.cli.tui import common
 from app.interfaces.cli.tui.config_editors import config_llm
-from ai_runtime.lab.menu import MenuItem, TerminalMenu
 
 
 def test_input_password_fails_closed_when_getpass_cannot_hide_input(
@@ -70,7 +70,11 @@ def test_config_llm_stops_cleanly_when_model_input_hits_eof(
             raise EOFError from exc
 
     monkeypatch.setattr("builtins.input", read_input)
-    monkeypatch.setattr("app.interfaces.cli.tui.config_editors.clear_screen", lambda: None)
-    monkeypatch.setattr("app.interfaces.cli.tui.config_editors.print_banner", lambda: None)
+    monkeypatch.setattr(
+        "app.interfaces.cli.tui.config_editors.clear_screen", lambda: None
+    )
+    monkeypatch.setattr(
+        "app.interfaces.cli.tui.config_editors.print_banner", lambda: None
+    )
 
     config_llm({})

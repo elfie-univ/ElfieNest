@@ -119,12 +119,8 @@ def test_frame_preserves_ordered_multi_source_events_when_round_tripped() -> Non
                 ),
             ),
         ),
-        coalesced=(
-            CoalescedSummary(key="temperature", count=2, latest_event_id=None),
-        ),
-        dropped=(
-            DroppedSummary(reason="media_capacity", count=1, event_ids=()),
-        ),
+        coalesced=(CoalescedSummary(key="temperature", count=2, latest_event_id=None),),
+        dropped=(DroppedSummary(reason="media_capacity", count=1, event_ids=()),),
     )
 
     # When: the frame crosses a JSON boundary.

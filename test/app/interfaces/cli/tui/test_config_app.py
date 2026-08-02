@@ -179,7 +179,11 @@ def test_adoption_editor_round_trips_into_runtime_config(
     # Given
     config = {"system": {"adoption": {}}}
     config_path = tmp_path / "config.yaml"
-    monkeypatch.setattr(config_editors, "write_user_config", lambda value: write_user_config(value, config_path))
+    monkeypatch.setattr(
+        config_editors,
+        "write_user_config",
+        lambda value: write_user_config(value, config_path),
+    )
     _patch_input(monkeypatch, ["1", "5", "0"])
 
     # When

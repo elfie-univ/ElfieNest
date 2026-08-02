@@ -7,7 +7,7 @@ import os
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final, Iterator, Optional
+from typing import Any, Callable, Final, Iterator, Optional, cast
 
 from app.orchestration.lifecycle.process import secure_elfie_home
 
@@ -62,9 +62,11 @@ def _open_lock(elfie_home: Path) -> int:
 def _lock(descriptor: int, *, blocking: bool) -> None:
     if os.name == "nt":
         os.lseek(descriptor, 0, os.SEEK_SET)
-        mode = msvcrt.LK_LOCK if blocking else msvcrt.LK_NBLCK
+        msvcrt_module = cast(Any, msvcrt)
+        mode = int(msvcrt_module.LK_LOCK if blocking else msvcrt_module.LK_NBLCK)
+        locking = cast(Callable[[int, int, int], None], msvcrt_module.locking)
         try:
-            msvcrt.locking(descriptor, mode, 1)
+            locking(descriptor, mode, 1)
         except OSError as error:
             raise BlockingIOError from error
         return
@@ -75,7 +77,9 @@ def _lock(descriptor: int, *, blocking: bool) -> None:
 def _unlock(descriptor: int) -> None:
     if os.name == "nt":
         os.lseek(descriptor, 0, os.SEEK_SET)
-        msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
+        msvcrt_module = cast(Any, msvcrt)
+        locking = cast(Callable[[int, int, int], None], msvcrt_module.locking)
+        locking(descriptor, int(msvcrt_module.LK_UNLCK), 1)
         return
     fcntl.flock(descriptor, fcntl.LOCK_UN)
 

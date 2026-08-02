@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
-from devtools.elfie_lab.memory_projection import build_memory_cognition
+from devtools.elfie_lab.memory_projection import (
+    MemoryCognitionPayload,
+    ProjectionMemory,
+    build_memory_cognition,
+)
 from devtools.elfie_lab.schemas import ElfieSpec
 from devtools.elfie_lab.storage import ElfieLabStorage
 from elfie import Elfie
@@ -119,5 +123,5 @@ def _personality_tags(big_five: Dict[str, Any]) -> List[str]:
 def _memory_cognition_projection(
     elfie: Elfie,
     spec: ElfieSpec,
-) -> Dict[str, Any]:
-    return build_memory_cognition(elfie.memory, spec.name)
+) -> MemoryCognitionPayload:
+    return build_memory_cognition(cast(ProjectionMemory, elfie.memory), spec.name)

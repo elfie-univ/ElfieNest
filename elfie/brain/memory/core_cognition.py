@@ -501,7 +501,7 @@ class CoreCognition:
 
     def _backup_core(self) -> dict:
         """备份当前核心认知，用于回滚。"""
-        backup = {
+        backup: Dict[str, Any] = {
             "core_text": dict(self._core_text),
             "nodes": {},
         }

@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable, cast
 
 from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.providers.dispatch import detect_api_mode_for_url
@@ -29,7 +29,10 @@ def stream_runtime_response(request: RuntimeStreamRequest) -> Iterator[str]:
     api_key = provider_cfg.get("api_key", "")
     api_base = provider_cfg.get("api_base", "")
     api_mode = provider_cfg.get("api_mode", "") or detect_api_mode_for_url(api_base)
-    stream_fn = STREAM_DISPATCH.get(api_mode, stream_openai_compatible_api)
+    stream_fn = cast(
+        Callable[..., Iterator[str]],
+        STREAM_DISPATCH.get(api_mode, stream_openai_compatible_api),
+    )
 
     logger.info("⚡ 大模型底座 SSE 流式交互 (Model: %s)...", request.model_name)
 

@@ -215,9 +215,7 @@ def _envelope(
         meta=MessageMeta(
             event_id=event_id or f"message-{sender_id}-{recipient_id}",
             elfie_id=(
-                recipient_id
-                if direction is MessageDirection.INBOUND
-                else sender_id
+                recipient_id if direction is MessageDirection.INBOUND else sender_id
             ),
             source=sender,
             occurred_at=NOW,

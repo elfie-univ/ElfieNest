@@ -242,8 +242,12 @@ class TestEmotionWeightingDesignGoals:
         fear_weights = self.ew.get_weights("fear")
         calm_weights = self.ew.get_weights("calm")
 
-        assert fear_weights["mood"] == 0.45, f"fear mood权重应为0.45，实际{fear_weights['mood']}"
-        assert calm_weights["mood"] == 0.15, f"calm mood权重应为0.15，实际{calm_weights['mood']}"
+        assert fear_weights["mood"] == 0.45, (
+            f"fear mood权重应为0.45，实际{fear_weights['mood']}"
+        )
+        assert calm_weights["mood"] == 0.15, (
+            f"calm mood权重应为0.15，实际{calm_weights['mood']}"
+        )
         assert fear_weights["mood"] > calm_weights["mood"]
 
     def test_compute_score_consolidated_boost(self):
@@ -380,7 +384,9 @@ class TestEbbinghausDecayDesignGoals:
         # knowledge还在半衰期内(30天) → >0.9
         s_ep_7d = decay.compute_strength(ep_node, t_7d)
         s_kn_7d = decay.compute_strength(kn_node, t_7d)
-        assert s_ep_7d == pytest.approx(0.5, abs=0.01), f"7天后episodic强度应≈0.5，实际{s_ep_7d}"
+        assert s_ep_7d == pytest.approx(0.5, abs=0.01), (
+            f"7天后episodic强度应≈0.5，实际{s_ep_7d}"
+        )
         assert s_kn_7d > s_ep_7d, (
             f"7天后knowledge({s_kn_7d:.4f})应强于episodic({s_ep_7d:.4f})"
         )
@@ -443,9 +449,7 @@ class TestEbbinghausDecayDesignGoals:
         assert abs(s_high - expected_high) < 0.001, (
             f"高情绪记忆强度应≈{expected_high:.4f}，实际{s_high:.4f}"
         )
-        assert s_high > s_low, (
-            f"高情绪记忆({s_high:.4f})应强于低情绪记忆({s_low:.4f})"
-        )
+        assert s_high > s_low, f"高情绪记忆({s_high:.4f})应强于低情绪记忆({s_low:.4f})"
 
     def test_ghost_floor_never_zero(self):
         """无论衰减多久，strength永远不低于5%鬼影下限
@@ -480,9 +484,7 @@ class TestEbbinghausDecayDesignGoals:
         exponent = math.exp(-math.log(2) * 7 / 7)
         assert s_hi == pytest.approx(0.9 * exponent, abs=0.001)
         assert s_lo == pytest.approx(0.3 * exponent, abs=0.001)
-        assert s_hi > s_lo, (
-            f"高重要性记忆({s_hi:.4f})应强于低重要性记忆({s_lo:.4f})"
-        )
+        assert s_hi > s_lo, f"高重要性记忆({s_hi:.4f})应强于低重要性记忆({s_lo:.4f})"
 
 
 # ==============================================================================
@@ -687,7 +689,8 @@ class TestConsolidationPatternDesignGoals:
         )
 
         result = assembler._assemble_prediction_zone(
-            ["现在8点主人走过来"], ["主人"],
+            ["现在8点主人走过来"],
+            ["主人"],
         )
 
         assert "预测灵感：" in result
@@ -775,18 +778,16 @@ class TestContextAssemblyDesignGoals:
         # 5个区域
         zone_titles = [
             "关于主人你知道什么",  # 区1：实体
-            "最近相关经历：",      # 区2：经历
-            "联想到：",            # 区3：联想到
-            "预测灵感：",          # 区4：预测
+            "最近相关经历：",  # 区2：经历
+            "联想到：",  # 区3：联想到
+            "预测灵感：",  # 区4：预测
             "当前情绪对你记忆的影响：",  # 区5：情绪
         ]
         for title in zone_titles:
             assert title in result, f"输出中应包含区域标题: {title}"
 
         # 字符数限制
-        assert len(result) <= 2000, (
-            f"上下文过长: {len(result)}字符"
-        )
+        assert len(result) <= 2000, f"上下文过长: {len(result)}字符"
 
     def test_context_assembly_empty_zones_omitted(self, assembler):
         """空区域应被省略（不输出空区域标题）
@@ -816,19 +817,17 @@ class TestContextAssemblyDesignGoals:
 
         # 空区域不出现
         empty_titles = [
-            "关于",           # 实体区域
-            "最近相关经历",   # 经历区域
-            "联想到",         # 联想区域
-            "预测灵感",       # 预测区域
+            "关于",  # 实体区域
+            "最近相关经历",  # 经历区域
+            "联想到",  # 联想区域
+            "预测灵感",  # 预测区域
             "当前情绪对你记忆的影响",  # 情绪区域
         ]
         # 核心认知末尾之后不应出现其他区域标题
         core_end = result.index("【核心认知】") + len("【核心认知】")
         after_core = result[core_end:]
         for title in empty_titles:
-            assert title not in after_core, (
-                f"空区域标题不应出现在输出中: {title}"
-            )
+            assert title not in after_core, f"空区域标题不应出现在输出中: {title}"
 
 
 # ==============================================================================
@@ -922,7 +921,11 @@ class TestConsolidationEntityDesignGoals:
             )
 
         # 验证：实体属性被更新（consolidationInteractions累加）
-        for ent_id, ent_name in [("ent_owner", "主人"), ("ent_food", "食物"), ("ent_fish", "鱼")]:
+        for ent_id, ent_name in [
+            ("ent_owner", "主人"),
+            ("ent_food", "食物"),
+            ("ent_fish", "鱼"),
+        ]:
             node = storage.get_node(ent_id)
             assert node is not None
             interactions = node.metadata.get("consolidationInteractions", 0)

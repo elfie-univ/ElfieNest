@@ -32,6 +32,7 @@ from elfie.brain.emotion.personality import PersonalityModifier
 # 1. 饱和增长（Saturation）- 3 tests
 # =============================================================================
 
+
 class TestSaturation:
     """验证饱和增长设计目标：边际递减、高值缓慢增长、永不越界"""
 
@@ -68,14 +69,18 @@ class TestSaturation:
 
         # 值为20时的增量
         delta_low = calculate_accumulation_delta(
-            current_value=20, base_delta=config["base_delta"],
-            intensity=0.5, config=config,
+            current_value=20,
+            base_delta=config["base_delta"],
+            intensity=0.5,
+            config=config,
         )
 
         # 值为80时的增量
         delta_high = calculate_accumulation_delta(
-            current_value=80, base_delta=config["base_delta"],
-            intensity=0.5, config=config,
+            current_value=80,
+            base_delta=config["base_delta"],
+            intensity=0.5,
+            config=config,
         )
 
         assert delta_high < delta_low, (
@@ -107,6 +112,7 @@ class TestSaturation:
 # =============================================================================
 # 2. 分阶段衰减（Staged Decay）- 3 tests
 # =============================================================================
+
 
 class TestStagedDecay:
     """验证分阶段衰减设计目标：高值快消散、向基线靠拢不越界、与dt成正比"""
@@ -147,8 +153,11 @@ class TestStagedDecay:
 
         # 高于baseline时衰减应向baseline下降
         result_above = decay(
-            current_value=80, dt=60, config=config,
-            baseline=baseline, half_life=config["half_life"],
+            current_value=80,
+            dt=60,
+            config=config,
+            baseline=baseline,
+            half_life=config["half_life"],
         )
         assert baseline <= result_above < 80, (
             f"高于baseline时结果({result_above:.3f})应在[{baseline}, 80)之间"
@@ -156,8 +165,11 @@ class TestStagedDecay:
 
         # 低于baseline时衰减应向baseline回升
         result_below = decay(
-            current_value=20, dt=60, config=config,
-            baseline=baseline, half_life=config["half_life"],
+            current_value=20,
+            dt=60,
+            config=config,
+            baseline=baseline,
+            half_life=config["half_life"],
         )
         assert 20 < result_below <= baseline, (
             f"低于baseline时结果({result_below:.3f})应在(20, {baseline}]之间"
@@ -165,8 +177,11 @@ class TestStagedDecay:
 
         # 任何时候都不应为负值
         result_extreme = decay(
-            current_value=5, dt=10000, config=config,
-            baseline=baseline, half_life=config["half_life"],
+            current_value=5,
+            dt=10000,
+            config=config,
+            baseline=baseline,
+            half_life=config["half_life"],
         )
         assert result_extreme >= 0, f"衰减结果({result_extreme:.3f})不应为负值"
 
@@ -182,15 +197,21 @@ class TestStagedDecay:
 
         # dt=1时的衰减量
         after_1 = decay(
-            current_value=current, dt=1, config=config,
-            baseline=baseline, half_life=half_life,
+            current_value=current,
+            dt=1,
+            config=config,
+            baseline=baseline,
+            half_life=half_life,
         )
         decay_1 = current - after_1
 
         # dt=2时的衰减量
         after_2 = decay(
-            current_value=current, dt=2, config=config,
-            baseline=baseline, half_life=half_life,
+            current_value=current,
+            dt=2,
+            config=config,
+            baseline=baseline,
+            half_life=half_life,
         )
         decay_2 = current - after_2
 
@@ -202,6 +223,7 @@ class TestStagedDecay:
 # =============================================================================
 # 3. 频率慢化（Frequency Slowdown）- 2 tests
 # =============================================================================
+
 
 class TestFrequencySlowdown:
     """验证频率慢化设计目标：高频时积累变慢"""
@@ -269,6 +291,7 @@ class TestFrequencySlowdown:
 # 4. Yerkes-Dodson 倒U曲线 - 2 tests (标记skip，尚未实现)
 # =============================================================================
 
+
 class TestYerkesDodson:
     """验证Yerkes-Dodson倒U曲线设计目标
 
@@ -278,9 +301,9 @@ class TestYerkesDodson:
 
     @pytest.mark.skip(
         reason="Yerkes-Dodson倒U曲线未实现："
-               "当前calculate_accumulation_delta使用线性强度乘法，"
-               "intensity=0.5产生的增量永远< intensity=1.0。"
-               "需要引入arousal调制或非线性的强度-效能映射。"
+        "当前calculate_accumulation_delta使用线性强度乘法，"
+        "intensity=0.5产生的增量永远< intensity=1.0。"
+        "需要引入arousal调制或非线性的强度-效能映射。"
     )
     def test_yerkes_dodson_moderate_best(self):
         """中等强度(intensity=0.5)的增量 > 极高强度(intensity=1.0)的增量
@@ -289,31 +312,38 @@ class TestYerkesDodson:
         """
         config = EMOTION_CONFIGS["happiness"]
         delta_moderate = calculate_accumulation_delta(
-            current_value=50, base_delta=config["base_delta"],
-            intensity=0.5, config=config,
+            current_value=50,
+            base_delta=config["base_delta"],
+            intensity=0.5,
+            config=config,
         )
         delta_extreme = calculate_accumulation_delta(
-            current_value=50, base_delta=config["base_delta"],
-            intensity=1.0, config=config,
+            current_value=50,
+            base_delta=config["base_delta"],
+            intensity=1.0,
+            config=config,
         )
         assert delta_moderate > delta_extreme, (
             f"中等强度(0.5)增量({delta_moderate:.3f})应大于极高强度(1.0)增量({delta_extreme:.3f})"
         )
 
     @pytest.mark.skip(
-        reason="Yerkes-Dodson倒U曲线未实现："
-               "当前线性强度机制下低强度永远<中等强度。"
+        reason="Yerkes-Dodson倒U曲线未实现：当前线性强度机制下低强度永远<中等强度。"
     )
     def test_yerkes_dodson_low_intensity_low_gain(self):
         """低强度(intensity=0.1)的增量 < 中等强度(intensity=0.5)的增量"""
         config = EMOTION_CONFIGS["happiness"]
         delta_low = calculate_accumulation_delta(
-            current_value=50, base_delta=config["base_delta"],
-            intensity=0.1, config=config,
+            current_value=50,
+            base_delta=config["base_delta"],
+            intensity=0.1,
+            config=config,
         )
         delta_moderate = calculate_accumulation_delta(
-            current_value=50, base_delta=config["base_delta"],
-            intensity=0.5, config=config,
+            current_value=50,
+            base_delta=config["base_delta"],
+            intensity=0.5,
+            config=config,
         )
         assert delta_low < delta_moderate, (
             f"低强度(0.1)增量({delta_low:.3f})应小于中等强度(0.5)增量({delta_moderate:.3f})"
@@ -323,6 +353,7 @@ class TestYerkesDodson:
 # =============================================================================
 # 5. 人格调制（Personality Modulation）- 3 tests
 # =============================================================================
+
 
 class TestPersonalityModulation:
     """验证Big Five人格设计目标：人格特质对情绪积累的调制效应"""
@@ -342,7 +373,9 @@ class TestPersonalityModulation:
         assert high_mod > low_mod, (
             f"高神经质modifier({high_mod:.2f})应大于低神经质modifier({low_mod:.2f})"
         )
-        assert high_mod == pytest.approx(1.4), f"高神经质modifier应为1.4，实际{high_mod}"
+        assert high_mod == pytest.approx(1.4), (
+            f"高神经质modifier应为1.4，实际{high_mod}"
+        )
         assert low_mod == pytest.approx(0.6), f"低神经质modifier应为0.6，实际{low_mod}"
 
     def test_personality_high_extraversion_happiness(self):
@@ -386,6 +419,7 @@ class TestPersonalityModulation:
 # 6. 情绪交互 - 转移（Transfer）- 2 tests
 # =============================================================================
 
+
 class TestInteractionTransfer:
     """验证情绪转移设计目标：恐惧→愤怒的定向转移"""
 
@@ -418,6 +452,7 @@ class TestInteractionTransfer:
 # =============================================================================
 # 7. 情绪交互 - 抑制（Inhibition）- 2 tests
 # =============================================================================
+
 
 class TestInteractionInhibition:
     """验证情绪抑制设计目标：快乐抑制愤怒"""
@@ -467,6 +502,7 @@ class TestInteractionInhibition:
 # =============================================================================
 # 8. 情绪交互 - 增强（Enhancement）- 2 tests
 # =============================================================================
+
 
 class TestInteractionEnhancement:
     """验证情绪增强设计目标：悲伤增强依恋"""
@@ -524,6 +560,7 @@ class TestInteractionEnhancement:
 # =============================================================================
 # 9. 表情映射完整（Expression Mapping）- 7 tests
 # =============================================================================
+
 
 class TestExpressionMapping:
     """验证表情映射设计目标：各情绪正确映射到表情参数"""
@@ -601,14 +638,18 @@ class TestExpressionMapping:
         # 高级别动作集应包含低级别以外的动作（非严格超集，但应有差异）
         assert low_actions != high_actions, "低强度和高强度的动作应不同"
         assert medium["actions"] != high["actions"], "中等强度和高强度的动作应不同"
-        assert low["voice_modifier"] == medium["voice_modifier"] == high["voice_modifier"] == "cheerful", (
-            "语音修饰符在不同强度级别应保持一致"
-        )
+        assert (
+            low["voice_modifier"]
+            == medium["voice_modifier"]
+            == high["voice_modifier"]
+            == "cheerful"
+        ), "语音修饰符在不同强度级别应保持一致"
 
 
 # =============================================================================
 # 集成测试：通过EmotionSystem验证完整交互链路
 # =============================================================================
+
 
 class TestDesignGoalIntegration:
     """验证多个设计目标通过EmotionSystem协同工作的效果"""

@@ -282,5 +282,3 @@ class Elfie:
             Path(config_dir) / "profile" / "profile.yaml" if config_dir else None
         )
         return str(candidate) if candidate is not None and candidate.is_file() else None
-
-

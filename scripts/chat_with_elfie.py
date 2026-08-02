@@ -3,6 +3,7 @@
 
 Starts the full service stack so the user can chat with Elfie "Aifei" in the terminal.
 """
+
 import os
 import sys
 import threading

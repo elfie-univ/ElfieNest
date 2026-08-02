@@ -51,7 +51,9 @@ def _actor(actor_id: str, source_kind: str) -> ActorRef:
     return ActorRef(actor_id=ActorId(actor_id), source_kind=source_kind)
 
 
-def _meta(event_id: str, actor: ActorRef, causation_id: EventId | None = None) -> MessageMeta:
+def _meta(
+    event_id: str, actor: ActorRef, causation_id: EventId | None = None
+) -> MessageMeta:
     return MessageMeta(
         event_id=EventId(event_id),
         elfie_id=ELFIE_ID,

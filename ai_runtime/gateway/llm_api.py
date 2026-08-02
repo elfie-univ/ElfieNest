@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable, cast
 
 from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.providers.dispatch import (
@@ -31,7 +31,11 @@ def call_llm_api(
     api_base = provider_cfg.get("api_base", "")
     api_mode = provider_cfg.get("api_mode", "") or detect_api_mode_for_url(api_base)
 
-    dispatch_fn = API_DISPATCH.get(api_mode, call_openai_compatible_api)
+    dispatch_fn = cast(
+        Callable[..., tuple[str, dict[str, Any]]],
+        API_DISPATCH.get(api_mode, call_openai_compatible_api),
+    )
+    args: tuple[Any, ...]
     prompt_chars = sum(len(str(message.get("content", ""))) for message in messages)
 
     try:

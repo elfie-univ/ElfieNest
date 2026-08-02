@@ -1,10 +1,13 @@
 import math
+import sqlite3
 from typing import List, Optional, Tuple
 
 from .tokenizer import tokenize
 
 
 class GraphContentSearchMixin:
+    conn: sqlite3.Connection
+
     def search_by_content(
         self, query: str, top_k: int = 5, node_type: Optional[str] = None
     ) -> List[Tuple[str, float]]:

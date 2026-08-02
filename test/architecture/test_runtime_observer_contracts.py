@@ -54,9 +54,7 @@ EXPECTED_GODOT_OBSERVER_CATALOG_FIELDS = frozenset(
     {"revision", "views", "active_id", "presentation_paused"}
 )
 EXPECTED_GODOT_OBSERVER_VIEW_FIELDS = frozenset({"id", "label"})
-EXPECTED_GODOT_OBSERVER_TRANSPORT_FIELDS = frozenset(
-    {"channel", "version", "kind"}
-)
+EXPECTED_GODOT_OBSERVER_TRANSPORT_FIELDS = frozenset({"channel", "version", "kind"})
 FORBIDDEN_GODOT_OBSERVER_BOUNDARY_FIELDS = frozenset(
     {
         "x",
@@ -169,7 +167,11 @@ def _gdscript_function_body(path: Path, function_name: str) -> str:
     lines = path.read_text(encoding="utf-8").splitlines()
     signature_prefix = f"func {function_name}("
     start_index = next(
-        (index for index, line in enumerate(lines) if line.startswith(signature_prefix)),
+        (
+            index
+            for index, line in enumerate(lines)
+            if line.startswith(signature_prefix)
+        ),
         None,
     )
     if start_index is None:
@@ -227,7 +229,7 @@ def _assert_tokens_in_order(source: str, tokens: tuple[str, ...]) -> None:
 def _gdscript_observer_action_key_rules(source: str) -> dict[str, frozenset[str]]:
     matches = re.findall(
         r'"([^"]+)":\s*\n\s*return _observer_message_has_exact_keys\('
-        r'message,\s*\[([^\]]*)\]\s*\)',
+        r"message,\s*\[([^\]]*)\]\s*\)",
         source,
     )
     return {
@@ -392,12 +394,16 @@ def test_observer_descriptor_has_only_scoped_read_capability_and_high_level_inte
 def test_godot_observer_catalog_is_semantic_versioned_and_not_authority() -> None:
     # Given: Product web observes Godot through a semantic camera catalog only.
     catalog_body = _gdscript_function_body(GODOT_NEST_PATH, "observer_camera_catalog")
-    register_body = _gdscript_function_body(GODOT_NEST_PATH, "_register_observation_view")
+    register_body = _gdscript_function_body(
+        GODOT_NEST_PATH, "_register_observation_view"
+    )
     rebuild_body = _gdscript_function_body(GODOT_NEST_PATH, "_build_observation_views")
     section_views_body = _gdscript_function_body(
         GODOT_NEST_PATH, "_build_section_observation_views"
     )
-    select_view_body = _gdscript_function_body(GODOT_NEST_PATH, "select_observation_view")
+    select_view_body = _gdscript_function_body(
+        GODOT_NEST_PATH, "select_observation_view"
+    )
     select_by_id_body = _gdscript_function_body(
         GODOT_NEST_PATH, "select_observer_camera_by_id"
     )
@@ -434,12 +440,14 @@ def test_godot_observer_catalog_is_semantic_versioned_and_not_authority() -> Non
     publish_body = _gdscript_function_body(GODOT_MAIN_PATH, "_publish_observer_catalog")
 
     # When / Then: the internal catalog is exactly semantic id/label metadata.
-    assert _gdscript_literal_keys(
-        _gdscript_braced_block(catalog_body, "views.append")
-    ) == EXPECTED_GODOT_OBSERVER_VIEW_FIELDS
-    assert _gdscript_literal_keys(
-        _gdscript_braced_block(catalog_body, "return")
-    ) == EXPECTED_GODOT_OBSERVER_CATALOG_FIELDS
+    assert (
+        _gdscript_literal_keys(_gdscript_braced_block(catalog_body, "views.append"))
+        == EXPECTED_GODOT_OBSERVER_VIEW_FIELDS
+    )
+    assert (
+        _gdscript_literal_keys(_gdscript_braced_block(catalog_body, "return"))
+        == EXPECTED_GODOT_OBSERVER_CATALOG_FIELDS
+    )
     assert FORBIDDEN_GODOT_OBSERVER_BOUNDARY_FIELDS.isdisjoint(
         _gdscript_string_literals(public_catalog_api_bodies)
     )
@@ -489,9 +497,10 @@ def test_godot_observer_catalog_is_semantic_versioned_and_not_authority() -> Non
         encoding="utf-8"
     )
     assert "nest.observer_camera_catalog()" in publish_body
-    assert _gdscript_literal_keys(
-        _gdscript_braced_block(publish_body, ".merged")
-    ) == EXPECTED_GODOT_OBSERVER_TRANSPORT_FIELDS
+    assert (
+        _gdscript_literal_keys(_gdscript_braced_block(publish_body, ".merged"))
+        == EXPECTED_GODOT_OBSERVER_TRANSPORT_FIELDS
+    )
     assert '"kind": "camera_catalog"' in publish_body
     assert "_observer_window.parent.postMessage" in publish_body
 
@@ -537,21 +546,22 @@ def test_godot_observer_catalog_is_semantic_versioned_and_not_authority() -> Non
     assert FORBIDDEN_GODOT_OBSERVER_ACTIONS.isdisjoint(
         _gdscript_string_literals(parser_body)
     )
-    assert _gdscript_observer_action_key_rules(
-        accepts_body
-    ) == EXPECTED_GODOT_OBSERVER_ACTION_KEY_RULES
+    assert (
+        _gdscript_observer_action_key_rules(accepts_body)
+        == EXPECTED_GODOT_OBSERVER_ACTION_KEY_RULES
+    )
     assert '["channel", "version", "kind", "action"]' in exact_keys_body
     assert "message.keys().size() != allowed_keys.size()" in exact_keys_body
     assert "for key: Variant in message.keys():" in exact_keys_body
     assert "if typeof(key) != TYPE_STRING:" in exact_keys_body
     assert "if key not in allowed_keys:" in exact_keys_body
-    assert "typeof(message.get(\"channel\")) != TYPE_STRING" in accepts_body
-    assert "var version: Variant = message.get(\"version\")" in accepts_body
+    assert 'typeof(message.get("channel")) != TYPE_STRING' in accepts_body
+    assert 'var version: Variant = message.get("version")' in accepts_body
     assert "if typeof(version) == TYPE_INT:" in accepts_body
     assert "elif typeof(version) == TYPE_FLOAT:" in accepts_body
     assert "if version != float(OBSERVER_PROTOCOL_VERSION):" in accepts_body
-    assert "typeof(message.get(\"kind\")) != TYPE_STRING" in accepts_body
-    assert "typeof(message.get(\"action\")) != TYPE_STRING" in accepts_body
+    assert 'typeof(message.get("kind")) != TYPE_STRING' in accepts_body
+    assert 'typeof(message.get("action")) != TYPE_STRING' in accepts_body
     assert "String(message.get" not in accepts_body
     assert "int(message.get" not in accepts_body
     assert "return false" in accepts_body

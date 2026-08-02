@@ -132,9 +132,7 @@ def test_repository_projects_latest_as_of_and_complete_run(
         ("anthropic_api_0001/claude-test", "passed"),
         ("openai_api_0001/gpt-test", "failed"),
     ]
-    historical = repository.as_of(
-        "2026-07-29T01:30:00+00:00", subject_kind="model"
-    )
+    historical = repository.as_of("2026-07-29T01:30:00+00:00", subject_kind="model")
     assert [(row.subject_id, row.status) for row in historical] == [
         ("anthropic_api_0001/claude-test", "passed"),
         ("openai_api_0001/gpt-test", "passed"),

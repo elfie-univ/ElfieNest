@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .memory_store import MemoryStore
 from .node_types import EdgeTypes, MemoryNode, NodeTypes
@@ -281,14 +281,14 @@ class MemoryEncoder:
             return []
 
         # 1. 规则匹配：扫描内容中出现的关键词，按出现位置排序
-        matched_entities = []
+        matched_entities: List[Tuple[int, str]] = []
         for keyword in self.ENTITY_DICT:
             if keyword in content:
                 pos = content.find(keyword)
                 matched_entities.append((pos, keyword))
         # 按出现位置升序排列，保持内容中的自然顺序
         matched_entities.sort(key=lambda x: x[0])
-        matched_entities = [kw for _, kw in matched_entities]
+        matched_keywords = [keyword for _, keyword in matched_entities]
 
         # 2. 如果runtime_agent可用，尝试LLM提取补充实体
         if runtime_agent is not None:
@@ -314,7 +314,7 @@ class MemoryEncoder:
                         if line.strip()
                     ]
                     # 合并规则匹配和LLM提取结果
-                    combined = list(dict.fromkeys(matched_entities + llm_entities))
+                    combined = list(dict.fromkeys(matched_keywords + llm_entities))
                     # 幻觉防护：只保留确实出现在原文中的实体名称
                     result = [e for e in combined if e in content]
                     return result
@@ -322,7 +322,7 @@ class MemoryEncoder:
                 logger.warning("LLM实体提取失败，降级为纯规则匹配")
 
         # 3. 降级：纯规则匹配结果
-        return matched_entities
+        return matched_keywords
 
     def check_entity_exists(self, entity_name: str) -> Optional[str]:
         """检查SQLite是否已有该实体节点

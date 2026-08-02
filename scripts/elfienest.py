@@ -143,7 +143,9 @@ def main() -> None:
     stop_parser.add_argument("--owner-id", default="cli", help=argparse.SUPPRESS)
     subparsers.add_parser("restart", help="Force restart service")
     subparsers.add_parser("owner", help="Owner account menu")
-    doctor_parser = subparsers.add_parser("doctor", help="Run local diagnostics and config check")
+    doctor_parser = subparsers.add_parser(
+        "doctor", help="Run local diagnostics and config check"
+    )
     doctor_parser.add_argument(
         "--fix-ports",
         action="store_true",
@@ -220,6 +222,7 @@ def _dispatch_command(args: argparse.Namespace) -> None:
         force = getattr(args, "force", False)
         if fix_ports:
             from app.interfaces.cli.doctor_commands import run_doctor_with_port_fix
+
             raise SystemExit(run_doctor_with_port_fix(fix_ports=True, force=force))
         else:
             raise SystemExit(run_doctor())

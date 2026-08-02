@@ -25,10 +25,14 @@ REQUIRED_SUFFIXES = (".html", ".js", ".wasm", ".pck")
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build the ElfieNest Godot Web Runtime")
+    parser = argparse.ArgumentParser(
+        description="Build the ElfieNest Godot Web Runtime"
+    )
     parser.add_argument("--godot", type=Path, help="Godot 4 executable")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
-    parser.add_argument("--check", action="store_true", help="only check existing artifacts")
+    parser.add_argument(
+        "--check", action="store_true", help="only check existing artifacts"
+    )
     parser.add_argument(
         "--ensure",
         action="store_true",
@@ -62,7 +66,9 @@ def _export_runtime(
     """Export the Godot Runtime and atomically replace the current bundle after validation."""
     binary = _find_godot(explicit_binary)
     if binary is None:
-        print("❌ Godot 4 was not found. Specify the build tool with --godot or GODOT_BIN.")
+        print(
+            "❌ Godot 4 was not found. Specify the build tool with --godot or GODOT_BIN."
+        )
         return 2
     required_version = _project_version()
     actual_version = _godot_version(binary)
@@ -75,12 +81,16 @@ def _export_runtime(
         print(
             f"❌ Project requires Godot {required_version}; current build tool is {actual_version}."
         )
-        print("   Release builds must use matching Godot and Web Export Templates versions.")
+        print(
+            "   Release builds must use matching Godot and Web Export Templates versions."
+        )
         return 2
 
     with _build_lock(output):
         if runtime_is_current(output):
-            print(f"✅ Godot Web Runtime was updated by another process: {output / ENTRY_NAME}")
+            print(
+                f"✅ Godot Web Runtime was updated by another process: {output / ENTRY_NAME}"
+            )
             return 0
         return _export_runtime_locked(output, binary, actual_version, required_version)
 
@@ -110,14 +120,19 @@ def _export_runtime_locked(
     result = subprocess.run(command, cwd=GODOT_PROJECT, check=False)
     if result.returncode != 0:
         shutil.rmtree(staging, ignore_errors=True)
-        print("❌ Godot Web export failed. Confirm that matching Web Export Templates are installed.")
+        print(
+            "❌ Godot Web export failed. Confirm that matching Web Export Templates are installed."
+        )
         _print_template_hint(required_version or actual_version or "matching")
         return result.returncode or 1
 
     missing = _missing_artifacts(staging)
     if missing:
         shutil.rmtree(staging, ignore_errors=True)
-        print("❌ Export command completed, but artifacts are incomplete: " + ", ".join(missing))
+        print(
+            "❌ Export command completed, but artifacts are incomplete: "
+            + ", ".join(missing)
+        )
         return 1
 
     _write_manifest(staging, actual_version or "unknown", current_source_fingerprint())

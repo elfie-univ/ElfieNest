@@ -5,6 +5,7 @@ export const chat = {
     chats: "聊天记录",
     elfies: "我的精灵",
     manage: "进入管理",
+    monitor: "进入监控",
     mobileAccess: "扫码用手机打开聊天",
     mobileLabel: "聊天移动导航",
     chatsShort: "消息",
@@ -20,12 +21,6 @@ export const chat = {
     searchChats: "搜索聊天",
     noPreview: "还没有消息",
     empty: "还没有聊天记录。",
-  },
-  connection: {
-    label: "通道：{{state}}",
-    online: "实时",
-    offline: "离线备用",
-    connecting: "正在重连…",
   },
   conversation: {
     withElfie: "正在与{{elfieName}}对话",
@@ -58,7 +53,6 @@ export const chat = {
       otherGroup: "其他精灵",
       filterLabel: "{{label}} {{count}}",
       openProfile: "查看 {{name}} 的个人档案",
-      chatWith: "与 {{name}} 聊天",
       empty: "没有符合条件的精灵。请清除搜索或切换筛选。",
     },
     identity: {

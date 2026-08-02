@@ -21,9 +21,7 @@ def apply_state_injection(
     allowed = {"energy", "fatigue", "is_sleeping", "emotions"}
     unknown = set(injection) - allowed
     if unknown:
-        raise StateInjectionError(
-            f"不支持的状态注入字段: {', '.join(sorted(unknown))}"
-        )
+        raise StateInjectionError(f"不支持的状态注入字段: {', '.join(sorted(unknown))}")
 
     changes: Dict[str, Any] = {}
     if "energy" in injection:
@@ -67,9 +65,9 @@ def apply_state_injection(
 def model_skip_reason(trace: Dict[str, Any]) -> str:
     """Infer the legacy Lab skip label from the recorded typed stages."""
     stages = trace.get("stages", {})
-    if "brainstem_reflex" in stages and stages["brainstem_reflex"].get(
-        "event", {}
-    ).get("triggered"):
+    if "brainstem_reflex" in stages and stages["brainstem_reflex"].get("event", {}).get(
+        "triggered"
+    ):
         return "brainstem_reflex"
     if "sleep_gate" in stages:
         return "sleep_gate"

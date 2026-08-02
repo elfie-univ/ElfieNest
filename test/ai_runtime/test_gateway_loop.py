@@ -29,7 +29,9 @@ class FakeSandboxPlugin:
 class FakePermissionManager:
     action: str = ""
 
-    def verify_action(self, action: str, file_path: str, token: str | None = None) -> None:
+    def verify_action(
+        self, action: str, file_path: str, token: str | None = None
+    ) -> None:
         self.action = action
 
 
@@ -70,7 +72,10 @@ def test_runtime_tool_loop_runs_search_then_returns_final_response():
 
     assert result == "Final answer"
     assert search_plugin.query == "ElfieNest"
-    assert messages[-2] == {"role": "assistant", "content": "[SEARCH]ElfieNest[/SEARCH]"}
+    assert messages[-2] == {
+        "role": "assistant",
+        "content": "[SEARCH]ElfieNest[/SEARCH]",
+    }
     assert messages[-1]["role"] == "user"
     assert messages[-1]["content"].startswith("【联网搜索反馈】")
 

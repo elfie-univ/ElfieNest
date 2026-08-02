@@ -134,7 +134,11 @@ class ReportRepository:
                     detail_json,
                 ),
             )
-            return int(cursor.lastrowid)
+            if cursor.lastrowid is None:
+                raise RuntimeError(
+                    "validation observation insert did not return a row id"
+                )
+            return cursor.lastrowid
 
     def get_run(self, run_id: str) -> ReportRun:
         with self._connect() as connection:
@@ -192,9 +196,7 @@ class ReportRepository:
         if subject_kind is not None and subject_kind not in _SUBJECT_KINDS:
             raise ValueError(f"不支持的报告对象类型: {subject_kind}")
         normalized_subject_id = (
-            _required_text(subject_id, "subject_id")
-            if subject_id is not None
-            else None
+            _required_text(subject_id, "subject_id") if subject_id is not None else None
         )
         with self._connect() as connection:
             return latest_observations(

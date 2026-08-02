@@ -85,7 +85,7 @@ def adoption_options_for_user(db_path: str, *, user_id: int) -> dict[str, Any]:
     max_per_user = _effective_user_limit(db_path, user_id)
     used = ElfieRepository(db_path).count_for_owner(user_id)
     remaining = max(0, max_per_user - used)
-    options = adoption_options(db_path)
+    options: dict[str, Any] = dict(adoption_options(db_path))
     options["quota"] = {
         "used": used,
         "max": max_per_user,

@@ -19,7 +19,11 @@ def projection_subject():
     memory = SimpleNamespace(
         storage=storage, get_core_cognition=lambda: {"world": "世界仍在展开。"}
     )
-    yield SimpleNamespace(memory=memory), ElfieSpec(elfie_id="test", name="艾菲"), storage
+    yield (
+        SimpleNamespace(memory=memory),
+        ElfieSpec(elfie_id="test", name="艾菲"),
+        storage,
+    )
     storage.close()
 
 
@@ -121,11 +125,18 @@ def test_projection_normalizes_malformed_numeric_metadata(projection_subject) ->
         node[field]
         for graph_name in ("relations", "knowledge")
         for node in projection[graph_name]["nodes"]
-        for field in (("weight", "confidence") if graph_name == "knowledge" else ("weight",))
+        for field in (
+            ("weight", "confidence") if graph_name == "knowledge" else ("weight",)
+        )
     ]
     assert all(isfinite(value) and 0.0 <= value <= 1.0 for value in numeric_values)
     assert set(projection["knowledge"]["nodes"][0]) == {
-        "id", "label", "kind", "weight", "confidence", "source_event_ids",
+        "id",
+        "label",
+        "kind",
+        "weight",
+        "confidence",
+        "source_event_ids",
     }
 
 
@@ -223,9 +234,10 @@ def test_relationship_projection_keeps_self_and_cross_entity_links(
     assert len(links) == 31
     assert sum(link["source"] == "self" for link in links) == 19
     assert sum(link["source"] != "self" for link in links) == 12
-    assert {
-        link["label"] for link in links if link["source"] != "self"
-    } == {"家人", "朋友"}
+    assert {link["label"] for link in links if link["source"] != "self"} == {
+        "家人",
+        "朋友",
+    }
 
 
 def test_important_event_uses_importance_then_intensity_fallback(
@@ -261,14 +273,22 @@ def test_important_event_uses_importance_then_intensity_fallback(
     # Then
     assert events == [
         {
-            "id": "event_fallback", "content": "听见雷声",
-            "timestamp": "2026-07-29T10:00:00Z", "emotion": "",
-            "importance": 0.6, "people": [], "changed": "",
+            "id": "event_fallback",
+            "content": "听见雷声",
+            "timestamp": "2026-07-29T10:00:00Z",
+            "emotion": "",
+            "importance": 0.6,
+            "people": [],
+            "changed": "",
         },
         {
-            "id": "event_explicit", "content": "认识了阿沐",
-            "timestamp": "2026-07-28T10:00:00Z", "emotion": "joy",
-            "importance": 0.7, "people": ["阿沐"], "changed": "",
+            "id": "event_explicit",
+            "content": "认识了阿沐",
+            "timestamp": "2026-07-28T10:00:00Z",
+            "emotion": "joy",
+            "importance": 0.7,
+            "people": ["阿沐"],
+            "changed": "",
         },
     ]
 
@@ -287,7 +307,9 @@ def test_event_changed_preserves_text_and_rejects_non_strings(
 
     # Then
     assert {event["id"]: event["changed"] for event in events} == {
-        "text": "更愿意信任伙伴", "boolean": "", "missing": ""
+        "text": "更愿意信任伙伴",
+        "boolean": "",
+        "missing": "",
     }
 
 
@@ -297,8 +319,11 @@ def test_topic_categories_use_metadata_then_deterministic_keywords(
     # Given
     elfie, spec, storage = projection_subject
     samples = [
-        ("owner", "主人", {}), ("park", "公园", {}), ("joy", "开心", {}),
-        ("walk", "散步", {}), ("explicit", "Comet", {"topic_categories": {"Comet": "person"}}),
+        ("owner", "主人", {}),
+        ("park", "公园", {}),
+        ("joy", "开心", {}),
+        ("walk", "散步", {}),
+        ("explicit", "Comet", {"topic_categories": {"Comet": "person"}}),
         ("default", "cloud", {}),
     ]
     for node_id, content, metadata in samples:
@@ -309,8 +334,12 @@ def test_topic_categories_use_metadata_then_deterministic_keywords(
 
     # Then
     assert {topic["label"]: topic["category"] for topic in topics} == {
-        "主人": "person", "公园": "place", "开心": "emotion", "散步": "activity",
-        "Comet": "person", "cloud": "activity",
+        "主人": "person",
+        "公园": "place",
+        "开心": "emotion",
+        "散步": "activity",
+        "Comet": "person",
+        "cloud": "activity",
     }
 
 
@@ -320,7 +349,10 @@ def test_world_model_caps_nodes_globally_across_rings(projection_subject) -> Non
     ring_kinds = ("self", "family", "nest", "society", "outside")
     for index in range(25):
         add_node(
-            storage, f"world_{index:02d}", "knowledge", f"世界认知{index:02d}",
+            storage,
+            f"world_{index:02d}",
+            "knowledge",
+            f"世界认知{index:02d}",
             {"world_ring": ring_kinds[index % 5], "importance": index / 24},
         )
 
@@ -354,10 +386,18 @@ def test_world_model_has_fixed_five_rings_without_fabricated_nodes(
     model = projection["world_model"]
     assert model["summary"] == "世界仍在展开。"
     assert [(ring["kind"], ring["label"]) for ring in model["rings"]] == [
-        ("self", "自我"), ("family", "家人"), ("nest", "巢穴"),
-        ("society", "社会"), ("outside", "外部世界"),
+        ("self", "自我"),
+        ("family", "家人"),
+        ("nest", "巢穴"),
+        ("society", "社会"),
+        ("outside", "外部世界"),
     ]
-    assert model["rings"][2]["nodes"] == [{
-        "id": "home_rule", "label": "回家后先擦脚", "kind": "knowledge", "weight": 0.8,
-    }]
+    assert model["rings"][2]["nodes"] == [
+        {
+            "id": "home_rule",
+            "label": "回家后先擦脚",
+            "kind": "knowledge",
+            "weight": 0.8,
+        }
+    ]
     assert sum(len(ring["nodes"]) for ring in model["rings"]) == 1

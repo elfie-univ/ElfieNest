@@ -197,9 +197,7 @@ def test_plan_executes_physical_targets_concurrently_and_messages_in_order() -> 
     assert workspace.metrics().reliable_event_count == 24
     for intent_id in batch.intent_ids:
         assert [
-            receipt.status
-            for receipt in receipts
-            if receipt.intent_id == intent_id
+            receipt.status for receipt in receipts if receipt.intent_id == intent_id
         ] == [
             ExecutionStatus.ACCEPTED,
             ExecutionStatus.STARTED,

@@ -1,4 +1,5 @@
 import json
+import sqlite3
 from datetime import datetime
 from typing import List, Optional
 
@@ -6,6 +7,8 @@ from .node_types import Edge, MemoryNode
 
 
 class GraphNodeStoreMixin:
+    conn: sqlite3.Connection
+
     def _row_to_node(self, row) -> MemoryNode:
         metadata = json.loads(row["metadata"]) if row["metadata"] else {}
         edges_data = json.loads(row["edges"]) if row["edges"] else []

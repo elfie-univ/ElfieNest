@@ -596,13 +596,13 @@ class RuntimeLab:
                 self._create_custom_provider,
             )
             return
-        provider_id = builtin_by_key.get(selected)
-        if provider_id is None:
+        selected_provider_id = builtin_by_key.get(selected)
+        if selected_provider_id is None:
             return
         self._action(
-            f"Configure Provider: {provider_id}",
+            f"Configure Provider: {selected_provider_id}",
             "Runtime Lab / Layer 1 / Add Provider",
-            lambda: self._configure_provider(provider_id),
+            lambda: self._configure_provider(selected_provider_id),
         )
 
     def _verify_web_search(self) -> None:
@@ -837,9 +837,9 @@ class RuntimeLab:
             return
         current_catalog = store.load()
         planner = FoodPlanner()
-        packages = {}
-        changes = []
-        warnings = []
+        packages: dict[str, Any] = {}
+        changes: list[tuple[str, Any]] = []
+        warnings: list[str] = []
         for package in current_catalog.ordered_packages():
             proposal = planner.propose_package(
                 package,
@@ -971,7 +971,7 @@ class RuntimeLab:
         )
 
         tool_recipe = catalog.recipes.get("tool")
-        if tool_recipe and tool_recipe.primary.model:
+        if tool_recipe and tool_recipe.primary is not None:
             tool_model = query_model_evidence().get(tool_recipe.primary.model)
             if tool_model and tool_model.verified:
                 provider_id, model_name = tool_recipe.primary.model.split("/", 1)

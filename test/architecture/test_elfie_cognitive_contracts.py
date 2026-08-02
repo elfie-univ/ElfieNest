@@ -45,9 +45,16 @@ def test_elfie_does_not_reverse_import_application_or_runtime_layers() -> None:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
             module = node.module if isinstance(node, ast.ImportFrom) else None
-            names = [alias.name for alias in node.names] if isinstance(node, ast.Import) else []
+            names = (
+                [alias.name for alias in node.names]
+                if isinstance(node, ast.Import)
+                else []
+            )
             imported = ([module] if module is not None else []) + names
-            if any(name.split(".", 1)[0] in {"ai_runtime", "app", "nest"} for name in imported):
+            if any(
+                name.split(".", 1)[0] in {"ai_runtime", "app", "nest"}
+                for name in imported
+            ):
                 offenders.append(path.relative_to(PROJECT_ROOT).as_posix())
                 break
 
@@ -81,9 +88,7 @@ def test_old_product_cognition_entry_points_are_absent() -> None:
     elfie_source = (ELFIE_ROOT / "elfie.py").read_text(encoding="utf-8")
     tree = ast.parse(elfie_source)
     methods = {
-        node.name
-        for node in ast.walk(tree)
-        if isinstance(node, ast.FunctionDef)
+        node.name for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
     }
 
     # When / Then
@@ -118,8 +123,7 @@ def test_task14_legacy_body_and_communication_paths_are_absent() -> None:
     assert not (ELFIE_ROOT / "nervous_system" / "legacy_perception.py").exists()
     assert all(not hasattr(body_api, name) for name in forbidden_body_exports)
     assert all(
-        not hasattr(communication_api, name)
-        for name in forbidden_communication_exports
+        not hasattr(communication_api, name) for name in forbidden_communication_exports
     )
     assert "LegacyBodyPort" not in (ELFIE_ROOT / "body" / "port.py").read_text(
         encoding="utf-8"

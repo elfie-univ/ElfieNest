@@ -52,7 +52,9 @@ def _catalog() -> FoodCatalog:
     )
 
 
-def _agent(monkeypatch: pytest.MonkeyPatch, selection: MainFoodSelection) -> RuntimeAgent:
+def _agent(
+    monkeypatch: pytest.MonkeyPatch, selection: MainFoodSelection
+) -> RuntimeAgent:
     _configure_models()
     agent = RuntimeAgent(
         LLMRuntimeConfig(),
@@ -97,7 +99,9 @@ def test_runtime_uses_emergency_when_the_persisted_main_food_is_unavailable(
         "_package_usable",
         lambda package: package.key == FOOD_EMERGENCY_ID,
     )
-    monkeypatch.setattr(agent, "_call_food_llm_api", lambda *_args: "emergency response")
+    monkeypatch.setattr(
+        agent, "_call_food_llm_api", lambda *_args: "emergency response"
+    )
 
     # When: the Runtime executes the request.
     result = agent.think(

@@ -175,7 +175,7 @@ class ProgressIndicator:
     def __init__(self, message: str = "Starting"):
         self.message = message
         self.running = False
-        self.thread = None
+        self.thread: Optional[threading.Thread] = None
         self.spinner_chars = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
     def _spin(self):
@@ -417,7 +417,9 @@ def restart_background_service() -> ServiceLifecycleResult:
                             cwd_str = cwd_str[:77] + "..."
                         print(f"    Working directory: {cwd_str}")
                     print()
-                print("  💡 Run 'elfienest doctor --fix-ports' to diagnose and clean occupied ports")
+                print(
+                    "  💡 Run 'elfienest doctor --fix-ports' to diagnose and clean occupied ports"
+                )
 
         return stopped
     command = stopped.command or default_service_command(("--lan",))
@@ -461,7 +463,9 @@ def restart_background_service() -> ServiceLifecycleResult:
                             cwd_str = cwd_str[:77] + "..."
                         print(f"    Working directory: {cwd_str}")
                     print()
-                print("  💡 Run 'elfienest doctor --fix-ports' to diagnose and clean occupied ports")
+                print(
+                    "  💡 Run 'elfienest doctor --fix-ports' to diagnose and clean occupied ports"
+                )
 
     return result
 
@@ -694,7 +698,11 @@ def _print_start_result(result: ServiceLifecycleResult) -> None:
                             cwd_str = cwd_str[:77] + "..."
                         print(f"    Working directory: {cwd_str}")
                     print()
-                print("  💡 Run 'elfienest doctor --fix-ports' to diagnose and clean occupied ports")
+                print(
+                    "  💡 Run 'elfienest doctor --fix-ports' to diagnose and clean occupied ports"
+                )
             else:
-                print("  ℹ️  Service ports appear free but were occupied during startup.")
+                print(
+                    "  ℹ️  Service ports appear free but were occupied during startup."
+                )
                 print("     This might indicate a race condition or transient issue.")

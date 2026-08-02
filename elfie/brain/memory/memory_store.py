@@ -25,7 +25,9 @@ class MemoryStore(Protocol):
 
     def delete_node(self, node_id: str) -> bool: ...
 
-    def get_nodes_by_type(self, node_type: str, limit: int = 100) -> list[MemoryNode]: ...
+    def get_nodes_by_type(
+        self, node_type: str, limit: int = 100
+    ) -> list[MemoryNode]: ...
 
     def get_unconsolidated_nodes(
         self, node_type: str = "episodic"

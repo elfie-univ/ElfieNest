@@ -2,7 +2,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useTranslation } from "react-i18next"
 
-import type { ChatSocketStatus } from "../../api/chat-socket"
 import type { Conversation } from "../../api/client"
 import type { ChatPane } from "../../pages/use-chat-view"
 import { Avatar } from "../Avatar"
@@ -23,7 +22,6 @@ type ChatListPaneProps = {
   readonly onElfieProfile: (elfieId: string) => void
   readonly onElfieQueryChange: (query: string) => void
   readonly selectedId: string | null
-  readonly status: ChatSocketStatus
   readonly viewerAccountId: string
 }
 
@@ -32,7 +30,7 @@ export function ChatListPane(props: ChatListPaneProps) {
   const {
     activePane, conversations, elfieFilter, elfieItems, elfieQuery, hiddenOnMobile,
     onAdopt, onChat, onElfieFilterChange, onElfieProfile, onElfieQueryChange,
-    selectedId, status, viewerAccountId,
+    selectedId, viewerAccountId,
   } = props
   return (
     <aside className={hiddenOnMobile ? "chat-list-pane chat-list-pane--mobile-hidden" : "chat-list-pane"}>
@@ -65,7 +63,6 @@ export function ChatListPane(props: ChatListPaneProps) {
         <ElfieList
           filter={elfieFilter}
           items={elfieItems}
-          onChat={onChat}
           onFilterChange={onElfieFilterChange}
           onProfile={onElfieProfile}
           query={elfieQuery}
@@ -73,7 +70,6 @@ export function ChatListPane(props: ChatListPaneProps) {
           viewerAccountId={viewerAccountId}
         />
       )}
-      <p className="connection-state">{t("connection.label", { state: t(`connection.${status}`) })}</p>
     </aside>
   )
 }

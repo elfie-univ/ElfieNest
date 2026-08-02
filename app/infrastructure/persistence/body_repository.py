@@ -89,7 +89,9 @@ class ExternalBodyRepository:
                 _audit(connection, body_id, "enrolled", {})
                 connection.commit()
             except sqlite3.IntegrityError as error:
-                raise DeviceCredentialError("invalid body owner or registration") from error
+                raise DeviceCredentialError(
+                    "invalid body owner or registration"
+                ) from error
         return DeviceCredential(body_id=body_id, secret=secret)
 
     def rotate(self, owner_elfie_id: str, body_id: str) -> DeviceCredential:
@@ -122,7 +124,9 @@ class ExternalBodyRepository:
                 _audit(connection, body_id, "revoked", {})
                 connection.commit()
             except sqlite3.IntegrityError as error:
-                raise DeviceCredentialError("body must be released before revoke") from error
+                raise DeviceCredentialError(
+                    "body must be released before revoke"
+                ) from error
 
     def list_for_owner(self, owner_elfie_id: str) -> list[DeviceRecord]:
         """List bodies for exactly one Elfie owner."""
@@ -202,9 +206,7 @@ def _record(row: sqlite3.Row) -> DeviceRecord:
         body_type=str(row["body_type"]),
         status=str(row["status"]),
         last_heartbeat_at=(
-            None
-            if row["last_heartbeat_at"] is None
-            else str(row["last_heartbeat_at"])
+            None if row["last_heartbeat_at"] is None else str(row["last_heartbeat_at"])
         ),
     )
 

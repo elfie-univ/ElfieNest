@@ -355,5 +355,3 @@ class TestVerifyProvider:
 
         assert result == expected
         verify_custom.assert_called_once()
-
-
