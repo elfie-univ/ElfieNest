@@ -99,9 +99,23 @@ describe("ManageUsersPanel real-data states", () => {
     // Then: fallback name and final fields render without aliases or invented values.
     const memberCard = cards.find((card) => within(card).queryAllByText("member01").length > 0)
     if (!(memberCard instanceof HTMLElement)) throw new TypeError("Expected member card")
+    expect([...memberCard.querySelectorAll(".user-id-card__identity dt")].map((field) => field.textContent)).toEqual([
+      "姓名",
+      "性别",
+      "登录账号",
+      "当前角色",
+      "加入时间",
+      "最近在线",
+      "当前精灵数",
+      "精灵上限",
+    ])
     expect(within(memberCard).getByText("暂离")).toBeInTheDocument()
-    expect(within(memberCard).getByText("zh-CN")).toBeInTheDocument()
     expect(within(memberCard).getByText("2026-08-01")).toBeInTheDocument()
+    expect(within(memberCard).getByText("0")).toBeInTheDocument()
+    expect(within(memberCard).getByText("3")).toBeInTheDocument()
+    expect(within(memberCard).queryByText("2020-02-03")).not.toBeInTheDocument()
+    expect(within(memberCard).queryByText("zh-CN")).not.toBeInTheDocument()
+    expect(within(memberCard).queryByText("7")).not.toBeInTheDocument()
     const ownerCard = cards.find((card) => within(card).queryAllByText("Owner").length > 0)
     if (!(ownerCard instanceof HTMLElement)) throw new TypeError("Expected Owner card")
     for (const name of ["编辑 owner01", "重置密码 owner01", "删除用户 owner01"]) {

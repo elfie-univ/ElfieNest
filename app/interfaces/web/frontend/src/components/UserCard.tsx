@@ -71,14 +71,11 @@ export function UserCard({ csrfToken, onError, onRemove, onReset, onSaved, user 
       <StatusIndicator label={presenceLabel} tone={presenceTone} />
       <dl className="user-id-card__identity">
         <IdentityField label={t("users.fields.name")} value={displayName} />
-        <IdentityField label={t("users.fields.account")} value={user.account_id} />
-        <IdentityField label={t("users.fields.memberId")} value={String(user.user_id)} />
-        <IdentityField label={t("users.fields.role")} value={user.role === "owner" ? t("users.values.owner") : t("users.values.member")} />
         <IdentityField label={t("users.fields.gender")} value={user.gender ?? t("users.values.notRegistered")} />
-        <IdentityField label={t("users.fields.birthDate")} value={user.birth_date ?? t("users.values.notRegistered")} />
-        <IdentityField label={t("users.fields.lastSeen")} value={user.last_seen_at ? dateOnly(user.last_seen_at) : t("users.values.notRegistered")} />
-        <IdentityField label={t("users.fields.language")} value={user.language} />
+        <IdentityField label={t("users.fields.account")} value={user.account_id} />
+        <IdentityField label={t("users.fields.role")} value={user.role === "owner" ? t("users.values.owner") : t("users.values.member")} />
         <IdentityField label={t("users.fields.joinedAt")} value={dateOnly(user.created_at)} />
+        <IdentityField label={t("users.fields.lastSeen")} value={user.last_seen_at ? dateOnly(user.last_seen_at) : t("users.values.notRegistered")} />
         <IdentityField label={t("users.fields.elfieCount")} value={String(user.elfie_count)} />
         <div>
           <dt><label htmlFor={`quota-${user.user_id}`}>{t("users.fields.quota")}</label></dt>
