@@ -78,6 +78,10 @@ export const chat = {
     appearance: {
       eyebrow: "外观",
       title: "3D 个体视图",
+      loading: "正在连接 3D 角色…",
+      ready: "角色已装载 · 可交互",
+      unavailable: "暂无可用的 3D 外观数据",
+      error: "3D 角色暂时不可用，请重试。",
       open: "打开3D",
       close: "关闭3D",
       reset: "复位视角",
@@ -108,7 +112,7 @@ export const chat = {
     },
     chart: {
       loading: "图表加载中…",
-      error: "图表暂时无法显示，请参考下方数值。",
+      error: "图表暂时无法显示，请稍后重试。",
     },
     graph: {
       graphLabel: "{{title}}图谱",

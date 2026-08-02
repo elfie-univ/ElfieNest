@@ -53,6 +53,19 @@ const AppearanceSchema = z.object({
   signature: z.string().min(1),
 }).readonly()
 
+const GodotAppearanceSchema = z.object({
+  species_id: z.string().min(1),
+  profile_version: z.number().int().min(0),
+  height_scale: z.number().finite(),
+  build_scale: z.number().finite(),
+  height_label: z.string().min(1),
+  build_label: z.string().min(1),
+  bone_scales: z.record(z.string(), z.number().finite()).readonly(),
+  blend_shapes: z.record(z.string(), z.number().finite()).readonly(),
+  material_parameters: z.record(z.string(), z.unknown()).readonly(),
+  species_traits: z.record(z.string(), z.number().finite()).readonly(),
+}).readonly()
+
 const PublicProfileSchema = z.object({
   elfieId: ElfieIdSchema,
   name: z.string().min(1),
@@ -61,6 +74,7 @@ const PublicProfileSchema = z.object({
   biography: z.string().default(""),
   portraitUrl: z.string().default(""),
   appearance: AppearanceSchema,
+  runtimeAppearance: GodotAppearanceSchema.nullable().default(null),
   bigFive: BigFiveSchema,
 }).readonly()
 
@@ -142,6 +156,7 @@ const ExperienceFixtureSchema = z.object({
 
 export type Viewer = z.infer<typeof ViewerSchema>
 export type PublicProfile = z.infer<typeof PublicProfileSchema>
+export type GodotAppearance = z.infer<typeof GodotAppearanceSchema>
 export type PrivateCognition = z.infer<typeof PrivateCognitionSchema>
 export type ExperienceFixture = z.infer<typeof ExperienceFixtureSchema>
 export type Graph = z.infer<typeof GraphSchema>
@@ -157,6 +172,11 @@ export function parseViewer(input: unknown): Viewer {
 
 export function parseExperienceFixture(input: unknown): ExperienceFixture {
   return ExperienceFixtureSchema.parse(input)
+}
+
+export function parseGodotAppearance(input: unknown): GodotAppearance | null {
+  const parsed = GodotAppearanceSchema.safeParse(input)
+  return parsed.success ? parsed.data : null
 }
 
 export function projectGraph(graph: Graph, mode: GraphMode): GraphProjection {

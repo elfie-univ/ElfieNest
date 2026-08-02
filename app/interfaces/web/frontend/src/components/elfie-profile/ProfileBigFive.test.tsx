@@ -1,4 +1,6 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react"
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
+import { act, render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
 import { createI18n } from "../../i18n/config"
@@ -9,13 +11,15 @@ import type { ProfileChartRuntime } from "./ProfileChart"
 
 createI18n()
 
+const profileStyles = readFileSync(resolve(import.meta.dirname, "../../shared/chat-profile.css"), "utf8")
+
 function chartRuntime() {
   const chart = { dispose: vi.fn(), resize: vi.fn(), setOption: vi.fn() }
   return { chart, runtime: { init: vi.fn(() => chart) } satisfies ProfileChartRuntime }
 }
 
 describe("ProfileBigFive", () => {
-  it("renders a public read-only radar with values and strongest descriptors", () => {
+  it("keeps the inner-portrait label subordinate and shows only the key traits", () => {
     const { container } = render(
       <ProfileBigFive
         elfieId={HAPPY_EXPERIENCE.publicProfile.elfieId}
@@ -23,10 +27,16 @@ describe("ProfileBigFive", () => {
       />,
     )
 
-    const values = screen.getByRole("list", { name: "大五人格数值" })
-    expect(within(values).getAllByRole("listitem")).toHaveLength(5)
-    expect(values).toHaveTextContent("亲和70 分")
+    expect(screen.getByText("大五人格", { selector: ".profile-dossier__section-name" })).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "大五人格" })).not.toBeInTheDocument()
+    expect(screen.getByText("内在画像", { selector: "span" })).toBeInTheDocument()
+    expect(screen.getByRole("list", { name: "大五人格数值" })).toHaveClass("profile-radar__values--accessible")
+    expect(screen.queryByText("亲和70 分")).not.toBeInTheDocument()
     expect(screen.getByRole("list", { name: "突出人格特征" })).toHaveTextContent("亲和")
+    expect(screen.getByRole("list", { name: "突出人格特征" })).not.toHaveTextContent("重视合作和温柔回应")
+    expect(container.querySelector(".profile-radar")).toHaveClass("profile-radar--compact")
+    expect(container.querySelector(".profile-radar__content")).toBeInTheDocument()
+    expect(container.querySelectorAll(".profile-radar__descriptor")).toHaveLength(3)
     expect(container).not.toHaveTextContent("修改")
   })
 
@@ -42,6 +52,16 @@ describe("ProfileBigFive", () => {
 
     if (radar === null || descriptors === null) throw new TypeError("Expected radar regions")
     expect(radar.compareDocumentPosition(descriptors) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it("uses a compact rectangular board instead of a square radar canvas", () => {
+    const compactCanvasRule = [...profileStyles.matchAll(
+      /\.profile-radar--compact \.profile-chart__canvas\s*\{[^}]+\}/g,
+    )].map(([rule]) => rule).find((rule) => rule.includes("height: clamp")) ?? ""
+
+    expect(compactCanvasRule).toContain("height: clamp(280px, 24vw, 360px)")
+    expect(compactCanvasRule).toContain("aspect-ratio: auto")
+    expect(compactCanvasRule).not.toContain("max-height")
   })
 
   it("re-resolves canvas colors when the document theme changes after render", async () => {
