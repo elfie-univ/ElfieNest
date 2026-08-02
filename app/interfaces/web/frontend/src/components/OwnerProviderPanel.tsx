@@ -20,10 +20,13 @@ import { describeApiError, resolveLocalizedError, type LocalizedErrorState } fro
 import { compareLocalizedText, currentLocale } from "../i18n/format"
 import { ConfirmDialog } from "./ConfirmDialog"
 import { CustomProviderDialog } from "./CustomProviderDialog"
+import { Icon } from "./Icon"
 import { ManageDialog } from "./ManageDialog"
 import { ModelMatrixDialog } from "./ModelMatrixDialog"
 import { Notice } from "./Notice"
 import { ProviderFormDialog } from "./ProviderFormDialog"
+import { ProviderBrandLogo } from "./ProviderBrandLogo"
+import { ProviderLifecycleMenu, type ProviderLifecycleAction } from "./ProviderLifecycleMenu"
 import { ProviderModelsDialog } from "./ProviderModelsDialog"
 import { RefreshButton } from "./RefreshButton"
 import { SelectField } from "./SelectField"
@@ -34,6 +37,7 @@ type EditTarget = {
 }
 
 const NO_PRODUCT = "__none__"
+const FEATURED_PRODUCT_LIMIT = 8
 
 export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }) {
   const { i18n, t } = useTranslation("manage")
@@ -42,7 +46,6 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
   const [connections, setConnections] = useState<readonly ProviderConnection[]>([])
   const [editing, setEditing] = useState<EditTarget | null>(null)
   const [viewingModels, setViewingModels] = useState<ProviderConnection | null>(null)
-  const [moreTarget, setMoreTarget] = useState<ProviderConnection | null>(null)
   const [deleting, setDeleting] = useState<ProviderConnection | null>(null)
   const [creatingCustom, setCreatingCustom] = useState(false)
   const [otherOpen, setOtherOpen] = useState(false)
@@ -69,6 +72,10 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
 
   const productsById = useMemo(() => new Map(catalog.map((product) => [product.catalog_id, product])), [catalog])
   const configured = [...connections].sort((left, right) => compareLocalizedText(left.alias, right.alias, locale))
+  const featuredProducts = catalog
+    .filter((product) => product.catalog_id !== "ollama" && product.catalog_id !== "custom_openai")
+    .slice(0, FEATURED_PRODUCT_LIMIT)
+  const otherProducts = catalog.filter((product) => product.catalog_id !== "ollama")
 
   const save = async (draft: ProviderConnectionUpdate): Promise<void> => {
     if (!editing) return
@@ -119,12 +126,10 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
     }
   }
 
-  const lifecycle = async (action: "enable" | "disable" | "archive" | "restore"): Promise<void> => {
-    if (!moreTarget) return
-    setPending(`${action}:${moreTarget.connection_id}`)
+  const lifecycle = async (connection: ProviderConnection, action: ProviderLifecycleAction): Promise<void> => {
+    setPending(`${action}:${connection.connection_id}`)
     try {
-      await changeProviderConnectionLifecycle(moreTarget.connection_id, action, csrfToken)
-      setMoreTarget(null)
+      await changeProviderConnectionLifecycle(connection.connection_id, action, csrfToken)
       await load()
     } catch (reason: unknown) {
       setError(describeApiError(reason, "manage.save"))
@@ -171,34 +176,34 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
         key={connection.connection_id}
         onEdit={() => { const product = productsById.get(connection.catalog_id); if (product) setEditing({ connection, product }) }}
         onModels={() => setViewingModels(connection)}
-        onMore={() => setMoreTarget(connection)}
+        onDelete={() => setDeleting(connection)}
+        onLifecycle={(action) => { void lifecycle(connection, action) }}
         onVerify={() => { void verify(connection) }}
       />)}</div>}
     </section>
     <section aria-labelledby="available-provider-title" className="provider-section provider-section--available"><div className="provider-section__heading"><div><h3 id="available-provider-title">{t("providerConnections.available.title")}</h3><p>{t("providerConnections.available.description")}</p></div></div><div className="provider-grid">
-      {catalog.filter((product) => product.catalog_id !== "custom_openai").map((product) => <button aria-label={t("providerConnections.actions.configure", { name: product.name })} className="provider-card provider-card--available" key={product.catalog_id} onClick={() => setEditing({ connection: null, product })} type="button"><strong>{product.name}</strong><span>{product.connection_method}</span></button>)}
-      <button aria-label={t("providerConnections.actions.addCustom")} className="provider-card provider-card--add" onClick={() => setCreatingCustom(true)} type="button"><strong>{t("providerConnections.actions.addCustom")}</strong><span>{t("providerConnections.available.customDescription")}</span></button>
-      <button aria-label={t("providerConnections.actions.addOther")} className="provider-card provider-card--add" onClick={() => setOtherOpen(true)} type="button"><strong>{t("providerConnections.actions.addOther")}</strong></button>
+      {featuredProducts.map((product) => <button aria-label={t("providerConnections.actions.configure", { name: product.name })} className="provider-card provider-card--available" key={product.catalog_id} onClick={() => setEditing({ connection: null, product })} type="button"><span className="provider-card__brand"><ProviderBrandLogo product={product} /><strong>{product.name}</strong></span></button>)}
+      <button aria-label={t("providerConnections.actions.addOther")} className="provider-card provider-card--add" onClick={() => setOtherOpen(true)} type="button"><span className="provider-card__add-mark"><Icon name="plus" size={24} /></span><strong>{t("providerConnections.actions.addOther")}</strong></button>
     </div></section>
     <ProviderFormDialog connection={editing?.connection ?? null} onOpenChange={(open) => { if (!open) setEditing(null) }} onSave={save} open={editing !== null} product={editing?.product ?? null} />
     <CustomProviderDialog onOpenChange={setCreatingCustom} onSave={saveCustom} open={creatingCustom} />
     <ProviderModelsDialog connection={viewingModels} csrfToken={csrfToken} onChanged={load} onOpenChange={(open) => { if (!open) setViewingModels(null) }} open={viewingModels !== null} />
     <ModelMatrixDialog csrfToken={csrfToken} onOpenChange={setMatrixOpen} open={matrixOpen} />
-    <ManageDialog description={t("providerConnections.other.description")} onOpenChange={setOtherOpen} open={otherOpen} title={t("providerConnections.other.title")}><SelectField label={t("providerConnections.other.product")} onValueChange={setOtherProductId} options={[{ label: t("providerConnections.other.placeholder"), value: NO_PRODUCT }, ...catalog.map((product) => ({ label: product.name, value: product.catalog_id }))]} value={otherProductId} /><div className="manage-actions"><Button disabled={otherProductId === NO_PRODUCT} onClick={chooseOther} type="button">{t("providerConnections.actions.choose")}</Button><Button onClick={() => setOtherOpen(false)} type="button" variant="outline">{t("providerConnections.actions.cancel")}</Button></div></ManageDialog>
+    <ManageDialog description={t("providerConnections.other.description")} onOpenChange={setOtherOpen} open={otherOpen} title={t("providerConnections.other.title")}><SelectField label={t("providerConnections.other.product")} onValueChange={setOtherProductId} options={[{ label: t("providerConnections.other.placeholder"), value: NO_PRODUCT }, ...otherProducts.map((product) => ({ label: product.name, value: product.catalog_id }))]} value={otherProductId} /><div className="manage-actions"><Button disabled={otherProductId === NO_PRODUCT} onClick={chooseOther} type="button">{t("providerConnections.actions.choose")}</Button><Button onClick={() => setOtherOpen(false)} type="button" variant="outline">{t("providerConnections.actions.cancel")}</Button></div></ManageDialog>
     <ConfirmDialog confirmLabel={t("providerConnections.delete.confirm")} danger description={deleting ? t("providerConnections.delete.description", { name: deleting.alias }) : t("providerConnections.delete.descriptionGeneric")} onConfirm={() => { void remove() }} onOpenChange={(open) => { if (!open && pending === null) setDeleting(null) }} open={deleting !== null} pending={pending?.startsWith("delete:") ?? false} title={t("providerConnections.delete.title")} />
-    <ManageDialog description={moreTarget ? t("providerConnections.lifecycle.description", { name: moreTarget.alias }) : ""} onOpenChange={(open) => { if (!open) setMoreTarget(null) }} open={moreTarget !== null} title={t("providerConnections.lifecycle.title")}>{moreTarget ? <div className="manage-actions">{moreTarget.archived ? <Button onClick={() => { void lifecycle("restore") }} type="button">{t("providerConnections.actions.restore")}</Button> : moreTarget.enabled ? <Button onClick={() => { void lifecycle("disable") }} type="button" variant="outline">{t("providerConnections.actions.disable")}</Button> : <Button onClick={() => { void lifecycle("enable") }} type="button">{t("providerConnections.actions.enable")}</Button>}{!moreTarget.archived ? <Button onClick={() => { void lifecycle("archive") }} type="button" variant="outline">{t("providerConnections.actions.archive")}</Button> : null}<Button disabled={!moreTarget.archived} onClick={() => { setDeleting(moreTarget); setMoreTarget(null) }} type="button" variant="outline">{t("providerConnections.actions.delete")}</Button></div> : null}</ManageDialog>
   </section>
 }
 
-function ConfiguredConnectionCard({ busy, connection, onEdit, onModels, onMore, onVerify }: {
+function ConfiguredConnectionCard({ busy, connection, onDelete, onEdit, onLifecycle, onModels, onVerify }: {
   readonly busy: boolean
   readonly connection: ProviderConnection
+  readonly onDelete: () => void
   readonly onEdit: () => void
+  readonly onLifecycle: (action: ProviderLifecycleAction) => void
   readonly onModels: () => void
-  readonly onMore: () => void
   readonly onVerify: () => void
 }) {
   const { t } = useTranslation("manage")
   const status = connection.verification.status === "passed" ? t("providerConnections.status.passed") : connection.verification.status === "failed" ? t("providerConnections.status.failed") : t("providerConnections.status.never")
-  return <article className={`provider-card provider-card--${connection.verification.status}`}><div className="provider-card__title"><h4>{connection.alias}</h4><span className={`status-badge status-badge--${connection.verification.status}`}>{status}</span></div><p>{t("providerConnections.card.visibleModels", { count: connection.models.filter((model) => !model.hidden).length })}</p><div className="manage-actions"><Button disabled={busy} onClick={onModels} type="button" variant="outline">{t("providerConnections.actions.models")}</Button><Button disabled={busy} onClick={onVerify} type="button" variant="outline">{busy ? t("providerConnections.actions.validating") : t("providerConnections.actions.validate")}</Button><Button disabled={busy} onClick={onEdit} type="button" variant="outline">{t("providerConnections.actions.edit")}</Button><Button disabled={busy} onClick={onMore} type="button" variant="outline">{t("providerConnections.actions.more")}</Button></div></article>
+  return <article className={`provider-card provider-card--${connection.verification.status}`}><div className="provider-card__title"><h4>{connection.alias}</h4><span className={`status-badge status-badge--${connection.verification.status}`}>{status}</span></div><p>{t("providerConnections.card.visibleModels", { count: connection.models.filter((model) => !model.hidden).length })}</p><div className="manage-actions"><Button disabled={busy} onClick={onModels} type="button" variant="outline">{t("providerConnections.actions.models")}</Button><Button disabled={busy} onClick={onVerify} type="button" variant="outline">{busy ? t("providerConnections.actions.validating") : t("providerConnections.actions.validate")}</Button><Button disabled={busy} onClick={onEdit} type="button" variant="outline">{t("providerConnections.actions.edit")}</Button><ProviderLifecycleMenu archived={connection.archived} busy={busy} enabled={connection.enabled} onDelete={onDelete} onLifecycle={onLifecycle} /></div></article>
 }
