@@ -8,13 +8,21 @@ import { Notice } from "./Notice"
 import { SelectField } from "./SelectField"
 import { TextField } from "./TextField"
 
+export type CustomProviderPreset = "openai" | "anthropic"
+
+const PRESET_DEFAULTS = {
+  anthropic: { apiMode: "anthropic_messages", authType: "x-api-key" },
+  openai: { apiMode: "chat_completions", authType: "bearer" },
+} as const satisfies Record<CustomProviderPreset, { readonly apiMode: string; readonly authType: string }>
+
 type Props = {
   readonly onOpenChange: (open: boolean) => void
   readonly onSave: (draft: ProviderConnectionDraft) => Promise<void>
   readonly open: boolean
+  readonly preset?: CustomProviderPreset
 }
 
-export function CustomProviderDialog({ onOpenChange, onSave, open }: Props) {
+export function CustomProviderDialog({ onOpenChange, onSave, open, preset = "openai" }: Props) {
   const { t } = useTranslation("manage")
   const [alias, setAlias] = useState("")
   const [apiBase, setApiBase] = useState("")
@@ -29,10 +37,11 @@ export function CustomProviderDialog({ onOpenChange, onSave, open }: Props) {
     setAlias("")
     setApiBase("")
     setApiKey("")
-    setApiMode("chat_completions")
-    setAuthType("bearer")
+    const defaults = PRESET_DEFAULTS[preset]
+    setApiMode(defaults.apiMode)
+    setAuthType(defaults.authType)
     setError(null)
-  }, [open])
+  }, [open, preset])
 
   const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault()
@@ -57,10 +66,10 @@ export function CustomProviderDialog({ onOpenChange, onSave, open }: Props) {
   }
 
   return <ManageDialog
-    description={t("providerConnections.custom.description")}
+    description={t(preset === "anthropic" ? "providerConnections.custom.anthropicDescription" : "providerConnections.custom.openaiDescription")}
     onOpenChange={onOpenChange}
     open={open}
-    title={t("providerConnections.custom.title")}
+    title={t(preset === "anthropic" ? "providerConnections.custom.anthropicTitle" : "providerConnections.custom.openaiTitle")}
   >
     <form className="provider-form" onSubmit={(event) => { void submit(event) }}>
       <TextField autoFocus label={t("providerConnections.custom.displayName")} onChange={setAlias} placeholder={t("providerConnections.custom.displayNamePlaceholder")} required value={alias} />
