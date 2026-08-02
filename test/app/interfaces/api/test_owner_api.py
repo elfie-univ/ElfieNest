@@ -50,10 +50,6 @@ def app(db_path: str, runtime_config_path: Path):
             "app.interfaces.api.owner_routes.get_config_path",
             return_value=runtime_config_path,
         ),
-        patch(
-            "app.interfaces.api.owner_user_routes.get_config_path",
-            return_value=runtime_config_path,
-        ),
     ):
         application = create_app(engine=None, db_path=db_path, ws_port=9876)
         yield application
@@ -69,7 +65,7 @@ def client(app):
 def _login_owner(client: TestClient) -> dict:
     """辅助：以 owner 身份登录，返回 {"session_token", "csrf_token", "cookies"}。"""
     resp = client.post(
-        "/api/auth/login", data={"username": "owner", "password": "ownerchangeme"}
+        "/api/auth/login", data={"account_id": "owner", "password": "ownerchangeme"}
     )
     assert resp.status_code == 200, f"login failed: {resp.text}"
     csrf_token = resp.headers.get("X-CSRF-Token", "")
@@ -107,10 +103,10 @@ class TestUserCRUD:
         assert response.status_code == 403
         with get_db(db_path) as conn:
             owner = conn.execute(
-                "SELECT username, password_hash, role FROM users WHERE id = ?",
+                "SELECT account_id, password_hash, role FROM users WHERE id = ?",
                 (owner_id,),
             ).fetchone()
-        assert owner["username"] == "owner"
+        assert owner["account_id"] == "owner"
         assert owner["role"] == "owner"
         assert verify_password("ownerchangeme", owner["password_hash"])
 
@@ -143,44 +139,44 @@ class TestUserCRUD:
         # 创建用户
         resp = client.post(
             "/api/owner/users",
-            json={"username": "alice", "password": "pass123", "role": "user"},
+            json={"account_id": "alice", "password": "pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 201, resp.text
         user = resp.json()
-        assert user["username"] == "alice"
+        assert user["account_id"] == "alice"
         assert user["role"] == "user"
-        assert "id" in user
+        assert isinstance(user["user_id"], int)
         assert "password_hash" not in user  # 密码永不返回
 
-        # 列表（owner 不会看到自己）
+        # 列表包含只读 Owner。
         resp = client.get("/api/owner/users", headers=_headers(tokens["csrf_token"]))
         assert resp.status_code == 200
-        usernames = [u["username"] for u in resp.json()]
-        assert "alice" in usernames
-        assert "owner" not in usernames  # 自己被过滤
+        account_ids = [u["account_id"] for u in resp.json()]
+        assert "alice" in account_ids
+        assert "owner" in account_ids
 
-    def test_duplicate_username_409(self, client: TestClient) -> None:
-        """重复 username → 409。"""
+    def test_duplicate_account_id_409(self, client: TestClient) -> None:
+        """重复 account_id → 409。"""
         tokens = _login_owner(client)
         client.post(
             "/api/owner/users",
-            json={"username": "alice", "password": "pass", "role": "user"},
+            json={"account_id": "alice", "password": "pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         )
         resp = client.post(
             "/api/owner/users",
-            json={"username": "alice", "password": "pass2", "role": "user"},
+            json={"account_id": "alice", "password": "pass234", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 409
 
-    def test_empty_username_422(self, client: TestClient) -> None:
-        """空用户名 → 422。"""
+    def test_empty_account_id_422(self, client: TestClient) -> None:
+        """空登录账号 → 422。"""
         tokens = _login_owner(client)
         resp = client.post(
             "/api/owner/users",
-            json={"username": "", "password": "pass", "role": "user"},
+            json={"account_id": "", "password": "pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 422
@@ -190,7 +186,7 @@ class TestUserCRUD:
         tokens = _login_owner(client)
         resp = client.post(
             "/api/owner/users",
-            json={"username": "bob", "password": "pass", "role": "superowner"},
+            json={"account_id": "bob", "password": "pass123", "role": "superowner"},
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 422
@@ -200,10 +196,10 @@ class TestUserCRUD:
         tokens = _login_owner(client)
         resp = client.post(
             "/api/owner/users",
-            json={"username": "alice", "password": "pass", "role": "user"},
+            json={"account_id": "alice", "password": "pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         )
-        user_id = resp.json()["id"]
+        user_id = resp.json()["user_id"]
 
         # 不允许再创建第二个Owner角色。
         resp = client.put(
@@ -219,7 +215,7 @@ class TestUserCRUD:
         tokens = _login_owner(client)
         client.post(
             "/api/owner/users",
-            json={"username": "alice", "password": "pass", "role": "user"},
+            json={"account_id": "alice", "password": "pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         )
 
@@ -228,32 +224,32 @@ class TestUserCRUD:
         )
 
         assert response.status_code == 200
-        alice = next(user for user in response.json() if user["username"] == "alice")
+        alice = next(user for user in response.json() if user["account_id"] == "alice")
         assert alice["elfie_quota_override"] is None
         assert alice["effective_elfie_limit"] == 3
-        assert alice["online_status"] == "unknown"
+        assert alice["presence"] == "offline"
         assert alice["avatar_url"] is None
 
     def test_update_user_only_accepts_quota_override(self, client: TestClient) -> None:
         tokens = _login_owner(client)
         created = client.post(
             "/api/owner/users",
-            json={"username": "alice", "password": "pass", "role": "user"},
+            json={"account_id": "alice", "password": "pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         ).json()
 
         updated = client.put(
-            f"/api/owner/users/{created['id']}",
+            f"/api/owner/users/{created['user_id']}",
             json={"elfie_quota_override": 6},
             headers=_headers(tokens["csrf_token"]),
         )
         forbidden = client.put(
-            f"/api/owner/users/{created['id']}",
-            json={"username": "renamed", "password": "new-pass", "role": "user"},
+            f"/api/owner/users/{created['user_id']}",
+            json={"account_id": "renamed", "password": "new-pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         )
         out_of_range = client.put(
-            f"/api/owner/users/{created['id']}",
+            f"/api/owner/users/{created['user_id']}",
             json={"elfie_quota_override": 33},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -270,18 +266,18 @@ class TestUserCRUD:
         tokens = _login_owner(client)
         created = client.post(
             "/api/owner/users",
-            json={"username": "alice", "password": "pass", "role": "user"},
+            json={"account_id": "alice", "password": "pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         ).json()
         headers = _headers(tokens["csrf_token"])
 
         client.put(
-            f"/api/owner/users/{created['id']}",
+            f"/api/owner/users/{created['user_id']}",
             json={"elfie_quota_override": 8},
             headers=headers,
         )
         response = client.put(
-            f"/api/owner/users/{created['id']}",
+            f"/api/owner/users/{created['user_id']}",
             json={"elfie_quota_override": None},
             headers=headers,
         )
@@ -295,10 +291,10 @@ class TestUserCRUD:
         tokens = _login_owner(client)
         resp = client.post(
             "/api/owner/users",
-            json={"username": "alice", "password": "pass", "role": "user"},
+            json={"account_id": "alice", "password": "pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         )
-        user_id = resp.json()["id"]
+        user_id = resp.json()["user_id"]
 
         resp = client.delete(
             f"/api/owner/users/{user_id}",
@@ -307,8 +303,8 @@ class TestUserCRUD:
         assert resp.status_code == 200
 
         resp = client.get("/api/owner/users", headers=_headers(tokens["csrf_token"]))
-        usernames = [u["username"] for u in resp.json()]
-        assert "alice" not in usernames
+        account_ids = [u["account_id"] for u in resp.json()]
+        assert "alice" not in account_ids
 
     def test_cannot_delete_owner(self, client: TestClient) -> None:
         """不能从 Web 用户管理删除 Owner → 403。"""
@@ -337,10 +333,10 @@ class TestUserCRUD:
         # 创建用户 → 给用户分配一个精灵
         resp = client.post(
             "/api/owner/users",
-            json={"username": "alice", "password": "pass", "role": "user"},
+            json={"account_id": "alice", "password": "pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         )
-        alice_id = resp.json()["id"]
+        alice_id = resp.json()["user_id"]
 
         # 手动插入精灵
         from app.infrastructure.persistence.store import get_db
@@ -369,14 +365,14 @@ class TestUserCRUD:
             )
             assert cursor.fetchone() is not None
 
-    def test_owner_list_users_excludes_self(self, client: TestClient) -> None:
-        """Owner列表不包含自己。"""
+    def test_owner_list_users_includes_read_only_self(self, client: TestClient) -> None:
+        """Owner list includes its read-only Owner row."""
         tokens = _login_owner(client)
         resp = client.get("/api/owner/users", headers=_headers(tokens["csrf_token"]))
         assert resp.status_code == 200
 
-        usernames = [u["username"] for u in resp.json()]
-        assert "owner" not in usernames
+        account_ids = [u["account_id"] for u in resp.json()]
+        assert "owner" in account_ids
 
     def test_owner_list_users_shows_other_users(
         self, client: TestClient, db_path: str
@@ -389,9 +385,9 @@ class TestUserCRUD:
         resp = client.get("/api/owner/users", headers=_headers(tokens["csrf_token"]))
         assert resp.status_code == 200
 
-        usernames = [u["username"] for u in resp.json()]
-        assert "owner" not in usernames
-        assert "other_user" in usernames
+        account_ids = [u["account_id"] for u in resp.json()]
+        assert "owner" in account_ids
+        assert "other_user" in account_ids
 
 
 # ===================================================================
@@ -407,13 +403,13 @@ class TestAuthorization:
         # 创建普通用户
         resp = client.post(
             "/api/owner/users",
-            json={"username": "alice", "password": "pass", "role": "user"},
+            json={"account_id": "alice", "password": "pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         )
 
         # 以 alice 身份登录
         resp = client.post(
-            "/api/auth/login", data={"username": "alice", "password": "pass"}
+            "/api/auth/login", data={"account_id": "alice", "password": "pass123"}
         )
         assert resp.status_code == 200
         alice_csrf = resp.headers.get("X-CSRF-Token", "")
@@ -432,10 +428,10 @@ class TestAuthorization:
 
     def test_user_role_gets_403(self, client: TestClient, db_path: str) -> None:
         """普通用户登录后不能调用 Owner-only 管理接口。"""
-        create_test_user(db_path, "normal_user", "pass", role="user")
+        create_test_user(db_path, "normal_user", "pass123", role="user")
         response = client.post(
             "/api/auth/login",
-            data={"username": "normal_user", "password": "pass"},
+            data={"account_id": "normal_user", "password": "pass123"},
         )
         assert response.status_code == 200
         csrf_token = response.headers.get("X-CSRF-Token", "")
@@ -460,7 +456,7 @@ class TestOwnerElfieList:
 
         with get_db(db_path) as conn:
             owner_id = conn.execute(
-                "SELECT id FROM users WHERE username = ?",
+                "SELECT id FROM users WHERE account_id = ?",
                 ("owner",),
             ).fetchone()["id"]
             conn.execute(

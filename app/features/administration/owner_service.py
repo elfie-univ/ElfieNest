@@ -8,6 +8,10 @@ from pathlib import Path
 from typing import Optional
 
 from ai_runtime.storage.data_home import get_db_path
+from app.features.accounts.password_policy import (
+    PasswordPolicyError,
+    validate_password_strength,
+)
 from app.infrastructure.persistence.account_repository import (
     AccountRecord,
     AccountRepository,
@@ -16,10 +20,10 @@ from app.infrastructure.persistence.account_repository import (
 from app.infrastructure.persistence.session_repository import SessionRepository
 from app.infrastructure.persistence.store import get_db, hash_password
 
+MIN_OWNER_ACCOUNT_ID_LENGTH = 3
+MAX_OWNER_ACCOUNT_ID_LENGTH = 32
 MIN_OWNER_PASSWORD_LENGTH = 6
 MAX_OWNER_PASSWORD_LENGTH = 128
-MIN_OWNER_USERNAME_LENGTH = 3
-MAX_OWNER_USERNAME_LENGTH = 32
 
 
 class OwnerServiceError(Exception):
@@ -59,7 +63,8 @@ class InvalidOwnerInputError(OwnerServiceError):
 @dataclass(frozen=True)
 class OwnerAccount:
     user_id: int
-    username: str
+    account_id: str
+    display_name: str | None
     created_at: Optional[str]
     updated_at: Optional[str]
     password_status: str = "Set (not viewable)"
@@ -80,12 +85,12 @@ def get_owner_account(db_path: Optional[str] = None) -> OwnerAccount:
 
 def recover_owner_account(
     db_path: str,
-    username: str,
+    account_id: str,
     new_password: str,
 ) -> OwnerAccount:
     """Atomically replace Owner login credentials while preserving its ID."""
-    username = username.strip()
-    _validate_username(username)
+    account_id = account_id.strip()
+    _validate_account_id(account_id)
     _validate_password(new_password)
     path = _existing_database_path(db_path)
     password_hash = hash_password(new_password)
@@ -99,10 +104,10 @@ def recover_owner_account(
             if row is None:
                 raise OwnerNotFoundError()
             owner_id = row.user_id
-            if accounts.username_exists(username, owner_id):
-                raise InvalidOwnerInputError("Owner 登录名", "用户名已存在")
+            if accounts.account_id_exists(account_id, owner_id):
+                raise InvalidOwnerInputError("Owner 登录账号", "登录账号已存在")
             accounts.recover_owner_credentials(
-                owner_id, username, password_hash, updated_at
+                owner_id, account_id, password_hash, updated_at
             )
             SessionRepository(connection).revoke_for_user(
                 owner_id, datetime.now(timezone.utc)
@@ -118,22 +123,23 @@ def recover_owner_account(
     return _account_from_row(updated)
 
 
-def _validate_username(username: str) -> None:
-    length = len(username.strip())
-    if not MIN_OWNER_USERNAME_LENGTH <= length <= MAX_OWNER_USERNAME_LENGTH:
+def _validate_account_id(account_id: str) -> None:
+    length = len(account_id.strip())
+    if not MIN_OWNER_ACCOUNT_ID_LENGTH <= length <= MAX_OWNER_ACCOUNT_ID_LENGTH:
         raise InvalidOwnerInputError(
-            "Owner 登录名",
-            f"长度必须为 {MIN_OWNER_USERNAME_LENGTH}-{MAX_OWNER_USERNAME_LENGTH} 个字符",
+            "Owner 登录账号",
+            f"长度必须为 {MIN_OWNER_ACCOUNT_ID_LENGTH}-{MAX_OWNER_ACCOUNT_ID_LENGTH} 个字符",
         )
 
 
 def _validate_password(password: str) -> None:
-    length = len(password)
-    if not MIN_OWNER_PASSWORD_LENGTH <= length <= MAX_OWNER_PASSWORD_LENGTH:
+    try:
+        validate_password_strength(password)
+    except PasswordPolicyError as error:
         raise InvalidOwnerInputError(
             "Owner 密码",
             f"长度必须为 {MIN_OWNER_PASSWORD_LENGTH}-{MAX_OWNER_PASSWORD_LENGTH} 个字符",
-        )
+        ) from error
 
 
 def _existing_database_path(db_path: str) -> Path:
@@ -148,7 +154,8 @@ def _existing_database_path(db_path: str) -> Path:
 def _account_from_row(row: AccountRecord) -> OwnerAccount:
     return OwnerAccount(
         user_id=row.user_id,
-        username=row.username,
+        account_id=row.account_id,
+        display_name=row.display_name,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )

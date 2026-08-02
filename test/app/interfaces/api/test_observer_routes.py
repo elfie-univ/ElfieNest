@@ -329,9 +329,9 @@ def test_observer_frames_require_live_authenticated_session(client: TestClient) 
     assert response.status_code == 401
 
 
-def _login(client: TestClient, username: str, password: str) -> str:
+def _login(client: TestClient, account_id: str, password: str) -> str:
     response = client.post(
-        "/api/auth/login", data={"username": username, "password": password}
+        "/api/auth/login", data={"account_id": account_id, "password": password}
     )
     assert response.status_code == 200
     return response.headers["X-CSRF-Token"]

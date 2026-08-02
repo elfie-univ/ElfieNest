@@ -83,7 +83,7 @@ async def list_my_elfies(
 ):
     """返回当前用户名下所有精灵及其稳定物种和领养摘要。"""
     db = request.app.state.db_path
-    rows = InterfaceQueryRepository(db).list_elfies(owner_user_id=int(user["id"]))
+    rows = InterfaceQueryRepository(db).list_elfies(owner_user_id=user["user_id"])
     return [
         {
             "elfie_id": row.elfie_id,
@@ -111,7 +111,7 @@ async def get_elfie_detail(
     """返回当前用户自己精灵的安全公开资料，不暴露原始配置。"""
     db = request.app.state.db_path
     record = InterfaceQueryRepository(db).get_elfie(
-        elfie_id, owner_user_id=int(user["id"])
+        elfie_id, owner_user_id=user["user_id"]
     )
     if record is None:
         raise HTTPException(status_code=404, detail="精灵不存在")
@@ -144,7 +144,7 @@ async def adopt_elfie(
     try:
         result = adopt_elfie_for_user(
             db,
-            user_id=user["id"],
+            user_id=user["user_id"],
             request=adoption_request,
             engine=engine,
         )
@@ -172,4 +172,4 @@ async def adoption_info(
 
     性格风格和 species_id 从 ``system.adoption`` 动态读取。
     """
-    return adoption_options_for_user(request.app.state.db_path, user_id=user["id"])
+    return adoption_options_for_user(request.app.state.db_path, user_id=user["user_id"])

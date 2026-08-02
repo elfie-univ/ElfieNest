@@ -56,7 +56,7 @@ def client(app):
 
 def _login_owner(client: TestClient) -> dict:
     resp = client.post(
-        "/api/auth/login", data={"username": "owner", "password": "ownerchangeme"}
+        "/api/auth/login", data={"account_id": "owner", "password": "ownerchangeme"}
     )
     assert resp.status_code == 200
     return {
@@ -65,15 +65,15 @@ def _login_owner(client: TestClient) -> dict:
 
 
 def _login_user(
-    client: TestClient, username: str = "alice", password: str = "pass123"
+    client: TestClient, account_id: str = "alice", password: str = "pass123"
 ) -> dict:
     resp = client.post(
-        "/api/auth/login", data={"username": username, "password": password}
+        "/api/auth/login", data={"account_id": account_id, "password": password}
     )
     assert resp.status_code == 200, f"user login failed: {resp.text}"
     return {
         "csrf_token": resp.headers.get("X-CSRF-Token", ""),
-        "user_id": resp.json()["user"]["id"],
+        "user_id": resp.json()["user"]["user_id"],
     }
 
 
@@ -82,17 +82,17 @@ def _headers(csrf_token: str) -> dict:
 
 
 def _create_user_via_owner(
-    client: TestClient, username: str = "alice", password: str = "pass123"
+    client: TestClient, account_id: str = "alice", password: str = "pass123"
 ) -> int:
     """Owner 创建用户，返回用户 id。"""
     owner_tokens = _login_owner(client)
     resp = client.post(
         "/api/owner/users",
-        json={"username": username, "password": password, "role": "user"},
+        json={"account_id": account_id, "password": password, "role": "user"},
         headers=_headers(owner_tokens["csrf_token"]),
     )
     assert resp.status_code == 201, f"create user failed: {resp.text}"
-    return resp.json()["id"]
+    return resp.json()["user_id"]
 
 
 def _adopt_elfie(client: TestClient, csrf_token: str, name: str) -> str:

@@ -2,8 +2,8 @@ import type { OwnerElfie, OwnerUser } from "../api/client"
 
 export const MOCK_USERS: readonly OwnerUser[] = [
   {
+    user_id: 1,
     account_id: "admin123",
-    username: "admin123",
     role: "owner",
     created_at: "2026-06-30 13:40:35",
     gender: "男",
@@ -12,12 +12,14 @@ export const MOCK_USERS: readonly OwnerUser[] = [
     display_name: "管理员",
     elfie_quota_override: null,
     effective_elfie_limit: 3,
-    online_status: "online",
+    presence: "online",
+    last_seen_at: null,
+    language: "zh-CN",
     avatar_url: null,
   },
   {
+    user_id: 2,
     account_id: "user123",
-    username: "user123",
     role: "user",
     created_at: "2026-07-01 09:12:00",
     gender: "女",
@@ -26,7 +28,9 @@ export const MOCK_USERS: readonly OwnerUser[] = [
     display_name: "用户示例",
     elfie_quota_override: 2,
     effective_elfie_limit: 2,
-    online_status: "offline",
+    presence: "offline",
+    last_seen_at: null,
+    language: "zh-CN",
     avatar_url: null,
   },
 ]
@@ -34,7 +38,7 @@ export const MOCK_USERS: readonly OwnerUser[] = [
 export const MOCK_ELFIES: readonly OwnerElfie[] = [
   {
     elfie_id: "12345678",
-    owner: { account_id: "admin123", username: "管理员" },
+    owner: { user_id: 1, account_id: "admin123", display_name: "管理员" },
     profile: {
       elfie_id: "12345678",
       name: "Happy",
@@ -56,7 +60,7 @@ export const MOCK_ELFIES: readonly OwnerElfie[] = [
   },
   {
     elfie_id: "23456789",
-    owner: { account_id: "user123", username: "用户示例" },
+    owner: { user_id: 2, account_id: "user123", display_name: "用户示例" },
     profile: {
       elfie_id: "23456789",
       name: "Kettle",

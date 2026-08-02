@@ -8,7 +8,7 @@ from nest.state.models import PersistentResidentState, ResidentPresence, WorldCa
 def _seed_elfie(db_path: str) -> None:
     with get_db(db_path) as connection:
         connection.execute(
-            "INSERT INTO users(id, username, role, password_hash) "
+            "INSERT INTO users(id, account_id, role, password_hash) "
             "VALUES (1, 'owner', 'owner', 'hash')"
         )
         connection.execute(
@@ -28,9 +28,7 @@ def test_repository_persists_only_runtime_revision_and_presence(tmp_path) -> Non
     _seed_elfie(db_path)
     repository = SQLiteNestStateRepository(db_path)
 
-    repository.save_catalog(
-        WorldCatalog(nest_id="local-nest", revision=3, zones=())
-    )
+    repository.save_catalog(WorldCatalog(nest_id="local-nest", revision=3, zones=()))
     repository.save_resident(
         PersistentResidentState(
             elfie_id="00000001",

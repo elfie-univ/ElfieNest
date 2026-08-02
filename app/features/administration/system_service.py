@@ -45,7 +45,7 @@ class UsageStats:
 @dataclass(frozen=True)
 class ActiveSession:
     token_hash: str
-    username: str
+    account_id: str
     expires_at: str
 
 
@@ -106,7 +106,7 @@ def list_active_sessions(
         return [
             ActiveSession(
                 token_hash=row.token_hash,
-                username=row.username,
+                account_id=row.account_id,
                 expires_at=row.expires_at,
             )
             for row in SessionRepository(conn).list_active(

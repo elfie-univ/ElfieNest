@@ -45,9 +45,7 @@ def runtime_config_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path
     path.write_text(
         yaml.safe_dump(
             {
-                "models": {
-                    "openai/gpt-4o-mini": {"visible": False, "cost_tier": 2}
-                },
+                "models": {"openai/gpt-4o-mini": {"visible": False, "cost_tier": 2}},
                 "runtime_policy": {
                     "task_routes": {"reasoning": "premium"},
                     "model_groups": {
@@ -115,19 +113,28 @@ def client(
     with (
         patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
         patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-        patch("app.interfaces.api.runtime_routes.get_config_path", return_value=runtime_config_path),
-        patch("app.interfaces.api.runtime_routes.get_runtime_observer", return_value=runtime_observer),
-        patch("app.interfaces.api.runtime_routes.get_token_tracker", return_value=token_tracker),
+        patch(
+            "app.interfaces.api.runtime_routes.get_config_path",
+            return_value=runtime_config_path,
+        ),
+        patch(
+            "app.interfaces.api.runtime_routes.get_runtime_observer",
+            return_value=runtime_observer,
+        ),
+        patch(
+            "app.interfaces.api.runtime_routes.get_token_tracker",
+            return_value=token_tracker,
+        ),
     ):
         app = create_app(engine=None, db_path=db_path, ws_port=9876)
         with TestClient(app) as test_client:
             yield test_client
 
 
-def _login(client: TestClient, username: str, password: str) -> dict[str, str]:
+def _login(client: TestClient, account_id: str, password: str) -> dict[str, str]:
     response = client.post(
         "/api/auth/login",
-        data={"username": username, "password": password},
+        data={"account_id": account_id, "password": password},
     )
     assert response.status_code == 200
     return {"csrf_token": response.headers.get("X-CSRF-Token", "")}
@@ -264,7 +271,9 @@ def test_owner_runtime_policy_rejects_invalid_permission_mode(
     assert response.status_code == 422
 
 
-def test_owner_runtime_policy_rejects_unsafe_tool_permissions(client: TestClient) -> None:
+def test_owner_runtime_policy_rejects_unsafe_tool_permissions(
+    client: TestClient,
+) -> None:
     tokens = _login(client, "owner", "ownerchangeme")
 
     response = client.put(

@@ -11,14 +11,14 @@ from typing import NamedTuple
 
 class SessionPrincipal(NamedTuple):
     user_id: int
-    username: str
+    account_id: str
     role: str
     default_landing_page: str
 
 
 class ActiveSessionRecord(NamedTuple):
     token_hash: str
-    username: str
+    account_id: str
     expires_at: str
 
 
@@ -45,7 +45,7 @@ class SessionRepository:
         if not raw_token:
             return None
         row = self._connection.execute(
-            """SELECT users.id,users.username,users.role,users.default_landing_page
+            """SELECT users.id,users.account_id,users.role,users.default_landing_page
                FROM sessions JOIN users ON sessions.user_id=users.id
                WHERE sessions.token_hash=? AND sessions.revoked_at IS NULL
                  AND sessions.expires_at>?""",
@@ -55,7 +55,7 @@ class SessionRepository:
             return None
         return SessionPrincipal(
             user_id=int(row["id"]),
-            username=str(row["username"]),
+            account_id=str(row["account_id"]),
             role=str(row["role"]),
             default_landing_page=str(row["default_landing_page"]),
         )
@@ -83,7 +83,7 @@ class SessionRepository:
 
     def list_active(self, now: datetime, limit: int) -> tuple[ActiveSessionRecord, ...]:
         rows = self._connection.execute(
-            """SELECT sessions.token_hash,users.username,sessions.expires_at
+            """SELECT sessions.token_hash,users.account_id,sessions.expires_at
                FROM sessions JOIN users ON sessions.user_id=users.id
                WHERE sessions.revoked_at IS NULL AND sessions.expires_at>?
                ORDER BY sessions.expires_at DESC LIMIT ?""",
@@ -92,7 +92,7 @@ class SessionRepository:
         return tuple(
             ActiveSessionRecord(
                 token_hash=str(row["token_hash"]),
-                username=str(row["username"]),
+                account_id=str(row["account_id"]),
                 expires_at=str(row["expires_at"]),
             )
             for row in rows

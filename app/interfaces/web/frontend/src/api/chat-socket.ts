@@ -2,7 +2,7 @@ import { z } from "zod"
 
 import { ChatMessageSchema } from "./client"
 
-const ReadyEventSchema = z.object({ event: z.literal("ready"), principal: z.object({ role: z.union([z.literal("owner"), z.literal("user")]), username: z.string() }) })
+const ReadyEventSchema = z.object({ event: z.literal("ready"), principal: z.object({ role: z.union([z.literal("owner"), z.literal("user")]), account_id: z.string() }) })
 const MessageEventSchema = z.object({ event: z.literal("message"), message: ChatMessageSchema })
 const ErrorEventSchema = z.object({ event: z.literal("error"), detail: z.string() })
 const ChatSocketEventSchema = z.discriminatedUnion("event", [ReadyEventSchema, MessageEventSchema, ErrorEventSchema])

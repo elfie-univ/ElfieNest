@@ -74,8 +74,8 @@ _session_config: Dict[str, int] = {"ttl_seconds": 7 * 86_400}
 
 
 class AuthenticatedUser(TypedDict):
-    id: int
-    username: str
+    user_id: int
+    account_id: str
     role: str
     default_landing_page: str
 
@@ -142,7 +142,7 @@ def verify_session(token: str, db_path: str) -> Optional[AuthenticatedUser]:
     自动过滤已过期 session（expires_at > 当前时间戳）。
 
     Returns:
-        ``{"id": ..., "username": ..., "role": ...}`` 或 ``None``（无效/过期）。
+        Canonical account principal or ``None`` when invalid/expired.
     """
     with get_db(db_path) as conn:
         principal = SessionRepository(conn).find_active(
@@ -152,8 +152,8 @@ def verify_session(token: str, db_path: str) -> Optional[AuthenticatedUser]:
         return None
 
     return {
-        "id": principal.user_id,
-        "username": principal.username,
+        "user_id": principal.user_id,
+        "account_id": principal.account_id,
         "role": principal.role,
         "default_landing_page": principal.default_landing_page,
     }
@@ -225,7 +225,7 @@ def require_owner(  # noqa: B008
 class RateLimiter:
     """内存登录速率限制器。
 
-    按 ``{ip}:{username}`` 记录失败时间戳。在 **window_seconds** 内
+    按 ``{ip}:{account_id}`` 记录失败时间戳。在 **window_seconds** 内
     超过 **max_attempts** 次失败返回 ``True``（触发 429）。
     成功登录请调用 ``clear()`` 清零对应 key。
 
@@ -233,14 +233,14 @@ class RateLimiter:
 
         limiter = RateLimiter()
 
-        if limiter.is_limited(ip, username):
+        if limiter.is_limited(ip, account_id):
             raise HTTPException(429)
 
         if not verify_password(...):
-            limiter.record_failure(ip, username)
+            limiter.record_failure(ip, account_id)
             raise HTTPException(401)
         else:
-            limiter.clear(ip, username)
+            limiter.clear(ip, account_id)
     """
 
     def __init__(self, max_attempts: int = 5, window_seconds: int = 300) -> None:
@@ -248,12 +248,12 @@ class RateLimiter:
         self._window_seconds = window_seconds
         self._records: Dict[str, List[float]] = {}
 
-    def _key(self, ip: str, username: str) -> str:
-        return f"{ip}:{username}"
+    def _key(self, ip: str, account_id: str) -> str:
+        return f"{ip}:{account_id}"
 
-    def is_limited(self, ip: str, username: str) -> bool:
-        """检查 *ip+username* 组合是否达到速率限制。"""
-        key = self._key(ip, username)
+    def is_limited(self, ip: str, account_id: str) -> bool:
+        """检查 *ip+account_id* 组合是否达到速率限制。"""
+        key = self._key(ip, account_id)
         now = time.time()
         timestamps = self._records.get(key, [])
         cutoff = now - self._window_seconds
@@ -262,16 +262,16 @@ class RateLimiter:
         self._records[key] = timestamps
         return len(timestamps) >= self._max_attempts
 
-    def record_failure(self, ip: str, username: str) -> None:
+    def record_failure(self, ip: str, account_id: str) -> None:
         """记录一次登录失败。"""
-        key = self._key(ip, username)
+        key = self._key(ip, account_id)
         if key not in self._records:
             self._records[key] = []
         self._records[key].append(time.time())
 
-    def clear(self, ip: str, username: str) -> None:
-        """登录成功后清零 *ip+username* 的失败记录。"""
-        key = self._key(ip, username)
+    def clear(self, ip: str, account_id: str) -> None:
+        """登录成功后清零 *ip+account_id* 的失败记录。"""
+        key = self._key(ip, account_id)
         self._records.pop(key, None)
 
 

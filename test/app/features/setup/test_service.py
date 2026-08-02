@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 
 import pytest
@@ -23,38 +24,66 @@ from app.infrastructure.persistence.store import get_db, init_db
 
 
 def test_create_first_owner_account_does_not_create_session(tmp_path: Path) -> None:
+    # Given
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
 
+    # When
     account = create_first_owner_account(
-        db_path, username="owner", password="secret123"
+        db_path, account_id="owner", password="secret123", display_name="Owner"
     )
 
+    # Then
     with get_db(db_path) as conn:
         session_count = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
-    assert account.username == "owner"
+        owner = conn.execute(
+            "SELECT account_id, display_name FROM users WHERE id = ?",
+            (account.user_id,),
+        ).fetchone()
+    assert account.account_id == "owner"
+    assert account.display_name == "Owner"
     assert account.role == "owner"
+    assert owner["account_id"] == "owner"
+    assert owner["display_name"] == "Owner"
     assert session_count == 0
 
 
 def test_create_first_owner_creates_login_session(tmp_path: Path) -> None:
+    # Given
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
 
-    setup_result = create_first_owner(db_path, username="owner", password="secret123")
+    # When
+    setup_result = create_first_owner(db_path, account_id="owner", password="secret123")
 
+    # Then
     with get_db(db_path) as conn:
         session_count = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
+    assert setup_result.account_id == "owner"
+    assert setup_result.display_name is None
     assert setup_result.session_token
     assert setup_result.csrf_token
     assert session_count == 1
+
+
+def test_create_first_owner_rejects_old_username_keyword(tmp_path: Path) -> None:
+    # Given
+    db_path = str(tmp_path / "nest.db")
+    init_db(db_path)
+
+    # When
+    parameters = inspect.signature(create_first_owner).parameters
+
+    # Then
+    assert "username" not in parameters
+    assert "account_id" in parameters
 
 
 def test_owner_creation_advances_only_first_setup_step(tmp_path: Path) -> None:
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
 
-    create_first_owner(db_path, username="owner", password="secret123")
+    create_first_owner(db_path, account_id="owner", password="secret123")
 
     progress = get_setup_progress(db_path)
     assert progress.current_step == 2
@@ -68,7 +97,7 @@ def test_failed_model_task_resumes_at_same_step_after_reopen(tmp_path: Path) -> 
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
 
-    create_first_owner(db_path, username="owner", password="secret123")
+    create_first_owner(db_path, account_id="owner", password="secret123")
     complete_setup_step(db_path, step=2, decision="skipped")
     complete_setup_step(db_path, step=3)
     record_setup_task_failure(
@@ -92,7 +121,7 @@ def test_ollama_install_task_persists_running_and_cancelled_state(
     """Ollama 安装任务在重启后仍能报告状态，并可在启动前取消。"""
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
-    create_first_owner(db_path, username="owner", password="secret123")
+    create_first_owner(db_path, account_id="owner", password="secret123")
 
     begin_setup_task(db_path, step=2, task_key="ollama_install")
 
@@ -115,7 +144,7 @@ def test_interrupted_setup_task_becomes_retryable_after_restart(tmp_path: Path) 
     """进程中断不能把安装永久伪装成运行中。"""
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
-    create_first_owner(db_path, username="owner", password="secret123")
+    create_first_owner(db_path, account_id="owner", password="secret123")
     begin_setup_task(db_path, step=2, task_key="ollama_install")
 
     recover_interrupted_setup_task(db_path)
@@ -129,16 +158,16 @@ def test_interrupted_setup_task_becomes_retryable_after_restart(tmp_path: Path) 
 def test_create_first_owner_account_rejects_existing_user(tmp_path: Path) -> None:
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
-    create_first_owner_account(db_path, username="owner", password="secret123")
+    create_first_owner_account(db_path, account_id="owner", password="secret123")
 
     with pytest.raises(SetupAlreadyCompleteError):
-        create_first_owner_account(db_path, username="other", password="secret123")
+        create_first_owner_account(db_path, account_id="other", password="secret123")
 
 
 def test_setup_uses_only_final_installation_table(tmp_path: Path) -> None:
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
-    create_first_owner(db_path, username="owner", password="secret123")
+    create_first_owner(db_path, account_id="owner", password="secret123")
     complete_setup_step(db_path, step=2, decision="skipped")
 
     with get_db(db_path) as conn:

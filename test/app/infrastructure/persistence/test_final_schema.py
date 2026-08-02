@@ -28,34 +28,93 @@ EXPECTED_TABLES: Final = {
 }
 EXPECTED_COLUMNS: Final = {
     "users": {
-        "id", "username", "nickname", "avatar_color", "avatar_kind",
-        "avatar_path", "gender", "birth_date", "role", "password_hash",
-        "presence", "last_seen_at", "elfie_limit", "default_landing_page",
-        "theme_key", "created_at", "updated_at",
+        "id",
+        "account_id",
+        "display_name",
+        "avatar_color",
+        "avatar_kind",
+        "avatar_path",
+        "gender",
+        "birth_date",
+        "role",
+        "password_hash",
+        "presence",
+        "last_seen_at",
+        "elfie_limit",
+        "default_landing_page",
+        "theme_key",
+        "language",
+        "created_at",
+        "updated_at",
     },
     "sessions": {"token_hash", "user_id", "expires_at", "created_at", "revoked_at"},
     "local_installations": {
-        "installation_id", "owner_user_id", "device_name", "platform",
-        "machine_id_hash", "setup_state", "setup_step", "owner_completed_at",
-        "providers_completed_at", "nest_completed_at", "food_completed_at",
-        "completed_at", "last_seen_at", "active_task_step", "active_task_key",
-        "task_state", "task_progress", "last_error", "created_at", "updated_at",
+        "installation_id",
+        "owner_user_id",
+        "device_name",
+        "platform",
+        "machine_id_hash",
+        "setup_state",
+        "setup_step",
+        "owner_completed_at",
+        "providers_completed_at",
+        "nest_completed_at",
+        "food_completed_at",
+        "completed_at",
+        "last_seen_at",
+        "active_task_step",
+        "active_task_key",
+        "task_state",
+        "task_progress",
+        "last_error",
+        "created_at",
+        "updated_at",
     },
     "nest_settings": {
-        "nest_id", "bed_count", "tick_interval_sec", "max_elfies",
-        "applied_world_revision", "clock_anchor_seconds", "created_at", "updated_at",
+        "nest_id",
+        "bed_count",
+        "tick_interval_sec",
+        "max_elfies",
+        "applied_world_revision",
+        "clock_anchor_seconds",
+        "created_at",
+        "updated_at",
     },
     "elfies": {
-        "elfie_id", "name", "owner_user_id", "species", "gender", "birth_date",
-        "adopted_at", "bed_number", "status", "summary", "main_food_id", "created_at", "updated_at",
+        "elfie_id",
+        "name",
+        "owner_user_id",
+        "species",
+        "gender",
+        "birth_date",
+        "adopted_at",
+        "bed_number",
+        "status",
+        "summary",
+        "main_food_id",
+        "created_at",
+        "updated_at",
     },
     "external_bodies": {
-        "body_id", "owner_elfie_id", "display_name", "body_type", "secret_hash",
-        "status", "last_heartbeat_at", "created_at", "updated_at", "revoked_at",
+        "body_id",
+        "owner_elfie_id",
+        "display_name",
+        "body_type",
+        "secret_hash",
+        "status",
+        "last_heartbeat_at",
+        "created_at",
+        "updated_at",
+        "revoked_at",
     },
     "device_audit_events": {"id", "body_id", "event_type", "detail_json", "created_at"},
     "embodiment_sessions": {
-        "elfie_id", "body_id", "state", "lease_expires_at", "lease_version", "updated_at",
+        "elfie_id",
+        "body_id",
+        "state",
+        "lease_expires_at",
+        "lease_version",
+        "updated_at",
     },
     "food_package_access": {"user_id", "food_key"},
 }
@@ -152,7 +211,9 @@ def test_final_account_constraints_reject_unsafe_direct_sql(tmp_path: Path) -> N
             )
 
 
-def test_final_body_constraints_enforce_owner_json_and_revocation(tmp_path: Path) -> None:
+def test_final_body_constraints_enforce_owner_json_and_revocation(
+    tmp_path: Path,
+) -> None:
     # Given: two Elfies, one active body, and one active lease.
     db_path = create_final_nest_database(tmp_path / "nest.db")
     with app_sqlite_connection(db_path) as connection:
@@ -201,19 +262,24 @@ def test_final_body_constraints_enforce_owner_json_and_revocation(tmp_path: Path
 
         # Then: no durable row is changed.
         assert cursor.rowcount == 0
-        assert connection.execute(
-            "SELECT lease_version FROM embodiment_sessions WHERE elfie_id='00000001'"
-        ).fetchone()[0] == 1
+        assert (
+            connection.execute(
+                "SELECT lease_version FROM embodiment_sessions WHERE elfie_id='00000001'"
+            ).fetchone()[0]
+            == 1
+        )
 
 
 def _columns(connection: sqlite3.Connection, table_name: str) -> set[str]:
-    return {str(row[1]) for row in connection.execute(f"PRAGMA table_info({table_name})")}
+    return {
+        str(row[1]) for row in connection.execute(f"PRAGMA table_info({table_name})")
+    }
 
 
-def _insert_user(connection: sqlite3.Connection, username: str, role: str) -> int:
+def _insert_user(connection: sqlite3.Connection, account_id: str, role: str) -> int:
     cursor = connection.execute(
-        "INSERT INTO users(username,password_hash,role) VALUES(?,?,?)",
-        (username, "password-hash", role),
+        "INSERT INTO users(account_id,password_hash,role) VALUES(?,?,?)",
+        (account_id, "password-hash", role),
     )
     assert cursor.lastrowid is not None
     return int(cursor.lastrowid)

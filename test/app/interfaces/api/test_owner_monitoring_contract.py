@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+import os
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -19,29 +19,30 @@ from app.interfaces.api.app import create_app
 from ._helpers import create_test_owner
 
 
-@pytest.fixture
-def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+@pytest.fixture(scope="module")
+def client(tmp_path_factory: pytest.TempPathFactory) -> TestClient:
     """Create a session-isolated API client with an Owner account."""
+    tmp_path = tmp_path_factory.mktemp("owner-monitoring")
     db_path = str(tmp_path / "nest.db")
-    monkeypatch.setenv("ELFIE_HOME", str(tmp_path / "elfienest-home"))
-    monkeypatch.setattr(
-        "app.features.configuration.food_access.project_food_health",
-        lambda package, evidence: SimpleNamespace(status="healthy"),
-    )
-    packages = system_food_packages()
-    packages[FOOD_COMMON_ID] = FoodPackage(
-        key=FOOD_COMMON_ID,
-        display_name="常用粮",
-        system_role="common",
-        enabled=True,
-    )
-    FoodCatalogStore().save(FoodCatalog(packages=packages))
-    init_db(db_path)
-    create_test_owner(db_path)
     with (
+        patch.dict(os.environ, {"ELFIE_HOME": str(tmp_path / "elfienest-home")}),
+        patch(
+            "app.features.configuration.food_access.project_food_health",
+            lambda package, evidence: SimpleNamespace(status="healthy"),
+        ),
         patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
         patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
     ):
+        packages = system_food_packages()
+        packages[FOOD_COMMON_ID] = FoodPackage(
+            key=FOOD_COMMON_ID,
+            display_name="常用粮",
+            system_role="common",
+            enabled=True,
+        )
+        FoodCatalogStore().save(FoodCatalog(packages=packages))
+        init_db(db_path)
+        create_test_owner(db_path)
         application = create_app(engine=None, db_path=db_path, ws_port=9876)
         with TestClient(application) as test_client:
             yield test_client
@@ -51,14 +52,14 @@ def _headers(csrf_token: str) -> dict[str, str]:
     return {"X-CSRF-Token": csrf_token, "Content-Type": "application/json"}
 
 
-def _login(client: TestClient, username: str, password: str) -> dict:
+def _login(client: TestClient, account_id: str, password: str) -> dict:
     response = client.post(
-        "/api/auth/login", data={"username": username, "password": password}
+        "/api/auth/login", data={"account_id": account_id, "password": password}
     )
     assert response.status_code == 200, response.text
     return {
         "csrf_token": response.headers["X-CSRF-Token"],
-        "user_id": response.json()["user"]["id"],
+        "user_id": response.json()["user"]["user_id"],
     }
 
 
@@ -80,14 +81,14 @@ def _adopt_elfie(
     return str(response.json()["elfie_id"])
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def monitoring_world(client: TestClient) -> dict:
     """Seed three Elfies whose owner, species, food and state all differ."""
     owner = _login(client, "owner", "ownerchangeme")
-    for username, password in (("alice", "alice-pass"), ("bob", "bob-pass")):
+    for account_id, password in (("alice", "alice-pass"), ("bob", "bob-pass")):
         response = client.post(
             "/api/owner/users",
-            json={"username": username, "password": password, "role": "user"},
+            json={"account_id": account_id, "password": password, "role": "user"},
             headers=_headers(str(owner["csrf_token"])),
         )
         assert response.status_code == 201, response.text
@@ -140,7 +141,8 @@ def test_owner_elfie_monitoring_projection_is_safe_and_structured(
     assert set(row) == {"elfie_id", "owner", "profile", "food_policy", "created_at"}
     assert row["owner"] == {
         "user_id": monitoring_world["alice"]["user_id"],
-        "username": "alice",
+        "account_id": "alice",
+        "display_name": None,
     }
     assert set(row["profile"]) == {
         "elfie_id",
@@ -167,9 +169,7 @@ def test_owner_elfie_monitoring_projection_is_safe_and_structured(
     assert row["food_policy"] == {
         "main_food_id": FOOD_COMMON_ID,
         "effective_main_food_id": FOOD_COMMON_ID,
-        "main_food_options": [
-            {"food_id": FOOD_COMMON_ID, "display_name": "常用粮"}
-        ],
+        "main_food_options": [{"food_id": FOOD_COMMON_ID, "display_name": "常用粮"}],
         "main_food_unavailable": False,
     }
     rendered = str(row)
@@ -304,9 +304,7 @@ def test_food_policy_is_structured_for_the_owner(
     assert response.json() == {
         "main_food_id": FOOD_COMMON_ID,
         "effective_main_food_id": FOOD_COMMON_ID,
-        "main_food_options": [
-            {"food_id": FOOD_COMMON_ID, "display_name": "常用粮"}
-        ],
+        "main_food_options": [{"food_id": FOOD_COMMON_ID, "display_name": "常用粮"}],
         "main_food_unavailable": False,
     }
 
@@ -340,3 +338,39 @@ def test_owner_monitoring_treats_empty_filter_values_as_all(
 
     assert response.status_code == 200
     assert len(response.json()) == 3
+
+
+def test_owner_monitoring_rejects_account_id_as_numeric_owner_filter(
+    client: TestClient, monitoring_world: dict
+) -> None:
+    # Given: an authenticated Owner and a member account ID.
+    owner = monitoring_world["owner"]
+
+    # When: the account ID is sent through the numeric user-ID filter.
+    response = client.get(
+        "/api/owner/elfies",
+        params={"owner_user_id": "alice"},
+        headers=_headers(str(owner["csrf_token"])),
+    )
+
+    # Then: FastAPI rejects the invalid numeric boundary value.
+    assert response.status_code == 422
+
+
+def test_owner_monitoring_preserves_nullable_display_name(
+    client: TestClient, monitoring_world: dict
+) -> None:
+    # Given: Alice has no display name and owns two Elfies.
+    owner = monitoring_world["owner"]
+
+    # When: the Owner filters by Alice's numeric user ID.
+    response = client.get(
+        "/api/owner/elfies",
+        params={"owner_user_id": monitoring_world["alice"]["user_id"]},
+        headers=_headers(str(owner["csrf_token"])),
+    )
+
+    # Then: raw canonical identity fields survive without a fabricated label.
+    assert response.status_code == 200, response.text
+    assert {row["owner"]["account_id"] for row in response.json()} == {"alice"}
+    assert {row["owner"]["display_name"] for row in response.json()} == {None}

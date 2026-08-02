@@ -20,12 +20,6 @@ export const ChatMessageSchema = z.object({
   text: z.string(),
   created_at: z.string(),
 })
-const SetupResponseSchema = z.object({
-  id: z.number().int(),
-  username: z.string(),
-  role: z.literal("owner"),
-  csrf_token: z.string(),
-})
 const SetupStatusSchema = z.object({
   need_setup: z.boolean(),
   complete: z.boolean(),
@@ -79,22 +73,6 @@ export type Conversation = z.infer<typeof ConversationSchema>
 export type AdoptionInfo = z.infer<typeof AdoptionInfoSchema>
 export type SetupStatus = z.infer<typeof SetupStatusSchema>
 export type SetupModelRecommendation = z.infer<typeof SetupModelRecommendationSchema>
-
-export async function setup(
-  username: string,
-  password: string,
-  displayName: string,
-): Promise<z.infer<typeof SetupResponseSchema>> {
-  return SetupResponseSchema.parse(await requestJson("/api/auth/setup", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      username,
-      password,
-      display_name: displayName || undefined,
-    }),
-  }))
-}
 
 export async function setupStatus(): Promise<SetupStatus> {
   return SetupStatusSchema.parse(await requestJson("/api/auth/setup-status"))

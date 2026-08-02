@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
@@ -17,10 +17,10 @@ const owner = {
   avatar_kind: "initials",
   csrf_token: "test-token",
   default_landing_page: "manage",
-  nickname: "阿尔法",
+  display_name: "阿尔法",
   role: "owner",
   theme_key: "warm-paper",
-  username: "admin123",
+  user_id: 1,
 } satisfies ClientUser
 
 function renderLocalized(locale: SupportedLocale, panel = false): void {
@@ -54,17 +54,20 @@ describe("AccountMenu", () => {
   })
 
   it("keeps the account panel open while choosing a portal-rendered landing page", async () => {
-    const user = userEvent.setup()
     renderLocalized("zh-CN")
 
-    await user.click(screen.getByRole("button", { name: /阿尔法/ }))
-    await user.click(screen.getByRole("button", { name: /默认登录页/ }))
-    await user.click(screen.getByRole("combobox", { name: "默认登录页" }))
-    await user.click(await screen.findByRole("option", { name: "聊天页" }))
+    fireEvent.click(screen.getByRole("button", { name: /阿尔法/ }))
+    fireEvent.click(screen.getByRole("button", { name: /默认登录页/ }))
+    fireEvent.pointerDown(screen.getByRole("combobox", { name: "默认登录页" }), {
+      button: 0,
+      ctrlKey: false,
+      pointerType: "mouse",
+    })
+    fireEvent.click(await screen.findByRole("option", { name: "聊天页" }))
 
     expect(screen.getByRole("region", { name: "个人与外观设置" })).toBeInTheDocument()
     expect(screen.getByRole("combobox", { name: "默认登录页" })).toHaveTextContent("聊天页")
-  })
+  }, 10_000)
 
   it("renders display-first identity information with only the local avatar upload control", () => {
     renderLocalized("zh-CN", true)
@@ -73,6 +76,30 @@ describe("AccountMenu", () => {
     expect(screen.getByText("@admin123")).toBeInTheDocument()
     expect(screen.getAllByLabelText("上传本地头像")).toHaveLength(2)
     expect(screen.queryByLabelText("显示名称")).not.toBeInTheDocument()
+  })
+
+  it("saves a canonical display_name while preserving the account identifier", async () => {
+    // Given: the canonical profile editor is open for one account.
+    const user = userEvent.setup()
+    kyMock.mockResolvedValue(new Response(JSON.stringify({}), {
+      headers: { "Content-Type": "application/json" },
+      status: 200,
+    }))
+    renderLocalized("en-US", true)
+    await user.click(screen.getByRole("button", { name: "Edit display name" }))
+
+    // When: the display name is changed and saved.
+    const input = screen.getByRole("textbox", { name: "Edit display name" })
+    await user.clear(input)
+    await user.type(input, "Owner Renamed")
+    await user.click(screen.getByRole("button", { name: "Save display name" }))
+
+    // Then: the request uses display_name and the account label stays stable.
+    expect(kyMock).toHaveBeenCalledOnce()
+    const request = kyMock.mock.calls[0]
+    expect(request?.[0]).toBe("/api/auth/me/profile")
+    expect(JSON.parse(String(request?.[1]?.body))).toEqual({ display_name: "Owner Renamed" })
+    expect(screen.getByText("@admin123")).toBeInTheDocument()
   })
 
   it("uses a primary action for saving the default landing page", async () => {

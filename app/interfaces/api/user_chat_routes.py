@@ -29,7 +29,7 @@ async def get_elfie_chat_history(
     user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
 ) -> list[Dict[str, Any]]:
     """保持旧返回字段，同时只读取该精灵自己的历史库。"""
-    user_id = int(user["id"])
+    user_id = user["user_id"]
     if not RuntimeQueryRepository(request.app.state.db_path).elfie_is_owned_by(
         elfie_id, user_id
     ):

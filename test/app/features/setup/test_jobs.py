@@ -15,7 +15,7 @@ def test_ollama_job_runs_in_background_and_persists_failure(tmp_path: Path) -> N
     """A background failure leaves step two retryable rather than blocking HTTP."""
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
-    create_first_owner(db_path, username="owner", password="secret123")
+    create_first_owner(db_path, account_id="owner", password="secret123")
     entered = Event()
     release = Event()
 

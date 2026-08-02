@@ -15,10 +15,10 @@ class RuntimeAccount:
     """Account fields exposed to the authenticated API runtime."""
 
     user_id: int
-    username: str
+    account_id: str
     password_hash: str
     role: str
-    nickname: str | None
+    display_name: str | None
     avatar_color: int
     avatar_kind: str
     avatar_path: str | None
@@ -27,10 +27,10 @@ class RuntimeAccount:
     created_at: str
     __slots__ = (
         "user_id",
-        "username",
+        "account_id",
         "password_hash",
         "role",
-        "nickname",
+        "display_name",
         "avatar_color",
         "avatar_kind",
         "avatar_path",
@@ -46,11 +46,11 @@ class RuntimeQueryRepository:
     def __init__(self, db_path: str) -> None:
         self._db_path = db_path
 
-    def find_account_by_username(self, username: str) -> RuntimeAccount | None:
-        """Load one final account by its login name."""
+    def find_account_by_account_id(self, account_id: str) -> RuntimeAccount | None:
+        """Load one final account by its exact login identifier."""
         with get_db(self._db_path) as connection:
             row = connection.execute(
-                f"{_ACCOUNT_SELECT} WHERE username=?", (username,)
+                f"{_ACCOUNT_SELECT} WHERE account_id=?", (account_id,)
             ).fetchone()
         return None if row is None else _account(row)
 
@@ -66,16 +66,16 @@ class RuntimeQueryRepository:
         self,
         user_id: int,
         *,
-        nickname: str | None,
+        display_name: str | None,
         avatar_color: int,
         avatar_kind: str,
     ) -> RuntimeAccount | None:
         """Replace the editable profile projection and reload the account."""
         with get_db(self._db_path) as connection:
             connection.execute(
-                """UPDATE users SET nickname=?,avatar_color=?,avatar_kind=?,
+                """UPDATE users SET display_name=?,avatar_color=?,avatar_kind=?,
                           updated_at=CURRENT_TIMESTAMP WHERE id=?""",
-                (nickname, avatar_color, avatar_kind, user_id),
+                (display_name, avatar_color, avatar_kind, user_id),
             )
             connection.commit()
         return self.find_account_by_id(user_id)
@@ -137,7 +137,7 @@ class RuntimeQueryRepository:
 
 
 _ACCOUNT_SELECT = """
-SELECT id,username,password_hash,role,nickname,avatar_color,avatar_kind,
+SELECT id,account_id,password_hash,role,display_name,avatar_color,avatar_kind,
        avatar_path,default_landing_page,theme_key,created_at
 FROM users
 """
@@ -146,10 +146,12 @@ FROM users
 def _account(row: sqlite3.Row) -> RuntimeAccount:
     return RuntimeAccount(
         user_id=int(row["id"]),
-        username=str(row["username"]),
+        account_id=str(row["account_id"]),
         password_hash=str(row["password_hash"]),
         role=str(row["role"]),
-        nickname=None if row["nickname"] is None else str(row["nickname"]),
+        display_name=(
+            None if row["display_name"] is None else str(row["display_name"])
+        ),
         avatar_color=int(row["avatar_color"]),
         avatar_kind=str(row["avatar_kind"]),
         avatar_path=None if row["avatar_path"] is None else str(row["avatar_path"]),

@@ -25,7 +25,7 @@ def test_run_setup_wizard_creates_first_owner(
 
     with sqlite3.connect(get_db_path()) as conn:
         owner_count = conn.execute(
-            "SELECT COUNT(*) FROM users WHERE username='owner' AND role='owner'"
+            "SELECT COUNT(*) FROM users WHERE account_id='owner' AND role='owner'"
         ).fetchone()[0]
 
     output = capsys.readouterr().out

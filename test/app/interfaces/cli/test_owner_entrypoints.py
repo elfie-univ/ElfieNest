@@ -5,8 +5,13 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from app.features.administration.system_service import ActiveSession
 from app.infrastructure.persistence.store import get_db, hash_password, init_db
-from test.app.interfaces.cli.entrypoint_test_support import PROJECT_ROOT, write_executable
+from app.interfaces.cli import runtime_commands
+from test.app.interfaces.cli.entrypoint_test_support import (
+    PROJECT_ROOT,
+    write_executable,
+)
 
 
 def test_cli_help_exposes_owner_account_management() -> None:
@@ -50,7 +55,7 @@ def test_owner_menu_reports_current_owner_without_secrets(
     password_hash = hash_password("entrypoint-secret")
     with get_db(str(db_path)) as conn:
         conn.execute(
-            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'owner')",
+            "INSERT INTO users (account_id, password_hash, role) VALUES (?, ?, 'owner')",
             ("doctor-bai", password_hash),
         )
         conn.commit()
@@ -74,9 +79,31 @@ def test_owner_menu_reports_current_owner_without_secrets(
     assert result.returncode == 0
     assert "doctor-bai" in result.stdout
     assert "User ID:" in result.stdout
+    assert "Login account:" in result.stdout
+    assert "Username:" not in result.stdout
     assert "Password status:" in result.stdout
     assert password_hash not in result.stdout
     assert "entrypoint-secret" not in result.stdout
+
+
+def test_session_cli_prints_account_id_and_token_hash(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(
+        runtime_commands,
+        "list_active_sessions",
+        lambda: [
+            ActiveSession(
+                token_hash="d" * 64,
+                account_id="doctor-bai",
+                expires_at="2099-01-01T00:00:00+00:00",
+            )
+        ],
+    )
+
+    runtime_commands.show_sessions()
+
+    output = capsys.readouterr().out
+    assert "doctor-bai" in output
+    assert "token: dddddddd..." in output
 
 
 def test_owner_command_rejects_password_argument_without_echoing_it() -> None:
@@ -179,7 +206,9 @@ def test_interactive_shell_forwards_owner_command(tmp_path: Path) -> None:
     project_root.mkdir()
     shutil.copy2(PROJECT_ROOT / "elfienest.sh", project_root / "elfienest.sh")
     shutil.copy2(PROJECT_ROOT / ".python-version", project_root / ".python-version")
-    (project_root / "pyproject.toml").write_text("# marker for runtime mode detection\n")
+    (project_root / "pyproject.toml").write_text(
+        "# marker for runtime mode detection\n"
+    )
     write_executable(project_root / "install.sh", "#!/bin/bash\nexit 1\n")
     (project_root / "scripts").mkdir(parents=True, exist_ok=True)
     write_executable(project_root / "scripts" / "bootstrap.sh", "#!/bin/bash\nexit 0\n")

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import subprocess
 import sys
 from collections import Counter
@@ -110,7 +111,7 @@ def parse_mypy_output(output: str, project_root: Path) -> Counter[str]:
     diagnostics = (
         MypyDiagnostic.model_validate_json(line)
         for line in output.splitlines()
-        if line.strip()
+        if _is_json_object(line)
     )
     return Counter(
         _diagnostic_identity(
@@ -120,6 +121,17 @@ def parse_mypy_output(output: str, project_root: Path) -> Counter[str]:
         )
         for diagnostic in diagnostics
     )
+
+
+def _is_json_object(line: str) -> bool:
+    """Keep JSON diagnostic lines while ignoring human-readable tool notes."""
+    stripped = line.strip()
+    if not stripped.startswith("{"):
+        return False
+    try:
+        return isinstance(json.loads(stripped), dict)
+    except json.JSONDecodeError:
+        return False
 
 
 def parse_ruff_format_output(output: str, project_root: Path) -> Counter[str]:

@@ -40,16 +40,25 @@ class SetupAlreadyCompleteError(Exception):
 @dataclass(frozen=True)
 class OwnerAccount:
     user_id: int
-    username: str
+    account_id: str
+    display_name: str | None
     role: str = "owner"
 
 
 @dataclass(frozen=True)
 class SetupResult:
-    __slots__ = ("user_id", "username", "role", "session_token", "csrf_token")
+    __slots__ = (
+        "user_id",
+        "account_id",
+        "display_name",
+        "role",
+        "session_token",
+        "csrf_token",
+    )
 
     user_id: int
-    username: str
+    account_id: str
+    display_name: str | None
     role: str
     session_token: str
     csrf_token: str
@@ -62,12 +71,15 @@ def needs_setup(db_path: str) -> bool:
 def create_first_owner_account(
     db_path: str,
     *,
-    username: str,
+    account_id: str,
     password: str,
     display_name: str | None = None,
     avatar_color: int = 0,
 ) -> OwnerAccount:
     """Create the single product Owner during first-time setup."""
+    normalized_display_name = (
+        display_name.strip() if display_name and display_name.strip() else None
+    )
     with get_db(db_path) as conn:
         accounts = AccountRepository(conn)
         accounts.begin_immediate()
@@ -75,26 +87,26 @@ def create_first_owner_account(
             raise SetupAlreadyCompleteError("系统已有用户，无法执行首启设置")
         try:
             user_id = accounts.create_owner(
-                username=username,
+                account_id=account_id,
                 password_hash=hash_password(password),
-                nickname=(
-                    display_name.strip()
-                    if display_name and display_name.strip()
-                    else username
-                ),
+                display_name=normalized_display_name,
                 avatar_color=avatar_color,
             )
         except AccountConflictError as error:
             raise SetupAlreadyCompleteError("系统已有用户，无法执行首启设置") from error
         InstallationRepository(db_path).mark_owner_completed(conn, user_id)
         conn.commit()
-    return OwnerAccount(user_id=user_id, username=username)
+    return OwnerAccount(
+        user_id=user_id,
+        account_id=account_id.strip(),
+        display_name=normalized_display_name,
+    )
 
 
 def create_first_owner(
     db_path: str,
     *,
-    username: str,
+    account_id: str,
     password: str,
     display_name: str | None = None,
     avatar_color: int = 0,
@@ -102,7 +114,7 @@ def create_first_owner(
     """Create the first Owner and issue its initial Web session."""
     account = create_first_owner_account(
         db_path,
-        username=username,
+        account_id=account_id,
         password=password,
         display_name=display_name,
         avatar_color=avatar_color,
@@ -110,7 +122,8 @@ def create_first_owner(
     session_token = create_session(account.user_id, db_path)
     return SetupResult(
         user_id=account.user_id,
-        username=account.username,
+        account_id=account.account_id,
+        display_name=account.display_name,
         role=account.role,
         session_token=session_token,
         csrf_token=generate_csrf_token(session_token),

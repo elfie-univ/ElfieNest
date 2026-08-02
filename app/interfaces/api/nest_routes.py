@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -9,6 +9,7 @@ from app.features.accounts.auth import get_current_user, require_owner
 from app.infrastructure.persistence.nest_repository import (
     NestRepositoryConflictError,
     NestRepositoryNotFoundError,
+    RoomPayload,
     SQLiteNestRepository,
 )
 from app.infrastructure.persistence.store import get_db
@@ -27,7 +28,7 @@ MAX_BED_COUNT = 32
 def _rooms_with_beds(
     db_path: str,
     user_id: Optional[int] = None,
-) -> List[Dict[str, Any]]:
+) -> List[RoomPayload]:
     with get_db(db_path) as conn:
         repository = SQLiteNestRepository(conn)
         rooms = repository.load_view().as_rooms_payload(user_id=user_id)
@@ -54,7 +55,7 @@ async def get_rooms(
 ) -> List[Dict[str, Any]]:
     _ = owner
     rooms = _rooms_with_beds(request.app.state.db_path)
-    return rooms
+    return cast(List[Dict[str, Any]], rooms)
 
 
 @user_router.get("/rooms")
@@ -62,8 +63,8 @@ async def get_user_rooms(
     request: Request,
     user: Dict[str, Any] = RequireUser,
 ) -> List[Dict[str, Any]]:
-    rooms = _rooms_with_beds(request.app.state.db_path, user_id=user["id"])
-    return rooms
+    rooms = _rooms_with_beds(request.app.state.db_path, user_id=user["user_id"])
+    return cast(List[Dict[str, Any]], rooms)
 
 
 @router.post("/rooms")

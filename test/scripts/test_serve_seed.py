@@ -17,7 +17,7 @@ def test_default_seed_uses_a_workspace_safe_id(monkeypatch, tmp_path: Path) -> N
     init_db(db_path)
     with get_db(db_path) as connection:
         connection.execute(
-            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
+            "INSERT INTO users (account_id, password_hash, role) VALUES (?, ?, ?)",
             ("owner", "hash", "owner"),
         )
         connection.commit()

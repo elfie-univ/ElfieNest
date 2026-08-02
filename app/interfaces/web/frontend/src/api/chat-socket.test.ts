@@ -3,6 +3,11 @@ import { describe, expect, it } from "vitest"
 import { parseChatSocketEvent } from "./chat-socket"
 
 describe("parseChatSocketEvent", () => {
+  it("accepts the canonical account principal in the ready event", () => {
+    const event = parseChatSocketEvent({ event: "ready", principal: { role: "owner", account_id: "owner" } })
+    expect(event).toEqual({ event: "ready", principal: { role: "owner", account_id: "owner" } })
+  })
+
   it("accepts the typed message acknowledgement emitted by the Core", () => {
     const event = parseChatSocketEvent({
       event: "message",

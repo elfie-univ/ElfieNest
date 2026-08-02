@@ -29,9 +29,15 @@ export const ProfileSchema = z.object({
   embodiment: z.object({ state: z.string() }),
 })
 
-const OwnerElfieSchema = z.object({
+export const OwnerSchema = z.object({
+  user_id: z.number().int().positive(),
+  account_id: z.string().min(1),
+  display_name: z.string().nullable(),
+}).strict()
+
+export const OwnerElfieSchema = z.object({
   elfie_id: ElfieIdValueSchema,
-  owner: z.object({ account_id: z.string().min(1), username: z.string() }),
+  owner: OwnerSchema,
   profile: ProfileSchema,
   food_policy: z.object({
     main_food_id: z.string(),
@@ -43,12 +49,12 @@ const OwnerElfieSchema = z.object({
     main_food_unavailable: z.boolean(),
   }),
   created_at: z.string(),
-})
+}).strict()
 
 export type ElfieProfile = z.infer<typeof ProfileSchema>
 export type OwnerElfie = z.infer<typeof OwnerElfieSchema>
 export type OwnerElfieFilters = {
-  readonly ownerAccountId?: string
+  readonly ownerUserId?: number
   readonly speciesId?: string
   readonly foodKey?: string
   readonly embodimentState?: string
@@ -56,7 +62,7 @@ export type OwnerElfieFilters = {
 
 export function ownerElfiePath(filters: OwnerElfieFilters = {}): string {
   const query = new URLSearchParams()
-  if (filters.ownerAccountId) query.set("owner_account_id", filters.ownerAccountId)
+  if (filters.ownerUserId !== undefined) query.set("owner_user_id", String(filters.ownerUserId))
   if (filters.speciesId) query.set("species_id", filters.speciesId)
   if (filters.foodKey) query.set("food_key", filters.foodKey)
   if (filters.embodimentState) query.set("embodiment_state", filters.embodimentState)

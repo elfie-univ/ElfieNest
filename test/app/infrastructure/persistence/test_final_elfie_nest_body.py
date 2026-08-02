@@ -45,8 +45,9 @@ def _final_database(tmp_path: Path) -> str:
     db_path = str(create_final_nest_database(tmp_path / "nest.db"))
     with get_db(db_path) as connection:
         connection.execute(
-            """INSERT INTO users(id, username, role, password_hash, elfie_limit)
-               VALUES (1, 'owner', 'owner', 'hash', 2)"""
+            """INSERT INTO users
+               (id, account_id, display_name, role, password_hash, elfie_limit)
+               VALUES (1, 'owner', 'Owner Name', 'owner', 'hash', 2)"""
         )
         connection.execute(
             """INSERT INTO nest_settings(nest_id, bed_count, tick_interval_sec)
@@ -152,9 +153,7 @@ def test_nest_repositories_store_only_settings_presence_and_bed_number(
     # When: Runtime revision/resident presence and a nullable bed are persisted.
     state_repository.save_catalog(catalog)
     state_repository.save_resident(
-        PersistentResidentState(
-            elfie_id="00000001", presence=ResidentPresence.AWAY
-        )
+        PersistentResidentState(elfie_id="00000001", presence=ResidentPresence.AWAY)
     )
     with get_db(db_path) as connection:
         nest_repository = SQLiteNestRepository(connection)
@@ -166,11 +165,14 @@ def test_nest_repositories_store_only_settings_presence_and_bed_number(
     assert restored.catalog is None
     assert restored.desired_bed_count == 4
     assert restored.residents == (
-        PersistentResidentState(
-            elfie_id="00000001", presence=ResidentPresence.AWAY
-        ),
+        PersistentResidentState(elfie_id="00000001", presence=ResidentPresence.AWAY),
     )
     assert ElfieRepository(db_path).get("00000001").bed_number == 4
+    with get_db(db_path) as connection:
+        bed = SQLiteNestRepository(connection).load_view().beds[3]
+    assert bed["occupant_owner_user_id"] == 1
+    assert bed["occupant_owner_account_id"] == "owner"
+    assert bed["occupant_owner_display_name"] == "Owner Name"
     with pytest.raises(ValueError):
         with get_db(db_path) as connection:
             SQLiteNestRepository(connection).assign_bed(
@@ -199,9 +201,7 @@ def test_body_secret_revoke_audit_and_versioned_lease_reject_stale_writes(
     assert registry.authenticate(credential.bearer_token).owner_elfie_id == "00000001"
 
     # When: the body is leased and one writer advances the lease version.
-    switching = begin_hosting(
-        db_path, "00000001", credential.body_id, lease_seconds=30
-    )
+    switching = begin_hosting(db_path, "00000001", credential.body_id, lease_seconds=30)
     hosted = complete_hosting(db_path, "00000001", switching.lease_version)
 
     # Then: a stale writer is rejected, release permits revoke, and audit is durable.

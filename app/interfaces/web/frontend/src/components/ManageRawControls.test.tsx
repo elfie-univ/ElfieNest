@@ -56,13 +56,13 @@ const catalog = {
 
 const ownerUser = {
   account_id: "owner",
-  username: "owner",
-  nickname: "Owner",
+  display_name: "Owner",
   role: "owner",
   csrf_token: "csrf",
   avatar_url: null,
   theme_key: "warm-paper",
   default_landing_page: "manage",
+  user_id: 1,
 } satisfies ClientUser
 
 describe("Manage shared controls", () => {

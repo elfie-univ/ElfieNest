@@ -34,7 +34,7 @@ def test_tool_config_round_trip_uses_runtime_policy_and_local_secret(tmp_path):
         with TestClient(app) as client:
             login = client.post(
                 "/api/auth/login",
-                data={"username": "owner", "password": "ownerchangeme"},
+                data={"account_id": "owner", "password": "ownerchangeme"},
             )
             headers = {"X-CSRF-Token": login.headers["X-CSRF-Token"]}
             initial = client.get("/api/owner/runtime/tools/", headers=headers)

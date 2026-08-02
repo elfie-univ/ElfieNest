@@ -28,7 +28,7 @@ def _create_owner_database(elfie_home: Path) -> Path:
     init_db(str(db_path))
     with get_db(str(db_path)) as connection:
         user_id = connection.execute(
-            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'owner')",
+            "INSERT INTO users (account_id, password_hash, role) VALUES (?, ?, 'owner')",
             ("doctor-bai", hash_password("before-reset")),
         ).lastrowid
         connection.execute(
@@ -100,7 +100,7 @@ def test_owner_recovery_pty_hides_password_and_updates_database(tmp_path: Path) 
     transcript = bytearray()
     child_pid, master_fd = _spawn_reset(elfie_home)
 
-    _read_until(master_fd, b"New Owner username", transcript)
+    _read_until(master_fd, b"New Owner login account", transcript)
     os.write(master_fd, b"new-owner\n")
     _read_until(master_fd, b"New Owner password", transcript)
     os.write(master_fd, f"{new_password}\n".encode())
@@ -124,7 +124,7 @@ def test_owner_recovery_pty_eof_keeps_database_unchanged(tmp_path: Path) -> None
     transcript = bytearray()
     child_pid, master_fd = _spawn_reset(elfie_home)
 
-    _read_until(master_fd, b"New Owner username", transcript)
+    _read_until(master_fd, b"New Owner login account", transcript)
     os.write(master_fd, b"new-owner\n")
     _read_until(master_fd, b"New Owner password", transcript)
     os.write(master_fd, b"first-entry\n")
@@ -146,7 +146,7 @@ def test_owner_recovery_pty_ctrl_c_keeps_database_unchanged(tmp_path: Path) -> N
     transcript = bytearray()
     child_pid, master_fd = _spawn_reset(elfie_home)
 
-    _read_until(master_fd, b"New Owner username", transcript)
+    _read_until(master_fd, b"New Owner login account", transcript)
     os.write(master_fd, b"\x03")
     exit_code = _wait_for_child(child_pid, master_fd, transcript)
 

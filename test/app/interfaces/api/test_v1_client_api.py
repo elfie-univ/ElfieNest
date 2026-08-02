@@ -44,7 +44,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
 
 def _login_owner(client: TestClient) -> str:
     response = client.post(
-        "/api/auth/login", data={"username": "owner", "password": "ownerchangeme"}
+        "/api/auth/login", data={"account_id": "owner", "password": "ownerchangeme"}
     )
     assert response.status_code == 200
     return response.headers["X-CSRF-Token"]
@@ -109,7 +109,7 @@ def test_v1_profile_is_owned_and_exposes_only_the_public_projection(
 def test_v1_conversations_and_messages_are_owner_scoped(client: TestClient) -> None:
     csrf_token = _login_owner(client)
     elfie_id = _adopt_elfie(client, csrf_token)
-    user_id = int(client.get("/api/v1/me").json()["id"])
+    user_id = int(client.get("/api/v1/me").json()["user_id"])
     record_elfie_chat_message(
         elfie_id,
         ElfieChatMessageInput(
@@ -183,13 +183,13 @@ def test_v1_profile_and_messages_hide_another_users_elfie(client: TestClient) ->
     elfie_id = _adopt_elfie(client, owner_csrf)
     create_user = client.post(
         "/api/owner/users",
-        json={"username": "alice", "password": "pass123", "role": "user"},
+        json={"account_id": "alice", "password": "pass123", "role": "user"},
         headers={"X-CSRF-Token": owner_csrf},
     )
     assert create_user.status_code == 201
     client.cookies.clear()
     login = client.post(
-        "/api/auth/login", data={"username": "alice", "password": "pass123"}
+        "/api/auth/login", data={"account_id": "alice", "password": "pass123"}
     )
     assert login.status_code == 200
 
@@ -327,7 +327,7 @@ def test_v1_chat_websocket_requires_the_same_session_as_rest(
 
     assert ready == {
         "event": "ready",
-        "principal": {"role": "owner", "username": "owner"},
+        "principal": {"role": "owner", "account_id": "owner"},
     }
 
 
@@ -367,7 +367,7 @@ def test_v1_chat_websocket_persists_and_acknowledges_an_owned_message(
 def test_v1_chat_websocket_receives_a_persisted_elfie_reply(client: TestClient) -> None:
     csrf_token = _login_owner(client)
     elfie_id = _adopt_elfie(client, csrf_token)
-    user_id = int(client.get("/api/v1/me").json()["id"])
+    user_id = int(client.get("/api/v1/me").json()["user_id"])
     session_token = client.cookies.get("session_token")
     assert session_token
 

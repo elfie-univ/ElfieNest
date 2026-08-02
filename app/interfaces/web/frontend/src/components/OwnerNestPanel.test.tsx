@@ -22,7 +22,7 @@ vi.mock("../api/client", async (loadOriginal) => {
 
 const happy = {
   elfie_id: "00000001",
-  owner: { account_id: "owner", username: "owner" },
+  owner: { user_id: 1, account_id: "owner", display_name: "Owner" },
   profile: {
     elfie_id: "00000001",
     name: "Happy",
@@ -117,17 +117,17 @@ describe("OwnerNestPanel", () => {
     expect(screen.queryByRole("img", { name: "精灵巢实时摄像头画面" })).toBeNull()
   })
 
-  it("keeps the bed distribution readable when the backend returns no room state", async () => {
+  it("shows an explicit empty state when the backend returns no room state", async () => {
     vi.mocked(ownerRooms).mockResolvedValue([])
     vi.mocked(ownerElfies).mockResolvedValue([])
 
     renderWithI18n(<OwnerNestPanel csrfToken="csrf" />)
 
-    const list = await screen.findByRole("list", { name: "床位分布" })
-    expect(within(list).getByText("Happy")).toBeInTheDocument()
-    expect(within(list).getByText("床位 1")).toBeInTheDocument()
-    expect(within(list).getByText("Kettle")).toBeInTheDocument()
-    expect(within(list).getByText("床位 2")).toBeInTheDocument()
+    expect(await screen.findByText("暂无精灵床位分配")).toBeInTheDocument()
+    expect(screen.queryByText("Happy")).not.toBeInTheDocument()
+    expect(screen.queryByText("Kettle")).not.toBeInTheDocument()
+    expect(screen.queryByText("admin123")).not.toBeInTheDocument()
+    expect(screen.queryByText("user123")).not.toBeInTheDocument()
   })
 
   it("sorts unassigned elfies first and edits only the selected row", async () => {
@@ -197,5 +197,18 @@ describe("OwnerNestPanel", () => {
     // Then: the localized conflict fallback is shown without raw detail.
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to save management data.")
     expect(screen.queryByText("该床位已被占用")).not.toBeInTheDocument()
+  })
+
+  it("shows an explicit load error without retaining demo occupants", async () => {
+    vi.mocked(ownerRooms).mockRejectedValue(new ApiError(503, "巢状态读取失败"))
+    vi.mocked(ownerElfies).mockRejectedValue(new ApiError(503, "精灵读取失败"))
+
+    renderWithI18n(<OwnerNestPanel csrfToken="csrf" />)
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("巢状态读取失败")
+    expect(screen.queryByText("Happy")).not.toBeInTheDocument()
+    expect(screen.queryByText("Kettle")).not.toBeInTheDocument()
+    expect(screen.queryByText("admin123")).not.toBeInTheDocument()
+    expect(screen.queryByText("user123")).not.toBeInTheDocument()
   })
 })

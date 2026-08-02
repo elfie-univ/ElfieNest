@@ -38,8 +38,8 @@ def _matches_image_signature(content_type: str, image: bytes) -> bool:
 
 
 class AuthenticatedUser(TypedDict):
-    id: int
-    username: str
+    user_id: int
+    account_id: str
     role: str
     default_landing_page: str
 
@@ -84,7 +84,7 @@ async def upload_avatar(
     image = await _read_avatar_limited(file)
     if not _matches_image_signature(file.content_type or "", image):
         raise HTTPException(status_code=415, detail="头像内容与图片格式不匹配")
-    user_id = int(user["id"])
+    user_id = user["user_id"]
     data_home = _data_home(request.app.state.db_path)
     user_layout = ensure_final_user_layout(data_home, str(user_id))
     for existing in user_layout.assets.glob("avatar.*"):
@@ -103,7 +103,7 @@ async def current_avatar(
     user: AuthenticatedUser = Depends(get_current_user),  # noqa: B008
 ) -> FileResponse:
     """Serve only the current user's local avatar image."""
-    user_id = int(user["id"])
+    user_id = user["user_id"]
     record = InterfaceQueryRepository(request.app.state.db_path).get_user(user_id)
     avatar_path = None if record is None else record.avatar_path
     if not avatar_path:

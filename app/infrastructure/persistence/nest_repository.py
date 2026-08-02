@@ -34,7 +34,8 @@ class BedPayload(TypedDict):
     occupant_name: str | None
     occupant_owner_user_id: int | None
     occupant_species_id: str | None
-    occupant_owner_username: str | None
+    occupant_owner_account_id: str | None
+    occupant_owner_display_name: str | None
 
 
 class ZonePayload(TypedDict):
@@ -91,7 +92,8 @@ class SemanticNestView:
         visible["occupant_name"] = None
         visible["occupant_owner_user_id"] = None
         visible["occupant_species_id"] = None
-        visible["occupant_owner_username"] = None
+        visible["occupant_owner_account_id"] = None
+        visible["occupant_owner_display_name"] = None
         return visible
 
 
@@ -166,7 +168,7 @@ class SQLiteNestRepository:
             int(row["bed_number"]): row
             for row in self._connection.execute(
                 """SELECT e.elfie_id, e.name, e.owner_user_id, e.species,
-                          e.bed_number, u.username
+                          e.bed_number, u.account_id, u.display_name
                    FROM elfies e JOIN users u ON u.id=e.owner_user_id
                    WHERE e.bed_number IS NOT NULL"""
             ).fetchall()
@@ -241,8 +243,13 @@ def _bed_payload(number: int, occupant: sqlite3.Row | None) -> BedPayload:
             None if occupant is None else int(occupant["owner_user_id"])
         ),
         occupant_species_id=None if occupant is None else str(occupant["species"]),
-        occupant_owner_username=(
-            None if occupant is None else str(occupant["username"])
+        occupant_owner_account_id=(
+            None if occupant is None else str(occupant["account_id"])
+        ),
+        occupant_owner_display_name=(
+            None
+            if occupant is None or occupant["display_name"] is None
+            else str(occupant["display_name"])
         ),
     )
 

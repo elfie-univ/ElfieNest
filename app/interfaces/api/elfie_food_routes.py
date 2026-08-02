@@ -25,7 +25,7 @@ def _accessible_elfie(
     record = (
         repository.get(elfie_id)
         if user.get("role") == "owner"
-        else repository.get_for_owner(elfie_id, owner_user_id=int(user["id"]))
+        else repository.get_for_owner(elfie_id, owner_user_id=user["user_id"])
     )
     if record is None:
         raise HTTPException(status_code=404, detail="精灵不存在或不属于您")

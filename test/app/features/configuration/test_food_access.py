@@ -15,9 +15,7 @@ from app.infrastructure.persistence.food_assignments import (
 from app.infrastructure.persistence.store import get_db, init_db
 
 
-def test_runtime_food_resolution_tracks_current_elfie_assignment(
-    tmp_path, monkeypatch
-):
+def test_runtime_food_resolution_tracks_current_elfie_assignment(tmp_path, monkeypatch):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     monkeypatch.setattr(
         "app.features.configuration.food_access.project_food_health",
@@ -26,10 +24,12 @@ def test_runtime_food_resolution_tracks_current_elfie_assignment(
     db_path = init_db(str(tmp_path / "nest.db"))
     with get_db(db_path) as connection:
         connection.execute(
-            "INSERT INTO users (username, password_hash, role) VALUES ('u', 'h', 'user')"
+            "INSERT INTO users (account_id, password_hash, role) VALUES ('u01', 'h', 'user')"
         )
         user_id = int(
-            connection.execute("SELECT id FROM users WHERE username='u'").fetchone()[0]
+            connection.execute(
+                "SELECT id FROM users WHERE account_id='u01'"
+            ).fetchone()[0]
         )
         connection.execute(
             """

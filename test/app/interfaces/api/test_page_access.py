@@ -39,11 +39,11 @@ def _web_build(tmp_path: Path) -> Path:
     return build_dir
 
 
-def _create_user(client: TestClient, username: str, role: str) -> None:
+def _create_user(client: TestClient, account_id: str, role: str) -> None:
     with get_db(client.app.state.db_path) as connection:
         connection.execute(
-            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
-            (username, hash_password("pass123"), role),
+            "INSERT INTO users (account_id, password_hash, role) VALUES (?, ?, ?)",
+            (account_id, hash_password("pass123"), role),
         )
         connection.commit()
 
@@ -55,9 +55,9 @@ def _complete_setup(client: TestClient) -> None:
     complete_setup_step(client.app.state.db_path, step=5)
 
 
-def _login(client: TestClient, username: str) -> None:
+def _login(client: TestClient, account_id: str) -> None:
     response = client.post(
-        "/api/auth/login", data={"username": username, "password": "pass123"}
+        "/api/auth/login", data={"account_id": account_id, "password": "pass123"}
     )
     assert response.status_code == 200
 
@@ -137,22 +137,22 @@ def test_login_returns_only_an_allowed_post_login_page(client: TestClient) -> No
     # When: the same credentials are submitted through each login target.
     chat_next = client.post(
         "/api/auth/login?next=/chat",
-        data={"username": "owner", "password": "pass123"},
+        data={"account_id": "owner", "password": "pass123"},
     )
     client.cookies.clear()
     manage_next = client.post(
         "/api/auth/login?next=/manage",
-        data={"username": "owner", "password": "pass123"},
+        data={"account_id": "owner", "password": "pass123"},
     )
     client.cookies.clear()
     monitor_next = client.post(
         "/api/auth/login?next=/monitor",
-        data={"username": "owner", "password": "pass123"},
+        data={"account_id": "owner", "password": "pass123"},
     )
     client.cookies.clear()
     hostile = client.post(
         "/api/auth/login?next=https://attacker.invalid",
-        data={"username": "owner", "password": "pass123"},
+        data={"account_id": "owner", "password": "pass123"},
     )
 
     # Then: only Owner product pages may override the established default.
@@ -171,7 +171,7 @@ def test_owner_chat_next_keeps_the_management_default_landing(
     # When: the login request carries the generic chat return target.
     response = client.post(
         "/api/auth/login?next=/chat",
-        data={"username": "owner", "password": "pass123"},
+        data={"account_id": "owner", "password": "pass123"},
     )
 
     # Then: chat cannot override the Owner's established management default.
@@ -306,7 +306,7 @@ def test_owner_mobile_access_exposes_only_active_lan_addresses(tmp_path: Path) -
             headers = {"Host": "192.168.1.8:8000"}
             login = client.post(
                 "/api/auth/login",
-                data={"username": "owner", "password": "pass123"},
+                data={"account_id": "owner", "password": "pass123"},
                 headers=headers,
             )
 

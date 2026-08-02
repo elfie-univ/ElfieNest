@@ -67,7 +67,7 @@ def client(app):
 def _login_owner(client: TestClient) -> dict:
     """辅助：以 owner 身份登录，返回 token 信息。"""
     resp = client.post(
-        "/api/auth/login", data={"username": "owner", "password": "ownerchangeme"}
+        "/api/auth/login", data={"account_id": "owner", "password": "ownerchangeme"}
     )
     assert resp.status_code == 200, f"login failed: {resp.text}"
     csrf_token = resp.headers.get("X-CSRF-Token", "")
@@ -395,14 +395,14 @@ class TestAuthorization:
         # 创建普通用户
         resp = client.post(
             "/api/owner/users",
-            json={"username": "alice", "password": "pass123", "role": "user"},
+            json={"account_id": "alice", "password": "pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 201
 
         # 以 alice 身份登录
         resp = client.post(
-            "/api/auth/login", data={"username": "alice", "password": "pass123"}
+            "/api/auth/login", data={"account_id": "alice", "password": "pass123"}
         )
         alice_csrf = resp.headers.get("X-CSRF-Token", "")
 

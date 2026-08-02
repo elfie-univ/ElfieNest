@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from ai_runtime.storage.data_home import get_db_path
+from app.features.accounts.password_policy import (
+    PasswordPolicyError,
+    validate_password_strength,
+)
 from app.features.setup.ollama import OllamaSetupService
 from app.features.setup.progress import complete_setup_step, get_setup_progress
 from app.features.setup.service import (
@@ -81,28 +85,33 @@ def _complete_owner(db_path: str) -> bool:
     if progress.current_step != 1:
         return True
     _print_step("1/5", "Create Owner account")
-    username = input_text("  Owner login name", "owner") or "owner"
-    display_name = input_text("  Owner display name", username) or username
+    account_id = input_text("  Owner login account", "owner") or "owner"
+    display_name = input_text("  Owner display name", account_id) or account_id
     password = input_password("  Owner password")
     if password is None:
         print(
             "  ❌ Cannot safely input Owner password in this terminal, setup cancelled"
         )
         return False
-    if not 3 <= len(username.strip()) <= 32 or not 6 <= len(password) <= 128:
+    if not 3 <= len(account_id.strip()) <= 32:
+        print("  ❌ Owner credentials do not meet requirements, setup cancelled")
+        return False
+    try:
+        validate_password_strength(password)
+    except PasswordPolicyError:
         print("  ❌ Owner credentials do not meet requirements, setup cancelled")
         return False
     try:
         create_first_owner_account(
             db_path,
-            username=username.strip(),
+            account_id=account_id.strip(),
             password=password,
             display_name=display_name.strip(),
         )
     except SetupAlreadyCompleteError as error:
         print(f"  ⚠️  Owner already exists or creation failed: {error}")
         return False
-    print(f"  ✅ Owner '{username.strip()}' created successfully")
+    print(f"  ✅ Owner '{account_id.strip()}' created successfully")
     return True
 
 

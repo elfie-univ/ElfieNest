@@ -55,8 +55,12 @@ def initialize_final_schema(connection: sqlite3.Connection) -> None:
 _TABLE_STATEMENTS: Final = (
     """CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY,
-        username TEXT NOT NULL UNIQUE CHECK(length(trim(username)) > 0),
-        nickname TEXT, avatar_color INTEGER NOT NULL DEFAULT 0,
+        account_id TEXT NOT NULL UNIQUE
+            CHECK(account_id=trim(account_id) AND length(account_id) BETWEEN 3 AND 32),
+        display_name TEXT
+            CHECK(display_name IS NULL OR (display_name=trim(display_name)
+                AND length(display_name) BETWEEN 1 AND 64)),
+        avatar_color INTEGER NOT NULL DEFAULT 0,
         avatar_kind TEXT NOT NULL DEFAULT 'initials' CHECK(avatar_kind IN ('initials','emoji')),
         avatar_path TEXT CHECK(avatar_path IS NULL OR (length(avatar_path)>0
             AND substr(avatar_path,1,1)<>'/' AND instr(avatar_path,char(92))=0
@@ -73,6 +77,7 @@ _TABLE_STATEMENTS: Final = (
             CHECK(default_landing_page IN ('chat','manage')),
         theme_key TEXT NOT NULL DEFAULT 'warm-paper'
             CHECK(theme_key IN ('warm-paper','harbor-blue','orchid-archive','moss-green')),
+        language TEXT NOT NULL DEFAULT 'zh-CN' CHECK(language IN ('zh-CN','en-US','ja-JP')),
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )""",

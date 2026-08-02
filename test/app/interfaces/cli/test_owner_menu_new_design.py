@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import builtins
 
-from app.interfaces.cli import owner_commands
-from app.features.administration.owner_service import OwnerAccount
 from ai_runtime.lab.menu import TerminalMenu
+from app.features.administration.owner_service import OwnerAccount
+from app.interfaces.cli import owner_commands
 
 
 def test_owner_menu_has_three_items_and_shares_actions(monkeypatch, capsys) -> None:
@@ -49,7 +49,8 @@ def test_owner_account_view_is_a_detail_page_with_pause(monkeypatch, capsys) -> 
         "get_owner_account",
         lambda _path=None: OwnerAccount(
             user_id=7,
-            username="owner",
+            account_id="owner",
+            display_name=None,
             created_at="2026-07-16T01:02:03Z",
             updated_at="2026-07-16T04:05:06Z",
         ),
@@ -63,7 +64,8 @@ def test_owner_account_view_is_a_detail_page_with_pause(monkeypatch, capsys) -> 
     assert result == 0
     assert "ElfieNest / Owner / View Account" in output
     assert "User ID: 7" in output
-    assert "Username: owner" in output
+    assert "Login account: owner" in output
+    assert "Username:" not in output
     assert "Password status: Set (not viewable)" in output
 
 

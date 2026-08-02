@@ -32,7 +32,7 @@ def client(db_path: str):
 
 def _login_owner(client: TestClient) -> dict[str, str]:
     resp = client.post(
-        "/api/auth/login", data={"username": "owner", "password": "ownerchangeme"}
+        "/api/auth/login", data={"account_id": "owner", "password": "ownerchangeme"}
     )
     assert resp.status_code == 200
     return {"csrf_token": resp.headers.get("X-CSRF-Token", "")}
@@ -40,12 +40,12 @@ def _login_owner(client: TestClient) -> dict[str, str]:
 
 def _login_user(
     client: TestClient,
-    username: str,
+    account_id: str,
     password: str,
 ) -> dict[str, str]:
     resp = client.post(
         "/api/auth/login",
-        data={"username": username, "password": password},
+        data={"account_id": account_id, "password": password},
     )
     assert resp.status_code == 200
     return {"csrf_token": resp.headers.get("X-CSRF-Token", "")}
@@ -82,7 +82,8 @@ def test_default_semantic_nest_has_desired_count_without_coordinates(
                     "occupant_name": None,
                     "occupant_owner_user_id": None,
                     "occupant_species_id": None,
-                    "occupant_owner_username": None,
+                    "occupant_owner_account_id": None,
+                    "occupant_owner_display_name": None,
                 }
                 for number in range(1, 5)
             ],
@@ -103,7 +104,8 @@ def test_default_semantic_nest_has_desired_count_without_coordinates(
                             "occupant_name": None,
                             "occupant_owner_user_id": None,
                             "occupant_species_id": None,
-                            "occupant_owner_username": None,
+                            "occupant_owner_account_id": None,
+                            "occupant_owner_display_name": None,
                         }
                         for number in range(1, 5)
                     ],
@@ -218,7 +220,7 @@ def test_user_room_view_redacts_another_users_occupant(
 ) -> None:
     create_test_user(db_path, "alice", "pass123")
     create_test_user(db_path, "bob", "bobpass")
-    _seed_elfie(db_path, "00000003", owner_username="bob")
+    _seed_elfie(db_path, "00000003", owner_account_id="bob")
     with get_db(db_path) as conn:
         conn.execute(
             """INSERT OR IGNORE INTO nest_settings(nest_id, bed_count, tick_interval_sec)
@@ -240,19 +242,20 @@ def test_user_room_view_redacts_another_users_occupant(
     bed = response.json()[0]["beds"][0]
     assert bed["occupant_id"] is None
     assert bed["occupant_name"] is None
-    assert bed["occupant_owner_username"] is None
+    assert bed["occupant_owner_account_id"] is None
+    assert bed["occupant_owner_display_name"] is None
 
 
 def _seed_elfie(
     db_path: str,
     elfie_id: str,
     *,
-    owner_username: str = "owner",
+    owner_account_id: str = "owner",
 ) -> None:
     with get_db(db_path) as conn:
         owner_id = conn.execute(
-            "SELECT id FROM users WHERE username = ?",
-            (owner_username,),
+            "SELECT id FROM users WHERE account_id = ?",
+            (owner_account_id,),
         ).fetchone()["id"]
         conn.execute(
             """

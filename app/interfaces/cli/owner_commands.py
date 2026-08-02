@@ -9,8 +9,14 @@ from typing import Optional
 
 from ai_runtime.lab.menu import MenuItem, TerminalMenu
 from ai_runtime.storage.data_home import get_db_path
+from app.features.accounts.password_policy import (
+    PasswordPolicyError,
+    validate_password_strength,
+)
 from app.features.administration.owner_service import (
+    MAX_OWNER_ACCOUNT_ID_LENGTH,
     MAX_OWNER_PASSWORD_LENGTH,
+    MIN_OWNER_ACCOUNT_ID_LENGTH,
     MIN_OWNER_PASSWORD_LENGTH,
     OwnerServiceError,
     get_owner_account,
@@ -33,7 +39,8 @@ def show_owner_account(db_path: Optional[str] = None) -> int:
     print("  👤 Owner Account Information")
     print("  " + "=" * 45)
     print(f"  User ID: {account.user_id}")
-    print(f"  Username: {account.username}")
+    print(f"  Login account: {account.account_id}")
+    print(f"  Display name: {account.display_name or 'unset'}")
     print(f"  Password status: {account.password_status}")
     print(f"  Created at: {account.created_at or 'unknown'}")
     print(f"  Last updated: {account.updated_at or 'unknown'}")
@@ -62,7 +69,7 @@ def recover_owner_interactive(
             "Recover Owner Account", "ElfieNest / Owner / Recover Account"
         )
         print(
-            "  This operation will modify both Owner username and password, and revoke old sessions."
+            "  This operation will modify both Owner login account and password, and revoke old sessions."
         )
         print("  Press Esc, ← or choose Back to cancel.")
         print()
@@ -81,10 +88,10 @@ def recover_owner_interactive(
         )
         return 1
     if menu is None:
-        username = input_text("  New Owner username")
+        account_id = input_text("  New Owner login account")
     else:
-        username = owner_menu.read_text("  New Owner username (Esc to cancel): ")
-    if not username:
+        account_id = owner_menu.read_text("  New Owner login account (Esc to cancel): ")
+    if not account_id:
         print("  ❌ Cancelled, no changes made")
         return 1
     try:
@@ -111,19 +118,30 @@ def recover_owner_interactive(
     if first != second:
         print("  ❌ Passwords do not match, no changes made")
         return 1
-    if not MIN_OWNER_PASSWORD_LENGTH <= len(first) <= MAX_OWNER_PASSWORD_LENGTH:
+    if (
+        not MIN_OWNER_ACCOUNT_ID_LENGTH
+        <= len(account_id.strip())
+        <= MAX_OWNER_ACCOUNT_ID_LENGTH
+    ):
+        print(
+            f"  ❌ New login account must be {MIN_OWNER_ACCOUNT_ID_LENGTH}-{MAX_OWNER_ACCOUNT_ID_LENGTH} characters"
+        )
+        return 1
+    try:
+        validate_password_strength(first)
+    except PasswordPolicyError:
         print(
             f"  ❌ New password must be {MIN_OWNER_PASSWORD_LENGTH}-{MAX_OWNER_PASSWORD_LENGTH} characters"
         )
         return 1
     try:
         with owner_recovery_lock(Path(path).resolve().parent):
-            account = recover_owner_account(path, username, first)
+            account = recover_owner_account(path, account_id, first)
     except (OwnerServiceError, OSError, RecoveryInProgressError) as error:
         print(f"  ❌ Owner recovery failed: {error}")
         return 1
-    print(f"  ✅ Owner account recovered: {account.username}")
-    print("  Old sessions revoked. Use new username and password to access Web.")
+    print(f"  ✅ Owner account recovered: {account.account_id}")
+    print("  Old sessions revoked. Use new login account and password to access Web.")
     return 0
 
 

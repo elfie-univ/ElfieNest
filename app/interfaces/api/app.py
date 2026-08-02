@@ -19,26 +19,15 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field  # noqa: E402
 
 from ai_runtime.storage.data_home import get_db_path as _get_db_path
 from app.features.accounts.auth import (
-    create_session,
-    delete_session,
-    generate_csrf_token,
     get_current_user,
-    get_rate_limiter,
-    get_session_ttl_seconds,
-    hash_password,
     verify_csrf_token,
-    verify_password,
 )
 from app.features.setup.jobs import OllamaInstallJobManager
 from app.features.setup.progress import recover_interrupted_setup_task
 from app.infrastructure.devices import DeviceGateway
-from app.infrastructure.persistence.runtime_query_repository import (
-    RuntimeQueryRepository,
-)
 from app.infrastructure.persistence.store import (
     init_db,
     seed_initial_owner_if_env_set,
@@ -54,9 +43,7 @@ from nest.godot_gateway.bundle import (
     inspect_godot_web_bundle,
 )
 
-from .page_routes import post_login_landing_path
 from .page_routes import router as page_router
-from .profile_routes import avatar_url
 from .profile_routes import router as profile_router
 from .request_limits import AvatarUploadBodyLimitMiddleware
 from .service_access import ServiceAccessPolicy, configure_service_access
@@ -64,29 +51,6 @@ from .v1.realtime import SameOriginChatHub
 from .ws_gateway import AuthenticatedWSManager
 
 logger = logging.getLogger("app.interfaces.api.app")
-
-
-# ---------------------------------------------------------------------------
-# Pydantic 模型（profile / password 请求体）
-# ---------------------------------------------------------------------------
-
-
-class ProfileUpdate(BaseModel):
-    nickname: Optional[str] = Field(None, max_length=32)
-    avatar_color: Optional[int] = Field(None, ge=0, le=7)
-    avatar_kind: Optional[str] = Field(None, pattern="^(initials|emoji)$")
-
-
-class PasswordChange(BaseModel):
-    old_password: str
-    new_password: str = Field(..., min_length=6)
-
-
-class ThemePreferenceUpdate(BaseModel):
-    theme_key: str = Field(
-        ...,
-        pattern="^(warm-paper|harbor-blue|orchid-archive|moss-green)$",
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -283,232 +247,13 @@ def create_app(
         _ = user
         return {"port": ws_port}
 
-    @app.post("/api/auth/login")
-    async def login(request: Request):
-        """登录：校验身份 → 创建 session → 设置 cookie → 返回 user + CSRF token。
-
-        请求体为 form-data（username, password）。login 端点豁免 CSRF 校验。
-        """
-        body = await request.form()
-        username_raw = body.get("username")
-        password_raw = body.get("password")
-        username = (username_raw if isinstance(username_raw, str) else "").strip()
-        password = password_raw if isinstance(password_raw, str) else ""
-
-        if not username or not password:
-            raise HTTPException(status_code=422, detail="用户名和密码不能为空")
-
-        client_ip = request.client.host if request.client else "unknown"
-
-        # 速率限制（从配置动态读取）
-        db = request.app.state.db_path
-        limiter = get_rate_limiter(db)
-        if limiter.is_limited(client_ip, username):
-            raise HTTPException(
-                status_code=429,
-                detail="登录尝试过于频繁，请稍后再试",
-            )
-
-        # 验证凭据
-        account = RuntimeQueryRepository(db).find_account_by_username(username)
-
-        if account is None or not verify_password(password, account.password_hash):
-            limiter.record_failure(client_ip, username)
-            raise HTTPException(status_code=401, detail="用户名或密码错误")
-
-        # 登录成功 — 清零速率限制，创建 session
-        limiter.clear(client_ip, username)
-        session_token = create_session(account.user_id, db)
-        csrf_token = generate_csrf_token(session_token)
-
-        user_data = {
-            "id": account.user_id,
-            "username": account.username,
-            "role": account.role,
-            "default_landing_page": account.default_landing_page,
-        }
-
-        resp = JSONResponse(
-            content={
-                "user": user_data,
-                "csrf_token": csrf_token,
-                "landing_path": post_login_landing_path(
-                    user_data,
-                    request.query_params.get("next"),
-                ),
-            }
-        )
-        resp.set_cookie(
-            key="session_token",
-            value=session_token,
-            httponly=True,
-            samesite="lax",
-            max_age=get_session_ttl_seconds(db),
-        )
-        resp.headers["X-CSRF-Token"] = csrf_token
-        return resp
-
-    @app.post("/api/auth/logout")
-    async def logout(
-        request: Request,
-        user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
-    ):
-        """登出：删除 session + 清除 cookie。需要 CSRF token。"""
-        _ = user  # 确保已登录
-        token = request.cookies.get("session_token", "")
-        if token:
-            from .observer_routes import session_token_fingerprint  # noqa: PLC0415
-
-            observer_sessions = getattr(request.app.state, "observer_sessions", None)
-            if observer_sessions is not None:
-                observer_sessions.revoke_session(session_token_fingerprint(token))
-            delete_session(token, request.app.state.db_path)
-        resp = JSONResponse(content={"detail": "已登出"})
-        resp.delete_cookie(key="session_token")
-        return resp
-
-    @app.get("/api/auth/me")
-    async def me(
-        request: Request,
-        user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
-    ) -> Dict[str, Any]:
-        """返回当前登录用户完整信息（含 CSRF token, profile, elfie_count）。"""
-        db_path = request.app.state.db_path
-        repository = RuntimeQueryRepository(db_path)
-        account = repository.find_account_by_id(int(user["id"]))
-        if account is None:
-            raise HTTPException(status_code=401, detail="账户不存在")
-        elfie_count = len(repository.list_elfies_for_owner(account.user_id))
-
-        session_token = request.cookies.get("session_token", "")
-        csrf_token = generate_csrf_token(session_token) if session_token else ""
-
-        return {
-            "id": account.user_id,
-            "username": account.username,
-            "role": account.role,
-            "nickname": account.nickname,
-            "avatar_color": account.avatar_color,
-            "avatar_kind": account.avatar_kind,
-            "avatar_url": avatar_url(account.avatar_path),
-            "default_landing_page": account.default_landing_page,
-            "theme_key": account.theme_key,
-            "created_at": account.created_at,
-            "elfie_count": elfie_count,
-            "csrf_token": csrf_token,
-        }
-
-    # -------------------------------------------------------------------
-    # Profile routes (GET/PUT /api/auth/me/profile)
-    # -------------------------------------------------------------------
-
-    @app.get("/api/auth/me/profile")
-    async def get_profile(
-        request: Request,
-        user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
-    ) -> Dict[str, Any]:
-        """返回当前用户 profile 子集（username, nickname, avatar_color, avatar_kind）。"""
-        db_path = request.app.state.db_path
-        account = RuntimeQueryRepository(db_path).find_account_by_id(int(user["id"]))
-        if account is None:
-            raise HTTPException(status_code=401, detail="账户不存在")
-
-        return {
-            "username": account.username,
-            "nickname": account.nickname,
-            "avatar_color": account.avatar_color,
-            "avatar_kind": account.avatar_kind,
-            "avatar_url": avatar_url(account.avatar_path),
-        }
-
-    @app.put("/api/auth/me/profile")
-    async def update_profile(
-        body: ProfileUpdate,
-        request: Request,
-        user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
-    ) -> Dict[str, Any]:
-        """更新当前用户 profile（nickname, avatar_color, avatar_kind）。"""
-        db_path = request.app.state.db_path
-
-        if (
-            body.nickname is None
-            and body.avatar_color is None
-            and body.avatar_kind is None
-        ):
-            raise HTTPException(status_code=400, detail="没有提供要更新的字段")
-        repository = RuntimeQueryRepository(db_path)
-        current = repository.find_account_by_id(int(user["id"]))
-        if current is None:
-            raise HTTPException(status_code=401, detail="账户不存在")
-        account = repository.update_profile(
-            current.user_id,
-            nickname=(
-                body.nickname or None if body.nickname is not None else current.nickname
-            ),
-            avatar_color=(
-                body.avatar_color
-                if body.avatar_color is not None
-                else current.avatar_color
-            ),
-            avatar_kind=body.avatar_kind or current.avatar_kind,
-        )
-        if account is None:
-            raise HTTPException(status_code=401, detail="账户不存在")
-
-        return {
-            "username": account.username,
-            "nickname": account.nickname,
-            "avatar_color": account.avatar_color,
-            "avatar_kind": account.avatar_kind,
-            "avatar_url": avatar_url(account.avatar_path),
-        }
-
-    @app.post("/api/auth/me/password")
-    async def change_password(
-        body: PasswordChange,
-        request: Request,
-        user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
-    ) -> Dict[str, Any]:
-        """修改当前用户密码。需要旧密码校验。"""
-        db_path = request.app.state.db_path
-
-        repository = RuntimeQueryRepository(db_path)
-        account = repository.find_account_by_id(int(user["id"]))
-        if account is None:
-            raise HTTPException(status_code=401, detail="账户不存在")
-
-        if not verify_password(body.old_password, account.password_hash):
-            raise HTTPException(status_code=400, detail="旧密码错误")
-
-        if body.old_password == body.new_password:
-            raise HTTPException(status_code=400, detail="新密码不能与旧密码相同")
-
-        new_hash = hash_password(body.new_password)
-        repository.update_password_and_revoke_other_sessions(
-            account.user_id,
-            new_hash,
-            request.cookies.get("session_token", ""),
-        )
-
-        return {"detail": "密码已更新"}
-
-    @app.put("/api/auth/me/theme")
-    async def update_theme_preference(
-        body: ThemePreferenceUpdate,
-        request: Request,
-        user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
-    ) -> Dict[str, str]:
-        """Persist the authenticated user's selected visual theme."""
-        RuntimeQueryRepository(request.app.state.db_path).update_theme(
-            int(user["id"]), body.theme_key
-        )
-        return {"theme_key": body.theme_key}
-
     # -------------------------------------------------------------------
     # Setup Wizard 路由（首启向导 — 在 owner 路由之前注册）
     # -------------------------------------------------------------------
+    from .account_auth_routes import router as account_auth_router  # noqa: PLC0415
     from .setup_routes import router as setup_router  # noqa: PLC0415
 
+    app.include_router(account_auth_router)
     app.include_router(setup_router)
     app.include_router(page_router)
     app.include_router(profile_router)

@@ -16,7 +16,7 @@ def test_runtime_queries_use_final_users_and_elfies(tmp_path: Path) -> None:
     with get_db(str(db_path)) as connection:
         owner_id = int(
             connection.execute(
-                "INSERT INTO users(username,password_hash,role) VALUES(?,?,?)",
+                "INSERT INTO users(account_id,password_hash,role) VALUES(?,?,?)",
                 ("owner", "hash", "owner"),
             ).lastrowid
         )
@@ -30,11 +30,13 @@ def test_runtime_queries_use_final_users_and_elfies(tmp_path: Path) -> None:
 
     # When: the API-facing repository resolves account and ownership.
     repository = RuntimeQueryRepository(str(db_path))
-    account = repository.find_account_by_username("owner")
+    account = repository.find_account_by_account_id("owner")
 
     # Then: only final-table records are returned.
     assert account is not None
     assert account.user_id == owner_id
+    assert account.account_id == "owner"
+    assert account.display_name is None
     assert repository.owner_id_for_elfie("00000001") == owner_id
     assert repository.elfie_is_owned_by("00000001", owner_id) is True
     assert repository.list_elfies_for_owner(owner_id)[0].elfie_id == "00000001"
@@ -47,7 +49,7 @@ def test_password_change_keeps_only_the_current_final_session(tmp_path: Path) ->
     with get_db(str(db_path)) as connection:
         owner_id = int(
             connection.execute(
-                "INSERT INTO users(username,password_hash,role) VALUES(?,?,?)",
+                "INSERT INTO users(account_id,password_hash,role) VALUES(?,?,?)",
                 ("owner", "old-hash", "owner"),
             ).lastrowid
         )

@@ -29,7 +29,7 @@ def client(tmp_path: Path):
 def _login(client: TestClient) -> str:
     response = client.post(
         "/api/auth/login",
-        data={"username": "owner", "password": "ownerchangeme"},
+        data={"account_id": "owner", "password": "ownerchangeme"},
     )
     assert response.status_code == 200
     return response.headers["X-CSRF-Token"]

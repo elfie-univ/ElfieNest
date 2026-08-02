@@ -3,19 +3,23 @@
 from __future__ import annotations
 
 import sqlite3
-from typing import NamedTuple
+from typing import Final, NamedTuple
+
+ACCOUNT_ID_MIN_LENGTH: Final = 3
+ACCOUNT_ID_MAX_LENGTH: Final = 32
+DISPLAY_NAME_MAX_LENGTH: Final = 64
 
 
 class AccountRecord(NamedTuple):
     """Final account projection without exposing schema-specific row objects."""
 
     user_id: int
-    username: str
+    account_id: str
     password_hash: str
     role: str
     created_at: str
     updated_at: str
-    nickname: str | None
+    display_name: str | None
     avatar_color: int
     avatar_kind: str
     avatar_path: str | None
@@ -26,6 +30,15 @@ class AccountRecord(NamedTuple):
     default_landing_page: str
     theme_key: str
     elfie_limit: int | None
+    language: str
+
+
+class AccountSummary(NamedTuple):
+    """Canonical account identity returned by repository list queries."""
+
+    user_id: int
+    account_id: str
+    display_name: str | None
 
 
 class AccountRepositoryWriteError(RuntimeError):
@@ -38,6 +51,10 @@ class AccountRepositoryError(RuntimeError):
 
 class AccountConflictError(AccountRepositoryError):
     """A final account write violates a uniqueness constraint."""
+
+
+class AccountValidationError(AccountConflictError):
+    """A final account value violates repository boundary validation."""
 
 
 class AccountRepository:
@@ -62,9 +79,10 @@ class AccountRepository:
             raise AccountRepositoryError(str(error)) from error
         return None if row is None else _record_from_row(row)
 
-    def find_by_username(self, username: str) -> AccountRecord | None:
+    def find_by_account_id(self, account_id: str) -> AccountRecord | None:
+        normalized_account_id = _normalize_account_id(account_id)
         row = self._connection.execute(
-            f"{_ACCOUNT_SELECT} WHERE username=?", (username,)
+            f"{_ACCOUNT_SELECT} WHERE account_id=?", (normalized_account_id,)
         ).fetchone()
         return None if row is None else _record_from_row(row)
 
@@ -87,11 +105,12 @@ class AccountRepository:
             return None
         return default if row[0] is None else int(row[0])
 
-    def username_exists(self, username: str, excluding_user_id: int) -> bool:
+    def account_id_exists(self, account_id: str, excluding_user_id: int) -> bool:
+        normalized_account_id = _normalize_account_id(account_id)
         try:
             row = self._connection.execute(
-                "SELECT 1 FROM users WHERE username=? AND id!=?",
-                (username, excluding_user_id),
+                "SELECT 1 FROM users WHERE account_id=? AND id!=?",
+                (normalized_account_id, excluding_user_id),
             ).fetchone()
         except sqlite3.DatabaseError as error:
             raise AccountRepositoryError(str(error)) from error
@@ -100,17 +119,24 @@ class AccountRepository:
     def create_owner(
         self,
         *,
-        username: str,
+        account_id: str,
         password_hash: str,
-        nickname: str,
+        display_name: str | None,
         avatar_color: int,
     ) -> int:
+        normalized_account_id = _normalize_account_id(account_id)
+        normalized_display_name = _normalize_display_name(display_name)
         try:
             cursor = self._connection.execute(
                 """INSERT INTO users
-                   (username,password_hash,role,nickname,avatar_color,avatar_kind)
+                   (account_id,password_hash,role,display_name,avatar_color,avatar_kind)
                    VALUES (?,?,'owner',?,?,'initials')""",
-                (username, password_hash, nickname, avatar_color),
+                (
+                    normalized_account_id,
+                    password_hash,
+                    normalized_display_name,
+                    avatar_color,
+                ),
             )
         except sqlite3.IntegrityError as error:
             raise AccountConflictError(str(error)) from error
@@ -123,15 +149,16 @@ class AccountRepository:
     def recover_owner_credentials(
         self,
         user_id: int,
-        username: str,
+        account_id: str,
         password_hash: str,
         updated_at: str,
     ) -> None:
+        normalized_account_id = _normalize_account_id(account_id)
         try:
             self._connection.execute(
-                "UPDATE users SET username=?,password_hash=?,updated_at=? "
+                "UPDATE users SET account_id=?,password_hash=?,updated_at=? "
                 "WHERE id=? AND role='owner'",
-                (username, password_hash, updated_at, user_id),
+                (normalized_account_id, password_hash, updated_at, user_id),
             )
         except sqlite3.IntegrityError as error:
             raise AccountConflictError(str(error)) from error
@@ -156,17 +183,27 @@ class AccountRepository:
             (theme_key, user_id),
         )
 
-    def list_non_owner_users(self) -> list[sqlite3.Row]:
+    def list_non_owner_users(self) -> list[AccountSummary]:
         """List all non-owner users with their basic profile."""
-        return self._connection.execute(
-            "SELECT id, username, nickname FROM users WHERE role = 'user' ORDER BY id"
+        rows = self._connection.execute(
+            "SELECT id, account_id, display_name FROM users WHERE role = 'user' ORDER BY id"
         ).fetchall()
+        return [
+            AccountSummary(
+                user_id=int(row["id"]),
+                account_id=str(row["account_id"]),
+                display_name=(
+                    None if row["display_name"] is None else str(row["display_name"])
+                ),
+            )
+            for row in rows
+        ]
 
 
 _ACCOUNT_SELECT = """
-SELECT id,username,password_hash,role,created_at,updated_at,nickname,
+SELECT id,account_id,password_hash,role,created_at,updated_at,display_name,
        avatar_color,avatar_kind,avatar_path,gender,birth_date,presence,last_seen_at,
-       default_landing_page,theme_key,elfie_limit
+       default_landing_page,theme_key,elfie_limit,language
 FROM users
 """
 
@@ -174,12 +211,12 @@ FROM users
 def _record_from_row(row: sqlite3.Row) -> AccountRecord:
     return AccountRecord(
         user_id=int(row["id"]),
-        username=str(row["username"]),
+        account_id=str(row["account_id"]),
         password_hash=str(row["password_hash"]),
         role=str(row["role"]),
         created_at=str(row["created_at"]),
         updated_at=str(row["updated_at"]),
-        nickname=None if row["nickname"] is None else str(row["nickname"]),
+        display_name=None if row["display_name"] is None else str(row["display_name"]),
         avatar_color=int(row["avatar_color"]),
         avatar_kind=str(row["avatar_kind"]),
         avatar_path=None if row["avatar_path"] is None else str(row["avatar_path"]),
@@ -190,4 +227,23 @@ def _record_from_row(row: sqlite3.Row) -> AccountRecord:
         default_landing_page=str(row["default_landing_page"]),
         theme_key=str(row["theme_key"]),
         elfie_limit=None if row["elfie_limit"] is None else int(row["elfie_limit"]),
+        language=str(row["language"]),
     )
+
+
+def _normalize_account_id(account_id: str) -> str:
+    normalized = account_id.strip()
+    if not ACCOUNT_ID_MIN_LENGTH <= len(normalized) <= ACCOUNT_ID_MAX_LENGTH:
+        raise AccountValidationError("account_id must be 3-32 characters after trim")
+    return normalized
+
+
+def _normalize_display_name(display_name: str | None) -> str | None:
+    if display_name is None:
+        return None
+    normalized = display_name.strip()
+    if normalized == "":
+        return None
+    if len(normalized) > DISPLAY_NAME_MAX_LENGTH:
+        raise AccountValidationError("display_name must be at most 64 characters")
+    return normalized

@@ -4,7 +4,7 @@ import type { ReactElement } from "react"
 import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { ApiError, ownerElfies, ownerUsers, ownerWrite, type OwnerElfie } from "../api/client"
+import { ApiError, ownerElfiePath, ownerElfies, ownerUsers, ownerWrite, type OwnerElfie } from "../api/client"
 import { createI18n } from "../i18n/config"
 import type { SupportedLocale } from "../i18n/locale"
 import { OwnerElfieOverview } from "./OwnerElfieOverview"
@@ -19,9 +19,14 @@ vi.mock("../api/client", async (loadOriginal) => {
   }
 })
 
+Object.defineProperty(HTMLElement.prototype, "hasPointerCapture", { configurable: true, value: () => false })
+Object.defineProperty(HTMLElement.prototype, "setPointerCapture", { configurable: true, value: () => undefined })
+Object.defineProperty(HTMLElement.prototype, "releasePointerCapture", { configurable: true, value: () => undefined })
+Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: () => undefined })
+
 const elfie = {
   elfie_id: "00000001",
-  owner: { account_id: "alice", username: "alice" },
+  owner: { user_id: 7, account_id: "alice", display_name: "Alice" },
   profile: {
     elfie_id: "00000001",
     name: "星尘",
@@ -50,6 +55,30 @@ const elfie = {
   created_at: "2026-07-26T00:00:00Z",
 } satisfies OwnerElfie
 
+const memberElfie = {
+  ...elfie,
+  elfie_id: "00000002",
+  owner: { user_id: 42, account_id: "member42", display_name: "Member" },
+  profile: { ...elfie.profile, elfie_id: "00000002", name: "成员精灵" },
+} satisfies OwnerElfie
+
+const memberUser = {
+  user_id: 42,
+  account_id: "member42",
+  display_name: "Member",
+  role: "user" as const,
+  created_at: "2026-07-27",
+  gender: null,
+  birth_date: null,
+  elfie_count: 1,
+  elfie_quota_override: null,
+  effective_elfie_limit: 3,
+  presence: "offline" as const,
+  last_seen_at: null,
+  language: "zh-CN",
+  avatar_url: null,
+}
+
 function renderWithI18n(ui: ReactElement, locale: SupportedLocale = "zh-CN") {
   const instance = createI18n()
   void instance.changeLanguage(locale)
@@ -61,8 +90,8 @@ describe("OwnerElfieOverview", () => {
   beforeEach(() => {
     vi.mocked(ownerUsers).mockResolvedValue([
       {
+        user_id: 7,
         account_id: "alice",
-        username: "alice",
         display_name: "Alice",
         role: "user",
         created_at: "2026-07-26",
@@ -71,7 +100,9 @@ describe("OwnerElfieOverview", () => {
         elfie_count: 1,
         elfie_quota_override: null,
         effective_elfie_limit: 3,
-        online_status: "offline",
+        presence: "offline",
+        last_seen_at: null,
+        language: "zh-CN",
         avatar_url: null,
       },
     ])
@@ -136,14 +167,17 @@ describe("OwnerElfieOverview", () => {
     )
   })
 
-  it("uses the frontend demo cards when the legacy APIs return empty lists", async () => {
+  it("shows an explicit empty state when the APIs return empty lists", async () => {
     vi.mocked(ownerUsers).mockResolvedValue([])
     vi.mocked(ownerElfies).mockResolvedValue([])
 
     renderWithI18n(<OwnerElfieOverview csrfToken="csrf" onCountChange={vi.fn()} />)
 
-    expect(await screen.findByText("Happy")).toBeInTheDocument()
-    expect(screen.getByText("后端暂不可用，当前显示演示数据")).toBeInTheDocument()
+    expect(await screen.findByText("没有符合筛选条件的精灵。")).toBeInTheDocument()
+    expect(screen.queryByText("Happy")).not.toBeInTheDocument()
+    expect(screen.queryByText("Kettle")).not.toBeInTheDocument()
+    expect(screen.queryByText("admin123")).not.toBeInTheDocument()
+    expect(screen.queryByText("user123")).not.toBeInTheDocument()
   })
 
   it("renders English Elfie identity copy while preserving names, IDs, species, and food keys", async () => {
@@ -180,16 +214,68 @@ describe("OwnerElfieOverview", () => {
     expect(screen.getByText("标准粮")).toBeInTheDocument()
   })
 
-  it("hides backend load detail behind the English demo fallback", async () => {
+  it("shows an explicit error state without retaining demo identities", async () => {
     // Given: an API failure includes natural-language Chinese detail.
     vi.mocked(ownerElfies).mockRejectedValue(new ApiError(503, "后端精灵读取失败"))
 
-    // When: the overview loads in English.
-    renderWithI18n(<OwnerElfieOverview csrfToken="csrf" onCountChange={vi.fn()} />, "en-US")
+    // When: the overview loads.
+    renderWithI18n(<OwnerElfieOverview csrfToken="csrf" onCountChange={vi.fn()} />)
 
-    // Then: demo data remains available and backend detail is not rendered.
-    expect(await screen.findByText("Happy")).toBeInTheDocument()
-    expect(screen.getByRole("status")).toHaveTextContent("The backend is unavailable, so demo data is shown.")
-    expect(screen.queryByText("后端精灵读取失败")).not.toBeInTheDocument()
+    // Then: the backend error is visible and demo data is absent.
+    expect(await screen.findByRole("alert")).toHaveTextContent("后端精灵读取失败")
+    expect(screen.queryByText("Happy")).not.toBeInTheDocument()
+    expect(screen.queryByText("Kettle")).not.toBeInTheDocument()
+    expect(screen.queryByText("admin123")).not.toBeInTheDocument()
+    expect(screen.queryByText("user123")).not.toBeInTheDocument()
+  })
+
+  it("filters by the numeric Owner user id and keeps display-name labels", async () => {
+    const user = userEvent.setup()
+    vi.mocked(ownerUsers).mockResolvedValue([
+      {
+        user_id: 7,
+        account_id: "alice",
+        display_name: "Alice",
+        role: "user",
+        created_at: "2026-07-26",
+        gender: null,
+        birth_date: null,
+        elfie_count: 1,
+        elfie_quota_override: null,
+        effective_elfie_limit: 3,
+        presence: "offline",
+        last_seen_at: null,
+        language: "zh-CN",
+        avatar_url: null,
+      },
+      memberUser,
+    ])
+    vi.mocked(ownerElfies).mockImplementation(async (filters = {}) => filters.ownerUserId === 42 ? [memberElfie] : [elfie, memberElfie])
+
+    renderWithI18n(<OwnerElfieOverview csrfToken="csrf" onCountChange={vi.fn()} />)
+    expect(await screen.findByText("成员精灵")).toBeInTheDocument()
+
+    await user.click(screen.getByRole("combobox", { name: "所属用户" }))
+    await user.click(await screen.findByRole("option", { name: "Member" }))
+
+    expect(await screen.findByText("成员精灵")).toBeInTheDocument()
+    expect(screen.queryByText("星尘")).not.toBeInTheDocument()
+    expect(vi.mocked(ownerElfies)).toHaveBeenCalledWith({ ownerUserId: 42 })
+    expect(ownerElfiePath({ ownerUserId: 42 })).toBe("/api/owner/elfies?owner_user_id=42")
+  })
+
+  it("uses account id when an Owner display name is absent", async () => {
+    const user = userEvent.setup()
+    vi.mocked(ownerUsers).mockResolvedValue([{ ...memberUser, display_name: null }])
+    vi.mocked(ownerElfies).mockResolvedValue([{ ...memberElfie, owner: { ...memberElfie.owner, display_name: null } }])
+
+    renderWithI18n(<OwnerElfieOverview csrfToken="csrf" onCountChange={vi.fn()} />)
+    await user.click(await screen.findByRole("combobox", { name: "所属用户" }))
+
+    expect(await screen.findByRole("option", { name: "member42" })).toBeInTheDocument()
+    const memberName = await screen.findByText("成员精灵")
+    const memberCard = memberName.closest("article")
+    if (!(memberCard instanceof HTMLElement)) throw new TypeError("Expected an Elfie identity card")
+    expect(within(memberCard).getByText("member42")).toBeInTheDocument()
   })
 })

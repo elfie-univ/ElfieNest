@@ -10,13 +10,15 @@ from app.infrastructure.persistence.session_repository import (
 from app.infrastructure.persistence.store import get_db, hash_password, init_db
 
 
-def test_session_repository_stores_only_hash_and_revokes_raw_token(tmp_path: Path) -> None:
+def test_session_repository_stores_only_hash_and_revokes_raw_token(
+    tmp_path: Path,
+) -> None:
     db_path = init_db(str(tmp_path / "nest.db"))
     now = datetime.now(timezone.utc)
     with get_db(db_path) as connection:
         user_id = int(
             connection.execute(
-                "INSERT INTO users (username,password_hash,role) VALUES (?,?,'owner')",
+                "INSERT INTO users (account_id,password_hash,role) VALUES (?,?,'owner')",
                 ("owner", hash_password("secret123")),
             ).lastrowid
         )
@@ -25,7 +27,9 @@ def test_session_repository_stores_only_hash_and_revokes_raw_token(tmp_path: Pat
         connection.commit()
 
     with get_db(db_path) as connection:
-        stored = str(connection.execute("SELECT token_hash FROM sessions").fetchone()[0])
+        stored = str(
+            connection.execute("SELECT token_hash FROM sessions").fetchone()[0]
+        )
         repository = SessionRepository(connection)
         principal = repository.find_active(raw_token, now)
         repository.revoke(raw_token, now)
@@ -34,7 +38,7 @@ def test_session_repository_stores_only_hash_and_revokes_raw_token(tmp_path: Pat
     assert stored == hash_session_token(raw_token)
     assert raw_token != stored
     assert principal is not None
-    assert principal.username == "owner"
+    assert principal.account_id == "owner"
     with get_db(db_path) as connection:
         assert SessionRepository(connection).find_active(raw_token, now) is None
 
@@ -45,7 +49,7 @@ def test_session_repository_rejects_expired_hash(tmp_path: Path) -> None:
     with get_db(db_path) as connection:
         user_id = int(
             connection.execute(
-                "INSERT INTO users (username,password_hash,role) VALUES (?,?,'owner')",
+                "INSERT INTO users (account_id,password_hash,role) VALUES (?,?,'owner')",
                 ("owner", hash_password("secret123")),
             ).lastrowid
         )

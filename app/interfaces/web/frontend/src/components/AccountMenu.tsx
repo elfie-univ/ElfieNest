@@ -13,6 +13,7 @@ import {
   updateProfile,
 } from "../api/client"
 import { Avatar } from "./Avatar"
+import { accountDisplayName } from "./AccountIdentity"
 import { Icon, type IconName } from "./Icon"
 import { LanguageSwitcher } from "./LanguageSwitcher"
 import { Notice } from "./Notice"
@@ -77,7 +78,7 @@ function SettingRow({
 export function AccountMenuPanel({ onClose, onUpdated, user }: AccountMenuPanelProps) {
   const { i18n, t } = useTranslation("account")
   const [expanded, setExpanded] = useState<AccountSection | null>(null)
-  const [nickname, setNickname] = useState(user.nickname ?? "")
+  const [displayNameInput, setDisplayNameInput] = useState(user.display_name ?? "")
   const [editingIdentity, setEditingIdentity] = useState(false)
   const [oldPassword, setOldPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
@@ -86,7 +87,7 @@ export function AccountMenuPanel({ onClose, onUpdated, user }: AccountMenuPanelP
   const [saving, setSaving] = useState<AccountSection | null>(null)
   const fileInput = useRef<HTMLInputElement | null>(null)
   const csrfToken = user.csrf_token ?? ""
-  const displayName = user.nickname?.trim() || user.username
+  const displayName = accountDisplayName(user)
   const roleDescription = user.role === "owner" ? t("identity.ownerRole") : t("identity.userRole")
   const sectionSummary = (section: AccountSection): string => {
     switch (section) {
@@ -103,9 +104,9 @@ export function AccountMenuPanel({ onClose, onUpdated, user }: AccountMenuPanelP
   }
 
   useEffect(() => {
-    setNickname(user.nickname ?? "")
+    setDisplayNameInput(user.display_name ?? "")
     setLanding(user.default_landing_page === "chat" ? "chat" : "manage")
-  }, [user.default_landing_page, user.nickname])
+  }, [user.default_landing_page, user.display_name])
 
   const toggle = (section: AccountSection): void => {
     setExpanded((current) => current === section ? null : section)
@@ -116,7 +117,7 @@ export function AccountMenuPanel({ onClose, onUpdated, user }: AccountMenuPanelP
   const saveIdentity = async (): Promise<void> => {
     setSaving("theme")
     try {
-      await updateProfile({ nickname: nickname.trim() }, csrfToken)
+      await updateProfile({ display_name: displayNameInput.trim() }, csrfToken)
       await onUpdated(); setEditingIdentity(false)
     } catch (reason: unknown) {
       reportError("theme", reason)
@@ -174,7 +175,7 @@ export function AccountMenuPanel({ onClose, onUpdated, user }: AccountMenuPanelP
     <section className="account-menu__identity">
       <input accept="image/png,image/jpeg,image/webp" aria-label={t("identity.uploadAvatar")} className="account-menu__avatar-input" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadIdentityAvatar(file); event.target.value = "" }} ref={fileInput} type="file" />
       <button aria-label={t("identity.uploadAvatar")} className="account-menu__avatar-button" data-slot="button" data-variant="ghost" disabled={saving !== null} onClick={() => fileInput.current?.click()} type="button"><Avatar imageUrl={user.avatar_url} name={displayName} /></button>
-      <div>{editingIdentity ? <Input aria-label={t("identity.editDisplayName")} autoFocus maxLength={32} onChange={(event) => setNickname(event.target.value)} onKeyDown={saveIdentityOnEnter} placeholder={user.username} value={nickname} /> : <h2>{displayName}</h2>}<p>@{user.account_id}</p><small>{roleDescription}</small></div>
+      <div>{editingIdentity ? <Input aria-label={t("identity.editDisplayName")} autoFocus maxLength={64} onChange={(event) => setDisplayNameInput(event.target.value)} onKeyDown={saveIdentityOnEnter} placeholder={user.account_id} value={displayNameInput} /> : <h2>{displayName}</h2>}<p>@{user.account_id}</p><small>{roleDescription}</small></div>
       <Button aria-label={editingIdentity ? t("identity.saveDisplayName") : t("identity.editDisplayName")} className="account-menu__edit" disabled={saving !== null} onClick={() => { if (editingIdentity) void saveIdentity(); else setEditingIdentity(true) }} size="icon" type="button" variant="ghost"><Icon name="pencil" size={16} /></Button>
     </section>
     <SettingRow active={expanded === "password"} icon="lock-keyhole" label={t("sections.password")} onToggle={() => toggle("password")} summary={sectionSummary("password")}>
@@ -201,7 +202,7 @@ export function AccountMenu({ compact = false, onUpdated, user }: AccountMenuPro
   const { t } = useTranslation("account")
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement | null>(null)
-  const displayName = user.nickname?.trim() || user.username
+  const displayName = accountDisplayName(user)
 
   useEffect(() => {
     if (!open) return undefined

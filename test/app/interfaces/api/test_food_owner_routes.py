@@ -51,7 +51,7 @@ def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
 def _owner_headers(client: TestClient) -> dict[str, str]:
     response = client.post(
         "/api/auth/login",
-        data={"username": "owner", "password": "ownerchangeme"},
+        data={"account_id": "owner", "password": "ownerchangeme"},
     )
     assert response.status_code == 200
     return {"X-CSRF-Token": response.headers["X-CSRF-Token"]}
@@ -80,14 +80,20 @@ def test_custom_food_lifecycle_and_guarded_delete(client: TestClient) -> None:
         FOOD_EMERGENCY_ID,
         FOOD_COMMON_ID,
     ]
-    assert client.post(
-        f"/api/owner/runtime/foods/{FOOD_COMMON_ID}/archive",
-        headers=headers,
-    ).status_code == 409
-    assert client.delete(
-        f"/api/owner/runtime/foods/{FOOD_EMERGENCY_ID}",
-        headers=headers,
-    ).status_code == 409
+    assert (
+        client.post(
+            f"/api/owner/runtime/foods/{FOOD_COMMON_ID}/archive",
+            headers=headers,
+        ).status_code
+        == 409
+    )
+    assert (
+        client.delete(
+            f"/api/owner/runtime/foods/{FOOD_EMERGENCY_ID}",
+            headers=headers,
+        ).status_code
+        == 409
+    )
 
     created = client.post(
         "/api/owner/runtime/foods/",
@@ -105,10 +111,13 @@ def test_custom_food_lifecycle_and_guarded_delete(client: TestClient) -> None:
         headers=headers,
     )
     assert archived.status_code == 200
-    assert client.delete(
-        f"/api/owner/runtime/foods/{food_id}",
-        headers=headers,
-    ).status_code == 409
+    assert (
+        client.delete(
+            f"/api/owner/runtime/foods/{food_id}",
+            headers=headers,
+        ).status_code
+        == 409
+    )
 
     replace_food_access_users(client.app.state.db_path, food_id, ())
     with get_db(client.app.state.db_path) as connection:
@@ -128,3 +137,48 @@ def test_custom_food_lifecycle_and_guarded_delete(client: TestClient) -> None:
 def test_missing_food_raises_not_found():
     with pytest.raises(HTTPException, match="未知粮食"):
         _require_package(FoodCatalog(), "food_missing")
+
+
+def test_food_visibility_projects_canonical_nullable_account_identity(
+    client: TestClient,
+) -> None:
+    # Given: a member with no display name and an authenticated Owner.
+    headers = _owner_headers(client)
+
+    # When: the Owner loads the system food visibility projection.
+    response = client.get(
+        f"/api/owner/runtime/foods/{FOOD_COMMON_ID}/visibility",
+        headers=headers,
+    )
+
+    # Then: the typed persistence identity is returned without legacy aliases.
+    assert response.status_code == 200, response.text
+    assert response.json()["users"] == [
+        {
+            "user_id": client.app.state.test_user_id,
+            "account_id": "alice",
+            "display_name": None,
+            "assigned": True,
+        }
+    ]
+
+
+def test_food_visibility_rejects_boolean_user_ids(
+    client: TestClient,
+) -> None:
+    """Given a boolean user id, the strict visibility boundary returns 422."""
+    headers = _owner_headers(client)
+    created = client.post(
+        "/api/owner/runtime/foods/",
+        json={"display_name": "Private food", "roles": {}},
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+    food_id = created.json()["food"]["key"]
+    response = client.put(
+        f"/api/owner/runtime/foods/{food_id}/visibility",
+        json={"user_ids": [True]},
+        headers=headers,
+    )
+
+    assert response.status_code == 422

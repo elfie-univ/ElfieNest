@@ -24,11 +24,11 @@ logger = logging.getLogger("app.infrastructure.persistence.store")
 
 _FINAL_TABLES: Final[frozenset[str]] = frozenset(
     {
-    "device_audit_events",
-    "elfies",
-    "embodiment_sessions",
-    "external_bodies",
-    "food_package_access",
+        "device_audit_events",
+        "elfies",
+        "embodiment_sessions",
+        "external_bodies",
+        "food_package_access",
         "local_installations",
         "nest_settings",
         "sessions",
@@ -149,13 +149,13 @@ def _reject_legacy_root(database_path: Path) -> None:
 
 def seed_initial_owner_if_env_set(
     db_path: Optional[str] = None,
-    username_env: str = "OWNER_USERNAME",
+    account_id_env: str = "OWNER_ACCOUNT_ID",
     password_env: str = "OWNER_PASSWORD",
 ) -> bool:
     """从 Owner 环境变量创建唯一 Owner 账户。"""
     return _seed_initial_account_from_env(
         db_path,
-        username_env=username_env,
+        account_id_env=account_id_env,
         password_env=password_env,
         role="owner",
     )
@@ -164,23 +164,25 @@ def seed_initial_owner_if_env_set(
 def _seed_initial_account_from_env(
     db_path: Optional[str],
     *,
-    username_env: str,
+    account_id_env: str,
     password_env: str,
     role: str,
 ) -> bool:
     if db_path is None:
         db_path = str(_get_db_path())
-    username = os.environ.get(username_env, "")
+    account_id = os.environ.get(account_id_env, "")
     password = os.environ.get(password_env, "")
 
-    if not username or not password:
+    if not account_id or not password:
         return False
 
     with get_db(db_path) as conn:
         if role == "owner":
             conn.execute("BEGIN IMMEDIATE")
         # 检查是否已存在
-        cursor = conn.execute("SELECT id FROM users WHERE username = ?", (username,))
+        cursor = conn.execute(
+            "SELECT id FROM users WHERE account_id = ?", (account_id,)
+        )
         if cursor.fetchone() is not None:
             return False
 
@@ -193,13 +195,13 @@ def _seed_initial_account_from_env(
                 return False
         try:
             conn.execute(
-                "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
-                (username, pw_hash, role),
+                "INSERT INTO users (account_id, password_hash, role) VALUES (?, ?, ?)",
+                (account_id, pw_hash, role),
             )
         except sqlite3.IntegrityError:
             return False
         conn.commit()
-        logger.info("从环境变量创建了初始 %s: %s", role, username)
+        logger.info("从环境变量创建了初始 %s: %s", role, account_id)
         return True
 
 

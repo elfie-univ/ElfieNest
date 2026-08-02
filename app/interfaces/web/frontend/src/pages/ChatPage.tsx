@@ -15,7 +15,7 @@ import {
 } from "../api/client"
 import { AdoptionPanel } from "../components/AdoptionPanel"
 import { AccountMenu, AccountMenuPanel } from "../components/AccountMenu"
-import { Avatar } from "../components/Avatar"
+import { AccountIdentityAvatar } from "../components/AccountIdentity"
 import { ElfieProfilePanel } from "../components/ElfieProfilePanel"
 import { ChatConversationPane } from "../components/elfie-profile/ChatConversationPane"
 import { ChatListPane } from "../components/elfie-profile/ChatListPane"
@@ -244,7 +244,7 @@ export function ChatPage() {
         <nav className="mobile-tabbar" aria-label={t("navigation.mobileLabel")}>
           <Button aria-label={t("navigation.chats")} className={mobileSection === "chats" ? "mobile-tabbar__item mobile-tabbar__item--active" : "mobile-tabbar__item"} onClick={() => openMobileSection("chats")} type="button" variant="ghost"><Icon name="messages-square" size={20} /><span>{t("navigation.chatsShort")}</span></Button>
           <Button aria-label={t("navigation.elfies")} className={mobileSection === "elfies" ? "mobile-tabbar__item mobile-tabbar__item--active" : "mobile-tabbar__item"} onClick={() => openMobileSection("elfies")} type="button" variant="ghost"><Icon name="users" size={20} /><span>{t("navigation.elfiesShort")}</span></Button>
-          <Button aria-label={t("navigation.me")} className={mobileSection === "me" ? "mobile-tabbar__item mobile-tabbar__item--active" : "mobile-tabbar__item"} onClick={() => openMobileSection("me")} type="button" variant="ghost"><Avatar imageUrl={user.avatar_url} name={user.nickname?.trim() || user.username} /><span>{t("navigation.me")}</span></Button>
+          <Button aria-label={t("navigation.me")} className={mobileSection === "me" ? "mobile-tabbar__item mobile-tabbar__item--active" : "mobile-tabbar__item"} onClick={() => openMobileSection("me")} type="button" variant="ghost"><AccountIdentityAvatar user={user} /><span>{t("navigation.me")}</span></Button>
         </nav>
       </section>
       {showAdoption ? (

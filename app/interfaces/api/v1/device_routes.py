@@ -244,7 +244,7 @@ def _require_owned_elfie(
     request: Request, owner: AuthenticatedUser, elfie_id: str
 ) -> None:
     record = InterfaceQueryRepository(request.app.state.db_path).get_elfie(
-        elfie_id, owner_user_id=int(owner["id"])
+        elfie_id, owner_user_id=owner["user_id"]
     )
     if record is None:
         raise HTTPException(status_code=404, detail="精灵不存在")

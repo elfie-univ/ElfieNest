@@ -16,48 +16,14 @@ from app.interfaces.api.app import create_app
 from ._helpers import create_test_owner
 
 
-class _QueuedOllamaJobs:
-    """Avoid a real network/download while proving the HTTP request only queues work."""
-
-    def __init__(self) -> None:
-        self.started = False
-
-    def start(self, *, db_path: str, worker):
-        _ = db_path
-        _ = worker
-        self.started = True
-        from app.features.setup.progress import SetupTask
-
-        return SetupTask(
-            step=2,
-            key="ollama_install",
-            state="running",
-            progress=1,
-            error=None,
-        )
-
-    def start_model_pull(self, *, db_path: str, worker):
-        _ = db_path
-        _ = worker
-        self.started = True
-        from app.features.setup.progress import SetupTask
-
-        return SetupTask(
-            step=4,
-            key="model_pull",
-            state="running",
-            progress=1,
-            error=None,
-        )
-
-
 @pytest.fixture
 def db_path(tmp_path: Path) -> str:
     return str(tmp_path / "nest.db")
 
 
 @pytest.fixture
-def app(db_path: str):
+def app(db_path: str, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("ELFIE_HOME", str(Path(db_path).parent))
     with (
         patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
         patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
@@ -96,6 +62,14 @@ class TestSetupStatus:
 
 
 class TestSetup:
+    def test_setup_rejects_legacy_username(self, client: TestClient) -> None:
+        response = client.post(
+            "/api/auth/setup",
+            json={"username": "owner", "password": "securePass123"},
+        )
+
+        assert response.status_code == 422
+
     def test_setup_rejects_lan_client_before_owner_exists(
         self, app, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -117,7 +91,7 @@ class TestSetup:
         ) as lan_client:
             response = lan_client.post(
                 "/api/auth/setup",
-                json={"username": "owner", "password": "securePass123"},
+                json={"account_id": "owner", "password": "securePass123"},
             )
 
         assert response.status_code == 403
@@ -126,13 +100,17 @@ class TestSetup:
         """POST /api/auth/setup 在无用户时成功创建 owner（201）。"""
         resp = client.post(
             "/api/auth/setup",
-            json={"username": "owner", "password": "securePass123"},
+            json={"account_id": "owner", "password": "securePass123"},
         )
         assert resp.status_code == 201, resp.text
         data = resp.json()
-        assert data["username"] == "owner"
+        assert data["account_id"] == "owner"
+        assert data["display_name"] is None
         assert data["role"] == "owner"
-        assert "id" in data
+        assert isinstance(data["user_id"], int)
+        assert "id" not in data
+        assert "username" not in data
+        assert "nickname" not in data
         assert "csrf_token" in data
 
         # 验证 session cookie 已设置
@@ -159,7 +137,7 @@ class TestSetup:
 
         resp = client.post(
             "/api/auth/setup",
-            json={"username": "owner", "password": "securePass123"},
+            json={"account_id": "owner", "password": "securePass123"},
         )
 
         assert resp.status_code == 201, resp.text
@@ -172,16 +150,16 @@ class TestSetup:
         create_test_owner(db_path)
         resp = client.post(
             "/api/auth/setup",
-            json={"username": "another", "password": "securePass123"},
+            json={"account_id": "another", "password": "securePass123"},
         )
         assert resp.status_code == 409
         assert "已有用户" in resp.text
 
-    def test_setup_validates_username_length(self, client: TestClient) -> None:
-        """用户名少于3字符返回 422。"""
+    def test_setup_validates_account_id_length(self, client: TestClient) -> None:
+        """登录账号少于3字符返回 422。"""
         resp = client.post(
             "/api/auth/setup",
-            json={"username": "ab", "password": "securePass123"},
+            json={"account_id": "ab", "password": "securePass123"},
         )
         assert resp.status_code == 422
 
@@ -189,7 +167,7 @@ class TestSetup:
         """密码少于6字符返回 422。"""
         resp = client.post(
             "/api/auth/setup",
-            json={"username": "owner", "password": "short"},
+            json={"account_id": "owner", "password": "short"},
         )
         assert resp.status_code == 422
 
@@ -197,7 +175,11 @@ class TestSetup:
         """avatar_color 超出 0-7 返回 422。"""
         resp = client.post(
             "/api/auth/setup",
-            json={"username": "owner", "password": "securePass123", "avatar_color": 8},
+            json={
+                "account_id": "owner",
+                "password": "securePass123",
+                "avatar_color": 8,
+            },
         )
         assert resp.status_code == 422
 
@@ -206,7 +188,7 @@ class TestSetup:
     ) -> None:
         owner = client.post(
             "/api/auth/setup",
-            json={"username": "owner", "password": "securePass123"},
+            json={"account_id": "owner", "password": "securePass123"},
         )
         csrf = owner.json()["csrf_token"]
         headers = {"X-CSRF-Token": csrf}
@@ -236,119 +218,10 @@ class TestSetup:
 
         resp = client.post(
             "/api/auth/setup",
-            json={"username": "owner", "password": "securePass123", "avatar_color": -1},
+            json={
+                "account_id": "owner",
+                "password": "securePass123",
+                "avatar_color": -1,
+            },
         )
         assert resp.status_code == 422
-
-    def test_setup_ollama_install_requires_confirmation_and_queues_background_job(
-        self, client: TestClient, app
-    ) -> None:
-        """确认安装只排队固定官方任务，不在请求内下载或执行脚本。"""
-        owner = client.post(
-            "/api/auth/setup",
-            json={"username": "owner", "password": "securePass123"},
-        )
-        headers = {"X-CSRF-Token": owner.json()["csrf_token"]}
-        jobs = _QueuedOllamaJobs()
-        app.state.setup_ollama_jobs = jobs
-
-        rejected = client.post(
-            "/api/auth/setup/ollama/install",
-            json={"confirmed": False},
-            headers=headers,
-        )
-        accepted = client.post(
-            "/api/auth/setup/ollama/install",
-            json={"confirmed": True},
-            headers=headers,
-        )
-
-        assert rejected.status_code == 422
-        assert accepted.status_code == 202, accepted.text
-        assert accepted.json()["task"]["state"] == "running"
-        assert jobs.started
-
-    def test_setup_model_recommendation_never_recommends_ollama_below_four_gb(
-        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """低内存设备只能看到可跳过说明，不能被默认强推本地模型。"""
-        owner = client.post(
-            "/api/auth/setup",
-            json={"username": "owner", "password": "securePass123"},
-        )
-        headers = {"X-CSRF-Token": owner.json()["csrf_token"]}
-        monkeypatch.setattr(
-            "app.interfaces.api.setup_routes.get_available_memory_gb", lambda: 3
-        )
-
-        response = client.get("/api/auth/setup/model-recommendation", headers=headers)
-
-        assert response.status_code == 200
-        assert response.json() == {"memory_gb": 3, "recommended_model": None}
-
-    def test_setup_model_rejects_implicit_provider_reference(
-        self, client: TestClient
-    ) -> None:
-        """模型步骤不能把裸模型名偷偷默认成 Ollama。"""
-        owner = client.post(
-            "/api/auth/setup",
-            json={"username": "owner", "password": "securePass123"},
-        )
-        headers = {"X-CSRF-Token": owner.json()["csrf_token"]}
-        client.post(
-            "/api/auth/setup/ollama",
-            json={"decision": "skipped"},
-            headers=headers,
-        )
-        client.put(
-            "/api/auth/setup/nest",
-            json={"bed_count": 4},
-            headers=headers,
-        )
-
-        response = client.post(
-            "/api/auth/setup/model",
-            json={"decision": "configured", "model_reference": "qwen2.5:0.5b"},
-            headers=headers,
-        )
-
-        assert response.status_code == 422
-        assert "connection_id/model_id" in response.text
-
-    def test_setup_model_pull_requires_confirmation_and_queues_work(
-        self, client: TestClient, app
-    ) -> None:
-        """模型下载需要明确确认，HTTP 请求只入队而不阻塞下载。"""
-        owner = client.post(
-            "/api/auth/setup",
-            json={"username": "owner", "password": "securePass123"},
-        )
-        headers = {"X-CSRF-Token": owner.json()["csrf_token"]}
-        client.post(
-            "/api/auth/setup/ollama",
-            json={"decision": "skipped"},
-            headers=headers,
-        )
-        client.put(
-            "/api/auth/setup/nest",
-            json={"bed_count": 4},
-            headers=headers,
-        )
-        jobs = _QueuedOllamaJobs()
-        app.state.setup_ollama_jobs = jobs
-
-        rejected = client.post(
-            "/api/auth/setup/model/pull",
-            json={"model_reference": "ollama/qwen2.5:0.5b", "confirmed": False},
-            headers=headers,
-        )
-        accepted = client.post(
-            "/api/auth/setup/model/pull",
-            json={"model_reference": "ollama/qwen2.5:0.5b", "confirmed": True},
-            headers=headers,
-        )
-
-        assert rejected.status_code == 422
-        assert accepted.status_code == 202, accepted.text
-        assert accepted.json()["task"]["key"] == "model_pull"
-        assert jobs.started

@@ -2,35 +2,48 @@
 
 from __future__ import annotations
 
-import secrets
 from dataclasses import replace
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ai_runtime.food.evidence import query_model_evidence
-from ai_runtime.food.health import project_food_health
 from ai_runtime.food.models import (
     FOOD_EMERGENCY_ID,
     SYSTEM_FOOD_IDS,
-    FoodPackage,
 )
 from ai_runtime.food.planner import FoodPlanner
-from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
-from ai_runtime.models.model_reference import ModelReferenceError
+from ai_runtime.food.store import FoodCatalogStore
 from app.features.accounts.auth import require_owner
-from app.infrastructure.persistence.account_repository import AccountRepository
-from app.infrastructure.persistence.food_assignments import (
-    food_assignment_usage,
-    list_food_access_users,
-    replace_food_access_users,
+from app.infrastructure.persistence.food_assignments import food_assignment_usage
+from app.interfaces.api.food_catalog_support import (
+    catalog_view as _catalog_view,
 )
-from app.infrastructure.persistence.store import get_db
+from app.interfaces.api.food_catalog_support import (
+    new_food_key as _new_food_key,
+)
+from app.interfaces.api.food_catalog_support import (
+    package_view as _package_view,
+)
+from app.interfaces.api.food_catalog_support import (
+    parse_package as _parse_package,
+)
+from app.interfaces.api.food_catalog_support import (
+    require_package as _require_package,
+)
+from app.interfaces.api.food_catalog_support import (
+    save_checked as _save_checked,
+)
+from app.interfaces.api.food_catalog_support import (
+    set_lifecycle as _set_lifecycle,
+)
+from app.interfaces.api.food_visibility_routes import router as food_visibility_router
 
 router = APIRouter(
     prefix="/api/owner/runtime/foods",
     tags=["runtime-foods"],
 )
+router.include_router(food_visibility_router)
 
 
 def _stores() -> tuple[FoodCatalogStore, dict[str, Any]]:
@@ -193,62 +206,6 @@ async def delete_food(
     return _catalog_view(updated, evidence)
 
 
-@router.get("/{food_id}/visibility")
-async def get_food_visibility(
-    food_id: str,
-    request: Request,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
-) -> Dict[str, Any]:
-    _ = owner
-    _require_package(FoodCatalogStore().load(), food_id)
-    system = food_id in SYSTEM_FOOD_IDS
-    assigned = (
-        set()
-        if system
-        else set(list_food_access_users(request.app.state.db_path, food_id))
-    )
-    with get_db(request.app.state.db_path) as connection:
-        repo = AccountRepository(connection)
-        users = repo.list_non_owner_users()
-    return {
-        "food_key": food_id,
-        "global": system,
-        "user_ids": [] if system else sorted(assigned),
-        "users": [
-            {
-                "user_id": int(row["id"]),
-                "display_name": str(row["nickname"] or row["username"]),
-                "assigned": system or int(row["id"]) in assigned,
-            }
-            for row in users
-        ],
-    }
-
-
-@router.put("/{food_id}/visibility")
-async def edit_food_visibility(
-    food_id: str,
-    body: Dict[str, Any],
-    request: Request,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
-) -> Dict[str, Any]:
-    _ = owner
-    _require_package(FoodCatalogStore().load(), food_id)
-    if food_id in SYSTEM_FOOD_IDS:
-        raise HTTPException(status_code=409, detail="系统粮食始终对所有用户可见")
-    raw_user_ids = body.get("user_ids")
-    if not isinstance(raw_user_ids, list) or any(
-        not isinstance(user_id, int) for user_id in raw_user_ids
-    ):
-        raise HTTPException(status_code=422, detail="user_ids 必须是整数数组")
-    assigned = replace_food_access_users(
-        request.app.state.db_path,
-        food_id,
-        raw_user_ids,
-    )
-    return {"food_key": food_id, "user_ids": list(assigned)}
-
-
 @router.post("/rollback")
 async def rollback_foods(
     body: Dict[str, Any],
@@ -263,118 +220,3 @@ async def rollback_foods(
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return _catalog_view(catalog, evidence)
-
-
-def _set_lifecycle(
-    food_id: str,
-    *,
-    enabled: bool,
-    archived: bool | None = None,
-) -> dict[str, Any]:
-    store, evidence = _stores()
-    current = store.load()
-    package = _require_package(current, food_id)
-    if package.archived and enabled:
-        raise HTTPException(status_code=409, detail="归档粮食必须先恢复")
-    updated_package = replace(
-        package,
-        enabled=enabled,
-        archived=package.archived if archived is None else archived,
-    )
-    updated = replace(
-        current,
-        packages={**current.packages, food_id: updated_package},
-    )
-    store.save(updated)
-    return _package_view(updated_package, evidence)
-
-
-def _parse_package(
-    food_id: str,
-    body: Dict[str, Any],
-    *,
-    default_enabled: bool,
-    system_role: str | None = None,
-    archived: bool = False,
-) -> FoodPackage:
-    payload = {
-        "display_name": str(body.get("display_name") or food_id).strip(),
-        "system_role": system_role,
-        "enabled": bool(body.get("enabled", default_enabled)),
-        "archived": archived,
-        "roles": body.get("roles", {}),
-    }
-    try:
-        return FoodPackage.from_dict(food_id, payload)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-
-def _save_checked(
-    store: FoodCatalogStore,
-    catalog: FoodCatalog,
-    evidence: dict[str, Any],
-) -> None:
-    for package in catalog.packages.values():
-        for reference in package.model_references:
-            item = evidence.get(reference)
-            if item is None or not item.is_fresh():
-                raise HTTPException(
-                    status_code=422,
-                    detail=f"模型 {reference} 最近没有验证通过",
-                )
-    try:
-        store.save(catalog)
-    except (ModelReferenceError, ValueError) as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-
-def _catalog_view(
-    catalog: FoodCatalog,
-    evidence: dict[str, Any],
-) -> dict[str, Any]:
-    return {
-        "version": catalog.version,
-        "global_default_food_id": catalog.global_default_food_id,
-        "global_emergency_food_id": catalog.global_emergency_food_id,
-        "packages": [
-            _package_view(package, evidence) for package in catalog.ordered_packages()
-        ],
-        "eligible_models": [
-            {
-                "reference": item.model,
-                "display_name": item.display_name or item.model,
-                "local": item.local,
-                "capabilities": sorted(item.capabilities),
-            }
-            for item in evidence.values()
-            if item.is_fresh()
-        ],
-    }
-
-
-def _package_view(
-    package: FoodPackage,
-    evidence: dict[str, Any],
-) -> dict[str, Any]:
-    health = project_food_health(package, evidence)
-    return {
-        **package.to_dict(),
-        "health": health.status,
-        "locality": health.locality,
-        "latest_evidence_at": health.latest_evidence_at,
-    }
-
-
-def _require_package(catalog: FoodCatalog, food_id: str) -> FoodPackage:
-    package = catalog.packages.get(food_id)
-    if package is None:
-        raise HTTPException(status_code=404, detail="未知粮食")
-    return package
-
-
-def _new_food_key(catalog: FoodCatalog) -> str:
-    while True:
-        candidate = f"food_{secrets.token_hex(4)}"
-        if candidate not in catalog.packages:
-            return candidate

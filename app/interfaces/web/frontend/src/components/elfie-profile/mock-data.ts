@@ -32,7 +32,7 @@ export const SIGNED_IN_ADMIN = parseViewer({
 export const HAPPY_EXPERIENCE = parseExperienceFixture({
   adopter: {
     accountId: happySource.owner.account_id,
-    displayName: happySource.owner.username,
+    displayName: happySource.owner.display_name ?? happySource.owner.account_id,
   },
   adoption: { adoptedAt: "2026-06-30", ageLabel: "1 个月" },
   publicProfile: {
@@ -80,7 +80,7 @@ export const HAPPY_EXPERIENCE = parseExperienceFixture({
 export const KETTLE_EXPERIENCE = parseExperienceFixture({
   adopter: {
     accountId: kettleSource.owner.account_id,
-    displayName: kettleSource.owner.username,
+    displayName: kettleSource.owner.display_name ?? kettleSource.owner.account_id,
   },
   adoption: { adoptedAt: "2026-07-01", ageLabel: "未登记" },
   publicProfile: {

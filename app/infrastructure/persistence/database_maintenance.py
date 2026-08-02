@@ -7,12 +7,51 @@ import re
 import sqlite3
 from datetime import datetime
 from pathlib import Path
-from typing import Final
+from typing import Final, Optional
 
 from ai_runtime.storage.data_home import data_home_from_db_path
 from ai_runtime.storage.data_layout import final_root_layout
 
 _ELFIE_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[0-9]{8}$")
+
+
+class UnsafeDatabaseResetError(ValueError):
+    """Raised when a destructive database operation targets a broad root."""
+
+
+def validate_destructive_reset_target(
+    database_path: Path,
+    *,
+    expected_data_home: Optional[Path] = None,
+) -> Path:
+    """Validate one explicit data root before deleting its final databases.
+
+    The guard rejects filesystem roots, the default production root, the
+    repository root, and shared temporary directories. Callers that are
+    performing a one-off reset can additionally pin the exact root they
+    created with ``expected_data_home``.
+    """
+    data_home = data_home_from_db_path(database_path)
+    project_root = Path(__file__).resolve().parents[3]
+    forbidden = {
+        Path("/"),
+        Path.home().resolve(),
+        (Path.home() / ".elfienest").resolve(),
+        project_root,
+        Path("/tmp").resolve(),
+        Path("/private/tmp").resolve(),
+    }
+    if data_home in forbidden:
+        raise UnsafeDatabaseResetError(
+            f"refusing destructive reset for broad or default data root: {data_home}"
+        )
+    if expected_data_home is not None:
+        expected = expected_data_home.expanduser().resolve(strict=False)
+        if data_home != expected:
+            raise UnsafeDatabaseResetError(
+                f"data root does not match the explicitly approved root: {data_home}"
+            )
+    return data_home
 
 
 def backup_final_databases(database_path: Path, timestamp: datetime) -> Path:
@@ -39,6 +78,7 @@ def backup_final_databases(database_path: Path, timestamp: datetime) -> Path:
 
 def reset_final_databases(database_path: Path) -> None:
     """Remove the root, history, and knowledge databases but keep other data."""
+    validate_destructive_reset_target(database_path)
     for path in final_database_paths(database_path):
         path.unlink()
         for suffix in ("-shm", "-wal"):

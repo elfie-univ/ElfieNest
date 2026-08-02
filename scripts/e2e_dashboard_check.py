@@ -72,7 +72,10 @@ class E2ESession:
         self._session_token = ""
 
     def _request(
-        self, method: str, path: str, data: bytes = None,
+        self,
+        method: str,
+        path: str,
+        data: bytes = None,
         headers: dict = None,
     ) -> tuple[int, dict, str, dict]:
         url = f"{self.base_url}{path}"
@@ -106,19 +109,23 @@ class E2ESession:
         s, d, r, _ = self._request("GET", path, headers=headers)
         return s, d, r
 
-    def post_json(self, path: str, body: dict, headers: dict = None) -> tuple[int, dict, str, dict]:
+    def post_json(
+        self, path: str, body: dict, headers: dict = None
+    ) -> tuple[int, dict, str, dict]:
         encoded = json.dumps(body).encode("utf-8")
         hdrs = dict(headers or {})
         hdrs.setdefault("Content-Type", "application/json")
         return self._request("POST", path, data=encoded, headers=hdrs)
 
-    def login(self, username: str, password: str) -> tuple[bool, str]:
+    def login(self, account_id: str, password: str) -> tuple[bool, str]:
         """Log in and return (success, csrf_token)."""
         form_data = urllib.parse.urlencode(
-            {"username": username, "password": password}
+            {"account_id": account_id, "password": password}
         ).encode("utf-8")
         hdrs = {"Content-Type": "application/x-www-form-urlencoded"}
-        s, d, r, rh = self._request("POST", "/api/auth/login", data=form_data, headers=hdrs)
+        s, d, r, rh = self._request(
+            "POST", "/api/auth/login", data=form_data, headers=hdrs
+        )
         if s == 200:
             csrf = _header_lower(rh, "x-csrf-token")
             return True, csrf
@@ -157,12 +164,17 @@ def main() -> None:
 
     print("  🚀 Starting serve.py --fallback ...")
     process = subprocess.Popen(
-        [sys.executable, "scripts/serve.py",
-         "--fallback",
-         "--port", str(port),
-         "--ws-port", str(ws_port),
-         "--godot-ws-port", str(godot_ws_port),
-         ],
+        [
+            sys.executable,
+            "scripts/serve.py",
+            "--fallback",
+            "--port",
+            str(port),
+            "--ws-port",
+            str(ws_port),
+            "--godot-ws-port",
+            str(godot_ws_port),
+        ],
         cwd=PROJECT_ROOT,
         env={**os.environ, "ELFIE_HOME": data_home},
         stdout=subprocess.PIPE,
@@ -199,10 +211,12 @@ def main() -> None:
             print("    ⚡ No users exist; running first-run setup...")
             status, data, raw, _ = owner.post_json(
                 "/api/auth/setup",
-                {"username": "owner", "password": owner_password},
+                {"account_id": "owner", "password": owner_password},
             )
             aok = status == 201
-            print(f"    {'✅' if aok else '❌'} First-run setup {'succeeded' if aok else f'failed: {status} {raw[:200]}'}")
+            print(
+                f"    {'✅' if aok else '❌'} First-run setup {'succeeded' if aok else f'failed: {status} {raw[:200]}'}"
+            )
         else:
             print("    ✅ Users already exist; skipping first-run setup")
 
@@ -215,7 +229,7 @@ def main() -> None:
             print("    ✅ Owner login succeeded")
             status, data, raw, _ = owner.post_json(
                 "/api/owner/users",
-                {"username": "alice", "password": "alice123", "role": "user"},
+                {"account_id": "alice", "password": "alice123", "role": "user"},
                 headers={"X-CSRF-Token": owner_csrf},
             )
             if status == 201:
@@ -275,8 +289,13 @@ def main() -> None:
         def _adopt(name: str) -> int:
             s, d, r, _ = alice.post_json(
                 "/api/user/adopt",
-                {"name": name, "anatomy_type": "biped",
-                 "personality_style": "playful and energetic", "height": "standard", "build": "standard"},
+                {
+                    "name": name,
+                    "anatomy_type": "biped",
+                    "personality_style": "playful and energetic",
+                    "height": "standard",
+                    "build": "standard",
+                },
                 headers={"X-CSRF-Token": alice_csrf},
             )
             return s
@@ -340,6 +359,7 @@ def main() -> None:
     except Exception as exc:
         print(f"\n  ❌ Test raised an exception: {exc}")
         import traceback
+
         traceback.print_exc()
 
     finally:

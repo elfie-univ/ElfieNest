@@ -23,7 +23,7 @@ def test_returned_elfie_can_host_again_with_next_lease_version(tmp_path: Path) -
     db_path = str(create_final_nest_database(tmp_path / "nest.db"))
     with get_db(db_path) as connection:
         connection.execute(
-            """INSERT INTO users(id, username, role, password_hash)
+            """INSERT INTO users(id, account_id, role, password_hash)
                VALUES (1, 'owner', 'owner', 'hash')"""
         )
         connection.commit()
@@ -72,7 +72,7 @@ def test_active_body_cannot_be_revoked(tmp_path: Path) -> None:
     db_path = str(create_final_nest_database(tmp_path / "nest.db"))
     with get_db(db_path) as connection:
         connection.execute(
-            """INSERT INTO users(id, username, role, password_hash)
+            """INSERT INTO users(id, account_id, role, password_hash)
                VALUES (1, 'owner', 'owner', 'hash')"""
         )
         connection.commit()

@@ -55,7 +55,7 @@ export const setup = {
       confirmPassword: "确认密码",
       displayName: "显示名称",
       password: "密码",
-      username: "管理员账号",
+      accountId: "管理员账号",
     },
     submitting: "正在创建…",
   },

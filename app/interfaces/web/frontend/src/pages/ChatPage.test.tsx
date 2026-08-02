@@ -22,10 +22,10 @@ const session = vi.hoisted(() => ({
     csrf_token: "csrf",
     default_landing_page: "chat" as const,
     account_id: "owner",
-    nickname: "Owner",
+    display_name: "Owner",
     role: "owner" as const,
     theme_key: "warm-paper" as const,
-    username: "owner",
+    user_id: 1,
   },
 }))
 

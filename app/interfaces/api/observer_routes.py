@@ -146,9 +146,9 @@ def _registry(request: Request) -> ObserverSessionRegistry:
 def _principal(user: Dict[str, Any]) -> ViewerPrincipal:
     role = user.get("role")
     if role == "owner":
-        return ViewerPrincipal(user_id=int(user["id"]), role="owner")
+        return ViewerPrincipal(user_id=user["user_id"], role="owner")
     if role == "user":
-        return ViewerPrincipal(user_id=int(user["id"]), role="user")
+        return ViewerPrincipal(user_id=user["user_id"], role="user")
     raise HTTPException(status_code=403, detail="unsupported Observer role")
 
 
@@ -156,7 +156,7 @@ def _session_fingerprint(request: Request, user: Dict[str, Any]) -> str:
     """Revalidate the existing login and retain only a non-reversible token digest."""
     token = request.cookies.get("session_token", "")
     verified = verify_session(token, request.app.state.db_path)
-    if verified is None or verified["id"] != user["id"]:
+    if verified is None or verified["user_id"] != user["user_id"]:
         raise HTTPException(status_code=401, detail="会话无效或已过期")
     return session_token_fingerprint(token)
 

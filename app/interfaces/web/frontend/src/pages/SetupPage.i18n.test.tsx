@@ -31,9 +31,10 @@ function renderSetup(locale: SupportedLocale, status: SetupStatus): void {
   vi.spyOn(client, "currentUser").mockResolvedValue({
     account_id: "owner",
     csrf_token: "csrf-token",
+    display_name: "Owner",
     role: "owner",
     theme_key: "warm-paper",
-    username: "owner",
+    user_id: 1,
   })
   vi.spyOn(client, "setupModelRecommendation").mockResolvedValue({
     memory_gb: 8,
@@ -104,6 +105,31 @@ describe("localized setup wizard", () => {
     expect(screen.getByLabelText("Owner account")).toHaveValue("owner")
     expect(screen.getByLabelText("Password")).toHaveValue("secret-pass")
     expect(window.location.href).toBe(initialUrl)
+  })
+
+  it("submits canonical owner identity without persisting the selected locale", async () => {
+    // Given: the English owner form is filled after switching locale locally.
+    const user = userEvent.setup()
+    const setup = vi.spyOn(client, "setup").mockResolvedValue({
+      account_id: "owner01",
+      csrf_token: "csrf-token",
+      display_name: "Owner",
+      role: "owner",
+      user_id: 1,
+    })
+    renderSetup("zh-CN", statusForStep(1))
+    await user.click(screen.getByRole("combobox", { name: "语言" }))
+    await user.click(screen.getByRole("option", { name: "English" }))
+    fireEvent.change(screen.getByLabelText("Owner account"), { target: { value: " owner01 " } })
+    fireEvent.change(screen.getByLabelText("Display name"), { target: { value: "Owner" } })
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "secret-pass" } })
+    fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "secret-pass" } })
+
+    // When: setup is submitted.
+    await user.click(screen.getByRole("button", { name: "Create owner account" }))
+
+    // Then: identity values survive locale switching and no locale enters the API call.
+    expect(setup).toHaveBeenCalledWith("owner01", "secret-pass", "Owner")
   })
 
   it("keeps the language control in the setup frame instead of the active step card", async () => {

@@ -14,7 +14,7 @@ def test_installation_repository_recovers_interrupted_task(tmp_path: Path) -> No
     with get_db(db_path) as connection:
         owner_id = int(
             connection.execute(
-                "INSERT INTO users (username,password_hash,role) VALUES (?,?,'owner')",
+                "INSERT INTO users (account_id,password_hash,role) VALUES (?,?,'owner')",
                 ("owner", hash_password("secret123")),
             ).lastrowid
         )
@@ -39,7 +39,7 @@ def test_installation_repository_completes_five_steps_without_legacy_table(
     with get_db(db_path) as connection:
         owner_id = int(
             connection.execute(
-                "INSERT INTO users (username,password_hash,role) VALUES (?,?,'owner')",
+                "INSERT INTO users (account_id,password_hash,role) VALUES (?,?,'owner')",
                 ("owner", hash_password("secret123")),
             ).lastrowid
         )

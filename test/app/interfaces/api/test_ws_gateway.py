@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import anyio
 import pytest
@@ -49,7 +50,8 @@ class TestWsTokenVerification:
 
         user = verify_session(token, db)
         assert user is not None
-        assert user["username"] == "owner"
+        assert user["user_id"] == uid
+        assert user["account_id"] == "owner"
         assert user["role"] == "owner"
 
     def test_invalid_token_returns_none(self, tmp_path: Path) -> None:
@@ -120,6 +122,44 @@ class TestWsGatewayInstantiation:
 
 
 class TestWsGatewayMessageParsing:
+    def test_user_message_binds_verified_account_id(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Given: a verified owner sends a payload with a spoofed account id.
+        db = str(tmp_path / "nest.db")
+        monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+        uid = _init_db_with_owner(db)
+        elfie_id = "00000001"
+        with get_db(db) as connection:
+            connection.execute(
+                """INSERT INTO elfies
+                   (elfie_id,name,owner_user_id,species,adopted_at,status)
+                   VALUES (?,?,?,?,?,'offline')""",
+                (elfie_id, "Owner Elfie", uid, "fox", "2026-08-01T00:00:00Z"),
+            )
+            connection.commit()
+        sender = Mock()
+        manager = AuthenticatedWSManager(port=0, db_path=db)
+        manager.nest_session = SimpleNamespace(send_user_message=sender)
+
+        # When: the authenticated gateway handles the message.
+        anyio.run(
+            manager._handle_message,
+            uid,
+            (
+                '{"event":"user_message","payload":'
+                f'{{"elfie_id":"{elfie_id}","message":"hello",'
+                '"account_id":"attacker","conversation_id":"attacker-conv",'
+                '"message_id":"attacker-message"}}'
+            ),
+            "owner",
+        )
+
+        # Then: Core receives the canonical account identifier from the session.
+        assert sender.call_args.kwargs["account_id"] == "owner"
+        assert sender.call_args.kwargs["conversation_id"] == f"owner:{uid}"
+        assert sender.call_args.kwargs["external_message_id"] is None
+
     def test_malformed_user_message_payload_is_ignored(self, tmp_path: Path) -> None:
         # Given: an authenticated user sends a malformed JSON payload shape.
         db = str(tmp_path / "nest.db")
@@ -298,11 +338,11 @@ class TestWsGatewayOwnerCheck:
         pw_hash = hash_password("pw")
         with get_db(db_path) as conn:
             conn.execute(
-                "INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'user')",
+                "INSERT INTO users (account_id, password_hash, role) VALUES (?, ?, 'user')",
                 ("alice", pw_hash),
             )
             alice_id = conn.execute(
-                "SELECT id FROM users WHERE username='alice'"
+                "SELECT id FROM users WHERE account_id='alice'"
             ).fetchone()[0]
             conn.commit()
         return alice_id

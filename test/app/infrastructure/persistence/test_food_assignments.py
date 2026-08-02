@@ -12,10 +12,12 @@ def test_food_assignments_store_only_stable_external_ids(tmp_path):
     db_path = init_db(str(tmp_path / "nest.db"))
     with get_db(db_path) as connection:
         connection.execute(
-            "INSERT INTO users (username, password_hash, role) VALUES ('u', 'h', 'user')"
+            "INSERT INTO users (account_id, password_hash, role) VALUES ('u01', 'h', 'user')"
         )
         user_id = int(
-            connection.execute("SELECT id FROM users WHERE username='u'").fetchone()[0]
+            connection.execute(
+                "SELECT id FROM users WHERE account_id='u01'"
+            ).fetchone()[0]
         )
         connection.execute(
             """

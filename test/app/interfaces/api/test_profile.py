@@ -54,7 +54,8 @@ def client(app):
 def _login_owner(client: TestClient) -> dict:
     """辅助：以 owner 身份登录。"""
     resp = client.post(
-        "/api/auth/login", data={"username": "owner", "password": "ownerchangeme"}
+        "/api/auth/login",
+        data={"account_id": "owner", "password": "ownerchangeme"},
     )
     assert resp.status_code == 200, f"login failed: {resp.text}"
     csrf_token = resp.headers.get("X-CSRF-Token", "")
@@ -84,10 +85,10 @@ class TestMe:
         assert resp.status_code == 200
         data = resp.json()
         assert set(data.keys()) == {
-            "id",
-            "username",
+            "user_id",
+            "account_id",
             "role",
-            "nickname",
+            "display_name",
             "avatar_color",
             "avatar_kind",
             "avatar_url",
@@ -98,10 +99,10 @@ class TestMe:
             "theme_key",
         }
         assert "session_token" not in data
-        assert data["id"] == 1
-        assert data["username"] == "owner"
+        assert data["user_id"] == 1
+        assert data["account_id"] == "owner"
         assert data["role"] == "owner"
-        assert data["nickname"] is None
+        assert data["display_name"] is None
         assert data["avatar_color"] == 0
         assert data["avatar_kind"] == "initials"
         assert data["avatar_url"] is None
@@ -120,13 +121,13 @@ class TestMe:
             conn.execute(
                 """INSERT INTO elfies
                    (elfie_id,name,owner_user_id,species,adopted_at,status)
-                   VALUES (?,?,(SELECT id FROM users WHERE username='owner'),?,?,'offline')""",
+                   VALUES (?,?,(SELECT id FROM users WHERE account_id='owner'),?,?,'offline')""",
                 ("00000001", "精灵一", "fox", "2026-07-30T00:00:00Z"),
             )
             conn.execute(
                 """INSERT INTO elfies
                    (elfie_id,name,owner_user_id,species,adopted_at,status)
-                   VALUES (?,?,(SELECT id FROM users WHERE username='owner'),?,?,'offline')""",
+                   VALUES (?,?,(SELECT id FROM users WHERE account_id='owner'),?,?,'offline')""",
                 ("00000002", "精灵二", "fox", "2026-07-30T00:00:00Z"),
             )
             conn.commit()
@@ -156,14 +157,16 @@ class TestGetProfile:
         assert resp.status_code == 200
         data = resp.json()
         assert set(data.keys()) == {
-            "username",
-            "nickname",
+            "user_id",
+            "account_id",
+            "display_name",
             "avatar_color",
             "avatar_kind",
             "avatar_url",
         }
-        assert data["username"] == "owner"
-        assert data["nickname"] is None
+        assert data["user_id"] == 1
+        assert data["account_id"] == "owner"
+        assert data["display_name"] is None
         assert data["avatar_color"] == 0
         assert data["avatar_kind"] == "initials"
         assert data["avatar_url"] is None
@@ -331,7 +334,7 @@ class TestThemePreference:
 
         member_login = client.post(
             "/api/auth/login",
-            data={"username": "member", "password": "memberchangeme"},
+            data={"account_id": "member", "password": "memberchangeme"},
         )
         member_tokens = {"csrf_token": member_login.headers["X-CSRF-Token"]}
         member_update = client.put(
@@ -349,7 +352,7 @@ class TestThemePreference:
         )
         with get_db(db_path) as conn:
             owner_theme = conn.execute(
-                "SELECT theme_key FROM users WHERE username = 'owner'"
+                "SELECT theme_key FROM users WHERE account_id = 'owner'"
             ).fetchone()["theme_key"]
         assert owner_theme == "orchid-archive"
 
@@ -376,25 +379,35 @@ class TestThemePreference:
 
 
 class TestUpdateProfile:
-    def test_update_profile_nickname(self, client: TestClient) -> None:
-        """PUT 更新 nickname 成功。"""
+    def test_update_profile_rejects_legacy_nickname(self, client: TestClient) -> None:
+        tokens = _login_owner(client)
+        response = client.put(
+            "/api/auth/me/profile",
+            json={"nickname": "Legacy"},
+            headers=_headers(tokens["csrf_token"]),
+        )
+
+        assert response.status_code == 422
+
+    def test_update_profile_display_name(self, client: TestClient) -> None:
+        """PUT updates and persists display_name."""
         tokens = _login_owner(client)
         resp = client.put(
             "/api/auth/me/profile",
-            json={"nickname": "Owner"},
+            json={"display_name": "Owner"},
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 200
         data = resp.json()
-        assert data["nickname"] == "Owner"
-        assert data["username"] == "owner"
+        assert data["display_name"] == "Owner"
+        assert data["account_id"] == "owner"
 
         # 验证持久化
         resp2 = client.get(
             "/api/auth/me/profile",
             headers=_headers(tokens["csrf_token"]),
         )
-        assert resp2.json()["nickname"] == "Owner"
+        assert resp2.json()["display_name"] == "Owner"
 
     def test_update_profile_avatar_color(self, client: TestClient) -> None:
         """PUT 更新 avatar_color 成功。"""
@@ -458,12 +471,12 @@ class TestUpdateProfile:
         )
         assert resp.status_code == 422
 
-    def test_update_profile_nickname_too_long(self, client: TestClient) -> None:
-        """nickname 超过 32 字符返回 422。"""
+    def test_update_profile_display_name_too_long(self, client: TestClient) -> None:
+        """display_name longer than 64 characters returns 422."""
         tokens = _login_owner(client)
         resp = client.put(
             "/api/auth/me/profile",
-            json={"nickname": "a" * 33},
+            json={"display_name": "a" * 65},
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 422
@@ -500,14 +513,14 @@ class TestChangePassword:
         # 验证可以用新密码登录
         resp = client.post(
             "/api/auth/login",
-            data={"username": "owner", "password": "newpass123"},
+            data={"account_id": "owner", "password": "newpass123"},
         )
         assert resp.status_code == 200
 
         # 验证旧密码不再可用
         resp = client.post(
             "/api/auth/login",
-            data={"username": "owner", "password": "ownerchangeme"},
+            data={"account_id": "owner", "password": "ownerchangeme"},
         )
         assert resp.status_code == 401
 
@@ -517,7 +530,7 @@ class TestChangePassword:
         tokens = _login_owner(client)
         with get_db(db_path) as conn:
             conn.execute(
-                "UPDATE users SET updated_at = 'old-timestamp' WHERE username = 'owner'"
+                "UPDATE users SET updated_at = 'old-timestamp' WHERE account_id = 'owner'"
             )
             conn.commit()
 
@@ -530,7 +543,7 @@ class TestChangePassword:
         assert response.status_code == 200
         with get_db(db_path) as conn:
             updated_at = conn.execute(
-                "SELECT updated_at FROM users WHERE username = 'owner'"
+                "SELECT updated_at FROM users WHERE account_id = 'owner'"
             ).fetchone()[0]
         assert updated_at != "old-timestamp"
 

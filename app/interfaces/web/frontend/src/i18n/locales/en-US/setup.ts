@@ -55,7 +55,7 @@ export const setup = {
       confirmPassword: "Confirm password",
       displayName: "Display name",
       password: "Password",
-      username: "Owner account",
+      accountId: "Owner account",
     },
     submitting: "Creating…",
   },

@@ -150,7 +150,7 @@ def _registered_elfie(tmp_path: Path) -> tuple[str, Elfie]:
     init_db(db_path)
     with get_db(db_path) as connection:
         connection.execute(
-            "INSERT INTO users(id, username, password_hash, role) VALUES (1, ?, ?, ?)",
+            "INSERT INTO users(id, account_id, password_hash, role) VALUES (1, ?, ?, ?)",
             ("owner", "hash", "owner"),
         )
         connection.execute(

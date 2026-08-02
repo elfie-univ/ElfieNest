@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import logging
-from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
 
 from ai_runtime.models.local_profiles import recommend_local_profile
 from app.features.accounts.auth import get_session_ttl_seconds, require_owner
@@ -24,71 +22,25 @@ from app.infrastructure.ollama_platform import OllamaPlatformAdapter
 from app.infrastructure.persistence.nest_repository import SQLiteNestRepository
 from app.infrastructure.persistence.store import get_db
 
+from .setup_models import (
+    SetupModelPullRequest,
+    SetupModelRecommendation,
+    SetupModelRequest,
+    SetupNestRequest,
+    SetupOllamaInstallRequest,
+    SetupOllamaRequest,
+    SetupRequest,
+    SetupStatus,
+    SetupStepStatus,
+    SetupTaskStatus,
+)
+
 _LOCAL_SETUP_CLIENTS = frozenset({"127.0.0.1", "::1", "testclient"})
 
 logger = logging.getLogger("app.interfaces.api.setup_routes")
 
 router = APIRouter(prefix="/api/auth", tags=["setup"])
 RequireOwner = Depends(require_owner)
-
-
-class SetupStepStatus(BaseModel):
-    number: int
-    name: str
-    status: str
-    retry_action: Optional[str] = None
-
-
-class SetupTaskStatus(BaseModel):
-    step: int
-    key: str
-    state: str
-    progress: int
-    error: Optional[str] = None
-
-
-class SetupStatus(BaseModel):
-    need_setup: bool
-    complete: bool
-    current_step: int
-    steps: List[SetupStepStatus]
-    last_error: Optional[str] = None
-    task: Optional[SetupTaskStatus] = None
-
-
-class SetupRequest(BaseModel):
-    username: str = Field(..., min_length=3, max_length=32)
-    display_name: Optional[str] = Field(None, min_length=1, max_length=64)
-    password: str = Field(..., min_length=6, max_length=128)
-    avatar_color: Optional[int] = Field(None, ge=0, le=7)
-
-
-class SetupOllamaRequest(BaseModel):
-    decision: Literal["bound_existing", "skipped"]
-    endpoint: Optional[str] = Field(None, min_length=1, max_length=256)
-
-
-class SetupOllamaInstallRequest(BaseModel):
-    confirmed: Literal[True]
-
-
-class SetupNestRequest(BaseModel):
-    bed_count: int = Field(..., ge=4, le=32)
-
-
-class SetupModelRequest(BaseModel):
-    decision: Literal["configured", "skipped"]
-    model_reference: Optional[str] = Field(None, min_length=3, max_length=256)
-
-
-class SetupModelRecommendation(BaseModel):
-    memory_gb: int
-    recommended_model: Optional[str] = None
-
-
-class SetupModelPullRequest(BaseModel):
-    model_reference: str = Field(..., min_length=3, max_length=256)
-    confirmed: Literal[True]
 
 
 def _require_local_setup_client(request: Request) -> None:
@@ -112,7 +64,7 @@ async def do_setup(body: SetupRequest, request: Request) -> JSONResponse:
     try:
         setup_result = create_first_owner(
             db_path,
-            username=body.username,
+            account_id=body.account_id,
             password=body.password,
             display_name=body.display_name,
             avatar_color=body.avatar_color or 0,
@@ -122,8 +74,9 @@ async def do_setup(body: SetupRequest, request: Request) -> JSONResponse:
 
     response = JSONResponse(
         content={
-            "id": setup_result.user_id,
-            "username": setup_result.username,
+            "user_id": setup_result.user_id,
+            "account_id": setup_result.account_id,
+            "display_name": setup_result.display_name,
             "role": setup_result.role,
             "csrf_token": setup_result.csrf_token,
         },
@@ -193,9 +146,7 @@ async def install_setup_ollama(
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    status = _setup_status(request)
-    status.task = _task_status(task)
-    return status
+    return _setup_status(request).model_copy(update={"task": _task_status(task)})
 
 
 @router.put("/setup/nest")
@@ -279,9 +230,7 @@ async def pull_setup_model(
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    status = _setup_status(request)
-    status.task = _task_status(task)
-    return status
+    return _setup_status(request).model_copy(update={"task": _task_status(task)})
 
 
 @router.post("/setup/complete")

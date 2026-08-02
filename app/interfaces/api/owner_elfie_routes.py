@@ -125,7 +125,8 @@ def _monitoring_projection(
         "elfie_id": row.elfie_id,
         "owner": {
             "user_id": row.owner_user_id,
-            "username": row.owner_username,
+            "account_id": row.owner_account_id,
+            "display_name": row.owner_display_name,
         },
         "profile": profile,
         "food_policy": {

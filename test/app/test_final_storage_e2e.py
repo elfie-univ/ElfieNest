@@ -59,7 +59,7 @@ def test_fresh_root_survives_adoption_chat_memory_and_restart(tmp_path: Path) ->
     with get_db(str(db_path)) as connection:
         owner_id = int(
             connection.execute(
-                """INSERT INTO users(username,password_hash,role,elfie_limit)
+                """INSERT INTO users(account_id,password_hash,role,elfie_limit)
                    VALUES ('owner','unused','owner',1)"""
             ).lastrowid
         )
@@ -134,10 +134,15 @@ def test_full_product_chain_uses_one_explicit_final_root(
         with TestClient(application, base_url="http://127.0.0.1:8000") as client:
             login = client.post(
                 "/api/auth/login",
-                data={"username": "owner", "password": "ownerchangeme"},
+                data={"account_id": "owner", "password": "ownerchangeme"},
             )
             csrf_token = login.headers["X-CSRF-Token"]
-            for step, decision in ((2, "skipped"), (3, None), (4, "skipped"), (5, None)):
+            for step, decision in (
+                (2, "skipped"),
+                (3, None),
+                (4, "skipped"),
+                (5, None),
+            ):
                 complete_setup_step(str(db_path), step=step, decision=decision)
             adopted = client.post(
                 "/api/user/adopt",
@@ -194,7 +199,7 @@ def test_full_product_chain_uses_one_explicit_final_root(
         with TestClient(restarted, base_url="http://127.0.0.1:8000") as client:
             login = client.post(
                 "/api/auth/login",
-                data={"username": "owner", "password": "ownerchangeme"},
+                data={"account_id": "owner", "password": "ownerchangeme"},
             )
             assert login.status_code == 200
             messages = client.get(f"/api/v1/conversations/{elfie_id}/messages")
@@ -206,8 +211,12 @@ def test_full_product_chain_uses_one_explicit_final_root(
         assert "完整链路记忆" in reopened.memory.retrieve_relevant_memories("完整链路")
         reopened.memory.close()
         assert _tables(db_path) == _NEST_TABLES
-        assert _tables(workspace / "conversations" / "history.sqlite") == _HISTORY_TABLES
-        assert _tables(workspace / "memory" / "knowledge.sqlite") == set(KNOWLEDGE_TABLES)
+        assert (
+            _tables(workspace / "conversations" / "history.sqlite") == _HISTORY_TABLES
+        )
+        assert _tables(workspace / "memory" / "knowledge.sqlite") == set(
+            KNOWLEDGE_TABLES
+        )
 
 
 def _tables(db_path: Path) -> set[str]:

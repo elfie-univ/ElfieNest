@@ -125,8 +125,8 @@ class TestVerifySession:
 
         user = verify_session(token, db)
         assert user is not None
-        assert user["id"] == uid
-        assert user["username"] == "owner"
+        assert user["user_id"] == uid
+        assert user["account_id"] == "owner"
         assert user["role"] == "owner"
 
     def test_invalid_token(self, tmp_path: Path) -> None:

@@ -97,7 +97,7 @@ def client(app):
 def _login_owner(client: TestClient) -> dict:
     """以 owner 身份登录，返回 token 信息。"""
     resp = client.post(
-        "/api/auth/login", data={"username": "owner", "password": "ownerchangeme"}
+        "/api/auth/login", data={"account_id": "owner", "password": "ownerchangeme"}
     )
     assert resp.status_code == 200, f"login failed: {resp.text}"
     csrf_token = resp.headers.get("X-CSRF-Token", "")
@@ -260,18 +260,18 @@ class TestRateLimitLive:
         ):
             # 连续 3 次错误密码
             resp1 = client.post(
-                "/api/auth/login", data={"username": "owner", "password": "wrong1"}
+                "/api/auth/login", data={"account_id": "owner", "password": "wrong1"}
             )
             assert resp1.status_code == 401, resp1.text
 
             resp2 = client.post(
-                "/api/auth/login", data={"username": "owner", "password": "wrong2"}
+                "/api/auth/login", data={"account_id": "owner", "password": "wrong2"}
             )
             assert resp2.status_code == 401, resp2.text
 
             # 第 3 次应被限流
             resp3 = client.post(
-                "/api/auth/login", data={"username": "owner", "password": "wrong3"}
+                "/api/auth/login", data={"account_id": "owner", "password": "wrong3"}
             )
             assert resp3.status_code == 429, (
                 f"expected 429 got {resp3.status_code}: {resp3.text}"

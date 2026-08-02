@@ -15,7 +15,7 @@ function safeNext(): string {
 
 export function LoginPage() {
   const { i18n, t } = useTranslation("auth")
-  const [username, setUsername] = useState("")
+  const [accountId, setAccountId] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<unknown | null>(null)
   const [saving, setSaving] = useState(false)
@@ -24,7 +24,7 @@ export function LoginPage() {
     setSaving(true)
     setError(null)
     try {
-      window.location.assign(await login(username.trim(), password, safeNext()))
+      window.location.assign(await login(accountId.trim(), password, safeNext()))
     } catch (reason: unknown) {
       setError(reason)
     } finally {
@@ -43,9 +43,9 @@ export function LoginPage() {
           <TextField
             autoComplete="username"
             label={t("login.fields.account")}
-            onChange={setUsername}
+            onChange={setAccountId}
             required
-            value={username}
+            value={accountId}
           />
           <TextField
             autoComplete="current-password"

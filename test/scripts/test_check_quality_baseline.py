@@ -67,6 +67,29 @@ def test_mypy_parser_does_not_retain_diagnostic_message_secrets(
     assert next(iter(diagnostics)).startswith("sample.py:assignment:")
 
 
+def test_mypy_parser_ignores_non_json_summary_notes(tmp_path: Path) -> None:
+    # Given: mypy emits a configuration note alongside JSON diagnostics.
+    output = (
+        "pyproject.toml: note: unused-section-warnings are disabled\n"
+        + json.dumps(
+            {
+                "file": str(tmp_path / "sample.py"),
+                "line": 8,
+                "column": 2,
+                "message": "incompatible value",
+                "code": "assignment",
+                "severity": "error",
+            }
+        )
+    )
+
+    # When: the quality parser consumes the tool output.
+    diagnostics = parse_mypy_output(output, tmp_path)
+
+    # Then: notes do not crash the gate and diagnostics remain comparable.
+    assert sum(diagnostics.values()) == 1
+
+
 def test_format_parser_hashes_file_content_without_retaining_it(
     tmp_path: Path,
 ) -> None:

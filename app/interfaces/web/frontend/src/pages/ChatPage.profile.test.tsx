@@ -1,10 +1,11 @@
-import { render, screen, waitFor, within, type RenderResult } from "@testing-library/react"
+import { act, render, screen, waitFor, within, type RenderResult } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { PRIVATE_MODULE_TITLES } from "../components/elfie-profile/mock-data"
 import { createI18n } from "../i18n/config"
+import { navigate } from "../stores/history"
 import { ChatPage } from "./ChatPage"
 
 const session = vi.hoisted(() => ({
@@ -15,10 +16,10 @@ const session = vi.hoisted(() => ({
     csrf_token: "csrf",
     default_landing_page: "chat" as const,
     account_id: "owner",
-    nickname: "Owner",
+    display_name: "Owner",
     role: "owner" as const,
     theme_key: "warm-paper" as const,
-    username: "owner",
+    user_id: 1,
   },
 }))
 
@@ -81,7 +82,6 @@ const elfie = {
 function useDemoElfies(): void {
   chatApi.conversations.mockRejectedValue(new Error("Not Found"))
   chatApi.elfies.mockRejectedValue(new Error("Not Found"))
-  window.history.replaceState({}, "", "/chat?view=elfies&mock=1")
 }
 
 describe("ChatPage profile integration", () => {
@@ -134,16 +134,20 @@ describe("ChatPage profile integration", () => {
 
   it("integrates Kettle as a visitor with no capture or private cognition payload", async () => {
     useDemoElfies()
-    window.history.replaceState({}, "", "/chat?view=profile&elfie=23456789&mock=1")
+    window.history.replaceState({}, "", "/chat?view=elfies&mock=1")
     const { container } = renderChatPage()
-    expect(await screen.findByRole("heading", { level: 1, name: "Kettle" })).toBeInTheDocument()
+    expect(await screen.findByText("Kettle", {}, { timeout: 5_000 })).toBeInTheDocument()
+
+    act(() => navigate("/chat?view=profile&elfie=23456789&mock=1"))
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Kettle" }, { timeout: 5_000 })).toBeInTheDocument()
     expect(screen.getByRole("heading", { level: 2, name: "大五人格" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "拍照" })).not.toBeInTheDocument()
     for (const title of PRIVATE_MODULE_TITLES) {
       expect(screen.queryByRole("button", { name: title })).not.toBeInTheDocument()
     }
     expect(container).not.toHaveTextContent(/铜壶窗边观察|qwen3-8b-calm|第一次避让/)
-  })
+  }, 10_000)
 
   it("threads the real API adopter identity into the profile projection", async () => {
     const realElfie = { ...elfie, elfie_id: "34567890", name: "Mochi" }

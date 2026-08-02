@@ -98,7 +98,7 @@ def test_list_active_sessions_uses_expires_at_schema(tmp_path: Path) -> None:
 
     assert len(sessions) == 1
     assert sessions[0].token_hash == token_hash
-    assert sessions[0].username == "owner"
+    assert sessions[0].account_id == "owner"
     assert sessions[0].expires_at == expires_at.isoformat()
 
 
@@ -157,7 +157,9 @@ def test_backup_and_reset_database(tmp_path: Path) -> None:
     with sqlite3.connect(backup_history) as connection:
         assert connection.execute("SELECT value FROM marker").fetchone()[0] == "history"
     with sqlite3.connect(backup_knowledge) as connection:
-        assert connection.execute("SELECT value FROM marker").fetchone()[0] == "knowledge"
+        assert (
+            connection.execute("SELECT value FROM marker").fetchone()[0] == "knowledge"
+        )
     assert not Path(db_path).exists()
     assert not history_path.exists()
     assert not knowledge_path.exists()

@@ -5,6 +5,11 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass
 
+from app.infrastructure.persistence.account_repository import (
+    ACCOUNT_ID_MAX_LENGTH,
+    ACCOUNT_ID_MIN_LENGTH,
+    DISPLAY_NAME_MAX_LENGTH,
+)
 from app.infrastructure.persistence.store import get_db
 
 
@@ -13,13 +18,18 @@ class InterfaceUserRecord:
     """One account row with its current final Elfie count."""
 
     user_id: int
-    username: str
-    nickname: str | None
+    account_id: str  # 登录账号
+    display_name: str | None  # 显示名称
     role: str
     created_at: str
     avatar_path: str | None
     elfie_limit: int | None
     elfie_count: int
+    gender: str | None
+    birth_date: str | None
+    presence: str
+    last_seen_at: str | None
+    language: str
 
 
 @dataclass(frozen=True)
@@ -29,7 +39,8 @@ class InterfaceElfieRecord:
     elfie_id: str
     name: str
     owner_user_id: int
-    owner_username: str
+    owner_account_id: str
+    owner_display_name: str | None
     species: str
     gender: str | None
     birth_date: str | None
@@ -63,17 +74,34 @@ class InterfaceQueryRepository:
     def list_members(self, excluding_user_id: int) -> tuple[InterfaceUserRecord, ...]:
         with get_db(self._db_path) as connection:
             rows = connection.execute(
-                f"{_USER_SELECT} WHERE users.id!=? AND users.role='user' ORDER BY users.id",
+                f"{_USER_SELECT} WHERE users.id!=? ORDER BY users.id",
                 (excluding_user_id,),
             ).fetchall()
         return tuple(_user_record(row) for row in rows)
 
-    def create_member(self, username: str, password_hash: str) -> int | None:
+    def list_all_users(self) -> tuple[InterfaceUserRecord, ...]:
+        """Return every account, including the read-only Owner row."""
+        with get_db(self._db_path) as connection:
+            rows = connection.execute(f"{_USER_SELECT} ORDER BY users.id").fetchall()
+        return tuple(_user_record(row) for row in rows)
+
+    def create_member(
+        self,
+        *,
+        account_id: str,
+        display_name: str | None,
+        password_hash: str,
+    ) -> int | None:
+        normalized_account_id, normalized_display_name = _normalize_member_identity(
+            account_id, display_name
+        )
         with get_db(self._db_path) as connection:
             try:
                 cursor = connection.execute(
-                    "INSERT INTO users(username,password_hash,role) VALUES (?,?,'user')",
-                    (username, password_hash),
+                    """INSERT INTO users
+                       (account_id,display_name,password_hash,role)
+                       VALUES (?,?,?,'user')""",
+                    (normalized_account_id, normalized_display_name, password_hash),
                 )
             except sqlite3.IntegrityError:
                 return None
@@ -83,16 +111,46 @@ class InterfaceQueryRepository:
     def update_member_limit(self, user_id: int, limit: int | None) -> None:
         with get_db(self._db_path) as connection:
             connection.execute(
-                "UPDATE users SET elfie_limit=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                """UPDATE users SET elfie_limit=?,updated_at=CURRENT_TIMESTAMP
+                   WHERE id=? AND role='user'""",
                 (limit, user_id),
             )
             connection.commit()
 
-    def delete_member(self, user_id: int) -> None:
+    def reset_member_password_and_revoke_sessions(
+        self, user_id: int, password_hash: str
+    ) -> None:
+        """Atomically replace a member password and revoke all its sessions."""
         with get_db(self._db_path) as connection:
-            connection.execute("DELETE FROM sessions WHERE user_id=?", (user_id,))
-            connection.execute("DELETE FROM users WHERE id=?", (user_id,))
+            cursor = connection.execute(
+                """UPDATE users SET password_hash=?,updated_at=CURRENT_TIMESTAMP
+                   WHERE id=? AND role='user'""",
+                (password_hash, user_id),
+            )
+            if cursor.rowcount != 1:
+                raise MemberMutationTargetError(user_id)
+            connection.execute(
+                """UPDATE sessions SET revoked_at=COALESCE(revoked_at,CURRENT_TIMESTAMP)
+                   WHERE user_id=?""",
+                (user_id,),
+            )
             connection.commit()
+
+    def delete_member(self, user_id: int) -> bool:
+        with get_db(self._db_path) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                "DELETE FROM sessions WHERE user_id=? "
+                "AND EXISTS (SELECT 1 FROM users WHERE id=? AND role='user')",
+                (user_id, user_id),
+            )
+            cursor = connection.execute(
+                "DELETE FROM users WHERE id=? AND role='user' "
+                "AND NOT EXISTS (SELECT 1 FROM elfies WHERE owner_user_id=?)",
+                (user_id, user_id),
+            )
+            connection.commit()
+        return cursor.rowcount == 1
 
     def list_elfies(
         self,
@@ -130,14 +188,17 @@ class InterfaceQueryRepository:
 
 
 _USER_SELECT = """
-SELECT users.id,users.username,users.nickname,users.role,users.created_at,
-       users.avatar_path,users.elfie_limit,
+SELECT users.id,users.account_id,users.display_name,users.role,users.created_at,
+       users.avatar_path,users.elfie_limit,users.gender,users.birth_date,
+       users.presence,users.last_seen_at,users.language,
        (SELECT COUNT(*) FROM elfies WHERE elfies.owner_user_id=users.id) AS elfie_count
 FROM users
 """
 
 _ELFIE_SELECT = """
-SELECT elfies.elfie_id,elfies.name,elfies.owner_user_id,users.username AS owner_username,
+SELECT elfies.elfie_id,elfies.name,elfies.owner_user_id,
+       users.account_id AS owner_account_id,
+       users.display_name AS owner_display_name,
        elfies.species,elfies.gender,elfies.birth_date,elfies.adopted_at,
        elfies.bed_number,elfies.status,elfies.summary
 FROM elfies JOIN users ON users.id=elfies.owner_user_id
@@ -147,14 +208,49 @@ FROM elfies JOIN users ON users.id=elfies.owner_user_id
 def _user_record(row: sqlite3.Row) -> InterfaceUserRecord:
     return InterfaceUserRecord(
         user_id=int(row["id"]),
-        username=str(row["username"]),
-        nickname=None if row["nickname"] is None else str(row["nickname"]),
+        account_id=str(row["account_id"]),
+        display_name=None if row["display_name"] is None else str(row["display_name"]),
         role=str(row["role"]),
         created_at=str(row["created_at"]),
         avatar_path=None if row["avatar_path"] is None else str(row["avatar_path"]),
         elfie_limit=None if row["elfie_limit"] is None else int(row["elfie_limit"]),
         elfie_count=int(row["elfie_count"]),
+        gender=None if row["gender"] is None else str(row["gender"]),
+        birth_date=None if row["birth_date"] is None else str(row["birth_date"]),
+        presence=str(row["presence"]),
+        last_seen_at=(
+            None if row["last_seen_at"] is None else str(row["last_seen_at"])
+        ),
+        language=str(row["language"]),
     )
+
+
+class MemberIdentityValidationError(ValueError):
+    """A member identity violates the final account contract."""
+
+
+class MemberMutationTargetError(RuntimeError):
+    """A password reset did not target exactly one mutable member."""
+
+    def __init__(self, user_id: int) -> None:
+        self.user_id = user_id
+        super().__init__(f"member {user_id} is not mutable")
+
+
+def _normalize_member_identity(
+    account_id: str, display_name: str | None
+) -> tuple[str, str | None]:
+    normalized_account_id = account_id.strip()
+    if not ACCOUNT_ID_MIN_LENGTH <= len(normalized_account_id) <= ACCOUNT_ID_MAX_LENGTH:
+        raise MemberIdentityValidationError
+    if display_name is None:
+        return normalized_account_id, None
+    normalized_display_name = display_name.strip()
+    if not normalized_display_name:
+        return normalized_account_id, None
+    if len(normalized_display_name) > DISPLAY_NAME_MAX_LENGTH:
+        raise MemberIdentityValidationError
+    return normalized_account_id, normalized_display_name
 
 
 def _elfie_record(row: sqlite3.Row) -> InterfaceElfieRecord:
@@ -162,7 +258,12 @@ def _elfie_record(row: sqlite3.Row) -> InterfaceElfieRecord:
         elfie_id=str(row["elfie_id"]),
         name=str(row["name"]),
         owner_user_id=int(row["owner_user_id"]),
-        owner_username=str(row["owner_username"]),
+        owner_account_id=str(row["owner_account_id"]),
+        owner_display_name=(
+            None
+            if row["owner_display_name"] is None
+            else str(row["owner_display_name"])
+        ),
         species=str(row["species"]),
         gender=None if row["gender"] is None else str(row["gender"]),
         birth_date=None if row["birth_date"] is None else str(row["birth_date"]),
@@ -173,4 +274,10 @@ def _elfie_record(row: sqlite3.Row) -> InterfaceElfieRecord:
     )
 
 
-__all__ = ("InterfaceElfieRecord", "InterfaceQueryRepository", "InterfaceUserRecord")
+__all__ = (
+    "InterfaceElfieRecord",
+    "InterfaceQueryRepository",
+    "InterfaceUserRecord",
+    "MemberIdentityValidationError",
+    "MemberMutationTargetError",
+)

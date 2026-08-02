@@ -55,7 +55,7 @@ function normalizeSetupStep(value: number | undefined): SetupStepNumber {
 export function SetupPage() {
   const { i18n, t } = useTranslation("setup")
   const { t: commonT } = useTranslation("common")
-  const [username, setUsername] = useState("")
+  const [accountId, setAccountId] = useState("")
   const [displayName, setDisplayName] = useState("")
   const [password, setPassword] = useState("")
   const [passwordConfirmation, setPasswordConfirmation] = useState("")
@@ -98,7 +98,7 @@ export function SetupPage() {
     setSaving(true)
     setError(null)
     try {
-      const result = await setup(username.trim(), password, displayName.trim())
+      const result = await setup(accountId.trim(), password, displayName.trim())
       setCsrfToken(result.csrf_token)
       setProgress(await setupStatus())
     } catch (reason: unknown) {
@@ -173,7 +173,7 @@ export function SetupPage() {
         </header>
         <div className="setup-card__content">
           {currentStep === 1 && <form className="setup-form" onSubmit={(event) => { void submitOwner(event) }}>
-            <label>{t("owner.fields.username")}<input autoComplete="username" minLength={3} onChange={(event) => setUsername(event.target.value)} required value={username} /></label>
+            <label>{t("owner.fields.accountId")}<input autoComplete="username" minLength={3} onChange={(event) => setAccountId(event.target.value)} required value={accountId} /></label>
             <label>{t("owner.fields.displayName")}<input autoComplete="name" onChange={(event) => setDisplayName(event.target.value)} required value={displayName} /></label>
             <label>{t("owner.fields.password")}<input autoComplete="new-password" minLength={6} onChange={(event) => setPassword(event.target.value)} required type="password" value={password} /></label>
             <label>{t("owner.fields.confirmPassword")}<input autoComplete="new-password" minLength={6} onChange={(event) => setPasswordConfirmation(event.target.value)} required type="password" value={passwordConfirmation} /></label>

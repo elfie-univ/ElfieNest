@@ -67,7 +67,7 @@ export function ElfieIdentityCard({ csrfToken, elfie, mockMode = false, onError,
       <StatusIndicator label={statusLabel} tone={profile.status.tone} />
       <dl className="elfie-id-card__identity">
         <IdentityField label={t("elfies.fields.name")} value={profile.name} />
-        <IdentityField label={t("elfies.fields.owner")} value={elfie.owner.username || t("elfies.values.notAssigned")} />
+        <IdentityField label={t("elfies.fields.owner")} value={elfie.owner.display_name ?? elfie.owner.account_id} />
         <IdentityField label={t("elfies.fields.species")} value={profile.species_id} />
         <IdentityField label={t("elfies.fields.gender")} value={profile.gender ?? t("elfies.values.notRegistered")} />
         <IdentityField label={t("elfies.fields.birthDate")} value={profile.birth_date ?? t("elfies.values.notRegistered")} />

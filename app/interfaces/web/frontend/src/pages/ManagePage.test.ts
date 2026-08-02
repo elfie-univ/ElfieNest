@@ -19,10 +19,10 @@ const session = vi.hoisted(() => ({
     csrf_token: "test-token",
     default_landing_page: "manage" as const,
     account_id: "admin123",
-    nickname: "阿尔法",
+    display_name: "阿尔法",
     role: "owner" as const,
     theme_key: "warm-paper" as const,
-    username: "admin123",
+    user_id: 1,
   },
 }))
 

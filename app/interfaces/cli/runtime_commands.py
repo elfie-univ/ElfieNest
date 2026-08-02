@@ -82,11 +82,11 @@ def show_sessions() -> None:
         return
 
     if sessions:
-        print("  【Online Users】")
+        print("  【Online Accounts】")
         for session in sessions:
-            token_short = session.token[:8] + "..."
+            token_short = session.token_hash[:8] + "..."
             print(
-                f"    • {session.username} "
+                f"    • {session.account_id} "
                 f"(token: {token_short}, expires: {session.expires_at})"
             )
     else:

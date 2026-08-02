@@ -46,10 +46,10 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             yield test_client
 
 
-def _login(client: TestClient, username: str, password: str) -> dict[str, str]:
+def _login(client: TestClient, account_id: str, password: str) -> dict[str, str]:
     response = client.post(
         "/api/auth/login",
-        data={"username": username, "password": password},
+        data={"account_id": account_id, "password": password},
     )
     assert response.status_code == 200
     return {"X-CSRF-Token": response.headers["X-CSRF-Token"]}

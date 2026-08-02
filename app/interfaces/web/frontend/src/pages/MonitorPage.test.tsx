@@ -20,10 +20,10 @@ const owner = {
   avatar_kind: "initials",
   csrf_token: "csrf",
   default_landing_page: "manage",
-  nickname: "Owner",
+  display_name: "Owner",
   role: "owner",
   theme_key: "warm-paper",
-  username: "owner",
+  user_id: 1,
 } satisfies ClientUser
 
 const member = {

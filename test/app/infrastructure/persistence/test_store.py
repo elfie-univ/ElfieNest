@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import os
 import sqlite3
 import stat
 from pathlib import Path
@@ -16,7 +15,6 @@ from app.infrastructure.persistence.store import (
     count_elfies_by_owner,
     get_db,
     init_db,
-    seed_initial_owner_if_env_set,
 )
 from test.app.interfaces.api._helpers import create_test_owner
 
@@ -71,13 +69,13 @@ class TestInitDb:
         }
 
     def test_creates_indices(self, tmp_path: Path) -> None:
-        """init_db 创建必要的索引（至少 users.username 有 UNIQUE 索引）。"""
+        """init_db 创建必要的索引（至少 users.account_id 有 UNIQUE 索引）。"""
         db = str(tmp_path / "nest.db")
         init_db(db)
         indices = {n.lower() for n in _index_names(db)}
         # sqlite 为 UNIQUE 约束自动创建的索引名是 sqlite_autoindex_users_1 之类的
         auto_idx = {n for n in indices if "autoindex" in n}
-        assert len(auto_idx) >= 1  # 至少 users.username 的 UNIQUE 索引
+        assert len(auto_idx) >= 1  # 至少 users.account_id 的 UNIQUE 索引
 
     def test_idempotent(self, tmp_path: Path) -> None:
         """init_db 幂等 — 多次调用不报错。"""
@@ -86,89 +84,6 @@ class TestInitDb:
         init_db(db)  # 第二次不应抛异常
         tables = _table_names(db)
         assert "users" in tables
-
-
-class TestSeedInitialOwnerIfEnvSet:
-    def test_creates_owner_when_env_set(self, tmp_path: Path) -> None:
-        """环境变量设置时 seed_initial_owner_if_env_set 创建 owner。"""
-        db = str(tmp_path / "nest.db")
-        init_db(db)
-        os.environ["OWNER_USERNAME"] = "testowner"
-        os.environ["OWNER_PASSWORD"] = "testpass123"
-        try:
-            result = seed_initial_owner_if_env_set(db)
-            assert result is True
-        finally:
-            del os.environ["OWNER_USERNAME"]
-            del os.environ["OWNER_PASSWORD"]
-
-        conn = sqlite3.connect(db)
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT * FROM users WHERE username = ?", ("testowner",)
-        ).fetchone()
-        conn.close()
-
-        assert row is not None
-        assert row["username"] == "testowner"
-        assert row["role"] == "owner"
-        pw_hash: str = row["password_hash"]
-        assert pw_hash.startswith("pbkdf2_sha256$260000$")
-        parts = pw_hash.split("$")
-        assert len(parts) == 4
-        assert len(parts[2]) == 32
-        assert len(parts[3]) == 64
-
-    def test_owner_env_seeds_owner_role(self, tmp_path: Path, monkeypatch) -> None:
-        db = str(tmp_path / "nest.db")
-        init_db(db)
-        monkeypatch.setenv("OWNER_USERNAME", "migrated-owner")
-        monkeypatch.setenv("OWNER_PASSWORD", "testpass123")
-
-        assert seed_initial_owner_if_env_set(db) is True
-        with sqlite3.connect(db) as conn:
-            row = conn.execute(
-                "SELECT role FROM users WHERE username = ?", ("migrated-owner",)
-            ).fetchone()
-        assert row[0] == "owner"
-
-    def test_returns_false_when_env_not_set(self, tmp_path: Path) -> None:
-        """环境变量未设置时返回 False。"""
-        db = str(tmp_path / "nest.db")
-        init_db(db)
-        result = seed_initial_owner_if_env_set(db)
-        assert result is False
-
-    def test_returns_false_when_env_partial(self, tmp_path: Path) -> None:
-        """部分环境变量设置时返回 False。"""
-        db = str(tmp_path / "nest.db")
-        init_db(db)
-        os.environ["OWNER_USERNAME"] = "partial"
-        try:
-            result = seed_initial_owner_if_env_set(db)
-            assert result is False
-        finally:
-            del os.environ["OWNER_USERNAME"]
-
-    def test_does_not_reinsert_when_user_exists(self, tmp_path: Path) -> None:
-        """用户已存在时不重复插入。"""
-        db = str(tmp_path / "nest.db")
-        init_db(db)
-        create_test_owner(db, "testowner", "testpass123")
-
-        os.environ["OWNER_USERNAME"] = "testowner"
-        os.environ["OWNER_PASSWORD"] = "testpass123"
-        try:
-            result = seed_initial_owner_if_env_set(db)
-            assert result is False
-        finally:
-            del os.environ["OWNER_USERNAME"]
-            del os.environ["OWNER_PASSWORD"]
-
-        conn = sqlite3.connect(db)
-        count = conn.execute("SELECT COUNT(*) AS cnt FROM users").fetchone()[0]
-        conn.close()
-        assert count == 1
 
 
 class TestGetDb:

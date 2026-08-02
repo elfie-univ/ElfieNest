@@ -15,8 +15,8 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-from app.interfaces.api.app import create_app
 from app.infrastructure.persistence.store import init_db
+from app.interfaces.api.app import create_app
 
 from ._helpers import create_test_owner
 
@@ -47,8 +47,14 @@ def app(db_path: str, runtime_config_path: Path):
     with (
         patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
         patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-        patch("app.interfaces.api.system_routes.get_config_path", return_value=runtime_config_path),
-        patch("app.interfaces.api.owner_routes.get_config_path", return_value=runtime_config_path),
+        patch(
+            "app.interfaces.api.system_routes.get_config_path",
+            return_value=runtime_config_path,
+        ),
+        patch(
+            "app.interfaces.api.owner_routes.get_config_path",
+            return_value=runtime_config_path,
+        ),
         patch(
             "app.features.adoption.config._RUNTIME_CONFIG_PATH",
             runtime_config_path,
@@ -71,7 +77,7 @@ def client(app):
 
 def _login_owner(client: TestClient) -> dict:
     resp = client.post(
-        "/api/auth/login", data={"username": "owner", "password": "ownerchangeme"}
+        "/api/auth/login", data={"account_id": "owner", "password": "ownerchangeme"}
     )
     assert resp.status_code == 200, f"owner login failed: {resp.text}"
     csrf_token = resp.headers.get("X-CSRF-Token", "")
@@ -84,18 +90,20 @@ def _headers(csrf_token: str) -> dict:
     return {"X-CSRF-Token": csrf_token, "Content-Type": "application/json"}
 
 
-def _create_user_and_login(client: TestClient, username: str = "alice", password: str = "pass123") -> dict:
+def _create_user_and_login(
+    client: TestClient, account_id: str = "alice", password: str = "pass123"
+) -> dict:
     """Owner 创建用户 → 登录 → 返回 token。"""
     owner_tokens = _login_owner(client)
     resp = client.post(
         "/api/owner/users",
-        json={"username": username, "password": password, "role": "user"},
+        json={"account_id": account_id, "password": password, "role": "user"},
         headers=_headers(owner_tokens["csrf_token"]),
     )
     assert resp.status_code == 201, f"create user failed: {resp.text}"
 
     resp = client.post(
-        "/api/auth/login", data={"username": username, "password": password}
+        "/api/auth/login", data={"account_id": account_id, "password": password}
     )
     assert resp.status_code == 200, f"user login failed: {resp.text}"
     return {
@@ -152,7 +160,9 @@ class TestMaxElfiesPerUser:
             },
             headers=_headers(user_tokens["csrf_token"]),
         )
-        assert resp.status_code == 409, f"expected 409, got {resp.status_code}: {resp.text}"
+        assert resp.status_code == 409, (
+            f"expected 409, got {resp.status_code}: {resp.text}"
+        )
         assert "1" in resp.text or "最多" in resp.text
 
 
@@ -215,7 +225,9 @@ class TestPersonalityPresetsFilter:
             },
             headers=_headers(user_tokens["csrf_token"]),
         )
-        assert resp.status_code == 400, f"expected 400, got {resp.status_code}: {resp.text}"
+        assert resp.status_code == 400, (
+            f"expected 400, got {resp.status_code}: {resp.text}"
+        )
 
 
 # ===================================================================
@@ -252,7 +264,9 @@ class TestSpeciesIdsFilter:
             },
             headers=_headers(user_tokens["csrf_token"]),
         )
-        assert resp.status_code == 400, f"expected 400, got {resp.status_code}: {resp.text}"
+        assert resp.status_code == 400, (
+            f"expected 400, got {resp.status_code}: {resp.text}"
+        )
         assert "species_id" in resp.text
 
     def test_adoption_info_reflects_filter(self, client: TestClient) -> None:

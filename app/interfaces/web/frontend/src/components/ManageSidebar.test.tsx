@@ -23,10 +23,10 @@ const owner = {
   avatar_kind: "initials",
   csrf_token: "test-token",
   default_landing_page: "manage",
-  nickname: "阿尔法",
+  display_name: "阿尔法",
   role: "owner",
   theme_key: "warm-paper",
-  username: "admin123",
+  user_id: 1,
 } satisfies ClientUser
 
 function renderSidebar(activeTab: ManageTab = "users", locale: SupportedLocale = "zh-CN") {

@@ -7,7 +7,6 @@ import { describe, expect, it } from "vitest"
 const SOURCE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..")
 
 const CJK_ALLOWLIST = {
-  "components/OwnerNestPanel.tsx": "Embedded Nest demo records preserve business fixture names.",
   "components/elfie-profile/PersonalIdentityFrame.tsx": "Legacy API sentinels are parsed before localized presentation.",
   "components/elfie-profile/ProfileGraphSection.tsx": "Stable backend cognition titles are domain discriminants.",
   "components/elfie-profile/chat-data.ts": "Offline chat demo records are product fixtures.",

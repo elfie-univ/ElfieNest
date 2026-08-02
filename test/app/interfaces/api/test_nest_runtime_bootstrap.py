@@ -19,7 +19,7 @@ def test_application_lifespan_accepts_engine_with_registered_elfies(tmp_path) ->
     init_db(db_path)
     with get_db(db_path) as connection:
         cursor = connection.execute(
-            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
+            "INSERT INTO users (account_id, password_hash, role) VALUES (?, ?, ?)",
             ("owner", "hash", "owner"),
         )
         connection.execute(

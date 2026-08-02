@@ -118,9 +118,7 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
         connection_ids=(remote_a.connection_id,),
     )
     assert emergency_preview.package.primary.model == refs["local"]
-    assert common_preview.package.primary.model.startswith(
-        f"{remote_a.connection_id}/"
-    )
+    assert common_preview.package.primary.model.startswith(f"{remote_a.connection_id}/")
     assert emergency_preview.has_changes and common_preview.has_changes
 
     custom_id = "food_custom"
@@ -156,7 +154,7 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
         user_id = int(
             connection.execute(
                 """
-                INSERT INTO users (username, password_hash, role)
+                INSERT INTO users (account_id, password_hash, role)
                 VALUES ('alice', 'test', 'user')
                 """
             ).lastrowid
