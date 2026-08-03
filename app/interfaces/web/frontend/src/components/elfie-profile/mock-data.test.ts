@@ -10,7 +10,6 @@ import {
   PRIVATE_MODULE_TITLES,
   SIGNED_IN_ADMIN,
 } from "./mock-data"
-import { projectGraph } from "./model"
 
 describe("elfie profile mock data", () => {
   it("characterizes current management mocks with account IDs and readable eight-digit Elfie IDs", () => {
@@ -44,25 +43,22 @@ describe("elfie profile mock data", () => {
     }
   })
 
-  it("contains exactly six private module datasets with stable titles", () => {
+  it("contains the five cognition datasets followed by separate food settings", () => {
     expect(PRIVATE_MODULE_TITLES).toEqual([
-      "记忆与认知",
+      "近期关注",
       "重要经历",
-      "关系认知",
-      "知识与信念",
+      "关系世界",
       "世界理解",
+      "知识与信念",
       "粮食策略",
     ])
-    expect(HAPPY_EXPERIENCE.privateCognition.modules.map((module) => module.title)).toEqual(
-      PRIVATE_MODULE_TITLES,
-    )
-  })
-
-  it("keeps fixture graph output bounded through deterministic truncation", () => {
-    const relationship = HAPPY_EXPERIENCE.privateCognition.modules[2].graph
-    const knowledge = HAPPY_EXPERIENCE.privateCognition.modules[3].graph
-
-    expect(projectGraph(relationship, "preview").nodes).toHaveLength(20)
-    expect(projectGraph(knowledge, "detail").nodes).toHaveLength(50)
+    const recentTopics = HAPPY_EXPERIENCE.privateCognition.recentFocus.topics
+    expect(recentTopics).toHaveLength(30)
+    const weights = recentTopics.map((topic) => topic.weight)
+    expect(Math.max(...weights) - Math.min(...weights)).toBeGreaterThanOrEqual(0.8)
+    expect(HAPPY_EXPERIENCE.privateCognition.importantExperiences.entries.length).toBeLessThanOrEqual(10)
+    expect(HAPPY_EXPERIENCE.privateCognition.relationshipWorld.nodes[0]?.kind).toBe("self")
+    expect(HAPPY_EXPERIENCE.privateCognition.knowledgeBeliefs.nodes.length).toBeLessThanOrEqual(10)
+    expect(HAPPY_EXPERIENCE.careSettings.food.options.length).toBeGreaterThan(0)
   })
 })

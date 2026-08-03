@@ -11,6 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from ai_runtime.storage.data_home import get_elfie_conversations_dir
+from ai_runtime.storage.data_layout import final_root_layout
 from app.features.setup.service import complete_setup_step
 from app.infrastructure.devices import DeviceRegistry
 from app.infrastructure.persistence.elfie_chat_history import (
@@ -22,6 +23,8 @@ from app.infrastructure.persistence.embodiment_sessions import begin_hosting
 from app.infrastructure.persistence.store import init_db
 from app.interfaces.api.app import create_app
 from elfie.body import BodyId, BodySensorEvent, SpeechCommand, UtteranceFinal
+from elfie.brain.memory.knowledge_store import KnowledgeStore
+from elfie.brain.memory.node_types import MemoryNode
 from elfie.message_types import ActorId, ActorRef, CommandId, EventId, IntentId, TurnId
 
 from ._helpers import create_test_owner, create_test_user
@@ -73,7 +76,7 @@ def _complete_setup(client: TestClient) -> None:
     complete_setup_step(client.app.state.db_path, step=5)
 
 
-def test_v1_profile_is_owned_and_exposes_only_the_public_projection(
+def test_v1_profile_detail_exposes_private_projection_only_to_the_owner(
     client: TestClient,
 ) -> None:
     csrf_token = _login_owner(client)
@@ -85,7 +88,7 @@ def test_v1_profile_is_owned_and_exposes_only_the_public_projection(
     profile = response.json()
     assert profile["elfie_id"] == elfie_id
     assert profile["name"] == "小白"
-    assert set(profile) == {
+    public_keys = {
         "elfie_id",
         "name",
         "species_id",
@@ -100,10 +103,55 @@ def test_v1_profile_is_owned_and_exposes_only_the_public_projection(
         "nest",
         "embodiment",
     }
+    assert set(profile) == public_keys | {"private_cognition", "care_settings"}
+    assert profile["private_cognition"]["status"] == "empty"
+    assert set(profile["care_settings"]) == {"food"}
+    assert set(profile["care_settings"]["food"]) == {
+        "selected_id",
+        "selected_label",
+        "options",
+        "unavailable",
+    }
+    listing = client.get("/api/v1/elfies")
+    assert listing.status_code == 200
+    assert set(listing.json()[0]) == public_keys
     rendered = str(profile)
     assert "config_dir" not in rendered
     assert "profile.yaml" not in rendered
     assert "memory" not in rendered
+
+
+def test_v1_owner_profile_reads_real_cognition_but_list_stays_public(
+    client: TestClient,
+) -> None:
+    csrf_token = _login_owner(client)
+    elfie_id = _adopt_elfie(client, csrf_token)
+    data_home = Path(client.app.state.db_path).parent
+    cognition_path = final_root_layout(data_home).elfie(elfie_id).knowledge_database
+    cognition_path.parent.mkdir(parents=True)
+    with KnowledgeStore(cognition_path) as store:
+        store.add_node(
+            MemoryNode(
+                id="event_adoption",
+                type="episodic",
+                content="被主人领养，搬进了新的家。",
+                metadata={
+                    "timestamp": "2026-06-30T08:00:00Z",
+                    "major_event": True,
+                    "importance": 0.95,
+                    "title": "被领养",
+                },
+            )
+        )
+
+    detail = client.get(f"/api/v1/elfies/{elfie_id}/profile")
+    listing = client.get("/api/v1/elfies")
+
+    assert detail.status_code == 200
+    assert detail.json()["private_cognition"]["status"] == "ready"
+    assert detail.json()["private_cognition"]["important_experiences"]["entries"][0]["id"] == "event_adoption"
+    assert "private_cognition" not in listing.json()[0]
+    assert "care_settings" not in listing.json()[0]
 
 
 def test_v1_conversations_and_messages_are_owner_scoped(client: TestClient) -> None:

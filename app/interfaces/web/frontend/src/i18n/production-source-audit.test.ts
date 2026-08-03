@@ -8,7 +8,6 @@ const SOURCE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..")
 
 const CJK_ALLOWLIST = {
   "components/elfie-profile/PersonalIdentityFrame.tsx": "Legacy API sentinels are parsed before localized presentation.",
-  "components/elfie-profile/ProfileGraphSection.tsx": "Stable backend cognition titles are domain discriminants.",
   "components/elfie-profile/chat-data.ts": "Offline chat demo records are product fixtures.",
   "components/elfie-profile/mock-data.ts": "Profile dossiers are explicit product fixtures.",
   "components/elfie-profile/model.ts": "Profile schemas preserve stable backend domain literals.",

@@ -162,6 +162,23 @@ describe("OwnerElfieOverview", () => {
     expect(card.getByText("标准粮")).toBeInTheDocument()
   })
 
+  it("exposes the responsive panel and four-plus-four identity groups", async () => {
+    // Given: the canonical Elfie record is loaded.
+    renderWithI18n(<OwnerElfieOverview csrfToken="csrf" onCountChange={vi.fn()} />)
+
+    // When: the first identity card is located.
+    const card = (await screen.findAllByRole("article"))[0]
+    if (!(card instanceof HTMLElement)) throw new TypeError("Expected Elfie card")
+    const panel = card.closest("section")
+    if (!(panel instanceof HTMLElement)) throw new TypeError("Expected Elfie panel")
+
+    // Then: layout CSS has stable anchors for the panel and two four-field groups.
+    expect(panel).toHaveClass("manage-identity-panel")
+    expect(card.querySelector(".identity-card__layout")).toBeInTheDocument()
+    expect(card.querySelectorAll(".identity-card__primary > div")).toHaveLength(4)
+    expect(card.querySelectorAll(".identity-card__secondary > div")).toHaveLength(4)
+  })
+
   it("edits food policy inline without making identity fields editable", async () => {
     const user = userEvent.setup()
     renderWithI18n(<OwnerElfieOverview csrfToken="csrf" onCountChange={vi.fn()} />)

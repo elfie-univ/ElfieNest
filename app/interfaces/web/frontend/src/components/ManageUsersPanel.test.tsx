@@ -125,11 +125,11 @@ describe("ManageUsersPanel real-data states", () => {
     expect([...memberCard.querySelectorAll(".user-id-card__identity dt")].map((field) => field.textContent)).toEqual([
       "姓名",
       "性别",
-      "登录账号",
-      "当前角色",
+      "账号",
+      "角色",
       "加入时间",
       "最近在线",
-      "当前精灵数",
+      "精灵数",
       "精灵上限",
     ])
     expect(within(memberCard).getByText("暂离")).toBeInTheDocument()
@@ -148,6 +148,23 @@ describe("ManageUsersPanel real-data states", () => {
     for (const name of ["编辑 member01", "重置密码 member01", "删除用户 member01"]) {
       expect(within(memberActions).getByRole("button", { name })).toBeEnabled()
     }
+  })
+
+  it("exposes the responsive panel and four-plus-four identity groups", async () => {
+    // Given: the canonical user records are loaded.
+    renderPanel()
+
+    // When: the management panel and first user card are located.
+    const panelHeading = await screen.findByRole("heading", { name: "本地成员" })
+    const panel = panelHeading.closest("section")
+    const card = (await screen.findAllByRole("article"))[0]
+    if (!(panel instanceof HTMLElement) || !(card instanceof HTMLElement)) throw new TypeError("Expected user panel and card")
+
+    // Then: layout CSS has stable anchors for the panel and two four-field groups.
+    expect(panel).toHaveClass("manage-identity-panel")
+    expect(card.querySelector(".identity-card__layout")).toBeInTheDocument()
+    expect(card.querySelectorAll(".identity-card__primary > div")).toHaveLength(4)
+    expect(card.querySelectorAll(".identity-card__secondary > div")).toHaveLength(4)
   })
 
   it("orders cards by role and then ascending numeric user ID", async () => {

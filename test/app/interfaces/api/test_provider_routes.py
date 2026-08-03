@@ -111,7 +111,11 @@ def test_ollama_management_status_is_always_available_as_a_local_resource(
     payload = response.json()
     assert payload["state"] == "absent"
     assert payload["installed_model_count"] == 0
-    assert payload["models"][0]["id"] == "qwen3.5:0.8b"
+    assert [model["id"] for model in payload["models"]] == [
+        "qwen2.5:0.5b",
+        "qwen3.5:0.8b",
+        "gemma3:270m",
+    ]
 
 
 def test_ollama_start_connects_a_healthy_default_endpoint_and_records_the_binding(
@@ -481,6 +485,12 @@ def test_refresh_keeps_first_nonempty_official_result(
             "hidden": False,
             "retired": False,
             "available": True,
+            "verification": {
+                "status": "never",
+                "checked_at": None,
+                "latency_ms": None,
+                "error": None,
+            },
         }
     ]
 
