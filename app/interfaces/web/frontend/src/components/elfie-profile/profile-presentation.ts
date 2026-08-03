@@ -1,4 +1,4 @@
-import type { ElfieProfile } from "../../api/client"
+import type { ElfieProfile, ElfieProfileDetail } from "../../api/client"
 import {
   HAPPY_EXPERIENCE,
   KETTLE_EXPERIENCE,
@@ -7,6 +7,7 @@ import {
   ElfieIdSchema,
   parseGodotAppearance,
   parseViewer,
+  type CareSettings,
   type ExperienceFixture,
   type PrivateCognition,
   type PublicProfile,
@@ -18,34 +19,23 @@ import {
   type VisitorProfileProjection,
 } from "./projection"
 
-const EMPTY_PRIVATE_COGNITION = {
-  modules: [
-    { title: "记忆与认知", topics: [], experienceCount: 0 },
-    { title: "重要经历", entries: [] },
-    { title: "关系认知", graph: { nodes: [], edges: [] } },
-    { title: "知识与信念", graph: { nodes: [], edges: [] } },
-    { title: "世界理解", graph: { nodes: [], edges: [] } },
-    {
-      title: "粮食策略",
-      food: { selected: "未配置", allowed: ["未配置"] },
-    },
-  ],
-} satisfies PrivateCognition
-
 export function presentElfieProfile(
-  profile: ElfieProfile | null,
+  profile: ElfieProfile | ElfieProfileDetail | null,
   viewerAccountId: string,
   adopterAccountId: string | null = null,
+  demoMode = false,
 ): ElfieProfileProjection | null {
   if (profile === null) return null
 
-  const fixture = knownExperience(profile.elfie_id)
-  if (fixture !== null) {
-    return projectElfieProfile(parseViewer({
-      accountId: viewerAccountId,
-      displayName: viewerAccountId,
-      role: "user",
-    }), fixture)
+  if (demoMode) {
+    const fixture = knownExperience(profile.elfie_id)
+    if (fixture !== null) {
+      return projectElfieProfile(parseViewer({
+        accountId: viewerAccountId,
+        displayName: viewerAccountId,
+        role: "user",
+      }), fixture)
+    }
   }
   return presentApiProfile(profile, viewerAccountId, adopterAccountId)
 }
@@ -62,7 +52,7 @@ function knownExperience(elfieId: string): ExperienceFixture | null {
 }
 
 function presentApiProfile(
-  profile: ElfieProfile,
+  profile: ElfieProfile | ElfieProfileDetail,
   viewerAccountId: string,
   adopterAccountId: string | null,
 ): AdopterProfileProjection | VisitorProfileProjection | null {
@@ -90,16 +80,19 @@ function presentApiProfile(
     runtimeAppearance: parseGodotAppearance(profile.appearance),
     speciesId: profile.species_id,
   }
+
   if (adopterAccountId !== null && viewerAccountId === adopterAccountId) {
+    if (!isProfileDetail(profile)) return null
     return {
       adoption: {
         adoptedAt: "未登记",
         ageLabel: ageLabel(profile.birth_date),
       },
+      careSettings: mapCareSettings(profile.care_settings),
       kind: "adopter",
       ownerDisplayName: viewerAccountId,
+      privateCognition: mapPrivateCognition(profile.private_cognition),
       publicProfile,
-      privateCognition: EMPTY_PRIVATE_COGNITION,
     }
   }
   return {
@@ -107,6 +100,77 @@ function presentApiProfile(
     kind: "visitor",
     ownerDisplayName: adopterAccountId ?? "未登记",
     publicProfile,
+  }
+}
+
+function isProfileDetail(profile: ElfieProfile | ElfieProfileDetail): profile is ElfieProfileDetail {
+  return "private_cognition" in profile && "care_settings" in profile
+}
+
+function mapPrivateCognition(source: ElfieProfileDetail["private_cognition"]): PrivateCognition {
+  return {
+    status: source.status,
+    recentFocus: {
+      topics: source.recent_focus.topics,
+    },
+    importantExperiences: {
+      entries: source.important_experiences.entries.map((entry) => ({
+        changed: entry.changed,
+        id: entry.id,
+        importance: entry.importance,
+        occurredAt: entry.occurred_at,
+        people: entry.people,
+        title: entry.title,
+      })),
+    },
+    relationshipWorld: {
+      edges: source.relationship_world.edges.map((edge) => ({
+        displayLabel: edge.display_label,
+        relationKey: edge.relation_key,
+        source: edge.source,
+        target: edge.target,
+        weight: edge.weight,
+      })),
+      nodes: source.relationship_world.nodes.map((node) => ({
+        id: node.id,
+        kind: node.kind,
+        label: node.label,
+        weight: node.weight,
+      })),
+    },
+    worldUnderstanding: {
+      rings: source.world_understanding.rings.map((ring) => ({
+        key: ring.key,
+        nodes: ring.nodes,
+      })),
+      summary: source.world_understanding.summary,
+    },
+    knowledgeBeliefs: {
+      edges: source.knowledge_beliefs.edges.map((edge) => ({
+        displayLabel: edge.display_label,
+        relationKey: edge.relation_key,
+        source: edge.source,
+        target: edge.target,
+        weight: edge.weight,
+      })),
+      nodes: source.knowledge_beliefs.nodes.map((node) => ({
+        id: node.id,
+        kind: node.kind,
+        label: node.label,
+        weight: node.weight,
+      })),
+    },
+  }
+}
+
+function mapCareSettings(source: ElfieProfileDetail["care_settings"]): CareSettings {
+  return {
+    food: {
+      options: source.food.options,
+      selectedId: source.food.selected_id,
+      selectedLabel: source.food.selected_label,
+      unavailable: source.food.unavailable,
+    },
   }
 }
 

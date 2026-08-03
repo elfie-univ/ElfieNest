@@ -11,7 +11,7 @@ import {
   profile,
   sendMessage,
   type ChatMessage,
-  type ElfieProfile,
+  type ElfieProfileDetail,
 } from "../api/client"
 import { AdoptionPanel } from "../components/AdoptionPanel"
 import { AccountMenuPanel } from "../components/AccountMenu"
@@ -43,7 +43,7 @@ export function ChatPage() {
   const [data, setData] = useState<ChatData | null>(null)
   const [showMobileMe, setShowMobileMe] = useState(false)
   const [history, setHistory] = useState<readonly ChatMessage[]>([])
-  const [selectedProfile, setSelectedProfile] = useState<ElfieProfile | null>(null)
+  const [selectedProfile, setSelectedProfile] = useState<ElfieProfileDetail | null>(null)
   const [failure, setFailure] = useState<ChatFailure | null>(null)
   const [demoMode, setDemoMode] = useState(false)
   const [draft, setDraft] = useState("")
@@ -224,7 +224,7 @@ export function ChatPage() {
             <ElfieProfilePanel
               onBack={() => go({ view: "elfies" })}
               onChat={() => { if (selectedId !== null) go({ view: "conversation", elfie: selectedId }) }}
-              projection={presentElfieProfile(selectedProfile ?? selected ?? null, user.account_id, selectedId === null ? null : data?.adopterAccountIds[selectedId] ?? null)}
+              projection={presentElfieProfile(selectedProfile ?? selected ?? null, user.account_id, selectedId === null ? null : data?.adopterAccountIds[selectedId] ?? null, demoMode)}
             />
           </section>
         )}

@@ -8,11 +8,20 @@ from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket
 from pydantic import BaseModel, Field
 from starlette.websockets import WebSocketDisconnect
 
+from ai_runtime.food.store import FoodCatalogStore
 from ai_runtime.storage.data_home import data_home_from_db_path
+from ai_runtime.storage.data_layout import final_root_layout
 from app.features.accounts.auth import get_current_user, verify_session
+from app.features.configuration.food_access import elfie_food_policy_projection
+from app.features.elfie_profile.private_cognition_projection import (
+    project_private_cognition,
+)
 from app.features.elfie_profile.public_projection import build_public_profile
 from app.infrastructure.persistence.elfie_chat_history import (
     list_elfie_chat_history,
+)
+from app.infrastructure.persistence.elfie_cognition_reader import (
+    read_elfie_cognition,
 )
 from app.infrastructure.persistence.embodiment_sessions import get_embodiment_session
 from app.infrastructure.persistence.runtime_query_repository import (
@@ -138,7 +147,11 @@ async def public_elfie_profile(
     profiles = _owned_public_profiles(request.app.state.db_path, user["user_id"])
     for profile in profiles:
         if profile["elfie_id"] == elfie_id:
-            return profile
+            return _private_profile_detail(
+                request.app.state.db_path,
+                user["user_id"],
+                profile,
+            )
     raise HTTPException(status_code=404, detail="精灵不存在")
 
 
@@ -198,13 +211,13 @@ def _owned_public_profiles(db_path: str, user_id: int) -> list[Dict[str, Any]]:
     data_home = data_home_from_db_path(db_path)
     profiles: list[Dict[str, Any]] = []
     for record in RuntimeQueryRepository(db_path).list_elfies_for_owner(user_id):
-        profile_dir = data_home / "elfies" / record.elfie_id / "profile"
+        elfie_layout = final_root_layout(data_home).elfie(record.elfie_id)
         profile = build_public_profile(
             elfie_id=record.elfie_id,
             name=record.name,
             species_id=record.species,
             personality_style=record.summary or "",
-            config_dir=str(profile_dir),
+            config_dir=str(elfie_layout.profile.parent),
             room_id=None,
             room_name=None,
             bed_id=record.bed_number,
@@ -220,6 +233,51 @@ def _owned_public_profiles(db_path: str, user_id: int) -> list[Dict[str, Any]]:
         profile["summary"] = record.summary
         profiles.append(profile)
     return profiles
+
+
+def _private_profile_detail(
+    db_path: str,
+    owner_user_id: int,
+    profile: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Add owner-only cognition and read-only care facts to one public profile."""
+    data_home = data_home_from_db_path(db_path)
+    elfie_id = str(profile["elfie_id"])
+    elfie_layout = final_root_layout(data_home).elfie(elfie_id)
+    cognition = project_private_cognition(
+        read_elfie_cognition(elfie_layout.knowledge_database),
+        elfie_id=elfie_id,
+        elfie_name=str(profile["name"]),
+    )
+    policy = elfie_food_policy_projection(
+        db_path,
+        elfie_id,
+        owner_user_id,
+        FoodCatalogStore().load(),
+    )
+    options = [
+        {"id": str(item["food_id"]), "label": str(item["display_name"])}
+        for item in policy["main_food_options"]
+    ]
+    selected_id = str(
+        policy["effective_main_food_id"] or policy["main_food_id"] or ""
+    )
+    selected_label = next(
+        (item["label"] for item in options if item["id"] == selected_id),
+        "",
+    )
+    return {
+        **profile,
+        "private_cognition": cognition,
+        "care_settings": {
+            "food": {
+                "selected_id": selected_id,
+                "selected_label": selected_label,
+                "options": options,
+                "unavailable": bool(policy["main_food_unavailable"]),
+            }
+        },
+    }
 
 
 def _owns_elfie(db_path: str, user_id: int, elfie_id: str) -> bool:

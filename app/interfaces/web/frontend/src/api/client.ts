@@ -3,7 +3,7 @@ import { z } from "zod"
 import { ElfieIdValueSchema } from "@/shared/elfie-id"
 
 import { csrfHeaders, requestJson } from "./http"
-import { ProfileSchema } from "./owner-elfies"
+import { ProfileDetailSchema, ProfileSchema } from "./owner-elfies"
 
 export * from "./http"
 export * from "./owner-elfies"
@@ -191,8 +191,8 @@ export async function messages(elfieId: string): Promise<readonly ChatMessage[]>
   )
 }
 
-export async function profile(elfieId: string): Promise<z.infer<typeof ProfileSchema>> {
-  return ProfileSchema.parse(
+export async function profile(elfieId: string): Promise<z.infer<typeof ProfileDetailSchema>> {
+  return ProfileDetailSchema.parse(
     await requestJson(`/api/v1/elfies/${encodeURIComponent(elfieId)}/profile`),
   )
 }

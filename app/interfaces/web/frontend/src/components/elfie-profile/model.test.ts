@@ -1,46 +1,61 @@
 import { describe, expect, it } from "vitest"
 import { z } from "zod"
 
-import {
-  BIG_FIVE_TRAITS,
-  GRAPH_DETAIL_LIMIT,
-  GRAPH_PREVIEW_LIMIT,
-  parseExperienceFixture,
-  projectGraph,
-} from "./model"
+import { BIG_FIVE_TRAITS, parseExperienceFixture } from "./model"
+
+const privateCognition = {
+  status: "ready",
+  recentFocus: { topics: [{ id: "topic:门口", label: "门口", category: "place", weight: 1 }] },
+  importantExperiences: { entries: [{ id: "event:adoption", occurredAt: "2026-07-02", title: "被领养", changed: "有了稳定的家。", importance: 1, people: ["主人"] }] },
+  relationshipWorld: { nodes: [{ id: "self", label: "Happy", kind: "self", weight: 1 }], edges: [] },
+  worldUnderstanding: {
+    summary: "安静的地方让我放松。",
+    rings: [
+      { key: "self", nodes: [] },
+      { key: "family", nodes: [] },
+      { key: "nest", nodes: [] },
+      { key: "society", nodes: [] },
+      { key: "outside", nodes: [] },
+    ],
+  },
+  knowledgeBeliefs: { nodes: [], edges: [] },
+}
+
+const careSettings = {
+  food: {
+    selectedId: "food_common",
+    selectedLabel: "常规主粮",
+    options: [{ id: "food_common", label: "常规主粮" }],
+    unavailable: false,
+  },
+}
+
+function fixture(overrides: Record<string, unknown> = {}) {
+  return {
+    adopter: { accountId: "admin123", displayName: "管理员" },
+    publicProfile: {
+      elfieId: "elfie_default",
+      name: "Happy",
+      speciesId: "fox",
+      biography: "会在晨光里整理自己的小小发现。",
+      appearance: { bodyPlan: "fox", palette: "sunlit amber", signature: "soft ears" },
+      bigFive: {
+        openness: 0.8,
+        conscientiousness: 0.6,
+        extraversion: 0.7,
+        agreeableness: 0.9,
+        neuroticism: 0.2,
+      },
+    },
+    privateCognition,
+    careSettings,
+    ...overrides,
+  }
+}
 
 describe("elfie profile model", () => {
-  it("bounds Big Five values when parsing experience fixtures", () => {
-    const result = parseExperienceFixture({
-      adopter: { accountId: "admin123", displayName: "管理员" },
-      publicProfile: {
-        elfieId: "elfie_default",
-        name: "Happy",
-        speciesId: "fox",
-        biography: "会在晨光里整理自己的小小发现。",
-        appearance: { bodyPlan: "fox", palette: "sunlit amber", signature: "soft ears" },
-        bigFive: {
-          openness: 0.8,
-          conscientiousness: 0.6,
-          extraversion: 0.7,
-          agreeableness: 0.9,
-          neuroticism: 0.2,
-        },
-      },
-      privateCognition: {
-        modules: [
-          { title: "记忆与认知", topics: [{ label: "晨间巡游", count: 7 }], experienceCount: 12 },
-          { title: "重要经历", entries: [{ date: "2026-07-02", title: "第一次回应", detail: "记住了主人的称呼。" }] },
-          { title: "关系认知", graph: { nodes: [{ id: "owner", label: "管理员" }], edges: [] } },
-          { title: "知识与信念", graph: { nodes: [{ id: "nest", label: "巢" }], edges: [] } },
-          { title: "世界理解", graph: { nodes: [{ id: "room", label: "主巢" }], edges: [] } },
-          {
-            title: "粮食策略",
-            food: { selected: "food_common", allowed: ["food_common", "food_custom"] },
-          },
-        ],
-      },
-    })
+  it("parses the five named cognition modules and separate care settings", () => {
+    const result = parseExperienceFixture(fixture())
 
     expect(BIG_FIVE_TRAITS).toEqual([
       "openness",
@@ -49,128 +64,75 @@ describe("elfie profile model", () => {
       "agreeableness",
       "neuroticism",
     ])
-    expect(result.publicProfile.bigFive.openness).toBe(0.8)
-    expect(result.publicProfile.elfieId).toBe("elfie_default")
+    expect(result.privateCognition.recentFocus.topics[0]?.label).toBe("门口")
+    expect(result.privateCognition.importantExperiences.entries).toHaveLength(1)
+    expect(result.privateCognition.relationshipWorld.nodes[0]?.kind).toBe("self")
+    expect(result.privateCognition.worldUnderstanding.rings).toHaveLength(5)
+    expect(result.careSettings.food.selectedId).toBe("food_common")
   })
 
-  it("rejects malformed Big Five fixture values", () => {
-    const result = z.object({
-      openness: z.number().min(0).max(1),
-    }).safeParse({ openness: 1.2 })
-
-    expect(result.success).toBe(false)
-    expect(() => parseExperienceFixture({
-      adopter: { accountId: "admin123", displayName: "管理员" },
+  it("rejects out-of-range Big Five values and cognition weights", () => {
+    expect(() => parseExperienceFixture(fixture({
       publicProfile: {
-        elfieId: "12345678",
-        name: "Happy",
-        speciesId: "fox",
-        biography: "边界测试。",
-        appearance: { bodyPlan: "fox", palette: "amber", signature: "ears" },
-        bigFive: {
-          openness: 1.2,
-          conscientiousness: 0.6,
-          extraversion: 0.7,
-          agreeableness: 0.9,
-          neuroticism: 0.2,
-        },
+        ...fixture().publicProfile,
+        bigFive: { ...fixture().publicProfile.bigFive, openness: 1.2 },
       },
+    }))).toThrow(z.ZodError)
+    expect(() => parseExperienceFixture(fixture({
       privateCognition: {
-        modules: [
-          { title: "记忆与认知", topics: [], experienceCount: 0 },
-          { title: "重要经历", entries: [] },
-          { title: "关系认知", graph: { nodes: [], edges: [] } },
-          { title: "知识与信念", graph: { nodes: [], edges: [] } },
-          { title: "世界理解", graph: { nodes: [], edges: [] } },
-          {
-            title: "粮食策略",
-            food: { selected: "food_common", allowed: ["food_common", "food_custom"] },
-          },
-        ],
+        ...privateCognition,
+        recentFocus: { topics: [{ id: "topic:bad", label: "bad", category: "activity", weight: 2 }] },
       },
-    })).toThrow(z.ZodError)
+    }))).toThrow(z.ZodError)
   })
 
-  it("parses missing public fields gracefully", () => {
-    const result = parseExperienceFixture({
-      adopter: { accountId: "admin123", displayName: "管理员" },
-      publicProfile: {
-        elfieId: "12345678",
-        name: "Happy",
-        speciesId: "fox",
-        appearance: { bodyPlan: "fox", palette: "amber", signature: "ears" },
-        bigFive: {
-          openness: 0.5,
-          conscientiousness: 0.5,
-          extraversion: 0.5,
-          agreeableness: 0.5,
-          neuroticism: 0.5,
-        },
-      },
-      privateCognition: {
-        modules: [
-          { title: "记忆与认知", topics: [], experienceCount: 0 },
-          { title: "重要经历", entries: [] },
-          { title: "关系认知", graph: { nodes: [], edges: [] } },
-          { title: "知识与信念", graph: { nodes: [], edges: [] } },
-          { title: "世界理解", graph: { nodes: [], edges: [] } },
-          {
-            title: "粮食策略",
-            food: { selected: "food_common", allowed: ["food_common", "food_custom"] },
-          },
-        ],
-      },
-    })
-
-    expect(result.publicProfile.biography).toBe("")
-    expect(result.publicProfile.gender).toBeNull()
-    expect(result.publicProfile.portraitUrl).toBe("")
-  })
-
-  it("truncates graph projections deterministically at preview and detail limits", () => {
-    const nodes = Array.from({ length: 51 }, (_, index) => ({
-      id: `node-${String(index + 1).padStart(2, "0")}`,
-      label: `节点 ${index + 1}`,
+  it("enforces the agreed topic, experience, relationship, and knowledge caps", () => {
+    const tooManyTopics = Array.from({ length: 51 }, (_, index) => ({
+      id: `topic:${index}`,
+      label: `主题${index}`,
+      category: "activity",
+      weight: 0.5,
     }))
-    const graph = parseExperienceFixture({
-      adopter: { accountId: "admin123", displayName: "管理员" },
-      publicProfile: {
-        elfieId: "12345678",
-        name: "Happy",
-        speciesId: "fox",
-        appearance: { bodyPlan: "fox", palette: "amber", signature: "ears" },
-        bigFive: {
-          openness: 0.5,
-          conscientiousness: 0.5,
-          extraversion: 0.5,
-          agreeableness: 0.5,
-          neuroticism: 0.5,
-        },
-      },
+    const tooManyExperiences = Array.from({ length: 11 }, (_, index) => ({
+      id: `event:${index}`,
+      occurredAt: "2026-07-02",
+      title: `事件${index}`,
+      changed: "变化",
+      importance: 0.5,
+      people: [],
+    }))
+    const tooManyNodes = Array.from({ length: 21 }, (_, index) => ({
+      id: `node:${index}`,
+      label: `节点${index}`,
+      kind: "human" as const,
+      weight: 0.5,
+    }))
+    expect(() => parseExperienceFixture(fixture({
       privateCognition: {
-        modules: [
-          { title: "记忆与认知", topics: [], experienceCount: 0 },
-          { title: "重要经历", entries: [] },
-          { title: "关系认知", graph: { nodes, edges: [{ source: "node-01", target: "node-51", label: "远端关系" }] } },
-          { title: "知识与信念", graph: { nodes: [], edges: [] } },
-          { title: "世界理解", graph: { nodes: [], edges: [] } },
-          {
-            title: "粮食策略",
-            food: { selected: "food_common", allowed: ["food_common", "food_custom"] },
-          },
-        ],
+        ...privateCognition,
+        recentFocus: { topics: tooManyTopics },
+        importantExperiences: { entries: tooManyExperiences },
+        relationshipWorld: { nodes: tooManyNodes, edges: [] },
+        knowledgeBeliefs: { nodes: [...tooManyNodes.slice(0, 10), { id: "node:extra", label: "额外", kind: "belief" as const, weight: 0.5 }], edges: [] },
       },
-    }).privateCognition.modules[2].graph
+    }))).toThrow(z.ZodError)
+  })
 
-    const preview = projectGraph(graph, "preview")
-    const detail = projectGraph(graph, "detail")
+  it("accepts fifty recent-focus topics for a dense word cloud", () => {
+    const topics = Array.from({ length: 50 }, (_, index) => ({
+      id: `topic:${index}`,
+      label: `主题${index}`,
+      category: "activity",
+      weight: index / 49,
+    }))
 
-    expect(preview.nodes).toHaveLength(GRAPH_PREVIEW_LIMIT)
-    expect(preview.truncatedNodeCount).toBe(31)
-    expect(preview.edges).toEqual([])
-    expect(preview.nodes.map((node) => node.id).at(-1)).toBe("node-20")
-    expect(detail.nodes).toHaveLength(GRAPH_DETAIL_LIMIT)
-    expect(detail.truncatedNodeCount).toBe(1)
-    expect(detail.nodes.map((node) => node.id).at(-1)).toBe("node-50")
+    const result = parseExperienceFixture(fixture({
+      privateCognition: {
+        ...privateCognition,
+        recentFocus: { topics },
+      },
+    }))
+
+    expect(result.privateCognition.recentFocus.topics).toHaveLength(50)
   })
 })

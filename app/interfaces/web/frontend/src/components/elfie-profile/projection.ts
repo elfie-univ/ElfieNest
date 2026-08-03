@@ -1,4 +1,4 @@
-import type { ExperienceFixture, PublicProfile, PrivateCognition, Viewer } from "./model"
+import type { CareSettings, ExperienceFixture, PublicProfile, PrivateCognition, Viewer } from "./model"
 
 export type VisitorProfileProjection = {
   readonly ageLabel: ExperienceFixture["adoption"]["ageLabel"]
@@ -13,6 +13,7 @@ export type AdopterProfileProjection = {
   readonly ownerDisplayName: string
   readonly publicProfile: PublicProfile
   readonly privateCognition: PrivateCognition
+  readonly careSettings: CareSettings
 }
 
 export type ElfieProfileProjection = VisitorProfileProjection | AdopterProfileProjection
@@ -32,6 +33,7 @@ export function projectElfieProfile(
       ownerDisplayName: experience.adopter.displayName,
       publicProfile: experience.publicProfile,
       privateCognition: experience.privateCognition,
+      careSettings: experience.careSettings,
     }
   }
   return {
