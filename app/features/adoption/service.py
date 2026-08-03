@@ -53,6 +53,9 @@ class AdoptionRequest:
     height: str
     build: str
     appearance_overrides: dict[str, Any] = field(default_factory=dict)
+    appearance_seed: int | None = None
+    gender: str | None = None
+    birth_date: str | None = None
 
 
 @dataclass(frozen=True)
@@ -71,6 +74,7 @@ def adoption_options(db_path: str) -> dict[str, list[str]]:
         "species_ids": list(get_allowed_species_ids(db_path)),
         "heights": list(VALID_HEIGHTS),
         "builds": list(VALID_BUILDS),
+        "life_stages": ["youth", "young_adult", "mature", "elder", "any"],
     }
 
 
@@ -127,7 +131,14 @@ def adopt_elfie_for_user(
             build=request.build,
             config_dir=config_dir,
             elfie_id=elfie_id,
+            appearance_seed=request.appearance_seed,
             appearance_overrides=request.appearance_overrides,
+        )
+        ElfieRepository(db_path).update_profile(
+            elfie_id,
+            gender=request.gender,
+            birth_date=request.birth_date,
+            summary=request.personality_style,
         )
         generated = True
     except ValueError as exc:
@@ -170,6 +181,8 @@ def _validate_adoption_request(
 
     if request.build not in VALID_BUILDS:
         raise AdoptionValidationError(f"build 必须是 {VALID_BUILDS}")
+    if request.gender is not None and request.gender not in ("male", "female"):
+        raise AdoptionValidationError("gender 必须是 male 或 female")
 
 
 def _reserve_adoption_slot(

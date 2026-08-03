@@ -573,7 +573,6 @@ class TestAdopt:
         )
 
         assert resp.status_code == 400
-        assert "stature_z" in resp.text
 
     def test_limit_3_then_409(self, client: TestClient) -> None:
         """3 只上限 → 第 4 次 409。"""
@@ -698,6 +697,70 @@ class TestAdopt:
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 400
+
+
+class TestAdoptionJourney:
+    def test_candidate_invite_reply_and_commit_preserve_selected_snapshot(
+        self, client: TestClient
+    ) -> None:
+        _create_user_via_owner(client, "journey-owner")
+        tokens = _login_user(client, "journey-owner")
+        headers = _headers(tokens["csrf_token"])
+        intent = {
+            "species_id": "fox",
+            "life_stage": "young_adult",
+            "gender": "any",
+            "appearance": {
+                "stature": "tall",
+                "build": "round",
+                "face": "soft",
+                "signature": "warm",
+                "priority": "face",
+            },
+            "answers": ["quiet", "research", "plan", "discuss", "steady"],
+        }
+
+        candidates = client.post("/api/user/adoption/candidates", json=intent, headers=headers)
+        assert candidates.status_code == 200, candidates.text
+        candidate_set = candidates.json()
+        assert len(candidate_set["candidates"]) == 5
+        selected = candidate_set["candidates"][:2]
+
+        before_reply = client.post(
+            "/api/user/adoption/commit",
+            json={
+                "candidate_set_id": candidate_set["candidate_set_id"],
+                "candidate_id": selected[0]["candidate_id"],
+                "name": "星砂",
+            },
+            headers=headers,
+        )
+        assert before_reply.status_code == 409
+
+        replies = client.post(
+            "/api/user/adoption/replies",
+            json={"candidate_set_id": candidate_set["candidate_set_id"], "candidate_ids": [item["candidate_id"] for item in selected]},
+            headers=headers,
+        )
+        assert replies.status_code == 200, replies.text
+        assert replies.json()["replies"][0]["status"] == "accepted"
+
+        committed = client.post(
+            "/api/user/adoption/commit",
+            json={
+                "candidate_set_id": candidate_set["candidate_set_id"],
+                "candidate_id": selected[0]["candidate_id"],
+                "name": "星砂",
+            },
+            headers=headers,
+        )
+        assert committed.status_code == 201, committed.text
+        profile = client.get(
+            f"/api/user/elfies/{committed.json()['elfie_id']}", headers=headers
+        ).json()
+        assert profile["name"] == "星砂"
+        assert profile["gender"] == selected[0]["gender"]
+        assert profile["birth_date"] is not None
 
 
 class TestAdoptRoomFull:

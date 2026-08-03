@@ -5,6 +5,7 @@
 @import "./manage-console.css";
 @import "./icon-catalog.css";
 @import "./setup-wizard.css";
+@import "./adoption-journey.css";
 
 @custom-variant dark (&:is(.dark *));
 
