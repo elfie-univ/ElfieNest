@@ -45,6 +45,7 @@ describe("presentElfieProfile", () => {
 
     // Then: private cognition is omitted rather than returned empty to the visitor.
     expect(projection.kind).toBe("visitor")
-    expect(Object.keys(projection)).toEqual(["kind", "ownerDisplayName", "publicProfile"])
+    expect(Object.keys(projection)).toEqual(["ageLabel", "kind", "ownerDisplayName", "publicProfile"])
+    expect(projection.ageLabel).toBe("未登记")
   })
 })

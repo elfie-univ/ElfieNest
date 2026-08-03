@@ -14,7 +14,7 @@ import {
   PRIVATE_MODULE_TITLES,
   SIGNED_IN_ADMIN,
 } from "./elfie-profile/mock-data"
-import { parseViewer } from "./elfie-profile/model"
+import { parseExperienceFixture, parseViewer } from "./elfie-profile/model"
 import { projectElfieProfile } from "./elfie-profile/projection"
 import { createI18n } from "../i18n/config"
 import type { SupportedLocale } from "../i18n/locale"
@@ -98,12 +98,63 @@ describe("ElfieProfilePanel", () => {
 
     // Then: the reference-led public hierarchy and adopter relationship are visible.
     expect(screen.getByRole("heading", { level: 1, name: "Happy" })).toBeInTheDocument()
-    expect(screen.getByText("狐狸精灵")).toBeInTheDocument()
+    expect(screen.getByText("🦊", { selector: ".profile-dossier__species" })).toBeInTheDocument()
     expect(screen.getByText(HAPPY_EXPERIENCE.publicProfile.biography)).toBeInTheDocument()
     expect(screen.getByText("我")).toBeInTheDocument()
     expect(screen.getByText("2026-06-30")).toBeInTheDocument()
     expect(screen.getByText("1 个月")).toBeInTheDocument()
     expect(screen.getByText("12345678")).toBeInTheDocument()
+  })
+
+  it("keeps the approved card order and removes the old eyebrow and biography heading", () => {
+    // Given: an adopter profile with the final top-card design.
+    const projection = projectElfieProfile(SIGNED_IN_ADMIN, HAPPY_EXPERIENCE)
+
+    // When: the identity frame renders.
+    const { container } = renderWithI18n(
+      <ElfieProfilePanel onBack={vi.fn()} onChat={vi.fn()} projection={projection} />,
+    )
+
+    // Then: name/markers share the first row, metadata follows the approved order, and the biography is inline.
+    const identity = container.querySelector(".profile-dossier__identity")
+    const nameRow = container.querySelector(".profile-dossier__name-row")
+    const metadata = container.querySelector(".profile-dossier__metadata")
+    const biography = container.querySelector(".profile-dossier__biography")
+    if (identity === null || nameRow === null || metadata === null || biography === null) {
+      throw new TypeError("Expected the approved identity card structure")
+    }
+    expect(nameRow.querySelector("h1")?.textContent).toBe("Happy")
+    expect(nameRow.querySelector(".profile-dossier__species")?.textContent).toBe("🦊")
+    expect(identity).not.toHaveTextContent("你的精灵")
+    expect(identity).not.toHaveTextContent("关于我")
+    expect([...metadata.children].map((item) => item.textContent?.replace(/\s+/g, " ").trim())).toEqual([
+      "年龄1 个月",
+      "主人我",
+      "领养日期2026-06-30",
+      "ID12345678",
+    ])
+    expect(biography.querySelector("span")?.textContent).toBe("简介：")
+    expect(biography.querySelector("p")?.textContent).toBe(HAPPY_EXPERIENCE.publicProfile.biography)
+    expect(screen.getByRole("button", { name: "进入聊天" })).toBeInTheDocument()
+  })
+
+  it("uses the gender symbol and color variant when gender is known", () => {
+    // Given: a profile with an explicit male gender value from the public data contract.
+    const experience = parseExperienceFixture({
+      ...HAPPY_EXPERIENCE,
+      publicProfile: { ...HAPPY_EXPERIENCE.publicProfile, gender: "男" },
+    })
+    const projection = projectElfieProfile(SIGNED_IN_ADMIN, experience)
+
+    // When: the identity frame renders.
+    const { container } = renderWithI18n(
+      <ElfieProfilePanel onBack={vi.fn()} onChat={vi.fn()} projection={projection} />,
+    )
+
+    // Then: the value is represented by the approved symbol and its gender-specific class.
+    const gender = container.querySelector(".profile-dossier__gender--male")
+    expect(gender).toHaveTextContent("♂")
+    expect(gender).toHaveAttribute("aria-label", "男性")
   })
 
   it("routes mobile back and chat actions through callbacks", async () => {
@@ -137,7 +188,8 @@ describe("ElfieProfilePanel", () => {
     expect(screen.getByText("用户示例")).toBeInTheDocument()
     expect(screen.getByText(LONG_BIOGRAPHY_EXPERIENCE.publicProfile.biography)).toBeInTheDocument()
     expect(screen.queryByText("领养日期")).not.toBeInTheDocument()
-    expect(screen.queryByText("年龄")).not.toBeInTheDocument()
+    expect(screen.getByText("年龄")).toBeInTheDocument()
+    expect(screen.getByText("未登记")).toBeInTheDocument()
     expect(screen.queryByText("23456789")).not.toBeInTheDocument()
     expect(container).not.toHaveTextContent(/精灵身份证|档案编号|管理员|本地 3D 观察/)
     expect(container.querySelector("iframe")).not.toBeInTheDocument()

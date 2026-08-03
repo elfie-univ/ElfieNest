@@ -89,13 +89,11 @@
 .profile-dossier--empty { display: grid; place-items: center; }
 .profile-dossier__identity {
   display: grid;
-  grid-template-areas:
-    "portrait identity chat"
-    "portrait biography biography";
+  grid-template-areas: "portrait identity chat";
   grid-template-columns: clamp(128px, 14vw, 176px) minmax(0, 1fr) auto;
   align-items: start;
   column-gap: clamp(18px, 2vw, 32px);
-  row-gap: 22px;
+  row-gap: 0;
   padding: clamp(4px, 1vw, 16px) 0 32px;
   border-bottom: 1px solid var(--border);
 }
@@ -116,13 +114,7 @@
 }
 .profile-dossier__portrait img { width: 100%; height: 100%; object-fit: cover; }
 .profile-dossier__identity-copy { grid-area: identity; min-width: 0; padding-top: 2px; }
-.profile-dossier__eyebrow {
-  margin: 0 0 8px;
-  color: var(--accent-hover);
-  font-size: 14px;
-  font-weight: 800;
-  letter-spacing: .08em;
-}
+.profile-dossier__name-row { display: flex; min-width: 0; align-items: baseline; gap: 10px 14px; }
 .profile-dossier__identity h1 {
   margin: 0;
   color: var(--text);
@@ -132,47 +124,55 @@
 }
 .profile-dossier__attributes {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 16px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
 }
 .profile-dossier__attributes span {
-  display: inline-block;
-  padding: 6px 11px;
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  background: var(--surface-raised);
-  color: var(--text-muted);
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 20px;
+  line-height: 1;
 }
+.profile-dossier__gender { font-weight: 800; }
+.profile-dossier__gender--male { color: #2f70a8; }
+.profile-dossier__gender--female { color: #bd5d7b; }
+.profile-dossier__species { line-height: 1; }
 .profile-dossier__metadata {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px 18px;
-  margin: 13px 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 28px;
+  margin: 14px 0 0;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 16px;
+  line-height: 1.5;
 }
-.profile-dossier__metadata div { display: flex; gap: 6px; }
+.profile-dossier__metadata div { display: flex; min-width: 0; gap: 6px; }
 .profile-dossier__metadata dt { font-weight: 700; }
-.profile-dossier__metadata dd { margin: 0; color: var(--text); }
+.profile-dossier__metadata dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
 .profile-dossier__metadata strong { color: var(--accent-hover); }
 .profile-dossier__chat { grid-area: chat; align-self: start; }
 .profile-dossier__biography {
-  grid-area: biography;
   min-width: 0;
-  padding-top: 2px;
+  margin-top: 0;
+  padding-top: 0;
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.6;
 }
 .profile-dossier__biography span {
   color: var(--text-muted);
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: .08em;
+  font-weight: 700;
 }
 .profile-dossier__biography p {
-  margin: 7px 0 0;
-  color: var(--text);
-  line-height: 1.75;
+  display: inline;
+  margin: 0;
+  color: inherit;
   overflow-wrap: anywhere;
 }
 .profile-dossier__section { padding: 28px 0; border-bottom: 1px solid var(--border); }
@@ -578,13 +578,10 @@
   .rail-button { width: 48px; height: 48px; }
   .profile-dossier { padding: 24px; }
   .profile-dossier__identity {
-    grid-template-areas:
-      "portrait identity"
-      "portrait chat"
-      "biography biography";
-    grid-template-columns: 108px minmax(0, 1fr);
+    grid-template-areas: "portrait identity chat";
+    grid-template-columns: 108px minmax(0, 1fr) auto;
     column-gap: 18px;
-    row-gap: 14px;
+    row-gap: 0;
   }
   .profile-dossier__portrait { width: 108px; }
   .profile-dossier__chat { justify-self: end; }
@@ -679,10 +676,10 @@
   .profile-dossier__identity {
     grid-template-areas:
       "back back chat"
-      "portrait identity identity"
-      "biography biography biography";
+      "portrait identity identity";
     grid-template-columns: 78px minmax(0, 1fr) auto;
-    gap: 14px;
+    column-gap: 14px;
+    row-gap: 0;
     padding: 0 0 22px;
   }
   .profile-dossier__back {
@@ -698,10 +695,14 @@
     font-size: 34px;
   }
   .profile-dossier__identity h1 { font-size: 29px; }
-  .profile-dossier__eyebrow { margin-bottom: 5px; font-size: 12px; }
-  .profile-dossier__attributes { gap: 6px; margin-top: 10px; }
-  .profile-dossier__attributes span { padding: 4px 8px; font-size: 12px; }
-  .profile-dossier__metadata { gap: 5px 12px; margin-top: 8px; font-size: 12px; }
+  .profile-dossier__attributes { gap: 8px; }
+  .profile-dossier__attributes span { font-size: 18px; }
+  .profile-dossier__metadata {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    margin-top: 10px;
+    font-size: 15px;
+  }
   .profile-dossier__chat { min-height: 36px; padding-inline: 12px; }
   .profile-dossier__radar { grid-template-columns: 1fr; }
   .profile-radar--compact .profile-radar__content {

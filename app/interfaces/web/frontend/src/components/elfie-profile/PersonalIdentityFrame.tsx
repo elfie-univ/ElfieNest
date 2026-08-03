@@ -21,7 +21,7 @@ export function PersonalIdentityFrame({
   const { t } = useTranslation("chat")
   const profile = projection.publicProfile
   const species = speciesLabel(profile.speciesId, t)
-  const gender = normalizedGender(profile.gender)
+  const gender = normalizedGender(profile.gender, t)
 
   return (
     <header className="profile-dossier__identity">
@@ -39,15 +39,27 @@ export function PersonalIdentityFrame({
       <Portrait name={profile.name} portraitUrl={portraitOverride || profile.portraitUrl} t={t} />
 
       <div className="profile-dossier__identity-copy">
-        <p className="profile-dossier__eyebrow">
-          {projection.kind === "adopter" ? t("profile.identity.adopterEyebrow") : t("profile.identity.visitorEyebrow")}
-        </p>
-        <h1>{profile.name}</h1>
-        <div className="profile-dossier__attributes" aria-label={t("profile.identity.publicAttributes")}>
-          <span>{species}</span>
-          {gender === null ? null : <span>{gender}</span>}
+        <div className="profile-dossier__name-row">
+          <h1>{profile.name}</h1>
+          <div className="profile-dossier__attributes" aria-label={t("profile.identity.publicAttributes")}>
+            {gender === null ? null : (
+              <span
+                aria-label={gender.label}
+                className={`profile-dossier__gender profile-dossier__gender--${gender.tone}`}
+              >
+                {gender.symbol}
+              </span>
+            )}
+            <span aria-label={species} className="profile-dossier__species">
+              {speciesIcon(profile.speciesId)}
+            </span>
+          </div>
         </div>
         <IdentityMetadata projection={projection} t={t} />
+        <div className="profile-dossier__biography">
+          <span>{t("profile.identity.biographyLabel")}</span>
+          <p>{profile.biography.trim() || t("profile.identity.missingBiography")}</p>
+        </div>
       </div>
 
       <Button className="profile-dossier__chat" onClick={onChat} type="button">
@@ -55,10 +67,6 @@ export function PersonalIdentityFrame({
         {t("profile.identity.enterChat")}
       </Button>
 
-      <div className="profile-dossier__biography">
-        <span>{t("profile.identity.about")}</span>
-        <p>{profile.biography.trim() || t("profile.identity.missingBiography")}</p>
-      </div>
     </header>
   )
 }
@@ -67,14 +75,15 @@ function IdentityMetadata({ projection, t }: {
   readonly projection: ElfieProfileProjection
   readonly t: TFunction<"chat">
 }) {
+  const ageLabel = projection.kind === "adopter" ? projection.adoption.ageLabel : projection.ageLabel
   return (
     <dl className="profile-dossier__metadata">
-      <div><dt>{t("profile.identity.adopter")}</dt><dd>{projection.kind === "adopter" ? <strong>{t("profile.identity.me")}</strong> : projection.ownerDisplayName}</dd></div>
+      <div><dt>{t("profile.identity.age")}</dt><dd>{localizedAge(ageLabel, t)}</dd></div>
+      <div><dt>{t("profile.identity.owner")}</dt><dd>{projection.kind === "adopter" ? <strong>{t("profile.identity.me")}</strong> : projection.ownerDisplayName}</dd></div>
       {projection.kind === "adopter" ? (
         <>
           <div><dt>{t("profile.identity.adoptedAt")}</dt><dd>{displayFallback(projection.adoption.adoptedAt, t)}</dd></div>
-          <div><dt>{t("profile.identity.age")}</dt><dd>{localizedAge(projection.adoption.ageLabel, t)}</dd></div>
-          <div><dt>ID</dt><dd>{projection.publicProfile.elfieId}</dd></div>
+          <div><dt>{t("profile.identity.id")}</dt><dd>{projection.publicProfile.elfieId}</dd></div>
         </>
       ) : null}
     </dl>
@@ -104,6 +113,14 @@ function speciesLabel(speciesId: string, t: TFunction<"chat">): string {
   }
 }
 
+function speciesIcon(speciesId: string): string {
+  switch (speciesId) {
+    case "dog": return "🐶"
+    case "fox": return "🦊"
+    default: return "🐾"
+  }
+}
+
 function displayFallback(value: string, t: TFunction<"chat">): string {
   return value === "未登记" ? t("profile.identity.notRegistered") : value
 }
@@ -116,7 +133,27 @@ function localizedAge(value: string, t: TFunction<"chat">): string {
   return displayFallback(value, t)
 }
 
-function normalizedGender(gender: string | null): string | null {
-  const value = gender?.trim() ?? ""
-  return value && value !== "未登记" ? value : null
+type GenderMarker = {
+  readonly label: string
+  readonly symbol: "♂" | "♀"
+  readonly tone: "female" | "male"
+}
+
+function normalizedGender(gender: string | null, t: TFunction<"chat">): GenderMarker | null {
+  switch ((gender?.trim() ?? "").toLowerCase()) {
+    case "男":
+    case "男性":
+    case "male":
+    case "m":
+    case "♂":
+      return { label: t("profile.identity.gender.male"), symbol: "♂", tone: "male" }
+    case "女":
+    case "女性":
+    case "female":
+    case "f":
+    case "♀":
+      return { label: t("profile.identity.gender.female"), symbol: "♀", tone: "female" }
+    default:
+      return null
+  }
 }

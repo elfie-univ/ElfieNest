@@ -67,6 +67,7 @@ describe("ProfilePrivateModules", () => {
     const happyProjection = projectElfieProfile(SIGNED_IN_ADMIN, HAPPY_EXPERIENCE)
     const kettleProjection = projectElfieProfile(kettleAdopter, KETTLE_EXPERIENCE)
     const happyVisitorProjection: ElfieProfileProjection = {
+      ageLabel: "1 个月",
       kind: "visitor",
       ownerDisplayName: "管理员",
       publicProfile: happyProjection.publicProfile,

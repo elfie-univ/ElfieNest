@@ -102,7 +102,12 @@ function presentApiProfile(
       privateCognition: EMPTY_PRIVATE_COGNITION,
     }
   }
-  return { kind: "visitor", ownerDisplayName: adopterAccountId ?? "未登记", publicProfile }
+  return {
+    ageLabel: ageLabel(profile.birth_date),
+    kind: "visitor",
+    ownerDisplayName: adopterAccountId ?? "未登记",
+    publicProfile,
+  }
 }
 
 function ageLabel(birthDate: string | null): string {
