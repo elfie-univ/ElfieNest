@@ -25,6 +25,10 @@ from app.features.accounts.auth import (
     get_current_user,
     verify_csrf_token,
 )
+from app.features.setup.installer import (
+    SetupInstallJobManager,
+    recover_interrupted_setup_install,
+)
 from app.features.setup.jobs import OllamaInstallJobManager
 from app.features.setup.progress import recover_interrupted_setup_task
 from app.infrastructure.devices import DeviceGateway
@@ -59,11 +63,7 @@ logger = logging.getLogger("app.interfaces.api.app")
 
 
 def verify_csrf_for_session(request: Request) -> None:
-    """检查 POST/PUT/DELETE 请求的 X-CSRF-Token header。
-
-    从 cookie 取 session_token，从 header 取 csrf_token，
-    调用 ``verify_csrf_token`` 校验。
-    """
+    """Check the normal session CSRF pair for mutating requests."""
     if request.method in ("GET", "HEAD", "OPTIONS"):
         return
 
@@ -75,6 +75,19 @@ def verify_csrf_for_session(request: Request) -> None:
 
     if not verify_csrf_token(session_token, csrf_token):
         raise HTTPException(status_code=403, detail="CSRF token 无效")
+
+
+def verify_csrf_for_setup(request: Request) -> None:
+    """Check the temporary, local-only Setup CSRF pair before an Owner exists."""
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return
+
+    setup_token = request.cookies.get("setup_token")
+    csrf_token = request.headers.get("X-CSRF-Token")
+    if not setup_token or not csrf_token:
+        raise HTTPException(status_code=403, detail="缺少 Setup CSRF token")
+    if not verify_csrf_token(setup_token, csrf_token):
+        raise HTTPException(status_code=403, detail="Setup CSRF token 无效")
 
 
 # ---------------------------------------------------------------------------
@@ -110,6 +123,7 @@ def create_app(
     async def lifespan(app: FastAPI):
         init_db(db_path)
         recover_interrupted_setup_task(db_path)
+        recover_interrupted_setup_install(db_path)
         seed_initial_owner_if_env_set(db_path)
         if engine is not None and not engine.session.has_repository:
             from app.infrastructure.persistence.nest_state_repository import (  # noqa: PLC0415
@@ -146,6 +160,7 @@ def create_app(
     app.state.device_gateway = DeviceGateway()
     app.state.v1_chat_hub = SameOriginChatHub(db_path)
     app.state.setup_ollama_jobs = OllamaInstallJobManager()
+    app.state.setup_install_jobs = SetupInstallJobManager()
     app.state.ws_port = ws_port
     configured_web_build_dir = os.environ.get("ELFIENEST_WEB_BUILD_DIR")
     build_dir = web_build_dir or (
@@ -204,7 +219,14 @@ def create_app(
             csrf_exempt = path in {"/api/auth/login", "/api/auth/setup"}
             if not csrf_exempt:
                 try:
-                    verify_csrf_for_session(request)
+                    if path.startswith("/api/auth/setup/draft/"):
+                        verify_csrf_for_setup(request)
+                    elif path == "/api/auth/setup/install" and request.cookies.get(
+                        "setup_token"
+                    ):
+                        verify_csrf_for_setup(request)
+                    else:
+                        verify_csrf_for_session(request)
                 except HTTPException as exc:
                     return JSONResponse(
                         status_code=exc.status_code,

@@ -32,9 +32,15 @@ Do not use broad `kill` commands against unknown processes.
 
 ## Model connection failure
 
-Ollama is optional. If you chose it during Setup, check the one saved Ollama
-endpoint and its Provider configuration; do not replace it by scanning for a
-different local service. You can skip or configure another Provider in Setup.
+Local Ollama is optional. Setup only reports whether it is installed; the
+actual health check happens after final confirmation. The installer reuses the
+single public Ollama when it is available, starts it when it is stopped,
+repairs it when startup or the health check fails, and installs it when it is
+absent. It never creates a second private Ollama instance.
+
+If the model phase fails, use the retry action on the locked Setup page. The
+installer rechecks completed phases and does not ask you to re-enter the
+configuration.
 
 ## Abnormal data directory
 

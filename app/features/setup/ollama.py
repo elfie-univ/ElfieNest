@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
-from typing import cast
+from typing import Callable, cast
 
 from ai_runtime.food.evidence import query_model_evidence, record_model_evidence
-from ai_runtime.food.models import FOOD_COMMON_ID, FOOD_EMERGENCY_ID
+from ai_runtime.food.models import FOOD_EMERGENCY_ID
 from ai_runtime.food.planner import FoodPlanner, ModelEvidence
 from ai_runtime.food.store import FoodCatalogStore
 from ai_runtime.models.capabilities import canonical_display_name, known_capabilities
@@ -27,6 +27,7 @@ from app.infrastructure.ollama_platform import (
     PlatformName,
     wait_for_healthy,
 )
+from app.infrastructure.ollama_platform_commands import official_launch_target
 
 
 @dataclass(frozen=True)
@@ -182,6 +183,108 @@ class OllamaSetupService:
         )
         return repaired
 
+    def ensure_for_install(
+        self, *, db_path: str, report_action: Callable[[str], None]
+    ) -> OllamaBinding:
+        """Reuse, start, repair, or install the one documented public Ollama."""
+        saved = self._saved_binding()
+        candidate = saved or self._default_binding()
+        probe = self._adapter.probe(candidate)
+        if probe.state == "healthy":
+            report_action("ollama.reuse")
+            binding = replace(candidate, version=probe.version or candidate.version)
+            self._save_binding(binding)
+            return binding
+        if probe.state == "stopped":
+            report_action("ollama.start")
+            try:
+                self._adapter.start_bound_installation(candidate)
+                started = self._adapter.probe(candidate)
+                if started.state == "healthy":
+                    binding = replace(
+                        candidate, version=started.version or candidate.version
+                    )
+                    self._save_binding(binding)
+                    return binding
+            except RuntimeError:
+                pass
+        report_action("ollama.repair" if saved is not None else "ollama.install")
+        return self._install_public(
+            db_path=db_path,
+            endpoint=candidate.api_base,
+        )
+
+    def ensure_model_for_install(
+        self,
+        *,
+        model_id: str,
+        report_action: Callable[[str], None],
+    ) -> str:
+        """Reuse or pull one allow-listed model and persist its exact connection ref."""
+        from app.features.setup.model_catalog import get_setup_model
+
+        get_setup_model(model_id)
+        binding = self._saved_binding()
+        if binding is None or self._adapter.probe(binding).state != "healthy":
+            raise RuntimeError("本地 Ollama 未通过健康检查")
+        models = set(self._adapter.list_models(binding))
+        if model_id in models:
+            report_action("model.reuse")
+        else:
+            report_action("model.download")
+            self._adapter.pull_model(binding, model_id)
+            models = set(self._adapter.list_models(binding))
+            if model_id not in models:
+                raise RuntimeError("Ollama 未确认所选模型已下载")
+        connection = self._saved_connection()
+        if connection is None:
+            raise RuntimeError("Ollama 连接配置缺失")
+        configured_models = {
+            model.endpoint_model_id: model for model in connection.models
+        }
+        configured_models[model_id] = ProviderModelRecord(
+            endpoint_model_id=model_id,
+            display_name=model_id,
+            source="official",
+        )
+        self._provider_connection_store.replace(
+            replace(connection, models=tuple(configured_models.values()))
+        )
+        return f"{connection.connection_id}/{model_id}"
+
+    def generate_emergency_food(self, model_reference: str) -> None:
+        """Generate only the emergency package for the verified local model."""
+        self._generate_foods(model_reference)
+
+    def _default_binding(self) -> OllamaBinding:
+        try:
+            target, _ = official_launch_target(self._adapter.platform)
+        except RuntimeError:
+            target = ""
+        return OllamaBinding(
+            api_base=DEFAULT_OLLAMA_ENDPOINT,
+            platform=self._adapter.platform,
+            install_kind="existing-public",
+            launch_target=target,
+            version="",
+        )
+
+    def _install_public(self, *, db_path: str, endpoint: str) -> OllamaBinding:
+        _ = db_path
+        installer = self._adapter.download_official_installer()
+        self._adapter.run_confirmed_installer(installer, user_confirmed=True)
+        binding = self._adapter.official_binding_after_install(
+            endpoint=endpoint,
+            installer=installer,
+        )
+        self._adapter.start_bound_installation(binding)
+        probe = self._adapter.probe(binding)
+        if probe.state != "healthy":
+            raise RuntimeError("官方 Ollama 安装后未通过健康检查")
+        binding = replace(binding, version=probe.version or binding.version)
+        self._save_binding(binding)
+        return binding
+
     def configure_installed_model(
         self,
         *,
@@ -275,14 +378,14 @@ class OllamaSetupService:
         catalog = self._food_catalog_store.load()
         packages = dict(catalog.packages)
         planner = FoodPlanner()
-        for food_id in (FOOD_EMERGENCY_ID, FOOD_COMMON_ID):
-            packages[food_id] = planner.propose_package(
-                packages[food_id],
-                all_evidence,
-                connection_ids=(model_reference.split("/", 1)[0],),
-                local_first=food_id == FOOD_EMERGENCY_ID,
-                allow_remote=False,
-            ).package
+        food_id = FOOD_EMERGENCY_ID
+        packages[food_id] = planner.propose_package(
+            packages[food_id],
+            all_evidence,
+            connection_ids=(model_reference.split("/", 1)[0],),
+            local_first=True,
+            allow_remote=False,
+        ).package
         self._food_catalog_store.save(replace(catalog, packages=packages))
 
     def _saved_connection(self) -> ProviderConnection | None:
