@@ -1,6 +1,10 @@
 from types import SimpleNamespace
 
-from app.features.accounts.auth import create_session, get_current_user, require_owner
+from app.features.accounts.auth import (
+    create_session,
+    get_current_user,
+    require_manager,
+)
 from app.infrastructure.persistence.store import init_db
 from app.interfaces.api import (
     elfie_food_routes,
@@ -22,8 +26,8 @@ def test_all_http_routes_share_auth_dependency_functions():
     assert user_routes.get_current_user is get_current_user
     assert elfie_food_routes.get_current_user is get_current_user
     assert nest_routes.get_current_user is get_current_user
-    assert owner_routes.require_owner is require_owner
-    assert nest_routes.require_owner is require_owner
+    assert owner_routes.require_manager is require_manager
+    assert nest_routes.require_manager is require_manager
 
 
 def test_session_verification_uses_request_database(tmp_path):

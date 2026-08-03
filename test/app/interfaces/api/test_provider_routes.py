@@ -37,6 +37,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     init_db(db_path)
     create_test_owner(db_path)
     create_test_user(db_path, "alice", "pass123")
+    create_test_user(db_path, "admin", "pass123", role="admin")
     with (
         patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
         patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
@@ -258,6 +259,14 @@ def test_provider_routes_require_owner_role(client: TestClient) -> None:
     response = client.get("/api/owner/providers/connections", headers=headers)
 
     assert response.status_code == 403
+
+
+def test_provider_routes_accept_admin_role(client: TestClient) -> None:
+    headers = _login(client, "admin", "pass123")
+
+    response = client.get("/api/owner/providers/connections", headers=headers)
+
+    assert response.status_code == 200
 
 
 def test_provider_routes_require_authentication(client: TestClient) -> None:

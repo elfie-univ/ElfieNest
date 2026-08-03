@@ -1,12 +1,13 @@
 import { z } from "zod"
 
 import { csrfHeaders, ownerWrite, requestJson } from "./http"
+import { AccountRoleSchema, ManagedCreationRoleSchema, type ManagedCreationRole } from "./roles"
 
 const OwnerUserSchema = z.object({
   user_id: z.number().int().positive(),
   account_id: z.string().min(1),
   display_name: z.string().nullable(),
-  role: z.union([z.literal("owner"), z.literal("user")]),
+  role: AccountRoleSchema,
   gender: z.string().nullable(),
   birth_date: z.string().nullable(),
   presence: z.union([z.literal("online"), z.literal("away"), z.literal("offline")]),
@@ -33,12 +34,14 @@ export async function createManagedUser(
   accountId: string,
   displayName: string | null,
   password: string,
+  role: ManagedCreationRole,
   csrfToken: string,
 ): Promise<CreatedOwnerUser> {
+  const managedRole = ManagedCreationRoleSchema.parse(role)
   return CreatedOwnerUserSchema.parse(await requestJson("/api/owner/users", {
     method: "POST",
     headers: csrfHeaders(csrfToken, true),
-    body: JSON.stringify({ account_id: accountId, display_name: displayName, password, role: "user" }),
+    body: JSON.stringify({ account_id: accountId, display_name: displayName, password, role: managedRole }),
   }))
 }
 

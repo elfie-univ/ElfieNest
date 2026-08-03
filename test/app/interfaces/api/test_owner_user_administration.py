@@ -12,12 +12,12 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from ai_runtime.storage.data_layout import final_root_layout
-from app.features.accounts.auth import require_owner
+from app.features.accounts.auth import require_manager
 from app.infrastructure.persistence.session_repository import SessionRepository
 from app.infrastructure.persistence.store import get_db, init_db, verify_password
 from app.interfaces.api.owner_user_routes import router
 
-from ._helpers import create_test_owner
+from ._helpers import create_test_owner, create_test_user
 
 _VIEW_FIELDS = {
     "user_id",
@@ -55,7 +55,7 @@ def administration_client(
     application = FastAPI()
     application.state.db_path = administration_db_path
     application.include_router(router)
-    application.dependency_overrides[require_owner] = lambda: {
+    application.dependency_overrides[require_manager] = lambda: {
         "user_id": 1,
         "account_id": "owner01",
         "role": "owner",
@@ -65,14 +65,16 @@ def administration_client(
         yield client
 
 
-def _create_member(client: TestClient, account_id: str = "member01") -> dict:
+def _create_member(
+    client: TestClient, account_id: str = "member01", role: str = "user"
+) -> dict:
     response = client.post(
         "/api/owner/users",
         json={
             "account_id": account_id,
             "display_name": " Member ",
             "password": "member-password",
-            "role": "user",
+            "role": role,
         },
     )
     assert response.status_code == 201, response.text
@@ -118,6 +120,56 @@ def test_user_list_reads_adoption_limit_from_selected_database_root(
     assert response.json()[0]["effective_elfie_limit"] == 9
 
 
+def test_owner_can_create_an_admin_member(administration_client: TestClient) -> None:
+    created = _create_member(administration_client, "admin01", role="admin")
+
+    assert created["role"] == "admin"
+
+
+def test_admin_can_create_users_but_cannot_create_same_level_admin(
+    administration_client: TestClient,
+    administration_db_path: str,
+) -> None:
+    create_test_user(administration_db_path, "admin01", "admin-password", "admin")
+    administration_client.app.dependency_overrides[require_manager] = lambda: {
+        "user_id": 2,
+        "account_id": "admin01",
+        "role": "admin",
+        "default_landing_page": "manage",
+    }
+
+    created = _create_member(administration_client, "member02")
+    denied = administration_client.post(
+        "/api/owner/users",
+        json={
+            "account_id": "admin02",
+            "password": "admin-password",
+            "role": "admin",
+        },
+    )
+
+    assert created["role"] == "user"
+    assert denied.status_code == 403
+
+
+def test_owner_create_admin_respects_the_five_admin_capacity(
+    administration_client: TestClient,
+) -> None:
+    for index in range(1, 6):
+        _create_member(administration_client, f"admin{index:02d}", role="admin")
+
+    denied = administration_client.post(
+        "/api/owner/users",
+        json={
+            "account_id": "admin06",
+            "password": "admin-password",
+            "role": "admin",
+        },
+    )
+
+    assert denied.status_code == 409
+
+
 @pytest.mark.parametrize("password", ["short", "      ", " 1234 "])
 def test_member_creation_rejects_weak_initial_passwords(
     administration_client: TestClient, password: str
@@ -133,7 +185,7 @@ def test_member_creation_rejects_weak_initial_passwords(
     assert response.status_code == 422
 
 
-def test_member_quota_and_delete_use_numeric_user_id(
+def test_member_quota_update_uses_numeric_id_and_preserves_delete(
     administration_client: TestClient,
 ) -> None:
     member = _create_member(administration_client)
@@ -145,6 +197,7 @@ def test_member_quota_and_delete_use_numeric_user_id(
     assert updated.status_code == 200
     assert updated.json()["user_id"] == user_id
     assert updated.json()["elfie_quota_override"] == 6
+    assert updated.json()["effective_elfie_limit"] == 6
     deleted = administration_client.delete(f"/api/owner/users/{user_id}")
     assert deleted.status_code == 200
 
@@ -169,6 +222,65 @@ def test_owner_mutations_are_forbidden(
         after = tuple(connection.execute("SELECT * FROM users WHERE id=1").fetchone())
     assert response.status_code == 403
     assert after == before
+
+
+def test_admin_cannot_mutate_owner_or_another_admin(
+    administration_client: TestClient,
+    administration_db_path: str,
+) -> None:
+    create_test_user(administration_db_path, "admin01", "admin-password", "admin")
+    create_test_user(administration_db_path, "admin02", "admin-password", "admin")
+    administration_client.app.dependency_overrides[require_manager] = lambda: {
+        "user_id": 2,
+        "account_id": "admin01",
+        "role": "admin",
+        "default_landing_page": "manage",
+    }
+
+    owner_quota = administration_client.put(
+        "/api/owner/users/1", json={"elfie_quota_override": 5}
+    )
+    owner_reset = administration_client.post("/api/owner/users/1/reset-password")
+    peer_quota = administration_client.put(
+        "/api/owner/users/3", json={"elfie_quota_override": 5}
+    )
+    peer_delete = administration_client.delete("/api/owner/users/3")
+
+    assert owner_quota.status_code == 403
+    assert owner_reset.status_code == 403
+    assert peer_quota.status_code == 403
+    assert peer_delete.status_code == 403
+
+
+def test_owner_can_update_an_admin_limit(
+    administration_client: TestClient,
+    administration_db_path: str,
+) -> None:
+    admin_id = create_test_user(
+        administration_db_path, "admin01", "admin-password", "admin"
+    )
+
+    updated = administration_client.put(
+        f"/api/owner/users/{admin_id}", json={"elfie_quota_override": 6}
+    )
+
+    assert updated.status_code == 200
+    assert updated.json()["effective_elfie_limit"] == 6
+
+
+def test_owner_can_mutate_an_admin_member(
+    administration_client: TestClient,
+    administration_db_path: str,
+) -> None:
+    admin_id = create_test_user(
+        administration_db_path, "admin01", "admin-password", "admin"
+    )
+
+    reset = administration_client.post(f"/api/owner/users/{admin_id}/reset-password")
+    deleted = administration_client.delete(f"/api/owner/users/{admin_id}")
+
+    assert reset.status_code == 200
+    assert deleted.status_code == 200
 
 
 def test_member_with_elfie_cannot_be_deleted(

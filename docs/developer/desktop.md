@@ -34,8 +34,8 @@ JPEG-frame transport belongs to this module.
 
 ## Product camera observation
 
-The same-origin Owner-only `/monitor` route renders the full product observation
-surface; the Owner Nest-management dialog reuses that same `ObservationMonitor`
+The same-origin Owner/Admin `/monitor` route renders the full product observation
+surface; the Owner/Admin Nest-management dialog reuses that same `ObservationMonitor`
 surface rather than creating another camera client. Godot owns its complete,
 versioned camera catalog: semantic view `id` and `label` values, `active_id`, a
 positive `revision`, and `presentation_paused`. The catalog never exposes camera

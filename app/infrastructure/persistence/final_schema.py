@@ -68,7 +68,7 @@ _TABLE_STATEMENTS: Final = (
             AND avatar_path<>'..' AND avatar_path NOT LIKE '../%'
             AND avatar_path NOT LIKE '%/../%' AND avatar_path NOT LIKE '%/..')),
         gender TEXT NOT NULL DEFAULT 'male' CHECK(gender IN ('male','female')), birth_date TEXT,
-        role TEXT NOT NULL CHECK(role IN ('owner','user')),
+        role TEXT NOT NULL CHECK(role IN ('owner','admin','user')),
         password_hash TEXT NOT NULL CHECK(length(password_hash)>0),
         presence TEXT NOT NULL DEFAULT 'offline' CHECK(presence IN ('online','away','offline')),
         last_seen_at TEXT,
@@ -170,6 +170,25 @@ _INDEX_STATEMENTS: Final = (
 )
 
 _TRIGGER_STATEMENTS: Final = (
+    """CREATE TRIGGER IF NOT EXISTS trg_users_total_insert BEFORE INSERT ON users
+        WHEN (SELECT COUNT(*) FROM users) >= 16
+        BEGIN SELECT RAISE(ABORT,'maximum total account count reached'); END""",
+    """CREATE TRIGGER IF NOT EXISTS trg_users_admin_insert BEFORE INSERT ON users
+        WHEN NEW.role='admin' AND (SELECT COUNT(*) FROM users WHERE role='admin') >= 5
+        BEGIN SELECT RAISE(ABORT,'maximum admin account count reached'); END""",
+    """CREATE TRIGGER IF NOT EXISTS trg_users_admin_update BEFORE UPDATE OF role ON users
+        WHEN NEW.role='admin' AND OLD.role<>'admin'
+            AND (SELECT COUNT(*) FROM users WHERE role='admin') >= 5
+        BEGIN SELECT RAISE(ABORT,'maximum admin account count reached'); END""",
+    """CREATE TRIGGER IF NOT EXISTS trg_users_owner_delete BEFORE DELETE ON users
+        WHEN OLD.role='owner'
+        BEGIN SELECT RAISE(ABORT,'Owner account cannot be deleted'); END""",
+    """CREATE TRIGGER IF NOT EXISTS trg_users_owner_demote BEFORE UPDATE OF role ON users
+        WHEN OLD.role='owner' AND NEW.role<>'owner'
+        BEGIN SELECT RAISE(ABORT,'Owner account cannot be demoted'); END""",
+    """CREATE TRIGGER IF NOT EXISTS trg_users_owner_grant BEFORE UPDATE OF role ON users
+        WHEN OLD.role<>'owner' AND NEW.role='owner'
+        BEGIN SELECT RAISE(ABORT,'Owner role cannot be granted by update'); END""",
     """CREATE TRIGGER IF NOT EXISTS trg_elfies_bed_insert BEFORE INSERT ON elfies
         WHEN NEW.bed_number IS NOT NULL AND ((SELECT bed_count FROM nest_settings WHERE nest_id='local') IS NULL
         OR NEW.bed_number>(SELECT bed_count FROM nest_settings WHERE nest_id='local'))

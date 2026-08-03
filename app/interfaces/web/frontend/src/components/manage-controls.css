@@ -27,6 +27,8 @@
 .manage-dialog__header h2, .manage-dialog > h2 { margin: 0; font-size: 22px; }
 .manage-dialog__header p, .manage-dialog > p { margin: 8px 0 0; color: var(--text-muted); line-height: 1.55; }
 .manage-dialog__body { display: grid; gap: 14px; margin-top: 20px; }
+.manage-dialog__fields { display: grid; gap: 20px; }
+.manage-dialog__form { display: grid; gap: 20px; }
 .manage-dialog__close { position: absolute; top: 18px; right: 18px; display: grid; width: 32px; height: 32px; place-items: center; border-radius: 9px; color: var(--text-muted); background: transparent; }
 .manage-dialog__close:hover { color: var(--active-ink); background: var(--surface-hover); }
 .manage-dialog__actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }

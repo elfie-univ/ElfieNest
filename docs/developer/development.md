@@ -112,11 +112,12 @@ boundaries see the
 
 The Core serves five same-origin product pages: `/setup` for local first-run,
 plus `/login`, `/chat`, `/manage` and `/monitor`. The first Owner can only be
-created through
-the local or Electron loopback service; afterwards, devices on the same network
-segment go straight to the login page. Regular users always land on the chat
-page, and `/manage` server-redirects to `/chat`. The Owner lands on the
-management page by default and may switch their own default page to chat.
+created through the local or Electron loopback service; afterwards, devices on
+the same network segment go straight to the login page. The account hierarchy is
+strictly `owner > admin > user`: Owner is the single governance account, Admin
+is a full management account, and User is a chat-only account. User requests to
+`/manage` or `/monitor` server-redirect to `/chat`; Owner and Admin can use both
+management pages and may switch their own default page to chat.
 
 ### Web localization contract
 
@@ -161,13 +162,18 @@ produced by the runtime are written into chat history first and then bridged to
 the same-origin chat connection of the owning user, so history and real-time
 messages stay consistent after refresh.
 
-`/manage` is the only Owner management page. It is grouped into monitoring,
-business management, model subscriptions and system configuration, and covers
-users, global read-only Elfie filtering, Elfie nest beds/slots, provider
-subscription setup and validation, model lists, food policy, tools/permissions
-and system settings. Runtime-event summaries are folded into monitoring, and
-Godot live preview is entered from the nest camera panel rather than through a
-separate Godot configuration page. Chat, adoption and private personal Elfie
+`/manage` is the shared Owner/Admin management page. It is grouped into
+monitoring, business management, model subscriptions and system configuration,
+and covers users, global read-only Elfie filtering, Elfie nest beds/slots,
+provider subscription setup and validation, model lists, food policy,
+tools/permissions and system settings. Runtime-event summaries are folded into
+monitoring, and Godot live preview is entered from the nest camera panel rather
+than through a separate Godot configuration page. In the user panel, only a
+strictly higher role can add, remove or reset a lower role: Owner may manage
+Admin/User, Admin may manage User, and neither role can manage itself or a
+higher/equal role. There is one Owner, at most five Admin accounts, and at most
+16 accounts in total; User has no separate cap. Profile and Elfie-limit fields
+remain read-only in that panel. Chat, adoption and private personal Elfie
 profiles belong only to `/chat`; the management page has no user-Elfie
 ownership assignment entry.
 

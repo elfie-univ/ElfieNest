@@ -54,8 +54,8 @@ React 消费该目录后，只能发出封闭的语义命令 `overview`、`selec
 原始 Runtime 帧、权威凭据或模拟控制。local presentation pause 仅是 Observer 的输入/呈现
 状态；它绝不能暂停 Runtime、Gateway、Core 或后端模拟。
 
-`/monitor` 是仅 Owner 可访问的完整观察页面。Owner 的精灵巢管理弹窗嵌入同一个
-`ObservationMonitor` 表面与 bridge，而不是实现另一套相机能力。
+`/monitor` 是 Owner 与 Admin 可访问的完整观察页面。Owner/Admin 的精灵巢管理弹窗嵌入
+同一个 `ObservationMonitor` 表面与 bridge，而不是实现另一套相机能力。
 
 封闭的本地导航 intent 是 `request_resync`、`focus_room` 与 `focus_elfie`。唯一会改变
 世界的请求是单独授权、限流的高层 `request_interaction`（`greet` 或 `rest`），它经由

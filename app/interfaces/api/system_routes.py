@@ -14,7 +14,7 @@ from typing import Any, Dict, Final
 from fastapi import APIRouter, Depends, HTTPException
 
 from ai_runtime.storage.data_home import get_config_path
-from app.features.accounts.auth import require_owner
+from app.features.accounts.auth import require_manager
 from app.features.configuration.runtime_store import (
     read_system_section,
     write_system_section,
@@ -243,7 +243,7 @@ def _write_system_section(section: str, data: Dict[str, Any]) -> Dict[str, Any]:
 @router.get("/{section}")
 async def get_system_section(
     section: str,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> Dict[str, Any]:
     """读取系统设置指定 section。
 
@@ -267,7 +267,7 @@ async def get_system_section(
 async def update_system_section(
     section: str,
     body: Dict[str, Any],
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> Dict[str, Any]:
     """更新系统设置指定 section。
 

@@ -31,6 +31,11 @@ const member = {
   role: "user",
 } satisfies ClientUser
 
+const admin = {
+  ...owner,
+  role: "admin",
+} satisfies ClientUser
+
 const redirects = vi.hoisted(() => ({ assign: vi.fn() }))
 
 function setSession(user: ClientUser | null, loading = false): void {
@@ -61,6 +66,15 @@ describe("MonitorPage", () => {
     expect(container.querySelectorAll("[data-slot='observation-monitor']")).toHaveLength(1)
     expect(screen.getByRole("region", { name: "房间 3D 观察" })).toBeInTheDocument()
     expect(screen.queryByRole("heading")).toBeNull()
+    expect(redirects.assign).not.toHaveBeenCalled()
+  })
+
+  it("fills the product viewport for an Admin", () => {
+    setSession(admin)
+
+    renderMonitor()
+
+    expect(screen.getByRole("region", { name: "房间 3D 观察" })).toBeInTheDocument()
     expect(redirects.assign).not.toHaveBeenCalled()
   })
 

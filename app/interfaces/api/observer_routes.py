@@ -145,7 +145,7 @@ def _registry(request: Request) -> ObserverSessionRegistry:
 
 def _principal(user: Dict[str, Any]) -> ViewerPrincipal:
     role = user.get("role")
-    if role == "owner":
+    if role in {"owner", "admin"}:
         return ViewerPrincipal(user_id=user["user_id"], role="owner")
     if role == "user":
         return ViewerPrincipal(user_id=user["user_id"], role="user")

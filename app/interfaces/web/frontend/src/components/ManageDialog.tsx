@@ -12,6 +12,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Icon } from "./Icon"
+import "./manage-controls.css"
 
 type ManageDialogProps = {
   readonly children: ReactNode
@@ -54,7 +55,7 @@ export function ManageDialog({
           <DialogTitle className="text-[1.375rem] leading-tight">{title}</DialogTitle>
           {description ? <DialogDescription className="leading-relaxed">{description}</DialogDescription> : null}
         </DialogHeader>
-        <div className="grid gap-3.5">{children}</div>
+        <div className="manage-dialog__fields">{children}</div>
         <DialogClose asChild>
           <Button aria-label={t("aria.closeDialog", { title })} className="absolute top-4 right-4" size="icon-sm" type="button" variant="ghost">
             <Icon name="x" size={18} />

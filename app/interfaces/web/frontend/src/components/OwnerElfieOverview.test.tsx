@@ -121,6 +121,21 @@ describe("OwnerElfieOverview", () => {
     expect(vi.mocked(ownerElfies)).toHaveBeenCalledWith({})
   })
 
+  it("orders Elfie cards by ascending numeric ID", async () => {
+    // Given: the backend returns Elfies in a different order than their registration IDs.
+    vi.mocked(ownerElfies).mockResolvedValue([memberElfie, elfie])
+
+    // When: the overview renders.
+    renderWithI18n(<OwnerElfieOverview csrfToken="csrf" onCountChange={vi.fn()} />)
+    const cards = await screen.findAllByRole("article")
+
+    // Then: the oldest/lowest ID is shown first, independent of display name.
+    expect(cards.map((card) => card.querySelectorAll(".elfie-id-card__identity dd")[6]?.textContent)).toEqual([
+      "00000001",
+      "00000002",
+    ])
+  })
+
   it("renders the fixed identity-card fields, food rows, and authoritative status", async () => {
     renderWithI18n(<OwnerElfieOverview csrfToken="csrf" onCountChange={vi.fn()} />)
 

@@ -13,7 +13,7 @@ from ai_runtime.storage.data_home import get_config_path
 from ai_runtime.storage.provider_connections import ProviderConnectionStore
 from ai_runtime.usage.observer import RuntimeEvent, get_runtime_observer
 from ai_runtime.usage.token_tracker import get_token_tracker
-from app.features.accounts.auth import require_owner
+from app.features.accounts.auth import require_manager
 from app.features.configuration.runtime_store import (
     read_runtime_config,
     write_runtime_config,
@@ -98,7 +98,7 @@ def build_runtime_status() -> Dict[str, Any]:
 
 @router.get("/status")
 async def get_runtime_status(
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> Dict[str, Any]:
     _ = owner
     return build_runtime_status()
@@ -106,7 +106,7 @@ async def get_runtime_status(
 
 @router.get("/policy")
 async def get_runtime_policy(
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> Dict[str, Any]:
     _ = owner
     config = _read_runtime_config()
@@ -117,7 +117,7 @@ async def get_runtime_policy(
 @router.put("/policy")
 async def update_runtime_policy(
     body: Dict[str, Any],
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> Dict[str, Any]:
     _ = owner
     current_config = _read_runtime_config()
@@ -132,7 +132,7 @@ async def update_runtime_policy(
 @router.get("/audit")
 async def get_runtime_audit(
     limit: int = 100,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> Dict[str, Any]:
     _ = owner
     bounded_limit = min(max(limit, 1), 500)

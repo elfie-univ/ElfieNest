@@ -19,7 +19,7 @@ import {
 import { describeApiError, resolveLocalizedError, type LocalizedErrorState } from "../i18n/errors"
 import { compareLocalizedText, currentLocale } from "../i18n/format"
 import { ConfirmDialog } from "./ConfirmDialog"
-import { CustomProviderDialog } from "./CustomProviderDialog"
+import { CustomProviderDialog, type CustomProviderPreset } from "./CustomProviderDialog"
 import { Icon } from "./Icon"
 import { ManageDialog } from "./ManageDialog"
 import { ModelMatrixDialog } from "./ModelMatrixDialog"
@@ -36,7 +36,13 @@ type EditTarget = {
   readonly product: ProviderProduct
 }
 
+type OtherSubscriptionOption =
+  | { readonly kind: "catalog"; readonly label: string; readonly product: ProviderProduct; readonly value: string }
+  | { readonly kind: "interface"; readonly label: string; readonly preset: CustomProviderPreset; readonly value: string }
+
 const NO_PRODUCT = "__none__"
+const OPENAI_INTERFACE_OPTION = "__openai_interface__"
+const ANTHROPIC_INTERFACE_OPTION = "__anthropic_interface__"
 const FEATURED_PRODUCT_LIMIT = 8
 
 export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }) {
@@ -48,6 +54,7 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
   const [viewingModels, setViewingModels] = useState<ProviderConnection | null>(null)
   const [deleting, setDeleting] = useState<ProviderConnection | null>(null)
   const [creatingCustom, setCreatingCustom] = useState(false)
+  const [customPreset, setCustomPreset] = useState<CustomProviderPreset>("openai")
   const [otherOpen, setOtherOpen] = useState(false)
   const [otherProductId, setOtherProductId] = useState(NO_PRODUCT)
   const [matrixOpen, setMatrixOpen] = useState(false)
@@ -72,10 +79,18 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
 
   const productsById = useMemo(() => new Map(catalog.map((product) => [product.catalog_id, product])), [catalog])
   const configured = [...connections].sort((left, right) => compareLocalizedText(left.alias, right.alias, locale))
-  const featuredProducts = catalog
+  const featuredProducts = useMemo(() => catalog
     .filter((product) => product.catalog_id !== "ollama" && product.catalog_id !== "custom_openai")
-    .slice(0, FEATURED_PRODUCT_LIMIT)
-  const otherProducts = catalog.filter((product) => product.catalog_id !== "ollama")
+    .slice(0, FEATURED_PRODUCT_LIMIT), [catalog])
+  const featuredProductIds = useMemo(() => new Set(featuredProducts.map((product) => product.catalog_id)), [featuredProducts])
+  const otherProducts = useMemo(() => catalog.filter((product) => product.catalog_id !== "ollama"
+    && product.catalog_id !== "custom_openai"
+    && !featuredProductIds.has(product.catalog_id)), [catalog, featuredProductIds])
+  const otherOptions = useMemo<readonly OtherSubscriptionOption[]>(() => [
+    ...otherProducts.map((product) => ({ kind: "catalog" as const, label: product.name, product, value: product.catalog_id })),
+    { kind: "interface" as const, label: t("providerConnections.other.openaiInterface"), preset: "openai" as const, value: OPENAI_INTERFACE_OPTION },
+    { kind: "interface" as const, label: t("providerConnections.other.anthropicInterface"), preset: "anthropic" as const, value: ANTHROPIC_INTERFACE_OPTION },
+  ], [otherProducts, t])
 
   const save = async (draft: ProviderConnectionUpdate): Promise<void> => {
     if (!editing) return
@@ -153,12 +168,16 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
   }
 
   const chooseOther = (): void => {
-    const product = productsById.get(otherProductId)
-    if (!product) return
+    const option = otherOptions.find((item) => item.value === otherProductId)
+    if (!option) return
     setOtherOpen(false)
     setOtherProductId(NO_PRODUCT)
-    if (product.catalog_id === "custom_openai") setCreatingCustom(true)
-    else setEditing({ connection: null, product })
+    if (option.kind === "catalog") {
+      setEditing({ connection: null, product: option.product })
+      return
+    }
+    setCustomPreset(option.preset)
+    setCreatingCustom(true)
   }
 
   return <section className="manage-card manage-card--wide provider-page">
@@ -186,10 +205,10 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
       <button aria-label={t("providerConnections.actions.addOther")} className="provider-card provider-card--add" onClick={() => setOtherOpen(true)} type="button"><span className="provider-card__add-mark"><Icon name="plus" size={24} /></span><strong>{t("providerConnections.actions.addOther")}</strong></button>
     </div></section>
     <ProviderFormDialog connection={editing?.connection ?? null} onOpenChange={(open) => { if (!open) setEditing(null) }} onSave={save} open={editing !== null} product={editing?.product ?? null} />
-    <CustomProviderDialog onOpenChange={setCreatingCustom} onSave={saveCustom} open={creatingCustom} />
+    <CustomProviderDialog onOpenChange={setCreatingCustom} onSave={saveCustom} open={creatingCustom} preset={customPreset} />
     <ProviderModelsDialog connection={viewingModels} csrfToken={csrfToken} onChanged={load} onOpenChange={(open) => { if (!open) setViewingModels(null) }} open={viewingModels !== null} />
     <ModelMatrixDialog csrfToken={csrfToken} onOpenChange={setMatrixOpen} open={matrixOpen} />
-    <ManageDialog description={t("providerConnections.other.description")} onOpenChange={setOtherOpen} open={otherOpen} title={t("providerConnections.other.title")}><SelectField label={t("providerConnections.other.product")} onValueChange={setOtherProductId} options={[{ label: t("providerConnections.other.placeholder"), value: NO_PRODUCT }, ...otherProducts.map((product) => ({ label: product.name, value: product.catalog_id }))]} value={otherProductId} /><div className="manage-actions"><Button disabled={otherProductId === NO_PRODUCT} onClick={chooseOther} type="button">{t("providerConnections.actions.choose")}</Button><Button onClick={() => setOtherOpen(false)} type="button" variant="outline">{t("providerConnections.actions.cancel")}</Button></div></ManageDialog>
+    <ManageDialog description={t("providerConnections.other.description")} onOpenChange={setOtherOpen} open={otherOpen} title={t("providerConnections.other.title")}><SelectField label={t("providerConnections.other.product")} onValueChange={setOtherProductId} options={[{ label: t("providerConnections.other.placeholder"), value: NO_PRODUCT }, ...otherOptions.map(({ label, value }) => ({ label, value }))]} value={otherProductId} /><div className="manage-actions"><Button disabled={otherProductId === NO_PRODUCT} onClick={chooseOther} type="button">{t("providerConnections.actions.choose")}</Button><Button onClick={() => setOtherOpen(false)} type="button" variant="outline">{t("providerConnections.actions.cancel")}</Button></div></ManageDialog>
     <ConfirmDialog confirmLabel={t("providerConnections.delete.confirm")} danger description={deleting ? t("providerConnections.delete.description", { name: deleting.alias }) : t("providerConnections.delete.descriptionGeneric")} onConfirm={() => { void remove() }} onOpenChange={(open) => { if (!open && pending === null) setDeleting(null) }} open={deleting !== null} pending={pending?.startsWith("delete:") ?? false} title={t("providerConnections.delete.title")} />
   </section>
 }

@@ -39,6 +39,19 @@ describe("localized login", () => {
     vi.restoreAllMocks()
   })
 
+  it("keeps the compact language switcher in the login frame instead of the card", () => {
+    // Given: the login page is rendered in its default Chinese locale.
+    renderLogin("zh-CN")
+
+    // When: the persistent language control is located.
+    const localeControl = screen.getByRole("region", { name: "语言" })
+
+    // Then: it is outside the card and the card has no language field of its own.
+    expect(localeControl).toContainElement(screen.getByRole("combobox", { name: "语言" }))
+    expect(localeControl.closest(".login")).toBeNull()
+    expect(document.querySelector(".login [data-language-switcher]")).toBeNull()
+  })
+
   it("keeps the safe destination and live form state when switching to English", async () => {
     // Given: a filled Chinese login form is submitting to an allowed local page.
     const user = userEvent.setup()

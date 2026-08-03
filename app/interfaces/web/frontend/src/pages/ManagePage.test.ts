@@ -20,7 +20,7 @@ const session = vi.hoisted(() => ({
     default_landing_page: "manage" as const,
     account_id: "admin123",
     display_name: "阿尔法",
-    role: "owner" as const,
+    role: "owner" as "owner" | "admin",
     theme_key: "warm-paper" as const,
     user_id: 1,
   },
@@ -73,6 +73,17 @@ describe("ManagePage", () => {
     expect(screen.getByRole("heading", { level: 1, name: "状态监控" })).toBeInTheDocument()
     expect(screen.queryByText("默认打开页面")).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "保存默认页" })).not.toBeInTheDocument()
+  })
+
+  it("allows an Admin to render the management surface", () => {
+    session.user.role = "admin"
+
+    renderManagePage("monitor")
+
+    expect(screen.getByRole("heading", { level: 1, name: "状态监控" })).toBeInTheDocument()
+    expect(window.location.pathname).toBe("/manage")
+
+    session.user.role = "owner"
   })
 
   it("renders one page title without the repeated eyebrow and fixed Owner subtitle", () => {

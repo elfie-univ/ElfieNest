@@ -191,8 +191,8 @@ class TestUserCRUD:
         )
         assert resp.status_code == 422
 
-    def test_update_user_role(self, client: TestClient) -> None:
-        """PUT 修改用户 role。"""
+    def test_user_role_update_route_is_removed(self, client: TestClient) -> None:
+        """账号角色不提供 HTTP 升降级入口。"""
         tokens = _login_owner(client)
         resp = client.post(
             "/api/owner/users",
@@ -201,7 +201,6 @@ class TestUserCRUD:
         )
         user_id = resp.json()["user_id"]
 
-        # 不允许再创建第二个Owner角色。
         resp = client.put(
             f"/api/owner/users/{user_id}",
             json={"role": "owner"},
@@ -230,7 +229,7 @@ class TestUserCRUD:
         assert alice["presence"] == "offline"
         assert alice["avatar_url"] is None
 
-    def test_update_user_only_accepts_quota_override(self, client: TestClient) -> None:
+    def test_member_profile_update_route_is_removed(self, client: TestClient) -> None:
         tokens = _login_owner(client)
         created = client.post(
             "/api/owner/users",
@@ -238,25 +237,42 @@ class TestUserCRUD:
             headers=_headers(tokens["csrf_token"]),
         ).json()
 
-        updated = client.put(
-            f"/api/owner/users/{created['user_id']}",
-            json={"elfie_quota_override": 6},
-            headers=_headers(tokens["csrf_token"]),
-        )
-        forbidden = client.put(
+        response = client.put(
             f"/api/owner/users/{created['user_id']}",
             json={"account_id": "renamed", "password": "new-pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         )
+
+        assert response.status_code == 422
+
+    def test_update_user_only_accepts_quota_override(self, client: TestClient) -> None:
+        tokens = _login_owner(client)
+        created = client.post(
+            "/api/owner/users",
+            json={"account_id": "alice", "password": "pass123", "role": "user"},
+            headers=_headers(tokens["csrf_token"]),
+        ).json()
+        headers = _headers(tokens["csrf_token"])
+
+        updated = client.put(
+            f"/api/owner/users/{created['user_id']}",
+            json={"elfie_quota_override": 8},
+            headers=headers,
+        )
+        forbidden = client.put(
+            f"/api/owner/users/{created['user_id']}",
+            json={"account_id": "renamed", "password": "new-pass123", "role": "user"},
+            headers=headers,
+        )
         out_of_range = client.put(
             f"/api/owner/users/{created['user_id']}",
             json={"elfie_quota_override": 33},
-            headers=_headers(tokens["csrf_token"]),
+            headers=headers,
         )
 
         assert updated.status_code == 200
-        assert updated.json()["elfie_quota_override"] == 6
-        assert updated.json()["effective_elfie_limit"] == 6
+        assert updated.json()["elfie_quota_override"] == 8
+        assert updated.json()["effective_elfie_limit"] == 8
         assert forbidden.status_code == 422
         assert out_of_range.status_code == 422
 
@@ -314,7 +330,7 @@ class TestUserCRUD:
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 403
-        assert "Owner" in resp.text
+        assert "只能管理低于当前角色" in resp.text
 
     def test_delete_nonexistent_user_404(self, client: TestClient) -> None:
         """删除不存在的用户 → 404。"""

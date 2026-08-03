@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
@@ -25,7 +25,14 @@ const owner = {
   user_id: 1,
 } satisfies ClientUser
 
-function renderLocalized(locale: SupportedLocale, panel = false): void {
+const admin = {
+  ...owner,
+  account_id: "admin01",
+  display_name: "管理员",
+  role: "admin",
+} satisfies ClientUser
+
+function renderLocalized(locale: SupportedLocale, panel = false, onLoggedOut?: () => void, user: ClientUser = owner): void {
   const instance = createI18n()
   initializeLocale(instance, {
     browserLanguages: [locale],
@@ -35,8 +42,8 @@ function renderLocalized(locale: SupportedLocale, panel = false): void {
   render(
     <I18nextProvider i18n={instance}>
       {panel
-        ? <AccountMenuPanel onClose={() => undefined} onUpdated={async () => undefined} user={owner} />
-        : <AccountMenu onUpdated={async () => undefined} user={owner} />}
+        ? <AccountMenuPanel onClose={() => undefined} onUpdated={async () => undefined} user={user} {...(onLoggedOut === undefined ? {} : { onLoggedOut })} />
+        : <AccountMenu onUpdated={async () => undefined} user={user} />}
     </I18nextProvider>,
   )
 }
@@ -83,6 +90,50 @@ describe("AccountMenu", () => {
     expect(screen.queryByText("个人设置")).not.toBeInTheDocument()
     expect(screen.getAllByLabelText("上传本地头像")).toHaveLength(2)
     expect(screen.queryByLabelText("显示名称")).not.toBeInTheDocument()
+  })
+
+  it("shows the Admin role and manager landing preference", async () => {
+    const user = userEvent.setup()
+    renderLocalized("en-US", false, undefined, admin)
+
+    await user.click(screen.getByRole("button", { name: /管理员/ }))
+
+    expect(screen.getAllByText("Admin")).toHaveLength(2)
+    await user.click(screen.getByRole("button", { name: /Default landing page/ }))
+    expect(screen.getByRole("button", { name: "Save default page" })).toBeInTheDocument()
+  })
+
+  it("keeps logout as the final account action", async () => {
+    // Given: the account menu is open for the current owner.
+    const user = userEvent.setup()
+    renderLocalized("zh-CN")
+    await user.click(screen.getByRole("button", { name: /阿尔法/ }))
+
+    // When: the menu actions are inspected.
+    const panel = screen.getByRole("region", { name: "个人与外观设置" })
+    const logoutButton = screen.getByRole("button", { name: "退出登录" })
+
+    // Then: logout is visually separated and placed after every preference row.
+    expect(logoutButton.closest(".account-menu__session")).not.toBeNull()
+    expect(panel.lastElementChild).toContainElement(logoutButton)
+  })
+
+  it("revokes the current session before returning to login", async () => {
+    // Given: logout succeeds before the browser is returned to the login page.
+    const user = userEvent.setup()
+    const onLoggedOut = vi.fn()
+    kyMock.mockResolvedValue(new Response("{}", {
+      headers: { "Content-Type": "application/json" },
+      status: 200,
+    }))
+    renderLocalized("zh-CN", true, onLoggedOut)
+
+    // When: the final session action is activated.
+    await user.click(screen.getByRole("button", { name: "退出登录" }))
+
+    // Then: the authenticated session is revoked through the canonical endpoint.
+    await waitFor(() => expect(kyMock).toHaveBeenCalledWith("/api/auth/logout", expect.objectContaining({ method: "POST" })))
+    expect(onLoggedOut).toHaveBeenCalledOnce()
   })
 
   it("edits the complete identity projection after a second confirmation", async () => {

@@ -10,6 +10,9 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
+from fastapi import HTTPException
+
 # store.py 和 auth.py 导出的是相同的函数
 from app.features.accounts.auth import (
     RateLimiter,
@@ -17,6 +20,8 @@ from app.features.accounts.auth import (
     delete_session,
     generate_csrf_token,
     hash_password,
+    require_manager,
+    require_owner,
     verify_csrf_token,
     verify_password,
     verify_session,
@@ -25,6 +30,25 @@ from app.infrastructure.persistence.store import get_db, init_db
 from app.infrastructure.persistence.store import hash_password as store_hash
 from app.infrastructure.persistence.store import verify_password as store_verify
 from test.app.interfaces.api._helpers import create_test_owner
+
+
+def test_require_manager_accepts_owner_and_admin_but_rejects_user() -> None:
+    owner = {"role": "owner"}
+    admin = {"role": "admin"}
+    user = {"role": "user"}
+
+    assert require_manager(owner) is owner
+    assert require_manager(admin) is admin
+    with pytest.raises(HTTPException) as error:
+        require_manager(user)
+    assert error.value.status_code == 403
+
+
+def test_require_owner_remains_owner_only() -> None:
+    with pytest.raises(HTTPException) as error:
+        require_owner({"role": "admin"})
+    assert error.value.status_code == 403
+
 
 # ===================================================================
 # 密码哈希

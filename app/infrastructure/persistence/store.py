@@ -141,9 +141,15 @@ def _reject_legacy_root(database_path: Path) -> None:
                     "SELECT name FROM sqlite_master WHERE type = 'table'"
                 )
             }
+            users_sql_row = connection.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='users'"
+            ).fetchone()
     except sqlite3.DatabaseError as error:
         raise LegacyDataRootError from error
     if tables != _FINAL_TABLES:
+        raise LegacyDataRootError
+    users_sql = "" if users_sql_row is None else str(users_sql_row[0] or "")
+    if "roleIN('owner','user')" in "".join(users_sql.split()):
         raise LegacyDataRootError
 
 

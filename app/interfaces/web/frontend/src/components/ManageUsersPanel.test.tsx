@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   ApiError,
@@ -54,25 +54,48 @@ const owner: OwnerUser = {
   language: "en-US",
   avatar_url: null,
 }
+const admin: OwnerUser = {
+  ...member,
+  user_id: 2,
+  account_id: "admin02",
+  display_name: "Admin",
+  role: "admin",
+  avatar_url: null,
+}
 
-function renderPanel(locale: SupportedLocale = "zh-CN") {
+function renderPanel(locale: SupportedLocale = "zh-CN", actorRole: "owner" | "admin" = "owner") {
   const instance = createI18n()
   void instance.changeLanguage(locale)
   document.documentElement.lang = locale
   return {
     instance,
-    ...render(<I18nextProvider i18n={instance}><ManageUsersPanel csrfToken="csrf" /></I18nextProvider>),
+    ...render(<I18nextProvider i18n={instance}><ManageUsersPanel actorRole={actorRole} csrfToken="csrf" /></I18nextProvider>),
   }
 }
 
+function cardForAccount(cards: readonly HTMLElement[], accountId: string): HTMLElement | undefined {
+  return cards.find((card) => card.querySelectorAll(".user-id-card__identity > div dd")[2]?.textContent === accountId)
+}
+
+function accountIdForCard(card: HTMLElement): string | undefined {
+  return card.querySelectorAll(".user-id-card__identity > div dd")[2]?.textContent ?? undefined
+}
+
 describe("ManageUsersPanel real-data states", () => {
+  beforeAll(() => {
+    Element.prototype.hasPointerCapture = vi.fn(() => false)
+    Element.prototype.setPointerCapture = vi.fn()
+    Element.prototype.releasePointerCapture = vi.fn()
+    Element.prototype.scrollIntoView = vi.fn()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(ownerUsers).mockResolvedValue([owner, member])
     vi.mocked(createManagedUser).mockResolvedValue(member)
-    vi.mocked(updateManagedUser).mockResolvedValue(member)
     vi.mocked(resetManagedUserPassword).mockResolvedValue({ temporary_password: "Temp12345678" })
     vi.mocked(deleteManagedUser).mockResolvedValue()
+    vi.mocked(updateManagedUser).mockResolvedValue(member)
   })
 
   it("shows loading and then a genuine empty state without demo cards", async () => {
@@ -91,7 +114,7 @@ describe("ManageUsersPanel real-data states", () => {
     expect(screen.queryByText("管理员")).not.toBeInTheDocument()
   })
 
-  it("renders canonical values and makes every Owner mutation read-only", async () => {
+  it("renders canonical values and hides only the Owner self action row", async () => {
     // Given/When: canonical Owner and member records load.
     renderPanel()
     const cards = await screen.findAllByRole("article")
@@ -118,10 +141,30 @@ describe("ManageUsersPanel real-data states", () => {
     expect(within(memberCard).queryByText("7")).not.toBeInTheDocument()
     const ownerCard = cards.find((card) => within(card).queryAllByText("Owner").length > 0)
     if (!(ownerCard instanceof HTMLElement)) throw new TypeError("Expected Owner card")
-    for (const name of ["编辑 owner01", "重置密码 owner01", "删除用户 owner01"]) {
-      expect(within(ownerCard).getByRole("button", { name })).toBeDisabled()
+    expect(within(ownerCard).queryByRole("button")).not.toBeInTheDocument()
+    expect(ownerCard.querySelector(".user-id-card__actions")).not.toBeInTheDocument()
+    const memberActions = memberCard.querySelector(".user-id-card__actions")
+    if (!(memberActions instanceof HTMLElement)) throw new TypeError("Expected member actions")
+    for (const name of ["编辑 member01", "重置密码 member01", "删除用户 member01"]) {
+      expect(within(memberActions).getByRole("button", { name })).toBeEnabled()
     }
-    expect(within(ownerCard).getByText("Owner 账户只能在个人设置中管理。")).toBeInTheDocument()
+  })
+
+  it("orders cards by role and then ascending numeric user ID", async () => {
+    // Given: the API returns records in an arbitrary order, including two Users.
+    vi.mocked(ownerUsers).mockResolvedValue([
+      member,
+      admin,
+      { ...member, user_id: 3, account_id: "member03" },
+      owner,
+    ])
+
+    // When: the user list renders.
+    renderPanel()
+    const cards = await screen.findAllByRole("article")
+
+    // Then: role groups are fixed and IDs are ascending within each group.
+    expect(cards.map(accountIdForCard)).toEqual(["owner01", "admin02", "member03", "member01"])
   })
 
   it("creates a user with account ID, optional display name, and password", async () => {
@@ -141,27 +184,85 @@ describe("ManageUsersPanel real-data states", () => {
 
     // Then: the API receives exactly those identity fields.
     await waitFor(() => {
-      expect(createManagedUser).toHaveBeenCalledWith("member02", "Member Two", "secret", "csrf")
+      expect(createManagedUser).toHaveBeenCalledWith("member02", "Member Two", "secret", "user", "csrf")
     })
   })
 
-  it("uses a numeric user ID for quota and delete mutations", async () => {
+  it("edits only the Elfie limit and uses a numeric user ID", async () => {
     // Given: a member card is loaded.
     const user = userEvent.setup()
     renderPanel()
 
-    // When: quota is saved and deletion is confirmed.
+    // When: the limit editor is opened and the new limit is saved.
     await user.click(await screen.findByRole("button", { name: "编辑 member01" }))
     const quota = screen.getByRole("spinbutton", { name: "精灵上限" })
     await user.clear(quota)
     await user.type(quota, "6")
     await user.click(screen.getByRole("button", { name: "保存 member01" }))
-    await user.click(await screen.findByRole("button", { name: "删除用户 member01" }))
-    await user.click(screen.getByRole("button", { name: "确认移除" }))
 
-    // Then: both mutations receive the backend numeric identity.
-    expect(updateManagedUser).toHaveBeenCalledWith(7, { elfie_quota_override: 6 }, "csrf")
-    expect(deleteManagedUser).toHaveBeenCalledWith(7, "csrf")
+    // Then: only the quota mutation crosses the backend boundary.
+    await waitFor(() => expect(updateManagedUser).toHaveBeenCalledWith(7, { elfie_quota_override: 6 }, "csrf"))
+    expect(deleteManagedUser).not.toHaveBeenCalled()
+  })
+
+  it("lets an Owner create an Admin and keeps an Admin actor read-only for peer cards", async () => {
+    const user = userEvent.setup()
+    vi.mocked(ownerUsers).mockResolvedValue([owner, admin, member])
+    const ownerPanel = renderPanel("zh-CN", "owner")
+
+    await user.click(await screen.findByRole("button", { name: "添加用户" }))
+    await user.click(screen.getByRole("combobox", { name: "角色" }))
+    await user.click(screen.getByRole("option", { name: "Admin" }))
+    expect(screen.getByRole("combobox", { name: "角色" })).toHaveTextContent("Admin")
+
+    await user.click(screen.getByRole("button", { name: "取消" }))
+    ownerPanel.unmount()
+    renderPanel("zh-CN", "admin")
+    const cards = await screen.findAllByRole("article")
+    const adminCard = cardForAccount(cards, "admin02")
+    if (!(adminCard instanceof HTMLElement)) throw new TypeError("Expected Admin card")
+    expect(within(adminCard).queryByRole("button")).not.toBeInTheDocument()
+    const memberCard = cardForAccount(cards, "member01")
+    if (!(memberCard instanceof HTMLElement)) throw new TypeError("Expected member card")
+    for (const name of ["编辑 member01", "重置密码 member01", "删除用户 member01"]) {
+      expect(within(memberCard).getByRole("button", { name })).toBeEnabled()
+    }
+  })
+
+  it("hides the entire action row for an Admin actor on Owner and peer Admin cards", async () => {
+    const user = userEvent.setup()
+    vi.mocked(ownerUsers).mockResolvedValue([owner, admin, member])
+    renderPanel("zh-CN", "admin")
+
+    const cards = await screen.findAllByRole("article")
+    for (const accountId of ["owner01", "admin02"]) {
+      const card = cardForAccount(cards, accountId)
+      if (!(card instanceof HTMLElement)) throw new TypeError(`Expected ${accountId} card`)
+      expect(card.querySelector(".user-id-card__actions")).not.toBeInTheDocument()
+    }
+    const memberCard = cardForAccount(cards, "member01")
+    if (!(memberCard instanceof HTMLElement)) throw new TypeError("Expected member card")
+    for (const name of ["编辑 member01", "重置密码 member01", "删除用户 member01"]) {
+      expect(within(memberCard).getByRole("button", { name })).toBeEnabled()
+    }
+  })
+
+  it("filters the member cards by role without refetching or changing the loaded records", async () => {
+    // Given: the loaded member list contains one account for each role.
+    const user = userEvent.setup()
+    vi.mocked(ownerUsers).mockResolvedValue([owner, admin, member])
+    renderPanel()
+
+    // When: the shared management filter is changed to Admin.
+    await user.click(await screen.findByRole("combobox", { name: "角色" }))
+    await user.click(screen.getByRole("option", { name: "Admin" }))
+
+    // Then: only the selected role remains visible and the backend list is not reloaded.
+    expect(await screen.findAllByRole("article")).toHaveLength(1)
+    expect(screen.getByText("admin02")).toBeInTheDocument()
+    expect(screen.queryByText("owner01")).not.toBeInTheDocument()
+    expect(screen.queryByText("member01")).not.toBeInTheDocument()
+    expect(ownerUsers).toHaveBeenCalledTimes(1)
   })
 
   it("shows, copies, and clears a temporary password after reset", async () => {
@@ -209,5 +310,16 @@ describe("ManageUsersPanel real-data states", () => {
     // Then: copy failure is localized and plaintext remains only in the open result dialog.
     expect(screen.getByRole("alert")).toHaveTextContent("Unable to copy the temporary password.")
     expect(screen.getByText("Temp12345678")).toBeInTheDocument()
+  })
+
+  it("places the create form inside the shared dialog fields container", async () => {
+    const user = userEvent.setup()
+    renderPanel()
+
+    await user.click(await screen.findByRole("button", { name: "添加用户" }))
+    const form = screen.getByRole("dialog", { name: "添加本地用户" }).querySelector("form")
+    if (!(form instanceof HTMLFormElement)) throw new TypeError("Expected create form")
+    expect(form).toHaveClass("manage-dialog__form")
+    expect(form.parentElement).toHaveClass("manage-dialog__fields")
   })
 })

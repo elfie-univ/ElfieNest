@@ -15,7 +15,7 @@ from fastapi.responses import (
 from app.features.accounts.auth import (
     AuthenticatedUser,
     get_current_user,
-    require_owner,
+    require_manager,
 )
 from app.features.setup.service import needs_setup
 from app.interfaces.api.service_access import LOOPBACK_HOSTS, ServiceMode
@@ -43,7 +43,7 @@ def safe_next_path(raw_next: Optional[str]) -> Optional[str]:
 
 def default_landing_path(user: Mapping[str, Any]) -> str:
     """Resolve the current role's server-enforced default landing page."""
-    if user.get("role") == "owner":
+    if user.get("role") in {"owner", "admin"}:
         preference = user.get("default_landing_page")
         if preference == "chat":
             return "/chat"
@@ -54,9 +54,9 @@ def default_landing_path(user: Mapping[str, Any]) -> str:
 def post_login_landing_path(user: Mapping[str, Any], raw_next: Optional[str]) -> str:
     """Resolve login landing without letting generic chat redirects steal Owner flow."""
     safe_next = safe_next_path(raw_next)
-    if user.get("role") == "owner" and safe_next == "/manage":
+    if user.get("role") in {"owner", "admin"} and safe_next == "/manage":
         return "/manage"
-    if user.get("role") == "owner" and safe_next == "/monitor":
+    if user.get("role") in {"owner", "admin"} and safe_next == "/monitor":
         return "/monitor"
     if user.get("role") == "user" and safe_next == "/chat":
         return "/chat"
@@ -166,26 +166,26 @@ async def chat_page(request: Request) -> Response:
 
 @router.get("/manage")
 async def manage_page(request: Request) -> Response:
-    """Enforce the Owner-only management landing route on the server."""
+    """Enforce the manager-only management landing route on the server."""
     if needs_setup(request.app.state.db_path):
         return RedirectResponse("/setup", status_code=303)
     user = _current_page_user(request)
     if user is None:
         return _login_redirect("/manage")
-    if user.get("role") != "owner":
+    if user.get("role") not in {"owner", "admin"}:
         return RedirectResponse("/chat", status_code=303)
     return _serve_generated_page(request)
 
 
 @router.get("/monitor")
 async def monitor_page(request: Request) -> Response:
-    """Enforce the Owner-only monitor landing route on the server."""
+    """Enforce the manager-only monitor landing route on the server."""
     if needs_setup(request.app.state.db_path):
         return RedirectResponse("/setup", status_code=303)
     user = _current_page_user(request)
     if user is None:
         return _login_redirect("/monitor")
-    if user.get("role") != "owner":
+    if user.get("role") not in {"owner", "admin"}:
         return RedirectResponse("/chat", status_code=303)
     return _serve_generated_page(request)
 
@@ -193,10 +193,10 @@ async def monitor_page(request: Request) -> Response:
 @router.get("/api/owner/mobile-access")
 async def owner_mobile_access(
     request: Request,
-    owner: Dict[str, Any] = Depends(require_owner),  # noqa: B008
+    manager: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> Dict[str, Any]:
     """Return only the LAN URLs that the active Core listener can serve."""
-    _ = owner
+    _ = manager
     policy = request.app.state.service_access_policy
     if policy.mode is not ServiceMode.LAN:
         return {"available": False, "urls": []}

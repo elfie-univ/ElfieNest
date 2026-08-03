@@ -68,7 +68,7 @@ Runtime frames, authority credentials or simulation controls. Local presentation
 pause is an Observer input/presentation state only: it must never pause the
 Runtime, Gateway, Core or backend simulation.
 
-`/monitor` is an Owner-only full observation page. The Owner Nest-management
+`/monitor` is an Owner/Admin full observation page. The Owner/Admin Nest-management
 dialog embeds the same `ObservationMonitor` surface and bridge rather than a
 separate camera implementation.
 

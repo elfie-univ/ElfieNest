@@ -8,6 +8,7 @@ import {
   type OwnerElfieFilters,
   type OwnerUser,
 } from "../api/client"
+import { compareAccountListOrder } from "../api/roles"
 import { describeApiError, resolveLocalizedError, type LocalizedErrorState } from "../i18n/errors"
 import { compareLocalizedText, currentLocale } from "../i18n/format"
 import { ElfieIdentityCard } from "./ElfieIdentityCard"
@@ -52,6 +53,10 @@ function toApiFilters(selection: FilterSelection): OwnerElfieFilters {
 
 function hasFilters(filters: OwnerElfieFilters): boolean {
   return Object.values(filters).some((value) => value !== undefined)
+}
+
+function compareElfieId(left: OwnerElfie, right: OwnerElfie): number {
+  return Number.parseInt(left.elfie_id, 10) - Number.parseInt(right.elfie_id, 10)
 }
 
 export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverviewProps) {
@@ -132,8 +137,8 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
   const species = [...new Set(loadedElfies.map((elfie) => elfie.profile.species_id))].sort((left, right) => compareLocalizedText(left, right, locale))
   const foods = [...new Set(loadedElfies.map((elfie) => elfie.food_policy.effective_main_food_id))].sort((left, right) => compareLocalizedText(left, right, locale))
   const states = [...new Set(loadedElfies.map((elfie) => elfie.profile.embodiment.state))].sort((left, right) => compareLocalizedText(left, right, locale))
-  const orderedUsers = [...loadedUsers].sort((left, right) => compareLocalizedText(left.display_name ?? left.account_id, right.display_name ?? right.account_id, locale))
-  const orderedElfies = [...elfies].sort((left, right) => compareLocalizedText(left.profile.name, right.profile.name, locale))
+  const orderedUsers = [...loadedUsers].sort(compareAccountListOrder)
+  const orderedElfies = [...elfies].sort(compareElfieId)
   const loading = users === null || allElfies === null
   const updateOwner = (value: string): void => {
     if (value === ALL_USERS) {

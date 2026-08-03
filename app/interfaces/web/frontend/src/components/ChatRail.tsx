@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button"
 import { useTranslation } from "react-i18next"
 
 import type { ClientUser } from "../api/client"
+import { isManagerRole } from "../api/roles"
 import type { ChatPane } from "../pages/use-chat-view"
 import { AccountMenu } from "./AccountMenu"
 import { Icon } from "./Icon"
@@ -24,7 +25,7 @@ export function ChatRail({ activePane, onMobileAccess, onOpenSection, onUpdated,
       </nav>
       <div className="rail-bottom">
         <div className="rail-quick-actions">
-          {user.role === "owner" ? (
+          {isManagerRole(user.role) ? (
             <>
               <Button asChild className="rail-button rail-button--manage" data-tooltip={t("navigation.manage")} size="icon" variant="ghost"><a aria-label={t("navigation.manage")} href="/manage"><Icon name="house" /></a></Button>
               <Button asChild className="rail-button" data-tooltip={t("navigation.monitor")} size="icon" variant="ghost"><a aria-label={t("navigation.monitor")} href="/monitor"><Icon name="cctv" /></a></Button>

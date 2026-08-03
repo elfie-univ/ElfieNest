@@ -24,7 +24,7 @@ def _accessible_elfie(
     repository = ElfieRepository(request.app.state.db_path)
     record = (
         repository.get(elfie_id)
-        if user.get("role") == "owner"
+        if user.get("role") in {"owner", "admin"}
         else repository.get_for_owner(elfie_id, owner_user_id=user["user_id"])
     )
     if record is None:
