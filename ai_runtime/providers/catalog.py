@@ -85,11 +85,20 @@ class EndpointModelHint:
 
 
 @dataclass(frozen=True)
+class OllamaModelRecommendation:
+    """One local Ollama model and whether Setup should emphasize it."""
+
+    model_id: str
+    recommended: bool
+
+
+@dataclass(frozen=True)
 class ProviderCatalog:
     version: int
     brands: Dict[str, ProviderBrand]
     products: Dict[str, ProviderProfile]
     endpoint_model_hints: tuple[EndpointModelHint, ...]
+    ollama_recommended_models: tuple[OllamaModelRecommendation, ...]
     source: Path
 
     @property
@@ -165,6 +174,11 @@ def _parse_catalog(document: Mapping[str, Any], source: Path) -> ProviderCatalog
     raw_products = document.get("products")
     if not isinstance(raw_products, Mapping) or not raw_products:
         raise ProviderCatalogError(f"Provider catalog has no products: {source}")
+    ollama_recommended_models = _parse_ollama_recommendations(
+        document.get("ollama_recommended_models", ()),
+        source,
+    )
+    ollama_model_ids = [item.model_id for item in ollama_recommended_models]
 
     products: Dict[str, ProviderProfile] = {}
     legacy_ids: set[str] = set()
@@ -182,6 +196,7 @@ def _parse_catalog(document: Mapping[str, Any], source: Path) -> ProviderCatalog
             raw_profile,
             brands,
             source,
+            fallback_models=ollama_model_ids if catalog_id == "ollama" else None,
         )
         if profile.legacy_provider_id in legacy_ids:
             raise ProviderCatalogError(
@@ -206,6 +221,7 @@ def _parse_catalog(document: Mapping[str, Any], source: Path) -> ProviderCatalog
         brands=brands,
         products=products,
         endpoint_model_hints=hints,
+        ollama_recommended_models=ollama_recommended_models,
         source=source,
     )
 
@@ -215,6 +231,8 @@ def _parse_profile(
     raw: Mapping[str, Any],
     brands: Mapping[str, ProviderBrand],
     source: Path,
+    *,
+    fallback_models: list[str] | None = None,
 ) -> ProviderProfile:
     brand_id = _required_string(raw, "brand_id", catalog_id, source)
     if brand_id not in brands:
@@ -295,6 +313,8 @@ def _parse_profile(
         )
 
     raw_models = raw.get("bundled_models")
+    if raw_models is None and fallback_models:
+        raw_models = fallback_models
     if not isinstance(raw_models, list):
         raise ProviderCatalogError(
             f"Provider {catalog_id!r} bundled_models must be a list: {source}"
@@ -322,6 +342,38 @@ def _parse_profile(
         usage_scope=usage_scope,  # type: ignore[arg-type]
         discovery_strategy=discovery_strategy,  # type: ignore[arg-type]
     )
+
+
+def _parse_ollama_recommendations(
+    raw: Any,
+    source: Path,
+) -> tuple[OllamaModelRecommendation, ...]:
+    if raw in (None, ()):
+        return ()
+    if not isinstance(raw, list):
+        raise ProviderCatalogError(
+            f"ollama_recommended_models must be a list: {source}"
+        )
+    recommendations: list[OllamaModelRecommendation] = []
+    seen: set[str] = set()
+    for item in raw:
+        if not isinstance(item, Mapping):
+            raise ProviderCatalogError(
+                f"Ollama recommendation must be an object: {source}"
+            )
+        model_id = str(item.get("id") or "").strip()
+        recommended = item.get("recommended")
+        if not model_id or model_id in seen or not isinstance(recommended, bool):
+            raise ProviderCatalogError(f"Invalid Ollama recommendation: {source}")
+        seen.add(model_id)
+        recommendations.append(
+            OllamaModelRecommendation(model_id=model_id, recommended=recommended)
+        )
+    if recommendations and sum(item.recommended for item in recommendations) != 1:
+        raise ProviderCatalogError(
+            f"Ollama recommendations must have exactly one recommended model: {source}"
+        )
+    return tuple(recommendations)
 
 
 def _parse_hint(raw: Any, source: Path) -> EndpointModelHint:

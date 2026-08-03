@@ -22,11 +22,6 @@ type SetupError =
   | { readonly kind: "local"; readonly key: "errors.bedCount" | "errors.passwordMismatch" }
 
 const setupStepNumbers: readonly SetupStepNumber[] = [1, 2, 3, 4]
-const fallbackModels: readonly SetupModelOption[] = [
-  { model_id: "qwen2.5:0.5b", label: "qwen2.5:0.5b（推荐）", approx_download_mb: 398, recommended: true },
-  { model_id: "qwen3.5:0.8b", label: "qwen3.5:0.8b", approx_download_mb: 1024, recommended: false },
-  { model_id: "gemma3:270m", label: "gemma3:270m", approx_download_mb: 292, recommended: false },
-]
 
 function normalizeStep(value: number): SetupStepNumber {
   return value === 1 || value === 2 || value === 3 ? value : 4
@@ -43,14 +38,14 @@ export function SetupPage() {
   const { i18n, t } = useTranslation("setup")
   const { t: commonT } = useTranslation("common")
   const [progress, setProgress] = useState<SetupStatus | null>(null)
-  const [catalog, setCatalog] = useState<readonly SetupModelOption[]>(fallbackModels)
+  const [catalog, setCatalog] = useState<readonly SetupModelOption[]>([])
   const [step, setStep] = useState<SetupStepNumber>(1)
   const [accountId, setAccountId] = useState("")
   const [displayName, setDisplayName] = useState("")
   const [password, setPassword] = useState("")
   const [passwordConfirmation, setPasswordConfirmation] = useState("")
   const [useLocalOllama, setUseLocalOllama] = useState(true)
-  const [modelId, setModelId] = useState("qwen2.5:0.5b")
+  const [modelId, setModelId] = useState("")
   const [bedCount, setBedCount] = useState(4)
   const [csrfToken, setCsrfToken] = useState("")
   const [error, setError] = useState<SetupError | null>(null)
@@ -79,6 +74,8 @@ export function SetupPage() {
         const [status, models] = await Promise.all([setupStatus(), setupModelCatalog()])
         if (cancelled) return
         setCatalog(models)
+        if (status.draft.model_id !== null) setModelId(status.draft.model_id)
+        else if (models[0] !== undefined) setModelId(models[0].model_id)
         applyStatus(status)
       } catch (reason: unknown) {
         if (!cancelled) setError(setupError(reason, "setup.load"))

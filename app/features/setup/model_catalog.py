@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Final
 
+from ai_runtime.providers.profiles import PROVIDER_CATALOG
+
 
 @dataclass(frozen=True)
 class SetupModelOption:
@@ -16,24 +18,26 @@ class SetupModelOption:
     recommended: bool = False
 
 
-SETUP_MODEL_CATALOG: Final[tuple[SetupModelOption, ...]] = (
-    SetupModelOption(
-        model_id="qwen2.5:0.5b",
-        label="qwen2.5:0.5b（推荐）",
-        approx_download_mb=398,
-        recommended=True,
-    ),
-    SetupModelOption(
-        model_id="qwen3.5:0.8b",
-        label="qwen3.5:0.8b",
-        approx_download_mb=1024,
-    ),
-    SetupModelOption(
-        model_id="gemma3:270m",
-        label="gemma3:270m",
-        approx_download_mb=292,
-    ),
-)
+_APPROX_DOWNLOAD_MB_BY_MODEL: Final[dict[str, int]] = {
+    "qwen2.5:0.5b": 398,
+    "qwen3.5:0.8b": 1024,
+    "gemma3:270m": 292,
+}
+
+
+def _build_setup_model_catalog() -> tuple[SetupModelOption, ...]:
+    return tuple(
+        SetupModelOption(
+            model_id=item.model_id,
+            label=f"{item.model_id}（推荐）" if item.recommended else item.model_id,
+            approx_download_mb=_APPROX_DOWNLOAD_MB_BY_MODEL[item.model_id],
+            recommended=item.recommended,
+        )
+        for item in PROVIDER_CATALOG.ollama_recommended_models
+    )
+
+
+SETUP_MODEL_CATALOG: Final[tuple[SetupModelOption, ...]] = _build_setup_model_catalog()
 
 _SETUP_MODELS_BY_ID: Final[dict[str, SetupModelOption]] = {
     option.model_id: option for option in SETUP_MODEL_CATALOG
