@@ -106,6 +106,28 @@ _TABLE_STATEMENTS: Final = (
         last_error TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )""",
+    """CREATE TABLE IF NOT EXISTS setup_drafts (
+        installation_id TEXT PRIMARY KEY CHECK(installation_id='local')
+            REFERENCES local_installations(installation_id),
+        owner_account_id TEXT
+            CHECK(owner_account_id IS NULL OR (owner_account_id=trim(owner_account_id)
+                AND length(owner_account_id) BETWEEN 3 AND 32)),
+        display_name TEXT
+            CHECK(display_name IS NULL OR (display_name=trim(display_name)
+                AND length(display_name) BETWEEN 1 AND 64)),
+        password_hash TEXT
+            CHECK(password_hash IS NULL OR length(password_hash)>0),
+        use_local_ollama INTEGER
+            CHECK(use_local_ollama IS NULL OR use_local_ollama IN (0,1)),
+        model_id TEXT,
+        bed_count INTEGER CHECK(bed_count IS NULL OR bed_count BETWEEN 4 AND 32),
+        owner_configured INTEGER NOT NULL DEFAULT 0 CHECK(owner_configured IN (0,1)),
+        offline_configured INTEGER NOT NULL DEFAULT 0 CHECK(offline_configured IN (0,1)),
+        nest_configured INTEGER NOT NULL DEFAULT 0 CHECK(nest_configured IN (0,1)),
+        locked_at TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )""",
     """CREATE TABLE IF NOT EXISTS nest_settings (
         nest_id TEXT PRIMARY KEY CHECK(nest_id='local'),
         bed_count INTEGER NOT NULL CHECK(bed_count BETWEEN 4 AND 32),

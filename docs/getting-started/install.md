@@ -56,3 +56,22 @@ elfienest version
 ```
 
 On success it prints version information and exits with status code `0`.
+
+## First-run Setup
+
+The first launch opens a four-step Setup wizard:
+
+1. Create the Owner account.
+2. Configure optional local offline support. This keeps the single public
+   Ollama installation enabled when selected and lets you choose one of the
+   three supported local models: `qwen2.5:0.5b` (recommended),
+   `qwen3.5:0.8b`, or `gemma3:270m`.
+3. Set the Elfie Nest bed count.
+4. Review the four saved choices and confirm installation.
+
+The first three steps only save a draft. Nothing is created, downloaded, or
+generated until the final confirmation. After confirmation, the configuration
+is locked and the installer runs five retryable phases: Owner, Ollama, model,
+emergency food, and Nest beds. The page shows one overall progress bar and
+the current phase. It does not provide a cancel or back action while these
+phases are running.
