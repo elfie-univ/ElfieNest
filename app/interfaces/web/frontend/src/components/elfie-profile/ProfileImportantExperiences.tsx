@@ -14,11 +14,12 @@ export function ProfileImportantExperiences({ experiences, status }: ProfileImpo
   }
   const entries = [...experiences.entries].sort((left, right) =>
     right.occurredAt > left.occurredAt ? 1 : right.occurredAt < left.occurredAt ? -1 : right.id > left.id ? 1 : right.id < left.id ? -1 : 0,
-  )
+  ).slice(0, 10)
   return (
     <ol aria-label={t("profile.private.experiences.timeline")} className="profile-private-experiences">
       {entries.map((entry) => (
         <li className="profile-private-experiences__item" key={entry.id}>
+          <span aria-hidden="true" className="profile-private-experiences__marker" />
           <time dateTime={entry.occurredAt}>{entry.occurredAt.slice(0, 10)}</time>
           <div className="profile-private-experiences__card">
             <strong>{entry.title}</strong>

@@ -351,20 +351,40 @@
 .profile-private-focus__topic--emotion { color: #9b536f; }
 .profile-private-focus__topic--activity { color: var(--text); }
 .profile-private-experiences {
+  position: relative;
   display: grid;
-  gap: 16px;
+  gap: 18px;
   margin: 0;
-  padding: 0 0 0 8px;
+  padding: 4px 0 4px 28px;
   list-style: none;
 }
+.profile-private-experiences::before {
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: 8px;
+  width: 2px;
+  background: var(--border-strong);
+  content: "";
+}
 .profile-private-experiences__item {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(92px, auto) minmax(0, 1fr);
   gap: 14px;
   align-items: start;
   min-width: 0;
-  padding-left: 18px;
-  border-left: 2px solid var(--border-strong);
+}
+.profile-private-experiences__marker {
+  position: absolute;
+  top: 0;
+  left: -28px;
+  width: 18px;
+  height: 18px;
+  border: 3px solid var(--surface-muted);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--border-strong);
 }
 .profile-private-experiences__item time { color: var(--accent-hover); font-size: 13px; font-weight: 800; }
 .profile-private-experiences__card {
@@ -760,7 +780,10 @@
   .profile-private-relationships__map { min-height: 300px; }
   .profile-private-world__map { min-height: 340px; }
   .profile-private-focus__cloud { height: clamp(280px, 82vw, 320px); padding: 4px; }
-  .profile-private-experiences__item { grid-template-columns: 1fr; gap: 5px; padding-left: 12px; }
+  .profile-private-experiences { padding-left: 24px; }
+  .profile-private-experiences::before { left: 7px; }
+  .profile-private-experiences__item { grid-template-columns: 1fr; gap: 5px; }
+  .profile-private-experiences__marker { left: -24px; }
   .profile-private-knowledge li { grid-template-columns: 1fr; gap: 5px; }
   .profile-private-knowledge small { padding-inline: 4px; }
   .profile-private-care__summary div { grid-template-columns: 1fr; gap: 4px; }
