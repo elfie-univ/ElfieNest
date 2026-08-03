@@ -45,6 +45,7 @@ from ai_runtime.storage.secrets import (
     resolve_secret,
 )
 from ai_runtime.storage.validation_reports import (
+    read_latest_model_validation,
     read_latest_provider_validation,
     write_provider_validation_report,
 )
@@ -55,6 +56,7 @@ from .provider_errors import sanitize_error
 from .provider_schemas import (
     ProviderConnectionUpdateRequest,
     ProviderConnectionWriteRequest,
+    ProviderModelBatchUpdateRequest,
     ProviderModelInput,
     ProviderModelUpdateRequest,
 )
@@ -341,7 +343,60 @@ async def add_connection_model(
         raise HTTPException(status_code=409, detail="该连接已存在同名模型")
     model = _model_record(body, source="manual")
     store.replace(replace(connection, models=(*connection.models, model)))
-    return _model_view(model)
+    return _model_view(connection, model)
+
+
+@router.put("/connections/{connection_id}/models")
+async def replace_connection_models(
+    connection_id: str,
+    body: ProviderModelBatchUpdateRequest,
+    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
+) -> dict[str, Any]:
+    _ = owner
+    store = _store()
+    connection = _require_connection(store, connection_id)
+    current_by_id = {
+        model.endpoint_model_id: model for model in connection.models
+    }
+    original_ids = [item.original_id for item in body.models]
+    if len(set(original_ids)) != len(original_ids):
+        raise HTTPException(status_code=422, detail="模型原始 ID 不能重复")
+    missing_ids = set(current_by_id) - set(original_ids)
+    unknown_ids = set(original_ids) - set(current_by_id)
+    if missing_ids or unknown_ids:
+        raise HTTPException(
+            status_code=422,
+            detail="模型列表必须完整提交，不能新增、删除或重复已有模型",
+        )
+    target_ids = [item.id for item in body.models]
+    if len(set(target_ids)) != len(target_ids):
+        raise HTTPException(status_code=422, detail="模型 ID 不能重复")
+
+    updated_models: list[ProviderModelRecord] = []
+    for item in body.models:
+        current = current_by_id[item.original_id]
+        if item.id != item.original_id and current.source != "manual":
+            raise HTTPException(
+                status_code=422,
+                detail="自动发现或目录模型不能修改 Model ID",
+            )
+        updated_models.append(
+            replace(
+                current,
+                endpoint_model_id=item.id,
+                display_name=item.display_name,
+                canonical_model_id=item.canonical_model_id,
+                context_window_tokens=item.context_window_tokens,
+                max_output_tokens=item.max_output_tokens,
+                supports_tools=item.supports_tools,
+                supports_vision=item.supports_vision,
+                supports_reasoning=item.supports_reasoning,
+                hidden=item.hidden,
+            )
+        )
+    updated = replace(connection, models=tuple(updated_models))
+    store.replace(updated)
+    return _connection_view(updated)
 
 
 @router.put("/connections/{connection_id}/models/{model_id:path}")
@@ -414,7 +469,7 @@ async def update_connection_model(
         for model in connection.models
     )
     store.replace(replace(connection, models=models))
-    return _model_view(updated)
+    return _model_view(connection, updated)
 
 
 @router.delete("/connections/{connection_id}/models/{model_id:path}")
@@ -544,12 +599,13 @@ async def _refresh_connection_models(connection_id: str) -> dict[str, Any]:
                 catalog_models = bundled_catalog_models(profile.bundled_models)
         if catalog_models:
             merged = merge_refreshed_models(connection.models, catalog_models)
-            store.replace(replace(connection, models=merged))
+            updated = replace(connection, models=merged)
+            store.replace(updated)
             return {
                 "status": catalog_models[0].source,
                 "checked_at": checked_at,
                 "message": "模型接口不可用，已使用内置产品清单",
-                "models": [_model_view(model) for model in merged],
+                "models": [_model_view(updated, model) for model in merged],
             }
         message = sanitize_error(
             str(exc),
@@ -559,7 +615,7 @@ async def _refresh_connection_models(connection_id: str) -> dict[str, Any]:
             "status": "failed",
             "checked_at": checked_at,
             "message": f"模型获取失败，请手工添加模型：{message}",
-            "models": [_model_view(model) for model in connection.models],
+            "models": [_model_view(connection, model) for model in connection.models],
         }
     models = tuple(
         _model_record(
@@ -575,15 +631,16 @@ async def _refresh_connection_models(connection_id: str) -> dict[str, Any]:
             "status": "failed",
             "checked_at": checked_at,
             "message": "模型接口未返回结果，请手工添加模型",
-            "models": [_model_view(model) for model in connection.models],
+            "models": [_model_view(connection, model) for model in connection.models],
         }
     merged = merge_refreshed_models(connection.models, models)
-    store.replace(replace(connection, models=merged))
+    updated = replace(connection, models=merged)
+    store.replace(updated)
     return {
         "status": "updated",
         "checked_at": checked_at,
         "message": None,
-        "models": [_model_view(model) for model in merged],
+        "models": [_model_view(updated, model) for model in merged],
     }
 
 
@@ -692,6 +749,24 @@ def _runtime_projection(
         else profile.legacy_provider_id
     )
     config = LLMRuntimeConfig()
+    active_models = tuple(
+        model
+        for model in connection.models
+        if not model.hidden and not model.retired and model.available
+    )
+    profile_test_model = profile.test_model.strip()
+    selected_test_model = next(
+        (
+            model.endpoint_model_id
+            for model in active_models
+            if model.endpoint_model_id == profile_test_model
+            or model.display_name == profile_test_model
+            or model.canonical_model_id == profile_test_model
+        ),
+        active_models[0].endpoint_model_id
+        if active_models
+        else profile_test_model,
+    )
     config.providers[runtime_id] = {
         "api_base": connection.api_base or profile.api_base,
         "api_mode": connection.api_mode or profile.api_mode,
@@ -699,13 +774,9 @@ def _runtime_projection(
         "api_key": _connection_api_key(connection),
         "models": [
             {"id": model.endpoint_model_id, "display_name": model.display_name}
-            for model in connection.models
+            for model in active_models
         ],
-        "test_model": (
-            connection.models[0].endpoint_model_id
-            if connection.models
-            else profile.test_model
-        ),
+        "test_model": selected_test_model,
     }
     return runtime_id, config
 
@@ -749,12 +820,19 @@ def _connection_view(
             "latency_ms": latest.get("latency_ms"),
             "error": latest.get("error"),
         },
-        "models": [_model_view(model) for model in connection.models],
+        "models": [_model_view(connection, model) for model in connection.models],
         "model_refresh": refresh_result,
     }
 
 
-def _model_view(model: ProviderModelRecord) -> dict[str, Any]:
+def _model_view(
+    connection: ProviderConnection,
+    model: ProviderModelRecord,
+) -> dict[str, Any]:
+    latest = read_latest_model_validation(
+        connection.connection_id,
+        model.endpoint_model_id,
+    )
     return {
         "id": model.endpoint_model_id,
         "display_name": model.display_name,
@@ -768,4 +846,10 @@ def _model_view(model: ProviderModelRecord) -> dict[str, Any]:
         "hidden": model.hidden,
         "retired": model.retired,
         "available": model.available,
+        "verification": {
+            "status": latest.get("status", "never"),
+            "checked_at": latest.get("checked_at"),
+            "latency_ms": latest.get("latency_ms"),
+            "error": latest.get("error"),
+        },
     }

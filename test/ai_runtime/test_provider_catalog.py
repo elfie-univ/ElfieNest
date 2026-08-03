@@ -93,6 +93,18 @@ def test_builtin_provider_profiles_are_loaded_from_versioned_catalog() -> None:
     assert catalog.products["openai_api"].legacy_provider_id == "openai"
     assert catalog.products["openai_api"].usage_scope == "general"
     assert catalog.brands["openai"].logo_asset == "brands/openai.svg"
+    assert catalog.products["jdcloud_coding_plan"].api_base == (
+        "https://modelservice.jdcloud.com/coding/openai/v1"
+    )
+    assert catalog.products["jdcloud_coding_plan"].bundled_models == [
+        "DeepSeek-V3.2",
+        "GLM-5",
+        "GLM-4.7",
+        "MiniMax-M2.5",
+        "Kimi-K2.5",
+        "Kimi-K2-Turbo",
+        "Qwen3-Coder",
+    ]
     assert {
         "ollama",
         "openai",
@@ -104,6 +116,7 @@ def test_builtin_provider_profiles_are_loaded_from_versioned_catalog() -> None:
         "mistral",
         "groq",
         "custom_openai",
+        "jdcloud_coding_plan",
     } == set(catalog.profiles)
 
 

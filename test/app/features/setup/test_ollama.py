@@ -157,9 +157,7 @@ def test_configured_model_must_exist_on_the_one_saved_ollama_endpoint(
     assert catalog.packages[FOOD_EMERGENCY_ID].primary.model == (
         "ollama_0001/qwen2.5:0.5b"
     )
-    assert catalog.packages[FOOD_COMMON_ID].primary.model == (
-        "ollama_0001/qwen2.5:0.5b"
-    )
+    assert catalog.packages[FOOD_COMMON_ID].primary is None
     assert get_setup_progress(db_path).current_step == 5
 
 

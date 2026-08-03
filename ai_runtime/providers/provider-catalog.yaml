@@ -1,4 +1,11 @@
 version: 2
+ollama_recommended_models:
+  - id: qwen2.5:0.5b
+    recommended: true
+  - id: qwen3.5:0.8b
+    recommended: false
+  - id: gemma3:270m
+    recommended: false
 brands:
   ollama:
     name: Ollama
@@ -30,6 +37,9 @@ brands:
   custom:
     name: Custom
     logo_asset: ""
+  jdcloud:
+    name: 京东云
+    logo_asset: ""
 products:
   ollama:
     brand_id: ollama
@@ -45,15 +55,6 @@ products:
     discovery_strategy: ollama
     oauth_available: false
     test_model: qwen3.5:0.8b
-    bundled_models:
-      - qwen3.5:0.8b
-      - qwen2.5:0.5b
-      - llama3.2:1b
-      - qwen3.5:4b
-      - qwen2.5:7b
-      - llama3:8b
-      - moondream
-      - llava
   openai_api:
     brand_id: openai
     legacy_provider_id: openai
@@ -223,6 +224,28 @@ products:
     test_model: custom-model
     bundled_models:
       - custom-model
+  jdcloud_coding_plan:
+    brand_id: jdcloud
+    legacy_provider_id: jdcloud_coding_plan
+    name: 京东云 Coding Plan
+    api_base: https://modelservice.jdcloud.com/coding/openai/v1
+    auth_type: bearer
+    api_mode: chat_completions
+    base_url_env_var: JDCLOUD_API_BASE
+    api_key_env_var: JDCLOUD_API_KEY
+    connection_method: api_key
+    usage_scope: coding_only
+    discovery_strategy: standard_models
+    oauth_available: false
+    test_model: GLM-5
+    bundled_models:
+      - DeepSeek-V3.2
+      - GLM-5
+      - GLM-4.7
+      - MiniMax-M2.5
+      - Kimi-K2.5
+      - Kimi-K2-Turbo
+      - Qwen3-Coder
 endpoint_model_hints:
   - api_base_contains: maas-coding-api.cn-huabei-1.xf-yun.com
     models:

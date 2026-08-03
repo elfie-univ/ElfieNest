@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.features.accounts.auth import create_session, generate_csrf_token
+from app.features.setup.draft_repository import SetupDraftRecord
 from app.features.setup.progress import (
     SetupProgress,
     SetupStep,
@@ -27,6 +28,7 @@ __all__ = [
     "complete_setup_step",
     "create_first_owner",
     "create_first_owner_account",
+    "create_first_owner_from_hash",
     "get_setup_progress",
     "needs_setup",
     "record_setup_task_failure",
@@ -127,4 +129,46 @@ def create_first_owner(
         role=account.role,
         session_token=session_token,
         csrf_token=generate_csrf_token(session_token),
+    )
+
+
+def create_first_owner_from_hash(
+    db_path: str, draft: SetupDraftRecord
+) -> OwnerAccount:
+    """Create or recover the Owner from a locked draft without plaintext secrets."""
+    if draft.owner_account_id is None or draft.password_hash is None:
+        raise SetupAlreadyCompleteError("Setup Owner 草稿不完整")
+    normalized_display_name = (
+        draft.display_name.strip()
+        if draft.display_name and draft.display_name.strip()
+        else None
+    )
+    with get_db(db_path) as conn:
+        accounts = AccountRepository(conn)
+        accounts.begin_immediate()
+        existing = accounts.find_owner()
+        if existing is not None:
+            conn.commit()
+            return OwnerAccount(
+                user_id=existing.user_id,
+                account_id=existing.account_id,
+                display_name=existing.display_name,
+            )
+        if accounts.has_any_account():
+            raise SetupAlreadyCompleteError("系统已有用户，无法执行首启设置")
+        try:
+            user_id = accounts.create_owner(
+                account_id=draft.owner_account_id,
+                password_hash=draft.password_hash,
+                display_name=normalized_display_name,
+                avatar_color=0,
+            )
+        except AccountConflictError as error:
+            raise SetupAlreadyCompleteError("系统已有用户，无法执行首启设置") from error
+        InstallationRepository(db_path).mark_owner_completed(conn, user_id)
+        conn.commit()
+    return OwnerAccount(
+        user_id=user_id,
+        account_id=draft.owner_account_id.strip(),
+        display_name=normalized_display_name,
     )

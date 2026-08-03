@@ -22,6 +22,7 @@ const ProviderModelSchema = z.object({
   hidden: z.boolean(),
   retired: z.boolean(),
   available: z.boolean(),
+  verification: VerificationSchema,
 })
 
 const ProviderProductSchema = z.object({
@@ -126,12 +127,15 @@ export type ProviderModel = z.infer<typeof ProviderModelSchema>
 export type ModelMatrix = z.infer<typeof ModelMatrixSchema>
 export type ProviderModelDraft = {
   readonly id: string
+  readonly original_id?: string
   readonly display_name?: string
-  readonly context_window_tokens?: number
-  readonly max_output_tokens?: number
-  readonly supports_tools?: boolean
-  readonly supports_vision?: boolean
-  readonly supports_reasoning?: boolean
+  readonly canonical_model_id?: string | null
+  readonly context_window_tokens?: number | null
+  readonly max_output_tokens?: number | null
+  readonly supports_tools?: boolean | null
+  readonly supports_vision?: boolean | null
+  readonly supports_reasoning?: boolean | null
+  readonly hidden?: boolean
 }
 export type ProviderConnectionDraft = {
   readonly catalog_id: string
@@ -269,6 +273,19 @@ export async function updateProviderModel(
     "PUT",
     csrfToken,
     update,
+  ))
+}
+
+export async function saveProviderModels(
+  connectionId: string,
+  models: readonly ProviderModelDraft[],
+  csrfToken: string,
+): Promise<ProviderConnection> {
+  return ProviderConnectionSchema.parse(await ownerWrite(
+    `/api/owner/providers/connections/${encodeURIComponent(connectionId)}/models`,
+    "PUT",
+    csrfToken,
+    { models },
   ))
 }
 

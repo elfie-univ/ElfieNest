@@ -47,8 +47,8 @@ class TestSetupStatus:
         assert data["need_setup"] is True
         assert data["complete"] is False
         assert data["current_step"] == 1
-        assert [step["number"] for step in data["steps"]] == [1, 2, 3, 4, 5]
-        assert data["steps"][0]["status"] == "pending"
+        assert [step["number"] for step in data["steps"]] == [1, 2, 3, 4]
+        assert data["steps"][0]["status"] == "current"
 
     def test_setup_status_with_users(self, client: TestClient, db_path: str) -> None:
         """已有 Owner 不是 Setup 完成：迁移后必须从第二步继续。"""

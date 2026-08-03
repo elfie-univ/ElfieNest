@@ -14,6 +14,13 @@ import {
   type ProviderConnection,
   type ProviderProduct,
 } from "../api/owner-providers"
+import {
+  installOllama,
+  ownerOllamaStatus,
+  pullOllamaModels,
+  startOllama,
+  type OllamaStatus,
+} from "../api/owner-ollama"
 import { ApiError } from "../api/http"
 import { createI18n } from "../i18n/config"
 import type { SupportedLocale } from "../i18n/locale"
@@ -30,6 +37,17 @@ vi.mock("../api/owner-providers", async (loadOriginal) => {
     updateProviderConnection: vi.fn(),
     validateAllProviderModels: vi.fn(),
     verifyProviderConnection: vi.fn(),
+  }
+})
+
+vi.mock("../api/owner-ollama", async (loadOriginal) => {
+  const original = await loadOriginal<typeof import("../api/owner-ollama")>()
+  return {
+    ...original,
+    installOllama: vi.fn(),
+    ownerOllamaStatus: vi.fn(),
+    pullOllamaModels: vi.fn(),
+    startOllama: vi.fn(),
   }
 })
 
@@ -67,6 +85,7 @@ const model = {
   hidden: false,
   retired: false,
   available: true,
+  verification: { status: "passed", checked_at: "2026-07-30T00:00:00Z", latency_ms: 42, error: null },
 } as const
 
 const connection = {
@@ -97,6 +116,36 @@ const ollamaConnection = {
   usage_scope: "local",
 } satisfies ProviderConnection
 
+const absentOllama = {
+  state: "absent",
+  endpoint: null,
+  version: null,
+  memory_gb: 16,
+  recommended_model: "qwen2.5:0.5b",
+  installed_model_count: 0,
+  models: [],
+  task: null,
+} satisfies OllamaStatus
+
+const stoppedOllama = {
+  ...absentOllama,
+  state: "stopped",
+  endpoint: "http://127.0.0.1:11434",
+  models: [{ id: "qwen2.5:0.5b", display_name: "qwen2.5:0.5b", installed: true, recommended: true }],
+  installed_model_count: 1,
+} satisfies OllamaStatus
+
+const healthyOllama = {
+  ...stoppedOllama,
+  state: "healthy",
+  version: "0.12.0",
+  models: [
+    { id: "qwen2.5:0.5b", display_name: "qwen2.5:0.5b", installed: true, recommended: true },
+    { id: "qwen3.5:0.8b", display_name: "qwen3.5:0.8b", installed: false, recommended: false },
+    { id: "gemma3:270m", display_name: "gemma3:270m", installed: false, recommended: false },
+  ],
+} satisfies OllamaStatus
+
 describe("OwnerProviderPanel v2 behavior", () => {
   beforeEach(() => {
     Element.prototype.hasPointerCapture = vi.fn(() => false)
@@ -108,6 +157,10 @@ describe("OwnerProviderPanel v2 behavior", () => {
     vi.mocked(createProviderConnection).mockResolvedValue(connection)
     vi.mocked(updateProviderConnection).mockResolvedValue(connection)
     vi.mocked(changeProviderConnectionLifecycle).mockResolvedValue(connection)
+    vi.mocked(ownerOllamaStatus).mockResolvedValue(absentOllama)
+    vi.mocked(installOllama).mockResolvedValue(absentOllama)
+    vi.mocked(startOllama).mockResolvedValue(stoppedOllama)
+    vi.mocked(pullOllamaModels).mockResolvedValue(healthyOllama)
     vi.mocked(validateAllProviderModels).mockResolvedValue({
       run_id: "validation-run",
       status: "passed",
@@ -118,12 +171,13 @@ describe("OwnerProviderPanel v2 behavior", () => {
   it("renders catalog and configured connections as separate actionable regions", async () => {
     renderPanel()
 
-    const configured = await screen.findByRole("region", { name: "已配置的订阅" })
+    const configured = await screen.findByRole("region", { name: "已配置的远程订阅" })
     const card = within(configured).getByRole("article")
     expect(within(card).getByRole("heading", { name: "OpenAI Main" })).toBeInTheDocument()
-    expect(within(card).getByText("1 个可见模型")).toBeInTheDocument()
+    expect(within(card).getByText("共 1 个模型（已启用 1 个 · 验证通过 1 个）")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "同模型对比" })).toBeInTheDocument()
 
-    const available = screen.getByRole("region", { name: "添加新的订阅" })
+    const available = screen.getByRole("region", { name: "添加新的远程订阅" })
     expect(within(available).getByRole("button", { name: "配置 OpenAI" })).toBeInTheDocument()
     expect(within(available).getByRole("button", { name: "添加其他订阅" })).toBeInTheDocument()
     expect(within(available).queryByRole("button", { name: "添加自定义连接" })).not.toBeInTheDocument()
@@ -138,7 +192,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     vi.mocked(ownerProviderConnections).mockResolvedValue([ollamaConnection, connection])
     renderPanel()
 
-    const available = await screen.findByRole("region", { name: "添加新的订阅" })
+    const available = await screen.findByRole("region", { name: "添加新的远程订阅" })
     expect(within(available).queryByRole("button", { name: "配置 Ollama" })).not.toBeInTheDocument()
   })
 
@@ -152,7 +206,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     vi.mocked(ownerProviderCatalog).mockResolvedValue(catalog)
     renderPanel()
 
-    const available = await screen.findByRole("region", { name: "添加新的订阅" })
+    const available = await screen.findByRole("region", { name: "添加新的远程订阅" })
     expect(within(available).getAllByRole("button")).toHaveLength(9)
     expect(within(available).getAllByRole("button", { name: /^配置 Provider/ })).toHaveLength(8)
     expect(within(available).queryByText("api_key")).not.toBeInTheDocument()
@@ -228,7 +282,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     const user = userEvent.setup()
     renderPanel()
 
-    const card = within(await screen.findByRole("region", { name: "已配置的订阅" })).getByRole("article")
+    const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
     await user.click(within(card).getByRole("button", { name: "验证" }))
 
     expect(verifyProviderConnection).toHaveBeenCalledWith("conn-openai", "csrf")
@@ -255,13 +309,60 @@ describe("OwnerProviderPanel v2 behavior", () => {
     const user = userEvent.setup()
     renderPanel()
 
-    const card = within(await screen.findByRole("region", { name: "已配置的订阅" })).getByRole("article")
+    const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
     await user.click(within(card).getByRole("button", { name: "更多" }))
     const menu = screen.getByRole("menu")
     expect(screen.queryByRole("dialog", { name: "更多操作" })).not.toBeInTheDocument()
     await user.click(within(menu).getByRole("menuitem", { name: "归档" }))
 
     expect(changeProviderConnectionLifecycle).toHaveBeenCalledWith("conn-openai", "archive", "csrf")
+  })
+
+  it("keeps Ollama in its own card and shows only install before it is available", async () => {
+    renderPanel()
+    const local = await screen.findByRole("region", { name: "本地模型服务" })
+    const card = within(local).getByRole("article")
+
+    expect(within(card).getByRole("heading", { name: "Ollama" })).toBeInTheDocument()
+    expect(within(card).getByText("0 个可用模型")).toBeInTheDocument()
+    expect(within(card).getByRole("button", { name: "安装" })).toBeInTheDocument()
+    expect(within(card).queryByRole("button", { name: "模型" })).not.toBeInTheDocument()
+    expect(within(card).queryByRole("button", { name: "启动" })).not.toBeInTheDocument()
+    expect(within(card).queryByRole("button", { name: "重启" })).not.toBeInTheDocument()
+    expect(within(await screen.findByRole("region", { name: "已配置的远程订阅" })).queryByText("Ollama")).not.toBeInTheDocument()
+  })
+
+  it("switches the local card from start to restart when Ollama is healthy", async () => {
+    const user = userEvent.setup()
+    vi.mocked(ownerOllamaStatus).mockResolvedValue(healthyOllama)
+    renderPanel()
+
+    const card = within(await screen.findByRole("region", { name: "本地模型服务" })).getByRole("article")
+    expect(within(card).getByText("1 个可用模型")).toBeInTheDocument()
+    expect(within(card).getByRole("button", { name: "模型" })).toBeInTheDocument()
+    expect(within(card).getByRole("button", { name: "重启" })).toBeInTheDocument()
+    expect(within(card).queryByRole("button", { name: "启动" })).not.toBeInTheDocument()
+
+    await user.click(within(card).getByRole("button", { name: "重启" }))
+    expect(startOllama).toHaveBeenCalledWith("csrf")
+  })
+
+  it("opens the recommended Ollama model list and downloads one candidate directly", async () => {
+    const user = userEvent.setup()
+    vi.mocked(ownerOllamaStatus).mockResolvedValue(healthyOllama)
+    renderPanel()
+
+    const card = within(await screen.findByRole("region", { name: "本地模型服务" })).getByRole("article")
+    await user.click(within(card).getByRole("button", { name: "模型" }))
+
+    const dialog = screen.getByRole("dialog", { name: "Ollama 模型" })
+    expect(within(dialog).getAllByText("qwen2.5:0.5b")).not.toHaveLength(0)
+    expect(within(dialog).getByText("qwen3.5:0.8b")).toBeInTheDocument()
+    expect(within(dialog).getByText("gemma3:270m")).toBeInTheDocument()
+    expect(within(dialog).getByText("已下载")).toBeInTheDocument()
+    await user.click(within(dialog).getAllByRole("button", { name: "下载安装" })[0]!)
+
+    expect(pullOllamaModels).toHaveBeenCalledWith(["qwen3.5:0.8b"], "csrf")
   })
 
   it("relocalizes a stored backend failure without losing the page", async () => {
