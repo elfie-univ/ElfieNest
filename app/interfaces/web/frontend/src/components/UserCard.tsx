@@ -64,32 +64,36 @@ export function UserCard({ actorRole, csrfToken, onError, onRemove, onReset, onS
   }
 
   return <Card asChild><article className="user-id-card">
-    <Avatar imageUrl={user.avatar_url} name={displayName} />
-    <div className="user-id-card__body">
-      <StatusIndicator label={presenceLabel} tone={presenceTone} />
-      <dl className="user-id-card__identity">
-        <IdentityField label={t("users.fields.name")} value={displayName} />
-        <IdentityField label={t("users.fields.gender")} value={user.gender ?? t("users.values.notRegistered")} />
-        <IdentityField label={t("users.fields.account")} value={user.account_id} />
-        <IdentityField label={t("users.fields.role")} value={t(`users.values.${user.role}`)} />
-        <IdentityField label={t("users.fields.joinedAt")} value={dateOnly(user.created_at)} />
-        <IdentityField label={t("users.fields.lastSeen")} value={user.last_seen_at ? dateOnly(user.last_seen_at) : t("users.values.notRegistered")} />
-        <IdentityField label={t("users.fields.elfieCount")} value={String(user.elfie_count)} />
-        <div>
-          <dt><label htmlFor={`quota-${user.user_id}`}>{t("users.fields.quota")}</label></dt>
-          <dd>{editing
-            ? <Input aria-label={t("users.fields.quota")} disabled={saving} id={`quota-${user.user_id}`} inputMode="numeric" min={1} onChange={(event) => setQuota(event.target.value)} type="number" value={quota} />
-            : user.effective_elfie_limit}</dd>
-        </div>
-      </dl>
-      {canManage ? <div className="user-id-card__actions">
-        {editing
-          ? <><Button aria-label={t("users.actions.saveFor", { accountId: user.account_id })} disabled={saving} onClick={() => { void save() }} type="button">{t("users.actions.save")}</Button><Button aria-label={t("users.actions.cancelFor", { accountId: user.account_id })} disabled={saving} onClick={cancel} type="button" variant="outline">{t("users.actions.cancel")}</Button></>
-          : <Button aria-label={t("users.actions.editFor", { accountId: user.account_id })} onClick={() => setEditing(true)} type="button" variant="outline"><Icon name="pencil" size={15} />{t("users.actions.edit")}</Button>}
-        <Button aria-label={t("users.actions.resetFor", { accountId: user.account_id })} onClick={onReset} type="button" variant="outline"><Icon name="lock-keyhole" size={15} />{t("users.actions.reset")}</Button>
-        <Button aria-label={t("users.actions.deleteFor", { accountId: user.account_id })} aria-describedby={deleteReason ? `delete-reason-${user.user_id}` : undefined} disabled={protectedRemoval} onClick={onRemove} title={deleteReason ?? t("users.actions.delete")} type="button" variant="destructive"><Icon name="x" size={15} />{t("users.actions.delete")}</Button>
-        {deleteReason ? <small id={`delete-reason-${user.user_id}`}>{deleteReason}</small> : null}
-      </div> : null}
+    <div className="identity-card__layout user-id-card__layout">
+      <Avatar imageUrl={user.avatar_url} name={displayName} />
+      <div className="user-id-card__body">
+        <StatusIndicator label={presenceLabel} tone={presenceTone} />
+        <dl className="user-id-card__identity identity-card__primary">
+          <IdentityField label={t("users.fields.name")} value={displayName} />
+          <IdentityField label={t("users.fields.gender")} value={user.gender ?? t("users.values.notRegistered")} />
+          <IdentityField label={t("users.fields.account")} value={user.account_id} />
+          <IdentityField label={t("users.fields.role")} value={t(`users.values.${user.role}`)} />
+        </dl>
+        <dl className="user-id-card__identity identity-card__secondary">
+          <IdentityField label={t("users.fields.joinedAt")} value={dateOnly(user.created_at)} />
+          <IdentityField label={t("users.fields.lastSeen")} value={user.last_seen_at ? dateOnly(user.last_seen_at) : t("users.values.notRegistered")} />
+          <IdentityField label={t("users.fields.elfieCount")} value={String(user.elfie_count)} />
+          <div>
+            <dt><label htmlFor={`quota-${user.user_id}`}>{t("users.fields.quota")}</label></dt>
+            <dd>{editing
+              ? <Input aria-label={t("users.fields.quota")} disabled={saving} id={`quota-${user.user_id}`} inputMode="numeric" min={1} onChange={(event) => setQuota(event.target.value)} type="number" value={quota} />
+              : user.effective_elfie_limit}</dd>
+          </div>
+        </dl>
+        {canManage ? <div className="user-id-card__actions">
+          {editing
+            ? <><Button aria-label={t("users.actions.saveFor", { accountId: user.account_id })} disabled={saving} onClick={() => { void save() }} type="button">{t("users.actions.save")}</Button><Button aria-label={t("users.actions.cancelFor", { accountId: user.account_id })} disabled={saving} onClick={cancel} type="button" variant="outline">{t("users.actions.cancel")}</Button></>
+            : <Button aria-label={t("users.actions.editFor", { accountId: user.account_id })} onClick={() => setEditing(true)} type="button" variant="outline"><Icon name="pencil" size={15} />{t("users.actions.edit")}</Button>}
+          <Button aria-label={t("users.actions.resetFor", { accountId: user.account_id })} onClick={onReset} type="button" variant="outline"><Icon name="lock-keyhole" size={15} />{t("users.actions.reset")}</Button>
+          <Button aria-label={t("users.actions.deleteFor", { accountId: user.account_id })} aria-describedby={deleteReason ? `delete-reason-${user.user_id}` : undefined} disabled={protectedRemoval} onClick={onRemove} title={deleteReason ?? t("users.actions.delete")} type="button" variant="destructive"><Icon name="x" size={15} />{t("users.actions.delete")}</Button>
+          {deleteReason ? <small id={`delete-reason-${user.user_id}`}>{deleteReason}</small> : null}
+        </div> : null}
+      </div>
     </div>
   </article></Card>
 }

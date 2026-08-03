@@ -200,7 +200,7 @@ export const manage = {
     empty: "暂无成员。",
     emptyFiltered: "没有符合该角色的成员。",
     errors: { create: "用户创建失败。", load: "用户列表加载失败。" },
-    fields: { account: "登录账号", birthDate: "出生日期", elfieCount: "当前精灵数", gender: "性别", joinedAt: "加入时间", language: "语言", lastSeen: "最近在线", memberId: "成员 ID", name: "姓名", quota: "精灵上限", role: "当前角色" },
+    fields: { account: "账号", birthDate: "出生日期", elfieCount: "精灵数", gender: "性别", joinedAt: "加入时间", language: "语言", lastSeen: "最近在线", memberId: "成员 ID", name: "姓名", quota: "精灵上限", role: "角色" },
     filters: { allRoles: "全部角色", role: "角色" },
     loading: "正在加载用户…",
     notices: { created: "本地用户已创建。", quotaSaved: "领养上限已更新。", removed: "用户已从本地精灵巢移除。" },
