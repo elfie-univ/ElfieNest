@@ -204,6 +204,7 @@
 .provider-summary > div:first-child { display: flex; align-items: center; justify-content: space-between; gap: 8px; }.provider-summary--ready { box-shadow: inset 3px 0 0 #43805a; }.provider-summary--pending { box-shadow: inset 3px 0 0 #b67a3e; }.provider-add-card { display: grid; min-height: 170px; place-items: center; align-content: center; gap: 5px; border: 1px dashed var(--border); border-radius: 12px; color: var(--text-muted); background: transparent; }.provider-add-card:hover { color: var(--text); background: var(--hover-bg); }.provider-add-card strong { font-size: 32px; font-weight: 400; }.provider-add-card small { font-size: 14px; }
 .provider-page { display: grid; gap: 22px; }
 .provider-section { display: grid; gap: 14px; }
+.provider-section--configured { padding-top: 22px; border-top: 1px dashed var(--border); }
 .provider-section--available { padding-top: 22px; border-top: 1px dashed var(--border); }
 .provider-section__heading { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
 .provider-section__heading h3, .provider-section__heading p { margin: 0; }
@@ -213,6 +214,10 @@
 .provider-card--passed { box-shadow: inset 3px 0 0 #43805a; }
 .provider-card--failed { box-shadow: inset 3px 0 0 #9d4137; }
 .provider-card--never { box-shadow: inset 3px 0 0 #b08b5b; }
+.provider-card--ollama-healthy { box-shadow: inset 3px 0 0 #43805a; }
+.provider-card--ollama-stopped, .provider-card--ollama-absent { box-shadow: inset 3px 0 0 #b08b5b; }
+.provider-card--ollama-installing { box-shadow: inset 3px 0 0 #b67a3e; }
+.provider-card--ollama-deleted, .provider-card--ollama-failed, .provider-card--ollama-cancelled, .provider-card--ollama-repair_required { box-shadow: inset 3px 0 0 #9d4137; }
 .provider-card--add { min-height: 0; padding-block: 12px; place-items: center; align-content: center; color: var(--text-muted); border-style: dashed; cursor: pointer; text-align: center; }
 .provider-card--add:hover { color: var(--text); border-color: var(--accent); background: var(--hover-bg); }
 .provider-card--add span { font-size: 14px; }
@@ -252,6 +257,10 @@
 .status-badge--configured { color: var(--accent-hover); background: var(--accent-soft); }
 .status-badge--muted { color: var(--text-muted); background: var(--code-bg); }
 .status-badge--never { color: #815b30; background: #f4e8d4; }
+.status-badge--healthy { color: #2e6846; background: #dfefdf; }
+.status-badge--stopped, .status-badge--absent { color: #815b30; background: #f4e8d4; }
+.status-badge--installing { color: #8b5a1f; background: #f7e7cc; }
+.status-badge--deleted, .status-badge--failed, .status-badge--cancelled, .status-badge--repair_required { color: #963f35; background: #f6dddd; }
 .provider-form-dialog { width: min(720px, calc(100vw - 32px)); }
 .provider-form { display: grid; grid-template-columns: 1fr; gap: 16px; margin: 0; padding: 0; border: 0; }
 .provider-form__identity { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border-radius: 10px; background: var(--code-bg); }
@@ -265,6 +274,18 @@
 .provider-model-table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
 .provider-model-table-wrap table { min-width: 760px; }
 .provider-model-table-wrap th small, .provider-model-table-wrap td small { display: block; color: var(--text-muted); }
+.ollama-models-dialog { width: min(720px, calc(100vw - 32px)); max-width: min(720px, calc(100vw - 32px)) !important; }
+.ollama-models-dialog__toolbar { align-items: center; justify-content: space-between; }
+.ollama-models-dialog__toolbar > span { color: var(--text-muted); font-size: 14px; }
+.ollama-model-list, .ollama-model-picker { display: grid; gap: 8px; }
+.ollama-model-row, .ollama-model-option { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 11px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-raised); }
+.ollama-model-row--installed { border-color: color-mix(in srgb, #43805a 45%, var(--border)); }
+.ollama-model-row > div, .ollama-model-option > span { display: grid; min-width: 0; gap: 3px; }
+.ollama-model-row code { overflow-wrap: anywhere; color: var(--text-muted); font-size: 13px; }
+.ollama-model-option { justify-content: flex-start; cursor: pointer; }
+.ollama-model-option input { flex: 0 0 auto; width: 16px; height: 16px; }
+.ollama-model-option small { color: var(--text-muted); font-size: 13px; }
+.ollama-model-picker { padding-top: 12px; border-top: 1px dashed var(--border); }
 .provider-manual-model-form { display: grid; gap: 12px; padding: 14px 0; border-block: 1px dashed var(--border); }
 .provider-manual-model-form__advanced { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .model-matrix-dialog { width: min(1040px, calc(100vw - 32px)); max-width: min(1040px, calc(100vw - 32px)) !important; }

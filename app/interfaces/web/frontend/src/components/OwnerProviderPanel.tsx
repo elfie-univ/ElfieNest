@@ -24,6 +24,7 @@ import { Icon } from "./Icon"
 import { ManageDialog } from "./ManageDialog"
 import { ModelMatrixDialog } from "./ModelMatrixDialog"
 import { Notice } from "./Notice"
+import { OwnerOllamaPanel } from "./OwnerOllamaPanel"
 import { ProviderFormDialog } from "./ProviderFormDialog"
 import { ProviderBrandLogo } from "./ProviderBrandLogo"
 import { ProviderLifecycleMenu, type ProviderLifecycleAction } from "./ProviderLifecycleMenu"
@@ -78,7 +79,9 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
   useEffect(() => { void load() }, [])
 
   const productsById = useMemo(() => new Map(catalog.map((product) => [product.catalog_id, product])), [catalog])
-  const configured = [...connections].sort((left, right) => compareLocalizedText(left.alias, right.alias, locale))
+  const configured = connections
+    .filter((connection) => connection.catalog_id !== "ollama")
+    .sort((left, right) => compareLocalizedText(left.alias, right.alias, locale))
   const featuredProducts = useMemo(() => catalog
     .filter((product) => product.catalog_id !== "ollama" && product.catalog_id !== "custom_openai")
     .slice(0, FEATURED_PRODUCT_LIMIT), [catalog])
@@ -188,7 +191,8 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
     </div></div>
     {error ? <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("errors.load")} /> : null}
     {notice ? <Notice message={notice} /> : null}
-    <section aria-labelledby="configured-provider-title" className="provider-section"><div className="provider-section__heading"><div><h3 id="configured-provider-title">{t("providerConnections.section.configuredTitle")}</h3><p>{t("providerConnections.section.configuredDescription")}</p></div><span>{t("providerConnections.section.count", { count: configured.length })}</span></div>
+    <OwnerOllamaPanel csrfToken={csrfToken} />
+    <section aria-labelledby="configured-provider-title" className="provider-section provider-section--configured"><div className="provider-section__heading"><div><h3 id="configured-provider-title">{t("providerConnections.section.configuredTitle")}</h3><p>{t("providerConnections.section.configuredDescription")}</p></div><span>{t("providerConnections.section.count", { count: configured.length })}</span></div>
       {configured.length === 0 ? <p className="empty-state">{t("providerConnections.section.configuredEmpty")}</p> : <div className="provider-grid">{configured.map((connection) => <ConfiguredConnectionCard
         busy={pending?.endsWith(connection.connection_id) ?? false}
         connection={connection}

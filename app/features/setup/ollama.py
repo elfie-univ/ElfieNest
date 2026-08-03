@@ -25,6 +25,7 @@ from app.infrastructure.ollama_platform import (
     OllamaPlatformAdapter,
     OllamaProbe,
     PlatformName,
+    wait_for_healthy,
 )
 
 
@@ -124,8 +125,11 @@ class OllamaSetupService:
         user_confirmed: bool,
     ) -> OllamaProbe:
         """Install only once, from the fixed official source, after user consent."""
-        if self._saved_binding() is not None:
-            raise ValueError("已有 Ollama 绑定；升级或修复必须单独确认")
+        saved_binding = self._saved_binding()
+        if saved_binding is not None:
+            saved_probe = self._adapter.probe(saved_binding)
+            if saved_probe.state not in {"absent", "deleted", "repair_required"}:
+                raise ValueError("已有 Ollama 绑定；升级或修复必须单独确认")
         installer = self._adapter.download_official_installer()
         self._adapter.run_confirmed_installer(installer, user_confirmed=user_confirmed)
         binding = self._adapter.official_binding_after_install(
@@ -133,7 +137,7 @@ class OllamaSetupService:
             installer=installer,
         )
         self._adapter.start_bound_installation(binding)
-        probe = self._adapter.probe(binding)
+        probe = wait_for_healthy(self._adapter, binding)
         if probe.state != "healthy":
             raise RuntimeError("官方 Ollama 安装后未通过健康检查")
         self._adapter.list_models(binding)
@@ -167,7 +171,7 @@ class OllamaSetupService:
         if probe.state != "stopped":
             raise RuntimeError("已绑定的 Ollama 需要手动修复，不能自动改绑")
         self._adapter.start_bound_installation(binding)
-        repaired = self._adapter.probe(binding)
+        repaired = wait_for_healthy(self._adapter, binding)
         if repaired.state != "healthy":
             raise RuntimeError("已绑定的 Ollama 启动后仍未健康")
         complete_setup_step(

@@ -21,6 +21,7 @@ from ai_runtime.storage.provider_connections import (
 )
 from ai_runtime.storage.report_repository import ReportRepository
 from ai_runtime.validation.providers import DiscoveredModel
+from app.infrastructure.ollama_platform import OllamaBinding, OllamaProbe
 from app.infrastructure.persistence.store import init_db
 from app.interfaces.api.app import create_app
 from app.interfaces.api.provider_connection_model_routes import (
@@ -92,6 +93,99 @@ def test_catalog_and_connections_are_separate_resources(client: TestClient) -> N
     }
     assert connections.status_code == 200
     assert connections.json()[0]["connection_id"] == "ollama_0001"
+
+
+def test_ollama_management_status_is_always_available_as_a_local_resource(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers = _login(client, "owner", "ownerchangeme")
+    monkeypatch.setattr(
+        "app.interfaces.api.ollama_owner_routes.OllamaPlatformAdapter",
+        _AbsentOllamaAdapter,
+    )
+
+    response = client.get("/api/owner/providers/ollama", headers=headers)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["state"] == "absent"
+    assert payload["installed_model_count"] == 0
+    assert payload["models"][0]["id"] == "qwen3.5:0.8b"
+
+
+def test_ollama_start_connects_a_healthy_default_endpoint_and_records_the_binding(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers = _login(client, "owner", "ownerchangeme")
+    monkeypatch.setattr(
+        "app.interfaces.api.ollama_owner_routes.OllamaPlatformAdapter",
+        _HealthyOllamaAdapter,
+    )
+
+    response = client.post("/api/owner/providers/ollama/start", headers=headers)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["state"] == "healthy"
+    saved = ProviderConnectionStore().load().connections["ollama_0001"]
+    assert saved.installation["install_kind"] == "existing-public"
+
+
+def test_ollama_model_download_updates_the_local_model_list(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers = _login(client, "owner", "ownerchangeme")
+    monkeypatch.setattr(
+        "app.interfaces.api.ollama_owner_routes.OllamaPlatformAdapter",
+        _PullingOllamaAdapter,
+    )
+
+    response = client.post(
+        "/api/owner/providers/ollama/models/pull",
+        headers=headers,
+        json={"model_ids": ["qwen3.5:0.8b"], "confirmed": True},
+    )
+
+    assert response.status_code == 200, response.text
+    listed = client.get("/api/owner/providers/ollama", headers=headers)
+    assert listed.status_code == 200
+    models = {model["id"]: model for model in listed.json()["models"]}
+    assert models["qwen3.5:0.8b"]["installed"] is True
+
+
+class _AbsentOllamaAdapter:
+    platform = "linux"
+
+    def probe(self, binding: OllamaBinding | None) -> OllamaProbe:
+        endpoint = binding.api_base if binding is not None else "http://127.0.0.1:11434"
+        return OllamaProbe("absent", endpoint)
+
+    def list_models(self, binding: OllamaBinding) -> tuple[str, ...]:
+        _ = binding
+        return ()
+
+
+class _HealthyOllamaAdapter(_AbsentOllamaAdapter):
+    def probe(self, binding: OllamaBinding | None) -> OllamaProbe:
+        endpoint = binding.api_base if binding is not None else "http://127.0.0.1:11434"
+        return OllamaProbe("healthy", endpoint, version="0.12.0")
+
+    def start_bound_installation(self, binding: OllamaBinding) -> None:
+        _ = binding
+
+
+class _PullingOllamaAdapter(_HealthyOllamaAdapter):
+    models: list[str] = []
+
+    def list_models(self, binding: OllamaBinding) -> tuple[str, ...]:
+        _ = binding
+        return tuple(self.models)
+
+    def pull_model(self, binding: OllamaBinding, model_id: str) -> None:
+        _ = binding
+        self.models.append(model_id)
 
 
 def test_same_product_gets_stable_ids_and_alias_update_keeps_identity(

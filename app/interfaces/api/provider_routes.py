@@ -2,9 +2,11 @@
 
 from fastapi import APIRouter
 
+from .ollama_owner_routes import router as ollama_owner_router
 from .provider_connection_model_routes import router as connection_model_router
 from .provider_connection_routes import router as connection_router
 
 router = APIRouter(prefix="/api/owner/providers", tags=["providers"])
 router.include_router(connection_router)
 router.include_router(connection_model_router)
+router.include_router(ollama_owner_router)

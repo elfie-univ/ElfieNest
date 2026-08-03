@@ -6,11 +6,13 @@ import hashlib
 import json
 import subprocess
 import tempfile
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, ContextManager, Final, Literal, Protocol, Tuple
+from urllib.parse import urlsplit
 
 from app.infrastructure.ollama_platform_commands import (
     PlatformName,
@@ -36,6 +38,26 @@ OFFICIAL_INSTALL_URLS: Final[dict[PlatformName, str]] = {
     "linux": "https://ollama.com/install.sh",
     "win32": "https://ollama.com/install.ps1",
 }
+
+
+def is_safe_local_endpoint(endpoint: str) -> bool:
+    """Accept only explicit loopback HTTP endpoints for the local service."""
+    try:
+        parsed = urlsplit(endpoint)
+        port = parsed.port
+    except ValueError:
+        return False
+    return (
+        parsed.scheme == "http"
+        and (parsed.hostname or "").lower() in {"127.0.0.1", "localhost", "::1"}
+        and port is not None
+        and 0 < port <= 65535
+        and parsed.username is None
+        and parsed.password is None
+        and parsed.path in {"", "/"}
+        and not parsed.query
+        and not parsed.fragment
+    )
 
 
 @dataclass(frozen=True)
@@ -69,6 +91,16 @@ class _ReadableResponse(Protocol):
     def read(self) -> bytes: ...
 
 
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Keep a local Ollama request from being redirected to another host."""
+
+    def redirect_request(self, *_args: object, **_kwargs: object) -> None:
+        return None
+
+
+_NO_REDIRECT_OPENER = urllib.request.build_opener(_NoRedirectHandler())
+
+
 class OllamaPlatformAdapter:
     """Only interacts with an explicit binding; it never scans for a replacement."""
 
@@ -78,18 +110,22 @@ class OllamaPlatformAdapter:
         platform_name: PlatformName | None = None,
         request_opener: Callable[
             ..., ContextManager[_ReadableResponse]
-        ] = urllib.request.urlopen,
+        ] = _NO_REDIRECT_OPENER.open,
         command_runner: Callable[
             ..., subprocess.CompletedProcess[str]
         ] = subprocess.run,
+        process_launcher: Callable[..., subprocess.Popen] = subprocess.Popen,
     ) -> None:
         self.platform = platform_name or current_platform()
         self._request_opener = request_opener
         self._command_runner = command_runner
+        self._process_launcher = process_launcher
 
     def probe(self, binding: OllamaBinding | None) -> OllamaProbe:
         if binding is None:
             return OllamaProbe("absent", "")
+        if not is_safe_local_endpoint(binding.api_base):
+            return OllamaProbe("repair_required", "", detail="Ollama endpoint 必须是本机回环地址")
         if binding.install_kind == "official-script":
             try:
                 self.verify_recorded_installation(binding)
@@ -131,6 +167,8 @@ class OllamaPlatformAdapter:
 
     def list_models(self, binding: OllamaBinding) -> Tuple[str, ...]:
         """Read tags from exactly the saved endpoint; never discover another host."""
+        if not is_safe_local_endpoint(binding.api_base):
+            raise ValueError("Ollama endpoint 必须是本机回环地址")
         try:
             with self._request_opener(
                 urllib.request.Request(f"{binding.api_base.rstrip('/')}/api/tags"),
@@ -155,6 +193,8 @@ class OllamaPlatformAdapter:
 
     def pull_model(self, binding: OllamaBinding, model_id: str) -> None:
         """Pull one model through the fixed Ollama endpoint, never through a shell."""
+        if not is_safe_local_endpoint(binding.api_base):
+            raise ValueError("Ollama endpoint 必须是本机回环地址")
         body = json.dumps({"name": model_id, "stream": False}).encode("utf-8")
         request = urllib.request.Request(
             f"{binding.api_base.rstrip('/')}/api/pull",
@@ -244,18 +284,20 @@ class OllamaPlatformAdapter:
             raise RuntimeError(failure)
 
     def start_bound_installation(self, binding: OllamaBinding) -> None:
-        """Start exactly the recorded public installation, never a discovered peer."""
+        """Start exactly the recorded public installation without blocking the caller."""
         self.verify_recorded_installation(binding)
         command = launch_command(
             binding.platform,
             binding.install_kind,
             binding.launch_target,
         )
-        result = self._command_runner(
-            command, check=False, text=True, capture_output=True
+        self._process_launcher(
+            command,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
         )
-        if result.returncode != 0:
-            raise RuntimeError("已绑定的 Ollama 启动失败")
 
     def official_binding_after_install(
         self,
@@ -264,6 +306,8 @@ class OllamaPlatformAdapter:
         installer: DownloadedInstaller,
     ) -> OllamaBinding:
         """Resolve only documented official paths after a confirmed first install."""
+        if not is_safe_local_endpoint(endpoint):
+            raise ValueError("Ollama endpoint 必须是本机回环地址")
         target, install_kind = official_launch_target(self.platform)
         binding = OllamaBinding(
             api_base=endpoint,
@@ -276,3 +320,18 @@ class OllamaPlatformAdapter:
         )
         self.verify_recorded_installation(binding)
         return binding
+
+
+def wait_for_healthy(
+    adapter: OllamaPlatformAdapter,
+    binding: OllamaBinding,
+    *,
+    timeout_seconds: float = 10.0,
+) -> OllamaProbe:
+    """Poll briefly after launching Ollama so startup is not reported too early."""
+    deadline = time.monotonic() + timeout_seconds
+    probe = adapter.probe(binding)
+    while probe.state != "healthy" and time.monotonic() < deadline:
+        time.sleep(0.25)
+        probe = adapter.probe(binding)
+    return probe

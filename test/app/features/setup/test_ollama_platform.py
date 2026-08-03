@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -90,6 +91,40 @@ def test_official_binding_with_invalid_platform_signature_requires_repair(
 
     assert probe.state == "repair_required"
     assert probe.endpoint == binding.api_base
+
+
+def test_start_bound_installation_launches_without_waiting_for_serve_process(
+    tmp_path: Path,
+) -> None:
+    executable = tmp_path / "ollama"
+    executable.write_text("binary", encoding="utf-8")
+    launched: list[tuple[tuple[str, ...], dict[str, object]]] = []
+    adapter = OllamaPlatformAdapter(
+        platform_name="linux",
+        process_launcher=lambda command, **kwargs: launched.append((tuple(command), kwargs)),
+    )
+
+    adapter.start_bound_installation(
+        OllamaBinding(
+            api_base="http://127.0.0.1:11434",
+            platform="linux",
+            install_kind="binary",
+            launch_target=str(executable),
+            version="0.12.0",
+        )
+    )
+
+    assert launched == [
+        (
+            (str(executable), "serve"),
+            {
+                "stdin": subprocess.DEVNULL,
+                "stdout": subprocess.DEVNULL,
+                "stderr": subprocess.DEVNULL,
+                "start_new_session": True,
+            },
+        )
+    ]
 
 
 def test_linux_official_binding_requires_recorded_script_provenance(
