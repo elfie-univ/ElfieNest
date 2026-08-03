@@ -14,8 +14,8 @@ describe("elfie profile projection", () => {
 
     expect(projection.kind).toBe("adopter")
     if (projection.kind === "adopter") {
-      expect(projection.privateCognition.modules).toHaveLength(6)
-      expect(projection.privateCognition.modules[0].title).toBe("记忆与认知")
+      expect(projection.privateCognition.recentFocus.topics[0]?.label).toBe("晨间巡游")
+      expect(projection.careSettings.food.selectedId).toBeTruthy()
     }
   })
 
@@ -43,9 +43,9 @@ describe("elfie profile projection", () => {
     const projection = projectElfieProfile(SIGNED_IN_ADMIN, KETTLE_EXPERIENCE)
     const serialized = JSON.stringify(projection)
 
-    expect(serialized).not.toContain("记忆与认知")
+    expect(serialized).not.toContain("近期关注")
     expect(serialized).not.toContain("重要经历")
-    expect(serialized).not.toContain("关系认知")
+    expect(serialized).not.toContain("关系世界")
     expect(serialized).not.toContain("知识与信念")
     expect(serialized).not.toContain("世界理解")
     expect(serialized).not.toContain("粮食策略")
@@ -54,13 +54,11 @@ describe("elfie profile projection", () => {
     expect(serialized).not.toContain("KettleWorldMapOnly")
     for (const privateKey of [
       "privateCognition",
-      "modules",
-      "topics",
-      "experienceCount",
-      "entries",
-      "graph",
-      "food",
-      "model",
+      "careSettings",
+      "recentFocus",
+      "importantExperiences",
+      "relationshipWorld",
+      "knowledgeBeliefs",
     ]) {
       expect(serialized).not.toContain(`"${privateKey}":`)
     }

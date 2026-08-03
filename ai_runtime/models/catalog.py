@@ -479,7 +479,14 @@ def _verify_custom_openai_provider(
         pass
 
     configured_models = configured_model_names(provider_info)
-    test_model = configured_models[0] if configured_models else "custom-model"
+    configured_test_model = str(provider_info.get("test_model") or "").strip()
+    test_model = (
+        configured_test_model
+        if configured_test_model and configured_test_model != "custom-model"
+        else configured_models[0]
+        if configured_models
+        else configured_test_model or "custom-model"
+    )
     chat_url = f"{api_base.rstrip('/')}/chat/completions"
     payload = json.dumps(
         {
@@ -538,6 +545,125 @@ def _custom_openai_error(status_code: int, reason: str, test_model: str) -> str:
     )
 
 
+def _verify_openai_compatible_provider(
+    api_base: str,
+    api_key: str,
+    test_model: str,
+) -> Dict[str, Any]:
+    """Check a named OpenAI-compatible endpoint with a safe chat fallback."""
+    import time
+
+    headers: Dict[str, str] = {"Accept": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    started = time.time()
+    models_url = f"{api_base.rstrip('/')}/models"
+    try:
+        request = urllib.request.Request(models_url, headers=headers, method="GET")
+        with open_provider_request(request, timeout=5) as response:
+            if response.status == 200:
+                return {
+                    "status": "active",
+                    "latency_ms": round((time.time() - started) * 1000, 2),
+                    "error": None,
+                }
+            if response.status not in {404, 405, 501}:
+                return {
+                    "status": "inactive",
+                    "latency_ms": None,
+                    "error": f"HTTP {response.status}",
+                }
+    except urllib.error.HTTPError as exc:
+        if exc.code not in {404, 405, 501}:
+            return {
+                "status": "inactive",
+                "latency_ms": None,
+                "error": f"HTTP {exc.code}: {exc.reason}",
+            }
+    except urllib.error.URLError as exc:
+        return {
+            "status": "inactive",
+            "latency_ms": None,
+            "error": f"连接失败: {exc.reason}",
+        }
+    except TimeoutError:
+        return {
+            "status": "inactive",
+            "latency_ms": None,
+            "error": "连接超时（5秒）",
+        }
+    except Exception as exc:
+        return {
+            "status": "inactive",
+            "latency_ms": None,
+            "error": str(exc),
+        }
+
+    normalized_test_model = test_model.strip()
+    if not normalized_test_model:
+        return {
+            "status": "inactive",
+            "latency_ms": None,
+            "error": "模型列表不可用且未配置安全测试模型",
+        }
+    chat_url = f"{api_base.rstrip('/')}/chat/completions"
+    payload = json.dumps(
+        {
+            "model": normalized_test_model,
+            "messages": [{"role": "user", "content": "ping"}],
+            "max_tokens": 1,
+            "temperature": 0,
+        }
+    ).encode("utf-8")
+    chat_headers = {**headers, "Content-Type": "application/json"}
+    try:
+        request = urllib.request.Request(
+            chat_url,
+            data=payload,
+            headers=chat_headers,
+            method="POST",
+        )
+        with open_provider_request(request, timeout=5) as response:
+            if response.status == 200:
+                return {
+                    "status": "active",
+                    "latency_ms": round((time.time() - started) * 1000, 2),
+                    "error": None,
+                }
+            return {
+                "status": "inactive",
+                "latency_ms": None,
+                "error": f"HTTP {response.status}（测试模型 {normalized_test_model}）",
+            }
+    except urllib.error.HTTPError as exc:
+        return {
+            "status": "inactive",
+            "latency_ms": None,
+            "error": (
+                f"HTTP {exc.code}: {exc.reason}；"
+                f"测试模型 {normalized_test_model} 不可用"
+            ),
+        }
+    except urllib.error.URLError as exc:
+        return {
+            "status": "inactive",
+            "latency_ms": None,
+            "error": f"连接失败: {exc.reason}",
+        }
+    except TimeoutError:
+        return {
+            "status": "inactive",
+            "latency_ms": None,
+            "error": "连接超时（5秒）",
+        }
+    except Exception as exc:
+        return {
+            "status": "inactive",
+            "latency_ms": None,
+            "error": str(exc),
+        }
+
+
 def verify_provider(provider_id: str, config: Any) -> Dict[str, Any]:
     """验证 Provider 连通性。
 
@@ -584,10 +710,11 @@ def verify_provider(provider_id: str, config: Any) -> Dict[str, Any]:
         elif api_mode == "chat_completions":
             if provider_id == "custom_openai" or profile is None:
                 return _verify_custom_openai_provider(provider_info, api_base, api_key)
-            # OpenAI 兼容: GET {api_base}/models with Bearer token
-            url = f"{api_base.rstrip('/')}/models"
-            if api_key:
-                headers["Authorization"] = f"Bearer {api_key}"
+            return _verify_openai_compatible_provider(
+                api_base,
+                api_key,
+                str(provider_info.get("test_model") or profile.test_model),
+            )
         elif api_mode == "anthropic_messages":
             # Anthropic: GET {api_base}/models with x-api-key header
             url = f"{api_base.rstrip('/')}/models"

@@ -1,4 +1,11 @@
 version: 2
+ollama_recommended_models:
+  - id: qwen2.5:0.5b
+    recommended: true
+  - id: qwen3.5:0.8b
+    recommended: false
+  - id: gemma3:270m
+    recommended: false
 brands:
   ollama:
     name: Ollama
@@ -48,15 +55,6 @@ products:
     discovery_strategy: ollama
     oauth_available: false
     test_model: qwen3.5:0.8b
-    bundled_models:
-      - qwen3.5:0.8b
-      - qwen2.5:0.5b
-      - llama3.2:1b
-      - qwen3.5:4b
-      - qwen2.5:7b
-      - llama3:8b
-      - moondream
-      - llava
   openai_api:
     brand_id: openai
     legacy_provider_id: openai

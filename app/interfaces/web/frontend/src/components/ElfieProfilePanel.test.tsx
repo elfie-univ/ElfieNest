@@ -46,7 +46,7 @@ describe("ElfieProfilePanel", () => {
     const { instance } = renderWithI18n(
       <ElfieProfilePanel onBack={vi.fn()} onChat={vi.fn()} projection={projection} />,
     )
-    await user.click(screen.getByRole("button", { name: "记忆与认知" }))
+    await user.click(screen.getByRole("button", { name: "近期关注" }))
 
     // When: the shared locale changes without remounting the profile.
     await act(async () => { await instance.changeLanguage("en-US") })
@@ -54,7 +54,7 @@ describe("ElfieProfilePanel", () => {
     // Then: chrome is English, the private panel remains open, and business content is unchanged.
     expect(screen.getByText("3D individual view", { selector: ".profile-appearance__title" })).toBeInTheDocument()
     expect(screen.getByText("Big Five personality", { selector: ".profile-dossier__section-name" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Memory and cognition" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Recent focus" })).toHaveAttribute(
       "aria-expanded",
       "true",
     )

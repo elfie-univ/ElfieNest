@@ -23,9 +23,17 @@ class ProviderModelInput(BaseModel):
     supports_vision: Optional[bool] = None
     supports_reasoning: Optional[bool] = None
 
-    @field_validator("id", "display_name")
+    @field_validator("id")
     @classmethod
-    def strip_text(cls, value: str) -> str:
+    def strip_required_model_id(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("模型 ID 不能为空")
+        return normalized
+
+    @field_validator("display_name")
+    @classmethod
+    def strip_display_name(cls, value: str) -> str:
         return value.strip()
 
     @field_validator("canonical_model_id")
@@ -35,6 +43,51 @@ class ProviderModelInput(BaseModel):
             return None
         normalized = value.strip()
         return normalized or None
+
+
+class ProviderModelBatchItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    original_id: str = Field(min_length=1, max_length=200)
+    id: str = Field(min_length=1, max_length=200)
+    display_name: str = Field(default="", max_length=200)
+    canonical_model_id: Optional[str] = Field(default=None, max_length=200)
+    context_window_tokens: Optional[int] = Field(default=None, gt=0)
+    max_output_tokens: Optional[int] = Field(default=None, gt=0)
+    supports_tools: Optional[bool] = None
+    supports_vision: Optional[bool] = None
+    supports_reasoning: Optional[bool] = None
+    hidden: bool
+
+    @field_validator("original_id", "id")
+    @classmethod
+    def strip_required_batch_text(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("模型 ID 不能为空")
+        return normalized
+
+    @field_validator("display_name")
+    @classmethod
+    def strip_batch_display_name(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("canonical_model_id")
+    @classmethod
+    def strip_batch_model_identity(
+        cls,
+        value: Optional[str],
+    ) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+
+class ProviderModelBatchUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    models: List[ProviderModelBatchItem] = Field(max_length=200)
 
 
 class ProviderConnectionWriteRequest(BaseModel):

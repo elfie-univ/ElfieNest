@@ -31,6 +31,92 @@ const ProfilePayloadSchema = z.object({
   embodiment: z.object({ state: z.string() }),
 })
 
+const CognitionStatusSchema = z.enum(["ready", "empty", "unavailable"])
+const WeightSchema = z.number().min(0).max(1)
+const RecentFocusSchema = z.object({
+  topics: z.array(z.object({
+    id: z.string().min(1),
+    label: z.string().min(1),
+    category: z.string().min(1),
+    weight: WeightSchema,
+  }).readonly()).max(20).readonly(),
+}).readonly()
+const ImportantExperiencesSchema = z.object({
+  entries: z.array(z.object({
+    id: z.string().min(1),
+    occurred_at: z.string().min(1),
+    title: z.string().min(1),
+    changed: z.string(),
+    importance: WeightSchema,
+    people: z.array(z.string()).readonly(),
+  }).readonly()).max(10).readonly(),
+}).readonly()
+const RelationshipWorldSchema = z.object({
+  nodes: z.array(z.object({
+    id: z.string().min(1),
+    label: z.string().min(1),
+    kind: z.enum(["self", "human", "elfie"]),
+    weight: WeightSchema,
+  }).readonly()).max(20).readonly(),
+  edges: z.array(z.object({
+    source: z.string().min(1),
+    target: z.string().min(1),
+    relation_key: z.string().min(1),
+    display_label: z.string(),
+    weight: WeightSchema,
+  }).readonly()).readonly(),
+}).readonly()
+const WorldUnderstandingSchema = z.object({
+  summary: z.string(),
+  rings: z.array(z.object({
+    key: z.enum(["self", "family", "nest", "society", "outside"]),
+    nodes: z.array(z.object({
+      id: z.string().min(1),
+      label: z.string().min(1),
+      kind: z.string().min(1),
+      weight: WeightSchema,
+    }).readonly()).readonly(),
+  }).readonly()).length(5).readonly(),
+}).readonly()
+const KnowledgeBeliefsSchema = z.object({
+  nodes: z.array(z.object({
+    id: z.string().min(1),
+    label: z.string().min(1),
+    kind: z.enum(["source", "knowledge", "belief"]),
+    weight: WeightSchema,
+  }).readonly()).max(10).readonly(),
+  edges: z.array(z.object({
+    source: z.string().min(1),
+    target: z.string().min(1),
+    relation_key: z.string().min(1),
+    display_label: z.string(),
+    weight: WeightSchema,
+  }).readonly()).readonly(),
+}).readonly()
+const PrivateCognitionSchema = z.object({
+  status: CognitionStatusSchema,
+  recent_focus: RecentFocusSchema,
+  important_experiences: ImportantExperiencesSchema,
+  relationship_world: RelationshipWorldSchema,
+  world_understanding: WorldUnderstandingSchema,
+  knowledge_beliefs: KnowledgeBeliefsSchema,
+}).readonly()
+const CareSettingsSchema = z.object({
+  food: z.object({
+    selected_id: z.string(),
+    selected_label: z.string(),
+    options: z.array(z.object({
+      id: z.string(),
+      label: z.string(),
+    }).readonly()).readonly(),
+    unavailable: z.boolean(),
+  }).readonly(),
+}).readonly()
+const ProfileDetailPayloadSchema = ProfilePayloadSchema.extend({
+  private_cognition: PrivateCognitionSchema,
+  care_settings: CareSettingsSchema,
+})
+
 type ProfilePayload = z.infer<typeof ProfilePayloadSchema>
 type ProfileStatus = z.infer<typeof ProfileStatusSchema>
 
@@ -39,7 +125,12 @@ export const ProfileSchema = ProfilePayloadSchema.transform(({ status, ...profil
   status: status ?? deriveProfileStatus(profile),
 }))
 
-function deriveProfileStatus(profile: Omit<ProfilePayload, "status">): ProfileStatus {
+export const ProfileDetailSchema = ProfileDetailPayloadSchema.transform(({ status, ...profile }) => ({
+  ...profile,
+  status: status ?? deriveProfileStatus(profile),
+}))
+
+function deriveProfileStatus(profile: Pick<ProfilePayload, "embodiment" | "online_status">): ProfileStatus {
   switch (profile.embodiment.state) {
     case "at_nest":
       return { code: "at_nest", label: "at_nest", tone: "active" }
@@ -77,6 +168,7 @@ export const OwnerElfieSchema = z.object({
 }).strict()
 
 export type ElfieProfile = z.infer<typeof ProfileSchema>
+export type ElfieProfileDetail = z.infer<typeof ProfileDetailSchema>
 export type OwnerElfie = z.infer<typeof OwnerElfieSchema>
 export type OwnerElfieFilters = {
   readonly ownerUserId?: number

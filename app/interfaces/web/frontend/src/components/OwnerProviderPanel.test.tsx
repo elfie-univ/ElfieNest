@@ -85,6 +85,7 @@ const model = {
   hidden: false,
   retired: false,
   available: true,
+  verification: { status: "passed", checked_at: "2026-07-30T00:00:00Z", latency_ms: 42, error: null },
 } as const
 
 const connection = {
@@ -120,7 +121,7 @@ const absentOllama = {
   endpoint: null,
   version: null,
   memory_gb: 16,
-  recommended_model: "qwen2.5:3b",
+  recommended_model: "qwen2.5:0.5b",
   installed_model_count: 0,
   models: [],
   task: null,
@@ -130,7 +131,7 @@ const stoppedOllama = {
   ...absentOllama,
   state: "stopped",
   endpoint: "http://127.0.0.1:11434",
-  models: [{ id: "qwen2.5:3b", display_name: "qwen2.5:3b", installed: true, recommended: true }],
+  models: [{ id: "qwen2.5:0.5b", display_name: "qwen2.5:0.5b", installed: true, recommended: true }],
   installed_model_count: 1,
 } satisfies OllamaStatus
 
@@ -139,8 +140,9 @@ const healthyOllama = {
   state: "healthy",
   version: "0.12.0",
   models: [
-    { id: "qwen2.5:3b", display_name: "qwen2.5:3b", installed: true, recommended: true },
-    { id: "llama3:8b", display_name: "llama3:8b", installed: false, recommended: false },
+    { id: "qwen2.5:0.5b", display_name: "qwen2.5:0.5b", installed: true, recommended: true },
+    { id: "qwen3.5:0.8b", display_name: "qwen3.5:0.8b", installed: false, recommended: false },
+    { id: "gemma3:270m", display_name: "gemma3:270m", installed: false, recommended: false },
   ],
 } satisfies OllamaStatus
 
@@ -172,7 +174,8 @@ describe("OwnerProviderPanel v2 behavior", () => {
     const configured = await screen.findByRole("region", { name: "已配置的远程订阅" })
     const card = within(configured).getByRole("article")
     expect(within(card).getByRole("heading", { name: "OpenAI Main" })).toBeInTheDocument()
-    expect(within(card).getByText("1 个可见模型")).toBeInTheDocument()
+    expect(within(card).getByText("共 1 个模型（已启用 1 个 · 验证通过 1 个）")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "同模型对比" })).toBeInTheDocument()
 
     const available = screen.getByRole("region", { name: "添加新的远程订阅" })
     expect(within(available).getByRole("button", { name: "配置 OpenAI" })).toBeInTheDocument()
@@ -344,7 +347,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     expect(startOllama).toHaveBeenCalledWith("csrf")
   })
 
-  it("opens the compact Ollama model dialog and downloads selected candidates", async () => {
+  it("opens the recommended Ollama model list and downloads one candidate directly", async () => {
     const user = userEvent.setup()
     vi.mocked(ownerOllamaStatus).mockResolvedValue(healthyOllama)
     renderPanel()
@@ -353,13 +356,13 @@ describe("OwnerProviderPanel v2 behavior", () => {
     await user.click(within(card).getByRole("button", { name: "模型" }))
 
     const dialog = screen.getByRole("dialog", { name: "Ollama 模型" })
-    expect(within(dialog).getAllByText("qwen2.5:3b")).not.toHaveLength(0)
+    expect(within(dialog).getAllByText("qwen2.5:0.5b")).not.toHaveLength(0)
+    expect(within(dialog).getByText("qwen3.5:0.8b")).toBeInTheDocument()
+    expect(within(dialog).getByText("gemma3:270m")).toBeInTheDocument()
     expect(within(dialog).getByText("已下载")).toBeInTheDocument()
-    await user.click(within(dialog).getByRole("button", { name: "添加模型" }))
-    await user.click(within(dialog).getByRole("checkbox", { name: "llama3:8b" }))
-    await user.click(within(dialog).getByRole("button", { name: "下载所选模型" }))
+    await user.click(within(dialog).getAllByRole("button", { name: "下载安装" })[0]!)
 
-    expect(pullOllamaModels).toHaveBeenCalledWith(["llama3:8b"], "csrf")
+    expect(pullOllamaModels).toHaveBeenCalledWith(["qwen3.5:0.8b"], "csrf")
   })
 
   it("relocalizes a stored backend failure without losing the page", async () => {

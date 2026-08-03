@@ -72,7 +72,7 @@ describe("ModelMatrixDialog v2 behavior", () => {
   it("renders the connection-model matrix from current report evidence", async () => {
     renderDialog()
 
-    const dialog = screen.getByRole("dialog", { name: "支持模型与测速" })
+    const dialog = screen.getByRole("dialog", { name: "同模型对比" })
     expect(await within(dialog).findByRole("columnheader", { name: "OpenAI Main" })).toBeInTheDocument()
     expect(within(dialog).getByRole("row", { name: /GPT Test.*可用.*45ms/ })).toBeInTheDocument()
   })
@@ -81,12 +81,12 @@ describe("ModelMatrixDialog v2 behavior", () => {
     const user = userEvent.setup()
     renderDialog()
 
-    await user.click(await screen.findByRole("button", { name: "批量测速" }))
+    await user.click(await screen.findByRole("button", { name: "批量对比" }))
     expect(benchmarkProviderModels).toHaveBeenCalledWith(
       [{ connection_id: "conn-openai", model_id: "gpt-test" }],
       "csrf",
     )
-    expect(await screen.findByText("测速完成：1 个成功，0 个失败。")).toBeInTheDocument()
+    expect(await screen.findByText("对比完成：1 个成功，0 个失败。")).toBeInTheDocument()
     expect(vi.mocked(ownerModelMatrix).mock.calls.length).toBeGreaterThanOrEqual(2)
   })
 
@@ -95,9 +95,9 @@ describe("ModelMatrixDialog v2 behavior", () => {
     expect(await screen.findByText("GPT Test")).toBeInTheDocument()
 
     await instance.changeLanguage("en-US")
-    expect(screen.getByRole("dialog", { name: "Supported models and benchmarks" })).toBeInTheDocument()
+    expect(screen.getByRole("dialog", { name: "Same-model comparison" })).toBeInTheDocument()
     expect(screen.getByText("GPT Test")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Benchmark all" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Compare all" })).toBeInTheDocument()
   })
 })
 

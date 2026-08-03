@@ -79,6 +79,35 @@ const elfie = {
   embodiment: { state: "at_nest" },
 }
 
+function profileDetail(source: typeof elfie) {
+  return {
+    ...source,
+    private_cognition: {
+      status: "ready" as const,
+      recent_focus: { topics: [{ id: "topic:门口", label: "门口", category: "place", weight: 1 }] },
+      important_experiences: { entries: [] },
+      relationship_world: {
+        nodes: [{ id: "self", label: source.name, kind: "self" as const, weight: 1 }],
+        edges: [],
+      },
+      world_understanding: {
+        summary: "安静的地方让我放松。",
+        rings: [
+          { key: "self" as const, nodes: [] },
+          { key: "family" as const, nodes: [] },
+          { key: "nest" as const, nodes: [] },
+          { key: "society" as const, nodes: [] },
+          { key: "outside" as const, nodes: [] },
+        ],
+      },
+      knowledge_beliefs: { nodes: [], edges: [] },
+    },
+    care_settings: {
+      food: { selected_id: "", selected_label: "", options: [], unavailable: false },
+    },
+  }
+}
+
 function useDemoElfies(): void {
   chatApi.conversations.mockRejectedValue(new Error("Not Found"))
   chatApi.elfies.mockRejectedValue(new Error("Not Found"))
@@ -98,7 +127,7 @@ describe("ChatPage profile integration", () => {
     }])
     chatApi.elfies.mockResolvedValue([elfie])
     chatApi.messages.mockResolvedValue([])
-    chatApi.profile.mockResolvedValue(elfie)
+    chatApi.profile.mockResolvedValue(profileDetail(elfie))
   })
 
   it("restores a profile deep link from the URL across a fresh render", async () => {
@@ -118,8 +147,8 @@ describe("ChatPage profile integration", () => {
     window.history.replaceState({}, "", "/chat?view=profile&elfie=12345678&mock=1")
     const { container } = renderChatPage()
     expect(await screen.findByRole("heading", { level: 1, name: "Happy" })).toBeInTheDocument()
-    expect(screen.getByRole("heading", { level: 2, name: "3D 个体视图" })).toBeInTheDocument()
-    expect(screen.getByRole("heading", { level: 2, name: "大五人格" })).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "3D 个体视图" })).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "大五人格" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "拍照" })).toBeInTheDocument()
     for (const title of PRIVATE_MODULE_TITLES) {
       expect(screen.getByRole("button", { name: title })).toBeInTheDocument()
@@ -141,7 +170,7 @@ describe("ChatPage profile integration", () => {
     act(() => navigate("/chat?view=profile&elfie=23456789&mock=1"))
 
     expect(await screen.findByRole("heading", { level: 1, name: "Kettle" }, { timeout: 5_000 })).toBeInTheDocument()
-    expect(screen.getByRole("heading", { level: 2, name: "大五人格" })).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "大五人格" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "拍照" })).not.toBeInTheDocument()
     for (const title of PRIVATE_MODULE_TITLES) {
       expect(screen.queryByRole("button", { name: title })).not.toBeInTheDocument()
@@ -154,7 +183,7 @@ describe("ChatPage profile integration", () => {
     window.history.replaceState({}, "", "/chat?view=profile&elfie=34567890&mock=1")
     chatApi.conversations.mockResolvedValue([])
     chatApi.elfies.mockResolvedValue([realElfie])
-    chatApi.profile.mockResolvedValue(realElfie)
+    chatApi.profile.mockResolvedValue(profileDetail(realElfie))
     renderChatPage()
     expect(await screen.findByRole("heading", { level: 1, name: "Mochi" })).toBeInTheDocument()
     expect(screen.getByText("我")).toBeInTheDocument()

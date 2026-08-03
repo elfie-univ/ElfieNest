@@ -2,7 +2,6 @@ import type { EChartsCoreOption } from "echarts/core"
 
 import {
   BIG_FIVE_TRAITS,
-  type GraphProjection,
   type PublicProfile,
 } from "./model"
 
@@ -58,51 +57,6 @@ export function buildBigFiveRadarOption(
       areaStyle: { color: theme.accent, opacity: 0.2 },
       symbolSize: 7,
       type: "radar",
-    }],
-    textStyle: { color: theme.text },
-    tooltip: { trigger: "item" },
-  } satisfies EChartsCoreOption
-}
-
-export function buildGraphOption(
-  graph: GraphProjection,
-  theme: ChartTheme,
-) {
-  const directed = graph.edges.some((edge) => edge.directed)
-  return {
-    animationDuration: 280,
-    aria: { enabled: false },
-    color: [theme.accent],
-    series: [{
-      data: graph.nodes.map((node) => ({
-        id: node.id,
-        name: node.label,
-        symbolSize: 34,
-      })),
-      edgeLabel: {
-        color: theme.textMuted,
-        formatter: "{c}",
-        show: false,
-      },
-      edgeLineStyle: { color: theme.border, curveness: directed ? 0.08 : 0 },
-      edgeSymbol: directed ? ["none", "arrow"] : ["none", "none"],
-      edgeSymbolSize: directed ? 8 : 0,
-      emphasis: { focus: "adjacency" },
-      label: { color: theme.text, overflow: "break", position: "right", show: true },
-      layout: "circular",
-      circular: { rotateLabel: true },
-      top: "20%",
-      bottom: "20%",
-      left: "14%",
-      right: "14%",
-      zoom: 0.65,
-      links: graph.edges.map((edge) => ({
-        source: edge.source,
-        target: edge.target,
-        value: edge.label,
-      })),
-      roam: true,
-      type: "graph",
     }],
     textStyle: { color: theme.text },
     tooltip: { trigger: "item" },

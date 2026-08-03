@@ -2,11 +2,11 @@ import { MOCK_ELFIES } from "../owner-card-mock-data"
 import { parseExperienceFixture, parseViewer, type GodotAppearance } from "./model"
 
 export const PRIVATE_MODULE_TITLES = [
-  "记忆与认知",
+  "近期关注",
   "重要经历",
-  "关系认知",
-  "知识与信念",
+  "关系世界",
   "世界理解",
+  "知识与信念",
   "粮食策略",
 ] as const
 
@@ -60,34 +60,89 @@ export const HAPPY_EXPERIENCE = parseExperienceFixture({
     bigFive: happySource.profile.big_five,
   },
   privateCognition: {
-    modules: [
-      {
-        title: "记忆与认知",
-        topics: [
-          { label: "晨间巡游", count: 14 },
-          { label: "贴近回应", count: 11 },
-          { label: "食物碗检查", count: 8 },
-        ],
-        experienceCount: 47,
-      },
-      {
-        title: "重要经历",
-        entries: [
-          { date: "2026-06-30", title: "第一次回头", detail: "听到 admin123 的脚步声后主动靠近。" },
-          { date: "2026-07-04", title: "学会等待", detail: "在模型响应变慢时保持坐姿，没有打断对话。" },
-        ],
-      },
-      { title: "关系认知", graph: graphFixture("happy-relationship", 21, false) },
-      { title: "知识与信念", graph: graphFixture("happy-belief", 51, true) },
-      { title: "世界理解", graph: graphFixture("happy-world", 20, false) },
-      {
-        title: "粮食策略",
-        food: {
-          selected: happySource.food_policy.effective_main_food_id,
-          allowed: happySource.food_policy.main_food_options.map((item) => item.food_id),
-        },
-      },
-    ],
+    status: "ready",
+    recentFocus: {
+      topics: [
+        { id: "topic:晨间巡游", label: "晨间巡游", category: "activity", weight: 1 },
+        { id: "topic:贴近回应", label: "贴近回应", category: "emotion", weight: 0.88 },
+        { id: "topic:食物碗检查", label: "食物碗检查", category: "activity", weight: 0.74 },
+        { id: "topic:主人陪伴", label: "主人陪伴", category: "person", weight: 0.62 },
+        { id: "topic:夜间散步", label: "夜间散步", category: "activity", weight: 0.52 },
+        { id: "topic:发现安静的路", label: "发现安静的路", category: "place", weight: 0.44 },
+        { id: "topic:玩具分享", label: "玩具分享", category: "activity", weight: 0.37 },
+        { id: "topic:准备温水", label: "准备温水", category: "activity", weight: 0.31 },
+        { id: "topic:公园散步", label: "公园散步", category: "place", weight: 0.26 },
+        { id: "topic:叫名字", label: "叫名字", category: "emotion", weight: 0.22 },
+        { id: "topic:被夸奖", label: "被夸奖", category: "emotion", weight: 0.19 },
+        { id: "topic:彩色盒子", label: "彩色盒子", category: "activity", weight: 0.16 },
+        { id: "topic:观察脚步声", label: "观察脚步声", category: "activity", weight: 0.14 },
+        { id: "topic:星星", label: "星星", category: "person", weight: 0.12 },
+        { id: "topic:小雨", label: "小雨", category: "person", weight: 0.1 },
+        { id: "topic:云端伙伴", label: "云端伙伴", category: "person", weight: 0.085 },
+        { id: "topic:窗边", label: "窗边", category: "place", weight: 0.07 },
+        { id: "topic:安静角落", label: "安静角落", category: "place", weight: 0.06 },
+        { id: "topic:新朋友", label: "新朋友", category: "person", weight: 0.05 },
+        { id: "topic:等待回应", label: "等待回应", category: "emotion", weight: 0.045 },
+        { id: "topic:记住路线", label: "记住路线", category: "activity", weight: 0.04 },
+        { id: "topic:轻轻靠近", label: "轻轻靠近", category: "emotion", weight: 0.035 },
+        { id: "topic:休息", label: "休息", category: "emotion", weight: 0.03 },
+        { id: "topic:晚餐", label: "晚餐", category: "activity", weight: 0.025 },
+        { id: "topic:新声音", label: "新声音", category: "activity", weight: 0.02 },
+        { id: "topic:可靠", label: "可靠", category: "emotion", weight: 0.018 },
+        { id: "topic:夜间观察", label: "夜间观察", category: "activity", weight: 0.015 },
+        { id: "topic:秘密花园", label: "秘密花园", category: "place", weight: 0.012 },
+        { id: "topic:书店老板", label: "书店老板", category: "person", weight: 0.01 },
+        { id: "topic:朋友", label: "朋友", category: "person", weight: 0.008 },
+      ],
+    },
+    importantExperiences: {
+      entries: [
+        { id: "event:adoption", occurredAt: "2026-06-30", title: "第一次回头", changed: "开始把主人的脚步声当作可靠的回应。", importance: 1, people: ["管理员"] },
+        { id: "event:waiting", occurredAt: "2026-07-04", title: "学会等待", changed: "在响应变慢时保持坐姿，先观察再靠近。", importance: 0.82, people: ["管理员"] },
+      ],
+    },
+    relationshipWorld: {
+      nodes: [
+        { id: "self", label: "Happy", kind: "self", weight: 1 },
+        { id: "owner", label: "主人", kind: "human", weight: 0.98 },
+        { id: "admin", label: "管理员", kind: "human", weight: 0.76 },
+        { id: "star", label: "星星", kind: "elfie", weight: 0.7 },
+      ],
+      edges: [
+        { source: "self", target: "owner", relationKey: "owner", displayLabel: "主人", weight: 1 },
+        { source: "self", target: "admin", relationKey: "family", displayLabel: "家人", weight: 0.76 },
+        { source: "self", target: "star", relationKey: "friend", displayLabel: "朋友", weight: 0.7 },
+      ],
+    },
+    worldUnderstanding: {
+      summary: "大多数时候世界是安全的，安静的地方让我放松。",
+      rings: [
+        { key: "self", nodes: [{ id: "self:care", label: "先确认再靠近", kind: "belief", weight: 0.88 }] },
+        { key: "family", nodes: [{ id: "family:owner", label: "主人的回应", kind: "relationship", weight: 0.92 }] },
+        { key: "nest", nodes: [{ id: "nest:quiet", label: "安静的角落", kind: "place", weight: 0.78 }] },
+        { key: "society", nodes: [{ id: "society:friend", label: "朋友可以慢慢认识", kind: "relationship", weight: 0.66 }] },
+        { key: "outside", nodes: [{ id: "outside:unknown", label: "陌生声音先观察", kind: "event", weight: 0.58 }] },
+      ],
+    },
+    knowledgeBeliefs: {
+      nodes: [
+        { id: "source:owner", label: "主人在早晨和睡前照顾我", kind: "source", weight: 0.95 },
+        { id: "knowledge:routine", label: "照顾是稳定的日常", kind: "knowledge", weight: 0.87 },
+        { id: "belief:trust", label: "可靠的人会持续回应", kind: "belief", weight: 0.8 },
+      ],
+      edges: [
+        { source: "source:owner", target: "knowledge:routine", relationKey: "derived_from", displayLabel: "来源于", weight: 0.9 },
+        { source: "knowledge:routine", target: "belief:trust", relationKey: "supports", displayLabel: "支持", weight: 0.84 },
+      ],
+    },
+  },
+  careSettings: {
+    food: {
+      selectedId: happySource.food_policy.effective_main_food_id,
+      selectedLabel: happySource.food_policy.main_food_options.find((item) => item.food_id === happySource.food_policy.effective_main_food_id)?.display_name ?? happySource.food_policy.effective_main_food_id,
+      options: happySource.food_policy.main_food_options.map((item) => ({ id: item.food_id, label: item.display_name })),
+      unavailable: happySource.food_policy.main_food_unavailable,
+    },
   },
 })
 
@@ -109,27 +164,49 @@ export const KETTLE_EXPERIENCE = parseExperienceFixture({
     bigFive: kettleSource.profile.big_five,
   },
   privateCognition: {
-    modules: [
-      {
-        title: "记忆与认知",
-        topics: [{ label: "铜壶窗边观察", count: 19 }],
-        experienceCount: 33,
-      },
-      {
-        title: "重要经历",
-        entries: [{ date: "2026-07-06", title: "第一次避让", detail: "把突然靠近的手势标记为需要等待确认。" }],
-      },
-      { title: "关系认知", graph: graphFixture("kettle-relationship", 7, false) },
-      { title: "知识与信念", graph: graphFixture("kettle-belief-steam", 8, true) },
-      { title: "世界理解", graph: graphFixture("KettleWorldMapOnly", 9, false) },
-      {
-        title: "粮食策略",
-        food: {
-          selected: kettleSource.food_policy.effective_main_food_id,
-          allowed: kettleSource.food_policy.main_food_options.map((item) => item.food_id),
-        },
-      },
-    ],
+    status: "ready",
+    recentFocus: {
+      topics: [{ id: "topic:铜壶窗边观察", label: "铜壶窗边观察", category: "place", weight: 1 }],
+    },
+    importantExperiences: {
+      entries: [{ id: "event:avoidance", occurredAt: "2026-07-06", title: "第一次避让", changed: "把突然靠近的手势标记为需要等待确认。", importance: 0.8, people: [] }],
+    },
+    relationshipWorld: {
+      nodes: [
+        { id: "self", label: "Kettle", kind: "self", weight: 1 },
+        { id: "owner", label: "主人", kind: "human", weight: 0.96 },
+      ],
+      edges: [{ source: "self", target: "owner", relationKey: "owner", displayLabel: "主人", weight: 0.96 }],
+    },
+    worldUnderstanding: {
+      summary: "陌生的声音需要先观察，熟悉的角落最让人安心。",
+      rings: [
+        { key: "self", nodes: [{ id: "self:observe", label: "先观察再靠近", kind: "belief", weight: 0.9 }] },
+        { key: "family", nodes: [] },
+        { key: "nest", nodes: [{ id: "nest:window", label: "窗边是安全的", kind: "place", weight: 0.8 }] },
+        { key: "society", nodes: [] },
+        { key: "outside", nodes: [{ id: "outside:sound", label: "陌生声音", kind: "event", weight: 0.6 }] },
+      ],
+    },
+    knowledgeBeliefs: {
+      nodes: [
+        { id: "source:window", label: "窗边的风声", kind: "source", weight: 0.85 },
+        { id: "knowledge:distance", label: "安全距离需要被尊重", kind: "knowledge", weight: 0.78 },
+        { id: "belief:wait", label: "等待能带来更好的回应", kind: "belief", weight: 0.72 },
+      ],
+      edges: [
+        { source: "source:window", target: "knowledge:distance", relationKey: "derived_from", displayLabel: "来源于", weight: 0.8 },
+        { source: "knowledge:distance", target: "belief:wait", relationKey: "supports", displayLabel: "支持", weight: 0.75 },
+      ],
+    },
+  },
+  careSettings: {
+    food: {
+      selectedId: kettleSource.food_policy.effective_main_food_id,
+      selectedLabel: kettleSource.food_policy.main_food_options.find((item) => item.food_id === kettleSource.food_policy.effective_main_food_id)?.display_name ?? kettleSource.food_policy.effective_main_food_id,
+      options: kettleSource.food_policy.main_food_options.map((item) => ({ id: item.food_id, label: item.display_name })),
+      unavailable: kettleSource.food_policy.main_food_unavailable,
+    },
   },
 })
 
@@ -163,20 +240,4 @@ function sourceElfie(elfieId: string) {
     throw new FixtureSourceError(elfieId)
   }
   return fixture
-}
-
-function graphFixture(prefix: string, nodeCount: number, directed: boolean) {
-  const nodes = Array.from({ length: nodeCount }, (_, index) => ({
-    id: `${prefix}-${String(index + 1).padStart(2, "0")}`,
-    label: `${prefix} ${index + 1}`,
-  }))
-  return {
-    nodes,
-    edges: Array.from({ length: Math.max(0, nodeCount - 1) }, (_, index) => ({
-      source: `${prefix}-${String(index + 1).padStart(2, "0")}`,
-      target: `${prefix}-${String(index + 2).padStart(2, "0")}`,
-      label: directed ? "指向" : "关联",
-      directed,
-    })),
-  }
 }

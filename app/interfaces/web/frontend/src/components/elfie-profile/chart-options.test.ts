@@ -4,11 +4,9 @@ import { HAPPY_EXPERIENCE } from "./mock-data"
 import {
   BIG_FIVE_COPY,
   buildBigFiveRadarOption,
-  buildGraphOption,
   resolveChartTheme,
   strongestBigFiveDescriptors,
 } from "./chart-options"
-import { projectGraph } from "./model"
 
 const THEME = {
   accent: "token-accent",
@@ -81,63 +79,5 @@ describe("Big Five chart options", () => {
       text: "chart-text",
       textMuted: "chart-muted",
     })
-  })
-})
-
-describe("cognition graph chart options", () => {
-  it("keeps preview and detail nodes deterministically bounded", () => {
-    const graph = HAPPY_EXPERIENCE.privateCognition.modules[3].graph
-
-    const preview = buildGraphOption(projectGraph(graph, "preview"), THEME)
-    const detail = buildGraphOption(projectGraph(graph, "detail"), THEME)
-    const previewSeries = preview.series[0]
-    const detailSeries = detail.series[0]
-    expect(previewSeries).toBeDefined()
-    expect(detailSeries).toBeDefined()
-    if (previewSeries === undefined || detailSeries === undefined) return
-
-    expect(previewSeries.data).toHaveLength(20)
-    expect(detailSeries.data).toHaveLength(50)
-    expect(previewSeries.data.map((node) => node.id)).toEqual(
-      graph.nodes.slice(0, 20).map((node) => node.id),
-    )
-  })
-
-  it("shows node labels and arrows for directed knowledge edges", () => {
-    const graph = HAPPY_EXPERIENCE.privateCognition.modules[3].graph
-    const option = buildGraphOption(projectGraph(graph, "preview"), THEME)
-    const series = option.series[0]
-    expect(series).toBeDefined()
-    if (series === undefined) return
-
-    expect(series.label.show).toBe(true)
-    expect(series.data[0]?.name).toBe(graph.nodes[0]?.label)
-    expect(series.edgeSymbol).toEqual(["none", "arrow"])
-    expect(series.edgeLabel.show).toBe(false)
-    expect(series.layout).toBe("circular")
-    expect(series.circular.rotateLabel).toBe(true)
-    expect(series.top).toBe("20%")
-    expect(series.bottom).toBe("20%")
-    expect(series.left).toBe("14%")
-    expect(series.right).toBe("14%")
-    expect(series.zoom).toBe(0.65)
-    expect(option.aria).toEqual({ enabled: false })
-  })
-
-  it("keeps duplicate labels as distinct ID-backed nodes", () => {
-    const graph = HAPPY_EXPERIENCE.privateCognition.modules[2].graph
-    const duplicateGraph = {
-      nodes: graph.nodes.slice(0, 2).map((node) => ({ ...node, label: "重复标签" })),
-      edges: graph.edges.slice(0, 1),
-    }
-    const option = buildGraphOption(projectGraph(duplicateGraph, "preview"), THEME)
-    const series = option.series[0]
-    expect(series).toBeDefined()
-    if (series === undefined) return
-
-    expect(series.data).toEqual([
-      expect.objectContaining({ id: graph.nodes[0]?.id, name: "重复标签" }),
-      expect.objectContaining({ id: graph.nodes[1]?.id, name: "重复标签" }),
-    ])
   })
 })

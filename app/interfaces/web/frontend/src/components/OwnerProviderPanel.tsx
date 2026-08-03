@@ -227,6 +227,22 @@ function ConfiguredConnectionCard({ busy, connection, onDelete, onEdit, onLifecy
   readonly onVerify: () => void
 }) {
   const { t } = useTranslation("manage")
-  const status = connection.verification.status === "passed" ? t("providerConnections.status.passed") : connection.verification.status === "failed" ? t("providerConnections.status.failed") : t("providerConnections.status.never")
-  return <article className={`provider-card provider-card--${connection.verification.status}`}><div className="provider-card__title"><h4>{connection.alias}</h4><span className={`status-badge status-badge--${connection.verification.status}`}>{status}</span></div><p>{t("providerConnections.card.visibleModels", { count: connection.models.filter((model) => !model.hidden).length })}</p><div className="manage-actions"><Button disabled={busy} onClick={onModels} type="button" variant="outline">{t("providerConnections.actions.models")}</Button><Button disabled={busy} onClick={onVerify} type="button" variant="outline">{busy ? t("providerConnections.actions.validating") : t("providerConnections.actions.validate")}</Button><Button disabled={busy} onClick={onEdit} type="button" variant="outline">{t("providerConnections.actions.edit")}</Button><ProviderLifecycleMenu archived={connection.archived} busy={busy} enabled={connection.enabled} onDelete={onDelete} onLifecycle={onLifecycle} /></div></article>
+  const enabledCount = connection.models.filter((model) => !model.hidden).length
+  const verifiedCount = connection.models.filter((model) => model.verification.status === "passed").length
+  const availableCount = connection.models.filter((model) => !model.hidden && model.available && model.verification.status === "passed").length
+  const health = enabledCount === 0
+    ? "never"
+    : availableCount === enabledCount
+      ? "passed"
+      : availableCount > 0
+        ? "partial"
+        : "failed"
+  const status = health === "passed"
+    ? t("providerConnections.status.passed")
+    : health === "partial"
+      ? t("providerConnections.status.partial")
+      : health === "failed"
+        ? t("providerConnections.status.failed")
+        : t("providerConnections.status.never")
+  return <article className={`provider-card provider-card--${health}`}><div className="provider-card__title"><h4>{connection.alias}</h4><span className={`status-badge status-badge--${health}`}>{status}</span></div><p className="provider-card__model-stats">{t("providerConnections.card.modelStats", { total: connection.models.length, enabled: enabledCount, verified: verifiedCount })}</p><div className="manage-actions"><Button disabled={busy} onClick={onModels} type="button" variant="outline">{t("providerConnections.actions.models")}</Button><Button disabled={busy} onClick={onVerify} type="button" variant="outline">{busy ? t("providerConnections.actions.validating") : t("providerConnections.actions.validate")}</Button><Button disabled={busy} onClick={onEdit} type="button" variant="outline">{t("providerConnections.actions.edit")}</Button><ProviderLifecycleMenu archived={connection.archived} busy={busy} enabled={connection.enabled} onDelete={onDelete} onLifecycle={onLifecycle} /></div></article>
 }
