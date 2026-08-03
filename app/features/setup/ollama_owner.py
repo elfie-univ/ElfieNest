@@ -5,15 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Final
 
-from ai_runtime.models.local_profiles import recommend_local_profile
-from ai_runtime.providers.catalog import ProviderProfile
-from ai_runtime.providers.profiles import get_product
 from ai_runtime.storage.provider_connections import (
     ProviderConnection,
     ProviderConnectionStore,
     ProviderModelRecord,
 )
 from app.features.setup.hardware import get_available_memory_gb
+from app.features.setup.model_catalog import SetupModelOption, setup_model_options
 from app.features.setup.ollama_owner_jobs import OllamaTask
 from app.infrastructure.ollama_platform import (
     DEFAULT_OLLAMA_ENDPOINT,
@@ -59,7 +57,6 @@ class OllamaOwnerService:
         self._store = provider_connection_store or ProviderConnectionStore()
 
     def inspect(self, task: OllamaTask | None = None) -> OllamaOwnerObservation:
-        profile = _ollama_profile()
         recorded = self._recorded_binding()
         binding = recorded or self._default_binding()
         probe = self._adapter.probe(binding)
@@ -67,9 +64,12 @@ class OllamaOwnerService:
             probe = OllamaProbe("absent", probe.endpoint, detail=probe.detail)
         installed = self._installed_names(probe, binding)
         memory_gb = get_available_memory_gb()
-        recommendation = recommend_local_profile(memory_gb)
-        recommended_model = recommendation.text_model if recommendation else None
-        models = _model_options(installed, profile, recommended_model)
+        model_catalog = setup_model_options()
+        recommended_model = next(
+            (option.model_id for option in model_catalog if option.recommended),
+            None,
+        )
+        models = _model_options(installed, model_catalog)
         return OllamaOwnerObservation(
             probe=probe,
             memory_gb=memory_gb,
@@ -96,7 +96,7 @@ class OllamaOwnerService:
         raise RuntimeError("已记录的 Ollama 安装需要修复")
 
     def pull_and_save(self, model_ids: tuple[str, ...]) -> None:
-        allowed = set(_ollama_profile().bundled_models)
+        allowed = {option.model_id for option in setup_model_options()}
         if any(model_id not in allowed for model_id in model_ids):
             raise ValueError("所选模型不在本地候选清单中")
         binding = self._recorded_binding()
@@ -224,26 +224,17 @@ class OllamaOwnerService:
         return next((connection for connection in self._store.load().connections.values() if connection.catalog_id == _OLLAMA_CATALOG_ID), None)
 
 
-def _ollama_profile() -> ProviderProfile:
-    profile = get_product(_OLLAMA_CATALOG_ID)
-    if profile is None:
-        raise RuntimeError("Ollama 产品目录缺失")
-    return profile
-
-
 def _model_options(
     installed: tuple[str, ...],
-    profile: ProviderProfile,
-    recommended_model: str | None,
+    model_catalog: tuple[SetupModelOption, ...],
 ) -> tuple[OllamaModelOption, ...]:
     installed_set = set(installed)
-    ordered_ids = list(dict.fromkeys((*installed, *profile.bundled_models)))
     return tuple(
         OllamaModelOption(
-            id=model_id,
-            display_name=model_id,
-            installed=model_id in installed_set,
-            recommended=model_id == recommended_model,
+            id=option.model_id,
+            display_name=option.model_id,
+            installed=option.model_id in installed_set,
+            recommended=option.recommended,
         )
-        for model_id in ordered_ids
+        for option in model_catalog
     )

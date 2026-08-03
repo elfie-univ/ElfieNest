@@ -4,69 +4,62 @@ import type { TFunction } from "i18next"
 import { ChevronDown, ChevronUp } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
-import {
-  ConfigModuleBody,
-  MemoryModuleBody,
-  TimelineModuleBody,
-} from "./ProfilePrivateModuleBodies"
-import { ProfileGraphSection } from "./ProfileGraphSection"
-import { loadProfileChartRuntime, type ProfileChartRuntime } from "./ProfileChart"
+import { ProfileCareSettings } from "./ProfileCareSettings"
+import { ProfileImportantExperiences } from "./ProfileImportantExperiences"
+import { ProfileKnowledgeBeliefs } from "./ProfileKnowledgeBeliefs"
+import { ProfileRecentFocus } from "./ProfileRecentFocus"
+import { ProfileRelationshipWorld } from "./ProfileRelationshipWorld"
+import { ProfileWorldUnderstanding } from "./ProfileWorldUnderstanding"
+import type { CareSettings, PrivateCognition } from "./model"
 import type { ElfieProfileProjection } from "./projection"
 
 type ProfilePrivateModulesProps = {
-  readonly loadChartRuntime?: () => Promise<ProfileChartRuntime>
   readonly projection: ElfieProfileProjection
 }
 
+type ModuleKey = "focus" | "timeline" | "relationships" | "world" | "knowledge" | "food"
+
 type ModuleItem = {
   readonly displayTitle: string
-  readonly title: string
+  readonly key: ModuleKey
   readonly renderBody: () => ReactNode
 }
 
 type AccordionState = {
+  readonly openKeys: readonly ModuleKey[]
   readonly resetKey: string
-  readonly openTitles: readonly string[]
 }
 
-const NO_OPEN_TITLES: readonly string[] = []
+const NO_OPEN_KEYS: readonly ModuleKey[] = []
 
-export function ProfilePrivateModules({
-  loadChartRuntime = loadProfileChartRuntime,
-  projection,
-}: ProfilePrivateModulesProps) {
+export function ProfilePrivateModules({ projection }: ProfilePrivateModulesProps) {
   const { t } = useTranslation("chat")
   const elfieId = projection.publicProfile.elfieId
   const resetKey = `${elfieId}:${projection.kind}`
   const [accordion, setAccordion] = useState<AccordionState>({
+    openKeys: NO_OPEN_KEYS,
     resetKey,
-    openTitles: NO_OPEN_TITLES,
   })
 
   useEffect(() => {
     setAccordion((current) => {
-      if (current.resetKey === resetKey && current.openTitles.length === 0) {
-        return current
-      }
-      return { resetKey, openTitles: NO_OPEN_TITLES }
+      if (current.resetKey === resetKey && current.openKeys.length === 0) return current
+      return { openKeys: NO_OPEN_KEYS, resetKey }
     })
   }, [resetKey])
 
-  if (projection.kind === "visitor") {
-    return null
-  }
+  if (projection.kind === "visitor") return null
 
-  const openTitles = accordion.resetKey === resetKey ? accordion.openTitles : NO_OPEN_TITLES
-  const items = moduleItems(projection.privateCognition.modules, elfieId, loadChartRuntime, t)
-
-  const toggle = (title: string): void => {
+  const openKeys = accordion.resetKey === resetKey ? accordion.openKeys : NO_OPEN_KEYS
+  const items = moduleItems(projection.privateCognition, projection.careSettings, t)
+  const toggle = (key: ModuleKey): void => {
     setAccordion((current) => {
-      const currentTitles = current.resetKey === resetKey ? current.openTitles : NO_OPEN_TITLES
+      const currentKeys = current.resetKey === resetKey ? current.openKeys : NO_OPEN_KEYS
       return {
         resetKey,
-        openTitles: currentTitles.includes(title)
-          ? currentTitles.filter((candidate) => candidate !== title)
-          : [...currentTitles, title],
+        openKeys: currentKeys.includes(key)
+          ? currentKeys.filter((candidate) => candidate !== key)
+          : [...currentKeys, key],
       }
     })
   }
@@ -74,18 +67,18 @@ export function ProfilePrivateModules({
   return (
     <section className="profile-dossier__private-modules" aria-label={t("profile.private.archive")}>
       {items.map((item, index) => {
-        const open = openTitles.includes(item.title)
+        const open = openKeys.includes(item.key)
         const triggerId = `private-module-trigger-${elfieId}-${index}`
         const panelId = `private-module-panel-${elfieId}-${index}`
         return (
-          <section className="profile-dossier__private-module" key={item.title}>
+          <section className="profile-dossier__private-module" key={item.key}>
             <h3>
               <button
                 id={triggerId}
                 type="button"
                 aria-controls={panelId}
                 aria-expanded={open}
-                onClick={() => toggle(item.title)}
+                onClick={() => toggle(item.key)}
               >
                 <span>{item.displayTitle}</span>
                 {open ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
@@ -109,36 +102,16 @@ export function ProfilePrivateModules({
 }
 
 function moduleItems(
-  modules: Extract<ElfieProfileProjection, { readonly kind: "adopter" }>["privateCognition"]["modules"],
-  elfieId: Extract<ElfieProfileProjection, { readonly kind: "adopter" }>["publicProfile"]["elfieId"],
-  loadChartRuntime: () => Promise<ProfileChartRuntime>,
+  cognition: PrivateCognition,
+  careSettings: CareSettings,
   t: TFunction<"chat">,
 ): readonly ModuleItem[] {
-  const [memory, timeline, relationships, knowledge, world, config] = modules
   return [
-    { title: memory.title, displayTitle: t("profile.private.titles.memory"), renderBody: () => <MemoryModuleBody module={memory} /> },
-    { title: timeline.title, displayTitle: t("profile.private.titles.timeline"), renderBody: () => <TimelineModuleBody module={timeline} /> },
-    {
-      title: relationships.title,
-      displayTitle: t("profile.private.titles.relationships"),
-      renderBody: () => (
-        <ProfileGraphSection elfieId={elfieId} loadChartRuntime={loadChartRuntime} module={relationships} />
-      ),
-    },
-    {
-      title: knowledge.title,
-      displayTitle: t("profile.private.titles.knowledge"),
-      renderBody: () => (
-        <ProfileGraphSection elfieId={elfieId} loadChartRuntime={loadChartRuntime} module={knowledge} />
-      ),
-    },
-    {
-      title: world.title,
-      displayTitle: t("profile.private.titles.world"),
-      renderBody: () => (
-        <ProfileGraphSection elfieId={elfieId} loadChartRuntime={loadChartRuntime} module={world} />
-      ),
-    },
-    { title: config.title, displayTitle: t("profile.private.titles.food"), renderBody: () => <ConfigModuleBody module={config} /> },
+    { key: "focus", displayTitle: t("profile.private.titles.focus"), renderBody: () => <ProfileRecentFocus focus={cognition.recentFocus} status={cognition.status} /> },
+    { key: "timeline", displayTitle: t("profile.private.titles.timeline"), renderBody: () => <ProfileImportantExperiences experiences={cognition.importantExperiences} status={cognition.status} /> },
+    { key: "relationships", displayTitle: t("profile.private.titles.relationships"), renderBody: () => <ProfileRelationshipWorld world={cognition.relationshipWorld} status={cognition.status} /> },
+    { key: "world", displayTitle: t("profile.private.titles.world"), renderBody: () => <ProfileWorldUnderstanding world={cognition.worldUnderstanding} status={cognition.status} /> },
+    { key: "knowledge", displayTitle: t("profile.private.titles.knowledge"), renderBody: () => <ProfileKnowledgeBeliefs knowledge={cognition.knowledgeBeliefs} status={cognition.status} /> },
+    { key: "food", displayTitle: t("profile.private.titles.food"), renderBody: () => <ProfileCareSettings settings={careSettings} /> },
   ]
 }
