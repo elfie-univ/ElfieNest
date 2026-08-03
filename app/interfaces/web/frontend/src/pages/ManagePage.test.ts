@@ -41,6 +41,7 @@ vi.mock("../components/OwnerNestPanel", () => ({ OwnerNestPanel: () => "精灵�
 vi.mock("../components/OwnerProviderPanel", () => ({ OwnerProviderPanel: () => "模型订阅内容" }))
 vi.mock("../components/OwnerFoodPanel", () => ({ OwnerFoodPanel: () => "粮食内容" }))
 vi.mock("../components/SystemSettingsPanel", () => ({ SystemSettingsPanel: () => "系统设置内容" }))
+vi.mock("../components/ToolsPermissionsPanel", () => ({ ToolsPermissionsPanel: () => "工具与权限内容" }))
 vi.mock("./IconCatalogPage", () => ({ IconCatalogPage: () => "图标目录" }))
 
 function renderManagePage(section = "monitor", locale: SupportedLocale = "zh-CN"): void {
