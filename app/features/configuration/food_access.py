@@ -12,7 +12,6 @@ from ai_runtime.food.store import FoodCatalog
 from app.infrastructure.persistence.food_assignments import (
     get_elfie_main_food_id,
     get_elfie_owner_user_id,
-    list_user_food_access,
 )
 
 
@@ -21,14 +20,15 @@ def visible_food_keys(
     user_id: int,
     catalog: FoodCatalog,
 ) -> tuple[str, ...]:
-    granted = set(list_user_food_access(db_path, user_id))
-    granted.add(FOOD_COMMON_ID)
     return tuple(
         package.key
         for package in catalog.ordered_packages()
         if package.key != FOOD_EMERGENCY_ID
-        and package.key in granted
         and not package.archived
+        and (
+            package.visibility_mode == "global"
+            or user_id in package.visible_user_ids
+        )
     )
 
 

@@ -91,11 +91,14 @@ class FoodPlanner:
         reasoning = _choose(eligible, "reasoning")
         vision = _choose(eligible, "vision")
         tool = _choose(eligible, "tools", require_tool_test=True)
-        fallback = tuple(
-            ModelAssignment(item.model)
-            for item in eligible
-            if primary is not None and item.model != primary.model
-        )[:2]
+        fallback = next(
+            (
+                ModelAssignment(item.model)
+                for item in eligible
+                if primary is not None and item.model != primary.model
+            ),
+            None,
+        )
         if primary is None:
             warnings.append("没有符合范围且最近验证通过的主模型")
         if (
@@ -123,8 +126,8 @@ class FoodPlanner:
                 ("tool", _model(package.tool), _model(proposed.tool)),
                 (
                     "fallback",
-                    ",".join(item.model for item in package.fallback) or None,
-                    ",".join(item.model for item in proposed.fallback) or None,
+                    _model(package.fallback),
+                    _model(proposed.fallback),
                 ),
             )
         )

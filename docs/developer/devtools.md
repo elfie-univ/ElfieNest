@@ -44,9 +44,9 @@ restarts the old same-kind instance in the current workspace; only an explicit
 port keeps parallel instances alive, and an unknown port occupant is never
 terminated.
 
-Elfie Lab ships an offline "mock food" by default on first launch, so you can
-create an Elfie and validate the local flow; after configuring Ollama or a
-remote provider, real foods automatically appear in the Runtime Lab selector.
+Elfie Lab reads the isolated Runtime `nest.db` food catalog on first launch.
+The database seeds the two system rows, which appear as unconfigured until
+Ollama or a remote provider is configured; no synthetic food row is injected.
 
 ## Data root
 

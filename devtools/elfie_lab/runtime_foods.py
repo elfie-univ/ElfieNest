@@ -6,16 +6,19 @@ import shlex
 from pathlib import Path
 from typing import Any, Dict
 
-from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
+from ai_runtime.food.store import FoodCatalog, FoodCatalogRepository
 from ai_runtime.providers.ollama import OllamaManager
+from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
+from app.infrastructure.persistence.store import init_db
 
 
-def runtime_food_catalog_store(config_store: Any) -> FoodCatalogStore:
-    """返回指定 Runtime 根目录下的粮食存储。"""
-    return FoodCatalogStore(
-        Path(config_store.root) / "foods.yaml",
-        Path(config_store.root) / "food_history",
-    )
+def runtime_food_catalog_store(config_store: Any) -> FoodCatalogRepository:
+    """返回指定隔离 Runtime 根目录下的粮食数据库仓储。"""
+    root = Path(config_store.root).expanduser().resolve()
+    root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    db_path = root / "nest.db"
+    init_db(str(db_path))
+    return SQLiteFoodPackageRepository(db_path)
 
 
 def runtime_lab_command(config_store: Any) -> str:
@@ -27,9 +30,9 @@ def runtime_lab_command(config_store: Any) -> str:
 
 def load_runtime_food_catalog(
     config_store: Any,
-    food_store: FoodCatalogStore | None = None,
+    food_store: FoodCatalogRepository | None = None,
 ) -> FoodCatalog:
-    """加载 Lab Runtime 粮食目录；缺失时允许离线模拟粮单独运行。"""
+    """加载 Lab Runtime 隔离数据库中的粮食目录。"""
     store = food_store or runtime_food_catalog_store(config_store)
     return store.load()
 

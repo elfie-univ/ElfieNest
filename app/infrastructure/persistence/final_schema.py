@@ -50,6 +50,8 @@ def initialize_final_schema(connection: sqlite3.Connection) -> None:
         connection.execute(statement)
     for statement in _TRIGGER_STATEMENTS:
         connection.execute(statement)
+    for statement in _SEED_STATEMENTS:
+        connection.execute(statement)
 
 
 _TABLE_STATEMENTS: Final = (
@@ -148,10 +150,41 @@ _TABLE_STATEMENTS: Final = (
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )""",
-    """CREATE TABLE IF NOT EXISTS food_package_access (
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        food_key TEXT NOT NULL CHECK(length(trim(food_key)) > 0),
-        PRIMARY KEY(user_id, food_key)
+    """CREATE TABLE IF NOT EXISTS food_packages (
+        food_key TEXT PRIMARY KEY
+            CHECK(food_key=trim(food_key) AND length(food_key) BETWEEN 1 AND 128),
+        display_name TEXT NOT NULL
+            CHECK(display_name=trim(display_name) AND length(display_name) BETWEEN 1 AND 128),
+        system_role TEXT
+            CHECK(system_role IS NULL OR system_role IN ('common','emergency')),
+        primary_model_ref TEXT,
+        reasoning_model_ref TEXT,
+        vision_model_ref TEXT,
+        tool_model_ref TEXT,
+        fallback_model_ref TEXT,
+        visibility_mode TEXT NOT NULL CHECK(visibility_mode IN ('global','users')),
+        visible_user_ids_json TEXT NOT NULL DEFAULT '[]',
+        enabled INTEGER NOT NULL DEFAULT 0 CHECK(enabled IN (0,1)),
+        archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN (0,1)),
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CHECK(
+            CASE
+                WHEN json_valid(visible_user_ids_json)=0 THEN 0
+                WHEN json_type(visible_user_ids_json)<>'array' THEN 0
+                WHEN visibility_mode='global' THEN json_array_length(visible_user_ids_json)=0
+                WHEN visibility_mode='users' THEN json_array_length(visible_user_ids_json)>0
+                ELSE 0
+            END
+        ),
+        CHECK(archived=0 OR enabled=0),
+        CHECK(enabled=0 OR (primary_model_ref IS NOT NULL AND length(trim(primary_model_ref))>0)),
+        CHECK(system_role IS NULL OR (visibility_mode='global' AND archived=0)),
+        CHECK(
+            system_role IS NULL
+            OR (system_role='common' AND food_key='food_common')
+            OR (system_role='emergency' AND food_key='food_emergency')
+        )
     )""",
     """CREATE TABLE IF NOT EXISTS external_bodies (
         body_id TEXT PRIMARY KEY, owner_elfie_id TEXT NOT NULL REFERENCES elfies(elfie_id),
@@ -187,7 +220,10 @@ _INDEX_STATEMENTS: Final = (
     "CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_local_installations_owner ON local_installations(owner_user_id)",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_elfies_bed_number ON elfies(bed_number) WHERE bed_number IS NOT NULL",
-    "CREATE INDEX IF NOT EXISTS idx_food_package_access_food ON food_package_access(food_key)",
+    """CREATE UNIQUE INDEX IF NOT EXISTS idx_food_packages_common_role
+        ON food_packages(system_role) WHERE system_role='common'""",
+    """CREATE UNIQUE INDEX IF NOT EXISTS idx_food_packages_emergency_role
+        ON food_packages(system_role) WHERE system_role='emergency'""",
     "CREATE INDEX IF NOT EXISTS idx_device_audit_events_body ON device_audit_events(body_id)",
 )
 
@@ -240,4 +276,47 @@ _TRIGGER_STATEMENTS: Final = (
         WHEN (NEW.status='revoked' OR NEW.revoked_at IS NOT NULL)
             AND EXISTS(SELECT 1 FROM embodiment_sessions WHERE body_id=NEW.body_id)
         BEGIN SELECT RAISE(ABORT,'body must be released before revoke'); END""",
+    """CREATE TRIGGER IF NOT EXISTS trg_food_packages_updated_at
+        AFTER UPDATE ON food_packages
+        WHEN NEW.updated_at=OLD.updated_at
+        BEGIN
+            UPDATE food_packages SET updated_at=CURRENT_TIMESTAMP WHERE food_key=NEW.food_key;
+        END""",
+    """CREATE TRIGGER IF NOT EXISTS trg_food_packages_user_ids_insert
+        BEFORE INSERT ON food_packages
+        WHEN json_valid(NEW.visible_user_ids_json)=1
+            AND (
+                EXISTS(
+                    SELECT 1 FROM json_each(NEW.visible_user_ids_json)
+                    WHERE type<>'integer' OR CAST(value AS INTEGER)<=0
+                )
+                OR EXISTS(
+                    SELECT value FROM json_each(NEW.visible_user_ids_json)
+                    GROUP BY value HAVING COUNT(*)>1
+                )
+            )
+        BEGIN SELECT RAISE(ABORT,'visible_user_ids_json must contain unique positive integers'); END""",
+    """CREATE TRIGGER IF NOT EXISTS trg_food_packages_user_ids_update
+        BEFORE UPDATE OF visible_user_ids_json ON food_packages
+        WHEN json_valid(NEW.visible_user_ids_json)=1
+            AND (
+                EXISTS(
+                    SELECT 1 FROM json_each(NEW.visible_user_ids_json)
+                    WHERE type<>'integer' OR CAST(value AS INTEGER)<=0
+                )
+                OR EXISTS(
+                    SELECT value FROM json_each(NEW.visible_user_ids_json)
+                    GROUP BY value HAVING COUNT(*)>1
+                )
+            )
+        BEGIN SELECT RAISE(ABORT,'visible_user_ids_json must contain unique positive integers'); END""",
+)
+
+_SEED_STATEMENTS: Final = (
+    """INSERT OR IGNORE INTO food_packages
+        (food_key,display_name,system_role,visibility_mode,visible_user_ids_json,enabled,archived)
+        VALUES('food_emergency','保底粮','emergency','global','[]',0,0)""",
+    """INSERT OR IGNORE INTO food_packages
+        (food_key,display_name,system_role,visibility_mode,visible_user_ids_json,enabled,archived)
+        VALUES('food_common','常用粮','common','global','[]',0,0)""",
 )

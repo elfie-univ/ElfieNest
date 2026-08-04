@@ -1,4 +1,4 @@
-"""Execute one food package role and its ordered internal fallbacks."""
+"""Execute one food package role and its optional internal fallback."""
 
 from __future__ import annotations
 
@@ -74,11 +74,8 @@ class FoodExecutor:
         candidates: list[tuple[str, ModelAssignment]] = []
         if selected is not None:
             candidates.append((stage, selected))
-        candidates.extend(
-            (f"fallback_{index}", assignment)
-            for index, assignment in enumerate(package.fallback, 1)
-            if assignment != selected
-        )
+        if package.fallback is not None and package.fallback != selected:
+            candidates.append(("fallback", package.fallback))
         attempts: list[dict[str, str]] = []
         for candidate_stage, assignment in candidates:
             try:
@@ -102,7 +99,7 @@ class FoodExecutor:
                     text=text,
                     model=assignment.model,
                     execution_stage=candidate_stage,
-                    technical_fallback_used=candidate_stage.startswith("fallback_"),
+                    technical_fallback_used=candidate_stage == "fallback",
                     attempts=tuple(attempts),
                 )
             except Exception as exc:

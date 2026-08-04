@@ -14,7 +14,6 @@ from ai_runtime.lab.cli import RuntimeLab
 from ai_runtime.storage.data_home import (
     ensure_elfie_home,
     get_elfie_home,
-    get_food_history_dir,
     get_logs_dir,
     get_model_validation_dir,
     get_runtime_locks_dir,
@@ -74,7 +73,6 @@ def repair_local_runtime_state() -> DoctorRepairReport:
         get_elfie_home() / "configs",
         get_elfie_home() / "elfies",
         get_logs_dir(),
-        get_food_history_dir(),
         get_model_validation_dir(),
         get_runtime_validation_dir(),
         get_runtime_locks_dir(),

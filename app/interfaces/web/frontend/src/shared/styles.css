@@ -27,6 +27,8 @@
   --overlay-bg: #342b26;
   --error-bg: #fbe0d7;
   --error-text: #8b3426;
+  --success-text: #2e6846;
+  --warning-text: #8b5a1f;
   --active-bg: var(--selected-bg);
   --active-hover: #dfbda3;
   --active-ink: #563524;

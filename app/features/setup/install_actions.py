@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from typing import Callable
 
-from ai_runtime.food.store import FoodCatalogStore
+from ai_runtime.food.store import FoodCatalogRepository
 from ai_runtime.storage.provider_connections import ProviderConnectionStore
 from ai_runtime.storage.report_repository import ReportRepository
 from app.features.setup.draft_repository import SetupDraftRepository
 from app.features.setup.ollama import OllamaSetupService
 from app.infrastructure.ollama_platform import OllamaPlatformAdapter
+from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
 from app.infrastructure.persistence.nest_repository import SQLiteNestRepository
 from app.infrastructure.persistence.setup_install_repository import (
     SetupInstallRepository,
@@ -21,7 +22,7 @@ def run_setup_installation(
     db_path: str,
     *,
     adapter: OllamaPlatformAdapter | None = None,
-    food_catalog_store: FoodCatalogStore | None = None,
+    food_catalog_repository: FoodCatalogRepository | None = None,
     report_repository: ReportRepository | None = None,
 ) -> None:
     """Run or resume the locked Setup draft from its persisted phase."""
@@ -34,7 +35,8 @@ def run_setup_installation(
         return
     service = OllamaSetupService(
         adapter=adapter or OllamaPlatformAdapter(),
-        food_catalog_store=food_catalog_store,
+        food_catalog_repository=food_catalog_repository
+        or SQLiteFoodPackageRepository(db_path),
         report_repository=report_repository,
     )
     model_reference: str | None = None

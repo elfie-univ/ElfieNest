@@ -193,7 +193,7 @@ Provider/模型原子报告仍是证据源；模型矩阵报告只是派生聚�
 
 - 必填 `primary` 主模型；
 - 可选 `reasoning`、`vision`、`tool` 角色模型；
-- 有顺序的可选 `fallback` 模型或模型列表；
+- 一个可选的 `fallback` 模型，值为模型绑定对象或 `null`；
 - 本地性投影、验证状态和来源。
 
 工具权限绝不能写入粮食。
@@ -223,7 +223,7 @@ Fallback 回退模型
 ```
 
 粮食表保持简单，只展示角色、所选模型、连接、本地/远程标记以及当前可用/不可用状态。
-编辑时只修改每个角色绑定的模型；Fallback 行可以打开一个小型有序列表编辑器。
+编辑时只修改每个角色绑定的模型；备用模型只有一个绑定对象，也可以为 `null`，绝不是有序列表。
 
 上下文大小、最大输出、是否支持推理/工具/视觉、验证细节和延迟都属于模型事实，应在
 当前连接模型视图和模型报告矩阵中管理，不能写入粮食配置。粮食模型选择器会利用这些
@@ -284,7 +284,7 @@ flowchart LR
 2. 检查用户授权以及粮食的启用、归档和健康状态；
 3. 请求 `primary`、`reasoning`、`vision` 或 `tool` 语义角色；
 4. 可选角色缺失时回到同一粮食的 `primary`；
-5. 执行所选角色，然后按顺序尝试同一粮食的 fallback，不能跨到未列出的订阅；
+5. 执行所选角色，然后尝试同一粮食中唯一配置的 fallback 模型，不能跨到未列出的订阅；
 6. 只有主粮全部候选失败后，Runtime 才尝试一次全局保底粮；
 7. 保底缺失或也失败时返回类型化的 `no_available_food`；
 8. 每次尝试和回退原因都脱敏记录。
@@ -381,8 +381,6 @@ ${ELFIE_HOME:-~/.elfienest}/
 │   ├── providers.yaml
 │   ├── runtime.yaml
 │   ├── tools.yaml
-│   ├── food-packages.yaml
-│   ├── food-packages-history/
 │   └── credentials/
 │       ├── api-keys.env
 │       └── oauth/
@@ -405,8 +403,7 @@ ${ELFIE_HOME:-~/.elfienest}/
 | Provider 与工具密钥 | `configs/credentials/` |
 | Runtime 设置 | `configs/runtime.yaml` |
 | 工具设置 | `configs/tools.yaml` |
-| 粮食定义和全局默认/保底 ID | `configs/food-packages.yaml` |
-| 用户粮食授权 | `nest.db.food_package_access` |
+| 粮食策略、角色和可见性 | `nest.db.food_packages`（单表） |
 | 精灵主粮 ID | `nest.db.elfies.main_food_id` |
 | 验证 run 与不可变观测 | `reports/ai-runtime.sqlite` |
 | 当前、历史时点和跨连接报告 | 基于 `reports/ai-runtime.sqlite` 的 SQL 投影 |
@@ -441,25 +438,10 @@ connections:
         available: true
 ```
 
-`food-packages.yaml` 保存粮食定义和全局角色 ID：
-
-```yaml
-version: 1
-global_default_food_id: food_common
-global_emergency_food_id: food_emergency
-packages:
-  food_common:
-    display_name: 常用粮
-    enabled: true
-    archived: false
-    roles:
-      primary:
-        model: openai_api_0002/gpt-example
-      reasoning: null
-      vision: null
-      tool: null
-      fallback: []
-```
+`nest.db.food_packages` 是粮食策略的唯一事实源。每一行保存显示名称、可选的系统角色、
+五个模型角色引用、`visibility_mode`（`global` 或 `users`）、指定用户 ID、生命周期标记和时间戳。
+`global` 表示所有用户可见；`users` 只对保存的用户 ID 可见。内置的常用粮和保底粮是全局系统行，
+不能归档或删除。
 
 `tools.yaml` 只保存语义配置：
 

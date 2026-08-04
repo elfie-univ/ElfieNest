@@ -20,6 +20,9 @@ logging.basicConfig(
 logger = logging.getLogger("chat")
 
 from ai_runtime import LLMRuntimeConfig, RuntimeAgent
+from ai_runtime.storage.data_home import get_db_path
+from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
+from app.infrastructure.persistence.store import init_db
 from app.orchestration.engine import ElfieNestEngine
 from elfie import ElfieFactory
 
@@ -33,7 +36,13 @@ def main():
     def engine_worker():
         # 1. Assemble services, mirroring the main.py flow in one thread.
         config = LLMRuntimeConfig(ollama_host="http://localhost:11434")
-        runtime_agent = RuntimeAgent(config)
+        db_path = str(get_db_path())
+        init_db(db_path)
+        food_repository = SQLiteFoodPackageRepository(db_path)
+        runtime_agent = RuntimeAgent(
+            config,
+            food_catalog_repository=food_repository,
+        )
         engine = ElfieNestEngine()
         elfie = ElfieFactory().create(
             elfie_id="Aifei",

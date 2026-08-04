@@ -37,7 +37,6 @@ def test_final_root_layout_exposes_only_final_paths(tmp_path: Path) -> None:
     assert layout.providers_config == root / "configs" / "providers.yaml"
     assert layout.auth_env == root / "configs" / "auth.env"
     assert layout.runtime_config == root / "configs" / "runtime.yaml"
-    assert layout.food_packages == root / "configs" / "food-packages.yaml"
     assert layout.model_validations == root / "reports" / "model-validations"
     assert layout.runtime_state == root / "runtime" / "runtime.json"
     assert layout.token_usage_log == root / "logs" / "token_usage.jsonl"
@@ -60,7 +59,6 @@ def test_ensure_final_root_layout_creates_exact_secure_directories(
         Path("assets/users"),
         Path("configs"),
         Path("configs/credentials"),
-        Path("configs/food-packages-history"),
         Path("elfies"),
         Path("logs"),
         Path("reports"),

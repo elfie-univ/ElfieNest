@@ -2,6 +2,8 @@ from fastapi.testclient import TestClient
 
 from devtools.elfie_lab.app import create_app
 
+from .food_test_helpers import seed_mock_food
+
 
 def complete_elfie_payload(name="测试精灵", species_id="fox"):
     return {
@@ -95,8 +97,14 @@ def test_app_rejects_untrusted_host_for_mutating_requests(tmp_path, client_for):
     assert response.status_code == 400
 
 
-def test_app_create_elfie_and_chat(tmp_path, client_for):
-    client = client_for(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
+def test_app_create_elfie_and_chat(tmp_path, monkeypatch, client_for):
+    runtime_dir = tmp_path / "runtime"
+    seed_mock_food(runtime_dir)
+    monkeypatch.setattr(
+        "devtools.elfie_lab.food_status.list_installed_ollama_models",
+        lambda config: ("elfie-mock",),
+    )
+    client = client_for(create_app(str(tmp_path / "data"), str(runtime_dir)))
 
     assert client.get("/api/health").json()["status"] == "ok"
     created = client.post(

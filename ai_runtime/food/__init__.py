@@ -18,14 +18,14 @@ from ai_runtime.food.models import (
 )
 from ai_runtime.food.planner import FoodPlanner, FoodUpdateProposal, ModelEvidence
 from ai_runtime.food.resolver import MainFoodRoute, MainFoodSelection, resolve_main_food
-from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
+from ai_runtime.food.store import FoodCatalog, FoodCatalogRepository
 
 __all__ = [
     "FOOD_COMMON_ID",
     "FOOD_EMERGENCY_ID",
     "FOOD_ROLES",
     "FoodCatalog",
-    "FoodCatalogStore",
+    "FoodCatalogRepository",
     "FoodExecutionError",
     "FoodExecutionResult",
     "FoodExecutor",

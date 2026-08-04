@@ -4,11 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Protocol
 
 from ai_runtime.food.models import (
     FOOD_COMMON_ID,
@@ -18,11 +15,31 @@ from ai_runtime.food.models import (
     system_food_packages,
 )
 from ai_runtime.models.model_reference import ModelReferenceError, parse_model_reference
-from ai_runtime.storage.config_store import read_yaml_mapping, write_yaml_mapping
-from ai_runtime.storage.data_home import get_food_catalog_path, get_food_history_dir
 from ai_runtime.storage.provider_connections import ProviderConnectionStore
 
 FOOD_CATALOG_VERSION = 1
+
+
+class FoodCatalogRepository(Protocol):
+    """Narrow food catalog contract shared by runtime and persistence roots."""
+
+    def load(self) -> FoodCatalog:
+        """Load the complete food catalog projection."""
+
+    def list(self) -> tuple[FoodPackage, ...]:
+        """List food packages in stable display order."""
+
+    def get(self, food_key: str) -> FoodPackage | None:
+        """Return one package by key, or ``None`` when absent."""
+
+    def create(self, package: FoodPackage) -> FoodPackage:
+        """Persist one complete package."""
+
+    def update(self, package: FoodPackage) -> FoodPackage:
+        """Replace one complete package atomically."""
+
+    def delete(self, food_key: str) -> None:
+        """Delete one package after repository guards pass."""
 
 
 @dataclass(frozen=True)
@@ -77,54 +94,6 @@ class FoodCatalog:
             global_emergency_food_id=FOOD_EMERGENCY_ID,
             packages=packages,
         )
-
-
-class FoodCatalogStore:
-    def __init__(
-        self,
-        path: Path | None = None,
-        history_dir: Path | None = None,
-    ) -> None:
-        self.path = path or get_food_catalog_path()
-        self.history_dir = history_dir or get_food_history_dir()
-
-    def load(self) -> FoodCatalog:
-        if not self.path.exists():
-            catalog = FoodCatalog()
-            self.save(catalog, keep_history=False)
-            return catalog
-        return FoodCatalog.from_dict(read_yaml_mapping(self.path))
-
-    def save(self, catalog: FoodCatalog, *, keep_history: bool = True) -> None:
-        validate_food_catalog_model_references(catalog)
-        if keep_history and self.path.exists():
-            self._snapshot_current()
-        write_yaml_mapping(self.path, catalog.to_dict())
-
-    def history_versions(self) -> list[Path]:
-        if not self.history_dir.exists():
-            return []
-        return sorted(self.history_dir.glob("foods-*.yaml"), reverse=True)
-
-    def rollback_latest(self) -> FoodCatalog:
-        versions = self.history_versions()
-        if not versions:
-            raise FileNotFoundError("没有可回滚的粮食历史版本")
-        catalog = FoodCatalog.from_dict(read_yaml_mapping(versions[0]))
-        self.save(catalog)
-        return catalog
-
-    def _snapshot_current(self) -> Path:
-        current = self.path.read_bytes()
-        digest = hashlib.sha256(current).hexdigest()[:12]
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        history_path = self.history_dir / f"foods-{stamp}-{digest}.yaml"
-        self.history_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-        history_path.write_bytes(current)
-        if os.name != "nt":
-            os.chmod(self.history_dir, 0o700)
-            os.chmod(history_path, 0o600)
-        return history_path
 
 
 def fingerprint_source(data: Mapping[str, Any]) -> str:

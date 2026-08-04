@@ -9,7 +9,7 @@ from typing import Callable, cast
 from ai_runtime.food.evidence import query_model_evidence, record_model_evidence
 from ai_runtime.food.models import FOOD_EMERGENCY_ID
 from ai_runtime.food.planner import FoodPlanner, ModelEvidence
-from ai_runtime.food.store import FoodCatalogStore
+from ai_runtime.food.store import FoodCatalogRepository
 from ai_runtime.models.capabilities import canonical_display_name, known_capabilities
 from ai_runtime.models.model_reference import ModelReferenceError, parse_model_reference
 from ai_runtime.storage.provider_connections import (
@@ -46,14 +46,14 @@ class OllamaSetupService:
         *,
         adapter: OllamaPlatformAdapter,
         provider_connection_store: ProviderConnectionStore | None = None,
-        food_catalog_store: FoodCatalogStore | None = None,
+        food_catalog_repository: FoodCatalogRepository | None = None,
         report_repository: ReportRepository | None = None,
     ) -> None:
         self._adapter = adapter
         self._provider_connection_store = (
             provider_connection_store or ProviderConnectionStore()
         )
-        self._food_catalog_store = food_catalog_store or FoodCatalogStore()
+        self._food_catalog_repository = food_catalog_repository
         self._report_repository = report_repository or ReportRepository()
 
     def detect(self) -> OllamaProbe:
@@ -375,18 +375,20 @@ class OllamaSetupService:
                 connection_store=self._provider_connection_store,
             ).values()
         )
-        catalog = self._food_catalog_store.load()
-        packages = dict(catalog.packages)
+        if self._food_catalog_repository is None:
+            raise RuntimeError("Setup 未注入粮食数据库仓储")
+        package = self._food_catalog_repository.get(FOOD_EMERGENCY_ID)
+        if package is None:
+            raise RuntimeError("Setup 找不到保底粮数据库记录")
         planner = FoodPlanner()
-        food_id = FOOD_EMERGENCY_ID
-        packages[food_id] = planner.propose_package(
-            packages[food_id],
+        proposed = planner.propose_package(
+            package,
             all_evidence,
             connection_ids=(model_reference.split("/", 1)[0],),
             local_first=True,
             allow_remote=False,
         ).package
-        self._food_catalog_store.save(replace(catalog, packages=packages))
+        self._food_catalog_repository.update(proposed)
 
     def _saved_connection(self) -> ProviderConnection | None:
         return next(

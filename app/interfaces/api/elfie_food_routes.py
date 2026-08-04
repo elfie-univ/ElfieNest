@@ -6,11 +6,11 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from ai_runtime.food.store import FoodCatalogStore
 from app.features.accounts.auth import get_current_user
 from app.features.configuration.food_access import elfie_food_policy_projection
 from app.infrastructure.persistence.elfie_repository import ElfieRecord, ElfieRepository
 from app.infrastructure.persistence.food_assignments import set_elfie_main_food_id
+from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
 
 router = APIRouter(
     prefix="/api/user/elfies/{elfie_id}/food-policy",
@@ -37,7 +37,7 @@ def _projection(request: Request, record: ElfieRecord) -> Dict[str, Any]:
         request.app.state.db_path,
         record.elfie_id,
         record.owner_user_id,
-        FoodCatalogStore().load(),
+        SQLiteFoodPackageRepository(request.app.state.db_path).load(),
     )
 
 

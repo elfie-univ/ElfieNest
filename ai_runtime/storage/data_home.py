@@ -183,16 +183,6 @@ def get_env_path() -> Path:
     return get_final_root_layout().auth_env
 
 
-def get_food_catalog_path() -> Path:
-    """当前生效的粮食配方文件。"""
-    return get_final_root_layout().food_packages
-
-
-def get_food_history_dir() -> Path:
-    """粮食配方历史版本目录。"""
-    return get_final_root_layout().food_packages_history
-
-
 def get_model_validation_dir() -> Path:
     """Return the model validation report directory."""
     return get_final_root_layout().model_validations
