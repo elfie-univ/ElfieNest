@@ -39,7 +39,7 @@ export function OllamaModelsDialog({ csrfToken, onChanged, onOpenChange, open, s
     }
   }
 
-  return <ManageDialog contentClassName="ollama-models-dialog" description={t("providerConnections.ollama.models.description")} onOpenChange={onOpenChange} open={open} title={t("providerConnections.ollama.models.title")}>
+  return <ManageDialog contentClassName="ollama-models-dialog" onOpenChange={onOpenChange} open={open} title={t("providerConnections.ollama.models.title")}>
     {error ? <Notice kind="error" message={error} /> : null}
     <div className="ollama-models-dialog__toolbar manage-actions"><span>{t("providerConnections.ollama.models.count", { count: status.installed_model_count })}</span></div>
     <div aria-label={t("providerConnections.ollama.models.listLabel")} className="ollama-model-list">

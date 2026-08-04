@@ -220,8 +220,8 @@ describe("OwnerElfieOverview", () => {
     renderWithI18n(<OwnerElfieOverview csrfToken="csrf" onCountChange={vi.fn()} />, "en-US")
 
     // Then: chrome and unknown status are localized without changing entity values.
-    expect(await screen.findByRole("heading", { name: "All Elfies" })).toBeInTheDocument()
-    expect(screen.getByText("Unknown status")).toBeInTheDocument()
+    expect(await screen.findByText("Unknown status")).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "All Elfies" })).not.toBeInTheDocument()
     expect(screen.queryByText("后端未知状态")).not.toBeInTheDocument()
     expect(screen.getByText("星尘")).toBeInTheDocument()
     expect(screen.getByText("00000001")).toBeInTheDocument()

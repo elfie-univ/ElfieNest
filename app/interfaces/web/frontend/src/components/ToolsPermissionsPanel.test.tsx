@@ -136,6 +136,9 @@ describe("ToolsPermissionsPanel", () => {
 
     expect(screen.getByRole("combobox", { name: "搜索 Provider" })).toBeInTheDocument()
     expect(document.getElementById("web-search-api-key")).toHaveValue("")
+    expect(screen.queryByText("管理精灵可使用的本机工具。工具开关与调用策略分开生效，只有两者都满足时才会进入实际可用集合。")).not.toBeInTheDocument()
+    expect(screen.queryByText("通过已配置的搜索 Provider 获取网页信息。")).not.toBeInTheDocument()
+    expect(screen.queryByText("隔离与审批契约完成前不会开放。")).not.toBeInTheDocument()
     expect(screen.queryByText("已在本机配置；留空表示保留现有密钥。")).not.toBeInTheDocument()
     expect(screen.getByRole("heading", { level: 3, name: "调用策略" })).toBeInTheDocument()
     expect(screen.getByText("Python 代码执行")).toBeInTheDocument()

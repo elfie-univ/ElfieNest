@@ -134,11 +134,11 @@ describe("OwnerNestPanel", () => {
     const user = userEvent.setup()
     renderWithI18n(<OwnerNestPanel csrfToken="csrf" />)
 
-    const list = await screen.findByRole("list", { name: "床位分布" })
+    const list = await screen.findByRole("list", { name: "床位分配" })
     const rows = within(list).getAllByRole("listitem")
     const firstRow = rows[0]
     const secondRow = rows[1]
-    if (!firstRow || !secondRow) throw new Error("床位分布缺少预期行")
+    if (!firstRow || !secondRow) throw new Error("床位分配缺少预期行")
     expect(within(firstRow).getByText("星尘")).toBeInTheDocument()
     expect(within(secondRow).getByText("Happy")).toBeInTheDocument()
     await user.click(within(firstRow).getByRole("button", { name: "编辑星尘的床位" }))
@@ -153,8 +153,8 @@ describe("OwnerNestPanel", () => {
     renderWithI18n(<OwnerNestPanel csrfToken="csrf" />, "en-US")
 
     // Then: UI chrome is English while entity values stay byte-identical.
-    expect(await screen.findByRole("heading", { name: "Dorm floorplan and beds" })).toBeInTheDocument()
-    expect(screen.getByText("Wormhole terminal")).toBeInTheDocument()
+    expect(await screen.findByText(/Room layout/)).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Dorm floorplan and beds" })).not.toBeInTheDocument()
     expect(screen.getByText("Dining area")).toBeInTheDocument()
     expect(screen.getAllByText("Happy")).not.toHaveLength(0)
     expect(screen.getByText("01号床")).toBeInTheDocument()

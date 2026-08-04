@@ -125,6 +125,30 @@ describe("ManagePage", () => {
     expect(navigationRule).toContain("overflow-x: auto")
   })
 
+  it("places action-only management headers beside and below the title on desktop", () => {
+    // Given: management page headers whose visible copy was intentionally removed.
+    const styles = readFileSync(resolve(import.meta.dirname, "../manage-console.css"), "utf8")
+
+    // When: the desktop management layout is loaded.
+    const desktopHeader = styles.match(/\.manage--console \.manage-head\s*\{[^}]+\}/)?.[0] ?? ""
+    const desktopActions = styles.match(/\.manage--console \.manage-head > \.manage-actions\s*\{[^}]+\}/)?.[0] ?? ""
+
+    // Then: action-only headers leave the content flow and sit in the title row.
+    expect(desktopHeader).toContain("position: absolute")
+    expect(desktopHeader).toContain("top: 50px")
+    expect(desktopHeader).toContain("inset-inline-end: 42px")
+    expect(desktopActions).toContain("margin-top: 0")
+
+    const tablet = styles.slice(styles.indexOf("@media (min-width: 641px) and (max-width: 860px)"))
+    const tabletHeader = tablet.match(/\.manage--console \.manage-head\s*\{[^}]+\}/)?.[0] ?? ""
+    expect(tabletHeader).toContain("top: 38px")
+
+    // And: narrow layouts keep the existing stacked header flow.
+    const mobile = styles.slice(styles.indexOf("@media (max-width: 640px)"))
+    const mobileHeader = mobile.match(/\.manage--console \.manage-head\s*\{[^}]+\}/)?.[0] ?? ""
+    expect(mobileHeader).toContain("position: static")
+  })
+
   it("falls back from an unknown section to the localized monitor without rewriting the query", () => {
     renderManagePage("retired-section", "en-US")
 

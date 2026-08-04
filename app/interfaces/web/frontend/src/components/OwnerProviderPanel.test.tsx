@@ -371,7 +371,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("后端失败")
 
     await instance.changeLanguage("en-US")
-    expect(screen.getByRole("heading", { name: "Providers and model connections" })).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Providers and model connections" })).not.toBeInTheDocument()
     expect(screen.getByRole("alert")).toHaveTextContent("Unable to load management data.")
     expect(screen.queryByText("后端失败")).not.toBeInTheDocument()
   })

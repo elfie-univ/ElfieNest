@@ -70,7 +70,7 @@ export function OwnerOllamaPanel({ csrfToken }: Props) {
     : t("providerConnections.ollama.actions.restart")
 
   return <section aria-labelledby="ollama-provider-title" className="provider-section" role="region">
-    <div className="provider-section__heading"><div><h3 id="ollama-provider-title">{t("providerConnections.ollama.title")}</h3><p>{t("providerConnections.ollama.description")}</p></div></div>
+    <div className="provider-section__heading"><div><h3 id="ollama-provider-title">{t("providerConnections.ollama.title")}</h3></div></div>
     {error ? <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("errors.load")} /> : null}
     <div className="provider-grid provider-grid--local">
       <article className={`provider-card provider-card--ollama provider-card--ollama-${state}`}>

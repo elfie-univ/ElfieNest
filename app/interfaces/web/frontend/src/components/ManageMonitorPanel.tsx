@@ -38,7 +38,7 @@ export function ManageMonitorPanel({ elfieCount }: ManageMonitorPanelProps) {
   useEffect(() => { void load() }, [load])
   const health = status?.status === "ok" ? t("runtimeMonitor.health.ok") : t("runtimeMonitor.health.attention")
   return <section className="monitor-panel">
-    <div className="manage-head"><div><h2>{t("runtimeMonitor.title")}</h2><p>{t("runtimeMonitor.description")}</p></div><RefreshButton label={t("runtimeMonitor.refresh")} onClick={() => { void load() }} /></div>
+    <div className="manage-head"><RefreshButton label={t("runtimeMonitor.refresh")} onClick={() => { void load() }} /></div>
     {error && <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("errors.load")} />}
     <div className="monitor-metrics">
       <Metric label={t("runtimeMonitor.labels.health")} value={health} detail={status?.fallback.configured ? t("runtimeMonitor.fallback.configured", { provider: status.fallback.provider }) : t("runtimeMonitor.fallback.missing")} state={status?.status === "ok" ? "good" : "warning"} />
@@ -47,7 +47,7 @@ export function ManageMonitorPanel({ elfieCount }: ManageMonitorPanelProps) {
       <Metric label={t("runtimeMonitor.labels.models")} value={status ? String(status.models.visible) : "—"} detail={status ? t("runtimeMonitor.labels.modelsDetail", { count: status.models.total }) : t("runtimeMonitor.labels.reading")} state="neutral" />
     </div>
     <div className="monitor-layout">
-      <section className="monitor-module"><h3>{t("runtimeMonitor.modules.models")}</h3><p>{t("runtimeMonitor.modules.modelsDescription")}</p><dl><div><dt>{t("runtimeMonitor.labels.active")}</dt><dd>{status?.providers.active ?? "—"}</dd></div><div><dt>{t("runtimeMonitor.labels.fallbackProviders")}</dt><dd>{status?.providers.inactive ?? "—"}</dd></div><div><dt>{t("runtimeMonitor.labels.runtimeEvents")}</dt><dd>{status?.observer.event_count ?? "—"}</dd></div></dl></section>
+      <section className="monitor-module"><h3>{t("runtimeMonitor.modules.models")}</h3><dl><div><dt>{t("runtimeMonitor.labels.active")}</dt><dd>{status?.providers.active ?? "—"}</dd></div><div><dt>{t("runtimeMonitor.labels.fallbackProviders")}</dt><dd>{status?.providers.inactive ?? "—"}</dd></div><div><dt>{t("runtimeMonitor.labels.runtimeEvents")}</dt><dd>{status?.observer.event_count ?? "—"}</dd></div></dl></section>
       <section className="monitor-module"><h3>{t("runtimeMonitor.modules.alerts")}</h3>{status === null ? <p className="empty">{t("runtimeMonitor.readingStatus")}</p> : <ul className="monitor-notices">{status.notes.length === 0 || locale === "en-US" ? <li>{t("runtimeMonitor.noAlerts")}</li> : status.notes.map((note) => <li key={note}>{note}</li>)}</ul>}<p className="monitor-last-event">{t("runtimeMonitor.labels.lastEvent", { event: status?.observer.last_event ?? t("runtimeMonitor.labels.noEvent") })}</p></section>
     </div>
   </section>

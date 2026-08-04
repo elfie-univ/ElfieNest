@@ -257,7 +257,7 @@ describe("OwnerFoodPanel final list behavior", () => {
     const instance = renderPanel("zh-CN")
     expect(await screen.findByRole("alert")).toHaveTextContent("后端失败")
     await instance.changeLanguage("en-US")
-    expect(screen.getByRole("heading", { name: "Food packages" })).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Food packages" })).not.toBeInTheDocument()
     expect(screen.getByRole("alert")).toHaveTextContent("Unable to load management data.")
     expect(screen.queryByText("后端失败")).not.toBeInTheDocument()
   })

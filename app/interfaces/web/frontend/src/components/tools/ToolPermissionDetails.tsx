@@ -43,7 +43,6 @@ export function ToolPermissionDetails({
   return <section className="tool-permission-details" aria-labelledby={titleId}>
     <div className="tool-details__subheading">
       <h3 id={titleId}>{t("tools.sections.permissions")}</h3>
-      <p>{t("tools.permissions.note")}</p>
     </div>
     <SelectField
       disabled={!editableMode}

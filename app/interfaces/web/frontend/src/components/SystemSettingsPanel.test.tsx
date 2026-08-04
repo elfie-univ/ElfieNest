@@ -56,6 +56,8 @@ describe("SystemSettingsPanel", () => {
     await user.click(screen.getByRole("button", { name: "Save engine settings" }))
 
     // Then: the English fallback is shown and backend detail remains hidden.
+    expect(screen.queryByText("Control the local Nest rhythm and room capacity.")).not.toBeInTheDocument()
+    expect(screen.queryByText("0.1-3600 seconds")).not.toBeInTheDocument()
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to save management data.")
     expect(screen.queryByText("后端拒绝了系统设置")).not.toBeInTheDocument()
   })

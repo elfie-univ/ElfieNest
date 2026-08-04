@@ -65,7 +65,7 @@ export function SystemSettingsPanel({ csrfToken }: { readonly csrfToken: string 
   }
 
   return <section className="system-settings">
-    <div className="manage-head"><p>{t("systemSettings.description")}</p><RefreshButton disabled={saving !== null} label={t("systemSettings.actions.refresh")} onClick={() => { void load() }} /></div>
+    <div className="manage-head"><RefreshButton disabled={saving !== null} label={t("systemSettings.actions.refresh")} onClick={() => { void load() }} /></div>
     {error ? <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("errors.save")} /> : null}
     {notice ? <Notice message={t(`systemSettings.notices.${notice}`)} /> : null}
     {!engine && !adoption && !security && !error ? <p className="empty-state">{t("systemSettings.loading")}</p> : null}
@@ -81,10 +81,10 @@ function EngineCard({ disabled, onChange, onSave, value }: { readonly disabled: 
   const { t } = useTranslation("manage")
   const roomLimitEnabled = value.max_elfies_per_room !== null
   return <section className="system-setting-card">
-    <div><h3>{t("systemSettings.engine.title")}</h3><p>{t("systemSettings.engine.description")}</p></div>
-    <NumberField disabled={disabled} hint={t("systemSettings.engine.tickHint")} label={t("systemSettings.engine.tick")} max={3600} min={0.1} onChange={(tick) => onChange({ ...value, tick_interval_sec: tick })} step={0.1} value={value.tick_interval_sec} />
-    <CheckboxField checked={roomLimitEnabled} disabled={disabled} hint={t("systemSettings.engine.roomLimitHint")} label={t("systemSettings.engine.roomLimit")} onChange={(checked) => onChange({ ...value, max_elfies_per_room: checked ? 1 : null })} />
-    {roomLimitEnabled ? <NumberField disabled={disabled} hint={t("systemSettings.engine.maxPerRoomHint")} label={t("systemSettings.engine.maxPerRoom")} max={32} min={1} onChange={(limit) => onChange({ ...value, max_elfies_per_room: limit })} value={value.max_elfies_per_room ?? 1} /> : null}
+    <div><h3>{t("systemSettings.engine.title")}</h3></div>
+    <NumberField disabled={disabled} label={t("systemSettings.engine.tick")} max={3600} min={0.1} onChange={(tick) => onChange({ ...value, tick_interval_sec: tick })} step={0.1} value={value.tick_interval_sec} />
+    <CheckboxField checked={roomLimitEnabled} disabled={disabled} label={t("systemSettings.engine.roomLimit")} onChange={(checked) => onChange({ ...value, max_elfies_per_room: checked ? 1 : null })} />
+    {roomLimitEnabled ? <NumberField disabled={disabled} label={t("systemSettings.engine.maxPerRoom")} max={32} min={1} onChange={(limit) => onChange({ ...value, max_elfies_per_room: limit })} value={value.max_elfies_per_room ?? 1} /> : null}
     <Button disabled={disabled} onClick={onSave} type="button">{t("systemSettings.actions.saveEngine")}</Button>
   </section>
 }
@@ -96,8 +96,8 @@ function AdoptionCard({ disabled, onChange, onSave, value }: { readonly disabled
     allowed_species_ids: checked ? [...value.allowed_species_ids, species] : value.allowed_species_ids.filter((item) => item !== species),
   })
   return <section className="system-setting-card">
-    <div><h3>{t("systemSettings.adoption.title")}</h3><p>{t("systemSettings.adoption.description")}</p></div>
-    <NumberField disabled={disabled} hint={t("systemSettings.adoption.maxPerUserHint")} label={t("systemSettings.adoption.maxPerUser")} max={32} min={1} onChange={(limit) => onChange({ ...value, max_elfies_per_user: limit })} value={value.max_elfies_per_user} />
+    <div><h3>{t("systemSettings.adoption.title")}</h3></div>
+    <NumberField disabled={disabled} label={t("systemSettings.adoption.maxPerUser")} max={32} min={1} onChange={(limit) => onChange({ ...value, max_elfies_per_user: limit })} value={value.max_elfies_per_user} />
     <fieldset><legend>{t("systemSettings.adoption.species")}</legend>{SPECIES_OPTIONS.map((species) => {
       const checked = value.allowed_species_ids.includes(species.id)
       return <CheckboxField checked={checked} disabled={disabled || (checked && value.allowed_species_ids.length === 1)} hint={checked && value.allowed_species_ids.length === 1 ? t("systemSettings.adoption.speciesRequired") : ""} key={species.id} label={t(`systemSettings.species.${species.id}`)} onChange={(next) => toggleSpecies(species.id, next)} />
@@ -109,10 +109,10 @@ function AdoptionCard({ disabled, onChange, onSave, value }: { readonly disabled
 function SecurityCard({ disabled, onChange, onSave, value }: { readonly disabled: boolean; readonly onChange: (value: SecuritySettings) => void; readonly onSave: () => void; readonly value: SecuritySettings }) {
   const { t } = useTranslation("manage")
   return <section className="system-setting-card">
-    <div><h3>{t("systemSettings.security.title")}</h3><p>{t("systemSettings.security.description")}</p></div>
-    <NumberField disabled={disabled} hint={t("systemSettings.security.sessionTtlHint")} label={t("systemSettings.security.sessionTtl")} max={3650} min={1} onChange={(days) => onChange({ ...value, session_ttl_days: days })} value={value.session_ttl_days} />
-    <NumberField disabled={disabled} hint={t("systemSettings.security.attemptsHint")} label={t("systemSettings.security.attempts")} max={1000} min={1} onChange={(attempts) => onChange({ ...value, rate_limit: { ...value.rate_limit, max_attempts: attempts } })} value={value.rate_limit.max_attempts} />
-    <NumberField disabled={disabled} hint={t("systemSettings.security.windowHint")} label={t("systemSettings.security.window")} max={86400} min={1} onChange={(seconds) => onChange({ ...value, rate_limit: { ...value.rate_limit, window_seconds: seconds } })} value={value.rate_limit.window_seconds} />
+    <div><h3>{t("systemSettings.security.title")}</h3></div>
+    <NumberField disabled={disabled} label={t("systemSettings.security.sessionTtl")} max={3650} min={1} onChange={(days) => onChange({ ...value, session_ttl_days: days })} value={value.session_ttl_days} />
+    <NumberField disabled={disabled} label={t("systemSettings.security.attempts")} max={1000} min={1} onChange={(attempts) => onChange({ ...value, rate_limit: { ...value.rate_limit, max_attempts: attempts } })} value={value.rate_limit.max_attempts} />
+    <NumberField disabled={disabled} label={t("systemSettings.security.window")} max={86400} min={1} onChange={(seconds) => onChange({ ...value, rate_limit: { ...value.rate_limit, window_seconds: seconds } })} value={value.rate_limit.window_seconds} />
     <Button disabled={disabled} onClick={onSave} type="button">{t("systemSettings.actions.saveSecurity")}</Button>
   </section>
 }

@@ -132,10 +132,6 @@ export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
 
   return <section className="manage-card manage-card--wide food-page">
     <div className="manage-head">
-      <div>
-        <h2>{t("foodPackages.title")}</h2>
-        <p>{t("foodPackages.description")}</p>
-      </div>
       <div className="manage-actions">
         <Button disabled={pending} onClick={() => openGeneration(null)} type="button"><Plus aria-hidden="true" />{t("foodPackages.actions.add")}</Button>
         <RefreshButton disabled={pending} label={t("foodPackages.actions.refresh")} onClick={() => { void load() }} />

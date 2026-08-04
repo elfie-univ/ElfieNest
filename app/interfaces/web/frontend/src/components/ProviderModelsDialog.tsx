@@ -172,7 +172,6 @@ export function ProviderModelsDialog({
 
   return <ManageDialog
     contentClassName="provider-models-dialog"
-    description={t("providerModels.description")}
     onOpenChange={onOpenChange}
     open={open}
     title={t("providerModels.labels.title", { name: connection.alias })}

@@ -55,16 +55,12 @@ export function ProviderFormDialog({
 
   return <ManageDialog
     contentClassName="provider-form-dialog"
-    description={method === "local"
-      ? t("providerConnections.form.localDescription")
-      : t("providerConnections.form.remoteDescription")}
     onOpenChange={onOpenChange}
     open={open}
     title={title}
   >
     <form className="provider-form" onSubmit={(event) => { void submit(event) }}>
       <TextField
-        hint={t("providerConnections.form.aliasHint")}
         label={t("providerConnections.form.alias")}
         onChange={setAlias}
         placeholder={product.name}
@@ -73,7 +69,6 @@ export function ProviderFormDialog({
       {method === "api_key" ? <TextField
         autoComplete="new-password"
         autoFocus
-        hint={connection ? t("providerConnections.form.apiKeyExistingHint") : t("providerConnections.form.apiKeyNewHint")}
         label={t("providerConnections.form.apiKey")}
         onChange={setApiKey}
         required={!connection}
