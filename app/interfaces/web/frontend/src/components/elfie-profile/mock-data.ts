@@ -6,7 +6,7 @@ export const PRIVATE_MODULE_TITLES = [
   "近期关注",
   "重要经历",
   "关系网络",
-  "世界理解",
+  "世界认知",
   "知识与信念",
   "粮食策略",
 ] as const

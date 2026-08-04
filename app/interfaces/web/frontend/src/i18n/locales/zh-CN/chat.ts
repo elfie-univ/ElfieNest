@@ -156,7 +156,7 @@ export const chat = {
       directed: "指向",
       connected: "连接",
       noEdges: "暂无连接说明。",
-      labels: { relationships: "关系网络", knowledge: "有向知识网络", world: "世界理解地图" },
+      labels: { relationships: "关系网络", knowledge: "有向知识网络", world: "世界认知地图" },
     },
     captureDialog: {
       title: "确认这张照片",
@@ -177,7 +177,7 @@ export const chat = {
         timeline: "重要经历",
         relationships: "关系网络",
         knowledge: "知识与信念",
-        world: "世界理解",
+        world: "世界认知",
         food: "粮食策略",
       },
       focus: {
@@ -213,9 +213,11 @@ export const chat = {
         },
       },
       world: {
-        mapLabel: "世界理解同心层",
+        mapLabel: "世界认知同心层",
         center: "我",
-        empty: "暂无足够的世界理解记录。",
+        nodeLabel: "世界认知节点：{{name}}",
+        nodeList: "世界认知节点",
+        empty: "暂无足够的世界认知记录。",
         rings: { self: "自己", family: "家人", nest: "巢", society: "周围", outside: "外界" },
       },
       knowledge: {
