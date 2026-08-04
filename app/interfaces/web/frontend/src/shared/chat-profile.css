@@ -431,42 +431,48 @@
 .profile-private-world__summary { margin: 0; color: var(--text); font-weight: 800; }
 .profile-private-world__map {
   position: relative;
-  min-height: 420px;
+  width: min(100%, 720px);
+  height: auto;
+  min-height: 0;
   overflow: hidden;
+  justify-self: center;
+  aspect-ratio: 1;
   border: 1px solid var(--border);
   border-radius: 18px;
-  background: var(--field-bg);
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent-soft) 60%, transparent), transparent 68%), var(--field-bg);
 }
-.profile-private-world__ring {
+.profile-private-world__guides { position: absolute; z-index: 0; inset: 0; pointer-events: none; }
+.profile-private-world__ring-guide {
   position: absolute;
   top: 50%;
   left: 50%;
-  display: grid;
-  width: 94%;
-  height: 94%;
+  aspect-ratio: 1;
   transform: translate(-50%, -50%);
-  place-items: start center;
   border: 1px dashed var(--border-strong);
   border-radius: 50%;
 }
-.profile-private-world__ring--self { width: 26%; height: 26%; border-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 70%, transparent); }
-.profile-private-world__ring--family { width: 43%; height: 43%; }
-.profile-private-world__ring--nest { width: 60%; height: 60%; }
-.profile-private-world__ring--society { width: 77%; height: 77%; }
-.profile-private-world__ring--outside { width: 94%; height: 94%; }
-.profile-private-world__ring h4 { margin: 8px 0 0; color: var(--text-muted); font-size: 12px; }
-.profile-private-world__ring ul {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 6px;
-  max-width: 78%;
-  margin: 12px 0 0;
-  padding: 0;
-  list-style: none;
+.profile-private-world__ring-guide--self { width: 25%; border-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 62%, transparent); }
+.profile-private-world__ring-guide--family { width: 43%; border-color: #b57a4e; }
+.profile-private-world__ring-guide--nest { width: 61%; border-color: #8f8b68; }
+.profile-private-world__ring-guide--society { width: 78%; border-color: #6f9278; }
+.profile-private-world__ring-guide--outside { width: 94%; border-color: #8a7890; }
+.profile-private-world__ring-label {
+  position: absolute;
+  top: -1px;
+  left: 50%;
+  padding: 2px 8px;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  background: var(--field-bg);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
 }
-.profile-private-world__ring li { padding: 5px 9px; border: 1px solid var(--accent); border-radius: 999px; color: var(--text); background: var(--surface-raised); font-size: 12px; }
-.profile-private-world__center { position: absolute; top: 50%; transform: translateY(-50%); color: var(--surface-raised); font-weight: 900; }
+.profile-private-world__graph { position: absolute; z-index: 1; inset: 0; touch-action: none; }
+.profile-private-world__a11y { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+.profile-private-world__a11y button { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; }
 .profile-private-knowledge { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
 .profile-private-knowledge li { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 10px; align-items: center; min-width: 0; }
 .profile-private-knowledge__node { min-width: 0; padding: 12px 14px; border: 1px solid var(--accent); border-radius: 12px; color: var(--text); background: var(--surface-raised); overflow-wrap: anywhere; }
@@ -748,7 +754,7 @@
   .profile-capture__actions > [data-slot="button"] { flex: 1 1 calc(50% - 8px); }
   .profile-private-relationships__map { min-height: 360px; }
   .profile-private-relationships--detailed .profile-private-relationships__map { min-height: 680px; }
-  .profile-private-world__map { min-height: 340px; }
+  .profile-private-world__map { width: 100%; height: auto; min-height: 0; }
   .profile-private-focus__cloud { height: clamp(280px, 82vw, 320px); padding: 4px; }
   .profile-private-experiences { padding-left: 24px; }
   .profile-private-experiences::before { left: 7px; }

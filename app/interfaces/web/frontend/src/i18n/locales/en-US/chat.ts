@@ -156,7 +156,7 @@ export const chat = {
       directed: "points to",
       connected: "connected to",
       noEdges: "No connection descriptions are available.",
-      labels: { relationships: "Relationship network", knowledge: "Directed knowledge network", world: "World model map" },
+      labels: { relationships: "Relationship network", knowledge: "Directed knowledge network", world: "World cognition map" },
     },
     captureDialog: {
       title: "Confirm this photo",
@@ -177,7 +177,7 @@ export const chat = {
         timeline: "Important experiences",
         relationships: "Relationship network",
         knowledge: "Knowledge and beliefs",
-        world: "World understanding",
+        world: "World cognition",
         food: "Food strategy",
       },
       focus: {
@@ -213,9 +213,11 @@ export const chat = {
         },
       },
       world: {
-        mapLabel: "Concentric world-understanding layers",
+        mapLabel: "Concentric world-cognition layers",
         center: "Me",
-        empty: "There are not enough world-understanding records yet.",
+        nodeLabel: "World cognition node: {{name}}",
+        nodeList: "World cognition nodes",
+        empty: "There are not enough world-cognition records yet.",
         rings: { self: "Self", family: "Family", nest: "Nest", society: "Nearby", outside: "Outside" },
       },
       knowledge: {
