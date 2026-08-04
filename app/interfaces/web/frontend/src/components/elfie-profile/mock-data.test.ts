@@ -47,7 +47,7 @@ describe("elfie profile mock data", () => {
     expect(PRIVATE_MODULE_TITLES).toEqual([
       "近期关注",
       "重要经历",
-      "关系世界",
+      "关系网络",
       "世界理解",
       "知识与信念",
       "粮食策略",
@@ -60,5 +60,17 @@ describe("elfie profile mock data", () => {
     expect(HAPPY_EXPERIENCE.privateCognition.relationshipWorld.nodes[0]?.kind).toBe("self")
     expect(HAPPY_EXPERIENCE.privateCognition.knowledgeBeliefs.nodes.length).toBeLessThanOrEqual(10)
     expect(HAPPY_EXPERIENCE.careSettings.food.options.length).toBeGreaterThan(0)
+  })
+
+  it("makes the relationship network fixture show importance and shared-owner paths", () => {
+    const relationshipWorld = HAPPY_EXPERIENCE.privateCognition.relationshipWorld
+    const weights = relationshipWorld.nodes.map((node) => node.weight)
+
+    expect(relationshipWorld.nodes.length).toBeGreaterThanOrEqual(25)
+    expect(Math.max(...weights) - Math.min(...weights)).toBeGreaterThanOrEqual(0.7)
+    expect(relationshipWorld.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: "owner", target: "star", relationKey: "same_owner" }),
+      expect.objectContaining({ source: "xiaoyu", target: "xiaohui", relationKey: "friend_elfie" }),
+    ]))
   })
 })

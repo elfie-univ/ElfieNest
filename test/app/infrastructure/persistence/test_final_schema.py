@@ -25,7 +25,7 @@ EXPECTED_TABLES: Final = {
     "external_bodies",
     "device_audit_events",
     "embodiment_sessions",
-    "food_package_access",
+    "food_packages",
 }
 EXPECTED_COLUMNS: Final = {
     "users": {
@@ -132,7 +132,22 @@ EXPECTED_COLUMNS: Final = {
         "lease_version",
         "updated_at",
     },
-    "food_package_access": {"user_id", "food_key"},
+    "food_packages": {
+        "food_key",
+        "display_name",
+        "system_role",
+        "primary_model_ref",
+        "reasoning_model_ref",
+        "vision_model_ref",
+        "tool_model_ref",
+        "fallback_model_ref",
+        "visibility_mode",
+        "visible_user_ids_json",
+        "enabled",
+        "archived",
+        "created_at",
+        "updated_at",
+    },
 }
 VALID_HASH: Final = "a" * 64
 
@@ -218,8 +233,8 @@ def test_final_account_constraints_reject_unsafe_direct_sql(tmp_path: Path) -> N
         _insert_elfie(connection, owner_id)
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute(
-                "INSERT INTO food_package_access(user_id,food_key) VALUES(?, '')",
-                (owner_id,),
+                "INSERT INTO food_packages(food_key,display_name,visibility_mode,visible_user_ids_json) "
+                "VALUES('invalid-json','Invalid','global','not-json')"
             )
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute(

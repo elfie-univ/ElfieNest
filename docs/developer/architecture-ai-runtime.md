@@ -234,7 +234,7 @@ Each package editor exposes:
 
 - required `primary` model;
 - optional `reasoning`, `vision` and `tool` role models;
-- an ordered optional `fallback` model or model list;
+- one optional `fallback` model, represented as an assignment object or `null`;
 - locality projection, validation status and source.
 
 Tool permissions are never stored in a food package.
@@ -272,8 +272,8 @@ Fallback
 
 The food table stays deliberately simple: role, selected model, connection,
 local/remote marker and current usable/unusable state. Editing changes only the
-model assigned to each role; the Fallback row may open a small ordered-list
-editor.
+model assigned to each role; the optional Fallback role is a single assignment
+object or `null`, never an ordered list.
 
 Context size, maximum output, reasoning/tools/vision capabilities, validation
 details and latency are model facts. They belong to the connection-model view
@@ -345,8 +345,8 @@ For every generation:
 2. it checks user access and the package's enabled, archived and health state;
 3. it asks for a semantic role: `primary`, `reasoning`, `vision` or `tool`;
 4. a missing optional role falls back to that package's `primary`;
-5. execution tries the selected role and then that package's ordered fallback
-   models without crossing to an unlisted subscription;
+5. execution tries the selected role and then that package's one configured
+   fallback model without crossing to an unlisted subscription;
 6. only after the primary package is exhausted does Runtime try the global
    emergency package once;
 7. if emergency is missing or exhausted, Runtime returns typed
@@ -471,8 +471,6 @@ ${ELFIE_HOME:-~/.elfienest}/
 │   ├── providers.yaml
 │   ├── runtime.yaml
 │   ├── tools.yaml
-│   ├── food-packages.yaml
-│   ├── food-packages-history/
 │   └── credentials/
 │       ├── api-keys.env
 │       └── oauth/
@@ -512,8 +510,7 @@ Each file has exactly one typed owner:
 | Provider and tool secrets | `configs/credentials/` |
 | Runtime settings | `configs/runtime.yaml` |
 | Tool settings | `configs/tools.yaml` |
-| Food definitions and global default/emergency IDs | `configs/food-packages.yaml` |
-| User-to-food grants | `nest.db.food_package_access` |
+| Food strategy rows, roles and visibility | `nest.db.food_packages` (single table) |
 | Elfie main-food ID | `nest.db.elfies.main_food_id` |
 | Validation runs and immutable observations | `reports/ai-runtime.sqlite` |
 | Current, as-of and cross-connection reports | SQL projections from `reports/ai-runtime.sqlite` |
@@ -551,25 +548,12 @@ connections:
         available: true
 ```
 
-`food-packages.yaml` contains package definitions and global role IDs:
-
-```yaml
-version: 1
-global_default_food_id: food_common
-global_emergency_food_id: food_emergency
-packages:
-  food_common:
-    display_name: Common food
-    enabled: true
-    archived: false
-    roles:
-      primary:
-        model: openai_api_0002/gpt-example
-      reasoning: null
-      vision: null
-      tool: null
-      fallback: []
-```
+`nest.db.food_packages` is the single fact source for food strategies. Each row
+stores the display name, optional system role, the five model role references,
+`visibility_mode` (`global` or `users`), the selected user IDs, lifecycle flags
+and timestamps. `global` means every user can see the row; `users` limits it to
+the stored IDs. The built-in common and emergency rows are global system rows
+and cannot be archived or deleted.
 
 `tools.yaml` stores only semantic configuration:
 

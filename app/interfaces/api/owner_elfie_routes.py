@@ -6,13 +6,13 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from ai_runtime.food.store import FoodCatalogStore
 from ai_runtime.storage.data_home import data_home_from_db_path
 from ai_runtime.storage.data_layout import final_root_layout
 from app.features.accounts.auth import require_manager
 from app.features.configuration.food_access import elfie_food_policy_projection
 from app.features.elfie_profile.public_projection import build_public_profile
 from app.infrastructure.persistence.embodiment_sessions import get_embodiment_session
+from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
 from app.infrastructure.persistence.interface_query_repository import (
     InterfaceElfieRecord,
     InterfaceQueryRepository,
@@ -82,7 +82,7 @@ def _filter_monitoring_rows(
     embodiment_state: Optional[str],
 ) -> List[Dict[str, Any]]:
     projections = []
-    catalog = FoodCatalogStore().load()
+    catalog = SQLiteFoodPackageRepository(db_path).load()
     for row in rows:
         state = get_embodiment_session(db_path, row.elfie_id).state.value
         policy = elfie_food_policy_projection(

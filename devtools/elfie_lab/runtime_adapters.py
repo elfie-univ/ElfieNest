@@ -222,8 +222,10 @@ def create_runtime(food_key: str, config_dir: str | None = None) -> TracingRunti
     if package is None:
         raise ValueError(f"Runtime 粮食目录中不存在粮食: {normalized}")
 
-    agent = RuntimeAgent(config)
-    agent.food_catalog_store = food_store
+    agent = RuntimeAgent(
+        config,
+        food_catalog_repository=food_store,
+    )
     food_agent = FoodRuntimeAgent(agent, normalized, package)
     return TracingRuntimeAgent(food_agent, normalized)
 

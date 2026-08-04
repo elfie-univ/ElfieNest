@@ -24,6 +24,8 @@ _RINGS: Final[tuple[str, ...]] = ("self", "family", "nest", "society", "outside"
 _KNOWLEDGE_RELATIONS: Final[frozenset[str]] = frozenset(
     {"derived_from", "supports", "conflicts", "revises"}
 )
+_RELATIONSHIP_NODE_LIMIT: Final[int] = 49
+_RELATIONSHIP_EDGE_LIMIT: Final[int] = 120
 
 
 def relationship_world(
@@ -32,11 +34,11 @@ def relationship_world(
     elfie_id: str,
     elfie_name: str,
 ) -> RelationshipWorldPayload:
-    """Keep self plus the nineteen most important visible people or Elfies."""
+    """Keep self plus the forty-nine most important visible people or Elfies."""
     del elfie_id
     candidates = [entity for entity in entities if _relationship_kind(entity) and not entity.is_self]
     candidates.sort(key=lambda entity: (-entity.weight, entity.name, entity.id))
-    selected = candidates[:19]
+    selected = candidates[:_RELATIONSHIP_NODE_LIMIT]
     visible = {entity.id for entity in selected}
     self_ids = {entity.id for entity in entities if entity.is_self}
     nodes: list[RelationshipNodePayload] = [
@@ -52,7 +54,7 @@ def relationship_world(
             key = entity.relation_key or "relationship"
             relation_rows[("self", entity.id, key)] = {
                 "source": "self", "target": entity.id, "relation_key": key,
-                "display_label": entity.relationship_label, "weight": round(entity.weight, 6),
+                "display_label": entity.relationship_label, "weight": round(entity.closeness, 6),
             }
     for edge in edges:
         source = "self" if edge.source in self_ids else edge.source
@@ -66,9 +68,14 @@ def relationship_world(
             "source": source, "target": target, "relation_key": key,
             "display_label": edge.summary, "weight": round(edge.weight, 6),
         }
-    relation_edges: list[RelationshipEdgePayload] = [
-        relation_rows[key] for key in sorted(relation_rows)
-    ]
+    relation_edges: list[RelationshipEdgePayload] = [relation_rows[key] for key in sorted(
+        relation_rows,
+        key=lambda key: (
+            0 if key[0] == "self" or key[1] == "self" else 1,
+            -relation_rows[key]["weight"],
+            key,
+        ),
+    )[:_RELATIONSHIP_EDGE_LIMIT]]
     return {"nodes": nodes, "edges": relation_edges}
 
 

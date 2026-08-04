@@ -27,4 +27,5 @@ def test_planner_uses_only_fresh_scoped_models_and_local_first():
         local_first=True,
     )
     assert proposal.package.primary.model == "ollama_0001/local"
+    assert proposal.package.fallback is not None
     assert "stale" not in str(proposal.package.to_dict())

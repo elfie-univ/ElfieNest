@@ -2,16 +2,14 @@ from types import SimpleNamespace
 
 from ai_runtime.food.models import (
     FOOD_COMMON_ID,
-    FOOD_EMERGENCY_ID,
     FoodPackage,
     ModelAssignment,
 )
-from ai_runtime.food.store import FoodCatalog
 from app.features.configuration.food_access import resolve_elfie_food_key
 from app.infrastructure.persistence.food_assignments import (
-    replace_user_food_access,
     set_elfie_main_food_id,
 )
+from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
 from app.infrastructure.persistence.store import get_db, init_db
 
 
@@ -39,28 +37,25 @@ def test_runtime_food_resolution_tracks_current_elfie_assignment(tmp_path, monke
             (user_id,),
         )
         connection.commit()
-    catalog = FoodCatalog(
-        packages={
-            FOOD_EMERGENCY_ID: FoodPackage(
-                key=FOOD_EMERGENCY_ID,
-                display_name="保底粮",
-                system_role="emergency",
-                primary=ModelAssignment("ollama/emergency"),
-            ),
-            FOOD_COMMON_ID: FoodPackage(
-                key=FOOD_COMMON_ID,
-                display_name="常用粮",
-                system_role="common",
-                primary=ModelAssignment("ollama/common"),
-            ),
-            "food_custom": FoodPackage(
-                key="food_custom",
-                display_name="自定义粮",
-                primary=ModelAssignment("ollama/custom"),
-            ),
-        },
+    repository = SQLiteFoodPackageRepository(db_path)
+    repository.update(
+        FoodPackage(
+            key=FOOD_COMMON_ID,
+            display_name="常用粮",
+            system_role="common",
+            primary=ModelAssignment("ollama/common"),
+        )
     )
-    replace_user_food_access(db_path, user_id, ("food_custom",))
+    repository.create(
+        FoodPackage(
+            key="food_custom",
+            display_name="自定义粮",
+            primary=ModelAssignment("ollama/custom"),
+            visibility_mode="users",
+            visible_user_ids=(user_id,),
+        )
+    )
+    catalog = repository.load()
 
     assert resolve_elfie_food_key(db_path, "12345678", catalog) == FOOD_COMMON_ID
 

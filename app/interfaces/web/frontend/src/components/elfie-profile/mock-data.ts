@@ -1,10 +1,11 @@
 import { MOCK_ELFIES } from "../owner-card-mock-data"
 import { parseExperienceFixture, parseViewer, type GodotAppearance } from "./model"
+import { HAPPY_RELATIONSHIP_WORLD } from "./relationship-network-mock"
 
 export const PRIVATE_MODULE_TITLES = [
   "近期关注",
   "重要经历",
-  "关系世界",
+  "关系网络",
   "世界理解",
   "知识与信念",
   "粮食策略",
@@ -101,19 +102,7 @@ export const HAPPY_EXPERIENCE = parseExperienceFixture({
         { id: "event:waiting", occurredAt: "2026-07-04", title: "学会等待", changed: "在响应变慢时保持坐姿，先观察再靠近。", importance: 0.82, people: ["管理员"] },
       ],
     },
-    relationshipWorld: {
-      nodes: [
-        { id: "self", label: "Happy", kind: "self", weight: 1 },
-        { id: "owner", label: "主人", kind: "human", weight: 0.98 },
-        { id: "admin", label: "管理员", kind: "human", weight: 0.76 },
-        { id: "star", label: "星星", kind: "elfie", weight: 0.7 },
-      ],
-      edges: [
-        { source: "self", target: "owner", relationKey: "owner", displayLabel: "主人", weight: 1 },
-        { source: "self", target: "admin", relationKey: "family", displayLabel: "家人", weight: 0.76 },
-        { source: "self", target: "star", relationKey: "friend", displayLabel: "朋友", weight: 0.7 },
-      ],
-    },
+    relationshipWorld: HAPPY_RELATIONSHIP_WORLD,
     worldUnderstanding: {
       summary: "大多数时候世界是安全的，安静的地方让我放松。",
       rings: [

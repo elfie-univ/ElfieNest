@@ -8,7 +8,7 @@ class _Permission:
         return None
 
 
-def test_executor_uses_role_then_ordered_fallback(monkeypatch, tmp_path):
+def test_executor_uses_role_then_one_fallback(monkeypatch, tmp_path):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     calls = []
 
@@ -36,10 +36,12 @@ def test_executor_uses_role_then_ordered_fallback(monkeypatch, tmp_path):
             "X",
             primary=ModelAssignment("cloud_0001/main"),
             reasoning=ModelAssignment("cloud_0001/reason"),
-            fallback=(ModelAssignment("cloud_0001/backup"),),
+            fallback=ModelAssignment("cloud_0001/backup"),
         ),
         [{"role": "user", "content": "hi"}],
         semantic_role="reasoning",
     )
     assert calls == ["cloud_0001/reason", "cloud_0001/backup"]
     assert result.model == "cloud_0001/backup"
+    assert result.execution_stage == "fallback"
+    assert len(result.attempts) == 2

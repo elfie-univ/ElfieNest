@@ -17,7 +17,7 @@ class CognitionEntity:
 
     __slots__ = (
         "id", "entity_type", "name", "summary", "metadata",
-        "relationship_label", "relation_key", "weight", "is_self",
+        "relationship_label", "relation_key", "weight", "closeness", "is_self",
     )
 
     id: str
@@ -28,6 +28,7 @@ class CognitionEntity:
     relationship_label: str
     relation_key: str
     weight: float
+    closeness: float
     is_self: bool
 
 
@@ -103,15 +104,19 @@ def entity_from_row(row: sqlite3.Row) -> CognitionEntity:
         metadata.get("relationship_key")
     )
     direct_weight = max(
-        _number(row["person_importance"]), _number(row["person_closeness"]),
-        _number(row["person_trust"]), _number(row["elfie_closeness"]),
-        _number(metadata.get("importance")), _number(row["confidence"]),
+        _number(row["person_importance"]),
+        _number(metadata.get("importance")),
+        _number(row["confidence"]),
+    )
+    relationship_closeness = max(
+        _number(row["person_closeness"]), _number(row["elfie_closeness"])
     )
     return CognitionEntity(
         id=str(row["entity_id"]), entity_type=entity_type,
         name=_text(row["name"]), summary=_text(row["summary"]),
         metadata=metadata, relationship_label=relation_label,
         relation_key=relation_key, weight=direct_weight,
+        closeness=relationship_closeness,
         is_self=bool(row["is_self"]),
     )
 

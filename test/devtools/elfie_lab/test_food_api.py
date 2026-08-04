@@ -5,9 +5,9 @@ from ai_runtime.food.models import (
     FoodPackage,
     ModelAssignment,
 )
-from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
 from ai_runtime.gateway.request import RuntimeResult
-from ai_runtime.storage.config_store import write_yaml_mapping
+from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
+from app.infrastructure.persistence.store import init_db
 from devtools.elfie_lab.app import create_app
 from devtools.runtime_lab import RuntimeLabConfigStore
 
@@ -29,28 +29,29 @@ def _write_foods(
     focus_model="ollama/focus",
     standard_model="ollama/qwen3.5:0.8b",
 ):
-    store = FoodCatalogStore(runtime_dir / "foods.yaml", runtime_dir / "food_history")
-    catalog = FoodCatalog(
-        packages={
-            "coarse": FoodPackage(
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    db_path = runtime_dir / "nest.db"
+    init_db(str(db_path))
+    repository = SQLiteFoodPackageRepository(db_path)
+    for package in (
+            FoodPackage(
                 key="coarse",
                 display_name="粗粮",
                 primary=ModelAssignment("ollama/qwen3.5:0.8b"),
             ),
-            "standard": FoodPackage(
+            FoodPackage(
                 key="standard",
                 display_name="标准粮",
                 primary=ModelAssignment(standard_model),
             ),
-            "focus": FoodPackage(
+            FoodPackage(
                 key="focus",
                 display_name="清醒粮",
                 primary=ModelAssignment(focus_model),
-                fallback=(ModelAssignment("ollama/qwen3.5:0.8b"),),
+                fallback=ModelAssignment("ollama/qwen3.5:0.8b"),
             ),
-        }
-    )
-    write_yaml_mapping(store.path, catalog.to_dict())
+    ):
+        repository.create(package)
 
 
 def test_default_app_uses_developer_runtime_and_keeps_production_isolated(
@@ -73,7 +74,8 @@ def test_default_app_uses_developer_runtime_and_keeps_production_isolated(
 
     assert app.state.storage.root == elfie_data
     assert app.state.runtime_store.root == developer_runtime
-    assert app.state.food_store.path == developer_runtime / "foods.yaml"
+    assert (developer_runtime / "nest.db").exists()
+    assert not (developer_runtime / "foods.yaml").exists()
     assert client.get("/api/runtime/status").json()["scope"] == "developer"
     assert not production_home.exists()
     assert client.get("/api/runtime/foods").json()["configuration_command"] == (
@@ -122,7 +124,7 @@ def test_non_mock_turn_uses_selected_food_and_runtime_catalog(
 
     def fake_run_with_food(runtime, **kwargs):
         captured["food_key"] = kwargs["food_key"]
-        captured["catalog_path"] = runtime.food_catalog_store.path
+        captured["catalog_path"] = runtime.food_catalog_repository._db_path
         return RuntimeResult(
             text="粮食调用成功。[ACTION]nod_head[/ACTION]",
             mode="local",
@@ -155,7 +157,7 @@ def test_non_mock_turn_uses_selected_food_and_runtime_catalog(
     assert payload["model_call"]["model"] == "ollama/test-food-model"
     assert captured == {
         "food_key": "standard",
-        "catalog_path": runtime_dir / "foods.yaml",
+        "catalog_path": str(runtime_dir / "nest.db"),
     }
 
 
@@ -196,10 +198,14 @@ def test_foods_api_returns_food_list(tmp_path, monkeypatch, client_for):
 
     assert response.status_code == 200
     items = response.json()["items"]
-    assert len(items) >= 1
-    mock_food = next(food for food in items if food["key"] == "mock")
-    assert mock_food["display_name"] == "模拟粮"
-    assert mock_food["credential_ready"] is True
+    assert [item["key"] for item in items] == [
+        FOOD_EMERGENCY_ID,
+        FOOD_COMMON_ID,
+        "coarse",
+        "focus",
+        "standard",
+    ]
+    assert all(item["credential_ready"] is False for item in items)
 
 
 def test_default_elfie_lab_shows_unconfigured_foods_as_disabled_when_catalog_is_absent(
@@ -219,15 +225,8 @@ def test_default_elfie_lab_shows_unconfigured_foods_as_disabled_when_catalog_is_
     # Then
     assert response.status_code == 200
     items = response.json()["items"]
-    assert [item["key"] for item in items] == [
-        "mock",
-        FOOD_EMERGENCY_ID,
-        FOOD_COMMON_ID,
-    ]
-    assert all(
-        not item["ready_for_attempt"] and item["unavailable_reason"] == "模型尚未配置"
-        for item in items[1:]
-    )
+    assert [item["key"] for item in items] == [FOOD_EMERGENCY_ID, FOOD_COMMON_ID]
+    assert all(not item["ready_for_attempt"] for item in items)
 
 
 def test_uninstalled_ollama_food_is_disabled_with_setup_command(

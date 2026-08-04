@@ -392,6 +392,7 @@ async def complete_setup_model(
         )
     service = OllamaSetupService(
         adapter=OllamaPlatformAdapter(),
+        food_catalog_repository=request.app.state.food_repository,
     )
     try:
         service.configure_installed_model(
@@ -416,6 +417,7 @@ async def pull_setup_model(
     def pull() -> None:
         service = OllamaSetupService(
             adapter=OllamaPlatformAdapter(),
+            food_catalog_repository=request.app.state.food_repository,
         )
         service.pull_and_configure_model(
             db_path=request.app.state.db_path,

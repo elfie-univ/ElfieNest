@@ -10,6 +10,28 @@ import type { ElfieProfileProjection } from "./projection"
 import { projectElfieProfile } from "./projection"
 
 vi.mock("@visx/wordcloud", () => ({ Wordcloud: () => null }))
+vi.mock("cytoscape", () => {
+  const createCollection = () => ({
+    addClass: vi.fn().mockReturnThis(),
+    dijkstra: () => ({ pathTo: () => createCollection() }),
+    removeClass: vi.fn().mockReturnThis(),
+  })
+  const createElement = (id: string) => ({
+    ...createCollection(),
+    empty: () => false,
+    id: () => id,
+    lock: vi.fn(),
+    neighborhood: () => createCollection(),
+  })
+  const instance = {
+    destroy: vi.fn(),
+    elements: () => createCollection(),
+    getElementById: (id: string) => createElement(id),
+    on: vi.fn(),
+    resize: vi.fn(),
+  }
+  return { default: () => instance }
+})
 
 createI18n()
 
@@ -39,11 +61,11 @@ describe("ProfilePrivateModules", () => {
     expect(within(timeline).getByRole("list", { name: "重要经历时间线" })).toBeInTheDocument()
     expect(timeline.querySelector("time[datetime='2026-06-30']")).not.toBeNull()
 
-    await user.click(screen.getByRole("button", { name: "关系世界" }))
-    const relationships = screen.getByRole("region", { name: "关系世界" })
+    await user.click(screen.getByRole("button", { name: "关系网络" }))
+    const relationships = screen.getByRole("region", { name: "关系网络" })
     expect(within(relationships).getByRole("button", { name: "人类" })).toBeInTheDocument()
     expect(within(relationships).getByRole("button", { name: "精灵" })).toBeInTheDocument()
-    expect(within(relationships).getByRole("img", { name: "关系世界网络" })).toBeInTheDocument()
+    expect(within(relationships).getByRole("img", { name: "关系网络图" })).toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: "知识与信念" }))
     expect(screen.getByRole("list", { name: "知识与信念路径" })).toBeInTheDocument()
@@ -59,13 +81,12 @@ describe("ProfilePrivateModules", () => {
     const user = userEvent.setup()
     const projection = projectElfieProfile(SIGNED_IN_ADMIN, HAPPY_EXPERIENCE)
     render(<ProfilePrivateModules projection={projection} />)
-    await user.click(screen.getByRole("button", { name: "关系世界" }))
-    const relationships = screen.getByRole("region", { name: "关系世界" })
+    await user.click(screen.getByRole("button", { name: "关系网络" }))
+    const relationships = screen.getByRole("region", { name: "关系网络" })
     await user.click(within(relationships).getByRole("button", { name: "人类" }))
-    const map = within(relationships).getByRole("img", { name: "关系世界网络" })
-    expect(within(map).getByText("Happy")).toBeInTheDocument()
-    expect(within(map).getByText("主人")).toBeInTheDocument()
-    expect(within(map).queryByText("星星")).not.toBeInTheDocument()
+    expect(within(relationships).getByRole("button", { name: "关系节点：Happy" })).toBeInTheDocument()
+    expect(within(relationships).getByRole("button", { name: "关系节点：主人" })).toBeInTheDocument()
+    expect(within(relationships).queryByRole("button", { name: "关系节点：星星" })).not.toBeInTheDocument()
   })
 
   it("renders no private headings or payload for visitors", () => {

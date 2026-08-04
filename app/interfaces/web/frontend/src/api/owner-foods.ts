@@ -9,12 +9,14 @@ export const FoodPackageSchema = z.object({
   system_role: z.enum(["emergency", "common"]).nullable(),
   enabled: z.boolean(),
   archived: z.boolean(),
+  visibility_mode: z.enum(["global", "users"]),
+  visible_user_ids: z.array(z.number().int().positive()),
   roles: z.object({
     primary: AssignmentSchema.nullable(),
     reasoning: AssignmentSchema.nullable(),
     vision: AssignmentSchema.nullable(),
     tool: AssignmentSchema.nullable(),
-    fallback: z.array(AssignmentSchema),
+    fallback: AssignmentSchema.nullable(),
   }),
   health: z.string(),
   locality: z.string(),
@@ -27,19 +29,16 @@ export const FoodCatalogSchema = z.object({
   packages: z.array(FoodPackageSchema),
   eligible_models: z.array(z.object({
     reference: z.string(),
-    display_name: z.string(),
+    display_name: z.string().nullable(),
     local: z.boolean(),
     capabilities: z.array(z.string()),
   })),
 })
 export const FoodPreviewSchema = z.object({
-  food_id: z.string(),
+  food_id: z.string().nullable(),
   candidate: z.object({
-    key: z.string(),
     display_name: z.string(),
-    system_role: z.enum(["emergency", "common"]).nullable(),
     enabled: z.boolean(),
-    archived: z.boolean(),
     roles: FoodPackageSchema.shape.roles,
   }),
   changes: z.array(z.object({
@@ -58,22 +57,12 @@ const CreateResultSchema = z.object({
   food: FoodPackageSchema,
   catalog: FoodCatalogSchema,
 })
-const FoodVisibilitySchema = z.object({
-  food_key: z.string(),
-  global: z.boolean().optional().default(false),
-  user_ids: z.array(z.number().int()),
-  users: z.array(z.object({
-    user_id: z.number().int(),
-    display_name: z.string(),
-    assigned: z.boolean(),
-  })).optional().default([]),
-})
-
 export type FoodPackage = z.infer<typeof FoodPackageSchema>
 export type FoodCatalog = z.infer<typeof FoodCatalogSchema>
 export type FoodPreview = z.infer<typeof FoodPreviewSchema>
-export type FoodVisibility = z.infer<typeof FoodVisibilitySchema>
-export type FoodPackageDraft = Pick<FoodPackage, "display_name" | "enabled" | "roles">
+export type FoodPackageDraft = Pick<FoodPackage, "display_name" | "enabled" | "roles" | "visibility_mode"> & {
+  readonly visible_user_ids: readonly number[]
+}
 
 export async function ownerFoods(): Promise<FoodCatalog> {
   return FoodCatalogSchema.parse(await ownerRead("/api/owner/runtime/foods/"))
@@ -84,13 +73,45 @@ export async function previewFoodUpdate(
   connectionIds: readonly string[],
   localFirst: boolean,
   allowRemote: boolean,
+  visibilityMode: FoodPackage["visibility_mode"],
+  visibleUserIds: readonly number[],
   csrfToken: string,
 ): Promise<FoodPreview> {
   return FoodPreviewSchema.parse(await ownerWrite(
     `/api/owner/runtime/foods/${encodeURIComponent(foodId)}/generation-preview`,
     "POST",
     csrfToken,
-    { connection_ids: connectionIds, local_first: localFirst, allow_remote: allowRemote },
+    {
+      connection_ids: connectionIds,
+      local_first: localFirst,
+      allow_remote: allowRemote,
+      visibility_mode: visibilityMode,
+      visible_user_ids: visibleUserIds,
+    },
+  ))
+}
+
+export async function previewNewFood(
+  displayName: string,
+  connectionIds: readonly string[],
+  localFirst: boolean,
+  allowRemote: boolean,
+  visibilityMode: FoodPackage["visibility_mode"],
+  visibleUserIds: readonly number[],
+  csrfToken: string,
+): Promise<FoodPreview> {
+  return FoodPreviewSchema.parse(await ownerWrite(
+    "/api/owner/runtime/foods/generation-preview",
+    "POST",
+    csrfToken,
+    {
+      display_name: displayName,
+      connection_ids: connectionIds,
+      local_first: localFirst,
+      allow_remote: allowRemote,
+      visibility_mode: visibilityMode,
+      visible_user_ids: visibleUserIds,
+    },
   ))
 }
 
@@ -108,14 +129,14 @@ export async function editFood(
 }
 
 export async function createFood(
-  displayName: string,
+  draft: FoodPackageDraft,
   csrfToken: string,
 ): Promise<z.infer<typeof CreateResultSchema>> {
   return CreateResultSchema.parse(await ownerWrite(
     "/api/owner/runtime/foods/",
     "POST",
     csrfToken,
-    { display_name: displayName, enabled: false, roles: {} },
+    draft,
   ))
 }
 
@@ -137,23 +158,4 @@ export async function deleteFood(foodId: string, csrfToken: string): Promise<Foo
     "DELETE",
     csrfToken,
   ))
-}
-
-export async function foodVisibility(foodId: string): Promise<FoodVisibility> {
-  return FoodVisibilitySchema.parse(await ownerRead(
-    `/api/owner/runtime/foods/${encodeURIComponent(foodId)}/visibility`,
-  ))
-}
-
-export async function updateFoodVisibility(
-  foodId: string,
-  userIds: readonly number[],
-  csrfToken: string,
-): Promise<void> {
-  await ownerWrite(
-    `/api/owner/runtime/foods/${encodeURIComponent(foodId)}/visibility`,
-    "PUT",
-    csrfToken,
-    { user_ids: userIds },
-  )
 }

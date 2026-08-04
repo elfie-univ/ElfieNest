@@ -34,7 +34,7 @@ class FoodValidationRunner:
                     model=package.primary.model if package.primary else None,
                     details={
                         "health": health.status,
-                        "fallbacks": len(package.fallback),
+                        "fallback_configured": package.fallback is not None,
                     },
                 )
             )

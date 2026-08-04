@@ -18,8 +18,6 @@ from ai_runtime.storage.data_home import (
     get_elfie_developer_home,
     get_elfie_home,
     get_env_path,
-    get_food_catalog_path,
-    get_food_history_dir,
     get_local_files_dir,
     get_model_validation_dir,
     get_reports_dir,
@@ -138,7 +136,6 @@ def test_ensure_elfie_home_creates_structure(monkeypatch, tmp_path):
         Path("assets/users"),
         Path("configs"),
         Path("configs/credentials"),
-        Path("configs/food-packages-history"),
         Path("elfies"),
         Path("logs"),
         Path("reports"),
@@ -155,12 +152,6 @@ def test_path_helpers(monkeypatch, tmp_path):
     assert get_config_path() == get_elfie_home() / "configs" / "runtime.yaml"
     assert get_env_path() == get_elfie_home() / "configs" / "auth.env"
     assert get_db_path() == get_elfie_home() / "nest.db"
-    assert (
-        get_food_catalog_path() == get_elfie_home() / "configs" / "food-packages.yaml"
-    )
-    assert (
-        get_food_history_dir() == get_elfie_home() / "configs" / "food-packages-history"
-    )
     assert (
         get_model_validation_dir() == get_elfie_home() / "reports" / "model-validations"
     )

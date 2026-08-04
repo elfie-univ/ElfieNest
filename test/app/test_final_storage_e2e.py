@@ -35,10 +35,11 @@ _NEST_TABLES = {
     "elfies",
     "embodiment_sessions",
     "external_bodies",
-    "food_package_access",
+    "food_packages",
     "local_installations",
     "nest_settings",
     "sessions",
+    "setup_drafts",
     "users",
 }
 _HISTORY_TABLES = {

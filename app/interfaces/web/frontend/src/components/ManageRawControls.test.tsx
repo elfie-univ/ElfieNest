@@ -10,6 +10,7 @@ import type { ClientUser } from "../api/client"
 import { createI18n } from "../i18n/config"
 import { initializeLocale } from "../i18n/locale"
 import { ownerProviderConnections } from "../api/owner-providers"
+import { ownerUsers } from "../api/owner-users"
 import {
   ownerFoods,
   type FoodCatalog,
@@ -34,13 +35,23 @@ vi.mock("../api/owner-providers", async (loadOriginal) => {
   }
 })
 
+vi.mock("../api/owner-users", async (loadOriginal) => {
+  const original = await loadOriginal<typeof import("../api/owner-users")>()
+  return {
+    ...original,
+    ownerUsers: vi.fn(),
+  }
+})
+
 const food = {
   key: "standard",
   display_name: "标准粮",
   system_role: "common",
   enabled: true,
   archived: false,
-  roles: { primary: { model: "ollama/primary" }, reasoning: null, vision: null, tool: null, fallback: [] },
+  visibility_mode: "global",
+  visible_user_ids: [],
+  roles: { primary: { model: "ollama/primary" }, reasoning: null, vision: null, tool: null, fallback: null },
   health: "passed",
   locality: "local",
   latest_evidence_at: null,
@@ -73,6 +84,7 @@ describe("Manage shared controls", () => {
   beforeEach(() => {
     vi.mocked(ownerFoods).mockResolvedValue(catalog)
     vi.mocked(ownerProviderConnections).mockResolvedValue([])
+    vi.mocked(ownerUsers).mockResolvedValue([])
   })
 
   it("renders small shared actions and select group labels as accessible controls", () => {
@@ -134,7 +146,7 @@ describe("Manage shared controls", () => {
     }
   })
 
-  it("renders food catalog and role tables through the shared Table primitive", async () => {
+  it("renders the food catalog as the flat shared table", async () => {
     const instance = createI18n()
     document.documentElement.lang = "zh-CN"
     render(
@@ -144,10 +156,7 @@ describe("Manage shared controls", () => {
     )
 
     const foodTable = await screen.findByRole("table", { name: "粮食套餐" })
-    expect(within(foodTable).getAllByRole("columnheader", { name: "状态" }).length).toBeGreaterThan(0)
-
-    const roleTable = screen.getAllByRole("table", { name: "标准粮角色配置" })[0]
-    if (roleTable === undefined) throw new Error("Expected a rendered food role table")
-    expect(within(roleTable).getByRole("rowheader", { name: "Primary" })).toBeInTheDocument()
+    expect(within(foodTable).getAllByRole("columnheader")).toHaveLength(9)
+    expect(screen.queryByRole("table", { name: "标准粮角色配置" })).not.toBeInTheDocument()
   })
 })

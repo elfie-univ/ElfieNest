@@ -12,7 +12,7 @@ from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.food.evidence import query_model_evidence, record_model_evidence
 from ai_runtime.food.health import project_food_health
 from ai_runtime.food.planner import ModelEvidence
-from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
+from ai_runtime.food.store import FoodCatalog, FoodCatalogRepository
 from ai_runtime.models.capabilities import (
     canonical_display_name,
     known_capabilities,
@@ -103,17 +103,22 @@ class RuntimeOverviewGenerator:
         config: LLMRuntimeConfig,
         *,
         report_repository: ReportRepository | None = None,
-        food_store: FoodCatalogStore | None = None,
+        food_store: FoodCatalogRepository | None = None,
     ) -> None:
         self.config = config
         self.report_repository = report_repository or ReportRepository()
-        self.food_store = food_store or FoodCatalogStore()
+        self.food_store = food_store
+
+    def _load_food_catalog(self) -> FoodCatalog:
+        if self.food_store is None:
+            raise RuntimeError("Runtime 概览未注入粮食数据库仓储")
+        return self.food_store.load()
 
     def snapshot(self) -> dict[str, Any]:
         return build_overview(
             self.config,
             list(query_model_evidence(repository=self.report_repository).values()),
-            self.food_store.load(),
+            self._load_food_catalog(),
         )
 
     def regenerate(self) -> dict[str, Any]:
@@ -213,7 +218,7 @@ class RuntimeOverviewGenerator:
         report = build_overview(
             self.config,
             list(query_model_evidence(repository=self.report_repository).values()),
-            self.food_store.load(),
+            self._load_food_catalog(),
             provider_health=provider_health,
         )
         report["suites"] = [suite.to_dict() for suite in suites]

@@ -9,14 +9,10 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.food.store import (
-    FoodCatalogStore,
-    foods_referencing_connection,
-    foods_referencing_model,
-)
+from ai_runtime.food.store import foods_referencing_connection, foods_referencing_model
 from ai_runtime.models.catalog import _verify_custom_openai_provider, verify_provider
 from ai_runtime.providers.discovery import (
     bundled_catalog_models,
@@ -51,6 +47,7 @@ from ai_runtime.storage.validation_reports import (
 )
 from ai_runtime.validation.providers import discover_provider_models
 from app.features.accounts.auth import require_manager
+from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
 
 from .provider_errors import sanitize_error
 from .provider_schemas import (
@@ -233,6 +230,7 @@ async def update_connection(
 @router.delete("/connections/{connection_id}")
 async def delete_connection(
     connection_id: str,
+    request: Request,
     owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, str]:
     _ = owner
@@ -242,7 +240,10 @@ async def delete_connection(
         raise HTTPException(status_code=400, detail="不能删除默认 Ollama 连接")
     if not connection.archived:
         raise HTTPException(status_code=409, detail="连接必须先归档才能删除")
-    food_keys = foods_referencing_connection(FoodCatalogStore().load(), connection_id)
+    food_keys = foods_referencing_connection(
+        SQLiteFoodPackageRepository(request.app.state.db_path).load(),
+        connection_id,
+    )
     if food_keys:
         raise HTTPException(
             status_code=409,
@@ -476,6 +477,7 @@ async def update_connection_model(
 async def delete_connection_model(
     connection_id: str,
     model_id: str,
+    request: Request,
     owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, str]:
     _ = owner
@@ -493,7 +495,7 @@ async def delete_connection_model(
             detail="自动发现或目录模型不能删除，请改为隐藏",
         )
     referenced = foods_referencing_model(
-        FoodCatalogStore().load(),
+        SQLiteFoodPackageRepository(request.app.state.db_path).load(),
         connection_id,
         model_id,
     )

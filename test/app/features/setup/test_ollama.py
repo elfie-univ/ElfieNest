@@ -5,7 +5,6 @@ from pathlib import Path
 import pytest
 
 from ai_runtime.food.models import FOOD_COMMON_ID, FOOD_EMERGENCY_ID
-from ai_runtime.food.store import FoodCatalogStore
 from ai_runtime.storage.provider_connections import ProviderConnectionStore
 from ai_runtime.storage.report_repository import ReportRepository
 from app.features.setup.ollama import OllamaSetupService
@@ -21,6 +20,7 @@ from app.infrastructure.ollama_platform import (
     OllamaBinding,
     OllamaProbe,
 )
+from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
 from app.infrastructure.persistence.store import init_db
 
 
@@ -138,9 +138,7 @@ def test_configured_model_must_exist_on_the_one_saved_ollama_endpoint(
     )
     service = OllamaSetupService(
         adapter=_ModelAdapter(),  # type: ignore[arg-type]
-        food_catalog_store=FoodCatalogStore(
-            tmp_path / "foods.yaml", tmp_path / "food-history"
-        ),
+        food_catalog_repository=SQLiteFoodPackageRepository(db_path),
         report_repository=ReportRepository(tmp_path / "reports.db"),
     )
 
@@ -151,13 +149,11 @@ def test_configured_model_must_exist_on_the_one_saved_ollama_endpoint(
 
     connection = ProviderConnectionStore().load().connections["ollama_0001"]
     assert connection.models[0].endpoint_model_id == "qwen2.5:0.5b"
-    catalog = FoodCatalogStore(
-        tmp_path / "foods.yaml", tmp_path / "food-history"
-    ).load()
-    assert catalog.packages[FOOD_EMERGENCY_ID].primary.model == (
+    repository = SQLiteFoodPackageRepository(db_path)
+    assert repository.get(FOOD_EMERGENCY_ID).primary.model == (
         "ollama_0001/qwen2.5:0.5b"
     )
-    assert catalog.packages[FOOD_COMMON_ID].primary is None
+    assert repository.get(FOOD_COMMON_ID).primary is None
     assert get_setup_progress(db_path).current_step == 5
 
 
@@ -193,9 +189,7 @@ def test_model_pull_rechecks_the_fixed_endpoint_before_configuring(
     adapter = _PullAdapter()
     service = OllamaSetupService(
         adapter=adapter,  # type: ignore[arg-type]
-        food_catalog_store=FoodCatalogStore(
-            tmp_path / "foods.yaml", tmp_path / "food-history"
-        ),
+        food_catalog_repository=SQLiteFoodPackageRepository(db_path),
         report_repository=ReportRepository(tmp_path / "reports.db"),
     )
 

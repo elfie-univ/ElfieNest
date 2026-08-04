@@ -39,7 +39,7 @@ const RecentFocusSchema = z.object({
     label: z.string().min(1),
     category: z.string().min(1),
     weight: WeightSchema,
-  }).readonly()).max(20).readonly(),
+  }).readonly()).max(50).readonly(),
 }).readonly()
 const ImportantExperiencesSchema = z.object({
   entries: z.array(z.object({

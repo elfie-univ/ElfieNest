@@ -24,8 +24,6 @@ import "./parity.css";
 
 const previewMessageSchema = z.object({ channel: z.literal("elfie-lab"), event: z.string(), action: z.string().optional(), request_id: z.string().optional(), data_url: z.string().optional(), reason: z.string().optional(), intent: z.object({ intent_id: z.string().optional() }).passthrough().optional() });
 const deletionSchema = z.object({ next_elfie_id: z.string().nullable() });
-const offlineFood: FoodItem = { key: "mock", display_name: "模拟粮", description: "离线可用，不调用任何外部服务", model: "elfie-mock", reasoning: "off", ready_for_attempt: true, unavailable_reason: "", setup_commands: [] };
-
 function revision(profile: ElfieSession["profile"]): number {
   if (typeof profile.spec_revision === "number" && Number.isInteger(profile.spec_revision) && profile.spec_revision >= 0) return profile.spec_revision;
   return [...String(profile.updated_at ?? JSON.stringify(profile.appearance))].reduce((hash, character) => ((hash * 31) + character.charCodeAt(0)) >>> 0, 0);
@@ -34,8 +32,8 @@ function revision(profile: ElfieSession["profile"]): number {
 export function ElfieLabApp(): React.JSX.Element {
   const [items, setItems] = useState<readonly ElfieListItem[]>([]);
   const [session, setSession] = useState<ElfieSession | null>(null);
-  const [foods, setFoods] = useState<readonly FoodItem[]>([offlineFood]);
-  const [food, setFood] = useState("mock");
+  const [foods, setFoods] = useState<readonly FoodItem[]>([]);
+  const [food, setFood] = useState("");
   const [notice, setNotice] = useState("");
   const [runtimeWarning, setRuntimeWarning] = useState("");
   const [configurationCommand, setConfigurationCommand] = useState("");
@@ -66,7 +64,9 @@ export function ElfieLabApp(): React.JSX.Element {
       return null;
     });
     setItems(elfies.items);
-    setFoods(catalog?.items.length ? catalog.items : [offlineFood]);
+    const nextFoods = catalog?.items ?? [];
+    setFoods(nextFoods);
+    setFood((current) => nextFoods.some((item) => item.key === current) ? current : nextFoods[0]?.key ?? "");
     setConfigurationCommand(catalog?.configuration_command ?? "");
     if (catalog !== null) setRuntimeWarning("");
     const selected = selectElfieIdAfterLoad(
