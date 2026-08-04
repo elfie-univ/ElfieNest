@@ -149,7 +149,7 @@ export const chat = {
       titles: {
         focus: "Recent focus",
         timeline: "Important experiences",
-        relationships: "Relationship world",
+        relationships: "Relationship network",
         knowledge: "Knowledge and beliefs",
         world: "World understanding",
         food: "Food strategy",
@@ -167,7 +167,10 @@ export const chat = {
       relationships: {
         filterLabel: "Relationship filter",
         filters: { all: "All", human: "People", elfie: "Elfies" },
-        mapLabel: "Relationship world network",
+        detail: "Detailed",
+        mapLabel: "Relationship network graph",
+        nodeLabel: "Relationship node: {{name}}",
+        nodeList: "Relationship network nodes",
         connections: "Relationship connections",
         empty: "No relationships are available to show.",
         relationFallback: "Relationship",
@@ -177,6 +180,10 @@ export const chat = {
           friend: "Friend",
           acquaintance: "Acquaintance",
           relationship: "Relationship",
+          sameOwner: "Shared owner",
+          friendElfie: "Friend's Elfie",
+          acquaintanceElfie: "Acquaintance's Elfie",
+          neighbor: "Neighbor",
         },
       },
       world: {

@@ -400,7 +400,8 @@
 .profile-private-experiences__card p,
 .profile-private-experiences__card small { margin: 0; color: var(--text-muted); overflow-wrap: anywhere; }
 .profile-private-relationships { display: grid; gap: 16px; }
-.profile-private-relationships__filters { display: flex; flex-wrap: wrap; gap: 8px; }
+.profile-private-relationships__controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: flex-end; }
+.profile-private-relationships__filters { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .profile-private-relationships__filter {
   min-height: 34px;
   padding: 6px 14px;
@@ -412,51 +413,20 @@
   font-weight: 800;
 }
 .profile-private-relationships__filter--active { border-color: var(--accent); color: var(--surface-raised); background: var(--accent); }
+.profile-private-relationships__detail { display: inline-flex; gap: 7px; align-items: center; min-height: 34px; color: var(--text-muted); font-size: 13px; font-weight: 800; cursor: pointer; }
+.profile-private-relationships__detail input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
 .profile-private-relationships__map {
   position: relative;
-  min-height: 360px;
+  min-height: 500px;
   overflow: hidden;
+  touch-action: none;
   border: 1px solid var(--border);
   border-radius: 18px;
   background: radial-gradient(circle, color-mix(in srgb, var(--accent-soft) 60%, transparent), transparent 68%), var(--field-bg);
 }
-.profile-private-relationships__map::before {
-  position: absolute;
-  inset: 18% 18%;
-  border: 1px dashed var(--border-strong);
-  border-radius: 50%;
-  content: "";
-}
-.profile-private-relationships__node {
-  position: absolute;
-  display: grid;
-  z-index: 1;
-  min-width: 54px;
-  max-width: 116px;
-  min-height: 42px;
-  padding: 8px 12px;
-  transform: translate(-50%, -50%);
-  align-items: center;
-  justify-content: center;
-  border: 2px solid var(--accent);
-  color: var(--text);
-  background: var(--surface-raised);
-  text-align: center;
-  overflow-wrap: anywhere;
-}
-.profile-private-relationships__node--self { min-width: 78px; min-height: 78px; border-radius: 50%; color: var(--surface-raised); background: var(--accent); font-weight: 900; }
-.profile-private-relationships__node--human { border-radius: 50%; }
-.profile-private-relationships__node--elfie { border-radius: 14px; border-color: #5676b8; }
-.profile-private-relationships__connections {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.profile-private-relationships__connections li { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: baseline; color: var(--text); }
-.profile-private-relationships__connections small { color: var(--accent-hover); font-weight: 800; }
+.profile-private-relationships--detailed .profile-private-relationships__map { min-height: 720px; }
+.profile-private-relationships__a11y { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+.profile-private-relationships__node-button { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; }
 .profile-private-world { display: grid; gap: 14px; }
 .profile-private-world__summary { margin: 0; color: var(--text); font-weight: 800; }
 .profile-private-world__map {
@@ -777,7 +747,8 @@
   .profile-appearance__stage { min-height: 0; aspect-ratio: 4 / 5; }
   .profile-appearance__frame { min-height: 100%; }
   .profile-capture__actions > [data-slot="button"] { flex: 1 1 calc(50% - 8px); }
-  .profile-private-relationships__map { min-height: 300px; }
+  .profile-private-relationships__map { min-height: 360px; }
+  .profile-private-relationships--detailed .profile-private-relationships__map { min-height: 680px; }
   .profile-private-world__map { min-height: 340px; }
   .profile-private-focus__cloud { height: clamp(280px, 82vw, 320px); padding: 4px; }
   .profile-private-experiences { padding-left: 24px; }

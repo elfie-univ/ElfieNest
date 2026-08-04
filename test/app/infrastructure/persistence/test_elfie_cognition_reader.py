@@ -97,3 +97,35 @@ def test_locked_or_corrupt_knowledge_stores_are_unavailable(tmp_path: Path) -> N
 
     assert locked_result.status == "unavailable"
     assert read_elfie_cognition(corrupt).status == "unavailable"
+
+
+def test_reader_keeps_node_importance_and_relationship_closeness_separate(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "knowledge.sqlite"
+    with KnowledgeStore(path) as store:
+        store.add_node(
+            MemoryNode(
+                id="person-owner",
+                type="entity",
+                content="主人",
+                metadata={
+                    "entity_type": "person",
+                    "relationship": "主人",
+                    "relation_kind": "owner",
+                    "importance": 0.95,
+                },
+            )
+        )
+        store.connection.execute(
+            "UPDATE people SET closeness_score = ?, importance_score = ? WHERE entity_id = ?",
+            (0.22, 0.7, "person-owner"),
+        )
+        store.connection.commit()
+
+    result = read_elfie_cognition(path)
+
+    assert result.snapshot is not None
+    owner = result.snapshot.entities[0]
+    assert owner.weight == 0.95
+    assert owner.closeness == 0.22

@@ -111,7 +111,7 @@ const RelationshipEdgeSchema = z.object({
 }).readonly()
 
 const RelationshipWorldSchema = z.object({
-  nodes: z.array(RelationshipNodeSchema).max(20).readonly(),
+  nodes: z.array(RelationshipNodeSchema).max(50).readonly(),
   edges: z.array(RelationshipEdgeSchema).readonly(),
 }).readonly()
 

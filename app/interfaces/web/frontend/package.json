@@ -22,6 +22,7 @@
     "@visx/wordcloud": "^4.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cytoscape": "^3.34.0",
     "echarts": "^6.1.0",
     "i18next": "^26.3.6",
     "ky": "^1.8.3",

@@ -149,7 +149,7 @@ export const chat = {
       titles: {
         focus: "近期关注",
         timeline: "重要经历",
-        relationships: "关系世界",
+        relationships: "关系网络",
         knowledge: "知识与信念",
         world: "世界理解",
         food: "粮食策略",
@@ -167,7 +167,10 @@ export const chat = {
       relationships: {
         filterLabel: "关系筛选",
         filters: { all: "全部", human: "人类", elfie: "精灵" },
-        mapLabel: "关系世界网络",
+        detail: "详细",
+        mapLabel: "关系网络图",
+        nodeLabel: "关系节点：{{name}}",
+        nodeList: "关系网络节点",
         connections: "关系连接",
         empty: "暂无可呈现的关系。",
         relationFallback: "关系",
@@ -177,6 +180,10 @@ export const chat = {
           friend: "朋友",
           acquaintance: "熟人",
           relationship: "关系",
+          sameOwner: "同一主人",
+          friendElfie: "朋友的精灵",
+          acquaintanceElfie: "熟人的精灵",
+          neighbor: "邻居",
         },
       },
       world: {
