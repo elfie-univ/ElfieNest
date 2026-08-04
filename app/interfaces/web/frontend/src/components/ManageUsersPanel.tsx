@@ -99,7 +99,7 @@ export function ManageUsersPanel({ actorRole, csrfToken }: { readonly actorRole:
     }
   }
 
-  return <section className="manage-card manage-card--wide">
+  return <section className="manage-card manage-card--wide manage-identity-panel">
     <div className="manage-head">
       <div><h2>{t("users.title")}</h2><p>{t("users.description")}</p></div>
       <div className="manage-actions">

@@ -92,13 +92,25 @@ describe("AccountMenu", () => {
     expect(screen.queryByLabelText("显示名称")).not.toBeInTheDocument()
   })
 
-  it("shows the Admin role and manager landing preference", async () => {
+  it("keeps the compact account trigger focused on the display name", () => {
+    renderLocalized("zh-CN")
+
+    const trigger = screen.getByRole("button", { name: "阿尔法" })
+
+    expect(trigger.querySelector("strong")).toHaveTextContent("阿尔法")
+    expect(trigger.querySelector("small")).toBeNull()
+  })
+
+  it("shows the Admin role only in the expanded panel and keeps the manager landing preference", async () => {
     const user = userEvent.setup()
     renderLocalized("en-US", false, undefined, admin)
 
-    await user.click(screen.getByRole("button", { name: /管理员/ }))
+    const trigger = screen.getByRole("button", { name: "管理员" })
 
-    expect(screen.getAllByText("Admin")).toHaveLength(2)
+    expect(trigger.querySelector("small")).toBeNull()
+    await user.click(trigger)
+
+    expect(screen.getAllByText("Admin")).toHaveLength(1)
     await user.click(screen.getByRole("button", { name: /Default landing page/ }))
     expect(screen.getByRole("button", { name: "Save default page" })).toBeInTheDocument()
   })

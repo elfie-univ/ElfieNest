@@ -254,7 +254,7 @@ export function AccountMenu({ compact = false, onUpdated, user }: AccountMenuPro
   return <div className={compact ? "account-menu account-menu--compact" : "account-menu"}>
     <button aria-expanded={open} aria-haspopup="dialog" aria-label={compact ? t("trigger.compact") : undefined} className="account-menu__trigger" data-slot="button" data-tooltip={compact ? t("trigger.tooltip") : undefined} data-variant="ghost" onClick={() => setOpen((current) => !current)} type="button">
       <Avatar imageUrl={user.avatar_url} name={displayName} />
-      {!compact ? <span><strong>{displayName}</strong><small>{user.role === "owner" ? t("trigger.owner") : user.role === "admin" ? t("trigger.admin") : t("trigger.user")}</small></span> : null}
+      {!compact ? <span><strong>{displayName}</strong></span> : null}
     </button>
     {open ? <AccountMenuPanel onClose={() => setOpen(false)} onUpdated={onUpdated} user={user} /> : null}
   </div>
