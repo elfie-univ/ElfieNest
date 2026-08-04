@@ -15,7 +15,7 @@ from ai_runtime.food.executor import (
 from ai_runtime.food.health import project_food_health
 from ai_runtime.food.models import FOOD_COMMON_ID, FOOD_EMERGENCY_ID, FoodPackage
 from ai_runtime.food.resolver import MainFoodSelection, resolve_main_food
-from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
+from ai_runtime.food.store import FoodCatalog, FoodCatalogRepository
 from ai_runtime.gateway.llm_api import call_llm_api
 from ai_runtime.gateway.multimodal import assemble_multimodal_payload
 from ai_runtime.gateway.request import (
@@ -52,10 +52,12 @@ class RuntimeAgent:
         *,
         live_reload: bool = False,
         main_food_loader: MainFoodLoader | None = None,
+        food_catalog_repository: FoodCatalogRepository | None = None,
     ):
         self.config = config or LLMRuntimeConfig()
         self._live_reload = live_reload
         self._main_food_loader = main_food_loader
+        self.food_catalog_repository = food_catalog_repository
         self._config_mtimes_ns = self._config_mtimes()
         self._mount_runtime_dependencies()
 
@@ -68,8 +70,6 @@ class RuntimeAgent:
         tool_configs = load_tool_configs(self.config.runtime_policy)
         self._local_file_config = tool_configs["local_file"]
         self.file_access_plugin = None
-
-        self.food_catalog_store = FoodCatalogStore()
 
     @staticmethod
     def _config_mtimes() -> tuple[int | None, ...]:
@@ -545,12 +545,11 @@ class RuntimeAgent:
         )
 
     def _load_food_catalog(self):
-        catalog = self.food_catalog_store.load()
+        if self.food_catalog_repository is None:
+            raise RuntimeError("Runtime 未注入粮食数据库仓储")
+        catalog = self.food_catalog_repository.load()
         if not catalog.recipes:
-            raise RuntimeError(
-                f"正式粮食配置 {self.food_catalog_store.path.name} "
-                "不存在或为空，请先运行 setup/doctor 初始化"
-            )
+            raise RuntimeError("正式粮食数据库不存在粮食配置，请先运行 setup/doctor 初始化")
         return catalog
 
     def _assemble_multimodal_payload(

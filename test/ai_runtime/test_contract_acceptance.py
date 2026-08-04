@@ -13,10 +13,9 @@ from ai_runtime.food.models import (
     ModelAssignment,
 )
 from ai_runtime.food.planner import FoodPlanner, ModelEvidence
-from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
+from ai_runtime.food.store import FoodCatalog
 from ai_runtime.gateway.agent import RuntimeAgent
 from ai_runtime.storage.data_home import (
-    get_food_catalog_path,
     get_provider_config_path,
 )
 from ai_runtime.storage.provider_connections import (
@@ -26,6 +25,7 @@ from ai_runtime.storage.provider_connections import (
 from ai_runtime.storage.report_repository import ReportRepository
 from ai_runtime.storage.runtime_settings import write_runtime_settings
 from ai_runtime.storage.secrets import set_connection_secret
+from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
 from app.infrastructure.persistence.store import get_db, init_db
 
 
@@ -78,8 +78,10 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
     set_connection_secret(remote_a.connection_id, "test-secret-a")
     set_connection_secret(remote_b.connection_id, "test-secret-b")
 
-    food_store = FoodCatalogStore()
-    initial = food_store.load()
+    db_path = str(tmp_path / "nest.db")
+    init_db(db_path)
+    food_repository = SQLiteFoodPackageRepository(db_path)
+    initial = food_repository.load()
     assert [item.key for item in initial.ordered_packages()] == [
         FOOD_EMERGENCY_ID,
         FOOD_COMMON_ID,
@@ -136,7 +138,7 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
                 primary=ModelAssignment(refs["main"]),
                 reasoning=ModelAssignment(refs["reason"]),
                 tool=ModelAssignment(refs["tool"]),
-                fallback=(ModelAssignment(refs["backup"]),),
+                fallback=ModelAssignment(refs["backup"]),
             ),
             custom_id: FoodPackage(
                 custom_id,
@@ -146,10 +148,11 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
             ),
         }
     )
-    food_store.save(catalog)
-
-    db_path = str(tmp_path / "nest.db")
-    init_db(db_path)
+    for package in catalog.packages.values():
+        if food_repository.get(package.key) is None:
+            food_repository.create(package)
+        else:
+            food_repository.update(package)
     with get_db(db_path) as connection:
         user_id = int(
             connection.execute(
@@ -180,7 +183,11 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
             }
         }
     )
-    agent = RuntimeAgent(LLMRuntimeConfig(), live_reload=True)
+    agent = RuntimeAgent(
+        LLMRuntimeConfig(),
+        live_reload=True,
+        food_catalog_repository=food_repository,
+    )
     calls: list[str] = []
 
     def fake_model_call(provider, model, messages, *_args, **_kwargs):
@@ -212,13 +219,13 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
     )
     assert primary.actual_model == refs["main"]
     assert reasoning.actual_model == refs["backup"]
-    assert reasoning.execution_stage == "fallback_1"
+    assert reasoning.execution_stage == "fallback"
     assert fallback.actual_model == refs["backup"]
     assert tool.text == "ok:tool"
     assert calls.count("tool") >= 2
 
     provider_bytes = get_provider_config_path().read_bytes()
-    food_bytes = get_food_catalog_path().read_bytes()
+    food_snapshot = food_repository.load().to_dict()
     write_runtime_settings(
         {
             "runtime_policy": {
@@ -230,7 +237,7 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
         }
     )
     assert get_provider_config_path().read_bytes() == provider_bytes
-    assert get_food_catalog_path().read_bytes() == food_bytes
+    assert food_repository.load().to_dict() == food_snapshot
 
     provider_store.replace(replace(remote_a, enabled=False))
     emergency_result = agent.run_with_food(
@@ -242,18 +249,10 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
 
     provider_store.replace(remote_a)
     disabled_emergency = replace(
-        food_store.load().packages[FOOD_EMERGENCY_ID],
+        food_repository.get(FOOD_EMERGENCY_ID),
         enabled=False,
     )
-    food_store.save(
-        replace(
-            food_store.load(),
-            packages={
-                **food_store.load().packages,
-                FOOD_EMERGENCY_ID: disabled_emergency,
-            },
-        )
-    )
+    food_repository.update(disabled_emergency)
     provider_store.replace(replace(remote_a, enabled=False))
     with pytest.raises(NoAvailableFoodError, match="no_available_food"):
         agent.run_with_food(prompt="nothing left", food_key=FOOD_COMMON_ID)

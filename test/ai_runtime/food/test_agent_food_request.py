@@ -18,6 +18,47 @@ from ai_runtime.storage.provider_connections import (
 )
 
 
+class _InMemoryFoodCatalogRepository:
+    def __init__(self, catalog: FoodCatalog) -> None:
+        self._catalog = catalog
+
+    def load(self) -> FoodCatalog:
+        return self._catalog
+
+    def list(self) -> tuple[FoodPackage, ...]:
+        return self._catalog.ordered_packages()
+
+    def get(self, food_key: str) -> FoodPackage | None:
+        return self._catalog.packages.get(food_key)
+
+    def create(self, package: FoodPackage) -> FoodPackage:
+        if package.key in self._catalog.packages:
+            raise ValueError(f"duplicate food: {package.key}")
+        self._catalog = FoodCatalog(
+            packages={**self._catalog.packages, package.key: package}
+        )
+        return package
+
+    def update(self, package: FoodPackage) -> FoodPackage:
+        if package.key not in self._catalog.packages:
+            raise ValueError(f"missing food: {package.key}")
+        self._catalog = FoodCatalog(
+            packages={**self._catalog.packages, package.key: package}
+        )
+        return package
+
+    def delete(self, food_key: str) -> None:
+        if food_key not in self._catalog.packages:
+            raise ValueError(f"missing food: {food_key}")
+        self._catalog = FoodCatalog(
+            packages={
+                key: package
+                for key, package in self._catalog.packages.items()
+                if key != food_key
+            }
+        )
+
+
 def _configure_models() -> None:
     ProviderConnectionStore().replace(
         ProviderConnection(
@@ -59,8 +100,8 @@ def _agent(
     agent = RuntimeAgent(
         LLMRuntimeConfig(),
         main_food_loader=lambda _elfie_id: selection,
+        food_catalog_repository=_InMemoryFoodCatalogRepository(_catalog()),
     )
-    agent.food_catalog_store.save(_catalog())
     monkeypatch.setattr(agent, "_package_usable", lambda package: True)
     return agent
 
@@ -171,7 +212,10 @@ def test_runtime_returns_typed_error_for_an_unconfigured_clean_catalog(
     # Given: a clean Runtime home with only disabled system food.
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     _configure_models()
-    agent = RuntimeAgent(LLMRuntimeConfig())
+    agent = RuntimeAgent(
+        LLMRuntimeConfig(),
+        food_catalog_repository=_InMemoryFoodCatalogRepository(FoodCatalog()),
+    )
 
     # When/Then: no provider call is attempted without a usable food.
     with pytest.raises(NoAvailableFoodError) as error:

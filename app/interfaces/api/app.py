@@ -32,6 +32,7 @@ from app.features.setup.installer import (
 from app.features.setup.jobs import OllamaInstallJobManager
 from app.features.setup.progress import recover_interrupted_setup_task
 from app.infrastructure.devices import DeviceGateway
+from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
 from app.infrastructure.persistence.store import (
     init_db,
     seed_initial_owner_if_env_set,
@@ -156,6 +157,7 @@ def create_app(
 
     # 将 db_path 与 engine 存入 app.state 供依赖注入使用
     app.state.db_path = db_path
+    app.state.food_repository = SQLiteFoodPackageRepository(db_path)
     app.state.engine = engine
     app.state.device_gateway = DeviceGateway()
     app.state.v1_chat_hub = SameOriginChatHub(db_path)

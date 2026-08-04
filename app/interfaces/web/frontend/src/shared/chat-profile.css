@@ -595,7 +595,6 @@
 .profile-capture__actions { flex-wrap: wrap; }
 
 .modal-backdrop { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; background: color-mix(in srgb, var(--overlay-bg) 34%, transparent); z-index: 20; }
-.adoption-modal { position: relative; width: min(760px, 100%); max-height: min(680px, calc(100vh - 40px)); overflow: auto; }
 .modal-close { position: absolute; z-index: 1; top: 12px; right: 12px; width: 34px; height: 34px; border-radius: 50%; background: var(--accent-hover); color: var(--surface-raised); display: grid; place-items: center; }
 .modal-close > svg { width: 19px; height: 19px; }
 

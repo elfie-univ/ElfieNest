@@ -151,7 +151,7 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
     }
   }
 
-  return <section className="manage-card manage-card--wide">
+  return <section className="manage-card manage-card--wide manage-identity-panel">
     <div className="manage-head">
       <div>
         <h2>{t("elfies.title")}</h2>

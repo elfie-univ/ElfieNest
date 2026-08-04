@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from devtools.elfie_lab.app import create_app
 
+from .food_test_helpers import seed_mock_food
+
 PNG = b"\x89PNG\r\n\x1a\n" + b"elfie-lab-vision"
 
 
@@ -16,8 +18,14 @@ def elfie_payload(name):
     }
 
 
-def test_upload_and_submit_pure_visual_turn(tmp_path, client_for):
-    client = client_for(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
+def test_upload_and_submit_pure_visual_turn(tmp_path, monkeypatch, client_for):
+    runtime_dir = tmp_path / "runtime"
+    seed_mock_food(runtime_dir)
+    monkeypatch.setattr(
+        "devtools.elfie_lab.food_status.list_installed_ollama_models",
+        lambda config: ("elfie-mock",),
+    )
+    client = client_for(create_app(str(tmp_path / "data"), str(runtime_dir)))
     created = client.post("/api/elfies", json=elfie_payload("视觉测试")).json()
     elfie_id = created["elfie_id"]
 
@@ -53,8 +61,14 @@ def test_upload_and_submit_pure_visual_turn(tmp_path, client_for):
     assert str(tmp_path) not in str(payload)
 
 
-def test_turn_rejects_cross_elfie_media_reference(tmp_path, client_for):
-    client = client_for(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
+def test_turn_rejects_cross_elfie_media_reference(tmp_path, monkeypatch, client_for):
+    runtime_dir = tmp_path / "runtime"
+    seed_mock_food(runtime_dir)
+    monkeypatch.setattr(
+        "devtools.elfie_lab.food_status.list_installed_ollama_models",
+        lambda config: ("elfie-mock",),
+    )
+    client = client_for(create_app(str(tmp_path / "data"), str(runtime_dir)))
     first = client.post("/api/elfies", json=elfie_payload("视觉甲")).json()
     second = client.post("/api/elfies", json=elfie_payload("视觉乙")).json()
     uploaded = client.post(
@@ -74,8 +88,14 @@ def test_turn_rejects_cross_elfie_media_reference(tmp_path, client_for):
     assert response.status_code == 404
 
 
-def test_turn_rejects_malformed_media_id_without_server_error(tmp_path, client_for):
-    client = client_for(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
+def test_turn_rejects_malformed_media_id_without_server_error(tmp_path, monkeypatch, client_for):
+    runtime_dir = tmp_path / "runtime"
+    seed_mock_food(runtime_dir)
+    monkeypatch.setattr(
+        "devtools.elfie_lab.food_status.list_installed_ollama_models",
+        lambda config: ("elfie-mock",),
+    )
+    client = client_for(create_app(str(tmp_path / "data"), str(runtime_dir)))
     created = client.post("/api/elfies", json=elfie_payload("视觉边界")).json()
 
     response = client.post(

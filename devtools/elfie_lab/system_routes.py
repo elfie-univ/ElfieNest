@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from ai_runtime.food.store import FoodCatalogStore
+from ai_runtime.food.store import FoodCatalogRepository
 from devtools.elfie_lab.food_status import build_food_items
 from devtools.runtime_lab import RuntimeLabConfigStore
 
 
 def build_system_router(
     runtime_store: RuntimeLabConfigStore,
-    food_store: FoodCatalogStore,
+    food_store: FoodCatalogRepository,
     configure_runtime_command: str,
     *,
     developer_runtime: bool,

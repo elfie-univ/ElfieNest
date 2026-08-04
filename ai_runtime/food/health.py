@@ -33,10 +33,12 @@ def project_food_health(
         default=None,
     )
     if primary is None or not primary.is_fresh():
-        fallback_works = any(
-            item is not None and item.is_fresh()
-            for item in (evidence.get(value.model) for value in package.fallback)
+        fallback_evidence = (
+            evidence.get(package.fallback.model)
+            if package.fallback is not None
+            else None
         )
+        fallback_works = fallback_evidence is not None and fallback_evidence.is_fresh()
         return FoodHealth(
             "degraded" if fallback_works else "unavailable",
             _locality(package, evidence),

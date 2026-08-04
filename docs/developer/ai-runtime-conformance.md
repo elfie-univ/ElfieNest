@@ -21,11 +21,11 @@
 | AR-001 | P0 | closed | `configs/providers.yaml` has both a version-2 connection writer and a legacy version-1 bundle writer. Writing unrelated system or tool settings can erase all connection instances. | One typed owner and one schema write the file. System and tool writes cannot change Provider connection bytes. A regression test reproduces and prevents the loss. |
 | AR-002 | P0 | in progress | New connection and model validations do not feed the model-evidence query consumed by food generation. | Provider inventory and the latest SQLite observations compose one derived evidence projection. Food generation sees it without restart, copied YAML or a second configuration source. |
 | AR-003 | P1 | open | Food generation can use stale or invented model references because references receive syntax-only validation. | Every saved role resolves to an enabled connection and a present, visible endpoint model. Generation leaves a role unconfigured when no valid candidate exists. |
-| AR-004 | P1 | open | The domain still defines eight fixed foods instead of permanent Emergency and Common rows plus administrator-created packages. | A new home initializes Emergency first and Common second. Both system packages remain visible and undeletable. Additional packages are ordinary user-created records, not compiled kinds. |
-| AR-005 | P1 | open | Food lifecycle lacks distinct enabled, archived and guarded deletion semantics. Current deletion is destructive. | Enable/disable, archive/restore and delete are separate commands. System foods cannot archive/delete. Custom delete requires archived and unreferenced state. |
+| AR-004 | P1 | closed | The food domain now uses permanent Emergency and Common rows plus administrator-created packages. | A new home initializes Emergency first and Common second. Both system packages remain visible and undeletable. Additional packages are ordinary user-created records, not compiled kinds. |
+| AR-005 | P1 | closed | Food lifecycle now has distinct enabled, archived and guarded deletion semantics. | Enable/disable, archive/restore and delete are separate commands. System foods cannot archive/delete. Custom delete requires archived and unreferenced state. |
 | AR-006 | P1 | open | Main-food and emergency resolution falls through legacy default/allowed-food behavior and has no explicit `no_available_food` result. | Resolution follows assigned primary, then global emergency, then a typed unavailable result. It never silently selects an arbitrary first or legacy food. |
-| AR-007 | P1 | open | Food visibility and the Elfie editor still expose legacy default/fallback/allowed-food behavior instead of one Main-food selection. | Emergency and Common are visible to every user; only custom packages have user grants; the Elfie page has one Main-food field whose options are all visible, enabled, healthy packages except Emergency. |
-| AR-008 | P1 | in progress | Legacy per-Elfie `food_policy.yaml` and fixed-food endpoints can silently become a fallback fact source. | YAML package catalog plus Nest DB assignments are the only facts. Missing files produce diagnostics, not legacy fallback reads or writes. |
+| AR-007 | P1 | closed | Food visibility and the Elfie editor use one Main-food selection backed by the package visibility field. | Emergency and Common are visible to every user; only custom packages have user grants; the Elfie page has one Main-food field whose options are all visible, enabled, healthy packages except Emergency. |
+| AR-008 | P1 | closed | The package catalog and visibility state are now a single `nest.db.food_packages` fact source; legacy per-Elfie `food_policy.yaml` reads and fixed-food routes are removed. | The database-backed package catalog plus Nest DB assignments are the only facts. Missing legacy files produce no fallback reads or writes. |
 | AR-009 | P1 | open | Brain memory calls still request `coarse` and `focus`; structured cortex generation always uses the primary role. | Brain requests semantic roles such as `primary` or `reasoning`; orchestration resolves the Elfie's package; structured generation can use the selected role. |
 | AR-010 | P1 | open | Tool allow-lists reach the Runtime request but the actual structured cortex path does not run the tool loop. | An end-to-end test proves an Elfie request can invoke an allowed safe tool, receive a bounded result and continue generation. |
 | AR-011 | P1 | open | Tool results and local file reads are not bounded before model reinjection. | Per-tool byte/item limits and a final result envelope trim output, preserve truncation metadata and prevent unbounded context growth. |
@@ -37,7 +37,7 @@
 | AR-017 | P2 | open | Tool configuration advertises unavailable code and shared skill-evolution capabilities as enabled. | Phase-one defaults expose only implemented safe tools. Deferred tools are disabled and cannot be advertised to a model. Personal skills remain under the Elfie workspace. |
 | AR-018 | P1 | in progress | A clean temporary `ELFIE_HOME` passes the focused semantic and architecture acceptance checks, and browser interaction covers Provider and food flows. The whole-repository Python gate is still failing, and screenshot-capable desktop/mobile visual review has not been completed. | A clean temporary `ELFIE_HOME` passes all 13 contract steps, including discovery precedence, comparison snapshots, lifecycle guards and `no_available_food`; Provider, matrix, food and Elfie browser acceptance has durable visual evidence; and the full quality gate passes. |
 | AR-019 | P1 | open | The cross-connection model matrix does not use report runs or provide a Validate-all workflow. | Bounded Validate-all writes one complete run; single validation appends one subject observation; current, as-of and run-specific matrix queries preserve measurement times. |
-| AR-020 | P1 | open | The food UI and planner do not implement permanent row ordering, connection-scoped generation, fresh-validation eligibility, the five-role table or dynamic package health. | Browser and API tests prove Emergency/Common ordering, scoped local-first generation, diff/manual/save flow, Primary/Reasoning/Vision/Tool/Fallback assignments and evidence-derived health, without food-level model capability fields. |
+| AR-020 | P1 | closed | The food UI and planner implement permanent row ordering, connection-scoped generation, fresh-validation eligibility, the five-role table and dynamic package health. | Browser and API tests prove Emergency/Common ordering, scoped local-first generation, diff/manual/save flow, Primary/Reasoning/Vision/Tool/Fallback assignments and evidence-derived health, without food-level model capability fields. |
 
 ## Implementation audit: 2026-07-30
 
@@ -48,8 +48,8 @@ areas:
 | --- | --- | --- | --- |
 | Persistence and reports | `providers.yaml` has incompatible version-1 and version-2 writers. Provider/model results are YAML `latest` plus `history`; model evidence is another YAML file and older root report paths still exist. | Each configuration file needs one typed owner. Reports must append to `reports/ai-runtime.sqlite` and expose current, as-of and run projections. | AR-001, AR-002, AR-008, AR-013, AR-014 |
 | Provider and model inventory | Connection IDs and multiple accounts exist, but source values remain `discovered/manual/provider_catalog`; refresh can replace manual models; official/remote/bundled/manual precedence and a run-based all-model report do not exist. | One four-level discovery chain, non-destructive merge, validated food eligibility and a complete/partial cross-connection matrix are required. | AR-003, AR-012, AR-015, AR-016, AR-019 |
-| Food domain and Owner UI | Eight compiled food kinds and parameter-heavy `ExecutionProfile` records remain. The planner creates all fixed kinds. Packages have no enabled/archive state, custom delete is immediate, and the UI edits technical model parameters. | Permanent Emergency/Common rows plus custom packages, simple role-to-model assignments, fresh-evidence filtering, scoped generation and evidence-derived health are required. | AR-004, AR-005, AR-020 |
-| Access and Elfie routing | Legacy `allowed_foods`, per-Elfie fallback and `food_policy.yaml` paths remain. Missing selections fall through default/first food. Brain memory calls still request `coarse` and `focus`. | The Elfie page has one Main-food field from the user's eligible set; Runtime resolves package role, internal fallback, Emergency, then `no_available_food`. | AR-006, AR-007, AR-008, AR-009 |
+| Food domain and Owner UI | `nest.db.food_packages` contains permanent system rows and custom packages with five simple role-to-model assignments, enabled/archive state, guarded deletion and evidence-derived health. | Permanent Emergency/Common rows plus custom packages, simple role-to-model assignments, fresh-evidence filtering, scoped generation and evidence-derived health are implemented. | AR-004, AR-005, AR-020 |
+| Access and Elfie routing | Food visibility is a flat `global`/`users` field in the package row; legacy package YAML reads are gone. Brain role-routing work remains tracked separately. | The Elfie page has one Main-food field from the user's eligible set; Runtime resolves package role, internal fallback, Emergency, then `no_available_food`. | AR-006, AR-007, AR-008, AR-009 |
 | Tools and acceptance | Ordinary food execution has a tool loop, but structured cortex generation bypasses it. File/search results are unbounded; code and skill mutation are advertised despite deferred safety. No clean-home contract test exists. | Safe tools must run in the real cortex path with Elfie-workspace isolation and bounded results; deferred tools stay disabled; all 13 acceptance steps must pass. | AR-010, AR-011, AR-017, AR-018 |
 
 The focused backend audit collected 72 tests: 70 passed and 2 failed. The full
@@ -146,8 +146,8 @@ Scope:
 Gate:
 
 - a clean home contains only the two permanent system rows;
-- food YAML contains no model capability, context, output or tool-permission
-  facts;
+- `nest.db.food_packages` contains no model capability, context, output or
+  tool-permission facts;
 - unavailable models cannot be selected or generated;
 - browser tests cover row order, scoped generation, five role rows, lifecycle,
   visibility and dynamic health.
@@ -160,9 +160,9 @@ Scope:
 
 - expose one Main-food field whose options are the user's visible, enabled,
   healthy packages except Emergency;
-- switch API, CLI, Owner projections and Runtime callers first, then remove
-  legacy allowed/fallback fields and all `food_policy.yaml` reads temporarily
-  retained by phase one;
+- keep API, CLI, Owner projections and Runtime callers on the database-backed
+  package repository; legacy allowed/fallback fields and all `food_policy.yaml`
+  reads are removed;
 - replace `coarse/focus` calls with semantic Primary/Reasoning/Vision/Tool role
   requests;
 - resolve selected package, optional role-to-Primary, ordered package Fallback,

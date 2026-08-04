@@ -55,11 +55,11 @@
 .account-menu__trigger:hover { background: var(--nav-hover); }
 .account-menu__trigger .avatar { width: 34px; height: 34px; border-radius: 10px; }
 .account-menu__trigger span { display: grid; min-width: 0; gap: 1px; }
-.account-menu__trigger strong { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.account-menu__trigger strong { overflow: hidden; font-size: 17px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
 .account-menu__trigger small { color: var(--ink-soft); font-size: 14px; letter-spacing: .08em; }
 .manage-sidebar .account-menu__trigger { height: 48px; min-height: 48px; padding: 3px 9px; }
 .manage-sidebar .account-menu__trigger .avatar { width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(145deg, var(--accent), var(--accent-hover)); }
-.manage-sidebar .account-menu__trigger strong { font-size: 14px; }
+.manage-sidebar .account-menu__trigger strong { font-size: 17px; }
 .account-menu--compact .account-menu__trigger { width: 48px; height: 48px; aspect-ratio: 1; flex: 0 0 48px; justify-content: center; padding: 0; border-radius: 14px; background: transparent; }
 .account-menu--compact .account-menu__trigger:hover { background: var(--nav-hover); }
 .account-menu--compact .account-menu__trigger:focus-visible,

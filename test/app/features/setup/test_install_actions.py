@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from ai_runtime.food.models import FOOD_COMMON_ID, FOOD_EMERGENCY_ID
-from ai_runtime.food.store import FoodCatalogStore
 from ai_runtime.storage.provider_connections import ProviderConnectionStore
 from ai_runtime.storage.report_repository import ReportRepository
 from app.features.setup.draft_repository import SetupDraftRepository
@@ -18,6 +17,7 @@ from app.infrastructure.ollama_platform import (
     OllamaProbe,
 )
 from app.infrastructure.persistence.final_schema import create_final_nest_database
+from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
 from app.infrastructure.persistence.setup_install_repository import (
     SetupInstallRepository,
 )
@@ -96,18 +96,18 @@ def test_failed_start_repairs_the_same_public_ollama_and_emergency_food_only(
             "launch_target": "/usr/local/bin/ollama",
         },
     )
-    food_store = FoodCatalogStore(tmp_path / "foods.yaml", tmp_path / "food-history")
-    before_common = food_store.load().packages[FOOD_COMMON_ID]
+    food_repository = SQLiteFoodPackageRepository(db_path)
+    before_common = food_repository.get(FOOD_COMMON_ID)
     adapter = _RepairingAdapter(tmp_path)
     run_setup_installation(
         db_path,
         adapter=adapter,
-        food_catalog_store=food_store,
+        food_catalog_repository=food_repository,
         report_repository=ReportRepository(tmp_path / "reports.db"),
     )
 
     assert adapter.installers == 1
-    catalog = food_store.load()
+    catalog = food_repository.load()
     assert catalog.packages[FOOD_EMERGENCY_ID].primary is not None
     assert catalog.packages[FOOD_EMERGENCY_ID].primary.model.endswith("/gemma3:270m")
     assert catalog.packages[FOOD_COMMON_ID] == before_common

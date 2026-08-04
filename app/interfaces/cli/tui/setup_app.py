@@ -14,6 +14,7 @@ from app.features.setup.service import (
     create_first_owner_account,
 )
 from app.infrastructure.ollama_platform import OllamaPlatformAdapter
+from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
 from app.infrastructure.persistence.nest_repository import SQLiteNestRepository
 from app.infrastructure.persistence.store import get_db, init_db
 from app.interfaces.cli.tui.common import (
@@ -138,7 +139,7 @@ def _complete_ollama(db_path: str) -> bool:
             print("  ❌ Endpoint required")
             return False
         try:
-            _ollama_service().bind_existing(db_path=db_path, endpoint=endpoint.strip())
+            _ollama_service(db_path).bind_existing(db_path=db_path, endpoint=endpoint.strip())
         except (RuntimeError, ValueError) as error:
             print(f"  ❌ Cannot bind Ollama: {error}")
             return False
@@ -155,7 +156,7 @@ def _complete_ollama(db_path: str) -> bool:
             print("  Ollama installation cancelled")
             return False
         try:
-            _ollama_service().install_official(
+            _ollama_service(db_path).install_official(
                 db_path=db_path,
                 endpoint="http://127.0.0.1:11434",
                 user_confirmed=True,
@@ -205,7 +206,7 @@ def _complete_model(db_path: str) -> bool:
         print("  ❌ Full provider_id/model_id required")
         return False
     try:
-        service = _ollama_service()
+        service = _ollama_service(db_path)
         if choice == "existing":
             service.configure_installed_model(
                 db_path=db_path,
@@ -246,9 +247,10 @@ def _complete_confirmation(db_path: str) -> None:
     print_success_panel(["Setup complete!", "Start service: elfienest"])
 
 
-def _ollama_service() -> OllamaSetupService:
+def _ollama_service(db_path: str) -> OllamaSetupService:
     return OllamaSetupService(
         adapter=OllamaPlatformAdapter(),
+        food_catalog_repository=SQLiteFoodPackageRepository(db_path),
     )
 
 

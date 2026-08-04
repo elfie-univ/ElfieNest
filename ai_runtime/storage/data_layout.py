@@ -150,14 +150,6 @@ class FinalRootLayout:
         return self.data_home / "configs" / "runtime.yaml"
 
     @property
-    def food_packages(self) -> Path:
-        return self.data_home / "configs" / "food-packages.yaml"
-
-    @property
-    def food_packages_history(self) -> Path:
-        return self.data_home / "configs" / "food-packages-history"
-
-    @property
     def model_validations(self) -> Path:
         return self.data_home / "reports" / "model-validations"
 
@@ -199,7 +191,6 @@ def _root_directories(layout: FinalRootLayout) -> tuple[Path, ...]:
         root,
         root / "configs",
         root / "configs" / "credentials",
-        layout.food_packages_history,
         root / "reports",
         layout.model_validations,
         layout.runtime_validations,

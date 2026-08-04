@@ -9,10 +9,15 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-from ai_runtime.food.models import FOOD_COMMON_ID, FoodPackage, system_food_packages
-from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
+from ai_runtime.food.models import (
+    FOOD_COMMON_ID,
+    FoodPackage,
+    ModelAssignment,
+    system_food_packages,
+)
 from app.infrastructure.devices import DeviceRegistry
 from app.infrastructure.persistence.embodiment_sessions import begin_hosting
+from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
 from app.infrastructure.persistence.store import init_db
 from app.interfaces.api.app import create_app
 
@@ -39,9 +44,12 @@ def client(tmp_path_factory: pytest.TempPathFactory) -> TestClient:
             display_name="常用粮",
             system_role="common",
             enabled=True,
+            primary=ModelAssignment("test/main"),
         )
-        FoodCatalogStore().save(FoodCatalog(packages=packages))
         init_db(db_path)
+        repository = SQLiteFoodPackageRepository(db_path)
+        for package in packages.values():
+            repository.update(package)
         create_test_owner(db_path)
         application = create_app(engine=None, db_path=db_path, ws_port=9876)
         with TestClient(application) as test_client:

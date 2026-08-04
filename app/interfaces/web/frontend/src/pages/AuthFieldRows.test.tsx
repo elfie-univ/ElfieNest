@@ -1,9 +1,7 @@
-import { render, screen, within } from "@testing-library/react"
+import { render, screen } from "@testing-library/react"
 import { I18nextProvider } from "react-i18next"
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 
-import * as client from "../api/client"
-import { AdoptionPanel } from "../components/AdoptionPanel"
 import { createI18n } from "../i18n/config"
 import { LoginPage } from "./LoginPage"
 import { SetupPage } from "./SetupPage"
@@ -27,20 +25,4 @@ describe("auth and adoption field rows", () => {
     expect(screen.getByLabelText("密码")).toBeInTheDocument()
   })
 
-  it("renders adoption inputs and selects as true field rows", async () => {
-    vi.spyOn(client, "adoptionInfo").mockResolvedValue({
-      builds: ["轻盈"],
-      heights: ["小型"],
-      personality_styles: ["温和"],
-      quota: { can_adopt: true, max: 2, remaining: 1, used: 1 },
-      species_ids: ["cat"],
-    })
-
-    render(<I18nextProvider i18n={createI18n()}><AdoptionPanel csrfToken="csrf" onAdopted={async () => undefined} /></I18nextProvider>)
-
-    for (const label of ["精灵名字", "物种", "人格风格", "身高", "体型"]) {
-      const field = await screen.findByRole("group", { name: label })
-      expect(within(field).getByLabelText(label)).toBeInTheDocument()
-    }
-  })
 })

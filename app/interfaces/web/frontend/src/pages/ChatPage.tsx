@@ -13,7 +13,7 @@ import {
   type ChatMessage,
   type ElfieProfileDetail,
 } from "../api/client"
-import { AdoptionPanel } from "../components/AdoptionPanel"
+import { AdoptionJourneyDialog } from "../components/adoption/AdoptionJourneyDialog"
 import { AccountMenuPanel } from "../components/AccountMenu"
 import { AccountIdentityAvatar } from "../components/AccountIdentity"
 import { ChatRail } from "../components/ChatRail"
@@ -162,7 +162,6 @@ export function ChatPage() {
     setData(createOwnedChatData(ownedElfies, rows, user.account_id))
     setSelectedProfile(loadedProfile)
     go({ view: "profile", elfie: elfieId })
-    setShowAdoption(false)
     setDemoMode(false)
   }
   const submit = async (): Promise<void> => {
@@ -234,14 +233,7 @@ export function ChatPage() {
           <Button aria-label={t("navigation.me")} className={mobileSection === "me" ? "mobile-tabbar__item mobile-tabbar__item--active" : "mobile-tabbar__item"} onClick={() => openMobileSection("me")} type="button" variant="ghost"><AccountIdentityAvatar user={user} /><span>{t("navigation.me")}</span></Button>
         </nav>
       </section>
-      {showAdoption ? (
-        <div className="modal-backdrop" role="dialog" aria-modal="true">
-          <div className="adoption-modal">
-            <Button aria-label={t("adoption.close")} className="modal-close" onClick={() => setShowAdoption(false)} size="icon" type="button" variant="ghost"><Icon name="x" /></Button>
-            <AdoptionPanel csrfToken={user.csrf_token ?? ""} onAdopted={adoptionCompleted} />
-          </div>
-        </div>
-      ) : null}
+      <AdoptionJourneyDialog accountId={user.account_id} csrfToken={user.csrf_token ?? ""} onAdopted={adoptionCompleted} onOpenChange={setShowAdoption} open={showAdoption} />
       {showMobileAccess ? <MobileAccessDialog onClose={() => setShowMobileAccess(false)} targetPath="/chat" /> : null}
     </main>
   )

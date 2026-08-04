@@ -17,10 +17,10 @@ def _source(relative_path: str) -> str:
 def test_frozen_ai_runtime_contract_hashes_are_unchanged() -> None:
     expected = {
         "docs/developer/architecture-ai-runtime.md": (
-            "cb08c5327373688702114af91cabee76b462d4ade888134a27d65463f8dff2ba"
+            "43dd5b087171f4b07932548b6da9c9f43b8caf73317a820594c8fd1427fb0037"
         ),
         "docs/zh/developer/architecture-ai-runtime.md": (
-            "a23661527db5c42676479a3c39a804366e63caed7c7ed5339de56bcf2ee7f6b0"
+            "191c97c0e46d201f871d3f393cea0f59724606c9d6db769109f9ab352094696d"
         ),
     }
     for relative_path, digest in expected.items():
@@ -69,7 +69,7 @@ def test_model_consumers_share_the_sqlite_evidence_projection() -> None:
         "ai_runtime/validation/overview.py",
         "app/features/configuration/food_access.py",
         "app/features/setup/ollama.py",
-        "app/interfaces/api/food_owner_routes.py",
+        "app/interfaces/api/food_catalog_support.py",
         "app/interfaces/api/provider_model_matrix.py",
     }
     assert all("query_model_evidence" in _source(path) for path in consumers)

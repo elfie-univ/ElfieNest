@@ -8,7 +8,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket
 from pydantic import BaseModel, Field
 from starlette.websockets import WebSocketDisconnect
 
-from ai_runtime.food.store import FoodCatalogStore
 from ai_runtime.storage.data_home import data_home_from_db_path
 from ai_runtime.storage.data_layout import final_root_layout
 from app.features.accounts.auth import get_current_user, verify_session
@@ -24,6 +23,7 @@ from app.infrastructure.persistence.elfie_cognition_reader import (
     read_elfie_cognition,
 )
 from app.infrastructure.persistence.embodiment_sessions import get_embodiment_session
+from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
 from app.infrastructure.persistence.runtime_query_repository import (
     RuntimeQueryRepository,
 )
@@ -253,7 +253,7 @@ def _private_profile_detail(
         db_path,
         elfie_id,
         owner_user_id,
-        FoodCatalogStore().load(),
+        SQLiteFoodPackageRepository(db_path).load(),
     )
     options = [
         {"id": str(item["food_id"]), "label": str(item["display_name"])}

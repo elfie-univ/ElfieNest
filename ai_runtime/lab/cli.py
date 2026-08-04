@@ -14,7 +14,7 @@ from typing import Any
 from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.food.evidence import query_model_evidence, record_model_evidence
 from ai_runtime.food.planner import FoodPlanner, ModelEvidence
-from ai_runtime.food.store import FoodCatalog, FoodCatalogStore
+from ai_runtime.food.store import FoodCatalog, FoodCatalogRepository
 from ai_runtime.lab.menu import MenuItem, TerminalMenu
 from ai_runtime.lab.provider_storage import (
     delete_provider_connection,
@@ -31,8 +31,8 @@ from ai_runtime.providers.model_hints import (
     suggested_model_names,
 )
 from ai_runtime.providers.profiles import BUILTIN_PROFILES
-from ai_runtime.storage.config_store import read_yaml_mapping, write_yaml_mapping
-from ai_runtime.storage.data_home import get_config_path
+from ai_runtime.storage.config_store import write_yaml_mapping
+from ai_runtime.storage.data_home import get_config_path, get_elfie_developer_home
 from ai_runtime.storage.runtime_settings import write_runtime_settings
 from ai_runtime.storage.secrets import (
     provider_secret_name,
@@ -54,6 +54,8 @@ from ai_runtime.validation.providers import (
     discover_provider_models,
 )
 from ai_runtime.validation.tools import DirectToolValidationRunner
+from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
+from app.infrastructure.persistence.store import init_db
 
 
 class RuntimeLab:
@@ -104,11 +106,16 @@ class RuntimeLab:
         runtime_payload.pop("providers", None)
         write_runtime_settings(runtime_payload)
 
-    def _food_store(self) -> FoodCatalogStore:
-        if self.config_home:
-            root = Path(self.config_home)
-            return FoodCatalogStore(root / "foods.yaml", root / "food_history")
-        return FoodCatalogStore()
+    def _food_store(self) -> FoodCatalogRepository:
+        root = (
+            Path(self.config_home).expanduser().resolve()
+            if self.config_home
+            else (get_elfie_developer_home() / "runtime_lab").resolve()
+        )
+        root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        db_path = root / "nest.db"
+        init_db(str(db_path))
+        return SQLiteFoodPackageRepository(db_path)
 
     def run(self) -> None:
         while True:
@@ -365,7 +372,6 @@ class RuntimeLab:
                     MenuItem("1", "View Current Food Strategy"),
                     MenuItem("2", "Auto-Update Food Strategy"),
                     MenuItem("3", "Validate Current Food Strategy"),
-                    MenuItem("4", "History & Rollback"),
                 ),
                 breadcrumb=breadcrumb,
                 back_label="Back",
@@ -386,8 +392,6 @@ class RuntimeLab:
                     breadcrumb,
                     lambda: self._validate_foods(store),
                 )
-            elif choice == "4":
-                self._food_history_menu(store)
 
     def run_offline_validation(self) -> ValidationReport:
         tool_suite = DirectToolValidationRunner(self.config).run(include_network=False)
@@ -421,7 +425,10 @@ class RuntimeLab:
                 self.menu.pause()
 
     def _show_current_overview(self) -> None:
-        report = RuntimeOverviewGenerator(self.config).snapshot()
+        report = RuntimeOverviewGenerator(
+            self.config,
+            food_store=self._food_store(),
+        ).snapshot()
         self._render_overview(report)
 
     def _regenerate_overview(self) -> None:
@@ -438,7 +445,10 @@ class RuntimeLab:
         if self.input("Confirm regenerate report? [y/N]: ").strip().lower() != "y":
             self.output("Cancelled.")
             return
-        report = RuntimeOverviewGenerator(self.config).regenerate()
+        report = RuntimeOverviewGenerator(
+            self.config,
+            food_store=self._food_store(),
+        ).regenerate()
         path = RuntimeOverviewStore().save(report)
         self._render_overview(report)
         self.output(f"\nReport saved: {path}")
@@ -492,7 +502,10 @@ class RuntimeLab:
         )
 
     def _provider_hint(self, provider_id: str) -> str:
-        report = RuntimeOverviewGenerator(self.config).snapshot()
+        report = RuntimeOverviewGenerator(
+            self.config,
+            food_store=self._food_store(),
+        ).snapshot()
         provider = next(
             (
                 item
@@ -514,7 +527,10 @@ class RuntimeLab:
         return f"{display_name} ({provider_id})" if display_name else provider_id
 
     def _show_provider_model_matrix(self) -> None:
-        report = RuntimeOverviewGenerator(self.config).snapshot()
+        report = RuntimeOverviewGenerator(
+            self.config,
+            food_store=self._food_store(),
+        ).snapshot()
         width = shutil.get_terminal_size(fallback=(100, 30)).columns
         for line in render_provider_model_matrix(report, width=width):
             self.output(line)
@@ -728,7 +744,7 @@ class RuntimeLab:
         self.output("Tool Configuration saved securely to local storage.")
         return True
 
-    def _food_strategy_menu(self, store: FoodCatalogStore) -> None:
+    def _food_strategy_menu(self, store: FoodCatalogRepository) -> None:
         while True:
             catalog = store.load()
             items = []
@@ -766,7 +782,7 @@ class RuntimeLab:
                 partial(self._show_food_detail, store, package.key),
             )
 
-    def _show_food_detail(self, store: FoodCatalogStore, food_key: str) -> None:
+    def _show_food_detail(self, store: FoodCatalogRepository, food_key: str) -> None:
         catalog = store.load()
         package = catalog.packages.get(food_key)
         if package is None:
@@ -779,56 +795,13 @@ class RuntimeLab:
         self.output(f"Vision: {package.vision.model if package.vision else '—'}")
         self.output(f"Tool: {package.tool.model if package.tool else '—'}")
         self.output(
-            f"Fallback: {', '.join(item.model for item in package.fallback) or '—'}"
+            f"Fallback: {package.fallback.model if package.fallback else '—'}"
         )
         self.output(
             f"State: {'archived' if package.archived else 'enabled' if package.enabled else 'disabled'}"
         )
 
-    def _food_history_menu(self, store: FoodCatalogStore) -> None:
-        versions = store.history_versions()
-        if not versions:
-            self._action(
-                "History & Rollback",
-                "Runtime Lab / Layer 3",
-                lambda: self.output("No Food version history."),
-            )
-            return
-        while True:
-            selected = self.menu.choose(
-                "History & Rollback",
-                tuple(
-                    MenuItem(str(index), path.stem.removeprefix("foods-"))
-                    for index, path in enumerate(versions, 1)
-                ),
-                breadcrumb="Runtime Lab / Layer 3 / Version History",
-                back_label="Back",
-            )
-            if selected is None:
-                return
-            if not selected.isdigit() or not 1 <= int(selected) <= len(versions):
-                continue
-            path = versions[int(selected) - 1]
-            self._action(
-                path.name,
-                "Runtime Lab / Layer 3 / Version History",
-                partial(self._show_food_history_version, store, path),
-            )
-
-    def _show_food_history_version(self, store: FoodCatalogStore, path: Path) -> None:
-        catalog = FoodCatalog.from_dict(read_yaml_mapping(path))
-        self.output(f"Version: {catalog.version}")
-        for package in catalog.ordered_packages():
-            self.output(
-                f"- {package.display_name}: "
-                f"{package.primary.model if package.primary else 'Not Configured'}"
-            )
-        if self.input("Restore this version? [y/N]: ").strip().lower() == "y":
-            restored = FoodCatalog.from_dict(read_yaml_mapping(path))
-            store.save(restored)
-            self.output(f"Restored Food version {restored.version}.")
-
-    def _update_foods(self, store: FoodCatalogStore) -> None:
+    def _update_foods(self, store: FoodCatalogRepository) -> None:
         evidence = list(query_model_evidence().values())
         if not evidence:
             self.output(
@@ -870,12 +843,9 @@ class RuntimeLab:
             "\nChanges won't be written or new version created until confirmed."
         )
         if self.menu.confirm("Confirm applying above Food updates?"):
-            store.save(
-                FoodCatalog(
-                    packages=packages,
-                )
-            )
-            self.output("Food updates applied, old version preserved.")
+            for package in packages.values():
+                store.update(package)
+            self.output("Food updates applied.")
         else:
             self.output("Updates not applied.")
 
@@ -889,7 +859,7 @@ class RuntimeLab:
                 "Reasoning": package.reasoning.model if package.reasoning else "None",
                 "Vision": package.vision.model if package.vision else "None",
                 "Tool": package.tool.model if package.tool else "None",
-                "Fallback": ", ".join(item.model for item in package.fallback)
+                "Fallback": package.fallback.model if package.fallback else ""
                 or "None",
             }
 
@@ -900,7 +870,7 @@ class RuntimeLab:
             if old_values.get(label, "—") != new_values.get(label, "—")
         ]
 
-    def _validate_foods(self, store: FoodCatalogStore) -> None:
+    def _validate_foods(self, store: FoodCatalogRepository) -> None:
         catalog = store.load()
         referenced = self._food_referenced_models(catalog)
         if not referenced:
@@ -1582,31 +1552,28 @@ class RuntimeLab:
             )
             return False
 
-        food_catalog_path = self._food_store().path
-        if food_catalog_path.exists():
-            store = self._food_store()
-            catalog = store.load()
-            used_by_foods = []
-            for package in catalog.packages.values():
-                if any(
-                    reference.startswith(f"{provider_id}/")
-                    for reference in package.model_references
-                ):
-                    used_by_foods.append(package.display_name)
+        catalog = self._food_store().load()
+        used_by_foods = []
+        for package in catalog.packages.values():
+            if any(
+                reference.startswith(f"{provider_id}/")
+                for reference in package.model_references
+            ):
+                used_by_foods.append(package.display_name)
 
-            if used_by_foods:
-                self.output(
-                    f"⚠️  Provider '{provider_id}' is used by {len(used_by_foods)} food configuration(s):"
-                )
-                for name in used_by_foods[:5]:
-                    self.output(f"  - {name}")
-                if len(used_by_foods) > 5:
-                    self.output(f"  ... and {len(used_by_foods) - 5} more")
-                self.output("")
-                self.output(
-                    "Please update or remove these food configurations before deleting the provider."
-                )
-                return False
+        if used_by_foods:
+            self.output(
+                f"⚠️  Provider '{provider_id}' is used by {len(used_by_foods)} food configuration(s):"
+            )
+            for name in used_by_foods[:5]:
+                self.output(f"  - {name}")
+            if len(used_by_foods) > 5:
+                self.output(f"  ... and {len(used_by_foods) - 5} more")
+            self.output("")
+            self.output(
+                "Please update or remove these food configurations before deleting the provider."
+            )
+            return False
 
         self.output(f"⚠️  You are about to delete provider: {provider_id}")
         self.output("This action cannot be undone.")

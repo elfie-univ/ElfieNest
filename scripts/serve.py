@@ -56,6 +56,7 @@ from app.features.adoption.generator import ElfieGenerator
 from app.features.configuration.food_access import resolve_elfie_main_food_selection
 from app.infrastructure.persistence.account_repository import AccountRepository
 from app.infrastructure.persistence.elfie_repository import ElfieRepository
+from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
 from app.infrastructure.persistence.nest_state_repository import (
     SQLiteNestStateRepository,
 )
@@ -458,6 +459,7 @@ def main():
     # 1. Initialize the final database and seed Owner from environment.
     init_db(db_path)
     seed_initial_owner_if_env_set(db_path)
+    food_repository = SQLiteFoodPackageRepository(db_path)
 
     # 2. Optionally seed the initial Owner Elfie (enabled by default).
     if not args.no_seed_elfie:
@@ -492,7 +494,8 @@ def main():
                 raw_agent = RuntimeAgent(
                     config,
                     live_reload=True,
-                    main_food_loader=final_main_food_loader(db_path),
+                    main_food_loader=final_main_food_loader(db_path, food_repository),
+                    food_catalog_repository=food_repository,
                 )
                 runtime_agent = raw_agent
                 print(
@@ -537,9 +540,9 @@ def main():
                     resolve_elfie_main_food_selection(
                         db_path,
                         elfie_id,
-                        runtime_agent.food_catalog_store.load(),
+                        food_repository.load(),
                     )
-                    if hasattr(runtime_agent, "food_catalog_store")
+                    if hasattr(runtime_agent, "food_catalog_repository")
                     else None
                 )
             ),
