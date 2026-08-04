@@ -221,10 +221,15 @@ export const chat = {
         rings: { self: "Self", family: "Family", nest: "Nest", society: "Nearby", outside: "Outside" },
       },
       knowledge: {
+        columns: { knowledge: "Knowledge", belief: "Beliefs" },
+        legendLabel: "Knowledge and belief relation types",
+        mapLabel: "Knowledge and belief graph",
+        nodeLabel: "Knowledge and belief node: {{name}}",
+        nodeList: "Knowledge and belief nodes",
         paths: "Knowledge and belief paths",
         empty: "No complete knowledge-to-belief paths are available.",
         relationFallback: "Related",
-        relationKeys: { derivedFrom: "Source", supports: "Supports", conflicts: "Conflicts", revises: "Revises" },
+        relationKeys: { derivedFrom: "Forms", supports: "Supports", conflicts: "Conflicts", revises: "Revises" },
       },
       food: {
         selected: "Current food",

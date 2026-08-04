@@ -221,10 +221,15 @@ export const chat = {
         rings: { self: "自己", family: "家人", nest: "巢", society: "周围", outside: "外界" },
       },
       knowledge: {
+        columns: { knowledge: "知识", belief: "信念" },
+        legendLabel: "知识与信念关系类型",
+        mapLabel: "知识与信念图",
+        nodeLabel: "知识与信念节点：{{name}}",
+        nodeList: "知识与信念节点",
         paths: "知识与信念路径",
         empty: "暂无形成完整路径的知识与信念。",
         relationFallback: "关联",
-        relationKeys: { derivedFrom: "来源于", supports: "支持", conflicts: "冲突", revises: "修正" },
+        relationKeys: { derivedFrom: "形成", supports: "支持", conflicts: "冲突", revises: "修正" },
       },
       food: {
         selected: "当前主粮",

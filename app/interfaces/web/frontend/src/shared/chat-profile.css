@@ -473,12 +473,21 @@
 .profile-private-world__graph { position: absolute; z-index: 1; inset: 0; touch-action: none; }
 .profile-private-world__a11y { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 .profile-private-world__a11y button { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; }
-.profile-private-knowledge { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
-.profile-private-knowledge li { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 10px; align-items: center; min-width: 0; }
-.profile-private-knowledge__node { min-width: 0; padding: 12px 14px; border: 1px solid var(--accent); border-radius: 12px; color: var(--text); background: var(--surface-raised); overflow-wrap: anywhere; }
-.profile-private-knowledge__node--source { border-color: #9f6f16; }
-.profile-private-knowledge__node--belief { border-color: var(--accent); }
-.profile-private-knowledge small { color: var(--accent-hover); font-weight: 800; white-space: nowrap; }
+.profile-private-knowledge { display: grid; gap: 14px; }
+.profile-private-knowledge__legend { display: flex; flex-wrap: wrap; gap: 10px 16px; justify-content: flex-end; color: var(--text-muted); font-size: 12px; font-weight: 800; }
+.profile-private-knowledge__legend-item { display: inline-flex; gap: 6px; align-items: center; }
+.profile-private-knowledge__legend-line { display: inline-block; width: 24px; border-top: 2px solid var(--accent); }
+.profile-private-knowledge__legend-line--supports { border-top-style: dashed; border-color: #1f7a60; }
+.profile-private-knowledge__legend-line--revises { border-top-style: dotted; border-color: #5676b8; }
+.profile-private-knowledge__legend-line--conflicts { border-top-style: dashed; border-color: #a6526f; }
+.profile-private-knowledge__map-shell { position: relative; min-height: clamp(640px, 48vw, 760px); overflow: hidden; border: 1px solid var(--border); border-radius: 18px; background: radial-gradient(circle, color-mix(in srgb, var(--accent-soft) 58%, transparent), transparent 70%), var(--field-bg); }
+.profile-private-knowledge__graph { position: absolute; z-index: 1; inset: 0; touch-action: none; }
+.profile-private-knowledge__column-labels { position: absolute; z-index: 2; inset: 0; pointer-events: none; }
+.profile-private-knowledge__column-label { position: absolute; top: 14px; padding: 4px 12px; border-radius: 999px; color: var(--text-muted); background: color-mix(in srgb, var(--surface-raised) 82%, transparent); font-size: 12px; font-weight: 900; letter-spacing: .08em; }
+.profile-private-knowledge__column-label--knowledge { left: 14%; }
+.profile-private-knowledge__column-label--belief { right: 14%; }
+.profile-private-knowledge__a11y { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+.profile-private-knowledge__a11y button { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; }
 .profile-private-care { display: grid; gap: 14px; max-width: 760px; }
 .profile-private-care__summary { margin: 0; }
 .profile-private-care__summary div { display: grid; grid-template-columns: minmax(7rem, .45fr) minmax(0, 1fr); gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--border); }
@@ -760,8 +769,7 @@
   .profile-private-experiences::before { left: 7px; }
   .profile-private-experiences__item { grid-template-columns: 1fr; gap: 5px; }
   .profile-private-experiences__marker { left: -24px; }
-  .profile-private-knowledge li { grid-template-columns: 1fr; gap: 5px; }
-  .profile-private-knowledge small { padding-inline: 4px; }
+  .profile-private-knowledge__map-shell { min-height: 480px; }
   .profile-private-care__summary div { grid-template-columns: 1fr; gap: 4px; }
   .mobile-me-pane .account-menu__panel {
     position: static;
