@@ -22,7 +22,7 @@ type ChatViewController = {
 export function useChatView(): ChatViewController {
   const location = useAppLocation()
   const state = parseChatViewState(location.search)
-  const canonicalPath = buildChatViewPath(state, location.search)
+  const canonicalPath = buildChatViewPath(state)
   const currentPath = `/chat${location.search}`
 
   useEffect(() => {
@@ -30,11 +30,11 @@ export function useChatView(): ChatViewController {
   }, [canonicalPath, currentPath])
 
   const go = useCallback((target: ChatViewPathTarget): void => {
-    navigate(buildChatViewPath(target, location.search))
+    navigate(buildChatViewPath(target))
   }, [location.search])
 
   const correct = useCallback((target: ChatViewPathTarget): void => {
-    replaceLocation(buildChatViewPath(target, location.search))
+    replaceLocation(buildChatViewPath(target))
   }, [location.search])
 
   return {

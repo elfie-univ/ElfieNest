@@ -19,7 +19,7 @@ const ITEMS = [
 ] as const satisfies readonly ElfieListItem[]
 
 describe("ElfieList i18n", () => {
-  it("renders English list chrome without translating names, species IDs, or entity IDs", () => {
+  it("renders English list chrome with only Elfie names visible", () => {
     // Given: a mixed ownership list under the English locale.
     const instance = createI18n()
     void instance.changeLanguage("en-US")
@@ -39,12 +39,13 @@ describe("ElfieList i18n", () => {
       </I18nextProvider>,
     )
 
-    // Then: owned chrome is translated and stable entity content is preserved.
+    // Then: owned chrome is translated, names remain visible, and identifiers stay hidden.
     expect(screen.getByRole("group", { name: "Elfie scope" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "All 2" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "My Elfies" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "View Happy's profile" })).toBeInTheDocument()
-    expect(screen.getByText("fox · 12345678")).toBeInTheDocument()
+    expect(screen.getByText("Happy")).toBeInTheDocument()
+    expect(screen.queryByText("fox · 12345678")).not.toBeInTheDocument()
     expect(screen.getByText("Kettle")).toBeInTheDocument()
   })
 

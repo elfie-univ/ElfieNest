@@ -3,7 +3,7 @@ export const chat = {
   navigation: {
     railLabel: "ElfieNest navigation",
     chats: "Chat history",
-    elfies: "My Elfies",
+    elfies: "Elfie list",
     manage: "Open management",
     monitor: "Open monitor",
     mobileAccess: "Open chat on a phone",
@@ -229,8 +229,12 @@ export const chat = {
       food: {
         selected: "Current food",
         options: "Available foods",
+        select: "Choose food",
+        save: "Save",
+        saving: "Saving…",
+        saveError: "Unable to save the food strategy. Try again.",
         unconfigured: "Unconfigured",
-        noOptions: "No foods are currently available.",
+        noOptions: "No main food is currently available. Please contact an administrator.",
         unavailable: "The current food is unavailable.",
       },
     },

@@ -23,6 +23,7 @@ const session = vi.hoisted(() => ({
     default_landing_page: "chat" as const,
     account_id: "owner",
     display_name: "Owner",
+    avatar_url: null as string | null,
     role: "owner" as const,
     theme_key: "warm-paper" as const,
     user_id: 1,
@@ -95,17 +96,12 @@ const elfie = {
   embodiment: { state: "at_nest" },
 }
 
-function useDemoElfies(): void {
-  chatApi.conversations.mockRejectedValue(new Error("Not Found"))
-  chatApi.elfies.mockRejectedValue(new Error("Not Found"))
-  window.history.replaceState({}, "", "/chat?view=elfies&mock=1")
-}
-
 describe("ChatPage list pane headings", () => {
   beforeEach(() => {
     session.user.account_id = "admin123"
     session.user.role = "owner"
-    window.history.replaceState({}, "", "/chat?view=conversation&elfie=00000001&mock=1")
+    session.user.avatar_url = null
+    window.history.replaceState({}, "", "/chat?view=conversation&elfie=00000001")
     chatApi.conversations.mockResolvedValue([{
       elfie_id: "00000001",
       name: "小羽",
@@ -143,7 +139,7 @@ describe("ChatPage list pane headings", () => {
     renderChatPage("zh-CN")
 
     const rail = screen.getByLabelText("ElfieNest 导航")
-    await user.click(await within(rail).findByRole("button", { name: "我的精灵" }))
+    await user.click(await within(rail).findByRole("button", { name: "精灵列表" }))
 
     expect(screen.getByRole("heading", { level: 1, name: "精灵" })).toBeInTheDocument()
     expect(screen.queryByText("我的精灵", { selector: ".brand" })).not.toBeInTheDocument()
@@ -156,7 +152,7 @@ describe("ChatPage list pane headings", () => {
     const mobileTabs = screen.getByLabelText("聊天移动导航")
     expect(mobileTabs.closest(".chat-page")).toBeInTheDocument()
     expect(await within(mobileTabs).findByRole("button", { name: "聊天记录" })).toHaveTextContent("消息")
-    expect(within(mobileTabs).getByRole("button", { name: "我的精灵" })).toHaveTextContent("精灵")
+    expect(within(mobileTabs).getByRole("button", { name: "精灵列表" })).toHaveTextContent("精灵")
     expect(within(mobileTabs).getByRole("button", { name: "我的" })).toHaveTextContent("我的")
     expect(within(mobileTabs).queryByRole("button", { name: "进入管理" })).not.toBeInTheDocument()
     expect(within(mobileTabs).queryByRole("button", { name: "扫码用手机打开聊天" })).not.toBeInTheDocument()
@@ -171,6 +167,12 @@ describe("ChatPage list pane headings", () => {
     expect(finalMobileRules).toContain("overscroll-behavior: none")
     expect(finalMobileRules).toContain("overscroll-behavior: contain")
     expect(chatStyles).toContain("gap: 0")
+    const tabbarRule = finalMobileRules.match(/\.mobile-tabbar\s*\{[^}]+\}/)?.[0] ?? ""
+    const tabItemRule = finalMobileRules.match(/\.mobile-tabbar__item\s*\{[^}]+\}/)?.[0] ?? ""
+    expect(tabbarRule).toContain("grid-template-columns: repeat(3, minmax(0, 1fr));")
+    expect(tabbarRule).toContain("padding: 6px 0 calc(6px + env(safe-area-inset-bottom));")
+    expect(tabItemRule).toContain("width: 100%;")
+    expect(tabItemRule).toContain("min-width: 0;")
     expect(chatStyles).toContain(".mobile-tabbar__item > svg { width: 30px; height: 30px; }")
     expect(chatStyles).toContain("width: 32px")
     expect(chatStyles).toContain("height: 32px")
@@ -179,79 +181,96 @@ describe("ChatPage list pane headings", () => {
     expect(chatStyles).not.toContain(".connection-state")
   })
 
-  it("keeps the chat layout reviewable with demo data when the legacy chat API is unavailable", async () => {
+  it("shows a real-data error instead of inventing demo records when the APIs fail", async () => {
     chatApi.conversations.mockRejectedValue(new Error("Not Found"))
     chatApi.elfies.mockRejectedValue(new Error("Not Found"))
-    window.history.replaceState({}, "", "/chat?view=conversation&elfie=12345678&mock=1")
+    window.history.replaceState({}, "", "/chat?view=conversation&elfie=12345678")
 
     renderChatPage("zh-CN")
 
-    expect((await screen.findAllByText("Happy")).length).toBeGreaterThan(0)
-    expect(screen.getByText("后端暂不可用，当前显示演示数据")).toBeInTheDocument()
+    expect(await screen.findByRole("alert")).toHaveTextContent("聊天内容加载失败")
+    expect(screen.queryByText("Happy")).not.toBeInTheDocument()
+    expect(screen.queryByText("Kettle")).not.toBeInTheDocument()
   })
 
-  it("searches Elfies and shows account-owned filter counts in deterministic groups", async () => {
-    const user = userEvent.setup()
-    useDemoElfies()
+  it("uses the authenticated account avatar for user messages", async () => {
+    session.user.avatar_url = "/api/auth/me/avatar"
+    chatApi.messages.mockResolvedValue([{
+      id: 9,
+      elfie_id: "00000001",
+      sender: "user",
+      text: "来自当前用户",
+      created_at: "2026-07-29T00:00:00Z",
+    }])
+
     renderChatPage("zh-CN")
 
-    const allFilter = await screen.findByRole("button", { name: "全部 2" })
+    const message = await screen.findByText("来自当前用户")
+    const article = message.closest("article")
+    expect(article?.querySelector("img")).toHaveAttribute("src", "/api/auth/me/avatar")
+  })
+
+  it("sends a message with plain Enter while keeping Shift+Enter available for new lines", async () => {
+    const user = userEvent.setup()
+    renderChatPage("zh-CN")
+    const composer = await screen.findByPlaceholderText("对 小羽 说点什么…")
+
+    await user.type(composer, "回车发送")
+    await user.keyboard("{Enter}")
+    await waitFor(() => expect(chatApi.sendMessage).toHaveBeenCalledWith("00000001", "回车发送", "csrf"))
+
+    await user.type(composer, "换行")
+    await user.keyboard("{Shift>}{Enter}{/Shift}")
+    expect(composer).toHaveValue("换行\n")
+  })
+
+  it("searches the real Elfie response and shows account-owned filter counts", async () => {
+    const user = userEvent.setup()
+    renderChatPage("zh-CN")
+
+    const rail = screen.getByLabelText("ElfieNest 导航")
+    await user.click(within(rail).getByRole("button", { name: "精灵列表" }))
+
+    const allFilter = await screen.findByRole("button", { name: "全部 1" })
     expect(screen.getByRole("button", { name: "我的 1" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "其他 1" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "其他 0" })).toBeInTheDocument()
     expect(allFilter).toHaveAttribute("aria-pressed", "true")
     const groupHeadings = screen.getAllByRole("heading", { level: 2 })
-    expect(groupHeadings.map((heading) => heading.textContent)).toEqual(["我的精灵", "其他精灵"])
+    expect(groupHeadings.map((heading) => heading.textContent)).toEqual(["我的精灵"])
 
     await user.click(screen.getByRole("button", { name: "我的 1" }))
-    expect(screen.getByText("Happy")).toBeInTheDocument()
-    expect(screen.queryByText("Kettle")).not.toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: "其他 1" }))
-    expect(screen.queryByText("Happy")).not.toBeInTheDocument()
-    expect(screen.getByText("Kettle")).toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: "全部 2" }))
+    expect(screen.getByText("小羽")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "其他 0" }))
+    expect(screen.getByRole("status")).toHaveTextContent("没有符合条件的精灵")
+    await user.click(screen.getByRole("button", { name: "全部 1" }))
 
     const search = screen.getByPlaceholderText("搜索精灵")
-    await user.type(search, "KETTLE")
-    expect(screen.queryByText("Happy")).not.toBeInTheDocument()
-    expect(screen.getByText("Kettle")).toBeInTheDocument()
+    await user.type(search, "小羽")
+    expect(screen.getByText("小羽")).toBeInTheDocument()
 
     await user.clear(search)
-    await user.type(search, "12345678")
-    expect(screen.getByText("Happy")).toBeInTheDocument()
-    expect(screen.queryByText("Kettle")).not.toBeInTheDocument()
+    await user.type(search, "00000001")
+    expect(screen.getByText("小羽")).toBeInTheDocument()
 
     await user.clear(search)
-    await user.type(search, "FOX")
-    expect(screen.getByText("Happy")).toBeInTheDocument()
-    expect(screen.getByText("Kettle")).toBeInTheDocument()
-  })
-
-  it("does not infer adoption ownership from the platform owner role", async () => {
-    const user = userEvent.setup()
-    useDemoElfies()
-    session.user.account_id = "unrelated-owner"
-    session.user.role = "owner"
-    renderChatPage("zh-CN")
-
-    expect(await screen.findByRole("button", { name: "我的 0" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "其他 2" })).toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: "我的 0" }))
-    expect(screen.getByRole("status")).toHaveTextContent("没有符合条件的精灵")
+    await user.type(search, "星光精灵")
+    expect(screen.getByText("小羽")).toBeInTheDocument()
   })
 
   it("announces no results and recovers when the controlled search is cleared", async () => {
     const user = userEvent.setup()
-    useDemoElfies()
     renderChatPage("zh-CN")
+    const rail = screen.getByLabelText("ElfieNest 导航")
+    await user.click(within(rail).getByRole("button", { name: "精灵列表" }))
 
     const search = await screen.findByPlaceholderText("搜索精灵")
     await user.type(search, "999999999999999999")
     expect(screen.getByRole("status")).toHaveTextContent("没有符合条件的精灵")
-    expect(window.location.search).toBe("?view=elfies&mock=1")
+    expect(window.location.search).toBe("?view=elfies")
 
     await user.clear(search)
     expect(screen.queryByRole("status")).not.toBeInTheDocument()
-    expect(screen.getByText("Happy")).toBeInTheDocument()
+    expect(screen.getByText("小羽")).toBeInTheDocument()
   })
 
   it("hides REST load detail in English and preserves it in Chinese", async () => {
@@ -331,7 +350,7 @@ describe("ChatPage list pane headings", () => {
     // When: the user switches to the Elfie list.
     expect(screen.queryByText("Channel: Live")).not.toBeInTheDocument()
     const rail = screen.getByLabelText("ElfieNest navigation")
-    await user.click(within(rail).getByRole("button", { name: "My Elfies" }))
+    await user.click(within(rail).getByRole("button", { name: "Elfie list" }))
 
     // Then: neither list pane renders a connection status.
     await screen.findByRole("heading", { level: 1, name: "Elfies" })

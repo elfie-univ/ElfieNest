@@ -3,7 +3,7 @@ export const chat = {
   navigation: {
     railLabel: "ElfieNest 导航",
     chats: "聊天记录",
-    elfies: "我的精灵",
+    elfies: "精灵列表",
     manage: "进入管理",
     monitor: "进入监控",
     mobileAccess: "扫码用手机打开聊天",
@@ -229,8 +229,12 @@ export const chat = {
       food: {
         selected: "当前主粮",
         options: "可选主粮",
+        select: "选择主粮",
+        save: "保存",
+        saving: "保存中…",
+        saveError: "主粮保存失败，请重试。",
         unconfigured: "未配置",
-        noOptions: "暂无可用主粮。",
+        noOptions: "当前没有可用主粮，请联系管理员。",
         unavailable: "当前主粮暂不可用。",
       },
     },

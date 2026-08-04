@@ -6,12 +6,14 @@ import type { Conversation } from "../../api/client"
 import type { ChatPane } from "../../pages/use-chat-view"
 import { Avatar } from "../Avatar"
 import { Icon } from "../Icon"
+import { Notice } from "../Notice"
 import { ElfieList } from "./ElfieList"
 import type { ElfieListFilter, ElfieListItem } from "./elfie-list-model"
 
 type ChatListPaneProps = {
   readonly activePane: ChatPane
   readonly conversations: readonly Conversation[]
+  readonly error: string | null
   readonly elfieFilter: ElfieListFilter
   readonly elfieItems: readonly ElfieListItem[]
   readonly elfieQuery: string
@@ -28,7 +30,7 @@ type ChatListPaneProps = {
 export function ChatListPane(props: ChatListPaneProps) {
   const { t } = useTranslation("chat")
   const {
-    activePane, conversations, elfieFilter, elfieItems, elfieQuery, hiddenOnMobile,
+    activePane, conversations, elfieFilter, elfieItems, elfieQuery, error, hiddenOnMobile,
     onAdopt, onChat, onElfieFilterChange, onElfieProfile, onElfieQueryChange,
     selectedId, viewerAccountId,
   } = props
@@ -49,6 +51,7 @@ export function ChatListPane(props: ChatListPaneProps) {
           />
         ) : <Input key="chat-search" placeholder={t("list.searchChats")} />}
       </label>
+      {error ? <Notice kind="error" message={error} /> : null}
       {activePane === "chats" ? (
         <div className="chat-list">
           {conversations.map((row) => (
