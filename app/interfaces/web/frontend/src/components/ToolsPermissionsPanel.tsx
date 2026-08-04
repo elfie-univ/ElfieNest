@@ -12,8 +12,8 @@ import { useToolsPermissions } from "./tools/useToolsPermissions"
 import "./tools-permissions.css"
 
 const TOOL_META = [
-  { key: "web_search", titleKey: "tools.webSearch.title", descriptionKey: "tools.webSearch.description" },
-  { key: "local_file", titleKey: "tools.localFile.title", descriptionKey: "tools.localFile.description" },
+  { key: "web_search", titleKey: "tools.webSearch.title" },
+  { key: "local_file", titleKey: "tools.localFile.title" },
 ] as const
 
 type ToolPermissionPanelProps = {
@@ -40,17 +40,16 @@ export function ToolsPermissionsPanel({ csrfToken }: ToolPermissionPanelProps) {
   const state = useToolsPermissions(csrfToken)
 
   if (state.drafts === null || state.permissionDrafts === null) {
-    return <section className="tools-permissions" aria-labelledby="tools-permissions-title">
+    return <section aria-labelledby="tools-permissions-title" className="tools-permissions">
+      <span className="sr-only" id="tools-permissions-title">{t("tools.sections.available")}</span>
       {state.error ? <Notice kind="error" message={resolveLocalizedError(state.error, locale) ?? t("tools.errors.load")} /> : <p className="empty-state">{t("tools.loading")}</p>}
     </section>
   }
   const drafts = state.drafts
   const permissionDrafts = state.permissionDrafts
 
-  return <section className="tools-permissions" aria-labelledby="tools-permissions-title">
-    <header className="tools-permissions__intro">
-      <p id="tools-permissions-title">{t("tools.description")}</p>
-    </header>
+  return <section aria-labelledby="tools-permissions-title" className="tools-permissions">
+    <span className="sr-only" id="tools-permissions-title">{t("tools.sections.available")}</span>
     {state.error ? <Notice kind="error" message={resolveLocalizedError(state.error, locale) ?? t("tools.errors.load")} /> : null}
     <section aria-labelledby="tools-permissions-available" className="tools-permissions__section">
       <div className="tools-permissions__section-heading">
@@ -100,7 +99,6 @@ export function ToolsPermissionsPanel({ csrfToken }: ToolPermissionPanelProps) {
             statusLabel={toolStatus(mode, draft.enabled, t)}
             switchLabel={t(draft.enabled ? "tools.actions.disable" : "tools.actions.enable", { name: title })}
             title={title}
-            description={t(meta.descriptionKey)}
             toolKey={meta.key}
             unsavedLabel={state.dirtyTools.includes(meta.key) ? t("tools.status.unsaved") : ""}
           />

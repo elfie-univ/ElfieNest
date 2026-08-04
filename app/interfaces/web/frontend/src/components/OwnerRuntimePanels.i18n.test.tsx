@@ -33,7 +33,8 @@ describe("runtime and raw-data panel behavior", () => {
   it("renders the monitor in English while preserving technical values", async () => {
     renderWithLocale(<ManageMonitorPanel elfieCount={2} />, "en-US")
 
-    expect(await screen.findByRole("heading", { name: "Unified monitor" })).toBeInTheDocument()
+    expect(await screen.findByText(/provider\/qwen3:4b/)).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Unified monitor" })).not.toBeInTheDocument()
     expect(screen.getByText(/provider\/qwen3:4b/)).toBeInTheDocument()
     expect(screen.getByText("Needs attention")).toBeInTheDocument()
     expect(screen.queryByText("综合监控")).not.toBeInTheDocument()

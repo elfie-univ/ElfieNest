@@ -19,7 +19,6 @@ export function PlannedToolRows() {
       {PLANNED_TOOL_KEYS.map((key) => <article className="planned-tool-row" data-planned-tool={key} key={key}>
         <div>
           <strong>{t(`tools.future.${key}`)}</strong>
-          <p>{t("tools.future.hint")}</p>
         </div>
         <span className="planned-tool-row__status">{t("tools.status.unavailable")}</span>
       </article>)}

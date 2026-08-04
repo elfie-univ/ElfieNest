@@ -76,6 +76,7 @@ describe("ProviderModelsDialog", () => {
     renderDialog()
 
     const dialog = screen.getByRole("dialog", { name: "OpenAI Main 的模型" })
+    expect(within(dialog).queryByText("模型 ID 会原样发送给当前订阅；显示名称用于跨订阅识别同一模型。")).not.toBeInTheDocument()
     const firstModelRow = within(dialog).getAllByRole("row")[1]!
     const capabilityCell = firstModelRow.querySelector(".provider-model-capabilities")
     expect(capabilityCell).not.toBeNull()

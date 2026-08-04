@@ -50,7 +50,6 @@ export function FoodVisibilityDialog({
     }
   }
   return <ManageDialog
-    description={t("foodPackages.visibility.description")}
     onOpenChange={(open) => { if (!open) onClose() }}
     open
     title={t("foodPackages.visibility.title", { name: food.display_name })}

@@ -138,6 +138,7 @@ describe("OwnerFoodPanel v2 behavior", () => {
 
     await user.click(await screen.findByRole("button", { name: "自动生成" }))
     const dialog = screen.getByRole("dialog", { name: "自动生成 标准粮" })
+    expect(within(dialog).queryByText("选择一个、多个或全部已启用订阅。生成只使用最近验证通过的模型，并在保存前返回可编辑差异。")).not.toBeInTheDocument()
     expect(within(dialog).getByText("Local Ollama")).toBeInTheDocument()
     await user.click(within(dialog).getByRole("button", { name: "生成差异" }))
 
@@ -160,7 +161,7 @@ describe("OwnerFoodPanel v2 behavior", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("后端失败")
 
     await instance.changeLanguage("en-US")
-    expect(screen.getByRole("heading", { name: "Food packages" })).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Food packages" })).not.toBeInTheDocument()
     expect(screen.getByRole("alert")).toHaveTextContent("Unable to load management data.")
     expect(screen.queryByText("后端失败")).not.toBeInTheDocument()
   })

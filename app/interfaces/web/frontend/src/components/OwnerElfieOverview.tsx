@@ -153,10 +153,6 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
 
   return <section className="manage-card manage-card--wide manage-identity-panel">
     <div className="manage-head">
-      <div>
-        <h2>{t("elfies.title")}</h2>
-        <p>{t("elfies.description")}</p>
-      </div>
       <RefreshButton label={t("users.actions.refresh")} onClick={() => { void load(selection) }} />
     </div>
     <div className="manage-filters">

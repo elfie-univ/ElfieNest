@@ -89,7 +89,6 @@ export function ModelMatrixDialog({ csrfToken, onOpenChange, open }: ModelMatrix
 
   return <ManageDialog
     contentClassName="model-matrix-dialog"
-    description={t("modelMatrix.description")}
     onOpenChange={onOpenChange}
     open={open}
     title={t("modelMatrix.title")}

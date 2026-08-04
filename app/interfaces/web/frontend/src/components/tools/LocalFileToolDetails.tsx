@@ -38,19 +38,14 @@ export function LocalFileToolDetails({
 
   return <div className="tool-details">
     <h3 className="tool-details__heading">{t("tools.detailsTitle")}</h3>
-    <div className="tool-details__intro">
-      <p>{t("tools.localFile.description")}</p>
-    </div>
     {error ? <Notice kind="error" message={error} /> : null}
     <div className="tool-details__fields">
       <FieldRow
         control={({ inputId }) => <div className="tool-readonly-value" id={inputId}>{t("tools.localFile.scopeValue")}</div>}
-        hint={t("tools.localFile.scopeHint")}
         inputId="local-file-scope"
         label={t("tools.localFile.scope")}
       />
       <NumberField
-        hint={t("tools.localFile.maxReadBytesHint")}
         label={t("tools.localFile.maxReadBytes")}
         max={1_000_000}
         min={1}
@@ -64,7 +59,6 @@ export function LocalFileToolDetails({
       <div><dt>max_result_bytes</dt><dd>{draft.max_result_bytes}</dd></div>
       <div><dt>max_tool_calls</dt><dd>{draft.max_tool_calls}</dd></div>
     </dl>
-    <p className="tool-details__note">{t("tools.localFile.verifyHint")}</p>
     {result ? <p className={`tool-validation tool-validation--${result.status}`} role="status">{result.message}</p> : null}
     {verification?.passed === false ? <p className="tool-details__note">{t("tools.validation.failed")}</p> : null}
     <div className="tool-details__actions">

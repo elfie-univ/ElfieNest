@@ -91,7 +91,7 @@ export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
   const room = loadedRooms[0]
   const beds = room?.beds ?? []
   return <section className="nest-console">
-    <div className="manage-head"><div><h2>{t("nest.title")}</h2><p>{t("nest.description")}</p></div><RefreshButton label={t("nest.refresh")} onClick={() => { void load() }} /></div>
+    <div className="manage-head"><RefreshButton label={t("nest.refresh")} onClick={() => { void load() }} /></div>
     {error ? <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("errors.save")} /> : null}{notice ? <Notice message={notice} /> : null}
     {loading ? <p className="empty">{t("rawData.loading")}</p> : null}
     {!loading && error === null && room === undefined ? <p className="empty">{t("nest.assignment.empty")}</p> : null}

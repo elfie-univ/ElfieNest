@@ -56,9 +56,6 @@ export function WebSearchToolDetails({
 
   return <div className="tool-details">
     <h3 className="tool-details__heading">{t("tools.detailsTitle")}</h3>
-    <div className="tool-details__intro">
-      <p>{t("tools.webSearch.description")}</p>
-    </div>
     {error ? <Notice kind="error" message={error} /> : null}
     <div className="tool-details__fields">
       <SelectField
@@ -75,18 +72,15 @@ export function WebSearchToolDetails({
       />
       <FieldRow
         control={<Input value={draft.api_base} onChange={(event) => onChange({ api_base: event.target.value })} />}
-        hint={t("tools.webSearch.apiBaseHint")}
         inputId="web-search-api-base"
         label={t("tools.webSearch.apiBase")}
       />
       <FieldRow
         control={<Input autoComplete="new-password" placeholder={draft.has_api_key ? "••••••••" : undefined} type="password" value={draft.api_key} onChange={(event) => onChange({ api_key: event.target.value })} />}
-        hint={draft.has_api_key ? t("tools.webSearch.apiKeyConfigured") : t("tools.webSearch.apiKeyHint")}
         inputId="web-search-api-key"
         label={t("tools.webSearch.apiKey")}
       />
       <NumberField
-        hint={t("tools.webSearch.maxResultsHint")}
         label={t("tools.webSearch.maxResults")}
         max={10}
         min={1}
@@ -94,7 +88,6 @@ export function WebSearchToolDetails({
         value={draft.max_results}
       />
       <NumberField
-        hint={t("tools.webSearch.maxResultBytesHint")}
         label={t("tools.webSearch.maxResultBytes")}
         max={1_000_000}
         min={1}

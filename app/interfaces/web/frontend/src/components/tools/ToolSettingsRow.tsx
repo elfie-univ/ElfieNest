@@ -19,7 +19,6 @@ type ToolSettingsRowProps = {
   readonly statusLabel: string
   readonly switchLabel: string
   readonly title: string
-  readonly description: string
   readonly toolKey: ToolKey
   readonly unsavedLabel: string
 }
@@ -40,7 +39,6 @@ export function ToolSettingsRow({
   statusLabel,
   switchLabel,
   title,
-  description,
   toolKey,
   unsavedLabel,
 }: ToolSettingsRowProps) {
@@ -52,7 +50,6 @@ export function ToolSettingsRow({
     <div className="tool-settings-row__header">
       <div className="tool-settings-row__copy">
         <strong id={titleId}>{title}</strong>
-        <small>{description}</small>
         <span className="tool-settings-row__status-line">
           <span className="tool-settings-row__status">{statusLabel || currentStatus}</span>
           {unsavedLabel ? <span className="tool-settings-row__unsaved">{unsavedLabel}</span> : null}

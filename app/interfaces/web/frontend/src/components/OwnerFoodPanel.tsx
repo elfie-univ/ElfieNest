@@ -134,7 +134,6 @@ export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
 
   return <section className="manage-card manage-card--wide food-page">
     <div className="manage-head">
-      <div><h2>{t("foodPackages.title")}</h2><p>{t("foodPackages.description")}</p></div>
       <div className="manage-actions"><Button disabled={pending} onClick={() => { void add() }} type="button"><Plus aria-hidden="true" />{t("foodPackages.actions.add")}</Button><RefreshButton disabled={pending} label={t("foodPackages.actions.refresh")} onClick={() => { void load() }} /></div>
     </div>
     {error ? <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("errors.load")} /> : null}
@@ -166,7 +165,7 @@ export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
           : <FoodRoleTable food={food} />}</TableCell></TableRow>
       </Fragment>)}</TableBody>
     </Table>
-    {generation ? <ManageDialog description={t("foodPackages.generation.description")} onOpenChange={(open) => { if (!open) setGeneration(null) }} open title={t("foodPackages.generation.title", { name: generation.display_name })}>
+    {generation ? <ManageDialog onOpenChange={(open) => { if (!open) setGeneration(null) }} open title={t("foodPackages.generation.title", { name: generation.display_name })}>
       <div className="food-visibility-list">{connections.map((connection) => <label className="food-visibility-row" key={connection.connection_id}><Checkbox checked={generationScope.has(connection.connection_id)} onCheckedChange={(checked) => setGenerationScope((current) => toggle(current, connection.connection_id, checked === true))} /><span>{connection.alias}</span></label>)}</div>
       {generation.system_role === "emergency" ? <label className="food-visibility-row"><Checkbox checked={allowRemote} onCheckedChange={(checked) => setAllowRemote(checked === true)} /><span>{t("foodPackages.generation.allowRemote")}</span></label> : null}
       <div className="manage-actions"><Button disabled={pending || generationScope.size === 0} onClick={() => { void generate() }} type="button">{t("foodPackages.actions.generateDiff")}</Button><Button onClick={() => setGeneration(null)} type="button" variant="outline">{t("foodPackages.actions.cancel")}</Button></div>

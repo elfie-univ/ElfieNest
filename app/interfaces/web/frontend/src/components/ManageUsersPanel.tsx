@@ -101,7 +101,6 @@ export function ManageUsersPanel({ actorRole, csrfToken }: { readonly actorRole:
 
   return <section className="manage-card manage-card--wide manage-identity-panel">
     <div className="manage-head">
-      <div><h2>{t("users.title")}</h2><p>{t("users.description")}</p></div>
       <div className="manage-actions">
         <Button disabled={!isManagerRole(actorRole) || users === null || totalCapacityReached} onClick={() => setCreating(true)} title={totalCapacityReached ? t("users.capacity.totalReached") : undefined} type="button"><Icon name="plus" size={16} />{t("users.actions.add")}</Button>
         <RefreshButton label={t("users.actions.refresh")} onClick={() => { void load() }} />

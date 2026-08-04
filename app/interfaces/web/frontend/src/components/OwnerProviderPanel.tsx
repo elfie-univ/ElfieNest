@@ -184,7 +184,7 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
   }
 
   return <section className="manage-card manage-card--wide provider-page">
-    <div className="manage-head"><div><h2>{t("providerConnections.title")}</h2><p>{t("providerConnections.description")}</p></div><div className="manage-actions">
+    <div className="manage-head"><div className="manage-actions">
       <Button disabled={pending !== null || configured.length === 0} onClick={() => { void runValidation() }} type="button">{pending === "batch" ? t("providerConnections.actions.validating") : t("providerConnections.actions.batchValidate")}</Button>
       <Button onClick={() => setMatrixOpen(true)} type="button">{t("providerConnections.actions.matrix")}</Button>
       <RefreshButton disabled={pending !== null} label={t("providerConnections.actions.refresh")} onClick={() => { void load() }} />
@@ -192,7 +192,7 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
     {error ? <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("errors.load")} /> : null}
     {notice ? <Notice message={notice} /> : null}
     <OwnerOllamaPanel csrfToken={csrfToken} />
-    <section aria-labelledby="configured-provider-title" className="provider-section provider-section--configured"><div className="provider-section__heading"><div><h3 id="configured-provider-title">{t("providerConnections.section.configuredTitle")}</h3><p>{t("providerConnections.section.configuredDescription")}</p></div><span>{t("providerConnections.section.count", { count: configured.length })}</span></div>
+    <section aria-labelledby="configured-provider-title" className="provider-section provider-section--configured"><div className="provider-section__heading"><div><h3 id="configured-provider-title">{t("providerConnections.section.configuredTitle")}</h3></div><span>{t("providerConnections.section.count", { count: configured.length })}</span></div>
       {configured.length === 0 ? <p className="empty-state">{t("providerConnections.section.configuredEmpty")}</p> : <div className="provider-grid">{configured.map((connection) => <ConfiguredConnectionCard
         busy={pending?.endsWith(connection.connection_id) ?? false}
         connection={connection}
@@ -204,7 +204,7 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
         onVerify={() => { void verify(connection) }}
       />)}</div>}
     </section>
-    <section aria-labelledby="available-provider-title" className="provider-section provider-section--available"><div className="provider-section__heading"><div><h3 id="available-provider-title">{t("providerConnections.available.title")}</h3><p>{t("providerConnections.available.description")}</p></div></div><div className="provider-grid">
+    <section aria-labelledby="available-provider-title" className="provider-section provider-section--available"><div className="provider-section__heading"><div><h3 id="available-provider-title">{t("providerConnections.available.title")}</h3></div></div><div className="provider-grid">
       {featuredProducts.map((product) => <button aria-label={t("providerConnections.actions.configure", { name: product.name })} className="provider-card provider-card--available" key={product.catalog_id} onClick={() => setEditing({ connection: null, product })} type="button"><span className="provider-card__brand"><ProviderBrandLogo product={product} /><strong>{product.name}</strong></span></button>)}
       <button aria-label={t("providerConnections.actions.addOther")} className="provider-card provider-card--add" onClick={() => setOtherOpen(true)} type="button"><span className="provider-card__add-mark"><Icon name="plus" size={24} /></span><strong>{t("providerConnections.actions.addOther")}</strong></button>
     </div></section>
@@ -212,7 +212,7 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
     <CustomProviderDialog onOpenChange={setCreatingCustom} onSave={saveCustom} open={creatingCustom} preset={customPreset} />
     <ProviderModelsDialog connection={viewingModels} csrfToken={csrfToken} onChanged={load} onOpenChange={(open) => { if (!open) setViewingModels(null) }} open={viewingModels !== null} />
     <ModelMatrixDialog csrfToken={csrfToken} onOpenChange={setMatrixOpen} open={matrixOpen} />
-    <ManageDialog description={t("providerConnections.other.description")} onOpenChange={setOtherOpen} open={otherOpen} title={t("providerConnections.other.title")}><SelectField label={t("providerConnections.other.product")} onValueChange={setOtherProductId} options={[{ label: t("providerConnections.other.placeholder"), value: NO_PRODUCT }, ...otherOptions.map(({ label, value }) => ({ label, value }))]} value={otherProductId} /><div className="manage-actions"><Button disabled={otherProductId === NO_PRODUCT} onClick={chooseOther} type="button">{t("providerConnections.actions.choose")}</Button><Button onClick={() => setOtherOpen(false)} type="button" variant="outline">{t("providerConnections.actions.cancel")}</Button></div></ManageDialog>
+    <ManageDialog onOpenChange={setOtherOpen} open={otherOpen} title={t("providerConnections.other.title")}><SelectField label={t("providerConnections.other.product")} onValueChange={setOtherProductId} options={[{ label: t("providerConnections.other.placeholder"), value: NO_PRODUCT }, ...otherOptions.map(({ label, value }) => ({ label, value }))]} value={otherProductId} /><div className="manage-actions"><Button disabled={otherProductId === NO_PRODUCT} onClick={chooseOther} type="button">{t("providerConnections.actions.choose")}</Button><Button onClick={() => setOtherOpen(false)} type="button" variant="outline">{t("providerConnections.actions.cancel")}</Button></div></ManageDialog>
     <ConfirmDialog confirmLabel={t("providerConnections.delete.confirm")} danger description={deleting ? t("providerConnections.delete.description", { name: deleting.alias }) : t("providerConnections.delete.descriptionGeneric")} onConfirm={() => { void remove() }} onOpenChange={(open) => { if (!open && pending === null) setDeleting(null) }} open={deleting !== null} pending={pending?.startsWith("delete:") ?? false} title={t("providerConnections.delete.title")} />
   </section>
 }

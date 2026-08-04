@@ -66,7 +66,6 @@ export function CustomProviderDialog({ onOpenChange, onSave, open, preset = "ope
   }
 
   return <ManageDialog
-    description={t(preset === "anthropic" ? "providerConnections.custom.anthropicDescription" : "providerConnections.custom.openaiDescription")}
     onOpenChange={onOpenChange}
     open={open}
     title={t(preset === "anthropic" ? "providerConnections.custom.anthropicTitle" : "providerConnections.custom.openaiTitle")}

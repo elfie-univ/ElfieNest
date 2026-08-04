@@ -155,10 +155,11 @@ describe("ManageUsersPanel real-data states", () => {
     renderPanel()
 
     // When: the management panel and first user card are located.
-    const panelHeading = await screen.findByRole("heading", { name: "本地成员" })
-    const panel = panelHeading.closest("section")
-    const card = (await screen.findAllByRole("article"))[0]
+    const cards = await screen.findAllByRole("article")
+    const panel = document.querySelector(".manage-identity-panel")
+    const card = cards[0]
     if (!(panel instanceof HTMLElement) || !(card instanceof HTMLElement)) throw new TypeError("Expected user panel and card")
+    expect(screen.queryByRole("heading", { name: "本地成员" })).not.toBeInTheDocument()
 
     // Then: layout CSS has stable anchors for the panel and two four-field groups.
     expect(panel).toHaveClass("manage-identity-panel")

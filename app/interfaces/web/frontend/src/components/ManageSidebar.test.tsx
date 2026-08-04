@@ -73,7 +73,7 @@ describe("ManageSidebar", () => {
     const expectedGroups = [
       { id: "operations", label: "运行维护", labels: ["状态监控"] },
       { id: "business", label: "业务管理", labels: ["用户管理", "精灵管理", "精灵巢管理"] },
-      { id: "models", label: "模型订阅", labels: ["模型订阅", "粮食策略"] },
+      { id: "models", label: "模型与粮食", labels: ["模型订阅", "粮食策略"] },
       { id: "system", label: "系统配置", labels: ["工具与权限", "系统设置"] },
     ] as const
     expect(MANAGE_NAV_GROUPS.map((group) => group.id)).toEqual(expectedGroups.map((group) => group.id))
@@ -120,6 +120,7 @@ describe("ManageSidebar", () => {
 
     const dialog = screen.getByRole("dialog", { name: "Open ElfieNest on your phone" })
     expect(screen.getByRole("button", { name: "Elfie Nest management" })).toBeInTheDocument()
+    expect(screen.getByRole("group", { name: "Models & Food" })).toBeInTheDocument()
     expect(screen.getByRole("group", { name: "System configuration" })).toBeInTheDocument()
     expect(within(dialog).getByRole("button", { name: "Close mobile access QR code" })).toBeInTheDocument()
     expect(await within(dialog).findByText("Unable to load management data.")).toBeInTheDocument()

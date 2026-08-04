@@ -57,7 +57,7 @@ export function ClassicNestFloorPlan({ beds, desiredBedCount, roomName }: { read
   const groups = Math.max(1, Math.ceil(count / 4))
   const visualBeds = Array.from({ length: groups * 4 }, (_, index) => beds[index])
   return <section className="room-map-panel">
-    <header><strong>{t("nest.floorplan.floorplanTitle", { roomName })}</strong><span>{t("nest.floorplan.sceneSync")}</span></header>
+    <header><strong>{t("nest.floorplan.floorplanTitle", { roomName })}</strong></header>
     <div className="room-map-scroll"><div className="room-map" style={{ width: `${96 + groups * 300 + 40}px` }}>
       <div aria-label={t("nest.floorplan.ariaPlan", { roomName })} className="nest-floorplan">
         <aside aria-label={t("nest.floorplan.ariaTerminal")} className="portal-entrance">

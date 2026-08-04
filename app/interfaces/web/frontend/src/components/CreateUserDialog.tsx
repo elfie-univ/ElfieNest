@@ -58,7 +58,7 @@ export function CreateUserDialog({ actorRole, adminCapacityReached, csrfToken, o
     }
   }
 
-  return <ManageDialog description={t("users.create.description")} onOpenChange={(next) => { if (!next && !pending) close() }} open={open} title={t("users.create.title")}>
+  return <ManageDialog onOpenChange={(next) => { if (!next && !pending) close() }} open={open} title={t("users.create.title")}>
     <form className="manage-dialog__form" onSubmit={(event) => { event.preventDefault(); void save() }}>
       {error ? <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("users.errors.create")} /> : null}
       <TextField autoFocus label={t("users.create.accountId")} onChange={setAccountId} required value={accountId} />
