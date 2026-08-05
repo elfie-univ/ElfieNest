@@ -149,7 +149,17 @@ export const manage = {
   runtimeTools: { actions: { refresh: "刷新", save: "保存工具", verify: "验证工具" }, description: "所有工具设置和验证均经超级管理员 API；密钥字段只写不读。", jsonLabel: "工具 JSON 配置", noticeSaved: "工具配置已保存。", noticeVerified: "验证结果：{{result}}", title: "工具", validationObject: "工具配置必须是 JSON 对象。", validationSyntax: "请输入合法 JSON。" },
   rawData: { actions: { refresh: "刷新", save: "保存配置" }, jsonLabel: "{{title}} JSON 配置", loading: "正在加载…", noticeSaved: "配置已保存。", validationSyntax: "请输入合法 JSON。" },
   runtimeMonitor: {
-    fallback: { configured: "默认回退：{{provider}}", missing: "默认回退尚未配置" }, health: { attention: "待检查", ok: "正常" }, labels: { active: "已启用", elfies: "已登记精灵", elfiesDetail: "当前管理范围内的精灵", fallbackProviders: "待配置 / 离线", health: "系统健康", lastEvent: "最近事件：{{event}}", models: "可见模型", modelsDetail: "目录共 {{count}} 个模型", noEvent: "暂无", providers: "可用供应商", reading: "正在读取", runtimeEvents: "运行事件" }, modules: { alerts: "系统提醒", models: "模型服务" }, noAlerts: "各项指标平稳，暂无额外提醒。", readingStatus: "正在读取运行状态…", refresh: "刷新状态",
+    allLoadFailed: "状态数据暂时无法读取，请点击刷新。",
+    authRequired: "管理会话已失效，请重新登录。",
+    cards: { elfies: "精灵", elfiesDetail: "在线 {{online}} · 未分配床位 {{unassigned}}", health: "系统健康", reading: "正在读取", services: "模型服务", servicesDetail: "{{count}} 个可用模型 · {{local}}", users: "用户", usersDetail: "在线 {{count}} 人" },
+    events: { beds: "{{count}} 个精灵尚未分配床位", empty: "暂无需要处理的事项", latest: "运行事件：{{subject}}", noServices: "尚未配置模型服务", ollama: "本地 Ollama 未正常运行", pendingTitle: "待处理", providerFailed: "{{name}} 连接失败", providerUnverified: "{{name}} 尚未验证", recentTitle: "最近事件", system: "{{services}}" },
+    health: { attention: "需处理", error: "异常", issueSuffix: "异常", ok: "正常", pending: "有事项待处理", serviceSeparator: "、", services: { core: "核心服务", godotRuntime: "Godot 运行时", godotWeb: "Godot Web 服务" }, servicesWithIssues: "（子服务：{{services}}）", stable: "服务正常", unknown: "暂不可读" },
+    moduleUnavailable: "该模块暂时无法读取。",
+    modules: { events: "服务事件", services: "模型服务明细" },
+    partialLoad: "部分状态数据暂时无法读取。",
+    readingStatus: "正在读取运行状态…",
+    refresh: "刷新状态",
+    services: { availableModels: "{{count}} 个可用模型", empty: "尚未配置模型服务。", localRunning: "本地 Ollama 运行中", localStopped: "本地 Ollama 未运行", localUnknown: "本地 Ollama 状态未知", status: { attention: "异常", disabled: "已停用", healthy: "正常", unknown: "暂不可读", unverified: "待验证" } },
   },
   executionProfile: {
     actions: { addOption: "添加参数", delete: "删除" }, fields: { currentModel: "{{model}}（当前）", maxTokens: "{{label}}最大 Tokens", model: "{{label}}模型", optionKey: "{{label}}参数名 {{number}}", optionValue: "{{label}}参数值 {{number}}", providerOptions: "Provider 参数", reasoning: "{{label}}推理档位", temperature: "{{label}}温度", tools: "{{label}}工具" }, noOptions: "没有额外 Provider 参数。", notConfigured: "未配置", notConfiguredRole: "该角色当前未配置。", reasoning: { balanced: "均衡", deep: "深度", low: "低", max: "最大", off: "关闭", verify: "校验" }, toolsHint: "多个工具用逗号分隔；留空表示不额外启用工具。",

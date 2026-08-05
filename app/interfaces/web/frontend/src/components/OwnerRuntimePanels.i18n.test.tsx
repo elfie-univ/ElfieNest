@@ -14,30 +14,92 @@ vi.mock("../api/client", async (loadOriginal) => {
   return { ...original, ownerRead: vi.fn(), ownerWrite: vi.fn() }
 })
 
+type RuntimeEventFixture = {
+  readonly event_type: string
+  readonly status: string
+  readonly subject: string
+  readonly metadata: Record<string, unknown>
+}
+
 describe("runtime and raw-data panel behavior", () => {
   beforeEach(() => {
-    vi.mocked(ownerRead).mockImplementation(async (path) => {
-      if (path === "/api/owner/runtime/status") return {
-        status: "mystery",
-        providers: { total: 1, active: 0, inactive: 1 },
-        models: { total: 1, visible: 1, hidden: 0 },
-        fallback: { provider: "provider/qwen3:4b", configured: true },
-        observer: { event_count: 0, last_event: null },
-        notes: [],
-      }
-      return { endpoint: "https://raw.example/v1", protocol_field: "raw_value" }
-    })
+    vi.mocked(ownerRead).mockImplementation(async (path) => monitorPayload(path))
     vi.mocked(ownerWrite).mockResolvedValue({ saved: true })
   })
 
   it("renders the monitor in English while preserving technical values", async () => {
-    renderWithLocale(<ManageMonitorPanel elfieCount={2} />, "en-US")
+    renderWithLocale(<ManageMonitorPanel />, "en-US")
 
-    expect(await screen.findByText(/provider\/qwen3:4b/)).toBeInTheDocument()
-    expect(screen.queryByRole("heading", { name: "Unified monitor" })).not.toBeInTheDocument()
-    expect(screen.getByText(/provider\/qwen3:4b/)).toBeInTheDocument()
-    expect(screen.getByText("Needs attention")).toBeInTheDocument()
-    expect(screen.queryByText("综合监控")).not.toBeInTheDocument()
+    expect(await screen.findByText("Model service details")).toBeInTheDocument()
+    expect(screen.getByText("Users")).toBeInTheDocument()
+    expect(screen.getByText("Elfies")).toBeInTheDocument()
+    expect(screen.getByText("Ollama")).toBeInTheDocument()
+    expect(screen.getAllByText("Needs attention")).not.toHaveLength(0)
+    expect(screen.getByText("1 Elfies have no assigned bed")).toBeInTheDocument()
+  })
+
+  it("shows a concise healthy status when no issue is present", async () => {
+    vi.mocked(ownerRead).mockImplementation(async (path) => {
+      if (path === "/api/owner/nest/rooms") return [{ beds: [{ occupant_id: "elfie-1" }, { occupant_id: "elfie-2" }] }]
+      return monitorPayload(path)
+    })
+
+    renderWithLocale(<ManageMonitorPanel />, "en-US")
+
+    expect(await screen.findByText("Services healthy")).toBeInTheDocument()
+  })
+
+  it("names the unavailable system service in the health card", async () => {
+    vi.mocked(ownerRead).mockImplementation(async (path) => {
+      if (path === "/api/health") return { status: "ok", engine_ready: true, godot_web_ready: true, godot_runtime_ready: false }
+      if (path === "/api/owner/nest/rooms") return [{ beds: [{ occupant_id: "elfie-1" }, { occupant_id: "elfie-2" }] }]
+      return monitorPayload(path)
+    })
+
+    renderWithLocale(<ManageMonitorPanel />, "zh-CN")
+
+    expect(await screen.findByText("（子服务：Godot 运行时异常）")).toBeInTheDocument()
+    expect(screen.getByText("Godot 运行时异常")).toBeInTheDocument()
+  })
+
+  it("renders a structured latest runtime event without treating it as a load failure", async () => {
+    vi.mocked(ownerRead).mockImplementation(async (path) => monitorPayload(path, {
+      event_type: "fallback",
+      status: "ok",
+      subject: "local_fast",
+      metadata: {},
+    }))
+
+    renderWithLocale(<ManageMonitorPanel />, "zh-CN")
+
+    expect(await screen.findByText(/local_fast/)).toBeInTheDocument()
+    expect(screen.queryByText("管理数据加载失败。")).not.toBeInTheDocument()
+  })
+
+  it("keeps the available cards visible when one read-only source fails", async () => {
+    vi.mocked(ownerRead).mockImplementation(async (path) => {
+      if (path === "/api/owner/nest/rooms") throw new Error("rooms unavailable")
+      return monitorPayload(path)
+    })
+
+    renderWithLocale(<ManageMonitorPanel />, "zh-CN")
+
+    expect(await screen.findByText("部分状态数据暂时无法读取。")).toBeInTheDocument()
+    expect(screen.getByText("用户")).toBeInTheDocument()
+    expect(screen.getAllByText("2")).toHaveLength(2)
+    expect(screen.getByText("模型服务明细")).toBeInTheDocument()
+  })
+
+  it.each([401, 403])("shows an authentication notice for protected read status %i", async (status) => {
+    vi.mocked(ownerRead).mockImplementation(async (path) => {
+      if (path === "/api/owner/users") throw new ApiError(status, "session expired")
+      return monitorPayload(path)
+    })
+
+    renderWithLocale(<ManageMonitorPanel />, "zh-CN")
+
+    expect(await screen.findByText("管理会话已失效，请重新登录。")).toBeInTheDocument()
+    expect(screen.queryByText("部分状态数据暂时无法读取。")).not.toBeInTheDocument()
   })
 
   it("preserves a raw JSON draft across locale switching", async () => {
@@ -81,4 +143,42 @@ function renderWithLocale(node: React.ReactNode, locale: SupportedLocale): Retur
   document.documentElement.lang = locale
   render(<I18nextProvider i18n={instance}>{node}</I18nextProvider>)
   return instance
+}
+
+function monitorPayload(path: string, lastEvent: RuntimeEventFixture | null = null): unknown {
+  switch (path) {
+    case "/api/health":
+      return { status: "ok", engine_ready: true, godot_web_ready: true, godot_runtime_ready: true }
+    case "/api/owner/runtime/status":
+      return {
+        status: "ok",
+        providers: { total: 1, active: 1, inactive: 0 },
+        models: { total: 1, visible: 1, hidden: 0 },
+        fallback: { provider: "ollama", configured: true },
+        observer: { event_count: lastEvent === null ? 0 : 1, last_event: lastEvent },
+        notes: [],
+      }
+    case "/api/owner/users":
+      return [{ presence: "online" }, { presence: "offline" }]
+    case "/api/owner/elfies":
+      return [
+        { elfie_id: "elfie-1", profile: { online_status: "online" } },
+        { elfie_id: "elfie-2", profile: { online_status: "offline" } },
+      ]
+    case "/api/owner/nest/rooms":
+      return [{ beds: [{ occupant_id: "elfie-1" }, { occupant_id: null }] }]
+    case "/api/owner/providers/connections":
+      return [{
+        catalog_id: "ollama",
+        alias: "Ollama",
+        enabled: true,
+        archived: false,
+        verification: { status: "passed" },
+        models: [{ available: true, hidden: false, retired: false }],
+      }]
+    case "/api/owner/providers/ollama":
+      return { state: "healthy", recommended_model: "qwen2.5:0.5b", installed_model_count: 1 }
+    default:
+      return { endpoint: "https://raw.example/v1", protocol_field: "raw_value" }
+  }
 }
