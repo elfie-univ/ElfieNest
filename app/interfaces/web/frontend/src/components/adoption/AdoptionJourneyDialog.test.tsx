@@ -52,10 +52,20 @@ describe("AdoptionJourneyDialog", () => {
     render(<I18nextProvider i18n={createI18n()}><AdoptionJourneyDialog accountId="owner" csrfToken="csrf" onAdopted={onAdopted} onOpenChange={vi.fn()} open /></I18nextProvider>)
 
     expect(await screen.findByRole("heading", { name: "不是挑选一只精灵，而是遇见一位朋友" })).toBeInTheDocument()
+    expect(screen.queryByText("你提交的是愿意认识怎样的朋友；候选精灵也会阅读这份意向。")).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "开始填写意向" }))
+    expect(await screen.findByRole("heading", { name: "你希望先认识怎样的 Elfie？" })).toBeInTheDocument()
+    expect(screen.queryByText("第一步 · 基本意向")).not.toBeInTheDocument()
+    expect(screen.queryByText("先确定物种、生命阶段和性别倾向。选择的是愿意见见的范围，不是在设置某一位精灵的身份。")).not.toBeInTheDocument()
+    expect(screen.queryByText("看看狐狸报名者")).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: /狐狸/ }))
     await user.click(screen.getByRole("button", { name: /继续：外貌倾向/ }))
+    expect(screen.queryByText("第二步 · 外貌倾向")).not.toBeInTheDocument()
+    expect(screen.queryByText("用容易理解的视觉印象表达偏好。每项都可以交给缘分，实际候选仍会保留自己的特点。")).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: /继续：相处期待/ }))
+    expect(screen.queryByText("第三步 · 相处期待")).not.toBeInTheDocument()
+    expect(screen.queryByText("一次回答一个生活情景。候选 Elfie 也会阅读这些答案，判断这样的 Nest 是否适合自己。")).not.toBeInTheDocument()
+    expect(screen.queryByText("生活情景 1 · 忙碌时")).not.toBeInTheDocument()
 
     for (let index = 0; index < 5; index += 1) {
       await user.click(screen.getByRole("button", { name: "都可以" }))
@@ -63,10 +73,12 @@ describe("AdoptionJourneyDialog", () => {
     }
 
     expect(await screen.findByRole("heading", { name: "把这份地球意向发送给 Elfaria" })).toBeInTheDocument()
+    expect(screen.queryByText("发送后，系统会根据这些范围现场生成 5 位可能合适的报名者。这里仍然可以返回修改。")).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: /现场生成候选/ }))
     expect(await screen.findByRole("heading", { name: "找到 5 位可能与你合拍的报名者" })).toBeInTheDocument()
+    expect(screen.queryByText("选择 1–3 位发送认识邀请。这里使用静态报名照，不同时加载多个 3D 形象。")).not.toBeInTheDocument()
     expect(api.adoptionCandidates).toHaveBeenCalledWith(expect.objectContaining({ species_id: "fox" }), "csrf")
-  })
+  }, 15000)
 
   it("allows selecting up to three candidates and keeps the selected snapshot", async () => {
     const user = userEvent.setup()
@@ -85,5 +97,11 @@ describe("AdoptionJourneyDialog", () => {
     await user.click(screen.getByRole("button", { name: /Aro 1/ }))
     await user.click(screen.getByRole("button", { name: /发送认识邀请/ }))
     await waitFor(() => expect(api.adoptionReplies).toHaveBeenCalledWith("set-1", ["candidate-0", "candidate-1"], "csrf"))
-  })
+    expect(await screen.findByRole("heading", { name: "你收到了 2 封愿意继续认识的回信" })).toBeInTheDocument()
+    expect(screen.queryByText("从愿意继续认识的 Elfie 中选择一位。打开回信时只展示静态形象和一小段自我表达。")).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: /Aro 0/ }))
+    await user.click(screen.getByRole("button", { name: /选择 TA 继续/ }))
+    expect(await screen.findByRole("heading", { name: "约定在地球上的称呼" })).toBeInTheDocument()
+    expect(screen.queryByText("Elfie 已经有自己的原名。你们可以保留原名、使用 TA 提议的地球昵称，或者提出一个新称呼。")).not.toBeInTheDocument()
+  }, 15000)
 })

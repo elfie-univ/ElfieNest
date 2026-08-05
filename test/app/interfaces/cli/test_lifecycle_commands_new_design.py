@@ -7,6 +7,11 @@ import pytest
 
 from app.features.administration.system_service import PortStatus
 from app.interfaces.cli import lifecycle_commands
+from app.orchestration.lifecycle.runtime_health import (
+    OwnerLease,
+    RuntimeHealth,
+    RuntimeHealthState,
+)
 from app.orchestration.lifecycle.types import ServiceLifecycleResult
 from scripts import elfienest
 
@@ -21,6 +26,200 @@ def isolate_lifecycle_home(monkeypatch, tmp_path: Path) -> None:
         "_lifecycle_receipt_home",
         lambda: tmp_path / "lifecycle-home",
     )
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "_prepare_frontend_for_launch",
+        lambda: None,
+        raising=False,
+    )
+
+
+class _LaunchSupervisor:
+    def __init__(
+        self,
+        health: RuntimeHealth,
+        events: list[str],
+        *,
+        start_result: ServiceLifecycleResult | None = None,
+        stop_result: ServiceLifecycleResult | None = None,
+    ) -> None:
+        self.health = health
+        self.events = events
+        self.start_result = start_result or ServiceLifecycleResult(
+            status="started", pid=42
+        )
+        self.stop_result = stop_result or ServiceLifecycleResult(status="stopped")
+
+    def status(self) -> RuntimeHealth:
+        self.events.append("status")
+        return self.health
+
+    def start(self, *, owner_id: str) -> ServiceLifecycleResult:
+        assert owner_id == "cli"
+        self.events.append("start")
+        return self.start_result
+
+    def stop(self) -> ServiceLifecycleResult:
+        self.events.append("stop")
+        return self.stop_result
+
+
+def _stable_health() -> RuntimeHealth:
+    return RuntimeHealth(
+        state=RuntimeHealthState.READY,
+        generation=1,
+        owner_lease=OwnerLease(owner_id="cli", generation=1),
+        components=(),
+    )
+
+
+def _stopped_health() -> RuntimeHealth:
+    return RuntimeHealth(
+        state=RuntimeHealthState.STOPPED,
+        generation=0,
+        owner_lease=None,
+        components=(),
+    )
+
+
+def test_start_when_stably_running_skips_frontend_preflight(monkeypatch) -> None:
+    events: list[str] = []
+    supervisor = _LaunchSupervisor(
+        _stable_health(),
+        events,
+        start_result=ServiceLifecycleResult(status="already_running", pid=42),
+    )
+    monkeypatch.setattr(
+        lifecycle_commands, "_supervisor_for", lambda *_args, **_kwargs: supervisor
+    )
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "_prepare_frontend_for_launch",
+        lambda: events.append("build"),
+    )
+
+    result = lifecycle_commands.start_background_service()
+
+    assert result.status == "already_running"
+    assert events == ["status", "start"]
+
+
+def test_start_when_stopped_prepares_frontend_before_launch(monkeypatch) -> None:
+    events: list[str] = []
+    supervisor = _LaunchSupervisor(_stopped_health(), events)
+    monkeypatch.setattr(
+        lifecycle_commands, "_supervisor_for", lambda *_args, **_kwargs: supervisor
+    )
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "_prepare_frontend_for_launch",
+        lambda: events.append("build"),
+    )
+
+    result = lifecycle_commands.start_background_service()
+
+    assert result.status == "started"
+    assert events == ["status", "build", "start"]
+
+
+def test_start_does_not_launch_when_frontend_preflight_fails(monkeypatch) -> None:
+    events: list[str] = []
+    supervisor = _LaunchSupervisor(_stopped_health(), events)
+    monkeypatch.setattr(
+        lifecycle_commands, "_supervisor_for", lambda *_args, **_kwargs: supervisor
+    )
+
+    def fail() -> None:
+        events.append("build")
+        from app.interfaces.web.frontend_build import FrontendBuildError
+
+        raise FrontendBuildError("frontend is stale")
+
+    monkeypatch.setattr(lifecycle_commands, "_prepare_frontend_for_launch", fail)
+
+    result = lifecycle_commands.start_background_service()
+
+    assert result.status == "failed"
+    assert events == ["status", "build"]
+    assert result.error is not None
+
+
+def test_restart_prepares_frontend_before_stopping_old_service(monkeypatch) -> None:
+    events: list[str] = []
+    stopped = _LaunchSupervisor(
+        _stable_health(),
+        events,
+        stop_result=ServiceLifecycleResult(
+            status="stopped", command=("python", "scripts/serve.py")
+        ),
+    )
+    started = _LaunchSupervisor(_stopped_health(), events)
+    supervisors = iter((stopped, started))
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "_supervisor_for",
+        lambda *_args, **_kwargs: next(supervisors),
+    )
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "_prepare_frontend_for_launch",
+        lambda: events.append("build"),
+    )
+
+    result = lifecycle_commands.restart_background_service()
+
+    assert result.status == "started"
+    assert events == ["build", "stop", "start"]
+
+
+def test_restart_build_failure_keeps_old_service_running(monkeypatch) -> None:
+    events: list[str] = []
+    stopped = _LaunchSupervisor(_stable_health(), events)
+    monkeypatch.setattr(
+        lifecycle_commands, "_supervisor_for", lambda *_args, **_kwargs: stopped
+    )
+
+    def fail() -> None:
+        events.append("build")
+        from app.interfaces.web.frontend_build import FrontendBuildError
+
+        raise FrontendBuildError("frontend build failed")
+
+    monkeypatch.setattr(lifecycle_commands, "_prepare_frontend_for_launch", fail)
+
+    result = lifecycle_commands.restart_background_service()
+
+    assert result.status == "failed"
+    assert events == ["build"]
+
+
+def test_stop_never_runs_frontend_preflight(monkeypatch) -> None:
+    events: list[str] = []
+    supervisor = _LaunchSupervisor(_stable_health(), events)
+    monkeypatch.setattr(
+        lifecycle_commands, "_supervisor_for", lambda *_args, **_kwargs: supervisor
+    )
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "_prepare_frontend_for_launch",
+        lambda: pytest.fail("stop must not build frontend"),
+    )
+
+    result = lifecycle_commands.stop_background_service()
+
+    assert result.status == "stopped"
+    assert events == ["stop"]
+
+
+def test_release_lifecycle_preflight_is_a_no_op(monkeypatch) -> None:
+    monkeypatch.setenv("ELFIENEST_RUNTIME_MODE", "release")
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "ensure_frontend_build",
+        lambda **_kwargs: pytest.fail("release lifecycle must not build frontend"),
+    )
+
+    lifecycle_commands._prepare_frontend_for_launch()
 
 
 def test_lifecycle_commands_use_repository_root_for_service_command() -> None:

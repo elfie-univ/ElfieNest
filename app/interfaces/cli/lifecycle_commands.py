@@ -26,6 +26,7 @@ from app.features.administration.system_service import (
     default_port_statuses,
     service_port_statuses,
 )
+from app.interfaces.web.frontend_build import FrontendBuildError, ensure_frontend_build
 from app.orchestration.lifecycle import desktop as desktop_lifecycle
 from app.orchestration.lifecycle.authority import (
     AuthorityLifecycleConfig,
@@ -315,6 +316,23 @@ def _lifecycle_receipt_home() -> Path:
     )
 
 
+def _prepare_frontend_for_launch() -> None:
+    """Refresh the source Web bundle only for an explicit development launch."""
+    runtime_mode = os.environ.get("ELFIENEST_RUNTIME_MODE")
+    if runtime_mode != "development":
+        return
+    ensure_frontend_build(runtime_mode=runtime_mode)
+
+
+def _runtime_is_stably_running(supervisor: RuntimeSupervisor) -> bool:
+    """Treat a leased ready/degraded generation as an idempotent running service."""
+    health = supervisor.status()
+    return health.owner_lease is not None and health.state in {
+        RuntimeHealthState.READY,
+        RuntimeHealthState.DEGRADED,
+    }
+
+
 def start_background_service(
     command: Optional[Sequence[str]] = None,
     *,
@@ -336,7 +354,20 @@ def start_background_service(
         )
         _print_start_result(result)
         return result
-    result = _supervisor_for(launch_command, http_port).start(owner_id=owner_id)
+    supervisor = _supervisor_for(launch_command, http_port)
+    try:
+        if not _runtime_is_stably_running(supervisor):
+            _prepare_frontend_for_launch()
+    except FrontendBuildError as error:
+        progress.stop(success=False)
+        result = ServiceLifecycleResult(
+            status="failed",
+            command=launch_command,
+            error=LaunchFailedError(f"Frontend build failed: {error}"),
+        )
+        _print_start_result(result)
+        return result
+    result = supervisor.start(owner_id=owner_id)
     if result.status in {"started", "already_running"}:
         try:
             _remember_lifecycle_data_home(_data_home_for_command(launch_command))
@@ -385,11 +416,23 @@ def restart_background_service() -> ServiceLifecycleResult:
     progress = ProgressIndicator("Restarting service")
     progress.start()
 
-    stopped = _supervisor_for(
+    stop_supervisor = _supervisor_for(
         default_service_command(),
         DEFAULT_HTTP_PORT,
         use_remembered_home=True,
-    ).stop()
+    )
+    try:
+        _prepare_frontend_for_launch()
+    except FrontendBuildError as error:
+        progress.stop(success=False)
+        result = ServiceLifecycleResult(
+            status="failed",
+            error=LaunchFailedError(f"Frontend build failed: {error}"),
+        )
+        print(f"  ❌ Service restart failed: {result.error}")
+        return result
+
+    stopped = stop_supervisor.stop()
     if stopped.status == "failed":
         progress.stop(success=False)
         print(f"  ❌ Cannot restart service: {stopped.error}")

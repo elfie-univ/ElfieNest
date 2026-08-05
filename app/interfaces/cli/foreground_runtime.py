@@ -9,6 +9,7 @@ from types import FrameType
 from typing import Callable, Final, Optional, Sequence
 
 from app.interfaces.cli import lifecycle_commands
+from app.interfaces.web.frontend_build import FrontendBuildError
 from app.orchestration.lifecycle.runtime_health import RuntimeHealthState
 from app.orchestration.lifecycle.types import LaunchFailedError, ServiceLifecycleResult
 
@@ -33,6 +34,17 @@ def run_foreground_service(
             status="failed",
             command=command,
             error=LaunchFailedError(f"Invalid service port arguments: {error}"),
+        )
+        lifecycle_commands._print_start_result(result)
+        return result
+
+    try:
+        lifecycle_commands._prepare_frontend_for_launch()
+    except FrontendBuildError as error:
+        result = ServiceLifecycleResult(
+            status="failed",
+            command=command,
+            error=LaunchFailedError(f"Frontend build failed: {error}"),
         )
         lifecycle_commands._print_start_result(result)
         return result

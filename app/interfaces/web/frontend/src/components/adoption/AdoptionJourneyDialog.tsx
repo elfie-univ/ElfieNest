@@ -16,7 +16,6 @@ import { Button } from "../ui/button"
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog"
@@ -189,17 +188,17 @@ function ScreenIntro({
   description,
   badge,
 }: {
-  readonly eyebrow: string
+  readonly eyebrow?: string
   readonly title: string
-  readonly description: string
+  readonly description?: string
   readonly badge?: string
 }) {
   return (
     <div className="adoption-screen-intro">
       <div>
-        <p className="adoption-eyebrow">{eyebrow}</p>
+        {eyebrow ? <p className="adoption-eyebrow">{eyebrow}</p> : null}
         <h2>{title}</h2>
-        <p>{description}</p>
+        {description ? <p>{description}</p> : null}
       </div>
       {badge ? <span className="adoption-badge">{badge}</span> : null}
     </div>
@@ -394,7 +393,6 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => { if (nextOpen) onOpenChange(true); else requestClose() }}>
       <DialogContent
-        aria-describedby="adoption-dialog-description"
         className="adoption-dialog"
         onEscapeKeyDown={(event) => { event.preventDefault(); requestClose() }}
         onPointerDownOutside={(event) => { event.preventDefault(); requestClose() }}
@@ -404,7 +402,6 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
           <div>
             <p className="adoption-dialog__kicker">{t("adoption.journey.window.kicker")}</p>
             <DialogTitle>{title}</DialogTitle>
-            <DialogDescription id="adoption-dialog-description">{t("adoption.journey.window.description")}</DialogDescription>
           </div>
           <Button aria-label={t("adoption.close")} className="adoption-dialog__close" disabled={isBusy} onClick={requestClose} size="icon" type="button" variant="ghost"><Icon name="x" /></Button>
         </DialogHeader>
@@ -480,9 +477,9 @@ function BasicScreen({
   readonly t: JourneyT
 }) {
   return <section>
-    <ScreenIntro badge={t("adoption.journey.badges.oneMinute")} description={t("adoption.journey.basic.description")} eyebrow={t("adoption.journey.basic.eyebrow")} title={t("adoption.journey.basic.title")} />
+    <ScreenIntro badge={t("adoption.journey.badges.oneMinute")} title={t("adoption.journey.basic.title")} />
     <fieldset className="adoption-fieldset"><legend>{t("adoption.journey.basic.speciesLabel")}</legend><div className="adoption-species-grid">
-      {allowedSpecies.map((speciesId) => <ChoiceButton className="adoption-species-choice" key={speciesId} onClick={() => dispatch({ type: "set-basic", field: "speciesId", value: speciesId })} selected={draft.speciesId === speciesId}><img alt="" src={`/adoption/${speciesId}.svg`} /><span><strong>{speciesName(speciesId)}</strong><small>{t(`adoption.journey.species.${speciesId}Hint`)}</small></span></ChoiceButton>)}
+      {allowedSpecies.map((speciesId) => <ChoiceButton className="adoption-species-choice" key={speciesId} onClick={() => dispatch({ type: "set-basic", field: "speciesId", value: speciesId })} selected={draft.speciesId === speciesId}><img alt="" src={`/adoption/${speciesId}.svg`} /><span><strong>{speciesName(speciesId)}</strong></span></ChoiceButton>)}
     </div></fieldset>
     <fieldset className="adoption-fieldset"><legend>{t("adoption.journey.basic.lifeStageLabel")}</legend><div className="adoption-option-row">{LIFE_STAGES.map((stage) => <ChoiceButton key={stage} onClick={() => dispatch({ type: "set-basic", field: "lifeStage", value: stage })} selected={draft.lifeStage === stage}>{stageName(stage)}</ChoiceButton>)}</div></fieldset>
     <fieldset className="adoption-fieldset"><legend>{t("adoption.journey.basic.genderLabel")}</legend><div className="adoption-option-row">{GENDERS.map((gender) => <ChoiceButton key={gender} onClick={() => dispatch({ type: "set-basic", field: "gender", value: gender })} selected={draft.gender === gender}>{t(`adoption.journey.genders.${gender}`)}</ChoiceButton>)}</div></fieldset>
@@ -498,7 +495,7 @@ function AppearanceScreen({ draft, dispatch, t }: { readonly draft: AdoptionDraf
     signature: ["warm", "marked", "ears", "any"],
   }
   return <section>
-    <ScreenIntro badge={t("adoption.journey.badges.broadChoices")} description={t("adoption.journey.appearance.description")} eyebrow={t("adoption.journey.appearance.eyebrow")} title={t("adoption.journey.appearance.title")} />
+    <ScreenIntro badge={t("adoption.journey.badges.broadChoices")} title={t("adoption.journey.appearance.title")} />
     <div className="adoption-appearance-grid">{APPEARANCE_GROUPS.map((group) => <fieldset className="adoption-fieldset" key={group}><legend>{t(`adoption.journey.appearance.groups.${group}.label`)}</legend><div className="adoption-appearance-options">{groups[group].map((value) => <ChoiceButton className="adoption-appearance-choice" key={value} onClick={() => dispatch({ type: "set-appearance", field: group, value } as AdoptionAction)} selected={draft[group] === value}><span className={`adoption-shape adoption-shape--${value}`} aria-hidden="true" />{t(`adoption.journey.appearance.groups.${group}.${value}`)}</ChoiceButton>)}</div></fieldset>)}</div>
     <fieldset className="adoption-fieldset"><legend>{t("adoption.journey.appearance.priorityLabel")}</legend><div className="adoption-option-row">{(["stature", "build", "face", "signature"] as const).map((priority) => <ChoiceButton key={priority} onClick={() => dispatch({ type: "set-appearance", field: "priority", value: priority })} selected={draft.priority === priority}>{t(`adoption.journey.appearance.groups.${priority}.label`)}</ChoiceButton>)}</div></fieldset>
   </section>
@@ -507,14 +504,14 @@ function AppearanceScreen({ draft, dispatch, t }: { readonly draft: AdoptionDraf
 function CompanionshipScreen({ draft, dispatch, questionIndex, t }: { readonly draft: AdoptionDraftState["draft"]; readonly dispatch: React.Dispatch<AdoptionAction>; readonly questionIndex: number; readonly t: JourneyT }) {
   const options = COMPANIONSHIP_OPTIONS[questionIndex] ?? COMPANIONSHIP_OPTIONS[0] ?? []
   return <section>
-    <ScreenIntro badge={t("adoption.journey.badges.questionCount", { current: questionIndex + 1, total: 5 })} description={t("adoption.journey.companionship.description")} eyebrow={t("adoption.journey.companionship.eyebrow")} title={t("adoption.journey.companionship.title")} />
+    <ScreenIntro badge={t("adoption.journey.badges.questionCount", { current: questionIndex + 1, total: 5 })} title={t("adoption.journey.companionship.title")} />
     <div className="adoption-question-layout"><nav aria-label={t("adoption.journey.companionship.questionLabel")} className="adoption-question-index">{[0, 1, 2, 3, 4].map((index) => <button aria-current={index === questionIndex ? "step" : undefined} className={index === questionIndex ? "adoption-question-index__item adoption-question-index__item--active" : "adoption-question-index__item"} key={index} onClick={() => dispatch({ type: "question", index })} type="button"><span>{index + 1}</span><small>{t(`adoption.journey.companionship.shortLabels.${index}`)}</small></button>)}</nav><div className="adoption-question-card"><p className="adoption-eyebrow">{t(`adoption.journey.companionship.scenarios.${questionIndex}.label`)}</p><h3>{t(`adoption.journey.companionship.scenarios.${questionIndex}.title`)}</h3><div className="adoption-answer-grid">{options.map((option) => <ChoiceButton key={option} onClick={() => dispatch({ type: "set-answer", index: questionIndex, value: option })} selected={draft.answers[questionIndex] === option}>{t(`adoption.journey.companionship.answers.${option}`)}</ChoiceButton>)}</div></div></div>
   </section>
 }
 
 function ReviewScreen({ draft, dispatch, speciesName, stageName, t }: { readonly draft: AdoptionDraftState["draft"]; readonly dispatch: React.Dispatch<AdoptionAction>; readonly speciesName: (id: SpeciesId) => string; readonly stageName: (stage: LifeStage) => string; readonly t: JourneyT }) {
   const answers = draft.answers.filter((answer): answer is CompanionAnswer => answer !== null).map((answer) => t(`adoption.journey.companionship.answers.${answer}`))
-  return <section><ScreenIntro badge={t("adoption.journey.badges.editable")} description={t("adoption.journey.review.description")} eyebrow={t("adoption.journey.review.eyebrow")} title={t("adoption.journey.review.title")} /><div className="adoption-review-grid"><ReviewCard title={t("adoption.journey.review.basic")} onEdit={() => dispatch({ type: "screen", screen: "basic" })} t={t} values={draft.speciesId ? [speciesName(draft.speciesId), stageName(draft.lifeStage), t(`adoption.journey.genders.${draft.gender}`)] : []} /><ReviewCard title={t("adoption.journey.review.appearance")} onEdit={() => dispatch({ type: "screen", screen: "appearance" })} t={t} values={[t(`adoption.journey.appearance.groups.stature.${draft.stature}`), t(`adoption.journey.appearance.groups.build.${draft.build}`), t(`adoption.journey.appearance.groups.face.${draft.face}`), t(`adoption.journey.appearance.groups.signature.${draft.signature}`), `${t("adoption.journey.review.priority")}: ${t(`adoption.journey.appearance.groups.${draft.priority}.label`)}`]} /><ReviewCard title={t("adoption.journey.review.companionship")} onEdit={() => { dispatch({ type: "screen", screen: "companionship" }); dispatch({ type: "question", index: 0 }) }} t={t} values={answers} /></div></section>
+  return <section><ScreenIntro badge={t("adoption.journey.badges.editable")} eyebrow={t("adoption.journey.review.eyebrow")} title={t("adoption.journey.review.title")} /><div className="adoption-review-grid"><ReviewCard title={t("adoption.journey.review.basic")} onEdit={() => dispatch({ type: "screen", screen: "basic" })} t={t} values={draft.speciesId ? [speciesName(draft.speciesId), stageName(draft.lifeStage), t(`adoption.journey.genders.${draft.gender}`)] : []} /><ReviewCard title={t("adoption.journey.review.appearance")} onEdit={() => dispatch({ type: "screen", screen: "appearance" })} t={t} values={[t(`adoption.journey.appearance.groups.stature.${draft.stature}`), t(`adoption.journey.appearance.groups.build.${draft.build}`), t(`adoption.journey.appearance.groups.face.${draft.face}`), t(`adoption.journey.appearance.groups.signature.${draft.signature}`), `${t("adoption.journey.review.priority")}: ${t(`adoption.journey.appearance.groups.${draft.priority}.label`)}`]} /><ReviewCard title={t("adoption.journey.review.companionship")} onEdit={() => { dispatch({ type: "screen", screen: "companionship" }); dispatch({ type: "question", index: 0 }) }} t={t} values={answers} /></div></section>
 }
 
 function ReviewCard({ title, values, onEdit, t }: { readonly title: string; readonly values: readonly string[]; readonly onEdit: () => void; readonly t: JourneyT }) {
@@ -526,7 +523,7 @@ function ProgressScreen({ icon, title, description }: { readonly icon: "sparkles
 }
 
 function ShortlistScreen({ candidates, dispatch, selectedIds, stageName, t }: { readonly candidates: readonly Candidate[]; readonly dispatch: React.Dispatch<AdoptionAction>; readonly selectedIds: readonly string[]; readonly stageName: (stage: LifeStage) => string; readonly t: JourneyT }) {
-  return <section><ScreenIntro badge={t("adoption.journey.badges.maxThree")} description={t("adoption.journey.shortlist.description")} eyebrow={t("adoption.journey.shortlist.eyebrow")} title={t("adoption.journey.shortlist.title")} /><div className="adoption-candidate-grid">{candidates.map((candidate) => <ChoiceButton className="adoption-candidate-card" key={candidate.candidateId} onClick={() => dispatch({ type: "toggle-candidate", candidateId: candidate.candidateId })} selected={selectedIds.includes(candidate.candidateId)}><img alt="" src={candidate.imageUrl} /><span className="adoption-candidate-card__copy"><strong>{candidate.originalName}</strong><small>{stageName(candidate.lifeStage)} · {t(`adoption.journey.genders.${candidate.gender}`)}</small><TagList values={candidate.appearanceTags.slice(0, 2)} /><span>{candidate.compatibility}</span></span></ChoiceButton>)}</div><div className="adoption-selection-status"><span>{t("adoption.journey.shortlist.selected", { count: selectedIds.length })}</span><small>{t("adoption.journey.shortlist.stability")}</small></div></section>
+  return <section><ScreenIntro badge={t("adoption.journey.badges.maxThree")} eyebrow={t("adoption.journey.shortlist.eyebrow")} title={t("adoption.journey.shortlist.title")} /><div className="adoption-candidate-grid">{candidates.map((candidate) => <ChoiceButton className="adoption-candidate-card" key={candidate.candidateId} onClick={() => dispatch({ type: "toggle-candidate", candidateId: candidate.candidateId })} selected={selectedIds.includes(candidate.candidateId)}><img alt="" src={candidate.imageUrl} /><span className="adoption-candidate-card__copy"><strong>{candidate.originalName}</strong><small>{stageName(candidate.lifeStage)} · {t(`adoption.journey.genders.${candidate.gender}`)}</small><TagList values={candidate.appearanceTags.slice(0, 2)} /><span>{candidate.compatibility}</span></span></ChoiceButton>)}</div><div className="adoption-selection-status"><span>{t("adoption.journey.shortlist.selected", { count: selectedIds.length })}</span><small>{t("adoption.journey.shortlist.stability")}</small></div></section>
 }
 
 function InvitingScreen({ candidates, t }: { readonly candidates: readonly Candidate[]; readonly t: JourneyT }) {
@@ -535,11 +532,11 @@ function InvitingScreen({ candidates, t }: { readonly candidates: readonly Candi
 
 function RepliesScreen({ dispatch, finalCandidateId, replies, t }: { readonly dispatch: React.Dispatch<AdoptionAction>; readonly finalCandidateId: string | null; readonly replies: readonly CandidateReply[]; readonly t: JourneyT }) {
   const accepted = replies.filter((reply) => reply.status === "accepted").length
-  return <section><ScreenIntro badge={t("adoption.journey.badges.chooseOne")} description={t("adoption.journey.replies.description")} eyebrow={t("adoption.journey.replies.eyebrow")} title={t("adoption.journey.replies.title", { count: accepted })} /><div className="adoption-reply-grid">{replies.map((reply) => reply.status === "accepted" ? <ChoiceButton className="adoption-reply-card" key={reply.candidateId} onClick={() => dispatch({ type: "select-final", candidateId: reply.candidateId })} selected={finalCandidateId === reply.candidateId}><img alt="" src={reply.imageUrl} /><strong>{reply.originalName}</strong><span>{reply.message}</span><small>{reply.compatibility}</small></ChoiceButton> : <div className="adoption-reply-card adoption-reply-card--unsure" key={reply.candidateId}><img alt="" src={reply.imageUrl} /><strong>{reply.originalName}</strong><span>{reply.message}</span><small>{t("adoption.journey.replies.unsure")}</small></div>)}</div></section>
+  return <section><ScreenIntro badge={t("adoption.journey.badges.chooseOne")} eyebrow={t("adoption.journey.replies.eyebrow")} title={t("adoption.journey.replies.title", { count: accepted })} /><div className="adoption-reply-grid">{replies.map((reply) => reply.status === "accepted" ? <ChoiceButton className="adoption-reply-card" key={reply.candidateId} onClick={() => dispatch({ type: "select-final", candidateId: reply.candidateId })} selected={finalCandidateId === reply.candidateId}><img alt="" src={reply.imageUrl} /><strong>{reply.originalName}</strong><span>{reply.message}</span><small>{reply.compatibility}</small></ChoiceButton> : <div className="adoption-reply-card adoption-reply-card--unsure" key={reply.candidateId}><img alt="" src={reply.imageUrl} /><strong>{reply.originalName}</strong><span>{reply.message}</span><small>{t("adoption.journey.replies.unsure")}</small></div>)}</div></section>
 }
 
 function NamingScreen({ candidate, customName, dispatch, nameMode, t }: { readonly candidate: CandidateReply; readonly customName: string; readonly dispatch: React.Dispatch<AdoptionAction>; readonly nameMode: NameMode; readonly t: JourneyT }) {
-  return <section><ScreenIntro description={t("adoption.journey.naming.description")} eyebrow={t("adoption.journey.naming.eyebrow")} title={t("adoption.journey.naming.title")} /><div className="adoption-naming-layout"><div className="adoption-naming-person"><img alt={t("adoption.journey.naming.portraitAlt", { name: candidate.originalName })} src={candidate.imageUrl} /><strong>{candidate.originalName}</strong><span>{candidate.message}</span></div><fieldset className="adoption-name-options"><legend>{t("adoption.journey.naming.label")}</legend><label><input checked={nameMode === "original"} name="adoption-name" onChange={() => dispatch({ type: "name-mode", mode: "original" })} type="radio" />{t("adoption.journey.naming.original", { name: candidate.originalName })}</label><label><input checked={nameMode === "suggested"} name="adoption-name" onChange={() => dispatch({ type: "name-mode", mode: "suggested" })} type="radio" />{t("adoption.journey.naming.suggested", { name: candidate.suggestedName })}</label><label><input checked={nameMode === "custom"} name="adoption-name" onChange={() => dispatch({ type: "name-mode", mode: "custom" })} type="radio" />{t("adoption.journey.naming.custom")}</label><input aria-label={t("adoption.journey.naming.customInput")} maxLength={20} onChange={(event) => dispatch({ type: "custom-name", value: event.target.value })} placeholder={t("adoption.journey.naming.customPlaceholder")} value={customName} /></fieldset></div></section>
+  return <section><ScreenIntro eyebrow={t("adoption.journey.naming.eyebrow")} title={t("adoption.journey.naming.title")} /><div className="adoption-naming-layout"><div className="adoption-naming-person"><img alt={t("adoption.journey.naming.portraitAlt", { name: candidate.originalName })} src={candidate.imageUrl} /><strong>{candidate.originalName}</strong><span>{candidate.message}</span></div><fieldset className="adoption-name-options"><legend>{t("adoption.journey.naming.label")}</legend><label><input checked={nameMode === "original"} name="adoption-name" onChange={() => dispatch({ type: "name-mode", mode: "original" })} type="radio" />{t("adoption.journey.naming.original", { name: candidate.originalName })}</label><label><input checked={nameMode === "suggested"} name="adoption-name" onChange={() => dispatch({ type: "name-mode", mode: "suggested" })} type="radio" />{t("adoption.journey.naming.suggested", { name: candidate.suggestedName })}</label><label><input checked={nameMode === "custom"} name="adoption-name" onChange={() => dispatch({ type: "name-mode", mode: "custom" })} type="radio" />{t("adoption.journey.naming.custom")}</label><input aria-label={t("adoption.journey.naming.customInput")} maxLength={20} onChange={(event) => dispatch({ type: "custom-name", value: event.target.value })} placeholder={t("adoption.journey.naming.customPlaceholder")} value={customName} /></fieldset></div></section>
 }
 
 function ArrivalScreen({ candidate, name, onFinish, t }: { readonly candidate: CandidateReply; readonly name: string; readonly onFinish: () => void; readonly t: JourneyT }) {

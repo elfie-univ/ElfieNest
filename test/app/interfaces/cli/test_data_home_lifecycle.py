@@ -11,6 +11,14 @@ from scripts import elfienest
 
 
 class _StartedSupervisor:
+    def status(self) -> RuntimeHealth:
+        return RuntimeHealth(
+            state=RuntimeHealthState.STOPPED,
+            generation=0,
+            owner_lease=None,
+            components=(),
+        )
+
     def start(self, *, owner_id: str) -> ServiceLifecycleResult:
         assert owner_id == "cli"
         return ServiceLifecycleResult(status="started", pid=42)
@@ -68,6 +76,9 @@ def test_started_service_remembers_selected_home_for_later_commands(
         lifecycle_commands,
         "_supervisor_for",
         lambda *args, **kwargs: _StartedSupervisor(),
+    )
+    monkeypatch.setattr(
+        lifecycle_commands, "_prepare_frontend_for_launch", lambda: None
     )
     monkeypatch.setenv("ELFIENEST_RUNTIME_MODE", "development")
     monkeypatch.delenv("ELFIE_HOME", raising=False)

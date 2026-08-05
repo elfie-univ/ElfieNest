@@ -3,7 +3,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-from scripts.serve import prepare_godot_web_runtime, service_host
+from scripts.serve import (
+    prepare_frontend_web_runtime,
+    prepare_godot_web_runtime,
+    service_host,
+)
 from test.support.paths import PROJECT_ROOT
 
 
@@ -30,6 +34,21 @@ def test_prepare_godot_web_runtime_uses_ensure_for_development() -> None:
     # Then: it requests an incremental ensure build.
     assert prepare_godot_web_runtime("development", run) is True
     assert commands[0][-1] == "--ensure"
+
+
+def test_prepare_frontend_web_runtime_only_builds_development(
+    monkeypatch,
+) -> None:
+    modes: list[str] = []
+    monkeypatch.setattr(
+        "scripts.serve.ensure_frontend_build",
+        lambda *, runtime_mode: modes.append(runtime_mode),
+    )
+
+    prepare_frontend_web_runtime("development")
+    prepare_frontend_web_runtime("release")
+
+    assert modes == ["development"]
 
 
 def test_prepare_godot_web_runtime_checks_only_in_release() -> None:
