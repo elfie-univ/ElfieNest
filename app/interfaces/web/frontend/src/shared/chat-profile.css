@@ -85,6 +85,7 @@
   padding: 36px;
   background: var(--surface-muted);
   overscroll-behavior: contain;
+  container-type: inline-size;
 }
 .profile-dossier--empty { display: grid; place-items: center; }
 .profile-dossier__identity {
@@ -241,9 +242,17 @@
   }
   .profile-radar--compact .profile-radar__chart { justify-self: center; }
   .profile-radar--compact .profile-radar__descriptors {
-    width: min(320px, 100%);
-    justify-self: center;
+    width: 100%;
+    max-width: none;
+    justify-self: stretch;
   }
+  .profile-radar--compact .profile-radar__descriptors ul {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    width: 100%;
+  }
+  .profile-radar--compact .profile-radar__descriptors li { width: 100%; min-width: 0; }
 }
 .profile-dossier__chart-frame {
   min-width: 0;
@@ -669,6 +678,21 @@
   .profile-dossier__private-modules { grid-template-columns: 1fr; }
 }
 
+@container (max-width: 720px) {
+  .profile-dossier__identity {
+    position: relative;
+    grid-template-areas: "portrait identity";
+    grid-template-columns: 108px minmax(0, 1fr);
+    column-gap: 18px;
+  }
+  .profile-dossier__chat {
+    position: absolute;
+    z-index: 1;
+    top: 4px;
+    right: 0;
+  }
+}
+
 @media (max-width: 760px) {
   html:has(.chat-page), body:has(.chat-page), #app:has(.chat-page) {
     width: 100%;
@@ -784,7 +808,12 @@
     margin-top: 10px;
     font-size: 15px;
   }
-  .profile-dossier__chat { min-height: 36px; padding-inline: 12px; }
+  .profile-dossier__chat {
+    position: static;
+    z-index: auto;
+    min-height: 36px;
+    padding-inline: 12px;
+  }
   .profile-dossier__radar { grid-template-columns: 1fr; }
   .profile-radar--compact .profile-radar__content {
     width: 100%;
@@ -794,7 +823,7 @@
   .profile-radar--compact .profile-radar__chart { width: min(360px, 100%); min-width: 0; max-width: 360px; }
   .profile-radar--compact .profile-chart { width: min(360px, 100%); min-width: 0; }
   .profile-radar--compact .profile-chart__canvas { width: min(360px, 100%); min-width: 0; }
-  .profile-radar--compact .profile-radar__descriptors { width: min(320px, 100%); max-width: 100%; justify-self: center; }
+  .profile-radar--compact .profile-radar__descriptors { width: 100%; max-width: none; justify-self: stretch; }
   .profile-radar--compact .profile-radar__descriptors ul {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));

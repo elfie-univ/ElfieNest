@@ -85,7 +85,7 @@ describe("ProfileBigFive", () => {
       /@container \(max-width: 720px\)[\s\S]*\.profile-radar--compact \.profile-radar__content\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\)/,
     )
     expect(profileStyles).toMatch(
-      /@container \(max-width: 720px\)[\s\S]*\.profile-radar--compact \.profile-radar__descriptors\s*\{[^}]*width: min\(320px, 100%\)/,
+      /@container \(max-width: 720px\)[\s\S]*\.profile-radar--compact \.profile-radar__descriptors\s*\{[^}]*width: 100%[^}]*max-width: none/,
     )
   })
 
@@ -96,6 +96,17 @@ describe("ProfileBigFive", () => {
     )?.[0] ?? ""
 
     expect(descriptorListRule).toContain("grid-template-columns: repeat(3, minmax(0, 1fr));")
+  })
+
+  it("fills the available width when descriptors move below the chart", () => {
+    const stackedContainerBlock = profileStyles.match(
+      /@container \(max-width: 720px\) \{[\s\S]*?^\}/m,
+    )?.[0] ?? ""
+
+    expect(stackedContainerBlock).toContain("width: 100%;")
+    expect(stackedContainerBlock).toContain("max-width: none;")
+    expect(stackedContainerBlock).toContain("grid-template-columns: repeat(3, minmax(0, 1fr));")
+    expect(stackedContainerBlock).toContain(".profile-radar--compact .profile-radar__descriptors li { width: 100%; min-width: 0; }")
   })
 
   it("re-resolves canvas colors when the document theme changes after render", async () => {

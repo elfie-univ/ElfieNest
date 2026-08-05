@@ -23,4 +23,13 @@ describe("profile identity responsive rules", () => {
     expect(profileStyles).toContain(".profile-dossier__gender--male { color: #2f70a8;")
     expect(profileStyles).toContain(".profile-dossier__gender--female { color: #bd5d7b;")
   })
+
+  it("floats the chat action when the dossier container is narrow", () => {
+    expect(profileStyles).toMatch(
+      /@container \(max-width: 720px\)[\s\S]*?\.profile-dossier__identity\s*\{[^}]*grid-template-areas: "portrait identity";/,
+    )
+    expect(profileStyles).toMatch(
+      /@container \(max-width: 720px\)[\s\S]*?\.profile-dossier__chat\s*\{[^}]*position: absolute;[^}]*top:/,
+    )
+  })
 })
