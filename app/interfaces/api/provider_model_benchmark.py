@@ -7,12 +7,14 @@ from typing import Any, Dict
 
 from fastapi import HTTPException
 
-from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.storage.provider_connections import ProviderConnection
-from ai_runtime.storage.validation_reports import read_latest_provider_validation
-from ai_runtime.validation.providers import ProviderValidationRunner, classify_latency
+from ai_runtime.storage.provider_connections import (
+    ProviderConnection,
+    ProviderConnectionStore,
+)
 
 from .provider_schemas import ConnectionBenchmarkCombination
+from .provider_validation_checks import run_connection_model_check
+from .provider_validation_runtime import runtime_projection
 
 _BENCHMARK_TIMEOUT_SECONDS = 20.0
 
@@ -28,17 +30,10 @@ def validate_combinations(
                 status_code=422,
                 detail=f"{combination.connection_id} 尚未完成配置",
             )
-        verification = read_latest_provider_validation(combination.connection_id)
-        if verification.get("status") != "passed":
-            raise HTTPException(
-                status_code=422,
-                detail=f"{combination.connection_id} 尚未验证通过",
-            )
         if not any(
             model.endpoint_model_id == combination.model_id
             and not model.hidden
             and not model.retired
-            and model.available
             for model in connection.models
         ):
             raise HTTPException(
@@ -84,16 +79,13 @@ async def run_connection_model_benchmark(
 def _benchmark_sync(
     combination: ConnectionBenchmarkCombination,
 ) -> dict[str, Any]:
-    suite = ProviderValidationRunner(LLMRuntimeConfig()).verify_models(
-        combination.connection_id,
-        [combination.model_id],
-        max_models=1,
+    connection = (
+        ProviderConnectionStore().load().connections.get(combination.connection_id)
     )
-    result = suite.results[0]
-    latency = result.duration_ms
-    return {
-        "status": result.status.value,
-        "latency_ms": latency,
-        "latency_class": classify_latency(float(latency or 0.0)),
-        "error": None if result.status.value == "passed" else result.message,
-    }
+    if connection is None:
+        raise ValueError(f"连接不存在: {combination.connection_id}")
+    return run_connection_model_check(
+        connection,
+        combination.model_id,
+        runtime_projection,
+    )

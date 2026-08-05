@@ -110,12 +110,12 @@ function parseCapabilitySelection(value: string): boolean | null {
 
 export function ModelVerification({ model }: { readonly model: ProviderModel }) {
   const { t } = useTranslation("manage")
-  const status = !model.available
-    ? "unavailable"
-    : model.verification.status === "passed"
-      ? "available"
-      : model.verification.status === "failed"
-        ? "failed"
+  const status = model.verification.status === "passed"
+    ? "available"
+    : model.verification.status === "failed"
+      ? "failed"
+      : !model.available
+        ? "unavailable"
         : "never"
   const label = status === "available"
     ? t("providerModels.labels.available")

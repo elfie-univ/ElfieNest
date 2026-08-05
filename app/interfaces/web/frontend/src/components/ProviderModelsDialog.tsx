@@ -182,13 +182,13 @@ export function ProviderModelsDialog({
     {notice ? <Notice message={notice} /> : null}
     <div className="provider-models-toolbar manage-actions">
       <RefreshButton disabled={pending} label={t("providerModels.actions.refresh")} onClick={() => { void refresh() }} />
-      <Button disabled={pending} onClick={() => { setAddingManual((value) => !value); setEditing(false) }} type="button" variant="outline">{t("providerModels.actions.addManual")}</Button>
+      <Button disabled={pending} onClick={() => { setAddingManual((value) => !value); setEditing(false) }} type="button">{t("providerModels.actions.addManual")}</Button>
       {editing
         ? <>
           <Button disabled={pending} onClick={() => { void saveAll() }} type="button">{t("providerModels.actions.saveAll")}</Button>
-          <Button disabled={pending} onClick={cancelEditing} type="button" variant="outline">{t("providerModels.actions.cancel")}</Button>
+          <Button disabled={pending} onClick={cancelEditing} type="button">{t("providerModels.actions.cancel")}</Button>
         </>
-        : <Button disabled={pending} onClick={beginEditing} type="button" variant="outline">{t("providerModels.actions.editAll")}</Button>}
+        : <Button disabled={pending} onClick={beginEditing} type="button">{t("providerModels.actions.editAll")}</Button>}
     </div>
     {addingManual ? <form className="provider-models-add-form" onSubmit={(event) => { void saveManual(event) }}>
       <Input aria-label={t("providerModels.fields.modelId")} onChange={(event) => setManualId(event.target.value)} placeholder={t("providerModels.fields.modelIdPlaceholder")} required value={manualId} />

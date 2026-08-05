@@ -78,9 +78,9 @@ export const manage = {
     verifyingSession: "正在验证会话…",
   },
   providerConnections: {
-    actions: { addOther: "添加其他订阅", archive: "归档", batchValidate: "批量验证", cancel: "取消", choose: "继续", configure: "配置 {{name}}", delete: "删除", disable: "停用", edit: "修改", enable: "启用", matrix: "同模型对比", models: "模型", more: "更多", refresh: "重新读取", restore: "恢复", save: "保存配置", saveAndVerify: "验证并保存", savingAndVerifying: "保存并验证中…", validate: "验证", validating: "验证中…" },
+    actions: { addOther: "添加其他订阅", archive: "归档", batchValidate: "批量验证", cancel: "取消", choose: "继续", configure: "配置 {{name}}", delete: "删除", disable: "停用", edit: "修改", enable: "启用", forceFullValidate: "强制全量验证", matrix: "同模型对比", models: "模型", more: "更多", refresh: "重新读取", restore: "恢复", save: "保存配置", saveAndVerify: "验证并保存", saving: "保存中…", savingAndVerifying: "保存并验证中…", validate: "验证", validating: "验证中…" },
     available: { title: "添加新的远程订阅" },
-    card: { modelStats: "共 {{total}} 个模型（已启用 {{enabled}} 个 · 验证通过 {{verified}} 个）" },
+    card: { cached: "24 小时内沿用上次验证结果", modelStats: "共 {{total}} 个模型（已启用 {{enabled}} 个 · 验证通过 {{verified}} 个）", needsFullValidation: "需要重新进行全量验证", needsHeartbeat: "需要验证一个代表模型" },
     ollama: {
       actions: { addModel: "添加模型", closeAdd: "收起添加", download: "下载安装", downloadSelected: "下载所选模型", downloading: "下载中…", install: "安装", installing: "安装中… {{progress}}%", repairRequired: "需要修复", restart: "重启", start: "启动", starting: "启动中…" },
       card: { availableModels: "{{count}} 个可用模型", loading: "正在读取本地模型…" },
@@ -95,7 +95,7 @@ export const manage = {
     errors: { delete: "订阅连接没有删除", lifecycle: "连接状态没有更新", load: "模型订阅加载失败", save: "订阅配置没有保存", validate: "订阅验证失败", validateAll: "批量验证失败" },
     form: { alias: "订阅别名", apiKey: "API 密钥", oauthAvailable: "登录授权可用。", oauthUnavailable: "这个产品的登录授权尚未接入。", titleConfigure: "配置 {{name}}", titleEdit: "修改 {{name}}" },
     lifecycle: { description: "管理 {{name}} 的生命周期。", title: "更多操作" },
-    notices: { added: "{{name}} 已添加。", saved: "{{name}} 已保存。", validated: "{{name}} 验证已完成。", validatedAll: "批量验证完成：{{count}} 项通过，报告 {{runId}}。" },
+    notices: { added: "{{name}} 已添加。", forceValidated: "{{name}} 已完成强制全量验证。", saved: "{{name}} 已保存。", validated: "{{name}} 验证已完成。", validatedAll: "批量验证完成：{{count}} 项通过，报告 {{runId}}。" },
     other: { anthropicInterface: "Anthropic 接口", openaiInterface: "OpenAI 接口", placeholder: "请选择", product: "订阅产品", title: "添加其他订阅" },
     section: { configuredEmpty: "尚未配置远程模型订阅。", configuredTitle: "已配置的远程订阅", count: "{{count}} 个" },
     status: { failed: "验证失败", never: "未验证", partial: "部分可用", passed: "验证通过" },
@@ -117,7 +117,7 @@ export const manage = {
     generation: { allSources: "全部可用订阅", allowRemote: "允许远程模型（断网时可能不可用）", createDescription: "先填写名称并选择生成来源、可见范围；预览确认后再保存创建。预览和取消都不会创建粮食。", createTitle: "添加粮食", description: "选择订阅生成候选，确认差异并微调后再应用更新。预览不会修改现有粮食。", name: "粮食名称", previewTitle: "候选差异", sources: "生成来源", title: "自动更新 {{name}}" },
     labels: { local: "本地", localSuffix: " · 本地", reasoning: "推理：{{model}}", system: "系统", visibility: "设置 {{name}} 可见范围" },
     locality: { local: "本地", mixed: "混合", remote: "远程", unknown: "未配置" },
-    modelStatus: { available: "可用", unavailable: "不可用", unconfigured: "未配置", unverified: "未验证" },
+    modelStatus: { available: "可用", localAvailable: "运行中", unavailable: "不可用", unconfigured: "未配置", unverified: "未验证" },
     notices: { created: "{{name}} 已创建。", generated: "已生成 {{count}} 项差异；请人工确认后保存。{{warning}}", saved: "{{name}} 已保存。", updated: "{{name}} 已更新。", visibilitySaved: "可见范围已保存。" },
     recipe: { description: "直接调整五个模型角色和自定义粮食的可见用户。", fallback: "备用模型", name: "套餐名称", none: "未配置", title: "编辑 {{name}}" },
     roles: { fallback: "备用模型", primary: "主要模型", reasoning: "推理模型", tool: "工具模型", vision: "视觉模型" },
@@ -143,7 +143,7 @@ export const manage = {
     status: { failed: "验证失败", never: "未验证", passed: "验证通过", pending: "待配置" }, title: "供应商与模型连接",
   },
   modelMatrix: {
-    actions: { benchmark: "对比", benchmarkAll: "批量对比", benchmarkFor: "对比 {{provider}} {{model}}", benchmarking: "对比中…", refresh: "重新读取" }, empty: "尚无已配置供应商声明的模型。", emptyBenchmark: "暂无已验证通过且可对比的模型。", emptyCombination: "这个模型组合尚不可对比。", labels: { available: "可用", failed: "验证失败", model: "模型", never: "未验证", noBenchmark: "未对比", notProvided: "未提供", price: "价格", unavailable: "不支持" }, notice: "对比完成：{{passed}} 个成功，{{failed}} 个失败。", tableLabel: "同模型对比表", title: "同模型对比", validationNotice: "验证完成，已生成完整报告 {{runId}}。",
+    actions: { benchmark: "对比", benchmarkAll: "批量对比", benchmarkFor: "对比 {{provider}} {{model}}", benchmarkModel: "对比 {{model}}", benchmarking: "对比中…", refresh: "重新读取" }, empty: "尚无已配置供应商声明的模型。", emptyBenchmark: "暂无已验证通过且可对比的模型。", emptyCombination: "这个模型组合尚不可对比。", labels: { available: "可用", failed: "验证失败", model: "模型", never: "未验证", noBenchmark: "未对比", notProvided: "未提供", price: "价格", unavailable: "不支持" }, notice: "对比完成：{{passed}} 个成功，{{failed}} 个失败。", tableLabel: "同模型对比表", title: "同模型对比", validationNotice: "验证完成，已生成完整报告 {{runId}}。",
   },
   modelCatalog: { actions: { refresh: "刷新", scan: "扫描本地模型" }, active: "可用", costTier: "{{name}} 成本层级", description: "管理目录可见性与成本层级；可扫描本地 Ollama 模型。", inactive: "未激活", noticeSaved: "{{name}} 已保存。", noticeScanned: "扫描完成：{{result}}", title: "模型", visible: "在管理目录显示" },
   runtimeTools: { actions: { refresh: "刷新", save: "保存工具", verify: "验证工具" }, description: "所有工具设置和验证均经超级管理员 API；密钥字段只写不读。", jsonLabel: "工具 JSON 配置", noticeSaved: "工具配置已保存。", noticeVerified: "验证结果：{{result}}", title: "工具", validationObject: "工具配置必须是 JSON 对象。", validationSyntax: "请输入合法 JSON。" },

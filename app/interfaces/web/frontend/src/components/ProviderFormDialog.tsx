@@ -52,7 +52,7 @@ export function ProviderFormDialog({
       await onSave({
         ...(alias.trim() ? { alias: alias.trim() } : {}),
         ...(!connection || apiKey ? { api_key: apiKey } : {}),
-        ...(!connection ? { refresh_models: true, verify: true } : {}),
+        ...(!connection ? { refresh_models: true } : {}),
       })
     } catch (reason: unknown) {
       setError(resolveLocalizedError(describeApiError(reason, "manage.save"), currentLocale(i18n)) ?? t("providerConnections.errors.save"))
@@ -89,7 +89,7 @@ export function ProviderFormDialog({
       </p> : null}
       <div className="manage-actions">
         <Button disabled={pending || (method === "oauth" && !product.oauth_available)} type="submit">
-          {pending ? t("providerConnections.actions.savingAndVerifying") : connection ? t("providerConnections.actions.save") : t("providerConnections.actions.saveAndVerify")}
+          {pending ? t("providerConnections.actions.saving") : t("providerConnections.actions.save")}
         </Button>
         <Button variant="outline" disabled={pending} onClick={() => onOpenChange(false)} type="button">{t("providerConnections.actions.cancel")}</Button>
       </div>

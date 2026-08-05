@@ -73,3 +73,21 @@ def observations_for_run(
         (run_id,),
     ).fetchall()
     return tuple(observation_from_row(row) for row in rows)
+
+
+def observations_for_subject(
+    connection: sqlite3.Connection,
+    *,
+    subject_kind: str,
+    subject_id: str,
+) -> tuple[ValidationObservation, ...]:
+    """Return immutable observations for one subject, newest first."""
+    rows = connection.execute(
+        """
+        SELECT * FROM validation_observations
+        WHERE subject_kind = ? AND subject_id = ?
+        ORDER BY observed_at DESC, observation_id DESC
+        """,
+        (subject_kind, subject_id),
+    ).fetchall()
+    return tuple(observation_from_row(row) for row in rows)

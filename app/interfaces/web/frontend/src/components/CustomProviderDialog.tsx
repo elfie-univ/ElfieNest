@@ -58,7 +58,6 @@ export function CustomProviderDialog({ onOpenChange, onSave, open, preset = "ope
         api_mode: apiMode,
         auth_type: authType,
         refresh_models: true,
-        verify: true,
       })
     } catch (reason: unknown) {
       setError(resolveLocalizedError(describeApiError(reason, "manage.save"), currentLocale(i18n)) ?? t("providerConnections.errors.save"))
@@ -88,7 +87,7 @@ export function CustomProviderDialog({ onOpenChange, onSave, open, preset = "ope
         { label: t("providerConnections.custom.noAuth"), value: "none" },
       ]} value={authType} />
       <div className="manage-actions">
-        <Button disabled={pending} type="submit">{pending ? t("providerConnections.actions.savingAndVerifying") : t("providerConnections.actions.saveAndVerify")}</Button>
+        <Button disabled={pending} type="submit">{pending ? t("providerConnections.actions.saving") : t("providerConnections.actions.save")}</Button>
         <Button variant="outline" disabled={pending} onClick={() => onOpenChange(false)} type="button">{t("providerConnections.actions.cancel")}</Button>
       </div>
     </form>

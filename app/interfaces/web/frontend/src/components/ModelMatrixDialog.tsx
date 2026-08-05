@@ -29,6 +29,8 @@ type ModelMatrixDialogProps = {
   readonly open: boolean
 }
 
+const BENCHMARK_BATCH_SIZE = 12 as const
+
 export function ModelMatrixDialog({ csrfToken, onOpenChange, open }: ModelMatrixDialogProps) {
   const { i18n, t } = useTranslation("manage")
   const locale = currentLocale(i18n)
@@ -75,9 +77,15 @@ export function ModelMatrixDialog({ csrfToken, onOpenChange, open }: ModelMatrix
     }
     setPending(true)
     try {
-      const result = await benchmarkProviderModels(combinations.slice(0, 12), csrfToken)
-      const passed = result.results.filter((item) => item.status === "passed").length
-      setNotice(t("modelMatrix.notice", { failed: result.results.length - passed, passed }))
+      let passed = 0
+      let failed = 0
+      for (const batch of chunkBenchmarkCombinations(combinations)) {
+        const result = await benchmarkProviderModels(batch, csrfToken)
+        const batchPassed = result.results.filter((item) => item.status === "passed").length
+        passed += batchPassed
+        failed += result.results.length - batchPassed
+      }
+      setNotice(t("modelMatrix.notice", { failed, passed }))
       await load()
     } catch (reason: unknown) {
       if (!(reason instanceof Error)) throw reason
@@ -105,21 +113,16 @@ export function ModelMatrixDialog({ csrfToken, onOpenChange, open }: ModelMatrix
     {matrix && matrix.models.length > 0 ? <div className="model-matrix-scroll">
       <Table aria-label={t("modelMatrix.tableLabel")} className="model-matrix">
         <TableHeader><TableRow><TableHead scope="col">{t("modelMatrix.labels.model")}</TableHead>{matrix.connections.map((connection) => <TableHead key={connection.connection_id} scope="col">{connection.name}</TableHead>)}</TableRow></TableHeader>
-        <TableBody>{matrix.models.map((model) => <TableRow key={model.model_key}>
-          <TableHead scope="row">{model.display_name}</TableHead>
-          {matrix.connections.map((connection) => {
-            const cell = model.connections.find((item) => item.connection_id === connection.connection_id)
-            const canBenchmark = Boolean(cell?.available && cell.model_id && connection.verification.status === "passed")
-            if (!cell?.available) return <TableCell className="model-matrix__cell model-matrix__cell--unavailable" key={connection.connection_id}>{t("modelMatrix.labels.unavailable")}</TableCell>
-            return <TableCell className="model-matrix__cell" key={connection.connection_id}>
-              <div className="model-matrix__cell-content">
-                <strong>{cell.verification_status === "passed" ? `✓ ${t("modelMatrix.labels.available")}` : cell.verification_status === "failed" ? t("modelMatrix.labels.failed") : t("modelMatrix.labels.never")}</strong>
-                <span className={cell.latency_class ? `latency--${cell.latency_class}` : undefined}>{cell.latency_ms === null ? t("modelMatrix.labels.noBenchmark") : `${Math.round(cell.latency_ms)}ms`}</span>
-                <small>{t("modelMatrix.labels.price")}: <span>{cell.price_estimate === null ? t("modelMatrix.labels.notProvided") : cell.price_estimate}</span></small>
+        <TableBody>{matrix.models.map((model) => {
+          const rowCombinations = collectModelBenchmarkCombinations(model)
+          return <TableRow key={model.model_key}>
+            <TableHead scope="row">
+              <div className="flex min-w-0 items-center justify-between gap-3">
+                <span>{model.display_name}</span>
                 <Button
-                  aria-label={t("modelMatrix.actions.benchmarkFor", { model: model.display_name, provider: connection.name })}
-                  disabled={pending || !canBenchmark}
-                  onClick={() => { if (cell.model_id) void benchmark([{ connection_id: connection.connection_id, model_id: cell.model_id }], t("modelMatrix.emptyCombination")) }}
+                  aria-label={t("modelMatrix.actions.benchmarkModel", { model: model.display_name })}
+                  disabled={pending || rowCombinations.length === 0}
+                  onClick={() => { void benchmark(rowCombinations, t("modelMatrix.emptyCombination")) }}
                   size="sm"
                   type="button"
                   variant="outline"
@@ -127,21 +130,38 @@ export function ModelMatrixDialog({ csrfToken, onOpenChange, open }: ModelMatrix
                   {t("modelMatrix.actions.benchmark")}
                 </Button>
               </div>
-            </TableCell>
-          })}
-        </TableRow>)}</TableBody>
+            </TableHead>
+            {matrix.connections.map((connection) => {
+              const cell = model.connections.find((item) => item.connection_id === connection.connection_id)
+              if (!cell?.available) return <TableCell className="model-matrix__cell model-matrix__cell--unavailable" key={connection.connection_id}>{t("modelMatrix.labels.unavailable")}</TableCell>
+              return <TableCell className="model-matrix__cell" key={connection.connection_id}>
+                <div className="model-matrix__cell-content">
+                  <strong>{cell.verification_status === "passed" ? `✓ ${t("modelMatrix.labels.available")}` : cell.verification_status === "failed" ? t("modelMatrix.labels.failed") : t("modelMatrix.labels.never")}</strong>
+                  <span className={cell.latency_class ? `latency--${cell.latency_class}` : undefined}>{cell.latency_ms === null ? t("modelMatrix.labels.noBenchmark") : `${Math.round(cell.latency_ms)}ms`}</span>
+                  <small>{t("modelMatrix.labels.price")}: <span>{cell.price_estimate === null ? t("modelMatrix.labels.notProvided") : cell.price_estimate}</span></small>
+                </div>
+              </TableCell>
+            })}
+          </TableRow>
+        })}</TableBody>
       </Table>
     </div> : null}
   </ManageDialog>
 }
 
 function collectBenchmarkCombinations(matrix: ModelMatrix): BenchmarkCombination[] {
-  const passedConnections = new Set(
-    matrix.connections
-      .filter((connection) => connection.verification.status === "passed")
-      .map((connection) => connection.connection_id),
+  return matrix.models.flatMap((model) => collectModelBenchmarkCombinations(model))
+}
+
+function collectModelBenchmarkCombinations(model: ModelMatrix["models"][number]): BenchmarkCombination[] {
+  return model.connections
+    .filter((cell) => cell.available && cell.model_id)
+    .map((cell) => ({ connection_id: cell.connection_id, model_id: cell.model_id ?? "" }))
+}
+
+function chunkBenchmarkCombinations(combinations: readonly BenchmarkCombination[]): BenchmarkCombination[][] {
+  return Array.from(
+    { length: Math.ceil(combinations.length / BENCHMARK_BATCH_SIZE) },
+    (_, index) => combinations.slice(index * BENCHMARK_BATCH_SIZE, (index + 1) * BENCHMARK_BATCH_SIZE),
   )
-  return matrix.models.flatMap((model) => model.connections
-    .filter((cell) => cell.available && cell.model_id && passedConnections.has(cell.connection_id))
-    .map((cell) => ({ connection_id: cell.connection_id, model_id: cell.model_id ?? "" })))
 }

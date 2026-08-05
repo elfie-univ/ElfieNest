@@ -339,6 +339,42 @@ class TestCallOpenaiCompatibleApi:
                 "total_tokens": 30,
             }
 
+    def test_openai_reasoning_only_response_is_usable_for_validation(self):
+        """模型有 reasoning_content 但 content 为空时，验证仍应看到有效响应。"""
+        mock_response = Mock()
+        mock_response.read.return_value = json.dumps(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": "",
+                            "reasoning_content": "validated by reasoning",
+                        }
+                    }
+                ],
+                "usage": {"prompt_tokens": 12, "completion_tokens": 5},
+            }
+        ).encode("utf-8")
+        mock_response.__enter__ = Mock(return_value=mock_response)
+        mock_response.__exit__ = Mock(return_value=False)
+
+        with patch(
+            "ai_runtime.providers.dispatch.open_provider_request",
+            return_value=mock_response,
+        ):
+            result, usage = _call_openai_compatible_api(
+                api_base="https://jd.example/v1",
+                api_key="test-key",
+                model_name="GLM-5",
+                messages=[{"role": "user", "content": "Reply with OK."}],
+                temperature=0.0,
+                max_tokens=8,
+                provider="jdcloud_coding_plan",
+            )
+
+        assert result == "validated by reasoning"
+        assert usage["completion_tokens"] == 5
+
     def test_openai_missing_api_base(self):
         """OpenAI API 应在缺少 api_base 时抛出错误"""
         with pytest.raises(ValueError) as exc_info:

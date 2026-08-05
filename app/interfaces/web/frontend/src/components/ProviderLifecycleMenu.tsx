@@ -11,10 +11,11 @@ type ProviderLifecycleMenuProps = {
   readonly busy: boolean
   readonly enabled: boolean
   readonly onDelete: () => void
+  readonly onForceFull: () => void
   readonly onLifecycle: (action: ProviderLifecycleAction) => void
 }
 
-export function ProviderLifecycleMenu({ archived, busy, enabled, onDelete, onLifecycle }: ProviderLifecycleMenuProps) {
+export function ProviderLifecycleMenu({ archived, busy, enabled, onDelete, onForceFull, onLifecycle }: ProviderLifecycleMenuProps) {
   const { t } = useTranslation("manage")
 
   return <DropdownMenu.Root>
@@ -26,6 +27,7 @@ export function ProviderLifecycleMenu({ archived, busy, enabled, onDelete, onLif
     </DropdownMenu.Trigger>
     <DropdownMenu.Portal>
       <DropdownMenu.Content align="end" className="provider-lifecycle-menu" sideOffset={6}>
+        <DropdownMenu.Item className="provider-lifecycle-menu__item" onSelect={onForceFull}>{t("providerConnections.actions.forceFullValidate")}</DropdownMenu.Item>
         {archived
           ? <DropdownMenu.Item className="provider-lifecycle-menu__item" onSelect={() => onLifecycle("restore")}>{t("providerConnections.actions.restore")}</DropdownMenu.Item>
           : enabled
