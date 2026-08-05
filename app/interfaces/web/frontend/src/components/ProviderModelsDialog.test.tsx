@@ -6,6 +6,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import { saveProviderModels, updateProviderModel, type ProviderConnection } from "../api/owner-providers"
 import { createI18n } from "../i18n/config"
 import { ProviderModelsDialog } from "./ProviderModelsDialog"
+import { ToastProvider } from "./ui/toast"
 
 vi.mock("../api/owner-providers", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/owner-providers")>()
@@ -166,7 +167,7 @@ function renderDialog(): void {
   document.documentElement.lang = "zh-CN"
   render(
     <I18nextProvider i18n={i18n}>
-      <ProviderModelsDialog connection={connection} csrfToken="csrf" onChanged={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open />
+      <ToastProvider><ProviderModelsDialog connection={connection} csrfToken="csrf" onChanged={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></ToastProvider>
     </I18nextProvider>,
   )
 }

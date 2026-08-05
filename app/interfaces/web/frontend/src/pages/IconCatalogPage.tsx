@@ -93,7 +93,7 @@ export function IconCatalogPage() {
         <Button asChild variant="outline"><a href="https://lucide.dev/icons/" rel="noreferrer" target="_blank">{t("iconCatalog.actions.browse")}</a></Button>
         <Button onClick={() => { void copySelection() }} type="button">{t("iconCatalog.actions.copy")}</Button>
       </div>
-      {copyNotice && <p className="icon-catalog-notice">{copyNotice}</p>}
+      {copyNotice && <p aria-live="polite" className="icon-catalog-notice" role="status">{copyNotice}</p>}
     </header>
     <section aria-label={t("iconCatalog.gridLabel")} className="icon-catalog-grid">
       {iconCatalog.map((group) => <section className="icon-catalog-group" key={group.id}>

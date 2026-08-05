@@ -20,6 +20,7 @@ import { ApiError } from "../api/http"
 import { createI18n } from "../i18n/config"
 import type { SupportedLocale } from "../i18n/locale"
 import { OwnerFoodPanel } from "./OwnerFoodPanel"
+import { ToastProvider } from "./ui/toast"
 
 vi.mock("../api/owner-foods", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/owner-foods")>()
@@ -267,6 +268,6 @@ function renderPanel(locale: SupportedLocale = "zh-CN"): ReturnType<typeof creat
   const instance = createI18n()
   void instance.changeLanguage(locale)
   document.documentElement.lang = locale
-  render(<I18nextProvider i18n={instance}><OwnerFoodPanel csrfToken="csrf" /></I18nextProvider>)
+  render(<I18nextProvider i18n={instance}><ToastProvider><OwnerFoodPanel csrfToken="csrf" /></ToastProvider></I18nextProvider>)
   return instance
 }

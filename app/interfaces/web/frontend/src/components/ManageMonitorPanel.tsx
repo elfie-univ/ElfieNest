@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { z } from "zod"
 
 import { ownerRead } from "../api/client"
 import { describeApiError, resolveLocalizedError, type LocalizedErrorState } from "../i18n/errors"
 import { currentLocale } from "../i18n/format"
-import { Notice } from "./Notice"
+import { PersistentStatus } from "./PersistentStatus"
 import { RefreshButton } from "./RefreshButton"
+import { useToast } from "./ui/toast"
 
 const RuntimeStatusSchema = z.object({
   status: z.string(),
@@ -24,24 +25,42 @@ export function ManageMonitorPanel({ elfieCount }: ManageMonitorPanelProps) {
   const locale = currentLocale(i18n)
   const [status, setStatus] = useState<z.infer<typeof RuntimeStatusSchema> | null>(null)
   const [error, setError] = useState<LocalizedErrorState>(null)
+  const wasUnhealthy = useRef(false)
+  const { show } = useToast()
 
   const load = useCallback(async (): Promise<void> => {
     try {
-      setStatus(RuntimeStatusSchema.parse(await ownerRead("/api/owner/runtime/status")))
+      const nextStatus = RuntimeStatusSchema.parse(await ownerRead("/api/owner/runtime/status"))
+      const recovered = wasUnhealthy.current && nextStatus.status === "ok"
+      setStatus(nextStatus)
       setError(null)
+      wasUnhealthy.current = nextStatus.status !== "ok"
+      if (recovered) show({ dedupeKey: "runtime-status-recovered", kind: "success", message: t("runtimeMonitor.notices.recovered") })
     } catch (reason: unknown) {
       if (!(reason instanceof Error)) throw reason
       setError(describeApiError(reason, "manage.load"))
+      wasUnhealthy.current = true
     }
-  }, [])
+  }, [show, t])
 
   useEffect(() => { void load() }, [load])
-  const health = status?.status === "ok" ? t("runtimeMonitor.health.ok") : t("runtimeMonitor.health.attention")
+  const healthy = status?.status === "ok" && error === null
+  const health = healthy ? t("runtimeMonitor.health.ok") : t("runtimeMonitor.health.attention")
   return <section className="monitor-panel">
     <div className="manage-head"><RefreshButton label={t("runtimeMonitor.refresh")} onClick={() => { void load() }} /></div>
-    {error && <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("errors.load")} />}
+    {error ? <PersistentStatus
+      kind="error"
+      message={resolveLocalizedError(error, locale) ?? t("errors.load")}
+      retry={{ label: t("runtimeMonitor.refresh"), onSelect: () => { void load() } }}
+    /> : null}
+    {!error && status && status.status !== "ok" ? <PersistentStatus
+      {...(status.notes.length > 0 ? { detail: status.notes.join(" ") } : {})}
+      kind="warning"
+      message={t("runtimeMonitor.health.attention")}
+      retry={{ label: t("runtimeMonitor.refresh"), onSelect: () => { void load() } }}
+    /> : null}
     <div className="monitor-metrics">
-      <Metric label={t("runtimeMonitor.labels.health")} value={health} detail={status?.fallback.configured ? t("runtimeMonitor.fallback.configured", { provider: status.fallback.provider }) : t("runtimeMonitor.fallback.missing")} state={status?.status === "ok" ? "good" : "warning"} />
+      <Metric label={t("runtimeMonitor.labels.health")} value={health} detail={status?.fallback.configured ? t("runtimeMonitor.fallback.configured", { provider: status.fallback.provider }) : t("runtimeMonitor.fallback.missing")} state={healthy ? "good" : "warning"} />
       <Metric label={t("runtimeMonitor.labels.elfies")} value={String(elfieCount)} detail={t("runtimeMonitor.labels.elfiesDetail")} state="neutral" />
       <Metric label={t("runtimeMonitor.labels.providers")} value={status ? `${status.providers.active}/${status.providers.total}` : "—"} detail={status ? `${status.providers.inactive} ${t("runtimeMonitor.labels.fallbackProviders")}` : t("runtimeMonitor.labels.reading")} state={status?.providers.active ? "good" : "warning"} />
       <Metric label={t("runtimeMonitor.labels.models")} value={status ? String(status.models.visible) : "—"} detail={status ? t("runtimeMonitor.labels.modelsDetail", { count: status.models.total }) : t("runtimeMonitor.labels.reading")} state="neutral" />

@@ -10,6 +10,7 @@ import { CheckboxField } from "./CheckboxField"
 import { Notice } from "./Notice"
 import { NumberField } from "./NumberField"
 import { RefreshButton } from "./RefreshButton"
+import { useToast } from "./ui/toast"
 
 const EngineSchema = z.object({ tick_interval_sec: z.number(), max_elfies_per_room: z.number().nullable() })
 const AdoptionSchema = z.object({ max_elfies_per_user: z.number(), allowed_species_ids: z.array(z.string()), personality_presets_enabled: z.record(z.string(), z.boolean()) })
@@ -29,7 +30,7 @@ export function SystemSettingsPanel({ csrfToken }: { readonly csrfToken: string 
   const [security, setSecurity] = useState<SecuritySettings | null>(null)
   const [saving, setSaving] = useState<SettingsSection | null>(null)
   const [error, setError] = useState<LocalizedErrorState>(null)
-  const [notice, setNotice] = useState<SettingsNotice | null>(null)
+  const { show } = useToast()
 
   const load = async (): Promise<void> => {
     try {
@@ -53,7 +54,7 @@ export function SystemSettingsPanel({ csrfToken }: { readonly csrfToken: string 
     setSaving(section)
     try {
       await ownerWrite(`/api/owner/system/${section}`, "PUT", csrfToken, value)
-      setNotice(nextNotice)
+      show({ kind: "success", message: t(`systemSettings.notices.${nextNotice}`) })
       setError(null)
       await load()
     } catch (reason: unknown) {
@@ -67,7 +68,6 @@ export function SystemSettingsPanel({ csrfToken }: { readonly csrfToken: string 
   return <section className="system-settings">
     <div className="manage-head"><RefreshButton disabled={saving !== null} label={t("systemSettings.actions.refresh")} onClick={() => { void load() }} /></div>
     {error ? <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("errors.save")} /> : null}
-    {notice ? <Notice message={t(`systemSettings.notices.${notice}`)} /> : null}
     {!engine && !adoption && !security && !error ? <p className="empty-state">{t("systemSettings.loading")}</p> : null}
     <div className="system-settings__grid">
       {engine ? <EngineCard disabled={saving !== null} onChange={setEngine} onSave={() => { void save("engine", engine, "engineSaved") }} value={engine} /> : null}

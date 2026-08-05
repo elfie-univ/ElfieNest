@@ -19,6 +19,7 @@ import { RefreshButton } from "./RefreshButton"
 import { SelectField } from "./SelectField"
 import { TemporaryPasswordDialog } from "./TemporaryPasswordDialog"
 import { UserCard } from "./UserCard"
+import { useToast } from "./ui/toast"
 
 const ALL_ROLES = "all-roles" as const
 type RoleFilter = AccountRole | typeof ALL_ROLES
@@ -47,7 +48,7 @@ export function ManageUsersPanel({ actorRole, csrfToken }: { readonly actorRole:
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null)
   const [roleFilter, setRoleFilter] = useState<RoleFilter>(ALL_ROLES)
   const [error, setError] = useState<LocalizedErrorState>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const { show } = useToast()
   const adminCount = users?.filter((entry) => entry.role === "admin").length ?? 0
   const totalCapacityReached = users !== null && users.length >= MAX_ACCOUNTS
   const adminCapacityReached = adminCount >= MAX_ADMINS
@@ -74,7 +75,7 @@ export function ManageUsersPanel({ actorRole, csrfToken }: { readonly actorRole:
     try {
       await deleteManagedUser(deleting.user_id, csrfToken)
       setDeleting(null)
-      setNotice(t("users.notices.removed"))
+      show({ kind: "success", message: t("users.notices.removed") })
       await load()
     } catch (reason: unknown) {
       if (!(reason instanceof Error)) throw reason
@@ -107,7 +108,6 @@ export function ManageUsersPanel({ actorRole, csrfToken }: { readonly actorRole:
       </div>
     </div>
     {error ? <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("users.errors.load")} /> : null}
-    {notice ? <Notice message={notice} /> : null}
     <div className="manage-filters manage-filters--users">
       <SelectField
         disabled={users === null}
@@ -132,12 +132,12 @@ export function ManageUsersPanel({ actorRole, csrfToken }: { readonly actorRole:
         onError={setError}
         onRemove={() => setDeleting(entry)}
         onReset={() => setResetting(entry)}
-        onSaved={async () => { setNotice(t("users.notices.quotaSaved")); await load() }}
+        onSaved={async () => { show({ kind: "success", message: t("users.notices.quotaSaved") }); await load() }}
         actorRole={actorRole}
         user={entry}
       />)}
     </div>
-    <CreateUserDialog actorRole={actorRole} adminCapacityReached={adminCapacityReached} csrfToken={csrfToken} onClose={() => setCreating(false)} onSaved={async () => { setCreating(false); setNotice(t("users.notices.created")); await load() }} open={creating} />
+    <CreateUserDialog actorRole={actorRole} adminCapacityReached={adminCapacityReached} csrfToken={csrfToken} onClose={() => setCreating(false)} onSaved={async () => { setCreating(false); show({ kind: "success", message: t("users.notices.created") }); await load() }} open={creating} />
     <ConfirmDialog confirmLabel={t("users.actions.confirmDelete")} danger description={deleting ? t("users.delete.confirm", { name: deleting.display_name ?? deleting.account_id }) : t("users.delete.confirmGeneric")} onConfirm={() => { void remove() }} onOpenChange={(open) => { if (!open && !deletePending) setDeleting(null) }} open={deleting !== null} pending={deletePending} title={t("users.delete.title")} />
     <ConfirmDialog confirmLabel={t("users.actions.confirmReset")} description={resetting ? t("users.reset.confirm", { name: resetting.display_name ?? resetting.account_id }) : t("users.reset.confirmGeneric")} onConfirm={() => { void resetPassword() }} onOpenChange={(open) => { if (!open && !resetPending) setResetting(null) }} open={resetting !== null} pending={resetPending} title={t("users.reset.title")} />
     <TemporaryPasswordDialog onClose={() => setTemporaryPassword(null)} password={temporaryPassword} />

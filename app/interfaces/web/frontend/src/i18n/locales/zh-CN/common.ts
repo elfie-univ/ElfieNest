@@ -9,6 +9,7 @@ export const common = {
     closeDialog: "关闭{{title}}",
     decrease: "减少{{label}}",
     increase: "增加{{label}}",
+    notifications: "通知",
   },
   app: {
     welcome: "欢迎使用 {{productName}}",

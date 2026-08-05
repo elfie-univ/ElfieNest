@@ -8,6 +8,7 @@ import { createI18n } from "../i18n/config"
 import type { SupportedLocale } from "../i18n/locale"
 import { ManageMonitorPanel } from "./ManageMonitorPanel"
 import { OwnerDataPanel } from "./OwnerDataPanel"
+import { ToastProvider } from "./ui/toast"
 
 vi.mock("../api/client", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/client")>()
@@ -31,12 +32,12 @@ describe("runtime and raw-data panel behavior", () => {
   })
 
   it("renders the monitor in English while preserving technical values", async () => {
-    renderWithLocale(<ManageMonitorPanel elfieCount={2} />, "en-US")
+    renderWithLocale(<ToastProvider><ManageMonitorPanel elfieCount={2} /></ToastProvider>, "en-US")
 
     expect(await screen.findByText(/provider\/qwen3:4b/)).toBeInTheDocument()
     expect(screen.queryByRole("heading", { name: "Unified monitor" })).not.toBeInTheDocument()
     expect(screen.getByText(/provider\/qwen3:4b/)).toBeInTheDocument()
-    expect(screen.getByText("Needs attention")).toBeInTheDocument()
+    expect(screen.getByRole("alert")).toHaveTextContent("Needs attention")
     expect(screen.queryByText("综合监控")).not.toBeInTheDocument()
   })
 

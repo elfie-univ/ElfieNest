@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -25,6 +25,7 @@ import { ApiError } from "../api/http"
 import { createI18n } from "../i18n/config"
 import type { SupportedLocale } from "../i18n/locale"
 import { OwnerProviderPanel } from "./OwnerProviderPanel"
+import { ToastProvider } from "./ui/toast"
 
 vi.mock("../api/owner-providers", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/owner-providers")>()
@@ -291,7 +292,25 @@ describe("OwnerProviderPanel v2 behavior", () => {
   })
 
   it("creates a catalog connection through the product-specific form", async () => {
+    renderPanel()
+
+    fireEvent.click(await screen.findByRole("button", { name: "配置 OpenAI" }))
+    const dialog = screen.getByRole("dialog", { name: "配置 OpenAI" })
+    fireEvent.change(within(dialog).getByLabelText("API 密钥", { selector: "input" }), { target: { value: "secret" } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "验证并保存" }))
+
+    await waitFor(() => expect(createProviderConnection).toHaveBeenCalledWith(
+      expect.objectContaining({ api_key: "secret", catalog_id: "openai", refresh_models: true, verify: true }),
+      "csrf",
+    ))
+    expect(screen.queryByRole("dialog", { name: "配置 OpenAI" })).not.toBeInTheDocument()
+    expect(await screen.findByText("OpenAI Main 已保存。")).toBeInTheDocument()
+    expect(vi.mocked(ownerProviderConnections).mock.calls.length).toBeGreaterThanOrEqual(2)
+  }, 10_000)
+
+  it("keeps a provider form save failure inside the active dialog", async () => {
     const user = userEvent.setup()
+    vi.mocked(createProviderConnection).mockRejectedValueOnce(new ApiError(400, "后端拒绝了订阅配置"))
     renderPanel()
 
     await user.click(await screen.findByRole("button", { name: "配置 OpenAI" }))
@@ -299,10 +318,29 @@ describe("OwnerProviderPanel v2 behavior", () => {
     await user.type(within(dialog).getByLabelText("API 密钥", { selector: "input" }), "secret")
     await user.click(within(dialog).getByRole("button", { name: "验证并保存" }))
 
-    expect(createProviderConnection).toHaveBeenCalledWith(
-      expect.objectContaining({ api_key: "secret", catalog_id: "openai", refresh_models: true, verify: true }),
-      "csrf",
-    )
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("后端拒绝了订阅配置")
+    expect(screen.getAllByRole("alert")).toHaveLength(1)
+  })
+
+  it("keeps the batch validation report inline instead of converting it to a toast", async () => {
+    const user = userEvent.setup()
+    renderPanel()
+
+    await user.click(await screen.findByRole("button", { name: "批量验证" }))
+
+    expect(await screen.findByRole("status")).toHaveTextContent("批量验证完成：1 项通过，报告 validation-run。")
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+  })
+
+  it("keeps a batch validation failure as an inline alert", async () => {
+    const user = userEvent.setup()
+    vi.mocked(validateAllProviderModels).mockRejectedValueOnce(new ApiError(502, "批量验证服务不可用"))
+    renderPanel()
+
+    await user.click(await screen.findByRole("button", { name: "批量验证" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("批量验证服务不可用")
+    expect(screen.queryByText("批量验证完成：1 项通过，报告 validation-run。" )).not.toBeInTheDocument()
   })
 
   it("archives an existing connection from the anchored lifecycle menu", async () => {
@@ -381,6 +419,6 @@ function renderPanel(locale: SupportedLocale = "zh-CN"): ReturnType<typeof creat
   const instance = createI18n()
   void instance.changeLanguage(locale)
   document.documentElement.lang = locale
-  render(<I18nextProvider i18n={instance}><OwnerProviderPanel csrfToken="csrf" /></I18nextProvider>)
+  render(<I18nextProvider i18n={instance}><ToastProvider><OwnerProviderPanel csrfToken="csrf" /></ToastProvider></I18nextProvider>)
   return instance
 }

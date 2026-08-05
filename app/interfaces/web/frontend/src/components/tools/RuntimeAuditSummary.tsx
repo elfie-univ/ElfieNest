@@ -28,7 +28,7 @@ export function RuntimeAuditSummary({ audit, error, loading }: RuntimeAuditSumma
       <h2 id="tools-permissions-audit">{t("tools.sections.audit")}</h2>
       {audit ? <span className="tool-audit-count">{t("tools.audit.eventCount", { count: audit.event_count })}</span> : null}
     </div>
-    {error ? <Notice message={error} /> : null}
+    {error ? <Notice kind="error" message={error} /> : null}
     {loading ? <p className="empty-state">{t("tools.loading")}</p> : null}
     {!loading && !error && audit?.events.length === 0 ? <p className="empty-state">{t("tools.audit.empty")}</p> : null}
     {!loading && !error && audit && audit.events.length > 0 ? <ul className="tool-audit-list">

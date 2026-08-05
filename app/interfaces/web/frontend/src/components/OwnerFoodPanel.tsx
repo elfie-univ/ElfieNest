@@ -26,6 +26,7 @@ import { Notice } from "./Notice"
 import { RefreshButton } from "./RefreshButton"
 import type { SelectFieldOption } from "./SelectField"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table"
+import { useToast } from "./ui/toast"
 
 type GenerationState = { readonly food: FoodPackage | null; readonly mode: "create" | "update" }
 const FOOD_ROLES = ["primary", "reasoning", "vision", "tool", "fallback"] as const
@@ -42,7 +43,7 @@ export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
   const [deleteTarget, setDeleteTarget] = useState<FoodPackage | null>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<LocalizedErrorState>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const { show } = useToast()
 
   const load = async (isActive: () => boolean = () => true): Promise<void> => {
     if (!isActive()) return
@@ -92,7 +93,7 @@ export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
         visible_user_ids: food.system_role ? [] : food.visible_user_ids,
       }, csrfToken)
       setEditing(null)
-      setNotice(t("foodPackages.notices.saved", { name: food.display_name }))
+      show({ kind: "success", message: t("foodPackages.notices.saved", { name: food.display_name }) })
       await load()
     } catch (reason: unknown) {
       setError(describeApiError(reason, "manage.save"))
@@ -138,7 +139,6 @@ export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
       </div>
     </div>
     {error ? <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("errors.load")} /> : null}
-    {notice ? <Notice message={notice} /> : null}
     <Table aria-label={t("foodPackages.title")} className="food-table">
       <TableHeader>
         <TableRow>
@@ -190,9 +190,9 @@ export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
       food={generation.food}
       mode={generation.mode}
       modelOptions={modelOptions}
-      onCreated={async (food) => { setNotice(t("foodPackages.notices.created", { name: food.display_name })); await load() }}
+      onCreated={async (food) => { show({ kind: "success", message: t("foodPackages.notices.created", { name: food.display_name }) }); await load() }}
       onOpenChange={(open) => { if (!open) setGeneration(null) }}
-      onUpdated={async (food) => { setNotice(t("foodPackages.notices.updated", { name: food.display_name })); await load() }}
+      onUpdated={async (food) => { show({ kind: "success", message: t("foodPackages.notices.updated", { name: food.display_name }) }); await load() }}
       users={users}
     /> : null}
     {editing ? <ManageDialog

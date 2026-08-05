@@ -17,4 +17,12 @@ describe("Notice", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent("Request failed.")
   })
+
+  it("preserves semantic kind and announces warnings assertively", () => {
+    render(<Notice kind="success" message="Saved." />)
+    expect(screen.getByRole("status")).toHaveAttribute("data-kind", "success")
+
+    render(<Notice kind="warning" message="Needs attention." />)
+    expect(screen.getByRole("alert")).toHaveAttribute("data-kind", "warning")
+  })
 })

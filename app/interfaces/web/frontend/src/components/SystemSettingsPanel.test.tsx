@@ -8,6 +8,7 @@ import { ApiError } from "../api/http"
 import { createI18n } from "../i18n/config"
 import type { SupportedLocale } from "../i18n/locale"
 import { SystemSettingsPanel } from "./SystemSettingsPanel"
+import { ToastProvider } from "./ui/toast"
 
 vi.mock("../api/client", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/client")>()
@@ -69,7 +70,7 @@ function renderSettingsPanel(locale: SupportedLocale = "zh-CN"): void {
   document.documentElement.lang = locale
   render(
     <I18nextProvider i18n={instance}>
-      <SystemSettingsPanel csrfToken="csrf" />
+      <ToastProvider><SystemSettingsPanel csrfToken="csrf" /></ToastProvider>
     </I18nextProvider>,
   )
 }

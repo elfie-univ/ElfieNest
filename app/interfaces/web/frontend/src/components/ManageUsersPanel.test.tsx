@@ -15,6 +15,7 @@ import {
 import { createI18n } from "../i18n/config"
 import type { SupportedLocale } from "../i18n/locale"
 import { ManageUsersPanel } from "./ManageUsersPanel"
+import { ToastProvider } from "./ui/toast"
 
 vi.mock("../api/client", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/client")>()
@@ -69,7 +70,7 @@ function renderPanel(locale: SupportedLocale = "zh-CN", actorRole: "owner" | "ad
   document.documentElement.lang = locale
   return {
     instance,
-    ...render(<I18nextProvider i18n={instance}><ManageUsersPanel actorRole={actorRole} csrfToken="csrf" /></I18nextProvider>),
+    ...render(<I18nextProvider i18n={instance}><ToastProvider><ManageUsersPanel actorRole={actorRole} csrfToken="csrf" /></ToastProvider></I18nextProvider>),
   }
 }
 
