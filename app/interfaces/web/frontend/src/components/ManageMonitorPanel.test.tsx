@@ -3,28 +3,34 @@ import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { createI18n } from "../i18n/config"
+import { ownerRead } from "../api/client"
 import { ManageMonitorPanel } from "./ManageMonitorPanel"
 import { ToastProvider } from "./ui/toast"
 
 const api = vi.hoisted(() => ({ ownerRead: vi.fn() }))
 
-vi.mock("../api/client", () => ({ ownerRead: api.ownerRead }))
+vi.mock("../api/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/client")>()
+  return { ...actual, ownerRead: api.ownerRead }
+})
 
-const healthyStatus = {
-  fallback: { configured: true, provider: "provider/qwen3:4b" },
-  models: { hidden: 0, total: 1, visible: 1 },
-  notes: [],
-  observer: { event_count: 1, last_event: "runtime-ready" },
-  providers: { active: 1, inactive: 0, total: 1 },
-  status: "ok",
-} as const
+type MonitorFixture = {
+  readonly healthStatus: string
+  readonly runtimeStatus: string
+  readonly runtimeNotes: readonly string[]
+}
 
-const attentionStatus = {
-  ...healthyStatus,
-  notes: ["The runtime database is unavailable."],
-  providers: { active: 0, inactive: 1, total: 1 },
-  status: "degraded",
-} as const
+const healthyFixture: MonitorFixture = {
+  healthStatus: "ok",
+  runtimeStatus: "ok",
+  runtimeNotes: [],
+}
+
+const attentionFixture: MonitorFixture = {
+  healthStatus: "ok",
+  runtimeStatus: "degraded",
+  runtimeNotes: ["The runtime database is unavailable."],
+}
 
 describe("ManageMonitorPanel persistent runtime status", () => {
   beforeEach(() => {
@@ -32,63 +38,111 @@ describe("ManageMonitorPanel persistent runtime status", () => {
     vi.useRealTimers()
   })
 
-  it("keeps a request failure visible after timers and retries into recovery", async () => {
-    api.ownerRead.mockRejectedValueOnce(new Error("network unavailable"))
+  it("keeps a partial-load failure visible after timers and retries into recovery", async () => {
+    api.ownerRead.mockImplementation(async (path: string) => {
+      if (path === "/api/health") throw new Error("network unavailable")
+      return monitorPayload(path, healthyFixture)
+    })
     renderPanel()
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load management data.")
+    expect(await screen.findByRole("alert")).toHaveTextContent("Some status data is temporarily unavailable.")
     vi.useFakeTimers()
     act(() => { vi.advanceTimersByTime(60000) })
-    expect(screen.getByRole("alert")).toHaveTextContent("Unable to load management data.")
+    expect(screen.getByRole("alert")).toHaveTextContent("Some status data is temporarily unavailable.")
 
     vi.useRealTimers()
-    api.ownerRead.mockResolvedValueOnce(healthyStatus)
-    const retry = lastButton("Refresh status")
-    fireEvent.click(retry)
+    mockSnapshot(healthyFixture)
+    fireEvent.click(lastButton("Refresh status"))
 
     expect(await screen.findByText("Healthy")).toBeInTheDocument()
-    expect(screen.getByText("Runtime status recovered.")).toBeInTheDocument()
+    expect(await screen.findByText("Runtime status recovered.")).toBeInTheDocument()
     expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   })
 
-  it("keeps non-ok health attention persistent and dedupes repeated recovery", async () => {
-    api.ownerRead.mockResolvedValueOnce(attentionStatus)
+  it("keeps non-ok runtime attention persistent and dedupes repeated recovery", async () => {
+    mockSnapshot(attentionFixture)
     renderPanel()
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Needs attention")
+    expect(await screen.findByRole("alert")).toHaveTextContent("Items need attention")
     vi.useFakeTimers()
     act(() => { vi.advanceTimersByTime(60000) })
-    expect(screen.getByRole("alert")).toHaveTextContent("Needs attention")
+    expect(screen.getByRole("alert")).toHaveTextContent("Items need attention")
 
     vi.useRealTimers()
-    api.ownerRead.mockResolvedValue(healthyStatus)
+    mockSnapshot(healthyFixture)
     fireEvent.click(lastButton("Refresh status"))
     expect(await screen.findByText("Runtime status recovered.")).toBeInTheDocument()
     expect(screen.queryByRole("alert")).not.toBeInTheDocument()
 
     fireEvent.click(lastButton("Refresh status"))
-    await screen.findByText("Healthy")
+    await screen.findByText("Services healthy")
     expect(screen.getAllByText("Runtime status recovered.")).toHaveLength(1)
   })
 
-  it("keeps the last metrics visible while a refresh failure is persistent", async () => {
-    api.ownerRead.mockResolvedValueOnce(healthyStatus)
+  it("keeps available cards visible while a refresh source is unavailable", async () => {
+    mockSnapshot(healthyFixture)
     renderPanel()
 
-    expect(await screen.findByText("1/1")).toBeInTheDocument()
-    api.ownerRead.mockRejectedValueOnce(new Error("network unavailable"))
-    fireEvent.click(lastButton("Refresh status"))
+    expect(await screen.findByText("Services healthy")).toBeInTheDocument()
+    api.ownerRead.mockImplementation(async (path: string) => {
+      if (path === "/api/owner/nest/rooms") throw new Error("rooms unavailable")
+      return monitorPayload(path, healthyFixture)
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Refresh status" }))
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load management data.")
-    expect(screen.getByText("1/1")).toBeInTheDocument()
-    expect(screen.getByText("Needs attention")).toBeInTheDocument()
+    expect(await screen.findByRole("alert")).toHaveTextContent("Some status data is temporarily unavailable.")
+    expect(screen.getByText("Users")).toBeInTheDocument()
+    expect(screen.getByText("2 online")).toBeInTheDocument()
+    expect(screen.getByText("Model service details")).toBeInTheDocument()
   })
 })
 
 function renderPanel(): void {
   const i18n = createI18n()
   void i18n.changeLanguage("en-US")
-  render(<I18nextProvider i18n={i18n}><ToastProvider><ManageMonitorPanel elfieCount={2} /></ToastProvider></I18nextProvider>)
+  render(<I18nextProvider i18n={i18n}><ToastProvider><ManageMonitorPanel /></ToastProvider></I18nextProvider>)
+}
+
+function mockSnapshot(fixture: MonitorFixture): void {
+  api.ownerRead.mockImplementation(async (path: string) => monitorPayload(path, fixture))
+}
+
+function monitorPayload(path: string, fixture: MonitorFixture): unknown {
+  switch (path) {
+    case "/api/health":
+      return { status: fixture.healthStatus, engine_ready: true, godot_web_ready: true, godot_runtime_ready: true }
+    case "/api/owner/runtime/status":
+      return {
+        status: fixture.runtimeStatus,
+        providers: { total: 1, active: 1, inactive: 0 },
+        models: { total: 1, visible: 1, hidden: 0 },
+        fallback: { provider: "ollama", configured: true },
+        observer: { event_count: 1, last_event: null },
+        notes: fixture.runtimeNotes,
+      }
+    case "/api/owner/users":
+      return [{ presence: "online" }, { presence: "online" }]
+    case "/api/owner/elfies":
+      return [
+        { elfie_id: "elfie-1", profile: { online_status: "online" } },
+        { elfie_id: "elfie-2", profile: { online_status: "offline" } },
+      ]
+    case "/api/owner/nest/rooms":
+      return [{ beds: [{ occupant_id: "elfie-1" }, { occupant_id: "elfie-2" }] }]
+    case "/api/owner/providers/connections":
+      return [{
+        catalog_id: "ollama",
+        alias: "Ollama",
+        enabled: true,
+        archived: false,
+        verification: { status: "passed" },
+        models: [{ available: true, hidden: false, retired: false }],
+      }]
+    case "/api/owner/providers/ollama":
+      return { state: "healthy", recommended_model: "qwen2.5:0.5b", installed_model_count: 1 }
+    default:
+      return { endpoint: "https://raw.example/v1" }
+  }
 }
 
 function lastButton(name: string): HTMLElement {
