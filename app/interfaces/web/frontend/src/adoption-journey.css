@@ -131,7 +131,12 @@
 .adoption-name-options { display: grid; gap: 14px; margin: 0; padding: 20px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-field); }
 .adoption-name-options legend { margin-bottom: 4px; font-weight: 700; }
 .adoption-name-options label { display: flex; align-items: center; gap: 9px; min-height: 36px; }
-.adoption-name-options input[type="text"], .adoption-name-options > input:not([type]) { min-width: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; color: var(--text); background: var(--surface); }
+.adoption-name-options__group { display: contents; }
+.adoption-name-radio { display: inline-grid; width: 16px; height: 16px; flex: 0 0 16px; place-items: center; margin: 0; padding: 0; border: 1px solid var(--border-strong); border-radius: 50%; color: var(--surface); background: var(--surface); }
+.adoption-name-radio[data-state="checked"] { border-color: var(--accent); background: var(--accent); }
+.adoption-name-radio:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.adoption-name-radio__indicator { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.adoption-name-options input[type="text"], .adoption-name-options > input:not([type]) { min-width: 0; height: auto; padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; color: var(--text); background: var(--surface); font: inherit; }
 .adoption-name-options > input { width: 100%; }
 
 .adoption-arrival { display: grid; min-height: 480px; place-items: center; align-content: center; gap: 14px; text-align: center; }

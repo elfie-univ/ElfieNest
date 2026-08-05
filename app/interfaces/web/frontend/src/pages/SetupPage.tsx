@@ -17,6 +17,7 @@ import { LanguageSwitcher } from "../components/LanguageSwitcher"
 import { Notice } from "../components/Notice"
 import { NumberField } from "../components/NumberField"
 import { SelectField } from "../components/SelectField"
+import { TextField } from "../components/TextField"
 import { localizeApiError, type ErrorOperation } from "../i18n/errors"
 import { currentLocale } from "../i18n/format"
 import { SetupInstall, SetupReview } from "./SetupPageSections"
@@ -218,10 +219,10 @@ export function SetupPage() {
         </header>
         <div className="setup-card__content">
           {isInstalling ? <SetupInstall draft={draft} install={install} model={model} modelId={modelId} onConfirmInstall={confirmInstall} onEnterManage={() => window.location.assign("/manage")} saving={saving} t={t} /> : currentStep === 1 && <form className="setup-form setup-form--owner" onSubmit={submitOwner}>
-            <label>{t("owner.fields.accountId")}<input autoComplete="username" minLength={3} onChange={(event) => setAccountId(event.target.value)} required value={accountId} /></label>
-            <label>{t("owner.fields.displayName")}<input autoComplete="name" onChange={(event) => setDisplayName(event.target.value)} required value={displayName} /></label>
-            <label>{t("owner.fields.password")}<input autoComplete="new-password" minLength={6} onChange={(event) => setPassword(event.target.value)} placeholder={draft?.password_configured ? t("owner.passwordConfiguredPlaceholder") : undefined} required={!draft?.password_configured} type="password" value={password} /></label>
-            <label>{t("owner.fields.confirmPassword")}<input autoComplete="new-password" minLength={6} onChange={(event) => setPasswordConfirmation(event.target.value)} placeholder={draft?.password_configured ? t("owner.passwordConfiguredPlaceholder") : undefined} required={!draft?.password_configured} type="password" value={passwordConfirmation} /></label>
+            <TextField autoComplete="username" label={t("owner.fields.accountId")} minLength={3} onChange={setAccountId} required value={accountId} />
+            <TextField autoComplete="name" label={t("owner.fields.displayName")} onChange={setDisplayName} required value={displayName} />
+            <TextField {...(draft?.password_configured ? { placeholder: t("owner.passwordConfiguredPlaceholder") } : {})} autoComplete="new-password" label={t("owner.fields.password")} minLength={6} onChange={setPassword} required={!draft?.password_configured} type="password" value={password} />
+            <TextField {...(draft?.password_configured ? { placeholder: t("owner.passwordConfiguredPlaceholder") } : {})} autoComplete="new-password" label={t("owner.fields.confirmPassword")} minLength={6} onChange={setPasswordConfirmation} required={!draft?.password_configured} type="password" value={passwordConfirmation} />
             <div className="setup-actions"><button className="button" disabled={saving || !csrfToken} type="submit">{saving ? t("owner.submitting") : t("owner.action")}</button></div>
           </form>}
           {!isInstalling && currentStep === 2 && <section className="setup-form setup-form--offline">

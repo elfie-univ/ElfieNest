@@ -22,6 +22,7 @@ import { AccountSettingRow } from "./AccountSettingRow"
 import { LanguageSwitcher } from "./LanguageSwitcher"
 import { Notice } from "./Notice"
 import { SelectField } from "./SelectField"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select"
 import { TextField } from "./TextField"
 import { ConfirmDialog } from "./ConfirmDialog"
 import { localizeApiError } from "../i18n/errors"
@@ -203,7 +204,7 @@ export function AccountMenuPanel({ onClose, onLoggedOut, onUpdated, user }: Acco
         {editingIdentity ? <div className="account-menu__identity-edit">
           <div className="account-menu__identity-name-row">
             <Input aria-label={t("identity.editDisplayName")} autoFocus maxLength={64} onChange={(event) => setDisplayNameInput(event.target.value)} onKeyDown={saveIdentityOnEnter} placeholder={user.account_id} value={displayNameInput} />
-            <label className="account-menu__gender-field"><span>{t("identity.gender")}</span><select aria-label={t("identity.gender")} onChange={(event) => setGenderInput(event.target.value === "female" ? "female" : "male")} value={genderInput}><option value="male">{t("identity.genderMale")}</option><option value="female">{t("identity.genderFemale")}</option></select></label>
+            <label className="account-menu__gender-field"><span>{t("identity.gender")}</span><Select onValueChange={(value) => setGenderInput(value === "female" ? "female" : "male")} value={genderInput}><SelectTrigger aria-label={t("identity.gender")} className="account-menu__gender-select" size="sm"><SelectValue>{genderInput === "female" ? t("identity.genderFemale") : t("identity.genderMale")}</SelectValue></SelectTrigger><SelectContent position="popper"><SelectItem value="male">{t("identity.genderMale")}</SelectItem><SelectItem value="female">{t("identity.genderFemale")}</SelectItem></SelectContent></Select></label>
           </div>
           <label className="account-menu__identity-edit-row"><span className="account-menu__identity-edit-label">{t("identity.accountLabel")}</span><Input aria-label={t("identity.accountLabel")} maxLength={32} minLength={3} onChange={(event) => setAccountIdInput(event.target.value)} value={accountIdInput} /></label>
           <label className="account-menu__identity-edit-row"><span className="account-menu__identity-edit-label">{t("identity.roleLabel")}</span><Input aria-label={t("identity.roleLabel")} readOnly value={roleDescription} /></label>

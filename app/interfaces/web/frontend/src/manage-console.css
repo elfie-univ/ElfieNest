@@ -96,7 +96,7 @@
 .account-menu__identity-name-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(92px, .6fr); align-items: end; gap: 7px; }
 .account-menu__identity-name-row input { min-width: 0; }
 .account-menu__gender-field, .account-menu__identity-edit-row { display: grid; gap: 3px; color: var(--ink-soft); font-size: 12px; }
-.account-menu__gender-field select, .account-menu__identity-edit-row input { width: 100%; min-width: 0; padding: 6px 7px; border: 1px solid var(--border-soft, var(--line)); border-radius: 8px; color: var(--ink); background: var(--surface-raised); font: inherit; }
+.account-menu__gender-field [data-slot="select-trigger"], .account-menu__identity-edit-row input { width: 100%; min-width: 0; min-height: 0; height: auto; padding: 6px 7px; border: 1px solid var(--border-soft, var(--line)); border-radius: 8px; color: var(--ink); background: var(--surface-raised); font: inherit; }
 .account-menu__identity-edit-row { grid-template-columns: minmax(5.5em, max-content) minmax(0, 1fr); align-items: center; }
 .account-menu__identity-edit-label { min-width: max-content; white-space: nowrap; }
 .account-menu__identity-edit-row input[readonly] { color: var(--ink-soft); background: var(--surface-muted); }

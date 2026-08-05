@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { saveProviderModels, updateProviderModel, type ProviderConnection } from "../api/owner-providers"
 import { createI18n } from "../i18n/config"
@@ -66,6 +66,13 @@ const connection = {
 } satisfies ProviderConnection
 
 describe("ProviderModelsDialog", () => {
+  beforeAll(() => {
+    Element.prototype.hasPointerCapture = vi.fn(() => false)
+    Element.prototype.setPointerCapture = vi.fn()
+    Element.prototype.releasePointerCapture = vi.fn()
+    Element.prototype.scrollIntoView = vi.fn()
+  })
+
   beforeEach(() => {
     vi.mocked(saveProviderModels).mockResolvedValue(connection)
     vi.mocked(updateProviderModel).mockResolvedValue(connection.models[0]!)
@@ -97,13 +104,14 @@ describe("ProviderModelsDialog", () => {
     const capabilitySelects = within(firstModelRow).getAllByRole("combobox")
     expect(capabilitySelects).toHaveLength(3)
     for (const select of capabilitySelects) {
-      expect(within(select).getAllByRole("option")).toHaveLength(3)
+      expect(select).toHaveAttribute("data-slot", "select-trigger")
     }
     const visionSelect = capabilitySelects.at(0)
     expect(visionSelect).toBeDefined()
     if (!visionSelect) return
-    await user.selectOptions(visionSelect, "unknown")
-    expect(visionSelect).toHaveValue("unknown")
+    await user.click(visionSelect)
+    await user.click(screen.getByRole("option", { name: "?" }))
+    expect(visionSelect).toHaveTextContent("?")
   }, 10_000)
 
   it("edits every row and saves one complete model list", async () => {
@@ -117,7 +125,9 @@ describe("ProviderModelsDialog", () => {
     await user.clear(displayInput)
     await user.type(displayInput, "GPT Test Updated")
     const firstModelRow = within(dialog).getAllByRole("row")[1]!
-    await user.selectOptions(within(firstModelRow).getByRole("combobox", { name: "视觉" }), "unknown")
+    const visionSelect = within(firstModelRow).getByRole("combobox", { name: "视觉" })
+    await user.click(visionSelect)
+    await user.click(screen.getByRole("option", { name: "?" }))
     await user.click(within(firstModelRow).getByRole("button", { name: "停用" }))
     await user.click(within(firstModelRow).getByRole("button", { name: "启用" }))
     await user.click(within(dialog).getByRole("button", { name: "保存全部" }))
