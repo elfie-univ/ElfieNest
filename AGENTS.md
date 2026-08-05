@@ -174,6 +174,7 @@ README 与 `docs/developer/`，并由用户确认架构影响。
 
 ## 实现和测试要求
 
+- **前端统一组件规则：** `app/interfaces/web/frontend` 新增控件或替换现有控件时，必须先复用 `src/components/ui/` 中现有的 shadcn/Radix 原语和页面级复合组件（例如 `SelectField`、`CheckboxField`、`TextField`、`Button`）。当已有组件覆盖同一交互时，禁止在页面内直接使用原生 `<select>`、checkbox、对话框或重复手搓控件；如果共享组件确实缺失，先补齐共享组件，再由页面使用。组件样式必须使用现有语义 token，并遵守 `app/interfaces/web/frontend/DESIGN.md` 与 `DESIGN_zh.md`。本规则不要求在无关任务中顺手迁移历史页面。
 - 行为变化先写能失败的测试，再做最小实现；测试放在对应
   `test/<module>/` 路径并使用绝对导入。
 - Python、TypeScript、GDScript 的具体规范、质量基线与验证命令只引用

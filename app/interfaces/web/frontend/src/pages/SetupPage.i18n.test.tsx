@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
@@ -86,11 +86,12 @@ describe("localized setup wizard", () => {
 
   it("renders exactly four English configuration steps", async () => {
     renderSetup("en-US", statusFor(1))
-    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent("Create the Owner first.")
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent("Create the Owner first")
     for (const label of ["Create Owner account", "Local offline support (optional)", "Nest beds", "Review and install"]) {
       expect(screen.getByText(label)).toBeInTheDocument()
     }
     expect(screen.queryByText("Model and food")).not.toBeInTheDocument()
+    expect(screen.queryByText("Create the single Owner account. You can change its password in this step.", { exact: true })).not.toBeInTheDocument()
   })
 
   it("saves the Owner draft without calling the legacy immediate setup endpoint", async () => {
@@ -107,19 +108,36 @@ describe("localized setup wizard", () => {
     expect(legacy).not.toHaveBeenCalled()
   })
 
-  it("shows the fixed model dropdown and disables it when local Ollama is unchecked", async () => {
+  it("uses shared controls and disables the model selector when local Ollama is unchecked", async () => {
     const user = userEvent.setup()
     const save = vi.spyOn(client, "setupSaveOfflineDraft").mockResolvedValue(statusFor(3))
     renderSetup("en-US", statusFor(2))
-    const model = await screen.findByLabelText("Local model")
-    expect(within(model).getByText("qwen2.5:0.5b（推荐）")).toBeInTheDocument()
-    expect(within(model).getByText("qwen3.5:0.8b")).toBeInTheDocument()
-    expect(within(model).getByText("gemma3:270m")).toBeInTheDocument()
+    const model = await screen.findByRole("combobox", { name: "Local model" })
+    expect(model).toHaveAttribute("data-slot", "select-trigger")
+    expect(model).toHaveTextContent("qwen2.5:0.5b（推荐）")
+    await user.click(model)
+    expect(screen.getByRole("option", { name: "qwen2.5:0.5b（推荐）" })).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "qwen3.5:0.8b" })).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "gemma3:270m" })).toBeInTheDocument()
+    await user.keyboard("{Escape}")
     const checkbox = screen.getByRole("checkbox", { name: /Use local Ollama/ })
+    expect(checkbox).toHaveAttribute("data-slot", "checkbox")
     await user.click(checkbox)
     expect(model).toBeDisabled()
     await user.click(screen.getByRole("button", { name: "Save and continue" }))
     expect(save).toHaveBeenCalledWith(false, null, "setup-csrf")
+  })
+
+  it("shows reusable and pending Ollama states with distinct status styles", async () => {
+    renderSetup("en-US", statusFor(2))
+    const installedStatus = await screen.findByText("Installed · reusable")
+    expect(installedStatus).toHaveClass("setup-hint--status", "setup-hint--installed")
+
+    renderSetup("en-US", statusFor(2, {
+      draft: { ...statusFor(2).draft, ollama_installed: false },
+    }))
+    const pendingStatus = await screen.findByText("Not installed · handled during setup")
+    expect(pendingStatus).toHaveClass("setup-hint--status", "setup-hint--missing")
   })
 
   it("renders exactly four review rows and keeps Ollama status inside its row", async () => {
@@ -129,6 +147,80 @@ describe("localized setup wizard", () => {
     expect(rows[1]).toHaveTextContent("Local Ollama")
     expect(rows[1]).toHaveTextContent("Installed")
     expect(screen.queryByText(/emergency food|修复|repair/i)).not.toBeInTheDocument()
+  })
+
+  it("allows returning to a saved step before final confirmation", async () => {
+    const user = userEvent.setup()
+    renderSetup("en-US", statusFor(4))
+
+    // When: a saved step is selected from the setup rail.
+    const ownerStep = await screen.findByRole("button", { name: /Create Owner account/ })
+    await user.click(ownerStep)
+
+    // Then: the wizard returns to that step without changing the saved flow.
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Create the Owner first")
+    expect(ownerStep).toHaveAttribute("aria-current", "step")
+    expect(ownerStep.closest("li")).toHaveClass("setup-step--current")
+  })
+
+  it("uses compact horizontal rows for the Owner form", async () => {
+    renderSetup("en-US", statusFor(1))
+
+    // Then: the four Owner fields share the compact form layout contract.
+    expect((await screen.findByLabelText("Owner account")).closest("form")).toHaveClass("setup-form--owner")
+  })
+
+  it("uses a compact bed-count row and rejects values outside 4 to 32", async () => {
+    const user = userEvent.setup()
+    renderSetup("en-US", statusFor(3))
+    const bedCount = await screen.findByRole("textbox", { name: "Bed count" })
+
+    // When: the user enters a count above the supported range.
+    await user.clear(bedCount)
+    await user.type(bedCount, "45")
+
+    // Then: the field explains the range and saving is unavailable.
+    expect(bedCount.closest("section")).toHaveClass("setup-form--bed-count")
+    expect(bedCount).toHaveAttribute("data-slot", "input")
+    expect(bedCount.closest('[data-field-row="true"]')).toBeInTheDocument()
+    expect(bedCount).toHaveAttribute("aria-invalid", "true")
+    expect(screen.getByText("Use 4 to 32 beds.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Save bed settings" })).toBeDisabled()
+  })
+
+  it("removes the large explanatory callout from offline support", async () => {
+    renderSetup("en-US", statusFor(2))
+    const model = await screen.findByRole("combobox", { name: "Local model" })
+    expect(model).toBeInTheDocument()
+    expect(model.closest("section")).toHaveClass("setup-form--offline")
+    expect(screen.getByRole("checkbox", { name: /Use local Ollama/ }).closest(".setup-check--row")).toHaveClass("setup-check--row")
+    expect(screen.queryByText(/This step only saves local offline support configuration/)).not.toBeInTheDocument()
+  })
+
+  it("keeps configured passwords masked and sends a newly entered replacement", async () => {
+    const user = userEvent.setup()
+    const save = vi.spyOn(client, "setupSaveOwnerDraft").mockResolvedValue(statusFor(2))
+    renderSetup("en-US", statusFor(4))
+    await user.click(await screen.findByRole("button", { name: /Create Owner account/ }))
+
+    const password = screen.getByLabelText("Password")
+    const confirmation = screen.getByLabelText("Confirm password")
+    expect(password).toHaveValue("")
+    expect(confirmation).toHaveValue("")
+    expect(password).toHaveAttribute("placeholder", "••••••••")
+    expect(confirmation).toHaveAttribute("placeholder", "••••••••")
+
+    await user.type(password, "new-secret")
+    await user.type(confirmation, "new-secret")
+    await user.click(screen.getByRole("button", { name: "Save and continue" }))
+
+    expect(save).toHaveBeenCalledWith("owner", "Owner", "new-secret", "new-secret", "setup-csrf")
+  })
+
+  it("removes the large explanatory callout from nest beds", async () => {
+    renderSetup("en-US", statusFor(3))
+    expect(await screen.findByRole("textbox", { name: "Bed count" })).toBeInTheDocument()
+    expect(screen.queryByText(/The Nest keeps 4 to 32 beds/)).not.toBeInTheDocument()
   })
 
   it("shows the disabled-Ollama model summary as not configured", async () => {

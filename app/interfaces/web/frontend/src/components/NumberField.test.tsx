@@ -12,6 +12,22 @@ function NumberFixture() {
   return <NumberField label="床位数" max={5} min={1} onChange={setValue} value={value} />
 }
 
+function DraftNumberFixture() {
+  const [value, setValue] = useState(4)
+  return <NumberField
+    clampOnBlur={false}
+    label="床位数"
+    max={32}
+    min={4}
+    onChange={setValue}
+    onDraftChange={(draft) => {
+      const parsed = Number(draft)
+      if (Number.isFinite(parsed)) setValue(parsed)
+    }}
+    value={value}
+  />
+}
+
 describe("NumberField", () => {
   it("steps within bounds and normalizes malformed input on blur", async () => {
     const user = userEvent.setup()
@@ -37,5 +53,17 @@ describe("NumberField", () => {
 
     await user.click(screen.getByRole("button", { name: "减少床位数" }))
     expect(field).toHaveValue("4")
+  })
+
+  it("keeps an out-of-range draft when the caller opts out of blur clamping", async () => {
+    const user = userEvent.setup()
+    render(<I18nextProvider i18n={createI18n()}><DraftNumberFixture /></I18nextProvider>)
+
+    const field = screen.getByRole("textbox", { name: "床位数" })
+    await user.clear(field)
+    await user.type(field, "45")
+    await user.tab()
+
+    expect(field).toHaveValue("45")
   })
 })

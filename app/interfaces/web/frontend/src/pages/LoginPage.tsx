@@ -39,9 +39,14 @@ export function LoginPage() {
         <LanguageSwitcher variant="compact" />
       </section>
       <section className="panel login">
-        <p className="brand">{t("login.brand")}</p>
+        <p className="login__wordmark">ELFIE NEST</p>
+        <img
+          alt="ELFIE NEST"
+          className="login__logo"
+          src={new URL("../../../../../../docs/public/assets/logo.png", import.meta.url).href}
+        />
+        <p className="login__brand">{t("login.brand")}</p>
         <h1>{t("login.title")}</h1>
-        <p>{t("login.description")}</p>
         <form onSubmit={(event) => { void submit(event) }}>
           <TextField
             autoComplete="username"

@@ -29,6 +29,11 @@ function exposeLazyAssetsToWebHost(): Plugin {
 export default defineConfig({
   root: frontendRoot,
   plugins: [react(), tailwindcss(), exposeLazyAssetsToWebHost()],
+  server: {
+    fs: {
+      allow: [frontendRoot, resolve(frontendRoot, "../../../../docs")],
+    },
+  },
   resolve: {
     alias: {
       "@": resolve(frontendRoot, "src"),

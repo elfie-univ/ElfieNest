@@ -9,13 +9,15 @@ import { Icon } from "./Icon"
 import "./manage-controls.css"
 
 type NumberFieldProps = {
+  readonly clampOnBlur?: boolean
   readonly disabled?: boolean
-  readonly error?: string
-  readonly hint?: string
+  readonly error?: string | undefined
+  readonly hint?: string | undefined
   readonly label: string
   readonly max: number
   readonly min: number
   readonly onChange: (value: number) => void
+  readonly onDraftChange?: (draft: string) => void
   readonly step?: number
   readonly value: number
 }
@@ -25,6 +27,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 export function NumberField({
+  clampOnBlur = true,
   disabled = false,
   error,
   hint,
@@ -32,6 +35,7 @@ export function NumberField({
   max,
   min,
   onChange,
+  onDraftChange,
   step = 1,
   value,
 }: NumberFieldProps) {
@@ -46,7 +50,7 @@ export function NumberField({
       setDraft(String(value))
       return
     }
-    const next = clamp(parsed, min, max)
+    const next = clampOnBlur ? clamp(parsed, min, max) : parsed
     setDraft(String(next))
     onChange(next)
   }
@@ -69,7 +73,11 @@ export function NumberField({
         id={id}
         inputMode="numeric"
         onBlur={commitDraft}
-        onChange={(event) => setDraft(event.target.value)}
+        onChange={(event) => {
+          const nextDraft = event.target.value
+          setDraft(nextDraft)
+          onDraftChange?.(nextDraft)
+        }}
         type="text"
         value={draft}
       />
