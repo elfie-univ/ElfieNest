@@ -74,7 +74,6 @@ export function MobileAccessDialog({ onClose, targetPath = "/chat" }: MobileAcce
         <img alt={t("mobileAccess.qrAlt", { url: selectedUrl })} className="mobile-access-dialog__qr" src={imageUrl} />
         {access.urls.length > 1 ? <div className="mobile-access-dialog__select"><SelectField label={t("mobileAccess.localAddress")} onValueChange={setSelectedUrl} options={access.urls.map((url) => ({ label: url, value: url }))} value={selectedUrl} /></div> : null}
         <p className="mobile-access-dialog__url">{selectedUrl}</p>
-        <p className="mobile-access-dialog__hint">{t("mobileAccess.hint")}</p>
       </> : null}
     </article>
   </section>

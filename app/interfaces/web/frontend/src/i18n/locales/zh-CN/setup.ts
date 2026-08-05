@@ -24,7 +24,7 @@ export const setup = {
       "food.emergency": "正在生成保底粮策略",
       "food.skipped": "已跳过保底粮策略",
       "nest.configure": "正在配置精灵巢",
-      "owner.create": "正在创建 Owner 账号",
+      "owner.create": "正在创建超级管理员账号",
       preparing: "正在准备安装",
     },
     completed: "安装完成。",
@@ -49,7 +49,7 @@ export const setup = {
   owner: {
     action: "保存并继续",
     fields: {
-      accountId: "Owner 账号",
+      accountId: "超级管理员账号",
       confirmPassword: "确认密码",
       displayName: "显示名称",
       password: "密码",
@@ -76,12 +76,12 @@ export const setup = {
     modify: "修改",
     notConfigured: "未配置",
     ollama: "本地 Ollama",
-    owner: "Owner 账号",
+    owner: "超级管理员账号",
   },
   steps: {
     owner: {
-      label: "创建 Owner 账号",
-      title: "先创建 Owner",
+      label: "创建超级管理员账号",
+      title: "先创建超级管理员",
     },
     offline: {
       label: "本地离线保障（可选）",

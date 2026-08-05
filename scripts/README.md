@@ -17,6 +17,7 @@ environment.
 | `build_godot_web.py` | Build | Exports and validates the Godot Web Runtime; final output goes to `build/components/godot-web/` |
 | `release.py` | Release build | Assembles staging resources and invokes electron-builder |
 | `check_quality_baseline.py` | Quality gate | Compares current Ruff, Ruff format and MyPy diagnostics against the controlled historical baseline |
+| `check_node_toolchain.sh` | Quality gate | Verifies the root Node.js/pnpm anchor and all independent Node project manifests |
 | `elfienest_install_helpers.sh` | Shell library | Used by `install.sh` to validate the user-level install directory and PATH; not standalone-executable |
 | `__init__.py` | Package marker | Lets architecture tests import testable functions from scripts; not a command entry point |
 
@@ -36,6 +37,9 @@ environment.
 
 # Print a JSON report (for CI)
 ./scripts/bootstrap.sh report --tier=build
+
+# Verify the Node.js/pnpm declarations
+bash scripts/check_node_toolchain.sh
 ```
 
 ### release.py usage

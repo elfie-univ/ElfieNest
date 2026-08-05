@@ -19,7 +19,6 @@ export const common = {
   mobileAccess: {
     brand: "手机访问",
     close: "关闭手机访问二维码",
-    hint: "手机和电脑接入同一个家庭网络后扫码。登录 Owner 账号进入管理台，普通账号进入聊天。",
     loading: "正在查找本机局域网地址…",
     localAddress: "本机地址",
     qrAlt: "访问 {{url}} 的二维码",

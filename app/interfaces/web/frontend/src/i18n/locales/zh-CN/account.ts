@@ -6,7 +6,7 @@ export const account = {
   },
   identity: {
     accountLabel: "账号：",
-    adminRole: "Admin",
+    adminRole: "管理员",
     birthDate: "出生日期：",
     cancelEdit: "取消编辑",
     confirmDescription: "保存后，账号和个人资料会立即更新。确定继续吗？",
@@ -15,12 +15,12 @@ export const account = {
     gender: "性别",
     genderFemale: "女",
     genderMale: "男",
-    ownerRole: "Owner",
+    ownerRole: "超级管理员",
     roleLabel: "角色：",
     save: "保存个人资料",
     saveDisplayName: "保存个人资料",
     uploadAvatar: "上传本地头像",
-    userRole: "User",
+    userRole: "普通用户",
   },
   language: {
     current: "简体中文",

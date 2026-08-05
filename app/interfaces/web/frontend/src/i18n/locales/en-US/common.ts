@@ -19,7 +19,6 @@ export const common = {
   mobileAccess: {
     brand: "MOBILE ACCESS",
     close: "Close mobile access QR code",
-    hint: "Connect your phone and computer to the same home network, then scan. Owner accounts open management; regular accounts open chat.",
     loading: "Looking for this computer on the local network...",
     localAddress: "Local address",
     qrAlt: "QR code for {{url}}",

@@ -32,6 +32,17 @@ the environment is unhealthy, run `./elfienest.sh version` to repair the dev
 dependencies; use `./install.sh` to install the native application, then
 confirm it with `elfienest version`.
 
+### Node.js and pnpm toolchain
+
+The private root `package.json` anchors Node.js 20+ and pnpm 10.12.1 without
+owning application dependencies. The Web frontend, desktop host, docs site and
+Developer Tools retain independent manifests and lockfiles. Check that their
+toolchain declarations remain aligned with:
+
+```bash
+bash scripts/check_node_toolchain.sh
+```
+
 Python `3.9.25` 是产品和开发工具的共同固定运行时。除非负责人明确批准全仓升级，
 不得改用系统 `python`/`python3`、其他虚拟环境或 `ELFIENEST_PYTHON` 覆盖入口；
 安装、CLI、Developer Tools、测试和 CR 一律经 `uv` 与仓库 `.venv`。环境失效时只需

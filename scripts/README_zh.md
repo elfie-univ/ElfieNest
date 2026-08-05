@@ -15,6 +15,7 @@
 | `build_godot_web.py` | 构建 | 导出并校验 Godot Web Runtime，正式输出到 `build/components/godot-web/` |
 | `release.py` | 发布构建 | 组装 staging 资源并调用 electron-builder |
 | `check_quality_baseline.py` | 质量门 | 比较 Ruff、Ruff format、MyPy 当前诊断与受控历史基线 |
+| `check_node_toolchain.sh` | 质量门 | 校验根目录 Node.js/pnpm 锚点与所有独立 Node 项目的清单 |
 | `elfienest_install_helpers.sh` | Shell 库 | 供 `install.sh` 校验用户级安装目录和 PATH，不能独立执行 |
 | `__init__.py` | 包标记 | 允许架构测试导入脚本中的可测试函数，不是命令入口 |
 
@@ -34,6 +35,9 @@
 
 # 输出 JSON 格式报告（供 CI 使用）
 ./scripts/bootstrap.sh report --tier=build
+
+# 校验 Node.js/pnpm 声明
+bash scripts/check_node_toolchain.sh
 ```
 
 ### release.py 用法

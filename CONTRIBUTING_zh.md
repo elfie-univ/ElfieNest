@@ -40,6 +40,14 @@ ElfieNest 使用 `scripts/bootstrap.sh` 统一管理所有依赖，分两种模�
 Bootstrap 会在各 package 目录中解析仓库锁定的 pnpm 版本。没有兼容的 pnpm
 命令时，它只通过 `npx` 临时运行精确锁定的版本，绝不安装或覆盖全局 pnpm。
 
+私有根目录 `package.json` 只负责锚定统一的 Node.js 20+ 与 pnpm 10.12.1 工具链，
+不持有业务依赖。Web 前端、桌面宿主、文档站和 Developer Tools 仍各自保留独立的
+清单与锁文件。可用下面的只读检查确认这些声明没有分叉：
+
+```bash
+bash scripts/check_node_toolchain.sh
+```
+
 ### Python 环境契约
 `requires-python`、锁文件、CI 或启动脚本中的 3.9.25 契约。所有安装、开发、测试、
 代码审查与脚本均通过 `scripts/bootstrap.sh` 和仓库 `.venv/bin/python3` 运行；

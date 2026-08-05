@@ -78,7 +78,7 @@ def discover_web_build(directory: Path) -> WebBuild:
     if not manifest_path.is_file():
         raise WebBuildManifestMissingError(
             f"Web build manifest is missing: {manifest_path}. "
-            "Run `pnpm --dir app/interfaces/web/frontend build`."
+            "Run `cd app/interfaces/web/frontend && pnpm build`."
         )
 
     try:

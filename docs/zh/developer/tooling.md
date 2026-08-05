@@ -27,6 +27,16 @@ Python `3.9.25` 是产品和开发工具的共同固定运行时。除非负责�
 安装、CLI、Developer Tools、测试和 CR 一律经 `uv` 与仓库 `.venv`。环境失效时只需
 运行 `./elfienest.sh version`；首次开发运行会自动检查并补齐受控依赖。
 
+### Node.js 与 pnpm 工具链
+
+私有根目录 `package.json` 只锚定 Node.js 20+ 与 pnpm 10.12.1，不持有业务依赖。
+Web 前端、桌面宿主、文档站和 Developer Tools 仍各自保留独立的清单与锁文件。
+可用下面的命令检查这些工具链声明是否保持一致：
+
+```bash
+bash scripts/check_node_toolchain.sh
+```
+
 ## CLI 入口
 
 直接运行 `./elfienest.sh` 会进入交互模式；脚本化调用应提供明确子命令：

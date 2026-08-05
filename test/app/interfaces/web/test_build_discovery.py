@@ -17,7 +17,10 @@ def test_discover_web_build_raises_clear_error_when_manifest_is_missing(
     build_dir.mkdir(parents=True)
 
     # When: Core discovers the Web build output.
-    with pytest.raises(WebBuildManifestMissingError, match="manifest.json"):
+    with pytest.raises(
+        WebBuildManifestMissingError,
+        match=r"cd app/interfaces/web/frontend && pnpm build",
+    ):
         discover_web_build(build_dir)
 
     # Then: the missing generated artifact is not silently accepted.

@@ -49,6 +49,15 @@ Bootstrap resolves the repository-pinned pnpm release from each package
 directory. If no compatible pnpm command is available, it runs the exact
 pinned release through `npx`; it never installs or overwrites a global pnpm.
 
+The private root `package.json` anchors the shared Node.js 20+ and pnpm
+10.12.1 toolchain without owning application dependencies. The Web frontend,
+desktop host, docs site and Developer Tools keep separate manifests and
+lockfiles. Verify that their declarations stay aligned with:
+
+```bash
+bash scripts/check_node_toolchain.sh
+```
+
 ### Python environment contract
 The 3.9.25 contract in `requires-python`, lockfile, CI and launch scripts. All
 install, dev, test, code review and script runs go through `scripts/bootstrap.sh`

@@ -230,8 +230,8 @@ describe("ManageUsersPanel real-data states", () => {
 
     await user.click(await screen.findByRole("button", { name: "添加用户" }))
     await user.click(screen.getByRole("combobox", { name: "角色" }))
-    await user.click(screen.getByRole("option", { name: "Admin" }))
-    expect(screen.getByRole("combobox", { name: "角色" })).toHaveTextContent("Admin")
+    await user.click(screen.getByRole("option", { name: "管理员" }))
+    expect(screen.getByRole("combobox", { name: "角色" })).toHaveTextContent("管理员")
 
     await user.click(screen.getByRole("button", { name: "取消" }))
     ownerPanel.unmount()
@@ -273,7 +273,7 @@ describe("ManageUsersPanel real-data states", () => {
 
     // When: the shared management filter is changed to Admin.
     await user.click(await screen.findByRole("combobox", { name: "角色" }))
-    await user.click(screen.getByRole("option", { name: "Admin" }))
+    await user.click(screen.getByRole("option", { name: "管理员" }))
 
     // Then: only the selected role remains visible and the backend list is not reloaded.
     expect(await screen.findAllByRole("article")).toHaveLength(1)
