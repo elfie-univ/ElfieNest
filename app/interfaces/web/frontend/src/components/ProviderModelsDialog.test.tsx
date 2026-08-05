@@ -78,6 +78,19 @@ describe("ProviderModelsDialog", () => {
     vi.mocked(updateProviderModel).mockResolvedValue(connection.models[0]!)
   })
 
+  it("keeps every model toolbar action visibly filled", () => {
+    renderDialog()
+
+    const dialog = screen.getByRole("dialog", { name: "OpenAI Main 的模型" })
+    const toolbar = dialog.querySelector<HTMLElement>(".provider-models-toolbar")
+    expect(toolbar).not.toBeNull()
+    if (!toolbar) return
+
+    for (const label of ["重新读取模型", "手工添加模型", "编辑全部"]) {
+      expect(within(toolbar).getByRole("button", { name: label })).toHaveAttribute("data-variant", "default")
+    }
+  })
+
   it("keeps capability symbols compact in read and edit states", async () => {
     const user = userEvent.setup()
     renderDialog()

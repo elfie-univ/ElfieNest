@@ -248,9 +248,7 @@ function ConfiguredConnectionCard({ busy, connection, onDelete, onEdit, onForceF
   const failedCount = activeModels.filter((model) => model.verification.status === "failed").length
   const health = enabledCount === 0
     ? "never"
-    : connection.verification.needs_full_validation
-      ? verifiedCount > 0 ? "partial" : "never"
-      : verifiedCount === enabledCount
+    : verifiedCount === enabledCount
       ? "passed"
       : verifiedCount > 0
         ? "partial"

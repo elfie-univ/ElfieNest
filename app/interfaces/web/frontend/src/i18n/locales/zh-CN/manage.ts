@@ -117,7 +117,7 @@ export const manage = {
     generation: { allSources: "全部可用订阅", allowRemote: "允许远程模型（断网时可能不可用）", createDescription: "先填写名称并选择生成来源、可见范围；预览确认后再保存创建。预览和取消都不会创建粮食。", createTitle: "添加粮食", description: "选择订阅生成候选，确认差异并微调后再应用更新。预览不会修改现有粮食。", name: "粮食名称", previewTitle: "候选差异", sources: "生成来源", title: "自动更新 {{name}}" },
     labels: { local: "本地", localSuffix: " · 本地", reasoning: "推理：{{model}}", system: "系统", visibility: "设置 {{name}} 可见范围" },
     locality: { local: "本地", mixed: "混合", remote: "远程", unknown: "未配置" },
-    modelStatus: { available: "可用", unavailable: "不可用", unconfigured: "未配置", unverified: "未验证" },
+    modelStatus: { available: "可用", localAvailable: "运行中", unavailable: "不可用", unconfigured: "未配置", unverified: "未验证" },
     notices: { created: "{{name}} 已创建。", generated: "已生成 {{count}} 项差异；请人工确认后保存。{{warning}}", saved: "{{name}} 已保存。", updated: "{{name}} 已更新。", visibilitySaved: "可见范围已保存。" },
     recipe: { description: "直接调整五个模型角色和自定义粮食的可见用户。", fallback: "备用模型", name: "套餐名称", none: "未配置", title: "编辑 {{name}}" },
     roles: { fallback: "备用模型", primary: "主要模型", reasoning: "推理模型", tool: "工具模型", vision: "视觉模型" },
@@ -143,7 +143,7 @@ export const manage = {
     status: { failed: "验证失败", never: "未验证", passed: "验证通过", pending: "待配置" }, title: "供应商与模型连接",
   },
   modelMatrix: {
-    actions: { benchmark: "对比", benchmarkAll: "批量对比", benchmarkFor: "对比 {{provider}} {{model}}", benchmarking: "对比中…", refresh: "重新读取" }, empty: "尚无已配置供应商声明的模型。", emptyBenchmark: "暂无已验证通过且可对比的模型。", emptyCombination: "这个模型组合尚不可对比。", labels: { available: "可用", failed: "验证失败", model: "模型", never: "未验证", noBenchmark: "未对比", notProvided: "未提供", price: "价格", unavailable: "不支持" }, notice: "对比完成：{{passed}} 个成功，{{failed}} 个失败。", tableLabel: "同模型对比表", title: "同模型对比", validationNotice: "验证完成，已生成完整报告 {{runId}}。",
+    actions: { benchmark: "对比", benchmarkAll: "批量对比", benchmarkFor: "对比 {{provider}} {{model}}", benchmarkModel: "对比 {{model}}", benchmarking: "对比中…", refresh: "重新读取" }, empty: "尚无已配置供应商声明的模型。", emptyBenchmark: "暂无已验证通过且可对比的模型。", emptyCombination: "这个模型组合尚不可对比。", labels: { available: "可用", failed: "验证失败", model: "模型", never: "未验证", noBenchmark: "未对比", notProvided: "未提供", price: "价格", unavailable: "不支持" }, notice: "对比完成：{{passed}} 个成功，{{failed}} 个失败。", tableLabel: "同模型对比表", title: "同模型对比", validationNotice: "验证完成，已生成完整报告 {{runId}}。",
   },
   modelCatalog: { actions: { refresh: "刷新", scan: "扫描本地模型" }, active: "可用", costTier: "{{name}} 成本层级", description: "管理目录可见性与成本层级；可扫描本地 Ollama 模型。", inactive: "未激活", noticeSaved: "{{name}} 已保存。", noticeScanned: "扫描完成：{{result}}", title: "模型", visible: "在管理目录显示" },
   runtimeTools: { actions: { refresh: "刷新", save: "保存工具", verify: "验证工具" }, description: "所有工具设置和验证均经超级管理员 API；密钥字段只写不读。", jsonLabel: "工具 JSON 配置", noticeSaved: "工具配置已保存。", noticeVerified: "验证结果：{{result}}", title: "工具", validationObject: "工具配置必须是 JSON 对象。", validationSyntax: "请输入合法 JSON。" },

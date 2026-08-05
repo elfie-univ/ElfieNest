@@ -10,12 +10,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Literal, Mapping
 
 from ai_runtime.providers.profiles import get_product
-from ai_runtime.storage.data_home import get_env_path
 from ai_runtime.storage.provider_connections import (
     ProviderConnection,
     ProviderModelRecord,
 )
-from ai_runtime.storage.secrets import connection_secret_name
+from ai_runtime.storage.secrets import connection_secret_name, read_secrets
 
 ValidationMode = Literal["full", "cached", "heartbeat"]
 
@@ -247,11 +246,10 @@ def _model_fingerprint(model: ProviderModelRecord) -> dict[str, Any]:
 def _credential_revision(secret_name: str) -> tuple[str, bool]:
     if secret_name in os.environ:
         return "process-environment", False
-    try:
-        stat = get_env_path().stat()
-    except OSError:
+    secret_value = read_secrets().get(secret_name, "")
+    if not secret_value:
         return "missing", True
-    return f"{stat.st_mtime_ns}:{stat.st_size}", True
+    return hashlib.sha256(secret_value.encode("utf-8")).hexdigest(), True
 
 
 def _credential_cacheable(connection: ProviderConnection) -> bool:
