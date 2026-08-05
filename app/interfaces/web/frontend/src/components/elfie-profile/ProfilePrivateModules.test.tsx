@@ -27,6 +27,8 @@ vi.mock("cytoscape", () => {
     destroy: vi.fn(),
     elements: () => createCollection(),
     getElementById: (id: string) => createElement(id),
+    layout: vi.fn(() => ({ run: vi.fn() })),
+    nodes: () => [],
     on: vi.fn(),
     resize: vi.fn(),
   }
@@ -68,8 +70,9 @@ describe("ProfilePrivateModules", () => {
     expect(within(relationships).getByRole("img", { name: "关系网络图" })).toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: "知识与信念" }))
-    expect(screen.getByRole("list", { name: "知识与信念路径" })).toBeInTheDocument()
-    expect(screen.getByText("可靠的人会持续回应")).toBeInTheDocument()
+    const knowledge = screen.getByRole("region", { name: "知识与信念" })
+    expect(within(knowledge).getByRole("img", { name: "知识与信念图" })).toBeInTheDocument()
+    expect(within(knowledge).queryByRole("list", { name: "知识与信念路径" })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: "粮食策略" }))
     const food = screen.getByRole("region", { name: "粮食策略" })
