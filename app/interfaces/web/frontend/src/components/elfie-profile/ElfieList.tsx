@@ -64,7 +64,6 @@ export function ElfieList({
                   <Avatar imageUrl={item.profile.portrait_url} name={item.profile.name} />
                   <span className="list-copy">
                     <strong>{item.profile.name}</strong>
-                    <small>{item.profile.species_id} · {item.profile.elfie_id}</small>
                   </span>
                 </Button>
               </article>

@@ -14,6 +14,8 @@ import type { CareSettings, PrivateCognition } from "./model"
 import type { ElfieProfileProjection } from "./projection"
 
 type ProfilePrivateModulesProps = {
+  readonly csrfToken?: string | undefined
+  readonly onFoodSaved?: (() => Promise<void>) | undefined
   readonly projection: ElfieProfileProjection
 }
 
@@ -32,7 +34,7 @@ type AccordionState = {
 
 const NO_OPEN_KEYS: readonly ModuleKey[] = []
 
-export function ProfilePrivateModules({ projection }: ProfilePrivateModulesProps) {
+export function ProfilePrivateModules({ csrfToken, onFoodSaved, projection }: ProfilePrivateModulesProps) {
   const { t } = useTranslation("chat")
   const elfieId = projection.publicProfile.elfieId
   const resetKey = `${elfieId}:${projection.kind}`
@@ -51,7 +53,7 @@ export function ProfilePrivateModules({ projection }: ProfilePrivateModulesProps
   if (projection.kind === "visitor") return null
 
   const openKeys = accordion.resetKey === resetKey ? accordion.openKeys : NO_OPEN_KEYS
-  const items = moduleItems(projection.privateCognition, projection.careSettings, t)
+  const items = moduleItems(projection.privateCognition, projection.careSettings, elfieId, csrfToken, onFoodSaved, t)
   const toggle = (key: ModuleKey): void => {
     setAccordion((current) => {
       const currentKeys = current.resetKey === resetKey ? current.openKeys : NO_OPEN_KEYS
@@ -104,6 +106,9 @@ export function ProfilePrivateModules({ projection }: ProfilePrivateModulesProps
 function moduleItems(
   cognition: PrivateCognition,
   careSettings: CareSettings,
+  elfieId: string,
+  csrfToken: string | undefined,
+  onFoodSaved: (() => Promise<void>) | undefined,
   t: TFunction<"chat">,
 ): readonly ModuleItem[] {
   return [
@@ -112,6 +117,6 @@ function moduleItems(
     { key: "relationships", displayTitle: t("profile.private.titles.relationships"), renderBody: () => <ProfileRelationshipWorld world={cognition.relationshipWorld} status={cognition.status} /> },
     { key: "world", displayTitle: t("profile.private.titles.world"), renderBody: () => <ProfileWorldUnderstanding world={cognition.worldUnderstanding} status={cognition.status} /> },
     { key: "knowledge", displayTitle: t("profile.private.titles.knowledge"), renderBody: () => <ProfileKnowledgeBeliefs knowledge={cognition.knowledgeBeliefs} status={cognition.status} /> },
-    { key: "food", displayTitle: t("profile.private.titles.food"), renderBody: () => <ProfileCareSettings settings={careSettings} /> },
+    { key: "food", displayTitle: t("profile.private.titles.food"), renderBody: () => <ProfileCareSettings csrfToken={csrfToken} elfieId={elfieId} onSaved={onFoodSaved} settings={careSettings} /> },
   ]
 }

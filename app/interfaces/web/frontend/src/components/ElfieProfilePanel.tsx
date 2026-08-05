@@ -10,8 +10,10 @@ import { ProfilePrivateModules } from "./elfie-profile/ProfilePrivateModules"
 
 type ElfieProfilePanelProps = {
   readonly appearanceCapture?: AppearanceCaptureAdapter
+  readonly csrfToken?: string | undefined
   readonly onBack: () => void
   readonly onChat: () => void
+  readonly onFoodSaved?: (() => Promise<void>) | undefined
   readonly projection: ElfieProfileProjection | null
 }
 
@@ -22,8 +24,10 @@ type LocalAvatar = {
 
 export function ElfieProfilePanel({
   appearanceCapture,
+  csrfToken,
   onBack,
   onChat,
+  onFoodSaved,
   projection,
 }: ElfieProfilePanelProps) {
   const { t } = useTranslation("chat")
@@ -63,7 +67,7 @@ export function ElfieProfilePanel({
         profile={profile}
       />
       <ProfileBigFive elfieId={profile.elfieId} values={profile.bigFive} />
-      <ProfilePrivateModules projection={projection} />
+      <ProfilePrivateModules csrfToken={csrfToken} onFoodSaved={onFoodSaved} projection={projection} />
     </article>
   )
 }

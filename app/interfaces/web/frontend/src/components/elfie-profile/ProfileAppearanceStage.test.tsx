@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
@@ -9,6 +11,8 @@ import type { GodotAppearance } from "./model"
 import { ProfileAppearanceStage } from "./ProfileAppearanceStage"
 
 createI18n()
+
+const profileStyles = readFileSync(resolve(import.meta.dirname, "../../shared/chat-profile.css"), "utf8")
 
 const RUNTIME_APPEARANCE = {
   species_id: "fox",
@@ -24,6 +28,15 @@ const RUNTIME_APPEARANCE = {
 } satisfies GodotAppearance
 
 describe("ProfileAppearanceStage", () => {
+  it("keeps the appearance stage inside the profile width", () => {
+    const stageRule = profileStyles.match(/\.profile-appearance__stage\s*\{[^}]+\}/)?.[0] ?? ""
+
+    expect(stageRule).toContain("width: 100%")
+    expect(stageRule).toContain("max-width: 100%")
+    expect(stageRule).toContain("min-width: 0")
+    expect(stageRule).toContain("min-height: 0")
+  })
+
   it("mounts the real Godot preview only after opening 3D", async () => {
     const user = userEvent.setup()
     const enqueue = vi.fn<(payload: string) => void>()

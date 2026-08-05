@@ -54,14 +54,59 @@ describe("ProfileBigFive", () => {
     expect(radar.compareDocumentPosition(descriptors) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it("uses a compact rectangular board instead of a square radar canvas", () => {
+  it("keeps the radar chart at a stable size instead of letting the side list squeeze it", () => {
     const compactCanvasRule = [...profileStyles.matchAll(
       /\.profile-radar--compact \.profile-chart__canvas\s*\{[^}]+\}/g,
-    )].map(([rule]) => rule).find((rule) => rule.includes("height: clamp")) ?? ""
+    )].map(([rule]) => rule).find((rule) => rule.includes("height: 360px")) ?? ""
 
-    expect(compactCanvasRule).toContain("height: clamp(280px, 24vw, 360px)")
-    expect(compactCanvasRule).toContain("aspect-ratio: auto")
-    expect(compactCanvasRule).not.toContain("max-height")
+    expect(compactCanvasRule).toContain("width: 360px")
+    expect(compactCanvasRule).toContain("height: 360px")
+    expect(compactCanvasRule).toContain("aspect-ratio: 1")
+    expect(compactCanvasRule).not.toContain("clamp")
+  })
+
+  it("keeps descriptor cards secondary and stacks them without shrinking the radar", () => {
+    const compactContentRule = profileStyles.match(
+      /\.profile-radar--compact \.profile-radar__content\s*\{[^}]+\}/,
+    )?.[0] ?? ""
+    const descriptorRule = profileStyles.match(
+      /\.profile-radar--compact \.profile-radar__descriptors\s*\{[^}]+\}/,
+    )?.[0] ?? ""
+
+    expect(compactContentRule).toContain("360px minmax(0, 320px)")
+    expect(compactContentRule).toContain("gap: 16px")
+    expect(descriptorRule).toContain("width: min(100%, 320px)")
+    expect(descriptorRule).toContain("max-width: 100%")
+    expect(profileStyles).toMatch(
+      /\.profile-radar--compact \.profile-radar__descriptors ul,\s*\.profile-radar--compact \.profile-radar__descriptors li \{ width: 100%; \}/,
+    )
+    expect(profileStyles).toContain("background: color-mix(in srgb, var(--accent-soft) 72%, var(--surface-raised));")
+    expect(profileStyles).toMatch(
+      /@container \(max-width: 720px\)[\s\S]*\.profile-radar--compact \.profile-radar__content\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\)/,
+    )
+    expect(profileStyles).toMatch(
+      /@container \(max-width: 720px\)[\s\S]*\.profile-radar--compact \.profile-radar__descriptors\s*\{[^}]*width: 100%[^}]*max-width: none/,
+    )
+  })
+
+  it("lays the three mobile descriptor cards out as equal columns", () => {
+    const finalMobileRules = profileStyles.slice(profileStyles.indexOf("@media (max-width: 760px)"))
+    const descriptorListRule = finalMobileRules.match(
+      /\.profile-radar--compact \.profile-radar__descriptors ul\s*\{[^}]+\}/,
+    )?.[0] ?? ""
+
+    expect(descriptorListRule).toContain("grid-template-columns: repeat(3, minmax(0, 1fr));")
+  })
+
+  it("fills the available width when descriptors move below the chart", () => {
+    const stackedContainerBlock = profileStyles.match(
+      /@container \(max-width: 720px\) \{[\s\S]*?^\}/m,
+    )?.[0] ?? ""
+
+    expect(stackedContainerBlock).toContain("width: 100%;")
+    expect(stackedContainerBlock).toContain("max-width: none;")
+    expect(stackedContainerBlock).toContain("grid-template-columns: repeat(3, minmax(0, 1fr));")
+    expect(stackedContainerBlock).toContain(".profile-radar--compact .profile-radar__descriptors li { width: 100%; min-width: 0; }")
   })
 
   it("re-resolves canvas colors when the document theme changes after render", async () => {

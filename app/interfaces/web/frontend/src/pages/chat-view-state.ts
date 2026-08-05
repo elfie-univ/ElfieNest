@@ -3,7 +3,6 @@ import { z } from "zod"
 import { ElfieIdValueSchema } from "@/shared/elfie-id"
 
 const CHAT_PATH = "/chat"
-const MOCK_PARAM = "mock"
 
 const ChatElfieIdSchema = ElfieIdValueSchema.brand<"ChatElfieId">()
 export type ChatElfieId = z.infer<typeof ChatElfieIdSchema>
@@ -58,10 +57,6 @@ function rawStateFrom(params: URLSearchParams): unknown {
   }
 }
 
-function appendPreservedFlags(output: URLSearchParams, existing: URLSearchParams): void {
-  if (existing.get(MOCK_PARAM) === "1") output.set(MOCK_PARAM, "1")
-}
-
 function appendViewState(output: URLSearchParams, state: ChatViewState): void {
   switch (state.view) {
     case "elfies":
@@ -85,11 +80,10 @@ export function parseChatViewState(input: string | URLSearchParams): ChatViewSta
   return parsed.success ? parsed.data : ELFIE_LIST_STATE
 }
 
-export function buildChatViewPath(target: ChatViewPathTarget, existingSearch = ""): string {
+export function buildChatViewPath(target: ChatViewPathTarget): string {
   const parsed = ChatViewStateSchema.safeParse(target)
   const state = parsed.success ? parsed.data : ELFIE_LIST_STATE
   const output = new URLSearchParams()
   appendViewState(output, state)
-  appendPreservedFlags(output, searchParamsFrom(existingSearch))
   return `${CHAT_PATH}?${output.toString()}`
 }

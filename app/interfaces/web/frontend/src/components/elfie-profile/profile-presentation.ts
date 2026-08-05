@@ -1,19 +1,12 @@
 import type { ElfieProfile, ElfieProfileDetail } from "../../api/client"
 import {
-  HAPPY_EXPERIENCE,
-  KETTLE_EXPERIENCE,
-} from "./mock-data"
-import {
   ElfieIdSchema,
   parseGodotAppearance,
-  parseViewer,
   type CareSettings,
-  type ExperienceFixture,
   type PrivateCognition,
   type PublicProfile,
 } from "./model"
 import {
-  projectElfieProfile,
   type AdopterProfileProjection,
   type ElfieProfileProjection,
   type VisitorProfileProjection,
@@ -23,32 +16,9 @@ export function presentElfieProfile(
   profile: ElfieProfile | ElfieProfileDetail | null,
   viewerAccountId: string,
   adopterAccountId: string | null = null,
-  demoMode = false,
 ): ElfieProfileProjection | null {
   if (profile === null) return null
-
-  if (demoMode) {
-    const fixture = knownExperience(profile.elfie_id)
-    if (fixture !== null) {
-      return projectElfieProfile(parseViewer({
-        accountId: viewerAccountId,
-        displayName: viewerAccountId,
-        role: "user",
-      }), fixture)
-    }
-  }
   return presentApiProfile(profile, viewerAccountId, adopterAccountId)
-}
-
-function knownExperience(elfieId: string): ExperienceFixture | null {
-  switch (elfieId) {
-    case HAPPY_EXPERIENCE.publicProfile.elfieId:
-      return HAPPY_EXPERIENCE
-    case KETTLE_EXPERIENCE.publicProfile.elfieId:
-      return KETTLE_EXPERIENCE
-    default:
-      return null
-  }
 }
 
 function presentApiProfile(

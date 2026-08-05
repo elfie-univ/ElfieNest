@@ -46,7 +46,7 @@ export function buildBigFiveRadarOption(
         min: 0,
         name: labels[trait],
       })),
-      radius: "84%",
+      radius: "72%",
       splitArea: { areaStyle: { color: [theme.surface] } },
       splitLine: { lineStyle: { color: theme.border } },
       axisLine: { lineStyle: { color: theme.border } },

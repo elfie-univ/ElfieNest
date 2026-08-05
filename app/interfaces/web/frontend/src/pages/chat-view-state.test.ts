@@ -32,27 +32,22 @@ describe("chat view state", () => {
     })
   })
 
-  it("serializes canonical paths while preserving only allowed unrelated flags", () => {
-    expect(buildChatViewPath({ view: "elfies" }, "?mock=1&debug=1&elfie=99999999")).toBe(
-      "/chat?view=elfies&mock=1",
+  it("serializes only the canonical view state", () => {
+    expect(buildChatViewPath({ view: "elfies" })).toBe("/chat?view=elfies")
+    expect(buildChatViewPath({ view: "profile", elfie: "elfie_default" })).toBe(
+      "/chat?view=profile&elfie=elfie_default",
     )
-    expect(buildChatViewPath({ view: "profile", elfie: "elfie_default" }, "?mock=1")).toBe(
-      "/chat?view=profile&elfie=elfie_default&mock=1",
-    )
-    expect(buildChatViewPath({ view: "conversation", elfie: "resident-1" }, "?mock=0")).toBe(
+    expect(buildChatViewPath({ view: "conversation", elfie: "resident-1" })).toBe(
       "/chat?view=conversation&elfie=resident-1",
     )
   })
 
   it("keeps invalid input canonicalization stable across repeated parse and serialize cycles", () => {
-    const once = buildChatViewPath(
-      parseChatViewState("?view=profile&elfie=..%2Felfie&mock=1"),
-      "?view=profile&elfie=..%2Felfie&mock=1",
-    )
+    const once = buildChatViewPath(parseChatViewState("?view=profile&elfie=..%2Felfie&mock=1"))
     const canonicalSearch = new URL(once, "http://localhost").search
-    const twice = buildChatViewPath(parseChatViewState(canonicalSearch), canonicalSearch)
+    const twice = buildChatViewPath(parseChatViewState(canonicalSearch))
 
-    expect(once).toBe("/chat?view=elfies&mock=1")
+    expect(once).toBe("/chat?view=elfies")
     expect(twice).toBe(once)
   })
 })

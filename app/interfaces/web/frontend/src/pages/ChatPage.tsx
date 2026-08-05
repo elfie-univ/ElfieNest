@@ -15,12 +15,12 @@ import {
 } from "../api/client"
 import { AdoptionJourneyDialog } from "../components/adoption/AdoptionJourneyDialog"
 import { AccountMenuPanel } from "../components/AccountMenu"
-import { AccountIdentityAvatar } from "../components/AccountIdentity"
+import { accountDisplayName, AccountIdentityAvatar } from "../components/AccountIdentity"
 import { ChatRail } from "../components/ChatRail"
 import { ElfieProfilePanel } from "../components/ElfieProfilePanel"
 import { ChatConversationPane } from "../components/elfie-profile/ChatConversationPane"
 import { ChatListPane } from "../components/elfie-profile/ChatListPane"
-import { createDemoChatData, createElfieListItems, createOwnedChatData, type ChatData } from "../components/elfie-profile/chat-data"
+import { createElfieListItems, createOwnedChatData, type ChatData } from "../components/elfie-profile/chat-data"
 import type { ElfieListFilter } from "../components/elfie-profile/elfie-list-model"
 import { presentElfieProfile } from "../components/elfie-profile/profile-presentation"
 import { Icon } from "../components/Icon"
@@ -45,7 +45,6 @@ export function ChatPage() {
   const [history, setHistory] = useState<readonly ChatMessage[]>([])
   const [selectedProfile, setSelectedProfile] = useState<ElfieProfileDetail | null>(null)
   const [failure, setFailure] = useState<ChatFailure | null>(null)
-  const [demoMode, setDemoMode] = useState(false)
   const [draft, setDraft] = useState("")
   const [showAdoption, setShowAdoption] = useState(false)
   const [showMobileAccess, setShowMobileAccess] = useState(false)
@@ -56,22 +55,12 @@ export function ChatPage() {
     if (user === null) return
     void Promise.all([elfies(), conversations()])
       .then(([ownedElfies, rows]) => {
-        if (ownedElfies.length === 0 && rows.length === 0) {
-          const demoData = createDemoChatData()
-          setData(demoData)
-          setDemoMode(true)
-          setFailure(null)
-          return
-        }
         setData(createOwnedChatData(ownedElfies, rows, user.account_id))
-        setDemoMode(false)
         setFailure(null)
       })
-      .catch(() => {
-        const demoData = createDemoChatData()
-        setData(demoData)
-        setDemoMode(true)
-        setFailure(null)
+      .catch((reason: unknown) => {
+        setData(null)
+        setFailure({ detail: reason instanceof ApiError ? reason.message : null, operation: "chat.load" })
       })
   }, [user])
 
@@ -81,7 +70,7 @@ export function ChatPage() {
   }, [correct, data, selectedId])
 
   useEffect(() => {
-    if (selectedId === null || demoMode) {
+    if (selectedId === null) {
       setHistory([])
       return
     }
@@ -90,20 +79,20 @@ export function ChatPage() {
       .catch((reason: unknown) => {
         setFailure({ detail: reason instanceof ApiError ? reason.message : null, operation: "chat.load" })
       })
-  }, [demoMode, selectedId])
+  }, [selectedId])
 
   useEffect(() => {
     setSelectedProfile(null)
-    if (selectedId === null || viewState.view !== "profile" || demoMode) return
+    if (selectedId === null || viewState.view !== "profile") return
     void profile(selectedId)
       .then(setSelectedProfile)
       .catch((reason: unknown) => {
         setFailure({ detail: reason instanceof ApiError ? reason.message : null, operation: "chat.load" })
       })
-  }, [demoMode, selectedId, viewState.view])
+  }, [selectedId, viewState.view])
 
   useEffect(() => {
-    if (user === null || demoMode) return undefined
+    if (user === null) return undefined
     const realtime = new ChatSocket({
       onStatus: () => undefined,
       onEvent: (event) => {
@@ -122,7 +111,7 @@ export function ChatPage() {
     socket.current = realtime
     realtime.connect()
     return () => realtime.close()
-  }, [demoMode, selectedId, user])
+  }, [selectedId, user])
 
   if (loading) return <main className="page"><p className="empty">{t("loading")}</p></main>
   if (user === null) {
@@ -162,10 +151,13 @@ export function ChatPage() {
     setData(createOwnedChatData(ownedElfies, rows, user.account_id))
     setSelectedProfile(loadedProfile)
     go({ view: "profile", elfie: elfieId })
-    setDemoMode(false)
+  }
+  const saveSelectedFood = async (): Promise<void> => {
+    if (selectedId === null) return
+    setSelectedProfile(await profile(selectedId))
   }
   const submit = async (): Promise<void> => {
-    if (selectedId === null || !draft.trim() || demoMode) return
+    if (selectedId === null || !draft.trim()) return
     const text = draft.trim()
     setDraft("")
     try {
@@ -186,6 +178,9 @@ export function ChatPage() {
         <ChatListPane
           activePane={activePane}
           conversations={data?.conversations ?? []}
+          error={failure?.operation === "chat.load" && activePane === "elfies"
+            ? localizeBackendDetail(failure.detail, failure.operation, currentLocale(i18n))
+            : null}
           elfieFilter={elfieFilter}
           elfieItems={createElfieListItems(data)}
           elfieQuery={elfieQuery}
@@ -205,25 +200,27 @@ export function ChatPage() {
           </section>
         ) : activePane === "chats" ? (
           <ChatConversationPane
-            demoMode={demoMode}
             draft={draft}
             error={failure === null ? null : localizeBackendDetail(failure.detail, failure.operation, currentLocale(i18n))}
             history={history}
             mobileDetail={mobileDetail}
-            notice={demoMode ? t("notices.demo") : null}
             onBack={() => go({ view: "elfies" })}
             onDraftChange={setDraft}
             onOpenDetail={() => { if (selectedId !== null) go({ view: "profile", elfie: selectedId }) }}
             onSubmit={submit}
             selected={selected}
             selectedId={selectedId}
+            userAvatarUrl={user.avatar_url}
+            userDisplayName={accountDisplayName(user)}
           />
         ) : (
           <section className={mobileDetail ? "elfie-detail-pane elfie-detail-pane--mobile-active" : "elfie-detail-pane"}>
             <ElfieProfilePanel
+              csrfToken={user.csrf_token ?? ""}
               onBack={() => go({ view: "elfies" })}
               onChat={() => { if (selectedId !== null) go({ view: "conversation", elfie: selectedId }) }}
-              projection={presentElfieProfile(selectedProfile ?? selected ?? null, user.account_id, selectedId === null ? null : data?.adopterAccountIds[selectedId] ?? null, demoMode)}
+              onFoodSaved={saveSelectedFood}
+              projection={presentElfieProfile(selectedProfile ?? selected ?? null, user.account_id, selectedId === null ? null : data?.adopterAccountIds[selectedId] ?? null)}
             />
           </section>
         )}

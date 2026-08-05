@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { PRIVATE_MODULE_TITLES } from "../components/elfie-profile/mock-data"
 import { createI18n } from "../i18n/config"
 import { navigate } from "../stores/history"
 import { ChatPage } from "./ChatPage"
@@ -108,16 +107,11 @@ function profileDetail(source: typeof elfie) {
   }
 }
 
-function useDemoElfies(): void {
-  chatApi.conversations.mockRejectedValue(new Error("Not Found"))
-  chatApi.elfies.mockRejectedValue(new Error("Not Found"))
-}
-
 describe("ChatPage profile integration", () => {
   beforeEach(() => {
     session.user.account_id = "admin123"
     session.user.role = "owner"
-    window.history.replaceState({}, "", "/chat?view=conversation&elfie=00000001&mock=1")
+    window.history.replaceState({}, "", "/chat?view=conversation&elfie=00000001")
     chatApi.conversations.mockResolvedValue([{
       elfie_id: "00000001",
       name: "小羽",
@@ -131,56 +125,20 @@ describe("ChatPage profile integration", () => {
   })
 
   it("restores a profile deep link from the URL across a fresh render", async () => {
-    window.history.replaceState({}, "", "/chat?view=profile&elfie=00000001&mock=1")
+    window.history.replaceState({}, "", "/chat?view=profile&elfie=00000001")
     const firstRender = renderChatPage()
     expect(await screen.findByRole("heading", { level: 1, name: "小羽" })).toBeInTheDocument()
     expect(chatApi.profile).toHaveBeenCalledWith("00000001")
-    expect(window.location.search).toBe("?view=profile&elfie=00000001&mock=1")
+    expect(window.location.search).toBe("?view=profile&elfie=00000001")
     firstRender.unmount()
     renderChatPage()
     expect(await screen.findByRole("heading", { level: 1, name: "小羽" })).toBeInTheDocument()
-    expect(window.location.search).toBe("?view=profile&elfie=00000001&mock=1")
+    expect(window.location.search).toBe("?view=profile&elfie=00000001")
   })
-
-  it("integrates the complete owner Happy profile without disturbing canonical chat routing", async () => {
-    useDemoElfies()
-    window.history.replaceState({}, "", "/chat?view=profile&elfie=12345678&mock=1")
-    const { container } = renderChatPage()
-    expect(await screen.findByRole("heading", { level: 1, name: "Happy" })).toBeInTheDocument()
-    expect(screen.getByRole("region", { name: "3D 个体视图" })).toBeInTheDocument()
-    expect(screen.getByRole("region", { name: "大五人格" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "拍照" })).toBeInTheDocument()
-    for (const title of PRIVATE_MODULE_TITLES) {
-      expect(screen.getByRole("button", { name: title })).toBeInTheDocument()
-    }
-    expect(container).not.toHaveTextContent(/精灵身份证|Observer|本地 3D 观察|修改/)
-    await userEvent.click(screen.getByRole("button", { name: "进入聊天" }))
-    await waitFor(() => {
-      expect(window.location.search).toBe("?view=conversation&elfie=12345678&mock=1")
-    })
-    expect(screen.getByRole("button", { name: "详情" })).toBeInTheDocument()
-  })
-
-  it("integrates Kettle as a visitor with no capture or private cognition payload", async () => {
-    useDemoElfies()
-    window.history.replaceState({}, "", "/chat?view=elfies&mock=1")
-    const { container } = renderChatPage()
-    expect(await screen.findByText("Kettle", {}, { timeout: 5_000 })).toBeInTheDocument()
-
-    act(() => navigate("/chat?view=profile&elfie=23456789&mock=1"))
-
-    expect(await screen.findByRole("heading", { level: 1, name: "Kettle" }, { timeout: 5_000 })).toBeInTheDocument()
-    expect(screen.getByRole("region", { name: "大五人格" })).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "拍照" })).not.toBeInTheDocument()
-    for (const title of PRIVATE_MODULE_TITLES) {
-      expect(screen.queryByRole("button", { name: title })).not.toBeInTheDocument()
-    }
-    expect(container).not.toHaveTextContent(/铜壶窗边观察|qwen3-8b-calm|第一次避让/)
-  }, 10_000)
 
   it("threads the real API adopter identity into the profile projection", async () => {
     const realElfie = { ...elfie, elfie_id: "34567890", name: "Mochi" }
-    window.history.replaceState({}, "", "/chat?view=profile&elfie=34567890&mock=1")
+    window.history.replaceState({}, "", "/chat?view=profile&elfie=34567890")
     chatApi.conversations.mockResolvedValue([])
     chatApi.elfies.mockResolvedValue([realElfie])
     chatApi.profile.mockResolvedValue(profileDetail(realElfie))
@@ -193,54 +151,54 @@ describe("ChatPage profile integration", () => {
 
   it("routes profile and conversation actions through canonical history state", async () => {
     const user = userEvent.setup()
-    window.history.replaceState({}, "", "/chat?view=profile&elfie=00000001&mock=1")
+    window.history.replaceState({}, "", "/chat?view=profile&elfie=00000001")
     renderChatPage()
     const rail = screen.getByLabelText("ElfieNest 导航")
     await user.click(await within(rail).findByRole("button", { name: "聊天记录" }))
     await waitFor(() => {
-      expect(window.location.search).toBe("?view=conversation&elfie=00000001&mock=1")
+      expect(window.location.search).toBe("?view=conversation&elfie=00000001")
     })
     await user.click(screen.getByRole("button", { name: "详情" }))
     await waitFor(() => {
-      expect(window.location.search).toBe("?view=profile&elfie=00000001&mock=1")
+      expect(window.location.search).toBe("?view=profile&elfie=00000001")
     })
     await user.click(screen.getByRole("button", { name: "进入聊天" }))
     await waitFor(() => {
-      expect(window.location.search).toBe("?view=conversation&elfie=00000001&mock=1")
+      expect(window.location.search).toBe("?view=conversation&elfie=00000001")
     })
     await user.click(screen.getByRole("button", { name: "详情" }))
     await waitFor(() => {
-      expect(window.location.search).toBe("?view=profile&elfie=00000001&mock=1")
+      expect(window.location.search).toBe("?view=profile&elfie=00000001")
     })
     await user.click(await screen.findByRole("button", { name: "返回我的精灵" }))
     await waitFor(() => {
-      expect(window.location.search).toBe("?view=elfies&mock=1")
+      expect(window.location.search).toBe("?view=elfies")
     })
   })
 
-  it("canonicalizes a nonexistent Elfie route to the stable list without losing mock mode", async () => {
-    window.history.replaceState({}, "", "/chat?view=profile&elfie=99999999&mock=1")
+  it("canonicalizes a nonexistent Elfie route to the stable list", async () => {
+    window.history.replaceState({}, "", "/chat?view=profile&elfie=99999999")
     renderChatPage()
     await screen.findByRole("heading", { level: 1, name: "精灵" })
     await waitFor(() => {
-      expect(window.location.search).toBe("?view=elfies&mock=1")
+      expect(window.location.search).toBe("?view=elfies")
     })
     expect(screen.queryByRole("heading", { level: 1, name: "小羽" })).not.toBeInTheDocument()
   })
 
   it("replaces a bad route so browser Back reaches the prior valid profile", async () => {
-    window.history.replaceState({}, "", "/chat?view=profile&elfie=00000001&mock=1")
-    window.history.pushState({}, "", "/chat?view=profile&elfie=99999999&mock=1")
+    window.history.replaceState({}, "", "/chat?view=profile&elfie=00000001")
+    window.history.pushState({}, "", "/chat?view=profile&elfie=99999999")
     renderChatPage()
     await waitFor(() => {
-      expect(window.location.search).toBe("?view=elfies&mock=1")
+      expect(window.location.search).toBe("?view=elfies")
     })
     const popped = new Promise<void>((resolve) => {
       window.addEventListener("popstate", () => resolve(), { once: true })
     })
     window.history.back()
     await popped
-    expect(window.location.search).toBe("?view=profile&elfie=00000001&mock=1")
+    expect(window.location.search).toBe("?view=profile&elfie=00000001")
     expect(await screen.findByRole("heading", { level: 1, name: "小羽" })).toBeInTheDocument()
   })
 })

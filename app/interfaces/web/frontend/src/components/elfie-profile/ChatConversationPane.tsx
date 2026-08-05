@@ -8,26 +8,32 @@ import { Icon } from "../Icon"
 import { Notice } from "../Notice"
 
 type ChatConversationPaneProps = {
-  readonly demoMode: boolean
   readonly draft: string
   readonly error: string | null
   readonly history: readonly ChatMessage[]
   readonly mobileDetail: boolean
-  readonly notice: string | null
   readonly onBack: () => void
   readonly onDraftChange: (draft: string) => void
   readonly onOpenDetail: () => void
   readonly onSubmit: () => Promise<void>
   readonly selected: ElfieProfile | undefined
   readonly selectedId: string | null
+  readonly userAvatarUrl?: string | null | undefined
+  readonly userDisplayName: string
 }
 
-function MessageBubble({ message }: { readonly message: ChatMessage }) {
+function MessageBubble({ message, userAvatarUrl, userDisplayName, elfieAvatarUrl }: {
+  readonly elfieAvatarUrl?: string | null | undefined
+  readonly message: ChatMessage
+  readonly userAvatarUrl?: string | null | undefined
+  readonly userDisplayName: string
+}) {
   const { t } = useTranslation("chat")
-  const senderName = message.sender === "user" ? t("conversation.senderMe") : t("conversation.senderElfie")
+  const isUserMessage = message.sender === "user"
+  const senderName = isUserMessage ? userDisplayName : t("conversation.senderElfie")
   return (
-    <article className={`message${message.sender === "user" ? " message--user" : ""}`}>
-      <Avatar name={senderName} />
+    <article className={`message${isUserMessage ? " message--user" : ""}`}>
+      <Avatar imageUrl={isUserMessage ? userAvatarUrl : elfieAvatarUrl} name={senderName} />
       <div className="bubble">{message.text}</div>
     </article>
   )
@@ -36,8 +42,8 @@ function MessageBubble({ message }: { readonly message: ChatMessage }) {
 export function ChatConversationPane(props: ChatConversationPaneProps) {
   const { t } = useTranslation("chat")
   const {
-    demoMode, draft, error, history, mobileDetail, notice, onBack, onDraftChange,
-    onOpenDetail, onSubmit, selected, selectedId,
+    draft, error, history, mobileDetail, onBack, onDraftChange, onOpenDetail,
+    onSubmit, selected, selectedId, userAvatarUrl, userDisplayName,
   } = props
   return (
     <section className={mobileDetail ? "conversation conversation--mobile-active" : "conversation"}>
@@ -47,13 +53,28 @@ export function ChatConversationPane(props: ChatConversationPaneProps) {
         <Button variant="outline" disabled={selected === undefined} onClick={onOpenDetail} type="button">{t("conversation.details")}</Button>
       </div>
       <section className="message-list">
-        {selectedId === null ? <p className="empty">{t("conversation.empty")}</p> : history.map((message) => <MessageBubble key={message.id} message={message} />)}
-        {notice ? <Notice message={notice} /> : null}
+        {selectedId === null ? <p className="empty">{t("conversation.empty")}</p> : history.map((message) => <MessageBubble
+          elfieAvatarUrl={selected?.portrait_url}
+          key={message.id}
+          message={message}
+          userAvatarUrl={userAvatarUrl}
+          userDisplayName={userDisplayName}
+        />)}
         {error ? <Notice kind="error" message={error} /> : null}
       </section>
       <form className="composer" onSubmit={(event) => { event.preventDefault(); void onSubmit() }}>
-        <Textarea disabled={selected === undefined || demoMode} onChange={(event) => onDraftChange(event.target.value)} placeholder={selected ? t("composer.withElfie", { elfieName: selected.name }) : t("composer.select")} value={draft} />
-        <Button disabled={selected === undefined || !draft.trim() || demoMode} type="submit">{t("composer.send")}</Button>
+        <Textarea
+          disabled={selected === undefined}
+          onChange={(event) => onDraftChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return
+            event.preventDefault()
+            void onSubmit()
+          }}
+          placeholder={selected ? t("composer.withElfie", { elfieName: selected.name }) : t("composer.select")}
+          value={draft}
+        />
+        <Button disabled={selected === undefined || !draft.trim()} type="submit">{t("composer.send")}</Button>
       </form>
     </section>
   )
