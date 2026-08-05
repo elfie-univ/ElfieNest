@@ -117,7 +117,7 @@ describe("ChatPage profile integration", () => {
       name: "小羽",
       portrait_url: "",
       last_message_preview: "早上好",
-      last_message_at: null,
+      last_message_at: "2026-08-04T23:00:00Z",
     }])
     chatApi.elfies.mockResolvedValue([elfie])
     chatApi.messages.mockResolvedValue([])

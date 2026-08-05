@@ -20,7 +20,7 @@ import { ChatRail } from "../components/ChatRail"
 import { ElfieProfilePanel } from "../components/ElfieProfilePanel"
 import { ChatConversationPane } from "../components/elfie-profile/ChatConversationPane"
 import { ChatListPane } from "../components/elfie-profile/ChatListPane"
-import { createElfieListItems, createOwnedChatData, type ChatData } from "../components/elfie-profile/chat-data"
+import { createElfieListItems, createOwnedChatData, recordChatMessage, type ChatData } from "../components/elfie-profile/chat-data"
 import type { ElfieListFilter } from "../components/elfie-profile/elfie-list-model"
 import { presentElfieProfile } from "../components/elfie-profile/profile-presentation"
 import { Icon } from "../components/Icon"
@@ -99,9 +99,10 @@ export function ChatPage() {
         switch (event.event) {
           case "error": setFailure({ detail: event.detail, operation: "chat.connect" }); return
           case "message":
-            if (event.message.elfie_id === selectedId) setHistory((current) =>
-              current.some((row) => row.id === event.message.id) ? current : [...current, event.message],
-            )
+            setData((current) => current === null ? current : recordChatMessage(current, event.message))
+            if (event.message.elfie_id === selectedId) {
+              setHistory((current) => current.some((row) => row.id === event.message.id) ? current : [...current, event.message])
+            }
             return
           case "ready": return
           default: event satisfies never
@@ -139,8 +140,11 @@ export function ChatPage() {
       go({ view: "elfies" })
       return
     }
-    const chatId = selectedId ?? data?.conversations[0]?.elfie_id ?? data?.elfies[0]?.elfie_id
-    if (chatId !== undefined) go({ view: "conversation", elfie: chatId })
+    if (selectedId === null) {
+      go({ view: "chats" })
+      return
+    }
+    go({ view: "conversation", elfie: selectedId })
   }
   const adoptionCompleted = async (elfieId: string): Promise<void> => {
     const [ownedElfies, rows, loadedProfile] = await Promise.all([
@@ -163,7 +167,8 @@ export function ChatPage() {
     try {
       if (!socket.current?.send(selectedId, text)) {
         const message = await sendMessage(selectedId, text, user.csrf_token ?? "")
-        setHistory((current) => [...current, message])
+        setHistory((current) => current.some((row) => row.id === message.id) ? current : [...current, message])
+        setData((current) => current === null ? current : recordChatMessage(current, message))
       }
     } catch (reason: unknown) {
       setFailure({ detail: reason instanceof ApiError ? reason.message : null, operation: "chat.send" })
@@ -204,7 +209,7 @@ export function ChatPage() {
             error={failure === null ? null : localizeBackendDetail(failure.detail, failure.operation, currentLocale(i18n))}
             history={history}
             mobileDetail={mobileDetail}
-            onBack={() => go({ view: "elfies" })}
+            onBack={() => go({ view: "chats" })}
             onDraftChange={setDraft}
             onOpenDetail={() => { if (selectedId !== null) go({ view: "profile", elfie: selectedId }) }}
             onSubmit={submit}

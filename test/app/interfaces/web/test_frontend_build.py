@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -108,6 +109,63 @@ def test_run_pnpm_always_uses_repository_pinned_version(
             True,
         )
     ]
+
+
+def test_run_pnpm_hides_child_output_for_interactive_launches(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    calls: list[dict[str, object]] = []
+    monkeypatch.setenv("ELFIENEST_INTERACTIVE", "1")
+    monkeypatch.setattr(frontend_build.shutil, "which", lambda _name: "/bin/npx")
+
+    def run(command, *, cwd, check, capture_output, text) -> None:
+        calls.append(
+            {
+                "command": command,
+                "cwd": cwd,
+                "check": check,
+                "capture_output": capture_output,
+                "text": text,
+            }
+        )
+
+    monkeypatch.setattr(frontend_build.subprocess, "run", run)
+
+    frontend_build._run_pnpm(tmp_path, ("build",))
+
+    assert calls == [
+        {
+            "command": ("/bin/npx", "--yes", "pnpm@10.12.1", "build"),
+            "cwd": tmp_path,
+            "check": True,
+            "capture_output": True,
+            "text": True,
+        }
+    ]
+
+
+def test_run_pnpm_keeps_interactive_failure_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("ELFIENEST_INTERACTIVE", "1")
+    monkeypatch.setattr(frontend_build.shutil, "which", lambda _name: "/bin/npx")
+
+    def run(*_args, **_kwargs):
+        raise subprocess.CalledProcessError(
+            returncode=1,
+            cmd=("/bin/npx", "--yes", "pnpm@10.12.1", "build"),
+            output="vite summary",
+            stderr="error: build failed",
+        )
+
+    monkeypatch.setattr(frontend_build.subprocess, "run", run)
+
+    with pytest.raises(frontend_build.FrontendBuildError, match="error: build failed") as raised:
+        frontend_build._run_pnpm(tmp_path, ("build",))
+
+    assert "vite summary" in str(raised.value)
 
 
 def test_build_failure_is_typed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
