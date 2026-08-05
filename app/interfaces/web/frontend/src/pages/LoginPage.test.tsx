@@ -69,9 +69,7 @@ describe("localized login", () => {
     await user.click(screen.getByRole("option", { name: "English" }))
 
     // Then: localized DOM changes without losing values, pending state, URL, or safe next.
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "Log in",
-    )
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument()
     expect(getFieldInput("Account")).toHaveValue("  owner  ")
     expect(getFieldInput("Password")).toHaveValue("secret-pass")
     expect(screen.getByRole("button", { name: "Signing in…" })).toBeDisabled()
@@ -119,15 +117,18 @@ describe("localized login", () => {
     expect(screen.getByRole("alert")).not.toHaveTextContent("后端登录详情")
   })
 
-  it("shows only the compact login copy around the branded logo", () => {
+  it("uses one full transparent logo without duplicate brand copy", () => {
     // Given: the login page is rendered in Chinese.
     renderLogin("zh-CN")
 
-    // Then: the branded logo and concise login hierarchy are visible.
-    expect(screen.getByRole("img", { name: "ELFIE NEST" })).toBeInTheDocument()
-    expect(screen.getByText("ELFIE NEST")).toBeInTheDocument()
-    expect(screen.getByText("ELFIENEST")).toBeInTheDocument()
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("登录")
+    // Then: the full logo image owns the brand treatment and the login hierarchy remains visible.
+    expect(screen.getByRole("img", { name: "ELFIE NEST" })).toHaveAttribute(
+      "src",
+      expect.stringContaining("elfienest-full-logo-transparent.png"),
+    )
+    expect(screen.queryByText("ELFIE NEST")).not.toBeInTheDocument()
+    expect(screen.queryByText("ELFIENEST")).not.toBeInTheDocument()
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument()
     expect(screen.queryByText("回来吧，精灵正在等你。", { exact: true })).not.toBeInTheDocument()
     expect(screen.queryByText("登录后进入属于你的聊天与管理空间。", { exact: true })).not.toBeInTheDocument()
   })

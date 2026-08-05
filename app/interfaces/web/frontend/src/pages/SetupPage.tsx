@@ -27,6 +27,7 @@ type SetupError =
   | { readonly kind: "local"; readonly key: "errors.bedCount" | "errors.passwordMismatch" }
 
 const setupStepNumbers: readonly SetupStepNumber[] = [1, 2, 3, 4]
+const setupFullLogoUrl = new URL("../../../../../../docs/public/assets/elfienest-full-logo-transparent.png", import.meta.url).href
 
 function normalizeStep(value: number): SetupStepNumber {
   return value === 1 || value === 2 || value === 3 ? value : 4
@@ -188,8 +189,7 @@ export function SetupPage() {
   return <main className="setup-page">
     <aside className="setup-rail">
       <div className="setup-brand">
-        <img alt="ELFIE NEST" className="setup-brand__mark" src={new URL("../../../../../../docs/public/assets/logo.png", import.meta.url).href} />
-        <span><strong>ELFIE NEST</strong></span>
+        <img alt="ELFIE NEST" className="setup-brand__logo" src={setupFullLogoUrl} />
       </div>
       <div className="setup-rail__intro">
         <p className="brand">{t("rail.brand")}</p>

@@ -14,17 +14,8 @@
   border-right: 1px solid var(--line);
 }
 
-.setup-brand { display: flex; align-items: center; gap: 11px; }
-.setup-brand__mark {
-  display: block;
-  width: 44px;
-  height: 44px;
-  border-radius: 13px;
-  box-shadow: 0 8px 18px color-mix(in srgb, var(--shadow-color) 18%, transparent);
-  object-fit: cover;
-}
-.setup-brand > span:last-child { display: grid; gap: 3px; }
-.setup-brand strong { font-size: 21px; letter-spacing: .08em; line-height: 1; white-space: nowrap; }
+.setup-brand { display: flex; align-items: center; min-width: 0; }
+.setup-brand__logo { display: block; width: min(100%, 252px); max-height: 58px; object-fit: contain; object-position: left center; }
 .setup-step small { color: var(--ink-soft); font-size: 10px; letter-spacing: .08em; }
 .setup-rail__intro { margin: 44px 4px 10px; }
 

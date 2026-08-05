@@ -94,12 +94,15 @@ describe("ManagePage", () => {
     expect(screen.queryByText("管理、聊天与领养保持分离")).not.toBeInTheDocument()
   })
 
-  it("renders the ElfieNest logo and single sidebar brand without the console subtitle", () => {
+  it("renders the full ElfieNest logo without the console subtitle", () => {
     renderManagePage("users")
     const sidebar = screen.getByLabelText("ElfieNest 管理导航")
 
-    expect(within(sidebar).getByAltText("ElfieNest")).toBeInTheDocument()
-    expect(within(sidebar).getAllByText("ELFIE NEST")).toHaveLength(1)
+    expect(within(sidebar).getByRole("img", { name: "ELFIE NEST" })).toHaveAttribute(
+      "src",
+      expect.stringContaining("elfienest-full-logo-transparent.png"),
+    )
+    expect(within(sidebar).queryByText("ELFIE NEST")).not.toBeInTheDocument()
     expect(within(sidebar).queryByText(/管理系统|OWNER CONSOLE/)).not.toBeInTheDocument()
   })
 
