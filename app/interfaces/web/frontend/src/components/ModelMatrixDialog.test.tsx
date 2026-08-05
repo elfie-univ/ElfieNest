@@ -27,7 +27,7 @@ const matrix = {
   connections: [{
     connection_id: "conn-openai",
     name: "OpenAI Main",
-    verification: { status: "passed", checked_at: "2026-07-30T00:00:00Z", latency_ms: 45, error: null },
+    verification: { status: "never", checked_at: null, latency_ms: null, error: null },
   }],
   models: [{
     model_key: "gpt-test",

@@ -109,7 +109,7 @@ export function ModelMatrixDialog({ csrfToken, onOpenChange, open }: ModelMatrix
           <TableHead scope="row">{model.display_name}</TableHead>
           {matrix.connections.map((connection) => {
             const cell = model.connections.find((item) => item.connection_id === connection.connection_id)
-            const canBenchmark = Boolean(cell?.available && cell.model_id && connection.verification.status === "passed")
+            const canBenchmark = Boolean(cell?.available && cell.model_id)
             if (!cell?.available) return <TableCell className="model-matrix__cell model-matrix__cell--unavailable" key={connection.connection_id}>{t("modelMatrix.labels.unavailable")}</TableCell>
             return <TableCell className="model-matrix__cell" key={connection.connection_id}>
               <div className="model-matrix__cell-content">
@@ -136,12 +136,7 @@ export function ModelMatrixDialog({ csrfToken, onOpenChange, open }: ModelMatrix
 }
 
 function collectBenchmarkCombinations(matrix: ModelMatrix): BenchmarkCombination[] {
-  const passedConnections = new Set(
-    matrix.connections
-      .filter((connection) => connection.verification.status === "passed")
-      .map((connection) => connection.connection_id),
-  )
   return matrix.models.flatMap((model) => model.connections
-    .filter((cell) => cell.available && cell.model_id && passedConnections.has(cell.connection_id))
+    .filter((cell) => cell.available && cell.model_id)
     .map((cell) => ({ connection_id: cell.connection_id, model_id: cell.model_id ?? "" })))
 }

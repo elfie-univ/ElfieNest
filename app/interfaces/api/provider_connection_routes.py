@@ -4,16 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import threading
-import time
 from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
-from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.food.store import foods_referencing_connection, foods_referencing_model
-from ai_runtime.models.catalog import _verify_custom_openai_provider, verify_provider
 from ai_runtime.providers.discovery import (
     bundled_catalog_models,
     merge_refreshed_models,
@@ -36,15 +33,7 @@ from ai_runtime.storage.provider_connections import (
     ProviderConnectionStore,
     ProviderModelRecord,
 )
-from ai_runtime.storage.secrets import (
-    connection_secret_name,
-    resolve_secret,
-)
-from ai_runtime.storage.validation_reports import (
-    read_latest_model_validation,
-    read_latest_provider_validation,
-    write_provider_validation_report,
-)
+from ai_runtime.storage.validation_reports import read_latest_model_validation
 from ai_runtime.validation.providers import discover_provider_models
 from app.features.accounts.auth import require_manager
 from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
@@ -57,13 +46,17 @@ from .provider_schemas import (
     ProviderModelInput,
     ProviderModelUpdateRequest,
 )
+from .provider_validation_runtime import connection_api_key as _connection_api_key
+from .provider_validation_runtime import runtime_projection as _runtime_projection
+from .provider_validation_service import (
+    summarize_connection_validation,
+    validate_connection,
+)
 
 router = APIRouter()
 _CREATE_LOCK = threading.Lock()
 _DISCOVERY_SLOTS = threading.BoundedSemaphore(3)
 _DISCOVERY_TIMEOUT_SECONDS = 7.0
-_VERIFY_SLOTS = threading.BoundedSemaphore(3)
-_VERIFY_TIMEOUT_SECONDS = 15.0
 
 
 def _store() -> ProviderConnectionStore:
@@ -312,13 +305,14 @@ async def restore_connection(
 @router.post("/connections/{connection_id}/verify")
 async def verify_connection_route(
     connection_id: str,
+    force_full: bool = Query(default=False),
     owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> dict[str, Any]:
     _ = owner
     connection = _require_connection(_store(), connection_id)
     return {
         "connection_id": connection_id,
-        "verification": await _verify_connection(connection),
+        "verification": await _verify_connection(connection, force_full=force_full),
     }
 
 
@@ -356,9 +350,7 @@ async def replace_connection_models(
     _ = owner
     store = _store()
     connection = _require_connection(store, connection_id)
-    current_by_id = {
-        model.endpoint_model_id: model for model in connection.models
-    }
+    current_by_id = {model.endpoint_model_id: model for model in connection.models}
     original_ids = [item.original_id for item in body.models]
     if len(set(original_ids)) != len(original_ids):
         raise HTTPException(status_code=422, detail="模型原始 ID 不能重复")
@@ -661,8 +653,12 @@ def _discover_with_slot(connection: ProviderConnection):
         _DISCOVERY_SLOTS.release()
 
 
-async def _verify_connection(connection: ProviderConnection) -> dict[str, Any]:
-    return await _verify_connection_in_run(connection)
+async def _verify_connection(
+    connection: ProviderConnection,
+    *,
+    force_full: bool = False,
+) -> dict[str, Any]:
+    return await _verify_connection_in_run(connection, force_full=force_full)
 
 
 async def _verify_connection_in_run(
@@ -670,124 +666,15 @@ async def _verify_connection_in_run(
     *,
     run_id: str | None = None,
     trigger: str = "single",
+    force_full: bool = False,
 ) -> dict[str, Any]:
-    try:
-        result = await asyncio.wait_for(
-            asyncio.to_thread(_verify_with_slot, connection),
-            timeout=_VERIFY_TIMEOUT_SECONDS,
-        )
-    except asyncio.TimeoutError:
-        result = {
-            "status": "failed",
-            "latency_ms": None,
-            "error": "连接验证超时",
-        }
-    status = "passed" if result.get("status") in {"active", "passed"} else "failed"
-    checked_at = datetime.now(timezone.utc).isoformat()
-    latency = result.get("latency_ms")
-    error = (
-        sanitize_error(
-            str(result["error"]) if result.get("error") else "",
-            secrets=(_connection_api_key(connection),),
-        )
-        or None
-    )
-    latency_ms = float(latency) if isinstance(latency, (int, float)) else None
-    verification = {
-        "status": status,
-        "checked_at": checked_at,
-        "latency_ms": latency_ms,
-        "error": error,
-    }
-    write_provider_validation_report(
-        connection.connection_id,
-        status=status,
-        checked_at=checked_at,
-        latency_ms=latency_ms,
-        error=error,
-        trigger="batch" if trigger == "batch" else "single",
+    return await validate_connection(
+        connection,
+        runtime_projection=_runtime_projection,
         run_id=run_id,
+        trigger="batch" if trigger == "batch" else "single",
+        force_full=force_full or trigger == "batch",
     )
-    return verification
-
-
-def _verify_with_slot(connection: ProviderConnection) -> dict[str, Any]:
-    if not _VERIFY_SLOTS.acquire(blocking=False):
-        return {
-            "status": "failed",
-            "latency_ms": None,
-            "error": "连接验证任务过多，请稍后重试",
-        }
-    started = time.perf_counter()
-    try:
-        runtime_id, config = _runtime_projection(connection)
-        provider = config.providers[runtime_id]
-        if connection.catalog_id == "custom_openai":
-            return _verify_custom_openai_provider(
-                provider,
-                connection.api_base,
-                _connection_api_key(connection),
-            )
-        return verify_provider(runtime_id, config)
-    except Exception as exc:
-        return {
-            "status": "failed",
-            "latency_ms": (time.perf_counter() - started) * 1000,
-            "error": str(exc),
-        }
-    finally:
-        _VERIFY_SLOTS.release()
-
-
-def _runtime_projection(
-    connection: ProviderConnection,
-) -> tuple[str, LLMRuntimeConfig]:
-    profile = get_product(connection.catalog_id)
-    if profile is None:
-        raise ValueError("连接产品目录已经缺失")
-    runtime_id = (
-        connection.connection_id
-        if connection.catalog_id == "custom_openai"
-        else profile.legacy_provider_id
-    )
-    config = LLMRuntimeConfig()
-    active_models = tuple(
-        model
-        for model in connection.models
-        if not model.hidden and not model.retired and model.available
-    )
-    profile_test_model = profile.test_model.strip()
-    selected_test_model = next(
-        (
-            model.endpoint_model_id
-            for model in active_models
-            if model.endpoint_model_id == profile_test_model
-            or model.display_name == profile_test_model
-            or model.canonical_model_id == profile_test_model
-        ),
-        active_models[0].endpoint_model_id
-        if active_models
-        else profile_test_model,
-    )
-    config.providers[runtime_id] = {
-        "api_base": connection.api_base or profile.api_base,
-        "api_mode": connection.api_mode or profile.api_mode,
-        "auth_type": connection.auth_type or profile.auth_type,
-        "api_key": _connection_api_key(connection),
-        "models": [
-            {"id": model.endpoint_model_id, "display_name": model.display_name}
-            for model in active_models
-        ],
-        "test_model": selected_test_model,
-    }
-    return runtime_id, config
-
-
-def _connection_api_key(connection: ProviderConnection) -> str:
-    secret_name = connection.credential_ref or connection_secret_name(
-        connection.connection_id
-    )
-    return resolve_secret(secret_name)
 
 
 def _connection_view(
@@ -797,7 +684,7 @@ def _connection_view(
     refresh_result: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     profile = get_product(connection.catalog_id)
-    latest = verification or read_latest_provider_validation(connection.connection_id)
+    latest = verification or summarize_connection_validation(connection)
     if not latest:
         latest = {
             "status": "never",
@@ -821,6 +708,16 @@ def _connection_view(
             "checked_at": latest.get("checked_at"),
             "latency_ms": latest.get("latency_ms"),
             "error": latest.get("error"),
+            "validation_mode": latest.get("validation_mode", "none"),
+            "cache_hit": latest.get("cache_hit", False),
+            "needs_full_validation": latest.get("needs_full_validation", False),
+            "needs_heartbeat": latest.get("needs_heartbeat", False),
+            "full_run_id": latest.get("full_run_id"),
+            "full_checked_at": latest.get("full_checked_at"),
+            "heartbeat_checked_at": latest.get("heartbeat_checked_at"),
+            "heartbeat_status": latest.get("heartbeat_status"),
+            "representative_model_id": latest.get("representative_model_id"),
+            "reason": latest.get("reason"),
         },
         "models": [_model_view(connection, model) for model in connection.models],
         "model_refresh": refresh_result,
@@ -834,7 +731,21 @@ def _model_view(
     latest = read_latest_model_validation(
         connection.connection_id,
         model.endpoint_model_id,
+        validation_mode="full",
     )
+    verification = {
+        "status": latest.get("status", "never"),
+        "checked_at": latest.get("checked_at"),
+        "latency_ms": latest.get("latency_ms"),
+        "error": latest.get("error"),
+    }
+    if latest:
+        verification.update(
+            {
+                "validation_mode": latest.get("validation_mode"),
+                "full_run_id": latest.get("full_run_id"),
+            }
+        )
     return {
         "id": model.endpoint_model_id,
         "display_name": model.display_name,
@@ -848,10 +759,5 @@ def _model_view(
         "hidden": model.hidden,
         "retired": model.retired,
         "available": model.available,
-        "verification": {
-            "status": latest.get("status", "never"),
-            "checked_at": latest.get("checked_at"),
-            "latency_ms": latest.get("latency_ms"),
-            "error": latest.get("error"),
-        },
+        "verification": verification,
     }

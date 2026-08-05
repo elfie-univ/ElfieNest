@@ -78,9 +78,9 @@ export const manage = {
     verifyingSession: "正在验证会话…",
   },
   providerConnections: {
-    actions: { addOther: "添加其他订阅", archive: "归档", batchValidate: "批量验证", cancel: "取消", choose: "继续", configure: "配置 {{name}}", delete: "删除", disable: "停用", edit: "修改", enable: "启用", matrix: "同模型对比", models: "模型", more: "更多", refresh: "重新读取", restore: "恢复", save: "保存配置", saveAndVerify: "验证并保存", savingAndVerifying: "保存并验证中…", validate: "验证", validating: "验证中…" },
+    actions: { addOther: "添加其他订阅", archive: "归档", batchValidate: "批量验证", cancel: "取消", choose: "继续", configure: "配置 {{name}}", delete: "删除", disable: "停用", edit: "修改", enable: "启用", forceFullValidate: "强制全量验证", matrix: "同模型对比", models: "模型", more: "更多", refresh: "重新读取", restore: "恢复", save: "保存配置", saveAndVerify: "验证并保存", saving: "保存中…", savingAndVerifying: "保存并验证中…", validate: "验证", validating: "验证中…" },
     available: { title: "添加新的远程订阅" },
-    card: { modelStats: "共 {{total}} 个模型（已启用 {{enabled}} 个 · 验证通过 {{verified}} 个）" },
+    card: { cached: "24 小时内沿用上次验证结果", modelStats: "共 {{total}} 个模型（已启用 {{enabled}} 个 · 验证通过 {{verified}} 个）", needsFullValidation: "需要重新进行全量验证", needsHeartbeat: "需要验证一个代表模型" },
     ollama: {
       actions: { addModel: "添加模型", closeAdd: "收起添加", download: "下载安装", downloadSelected: "下载所选模型", downloading: "下载中…", install: "安装", installing: "安装中… {{progress}}%", repairRequired: "需要修复", restart: "重启", start: "启动", starting: "启动中…" },
       card: { availableModels: "{{count}} 个可用模型", loading: "正在读取本地模型…" },
@@ -95,7 +95,7 @@ export const manage = {
     errors: { delete: "订阅连接没有删除", lifecycle: "连接状态没有更新", load: "模型订阅加载失败", save: "订阅配置没有保存", validate: "订阅验证失败", validateAll: "批量验证失败" },
     form: { alias: "订阅别名", apiKey: "API 密钥", oauthAvailable: "登录授权可用。", oauthUnavailable: "这个产品的登录授权尚未接入。", titleConfigure: "配置 {{name}}", titleEdit: "修改 {{name}}" },
     lifecycle: { description: "管理 {{name}} 的生命周期。", title: "更多操作" },
-    notices: { added: "{{name}} 已添加。", saved: "{{name}} 已保存。", validated: "{{name}} 验证已完成。", validatedAll: "批量验证完成：{{count}} 项通过，报告 {{runId}}。" },
+    notices: { added: "{{name}} 已添加。", forceValidated: "{{name}} 已完成强制全量验证。", saved: "{{name}} 已保存。", validated: "{{name}} 验证已完成。", validatedAll: "批量验证完成：{{count}} 项通过，报告 {{runId}}。" },
     other: { anthropicInterface: "Anthropic 接口", openaiInterface: "OpenAI 接口", placeholder: "请选择", product: "订阅产品", title: "添加其他订阅" },
     section: { configuredEmpty: "尚未配置远程模型订阅。", configuredTitle: "已配置的远程订阅", count: "{{count}} 个" },
     status: { failed: "验证失败", never: "未验证", partial: "部分可用", passed: "验证通过" },

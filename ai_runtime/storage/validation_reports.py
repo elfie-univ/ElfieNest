@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Mapping, Optional
 
 from ai_runtime.storage.report_repository import (
     ReportRepository,
@@ -15,7 +15,7 @@ REPORT_VERSION = 1
 _PROVIDER_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 _REPORT_STATUS = frozenset({"failed", "passed"})
 _PROVIDER_TRIGGER = frozenset({"batch", "single"})
-_MODEL_TRIGGER = frozenset({"benchmark"})
+_MODEL_TRIGGER = frozenset({"benchmark", "full"})
 
 
 @dataclass(frozen=True)
@@ -35,6 +35,7 @@ def write_provider_validation_report(
     error: Optional[str],
     trigger: Literal["batch", "single"],
     run_id: Optional[str] = None,
+    details: Optional[Mapping[str, Any]] = None,
 ) -> int:
     """Append one Provider observation and return its database identity."""
     _validate_provider_id(provider_id)
@@ -58,6 +59,7 @@ def write_provider_validation_report(
         latency_ms=latency_ms,
         error_category=_error_category(error),
         error_message=error,
+        details=details,
     )
     if owns_run:
         repository.finish_run(
@@ -75,7 +77,7 @@ def read_latest_provider_validation(provider_id: str) -> dict[str, Any]:
     if observation is None:
         return {}
     run = repository.get_run(observation.run_id)
-    return {
+    payload = {
         "version": REPORT_VERSION,
         "kind": "provider_validation",
         "provider_id": provider_id,
@@ -85,6 +87,9 @@ def read_latest_provider_validation(provider_id: str) -> dict[str, Any]:
         "latency_ms": observation.latency_ms,
         "error": observation.error_message,
     }
+    if observation.details:
+        payload["metadata"] = dict(observation.details)
+    return payload
 
 
 def write_model_validation_report(
@@ -96,8 +101,9 @@ def write_model_validation_report(
     latency_ms: Optional[float],
     latency_class: Optional[str],
     error: Optional[str],
-    trigger: Literal["benchmark"],
+    trigger: Literal["benchmark", "full"],
     run_id: Optional[str] = None,
+    details: Optional[Mapping[str, Any]] = None,
 ) -> int:
     """Append one endpoint-model observation without creating report files."""
     _validate_provider_id(provider_id)
@@ -113,6 +119,8 @@ def write_model_validation_report(
             trigger=trigger,
             started_at=checked_at,
         )
+    metadata = {"latency_class": latency_class}
+    metadata.update(details or {})
     observation_id = repository.append_observation(
         run_id=run_id,
         subject_kind="model",
@@ -122,7 +130,7 @@ def write_model_validation_report(
         latency_ms=latency_ms,
         error_category=_error_category(error),
         error_message=error,
-        details={"latency_class": latency_class},
+        details=metadata,
     )
     if owns_run:
         repository.finish_run(
@@ -136,13 +144,25 @@ def write_model_validation_report(
 def read_latest_model_validation(
     provider_id: str,
     model_id: str,
+    *,
+    validation_mode: Literal["any", "full"] = "any",
 ) -> dict[str, Any]:
     _validate_provider_id(provider_id)
     normalized_model_id = _validate_model_id(model_id)
     repository = ReportRepository()
-    observation = repository.latest(
-        "model",
-        f"{provider_id}/{normalized_model_id}",
+    subject_id = f"{provider_id}/{normalized_model_id}"
+    observation = (
+        repository.latest("model", subject_id)
+        if validation_mode == "any"
+        else next(
+            (
+                item
+                for item in repository.observations_for_subject("model", subject_id)
+                if item.details.get("validation_mode") == "full"
+                or repository.get_run(item.run_id).trigger == "full"
+            ),
+            None,
+        )
     )
     if observation is None:
         return {}
@@ -161,7 +181,7 @@ def _model_payload(
     observation: ValidationObservation,
     trigger: str,
 ) -> dict[str, Any]:
-    return {
+    payload = {
         "version": REPORT_VERSION,
         "kind": "model_validation",
         "provider_id": provider_id,
@@ -173,6 +193,11 @@ def _model_payload(
         "latency_class": observation.details.get("latency_class"),
         "error": observation.error_message,
     }
+    if observation.details.get("validation_mode"):
+        payload["validation_mode"] = observation.details["validation_mode"]
+    if observation.details.get("full_run_id"):
+        payload["full_run_id"] = observation.details["full_run_id"]
+    return payload
 
 
 def _validate_provider_id(provider_id: str) -> None:

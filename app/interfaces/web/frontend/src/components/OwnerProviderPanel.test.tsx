@@ -297,12 +297,39 @@ describe("OwnerProviderPanel v2 behavior", () => {
     await user.click(await screen.findByRole("button", { name: "配置 OpenAI" }))
     const dialog = screen.getByRole("dialog", { name: "配置 OpenAI" })
     await user.type(within(dialog).getByLabelText("API 密钥", { selector: "input" }), "secret")
-    await user.click(within(dialog).getByRole("button", { name: "验证并保存" }))
+    await user.click(within(dialog).getByRole("button", { name: "保存配置" }))
 
     expect(createProviderConnection).toHaveBeenCalledWith(
-      expect.objectContaining({ api_key: "secret", catalog_id: "openai", refresh_models: true, verify: true }),
+      expect.objectContaining({ api_key: "secret", catalog_id: "openai", refresh_models: true }),
       "csrf",
     )
+    expect(vi.mocked(createProviderConnection).mock.calls[0]?.[0]).not.toHaveProperty("verify")
+  })
+
+  it("forces a full validation from the lifecycle menu", async () => {
+    const user = userEvent.setup()
+    renderPanel()
+
+    const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
+    await user.click(within(card).getByRole("button", { name: "更多" }))
+    await user.click(screen.getByRole("menuitem", { name: "强制全量验证" }))
+
+    expect(verifyProviderConnection).toHaveBeenCalledWith("conn-openai", "csrf", true)
+    expect(await screen.findByText("OpenAI Main 已完成强制全量验证。")).toBeInTheDocument()
+  })
+
+  it("does not show an all-unverified connection as failed", async () => {
+    vi.mocked(ownerProviderConnections).mockResolvedValue([{
+      ...connection,
+      verification: { status: "never", checked_at: null, latency_ms: null, error: null },
+      models: [{ ...model, verification: { status: "never", checked_at: null, latency_ms: null, error: null } }],
+    }])
+    renderPanel()
+
+    const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
+    expect(card).toHaveClass("provider-card--never")
+    expect(within(card).getByText("未验证")).toBeInTheDocument()
+    expect(within(card).queryByText("验证失败")).not.toBeInTheDocument()
   })
 
   it("archives an existing connection from the anchored lifecycle menu", async () => {

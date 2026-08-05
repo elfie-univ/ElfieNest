@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import urllib.error
+from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from ai_runtime.storage.provider_connections import (
     ProviderConnection,
@@ -14,7 +16,205 @@ from ai_runtime.storage.validation_reports import read_latest_model_validation
 from app.interfaces.api.provider_connection_model_routes import (
     validate_all_connection_models,
 )
-from app.interfaces.api.provider_connection_routes import _runtime_projection
+from app.interfaces.api.provider_connection_routes import (
+    _runtime_projection,
+    _verify_connection,
+)
+from app.interfaces.api.provider_validation_policy import (
+    choose_validation_mode,
+    connection_validation_fingerprint,
+)
+
+
+def _full_report(connection, checked_at: str) -> dict[str, object]:
+    model_ids = tuple(
+        model.endpoint_model_id
+        for model in connection.models
+        if not model.hidden and not model.retired
+    )
+    return {
+        "status": "passed",
+        "checked_at": checked_at,
+        "metadata": {
+            "validation_mode": "full",
+            "full_run_id": "run-full",
+            "full_checked_at": checked_at,
+            "config_fingerprint": connection_validation_fingerprint(connection),
+            "model_ids": list(model_ids),
+        },
+    }
+
+
+def test_validation_policy_reuses_a_full_result_for_24_hours() -> None:
+    connection = ProviderConnection(
+        connection_id="custom_openai_0001",
+        catalog_id="custom_openai",
+        alias="Cache",
+        models=(ProviderModelRecord(endpoint_model_id="model-a"),),
+    )
+
+    decision = choose_validation_mode(
+        connection,
+        _full_report(connection, "2026-08-04T12:00:00+00:00"),
+        now=datetime.fromisoformat("2026-08-05T11:59:59+00:00"),
+    )
+
+    assert decision.mode == "cached"
+    assert decision.source_run_id == "run-full"
+
+
+def test_validation_policy_reuses_a_recent_heartbeat_for_24_hours() -> None:
+    connection = ProviderConnection(
+        connection_id="custom_openai_0001",
+        catalog_id="custom_openai",
+        alias="Heartbeat cache",
+        models=(ProviderModelRecord(endpoint_model_id="model-a"),),
+    )
+    report = _full_report(connection, "2026-07-20T12:00:00+00:00")
+    report["checked_at"] = "2026-07-20T18:00:00+00:00"
+    metadata = report["metadata"]
+    metadata.update(
+        {
+            "validation_mode": "heartbeat",
+            "heartbeat_checked_at": "2026-07-20T18:00:00+00:00",
+            "heartbeat_status": "passed",
+        }
+    )
+
+    decision = choose_validation_mode(
+        connection,
+        report,
+        now=datetime.fromisoformat("2026-07-21T17:59:59+00:00"),
+    )
+
+    assert decision.mode == "cached"
+
+
+def test_validation_policy_uses_one_heartbeat_before_30_days() -> None:
+    connection = ProviderConnection(
+        connection_id="custom_openai_0001",
+        catalog_id="custom_openai",
+        alias="Heartbeat",
+        models=(
+            ProviderModelRecord(endpoint_model_id="model-a"),
+            ProviderModelRecord(endpoint_model_id="model-b"),
+        ),
+    )
+
+    decision = choose_validation_mode(
+        connection,
+        _full_report(connection, "2026-07-10T12:00:00+00:00"),
+        now=datetime.fromisoformat("2026-07-20T12:00:01+00:00"),
+    )
+
+    assert decision.mode == "heartbeat"
+    assert decision.representative_model_id == "model-a"
+
+
+def test_validation_policy_requires_full_run_after_30_days_or_model_change() -> None:
+    connection = ProviderConnection(
+        connection_id="custom_openai_0001",
+        catalog_id="custom_openai",
+        alias="Expired",
+        models=(ProviderModelRecord(endpoint_model_id="model-a"),),
+    )
+
+    expired = choose_validation_mode(
+        connection,
+        _full_report(connection, "2026-07-01T12:00:00+00:00"),
+        now=datetime.fromisoformat("2026-08-05T12:00:01+00:00"),
+    )
+    changed = choose_validation_mode(
+        replace(
+            connection,
+            models=(
+                ProviderModelRecord(endpoint_model_id="model-a"),
+                ProviderModelRecord(endpoint_model_id="model-b"),
+            ),
+        ),
+        _full_report(connection, "2026-08-05T11:00:00+00:00"),
+        now=datetime.fromisoformat("2026-08-05T12:00:01+00:00"),
+    )
+
+    assert expired.mode == "full"
+    assert changed.mode == "full"
+
+
+def test_single_validation_checks_configured_models_without_provider_models_probe(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    connection = ProviderConnection(
+        connection_id="custom_openai_0001",
+        catalog_id="custom_openai",
+        alias="Configured models",
+        api_base="https://gateway.example/v1",
+        models=(
+            ProviderModelRecord(endpoint_model_id="model-a"),
+            ProviderModelRecord(endpoint_model_id="model-b"),
+        ),
+    )
+    ProviderConnectionStore().replace(connection)
+    calls: list[str] = []
+
+    def model_check(connection, model_id, runtime_projection):
+        _ = connection, runtime_projection
+        calls.append(model_id)
+        return {
+            "status": "passed",
+            "latency_ms": 10.0,
+            "latency_class": "fast",
+            "error": None,
+        }
+
+    with patch(
+        "app.interfaces.api.provider_validation_checks.run_connection_model_check",
+        side_effect=model_check,
+    ):
+        payload = asyncio.run(_verify_connection(connection))
+
+    assert calls == ["model-a", "model-b"]
+    assert payload["status"] == "passed"
+    assert payload["validation_mode"] == "full"
+    assert payload["model_count"] == 2
+
+
+def test_single_validation_reuses_recent_full_result_without_new_model_requests(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    connection = ProviderConnection(
+        connection_id="custom_openai_0001",
+        catalog_id="custom_openai",
+        alias="Cached validation",
+        api_base="https://gateway.example/v1",
+        models=(ProviderModelRecord(endpoint_model_id="model-a"),),
+    )
+    ProviderConnectionStore().replace(connection)
+
+    def model_check(connection, model_id, runtime_projection):
+        _ = connection, model_id, runtime_projection
+        return {
+            "status": "passed",
+            "latency_ms": 10.0,
+            "latency_class": "fast",
+            "error": None,
+        }
+
+    with patch(
+        "app.interfaces.api.provider_validation_checks.run_connection_model_check",
+        side_effect=model_check,
+    ) as check:
+        first = asyncio.run(_verify_connection(connection))
+        check.reset_mock()
+        second = asyncio.run(_verify_connection(connection))
+
+    assert first["validation_mode"] == "full"
+    assert second["validation_mode"] == "cached"
+    assert second["cache_hit"] is True
+    check.assert_not_called()
 
 
 def test_runtime_projection_keeps_jdcloud_profile_test_model() -> None:
@@ -150,9 +350,9 @@ def test_validate_all_writes_each_enabled_model_and_skips_hidden(
     )
     ProviderConnectionStore().replace(connection)
 
-    async def benchmark(combination, semaphore):
-        _ = semaphore
-        status = "passed" if combination.model_id == "passed-model" else "failed"
+    def model_check(connection, model_id, runtime_projection):
+        _ = connection, runtime_projection
+        status = "passed" if model_id == "passed-model" else "failed"
         return {
             "status": status,
             "latency_ms": 120.0 if status == "passed" else 240.0,
@@ -160,22 +360,9 @@ def test_validate_all_writes_each_enabled_model_and_skips_hidden(
             "error": None if status == "passed" else "model rejected",
         }
 
-    with (
-        patch(
-            "app.interfaces.api.provider_connection_model_routes._verify_connection_in_run",
-            new=AsyncMock(
-                return_value={
-                    "status": "passed",
-                    "checked_at": "2026-08-03T01:00:00+00:00",
-                    "latency_ms": 40.0,
-                    "error": None,
-                }
-            ),
-        ),
-        patch(
-            "app.interfaces.api.provider_connection_model_routes.bounded_benchmark",
-            side_effect=benchmark,
-        ),
+    with patch(
+        "app.interfaces.api.provider_validation_checks.run_connection_model_check",
+        side_effect=model_check,
     ):
         payload = asyncio.run(
             validate_all_connection_models(_ConnectedRequest(), owner={})
@@ -185,9 +372,11 @@ def test_validate_all_writes_each_enabled_model_and_skips_hidden(
     assert "model:custom_openai_0001/passed-model" in subjects
     assert "model:custom_openai_0001/failed-model" in subjects
     assert "model:custom_openai_0001/hidden-model" not in subjects
-    assert read_latest_model_validation(
-        "custom_openai_0001", "passed-model"
-    )["latency_ms"] == 120.0
-    assert read_latest_model_validation(
-        "custom_openai_0001", "failed-model"
-    )["status"] == "failed"
+    assert (
+        read_latest_model_validation("custom_openai_0001", "passed-model")["latency_ms"]
+        == 120.0
+    )
+    assert (
+        read_latest_model_validation("custom_openai_0001", "failed-model")["status"]
+        == "failed"
+    )

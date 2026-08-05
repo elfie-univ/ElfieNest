@@ -19,7 +19,6 @@ from .provider_errors import sanitize_error
 from .provider_model_benchmark import bounded_benchmark, validate_combinations
 from .provider_model_matrix import build_model_matrix
 from .provider_schemas import (
-    ConnectionBenchmarkCombination,
     ConnectionBenchmarkRequest,
 )
 
@@ -172,6 +171,7 @@ async def validate_all_connection_models(
                 connection,
                 run_id=run_id,
                 trigger="batch",
+                force_full=True,
             )
             results.append(
                 {
@@ -179,56 +179,12 @@ async def validate_all_connection_models(
                     **verification,
                 }
             )
-            for model in connection.models:
-                if model.hidden or model.retired or not model.available:
-                    continue
-                raw = await bounded_benchmark(
-                    ConnectionBenchmarkCombination(
-                        connection_id=connection.connection_id,
-                        model_id=model.endpoint_model_id,
-                    ),
-                    asyncio.Semaphore(_BENCHMARK_CONCURRENCY),
-                )
-                checked_at = datetime.now(timezone.utc).isoformat()
-                result_status = "passed" if raw.get("status") == "passed" else "failed"
-                latency = raw.get("latency_ms")
-                latency_ms = (
-                    float(latency) if isinstance(latency, (int, float)) else None
-                )
-                latency_class = (
-                    str(raw["latency_class"]) if raw.get("latency_class") else None
-                )
-                error = sanitize_error(
-                    raw.get("error"),
-                    secrets=(
-                        resolve_secret(
-                            connection.credential_ref
-                            or connection_secret_name(connection.connection_id)
-                        ),
-                    ),
-                )
-                write_model_validation_report(
-                    connection.connection_id,
-                    model.endpoint_model_id,
-                    status=result_status,
-                    checked_at=checked_at,
-                    latency_ms=latency_ms,
-                    latency_class=latency_class,
-                    error=error,
-                    trigger="benchmark",
-                    run_id=run_id,
-                )
+            for model_result in verification.get("model_results", []):
+                model_id = str(model_result["model_id"])
                 results.append(
                     {
-                        "subject": (
-                            f"model:{connection.connection_id}/"
-                            f"{model.endpoint_model_id}"
-                        ),
-                        "status": result_status,
-                        "checked_at": checked_at,
-                        "latency_ms": latency_ms,
-                        "latency_class": latency_class,
-                        "error": error,
+                        "subject": (f"model:{connection.connection_id}/{model_id}"),
+                        **model_result,
                     }
                 )
     except asyncio.CancelledError:

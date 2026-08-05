@@ -130,6 +130,19 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
     }
   }
 
+  const forceFullVerify = async (connection: ProviderConnection): Promise<void> => {
+    setPending(`verify:${connection.connection_id}`)
+    try {
+      await verifyProviderConnection(connection.connection_id, csrfToken, true)
+      setNotice(t("providerConnections.notices.forceValidated", { name: connection.alias }))
+      await load()
+    } catch (reason: unknown) {
+      setError(describeApiError(reason, "manage.save"))
+    } finally {
+      setPending(null)
+    }
+  }
+
   const runValidation = async (): Promise<void> => {
     setPending("batch")
     try {
@@ -202,6 +215,7 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
         onDelete={() => setDeleting(connection)}
         onLifecycle={(action) => { void lifecycle(connection, action) }}
         onVerify={() => { void verify(connection) }}
+        onForceFull={() => { void forceFullVerify(connection) }}
       />)}</div>}
     </section>
     <section aria-labelledby="available-provider-title" className="provider-section provider-section--available"><div className="provider-section__heading"><div><h3 id="available-provider-title">{t("providerConnections.available.title")}</h3></div></div><div className="provider-grid">
@@ -217,26 +231,30 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
   </section>
 }
 
-function ConfiguredConnectionCard({ busy, connection, onDelete, onEdit, onLifecycle, onModels, onVerify }: {
+function ConfiguredConnectionCard({ busy, connection, onDelete, onEdit, onForceFull, onLifecycle, onModels, onVerify }: {
   readonly busy: boolean
   readonly connection: ProviderConnection
   readonly onDelete: () => void
   readonly onEdit: () => void
+  readonly onForceFull: () => void
   readonly onLifecycle: (action: ProviderLifecycleAction) => void
   readonly onModels: () => void
   readonly onVerify: () => void
 }) {
   const { t } = useTranslation("manage")
-  const enabledCount = connection.models.filter((model) => !model.hidden).length
-  const verifiedCount = connection.models.filter((model) => model.verification.status === "passed").length
-  const availableCount = connection.models.filter((model) => !model.hidden && model.available && model.verification.status === "passed").length
+  const activeModels = connection.models.filter((model) => !model.hidden && !model.retired)
+  const enabledCount = activeModels.length
+  const verifiedCount = activeModels.filter((model) => model.verification.status === "passed").length
+  const failedCount = activeModels.filter((model) => model.verification.status === "failed").length
   const health = enabledCount === 0
     ? "never"
-    : availableCount === enabledCount
+    : connection.verification.needs_full_validation
+      ? verifiedCount > 0 ? "partial" : "never"
+      : verifiedCount === enabledCount
       ? "passed"
-      : availableCount > 0
+      : verifiedCount > 0
         ? "partial"
-        : "failed"
+        : failedCount > 0 ? "failed" : "never"
   const status = health === "passed"
     ? t("providerConnections.status.passed")
     : health === "partial"
@@ -244,5 +262,12 @@ function ConfiguredConnectionCard({ busy, connection, onDelete, onEdit, onLifecy
       : health === "failed"
         ? t("providerConnections.status.failed")
         : t("providerConnections.status.never")
-  return <article className={`provider-card provider-card--${health}`}><div className="provider-card__title"><h4>{connection.alias}</h4><span className={`status-badge status-badge--${health}`}>{status}</span></div><p className="provider-card__model-stats">{t("providerConnections.card.modelStats", { total: connection.models.length, enabled: enabledCount, verified: verifiedCount })}</p><div className="manage-actions"><Button disabled={busy} onClick={onModels} type="button" variant="outline">{t("providerConnections.actions.models")}</Button><Button disabled={busy} onClick={onVerify} type="button" variant="outline">{busy ? t("providerConnections.actions.validating") : t("providerConnections.actions.validate")}</Button><Button disabled={busy} onClick={onEdit} type="button" variant="outline">{t("providerConnections.actions.edit")}</Button><ProviderLifecycleMenu archived={connection.archived} busy={busy} enabled={connection.enabled} onDelete={onDelete} onLifecycle={onLifecycle} /></div></article>
+  const validationHint = connection.verification.needs_full_validation
+    ? t("providerConnections.card.needsFullValidation")
+    : connection.verification.needs_heartbeat
+      ? t("providerConnections.card.needsHeartbeat")
+      : connection.verification.validation_mode === "cached"
+        ? t("providerConnections.card.cached")
+        : null
+  return <article className={`provider-card provider-card--${health}`}><div className="provider-card__title"><h4>{connection.alias}</h4><span className={`status-badge status-badge--${health}`}>{status}</span></div><p className="provider-card__model-stats">{t("providerConnections.card.modelStats", { total: connection.models.length, enabled: enabledCount, verified: verifiedCount })}</p>{validationHint ? <small className="provider-card__validation-hint">{validationHint}</small> : null}<div className="manage-actions"><Button disabled={busy} onClick={onModels} type="button" variant="outline">{t("providerConnections.actions.models")}</Button><Button disabled={busy} onClick={onVerify} type="button" variant="outline">{busy ? t("providerConnections.actions.validating") : t("providerConnections.actions.validate")}</Button><Button disabled={busy} onClick={onEdit} type="button" variant="outline">{t("providerConnections.actions.edit")}</Button><ProviderLifecycleMenu archived={connection.archived} busy={busy} enabled={connection.enabled} onDelete={onDelete} onForceFull={onForceFull} onLifecycle={onLifecycle} /></div></article>
 }

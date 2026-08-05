@@ -40,10 +40,15 @@ def test_model_list_save_updates_every_row_and_projects_latest_validation(
     connection_id = _create_connection(client, headers)
     store = ProviderConnectionStore()
     connection = store.load().connections[connection_id]
-    store.replace(replace(connection, models=(
-        ProviderModelRecord(endpoint_model_id="auto-model", source="official"),
-        ProviderModelRecord(endpoint_model_id="manual-model", source="manual"),
-    )))
+    store.replace(
+        replace(
+            connection,
+            models=(
+                ProviderModelRecord(endpoint_model_id="auto-model", source="official"),
+                ProviderModelRecord(endpoint_model_id="manual-model", source="manual"),
+            ),
+        )
+    )
     write_model_validation_report(
         connection_id,
         "auto-model",
@@ -52,21 +57,24 @@ def test_model_list_save_updates_every_row_and_projects_latest_validation(
         latency_ms=123.4,
         latency_class="normal",
         error=None,
-        trigger="benchmark",
+        trigger="full",
+        details={"validation_mode": "full"},
     )
 
     response = client.put(
         f"/api/owner/providers/connections/{connection_id}/models",
         headers=headers,
-        json={"models": [
-            _model_payload("auto-model", display_name="Auto", hidden=False),
-            _model_payload(
-                "manual-model",
-                display_name="Manual Updated",
-                hidden=True,
-                supports_tools=True,
-            ),
-        ]},
+        json={
+            "models": [
+                _model_payload("auto-model", display_name="Auto", hidden=False),
+                _model_payload(
+                    "manual-model",
+                    display_name="Manual Updated",
+                    hidden=True,
+                    supports_tools=True,
+                ),
+            ]
+        },
     )
 
     assert response.status_code == 200, response.text
@@ -78,6 +86,8 @@ def test_model_list_save_updates_every_row_and_projects_latest_validation(
         "checked_at": "2026-08-03T01:02:03+00:00",
         "latency_ms": 123.4,
         "error": None,
+        "validation_mode": "full",
+        "full_run_id": None,
     }
 
 
@@ -88,18 +98,25 @@ def test_model_list_save_rejects_automatic_id_change_without_partial_persistence
     connection_id = _create_connection(client, headers)
     store = ProviderConnectionStore()
     connection = store.load().connections[connection_id]
-    store.replace(replace(connection, models=(
-        ProviderModelRecord(endpoint_model_id="auto-model", source="official"),
-        ProviderModelRecord(endpoint_model_id="manual-model", source="manual"),
-    )))
+    store.replace(
+        replace(
+            connection,
+            models=(
+                ProviderModelRecord(endpoint_model_id="auto-model", source="official"),
+                ProviderModelRecord(endpoint_model_id="manual-model", source="manual"),
+            ),
+        )
+    )
 
     response = client.put(
         f"/api/owner/providers/connections/{connection_id}/models",
         headers=headers,
-        json={"models": [
-            _model_payload("auto-renamed", original_id="auto-model"),
-            _model_payload("manual-model"),
-        ]},
+        json={
+            "models": [
+                _model_payload("auto-renamed", original_id="auto-model"),
+                _model_payload("manual-model"),
+            ]
+        },
     )
 
     assert response.status_code == 422
@@ -117,18 +134,25 @@ def test_model_list_save_rejects_duplicate_target_id_without_partial_persistence
     connection_id = _create_connection(client, headers)
     store = ProviderConnectionStore()
     connection = store.load().connections[connection_id]
-    store.replace(replace(connection, models=(
-        ProviderModelRecord(endpoint_model_id="first-model"),
-        ProviderModelRecord(endpoint_model_id="second-model"),
-    )))
+    store.replace(
+        replace(
+            connection,
+            models=(
+                ProviderModelRecord(endpoint_model_id="first-model"),
+                ProviderModelRecord(endpoint_model_id="second-model"),
+            ),
+        )
+    )
 
     response = client.put(
         f"/api/owner/providers/connections/{connection_id}/models",
         headers=headers,
-        json={"models": [
-            _model_payload("same-model", original_id="first-model"),
-            _model_payload("same-model", original_id="second-model"),
-        ]},
+        json={
+            "models": [
+                _model_payload("same-model", original_id="first-model"),
+                _model_payload("same-model", original_id="second-model"),
+            ]
+        },
     )
 
     assert response.status_code == 422
@@ -147,12 +171,14 @@ def test_model_list_save_rejects_nonpositive_limit_before_persistence(
     response = client.put(
         f"/api/owner/providers/connections/{connection_id}/models",
         headers=headers,
-        json={"models": [
-            {
-                **_model_payload("seed-model"),
-                "context_window_tokens": 0,
-            }
-        ]},
+        json={
+            "models": [
+                {
+                    **_model_payload("seed-model"),
+                    "context_window_tokens": 0,
+                }
+            ]
+        },
     )
 
     assert response.status_code == 422

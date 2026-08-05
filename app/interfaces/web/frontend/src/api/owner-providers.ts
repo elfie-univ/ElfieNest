@@ -2,11 +2,23 @@ import { z } from "zod"
 
 import { ownerRead, ownerWrite } from "./http"
 
+const ValidationModeSchema = z.enum(["none", "full", "cached", "heartbeat", "benchmark"])
+
 const VerificationSchema = z.object({
   status: z.enum(["never", "passed", "failed"]),
   checked_at: z.string().nullable(),
   latency_ms: z.number().nullable(),
   error: z.string().nullable(),
+  validation_mode: ValidationModeSchema.optional(),
+  cache_hit: z.boolean().optional(),
+  needs_full_validation: z.boolean().optional(),
+  needs_heartbeat: z.boolean().optional(),
+  full_run_id: z.string().nullable().optional(),
+  full_checked_at: z.string().nullable().optional(),
+  heartbeat_checked_at: z.string().nullable().optional(),
+  heartbeat_status: z.enum(["passed", "failed"]).nullable().optional(),
+  representative_model_id: z.string().nullable().optional(),
+  reason: z.string().nullable().optional(),
 })
 
 const ProviderModelSchema = z.object({
@@ -120,6 +132,11 @@ const ValidateAllResultSchema = z.object({
   })),
 })
 
+const VerifyConnectionResultSchema = z.object({
+  connection_id: z.string(),
+  verification: VerificationSchema,
+})
+
 export type ProviderVerification = z.infer<typeof VerificationSchema>
 export type ProviderProduct = z.infer<typeof ProviderProductSchema>
 export type ProviderConnection = z.infer<typeof ProviderConnectionSchema>
@@ -205,12 +222,14 @@ export async function deleteProviderConnection(
 export async function verifyProviderConnection(
   connectionId: string,
   csrfToken: string,
-): Promise<void> {
-  await ownerWrite(
-    `/api/owner/providers/connections/${encodeURIComponent(connectionId)}/verify`,
+  forceFull = false,
+): Promise<z.infer<typeof VerifyConnectionResultSchema>> {
+  const query = forceFull ? "?force_full=true" : ""
+  return VerifyConnectionResultSchema.parse(await ownerWrite(
+    `/api/owner/providers/connections/${encodeURIComponent(connectionId)}/verify${query}`,
     "POST",
     csrfToken,
-  )
+  ))
 }
 
 export async function changeProviderConnectionLifecycle(

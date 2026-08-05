@@ -78,9 +78,9 @@ export const manage = {
     verifyingSession: "Verifying your session...",
   },
   providerConnections: {
-    actions: { addOther: "Add another subscription", archive: "Archive", batchValidate: "Validate all", cancel: "Cancel", choose: "Continue", configure: "Configure {{name}}", delete: "Delete", disable: "Disable", edit: "Edit", enable: "Enable", matrix: "Same-model comparison", models: "Models", more: "More", refresh: "Reload", restore: "Restore", save: "Save configuration", saveAndVerify: "Validate and save", savingAndVerifying: "Saving and validating...", validate: "Validate", validating: "Validating..." },
+    actions: { addOther: "Add another subscription", archive: "Archive", batchValidate: "Validate all", cancel: "Cancel", choose: "Continue", configure: "Configure {{name}}", delete: "Delete", disable: "Disable", edit: "Edit", enable: "Enable", forceFullValidate: "Force full validation", matrix: "Same-model comparison", models: "Models", more: "More", refresh: "Reload", restore: "Restore", save: "Save configuration", saveAndVerify: "Validate and save", saving: "Saving...", savingAndVerifying: "Saving and validating...", validate: "Validate", validating: "Validating..." },
     available: { title: "Add a remote subscription" },
-    card: { modelStats: "{{total}} models ({{enabled}} enabled · {{verified}} verified)" },
+    card: { cached: "Using the last validation result for 24 hours", modelStats: "{{total}} models ({{enabled}} enabled · {{verified}} verified)", needsFullValidation: "A new full validation is required", needsHeartbeat: "One representative model needs a heartbeat check" },
     ollama: {
       actions: { addModel: "Add model", closeAdd: "Hide add form", download: "Download", downloadSelected: "Download selected", downloading: "Downloading...", install: "Install", installing: "Installing... {{progress}}%", repairRequired: "Needs repair", restart: "Restart", start: "Start", starting: "Starting..." },
       card: { availableModels: "{{count}} available models", loading: "Reading local models..." },
@@ -95,7 +95,7 @@ export const manage = {
     errors: { delete: "Unable to delete the subscription connection.", lifecycle: "Unable to update the connection state.", load: "Unable to load model subscriptions.", save: "Unable to save the subscription configuration.", validate: "Unable to validate the subscription.", validateAll: "Unable to validate all subscriptions." },
     form: { alias: "Subscription alias", apiKey: "API key", oauthAvailable: "Sign-in authorization is available.", oauthUnavailable: "Sign-in authorization is not connected for this product.", titleConfigure: "Configure {{name}}", titleEdit: "Edit {{name}}" },
     lifecycle: { description: "Manage the lifecycle of {{name}}.", title: "More actions" },
-    notices: { added: "{{name}} added.", saved: "{{name}} saved.", validated: "Validation completed for {{name}}.", validatedAll: "Validation complete: {{count}} passed. Report {{runId}}." },
+    notices: { added: "{{name}} added.", forceValidated: "Forced full validation completed for {{name}}.", saved: "{{name}} saved.", validated: "Validation completed for {{name}}.", validatedAll: "Validation complete: {{count}} passed. Report {{runId}}." },
     other: { anthropicInterface: "Anthropic interface", openaiInterface: "OpenAI interface", placeholder: "Select a product", product: "Subscription product", title: "Add another subscription" },
     section: { configuredEmpty: "No remote model subscription is configured.", configuredTitle: "Configured remote subscriptions", count: "{{count}}" },
     status: { failed: "Validation failed", never: "Not validated", partial: "Partly available", passed: "Validated" },
