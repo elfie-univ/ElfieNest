@@ -23,7 +23,7 @@
     "app/interfaces/api/user_routes.py:format:4f149ca3138c1065b93ccdb91bf5b42d4c22f78a6ca8281973d5c54d5ad084ba": 1,
     "app/interfaces/api/v1/client_routes.py:format:685003f6745f6b2c81587fbd589b7e013d265c98e60f6ec3718b37b3a2b6a03e": 1,
     "app/interfaces/cli/tui/setup_app.py:format:398091f541572bfb64f29514d0ff08c22c5e31b0c488c9768c421edead974493": 1,
-    "app/interfaces/web/frontend_build.py:format:78ee3db4f932f95365101329905a4f31170c43b3ff244eea0dbe611a1856322d": 1,
+    "app/interfaces/web/frontend_build.py:format:c78d6e58f33f06ed2d5855aeb36557f15430ed118bdefc0a83d4fed0b4a3d894": 1,
     "test/ai_runtime/food/test_models.py:format:9ad6b4a864008ab8d45419c63d6a320ae6a3c7229a1fbd81a55789a88615e1b3": 1,
     "test/ai_runtime/food/test_store.py:format:0175d9f5819f4faf2a74b8e31662b8df1e7793fcdacdcc5a4682717992adacbe": 1,
     "test/app/features/adoption/test_candidates.py:format:31b99a93083b20c64f6caec0d319ea72b0437767c0c63ab6a235037d8310241d": 1,
@@ -40,7 +40,8 @@
     "test/app/interfaces/api/test_setup_install.py:format:7fcecfc0190d12ddf753052163822bf1db2cf244ae95929a9e4d6897f652a87d": 1,
     "test/app/interfaces/api/test_user_api.py:format:04e585b6e7b7fc99ff28cb59518f49b00800c6703e570f417653655aa648fae0": 1,
     "test/app/interfaces/api/test_v1_client_api.py:format:1dc17d5db9bb25f02340a7bd3d931b3c8dda2221eef16fd5f0bbea67165d4436": 1,
-    "test/app/interfaces/web/test_frontend_build.py:format:32066e2bed3813400891deac43c9c41ac14e5a17013ddea157aaf231acbc8f1e": 1,
+    "test/app/interfaces/cli/test_cli_design_new.py:format:db16d65b59fa1cec100733b45bfcb2b519f08a71e61cd3a73e78b1cc413ad5d4": 1,
+    "test/app/interfaces/web/test_frontend_build.py:format:98eda1a1cef2d2e7923f84cb52009e6dbc07ff38dbeb4627db47e3af0e64309e": 1,
     "test/devtools/elfie_lab/test_food_api.py:format:daa5ceaabb345debba1720d8e2ea6d16f9bb7ca24a36e5f156e452e1c35df888": 1,
     "test/devtools/elfie_lab/test_media_api.py:format:905ff9d798fb6065e50c371315916e690c84eadb10049337db1ad87227ddae7c": 1,
     "test/devtools/runtime_lab/test_config_store.py:format:b583dbd853f45ae062b986eb5ddcad3d2ddc0e3d9f7992bc5f2655197eca8e26": 1
