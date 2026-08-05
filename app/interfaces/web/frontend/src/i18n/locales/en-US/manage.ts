@@ -117,7 +117,7 @@ export const manage = {
     generation: { allSources: "All available subscriptions", allowRemote: "Allow remote models, which may be unavailable offline", createDescription: "Enter a name and choose generation sources and visibility first. Preview before saving; preview and cancel never create a food.", createTitle: "Add food", description: "Choose subscriptions, review the candidate differences, and adjust them before applying the update. Preview does not modify the food.", name: "Food name", previewTitle: "Candidate differences", sources: "Generation sources", title: "Auto update {{name}}" },
     labels: { local: "Local", localSuffix: " · Local", reasoning: "Reasoning: {{model}}", system: "System", visibility: "Set visibility for {{name}}" },
     locality: { local: "Local", mixed: "Mixed", remote: "Remote", unknown: "Not configured" },
-    modelStatus: { available: "Available", unavailable: "Unavailable", unconfigured: "Not configured", unverified: "Unverified" },
+    modelStatus: { available: "Available", localAvailable: "Running", unavailable: "Unavailable", unconfigured: "Not configured", unverified: "Unverified" },
     notices: { created: "{{name}} created.", generated: "Generated {{count}} differences. Review them before saving. {{warning}}", saved: "{{name}} saved.", updated: "{{name}} updated.", visibilitySaved: "Visibility saved." },
     recipe: { description: "Adjust the five model roles and the visible users for a custom food.", fallback: "Fallback model", name: "Package name", none: "Not configured", title: "Edit {{name}}" },
     roles: { fallback: "Fallback", primary: "Primary", reasoning: "Reasoning", tool: "Tool", vision: "Vision" },

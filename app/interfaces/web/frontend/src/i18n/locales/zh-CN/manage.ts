@@ -117,7 +117,7 @@ export const manage = {
     generation: { allSources: "全部可用订阅", allowRemote: "允许远程模型（断网时可能不可用）", createDescription: "先填写名称并选择生成来源、可见范围；预览确认后再保存创建。预览和取消都不会创建粮食。", createTitle: "添加粮食", description: "选择订阅生成候选，确认差异并微调后再应用更新。预览不会修改现有粮食。", name: "粮食名称", previewTitle: "候选差异", sources: "生成来源", title: "自动更新 {{name}}" },
     labels: { local: "本地", localSuffix: " · 本地", reasoning: "推理：{{model}}", system: "系统", visibility: "设置 {{name}} 可见范围" },
     locality: { local: "本地", mixed: "混合", remote: "远程", unknown: "未配置" },
-    modelStatus: { available: "可用", unavailable: "不可用", unconfigured: "未配置", unverified: "未验证" },
+    modelStatus: { available: "可用", localAvailable: "运行中", unavailable: "不可用", unconfigured: "未配置", unverified: "未验证" },
     notices: { created: "{{name}} 已创建。", generated: "已生成 {{count}} 项差异；请人工确认后保存。{{warning}}", saved: "{{name}} 已保存。", updated: "{{name}} 已更新。", visibilitySaved: "可见范围已保存。" },
     recipe: { description: "直接调整五个模型角色和自定义粮食的可见用户。", fallback: "备用模型", name: "套餐名称", none: "未配置", title: "编辑 {{name}}" },
     roles: { fallback: "备用模型", primary: "主要模型", reasoning: "推理模型", tool: "工具模型", vision: "视觉模型" },

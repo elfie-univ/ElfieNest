@@ -13,6 +13,7 @@ import {
   type FoodPackage,
 } from "../api/owner-foods"
 import { ownerProviderConnections, type ProviderConnection } from "../api/owner-providers"
+import { ownerOllamaStatus, type OllamaStatus } from "../api/owner-ollama"
 import { ownerUsers, type OwnerUser } from "../api/owner-users"
 import { describeApiError, resolveLocalizedError, type LocalizedErrorState } from "../i18n/errors"
 import { currentLocale } from "../i18n/format"
@@ -36,6 +37,7 @@ export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
   const [catalog, setCatalog] = useState<FoodCatalog | null>(null)
   const [connections, setConnections] = useState<readonly ProviderConnection[]>([])
   const [connectionsLoading, setConnectionsLoading] = useState(true)
+  const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>(null)
   const [users, setUsers] = useState<readonly OwnerUser[]>([])
   const [generation, setGeneration] = useState<GenerationState | null>(null)
   const [editing, setEditing] = useState<FoodPackage | null>(null)
@@ -54,8 +56,12 @@ export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
         ownerUsers(),
       ])
       if (!isActive()) return
+      const ollamaResult = providers.some((connection) => connection.catalog_id === "ollama")
+        ? (await Promise.allSettled([ownerOllamaStatus()]))[0]
+        : undefined
       setCatalog(foods)
       setConnections(providers)
+      setOllamaStatus(ollamaResult?.status === "fulfilled" ? ollamaResult.value : null)
       setUsers(allUsers.filter((user) => user.role === "user"))
       setError(null)
     } catch (reason: unknown) {
@@ -80,6 +86,10 @@ export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
     label: modelOptionLabel(model.reference, model.display_name, model.local, connections, t("foodPackages.labels.localSuffix")),
     value: model.reference,
   })) ?? [], [catalog, connections, t])
+  const localConnectionIds = useMemo(
+    () => connections.filter((connection) => connection.catalog_id === "ollama").map((connection) => connection.connection_id),
+    [connections],
+  )
 
   const manualSave = async (food: FoodPackage): Promise<void> => {
     setPending(true)
@@ -155,12 +165,14 @@ export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
       </TableHeader>
       <TableBody>
         {catalog?.packages.map((food) => {
-          const projection = projectFoodDisplay(food, connections, users.length)
+          const projection = projectFoodDisplay(food, connections, users.length, ollamaStatus, localConnectionIds)
           return <TableRow className={food.archived ? "food-row--archived" : ""} key={food.key}>
             <TableCell className="food-col--first">
               <strong>{food.display_name}</strong>
-              {food.system_role ? <small className="food-system-badge">{t("foodPackages.labels.system")}</small> : null}
-              {projection.isLocal ? <small className="food-local-badge">{t("foodPackages.labels.local")}</small> : null}
+              <div className="food-badges">
+                {food.system_role ? <small className="food-system-badge">{t("foodPackages.labels.system")}</small> : null}
+                {projection.isLocal ? <small className="food-local-badge">{t("foodPackages.labels.local")}</small> : null}
+              </div>
             </TableCell>
             {FOOD_ROLES.map((role) => <TableCell key={role}><FoodModelCellView archived={food.archived} cell={projection.models[role]} t={t} /></TableCell>)}
             <TableCell>{visibilityLabel(projection.visibility, t)}</TableCell>
@@ -224,7 +236,7 @@ function FoodModelCellView({ archived, cell, t }: { readonly archived: boolean; 
   return <div className="food-model-cell">
     <span className={`food-model-cell__dot food-model-cell__dot--${cell.status}`} aria-hidden="true" />
     <span className="food-model-cell__label">{cell.label}</span>
-    <small>{t(`foodPackages.modelStatus.${cell.status}`)}{cell.latencyLabel ? ` · ${cell.latencyLabel}` : ""}</small>
+    <small>{t(cell.local && cell.status === "available" ? "foodPackages.modelStatus.localAvailable" : `foodPackages.modelStatus.${cell.status}`)}{cell.latencyLabel ? ` · ${cell.latencyLabel}` : ""}</small>
   </div>
 }
 

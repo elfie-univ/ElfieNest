@@ -1,9 +1,11 @@
 import type { FoodPackage } from "../api/owner-foods"
+import type { OllamaStatus } from "../api/owner-ollama"
 import type { ProviderConnection, ProviderModel } from "../api/owner-providers"
 
 export const FOOD_MODEL_ROLES = ["primary", "reasoning", "vision", "tool", "fallback"] as const
 export type FoodModelRole = (typeof FOOD_MODEL_ROLES)[number]
 export type FoodModelStatus = "available" | "unavailable" | "unverified" | "unconfigured"
+export type FoodLocalRuntime = Pick<OllamaStatus, "state" | "models">
 
 type FoodModelSource = Pick<ProviderModel, "id" | "display_name" | "available" | "hidden" | "retired" | "verification">
 type FoodConnectionSource = Pick<ProviderConnection, "connection_id" | "alias"> & {
@@ -13,6 +15,7 @@ type FoodConnectionSource = Pick<ProviderConnection, "connection_id" | "alias"> 
 export type FoodModelCell = {
   readonly reference: string | null
   readonly label: string
+  readonly local: boolean
   readonly status: FoodModelStatus
   readonly latencyLabel: string | null
 }
@@ -32,13 +35,15 @@ export function projectFoodDisplay(
   food: FoodPackage,
   connections: readonly FoodConnectionSource[],
   currentUserCount = 0,
+  localRuntime: FoodLocalRuntime | null = null,
+  localConnectionIds: readonly string[] = [],
 ): FoodDisplayProjection {
   const models: Record<FoodModelRole, FoodModelCell> = {
-    primary: projectModelCell(food.roles.primary?.model ?? null, connections),
-    reasoning: projectModelCell(food.roles.reasoning?.model ?? null, connections),
-    vision: projectModelCell(food.roles.vision?.model ?? null, connections),
-    tool: projectModelCell(food.roles.tool?.model ?? null, connections),
-    fallback: projectModelCell(food.roles.fallback?.model ?? null, connections),
+    primary: projectModelCell(food.roles.primary?.model ?? null, connections, localRuntime, localConnectionIds),
+    reasoning: projectModelCell(food.roles.reasoning?.model ?? null, connections, localRuntime, localConnectionIds),
+    vision: projectModelCell(food.roles.vision?.model ?? null, connections, localRuntime, localConnectionIds),
+    tool: projectModelCell(food.roles.tool?.model ?? null, connections, localRuntime, localConnectionIds),
+    fallback: projectModelCell(food.roles.fallback?.model ?? null, connections, localRuntime, localConnectionIds),
   }
   return {
     isLocal: food.locality === "local",
@@ -58,11 +63,14 @@ export function projectFoodDisplay(
 function projectModelCell(
   reference: string | null,
   connections: readonly FoodConnectionSource[],
+  localRuntime: FoodLocalRuntime | null,
+  localConnectionIds: readonly string[],
 ): FoodModelCell {
   const parsed = parseReference(reference)
   const connection = connections.find((item) => item.connection_id === parsed.connectionId)
   const model = connection?.models.find((item) => item.id === parsed.modelId)
-  const status = reference ? modelStatus(model) : "unconfigured"
+  const local = localConnectionIds.includes(parsed.connectionId)
+  const status = reference ? modelStatus(model, local, localRuntime) : "unconfigured"
   return {
     reference,
     label: !reference
@@ -70,6 +78,7 @@ function projectModelCell(
       : model && connection
         ? `${connection.alias} / ${model.display_name}`
         : reference,
+    local,
     status,
     latencyLabel: formatLatency(model?.verification.latency_ms ?? null),
   }
@@ -82,7 +91,13 @@ function parseReference(reference: string | null): { readonly connectionId: stri
   return { connectionId: reference.slice(0, separator), modelId: reference.slice(separator + 1) || reference }
 }
 
-function modelStatus(model: FoodModelSource | undefined): FoodModelStatus {
+function modelStatus(model: FoodModelSource | undefined, local: boolean, localRuntime: FoodLocalRuntime | null): FoodModelStatus {
+  if (local) {
+    const installed = localRuntime?.models.some((runtimeModel) => runtimeModel.id === model?.id && runtimeModel.installed) ?? false
+    return localRuntime?.state === "healthy" && model !== undefined && !model.hidden && !model.retired && installed
+      ? "available"
+      : "unavailable"
+  }
   if (!model) return "unverified"
   if (model.verification.status === "failed" || !model.available || model.hidden || model.retired) {
     return "unavailable"
