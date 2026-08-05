@@ -377,6 +377,32 @@ def test_restart_does_not_pass_force_flag(monkeypatch, capsys) -> None:
     assert "restarted" in capsys.readouterr().out
 
 
+def test_restart_emits_one_final_success_status(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "_prepare_frontend_for_launch",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "stop_service",
+        lambda *args: ServiceLifecycleResult(
+            status="stopped", command=("python", "scripts/serve.py")
+        ),
+    )
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "start_service",
+        lambda *args, **kwargs: ServiceLifecycleResult(status="started", pid=43),
+    )
+
+    lifecycle_commands.restart_background_service()
+
+    output = capsys.readouterr().out
+    assert "\r  ✅ Restarting service ✓" not in output
+    assert output.count("Service restarted") == 1
+
+
 def test_restart_uses_core_when_desktop_executable_is_present(monkeypatch) -> None:
     # Given
     commands: list[tuple[str, ...]] = []

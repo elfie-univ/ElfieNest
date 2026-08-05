@@ -117,25 +117,75 @@ show_help() {
 }
 
 interactive_mode() {
-    # Enable command history
+    local history_file
+    local history_temp
+    local input_line
+    local cmd
+    local -a argv args
+
+    # Keep the interactive prompt owned by Readline so editing cannot erase it.
     HISTFILE="${ELFIE_HOME:-$SCRIPT_DIR/.elfienest.local}/.cli_history"
-    mkdir -p "$(dirname "$HISTFILE")"
-    touch "$HISTFILE" 2>/dev/null || true
+    history_file="$HISTFILE"
+    if [ -L "$history_file" ]; then
+        history_file=""
+    else
+        # Start with a fresh, bounded history; never replay legacy or symlinked entries.
+        mkdir -p "$(dirname "$history_file")"
+        history_temp="$(mktemp "${history_file}.tmp.XXXXXX" 2>/dev/null || true)"
+        if [[ -n "$history_temp" ]]; then
+            chmod 600 "$history_temp" 2>/dev/null || true
+            if ! mv -f "$history_temp" "$history_file" 2>/dev/null; then
+                rm -f "$history_temp"
+                history_file=""
+            fi
+        else
+            history_file=""
+        fi
+    fi
+    HISTFILE="$history_file"
+    HISTSIZE=10
+    HISTFILESIZE=10
+    HISTCONTROL=ignoredups
+    set -o history
     
     show_logo
     show_help
     while true; do
-        echo -n "elfienest> "
-        read -e -r -a argv
+        argv=()
+        if ! IFS= read -e -r -p "elfienest> " input_line; then
+            echo ""
+            return 0
+        fi
+        [[ -z "$input_line" ]] && continue
+        read -r -a argv <<< "$input_line"
         cmd="${argv[0]}"
+        if [[ "$cmd" != "owner" \
+            && "$input_line" != *"--api-key"* \
+            && "$input_line" != *"--password"* \
+            && "$input_line" != *"--secret"* \
+            && "$input_line" != *"--token"* \
+            && -n "$history_file" ]]; then
+            history -s "$input_line"
+            history_temp="$(mktemp "${history_file}.tmp.XXXXXX" 2>/dev/null || true)"
+            if [[ -n "$history_temp" ]]; then
+                if history -w "$history_temp" 2>/dev/null; then
+                    chmod 600 "$history_temp" 2>/dev/null || true
+                    if ! mv -f "$history_temp" "$history_file" 2>/dev/null; then
+                        rm -f "$history_temp"
+                    fi
+                else
+                    rm -f "$history_temp"
+                fi
+            fi
+        fi
         args=("${argv[@]:1}")
         case "$cmd" in
             "" ) continue ;;
             exit|quit|q) echo ""; echo "  Goodbye! 🦊"; echo ""; exit 0 ;;
             help|h|?) show_help ;;
-            serve) "$PYTHON_BIN" scripts/serve.py "${args[@]}" ;;
+            serve) ELFIENEST_INTERACTIVE=1 "$PYTHON_BIN" scripts/serve.py "${args[@]}" ;;
             config|owner|doctor|status|web|desktop|mobile|stop|restart|start|version|v|setup|uninstall)
-                "$PYTHON_BIN" scripts/elfienest.py "$cmd" "${args[@]}" ;;
+                ELFIENEST_INTERACTIVE=1 "$PYTHON_BIN" scripts/elfienest.py "$cmd" "${args[@]}" ;;
             *)
                 echo ""
                 echo "  ❌ Unknown command: $cmd"
@@ -151,6 +201,9 @@ if [ $# -eq 0 ]; then
 else
     command="$1"
     case "$command" in
+    restart)
+        ELFIENEST_INTERACTIVE=1 "$PYTHON_BIN" scripts/elfienest.py "$@"
+        ;;
     serve)
         shift
         "$PYTHON_BIN" scripts/serve.py "$@"

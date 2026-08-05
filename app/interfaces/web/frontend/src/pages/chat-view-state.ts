@@ -8,22 +8,25 @@ const ChatElfieIdSchema = ElfieIdValueSchema.brand<"ChatElfieId">()
 export type ChatElfieId = z.infer<typeof ChatElfieIdSchema>
 
 export type ChatViewState =
+  | { readonly view: "chats" }
   | { readonly view: "elfies" }
   | { readonly view: "profile"; readonly elfie: ChatElfieId }
   | { readonly view: "conversation"; readonly elfie: ChatElfieId }
 
 export type ChatViewPathTarget =
+  | { readonly view: "chats" }
   | { readonly view: "elfies" }
   | { readonly view: "profile"; readonly elfie: string }
   | { readonly view: "conversation"; readonly elfie: string }
 
 const ChatViewStateSchema = z.discriminatedUnion("view", [
+  z.object({ view: z.literal("chats") }),
   z.object({ view: z.literal("elfies") }),
   z.object({ view: z.literal("profile"), elfie: ChatElfieIdSchema }),
   z.object({ view: z.literal("conversation"), elfie: ChatElfieIdSchema }),
 ])
 
-const ELFIE_LIST_STATE: ChatViewState = { view: "elfies" }
+const CHAT_HISTORY_STATE: ChatViewState = { view: "chats" }
 
 class UnexpectedChatViewStateError extends Error {
   constructor() {
@@ -45,8 +48,9 @@ function searchParamsFrom(input: string | URLSearchParams): URLSearchParams {
 }
 
 function rawStateFrom(params: URLSearchParams): unknown {
-  const view = params.get("view") ?? "elfies"
+  const view = params.get("view") ?? "chats"
   switch (view) {
+    case "chats":
     case "elfies":
       return { view }
     case "profile":
@@ -59,6 +63,9 @@ function rawStateFrom(params: URLSearchParams): unknown {
 
 function appendViewState(output: URLSearchParams, state: ChatViewState): void {
   switch (state.view) {
+    case "chats":
+      output.set("view", "chats")
+      return
     case "elfies":
       output.set("view", "elfies")
       return
@@ -77,12 +84,12 @@ function appendViewState(output: URLSearchParams, state: ChatViewState): void {
 
 export function parseChatViewState(input: string | URLSearchParams): ChatViewState {
   const parsed = ChatViewStateSchema.safeParse(rawStateFrom(searchParamsFrom(input)))
-  return parsed.success ? parsed.data : ELFIE_LIST_STATE
+  return parsed.success ? parsed.data : CHAT_HISTORY_STATE
 }
 
 export function buildChatViewPath(target: ChatViewPathTarget): string {
   const parsed = ChatViewStateSchema.safeParse(target)
-  const state = parsed.success ? parsed.data : ELFIE_LIST_STATE
+  const state = parsed.success ? parsed.data : CHAT_HISTORY_STATE
   const output = new URLSearchParams()
   appendViewState(output, state)
   return `${CHAT_PATH}?${output.toString()}`

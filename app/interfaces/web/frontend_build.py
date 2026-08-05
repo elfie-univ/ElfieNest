@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 from collections.abc import Iterable
@@ -112,12 +113,33 @@ def _run_pnpm(frontend_root: Path, arguments: Sequence[str]) -> None:
         raise FrontendBuildError("npx was not found; cannot build the frontend")
     command = (npx, "--yes", f"pnpm@{PNPM_VERSION}", *arguments)
     try:
-        subprocess.run(command, cwd=frontend_root, check=True)
+        if os.environ.get("ELFIENEST_INTERACTIVE") == "1":
+            subprocess.run(
+                command,
+                cwd=frontend_root,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        else:
+            subprocess.run(command, cwd=frontend_root, check=True)
     except OSError as error:
         raise FrontendBuildError(f"Could not run frontend build command: {error}") from error
     except subprocess.CalledProcessError as error:
+        output = "\n".join(
+            value.strip()
+            for value in (error.stderr, error.stdout)
+            if isinstance(value, str) and value.strip()
+        )
+        output_lines = [line for line in output.splitlines() if line.strip()]
+        if len(output_lines) > 8:
+            output_lines = output_lines[-8:]
+        diagnostic = "\n".join(output_lines)
+        if len(diagnostic) > 2000:
+            diagnostic = diagnostic[-2000:]
+        suffix = f":\n{diagnostic}" if diagnostic else ""
         raise FrontendBuildError(
-            f"Frontend command {' '.join(arguments)} failed with exit code {error.returncode}"
+            f"Frontend command {' '.join(arguments)} failed with exit code {error.returncode}{suffix}"
         ) from error
 
 

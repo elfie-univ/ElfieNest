@@ -39,9 +39,9 @@ export function useChatView(): ChatViewController {
 
   return {
     state,
-    activePane: state.view === "conversation" ? "chats" : "elfies",
-    selectedId: state.view === "elfies" ? null : state.elfie,
-    mobileDetail: state.view !== "elfies",
+    activePane: state.view === "conversation" || state.view === "chats" ? "chats" : "elfies",
+    selectedId: state.view === "profile" || state.view === "conversation" ? state.elfie : null,
+    mobileDetail: state.view === "profile" || state.view === "conversation",
     go,
     correct,
   }

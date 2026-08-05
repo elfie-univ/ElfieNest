@@ -193,13 +193,14 @@ class ProgressIndicator:
         self.thread = threading.Thread(target=self._spin, daemon=True)
         self.thread.start()
 
-    def stop(self, success: bool = True):
+    def stop(self, success: bool = True, *, message: Optional[str] = None):
         """Stop the spinner and show result."""
         self.running = False
         if self.thread:
             self.thread.join(timeout=0.2)
+        final_message = message or self.message
         print(
-            f"\r  {'✅' if success else '❌'} {self.message}{' ✓' if success else ' ✗'}    ",
+            f"\r  {'✅' if success else '❌'} {final_message}{' ✓' if success else ' ✗'}    ",
             flush=True,
         )
 
@@ -424,7 +425,7 @@ def restart_background_service() -> ServiceLifecycleResult:
     try:
         _prepare_frontend_for_launch()
     except FrontendBuildError as error:
-        progress.stop(success=False)
+        progress.stop(success=False, message="Service restart failed")
         result = ServiceLifecycleResult(
             status="failed",
             error=LaunchFailedError(f"Frontend build failed: {error}"),
@@ -434,7 +435,7 @@ def restart_background_service() -> ServiceLifecycleResult:
 
     stopped = stop_supervisor.stop()
     if stopped.status == "failed":
-        progress.stop(success=False)
+        progress.stop(success=False, message="Service restart failed")
         print(f"  ❌ Cannot restart service: {stopped.error}")
 
         # Enhanced error message for port occupation
@@ -469,7 +470,7 @@ def restart_background_service() -> ServiceLifecycleResult:
     try:
         http_port = _validated_http_port(command)
     except ValueError as error:
-        progress.stop(success=False)
+        progress.stop(success=False, message="Service restart failed")
         result = ServiceLifecycleResult(
             status="failed", error=LaunchFailedError(f"Invalid service port: {error}")
         )
@@ -477,10 +478,12 @@ def restart_background_service() -> ServiceLifecycleResult:
         return result
     launch_command = tuple(argument for argument in command if argument != "--force")
     result = _supervisor_for(launch_command, http_port).start(owner_id="cli")
-    progress.stop(success=result.status in {"started", "already_running"})
-    if result.status in {"started", "already_running"}:
-        print("  ✅ Service restarted")
-    else:
+    succeeded = result.status in {"started", "already_running"}
+    progress.stop(
+        success=succeeded,
+        message="Service restarted" if succeeded else "Service restart failed",
+    )
+    if not succeeded:
         print(f"  ❌ Service restart failed: {result.error}")
 
         # Enhanced error message for port occupation
