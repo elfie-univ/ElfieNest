@@ -75,6 +75,12 @@ provider. Setup keeps public Ollama optional and binds exactly one chosen endpoi
 project and confirmed to belong to that service; it is not a generic port
 cleanup tool.
 
+In source development, `serve`, a `start` that finds the service stopped, and an
+explicit `restart` check the frontend source fingerprint at that launch moment
+and rebuild the Web client with the pinned pnpm version when it is stale. A
+`start` that finds a verified running service and `stop` do not watch or rebuild
+the frontend while the service is running. Installed release mode is unchanged.
+
 ## Data and high-risk commands
 
 Installed product data defaults to `~/.elfienest`; source and worktree runs

@@ -68,6 +68,10 @@ from app.infrastructure.persistence.store import (
 from app.interfaces.api.app import create_app
 from app.interfaces.api.service_access import ServiceMode
 from app.interfaces.cli.lifecycle_commands import _remember_lifecycle_data_home
+from app.interfaces.web.frontend_build import (
+    FrontendBuildError,
+    ensure_frontend_build,
+)
 from app.orchestration.engine import ElfieNestEngine
 from app.orchestration.lifecycle.process import (
     DEFAULT_GODOT_WS_PORT,
@@ -207,6 +211,12 @@ def prepare_godot_web_runtime(
     return run_command(command).returncode == 0
 
 
+def prepare_frontend_web_runtime(runtime_mode: str) -> None:
+    """Ensure the source Web client is current before a development launch."""
+    if runtime_mode == "development":
+        ensure_frontend_build(runtime_mode=runtime_mode)
+
+
 def seed_single_elfie(db_path: str) -> bool:
     """Seed one final default Elfie named "Aifei" for an otherwise empty Nest.
 
@@ -318,6 +328,12 @@ def main():
     )
     if port_error:
         parser.error(port_error)
+
+    try:
+        prepare_frontend_web_runtime(args.runtime_mode)
+    except FrontendBuildError as error:
+        print(f"  ❌ Frontend Web build failed: {error}")
+        raise SystemExit(1) from None
 
     managed_start = os.environ.pop(MANAGED_START_ENV, "") == "1"
     try:
