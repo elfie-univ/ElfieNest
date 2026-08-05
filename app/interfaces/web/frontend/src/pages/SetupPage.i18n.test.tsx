@@ -94,6 +94,17 @@ describe("localized setup wizard", () => {
     expect(screen.queryByText("Create the single Owner account. You can change its password in this step.", { exact: true })).not.toBeInTheDocument()
   })
 
+  it("uses the full transparent logo as the setup rail brand", async () => {
+    renderSetup("en-US", statusFor(1))
+
+    const logo = await screen.findByRole("img", { name: "ELFIE NEST" })
+    expect(logo).toHaveAttribute(
+      "src",
+      expect.stringContaining("elfienest-full-logo-transparent.png"),
+    )
+    expect(screen.queryByText("ELFIE NEST")).not.toBeInTheDocument()
+  })
+
   it("saves the Owner draft without calling the legacy immediate setup endpoint", async () => {
     const user = userEvent.setup()
     const save = vi.spyOn(client, "setupSaveOwnerDraft").mockResolvedValue(statusFor(2))

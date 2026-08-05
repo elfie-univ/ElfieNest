@@ -9,6 +9,8 @@ import { TextField } from "../components/TextField"
 import { localizeApiError } from "../i18n/errors"
 import { currentLocale } from "../i18n/format"
 
+const loginFullLogoUrl = new URL("../../../../../../docs/public/assets/elfienest-full-logo-transparent.png", import.meta.url).href
+
 function safeNext(): string {
   return safeLoginNextPath(new URLSearchParams(window.location.search).get("next"))
 }
@@ -39,14 +41,11 @@ export function LoginPage() {
         <LanguageSwitcher variant="compact" />
       </section>
       <section className="panel login">
-        <p className="login__wordmark">ELFIE NEST</p>
         <img
           alt="ELFIE NEST"
           className="login__logo"
-          src={new URL("../../../../../../docs/public/assets/logo.png", import.meta.url).href}
+          src={loginFullLogoUrl}
         />
-        <p className="login__brand">{t("login.brand")}</p>
-        <h1>{t("login.title")}</h1>
         <form onSubmit={(event) => { void submit(event) }}>
           <TextField
             autoComplete="username"

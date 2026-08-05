@@ -11,5 +11,6 @@ describe("product entry shells", () => {
 
     expect(shell).toContain('<main id="app"></main>')
     expect(shell).toContain('src="/src/main.tsx"')
+    expect(shell).toContain('href="../../../../docs/public/assets/favicon.ico"')
   })
 })

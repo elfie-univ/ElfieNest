@@ -183,10 +183,7 @@ a { color: inherit; text-decoration: none; }
   padding: 42px;
   border-radius: 28px;
 }
-.login__wordmark { margin: 0 0 18px; color: var(--ink-soft); font-size: 14px; font-weight: 700; letter-spacing: .22em; text-align: center; }
-.login__logo { display: block; width: 150px; height: 150px; margin: 0 auto 18px; border-radius: 32px; box-shadow: 0 14px 28px color-mix(in srgb, var(--shadow-color) 18%, transparent); object-fit: cover; }
-.login__brand { margin: 0; color: var(--ink-soft); font-size: 15px; font-weight: 700; letter-spacing: .14em; text-align: center; }
-.login h1 { margin: 12px 0 0; font-size: clamp(36px, 7vw, 50px); text-align: center; }
+.login__logo { display: block; width: min(100%, 340px); height: auto; margin: 0 auto 22px; object-fit: contain; }
 .login form { display: grid; gap: 16px; margin-top: 28px; }
 .login label { display: grid; gap: 7px; font-size: 14px; }
 .login label.check { display: flex; align-items: flex-start; gap: 8px; line-height: 1.55; }
@@ -215,7 +212,7 @@ a { color: inherit; text-decoration: none; }
     width: 100%;
     padding: 32px 24px;
   }
-  .login__logo { width: 128px; height: 128px; }
+  .login__logo { width: min(100%, 320px); }
   .manage { padding: 22px; }
   .manage-head { align-items: flex-start; flex-direction: column; }
   .manage-form { grid-template-columns: 1fr; }
