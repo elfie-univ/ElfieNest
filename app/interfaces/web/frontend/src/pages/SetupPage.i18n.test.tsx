@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
@@ -94,15 +94,26 @@ describe("localized setup wizard", () => {
     expect(screen.queryByText("Create the single Owner account. You can change its password in this step.", { exact: true })).not.toBeInTheDocument()
   })
 
+  it("uses the full transparent logo as the setup rail brand", async () => {
+    renderSetup("en-US", statusFor(1))
+
+    const logo = await screen.findByRole("img", { name: "ELFIE NEST" })
+    expect(logo).toHaveAttribute(
+      "src",
+      expect.stringContaining("elfienest-full-logo-transparent.png"),
+    )
+    expect(screen.queryByText("ELFIE NEST")).not.toBeInTheDocument()
+  })
+
   it("saves the Owner draft without calling the legacy immediate setup endpoint", async () => {
     const user = userEvent.setup()
     const save = vi.spyOn(client, "setupSaveOwnerDraft").mockResolvedValue(statusFor(2))
     const legacy = vi.spyOn(client, "setup").mockRejectedValue(new Error("legacy endpoint must not run"))
     renderSetup("en-US", statusFor(1))
-    await user.type(await screen.findByLabelText("Owner account"), "owner")
-    await user.type(screen.getByLabelText("Display name"), "Owner")
-    await user.type(screen.getByLabelText("Password"), "secret-pass")
-    await user.type(screen.getByLabelText("Confirm password"), "secret-pass")
+    await user.type(await screen.findByRole("textbox", { name: "Owner account" }), "owner")
+    await user.type(screen.getByRole("textbox", { name: "Display name" }), "Owner")
+    await user.type(within(screen.getByRole("group", { name: "Password" })).getByLabelText("Password"), "secret-pass")
+    await user.type(within(screen.getByRole("group", { name: "Confirm password" })).getByLabelText("Confirm password"), "secret-pass")
     await user.click(screen.getByRole("button", { name: "Save and continue" }))
     expect(save).toHaveBeenCalledWith("owner", "Owner", "secret-pass", "secret-pass", "setup-csrf")
     expect(legacy).not.toHaveBeenCalled()
@@ -167,7 +178,13 @@ describe("localized setup wizard", () => {
     renderSetup("en-US", statusFor(1))
 
     // Then: the four Owner fields share the compact form layout contract.
-    expect((await screen.findByLabelText("Owner account")).closest("form")).toHaveClass("setup-form--owner")
+    expect((await screen.findByRole("textbox", { name: "Owner account" })).closest("form")).toHaveClass("setup-form--owner")
+    for (const label of ["Owner account", "Display name", "Password", "Confirm password"]) {
+      const field = screen.getByRole("group", { name: label })
+      const input = within(field).getByLabelText(label)
+      expect(input).toHaveAttribute("data-slot", "input")
+      expect(input.closest('[data-field-row="true"]')).toBeInTheDocument()
+    }
   })
 
   it("uses a compact bed-count row and rejects values outside 4 to 32", async () => {
@@ -203,8 +220,8 @@ describe("localized setup wizard", () => {
     renderSetup("en-US", statusFor(4))
     await user.click(await screen.findByRole("button", { name: /Create Owner account/ }))
 
-    const password = screen.getByLabelText("Password")
-    const confirmation = screen.getByLabelText("Confirm password")
+    const password = within(screen.getByRole("group", { name: "Password" })).getByLabelText("Password")
+    const confirmation = within(screen.getByRole("group", { name: "Confirm password" })).getByLabelText("Confirm password")
     expect(password).toHaveValue("")
     expect(confirmation).toHaveValue("")
     expect(password).toHaveAttribute("placeholder", "••••••••")

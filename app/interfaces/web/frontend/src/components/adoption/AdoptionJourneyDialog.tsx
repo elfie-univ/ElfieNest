@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useReducer, useState } from "react"
 import { useTranslation } from "react-i18next"
+import { RadioGroup } from "radix-ui"
 
 import {
   adoptionCandidates,
@@ -19,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog"
+import { Input } from "../ui/input"
 import { Icon } from "../Icon"
 import {
   DEFAULT_DRAFT,
@@ -535,8 +537,15 @@ function RepliesScreen({ dispatch, finalCandidateId, replies, t }: { readonly di
   return <section><ScreenIntro badge={t("adoption.journey.badges.chooseOne")} eyebrow={t("adoption.journey.replies.eyebrow")} title={t("adoption.journey.replies.title", { count: accepted })} /><div className="adoption-reply-grid">{replies.map((reply) => reply.status === "accepted" ? <ChoiceButton className="adoption-reply-card" key={reply.candidateId} onClick={() => dispatch({ type: "select-final", candidateId: reply.candidateId })} selected={finalCandidateId === reply.candidateId}><img alt="" src={reply.imageUrl} /><strong>{reply.originalName}</strong><span>{reply.message}</span><small>{reply.compatibility}</small></ChoiceButton> : <div className="adoption-reply-card adoption-reply-card--unsure" key={reply.candidateId}><img alt="" src={reply.imageUrl} /><strong>{reply.originalName}</strong><span>{reply.message}</span><small>{t("adoption.journey.replies.unsure")}</small></div>)}</div></section>
 }
 
+function isNameMode(value: string): value is NameMode {
+  return value === "original" || value === "suggested" || value === "custom"
+}
+
 function NamingScreen({ candidate, customName, dispatch, nameMode, t }: { readonly candidate: CandidateReply; readonly customName: string; readonly dispatch: React.Dispatch<AdoptionAction>; readonly nameMode: NameMode; readonly t: JourneyT }) {
-  return <section><ScreenIntro eyebrow={t("adoption.journey.naming.eyebrow")} title={t("adoption.journey.naming.title")} /><div className="adoption-naming-layout"><div className="adoption-naming-person"><img alt={t("adoption.journey.naming.portraitAlt", { name: candidate.originalName })} src={candidate.imageUrl} /><strong>{candidate.originalName}</strong><span>{candidate.message}</span></div><fieldset className="adoption-name-options"><legend>{t("adoption.journey.naming.label")}</legend><label><input checked={nameMode === "original"} name="adoption-name" onChange={() => dispatch({ type: "name-mode", mode: "original" })} type="radio" />{t("adoption.journey.naming.original", { name: candidate.originalName })}</label><label><input checked={nameMode === "suggested"} name="adoption-name" onChange={() => dispatch({ type: "name-mode", mode: "suggested" })} type="radio" />{t("adoption.journey.naming.suggested", { name: candidate.suggestedName })}</label><label><input checked={nameMode === "custom"} name="adoption-name" onChange={() => dispatch({ type: "name-mode", mode: "custom" })} type="radio" />{t("adoption.journey.naming.custom")}</label><input aria-label={t("adoption.journey.naming.customInput")} maxLength={20} onChange={(event) => dispatch({ type: "custom-name", value: event.target.value })} placeholder={t("adoption.journey.naming.customPlaceholder")} value={customName} /></fieldset></div></section>
+  const onNameModeChange = (value: string): void => {
+    if (isNameMode(value)) dispatch({ type: "name-mode", mode: value })
+  }
+  return <section><ScreenIntro eyebrow={t("adoption.journey.naming.eyebrow")} title={t("adoption.journey.naming.title")} /><div className="adoption-naming-layout"><div className="adoption-naming-person"><img alt={t("adoption.journey.naming.portraitAlt", { name: candidate.originalName })} src={candidate.imageUrl} /><strong>{candidate.originalName}</strong><span>{candidate.message}</span></div><fieldset className="adoption-name-options"><legend>{t("adoption.journey.naming.label")}</legend><RadioGroup.Root aria-label={t("adoption.journey.naming.label")} className="adoption-name-options__group" onValueChange={onNameModeChange} value={nameMode}><label><RadioGroup.Item aria-label={t("adoption.journey.naming.original", { name: candidate.originalName })} className="adoption-name-radio" value="original"><RadioGroup.Indicator className="adoption-name-radio__indicator" /></RadioGroup.Item>{t("adoption.journey.naming.original", { name: candidate.originalName })}</label><label><RadioGroup.Item aria-label={t("adoption.journey.naming.suggested", { name: candidate.suggestedName })} className="adoption-name-radio" value="suggested"><RadioGroup.Indicator className="adoption-name-radio__indicator" /></RadioGroup.Item>{t("adoption.journey.naming.suggested", { name: candidate.suggestedName })}</label><label><RadioGroup.Item aria-label={t("adoption.journey.naming.custom")} className="adoption-name-radio" value="custom"><RadioGroup.Indicator className="adoption-name-radio__indicator" /></RadioGroup.Item>{t("adoption.journey.naming.custom")}</label></RadioGroup.Root><Input aria-label={t("adoption.journey.naming.customInput")} maxLength={20} onChange={(event) => dispatch({ type: "custom-name", value: event.target.value })} placeholder={t("adoption.journey.naming.customPlaceholder")} value={customName} /></fieldset></div></section>
 }
 
 function ArrivalScreen({ candidate, name, onFinish, t }: { readonly candidate: CandidateReply; readonly name: string; readonly onFinish: () => void; readonly t: JourneyT }) {

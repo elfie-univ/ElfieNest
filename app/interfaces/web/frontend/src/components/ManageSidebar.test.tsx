@@ -58,11 +58,15 @@ describe("ManageSidebar", () => {
     expect(onSelect).toHaveBeenCalledWith("providers")
   })
 
-  it("renders one visible brand without the owner-console subtitle", () => {
+  it("renders one full logo without the owner-console subtitle", () => {
     renderSidebar("users")
     const sidebar = screen.getByLabelText("ElfieNest 管理导航")
 
-    expect(within(sidebar).getAllByText("ELFIE NEST")).toHaveLength(1)
+    expect(within(sidebar).getByRole("img", { name: "ELFIE NEST" })).toHaveAttribute(
+      "src",
+      expect.stringContaining("elfienest-full-logo-transparent.png"),
+    )
+    expect(within(sidebar).queryByText("ELFIE NEST")).not.toBeInTheDocument()
     expect(within(sidebar).queryByText(/管理系统|OWNER CONSOLE/)).not.toBeInTheDocument()
   })
 

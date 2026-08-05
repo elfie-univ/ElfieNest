@@ -9,7 +9,7 @@ import { Avatar } from "./Avatar"
 import { Icon } from "./Icon"
 import { MobileAccessDialog } from "./MobileAccessDialog"
 
-const manageLogoUrl = new URL("../../../../../../docs/public/assets/logo.png", import.meta.url).href
+const manageFullLogoUrl = new URL("../../../../../../docs/public/assets/elfienest-full-logo-transparent.png", import.meta.url).href
 
 type ManageSidebarProps = {
   readonly activeTab: ManageTab
@@ -22,7 +22,7 @@ export function ManageSidebar({ activeTab, onSelect, onUserUpdated, user }: Mana
   const { t } = useTranslation("manage")
   const [showMobileAccess, setShowMobileAccess] = useState(false)
   return <aside aria-label={t("sidebar.label")} className="manage-sidebar">
-    <div className="manage-sidebar__brand"><span className="manage-sidebar__logo"><span aria-hidden="true">E</span><img alt="ElfieNest" onError={(event) => { event.currentTarget.hidden = true }} src={manageLogoUrl} /></span><span className="manage-sidebar__brand-text"><strong>ELFIE NEST</strong></span></div>
+    <div className="manage-sidebar__brand"><img alt="ELFIE NEST" className="manage-sidebar__brand-logo" src={manageFullLogoUrl} /></div>
     <nav className="manage-sidebar__navigation">
       {MANAGE_NAV_GROUPS.map((group) => <section aria-label={t(`navigation.groups.${group.id}`)} className="manage-nav-group" key={group.id} role="group"><p aria-hidden="true">{t(`navigation.groups.${group.id}`)}</p>{group.items.map((item) => <button aria-current={activeTab === item.id ? "page" : undefined} className={activeTab === item.id ? "manage-nav-item manage-nav-item--active" : "manage-nav-item"} data-slot="button" data-variant="ghost" key={item.id} onClick={() => onSelect(item.id)} type="button"><Icon name={item.icon} size={17} />{t(`navigation.items.${item.id}`)}</button>)}</section>)}
     </nav>

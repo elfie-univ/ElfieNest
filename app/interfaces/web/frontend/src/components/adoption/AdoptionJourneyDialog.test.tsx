@@ -1,7 +1,7 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { createI18n } from "../../i18n/config"
 import { AdoptionJourneyDialog } from "./AdoptionJourneyDialog"
@@ -32,6 +32,13 @@ function candidate(index: number) {
 }
 
 describe("AdoptionJourneyDialog", () => {
+  beforeAll(() => {
+    Element.prototype.hasPointerCapture = vi.fn(() => false)
+    Element.prototype.setPointerCapture = vi.fn()
+    Element.prototype.releasePointerCapture = vi.fn()
+    Element.prototype.scrollIntoView = vi.fn()
+  })
+
   beforeEach(() => {
     window.localStorage.clear()
     api.adoptionInfo.mockResolvedValue({
@@ -103,5 +110,16 @@ describe("AdoptionJourneyDialog", () => {
     await user.click(screen.getByRole("button", { name: /选择 TA 继续/ }))
     expect(await screen.findByRole("heading", { name: "约定在地球上的称呼" })).toBeInTheDocument()
     expect(screen.queryByText("Elfie 已经有自己的原名。你们可以保留原名、使用 TA 提议的地球昵称，或者提出一个新称呼。")).not.toBeInTheDocument()
+
+    const nameGroup = screen.getByRole("radiogroup", { name: "地球称呼" })
+    expect(within(nameGroup).getAllByRole("radio")).toHaveLength(3)
+    expect(screen.getByRole("textbox", { name: "新称呼" })).toHaveAttribute("data-slot", "input")
+
+    const suggested = within(nameGroup).getByRole("radio", { name: /使用 TA 提议的昵称/ })
+    await user.click(suggested)
+    expect(suggested).toHaveAttribute("data-state", "checked")
+    const custom = within(nameGroup).getByRole("radio", { name: "提出一个新称呼" })
+    await user.click(custom)
+    expect(custom).toHaveAttribute("data-state", "checked")
   }, 15000)
 })

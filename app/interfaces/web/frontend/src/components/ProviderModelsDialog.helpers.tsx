@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next"
 
 import type { ProviderModel, ProviderModelDraft } from "../api/owner-providers"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select"
 
 export type EditableModel = {
   original_id: string
@@ -79,9 +80,12 @@ type CapabilitySelection = typeof CAPABILITY_OPTIONS[number]["value"]
 export function CapabilityCell({ label, value, onChange }: CapabilityCellProps) {
   const mark = capabilityMark(value)
   return onChange
-    ? <select aria-label={label} className="provider-model-capability-select" onChange={(event) => { onChange(parseCapabilitySelection(event.target.value)) }} value={capabilitySelection(value)}>
-      {CAPABILITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.mark}</option>)}
-    </select>
+    ? <Select onValueChange={(nextValue) => { onChange(parseCapabilitySelection(nextValue)) }} value={capabilitySelection(value)}>
+      <SelectTrigger aria-label={label} className="provider-model-capability-select" size="sm"><SelectValue>{mark}</SelectValue></SelectTrigger>
+      <SelectContent position="popper">
+        {CAPABILITY_OPTIONS.map((option) => <SelectItem key={option.value} value={option.value}>{option.mark}</SelectItem>)}
+      </SelectContent>
+    </Select>
     : <span className="provider-model-capability" title={`${label}: ${mark}`}><strong>{mark}</strong></span>
 }
 

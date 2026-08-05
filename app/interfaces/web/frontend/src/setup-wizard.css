@@ -14,17 +14,8 @@
   border-right: 1px solid var(--line);
 }
 
-.setup-brand { display: flex; align-items: center; gap: 11px; }
-.setup-brand__mark {
-  display: block;
-  width: 44px;
-  height: 44px;
-  border-radius: 13px;
-  box-shadow: 0 8px 18px color-mix(in srgb, var(--shadow-color) 18%, transparent);
-  object-fit: cover;
-}
-.setup-brand > span:last-child { display: grid; gap: 3px; }
-.setup-brand strong { font-size: 21px; letter-spacing: .08em; line-height: 1; white-space: nowrap; }
+.setup-brand { display: flex; align-items: center; min-width: 0; }
+.setup-brand__logo { display: block; width: min(100%, 252px); max-height: 58px; object-fit: contain; object-position: left center; }
 .setup-step small { color: var(--ink-soft); font-size: 10px; letter-spacing: .08em; }
 .setup-rail__intro { margin: 44px 4px 10px; }
 
@@ -52,7 +43,10 @@
 .setup-form > label { display: grid; gap: 7px; color: var(--text-muted); font-size: 13px; font-weight: 700; }
 .setup-form input:not([type="checkbox"]) { width: 100%; border: 1px solid var(--border); border-radius: 12px; padding: 12px 13px; color: var(--text); background: var(--field-bg); font-weight: 400; }
 .setup-form--owner { --setup-label-column: 112px; --setup-label-gap: 16px; gap: 12px; }
-.setup-form--owner > label { grid-template-columns: var(--setup-label-column) minmax(0, 1fr); align-items: center; column-gap: var(--setup-label-gap); font-size: 15px; }
+.setup-form--owner > label, .setup-form--owner > .manage-field { grid-template-columns: var(--setup-label-column) minmax(0, 1fr); align-items: center; column-gap: var(--setup-label-gap); font-size: 15px; }
+.setup-form--owner > .manage-field .manage-field__label { color: var(--text-muted); font-size: inherit; }
+.setup-form--owner > .manage-field .manage-field__control-column { grid-column: 2; }
+.setup-form--owner > .manage-field input { border-radius: 12px; padding: 12px 13px; background: var(--field-bg); font-weight: 400; }
 .setup-form--owner .setup-actions, .setup-form--bed-count .setup-actions { margin-left: calc(var(--setup-label-column) + var(--setup-label-gap)); padding-top: 2px; }
 .setup-form--bed-count { --setup-label-column: 112px; --setup-label-gap: 16px; gap: 12px; }
 .setup-form--bed-count .manage-field { grid-template-columns: var(--setup-label-column) minmax(0, 1fr); align-items: center; gap: 0 var(--setup-label-gap); font-size: 15px; }
@@ -104,7 +98,8 @@
   .setup-step__button { display: block; min-height: auto; text-align: center; }
   .setup-step__button > span:last-child { display: none; }
   .setup-step__number { margin: auto; }
-  .setup-form--owner > label { grid-template-columns: 1fr; gap: 7px; }
+  .setup-form--owner > label, .setup-form--owner > .manage-field { grid-template-columns: 1fr; gap: 7px; }
+  .setup-form--owner > .manage-field .manage-field__control-column { grid-column: 1; }
   .setup-form--bed-count .manage-field { grid-template-columns: 1fr; gap: 7px; }
   .setup-form--bed-count .manage-field__control-column { grid-column: 1; }
   .setup-form--owner .setup-actions, .setup-form--bed-count .setup-actions { margin-left: 0; }

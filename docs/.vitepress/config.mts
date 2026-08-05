@@ -10,8 +10,7 @@ export default defineConfig({
   cleanUrls: true,
   lastUpdated: true,
   head: [
-    ["link", { rel: "icon", type: "image/x-icon", href: "/assets/favicon.ico" }],
-    ["link", { rel: "icon", type: "image/png", sizes: "32x32", href: "/assets/favicon.ico" }]
+    ["link", { rel: "icon", type: "image/x-icon", href: "/assets/favicon.ico" }]
   ],
   transformHtml: (html) =>
     html.replaceAll('rel="preload stylesheet"', 'rel="stylesheet"'),
@@ -21,8 +20,8 @@ export default defineConfig({
       label: "English",
       lang: "en",
       themeConfig: {
-        logo: "/assets/logo.png",
-        siteTitle: "ElfieNest",
+        logo: "/assets/elfienest-full-logo-transparent.png",
+        siteTitle: false,
         nav: [
           { text: "Home", link: "/" },
           { text: "World & Story", link: "/story/" },
@@ -117,8 +116,8 @@ export default defineConfig({
       lang: "zh-CN",
       link: "/zh/",
       themeConfig: {
-        logo: "/assets/logo.png",
-        siteTitle: "ElfieNest",
+        logo: "/assets/elfienest-full-logo-transparent.png",
+        siteTitle: false,
         nav: [
           { text: "首页", link: "/zh/" },
           { text: "世界观与故事", link: "/zh/story/" },
