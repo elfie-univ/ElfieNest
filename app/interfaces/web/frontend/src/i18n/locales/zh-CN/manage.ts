@@ -143,7 +143,7 @@ export const manage = {
     status: { failed: "验证失败", never: "未验证", passed: "验证通过", pending: "待配置" }, title: "供应商与模型连接",
   },
   modelMatrix: {
-    actions: { benchmark: "对比", benchmarkAll: "批量对比", benchmarkFor: "对比 {{provider}} {{model}}", benchmarking: "对比中…", refresh: "重新读取" }, empty: "尚无已配置供应商声明的模型。", emptyBenchmark: "暂无已验证通过且可对比的模型。", emptyCombination: "这个模型组合尚不可对比。", labels: { available: "可用", failed: "验证失败", model: "模型", never: "未验证", noBenchmark: "未对比", notProvided: "未提供", price: "价格", unavailable: "不支持" }, notice: "对比完成：{{passed}} 个成功，{{failed}} 个失败。", tableLabel: "同模型对比表", title: "同模型对比", validationNotice: "验证完成，已生成完整报告 {{runId}}。",
+    actions: { benchmark: "对比", benchmarkAll: "批量对比", benchmarkFor: "对比 {{provider}} {{model}}", benchmarkModel: "对比 {{model}}", benchmarking: "对比中…", refresh: "重新读取" }, empty: "尚无已配置供应商声明的模型。", emptyBenchmark: "暂无已验证通过且可对比的模型。", emptyCombination: "这个模型组合尚不可对比。", labels: { available: "可用", failed: "验证失败", model: "模型", never: "未验证", noBenchmark: "未对比", notProvided: "未提供", price: "价格", unavailable: "不支持" }, notice: "对比完成：{{passed}} 个成功，{{failed}} 个失败。", tableLabel: "同模型对比表", title: "同模型对比", validationNotice: "验证完成，已生成完整报告 {{runId}}。",
   },
   modelCatalog: { actions: { refresh: "刷新", scan: "扫描本地模型" }, active: "可用", costTier: "{{name}} 成本层级", description: "管理目录可见性与成本层级；可扫描本地 Ollama 模型。", inactive: "未激活", noticeSaved: "{{name}} 已保存。", noticeScanned: "扫描完成：{{result}}", title: "模型", visible: "在管理目录显示" },
   runtimeTools: { actions: { refresh: "刷新", save: "保存工具", verify: "验证工具" }, description: "所有工具设置和验证均经超级管理员 API；密钥字段只写不读。", jsonLabel: "工具 JSON 配置", noticeSaved: "工具配置已保存。", noticeVerified: "验证结果：{{result}}", title: "工具", validationObject: "工具配置必须是 JSON 对象。", validationSyntax: "请输入合法 JSON。" },

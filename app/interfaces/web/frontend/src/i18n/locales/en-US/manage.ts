@@ -144,7 +144,7 @@ export const manage = {
     title: "Providers and model connections",
   },
   modelMatrix: {
-    actions: { benchmark: "Compare", benchmarkAll: "Compare all", benchmarkFor: "Compare {{provider}} {{model}}", benchmarking: "Comparing...", refresh: "Reload" },
+    actions: { benchmark: "Compare", benchmarkAll: "Compare all", benchmarkFor: "Compare {{provider}} {{model}}", benchmarkModel: "Compare {{model}}", benchmarking: "Comparing...", refresh: "Reload" },
     empty: "No configured provider has declared a model.", emptyBenchmark: "No verified provider-model pair is ready for comparison.", emptyCombination: "This provider-model pair is not ready for comparison.",
     labels: { available: "Available", failed: "Verification failed", model: "Model", never: "Not verified", noBenchmark: "Not compared", notProvided: "Not provided", price: "Price", unavailable: "Unsupported" },
     notice: "Comparison complete: {{passed}} succeeded and {{failed}} failed.", tableLabel: "Same-model comparison table", title: "Same-model comparison", validationNotice: "Validation completed. Full report {{runId}} was generated.",

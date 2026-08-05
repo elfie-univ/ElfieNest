@@ -332,6 +332,20 @@ describe("OwnerProviderPanel v2 behavior", () => {
     expect(within(card).queryByText("验证失败")).not.toBeInTheDocument()
   })
 
+  it("keeps all-passed models green while showing a stale-validation hint", async () => {
+    vi.mocked(ownerProviderConnections).mockResolvedValue([{
+      ...connection,
+      verification: { ...connection.verification, needs_full_validation: true },
+    }])
+    renderPanel()
+
+    const card = within(await screen.findByRole("region", { name: "已配置的远程订阅" })).getByRole("article")
+    expect(card).toHaveClass("provider-card--passed")
+    expect(card).not.toHaveClass("provider-card--partial")
+    expect(within(card).getByText("验证通过")).toBeInTheDocument()
+    expect(within(card).getByText("需要重新进行全量验证")).toBeInTheDocument()
+  })
+
   it("archives an existing connection from the anchored lifecycle menu", async () => {
     const user = userEvent.setup()
     renderPanel()

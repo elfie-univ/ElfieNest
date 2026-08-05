@@ -12,6 +12,7 @@ from ai_runtime.storage.provider_connections import (
     ProviderConnectionStore,
     ProviderModelRecord,
 )
+from ai_runtime.storage.secrets import set_connection_secret
 from ai_runtime.storage.validation_reports import read_latest_model_validation
 from app.interfaces.api.provider_connection_model_routes import (
     validate_all_connection_models,
@@ -140,6 +141,46 @@ def test_validation_policy_requires_full_run_after_30_days_or_model_change() -> 
     assert changed.mode == "full"
 
 
+def test_connection_fingerprint_ignores_another_connection_secret_change(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    jdcloud = ProviderConnection(
+        connection_id="jdcloud_coding_plan_0001",
+        catalog_id="jdcloud_coding_plan",
+        alias="JD Cloud",
+        models=(ProviderModelRecord(endpoint_model_id="GLM-5"),),
+    )
+    deepseek = ProviderConnection(
+        connection_id="deepseek_0001",
+        catalog_id="deepseek",
+        alias="DeepSeek",
+        models=(ProviderModelRecord(endpoint_model_id="deepseek-chat"),),
+    )
+
+    set_connection_secret(jdcloud.connection_id, "jd-key")
+    jdcloud_before = connection_validation_fingerprint(jdcloud)
+    deepseek_before = connection_validation_fingerprint(deepseek)
+    set_connection_secret(deepseek.connection_id, "deepseek-key")
+
+    assert connection_validation_fingerprint(jdcloud) == jdcloud_before
+    assert connection_validation_fingerprint(deepseek) != deepseek_before
+
+
+def test_runtime_projection_uses_connection_id_for_builtin_connection() -> None:
+    connection = ProviderConnection(
+        connection_id="jdcloud_coding_plan_0001",
+        catalog_id="jdcloud_coding_plan",
+        alias="JD Cloud",
+        models=(ProviderModelRecord(endpoint_model_id="GLM-5"),),
+    )
+
+    runtime_id, _config = _runtime_projection(connection)
+
+    assert runtime_id == connection.connection_id
+
+
 def test_single_validation_checks_configured_models_without_provider_models_probe(
     tmp_path: Path,
     monkeypatch,
@@ -230,7 +271,7 @@ def test_runtime_projection_keeps_jdcloud_profile_test_model() -> None:
 
     runtime_id, config = _runtime_projection(connection)
 
-    assert runtime_id == "jdcloud_coding_plan"
+    assert runtime_id == connection.connection_id
     assert config.providers[runtime_id]["test_model"] == "GLM-5"
 
 

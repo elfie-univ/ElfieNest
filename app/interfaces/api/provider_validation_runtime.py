@@ -20,11 +20,7 @@ def runtime_projection(
     profile = get_product(connection.catalog_id)
     if profile is None:
         raise ValueError("连接产品目录已经缺失")
-    runtime_id = (
-        connection.connection_id
-        if connection.catalog_id == "custom_openai"
-        else profile.legacy_provider_id
-    )
+    runtime_id = connection.connection_id
     config = LLMRuntimeConfig()
     active_models = active_validation_models(connection)
     config.providers[runtime_id] = {

@@ -267,15 +267,14 @@
 .food-diff-card dt { color: var(--text-muted); font-size: 14px; }
 .food-diff-card dd { margin: 0; overflow-wrap: anywhere; }
 .provider-summary > div:first-child { display: flex; align-items: center; justify-content: space-between; gap: 8px; }.provider-summary--ready { box-shadow: inset 3px 0 0 #43805a; }.provider-summary--pending { box-shadow: inset 3px 0 0 #b67a3e; }.provider-add-card { display: grid; min-height: 170px; place-items: center; align-content: center; gap: 5px; border: 1px dashed var(--border); border-radius: 12px; color: var(--text-muted); background: transparent; }.provider-add-card:hover { color: var(--text); background: var(--hover-bg); }.provider-add-card strong { font-size: 32px; font-weight: 400; }.provider-add-card small { font-size: 14px; }
-.provider-page { display: grid; gap: 22px; }
+.provider-page { display: grid; gap: 22px; container-name: provider-page; container-type: inline-size; }
 .provider-section { display: grid; gap: 14px; }
 .provider-section--configured { padding-top: 22px; border-top: 1px dashed var(--border); }
 .provider-section--available { padding-top: 22px; border-top: 1px dashed var(--border); }
 .provider-section__heading { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
 .provider-section__heading h3, .provider-section__heading p { margin: 0; }
 .provider-section__heading p { margin-top: 5px; color: var(--text-muted); font-size: 14px; line-height: 1.5; }
-.provider-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
-.provider-section--configured .provider-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.provider-grid { display: grid; grid-template-columns: repeat(3, minmax(340px, 1fr)); gap: 12px; align-items: start; }
 .provider-section--configured .provider-card .manage-actions { flex-wrap: nowrap; }
 .provider-card { display: grid; align-content: start; gap: 13px; min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-raised); }
 .provider-card--passed { background: #edf7ed; box-shadow: inset 3px 0 0 #43805a; }
@@ -343,7 +342,7 @@
 .provider-model-editor legend { padding-inline: 6px; font-weight: 700; }
 .provider-model-editor__row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; gap: 10px; }
 .provider-models-dialog { width: min(1120px, calc(100vw - 32px)); max-width: min(1120px, calc(100vw - 32px)) !important; }
-.provider-models-toolbar { flex-wrap: wrap; }
+.provider-models-toolbar { flex-wrap: wrap; justify-content: flex-end; }
 .provider-models-add-form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: end; gap: 10px; padding: 14px 0; border-block: 1px dashed var(--border); }
 .provider-model-table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
 .provider-model-table-wrap table { min-width: 1080px; }
@@ -399,6 +398,10 @@
 @media (max-width: 760px) { .provider-models-add-form { grid-template-columns: 1fr; } }
 @media (max-width: 760px) { .elfie-id-card__portrait, .user-id-card > .avatar { font-size: 42px; } }
 @media (max-width: 760px) { .provider-section--configured .provider-grid { grid-template-columns: 1fr; }.provider-section--configured .provider-card .manage-actions { flex-wrap: wrap; } }
+
+@container provider-page (min-width: 1044px) { .provider-grid, .provider-section--configured .provider-grid { grid-template-columns: repeat(3, minmax(340px, 1fr)); } }
+@container provider-page (min-width: 692px) and (max-width: 1043px) { .provider-grid, .provider-section--configured .provider-grid { grid-template-columns: repeat(2, minmax(340px, 1fr)); } }
+@container provider-page (max-width: 691px) { .provider-grid, .provider-section--configured .provider-grid { grid-template-columns: minmax(min(340px, 100%), 1fr); }.provider-section--configured .provider-card .manage-actions { flex-wrap: wrap; } }
 
 /* Food strategy keeps the existing management card width and owns only its table/dialog layout. */
 .food-page [data-slot="table-container"] { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
