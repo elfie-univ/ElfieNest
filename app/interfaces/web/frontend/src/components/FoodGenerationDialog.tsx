@@ -104,7 +104,7 @@ export function FoodGenerationDialog({ availableConnections, connectionsLoading,
     setPending(true)
     try {
       const draft = {
-        display_name: mode === "create" ? displayName.trim() : food?.display_name ?? displayName.trim(),
+        display_name: mode === "create" || !food?.system_role ? displayName.trim() : food.display_name,
         enabled: food?.enabled ?? true,
         roles: draftRoles,
         visibility_mode: food?.system_role ? "global" as const : visibilityMode,
@@ -137,9 +137,9 @@ export function FoodGenerationDialog({ availableConnections, connectionsLoading,
     title={t(mode === "create" ? "foodPackages.generation.createTitle" : "foodPackages.generation.title", { name: food?.display_name ?? "" })}
   >
     {error ? <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("errors.load")} /> : null}
-    {mode === "create"
+    {mode === "create" || !food?.system_role
       ? <TextField label={t("foodPackages.generation.name")} onChange={(value) => { setDisplayName(value); setPreview(null) }} value={displayName} />
-      : <p className="food-generation-readonly"><strong>{t("foodPackages.generation.name")}</strong>{displayName}</p>}
+      : null}
     <div className="food-generation-scopes">
       <div className="food-generation-scope-row">
         <span className="food-generation-scope-row__label">{t("foodPackages.generation.sources")}</span>
@@ -181,18 +181,19 @@ export function FoodGenerationDialog({ availableConnections, connectionsLoading,
     </div>
     {preview ? <section className="food-generation-preview" aria-label={t("foodPackages.generation.previewTitle")}>
       <h3>{t("foodPackages.generation.previewTitle")}</h3>
-      <div className="food-diff-list">{ROLES.map((role) => {
+      <div className="food-diff-scroll"><div className="food-diff-list">{ROLES.map((role) => {
         const change = preview.changes.find((item) => item.role === role)
         const oldModel = change?.old_model ?? food?.roles[role]?.model ?? null
         const currentModel = draftRoles[role]?.model ?? null
         const changed = oldModel !== currentModel
+        const oldModelLabel = displayModel(oldModel, modelOptions, t("foodPackages.values.notConfigured"))
         return <div className={`food-diff-row${changed ? " food-diff-row--changed" : ""}`} key={role}>
           <strong>{t(`foodPackages.roles.${role}`)}</strong>
-          <span>{displayModel(oldModel, modelOptions, t("foodPackages.values.notConfigured"))}</span>
+          <span title={oldModelLabel}>{oldModelLabel}</span>
           <ArrowRight aria-hidden="true" size={15} />
           <SelectField label={t(`foodPackages.roles.${role}`)} onValueChange={(value) => setRole(role, value)} options={modelSelectOptions} value={draftRoles[role]?.model ?? NONE} />
         </div>
-      })}</div>
+      })}</div></div>
     </section> : null}
     <div className="manage-actions">
       {!preview

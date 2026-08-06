@@ -9,6 +9,7 @@ export const common = {
     closeDialog: "Close {{title}}",
     decrease: "Decrease {{label}}",
     increase: "Increase {{label}}",
+    notifications: "Notifications",
   },
   app: {
     welcome: "Welcome to {{productName}}",

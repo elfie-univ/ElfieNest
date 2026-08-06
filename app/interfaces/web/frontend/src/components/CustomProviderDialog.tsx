@@ -3,6 +3,8 @@ import { useEffect, useState, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
 
 import type { ProviderConnectionDraft } from "../api/owner-providers"
+import { describeApiError, resolveLocalizedError } from "../i18n/errors"
+import { currentLocale } from "../i18n/format"
 import { ManageDialog } from "./ManageDialog"
 import { Notice } from "./Notice"
 import { SelectField } from "./SelectField"
@@ -23,7 +25,7 @@ type Props = {
 }
 
 export function CustomProviderDialog({ onOpenChange, onSave, open, preset = "openai" }: Props) {
-  const { t } = useTranslation("manage")
+  const { i18n, t } = useTranslation("manage")
   const [alias, setAlias] = useState("")
   const [apiBase, setApiBase] = useState("")
   const [apiKey, setApiKey] = useState("")
@@ -56,10 +58,9 @@ export function CustomProviderDialog({ onOpenChange, onSave, open, preset = "ope
         api_mode: apiMode,
         auth_type: authType,
         refresh_models: true,
-        verify: true,
       })
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : t("providerConnections.errors.save"))
+      setError(resolveLocalizedError(describeApiError(reason, "manage.save"), currentLocale(i18n)) ?? t("providerConnections.errors.save"))
     } finally {
       setPending(false)
     }
@@ -70,6 +71,7 @@ export function CustomProviderDialog({ onOpenChange, onSave, open, preset = "ope
     open={open}
     title={t(preset === "anthropic" ? "providerConnections.custom.anthropicTitle" : "providerConnections.custom.openaiTitle")}
   >
+    {error ? <Notice kind="error" message={error} /> : null}
     <form className="provider-form" onSubmit={(event) => { void submit(event) }}>
       <TextField autoFocus label={t("providerConnections.custom.displayName")} onChange={setAlias} placeholder={t("providerConnections.custom.displayNamePlaceholder")} required value={alias} />
       <TextField label="API Base URL" onChange={setApiBase} placeholder="https://host.example/v1" required type="url" value={apiBase} />
@@ -85,7 +87,7 @@ export function CustomProviderDialog({ onOpenChange, onSave, open, preset = "ope
         { label: t("providerConnections.custom.noAuth"), value: "none" },
       ]} value={authType} />
       <div className="manage-actions">
-        <Button disabled={pending} type="submit">{pending ? t("providerConnections.actions.savingAndVerifying") : t("providerConnections.actions.saveAndVerify")}</Button>
+        <Button disabled={pending} type="submit">{pending ? t("providerConnections.actions.saving") : t("providerConnections.actions.save")}</Button>
         <Button variant="outline" disabled={pending} onClick={() => onOpenChange(false)} type="button">{t("providerConnections.actions.cancel")}</Button>
       </div>
     </form>

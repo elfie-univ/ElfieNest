@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { FoodPackage } from "../api/owner-foods"
-import { formatLatency, projectFoodDisplay } from "./food-display"
+import { formatLatency, projectFoodDisplay, type FoodLocalRuntime } from "./food-display"
 
 const food = {
   key: "custom",
@@ -70,6 +70,19 @@ describe("food display projection", () => {
   it("marks system food as globally visible and missing visibility as a read failure", () => {
     expect(projectFoodDisplay({ ...food, system_role: "common" }, connections).visibility).toEqual({ kind: "all", count: null })
     expect(projectFoodDisplay({ ...food, visibility_mode: "global", visible_user_ids: [] }, connections).visibility).toEqual({ kind: "all", count: null })
+  })
+
+  it("marks a local model available only when the runtime is healthy and the model is installed", () => {
+    const healthyRuntime = {
+      state: "healthy",
+      models: [{ id: "qwen", display_name: "Qwen 0.5B", installed: true, recommended: false }],
+    } satisfies FoodLocalRuntime
+    const stoppedRuntime = { ...healthyRuntime, state: "stopped" } satisfies FoodLocalRuntime
+    const missingModelRuntime = { ...healthyRuntime, models: [] } satisfies FoodLocalRuntime
+
+    expect(projectFoodDisplay(food, connections, 3, healthyRuntime, ["local"]).models.fallback.status).toBe("available")
+    expect(projectFoodDisplay(food, connections, 3, stoppedRuntime, ["local"]).models.fallback.status).toBe("unavailable")
+    expect(projectFoodDisplay(food, connections, 3, missingModelRuntime, ["local"]).models.fallback.status).toBe("unavailable")
   })
 
   it("does not invent a latency value", () => {

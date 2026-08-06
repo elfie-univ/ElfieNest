@@ -115,7 +115,14 @@ def call_openai_compatible_api(
                 ).decode("utf-8")
             )
             usage = res_data.get("usage", {})
-            return res_data["choices"][0]["message"]["content"], usage
+            message = res_data["choices"][0]["message"]
+            content = message.get("content")
+            if not isinstance(content, str) or not content.strip():
+                reasoning_content = message.get("reasoning_content")
+                content = (
+                    reasoning_content if isinstance(reasoning_content, str) else ""
+                )
+            return content, usage
     except Exception as e:
         logger.error("Cloud LLM API call exception: %s", e)
         if isinstance(e, urllib.error.HTTPError):

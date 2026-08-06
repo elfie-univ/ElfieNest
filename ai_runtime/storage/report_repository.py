@@ -13,6 +13,7 @@ from ai_runtime.storage.data_home import get_report_database_path
 from ai_runtime.storage.report_queries import (
     latest_observations,
     observations_for_run,
+    observations_for_subject,
 )
 from ai_runtime.storage.report_records import (
     ReportRun,
@@ -185,6 +186,19 @@ class ReportRepository:
     ) -> tuple[ValidationObservation, ...]:
         with self._connect() as connection:
             return observations_for_run(connection, run_id)
+
+    def observations_for_subject(
+        self,
+        subject_kind: str,
+        subject_id: str,
+    ) -> tuple[ValidationObservation, ...]:
+        """Return all immutable observations for one subject, newest first."""
+        with self._connect() as connection:
+            return observations_for_subject(
+                connection,
+                subject_kind=subject_kind,
+                subject_id=subject_id,
+            )
 
     def _latest_query(
         self,

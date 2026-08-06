@@ -8,6 +8,7 @@ import { ApiError, ownerElfiePath, ownerElfies, ownerUsers, ownerWrite, type Own
 import { createI18n } from "../i18n/config"
 import type { SupportedLocale } from "../i18n/locale"
 import { OwnerElfieOverview } from "./OwnerElfieOverview"
+import { ToastProvider } from "./ui/toast"
 
 vi.mock("../api/client", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/client")>()
@@ -83,7 +84,7 @@ function renderWithI18n(ui: ReactElement, locale: SupportedLocale = "zh-CN") {
   const instance = createI18n()
   void instance.changeLanguage(locale)
   document.documentElement.lang = locale
-  return { instance, ...render(<I18nextProvider i18n={instance}>{ui}</I18nextProvider>) }
+  return { instance, ...render(<I18nextProvider i18n={instance}><ToastProvider>{ui}</ToastProvider></I18nextProvider>) }
 }
 
 describe("OwnerElfieOverview", () => {

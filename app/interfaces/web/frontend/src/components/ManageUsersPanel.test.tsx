@@ -15,6 +15,7 @@ import {
 import { createI18n } from "../i18n/config"
 import type { SupportedLocale } from "../i18n/locale"
 import { ManageUsersPanel } from "./ManageUsersPanel"
+import { ToastProvider } from "./ui/toast"
 
 vi.mock("../api/client", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/client")>()
@@ -69,7 +70,7 @@ function renderPanel(locale: SupportedLocale = "zh-CN", actorRole: "owner" | "ad
   document.documentElement.lang = locale
   return {
     instance,
-    ...render(<I18nextProvider i18n={instance}><ManageUsersPanel actorRole={actorRole} csrfToken="csrf" /></I18nextProvider>),
+    ...render(<I18nextProvider i18n={instance}><ToastProvider><ManageUsersPanel actorRole={actorRole} csrfToken="csrf" /></ToastProvider></I18nextProvider>),
   }
 }
 
@@ -214,6 +215,8 @@ describe("ManageUsersPanel real-data states", () => {
     // When: the limit editor is opened and the new limit is saved.
     await user.click(await screen.findByRole("button", { name: "编辑 member01" }))
     const quota = screen.getByRole("spinbutton", { name: "精灵上限" })
+    expect(quota).toHaveAttribute("data-slot", "input")
+    expect(quota).toHaveAttribute("type", "number")
     await user.clear(quota)
     await user.type(quota, "6")
     await user.click(screen.getByRole("button", { name: "保存 member01" }))

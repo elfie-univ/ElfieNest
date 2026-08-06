@@ -7,6 +7,7 @@ import { createI18n } from "./i18n/config"
 import { getBrowserStorage, initializeLocale } from "./i18n/locale"
 import "./styles.css"
 import { SessionProvider } from "./stores/session"
+import { ToastProvider } from "./components/ui/toast"
 
 const i18nInstance = createI18n()
 initializeLocale(i18nInstance, {
@@ -31,9 +32,11 @@ if (mount === null) throw new Error("ERR_MISSING_APP_MOUNT")
 createRoot(mount).render(
   <StrictMode>
     <I18nextProvider i18n={i18nInstance}>
-      <SessionProvider>
-        <App />
-      </SessionProvider>
+      <ToastProvider>
+        <SessionProvider>
+          <App />
+        </SessionProvider>
+      </ToastProvider>
     </I18nextProvider>
   </StrictMode>,
 )

@@ -27,7 +27,7 @@ const matrix = {
   connections: [{
     connection_id: "conn-openai",
     name: "OpenAI Main",
-    verification: { status: "passed", checked_at: "2026-07-30T00:00:00Z", latency_ms: 45, error: null },
+    verification: { status: "never", checked_at: null, latency_ms: null, error: null },
   }],
   models: [{
     model_key: "gpt-test",
@@ -46,8 +46,52 @@ const matrix = {
   }],
 } satisfies ModelMatrix
 
+const matrixWithTwoConnections = {
+  snapshot: { mode: "latest", run_id: "run-1", status: "passed" },
+  connections: [
+    {
+      connection_id: "conn-openai",
+      name: "OpenAI Main",
+      verification: { status: "never", checked_at: null, latency_ms: null, error: null },
+    },
+    {
+      connection_id: "conn-deepseek",
+      name: "DeepSeek",
+      verification: { status: "never", checked_at: null, latency_ms: null, error: null },
+    },
+  ],
+  models: [{
+    model_key: "gpt-test",
+    display_name: "GPT Test",
+    capabilities: ["text"],
+    connections: [
+      {
+        connection_id: "conn-openai",
+        model_id: "gpt-test",
+        available: true,
+        verification_status: "passed",
+        benchmark_status: "passed",
+        latency_ms: 45,
+        latency_class: "fast",
+        price_estimate: null,
+      },
+      {
+        connection_id: "conn-deepseek",
+        model_id: "gpt-test",
+        available: true,
+        verification_status: "passed",
+        benchmark_status: "passed",
+        latency_ms: 60,
+        latency_class: "normal",
+        price_estimate: null,
+      },
+    ],
+  }],
+} satisfies ModelMatrix
+
 describe("ModelMatrixDialog v2 behavior", () => {
   beforeEach(() => {
+    vi.clearAllMocks()
     vi.mocked(ownerModelMatrix).mockResolvedValue(matrix)
     vi.mocked(benchmarkProviderModels).mockResolvedValue({
       run_id: "bench-2",
@@ -88,6 +132,96 @@ describe("ModelMatrixDialog v2 behavior", () => {
     )
     expect(await screen.findByText("对比完成：1 个成功，0 个失败。")).toBeInTheDocument()
     expect(vi.mocked(ownerModelMatrix).mock.calls.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it("benchmarks every configured subscription in the selected model row", async () => {
+    vi.mocked(ownerModelMatrix).mockResolvedValue(matrixWithTwoConnections)
+    vi.mocked(benchmarkProviderModels).mockResolvedValue({
+      run_id: "bench-row",
+      status: "passed",
+      results: [
+        {
+          connection_id: "conn-openai",
+          model_id: "gpt-test",
+          status: "passed",
+          checked_at: "2026-07-30T00:00:01Z",
+          latency_ms: 40,
+          latency_class: "fast",
+          error: null,
+        },
+        {
+          connection_id: "conn-deepseek",
+          model_id: "gpt-test",
+          status: "passed",
+          checked_at: "2026-07-30T00:00:02Z",
+          latency_ms: 55,
+          latency_class: "normal",
+          error: null,
+        },
+      ],
+    })
+    const user = userEvent.setup()
+    renderDialog()
+
+    const row = await screen.findByRole("row", { name: /GPT Test/ })
+    await user.click(within(row).getByRole("button", { name: "对比 GPT Test" }))
+
+    expect(benchmarkProviderModels).toHaveBeenCalledWith(
+      [
+        { connection_id: "conn-openai", model_id: "gpt-test" },
+        { connection_id: "conn-deepseek", model_id: "gpt-test" },
+      ],
+      "csrf",
+    )
+  })
+
+  it("benchmarks every page combination in backend-sized batches", async () => {
+    const largeMatrix = {
+      ...matrix,
+      models: Array.from({ length: 13 }, (_, index) => ({
+        model_key: `model-${index + 1}`,
+        display_name: `Model ${index + 1}`,
+        capabilities: ["text"],
+        connections: [{
+          connection_id: "conn-openai",
+          model_id: `model-${index + 1}`,
+          available: true,
+          verification_status: "passed",
+          benchmark_status: "passed",
+          latency_ms: 45,
+          latency_class: "fast",
+          price_estimate: null,
+        }],
+      })),
+    } satisfies ModelMatrix
+    vi.mocked(ownerModelMatrix).mockResolvedValue(largeMatrix)
+    vi.mocked(benchmarkProviderModels).mockImplementation(async (combinations) => ({
+      run_id: "bench-page",
+      status: "passed",
+      results: combinations.map((combination) => ({
+        ...combination,
+        status: "passed",
+        checked_at: "2026-07-30T00:00:01Z",
+        latency_ms: 40,
+        latency_class: "fast",
+        error: null,
+      })),
+    }))
+    const user = userEvent.setup()
+    renderDialog()
+
+    await user.click(await screen.findByRole("button", { name: "批量对比" }))
+
+    expect(benchmarkProviderModels).toHaveBeenCalledTimes(2)
+    const calls = vi.mocked(benchmarkProviderModels).mock.calls
+    const firstCall = calls.at(0)
+    const secondCall = calls.at(1)
+    expect(firstCall).toBeDefined()
+    expect(secondCall).toBeDefined()
+    if (!firstCall || !secondCall) return
+    expect(firstCall[0]).toHaveLength(12)
+    expect(secondCall[0]).toHaveLength(1)
+    expect(await screen.findByText("对比完成：13 个成功，0 个失败。")).toBeInTheDocument()
   })
 
   it("switches visible copy without losing the loaded report", async () => {
