@@ -183,7 +183,7 @@ export function SetupPage() {
   const draft = progress?.draft
   const install = progress?.install
   const isInstalling = progress?.locked === true
-  const showWelcome = progress !== null && isFreshSetup(progress) && !welcomeDismissed
+  const showWelcome = !welcomeDismissed && (progress === null || isFreshSetup(progress))
   const model = catalog.find((option) => option.model_id === (draft?.model_id ?? modelId))
   const ollamaInstalled = draft?.ollama_installed === true
   const ollamaStatus = ollamaInstalled ? t("offline.installed") : t("offline.notInstalled")
@@ -197,7 +197,9 @@ export function SetupPage() {
   if (showWelcome) {
     return <main className="setup-welcome-page">
       <section aria-label={commonT("language.label")} className="setup-locale-control"><LanguageSwitcher variant="compact" /></section>
-      <SetupWelcome action={t("welcome.action")} onContinue={() => setWelcomeDismissed(true)} title={t("welcome.title")} />
+      <SetupWelcome action={t("welcome.action")} disabled={progress === null} onContinue={() => {
+        if (progress !== null) setWelcomeDismissed(true)
+      }} title={t("welcome.title")} />
     </main>
   }
 

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
@@ -86,7 +86,7 @@ describe("localized setup wizard", () => {
 
   it("renders the English welcome page before the configuration steps", async () => {
     renderSetup("en-US", statusFor(1))
-    expect(await screen.findByRole("heading", { level: 1, name: "Build a home on Earth for an Elfie from Elfaria." })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { level: 1, name: "Build a home on Earth for your Elfie from Elfaria" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Begin" })).toBeInTheDocument()
     expect(screen.getByTestId("setup-welcome-art")).toBeInTheDocument()
     expect(screen.getByTestId("setup-welcome-house-drawing")).toBeInTheDocument()
@@ -97,12 +97,48 @@ describe("localized setup wizard", () => {
     expect(signal.querySelectorAll("circle")).toHaveLength(3)
     expect(signal.querySelector("circle")).toHaveAttribute("cx", "208.4")
     expect(signal.querySelector("circle")).toHaveAttribute("cy", "37.4")
-    expect(screen.getByTestId("setup-welcome-ground-ripples")).toBeInTheDocument()
-    expect(screen.getByTestId("setup-welcome-beam")).toBeInTheDocument()
+    expect(signal.querySelector("circle")).toHaveAttribute("r", "8.1")
+    expect(screen.getByTestId("setup-welcome-radar-rings").querySelector("circle")).toHaveAttribute("r", "5.4")
+    const groundRipples = screen.getByTestId("setup-welcome-ground-ripples")
+    expect(groundRipples).toBeInTheDocument()
+    expect(groundRipples.querySelector("ellipse")).toHaveAttribute("cx", "137.8")
+    expect(groundRipples.querySelector("ellipse")).toHaveAttribute("cy", "220.5")
+    const beam = screen.getByTestId("setup-welcome-beam")
+    expect(beam).toBeInTheDocument()
+    expect(beam.querySelector("path")).toHaveAttribute("d", expect.stringContaining("137.8 220.5"))
     expect(screen.getByTestId("setup-welcome-fox")).toHaveAttribute("src", expect.stringContaining("elfienest-fox-transparent.png"))
     expect(screen.getByTestId("setup-welcome-fox-eye-glint")).toBeInTheDocument()
     expect(screen.getByTestId("setup-welcome-final-logo")).toHaveAttribute("src", expect.stringContaining("elfienest-logo-mark-transparent.png"))
+    const title = screen.getByRole("heading", { level: 1 })
+    expect(title).toHaveAttribute("aria-label", "Build a home on Earth for your Elfie from Elfaria")
+    expect(title.querySelectorAll(".setup-welcome__title-char")).toHaveLength("Build a home on Earth for your Elfie from Elfaria".length)
     expect(screen.queryByText("Create Owner account")).not.toBeInTheDocument()
+  })
+
+  it("keeps the owner form hidden while the initial setup status is loading", async () => {
+    let resolveStatus: (status: SetupStatus) => void = () => undefined
+    vi.spyOn(client, "setupStatus").mockReturnValue(new Promise((resolve) => {
+      resolveStatus = resolve
+    }))
+    vi.spyOn(client, "setupModelCatalog").mockResolvedValue([])
+    const instance = createI18n()
+    initializeLocale(instance, {
+      browserLanguages: ["en-US"],
+      documentElement: document.documentElement,
+      storage: localStorage,
+    })
+    render(
+      <I18nextProvider i18n={instance}>
+        <SetupPage />
+      </I18nextProvider>,
+    )
+
+    expect(screen.getByTestId("setup-welcome-art")).toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Owner account" })).not.toBeInTheDocument()
+
+    resolveStatus(statusFor(1))
+    await waitFor(() => expect(screen.getByRole("button", { name: "Begin" })).toBeEnabled())
+    expect(screen.queryByRole("textbox", { name: "Owner account" })).not.toBeInTheDocument()
   })
 
   it("keeps the supplied house geometry in its native SVG coordinates", async () => {
@@ -126,7 +162,7 @@ describe("localized setup wizard", () => {
     )
     expect(bodyPath).toHaveAttribute(
       "d",
-      expect.stringMatching(/^M 24\.425861,122\.12931 52\.341131,98\.285013 53\.504266,237\.27979/),
+      expect.stringMatching(/^M 52\.341131,98\.285013 53\.504266,237\.27979/),
     )
     expect(roofPath).toHaveAttribute("pathLength", "1")
     expect(bodyPath).toHaveAttribute("pathLength", "1")
@@ -156,14 +192,14 @@ describe("localized setup wizard", () => {
 
     const language = await screen.findByRole("combobox", { name: "Language" })
     expect(language).toHaveTextContent("English")
-    expect(await screen.findByRole("heading", { level: 1, name: "Build a home on Earth for an Elfie from Elfaria." })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { level: 1, name: "Build a home on Earth for your Elfie from Elfaria" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Begin" })).toBeInTheDocument()
   })
 
   it("renders the requested Chinese welcome copy when Chinese is detected", async () => {
     renderSetup("zh-CN", statusFor(1))
 
-    expect(await screen.findByRole("heading", { level: 1, name: "为来自 Elfaria 的精灵，在地球上建立一个家" })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { level: 1, name: "为来自 Elfaria 的精灵在地球上建一个家" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "开始" })).toBeInTheDocument()
     expect(screen.getByRole("combobox", { name: "语言" })).toHaveTextContent("简体中文")
   })

@@ -14,7 +14,6 @@
   padding: 80px 24px 40px;
   color: var(--ink);
   background:
-    radial-gradient(circle at 50% 36%, color-mix(in srgb, #45d8ec 13%, transparent) 0 14%, transparent 38%),
     radial-gradient(circle at 50% 58%, color-mix(in srgb, var(--accent-soft) 78%, transparent) 0 18%, transparent 52%),
     linear-gradient(135deg, var(--page-bg), var(--rail-b));
 }
@@ -24,58 +23,63 @@
   justify-items: center;
   align-content: center;
   gap: clamp(18px, 2.5vh, 30px);
-  width: min(900px, 100%);
+  width: min(1280px, 100%);
   min-height: calc(100vh - 120px);
   text-align: center;
+  transform: translateY(-clamp(20px, 5vh, 64px));
 }
 
-.setup-welcome__art { width: min(540px, 62vw, 48vh); }
+.setup-welcome__art { width: min(360px, 40vw, 34vh); }
 .setup-welcome__stage { position: relative; width: 100%; aspect-ratio: 1; isolation: isolate; }
-.setup-welcome__stage::after { position: absolute; z-index: 0; inset: 13% 17% 9%; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, #45d8ec 14%, transparent), transparent 68%); content: ""; pointer-events: none; }
+.setup-welcome__stage::after { position: absolute; z-index: 0; inset: 13% 17% 9%; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, #45d8ec 16%, transparent), transparent 68%); content: ""; opacity: 0; pointer-events: none; animation: setup-welcome-interior-glow 1.05s ease-out 8.35s forwards; }
 .setup-welcome__stage > img, .setup-welcome__svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .setup-welcome__stage > img { object-fit: contain; }
-.setup-welcome__svg { z-index: 2; overflow: visible; opacity: 1; animation: setup-welcome-process-exit .35s ease-out 9.95s forwards; }
+.setup-welcome__svg { z-index: 2; overflow: visible; opacity: 1; animation: setup-welcome-process-exit .35s ease-out 14.6s forwards; }
 .setup-welcome__house-fill { fill: #f47717; opacity: 1; }
 .setup-welcome__house-drawing { fill: none; }
 .setup-welcome__house-path { fill: none; stroke: #fff; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1 1; stroke-dashoffset: 1; }
 .setup-welcome__house-roof-path { stroke-width: 20; animation: setup-welcome-draw 1.48s linear .15s forwards; }
 .setup-welcome__house-phase-block { fill: #000; stroke: none; }
-.setup-welcome__house-body-path { stroke-width: 24; animation: setup-welcome-draw 2.6s linear 1.63s forwards; }
+.setup-welcome__house-body-path { stroke-width: 24; stroke-linecap: butt; animation: setup-welcome-draw 2.6s linear 1.63s forwards; }
 .setup-welcome__house-chimney-block { fill: #000; stroke: none; }
 .setup-welcome__house-chimney-wipe { fill: #fff; stroke: none; transform: scaleY(0); transform-box: fill-box; transform-origin: 50% 100%; animation: setup-welcome-chimney-wipe .72s cubic-bezier(.22, .7, .2, 1) 4.23s forwards; }
 .setup-welcome__house-final-fill { opacity: 0; animation: setup-welcome-house-finalize .08s linear 4.95s forwards; }
-.setup-welcome__radar { fill: #f47717; stroke: none; opacity: 0; transform-box: fill-box; transform-origin: center; animation: setup-welcome-radar-body-in .36s ease-out 5.08s forwards; }
+.setup-welcome__radar { fill: #f47717; stroke: none; opacity: 0; transform-box: fill-box; transform-origin: center; animation: setup-welcome-radar-body-in .36s ease-out 5.45s forwards; }
 .setup-welcome__radar-body-path { fill: #f47717; stroke: none; }
-.setup-welcome__radar-dot { fill: #45d8ec; opacity: 0; transform-box: fill-box; transform-origin: center; animation: setup-welcome-radar-light .4s ease-out 5.45s forwards, setup-welcome-radar-pulse 1.35s ease-in-out 5.8s infinite; }
-.setup-welcome__radar-rings { fill: none; stroke: #45d8ec; stroke-width: 1.65; opacity: 0; transform-box: fill-box; transform-origin: center; animation: setup-welcome-radar-core-ring .55s ease-out 5.62s forwards; }
-.setup-welcome__signal { fill: none; stroke: #45d8ec; stroke-width: 1.65; stroke-linecap: round; opacity: 0; animation: setup-welcome-signal-presence 4s linear 5.38s forwards; }
+.setup-welcome__radar-dot { fill: #45d8ec; opacity: 0; transform-box: fill-box; transform-origin: center; animation: setup-welcome-radar-light .45s ease-out 5.95s forwards, setup-welcome-radar-pulse 1.35s ease-in-out 6.35s infinite; }
+.setup-welcome__radar-rings { fill: none; stroke: #45d8ec; stroke-width: 1.65; opacity: 0; transform-box: fill-box; transform-origin: center; animation: setup-welcome-radar-core-ring .78s ease-out 6.08s forwards; }
+.setup-welcome__signal { fill: none; stroke: #45d8ec; stroke-width: 1.65; stroke-linecap: round; opacity: 0; animation: setup-welcome-signal-presence 4.6s linear 6.12s forwards; }
 .setup-welcome__signal circle { transform-box: fill-box; transform-origin: center; animation: setup-welcome-radar-wave 1.8s ease-out var(--setup-welcome-wave-delay) infinite both; }
-.setup-welcome__signal circle:first-child { --setup-welcome-wave-delay: 5.62s; }
-.setup-welcome__signal circle:nth-child(2) { --setup-welcome-wave-delay: 6.02s; }
-.setup-welcome__signal circle:last-child { --setup-welcome-wave-delay: 6.42s; }
-.setup-welcome__ground-ripples { fill: none; stroke: #45d8ec; stroke-width: 1.85; stroke-linecap: round; opacity: 1; }
-.setup-welcome__ground-ripples ellipse { transform-box: fill-box; transform-origin: center; animation: setup-welcome-ground-ripple 1.65s ease-out var(--setup-welcome-ground-ripple-delay) infinite both; }
-.setup-welcome__ground-ripples ellipse:first-child { --setup-welcome-ground-ripple-delay: 6.55s; }
-.setup-welcome__ground-ripples ellipse:nth-child(2) { --setup-welcome-ground-ripple-delay: 6.85s; }
-.setup-welcome__ground-ripples ellipse:last-child { --setup-welcome-ground-ripple-delay: 7.15s; }
-.setup-welcome__beam { fill: none; stroke: #45d8ec; stroke-linecap: round; stroke-linejoin: round; opacity: 0; animation: setup-welcome-beam-presence 3.5s linear 5.68s forwards; }
-.setup-welcome__beam-glow { stroke-width: 9; opacity: .2; filter: url("#setup-welcome-beam-glow"); stroke-dasharray: 1; stroke-dashoffset: 1; animation: setup-welcome-draw .95s ease-in 5.78s forwards, setup-welcome-beam-pulse 1.7s ease-in-out 6.8s infinite; }
-.setup-welcome__beam-line { stroke-width: 1.06; opacity: .66; stroke-dasharray: 1; stroke-dashoffset: 1; animation: setup-welcome-draw .95s ease-in 5.78s forwards, setup-welcome-beam-pulse 1.7s ease-in-out 6.8s infinite; }
-.setup-welcome__beam-dot { fill: #b8f5ff; stroke: none; opacity: 0; animation: setup-welcome-beam-dot 1.5s ease-in-out 6.6s infinite; }
-.setup-welcome__fox-window { position: absolute; z-index: 3; inset: 0; overflow: hidden; clip-path: polygon(22.65% 37.27%, 50.88% 13.75%, 79.15% 37.46%, 79.05% 85.42%, 22.65% 85.32%); animation: setup-welcome-process-exit .35s ease-out 9.95s forwards; }
-.setup-welcome__fox-figure { position: absolute; inset: 0; opacity: 0; transform: translateY(16%) scale(.12); transform-origin: 50% 86%; filter: drop-shadow(0 0 12px color-mix(in srgb, #45d8ec 30%, transparent)); animation: setup-welcome-fox-enter 2.75s linear 6.7s forwards; }
+.setup-welcome__signal circle:first-child { --setup-welcome-wave-delay: 6.18s; }
+.setup-welcome__signal circle:nth-child(2) { --setup-welcome-wave-delay: 6.62s; }
+.setup-welcome__signal circle:last-child { --setup-welcome-wave-delay: 7.06s; }
+.setup-welcome__ground-ripples { fill: none; stroke: #45d8ec; stroke-width: 1.85; stroke-linecap: round; opacity: 0; animation: setup-welcome-ground-arrival .35s ease-out 8.25s forwards; }
+.setup-welcome__ground-ripples ellipse { transform-box: fill-box; transform-origin: center; animation: setup-welcome-ground-ripple 2.2s ease-out var(--setup-welcome-ground-ripple-delay) infinite both; }
+.setup-welcome__ground-ripples ellipse:first-child { --setup-welcome-ground-ripple-delay: 8.25s; }
+.setup-welcome__ground-ripples ellipse:nth-child(2) { --setup-welcome-ground-ripple-delay: 8.7s; }
+.setup-welcome__ground-ripples ellipse:last-child { --setup-welcome-ground-ripple-delay: 9.15s; }
+.setup-welcome__beam { fill: none; stroke: #45d8ec; stroke-linecap: round; stroke-linejoin: round; opacity: 0; animation: setup-welcome-beam-presence 4.25s linear 7s forwards; }
+.setup-welcome__beam-glow { stroke-width: 9; opacity: .2; filter: url("#setup-welcome-beam-glow"); stroke-dasharray: 1; stroke-dashoffset: 1; animation: setup-welcome-draw 1.15s ease-in 7.1s forwards, setup-welcome-beam-pulse 1.7s ease-in-out 8.3s infinite; }
+.setup-welcome__beam-line { stroke-width: 1.06; opacity: .66; stroke-dasharray: 1; stroke-dashoffset: 1; animation: setup-welcome-draw 1.15s ease-in 7.1s forwards, setup-welcome-beam-pulse 1.7s ease-in-out 8.3s infinite; }
+.setup-welcome__beam-dot { fill: #b8f5ff; stroke: none; opacity: 0; animation: setup-welcome-beam-dot 1.5s ease-in-out 8.05s infinite; }
+.setup-welcome__fox-window { position: absolute; z-index: 3; inset: 0; overflow: hidden; clip-path: polygon(22.65% 37.27%, 50.88% 13.75%, 79.15% 37.46%, 79.05% 85.42%, 22.65% 85.32%); animation: setup-welcome-process-exit .35s ease-out 14.6s forwards; }
+.setup-welcome__fox-figure { position: absolute; inset: 0; opacity: 0; transform: translateY(16%) scale(.12); transform-origin: 50% 86%; filter: drop-shadow(0 0 12px color-mix(in srgb, #45d8ec 30%, transparent)); animation: setup-welcome-fox-enter 3.1s linear 9.65s forwards; }
 .setup-welcome__fox { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
-.setup-welcome__fox-eye-glint { position: absolute; top: 49.2%; left: 47.2%; width: 2.8%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #fff 0 15%, #b8f5ff 32%, transparent 73%); box-shadow: 0 0 9px 3px color-mix(in srgb, #b8f5ff 75%, transparent); opacity: 0; transform: translate(-50%, -50%) scale(.35); animation: setup-welcome-fox-eye-flash .58s ease-out 9.28s both; }
-.setup-welcome__final-logo { z-index: 4; opacity: 0; transform: scale(.94); filter: drop-shadow(0 0 16px color-mix(in srgb, #45d8ec 22%, transparent)); animation: setup-welcome-final-logo .75s cubic-bezier(.2, .75, .2, 1) 9.95s forwards; }
-.setup-welcome__copy { display: grid; justify-items: center; gap: clamp(16px, 2vh, 24px); }
-.setup-welcome__title, .setup-welcome__action { opacity: 0; transform: translateY(10px); }
-.setup-welcome__title { max-width: min(900px, 92vw); margin: 0; color: var(--text); font-size: clamp(30px, 5vw, 54px); line-height: 1.2; text-wrap: balance; animation: setup-welcome-reveal .65s ease-out 10.75s both; }
-.setup-welcome__action { animation: setup-welcome-reveal .55s ease-out 11.32s both; }
+.setup-welcome__fox-eye-glint { position: absolute; top: 49.2%; left: 47.2%; width: 2.8%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #fff 0 15%, #b8f5ff 32%, transparent 73%); box-shadow: 0 0 9px 3px color-mix(in srgb, #b8f5ff 75%, transparent); opacity: 0; transform: translate(-50%, -50%) scale(.35); animation: setup-welcome-fox-eye-flash .78s ease-out 13.08s both; }
+.setup-welcome__final-logo { z-index: 4; opacity: 0; transform: scale(.94); filter: drop-shadow(0 0 16px color-mix(in srgb, #45d8ec 22%, transparent)); animation: setup-welcome-final-logo .85s cubic-bezier(.2, .75, .2, 1) 14.6s forwards; }
+.setup-welcome__copy { display: grid; justify-items: center; gap: clamp(22px, 2.5vh, 30px); width: 100%; }
+.setup-welcome__title { display: inline-flex; max-width: calc(100vw - 48px); margin: 0; color: var(--text); font-size: clamp(30px, 3.9vw, 52px); line-height: 1.15; white-space: nowrap; }
+.setup-welcome__title-char, .setup-welcome__action { opacity: 0; transform: translateY(10px); }
+.setup-welcome__title-char { display: inline-block; animation: setup-welcome-type-char .36s cubic-bezier(.2, .75, .2, 1) both; }
+.setup-welcome__action { min-width: 168px; height: 56px; padding-inline: 28px; font-size: 19px; animation: setup-welcome-reveal .55s ease-out both; }
 
 @keyframes setup-welcome-draw { to { stroke-dashoffset: 0; } }
 @keyframes setup-welcome-chimney-wipe { to { transform: scaleY(1); } }
 @keyframes setup-welcome-house-finalize { to { opacity: 1; } }
 @keyframes setup-welcome-reveal { to { opacity: 1; transform: translateY(0); } }
+@keyframes setup-welcome-type-char { 0% { opacity: 0; transform: translateY(10px); } 100% { opacity: 1; transform: translateY(0); } }
+@keyframes setup-welcome-interior-glow { 0% { opacity: 0; transform: scale(.82); } 55% { opacity: .78; transform: scale(1.04); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes setup-welcome-ground-arrival { to { opacity: 1; } }
 @keyframes setup-welcome-radar-body-in { 0% { opacity: 0; transform: scale(.86); } 70% { opacity: 1; transform: scale(1.04); } 100% { opacity: 1; transform: scale(1); } }
 @keyframes setup-welcome-radar-light { to { opacity: 1; } }
 @keyframes setup-welcome-radar-pulse { 0%, 100% { opacity: .55; transform: scale(.82); } 50% { opacity: 1; transform: scale(1.3); } }
@@ -99,13 +103,16 @@
 @keyframes setup-welcome-final-logo { 0% { opacity: 0; transform: scale(.94); } 35% { opacity: 1; } 100% { opacity: 1; transform: scale(1); } }
 
 @media (prefers-reduced-motion: reduce) {
+  .setup-welcome__stage::after { animation: none; opacity: 1; }
   .setup-welcome__house-path { animation: none; stroke-dashoffset: 0; }
   .setup-welcome__house-chimney-wipe { animation: none; transform: scaleY(1); }
   .setup-welcome__house-final-fill { animation: none; opacity: 1; }
-  .setup-welcome__svg, .setup-welcome__radar, .setup-welcome__radar-rings, .setup-welcome__signal, .setup-welcome__ground-ripples, .setup-welcome__beam, .setup-welcome__fox-window { animation: none; opacity: 0; }
+  .setup-welcome__svg, .setup-welcome__radar, .setup-welcome__radar-rings, .setup-welcome__signal, .setup-welcome__beam, .setup-welcome__fox-window { animation: none; opacity: 0; }
+  .setup-welcome__ground-ripples { animation: none; opacity: 1; }
+  .setup-welcome__ground-ripples ellipse { animation: none; opacity: 1; transform: scale(1); }
   .setup-welcome__fox-figure, .setup-welcome__fox-eye-glint { animation: none; opacity: 0; }
   .setup-welcome__final-logo { animation: none; opacity: 1; transform: none; }
-  .setup-welcome__title, .setup-welcome__action { animation: none; opacity: 1; transform: none; }
+  .setup-welcome__title-char, .setup-welcome__action { animation: none; opacity: 1; transform: none; }
 }
 
 .setup-rail {
@@ -216,7 +223,11 @@
   .setup-card__header { padding-top: 76px; }
   .setup-card { margin: 0 auto; }
   .setup-review-row { align-items: flex-start; }
-  .setup-welcome { min-height: calc(100vh - 80px); }
+  .setup-welcome { min-height: calc(100vh - 80px); transform: translateY(-clamp(10px, 3vh, 28px)); }
+  .setup-welcome__art { width: min(320px, 68vw, 34vh); }
+  .setup-welcome__title { max-width: 92vw; font-size: clamp(28px, 7vw, 42px); text-wrap: balance; white-space: normal; }
+  .setup-welcome__title-char { white-space: pre; }
+  .setup-welcome__action { min-width: 152px; }
 }
 
 @media (max-width: 480px) {

@@ -60,7 +60,7 @@ export const setup = {
   progress: { stepCount: "Step {{current}} of {{total}}" },
   welcome: {
     action: "Begin",
-    title: "Build a home on Earth for an Elfie from Elfaria.",
+    title: "Build a home on Earth for your Elfie from Elfaria",
   },
   rail: {
     brand: "Setup wizard",
