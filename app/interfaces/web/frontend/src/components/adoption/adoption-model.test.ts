@@ -20,12 +20,34 @@ describe("adoption journey model", () => {
     const withCandidates = adoptionReducer(INITIAL_ADOPTION_STATE, {
       type: "candidates-ready",
       setId: "set-1",
+      batch: 1,
       candidates: [],
     })
     const changed = adoptionReducer(withCandidates, { type: "set-answer", index: 0, value: "quiet" })
 
     expect(changed.candidateSetId).toBeNull()
     expect(changed.candidates).toEqual([])
+    expect(changed.candidateBatch).toBe(0)
+  })
+
+  it("records the candidate batch and replaces the previous selection", () => {
+    const first = adoptionReducer(INITIAL_ADOPTION_STATE, {
+      type: "candidates-ready",
+      setId: "set-1",
+      batch: 1,
+      candidates: [],
+    })
+    const selected = adoptionReducer(first, { type: "toggle-candidate", candidateId: "candidate-1" })
+    const second = adoptionReducer(selected, {
+      type: "candidates-ready",
+      setId: "set-2",
+      batch: 2,
+      candidates: [],
+    })
+
+    expect(second.candidateBatch).toBe(2)
+    expect(second.candidateSetId).toBe("set-2")
+    expect(second.selectedCandidateIds).toEqual([])
   })
 
   it("requires one species and all five answers before generation", () => {

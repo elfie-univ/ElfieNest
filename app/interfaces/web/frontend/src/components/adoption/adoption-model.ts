@@ -82,6 +82,7 @@ export type AdoptionDraftState = {
   readonly draft: AdoptionDraft
   readonly questionIndex: number
   readonly candidates: readonly Candidate[]
+  readonly candidateBatch: number
   readonly selectedCandidateIds: readonly string[]
   readonly replies: readonly CandidateReply[]
   readonly finalCandidateId: string | null
@@ -91,6 +92,8 @@ export type AdoptionDraftState = {
   readonly error: string | null
   readonly dirty: boolean
 }
+
+export const MAX_CANDIDATE_BATCHES = 3 as const
 
 export const DEFAULT_DRAFT: AdoptionDraft = {
   speciesId: null,
@@ -109,6 +112,7 @@ export const INITIAL_ADOPTION_STATE: AdoptionDraftState = {
   draft: DEFAULT_DRAFT,
   questionIndex: 0,
   candidates: [],
+  candidateBatch: 0,
   selectedCandidateIds: [],
   replies: [],
   finalCandidateId: null,
@@ -125,7 +129,7 @@ export type AdoptionAction =
   | { readonly type: "set-appearance"; readonly field: "stature" | "build" | "face" | "signature" | "priority"; readonly value: AppearanceChoice | BuildChoice | FaceChoice | SignatureChoice | AppearancePriority }
   | { readonly type: "set-answer"; readonly index: number; readonly value: CompanionAnswer }
   | { readonly type: "question"; readonly index: number }
-  | { readonly type: "candidates-ready"; readonly setId: string; readonly candidates: readonly Candidate[] }
+  | { readonly type: "candidates-ready"; readonly setId: string; readonly batch: number; readonly candidates: readonly Candidate[] }
   | { readonly type: "toggle-candidate"; readonly candidateId: string }
   | { readonly type: "replies-ready"; readonly replies: readonly CandidateReply[] }
   | { readonly type: "select-final"; readonly candidateId: string }
@@ -151,24 +155,24 @@ export function adoptionReducer(state: AdoptionDraftState, action: AdoptionActio
         draft,
         dirty: true,
         error: null,
-        ...(intentChanged ? { candidates: [], selectedCandidateIds: [], replies: [], finalCandidateId: null, candidateSetId: null } : {}),
+        ...(intentChanged ? { candidates: [], candidateBatch: 0, selectedCandidateIds: [], replies: [], finalCandidateId: null, candidateSetId: null } : {}),
       }
     }
     case "set-appearance": {
       const field = action.field
       if (!isAppearanceField(action)) return state
       const draft = { ...state.draft, [field]: action.value } as AdoptionDraft
-      return { ...state, draft, dirty: true, candidates: [], selectedCandidateIds: [], replies: [], finalCandidateId: null, candidateSetId: null, error: null }
+      return { ...state, draft, dirty: true, candidates: [], candidateBatch: 0, selectedCandidateIds: [], replies: [], finalCandidateId: null, candidateSetId: null, error: null }
     }
     case "set-answer": {
       const answers = [...state.draft.answers]
       answers[action.index] = action.value
-      return { ...state, draft: { ...state.draft, answers }, dirty: true, candidates: [], selectedCandidateIds: [], replies: [], finalCandidateId: null, candidateSetId: null, error: null }
+      return { ...state, draft: { ...state.draft, answers }, dirty: true, candidates: [], candidateBatch: 0, selectedCandidateIds: [], replies: [], finalCandidateId: null, candidateSetId: null, error: null }
     }
     case "question":
       return { ...state, questionIndex: Math.max(0, Math.min(4, action.index)), error: null }
     case "candidates-ready":
-      return { ...state, screen: "shortlist", candidateSetId: action.setId, candidates: action.candidates, selectedCandidateIds: [], replies: [], finalCandidateId: null, error: null, dirty: true }
+      return { ...state, screen: "shortlist", candidateSetId: action.setId, candidates: action.candidates, candidateBatch: action.batch, selectedCandidateIds: [], replies: [], finalCandidateId: null, error: null, dirty: true }
     case "toggle-candidate": {
       const selected = state.selectedCandidateIds.includes(action.candidateId)
         ? state.selectedCandidateIds.filter((id) => id !== action.candidateId)
