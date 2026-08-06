@@ -58,6 +58,10 @@ export const setup = {
     submitting: "正在保存…",
   },
   progress: { stepCount: "第 {{current}} 步，共 {{total}} 步" },
+  welcome: {
+    action: "开始",
+    title: "为来自 Elfaria 的精灵，在地球上建立一个家",
+  },
   rail: {
     brand: "初始化向导",
     current: "进行中",

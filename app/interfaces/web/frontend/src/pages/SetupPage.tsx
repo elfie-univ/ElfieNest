@@ -21,6 +21,7 @@ import { TextField } from "../components/TextField"
 import { localizeApiError, type ErrorOperation } from "../i18n/errors"
 import { currentLocale } from "../i18n/format"
 import { SetupInstall, SetupReview } from "./SetupPageSections"
+import { SetupWelcome } from "./SetupWelcome"
 
 type SetupStepNumber = 1 | 2 | 3 | 4
 type SetupError =
@@ -32,6 +33,10 @@ const setupFullLogoUrl = new URL("../../../../../../docs/public/assets/elfienest
 
 function normalizeStep(value: number): SetupStepNumber {
   return value === 1 || value === 2 || value === 3 ? value : 4
+}
+
+function isFreshSetup(status: SetupStatus): boolean {
+  return status.need_setup && !status.locked && status.current_step === 1 && !status.draft.owner_configured && status.draft.owner_account_id === null
 }
 
 function setupError(
@@ -57,6 +62,7 @@ export function SetupPage() {
   const [csrfToken, setCsrfToken] = useState("")
   const [error, setError] = useState<SetupError | null>(null)
   const [saving, setSaving] = useState(false)
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false)
   const bedCountIsInvalid = !Number.isInteger(bedCount) || bedCount < 4 || bedCount > 32
 
   const applyStatus = (status: SetupStatus): void => {
@@ -177,6 +183,7 @@ export function SetupPage() {
   const draft = progress?.draft
   const install = progress?.install
   const isInstalling = progress?.locked === true
+  const showWelcome = progress !== null && isFreshSetup(progress) && !welcomeDismissed
   const model = catalog.find((option) => option.model_id === (draft?.model_id ?? modelId))
   const ollamaInstalled = draft?.ollama_installed === true
   const ollamaStatus = ollamaInstalled ? t("offline.installed") : t("offline.notInstalled")
@@ -186,6 +193,13 @@ export function SetupPage() {
     3: { label: "steps.nest.label", title: "steps.nest.title" },
     4: { label: "steps.review.label", title: "steps.review.title" },
   } as const
+
+  if (showWelcome) {
+    return <main className="setup-welcome-page">
+      <section aria-label={commonT("language.label")} className="setup-locale-control"><LanguageSwitcher variant="compact" /></section>
+      <SetupWelcome action={t("welcome.action")} onContinue={() => setWelcomeDismissed(true)} title={t("welcome.title")} />
+    </main>
+  }
 
   return <main className="setup-page">
     <aside className="setup-rail">

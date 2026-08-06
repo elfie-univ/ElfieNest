@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import { describe, expect, it } from "vitest"
 
@@ -18,11 +19,15 @@ describe("auth and adoption field rows", () => {
     expect(screen.getAllByLabelText("密码").some((node) => node.tagName === "INPUT")).toBe(true)
   })
 
-  it("keeps setup true fields as rows while the fallback confirmation remains checkbox copy", () => {
+  it("keeps setup true fields as rows while the fallback confirmation remains checkbox copy", async () => {
+    const user = userEvent.setup()
     render(<SetupPage />)
 
-    expect(screen.getByLabelText("管理员账号")).toBeInTheDocument()
-    expect(screen.getByLabelText("密码")).toBeInTheDocument()
+    const welcome = screen.queryByRole("button", { name: "开始" })
+    if (welcome) await user.click(welcome)
+
+    expect((await screen.findAllByLabelText("超级管理员账号")).some((node) => node.tagName === "INPUT")).toBe(true)
+    expect(screen.getAllByLabelText("密码").some((node) => node.tagName === "INPUT")).toBe(true)
   })
 
 })

@@ -84,18 +84,94 @@ describe("localized setup wizard", () => {
     vi.restoreAllMocks()
   })
 
-  it("renders exactly four English configuration steps", async () => {
+  it("renders the English welcome page before the configuration steps", async () => {
     renderSetup("en-US", statusFor(1))
+    expect(await screen.findByRole("heading", { level: 1, name: "Build a home on Earth for an Elfie from Elfaria." })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Begin" })).toBeInTheDocument()
+    expect(screen.getByTestId("setup-welcome-art")).toBeInTheDocument()
+    expect(screen.getByTestId("setup-welcome-house-drawing")).toBeInTheDocument()
+    expect(screen.getByTestId("setup-welcome-radar")).toBeInTheDocument()
+    expect(screen.getByTestId("setup-welcome-radar").querySelector(".setup-welcome__radar-body-path")).toBeInTheDocument()
+    expect(screen.getByTestId("setup-welcome-radar-rings")).toBeInTheDocument()
+    const signal = screen.getByTestId("setup-welcome-signal")
+    expect(signal.querySelectorAll("circle")).toHaveLength(3)
+    expect(signal.querySelector("circle")).toHaveAttribute("cx", "208.4")
+    expect(signal.querySelector("circle")).toHaveAttribute("cy", "37.4")
+    expect(screen.getByTestId("setup-welcome-ground-ripples")).toBeInTheDocument()
+    expect(screen.getByTestId("setup-welcome-beam")).toBeInTheDocument()
+    expect(screen.getByTestId("setup-welcome-fox")).toHaveAttribute("src", expect.stringContaining("elfienest-fox-transparent.png"))
+    expect(screen.getByTestId("setup-welcome-fox-eye-glint")).toBeInTheDocument()
+    expect(screen.getByTestId("setup-welcome-final-logo")).toHaveAttribute("src", expect.stringContaining("elfienest-logo-mark-transparent.png"))
+    expect(screen.queryByText("Create Owner account")).not.toBeInTheDocument()
+  })
+
+  it("keeps the supplied house geometry in its native SVG coordinates", async () => {
+    renderSetup("en-US", statusFor(1))
+
+    const drawing = await screen.findByTestId("setup-welcome-house-drawing")
+    const svg = drawing.closest("svg")
+    const fill = screen.getByTestId("setup-welcome-house-fill")
+    const roofPath = screen.getByTestId("setup-welcome-house-roof-path")
+    const bodyPath = screen.getByTestId("setup-welcome-house-body-path")
+    const chimneyBlock = screen.getByTestId("setup-welcome-house-chimney-block")
+    const chimneyWipe = screen.getByTestId("setup-welcome-house-chimney-wipe")
+    const finalFill = screen.getByTestId("setup-welcome-house-final-fill")
+
+    expect(svg).toHaveAttribute("viewBox", "0 0 270.93332 270.93332")
+    expect(drawing.querySelectorAll(".setup-welcome__house-path")).toHaveLength(2)
+    expect(drawing.querySelectorAll(".setup-welcome__house-phase-block")).toHaveLength(3)
+    expect(roofPath).toHaveAttribute(
+      "d",
+      expect.stringMatching(/^M 247\.74802,119\.80303 136\.08694,27\.333702 24\.425861,122\.12931/),
+    )
+    expect(bodyPath).toHaveAttribute(
+      "d",
+      expect.stringMatching(/^M 24\.425861,122\.12931 52\.341131,98\.285013 53\.504266,237\.27979/),
+    )
+    expect(roofPath).toHaveAttribute("pathLength", "1")
+    expect(bodyPath).toHaveAttribute("pathLength", "1")
+    expect(chimneyBlock).toHaveAttribute("d", expect.stringContaining("192.67816 51.229431"))
+    expect(chimneyWipe.tagName.toLowerCase()).toBe("rect")
+    expect(finalFill).toHaveAttribute("d", fill.getAttribute("d"))
+    expect(finalFill).not.toHaveAttribute("mask")
+    expect(fill).not.toHaveAttribute("transform")
+  })
+
+  it("reveals exactly four English configuration steps after the welcome action", async () => {
+    const user = userEvent.setup()
+    renderSetup("en-US", statusFor(1))
+    await user.click(await screen.findByRole("button", { name: "Begin" }))
+
     expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent("Create the Owner first")
     for (const label of ["Create Owner account", "Local offline support (optional)", "Nest beds", "Review and install"]) {
       expect(screen.getByText(label)).toBeInTheDocument()
     }
+    expect(screen.queryByTestId("setup-welcome-art")).not.toBeInTheDocument()
     expect(screen.queryByText("Model and food")).not.toBeInTheDocument()
     expect(screen.queryByText("Create the single Owner account. You can change its password in this step.", { exact: true })).not.toBeInTheDocument()
   })
 
-  it("uses the full transparent logo as the setup rail brand", async () => {
+  it("keeps the welcome page in the detected English locale before setup starts", async () => {
     renderSetup("en-US", statusFor(1))
+
+    const language = await screen.findByRole("combobox", { name: "Language" })
+    expect(language).toHaveTextContent("English")
+    expect(await screen.findByRole("heading", { level: 1, name: "Build a home on Earth for an Elfie from Elfaria." })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Begin" })).toBeInTheDocument()
+  })
+
+  it("renders the requested Chinese welcome copy when Chinese is detected", async () => {
+    renderSetup("zh-CN", statusFor(1))
+
+    expect(await screen.findByRole("heading", { level: 1, name: "为来自 Elfaria 的精灵，在地球上建立一个家" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "开始" })).toBeInTheDocument()
+    expect(screen.getByRole("combobox", { name: "语言" })).toHaveTextContent("简体中文")
+  })
+
+  it("uses the full transparent logo as the setup rail brand", async () => {
+    const user = userEvent.setup()
+    renderSetup("en-US", statusFor(1))
+    await user.click(await screen.findByRole("button", { name: "Begin" }))
 
     const logo = await screen.findByRole("img", { name: "ELFIE NEST" })
     expect(logo).toHaveAttribute(
@@ -110,6 +186,7 @@ describe("localized setup wizard", () => {
     const save = vi.spyOn(client, "setupSaveOwnerDraft").mockResolvedValue(statusFor(2))
     const legacy = vi.spyOn(client, "setup").mockRejectedValue(new Error("legacy endpoint must not run"))
     renderSetup("en-US", statusFor(1))
+    await user.click(await screen.findByRole("button", { name: "Begin" }))
     await user.type(await screen.findByRole("textbox", { name: "Owner account" }), "owner")
     await user.type(screen.getByRole("textbox", { name: "Display name" }), "Owner")
     await user.type(within(screen.getByRole("group", { name: "Password" })).getByLabelText("Password"), "secret-pass")
@@ -175,7 +252,9 @@ describe("localized setup wizard", () => {
   })
 
   it("uses compact horizontal rows for the Owner form", async () => {
+    const user = userEvent.setup()
     renderSetup("en-US", statusFor(1))
+    await user.click(await screen.findByRole("button", { name: "Begin" }))
 
     // Then: the four Owner fields share the compact form layout contract.
     expect((await screen.findByRole("textbox", { name: "Owner account" })).closest("form")).toHaveClass("setup-form--owner")

@@ -58,6 +58,10 @@ export const setup = {
     submitting: "Saving…",
   },
   progress: { stepCount: "Step {{current}} of {{total}}" },
+  welcome: {
+    action: "Begin",
+    title: "Build a home on Earth for an Elfie from Elfaria.",
+  },
   rail: {
     brand: "Setup wizard",
     current: "In progress",
