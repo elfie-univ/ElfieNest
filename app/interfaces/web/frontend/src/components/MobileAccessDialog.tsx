@@ -7,6 +7,7 @@ import { mobileAccess, type MobileAccess } from "../api/client"
 import { localizeApiError } from "../i18n/errors"
 import { currentLocale } from "../i18n/format"
 import { Icon } from "./Icon"
+import { Notice } from "./Notice"
 import { SelectField } from "./SelectField"
 
 type MobileAccessDialogProps = { readonly onClose: () => void; readonly targetPath?: "/chat" | "/manage" }
@@ -67,7 +68,7 @@ export function MobileAccessDialog({ onClose, targetPath = "/chat" }: MobileAcce
       <Button aria-label={t("mobileAccess.close")} className="modal-close" onClick={onClose} size="icon" type="button" variant="ghost"><Icon name="x" /></Button>
       <p className="brand">{t("mobileAccess.brand")}</p>
       <h2 id="mobile-access-title">{t("mobileAccess.title")}</h2>
-      {error ? <p className="notice notice--error">{error.kind === "qr" ? t("mobileAccess.qrError") : localizeApiError(error.reason, "manage.load", currentLocale(i18n))}</p> : null}
+      {error ? <Notice kind="error" message={error.kind === "qr" ? t("mobileAccess.qrError") : localizeApiError(error.reason, "manage.load", currentLocale(i18n))} /> : null}
       {access === null && error === null ? <p>{t("mobileAccess.loading")}</p> : null}
       {unavailable ? <p className="mobile-access-dialog__hint">{t("mobileAccess.unavailable")} <code>elfienest start --lan</code></p> : null}
       {access?.available && selectedUrl ? <>

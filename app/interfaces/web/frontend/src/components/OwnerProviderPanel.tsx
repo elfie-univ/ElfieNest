@@ -31,6 +31,7 @@ import { ProviderLifecycleMenu, type ProviderLifecycleAction } from "./ProviderL
 import { ProviderModelsDialog } from "./ProviderModelsDialog"
 import { RefreshButton } from "./RefreshButton"
 import { SelectField } from "./SelectField"
+import { useToast } from "./ui/toast"
 
 type EditTarget = {
   readonly connection: ProviderConnection | null
@@ -62,6 +63,7 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
   const [pending, setPending] = useState<string | null>(null)
   const [error, setError] = useState<LocalizedErrorState>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const { show } = useToast()
 
   const load = async (): Promise<void> => {
     try {
@@ -101,18 +103,17 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
       const result = editing.connection
         ? await updateProviderConnection(editing.connection.connection_id, draft, csrfToken)
         : await createProviderConnection({ catalog_id: editing.product.catalog_id, ...draft }, csrfToken)
-      setNotice(result.model_refresh?.message ?? t("providerConnections.notices.saved", { name: result.alias }))
+      show({ kind: "success", message: result.model_refresh?.message ?? t("providerConnections.notices.saved", { name: result.alias }) })
       setEditing(null)
       await load()
     } catch (reason: unknown) {
-      setError(describeApiError(reason, "manage.save"))
       throw reason
     }
   }
 
   const saveCustom = async (draft: ProviderConnectionDraft): Promise<void> => {
     const result = await createProviderConnection(draft, csrfToken)
-    setNotice(result.model_refresh?.message ?? t("providerConnections.notices.added", { name: result.alias }))
+    show({ kind: "success", message: result.model_refresh?.message ?? t("providerConnections.notices.added", { name: result.alias }) })
     setCreatingCustom(false)
     await load()
   }
@@ -121,7 +122,7 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
     setPending(`verify:${connection.connection_id}`)
     try {
       await verifyProviderConnection(connection.connection_id, csrfToken)
-      setNotice(t("providerConnections.notices.validated", { name: connection.alias }))
+      show({ kind: "success", message: t("providerConnections.notices.validated", { name: connection.alias }) })
       await load()
     } catch (reason: unknown) {
       setError(describeApiError(reason, "manage.save"))
@@ -248,9 +249,7 @@ function ConfiguredConnectionCard({ busy, connection, onDelete, onEdit, onForceF
   const failedCount = activeModels.filter((model) => model.verification.status === "failed").length
   const health = enabledCount === 0
     ? "never"
-    : connection.verification.needs_full_validation
-      ? verifiedCount > 0 ? "partial" : "never"
-      : verifiedCount === enabledCount
+    : verifiedCount === enabledCount
       ? "passed"
       : verifiedCount > 0
         ? "partial"

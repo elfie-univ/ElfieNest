@@ -6,6 +6,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import { saveProviderModels, updateProviderModel, type ProviderConnection } from "../api/owner-providers"
 import { createI18n } from "../i18n/config"
 import { ProviderModelsDialog } from "./ProviderModelsDialog"
+import { ToastProvider } from "./ui/toast"
 
 vi.mock("../api/owner-providers", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/owner-providers")>()
@@ -76,6 +77,19 @@ describe("ProviderModelsDialog", () => {
   beforeEach(() => {
     vi.mocked(saveProviderModels).mockResolvedValue(connection)
     vi.mocked(updateProviderModel).mockResolvedValue(connection.models[0]!)
+  })
+
+  it("keeps every model toolbar action visibly filled", () => {
+    renderDialog()
+
+    const dialog = screen.getByRole("dialog", { name: "OpenAI Main 的模型" })
+    const toolbar = dialog.querySelector<HTMLElement>(".provider-models-toolbar")
+    expect(toolbar).not.toBeNull()
+    if (!toolbar) return
+
+    for (const label of ["重新读取模型", "手工添加模型", "编辑全部"]) {
+      expect(within(toolbar).getByRole("button", { name: label })).toHaveAttribute("data-variant", "default")
+    }
   })
 
   it("keeps capability symbols compact in read and edit states", async () => {
@@ -166,7 +180,7 @@ function renderDialog(): void {
   document.documentElement.lang = "zh-CN"
   render(
     <I18nextProvider i18n={i18n}>
-      <ProviderModelsDialog connection={connection} csrfToken="csrf" onChanged={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open />
+      <ToastProvider><ProviderModelsDialog connection={connection} csrfToken="csrf" onChanged={vi.fn(async () => undefined)} onOpenChange={vi.fn()} open /></ToastProvider>
     </I18nextProvider>,
   )
 }

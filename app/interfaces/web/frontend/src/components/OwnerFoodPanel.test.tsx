@@ -16,10 +16,12 @@ import {
 } from "../api/owner-foods"
 import { ownerProviderConnections, type ProviderConnection } from "../api/owner-providers"
 import { ownerUsers, type OwnerUser } from "../api/owner-users"
+import { ownerOllamaStatus, type OllamaStatus } from "../api/owner-ollama"
 import { ApiError } from "../api/http"
 import { createI18n } from "../i18n/config"
 import type { SupportedLocale } from "../i18n/locale"
 import { OwnerFoodPanel } from "./OwnerFoodPanel"
+import { ToastProvider } from "./ui/toast"
 
 vi.mock("../api/owner-foods", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/owner-foods")>()
@@ -32,6 +34,10 @@ vi.mock("../api/owner-providers", async (loadOriginal) => {
 vi.mock("../api/owner-users", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/owner-users")>()
   return { ...original, ownerUsers: vi.fn() }
+})
+vi.mock("../api/owner-ollama", async (loadOriginal) => {
+  const original = await loadOriginal<typeof import("../api/owner-ollama")>()
+  return { ...original, ownerOllamaStatus: vi.fn() }
 })
 
 const food = {
@@ -103,6 +109,20 @@ const members = [
   avatar_url: null,
 })) as OwnerUser[]
 
+const healthyOllama = {
+  state: "healthy",
+  endpoint: "http://127.0.0.1:11434",
+  version: "0.1.0",
+  memory_gb: 8,
+  recommended_model: null,
+  installed_model_count: 2,
+  models: [
+    { id: "qwen", display_name: "Qwen 0.5B", installed: true, recommended: false },
+    { id: "deepseek", display_name: "DeepSeek", installed: true, recommended: false },
+  ],
+  task: null,
+} satisfies OllamaStatus
+
 describe("OwnerFoodPanel final list behavior", () => {
   beforeAll(() => {
     Element.prototype.hasPointerCapture = vi.fn(() => false)
@@ -115,6 +135,7 @@ describe("OwnerFoodPanel final list behavior", () => {
     vi.mocked(ownerFoods).mockResolvedValue(catalog)
     vi.mocked(ownerProviderConnections).mockResolvedValue([connection])
     vi.mocked(ownerUsers).mockResolvedValue([])
+    vi.mocked(ownerOllamaStatus).mockResolvedValue(healthyOllama)
     vi.mocked(editFood).mockResolvedValue({ food, warnings: [] })
     vi.mocked(changeFoodLifecycle).mockResolvedValue(food)
     vi.mocked(deleteFood).mockResolvedValue(catalog)
@@ -156,6 +177,7 @@ describe("OwnerFoodPanel final list behavior", () => {
     await user.click(await screen.findByRole("button", { name: "操作" }))
     await user.click(screen.getByRole("menuitem", { name: "自动更新" }))
     const dialog = screen.getByRole("dialog", { name: "自动更新 标准粮" })
+    expect(within(dialog).queryByText("粮食名称")).not.toBeInTheDocument()
     await user.click(within(dialog).getByRole("button", { name: "生成预览" }))
     expect(await within(dialog).findByText("候选差异")).toBeInTheDocument()
     expect(within(dialog).getAllByText(/Local Ollama \/ Qwen 0\.5B/).length).toBeGreaterThan(0)
@@ -163,6 +185,22 @@ describe("OwnerFoodPanel final list behavior", () => {
     expect(editFood).not.toHaveBeenCalled()
     await user.click(within(dialog).getByRole("button", { name: "应用更新" }))
     expect(editFood).toHaveBeenCalledWith("standard", expect.objectContaining({ display_name: "标准粮", visibility_mode: "global", visible_user_ids: [] }), "csrf")
+  })
+
+  it("allows a custom food name to be edited during an update", async () => {
+    const user = userEvent.setup()
+    const customFood = { ...food, display_name: "自定义粮", system_role: null, visibility_mode: "global" as const, visible_user_ids: [] }
+    vi.mocked(ownerFoods).mockResolvedValue({ ...catalog, packages: [customFood] })
+    renderPanel()
+    await user.click(await screen.findByRole("button", { name: "操作" }))
+    await user.click(screen.getByRole("menuitem", { name: "自动更新" }))
+    const dialog = screen.getByRole("dialog", { name: "自动更新 自定义粮" })
+    const nameField = within(dialog).getByRole("textbox", { name: "粮食名称" })
+    await user.clear(nameField)
+    await user.type(nameField, "新自定义粮")
+    await user.click(within(dialog).getByRole("button", { name: "生成预览" }))
+    await user.click(within(dialog).getByRole("button", { name: "应用更新" }))
+    expect(editFood).toHaveBeenCalledWith("standard", expect.objectContaining({ display_name: "新自定义粮" }), "csrf")
   })
 
   it("keeps lifecycle actions inside the operation menu", async () => {
@@ -267,6 +305,6 @@ function renderPanel(locale: SupportedLocale = "zh-CN"): ReturnType<typeof creat
   const instance = createI18n()
   void instance.changeLanguage(locale)
   document.documentElement.lang = locale
-  render(<I18nextProvider i18n={instance}><OwnerFoodPanel csrfToken="csrf" /></I18nextProvider>)
+  render(<I18nextProvider i18n={instance}><ToastProvider><OwnerFoodPanel csrfToken="csrf" /></ToastProvider></I18nextProvider>)
   return instance
 }

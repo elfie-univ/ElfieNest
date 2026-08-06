@@ -15,6 +15,7 @@ import { ElfieIdentityCard } from "./ElfieIdentityCard"
 import { Notice } from "./Notice"
 import { RefreshButton } from "./RefreshButton"
 import { SelectField } from "./SelectField"
+import { useToast } from "./ui/toast"
 
 const ALL_USERS = "all-users"
 const ALL_SPECIES = "all-species"
@@ -67,7 +68,7 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
   const [elfies, setElfies] = useState<readonly OwnerElfie[]>([])
   const [selection, setSelection] = useState<FilterSelection>(INITIAL_SELECTION)
   const [error, setError] = useState<LocalizedErrorState>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const { show } = useToast()
   const loadSequence = useRef(0)
 
   const load = async (nextSelection: FilterSelection): Promise<void> => {
@@ -77,7 +78,6 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
     setAllElfies(null)
     setElfies([])
     setError(null)
-    setNotice(null)
     onCountChange(0)
     try {
       const filters = toApiFilters(nextSelection)
@@ -94,7 +94,6 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
       setElfies(loadedElfies)
       onCountChange(loadedAll.length)
       setError(null)
-      setNotice(null)
     } catch (reason: unknown) {
       if (sequence !== loadSequence.current) return
       if (!(reason instanceof Error)) throw reason
@@ -198,7 +197,6 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
       />
     </div>
     {error ? <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("errors.save")} /> : null}
-    {notice ? <Notice message={notice} /> : null}
     <div className="elfie-id-grid">
       {loading ? <p className="empty">{t("rawData.loading")}</p> : null}
       {!loading && error === null && orderedElfies.length === 0 ? <p className="empty">{t("elfies.empty")}</p> : null}
@@ -208,7 +206,7 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
           key={elfie.elfie_id}
           onError={setError}
           onSaved={async () => {
-            setNotice(t("elfies.notices.foodSaved", { name: elfie.profile.name }))
+            show({ kind: "success", message: t("elfies.notices.foodSaved", { name: elfie.profile.name }) })
             await reloadElfies()
           }}
         />) : null}

@@ -14,6 +14,7 @@ import { Notice } from "./Notice"
 import { NumberField } from "./NumberField"
 import { ObservationMonitor } from "./ObservationMonitor"
 import { RefreshButton } from "./RefreshButton"
+import { useToast } from "./ui/toast"
 
 export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
   const { i18n, t } = useTranslation("manage")
@@ -25,7 +26,7 @@ export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
   const [confirmBeds, setConfirmBeds] = useState(false)
   const [savingBeds, setSavingBeds] = useState(false)
   const [error, setError] = useState<LocalizedErrorState>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const { show } = useToast()
   const loadSequence = useRef(0)
   const load = async (): Promise<void> => {
     const sequence = loadSequence.current + 1
@@ -34,7 +35,6 @@ export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
     setElfies(null)
     setBedCount(0)
     setError(null)
-    setNotice(null)
     try {
       const [nextRooms, nextElfies] = await Promise.all([ownerRooms(), ownerElfies()])
       if (sequence !== loadSequence.current) return
@@ -65,7 +65,7 @@ export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
     setSavingBeds(true)
     try {
       await ownerUpdateBedCount(bedCount, csrfToken)
-      setNotice(t("nest.notices.layoutSaved"))
+      show({ kind: "success", message: t("nest.notices.layoutSaved") })
       setConfirmBeds(false)
       await load()
     } catch (reason: unknown) {
@@ -77,7 +77,7 @@ export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
   const assignBed = async (elfieId: string, anchorId: string | null): Promise<boolean> => {
     try {
       await ownerAssignBed(elfieId, anchorId, csrfToken)
-      setNotice(anchorId ? t("nest.notices.assigned") : t("nest.notices.cleared"))
+      show({ kind: "success", message: t(anchorId ? "nest.notices.assigned" : "nest.notices.cleared") })
       await load()
       return true
     } catch (reason: unknown) {
@@ -92,7 +92,7 @@ export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
   const beds = room?.beds ?? []
   return <section className="nest-console">
     <div className="manage-head"><RefreshButton label={t("nest.refresh")} onClick={() => { void load() }} /></div>
-    {error ? <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("errors.save")} /> : null}{notice ? <Notice message={notice} /> : null}
+    {error ? <Notice kind="error" message={resolveLocalizedError(error, locale) ?? t("errors.save")} /> : null}
     {loading ? <p className="empty">{t("rawData.loading")}</p> : null}
     {!loading && error === null && room === undefined ? <p className="empty">{t("nest.assignment.empty")}</p> : null}
     {!loading && room ? <div className="nest-console__layout">

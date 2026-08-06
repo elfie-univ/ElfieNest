@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useReducer, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { RadioGroup } from "radix-ui"
 
 import {
   adoptionCandidates,
@@ -13,18 +12,23 @@ import {
 } from "../../api/client"
 import { describeApiError, resolveLocalizedError, type LocalizedErrorState } from "../../i18n/errors"
 import { currentLocale } from "../../i18n/format"
+import { ConfirmDialog } from "../ConfirmDialog"
 import { Button } from "../ui/button"
+import { Checkbox } from "../ui/checkbox"
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog"
-import { Input } from "../ui/input"
 import { Icon } from "../Icon"
+import dogAvatar from "../../assets/adoption/dog.svg"
+import elfariaArrivalImage from "../../assets/adoption/elfaria-arrival-square.png"
+import foxAvatar from "../../assets/adoption/fox.svg"
 import {
   DEFAULT_DRAFT,
   INITIAL_ADOPTION_STATE,
+  MAX_CANDIDATE_BATCHES,
   adoptionReducer,
   intentComplete,
   selectedName,
@@ -40,10 +44,10 @@ import {
   type FaceChoice,
   type GenderPreference,
   type LifeStage,
-  type NameMode,
   type SignatureChoice,
   type SpeciesId,
 } from "./adoption-model"
+import { NamingScreen, RepliesScreen } from "./AdoptionReplyScreens"
 
 type AdoptionJourneyDialogProps = {
   readonly accountId: string
@@ -57,6 +61,7 @@ type JourneyT = (key: string, options?: Record<string, unknown>) => string
 
 const LIFE_STAGES: readonly LifeStage[] = ["youth", "young_adult", "mature", "elder", "any"]
 const SPECIES: readonly SpeciesId[] = ["fox", "dog"]
+const SPECIES_IMAGES: Readonly<Record<SpeciesId, string>> = { fox: foxAvatar, dog: dogAvatar }
 const GENDERS: readonly GenderPreference[] = ["male", "female", "any"]
 const APPEARANCE_GROUPS = ["stature", "build", "face", "signature"] as const
 const COMPANIONSHIP_OPTIONS: readonly (readonly CompanionAnswer[])[] = [
@@ -89,17 +94,17 @@ function draftStorageKey(accountId: string): string {
   return `elfienest.adoption-draft.${accountId}.v1`
 }
 
-function hasSeenWelcome(accountId: string): boolean {
+function hasSkippedWelcome(accountId: string): boolean {
   try {
-    return window.localStorage.getItem(welcomeStorageKey(accountId)) === "seen"
+    return window.localStorage.getItem(welcomeStorageKey(accountId)) === "skipped"
   } catch {
     return false
   }
 }
 
-function markWelcomeSeen(accountId: string): void {
+function markWelcomeSkipped(accountId: string): void {
   try {
-    window.localStorage.setItem(welcomeStorageKey(accountId), "seen")
+    window.localStorage.setItem(welcomeStorageKey(accountId), "skipped")
   } catch {
     // Storage can be disabled; the flow remains usable and will show the welcome again.
   }
@@ -153,6 +158,14 @@ function asCandidate(candidate: AdoptionCandidate): Candidate {
 
 function asReply(reply: AdoptionReply): CandidateReply {
   return { ...asCandidate(reply), status: reply.status, message: reply.message }
+}
+
+function speciesImageUrl(speciesId: SpeciesId): string {
+  return SPECIES_IMAGES[speciesId]
+}
+
+function candidateImageUrl(candidate: Pick<Candidate, "imageUrl" | "speciesId">): string {
+  return candidate.imageUrl.startsWith("/adoption/") ? speciesImageUrl(candidate.speciesId) : candidate.imageUrl
 }
 
 function speciesName(t: (key: string) => string, speciesId: SpeciesId): string {
@@ -218,8 +231,11 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
   const [info, setInfo] = useState<AdoptionInfo | null>(null)
   const [loadingInfo, setLoadingInfo] = useState(false)
   const [closePrompt, setClosePrompt] = useState(false)
+  const [intentConfirmOpen, setIntentConfirmOpen] = useState(false)
+  const [finalConfirmOpen, setFinalConfirmOpen] = useState(false)
   const [apiError, setApiError] = useState<LocalizedErrorState>(null)
   const isBusy = state.screen === "generating" || state.screen === "inviting" || state.screen === "committing"
+  const isIntentLocked = !["welcome", "basic", "appearance", "companionship", "review"].includes(state.screen)
 
   useEffect(() => {
     if (!open) return
@@ -236,7 +252,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
       }
       saved.draft.answers.forEach((answer, index) => { if (answer !== null) dispatch({ type: "set-answer", index, value: answer }) })
     } else {
-      dispatch({ type: "reset", screen: hasSeenWelcome(accountId) ? "basic" : "welcome" })
+      dispatch({ type: "reset", screen: hasSkippedWelcome(accountId) ? "basic" : "welcome" })
     }
     setLoadingInfo(true)
     setApiError(null)
@@ -249,7 +265,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
 
   const allowedSpecies = useMemo(() => {
     const configured = info?.species_ids.filter((value): value is SpeciesId => value === "dog" || value === "fox")
-    return configured?.length ? configured : SPECIES
+    return [...(configured?.length ? configured : SPECIES)].sort((left, right) => Number(left !== "fox") - Number(right !== "fox"))
   }, [info])
 
   const requestClose = (): void => {
@@ -268,9 +284,39 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
     onOpenChange(false)
   }
 
-  const goToBasic = (): void => {
-    markWelcomeSeen(accountId)
+  const goToBasic = (skipWelcome = false): void => {
+    if (skipWelcome) markWelcomeSkipped(accountId)
     dispatch({ type: "screen", screen: "basic" })
+  }
+
+  const navigateToStage = (index: number): void => {
+    if (isIntentLocked) return
+    if (index === 0) {
+      dispatch({ type: "screen", screen: "basic" })
+      return
+    }
+    if (index === 1) {
+      dispatch({ type: "screen", screen: "appearance" })
+      return
+    }
+    if (index === 2) {
+      const firstUnanswered = state.draft.answers.findIndex((answer) => answer === null)
+      dispatch({ type: "screen", screen: "companionship" })
+      dispatch({ type: "question", index: firstUnanswered === -1 ? 0 : firstUnanswered })
+      return
+    }
+    if (!intentComplete(state.draft)) {
+      dispatch({ type: "error", message: t("adoption.journey.validation.completeIntent") })
+      return
+    }
+    dispatch({ type: "screen", screen: "review" })
+  }
+
+  const answerCompanionship = (index: number, value: CompanionAnswer): void => {
+    dispatch({ type: "set-answer", index, value })
+    if (index < COMPANIONSHIP_OPTIONS.length - 1) {
+      dispatch({ type: "question", index: index + 1 })
+    }
   }
 
   const intentPayload = (): Record<string, unknown> => ({
@@ -292,11 +338,13 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
       dispatch({ type: "error", message: t("adoption.journey.validation.completeIntent") })
       return
     }
+    const batch = state.candidateBatch + 1
+    if (batch > MAX_CANDIDATE_BATCHES) return
     setApiError(null)
     dispatch({ type: "screen", screen: "generating" })
     try {
       const result = await adoptionCandidates(intentPayload(), csrfToken)
-      dispatch({ type: "candidates-ready", setId: result.candidate_set_id, candidates: result.candidates.map(asCandidate) })
+      dispatch({ type: "candidates-ready", batch, setId: result.candidate_set_id, candidates: result.candidates.map(asCandidate) })
     } catch (reason: unknown) {
       setApiError(describeApiError(reason, "manage.save"))
       dispatch({ type: "error", message: t("adoption.journey.errors.generate") })
@@ -342,6 +390,19 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
     }
   }
 
+  const requestFinishAdoption = (): void => {
+    if (state.candidateSetId === null || state.finalCandidateId === null) {
+      dispatch({ type: "error", message: t("adoption.journey.validation.chooseReply") })
+      return
+    }
+    const name = selectedName(state)
+    if (!name || name.length > 20) {
+      dispatch({ type: "error", message: t("adoption.journey.validation.name") })
+      return
+    }
+    setFinalConfirmOpen(true)
+  }
+
   const next = (): void => {
     switch (state.screen) {
       case "welcome": goToBasic(); return
@@ -351,21 +412,19 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
         return
       case "appearance": dispatch({ type: "screen", screen: "companionship" }); return
       case "companionship":
-        if (state.draft.answers[state.questionIndex] === null) {
-          dispatch({ type: "error", message: t("adoption.journey.validation.answer") })
-        } else if (state.questionIndex < 4) {
-          dispatch({ type: "question", index: state.questionIndex + 1 })
-        } else {
-          dispatch({ type: "screen", screen: "review" })
-        }
+        if (intentComplete(state.draft)) dispatch({ type: "screen", screen: "review" })
+        else dispatch({ type: "error", message: t("adoption.journey.validation.completeIntent") })
         return
-      case "review": void generateCandidates(); return
+      case "review":
+        if (intentComplete(state.draft)) setIntentConfirmOpen(true)
+        else dispatch({ type: "error", message: t("adoption.journey.validation.completeIntent") })
+        return
       case "shortlist": void sendInvitations(); return
       case "replies":
         if (state.finalCandidateId === null) dispatch({ type: "error", message: t("adoption.journey.validation.chooseReply") })
         else dispatch({ type: "screen", screen: "naming" })
         return
-      case "naming": void finishAdoption(); return
+      case "naming": requestFinishAdoption(); return
       default: return
     }
   }
@@ -391,6 +450,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
   const title = state.screen === "welcome" ? t("adoption.journey.window.welcomeTitle") : t("adoption.journey.window.title")
   const stage = STAGE_FOR_SCREEN[state.screen]
   const showFooter = !["welcome", "generating", "inviting", "committing", "arrival"].includes(state.screen)
+  const showBack = state.screen === "naming" || (!isIntentLocked && state.screen !== "basic")
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => { if (nextOpen) onOpenChange(true); else requestClose() }}>
@@ -412,7 +472,9 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
           <ol aria-label={t("adoption.journey.progress.label")} className="adoption-progress">
             {(["basic", "appearance", "companionship", "meeting"] as const).map((key, index) => (
               <li aria-current={stage === index ? "step" : undefined} key={key}>
-                <span>{index + 1}</span>{t(`adoption.journey.progress.${key}`)}
+                <button aria-label={t(`adoption.journey.progress.${key}`)} disabled={isIntentLocked || (index === 3 && !intentComplete(state.draft))} onClick={() => navigateToStage(index)} type="button">
+                  <span>{index + 1}</span>{t(`adoption.journey.progress.${key}`)}
+                </button>
               </li>
             ))}
           </ol>
@@ -423,28 +485,48 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
           {!loadingInfo && state.screen === "welcome" ? <WelcomeScreen t={t} onStart={goToBasic} /> : null}
           {!loadingInfo && state.screen === "basic" ? <BasicScreen allowedSpecies={allowedSpecies} canAdopt={info?.quota.can_adopt ?? true} draft={state.draft} dispatch={dispatch} speciesName={(id) => speciesName(t, id)} stageName={(value) => stageName(t, value)} t={t} /> : null}
           {state.screen === "appearance" ? <AppearanceScreen draft={state.draft} dispatch={dispatch} t={t} /> : null}
-          {state.screen === "companionship" ? <CompanionshipScreen draft={state.draft} dispatch={dispatch} questionIndex={state.questionIndex} t={t} /> : null}
+          {state.screen === "companionship" ? <CompanionshipScreen draft={state.draft} dispatch={dispatch} onAnswer={answerCompanionship} questionIndex={state.questionIndex} t={t} /> : null}
           {state.screen === "review" ? <ReviewScreen draft={state.draft} dispatch={dispatch} stageName={(value) => stageName(t, value)} speciesName={(id) => speciesName(t, id)} t={t} /> : null}
-          {state.screen === "generating" ? <ProgressScreen icon="sparkles" title={t("adoption.journey.generating.title")} description={t("adoption.journey.generating.description")} /> : null}
-          {state.screen === "shortlist" ? <ShortlistScreen candidates={state.candidates} selectedIds={state.selectedCandidateIds} dispatch={dispatch} stageName={(value) => stageName(t, value)} t={t} /> : null}
+          {state.screen === "generating" ? <ProgressScreen icon="sparkles" title={t("adoption.journey.generating.title")} /> : null}
+          {state.screen === "shortlist" ? <ShortlistScreen candidates={state.candidates} candidateBatch={state.candidateBatch} dispatch={dispatch} onRegenerate={() => { void generateCandidates() }} selectedIds={state.selectedCandidateIds} stageName={(value) => stageName(t, value)} t={t} /> : null}
           {state.screen === "inviting" ? <InvitingScreen candidates={state.candidates.filter((candidate) => state.selectedCandidateIds.includes(candidate.candidateId))} t={t} /> : null}
-          {state.screen === "replies" ? <RepliesScreen replies={state.replies} finalCandidateId={state.finalCandidateId} dispatch={dispatch} t={t} /> : null}
-          {state.screen === "naming" && selectedCandidate ? <NamingScreen candidate={selectedCandidate} customName={state.customName} dispatch={dispatch} nameMode={state.nameMode} t={t} /> : null}
-          {state.screen === "committing" ? <ProgressScreen icon="house" title={t("adoption.journey.committing.title")} description={t("adoption.journey.committing.description")} /> : null}
-          {state.screen === "arrival" && selectedCandidate ? <ArrivalScreen candidate={selectedCandidate} name={selectedName(state)} onFinish={() => { dispatch({ type: "reset", screen: "basic" }); onOpenChange(false) }} t={t} /> : null}
+          {state.screen === "replies" ? <RepliesScreen candidateImageUrl={candidateImageUrl} dispatch={dispatch} finalCandidateId={state.finalCandidateId} intro={<ScreenIntro title={t("adoption.journey.replies.title", { count: state.replies.filter((reply) => reply.status === "accepted").length })} />} replies={state.replies} /> : null}
+          {state.screen === "naming" && selectedCandidate ? <NamingScreen candidate={selectedCandidate} candidateImageUrl={candidateImageUrl} customName={state.customName} dispatch={dispatch} intro={<ScreenIntro title={t("adoption.journey.naming.title")} />} nameMode={state.nameMode} t={t} /> : null}
+          {state.screen === "committing" ? <ProgressScreen icon="house" title={t("adoption.journey.committing.title", { name: selectedName(state) })} /> : null}
+          {state.screen === "arrival" && selectedCandidate ? <ArrivalScreen candidate={selectedCandidate} name={selectedName(state)} onFinish={() => { onOpenChange(false) }} t={t} /> : null}
           {state.error ? <p className="adoption-inline-error" role="alert">{state.error}</p> : null}
           {errorMessage ? <p className="adoption-inline-error" role="alert">{errorMessage}</p> : null}
         </div>
 
         {showFooter ? (
           <footer className="adoption-dialog__footer">
-            <Button disabled={state.screen === "basic"} onClick={back} type="button" variant="ghost">{t("adoption.journey.actions.back")}</Button>
+            {showBack ? <Button onClick={back} type="button" variant="ghost">{t("adoption.journey.actions.back")}</Button> : null}
             <div>
               <span className="adoption-footer-hint">{footerHint(state, t)}</span>
               <Button disabled={isNextDisabled(state, info)} onClick={next} type="button">{nextLabel(state, t)}</Button>
             </div>
           </footer>
         ) : null}
+
+        <ConfirmDialog
+          cancelLabel={t("adoption.journey.intentConfirm.cancel")}
+          confirmLabel={t("adoption.journey.intentConfirm.confirm")}
+          description={t("adoption.journey.intentConfirm.description")}
+          onConfirm={() => { setIntentConfirmOpen(false); void generateCandidates() }}
+          onOpenChange={setIntentConfirmOpen}
+          open={intentConfirmOpen}
+          title={t("adoption.journey.intentConfirm.title")}
+        />
+        <ConfirmDialog
+          cancelLabel={t("adoption.journey.finalConfirm.cancel")}
+          confirmLabel={t("adoption.journey.finalConfirm.confirm")}
+          description={t("adoption.journey.finalConfirm.description")}
+          onConfirm={() => { setFinalConfirmOpen(false); void finishAdoption() }}
+          onOpenChange={setFinalConfirmOpen}
+          open={finalConfirmOpen}
+          pending={state.screen === "committing"}
+          title={t("adoption.journey.finalConfirm.title")}
+        />
 
         {closePrompt ? (
           <div aria-labelledby="adoption-close-title" aria-modal="true" className="adoption-close-prompt" role="alertdialog">
@@ -460,10 +542,11 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
   )
 }
 
-function WelcomeScreen({ t, onStart }: { readonly t: JourneyT; readonly onStart: () => void }) {
+function WelcomeScreen({ t, onStart }: { readonly t: JourneyT; readonly onStart: (skipWelcome: boolean) => void }) {
+  const [skipWelcome, setSkipWelcome] = useState(false)
   return <section className="adoption-welcome">
-    <div className="adoption-welcome__art"><img alt={t("adoption.journey.welcome.imageAlt")} src="/adoption/fox.svg" /><img alt="" src="/adoption/dog.svg" /></div>
-    <div className="adoption-welcome__copy"><p className="adoption-eyebrow">{t("adoption.journey.welcome.eyebrow")}</p><h2>{t("adoption.journey.welcome.title")}</h2><p>{t("adoption.journey.welcome.description")}</p><div className="adoption-welcome__note"><Icon name="scroll" size={18} /><span>{t("adoption.journey.welcome.note")}</span></div><Button onClick={onStart} type="button">{t("adoption.journey.welcome.start")}</Button></div>
+    <div className="adoption-welcome__art"><img alt={t("adoption.journey.welcome.imageAlt")} src={elfariaArrivalImage} /></div>
+    <div className="adoption-welcome__copy"><h2>{t("adoption.journey.welcome.title")}</h2><p>{t("adoption.journey.welcome.description")}</p><div className="adoption-welcome__note"><Icon name="scroll" size={18} /><span>{t("adoption.journey.welcome.note")}</span></div><label className="adoption-welcome__skip"><Checkbox aria-label={t("adoption.journey.welcome.skip")} checked={skipWelcome} className="adoption-welcome__checkbox" onCheckedChange={(checked) => setSkipWelcome(checked === true)} /><span>{t("adoption.journey.welcome.skip")}</span></label><Button onClick={() => onStart(skipWelcome)} type="button">{t("adoption.journey.welcome.start")}</Button></div>
   </section>
 }
 
@@ -481,7 +564,7 @@ function BasicScreen({
   return <section>
     <ScreenIntro badge={t("adoption.journey.badges.oneMinute")} title={t("adoption.journey.basic.title")} />
     <fieldset className="adoption-fieldset"><legend>{t("adoption.journey.basic.speciesLabel")}</legend><div className="adoption-species-grid">
-      {allowedSpecies.map((speciesId) => <ChoiceButton className="adoption-species-choice" key={speciesId} onClick={() => dispatch({ type: "set-basic", field: "speciesId", value: speciesId })} selected={draft.speciesId === speciesId}><img alt="" src={`/adoption/${speciesId}.svg`} /><span><strong>{speciesName(speciesId)}</strong></span></ChoiceButton>)}
+      {allowedSpecies.map((speciesId) => <ChoiceButton className="adoption-species-choice" key={speciesId} onClick={() => dispatch({ type: "set-basic", field: "speciesId", value: speciesId })} selected={draft.speciesId === speciesId}><img alt="" src={speciesImageUrl(speciesId)} /><span><strong>{speciesName(speciesId)}</strong></span></ChoiceButton>)}
     </div></fieldset>
     <fieldset className="adoption-fieldset"><legend>{t("adoption.journey.basic.lifeStageLabel")}</legend><div className="adoption-option-row">{LIFE_STAGES.map((stage) => <ChoiceButton key={stage} onClick={() => dispatch({ type: "set-basic", field: "lifeStage", value: stage })} selected={draft.lifeStage === stage}>{stageName(stage)}</ChoiceButton>)}</div></fieldset>
     <fieldset className="adoption-fieldset"><legend>{t("adoption.journey.basic.genderLabel")}</legend><div className="adoption-option-row">{GENDERS.map((gender) => <ChoiceButton key={gender} onClick={() => dispatch({ type: "set-basic", field: "gender", value: gender })} selected={draft.gender === gender}>{t(`adoption.journey.genders.${gender}`)}</ChoiceButton>)}</div></fieldset>
@@ -503,11 +586,11 @@ function AppearanceScreen({ draft, dispatch, t }: { readonly draft: AdoptionDraf
   </section>
 }
 
-function CompanionshipScreen({ draft, dispatch, questionIndex, t }: { readonly draft: AdoptionDraftState["draft"]; readonly dispatch: React.Dispatch<AdoptionAction>; readonly questionIndex: number; readonly t: JourneyT }) {
+function CompanionshipScreen({ draft, dispatch, onAnswer, questionIndex, t }: { readonly draft: AdoptionDraftState["draft"]; readonly dispatch: React.Dispatch<AdoptionAction>; readonly onAnswer: (index: number, value: CompanionAnswer) => void; readonly questionIndex: number; readonly t: JourneyT }) {
   const options = COMPANIONSHIP_OPTIONS[questionIndex] ?? COMPANIONSHIP_OPTIONS[0] ?? []
   return <section>
     <ScreenIntro badge={t("adoption.journey.badges.questionCount", { current: questionIndex + 1, total: 5 })} title={t("adoption.journey.companionship.title")} />
-    <div className="adoption-question-layout"><nav aria-label={t("adoption.journey.companionship.questionLabel")} className="adoption-question-index">{[0, 1, 2, 3, 4].map((index) => <button aria-current={index === questionIndex ? "step" : undefined} className={index === questionIndex ? "adoption-question-index__item adoption-question-index__item--active" : "adoption-question-index__item"} key={index} onClick={() => dispatch({ type: "question", index })} type="button"><span>{index + 1}</span><small>{t(`adoption.journey.companionship.shortLabels.${index}`)}</small></button>)}</nav><div className="adoption-question-card"><p className="adoption-eyebrow">{t(`adoption.journey.companionship.scenarios.${questionIndex}.label`)}</p><h3>{t(`adoption.journey.companionship.scenarios.${questionIndex}.title`)}</h3><div className="adoption-answer-grid">{options.map((option) => <ChoiceButton key={option} onClick={() => dispatch({ type: "set-answer", index: questionIndex, value: option })} selected={draft.answers[questionIndex] === option}>{t(`adoption.journey.companionship.answers.${option}`)}</ChoiceButton>)}</div></div></div>
+    <div className="adoption-question-layout"><nav aria-label={t("adoption.journey.companionship.questionLabel")} className="adoption-question-index">{[0, 1, 2, 3, 4].map((index) => <button aria-current={index === questionIndex ? "step" : undefined} className={index === questionIndex ? "adoption-question-index__item adoption-question-index__item--active" : "adoption-question-index__item"} key={index} onClick={() => dispatch({ type: "question", index })} type="button"><span>{index + 1}</span><small>{t(`adoption.journey.companionship.shortLabels.${index}`)}</small></button>)}</nav><div className="adoption-question-card"><p className="adoption-eyebrow">{t(`adoption.journey.companionship.scenarios.${questionIndex}.label`)}</p><h3>{t(`adoption.journey.companionship.scenarios.${questionIndex}.title`)}</h3><div className="adoption-answer-grid">{options.map((option) => <ChoiceButton key={option} onClick={() => onAnswer(questionIndex, option)} selected={draft.answers[questionIndex] === option}>{t(`adoption.journey.companionship.answers.${option}`)}</ChoiceButton>)}</div></div></div>
   </section>
 }
 
@@ -520,41 +603,38 @@ function ReviewCard({ title, values, onEdit, t }: { readonly title: string; read
   return <section className="adoption-review-card"><div><h3>{title}</h3><Button aria-label={`${t("adoption.journey.actions.edit")} ${title}`} onClick={onEdit} size="icon-sm" type="button" variant="ghost"><Icon name="pencil" size={16} /></Button></div><TagList values={values} /></section>
 }
 
-function ProgressScreen({ icon, title, description }: { readonly icon: "sparkles" | "house"; readonly title: string; readonly description: string }) {
-  return <section className="adoption-progress-screen"><div className="adoption-progress-screen__icon"><Icon name={icon === "house" ? "house" : "palette"} size={34} /></div><h2>{title}</h2><p>{description}</p><span className="adoption-spinner" aria-label={title} /></section>
+function ProgressScreen({ icon, title }: { readonly icon: "sparkles" | "house"; readonly title: string }) {
+  return <section className="adoption-progress-screen"><div className="adoption-progress-screen__icon"><Icon name={icon === "house" ? "house" : "palette"} size={34} /></div><h2>{title}</h2><span className="adoption-spinner" aria-label={title} /></section>
 }
 
-function ShortlistScreen({ candidates, dispatch, selectedIds, stageName, t }: { readonly candidates: readonly Candidate[]; readonly dispatch: React.Dispatch<AdoptionAction>; readonly selectedIds: readonly string[]; readonly stageName: (stage: LifeStage) => string; readonly t: JourneyT }) {
-  return <section><ScreenIntro badge={t("adoption.journey.badges.maxThree")} eyebrow={t("adoption.journey.shortlist.eyebrow")} title={t("adoption.journey.shortlist.title")} /><div className="adoption-candidate-grid">{candidates.map((candidate) => <ChoiceButton className="adoption-candidate-card" key={candidate.candidateId} onClick={() => dispatch({ type: "toggle-candidate", candidateId: candidate.candidateId })} selected={selectedIds.includes(candidate.candidateId)}><img alt="" src={candidate.imageUrl} /><span className="adoption-candidate-card__copy"><strong>{candidate.originalName}</strong><small>{stageName(candidate.lifeStage)} · {t(`adoption.journey.genders.${candidate.gender}`)}</small><TagList values={candidate.appearanceTags.slice(0, 2)} /><span>{candidate.compatibility}</span></span></ChoiceButton>)}</div><div className="adoption-selection-status"><span>{t("adoption.journey.shortlist.selected", { count: selectedIds.length })}</span><small>{t("adoption.journey.shortlist.stability")}</small></div></section>
+function ShortlistScreen({ candidates, candidateBatch, dispatch, onRegenerate, selectedIds, stageName, t }: { readonly candidates: readonly Candidate[]; readonly candidateBatch: number; readonly dispatch: React.Dispatch<AdoptionAction>; readonly onRegenerate: () => void; readonly selectedIds: readonly string[]; readonly stageName: (stage: LifeStage) => string; readonly t: JourneyT }) {
+  const canRegenerate = candidateBatch < MAX_CANDIDATE_BATCHES
+  return <section>
+    <ScreenIntro badge={t("adoption.journey.badges.maxThree")} eyebrow={t("adoption.journey.shortlist.eyebrow")} title={t("adoption.journey.shortlist.title")} />
+    <div className="adoption-candidate-grid">
+      {candidates.map((candidate) => <ChoiceButton className="adoption-candidate-card" key={candidate.candidateId} onClick={() => dispatch({ type: "toggle-candidate", candidateId: candidate.candidateId })} selected={selectedIds.includes(candidate.candidateId)}><img alt="" src={candidateImageUrl(candidate)} /><span className="adoption-candidate-card__copy"><strong>{candidate.originalName}</strong><small>{stageName(candidate.lifeStage)} · {t(`adoption.journey.genders.${candidate.gender}`)}</small><TagList values={candidate.appearanceTags.slice(0, 2)} /></span></ChoiceButton>)}
+    </div>
+    <div className="adoption-shortlist-toolbar">
+      <span>{t("adoption.journey.shortlist.selected", { count: selectedIds.length })}</span>
+      <div className="adoption-shortlist-toolbar__actions">
+        <span>{t("adoption.journey.shortlist.batch", { current: candidateBatch, max: MAX_CANDIDATE_BATCHES })}</span>
+        <Button disabled={!canRegenerate} onClick={onRegenerate} type="button" variant="outline">{canRegenerate ? t("adoption.journey.shortlist.regenerate") : t("adoption.journey.shortlist.batchComplete", { max: MAX_CANDIDATE_BATCHES })}</Button>
+      </div>
+    </div>
+  </section>
 }
 
 function InvitingScreen({ candidates, t }: { readonly candidates: readonly Candidate[]; readonly t: JourneyT }) {
-  return <section><ScreenIntro badge={t("adoption.journey.badges.twoWay")} description={t("adoption.journey.inviting.description")} eyebrow={t("adoption.journey.inviting.eyebrow")} title={t("adoption.journey.inviting.title")} /><div className="adoption-signal" aria-hidden="true"><span /></div><div className="adoption-invite-grid">{candidates.map((candidate) => <div className="adoption-invite-card" key={candidate.candidateId}><img alt="" src={candidate.imageUrl} /><strong>{candidate.originalName}</strong><small>{t("adoption.journey.inviting.reading")}</small></div>)}</div></section>
-}
-
-function RepliesScreen({ dispatch, finalCandidateId, replies, t }: { readonly dispatch: React.Dispatch<AdoptionAction>; readonly finalCandidateId: string | null; readonly replies: readonly CandidateReply[]; readonly t: JourneyT }) {
-  const accepted = replies.filter((reply) => reply.status === "accepted").length
-  return <section><ScreenIntro badge={t("adoption.journey.badges.chooseOne")} eyebrow={t("adoption.journey.replies.eyebrow")} title={t("adoption.journey.replies.title", { count: accepted })} /><div className="adoption-reply-grid">{replies.map((reply) => reply.status === "accepted" ? <ChoiceButton className="adoption-reply-card" key={reply.candidateId} onClick={() => dispatch({ type: "select-final", candidateId: reply.candidateId })} selected={finalCandidateId === reply.candidateId}><img alt="" src={reply.imageUrl} /><strong>{reply.originalName}</strong><span>{reply.message}</span><small>{reply.compatibility}</small></ChoiceButton> : <div className="adoption-reply-card adoption-reply-card--unsure" key={reply.candidateId}><img alt="" src={reply.imageUrl} /><strong>{reply.originalName}</strong><span>{reply.message}</span><small>{t("adoption.journey.replies.unsure")}</small></div>)}</div></section>
-}
-
-function isNameMode(value: string): value is NameMode {
-  return value === "original" || value === "suggested" || value === "custom"
-}
-
-function NamingScreen({ candidate, customName, dispatch, nameMode, t }: { readonly candidate: CandidateReply; readonly customName: string; readonly dispatch: React.Dispatch<AdoptionAction>; readonly nameMode: NameMode; readonly t: JourneyT }) {
-  const onNameModeChange = (value: string): void => {
-    if (isNameMode(value)) dispatch({ type: "name-mode", mode: value })
-  }
-  return <section><ScreenIntro eyebrow={t("adoption.journey.naming.eyebrow")} title={t("adoption.journey.naming.title")} /><div className="adoption-naming-layout"><div className="adoption-naming-person"><img alt={t("adoption.journey.naming.portraitAlt", { name: candidate.originalName })} src={candidate.imageUrl} /><strong>{candidate.originalName}</strong><span>{candidate.message}</span></div><fieldset className="adoption-name-options"><legend>{t("adoption.journey.naming.label")}</legend><RadioGroup.Root aria-label={t("adoption.journey.naming.label")} className="adoption-name-options__group" onValueChange={onNameModeChange} value={nameMode}><label><RadioGroup.Item aria-label={t("adoption.journey.naming.original", { name: candidate.originalName })} className="adoption-name-radio" value="original"><RadioGroup.Indicator className="adoption-name-radio__indicator" /></RadioGroup.Item>{t("adoption.journey.naming.original", { name: candidate.originalName })}</label><label><RadioGroup.Item aria-label={t("adoption.journey.naming.suggested", { name: candidate.suggestedName })} className="adoption-name-radio" value="suggested"><RadioGroup.Indicator className="adoption-name-radio__indicator" /></RadioGroup.Item>{t("adoption.journey.naming.suggested", { name: candidate.suggestedName })}</label><label><RadioGroup.Item aria-label={t("adoption.journey.naming.custom")} className="adoption-name-radio" value="custom"><RadioGroup.Indicator className="adoption-name-radio__indicator" /></RadioGroup.Item>{t("adoption.journey.naming.custom")}</label></RadioGroup.Root><Input aria-label={t("adoption.journey.naming.customInput")} maxLength={20} onChange={(event) => dispatch({ type: "custom-name", value: event.target.value })} placeholder={t("adoption.journey.naming.customPlaceholder")} value={customName} /></fieldset></div></section>
+  return <section><ScreenIntro title={t("adoption.journey.inviting.title")} /><div className="adoption-signal" aria-hidden="true"><span /></div><div className="adoption-invite-grid">{candidates.map((candidate) => <div className="adoption-invite-card" key={candidate.candidateId}><img alt="" src={candidateImageUrl(candidate)} /><strong>{candidate.originalName}</strong></div>)}</div></section>
 }
 
 function ArrivalScreen({ candidate, name, onFinish, t }: { readonly candidate: CandidateReply; readonly name: string; readonly onFinish: () => void; readonly t: JourneyT }) {
-  return <section className="adoption-arrival"><div className="adoption-arrival__portal"><img alt="" src={candidate.imageUrl} /></div><p className="adoption-eyebrow">{t("adoption.journey.arrival.eyebrow")}</p><h2>{t("adoption.journey.arrival.title", { name })}</h2><p>{t("adoption.journey.arrival.description", { name })}</p><Button onClick={onFinish} type="button">{t("adoption.journey.arrival.enter")}</Button></section>
+  return <section className="adoption-arrival"><div className="adoption-arrival__portal"><img alt="" src={candidateImageUrl(candidate)} /></div><h2>{t("adoption.journey.arrival.title", { name })}</h2><Button onClick={onFinish} type="button">{t("adoption.journey.arrival.enter")}</Button></section>
 }
 
 function isNextDisabled(state: AdoptionDraftState, info: AdoptionInfo | null): boolean {
   if (state.screen === "basic") return state.draft.speciesId === null || info?.quota.can_adopt === false
-  if (state.screen === "companionship") return state.draft.answers[state.questionIndex] === null
+  if (state.screen === "companionship") return state.draft.answers.some((answer) => answer === null)
   if (state.screen === "shortlist") return state.selectedCandidateIds.length === 0
   if (state.screen === "replies") return state.finalCandidateId === null
   if (state.screen === "naming") return state.nameMode === "custom" && !state.customName.trim()
@@ -564,7 +644,7 @@ function isNextDisabled(state: AdoptionDraftState, info: AdoptionInfo | null): b
 function nextLabel(state: AdoptionDraftState, t: JourneyT): string {
   if (state.screen === "basic") return t("adoption.journey.actions.toAppearance")
   if (state.screen === "appearance") return t("adoption.journey.actions.toCompanionship")
-  if (state.screen === "companionship") return state.questionIndex === 4 ? t("adoption.journey.actions.toReview") : t("adoption.journey.actions.nextQuestion")
+  if (state.screen === "companionship") return t("adoption.journey.actions.nextPage")
   if (state.screen === "review") return t("adoption.journey.actions.generate")
   if (state.screen === "shortlist") return t("adoption.journey.actions.invite")
   if (state.screen === "replies") return t("adoption.journey.actions.toNaming")
