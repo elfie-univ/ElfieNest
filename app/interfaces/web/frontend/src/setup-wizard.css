@@ -26,7 +26,7 @@
   width: min(1280px, 100%);
   min-height: calc(100vh - 120px);
   text-align: center;
-  transform: translateY(-clamp(20px, 5vh, 64px));
+  transform: translateY(calc(-1 * clamp(52px, 9vh, 112px)));
 }
 
 .setup-welcome__art { width: min(360px, 40vw, 34vh); }
@@ -61,12 +61,12 @@
 .setup-welcome__beam { fill: none; stroke: #45d8ec; stroke-linecap: round; stroke-linejoin: round; opacity: 0; animation: setup-welcome-beam-presence 4.25s linear 7s forwards; }
 .setup-welcome__beam-glow { stroke-width: 9; opacity: .2; filter: url("#setup-welcome-beam-glow"); stroke-dasharray: 1; stroke-dashoffset: 1; animation: setup-welcome-draw 1.15s ease-in 7.1s forwards, setup-welcome-beam-pulse 1.7s ease-in-out 8.3s infinite; }
 .setup-welcome__beam-line { stroke-width: 1.06; opacity: .66; stroke-dasharray: 1; stroke-dashoffset: 1; animation: setup-welcome-draw 1.15s ease-in 7.1s forwards, setup-welcome-beam-pulse 1.7s ease-in-out 8.3s infinite; }
-.setup-welcome__beam-dot { fill: #b8f5ff; stroke: none; opacity: 0; animation: setup-welcome-beam-dot 1.5s ease-in-out 8.05s infinite; }
-.setup-welcome__fox-window { position: absolute; z-index: 3; inset: 0; overflow: hidden; clip-path: polygon(22.65% 37.27%, 50.88% 13.75%, 79.15% 37.46%, 79.05% 85.42%, 22.65% 85.32%); animation: setup-welcome-process-exit .35s ease-out 14.6s forwards; }
+.setup-welcome__beam-dot { fill: #b8f5ff; stroke: none; opacity: 0; transform-box: fill-box; transform-origin: center; animation: setup-welcome-beam-dot 1.5s ease-in-out 8.05s infinite; }
+.setup-welcome__fox-window { position: absolute; z-index: 3; inset: 0; overflow: hidden; clip-path: polygon(22.65% 37.27%, 50.88% 13.75%, 79.15% 37.46%, 79.05% 85.42%, 22.65% 85.32%); animation: setup-welcome-process-exit .35s ease-out 15.05s forwards; }
 .setup-welcome__fox-figure { position: absolute; inset: 0; opacity: 0; transform: translateY(16%) scale(.12); transform-origin: 50% 86%; filter: drop-shadow(0 0 12px color-mix(in srgb, #45d8ec 30%, transparent)); animation: setup-welcome-fox-enter 3.1s linear 9.65s forwards; }
 .setup-welcome__fox { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
-.setup-welcome__fox-eye-glint { position: absolute; top: 49.2%; left: 47.2%; width: 2.8%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #fff 0 15%, #b8f5ff 32%, transparent 73%); box-shadow: 0 0 9px 3px color-mix(in srgb, #b8f5ff 75%, transparent); opacity: 0; transform: translate(-50%, -50%) scale(.35); animation: setup-welcome-fox-eye-flash .78s ease-out 13.08s both; }
-.setup-welcome__final-logo { z-index: 4; opacity: 0; transform: scale(.94); filter: drop-shadow(0 0 16px color-mix(in srgb, #45d8ec 22%, transparent)); animation: setup-welcome-final-logo .85s cubic-bezier(.2, .75, .2, 1) 14.6s forwards; }
+.setup-welcome__fox-eye-glint { position: absolute; top: 49.2%; left: 47.2%; width: 2.8%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #fff 0 15%, #b8f5ff 32%, transparent 73%); box-shadow: 0 0 9px 3px color-mix(in srgb, #b8f5ff 75%, transparent); opacity: 0; transform: translate(-50%, -50%) scale(.35); animation: setup-welcome-fox-eye-flash 1.35s ease-out 13.08s both; }
+.setup-welcome__final-logo { z-index: 4; opacity: 0; transform: scale(.94); filter: drop-shadow(0 0 16px color-mix(in srgb, #45d8ec 22%, transparent)); animation: setup-welcome-final-logo .85s cubic-bezier(.2, .75, .2, 1) 15.05s forwards; }
 .setup-welcome__copy { display: grid; justify-items: center; gap: clamp(22px, 2.5vh, 30px); width: 100%; }
 .setup-welcome__title { display: inline-flex; max-width: calc(100vw - 48px); margin: 0; color: var(--text); font-size: clamp(30px, 3.9vw, 52px); line-height: 1.15; white-space: nowrap; }
 .setup-welcome__title-char, .setup-welcome__action { opacity: 0; transform: translateY(10px); }
@@ -98,7 +98,7 @@
   84% { opacity: 1; transform: translateY(0) scale(.88); }
   100% { opacity: 1; transform: translateY(0) scale(1); }
 }
-@keyframes setup-welcome-fox-eye-flash { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.35); } 25% { opacity: 1; transform: translate(-50%, -50%) scale(1.35); } 62% { opacity: .82; transform: translate(-50%, -50%) scale(.85); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(.6); } }
+@keyframes setup-welcome-fox-eye-flash { 0%, 10%, 45%, 55%, 90%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(.35); } 20%, 65% { opacity: 1; transform: translate(-50%, -50%) scale(1.35); } 32%, 77% { opacity: .08; transform: translate(-50%, -50%) scale(.6); } }
 @keyframes setup-welcome-process-exit { 0% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
 @keyframes setup-welcome-final-logo { 0% { opacity: 0; transform: scale(.94); } 35% { opacity: 1; } 100% { opacity: 1; transform: scale(1); } }
 
@@ -223,7 +223,7 @@
   .setup-card__header { padding-top: 76px; }
   .setup-card { margin: 0 auto; }
   .setup-review-row { align-items: flex-start; }
-  .setup-welcome { min-height: calc(100vh - 80px); transform: translateY(-clamp(10px, 3vh, 28px)); }
+  .setup-welcome { min-height: calc(100vh - 80px); transform: translateY(calc(-1 * clamp(22px, 5vh, 52px))); }
   .setup-welcome__art { width: min(320px, 68vw, 34vh); }
   .setup-welcome__title { max-width: 92vw; font-size: clamp(28px, 7vw, 42px); text-wrap: balance; white-space: normal; }
   .setup-welcome__title-char { white-space: pre; }

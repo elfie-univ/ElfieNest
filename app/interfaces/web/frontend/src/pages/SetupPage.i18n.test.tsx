@@ -154,15 +154,16 @@ describe("localized setup wizard", () => {
     const finalFill = screen.getByTestId("setup-welcome-house-final-fill")
 
     expect(svg).toHaveAttribute("viewBox", "0 0 270.93332 270.93332")
+    expect(svg).toHaveAttribute("data-house-source", "elfienest-house.svg")
     expect(drawing.querySelectorAll(".setup-welcome__house-path")).toHaveLength(2)
     expect(drawing.querySelectorAll(".setup-welcome__house-phase-block")).toHaveLength(3)
     expect(roofPath).toHaveAttribute(
       "d",
-      expect.stringMatching(/^M 247\.74802,119\.80303 136\.08694,27\.333702 24\.425861,122\.12931/),
+      expect.stringMatching(/^M 247\.74802 119\.80303 L 136\.08694 27\.333702 L 24\.425861 122\.12931 L 52\.341131 98\.285013$/),
     )
     expect(bodyPath).toHaveAttribute(
       "d",
-      expect.stringMatching(/^M 52\.341131,98\.285013 53\.504266,237\.27979/),
+      expect.stringMatching(/^M 52\.341131 98\.285013 L 53\.504266 237\.27979 L 220\.99589 236\.69822 L 224\.4853 100\.02972 L 201\.80414 80\.837968$/),
     )
     expect(roofPath).toHaveAttribute("pathLength", "1")
     expect(bodyPath).toHaveAttribute("pathLength", "1")
