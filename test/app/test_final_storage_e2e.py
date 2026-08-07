@@ -39,7 +39,6 @@ _NEST_TABLES = {
     "local_installations",
     "nest_settings",
     "sessions",
-    "setup_drafts",
     "users",
 }
 _HISTORY_TABLES = {

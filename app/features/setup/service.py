@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.features.accounts.auth import create_session, generate_csrf_token
-from app.features.setup.draft_repository import SetupDraftRecord
+from app.infrastructure.persistence.setup_install_repository import SetupDraftRecord
 from app.features.setup.progress import (
     SetupProgress,
     SetupStep,

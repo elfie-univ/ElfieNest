@@ -17,7 +17,7 @@ from app.features.accounts.auth import (
     require_owner,
     verify_session,
 )
-from app.features.setup.draft_repository import SetupDraftRepository
+
 from app.features.setup.hardware import get_available_memory_gb
 from app.features.setup.installer import build_setup_install_worker
 from app.features.setup.model_catalog import setup_model_options
@@ -119,14 +119,14 @@ async def save_setup_owner_draft(
     request: Request,
 ) -> SetupStatus:
     _require_setup_draft_access(request)
-    existing = SetupDraftRepository(request.app.state.db_path).get()
+    existing = SetupInstallRepository(request.app.state.db_path).get_draft()
     password_hash = None
     if body.password is not None:
         password_hash = hash_password(body.password)
     elif existing.password_hash is None:
         raise HTTPException(status_code=422, detail="首次保存 Owner 时必须设置密码")
     try:
-        SetupDraftRepository(request.app.state.db_path).save_owner(
+        SetupInstallRepository(request.app.state.db_path).save_owner_draft(
             account_id=body.account_id,
             display_name=body.display_name,
             password_hash=password_hash,
@@ -143,7 +143,7 @@ async def save_setup_offline_draft(
 ) -> SetupStatus:
     _require_setup_draft_access(request)
     try:
-        SetupDraftRepository(request.app.state.db_path).save_offline(
+        SetupInstallRepository(request.app.state.db_path).save_offline_draft(
             use_local_ollama=body.use_local_ollama,
             model_id=body.model_id,
         )
@@ -159,7 +159,7 @@ async def save_setup_nest_draft(
 ) -> SetupStatus:
     _require_setup_draft_access(request)
     try:
-        SetupDraftRepository(request.app.state.db_path).save_nest(
+        SetupInstallRepository(request.app.state.db_path).save_nest_draft(
             bed_count=body.bed_count,
         )
     except ValueError as exc:
@@ -176,17 +176,17 @@ async def confirm_setup_install(
     _ = body.confirmed
     _require_setup_install_access(request)
     db_path = request.app.state.db_path
-    draft_repository = SetupDraftRepository(db_path)
-    draft = draft_repository.get()
+    draft_repository = SetupInstallRepository(db_path)
+    draft = draft_repository.get_draft()
     if not draft.complete or draft.password_hash is None:
         raise HTTPException(status_code=422, detail="Setup 配置尚未完成")
     was_locked = draft.locked_at is not None
     if not was_locked:
         try:
-            draft_repository.lock()
+            draft_repository.lock_draft()
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
-        draft = draft_repository.get()
+        draft = draft_repository.get_draft()
     try:
         owner_account = create_first_owner_from_hash(db_path, draft)
     except SetupAlreadyCompleteError as exc:
@@ -447,7 +447,7 @@ async def complete_setup_confirmation(
 def _setup_status(request: Request) -> SetupStatus:
     progress = get_setup_progress(request.app.state.db_path)
     install = SetupInstallRepository(request.app.state.db_path).get()
-    draft = SetupDraftRepository(request.app.state.db_path).get()
+    draft = SetupInstallRepository(request.app.state.db_path).get_draft()
     owner_exists = _has_owner(request)
     owner_configured = draft.owner_configured or owner_exists
     offline_configured = draft.offline_configured or progress.current_step >= 3
@@ -563,7 +563,7 @@ def _require_setup_draft_access(request: Request) -> None:
         raise HTTPException(status_code=403, detail="缺少 Setup token")
     if _has_owner(request):
         raise HTTPException(status_code=409, detail="系统已有 Owner，Setup 草稿已关闭")
-    if SetupDraftRepository(request.app.state.db_path).get().locked_at is not None:
+    if SetupInstallRepository(request.app.state.db_path).get_draft().locked_at is not None:
         raise HTTPException(status_code=409, detail="Setup 配置已锁定")
 
 

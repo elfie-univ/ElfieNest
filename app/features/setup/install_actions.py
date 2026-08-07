@@ -7,7 +7,7 @@ from typing import Callable
 from ai_runtime.food.store import FoodCatalogRepository
 from ai_runtime.storage.provider_connections import ProviderConnectionStore
 from ai_runtime.storage.report_repository import ReportRepository
-from app.features.setup.draft_repository import SetupDraftRepository
+
 from app.features.setup.ollama import OllamaSetupService
 from app.infrastructure.ollama_platform import OllamaPlatformAdapter
 from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
@@ -26,7 +26,7 @@ def run_setup_installation(
     report_repository: ReportRepository | None = None,
 ) -> None:
     """Run or resume the locked Setup draft from its persisted phase."""
-    draft = SetupDraftRepository(db_path).get()
+    draft = SetupInstallRepository(db_path).get_draft()
     if not draft.complete or draft.locked_at is None:
         raise RuntimeError("Setup 安装草稿未锁定或不完整")
     installs = SetupInstallRepository(db_path)

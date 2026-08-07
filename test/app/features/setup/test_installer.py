@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.features.setup.draft_repository import SetupDraftRepository
 from app.features.setup.installer import SetupInstallJobManager
 from app.features.setup.service import create_first_owner_from_hash
 from app.infrastructure.persistence.final_schema import create_final_nest_database
@@ -15,20 +14,20 @@ from app.infrastructure.persistence.store import get_db
 
 
 def _complete_draft(db_path: str) -> None:
-    draft = SetupDraftRepository(db_path)
-    draft.save_owner(
+    draft = SetupInstallRepository(db_path)
+    draft.save_owner_draft(
         account_id="owner",
         display_name="Owner",
         password_hash="pbkdf2_sha256$260000$salt$hash",
     )
-    draft.save_offline(use_local_ollama=False, model_id=None)
-    draft.save_nest(bed_count=4)
+    draft.save_offline_draft(use_local_ollama=False, model_id=None)
+    draft.save_nest_draft(bed_count=4)
 
 
 def test_owner_is_created_from_saved_hash_idempotently(tmp_path: Path) -> None:
     db_path = str(create_final_nest_database(tmp_path / "nest.db"))
     _complete_draft(db_path)
-    draft = SetupDraftRepository(db_path).get()
+    draft = SetupInstallRepository(db_path).get_draft()
 
     first = create_first_owner_from_hash(db_path, draft)
     second = create_first_owner_from_hash(db_path, draft)
@@ -41,9 +40,9 @@ def test_owner_is_created_from_saved_hash_idempotently(tmp_path: Path) -> None:
 def test_install_job_manager_runs_once_and_reports_global_progress(tmp_path: Path) -> None:
     db_path = str(create_final_nest_database(tmp_path / "nest.db"))
     _complete_draft(db_path)
-    draft = SetupDraftRepository(db_path).get()
+    draft = SetupInstallRepository(db_path).get_draft()
     create_first_owner_from_hash(db_path, draft)
-    assert SetupDraftRepository(db_path).lock() is True
+    assert SetupInstallRepository(db_path).lock_draft() is True
 
     manager = SetupInstallJobManager()
     observed: list[int] = []
@@ -67,11 +66,11 @@ def test_interrupted_install_becomes_retryable_without_unlocking_draft(
 ) -> None:
     db_path = str(create_final_nest_database(tmp_path / "nest.db"))
     _complete_draft(db_path)
-    draft = SetupDraftRepository(db_path).get()
+    draft = SetupInstallRepository(db_path).get_draft()
     create_first_owner_from_hash(db_path, draft)
-    SetupDraftRepository(db_path).lock()
+    SetupInstallRepository(db_path).lock_draft()
     repository = SetupInstallRepository(db_path)
     repository.begin_or_resume()
     repository.fail("model.pull", "model download failed")
     assert repository.get().task_state == "failed"
-    assert SetupDraftRepository(db_path).get().locked_at is not None
+    assert SetupInstallRepository(db_path).get_draft().locked_at is not None

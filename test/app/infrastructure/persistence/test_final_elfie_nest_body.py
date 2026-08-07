@@ -37,7 +37,6 @@ FINAL_TABLES = {
     "local_installations",
     "nest_settings",
     "sessions",
-    "setup_drafts",
     "users",
 }
 

@@ -7,7 +7,6 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from app.features.setup.draft_repository import SetupDraftRepository
 from app.infrastructure.persistence.setup_install_repository import (
     SetupInstallRepository,
 )
@@ -98,7 +97,7 @@ def test_install_confirm_creates_owner_locks_draft_and_runs_one_worker(
 
     assert repeated.status_code == 200, repeated.text
     assert repeated.json()["complete"] is True
-    assert SetupDraftRepository(str(tmp_path / "nest.db")).get().locked_at is not None
+    assert SetupInstallRepository(str(tmp_path / "nest.db")).get_draft().locked_at is not None
 
 
 def test_failed_install_can_retry_without_unlocking_or_duplicate_owner(

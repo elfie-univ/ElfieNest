@@ -7,7 +7,6 @@ from pathlib import Path
 from ai_runtime.food.models import FOOD_COMMON_ID, FOOD_EMERGENCY_ID
 from ai_runtime.storage.provider_connections import ProviderConnectionStore
 from ai_runtime.storage.report_repository import ReportRepository
-from app.features.setup.draft_repository import SetupDraftRepository
 from app.features.setup.install_actions import run_setup_installation
 from app.features.setup.service import create_first_owner_from_hash
 from app.infrastructure.ollama_platform import (
@@ -25,17 +24,17 @@ from app.infrastructure.persistence.store import get_db
 
 
 def _locked_draft(db_path: str, *, use_local: bool, model_id: str | None) -> None:
-    drafts = SetupDraftRepository(db_path)
-    drafts.save_owner(
+    drafts = SetupInstallRepository(db_path)
+    drafts.save_owner_draft(
         account_id="owner",
         display_name="Owner",
         password_hash="pbkdf2_sha256$260000$salt$hash",
     )
-    drafts.save_offline(use_local_ollama=use_local, model_id=model_id)
-    drafts.save_nest(bed_count=8)
-    draft = drafts.get()
+    drafts.save_offline_draft(use_local_ollama=use_local, model_id=model_id)
+    drafts.save_nest_draft(bed_count=8)
+    draft = drafts.get_draft()
     create_first_owner_from_hash(db_path, draft)
-    drafts.lock()
+    drafts.lock_draft()
     SetupInstallRepository(db_path).begin_or_resume()
 
 

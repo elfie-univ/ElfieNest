@@ -15,7 +15,6 @@ _FINAL_ROOT_TABLES = {
     "embodiment_sessions",
     "external_bodies",
     "food_packages",
-    "setup_drafts",
     "local_installations",
     "nest_settings",
     "sessions",
