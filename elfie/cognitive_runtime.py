@@ -110,8 +110,28 @@ class ElfieCognitiveRuntime:
     def start(self) -> None:
         if self._started:
             return
-        self.router.start()
-        self.coordinator.start()
+        try:
+            self.router.start()
+            self.coordinator.start()
+        except (OSError, RuntimeError):
+            try:
+                self.coordinator.stop()
+            except RuntimeError:
+                pass
+            try:
+                self.coordinator.join()
+            except RuntimeError:
+                pass
+            try:
+                self.router.stop()
+            except RuntimeError:
+                pass
+            try:
+                self.router.join()
+            except RuntimeError:
+                pass
+            self._started = False
+            raise
         self._started = True
 
     def post_clock(self, timestamp: float) -> None:

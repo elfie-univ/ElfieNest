@@ -26,6 +26,7 @@ from app.features.adoption.generator import ElfieGenerator
 from app.features.adoption.service import (
     AdoptionCapacityError,
     AdoptionRequest,
+    AdoptionRuntimeRegistrationError,
     AdoptionValidationError,
     adopt_elfie_for_user,
     adoption_options_for_user,
@@ -160,6 +161,10 @@ async def adopt_elfie(
         raise HTTPException(status_code=400, detail=str(exc)) from None
     except (AdoptionCapacityError, NestFullError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from None
+    except AdoptionRuntimeRegistrationError:
+        raise HTTPException(
+            status_code=503, detail="elfie_runtime_unavailable"
+        ) from None
 
     return JSONResponse(
         status_code=201,
@@ -285,6 +290,10 @@ async def commit_adoption(
         raise HTTPException(status_code=400, detail=str(exc)) from None
     except (AdoptionCapacityError, NestFullError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from None
+    except AdoptionRuntimeRegistrationError:
+        raise HTTPException(
+            status_code=503, detail="elfie_runtime_unavailable"
+        ) from None
     return JSONResponse(
         status_code=201,
         content={"elfie_id": result.elfie_id, "name": result.name, "species_id": result.species_id},

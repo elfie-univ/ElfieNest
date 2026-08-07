@@ -68,6 +68,7 @@ class ElfieNestEngine:
 
         # 2. 可选的鉴权 WebSocket 管理网关（由 app.py 注入，None 则不启用）
         self.ws_manager: Optional[Any] = None
+        self._loop_started = False
 
     def _collect_world_sensory_events(self, elfie_id: str) -> list[BodySensorEvent]:
         """Convert only physical room facts into typed Body sensor events."""
@@ -89,7 +90,7 @@ class ElfieNestEngine:
         self.session.flush_runtime_state()
         self.nest.tick(seconds)
         self.session.tick_elfies(seconds)
-        for elfie_id, elfie in tuple(self.session.elfies.items()):
+        for elfie_id, elfie in self.session.elfie_items_snapshot():
             status = self.nest.resident_state(elfie_id)
             if status is None or not status.active or status.posture == "away":
                 continue
@@ -113,6 +114,9 @@ class ElfieNestEngine:
         """
         if interval_sec is None:
             interval_sec = self.tick_interval_sec
+        if self._loop_started:
+            raise RuntimeError("ElfieNestEngine 主循环只能启动一次")
+        self._loop_started = True
         # 1. 先装配并启动每只精灵的独立认知生命周期，再启动传输。
         self.session.configure_cognition_factory(
             lambda elfie_id: SerializedRuntimeAdapter(

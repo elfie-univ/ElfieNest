@@ -4,13 +4,14 @@ import stat
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from app.features.adoption.service import (
     AdoptionCapacityError,
     AdoptionRequest,
+    AdoptionRuntimeRegistrationError,
     AdoptionValidationError,
     adopt_elfie_for_user,
 )
@@ -112,6 +113,50 @@ def test_failed_generation_releases_reserved_slot(tmp_path: Path) -> None:
             ).fetchone()[0]
         )
     assert persisted_count == 0
+
+
+def test_failed_runtime_registration_releases_reserved_slot_and_workspace(
+    tmp_path: Path,
+) -> None:
+    db_path = str(tmp_path / "nest.db")
+    init_db(db_path)
+    with get_db(db_path) as connection:
+        user_id = int(
+            connection.execute(
+                """INSERT INTO users
+                   (account_id, password_hash, role, elfie_limit)
+                   VALUES ('alice', 'unused', 'user', 1)"""
+            ).lastrowid
+        )
+        connection.commit()
+
+    with (
+        patch("app.features.adoption.service.secrets.randbelow", return_value=123),
+        patch(
+            "app.features.adoption.service.ElfieGenerator.generate_for_species",
+            return_value=None,
+        ),
+    ):
+        runtime = MagicMock()
+        runtime.api_server = None
+        runtime.session.register_elfie.side_effect = RuntimeError("runtime unavailable")
+        with pytest.raises(AdoptionRuntimeRegistrationError, match="未能加入运行时"):
+            adopt_elfie_for_user(
+                db_path,
+                user_id=user_id,
+                request=_request("小一"),
+                engine=runtime,
+            )
+
+    with get_db(db_path) as connection:
+        persisted_count = int(
+            connection.execute(
+                "SELECT COUNT(*) FROM elfies WHERE owner_user_id = ?",
+                (user_id,),
+            ).fetchone()[0]
+        )
+    assert persisted_count == 0
+    assert not (tmp_path / "elfies" / "00000123").exists()
 
 
 def test_adoption_creates_owner_only_elfie_workspace(tmp_path: Path) -> None:
