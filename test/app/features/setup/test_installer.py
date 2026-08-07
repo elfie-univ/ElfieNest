@@ -54,11 +54,11 @@ def test_install_job_manager_runs_once_and_reports_global_progress(tmp_path: Pat
 
     first = manager.start(db_path=db_path, worker=worker)
     second = manager.start(db_path=db_path, worker=worker)
-    assert first.active_task_step == 2
-    assert second.active_task_step == 2
+    assert first.install_step == 2
+    assert second.install_step == 2
     assert manager.join(db_path, timeout=2.0) is True
     assert observed == [30]
-    assert SetupInstallRepository(db_path).get().task_state == "running"
+    assert SetupInstallRepository(db_path).get().task_status == "running"
 
 
 def test_interrupted_install_becomes_retryable_without_unlocking_draft(
@@ -72,5 +72,5 @@ def test_interrupted_install_becomes_retryable_without_unlocking_draft(
     repository = SetupInstallRepository(db_path)
     repository.begin_or_resume()
     repository.fail("model.pull", "model download failed")
-    assert repository.get().task_state == "failed"
+    assert repository.get().task_status == "failed"
     assert SetupInstallRepository(db_path).get_draft().locked_at is not None

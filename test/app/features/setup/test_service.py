@@ -176,11 +176,11 @@ def test_setup_uses_only_final_installation_table(tmp_path: Path) -> None:
             for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
         row = conn.execute(
-            "SELECT owner_user_id, setup_state, setup_step "
+            "SELECT owner_user_id, status, install_step "
             "FROM local_installations WHERE installation_id='local'"
         ).fetchone()
     assert row is not None
     assert row["owner_user_id"] is not None
-    assert row["setup_state"] == "in_progress"
-    assert row["setup_step"] == "providers"
+    assert row["status"] == "in_progress"
+    assert row["install_step"] == 2
     assert "setup_progress" not in tables

@@ -108,9 +108,9 @@ def recover_interrupted_setup_task(db_path: str) -> None:
 def _progress_from_record(record: InstallationRecord) -> SetupProgress:
     completed = _completed_count(record)
     complete = completed == 5
-    failed_step = record.active_task_step or 0
+    failed_step = record.install_step or 0
     current_step = 5 if complete else completed + 1
-    if record.task_state == "failed" and failed_step in range(1, 6):
+    if record.task_status == "failed" and failed_step in range(1, 6):
         current_step = failed_step
     return SetupProgress(
         current_step=current_step,
@@ -121,16 +121,16 @@ def _progress_from_record(record: InstallationRecord) -> SetupProgress:
                 name=_SETUP_STEP_NAMES[number - 1],
                 status=(
                     "failed"
-                    if number == failed_step and record.task_state == "failed"
+                    if number == failed_step and record.task_status == "failed"
                     else "completed"
                     if number <= completed
                     else "pending"
                 ),
                 retry_action=(
-                    f"retry_{record.active_task_key}"
+                    f"retry_{record.install_action}"
                     if number == failed_step
-                    and record.task_state == "failed"
-                    and record.active_task_key
+                    and record.task_status == "failed"
+                    and record.install_action
                     else None
                 ),
             )
@@ -141,19 +141,19 @@ def _progress_from_record(record: InstallationRecord) -> SetupProgress:
 
 
 def _task_from_record(record: InstallationRecord) -> SetupTask | None:
-    if record.active_task_step is None or record.active_task_key is None:
+    if record.install_step is None or record.install_action is None:
         return None
     return SetupTask(
-        step=record.active_task_step,
-        key=record.active_task_key,
-        state=record.task_state,
+        step=record.install_step,
+        key=record.install_action,
+        state=record.task_status,
         progress=record.task_progress,
         error=record.last_error,
     )
 
 
 def _completed_count(record: InstallationRecord) -> int:
-    if record.setup_state == "completed":
+    if record.status == "completed":
         return 5
     return ("not_started", "owner", "providers", "nest", "food").index(
         record.setup_step

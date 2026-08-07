@@ -29,10 +29,10 @@ class SetupInstallJobManager:
         with self._lock:
             current = self._threads.get(db_path)
             if current is not None:
-                if current.is_alive() or existing.task_state == "running":
+                if current.is_alive() or existing.task_status == "running":
                     return existing
         record = repository.begin_or_resume()
-        if record.setup_state == "completed":
+        if record.status == "completed":
             return record
         with self._lock:
             current = self._threads.get(db_path)
@@ -64,7 +64,7 @@ class SetupInstallJobManager:
             logger.exception("Setup installation worker failed")
             repository = SetupInstallRepository(db_path)
             record = repository.get()
-            action_key = record.active_task_key or "unknown"
+            action_key = record.install_action or "unknown"
             repository.fail(action_key, _safe_error(str(error)))
 
 

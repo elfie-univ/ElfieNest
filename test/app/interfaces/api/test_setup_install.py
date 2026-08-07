@@ -148,7 +148,7 @@ def test_failed_install_can_retry_without_unlocking_or_duplicate_owner(
         assert application.state.setup_install_jobs.join(db_path, timeout=2.0)
 
     assert attempts == 2
-    assert SetupInstallRepository(db_path).get().task_state == "completed"
+    assert SetupInstallRepository(db_path).get().task_status == "completed"
 
 
 def test_install_confirm_uses_setup_csrf_with_stale_session_cookie(

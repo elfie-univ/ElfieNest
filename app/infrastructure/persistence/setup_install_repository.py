@@ -11,13 +11,13 @@ from app.infrastructure.persistence.store import get_db
 
 @dataclass(frozen=True)
 class SetupInstallRecord:
-    setup_state: str
-    active_task_step: int | None
-    active_task_key: str | None
-    task_state: str
+    status: str
+    install_step: int | None
+    install_action: str | None
+    task_status: str
     task_progress: int
     last_error: str | None
-    completed_at: str | None
+    setup_completed_at: str | None
 
 
 @dataclass(frozen=True)
@@ -61,15 +61,15 @@ class SetupInstallRepository:
             connection.execute("BEGIN IMMEDIATE")
             self._ensure_row(connection)
             record = self._record(connection)
-            if record.setup_state == "completed" or record.task_state == "running":
+            if record.status == "completed" or record.task_status == "running":
                 connection.commit()
                 return record
-            phase = record.active_task_step or 2
+            phase = record.install_step or 2
             phase = min(max(phase, 2), 5)
             progress = max(record.task_progress, _phase_start_progress(phase))
             connection.execute(
-                """UPDATE local_installations SET setup_state='in_progress',
-                   active_task_step=?,active_task_key='pending',task_state='running',
+                """UPDATE local_installations SET status='in_progress',
+                   install_step=?,install_action='pending',task_status='running',
                    task_progress=?,last_error=NULL,updated_at=CURRENT_TIMESTAMP
                    WHERE installation_id='local'""",
                 (phase, progress),
@@ -88,10 +88,10 @@ class SetupInstallRepository:
             connection.execute("BEGIN IMMEDIATE")
             self._ensure_row(connection)
             cursor = connection.execute(
-                """UPDATE local_installations SET active_task_step=?,active_task_key=?,
-                   task_state='running',task_progress=?,last_error=NULL,
+                """UPDATE local_installations SET install_step=?,install_action=?,
+                   task_status='running',task_progress=?,last_error=NULL,
                    updated_at=CURRENT_TIMESTAMP
-                   WHERE installation_id='local' AND task_state='running'""",
+                   WHERE installation_id='local' AND task_status='running'""",
                 (phase, action_key.strip(), progress),
             )
             if cursor.rowcount != 1:
@@ -104,21 +104,21 @@ class SetupInstallRepository:
             connection.execute("BEGIN IMMEDIATE")
             self._ensure_row(connection)
             record = self._record(connection)
-            if record.task_state != "running":
+            if record.task_status != "running":
                 raise RuntimeError("Setup 安装任务不再运行")
             if phase == 5:
                 connection.execute(
-                    """UPDATE local_installations SET setup_state='completed',
-                       setup_step='food',active_task_step=5,active_task_key='complete',
-                       task_state='completed',task_progress=100,last_error=NULL,
-                       completed_at=COALESCE(completed_at,CURRENT_TIMESTAMP),
+                    """UPDATE local_installations SET status='completed',
+                       install_step=5,install_action='complete',
+                       task_status='completed',task_progress=100,last_error=NULL,
+                       setup_completed_at=COALESCE(setup_completed_at,CURRENT_TIMESTAMP),
                        updated_at=CURRENT_TIMESTAMP WHERE installation_id='local'"""
                 )
             else:
                 next_phase = phase + 1
                 connection.execute(
-                    """UPDATE local_installations SET active_task_step=?,
-                       active_task_key='pending',task_progress=?,updated_at=CURRENT_TIMESTAMP
+                    """UPDATE local_installations SET install_step=?,
+                       install_action='pending',task_progress=?,updated_at=CURRENT_TIMESTAMP
                        WHERE installation_id='local'""",
                     (next_phase, _phase_end_progress(phase)),
                 )
@@ -132,9 +132,9 @@ class SetupInstallRepository:
             connection.execute("BEGIN IMMEDIATE")
             self._ensure_row(connection)
             cursor = connection.execute(
-                """UPDATE local_installations SET active_task_key=?,task_state='failed',
+                """UPDATE local_installations SET install_action=?,task_status='failed',
                    last_error=?,updated_at=CURRENT_TIMESTAMP
-                   WHERE installation_id='local' AND task_state='running'""",
+                   WHERE installation_id='local' AND task_status='running'""",
                 (action_key.strip() or "unknown", safe_error),
             )
             if cursor.rowcount != 1:
@@ -147,9 +147,9 @@ class SetupInstallRepository:
             connection.execute("BEGIN IMMEDIATE")
             self._ensure_row(connection)
             connection.execute(
-                """UPDATE local_installations SET task_state='failed',last_error=?,
+                """UPDATE local_installations SET task_status='failed',last_error=?,
                    updated_at=CURRENT_TIMESTAMP WHERE installation_id='local'
-                   AND task_state='running'""",
+                   AND task_status='running'""",
                 (safe_error,),
             )
             connection.commit()
@@ -165,20 +165,20 @@ class SetupInstallRepository:
     @staticmethod
     def _record(connection: sqlite3.Connection) -> SetupInstallRecord:
         row = connection.execute(
-            """SELECT setup_state,active_task_step,active_task_key,task_state,
-                      task_progress,last_error,completed_at FROM local_installations
+            """SELECT status,install_step,install_action,task_status,
+                      task_progress,last_error,setup_completed_at FROM local_installations
                       WHERE installation_id='local'"""
         ).fetchone()
         if row is None:
             raise RuntimeError("Setup 安装记录缺失")
         return SetupInstallRecord(
-            setup_state=str(row[0]),
-            active_task_step=None if row[1] is None else int(row[1]),
-            active_task_key=None if row[2] is None else str(row[2]),
-            task_state=str(row[3]),
+            status=str(row[0]),
+            install_step=None if row[1] is None else int(row[1]),
+            install_action=None if row[2] is None else str(row[2]),
+            task_status=str(row[3]),
             task_progress=int(row[4]),
             last_error=None if row[5] is None else str(row[5]),
-            completed_at=None if row[6] is None else str(row[6]),
+            setup_completed_at=None if row[6] is None else str(row[6]),
         )
 
     def get_draft(self) -> SetupDraftRecord:

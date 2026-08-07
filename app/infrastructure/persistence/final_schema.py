@@ -94,22 +94,19 @@ _TABLE_STATEMENTS: Final = (
         owner_user_id INTEGER REFERENCES users(id), device_name TEXT, platform TEXT,
         machine_id_hash TEXT CHECK(machine_id_hash IS NULL OR (length(machine_id_hash)=64
             AND machine_id_hash NOT GLOB '*[^0-9a-f]*')),
-        setup_state TEXT NOT NULL DEFAULT 'not_started'
-            CHECK(setup_state IN ('not_started','in_progress','completed')),
-        setup_step TEXT NOT NULL DEFAULT 'not_started'
-            CHECK(setup_step IN ('not_started','owner','providers','nest','food')),
-        owner_completed_at TEXT, providers_completed_at TEXT, nest_completed_at TEXT,
-        food_completed_at TEXT, completed_at TEXT, last_seen_at TEXT,
-        active_task_step INTEGER CHECK(active_task_step IS NULL OR active_task_step BETWEEN 1 AND 5),
-        active_task_key TEXT,
-        task_state TEXT NOT NULL DEFAULT 'idle'
-            CHECK(task_state IN ('idle','running','failed','completed','cancelled')),
+        status TEXT NOT NULL DEFAULT 'not_started'
+            CHECK(status IN ('not_started','in_progress','completed')),
+        install_step INTEGER CHECK(install_step IS NULL OR install_step BETWEEN 1 AND 5),
+        install_action TEXT,
+        task_status TEXT NOT NULL DEFAULT 'idle'
+            CHECK(task_status IN ('idle','running','failed','completed','cancelled')),
         task_progress INTEGER NOT NULL DEFAULT 0 CHECK(task_progress BETWEEN 0 AND 100),
         last_error TEXT,
         setup_draft_json TEXT CHECK(
             setup_draft_json IS NULL OR
             (json_valid(setup_draft_json) AND json_type(setup_draft_json) = 'object')
         ),
+        setup_completed_at TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )""",

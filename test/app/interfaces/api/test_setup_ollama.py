@@ -216,12 +216,12 @@ def test_setup_model_pull_requires_confirmation_and_queues_work(
 
     rejected = client.post(
         "/api/auth/setup/model/pull",
-        json={"model_reference": "ollama/qwen2.5:0.5b", "confirmed": False},
+        json={"model_reference": "qwen2.5:0.5b", "confirmed": False},
         headers=headers,
     )
     accepted = client.post(
         "/api/auth/setup/model/pull",
-        json={"model_reference": "ollama/qwen2.5:0.5b", "confirmed": True},
+        json={"model_reference": "qwen2.5:0.5b", "confirmed": True},
         headers=headers,
     )
 

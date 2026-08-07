@@ -48,7 +48,7 @@ def test_installation_without_local_ollama_skips_three_phases_and_applies_beds(
     run_setup_installation(db_path, adapter=_UnusedAdapter())
 
     record = SetupInstallRepository(db_path).get()
-    assert record.task_state == "completed"
+    assert record.task_status == "completed"
     with get_db(db_path) as connection:
         assert connection.execute(
             "SELECT bed_count FROM nest_settings WHERE nest_id='local'"
@@ -75,7 +75,7 @@ def test_stopped_public_ollama_is_started_without_reinstall(tmp_path: Path, monk
 
     assert adapter.started == ["/usr/local/bin/ollama"]
     assert adapter.installers == 0
-    assert SetupInstallRepository(db_path).get().task_state == "completed"
+    assert SetupInstallRepository(db_path).get().task_status == "completed"
 
 
 def test_failed_start_repairs_the_same_public_ollama_and_emergency_food_only(

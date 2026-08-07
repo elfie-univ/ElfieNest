@@ -208,7 +208,7 @@ async def confirm_setup_install(
         content=_setup_status(request)
         .model_copy(update={"csrf_token": owner_csrf})
         .model_dump(mode="json"),
-        status_code=200 if record.task_state == "completed" else 202,
+        status_code=200 if record.task_status == "completed" else 202,
     )
     response.set_cookie(
         key="session_token",
@@ -452,7 +452,7 @@ def _setup_status(request: Request) -> SetupStatus:
     owner_configured = draft.owner_configured or owner_exists
     offline_configured = draft.offline_configured or progress.current_step >= 3
     nest_configured = draft.nest_configured or progress.current_step >= 4
-    complete = install.setup_state == "completed" or progress.complete
+    complete = install.status == "completed" or progress.complete
     current_step = 4 if draft.locked_at is not None else (
         1
         if not owner_configured
@@ -480,11 +480,11 @@ def _setup_status(request: Request) -> SetupStatus:
                 if number == current_step
                 else "pending"
             ),
-            retry_action=("retry_install" if number == 4 and install.task_state == "failed" else None),
+            retry_action=("retry_install" if number == 4 and install.task_status == "failed" else None),
         )
         for number, configured in enumerate(step_configured, start=1)
     ]
-    active_phase = install.active_task_step or 5
+    active_phase = install.install_step or 5
     phase_names = {
         1: "owner",
         2: "ollama",
@@ -494,10 +494,10 @@ def _setup_status(request: Request) -> SetupStatus:
     }
     install_status = SetupInstallStatus(
         phase=phase_names[active_phase],
-        action_key=install.active_task_key or "idle",
-        state=install.task_state if install.task_state in {"idle", "running", "failed", "completed"} else "idle",
+        action_key=install.install_action or "idle",
+        state=install.task_status if install.task_status in {"idle", "running", "failed", "completed"} else "idle",
         progress=install.task_progress,
-        error_key="setup.install.failed" if install.task_state == "failed" else None,
+        error_key="setup.install.failed" if install.task_status == "failed" else None,
     )
     setup_token = request.cookies.get("setup_token")
     session_token = request.cookies.get("session_token")
@@ -530,12 +530,12 @@ def _setup_status(request: Request) -> SetupStatus:
         task=(
             SetupTaskStatus(
                 step=active_phase,
-                key=install.active_task_key or "idle",
-                state=install.task_state,
+                key=install.install_action or "idle",
+                state=install.task_status,
                 progress=install.task_progress,
                 error=None,
             )
-            if install.active_task_step is not None
+            if install.install_step is not None
             else None
         ),
         draft=SetupDraftView(

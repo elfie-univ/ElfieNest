@@ -31,7 +31,7 @@ def run_setup_installation(
         raise RuntimeError("Setup 安装草稿未锁定或不完整")
     installs = SetupInstallRepository(db_path)
     record = installs.get()
-    if record.setup_state == "completed":
+    if record.status == "completed":
         return
     service = OllamaSetupService(
         adapter=adapter or OllamaPlatformAdapter(),
@@ -40,7 +40,7 @@ def run_setup_installation(
         report_repository=report_repository,
     )
     model_reference: str | None = None
-    phase = record.active_task_step or 2
+    phase = record.install_step or 2
     if phase <= 2:
         if draft.use_local_ollama:
             binding = service.ensure_for_install(
