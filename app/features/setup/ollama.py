@@ -115,9 +115,6 @@ class OllamaSetupService:
         )
         return probe
 
-    def skip(self, *, db_path: str) -> None:
-        complete_setup_step(db_path, step=2, decision="skipped")
-
     def install_official(
         self,
         *,
