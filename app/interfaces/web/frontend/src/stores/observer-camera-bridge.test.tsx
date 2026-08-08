@@ -175,4 +175,54 @@ describe("useObserverCameraBridge", () => {
       paused: false,
     }, window.location.origin)
   })
+
+  it("publishes only strict semantic snapshots to the current observer iframe", () => {
+    const { result } = renderHook(useBridgeHarness)
+    const engine = appendProductEngine()
+    const target = engine.contentWindow
+    if (target === null) throw new Error("observer iframe missing")
+    result.current.iframeRef.current = engine
+    const postMessage = vi.spyOn(target, "postMessage")
+    const snapshot = {
+      channel: "elfienest.observer",
+      version: 1,
+      kind: "semantic_snapshot",
+      protocol: 3,
+      generation: 1,
+      sequence: 1,
+      scope: { kind: "room", room_id: "local-nest" },
+      entities: {},
+      entity_revisions: {},
+    }
+
+    act(() => { result.current.bridge.publishSemanticSnapshot(snapshot) })
+    act(() => { result.current.bridge.publishSemanticSnapshot({ ...snapshot, x: 1 }) })
+
+    expect(postMessage).toHaveBeenCalledOnce()
+    expect(postMessage).toHaveBeenCalledWith(snapshot, window.location.origin)
+  })
+
+  it("publishes only strict bed-count world configuration to the current observer iframe", () => {
+    const { result } = renderHook(useBridgeHarness)
+    const engine = appendProductEngine()
+    const target = engine.contentWindow
+    if (target === null) throw new Error("observer iframe missing")
+    result.current.iframeRef.current = engine
+    const postMessage = vi.spyOn(target, "postMessage")
+    const worldConfig = {
+      channel: "elfienest.observer",
+      version: 1,
+      kind: "world_config",
+      nest_id: "local-nest",
+      bed_count: 4,
+    }
+
+    act(() => {
+      result.current.bridge.publishWorldConfig(worldConfig)
+      result.current.bridge.publishWorldConfig({ ...worldConfig, coordinates: { x: 1 } })
+    })
+
+    expect(postMessage).toHaveBeenCalledOnce()
+    expect(postMessage).toHaveBeenCalledWith(worldConfig, window.location.origin)
+  })
 })

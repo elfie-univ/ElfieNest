@@ -66,7 +66,7 @@ def test_default_semantic_nest_has_desired_count_without_coordinates(
     rooms = resp.json()
     assert rooms == [
         {
-            "id": "local",
+            "id": "local-nest",
             "name": "Local Nest",
             "desired_bed_count": 4,
             "applied_world_revision": None,
@@ -134,6 +134,13 @@ def test_bed_count_updates_desired_state_not_python_bed_geometry(
     assert [bed["anchor_id"] for bed in rooms[0]["beds"]] == [
         f"bed-{number:02d}" for number in range(1, 7)
     ]
+
+    legacy_id_resp = client.put(
+        "/api/owner/nest/rooms/local/bed-count",
+        json={"bed_count": 8},
+        headers=headers,
+    )
+    assert legacy_id_resp.status_code == 404
 
 
 @pytest.mark.parametrize("bed_count", [1, 3, 33, 64])
@@ -224,7 +231,7 @@ def test_user_room_view_redacts_another_users_occupant(
     with get_db(db_path) as conn:
         conn.execute(
             """INSERT OR IGNORE INTO nest_settings(nest_id, bed_count, tick_interval_sec)
-               VALUES ('local', 4, 1.0)"""
+               VALUES ('local-nest', 4, 1.0)"""
         )
         conn.execute(
             "UPDATE elfies SET bed_number=1 WHERE elfie_id=?",

@@ -55,6 +55,18 @@ EXPECTED_GODOT_OBSERVER_CATALOG_FIELDS = frozenset(
 )
 EXPECTED_GODOT_OBSERVER_VIEW_FIELDS = frozenset({"id", "label"})
 EXPECTED_GODOT_OBSERVER_TRANSPORT_FIELDS = frozenset({"channel", "version", "kind"})
+EXPECTED_OBSERVER_PRESENTATION_FIELDS = frozenset(
+    {
+        "room_id",
+        "zone_id",
+        "posture",
+        "active",
+        "active_command_id",
+        "species_id",
+        "appearance",
+        "home_anchor_id",
+    }
+)
 FORBIDDEN_GODOT_OBSERVER_BOUNDARY_FIELDS = frozenset(
     {
         "x",
@@ -421,22 +433,6 @@ def test_godot_observer_catalog_is_semantic_versioned_and_not_authority() -> Non
             "set_observer_presentation_paused",
         )
     )
-    ready_body = _gdscript_function_body(GODOT_MAIN_PATH, "_ready")
-    setup_body = _gdscript_function_body(
-        GODOT_MAIN_PATH, "_setup_product_observer_bridge"
-    )
-    poll_body = _gdscript_function_body(GODOT_MAIN_PATH, "_poll_observer_commands")
-    accepts_body = _gdscript_function_body(GODOT_MAIN_PATH, "_accepts_observer_message")
-    exact_keys_body = _gdscript_function_body(
-        GODOT_MAIN_PATH, "_observer_message_has_exact_keys"
-    )
-    parser_body = _gdscript_function_body(GODOT_MAIN_PATH, "_parse_observer_command")
-    presentation_mode_body = _gdscript_function_body(
-        GODOT_MAIN_PATH, "_enter_product_observer_presentation_mode"
-    )
-    local_pause_body = _gdscript_function_body(
-        GODOT_MAIN_PATH, "_set_local_observer_presentation_paused"
-    )
     publish_body = _gdscript_function_body(GODOT_MAIN_PATH, "_publish_observer_catalog")
 
     # When / Then: the internal catalog is exactly semantic id/label metadata.
@@ -503,6 +499,40 @@ def test_godot_observer_catalog_is_semantic_versioned_and_not_authority() -> Non
     )
     assert '"kind": "camera_catalog"' in publish_body
     assert "_observer_window.parent.postMessage" in publish_body
+
+
+def test_product_observer_accepts_only_semantic_actor_snapshots() -> None:
+    # Given: the product Observer needs render inputs but not authority frames.
+    source = GODOT_MAIN_PATH.read_text(encoding="utf-8")
+    ready_body = _gdscript_function_body(GODOT_MAIN_PATH, "_ready")
+    setup_body = _gdscript_function_body(
+        GODOT_MAIN_PATH, "_setup_product_observer_bridge"
+    )
+    poll_body = _gdscript_function_body(GODOT_MAIN_PATH, "_poll_observer_commands")
+    accepts_body = _gdscript_function_body(GODOT_MAIN_PATH, "_accepts_observer_message")
+    exact_keys_body = _gdscript_function_body(
+        GODOT_MAIN_PATH, "_observer_message_has_exact_keys"
+    )
+    parser_body = _gdscript_function_body(GODOT_MAIN_PATH, "_parse_observer_command")
+    presentation_mode_body = _gdscript_function_body(
+        GODOT_MAIN_PATH, "_enter_product_observer_presentation_mode"
+    )
+    local_pause_body = _gdscript_function_body(
+        GODOT_MAIN_PATH, "_set_local_observer_presentation_paused"
+    )
+    observer_fields = _class_field_annotations(
+        OBSERVER_DESCRIPTOR_PATH, "ObserverSemanticEntity"
+    )
+    semantic_parser_body = _gdscript_function_body(
+        GODOT_MAIN_PATH, "_parse_observer_semantic_snapshot"
+    )
+
+    # Then: semantic actor inputs are explicit and the bridge remains view-only.
+    assert EXPECTED_OBSERVER_PRESENTATION_FIELDS <= set(observer_fields)
+    assert "data.kind === 'semantic_snapshot'" in source
+    assert "_parse_observer_semantic_snapshot" in source
+    assert "_runtime_client = null" not in source
+    assert "position" not in semantic_parser_body
 
     # And: the bridge exists only in product observer mode and its injected
     # listener checks origin, then parent source, before queueing parsed commands.

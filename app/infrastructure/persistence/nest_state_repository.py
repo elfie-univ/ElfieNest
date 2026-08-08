@@ -18,7 +18,8 @@ _PRESENCE_TO_STATUS: Final = {
     ResidentPresence.AWAY: "away",
     ResidentPresence.PENDING_RUNTIME: "offline",
 }
-_SEMANTIC_NEST_ID: Final = "local-nest"
+_SEMANTIC_NEST_ID: Final = DEFAULT_NEST_ID
+_BEDS_PER_DORM: Final = 4
 _STATUS_TO_PRESENCE: Final = {
     "online": ResidentPresence.ACTIVE,
     "away": ResidentPresence.AWAY,
@@ -60,6 +61,25 @@ class SQLiteNestStateRepository:
                 for row in rows
             ),
         )
+
+    def load_home_assignments(self) -> dict[str, PersistentResidentState]:
+        """Read persisted bed choices as semantic Runtime home assignments."""
+        try:
+            with get_db(self._db_path) as connection:
+                rows = connection.execute(
+                    """SELECT elfie_id, status, bed_number FROM elfies
+                       WHERE bed_number IS NOT NULL ORDER BY elfie_id"""
+                ).fetchall()
+        except sqlite3.Error as error:
+            raise NestPersistenceError(str(error)) from error
+        return {
+            str(row["elfie_id"]): _persisted_home_state(
+                elfie_id=str(row["elfie_id"]),
+                status=str(row["status"]),
+                bed_number=int(row["bed_number"]),
+            )
+            for row in rows
+        }
 
     def save_catalog(self, catalog: WorldCatalog) -> None:
         """Save only the applied revision; Runtime remains catalog authority."""
@@ -109,3 +129,18 @@ class SQLiteNestStateRepository:
 
 
 __all__ = ("SQLiteNestStateRepository",)
+
+
+def _persisted_home_state(
+    *, elfie_id: str, status: str, bed_number: int
+) -> PersistentResidentState:
+    if bed_number < 1:
+        raise NestPersistenceError(f"invalid persisted bed number: {bed_number}")
+    dorm_index, bed_index = divmod(bed_number - 1, _BEDS_PER_DORM)
+    zone_id = f"dorm-{dorm_index + 1:02d}"
+    return PersistentResidentState(
+        elfie_id=elfie_id,
+        presence=_STATUS_TO_PRESENCE[status],
+        home_zone_id=zone_id,
+        home_anchor_id=f"{zone_id}/bed-{bed_index + 1:02d}",
+    )

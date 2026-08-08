@@ -66,6 +66,9 @@ class FailingNestRepository:
     def save_catalog(self, _catalog: WorldCatalog) -> None:
         return
 
+    def load_home_assignments(self) -> dict[str, PersistentResidentState]:
+        return {}
+
     def save_resident(self, _resident: PersistentResidentState) -> None:
         raise NestPersistenceError("injected write failure")
 

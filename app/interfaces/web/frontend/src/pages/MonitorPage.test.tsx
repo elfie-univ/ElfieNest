@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react"
 import { I18nextProvider } from "react-i18next"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import type { ClientUser } from "../api/client"
+import { ownerRooms, type ClientUser } from "../api/client"
 import { createI18n } from "../i18n/config"
 import type { SupportedLocale } from "../i18n/locale"
 import { useSession } from "../stores/session"
@@ -10,8 +10,13 @@ import { MonitorPage } from "./MonitorPage"
 
 vi.mock("../stores/session", () => ({ useSession: vi.fn() }))
 
+vi.mock("../api/client", async (loadOriginal) => {
+  const original = await loadOriginal<typeof import("../api/client")>()
+  return { ...original, ownerRooms: vi.fn() }
+})
+
 vi.mock("../components/ObservationMonitor", () => ({
-  ObservationMonitor: ({ roomId }: { readonly roomId: string }) => <section aria-label="房间 3D 观察" data-room-id={roomId} data-slot="observation-monitor" role="region" />,
+  ObservationMonitor: ({ bedCount, roomId }: { readonly bedCount: number; readonly roomId: string }) => <section aria-label="房间 3D 观察" data-bed-count={String(bedCount)} data-room-id={roomId} data-slot="observation-monitor" role="region" />,
 }))
 
 const owner = {
@@ -37,6 +42,7 @@ const admin = {
 } satisfies ClientUser
 
 const redirects = vi.hoisted(() => ({ assign: vi.fn() }))
+const roomFixture = [{ id: "local-nest", name: "Local Nest", desired_bed_count: 4, beds: [] }]
 
 function setSession(user: ClientUser | null, loading = false): void {
   vi.mocked(useSession).mockReturnValue({ loading, refresh: vi.fn(async () => undefined), user })
@@ -52,6 +58,7 @@ describe("MonitorPage", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal("location", { assign: redirects.assign })
+    vi.mocked(ownerRooms).mockResolvedValue(roomFixture)
     setSession(owner)
   })
 
@@ -59,22 +66,22 @@ describe("MonitorPage", () => {
     vi.unstubAllGlobals()
   })
 
-  it("fills the product viewport with the shared observation monitor for an Owner", () => {
+  it("fills the product viewport with the shared observation monitor for an Owner", async () => {
     const { container } = renderMonitor()
 
     expect(container.querySelector("main")).toHaveClass("monitor-page")
-    expect(container.querySelectorAll("[data-slot='observation-monitor']")).toHaveLength(1)
-    expect(screen.getByRole("region", { name: "房间 3D 观察" })).toBeInTheDocument()
+    expect(await screen.findByRole("region", { name: "房间 3D 观察" })).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "房间 3D 观察" })).toHaveAttribute("data-bed-count", "4")
     expect(screen.queryByRole("heading")).toBeNull()
     expect(redirects.assign).not.toHaveBeenCalled()
   })
 
-  it("fills the product viewport for an Admin", () => {
+  it("fills the product viewport for an Admin", async () => {
     setSession(admin)
 
     renderMonitor()
 
-    expect(screen.getByRole("region", { name: "房间 3D 观察" })).toBeInTheDocument()
+    expect(await screen.findByRole("region", { name: "房间 3D 观察" })).toBeInTheDocument()
     expect(redirects.assign).not.toHaveBeenCalled()
   })
 

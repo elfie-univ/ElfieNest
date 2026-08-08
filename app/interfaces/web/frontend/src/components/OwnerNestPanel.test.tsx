@@ -21,6 +21,10 @@ vi.mock("../api/client", async (loadOriginal) => {
   }
 })
 
+vi.mock("./ObserverSurface", () => ({
+  ObserverSurface: ({ bedCount, roomId }: { readonly bedCount: number; readonly roomId: string }) => <section aria-label="房间 3D 观察" data-bed-count={String(bedCount)} data-room-id={roomId} data-testid="observer-surface" role="region" />,
+}))
+
 const happy = {
   elfie_id: "00000001",
   owner: { user_id: 1, account_id: "owner", display_name: "Owner" },
@@ -116,6 +120,16 @@ describe("OwnerNestPanel", () => {
     expect(screen.queryByRole("button", { name: "进入 3D" })).toBeNull()
     expect(screen.getByRole("button", { name: "关闭实时房间摄像头" })).toBeInTheDocument()
     expect(screen.queryByRole("img", { name: "精灵巢实时摄像头画面" })).toBeNull()
+  })
+
+  it("passes the canonical owner room id to the runtime observer", async () => {
+    const user = userEvent.setup()
+    renderWithI18n(<OwnerNestPanel csrfToken="csrf" />)
+
+    await user.click(await screen.findByRole("button", { name: "打开预览" }))
+
+    expect(screen.getByTestId("observer-surface")).toHaveAttribute("data-room-id", "local-nest")
+    expect(screen.getByTestId("observer-surface")).toHaveAttribute("data-bed-count", "4")
   })
 
   it("shows an explicit empty state when the backend returns no room state", async () => {

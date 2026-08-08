@@ -7,7 +7,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Final, TypedDict
 
-DEFAULT_NEST_ID: Final = "local"
+DEFAULT_NEST_ID: Final = "local-nest"
 DEFAULT_DESIRED_BED_COUNT: Final = 4
 DEFAULT_TICK_INTERVAL_SECONDS: Final = 1.0
 MIN_DESIRED_BED_COUNT: Final = 4
@@ -64,7 +64,7 @@ class SemanticNestView:
     beds: tuple[BedPayload, ...]
 
     def as_rooms_payload(self, *, user_id: int | None = None) -> list[RoomPayload]:
-        """Project final bed occupancy while hiding other Owners' identities."""
+        """Project final bed occupancy with the canonical Nest identity."""
         visible_beds = [self._bed_for_user(bed, user_id=user_id) for bed in self.beds]
         zone = ZonePayload(
             zone_id="beds",
@@ -74,7 +74,7 @@ class SemanticNestView:
         )
         return [
             RoomPayload(
-                id=self.nest_id,
+                id=DEFAULT_NEST_ID,
                 name="Local Nest",
                 desired_bed_count=self.desired_bed_count,
                 applied_world_revision=self.applied_world_revision,

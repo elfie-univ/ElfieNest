@@ -18,21 +18,24 @@ vi.mock("../stores/observer", () => ({
 vi.mock("./ObserverSurface", () => ({
   ObserverSurface: ({
     autoStart,
+    bedCount,
     roomId,
     showHeader,
     title,
   }: {
     readonly autoStart?: boolean
+    readonly bedCount: number
     readonly roomId: string
     readonly showHeader?: boolean
     readonly title: string
-  }) => <div aria-label={title} data-auto-start={String(autoStart)} data-room-id={roomId} data-show-header={String(showHeader)} data-testid="observer-surface" role="region" />,
+  }) => <div aria-label={title} data-auto-start={String(autoStart)} data-bed-count={String(bedCount)} data-room-id={roomId} data-show-header={String(showHeader)} data-testid="observer-surface" role="region" />,
 }))
 
 type ObserverState = NonNullable<ReturnType<typeof useOptionalObserver>>
 
 type ObserverFixture = {
   readonly calls: {
+    readonly configureRoom: ReturnType<typeof vi.fn>
     readonly detach: ReturnType<typeof vi.fn>
     readonly openRoom: ReturnType<typeof vi.fn>
     readonly overview: ReturnType<typeof vi.fn>
@@ -56,6 +59,7 @@ const catalog = {
 
 function createObserver(cameraCatalog: ObserverCameraCatalog | null): ObserverFixture {
   const calls = {
+    configureRoom: vi.fn(),
     detach: vi.fn(),
     openRoom: vi.fn(async () => undefined),
     overview: vi.fn(),
@@ -66,8 +70,9 @@ function createObserver(cameraCatalog: ObserverCameraCatalog | null): ObserverFi
   return {
     calls,
     observer: {
-      attach: vi.fn(),
-      cameraCatalog,
+    attach: vi.fn(),
+    cameraCatalog,
+    configureRoom: calls.configureRoom,
       detach: calls.detach,
       entities: {},
       fallbackReason: null,
@@ -82,10 +87,10 @@ function createObserver(cameraCatalog: ObserverCameraCatalog | null): ObserverFi
   }
 }
 
-function renderMonitor(locale: SupportedLocale = "zh-CN"): i18n {
+function renderMonitor(locale: SupportedLocale = "zh-CN", bedCount = 4): i18n {
   const instance = createI18n()
   void instance.changeLanguage(locale)
-  render(<I18nextProvider i18n={instance}><ObservationMonitor roomId="local-nest" /></I18nextProvider>)
+  render(<I18nextProvider i18n={instance}><ObservationMonitor bedCount={bedCount} roomId="local-nest" /></I18nextProvider>)
   return instance
 }
 
@@ -116,6 +121,7 @@ describe("ObservationMonitor", () => {
     expect(screen.getByRole("button", { name: "活动区" })).toHaveAttribute("aria-pressed", "true")
     expect(screen.getByRole("button", { name: "总览" })).toHaveAttribute("aria-pressed", "false")
     expect(screen.getByTestId("observer-surface")).toHaveAttribute("data-auto-start", "true")
+    expect(screen.getByTestId("observer-surface")).toHaveAttribute("data-bed-count", "4")
     expect(screen.getByTestId("observer-surface")).toHaveAttribute("data-show-header", "false")
   })
 
@@ -308,7 +314,13 @@ describe("ObservationMonitor", () => {
 
     // Then: safe local help replaces runtime detail and only the existing room action runs.
     expect(screen.getByText("The local 3D runtime stopped responding. You can retry without leaving this page.")).toBeInTheDocument()
-    expect(fixture.calls.openRoom).toHaveBeenCalledWith("local-nest")
+    expect(fixture.calls.openRoom).toHaveBeenCalledWith("local-nest", {
+      channel: "elfienest.observer",
+      version: 1,
+      kind: "world_config",
+      nest_id: "local-nest",
+      bed_count: 4,
+    })
     expect(fixture.calls.detach).not.toHaveBeenCalled()
   })
 })

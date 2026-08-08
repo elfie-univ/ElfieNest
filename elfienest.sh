@@ -183,7 +183,7 @@ interactive_mode() {
             "" ) continue ;;
             exit|quit|q) echo ""; echo "  Goodbye! 🦊"; echo ""; exit 0 ;;
             help|h|?) show_help ;;
-            serve) ELFIENEST_INTERACTIVE=1 "$PYTHON_BIN" scripts/serve.py "${args[@]}" ;;
+            serve) ELFIENEST_INTERACTIVE=1 "$PYTHON_BIN" scripts/elfienest.py serve "${args[@]}" ;;
             config|owner|doctor|status|web|desktop|mobile|stop|restart|start|version|v|setup|uninstall)
                 ELFIENEST_INTERACTIVE=1 "$PYTHON_BIN" scripts/elfienest.py "$cmd" "${args[@]}" ;;
             *)
@@ -206,7 +206,7 @@ else
         ;;
     serve)
         shift
-        "$PYTHON_BIN" scripts/serve.py "$@"
+        "$PYTHON_BIN" scripts/elfienest.py serve "$@"
         ;;
     --help|-h)
         show_logo

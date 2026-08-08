@@ -215,6 +215,22 @@ func apply_world_config(config: Dictionary) -> Dictionary:
 	return {"accepted": true, "manifest": scene_manifest()}
 
 
+func apply_observer_world_config(config: Dictionary) -> bool:
+	var requested_nest_id := String(config.get("nest_id", ""))
+	var requested_bed_count := _parse_protocol_integer(config.get("bed_count"))
+	if requested_nest_id.is_empty() or requested_nest_id != _nest_id:
+		return false
+	if requested_bed_count < D.MIN_BED_COUNT or requested_bed_count > D.MAX_BED_COUNT:
+		return false
+	if requested_bed_count == bed_count:
+		return true
+	_suppress_deferred_rebuild = true
+	bed_count = requested_bed_count
+	_suppress_deferred_rebuild = false
+	rebuild()
+	return true
+
+
 func _parse_protocol_integer(value: Variant) -> int:
 	if value is int:
 		return int(value)

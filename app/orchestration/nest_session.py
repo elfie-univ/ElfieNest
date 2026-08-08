@@ -26,6 +26,7 @@ from nest import Nest
 from nest.godot_gateway.messages import RuntimeEventFrame
 from nest.godot_gateway.observer import ObserverSemanticEntity
 from nest.interaction.hub import TactileInput
+from nest.state.models import PersistentResidentState
 from nest.state.repository import (
     NestPersistenceError,
     NestPersistenceSnapshot,
@@ -76,6 +77,7 @@ class NestSession:
             )
         )
         restore_snapshot(self.nest, snapshot)
+        self._persisted_home_assignments = self._read_persisted_home_assignments()
         self._runtime_sync = NestRuntimeSynchronizer(
             nest=nest,
             gateway=api_server,
@@ -234,7 +236,9 @@ class NestSession:
             if self._repository is not None:
                 return
             if self.elfies:
-                msg = "cannot attach Nest repository after Elfie instances are registered"
+                msg = (
+                    "cannot attach Nest repository after Elfie instances are registered"
+                )
                 raise RuntimeError(msg)
             snapshot = repository.load_snapshot()
             self._repository = repository
@@ -247,6 +251,7 @@ class NestSession:
                 repository=repository,
             )
             self._runtime_events.replace_synchronizer(self._runtime_sync)
+            self._persisted_home_assignments = self._read_persisted_home_assignments()
 
     @property
     def has_repository(self) -> bool:
@@ -281,11 +286,17 @@ class NestSession:
 
     def observer_semantic_entities(self) -> Dict[str, ObserverSemanticEntity]:
         """Expose only Nest-owned semantic facts for authenticated Observers."""
+        with self._lifecycle_lock:
+            self._persisted_home_assignments = self._read_persisted_home_assignments()
         catalog = self.nest.state.world_catalog
         room_id = catalog.nest_id if catalog is not None else "local-nest"
+        descriptors = {
+            descriptor.actor_id: descriptor for descriptor in actor_catalog(self.elfies)
+        }
         entities: Dict[str, ObserverSemanticEntity] = {}
         for elfie_id, resident in self.nest.state.residents.items():
             mirror = self.nest.state.runtime_mirrors.get(elfie_id)
+            descriptor = descriptors.get(elfie_id)
             entities[elfie_id] = ObserverSemanticEntity(
                 room_id=room_id,
                 zone_id=mirror.current_zone_id if mirror is not None else None,
@@ -294,8 +305,34 @@ class NestSession:
                 active_command_id=(
                     mirror.active_command_id if mirror is not None else None
                 ),
+                species_id=descriptor.species if descriptor is not None else None,
+                appearance=descriptor.appearance if descriptor is not None else {},
+                home_anchor_id=self._observer_home_anchor_id(elfie_id),
             )
         return entities
+
+    def _read_persisted_home_assignments(self) -> Dict[str, PersistentResidentState]:
+        if self._repository is None:
+            return {}
+        loader = getattr(self._repository, "load_home_assignments", None)
+        if not callable(loader):
+            return {}
+        try:
+            assignments = loader()
+        except NestPersistenceError as error:
+            logger.warning("读取精灵 home assignment 失败: %s", error)
+            return getattr(self, "_persisted_home_assignments", {})
+        return {
+            elfie_id: assignment
+            for elfie_id, assignment in assignments.items()
+            if assignment.home_anchor_id is not None
+        }
+
+    def _observer_home_anchor_id(self, elfie_id: str) -> str | None:
+        persisted = self._persisted_home_assignments.get(elfie_id)
+        if persisted is not None and persisted.home_anchor_id is not None:
+            return persisted.home_anchor_id
+        return self.nest.home_anchor_id(elfie_id)
 
     def tick_elfies(self, seconds: float) -> None:
         """推进活跃精灵自身周期；Nest 环境时钟由 Nest 单独推进。"""

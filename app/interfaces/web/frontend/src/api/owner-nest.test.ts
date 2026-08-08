@@ -16,7 +16,7 @@ describe("owner Nest API boundary", () => {
   it("normalizes semantic bed payloads into the floorplan contract", async () => {
     // Given: the backend emits numeric bed ids and the semantic label field.
     vi.mocked(requestJson).mockResolvedValue([{
-      id: "local",
+      id: "local-nest",
       name: "Local Nest",
       desired_bed_count: 4,
       applied_world_revision: 1,

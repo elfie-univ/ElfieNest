@@ -68,6 +68,13 @@ Runtime frames, authority credentials or simulation controls. Local presentation
 pause is an Observer input/presentation state only: it must never pause the
 Runtime, Gateway, Core or backend simulation.
 
+The product Observer may also receive a strict semantic entity snapshot for
+view-only presentation. Each entity carries identity, species, appearance,
+room/zone state and a semantic `home_anchor_id`; it never carries coordinates,
+transforms, navigation or collision facts. Godot resolves that anchor locally
+and owns actor placement and rendering. The React bridge accepts and forwards
+only same-origin, validated snapshots to the current Observer iframe.
+
 `/monitor` is an Owner/Admin full observation page. The Owner/Admin Nest-management
 dialog embeds the same `ObservationMonitor` surface and bridge rather than a
 separate camera implementation.

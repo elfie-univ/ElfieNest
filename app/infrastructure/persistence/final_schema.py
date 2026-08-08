@@ -131,7 +131,7 @@ _TABLE_STATEMENTS: Final = (
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )""",
     """CREATE TABLE IF NOT EXISTS nest_settings (
-        nest_id TEXT PRIMARY KEY CHECK(nest_id='local'),
+        nest_id TEXT PRIMARY KEY CHECK(nest_id='local-nest'),
         bed_count INTEGER NOT NULL CHECK(bed_count BETWEEN 4 AND 32),
         tick_interval_sec REAL NOT NULL CHECK(tick_interval_sec>0),
         max_elfies INTEGER CHECK(max_elfies IS NULL OR max_elfies>=0),
@@ -248,12 +248,12 @@ _TRIGGER_STATEMENTS: Final = (
         WHEN OLD.role<>'owner' AND NEW.role='owner'
         BEGIN SELECT RAISE(ABORT,'Owner role cannot be granted by update'); END""",
     """CREATE TRIGGER IF NOT EXISTS trg_elfies_bed_insert BEFORE INSERT ON elfies
-        WHEN NEW.bed_number IS NOT NULL AND ((SELECT bed_count FROM nest_settings WHERE nest_id='local') IS NULL
-        OR NEW.bed_number>(SELECT bed_count FROM nest_settings WHERE nest_id='local'))
+        WHEN NEW.bed_number IS NOT NULL AND ((SELECT bed_count FROM nest_settings WHERE nest_id='local-nest') IS NULL
+        OR NEW.bed_number>(SELECT bed_count FROM nest_settings WHERE nest_id='local-nest'))
         BEGIN SELECT RAISE(ABORT,'bed_number exceeds local Nest bed_count'); END""",
     """CREATE TRIGGER IF NOT EXISTS trg_elfies_bed_update BEFORE UPDATE OF bed_number ON elfies
-        WHEN NEW.bed_number IS NOT NULL AND ((SELECT bed_count FROM nest_settings WHERE nest_id='local') IS NULL
-        OR NEW.bed_number>(SELECT bed_count FROM nest_settings WHERE nest_id='local'))
+        WHEN NEW.bed_number IS NOT NULL AND ((SELECT bed_count FROM nest_settings WHERE nest_id='local-nest') IS NULL
+        OR NEW.bed_number>(SELECT bed_count FROM nest_settings WHERE nest_id='local-nest'))
         BEGIN SELECT RAISE(ABORT,'bed_number exceeds local Nest bed_count'); END""",
     """CREATE TRIGGER IF NOT EXISTS trg_nest_bed_count BEFORE UPDATE OF bed_count ON nest_settings
         WHEN EXISTS(SELECT 1 FROM elfies WHERE bed_number>NEW.bed_count)

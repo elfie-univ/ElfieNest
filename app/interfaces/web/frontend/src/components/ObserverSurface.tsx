@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
 import { useOptionalObserver } from "../stores/observer"
+import { createObserverWorldConfig, type ObserverWorldConfig } from "../stores/observer-protocol"
 import { Icon } from "./Icon"
 
 type ObserverSurfaceProps =
-  | { readonly autoStart?: boolean; readonly kind: "room"; readonly roomId: string; readonly showHeader?: boolean; readonly title: string }
+  | { readonly autoStart?: boolean; readonly bedCount: number; readonly kind: "room"; readonly roomId: string; readonly showHeader?: boolean; readonly title: string }
   | { readonly autoStart?: boolean; readonly elfieId: string; readonly kind: "elfie"; readonly showHeader?: boolean; readonly title: string }
 
 export function ObserverSurface(props: ObserverSurfaceProps) {
@@ -17,15 +18,21 @@ export function ObserverSurface(props: ObserverSurfaceProps) {
   const isRoom = props.kind === "room"
   const roomId = isRoom ? props.roomId : null
   const elfieId = isRoom ? null : props.elfieId
+  const bedCount = isRoom ? props.bedCount : null
+  const worldConfig = useMemo<ObserverWorldConfig | null>(
+    () => roomId !== null && bedCount !== null ? createObserverWorldConfig(roomId, bedCount) : null,
+    [bedCount, roomId],
+  )
   const open = useCallback((): void => {
     if (observer === null) return
     observer.attach(surfaceRef.current)
     if (roomId !== null) {
-      void observer.openRoom(roomId)
+      if (worldConfig === null) return
+      void observer.openRoom(roomId, worldConfig)
       return
     }
     if (elfieId !== null) void observer.openElfie(elfieId)
-  }, [elfieId, observer, roomId])
+  }, [elfieId, observer, roomId, worldConfig])
 
   useEffect(() => {
     if (observer === null) return undefined
@@ -38,6 +45,11 @@ export function ObserverSurface(props: ObserverSurfaceProps) {
     autoStartedRef.current = true
     open()
   }, [open, props.autoStart])
+
+  useEffect(() => {
+    if (!props.autoStart || !autoStartedRef.current || observer === null || worldConfig === null) return
+    observer.configureRoom(worldConfig)
+  }, [observer?.configureRoom, props.autoStart, worldConfig])
 
   const statusCopy = isRoom
     ? t("surface.roomHint")

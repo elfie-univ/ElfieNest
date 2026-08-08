@@ -6,8 +6,11 @@ import {
   OBSERVER_PROTOCOL_VERSION,
   parseObserverCameraCatalog,
   parseObserverCameraCommand,
+  parseObserverSemanticSnapshot,
+  parseObserverWorldConfig,
   type ObserverCameraCatalog,
   type ObserverCameraCommand,
+  type ObserverSemanticSnapshot,
 } from "./observer-protocol"
 
 export const PRODUCT_OBSERVER_URL = "/runtime/godot/elfienest.html?observer=product" as const
@@ -16,6 +19,8 @@ export type ObserverCameraBridge = {
   readonly cameraCatalog: ObserverCameraCatalog | null
   readonly clearCameraCatalog: () => void
   readonly overview: () => void
+  readonly publishSemanticSnapshot: (candidate: unknown) => void
+  readonly publishWorldConfig: (candidate: unknown) => void
   readonly reset: () => void
   readonly select: (viewId: string) => void
   readonly setLocalPresentationPaused: (paused: boolean) => void
@@ -99,6 +104,22 @@ export function useObserverCameraBridge(
     postCameraCommand(command)
   }, [postCameraCommand])
 
+  const publishSemanticSnapshot = useCallback((candidate: unknown): void => {
+    const snapshot = parseObserverSemanticSnapshot(candidate)
+    if (snapshot === null) return
+    const engine = currentSameOriginEngine(iframeRef)
+    if (engine === null || engine.contentWindow === null) return
+    engine.contentWindow.postMessage(snapshot, window.location.origin)
+  }, [iframeRef])
+
+  const publishWorldConfig = useCallback((candidate: unknown): void => {
+    const config = parseObserverWorldConfig(candidate)
+    if (config === null) return
+    const engine = currentSameOriginEngine(iframeRef)
+    if (engine === null || engine.contentWindow === null) return
+    engine.contentWindow.postMessage(config, window.location.origin)
+  }, [iframeRef])
+
   useEffect(() => {
     const onMessage = (event: MessageEvent<unknown>): void => {
       const engine = currentSameOriginEngine(iframeRef)
@@ -117,8 +138,10 @@ export function useObserverCameraBridge(
     cameraCatalog,
     clearCameraCatalog,
     overview,
+    publishSemanticSnapshot,
+    publishWorldConfig,
     reset,
     select,
     setLocalPresentationPaused,
-  }), [cameraCatalog, clearCameraCatalog, overview, reset, select, setLocalPresentationPaused])
+  }), [cameraCatalog, clearCameraCatalog, overview, publishSemanticSnapshot, publishWorldConfig, reset, select, setLocalPresentationPaused])
 }

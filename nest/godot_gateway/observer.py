@@ -112,6 +112,9 @@ class ObserverSemanticEntity(_ProtocolModel):
     posture: str = Field(default="standing", min_length=1)
     active: bool = True
     active_command_id: Optional[str] = Field(default=None, min_length=1)
+    species_id: Optional[str] = Field(default=None, min_length=1)
+    appearance: Dict[str, JsonValue] = Field(default_factory=dict)
+    home_anchor_id: Optional[str] = Field(default=None, min_length=1)
 
 
 class ObserverEntityPatch(_ProtocolModel):
@@ -122,6 +125,9 @@ class ObserverEntityPatch(_ProtocolModel):
     posture: Optional[str] = Field(default=None, min_length=1)
     active: Optional[bool] = None
     active_command_id: Optional[str] = Field(default=None, min_length=1)
+    species_id: Optional[str] = Field(default=None, min_length=1)
+    appearance: Optional[Dict[str, JsonValue]] = None
+    home_anchor_id: Optional[str] = Field(default=None, min_length=1)
 
     @model_validator(mode="after")
     def _require_changed_field(self) -> ObserverEntityPatch:

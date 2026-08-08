@@ -51,12 +51,17 @@ def test_installation_without_local_ollama_skips_three_phases_and_applies_beds(
     record = SetupInstallRepository(db_path).get()
     assert record.task_state == "completed"
     with get_db(db_path) as connection:
-        assert connection.execute(
-            "SELECT bed_count FROM nest_settings WHERE nest_id='local'"
-        ).fetchone()[0] == 8
+        assert (
+            connection.execute(
+                "SELECT bed_count FROM nest_settings WHERE nest_id='local-nest'"
+            ).fetchone()[0]
+            == 8
+        )
 
 
-def test_stopped_public_ollama_is_started_without_reinstall(tmp_path: Path, monkeypatch) -> None:
+def test_stopped_public_ollama_is_started_without_reinstall(
+    tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     db_path = str(create_final_nest_database(tmp_path / "nest.db"))
     _locked_draft(db_path, use_local=True, model_id="qwen2.5:0.5b")

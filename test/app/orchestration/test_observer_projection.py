@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from app.orchestration.engine import ElfieNestEngine
+from app.orchestration.runtime_sync import ActorDescriptor
 from elfie import Elfie
 from nest.godot_gateway.messages import CommandName, RuntimeEventFrame
-from nest.state.models import RuntimeResidentMirror
+from nest.state.models import (
+    PersistentResidentState,
+    ResidentPresence,
+    RuntimeResidentMirror,
+)
+from nest.state.repository import NestPersistenceSnapshot
 
 
 class _RuntimeGateway:
@@ -63,4 +69,69 @@ def test_observer_projection_contains_nest_semantics_without_geometry() -> None:
         "posture": "resting",
         "active": True,
         "active_command_id": "intent-7",
+        "species_id": "fox",
+        "appearance": {},
+        "home_anchor_id": None,
     }
+
+
+def test_observer_projection_includes_view_only_actor_semantics() -> None:
+    # Given: one resident has a real actor descriptor and semantic home anchor.
+    engine = ElfieNestEngine(api_server=_RuntimeGateway())
+    engine.session.register_elfie("fox-1", MagicMock(spec=Elfie))
+
+    # When: the Observer projection is assembled from existing profile/Nest facts.
+    with (
+        patch(
+            "app.orchestration.nest_session.actor_catalog",
+            return_value=(ActorDescriptor("fox-1", "fox", {"height_scale": 1.0}),),
+        ),
+        patch.object(engine.nest, "home_anchor_id", return_value="dorm-01/bed-01"),
+    ):
+        projected = engine.session.observer_semantic_entities()
+
+    # Then: it carries semantic render inputs, never coordinates or transforms.
+    assert projected["fox-1"].model_dump() == {
+        "room_id": "local-nest",
+        "zone_id": None,
+        "posture": "standing",
+        "active": True,
+        "active_command_id": None,
+        "species_id": "fox",
+        "appearance": {"height_scale": 1.0},
+        "home_anchor_id": "dorm-01/bed-01",
+    }
+
+
+def test_observer_projection_uses_persisted_home_when_runtime_is_not_connected() -> (
+    None
+):
+    # Given: management has assigned a bed, but no authoritative Runtime catalog exists yet.
+    repository = MagicMock()
+    repository.load_snapshot.return_value = NestPersistenceSnapshot(
+        desired_bed_count=4,
+        elapsed_seconds=0.0,
+        catalog=None,
+        residents=(),
+    )
+    repository.load_home_assignments.return_value = {
+        "fox-1": PersistentResidentState(
+            elfie_id="fox-1",
+            presence=ResidentPresence.PENDING_RUNTIME,
+            home_zone_id="dorm-01",
+            home_anchor_id="dorm-01/bed-01",
+        )
+    }
+    engine = ElfieNestEngine(
+        api_server=_RuntimeGateway(),
+        nest_repository=repository,
+    )
+    engine.session.register_elfie("fox-1", MagicMock(spec=Elfie))
+
+    with patch(
+        "app.orchestration.nest_session.actor_catalog",
+        return_value=(ActorDescriptor("fox-1", "fox", {}),),
+    ):
+        projected = engine.session.observer_semantic_entities()
+
+    assert projected["fox-1"].home_anchor_id == "dorm-01/bed-01"

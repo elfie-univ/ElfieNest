@@ -272,6 +272,9 @@ def test_observer_frame_route_projects_semantics_and_resyncs_stale_cursor(
     assert "coordinates" not in initial_body["entities"]["fox-1"]
     assert initial_body["entities"]["fox-1"]["zone_id"] is None
     assert initial_body["entities"]["fox-1"]["active_command_id"] is None
+    assert initial_body["entities"]["fox-1"]["species_id"] is None
+    assert initial_body["entities"]["fox-1"]["home_anchor_id"] is None
+    assert initial_body["entities"]["fox-1"]["appearance"] == {}
     assert delta.status_code == 200
     assert delta.json()["kind"] == "delta"
     assert delta.json()["patch"] == {
