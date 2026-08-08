@@ -47,13 +47,6 @@ const SetupStatusSchema = z.object({
     retry_action: z.string().nullable().optional(),
   })),
   last_error: z.string().nullable().optional(),
-  task: z.object({
-    step: z.number().int().min(1).max(5),
-    key: z.string(),
-    state: z.string(),
-    progress: z.number().int().min(0).max(100),
-    error: z.string().nullable().optional(),
-  }).nullable().optional(),
   install: z.object({
     phase: z.enum(["owner", "ollama", "model", "emergency_food", "nest"]),
     action_key: z.string(),

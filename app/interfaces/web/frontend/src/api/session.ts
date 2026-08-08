@@ -38,14 +38,6 @@ const ClientUserSchema = z.object({
 }).strict()
 
 const LoginResponseSchema = z.object({ landing_path: SafeLoginNextPathSchema })
-const SetupResponseSchema = z.object({
-  user_id: z.number().int().positive(),
-  account_id: z.string().min(1),
-  display_name: z.string().nullable(),
-  role: z.literal("owner"),
-  csrf_token: z.string(),
-}).strict()
-
 export type ClientUser = z.infer<typeof ClientUserSchema>
 export type Gender = z.infer<typeof GenderSchema>
 export type ThemeKey = z.infer<typeof ThemeKeySchema>
@@ -116,22 +108,6 @@ export async function changePassword(
     headers: csrfHeaders(csrfToken, true),
     body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
   })
-}
-
-export async function setup(
-  accountId: string,
-  password: string,
-  displayName: string,
-): Promise<z.infer<typeof SetupResponseSchema>> {
-  return SetupResponseSchema.parse(await requestJson("/api/auth/setup", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      account_id: accountId,
-      display_name: displayName || undefined,
-      password,
-    }),
-  }))
 }
 
 export async function login(accountId: string, password: string, next: string): Promise<string> {

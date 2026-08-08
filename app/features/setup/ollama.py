@@ -11,14 +11,12 @@ from ai_runtime.food.models import FOOD_EMERGENCY_ID
 from ai_runtime.food.planner import FoodPlanner, ModelEvidence
 from ai_runtime.food.store import FoodCatalogRepository
 from ai_runtime.models.capabilities import canonical_display_name, known_capabilities
-from ai_runtime.models.model_reference import ModelReferenceError, parse_model_reference
 from ai_runtime.storage.provider_connections import (
     ProviderConnection,
     ProviderConnectionStore,
     ProviderModelRecord,
 )
 from ai_runtime.storage.report_repository import ReportRepository
-from app.features.setup.progress import complete_setup_step
 from app.infrastructure.ollama_platform import (
     DEFAULT_OLLAMA_ENDPOINT,
     OllamaBinding,
@@ -39,7 +37,7 @@ class OllamaSetupObservation:
 
 
 class OllamaSetupService:
-    """Bind one public Ollama endpoint and refuse implicit endpoint replacement."""
+    """Inspect and prepare the one documented public Ollama endpoint."""
 
     def __init__(
         self,
@@ -56,9 +54,6 @@ class OllamaSetupService:
         self._food_catalog_repository = food_catalog_repository
         self._report_repository = report_repository or ReportRepository()
 
-    def detect(self) -> OllamaProbe:
-        return self._adapter.probe(self._saved_binding())
-
     def inspect(
         self,
         *,
@@ -66,13 +61,7 @@ class OllamaSetupService:
     ) -> OllamaSetupObservation:
         """Inspect the saved endpoint or the documented local endpoint once."""
         saved_binding = self._saved_binding()
-        binding = saved_binding or OllamaBinding(
-            api_base=default_endpoint.rstrip("/"),
-            platform=self._adapter.platform,
-            install_kind="existing-public",
-            launch_target="",
-            version="",
-        )
+        binding = saved_binding or self._default_binding(default_endpoint)
         probe = self._adapter.probe(binding)
         if saved_binding is None and probe.state == "deleted":
             probe = OllamaProbe("absent", probe.endpoint, detail=probe.detail)
@@ -84,104 +73,8 @@ class OllamaSetupService:
             models = ()
         return OllamaSetupObservation(probe=probe, models=models)
 
-    def bind_existing(self, *, db_path: str, endpoint: str) -> OllamaProbe:
-        existing = self._saved_binding()
-        if existing is not None and existing.api_base != endpoint:
-            raise ValueError("Ollama endpoint 已固定；变更必须走 Owner 迁移")
-        binding = existing or OllamaBinding(
-            api_base=endpoint,
-            platform=self._adapter.platform,
-            install_kind="existing-public",
-            launch_target="",
-            version="",
-        )
-        probe = self._adapter.probe(binding)
-        if probe.state != "healthy":
-            raise RuntimeError("指定的 Ollama endpoint 未健康，不能绑定")
-        self._save_binding(
-            OllamaBinding(
-                api_base=endpoint,
-                platform=binding.platform,
-                install_kind=binding.install_kind,
-                launch_target=binding.launch_target,
-                version=probe.version or binding.version,
-            )
-        )
-        complete_setup_step(
-            db_path,
-            step=2,
-            decision="bound_existing",
-            ollama_endpoint=endpoint,
-        )
-        return probe
-
-    def install_official(
-        self,
-        *,
-        db_path: str,
-        endpoint: str,
-        user_confirmed: bool,
-    ) -> OllamaProbe:
-        """Install only once, from the fixed official source, after user consent."""
-        saved_binding = self._saved_binding()
-        if saved_binding is not None:
-            saved_probe = self._adapter.probe(saved_binding)
-            if saved_probe.state not in {"absent", "deleted", "repair_required"}:
-                raise ValueError("已有 Ollama 绑定；升级或修复必须单独确认")
-        installer = self._adapter.download_official_installer()
-        self._adapter.run_confirmed_installer(installer, user_confirmed=user_confirmed)
-        binding = self._adapter.official_binding_after_install(
-            endpoint=endpoint,
-            installer=installer,
-        )
-        self._adapter.start_bound_installation(binding)
-        probe = wait_for_healthy(self._adapter, binding)
-        if probe.state != "healthy":
-            raise RuntimeError("官方 Ollama 安装后未通过健康检查")
-        self._adapter.list_models(binding)
-        self._save_binding(
-            OllamaBinding(
-                api_base=binding.api_base,
-                platform=binding.platform,
-                install_kind=binding.install_kind,
-                launch_target=binding.launch_target,
-                version=probe.version or binding.version,
-                installer_source_url=binding.installer_source_url,
-                installer_sha256=binding.installer_sha256,
-            )
-        )
-        complete_setup_step(
-            db_path,
-            step=2,
-            decision="install_official",
-            ollama_endpoint=endpoint,
-        )
-        return probe
-
-    def repair_bound(self, *, db_path: str) -> OllamaProbe:
-        """Start the one saved public installation; never discover a replacement."""
-        binding = self._saved_binding()
-        if binding is None:
-            raise ValueError("没有已保存的 Ollama 绑定可修复")
-        probe = self._adapter.probe(binding)
-        if probe.state == "healthy":
-            return probe
-        if probe.state != "stopped":
-            raise RuntimeError("已绑定的 Ollama 需要手动修复，不能自动改绑")
-        self._adapter.start_bound_installation(binding)
-        repaired = wait_for_healthy(self._adapter, binding)
-        if repaired.state != "healthy":
-            raise RuntimeError("已绑定的 Ollama 启动后仍未健康")
-        complete_setup_step(
-            db_path,
-            step=2,
-            decision="bound_existing",
-            ollama_endpoint=binding.api_base,
-        )
-        return repaired
-
     def ensure_for_install(
-        self, *, db_path: str, report_action: Callable[[str], None]
+        self, *, report_action: Callable[[str], None]
     ) -> OllamaBinding:
         """Reuse, start, repair, or install the one documented public Ollama."""
         saved = self._saved_binding()
@@ -196,7 +89,7 @@ class OllamaSetupService:
             report_action("ollama.start")
             try:
                 self._adapter.start_bound_installation(candidate)
-                started = self._adapter.probe(candidate)
+                started = wait_for_healthy(self._adapter, candidate)
                 if started.state == "healthy":
                     binding = replace(
                         candidate, version=started.version or candidate.version
@@ -206,10 +99,7 @@ class OllamaSetupService:
             except RuntimeError:
                 pass
         report_action("ollama.repair" if saved is not None else "ollama.install")
-        return self._install_public(
-            db_path=db_path,
-            endpoint=candidate.api_base,
-        )
+        return self._install_public(endpoint=candidate.api_base)
 
     def ensure_model_for_install(
         self,
@@ -253,21 +143,22 @@ class OllamaSetupService:
         """Generate only the emergency package for the verified local model."""
         self._generate_foods(model_reference)
 
-    def _default_binding(self) -> OllamaBinding:
+    def _default_binding(
+        self, endpoint: str = DEFAULT_OLLAMA_ENDPOINT
+    ) -> OllamaBinding:
         try:
             target, _ = official_launch_target(self._adapter.platform)
         except RuntimeError:
             target = ""
         return OllamaBinding(
-            api_base=DEFAULT_OLLAMA_ENDPOINT,
+            api_base=endpoint.rstrip("/"),
             platform=self._adapter.platform,
             install_kind="existing-public",
             launch_target=target,
             version="",
         )
 
-    def _install_public(self, *, db_path: str, endpoint: str) -> OllamaBinding:
-        _ = db_path
+    def _install_public(self, *, endpoint: str) -> OllamaBinding:
         installer = self._adapter.download_official_installer()
         self._adapter.run_confirmed_installer(installer, user_confirmed=True)
         binding = self._adapter.official_binding_after_install(
@@ -275,78 +166,12 @@ class OllamaSetupService:
             installer=installer,
         )
         self._adapter.start_bound_installation(binding)
-        probe = self._adapter.probe(binding)
+        probe = wait_for_healthy(self._adapter, binding)
         if probe.state != "healthy":
             raise RuntimeError("官方 Ollama 安装后未通过健康检查")
         binding = replace(binding, version=probe.version or binding.version)
         self._save_binding(binding)
         return binding
-
-    def configure_installed_model(
-        self,
-        *,
-        db_path: str,
-        model_reference: str,
-    ) -> None:
-        """Persist only a model verified on the one already bound Ollama endpoint."""
-        try:
-            reference = parse_model_reference(model_reference)
-        except ModelReferenceError as exc:
-            raise ValueError(str(exc)) from exc
-        if reference.provider_id != "ollama":
-            raise ValueError("本地模型必须使用已绑定的 ollama/provider_id")
-        binding = self._saved_binding()
-        if binding is None:
-            raise ValueError("尚未绑定 Ollama，不能配置本地模型")
-        if self._adapter.probe(binding).state != "healthy":
-            raise RuntimeError("已绑定的 Ollama 不健康，不能配置模型")
-        if reference.model_id not in self._adapter.list_models(binding):
-            raise ValueError("所选模型不在已绑定的 Ollama endpoint 中")
-        connection = self._saved_connection()
-        if connection is None:
-            raise ValueError("Ollama 连接配置缺失")
-        models = {model.endpoint_model_id: model for model in connection.models}
-        models[reference.model_id] = ProviderModelRecord(
-            endpoint_model_id=reference.model_id,
-            display_name=reference.model_id,
-            source="official",
-        )
-        self._provider_connection_store.replace(
-            replace(connection, models=tuple(models.values()))
-        )
-        exact_reference = f"{connection.connection_id}/{reference.model_id}"
-        self._generate_foods(exact_reference)
-        complete_setup_step(
-            db_path,
-            step=4,
-            decision="configured",
-            model_reference=model_reference,
-        )
-
-    def pull_and_configure_model(
-        self,
-        *,
-        db_path: str,
-        model_reference: str,
-    ) -> None:
-        """Pull only through the saved endpoint, then prove the model is really present."""
-        try:
-            reference = parse_model_reference(model_reference)
-        except ModelReferenceError as exc:
-            raise ValueError(str(exc)) from exc
-        if reference.provider_id != "ollama":
-            raise ValueError("本地模型必须使用已绑定的 ollama/provider_id")
-        binding = self._saved_binding()
-        if binding is None:
-            raise ValueError("尚未绑定 Ollama，不能拉取本地模型")
-        if self._adapter.probe(binding).state != "healthy":
-            raise RuntimeError("已绑定的 Ollama 不健康，不能拉取模型")
-        if reference.model_id not in self._adapter.list_models(binding):
-            self._adapter.pull_model(binding, reference.model_id)
-        self.configure_installed_model(
-            db_path=db_path,
-            model_reference=model_reference,
-        )
 
     def _generate_foods(self, model_reference: str) -> None:
         """Generate only evidence-backed recipes for the verified local model."""

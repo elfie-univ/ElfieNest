@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { requestJson } from "./http"
-import { currentUser, login, logout, safeLoginNextPath, setup, updateProfile } from "./session"
+import { currentUser, login, logout, safeLoginNextPath, updateProfile } from "./session"
 
 vi.mock("./http", () => ({
   csrfHeaders: vi.fn((_csrfToken: string, json = false) => json
@@ -74,26 +74,6 @@ describe("currentUser", () => {
 })
 
 describe("canonical account requests", () => {
-  it("sends account_id and display_name during setup without an account locale", async () => {
-    // Given: setup returns the final identity contract.
-    vi.mocked(requestJson).mockResolvedValue({
-      account_id: "owner01",
-      csrf_token: "csrf-token",
-      display_name: "Owner",
-      role: "owner",
-      user_id: 1,
-    })
-
-    // When: the owner form is submitted.
-    await setup("owner01", "secret-pass", "Owner")
-
-    // Then: only canonical account/profile fields are sent.
-    expect(requestJson).toHaveBeenCalledWith("/api/auth/setup", expect.objectContaining({
-      body: JSON.stringify({ account_id: "owner01", display_name: "Owner", password: "secret-pass" }),
-      method: "POST",
-    }))
-  })
-
   it("sends account_id in the login form body", async () => {
     // Given: the server accepts a canonical login and chooses chat.
     vi.mocked(requestJson).mockResolvedValue({ landing_path: "/chat" })

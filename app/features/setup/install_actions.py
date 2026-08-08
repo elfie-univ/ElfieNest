@@ -7,7 +7,6 @@ from typing import Callable
 from ai_runtime.food.store import FoodCatalogRepository
 from ai_runtime.storage.provider_connections import ProviderConnectionStore
 from ai_runtime.storage.report_repository import ReportRepository
-
 from app.features.setup.ollama import OllamaSetupService
 from app.infrastructure.ollama_platform import OllamaPlatformAdapter
 from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
@@ -44,7 +43,6 @@ def run_setup_installation(
     if phase <= 2:
         if draft.use_local_ollama:
             binding = service.ensure_for_install(
-                db_path=db_path,
                 report_action=_phase_report(installs, 2),
             )
             _ = binding

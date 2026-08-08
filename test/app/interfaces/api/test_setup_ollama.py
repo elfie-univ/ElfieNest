@@ -11,40 +11,7 @@ from fastapi.testclient import TestClient
 from app.infrastructure.ollama_platform import OllamaBinding, OllamaProbe
 from app.interfaces.api.app import create_app
 
-
-class _QueuedOllamaJobs:
-    """Avoid a real network/download while proving the request only queues work."""
-
-    def __init__(self) -> None:
-        self.started = False
-
-    def start(self, *, db_path: str, worker):
-        _ = db_path
-        _ = worker
-        self.started = True
-        from app.features.setup.progress import SetupTask
-
-        return SetupTask(
-            step=2,
-            key="ollama_install",
-            state="running",
-            progress=1,
-            error=None,
-        )
-
-    def start_model_pull(self, *, db_path: str, worker):
-        _ = db_path
-        _ = worker
-        self.started = True
-        from app.features.setup.progress import SetupTask
-
-        return SetupTask(
-            step=4,
-            key="model_pull",
-            state="running",
-            progress=1,
-            error=None,
-        )
+from ._helpers import create_test_owner
 
 
 @pytest.fixture
@@ -70,12 +37,13 @@ def client(app):
 
 
 def _owner_headers(client: TestClient) -> dict[str, str]:
+    create_test_owner(client.app.state.db_path, password="ownerchangeme")
     owner = client.post(
-        "/api/auth/setup",
-        json={"account_id": "owner", "password": "securePass123"},
+        "/api/auth/login",
+        data={"account_id": "owner", "password": "ownerchangeme"},
     )
-    assert owner.status_code == 201, owner.text
-    return {"X-CSRF-Token": owner.json()["csrf_token"]}
+    assert owner.status_code == 200, owner.text
+    return {"X-CSRF-Token": owner.headers["X-CSRF-Token"]}
 
 
 def test_setup_model_recommendation_never_recommends_ollama_below_four_gb(

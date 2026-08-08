@@ -12,7 +12,6 @@ from fastapi.testclient import TestClient
 
 from ai_runtime.storage.data_home import get_elfie_conversations_dir
 from ai_runtime.storage.data_layout import final_root_layout
-from app.features.setup.service import complete_setup_step
 from app.infrastructure.devices import DeviceRegistry
 from app.infrastructure.persistence.elfie_chat_history import (
     ElfieChatMessageInput,
@@ -27,7 +26,7 @@ from elfie.brain.memory.knowledge_store import KnowledgeStore
 from elfie.brain.memory.node_types import MemoryNode
 from elfie.message_types import ActorId, ActorRef, CommandId, EventId, IntentId, TurnId
 
-from ._helpers import create_test_owner, create_test_user
+from ._helpers import complete_test_setup, create_test_owner, create_test_user
 
 
 @pytest.fixture
@@ -70,10 +69,7 @@ def _adopt_elfie(client: TestClient, csrf_token: str) -> str:
 
 
 def _complete_setup(client: TestClient) -> None:
-    complete_setup_step(client.app.state.db_path, step=2, decision="skipped")
-    complete_setup_step(client.app.state.db_path, step=3)
-    complete_setup_step(client.app.state.db_path, step=4, decision="skipped")
-    complete_setup_step(client.app.state.db_path, step=5)
+    complete_test_setup(client.app.state.db_path)
 
 
 def test_v1_profile_detail_exposes_private_projection_only_to_the_owner(

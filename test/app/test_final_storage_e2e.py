@@ -14,7 +14,6 @@ from app.features.adoption.service import (
     adopt_elfie_for_user,
 )
 from app.features.configuration.runtime_store import write_system_section
-from app.features.setup.service import complete_setup_step
 from app.infrastructure.devices import DeviceRegistry
 from app.infrastructure.persistence.elfie_chat_history import (
     ElfieChatMessageInput,
@@ -28,7 +27,7 @@ from app.interfaces.api.app import create_app
 from app.interfaces.cli.doctor_commands import repair_local_runtime_state
 from elfie import ElfieFactory
 from elfie.brain.memory.knowledge_schema import KNOWLEDGE_TABLES
-from test.app.interfaces.api._helpers import create_test_owner
+from test.app.interfaces.api._helpers import complete_test_setup, create_test_owner
 
 _NEST_TABLES = {
     "device_audit_events",
@@ -137,13 +136,7 @@ def test_full_product_chain_uses_one_explicit_final_root(
                 data={"account_id": "owner", "password": "ownerchangeme"},
             )
             csrf_token = login.headers["X-CSRF-Token"]
-            for step, decision in (
-                (2, "skipped"),
-                (3, None),
-                (4, "skipped"),
-                (5, None),
-            ):
-                complete_setup_step(str(db_path), step=step, decision=decision)
+            complete_test_setup(str(db_path))
             adopted = client.post(
                 "/api/user/adopt",
                 json={

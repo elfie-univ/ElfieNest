@@ -9,7 +9,6 @@ from pathlib import Path
 import pytest
 
 from app.infrastructure.persistence.setup_install_repository import (
-    SetupDraftRecord,
     SetupInstallRepository,
 )
 from app.infrastructure.persistence.store import init_db
@@ -301,3 +300,56 @@ def test_json_field_preserves_chinese_characters(tmp_path: Path) -> None:
         ).fetchone()
         stored = json.loads(row[0])
         assert stored["display_name"] == chinese_name
+
+
+def test_get_draft_rejects_invalid_member_types(tmp_path: Path) -> None:
+    db_path = init_db(str(tmp_path / "nest.db"))
+    repository = SetupInstallRepository(db_path)
+    repository.get_draft()
+
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            """UPDATE local_installations SET setup_draft_json=?
+               WHERE installation_id='local'""",
+            (json.dumps({"bed_count": "not-an-integer"}),),
+        )
+        connection.commit()
+
+    with pytest.raises(RuntimeError, match="草稿字段无效"):
+        repository.get_draft()
+
+
+def test_complete_phase_rejects_skipping_the_current_phase(tmp_path: Path) -> None:
+    db_path = init_db(str(tmp_path / "nest.db"))
+    repository = SetupInstallRepository(db_path)
+    repository.begin_or_resume()
+
+    with pytest.raises(RuntimeError, match="阶段不匹配"):
+        repository.complete_phase(phase=5)
+
+    record = repository.get()
+    assert record.status == "in_progress"
+    assert record.install_step == 2
+    assert record.task_status == "running"
+
+
+def test_update_rejects_skipping_the_current_phase(tmp_path: Path) -> None:
+    db_path = init_db(str(tmp_path / "nest.db"))
+    repository = SetupInstallRepository(db_path)
+    repository.begin_or_resume()
+
+    with pytest.raises(RuntimeError, match="阶段不匹配"):
+        repository.update(phase=5, action_key="phase.5", progress=90)
+
+
+def test_current_installation_error_recovery_redacts_secrets(tmp_path: Path) -> None:
+    repository = SetupInstallRepository(init_db(str(tmp_path / "nest.db")))
+    safe_error = "Setup 安装失败；敏感错误详情已隐藏。"
+
+    repository.begin_or_resume()
+    repository.fail("ollama.install", "api_key=abc123")
+    assert repository.get().last_error == safe_error
+
+    repository.begin_or_resume()
+    repository.recover_running("Authorization: Bearer abc123")
+    assert repository.get().last_error == safe_error

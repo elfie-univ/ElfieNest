@@ -14,7 +14,6 @@ from app.features.setup.ollama import OllamaSetupService
 from app.features.setup.ollama_owner import OllamaOwnerService
 from app.features.setup.ollama_owner_jobs import OllamaOwnerJobManager, OllamaTask
 from app.infrastructure.ollama_platform import (
-    DEFAULT_OLLAMA_ENDPOINT,
     OllamaPlatformAdapter,
     OllamaState,
 )
@@ -168,11 +167,7 @@ def _install_official(db_path: str) -> None:
     OllamaSetupService(
         adapter=OllamaPlatformAdapter(),
         provider_connection_store=_provider_store(db_path),
-    ).install_official(
-        db_path=db_path,
-        endpoint=DEFAULT_OLLAMA_ENDPOINT,
-        user_confirmed=True,
-    )
+    ).ensure_for_install(report_action=lambda _action: None)
 
 
 def _owner_service(db_path: str) -> OllamaOwnerService:

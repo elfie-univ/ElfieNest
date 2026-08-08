@@ -4,9 +4,10 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-from app.features.setup.service import complete_setup_step
 from app.infrastructure.persistence.store import get_db, hash_password
 from app.interfaces.api.app import create_app
+
+from ._helpers import complete_test_setup
 
 
 @pytest.fixture
@@ -49,10 +50,7 @@ def _create_user(client: TestClient, account_id: str, role: str) -> None:
 
 
 def _complete_setup(client: TestClient) -> None:
-    complete_setup_step(client.app.state.db_path, step=2, decision="skipped")
-    complete_setup_step(client.app.state.db_path, step=3)
-    complete_setup_step(client.app.state.db_path, step=4, decision="skipped")
-    complete_setup_step(client.app.state.db_path, step=5)
+    complete_test_setup(client.app.state.db_path)
 
 
 def _login(client: TestClient, account_id: str) -> None:

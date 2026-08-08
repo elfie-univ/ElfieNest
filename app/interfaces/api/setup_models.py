@@ -12,7 +12,6 @@ from app.features.setup.model_catalog import get_setup_model
 
 _STRICT_MODEL = ConfigDict(extra="forbid", frozen=True)
 
-SetupConfigStep: TypeAlias = Literal["owner", "offline", "nest", "review"]
 SetupInstallPhase: TypeAlias = Literal[
     "owner", "ollama", "model", "emergency_food", "nest"
 ]
@@ -25,16 +24,6 @@ class SetupStepStatus(BaseModel):
     name: str
     status: str
     retry_action: Optional[str] = None
-
-
-class SetupTaskStatus(BaseModel):
-    model_config = _STRICT_MODEL
-
-    step: int
-    key: str
-    state: str
-    progress: int
-    error: Optional[str] = None
 
 
 class SetupInstallStatus(BaseModel):
@@ -80,7 +69,6 @@ class SetupStatus(BaseModel):
     current_step: int
     steps: List[SetupStepStatus]
     last_error: Optional[str] = None
-    task: Optional[SetupTaskStatus] = None
     draft: Optional[SetupDraftView] = None
     install: Optional[SetupInstallStatus] = None
     locked: bool = False
@@ -146,55 +134,6 @@ class SetupInstallRequest(BaseModel):
     confirmed: Literal[True]
 
 
-class SetupRequest(BaseModel):
-    model_config = _STRICT_MODEL
-
-    account_id: str = Field(..., min_length=3, max_length=32)
-    display_name: Optional[str] = Field(None, max_length=64)
-    password: str = Field(..., min_length=6, max_length=128)
-    avatar_color: Optional[int] = Field(None, ge=0, le=7)
-
-    @field_validator("password")
-    @classmethod
-    def reject_blank_password(cls, value: str) -> str:
-        """Require six effective characters after trimming outer whitespace."""
-        return validate_password_strength(value)
-
-
-class SetupOllamaRequest(BaseModel):
-    model_config = _STRICT_MODEL
-
-    decision: Literal["bound_existing", "skipped"]
-    endpoint: Optional[str] = Field(None, min_length=1, max_length=256)
-
-
-class SetupOllamaInstallRequest(BaseModel):
-    model_config = _STRICT_MODEL
-
-    confirmed: Literal[True]
-
-
-class SetupNestRequest(BaseModel):
-    model_config = _STRICT_MODEL
-
-    bed_count: int = Field(..., ge=4, le=32)
-
-
-class SetupModelRequest(BaseModel):
-    model_config = _STRICT_MODEL
-
-    decision: Literal["configured", "skipped"]
-    model_reference: Optional[str] = Field(None, min_length=3, max_length=256)
-
-    @field_validator("model_reference")
-    @classmethod
-    def validate_setup_model(cls, value: Optional[str]) -> Optional[str]:
-        if value is None:
-            return None
-        get_setup_model(value)
-        return value
-
-
 SetupOllamaState = Literal[
     "absent",
     "healthy",
@@ -224,16 +163,3 @@ class SetupModelRecommendation(BaseModel):
     ollama_endpoint: Optional[str] = None
     installed_models: List[str]
     recommended_model_available: bool
-
-
-class SetupModelPullRequest(BaseModel):
-    model_config = _STRICT_MODEL
-
-    model_reference: str = Field(..., min_length=3, max_length=256)
-    confirmed: Literal[True]
-
-    @field_validator("model_reference")
-    @classmethod
-    def validate_setup_model(cls, value: str) -> str:
-        get_setup_model(value)
-        return value

@@ -36,7 +36,6 @@ const freshSetupStatus: SetupStatus = {
     error_key: null,
   },
   last_error: null,
-  task: null,
   steps: [
     { name: "Owner", number: 1, status: "current" },
     { name: "Offline", number: 2, status: "pending" },

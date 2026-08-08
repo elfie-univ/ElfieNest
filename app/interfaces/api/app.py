@@ -29,8 +29,6 @@ from app.features.setup.installer import (
     SetupInstallJobManager,
     recover_interrupted_setup_install,
 )
-from app.features.setup.jobs import OllamaInstallJobManager
-from app.features.setup.progress import recover_interrupted_setup_task
 from app.infrastructure.devices import DeviceGateway
 from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
 from app.infrastructure.persistence.store import (
@@ -123,7 +121,6 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         init_db(db_path)
-        recover_interrupted_setup_task(db_path)
         recover_interrupted_setup_install(db_path)
         seed_initial_owner_if_env_set(db_path)
         if engine is not None and not engine.session.has_repository:
@@ -161,7 +158,6 @@ def create_app(
     app.state.engine = engine
     app.state.device_gateway = DeviceGateway()
     app.state.v1_chat_hub = SameOriginChatHub(db_path)
-    app.state.setup_ollama_jobs = OllamaInstallJobManager()
     app.state.setup_install_jobs = SetupInstallJobManager()
     app.state.ws_port = ws_port
     configured_web_build_dir = os.environ.get("ELFIENEST_WEB_BUILD_DIR")
@@ -218,7 +214,7 @@ def create_app(
     async def csrf_middleware(request: Request, call_next):
         if request.method in ("POST", "PUT", "DELETE"):
             path = request.url.path
-            csrf_exempt = path in {"/api/auth/login", "/api/auth/setup"}
+            csrf_exempt = path == "/api/auth/login"
             if not csrf_exempt:
                 try:
                     if path.startswith("/api/auth/setup/draft/"):

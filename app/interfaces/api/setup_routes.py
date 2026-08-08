@@ -1,8 +1,7 @@
-"""首启向导端点 — setup-status + setup"""
+"""首启向导端点 — draft 状态与统一安装任务。"""
 
 from __future__ import annotations
 
-import logging
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -17,27 +16,25 @@ from app.features.accounts.auth import (
     require_owner,
     verify_session,
 )
-
 from app.features.setup.hardware import get_available_memory_gb
 from app.features.setup.installer import build_setup_install_worker
 from app.features.setup.model_catalog import setup_model_options
 from app.features.setup.ollama import OllamaSetupService
-from app.features.setup.progress import SetupTask
 from app.features.setup.service import (
     SetupAlreadyCompleteError,
-    create_first_owner,
     create_first_owner_from_hash,
-    get_setup_progress,
+    has_owner,
+    save_offline_setup_draft,
 )
 from app.infrastructure.ollama_platform import (
     DEFAULT_OLLAMA_ENDPOINT,
     OllamaBinding,
     OllamaPlatformAdapter,
 )
+from app.infrastructure.ollama_platform_commands import official_launch_target
 from app.infrastructure.persistence.setup_install_repository import (
     SetupInstallRepository,
 )
-from app.infrastructure.persistence.store import get_db
 
 from .setup_models import (
     SetupDraftView,
@@ -49,15 +46,11 @@ from .setup_models import (
     SetupOfflineDraftRequest,
     SetupOllamaDetection,
     SetupOwnerDraftRequest,
-    SetupRequest,
     SetupStatus,
     SetupStepStatus,
-    SetupTaskStatus,
 )
 
 _LOCAL_SETUP_CLIENTS = frozenset({"127.0.0.1", "::1", "testclient"})
-
-logger = logging.getLogger("app.interfaces.api.setup_routes")
 
 router = APIRouter(prefix="/api/auth", tags=["setup"])
 RequireOwner = Depends(require_owner)
@@ -136,7 +129,8 @@ async def save_setup_offline_draft(
 ) -> SetupStatus:
     _require_setup_draft_access(request)
     try:
-        SetupInstallRepository(request.app.state.db_path).save_offline_draft(
+        save_offline_setup_draft(
+            request.app.state.db_path,
             use_local_ollama=body.use_local_ollama,
             model_id=body.model_id,
         )
@@ -215,46 +209,6 @@ async def confirm_setup_install(
     return response
 
 
-@router.post("/setup", status_code=201)
-async def do_setup(body: SetupRequest, request: Request) -> JSONResponse:
-    """首启设置 — 创建第一个 Owner 账号。仅在无用户时允许。"""
-    _require_local_setup_client(request)
-    db_path = request.app.state.db_path
-    try:
-        setup_result = create_first_owner(
-            db_path,
-            account_id=body.account_id,
-            password=body.password,
-            display_name=body.display_name,
-            avatar_color=body.avatar_color or 0,
-        )
-    except SetupAlreadyCompleteError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from None
-
-    response = JSONResponse(
-        content={
-            "user_id": setup_result.user_id,
-            "account_id": setup_result.account_id,
-            "display_name": setup_result.display_name,
-            "role": setup_result.role,
-            "csrf_token": setup_result.csrf_token,
-        },
-        status_code=201,
-    )
-    response.set_cookie(
-        key="session_token",
-        value=setup_result.session_token,
-        httponly=True,
-        samesite="lax",
-        max_age=get_session_ttl_seconds(db_path),
-    )
-    response.headers["X-CSRF-Token"] = setup_result.csrf_token
-    return response
-
-
-
-
-
 @router.get("/setup/ollama-detection")
 async def get_setup_ollama_detection(
     owner: dict = RequireOwner,
@@ -318,14 +272,14 @@ async def get_setup_model_recommendation(
 
 
 def _setup_status(request: Request) -> SetupStatus:
-    progress = get_setup_progress(request.app.state.db_path)
-    install = SetupInstallRepository(request.app.state.db_path).get()
-    draft = SetupInstallRepository(request.app.state.db_path).get_draft()
+    repository = SetupInstallRepository(request.app.state.db_path)
+    install = repository.get()
+    draft = repository.get_draft()
     owner_exists = _has_owner(request)
     owner_configured = draft.owner_configured or owner_exists
-    offline_configured = draft.offline_configured or progress.current_step >= 3
-    nest_configured = draft.nest_configured or progress.current_step >= 4
-    complete = install.status == "completed" or progress.complete
+    offline_configured = draft.offline_configured
+    nest_configured = draft.nest_configured
+    complete = install.status == "completed"
     current_step = 4 if draft.locked_at is not None else (
         1
         if not owner_configured
@@ -378,12 +332,16 @@ def _setup_status(request: Request) -> SetupStatus:
     ollama_installed = False
     try:
         adapter = OllamaPlatformAdapter()
+        try:
+            launch_target, _ = official_launch_target(adapter.platform)
+        except RuntimeError:
+            launch_target = ""
         observation = adapter.probe(
             OllamaBinding(
                 api_base=DEFAULT_OLLAMA_ENDPOINT,
                 platform=adapter.platform,
                 install_kind="existing-public",
-                launch_target="",
+                launch_target=launch_target,
                 version="",
             )
         )
@@ -399,18 +357,7 @@ def _setup_status(request: Request) -> SetupStatus:
         complete=complete,
         current_step=current_step,
         steps=steps,
-        last_error=install.last_error or progress.last_error,
-        task=(
-            SetupTaskStatus(
-                step=active_phase,
-                key=install.install_action or "idle",
-                state=install.task_status,
-                progress=install.task_progress,
-                error=None,
-            )
-            if install.install_step is not None
-            else None
-        ),
+        last_error=install.last_error,
         draft=SetupDraftView(
             owner_account_id=draft.owner_account_id,
             display_name=draft.display_name,
@@ -455,20 +402,4 @@ def _require_setup_install_access(request: Request) -> None:
 
 
 def _has_owner(request: Request) -> bool:
-    with get_db(request.app.state.db_path) as connection:
-        row = connection.execute(
-            "SELECT 1 FROM users WHERE role='owner' LIMIT 1"
-        ).fetchone()
-    return row is not None
-
-
-def _task_status(task: SetupTask | None) -> SetupTaskStatus | None:
-    if task is None:
-        return None
-    return SetupTaskStatus(
-        step=task.step,
-        key=task.key,
-        state=task.state,
-        progress=task.progress,
-        error=task.error,
-    )
+    return has_owner(request.app.state.db_path)

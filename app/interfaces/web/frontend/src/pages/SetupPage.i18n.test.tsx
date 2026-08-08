@@ -41,7 +41,6 @@ function statusFor(
       error_key: null,
     },
     last_error: null,
-    task: null,
     steps: [
       { name: "Owner", number: 1, status: currentStep > 1 ? "completed" : currentStep === 1 ? "current" : "pending" },
       { name: "Offline", number: 2, status: currentStep > 2 ? "completed" : currentStep === 2 ? "current" : "pending" },
@@ -218,10 +217,9 @@ describe("localized setup wizard", () => {
     expect(screen.queryByText("ELFIE NEST")).not.toBeInTheDocument()
   })
 
-  it("saves the Owner draft without calling the legacy immediate setup endpoint", async () => {
+  it("saves the Owner draft through the draft-based setup API", async () => {
     const user = userEvent.setup()
     const save = vi.spyOn(client, "setupSaveOwnerDraft").mockResolvedValue(statusFor(2))
-    const legacy = vi.spyOn(client, "setup").mockRejectedValue(new Error("legacy endpoint must not run"))
     renderSetup("en-US", statusFor(1))
     await user.click(await screen.findByRole("button", { name: "Begin" }))
     await user.type(await screen.findByRole("textbox", { name: "Owner account" }), "owner")
@@ -230,7 +228,6 @@ describe("localized setup wizard", () => {
     await user.type(within(screen.getByRole("group", { name: "Confirm password" })).getByLabelText("Confirm password"), "secret-pass")
     await user.click(screen.getByRole("button", { name: "Save and continue" }))
     expect(save).toHaveBeenCalledWith("owner", "Owner", "secret-pass", "secret-pass", "setup-csrf")
-    expect(legacy).not.toHaveBeenCalled()
   })
 
   it("uses shared controls and disables the model selector when local Ollama is unchecked", async () => {
@@ -251,6 +248,17 @@ describe("localized setup wizard", () => {
     expect(model).toBeDisabled()
     await user.click(screen.getByRole("button", { name: "Save and continue" }))
     expect(save).toHaveBeenCalledWith(false, null, "setup-csrf")
+  })
+
+  it("saves enabled local Ollama with the selected model for final installation", async () => {
+    const user = userEvent.setup()
+    const save = vi.spyOn(client, "setupSaveOfflineDraft").mockResolvedValue(statusFor(3))
+    renderSetup("en-US", statusFor(2))
+
+    await screen.findByRole("combobox", { name: "Local model" })
+    await user.click(screen.getByRole("button", { name: "Save and continue" }))
+
+    expect(save).toHaveBeenCalledWith(true, "qwen2.5:0.5b", "setup-csrf")
   })
 
   it("shows reusable and pending Ollama states with distinct status styles", async () => {

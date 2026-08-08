@@ -8,6 +8,9 @@
     user_id = create_test_user(db_path, "alice", "pass")
 """
 
+from app.infrastructure.persistence.setup_install_repository import (
+    SetupInstallRepository,
+)
 from app.infrastructure.persistence.store import get_db, hash_password
 
 
@@ -47,3 +50,13 @@ def create_test_user(
         user_id = cursor.lastrowid
         conn.commit()
     return user_id
+
+
+def complete_test_setup(db_path: str, *, bed_count: int = 8) -> None:
+    """Complete Setup through the canonical installation phases."""
+    repository = SetupInstallRepository(db_path)
+    repository.save_offline_draft(use_local_ollama=False, model_id=None)
+    repository.save_nest_draft(bed_count=bed_count)
+    repository.begin_or_resume()
+    for phase in range(2, 6):
+        repository.complete_phase(phase=phase)
