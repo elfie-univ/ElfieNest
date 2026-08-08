@@ -1,11 +1,13 @@
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { useCallback, useLayoutEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
 
 import type { ChatMessage, ElfieProfile } from "../../api/client"
 import { Avatar } from "../Avatar"
 import { Icon } from "../Icon"
 import { Notice } from "../Notice"
+import { presentChatText } from "./chat-data"
 
 type ChatConversationPaneProps = {
   readonly draft: string
@@ -31,10 +33,12 @@ function MessageBubble({ message, userAvatarUrl, userDisplayName, elfieAvatarUrl
   const { t } = useTranslation("chat")
   const isUserMessage = message.sender === "user"
   const senderName = isUserMessage ? userDisplayName : t("conversation.senderElfie")
+  const visibleText = isUserMessage ? message.text : presentChatText(message.text)
+  if (!visibleText) return null
   return (
     <article className={`message${isUserMessage ? " message--user" : ""}`}>
       <Avatar imageUrl={isUserMessage ? userAvatarUrl : elfieAvatarUrl} name={senderName} />
-      <div className="bubble">{message.text}</div>
+      <div className="bubble">{visibleText}</div>
     </article>
   )
 }
@@ -45,6 +49,25 @@ export function ChatConversationPane(props: ChatConversationPaneProps) {
     draft, error, history, mobileDetail, onBack, onDraftChange, onOpenDetail,
     onSubmit, selected, selectedId, userAvatarUrl, userDisplayName,
   } = props
+  const messageListRef = useRef<HTMLElement | null>(null)
+  const followBottomRef = useRef(true)
+  const handleMessageListScroll = useCallback((): void => {
+    const list = messageListRef.current
+    if (list === null) return
+    followBottomRef.current = list.scrollHeight - list.clientHeight - list.scrollTop <= 24
+  }, [])
+
+  useLayoutEffect(() => {
+    const list = messageListRef.current
+    if (list !== null && followBottomRef.current) list.scrollTop = list.scrollHeight - list.clientHeight
+  }, [history.length])
+
+  useLayoutEffect(() => {
+    followBottomRef.current = true
+    const list = messageListRef.current
+    if (list !== null) list.scrollTop = list.scrollHeight - list.clientHeight
+  }, [selectedId])
+
   return (
     <section className={mobileDetail ? "conversation conversation--mobile-active" : "conversation"}>
       <div className="topline">
@@ -52,7 +75,7 @@ export function ChatConversationPane(props: ChatConversationPaneProps) {
         <h1>{selected?.name ?? t("conversation.select")}</h1>
         <Button variant="outline" disabled={selected === undefined} onClick={onOpenDetail} type="button">{t("conversation.details")}</Button>
       </div>
-      <section className="message-list">
+      <section className="message-list" onScroll={handleMessageListScroll} ref={messageListRef}>
         {selectedId === null ? <p className="empty">{t("conversation.empty")}</p> : history.map((message) => <MessageBubble
           elfieAvatarUrl={selected?.portrait_url}
           key={message.id}

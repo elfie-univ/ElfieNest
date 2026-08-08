@@ -10,20 +10,28 @@ import {
   type ObserverSubscription,
 } from "../api/observer"
 import { PRODUCT_OBSERVER_URL, useObserverCameraBridge } from "./observer-camera-bridge"
-import type { ObserverCameraCatalog } from "./observer-protocol"
+import {
+  OBSERVER_CHANNEL,
+  OBSERVER_PROTOCOL_VERSION,
+  OBSERVER_SEMANTIC_SNAPSHOT_KIND,
+  type ObserverCameraCatalog,
+  type ObserverSemanticSnapshot,
+  type ObserverWorldConfig,
+} from "./observer-protocol"
 
 export type ObserverStatus = "idle" | "loading" | "ready" | "fallback"
 export type ObserverFallbackReason = "disabled" | "insecure-context" | "unsupported-device" | "runtime"
 type ObserverScope =
-  | { readonly kind: "room"; readonly roomId: string }
+  | { readonly kind: "room"; readonly roomId: string; readonly worldConfig: ObserverWorldConfig }
   | { readonly kind: "elfie"; readonly elfieId: string }
 type ObserverState = {
   readonly attach: (target: HTMLElement | null) => void
   readonly cameraCatalog: ObserverCameraCatalog | null
+  readonly configureRoom: (worldConfig: ObserverWorldConfig) => void
   readonly detach: () => void
   readonly entities: Readonly<Record<string, ObserverEntity>>
   readonly openElfie: (elfieId: string) => Promise<void>
-  readonly openRoom: (roomId: string) => Promise<void>
+  readonly openRoom: (roomId: string, worldConfig: ObserverWorldConfig) => Promise<void>
   readonly fallbackReason: ObserverFallbackReason | null
   readonly overview: () => void
   readonly reset: () => void
@@ -76,8 +84,19 @@ function mergeFrame(
       active_command_id: patch.active_command_id === undefined
         ? entity.active_command_id
         : patch.active_command_id,
+      species_id: patch.species_id === undefined ? entity.species_id : patch.species_id,
+      appearance: patch.appearance === undefined ? entity.appearance : patch.appearance,
+      home_anchor_id: patch.home_anchor_id === undefined
+        ? entity.home_anchor_id
+        : patch.home_anchor_id,
     },
   }
+}
+
+function semanticScope(scope: ObserverSubscription): ObserverSemanticSnapshot["scope"] {
+  return scope.kind === "room"
+    ? { kind: "room", room_id: scope.room_id }
+    : { kind: "elfie", elfie_id: scope.elfie_id }
 }
 
 export function ObserverProvider({
@@ -105,12 +124,17 @@ export function ObserverProvider({
   const engineReadyRef = useRef(false)
   const cursorRef = useRef<ObserverCursor | null>(null)
   const entitiesRef = useRef<Readonly<Record<string, ObserverEntity>>>({})
+  const entityRevisionsRef = useRef<Readonly<Record<string, number>>>({})
+  const semanticSnapshotRef = useRef<ObserverSemanticSnapshot | null>(null)
+  const worldConfigRef = useRef<ObserverWorldConfig | null>(null)
   const restartRequiredRef = useRef(false)
   const attemptRef = useRef(0)
   const {
     cameraCatalog,
     clearCameraCatalog,
     overview,
+    publishSemanticSnapshot,
+    publishWorldConfig,
     reset,
     select,
     setLocalPresentationPaused,
@@ -131,11 +155,14 @@ export function ObserverProvider({
     engineReadyRef.current = false
     capabilityRef.current = null
     activeScopeRef.current = null
+    worldConfigRef.current = null
     cursorRef.current = null
     setStatus("idle")
     setFallbackReason(null)
     setEntities({})
     entitiesRef.current = {}
+    entityRevisionsRef.current = {}
+    semanticSnapshotRef.current = null
     clearCameraCatalog()
   }, [clearCameraCatalog])
 
@@ -145,8 +172,14 @@ export function ObserverProvider({
     restartRequiredRef.current = false
     engineReadyRef.current = true
     setFallbackReason(null)
+    publishWorldConfig(worldConfigRef.current)
     if (!detachedRef.current) setStatus("ready")
-  }, [])
+  }, [publishWorldConfig])
+
+  const configureRoom = useCallback((worldConfig: ObserverWorldConfig): void => {
+    worldConfigRef.current = worldConfig
+    if (engineReadyRef.current) publishWorldConfig(worldConfig)
+  }, [publishWorldConfig])
 
   const exportLooksReady = (engine: HTMLIFrameElement): boolean => {
     try {
@@ -203,6 +236,23 @@ export function ObserverProvider({
           const nextEntities = mergeFrame(frame, entitiesRef.current)
           entitiesRef.current = nextEntities
           setEntities(nextEntities)
+          entityRevisionsRef.current = frame.kind === "snapshot"
+            ? frame.entity_revisions
+            : { ...entityRevisionsRef.current, [frame.entity_id]: frame.entity_revision }
+          semanticSnapshotRef.current = {
+            channel: OBSERVER_CHANNEL,
+            version: OBSERVER_PROTOCOL_VERSION,
+            kind: OBSERVER_SEMANTIC_SNAPSHOT_KIND,
+            protocol: 3,
+            generation: frame.generation,
+            sequence: frame.sequence,
+            scope: semanticScope(frame.scope),
+            entities: { ...nextEntities },
+            entity_revisions: { ...entityRevisionsRef.current },
+          }
+        }
+        if (semanticSnapshotRef.current !== null) {
+          publishSemanticSnapshot(semanticSnapshotRef.current)
         }
         pollTimerRef.current = window.setTimeout(() => pollRef.current(), POLL_MILLISECONDS)
       })
@@ -241,6 +291,7 @@ export function ObserverProvider({
   }, [attach, releaseEngine])
 
   const open = useCallback(async (scope: ObserverScope): Promise<void> => {
+    worldConfigRef.current = scope.kind === "room" ? scope.worldConfig : null
     if (!enabled || !csrfToken) {
       setFallbackReason("disabled")
       setStatus("fallback")
@@ -284,7 +335,10 @@ export function ObserverProvider({
         cursorRef.current = null
         pollRef.current()
       }
-      if (engineReadyRef.current) setStatus("ready")
+      if (engineReadyRef.current) {
+        publishWorldConfig(worldConfigRef.current)
+        setStatus("ready")
+      }
     } catch (reason: unknown) {
       if (attemptRef.current !== attempt) return
       if (reason instanceof Error) {
@@ -293,7 +347,7 @@ export function ObserverProvider({
       }
       throw reason
     }
-  }, [createEngine, csrfToken, enabled, requireRestart, resetEngine])
+  }, [createEngine, csrfToken, enabled, publishWorldConfig, requireRestart, resetEngine])
 
   useEffect(() => {
     if (!enabled) return undefined
@@ -321,17 +375,18 @@ export function ObserverProvider({
   const value = useMemo<ObserverState>(() => ({
     attach,
     cameraCatalog,
+    configureRoom,
     detach,
     entities,
     openElfie: async (elfieId: string): Promise<void> => open({ kind: "elfie", elfieId }),
-    openRoom: async (roomId: string): Promise<void> => open({ kind: "room", roomId }),
+    openRoom: async (roomId: string, worldConfig: ObserverWorldConfig): Promise<void> => open({ kind: "room", roomId, worldConfig }),
     fallbackReason,
     overview,
     reset,
     select,
     setLocalPresentationPaused,
     status,
-  }), [attach, cameraCatalog, detach, entities, fallbackReason, open, overview, reset, select, setLocalPresentationPaused, status])
+  }), [attach, cameraCatalog, configureRoom, detach, entities, fallbackReason, open, overview, reset, select, setLocalPresentationPaused, status])
 
   return <ObserverContext.Provider value={value}>{children}<div aria-hidden className="observer-engine-parking" ref={parkingRef} /></ObserverContext.Provider>
 }

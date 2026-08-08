@@ -21,7 +21,7 @@ from nest.godot_gateway.messages import (
 )
 from nest.state.models import PersistentResidentState, ResidentPresence
 from nest.state.repository import NestPersistenceError, NestRepository
-from nest.state.store import NoHomeAvailableError
+from nest.state.store import BedConflictError, NoHomeAvailableError, UnknownAnchorError
 
 
 @dataclass(frozen=True)
@@ -156,9 +156,21 @@ class NestRuntimeSynchronizer:
             self._actor_catalog_dirty = False
 
     def _assign_missing_homes(self) -> None:
+        persisted = self._persisted_home_assignments()
         for descriptor in self._actor_catalog_provider():
             if self._nest.home_anchor_id(descriptor.actor_id) is None:
-                assignment = self._nest.admit_resident(descriptor.actor_id)
+                saved = persisted.get(descriptor.actor_id)
+                if saved is not None and saved.home_anchor_id is not None:
+                    try:
+                        assignment = self._nest.assign_home(
+                            descriptor.actor_id,
+                            saved.home_anchor_id,
+                        )
+                    except (BedConflictError, UnknownAnchorError):
+                        self._nest.state.reconciliation_required = True
+                        return
+                else:
+                    assignment = self._nest.admit_resident(descriptor.actor_id)
                 if self._repository is None:
                     continue
                 try:
@@ -173,6 +185,16 @@ class NestRuntimeSynchronizer:
                 except NestPersistenceError:
                     self._nest.release_home(descriptor.actor_id)
                     return
+
+    def _persisted_home_assignments(
+        self,
+    ) -> dict[str, PersistentResidentState]:
+        if self._repository is None:
+            return {}
+        loader = getattr(self._repository, "load_home_assignments", None)
+        if not callable(loader):
+            return {}
+        return loader()
 
 
 __all__ = ("ActorDescriptor", "NestRuntimeSynchronizer")

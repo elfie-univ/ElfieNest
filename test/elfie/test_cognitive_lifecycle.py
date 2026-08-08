@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from threading import Event
+from unittest.mock import MagicMock
 
+import pytest
 from pydantic import JsonValue
 
 from elfie import ElfieFactory
@@ -16,6 +18,7 @@ from elfie.brain.runtime_port import (
     ModelGenerationResult,
     StructuredOutputMode,
 )
+from elfie.cognitive_runtime import ElfieCognitiveRuntime
 from elfie.communication import (
     CommunicationEnvelope,
     CommunicationHub,
@@ -245,3 +248,20 @@ def test_stop_closes_communication_input_boundary() -> None:
     assert disposition.error.code == "communication_closed"
     assert hub.inbox.metrics().pending_count == 0
     assert elfie.is_running is False
+
+
+def test_cognitive_start_rolls_back_router_when_coordinator_start_fails() -> None:
+    runtime = object.__new__(ElfieCognitiveRuntime)
+    runtime._started = False
+    runtime.router = MagicMock()
+    runtime.coordinator = MagicMock()
+    runtime.coordinator.start.side_effect = RuntimeError("coordinator failed")
+
+    with pytest.raises(RuntimeError, match="coordinator failed"):
+        runtime.start()
+
+    runtime.router.stop.assert_called_once_with()
+    runtime.router.join.assert_called_once_with()
+    runtime.coordinator.stop.assert_called_once_with()
+    runtime.coordinator.join.assert_called_once_with()
+    assert runtime._started is False

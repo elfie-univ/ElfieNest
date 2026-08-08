@@ -109,7 +109,7 @@ printf '%s\n' "$*" >> "$ENTRYPOINT_LOG"
     assert result.returncode == 0
     assert log_path.read_text(encoding="utf-8").splitlines() == [
         "scripts/elfienest.py start --port 8100",
-        "scripts/serve.py --fallback",
+        "scripts/elfienest.py serve --fallback",
     ]
 
 
@@ -187,7 +187,9 @@ def _finish_interactive_shell(child_pid: int, master_fd: int) -> int:
     return os.waitstatus_to_exitcode(status)
 
 
-def test_interactive_shell_owns_prompt_and_recalls_recent_commands(tmp_path: Path) -> None:
+def test_interactive_shell_owns_prompt_and_recalls_recent_commands(
+    tmp_path: Path,
+) -> None:
     project_root, log_path = _write_interactive_shell_fixture(tmp_path)
 
     elfie_home = tmp_path / "home"
@@ -224,7 +226,9 @@ def test_interactive_shell_owns_prompt_and_recalls_recent_commands(tmp_path: Pat
         "scripts/elfienest.py stop",
         "scripts/elfienest.py owner --password do-not-store",
     ]
-    assert "do-not-store" not in (elfie_home / ".cli_history").read_text(encoding="utf-8")
+    assert "do-not-store" not in (elfie_home / ".cli_history").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_interactive_history_replaces_legacy_entries(tmp_path: Path) -> None:
@@ -424,7 +428,7 @@ printf '%s\\n' "$*" >> "$ENTRYPOINT_LOG"
     # Then
     assert result.returncode == 0
     assert log_path.read_text(encoding="utf-8").splitlines() == [
-        "scripts/serve.py --fallback",
+        "scripts/elfienest.py serve --fallback",
     ]
 
 

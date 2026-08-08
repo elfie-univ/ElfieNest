@@ -28,6 +28,7 @@ from app.infrastructure.persistence.runtime_query_repository import (
     RuntimeQueryRepository,
 )
 from app.interfaces.api.chat_persistence import record_owner_chat_message
+from elfie.communication.contracts import InboundDisposition, InboundDispositionStatus
 
 router = APIRouter(prefix="/api/v1", tags=["v1-client"])
 
@@ -302,6 +303,24 @@ def _conversation_summary(
     }
 
 
+def _require_admitted_message(disposition: InboundDisposition | None) -> None:
+    if disposition is None:
+        raise HTTPException(status_code=503, detail="elfie_runtime_unavailable")
+    if disposition.status is InboundDispositionStatus.ACCEPTED:
+        return
+    if disposition.status is InboundDispositionStatus.DUPLICATE:
+        raise HTTPException(status_code=409, detail="duplicate_message")
+    if disposition.status is InboundDispositionStatus.REJECTED:
+        error = disposition.error
+        if error is not None and error.retryable:
+            raise HTTPException(status_code=503, detail=error.code)
+        raise HTTPException(
+            status_code=409,
+            detail=error.code if error is not None else "message_rejected",
+        )
+    raise HTTPException(status_code=503, detail="message_admission_unknown")
+
+
 def _send_client_message(
     app: Any, user_id: int, account_id: str, elfie_id: str, text: str
 ) -> Dict[str, Any]:
@@ -313,12 +332,14 @@ def _send_client_message(
         raise HTTPException(status_code=404, detail="精灵不存在")
     engine = app.state.engine
     if engine is not None:
-        engine.session.send_user_message(
-            elfie_id,
-            normalized,
-            owner_id=str(user_id),
-            conversation_id=f"owner:{user_id}",
-            account_id=account_id,
+        _require_admitted_message(
+            engine.session.send_user_message(
+                elfie_id,
+                normalized,
+                owner_id=str(user_id),
+                conversation_id=f"owner:{user_id}",
+                account_id=account_id,
+            )
         )
     message = record_owner_chat_message(
         elfie_id,

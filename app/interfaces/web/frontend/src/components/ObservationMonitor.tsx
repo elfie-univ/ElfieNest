@@ -3,10 +3,12 @@ import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
 import { useOptionalObserver } from "../stores/observer"
+import { createObserverWorldConfig } from "../stores/observer-protocol"
 import { Icon } from "./Icon"
 import { ObserverSurface } from "./ObserverSurface"
 
 type ObservationMonitorProps = {
+  readonly bedCount: number
   readonly roomId: string
 }
 
@@ -56,7 +58,7 @@ function monitorHelpKey(
   }
 }
 
-export function ObservationMonitor({ roomId }: ObservationMonitorProps) {
+export function ObservationMonitor({ bedCount, roomId }: ObservationMonitorProps) {
   const { t } = useTranslation("monitor")
   const observer = useOptionalObserver()
   const [toolbarVisible, setToolbarVisible] = useState(true)
@@ -76,11 +78,11 @@ export function ObservationMonitor({ roomId }: ObservationMonitorProps) {
     && observer.fallbackReason !== "insecure-context"
 
   return <section className="observation-monitor" data-slot="observation-monitor">
-    <ObserverSurface autoStart kind="room" roomId={roomId} showHeader={false} title={t("surface.title")} />
+    <ObserverSurface autoStart bedCount={bedCount} kind="room" roomId={roomId} showHeader={false} title={t("surface.title")} />
     {showStatusOverlay ? <div aria-live="polite" className="observer-surface__fallback absolute inset-0 z-[2]" role="status">
       <p>{statusCopy}</p>
       <p>{t(monitorHelpKey(statusKey, observer?.fallbackReason))}</p>
-      {retryAvailable ? <Button aria-label={t("controls.retry")} onClick={() => { void observer.openRoom(roomId) }} type="button">{t("controls.retry")}</Button> : null}
+      {retryAvailable ? <Button aria-label={t("controls.retry")} onClick={() => { void observer.openRoom(roomId, createObserverWorldConfig(roomId, bedCount)) }} type="button">{t("controls.retry")}</Button> : null}
     </div> : <p aria-live="polite" className="sr-only" role="status">{statusCopy}</p>}
     <p className="sr-only">{t("help.controls")}</p>
     {cameraViews.length === 0 ? <p className="sr-only">{t("empty.cameras")}</p> : null}

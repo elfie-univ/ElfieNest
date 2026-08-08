@@ -11,6 +11,7 @@ import { ApiError } from "../api/http"
 import { createI18n } from "../i18n/config"
 import type { SupportedLocale } from "../i18n/locale"
 import { ChatPage } from "./ChatPage"
+import { ChatConversationPane } from "../components/elfie-profile/ChatConversationPane"
 
 const chatStyles = readFileSync(resolve(import.meta.dirname, "../shared/chat-profile.css"), "utf8")
 
@@ -43,8 +44,9 @@ type SocketCallbacks = {
   readonly onStatus: (status: ChatSocketStatus) => void
 }
 
-const socketState = vi.hoisted<{ callbacks: SocketCallbacks | null }>(() => ({
+const socketState = vi.hoisted<{ callbacks: SocketCallbacks | null; sendResult: boolean }>(() => ({
   callbacks: null,
+  sendResult: false,
 }))
 
 vi.mock("../stores/session", () => ({
@@ -64,7 +66,7 @@ vi.mock("../api/chat-socket", () => ({
   ChatSocket: class {
     public constructor(callbacks: SocketCallbacks) { socketState.callbacks = callbacks }
     public connect(): void {}
-    public send(): boolean { return false }
+    public send(): boolean { return socketState.sendResult }
     public close(): void {}
   },
 }))
@@ -120,6 +122,7 @@ describe("ChatPage list pane headings", () => {
       created_at: "2026-07-29T00:00:00Z",
     })
     socketState.callbacks = null
+    socketState.sendResult = false
   })
 
   it("shows only the large messages heading while preserving rail names and tooltips", async () => {
@@ -516,6 +519,209 @@ describe("ChatPage list pane headings", () => {
     // Then: only the closed send fallback is visible.
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to send the message.")
     expect(screen.queryByText("send failed upstream")).not.toBeInTheDocument()
+  })
+
+  it("reconciles a delayed Elfie reply after REST fallback", async () => {
+    const user = userEvent.setup()
+    let historyReads = 0
+    chatApi.messages.mockImplementation(async () => {
+      historyReads += 1
+      if (historyReads === 1) return []
+      return [
+        {
+          id: 21,
+          elfie_id: "00000001",
+          sender: "user",
+          text: "等待回复",
+          created_at: "2026-08-05T01:05:00Z",
+        },
+        {
+          id: 22,
+          elfie_id: "00000001",
+          sender: "elfie",
+          text: "这是重新同步到的回复",
+          created_at: "2026-08-05T01:05:01Z",
+        },
+      ]
+    })
+    chatApi.sendMessage.mockResolvedValue({
+      id: 21,
+      elfie_id: "00000001",
+      sender: "user",
+      text: "等待回复",
+      created_at: "2026-08-05T01:05:00Z",
+    })
+
+    renderChatPage("zh-CN")
+    const composer = await screen.findByPlaceholderText("对 小羽 说点什么…")
+    await user.type(composer, "等待回复")
+    await user.click(screen.getByRole("button", { name: "发送" }))
+
+    expect(await screen.findAllByText("这是重新同步到的回复")).toHaveLength(2)
+    expect(composer).toHaveValue("")
+    expect(historyReads).toBeGreaterThanOrEqual(2)
+  })
+
+  it("keeps a WebSocket-submitted user message visible until the delayed history echo arrives", async () => {
+    const user = userEvent.setup()
+    socketState.sendResult = true
+    let historyReads = 0
+    chatApi.messages.mockImplementation(async () => {
+      historyReads += 1
+      if (historyReads === 1) return []
+      return [
+        {
+          id: 31,
+          elfie_id: "00000001",
+          sender: "user",
+          text: "WebSocket 用户消息",
+          created_at: "2026-08-05T01:06:00Z",
+        },
+        {
+          id: 32,
+          elfie_id: "00000001",
+          sender: "elfie",
+          text: "延迟但最终到达的回复",
+          created_at: "2026-08-05T01:06:01Z",
+        },
+      ]
+    })
+
+    renderChatPage("zh-CN")
+    const composer = await screen.findByPlaceholderText("对 小羽 说点什么…")
+    await user.type(composer, "WebSocket 用户消息")
+    await user.click(screen.getByRole("button", { name: "发送" }))
+
+    expect(await screen.findByText("WebSocket 用户消息")).toBeInTheDocument()
+    expect(await screen.findAllByText("延迟但最终到达的回复")).toHaveLength(2)
+    expect(composer).toHaveValue("")
+  })
+})
+
+describe("ChatConversationPane history layout", () => {
+  const selected = {
+    ...elfie,
+    elfie_id: "00000001",
+    name: "小羽",
+  }
+  const message = (id: number, text = `消息 ${id}`) => ({
+    id,
+    elfie_id: "00000001",
+    sender: id % 2 === 0 ? "elfie" as const : "user" as const,
+    text,
+    created_at: `2026-08-05T01:0${id}:03Z`,
+  })
+
+  function renderPane(history: readonly ReturnType<typeof message>[]) {
+    return render(
+      <I18nextProvider i18n={createI18n()}>
+        <ChatConversationPane
+          draft=""
+          error={null}
+          history={history}
+          mobileDetail={false}
+          onBack={() => undefined}
+          onDraftChange={() => undefined}
+          onOpenDetail={() => undefined}
+          onSubmit={async () => undefined}
+          selected={selected}
+          selectedId={selected.elfie_id}
+          userAvatarUrl={null}
+          userDisplayName="Owner"
+        />
+      </I18nextProvider>,
+    )
+  }
+
+  function defineScrollMetrics(element: HTMLElement, scrollHeight: number, clientHeight: number, scrollTop: number): void {
+    Object.defineProperties(element, {
+      scrollHeight: { configurable: true, value: scrollHeight },
+      clientHeight: { configurable: true, value: clientHeight },
+      scrollTop: { configurable: true, writable: true, value: scrollTop },
+    })
+  }
+
+  it("scrolls a loaded long history to the bottom while keeping the composer outside the list", async () => {
+    const view = renderPane([])
+    const list = document.querySelector<HTMLElement>(".message-list")
+    if (list === null) throw new TypeError("Expected message list")
+    defineScrollMetrics(list, 1600, 400, 0)
+
+    view.rerender(
+      <I18nextProvider i18n={createI18n()}>
+        <ChatConversationPane
+          draft=""
+          error={null}
+          history={Array.from({ length: 40 }, (_, index) => message(index + 1))}
+          mobileDetail={false}
+          onBack={() => undefined}
+          onDraftChange={() => undefined}
+          onOpenDetail={() => undefined}
+          onSubmit={async () => undefined}
+          selected={selected}
+          selectedId={selected.elfie_id}
+          userAvatarUrl={null}
+          userDisplayName="Owner"
+        />
+      </I18nextProvider>,
+    )
+    await act(async () => {})
+
+    expect(list.scrollTop).toBe(1200)
+    expect(document.querySelector(".composer")?.parentElement).toHaveClass("conversation")
+    expect(chatStyles).toContain("overflow-wrap: anywhere")
+  })
+
+  it("follows new messages only when the reader is already at the bottom", async () => {
+    const view = renderPane([message(1)])
+    const list = document.querySelector<HTMLElement>(".message-list")
+    if (list === null) throw new TypeError("Expected message list")
+    defineScrollMetrics(list, 1000, 400, 600)
+    list.dispatchEvent(new Event("scroll"))
+
+    view.rerender(
+      <I18nextProvider i18n={createI18n()}>
+        <ChatConversationPane
+          draft=""
+          error={null}
+          history={[message(1), message(2)]}
+          mobileDetail={false}
+          onBack={() => undefined}
+          onDraftChange={() => undefined}
+          onOpenDetail={() => undefined}
+          onSubmit={async () => undefined}
+          selected={selected}
+          selectedId={selected.elfie_id}
+          userAvatarUrl={null}
+          userDisplayName="Owner"
+        />
+      </I18nextProvider>,
+    )
+    await act(async () => {})
+    expect(list.scrollTop).toBe(600)
+
+    defineScrollMetrics(list, 1400, 400, 120)
+    list.dispatchEvent(new Event("scroll"))
+    view.rerender(
+      <I18nextProvider i18n={createI18n()}>
+        <ChatConversationPane
+          draft=""
+          error={null}
+          history={[message(1), message(2), message(3)]}
+          mobileDetail={false}
+          onBack={() => undefined}
+          onDraftChange={() => undefined}
+          onOpenDetail={() => undefined}
+          onSubmit={async () => undefined}
+          selected={selected}
+          selectedId={selected.elfie_id}
+          userAvatarUrl={null}
+          userDisplayName="Owner"
+        />
+      </I18nextProvider>,
+    )
+    await act(async () => {})
+    expect(list.scrollTop).toBe(120)
   })
 })
 

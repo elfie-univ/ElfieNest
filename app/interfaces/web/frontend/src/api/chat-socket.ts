@@ -11,6 +11,7 @@ const ChatSocketEventSchema = z.discriminatedUnion("event", [ReadyEventSchema, M
 export type ChatSocketEvent = z.infer<typeof ChatSocketEventSchema>
 export type ChatSocketErrorEvent = Extract<ChatSocketEvent, { readonly event: "error" }>
 export type ChatSocketStatus = "connecting" | "online" | "offline"
+const RECONNECT_DELAY_MILLISECONDS = 1_000
 
 export function parseChatSocketEvent(payload: unknown): ChatSocketEvent { return ChatSocketEventSchema.parse(payload) }
 
@@ -18,16 +19,35 @@ type ChatSocketCallbacks = { readonly onEvent: (event: ChatSocketEvent) => void;
 
 export class ChatSocket {
   private socket: WebSocket | null = null
+  private reconnectTimer: number | null = null
+  private explicitlyClosed = false
 
   public constructor(private readonly callbacks: ChatSocketCallbacks) {}
 
   public connect(): void {
-    this.close(); this.callbacks.onStatus("connecting")
+    this.explicitlyClosed = false
+    this.clearReconnectTimer()
+    this.disposeSocket()
+    this.open()
+  }
+
+  private open(): void {
+    if (this.explicitlyClosed) return
+    this.callbacks.onStatus("connecting")
     const scheme = window.location.protocol === "https:" ? "wss" : "ws"
     const socket = new WebSocket(`${scheme}://${window.location.host}/api/v1/ws/chat`)
     this.socket = socket
-    socket.addEventListener("open", () => this.callbacks.onStatus("online"))
-    socket.addEventListener("close", () => { if (this.socket === socket) this.callbacks.onStatus("offline") })
+    socket.addEventListener("open", () => {
+      if (this.socket !== socket) return
+      this.clearReconnectTimer()
+      this.callbacks.onStatus("online")
+    })
+    socket.addEventListener("close", () => {
+      if (this.socket !== socket) return
+      this.socket = null
+      this.callbacks.onStatus("offline")
+      this.scheduleReconnect()
+    })
     socket.addEventListener("message", (event) => {
       const payload = parsePayload(event.data)
       if (payload === null) { this.callbacks.onEvent({ event: "error", detail: "" }); return }
@@ -42,7 +62,30 @@ export class ChatSocket {
     return true
   }
 
-  public close(): void { const current = this.socket; this.socket = null; current?.close() }
+  public close(): void {
+    this.explicitlyClosed = true
+    this.clearReconnectTimer()
+    this.disposeSocket()
+  }
+
+  private scheduleReconnect(): void {
+    if (this.explicitlyClosed || this.reconnectTimer !== null) return
+    this.reconnectTimer = window.setTimeout(() => {
+      this.reconnectTimer = null
+      this.open()
+    }, RECONNECT_DELAY_MILLISECONDS)
+  }
+
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer !== null) window.clearTimeout(this.reconnectTimer)
+    this.reconnectTimer = null
+  }
+
+  private disposeSocket(): void {
+    const current = this.socket
+    this.socket = null
+    current?.close()
+  }
 }
 
 function parsePayload(raw: unknown): unknown | null {

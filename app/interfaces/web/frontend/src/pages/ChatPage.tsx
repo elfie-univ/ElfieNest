@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { ChatSocket } from "../api/chat-socket"
@@ -33,6 +33,34 @@ import { useChatView } from "./use-chat-view"
 
 type MobileSection = "chats" | "elfies" | "me"
 type ChatFailure = { readonly detail: string | null; readonly operation: "chat.connect" | "chat.load" | "chat.send" }
+const REPLY_RECONCILE_INTERVAL_MILLISECONDS = 500
+const REPLY_RECONCILE_TIMEOUT_MILLISECONDS = 120_000
+
+function mergeChatMessages(
+  current: readonly ChatMessage[],
+  incoming: readonly ChatMessage[],
+): readonly ChatMessage[] {
+  const pending = current.filter((message) => message.id < 0)
+  const unmatchedPending = [...pending]
+  for (const message of incoming) {
+    if (message.sender !== "user") continue
+    const pendingIndex = unmatchedPending.findIndex((candidate) => (
+      candidate.elfie_id === message.elfie_id && candidate.text === message.text
+    ))
+    if (pendingIndex !== -1) unmatchedPending.splice(pendingIndex, 1)
+  }
+  const byId = new Map(
+    current
+      .filter((message) => message.id >= 0)
+      .map((message) => [message.id, message]),
+  )
+  for (const message of unmatchedPending) byId.set(message.id, message)
+  for (const message of incoming) byId.set(message.id, message)
+  return [...byId.values()].sort((left, right) => {
+    const byTime = left.created_at.localeCompare(right.created_at)
+    return byTime === 0 ? left.id - right.id : byTime
+  })
+}
 
 export function ChatPage() {
   const { i18n, t } = useTranslation("chat")
@@ -50,6 +78,51 @@ export function ChatPage() {
   const [showMobileAccess, setShowMobileAccess] = useState(false)
   const [elfieQuery, setElfieQuery] = useState("")
   const [elfieFilter, setElfieFilter] = useState<ElfieListFilter>("all")
+  const reconcileTimerRef = useRef<number | null>(null)
+  const reconcileGenerationRef = useRef(0)
+  const optimisticMessageSequenceRef = useRef(0)
+
+  const clearReplyReconciliation = useCallback((): void => {
+    if (reconcileTimerRef.current !== null) window.clearTimeout(reconcileTimerRef.current)
+    reconcileTimerRef.current = null
+  }, [])
+
+  const mergeLoadedHistory = useCallback((loaded: readonly ChatMessage[]): void => {
+    setHistory((current) => mergeChatMessages(current, loaded))
+    setData((current) => current === null
+      ? current
+      : loaded.reduce((next, message) => recordChatMessage(next, message), current))
+  }, [])
+
+  const reconcileReply = useCallback((elfieId: string, knownMessageIds: ReadonlySet<number>): void => {
+    clearReplyReconciliation()
+    const generation = reconcileGenerationRef.current + 1
+    reconcileGenerationRef.current = generation
+    const startedAt = Date.now()
+    const poll = async (): Promise<void> => {
+      if (reconcileGenerationRef.current !== generation) return
+      try {
+        const loaded = await messages(elfieId)
+        if (reconcileGenerationRef.current !== generation) return
+        mergeLoadedHistory(loaded)
+        const receivedReply = loaded.some(
+          (message) => message.sender === "elfie" && !knownMessageIds.has(message.id),
+        )
+        if (receivedReply || Date.now() - startedAt >= REPLY_RECONCILE_TIMEOUT_MILLISECONDS) return
+      } catch {
+        if (reconcileGenerationRef.current !== generation) return
+      }
+      reconcileTimerRef.current = window.setTimeout(() => { void poll() }, REPLY_RECONCILE_INTERVAL_MILLISECONDS)
+    }
+    reconcileTimerRef.current = window.setTimeout(() => { void poll() }, REPLY_RECONCILE_INTERVAL_MILLISECONDS)
+  }, [clearReplyReconciliation, mergeLoadedHistory])
+
+  useEffect(() => {
+    reconcileGenerationRef.current += 1
+    clearReplyReconciliation()
+  }, [clearReplyReconciliation, selectedId])
+
+  useEffect(() => clearReplyReconciliation, [clearReplyReconciliation])
 
   useEffect(() => {
     if (user === null) return
@@ -75,7 +148,7 @@ export function ChatPage() {
       return
     }
     void messages(selectedId)
-      .then(setHistory)
+      .then((loaded) => setHistory((current) => mergeChatMessages(current, loaded)))
       .catch((reason: unknown) => {
         setFailure({ detail: reason instanceof ApiError ? reason.message : null, operation: "chat.load" })
       })
@@ -101,7 +174,7 @@ export function ChatPage() {
           case "message":
             setData((current) => current === null ? current : recordChatMessage(current, event.message))
             if (event.message.elfie_id === selectedId) {
-              setHistory((current) => current.some((row) => row.id === event.message.id) ? current : [...current, event.message])
+              setHistory((current) => mergeChatMessages(current, [event.message]))
             }
             return
           case "ready": return
@@ -163,13 +236,28 @@ export function ChatPage() {
   const submit = async (): Promise<void> => {
     if (selectedId === null || !draft.trim()) return
     const text = draft.trim()
-    setDraft("")
+    const knownMessageIds = new Set(history.map((message) => message.id))
     try {
-      if (!socket.current?.send(selectedId, text)) {
+      const sentRealtime = socket.current?.send(selectedId, text) ?? false
+      if (sentRealtime) {
+        optimisticMessageSequenceRef.current += 1
+        const optimisticMessage: ChatMessage = {
+          id: -optimisticMessageSequenceRef.current,
+          elfie_id: selectedId,
+          sender: "user",
+          text,
+          created_at: new Date().toISOString(),
+        }
+        setHistory((current) => mergeChatMessages(current, [optimisticMessage]))
+        setData((current) => current === null ? current : recordChatMessage(current, optimisticMessage))
+      } else {
         const message = await sendMessage(selectedId, text, user.csrf_token ?? "")
-        setHistory((current) => current.some((row) => row.id === message.id) ? current : [...current, message])
+        knownMessageIds.add(message.id)
+        setHistory((current) => mergeChatMessages(current, [message]))
         setData((current) => current === null ? current : recordChatMessage(current, message))
       }
+      setDraft("")
+      reconcileReply(selectedId, knownMessageIds)
     } catch (reason: unknown) {
       setFailure({ detail: reason instanceof ApiError ? reason.message : null, operation: "chat.send" })
     }

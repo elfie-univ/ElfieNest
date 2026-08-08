@@ -207,8 +207,12 @@ def test_final_account_constraints_reject_unsafe_direct_sql(tmp_path: Path) -> N
                     (avatar_path, owner_id),
                 )
         connection.execute(
-            "INSERT INTO nest_settings(nest_id,bed_count,tick_interval_sec) VALUES('local',4,0.5)"
+            "INSERT INTO nest_settings(nest_id,bed_count,tick_interval_sec) VALUES('local-nest',4,0.5)"
         )
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "INSERT INTO nest_settings(nest_id,bed_count,tick_interval_sec) VALUES('local',4,0.5)"
+            )
         _insert_elfie(connection, owner_id)
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute(
@@ -229,7 +233,7 @@ def test_final_body_constraints_enforce_owner_json_and_revocation(
     with app_sqlite_connection(db_path) as connection:
         owner_id = _insert_user(connection, "owner", "owner")
         connection.execute(
-            "INSERT INTO nest_settings(nest_id,bed_count,tick_interval_sec) VALUES('local',4,0.5)"
+            "INSERT INTO nest_settings(nest_id,bed_count,tick_interval_sec) VALUES('local-nest',4,0.5)"
         )
         _insert_elfie(connection, owner_id, elfie_id="00000001")
         _insert_elfie(connection, owner_id, elfie_id="00000002")

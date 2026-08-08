@@ -477,7 +477,7 @@ class TestOwnerElfieList:
             ).fetchone()["id"]
             conn.execute(
                 """INSERT INTO nest_settings
-                   (nest_id,bed_count,tick_interval_sec) VALUES ('local',4,1.0)"""
+                   (nest_id,bed_count,tick_interval_sec) VALUES ('local-nest',4,1.0)"""
             )
             conn.execute(
                 """INSERT INTO elfies

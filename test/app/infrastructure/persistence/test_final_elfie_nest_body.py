@@ -51,7 +51,7 @@ def _final_database(tmp_path: Path) -> str:
         )
         connection.execute(
             """INSERT INTO nest_settings(nest_id, bed_count, tick_interval_sec)
-               VALUES ('local', 4, 1.0)"""
+               VALUES ('local-nest', 4, 1.0)"""
         )
         connection.commit()
     return db_path

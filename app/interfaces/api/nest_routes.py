@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.features.accounts.auth import get_current_user, require_manager
 from app.infrastructure.persistence.nest_repository import (
+    DEFAULT_NEST_ID,
     NestRepositoryConflictError,
     NestRepositoryNotFoundError,
     RoomPayload,
@@ -118,7 +119,7 @@ async def update_bed_count(
     request: Request,
     owner: Dict[str, Any] = RequireOwner,
 ) -> Dict[str, Optional[int]]:
-    if room_id != "local-nest":
+    if room_id != DEFAULT_NEST_ID:
         raise HTTPException(status_code=404, detail="Nest not found")
     return await update_default_room_bed_count(body, request, owner)
 

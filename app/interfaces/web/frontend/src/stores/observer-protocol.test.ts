@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 
-import { parseObserverCameraCatalog, parseObserverCameraCommand } from "./observer-protocol"
+import {
+  parseObserverCameraCatalog,
+  parseObserverCameraCommand,
+  parseObserverSemanticSnapshot,
+  parseObserverWorldConfig,
+} from "./observer-protocol"
 
 function validCatalog() {
   return {
@@ -14,6 +19,16 @@ function validCatalog() {
     ],
     active_id: "overview",
     presentation_paused: false,
+  }
+}
+
+function validWorldConfig() {
+  return {
+    channel: "elfienest.observer",
+    version: 1,
+    kind: "world_config",
+    nest_id: "local-nest",
+    bed_count: 4,
   }
 }
 
@@ -93,6 +108,50 @@ describe("observer camera protocol", () => {
       kind: "camera_command",
       action: "overview",
       camera_position: { x: 1, y: 2, z: 3 },
+    })).toBeNull()
+  })
+
+  it("accepts only a strict bed-count world configuration", () => {
+    expect(parseObserverWorldConfig(validWorldConfig())).toEqual(validWorldConfig())
+    expect(parseObserverWorldConfig(JSON.stringify(validWorldConfig()))).toEqual(validWorldConfig())
+    expect(parseObserverWorldConfig({ ...validWorldConfig(), bed_count: 3 })).toBeNull()
+    expect(parseObserverWorldConfig({ ...validWorldConfig(), bed_count: 33 })).toBeNull()
+    expect(parseObserverWorldConfig({ ...validWorldConfig(), coordinates: { x: 1 } })).toBeNull()
+  })
+
+  it("accepts a strict semantic snapshot and rejects coordinate-bearing envelopes", () => {
+    const snapshot = {
+      channel: "elfienest.observer",
+      version: 1,
+      kind: "semantic_snapshot",
+      protocol: 3,
+      generation: 1,
+      sequence: 2,
+      scope: { kind: "room", room_id: "local-nest" },
+      entities: {
+        "fox-1": {
+          room_id: "local-nest",
+          zone_id: "dorm-01",
+          posture: "standing",
+          active: true,
+          active_command_id: null,
+          species_id: "fox",
+          home_anchor_id: "dorm-01/bed-01",
+          appearance: {},
+        },
+      },
+      entity_revisions: { "fox-1": 1 },
+    }
+
+    expect(parseObserverSemanticSnapshot(snapshot)).toMatchObject({
+      kind: "semantic_snapshot",
+      generation: 1,
+      sequence: 2,
+    })
+    expect(parseObserverSemanticSnapshot({ ...snapshot, position: { x: 1, y: 2, z: 3 } })).toBeNull()
+    expect(parseObserverSemanticSnapshot({
+      ...snapshot,
+      entities: { "fox-1": { ...snapshot.entities["fox-1"], transform: {} } },
     })).toBeNull()
   })
 })

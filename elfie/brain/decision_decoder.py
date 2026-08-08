@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
+import re
 from enum import Enum, unique
-from typing import Callable, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple
 
 from pydantic import ValidationError
 
@@ -28,6 +30,10 @@ from elfie.message_types import (
 )
 
 RepairCallback = Callable[[str, Tuple[str, ...]], str]
+_FENCED_JSON_PATTERN = re.compile(
+    r"^```(?:json)?\s*(?P<body>.*?)\s*```$",
+    flags=re.IGNORECASE | re.DOTALL,
+)
 
 
 @unique
@@ -102,6 +108,22 @@ class DecisionPlanDecoder:
     ) -> DecisionDecodeResult:
         """Validate once, optionally repair once, then degrade safely."""
         selected_mode = self._mode(capabilities)
+        is_legacy_wrapper, legacy_text = self._legacy_response_wrapper(generation.text)
+        if is_legacy_wrapper:
+            return self._fallback(
+                seed=seed,
+                generation=generation,
+                selected_mode=selected_mode,
+                errors=(),
+                repair_count=0,
+                reason=(
+                    "legacy_response_wrapper"
+                    if legacy_text is not None
+                    else "empty_or_meaningless_output"
+                ),
+                fallback_text=legacy_text,
+                suppress_json_like=True,
+            )
         if selected_mode is DecisionDecodeMode.PLAIN_TEXT:
             return self._fallback(
                 seed=seed,
@@ -110,6 +132,8 @@ class DecisionPlanDecoder:
                 errors=(),
                 repair_count=0,
                 reason=None,
+                fallback_text=None,
+                suppress_json_like=False,
             )
         try:
             plan = bind_plan_to_seed(
@@ -142,6 +166,8 @@ class DecisionPlanDecoder:
             errors=errors,
             repair_count=repair_count,
             reason="json_validation_failed",
+            fallback_text=None,
+            suppress_json_like=True,
         )
 
     @staticmethod
@@ -161,8 +187,13 @@ class DecisionPlanDecoder:
         errors: Tuple[str, ...],
         repair_count: int,
         reason: Optional[str],
+        fallback_text: Optional[str],
+        suppress_json_like: bool,
     ) -> DecisionDecodeResult:
-        meaningful = bool(generation.text.strip("{}[]:,. \t\r\n"))
+        text = generation.text if fallback_text is None else fallback_text
+        meaningful = bool(text.strip("{}[]:,. \t\r\n"))
+        if suppress_json_like and fallback_text is None and self._looks_like_json(text):
+            meaningful = False
         plan_id = PlanId(f"fallback-{seed.turn_id}")
         intent_id = IntentId(f"fallback-intent-{seed.turn_id}")
         intent: DecisionIntent
@@ -174,7 +205,7 @@ class DecisionPlanDecoder:
                 dependency_ids=(),
                 deadline=seed.deadline,
                 cancel_policy=CancelPolicy.ALWAYS,
-                text=generation.text,
+                text=text,
             )
             fallback_reason = reason or "plain_text_model"
         else:
@@ -207,6 +238,41 @@ class DecisionPlanDecoder:
             repair_count,
             fallback_reason,
         )
+
+    @staticmethod
+    def _looks_like_json(text: str) -> bool:
+        stripped = text.lstrip()
+        return stripped.startswith(("{", "[", "```"))
+
+    @staticmethod
+    def _legacy_response_wrapper(raw_text: str) -> Tuple[bool, Optional[str]]:
+        """Recognize the old response envelope without treating it as a plan."""
+        candidate = raw_text.strip()
+        fenced = _FENCED_JSON_PATTERN.fullmatch(candidate)
+        if fenced is not None:
+            candidate = fenced.group("body").strip()
+        try:
+            parsed: Any = json.loads(candidate)
+        except json.JSONDecodeError:
+            return False, None
+        if not isinstance(parsed, dict):
+            return False, None
+        decision_plan = parsed.get("DecisionPlan")
+        if not isinstance(decision_plan, dict) or not isinstance(
+            decision_plan.get("actions"), list
+        ):
+            return False, None
+        for action in decision_plan["actions"]:
+            if not isinstance(action, dict) or action.get("action") != "respond":
+                continue
+            parameters = action.get("parameters")
+            if not isinstance(parameters, dict):
+                continue
+            for field in ("content", "text", "message"):
+                value = parameters.get(field)
+                if isinstance(value, str) and value.strip():
+                    return True, value.strip()
+        return True, None
 
     @staticmethod
     def _result(

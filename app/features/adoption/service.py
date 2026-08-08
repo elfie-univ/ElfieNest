@@ -35,6 +35,14 @@ class AdoptionValidationError(Exception):
     pass
 
 
+class AdoptionRuntimeRegistrationError(RuntimeError):
+    """The generated Elfie could not be admitted to the live runtime."""
+
+    def __init__(self, elfie_id: str) -> None:
+        self.elfie_id = elfie_id
+        super().__init__(f"精灵 {elfie_id} 未能加入运行时")
+
+
 @dataclass(frozen=True)
 class AdoptionCapacityError(Exception):
     __slots__ = ("detail",)
@@ -148,7 +156,11 @@ def adopt_elfie_for_user(
             _release_adoption_slot(db_path, elfie_id=elfie_id, config_dir=config_dir)
 
     if engine is not None:
-        _register_with_engine(engine, elfie_id, request, config_dir, db_path)
+        try:
+            _register_with_engine(engine, elfie_id, request, config_dir, db_path)
+        except (AdoptionRuntimeRegistrationError, NestFullError):
+            _release_adoption_slot(db_path, elfie_id=elfie_id, config_dir=config_dir)
+            raise
 
     return AdoptionResult(
         elfie_id=elfie_id,
@@ -238,6 +250,7 @@ def _register_with_engine(
         raise
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
         logger.warning("Failed to register elfie %s to engine: %s", elfie_id, exc)
+        raise AdoptionRuntimeRegistrationError(elfie_id) from exc
 
 
 def _get_elfie_config_dir(db_path: str, elfie_id: str) -> Path:

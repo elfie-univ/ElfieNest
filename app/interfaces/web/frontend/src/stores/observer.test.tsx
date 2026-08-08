@@ -14,7 +14,7 @@ vi.mock("../api/observer", () => ({
 function TestObserver() {
   const observer = useObserver()
   return <>
-    <button onClick={() => { void observer.openRoom("local-nest") }} type="button">打开房间</button>
+    <button onClick={() => { void observer.openRoom("local-nest", { channel: "elfienest.observer", version: 1, kind: "world_config", nest_id: "local-nest", bed_count: 4 }) }} type="button">打开房间</button>
     <button onClick={() => { void observer.openElfie("fox-1") }} type="button">打开精灵</button>
     <button onClick={observer.detach} type="button">离开 3D</button>
     <p>{observer.status}</p>
@@ -37,6 +37,7 @@ describe("ObserverProvider", () => {
     const engine = container.querySelector<HTMLIFrameElement>("iframe[title='ElfieNest 3D Observer']")
     if (engine?.contentWindow === null || engine === null) throw new Error("observer iframe missing")
     expect(Reflect.get(engine, "allow")).toBeUndefined()
+    const postMessage = vi.spyOn(engine.contentWindow, "postMessage")
     window.dispatchEvent(new MessageEvent("message", {
       data: "elfienest:godot-web-ready",
       origin: window.location.origin,
@@ -45,6 +46,13 @@ describe("ObserverProvider", () => {
     await act(async () => {})
 
     expect(screen.getByText("ready")).toBeInTheDocument()
+    expect(postMessage).toHaveBeenCalledWith({
+      channel: "elfienest.observer",
+      version: 1,
+      kind: "world_config",
+      nest_id: "local-nest",
+      bed_count: 4,
+    }, window.location.origin)
   })
 
   it("marks the observer ready when the same-origin Godot export reaches canvas without a ready message", async () => {
@@ -153,6 +161,9 @@ describe("ObserverProvider", () => {
           posture: "resting",
           active: true,
           active_command_id: "rest-1",
+          species_id: null,
+          appearance: {},
+          home_anchor_id: null,
         },
       },
       entity_revisions: { "fox-1": 1 },

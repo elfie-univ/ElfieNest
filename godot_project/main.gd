@@ -8,6 +8,7 @@ const GODOT_WS_URL := "ws://127.0.0.1:8765"
 const GODOT_PROTOCOL_VERSION := 2
 const WORLD_RUNTIME_CONTROLLER := preload("res://runtime/world_controller.gd")
 const ACTOR_RUNTIME_CONTROLLER := preload("res://runtime/actor_controller.gd")
+const OBSERVER_PRESENTATION_CONTROLLER := preload("res://runtime/observer_presentation.gd")
 const RUNTIME_WEBSOCKET_CLIENT := preload("res://runtime/websocket_client.gd")
 const RUNTIME_MODE := preload("res://runtime/runtime_mode.gd")
 const LAB_RUNTIME := preload("res://runtime/lab_runtime.gd")
@@ -29,6 +30,7 @@ var _product_observer_mode := false
 var _lab_runtime: Node
 var _world_controller: Node
 var _actor_controller: Node
+var _observer_presentation: Node
 var _runtime_client: Node
 var _runtime_mode
 var _semantic_events
@@ -70,6 +72,7 @@ func _ready() -> void:
 		return
 	if _product_observer_mode:
 		_enter_product_observer_presentation_mode()
+		_setup_observer_presentation()
 		nest.show_observation_hud = false
 		nest.set_observation_hud_visible(false)
 		_setup_product_observer_bridge()
@@ -122,6 +125,12 @@ func _start_authority_runtime() -> void:
 	add_child(_runtime_client)
 	_runtime_client.command_message.connect(_handle_runtime_command)
 	_runtime_client.setup(_ws_url, _resolve_handshake_nonce())
+
+
+func _setup_observer_presentation() -> void:
+	_observer_presentation = OBSERVER_PRESENTATION_CONTROLLER.new()
+	add_child(_observer_presentation)
+	_observer_presentation.setup(nest, characters, ACTOR_SCENES)
 
 
 func _handle_runtime_command(message: Dictionary) -> void:
@@ -266,7 +275,8 @@ func _setup_product_observer_bridge() -> void:
 		+ " if (event.source !== window.parent) return;"
 		+ " const data = event.data;"
 		+ " if (data && data.channel === 'elfienest.observer'"
-		+ " && data.version === 1 && data.kind === 'camera_command')"
+		+ " && data.version === 1"
+		+ " && (data.kind === 'camera_command' || data.kind === 'semantic_snapshot' || data.kind === 'world_config'))"
 		+ " window.__elfieNestObserverQueue.push(JSON.stringify(data));"
 		+ " }); })()"
 	)
@@ -292,9 +302,207 @@ func _poll_observer_commands() -> void:
 		if raw_message is String:
 			var parsed_message: Variant = JSON.parse_string(String(raw_message))
 			if parsed_message is Dictionary:
+				var world_config := _parse_observer_world_config(parsed_message as Dictionary)
+				if not world_config.is_empty():
+					nest.apply_observer_world_config(world_config)
+					continue
+				var semantic_snapshot := _parse_observer_semantic_snapshot(parsed_message as Dictionary)
+				if not semantic_snapshot.is_empty():
+					_handle_observer_semantic_snapshot(semantic_snapshot)
+					continue
 				var command := _parse_observer_command(parsed_message as Dictionary)
 				if not command.is_empty():
 					_handle_observer_command(command)
+
+
+func _parse_observer_world_config(message: Dictionary) -> Dictionary:
+	if not _product_observer_mode or not _observer_world_config_has_exact_keys(message):
+		return {}
+	if (
+		typeof(message.get("channel")) != TYPE_STRING
+		or String(message["channel"]) != OBSERVER_CHANNEL
+		or _parse_observer_revision(message.get("version")) != OBSERVER_PROTOCOL_VERSION
+		or typeof(message.get("kind")) != TYPE_STRING
+		or String(message["kind"]) != "world_config"
+		or typeof(message.get("nest_id")) != TYPE_STRING
+		or String(message["nest_id"]).is_empty()
+	):
+		return {}
+	var bed_count := _parse_observer_revision(message.get("bed_count"))
+	if bed_count < 4 or bed_count > 32:
+		return {}
+	return {"nest_id": String(message["nest_id"]), "bed_count": bed_count}
+
+
+func _observer_world_config_has_exact_keys(message: Dictionary) -> bool:
+	return _dictionary_has_exact_keys(message, ["channel", "version", "kind", "nest_id", "bed_count"])
+
+
+func _parse_observer_semantic_snapshot(message: Dictionary) -> Dictionary:
+	if not _product_observer_mode or not _observer_semantic_snapshot_has_exact_keys(message):
+		return {}
+	if (
+		typeof(message.get("channel")) != TYPE_STRING
+		or String(message["channel"]) != OBSERVER_CHANNEL
+		or typeof(message.get("kind")) != TYPE_STRING
+		or String(message["kind"]) != "semantic_snapshot"
+		or _parse_observer_revision(message["version"]) != OBSERVER_PROTOCOL_VERSION
+		or _parse_observer_revision(message["protocol"]) != 3
+		or _parse_observer_revision(message["generation"]) < 1
+		or _parse_observer_revision(message["sequence"]) < 1
+	):
+		return {}
+	var scope: Variant = message.get("scope")
+	if not _observer_semantic_scope_is_valid(scope):
+		return {}
+	var entities: Variant = message.get("entities")
+	var revisions: Variant = message.get("entity_revisions")
+	if not entities is Dictionary or not revisions is Dictionary:
+		return {}
+	if _observer_semantic_value_has_forbidden_keys(message):
+		return {}
+	var entity_map := entities as Dictionary
+	var revision_map := revisions as Dictionary
+	if entity_map.keys().size() != revision_map.keys().size():
+		return {}
+	for raw_id: Variant in entity_map.keys():
+		if typeof(raw_id) != TYPE_STRING or String(raw_id).is_empty():
+			return {}
+		if not revision_map.has(raw_id) or _parse_observer_revision(revision_map[raw_id]) < 1:
+			return {}
+		var entity: Variant = entity_map[raw_id]
+		if not _observer_semantic_entity_is_valid(entity):
+			return {}
+	return message
+
+
+func _observer_semantic_snapshot_has_exact_keys(message: Dictionary) -> bool:
+	return _dictionary_has_exact_keys(
+		message,
+		[
+			"channel",
+			"version",
+			"kind",
+			"protocol",
+			"generation",
+			"sequence",
+			"scope",
+			"entities",
+			"entity_revisions",
+		],
+	)
+
+
+func _observer_semantic_scope_is_valid(scope: Variant) -> bool:
+	if not scope is Dictionary:
+		return false
+	var scope_map := scope as Dictionary
+	var kind := String(scope_map.get("kind", ""))
+	if kind == "room":
+		return (
+			_dictionary_has_exact_keys(scope_map, ["kind", "room_id"])
+			and _observer_semantic_text_is_valid(scope_map.get("room_id"))
+		)
+	if kind == "elfie":
+		return (
+			_dictionary_has_exact_keys(scope_map, ["kind", "elfie_id"])
+			and _observer_semantic_text_is_valid(scope_map.get("elfie_id"))
+		)
+	return false
+
+
+func _observer_semantic_entity_is_valid(entity: Variant) -> bool:
+	if not entity is Dictionary:
+		return false
+	var entity_map := entity as Dictionary
+	if not _dictionary_has_exact_keys(
+		entity_map,
+		[
+			"room_id",
+			"zone_id",
+			"posture",
+			"active",
+			"active_command_id",
+			"species_id",
+			"appearance",
+			"home_anchor_id",
+		],
+	):
+		return false
+	return (
+		_observer_semantic_text_is_valid(entity_map.get("room_id"))
+		and _observer_semantic_text_or_null_is_valid(entity_map.get("zone_id"))
+		and _observer_semantic_text_is_valid(entity_map.get("posture"))
+		and typeof(entity_map.get("active")) == TYPE_BOOL
+		and _observer_semantic_text_or_null_is_valid(entity_map.get("active_command_id"))
+		and _observer_semantic_text_or_null_is_valid(entity_map.get("species_id"))
+		and entity_map.get("appearance") is Dictionary
+		and _observer_semantic_text_or_null_is_valid(entity_map.get("home_anchor_id"))
+	)
+
+
+func _observer_semantic_text_is_valid(value: Variant) -> bool:
+	return typeof(value) == TYPE_STRING and not String(value).is_empty()
+
+
+func _observer_semantic_text_or_null_is_valid(value: Variant) -> bool:
+	return value == null or _observer_semantic_text_is_valid(value)
+
+
+func _parse_observer_revision(value: Variant) -> int:
+	if typeof(value) == TYPE_INT:
+		return int(value)
+	if typeof(value) == TYPE_FLOAT and is_equal_approx(float(value), roundf(float(value))):
+		return roundi(float(value))
+	return -1
+
+
+func _dictionary_has_exact_keys(value: Dictionary, expected_keys: Array) -> bool:
+	if value.keys().size() != expected_keys.size():
+		return false
+	for key: Variant in value.keys():
+		if key not in expected_keys:
+			return false
+	return true
+
+
+func _observer_semantic_value_has_forbidden_keys(value: Variant) -> bool:
+	if value is Array:
+		for nested: Variant in value as Array:
+			if _observer_semantic_value_has_forbidden_keys(nested):
+				return true
+		return false
+	if not value is Dictionary:
+		return false
+	for raw_key: Variant in (value as Dictionary).keys():
+		if String(raw_key) in [
+			"x",
+			"y",
+			"z",
+			"position",
+			"positions",
+			"transform",
+			"transforms",
+			"coordinates",
+			"fov",
+			"frame",
+			"frames",
+			"credential",
+			"credentials",
+			"token",
+			"nonce",
+			"authority",
+		]:
+			return true
+		if _observer_semantic_value_has_forbidden_keys((value as Dictionary)[raw_key]):
+			return true
+	return false
+
+
+func _handle_observer_semantic_snapshot(snapshot: Dictionary) -> void:
+	if _observer_presentation == null:
+		return
+	_observer_presentation.apply_snapshot(snapshot)
 
 
 func _accepts_observer_message(message: Dictionary) -> bool:

@@ -32,8 +32,12 @@ import subprocess
 import sys
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional, Protocol, Sequence
+from uuid import uuid4
+
+from pydantic import ValidationError
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -86,6 +90,9 @@ from app.orchestration.lifecycle.recovery_lock import (
     RecoveryInProgressError,
     acquire_service_start_lease,
 )
+from elfie.brain.decision_types import CancelPolicy, DecisionPlan, MessageIntent
+from elfie.brain.model_context_compiler import CompiledModelContext
+from elfie.message_types import EventId, IntentId, PlanId, TurnId
 from nest.godot_gateway.bundle import inspect_godot_web_bundle
 
 
@@ -157,7 +164,7 @@ class FallbackAgent:
             model_key="fallback/local",
             supports_json_schema=False,
             supports_tool_calling=False,
-            supports_json_mode=False,
+            supports_json_mode=True,
             supports_plain_text=True,
             max_output_tokens=512,
         )
@@ -166,10 +173,74 @@ class FallbackAgent:
         self,
         request: StructuredRuntimeRequest,
     ) -> StructuredRuntimeResult:
-        """Return a deterministic fallback turn without advertising tools."""
+        """Return a structured chat plan for trusted Owner events."""
+        owner_context = self._owner_chat_context(request.prompt)
+        if owner_context is None:
+            text = self.ask(request.prompt, allowed_skills=[])
+        else:
+            channel_id, conversation_id, content = owner_context
+            text = self._owner_message_plan(
+                channel_id=channel_id,
+                conversation_id=conversation_id,
+                content=self.ask(content, allowed_skills=[]),
+            )
         return request.to_result(
-            text=self.ask(request.prompt, allowed_skills=[]),
+            text=text,
         )
+
+    @staticmethod
+    def _owner_chat_context(prompt: str) -> Optional[tuple[str, str, str]]:
+        """Extract only host-compiled Owner chat routing fields."""
+        try:
+            context = CompiledModelContext.model_validate_json(prompt)
+        except ValidationError:
+            return None
+        for event in context.events:
+            if event.modality != "social:message":
+                continue
+            if event.actor.source_kind != "owner" or event.channel_id is None:
+                continue
+            return (
+                event.channel_id,
+                f"owner:{event.actor.actor_id}",
+                event.content,
+            )
+        return None
+
+    @staticmethod
+    def _owner_message_plan(
+        *,
+        channel_id: str,
+        conversation_id: str,
+        content: str,
+    ) -> str:
+        """Build one valid MessageIntent plan for the existing chat bridge."""
+        now = datetime.now(timezone.utc)
+        deadline = now + timedelta(seconds=45)
+        cause_event_id = EventId(f"fallback-cause-{uuid4().hex}")
+        intent = MessageIntent(
+            type="message",
+            intent_id=IntentId(f"fallback-message-{uuid4().hex}"),
+            cause_event_ids=(cause_event_id,),
+            dependency_ids=(),
+            deadline=deadline,
+            cancel_policy=CancelPolicy.IF_NOT_STARTED,
+            channel_id=channel_id,
+            conversation_id=conversation_id,
+            content=content,
+        )
+        plan = DecisionPlan(
+            plan_id=PlanId(f"fallback-plan-{uuid4().hex}"),
+            turn_id=TurnId(f"fallback-turn-{uuid4().hex}"),
+            frame_id=EventId(f"fallback-frame-{uuid4().hex}"),
+            context_revision=0,
+            capability_revision=0,
+            created_at=now,
+            deadline=deadline,
+            cause_event_ids=(cause_event_id,),
+            intents=(intent,),
+        )
+        return plan.model_dump_json()
 
 
 def remaining_occupied_ports(

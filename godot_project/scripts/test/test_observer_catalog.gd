@@ -2,6 +2,8 @@ extends SceneTree
 
 const MAIN_SCRIPT := preload("res://main.gd")
 const NEST_SCENE := preload("res://rooms/nest.tscn")
+const OBSERVER_PRESENTATION := preload("res://runtime/observer_presentation.gd")
+const FOX_SCENE := preload("res://characters/fox/fox.tscn")
 const EXPECTED_INITIAL_VIEW_COUNT: int = 20
 
 
@@ -171,6 +173,119 @@ func run() -> void:
 		"Product observer main does not keep polling while SceneTree is paused"
 	):
 		return
+	var valid_semantic_snapshot := {
+		"channel": "elfienest.observer",
+		"version": 1,
+		"kind": "semantic_snapshot",
+		"protocol": 3,
+		"generation": 1,
+		"sequence": 1,
+		"scope": {"kind": "room", "room_id": "local-nest"},
+		"entities": {
+			"fox-1": {
+				"room_id": "local-nest",
+				"zone_id": "dorm-01",
+				"posture": "standing",
+				"active": true,
+				"active_command_id": null,
+				"species_id": "fox",
+				"home_anchor_id": "dorm-01/bed-01",
+				"appearance": {},
+			},
+		},
+		"entity_revisions": {"fox-1": 1},
+	}
+	if not _require(
+		not (main._parse_observer_semantic_snapshot(valid_semantic_snapshot) as Dictionary).is_empty(),
+		"Semantic observer snapshot was not accepted"
+	):
+		return
+	var coordinate_snapshot := valid_semantic_snapshot.duplicate(true)
+	coordinate_snapshot["position"] = {"x": 1, "y": 2, "z": 3}
+	if not _require(
+		(main._parse_observer_semantic_snapshot(coordinate_snapshot) as Dictionary).is_empty(),
+		"Coordinate-bearing observer snapshot crossed the presentation boundary"
+	):
+		return
+	var characters := Node3D.new()
+	root.add_child(characters)
+	var presentation := OBSERVER_PRESENTATION.new()
+	root.add_child(presentation)
+	presentation.setup(nest, characters, {"fox": FOX_SCENE})
+	presentation.apply_snapshot(valid_semantic_snapshot)
+	await _wait_frames(2)
+	if not _require(
+		characters.get_child_count() == 1
+			and (characters.get_child(0) as ElfieActor).global_position
+				== nest.resolve_anchor("dorm-01/bed-01").global_position,
+		"Observer presentation did not place the Elfie at its semantic home anchor"
+	):
+		return
+	presentation.apply_snapshot(valid_semantic_snapshot)
+	if not _require(
+		characters.get_child_count() == 1,
+		"Observer presentation recreated an unchanged actor"
+	):
+		return
+	var empty_snapshot := valid_semantic_snapshot.duplicate(true)
+	empty_snapshot["entities"] = {}
+	empty_snapshot["entity_revisions"] = {}
+	presentation.apply_snapshot(empty_snapshot)
+	if not _require(
+		characters.get_child_count() == 0,
+		"Observer presentation did not remove a stale actor"
+	):
+		return
+	var dynamic_room_snapshot := valid_semantic_snapshot.duplicate(true)
+	(dynamic_room_snapshot["scope"] as Dictionary)["room_id"] = "room-42"
+	(dynamic_room_snapshot["entities"]["fox-1"] as Dictionary)["room_id"] = "room-42"
+	presentation.apply_snapshot(dynamic_room_snapshot)
+	await _wait_frames(2)
+	if not _require(
+		characters.get_child_count() == 1,
+		"Observer presentation rejected a valid non-default semantic room id"
+	):
+		return
+	var world_config := {
+		"channel": "elfienest.observer",
+		"version": 1,
+		"kind": "world_config",
+		"nest_id": "local-nest",
+		"bed_count": 4,
+	}
+	if not _require(
+		not (main._parse_observer_world_config(world_config) as Dictionary).is_empty(),
+		"Strict observer world configuration was not accepted"
+	):
+		return
+	if not _require(
+		nest.apply_observer_world_config(world_config),
+		"Observer world configuration was not applied to the Nest"
+	):
+		return
+	await _wait_frames(4)
+	var configured_catalog := nest.observer_camera_catalog()
+	if not _require(
+		nest.bed_count == 4
+			and (configured_catalog["views"] as Array).size() == 4
+			and _view_index_by_id(configured_catalog["views"] as Array, "dorm-01") >= 0
+			and _view_index_by_id(configured_catalog["views"] as Array, "dorm-02") == -1
+			and _view_index_by_id(configured_catalog["views"] as Array, "section-01") == -1
+			and _view_index_by_id(configured_catalog["views"] as Array, "section-02") == -1,
+		"Observer world configuration did not rebuild the four-bed geometry"
+	):
+		return
+	var invalid_world_config := world_config.duplicate(true)
+	invalid_world_config["bed_count"] = 33
+	if not _require(
+		(main._parse_observer_world_config(invalid_world_config) as Dictionary).is_empty(),
+		"Observer world configuration accepted an out-of-range bed count"
+	):
+		return
+	nest.bed_count = 32
+	await _wait_frames(4)
+	selected_camera = root.get_camera_3d()
+	size_before_pause = selected_camera.size
 	if not _require(
 		(main._parse_observer_command(
 			_observer_command("select", {"view_id": "overview"})

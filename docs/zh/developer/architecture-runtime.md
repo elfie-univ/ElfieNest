@@ -54,6 +54,11 @@ React 消费该目录后，只能发出封闭的语义命令 `overview`、`selec
 原始 Runtime 帧、权威凭据或模拟控制。local presentation pause 仅是 Observer 的输入/呈现
 状态；它绝不能暂停 Runtime、Gateway、Core 或后端模拟。
 
+产品 Observer 也可以接收严格的语义实体快照，用于只读呈现。每个实体只携带身份、物种、外观、
+房间/区域状态和语义 `home_anchor_id`，不携带坐标、transform、导航或碰撞事实。Godot 在本地
+解析该 anchor，并负责角色放置与渲染。React bridge 只接受并转发经过校验、发往当前同源 Observer
+iframe 的快照。
+
 `/monitor` 是 Owner 与 Admin 可访问的完整观察页面。Owner/Admin 的精灵巢管理弹窗嵌入
 同一个 `ObservationMonitor` 表面与 bridge，而不是实现另一套相机能力。
 

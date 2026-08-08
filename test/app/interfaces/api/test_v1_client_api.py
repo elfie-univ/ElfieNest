@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -21,10 +21,20 @@ from app.infrastructure.persistence.elfie_chat_history import (
 from app.infrastructure.persistence.embodiment_sessions import begin_hosting
 from app.infrastructure.persistence.store import init_db
 from app.interfaces.api.app import create_app
+from elfie import Elfie
 from elfie.body import BodyId, BodySensorEvent, SpeechCommand, UtteranceFinal
 from elfie.brain.memory.knowledge_store import KnowledgeStore
 from elfie.brain.memory.node_types import MemoryNode
-from elfie.message_types import ActorId, ActorRef, CommandId, EventId, IntentId, TurnId
+from elfie.communication.contracts import InboundDisposition, InboundDispositionStatus
+from elfie.message_types import (
+    ActorId,
+    ActorRef,
+    CommandId,
+    ErrorInfo,
+    EventId,
+    IntentId,
+    TurnId,
+)
 
 from ._helpers import complete_test_setup, create_test_owner, create_test_user
 
@@ -215,6 +225,128 @@ def test_v1_can_send_an_owned_message_without_exposing_legacy_meta(
     assert response.json()["text"] == "你好，小白"
     assert "meta" not in response.json()
     assert [message["text"] for message in messages.json()] == ["你好，小白"]
+
+
+def test_v1_chat_does_not_ack_or_persist_when_runtime_does_not_admit_message(
+    client: TestClient,
+) -> None:
+    csrf_token = _login_owner(client)
+    elfie_id = _adopt_elfie(client, csrf_token)
+    session_token = client.cookies.get("session_token")
+    assert session_token
+
+    unavailable_engine = MagicMock()
+    unavailable_engine.session.send_user_message.return_value = None
+    client.app.state.engine = unavailable_engine
+
+    response = client.post(
+        f"/api/v1/conversations/{elfie_id}/messages",
+        json={"text": "精灵听得到吗？"},
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "elfie_runtime_unavailable"
+
+    with client.websocket_connect(
+        "/api/v1/ws/chat", headers={"Cookie": f"session_token={session_token}"}
+    ) as websocket:
+        assert websocket.receive_json()["event"] == "ready"
+        websocket.send_json(
+            {"event": "user_message", "elfie_id": elfie_id, "text": "再试一次"}
+        )
+        assert websocket.receive_json() == {
+            "event": "error",
+            "detail": "elfie_runtime_unavailable",
+        }
+
+    messages = client.get(f"/api/v1/conversations/{elfie_id}/messages")
+    assert messages.json() == []
+
+
+def test_v1_chat_does_not_ack_or_persist_duplicate_message(
+    client: TestClient,
+) -> None:
+    csrf_token = _login_owner(client)
+    elfie_id = _adopt_elfie(client, csrf_token)
+    runtime = MagicMock()
+    runtime.session.send_user_message.return_value = InboundDisposition(
+        message_id=EventId("duplicate-message"),
+        channel_id="godot-owner",
+        status=InboundDispositionStatus.DUPLICATE,
+    )
+    client.app.state.engine = runtime
+
+    response = client.post(
+        f"/api/v1/conversations/{elfie_id}/messages",
+        json={"text": "重复消息"},
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "duplicate_message"
+    assert client.get(f"/api/v1/conversations/{elfie_id}/messages").json() == []
+
+
+@pytest.mark.parametrize(
+    ("retryable", "expected_status"),
+    [(True, 503), (False, 409)],
+)
+def test_v1_chat_maps_rejected_message_to_retryable_status(
+    client: TestClient,
+    retryable: bool,
+    expected_status: int,
+) -> None:
+    csrf_token = _login_owner(client)
+    elfie_id = _adopt_elfie(client, csrf_token)
+    runtime = MagicMock()
+    runtime.session.send_user_message.return_value = InboundDisposition(
+        message_id=EventId("rejected-message"),
+        channel_id="godot-owner",
+        status=InboundDispositionStatus.REJECTED,
+        error=ErrorInfo(
+            code="transport_timeout",
+            message="运行时超时",
+            retryable=retryable,
+        ),
+    )
+    client.app.state.engine = runtime
+
+    response = client.post(
+        f"/api/v1/conversations/{elfie_id}/messages",
+        json={"text": "重试消息"},
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert response.status_code == expected_status
+    assert response.json()["detail"] == "transport_timeout"
+    assert client.get(f"/api/v1/conversations/{elfie_id}/messages").json() == []
+
+
+def test_adoption_returns_service_unavailable_when_runtime_registration_fails(
+    client: TestClient,
+) -> None:
+    csrf_token = _login_owner(client)
+    runtime = MagicMock()
+    runtime.api_server = None
+    runtime.session.register_elfie.side_effect = RuntimeError("runtime unavailable")
+    client.app.state.engine = runtime
+
+    with patch("elfie.ElfieFactory.restore", return_value=MagicMock(spec=Elfie)):
+        response = client.post(
+            "/api/user/adopt",
+            json={
+                "name": "小白",
+                "anatomy_type": "biped",
+                "personality_style": "好奇探索",
+                "height": "standard",
+                "build": "standard",
+            },
+            headers={"X-CSRF-Token": csrf_token},
+        )
+
+    assert response.status_code == 503
+    assert client.get("/api/user/elfies").json() == []
 
 
 def test_v1_routes_require_a_session(client: TestClient) -> None:

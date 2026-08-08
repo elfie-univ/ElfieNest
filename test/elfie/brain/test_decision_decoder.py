@@ -220,8 +220,8 @@ def test_json_mode_uses_at_most_one_successful_repair() -> None:
     )
 
 
-def test_failed_json_repair_falls_back_to_one_speech_from_same_raw_text() -> None:
-    # Given: malformed JSON whose repair remains invalid but original text is readable.
+def test_failed_json_repair_suppresses_json_like_raw_text() -> None:
+    # Given: malformed JSON whose repair remains invalid.
     def repair(raw_text: str, errors: tuple[str, ...]) -> str:
         del raw_text, errors
         return '{"still": "not a DecisionPlan"}'
@@ -235,19 +235,75 @@ def test_failed_json_repair_falls_back_to_one_speech_from_same_raw_text() -> Non
         repair,
     )
 
-    # Then: the fallback is exactly one SpeechIntent from the raw text.
+    # Then: invalid JSON never becomes visible speech.
     assert len(plan.intents) == 1
-    assert plan.intents[0].type == "speech"
-    assert plan.intents[0].text == raw_text
+    assert plan.intents[0].type == "noop"
     assert report.repair_count == 1
-    assert report.fallback_reason == "json_validation_failed"
+    assert report.fallback_reason == "empty_or_meaningless_output"
     assert (
         report.to_turn_outcome(
             plan=plan,
             status=TerminalStatus.COMPLETED,
         ).model_mode
-        is ModelMode.TEXT_FALLBACK
+        is ModelMode.NO_OP
     )
+
+
+def test_known_legacy_decision_plan_wrapper_extracts_reply_without_repair() -> None:
+    # Given: the legacy fenced DecisionPlan wrapper shown by the product chat.
+    calls: list[tuple[str, tuple[str, ...]]] = []
+
+    def repair(raw_text: str, errors: tuple[str, ...]) -> str:
+        calls.append((raw_text, errors))
+        return _plan_json(text="不应该走到 repair")
+
+    raw_text = """```json
+{
+  "DecisionPlan": {
+    "actions": [
+      {
+        "action": "respond",
+        "parameters": {
+          "channel_id": "godot-owner",
+          "content": "喵~ 主人好呀！小柚在这里陪着你哦~ 🐱✨"
+        }
+      }
+    ]
+  }
+}
+```"""
+
+    # When: the decoder receives the known legacy wrapper.
+    plan, report = _decode(
+        raw_text,
+        _capabilities(supports_json_schema=False, supports_json_mode=True),
+        repair,
+    )
+
+    # Then: only the effective reply is emitted and no second model call occurs.
+    assert len(calls) == 0
+    assert len(plan.intents) == 1
+    assert plan.intents[0].type == "speech"
+    assert plan.intents[0].text == "喵~ 主人好呀！小柚在这里陪着你哦~ 🐱✨"
+    assert report.repair_count == 0
+
+
+def test_legacy_wrapper_without_reply_text_becomes_noop_without_raw_json() -> None:
+    # Given: a recognized wrapper with no explicit natural-language response.
+    raw_text = """```json
+{"DecisionPlan":{"actions":[{"action":"respond","parameters":{"channel_id":"godot-owner"}}]}}
+```"""
+
+    # When: decoding cannot find an approved reply field.
+    plan, _report = _decode(
+        raw_text,
+        _capabilities(supports_json_schema=False, supports_json_mode=True),
+        lambda _raw, _errors: '{"still":"invalid"}',
+    )
+
+    # Then: the raw wrapper never becomes visible speech.
+    assert len(plan.intents) == 1
+    assert plan.intents[0].type == "noop"
 
 
 def test_plain_only_never_guesses_motion_or_message_from_json_like_text() -> None:
