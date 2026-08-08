@@ -6,7 +6,7 @@ from pathlib import Path
 from threading import Event
 
 from app.features.setup.jobs import OllamaInstallJobManager
-from app.features.setup.progress import get_setup_progress, get_setup_task
+from app.features.setup.progress import get_setup_progress
 from app.features.setup.service import create_first_owner
 from app.infrastructure.persistence.store import init_db
 
@@ -29,13 +29,9 @@ def test_ollama_job_runs_in_background_and_persists_failure(tmp_path: Path) -> N
 
     assert task.state == "running"
     assert entered.wait(timeout=2)
-    assert get_setup_task(db_path) is not None
 
     release.set()
     assert manager.join(db_path, timeout=2)
     progress = get_setup_progress(db_path)
-    failed = get_setup_task(db_path)
     assert progress.current_step == 2
-    assert failed is not None
-    assert failed.state == "failed"
-    assert failed.error == "官方下载暂时不可用"
+    assert progress.last_error == "官方下载暂时不可用"

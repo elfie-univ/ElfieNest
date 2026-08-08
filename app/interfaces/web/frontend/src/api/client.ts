@@ -214,82 +214,16 @@ export async function setupInstall(csrfToken: string): Promise<SetupStatus> {
   }))
 }
 
-async function postSetup(
-  path: string,
-  csrfToken: string,
-  body: Record<string, unknown>,
-): Promise<SetupStatus> {
-  return SetupStatusSchema.parse(await requestJson(path, {
-    method: "POST",
-    headers: csrfHeaders(csrfToken, true),
-    body: JSON.stringify(body),
-  }))
-}
-
-export function setupSkipOllama(csrfToken: string): Promise<SetupStatus> {
-  return postSetup("/api/auth/setup/ollama", csrfToken, { decision: "skipped" })
-}
-
-export function setupBindExistingOllama(
-  endpoint: string,
-  csrfToken: string,
-): Promise<SetupStatus> {
-  return postSetup("/api/auth/setup/ollama", csrfToken, {
-    decision: "bound_existing",
-    endpoint,
-  })
-}
-
 export async function setupOllamaDetection(): Promise<SetupOllamaDetection> {
   return SetupOllamaDetectionSchema.parse(
     await requestJson("/api/auth/setup/ollama-detection"),
   )
 }
 
-export function setupInstallOfficialOllama(csrfToken: string): Promise<SetupStatus> {
-  return postSetup("/api/auth/setup/ollama/install", csrfToken, { confirmed: true })
-}
-
-export async function setupNest(bedCount: number, csrfToken: string): Promise<SetupStatus> {
-  return SetupStatusSchema.parse(await requestJson("/api/auth/setup/nest", {
-    method: "PUT",
-    headers: csrfHeaders(csrfToken, true),
-    body: JSON.stringify({ bed_count: bedCount }),
-  }))
-}
-
 export async function setupModelRecommendation(): Promise<SetupModelRecommendation> {
   return SetupModelRecommendationSchema.parse(
     await requestJson("/api/auth/setup/model-recommendation"),
   )
-}
-
-export function setupSkipModel(csrfToken: string): Promise<SetupStatus> {
-  return postSetup("/api/auth/setup/model", csrfToken, { decision: "skipped" })
-}
-
-export function setupConfiguredModel(
-  modelReference: string,
-  csrfToken: string,
-): Promise<SetupStatus> {
-  return postSetup("/api/auth/setup/model", csrfToken, {
-    decision: "configured",
-    model_reference: modelReference,
-  })
-}
-
-export function setupPullModel(
-  modelReference: string,
-  csrfToken: string,
-): Promise<SetupStatus> {
-  return postSetup("/api/auth/setup/model/pull", csrfToken, {
-    model_reference: modelReference,
-    confirmed: true,
-  })
-}
-
-export function setupComplete(csrfToken: string): Promise<SetupStatus> {
-  return postSetup("/api/auth/setup/complete", csrfToken, {})
 }
 
 export async function conversations(): Promise<readonly Conversation[]> {

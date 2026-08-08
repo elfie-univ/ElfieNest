@@ -83,24 +83,6 @@ def begin_setup_task(db_path: str, *, step: int, task_key: str) -> SetupTask:
     return task
 
 
-def update_setup_task_progress(
-    db_path: str, *, step: int, task_key: str, progress: int
-) -> None:
-    _require_supported_task(step, task_key)
-    if progress < 1 or progress > 99:
-        raise ValueError("Setup 任务进度必须在 1 到 99 之间")
-    InstallationRepository(db_path).update_task_progress(step, task_key, progress)
-
-
-def cancel_setup_task(db_path: str, *, step: int, task_key: str) -> None:
-    _require_supported_task(step, task_key)
-    InstallationRepository(db_path).cancel_task(step, task_key)
-
-
-def get_setup_task(db_path: str) -> SetupTask | None:
-    return _task_from_record(InstallationRepository(db_path).get_progress())
-
-
 def recover_interrupted_setup_task(db_path: str) -> None:
     InstallationRepository(db_path).recover_interrupted_task(_INTERRUPTED_TASK_ERROR)
 

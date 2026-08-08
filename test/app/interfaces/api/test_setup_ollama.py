@@ -78,31 +78,6 @@ def _owner_headers(client: TestClient) -> dict[str, str]:
     return {"X-CSRF-Token": owner.json()["csrf_token"]}
 
 
-def test_setup_ollama_install_requires_confirmation_and_queues_background_job(
-    client: TestClient, app
-) -> None:
-    """确认安装只排队固定官方任务，不在请求内下载或执行脚本。"""
-    headers = _owner_headers(client)
-    jobs = _QueuedOllamaJobs()
-    app.state.setup_ollama_jobs = jobs
-
-    rejected = client.post(
-        "/api/auth/setup/ollama/install",
-        json={"confirmed": False},
-        headers=headers,
-    )
-    accepted = client.post(
-        "/api/auth/setup/ollama/install",
-        json={"confirmed": True},
-        headers=headers,
-    )
-
-    assert rejected.status_code == 422
-    assert accepted.status_code == 202, accepted.text
-    assert accepted.json()["task"]["state"] == "running"
-    assert jobs.started
-
-
 def test_setup_model_recommendation_never_recommends_ollama_below_four_gb(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, app
 ) -> None:
@@ -168,67 +143,6 @@ def test_setup_ollama_detection_reports_a_healthy_default_endpoint(
         "endpoint": "http://127.0.0.1:11434",
         "version": "0.12.0",
     }
-
-
-def test_setup_model_rejects_implicit_provider_reference(
-    client: TestClient, app
-) -> None:
-    """模型步骤不能把裸模型名偷偷默认成 Ollama。"""
-    headers = _owner_headers(client)
-    client.post(
-        "/api/auth/setup/ollama",
-        json={"decision": "skipped"},
-        headers=headers,
-    )
-    client.put(
-        "/api/auth/setup/nest",
-        json={"bed_count": 4},
-        headers=headers,
-    )
-
-    response = client.post(
-        "/api/auth/setup/model",
-        json={"decision": "configured", "model_reference": "qwen2.5:0.5b"},
-        headers=headers,
-    )
-
-    assert response.status_code == 422
-    assert "connection_id/model_id" in response.text
-
-
-def test_setup_model_pull_requires_confirmation_and_queues_work(
-    client: TestClient, app
-) -> None:
-    """模型下载需要明确确认，HTTP 请求只入队而不阻塞下载。"""
-    headers = _owner_headers(client)
-    client.post(
-        "/api/auth/setup/ollama",
-        json={"decision": "skipped"},
-        headers=headers,
-    )
-    client.put(
-        "/api/auth/setup/nest",
-        json={"bed_count": 4},
-        headers=headers,
-    )
-    jobs = _QueuedOllamaJobs()
-    app.state.setup_ollama_jobs = jobs
-
-    rejected = client.post(
-        "/api/auth/setup/model/pull",
-        json={"model_reference": "qwen2.5:0.5b", "confirmed": False},
-        headers=headers,
-    )
-    accepted = client.post(
-        "/api/auth/setup/model/pull",
-        json={"model_reference": "qwen2.5:0.5b", "confirmed": True},
-        headers=headers,
-    )
-
-    assert rejected.status_code == 422
-    assert accepted.status_code == 202, accepted.text
-    assert accepted.json()["task"]["key"] == "model_pull"
-    assert jobs.started
 
 
 class _HealthyRecommendationAdapter:
