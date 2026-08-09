@@ -1,14 +1,19 @@
-import type { CareSettings, ExperienceFixture, PublicProfile, PrivateCognition, Viewer } from "./model"
+import type { CareSettings, PublicProfile, PrivateCognition } from "./model"
+
+export type AdoptionMetadata = {
+  readonly adoptedAt: string
+  readonly ageLabel: string
+}
 
 export type VisitorProfileProjection = {
-  readonly ageLabel: ExperienceFixture["adoption"]["ageLabel"]
+  readonly ageLabel: string
   readonly kind: "visitor"
   readonly ownerDisplayName: string
   readonly publicProfile: PublicProfile
 }
 
 export type AdopterProfileProjection = {
-  readonly adoption: ExperienceFixture["adoption"]
+  readonly adoption: AdoptionMetadata
   readonly kind: "adopter"
   readonly ownerDisplayName: string
   readonly publicProfile: PublicProfile
@@ -20,26 +25,4 @@ export type ElfieProfileProjection = VisitorProfileProjection | AdopterProfilePr
 
 export function isAdopterAccount(viewerAccountId: string, adopterAccountId: string): boolean {
   return viewerAccountId === adopterAccountId
-}
-
-export function projectElfieProfile(
-  viewer: Viewer,
-  experience: ExperienceFixture,
-): ElfieProfileProjection {
-  if (isAdopterAccount(viewer.accountId, experience.adopter.accountId)) {
-    return {
-      adoption: experience.adoption,
-      kind: "adopter",
-      ownerDisplayName: experience.adopter.displayName,
-      publicProfile: experience.publicProfile,
-      privateCognition: experience.privateCognition,
-      careSettings: experience.careSettings,
-    }
-  }
-  return {
-    ageLabel: experience.adoption.ageLabel,
-    kind: "visitor",
-    ownerDisplayName: experience.adopter.displayName,
-    publicProfile: experience.publicProfile,
-  }
 }

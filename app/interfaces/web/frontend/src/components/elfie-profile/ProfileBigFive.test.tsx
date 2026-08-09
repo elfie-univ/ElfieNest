@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import { createI18n } from "../../i18n/config"
 
-import { HAPPY_EXPERIENCE } from "./mock-data"
+import { HAPPY_EXPERIENCE } from "../../test/fixtures/elfie-profile"
 import { ProfileBigFive } from "./ProfileBigFive"
 import type { ProfileChartRuntime } from "./ProfileChart"
 

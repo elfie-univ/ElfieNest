@@ -226,9 +226,7 @@ a { color: inherit; text-decoration: none; }
 .login input,
 .composer textarea,
 .manage select,
-.search-box input,
-.manage-form input,
-.manage-form select {
+.search-box input {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 11px 12px;
@@ -238,7 +236,6 @@ a { color: inherit; text-decoration: none; }
 
 @media (max-width: 860px) {
   .manage-workbench { grid-template-columns: 58px minmax(0, 1fr); }
-  .manage-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 640px) {
@@ -250,5 +247,4 @@ a { color: inherit; text-decoration: none; }
   .login__logo { width: min(100%, 320px); }
   .manage { padding: 22px; }
   .manage-head { align-items: flex-start; flex-direction: column; }
-  .manage-form { grid-template-columns: 1fr; }
 }

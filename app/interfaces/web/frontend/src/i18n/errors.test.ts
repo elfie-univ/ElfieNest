@@ -1,12 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { parseChatSocketEvent } from "../api/chat-socket"
 import { ApiError, requestJson } from "../api/http"
 import {
   describeApiError,
   errorOperations,
   localizeApiError,
-  localizeSocketError,
   resolveLocalizedError,
   type ErrorOperation,
 } from "./errors"
@@ -98,37 +96,6 @@ describe("localized operation errors", () => {
     // Then: detail is still hidden without content-language heuristics.
     expect(message).toBe("Sign-in failed. Try again.")
     expect(message).not.toContain("database credentials leaked")
-  })
-
-  it("shows a Chinese WebSocket detail in Chinese and hides it in English", () => {
-    // Given: a valid typed WebSocket error event carrying backend detail.
-    const event = parseChatSocketEvent({ event: "error", detail: "后端失败" })
-    if (event.event !== "error") throw new Error("Expected an error event fixture")
-
-    // When: the socket detail crosses each locale boundary.
-    const zhCN = localizeSocketError(event, "chat.connect", "zh-CN")
-    const enUS = localizeSocketError(event, "chat.connect", "en-US")
-
-    // Then: Chinese preserves detail and English exposes only local UI text.
-    expect(zhCN).toBe("后端失败")
-    expect(enUS).toBe("Unable to connect to chat.")
-    expect(enUS).not.toContain("后端失败")
-  })
-
-  it("hides a non-CJK WebSocket detail in English unconditionally", () => {
-    // Given: a WebSocket backend detail containing no CJK characters.
-    const event = parseChatSocketEvent({
-      event: "error",
-      detail: "upstream socket rejected credentials",
-    })
-    if (event.event !== "error") throw new Error("Expected an error event fixture")
-
-    // When: the English error boundary formats it.
-    const message = localizeSocketError(event, "chat.connect", "en-US")
-
-    // Then: the result remains the local operation fallback.
-    expect(message).toBe("Unable to connect to chat.")
-    expect(message).not.toContain(event.detail)
   })
 
   it("uses the local fallback for non-API failures in both locales", () => {

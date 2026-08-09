@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import type { ReactElement } from "react"
+import type { ReactElement, ReactNode } from "react"
 import { I18nextProvider } from "react-i18next"
 import { describe, expect, it, vi } from "vitest"
 
@@ -13,9 +13,12 @@ import {
   MISSING_PUBLIC_FIELDS_EXPERIENCE,
   PRIVATE_MODULE_TITLES,
   SIGNED_IN_ADMIN,
-} from "./elfie-profile/mock-data"
-import { parseExperienceFixture, parseViewer } from "./elfie-profile/model"
-import { projectElfieProfile } from "./elfie-profile/projection"
+} from "../test/fixtures/elfie-profile"
+import {
+  defineElfieExperience,
+  defineViewer,
+  projectElfieProfile,
+} from "../test/fixtures/project-elfie-profile"
 import { createI18n } from "../i18n/config"
 import type { SupportedLocale } from "../i18n/locale"
 import { ElfieProfilePanel } from "./ElfieProfilePanel"
@@ -31,6 +34,13 @@ vi.mock("./elfie-profile/ProfileChart", async (loadOriginal) => {
     }),
   }
 })
+
+vi.mock("@visx/wordcloud", () => ({
+  Wordcloud: ({ children, words }: {
+    readonly children: (words: readonly { readonly rotate: number; readonly size: number; readonly text: string; readonly value: number; readonly x: number; readonly y: number }[]) => ReactNode
+    readonly words: readonly { readonly text: string; readonly value: number }[]
+  }) => children(words.map((word, index) => ({ ...word, rotate: 0, size: 18, x: 40 + index * 24, y: 40 }))),
+}))
 
 function renderWithI18n(ui: ReactElement, locale: SupportedLocale = "zh-CN") {
   const instance = createI18n()
@@ -140,7 +150,7 @@ describe("ElfieProfilePanel", () => {
 
   it("uses the gender symbol and color variant when gender is known", () => {
     // Given: a profile with an explicit male gender value from the public data contract.
-    const experience = parseExperienceFixture({
+    const experience = defineElfieExperience({
       ...HAPPY_EXPERIENCE,
       publicProfile: { ...HAPPY_EXPERIENCE.publicProfile, gender: "男" },
     })
@@ -266,7 +276,7 @@ describe("ElfieProfilePanel", () => {
     }
     const capture = vi.fn().mockResolvedValue(captured)
     const happyProjection = projectElfieProfile(SIGNED_IN_ADMIN, HAPPY_EXPERIENCE)
-    const kettleViewer = parseViewer({
+    const kettleViewer = defineViewer({
       accountId: "user123",
       displayName: "Kettle 的领养人",
       role: "user",

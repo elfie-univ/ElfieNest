@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 
 import { createI18n } from "../../i18n/config"
 
-import { HAPPY_EXPERIENCE } from "./mock-data"
+import { HAPPY_EXPERIENCE } from "../../test/fixtures/elfie-profile"
 import { ProfileImportantExperiences } from "./ProfileImportantExperiences"
 import type { ImportantExperiences } from "./model"
 

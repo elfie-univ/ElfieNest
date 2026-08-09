@@ -391,12 +391,6 @@ export function ObserverProvider({
   return <ObserverContext.Provider value={value}>{children}<div aria-hidden className="observer-engine-parking" ref={parkingRef} /></ObserverContext.Provider>
 }
 
-export function useObserver(): ObserverState {
-  const observer = useOptionalObserver()
-  if (observer === null) throw new Error("ObserverProvider is required")
-  return observer
-}
-
 export function useOptionalObserver(): ObserverState | null {
   return useContext(ObserverContext)
 }

@@ -93,8 +93,8 @@ export function FoodVisibilitySelect({
 }: FoodVisibilitySelectProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const filteredUsers = useMemo(() => {
-    const normalizedQuery = searchQuery.trim().toLocaleLowerCase()
-    return normalizedQuery.length === 0 ? users : users.filter((user) => user.label.toLocaleLowerCase().includes(normalizedQuery))
+    const normalizedQuery = searchQuery.trim().toLowerCase()
+    return normalizedQuery.length === 0 ? users : users.filter((user) => user.label.toLowerCase().includes(normalizedQuery))
   }, [searchQuery, users])
 
   useEffect(() => {

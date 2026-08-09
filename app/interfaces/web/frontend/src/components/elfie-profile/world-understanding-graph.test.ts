@@ -41,7 +41,7 @@ const WORLD: WorldUnderstanding = {
 
 describe("buildWorldUnderstandingGraph", () => {
   it("maps the five world layers to concentric levels and keeps size proportional to weight", () => {
-    const graph = buildWorldUnderstandingGraph(WORLD)
+    const graph = buildWorldUnderstandingGraph(WORLD, "我")
     const nodes = graph.elements.filter((element) => element.group === "nodes")
     const center = nodes.find((element) => element.data.id === WORLD_CENTER_NODE_ID)
     const inner = nodes.find((element) => element.data.id === worldNodeElementId("self:quiet"))
@@ -63,7 +63,7 @@ describe("buildWorldUnderstandingGraph", () => {
   })
 
   it("staggers concentric layers instead of aligning them on one radial axis", () => {
-    const graph = buildWorldUnderstandingGraph(WORLD)
+    const graph = buildWorldUnderstandingGraph(WORLD, "我")
     const cy = cytoscape({ elements: graph.elements, headless: true, style: graph.style })
     cy.layout({
       ...worldUnderstandingLayout({ x: 300, y: 300 }),
@@ -86,7 +86,7 @@ describe("buildWorldUnderstandingGraph", () => {
 
 describe("applyWorldUnderstandingFocus", () => {
   it("highlights the selected node and its concentric context without changing node sizes", () => {
-    const graph = buildWorldUnderstandingGraph(WORLD)
+    const graph = buildWorldUnderstandingGraph(WORLD, "我")
     const cy = cytoscape({ elements: graph.elements, headless: true, style: graph.style })
 
     applyWorldUnderstandingFocus(cy, "outside:unknown")

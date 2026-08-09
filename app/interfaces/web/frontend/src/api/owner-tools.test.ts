@@ -1,11 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
-  ownerRuntimeAudit,
-  ownerRuntimePolicy,
   ownerRuntimeTools,
   updateOwnerTool,
-  updateToolPermission,
   verifyOwnerTool,
 } from "./owner-tools"
 import { ownerRead, ownerWrite } from "./http"
@@ -41,13 +38,6 @@ const localFile = {
   max_tool_calls: 3,
   max_total_result_bytes: 48000,
   has_api_key: false,
-} as const
-
-const policy = {
-  tool_permissions: {
-    WEB_SEARCH: { mode: "allow", reason: "联网检索工具自动放行" },
-    READ: { mode: "allow", reason: "只读工具自动放行" },
-  },
 } as const
 
 describe("owner tools API boundary", () => {
@@ -148,57 +138,4 @@ describe("owner tools API boundary", () => {
     )
   })
 
-  it("updates one permission action without introducing unsupported actions", async () => {
-    // Given: the policy endpoint returns the current safe permission projection.
-    vi.mocked(ownerWrite).mockResolvedValue(policy)
-
-    // When: the owner denies web search.
-    await updateToolPermission("WEB_SEARCH", "deny", "csrf-token")
-
-    // Then: only the selected safe action is sent.
-    expect(ownerWrite).toHaveBeenCalledWith(
-      "/api/owner/runtime/policy",
-      "PUT",
-      "csrf-token",
-      { tool_permissions: { WEB_SEARCH: { mode: "deny" } } },
-    )
-  })
-
-  it("reads policy and the limited current runtime audit projection", async () => {
-    // Given: the existing policy and observer endpoints return typed payloads.
-    vi.mocked(ownerRead)
-      .mockResolvedValueOnce(policy)
-      .mockResolvedValueOnce({
-        event_count: 1,
-        events: [{
-          event_type: "tool_call",
-          status: "ok",
-          subject: "web_search",
-          metadata: { provider: "duckduckgo", allowed: true },
-        }],
-      })
-
-    // When: the page loads both read-only projections.
-    const result = await ownerRuntimePolicy()
-    const audit = await ownerRuntimeAudit(10)
-
-    // Then: the policy and event summary are parsed without exposing raw secrets.
-    expect(result).toEqual(policy)
-    expect(audit.events[0]?.subject).toBe("web_search")
-    expect(ownerRead).toHaveBeenNthCalledWith(2, "/api/owner/runtime/audit?limit=10")
-  })
-
-  it("rejects a malformed or unsafe policy response at the boundary", async () => {
-    // Given: a stale server tries to advertise a dangerous permission action.
-    vi.mocked(ownerRead).mockResolvedValue({
-      tool_permissions: {
-        WEB_SEARCH: { mode: "allow", reason: "ok" },
-        READ: { mode: "allow", reason: "ok" },
-        RUN_SKILL: { mode: "allow", reason: "unsafe" },
-      },
-    })
-
-    // When/Then: the strict public policy parser rejects it.
-    await expect(ownerRuntimePolicy()).rejects.toMatchObject({ name: "ZodError" })
-  })
 })

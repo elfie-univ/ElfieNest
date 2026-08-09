@@ -1,4 +1,4 @@
-import type { Core, ElementDefinition, LayoutOptions, Position, StylesheetJson } from "cytoscape"
+import type { ConcentricLayoutOptions, Core, ElementDefinition, LayoutOptions, Position, StylesheetJson } from "cytoscape"
 
 import type { WorldUnderstanding } from "./model"
 
@@ -84,14 +84,14 @@ const GRAPH_STYLE: StylesheetJson = [
   },
 ]
 
-export function buildWorldUnderstandingGraph(world: WorldUnderstanding): WorldUnderstandingGraph {
+export function buildWorldUnderstandingGraph(world: WorldUnderstanding, centerLabel: string): WorldUnderstandingGraph {
   const elements: ElementDefinition[] = [{
     classes: "world-node world-node-center",
     data: {
       diameter: CENTER_DIAMETER,
       id: WORLD_CENTER_NODE_ID,
       importance: 1,
-      label: "我",
+      label: centerLabel,
       layer: world.rings.length,
       ringKey: "center",
     },
@@ -128,7 +128,7 @@ export function worldNodeElementId(nodeId: string): string {
   return `world:node:${nodeId}`
 }
 
-export function worldUnderstandingLayout(center: Position = { x: 0, y: 0 }): LayoutOptions {
+export function worldUnderstandingLayout(center: Position = { x: 0, y: 0 }): ConcentricLayoutOptions {
   return {
     animate: false,
     avoidOverlap: true,

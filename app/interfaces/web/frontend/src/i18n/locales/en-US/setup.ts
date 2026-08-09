@@ -70,7 +70,6 @@ export const setup = {
     stepsLabel: "Setup steps",
   },
   review: {
-    action: "Review and install",
     beds: "Nest beds",
     confirm: "Confirm configuration and start installation",
     disabled: "Disabled",

@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import { createI18n } from "../../i18n/config"
 
-import { HAPPY_EXPERIENCE, MISSING_PUBLIC_FIELDS_EXPERIENCE } from "./mock-data"
+import { HAPPY_EXPERIENCE, MISSING_PUBLIC_FIELDS_EXPERIENCE } from "../../test/fixtures/elfie-profile"
 import type { GodotAppearance } from "./model"
 import { ProfileAppearanceStage } from "./ProfileAppearanceStage"
 

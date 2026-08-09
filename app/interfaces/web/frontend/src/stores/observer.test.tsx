@@ -2,23 +2,28 @@ import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { nextObserverFrame, openObserverSession, type ObserverFrame } from "../api/observer"
-import { ObserverProvider, useObserver } from "./observer"
+import { ObserverProvider, useOptionalObserver } from "./observer"
 
 vi.mock("../api/observer", () => ({
   nextObserverFrame: vi.fn().mockResolvedValue(null),
   openObserverSession: vi.fn().mockResolvedValue("observer-capability"),
-  updateObserverInterest: vi.fn().mockResolvedValue(undefined),
   warmObserverAssets: vi.fn().mockResolvedValue(undefined),
 }))
 
 function TestObserver() {
-  const observer = useObserver()
+  const observer = useRequiredObserver()
   return <>
     <button onClick={() => { void observer.openRoom("local-nest", { channel: "elfienest.observer", version: 1, kind: "world_config", nest_id: "local-nest", bed_count: 4 }) }} type="button">打开房间</button>
     <button onClick={() => { void observer.openElfie("fox-1") }} type="button">打开精灵</button>
     <button onClick={observer.detach} type="button">离开 3D</button>
     <p>{observer.status}</p>
   </>
+}
+
+function useRequiredObserver() {
+  const observer = useOptionalObserver()
+  if (observer === null) throw new Error("ObserverProvider is required")
+  return observer
 }
 
 afterEach(() => {
@@ -182,7 +187,7 @@ describe("ObserverProvider", () => {
     Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { configurable: true, value: () => ({}) })
 
     function SemanticProbe() {
-      const observer = useObserver()
+      const observer = useRequiredObserver()
       const entity = observer.entities["fox-1"]
       return <><button onClick={() => { void observer.openElfie("fox-1") }} type="button">观察 Fox</button><p>{entity?.zone_id ?? "无区域"}|{entity?.active_command_id ?? "无命令"}</p></>
     }

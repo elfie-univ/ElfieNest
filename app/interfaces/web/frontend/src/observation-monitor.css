@@ -1,4 +1,3 @@
-.camera-frame { width: 100%; min-height: 180px; margin-top: 12px; border-radius: 12px; background: var(--code-bg); object-fit: cover; }
 .observer-engine-parking { display: none; }
 .observer-surface { display: grid; gap: 10px; min-width: 0; }
 .observer-surface__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }

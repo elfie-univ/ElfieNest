@@ -61,29 +61,6 @@ const SetupModelOptionSchema = z.object({
   approx_download_mb: z.number().int().positive(),
   recommended: z.boolean(),
 })
-const SetupOllamaStateSchema = z.enum([
-  "absent",
-  "healthy",
-  "stopped",
-  "deleted",
-  "installing",
-  "failed",
-  "cancelled",
-  "repair_required",
-])
-const SetupOllamaDetectionSchema = z.object({
-  state: SetupOllamaStateSchema,
-  endpoint: z.string().nullable(),
-  version: z.string().nullable(),
-})
-const SetupModelRecommendationSchema = z.object({
-  memory_gb: z.number().int().min(0),
-  recommended_model: z.string().nullable(),
-  ollama_state: SetupOllamaStateSchema,
-  ollama_endpoint: z.string().nullable(),
-  installed_models: z.array(z.string()),
-  recommended_model_available: z.boolean(),
-})
 const ConversationSchema = z.object({
   elfie_id: ElfieIdValueSchema,
   name: z.string(),
@@ -144,8 +121,6 @@ export type AdoptionReply = z.infer<typeof AdoptionReplySchema>
 export type AdoptionReplies = z.infer<typeof AdoptionRepliesSchema>
 export type SetupStatus = z.infer<typeof SetupStatusSchema>
 export type SetupModelOption = z.infer<typeof SetupModelOptionSchema>
-export type SetupOllamaDetection = z.infer<typeof SetupOllamaDetectionSchema>
-export type SetupModelRecommendation = z.infer<typeof SetupModelRecommendationSchema>
 
 export async function setupStatus(): Promise<SetupStatus> {
   return SetupStatusSchema.parse(await requestJson("/api/auth/setup-status"))
@@ -205,18 +180,6 @@ export async function setupInstall(csrfToken: string): Promise<SetupStatus> {
     headers: csrfHeaders(csrfToken, true),
     body: JSON.stringify({ confirmed: true }),
   }))
-}
-
-export async function setupOllamaDetection(): Promise<SetupOllamaDetection> {
-  return SetupOllamaDetectionSchema.parse(
-    await requestJson("/api/auth/setup/ollama-detection"),
-  )
-}
-
-export async function setupModelRecommendation(): Promise<SetupModelRecommendation> {
-  return SetupModelRecommendationSchema.parse(
-    await requestJson("/api/auth/setup/model-recommendation"),
-  )
 }
 
 export async function conversations(): Promise<readonly Conversation[]> {
@@ -291,28 +254,5 @@ export async function commitAdoption(
     method: "POST",
     headers: csrfHeaders(csrfToken, true),
     body: JSON.stringify({ candidate_set_id: candidateSetId, candidate_id: candidateId, name }),
-  }))
-}
-
-export async function adoptElfie(
-  input: {
-    readonly name: string
-    readonly speciesId: string
-    readonly personalityStyle: string
-    readonly height: string
-    readonly build: string
-  },
-  csrfToken: string,
-): Promise<z.infer<typeof AdoptionResultSchema>> {
-  return AdoptionResultSchema.parse(await requestJson("/api/user/adopt", {
-    method: "POST",
-    headers: csrfHeaders(csrfToken, true),
-    body: JSON.stringify({
-      name: input.name,
-      species_id: input.speciesId,
-      personality_style: input.personalityStyle,
-      height: input.height,
-      build: input.build,
-    }),
   }))
 }

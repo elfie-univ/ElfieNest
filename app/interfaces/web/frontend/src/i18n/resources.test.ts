@@ -122,47 +122,47 @@ describe("static i18n resource contract", () => {
     expect(malformedPaths).not.toContain("panel.actions.save")
   })
 
-  it("interpolates every namespace in both supported locales", () => {
+  it("resolves every namespace in both supported locales", () => {
     // Given: a fresh synchronously initialized static i18n instance.
     const instance = createI18n()
 
-    // When: one real skeleton message from every namespace is translated.
+    // When: one live message from every namespace is translated.
     const zhCNTranslations = [
-      instance.getFixedT("zh-CN", "common")("app.welcome", { productName: "ElfieNest" }),
-      instance.getFixedT("zh-CN", "auth")("session.signedInAs", { accountName: "小林" }),
+      instance.getFixedT("zh-CN", "common")("actions.confirm"),
+      instance.getFixedT("zh-CN", "auth")("login.action"),
       instance.getFixedT("zh-CN", "setup")("progress.stepCount", { current: 2, total: 5 }),
-      instance.getFixedT("zh-CN", "account")("session.currentAccount", { accountName: "小林" }),
-      instance.getFixedT("zh-CN", "chat")("conversation.withElfie", { elfieName: "艾菲" }),
-      instance.getFixedT("zh-CN", "manage")("workspace.sectionTitle", { sectionName: "Nest" }),
+      instance.getFixedT("zh-CN", "account")("session.logout"),
+      instance.getFixedT("zh-CN", "chat")("composer.withElfie", { elfieName: "艾菲" }),
+      instance.getFixedT("zh-CN", "manage")("systemSettings.quota.count", { count: 4 }),
       instance.getFixedT("zh-CN", "monitor")("connection.connectedTo", { endpoint: "Nest" }),
     ]
     const enUSTranslations = [
-      instance.getFixedT("en-US", "common")("app.welcome", { productName: "ElfieNest" }),
-      instance.getFixedT("en-US", "auth")("session.signedInAs", { accountName: "Lin" }),
+      instance.getFixedT("en-US", "common")("actions.confirm"),
+      instance.getFixedT("en-US", "auth")("login.action"),
       instance.getFixedT("en-US", "setup")("progress.stepCount", { current: 2, total: 5 }),
-      instance.getFixedT("en-US", "account")("session.currentAccount", { accountName: "Lin" }),
-      instance.getFixedT("en-US", "chat")("conversation.withElfie", { elfieName: "Elfie" }),
-      instance.getFixedT("en-US", "manage")("workspace.sectionTitle", { sectionName: "Nest" }),
+      instance.getFixedT("en-US", "account")("session.logout"),
+      instance.getFixedT("en-US", "chat")("composer.withElfie", { elfieName: "Elfie" }),
+      instance.getFixedT("en-US", "manage")("systemSettings.quota.count", { count: 4 }),
       instance.getFixedT("en-US", "monitor")("connection.connectedTo", { endpoint: "Nest" }),
     ]
 
     // Then: interpolation is complete and no raw template marker remains.
     expect(zhCNTranslations).toEqual([
-      "欢迎使用 ElfieNest",
-      "已登录为小林",
+      "确认",
+      "登录",
       "第 2 步，共 5 步",
-      "当前账号：小林",
-      "正在与艾菲对话",
-      "Nest 管理",
+      "退出登录",
+      "对 艾菲 说点什么…",
+      "4 只",
       "已连接至 Nest",
     ])
     expect(enUSTranslations).toEqual([
-      "Welcome to ElfieNest",
-      "Signed in as Lin",
+      "Confirm",
+      "Log in",
       "Step 2 of 5",
-      "Current account: Lin",
-      "Chatting with Elfie",
-      "Manage Nest",
+      "Sign out",
+      "Say something to Elfie...",
+      "4",
       "Connected to Nest",
     ])
   })
@@ -178,9 +178,7 @@ describe("static i18n resource contract", () => {
 
     // Then: initialization and translation are immediate and entirely local.
     expect(instance.isInitialized).toBe(true)
-    expect(instance.t("app.welcome", { productName: "ElfieNest" })).toBe(
-      "欢迎使用 ElfieNest",
-    )
+    expect(instance.t("actions.confirm")).toBe("确认")
     expect(fetchSpy).not.toHaveBeenCalled()
     expect(xhrOpenSpy).not.toHaveBeenCalled()
 

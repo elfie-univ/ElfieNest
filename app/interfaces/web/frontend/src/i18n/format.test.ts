@@ -4,38 +4,10 @@ import { createI18n } from "./config"
 import {
   compareLocalizedText,
   currentLocale,
-  formatDateTime,
-  formatNumber,
   segmentWords,
 } from "./format"
 
 describe("central locale formatting", () => {
-  it("formats a fixed instant deterministically in Chinese and English", () => {
-    // Given: one fixed instant and an explicit test timezone.
-    const instant = new Date("2026-07-29T08:15:00Z")
-    // When: both supported locales use the central formatter.
-    const outputs = [
-      formatDateTime(instant, "zh-CN", "UTC"),
-      formatDateTime(instant, "en-US", "UTC"),
-    ]
-
-    // Then: each locale receives its stable ICU representation.
-    expect(outputs).toEqual(["2026年7月29日 08:15", "Jul 29, 2026, 8:15 AM"])
-  })
-
-  it("formats compact numbers deterministically in Chinese and English", () => {
-    // Given: a number whose compact notation differs by locale.
-    const value = 1_234_567.89
-    // When: both supported locales use the central formatter.
-    const outputs = [
-      formatNumber(value, "zh-CN", "compact"),
-      formatNumber(value, "en-US", "compact"),
-    ]
-
-    // Then: localized units are stable and no caller supplies a raw locale string.
-    expect(outputs).toEqual(["123.5万", "1.2M"])
-  })
-
   it("sorts mixed Latin and Chinese labels by the selected locale", () => {
     // Given: the same immutable labels in mixed scripts.
     const labels = ["阿尔法", "Zulu", "apple", "张三", "Alice"] as const

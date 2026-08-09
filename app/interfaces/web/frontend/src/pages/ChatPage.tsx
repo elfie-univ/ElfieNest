@@ -57,9 +57,13 @@ function mergeChatMessages(
   for (const message of unmatchedPending) byId.set(message.id, message)
   for (const message of incoming) byId.set(message.id, message)
   return [...byId.values()].sort((left, right) => {
-    const byTime = left.created_at.localeCompare(right.created_at)
+    const byTime = compareStableText(left.created_at, right.created_at)
     return byTime === 0 ? left.id - right.id : byTime
   })
+}
+
+function compareStableText(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0
 }
 
 export function ChatPage() {

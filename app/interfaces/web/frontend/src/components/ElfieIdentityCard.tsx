@@ -15,12 +15,11 @@ import { StatusIndicator } from "./StatusIndicator"
 type ElfieIdentityCardProps = {
   readonly csrfToken: string
   readonly elfie: OwnerElfie
-  readonly mockMode?: boolean
   readonly onError: (error: LocalizedErrorState) => void
   readonly onSaved: () => Promise<void>
 }
 
-export function ElfieIdentityCard({ csrfToken, elfie, mockMode = false, onError, onSaved }: ElfieIdentityCardProps) {
+export function ElfieIdentityCard({ csrfToken, elfie, onError, onSaved }: ElfieIdentityCardProps) {
   const { i18n, t } = useTranslation("manage")
   const locale = currentLocale(i18n)
   const [editing, setEditing] = useState(false)
@@ -101,8 +100,8 @@ export function ElfieIdentityCard({ csrfToken, elfie, mockMode = false, onError,
       {saving ? <Notice message={t("elfies.notices.savingFood")} /> : null}
       <div className="elfie-id-card__actions identity-card__full-row">
         {editing
-          ? <><Button aria-label={t("elfies.actions.saveFor", { name: profile.name })} disabled={saving || mockMode} onClick={() => { void save() }} type="button">{t("elfies.actions.save")}</Button><Button aria-label={t("elfies.actions.cancelFor", { name: profile.name })} disabled={saving} onClick={cancel} type="button" variant="outline">{t("elfies.actions.cancel")}</Button></>
-          : <Button aria-label={t("elfies.actions.editFor", { name: profile.name })} disabled={mockMode} onClick={() => setEditing(true)} type="button" variant="outline">{t("elfies.actions.edit")}</Button>}
+          ? <><Button aria-label={t("elfies.actions.saveFor", { name: profile.name })} disabled={saving} onClick={() => { void save() }} type="button">{t("elfies.actions.save")}</Button><Button aria-label={t("elfies.actions.cancelFor", { name: profile.name })} disabled={saving} onClick={cancel} type="button" variant="outline">{t("elfies.actions.cancel")}</Button></>
+          : <Button aria-label={t("elfies.actions.editFor", { name: profile.name })} onClick={() => setEditing(true)} type="button" variant="outline">{t("elfies.actions.edit")}</Button>}
       </div>
     </div>
   </article></Card>

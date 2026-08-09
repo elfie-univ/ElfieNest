@@ -4,9 +4,8 @@ import {
   HAPPY_EXPERIENCE,
   KETTLE_EXPERIENCE,
   SIGNED_IN_ADMIN,
-} from "./mock-data"
-import { parseViewer } from "./model"
-import { projectElfieProfile } from "./projection"
+} from "../../test/fixtures/elfie-profile"
+import { defineViewer, projectElfieProfile } from "../../test/fixtures/project-elfie-profile"
 
 describe("elfie profile projection", () => {
   it("includes private cognition only for the matching adopter account", () => {
@@ -28,7 +27,7 @@ describe("elfie profile projection", () => {
   })
 
   it("grants adopter data to a matching user account without requiring the owner role", () => {
-    const kettleAdopter = parseViewer({
+    const kettleAdopter = defineViewer({
       accountId: "user123",
       role: "user",
       displayName: "用户示例",

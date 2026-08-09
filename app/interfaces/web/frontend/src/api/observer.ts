@@ -73,18 +73,6 @@ export async function openObserverSession(
   return ObserverCapabilitySchema.parse(payload).capability
 }
 
-export async function updateObserverInterest(
-  capability: string,
-  subscription: ObserverSubscription,
-  csrfToken: string,
-): Promise<void> {
-  await requestJson("/api/observer/interest", {
-    method: "PUT",
-    headers: { ...csrfHeaders(csrfToken, true), ...capabilityHeaders(capability) },
-    body: JSON.stringify({ subscription }),
-  })
-}
-
 export async function nextObserverFrame(
   capability: string,
   cursor: ObserverCursor | null,

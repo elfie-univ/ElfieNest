@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next"
 import {
   benchmarkProviderModels,
   ownerModelMatrix,
-  validateAllProviderModels,
   type BenchmarkCombination,
   type ModelMatrix,
 } from "../api/owner-providers"
@@ -52,20 +51,6 @@ export function ModelMatrixDialog({ csrfToken, onOpenChange, open }: ModelMatrix
   }, [load, open])
 
   const benchmarkCombinations = matrix ? collectBenchmarkCombinations(matrix) : []
-
-  const validateAll = async (): Promise<void> => {
-    setPending(true)
-    try {
-      const result = await validateAllProviderModels(csrfToken)
-      setNotice(t("modelMatrix.validationNotice", { runId: result.run_id }))
-      await load()
-    } catch (reason: unknown) {
-      if (!(reason instanceof Error)) throw reason
-      setError(describeApiError(reason, "manage.save"))
-    } finally {
-      setPending(false)
-    }
-  }
 
   const benchmark = async (
     combinations: readonly BenchmarkCombination[],

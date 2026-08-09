@@ -1,10 +1,9 @@
-import { act, render, screen, waitFor, within, type RenderResult } from "@testing-library/react"
+import { render, screen, waitFor, within, type RenderResult } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { createI18n } from "../i18n/config"
-import { navigate } from "../stores/history"
 import { ChatPage } from "./ChatPage"
 
 const session = vi.hoisted(() => ({

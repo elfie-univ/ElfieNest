@@ -137,7 +137,6 @@ const VerifyConnectionResultSchema = z.object({
   verification: VerificationSchema,
 })
 
-export type ProviderVerification = z.infer<typeof VerificationSchema>
 export type ProviderProduct = z.infer<typeof ProviderProductSchema>
 export type ProviderConnection = z.infer<typeof ProviderConnectionSchema>
 export type ProviderModel = z.infer<typeof ProviderModelSchema>
@@ -306,18 +305,6 @@ export async function saveProviderModels(
     csrfToken,
     { models },
   ))
-}
-
-export async function deleteProviderModel(
-  connectionId: string,
-  modelId: string,
-  csrfToken: string,
-): Promise<void> {
-  await ownerWrite(
-    `/api/owner/providers/connections/${encodeURIComponent(connectionId)}/models/${encodeURIComponent(modelId)}`,
-    "DELETE",
-    csrfToken,
-  )
 }
 
 export async function ownerModelMatrix(): Promise<ModelMatrix> {

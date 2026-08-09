@@ -70,7 +70,6 @@ export const setup = {
     stepsLabel: "初始化步骤",
   },
   review: {
-    action: "确认并安装",
     beds: "精灵巢床位",
     confirm: "确认配置并开始安装",
     disabled: "未启用",

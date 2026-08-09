@@ -9,7 +9,6 @@ const ErrorEventSchema = z.object({ event: z.literal("error"), detail: z.string(
 const ChatSocketEventSchema = z.discriminatedUnion("event", [ReadyEventSchema, MessageEventSchema, ErrorEventSchema])
 
 export type ChatSocketEvent = z.infer<typeof ChatSocketEventSchema>
-export type ChatSocketErrorEvent = Extract<ChatSocketEvent, { readonly event: "error" }>
 export type ChatSocketStatus = "connecting" | "online" | "offline"
 const RECONNECT_DELAY_MILLISECONDS = 1_000
 
@@ -51,8 +50,15 @@ export class ChatSocket {
     socket.addEventListener("message", (event) => {
       const payload = parsePayload(event.data)
       if (payload === null) { this.callbacks.onEvent({ event: "error", detail: "" }); return }
-      const parsed = ChatSocketEventSchema.safeParse(payload)
-      this.callbacks.onEvent(parsed.success ? parsed.data : { event: "error", detail: "" })
+      try {
+        this.callbacks.onEvent(parseChatSocketEvent(payload))
+      } catch (error: unknown) {
+        if (error instanceof z.ZodError) {
+          this.callbacks.onEvent({ event: "error", detail: "" })
+          return
+        }
+        throw error
+      }
     })
   }
 

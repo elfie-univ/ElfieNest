@@ -249,7 +249,7 @@ export function knowledgeBeliefEdgeId(source: string, target: string, relationKe
 }
 
 function compareGraphElements(left: ElementDefinition, right: ElementDefinition): number {
-  return String(left.data?.id ?? "").localeCompare(String(right.data?.id ?? ""))
+  return compareStableText(String(left.data?.id ?? ""), String(right.data?.id ?? ""))
 }
 
 function compareKnowledgeNodes(
@@ -257,9 +257,13 @@ function compareKnowledgeNodes(
   right: KnowledgeBeliefs["nodes"][number],
 ): number {
   return boundedScore(right.weight) - boundedScore(left.weight)
-    || left.kind.localeCompare(right.kind)
-    || left.label.localeCompare(right.label)
-    || left.id.localeCompare(right.id)
+    || compareStableText(left.kind, right.kind)
+    || compareStableText(left.label, right.label)
+    || compareStableText(left.id, right.id)
+}
+
+function compareStableText(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0
 }
 
 function knowledgeBeliefNodeSize(

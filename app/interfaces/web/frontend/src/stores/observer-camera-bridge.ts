@@ -10,7 +10,6 @@ import {
   parseObserverWorldConfig,
   type ObserverCameraCatalog,
   type ObserverCameraCommand,
-  type ObserverSemanticSnapshot,
 } from "./observer-protocol"
 
 export const PRODUCT_OBSERVER_URL = "/runtime/godot/elfienest.html?observer=product" as const

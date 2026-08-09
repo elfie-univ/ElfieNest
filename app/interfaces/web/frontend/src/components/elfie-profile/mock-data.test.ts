@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { MOCK_ELFIES, MOCK_USERS } from "../owner-card-mock-data"
+import { MOCK_ELFIES, MOCK_USERS } from "../../test/fixtures/owner-cards"
 import {
   EMPTY_BIOGRAPHY_EXPERIENCE,
   HAPPY_EXPERIENCE,
@@ -9,7 +9,7 @@ import {
   MISSING_PUBLIC_FIELDS_EXPERIENCE,
   PRIVATE_MODULE_TITLES,
   SIGNED_IN_ADMIN,
-} from "./mock-data"
+} from "../../test/fixtures/elfie-profile"
 
 describe("elfie profile mock data", () => {
   it("characterizes current management mocks with account IDs and readable eight-digit Elfie IDs", () => {

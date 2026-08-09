@@ -75,9 +75,6 @@
 .account-menu__panel h2, .account-menu__panel h3 { margin: 0; }
 .account-menu__panel h2 { font-size: 20px; }
 .account-menu__panel h3 { font-size: 14px; }
-.account-menu__close { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 8px; color: var(--ink-soft); background: transparent; }
-.account-menu__close > svg { width: 18px; height: 18px; }
-.account-menu__close:hover { background: var(--nav-hover); color: var(--active-ink); }
 .account-menu__identity { display: grid; grid-template-columns: 62px minmax(0, 1fr) auto; align-items: center; gap: 12px; margin: 12px 0; padding: 12px; border: 1px solid var(--border-soft, var(--line)); border-radius: 14px; background: var(--surface-field, var(--surface-muted)); }
 .account-menu__identity .avatar { width: 62px; height: 62px; border-radius: 14px; font-size: 30px; }
 .account-menu__avatar-input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }

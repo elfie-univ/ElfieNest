@@ -11,9 +11,6 @@ export const common = {
     increase: "增加{{label}}",
     notifications: "通知",
   },
-  app: {
-    welcome: "欢迎使用 {{productName}}",
-  },
   language: {
     label: "语言",
   },

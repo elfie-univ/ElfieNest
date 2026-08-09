@@ -230,8 +230,9 @@ export function OwnerFoodPanel({ csrfToken }: { readonly csrfToken: string }) {
 }
 
 function FoodModelCellView({ archived, cell, t }: { readonly archived: boolean; readonly cell: FoodModelCell; readonly t: TFunction<"manage"> }) {
+  const label = cell.status === "unconfigured" ? t("foodPackages.values.notConfigured") : cell.label
   if (archived || cell.status === "unconfigured") {
-    return <span className="food-model-cell food-model-cell--plain">{cell.label}</span>
+    return <span className="food-model-cell food-model-cell--plain">{label}</span>
   }
   return <div className="food-model-cell">
     <span className={`food-model-cell__dot food-model-cell__dot--${cell.status}`} aria-hidden="true" />

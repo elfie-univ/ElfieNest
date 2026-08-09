@@ -21,7 +21,7 @@ export function ProfileWorldUnderstanding({ status, world }: ProfileWorldUnderst
   const { t } = useTranslation("chat")
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const hasNodes = world.rings.some((ring) => ring.nodes.length > 0)
-  const graph = useMemo(() => buildWorldUnderstandingGraph(world), [world])
+  const graph = useMemo(() => buildWorldUnderstandingGraph(world, t("profile.private.world.center")), [t, world])
   const handleSelect = useCallback((nodeId: string | null) => setSelectedId(nodeId), [])
 
   useEffect(() => {

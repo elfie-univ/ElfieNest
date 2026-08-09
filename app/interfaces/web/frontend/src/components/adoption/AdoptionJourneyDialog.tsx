@@ -35,16 +35,11 @@ import {
   type AdoptionAction,
   type AdoptionDraftState,
   type AdoptionScreen,
-  type AppearanceChoice,
-  type AppearancePriority,
-  type BuildChoice,
   type Candidate,
   type CandidateReply,
   type CompanionAnswer,
-  type FaceChoice,
   type GenderPreference,
   type LifeStage,
-  type SignatureChoice,
   type SpeciesId,
 } from "./adoption-model"
 import { NamingScreen, RepliesScreen } from "./AdoptionReplyScreens"

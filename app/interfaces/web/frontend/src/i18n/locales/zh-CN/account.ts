@@ -18,7 +18,6 @@ export const account = {
     ownerRole: "超级管理员",
     roleLabel: "角色：",
     save: "保存个人资料",
-    saveDisplayName: "保存个人资料",
     uploadAvatar: "上传本地头像",
     userRole: "普通用户",
   },
@@ -34,9 +33,7 @@ export const account = {
     saving: "正在保存…",
   },
   panel: {
-    close: "关闭个人设置",
     label: "个人与外观设置",
-    title: "个人设置",
   },
   password: {
     action: "更新密码",
@@ -45,7 +42,6 @@ export const account = {
     saving: "正在更新…",
   },
   session: {
-    currentAccount: "当前账号：{{accountName}}",
     loggingOut: "正在退出…",
     logout: "退出登录",
     sectionLabel: "会话操作",
@@ -64,10 +60,7 @@ export const account = {
     warmPaper: { description: "默认", label: "暖纸与陶土" },
   },
   trigger: {
-    admin: "管理员",
     compact: "打开个人设置",
-    owner: "管理员",
     tooltip: "个人设置",
-    user: "用户设置",
   },
 } as const

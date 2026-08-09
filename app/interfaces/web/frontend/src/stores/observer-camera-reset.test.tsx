@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { nextObserverFrame, openObserverSession } from "../api/observer"
-import { ObserverProvider, useObserver } from "./observer"
+import { ObserverProvider, useOptionalObserver } from "./observer"
 
 vi.mock("../api/observer", () => ({
   nextObserverFrame: vi.fn().mockResolvedValue(null),
@@ -11,7 +11,8 @@ vi.mock("../api/observer", () => ({
 }))
 
 function CameraResetProbe() {
-  const observer = useObserver()
+  const observer = useOptionalObserver()
+  if (observer === null) throw new Error("ObserverProvider is required")
   return <>
     <button onClick={() => { void observer.openRoom("local-nest", { channel: "elfienest.observer", version: 1, kind: "world_config", nest_id: "local-nest", bed_count: 4 }) }} type="button">打开房间</button>
     <p>{observer.status}</p>

@@ -18,6 +18,7 @@ import {
 } from "../api/owner-foods"
 import { ManageSidebar } from "./ManageSidebar"
 import { OwnerFoodPanel } from "./OwnerFoodPanel"
+import { ToastProvider } from "./ui/toast"
 
 vi.mock("../api/owner-foods", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/owner-foods")>()
@@ -114,7 +115,7 @@ describe("Manage shared controls", () => {
 
     expect(screen.getByRole("button", { name: "模型订阅" })).toBeEnabled()
     expect(screen.getByRole("button", { name: "用手机打开管理台" })).toBeEnabled()
-    expect(screen.getByRole("button", { name: "Owner管理员" })).toHaveAttribute("aria-haspopup", "dialog")
+    expect(screen.getByRole("button", { name: "Owner" })).toHaveAttribute("aria-haspopup", "dialog")
     expect(screen.getByRole("link", { name: "进入聊天" })).toHaveAttribute("href", "/chat")
   })
 
@@ -151,7 +152,7 @@ describe("Manage shared controls", () => {
     document.documentElement.lang = "zh-CN"
     render(
       <I18nextProvider i18n={instance}>
-        <OwnerFoodPanel csrfToken="csrf" />
+        <ToastProvider><OwnerFoodPanel csrfToken="csrf" /></ToastProvider>
       </I18nextProvider>,
     )
 

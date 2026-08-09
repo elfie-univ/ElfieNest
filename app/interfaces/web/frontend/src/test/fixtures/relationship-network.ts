@@ -1,4 +1,4 @@
-import type { RelationshipWorld } from "./model"
+import type { RelationshipWorld } from "../../components/elfie-profile/model"
 
 export const HAPPY_RELATIONSHIP_WORLD: RelationshipWorld = {
   nodes: [

@@ -1,6 +1,5 @@
 import type { SupportedLocale } from "./locale"
 
-import type { ChatSocketErrorEvent } from "../api/chat-socket"
 import { ApiError, type ApiValidationDetail } from "../api/http"
 import { resources } from "./resources"
 
@@ -146,12 +145,4 @@ export function localizeBackendDetail(
 ): string {
   if (locale === "zh-CN" && detail !== null && detail.length > 0) return detail
   return operationFallback(operation, locale)
-}
-
-export function localizeSocketError(
-  error: ChatSocketErrorEvent,
-  operation: ErrorOperation,
-  locale: SupportedLocale,
-): string {
-  return localizeBackendDetail(error.detail, operation, locale)
 }

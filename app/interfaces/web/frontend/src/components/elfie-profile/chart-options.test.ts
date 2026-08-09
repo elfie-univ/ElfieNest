@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { HAPPY_EXPERIENCE } from "./mock-data"
+import { HAPPY_EXPERIENCE } from "../../test/fixtures/elfie-profile"
 import {
   BIG_FIVE_COPY,
   buildBigFiveRadarOption,

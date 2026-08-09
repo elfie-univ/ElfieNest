@@ -10,7 +10,7 @@ import {
 } from "../api/client"
 import { canManageRole, compareAccountListOrder, isManagerRole, MAX_ACCOUNTS, MAX_ADMINS, type AccountRole } from "../api/roles"
 import { describeApiError, resolveLocalizedError, type LocalizedErrorState } from "../i18n/errors"
-import { compareLocalizedText, currentLocale } from "../i18n/format"
+import { currentLocale } from "../i18n/format"
 import { ConfirmDialog } from "./ConfirmDialog"
 import { CreateUserDialog } from "./CreateUserDialog"
 import { Icon } from "./Icon"

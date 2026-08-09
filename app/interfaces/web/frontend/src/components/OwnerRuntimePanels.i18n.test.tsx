@@ -1,18 +1,16 @@
-import { fireEvent, render, screen } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
+import { render, screen } from "@testing-library/react"
 import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { ApiError, ownerRead, ownerWrite } from "../api/client"
+import { ApiError, ownerRead } from "../api/client"
 import { createI18n } from "../i18n/config"
 import type { SupportedLocale } from "../i18n/locale"
 import { ManageMonitorPanel } from "./ManageMonitorPanel"
-import { OwnerDataPanel } from "./OwnerDataPanel"
 import { ToastProvider } from "./ui/toast"
 
 vi.mock("../api/client", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/client")>()
-  return { ...original, ownerRead: vi.fn(), ownerWrite: vi.fn() }
+  return { ...original, ownerRead: vi.fn() }
 })
 
 type RuntimeEventFixture = {
@@ -22,10 +20,9 @@ type RuntimeEventFixture = {
   readonly metadata: Record<string, unknown>
 }
 
-describe("runtime and raw-data panel behavior", () => {
+describe("runtime panel behavior", () => {
   beforeEach(() => {
     vi.mocked(ownerRead).mockImplementation(async (path) => monitorPayload(path))
-    vi.mocked(ownerWrite).mockResolvedValue({ saved: true })
   })
 
   it("renders the monitor in English while preserving technical values", async () => {
@@ -103,39 +100,6 @@ describe("runtime and raw-data panel behavior", () => {
     expect(screen.queryByText("部分状态数据暂时无法读取。")).not.toBeInTheDocument()
   })
 
-  it("preserves a raw JSON draft across locale switching", async () => {
-    const instance = renderWithLocale(
-      <OwnerDataPanel csrfToken="csrf" description="Technical config" readPath="/raw" title="Runtime config" writePath="/raw" />,
-      "en-US",
-    )
-    const editor = await screen.findByRole("textbox", { name: "Runtime config JSON configuration" })
-    fireEvent.change(editor, { target: { value: "{\"endpoint\":\"https://changed.example/v1\"}" } })
-
-    await instance.changeLanguage("zh-CN")
-
-    expect(screen.getByRole("textbox", { name: "Runtime config JSON 配置" })).toHaveValue("{\"endpoint\":\"https://changed.example/v1\"}")
-  })
-
-  it("localizes invalid JSON and hides backend details in English", async () => {
-    const user = userEvent.setup()
-    renderWithLocale(
-      <OwnerDataPanel csrfToken="csrf" description="Technical config" readPath="/raw" title="Runtime config" writePath="/raw" />,
-      "en-US",
-    )
-    const editor = await screen.findByRole("textbox", { name: "Runtime config JSON configuration" })
-
-    fireEvent.change(editor, { target: { value: "{" } })
-    await user.click(screen.getByRole("button", { name: "Save configuration" }))
-    expect(screen.getByRole("alert")).toHaveTextContent("Enter valid JSON.")
-
-    vi.mocked(ownerWrite).mockRejectedValueOnce(new ApiError(400, "后端拒绝了配置"))
-    fireEvent.change(editor, { target: { value: "{\"protocol_field\":\"raw_value\"}" } })
-    await user.click(screen.getByRole("button", { name: "Save configuration" }))
-
-    expect(screen.getByRole("alert")).toHaveTextContent("Unable to save management data.")
-    expect(screen.queryByText("后端拒绝了配置")).not.toBeInTheDocument()
-    expect(ownerWrite).toHaveBeenCalledWith("/raw", "PUT", "csrf", { protocol_field: "raw_value" })
-  })
 })
 
 function renderWithLocale(node: React.ReactNode, locale: SupportedLocale): ReturnType<typeof createI18n> {

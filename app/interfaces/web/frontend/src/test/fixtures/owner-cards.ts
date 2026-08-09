@@ -1,4 +1,4 @@
-import type { OwnerElfie, OwnerUser } from "../api/client"
+import type { OwnerElfie, OwnerUser } from "../../api/client"
 
 export const MOCK_USERS: readonly OwnerUser[] = [
   {

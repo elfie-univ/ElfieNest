@@ -1,6 +1,11 @@
-import { MOCK_ELFIES } from "../owner-card-mock-data"
-import { parseExperienceFixture, parseViewer, type GodotAppearance } from "./model"
-import { HAPPY_RELATIONSHIP_WORLD } from "./relationship-network-mock"
+import {
+  ElfieIdSchema,
+  type GodotAppearance,
+  type PublicProfile,
+} from "../../components/elfie-profile/model"
+import { MOCK_ELFIES } from "./owner-cards"
+import { defineElfieExperience, defineViewer } from "./project-elfie-profile"
+import { HAPPY_RELATIONSHIP_WORLD } from "./relationship-network"
 
 export const PRIVATE_MODULE_TITLES = [
   "近期关注",
@@ -37,20 +42,20 @@ const FOX_RUNTIME_APPEARANCE: GodotAppearance = {
 const happySource = sourceElfie("12345678")
 const kettleSource = sourceElfie("23456789")
 
-export const SIGNED_IN_ADMIN = parseViewer({
+export const SIGNED_IN_ADMIN = defineViewer({
   accountId: "admin123",
   role: "owner",
   displayName: "管理员",
 })
 
-export const HAPPY_EXPERIENCE = parseExperienceFixture({
+export const HAPPY_EXPERIENCE = defineElfieExperience({
   adopter: {
     accountId: happySource.owner.account_id,
     displayName: happySource.owner.display_name ?? happySource.owner.account_id,
   },
   adoption: { adoptedAt: "2026-06-30", ageLabel: "1 个月" },
   publicProfile: {
-    elfieId: happySource.elfie_id,
+    elfieId: ElfieIdSchema.parse(happySource.elfie_id),
     name: happySource.profile.name,
     speciesId: happySource.profile.species_id,
     gender: happySource.profile.gender,
@@ -58,7 +63,7 @@ export const HAPPY_EXPERIENCE = parseExperienceFixture({
     portraitUrl: happySource.profile.portrait_url,
     appearance: { bodyPlan: "fox", palette: "sunlit amber", signature: "soft ears" },
     runtimeAppearance: FOX_RUNTIME_APPEARANCE,
-    bigFive: happySource.profile.big_five,
+    bigFive: fixtureBigFive(happySource.profile.big_five),
   },
   privateCognition: {
     status: "ready",
@@ -150,14 +155,14 @@ export const HAPPY_EXPERIENCE = parseExperienceFixture({
   },
 })
 
-export const KETTLE_EXPERIENCE = parseExperienceFixture({
+export const KETTLE_EXPERIENCE = defineElfieExperience({
   adopter: {
     accountId: kettleSource.owner.account_id,
     displayName: kettleSource.owner.display_name ?? kettleSource.owner.account_id,
   },
   adoption: { adoptedAt: "2026-07-01", ageLabel: "未登记" },
   publicProfile: {
-    elfieId: kettleSource.elfie_id,
+    elfieId: ElfieIdSchema.parse(kettleSource.elfie_id),
     name: kettleSource.profile.name,
     speciesId: kettleSource.profile.species_id,
     gender: kettleSource.profile.gender,
@@ -165,7 +170,7 @@ export const KETTLE_EXPERIENCE = parseExperienceFixture({
     portraitUrl: kettleSource.profile.portrait_url,
     appearance: { bodyPlan: "fox", palette: "mist grey", signature: "quiet tail" },
     runtimeAppearance: FOX_RUNTIME_APPEARANCE,
-    bigFive: kettleSource.profile.big_five,
+    bigFive: fixtureBigFive(kettleSource.profile.big_five),
   },
   privateCognition: {
     status: "ready",
@@ -214,7 +219,7 @@ export const KETTLE_EXPERIENCE = parseExperienceFixture({
   },
 })
 
-export const LONG_BIOGRAPHY_EXPERIENCE = parseExperienceFixture({
+export const LONG_BIOGRAPHY_EXPERIENCE = defineElfieExperience({
   ...KETTLE_EXPERIENCE,
   publicProfile: {
     ...KETTLE_EXPERIENCE.publicProfile,
@@ -222,19 +227,23 @@ export const LONG_BIOGRAPHY_EXPERIENCE = parseExperienceFixture({
   },
 })
 
-export const EMPTY_BIOGRAPHY_EXPERIENCE = parseExperienceFixture({
+export const EMPTY_BIOGRAPHY_EXPERIENCE = defineElfieExperience({
   ...HAPPY_EXPERIENCE,
   publicProfile: { ...HAPPY_EXPERIENCE.publicProfile, biography: "" },
 })
 
-export const MISSING_PUBLIC_FIELDS_EXPERIENCE = parseExperienceFixture({
+export const MISSING_PUBLIC_FIELDS_EXPERIENCE = defineElfieExperience({
   ...HAPPY_EXPERIENCE,
   publicProfile: {
-    elfieId: happySource.elfie_id,
+    elfieId: ElfieIdSchema.parse(happySource.elfie_id),
     name: "Missing Fields Happy",
     speciesId: happySource.profile.species_id,
+    gender: null,
+    biography: "",
+    portraitUrl: "",
     appearance: { bodyPlan: "fox", palette: "amber", signature: "ears" },
-    bigFive: happySource.profile.big_five,
+    runtimeAppearance: null,
+    bigFive: fixtureBigFive(happySource.profile.big_five),
   },
 })
 
@@ -244,4 +253,14 @@ function sourceElfie(elfieId: string) {
     throw new FixtureSourceError(elfieId)
   }
   return fixture
+}
+
+function fixtureBigFive(source: Readonly<Record<string, number>>): PublicProfile["bigFive"] {
+  return {
+    openness: source["openness"] ?? 0,
+    conscientiousness: source["conscientiousness"] ?? 0,
+    extraversion: source["extraversion"] ?? 0,
+    agreeableness: source["agreeableness"] ?? 0,
+    neuroticism: source["neuroticism"] ?? 0,
+  }
 }

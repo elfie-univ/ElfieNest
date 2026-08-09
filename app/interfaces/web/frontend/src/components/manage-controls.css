@@ -1,40 +1,5 @@
-.manage-dialog-backdrop {
-  position: fixed;
-  z-index: 100;
-  inset: 0;
-  background: color-mix(in srgb, var(--overlay-bg) 44%, transparent);
-  backdrop-filter: blur(4px);
-}
-
-.manage-dialog {
-  position: fixed;
-  z-index: 101;
-  top: 50%;
-  left: 50%;
-  width: min(560px, calc(100vw - 32px));
-  max-height: min(760px, calc(100vh - 32px));
-  overflow: auto;
-  padding: 24px;
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  color: var(--text);
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-float);
-  transform: translate(-50%, -50%);
-}
-
-.manage-dialog__header { padding-right: 38px; }
-.manage-dialog__header h2, .manage-dialog > h2 { margin: 0; font-size: 22px; }
-.manage-dialog__header p, .manage-dialog > p { margin: 8px 0 0; color: var(--text-muted); line-height: 1.55; }
-.manage-dialog__body { display: grid; gap: 14px; margin-top: 20px; }
 .manage-dialog__fields { display: grid; gap: 20px; }
 .manage-dialog__form { display: grid; gap: 20px; }
-.manage-dialog__close { position: absolute; top: 18px; right: 18px; display: grid; width: 32px; height: 32px; place-items: center; border-radius: 9px; color: var(--text-muted); background: transparent; }
-.manage-dialog__close:hover { color: var(--active-ink); background: var(--surface-hover); }
-.manage-dialog__actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
-.manage-confirm-dialog { width: min(440px, calc(100vw - 32px)); }
-.manage-confirm-dialog__danger { background: var(--error-text); }
-.manage-confirm-dialog__danger:hover { background: color-mix(in srgb, var(--error-text) 84%, black); }
 
 .manage-field {
   display: grid;
@@ -83,6 +48,3 @@
 .manage-field input[aria-invalid="true"] { border-color: var(--error-text); }
 .manage-field small { min-width: 0; overflow-wrap: anywhere; color: var(--text-muted); font-size: 14px; line-height: 1.45; }
 .manage-field .manage-field__error { color: var(--error-text); }
-.manage-checkbox-field { display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: start; gap: 10px; }
-.manage-checkbox-field label { display: grid; gap: 3px; color: var(--text); }
-.manage-checkbox-field small { color: var(--text-muted); font-size: 14px; }

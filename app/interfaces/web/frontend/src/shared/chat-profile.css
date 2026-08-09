@@ -194,16 +194,9 @@
 .profile-dossier__section-title { display: grid; gap: 4px; margin-bottom: 18px; }
 .profile-dossier__section-title span { color: var(--text-muted); font-size: 12px; font-weight: 800; letter-spacing: .1em; }
 .profile-dossier__section-name { margin: 0; color: var(--text); font-size: 18px; font-weight: 700; line-height: 1.35; }
-.profile-dossier__section-title--row { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
 .profile-dossier__private-module button:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--focus-ring) 45%, transparent);
   outline-offset: 2px;
-}
-.profile-dossier__radar {
-  display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(10rem, .7fr);
-  align-items: center;
-  gap: 32px;
 }
 .profile-radar__content {
   display: grid;
@@ -253,20 +246,6 @@
     width: 100%;
   }
   .profile-radar--compact .profile-radar__descriptors li { width: 100%; min-width: 0; }
-}
-.profile-dossier__chart-frame {
-  min-width: 0;
-  aspect-ratio: 1 / 1;
-}
-.profile-dossier__chart-summary {
-  display: grid;
-  gap: 10px;
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  color: var(--text);
-  line-height: 1.55;
 }
 .profile-chart { position: relative; min-width: 0; min-height: 280px; }
 .profile-chart__canvas { width: 100%; min-height: 280px; aspect-ratio: 1 / 1; }
@@ -456,8 +435,6 @@
   font-weight: 800;
 }
 .profile-private-relationships__filter--active { border-color: var(--accent); color: var(--surface-raised); background: var(--accent); }
-.profile-private-relationships__detail { display: inline-flex; gap: 7px; align-items: center; min-height: 34px; color: var(--text-muted); font-size: 13px; font-weight: 800; cursor: pointer; }
-.profile-private-relationships__detail input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
 .profile-private-relationships__map {
   position: relative;
   min-height: 500px;
@@ -467,7 +444,6 @@
   border-radius: 18px;
   background: radial-gradient(circle, color-mix(in srgb, var(--accent-soft) 60%, transparent), transparent 68%), var(--field-bg);
 }
-.profile-private-relationships--detailed .profile-private-relationships__map { min-height: 720px; }
 .profile-private-relationships__a11y { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 .profile-private-relationships__node-button { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; }
 .profile-private-world { display: grid; gap: 14px; }
@@ -814,7 +790,6 @@
     min-height: 36px;
     padding-inline: 12px;
   }
-  .profile-dossier__radar { grid-template-columns: 1fr; }
   .profile-radar--compact .profile-radar__content {
     width: 100%;
     grid-template-columns: minmax(0, 1fr);
@@ -840,7 +815,6 @@
   .profile-appearance__frame { min-height: 100%; }
   .profile-capture__actions > [data-slot="button"] { flex: 1 1 calc(50% - 8px); }
   .profile-private-relationships__map { min-height: 360px; }
-  .profile-private-relationships--detailed .profile-private-relationships__map { min-height: 680px; }
   .profile-private-world__map { width: 100%; height: auto; min-height: 0; }
   .profile-private-focus__cloud { height: clamp(280px, 82vw, 320px); padding: 4px; }
   .profile-private-experiences { padding-left: 24px; }
@@ -912,11 +886,7 @@
 .manage-workbench { display: grid; grid-template-columns: 72px minmax(0, 1fr); width: 100%; height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; background: var(--surface-raised); }
 .manage { width: 100%; min-height: 0; height: 100vh; height: 100dvh; padding: 34px; border-radius: 0; overflow: auto; overscroll-behavior: contain; }
 .manage-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.manage-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 28px; }
 .manage-card { padding: 20px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface-raised); }
 .manage-card h2 { margin: 0 0 10px; font-size: 18px; }
 .manage-card p { color: var(--text-muted); line-height: 1.6; }
 .manage-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 18px; }
-.manage-list { display: grid; gap: 8px; margin: 18px 0; padding: 0; list-style: none; color: var(--text); font-size: 14px; }
-.manage-list li { padding: 9px 10px; border-radius: 10px; background: var(--code-bg); }
-.manage-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; }

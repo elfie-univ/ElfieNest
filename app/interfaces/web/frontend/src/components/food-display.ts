@@ -74,7 +74,7 @@ function projectModelCell(
   return {
     reference,
     label: !reference
-      ? "未配置"
+      ? ""
       : model && connection
         ? `${connection.alias} / ${model.display_name}`
         : reference,

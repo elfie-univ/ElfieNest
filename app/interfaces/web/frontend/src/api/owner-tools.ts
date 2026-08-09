@@ -8,17 +8,7 @@ export type ToolKey = (typeof TOOL_KEYS)[number]
 export const SEARCH_PROVIDERS = ["duckduckgo", "brave", "tavily"] as const
 export type SearchProvider = (typeof SEARCH_PROVIDERS)[number]
 
-export const TOOL_PERMISSION_ACTIONS = ["WEB_SEARCH", "READ"] as const
-export type ToolPermissionAction = (typeof TOOL_PERMISSION_ACTIONS)[number]
-export type EditablePermissionMode = "allow" | "deny"
-
 const SearchProviderSchema = z.enum(SEARCH_PROVIDERS)
-const ToolKeySchema = z.enum(TOOL_KEYS)
-const PermissionModeSchema = z.enum(["allow", "ask", "deny", "owner"])
-const PermissionRuleSchema = z.object({
-  mode: PermissionModeSchema,
-  reason: z.string(),
-})
 
 const WebSearchToolConfigSchema = z.object({
   enabled: z.boolean(),
@@ -66,32 +56,11 @@ const ValidationSuiteSchema = z.object({
   results: z.array(ValidationCheckSchema),
 })
 
-const RuntimePolicySchema = z.object({
-  tool_permissions: z.object({
-    WEB_SEARCH: PermissionRuleSchema,
-    READ: PermissionRuleSchema,
-  }).strict(),
-}).strict()
-
-const RuntimeMetadataValueSchema = z.union([z.string(), z.number(), z.boolean()])
-const RuntimeAuditEventSchema = z.object({
-  event_type: z.string(),
-  status: z.enum(["ok", "error"]),
-  subject: z.string(),
-  metadata: z.record(z.string(), RuntimeMetadataValueSchema),
-})
-const RuntimeAuditSchema = z.object({
-  event_count: z.number().int().nonnegative(),
-  events: z.array(RuntimeAuditEventSchema),
-})
-
 export type WebSearchToolConfig = Readonly<z.infer<typeof WebSearchToolConfigSchema>>
 export type LocalFileToolConfig = Readonly<z.infer<typeof LocalFileToolConfigSchema>>
 export type ToolConfig = WebSearchToolConfig | LocalFileToolConfig
 export type ToolConfigMap = Readonly<z.infer<typeof ToolConfigMapSchema>>
 export type ValidationSuite = Readonly<z.infer<typeof ValidationSuiteSchema>>
-export type RuntimePolicy = Readonly<z.infer<typeof RuntimePolicySchema>>
-export type RuntimeAudit = Readonly<z.infer<typeof RuntimeAuditSchema>>
 
 export type WebSearchToolUpdate = Readonly<{
   readonly enabled?: boolean
@@ -106,12 +75,6 @@ export type LocalFileToolUpdate = Readonly<{
   readonly max_read_bytes?: number
 }>
 export type ToolUpdate = WebSearchToolUpdate | LocalFileToolUpdate
-
-type RuntimePolicyUpdate = Readonly<{
-  readonly tool_permissions: Partial<Record<ToolPermissionAction, Readonly<{
-    readonly mode: EditablePermissionMode
-  }>>>
-}>
 
 function assertNever(value: never): never {
   throw new Error(`Unsupported tool key: ${String(value)}`)
@@ -171,32 +134,5 @@ export async function verifyOwnerTool(
     `/api/owner/runtime/tools/${toolKey}/verify`,
     "POST",
     csrfToken,
-  ))
-}
-
-export async function ownerRuntimePolicy(): Promise<RuntimePolicy> {
-  return RuntimePolicySchema.parse(await ownerRead("/api/owner/runtime/policy"))
-}
-
-export async function updateToolPermission(
-  action: ToolPermissionAction,
-  mode: EditablePermissionMode,
-  csrfToken: string,
-): Promise<RuntimePolicy> {
-  const tool_permissions: RuntimePolicyUpdate["tool_permissions"] = {
-    [action]: { mode },
-  }
-  return RuntimePolicySchema.parse(await ownerWrite(
-    "/api/owner/runtime/policy",
-    "PUT",
-    csrfToken,
-    { tool_permissions },
-  ))
-}
-
-export async function ownerRuntimeAudit(limit = 10): Promise<RuntimeAudit> {
-  const query = new URLSearchParams({ limit: String(limit) })
-  return RuntimeAuditSchema.parse(await ownerRead(
-    `/api/owner/runtime/audit?${query.toString()}`,
   ))
 }

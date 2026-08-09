@@ -39,7 +39,6 @@ const OllamaStatusSchema = z.object({
 })
 
 export type OllamaStatus = z.infer<typeof OllamaStatusSchema>
-export type OllamaModel = z.infer<typeof OllamaModelSchema>
 
 export async function ownerOllamaStatus(): Promise<OllamaStatus> {
   return OllamaStatusSchema.parse(await ownerRead("/api/owner/providers/ollama"))

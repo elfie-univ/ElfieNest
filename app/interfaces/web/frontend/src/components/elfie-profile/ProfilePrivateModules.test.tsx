@@ -4,10 +4,10 @@ import { describe, expect, it, vi } from "vitest"
 
 import { createI18n } from "../../i18n/config"
 
-import { HAPPY_EXPERIENCE, PRIVATE_MODULE_TITLES, SIGNED_IN_ADMIN } from "./mock-data"
+import { HAPPY_EXPERIENCE, PRIVATE_MODULE_TITLES, SIGNED_IN_ADMIN } from "../../test/fixtures/elfie-profile"
+import { projectElfieProfile } from "../../test/fixtures/project-elfie-profile"
 import { ProfilePrivateModules } from "./ProfilePrivateModules"
 import type { ElfieProfileProjection } from "./projection"
-import { projectElfieProfile } from "./projection"
 
 vi.mock("@visx/wordcloud", () => ({ Wordcloud: () => null }))
 vi.mock("cytoscape", () => {

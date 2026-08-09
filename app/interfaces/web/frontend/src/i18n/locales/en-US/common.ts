@@ -11,9 +11,6 @@ export const common = {
     increase: "Increase {{label}}",
     notifications: "Notifications",
   },
-  app: {
-    welcome: "Welcome to {{productName}}",
-  },
   language: {
     label: "Language",
   },

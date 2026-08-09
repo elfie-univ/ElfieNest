@@ -251,7 +251,6 @@ describe("ManageUsersPanel real-data states", () => {
   })
 
   it("hides the entire action row for an Admin actor on Owner and peer Admin cards", async () => {
-    const user = userEvent.setup()
     vi.mocked(ownerUsers).mockResolvedValue([owner, admin, member])
     renderPanel("zh-CN", "admin")
 

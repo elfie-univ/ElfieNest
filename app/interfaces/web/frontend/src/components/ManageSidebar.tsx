@@ -5,7 +5,6 @@ import type { ClientUser } from "../api/client"
 import type { ManageTab } from "../pages/manageNavigation"
 import { MANAGE_NAV_GROUPS } from "../pages/manageNavigation"
 import { AccountMenu } from "./AccountMenu"
-import { Avatar } from "./Avatar"
 import { Icon } from "./Icon"
 import { MobileAccessDialog } from "./MobileAccessDialog"
 

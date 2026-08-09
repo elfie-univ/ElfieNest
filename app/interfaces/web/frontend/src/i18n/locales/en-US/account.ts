@@ -18,7 +18,6 @@ export const account = {
     ownerRole: "Owner",
     roleLabel: "Role:",
     save: "Save profile",
-    saveDisplayName: "Save profile",
     uploadAvatar: "Upload a local avatar",
     userRole: "User",
   },
@@ -34,9 +33,7 @@ export const account = {
     saving: "Saving…",
   },
   panel: {
-    close: "Close profile settings",
     label: "Profile and appearance settings",
-    title: "Profile settings",
   },
   password: {
     action: "Update password",
@@ -45,7 +42,6 @@ export const account = {
     saving: "Updating…",
   },
   session: {
-    currentAccount: "Current account: {{accountName}}",
     loggingOut: "Signing out…",
     logout: "Sign out",
     sectionLabel: "Session actions",
@@ -64,10 +60,7 @@ export const account = {
     warmPaper: { description: "Default", label: "Warm Paper and Clay" },
   },
   trigger: {
-    admin: "Admin",
     compact: "Open profile settings",
-    owner: "Owner",
     tooltip: "Profile settings",
-    user: "User settings",
   },
 } as const

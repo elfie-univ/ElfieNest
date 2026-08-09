@@ -3,7 +3,6 @@ import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { createI18n } from "../i18n/config"
-import { ownerRead } from "../api/client"
 import { ManageMonitorPanel } from "./ManageMonitorPanel"
 import { ToastProvider } from "./ui/toast"
 
