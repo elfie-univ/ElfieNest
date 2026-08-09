@@ -6,14 +6,17 @@ import {
   type ChatMessage,
   type ClientUser,
   type Conversation,
+  type ElfieFoodPolicy,
   type ElfieProfile,
   conversations,
   currentUser,
   elfies,
+  getFoodPolicy,
   logout,
   messages,
   profile,
-  sendMessage
+  sendMessage,
+  updateFoodPolicy
 } from "../shared/api"
 import { ChatSocket } from "../shared/chat_socket"
 import type { ChatSocketEvent, ChatSocketStatus } from "../shared/chat_socket"
@@ -110,9 +113,17 @@ function ChatPage(): ReactElement {
     </aside>
     <section className="conversation"><div className="topline"><h1>{selected?.name ?? "选择一只精灵"}</h1><button className="button button--quiet" disabled={selected === undefined} onClick={() => void showProfile()} type="button">资料</button></div>
       <section className="message-list">{state.selectedId === null ? <p className="empty">先选择一只属于你的精灵。</p> : state.messages.map((message) => <MessageRow key={message.id} message={message} />)}{state.socketNotice === null ? null : <p className="notice notice--error">{state.socketNotice}</p>}</section>
-      <form className="composer" onSubmit={(event) => void submit(event)}><textarea disabled={selected === undefined} onChange={(event) => setDraft(event.target.value)} placeholder={selected === undefined ? "请选择精灵" : `对 ${selected.name} 说点什么…`} value={draft} /><button className="button" disabled={selected === undefined || csrfToken === ""} type="submit">发送</button></form>
+      <form className="composer" onSubmit={(event) => void submit(event)}>
+        <div className="composer-tools">
+          <button className="tool-button" onClick={() => setDraft("")} title="清空输入框" type="button">
+            <svg viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+          </button>
+        </div>
+        <textarea disabled={selected === undefined} onChange={(event) => setDraft(event.target.value)} placeholder={selected === undefined ? "请选择精灵" : `对 ${selected.name} 说点什么…`} value={draft} />
+        <button className="button" disabled={selected === undefined || csrfToken === ""} type="submit">发送</button>
+      </form>
     </section>
-    <aside className="detail">{state.profile === null ? <p className="empty">打开资料，查看外貌、人格和具身状态。</p> : <ProfileCard profile={state.profile} />}</aside>
+    <aside className="detail">{state.profile === null ? <p className="empty">打开资料，查看外貌、人格、粮食权限和具身状态。</p> : <ProfileCard csrfToken={csrfToken} profile={state.profile} />}</aside>
   </section></main>
 }
 
@@ -124,9 +135,89 @@ function MessageRow({ message }: { readonly message: ChatMessage }): ReactElemen
   return <article className={`message${message.sender === "user" ? " message--user" : ""}`}><Avatar name={message.sender === "user" ? "我" : "精"} /><div className="bubble">{message.text}</div></article>
 }
 
-function ProfileCard({ profile: current }: { readonly profile: ElfieProfile }): ReactElement {
+function ElfieFoodPolicySection({ csrfToken, elfieId }: { readonly csrfToken: string; readonly elfieId: string }): ReactElement {
+  const [policy, setPolicy] = useState<ElfieFoodPolicy | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const allFoods = ["cheap", "standard", "deep", "multimodal", "mock"]
+
+  useEffect(() => {
+    void getFoodPolicy(elfieId).then(setPolicy).catch(() => setPolicy(null))
+  }, [elfieId])
+
+  if (policy === null) return <p><small>正在读取粮食策略…</small></p>
+
+  const toggleFood = (foodKey: string): void => {
+    const set = new Set(policy.allowed_foods)
+    if (set.has(foodKey)) {
+      if (set.size <= 1) return
+      set.delete(foodKey)
+    } else {
+      set.add(foodKey)
+    }
+    const allowed = Array.from(set)
+    const default_food = allowed.includes(policy.default_food) ? policy.default_food : (allowed[0] ?? "standard")
+    const fallback_food = allowed.includes(policy.fallback_food) ? policy.fallback_food : (allowed[0] ?? "cheap")
+    setPolicy({ ...policy, allowed_foods: allowed, default_food, fallback_food })
+  }
+
+  const save = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
+    e.preventDefault()
+    try {
+      const updated = await updateFoodPolicy(elfieId, policy, csrfToken)
+      setPolicy(updated)
+      setNotice("粮食权限已保存")
+    } catch (err: unknown) {
+      setNotice(err instanceof ApiError ? err.message : "保存失败")
+    }
+  }
+
+  return (
+    <form className="food-policy-form" onSubmit={(e) => void save(e)}>
+      <h3 style={{ margin: "0 0 4px", fontSize: "14px", color: "#234b3a" }}>精灵粮食权限与策略</h3>
+      <label>
+        <span>默认粮食</span>
+        <select onChange={(e) => setPolicy({ ...policy, default_food: e.target.value })} value={policy.default_food}>
+          {policy.allowed_foods.map((food) => <option key={food} value={food}>{food}</option>)}
+        </select>
+      </label>
+      <label>
+        <span>Fallback 粮食</span>
+        <select onChange={(e) => setPolicy({ ...policy, fallback_food: e.target.value })} value={policy.fallback_food}>
+          {policy.allowed_foods.map((food) => <option key={food} value={food}>{food}</option>)}
+        </select>
+      </label>
+      <div>
+        <span style={{ fontSize: "12px", color: "#617260", display: "block", marginBottom: "4px" }}>许可粮食种类</span>
+        {allFoods.map((food) => (
+          <label className="tag" key={food} style={{ cursor: "pointer", userSelect: "none" }}>
+            <input checked={policy.allowed_foods.includes(food)} onChange={() => toggleFood(food)} style={{ marginRight: "4px" }} type="checkbox" />
+            {food}
+          </label>
+        ))}
+      </div>
+      <button className="button button--quiet" type="submit">保存粮食权限</button>
+      {notice === null ? null : <small style={{ color: "#45603e", display: "block" }}>{notice}</small>}
+    </form>
+  )
+}
+
+function ProfileCard({ csrfToken, profile: current }: { readonly csrfToken: string; readonly profile: ElfieProfile }): ReactElement {
   const appearance = Object.values(current.appearance).filter((value): value is string => typeof value === "string").join(" · ") || "待完善"
-  return <><Avatar name={current.name} /><h2>{current.name}</h2><p>{current.species_id} · {current.embodiment.state}</p><div>{current.personality_tags.map((tag) => <span className="tag" key={tag}>{tag}</span>)}</div><dl>{Object.entries(current.big_five).map(([name, value]) => <div key={name}><dt>{name}</dt><dd>{value.toFixed(2)}</dd></div>)}<div><dt>巢内位置</dt><dd>{current.nest.room_name ?? "未分配"}</dd></div><div><dt>外貌摘要</dt><dd>{appearance}</dd></div></dl><a className="button button--quiet" href="/runtime/godot">打开 3D 巢内预览</a></>
+  return <>
+    <Avatar name={current.name} />
+    <h2>{current.name}</h2>
+    <p>{current.species_id} · {current.embodiment.state}</p>
+    <div>{current.personality_tags.map((tag) => <span className="tag" key={tag}>{tag}</span>)}</div>
+    <dl>
+      {Object.entries(current.big_five).map(([name, value]) => <div key={name}><dt>{name}</dt><dd>{value.toFixed(2)}</dd></div>)}
+      <div><dt>巢内位置</dt><dd>{current.nest.room_name ?? "未分配"}</dd></div>
+      <div><dt>外貌摘要</dt><dd>{appearance}</dd></div>
+    </dl>
+    <ElfieFoodPolicySection csrfToken={csrfToken} elfieId={current.elfie_id} />
+    <div style={{ marginTop: "12px" }}>
+      <a className="button button--quiet" href="/runtime/godot">打开 3D 巢内预览</a>
+    </div>
+  </>
 }
 
 async function handleSocketEvent(event: ChatSocketEvent, setState: Dispatch<SetStateAction<ChatState | null>>): Promise<void> {
@@ -157,3 +248,4 @@ function unreadLabel(state: ChatState, elfieId: string): string { const count = 
 function socketLabel(status: ChatSocketStatus): string { return status === "online" ? "实时通道已连接" : status === "connecting" ? "正在连接实时通道…" : "实时通道离线，发送将使用安全 HTTP 备用通道" }
 
 mountProductPage(<ChatPage />)
+

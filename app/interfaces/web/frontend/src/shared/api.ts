@@ -158,3 +158,34 @@ export async function createManagedUser(
 export async function logout(csrfToken: string): Promise<void> {
   await requestJson("/api/auth/logout", { method: "POST", headers: { "X-CSRF-Token": csrfToken } })
 }
+
+const FoodPolicySchema = z.object({
+  elfie_id: z.string(),
+  default_food: z.string(),
+  fallback_food: z.string(),
+  allowed_foods: z.array(z.string())
+})
+
+export type ElfieFoodPolicy = z.infer<typeof FoodPolicySchema>
+
+export async function getFoodPolicy(elfieId: string): Promise<ElfieFoodPolicy> {
+  return FoodPolicySchema.parse(await requestJson(`/api/user/elfies/${encodeURIComponent(elfieId)}/food-policy/`))
+}
+
+export async function updateFoodPolicy(
+  elfieId: string,
+  policy: { readonly allowed_foods: readonly string[]; readonly default_food: string; readonly fallback_food: string },
+  csrfToken: string
+): Promise<ElfieFoodPolicy> {
+  return FoodPolicySchema.parse(await requestJson(`/api/user/elfies/${encodeURIComponent(elfieId)}/food-policy/`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
+    body: JSON.stringify(policy)
+  }))
+}
+
+export async function loadFoodCatalog(): Promise<Record<string, unknown>> {
+  const payload = await requestJson("/api/owner/runtime/foods/")
+  return (payload as { foods?: Record<string, unknown> })?.foods ?? {}
+}
+
