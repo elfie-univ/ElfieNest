@@ -58,6 +58,7 @@ export function CustomProviderDialog({ onOpenChange, onSave, open, preset = "ope
         api_mode: apiMode,
         auth_type: authType,
         refresh_models: true,
+        verify: false,
       })
     } catch (reason: unknown) {
       setError(resolveLocalizedError(describeApiError(reason, "manage.save"), currentLocale(i18n)) ?? t("providerConnections.errors.save"))

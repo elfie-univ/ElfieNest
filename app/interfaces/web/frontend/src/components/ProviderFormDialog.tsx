@@ -52,7 +52,7 @@ export function ProviderFormDialog({
       await onSave({
         ...(alias.trim() ? { alias: alias.trim() } : {}),
         ...(!connection || apiKey ? { api_key: apiKey } : {}),
-        ...(!connection ? { refresh_models: true } : {}),
+        ...(!connection ? { refresh_models: true, verify: false } : {}),
       })
     } catch (reason: unknown) {
       setError(resolveLocalizedError(describeApiError(reason, "manage.save"), currentLocale(i18n)) ?? t("providerConnections.errors.save"))

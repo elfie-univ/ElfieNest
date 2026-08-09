@@ -212,6 +212,38 @@ def test_same_product_gets_stable_ids_and_alias_update_keeps_identity(
     assert updated.json()["alias"] == "Renamed Work"
 
 
+def test_create_connection_does_not_validate_when_verification_is_not_requested(
+    client: TestClient,
+) -> None:
+    headers = _login(client, "owner", "ownerchangeme")
+    verification = AsyncMock(
+        return_value={
+            "status": "passed",
+            "checked_at": "2026-08-09T00:00:00+00:00",
+            "latency_ms": 1.0,
+            "error": None,
+        }
+    )
+
+    with patch(
+        "app.interfaces.api.provider_connection_routes._verify_connection",
+        verification,
+    ):
+        response = client.post(
+            "/api/owner/providers/connections",
+            headers=headers,
+            json={
+                "catalog_id": "custom_openai",
+                "alias": "Save only",
+                "api_base": "https://gateway.example/v1",
+                "models": [{"id": "model-a", "display_name": "Model A"}],
+            },
+        )
+
+    assert response.status_code == 201
+    verification.assert_not_awaited()
+
+
 def test_connection_secret_is_never_returned_or_written_to_provider_yaml(
     client: TestClient,
 ) -> None:
