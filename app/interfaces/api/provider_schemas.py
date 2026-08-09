@@ -104,7 +104,7 @@ class ProviderConnectionWriteRequest(BaseModel):
     api_mode: Optional[ApiMode] = None
     auth_type: Optional[AuthType] = None
     models: Optional[List[ProviderModelInput]] = None
-    verify: bool = True
+    verify: bool = False
     refresh_models: bool = False
 
     @field_validator("catalog_id", "alias", "api_base")

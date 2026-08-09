@@ -304,7 +304,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
       expect.objectContaining({ api_key: "secret", catalog_id: "openai", refresh_models: true }),
       "csrf",
     ))
-    expect(vi.mocked(createProviderConnection).mock.calls[0]?.[0]).not.toHaveProperty("verify")
+    expect(vi.mocked(createProviderConnection).mock.calls[0]?.[0]).toHaveProperty("verify", false)
     expect(screen.queryByRole("dialog", { name: "配置 OpenAI" })).not.toBeInTheDocument()
     expect(await screen.findByText("OpenAI Main 已保存。")).toBeInTheDocument()
     expect(vi.mocked(ownerProviderConnections).mock.calls.length).toBeGreaterThanOrEqual(2)
