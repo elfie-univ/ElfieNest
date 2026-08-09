@@ -59,12 +59,12 @@ export function ManageMonitorPanel() {
   const partiallyLoaded = !authRequired && snapshot !== null && snapshot.failedSources.length > 0 && !allSourcesFailed
   const issueAttention = !authRequired && !allSourcesFailed && !partiallyLoaded && snapshot !== null && issues.length > 0
 
-  return <section className="monitor-panel">
+  return <section className="manage-card manage-card--wide monitor-panel">
     <div className="manage-head"><RefreshButton disabled={loading} label={t("runtimeMonitor.refresh")} onClick={() => { void load() }} /></div>
-    {authRequired && <PersistentStatus kind="error" message={t("runtimeMonitor.authRequired")} retry={{ label: t("runtimeMonitor.refresh"), onSelect: () => { void load() } }} />}
-    {allSourcesFailed && <PersistentStatus kind="error" message={t("runtimeMonitor.allLoadFailed")} retry={{ label: t("runtimeMonitor.refresh"), onSelect: () => { void load() } }} />}
-    {partiallyLoaded && <PersistentStatus kind="warning" message={t("runtimeMonitor.partialLoad")} retry={{ label: t("runtimeMonitor.refresh"), onSelect: () => { void load() } }} />}
-    {issueAttention && <PersistentStatus kind="warning" message={t("runtimeMonitor.health.pending")} retry={{ label: t("runtimeMonitor.refresh"), onSelect: () => { void load() } }} />}
+    {authRequired && <PersistentStatus kind="error" message={t("runtimeMonitor.authRequired")} />}
+    {allSourcesFailed && <PersistentStatus kind="error" message={t("runtimeMonitor.allLoadFailed")} />}
+    {partiallyLoaded && <PersistentStatus kind="warning" message={t("runtimeMonitor.partialLoad")} />}
+    {issueAttention && <PersistentStatus kind="warning" message={t("runtimeMonitor.health.pending")} />}
     <div className="monitor-metrics">
       <Metric label={t("runtimeMonitor.cards.health")} value={t(`runtimeMonitor.health.${health}`)} detail={healthDetail(health, issues, snapshot, t)} state={healthMetricState(health)} />
       <Metric label={t("runtimeMonitor.cards.users")} value={snapshot?.users === null || snapshot === null ? "—" : String(snapshot.users.length)} detail={snapshot?.users === null || snapshot === null ? t("runtimeMonitor.cards.reading") : t("runtimeMonitor.cards.usersDetail", { count: onlineUsers(snapshot.users) })} state="neutral" />

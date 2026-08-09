@@ -5,13 +5,13 @@ import { isManageTab, MANAGE_NAV_GROUPS, MANAGE_NAV_ITEMS } from "./manageNaviga
 describe("MANAGE_NAV_ITEMS", () => {
   it("uses the approved Lucide icon key for every management destination", () => {
     expect(MANAGE_NAV_ITEMS.map((item) => item.icon)).toEqual([
-      "activity", "users", "cat", "house", "plug-zap", "utensils", "wrench", "settings"
+      "activity", "users", "cat", "house", "plug-zap", "utensils", "settings"
     ])
   })
 
   it("exposes only the approved desktop manage destinations in their final order", () => {
     expect(MANAGE_NAV_ITEMS.map((item) => item.id)).toEqual([
-      "monitor", "users", "elfies", "nest", "providers", "foods", "tools", "system",
+      "monitor", "users", "elfies", "nest", "providers", "foods", "system",
     ])
     expect(MANAGE_NAV_ITEMS.every((item) => Object.keys(item).sort().join(",") === "icon,id")).toBe(true)
   })
@@ -24,7 +24,7 @@ describe("MANAGE_NAV_ITEMS", () => {
       { id: "operations", ids: ["monitor"] },
       { id: "business", ids: ["users", "elfies", "nest"] },
       { id: "models", ids: ["providers", "foods"] },
-      { id: "system", ids: ["tools", "system"] },
+      { id: "system", ids: ["system"] },
     ])
     expect(isManageTab("logs")).toBe(false)
     expect(isManageTab("models")).toBe(false)

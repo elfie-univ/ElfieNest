@@ -47,7 +47,7 @@ describe("ManageSidebar", () => {
     const { onSelect } = renderSidebar("users")
     const navigation = screen.getByRole("navigation")
     const navButtons = within(navigation).getAllByRole("button")
-    const expectedLabels = ["状态监控", "用户管理", "精灵管理", "精灵巢管理", "模型订阅", "粮食策略", "工具与权限", "系统设置"]
+    const expectedLabels = ["状态监控", "用户管理", "精灵管理", "精灵巢管理", "模型订阅", "粮食策略", "系统设置"]
 
     expect(navButtons.map((button) => button.textContent)).toEqual(expectedLabels)
     expect(within(navigation).getByRole("button", { name: "用户管理" })).toHaveAttribute("aria-current", "page")
@@ -78,7 +78,7 @@ describe("ManageSidebar", () => {
       { id: "operations", label: "运行维护", labels: ["状态监控"] },
       { id: "business", label: "业务管理", labels: ["用户管理", "精灵管理", "精灵巢管理"] },
       { id: "models", label: "模型与粮食", labels: ["模型订阅", "粮食策略"] },
-      { id: "system", label: "系统配置", labels: ["工具与权限", "系统设置"] },
+      { id: "system", label: "系统配置", labels: ["系统设置"] },
     ] as const
     expect(MANAGE_NAV_GROUPS.map((group) => group.id)).toEqual(expectedGroups.map((group) => group.id))
     for (const group of expectedGroups) {

@@ -9,7 +9,6 @@ import { ManageMonitorPanel } from "../components/ManageMonitorPanel"
 import { ManageUsersPanel } from "../components/ManageUsersPanel"
 import { ManageSidebar } from "../components/ManageSidebar"
 import { SystemSettingsPanel } from "../components/SystemSettingsPanel"
-import { ToolsPermissionsPanel } from "../components/ToolsPermissionsPanel"
 import { useSession } from "../stores/session"
 import { usePresenceHeartbeat } from "../stores/heartbeat"
 import { isManagerRole, type AccountRole } from "../api/roles"
@@ -51,7 +50,6 @@ function ManageContent({ actorRole, csrfToken, onElfieCountChange, tab }: { read
     case "nest": return <OwnerNestPanel csrfToken={csrfToken} />
     case "users": return <ManageUsersPanel actorRole={actorRole} csrfToken={csrfToken} />
     case "providers": return <OwnerProviderPanel csrfToken={csrfToken} />
-    case "tools": return <ToolsPermissionsPanel csrfToken={csrfToken} />
     case "foods": return <OwnerFoodPanel csrfToken={csrfToken} />
     case "system": return <SystemSettingsPanel csrfToken={csrfToken} />
   }

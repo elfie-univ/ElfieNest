@@ -7,7 +7,6 @@ export const MANAGE_NAV_ITEMS = [
   { id: "nest", icon: "house" },
   { id: "providers", icon: "plug-zap" },
   { id: "foods", icon: "utensils" },
-  { id: "tools", icon: "wrench" },
   { id: "system", icon: "settings" },
 ] as const satisfies readonly { readonly id: string; readonly icon: IconName }[]
 
@@ -38,7 +37,7 @@ export const MANAGE_NAV_GROUPS: readonly ManageNavGroup[] = [
   {
     id: "system",
     items: [
-      MANAGE_NAV_ITEMS[6], MANAGE_NAV_ITEMS[7],
+      MANAGE_NAV_ITEMS[6],
     ],
   },
 ]

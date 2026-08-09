@@ -41,7 +41,6 @@ vi.mock("../components/OwnerNestPanel", () => ({ OwnerNestPanel: () => "精灵�
 vi.mock("../components/OwnerProviderPanel", () => ({ OwnerProviderPanel: () => "模型订阅内容" }))
 vi.mock("../components/OwnerFoodPanel", () => ({ OwnerFoodPanel: () => "粮食内容" }))
 vi.mock("../components/SystemSettingsPanel", () => ({ SystemSettingsPanel: () => "系统设置内容" }))
-vi.mock("../components/ToolsPermissionsPanel", () => ({ ToolsPermissionsPanel: () => "工具与权限内容" }))
 vi.mock("./IconCatalogPage", () => ({ IconCatalogPage: () => "图标目录" }))
 
 function renderManagePage(section = "monitor", locale: SupportedLocale = "zh-CN"): void {
@@ -106,11 +105,11 @@ describe("ManagePage", () => {
     expect(within(sidebar).queryByText(/管理系统|OWNER CONSOLE/)).not.toBeInTheDocument()
   })
 
-  it("does not repeat active page titles inside reachable panel content", () => {
+  it("falls back from the removed tools section to the localized monitor", () => {
     renderManagePage("tools")
 
-    expect(screen.getByRole("heading", { level: 1, name: "工具与权限" })).toBeInTheDocument()
-    expect(screen.queryByRole("heading", { level: 2, name: "工具与权限" })).not.toBeInTheDocument()
+    expect(screen.getByRole("heading", { level: 1, name: "状态监控" })).toBeInTheDocument()
+    expect(window.location.search).toBe("?section=tools")
   })
 
   it("keeps the mobile navigation compact enough for content to enter the first viewport", () => {

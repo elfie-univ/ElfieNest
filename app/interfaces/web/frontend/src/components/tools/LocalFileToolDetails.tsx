@@ -53,12 +53,6 @@ export function LocalFileToolDetails({
         value={draft.max_read_bytes}
       />
     </div>
-    <dl className="tool-details__limits">
-      <div><dt>root_policy</dt><dd>{draft.root_policy}</dd></div>
-      <div><dt>max_items</dt><dd>{draft.max_items}</dd></div>
-      <div><dt>max_result_bytes</dt><dd>{draft.max_result_bytes}</dd></div>
-      <div><dt>max_tool_calls</dt><dd>{draft.max_tool_calls}</dd></div>
-    </dl>
     {result ? <p className={`tool-validation tool-validation--${result.status}`} role="status">{result.message}</p> : null}
     {verification?.passed === false ? <p className="tool-details__note">{t("tools.validation.failed")}</p> : null}
     <div className="tool-details__actions">

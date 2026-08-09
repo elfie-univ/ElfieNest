@@ -45,6 +45,8 @@ describe("ManageMonitorPanel persistent runtime status", () => {
     })
     renderPanel()
 
+    expect(screen.getAllByRole("button", { name: "Refresh status" })).toHaveLength(1)
+    expect(document.querySelector(".monitor-panel")).toHaveClass("manage-card", "manage-card--wide")
     expect(await screen.findByRole("alert")).toHaveTextContent("Some status data is temporarily unavailable.")
     vi.useFakeTimers()
     act(() => { vi.advanceTimersByTime(60000) })

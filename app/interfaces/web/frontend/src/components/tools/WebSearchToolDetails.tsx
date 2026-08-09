@@ -95,11 +95,6 @@ export function WebSearchToolDetails({
         value={draft.max_result_bytes}
       />
     </div>
-    <dl className="tool-details__limits">
-      <div><dt>timeout</dt><dd>{draft.timeout_seconds}s</dd></div>
-      <div><dt>max_tool_calls</dt><dd>{draft.max_tool_calls}</dd></div>
-      <div><dt>max_total_result_bytes</dt><dd>{draft.max_total_result_bytes}</dd></div>
-    </dl>
     {result ? <p className={`tool-validation tool-validation--${result.status}`} role="status">
       {validationLabel(result.status, t)}{result.duration_ms === null ? "" : ` · ${t("tools.validation.latency", { value: Math.round(result.duration_ms) })}`}
     </p> : null}
