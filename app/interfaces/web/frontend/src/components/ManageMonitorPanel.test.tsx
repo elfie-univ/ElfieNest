@@ -18,6 +18,7 @@ type MonitorFixture = {
   readonly healthStatus: string
   readonly runtimeStatus: string
   readonly runtimeNotes: readonly string[]
+  readonly unassignedElfie?: boolean
 }
 
 const healthyFixture: MonitorFixture = {
@@ -30,6 +31,11 @@ const attentionFixture: MonitorFixture = {
   healthStatus: "ok",
   runtimeStatus: "degraded",
   runtimeNotes: ["The runtime database is unavailable."],
+}
+
+const unassignedBedFixture: MonitorFixture = {
+  ...healthyFixture,
+  unassignedElfie: true,
 }
 
 describe("ManageMonitorPanel persistent runtime status", () => {
@@ -97,6 +103,15 @@ describe("ManageMonitorPanel persistent runtime status", () => {
     expect(screen.getByText("2 online")).toBeInTheDocument()
     expect(screen.getByText("Model service details")).toBeInTheDocument()
   })
+
+  it("keeps bed assignment notices out of system health", async () => {
+    mockSnapshot(unassignedBedFixture)
+    renderPanel()
+
+    expect(await screen.findByText("Services healthy")).toBeInTheDocument()
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+    expect(screen.getByText(/no assigned bed/)).toBeInTheDocument()
+  })
 })
 
 function renderPanel(): void {
@@ -130,7 +145,7 @@ function monitorPayload(path: string, fixture: MonitorFixture): unknown {
         { elfie_id: "elfie-2", profile: { online_status: "offline" } },
       ]
     case "/api/owner/nest/rooms":
-      return [{ beds: [{ occupant_id: "elfie-1" }, { occupant_id: "elfie-2" }] }]
+      return [{ beds: fixture.unassignedElfie ? [{ occupant_id: "elfie-1" }] : [{ occupant_id: "elfie-1" }, { occupant_id: "elfie-2" }] }]
     case "/api/owner/providers/connections":
       return [{
         catalog_id: "ollama",

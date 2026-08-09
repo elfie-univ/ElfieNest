@@ -51,15 +51,6 @@ export const manage = {
       users: "User management",
     },
   },
-  iconCatalog: {
-    actions: { browse: "Browse all Lucide icons", copy: "Copy current selection", source: "View source icon" },
-    brand: "ELFIENEST · DESKTOP REVIEW",
-    description: "Icons are embedded in this page and do not depend on external image loading. Choose one candidate for each item, then copy the result.",
-    groups: { chat: "Open chat", elfies: "Elfie management", foods: "Food strategy", godot: "Godot / 3D", logs: "Runtime logs", mobile: "Mobile QR code", models: "Model catalog", monitor: "Runtime overview", nest: "Elfie Nest management", profile: "Profile settings", providers: "Providers", system: "System settings", tools: "Tools and permissions", users: "User management" },
-    gridLabel: "Icon candidates",
-    noticeCopied: "Copied. Paste the selection into the chat.",
-    title: "Icon selection",
-  },
   nest: {
     actions: { cancel: "Cancel", editBedFor: "Edit bed for {{name}}", openPreview: "Open preview", save: "Save", saveLayout: "Save layout", saving: "Saving..." },
     assignment: { bedFor: "Bed for {{name}}", empty: "No Elfie bed assignments", freeSuffix: " · Available", listLabel: "Bed assignments", occupiedSuffix: " · {{name}}", title: "Bed assignments", unassigned: "Unassigned" },

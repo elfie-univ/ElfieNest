@@ -51,15 +51,6 @@ export const manage = {
       users: "用户管理",
     },
   },
-  iconCatalog: {
-    actions: { browse: "浏览 Lucide 全部图标", copy: "复制当前选择", source: "查看原图" },
-    brand: "ELFIENEST · DESKTOP REVIEW",
-    description: "图标已内嵌在本页，不依赖外部图片加载。每项点击一个候选，最后复制结果给我即可。",
-    groups: { chat: "进入聊天", elfies: "精灵管理", foods: "粮食策略", godot: "Godot / 3D", logs: "运行日志", mobile: "手机二维码", models: "模型目录", monitor: "运行总览", nest: "精灵巢管理", profile: "个人设置", providers: "供应商", system: "系统设置", tools: "工具与权限", users: "用户管理" },
-    gridLabel: "图标候选",
-    noticeCopied: "已复制。直接粘贴回聊天即可。",
-    title: "图标挑选页",
-  },
   nest: {
     actions: { cancel: "取消", editBedFor: "编辑{{name}}的床位", openPreview: "打开预览", save: "保存", saveLayout: "保存布局", saving: "保存中…" },
     assignment: { bedFor: "{{name}} 床位", empty: "暂无精灵床位分配", freeSuffix: " · 空闲", listLabel: "床位分配", occupiedSuffix: " · {{name}}", title: "床位分配", unassigned: "未分配" },

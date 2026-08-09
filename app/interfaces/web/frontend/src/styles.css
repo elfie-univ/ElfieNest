@@ -3,7 +3,6 @@
 @import "shadcn/tailwind.css";
 @import "./shared/styles.css"; @import "./observation-monitor.css";
 @import "./manage-console.css";
-@import "./icon-catalog.css";
 @import "./setup-wizard.css";
 @import "./adoption-journey.css";
 

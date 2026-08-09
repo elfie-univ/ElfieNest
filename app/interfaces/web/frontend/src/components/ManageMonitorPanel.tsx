@@ -40,7 +40,8 @@ export function ManageMonitorPanel() {
     setLoading(true)
     const nextSnapshot = await loadMonitorSnapshot()
     const nextIssues = buildIssues(nextSnapshot)
-    const nextRequiresAttention = nextSnapshot.authRequired || nextSnapshot.failedSources.length > 0 || nextIssues.length > 0
+    const nextOperationalIssues = filterOperationalIssues(nextIssues)
+    const nextRequiresAttention = nextSnapshot.authRequired || nextSnapshot.failedSources.length > 0 || nextOperationalIssues.length > 0
     const recovered = wasAttention.current && !nextRequiresAttention
     setSnapshot(nextSnapshot)
     setLoading(false)
@@ -51,13 +52,14 @@ export function ManageMonitorPanel() {
   useEffect(() => { void load() }, [load])
 
   const issues = snapshot === null ? [] : buildIssues(snapshot)
-  const health = resolveHealth(snapshot, issues)
+  const operationalIssues = filterOperationalIssues(issues)
+  const health = resolveHealth(snapshot, operationalIssues)
   const modelSummary = summarizeModels(snapshot)
   const unassignedCount = countUnassignedElfies(snapshot)
   const authRequired = snapshot?.authRequired === true
   const allSourcesFailed = !authRequired && snapshot?.failedSources.length === MONITOR_SOURCE_KEYS.length
   const partiallyLoaded = !authRequired && snapshot !== null && snapshot.failedSources.length > 0 && !allSourcesFailed
-  const issueAttention = !authRequired && !allSourcesFailed && !partiallyLoaded && snapshot !== null && issues.length > 0
+  const issueAttention = !authRequired && !allSourcesFailed && !partiallyLoaded && snapshot !== null && operationalIssues.length > 0
 
   return <section className="manage-card manage-card--wide monitor-panel">
     <div className="manage-head"><RefreshButton disabled={loading} label={t("runtimeMonitor.refresh")} onClick={() => { void load() }} /></div>
@@ -66,7 +68,7 @@ export function ManageMonitorPanel() {
     {partiallyLoaded && <PersistentStatus kind="warning" message={t("runtimeMonitor.partialLoad")} />}
     {issueAttention && <PersistentStatus kind="warning" message={t("runtimeMonitor.health.pending")} />}
     <div className="monitor-metrics">
-      <Metric label={t("runtimeMonitor.cards.health")} value={t(`runtimeMonitor.health.${health}`)} detail={healthDetail(health, issues, snapshot, t)} state={healthMetricState(health)} />
+      <Metric label={t("runtimeMonitor.cards.health")} value={t(`runtimeMonitor.health.${health}`)} detail={healthDetail(health, operationalIssues, snapshot, t)} state={healthMetricState(health)} />
       <Metric label={t("runtimeMonitor.cards.users")} value={snapshot?.users === null || snapshot === null ? "—" : String(snapshot.users.length)} detail={snapshot?.users === null || snapshot === null ? t("runtimeMonitor.cards.reading") : t("runtimeMonitor.cards.usersDetail", { count: onlineUsers(snapshot.users) })} state="neutral" />
       <Metric label={t("runtimeMonitor.cards.elfies")} value={snapshot?.elfies === null || snapshot === null ? "—" : String(snapshot.elfies.length)} detail={snapshot?.elfies === null || snapshot === null ? t("runtimeMonitor.cards.reading") : t("runtimeMonitor.cards.elfiesDetail", { online: onlineElfies(snapshot.elfies), unassigned: unassignedCount ?? "—" })} state="neutral" />
       <Metric label={t("runtimeMonitor.cards.services")} value={modelSummary === null ? "—" : `${modelSummary.healthy}/${modelSummary.configured}`} detail={modelSummary === null ? t("runtimeMonitor.cards.reading") : t("runtimeMonitor.cards.servicesDetail", { count: modelSummary.availableModels, local: localServiceText(snapshot?.ollama ?? null, t) })} state={modelSummary === null ? "neutral" : modelSummary.healthy === modelSummary.configured ? "good" : "warning"} />
@@ -151,6 +153,10 @@ function buildIssues(snapshot: MonitorSnapshot): readonly MonitorIssue[] {
   const unassigned = countUnassignedElfies(snapshot)
   if (unassigned !== null && unassigned > 0) issues.push({ kind: "beds", count: unassigned })
   return issues
+}
+
+function filterOperationalIssues(issues: readonly MonitorIssue[]): readonly MonitorIssue[] {
+  return issues.filter((issue) => issue.kind !== "beds")
 }
 
 function resolveHealth(snapshot: MonitorSnapshot | null, issues: readonly MonitorIssue[]): HealthLevel {

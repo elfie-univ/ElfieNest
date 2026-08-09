@@ -12,7 +12,6 @@ import { SystemSettingsPanel } from "../components/SystemSettingsPanel"
 import { useSession } from "../stores/session"
 import { usePresenceHeartbeat } from "../stores/heartbeat"
 import { isManagerRole, type AccountRole } from "../api/roles"
-import { IconCatalogPage } from "./IconCatalogPage"
 import { isManageTab, manageNavItem, type ManageTab } from "./manageNavigation"
 
 function initialTab(): ManageTab {
@@ -27,7 +26,6 @@ export function ManagePage() {
   const [tab, setTab] = useState<ManageTab>(initialTab)
   if (loading) return <main className="page"><p className="empty">{t("page.verifyingSession")}</p></main>
   if (user === null || !isManagerRole(user.role)) { window.location.assign(user === null ? "/login?next=/manage" : "/chat"); return <main /> }
-  if (new URLSearchParams(window.location.search).get("icon-catalog") === "1") return <IconCatalogPage />
   const csrfToken = user.csrf_token ?? ""
   const chooseTab = (next: ManageTab): void => {
     setTab(next)
