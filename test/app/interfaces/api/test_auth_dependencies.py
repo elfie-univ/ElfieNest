@@ -9,7 +9,6 @@ from app.infrastructure.persistence.store import init_db
 from app.interfaces.api import (
     elfie_food_routes,
     nest_routes,
-    owner_routes,
     user_routes,
 )
 
@@ -22,11 +21,8 @@ class _Request:
 
 def test_all_http_routes_share_auth_dependency_functions():
     """Given the API modules, Then user and owner dependencies have one implementation."""
-    assert owner_routes.get_current_user is get_current_user
     assert user_routes.get_current_user is get_current_user
     assert elfie_food_routes.get_current_user is get_current_user
-    assert nest_routes.get_current_user is get_current_user
-    assert owner_routes.require_manager is require_manager
     assert nest_routes.require_manager is require_manager
 
 

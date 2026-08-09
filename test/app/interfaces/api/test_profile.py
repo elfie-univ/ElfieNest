@@ -1,4 +1,4 @@
-"""测试 Profile + 密码修改端点 — GET/PUT /api/auth/me/profile, POST /api/auth/me/password, GET /api/auth/me 扩展字段
+"""测试 Profile + 密码修改端点 — PUT /api/auth/me/profile, POST /api/auth/me/password, GET /api/auth/me 扩展字段
 
 使用 tmp_path 隔离 DB，mock WS 网关避免端口冲突。
 """
@@ -143,41 +143,6 @@ class TestMe:
         assert resp.status_code == 200
         data = resp.json()
         assert data["elfie_count"] == 2
-
-
-# ===================================================================
-# GET /api/auth/me/profile
-# ===================================================================
-
-
-class TestGetProfile:
-    def test_get_profile(self, client: TestClient) -> None:
-        """GET /api/auth/me/profile 返回 4 字段。"""
-        tokens = _login_owner(client)
-        resp = client.get(
-            "/api/auth/me/profile",
-            headers=_headers(tokens["csrf_token"]),
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert set(data.keys()) == {
-            "user_id",
-            "account_id",
-            "display_name",
-            "gender",
-            "birth_date",
-            "avatar_color",
-            "avatar_kind",
-            "avatar_url",
-        }
-        assert data["user_id"] == 1
-        assert data["account_id"] == "owner"
-        assert data["display_name"] is None
-        assert data["gender"] == "male"
-        assert data["birth_date"] is None
-        assert data["avatar_color"] == 0
-        assert data["avatar_kind"] == "initials"
-        assert data["avatar_url"] is None
 
 
 class TestAvatarUpload:
@@ -412,7 +377,7 @@ class TestUpdateProfile:
 
         # 验证持久化
         resp2 = client.get(
-            "/api/auth/me/profile",
+            "/api/auth/me",
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp2.json()["display_name"] == "Owner"
@@ -489,7 +454,7 @@ class TestUpdateProfile:
 
         # 验证持久化
         resp2 = client.get(
-            "/api/auth/me/profile",
+            "/api/auth/me",
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp2.json()["avatar_color"] == 3

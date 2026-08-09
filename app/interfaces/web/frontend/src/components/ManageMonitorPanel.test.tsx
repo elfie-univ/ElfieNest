@@ -16,20 +16,17 @@ vi.mock("../api/client", async (importOriginal) => {
 type MonitorFixture = {
   readonly healthStatus: string
   readonly runtimeStatus: string
-  readonly runtimeNotes: readonly string[]
   readonly unassignedElfie?: boolean
 }
 
 const healthyFixture: MonitorFixture = {
   healthStatus: "ok",
   runtimeStatus: "ok",
-  runtimeNotes: [],
 }
 
 const attentionFixture: MonitorFixture = {
   healthStatus: "ok",
   runtimeStatus: "degraded",
-  runtimeNotes: ["The runtime database is unavailable."],
 }
 
 const unassignedBedFixture: MonitorFixture = {
@@ -130,11 +127,7 @@ function monitorPayload(path: string, fixture: MonitorFixture): unknown {
     case "/api/owner/runtime/status":
       return {
         status: fixture.runtimeStatus,
-        providers: { total: 1, active: 1, inactive: 0 },
-        models: { total: 1, visible: 1, hidden: 0 },
-        fallback: { provider: "ollama", configured: true },
         observer: { event_count: 1, last_event: null },
-        notes: fixture.runtimeNotes,
       }
     case "/api/owner/users":
       return [{ presence: "online" }, { presence: "online" }]

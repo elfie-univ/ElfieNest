@@ -1,4 +1,4 @@
-"""测试系统设置 REST API — 4 section GET/PUT + 校验 + 持久化。
+"""测试系统设置 REST API — 3 section GET/PUT + 校验 + 持久化。
 
 使用 tmp_path 隔离 DB 和 runtime_config.json，mock WS 网关。
 """
@@ -49,10 +49,6 @@ def app(db_path: str, runtime_config_path: Path):
             "app.interfaces.api.system_routes.get_config_path",
             return_value=runtime_config_path,
         ),
-        patch(
-            "app.interfaces.api.owner_routes.get_config_path",
-            return_value=runtime_config_path,
-        ),
     ):
         application = create_app(engine=None, db_path=db_path, ws_port=9876)
         yield application
@@ -88,21 +84,6 @@ def _headers(csrf_token: str) -> dict:
 class TestGetDefaults:
     """GET /api/owner/system/{section} 在无文件时返回默认值。"""
 
-    def test_get_llm_defaults(self, client: TestClient) -> None:
-        """无文件时 GET llm → 返回系统默认 LLM 配置。"""
-        tokens = _login_owner(client)
-        resp = client.get(
-            "/api/owner/system/llm", headers=_headers(tokens["csrf_token"])
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert isinstance(data, dict)
-        assert data["temperature"] == 0.7
-        assert data["max_tokens"] == 1500
-        assert "default_cheap_model" not in data
-        assert "default_deep_model" not in data
-        assert "default_multimodal_model" not in data
-
     def test_get_adoption_defaults(self, client: TestClient) -> None:
         """无文件时 GET adoption → 返回系统默认 adoption 配置。"""
         tokens = _login_owner(client)
@@ -124,7 +105,6 @@ class TestGetDefaults:
         assert resp.status_code == 200
         data = resp.json()
         assert data["tick_interval_sec"] == 1.5
-        assert data["max_elfies_per_room"] is None
 
     def test_get_security_defaults(self, client: TestClient) -> None:
         """无文件时 GET security → 返回系统默认 security 配置。"""
@@ -140,61 +120,12 @@ class TestGetDefaults:
 
 
 # ===================================================================
-# GET — 文件读取后深层合并
-# ===================================================================
-
-
-class TestGetWithFile:
-    """GET 在有部分持久化数据时优先使用文件值。"""
-
-    def test_get_llm_merges_saved_values(
-        self, client: TestClient, runtime_config_path: Path
-    ) -> None:
-        """PUT 修改 temperature → GET 返回新值。"""
-        tokens = _login_owner(client)
-        # PUT 修改 temperature
-        resp = client.put(
-            "/api/owner/system/llm",
-            json={"temperature": 0.3},
-            headers=_headers(tokens["csrf_token"]),
-        )
-        assert resp.status_code == 200
-
-        # GET 验证合并结果
-        resp = client.get(
-            "/api/owner/system/llm", headers=_headers(tokens["csrf_token"])
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["temperature"] == 0.3  # 覆盖值
-        assert data["max_tokens"] == 1500  # 默认值保留
-
-
-# ===================================================================
 # PUT — 有效写入
 # ===================================================================
 
 
 class TestPutValid:
     """PUT /api/owner/system/{section} 合法写入。"""
-
-    def test_put_llm(self, client: TestClient, runtime_config_path: Path) -> None:
-        """PUT llm 修改 temperature 和 max_tokens → 200 + 文件持久化。"""
-        tokens = _login_owner(client)
-        resp = client.put(
-            "/api/owner/system/llm",
-            json={"temperature": 0.5, "max_tokens": 2000},
-            headers=_headers(tokens["csrf_token"]),
-        )
-        assert resp.status_code == 200, resp.text
-        data = resp.json()
-        assert data["temperature"] == 0.5
-        assert data["max_tokens"] == 2000
-
-        # 验证文件持久化
-        saved = yaml.safe_load(runtime_config_path.read_text())
-        assert saved["system"]["llm"]["temperature"] == 0.5
-        assert saved["system"]["llm"]["max_tokens"] == 2000
 
     def test_put_adoption(self, client: TestClient, runtime_config_path: Path) -> None:
         """PUT adoption 修改 max_elfies_per_user → 200 + 文件持久化。"""
@@ -225,21 +156,6 @@ class TestPutValid:
 
         saved = yaml.safe_load(runtime_config_path.read_text())
         assert saved["system"]["engine"]["tick_interval_sec"] == 2.0
-
-    def test_put_engine_null_max_elfies(
-        self, client: TestClient, runtime_config_path: Path
-    ) -> None:
-        """PUT engine max_elfies_per_room=null → 200。"""
-        tokens = _login_owner(client)
-        resp = client.put(
-            "/api/owner/system/engine",
-            json={"max_elfies_per_room": None},
-            headers=_headers(tokens["csrf_token"]),
-        )
-        assert resp.status_code == 200, resp.text
-
-        saved = yaml.safe_load(runtime_config_path.read_text())
-        assert saved["system"]["engine"]["max_elfies_per_room"] is None
 
     def test_put_security(self, client: TestClient, runtime_config_path: Path) -> None:
         """PUT security 修改 session_ttl_days 和 rate_limit → 200。"""
@@ -291,7 +207,7 @@ class TestPutErrors:
         """PUT 包含未知键 → 422。"""
         tokens = _login_owner(client)
         resp = client.put(
-            "/api/owner/system/llm",
+            "/api/owner/system/engine",
             json={"unknown_key": 123},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -302,22 +218,12 @@ class TestPutErrors:
         """PUT 字段类型错误 → 422。"""
         tokens = _login_owner(client)
         resp = client.put(
-            "/api/owner/system/llm",
-            json={"temperature": "not_a_number"},
+            "/api/owner/system/engine",
+            json={"tick_interval_sec": "not_a_number"},
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 422
-        assert "类型" in resp.text or "temperature" in resp.text
-
-    def test_temperature_range_422(self, client: TestClient) -> None:
-        """PUT temperature 超出 0-2 范围 → 422。"""
-        tokens = _login_owner(client)
-        resp = client.put(
-            "/api/owner/system/llm",
-            json={"temperature": 3.0},
-            headers=_headers(tokens["csrf_token"]),
-        )
-        assert resp.status_code == 422
+        assert "类型" in resp.text or "tick_interval_sec" in resp.text
 
     def test_max_elfies_per_user_lt_1_422(self, client: TestClient) -> None:
         """PUT max_elfies_per_user=0 → 422。"""
@@ -348,16 +254,6 @@ class TestPutErrors:
             headers=_headers(tokens["csrf_token"]),
         )
 
-        assert resp.status_code == 422
-
-    def test_max_elfies_per_room_gt_32_422(self, client: TestClient) -> None:
-        """房间容量不能超过单台机器的 32 只上限。"""
-        tokens = _login_owner(client)
-        resp = client.put(
-            "/api/owner/system/engine",
-            json={"max_elfies_per_room": 33},
-            headers=_headers(tokens["csrf_token"]),
-        )
         assert resp.status_code == 422
 
     def test_tick_interval_zero_422(self, client: TestClient) -> None:
@@ -406,93 +302,19 @@ class TestAuthorization:
         )
         alice_csrf = resp.headers.get("X-CSRF-Token", "")
 
-        # GET /system/llm
-        resp = client.get("/api/owner/system/llm", headers=_headers(alice_csrf))
+        # GET /system/engine
+        resp = client.get("/api/owner/system/engine", headers=_headers(alice_csrf))
         assert resp.status_code == 403
 
-        # PUT /system/llm
+        # PUT /system/engine
         resp = client.put(
-            "/api/owner/system/llm",
-            json={"temperature": 0.5},
+            "/api/owner/system/engine",
+            json={"tick_interval_sec": 2.0},
             headers=_headers(alice_csrf),
         )
         assert resp.status_code == 403
 
     def test_unauthenticated_gets_401(self, client: TestClient) -> None:
         """未登录 → 401。"""
-        resp = client.get("/api/owner/system/llm")
+        resp = client.get("/api/owner/system/engine")
         assert resp.status_code == 401
-
-
-# ===================================================================
-# 旧原始配置入口只读；写入必须走类型化端点
-# ===================================================================
-
-
-class TestBackwardCompat:
-    """旧 GET 保留诊断能力，旧 PUT 不再绕过类型化配置边界。"""
-
-    def test_old_put_config_is_retired(
-        self, client: TestClient, runtime_config_path: Path
-    ) -> None:
-        """原始字典写入口返回 410，且不会改写配置。"""
-        tokens = _login_owner(client)
-        before = (
-            runtime_config_path.read_text(encoding="utf-8")
-            if runtime_config_path.exists()
-            else None
-        )
-        resp = client.put(
-            "/api/owner/config",
-            json={
-                "providers": {
-                    "ollama": {"api_base": "http://127.0.0.1:11434"},
-                }
-            },
-            headers=_headers(tokens["csrf_token"]),
-        )
-        assert resp.status_code == 410
-        after = (
-            runtime_config_path.read_text(encoding="utf-8")
-            if runtime_config_path.exists()
-            else None
-        )
-        assert after == before
-
-    def test_old_put_config_cannot_alias_a_provider_secret(
-        self, client: TestClient
-    ) -> None:
-        tokens = _login_owner(client)
-        resp = client.put(
-            "/api/owner/config",
-            json={
-                "providers": {
-                    "attacker": {
-                        "api_base": "https://attacker.example/v1",
-                        "api_key_env": "OPENAI_API_KEY",
-                    }
-                }
-            },
-            headers=_headers(tokens["csrf_token"]),
-        )
-        assert resp.status_code == 410
-
-    def test_old_get_config_returns_file(
-        self, client: TestClient, runtime_config_path: Path
-    ) -> None:
-        """GET /api/owner/config 返回原始文件内容。"""
-        tokens = _login_owner(client)
-        # 先写入一些 system 数据
-        client.put(
-            "/api/owner/system/llm",
-            json={"temperature": 0.3},
-            headers=_headers(tokens["csrf_token"]),
-        )
-
-        # GET old config — 包含完整的文件内容
-        resp = client.get("/api/owner/config", headers=_headers(tokens["csrf_token"]))
-        assert resp.status_code == 200
-        data = resp.json()
-        # 新端点写入的 system 应出现在旧 GET 中
-        assert "system" in data
-        assert data["system"]["llm"]["temperature"] == 0.3

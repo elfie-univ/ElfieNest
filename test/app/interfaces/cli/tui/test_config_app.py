@@ -139,7 +139,7 @@ def test_config_llm_redirects_model_management_to_runtime_lab(
     monkeypatch: pytest.MonkeyPatch,
     capsys: CaptureFixture[str],
 ) -> None:
-    config = {"system": {"llm": {"default_cheap_model": "old-model"}}}
+    config = {"system": {"engine": {"tick_interval_sec": 2.0}}}
     monkeypatch.setattr(config_editors, "clear_screen", lambda: None)
     monkeypatch.setattr(config_editors, "print_banner", lambda: None)
     _patch_input(monkeypatch, [""])
@@ -148,7 +148,7 @@ def test_config_llm_redirects_model_management_to_runtime_lab(
 
     output = capsys.readouterr().out
     assert "managed in AI Runtime" in output
-    assert config["system"]["llm"]["default_cheap_model"] == "old-model"
+    assert config == {"system": {"engine": {"tick_interval_sec": 2.0}}}
 
 
 def test_security_editor_writes_runtime_security_schema(

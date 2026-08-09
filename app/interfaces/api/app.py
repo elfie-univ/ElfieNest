@@ -294,16 +294,12 @@ def create_app(
     # Owner REST API 路由
     # -------------------------------------------------------------------
     from .nest_routes import router as nest_router  # noqa: PLC0415
-    from .nest_routes import user_router as user_nest_router  # noqa: PLC0415
     from .owner_elfie_routes import router as owner_elfie_router  # noqa: PLC0415
-    from .owner_routes import router as owner_router  # noqa: PLC0415
     from .owner_user_routes import router as owner_user_router  # noqa: PLC0415
 
-    app.include_router(owner_router)
     app.include_router(owner_user_router)
     app.include_router(owner_elfie_router)
     app.include_router(nest_router)
-    app.include_router(user_nest_router)
     from .user_routes import router as user_router  # noqa: PLC0415
 
     app.include_router(user_router)

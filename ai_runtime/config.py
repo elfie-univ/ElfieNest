@@ -117,12 +117,6 @@ def deep_update(base: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]
 
 
 DEFAULT_SYSTEM_SETTINGS: Dict[str, Dict[str, Any]] = {
-    "llm": {
-        "temperature": 0.7,
-        "max_tokens": 1500,
-        "energy_threshold_fast": 30,
-        "complexity_threshold_deep": 4,
-    },
     "adoption": {
         "max_elfies_per_user": 3,
         "allowed_species_ids": ["dog", "fox"],
@@ -137,7 +131,6 @@ DEFAULT_SYSTEM_SETTINGS: Dict[str, Dict[str, Any]] = {
     },
     "engine": {
         "tick_interval_sec": 1.5,
-        "max_elfies_per_room": None,
     },
     "security": {
         "session_ttl_days": 7,

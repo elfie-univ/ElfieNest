@@ -18,12 +18,8 @@ const RuntimeEventSchema = z.object({
 
 const RuntimeStatusSchema = z.object({
   status: z.string(),
-  providers: z.object({ total: z.number(), active: z.number(), inactive: z.number() }),
-  models: z.object({ total: z.number(), visible: z.number(), hidden: z.number() }),
-  fallback: z.object({ provider: z.string(), configured: z.boolean() }),
   observer: z.object({ event_count: z.number(), last_event: RuntimeEventSchema.nullable() }),
-  notes: z.array(z.string()),
-}).passthrough()
+}).strict()
 
 const UserSummarySchema = z.object({
   presence: z.enum(["online", "away", "offline"]),

@@ -86,18 +86,6 @@ def write_runtime_settings(
     safe_config = copy.deepcopy(dict(config))
     for field_name in _LEGACY_ROUTING_FIELDS:
         safe_config.pop(field_name, None)
-    system = safe_config.get("system")
-    if isinstance(system, dict) and isinstance(system.get("llm"), dict):
-        for field_name in (
-            "default_cheap_model",
-            "default_cheap_provider",
-            "default_deep_model",
-            "default_deep_provider",
-            "default_multimodal_model",
-            "default_multimodal_provider",
-        ):
-            system["llm"].pop(field_name, None)
-
     runtime_policy = safe_config.get("runtime_policy")
     tools: Any = {}
     if isinstance(runtime_policy, dict):

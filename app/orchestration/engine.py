@@ -31,7 +31,6 @@ class ElfieNestEngine:
         ws_port: int = 8765,
         godot_origin_port: Optional[int] = None,
         tick_interval_sec: float = 1.5,
-        max_elfies_per_room: Optional[int] = None,
         api_server: RuntimeGateway | None = None,
         nest_repository: NestRepository | None = None,
         food_key_resolver: Callable[[str], MainFoodSelection | None] | None = None,
@@ -44,7 +43,6 @@ class ElfieNestEngine:
             ws_port: WebSocket 端口
             godot_origin_port: 允许连接 Godot WebSocket 的页面来源端口
             tick_interval_sec: 每个 tick 的间隔秒数
-            max_elfies_per_room: 房间最大精灵数
         """
         self.tick_interval_sec = tick_interval_sec
         self._food_key_resolver = food_key_resolver or (lambda _elfie_id: None)
@@ -53,7 +51,7 @@ class ElfieNestEngine:
         )
 
         # 1. 实例化核心组件
-        self.nest = Nest(NestConfig(max_residents=max_elfies_per_room))
+        self.nest = Nest(NestConfig())
         self.api_server = api_server or GodotAPIServer(
             host=ws_host,
             port=ws_port,

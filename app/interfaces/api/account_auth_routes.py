@@ -182,19 +182,6 @@ async def me(
     return result
 
 
-@router.get("/me/profile")
-async def get_profile(
-    request: Request,
-    user: AuthenticatedUser = CurrentUser,
-) -> Dict[str, Union[str, int, None]]:
-    account = RuntimeQueryRepository(request.app.state.db_path).find_account_by_id(
-        user["user_id"]
-    )
-    if account is None:
-        raise HTTPException(status_code=401, detail="账户不存在")
-    return _account_profile(account)
-
-
 @router.put("/me/profile")
 async def update_profile(
     body: ProfileUpdate,

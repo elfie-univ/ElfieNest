@@ -117,11 +117,7 @@ function monitorPayload(path: string, lastEvent: RuntimeEventFixture | null = nu
     case "/api/owner/runtime/status":
       return {
         status: "ok",
-        providers: { total: 1, active: 1, inactive: 0 },
-        models: { total: 1, visible: 1, hidden: 0 },
-        fallback: { provider: "ollama", configured: true },
         observer: { event_count: lastEvent === null ? 0 : 1, last_event: lastEvent },
-        notes: [],
       }
     case "/api/owner/users":
       return [{ presence: "online" }, { presence: "offline" }]

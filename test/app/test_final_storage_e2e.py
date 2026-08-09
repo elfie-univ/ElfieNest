@@ -122,7 +122,7 @@ def test_full_product_chain_uses_one_explicit_final_root(
     db_path = data_home / "nest.db"
     monkeypatch.setenv("ELFIE_HOME", str(data_home))
     init_db(str(db_path))
-    create_test_owner(str(db_path))
+    owner_id = create_test_owner(str(db_path))
 
     # When: Setup, Nest, Body, HTTP/WS Chat, Memory, config, and Doctor run.
     with (
@@ -137,18 +137,18 @@ def test_full_product_chain_uses_one_explicit_final_root(
             )
             csrf_token = login.headers["X-CSRF-Token"]
             complete_test_setup(str(db_path))
-            adopted = client.post(
-                "/api/user/adopt",
-                json={
-                    "name": "小白",
-                    "anatomy_type": "biped",
-                    "personality_style": "好奇探索",
-                    "height": "standard",
-                    "build": "standard",
-                },
-                headers={"X-CSRF-Token": csrf_token},
+            adopted = adopt_elfie_for_user(
+                str(db_path),
+                user_id=owner_id,
+                request=AdoptionRequest(
+                    name="小白",
+                    species_id="fox",
+                    personality_style="好奇探索",
+                    height="standard",
+                    build="standard",
+                ),
             )
-            elfie_id = str(adopted.json()["elfie_id"])
+            elfie_id = adopted.elfie_id
             bed = client.put(
                 f"/api/owner/nest/elfies/{elfie_id}/bed",
                 json={"home_anchor_id": "bed-01"},
@@ -182,7 +182,7 @@ def test_full_product_chain_uses_one_explicit_final_root(
             write_system_section(get_config_path(), "security", {"session_ttl_days": 5})
             repair_local_runtime_state()
 
-            assert adopted.status_code == 201
+            assert adopted.elfie_id == elfie_id
             assert bed.status_code == 200
             assert http_message.status_code == 200
             assert ws_message["event"] == "message"

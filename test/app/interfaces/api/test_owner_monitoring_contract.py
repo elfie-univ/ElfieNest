@@ -21,7 +21,7 @@ from app.infrastructure.persistence.food_packages import SQLiteFoodPackageReposi
 from app.infrastructure.persistence.store import init_db
 from app.interfaces.api.app import create_app
 
-from ._helpers import create_test_owner
+from ._helpers import adopt_test_elfie, create_test_owner
 
 
 @pytest.fixture(scope="module")
@@ -71,24 +71,6 @@ def _login(client: TestClient, account_id: str, password: str) -> dict:
     }
 
 
-def _adopt_elfie(
-    client: TestClient, csrf_token: str, name: str, species_id: str
-) -> str:
-    response = client.post(
-        "/api/user/adopt",
-        json={
-            "name": name,
-            "species_id": species_id,
-            "personality_style": "好奇探索",
-            "height": "standard",
-            "build": "standard",
-        },
-        headers=_headers(csrf_token),
-    )
-    assert response.status_code == 201, response.text
-    return str(response.json()["elfie_id"])
-
-
 @pytest.fixture(scope="module")
 def monitoring_world(client: TestClient) -> dict:
     """Seed three Elfies whose owner, species, food and state all differ."""
@@ -102,8 +84,12 @@ def monitoring_world(client: TestClient) -> dict:
         assert response.status_code == 201, response.text
 
     alice = _login(client, "alice", "alice-pass")
-    alice_dog = _adopt_elfie(client, str(alice["csrf_token"]), "星尘", "dog")
-    alice_fox = _adopt_elfie(client, str(alice["csrf_token"]), "月光", "fox")
+    alice_dog = adopt_test_elfie(
+        client.app.state.db_path, int(alice["user_id"]), name="星尘", species_id="dog"
+    )
+    alice_fox = adopt_test_elfie(
+        client.app.state.db_path, int(alice["user_id"]), name="月光", species_id="fox"
+    )
     policy = client.put(
         f"/api/user/elfies/{alice_dog}/food-policy/",
         json={"main_food_id": FOOD_COMMON_ID},
@@ -116,7 +102,9 @@ def monitoring_world(client: TestClient) -> dict:
     begin_hosting(client.app.state.db_path, alice_dog, body.body_id, lease_seconds=30)
 
     bob = _login(client, "bob", "bob-pass")
-    bob_dog = _adopt_elfie(client, str(bob["csrf_token"]), "晨星", "dog")
+    bob_dog = adopt_test_elfie(
+        client.app.state.db_path, int(bob["user_id"]), name="晨星", species_id="dog"
+    )
 
     return {
         "owner": _login(client, "owner", "ownerchangeme"),
@@ -267,32 +255,14 @@ def test_user_elfie_detail_hides_raw_configuration(
 
     # When: the user reads the detail.
     detail = client.get(
-        f"/api/user/elfies/{elfie_id}", headers=_headers(str(alice["csrf_token"]))
+        f"/api/v1/elfies/{elfie_id}/profile",
+        headers=_headers(str(alice["csrf_token"])),
     )
 
     # Then: the read contains no raw filesystem or YAML fields.
     assert detail.status_code == 200, detail.text
     assert "config_dir" not in detail.json()
     assert "configs" not in detail.json()
-
-
-def test_user_elfie_config_write_route_is_gone(
-    client: TestClient, monitoring_world: dict
-) -> None:
-    # Given: an authenticated owner of one Elfie.
-    alice = _login(client, "alice", "alice-pass")
-    elfie_id = monitoring_world["alice_dog"]
-
-    # When: the user attempts the retired generic YAML write route.
-    response = client.put(
-        f"/api/user/elfies/{elfie_id}/config",
-        json={"filename": "personality.yaml", "content": "big_five: {}"},
-        headers=_headers(str(alice["csrf_token"])),
-    )
-
-    # Then: raw YAML mutation is no longer available.
-    assert response.status_code in {404, 410}
-
 
 def test_food_policy_is_structured_for_the_owner(
     client: TestClient, monitoring_world: dict

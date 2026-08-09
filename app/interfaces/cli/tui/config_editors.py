@@ -29,9 +29,6 @@ def config_engine(config: UserConfig) -> None:
                 MenuItem(
                     "1", f"Tick interval (sec): {engine.get('tick_interval_sec', 1.5)}"
                 ),
-                MenuItem(
-                    "2", f"Max elfies per room: {engine.get('max_elfies_per_room', 10)}"
-                ),
             ),
             breadcrumb="ElfieNest / Config / App / Engine",
             back_label="Save and return",
@@ -48,18 +45,6 @@ def config_engine(config: UserConfig) -> None:
                 1.5,
                 minimum=0.01,
             )
-        elif choice == "2":
-            _set_int(
-                menu,
-                engine,
-                "max_elfies_per_room",
-                "Enter max elfies per room",
-                10,
-                minimum=1,
-                maximum=32,
-            )
-
-
 def config_security(config: UserConfig) -> None:
     menu = TerminalMenu(input_fn=input, output_fn=print)
     while True:

@@ -36,7 +36,12 @@ from elfie.message_types import (
     TurnId,
 )
 
-from ._helpers import complete_test_setup, create_test_owner, create_test_user
+from ._helpers import (
+    adopt_test_elfie,
+    complete_test_setup,
+    create_test_owner,
+    create_test_user,
+)
 
 
 @pytest.fixture
@@ -63,19 +68,45 @@ def _login_owner(client: TestClient) -> str:
 
 
 def _adopt_elfie(client: TestClient, csrf_token: str) -> str:
-    response = client.post(
-        "/api/user/adopt",
-        json={
-            "name": "小白",
-            "anatomy_type": "biped",
-            "personality_style": "好奇探索",
-            "height": "standard",
-            "build": "standard",
-        },
-        headers={"X-CSRF-Token": csrf_token},
+    _ = csrf_token
+    current_user = client.get("/api/auth/me")
+    assert current_user.status_code == 200
+    return adopt_test_elfie(
+        client.app.state.db_path,
+        int(current_user.json()["user_id"]),
     )
-    assert response.status_code == 201
-    return str(response.json()["elfie_id"])
+
+
+def _accepted_candidate(client: TestClient, csrf_token: str) -> tuple[str, str]:
+    headers = {"X-CSRF-Token": csrf_token}
+    candidates = client.post(
+        "/api/user/adoption/candidates",
+        json={
+            "species_id": "fox",
+            "life_stage": "young_adult",
+            "gender": "any",
+            "appearance": {
+                "stature": "standard",
+                "build": "standard",
+                "face": "soft",
+                "signature": "warm",
+                "priority": "face",
+            },
+            "answers": ["quiet", "research", "plan", "discuss", "steady"],
+        },
+        headers=headers,
+    ).json()
+    selected_ids = [item["candidate_id"] for item in candidates["candidates"][:2]]
+    replies = client.post(
+        "/api/user/adoption/replies",
+        json={
+            "candidate_set_id": candidates["candidate_set_id"],
+            "candidate_ids": selected_ids,
+        },
+        headers=headers,
+    ).json()["replies"]
+    accepted = next(reply for reply in replies if reply["status"] == "accepted")
+    return str(candidates["candidate_set_id"]), str(accepted["candidate_id"])
 
 
 def _complete_setup(client: TestClient) -> None:
@@ -327,6 +358,7 @@ def test_adoption_returns_service_unavailable_when_runtime_registration_fails(
     client: TestClient,
 ) -> None:
     csrf_token = _login_owner(client)
+    candidate_set_id, candidate_id = _accepted_candidate(client, csrf_token)
     runtime = MagicMock()
     runtime.api_server = None
     runtime.session.register_elfie.side_effect = RuntimeError("runtime unavailable")
@@ -334,19 +366,17 @@ def test_adoption_returns_service_unavailable_when_runtime_registration_fails(
 
     with patch("elfie.ElfieFactory.restore", return_value=MagicMock(spec=Elfie)):
         response = client.post(
-            "/api/user/adopt",
+            "/api/user/adoption/commit",
             json={
+                "candidate_set_id": candidate_set_id,
+                "candidate_id": candidate_id,
                 "name": "小白",
-                "anatomy_type": "biped",
-                "personality_style": "好奇探索",
-                "height": "standard",
-                "build": "standard",
             },
             headers={"X-CSRF-Token": csrf_token},
         )
 
     assert response.status_code == 503
-    assert client.get("/api/user/elfies").json() == []
+    assert client.get("/api/v1/elfies").json() == []
 
 
 def test_v1_routes_require_a_session(client: TestClient) -> None:

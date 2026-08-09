@@ -19,7 +19,6 @@ from nest.state.repository import (
 )
 from nest.state.store import (
     BedConflictError,
-    NestFullError,
     NestState,
     NoHomeAvailableError,
     ReconciliationRequiredError,
@@ -33,7 +32,6 @@ __all__ = [
     "HomeAssignment",
     "InteractionAnchor",
     "NestConfig",
-    "NestFullError",
     "NestState",
     "NestPersistenceError",
     "NestPersistenceSnapshot",

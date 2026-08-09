@@ -27,18 +27,8 @@ def db_path(tmp_path: Path) -> str:
 
 
 @pytest.fixture
-def runtime_config_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """临时 ELFIE_HOME/config.yaml 路径。"""
-    p = tmp_path / "runtime" / "config.yaml"
-    p.parent.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("ELFIE_HOME", str(p.parent))
-    p.write_text("providers:\n  ollama:\n    api_base: http://localhost:11434\n")
-    return p
-
-
-@pytest.fixture
-def app(db_path: str, runtime_config_path: Path):
-    """创建 FastAPI 应用，mock WS 网关和 runtime_config 路径。"""
+def app(db_path: str):
+    """创建 FastAPI 应用并 mock WS 网关。"""
     # 预填充 owner 用户（ lifespan 不再硬编码 owner/ownerchangeme ）
     init_db(db_path)
     create_test_owner(db_path)
@@ -46,10 +36,6 @@ def app(db_path: str, runtime_config_path: Path):
     with (
         patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
         patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-        patch(
-            "app.interfaces.api.owner_routes.get_config_path",
-            return_value=runtime_config_path,
-        ),
     ):
         application = create_app(engine=None, db_path=db_path, ws_port=9876)
         yield application
@@ -434,9 +420,6 @@ class TestAuthorization:
         resp = client.get("/api/owner/users", headers=_headers(alice_csrf))
         assert resp.status_code == 403
 
-        resp = client.get("/api/owner/config", headers=_headers(alice_csrf))
-        assert resp.status_code == 403
-
     def test_unauthenticated_gets_401(self, client: TestClient) -> None:
         """未登录访问 → 401。"""
         resp = client.get("/api/owner/users")
@@ -503,62 +486,3 @@ class TestOwnerElfieList:
 
         resp = client.delete("/api/owner/elfies/test-id", headers=headers)
         assert resp.status_code == 404
-
-
-# ===================================================================
-# LLM 配置管理
-# ===================================================================
-
-
-class TestConfig:
-    def test_get_config(self, client: TestClient) -> None:
-        """GET /api/owner/config → dict。"""
-        tokens = _login_owner(client)
-        resp = client.get("/api/owner/config", headers=_headers(tokens["csrf_token"]))
-        assert resp.status_code == 200
-        data = resp.json()
-        assert isinstance(data, dict)
-        assert "providers" in data
-
-    def test_put_config_valid(
-        self, client: TestClient, runtime_config_path: Path
-    ) -> None:
-        """旧原始 PUT 已停用，配置文件保持不变。"""
-        tokens = _login_owner(client)
-        before = runtime_config_path.read_text(encoding="utf-8")
-        new_config = {
-            "providers": {
-                "ollama": {"api_base": "http://127.0.0.1:11434"},
-                "openai": {"api_key": "sk-test"},
-            },
-            "temperature": 0.7,
-        }
-        resp = client.put(
-            "/api/owner/config",
-            json=new_config,
-            headers=_headers(tokens["csrf_token"]),
-        )
-        assert resp.status_code == 410
-        assert runtime_config_path.read_text(encoding="utf-8") == before
-
-    def test_put_config_missing_providers_is_also_retired(
-        self, client: TestClient
-    ) -> None:
-        """停用边界不因请求体形状而改变。"""
-        tokens = _login_owner(client)
-        resp = client.put(
-            "/api/owner/config",
-            json={"temperature": 0.5},
-            headers=_headers(tokens["csrf_token"]),
-        )
-        assert resp.status_code == 410
-
-    def test_get_config_no_file(
-        self, client: TestClient, runtime_config_path: Path
-    ) -> None:
-        """文件不存在时返回空 dict。"""
-        runtime_config_path.unlink()  # 删除 mock 配置文件
-        tokens = _login_owner(client)
-        resp = client.get("/api/owner/config", headers=_headers(tokens["csrf_token"]))
-        assert resp.status_code == 200
-        assert resp.json() == {}

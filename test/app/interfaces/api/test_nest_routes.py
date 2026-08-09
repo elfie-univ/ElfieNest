@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from app.infrastructure.persistence.store import get_db, init_db
 from app.interfaces.api.app import create_app
 
-from ._helpers import create_test_owner, create_test_user
+from ._helpers import create_test_owner
 
 
 @pytest.fixture
@@ -122,7 +122,7 @@ def test_bed_count_updates_desired_state_not_python_bed_geometry(
     headers = _headers(tokens["csrf_token"])
 
     resp = client.put(
-        "/api/owner/nest/rooms/local-nest/bed-count",
+        "/api/owner/nest/rooms/default/bed-count",
         json={"bed_count": 6},
         headers=headers,
     )
@@ -134,14 +134,6 @@ def test_bed_count_updates_desired_state_not_python_bed_geometry(
     assert [bed["anchor_id"] for bed in rooms[0]["beds"]] == [
         f"bed-{number:02d}" for number in range(1, 7)
     ]
-
-    legacy_id_resp = client.put(
-        "/api/owner/nest/rooms/local/bed-count",
-        json={"bed_count": 8},
-        headers=headers,
-    )
-    assert legacy_id_resp.status_code == 404
-
 
 @pytest.mark.parametrize("bed_count", [1, 3, 33, 64])
 def test_bed_count_rejects_values_outside_production_range(
@@ -159,25 +151,6 @@ def test_bed_count_rejects_values_outside_production_range(
 
     assert resp.status_code == 422
     assert "4 到 32" in resp.text
-
-
-def test_create_room_and_coordinate_update_are_gone(client: TestClient) -> None:
-    tokens = _login_owner(client)
-    headers = _headers(tokens["csrf_token"])
-
-    create_resp = client.post(
-        "/api/owner/nest/rooms",
-        json={"name": "Oversized Nest", "max_capacity": 64},
-        headers=headers,
-    )
-    coordinate_resp = client.put(
-        "/api/owner/nest/beds/dorm-01-bed-01",
-        json={"grid_x": 10, "grid_y": 20},
-        headers=headers,
-    )
-
-    assert create_resp.status_code == 410
-    assert coordinate_resp.status_code == 410
 
 
 def test_semantic_bed_numbers_are_visible_without_grid_fields(
@@ -219,38 +192,6 @@ def test_assign_home_rejects_occupied_bed(client: TestClient, db_path: str) -> N
     assert first.status_code == 200
     assert first.json()["home_anchor_id"] == "bed-01"
     assert second.status_code == 409
-
-
-def test_user_room_view_redacts_another_users_occupant(
-    client: TestClient,
-    db_path: str,
-) -> None:
-    create_test_user(db_path, "alice", "pass123")
-    create_test_user(db_path, "bob", "bobpass")
-    _seed_elfie(db_path, "00000003", owner_account_id="bob")
-    with get_db(db_path) as conn:
-        conn.execute(
-            """INSERT OR IGNORE INTO nest_settings(nest_id, bed_count, tick_interval_sec)
-               VALUES ('local-nest', 4, 1.0)"""
-        )
-        conn.execute(
-            "UPDATE elfies SET bed_number=1 WHERE elfie_id=?",
-            ("00000003",),
-        )
-        conn.commit()
-    tokens = _login_user(client, "alice", "pass123")
-
-    response = client.get(
-        "/api/user/nest/rooms",
-        headers=_headers(tokens["csrf_token"]),
-    )
-
-    assert response.status_code == 200
-    bed = response.json()[0]["beds"][0]
-    assert bed["occupant_id"] is None
-    assert bed["occupant_name"] is None
-    assert bed["occupant_owner_account_id"] is None
-    assert bed["occupant_owner_display_name"] is None
 
 
 def _seed_elfie(

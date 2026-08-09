@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from typing import Dict
 
 from nest.state.config import NestConfig
@@ -13,17 +13,6 @@ from nest.state.models import (
     RuntimeResidentMirror,
     WorldCatalog,
 )
-
-
-@dataclass(frozen=True)
-class NestFullError(Exception):
-    """Nest 已达到允许的居民容量。"""
-
-    current: int
-    maximum: int
-
-    def __str__(self) -> str:
-        return f"精灵巢已满 ({self.current}/{self.maximum})"
 
 
 class UnknownResidentError(RuntimeError):
@@ -91,9 +80,6 @@ class NestState:  # noqa: MUTABLE_OK - 这是单个 Nest 的运行中状态容�
     def register_resident(self, elfie_id: str) -> None:
         if elfie_id in self.residents:
             return
-        maximum = self.config.max_residents
-        if maximum is not None and len(self.residents) >= maximum:
-            raise NestFullError(len(self.residents), maximum)
         self.residents[elfie_id] = ResidentState(elfie_id=elfie_id)
 
     def remove_resident(self, elfie_id: str) -> None:

@@ -4,7 +4,7 @@
 Starts serve.py in fallback mode on random ports, then runs five checks:
 
   Step 1: Owner login -> create user alice
-  Step 2: Alice login -> POST adopt -> verify Elfie appears
+  Step 2: Alice login -> complete the adoption journey -> verify Elfie appears
   Step 3: Alice adopts 3 Elfies, then the 4th request returns 409
   Step 4: Verify Elfies via HTTP
   Step 5: Owner can see all Elfies, proving owner visibility
@@ -241,30 +241,75 @@ def main() -> None:
             print("    ❌ Owner login failed")
 
         # ==================================================================
-        # Step 2: Alice login -> POST adopt -> verify Elfie appears.
+        # Step 2: Alice login -> complete adoption journey -> verify Elfie appears.
         # ==================================================================
         print("  [Step 2/5] Alice login -> adopt an Elfie")
 
         ok, alice_csrf = alice.login("alice", "alice123")
-        if ok:
-            print("    ✅ Alice login succeeded")
-            status, data, raw, _ = alice.post_json(
-                "/api/user/adopt",
+
+        def _adopt(name: str) -> tuple[int, dict, str]:
+            status, candidates, raw, _ = alice.post_json(
+                "/api/user/adoption/candidates",
                 {
-                    "name": "Snow",
-                    "anatomy_type": "biped",
-                    "personality_style": "curious explorer",
-                    "height": "tall",
-                    "build": "plump",
+                    "species_id": "fox",
+                    "life_stage": "young_adult",
+                    "gender": "any",
+                    "appearance": {
+                        "stature": "standard",
+                        "build": "standard",
+                        "face": "soft",
+                        "signature": "warm",
+                        "priority": "face",
+                    },
+                    "answers": ["quiet", "research", "plan", "discuss", "steady"],
                 },
                 headers={"X-CSRF-Token": alice_csrf},
             )
+            if status != 200:
+                return status, candidates, raw
+            candidate_ids = [
+                item["candidate_id"] for item in candidates["candidates"][:2]
+            ]
+            status, replies, raw, _ = alice.post_json(
+                "/api/user/adoption/replies",
+                {
+                    "candidate_set_id": candidates["candidate_set_id"],
+                    "candidate_ids": candidate_ids,
+                },
+                headers={"X-CSRF-Token": alice_csrf},
+            )
+            if status != 200:
+                return status, replies, raw
+            accepted = next(
+                (
+                    reply
+                    for reply in replies["replies"]
+                    if reply["status"] == "accepted"
+                ),
+                None,
+            )
+            if accepted is None:
+                return 409, {}, "No candidate accepted the invitation"
+            status, adopted, raw, _ = alice.post_json(
+                "/api/user/adoption/commit",
+                {
+                    "candidate_set_id": candidates["candidate_set_id"],
+                    "candidate_id": accepted["candidate_id"],
+                    "name": name,
+                },
+                headers={"X-CSRF-Token": alice_csrf},
+            )
+            return status, adopted, raw
+
+        if ok:
+            print("    ✅ Alice login succeeded")
+            status, data, raw = _adopt("Snow")
             if status == 201:
                 elfie_id_1 = data.get("elfie_id", "")
                 print(f"    ✅ Adopted Snow (elfie_id={elfie_id_1})")
 
                 status, data, raw = alice.get(
-                    "/api/user/elfies",
+                    "/api/v1/elfies",
                     headers={"X-CSRF-Token": alice_csrf},
                 )
                 if status == 200 and isinstance(data, list) and len(data) >= 1:
@@ -286,29 +331,15 @@ def main() -> None:
         # ==================================================================
         print("  [Step 3/5] Verify Alice's 3-Elfie adoption limit")
 
-        def _adopt(name: str) -> int:
-            s, d, r, _ = alice.post_json(
-                "/api/user/adopt",
-                {
-                    "name": name,
-                    "anatomy_type": "biped",
-                    "personality_style": "playful and energetic",
-                    "height": "standard",
-                    "build": "standard",
-                },
-                headers={"X-CSRF-Token": alice_csrf},
-            )
-            return s
-
-        s2 = _adopt("Sunny")
+        s2, _, _ = _adopt("Sunny")
         if s2 != 201:
             print(f"    ❌ Second adoption failed ({s2}); skipping limit check")
         else:
-            s3 = _adopt("Blue")
+            s3, _, _ = _adopt("Blue")
             if s3 != 201:
                 print(f"    ❌ Third adoption failed ({s3}); skipping limit check")
             else:
-                s4 = _adopt("Clover")
+                s4, _, _ = _adopt("Clover")
                 if s4 == 409:
                     print("    ✅ Fourth adoption was rejected (409 limit is correct)")
                     results[2] = True
@@ -320,7 +351,7 @@ def main() -> None:
         # ==================================================================
         print("  [Step 4/5] Verify Elfies exist (HTTP)")
         status, data, raw = alice.get(
-            "/api/user/elfies",
+            "/api/v1/elfies",
             headers={"X-CSRF-Token": alice_csrf},
         )
         if status == 200 and isinstance(data, list):

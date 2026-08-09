@@ -2,17 +2,14 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-import yaml
 from fastapi.testclient import TestClient
 
-from ai_runtime.storage.provider_connections import ProviderConnectionStore
 from ai_runtime.usage.observer import (
     FallbackObservation,
     RuntimeEventStatus,
     RuntimeObserver,
     ToolCallObservation,
 )
-from ai_runtime.usage.token_tracker import TokenTracker
 from app.infrastructure.persistence.store import init_db
 from app.interfaces.api.app import create_app
 
@@ -22,52 +19,6 @@ from ._helpers import create_test_owner, create_test_user
 @pytest.fixture
 def db_path(tmp_path: Path) -> str:
     return str(tmp_path / "nest.db")
-
-
-@pytest.fixture
-def runtime_config_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    connection_store = ProviderConnectionStore()
-    connection_store.create(
-        catalog_id="ollama",
-        alias="Ollama",
-        api_base="http://localhost:11434",
-        api_mode="ollama",
-    )
-    connection_store.create(
-        catalog_id="deepseek_api",
-        alias="DeepSeek",
-        api_base="https://api.deepseek.com/v1",
-        api_mode="chat_completions",
-    )
-    path = tmp_path / "config.yaml"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        yaml.safe_dump(
-            {
-                "models": {"openai/gpt-4o-mini": {"visible": False, "cost_tier": 2}},
-                "runtime_policy": {
-                    "task_routes": {"reasoning": "premium"},
-                    "model_groups": {
-                        "premium": {
-                            "display_name": "精粮",
-                            "model_keys": ["remote_deep", "local_fast"],
-                        }
-                    },
-                    "tool_permissions": {
-                        "RUN_SKILL": {
-                            "mode": "allow",
-                            "reason": "技能运行允许",
-                        }
-                    },
-                },
-            },
-            allow_unicode=True,
-            sort_keys=False,
-        ),
-        encoding="utf-8",
-    )
-    return path
 
 
 @pytest.fixture
@@ -93,18 +44,9 @@ def runtime_observer() -> RuntimeObserver:
 
 
 @pytest.fixture
-def token_tracker() -> TokenTracker:
-    tracker = TokenTracker()
-    tracker.record("deepseek", {"prompt_tokens": 10, "completion_tokens": 5})
-    return tracker
-
-
-@pytest.fixture
 def client(
     db_path: str,
-    runtime_config_path: Path,
     runtime_observer: RuntimeObserver,
-    token_tracker: TokenTracker,
 ):
     init_db(db_path)
     create_test_owner(db_path)
@@ -114,16 +56,8 @@ def client(
         patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
         patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
         patch(
-            "app.interfaces.api.runtime_routes.get_config_path",
-            return_value=runtime_config_path,
-        ),
-        patch(
             "app.interfaces.api.runtime_routes.get_runtime_observer",
             return_value=runtime_observer,
-        ),
-        patch(
-            "app.interfaces.api.runtime_routes.get_token_tracker",
-            return_value=token_tracker,
         ),
     ):
         app = create_app(engine=None, db_path=db_path, ws_port=9876)
@@ -150,47 +84,10 @@ def test_owner_runtime_status_returns_diagnostic_snapshot(client: TestClient) ->
 
     assert response.status_code == 200
     payload = response.json()
+    assert set(payload) == {"status", "observer"}
     assert payload["status"] == "ok"
-    assert payload["providers"]["total"] >= 2
-    assert payload["providers"]["active"] >= 2
-    assert payload["models"]["visible"] >= 1
-    assert payload["fallback"]["provider"] == "ollama"
-    assert payload["fallback"]["configured"] is True
-    assert payload["tools"]["web_search"]["available"] is True
-    assert payload["tools"]["local_file"]["available"] is True
-    assert set(payload["tools"]) == {"web_search", "local_file"}
-    assert payload["usage"]["deepseek"]["total_tokens"] == 15
     assert payload["observer"]["event_count"] == 2
     assert payload["observer"]["last_event"]["subject"] == "local_fast"
-    assert payload["notes"]
-
-
-def test_owner_runtime_status_tolerates_malformed_config_fields(
-    client: TestClient,
-    runtime_config_path: Path,
-) -> None:
-    tokens = _login(client, "owner", "ownerchangeme")
-    runtime_config_path.write_text(
-        yaml.safe_dump(
-            {
-                "providers": ["not", "a", "mapping"],
-                "models": "not-a-mapping",
-            },
-            sort_keys=False,
-        ),
-        encoding="utf-8",
-    )
-    response = client.get(
-        "/api/owner/runtime/status",
-        headers={"X-CSRF-Token": tokens["csrf_token"]},
-    )
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["status"] == "ok"
-    assert payload["providers"]["total"] == 2
-    assert payload["fallback"]["configured"] is True
-    assert payload["notes"]
 
 
 def test_non_owner_cannot_read_runtime_status(client: TestClient) -> None:
@@ -202,129 +99,3 @@ def test_non_owner_cannot_read_runtime_status(client: TestClient) -> None:
     )
 
     assert response.status_code == 403
-
-
-def test_owner_runtime_policy_returns_only_tool_permissions(client: TestClient) -> None:
-    tokens = _login(client, "owner", "ownerchangeme")
-
-    response = client.get(
-        "/api/owner/runtime/policy",
-        headers={"X-CSRF-Token": tokens["csrf_token"]},
-    )
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert "task_routes" not in payload
-    assert "food_keys" not in payload
-    assert set(payload["tool_permissions"]) == {"READ", "WEB_SEARCH"}
-    assert "RUN_SKILL" not in payload["tool_permissions"]
-
-
-def test_owner_runtime_policy_rejects_task_routes(client: TestClient) -> None:
-    tokens = _login(client, "owner", "ownerchangeme")
-
-    response = client.put(
-        "/api/owner/runtime/policy",
-        json={
-            "task_routes": {"reasoning": "standard"},
-            "tool_permissions": {
-                "WEB_SEARCH": {
-                    "mode": "ask",
-                    "reason": "需要人工确认",
-                }
-            },
-        },
-        headers={"X-CSRF-Token": tokens["csrf_token"]},
-    )
-
-    assert response.status_code == 410
-
-
-def test_owner_runtime_policy_rejects_direct_model_groups(client: TestClient) -> None:
-    tokens = _login(client, "owner", "ownerchangeme")
-
-    response = client.put(
-        "/api/owner/runtime/policy",
-        json={
-            "model_groups": {
-                "premium": {"model_keys": ["remote_deep"]},
-            }
-        },
-        headers={"X-CSRF-Token": tokens["csrf_token"]},
-    )
-
-    assert response.status_code == 410
-    assert "模型由粮食配方管理" in response.text
-
-
-def test_owner_runtime_policy_rejects_invalid_permission_mode(
-    client: TestClient,
-) -> None:
-    tokens = _login(client, "owner", "ownerchangeme")
-
-    response = client.put(
-        "/api/owner/runtime/policy",
-        json={"tool_permissions": {"WEB_SEARCH": {"mode": "unknown"}}},
-        headers={"X-CSRF-Token": tokens["csrf_token"]},
-    )
-
-    assert response.status_code == 422
-
-
-def test_owner_runtime_policy_rejects_unsafe_tool_permissions(
-    client: TestClient,
-) -> None:
-    tokens = _login(client, "owner", "ownerchangeme")
-
-    response = client.put(
-        "/api/owner/runtime/policy",
-        json={"tool_permissions": {"RUN_SKILL": {"mode": "allow"}}},
-        headers={"X-CSRF-Token": tokens["csrf_token"]},
-    )
-
-    assert response.status_code == 422
-
-
-def test_owner_runtime_policy_rejects_invalid_task_route(
-    client: TestClient,
-) -> None:
-    tokens = _login(client, "owner", "ownerchangeme")
-
-    response = client.put(
-        "/api/owner/runtime/policy",
-        json={"task_routes": {"unknown": "premium"}},
-        headers={"X-CSRF-Token": tokens["csrf_token"]},
-    )
-
-    assert response.status_code == 410
-
-
-def test_owner_runtime_audit_returns_recent_events(client: TestClient) -> None:
-    tokens = _login(client, "owner", "ownerchangeme")
-
-    response = client.get(
-        "/api/owner/runtime/audit",
-        headers={"X-CSRF-Token": tokens["csrf_token"]},
-    )
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["event_count"] == 2
-    assert payload["events"][0]["event_type"] == "tool_call"
-    assert payload["events"][1]["event_type"] == "fallback"
-
-
-def test_non_owner_cannot_read_runtime_policy_or_audit(client: TestClient) -> None:
-    tokens = _login(client, "alice", "pass123")
-
-    policy_response = client.get(
-        "/api/owner/runtime/policy",
-        headers={"X-CSRF-Token": tokens["csrf_token"]},
-    )
-    audit_response = client.get(
-        "/api/owner/runtime/audit",
-        headers={"X-CSRF-Token": tokens["csrf_token"]},
-    )
-
-    assert policy_response.status_code == 403
-    assert audit_response.status_code == 403

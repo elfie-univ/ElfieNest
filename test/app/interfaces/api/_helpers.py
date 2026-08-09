@@ -8,6 +8,9 @@
     user_id = create_test_user(db_path, "alice", "pass")
 """
 
+from typing import Any, Optional
+
+from app.features.adoption.service import AdoptionRequest, adopt_elfie_for_user
 from app.infrastructure.persistence.setup_install_repository import (
     SetupInstallRepository,
 )
@@ -50,6 +53,35 @@ def create_test_user(
         user_id = cursor.lastrowid
         conn.commit()
     return user_id
+
+
+def adopt_test_elfie(
+    db_path: str,
+    user_id: int,
+    *,
+    name: str = "小白",
+    species_id: str = "fox",
+    personality_style: str = "好奇探索",
+    height: str = "standard",
+    build: str = "standard",
+    appearance_overrides: Optional[dict[str, Any]] = None,
+    engine: Any = None,
+) -> str:
+    """通过正式 Adoption 服务创建测试精灵，不依赖已退役 HTTP 入口。"""
+    result = adopt_elfie_for_user(
+        db_path,
+        user_id=user_id,
+        request=AdoptionRequest(
+            name=name,
+            species_id=species_id,
+            personality_style=personality_style,
+            height=height,
+            build=build,
+            appearance_overrides=appearance_overrides or {},
+        ),
+        engine=engine,
+    )
+    return result.elfie_id
 
 
 def complete_test_setup(db_path: str, *, bed_count: int = 8) -> None:

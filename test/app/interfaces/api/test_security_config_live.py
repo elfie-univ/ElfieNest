@@ -74,10 +74,6 @@ def app(db_path: str, runtime_config_path: Path):
             "app.interfaces.api.system_routes.get_config_path",
             return_value=runtime_config_path,
         ),
-        patch(
-            "app.interfaces.api.owner_routes.get_config_path",
-            return_value=runtime_config_path,
-        ),
     ):
         application = create_app(engine=None, db_path=db_path, ws_port=9876)
         yield application

@@ -53,7 +53,6 @@ nest/
 
 - `nest.Nest` — composes state, environment clock and interaction propagation;
 - `nest.NestConfig` — configuration such as Nest capacity;
-- `nest.NestFullError` — raised when resident capacity is full;
 - `nest.NestState` — runtime container holding only in-nest state;
 - `nest.godot_gateway.GodotAPIServer` — the WebSocket boundary between Python and the
   Godot Runtime.

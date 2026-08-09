@@ -1,6 +1,6 @@
 import pytest
 
-from nest import Nest, NestConfig, NestFullError
+from nest import Nest
 from nest.engine import InvalidTickError
 from nest.state.store import (
     BedConflictError,
@@ -51,16 +51,6 @@ def test_nest_registers_only_resident_identity_and_state() -> None:
     assert resident is not None
     assert resident.posture == "standing"
     assert nest.resident_ids == ("elfie-1",)
-
-
-def test_nest_capacity_rejects_an_extra_resident() -> None:
-    # Given
-    nest = Nest(NestConfig(max_residents=1))
-    nest.register_resident("elfie-1")
-
-    # When / Then
-    with pytest.raises(NestFullError, match="1/1"):
-        nest.register_resident("elfie-2")
 
 
 def test_broadcast_reaches_other_active_residents_only() -> None:

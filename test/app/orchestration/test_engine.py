@@ -4,7 +4,6 @@ import pytest
 
 from app.orchestration.engine import ElfieNestEngine
 from elfie import Elfie
-from nest import NestFullError
 
 
 @pytest.fixture
@@ -69,31 +68,15 @@ def test_session_routes_collision_through_nest(
     assert tactile["force_newtons_estimate"] == 1.5
 
 
-def test_engine_capacity_is_enforced_by_nest(mock_elfie: MagicMock) -> None:
-    # Given
-    with patch("app.orchestration.engine.GodotAPIServer"):
-        engine = ElfieNestEngine(max_elfies_per_room=1)
-    engine.session.register_elfie("elfie-1", mock_elfie)
-
-    # When / Then
-    with pytest.raises(NestFullError, match="1/1"):
-        engine.session.register_elfie(
-            "elfie-2",
-            MagicMock(spec=Elfie),
-        )
-
-
 def test_engine_configuration_is_preserved() -> None:
     # Given / When
     with patch("app.orchestration.engine.GodotAPIServer"):
         engine = ElfieNestEngine(
             tick_interval_sec=2.5,
-            max_elfies_per_room=3,
         )
 
     # Then
     assert engine.tick_interval_sec == 2.5
-    assert engine.nest.state.config.max_residents == 3
     assert not hasattr(engine, "_synthesize_voice")
 
 

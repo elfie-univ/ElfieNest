@@ -1,4 +1,4 @@
-"""系统设置 REST API — 4 个 section 的 GET/PUT 端点。
+"""系统设置 REST API — 3 个 section 的 GET/PUT 端点。
 
 使用方式::
 
@@ -32,7 +32,7 @@ router = APIRouter(prefix="/api/owner/system", tags=["system"])
 # 可用的 section 白名单
 # ---------------------------------------------------------------------------
 
-VALID_SECTIONS = frozenset({"llm", "adoption", "engine", "security"})
+VALID_SECTIONS = frozenset({"adoption", "engine", "security"})
 MAX_ELFIES_PER_MACHINE: Final = 32
 
 # ---------------------------------------------------------------------------
@@ -41,12 +41,6 @@ MAX_ELFIES_PER_MACHINE: Final = 32
 
 # 内部辅助：校验嵌套字典（如 security.rate_limit）
 _SECTION_SCHEMAS: Dict[str, Dict[str, Any]] = {
-    "llm": {
-        "temperature": (float, int),
-        "max_tokens": int,
-        "energy_threshold_fast": (float, int),
-        "complexity_threshold_deep": int,
-    },
     "adoption": {
         "max_elfies_per_user": int,
         "allowed_species_ids": list,
@@ -54,7 +48,6 @@ _SECTION_SCHEMAS: Dict[str, Dict[str, Any]] = {
     },
     "engine": {
         "tick_interval_sec": (float, int),
-        "max_elfies_per_room": (int, type(None)),
     },
     "security": {
         "session_ttl_days": int,
@@ -149,22 +142,7 @@ def _validate_nested_dict(
 
 def _validate_range(section: str, data: Dict[str, Any]) -> None:
     """值域与业务规则校验。"""
-    if section == "llm":
-        if "temperature" in data:
-            t = data["temperature"]
-            if not (0.0 <= t <= 2.0):
-                raise HTTPException(422, detail="temperature 应在 0.0 ~ 2.0 之间")
-        if "max_tokens" in data:
-            if data["max_tokens"] < 1:
-                raise HTTPException(422, detail="max_tokens 应 ≥ 1")
-        if "energy_threshold_fast" in data:
-            if data["energy_threshold_fast"] < 0:
-                raise HTTPException(422, detail="energy_threshold_fast 应 ≥ 0")
-        if "complexity_threshold_deep" in data:
-            if data["complexity_threshold_deep"] < 0:
-                raise HTTPException(422, detail="complexity_threshold_deep 应 ≥ 0")
-
-    elif section == "adoption":
+    if section == "adoption":
         if "max_elfies_per_user" in data:
             if not 1 <= data["max_elfies_per_user"] <= MAX_ELFIES_PER_MACHINE:
                 raise HTTPException(
@@ -190,17 +168,6 @@ def _validate_range(section: str, data: Dict[str, Any]) -> None:
         if "tick_interval_sec" in data:
             if data["tick_interval_sec"] <= 0:
                 raise HTTPException(422, detail="tick_interval_sec 应 > 0")
-        if "max_elfies_per_room" in data:
-            v = data["max_elfies_per_room"]
-            if v is not None and not 1 <= v <= MAX_ELFIES_PER_MACHINE:
-                raise HTTPException(
-                    422,
-                    detail=(
-                        "max_elfies_per_room 应为 null 或在 "
-                        f"1 ~ {MAX_ELFIES_PER_MACHINE} 之间"
-                    ),
-                )
-
     elif section == "security":
         nested = data.get("rate_limit", {})
         if "max_attempts" in nested:

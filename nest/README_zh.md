@@ -43,7 +43,6 @@ nest/
 
 - `nest.Nest`：组合状态、环境时钟和互动传播；
 - `nest.NestConfig`：Nest 容量等配置；
-- `nest.NestFullError`：居民容量已满错误；
 - `nest.NestState`：仅包含巢内状态的运行容器；
 - `nest.godot_gateway.GodotAPIServer`：Python 与 Godot Runtime 的 WebSocket 协议边界。
 

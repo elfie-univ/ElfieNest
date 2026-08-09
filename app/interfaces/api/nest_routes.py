@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import logging
 from typing import Any, Dict, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from app.features.accounts.auth import get_current_user, require_manager
+from app.features.accounts.auth import require_manager
 from app.infrastructure.persistence.nest_repository import (
-    DEFAULT_NEST_ID,
     NestRepositoryConflictError,
     NestRepositoryNotFoundError,
     RoomPayload,
@@ -15,12 +13,8 @@ from app.infrastructure.persistence.nest_repository import (
 )
 from app.infrastructure.persistence.store import get_db
 
-logger = logging.getLogger("app.interfaces.api.nest_routes")
-
 router = APIRouter(prefix="/api/owner/nest", tags=["nest"])
-user_router = APIRouter(prefix="/api/user/nest", tags=["user-nest"])
 RequireOwner = Depends(require_manager)
-RequireUser = Depends(get_current_user)
 DEFAULT_BED_COUNT = 4
 MIN_BED_COUNT = 4
 MAX_BED_COUNT = 32
@@ -28,11 +22,10 @@ MAX_BED_COUNT = 32
 
 def _rooms_with_beds(
     db_path: str,
-    user_id: Optional[int] = None,
 ) -> List[RoomPayload]:
     with get_db(db_path) as conn:
         repository = SQLiteNestRepository(conn)
-        rooms = repository.load_view().as_rooms_payload(user_id=user_id)
+        rooms = repository.load_view().as_rooms_payload()
         conn.commit()
         return rooms
 
@@ -59,42 +52,6 @@ async def get_rooms(
     return cast(List[Dict[str, Any]], rooms)
 
 
-@user_router.get("/rooms")
-async def get_user_rooms(
-    request: Request,
-    user: Dict[str, Any] = RequireUser,
-) -> List[Dict[str, Any]]:
-    rooms = _rooms_with_beds(request.app.state.db_path, user_id=user["user_id"])
-    return cast(List[Dict[str, Any]], rooms)
-
-
-@router.post("/rooms")
-async def create_room(
-    body: Dict[str, Any],
-    request: Request,
-    owner: Dict[str, Any] = RequireOwner,
-) -> Dict[str, Any]:
-    _ = body, request, owner
-    raise HTTPException(
-        status_code=410,
-        detail="Nest rooms are owned by the Godot Runtime scene manifest.",
-    )
-
-
-@router.put("/beds/{bed_id}")
-async def update_bed(
-    bed_id: str,
-    body: Dict[str, Any],
-    request: Request,
-    owner: Dict[str, Any] = RequireOwner,
-) -> Dict[str, Any]:
-    _ = bed_id, body, request, owner
-    raise HTTPException(
-        status_code=410,
-        detail="Bed coordinates are owned by the Godot Runtime scene manifest.",
-    )
-
-
 @router.put("/rooms/default/bed-count")
 async def update_default_room_bed_count(
     body: Dict[str, Any],
@@ -110,18 +67,6 @@ async def update_default_room_bed_count(
     if desired_bed_count is None:
         raise HTTPException(status_code=500, detail="bed_count persistence failed")
     return result
-
-
-@router.put("/rooms/{room_id}/bed-count")
-async def update_bed_count(
-    room_id: str,
-    body: Dict[str, Any],
-    request: Request,
-    owner: Dict[str, Any] = RequireOwner,
-) -> Dict[str, Optional[int]]:
-    if room_id != DEFAULT_NEST_ID:
-        raise HTTPException(status_code=404, detail="Nest not found")
-    return await update_default_room_bed_count(body, request, owner)
 
 
 @router.put("/elfies/{elfie_id}/bed")

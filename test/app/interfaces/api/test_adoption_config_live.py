@@ -1,7 +1,7 @@
 """动态领养配置集成测试 — 通过 system API 修改 → 验证 adoption 行为。
 
 测试场景：
-1. PUT system.adoption.max_elfies_per_user=1 → 领养第二只 → 409
+1. PUT system.adoption.max_elfies_per_user=1 → 领养第二只被拒绝
 2. PUT personality_presets_enabled["安静温顺"]=False → adoption-info 不包含该预设
 3. PUT allowed_species_ids=["dog"] → 领养 fox → 400
 4. 全部禁用 → 返回全部预设（安全回退）
@@ -15,10 +15,14 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.features.adoption.service import (
+    AdoptionCapacityError,
+    AdoptionValidationError,
+)
 from app.infrastructure.persistence.store import init_db
 from app.interfaces.api.app import create_app
 
-from ._helpers import create_test_owner
+from ._helpers import adopt_test_elfie, create_test_owner
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -49,10 +53,6 @@ def app(db_path: str, runtime_config_path: Path):
         patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
         patch(
             "app.interfaces.api.system_routes.get_config_path",
-            return_value=runtime_config_path,
-        ),
-        patch(
-            "app.interfaces.api.owner_routes.get_config_path",
             return_value=runtime_config_path,
         ),
         patch(
@@ -108,6 +108,7 @@ def _create_user_and_login(
     assert resp.status_code == 200, f"user login failed: {resp.text}"
     return {
         "csrf_token": resp.headers.get("X-CSRF-Token", ""),
+        "user_id": resp.json()["user"]["user_id"],
     }
 
 
@@ -119,8 +120,10 @@ def _create_user_and_login(
 class TestMaxElfiesPerUser:
     """PUT system.adoption.max_elfies_per_user=1 → 领养第二只 → 409。"""
 
-    def test_adopt_second_returns_409(self, client: TestClient) -> None:
-        """max_elfies_per_user=1 时，第二只领养返回 409。"""
+    def test_adopt_second_is_rejected(
+        self, client: TestClient, db_path: str
+    ) -> None:
+        """max_elfies_per_user=1 时，第二只领养被拒绝。"""
         owner_tokens = _login_owner(client)
 
         # 设置 max_elfies_per_user = 1
@@ -134,36 +137,18 @@ class TestMaxElfiesPerUser:
         # 创建普通用户并登录
         user_tokens = _create_user_and_login(client)
 
-        # 第一只 → 201
-        resp = client.post(
-            "/api/user/adopt",
-            json={
-                "name": "精灵1",
-                "anatomy_type": "biped",
-                "personality_style": "好奇探索",
-                "height": "standard",
-                "build": "standard",
-            },
-            headers=_headers(user_tokens["csrf_token"]),
+        adopt_test_elfie(
+            db_path,
+            int(user_tokens["user_id"]),
+            name="精灵1",
         )
-        assert resp.status_code == 201, f"first adopt failed: {resp.text}"
-
-        # 第二只 → 409
-        resp = client.post(
-            "/api/user/adopt",
-            json={
-                "name": "精灵2",
-                "anatomy_type": "biped",
-                "personality_style": "活泼好动",
-                "height": "standard",
-                "build": "standard",
-            },
-            headers=_headers(user_tokens["csrf_token"]),
-        )
-        assert resp.status_code == 409, (
-            f"expected 409, got {resp.status_code}: {resp.text}"
-        )
-        assert "1" in resp.text or "最多" in resp.text
+        with pytest.raises(AdoptionCapacityError, match="最多领养 1 只精灵"):
+            adopt_test_elfie(
+                db_path,
+                int(user_tokens["user_id"]),
+                name="精灵2",
+                personality_style="活泼好动",
+            )
 
 
 # ===================================================================
@@ -201,8 +186,10 @@ class TestPersonalityPresetsFilter:
         assert "好奇探索" in styles
         assert len(styles) == 5
 
-    def test_disabled_preset_rejected_on_adopt(self, client: TestClient) -> None:
-        """禁用 "安静温顺" → 尝试领养该预设 → 400。"""
+    def test_disabled_preset_rejected_on_adopt(
+        self, client: TestClient, db_path: str
+    ) -> None:
+        """禁用 "安静温顺" → 尝试领养该预设被拒绝。"""
         owner_tokens = _login_owner(client)
 
         resp = client.put(
@@ -214,20 +201,13 @@ class TestPersonalityPresetsFilter:
 
         user_tokens = _create_user_and_login(client)
 
-        resp = client.post(
-            "/api/user/adopt",
-            json={
-                "name": "小静",
-                "anatomy_type": "biped",
-                "personality_style": "安静温顺",
-                "height": "standard",
-                "build": "standard",
-            },
-            headers=_headers(user_tokens["csrf_token"]),
-        )
-        assert resp.status_code == 400, (
-            f"expected 400, got {resp.status_code}: {resp.text}"
-        )
+        with pytest.raises(AdoptionValidationError):
+            adopt_test_elfie(
+                db_path,
+                int(user_tokens["user_id"]),
+                name="小静",
+                personality_style="安静温顺",
+            )
 
 
 # ===================================================================
@@ -238,8 +218,8 @@ class TestPersonalityPresetsFilter:
 class TestSpeciesIdsFilter:
     """PUT allowed_species_ids=["dog"] → 领养 fox → 400。"""
 
-    def test_fox_rejected(self, client: TestClient) -> None:
-        """仅允许 dog → 尝试领养 fox → 400。"""
+    def test_fox_rejected(self, client: TestClient, db_path: str) -> None:
+        """仅允许 dog → 尝试领养 fox 被拒绝。"""
         owner_tokens = _login_owner(client)
 
         # 仅允许 dog
@@ -252,22 +232,14 @@ class TestSpeciesIdsFilter:
 
         user_tokens = _create_user_and_login(client)
 
-        # 领养 fox → 400
-        resp = client.post(
-            "/api/user/adopt",
-            json={
-                "name": "狐狸",
-                "species_id": "fox",
-                "personality_style": "活泼好动",
-                "height": "standard",
-                "build": "standard",
-            },
-            headers=_headers(user_tokens["csrf_token"]),
-        )
-        assert resp.status_code == 400, (
-            f"expected 400, got {resp.status_code}: {resp.text}"
-        )
-        assert "species_id" in resp.text
+        with pytest.raises(AdoptionValidationError, match="species_id"):
+            adopt_test_elfie(
+                db_path,
+                int(user_tokens["user_id"]),
+                name="狐狸",
+                species_id="fox",
+                personality_style="活泼好动",
+            )
 
     def test_adoption_info_reflects_filter(self, client: TestClient) -> None:
         """仅允许 dog → adoption-info 只包含 dog。"""

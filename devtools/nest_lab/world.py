@@ -48,7 +48,7 @@ class NestLabWorld:
             handshake_nonce=token_urlsafe(32),
         )
         self._data_dir = data_dir
-        self._nest = Nest(NestConfig(max_residents=32))
+        self._nest = Nest(NestConfig())
         self._bed_count = 4
         self._world_revision = 1
         self._actors: dict[str, LabActor] = {}

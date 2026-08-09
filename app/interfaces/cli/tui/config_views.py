@@ -46,7 +46,6 @@ def show_config(config: UserConfig) -> None:
     engine = config.get("system", {}).get("engine", {})
     print("  【Engine Config】")
     print(f"    Tick interval: {engine.get('tick_interval_sec', 1.5)}s")
-    print(f"    Max elfies per room: {engine.get('max_elfies_per_room', 10)}")
     print()
 
     security = config.get("system", {}).get("security", {})

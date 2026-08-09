@@ -23,7 +23,6 @@ from app.infrastructure.persistence.elfie_repository import (
     ElfieRepository,
 )
 from app.infrastructure.persistence.store import get_db
-from nest import NestFullError
 
 logger = logging.getLogger("app.features.adoption.service")
 
@@ -158,7 +157,7 @@ def adopt_elfie_for_user(
     if engine is not None:
         try:
             _register_with_engine(engine, elfie_id, request, config_dir, db_path)
-        except (AdoptionRuntimeRegistrationError, NestFullError):
+        except AdoptionRuntimeRegistrationError:
             _release_adoption_slot(db_path, elfie_id=elfie_id, config_dir=config_dir)
             raise
 
@@ -246,8 +245,6 @@ def _register_with_engine(
             elfie_id,
             request.name,
         )
-    except NestFullError:
-        raise
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
         logger.warning("Failed to register elfie %s to engine: %s", elfie_id, exc)
         raise AdoptionRuntimeRegistrationError(elfie_id) from exc

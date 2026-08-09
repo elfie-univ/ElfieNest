@@ -18,7 +18,7 @@ import { WebSearchToolDetails } from "./tools/WebSearchToolDetails"
 import { useToast } from "./ui/toast"
 import "./tools-permissions.css"
 
-const EngineSchema = z.object({ tick_interval_sec: z.number(), max_elfies_per_room: z.number().nullable() })
+const EngineSchema = z.object({ tick_interval_sec: z.number() })
 const AdoptionSchema = z.object({ max_elfies_per_user: z.number(), allowed_species_ids: z.array(z.string()), personality_presets_enabled: z.record(z.string(), z.boolean()) })
 const SecuritySchema = z.object({ session_ttl_days: z.number(), rate_limit: z.object({ max_attempts: z.number(), window_seconds: z.number() }) })
 type EngineSettings = z.infer<typeof EngineSchema>

@@ -565,7 +565,6 @@ def main():
         # Read engine configuration.
         engine_config = config.system.get("engine", {})
         tick_interval_sec = engine_config.get("tick_interval_sec", 1.5)
-        max_elfies_per_room = engine_config.get("max_elfies_per_room")
 
         runtime_agent: Optional[Any] = None
         if args.fallback:
@@ -620,7 +619,6 @@ def main():
             ws_port=args.godot_ws_port,
             godot_origin_port=args.port,
             tick_interval_sec=tick_interval_sec,
-            max_elfies_per_room=max_elfies_per_room,
             nest_repository=SQLiteNestStateRepository(db_path),
             food_key_resolver=(
                 lambda elfie_id: (
@@ -652,13 +650,6 @@ def main():
     time.sleep(2.0)  # Wait for service readiness.
     print("  ℹ️ Godot Web Runtime is hosted by ElfieNest Desktop hidden window")
 
-    # Read engine configuration for room limit checks.
-    config = LLMRuntimeConfig(
-        ollama_host="http://localhost:11434",
-    )
-    engine_config = config.system.get("engine", {})
-    max_elfies_per_room = engine_config.get("max_elfies_per_room")
-
     engine.session.attach_repository(SQLiteNestStateRepository(db_path))
 
     # 4. Dynamically load all Elfies from the database.
@@ -669,14 +660,6 @@ def main():
         elfie_factory = ElfieFactory()
 
         rows = ElfieRepository(db_path).list_all()
-        existing_count = len(rows)
-
-        # Warn when existing Elfies exceed the new limit; still load all of them.
-        if max_elfies_per_room is not None and existing_count > max_elfies_per_room:
-            print(
-                f"  ⚠️  Existing {existing_count}  Elfie(s) exceed new limit of {max_elfies_per_room}; all loaded anyway"
-            )
-
         for row in rows:
             elfie_id = row.elfie_id
             config_dir = str(get_elfie_config_dir(elfie_id))
