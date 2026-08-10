@@ -9,19 +9,15 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import (
-    Any,
-    Dict,
-    Optional,  # noqa: E402
-)
+from typing import Any, Optional  # noqa: E402
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from ai_runtime.storage.data_home import get_db_path as _get_db_path
-from app.features.accounts import AccountPrincipal, AccountsService
+from app.features.accounts import AccountsService
 from app.features.adoption import AdoptionService
 from app.features.bodies import BodiesService
 from app.features.communication import CommunicationFacade
@@ -50,16 +46,13 @@ from app.orchestration.observer import ObserverFacade
 from app.orchestration.resident_admission import ResidentAdmissionService
 from app.orchestration.setup_installation import SetupInstallationService
 from infrastructure.communication import SameOriginMessagePublisher
-from nest.godot_gateway.bundle import (
-    GODOT_WEB_DIR,
-    godot_web_bundle_present,
-    inspect_godot_web_bundle,
-)
+from nest.godot_gateway.bundle import GODOT_WEB_DIR, godot_web_bundle_present
 
+from .health_models import HealthResponse
 from .page_routes import router as page_router
 from .request_limits import AvatarUploadBodyLimitMiddleware
 from .service_access import ServiceAccessPolicy, configure_service_access
-from .v1.auth import get_current_user, verify_csrf_token
+from .v1.auth import verify_csrf_token
 from .ws_gateway import AuthenticatedWSManager
 
 logger = logging.getLogger("app.interfaces.api.app")
@@ -270,36 +263,17 @@ def create_http_application(
     # Routes
     # -------------------------------------------------------------------
 
-    @app.get("/api/health")
-    async def health():
+    @app.get("/api/health", response_model=HealthResponse)
+    async def health() -> HealthResponse:
         """健康检查"""
-        return {
-            "status": "ok",
-            "engine_ready": engine is not None,
-            "godot_web_ready": godot_web_bundle_present(),
-            "godot_runtime_ready": bool(
+        return HealthResponse(
+            status="ok",
+            engine_ready=engine is not None,
+            godot_web_ready=godot_web_bundle_present(),
+            godot_runtime_ready=bool(
                 engine is not None and engine.world_runtime.runtime_ready
             ),
-        }
-
-    @app.get("/api/godot-web/status")
-    async def godot_web_status():
-        status = inspect_godot_web_bundle()
-        return {
-            "ready": status.ready,
-            "entry_url": status.entry_url,
-            "missing": list(status.missing),
-            "integrity_errors": list(getattr(status, "integrity_errors", ())),
-            "manifest": status.manifest,
-        }
-
-    @app.get("/api/ws-config")
-    async def ws_config(
-        user: AccountPrincipal = Depends(get_current_user),  # noqa: B008
-    ) -> Dict[str, int]:
-        """返回浏览器连接鉴权 WebSocket 所需的端口。"""
-        _ = user
-        return {"port": ws_port}
+        )
 
     # -------------------------------------------------------------------
     # Setup Wizard 路由（首启向导 — 在 owner 路由之前注册）

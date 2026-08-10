@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import QRCode from "qrcode"
 
 import { Button } from "@/components/ui/button"
-import { mobileAccess, type MobileAccess } from "../api/client"
+import { mobileAccess, type MobileAccess } from "../api/admin/runtime"
 import { localizeApiError } from "../i18n/errors"
 import { currentLocale } from "../i18n/format"
 import { Icon } from "./Icon"

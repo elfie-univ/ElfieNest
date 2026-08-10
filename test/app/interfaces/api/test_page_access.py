@@ -75,13 +75,11 @@ def test_pages_redirect_anonymous_users_to_login_with_safe_next(
     assert manage.headers["location"] == "/setup"
 
 
-def test_ws_configuration_requires_an_authenticated_session(client: TestClient) -> None:
-    # Given: the WebSocket port is deployment metadata, not public bootstrap data.
-    # When: an anonymous browser requests it.
-    # Then: it cannot discover the authenticated gateway configuration.
+def test_legacy_ws_configuration_resource_is_retired(client: TestClient) -> None:
+    # The browser now uses the same-origin versioned WebSocket resource directly.
     response = client.get("/api/ws-config")
 
-    assert response.status_code == 401
+    assert response.status_code == 404
 
 
 def test_login_discards_malformed_or_external_next(client: TestClient) -> None:
@@ -321,7 +319,10 @@ def test_owner_mobile_access_exposes_only_active_lan_addresses(tmp_path: Path) -
             )
 
             # When: the Owner asks the current Core for its mobile access URL.
-            response = client.get("/api/owner/mobile-access", headers=headers)
+            response = client.get(
+                "/api/v1/admin/runtime/mobile-access", headers=headers
+            )
+            legacy = client.get("/api/owner/mobile-access", headers=headers)
 
     # Then: the response advertises the real LAN root, never a loopback URL.
     assert login.status_code == 200
@@ -330,6 +331,7 @@ def test_owner_mobile_access_exposes_only_active_lan_addresses(tmp_path: Path) -
         "available": True,
         "urls": ["http://192.168.1.8:8000/"],
     }
+    assert legacy.status_code == 404
 
 
 def test_core_reads_the_packaged_web_build_directory_from_its_environment(

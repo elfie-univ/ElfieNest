@@ -78,6 +78,17 @@ class ServiceAccessPolicy:
             sorted(f"http://{host}:{self.http_port}" for host in self.hostnames)
         )
 
+    @property
+    def mobile_access_urls(self) -> Tuple[str, ...]:
+        """Project only reachable LAN roots from the existing bind policy."""
+        if self.mode is not ServiceMode.LAN:
+            return ()
+        return tuple(
+            f"http://{host}:{self.http_port}/"
+            for host in sorted(self.hostnames)
+            if host not in LOOPBACK_HOSTS
+        )
+
     def allows_host(self, raw_host: str) -> bool:
         """Accept the configured hostname and, when supplied, HTTP port only."""
         hostname, port = _authority_parts(raw_host)

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import (
     FileResponse,
     PlainTextResponse,
@@ -14,8 +14,7 @@ from fastapi.responses import (
 
 from app.features.accounts import AccountPrincipal
 from app.features.setup import GetSetupStatusQuery, SetupService
-from app.interfaces.api.service_access import LOOPBACK_HOSTS, ServiceMode
-from app.interfaces.api.v1.auth import get_current_user, require_manager
+from app.interfaces.api.v1.auth import get_current_user
 from app.interfaces.web.build_discovery import (
     WebBuildManifestMalformedError,
     WebBuildManifestMissingError,
@@ -194,21 +193,3 @@ async def monitor_page(request: Request) -> Response:
     if user.role not in {"owner", "admin"}:
         return RedirectResponse("/chat", status_code=303)
     return _serve_generated_page(request)
-
-
-@router.get("/api/owner/mobile-access")
-async def owner_mobile_access(
-    request: Request,
-    manager: Dict[str, Any] = Depends(require_manager),  # noqa: B008
-) -> Dict[str, Any]:
-    """Return only the LAN URLs that the active Core listener can serve."""
-    _ = manager
-    policy = request.app.state.service_access_policy
-    if policy.mode is not ServiceMode.LAN:
-        return {"available": False, "urls": []}
-    urls = [
-        f"http://{host}:{policy.http_port}/"
-        for host in sorted(policy.hostnames)
-        if host not in LOOPBACK_HOSTS
-    ]
-    return {"available": bool(urls), "urls": urls}

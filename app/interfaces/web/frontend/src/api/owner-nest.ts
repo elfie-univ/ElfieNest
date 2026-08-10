@@ -34,14 +34,8 @@ export const RoomSchema = z.object({
   beds: z.array(NestBedSchema),
 }).strict()
 const NestRoomsResponseSchema = z.object({ items: z.array(RoomSchema) }).strict()
-export const MobileAccessSchema = z.object({
-  available: z.boolean(),
-  urls: z.array(z.string().url()),
-})
-
 export type NestRoom = z.infer<typeof RoomSchema>
 export type NestBed = z.infer<typeof NestBedSchema>
-export type MobileAccess = z.infer<typeof MobileAccessSchema>
 
 export async function ownerRooms(): Promise<readonly NestRoom[]> {
   return NestRoomsResponseSchema.parse(await requestJson("/api/v1/admin/nest/rooms")).items
@@ -53,8 +47,4 @@ export async function ownerUpdateBedCount(bedCount: number, csrfToken: string): 
 
 export async function ownerAssignBed(elfieId: string, anchorId: string | null, csrfToken: string): Promise<void> {
   await ownerWrite(`/api/v1/admin/nest/elfies/${encodeURIComponent(elfieId)}/bed`, "PUT", csrfToken, { home_anchor_id: anchorId })
-}
-
-export async function mobileAccess(): Promise<MobileAccess> {
-  return MobileAccessSchema.parse(await requestJson("/api/owner/mobile-access"))
 }
