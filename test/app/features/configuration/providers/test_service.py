@@ -49,6 +49,7 @@ class FakeProviderPort:
             auth_type="bearer",
         )
         self.items: dict[str, StoredProviderConnection] = {}
+        self.ensure_local_calls = 0
 
     def list_products(self) -> tuple[StoredProviderProduct, ...]:
         return (self.product,)
@@ -58,6 +59,7 @@ class FakeProviderPort:
 
     def ensure_local_connection(self, product: StoredProviderProduct) -> None:
         _ = product
+        self.ensure_local_calls += 1
 
     def list_connections(self) -> tuple[StoredProviderConnection, ...]:
         return tuple(self.items.values())
@@ -202,6 +204,13 @@ def test_member_cannot_read_provider_administration() -> None:
 
     with pytest.raises(ProvidersForbidden):
         service.list_connections(_principal("user"), ListProviderConnectionsQuery())
+
+
+def test_list_connections_is_read_only() -> None:
+    service, port, _ = _service()
+
+    assert service.list_connections(_principal(), ListProviderConnectionsQuery()) == ()
+    assert port.ensure_local_calls == 0
 
 
 def test_delete_preserves_food_reference_protection() -> None:

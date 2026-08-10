@@ -41,6 +41,9 @@ def _client(tmp_path, monkeypatch, role: AccountRole = "owner") -> TestClient:
         tmp_path / "providers.yaml",
         tmp_path / "auth.env",
     )
+    local_provider = adapter.get_product("ollama")
+    assert local_provider is not None
+    adapter.ensure_local_connection(local_provider)
     application = FastAPI()
     application.state.providers = ProvidersService(
         catalog=adapter,
@@ -129,9 +132,10 @@ def test_versioned_provider_rejects_unknown_fields_before_persistence(
         "/api/v1/admin/model-providers/connections",
         json={"catalog_id": "openai_api", "unexpected": True},
     )
+    listed = client.get("/api/v1/admin/model-providers/connections")
 
     assert response.status_code == 422
-    assert not (tmp_path / "providers.yaml").exists()
+    assert {item["catalog_id"] for item in listed.json()["items"]} == {"ollama"}
 
 
 def test_versioned_provider_authorization_is_enforced_in_feature(

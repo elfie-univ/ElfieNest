@@ -106,9 +106,6 @@ class ProvidersService:
         _ = query
         self._require_manager(principal)
         try:
-            local = self._catalog.get_product("ollama")
-            if local is not None:
-                self._connections.ensure_local_connection(local)
             return tuple(
                 self._connection_result(item)
                 for item in self._connections.list_connections()

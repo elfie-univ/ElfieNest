@@ -33,11 +33,20 @@ class ApplicationContainer:
 
 def build_application_container(db_path: str) -> ApplicationContainer:
     config_path = get_config_path()
+    provider_models = ProviderModelsAdapter()
     if db_path != ":memory:":
-        config_path = final_root_layout(data_home_from_db_path(db_path)).runtime_config
+        layout = final_root_layout(data_home_from_db_path(db_path))
+        config_path = layout.runtime_config
+        provider_models = ProviderModelsAdapter(
+            layout.providers_config,
+            layout.auth_env,
+        )
     accounts_adapter = SQLiteAccountsAdapter(db_path)
     settings_adapter = RuntimeSettingsAdapter(config_path)
-    provider_models = ProviderModelsAdapter()
+    if db_path != ":memory:":
+        local_provider = provider_models.get_product("ollama")
+        if local_provider is not None:
+            provider_models.ensure_local_connection(local_provider)
     return ApplicationContainer(
         accounts=AccountsService(
             sessions=accounts_adapter,
