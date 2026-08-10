@@ -48,6 +48,11 @@ class UpdateSecuritySettingsCommand:
 
 
 @dataclass(frozen=True)
+class ResetSettingsCommand:
+    pass
+
+
+@dataclass(frozen=True)
 class ElfieSettingsResult:
     max_elfies_per_user: int
     allowed_species_ids: Tuple[SpeciesId, ...]
@@ -65,14 +70,23 @@ class SecuritySettingsResult:
     rate_limit: LoginRateLimit
 
 
+@dataclass(frozen=True)
+class SettingsResetResult:
+    elfies: ElfieSettingsResult
+    runtime: RuntimeSettingsResult
+    security: SecuritySettingsResult
+
+
 __all__ = (
     "ElfieSettingsResult",
     "GetElfieSettingsQuery",
     "GetRuntimeSettingsQuery",
     "GetSecuritySettingsQuery",
     "LoginRateLimit",
+    "ResetSettingsCommand",
     "RuntimeSettingsResult",
     "SecuritySettingsResult",
+    "SettingsResetResult",
     "UpdateElfieSettingsCommand",
     "UpdateRuntimeSettingsCommand",
     "UpdateSecuritySettingsCommand",

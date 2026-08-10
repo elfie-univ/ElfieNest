@@ -51,6 +51,7 @@ from .models import (
     ProviderVerificationResult,
     PullLocalProviderModelsCommand,
     RefreshProviderModelsCommand,
+    RemoveLocalProviderConnectionCommand,
     ReplaceProviderModelsCommand,
     StartLocalProviderCommand,
     UpdateProviderConnectionCommand,
@@ -464,6 +465,27 @@ class ProvidersService:
         except ProviderPortError as error:
             raise ProvidersUnavailable(
                 "Provider connection could not be deleted"
+            ) from error
+        return ProviderConnectionDeletedResult(connection_id=connection.connection_id)
+
+    def remove_local_connection(
+        self,
+        principal: AccountPrincipal,
+        command: RemoveLocalProviderConnectionCommand,
+    ) -> ProviderConnectionDeletedResult:
+        """Preserve the local CLI's explicit Ollama removal use-case."""
+        self._require_manager(principal)
+        connection = self._require_connection(command.connection_id)
+        if connection.catalog_id != "ollama":
+            raise ProvidersValidationError(
+                "Only the default Ollama connection uses local removal"
+            )
+        try:
+            if not self._connections.delete_connection(connection.connection_id):
+                raise ProviderConnectionNotFound(connection.connection_id)
+        except ProviderPortError as error:
+            raise ProvidersUnavailable(
+                "Local Provider connection could not be removed"
             ) from error
         return ProviderConnectionDeletedResult(connection_id=connection.connection_id)
 
@@ -955,6 +977,8 @@ class ProvidersService:
             usage_scope=product.usage_scope,
             discovery_strategy=product.discovery_strategy,
             api_mode=product.api_mode,
+            api_base=product.api_base,
+            auth_type=product.auth_type,
         )
 
     @staticmethod

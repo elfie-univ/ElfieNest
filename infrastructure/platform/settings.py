@@ -134,6 +134,11 @@ class RuntimeSettingsAdapter:
             },
         )
 
+    def reset_settings(self) -> None:
+        document = self._read_document()
+        document["system"] = copy.deepcopy(DEFAULT_SYSTEM_SETTINGS)
+        self._write_document(document)
+
     def _section(self, name: str) -> dict[str, object]:
         document = self._read_document()
         raw_system = document.get("system", {})

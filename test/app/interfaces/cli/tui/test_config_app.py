@@ -5,14 +5,45 @@ import builtins
 import pytest
 from _pytest.capture import CaptureFixture
 
-from ai_runtime.config import LLMRuntimeConfig
-from app.features.configuration.user_config import write_user_config
+from app.features.configuration import (
+    GetElfieSettingsQuery,
+    GetRuntimeSettingsQuery,
+    GetSecuritySettingsQuery,
+    UpdateRuntimeSettingsCommand,
+)
 from app.interfaces.cli.tui import (
     config_app,
     config_editors,
     config_views,
     provider_menu,
 )
+from test.app.interfaces.cli.configuration_test_support import (
+    FakeProvidersService,
+    manager_principal,
+    settings_service,
+    verification,
+)
+
+
+class FakeRuntimeMenus:
+    def __init__(self, calls: list[str]) -> None:
+        self._calls = calls
+
+    def tool_menu(self) -> None:
+        self._calls.append("tools")
+
+    def food_menu(self) -> None:
+        self._calls.append("food")
+
+
+def _run_config_tui(runtime_menus: FakeRuntimeMenus) -> None:
+    config_app.run_config_tui(
+        FakeProvidersService(),
+        settings_service(),
+        manager_principal(),
+        lambda _provider_id: None,
+        runtime_menus,
+    )
 
 
 def test_run_config_tui_exits_from_main_menu(
@@ -21,10 +52,9 @@ def test_run_config_tui_exits_from_main_menu(
 ) -> None:
     monkeypatch.setattr(config_app, "clear_screen", lambda: None)
     monkeypatch.setattr(config_app, "print_banner", lambda: None)
-    monkeypatch.setattr(config_app, "read_user_config", lambda: {})
     _patch_input(monkeypatch, ["0"])
 
-    config_app.run_config_tui(lambda provider_id: None)
+    _run_config_tui(FakeRuntimeMenus([]))
 
     output = capsys.readouterr().out
     assert "Runtime Config" in output
@@ -37,14 +67,13 @@ def test_run_config_tui_exits_cleanly_on_eof(
 ) -> None:
     monkeypatch.setattr(config_app, "clear_screen", lambda: None)
     monkeypatch.setattr(config_app, "print_banner", lambda: None)
-    monkeypatch.setattr(config_app, "read_user_config", lambda: {})
 
     def raise_eof(_prompt: str = "") -> str:
         raise EOFError
 
     monkeypatch.setattr(builtins, "input", raise_eof)
 
-    config_app.run_config_tui(lambda _provider_id: None)
+    _run_config_tui(FakeRuntimeMenus([]))
 
     assert "Goodbye" in capsys.readouterr().out
 
@@ -53,24 +82,12 @@ def test_config_tui_dispatches_three_runtime_layers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[str] = []
-
-    class FakeRuntimeLab:
-        def provider_menu(self):
-            calls.append("provider")
-
-        def tool_menu(self):
-            calls.append("tools")
-
-        def food_menu(self):
-            calls.append("food")
-
-    monkeypatch.setattr(config_app, "RuntimeLab", FakeRuntimeLab)
     monkeypatch.setattr(config_app, "clear_screen", lambda: None)
     monkeypatch.setattr(config_app, "print_banner", lambda: None)
-    monkeypatch.setattr(config_app, "read_user_config", lambda: {})
+    monkeypatch.setattr(config_app, "config_providers", lambda *args: calls.append("provider"))
     _patch_input(monkeypatch, ["1", "2", "3", "0"])
 
-    config_app.run_config_tui(lambda provider_id: None)
+    _run_config_tui(FakeRuntimeMenus(calls))
 
     assert calls == ["provider", "tools", "food"]
 
@@ -79,26 +96,14 @@ def test_config_tui_dispatches_view_and_reset(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[str] = []
-
-    class FakeRuntimeLab:
-        def provider_menu(self):
-            calls.append("provider")
-
-        def tool_menu(self):
-            calls.append("tools")
-
-        def food_menu(self):
-            calls.append("food")
-
-    monkeypatch.setattr(config_app, "RuntimeLab", FakeRuntimeLab)
     monkeypatch.setattr(config_app, "clear_screen", lambda: None)
     monkeypatch.setattr(config_app, "print_banner", lambda: None)
-    monkeypatch.setattr(config_app, "read_user_config", lambda: {})
-    monkeypatch.setattr(config_app, "show_config", lambda _: calls.append("view"))
-    monkeypatch.setattr(config_app, "reset_config", lambda: calls.append("reset"))
+    monkeypatch.setattr(config_app, "config_providers", lambda *args: calls.append("provider"))
+    monkeypatch.setattr(config_app, "show_config", lambda *args: calls.append("view"))
+    monkeypatch.setattr(config_app, "reset_config", lambda *args: calls.append("reset"))
     _patch_input(monkeypatch, ["1", "2", "3", "4", "5", "0"])
 
-    config_app.run_config_tui(lambda provider_id: None)
+    _run_config_tui(FakeRuntimeMenus(calls))
 
     assert calls == ["provider", "tools", "food", "view", "reset"]
 
@@ -107,23 +112,11 @@ def test_config_menu_only_shows_runtime_and_basic_config(
     monkeypatch: pytest.MonkeyPatch,
     capsys: CaptureFixture[str],
 ) -> None:
-    class FakeRuntimeLab:
-        def provider_menu(self):
-            return None
-
-        def tool_menu(self):
-            return None
-
-        def food_menu(self):
-            return None
-
-    monkeypatch.setattr(config_app, "RuntimeLab", FakeRuntimeLab)
     monkeypatch.setattr(config_app, "clear_screen", lambda: None)
     monkeypatch.setattr(config_app, "print_banner", lambda: None)
-    monkeypatch.setattr(config_app, "read_user_config", lambda: {})
     _patch_input(monkeypatch, ["0"])
 
-    config_app.run_config_tui(lambda provider_id: None)
+    _run_config_tui(FakeRuntimeMenus([]))
 
     output = capsys.readouterr().out
     assert "Provider and Model Configuration" in output
@@ -139,127 +132,122 @@ def test_config_llm_redirects_model_management_to_runtime_lab(
     monkeypatch: pytest.MonkeyPatch,
     capsys: CaptureFixture[str],
 ) -> None:
-    config = {"system": {"engine": {"tick_interval_sec": 2.0}}}
     monkeypatch.setattr(config_editors, "clear_screen", lambda: None)
     monkeypatch.setattr(config_editors, "print_banner", lambda: None)
     _patch_input(monkeypatch, [""])
 
-    config_editors.config_llm(config)
+    config_editors.config_llm()
 
-    output = capsys.readouterr().out
-    assert "managed in AI Runtime" in output
-    assert config == {"system": {"engine": {"tick_interval_sec": 2.0}}}
+    assert "managed in AI Runtime" in capsys.readouterr().out
 
 
-def test_security_editor_writes_runtime_security_schema(
+def test_security_editor_writes_typed_security_settings(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Given
-    config = {"system": {"security": {}}}
-    monkeypatch.setattr(config_editors, "write_user_config", lambda _config: None)
+    settings = settings_service()
+    principal = manager_principal()
     _patch_input(monkeypatch, ["1", "14", "2", "8", "3", "600", "0"])
 
-    # When
-    config_editors.config_security(config)
+    config_editors.config_security(settings, principal)
 
-    # Then
-    security = config["system"]["security"]
-    assert security == {
-        "session_ttl_days": 14,
-        "rate_limit": {"max_attempts": 8, "window_seconds": 600},
-    }
-    assert "session_ttl_hours" not in security
-    assert "rate_limit_per_minute" not in security
+    security = settings.get_security_settings(principal, GetSecuritySettingsQuery())
+    assert security.session_ttl_days == 14
+    assert security.rate_limit.max_attempts == 8
+    assert security.rate_limit.window_seconds == 600
 
 
-def test_adoption_editor_round_trips_into_runtime_config(
+def test_adoption_editor_uses_typed_settings_facade(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path,
 ) -> None:
-    # Given
-    config = {"system": {"adoption": {}}}
-    config_path = tmp_path / "config.yaml"
-    monkeypatch.setattr(
-        config_editors,
-        "write_user_config",
-        lambda value: write_user_config(value, config_path),
-    )
+    settings = settings_service()
+    principal = manager_principal()
     _patch_input(monkeypatch, ["1", "5", "0"])
 
-    # When
-    config_editors.config_adoption(config)
-    loaded = LLMRuntimeConfig(config_home=str(tmp_path))
+    config_editors.config_adoption(settings, principal)
 
-    # Then
-    assert loaded.system["adoption"]["max_elfies_per_user"] == 5
-    assert "default_personality_style" not in loaded.system["adoption"]
+    adoption = settings.get_elfie_settings(principal, GetElfieSettingsQuery())
+    assert adoption.max_elfies_per_user == 5
 
 
-def test_reset_config_preserves_provider_settings(
+def test_reset_config_preserves_providers_and_resets_settings(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = {
-        "providers": {"openai": {"api_base": "https://example.invalid"}},
-        "system": {"engine": {"tick_interval_sec": 9.0}},
-    }
-    saved: list[dict] = []
-    monkeypatch.setattr(config_views, "read_user_config", lambda: config)
-    monkeypatch.setattr(config_views, "write_user_config", saved.append)
+    providers = FakeProvidersService()
+    providers.add_connection("openai")
+    settings = settings_service()
+    principal = manager_principal()
+    settings.update_runtime_settings(
+        principal,
+        UpdateRuntimeSettingsCommand(tick_interval_sec=9.0),
+    )
     _patch_input(monkeypatch, ["yes", ""])
 
-    config_views.reset_config()
+    config_views.reset_config(settings, principal)
 
-    assert saved[0]["providers"] == config["providers"]
-    assert saved[0]["system"]["engine"]["tick_interval_sec"] == 1.5
+    assert providers.connections[0].catalog_id == "openai"
+    runtime = settings.get_runtime_settings(principal, GetRuntimeSettingsQuery())
+    assert runtime.tick_interval_sec == 1.5
 
 
 def test_config_providers_dispatches_provider_login(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     selected_provider_ids: list[str] = []
-    monkeypatch.setattr(provider_menu, "clear_screen", lambda: None)
-    monkeypatch.setattr(provider_menu, "print_banner", lambda: None)
-    monkeypatch.setattr(provider_menu, "read_user_config", lambda: {})
-    _patch_input(monkeypatch, ["1", "2", "0"])
+    _patch_input(monkeypatch, ["2", "1", "0"])
 
-    provider_menu.config_providers({}, selected_provider_ids.append)
+    provider_menu.config_providers(
+        FakeProvidersService(),
+        manager_principal(),
+        selected_provider_ids.append,
+    )
 
     assert selected_provider_ids == ["openai"]
+
+
+def test_config_providers_reads_model_overview_through_facade(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: CaptureFixture[str],
+) -> None:
+    _patch_input(monkeypatch, ["1", "", "0"])
+
+    provider_menu.config_providers(
+        FakeProvidersService(),
+        manager_principal(),
+        lambda _provider_id: None,
+    )
+
+    assert "No configured models" in capsys.readouterr().out
 
 
 def test_config_providers_keeps_custom_openai_choice_last(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    providers = FakeProvidersService()
     selected_provider_ids: list[str] = []
-    last_choice = len(provider_menu._ordered_provider_ids())
-    monkeypatch.setattr(provider_menu, "clear_screen", lambda: None)
-    monkeypatch.setattr(provider_menu, "print_banner", lambda: None)
-    monkeypatch.setattr(provider_menu, "read_user_config", lambda: {})
-    _patch_input(monkeypatch, ["1", str(last_choice), "0"])
+    _patch_input(monkeypatch, ["2", str(len(providers.products)), "0"])
 
-    provider_menu.config_providers({}, selected_provider_ids.append)
+    provider_menu.config_providers(
+        providers,
+        manager_principal(),
+        selected_provider_ids.append,
+    )
 
     assert selected_provider_ids == ["custom_openai"]
 
 
-def test_config_providers_displays_custom_provider_name_after_reload(
+def test_config_providers_displays_custom_provider_name(
     monkeypatch: pytest.MonkeyPatch,
     capsys: CaptureFixture[str],
 ) -> None:
-    config = {
-        "providers": {
-            "custom_openai": {
-                "display_name": "My Proxy",
-                "status": "active",
-            }
-        }
-    }
-    monkeypatch.setattr(provider_menu, "clear_screen", lambda: None)
-    monkeypatch.setattr(provider_menu, "print_banner", lambda: None)
-    monkeypatch.setattr(provider_menu, "read_user_config", lambda: config)
+    providers = FakeProvidersService()
+    providers.add_connection("custom_openai", alias="My Proxy")
     _patch_input(monkeypatch, ["0"])
 
-    provider_menu.config_providers({}, lambda provider_id: None)
+    provider_menu.config_providers(
+        providers,
+        manager_principal(),
+        lambda _provider_id: None,
+    )
 
     output = capsys.readouterr().out
     assert "My Proxy" in output
@@ -270,33 +258,34 @@ def test_config_providers_tests_custom_provider_with_custom_name(
     monkeypatch: pytest.MonkeyPatch,
     capsys: CaptureFixture[str],
 ) -> None:
-    config = {
-        "providers": {
-            "custom_openai": {
-                "display_name": "My Proxy",
-                "status": "active",
-            }
-        }
-    }
-    monkeypatch.setattr(provider_menu, "clear_screen", lambda: None)
-    monkeypatch.setattr(provider_menu, "print_banner", lambda: None)
-    monkeypatch.setattr(provider_menu, "read_user_config", lambda: config)
-    monkeypatch.setattr(
-        provider_menu.LLMRuntimeConfig,
-        "load",
-        lambda: type("Config", (), {"providers": config["providers"]})(),
-    )
-    monkeypatch.setattr(
-        provider_menu,
-        "verify_provider",
-        lambda provider_id, runtime_config: {"status": "inactive", "error": "HTTP 400"},
-    )
-    _patch_input(monkeypatch, ["2", "", "0"])
+    providers = FakeProvidersService()
+    providers.add_connection("custom_openai", alias="My Proxy")
+    providers.next_verification = verification("failed", error="HTTP 400")
+    _patch_input(monkeypatch, ["2", "3", "", "0", "0"])
 
-    provider_menu.config_providers({}, lambda provider_id: None)
+    provider_menu.config_providers(
+        providers,
+        manager_principal(),
+        lambda _provider_id: None,
+    )
 
-    output = capsys.readouterr().out
-    assert "❌ My Proxy: HTTP 400" in output
+    assert "❌ My Proxy: HTTP 400" in capsys.readouterr().out
+
+
+def test_config_providers_deletes_connection_through_facade(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    providers = FakeProvidersService()
+    providers.add_connection("openai")
+    _patch_input(monkeypatch, ["2", "4", "yes", "", "0"])
+
+    provider_menu.config_providers(
+        providers,
+        manager_principal(),
+        lambda _provider_id: None,
+    )
+
+    assert providers.connections == []
 
 
 def _patch_input(

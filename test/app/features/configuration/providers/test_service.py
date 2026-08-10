@@ -17,6 +17,7 @@ from app.features.configuration import (
     ProvidersConflict,
     ProvidersForbidden,
     ProvidersService,
+    RemoveLocalProviderConnectionCommand,
     StoredBenchmarkRun,
     StoredLocalProviderBinding,
     StoredLocalProviderCandidate,
@@ -311,3 +312,32 @@ def test_manual_model_management_reuses_connection_fact() -> None:
 
     assert model.model_id == "gpt-test"
     assert listed[0].models[0].display_name == "Test"
+
+
+def test_local_cli_removal_deletes_default_ollama_connection() -> None:
+    service, port, _ = _service()
+    port.product = replace(
+        port.product,
+        catalog_id="ollama",
+        name="Ollama",
+        connection_method="local",
+        usage_scope="local",
+        discovery_strategy="ollama",
+        api_mode="ollama",
+        api_base="http://localhost:11434",
+        auth_type="none",
+    )
+    created = asyncio.run(
+        service.create_connection(
+            _principal(),
+            CreateProviderConnectionCommand(catalog_id="ollama"),
+        )
+    )
+
+    result = service.remove_local_connection(
+        _principal(),
+        RemoveLocalProviderConnectionCommand(created.connection_id),
+    )
+
+    assert result.connection_id == created.connection_id
+    assert port.items == {}

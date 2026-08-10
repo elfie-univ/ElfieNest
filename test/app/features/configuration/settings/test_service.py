@@ -8,6 +8,7 @@ from app.features.accounts import AccountPrincipal, AccountRole
 from app.features.configuration.settings import (
     GetElfieSettingsQuery,
     LoginRateLimit,
+    ResetSettingsCommand,
     SettingsForbidden,
     SettingsService,
     SettingsValidationError,
@@ -51,6 +52,9 @@ class MemorySettingsStore:
 
     def save_security_settings(self, settings: StoredSecuritySettings) -> None:
         self.security = settings
+
+    def reset_settings(self) -> None:
+        self.__init__()
 
 
 def principal(role: AccountRole = "owner") -> AccountPrincipal:
@@ -133,3 +137,14 @@ def test_security_update_preserves_unspecified_rate_limit() -> None:
     assert result.session_ttl_days == 2
     assert result.rate_limit.max_attempts == 5
     assert result.rate_limit.window_seconds == 300
+
+
+def test_reset_settings_uses_store_defaults() -> None:
+    store = MemorySettingsStore()
+    store.runtime = StoredRuntimeSettings(tick_interval_sec=9.0)
+
+    result = SettingsService(store).reset_settings(principal(), ResetSettingsCommand())
+
+    assert result.runtime.tick_interval_sec == 1.5
+    assert result.elfies.max_elfies_per_user == 3
+    assert result.security.session_ttl_days == 7
