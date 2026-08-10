@@ -10,8 +10,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEVELOPER_PRODUCTION_GUARD_FILES = frozenset({"devtools/elfie_lab/app.py"})
 ACTIVE_CHAT_ROUTE_FILES = (
     "app/interfaces/api/v1/me/conversations/routes.py",
-    "app/interfaces/api/v1/realtime_chat_routes.py",
+    "app/interfaces/api/v1/realtime/chat/routes.py",
     "app/interfaces/api/ws_gateway_messaging.py",
+)
+LEGACY_CHAT_INTERFACE_FILES = (
+    "app/interfaces/api/v1/realtime_chat_models.py",
+    "app/interfaces/api/v1/realtime_chat_routes.py",
 )
 APPLICATION_SQL_ROOTS = (
     "app/bootstrap",
@@ -69,6 +73,10 @@ def test_legacy_nest_chat_storage_has_no_runtime_path() -> None:
             offenders.append(relative_path)
 
     assert offenders == []
+    assert all(
+        not (PROJECT_ROOT / relative_path).exists()
+        for relative_path in LEGACY_CHAT_INTERFACE_FILES
+    )
     assert not (
         PROJECT_ROOT / "app/infrastructure/persistence/chat_history.py"
     ).exists()
