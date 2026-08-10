@@ -4,7 +4,7 @@ import type { ReactElement } from "react"
 import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { ApiError, ownerElfiePath, ownerElfies, ownerUsers, ownerWrite, type OwnerElfie } from "../api/client"
+import { ApiError, ownerElfiePath, ownerElfies, ownerUsers, updateElfieFoodPolicy, type OwnerElfie } from "../api/client"
 import { createI18n } from "../i18n/config"
 import type { SupportedLocale } from "../i18n/locale"
 import { OwnerElfieOverview } from "./OwnerElfieOverview"
@@ -16,7 +16,7 @@ vi.mock("../api/client", async (loadOriginal) => {
     ...original,
     ownerElfies: vi.fn(),
     ownerUsers: vi.fn(),
-    ownerWrite: vi.fn(),
+    updateElfieFoodPolicy: vi.fn(),
   }
 })
 
@@ -108,7 +108,7 @@ describe("OwnerElfieOverview", () => {
       },
     ])
     vi.mocked(ownerElfies).mockResolvedValue([elfie])
-    vi.mocked(ownerWrite).mockResolvedValue({})
+    vi.mocked(updateElfieFoodPolicy).mockResolvedValue(elfie.food_policy)
   })
 
   it("shows explicit all-filter labels and keeps the initial API request unfiltered", async () => {
@@ -190,13 +190,10 @@ describe("OwnerElfieOverview", () => {
     expect(screen.getAllByRole("combobox", { name: "主粮" })).toHaveLength(2)
     expect(screen.queryByRole("textbox", { name: "姓名" })).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "保存 星尘" }))
-    expect(vi.mocked(ownerWrite)).toHaveBeenCalledWith(
-      "/api/user/elfies/00000001/food-policy/",
-      "PUT",
+    expect(vi.mocked(updateElfieFoodPolicy)).toHaveBeenCalledWith(
+      "00000001",
+      "standard",
       "csrf",
-      {
-        main_food_id: "standard",
-      },
     )
   })
 

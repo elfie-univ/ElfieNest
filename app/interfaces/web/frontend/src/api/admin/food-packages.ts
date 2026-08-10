@@ -1,8 +1,16 @@
 import { z } from "zod"
 
-import { ownerRead, ownerWrite } from "./http"
+import { ownerRead, ownerWrite } from "../http"
 
-const AssignmentSchema = z.object({ model: z.string() })
+const AssignmentSchema = z.object({ model: z.string() }).strict()
+const FoodRolesSchema = z.object({
+  primary: AssignmentSchema.nullable(),
+  reasoning: AssignmentSchema.nullable(),
+  vision: AssignmentSchema.nullable(),
+  tool: AssignmentSchema.nullable(),
+  fallback: AssignmentSchema.nullable(),
+}).strict()
+
 export const FoodPackageSchema = z.object({
   key: z.string(),
   display_name: z.string(),
@@ -11,52 +19,51 @@ export const FoodPackageSchema = z.object({
   archived: z.boolean(),
   visibility_mode: z.enum(["global", "users"]),
   visible_user_ids: z.array(z.number().int().positive()),
-  roles: z.object({
-    primary: AssignmentSchema.nullable(),
-    reasoning: AssignmentSchema.nullable(),
-    vision: AssignmentSchema.nullable(),
-    tool: AssignmentSchema.nullable(),
-    fallback: AssignmentSchema.nullable(),
-  }),
+  roles: FoodRolesSchema,
   health: z.string(),
   locality: z.string(),
   latest_evidence_at: z.string().nullable(),
-})
+}).strict()
+
 export const FoodCatalogSchema = z.object({
-  version: z.number(),
+  version: z.number().int(),
   global_default_food_id: z.string(),
   global_emergency_food_id: z.string(),
   packages: z.array(FoodPackageSchema),
   eligible_models: z.array(z.object({
     reference: z.string(),
-    display_name: z.string().nullable(),
+    display_name: z.string(),
     local: z.boolean(),
     capabilities: z.array(z.string()),
-  })),
-})
+  }).strict()),
+}).strict()
+
 export const FoodPreviewSchema = z.object({
   food_id: z.string().nullable(),
   candidate: z.object({
     display_name: z.string(),
     enabled: z.boolean(),
-    roles: FoodPackageSchema.shape.roles,
-  }),
+    roles: FoodRolesSchema,
+  }).strict(),
   changes: z.array(z.object({
     role: z.string(),
     old_model: z.string().nullable(),
     new_model: z.string().nullable(),
-  })),
+  }).strict()),
   warnings: z.array(z.string()),
   has_changes: z.boolean(),
-})
+}).strict()
+
 const EditResultSchema = z.object({
   food: FoodPackageSchema,
   warnings: z.array(z.string()),
-})
+}).strict()
+
 const CreateResultSchema = z.object({
   food: FoodPackageSchema,
   catalog: FoodCatalogSchema,
-})
+}).strict()
+
 export type FoodPackage = z.infer<typeof FoodPackageSchema>
 export type FoodCatalog = z.infer<typeof FoodCatalogSchema>
 export type FoodPreview = z.infer<typeof FoodPreviewSchema>
@@ -64,8 +71,10 @@ export type FoodPackageDraft = Pick<FoodPackage, "display_name" | "enabled" | "r
   readonly visible_user_ids: readonly number[]
 }
 
+const COLLECTION_PATH = "/api/v1/admin/food-packages"
+
 export async function ownerFoods(): Promise<FoodCatalog> {
-  return FoodCatalogSchema.parse(await ownerRead("/api/owner/runtime/foods/"))
+  return FoodCatalogSchema.parse(await ownerRead(COLLECTION_PATH))
 }
 
 export async function previewFoodUpdate(
@@ -78,7 +87,7 @@ export async function previewFoodUpdate(
   csrfToken: string,
 ): Promise<FoodPreview> {
   return FoodPreviewSchema.parse(await ownerWrite(
-    `/api/owner/runtime/foods/${encodeURIComponent(foodId)}/generation-preview`,
+    `${COLLECTION_PATH}/${encodeURIComponent(foodId)}/generation-preview`,
     "POST",
     csrfToken,
     {
@@ -101,7 +110,7 @@ export async function previewNewFood(
   csrfToken: string,
 ): Promise<FoodPreview> {
   return FoodPreviewSchema.parse(await ownerWrite(
-    "/api/owner/runtime/foods/generation-preview",
+    `${COLLECTION_PATH}/generation-preview`,
     "POST",
     csrfToken,
     {
@@ -121,7 +130,7 @@ export async function editFood(
   csrfToken: string,
 ): Promise<{ readonly food: FoodPackage; readonly warnings: readonly string[] }> {
   return EditResultSchema.parse(await ownerWrite(
-    `/api/owner/runtime/foods/${encodeURIComponent(foodId)}`,
+    `${COLLECTION_PATH}/${encodeURIComponent(foodId)}`,
     "PUT",
     csrfToken,
     recipe,
@@ -133,7 +142,7 @@ export async function createFood(
   csrfToken: string,
 ): Promise<z.infer<typeof CreateResultSchema>> {
   return CreateResultSchema.parse(await ownerWrite(
-    "/api/owner/runtime/foods/",
+    COLLECTION_PATH,
     "POST",
     csrfToken,
     draft,
@@ -146,7 +155,7 @@ export async function changeFoodLifecycle(
   csrfToken: string,
 ): Promise<FoodPackage> {
   return FoodPackageSchema.parse(await ownerWrite(
-    `/api/owner/runtime/foods/${encodeURIComponent(foodId)}/${action}`,
+    `${COLLECTION_PATH}/${encodeURIComponent(foodId)}/${action}`,
     "POST",
     csrfToken,
   ))
@@ -154,7 +163,7 @@ export async function changeFoodLifecycle(
 
 export async function deleteFood(foodId: string, csrfToken: string): Promise<FoodCatalog> {
   return FoodCatalogSchema.parse(await ownerWrite(
-    `/api/owner/runtime/foods/${encodeURIComponent(foodId)}`,
+    `${COLLECTION_PATH}/${encodeURIComponent(foodId)}`,
     "DELETE",
     csrfToken,
   ))
