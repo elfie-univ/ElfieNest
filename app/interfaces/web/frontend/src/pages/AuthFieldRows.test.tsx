@@ -3,8 +3,8 @@ import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import * as client from "../api/client"
-import type { SetupStatus } from "../api/client"
+import * as client from "../api/setup"
+import type { SetupStatus } from "../api/setup"
 import { createI18n } from "../i18n/config"
 import { LoginPage } from "./LoginPage"
 import { SetupPage } from "./SetupPage"
@@ -37,10 +37,10 @@ const freshSetupStatus: SetupStatus = {
   },
   last_error: null,
   steps: [
-    { name: "Owner", number: 1, status: "current" },
-    { name: "Offline", number: 2, status: "pending" },
-    { name: "Nest", number: 3, status: "pending" },
-    { name: "Review", number: 4, status: "pending" },
+    { name: "Owner", number: 1, status: "current", retry_action: null },
+    { name: "Offline", number: 2, status: "pending", retry_action: null },
+    { name: "Nest", number: 3, status: "pending", retry_action: null },
+    { name: "Review", number: 4, status: "pending", retry_action: null },
   ],
 }
 

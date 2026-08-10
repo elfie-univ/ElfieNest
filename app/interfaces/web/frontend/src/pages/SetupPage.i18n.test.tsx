@@ -3,11 +3,11 @@ import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
-import * as client from "../api/client"
+import * as client from "../api/setup"
 import { createI18n } from "../i18n/config"
 import { initializeLocale, type SupportedLocale } from "../i18n/locale"
 import { SetupPage } from "./SetupPage"
-import type { SetupStatus } from "../api/client"
+import type { SetupStatus } from "../api/setup"
 
 function statusFor(
   currentStep: number,
@@ -42,10 +42,10 @@ function statusFor(
     },
     last_error: null,
     steps: [
-      { name: "Owner", number: 1, status: currentStep > 1 ? "completed" : currentStep === 1 ? "current" : "pending" },
-      { name: "Offline", number: 2, status: currentStep > 2 ? "completed" : currentStep === 2 ? "current" : "pending" },
-      { name: "Nest", number: 3, status: currentStep > 3 ? "completed" : currentStep === 3 ? "current" : "pending" },
-      { name: "Review", number: 4, status: currentStep === 4 ? "current" : "pending" },
+      { name: "Owner", number: 1, status: currentStep > 1 ? "completed" : currentStep === 1 ? "current" : "pending", retry_action: null },
+      { name: "Offline", number: 2, status: currentStep > 2 ? "completed" : currentStep === 2 ? "current" : "pending", retry_action: null },
+      { name: "Nest", number: 3, status: currentStep > 3 ? "completed" : currentStep === 3 ? "current" : "pending", retry_action: null },
+      { name: "Review", number: 4, status: currentStep === 4 ? "current" : "pending", retry_action: null },
     ],
     ...overrides,
   }
