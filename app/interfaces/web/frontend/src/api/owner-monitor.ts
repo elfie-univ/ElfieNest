@@ -49,6 +49,7 @@ const ProviderSummarySchema = z.object({
     retired: z.boolean(),
   }).passthrough()),
 }).passthrough()
+const ProviderListSchema = z.object({ items: z.array(ProviderSummarySchema) }).transform(({ items }) => items)
 
 const OllamaStatusSchema = z.object({
   state: z.enum(["absent", "healthy", "stopped", "deleted", "installing", "failed", "cancelled", "repair_required"]),
@@ -79,7 +80,10 @@ export type MonitorSnapshot = {
   readonly authRequired: boolean
 }
 
-async function readSchema<T>(path: string, schema: z.ZodType<T>): Promise<T> {
+async function readSchema<Output, Input>(
+  path: string,
+  schema: z.ZodType<Output, z.ZodTypeDef, Input>,
+): Promise<Output> {
   return schema.parse(await ownerRead(path))
 }
 
@@ -102,7 +106,7 @@ export async function loadMonitorSnapshot(): Promise<MonitorSnapshot> {
     readSchema("/api/owner/users", z.array(UserSummarySchema)),
     readSchema("/api/owner/elfies", z.array(ElfieSummarySchema)),
     readSchema("/api/v1/admin/nest/rooms", RoomListSchema),
-    readSchema("/api/owner/providers/connections", z.array(ProviderSummarySchema)),
+    readSchema("/api/v1/admin/model-providers/connections", ProviderListSchema),
     readSchema("/api/owner/providers/ollama", OllamaStatusSchema),
   ] as const)
   const [health, runtime, users, elfies, rooms, providers, ollama] = results

@@ -22,7 +22,7 @@ from fastapi.staticfiles import StaticFiles
 
 from ai_runtime.storage.data_home import get_db_path as _get_db_path
 from app.features.accounts import AccountPrincipal, AccountsService
-from app.features.configuration import SettingsService
+from app.features.configuration import ProvidersService, SettingsService
 from app.features.elfies import ElfiesService
 from app.features.nest_management import NestManagementService
 from app.features.setup.installer import (
@@ -100,6 +100,7 @@ def create_http_application(
     settings: SettingsService,
     nest_management: NestManagementService,
     elfies: ElfiesService,
+    providers: ProvidersService,
     engine: Any = None,
     db_path: Optional[str] = None,
     ws_port: int = 8766,
@@ -163,6 +164,7 @@ def create_http_application(
     app.state.settings = settings
     app.state.nest_management = nest_management
     app.state.elfies = elfies
+    app.state.providers = providers
     app.state.db_path = db_path
     app.state.food_repository = SQLiteFoodPackageRepository(db_path)
     app.state.engine = engine
@@ -282,6 +284,9 @@ def create_http_application(
     # -------------------------------------------------------------------
     from .account_auth_routes import router as account_auth_router  # noqa: PLC0415
     from .setup_routes import router as setup_router  # noqa: PLC0415
+    from .v1.admin.model_providers import (
+        router as model_providers_router,  # noqa: PLC0415
+    )
     from .v1.admin.nest import router as nest_management_router  # noqa: PLC0415
     from .v1.admin.settings import router as settings_router  # noqa: PLC0415
     from .v1.auth.routes import router as auth_router  # noqa: PLC0415
@@ -289,6 +294,7 @@ def create_http_application(
     app.include_router(auth_router)
     app.include_router(settings_router)
     app.include_router(nest_management_router)
+    app.include_router(model_providers_router)
     app.include_router(account_auth_router)
     app.include_router(setup_router)
     app.include_router(page_router)

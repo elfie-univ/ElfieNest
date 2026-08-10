@@ -149,6 +149,24 @@ Machine baseline entries removed: old cognition Feature-to-Infrastructure import
 Status: in progress
 ```
 
+### Configuration: model Provider administration
+
+```text
+Domain: configuration/providers
+Gap IDs: APP-001, APP-003, APP-004, APP-005, APP-006, APP-007, APP-009, APP-011, APP-012
+Current authoritative facts: v2 providers.yaml connection/model records; Secrets addressed by credential references; the existing Provider catalog and validation/benchmark reports
+Routes and production callers: /api/v1/admin/model-providers catalog, connection, model, validation, matrix and benchmark resources; management Provider client; legacy CLI configuration entry; mixed Setup/Ollama entry
+Target public facade and models: Providers administration facade; strict commands, queries and results for the existing CRUD, lifecycle, verification, refresh, matrix and benchmark behaviors
+Ports and adapters: consumer-owned narrow Ports express catalog/connections, Food reference protection and technical probe/discovery/report work; root Infrastructure Models and Persistence adapters implement them and Bootstrap injects them
+Consistency class: existing atomic v2 typed connection/Secret updates; validation, discovery and benchmark are bounded external work; reports retain the existing persisted authority
+Principal and authorization: Interface authenticates an account principal; Providers authorizes administrators; ordinary members cannot read management projections
+Timeout / retry / idempotency: preserve existing bounded Provider timeouts, concurrency limits and cache/validation policy; add no automatic retry or Provider capability
+Legacy deletion list: old Provider management Routes and /api/owner/providers connection/model resources; API-layer technical validation implementation; old management frontend paths; CLI runtime.yaml/auth.env v1 write chain
+Focused tests and end-to-end gate: Feature, Adapter and strict v1 Route; CRUD, validation, refresh, matrix, benchmark, cancellation/failure and Food-reference regressions; frontend Provider/monitor clients; App and AI Runtime architecture gates
+Machine baseline entries removed: old Provider Route construction, loose models, unversioned connection/model resources and migrated API technical implementation
+Status: in progress
+```
+
 ## Current-to-target migration map
 
 The normative owners are defined only by the Application contract. This table

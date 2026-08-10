@@ -128,15 +128,15 @@ function monitorPayload(path: string, lastEvent: RuntimeEventFixture | null = nu
       ]
     case "/api/v1/admin/nest/rooms":
       return { items: [{ beds: [{ occupant_id: "elfie-1" }, { occupant_id: null }] }] }
-    case "/api/owner/providers/connections":
-      return [{
+    case "/api/v1/admin/model-providers/connections":
+      return { items: [{
         catalog_id: "ollama",
         alias: "Ollama",
         enabled: true,
         archived: false,
         verification: { status: "passed" },
         models: [{ available: true, hidden: false, retired: false }],
-      }]
+      }] }
     case "/api/owner/providers/ollama":
       return { state: "healthy", recommended_model: "qwen2.5:0.5b", installed_model_count: 1 }
     default:
