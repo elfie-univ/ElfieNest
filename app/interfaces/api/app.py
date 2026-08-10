@@ -9,12 +9,13 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Optional  # noqa: E402
+from typing import Any, AsyncIterator, Optional  # noqa: E402
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import RequestResponseEndpoint
 
 from ai_runtime.storage.data_home import get_db_path as _get_db_path
 from app.features.accounts import AccountsService
@@ -140,7 +141,7 @@ def create_http_application(
         db_path = str(_get_db_path())
 
     @asynccontextmanager
-    async def lifespan(app: FastAPI):
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         init_db(db_path)
         setup_installation.recover()
         seed_initial_owner_if_env_set(db_path)
@@ -238,7 +239,10 @@ def create_http_application(
     # CSRF 中间件（login 端点豁免）
     # -------------------------------------------------------------------
     @app.middleware("http")
-    async def csrf_middleware(request: Request, call_next):
+    async def csrf_middleware(
+        request: Request,
+        call_next: RequestResponseEndpoint,
+    ) -> Response:
         if request.method in ("POST", "PUT", "PATCH", "DELETE"):
             path = request.url.path
             csrf_exempt = path == "/api/v1/auth/login"

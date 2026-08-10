@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime, timezone
-from typing import List, Optional, cast
+from typing import Optional
 
 from app.orchestration.nest_session.ports import (
     CorticalRuntimeFactory,
@@ -54,14 +54,11 @@ class ElfieNestEngine:
 
     def _collect_world_sensory_events(self, elfie_id: str) -> list[BodySensorEvent]:
         """Convert only physical room facts into typed Body sensor events."""
-        return cast(
-            List[BodySensorEvent],
-            collect_world_sensory_events(
-                nest=self.nest,
-                session=self.session,
-                elfie_id=elfie_id,
-                captured_at=self._simulation_datetime(),
-            ),
+        return collect_world_sensory_events(
+            nest=self.nest,
+            session=self.session,
+            elfie_id=elfie_id,
+            captured_at=self._simulation_datetime(),
         )
 
     def _simulation_datetime(self) -> datetime:

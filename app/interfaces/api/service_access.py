@@ -9,8 +9,9 @@ from enum import Enum
 from typing import Final, Optional, Sequence, Tuple
 from urllib.parse import urlparse
 
-from fastapi import Request
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import RequestResponseEndpoint
 
 
 class ServiceMode(str, Enum):
@@ -121,13 +122,16 @@ def _authority_parts(authority: str) -> Tuple[str, Optional[int]]:
         return "", None
 
 
-def configure_service_access(app, policy: ServiceAccessPolicy) -> None:
+def configure_service_access(app: FastAPI, policy: ServiceAccessPolicy) -> None:
     """Install host/origin guards and expose the policy to routers and CORS."""
     app.state.service_access_policy = policy
     app.state.anonymous_paths = ANONYMOUS_PATHS
 
     @app.middleware("http")
-    async def enforce_host_and_origin(request: Request, call_next):
+    async def enforce_host_and_origin(
+        request: Request,
+        call_next: RequestResponseEndpoint,
+    ) -> Response:
         if policy.mode is ServiceMode.LOOPBACK:
             return await call_next(request)
         host = request.headers.get("host", "")

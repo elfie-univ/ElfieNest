@@ -208,9 +208,10 @@ class TestAdoptionJourney:
             headers=headers,
         )
         assert committed.status_code == 201, committed.text
-        profile = client.get(
+        profile_detail = client.get(
             f"/api/v1/elfies/{committed.json()['elfie_id']}/profile", headers=headers
         ).json()
+        profile = profile_detail["profile"]
         assert profile["name"] == "星砂"
         assert profile["gender"] == selected[0]["gender"]
         assert profile["birth_date"] is not None

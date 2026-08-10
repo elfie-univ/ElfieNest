@@ -18,7 +18,7 @@ from app.orchestration.observer import ObserverFacade, session_token_fingerprint
 
 from ...page_routes import post_login_landing_path
 from .dependencies import accounts_service, get_current_user
-from .models import ErrorResponse, LoginResponse, LogoutResponse
+from .models import AuthUserResponse, ErrorResponse, LoginResponse, LogoutResponse
 from .security import generate_csrf_token
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -72,13 +72,13 @@ async def login(
     csrf_token = generate_csrf_token(authenticated.session_token)
     principal = authenticated.principal
     response_body = LoginResponse(
-        user={
-            "user_id": principal.user_id,
-            "account_id": principal.account_id,
-            "display_name": authenticated.display_name,
-            "role": principal.role,
-            "default_landing_page": principal.default_landing_page,
-        },
+        user=AuthUserResponse(
+            user_id=principal.user_id,
+            account_id=principal.account_id,
+            display_name=authenticated.display_name,
+            role=principal.role,
+            default_landing_page=principal.default_landing_page,
+        ),
         csrf_token=csrf_token,
         landing_path=post_login_landing_path(
             principal, request.query_params.get("next")

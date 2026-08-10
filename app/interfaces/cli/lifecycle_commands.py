@@ -13,8 +13,6 @@ import webbrowser
 from pathlib import Path
 from typing import Final, Optional, Sequence
 
-from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.providers.ollama import OllamaManager, OllamaNotReadyError
 from ai_runtime.storage.data_home import (
     DataHomeSelectionError,
     get_elfie_home,
@@ -72,7 +70,7 @@ def _supervisor_for(
             nonce=generation_nonce,
         ),
         health_probe=lambda: _full_runtime_health(lifecycle, http_port),
-        prepare_optional_component=_start_configured_public_ollama,
+        prepare_optional_component=lifecycle.prepare_optional_component,
         authority_timeout_seconds=AUTHORITY_START_TIMEOUT_SECONDS,
         core_timeout_seconds=BACKGROUND_START_TIMEOUT_SECONDS,
         child_environment={
@@ -106,7 +104,7 @@ def _full_runtime_health(lifecycle: LifecycleFacade, port: int) -> RuntimeHealth
         pass
     ollama = (
         RuntimeHealthState.READY
-        if _configured_ollama_is_ready()
+        if lifecycle.optional_component_ready()
         else RuntimeHealthState.FAILED
     )
     return RuntimeHealth(
@@ -122,32 +120,16 @@ def _full_runtime_health(lifecycle: LifecycleFacade, port: int) -> RuntimeHealth
     )
 
 
-def _configured_ollama_is_ready() -> bool:
-    """Probe Ollama without adopting or stopping a public installation."""
-    return OllamaManager(
-        LLMRuntimeConfig(ollama_host="http://localhost:11434")
-    ).check_health()
-
-
-def _start_configured_public_ollama() -> None:
-    """Only request startup through Ollama's recorded public-installation binding."""
-    manager = OllamaManager(LLMRuntimeConfig(ollama_host="http://localhost:11434"))
-    try:
-        manager.ensure_service_started()
-    except OllamaNotReadyError:
-        return
-
-
 class ProgressIndicator:
     """Simple progress indicator with spinner animation."""
 
-    def __init__(self, message: str = "Starting"):
+    def __init__(self, message: str = "Starting") -> None:
         self.message = message
         self.running = False
         self.thread: Optional[threading.Thread] = None
         self.spinner_chars = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
-    def _spin(self):
+    def _spin(self) -> None:
         idx = 0
         while self.running:
             spinner = self.spinner_chars[idx % len(self.spinner_chars)]
@@ -155,13 +137,18 @@ class ProgressIndicator:
             time.sleep(0.1)
             idx += 1
 
-    def start(self):
+    def start(self) -> None:
         """Start the spinner animation."""
         self.running = True
         self.thread = threading.Thread(target=self._spin, daemon=True)
         self.thread.start()
 
-    def stop(self, success: bool = True, *, message: Optional[str] = None):
+    def stop(
+        self,
+        success: bool = True,
+        *,
+        message: Optional[str] = None,
+    ) -> None:
         """Stop the spinner and show result."""
         self.running = False
         if self.thread:

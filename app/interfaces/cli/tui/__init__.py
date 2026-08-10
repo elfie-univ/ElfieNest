@@ -3,7 +3,7 @@
 __all__ = ["run_config_tui", "run_setup_wizard"]
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> object:
     if name == "run_config_tui":
         from .config_app import run_config_tui
 

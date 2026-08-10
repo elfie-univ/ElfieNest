@@ -2,7 +2,7 @@
 
 from .capabilities import *  # noqa: F403
 from .capabilities import __all__ as _capabilities_all
-from .food import FoodService
+from .food import FoodService as FoodService
 from .providers import *  # noqa: F403
 from .providers import __all__ as _providers_all
 from .settings import (

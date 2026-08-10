@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import (
@@ -28,6 +28,7 @@ _SHELL_CACHE_HEADERS = {
     "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
     "Pragma": "no-cache",
 }
+LandingPath = Literal["/chat", "/manage", "/monitor"]
 
 
 def safe_next_path(raw_next: Optional[str]) -> Optional[str]:
@@ -37,7 +38,7 @@ def safe_next_path(raw_next: Optional[str]) -> Optional[str]:
     return None
 
 
-def default_landing_path(user: AccountPrincipal) -> str:
+def default_landing_path(user: AccountPrincipal) -> LandingPath:
     """Resolve the current role's server-enforced default landing page."""
     if user.role in {"owner", "admin"}:
         preference = user.default_landing_page
@@ -49,7 +50,7 @@ def default_landing_path(user: AccountPrincipal) -> str:
 
 def post_login_landing_path(
     user: AccountPrincipal, raw_next: Optional[str]
-) -> str:
+) -> LandingPath:
     """Resolve login landing without letting generic chat redirects steal Owner flow."""
     safe_next = safe_next_path(raw_next)
     if user.role in {"owner", "admin"} and safe_next == "/manage":

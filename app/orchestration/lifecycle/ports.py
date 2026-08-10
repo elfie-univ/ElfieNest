@@ -220,6 +220,16 @@ class RuntimeChannelPort(Protocol):
         """Stop the channel and release its listening resources."""
 
 
+class OptionalRuntimeComponentPort(Protocol):
+    """Optional local component needed by the full Runtime health projection."""
+
+    def ready(self) -> bool:
+        """Return whether the optional component is currently usable."""
+
+    def prepare(self) -> None:
+        """Best-effort start of an already configured public installation."""
+
+
 class RuntimeRecordPort(Protocol):
     """Durable owner-generation record required by RuntimeSupervisor."""
 

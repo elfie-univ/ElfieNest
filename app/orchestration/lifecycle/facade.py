@@ -16,6 +16,7 @@ from app.orchestration.lifecycle.ports import (
     HttpProbeResult,
     LifecycleLease,
     LocalProcessEntry,
+    OptionalRuntimeComponentPort,
     ProcessSnapshot,
     RecoveryLockPort,
     RuntimeChannelPort,
@@ -60,6 +61,7 @@ class LifecycleFacade:
         http_probe: HttpProbePort,
         runtime_record_factory: RuntimeRecordFactory,
         authority_host_factory: AuthorityHostFactory,
+        optional_component: Optional[OptionalRuntimeComponentPort] = None,
     ) -> None:
         self._process_port = process_port
         self._recovery_lock = recovery_lock
@@ -67,6 +69,20 @@ class LifecycleFacade:
         self._http_probe = http_probe
         self._runtime_record_factory = runtime_record_factory
         self._authority_host_factory = authority_host_factory
+        self._optional_component = optional_component
+
+    def optional_component_ready(self) -> bool:
+        """Project optional Runtime readiness without exposing its technology."""
+        return (
+            False
+            if self._optional_component is None
+            else self._optional_component.ready()
+        )
+
+    def prepare_optional_component(self) -> None:
+        """Best-effort prepare the injected optional Runtime component."""
+        if self._optional_component is not None:
+            self._optional_component.prepare()
 
     def runtime_supervisor(
         self,

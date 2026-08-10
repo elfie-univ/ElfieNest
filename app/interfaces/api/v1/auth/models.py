@@ -44,4 +44,4 @@ class ErrorResponse(BaseModel):
     error: ErrorBody
 
 
-__all__ = ("ErrorResponse", "LoginResponse", "LogoutResponse")
+__all__ = ("AuthUserResponse", "ErrorResponse", "LoginResponse", "LogoutResponse")

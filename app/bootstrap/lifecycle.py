@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from app.orchestration.lifecycle import LifecycleFacade
 from infrastructure.godot.lifecycle.authority import GodotAuthorityHostAdapter
+from infrastructure.models import OllamaLifecycleAdapter, PublicOllamaProviderAdapter
 from infrastructure.platform.lifecycle.desktop import LocalDesktopHostAdapter
 from infrastructure.platform.lifecycle.http_probe import UrllibHttpProbeAdapter
 from infrastructure.platform.lifecycle.process import LocalServiceProcessAdapter
@@ -20,4 +21,5 @@ def create_lifecycle_facade() -> LifecycleFacade:
         http_probe=UrllibHttpProbeAdapter(),
         runtime_record_factory=FileRuntimeRecordAdapter,
         authority_host_factory=GodotAuthorityHostAdapter,
+        optional_component=OllamaLifecycleAdapter(PublicOllamaProviderAdapter()),
     )
