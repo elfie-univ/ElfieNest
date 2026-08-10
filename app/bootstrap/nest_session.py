@@ -11,11 +11,11 @@ from app.infrastructure.persistence.nest_state_repository import (
     SQLiteNestStateRepository,
 )
 from app.orchestration.nest_session import CorticalRuntimeFactory, ElfieNestEngine
-from app.orchestration.runtime_adapter import (
+from infrastructure.godot.nest_session import GodotNestSessionAdapter
+from infrastructure.models.runtime_adapter import (
     SerializedRuntimeAdapter,
     StructuredRuntime,
 )
-from infrastructure.godot.nest_session import GodotNestSessionAdapter
 
 MainFoodLoader = Callable[[str], Optional[Union[str, MainFoodSelection]]]
 

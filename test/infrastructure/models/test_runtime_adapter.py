@@ -6,10 +6,6 @@ from datetime import datetime, timedelta, timezone
 from threading import Event, Lock, Thread
 
 from ai_runtime.food.resolver import MainFoodSelection
-from app.orchestration.runtime_adapter import (
-    RuntimeRequestAbandonedError,
-    SerializedRuntimeAdapter,
-)
 from elfie.brain.limbic_appraiser import BrainClockPulse
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
 from elfie.brain.runtime_port import (
@@ -17,6 +13,10 @@ from elfie.brain.runtime_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,
     StructuredOutputMode,
+)
+from infrastructure.models.runtime_adapter import (
+    RuntimeRequestAbandonedError,
+    SerializedRuntimeAdapter,
 )
 from test.elfie.brain.test_coordinator import (
     ELFIE_ID,

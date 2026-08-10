@@ -1,4 +1,4 @@
-"""Thread-safe adapter between Brain contracts and AI Runtime contracts."""
+"""Thread-safe Adapter between Brain contracts and AI Runtime contracts."""
 
 from __future__ import annotations
 
@@ -196,4 +196,8 @@ class SerializedRuntimeAdapter:
         return StructuredOutputMode.JSON_TEXT
 
 
-__all__ = ("RuntimeRequestAbandonedError", "SerializedRuntimeAdapter")
+__all__ = (
+    "RuntimeRequestAbandonedError",
+    "SerializedRuntimeAdapter",
+    "StructuredRuntime",
+)
