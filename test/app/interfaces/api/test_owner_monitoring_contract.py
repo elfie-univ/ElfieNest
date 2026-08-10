@@ -77,7 +77,7 @@ def monitoring_world(client: TestClient) -> dict:
     owner = _login(client, "owner", "ownerchangeme")
     for account_id, password in (("alice", "alice-pass"), ("bob", "bob-pass")):
         response = client.post(
-            "/api/owner/users",
+            "/api/v1/admin/users",
             json={"account_id": account_id, "password": password, "role": "user"},
             headers=_headers(str(owner["csrf_token"])),
         )

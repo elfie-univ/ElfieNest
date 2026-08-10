@@ -129,8 +129,8 @@ function monitorPayload(path: string, fixture: MonitorFixture): unknown {
         status: fixture.runtimeStatus,
         observer: { event_count: 1, last_event: null },
       }
-    case "/api/owner/users":
-      return [{ presence: "online" }, { presence: "online" }]
+    case "/api/v1/admin/users":
+      return { items: [{ presence: "online" }, { presence: "online" }] }
     case "/api/owner/elfies":
       return [
         { elfie_id: "elfie-1", profile: { online_status: "online" } },

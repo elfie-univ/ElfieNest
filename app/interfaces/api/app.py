@@ -47,7 +47,6 @@ from nest.godot_gateway.bundle import (
 )
 
 from .page_routes import router as page_router
-from .profile_routes import router as profile_router
 from .request_limits import AvatarUploadBodyLimitMiddleware
 from .service_access import ServiceAccessPolicy, configure_service_access
 from .v1.auth import get_current_user, verify_csrf_token
@@ -282,23 +281,24 @@ def create_http_application(
     # -------------------------------------------------------------------
     # Setup Wizard 路由（首启向导 — 在 owner 路由之前注册）
     # -------------------------------------------------------------------
-    from .account_auth_routes import router as account_auth_router  # noqa: PLC0415
     from .setup_routes import router as setup_router  # noqa: PLC0415
     from .v1.admin.model_providers import (
         router as model_providers_router,  # noqa: PLC0415
     )
     from .v1.admin.nest import router as nest_management_router  # noqa: PLC0415
     from .v1.admin.settings import router as settings_router  # noqa: PLC0415
+    from .v1.admin.users import router as admin_users_router  # noqa: PLC0415
     from .v1.auth.routes import router as auth_router  # noqa: PLC0415
+    from .v1.me import router as me_router  # noqa: PLC0415
 
     app.include_router(auth_router)
     app.include_router(settings_router)
     app.include_router(nest_management_router)
     app.include_router(model_providers_router)
-    app.include_router(account_auth_router)
+    app.include_router(me_router)
+    app.include_router(admin_users_router)
     app.include_router(setup_router)
     app.include_router(page_router)
-    app.include_router(profile_router)
     from .v1.client_routes import router as v1_client_router  # noqa: PLC0415
     from .v1.device_routes import router as v1_device_router  # noqa: PLC0415
 
@@ -309,9 +309,7 @@ def create_http_application(
     # Owner REST API 路由
     # -------------------------------------------------------------------
     from .owner_elfie_routes import router as owner_elfie_router  # noqa: PLC0415
-    from .owner_user_routes import router as owner_user_router  # noqa: PLC0415
 
-    app.include_router(owner_user_router)
     app.include_router(owner_elfie_router)
     from .user_routes import router as user_router  # noqa: PLC0415
 

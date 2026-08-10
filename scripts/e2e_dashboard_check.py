@@ -228,12 +228,12 @@ def main() -> None:
         if ok:
             print("    ✅ Owner login succeeded")
             status, data, raw, _ = owner.post_json(
-                "/api/owner/users",
+                "/api/v1/admin/users",
                 {"account_id": "alice", "password": "alice123", "role": "user"},
                 headers={"X-CSRF-Token": owner_csrf},
             )
             if status == 201:
-                print(f"    ✅ Created user alice (id={data.get('id')})")
+                print(f"    ✅ Created user alice (id={data.get('user_id')})")
                 results[0] = True
             else:
                 print(f"    ❌ Failed to create user: {status} {raw[:200]}")

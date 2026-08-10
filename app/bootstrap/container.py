@@ -12,14 +12,15 @@ from app.features.elfies import ElfiesService
 from app.features.nest_management import NestManagementService
 from infrastructure.models import ProviderModelsAdapter
 from infrastructure.persistence import (
-    SQLiteAccountsAdapter,
     SQLiteElfiesProjectionAdapter,
     SQLiteNestManagementAdapter,
 )
 from infrastructure.persistence.provider_references import (
     SQLiteProviderReferenceAdapter,
 )
-from infrastructure.platform import RuntimeSecurityPolicyAdapter, RuntimeSettingsAdapter
+from infrastructure.platform import RuntimeSettingsAdapter
+
+from .accounts import build_accounts_service
 
 
 @dataclass(frozen=True)
@@ -41,17 +42,13 @@ def build_application_container(db_path: str) -> ApplicationContainer:
             layout.providers_config,
             layout.auth_env,
         )
-    accounts_adapter = SQLiteAccountsAdapter(db_path)
     settings_adapter = RuntimeSettingsAdapter(config_path)
     if db_path != ":memory:":
         local_provider = provider_models.get_product("ollama")
         if local_provider is not None:
             provider_models.ensure_local_connection(local_provider)
     return ApplicationContainer(
-        accounts=AccountsService(
-            sessions=accounts_adapter,
-            security_policy=RuntimeSecurityPolicyAdapter(settings_adapter),
-        ),
+        accounts=build_accounts_service(db_path, settings=settings_adapter),
         settings=SettingsService(settings_adapter),
         nest_management=NestManagementService(SQLiteNestManagementAdapter(db_path)),
         elfies=ElfiesService(SQLiteElfiesProjectionAdapter(db_path)),

@@ -11,7 +11,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.interfaces.api.v1.auth import verify_csrf_token
 
-_AVATAR_UPLOAD_PATH: Final[str] = "/api/auth/me/avatar"
+_AVATAR_UPLOAD_PATH: Final[str] = "/api/v1/me/avatar"
 _MAX_AVATAR_REQUEST_BYTES: Final[int] = 2 * 1024 * 1024 + 64 * 1024
 _MAX_ACTIVE_UPLOADS: Final[int] = 4
 _UPLOAD_BODY_DEADLINE_SECONDS: Final[float] = 10.0

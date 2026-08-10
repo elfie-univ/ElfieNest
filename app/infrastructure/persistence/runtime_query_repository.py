@@ -5,10 +5,8 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass
 
-from app.infrastructure.persistence.account_repository import AccountRepository
 from app.infrastructure.persistence.elfie_repository import ElfieRecord, ElfieRepository
 from app.infrastructure.persistence.store import get_db
-from infrastructure.persistence import hash_session_token
 
 
 @dataclass(frozen=True)  # CPython 3.9 uses explicit __slots__ below.
@@ -66,69 +64,6 @@ class RuntimeQueryRepository:
                 f"{_ACCOUNT_SELECT} WHERE id=?", (user_id,)
             ).fetchone()
         return None if row is None else _account(row)
-
-    def update_profile(
-        self,
-        user_id: int,
-        *,
-        account_id: str,
-        display_name: str | None,
-        avatar_color: int,
-        avatar_kind: str,
-        gender: str,
-        birth_date: str | None,
-    ) -> RuntimeAccount | None:
-        """Replace the editable profile projection and reload the account."""
-        with get_db(self._db_path) as connection:
-            connection.execute("BEGIN IMMEDIATE")
-            AccountRepository(connection).update_profile(
-                user_id,
-                account_id=account_id,
-                display_name=display_name,
-                avatar_color=avatar_color,
-                avatar_kind=avatar_kind,
-                gender=gender,
-                birth_date=birth_date,
-            )
-            connection.commit()
-        return self.find_account_by_id(user_id)
-
-    def update_password_and_revoke_other_sessions(
-        self, user_id: int, password_hash: str, current_token: str
-    ) -> None:
-        """Change a password and revoke every session except the current cookie."""
-        with get_db(self._db_path) as connection:
-            connection.execute(
-                """UPDATE users SET password_hash=?,updated_at=CURRENT_TIMESTAMP
-                   WHERE id=?""",
-                (password_hash, user_id),
-            )
-            connection.execute(
-                """UPDATE sessions SET revoked_at=CURRENT_TIMESTAMP
-                   WHERE user_id=? AND token_hash<>? AND revoked_at IS NULL""",
-                (user_id, hash_session_token(current_token)),
-            )
-            connection.commit()
-
-    def update_theme(self, user_id: int, theme_key: str) -> None:
-        """Persist one final account theme."""
-        with get_db(self._db_path) as connection:
-            connection.execute(
-                """UPDATE users SET theme_key=?,updated_at=CURRENT_TIMESTAMP
-                   WHERE id=?""",
-                (theme_key, user_id),
-            )
-            connection.commit()
-
-    def update_default_landing_page(self, user_id: int, page: str) -> None:
-        """Persist one Owner landing preference."""
-        with get_db(self._db_path) as connection:
-            connection.execute(
-                """UPDATE users SET default_landing_page=?,updated_at=CURRENT_TIMESTAMP
-                   WHERE id=?""",
-                (page, user_id),
-            )
-            connection.commit()
 
     def owner_id_for_elfie(self, elfie_id: str) -> int | None:
         """Return the owner of one final Elfie, if it exists."""

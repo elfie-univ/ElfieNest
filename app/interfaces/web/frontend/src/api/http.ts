@@ -37,10 +37,15 @@ function parseApiError(payload: unknown): {
 } {
   const parsed = ErrorPayloadSchema.safeParse(payload)
   if (!parsed.success || parsed.data.detail === undefined) {
-    return {
-      code: parsed.success ? parsed.data.error?.code : undefined,
+    const code = parsed.success ? parsed.data.error?.code : undefined
+    const result = {
       message: parsed.success ? parsed.data.error?.message ?? "" : "",
       validationDetails: [],
+    }
+    if (code === undefined) return result
+    return {
+      ...result,
+      code,
     }
   }
   if (typeof parsed.data.detail === "string") {

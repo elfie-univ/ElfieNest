@@ -79,8 +79,8 @@ class TestUserCRUD:
         owner_id = 1
 
         # When
-        response = client.put(
-            f"/api/owner/users/{owner_id}",
+        response = client.patch(
+            f"/api/v1/admin/users/{owner_id}",
             json={"elfie_quota_override": 5},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -104,8 +104,8 @@ class TestUserCRUD:
         owner_id = 1
 
         # When
-        response = client.put(
-            f"/api/owner/users/{owner_id}",
+        response = client.patch(
+            f"/api/v1/admin/users/{owner_id}",
             json={"role": "user"},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -124,7 +124,7 @@ class TestUserCRUD:
 
         # 创建用户
         resp = client.post(
-            "/api/owner/users",
+            "/api/v1/admin/users",
             json={"account_id": "alice", "password": "pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -136,9 +136,9 @@ class TestUserCRUD:
         assert "password_hash" not in user  # 密码永不返回
 
         # 列表包含只读 Owner。
-        resp = client.get("/api/owner/users", headers=_headers(tokens["csrf_token"]))
+        resp = client.get("/api/v1/admin/users", headers=_headers(tokens["csrf_token"]))
         assert resp.status_code == 200
-        account_ids = [u["account_id"] for u in resp.json()]
+        account_ids = [u["account_id"] for u in resp.json()["items"]]
         assert "alice" in account_ids
         assert "owner" in account_ids
 
@@ -146,12 +146,12 @@ class TestUserCRUD:
         """重复 account_id → 409。"""
         tokens = _login_owner(client)
         client.post(
-            "/api/owner/users",
+            "/api/v1/admin/users",
             json={"account_id": "alice", "password": "pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         )
         resp = client.post(
-            "/api/owner/users",
+            "/api/v1/admin/users",
             json={"account_id": "alice", "password": "pass234", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -161,7 +161,7 @@ class TestUserCRUD:
         """空登录账号 → 422。"""
         tokens = _login_owner(client)
         resp = client.post(
-            "/api/owner/users",
+            "/api/v1/admin/users",
             json={"account_id": "", "password": "pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -171,7 +171,7 @@ class TestUserCRUD:
         """非法 role → 422。"""
         tokens = _login_owner(client)
         resp = client.post(
-            "/api/owner/users",
+            "/api/v1/admin/users",
             json={"account_id": "bob", "password": "pass123", "role": "superowner"},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -181,14 +181,14 @@ class TestUserCRUD:
         """账号角色不提供 HTTP 升降级入口。"""
         tokens = _login_owner(client)
         resp = client.post(
-            "/api/owner/users",
+            "/api/v1/admin/users",
             json={"account_id": "alice", "password": "pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         )
         user_id = resp.json()["user_id"]
 
-        resp = client.put(
-            f"/api/owner/users/{user_id}",
+        resp = client.patch(
+            f"/api/v1/admin/users/{user_id}",
             json={"role": "owner"},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -199,17 +199,19 @@ class TestUserCRUD:
     ) -> None:
         tokens = _login_owner(client)
         client.post(
-            "/api/owner/users",
+            "/api/v1/admin/users",
             json={"account_id": "alice", "password": "pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         )
 
         response = client.get(
-            "/api/owner/users", headers=_headers(tokens["csrf_token"])
+            "/api/v1/admin/users", headers=_headers(tokens["csrf_token"])
         )
 
         assert response.status_code == 200
-        alice = next(user for user in response.json() if user["account_id"] == "alice")
+        alice = next(
+            user for user in response.json()["items"] if user["account_id"] == "alice"
+        )
         assert alice["elfie_quota_override"] is None
         assert alice["effective_elfie_limit"] == 3
         assert alice["presence"] == "offline"
@@ -218,13 +220,13 @@ class TestUserCRUD:
     def test_member_profile_update_route_is_removed(self, client: TestClient) -> None:
         tokens = _login_owner(client)
         created = client.post(
-            "/api/owner/users",
+            "/api/v1/admin/users",
             json={"account_id": "alice", "password": "pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         ).json()
 
-        response = client.put(
-            f"/api/owner/users/{created['user_id']}",
+        response = client.patch(
+            f"/api/v1/admin/users/{created['user_id']}",
             json={"account_id": "renamed", "password": "new-pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -234,24 +236,24 @@ class TestUserCRUD:
     def test_update_user_only_accepts_quota_override(self, client: TestClient) -> None:
         tokens = _login_owner(client)
         created = client.post(
-            "/api/owner/users",
+            "/api/v1/admin/users",
             json={"account_id": "alice", "password": "pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         ).json()
         headers = _headers(tokens["csrf_token"])
 
-        updated = client.put(
-            f"/api/owner/users/{created['user_id']}",
+        updated = client.patch(
+            f"/api/v1/admin/users/{created['user_id']}",
             json={"elfie_quota_override": 8},
             headers=headers,
         )
-        forbidden = client.put(
-            f"/api/owner/users/{created['user_id']}",
+        forbidden = client.patch(
+            f"/api/v1/admin/users/{created['user_id']}",
             json={"account_id": "renamed", "password": "new-pass123", "role": "user"},
             headers=headers,
         )
-        out_of_range = client.put(
-            f"/api/owner/users/{created['user_id']}",
+        out_of_range = client.patch(
+            f"/api/v1/admin/users/{created['user_id']}",
             json={"elfie_quota_override": 33},
             headers=headers,
         )
@@ -267,19 +269,19 @@ class TestUserCRUD:
     ) -> None:
         tokens = _login_owner(client)
         created = client.post(
-            "/api/owner/users",
+            "/api/v1/admin/users",
             json={"account_id": "alice", "password": "pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         ).json()
         headers = _headers(tokens["csrf_token"])
 
-        client.put(
-            f"/api/owner/users/{created['user_id']}",
+        client.patch(
+            f"/api/v1/admin/users/{created['user_id']}",
             json={"elfie_quota_override": 8},
             headers=headers,
         )
-        response = client.put(
-            f"/api/owner/users/{created['user_id']}",
+        response = client.patch(
+            f"/api/v1/admin/users/{created['user_id']}",
             json={"elfie_quota_override": None},
             headers=headers,
         )
@@ -292,27 +294,27 @@ class TestUserCRUD:
         """删除用户 → 列表不再包含。"""
         tokens = _login_owner(client)
         resp = client.post(
-            "/api/owner/users",
+            "/api/v1/admin/users",
             json={"account_id": "alice", "password": "pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         )
         user_id = resp.json()["user_id"]
 
         resp = client.delete(
-            f"/api/owner/users/{user_id}",
+            f"/api/v1/admin/users/{user_id}",
             headers=_headers(tokens["csrf_token"]),
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 204
 
-        resp = client.get("/api/owner/users", headers=_headers(tokens["csrf_token"]))
-        account_ids = [u["account_id"] for u in resp.json()]
+        resp = client.get("/api/v1/admin/users", headers=_headers(tokens["csrf_token"]))
+        account_ids = [u["account_id"] for u in resp.json()["items"]]
         assert "alice" not in account_ids
 
     def test_cannot_delete_owner(self, client: TestClient) -> None:
         """不能从 Web 用户管理删除 Owner → 403。"""
         tokens = _login_owner(client)
         resp = client.delete(
-            "/api/owner/users/1",
+            "/api/v1/admin/users/1",
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 403
@@ -322,7 +324,7 @@ class TestUserCRUD:
         """删除不存在的用户 → 404。"""
         tokens = _login_owner(client)
         resp = client.delete(
-            "/api/owner/users/99999",
+            "/api/v1/admin/users/99999",
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 404
@@ -334,7 +336,7 @@ class TestUserCRUD:
         tokens = _login_owner(client)
         # 创建用户 → 给用户分配一个精灵
         resp = client.post(
-            "/api/owner/users",
+            "/api/v1/admin/users",
             json={"account_id": "alice", "password": "pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -354,7 +356,7 @@ class TestUserCRUD:
 
         # When
         response = client.delete(
-            f"/api/owner/users/{alice_id}",
+            f"/api/v1/admin/users/{alice_id}",
             headers=_headers(tokens["csrf_token"]),
         )
 
@@ -370,10 +372,10 @@ class TestUserCRUD:
     def test_owner_list_users_includes_read_only_self(self, client: TestClient) -> None:
         """Owner list includes its read-only Owner row."""
         tokens = _login_owner(client)
-        resp = client.get("/api/owner/users", headers=_headers(tokens["csrf_token"]))
+        resp = client.get("/api/v1/admin/users", headers=_headers(tokens["csrf_token"]))
         assert resp.status_code == 200
 
-        account_ids = [u["account_id"] for u in resp.json()]
+        account_ids = [u["account_id"] for u in resp.json()["items"]]
         assert "owner" in account_ids
 
     def test_owner_list_users_shows_other_users(
@@ -384,10 +386,10 @@ class TestUserCRUD:
 
         create_test_user(db_path, "other_user", "pass", role="user")
 
-        resp = client.get("/api/owner/users", headers=_headers(tokens["csrf_token"]))
+        resp = client.get("/api/v1/admin/users", headers=_headers(tokens["csrf_token"]))
         assert resp.status_code == 200
 
-        account_ids = [u["account_id"] for u in resp.json()]
+        account_ids = [u["account_id"] for u in resp.json()["items"]]
         assert "owner" in account_ids
         assert "other_user" in account_ids
 
@@ -404,7 +406,7 @@ class TestAuthorization:
 
         # 创建普通用户
         resp = client.post(
-            "/api/owner/users",
+            "/api/v1/admin/users",
             json={"account_id": "alice", "password": "pass123", "role": "user"},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -417,12 +419,12 @@ class TestAuthorization:
         alice_csrf = resp.headers.get("X-CSRF-Token", "")
 
         # 访问 owner 端点
-        resp = client.get("/api/owner/users", headers=_headers(alice_csrf))
+        resp = client.get("/api/v1/admin/users", headers=_headers(alice_csrf))
         assert resp.status_code == 403
 
     def test_unauthenticated_gets_401(self, client: TestClient) -> None:
         """未登录访问 → 401。"""
-        resp = client.get("/api/owner/users")
+        resp = client.get("/api/v1/admin/users")
         assert resp.status_code == 401
 
     def test_user_role_gets_403(self, client: TestClient, db_path: str) -> None:
@@ -435,7 +437,7 @@ class TestAuthorization:
         assert response.status_code == 200
         csrf_token = response.headers.get("X-CSRF-Token", "")
 
-        response = client.get("/api/owner/users", headers=_headers(csrf_token))
+        response = client.get("/api/v1/admin/users", headers=_headers(csrf_token))
 
         assert response.status_code == 403
         assert "Owner" in response.text

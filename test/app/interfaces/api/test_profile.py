@@ -1,4 +1,4 @@
-"""测试 Profile + 密码修改端点 — PUT /api/auth/me/profile, POST /api/auth/me/password, GET /api/auth/me 扩展字段
+"""测试 Profile + 密码修改端点 — PUT /api/v1/me/profile, POST /api/v1/me/password, GET /api/v1/me 扩展字段
 
 使用 tmp_path 隔离 DB，mock WS 网关避免端口冲突。
 """
@@ -13,10 +13,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.bootstrap import create_app
+from app.features.accounts import AvatarTooLarge
 from app.infrastructure.persistence.store import get_db, init_db
-from app.interfaces.api.profile_routes import _read_avatar_limited
 from app.interfaces.api.request_limits import AvatarUploadBodyLimitMiddleware
 from app.interfaces.api.v1.auth import generate_csrf_token
+from app.interfaces.api.v1.me.routes import _read_avatar_limited
 
 from ._helpers import create_test_owner, create_test_user
 
@@ -70,16 +71,16 @@ def _headers(csrf_token: str) -> dict:
 
 
 # ===================================================================
-# GET /api/auth/me
+# GET /api/v1/me
 # ===================================================================
 
 
 class TestMe:
     def test_me_returns_full_schema(self, client: TestClient) -> None:
-        """GET /api/auth/me 返回当前页面路由所需的全部字段。"""
+        """GET /api/v1/me 返回当前页面路由所需的全部字段。"""
         tokens = _login_owner(client)
         resp = client.get(
-            "/api/auth/me",
+            "/api/v1/me",
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 200
@@ -137,7 +138,7 @@ class TestMe:
             conn.commit()
 
         resp = client.get(
-            "/api/auth/me",
+            "/api/v1/me",
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 200
@@ -173,7 +174,7 @@ class TestAvatarUpload:
                 {
                     "type": "http",
                     "method": "POST",
-                    "path": "/api/auth/me/avatar",
+                    "path": "/api/v1/me/avatar",
                     "headers": [
                         (b"cookie", f"session_token={session_token}".encode()),
                         (
@@ -196,11 +197,11 @@ class TestAvatarUpload:
         tokens = _login_owner(client)
 
         with patch(
-            "app.interfaces.api.profile_routes._read_avatar_limited",
+            "app.interfaces.api.v1.me.routes._read_avatar_limited",
             new=AsyncMock(return_value=b"should-not-run"),
         ) as avatar_reader:
             response = client.post(
-                "/api/auth/me/avatar",
+                "/api/v1/me/avatar",
                 files={"file": ("large.png", b"x" * (3 * 1024 * 1024), "image/png")},
                 headers={"X-CSRF-Token": tokens["csrf_token"]},
             )
@@ -222,10 +223,9 @@ class TestAvatarUpload:
 
         upload = OversizedUpload()
 
-        with pytest.raises(Exception) as error:
+        with pytest.raises(AvatarTooLarge):
             asyncio.run(_read_avatar_limited(upload))
 
-        assert getattr(error.value, "status_code", None) == 413
         assert upload.requested_sizes
         assert max(upload.requested_sizes) <= 64 * 1024
 
@@ -237,7 +237,7 @@ class TestAvatarUpload:
 
         # When
         upload = client.post(
-            "/api/auth/me/avatar",
+            "/api/v1/me/avatar",
             files={"file": ("portrait.png", b"\x89PNG\r\n\x1a\nimage", "image/png")},
             headers={"X-CSRF-Token": tokens["csrf_token"]},
         )
@@ -245,8 +245,8 @@ class TestAvatarUpload:
         # Then
         assert upload.status_code == 201
         avatar_url = upload.json()["avatar_url"]
-        assert avatar_url == "/api/auth/me/avatar"
-        current = client.get("/api/auth/me", headers=_headers(tokens["csrf_token"]))
+        assert avatar_url == "/api/v1/me/avatar"
+        current = client.get("/api/v1/me", headers=_headers(tokens["csrf_token"]))
         assert current.json()["avatar_url"] == avatar_url
         image = client.get(avatar_url)
         assert image.status_code == 200
@@ -256,17 +256,17 @@ class TestAvatarUpload:
         tokens = _login_owner(client)
 
         response = client.post(
-            "/api/auth/me/avatar",
+            "/api/v1/me/avatar",
             files={"file": ("portrait.png", b"not-a-real-png", "image/png")},
             headers={"X-CSRF-Token": tokens["csrf_token"]},
         )
 
         assert response.status_code == 415
-        assert "格式不匹配" in response.json()["detail"]
+        assert response.json()["error"]["code"] == "invalid_avatar_content"
 
 
 # ===================================================================
-# PUT /api/auth/me/theme
+# PUT /api/v1/me/theme
 # ===================================================================
 
 
@@ -274,18 +274,18 @@ class TestThemePreference:
     def test_theme_preference_persists_for_the_authenticated_user(
         self, client: TestClient
     ) -> None:
-        """当前登录用户可保存主题，且 ``/api/auth/me`` 返回持久化后的值。"""
+        """当前登录用户可保存主题，且 ``/api/v1/me`` 返回持久化后的值。"""
         tokens = _login_owner(client)
 
         response = client.put(
-            "/api/auth/me/theme",
+            "/api/v1/me/theme",
             json={"theme_key": "harbor-blue"},
             headers=_headers(tokens["csrf_token"]),
         )
 
         assert response.status_code == 200
         assert response.json() == {"theme_key": "harbor-blue"}
-        current = client.get("/api/auth/me", headers=_headers(tokens["csrf_token"]))
+        current = client.get("/api/v1/me", headers=_headers(tokens["csrf_token"]))
         assert current.json()["theme_key"] == "harbor-blue"
 
     def test_each_authenticated_user_keeps_their_own_theme(
@@ -295,7 +295,7 @@ class TestThemePreference:
         create_test_user(db_path, "member", "memberchangeme")
         owner_tokens = _login_owner(client)
         owner_update = client.put(
-            "/api/auth/me/theme",
+            "/api/v1/me/theme",
             json={"theme_key": "orchid-archive"},
             headers=_headers(owner_tokens["csrf_token"]),
         )
@@ -311,7 +311,7 @@ class TestThemePreference:
         )
         member_tokens = {"csrf_token": member_login.headers["X-CSRF-Token"]}
         member_update = client.put(
-            "/api/auth/me/theme",
+            "/api/v1/me/theme",
             json={"theme_key": "moss-green"},
             headers=_headers(member_tokens["csrf_token"]),
         )
@@ -319,7 +319,7 @@ class TestThemePreference:
         assert member_update.status_code == 200
         assert (
             client.get(
-                "/api/auth/me", headers=_headers(member_tokens["csrf_token"])
+                "/api/v1/me", headers=_headers(member_tokens["csrf_token"])
             ).json()["theme_key"]
             == "moss-green"
         )
@@ -336,26 +336,26 @@ class TestThemePreference:
         tokens = _login_owner(client)
 
         response = client.put(
-            "/api/auth/me/theme",
+            "/api/v1/me/theme",
             json={"theme_key": "midnight"},
             headers=_headers(tokens["csrf_token"]),
         )
 
         assert response.status_code == 422
-        current = client.get("/api/auth/me", headers=_headers(tokens["csrf_token"]))
+        current = client.get("/api/v1/me", headers=_headers(tokens["csrf_token"]))
         assert current.json()["theme_key"] == "warm-paper"
 
 
 # ===================================================================
-# PUT /api/auth/me/profile
+# PUT /api/v1/me/profile
 # ===================================================================
 
 
 class TestUpdateProfile:
     def test_update_profile_rejects_legacy_nickname(self, client: TestClient) -> None:
         tokens = _login_owner(client)
-        response = client.put(
-            "/api/auth/me/profile",
+        response = client.patch(
+            "/api/v1/me/profile",
             json={"nickname": "Legacy"},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -365,8 +365,8 @@ class TestUpdateProfile:
     def test_update_profile_display_name(self, client: TestClient) -> None:
         """PUT updates and persists display_name."""
         tokens = _login_owner(client)
-        resp = client.put(
-            "/api/auth/me/profile",
+        resp = client.patch(
+            "/api/v1/me/profile",
             json={"display_name": "Owner"},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -377,7 +377,7 @@ class TestUpdateProfile:
 
         # 验证持久化
         resp2 = client.get(
-            "/api/auth/me",
+            "/api/v1/me",
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp2.json()["display_name"] == "Owner"
@@ -385,8 +385,8 @@ class TestUpdateProfile:
     def test_update_profile_identity_fields(self, client: TestClient) -> None:
         """PUT updates the editable identity fields as one profile projection."""
         tokens = _login_owner(client)
-        response = client.put(
-            "/api/auth/me/profile",
+        response = client.patch(
+            "/api/v1/me/profile",
             json={
                 "account_id": "owner-renamed",
                 "display_name": "Owner Renamed",
@@ -403,7 +403,7 @@ class TestUpdateProfile:
         assert response.json()["birth_date"] == "1990-02-03"
 
         current = client.get(
-            "/api/auth/me", headers=_headers(tokens["csrf_token"])
+            "/api/v1/me", headers=_headers(tokens["csrf_token"])
         ).json()
         assert current["account_id"] == "owner-renamed"
         assert current["gender"] == "female"
@@ -416,23 +416,23 @@ class TestUpdateProfile:
         create_test_user(db_path, "member", "memberchangeme")
         tokens = _login_owner(client)
 
-        response = client.put(
-            "/api/auth/me/profile",
+        response = client.patch(
+            "/api/v1/me/profile",
             json={"account_id": "member"},
             headers=_headers(tokens["csrf_token"]),
         )
 
         assert response.status_code == 409
-        assert "已存在" in response.json()["detail"]
+        assert response.json()["error"]["code"] == "account_conflict"
         current = client.get(
-            "/api/auth/me", headers=_headers(tokens["csrf_token"])
+            "/api/v1/me", headers=_headers(tokens["csrf_token"])
         ).json()
         assert current["account_id"] == "owner"
 
     def test_update_profile_rejects_unknown_gender(self, client: TestClient) -> None:
         tokens = _login_owner(client)
-        response = client.put(
-            "/api/auth/me/profile",
+        response = client.patch(
+            "/api/v1/me/profile",
             json={"gender": "unknown"},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -442,8 +442,8 @@ class TestUpdateProfile:
     def test_update_profile_avatar_color(self, client: TestClient) -> None:
         """PUT 更新 avatar_color 成功。"""
         tokens = _login_owner(client)
-        resp = client.put(
-            "/api/auth/me/profile",
+        resp = client.patch(
+            "/api/v1/me/profile",
             json={"avatar_color": 3},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -454,7 +454,7 @@ class TestUpdateProfile:
 
         # 验证持久化
         resp2 = client.get(
-            "/api/auth/me",
+            "/api/v1/me",
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp2.json()["avatar_color"] == 3
@@ -462,8 +462,8 @@ class TestUpdateProfile:
     def test_update_profile_avatar_kind(self, client: TestClient) -> None:
         """PUT 更新 avatar_kind 为 emoji。"""
         tokens = _login_owner(client)
-        resp = client.put(
-            "/api/auth/me/profile",
+        resp = client.patch(
+            "/api/v1/me/profile",
             json={"avatar_kind": "emoji"},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -476,16 +476,16 @@ class TestUpdateProfile:
         tokens = _login_owner(client)
 
         # 超出上限
-        resp = client.put(
-            "/api/auth/me/profile",
+        resp = client.patch(
+            "/api/v1/me/profile",
             json={"avatar_color": 8},
             headers=_headers(tokens["csrf_token"]),
         )
         assert resp.status_code == 422
 
         # 低于下限
-        resp = client.put(
-            "/api/auth/me/profile",
+        resp = client.patch(
+            "/api/v1/me/profile",
             json={"avatar_color": -1},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -494,8 +494,8 @@ class TestUpdateProfile:
     def test_update_profile_avatar_kind_invalid(self, client: TestClient) -> None:
         """avatar_kind 为无效值返回 422。"""
         tokens = _login_owner(client)
-        resp = client.put(
-            "/api/auth/me/profile",
+        resp = client.patch(
+            "/api/v1/me/profile",
             json={"avatar_kind": "invalid"},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -504,8 +504,8 @@ class TestUpdateProfile:
     def test_update_profile_display_name_too_long(self, client: TestClient) -> None:
         """display_name longer than 64 characters returns 422."""
         tokens = _login_owner(client)
-        resp = client.put(
-            "/api/auth/me/profile",
+        resp = client.patch(
+            "/api/v1/me/profile",
             json={"display_name": "a" * 65},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -514,17 +514,17 @@ class TestUpdateProfile:
     def test_update_profile_empty_body_400(self, client: TestClient) -> None:
         """空请求体（无任何字段）返回 400。"""
         tokens = _login_owner(client)
-        resp = client.put(
-            "/api/auth/me/profile",
+        resp = client.patch(
+            "/api/v1/me/profile",
             json={},
             headers=_headers(tokens["csrf_token"]),
         )
-        assert resp.status_code == 400
-        assert "没有提供要更新的字段" in resp.text
+        assert resp.status_code == 422
+        assert resp.json()["error"]["code"] == "invalid_account_request"
 
 
 # ===================================================================
-# POST /api/auth/me/password
+# POST /api/v1/me/password
 # ===================================================================
 
 
@@ -533,7 +533,7 @@ class TestChangePassword:
         """POST 成功修改密码。"""
         tokens = _login_owner(client)
         resp = client.post(
-            "/api/auth/me/password",
+            "/api/v1/me/password",
             json={"old_password": "ownerchangeme", "new_password": "newpass123"},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -565,7 +565,7 @@ class TestChangePassword:
             conn.commit()
 
         response = client.post(
-            "/api/auth/me/password",
+            "/api/v1/me/password",
             json={"old_password": "ownerchangeme", "new_password": "newpass123"},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -581,7 +581,7 @@ class TestChangePassword:
         """旧密码错误返回 400。"""
         tokens = _login_owner(client)
         resp = client.post(
-            "/api/auth/me/password",
+            "/api/v1/me/password",
             json={"old_password": "wrongpass", "new_password": "newpass123"},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -592,7 +592,7 @@ class TestChangePassword:
         """新旧密码相同返回 400。"""
         tokens = _login_owner(client)
         resp = client.post(
-            "/api/auth/me/password",
+            "/api/v1/me/password",
             json={"old_password": "ownerchangeme", "new_password": "ownerchangeme"},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -605,7 +605,7 @@ class TestChangePassword:
 
         # 5 字符
         resp = client.post(
-            "/api/auth/me/password",
+            "/api/v1/me/password",
             json={"old_password": "ownerchangeme", "new_password": "12345"},
             headers=_headers(tokens["csrf_token"]),
         )
@@ -613,7 +613,7 @@ class TestChangePassword:
 
         # 空字符串
         resp = client.post(
-            "/api/auth/me/password",
+            "/api/v1/me/password",
             json={"old_password": "ownerchangeme", "new_password": ""},
             headers=_headers(tokens["csrf_token"]),
         )

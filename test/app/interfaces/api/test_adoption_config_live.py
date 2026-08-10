@@ -92,7 +92,7 @@ def _create_user_and_login(
     """Owner 创建用户 → 登录 → 返回 token。"""
     owner_tokens = _login_owner(client)
     resp = client.post(
-        "/api/owner/users",
+        "/api/v1/admin/users",
         json={"account_id": account_id, "password": password, "role": "user"},
         headers=_headers(owner_tokens["csrf_token"]),
     )

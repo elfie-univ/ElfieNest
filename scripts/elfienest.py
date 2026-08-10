@@ -21,7 +21,12 @@ if (
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ai_runtime.storage.data_home import DataHomeSelectionError, resolve_elfie_home
+from ai_runtime.storage.data_home import (
+    DataHomeSelectionError,
+    get_db_path,
+    resolve_elfie_home,
+)
+from app.bootstrap.accounts import build_accounts_service
 from app.bootstrap.lifecycle import create_lifecycle_facade
 from app.interfaces.cli.doctor_commands import run_doctor
 from app.interfaces.cli.foreground_runtime import run_foreground_service
@@ -221,7 +226,14 @@ def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> N
     elif args.command == "restart":
         _exit_on_lifecycle_failure(restart_background_service(lifecycle))
     elif args.command == "owner":
-        raise SystemExit(run_owner_menu(lifecycle))
+        owner_db_path = str(get_db_path())
+        raise SystemExit(
+            run_owner_menu(
+                lifecycle,
+                build_accounts_service(owner_db_path),
+                owner_db_path,
+            )
+        )
     elif args.command == "doctor":
         fix_ports = getattr(args, "fix_ports", False)
         force = getattr(args, "force", False)

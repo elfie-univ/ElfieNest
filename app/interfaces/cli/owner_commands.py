@@ -9,28 +9,29 @@ from typing import Optional
 
 from ai_runtime.lab.menu import MenuItem, TerminalMenu
 from ai_runtime.storage.data_home import get_db_path
-from app.features.accounts.password_policy import (
+from app.features.accounts import (
+    MAX_PASSWORD_LENGTH,
+    MIN_PASSWORD_LENGTH,
+    AccountsError,
+    AccountsService,
+    GetOwnerAccountQuery,
     PasswordPolicyError,
+    RecoverOwnerAccountCommand,
     validate_password_strength,
-)
-from app.features.administration.owner_service import (
-    MAX_OWNER_ACCOUNT_ID_LENGTH,
-    MAX_OWNER_PASSWORD_LENGTH,
-    MIN_OWNER_ACCOUNT_ID_LENGTH,
-    MIN_OWNER_PASSWORD_LENGTH,
-    OwnerServiceError,
-    get_owner_account,
-    recover_owner_account,
 )
 from app.interfaces.cli.tui.common import input_password, input_text
 from app.orchestration.lifecycle import LifecycleFacade, RecoveryInProgressError
 
+MIN_OWNER_ACCOUNT_ID_LENGTH = 3
+MAX_OWNER_ACCOUNT_ID_LENGTH = 32
+MIN_OWNER_PASSWORD_LENGTH = MIN_PASSWORD_LENGTH
+MAX_OWNER_PASSWORD_LENGTH = MAX_PASSWORD_LENGTH
 
-def show_owner_account(db_path: Optional[str] = None) -> int:
-    path = db_path or str(get_db_path())
+
+def show_owner_account(service: AccountsService) -> int:
     try:
-        account = get_owner_account(path)
-    except OwnerServiceError as error:
+        account = service.get_owner_account(GetOwnerAccountQuery())
+    except AccountsError as error:
         print(f"  ❌ Cannot read Owner account: {error}")
         return 1
     print("  👤 Owner Account Information")
@@ -47,16 +48,17 @@ def show_owner_account(db_path: Optional[str] = None) -> int:
 
 def show_owner_account_page(
     menu: TerminalMenu,
-    db_path: Optional[str] = None,
+    service: AccountsService,
 ) -> int:
     menu.action_header("Owner Account Information", "ElfieNest / Owner / View Account")
-    exit_code = show_owner_account(db_path)
+    exit_code = show_owner_account(service)
     menu.pause("Press Enter, ← or Esc to return to Owner menu…")
     return exit_code
 
 
 def recover_owner_interactive(
     lifecycle: LifecycleFacade,
+    service: AccountsService,
     db_path: Optional[str] = None,
     *,
     menu: TerminalMenu | None = None,
@@ -134,8 +136,13 @@ def recover_owner_interactive(
         return 1
     try:
         with lifecycle.owner_recovery(Path(path).resolve().parent):
-            account = recover_owner_account(path, account_id, first)
-    except (OwnerServiceError, OSError, RecoveryInProgressError) as error:
+            account = service.recover_owner_account(
+                RecoverOwnerAccountCommand(
+                    account_id=account_id,
+                    new_password=first,
+                )
+            )
+    except (AccountsError, OSError, RecoveryInProgressError) as error:
         print(f"  ❌ Owner recovery failed: {error}")
         return 1
     print(f"  ✅ Owner account recovered: {account.account_id}")
@@ -143,7 +150,11 @@ def recover_owner_interactive(
     return 0
 
 
-def run_owner_menu(lifecycle: LifecycleFacade) -> int:
+def run_owner_menu(
+    lifecycle: LifecycleFacade,
+    service: AccountsService,
+    db_path: Optional[str] = None,
+) -> int:
     menu = TerminalMenu(input_fn=input, output_fn=print)
     last_exit_code = 0
     while True:
@@ -162,6 +173,11 @@ def run_owner_menu(lifecycle: LifecycleFacade) -> int:
         if choice is None:
             return last_exit_code
         if choice == "1":
-            last_exit_code = show_owner_account_page(menu)
+            last_exit_code = show_owner_account_page(menu, service)
         elif choice == "2":
-            last_exit_code = recover_owner_interactive(lifecycle, menu=menu)
+            last_exit_code = recover_owner_interactive(
+                lifecycle,
+                service,
+                db_path,
+                menu=menu,
+            )

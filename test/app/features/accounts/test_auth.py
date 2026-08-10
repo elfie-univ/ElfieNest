@@ -45,9 +45,7 @@ class MemoryAccounts:
         self.sessions["session-token"] = principal
         return "session-token"
 
-    def find_session(
-        self, raw_token: str, now: datetime
-    ) -> AccountPrincipal | None:
+    def find_session(self, raw_token: str, now: datetime) -> AccountPrincipal | None:
         return self.sessions.get(raw_token)
 
     def revoke_session(self, raw_token: str, revoked_at: datetime) -> None:

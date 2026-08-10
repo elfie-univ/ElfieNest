@@ -95,6 +95,24 @@ Machine baseline entries removed: accounts/auth Feature isolation and internal-i
 Status: closed
 ```
 
+### Accounts: self-service and member administration
+
+```text
+Domain: accounts / self-service-administration
+Gap IDs: APP-001, APP-002, APP-003, APP-004, APP-005, APP-006, APP-007, APP-009, APP-011, APP-012
+Current authoritative facts: account/profile/preferences/quota/session records in nest.db; avatar bytes in the account data layout; default quota from the Settings authority
+Routes and production callers: /api/v1/me profile, password, theme, landing-page and avatar resources; /api/v1/admin/users lifecycle, quota, reset and avatar resources; account menu, user-management and monitor clients; local Owner recovery
+Target public facade and models: the shared Accounts facade with strict self-service, member-management and Owner-recovery commands, queries and results
+Ports and adapters: account/session/management/avatar Ports implemented by one root SQLite adapter; quota policy implemented from the injected Settings store; HTTP and CLI entry points receive the facade from Bootstrap
+Consistency class: each account/session mutation owns one SQLite transaction; avatar replacement remains bounded and atomic; Settings quota is read-only in Accounts
+Principal and authorization: /me derives the current account from the session; the facade enforces manager hierarchy for /admin/users; local Owner recovery is serialized by the Lifecycle recovery lease
+Timeout / retry / idempotency: local synchronous storage only; no retry; session revocation, preference replacement and quota replacement retain existing idempotent behavior
+Legacy deletion list: account_auth_routes.py, profile_routes.py, owner_user_routes.py; duplicate /api/v1 client me/default-page handlers; administration member/Owner services; old frontend paths and fixtures
+Focused tests and end-to-end gate: Accounts Feature/Adapter/strict Route; profile/avatar/password and full member lifecycle; adoption callers, monitor and frontend account surfaces; CLI recovery; App/System/Storage architecture gates
+Machine baseline entries removed: all deleted legacy account/profile/member Route construction, concrete imports, loose/missing response models and unversioned account/user resources; deleted administration service debt
+Status: closed
+```
+
 ### Nest Management
 
 ```text

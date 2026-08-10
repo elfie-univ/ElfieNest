@@ -69,7 +69,7 @@ def _login_owner(client: TestClient) -> str:
 
 def _adopt_elfie(client: TestClient, csrf_token: str) -> str:
     _ = csrf_token
-    current_user = client.get("/api/auth/me")
+    current_user = client.get("/api/v1/me")
     assert current_user.status_code == 200
     return adopt_test_elfie(
         client.app.state.db_path,
@@ -391,7 +391,7 @@ def test_v1_profile_and_messages_hide_another_users_elfie(client: TestClient) ->
     owner_csrf = _login_owner(client)
     elfie_id = _adopt_elfie(client, owner_csrf)
     create_user = client.post(
-        "/api/owner/users",
+        "/api/v1/admin/users",
         json={"account_id": "alice", "password": "pass123", "role": "user"},
         headers={"X-CSRF-Token": owner_csrf},
     )

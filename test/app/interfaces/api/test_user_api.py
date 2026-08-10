@@ -81,7 +81,7 @@ def _create_user_via_owner(
     """Owner 创建用户，返回用户 id。"""
     owner_tokens = _login_owner(client)
     resp = client.post(
-        "/api/owner/users",
+        "/api/v1/admin/users",
         json={"account_id": account_id, "password": password, "role": "user"},
         headers=_headers(owner_tokens["csrf_token"]),
     )

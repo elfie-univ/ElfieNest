@@ -38,12 +38,12 @@ def test_complete_member_administration_lifecycle(
             )
             assert owner_login.status_code == 200, owner_login.text
             owner_headers = _csrf(owner_login)
-            listed = client.get("/api/owner/users", headers=owner_headers)
+            listed = client.get("/api/v1/admin/users", headers=owner_headers)
             assert listed.status_code == 200
-            assert listed.json()[0]["role"] == "owner"
+            assert listed.json()["items"][0]["role"] == "owner"
 
             created = client.post(
-                "/api/owner/users",
+                "/api/v1/admin/users",
                 json={
                     "account_id": "member01",
                     "display_name": "Member",
@@ -54,8 +54,8 @@ def test_complete_member_administration_lifecycle(
             )
             assert created.status_code == 201, created.text
             member_id = created.json()["user_id"]
-            updated = client.put(
-                f"/api/owner/users/{member_id}",
+            updated = client.patch(
+                f"/api/v1/admin/users/{member_id}",
                 json={"elfie_quota_override": 6},
                 headers=owner_headers,
             )
@@ -66,7 +66,7 @@ def test_complete_member_administration_lifecycle(
             old_token_one = accounts.create_session(member_id)
             old_token_two = accounts.create_session(member_id)
             reset = client.post(
-                f"/api/owner/users/{member_id}/reset-password",
+                f"/api/v1/admin/users/{member_id}/reset-password",
                 headers=owner_headers,
             )
             assert reset.status_code == 200, reset.text
@@ -75,7 +75,7 @@ def test_complete_member_administration_lifecycle(
             for old_token in (old_token_one, old_token_two):
                 client.cookies.clear()
                 client.cookies.set("session_token", old_token)
-                rejected = client.get("/api/auth/me")
+                rejected = client.get("/api/v1/me")
                 assert rejected.status_code == 401
 
             temporary_login = client.post(
@@ -96,6 +96,6 @@ def test_complete_member_administration_lifecycle(
                 data={"account_id": "owner01", "password": "owner-password"},
             )
             deleted = client.delete(
-                f"/api/owner/users/{member_id}", headers=_csrf(owner_login)
+                f"/api/v1/admin/users/{member_id}", headers=_csrf(owner_login)
             )
-            assert deleted.status_code == 200
+            assert deleted.status_code == 204

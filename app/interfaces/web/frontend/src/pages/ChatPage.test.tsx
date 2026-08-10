@@ -310,7 +310,7 @@ describe("ChatPage list pane headings", () => {
   })
 
   it("uses the authenticated account avatar for user messages", async () => {
-    session.user.avatar_url = "/api/auth/me/avatar"
+    session.user.avatar_url = "/api/v1/me/avatar"
     chatApi.messages.mockResolvedValue([{
       id: 9,
       elfie_id: "00000001",
@@ -323,7 +323,7 @@ describe("ChatPage list pane headings", () => {
 
     const message = await screen.findByText("来自当前用户")
     const article = message.closest("article")
-    expect(article?.querySelector("img")).toHaveAttribute("src", "/api/auth/me/avatar")
+    expect(article?.querySelector("img")).toHaveAttribute("src", "/api/v1/me/avatar")
   })
 
   it("sends a message with plain Enter while keeping Shift+Enter available for new lines", async () => {

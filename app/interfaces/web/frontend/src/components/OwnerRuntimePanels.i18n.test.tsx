@@ -90,7 +90,7 @@ describe("runtime panel behavior", () => {
 
   it.each([401, 403])("shows an authentication notice for protected read status %i", async (status) => {
     vi.mocked(ownerRead).mockImplementation(async (path) => {
-      if (path === "/api/owner/users") throw new ApiError(status, "session expired")
+      if (path === "/api/v1/admin/users") throw new ApiError(status, "session expired")
       return monitorPayload(path)
     })
 
@@ -119,8 +119,8 @@ function monitorPayload(path: string, lastEvent: RuntimeEventFixture | null = nu
         status: "ok",
         observer: { event_count: lastEvent === null ? 0 : 1, last_event: lastEvent },
       }
-    case "/api/owner/users":
-      return [{ presence: "online" }, { presence: "offline" }]
+    case "/api/v1/admin/users":
+      return { items: [{ presence: "online" }, { presence: "offline" }] }
     case "/api/owner/elfies":
       return [
         { elfie_id: "elfie-1", profile: { online_status: "online" } },

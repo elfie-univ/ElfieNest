@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import Any, Dict, Literal
+from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket
 from pydantic import BaseModel, Field
@@ -33,10 +33,6 @@ from app.interfaces.api.v1.auth import get_current_user
 from elfie.communication.contracts import InboundDisposition, InboundDispositionStatus
 
 router = APIRouter(prefix="/api/v1", tags=["v1-client"])
-
-
-class LandingPageUpdate(BaseModel):
-    default_landing_page: Literal["chat", "manage"]
 
 
 class ChatMessageCreate(BaseModel):
@@ -99,36 +95,6 @@ async def chat_websocket(websocket: WebSocket) -> None:
             await websocket.send_json({"event": "error", "detail": error.detail})
             continue
         await websocket.send_json({"event": "message", "message": message})
-
-
-@router.get("/me")
-async def current_client_user(
-    user: AccountPrincipal = Depends(get_current_user),  # noqa: B008
-) -> Dict[str, Any]:
-    """Expose the minimum session identity needed to choose a product page."""
-    return {
-        "user_id": user.user_id,
-        "account_id": user.account_id,
-        "role": user.role,
-        "default_landing_page": user.default_landing_page,
-    }
-
-
-@router.put("/me/default-landing-page")
-async def update_owner_default_landing_page(
-    body: LandingPageUpdate,
-    request: Request,
-    user: AccountPrincipal = Depends(get_current_user),  # noqa: B008
-) -> Dict[str, str]:
-    """Persist a manager landing preference; normal users always use chat."""
-    if user.role not in {"owner", "admin"}:
-        raise HTTPException(
-            status_code=403, detail="只有 Owner 或 Admin 可以设置管理默认页"
-        )
-    RuntimeQueryRepository(request.app.state.db_path).update_default_landing_page(
-        user.user_id, body.default_landing_page
-    )
-    return {"default_landing_page": body.default_landing_page}
 
 
 @router.get("/elfies")
