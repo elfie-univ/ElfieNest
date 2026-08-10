@@ -29,7 +29,7 @@
 | APP-007 | P1 | open | 事务所有权、Repository commit、类型化文件写入和外部工作流恢复尚未通过 Port 与测试统一表达。 | 每个已迁移 command 声明数据库、文件或外部工作流一致性类别；DB 事务内不等待外部响应；原子性和恢复测试通过。 |
 | APP-008 | P1 | open | 部分 Feature 持有线程/Job 或阻塞平台工作，任务取消、超时、回执和重启语义不一致。 | Scheduler/Runner Port 拥有后台工作，Bootstrap/lifecycle 拥有 Runner；异步边界和长任务语义有聚焦测试。 |
 | APP-009 | P1 | open | 全局 MyPy 仍非 strict，尚未建立已迁移领域严格区。 | 每个已迁移领域及其公开调用方通过 strict MyPy，不使用 `Any` 逃生口；领域关闭时扩大 strict override。 |
-| APP-010 | P1 | open | 外部身体持久化与设备注册存在重叠 Registry/Repository；embodiment 契约导入持久化 Record，Orchestration 携带 `db_path`。 | 只保留一套外部身体产品模型和使用方 Port；设备传输是 Infrastructure Adapter；托管/归巢仍属于 Orchestration；删除重复事实和具体 import。 |
+| APP-010 | P1 | closed | 外部身体登记已统一为一个 `bodies` Feature 与 SQLite Port 实现；托管/归巢通过注入的 embodiment lease Port；设备传输进入根 Infrastructure。 | 只保留一套外部身体产品模型和使用方 Port；设备传输是 Infrastructure Adapter；托管/归巢仍属于 Orchestration；删除重复事实和具体 import。 |
 | APP-011 | P1 | open | 版本化和历史产品 API 并存，存在重复调用方投影和无类型旧资源。 | 按 `app/interfaces/api/AGENTS.md` 逐业务域迁移，移动全部真实调用方，再删除旧 Route、Client、DTO 和夹具，不保留别名。 |
 | APP-012 | P1 | open | App 各领域的配置、Secret 和缓存尚未共用一套可执行所有权模板。 | 每个已迁移配置只有一个类型化所有者/写入者和优先级；Secret 使用引用/Secret Port；缓存声明权威源、失效、寿命和重建方式。 |
 
@@ -295,6 +295,20 @@ Principal 与授权：Capability 绑定已认证 Session 指纹；管理员只�
 旧实现删除清单：未版本化 Observer Route；Route 内 Registry 与 SQLite 授权查询；Nest Gateway Observer Session Registry；旧前端路径
 聚焦测试与端到端门：Facade Capability/投影/授权；严格 Route 与退出；Godot/Platform Adapter；浏览器 Client；App/System/Gateway/Runtime 架构门
 已删除的机器基线条目：旧 Observer Route 构造、具体 Persistence import、松散/缺失 Route 模型和全部 /api/observer 资源
+状态：closed
+```
+
+```text
+业务域：Bodies 与 Embodiment
+缺口 ID：APP-001、APP-002、APP-003、APP-005、APP-006、APP-007、APP-009、APP-010、APP-011
+当前权威事实：现有 Nest SQLite 中的 external_bodies/device_audit_events 与 embodiment_sessions；真实 Elfie 上唯一的 BodyPort 绑定
+Port 与 Adapter：bodies 自有持久化/凭据 Port；embodiment 自有 lease 与身体设备 Gateway Port；根 SQLite/设备 Adapter；Bootstrap 注入
+一致性类别：登记、轮换、撤销和 lease 转换属于 SQLite 事务；身体连接属于带显式 abort/recovery 的外部工作流
+Principal 与授权：浏览器管理使用 AccountPrincipal 和持久化 Elfie ownership；设备使用 Bearer 凭据解析出的独立最小 BodyPrincipal
+超时、重试与幂等：保留现有 lease 过期/版本冲突与命令单次轮询；不新增重试、配对或节流行为
+旧实现删除清单：app/features/embodiment、app/infrastructure/devices、App embodiment 持久化模块、/api/v1/owner/devices 与 /api/v1/ws/devices
+聚焦测试与端到端门：Feature 授权、凭据保密/轮换/撤销、lease 转换、真实 BodyPort 绑定、严格 HTTP 与版本化 WebSocket Route、App/System/Storage 架构门
+已删除机器基线：embodiment Feature/Orchestration 具体持久化 import、Interface 设备构造/import、旧身体 Route 的松散/缺失模型
 状态：closed
 ```
 

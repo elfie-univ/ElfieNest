@@ -1,4 +1,4 @@
-"""In-process bridge between typed external bodies and authenticated LAN devices."""
+"""In-process adapter between typed external bodies and authenticated LAN devices."""
 
 from __future__ import annotations
 

@@ -192,11 +192,12 @@ In development the default listens only on loopback; to expose the login page
 to other devices on the LAN, use `--lan` explicitly. LAN does not relax
 account, role, CSRF, Host/Origin or device credential checks. The installed CLI
 can turn off the home LAN service with `--loopback`. Devices use only Bearer
-credentials on `/api/v1/ws/devices`; browser users always use session cookies.
+credentials on `/api/v1/ws/bodies`; browser users always use session cookies.
 
-`/api/v1/ws/devices` does not accept free-form JSON: every text frame is capped
-at 64 KiB and may only be `heartbeat`, `sensor_event`, `receipt` or
-`command_poll`. Sensor events and action receipts directly reuse the type
+`/api/v1/ws/bodies` does not accept free-form JSON: every text frame is capped
+at 64 KiB, declares protocol version `1`, an event ID and UTC occurrence time,
+and may only be `heartbeat`, `sensor_event`, `receipt` or `command_poll`.
+Sensor events and action receipts directly reuse the type
 contracts from `elfie.body.contracts`; the Core queues actions into the next
 `command_poll` of a connected device through `DeviceGatewayTransport`. Device
 credentials are shown only once, at registration or rotation, and must never be

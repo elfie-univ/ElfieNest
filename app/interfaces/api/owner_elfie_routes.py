@@ -17,12 +17,12 @@ from app.features.elfies import (
     ElfiesUnavailable,
     ListAdminElfiesQuery,
 )
-from app.infrastructure.persistence.embodiment_sessions import get_embodiment_session
 from app.infrastructure.persistence.interface_query_repository import (
     InterfaceElfieRecord,
     InterfaceQueryRepository,
 )
 from app.interfaces.api.v1.auth import require_manager
+from app.orchestration.embodiment import EmbodimentSessionService
 
 router = APIRouter(prefix="/api/owner", tags=["owner-elfie-monitoring"])
 
@@ -54,6 +54,7 @@ async def list_owner_elfie_monitoring(
     )
     return _filter_monitoring_rows(
         request.app.state.db_path,
+        request.app.state.embodiment,
         rows,
         {item.profile.elfie_id: item for item in projections},
         owner,
@@ -93,6 +94,7 @@ def _load_registered_elfies(
 
 def _filter_monitoring_rows(
     db_path: str,
+    embodiment: EmbodimentSessionService,
     rows: List[InterfaceElfieRecord],
     elfies: Dict[str, AdminElfieResult],
     principal: AccountPrincipal,
@@ -106,7 +108,7 @@ def _filter_monitoring_rows(
         elfie = elfies.get(row.elfie_id)
         if elfie is None:
             continue
-        state = get_embodiment_session(db_path, row.elfie_id).state.value
+        state = embodiment.get_session(row.elfie_id).state.value
         try:
             policy = food_service.get_elfie_policy(
                 principal,

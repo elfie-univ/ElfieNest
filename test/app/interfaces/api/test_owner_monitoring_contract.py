@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from datetime import date
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -16,10 +17,10 @@ from ai_runtime.food.models import (
     system_food_packages,
 )
 from app.bootstrap import create_app
-from app.infrastructure.devices import DeviceRegistry
-from app.infrastructure.persistence.embodiment_sessions import begin_hosting
 from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
 from app.infrastructure.persistence.store import init_db
+from infrastructure.persistence.bodies import SQLiteBodiesAdapter
+from infrastructure.persistence.embodiment import SQLiteEmbodimentLeaseAdapter
 
 from ._helpers import adopt_test_elfie, create_test_owner
 
@@ -98,10 +99,15 @@ def monitoring_world(client: TestClient) -> dict:
         headers=_headers(str(alice["csrf_token"])),
     )
     assert policy.status_code == 200, policy.text
-    body = DeviceRegistry(client.app.state.db_path).enroll(
-        alice_dog, "Test Body", "toy"
+    body = SQLiteBodiesAdapter(client.app.state.db_path).enroll(
+        owner_user_id=int(alice["user_id"]),
+        elfie_id=alice_dog,
+        display_name="Test Body",
+        body_type="toy",
     )
-    begin_hosting(client.app.state.db_path, alice_dog, body.body_id, lease_seconds=30)
+    SQLiteEmbodimentLeaseAdapter(client.app.state.db_path).begin_hosting(
+        alice_dog, body.body_id, lease_seconds=30
+    )
 
     bob = _login(client, "bob", "bob-pass")
     bob_dog = adopt_test_elfie(
@@ -159,8 +165,8 @@ def test_owner_elfie_monitoring_projection_is_safe_and_structured(
     }
     assert row["profile"]["name"] == "星尘"
     assert row["profile"]["species_id"] == "dog"
-    assert row["profile"]["gender"] is None
-    assert row["profile"]["birth_date"] is None
+    assert row["profile"]["gender"] == "female"
+    assert row["profile"]["birth_date"] == date.today().isoformat()
     assert row["profile"]["summary"]
     assert row["profile"]["online_status"] == "unknown"
     assert row["profile"]["embodiment"] == {"state": "switching_to_hosted"}

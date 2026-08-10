@@ -6,23 +6,26 @@ from pathlib import Path
 
 import pytest
 
-from app.infrastructure.devices.registry import DeviceCredentialError, DeviceRegistry
-from app.infrastructure.persistence.elfie_repository import ElfieRepository
-from app.infrastructure.persistence.embodiment_sessions import (
-    EmbodimentLeaseConflict,
-    begin_hosting,
-    complete_hosting,
-    complete_return,
-    get_embodiment_session,
-    start_return,
+from app.features.bodies.ports import (
+    BodiesPortCredentialRejected,
 )
+from app.infrastructure.persistence.elfie_repository import ElfieRepository
 from app.infrastructure.persistence.final_schema import create_final_nest_database
 from app.infrastructure.persistence.nest_repository import SQLiteNestRepository
 from app.infrastructure.persistence.nest_state_repository import (
     SQLiteNestStateRepository,
 )
 from app.infrastructure.persistence.store import get_db
+from app.orchestration.embodiment.ports import EmbodimentLeaseConflict
 from infrastructure.persistence import SQLiteFoodAdapter
+from infrastructure.persistence.bodies import SQLiteBodiesAdapter
+from infrastructure.persistence.embodiment import (
+    begin_hosting,
+    complete_hosting,
+    complete_return,
+    get_embodiment_session,
+    start_return,
+)
 from nest.embodiment import EmbodimentState
 from nest.state.models import PersistentResidentState, ResidentPresence, WorldCatalog
 from test.app.interfaces.api._helpers import adopt_test_elfie
@@ -182,11 +185,15 @@ def test_body_secret_revoke_audit_and_versioned_lease_reject_stale_writes(
         summary=None,
         max_elfies=2,
     )
-    registry = DeviceRegistry(db_path)
+    registry = SQLiteBodiesAdapter(db_path)
     credential = registry.enroll(
-        owner_elfie_id="00000001", display_name="客厅玩具", body_type="toy"
+        owner_user_id=1,
+        elfie_id="00000001",
+        display_name="客厅玩具",
+        body_type="toy",
     )
-    assert registry.authenticate(credential.bearer_token).owner_elfie_id == "00000001"
+    bearer_token = f"{credential.body_id}.{credential.secret}"
+    assert registry.authenticate(bearer_token).owner_elfie_id == "00000001"
 
     # When: the body is leased and one writer advances the lease version.
     switching = begin_hosting(db_path, "00000001", credential.body_id, lease_seconds=30)
@@ -200,9 +207,13 @@ def test_body_secret_revoke_audit_and_versioned_lease_reject_stale_writes(
     assert at_nest.state is EmbodimentState.AT_NEST
     assert get_embodiment_session(db_path, "00000001").lease_version == 4
 
-    registry.revoke("00000001", credential.body_id)
-    with pytest.raises(DeviceCredentialError):
-        registry.authenticate(credential.bearer_token)
+    registry.revoke(
+        owner_user_id=1,
+        elfie_id="00000001",
+        body_id=credential.body_id,
+    )
+    with pytest.raises(BodiesPortCredentialRejected):
+        registry.authenticate(bearer_token)
     with get_db(db_path) as connection:
         saved_hash = str(
             connection.execute(

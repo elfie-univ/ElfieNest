@@ -23,6 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from ai_runtime.storage.data_home import get_db_path as _get_db_path
 from app.features.accounts import AccountPrincipal, AccountsService
 from app.features.adoption import AdoptionService
+from app.features.bodies import BodiesService
 from app.features.communication import CommunicationFacade
 from app.features.configuration import (
     CapabilitiesService,
@@ -34,7 +35,6 @@ from app.features.elfies import ElfiesService
 from app.features.nest_management import NestManagementService
 from app.features.operations import OperationsFacade
 from app.features.setup import SetupService
-from app.infrastructure.devices import DeviceGateway
 from app.infrastructure.persistence.store import (
     init_db,
     seed_initial_owner_if_env_set,
@@ -44,6 +44,7 @@ from app.interfaces.web.build_discovery import (
     WebBuildManifestMissingError,
     discover_web_build,
 )
+from app.orchestration.embodiment import BodyDeviceChannel, EmbodimentSessionService
 from app.orchestration.message_delivery import MessageDeliveryFacade
 from app.orchestration.observer import ObserverFacade
 from app.orchestration.resident_admission import ResidentAdmissionService
@@ -119,6 +120,9 @@ def create_http_application(
     resident_admission: ResidentAdmissionService,
     setup: SetupService,
     setup_installation: SetupInstallationService,
+    bodies: BodiesService,
+    embodiment: EmbodimentSessionService,
+    body_device_channel: BodyDeviceChannel,
     engine: Any = None,
     db_path: Optional[str] = None,
     ws_port: int = 8766,
@@ -184,9 +188,11 @@ def create_http_application(
     app.state.resident_admission = resident_admission
     app.state.setup = setup
     app.state.setup_installation = setup_installation
+    app.state.bodies = bodies
+    app.state.embodiment = embodiment
+    app.state.body_device_channel = body_device_channel
     app.state.db_path = db_path
     app.state.engine = engine
-    app.state.device_gateway = DeviceGateway()
     app.state.ws_port = ws_port
     configured_web_build_dir = os.environ.get("ELFIENEST_WEB_BUILD_DIR")
     build_dir = web_build_dir or (
@@ -312,6 +318,7 @@ def create_http_application(
     )
     from .v1.admin.users import router as admin_users_router  # noqa: PLC0415
     from .v1.auth.routes import router as auth_router  # noqa: PLC0415
+    from .v1.elfies.bodies import router as bodies_router  # noqa: PLC0415
     from .v1.elfies.food_policy import (
         router as elfie_food_policy_router,  # noqa: PLC0415
     )
@@ -321,6 +328,7 @@ def create_http_application(
         router as conversations_router,  # noqa: PLC0415
     )
     from .v1.observer import router as observer_router  # noqa: PLC0415
+    from .v1.realtime.bodies import router as body_realtime_router  # noqa: PLC0415
     from .v1.realtime_chat_routes import (
         router as realtime_chat_router,  # noqa: PLC0415
     )
@@ -332,6 +340,7 @@ def create_http_application(
     app.include_router(model_providers_router)
     app.include_router(food_packages_router)
     app.include_router(elfie_food_policy_router)
+    app.include_router(bodies_router)
     app.include_router(capabilities_router)
     app.include_router(runtime_router)
     app.include_router(me_router)
@@ -339,14 +348,13 @@ def create_http_application(
     app.include_router(conversations_router)
     app.include_router(observer_router)
     app.include_router(realtime_chat_router)
+    app.include_router(body_realtime_router)
     app.include_router(admin_users_router)
     app.include_router(setup_router)
     app.include_router(page_router)
     from .v1.client_routes import router as v1_client_router  # noqa: PLC0415
-    from .v1.device_routes import router as v1_device_router  # noqa: PLC0415
 
     app.include_router(v1_client_router)
-    app.include_router(v1_device_router)
 
     # -------------------------------------------------------------------
     # Owner REST API 路由

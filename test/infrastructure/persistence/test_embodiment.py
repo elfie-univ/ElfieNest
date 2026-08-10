@@ -6,9 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from app.infrastructure.devices import DeviceRegistry
-from app.infrastructure.persistence.embodiment_sessions import (
-    EmbodimentLeaseConflict,
+from app.infrastructure.persistence.store import get_db, init_db
+from app.orchestration.embodiment.ports import EmbodimentLeaseConflict
+from infrastructure.persistence.bodies import SQLiteBodiesAdapter
+from infrastructure.persistence.embodiment import (
     abort_hosting,
     begin_hosting,
     complete_hosting,
@@ -19,15 +20,13 @@ from app.infrastructure.persistence.embodiment_sessions import (
     renew_hosting_heartbeat,
     start_return,
 )
-from app.infrastructure.persistence.store import get_db, init_db
 from nest.embodiment import EmbodimentState
 
 
 def test_embodiment_session_persists_one_hosted_lease_at_a_time(tmp_path: Path) -> None:
     db_path = _final_elfie_database(tmp_path)
-    registry = DeviceRegistry(db_path)
-    first = registry.enroll("00000001", "身体一", "toy")
-    second = registry.enroll("00000001", "身体二", "toy")
+    first = _enroll(db_path, "身体一")
+    second = _enroll(db_path, "身体二")
 
     switching = begin_hosting(db_path, "00000001", first.body_id, lease_seconds=30)
 
@@ -48,7 +47,7 @@ def test_aborting_a_failed_hosting_releases_the_lease_and_returns_to_nest(
 ) -> None:
     # Given: a body lease was acquired before the connection attempt fails.
     db_path = _final_elfie_database(tmp_path)
-    body = DeviceRegistry(db_path).enroll("00000001", "身体一", "toy")
+    body = _enroll(db_path, "身体一")
     switching = begin_hosting(db_path, "00000001", body.body_id, lease_seconds=30)
 
     # When: orchestration aborts that failed connection attempt.
@@ -65,7 +64,7 @@ def test_stale_hosting_lease_becomes_offline_and_cannot_be_renewed(
 ) -> None:
     # Given: a hosted body has a lease that has already expired.
     db_path = _final_elfie_database(tmp_path)
-    body = DeviceRegistry(db_path).enroll("00000001", "身体一", "toy")
+    body = _enroll(db_path, "身体一")
     switching = begin_hosting(db_path, "00000001", body.body_id, lease_seconds=30)
     hosted = complete_hosting(db_path, "00000001", switching.lease_version)
 
@@ -107,3 +106,12 @@ def _final_elfie_database(tmp_path: Path) -> str:
         )
         connection.commit()
     return db_path
+
+
+def _enroll(db_path: str, display_name: str):
+    return SQLiteBodiesAdapter(db_path).enroll(
+        owner_user_id=1,
+        elfie_id="00000001",
+        display_name=display_name,
+        body_type="toy",
+    )

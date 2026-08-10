@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,20 +11,17 @@ from fastapi.testclient import TestClient
 
 from ai_runtime.storage.data_layout import final_root_layout
 from app.bootstrap import create_app
-from app.infrastructure.devices import DeviceRegistry
-from app.infrastructure.persistence.embodiment_sessions import begin_hosting
 from app.infrastructure.persistence.store import init_db
-from elfie.body import BodyId, BodySensorEvent, SpeechCommand, UtteranceFinal
+from elfie.body import BodyId, BodySensorEvent, UtteranceFinal
 from elfie.brain.memory.knowledge_store import KnowledgeStore
 from elfie.brain.memory.node_types import MemoryNode
 from elfie.message_types import (
     ActorId,
     ActorRef,
-    CommandId,
     EventId,
-    IntentId,
-    TurnId,
 )
+from infrastructure.persistence.bodies import SQLiteBodiesAdapter
+from infrastructure.persistence.embodiment import SQLiteEmbodimentLeaseAdapter
 
 from ._helpers import (
     adopt_test_elfie,
@@ -218,98 +215,103 @@ def test_admin_can_persist_a_safe_default_landing_page(client: TestClient) -> No
 def test_v1_profile_reads_the_persisted_embodiment_state(client: TestClient) -> None:
     csrf_token = _login_owner(client)
     elfie_id = _adopt_elfie(client, csrf_token)
-    body = DeviceRegistry(client.app.state.db_path).enroll(
-        elfie_id, "模拟身体", "simulated"
+    body = SQLiteBodiesAdapter(client.app.state.db_path).enroll(
+        owner_user_id=1,
+        elfie_id=elfie_id,
+        display_name="模拟身体",
+        body_type="simulated",
     )
-    begin_hosting(client.app.state.db_path, elfie_id, body.body_id, lease_seconds=30)
+    SQLiteEmbodimentLeaseAdapter(client.app.state.db_path).begin_hosting(
+        elfie_id, body.body_id, lease_seconds=30
+    )
 
     profile = client.get(f"/api/v1/elfies/{elfie_id}/profile")
 
     assert profile.json()["embodiment"] == {"state": "switching_to_hosted"}
 
 
-def test_owner_can_enroll_rotate_and_revoke_a_hashed_device_credential(
+def test_owner_can_enroll_rotate_and_revoke_a_hashed_body_credential(
     client: TestClient,
 ) -> None:
     csrf_token = _login_owner(client)
     elfie_id = _adopt_elfie(client, csrf_token)
     enrolled = client.post(
-        "/api/v1/owner/devices",
-        json={"elfie_id": elfie_id, "display_name": "客厅玩具", "body_type": "toy"},
+        f"/api/v1/elfies/{elfie_id}/bodies",
+        json={"display_name": "客厅玩具", "body_type": "toy"},
         headers={"X-CSRF-Token": csrf_token},
     )
     body_id = enrolled.json()["body_id"]
     original_bearer = enrolled.json()["bearer_token"]
     rotated = client.post(
-        f"/api/v1/owner/devices/{body_id}/rotate?elfie_id={elfie_id}",
+        f"/api/v1/elfies/{elfie_id}/bodies/{body_id}/credential-rotations",
         headers={"X-CSRF-Token": csrf_token},
     )
     revoked = client.delete(
-        f"/api/v1/owner/devices/{body_id}?elfie_id={elfie_id}",
+        f"/api/v1/elfies/{elfie_id}/bodies/{body_id}",
         headers={"X-CSRF-Token": csrf_token},
     )
 
-    assert enrolled.status_code == 200
+    assert enrolled.status_code == 201
     assert original_bearer not in str(
-        client.get(f"/api/v1/owner/devices?elfie_id={elfie_id}").json()
+        client.get(f"/api/v1/elfies/{elfie_id}/bodies").json()
     )
-    assert rotated.status_code == 200
+    assert rotated.status_code == 201
     assert rotated.json()["bearer_token"] != original_bearer
-    assert revoked.status_code == 200
+    assert revoked.status_code == 204
 
 
-def test_device_websocket_routes_typed_sensor_events_and_command_polls(
+def test_body_websocket_routes_versioned_sensor_events_and_command_polls(
     client: TestClient,
 ) -> None:
     csrf_token = _login_owner(client)
     elfie_id = _adopt_elfie(client, csrf_token)
     enrolled = client.post(
-        "/api/v1/owner/devices",
-        json={"elfie_id": elfie_id, "display_name": "客厅玩具", "body_type": "toy"},
+        f"/api/v1/elfies/{elfie_id}/bodies",
+        json={"display_name": "客厅玩具", "body_type": "toy"},
         headers={"X-CSRF-Token": csrf_token},
     )
     body_id = str(enrolled.json()["body_id"])
     bearer_token = str(enrolled.json()["bearer_token"])
     event = BodySensorEvent(
         event_id=EventId("device-sensor-1"),
-        body_id=BodyId("living-room-toy"),
+        body_id=BodyId(body_id),
         source=ActorRef(actor_id=ActorId("device-owner"), source_kind="microphone"),
         occurred_at=datetime(2026, 7, 24, 8, 0, tzinfo=timezone.utc),
         received_at=datetime(2026, 7, 24, 8, 0, tzinfo=timezone.utc),
         payload=UtteranceFinal(kind="utterance_final", text="听见了吗？"),
     )
-    received: list[BodySensorEvent] = []
-    client.app.state.device_gateway.attach_sensor_handler(body_id, received.append)
-
     with client.websocket_connect(
-        "/api/v1/ws/devices",
+        "/api/v1/ws/bodies",
         headers={"Authorization": f"Bearer {bearer_token}"},
     ) as websocket:
-        assert websocket.receive_json() == {"event": "ready", "body_id": body_id}
+        ready = websocket.receive_json()
+        assert ready["protocol_version"] == "1"
+        assert ready["event"] == "ready"
+        assert ready["payload"] == {"body_id": body_id}
         websocket.send_json(
-            {"event": "sensor_event", "sensor_event": event.model_dump(mode="json")}
+            {
+                "protocol_version": "1",
+                "event_id": "sensor-frame-1",
+                "occurred_at": "2026-07-24T08:00:00Z",
+                "event": "sensor_event",
+                "sensor_event": event.model_dump(mode="json"),
+            }
         )
-        assert websocket.receive_json() == {"event": "sensor_event", "delivered": True}
-
-        command = SpeechCommand(
-            command_type="speech",
-            command_id=CommandId("device-command-1"),
-            turn_id=TurnId("device-turn-1"),
-            intent_id=IntentId("device-intent-1"),
-            body_id=BodyId("living-room-toy"),
-            issued_at=datetime(2026, 7, 24, 8, 0, tzinfo=timezone.utc),
-            deadline=datetime(2026, 7, 24, 8, 0, tzinfo=timezone.utc)
-            + timedelta(seconds=10),
-            capability_revision=1,
-            text="你好，玩具。",
+        sensor_result = websocket.receive_json()
+        assert sensor_result["event"] == "sensor_event"
+        assert sensor_result["payload"] == {"delivered": False}
+        websocket.send_json(
+            {
+                "protocol_version": "1",
+                "event_id": "poll-frame-1",
+                "occurred_at": "2026-07-24T08:00:00Z",
+                "event": "command_poll",
+            }
         )
-        assert client.app.state.device_gateway.enqueue_command(body_id, command) is True
-        websocket.send_json({"event": "command_poll"})
         command_batch = websocket.receive_json()
 
-    assert received == [event]
     assert command_batch["event"] == "commands"
-    assert command_batch["commands"] == [command.model_dump(mode="json")]
+    assert command_batch["payload"] == {"commands": []}
 
 
 def test_v1_session_projection_includes_the_owner_landing_preference(
@@ -331,6 +333,10 @@ def test_v1_openapi_route_snapshot(client: TestClient) -> None:
         "/api/v1/me/default-landing-page",
         "/api/v1/elfies",
         "/api/v1/elfies/{elfie_id}/profile",
+        "/api/v1/elfies/{elfie_id}/bodies",
+        "/api/v1/elfies/{elfie_id}/bodies/{body_id}",
+        "/api/v1/elfies/{elfie_id}/bodies/{body_id}/credential-rotations",
         "/api/v1/me/conversations",
         "/api/v1/me/conversations/{elfie_id}/messages",
     } <= set(paths)
+    assert "/api/v1/owner/devices" not in paths

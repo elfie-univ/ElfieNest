@@ -1,26 +1,21 @@
-"""Optimistic, versioned persistence for one Elfie's embodiment lease."""
+"""SQLite adapter for one Elfie's optimistic, versioned embodiment lease."""
 
 from __future__ import annotations
 
 import sqlite3
 import time
-from dataclasses import dataclass
+from typing import ContextManager
 
-from app.infrastructure.persistence.store import get_db
+from app.orchestration.embodiment.models import EmbodimentSession
+from app.orchestration.embodiment.ports import EmbodimentLeaseConflict
 from nest.embodiment import EmbodimentState
 
-
-class EmbodimentLeaseConflict(RuntimeError):
-    """Raised when a transition uses stale or conflicting lease state."""
+from .sqlite_connection import app_sqlite_connection
 
 
-@dataclass(frozen=True)
-class EmbodimentSession:
-    elfie_id: str
-    state: EmbodimentState
-    body_id: str | None
-    lease_expires_at: float | None
-    lease_version: int
+def get_db(db_path: str) -> ContextManager[sqlite3.Connection]:
+    """Keep the moved transaction implementation on the root SQLite boundary."""
+    return app_sqlite_connection(db_path)
 
 
 def get_embodiment_session(db_path: str, elfie_id: str) -> EmbodimentSession:
@@ -264,3 +259,54 @@ def _row_to_session(elfie_id: str, row: sqlite3.Row | None) -> EmbodimentSession
         lease_expires_at=None if expires_at is None else float(expires_at),
         lease_version=int(row["lease_version"]),
     )
+
+
+class SQLiteEmbodimentLeaseAdapter:
+    """Implement the App-owned lease Port over the authoritative Nest database."""
+
+    def __init__(self, db_path: str) -> None:
+        self._db_path = db_path
+
+    def get(self, elfie_id: str) -> EmbodimentSession:
+        return get_embodiment_session(self._db_path, elfie_id)
+
+    def begin_hosting(
+        self, elfie_id: str, body_id: str, *, lease_seconds: float
+    ) -> EmbodimentSession:
+        return begin_hosting(
+            self._db_path,
+            elfie_id,
+            body_id,
+            lease_seconds=lease_seconds,
+        )
+
+    def complete_hosting(self, elfie_id: str, lease_version: int) -> EmbodimentSession:
+        return complete_hosting(self._db_path, elfie_id, lease_version)
+
+    def abort_hosting(self, elfie_id: str, lease_version: int) -> EmbodimentSession:
+        return abort_hosting(self._db_path, elfie_id, lease_version)
+
+    def start_return(self, elfie_id: str, lease_version: int) -> EmbodimentSession:
+        return start_return(self._db_path, elfie_id, lease_version)
+
+    def complete_return(self, elfie_id: str, lease_version: int) -> EmbodimentSession:
+        return complete_return(self._db_path, elfie_id, lease_version)
+
+    def heartbeat(
+        self, elfie_id: str, lease_version: int, *, lease_seconds: float
+    ) -> EmbodimentSession:
+        return renew_hosting_heartbeat(
+            self._db_path,
+            elfie_id,
+            lease_version,
+            lease_seconds=lease_seconds,
+        )
+
+    def expire(self, elfie_id: str, *, now: float | None = None) -> EmbodimentSession:
+        return expire_stale_lease(self._db_path, elfie_id, now=now)
+
+    def recover(self, elfie_id: str, lease_version: int) -> EmbodimentSession:
+        return recover_offline_session(self._db_path, elfie_id, lease_version)
+
+
+__all__ = ("SQLiteEmbodimentLeaseAdapter",)

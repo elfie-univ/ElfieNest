@@ -37,7 +37,7 @@ and acceptance gate rather than copying the full generated inventory.
 | APP-007 | P1 | open | Transaction ownership, Repository commit behavior, typed-file writers and external-workflow recovery are not uniformly expressed by Ports and tests. | Each migrated command declares its database, file or external-workflow consistency class; no external wait occurs inside a DB transaction; atomicity and recovery tests pass. |
 | APP-008 | P1 | open | Some Features own threads/jobs or blocking platform work, while task cancellation, timeout, receipt and restart semantics are inconsistent. | Scheduler/Runner Ports own background work; Bootstrap/lifecycle owns runners; async boundaries and long-task semantics have focused tests. |
 | APP-009 | P1 | open | Global MyPy remains non-strict and no migrated-domain strict zone has been established. | Each migrated domain and its public callers pass strict MyPy without `Any` escape hatches; the strict override expands as domains close. |
-| APP-010 | P1 | open | External-body persistence and device registration have overlapping registries/repositories; embodiment contracts import persistence records and Orchestration carries `db_path`. | One external-body product model and consumer-owned Ports remain; device transport is an Infrastructure adapter; hosting/homing remains Orchestration; duplicate facts and concrete imports are removed. |
+| APP-010 | P1 | closed | External-body enrollment now has one `bodies` Feature and SQLite Port implementation; hosting/homing uses an injected embodiment lease Port; device transport lives in root Infrastructure. | One external-body product model and consumer-owned Ports remain; device transport is an Infrastructure adapter; hosting/homing remains Orchestration; duplicate facts and concrete imports are removed. |
 | APP-011 | P1 | open | Versioned and historical product APIs coexist, including duplicated caller projections and untyped legacy resources. | Migrate one API business domain at a time under `app/interfaces/api/AGENTS.md`, move every real caller, then delete the old Route, client, DTO and fixtures without aliases. |
 | APP-012 | P1 | open | Configuration, secret access and caches do not yet share one enforced ownership template across App domains. | Every migrated configuration has one typed owner/writer and precedence; secrets use references/Secret Ports; caches declare authority, invalidation, lifetime and rebuild behavior. |
 
@@ -344,6 +344,20 @@ Timeout / retry / idempotency: capability expiry follows the existing Accounts s
 Legacy deletion list: unversioned Observer Route; route-owned registry and SQLite authorization query; Nest Gateway Observer session registry; old frontend paths
 Focused tests and end-to-end gate: Facade capability/projection/authorization; strict Route and logout; Godot/platform adapters; browser client; App/System/Gateway/Runtime architecture gates
 Machine baseline entries removed: old Observer Route construction, concrete persistence import, loose/missing Route models and every /api/observer resource
+Status: closed
+```
+
+```text
+Domain: Bodies and Embodiment
+Gap IDs: APP-001, APP-002, APP-003, APP-005, APP-006, APP-007, APP-009, APP-010, APP-011
+Authoritative facts: external_bodies/device_audit_events and embodiment_sessions in the existing Nest SQLite database; one live BodyPort binding on the real Elfie
+Ports and adapters: bodies-owned persistence/credential Port; embodiment-owned lease and body-device gateway Ports; root SQLite/device adapters; Bootstrap injection
+Consistency class: enrollment, rotation, revocation and lease transitions are SQLite transactions; body connection is an external workflow with explicit abort/recovery
+Principal and authorization: browser administration uses AccountPrincipal plus persisted Elfie ownership; devices use an independent minimal BodyPrincipal derived from the bearer credential
+Timeout / retry / idempotency: existing lease expiry/version conflict and one-time command polling remain; no new retry, pairing or throttling behavior
+Legacy deletion list: app/features/embodiment, app/infrastructure/devices, App embodiment persistence module, /api/v1/owner/devices and /api/v1/ws/devices
+Focused tests and end-to-end gate: Feature authorization, credential secrecy/rotation/revoke, lease transitions, real BodyPort binding, strict HTTP and versioned WebSocket routes, App/System/Storage architecture gates
+Machine baseline entries removed: embodiment Feature/Orchestration concrete persistence imports, Interface device construction/imports, loose/missing legacy body routes
 Status: closed
 ```
 

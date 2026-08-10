@@ -1,35 +1,46 @@
-"""Feature-layer outcomes without body or database ownership."""
+"""Commands and results owned by the embodiment workflow."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Union
 
-from app.infrastructure.persistence.embodiment_sessions import EmbodimentSession
 from nest.embodiment import EmbodimentState
 
 
 @dataclass(frozen=True)
-class Hosted:
-    """A body became the Elfie's one active hosted body."""
+class EmbodimentSession:
+    elfie_id: str
+    state: EmbodimentState
+    body_id: str | None
+    lease_expires_at: float | None
+    lease_version: int
 
+
+@dataclass(frozen=True)
+class Hosted:
     session: EmbodimentSession
 
 
 @dataclass(frozen=True)
 class HostingFailed:
-    """Binding failed after a lease was acquired and released."""
-
     restored_state: EmbodimentState
     reason: str
 
 
 @dataclass(frozen=True)
 class EmbodimentConflict:
-    """A concurrent or invalid transition prevented a second active body."""
-
     state: EmbodimentState
     reason: str
 
 
 HostingResult = Union[Hosted, HostingFailed, EmbodimentConflict]
+
+
+__all__ = (
+    "EmbodimentConflict",
+    "EmbodimentSession",
+    "Hosted",
+    "HostingFailed",
+    "HostingResult",
+)

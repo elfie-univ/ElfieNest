@@ -14,11 +14,7 @@ LEGACY_APP_LAYER_VIOLATIONS: Dict[str, FrozenSet[str]] = {
         {
         }
     ),
-    "feature_forbidden_layer_imports": frozenset(
-        {
-            "app/features/embodiment/contracts.py -> app.infrastructure.persistence.embodiment_sessions",
-        }
-    ),
+    "feature_forbidden_layer_imports": frozenset(),
     "feature_framework_imports": frozenset({}),
     "feature_public_db_path": frozenset(),
     "feature_unowned_task_calls": frozenset(),
@@ -29,9 +25,6 @@ LEGACY_APP_LAYER_VIOLATIONS: Dict[str, FrozenSet[str]] = {
             "app/interfaces/api/ollama_owner_routes.py::_provider_store::ProviderConnectionStore",
             "app/interfaces/api/owner_elfie_routes.py::_load_registered_elfies::InterfaceQueryRepository",
             "app/interfaces/api/v1/client_routes.py::_owned_public_profiles::RuntimeQueryRepository",
-            "app/interfaces/api/v1/device_routes.py::_registry::DeviceRegistry",
-            "app/interfaces/api/v1/device_routes.py::_require_owned_elfie::InterfaceQueryRepository",
-            "app/interfaces/api/v1/device_routes.py::device_websocket::DeviceRegistry",
             "app/interfaces/cli/route_commands.py::show_route::ElfieRepository",
         }
     ),
@@ -58,15 +51,9 @@ LEGACY_APP_LAYER_VIOLATIONS: Dict[str, FrozenSet[str]] = {
     ),
     "interface_forbidden_layer_imports": frozenset(
         {
-            "app/interfaces/api/app.py -> app.infrastructure.devices",
             "app/interfaces/api/app.py -> app.infrastructure.persistence.store",
-            "app/interfaces/api/owner_elfie_routes.py -> app.infrastructure.persistence.embodiment_sessions",
             "app/interfaces/api/owner_elfie_routes.py -> app.infrastructure.persistence.interface_query_repository",
-            "app/interfaces/api/v1/client_routes.py -> app.infrastructure.persistence.embodiment_sessions",
             "app/interfaces/api/v1/client_routes.py -> app.infrastructure.persistence.runtime_query_repository",
-            "app/interfaces/api/v1/device_routes.py -> app.infrastructure.devices",
-            "app/interfaces/api/v1/device_routes.py -> app.infrastructure.devices.registry",
-            "app/interfaces/api/v1/device_routes.py -> app.infrastructure.persistence.interface_query_repository",
             "app/interfaces/cli/route_commands.py -> app.infrastructure.persistence.elfie_repository",
         }
     ),
@@ -81,7 +68,6 @@ LEGACY_APP_LAYER_VIOLATIONS: Dict[str, FrozenSet[str]] = {
             "app/interfaces/api/page_routes.py::owner_mobile_access::GET /api/owner/mobile-access::return:loose",
             "app/interfaces/api/v1/client_routes.py::list_public_elfies::GET /elfies::return:loose",
             "app/interfaces/api/v1/client_routes.py::public_elfie_profile::GET /elfies/{elfie_id}/profile::return:loose",
-            "app/interfaces/api/v1/device_routes.py::list_devices::GET /owner/devices::return:loose",
         }
     ),
     "json_routes_missing_response_model": frozenset(
@@ -93,17 +79,9 @@ LEGACY_APP_LAYER_VIOLATIONS: Dict[str, FrozenSet[str]] = {
             "app/interfaces/api/page_routes.py::owner_mobile_access::GET /api/owner/mobile-access",
             "app/interfaces/api/v1/client_routes.py::list_public_elfies::GET /elfies",
             "app/interfaces/api/v1/client_routes.py::public_elfie_profile::GET /elfies/{elfie_id}/profile",
-            "app/interfaces/api/v1/device_routes.py::enroll_device::POST /owner/devices",
-            "app/interfaces/api/v1/device_routes.py::list_devices::GET /owner/devices",
-            "app/interfaces/api/v1/device_routes.py::revoke_device::DELETE /owner/devices/{body_id}",
-            "app/interfaces/api/v1/device_routes.py::rotate_device::POST /owner/devices/{body_id}/rotate",
         }
     ),
-    "orchestration_forbidden_layer_imports": frozenset(
-        {
-            "app/orchestration/embodiment/session_service.py -> app.infrastructure.persistence.embodiment_sessions",
-        }
-    ),
+    "orchestration_forbidden_layer_imports": frozenset(),
     "unversioned_product_routes": frozenset(
         {
             "GET /api/godot-web/status",

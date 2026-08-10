@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from app.infrastructure.devices.gateway import DeviceGateway, DeviceGatewayTransport
 from elfie.body import (
     BodyCapabilities,
     BodyId,
@@ -15,6 +14,7 @@ from elfie.body import (
     UtteranceFinal,
 )
 from elfie.message_types import ActorId, ActorRef, CommandId, EventId, IntentId, TurnId
+from infrastructure.devices import DeviceGateway, DeviceGatewayTransport
 
 NOW = datetime(2026, 7, 24, 8, 0, tzinfo=timezone.utc)
 

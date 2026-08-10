@@ -214,7 +214,7 @@ def test_architecture_governance_layout_and_local_rules_exist() -> None:
         "app/interfaces/AGENTS.md",
         "app/orchestration/lifecycle/AGENTS.md",
         "app/orchestration/embodiment/AGENTS.md",
-        "app/infrastructure/devices/AGENTS.md",
+        "infrastructure/devices/AGENTS.md",
         "app/interfaces/api/AGENTS.md",
         "app/interfaces/desktop/AGENTS.md",
         "app/interfaces/cli/AGENTS.md",

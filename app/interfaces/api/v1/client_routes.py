@@ -18,7 +18,6 @@ from app.features.elfies import (
     GetElfieProfileQuery,
     ListVisibleElfiesQuery,
 )
-from app.infrastructure.persistence.embodiment_sessions import get_embodiment_session
 from app.infrastructure.persistence.runtime_query_repository import (
     RuntimeQueryRepository,
 )
@@ -91,8 +90,8 @@ def _owned_public_profiles(
             bed_name=(
                 f"Bed {record.bed_number}" if record.bed_number is not None else None
             ),
-            embodiment_state=get_embodiment_session(
-                db_path, projected.elfie_id
+            embodiment_state=request.app.state.embodiment.get_session(
+                projected.elfie_id
             ).state.value,
         )
         profile["gender"] = projected.gender

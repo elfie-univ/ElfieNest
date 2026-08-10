@@ -9,6 +9,7 @@ from ai_runtime.storage.data_home import data_home_from_db_path, get_config_path
 from ai_runtime.storage.data_layout import final_root_layout
 from app.features.accounts import AccountsService
 from app.features.adoption import AdoptionService
+from app.features.bodies import BodiesService
 from app.features.communication import CommunicationFacade
 from app.features.configuration import (
     CapabilitiesService,
@@ -20,15 +21,19 @@ from app.features.elfies import ElfiesService
 from app.features.nest_management import NestManagementService
 from app.features.operations import OperationsFacade
 from app.features.setup import SetupService
+from app.orchestration.embodiment import BodyDeviceChannel, EmbodimentSessionService
 from app.orchestration.message_delivery import MessageDeliveryFacade
 from app.orchestration.nest_session import NestSession
 from app.orchestration.observer import ObserverFacade
 from app.orchestration.resident_admission import ResidentAdmissionService
 from app.orchestration.setup_installation import SetupInstallationService
 from infrastructure.communication import OwnerMessageSession, SameOriginMessagePublisher
+from infrastructure.devices import DeviceGateway
 from infrastructure.models import ProviderModelsAdapter
 from infrastructure.persistence import (
+    SQLiteBodiesAdapter,
     SQLiteElfiesProjectionAdapter,
+    SQLiteEmbodimentLeaseAdapter,
     SQLiteNestManagementAdapter,
 )
 from infrastructure.persistence.provider_references import (
@@ -68,6 +73,9 @@ class ApplicationContainer:
     resident_admission: ResidentAdmissionService
     setup: SetupService
     setup_installation: SetupInstallationService
+    bodies: BodiesService
+    embodiment: EmbodimentSessionService
+    body_device_channel: BodyDeviceChannel
 
 
 def build_application_container(
@@ -113,6 +121,9 @@ def build_application_container(
         nest=nest_adapter,
         provider_connection_path=provider_connection_path,
     )
+    bodies = BodiesService(SQLiteBodiesAdapter(db_path))
+    embodiment = EmbodimentSessionService(SQLiteEmbodimentLeaseAdapter(db_path))
+    body_gateway = DeviceGateway()
     return ApplicationContainer(
         accounts=accounts,
         settings=SettingsService(settings_adapter),
@@ -145,6 +156,12 @@ def build_application_container(
         resident_admission=adoption.resident_admission,
         setup=setup.setup,
         setup_installation=setup.installation,
+        bodies=bodies,
+        embodiment=embodiment,
+        body_device_channel=BodyDeviceChannel(
+            bodies=bodies,
+            gateway=body_gateway,
+        ),
     )
 
 

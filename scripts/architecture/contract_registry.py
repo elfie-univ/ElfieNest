@@ -98,7 +98,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "app/features/configuration/AGENTS.md",
             "app/features/setup/AGENTS.md",
             "app/infrastructure/AGENTS.md",
-            "app/infrastructure/devices/AGENTS.md",
+            "infrastructure/devices/AGENTS.md",
             "app/infrastructure/persistence/AGENTS.md",
             "app/interfaces/AGENTS.md",
             "app/interfaces/api/AGENTS.md",

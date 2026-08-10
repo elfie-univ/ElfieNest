@@ -1,4 +1,4 @@
-"""Final lease persistence behavior beyond the cross-domain smoke scenario."""
+"""Root lease adapter behavior beyond the cross-domain smoke scenario."""
 
 from __future__ import annotations
 
@@ -6,16 +6,17 @@ from pathlib import Path
 
 import pytest
 
-from app.infrastructure.devices.registry import DeviceCredentialError, DeviceRegistry
+from app.features.bodies.ports import BodiesPortConflict
 from app.infrastructure.persistence.elfie_repository import ElfieRepository
-from app.infrastructure.persistence.embodiment_sessions import (
+from app.infrastructure.persistence.final_schema import create_final_nest_database
+from app.infrastructure.persistence.store import get_db
+from infrastructure.persistence.bodies import SQLiteBodiesAdapter
+from infrastructure.persistence.embodiment import (
     begin_hosting,
     complete_hosting,
     complete_return,
     start_return,
 )
-from app.infrastructure.persistence.final_schema import create_final_nest_database
-from app.infrastructure.persistence.store import get_db
 
 
 def test_returned_elfie_can_host_again_with_next_lease_version(tmp_path: Path) -> None:
@@ -35,9 +36,19 @@ def test_returned_elfie_can_host_again_with_next_lease_version(tmp_path: Path) -
         summary=None,
         max_elfies=2,
     )
-    registry = DeviceRegistry(db_path)
-    first_body = registry.enroll("00000001", "客厅身体", "toy")
-    second_body = registry.enroll("00000001", "书房身体", "toy")
+    registry = SQLiteBodiesAdapter(db_path)
+    first_body = registry.enroll(
+        owner_user_id=1,
+        elfie_id="00000001",
+        display_name="客厅身体",
+        body_type="toy",
+    )
+    second_body = registry.enroll(
+        owner_user_id=1,
+        elfie_id="00000001",
+        display_name="书房身体",
+        body_type="toy",
+    )
 
     # When: the first lease completes and a second hosting starts.
     switching = begin_hosting(db_path, "00000001", first_body.body_id, lease_seconds=30)
@@ -84,10 +95,19 @@ def test_active_body_cannot_be_revoked(tmp_path: Path) -> None:
         summary=None,
         max_elfies=2,
     )
-    registry = DeviceRegistry(db_path)
-    body = registry.enroll("00000001", "客厅身体", "toy")
+    registry = SQLiteBodiesAdapter(db_path)
+    body = registry.enroll(
+        owner_user_id=1,
+        elfie_id="00000001",
+        display_name="客厅身体",
+        body_type="toy",
+    )
     begin_hosting(db_path, "00000001", body.body_id, lease_seconds=30)
 
     # When/Then: the schema conflict is exposed as the registry's domain error.
-    with pytest.raises(DeviceCredentialError, match="活动租约"):
-        registry.revoke("00000001", body.body_id)
+    with pytest.raises(BodiesPortConflict):
+        registry.revoke(
+            owner_user_id=1,
+            elfie_id="00000001",
+            body_id=body.body_id,
+        )
