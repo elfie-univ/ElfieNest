@@ -10,10 +10,6 @@ from fastapi.testclient import TestClient
 
 from ai_runtime.storage.data_home import get_config_path
 from app.bootstrap import create_app
-from app.features.adoption.service import (
-    AdoptionRequest,
-    adopt_elfie_for_user,
-)
 from app.features.configuration.runtime_store import write_system_section
 from app.infrastructure.devices import DeviceRegistry
 from app.infrastructure.persistence.embodiment_sessions import begin_hosting
@@ -29,7 +25,11 @@ from infrastructure.persistence.elfie_chat_history import (
     list_elfie_chat_history,
     record_elfie_chat_message,
 )
-from test.app.interfaces.api._helpers import complete_test_setup, create_test_owner
+from test.app.interfaces.api._helpers import (
+    adopt_test_elfie,
+    complete_test_setup,
+    create_test_owner,
+)
 
 _NEST_TABLES = {
     "device_audit_events",
@@ -66,20 +66,14 @@ def test_fresh_root_survives_adoption_chat_memory_and_restart(tmp_path: Path) ->
         )
         connection.commit()
 
-    adopted = adopt_elfie_for_user(
+    elfie_id = adopt_test_elfie(
         str(db_path),
-        user_id=owner_id,
-        request=AdoptionRequest(
-            name="Aifei",
-            species_id="fox",
-            personality_style="好奇探索",
-            height="standard",
-            build="standard",
-        ),
+        owner_id,
+        name="Aifei",
     )
-    workspace = data_home / "elfies" / adopted.elfie_id
+    workspace = data_home / "elfies" / elfie_id
     record_elfie_chat_message(
-        adopted.elfie_id,
+        elfie_id,
         ElfieChatMessageInput(
             message_id="owner-message-1",
             conversation_id="owner-chat",
@@ -90,12 +84,12 @@ def test_fresh_root_survives_adoption_chat_memory_and_restart(tmp_path: Path) ->
         ),
         data_home=data_home,
     )
-    elfie = ElfieFactory().restore(workspace, elfie_id=adopted.elfie_id)
+    elfie = ElfieFactory().restore(workspace, elfie_id=elfie_id)
     elfie.memory.record_episode("今天看到了金色的花", "happy", 80.0)
     elfie.memory.close()
 
     init_db(str(db_path))
-    reopened = ElfieFactory().restore(workspace, elfie_id=adopted.elfie_id)
+    reopened = ElfieFactory().restore(workspace, elfie_id=elfie_id)
     assert "今天看到了金色的花" in reopened.memory.retrieve_relevant_memories(
         "金色的花"
     )
@@ -103,7 +97,7 @@ def test_fresh_root_survives_adoption_chat_memory_and_restart(tmp_path: Path) ->
     assert [
         message.text
         for message in list_elfie_chat_history(
-            adopted.elfie_id, "owner-chat", data_home=data_home
+            elfie_id, "owner-chat", data_home=data_home
         )
     ] == ["记住金色的花"]
     assert (workspace / "profile" / "profile.yaml").is_file()
@@ -146,18 +140,11 @@ def test_full_product_chain_uses_one_explicit_final_root(
             )
             csrf_token = login.headers["X-CSRF-Token"]
             complete_test_setup(str(db_path))
-            adopted = adopt_elfie_for_user(
+            elfie_id = adopt_test_elfie(
                 str(db_path),
-                user_id=owner_id,
-                request=AdoptionRequest(
-                    name="小白",
-                    species_id="fox",
-                    personality_style="好奇探索",
-                    height="standard",
-                    build="standard",
-                ),
+                owner_id,
+                name="小白",
             )
-            elfie_id = adopted.elfie_id
             bed = client.put(
                 f"/api/v1/admin/nest/elfies/{elfie_id}/bed",
                 json={"home_anchor_id": "bed-01"},
@@ -191,7 +178,6 @@ def test_full_product_chain_uses_one_explicit_final_root(
             write_system_section(get_config_path(), "security", {"session_ttl_days": 5})
             repair_local_runtime_state()
 
-            assert adopted.elfie_id == elfie_id
             assert bed.status_code == 200
             assert http_message.status_code == 201
             assert ws_message["event"] == "message"

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from ai_runtime.storage.data_home import data_home_from_db_path, get_config_path
 from ai_runtime.storage.data_layout import final_root_layout
 from app.features.accounts import AccountsService
+from app.features.adoption import AdoptionService
 from app.features.communication import CommunicationFacade
 from app.features.configuration import (
     CapabilitiesService,
@@ -20,6 +21,7 @@ from app.features.operations import OperationsFacade
 from app.orchestration.message_delivery import MessageDeliveryFacade
 from app.orchestration.nest_session import NestSession
 from app.orchestration.observer import ObserverFacade
+from app.orchestration.resident_admission import ResidentAdmissionService
 from infrastructure.communication import OwnerMessageSession, SameOriginMessagePublisher
 from infrastructure.models import ProviderModelsAdapter
 from infrastructure.persistence import (
@@ -37,6 +39,7 @@ from infrastructure.tools import (
 )
 
 from .accounts import build_accounts_service
+from .adoption import build_adoption_services
 from .communication import build_communication_services
 from .food import build_food_service
 from .observer import build_observer_facade
@@ -57,13 +60,15 @@ class ApplicationContainer:
     message_delivery: MessageDeliveryFacade
     communication_realtime: SameOriginMessagePublisher
     observer: ObserverFacade
+    adoption: AdoptionService
+    resident_admission: ResidentAdmissionService
 
 
 def build_application_container(
     db_path: str,
     *,
     message_session: OwnerMessageSession | None = None,
-    observer_session: NestSession | None = None,
+    nest_session: NestSession | None = None,
 ) -> ApplicationContainer:
     config_path = get_config_path()
     provider_models = ProviderModelsAdapter()
@@ -86,7 +91,12 @@ def build_application_container(
     communication = build_communication_services(
         db_path,
         elfies=elfies,
-        session=message_session,
+        session=nest_session if message_session is None else message_session,
+    )
+    adoption = build_adoption_services(
+        db_path,
+        settings=settings_adapter,
+        nest_session=nest_session,
     )
     return ApplicationContainer(
         accounts=accounts,
@@ -114,8 +124,10 @@ def build_application_container(
         observer=build_observer_facade(
             accounts=accounts,
             elfies=elfies,
-            nest_session=observer_session,
+            nest_session=nest_session,
         ),
+        adoption=adoption.adoption,
+        resident_admission=adoption.resident_admission,
     )
 
 

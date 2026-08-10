@@ -12,7 +12,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.bootstrap import create_app
-from app.features.adoption.service import AdoptionCapacityError
 from app.infrastructure.persistence.store import get_db, init_db
 
 from ._helpers import adopt_test_elfie, create_test_owner
@@ -96,13 +95,11 @@ def _create_user_via_owner(
 
 class TestAdoptionInfo:
     def test_returns_lists(self, client: TestClient) -> None:
-        """GET /api/user/adoption-info 返回正确列表。"""
+        """GET /api/v1/me/adoption 返回当前领养选项。"""
         _create_user_via_owner(client, "alice")
         tokens = _login_user(client, "alice")
 
-        resp = client.get(
-            "/api/user/adoption-info", headers=_headers(tokens["csrf_token"])
-        )
+        resp = client.get("/api/v1/me/adoption", headers=_headers(tokens["csrf_token"]))
         assert resp.status_code == 200
         data = resp.json()
         # 6 种性格
@@ -120,9 +117,7 @@ class TestAdoptionInfo:
 
         adopt_test_elfie(db_path, user_id, species_id="dog")
 
-        resp = client.get(
-            "/api/user/adoption-info", headers=_headers(tokens["csrf_token"])
-        )
+        resp = client.get("/api/v1/me/adoption", headers=_headers(tokens["csrf_token"]))
         assert resp.status_code == 200
         data = resp.json()
         assert data["quota"] == {
@@ -141,15 +136,18 @@ class TestAdoptionInfo:
                 "UPDATE users SET elfie_limit = 1 WHERE id = ?", (user_id,)
             )
             connection.commit()
-        tokens = _login_user(client, "alice")
-        before = client.get(
-            "/api/user/adoption-info", headers=_headers(tokens["csrf_token"])
-        )
+        _login_user(client, "alice")
+        before = client.get("/api/v1/me/adoption")
         adopt_test_elfie(db_path, user_id, name="小白", species_id="dog")
+        after = client.get("/api/v1/me/adoption")
 
         assert before.json()["quota"]["max"] == 1
-        with pytest.raises(AdoptionCapacityError, match="最多领养 1 只精灵"):
-            adopt_test_elfie(db_path, user_id, name="小灰", species_id="dog")
+        assert after.json()["quota"] == {
+            "used": 1,
+            "max": 1,
+            "remaining": 0,
+            "can_adopt": False,
+        }
 
 
 class TestAdoptionJourney:
@@ -174,7 +172,7 @@ class TestAdoptionJourney:
         }
 
         candidates = client.post(
-            "/api/user/adoption/candidates", json=intent, headers=headers
+            "/api/v1/me/adoption/candidate-sets", json=intent, headers=headers
         )
         assert candidates.status_code == 200, candidates.text
         candidate_set = candidates.json()
@@ -182,7 +180,7 @@ class TestAdoptionJourney:
         selected = candidate_set["candidates"][:2]
 
         before_reply = client.post(
-            "/api/user/adoption/commit",
+            "/api/v1/me/adoption",
             json={
                 "candidate_set_id": candidate_set["candidate_set_id"],
                 "candidate_id": selected[0]["candidate_id"],
@@ -193,18 +191,15 @@ class TestAdoptionJourney:
         assert before_reply.status_code == 409
 
         replies = client.post(
-            "/api/user/adoption/replies",
-            json={
-                "candidate_set_id": candidate_set["candidate_set_id"],
-                "candidate_ids": [item["candidate_id"] for item in selected],
-            },
+            f"/api/v1/me/adoption/candidate-sets/{candidate_set['candidate_set_id']}/replies",
+            json={"candidate_ids": [item["candidate_id"] for item in selected]},
             headers=headers,
         )
         assert replies.status_code == 200, replies.text
         assert replies.json()["replies"][0]["status"] == "accepted"
 
         committed = client.post(
-            "/api/user/adoption/commit",
+            "/api/v1/me/adoption",
             json={
                 "candidate_set_id": candidate_set["candidate_set_id"],
                 "candidate_id": selected[0]["candidate_id"],

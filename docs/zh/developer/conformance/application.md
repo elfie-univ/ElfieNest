@@ -244,6 +244,24 @@ Principal 与授权：Interface 认证账户 Principal；Capabilities 授权管�
 状态：closed
 ```
 
+### Adoption 与 Resident Admission
+
+```text
+业务域：adoption / resident_admission
+缺口 ID：APP-001、APP-002、APP-003、APP-004、APP-005、APP-006、APP-007、APP-009、APP-011、APP-012
+当前权威事实：Settings 领养策略；nest.db 的账户额度与 Elfie ownership；唯一 30 分钟进程内候选集；最终 Elfie 档案 Workspace；实时 Nest Session
+路由与生产调用方：/api/v1/me/adoption 的选项与提交、candidate-set 与回复资源、浏览器领养旅程、源码模式默认 Elfie seed
+目标公共门面与模型：AdoptionService 负责选项、候选、回复与原子 ownership 预留；ResidentAdmissionService 负责最终档案、Elfie 构造、实时接纳与补偿
+Port 与 Adapter：Settings 策略、SQLite ownership、最终档案 Workspace、Elfie Factory 与 Nest Session Port；具体 Adapter 全部由 Bootstrap 装配
+一致性类别：额度校验与 ownership 预留共用一个 immediate SQLite 事务；候选仍只在进程内；接纳失败只补偿 Workspace 与 ownership 预留
+Principal 与授权：/me 从已认证 AccountPrincipal 得到成员；每个候选集按 owner 隔离；SQLite 预留在同一事务内重新校验账户额度
+超时、重试与幂等：候选 TTL 保持 30 分钟；不新增重试或状态机；接纳失败不保留半成品 Workspace 或 ownership 记录
+旧实现删除清单：未版本化 /api/user 领养 Route；旧 candidates/config/generator/service；通用前端领养 API；直接 Engine 与 Persistence 构造
+聚焦测试与端到端门：Feature、工作流、SQLite/档案/策略/Factory Adapter、严格 Route 与实时 Settings；浏览器旅程；默认 seed；最终存储链路；App/System/Storage 架构门
+已删除的机器基线条目：全部旧 Adoption Feature db-path/具体 import；旧 Route 内部 import、松散/缺失模型和 /api/user/adoption 资源
+状态：closed
+```
+
 ### Orchestration：Observer
 
 ```text

@@ -5,10 +5,10 @@ from fastapi import HTTPException
 
 from app.bootstrap import build_application_container
 from app.infrastructure.persistence.store import init_db
-from app.interfaces.api import user_routes
 from app.interfaces.api.v1.admin.nest import routes as nest_routes
 from app.interfaces.api.v1.auth import get_current_user, require_user
 from app.interfaces.api.v1.elfies.food_policy import routes as food_policy_routes
+from app.interfaces.api.v1.me.adoption import routes as adoption_routes
 from test.app.interfaces.api._helpers import create_test_owner
 
 
@@ -19,7 +19,7 @@ class _Request:
 
 
 def test_all_http_routes_share_interface_auth_dependency_functions() -> None:
-    assert user_routes.get_current_user is get_current_user
+    assert adoption_routes.require_user is require_user
     assert food_policy_routes.require_user is require_user
     assert nest_routes.require_user is require_user
 

@@ -22,6 +22,7 @@ from fastapi.staticfiles import StaticFiles
 
 from ai_runtime.storage.data_home import get_db_path as _get_db_path
 from app.features.accounts import AccountPrincipal, AccountsService
+from app.features.adoption import AdoptionService
 from app.features.communication import CommunicationFacade
 from app.features.configuration import (
     CapabilitiesService,
@@ -48,6 +49,7 @@ from app.interfaces.web.build_discovery import (
 )
 from app.orchestration.message_delivery import MessageDeliveryFacade
 from app.orchestration.observer import ObserverFacade
+from app.orchestration.resident_admission import ResidentAdmissionService
 from infrastructure.communication import SameOriginMessagePublisher
 from nest.godot_gateway.bundle import (
     GODOT_WEB_DIR,
@@ -115,6 +117,8 @@ def create_http_application(
     message_delivery: MessageDeliveryFacade,
     communication_realtime: SameOriginMessagePublisher,
     observer: ObserverFacade,
+    adoption: AdoptionService,
+    resident_admission: ResidentAdmissionService,
     engine: Any = None,
     db_path: Optional[str] = None,
     ws_port: int = 8766,
@@ -176,6 +180,8 @@ def create_http_application(
     app.state.message_delivery = message_delivery
     app.state.communication_realtime = communication_realtime
     app.state.observer = observer
+    app.state.adoption = adoption
+    app.state.resident_admission = resident_admission
     app.state.db_path = db_path
     app.state.engine = engine
     app.state.device_gateway = DeviceGateway()
@@ -310,6 +316,7 @@ def create_http_application(
         router as elfie_food_policy_router,  # noqa: PLC0415
     )
     from .v1.me import router as me_router  # noqa: PLC0415
+    from .v1.me.adoption import router as adoption_router  # noqa: PLC0415
     from .v1.me.conversations import (
         router as conversations_router,  # noqa: PLC0415
     )
@@ -327,6 +334,7 @@ def create_http_application(
     app.include_router(capabilities_router)
     app.include_router(runtime_router)
     app.include_router(me_router)
+    app.include_router(adoption_router)
     app.include_router(conversations_router)
     app.include_router(observer_router)
     app.include_router(realtime_chat_router)
@@ -345,10 +353,6 @@ def create_http_application(
     from .owner_elfie_routes import router as owner_elfie_router  # noqa: PLC0415
 
     app.include_router(owner_elfie_router)
-    from .user_routes import router as user_router  # noqa: PLC0415
-
-    app.include_router(user_router)
-
     # -------------------------------------------------------------------
     # LLM Config 路由 (Provider/Model/Route 管理)
     # -------------------------------------------------------------------

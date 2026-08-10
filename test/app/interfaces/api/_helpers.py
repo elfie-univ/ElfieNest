@@ -8,14 +8,23 @@
     user_id = create_test_user(db_path, "alice", "pass")
 """
 
-from typing import Any, Optional
+import secrets
+from datetime import date
+from typing import Any
 
-from app.features.adoption.service import AdoptionRequest, adopt_elfie_for_user
+from ai_runtime.storage.data_home import data_home_from_db_path
+from app.features.adoption import (
+    AcceptedAdoptionReservation,
+    AdoptionReservationRecord,
+)
 from app.infrastructure.persistence.nest_repository import SQLiteNestRepository
 from app.infrastructure.persistence.setup_install_repository import (
     SetupInstallRepository,
 )
 from app.infrastructure.persistence.store import get_db, hash_password
+from elfie import ElfieFactory
+from infrastructure.persistence import FinalElfieWorkspaceAdapter, SQLiteAdoptionAdapter
+from infrastructure.platform import ElfieFactoryAdapter
 
 
 def create_test_owner(
@@ -65,24 +74,46 @@ def adopt_test_elfie(
     personality_style: str = "好奇探索",
     height: str = "standard",
     build: str = "standard",
-    appearance_overrides: Optional[dict[str, Any]] = None,
     engine: Any = None,
 ) -> str:
     """通过正式 Adoption 服务创建测试精灵，不依赖已退役 HTTP 入口。"""
-    result = adopt_elfie_for_user(
-        db_path,
-        user_id=user_id,
-        request=AdoptionRequest(
+    elfie_id = f"{secrets.randbelow(100_000_000):08d}"
+    reservation = AcceptedAdoptionReservation(
+        elfie_id=elfie_id,
+        owner_user_id=user_id,
+        name=name,
+        species_id=species_id,
+        personality_style=personality_style,
+        height=height,
+        build=build,
+        appearance_seed=secrets.randbits(63),
+        face="any",
+        signature="any",
+        gender="female",
+        birth_date=date.today().isoformat(),
+    )
+    SQLiteAdoptionAdapter(db_path).reserve(
+        AdoptionReservationRecord(
+            elfie_id=elfie_id,
+            owner_user_id=user_id,
             name=name,
             species_id=species_id,
-            personality_style=personality_style,
-            height=height,
-            build=build,
-            appearance_overrides=appearance_overrides or {},
+            gender="female",
+            birth_date=reservation.birth_date,
+            summary=personality_style,
         ),
-        engine=engine,
+        default_limit=1000,
     )
-    return result.elfie_id
+    workspace = FinalElfieWorkspaceAdapter(data_home_from_db_path(db_path)).materialize(
+        reservation
+    )
+    if engine is not None:
+        elfie = ElfieFactoryAdapter(
+            ElfieFactory(),
+            getattr(engine, "world_runtime", None),
+        ).restore(elfie_id, workspace)
+        engine.session.register_elfie(elfie_id, elfie)
+    return elfie_id
 
 
 def complete_test_setup(db_path: str, *, bed_count: int = 8) -> None:

@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
-from app.features.adoption.service import AdoptionRequest, adopt_elfie_for_user
 from app.infrastructure.devices.registry import DeviceCredentialError, DeviceRegistry
 from app.infrastructure.persistence.elfie_repository import ElfieRepository
 from app.infrastructure.persistence.embodiment_sessions import (
@@ -27,6 +25,7 @@ from app.infrastructure.persistence.store import get_db
 from infrastructure.persistence import SQLiteFoodAdapter
 from nest.embodiment import EmbodimentState
 from nest.state.models import PersistentResidentState, ResidentPresence, WorldCatalog
+from test.app.interfaces.api._helpers import adopt_test_elfie
 
 FINAL_TABLES = {
     "device_audit_events",
@@ -105,30 +104,19 @@ def test_elfie_repository_persists_owner_profile_main_food_and_nullable_bed(
 def test_adoption_service_creates_an_eight_digit_final_elfie_without_sql(
     tmp_path: Path,
 ) -> None:
-    # Given: a final Owner database and a deterministic successful generator.
+    # Given: a final Owner database.
     db_path = _final_database(tmp_path)
-    request = AdoptionRequest(
-        name="小狐",
-        species_id="fox",
-        personality_style="好奇探索",
-        height="standard",
-        build="standard",
-    )
 
-    # When: the adoption feature completes through its repository boundary.
-    with patch(
-        "app.features.adoption.service.ElfieGenerator.generate_for_species",
-        return_value=None,
-    ):
-        result = adopt_elfie_for_user(db_path, user_id=1, request=request)
+    # When: the final Adoption adapters create one Elfie fixture.
+    elfie_id = adopt_test_elfie(db_path, 1, name="小狐")
 
     # Then: ownership/profile are final, ID is exactly eight digits, and no SQL leaked.
-    assert len(result.elfie_id) == 8
-    assert result.elfie_id.isdigit()
-    record = ElfieRepository(db_path).get_for_owner(result.elfie_id, owner_user_id=1)
+    assert len(elfie_id) == 8
+    assert elfie_id.isdigit()
+    record = ElfieRepository(db_path).get_for_owner(elfie_id, owner_user_id=1)
     assert record is not None
     assert record.summary == "好奇探索"
-    source = Path("app/features/adoption/service.py").read_text(encoding="utf-8")
+    source = Path("app/features/adoption/facade.py").read_text(encoding="utf-8")
     assert "connection.execute(" not in source
     assert "elfie_registry" not in source
     _assert_only_final_tables(db_path)

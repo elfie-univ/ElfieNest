@@ -51,6 +51,7 @@ from ai_runtime.gateway.request import (
 )
 from ai_runtime.storage.data_home import (
     DataHomeSelectionError,
+    data_home_from_db_path,
     get_db_path,
     get_elfie_config_dir,
     get_elfie_home,
@@ -60,7 +61,7 @@ from app.bootstrap import create_app
 from app.bootstrap.food import build_food_service
 from app.bootstrap.lifecycle import create_lifecycle_facade
 from app.bootstrap.nest_session import build_nest_session_services
-from app.features.adoption.generator import ElfieGenerator
+from app.features.adoption import AcceptedAdoptionReservation
 from app.infrastructure.persistence.account_repository import AccountRepository
 from app.infrastructure.persistence.elfie_repository import ElfieRepository
 from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
@@ -86,6 +87,7 @@ from app.orchestration.lifecycle import (
 from elfie.brain.decision_types import CancelPolicy, DecisionPlan, MessageIntent
 from elfie.brain.model_context_compiler import CompiledModelContext
 from elfie.message_types import EventId, IntentId, PlanId, TurnId
+from infrastructure.persistence import FinalElfieWorkspaceAdapter
 from nest.godot_gateway.bundle import inspect_godot_web_bundle
 
 
@@ -296,7 +298,6 @@ def seed_single_elfie(db_path: str) -> bool:
         return False
 
     elfie_id = "00000001"
-    config_dir = str(get_elfie_config_dir(elfie_id))
     repository.reserve_adoption(
         elfie_id=elfie_id,
         owner_user_id=owner.user_id,
@@ -306,14 +307,21 @@ def seed_single_elfie(db_path: str) -> bool:
         max_elfies=1,
     )
     try:
-        ElfieGenerator().generate_for_species(
-            name="Aifei",
-            species_id="fox",
-            personality_style="好奇探索",
-            height="tall",
-            build="plump",
-            config_dir=config_dir,
-            elfie_id=elfie_id,
+        FinalElfieWorkspaceAdapter(data_home_from_db_path(db_path)).materialize(
+            AcceptedAdoptionReservation(
+                elfie_id=elfie_id,
+                owner_user_id=owner.user_id,
+                name="Aifei",
+                species_id="fox",
+                personality_style="好奇探索",
+                height="tall",
+                build="plump",
+                appearance_seed=uuid4().int & ((1 << 63) - 1),
+                face="any",
+                signature="any",
+                gender="female",
+                birth_date=datetime.now(timezone.utc).date().isoformat(),
+            )
         )
     except Exception:
         repository.delete(elfie_id)

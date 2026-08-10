@@ -249,7 +249,7 @@ def main() -> None:
 
         def _adopt(name: str) -> tuple[int, dict, str]:
             status, candidates, raw, _ = alice.post_json(
-                "/api/user/adoption/candidates",
+                "/api/v1/me/adoption/candidate-sets",
                 {
                     "species_id": "fox",
                     "life_stage": "young_adult",
@@ -271,9 +271,8 @@ def main() -> None:
                 item["candidate_id"] for item in candidates["candidates"][:2]
             ]
             status, replies, raw, _ = alice.post_json(
-                "/api/user/adoption/replies",
+                f"/api/v1/me/adoption/candidate-sets/{candidates['candidate_set_id']}/replies",
                 {
-                    "candidate_set_id": candidates["candidate_set_id"],
                     "candidate_ids": candidate_ids,
                 },
                 headers={"X-CSRF-Token": alice_csrf},
@@ -291,7 +290,7 @@ def main() -> None:
             if accepted is None:
                 return 409, {}, "No candidate accepted the invitation"
             status, adopted, raw, _ = alice.post_json(
-                "/api/user/adoption/commit",
+                "/api/v1/me/adoption",
                 {
                     "candidate_set_id": candidates["candidate_set_id"],
                     "candidate_id": accepted["candidate_id"],

@@ -32,8 +32,7 @@ def create_app(
         engine.session.attach_repository(SQLiteNestStateRepository(selected_db_path))
     container = build_application_container(
         selected_db_path,
-        message_session=None if engine is None else engine.session,
-        observer_session=None if engine is None else engine.session,
+        nest_session=None if engine is None else engine.session,
     )
     return create_http_application(
         accounts=container.accounts,
@@ -48,6 +47,8 @@ def create_app(
         message_delivery=container.message_delivery,
         communication_realtime=container.communication_realtime,
         observer=container.observer,
+        adoption=container.adoption,
+        resident_admission=container.resident_admission,
         engine=engine,
         db_path=selected_db_path,
         ws_port=ws_port,

@@ -293,6 +293,24 @@ Machine baseline entries removed: old capability Feature-internal import, loose/
 Status: closed
 ```
 
+### Adoption and Resident Admission
+
+```text
+Domain: adoption / resident_admission
+Gap IDs: APP-001, APP-002, APP-003, APP-004, APP-005, APP-006, APP-007, APP-009, APP-011, APP-012
+Current authoritative facts: Settings adoption policy; nest.db account quota and Elfie ownership; one 30-minute process-local candidate set; final Elfie profile workspace; the live Nest Session
+Routes and production callers: /api/v1/me/adoption options and commit; candidate-set and reply resources; browser Adoption journey; source default-Elfie seed
+Target public facade and models: AdoptionService for options, candidates, replies and atomic ownership reservation; ResidentAdmissionService for final profile materialization, Elfie construction, live admission and compensation
+Ports and adapters: Settings policy and SQLite ownership Ports; final profile workspace, Elfie factory and Nest Session Ports; all concrete adapters are assembled by Bootstrap
+Consistency class: quota check and ownership reservation share one immediate SQLite transaction; candidates remain process-local; admission failure compensates only the workspace and ownership reservation
+Principal and authorization: /me derives the member from the authenticated AccountPrincipal; every candidate set is owner-scoped; the SQLite reservation rechecks that same account quota atomically
+Timeout / retry / idempotency: candidate TTL remains 30 minutes; no retry or new state machine; failed admission does not retain a partial workspace or ownership row
+Legacy deletion list: unversioned /api/user Adoption Route; old candidates/config/generator/service modules; generic frontend Adoption API; direct Engine and persistence construction
+Focused tests and end-to-end gate: Feature, workflow, SQLite/profile/policy/factory adapters, strict Route and live Settings; browser journey; default seed; final-storage journey; App/System/Storage architecture gates
+Machine baseline entries removed: all old Adoption Feature db-path/concrete imports; old Route internal imports, loose/missing models and /api/user/adoption resources
+Status: closed
+```
+
 ### Orchestration: Observer
 
 ```text

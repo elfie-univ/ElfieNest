@@ -6,9 +6,10 @@ from app.infrastructure.persistence.store import get_db, init_db
 from scripts import serve
 
 
-class _CapturingGenerator:
-    def generate_for_species(self, **kwargs: str) -> None:
-        self.elfie_id = kwargs["elfie_id"]
+class _CapturingWorkspace:
+    def materialize(self, reservation: object) -> str:
+        self.reservation = reservation
+        return "/unused"
 
 
 def test_default_seed_uses_a_workspace_safe_id(monkeypatch, tmp_path: Path) -> None:
@@ -21,9 +22,13 @@ def test_default_seed_uses_a_workspace_safe_id(monkeypatch, tmp_path: Path) -> N
             ("owner", "hash", "owner"),
         )
         connection.commit()
-    generator = _CapturingGenerator()
+    workspace = _CapturingWorkspace()
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path / "elfienest"))
-    monkeypatch.setattr(serve, "ElfieGenerator", lambda: generator)
+    monkeypatch.setattr(
+        serve,
+        "FinalElfieWorkspaceAdapter",
+        lambda _data_home: workspace,
+    )
 
     # When: the service creates its default elfie.
     assert serve.seed_single_elfie(db_path) is True
@@ -33,4 +38,4 @@ def test_default_seed_uses_a_workspace_safe_id(monkeypatch, tmp_path: Path) -> N
         row = connection.execute("SELECT elfie_id, name FROM elfies").fetchone()
     assert row["elfie_id"] == "00000001"
     assert row["name"] == "Aifei"
-    assert generator.elfie_id == "00000001"
+    assert workspace.reservation.elfie_id == "00000001"

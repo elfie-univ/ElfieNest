@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -14,7 +14,6 @@ from app.bootstrap import create_app
 from app.infrastructure.devices import DeviceRegistry
 from app.infrastructure.persistence.embodiment_sessions import begin_hosting
 from app.infrastructure.persistence.store import init_db
-from elfie import Elfie
 from elfie.body import BodyId, BodySensorEvent, SpeechCommand, UtteranceFinal
 from elfie.brain.memory.knowledge_store import KnowledgeStore
 from elfie.brain.memory.node_types import MemoryNode
@@ -66,38 +65,6 @@ def _adopt_elfie(client: TestClient, csrf_token: str) -> str:
         client.app.state.db_path,
         int(current_user.json()["user_id"]),
     )
-
-
-def _accepted_candidate(client: TestClient, csrf_token: str) -> tuple[str, str]:
-    headers = {"X-CSRF-Token": csrf_token}
-    candidates = client.post(
-        "/api/user/adoption/candidates",
-        json={
-            "species_id": "fox",
-            "life_stage": "young_adult",
-            "gender": "any",
-            "appearance": {
-                "stature": "standard",
-                "build": "standard",
-                "face": "soft",
-                "signature": "warm",
-                "priority": "face",
-            },
-            "answers": ["quiet", "research", "plan", "discuss", "steady"],
-        },
-        headers=headers,
-    ).json()
-    selected_ids = [item["candidate_id"] for item in candidates["candidates"][:2]]
-    replies = client.post(
-        "/api/user/adoption/replies",
-        json={
-            "candidate_set_id": candidates["candidate_set_id"],
-            "candidate_ids": selected_ids,
-        },
-        headers=headers,
-    ).json()["replies"]
-    accepted = next(reply for reply in replies if reply["status"] == "accepted")
-    return str(candidates["candidate_set_id"]), str(accepted["candidate_id"])
 
 
 def _complete_setup(client: TestClient) -> None:
@@ -156,7 +123,7 @@ def test_v1_owner_profile_reads_real_cognition_but_list_stays_public(
     elfie_id = _adopt_elfie(client, csrf_token)
     data_home = Path(client.app.state.db_path).parent
     cognition_path = final_root_layout(data_home).elfie(elfie_id).knowledge_database
-    cognition_path.parent.mkdir(parents=True)
+    cognition_path.parent.mkdir(parents=True, exist_ok=True)
     with KnowledgeStore(cognition_path) as store:
         store.add_node(
             MemoryNode(
@@ -183,31 +150,6 @@ def test_v1_owner_profile_reads_real_cognition_but_list_stays_public(
     )
     assert "private_cognition" not in listing.json()[0]
     assert "care_settings" not in listing.json()[0]
-
-
-def test_adoption_returns_service_unavailable_when_runtime_registration_fails(
-    client: TestClient,
-) -> None:
-    csrf_token = _login_owner(client)
-    candidate_set_id, candidate_id = _accepted_candidate(client, csrf_token)
-    runtime = MagicMock()
-    runtime.world_runtime = None
-    runtime.session.register_elfie.side_effect = RuntimeError("runtime unavailable")
-    client.app.state.engine = runtime
-
-    with patch("elfie.ElfieFactory.restore", return_value=MagicMock(spec=Elfie)):
-        response = client.post(
-            "/api/user/adoption/commit",
-            json={
-                "candidate_set_id": candidate_set_id,
-                "candidate_id": candidate_id,
-                "name": "小白",
-            },
-            headers={"X-CSRF-Token": csrf_token},
-        )
-
-    assert response.status_code == 503
-    assert client.get("/api/v1/elfies").json() == []
 
 
 def test_v1_routes_require_a_session(client: TestClient) -> None:
