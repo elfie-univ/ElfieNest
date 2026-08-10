@@ -109,7 +109,7 @@ export async function loadMonitorSnapshot(): Promise<MonitorSnapshot> {
     readSchema("/api/owner/elfies", z.array(ElfieSummarySchema)),
     readSchema("/api/v1/admin/nest/rooms", RoomListSchema),
     readSchema("/api/v1/admin/model-providers/connections", ProviderListSchema),
-    readSchema("/api/owner/providers/ollama", OllamaStatusSchema),
+    readSchema("/api/v1/admin/model-providers/ollama", OllamaStatusSchema),
   ] as const)
   const [health, runtime, users, elfies, rooms, providers, ollama] = results
   const failedSources: MonitorSourceKey[] = []

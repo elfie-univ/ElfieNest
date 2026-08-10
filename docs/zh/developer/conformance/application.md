@@ -142,13 +142,13 @@ Principal 与授权：Interface 认证账户 Principal；Elfies 门面约束成�
 领域：configuration/providers
 缺口 ID：APP-001、APP-003、APP-004、APP-005、APP-006、APP-007、APP-009、APP-011、APP-012
 当前权威事实：v2 providers.yaml 连接与模型记录；credential reference 指向的 Secret；现有 Provider 目录和验证/benchmark 报告
-路由与生产调用方：/api/v1/admin/model-providers 的目录、连接、模型、验证、矩阵和 benchmark 资源；管理端 Provider Client；历史 CLI 配置入口；Setup/Ollama 混合入口
-目标公共门面与模型：Providers 管理门面；现有 CRUD、生命周期、验证、刷新、矩阵、benchmark 的严格 Command、Query 与 Result
-Port 与 Adapter：目录/连接、Food 引用保护、技术探测/发现/报告由使用方拥有的窄 Port 表达；根 Infrastructure Models 与 Persistence Adapter 实现并由 Bootstrap 注入
+路由与生产调用方：/api/v1/admin/model-providers 的目录、连接、模型、验证、矩阵、benchmark 与 Ollama 资源；管理端 Provider Client；历史 CLI 配置入口
+目标公共门面与模型：Providers 管理门面；现有 CRUD、生命周期、验证、刷新、矩阵、benchmark 与本地 Ollama 行为的严格 Command、Query 与 Result
+Port 与 Adapter：目录/连接、本地 Ollama 状态与技术、Food 引用保护、技术探测/发现/报告由使用方拥有的窄 Port 表达；根 Infrastructure Models 与 Persistence Adapter 实现并由 Bootstrap 注入
 一致性类别：v2 类型化连接/Secret 写入保持现有原子更新；验证、发现和 benchmark 是有界外部工作；报告使用现有持久化事实
 Principal 与授权：Interface 认证账户 Principal；Providers 门面授权管理员；普通成员不能读取管理投影
 超时、重试与幂等：沿用现有 Provider 技术边界的有界超时、并发上限与缓存/验证策略；不新增自动重试或 Provider 能力
-旧实现删除清单：旧 Provider 管理 Route 与 /api/owner/providers 连接/模型资源；API 层技术验证实现；旧管理前端路径；CLI 的 runtime.yaml/auth.env v1 写入链
+旧实现删除清单：CLI 的 runtime.yaml/auth.env v1 写入链
 聚焦测试与端到端门：Feature、Adapter、严格 v1 Route；CRUD、验证、刷新、矩阵、benchmark、取消/失败和 Food 引用保护回归；前端 Provider/监控 Client；App 与 AI Runtime 架构门
 已删除的机器基线条目：旧 Provider Route 构造、松散模型、未版本化连接/模型资源及已迁移 API 技术实现
 状态：in progress

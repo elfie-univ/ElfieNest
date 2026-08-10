@@ -18,6 +18,9 @@ from app.features.configuration import (
     ProvidersForbidden,
     ProvidersService,
     StoredBenchmarkRun,
+    StoredLocalProviderBinding,
+    StoredLocalProviderCandidate,
+    StoredLocalProviderProbe,
     StoredModelMatrix,
     StoredModelRefresh,
     StoredModelVerification,
@@ -99,6 +102,27 @@ class FakeProviderPort:
     def has_credential(self, credential_ref: str) -> bool:
         return bool(credential_ref)
 
+    def load_local_binding(self) -> StoredLocalProviderBinding | None:
+        return None
+
+    def save_local_binding(
+        self, binding: StoredLocalProviderBinding
+    ) -> StoredLocalProviderBinding:
+        return binding
+
+    def list_local_model_ids(self) -> tuple[str, ...]:
+        return ()
+
+    def save_local_model(self, model_id: str) -> str:
+        return f"ollama_0001/{model_id}"
+
+    def local_model_reference(self, model_id: str) -> str | None:
+        _ = model_id
+        return None
+
+    def replace_local_models(self, model_ids: tuple[str, ...]) -> None:
+        _ = model_ids
+
 
 class FakeReferences:
     connection_references: tuple[str, ...] = ()
@@ -163,6 +187,35 @@ class FakeTechnology:
         raise ProviderPortError("unused")
 
 
+class FakeLocalTechnology:
+    def default_binding(self) -> StoredLocalProviderBinding:
+        return StoredLocalProviderBinding(
+            "http://127.0.0.1:11434", "linux", "existing-public", ""
+        )
+
+    def probe(self, binding: StoredLocalProviderBinding) -> StoredLocalProviderProbe:
+        return StoredLocalProviderProbe("absent", binding.api_base)
+
+    def available_memory_gb(self) -> int:
+        return 0
+
+    def candidate_models(self) -> tuple[StoredLocalProviderCandidate, ...]:
+        return ()
+
+    def list_models(self, binding: StoredLocalProviderBinding) -> tuple[str, ...]:
+        _ = binding
+        return ()
+
+    def install_official(self) -> StoredLocalProviderBinding:
+        return self.default_binding()
+
+    def start(self, binding: StoredLocalProviderBinding) -> StoredLocalProviderBinding:
+        return binding
+
+    def pull_model(self, binding: StoredLocalProviderBinding, model_id: str) -> None:
+        _ = binding, model_id
+
+
 def _service() -> tuple[ProvidersService, FakeProviderPort, FakeReferences]:
     port = FakeProviderPort()
     references = FakeReferences()
@@ -172,6 +225,8 @@ def _service() -> tuple[ProvidersService, FakeProviderPort, FakeReferences]:
             connections=port,
             references=references,
             technology=FakeTechnology(),
+            local_state=port,
+            local_technology=FakeLocalTechnology(),
         ),
         port,
         references,

@@ -2,10 +2,12 @@
 
 from .food_technology import RuntimeFoodTechnologyAdapter
 from .provider_administration import ProviderModelsAdapter
+from .provider_ollama import PublicOllamaProviderAdapter
 from .runtime_observer import RuntimeObserverProjectionAdapter
 
 __all__ = (
     "ProviderModelsAdapter",
+    "PublicOllamaProviderAdapter",
     "RuntimeFoodTechnologyAdapter",
     "RuntimeObserverProjectionAdapter",
 )

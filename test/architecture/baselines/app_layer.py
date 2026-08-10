@@ -19,7 +19,6 @@ LEGACY_APP_LAYER_VIOLATIONS: Dict[str, FrozenSet[str]] = {
     "infrastructure_forbidden_layer_imports": frozenset(),
     "interface_adapter_construction": frozenset(
         {
-            "app/interfaces/api/ollama_owner_routes.py::_provider_store::ProviderConnectionStore",
             "app/interfaces/api/owner_elfie_routes.py::_load_registered_elfies::InterfaceQueryRepository",
             "app/interfaces/api/v1/client_routes.py::_owned_public_profiles::RuntimeQueryRepository",
             "app/interfaces/cli/route_commands.py::show_route::ElfieRepository",
@@ -27,8 +26,6 @@ LEGACY_APP_LAYER_VIOLATIONS: Dict[str, FrozenSet[str]] = {
     ),
     "interface_feature_internal_imports": frozenset(
         {
-            "app/interfaces/api/ollama_owner_routes.py -> app.features.setup.ollama_owner",
-            "app/interfaces/api/ollama_owner_routes.py -> app.features.setup.ollama_owner_jobs",
             "app/interfaces/api/owner_elfie_routes.py -> app.features.elfie_profile.public_projection",
             "app/interfaces/api/v1/client_routes.py -> app.features.elfie_profile.public_projection",
             "app/interfaces/cli/model_commands.py -> app.features.configuration.provider_service",
@@ -81,11 +78,7 @@ LEGACY_APP_LAYER_VIOLATIONS: Dict[str, FrozenSet[str]] = {
             "GET /api/godot-web/status",
             "GET /api/owner/elfies",
             "GET /api/owner/mobile-access",
-            "GET /api/owner/providers/ollama",
             "GET /api/ws-config",
-            "POST /api/owner/providers/ollama/install",
-            "POST /api/owner/providers/ollama/models/pull",
-            "POST /api/owner/providers/ollama/start",
         }
     ),
 }

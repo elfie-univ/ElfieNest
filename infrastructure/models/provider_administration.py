@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import threading
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping, Optional, cast
+from typing import Any, Literal, Mapping, Optional, cast
 
 from ai_runtime.providers.discovery import (
     bundled_catalog_models,
@@ -48,6 +49,7 @@ from app.features.configuration import (
     StoredBenchmarkCombination,
     StoredBenchmarkResult,
     StoredBenchmarkRun,
+    StoredLocalProviderBinding,
     StoredMatrixCell,
     StoredMatrixConnection,
     StoredMatrixModel,
@@ -205,6 +207,144 @@ class ProviderModelsAdapter:
             return bool(resolve_secret(credential_ref, self._secret_path))
         except OSError as error:
             raise ProviderPortError("Unable to resolve Provider credential") from error
+
+    def load_local_binding(self) -> StoredLocalProviderBinding | None:
+        try:
+            connection = self._local_connection()
+            if (
+                connection is None
+                or not connection.installation
+                or not connection.api_base
+            ):
+                return None
+            raw = connection.installation
+            platform = str(raw.get("platform", ""))
+            if platform not in {"darwin", "linux", "win32"}:
+                return None
+            return StoredLocalProviderBinding(
+                api_base=connection.api_base,
+                platform=cast(Literal["darwin", "linux", "win32"], platform),
+                install_kind=str(raw.get("install_kind", "existing-public")),
+                launch_target=str(raw.get("launch_target", "")),
+                version=str(raw.get("version", "")),
+                installer_source_url=str(raw.get("installer_source_url", "")),
+                installer_sha256=str(raw.get("installer_sha256", "")),
+            )
+        except (ProviderConnectionStoreError, ValueError, OSError) as error:
+            raise ProviderPortError("Unable to read local Provider binding") from error
+
+    def save_local_binding(
+        self,
+        binding: StoredLocalProviderBinding,
+    ) -> StoredLocalProviderBinding:
+        installation = {
+            "platform": binding.platform,
+            "install_kind": binding.install_kind,
+            "launch_target": binding.launch_target,
+            "version": binding.version,
+            "installer_source_url": binding.installer_source_url,
+            "installer_sha256": binding.installer_sha256,
+        }
+        try:
+            connection = self._local_connection()
+            if connection is None:
+                self._store.create(
+                    catalog_id="ollama",
+                    alias="Ollama",
+                    api_base=binding.api_base,
+                    api_mode="ollama",
+                    auth_type="none",
+                    installation=installation,
+                )
+            else:
+                self._store.replace(
+                    replace(
+                        connection,
+                        api_base=binding.api_base,
+                        api_mode="ollama",
+                        auth_type="none",
+                        installation=installation,
+                        enabled=True,
+                        archived=False,
+                    )
+                )
+        except (ProviderConnectionStoreError, ValueError, OSError) as error:
+            raise ProviderPortError("Unable to save local Provider binding") from error
+        return binding
+
+    def list_local_model_ids(self) -> tuple[str, ...]:
+        try:
+            connection = self._local_connection()
+            return (
+                tuple(item.endpoint_model_id for item in connection.models)
+                if connection is not None
+                else ()
+            )
+        except (ProviderConnectionStoreError, ValueError, OSError) as error:
+            raise ProviderPortError("Unable to read local Provider models") from error
+
+    def save_local_model(self, model_id: str) -> str:
+        try:
+            connection = self._local_connection()
+            if connection is None:
+                raise ProviderPortError("Local Provider connection is missing")
+            models = {item.endpoint_model_id: item for item in connection.models}
+            models[model_id] = ProviderModelRecord(
+                endpoint_model_id=model_id,
+                display_name=model_id,
+                source="official",
+            )
+            self._store.replace(replace(connection, models=tuple(models.values())))
+            return f"{connection.connection_id}/{model_id}"
+        except ProviderPortError:
+            raise
+        except (ProviderConnectionStoreError, ValueError, OSError) as error:
+            raise ProviderPortError("Unable to save local Provider model") from error
+
+    def local_model_reference(self, model_id: str) -> str | None:
+        try:
+            connection = self._local_connection()
+            if connection is None or not any(
+                item.endpoint_model_id == model_id for item in connection.models
+            ):
+                return None
+            return f"{connection.connection_id}/{model_id}"
+        except (ProviderConnectionStoreError, ValueError, OSError) as error:
+            raise ProviderPortError("Unable to read local Provider model") from error
+
+    def replace_local_models(self, model_ids: tuple[str, ...]) -> None:
+        try:
+            connection = self._local_connection()
+            if connection is None:
+                raise ProviderPortError("Local Provider connection is missing")
+            previous = {item.endpoint_model_id: item for item in connection.models}
+            models = tuple(
+                replace(previous[model_id], source="official", available=True)
+                if model_id in previous
+                else ProviderModelRecord(
+                    endpoint_model_id=model_id,
+                    display_name=model_id,
+                    source="official",
+                )
+                for model_id in model_ids
+            )
+            self._store.replace(replace(connection, models=models))
+        except ProviderPortError:
+            raise
+        except (ProviderConnectionStoreError, ValueError, OSError) as error:
+            raise ProviderPortError(
+                "Unable to replace local Provider models"
+            ) from error
+
+    def _local_connection(self) -> ProviderConnection | None:
+        return next(
+            (
+                item
+                for item in self._store.load().connections.values()
+                if item.catalog_id == "ollama"
+            ),
+            None,
+        )
 
     def prepare_manual_model(self, model: ProviderModelInput) -> StoredProviderModel:
         match = match_model_identity(model.model_id, model.display_name)

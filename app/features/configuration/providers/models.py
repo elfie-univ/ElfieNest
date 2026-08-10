@@ -11,6 +11,7 @@ from .port_models import (
     ConnectionMethod,
     DiscoveryStrategy,
     LatencyClass,
+    LocalProviderState,
     ModelSource,
     ValidationMode,
     ValidationStatus,
@@ -31,6 +32,8 @@ ModelUpdateField = Literal[
     "retired",
 ]
 LifecycleAction = Literal["enable", "disable", "archive", "restore"]
+LocalProviderTaskKey = Literal["install", "model_pull"]
+LocalProviderTaskState = Literal["running", "completed", "failed"]
 
 
 @dataclass(frozen=True)
@@ -59,6 +62,27 @@ class ListProviderProductsQuery:
 @dataclass(frozen=True)
 class ListProviderConnectionsQuery:
     pass
+
+
+@dataclass(frozen=True)
+class InspectLocalProviderQuery:
+    pass
+
+
+@dataclass(frozen=True)
+class InstallLocalProviderCommand:
+    confirmed: bool
+
+
+@dataclass(frozen=True)
+class StartLocalProviderCommand:
+    pass
+
+
+@dataclass(frozen=True)
+class PullLocalProviderModelsCommand:
+    model_ids: tuple[str, ...]
+    confirmed: bool
 
 
 @dataclass(frozen=True)
@@ -246,6 +270,34 @@ class ProviderConnectionResult:
 
 
 @dataclass(frozen=True)
+class LocalProviderModelResult:
+    model_id: str
+    display_name: str
+    installed: bool
+    recommended: bool
+
+
+@dataclass(frozen=True)
+class LocalProviderTaskResult:
+    key: LocalProviderTaskKey
+    state: LocalProviderTaskState
+    progress: int
+    error: str | None
+
+
+@dataclass(frozen=True)
+class LocalProviderStatusResult:
+    state: LocalProviderState
+    endpoint: str | None
+    version: str | None
+    memory_gb: int
+    recommended_model: str | None
+    installed_model_count: int
+    models: tuple[LocalProviderModelResult, ...]
+    task: LocalProviderTaskResult | None
+
+
+@dataclass(frozen=True)
 class ProviderConnectionDeletedResult:
     connection_id: str
 
@@ -346,5 +398,7 @@ __all__ = tuple(
     "BenchmarkCombination",
     "ConnectionUpdateField",
     "LifecycleAction",
+    "LocalProviderTaskKey",
+    "LocalProviderTaskState",
     "ModelUpdateField",
 )

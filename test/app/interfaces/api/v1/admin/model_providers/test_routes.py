@@ -11,10 +11,15 @@ from ai_runtime.food.planner import ModelEvidence
 from ai_runtime.storage.report_repository import ReportRepository
 from ai_runtime.validation.providers import DiscoveredModel
 from app.features.accounts import AccountPrincipal, AccountRole
-from app.features.configuration import ProvidersService
+from app.features.configuration import (
+    ProvidersService,
+    StoredLocalProviderBinding,
+    StoredLocalProviderCandidate,
+    StoredLocalProviderProbe,
+)
 from app.interfaces.api.v1.admin.model_providers.routes import router
 from app.interfaces.api.v1.auth import require_user
-from infrastructure.models import ProviderModelsAdapter
+from infrastructure.models import ProviderModelsAdapter, PublicOllamaProviderAdapter
 
 
 class NoProviderReferences:
@@ -35,7 +40,12 @@ def _principal(role: AccountRole = "owner") -> AccountPrincipal:
     return AccountPrincipal(1, "owner", role, "/manage")
 
 
-def _client(tmp_path, monkeypatch, role: AccountRole = "owner") -> TestClient:
+def _client(
+    tmp_path,
+    monkeypatch,
+    role: AccountRole = "owner",
+    local_technology=None,
+) -> TestClient:
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     adapter = ProviderModelsAdapter(
         tmp_path / "providers.yaml",
@@ -50,6 +60,8 @@ def _client(tmp_path, monkeypatch, role: AccountRole = "owner") -> TestClient:
         connections=adapter,
         references=NoProviderReferences(),
         technology=adapter,
+        local_state=adapter,
+        local_technology=local_technology or PublicOllamaProviderAdapter(),
     )
     application.dependency_overrides[require_user] = lambda: _principal(role)
     application.include_router(router)
@@ -68,6 +80,8 @@ def _anonymous_client(tmp_path, monkeypatch) -> TestClient:
         connections=adapter,
         references=NoProviderReferences(),
         technology=adapter,
+        local_state=adapter,
+        local_technology=PublicOllamaProviderAdapter(),
     )
     application.include_router(router)
     return TestClient(application)
@@ -92,6 +106,105 @@ def _create_connection(
     )
     assert response.status_code == 201, response.text
     return response.json()
+
+
+class FakeLocalTechnology:
+    def __init__(self, state: str = "absent") -> None:
+        self.state = state
+        self.models: list[str] = []
+
+    def default_binding(self) -> StoredLocalProviderBinding:
+        return StoredLocalProviderBinding(
+            "http://127.0.0.1:11434",
+            "linux",
+            "existing-public",
+            "/usr/bin/ollama",
+        )
+
+    def probe(self, binding: StoredLocalProviderBinding) -> StoredLocalProviderProbe:
+        return StoredLocalProviderProbe(
+            self.state, binding.api_base, "0.12.0" if self.state == "healthy" else None
+        )
+
+    def available_memory_gb(self) -> int:
+        return 8
+
+    def candidate_models(self) -> tuple[StoredLocalProviderCandidate, ...]:
+        return (
+            StoredLocalProviderCandidate("qwen2.5:0.5b", "qwen2.5:0.5b", True),
+            StoredLocalProviderCandidate("qwen3.5:0.8b", "qwen3.5:0.8b", False),
+            StoredLocalProviderCandidate("gemma3:270m", "gemma3:270m", False),
+        )
+
+    def list_models(self, binding: StoredLocalProviderBinding) -> tuple[str, ...]:
+        _ = binding
+        return tuple(self.models)
+
+    def install_official(self) -> StoredLocalProviderBinding:
+        self.state = "healthy"
+        return self.default_binding()
+
+    def start(self, binding: StoredLocalProviderBinding) -> StoredLocalProviderBinding:
+        self.state = "healthy"
+        return binding
+
+    def pull_model(self, binding: StoredLocalProviderBinding, model_id: str) -> None:
+        _ = binding
+        self.models.append(model_id)
+
+
+def test_local_provider_status_is_a_versioned_provider_resource(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    client = _client(
+        tmp_path,
+        monkeypatch,
+        local_technology=FakeLocalTechnology(),
+    )
+
+    response = client.get("/api/v1/admin/model-providers/ollama")
+
+    assert response.status_code == 200
+    assert response.json()["state"] == "absent"
+    assert [item["id"] for item in response.json()["models"]] == [
+        "qwen2.5:0.5b",
+        "qwen3.5:0.8b",
+        "gemma3:270m",
+    ]
+
+
+def test_local_provider_start_persists_the_observed_binding(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    technology = FakeLocalTechnology("healthy")
+    client = _client(tmp_path, monkeypatch, local_technology=technology)
+
+    response = client.post("/api/v1/admin/model-providers/ollama/start")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["state"] == "healthy"
+    adapter = ProviderModelsAdapter(tmp_path / "providers.yaml", tmp_path / "auth.env")
+    assert adapter.load_local_binding() is not None
+
+
+def test_local_provider_pull_updates_the_existing_model_fact(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    technology = FakeLocalTechnology("healthy")
+    client = _client(tmp_path, monkeypatch, local_technology=technology)
+
+    response = client.post(
+        "/api/v1/admin/model-providers/ollama/models/pull",
+        json={"model_ids": ["qwen3.5:0.8b"], "confirmed": True},
+    )
+    listed = client.get("/api/v1/admin/model-providers/ollama")
+
+    assert response.status_code == 200, response.text
+    models = {item["id"]: item for item in listed.json()["models"]}
+    assert models["qwen3.5:0.8b"]["installed"] is True
 
 
 def test_versioned_provider_create_and_list_use_strict_envelopes(

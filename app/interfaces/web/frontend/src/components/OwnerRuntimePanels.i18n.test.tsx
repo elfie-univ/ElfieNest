@@ -137,7 +137,7 @@ function monitorPayload(path: string, lastEvent: RuntimeEventFixture | null = nu
         verification: { status: "passed" },
         models: [{ available: true, hidden: false, retired: false }],
       }] }
-    case "/api/owner/providers/ollama":
+    case "/api/v1/admin/model-providers/ollama":
       return { state: "healthy", recommended_model: "qwen2.5:0.5b", installed_model_count: 1 }
     default:
       return { endpoint: "https://raw.example/v1", protocol_field: "raw_value" }

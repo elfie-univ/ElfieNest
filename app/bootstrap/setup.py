@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 
 from app.features.accounts import AccountsService
+from app.features.configuration import ProviderLocalStatePort
 from app.features.setup import SetupService
 from app.orchestration.setup_installation import SetupInstallationService
 from infrastructure.models import RuntimeFoodTechnologyAdapter
@@ -36,11 +36,11 @@ def build_setup_services(
     *,
     accounts: AccountsService,
     nest: SQLiteNestManagementAdapter,
-    provider_connection_path: Path | None,
+    provider_state: ProviderLocalStatePort,
 ) -> SetupServices:
     state = SQLiteSetupAdapter(db_path)
     setup_accounts = SetupAccountsAdapter(accounts)
-    providers = SetupProviderAdapter(provider_connection_path)
+    providers = SetupProviderAdapter(provider_state)
     ollama = SetupOllamaAdapter(
         technology=PublicOllamaSetupTechnologyAdapter(),
         load_binding=providers.load_ollama_binding,

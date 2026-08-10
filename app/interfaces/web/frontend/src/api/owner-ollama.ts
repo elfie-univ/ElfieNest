@@ -41,12 +41,12 @@ const OllamaStatusSchema = z.object({
 export type OllamaStatus = z.infer<typeof OllamaStatusSchema>
 
 export async function ownerOllamaStatus(): Promise<OllamaStatus> {
-  return OllamaStatusSchema.parse(await ownerRead("/api/owner/providers/ollama"))
+  return OllamaStatusSchema.parse(await ownerRead("/api/v1/admin/model-providers/ollama"))
 }
 
 export async function installOllama(csrfToken: string): Promise<OllamaStatus> {
   return OllamaStatusSchema.parse(await ownerWrite(
-    "/api/owner/providers/ollama/install",
+    "/api/v1/admin/model-providers/ollama/install",
     "POST",
     csrfToken,
     { confirmed: true },
@@ -55,7 +55,7 @@ export async function installOllama(csrfToken: string): Promise<OllamaStatus> {
 
 export async function startOllama(csrfToken: string): Promise<OllamaStatus> {
   return OllamaStatusSchema.parse(await ownerWrite(
-    "/api/owner/providers/ollama/start",
+    "/api/v1/admin/model-providers/ollama/start",
     "POST",
     csrfToken,
   ))
@@ -66,7 +66,7 @@ export async function pullOllamaModels(
   csrfToken: string,
 ): Promise<OllamaStatus> {
   return OllamaStatusSchema.parse(await ownerWrite(
-    "/api/owner/providers/ollama/models/pull",
+    "/api/v1/admin/model-providers/ollama/models/pull",
     "POST",
     csrfToken,
     { model_ids: modelIds, confirmed: true },

@@ -346,6 +346,67 @@ class ProviderConnectionsResponse(BaseModel):
     items: tuple[ProviderConnectionResponse, ...]
 
 
+class LocalProviderTaskResponse(BaseModel):
+    model_config = StrictModel
+
+    key: Literal["install", "model_pull"]
+    state: Literal["running", "completed", "failed"]
+    progress: int = Field(ge=0, le=100)
+    error: Optional[str]
+
+
+class LocalProviderModelResponse(BaseModel):
+    model_config = StrictModel
+
+    id: str
+    display_name: str
+    installed: bool
+    recommended: bool
+
+
+class LocalProviderStatusResponse(BaseModel):
+    model_config = StrictModel
+
+    state: Literal[
+        "absent",
+        "healthy",
+        "stopped",
+        "deleted",
+        "installing",
+        "failed",
+        "cancelled",
+        "repair_required",
+    ]
+    endpoint: Optional[str]
+    version: Optional[str]
+    memory_gb: int = Field(ge=0)
+    recommended_model: Optional[str]
+    installed_model_count: int = Field(ge=0)
+    models: tuple[LocalProviderModelResponse, ...]
+    task: Optional[LocalProviderTaskResponse]
+
+
+class LocalProviderInstallRequest(BaseModel):
+    model_config = StrictModel
+
+    confirmed: Literal[True]
+
+
+class LocalProviderPullRequest(BaseModel):
+    model_config = StrictModel
+
+    model_ids: List[str] = Field(min_length=1, max_length=8)
+    confirmed: Literal[True]
+
+    @field_validator("model_ids")
+    @classmethod
+    def normalized_model_ids(cls, values: List[str]) -> List[str]:
+        normalized = [value.strip() for value in values if value.strip()]
+        if not normalized or len(set(normalized)) != len(normalized):
+            raise ValueError("模型清单不能为空且不能重复")
+        return normalized
+
+
 class VerifyConnectionResponse(BaseModel):
     model_config = StrictModel
     connection_id: str

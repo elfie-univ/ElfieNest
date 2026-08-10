@@ -1,0 +1,29 @@
+from infrastructure.models.ollama_platform import OllamaBinding, OllamaProbe
+from infrastructure.models.provider_ollama import PublicOllamaProviderAdapter
+
+
+class HealthyPlatform:
+    platform = "linux"
+
+    def probe(self, binding: OllamaBinding) -> OllamaProbe:
+        return OllamaProbe("healthy", binding.api_base, version="0.12.0")
+
+    def list_models(self, binding: OllamaBinding) -> tuple[str, ...]:
+        _ = binding
+        return ("qwen2.5:0.5b",)
+
+
+def test_provider_ollama_adapter_projects_the_authoritative_candidates() -> None:
+    adapter = PublicOllamaProviderAdapter(platform=HealthyPlatform())  # type: ignore[arg-type]
+    binding = adapter.default_binding()
+
+    probe = adapter.probe(binding)
+    candidates = adapter.candidate_models()
+
+    assert probe.state == "healthy"
+    assert adapter.list_models(binding) == ("qwen2.5:0.5b",)
+    assert [(item.model_id, item.recommended) for item in candidates] == [
+        ("qwen2.5:0.5b", True),
+        ("qwen3.5:0.8b", False),
+        ("gemma3:270m", False),
+    ]

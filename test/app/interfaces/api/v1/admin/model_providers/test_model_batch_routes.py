@@ -16,7 +16,7 @@ from app.features.accounts import AccountPrincipal
 from app.features.configuration import ProvidersService
 from app.interfaces.api.v1.admin.model_providers.routes import router
 from app.interfaces.api.v1.auth import require_user
-from infrastructure.models import ProviderModelsAdapter
+from infrastructure.models import ProviderModelsAdapter, PublicOllamaProviderAdapter
 
 
 class NoProviderReferences:
@@ -43,6 +43,8 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         connections=adapter,
         references=NoProviderReferences(),
         technology=adapter,
+        local_state=adapter,
+        local_technology=PublicOllamaProviderAdapter(),
     )
     application.dependency_overrides[require_user] = lambda: AccountPrincipal(
         1,

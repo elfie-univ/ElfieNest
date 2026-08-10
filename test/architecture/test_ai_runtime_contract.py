@@ -41,8 +41,10 @@ def test_food_model_contract_keeps_independent_ports_and_semantic_authority() ->
 def test_legacy_provider_and_model_owner_routes_are_removed() -> None:
     removed = {
         "model_owner_routes.py",
+        "ollama_owner_routes.py",
         "provider_config_routes.py",
         "provider_model_routes.py",
+        "provider_routes.py",
         "provider_support.py",
         "provider_validation_routes.py",
     }
@@ -79,7 +81,6 @@ def test_model_consumers_share_the_sqlite_evidence_projection() -> None:
         "ai_runtime/gateway/agent.py",
         "ai_runtime/lab/cli.py",
         "ai_runtime/validation/overview.py",
-        "app/features/setup/ollama.py",
         "infrastructure/models/food_technology.py",
         "infrastructure/models/provider_model_matrix.py",
     }

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import FrozenSet, Optional, Union, cast
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.features.accounts import AccountPrincipal
@@ -18,9 +18,12 @@ from app.features.configuration import (
     DeleteProviderConnectionCommand,
     DeleteProviderModelCommand,
     GetProviderModelMatrixQuery,
+    InspectLocalProviderQuery,
+    InstallLocalProviderCommand,
     LifecycleAction,
     ListProviderConnectionsQuery,
     ListProviderProductsQuery,
+    LocalProviderStatusResult,
     ModelUpdateField,
     ProviderConnectionNotFound,
     ProviderModelInput,
@@ -32,8 +35,10 @@ from app.features.configuration import (
     ProvidersService,
     ProvidersUnavailable,
     ProvidersValidationError,
+    PullLocalProviderModelsCommand,
     RefreshProviderModelsCommand,
     ReplaceProviderModelsCommand,
+    StartLocalProviderCommand,
     UpdateProviderConnectionCommand,
     UpdateProviderModelCommand,
     ValidateAllProviderModelsCommand,
@@ -49,6 +54,11 @@ from .models import (
     ErrorDetails,
     ErrorItem,
     ErrorResponse,
+    LocalProviderInstallRequest,
+    LocalProviderModelResponse,
+    LocalProviderPullRequest,
+    LocalProviderStatusResponse,
+    LocalProviderTaskResponse,
     ModelMatrixResponse,
     ModelRefreshResponse,
     ProviderConnectionCreateRequest,
@@ -83,7 +93,74 @@ RouteResult = Union[
     ValidationRunResponse,
     VerifyConnectionResponse,
     JSONResponse,
+    LocalProviderStatusResponse,
 ]
+
+
+@router.get("/ollama", response_model=LocalProviderStatusResponse)
+def inspect_local_provider(
+    principal: AccountPrincipal = CurrentPrincipal,
+    service: ProvidersService = ProvidersDependency,
+) -> RouteResult:
+    try:
+        result = service.inspect_local_provider(
+            principal,
+            InspectLocalProviderQuery(),
+        )
+    except _PROVIDER_ERRORS as error:
+        return _error_response(error)
+    return _local_provider_response(result)
+
+
+@router.post("/ollama/install", response_model=LocalProviderStatusResponse)
+def install_local_provider(
+    body: LocalProviderInstallRequest,
+    background_tasks: BackgroundTasks,
+    principal: AccountPrincipal = CurrentPrincipal,
+    service: ProvidersService = ProvidersDependency,
+) -> RouteResult:
+    try:
+        result = service.install_local_provider(
+            principal,
+            InstallLocalProviderCommand(confirmed=body.confirmed),
+            background_tasks,
+        )
+    except _PROVIDER_ERRORS as error:
+        return _error_response(error)
+    return _local_provider_response(result)
+
+
+@router.post("/ollama/start", response_model=LocalProviderStatusResponse)
+def start_local_provider(
+    principal: AccountPrincipal = CurrentPrincipal,
+    service: ProvidersService = ProvidersDependency,
+) -> RouteResult:
+    try:
+        result = service.start_local_provider(
+            principal,
+            StartLocalProviderCommand(),
+        )
+    except _PROVIDER_ERRORS as error:
+        return _error_response(error)
+    return _local_provider_response(result)
+
+
+@router.post("/ollama/models/pull", response_model=LocalProviderStatusResponse)
+def pull_local_provider_models(
+    body: LocalProviderPullRequest,
+    background_tasks: BackgroundTasks,
+    principal: AccountPrincipal = CurrentPrincipal,
+    service: ProvidersService = ProvidersDependency,
+) -> RouteResult:
+    try:
+        result = service.pull_local_models(
+            principal,
+            PullLocalProviderModelsCommand(tuple(body.model_ids), body.confirmed),
+            background_tasks,
+        )
+    except _PROVIDER_ERRORS as error:
+        return _error_response(error)
+    return _local_provider_response(result)
 
 
 @router.get("/catalog", response_model=ProviderProductsResponse)
@@ -483,6 +560,33 @@ def _model_input(body: ProviderModelWriteRequest) -> ProviderModelInput:
         supports_tools=body.supports_tools,
         supports_vision=body.supports_vision,
         supports_reasoning=body.supports_reasoning,
+    )
+
+
+def _local_provider_response(
+    result: LocalProviderStatusResult,
+) -> LocalProviderStatusResponse:
+    return LocalProviderStatusResponse(
+        state=result.state,
+        endpoint=result.endpoint,
+        version=result.version,
+        memory_gb=result.memory_gb,
+        recommended_model=result.recommended_model,
+        installed_model_count=result.installed_model_count,
+        models=tuple(
+            LocalProviderModelResponse(
+                id=item.model_id,
+                display_name=item.display_name,
+                installed=item.installed,
+                recommended=item.recommended,
+            )
+            for item in result.models
+        ),
+        task=(
+            LocalProviderTaskResponse(**vars(result.task))
+            if result.task is not None
+            else None
+        ),
     )
 
 

@@ -362,10 +362,4 @@ def create_http_application(
     from .owner_elfie_routes import router as owner_elfie_router  # noqa: PLC0415
 
     app.include_router(owner_elfie_router)
-    # -------------------------------------------------------------------
-    # LLM Config 路由 (Provider/Model/Route 管理)
-    # -------------------------------------------------------------------
-    from .provider_routes import router as provider_router  # noqa: PLC0415
-
-    app.include_router(provider_router)
     return app

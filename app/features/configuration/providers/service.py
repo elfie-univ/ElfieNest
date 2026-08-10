@@ -15,6 +15,7 @@ from .errors import (
     ProvidersUnavailable,
     ProvidersValidationError,
 )
+from .jobs import LocalProviderJobManager
 from .models import (
     AddProviderModelCommand,
     BenchmarkProviderModelsCommand,
@@ -23,8 +24,12 @@ from .models import (
     DeleteProviderConnectionCommand,
     DeleteProviderModelCommand,
     GetProviderModelMatrixQuery,
+    InspectLocalProviderQuery,
+    InstallLocalProviderCommand,
     ListProviderConnectionsQuery,
     ListProviderProductsQuery,
+    LocalProviderModelResult,
+    LocalProviderStatusResult,
     ProviderBenchmarkResult,
     ProviderBenchmarkRunResult,
     ProviderBrandResult,
@@ -44,8 +49,10 @@ from .models import (
     ProviderValidationItemResult,
     ProviderValidationRunResult,
     ProviderVerificationResult,
+    PullLocalProviderModelsCommand,
     RefreshProviderModelsCommand,
     ReplaceProviderModelsCommand,
+    StartLocalProviderCommand,
     UpdateProviderConnectionCommand,
     UpdateProviderModelCommand,
     ValidateAllProviderModelsCommand,
@@ -53,6 +60,7 @@ from .models import (
 )
 from .port_models import (
     StoredBenchmarkCombination,
+    StoredLocalProviderBinding,
     StoredModelRefresh,
     StoredModelVerification,
     StoredProviderConnection,
@@ -61,9 +69,12 @@ from .port_models import (
     StoredVerification,
 )
 from .ports import (
+    BackgroundTaskScheduler,
     CancellationCheck,
     ProviderCatalogPort,
     ProviderConnectionPort,
+    ProviderLocalStatePort,
+    ProviderLocalTechnologyPort,
     ProviderPortError,
     ProviderReferencePort,
     ProviderTechnologyPort,
@@ -78,11 +89,211 @@ class ProvidersService:
         connections: ProviderConnectionPort,
         references: ProviderReferencePort,
         technology: ProviderTechnologyPort,
+        local_state: ProviderLocalStatePort,
+        local_technology: ProviderLocalTechnologyPort,
     ) -> None:
         self._catalog = catalog
         self._connections = connections
         self._references = references
         self._technology = technology
+        self._local_state = local_state
+        self._local_technology = local_technology
+        self._local_jobs = LocalProviderJobManager()
+
+    def inspect_local_provider(
+        self,
+        principal: AccountPrincipal,
+        query: InspectLocalProviderQuery,
+    ) -> LocalProviderStatusResult:
+        _ = query
+        self._require_manager(principal)
+        try:
+            recorded = self._local_state.load_local_binding()
+            binding = recorded or self._local_technology.default_binding()
+            probe = self._local_technology.probe(binding)
+            if recorded is None and probe.state == "deleted":
+                probe = replace(probe, state="absent")
+            installed = self._installed_local_models(probe.state, binding)
+            candidates = self._local_technology.candidate_models()
+            memory_gb = self._local_technology.available_memory_gb()
+        except ProviderPortError as error:
+            raise ProvidersUnavailable("Local Provider status unavailable") from error
+        task = self._local_jobs.current()
+        state = probe.state
+        if task is not None and task.key == "install":
+            if task.state == "running":
+                state = "installing"
+            elif task.state == "failed":
+                state = "failed"
+        models = tuple(
+            LocalProviderModelResult(
+                model_id=item.model_id,
+                display_name=item.display_name,
+                installed=item.model_id in installed,
+                recommended=item.recommended,
+            )
+            for item in candidates
+        )
+        return LocalProviderStatusResult(
+            state=state,
+            endpoint=probe.endpoint or None,
+            version=probe.version,
+            memory_gb=memory_gb,
+            recommended_model=next(
+                (item.model_id for item in candidates if item.recommended),
+                None,
+            ),
+            installed_model_count=sum(item.installed for item in models),
+            models=models,
+            task=task,
+        )
+
+    def install_local_provider(
+        self,
+        principal: AccountPrincipal,
+        command: InstallLocalProviderCommand,
+        scheduler: BackgroundTaskScheduler,
+    ) -> LocalProviderStatusResult:
+        self._require_manager(principal)
+        if not command.confirmed:
+            raise ProvidersValidationError("Ollama installation requires confirmation")
+        current = self._local_jobs.current()
+        if current is not None and current.state == "running":
+            raise ProvidersConflict("当前 Ollama 已有进行中的任务")
+        try:
+            recorded = self._local_state.load_local_binding()
+            binding = recorded or self._local_technology.default_binding()
+            probe = self._local_technology.probe(binding)
+            if probe.state in {"absent", "deleted"}:
+                self._local_jobs.enqueue(
+                    "install",
+                    scheduler,
+                    self._install_local_provider,
+                )
+            elif probe.state in {"healthy", "stopped"}:
+                self._connect_or_start_local_provider(binding, probe.state)
+                self._local_jobs.clear_terminal()
+            else:
+                raise ProvidersConflict("已记录的 Ollama 安装需要修复")
+        except ProvidersConflict:
+            raise
+        except ProviderPortError as error:
+            raise ProvidersUnavailable(
+                "Local Provider installation unavailable"
+            ) from error
+        except RuntimeError as error:
+            raise ProvidersConflict(str(error)) from error
+        return self.inspect_local_provider(principal, InspectLocalProviderQuery())
+
+    def start_local_provider(
+        self,
+        principal: AccountPrincipal,
+        command: StartLocalProviderCommand,
+    ) -> LocalProviderStatusResult:
+        _ = command
+        self._require_manager(principal)
+        current = self._local_jobs.current()
+        if current is not None and current.state == "running":
+            raise ProvidersConflict("当前 Ollama 已有进行中的任务")
+        try:
+            binding = (
+                self._local_state.load_local_binding()
+                or self._local_technology.default_binding()
+            )
+            probe = self._local_technology.probe(binding)
+            self._connect_or_start_local_provider(binding, probe.state)
+        except ProviderPortError as error:
+            raise ProvidersUnavailable("Local Provider startup unavailable") from error
+        self._local_jobs.clear_terminal()
+        return self.inspect_local_provider(principal, InspectLocalProviderQuery())
+
+    def pull_local_models(
+        self,
+        principal: AccountPrincipal,
+        command: PullLocalProviderModelsCommand,
+        scheduler: BackgroundTaskScheduler,
+    ) -> LocalProviderStatusResult:
+        self._require_manager(principal)
+        if not command.confirmed:
+            raise ProvidersValidationError("Model download requires confirmation")
+        try:
+            allowed = {
+                item.model_id for item in self._local_technology.candidate_models()
+            }
+        except ProviderPortError as error:
+            raise ProvidersUnavailable("Local Provider catalog unavailable") from error
+        if not command.model_ids or any(
+            model_id not in allowed for model_id in command.model_ids
+        ):
+            raise ProvidersValidationError("所选模型不在本地候选清单中")
+        try:
+            binding = (
+                self._local_state.load_local_binding()
+                or self._local_technology.default_binding()
+            )
+            if self._local_technology.probe(binding).state != "healthy":
+                raise ProvidersConflict("Ollama 未运行，不能下载模型")
+            self._local_jobs.enqueue(
+                "model_pull",
+                scheduler,
+                lambda: self._pull_local_models(binding, command.model_ids),
+            )
+        except ProvidersConflict:
+            raise
+        except ProviderPortError as error:
+            raise ProvidersUnavailable(
+                "Local Provider model download unavailable"
+            ) from error
+        except RuntimeError as error:
+            raise ProvidersConflict(str(error)) from error
+        return self.inspect_local_provider(principal, InspectLocalProviderQuery())
+
+    def _install_local_provider(self) -> None:
+        binding = self._local_technology.install_official()
+        self._local_state.save_local_binding(binding)
+
+    def _connect_or_start_local_provider(
+        self,
+        binding: StoredLocalProviderBinding,
+        state: str,
+    ) -> None:
+        if state == "healthy":
+            probe = self._local_technology.probe(binding)
+            self._local_state.save_local_binding(
+                replace(binding, version=probe.version or binding.version)
+            )
+            return
+        if state == "stopped":
+            self._local_state.save_local_binding(self._local_technology.start(binding))
+            return
+        if state in {"absent", "deleted"}:
+            raise ProvidersValidationError("Ollama 安装不存在，请先安装")
+        raise ProvidersConflict("已记录的 Ollama 安装需要修复")
+
+    def _pull_local_models(
+        self,
+        binding: StoredLocalProviderBinding,
+        model_ids: tuple[str, ...],
+    ) -> None:
+        installed = set(self._local_technology.list_models(binding))
+        for model_id in model_ids:
+            if model_id not in installed:
+                self._local_technology.pull_model(binding, model_id)
+        self._local_state.replace_local_models(
+            self._local_technology.list_models(binding)
+        )
+
+    def _installed_local_models(
+        self,
+        state: str,
+        binding: StoredLocalProviderBinding,
+    ) -> tuple[str, ...]:
+        if state == "healthy":
+            try:
+                return self._local_technology.list_models(binding)
+            except ProviderPortError:
+                pass
+        return self._local_state.list_local_model_ids()
 
     def list_products(
         self,

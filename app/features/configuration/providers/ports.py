@@ -8,6 +8,9 @@ from .models import ProviderModelInput
 from .port_models import (
     StoredBenchmarkCombination,
     StoredBenchmarkRun,
+    StoredLocalProviderBinding,
+    StoredLocalProviderCandidate,
+    StoredLocalProviderProbe,
     StoredModelMatrix,
     StoredModelRefresh,
     StoredModelVerification,
@@ -57,6 +60,50 @@ class ProviderConnectionPort(Protocol):
     def delete_connection(self, connection_id: str) -> bool: ...
 
     def has_credential(self, credential_ref: str) -> bool: ...
+
+
+class ProviderLocalStatePort(Protocol):
+    def load_local_binding(self) -> StoredLocalProviderBinding | None: ...
+
+    def save_local_binding(
+        self, binding: StoredLocalProviderBinding
+    ) -> StoredLocalProviderBinding: ...
+
+    def list_local_model_ids(self) -> tuple[str, ...]: ...
+
+    def save_local_model(self, model_id: str) -> str: ...
+
+    def local_model_reference(self, model_id: str) -> str | None: ...
+
+    def replace_local_models(self, model_ids: tuple[str, ...]) -> None: ...
+
+
+class ProviderLocalTechnologyPort(Protocol):
+    def default_binding(self) -> StoredLocalProviderBinding: ...
+
+    def probe(
+        self, binding: StoredLocalProviderBinding
+    ) -> StoredLocalProviderProbe: ...
+
+    def available_memory_gb(self) -> int: ...
+
+    def candidate_models(self) -> tuple[StoredLocalProviderCandidate, ...]: ...
+
+    def list_models(self, binding: StoredLocalProviderBinding) -> tuple[str, ...]: ...
+
+    def install_official(self) -> StoredLocalProviderBinding: ...
+
+    def start(
+        self, binding: StoredLocalProviderBinding
+    ) -> StoredLocalProviderBinding: ...
+
+    def pull_model(
+        self, binding: StoredLocalProviderBinding, model_id: str
+    ) -> None: ...
+
+
+class BackgroundTaskScheduler(Protocol):
+    def add_task(self, func: Callable[[], None]) -> None: ...
 
 
 class ProviderReferencePort(Protocol):
@@ -125,6 +172,9 @@ __all__ = (
     "CancellationCheck",
     "ProviderCatalogPort",
     "ProviderConnectionPort",
+    "ProviderLocalStatePort",
+    "ProviderLocalTechnologyPort",
+    "BackgroundTaskScheduler",
     "ProviderPortError",
     "ProviderPortNotFound",
     "ProviderReferencePort",

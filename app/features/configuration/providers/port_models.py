@@ -15,6 +15,17 @@ ModelSource = Literal["official", "remote_catalog", "bundled_catalog", "manual"]
 ValidationMode = Literal["none", "full", "cached", "heartbeat", "benchmark"]
 ValidationStatus = Literal["never", "passed", "failed"]
 LatencyClass = Literal["fast", "normal", "slow"]
+LocalProviderState = Literal[
+    "absent",
+    "healthy",
+    "stopped",
+    "deleted",
+    "installing",
+    "failed",
+    "cancelled",
+    "repair_required",
+]
+LocalPlatformName = Literal["darwin", "linux", "win32"]
 
 
 @dataclass(frozen=True)
@@ -66,6 +77,32 @@ class StoredProviderConnection:
     models: tuple[StoredProviderModel, ...]
     enabled: bool = True
     archived: bool = False
+
+
+@dataclass(frozen=True)
+class StoredLocalProviderBinding:
+    api_base: str
+    platform: LocalPlatformName
+    install_kind: str
+    launch_target: str
+    version: str = ""
+    installer_source_url: str = ""
+    installer_sha256: str = ""
+
+
+@dataclass(frozen=True)
+class StoredLocalProviderProbe:
+    state: LocalProviderState
+    endpoint: str
+    version: str | None = None
+    detail: str | None = None
+
+
+@dataclass(frozen=True)
+class StoredLocalProviderCandidate:
+    model_id: str
+    display_name: str
+    recommended: bool
 
 
 @dataclass(frozen=True)

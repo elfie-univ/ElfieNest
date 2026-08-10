@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 
 from ai_runtime.storage.data_home import data_home_from_db_path, get_config_path
 from ai_runtime.storage.data_layout import final_root_layout
@@ -29,7 +28,7 @@ from app.orchestration.resident_admission import ResidentAdmissionService
 from app.orchestration.setup_installation import SetupInstallationService
 from infrastructure.communication import OwnerMessageSession, SameOriginMessagePublisher
 from infrastructure.devices import DeviceGateway
-from infrastructure.models import ProviderModelsAdapter
+from infrastructure.models import ProviderModelsAdapter, PublicOllamaProviderAdapter
 from infrastructure.persistence import (
     SQLiteBodiesAdapter,
     SQLiteElfiesProjectionAdapter,
@@ -85,14 +84,12 @@ def build_application_container(
     nest_session: NestSession | None = None,
 ) -> ApplicationContainer:
     config_path = get_config_path()
-    provider_connection_path: Path | None = None
     provider_models = ProviderModelsAdapter()
     data_home = None
     if db_path != ":memory:":
         data_home = data_home_from_db_path(db_path)
         layout = final_root_layout(data_home)
         config_path = layout.runtime_config
-        provider_connection_path = layout.providers_config
         provider_models = ProviderModelsAdapter(
             layout.providers_config,
             layout.auth_env,
@@ -119,7 +116,7 @@ def build_application_container(
         db_path,
         accounts=accounts,
         nest=nest_adapter,
-        provider_connection_path=provider_connection_path,
+        provider_state=provider_models,
     )
     bodies = BodiesService(SQLiteBodiesAdapter(db_path))
     embodiment = EmbodimentSessionService(SQLiteEmbodimentLeaseAdapter(db_path))
@@ -134,6 +131,8 @@ def build_application_container(
             connections=provider_models,
             references=SQLiteProviderReferenceAdapter(db_path),
             technology=provider_models,
+            local_state=provider_models,
+            local_technology=PublicOllamaProviderAdapter(),
         ),
         food=build_food_service(db_path),
         capabilities=CapabilitiesService(
