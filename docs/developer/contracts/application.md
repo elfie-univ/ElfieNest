@@ -1,6 +1,6 @@
 # Application architecture contract
 
-**Contract version:** 1.4
+**Contract version:** 1.5
 **Adopted:** 2026-08-10
 **Scope:** `app/` and App-owned adapters migrating to root `infrastructure/`
 
@@ -53,6 +53,83 @@ path may only shrink.
 The four App-owned areas are Interfaces, Features, Orchestration and Bootstrap.
 Root Infrastructure is the separate Adapter layer used by them; it is shown in
 the table because the App dependency contract must define that edge explicitly.
+
+## Target App business and workflow map
+
+The following directory map is normative for migrated App code. It freezes
+ownership and migration units; it does not require empty directories to exist
+before their real slice starts.
+
+```text
+app/features/
+├── accounts/
+├── adoption/
+├── communication/
+├── elfies/
+├── nest_management/
+├── configuration/
+│   ├── providers/
+│   ├── food/
+│   ├── capabilities/
+│   └── settings/
+├── setup/
+├── bodies/
+└── operations/
+
+app/orchestration/
+├── lifecycle/
+├── nest_session/
+├── resident_admission/
+├── setup_installation/
+├── message_delivery/
+├── embodiment/
+└── observer/
+```
+
+The Feature owners are:
+
+| Feature | Owns | Explicitly does not own |
+| --- | --- | --- |
+| `accounts` | accounts, sessions, passwords, roles, member profiles, member administration and preferences | adoption decisions, Runtime lifecycle or protocol authentication DTOs |
+| `adoption` | candidates, adoption and ownership relations, per-member quota overrides and final adoption eligibility | Nest bed capacity, Elfie profile facts or live Nest admission |
+| `communication` | product conversation relations and user-visible message history already supported by the product | Elfie communication/memory semantics, transport sessions or live delivery coordination |
+| `elfies` | authorized Elfie directory, relationship/permission projection and authorized member/admin profile or cognition views | Elfie profile, cognition or memory facts; adoption ownership; Nest resident state |
+| `nest_management` | authorized product use-cases over the single public Nest facade | a second Nest repository semantic, geometry, coordinates or live Elfie composition |
+| `configuration/providers` | Provider connection administration, credential references and model-resource management projections | technical model discovery, probes, request translation or model calls |
+| `configuration/food` | Food package administration, assignments, generation and management reports | one Elfie's semantic model-role choice or physical storage implementation |
+| `configuration/capabilities` | existing administrator-facing global tool and capability enablement | tool execution, Elfie Skill policy or speculative new capabilities |
+| `configuration/settings` | other existing global product settings with one typed owner and writer | Nest capacity, Provider/Food facts or arbitrary untyped sections |
+| `setup` | first-install draft, choices, validation, status and restricted projections | account, Provider, Food or Nest facts and installation task ownership |
+| `bodies` | external-body enrollment, pairing, revoke, grants and Elfie/body association | credential material, device transport sessions, body semantics or hosting/homing workflows |
+| `operations` | existing authorized system statistics, maintenance, backup/reset use-cases and stable Runtime management projections | Runtime lifecycle decisions, Observer sessions, raw technical objects or duplicate business facts |
+
+The Orchestration workflows are:
+
+| Workflow | Coordinates |
+| --- | --- |
+| `lifecycle` | Core, Gateway and Godot-authority start, stop, restart, recovery and readiness |
+| `nest_session` | the one Nest, real Elfie instances, world events and the shared Godot world channel |
+| `resident_admission` | an accepted adoption, Elfie construction, Nest admission and explicit failure compensation |
+| `setup_installation` | Setup state with Accounts, Provider/model, Food, Nest and managed installation runners |
+| `message_delivery` | an authorized conversation command, user-visible history, live Elfie delivery and receipts |
+| `embodiment` | a real Elfie, Nest and external body for hosting, homing, switching and recovery |
+| `observer` | scoped Observer principals/capabilities, authorized projections and allowed high-level intents |
+
+These are not one-to-one layer mirrors. Accounts, configuration, Elfie
+projections, Nest administration and operations stay in Features unless a real
+flow crosses authorities. Browser HTTP and same-origin WebSocket remain App
+Interfaces; `infrastructure/communication/` implements external communication
+Ports and does not absorb API protocol ownership.
+
+The target versioned API code is organized under `app/interfaces/api/v1/` by
+`auth`, `setup`, `me`, `elfies`, `admin`, `observer` and `realtime` resource
+areas. Admin resources are organized by `users`, `elfies`, `nest`,
+`model_providers`, `food_packages`, `settings` and `runtime`. Physical Python
+directory names use snake_case while public URLs follow the API contract's
+kebab-case rules. `/api/health` remains the sole unversioned technical probe.
+
+`app/bootstrap/` remains one composition root and has no business-domain mirror
+requirement. Each vertical migration slice adds only the wiring it needs.
 
 There are two application planes. `features/` handles product use-cases that can
 be reasoned about inside one business authority. `orchestration/` coordinates a

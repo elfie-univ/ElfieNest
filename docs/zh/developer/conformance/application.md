@@ -64,11 +64,24 @@ Principal 与授权：
 领域才能关闭。即使属于同一业务域，API 调用方迁移、持久化变化和 UI 变化仍应保持
 可分别审阅。
 
-## 初始业务域盘点
+## 当前到目标的迁移映射
 
-当前应用业务域包括 accounts、administration、adoption、configuration、setup、
-chat、Elfie profile、Nest management/registration 和 embodiment。这里不规定优先级，
-也不批准整体重写。维护者一次选择一个领域，先记录精确调用链和删除门，再开始实现。
+规范性所有者只由应用架构契约定义。本表记录当前实现应进入哪里，以及迁移期位置何时
+可以删除；本表不规定执行顺序。
 
-已经讨论过的 API 清理仍是第一条迁移流。容量闭环和基于硬件的本地模型推荐仍是独立
-产品变更，不能藏进架构迁移。
+| 当前目录或归组 | 目标所有者或工作流 | 相关缺口 | 删除门 |
+| --- | --- | --- | --- |
+| `app/features/accounts/` | `app/features/accounts/` | APP-002、APP-004、APP-006、APP-009 | 认证退出 FastAPI 和具体持久化/配置，全部调用方使用 accounts 公开门面。 |
+| `app/features/administration/` | 账户行为进入 `accounts`；维护投影进入 `operations`；生命周期行为进入 `orchestration/lifecycle` | APP-002、APP-004、APP-006、APP-007 | 成员、Owner、Session、维护和生命周期调用方使用最终所有者，旧目录删除。 |
+| `app/features/adoption/` | 业务决策进入 `adoption`；实时接纳和补偿进入 `orchestration/resident_admission` | APP-002、APP-004、APP-007、APP-009 | 领养只有一条事实/写路径，接纳只使用公开门面和 Port，删除直接 Engine、路径和持久化耦合。 |
+| `app/features/chat/` 及 Interface 聊天持久化/投递 | `communication` 与 `orchestration/message_delivery` | APP-001、APP-004、APP-005、APP-006、APP-007、APP-011 | HTTP/WS 调用方复用一个门面，历史只有一个所有者，实时投递有回执，删除旧 Interface 持久化 helper。 |
+| `app/features/elfie_profile/` 及 Interface 查询拼装 | `elfies` 授权查询/投影 Feature | APP-001、APP-004、APP-005、APP-009、APP-011 | 成员/管理员调用方使用一个类型化门面，App 不成为 Elfie Profile、认知或记忆的第二写入者。 |
+| `app/features/nest_management/` 与 `app/features/nest_registration/` | `nest_management`；实时组合仍归 `orchestration/nest_session` | APP-001、APP-002、APP-004、APP-007 | 产品命令使用公开 Nest 边界，删除重复注册所有权和 `nest_registration`。 |
+| `app/features/configuration/` 及 `ai_runtime/` 中的 App 管理行为 | `configuration/providers`、`food`、`capabilities`、`settings` | APP-001、APP-002、APP-004、APP-008、APP-009、APP-012 | 每个子域具有唯一门面、类型化所有者/写入者和 Port；技术模型/工具/存储实现进入根 Infrastructure 能力包并删除旧所有权。 |
+| `app/features/setup/` | Setup 决策进入 `setup`；外部安装进入 `orchestration/setup_installation`；账户、配置、Nest 事实回归各自公开所有者 | APP-002、APP-003、APP-004、APP-007、APP-008、APP-009、APP-012 | Feature 不再持有线程和具体 Adapter，工作流通过注入 Port 可恢复，Setup 不再直接写其他领域事实。 |
+| `app/features/embodiment/` | 注册/授权/关联进入 `bodies`；托管/归巢/切换进入 `orchestration/embodiment` | APP-002、APP-004、APP-007、APP-009、APP-010 | 只保留一套外部身体产品模型和 Port；持久化 Record、`db_path`、具体设备 Adapter 不再跨边界。 |
+| `app/orchestration/` 平铺文件 | 按契约进入 `nest_session`、`message_delivery` 或具体实现所在的根 Infrastructure 能力包 | APP-002、APP-004、APP-007、APP-009 | 工作流只导入公开门面/自有 Port，技术 Adapter 退出 Orchestration，删除旧平铺所有权。 |
+| `app/infrastructure/` 及 `ai_runtime/` 技术部分 | 根 `infrastructure/models`、`tools`、`godot`、`persistence`、`devices`、`communication`、`platform` | APP-001、APP-002、APP-003、APP-004、APP-012 | 每个迁移 Adapter 实现使用方 Port，由 Bootstrap 注入；旧路径持续缩减且不建立目标 `infrastructure/ai_runtime`。 |
+| 历史和混合 API Route 归组 | 契约定义的 `app/interfaces/api/v1/` 资源目录 | APP-001、APP-003、APP-004、APP-005、APP-006、APP-011 | 全部真实调用方使用版本化资源，DTO 严格、构造已注入，删除被替代 Route/Client/夹具且不保留别名。 |
+
+容量闭环、基于硬件的推荐及其他行为变化仍是独立产品任务，不能藏进架构迁移。

@@ -37,6 +37,44 @@ bootstrap     -> 以上所有模块（仅创建、注入、生命周期装配）
 
 新代码不得反向依赖。历史反向依赖只能在对应迁移闭环中删除，不能复制到新文件。
 
+## 最终业务与工作流目录
+
+App 迁移按应用架构契约冻结的纵向切片执行，不照当前目录机械搬迁：
+
+```text
+features/
+├── accounts/
+├── adoption/
+├── communication/
+├── elfies/
+├── nest_management/
+├── configuration/
+│   ├── providers/
+│   ├── food/
+│   ├── capabilities/
+│   └── settings/
+├── setup/
+├── bodies/
+└── operations/
+
+orchestration/
+├── lifecycle/
+├── nest_session/
+├── resident_admission/
+├── setup_installation/
+├── message_delivery/
+├── embodiment/
+└── observer/
+```
+
+- 目录只表达最终所有权，不批准新功能，也不要求提前创建空目录。
+- `administration`、`chat`、`elfie_profile`、`nest_registration` 和当前 Feature 层
+  `embodiment` 是迁移期位置，只能按一致性台账映射收缩。
+- Orchestration 按真实跨 authority 工作流命名，不为每个 Feature 机械建立同名目录。
+- 每个纵向切片同时完成必要的 Interface、Feature/Orchestration、Port、根
+  Infrastructure Adapter、Bootstrap 装配和调用方迁移；Bootstrap 与 Infrastructure
+  不作为独立横向搬迁阶段。
+
 ## Feature、Port 与公开门面
 
 - 一个 Feature 目录对应一个业务所有者。跨 Feature 调用只通过目标领域公开门面，

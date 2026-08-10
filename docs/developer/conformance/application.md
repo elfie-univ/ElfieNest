@@ -77,14 +77,26 @@ closed only after all twelve completion conditions in the Application
 architecture contract pass. API caller migration, persistence changes and UI
 changes remain separately reviewable even when they belong to one domain.
 
-## Initial domain inventory
+## Current-to-target migration map
 
-The current application domains include accounts, administration, adoption,
-configuration, setup, chat, Elfie profile, Nest management/registration and
-embodiment. This inventory does not set priority and does not approve a broad
-rewrite. The maintainer selects one domain; its exact call chain and deletion
-gate are recorded before implementation.
+The normative owners are defined only by the Application contract. This table
+records where current implementation must move and how each migration-state
+location can be deleted; it sets no implementation order.
 
-The existing API cleanup remains the first already-discussed migration stream.
-Capacity closure and hardware-aware local-model recommendation remain separate
-product changes and are not hidden inside architecture migration.
+| Current location or grouping | Target owner or workflow | Related gaps | Deletion gate |
+| --- | --- | --- | --- |
+| `app/features/accounts/` | `app/features/accounts/` | APP-002, APP-004, APP-006, APP-009 | Authentication is removed from FastAPI and concrete persistence/configuration; every caller uses the public accounts facade. |
+| `app/features/administration/` | accounts behavior to `accounts`; maintenance projections to `operations`; lifecycle behavior to `orchestration/lifecycle` | APP-002, APP-004, APP-006, APP-007 | Member, Owner, session, maintenance and lifecycle callers use their final owners and the legacy directory is deleted. |
+| `app/features/adoption/` | business decisions to `adoption`; live admission and compensation to `orchestration/resident_admission` | APP-002, APP-004, APP-007, APP-009 | Adoption owns one fact/write path, admission uses public facades and Ports, and direct engine/path/persistence coupling is deleted. |
+| `app/features/chat/` plus Interface chat persistence/delivery | `communication` and `orchestration/message_delivery` | APP-001, APP-004, APP-005, APP-006, APP-007, APP-011 | HTTP and WS callers share one facade, history has one owner, live delivery has receipts, and legacy Interface persistence helpers are deleted. |
+| `app/features/elfie_profile/` plus Interface query assembly | `elfies` authorized query/projection Feature | APP-001, APP-004, APP-005, APP-009, APP-011 | Member/admin callers use one typed facade and no App module becomes a second Elfie profile, cognition or memory writer. |
+| `app/features/nest_management/` and `app/features/nest_registration/` | `nest_management`; live composition remains `orchestration/nest_session` | APP-001, APP-002, APP-004, APP-007 | Product commands use the public Nest boundary, duplicate registration ownership is removed and `nest_registration` is deleted. |
+| `app/features/configuration/` and App-owned behavior in `ai_runtime/` | `configuration/providers`, `food`, `capabilities`, `settings` | APP-001, APP-002, APP-004, APP-008, APP-009, APP-012 | Each subdomain has one facade, typed owner/writer and Ports; technical model/tool/storage code is moved to its root Infrastructure capability and legacy ownership is deleted. |
+| `app/features/setup/` | setup decisions to `setup`; external installation to `orchestration/setup_installation`; account/configuration/Nest facts to their public owners | APP-002, APP-003, APP-004, APP-007, APP-008, APP-009, APP-012 | Feature-owned threads and concrete adapters are gone, the workflow is resumable through injected Ports, and Setup no longer writes another domain's facts directly. |
+| `app/features/embodiment/` | enrollment/grants/association to `bodies`; hosting/homing/switching to `orchestration/embodiment` | APP-002, APP-004, APP-007, APP-009, APP-010 | One external-body product model and Port set remain; persistence records, `db_path` and concrete device adapters no longer cross the boundary. |
+| flat files in `app/orchestration/` | `nest_session`, `message_delivery` or the implementing root Infrastructure capability according to the contract | APP-002, APP-004, APP-007, APP-009 | Workflow code imports only public facades/owned Ports, technical adapters leave Orchestration and legacy flat ownership is removed. |
+| `app/infrastructure/` and technical parts of `ai_runtime/` | root `infrastructure/models`, `tools`, `godot`, `persistence`, `devices`, `communication`, `platform` | APP-001, APP-002, APP-003, APP-004, APP-012 | Every migrated Adapter implements a consumer-owned Port, Bootstrap injects it and the replaced legacy path shrinks without a target `infrastructure/ai_runtime`. |
+| historical and mixed API Route groupings | `app/interfaces/api/v1/` resource directories defined by the contract | APP-001, APP-003, APP-004, APP-005, APP-006, APP-011 | Every real caller uses the versioned resource, DTOs are strict, construction is injected and the replaced Route/client/fixture is deleted without an alias. |
+
+Capacity closure, hardware-aware recommendations and any other behavior change
+remain separate product work and are not hidden inside architecture migration.

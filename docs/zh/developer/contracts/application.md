@@ -1,6 +1,6 @@
 # 应用架构契约
 
-**契约版本：** 1.4
+**契约版本：** 1.5
 **采用日期：** 2026-08-10
 **适用范围：** `app/`，以及迁往根 `infrastructure/` 的 App Adapter
 
@@ -46,6 +46,80 @@
 四个 App 自有区域是 Interface、Feature、Orchestration 和 Bootstrap。根
 Infrastructure 是它们使用的独立 Adapter 层；表格列出它，是为了明确 App 与该层的
 依赖边界，而不是把它算成第五个 App 内部区域。
+
+## App 最终业务与工作流地图
+
+以下目录地图是已迁移 App 代码的规范性目标。它冻结所有权和迁移单元，但不要求在真实
+切片开始前创建空目录。
+
+```text
+app/features/
+├── accounts/
+├── adoption/
+├── communication/
+├── elfies/
+├── nest_management/
+├── configuration/
+│   ├── providers/
+│   ├── food/
+│   ├── capabilities/
+│   └── settings/
+├── setup/
+├── bodies/
+└── operations/
+
+app/orchestration/
+├── lifecycle/
+├── nest_session/
+├── resident_admission/
+├── setup_installation/
+├── message_delivery/
+├── embodiment/
+└── observer/
+```
+
+Feature 所有者如下：
+
+| Feature | 拥有 | 明确不拥有 |
+| --- | --- | --- |
+| `accounts` | 账户、Session、密码、角色、成员资料、成员管理和偏好 | 领养决策、Runtime 生命周期或协议认证 DTO |
+| `adoption` | 候选、领养和所有权关系、单成员额度覆盖与最终领养资格 | Nest 床位容量、Elfie Profile 事实或实时 Nest 接纳 |
+| `communication` | 产品当前已有的会话关系和用户可见消息历史 | Elfie 通信/记忆语义、传输 Session 或实时投递协调 |
+| `elfies` | 获授权的 Elfie 目录、关系/权限投影，以及成员/管理员 Profile 或认知视图 | Elfie Profile、认知或记忆事实；领养所有权；Nest 居民状态 |
+| `nest_management` | 通过唯一公开 Nest 门面提供的授权产品用例 | 第二套 Nest Repository 语义、几何、坐标或真实 Elfie 组合 |
+| `configuration/providers` | Provider 连接管理、凭据引用和模型资源管理投影 | 技术模型发现、探测、请求转换或模型调用 |
+| `configuration/food` | Food 包管理、分配、生成和管理报告 | 单只 Elfie 的语义模型角色选择或物理存储实现 |
+| `configuration/capabilities` | 当前已有的管理员全局工具和能力开关 | 工具执行、Elfie Skill 策略或猜测性新能力 |
+| `configuration/settings` | 其他当前已有、具备唯一类型化所有者和写入者的全局产品设置 | Nest 容量、Provider/Food 事实或任意无类型 section |
+| `setup` | 首装草稿、选择、校验、状态和受限投影 | 账户、Provider、Food、Nest 事实及安装任务所有权 |
+| `bodies` | 外部身体注册、配对、撤销、授权和 Elfie/body 关联 | 凭据内容、设备传输 Session、身体语义或托管/归巢工作流 |
+| `operations` | 当前已有的授权系统统计、维护、备份/重置用例和稳定 Runtime 管理投影 | Runtime 生命周期决策、Observer Session、原始技术对象或重复业务事实 |
+
+Orchestration 工作流如下：
+
+| 工作流 | 协调范围 |
+| --- | --- |
+| `lifecycle` | Core、Gateway、Godot authority 的启动、停止、重启、恢复和就绪状态 |
+| `nest_session` | 唯一 Nest、真实 Elfie 实例、世界事件和共享 Godot world channel |
+| `resident_admission` | 已接受领养、Elfie 构造、Nest 接纳和明确失败补偿 |
+| `setup_installation` | Setup 状态与 Accounts、Provider/模型、Food、Nest、受管安装 Runner |
+| `message_delivery` | 已授权会话命令、用户可见历史、真实 Elfie 投递和回执 |
+| `embodiment` | 真实 Elfie、Nest 和外部身体的托管、归巢、切换与恢复 |
+| `observer` | 受限 Observer 主体/能力、授权投影和允许的高层意图 |
+
+这些目录不是逐层一一镜像。Accounts、Configuration、Elfie 投影、Nest 管理和运维留在
+Feature，只有真实流程跨 authority 时才进入 Orchestration。浏览器 HTTP 和同源
+WebSocket 仍属于 App Interface；`infrastructure/communication/` 实现外部通信 Port，
+不接管 API 协议所有权。
+
+目标版本化 API 代码位于 `app/interfaces/api/v1/`，按 `auth`、`setup`、`me`、
+`elfies`、`admin`、`observer`、`realtime` 资源范围组织。Admin 资源按 `users`、
+`elfies`、`nest`、`model_providers`、`food_packages`、`settings`、`runtime` 组织。
+Python 物理目录使用 snake_case，公开 URL 继续遵守 API 契约的 kebab-case 规则。
+`/api/health` 仍是唯一不版本化技术探针。
+
+`app/bootstrap/` 仍是唯一组合根，不要求按业务域镜像。每个纵向迁移切片只增加自己
+实际需要的装配。
 
 应用层有两个平面。`features/` 处理能够在一个业务 authority 内完整推理的产品用例；
 当流程跨越 `elfie/`、`nest/`、Godot、设备或受管理进程等 authority 时，由

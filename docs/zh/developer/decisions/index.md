@@ -6,3 +6,4 @@
 - [ADR-0001：App 采用轻量 Ports/Adapters](./0001-lightweight-ports-adapters)
 - [ADR-0002：系统级嵌套 Ports/Adapters](./0002-system-ports-adapters)
 - [ADR-0003：契约驱动的架构棘轮](./0003-architecture-governance-ratchet)
+- [ADR-0004：App 业务域与纵向迁移切片](./0004-app-domain-slices)

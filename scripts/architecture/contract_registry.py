@@ -80,12 +80,14 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="application-architecture",
-        version="1.4",
+        version="1.5",
         english_path="docs/developer/contracts/application.md",
         chinese_path="docs/zh/developer/contracts/application.md",
         decision_paths=(
             "docs/developer/decisions/0001-lightweight-ports-adapters.md",
             "docs/zh/developer/decisions/0001-lightweight-ports-adapters.md",
+            "docs/developer/decisions/0004-app-domain-slices.md",
+            "docs/zh/developer/decisions/0004-app-domain-slices.md",
         ),
         agent_paths=(
             "app/AGENTS.md",

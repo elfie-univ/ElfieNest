@@ -34,6 +34,50 @@ LOOSE_OUTPUT_TYPES = LOOSE_INPUT_TYPES | frozenset({"List", "list"})
 ADAPTER_SUFFIXES = ("Repository", "Registry", "Store")
 UNOWNED_TASK_CALLS = frozenset({"Process", "Thread", "create_task"})
 PUBLIC_UNVERSIONED_HTTP_EXCEPTIONS = frozenset({"/api/health"})
+TARGET_FEATURE_DOMAINS = frozenset(
+    {
+        "accounts",
+        "adoption",
+        "bodies",
+        "communication",
+        "configuration",
+        "elfies",
+        "nest_management",
+        "operations",
+        "setup",
+    }
+)
+LEGACY_FEATURE_DOMAINS = frozenset(
+    {"administration", "chat", "elfie_profile", "embodiment", "nest_registration"}
+)
+TARGET_CONFIGURATION_DOMAINS = frozenset(
+    {"capabilities", "food", "providers", "settings"}
+)
+TARGET_ORCHESTRATION_DOMAINS = frozenset(
+    {
+        "embodiment",
+        "lifecycle",
+        "message_delivery",
+        "nest_session",
+        "observer",
+        "resident_admission",
+        "setup_installation",
+    }
+)
+TARGET_API_V1_DOMAINS = frozenset(
+    {"admin", "auth", "elfies", "me", "observer", "realtime", "setup"}
+)
+TARGET_API_ADMIN_DOMAINS = frozenset(
+    {
+        "elfies",
+        "food_packages",
+        "model_providers",
+        "nest",
+        "runtime",
+        "settings",
+        "users",
+    }
+)
 
 RULE_LEDGER_IDS: Dict[str, str] = {
     "interface_forbidden_layer_imports": "APP-001",
@@ -75,6 +119,44 @@ def _relative(path: Path) -> str:
 
 def _python_files(root: Path) -> Iterator[Path]:
     yield from sorted(path for path in root.rglob("*.py") if path.is_file())
+
+
+def _source_child_directories(root: Path) -> Set[str]:
+    if not root.is_dir():
+        return set()
+    return {
+        path.name
+        for path in root.iterdir()
+        if path.is_dir() and path.name != "__pycache__" and not path.name.startswith(".")
+    }
+
+
+def collect_unowned_app_directories(project_root: Path) -> Set[str]:
+    """Return App business/workflow directories outside the frozen target map."""
+
+    app_root = project_root / "app"
+    checks = (
+        (
+            app_root / "features",
+            TARGET_FEATURE_DOMAINS | LEGACY_FEATURE_DOMAINS,
+        ),
+        (
+            app_root / "features" / "configuration",
+            TARGET_CONFIGURATION_DOMAINS,
+        ),
+        (app_root / "orchestration", TARGET_ORCHESTRATION_DOMAINS),
+        (app_root / "interfaces" / "api", frozenset({"v1"})),
+        (app_root / "interfaces" / "api" / "v1", TARGET_API_V1_DOMAINS),
+        (
+            app_root / "interfaces" / "api" / "v1" / "admin",
+            TARGET_API_ADMIN_DOMAINS,
+        ),
+    )
+    offenders: Set[str] = set()
+    for root, allowed in checks:
+        for name in _source_child_directories(root) - allowed:
+            offenders.add((root / name).relative_to(project_root).as_posix())
+    return offenders
 
 
 def _tree(path: Path) -> ast.AST:
