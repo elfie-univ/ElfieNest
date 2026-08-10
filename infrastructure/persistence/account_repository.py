@@ -1,4 +1,4 @@
-"""Final ``users`` table access for account-facing application code."""
+"""Transaction-scoped SQLite access for remaining account bootstrap callers."""
 
 from __future__ import annotations
 

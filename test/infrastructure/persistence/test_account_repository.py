@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from app.infrastructure.persistence.account_repository import (
+from infrastructure.persistence.account_repository import (
     AccountConflictError,
     AccountRepository,
     AccountValidationError,

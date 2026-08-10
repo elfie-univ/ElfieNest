@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from _pytest.capture import CaptureFixture
 
-from app.infrastructure.persistence.account_repository import AccountRepository
 from app.infrastructure.persistence.elfie_repository import ElfieRepository
-from infrastructure.persistence.store import get_db, init_db
 from app.interfaces.cli import provider_commands, route_commands
+from infrastructure.persistence.account_repository import AccountRepository
+from infrastructure.persistence.store import get_db, init_db
 
 
 def test_list_providers_prints_configured_provider(
