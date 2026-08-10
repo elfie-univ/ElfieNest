@@ -1,5 +1,7 @@
 """Public facades for independently migrated Configuration subdomains."""
 
+from .providers import *  # noqa: F403
+from .providers import __all__ as _providers_all
 from .settings import (
     ElfieSettingsResult,
     GetElfieSettingsQuery,
@@ -24,7 +26,7 @@ from .settings import (
     UpdateSecuritySettingsCommand,
 )
 
-__all__ = (
+__all__ = _providers_all + (
     "ElfieSettingsResult",
     "GetElfieSettingsQuery",
     "GetRuntimeSettingsQuery",

@@ -37,20 +37,24 @@ from ai_runtime.storage.validation_reports import read_latest_model_validation
 from ai_runtime.validation.providers import discover_provider_models
 from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
 from app.interfaces.api.v1.auth import require_manager
+from infrastructure.models.provider_errors import sanitize_error
+from infrastructure.models.provider_validation_runtime import (
+    connection_api_key as _connection_api_key,
+)
+from infrastructure.models.provider_validation_runtime import (
+    runtime_projection as _runtime_projection,
+)
+from infrastructure.models.provider_validation_service import (
+    summarize_connection_validation,
+    validate_connection,
+)
 
-from .provider_errors import sanitize_error
 from .provider_schemas import (
     ProviderConnectionUpdateRequest,
     ProviderConnectionWriteRequest,
     ProviderModelBatchUpdateRequest,
     ProviderModelInput,
     ProviderModelUpdateRequest,
-)
-from .provider_validation_runtime import connection_api_key as _connection_api_key
-from .provider_validation_runtime import runtime_projection as _runtime_projection
-from .provider_validation_service import (
-    summarize_connection_validation,
-    validate_connection,
 )
 
 router = APIRouter()

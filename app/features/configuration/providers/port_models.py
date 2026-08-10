@@ -1,0 +1,198 @@
+"""Strict models crossing Providers-owned technical Ports."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Literal
+
+ApiMode = Literal["ollama", "chat_completions", "anthropic_messages"]
+AuthType = Literal["none", "bearer", "x-api-key"]
+ConnectionMethod = Literal["local", "api_key", "oauth"]
+DiscoveryStrategy = Literal[
+    "catalog_only", "ollama", "provider_adapter", "standard_models"
+]
+ModelSource = Literal["official", "remote_catalog", "bundled_catalog", "manual"]
+ValidationMode = Literal["none", "full", "cached", "heartbeat", "benchmark"]
+ValidationStatus = Literal["never", "passed", "failed"]
+LatencyClass = Literal["fast", "normal", "slow"]
+
+
+@dataclass(frozen=True)
+class StoredProviderBrand:
+    brand_id: str
+    name: str
+    logo_asset: str
+
+
+@dataclass(frozen=True)
+class StoredProviderProduct:
+    catalog_id: str
+    name: str
+    brand: StoredProviderBrand
+    connection_method: ConnectionMethod
+    oauth_available: bool
+    usage_scope: str
+    discovery_strategy: DiscoveryStrategy
+    api_mode: ApiMode
+    api_base: str
+    auth_type: AuthType
+
+
+@dataclass(frozen=True)
+class StoredProviderModel:
+    model_id: str
+    display_name: str
+    canonical_model_id: str | None = None
+    source: ModelSource = "manual"
+    context_window_tokens: int | None = None
+    max_output_tokens: int | None = None
+    supports_tools: bool | None = None
+    supports_vision: bool | None = None
+    supports_reasoning: bool | None = None
+    hidden: bool = False
+    retired: bool = False
+    available: bool = True
+
+
+@dataclass(frozen=True)
+class StoredProviderConnection:
+    connection_id: str
+    catalog_id: str
+    alias: str
+    api_base: str
+    api_mode: ApiMode
+    auth_type: AuthType
+    credential_ref: str
+    models: tuple[StoredProviderModel, ...]
+    enabled: bool = True
+    archived: bool = False
+
+
+@dataclass(frozen=True)
+class StoredVerification:
+    status: ValidationStatus = "never"
+    checked_at: str | None = None
+    latency_ms: float | None = None
+    error: str | None = None
+    validation_mode: ValidationMode = "none"
+    cache_hit: bool = False
+    needs_full_validation: bool = False
+    needs_heartbeat: bool = False
+    full_run_id: str | None = None
+    full_checked_at: str | None = None
+    heartbeat_checked_at: str | None = None
+    heartbeat_status: Literal["passed", "failed"] | None = None
+    representative_model_id: str | None = None
+    reason: str | None = None
+
+
+@dataclass(frozen=True)
+class StoredModelVerification:
+    status: ValidationStatus = "never"
+    checked_at: str | None = None
+    latency_ms: float | None = None
+    error: str | None = None
+    validation_mode: ValidationMode | None = None
+    full_run_id: str | None = None
+
+
+@dataclass(frozen=True)
+class StoredModelRefresh:
+    status: str
+    checked_at: str
+    message: str | None
+    models: tuple[StoredProviderModel, ...]
+
+
+@dataclass(frozen=True)
+class StoredMatrixCell:
+    connection_id: str
+    model_id: str | None
+    available: bool
+    verification_status: ValidationStatus
+    benchmark_status: Literal["passed", "failed"] | None
+    latency_ms: float | None
+    latency_class: LatencyClass | None
+    price_estimate: float | None
+
+
+@dataclass(frozen=True)
+class StoredMatrixModel:
+    model_key: str
+    display_name: str
+    capabilities: tuple[str, ...]
+    connections: tuple[StoredMatrixCell, ...]
+
+
+@dataclass(frozen=True)
+class StoredMatrixConnection:
+    connection_id: str
+    name: str
+    verification: StoredVerification
+
+
+@dataclass(frozen=True)
+class StoredMatrixSnapshot:
+    mode: str
+    run_id: str | None = None
+    as_of: str | None = None
+    status: str | None = None
+    started_at: str | None = None
+    finished_at: str | None = None
+
+
+@dataclass(frozen=True)
+class StoredModelMatrix:
+    snapshot: StoredMatrixSnapshot
+    connections: tuple[StoredMatrixConnection, ...]
+    models: tuple[StoredMatrixModel, ...]
+
+
+@dataclass(frozen=True)
+class StoredBenchmarkCombination:
+    connection_id: str
+    model_id: str
+
+
+@dataclass(frozen=True)
+class StoredBenchmarkResult:
+    connection_id: str
+    model_id: str
+    status: Literal["passed", "failed"]
+    checked_at: str
+    latency_ms: float | None
+    latency_class: LatencyClass | None
+    error: str | None
+
+
+@dataclass(frozen=True)
+class StoredBenchmarkRun:
+    run_id: str
+    status: str
+    results: tuple[StoredBenchmarkResult, ...]
+
+
+@dataclass(frozen=True)
+class StoredValidationItem:
+    subject: str
+    status: str
+    checked_at: str | None = None
+
+
+@dataclass(frozen=True)
+class StoredValidationRun:
+    run_id: str
+    status: str
+    results: tuple[StoredValidationItem, ...]
+
+
+__all__ = tuple(name for name in globals() if name.startswith("Stored")) + (
+    "ApiMode",
+    "AuthType",
+    "ConnectionMethod",
+    "DiscoveryStrategy",
+    "LatencyClass",
+    "ModelSource",
+    "ValidationMode",
+    "ValidationStatus",
+)

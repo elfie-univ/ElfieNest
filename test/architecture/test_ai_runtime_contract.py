@@ -80,7 +80,7 @@ def test_model_consumers_share_the_sqlite_evidence_projection() -> None:
         "app/features/configuration/food_access.py",
         "app/features/setup/ollama.py",
         "app/interfaces/api/food_catalog_support.py",
-        "app/interfaces/api/provider_model_matrix.py",
+        "infrastructure/models/provider_model_matrix.py",
     }
     assert all("query_model_evidence" in _source(path) for path in consumers)
     evidence_source = _source("ai_runtime/food/evidence.py")
