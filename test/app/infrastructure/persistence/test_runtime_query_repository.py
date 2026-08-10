@@ -6,8 +6,8 @@ from app.infrastructure.persistence.final_schema import create_final_nest_databa
 from app.infrastructure.persistence.runtime_query_repository import (
     RuntimeQueryRepository,
 )
-from app.infrastructure.persistence.session_repository import hash_session_token
 from app.infrastructure.persistence.store import get_db
+from infrastructure.persistence import hash_session_token
 
 
 def test_runtime_queries_use_final_users_and_elfies(tmp_path: Path) -> None:

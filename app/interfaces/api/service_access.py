@@ -24,7 +24,7 @@ LOOPBACK_HOSTS: Final[Tuple[str, ...]] = ("127.0.0.1", "localhost", "::1")
 ANONYMOUS_PATHS: Final[frozenset[str]] = frozenset(
     {
         "/login",
-        "/api/auth/login",
+        "/api/v1/auth/login",
         "/api/auth/setup-status",
         "/api/health",
     }

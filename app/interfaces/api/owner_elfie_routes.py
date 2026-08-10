@@ -8,7 +8,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ai_runtime.storage.data_home import data_home_from_db_path
 from ai_runtime.storage.data_layout import final_root_layout
-from app.features.accounts.auth import require_manager
 from app.features.configuration.food_access import elfie_food_policy_projection
 from app.features.elfie_profile.public_projection import build_public_profile
 from app.infrastructure.persistence.embodiment_sessions import get_embodiment_session
@@ -17,6 +16,7 @@ from app.infrastructure.persistence.interface_query_repository import (
     InterfaceElfieRecord,
     InterfaceQueryRepository,
 )
+from app.interfaces.api.v1.auth import require_manager
 
 router = APIRouter(prefix="/api/owner", tags=["owner-elfie-monitoring"])
 

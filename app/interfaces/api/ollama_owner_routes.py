@@ -9,7 +9,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from ai_runtime.storage.data_home import data_home_from_db_path
 from ai_runtime.storage.data_layout import final_root_layout
 from ai_runtime.storage.provider_connections import ProviderConnectionStore
-from app.features.accounts.auth import AuthenticatedUser, require_manager
+from app.features.accounts import AccountPrincipal
 from app.features.setup.ollama import OllamaSetupService
 from app.features.setup.ollama_owner import OllamaOwnerService
 from app.features.setup.ollama_owner_jobs import OllamaOwnerJobManager, OllamaTask
@@ -17,6 +17,7 @@ from app.infrastructure.ollama_platform import (
     OllamaPlatformAdapter,
     OllamaState,
 )
+from app.interfaces.api.v1.auth import require_manager
 
 from .ollama_owner_models import (
     OllamaInstallRequest,
@@ -34,7 +35,7 @@ RequireManager = Depends(require_manager)
 @router.get("/ollama", response_model=OllamaOwnerStatusResponse)
 def get_ollama_status(
     request: Request,
-    owner: AuthenticatedUser = RequireManager,
+    owner: AccountPrincipal = RequireManager,
 ) -> OllamaOwnerStatusResponse:
     _ = owner
     return _status(request)
@@ -45,7 +46,7 @@ def install_or_connect_ollama(
     body: OllamaInstallRequest,
     background_tasks: BackgroundTasks,
     request: Request,
-    owner: AuthenticatedUser = RequireManager,
+    owner: AccountPrincipal = RequireManager,
 ) -> OllamaOwnerStatusResponse:
     _ = body
     _ = owner
@@ -79,7 +80,7 @@ def install_or_connect_ollama(
 @router.post("/ollama/start", response_model=OllamaOwnerStatusResponse)
 def start_ollama(
     request: Request,
-    owner: AuthenticatedUser = RequireManager,
+    owner: AccountPrincipal = RequireManager,
 ) -> OllamaOwnerStatusResponse:
     _ = owner
     scope = request.app.state.db_path
@@ -99,7 +100,7 @@ def pull_ollama_models(
     body: OllamaPullRequest,
     background_tasks: BackgroundTasks,
     request: Request,
-    owner: AuthenticatedUser = RequireManager,
+    owner: AccountPrincipal = RequireManager,
 ) -> OllamaOwnerStatusResponse:
     _ = body.confirmed
     _ = owner

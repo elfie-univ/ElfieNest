@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import (
@@ -12,13 +12,10 @@ from fastapi.responses import (
     Response,
 )
 
-from app.features.accounts.auth import (
-    AuthenticatedUser,
-    get_current_user,
-    require_manager,
-)
+from app.features.accounts import AccountPrincipal
 from app.features.setup.service import needs_setup
 from app.interfaces.api.service_access import LOOPBACK_HOSTS, ServiceMode
+from app.interfaces.api.v1.auth import get_current_user, require_manager
 from app.interfaces.web.build_discovery import (
     WebBuildManifestMalformedError,
     WebBuildManifestMissingError,
@@ -41,24 +38,26 @@ def safe_next_path(raw_next: Optional[str]) -> Optional[str]:
     return None
 
 
-def default_landing_path(user: Mapping[str, Any]) -> str:
+def default_landing_path(user: AccountPrincipal) -> str:
     """Resolve the current role's server-enforced default landing page."""
-    if user.get("role") in {"owner", "admin"}:
-        preference = user.get("default_landing_page")
+    if user.role in {"owner", "admin"}:
+        preference = user.default_landing_page
         if preference == "chat":
             return "/chat"
         return "/manage"
     return "/chat"
 
 
-def post_login_landing_path(user: Mapping[str, Any], raw_next: Optional[str]) -> str:
+def post_login_landing_path(
+    user: AccountPrincipal, raw_next: Optional[str]
+) -> str:
     """Resolve login landing without letting generic chat redirects steal Owner flow."""
     safe_next = safe_next_path(raw_next)
-    if user.get("role") in {"owner", "admin"} and safe_next == "/manage":
+    if user.role in {"owner", "admin"} and safe_next == "/manage":
         return "/manage"
-    if user.get("role") in {"owner", "admin"} and safe_next == "/monitor":
+    if user.role in {"owner", "admin"} and safe_next == "/monitor":
         return "/monitor"
-    if user.get("role") == "user" and safe_next == "/chat":
+    if user.role == "user" and safe_next == "/chat":
         return "/chat"
     return default_landing_path(user)
 
@@ -67,7 +66,7 @@ def _login_redirect(target: str) -> RedirectResponse:
     return RedirectResponse(url=f"/login?next={target}", status_code=303)
 
 
-def _current_page_user(request: Request) -> Optional[AuthenticatedUser]:
+def _current_page_user(request: Request) -> Optional[AccountPrincipal]:
     """Translate an absent or expired session into the page-login flow."""
     try:
         return get_current_user(request)
@@ -172,7 +171,7 @@ async def manage_page(request: Request) -> Response:
     user = _current_page_user(request)
     if user is None:
         return _login_redirect("/manage")
-    if user.get("role") not in {"owner", "admin"}:
+    if user.role not in {"owner", "admin"}:
         return RedirectResponse("/chat", status_code=303)
     return _serve_generated_page(request)
 
@@ -185,7 +184,7 @@ async def monitor_page(request: Request) -> Response:
     user = _current_page_user(request)
     if user is None:
         return _login_redirect("/monitor")
-    if user.get("role") not in {"owner", "admin"}:
+    if user.role not in {"owner", "admin"}:
         return RedirectResponse("/chat", status_code=303)
     return _serve_generated_page(request)
 

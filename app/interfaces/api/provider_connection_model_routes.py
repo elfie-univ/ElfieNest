@@ -12,7 +12,7 @@ from ai_runtime.storage.provider_connections import ProviderConnectionStore
 from ai_runtime.storage.report_repository import ReportRepository
 from ai_runtime.storage.secrets import connection_secret_name, resolve_secret
 from ai_runtime.storage.validation_reports import write_model_validation_report
-from app.features.accounts.auth import require_manager
+from app.interfaces.api.v1.auth import require_manager
 
 from .provider_connection_routes import _verify_connection_in_run
 from .provider_errors import sanitize_error

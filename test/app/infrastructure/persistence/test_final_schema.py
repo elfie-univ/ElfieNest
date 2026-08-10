@@ -13,7 +13,7 @@ from app.infrastructure.persistence.final_schema import (
     FinalNestDatabasePathError,
     create_final_nest_database,
 )
-from app.infrastructure.persistence.sqlite_connection import app_sqlite_connection
+from infrastructure.persistence.sqlite_connection import app_sqlite_connection
 
 EXPECTED_TABLES: Final = {
     "users",

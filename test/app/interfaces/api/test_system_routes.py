@@ -12,8 +12,8 @@ import pytest
 import yaml
 from fastapi.testclient import TestClient
 
+from app.bootstrap import create_app
 from app.infrastructure.persistence.store import init_db
-from app.interfaces.api.app import create_app
 
 from ._helpers import create_test_owner
 
@@ -63,7 +63,7 @@ def client(app):
 def _login_owner(client: TestClient) -> dict:
     """辅助：以 owner 身份登录，返回 token 信息。"""
     resp = client.post(
-        "/api/auth/login", data={"account_id": "owner", "password": "ownerchangeme"}
+        "/api/v1/auth/login", data={"account_id": "owner", "password": "ownerchangeme"}
     )
     assert resp.status_code == 200, f"login failed: {resp.text}"
     csrf_token = resp.headers.get("X-CSRF-Token", "")
@@ -298,7 +298,7 @@ class TestAuthorization:
 
         # 以 alice 身份登录
         resp = client.post(
-            "/api/auth/login", data={"account_id": "alice", "password": "pass123"}
+            "/api/v1/auth/login", data={"account_id": "alice", "password": "pass123"}
         )
         alice_csrf = resp.headers.get("X-CSRF-Token", "")
 

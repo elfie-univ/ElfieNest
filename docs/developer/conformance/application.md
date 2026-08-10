@@ -77,6 +77,24 @@ closed only after all twelve completion conditions in the Application
 architecture contract pass. API caller migration, persistence changes and UI
 changes remain separately reviewable even when they belong to one domain.
 
+### Accounts: authentication and sessions
+
+```text
+Domain: accounts / authentication-session
+Gap IDs: APP-001, APP-002, APP-003, APP-004, APP-005, APP-006, APP-009, APP-011, APP-012
+Current authoritative facts: users credentials and roles in nest.db; hashed browser sessions in nest.db; system.security session TTL and login-rate settings in runtime.yaml
+Routes and production callers: POST /api/v1/auth/login and /logout; browser session client; HTTP/page/WS/Setup/Observer authentication dependencies
+Target public facade and models: accounts authentication/session facade; strict account principal, login command and authenticated-session result
+Ports and adapters: account credential/session persistence Port implemented by root Infrastructure SQLite; typed security-policy Port implemented by root Infrastructure runtime configuration
+Consistency class: one database transaction per session issue or revoke; configuration remains a typed-file read
+Principal and authorization: Interface parses credentials/cookies and constructs the Feature result as the request principal; Accounts authorizes owner/manager requirements
+Timeout / retry / idempotency: local synchronous storage/config access; no retry; session revoke is idempotent
+Legacy deletion list: app/features/accounts/auth.py; legacy login/logout routes and paths; direct authentication imports from Feature internals; auth-owned concrete persistence/config construction
+Focused tests and end-to-end gate: Accounts service and adapters; shared HTTP dependencies; login/logout cookie and CSRF flow; WebSocket session validation; frontend session client; focused App architecture scan
+Machine baseline entries removed: accounts/auth Feature isolation and internal-import entries; replaced Interface construction/internal-import entries; POST /api/auth/login and POST /api/auth/logout
+Status: closed
+```
+
 ## Current-to-target migration map
 
 The normative owners are defined only by the Application contract. This table

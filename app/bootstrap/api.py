@@ -1,0 +1,37 @@
+"""Production composition for the HTTP application."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any, Optional
+
+from fastapi import FastAPI
+
+from ai_runtime.storage.data_home import get_db_path
+from app.interfaces.api.app import create_http_application
+
+from .container import build_application_container
+
+
+def create_app(
+    engine: Any = None,
+    db_path: Optional[str] = None,
+    ws_port: int = 8766,
+    http_port: int = 8000,
+    service_mode: str = "loopback",
+    web_build_dir: Optional[Path] = None,
+) -> FastAPI:
+    selected_db_path = db_path or str(get_db_path())
+    container = build_application_container(selected_db_path)
+    return create_http_application(
+        accounts=container.accounts,
+        engine=engine,
+        db_path=selected_db_path,
+        ws_port=ws_port,
+        http_port=http_port,
+        service_mode=service_mode,
+        web_build_dir=web_build_dir,
+    )
+
+
+__all__ = ("create_app",)

@@ -15,12 +15,12 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.bootstrap import create_app
 from app.features.adoption.service import (
     AdoptionCapacityError,
     AdoptionValidationError,
 )
 from app.infrastructure.persistence.store import init_db
-from app.interfaces.api.app import create_app
 
 from ._helpers import adopt_test_elfie, create_test_owner
 
@@ -77,7 +77,7 @@ def client(app):
 
 def _login_owner(client: TestClient) -> dict:
     resp = client.post(
-        "/api/auth/login", data={"account_id": "owner", "password": "ownerchangeme"}
+        "/api/v1/auth/login", data={"account_id": "owner", "password": "ownerchangeme"}
     )
     assert resp.status_code == 200, f"owner login failed: {resp.text}"
     csrf_token = resp.headers.get("X-CSRF-Token", "")
@@ -103,7 +103,7 @@ def _create_user_and_login(
     assert resp.status_code == 201, f"create user failed: {resp.text}"
 
     resp = client.post(
-        "/api/auth/login", data={"account_id": account_id, "password": password}
+        "/api/v1/auth/login", data={"account_id": account_id, "password": password}
     )
     assert resp.status_code == 200, f"user login failed: {resp.text}"
     return {

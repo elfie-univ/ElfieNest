@@ -11,14 +11,14 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Final
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ai_runtime.storage.data_home import get_config_path
-from app.features.accounts.auth import require_manager
 from app.features.configuration.runtime_store import (
     read_system_section,
     write_system_section,
 )
+from app.interfaces.api.v1.auth import require_manager
 
 logger = logging.getLogger("app.interfaces.api.system_routes")
 
@@ -234,6 +234,7 @@ async def get_system_section(
 async def update_system_section(
     section: str,
     body: Dict[str, Any],
+    request: Request,
     owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
 ) -> Dict[str, Any]:
     """更新系统设置指定 section。
@@ -258,12 +259,10 @@ async def update_system_section(
 
     # 如果是 security section，清除 auth 缓存使新配置即时生效
     if section == "security":
-        from app.features.accounts.auth import (  # noqa: PLC0415
-            invalidate_rate_limiter_cache,
-            invalidate_session_cache,
-        )
+        # The Accounts facade is process-scoped and owns its limiter cache.
+        # Config itself is loaded from the authoritative file on every use.
+        from app.interfaces.api.v1.auth import accounts_service  # noqa: PLC0415
 
-        invalidate_session_cache()
-        invalidate_rate_limiter_cache()
+        accounts_service(request).invalidate_security_cache()
 
     return result

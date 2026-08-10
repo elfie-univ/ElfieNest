@@ -23,7 +23,7 @@ from app.infrastructure.persistence.history_schema import (
     HISTORY_FILENAME,
     create_history_schema,
 )
-from app.infrastructure.persistence.sqlite_connection import app_sqlite_connection
+from infrastructure.persistence.sqlite_connection import app_sqlite_connection
 
 
 class ElfieChatSender(str, Enum):

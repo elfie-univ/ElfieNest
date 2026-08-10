@@ -6,7 +6,7 @@ import sqlite3
 from pathlib import Path
 from typing import Final
 
-from app.infrastructure.persistence.sqlite_connection import (
+from infrastructure.persistence.sqlite_connection import (
     UnsafeSQLitePathError,
     app_sqlite_connection,
 )

@@ -12,11 +12,11 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from app.features.accounts.auth import generate_csrf_token
+from app.bootstrap import create_app
 from app.infrastructure.persistence.store import get_db, init_db
-from app.interfaces.api.app import create_app
 from app.interfaces.api.profile_routes import _read_avatar_limited
 from app.interfaces.api.request_limits import AvatarUploadBodyLimitMiddleware
+from app.interfaces.api.v1.auth import generate_csrf_token
 
 from ._helpers import create_test_owner, create_test_user
 
@@ -54,7 +54,7 @@ def client(app):
 def _login_owner(client: TestClient) -> dict:
     """辅助：以 owner 身份登录。"""
     resp = client.post(
-        "/api/auth/login",
+        "/api/v1/auth/login",
         data={"account_id": "owner", "password": "ownerchangeme"},
     )
     assert resp.status_code == 200, f"login failed: {resp.text}"
@@ -301,12 +301,12 @@ class TestThemePreference:
         )
         assert owner_update.status_code == 200
         logout = client.post(
-            "/api/auth/logout", headers={"X-CSRF-Token": owner_tokens["csrf_token"]}
+            "/api/v1/auth/logout", headers={"X-CSRF-Token": owner_tokens["csrf_token"]}
         )
         assert logout.status_code == 200
 
         member_login = client.post(
-            "/api/auth/login",
+            "/api/v1/auth/login",
             data={"account_id": "member", "password": "memberchangeme"},
         )
         member_tokens = {"csrf_token": member_login.headers["X-CSRF-Token"]}
@@ -542,14 +542,14 @@ class TestChangePassword:
 
         # 验证可以用新密码登录
         resp = client.post(
-            "/api/auth/login",
+            "/api/v1/auth/login",
             data={"account_id": "owner", "password": "newpass123"},
         )
         assert resp.status_code == 200
 
         # 验证旧密码不再可用
         resp = client.post(
-            "/api/auth/login",
+            "/api/v1/auth/login",
             data={"account_id": "owner", "password": "ownerchangeme"},
         )
         assert resp.status_code == 401

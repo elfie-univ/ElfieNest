@@ -10,7 +10,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from ai_runtime.storage.data_home import data_home_from_db_path
 from ai_runtime.storage.data_layout import final_root_layout
-from app.features.accounts.auth import get_current_user, verify_session
+from app.features.accounts import AccountPrincipal
 from app.features.configuration.food_access import elfie_food_policy_projection
 from app.features.elfie_profile.private_cognition_projection import (
     project_private_cognition,
@@ -28,6 +28,7 @@ from app.infrastructure.persistence.runtime_query_repository import (
     RuntimeQueryRepository,
 )
 from app.interfaces.api.chat_persistence import record_owner_chat_message
+from app.interfaces.api.v1.auth import get_current_user
 from elfie.communication.contracts import InboundDisposition, InboundDispositionStatus
 
 router = APIRouter(prefix="/api/v1", tags=["v1-client"])
@@ -54,20 +55,20 @@ async def chat_websocket(websocket: WebSocket) -> None:
         await websocket.close(code=1008)
         return
     token = websocket.cookies.get("session_token")
-    user = verify_session(token, websocket.app.state.db_path) if token else None
+    user = websocket.app.state.accounts.authenticate_session(token) if token else None
     if user is None:
         await websocket.close(code=1008)
         return
     await websocket.accept()
     hub = websocket.app.state.v1_chat_hub
-    user_id = user["user_id"]
+    user_id = user.user_id
     await hub.connect(user_id, websocket)
     await websocket.send_json(
         {
             "event": "ready",
             "principal": {
-                "role": user["role"],
-                "account_id": user["account_id"],
+                "role": user.role,
+                "account_id": user.account_id,
             },
         }
     )
@@ -88,8 +89,8 @@ async def chat_websocket(websocket: WebSocket) -> None:
         try:
             message = _send_client_message(
                 websocket.app,
-                user["user_id"],
-                user["account_id"],
+                user.user_id,
+                user.account_id,
                 elfie_id,
                 text,
             )
@@ -101,14 +102,14 @@ async def chat_websocket(websocket: WebSocket) -> None:
 
 @router.get("/me")
 async def current_client_user(
-    user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+    user: AccountPrincipal = Depends(get_current_user),  # noqa: B008
 ) -> Dict[str, Any]:
     """Expose the minimum session identity needed to choose a product page."""
     return {
-        "user_id": user["user_id"],
-        "account_id": user["account_id"],
-        "role": user["role"],
-        "default_landing_page": user["default_landing_page"],
+        "user_id": user.user_id,
+        "account_id": user.account_id,
+        "role": user.role,
+        "default_landing_page": user.default_landing_page,
     }
 
 
@@ -116,15 +117,15 @@ async def current_client_user(
 async def update_owner_default_landing_page(
     body: LandingPageUpdate,
     request: Request,
-    user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+    user: AccountPrincipal = Depends(get_current_user),  # noqa: B008
 ) -> Dict[str, str]:
     """Persist a manager landing preference; normal users always use chat."""
-    if user["role"] not in {"owner", "admin"}:
+    if user.role not in {"owner", "admin"}:
         raise HTTPException(
             status_code=403, detail="只有 Owner 或 Admin 可以设置管理默认页"
         )
     RuntimeQueryRepository(request.app.state.db_path).update_default_landing_page(
-        user["user_id"], body.default_landing_page
+        user.user_id, body.default_landing_page
     )
     return {"default_landing_page": body.default_landing_page}
 
@@ -132,25 +133,25 @@ async def update_owner_default_landing_page(
 @router.get("/elfies")
 async def list_public_elfies(
     request: Request,
-    user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+    user: AccountPrincipal = Depends(get_current_user),  # noqa: B008
 ) -> list[Dict[str, Any]]:
     """List the authenticated user's Elfies as public profile projections."""
-    return _owned_public_profiles(request.app.state.db_path, user["user_id"])
+    return _owned_public_profiles(request.app.state.db_path, user.user_id)
 
 
 @router.get("/elfies/{elfie_id}/profile")
 async def public_elfie_profile(
     elfie_id: str,
     request: Request,
-    user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+    user: AccountPrincipal = Depends(get_current_user),  # noqa: B008
 ) -> Dict[str, Any]:
     """Read one owned Elfie without exposing raw YAML or local paths."""
-    profiles = _owned_public_profiles(request.app.state.db_path, user["user_id"])
+    profiles = _owned_public_profiles(request.app.state.db_path, user.user_id)
     for profile in profiles:
         if profile["elfie_id"] == elfie_id:
             return _private_profile_detail(
                 request.app.state.db_path,
-                user["user_id"],
+                user.user_id,
                 profile,
             )
     raise HTTPException(status_code=404, detail="精灵不存在")
@@ -159,11 +160,11 @@ async def public_elfie_profile(
 @router.get("/conversations")
 async def list_conversations(
     request: Request,
-    user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+    user: AccountPrincipal = Depends(get_current_user),  # noqa: B008
 ) -> list[Dict[str, Any]]:
     """Return chat list rows using only the current user's message history."""
     db_path = request.app.state.db_path
-    user_id = user["user_id"]
+    user_id = user.user_id
     profiles = _owned_public_profiles(db_path, user_id)
     return [_conversation_summary(db_path, user_id, profile) for profile in profiles]
 
@@ -172,11 +173,11 @@ async def list_conversations(
 async def list_conversation_messages(
     elfie_id: str,
     request: Request,
-    user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+    user: AccountPrincipal = Depends(get_current_user),  # noqa: B008
 ) -> list[Dict[str, Any]]:
     """Return the authenticated user's messages without legacy meta fields."""
     db_path = request.app.state.db_path
-    user_id = user["user_id"]
+    user_id = user.user_id
     if not _owns_elfie(db_path, user_id, elfie_id):
         raise HTTPException(status_code=404, detail="精灵不存在")
     return [
@@ -200,11 +201,11 @@ async def send_conversation_message(
     elfie_id: str,
     body: ChatMessageCreate,
     request: Request,
-    user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+    user: AccountPrincipal = Depends(get_current_user),  # noqa: B008
 ) -> Dict[str, Any]:
     """Persist and deliver one owned-elfie message through the Core session."""
     return _send_client_message(
-        request.app, user["user_id"], user["account_id"], elfie_id, body.text
+        request.app, user.user_id, user.account_id, elfie_id, body.text
     )
 
 

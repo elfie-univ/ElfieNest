@@ -11,9 +11,9 @@ from fastapi.testclient import TestClient
 from ai_runtime.food.models import FOOD_COMMON_ID, FOOD_EMERGENCY_ID, FoodPackage
 from ai_runtime.food.planner import ModelEvidence
 from ai_runtime.food.store import FoodCatalog
+from app.bootstrap import create_app
 from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
 from app.infrastructure.persistence.store import get_db, init_db
-from app.interfaces.api.app import create_app
 from app.interfaces.api.food_catalog_support import require_package
 
 from ._helpers import create_test_owner, create_test_user
@@ -47,7 +47,7 @@ def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
 
 def _owner_headers(client: TestClient) -> dict[str, str]:
     response = client.post(
-        "/api/auth/login",
+        "/api/v1/auth/login",
         data={"account_id": "owner", "password": "ownerchangeme"},
     )
     assert response.status_code == 200

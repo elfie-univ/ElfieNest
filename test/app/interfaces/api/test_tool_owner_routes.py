@@ -4,8 +4,8 @@ from unittest.mock import patch
 import yaml
 from fastapi.testclient import TestClient
 
+from app.bootstrap import create_app
 from app.infrastructure.persistence.store import init_db
-from app.interfaces.api.app import create_app
 
 from ._helpers import create_test_owner
 
@@ -33,7 +33,7 @@ def test_tool_config_round_trip_uses_runtime_policy_and_local_secret(tmp_path):
         app = create_app(engine=None, db_path=db_path, ws_port=9876)
         with TestClient(app) as client:
             login = client.post(
-                "/api/auth/login",
+                "/api/v1/auth/login",
                 data={"account_id": "owner", "password": "ownerchangeme"},
             )
             headers = {"X-CSRF-Token": login.headers["X-CSRF-Token"]}

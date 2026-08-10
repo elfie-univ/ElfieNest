@@ -1,269 +1,142 @@
-"""测试 auth.py — 密码哈希 / session / CSRF / 速率限制
-
-所有测试使用 tmp_path 隔离 DB。
-"""
+"""Focused Accounts facade tests without HTTP or concrete persistence."""
 
 from __future__ import annotations
 
-import hashlib
 import time
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from datetime import datetime, timezone
 
 import pytest
-from fastapi import HTTPException
 
-# store.py 和 auth.py 导出的是相同的函数
-from app.features.accounts.auth import (
+from app.features.accounts import (
+    AccountCredentials,
+    AccountForbidden,
+    AccountPrincipal,
+    AccountsService,
+    AuthenticationFailed,
+    LoginCommand,
+    LoginRateLimited,
     RateLimiter,
-    create_session,
-    delete_session,
-    generate_csrf_token,
+    SecurityPolicy,
     hash_password,
-    require_manager,
-    require_owner,
-    verify_csrf_token,
     verify_password,
-    verify_session,
 )
-from app.infrastructure.persistence.store import get_db, init_db
-from app.infrastructure.persistence.store import hash_password as store_hash
-from app.infrastructure.persistence.store import verify_password as store_verify
-from test.app.interfaces.api._helpers import create_test_owner
 
 
-def test_require_manager_accepts_owner_and_admin_but_rejects_user() -> None:
-    owner = {"role": "owner"}
-    admin = {"role": "admin"}
-    user = {"role": "user"}
+class MemoryAccounts:
+    def __init__(self) -> None:
+        self.credentials = AccountCredentials(
+            user_id=1,
+            account_id="owner",
+            password_hash=hash_password("owner-secret"),
+            role="owner",
+            display_name="Owner",
+            default_landing_page="manage",
+        )
+        self.sessions: dict[str, AccountPrincipal] = {}
+        self.revoked: list[str] = []
 
-    assert require_manager(owner) is owner
-    assert require_manager(admin) is admin
-    with pytest.raises(HTTPException) as error:
-        require_manager(user)
-    assert error.value.status_code == 403
+    def find_credentials(self, account_id: str) -> AccountCredentials | None:
+        return self.credentials if account_id == self.credentials.account_id else None
 
+    def issue_session(self, user_id: int, expires_at: datetime) -> str:
+        assert user_id == self.credentials.user_id
+        assert expires_at > datetime.now(timezone.utc)
+        principal = AccountPrincipal(1, "owner", "owner", "manage")
+        self.sessions["session-token"] = principal
+        return "session-token"
 
-def test_require_owner_remains_owner_only() -> None:
-    with pytest.raises(HTTPException) as error:
-        require_owner({"role": "admin"})
-    assert error.value.status_code == 403
+    def find_session(
+        self, raw_token: str, now: datetime
+    ) -> AccountPrincipal | None:
+        return self.sessions.get(raw_token)
 
-
-# ===================================================================
-# 密码哈希
-# ===================================================================
-
-
-class TestHashPassword:
-    def test_format(self) -> None:
-        """hash_password 输出 pbkdf2_sha256$260000$<32hex>$<64hex>。"""
-        h = hash_password("test123")
-        parts = h.split("$")
-        assert len(parts) == 4
-        assert parts[0] == "pbkdf2_sha256"
-        assert parts[1] == "260000"
-        assert len(parts[2]) == 32  # 16 字节 salt → 32 hex
-        assert len(parts[3]) == 64  # 32 字节 hash → 64 hex
-
-    def test_deterministic_salt(self) -> None:
-        """两次哈希相同密码结果不同（盐随机）。"""
-        h1 = hash_password("same")
-        h2 = hash_password("same")
-        assert h1 != h2
+    def revoke_session(self, raw_token: str, revoked_at: datetime) -> None:
+        self.sessions.pop(raw_token, None)
+        self.revoked.append(raw_token)
 
 
-class TestVerifyPassword:
-    def test_correct(self) -> None:
-        """正确密码返回 True。"""
-        h = hash_password("mypassword")
-        assert verify_password("mypassword", h) is True
+class StaticSecurityPolicy:
+    def __init__(self, max_attempts: int = 2) -> None:
+        self.max_attempts = max_attempts
 
-    def test_incorrect(self) -> None:
-        """错误密码返回 False。"""
-        h = hash_password("correct")
-        assert verify_password("wrong", h) is False
-
-    def test_empty_password(self) -> None:
-        """空密码可哈希和验证。"""
-        h = hash_password("")
-        assert verify_password("", h) is True
-        assert verify_password("x", h) is False
-
-    def test_malformed_hash(self) -> None:
-        """非法格式的哈希返回 False 不抛异常。"""
-        assert verify_password("pwd", "not_a_hash") is False
-        assert verify_password("pwd", "pbkdf2_sha256$x$y") is False  # 少于 4 段
-        assert verify_password("pwd", "sha256$x$y$z") is False  # 前缀错误
-
-    def test_store_and_auth_export_same(self) -> None:
-        """store.py 和 auth.py 导出的 hash/verify 是同一函数。"""
-        assert store_hash is hash_password
-        assert store_verify is verify_password
+    def load(self) -> SecurityPolicy:
+        return SecurityPolicy(
+            session_ttl_seconds=86_400,
+            max_login_attempts=self.max_attempts,
+            login_window_seconds=300,
+        )
 
 
-# ===================================================================
-# Session 管理
-# ===================================================================
+def _service(max_attempts: int = 2) -> tuple[AccountsService, MemoryAccounts]:
+    adapter = MemoryAccounts()
+    return AccountsService(adapter, StaticSecurityPolicy(max_attempts)), adapter
 
 
-def _ensure_owner_user(db_path: str) -> int:
-    """确保 DB 有 Owner 用户，返回其 id。"""
-    init_db(db_path)
-    return create_test_owner(db_path)
+def test_password_hash_round_trip_and_malformed_input() -> None:
+    password_hash = hash_password("test123")
+    parts = password_hash.split("$")
+    assert parts[0:2] == ["pbkdf2_sha256", "260000"]
+    assert len(parts[2]) == 32
+    assert len(parts[3]) == 64
+    assert verify_password("test123", password_hash) is True
+    assert verify_password("wrong", password_hash) is False
+    assert verify_password("test123", "pbkdf2_sha256$bad$salt$digest") is False
 
 
-class TestCreateSession:
-    def test_returns_64_char_hex(self, tmp_path: Path) -> None:
-        """create_session 返回 64 字符 hex token。"""
-        db = str(tmp_path / "nest.db")
-        uid = _ensure_owner_user(db)
-        token = create_session(uid, db)
-        assert isinstance(token, str)
-        assert len(token) == 64
-        int(token, 16)  # 确保是 hex
-
-    def test_inserts_into_sessions_table(self, tmp_path: Path) -> None:
-        """session 记录在 sessions 表中可查。"""
-        db = str(tmp_path / "nest.db")
-        uid = _ensure_owner_user(db)
-        token = create_session(uid, db)
-
-        with get_db(db) as conn:
-            row = conn.execute(
-                "SELECT token_hash, user_id, expires_at FROM sessions"
-            ).fetchone()
-        assert row is not None
-        assert row["token_hash"] == hashlib.sha256(token.encode()).hexdigest()
-        assert row["token_hash"] != token
-        assert row["user_id"] == uid
-        assert datetime.fromisoformat(row["expires_at"]) > datetime.now(timezone.utc)
+def test_login_returns_strict_principal_and_session_result() -> None:
+    service, adapter = _service()
+    result = service.login(LoginCommand("owner", "owner-secret", "127.0.0.1"))
+    assert result.principal == AccountPrincipal(1, "owner", "owner", "manage")
+    assert result.display_name == "Owner"
+    assert result.session_token == "session-token"
+    assert result.ttl_seconds == 86_400
+    assert service.authenticate_session(result.session_token) == result.principal
+    assert adapter.sessions
 
 
-class TestVerifySession:
-    def test_valid_session(self, tmp_path: Path) -> None:
-        """verify_session 返回用户信息。"""
-        db = str(tmp_path / "nest.db")
-        uid = _ensure_owner_user(db)
-        token = create_session(uid, db)
-
-        user = verify_session(token, db)
-        assert user is not None
-        assert user["user_id"] == uid
-        assert user["account_id"] == "owner"
-        assert user["role"] == "owner"
-
-    def test_invalid_token(self, tmp_path: Path) -> None:
-        """无效 token 返回 None。"""
-        db = str(tmp_path / "nest.db")
-        _ensure_owner_user(db)
-        assert verify_session("fake_token_123", db) is None
-
-    def test_deleted_session(self, tmp_path: Path) -> None:
-        """delete_session 后 verify 返回 None。"""
-        db = str(tmp_path / "nest.db")
-        uid = _ensure_owner_user(db)
-        token = create_session(uid, db)
-
-        delete_session(token, db)
-        assert verify_session(token, db) is None
-
-    def test_expired_session(self, tmp_path: Path) -> None:
-        """手动插入过期 session → verify 返回 None。"""
-        db = str(tmp_path / "nest.db")
-        uid = _ensure_owner_user(db)
-
-        token = "a" * 64
-        token_hash = hashlib.sha256(token.encode()).hexdigest()
-        past = datetime.now(timezone.utc) - timedelta(hours=1)
-        with get_db(db) as conn:
-            conn.execute(
-                "INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)",
-                (token_hash, uid, past.isoformat()),
-            )
-            conn.commit()
-
-        assert verify_session(token, db) is None
+def test_login_failure_is_rate_limited_by_client_and_account() -> None:
+    service, _ = _service(max_attempts=2)
+    command = LoginCommand("owner", "wrong", "127.0.0.1")
+    with pytest.raises(AuthenticationFailed):
+        service.login(command)
+    with pytest.raises(AuthenticationFailed):
+        service.login(command)
+    with pytest.raises(LoginRateLimited):
+        service.login(command)
 
 
-# ===================================================================
-# CSRF Token
-# ===================================================================
+def test_logout_is_idempotent() -> None:
+    service, adapter = _service()
+    token = service.login(
+        LoginCommand("owner", "owner-secret", "127.0.0.1")
+    ).session_token
+    service.logout(token)
+    service.logout(token)
+    assert service.authenticate_session(token) is None
+    assert adapter.revoked == [token, token]
 
 
-class TestCsrfToken:
-    def test_generate_and_verify(self) -> None:
-        """generate_csrf_token + verify_csrf_token 配对验证通过。"""
-        session_token = "a" * 64
-        csrf = generate_csrf_token(session_token)
-        assert verify_csrf_token(session_token, csrf) is True
-
-    def test_tampered_token_fails(self) -> None:
-        """篡改的 CSRF token 验证失败。"""
-        session_token = "a" * 64
-        csrf = generate_csrf_token(session_token)
-        assert verify_csrf_token(session_token, csrf + "x") is False
-
-    def test_wrong_session_token(self) -> None:
-        """不同 session token 的 CSRF 不匹配。"""
-        csrf = generate_csrf_token("aaaa")
-        assert verify_csrf_token("bbbb", csrf) is False
-
-    def test_empty_token(self) -> None:
-        """空 token 验证失败。"""
-        assert verify_csrf_token("sess", "") is False
+def test_accounts_authorizes_manager_and_owner_roles() -> None:
+    service, _ = _service()
+    owner = AccountPrincipal(1, "owner", "owner", "manage")
+    admin = AccountPrincipal(2, "admin", "admin", "manage")
+    user = AccountPrincipal(3, "user", "user", "chat")
+    assert service.require_owner(owner) is owner
+    assert service.require_manager(admin) is admin
+    with pytest.raises(AccountForbidden):
+        service.require_owner(admin)
+    with pytest.raises(AccountForbidden):
+        service.require_manager(user)
 
 
-# ===================================================================
-# 速率限制
-# ===================================================================
-
-
-class TestRateLimiter:
-    def test_allows_under_limit(self) -> None:
-        """5 次以内允许。"""
-        limiter = RateLimiter(max_attempts=3, window_seconds=300)
-        for _ in range(3):
-            assert limiter.is_limited("1.2.3.4", "owner") is False
-            limiter.record_failure("1.2.3.4", "owner")
-
-    def test_blocks_at_limit(self) -> None:
-        """第 6 次（max_attempts+1）不允许。"""
-        limiter = RateLimiter(max_attempts=3, window_seconds=300)
-        for _ in range(3):
-            limiter.record_failure("1.2.3.4", "owner")
-        assert limiter.is_limited("1.2.3.4", "owner") is True
-
-    def test_clear_resets(self) -> None:
-        """clear 后重置计数。"""
-        limiter = RateLimiter(max_attempts=2, window_seconds=300)
-        limiter.record_failure("1.2.3.4", "owner")
-        limiter.record_failure("1.2.3.4", "owner")
-        assert limiter.is_limited("1.2.3.4", "owner") is True
-        limiter.clear("1.2.3.4", "owner")
-        assert limiter.is_limited("1.2.3.4", "owner") is False
-
-    def test_different_ip_not_affected(self) -> None:
-        """不同 IP 不受影响。"""
-        limiter = RateLimiter(max_attempts=2, window_seconds=300)
-        limiter.record_failure("1.2.3.4", "owner")
-        limiter.record_failure("1.2.3.4", "owner")
-        assert limiter.is_limited("1.2.3.4", "owner") is True
-        assert limiter.is_limited("5.6.7.8", "owner") is False
-
-    def test_different_user_not_affected(self) -> None:
-        """不同用户名不受影响。"""
-        limiter = RateLimiter(max_attempts=2, window_seconds=300)
-        limiter.record_failure("1.2.3.4", "owner")
-        limiter.record_failure("1.2.3.4", "owner")
-        assert limiter.is_limited("1.2.3.4", "owner") is True
-        assert limiter.is_limited("1.2.3.4", "other_user") is False
-
-    def test_window_expiry(self) -> None:
-        """窗口过期后自动释放。"""
-        limiter = RateLimiter(max_attempts=2, window_seconds=0.01)
-        limiter.record_failure("1.2.3.4", "owner")
-        limiter.record_failure("1.2.3.4", "owner")
-        assert limiter.is_limited("1.2.3.4", "owner") is True
-        time.sleep(0.02)
-        assert limiter.is_limited("1.2.3.4", "owner") is False
+def test_rate_limiter_window_and_clear() -> None:
+    limiter = RateLimiter(max_attempts=2, window_seconds=0.01)
+    limiter.record_failure("127.0.0.1", "owner")
+    limiter.record_failure("127.0.0.1", "owner")
+    assert limiter.is_limited("127.0.0.1", "owner") is True
+    limiter.clear("127.0.0.1", "owner")
+    assert limiter.is_limited("127.0.0.1", "owner") is False
+    limiter.record_failure("127.0.0.1", "owner")
+    limiter.record_failure("127.0.0.1", "owner")
+    time.sleep(0.02)
+    assert limiter.is_limited("127.0.0.1", "owner") is False

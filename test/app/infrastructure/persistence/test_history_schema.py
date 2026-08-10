@@ -13,7 +13,7 @@ from app.infrastructure.persistence.history_schema import (
     InvalidHistoryPathError,
     create_history_schema,
 )
-from app.infrastructure.persistence.sqlite_connection import UnsafeSQLitePathError
+from infrastructure.persistence.sqlite_connection import UnsafeSQLitePathError
 
 EXPECTED_TABLES = {
     "attachments",

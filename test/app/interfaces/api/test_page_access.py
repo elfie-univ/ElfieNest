@@ -4,8 +4,8 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.bootstrap import create_app
 from app.infrastructure.persistence.store import get_db, hash_password
-from app.interfaces.api.app import create_app
 
 from ._helpers import complete_test_setup
 
@@ -55,7 +55,7 @@ def _complete_setup(client: TestClient) -> None:
 
 def _login(client: TestClient, account_id: str) -> None:
     response = client.post(
-        "/api/auth/login", data={"account_id": account_id, "password": "pass123"}
+        "/api/v1/auth/login", data={"account_id": account_id, "password": "pass123"}
     )
     assert response.status_code == 200
 
@@ -134,22 +134,22 @@ def test_login_returns_only_an_allowed_post_login_page(client: TestClient) -> No
 
     # When: the same credentials are submitted through each login target.
     chat_next = client.post(
-        "/api/auth/login?next=/chat",
+        "/api/v1/auth/login?next=/chat",
         data={"account_id": "owner", "password": "pass123"},
     )
     client.cookies.clear()
     manage_next = client.post(
-        "/api/auth/login?next=/manage",
+        "/api/v1/auth/login?next=/manage",
         data={"account_id": "owner", "password": "pass123"},
     )
     client.cookies.clear()
     monitor_next = client.post(
-        "/api/auth/login?next=/monitor",
+        "/api/v1/auth/login?next=/monitor",
         data={"account_id": "owner", "password": "pass123"},
     )
     client.cookies.clear()
     hostile = client.post(
-        "/api/auth/login?next=https://attacker.invalid",
+        "/api/v1/auth/login?next=https://attacker.invalid",
         data={"account_id": "owner", "password": "pass123"},
     )
 
@@ -168,7 +168,7 @@ def test_owner_chat_next_keeps_the_management_default_landing(
 
     # When: the login request carries the generic chat return target.
     response = client.post(
-        "/api/auth/login?next=/chat",
+        "/api/v1/auth/login?next=/chat",
         data={"account_id": "owner", "password": "pass123"},
     )
 
@@ -188,7 +188,7 @@ def test_owner_and_user_receive_server_side_landing_routes(client: TestClient) -
     owner_root = client.get("/", follow_redirects=False)
     owner_manage = client.get("/manage", follow_redirects=False)
     owner_monitor = client.get("/monitor", follow_redirects=False)
-    client.post("/api/auth/logout", headers={"X-CSRF-Token": ""})
+    client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": ""})
     client.cookies.clear()
     _login(client, "alice")
     user_root = client.get("/", follow_redirects=False)
@@ -200,13 +200,13 @@ def test_owner_and_user_receive_server_side_landing_routes(client: TestClient) -
     assert owner_manage.status_code == 200
     assert owner_monitor.status_code == 200
     assert "no-store" in owner_monitor.headers["cache-control"]
-    client.post("/api/auth/logout", headers={"X-CSRF-Token": ""})
+    client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": ""})
     client.cookies.clear()
     _login(client, "admin")
     admin_root = client.get("/", follow_redirects=False)
     admin_manage = client.get("/manage", follow_redirects=False)
     admin_monitor = client.get("/monitor", follow_redirects=False)
-    client.post("/api/auth/logout", headers={"X-CSRF-Token": ""})
+    client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": ""})
     client.cookies.clear()
     assert user_root.headers["location"] == "/chat"
     assert user_manage.headers["location"] == "/chat"
@@ -315,7 +315,7 @@ def test_owner_mobile_access_exposes_only_active_lan_addresses(tmp_path: Path) -
             _create_user(client, "owner", "owner")
             headers = {"Host": "192.168.1.8:8000"}
             login = client.post(
-                "/api/auth/login",
+                "/api/v1/auth/login",
                 data={"account_id": "owner", "password": "pass123"},
                 headers=headers,
             )

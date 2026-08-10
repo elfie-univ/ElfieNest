@@ -8,9 +8,8 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-from app.features.accounts.auth import create_session
+from app.bootstrap import build_application_container, create_app
 from app.infrastructure.persistence.store import init_db
-from app.interfaces.api.app import create_app
 
 from ._helpers import create_test_owner
 
@@ -34,7 +33,7 @@ def test_complete_member_administration_lifecycle(
         application = create_app(engine=None, db_path=db_path, ws_port=9876)
         with TestClient(application) as client:
             owner_login = client.post(
-                "/api/auth/login",
+                "/api/v1/auth/login",
                 data={"account_id": "owner01", "password": "owner-password"},
             )
             assert owner_login.status_code == 200, owner_login.text
@@ -63,8 +62,9 @@ def test_complete_member_administration_lifecycle(
             assert updated.status_code == 200
             assert updated.json()["effective_elfie_limit"] == 6
 
-            old_token_one = create_session(member_id, db_path)
-            old_token_two = create_session(member_id, db_path)
+            accounts = build_application_container(db_path).accounts
+            old_token_one = accounts.create_session(member_id)
+            old_token_two = accounts.create_session(member_id)
             reset = client.post(
                 f"/api/owner/users/{member_id}/reset-password",
                 headers=owner_headers,
@@ -79,7 +79,7 @@ def test_complete_member_administration_lifecycle(
                 assert rejected.status_code == 401
 
             temporary_login = client.post(
-                "/api/auth/login",
+                "/api/v1/auth/login",
                 data={
                     "account_id": "member01",
                     "password": temporary_password,
@@ -88,11 +88,11 @@ def test_complete_member_administration_lifecycle(
             assert temporary_login.status_code == 200, temporary_login.text
             assert temporary_login.json()["user"]["user_id"] == member_id
             member_headers = _csrf(temporary_login)
-            logout = client.post("/api/auth/logout", headers=member_headers)
+            logout = client.post("/api/v1/auth/logout", headers=member_headers)
             assert logout.status_code == 200
 
             owner_login = client.post(
-                "/api/auth/login",
+                "/api/v1/auth/login",
                 data={"account_id": "owner01", "password": "owner-password"},
             )
             deleted = client.delete(

@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 
 from ai_runtime.storage.data_home import get_elfie_conversations_dir
 from ai_runtime.storage.data_layout import final_root_layout
+from app.bootstrap import create_app
 from app.infrastructure.devices import DeviceRegistry
 from app.infrastructure.persistence.elfie_chat_history import (
     ElfieChatMessageInput,
@@ -20,7 +21,6 @@ from app.infrastructure.persistence.elfie_chat_history import (
 )
 from app.infrastructure.persistence.embodiment_sessions import begin_hosting
 from app.infrastructure.persistence.store import init_db
-from app.interfaces.api.app import create_app
 from elfie import Elfie
 from elfie.body import BodyId, BodySensorEvent, SpeechCommand, UtteranceFinal
 from elfie.brain.memory.knowledge_store import KnowledgeStore
@@ -61,7 +61,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
 
 def _login_owner(client: TestClient) -> str:
     response = client.post(
-        "/api/auth/login", data={"account_id": "owner", "password": "ownerchangeme"}
+        "/api/v1/auth/login", data={"account_id": "owner", "password": "ownerchangeme"}
     )
     assert response.status_code == 200
     return response.headers["X-CSRF-Token"]
@@ -398,7 +398,7 @@ def test_v1_profile_and_messages_hide_another_users_elfie(client: TestClient) ->
     assert create_user.status_code == 201
     client.cookies.clear()
     login = client.post(
-        "/api/auth/login", data={"account_id": "alice", "password": "pass123"}
+        "/api/v1/auth/login", data={"account_id": "alice", "password": "pass123"}
     )
     assert login.status_code == 200
 
@@ -429,7 +429,7 @@ def test_admin_can_persist_a_safe_default_landing_page(client: TestClient) -> No
     create_test_user(client.app.state.db_path, "admin", "admin-password", "admin")
     _complete_setup(client)
     login = client.post(
-        "/api/auth/login", data={"account_id": "admin", "password": "admin-password"}
+        "/api/v1/auth/login", data={"account_id": "admin", "password": "admin-password"}
     )
     assert login.status_code == 200
 

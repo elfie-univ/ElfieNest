@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-from app.interfaces.api.app import create_app
+from app.bootstrap import create_app
 
 
 @pytest.fixture

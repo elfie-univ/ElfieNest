@@ -7,8 +7,8 @@ from dataclasses import dataclass
 
 from app.infrastructure.persistence.account_repository import AccountRepository
 from app.infrastructure.persistence.elfie_repository import ElfieRecord, ElfieRepository
-from app.infrastructure.persistence.session_repository import hash_session_token
 from app.infrastructure.persistence.store import get_db
+from infrastructure.persistence import hash_session_token
 
 
 @dataclass(frozen=True)  # CPython 3.9 uses explicit __slots__ below.

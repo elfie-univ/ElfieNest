@@ -12,10 +12,11 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from ai_runtime.storage.data_layout import final_root_layout
-from app.features.accounts.auth import require_manager
-from app.infrastructure.persistence.session_repository import SessionRepository
+from app.features.accounts import AccountPrincipal
 from app.infrastructure.persistence.store import get_db, init_db, verify_password
 from app.interfaces.api.owner_user_routes import router
+from app.interfaces.api.v1.auth import require_manager
+from infrastructure.persistence import SessionRepository
 
 from ._helpers import create_test_owner, create_test_user
 
@@ -55,12 +56,9 @@ def administration_client(
     application = FastAPI()
     application.state.db_path = administration_db_path
     application.include_router(router)
-    application.dependency_overrides[require_manager] = lambda: {
-        "user_id": 1,
-        "account_id": "owner01",
-        "role": "owner",
-        "default_landing_page": "manage",
-    }
+    application.dependency_overrides[require_manager] = lambda: AccountPrincipal(
+        1, "owner01", "owner", "manage"
+    )
     with TestClient(application, raise_server_exceptions=False) as client:
         yield client
 
@@ -131,12 +129,9 @@ def test_admin_can_create_users_but_cannot_create_same_level_admin(
     administration_db_path: str,
 ) -> None:
     create_test_user(administration_db_path, "admin01", "admin-password", "admin")
-    administration_client.app.dependency_overrides[require_manager] = lambda: {
-        "user_id": 2,
-        "account_id": "admin01",
-        "role": "admin",
-        "default_landing_page": "manage",
-    }
+    administration_client.app.dependency_overrides[
+        require_manager
+    ] = lambda: AccountPrincipal(2, "admin01", "admin", "manage")
 
     created = _create_member(administration_client, "member02")
     denied = administration_client.post(
@@ -230,12 +225,9 @@ def test_admin_cannot_mutate_owner_or_another_admin(
 ) -> None:
     create_test_user(administration_db_path, "admin01", "admin-password", "admin")
     create_test_user(administration_db_path, "admin02", "admin-password", "admin")
-    administration_client.app.dependency_overrides[require_manager] = lambda: {
-        "user_id": 2,
-        "account_id": "admin01",
-        "role": "admin",
-        "default_landing_page": "manage",
-    }
+    administration_client.app.dependency_overrides[
+        require_manager
+    ] = lambda: AccountPrincipal(2, "admin01", "admin", "manage")
 
     owner_quota = administration_client.put(
         "/api/owner/users/1", json={"elfie_quota_override": 5}

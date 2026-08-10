@@ -1,3 +1,5 @@
-from .app import create_app
+"""HTTP and WebSocket protocol boundary."""
 
-__all__ = ["create_app"]
+from .app import create_http_application
+
+__all__ = ("create_http_application",)

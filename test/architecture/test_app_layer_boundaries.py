@@ -9,7 +9,7 @@ from typing import DefaultDict, List, Set, Tuple
 
 from fastapi.routing import APIRoute
 
-from app.interfaces.api import create_app
+from app.bootstrap import create_app
 from scripts.architecture.app_layer_scan import (
     APP_ROOT,
     LOOSE_OUTPUT_TYPES,

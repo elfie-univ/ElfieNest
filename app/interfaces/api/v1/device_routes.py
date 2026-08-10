@@ -9,12 +9,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket
 from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 from starlette.websockets import WebSocketDisconnect
 
-from app.features.accounts.auth import AuthenticatedUser, require_manager
+from app.features.accounts import AccountPrincipal
 from app.infrastructure.devices import DeviceRegistry
 from app.infrastructure.devices.registry import DeviceCredentialError, DeviceRecord
 from app.infrastructure.persistence.interface_query_repository import (
     InterfaceQueryRepository,
 )
+from app.interfaces.api.v1.auth import require_manager
 from elfie.body.contracts import BodySensorEvent, CommandReceipt
 
 router = APIRouter(prefix="/api/v1", tags=["v1-devices"])
@@ -93,7 +94,7 @@ def _registry(request: Request) -> DeviceRegistry:
 async def list_devices(
     request: Request,
     elfie_id: str,
-    owner: AuthenticatedUser = Depends(require_manager),  # noqa: B008
+    owner: AccountPrincipal = Depends(require_manager),  # noqa: B008
 ) -> list[BodyRecordResponse]:
     _require_owned_elfie(request, owner, elfie_id)
     return [
@@ -106,7 +107,7 @@ async def list_devices(
 async def enroll_device(
     body: DeviceEnrollRequest,
     request: Request,
-    owner: AuthenticatedUser = Depends(require_manager),  # noqa: B008
+    owner: AccountPrincipal = Depends(require_manager),  # noqa: B008
 ) -> BodyCredentialResponse:
     _require_owned_elfie(request, owner, body.elfie_id)
     credential = _registry(request).enroll(
@@ -122,7 +123,7 @@ async def rotate_device(
     body_id: str,
     request: Request,
     elfie_id: str,
-    owner: AuthenticatedUser = Depends(require_manager),  # noqa: B008
+    owner: AccountPrincipal = Depends(require_manager),  # noqa: B008
 ) -> BodyCredentialResponse:
     _require_owned_elfie(request, owner, elfie_id)
     try:
@@ -139,7 +140,7 @@ async def revoke_device(
     body_id: str,
     request: Request,
     elfie_id: str,
-    owner: AuthenticatedUser = Depends(require_manager),  # noqa: B008
+    owner: AccountPrincipal = Depends(require_manager),  # noqa: B008
 ) -> DetailResponse:
     _require_owned_elfie(request, owner, elfie_id)
     try:
@@ -241,10 +242,10 @@ def _device_payload(record: DeviceRecord) -> BodyRecordResponse:
 
 
 def _require_owned_elfie(
-    request: Request, owner: AuthenticatedUser, elfie_id: str
+    request: Request, owner: AccountPrincipal, elfie_id: str
 ) -> None:
     record = InterfaceQueryRepository(request.app.state.db_path).get_elfie(
-        elfie_id, owner_user_id=owner["user_id"]
+        elfie_id, owner_user_id=owner.user_id
     )
     if record is None:
         raise HTTPException(status_code=404, detail="精灵不存在")

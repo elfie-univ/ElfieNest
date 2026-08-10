@@ -56,6 +56,7 @@ from ai_runtime.storage.data_home import (
     get_elfie_home,
     select_elfie_home,
 )
+from app.bootstrap import create_app
 from app.features.adoption.generator import ElfieGenerator
 from app.features.configuration.food_access import resolve_elfie_main_food_selection
 from app.infrastructure.persistence.account_repository import AccountRepository
@@ -69,7 +70,6 @@ from app.infrastructure.persistence.store import (
     init_db,
     seed_initial_owner_if_env_set,
 )
-from app.interfaces.api.app import create_app
 from app.interfaces.api.service_access import ServiceMode
 from app.interfaces.cli.lifecycle_commands import _remember_lifecycle_data_home
 from app.interfaces.web.frontend_build import (

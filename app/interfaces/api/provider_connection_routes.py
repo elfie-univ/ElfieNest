@@ -35,8 +35,8 @@ from ai_runtime.storage.provider_connections import (
 )
 from ai_runtime.storage.validation_reports import read_latest_model_validation
 from ai_runtime.validation.providers import discover_provider_models
-from app.features.accounts.auth import require_manager
 from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
+from app.interfaces.api.v1.auth import require_manager
 
 from .provider_errors import sanitize_error
 from .provider_schemas import (

@@ -8,8 +8,8 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.bootstrap import create_app
 from app.infrastructure.ollama_platform import OllamaBinding, OllamaProbe
-from app.interfaces.api.app import create_app
 
 from ._helpers import create_test_owner
 
@@ -39,7 +39,7 @@ def client(app):
 def _owner_headers(client: TestClient) -> dict[str, str]:
     create_test_owner(client.app.state.db_path, password="ownerchangeme")
     owner = client.post(
-        "/api/auth/login",
+        "/api/v1/auth/login",
         data={"account_id": "owner", "password": "ownerchangeme"},
     )
     assert owner.status_code == 200, owner.text

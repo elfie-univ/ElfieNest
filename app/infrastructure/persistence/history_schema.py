@@ -13,7 +13,7 @@ from app.infrastructure.persistence.history_account_schema_sql import (
 from app.infrastructure.persistence.history_message_schema_sql import (
     MESSAGE_STATEMENTS,
 )
-from app.infrastructure.persistence.sqlite_connection import (
+from infrastructure.persistence.sqlite_connection import (
     UnsafeSQLitePathError,
     app_sqlite_connection,
 )

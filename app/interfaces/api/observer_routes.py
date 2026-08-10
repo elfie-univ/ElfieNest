@@ -9,14 +9,11 @@ from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 
-from app.features.accounts.auth import (
-    get_current_user,
-    get_session_ttl_seconds,
-    verify_session,
-)
+from app.features.accounts import AccountPrincipal
 from app.infrastructure.persistence.interface_query_repository import (
     InterfaceQueryRepository,
 )
+from app.interfaces.api.v1.auth import accounts_service, get_current_user
 from nest.godot_gateway.observer import (
     ObserverHello,
     ObserverInterest,
@@ -38,7 +35,7 @@ router = APIRouter(prefix="/api/observer", tags=["observer"])
 async def open_observer_session(
     hello: ObserverHello,
     request: Request,
-    user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+    user: AccountPrincipal = Depends(get_current_user),  # noqa: B008
 ) -> Dict[str, str]:
     """Issue an opaque Observer capability for the existing authenticated session."""
     try:
@@ -46,7 +43,7 @@ async def open_observer_session(
             _principal(user),
             _session_fingerprint(request, user),
             hello.subscription,
-            expires_at=time.time() + get_session_ttl_seconds(request.app.state.db_path),
+            expires_at=time.time() + accounts_service(request).session_ttl_seconds(),
         )
     except ObserverAuthorizationError as error:
         raise HTTPException(status_code=403, detail=str(error)) from error
@@ -58,7 +55,7 @@ async def submit_observer_intent(
     intent: WorldChangingIntent,
     request: Request,
     capability: str = Header(..., alias="X-ElfieNest-Observer-Capability"),
-    user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+    user: AccountPrincipal = Depends(get_current_user),  # noqa: B008
 ) -> Dict[str, str]:
     """Authorize one high-level interaction before it can reach a world sink."""
     try:
@@ -81,7 +78,7 @@ async def update_observer_interest(
     interest: ObserverInterest,
     request: Request,
     capability: str = Header(..., alias="X-ElfieNest-Observer-Capability"),
-    user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+    user: AccountPrincipal = Depends(get_current_user),  # noqa: B008
 ) -> None:
     """Replace an Observer's reduced interest scope and require a snapshot."""
     try:
@@ -102,7 +99,7 @@ async def next_observer_frame(
     capability: str = Header(..., alias="X-ElfieNest-Observer-Capability"),
     acknowledged_generation: Optional[int] = None,
     acknowledged_sequence: Optional[int] = None,
-    user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+    user: AccountPrincipal = Depends(get_current_user),  # noqa: B008
 ) -> Optional[Dict[str, Any]]:
     """Poll one ordered scoped frame; a stale cursor is replaced by a snapshot."""
     try:
@@ -143,20 +140,20 @@ def _registry(request: Request) -> ObserverSessionRegistry:
     return registry
 
 
-def _principal(user: Dict[str, Any]) -> ViewerPrincipal:
-    role = user.get("role")
+def _principal(user: AccountPrincipal) -> ViewerPrincipal:
+    role = user.role
     if role in {"owner", "admin"}:
-        return ViewerPrincipal(user_id=user["user_id"], role="owner")
+        return ViewerPrincipal(user_id=user.user_id, role="owner")
     if role == "user":
-        return ViewerPrincipal(user_id=user["user_id"], role="user")
+        return ViewerPrincipal(user_id=user.user_id, role="user")
     raise HTTPException(status_code=403, detail="unsupported Observer role")
 
 
-def _session_fingerprint(request: Request, user: Dict[str, Any]) -> str:
+def _session_fingerprint(request: Request, user: AccountPrincipal) -> str:
     """Revalidate the existing login and retain only a non-reversible token digest."""
     token = request.cookies.get("session_token", "")
-    verified = verify_session(token, request.app.state.db_path)
-    if verified is None or verified["user_id"] != user["user_id"]:
+    verified = accounts_service(request).authenticate_session(token)
+    if verified is None or verified.user_id != user.user_id:
         raise HTTPException(status_code=401, detail="会话无效或已过期")
     return session_token_fingerprint(token)
 

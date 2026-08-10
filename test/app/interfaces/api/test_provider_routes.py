@@ -21,9 +21,9 @@ from ai_runtime.storage.provider_connections import (
 )
 from ai_runtime.storage.report_repository import ReportRepository
 from ai_runtime.validation.providers import DiscoveredModel
+from app.bootstrap import create_app
 from app.infrastructure.ollama_platform import OllamaBinding, OllamaProbe
 from app.infrastructure.persistence.store import init_db
-from app.interfaces.api.app import create_app
 from app.interfaces.api.provider_connection_model_routes import (
     validate_all_connection_models,
 )
@@ -50,7 +50,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
 def _login(client: TestClient, account_id: str, password: str) -> dict[str, str]:
     response = client.post(
-        "/api/auth/login",
+        "/api/v1/auth/login",
         data={"account_id": account_id, "password": password},
     )
     assert response.status_code == 200

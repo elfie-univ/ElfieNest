@@ -64,6 +64,24 @@ Principal 与授权：
 领域才能关闭。即使属于同一业务域，API 调用方迁移、持久化变化和 UI 变化仍应保持
 可分别审阅。
 
+### Accounts：认证与会话
+
+```text
+领域：accounts / authentication-session
+缺口 ID：APP-001、APP-002、APP-003、APP-004、APP-005、APP-006、APP-009、APP-011、APP-012
+当前权威事实：nest.db 中的用户凭据与角色；nest.db 中哈希保存的浏览器会话；runtime.yaml 的 system.security 会话 TTL 与登录限流设置
+路由与生产调用方：POST /api/v1/auth/login 与 /logout；浏览器 session client；HTTP、页面、WS、Setup、Observer 的认证依赖
+目标公共门面与模型：Accounts 认证/会话门面；严格 Account Principal、登录 Command 与认证会话 Result
+Port 与 Adapter：账户凭据/会话持久化 Port 由根 Infrastructure SQLite 实现；强类型安全策略 Port 由根 Infrastructure Runtime 配置实现
+一致性类别：每次签发或撤销会话各自一个数据库事务；配置保持强类型文件读取
+Principal 与授权：Interface 解析凭据/Cookie，并把 Feature 结果构造成请求 Principal；Accounts 判定 Owner/Manager 权限
+超时、重试与幂等：本地同步存储与配置读取；不重试；撤销会话具备幂等性
+旧实现删除清单：app/features/accounts/auth.py；旧登录/登出路由与路径；对 Feature 内部认证模块的直接导入；认证链中的具体持久化/配置构造
+聚焦测试与端到端门：Accounts service 与 Adapter；共享 HTTP 依赖；登录/登出 Cookie 与 CSRF 流程；WebSocket 会话校验；前端 session client；聚焦 App 架构扫描
+已删除的机器基线条目：accounts/auth Feature 隔离与内部导入条目；被替代的 Interface 构造/内部导入条目；POST /api/auth/login 与 POST /api/auth/logout
+状态：closed
+```
+
 ## 当前到目标的迁移映射
 
 规范性所有者只由应用架构契约定义。本表记录当前实现应进入哪里，以及迁移期位置何时

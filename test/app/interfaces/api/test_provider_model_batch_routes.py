@@ -12,8 +12,8 @@ from ai_runtime.storage.provider_connections import (
     ProviderModelRecord,
 )
 from ai_runtime.storage.validation_reports import write_model_validation_report
+from app.bootstrap import create_app
 from app.infrastructure.persistence.store import init_db
-from app.interfaces.api.app import create_app
 
 from ._helpers import create_test_owner
 
@@ -205,7 +205,7 @@ def test_model_list_save_rejects_blank_model_id_before_persistence(
 
 def _login(client: TestClient) -> dict[str, str]:
     response = client.post(
-        "/api/auth/login",
+        "/api/v1/auth/login",
         data={"account_id": "owner", "password": "ownerchangeme"},
     )
     assert response.status_code == 200

@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import os
-import secrets
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -13,10 +11,12 @@ from typing import Final, Iterator, Optional
 
 from ai_runtime.storage.data_home import get_db_path as _get_db_path
 from ai_runtime.storage.data_layout import ensure_final_root_layout
+from app.features.accounts import hash_password
+from app.features.accounts import verify_password as verify_password
 from app.infrastructure.persistence.final_schema import (
     create_final_nest_database,
 )
-from app.infrastructure.persistence.sqlite_connection import (
+from infrastructure.persistence.sqlite_connection import (
     app_sqlite_connection,
 )
 
@@ -54,58 +54,6 @@ class LegacyDataRootError(RuntimeError):
 
     def __str__(self) -> str:
         return "检测到旧 ElfieNest 数据根；请先备份后重建。不会自动迁移或删除。"
-
-
-# ---------------------------------------------------------------------------
-# Password Hashing (PBKDF2-HMAC-SHA256)
-# ---------------------------------------------------------------------------
-
-
-def hash_password(password: str) -> str:
-    """PBKDF2-HMAC-SHA256 password hashing.
-
-    Output format: ``pbkdf2_sha256$260000$<salt>$<hash>``
-
-    Args:
-        password: Plaintext password to hash.
-
-    Returns:
-        Encoded hash string that can be stored in the database.
-    """
-    salt = secrets.token_hex(16)
-    iterations = 260_000
-    dk = hashlib.pbkdf2_hmac(
-        "sha256",
-        password.encode("utf-8"),
-        salt.encode("utf-8"),
-        iterations,
-    )
-    return f"pbkdf2_sha256${iterations}${salt}${dk.hex()}"
-
-
-def verify_password(password: str, hashed: str) -> bool:
-    """Verify a password against a previously generated pbkdf2_sha256 hash.
-
-    Args:
-        password: Plaintext password to verify.
-        hashed: Hash string previously returned by :func:`hash_password`.
-
-    Returns:
-        ``True`` if the password matches, ``False`` otherwise.
-    """
-    parts = hashed.split("$")
-    if len(parts) != 4 or parts[0] != "pbkdf2_sha256":
-        return False
-    iterations = int(parts[1])
-    salt = parts[2]
-    expected_hash = parts[3]
-    dk = hashlib.pbkdf2_hmac(
-        "sha256",
-        password.encode("utf-8"),
-        salt.encode("utf-8"),
-        iterations,
-    )
-    return secrets.compare_digest(dk.hex(), expected_hash)
 
 
 # ---------------------------------------------------------------------------

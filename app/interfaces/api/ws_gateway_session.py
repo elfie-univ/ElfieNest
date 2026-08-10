@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 
 import websockets
 
-from app.features.accounts.auth import verify_session
+from app.features.accounts import AccountsService
 
 logger = logging.getLogger("app.interfaces.api.ws_gateway")
 
@@ -38,8 +38,8 @@ class WebSocketSessionMixin:
 
     def _session_is_current(self: Any, token: str, user_id: int) -> bool:
         """确认已建立连接的会话仍存在，支持 Owner 恢复立即撤销旧会话。"""
-        user = verify_session(token, self.db_path)
-        if user is None or user.get("user_id") != user_id:
+        user = self._accounts().authenticate_session(token)
+        if user is None or user.user_id != user_id:
             return False
         connection = next(
             (
@@ -49,7 +49,7 @@ class WebSocketSessionMixin:
             ),
             None,
         )
-        return connection is None or connection.get("role") == user.get("role")
+        return connection is None or connection.get("role") == user.role
 
     @staticmethod
     def _session_token_from_websocket(websocket: Any) -> str:
@@ -117,13 +117,13 @@ class WebSocketSessionMixin:
             return
 
         token = self._session_token_from_websocket(websocket)
-        user = verify_session(token, self.db_path)
+        user = self._accounts().authenticate_session(token)
         if user is None:
             await websocket.close(4004, "Invalid or expired token")
             return
 
-        user_id = user["user_id"]
-        role = user.get("role", "user")
+        user_id = user.user_id
+        role = user.role
         self._add_connection(user_id, websocket, role, token)
         await websocket.send(
             json.dumps(
@@ -131,7 +131,7 @@ class WebSocketSessionMixin:
                     "event": "auth_ok",
                     "payload": {
                         "user_id": user_id,
-                        "account_id": user.get("account_id", ""),
+                        "account_id": user.account_id,
                         "role": role,
                     },
                 },
@@ -140,7 +140,7 @@ class WebSocketSessionMixin:
         )
         logger.info(
             "WS 用户 '%s'(id=%d, role=%s) 鉴权成功",
-            user.get("account_id", "?"),
+            user.account_id,
             user_id,
             role,
         )
@@ -151,7 +151,7 @@ class WebSocketSessionMixin:
                     await websocket.close(4004, "Session revoked")
                     break
                 try:
-                    await self._handle_message(user_id, message, user["account_id"])
+                    await self._handle_message(user_id, message, user.account_id)
                 except Exception:
                     logger.exception("WS 消息处理异常")
         except websockets.exceptions.ConnectionClosed:
@@ -159,6 +159,12 @@ class WebSocketSessionMixin:
         finally:
             self._remove_connection(user_id, websocket)
             logger.debug("WS 连接已清理 (user_id=%d)", user_id)
+
+    def _accounts(self: Any) -> AccountsService:
+        service = getattr(self, "accounts", None)
+        if not isinstance(service, AccountsService):
+            raise RuntimeError("WebSocket gateway has no Accounts service")
+        return service
 
 
 __all__ = ("WebSocketSessionMixin",)

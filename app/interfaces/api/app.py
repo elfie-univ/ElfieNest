@@ -21,10 +21,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from ai_runtime.storage.data_home import get_db_path as _get_db_path
-from app.features.accounts.auth import (
-    get_current_user,
-    verify_csrf_token,
-)
+from app.features.accounts import AccountPrincipal, AccountsService
 from app.features.setup.installer import (
     SetupInstallJobManager,
     recover_interrupted_setup_install,
@@ -50,6 +47,7 @@ from .page_routes import router as page_router
 from .profile_routes import router as profile_router
 from .request_limits import AvatarUploadBodyLimitMiddleware
 from .service_access import ServiceAccessPolicy, configure_service_access
+from .v1.auth import get_current_user, verify_csrf_token
 from .v1.realtime import SameOriginChatHub
 from .ws_gateway import AuthenticatedWSManager
 
@@ -94,7 +92,8 @@ def verify_csrf_for_setup(request: Request) -> None:
 # ---------------------------------------------------------------------------
 
 
-def create_app(
+def create_http_application(
+    accounts: AccountsService,
     engine: Any = None,
     db_path: Optional[str] = None,
     ws_port: int = 8766,
@@ -132,6 +131,7 @@ def create_app(
 
         # 创建鉴权 WS 网关（独立端口，不与 Godot 8765 冲突）
         ws_manager = AuthenticatedWSManager(
+            accounts=accounts,
             port=ws_port,
             http_port=http_port,
             db_path=db_path,
@@ -153,6 +153,7 @@ def create_app(
     app = FastAPI(title="ElfieNest Management Dashboard", lifespan=lifespan)
 
     # 将 db_path 与 engine 存入 app.state 供依赖注入使用
+    app.state.accounts = accounts
     app.state.db_path = db_path
     app.state.food_repository = SQLiteFoodPackageRepository(db_path)
     app.state.engine = engine
@@ -214,7 +215,7 @@ def create_app(
     async def csrf_middleware(request: Request, call_next):
         if request.method in ("POST", "PUT", "DELETE"):
             path = request.url.path
-            csrf_exempt = path == "/api/auth/login"
+            csrf_exempt = path == "/api/v1/auth/login"
             if not csrf_exempt:
                 try:
                     if path.startswith("/api/auth/setup/draft/"):
@@ -261,7 +262,7 @@ def create_app(
 
     @app.get("/api/ws-config")
     async def ws_config(
-        user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+        user: AccountPrincipal = Depends(get_current_user),  # noqa: B008
     ) -> Dict[str, int]:
         """返回浏览器连接鉴权 WebSocket 所需的端口。"""
         _ = user
@@ -272,7 +273,9 @@ def create_app(
     # -------------------------------------------------------------------
     from .account_auth_routes import router as account_auth_router  # noqa: PLC0415
     from .setup_routes import router as setup_router  # noqa: PLC0415
+    from .v1.auth.routes import router as auth_router  # noqa: PLC0415
 
+    app.include_router(auth_router)
     app.include_router(account_auth_router)
     app.include_router(setup_router)
     app.include_router(page_router)

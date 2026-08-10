@@ -12,11 +12,11 @@ from ai_runtime.storage.secrets import set_tool_secret, tool_secret_name
 from ai_runtime.tools.config import TOOL_KEYS, public_tool_configs
 from ai_runtime.validation.models import ValidationSuite
 from ai_runtime.validation.tools import DirectToolValidationRunner
-from app.features.accounts.auth import require_manager
 from app.features.configuration.runtime_store import (
     read_runtime_config,
     write_runtime_config,
 )
+from app.interfaces.api.v1.auth import require_manager
 
 router = APIRouter(prefix="/api/owner/runtime/tools", tags=["runtime-tools"])
 

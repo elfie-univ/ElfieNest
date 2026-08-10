@@ -113,7 +113,7 @@ export async function changePassword(
 export async function login(accountId: string, password: string, next: string): Promise<string> {
   const safeNext = safeLoginNextPath(next)
   const target = safeNext ? `?next=${safeNext}` : ""
-  const result = await requestJson(`/api/auth/login${target}`, {
+  const result = await requestJson(`/api/v1/auth/login${target}`, {
     method: "POST",
     body: new URLSearchParams({ account_id: accountId, password }),
   })
@@ -132,7 +132,7 @@ export async function saveLandingPage(
 }
 
 export async function logout(csrfToken: string): Promise<void> {
-  await requestJson("/api/auth/logout", {
+  await requestJson("/api/v1/auth/logout", {
     method: "POST",
     headers: csrfHeaders(csrfToken),
   })

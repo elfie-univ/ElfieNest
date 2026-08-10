@@ -8,14 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from ai_runtime.models.local_profiles import recommend_local_profile
-from app.features.accounts.auth import (
-    create_session,
-    generate_csrf_token,
-    get_session_ttl_seconds,
-    hash_password,
-    require_owner,
-    verify_session,
-)
+from app.features.accounts import hash_password
 from app.features.setup.hardware import get_available_memory_gb
 from app.features.setup.installer import build_setup_install_worker
 from app.features.setup.model_catalog import setup_model_options
@@ -49,6 +42,7 @@ from .setup_models import (
     SetupStatus,
     SetupStepStatus,
 )
+from .v1.auth import accounts_service, generate_csrf_token, require_owner
 
 _LOCAL_SETUP_CLIENTS = frozenset({"127.0.0.1", "::1", "testclient"})
 
@@ -177,7 +171,8 @@ async def confirm_setup_install(
     except SetupAlreadyCompleteError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
-    session_token = create_session(owner_account.user_id, db_path)
+    account_service = accounts_service(request)
+    session_token = account_service.create_session(owner_account.user_id)
     owner_csrf = generate_csrf_token(session_token)
     worker_factory = getattr(request.app.state, "setup_install_worker_factory", None)
     worker = (
@@ -200,7 +195,7 @@ async def confirm_setup_install(
         value=session_token,
         httponly=True,
         samesite="lax",
-        max_age=get_session_ttl_seconds(db_path),
+        max_age=account_service.session_ttl_seconds(),
     )
     response.delete_cookie(key="setup_token", path="/")
     response.headers["X-CSRF-Token"] = owner_csrf
@@ -392,8 +387,8 @@ def _require_setup_install_access(request: Request) -> None:
     session_token = request.cookies.get("session_token")
     if not session_token:
         raise HTTPException(status_code=403, detail="需要 Owner 会话")
-    principal = verify_session(session_token, request.app.state.db_path)
-    if principal is None or principal["role"] != "owner":
+    principal = accounts_service(request).authenticate_session(session_token)
+    if principal is None or principal.role != "owner":
         raise HTTPException(status_code=403, detail="需要 Owner 权限")
 
 

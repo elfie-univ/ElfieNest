@@ -82,7 +82,7 @@ describe("canonical account requests", () => {
     await login("owner01", "secret-pass", "/chat")
 
     // Then: the form body contains account_id rather than a legacy alias.
-    expect(requestJson).toHaveBeenCalledWith("/api/auth/login?next=/chat", expect.objectContaining({ method: "POST" }))
+    expect(requestJson).toHaveBeenCalledWith("/api/v1/auth/login?next=/chat", expect.objectContaining({ method: "POST" }))
     const requestBody = vi.mocked(requestJson).mock.calls[0]?.[1]?.body
     expect(requestBody).toBeInstanceOf(URLSearchParams)
     if (!(requestBody instanceof URLSearchParams)) throw new TypeError("expected URLSearchParams login body")
@@ -134,7 +134,7 @@ describe("canonical account requests", () => {
     await logout("csrf-token")
 
     // Then: the request targets the canonical endpoint and carries the CSRF token.
-    expect(requestJson).toHaveBeenCalledWith("/api/auth/logout", {
+    expect(requestJson).toHaveBeenCalledWith("/api/v1/auth/logout", {
       headers: { "X-CSRF-Token": "csrf-token" },
       method: "POST",
     })
@@ -157,7 +157,7 @@ describe("safe login destinations", () => {
     await expect(login("owner", "pass123", "/monitor")).resolves.toBe("/monitor")
 
     expect(requestJson).toHaveBeenCalledWith(
-      "/api/auth/login?next=/monitor",
+      "/api/v1/auth/login?next=/monitor",
       expect.objectContaining({ method: "POST" }),
     )
   })

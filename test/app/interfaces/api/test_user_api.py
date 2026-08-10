@@ -11,9 +11,9 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.bootstrap import create_app
 from app.features.adoption.service import AdoptionCapacityError
 from app.infrastructure.persistence.store import get_db, init_db
-from app.interfaces.api.app import create_app
 
 from ._helpers import adopt_test_elfie, create_test_owner
 
@@ -50,7 +50,7 @@ def client(app):
 
 def _login_owner(client: TestClient) -> dict:
     resp = client.post(
-        "/api/auth/login", data={"account_id": "owner", "password": "ownerchangeme"}
+        "/api/v1/auth/login", data={"account_id": "owner", "password": "ownerchangeme"}
     )
     assert resp.status_code == 200
     return {
@@ -62,7 +62,7 @@ def _login_user(
     client: TestClient, account_id: str = "alice", password: str = "pass123"
 ) -> dict:
     resp = client.post(
-        "/api/auth/login", data={"account_id": account_id, "password": password}
+        "/api/v1/auth/login", data={"account_id": account_id, "password": password}
     )
     assert resp.status_code == 200, f"user login failed: {resp.text}"
     return {

@@ -11,9 +11,9 @@ from app.infrastructure.persistence.database_maintenance import (
     backup_final_databases,
     reset_final_databases,
 )
-from app.infrastructure.persistence.session_repository import SessionRepository
 from app.infrastructure.persistence.store import get_db
 from app.infrastructure.persistence.system_repository import SystemRepository
+from infrastructure.persistence import SessionRepository
 
 
 class DatabaseUnavailableError(Exception):

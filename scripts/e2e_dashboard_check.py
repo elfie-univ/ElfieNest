@@ -124,7 +124,7 @@ class E2ESession:
         ).encode("utf-8")
         hdrs = {"Content-Type": "application/x-www-form-urlencoded"}
         s, d, r, rh = self._request(
-            "POST", "/api/auth/login", data=form_data, headers=hdrs
+            "POST", "/api/v1/auth/login", data=form_data, headers=hdrs
         )
         if s == 200:
             csrf = _header_lower(rh, "x-csrf-token")

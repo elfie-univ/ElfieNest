@@ -27,4 +27,20 @@ describe("requestJson", () => {
       }]),
     )
   })
+
+  it("reads the versioned error envelope used by authentication", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      error: {
+        code: "authentication_failed",
+        message: "登录账号或密码错误",
+      },
+    }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    })))
+
+    await expect(requestJson("http://localhost/api/v1/auth/login", { method: "POST" })).rejects.toEqual(
+      new ApiError(401, "登录账号或密码错误", [], "authentication_failed"),
+    )
+  })
 })

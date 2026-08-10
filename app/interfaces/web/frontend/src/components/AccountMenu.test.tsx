@@ -144,7 +144,7 @@ describe("AccountMenu", () => {
     await user.click(screen.getByRole("button", { name: "退出登录" }))
 
     // Then: the authenticated session is revoked through the canonical endpoint.
-    await waitFor(() => expect(kyMock).toHaveBeenCalledWith("/api/auth/logout", expect.objectContaining({ method: "POST" })))
+    await waitFor(() => expect(kyMock).toHaveBeenCalledWith("/api/v1/auth/logout", expect.objectContaining({ method: "POST" })))
     expect(onLoggedOut).toHaveBeenCalledOnce()
   })
 

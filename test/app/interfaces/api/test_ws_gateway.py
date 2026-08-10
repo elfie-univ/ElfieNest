@@ -12,14 +12,11 @@ from unittest.mock import Mock
 import anyio
 import pytest
 
-from app.features.accounts.auth import (
-    create_session,
-    delete_session,
-    hash_password,
-    verify_session,
-)
+from ai_runtime.storage.data_home import get_db_path
+from app.bootstrap import build_application_container
+from app.features.accounts import hash_password
 from app.infrastructure.persistence.store import get_db, init_db
-from app.interfaces.api.ws_gateway import AuthenticatedWSManager
+from app.interfaces.api.ws_gateway import AuthenticatedWSManager as _WSManager
 
 from ._helpers import create_test_owner
 
@@ -34,6 +31,16 @@ def _init_db_with_owner(db_path: str) -> int:
     return create_test_owner(db_path)
 
 
+def _accounts(db_path: str):
+    return build_application_container(db_path).accounts
+
+
+def AuthenticatedWSManager(*args, **kwargs):
+    db_path = kwargs.get("db_path") or str(get_db_path())
+    kwargs["accounts"] = _accounts(db_path)
+    return _WSManager(*args, **kwargs)
+
+
 # ===================================================================
 # Token 验证 — WS 网关依赖 verify_session
 # ===================================================================
@@ -46,20 +53,20 @@ class TestWsTokenVerification:
         """有效 token → verify_session 返回用户信息（等价于 WS 鉴权成功）。"""
         db = str(tmp_path / "nest.db")
         uid = _init_db_with_owner(db)
-        token = create_session(uid, db)
+        token = _accounts(db).create_session(uid)
 
-        user = verify_session(token, db)
+        user = _accounts(db).authenticate_session(token)
         assert user is not None
-        assert user["user_id"] == uid
-        assert user["account_id"] == "owner"
-        assert user["role"] == "owner"
+        assert user.user_id == uid
+        assert user.account_id == "owner"
+        assert user.role == "owner"
 
     def test_invalid_token_returns_none(self, tmp_path: Path) -> None:
         """无效 token → verify_session 返回 None（WS 连接将被关闭）。"""
         db = str(tmp_path / "nest.db")
         _init_db_with_owner(db)
 
-        user = verify_session("fake_token_123", db)
+        user = _accounts(db).authenticate_session("fake_token_123")
         assert user is None
 
     def test_empty_token_returns_none(self, tmp_path: Path) -> None:
@@ -67,18 +74,18 @@ class TestWsTokenVerification:
         db = str(tmp_path / "nest.db")
         _init_db_with_owner(db)
 
-        user = verify_session("", db)
+        user = _accounts(db).authenticate_session("")
         assert user is None
 
     def test_gateway_rechecks_revoked_session(self, tmp_path: Path) -> None:
         # Given
         db = str(tmp_path / "nest.db")
         uid = _init_db_with_owner(db)
-        token = create_session(uid, db)
+        token = _accounts(db).create_session(uid)
         manager = AuthenticatedWSManager(port=0, db_path=db)
 
         # When
-        delete_session(token, db)
+        _accounts(db).logout(token)
 
         # Then
         assert manager._session_is_current(token, uid) is False
@@ -247,7 +254,7 @@ class TestWsGatewayMessageParsing:
     def test_auth_payload_cannot_replace_cookie_session(self, tmp_path: Path) -> None:
         db = str(tmp_path / "nest.db")
         uid = _init_db_with_owner(db)
-        cookie_token = create_session(uid, db)
+        cookie_token = _accounts(db).create_session(uid)
         manager = AuthenticatedWSManager(port=0, db_path=db)
 
         class FakeWebSocket:

@@ -7,10 +7,10 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
+from app.bootstrap import create_app
 from app.infrastructure.persistence.setup_install_repository import (
     SetupInstallRepository,
 )
-from app.interfaces.api.app import create_app
 
 
 def _draft(client: TestClient, csrf: str) -> None:

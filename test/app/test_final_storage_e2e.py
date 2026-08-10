@@ -9,6 +9,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from ai_runtime.storage.data_home import get_config_path
+from app.bootstrap import create_app
 from app.features.adoption.service import (
     AdoptionRequest,
     adopt_elfie_for_user,
@@ -23,7 +24,6 @@ from app.infrastructure.persistence.elfie_chat_history import (
 )
 from app.infrastructure.persistence.embodiment_sessions import begin_hosting
 from app.infrastructure.persistence.store import get_db, init_db
-from app.interfaces.api.app import create_app
 from app.interfaces.cli.doctor_commands import repair_local_runtime_state
 from elfie import ElfieFactory
 from elfie.brain.memory.knowledge_schema import KNOWLEDGE_TABLES
@@ -132,7 +132,7 @@ def test_full_product_chain_uses_one_explicit_final_root(
         application = create_app(engine=None, db_path=str(db_path), ws_port=9876)
         with TestClient(application, base_url="http://127.0.0.1:8000") as client:
             login = client.post(
-                "/api/auth/login",
+                "/api/v1/auth/login",
                 data={"account_id": "owner", "password": "ownerchangeme"},
             )
             csrf_token = login.headers["X-CSRF-Token"]
@@ -191,7 +191,7 @@ def test_full_product_chain_uses_one_explicit_final_root(
         restarted = create_app(engine=None, db_path=str(db_path), ws_port=9877)
         with TestClient(restarted, base_url="http://127.0.0.1:8000") as client:
             login = client.post(
-                "/api/auth/login",
+                "/api/v1/auth/login",
                 data={"account_id": "owner", "password": "ownerchangeme"},
             )
             assert login.status_code == 200

@@ -6,21 +6,14 @@ from datetime import date
 from typing import Dict, Final, Literal, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.features.accounts.auth import (
-    AuthenticatedUser,
-    create_session,
-    delete_session,
-    generate_csrf_token,
-    get_current_user,
-    get_rate_limiter,
-    get_session_ttl_seconds,
+from app.features.accounts import (
+    AccountPrincipal,
     hash_password,
+    validate_password_strength,
     verify_password,
 )
-from app.features.accounts.password_policy import validate_password_strength
 from app.infrastructure.persistence.account_repository import (
     AccountConflictError,
     AccountValidationError,
@@ -30,8 +23,8 @@ from app.infrastructure.persistence.runtime_query_repository import (
     RuntimeQueryRepository,
 )
 
-from .page_routes import post_login_landing_path
 from .profile_routes import avatar_url
+from .v1.auth import generate_csrf_token, get_current_user
 
 router = APIRouter(prefix="/api/auth", tags=["account"])
 CurrentUser = Depends(get_current_user)
@@ -84,88 +77,14 @@ def _account_profile(account: RuntimeAccount) -> Dict[str, Union[str, int, None]
     }
 
 
-@router.post("/login")
-async def login(request: Request) -> JSONResponse:
-    """Authenticate an exact account identifier and issue the existing cookie/CSRF pair."""
-    body = await request.form()
-    account_id_raw = body.get("account_id")
-    password_raw = body.get("password")
-    if "username" in body:
-        raise HTTPException(status_code=422, detail="不支持旧账号字段 username")
-    account_id = account_id_raw.strip() if isinstance(account_id_raw, str) else ""
-    password = password_raw if isinstance(password_raw, str) else ""
-    if not account_id or not password:
-        raise HTTPException(status_code=422, detail="登录账号和密码不能为空")
-
-    client_ip = request.client.host if request.client else "unknown"
-    db_path = request.app.state.db_path
-    limiter = get_rate_limiter(db_path)
-    if limiter.is_limited(client_ip, account_id):
-        raise HTTPException(status_code=429, detail="登录尝试过于频繁，请稍后再试")
-
-    account = RuntimeQueryRepository(db_path).find_account_by_account_id(account_id)
-    if account is None or not verify_password(password, account.password_hash):
-        limiter.record_failure(client_ip, account_id)
-        raise HTTPException(status_code=401, detail="登录账号或密码错误")
-
-    limiter.clear(client_ip, account_id)
-    session_token = create_session(account.user_id, db_path)
-    csrf_token = generate_csrf_token(session_token)
-    user_data = {
-        "user_id": account.user_id,
-        "account_id": account.account_id,
-        "display_name": account.display_name,
-        "role": account.role,
-        "default_landing_page": account.default_landing_page,
-    }
-    response = JSONResponse(
-        content={
-            "user": user_data,
-            "csrf_token": csrf_token,
-            "landing_path": post_login_landing_path(
-                user_data, request.query_params.get("next")
-            ),
-        }
-    )
-    response.set_cookie(
-        key="session_token",
-        value=session_token,
-        httponly=True,
-        samesite="lax",
-        max_age=get_session_ttl_seconds(db_path),
-    )
-    response.headers["X-CSRF-Token"] = csrf_token
-    return response
-
-
-@router.post("/logout")
-async def logout(
-    request: Request,
-    user: AuthenticatedUser = CurrentUser,
-) -> JSONResponse:
-    """Revoke the authenticated session and clear its cookie."""
-    _ = user
-    token = request.cookies.get("session_token", "")
-    if token:
-        from .observer_routes import session_token_fingerprint  # noqa: PLC0415
-
-        observer_sessions = getattr(request.app.state, "observer_sessions", None)
-        if observer_sessions is not None:
-            observer_sessions.revoke_session(session_token_fingerprint(token))
-        delete_session(token, request.app.state.db_path)
-    response = JSONResponse(content={"detail": "已登出"})
-    response.delete_cookie(key="session_token")
-    return response
-
-
 @router.get("/me")
 async def me(
     request: Request,
-    user: AuthenticatedUser = CurrentUser,
+    user: AccountPrincipal = CurrentUser,
 ) -> Dict[str, Union[str, int, None]]:
     """Return the canonical current-account and profile projection."""
     repository = RuntimeQueryRepository(request.app.state.db_path)
-    account = repository.find_account_by_id(user["user_id"])
+    account = repository.find_account_by_id(user.user_id)
     if account is None:
         raise HTTPException(status_code=401, detail="账户不存在")
     result = _account_profile(account)
@@ -186,13 +105,13 @@ async def me(
 async def update_profile(
     body: ProfileUpdate,
     request: Request,
-    user: AuthenticatedUser = CurrentUser,
+    user: AccountPrincipal = CurrentUser,
 ) -> Dict[str, Union[str, int, None]]:
     """Update display name and the existing avatar presentation fields."""
     if not body.model_fields_set:
         raise HTTPException(status_code=400, detail="没有提供要更新的字段")
     repository = RuntimeQueryRepository(request.app.state.db_path)
-    current = repository.find_account_by_id(user["user_id"])
+    current = repository.find_account_by_id(user.user_id)
     if current is None:
         raise HTTPException(status_code=401, detail="账户不存在")
     if "account_id" in body.model_fields_set and body.account_id is None:
@@ -240,10 +159,10 @@ async def update_profile(
 async def change_password(
     body: PasswordChange,
     request: Request,
-    user: AuthenticatedUser = CurrentUser,
+    user: AccountPrincipal = CurrentUser,
 ) -> dict[str, str]:
     repository = RuntimeQueryRepository(request.app.state.db_path)
-    account = repository.find_account_by_id(user["user_id"])
+    account = repository.find_account_by_id(user.user_id)
     if account is None:
         raise HTTPException(status_code=401, detail="账户不存在")
     if not verify_password(body.old_password, account.password_hash):
@@ -262,9 +181,9 @@ async def change_password(
 async def update_theme_preference(
     body: ThemePreferenceUpdate,
     request: Request,
-    user: AuthenticatedUser = CurrentUser,
+    user: AccountPrincipal = CurrentUser,
 ) -> dict[str, str]:
     RuntimeQueryRepository(request.app.state.db_path).update_theme(
-        user["user_id"], body.theme_key
+        user.user_id, body.theme_key
     )
     return {"theme_key": body.theme_key}

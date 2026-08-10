@@ -5,7 +5,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends
 
 from ai_runtime.usage.observer import RuntimeEvent, get_runtime_observer
-from app.features.accounts.auth import require_manager
+from app.interfaces.api.v1.auth import require_manager
 
 router = APIRouter(prefix="/api/owner/runtime", tags=["runtime"])
 

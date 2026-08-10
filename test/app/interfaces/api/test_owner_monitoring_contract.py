@@ -15,11 +15,11 @@ from ai_runtime.food.models import (
     ModelAssignment,
     system_food_packages,
 )
+from app.bootstrap import create_app
 from app.infrastructure.devices import DeviceRegistry
 from app.infrastructure.persistence.embodiment_sessions import begin_hosting
 from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
 from app.infrastructure.persistence.store import init_db
-from app.interfaces.api.app import create_app
 
 from ._helpers import adopt_test_elfie, create_test_owner
 
@@ -62,7 +62,7 @@ def _headers(csrf_token: str) -> dict[str, str]:
 
 def _login(client: TestClient, account_id: str, password: str) -> dict:
     response = client.post(
-        "/api/auth/login", data={"account_id": account_id, "password": password}
+        "/api/v1/auth/login", data={"account_id": account_id, "password": password}
     )
     assert response.status_code == 200, response.text
     return {

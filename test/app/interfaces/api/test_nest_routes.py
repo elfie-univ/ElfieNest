@@ -6,8 +6,8 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.bootstrap import create_app
 from app.infrastructure.persistence.store import get_db, init_db
-from app.interfaces.api.app import create_app
 
 from ._helpers import create_test_owner
 
@@ -32,7 +32,7 @@ def client(db_path: str):
 
 def _login_owner(client: TestClient) -> dict[str, str]:
     resp = client.post(
-        "/api/auth/login", data={"account_id": "owner", "password": "ownerchangeme"}
+        "/api/v1/auth/login", data={"account_id": "owner", "password": "ownerchangeme"}
     )
     assert resp.status_code == 200
     return {"csrf_token": resp.headers.get("X-CSRF-Token", "")}
@@ -44,7 +44,7 @@ def _login_user(
     password: str,
 ) -> dict[str, str]:
     resp = client.post(
-        "/api/auth/login",
+        "/api/v1/auth/login",
         data={"account_id": account_id, "password": password},
     )
     assert resp.status_code == 200

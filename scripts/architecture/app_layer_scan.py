@@ -477,7 +477,7 @@ def _scan_api_route_models(
 def _scan_unversioned_product_routes(
     violations: DefaultDict[str, Set[str]],
 ) -> None:
-    from app.interfaces.api import create_app
+    from app.bootstrap import create_app
 
     application = create_app(db_path=":memory:")
     for route in application.routes:

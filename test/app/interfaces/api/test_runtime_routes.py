@@ -10,8 +10,8 @@ from ai_runtime.usage.observer import (
     RuntimeObserver,
     ToolCallObservation,
 )
+from app.bootstrap import create_app
 from app.infrastructure.persistence.store import init_db
-from app.interfaces.api.app import create_app
 
 from ._helpers import create_test_owner, create_test_user
 
@@ -67,7 +67,7 @@ def client(
 
 def _login(client: TestClient, account_id: str, password: str) -> dict[str, str]:
     response = client.post(
-        "/api/auth/login",
+        "/api/v1/auth/login",
         data={"account_id": account_id, "password": password},
     )
     assert response.status_code == 200

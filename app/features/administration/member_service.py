@@ -6,7 +6,7 @@ import secrets
 import string
 from typing import Final, NamedTuple
 
-from app.features.accounts.auth import hash_password
+from app.features.accounts import hash_password
 from app.features.accounts.roles import AccountRole
 from app.infrastructure.persistence.interface_query_repository import (
     InterfaceQueryRepository,

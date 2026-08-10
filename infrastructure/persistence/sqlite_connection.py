@@ -1,4 +1,4 @@
-"""Shared secure SQLite connection policy for app persistence."""
+"""Shared secure SQLite connection policy for Infrastructure adapters."""
 
 from __future__ import annotations
 
@@ -12,8 +12,6 @@ from typing import Iterator
 
 
 class UnsafeSQLitePathError(RuntimeError):
-    """Raised when a database path can escape through a symlink or special file."""
-
     __slots__ = ("path", "reason")
 
     def __init__(self, path: Path, reason: str) -> None:
@@ -30,7 +28,6 @@ def connect_app_sqlite(
     *,
     check_same_thread: bool = True,
 ) -> sqlite3.Connection:
-    """Open SQLite with foreign keys and a no-symlink file policy."""
     path_text = os.fspath(db_path)
     if path_text != ":memory:":
         _prepare_database_file(Path(path_text))
@@ -46,7 +43,6 @@ def app_sqlite_connection(
     *,
     check_same_thread: bool = True,
 ) -> Iterator[sqlite3.Connection]:
-    """Yield a policy connection and roll back when the managed block fails."""
     connection = connect_app_sqlite(db_path, check_same_thread=check_same_thread)
     try:
         yield connection
@@ -78,3 +74,10 @@ def _prepare_database_file(db_path: Path) -> None:
         if stat.S_ISLNK(file_mode) or not stat.S_ISREG(file_mode):
             raise UnsafeSQLitePathError(db_path, "target is not a regular file")
     db_path.chmod(0o600)
+
+
+__all__ = (
+    "UnsafeSQLitePathError",
+    "app_sqlite_connection",
+    "connect_app_sqlite",
+)

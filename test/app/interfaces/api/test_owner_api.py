@@ -11,8 +11,8 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.bootstrap import create_app
 from app.infrastructure.persistence.store import get_db, init_db, verify_password
-from app.interfaces.api.app import create_app
 
 from ._helpers import create_test_owner, create_test_user
 
@@ -51,7 +51,7 @@ def client(app):
 def _login_owner(client: TestClient) -> dict:
     """辅助：以 owner 身份登录，返回 {"session_token", "csrf_token", "cookies"}。"""
     resp = client.post(
-        "/api/auth/login", data={"account_id": "owner", "password": "ownerchangeme"}
+        "/api/v1/auth/login", data={"account_id": "owner", "password": "ownerchangeme"}
     )
     assert resp.status_code == 200, f"login failed: {resp.text}"
     csrf_token = resp.headers.get("X-CSRF-Token", "")
@@ -411,7 +411,7 @@ class TestAuthorization:
 
         # 以 alice 身份登录
         resp = client.post(
-            "/api/auth/login", data={"account_id": "alice", "password": "pass123"}
+            "/api/v1/auth/login", data={"account_id": "alice", "password": "pass123"}
         )
         assert resp.status_code == 200
         alice_csrf = resp.headers.get("X-CSRF-Token", "")
@@ -429,7 +429,7 @@ class TestAuthorization:
         """普通用户登录后不能调用 Owner-only 管理接口。"""
         create_test_user(db_path, "normal_user", "pass123", role="user")
         response = client.post(
-            "/api/auth/login",
+            "/api/v1/auth/login",
             data={"account_id": "normal_user", "password": "pass123"},
         )
         assert response.status_code == 200

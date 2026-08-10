@@ -6,8 +6,9 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.bootstrap import create_app
+from app.features.accounts import AccountPrincipal
 from app.infrastructure.persistence.store import get_db, init_db
-from app.interfaces.api.app import create_app
 from app.interfaces.api.observer_routes import _principal
 from nest.godot_gateway.observer import WorldChangingIntent
 
@@ -18,7 +19,7 @@ _OWNER_ELFIE_ID = "00000002"
 
 
 def test_admin_uses_the_existing_manager_observer_projection() -> None:
-    principal = _principal({"user_id": 7, "role": "admin"})
+    principal = _principal(AccountPrincipal(7, "admin", "admin", "manage"))
 
     assert principal.user_id == 7
     assert principal.role == "owner"
@@ -151,7 +152,7 @@ def test_observer_capability_rejects_new_same_user_session_and_logout_replay(
     capability = _open_elfie_observer(client, first_csrf, _ALICE_ELFIE_ID)
 
     # When: Alice logs out and signs in again, then replays the old capability.
-    logout = client.post("/api/auth/logout", headers=_headers(first_csrf))
+    logout = client.post("/api/v1/auth/logout", headers=_headers(first_csrf))
     second_csrf = _login(client, "alice", "alice-password")
     replay = client.post(
         "/api/observer/intents",
@@ -342,7 +343,7 @@ def test_observer_frames_require_live_authenticated_session(client: TestClient) 
 
 def _login(client: TestClient, account_id: str, password: str) -> str:
     response = client.post(
-        "/api/auth/login", data={"account_id": account_id, "password": password}
+        "/api/v1/auth/login", data={"account_id": account_id, "password": password}
     )
     assert response.status_code == 200
     return response.headers["X-CSRF-Token"]

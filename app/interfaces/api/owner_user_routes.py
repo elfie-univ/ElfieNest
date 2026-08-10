@@ -13,7 +13,7 @@ from typing_extensions import TypedDict
 
 from ai_runtime.storage.data_home import data_home_from_db_path
 from ai_runtime.storage.data_layout import final_root_layout
-from app.features.accounts.auth import AuthenticatedUser, require_manager
+from app.features.accounts import AccountPrincipal
 from app.features.accounts.password_policy import validate_password_strength
 from app.features.accounts.roles import AccountRole, can_manage_role, parse_account_role
 from app.features.administration.member_service import (
@@ -27,6 +27,7 @@ from app.infrastructure.persistence.interface_query_repository import (
     InterfaceUserRecord,
     MemberMutationTargetError,
 )
+from app.interfaces.api.v1.auth import require_manager
 
 logger = logging.getLogger("app.interfaces.api.owner_user_routes")
 router = APIRouter(prefix="/api/owner/users", tags=["owner-users"])
@@ -146,7 +147,7 @@ def _load_managed_member(
 @router.get("")
 async def list_users(
     request: Request,
-    owner: AuthenticatedUser = Depends(require_manager),  # noqa: B008
+    owner: AccountPrincipal = Depends(require_manager),  # noqa: B008
 ) -> list[OwnerUserView]:
     system_limit = _system_limit(request.app.state.db_path)
     rows = InterfaceQueryRepository(request.app.state.db_path).list_all_users()
@@ -157,9 +158,9 @@ async def list_users(
 async def create_user(
     body: CreateUserRequest,
     request: Request,
-    owner: AuthenticatedUser = Depends(require_manager),  # noqa: B008
+    owner: AccountPrincipal = Depends(require_manager),  # noqa: B008
 ) -> OwnerUserView:
-    if body.role == "admin" and owner["role"] != "owner":
+    if body.role == "admin" and owner.role != "owner":
         raise HTTPException(status_code=403, detail="只有 Owner 可以新增 Admin")
     try:
         user_id = MemberService(request.app.state.db_path).create_member(
@@ -186,7 +187,7 @@ async def update_quota(
     user_id: int,
     body: QuotaUpdateRequest,
     request: Request,
-    owner: AuthenticatedUser = Depends(require_manager),  # noqa: B008
+    owner: AccountPrincipal = Depends(require_manager),  # noqa: B008
 ) -> OwnerUserView:
     if "elfie_quota_override" not in body.model_fields_set:
         raise HTTPException(status_code=422, detail="必须提供 elfie_quota_override")
@@ -195,7 +196,7 @@ async def update_quota(
         request.app.state.db_path,
         user_id,
         system_limit,
-        owner["role"],
+        owner.role,
     )
     updated = InterfaceQueryRepository(request.app.state.db_path).update_member_limit(
         user_id, body.elfie_quota_override
@@ -206,7 +207,7 @@ async def update_quota(
         request.app.state.db_path,
         user_id,
         system_limit,
-        owner["role"],
+        owner.role,
     )
 
 
@@ -214,13 +215,13 @@ async def update_quota(
 async def delete_user(
     user_id: int,
     request: Request,
-    owner: AuthenticatedUser = Depends(require_manager),  # noqa: B008
+    owner: AccountPrincipal = Depends(require_manager),  # noqa: B008
 ) -> dict[str, str]:
     user = _load_managed_member(
         request.app.state.db_path,
         user_id,
         _system_limit(request.app.state.db_path),
-        owner["role"],
+        owner.role,
     )
     if user["elfie_count"] > 0:
         raise HTTPException(
@@ -239,14 +240,14 @@ async def delete_user(
 async def reset_user_password(
     user_id: int,
     request: Request,
-    owner: AuthenticatedUser = Depends(require_manager),  # noqa: B008
+    owner: AccountPrincipal = Depends(require_manager),  # noqa: B008
 ) -> dict[str, str]:
     """重置下级账号密码为随机生成的临时密码。"""
     user = _load_managed_member(
         request.app.state.db_path,
         user_id,
         _system_limit(request.app.state.db_path),
-        owner["role"],
+        owner.role,
     )
     try:
         result = MemberService(request.app.state.db_path).reset_password(user_id)
@@ -262,7 +263,7 @@ async def reset_user_password(
 async def user_avatar(
     user_id: int,
     request: Request,
-    owner: AuthenticatedUser = Depends(require_manager),  # noqa: B008
+    owner: AccountPrincipal = Depends(require_manager),  # noqa: B008
 ) -> FileResponse:
     _ = owner
     row = InterfaceQueryRepository(request.app.state.db_path).get_user(user_id)

@@ -15,6 +15,7 @@ import websockets
 import websockets.asyncio.server
 
 from ai_runtime.storage.data_home import get_db_path as _get_db_path
+from app.features.accounts import AccountsService
 from app.interfaces.api.ws_gateway_messaging import WebSocketMessagingMixin
 from app.interfaces.api.ws_gateway_session import WebSocketSessionMixin
 
@@ -46,6 +47,7 @@ class AuthenticatedWSManager(WebSocketSessionMixin, WebSocketMessagingMixin):
 
     def __init__(
         self,
+        accounts: AccountsService,
         host: str = "127.0.0.1",
         port: int = 8766,
         http_port: int = 8000,
@@ -55,6 +57,7 @@ class AuthenticatedWSManager(WebSocketSessionMixin, WebSocketMessagingMixin):
         self.port = port
         self.http_port = http_port
         self.db_path = db_path if db_path is not None else str(_get_db_path())
+        self.accounts = accounts
 
         # user_id -> Set[websocket] 映射
         self.connections: Dict[int, Set[Any]] = {}

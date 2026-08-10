@@ -17,8 +17,8 @@ from app.infrastructure.persistence.account_repository import (
     AccountRepository,
     AccountRepositoryError,
 )
-from app.infrastructure.persistence.session_repository import SessionRepository
 from app.infrastructure.persistence.store import get_db, hash_password
+from infrastructure.persistence import SessionRepository
 
 MIN_OWNER_ACCOUNT_ID_LENGTH = 3
 MAX_OWNER_ACCOUNT_ID_LENGTH = 32

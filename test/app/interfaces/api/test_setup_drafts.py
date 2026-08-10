@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from app.interfaces.api.app import create_app
+from app.bootstrap import create_app
 
 
 def _app(db_path: str):

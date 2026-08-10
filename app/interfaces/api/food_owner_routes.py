@@ -8,7 +8,6 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ai_runtime.food.models import SYSTEM_FOOD_IDS, FoodPackage
-from app.features.accounts.auth import require_manager
 from app.infrastructure.persistence.food_packages import (
     FoodPackageRepositoryError,
     SQLiteFoodPackageRepository,
@@ -46,6 +45,7 @@ from app.interfaces.api.food_catalog_support import (
 from app.interfaces.api.food_catalog_support import (
     stores as _stores,
 )
+from app.interfaces.api.v1.auth import require_manager
 
 router = APIRouter(
     prefix="/api/owner/runtime/foods",

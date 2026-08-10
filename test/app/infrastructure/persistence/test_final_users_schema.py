@@ -10,8 +10,8 @@ from typing import Final
 import pytest
 
 from app.infrastructure.persistence.final_schema import create_final_nest_database
-from app.infrastructure.persistence.sqlite_connection import app_sqlite_connection
 from app.infrastructure.persistence.store import LegacyDataRootError, init_db
+from infrastructure.persistence.sqlite_connection import app_sqlite_connection
 
 EXPECTED_USER_COLUMNS: Final = (
     "id",

@@ -7,14 +7,15 @@ from typing import Final, Optional, Protocol
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
-from typing_extensions import Annotated, TypedDict
+from typing_extensions import Annotated
 
 from ai_runtime.storage.data_home import data_home_from_db_path
 from ai_runtime.storage.data_layout import ensure_final_user_layout, final_root_layout
-from app.features.accounts.auth import get_current_user
+from app.features.accounts import AccountPrincipal
 from app.infrastructure.persistence.interface_query_repository import (
     InterfaceQueryRepository,
 )
+from app.interfaces.api.v1.auth import get_current_user
 
 router = APIRouter(prefix="/api/auth/me", tags=["account-avatar"])
 
@@ -35,13 +36,6 @@ def _matches_image_signature(content_type: str, image: bytes) -> bool:
     if content_type == "image/webp":
         return len(image) >= 12 and image[:4] == b"RIFF" and image[8:12] == b"WEBP"
     return False
-
-
-class AuthenticatedUser(TypedDict):
-    user_id: int
-    account_id: str
-    role: str
-    default_landing_page: str
 
 
 class AvatarUpload(Protocol):
@@ -75,7 +69,7 @@ async def _read_avatar_limited(file: AvatarUpload) -> bytes:
 async def upload_avatar(
     request: Request,
     file: Annotated[UploadFile, File()],
-    user: AuthenticatedUser = Depends(get_current_user),  # noqa: B008
+    user: AccountPrincipal = Depends(get_current_user),  # noqa: B008
 ) -> dict[str, str]:
     """Store one validated local image for the authenticated account."""
     extension = _AVATAR_EXTENSIONS.get(file.content_type or "")
@@ -84,7 +78,7 @@ async def upload_avatar(
     image = await _read_avatar_limited(file)
     if not _matches_image_signature(file.content_type or "", image):
         raise HTTPException(status_code=415, detail="头像内容与图片格式不匹配")
-    user_id = user["user_id"]
+    user_id = user.user_id
     data_home = _data_home(request.app.state.db_path)
     user_layout = ensure_final_user_layout(data_home, str(user_id))
     for existing in user_layout.assets.glob("avatar.*"):
@@ -100,10 +94,10 @@ async def upload_avatar(
 @router.get("/avatar")
 async def current_avatar(
     request: Request,
-    user: AuthenticatedUser = Depends(get_current_user),  # noqa: B008
+    user: AccountPrincipal = Depends(get_current_user),  # noqa: B008
 ) -> FileResponse:
     """Serve only the current user's local avatar image."""
-    user_id = user["user_id"]
+    user_id = user.user_id
     record = InterfaceQueryRepository(request.app.state.db_path).get_user(user_id)
     avatar_path = None if record is None else record.avatar_path
     if not avatar_path:

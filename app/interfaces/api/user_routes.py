@@ -7,7 +7,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from app.features.accounts.auth import get_current_user
+from app.features.accounts import AccountPrincipal
 from app.features.adoption.candidates import (
     CandidateSetNotFound,
     create_candidate_set,
@@ -24,6 +24,7 @@ from app.features.adoption.service import (
     adopt_elfie_for_user,
     adoption_options_for_user,
 )
+from app.interfaces.api.v1.auth import get_current_user
 
 router = APIRouter(prefix="/api/user", tags=["user"])
 
@@ -31,20 +32,20 @@ router = APIRouter(prefix="/api/user", tags=["user"])
 @router.get("/adoption-info")
 async def adoption_info(
     request: Request,
-    user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+    user: AccountPrincipal = Depends(get_current_user),  # noqa: B008
 ):
     """返回领养可选项（物种、性格以及外貌生成方向）。
 
     性格风格和 species_id 从 ``system.adoption`` 动态读取。
     """
-    return adoption_options_for_user(request.app.state.db_path, user_id=user["user_id"])
+    return adoption_options_for_user(request.app.state.db_path, user_id=user.user_id)
 
 
 @router.post("/adoption/candidates")
 async def adoption_candidates(
     request: Request,
     body: Dict[str, Any],
-    user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+    user: AccountPrincipal = Depends(get_current_user),  # noqa: B008
 ):
     """根据同行意向现场生成五位短生命周期候选。"""
     appearance = body.get("appearance")
@@ -53,7 +54,7 @@ async def adoption_candidates(
         raise HTTPException(status_code=400, detail="缺少完整的外貌倾向或相处答案")
     try:
         snapshot = create_candidate_set(
-            user_id=user["user_id"],
+            user_id=user.user_id,
             species_id=str(body.get("species_id") or ""),
             life_stage=str(body.get("life_stage") or "any"),
             gender=str(body.get("gender") or "any"),
@@ -73,7 +74,7 @@ async def adoption_candidates(
 async def adoption_replies(
     request: Request,
     body: Dict[str, Any],
-    user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+    user: AccountPrincipal = Depends(get_current_user),  # noqa: B008
 ):
     """向选中的候选发送认识邀请，并返回双向回信。"""
     candidate_set_id = str(body.get("candidate_set_id") or "")
@@ -83,7 +84,7 @@ async def adoption_replies(
     try:
         replies = reply_to_candidates(
             candidate_set_id,
-            user_id=user["user_id"],
+            user_id=user.user_id,
             candidate_ids=[str(value) for value in raw_ids],
         )
     except CandidateSetNotFound as exc:
@@ -97,7 +98,7 @@ async def adoption_replies(
 async def commit_adoption(
     request: Request,
     body: Dict[str, Any],
-    user: Dict[str, Any] = Depends(get_current_user),  # noqa: B008
+    user: AccountPrincipal = Depends(get_current_user),  # noqa: B008
 ):
     """把用户最终选中的候选快照一次性落为正式精灵。"""
     candidate_set_id = str(body.get("candidate_set_id") or "")
@@ -108,13 +109,13 @@ async def commit_adoption(
     try:
         candidate = find_candidate(
             candidate_set_id,
-            user_id=user["user_id"],
+            user_id=user.user_id,
             candidate_id=candidate_id,
         )
-        get_candidate_set(candidate_set_id, user_id=user["user_id"])
+        get_candidate_set(candidate_set_id, user_id=user.user_id)
         if not is_accepted_candidate(
             candidate_set_id,
-            user_id=user["user_id"],
+            user_id=user.user_id,
             candidate_id=candidate_id,
         ):
             raise HTTPException(status_code=409, detail="这位候选还没有同意继续认识")
@@ -134,7 +135,7 @@ async def commit_adoption(
     try:
         result = adopt_elfie_for_user(
             request.app.state.db_path,
-            user_id=user["user_id"],
+            user_id=user.user_id,
             request=adoption_request,
             engine=getattr(request.app.state, "engine", None),
         )

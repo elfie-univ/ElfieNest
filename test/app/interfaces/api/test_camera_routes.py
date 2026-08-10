@@ -6,8 +6,8 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.bootstrap import create_app
 from app.infrastructure.persistence.store import init_db
-from app.interfaces.api.app import create_app
 
 from ._helpers import create_test_owner
 
@@ -28,7 +28,7 @@ def client(tmp_path: Path):
 
 def _login(client: TestClient) -> str:
     response = client.post(
-        "/api/auth/login",
+        "/api/v1/auth/login",
         data={"account_id": "owner", "password": "ownerchangeme"},
     )
     assert response.status_code == 200

@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from app.features.accounts.auth import require_manager
 from app.infrastructure.persistence.nest_repository import (
     NestRepositoryConflictError,
     NestRepositoryNotFoundError,
@@ -12,6 +11,7 @@ from app.infrastructure.persistence.nest_repository import (
     SQLiteNestRepository,
 )
 from app.infrastructure.persistence.store import get_db
+from app.interfaces.api.v1.auth import require_manager
 
 router = APIRouter(prefix="/api/owner/nest", tags=["nest"])
 RequireOwner = Depends(require_manager)

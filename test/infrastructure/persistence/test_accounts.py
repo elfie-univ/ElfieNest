@@ -3,11 +3,13 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from app.infrastructure.persistence.session_repository import (
+from app.infrastructure.persistence.store import get_db, hash_password, init_db
+from infrastructure.persistence import (
     SessionRepository,
+    SQLiteAccountsAdapter,
     hash_session_token,
 )
-from app.infrastructure.persistence.store import get_db, hash_password, init_db
+from test.app.interfaces.api._helpers import create_test_owner
 
 
 def test_session_repository_stores_only_hash_and_revokes_raw_token(
@@ -60,3 +62,21 @@ def test_session_repository_rejects_expired_hash(tmp_path: Path) -> None:
 
     with get_db(db_path) as connection:
         assert SessionRepository(connection).find_active(raw_token, now) is None
+
+
+def test_sqlite_accounts_adapter_round_trips_strict_principal(tmp_path: Path) -> None:
+    db_path = init_db(str(tmp_path / "nest.db"))
+    user_id = create_test_owner(db_path)
+    adapter = SQLiteAccountsAdapter(db_path)
+    now = datetime.now(timezone.utc)
+
+    token = adapter.issue_session(user_id, now + timedelta(hours=1))
+    principal = adapter.find_session(token, now)
+
+    assert principal is not None
+    assert principal.user_id == user_id
+    assert principal.account_id == "owner"
+    assert principal.role == "owner"
+
+    adapter.revoke_session(token, now)
+    assert adapter.find_session(token, now) is None
