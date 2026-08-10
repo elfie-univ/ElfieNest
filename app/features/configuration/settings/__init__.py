@@ -1,6 +1,12 @@
-"""Public facades for independently migrated Configuration subdomains."""
+"""Public facade for global product Settings."""
 
-from .settings import (
+from .errors import (
+    SettingsError,
+    SettingsForbidden,
+    SettingsStorageError,
+    SettingsValidationError,
+)
+from .models import (
     ElfieSettingsResult,
     GetElfieSettingsQuery,
     GetRuntimeSettingsQuery,
@@ -8,21 +14,19 @@ from .settings import (
     LoginRateLimit,
     RuntimeSettingsResult,
     SecuritySettingsResult,
-    SettingsError,
-    SettingsForbidden,
-    SettingsService,
-    SettingsStorageError,
-    SettingsStorePort,
-    SettingsValidationError,
+    UpdateElfieSettingsCommand,
+    UpdateRuntimeSettingsCommand,
+    UpdateSecuritySettingsCommand,
+)
+from .port_models import (
     SpeciesId,
     StoredElfieSettings,
     StoredLoginRateLimit,
     StoredRuntimeSettings,
     StoredSecuritySettings,
-    UpdateElfieSettingsCommand,
-    UpdateRuntimeSettingsCommand,
-    UpdateSecuritySettingsCommand,
 )
+from .ports import SettingsStorePort
+from .service import SettingsService
 
 __all__ = (
     "ElfieSettingsResult",
