@@ -22,20 +22,7 @@ LEGACY_APP_LAYER_VIOLATIONS: Dict[str, FrozenSet[str]] = {
             "app/interfaces/cli/route_commands.py::show_route::ElfieRepository",
         }
     ),
-    "interface_feature_internal_imports": frozenset(
-        {
-            "app/interfaces/cli/model_commands.py -> app.features.configuration.provider_service",
-            "app/interfaces/cli/model_commands.py -> app.features.configuration.user_config",
-            "app/interfaces/cli/provider_commands.py -> app.features.configuration.provider_service",
-            "app/interfaces/cli/provider_commands.py -> app.features.configuration.user_config",
-            "app/interfaces/cli/tui/config_app.py -> app.features.configuration.user_config",
-            "app/interfaces/cli/tui/config_editors.py -> app.features.configuration.user_config",
-            "app/interfaces/cli/tui/config_views.py -> app.features.configuration.provider_service",
-            "app/interfaces/cli/tui/config_views.py -> app.features.configuration.user_config",
-            "app/interfaces/cli/tui/provider_menu.py -> app.features.configuration.provider_service",
-            "app/interfaces/cli/tui/provider_menu.py -> app.features.configuration.user_config",
-        }
-    ),
+    "interface_feature_internal_imports": frozenset(),
     "interface_forbidden_layer_imports": frozenset(
         {
             "app/interfaces/cli/route_commands.py -> app.infrastructure.persistence.elfie_repository",

@@ -1,116 +1,219 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Callable
 
-from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.models.catalog import verify_provider
-from ai_runtime.providers.profiles import BUILTIN_PROFILES
-from app.features.configuration.provider_service import (
-    CUSTOM_OPENAI_PROVIDER_ID,
-    get_known_profile,
-    list_configured_provider_rows,
-    list_provider_rows,
+from ai_runtime.lab.menu import MenuItem, TerminalMenu
+from app.features.accounts import AccountPrincipal
+from app.features.configuration import (
+    GetProviderModelMatrixQuery,
+    ProviderConnectionResult,
+    ProviderProductResult,
+    ProvidersError,
+    ProvidersService,
+    VerifyProviderConnectionCommand,
 )
-from app.features.configuration.user_config import UserConfig, read_user_config
-from app.interfaces.cli.tui.common import clear_screen, print_banner
+from app.interfaces.cli.provider_commands import remove_provider
+from app.interfaces.cli.provider_projection import connections, products
 
 ProviderLogin = Callable[[str], None]
 
 
-def config_providers(config: UserConfig, provider_login: ProviderLogin) -> None:
+def config_providers(
+    providers: ProvidersService,
+    principal: AccountPrincipal,
+    provider_login: ProviderLogin,
+) -> None:
+    """Preserve the existing Provider Config flow over the public Facade."""
+    menu = TerminalMenu(input_fn=input, output_fn=print)
     while True:
-        config = read_user_config() or config
-        clear_screen()
-        print_banner()
-        print("  🔑 Provider Configuration")
-        print("  " + "=" * 45)
-        print()
+        configured = tuple(
+            item
+            for item in connections(providers, principal)
+            if not item.archived
+        )
+        items = [MenuItem("1", "Provider Overview")]
+        connection_by_key: dict[str, ProviderConnectionResult] = {}
+        for index, connection in enumerate(configured, 2):
+            key = str(index)
+            connection_by_key[key] = connection
+            items.append(
+                MenuItem(
+                    key,
+                    connection.alias,
+                    "active" if connection.enabled else "inactive",
+                )
+            )
+        add_key = str(len(items) + 1)
+        items.append(MenuItem(add_key, "Add Provider"))
+        choice = menu.choose(
+            "Provider Config",
+            tuple(items),
+            breadcrumb="Runtime Lab / Provider Config",
+            back_label="Back",
+        )
+        if choice is None:
+            return
+        if choice == "1":
+            _show_provider_model_matrix(providers, principal)
+            _pause()
+        elif choice == add_key:
+            _prompt_provider_login(providers, principal, provider_login)
+        elif choice in connection_by_key:
+            _provider_detail_menu(
+                providers,
+                principal,
+                connection_by_key[choice],
+                provider_login,
+            )
 
-        print("  【Configured Providers】")
-        for row in list_configured_provider_rows(config):
-            status_icon = "✅" if row.status == "active" else "⭕"
-            print(f"    {status_icon} {row.name}")
-        print()
 
-        print("  1. Configure provider (use elfienest login)")
-        print("  2. Test provider connectivity")
-        print("  3. View all providers")
-        print("  0. Back")
-        print()
-
-        try:
-            choice = input("Choose [0-3]: ").strip()
-        except KeyboardInterrupt:
+def _provider_detail_menu(
+    providers: ProvidersService,
+    principal: AccountPrincipal,
+    connection: ProviderConnectionResult,
+    provider_login: ProviderLogin,
+) -> None:
+    menu = TerminalMenu(input_fn=input, output_fn=print)
+    while True:
+        current = next(
+            (
+                item
+                for item in connections(providers, principal)
+                if item.connection_id == connection.connection_id
+            ),
+            None,
+        )
+        if current is None:
+            return
+        choice = menu.choose(
+            current.alias,
+            (
+                MenuItem("1", "View & Status"),
+                MenuItem("2", "Modify Configuration"),
+                MenuItem("3", "Validate Connectivity"),
+                MenuItem("4", "Delete Provider"),
+            ),
+            breadcrumb=f"Runtime Lab / Layer 1 / {current.catalog_id}",
+            back_label="Back to Provider List",
+        )
+        if choice is None:
+            return
+        if choice == "1":
+            _show_connection(current)
+            _pause()
+        elif choice == "2":
+            provider_login(current.catalog_id)
+        elif choice == "3":
+            _test_connection(providers, principal, current)
+            _pause()
+        elif choice == "4" and _confirm_delete(current.alias):
+            remove_provider(providers, principal, current.catalog_id)
+            _pause()
             return
 
-        if choice == "0":
-            break
-        if choice == "1":
-            _prompt_provider_login(provider_login)
-            config = read_user_config()
-        elif choice == "2":
-            _test_configured_providers(config)
-        elif choice == "3":
-            _print_all_providers(read_user_config())
-            input("  Press Enter to continue...")
+
+def _show_connection(connection: ProviderConnectionResult) -> None:
+    print(f"\nProvider: {connection.alias}")
+    print(f"Catalog ID: {connection.catalog_id}")
+    print(f"Endpoint: {connection.api_base}")
+    print(f"API mode: {connection.api_mode}")
+    print(f"Status: {'active' if connection.enabled else 'inactive'}")
+    print(f"Models: {len(connection.models)}")
+    verification = connection.verification
+    print(f"Validation: {verification.status}")
+    if verification.error:
+        print(f"Error: {verification.error}")
 
 
-def _prompt_provider_login(provider_login: ProviderLogin) -> None:
-    print("\n  Available providers:")
-    providers = _ordered_provider_ids()
-    for i, pid in enumerate(providers, 1):
-        profile = BUILTIN_PROFILES[pid]
-        print(f"    {i}. {pid:12s} - {profile.name}")
-
+def _show_provider_model_matrix(
+    providers: ProvidersService,
+    principal: AccountPrincipal,
+) -> None:
+    print("\n  📦 Provider × Model Overview\n")
     try:
-        idx = int(input(f"\n  Choose [1-{len(providers)}]: ")) - 1
+        matrix = providers.get_model_matrix(
+            principal,
+            GetProviderModelMatrixQuery(),
+        )
+    except ProvidersError as error:
+        print(f"  ❌ Overview unavailable: {error}")
+        return
+    if not matrix.models:
+        print("  No configured models")
+        return
+    for model in matrix.models:
+        available = sum(cell.available for cell in model.connections)
+        capabilities = ", ".join(model.capabilities) or "-"
+        print(
+            f"  {model.display_name:<30s} {capabilities:<24s} "
+            f"{available}/{len(model.connections)} available"
+        )
+
+
+def _test_connection(
+    providers: ProvidersService,
+    principal: AccountPrincipal,
+    connection: ProviderConnectionResult,
+) -> None:
+    print(f"\n  Testing {connection.alias} connectivity...\n")
+    try:
+        result = asyncio.run(
+            providers.verify_connection(
+                principal,
+                VerifyProviderConnectionCommand(connection.connection_id),
+            )
+        ).verification
+    except ProvidersError as error:
+        print(f"    ❌ {connection.alias}: {error}")
+        return
+    if result.status == "passed":
+        print(f"    ✅ {connection.alias}: available ({result.latency_ms or 0:.0f}ms)")
+    else:
+        print(f"    ❌ {connection.alias}: {result.error or 'unknown error'}")
+
+
+def _prompt_provider_login(
+    providers: ProvidersService,
+    principal: AccountPrincipal,
+    provider_login: ProviderLogin,
+) -> None:
+    print("\n  Available providers:")
+    available = _ordered_products(providers, principal)
+    for index, product in enumerate(available, 1):
+        print(f"    {index}. {product.catalog_id:12s} - {product.name}")
+    try:
+        selected = int(input(f"\n  Choose [1-{len(available)}]: ")) - 1
     except (KeyboardInterrupt, ValueError):
         return
-    if 0 <= idx < len(providers):
-        provider_login(providers[idx])
+    if 0 <= selected < len(available):
+        provider_login(available[selected].catalog_id)
 
 
-def _ordered_provider_ids() -> list[str]:
-    provider_ids = [
-        provider_id
-        for provider_id in BUILTIN_PROFILES
-        if provider_id != CUSTOM_OPENAI_PROVIDER_ID
-    ]
-    provider_ids.append(CUSTOM_OPENAI_PROVIDER_ID)
-    return provider_ids
+def _ordered_products(
+    providers: ProvidersService,
+    principal: AccountPrincipal,
+) -> tuple[ProviderProductResult, ...]:
+    available = products(providers, principal)
+    regular = tuple(
+        item for item in available if item.catalog_id != "custom_openai"
+    )
+    custom = tuple(item for item in available if item.catalog_id == "custom_openai")
+    return regular + custom
 
 
-def _test_configured_providers(config: UserConfig) -> None:
-    print("\n  Testing all configured providers...\n")
-    rt_config = LLMRuntimeConfig.load()
-    providers_config = config.get("providers", {})
-    rows = {row.provider_id: row for row in list_configured_provider_rows(config)}
-    for provider_id in providers_config.keys():
-        profile = get_known_profile(provider_id)
-        if not profile:
-            continue
-
-        result = verify_provider(provider_id, rt_config)
-        name = rows[provider_id].name if provider_id in rows else profile.name
-
-        if result["status"] == "active":
-            latency = result.get("latency_ms", 0)
-            print(f"    ✅ {name}: available ({latency:.0f}ms)")
-        else:
-            error = result.get("error", "unknown error")
-            print(f"    ❌ {name}: {error}")
-
-    input("\n  Press Enter to continue...")
+def _confirm_delete(name: str) -> bool:
+    try:
+        return input(f"Delete {name}? Type 'yes' to confirm: ").strip().lower() == "yes"
+    except (EOFError, KeyboardInterrupt):
+        return False
 
 
-def _print_all_providers(config: UserConfig) -> None:
-    print("\n  📋 Provider List\n")
-    print(f"  {'ID':<12s} {'Name':<20s} {'Status':<8s} {'API Mode':<20s}")
-    print("  " + "-" * 70)
-    for row in list_provider_rows(config):
-        status_icon = "✅" if row.status == "active" else "⭕"
-        status_text = f"{status_icon} {row.status}"
-        print(
-            f"  {row.provider_id:<12s} {row.name:<20s} {status_text:<8s} {row.api_mode:<20s}"
-        )
-    print()
+def _pause() -> None:
+    try:
+        input("\nPress Enter to continue...")
+    except (EOFError, KeyboardInterrupt):
+        return
+
+
+__all__ = ("ProviderLogin", "config_providers")

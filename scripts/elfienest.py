@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from functools import partial
 from pathlib import Path
 from typing import NoReturn
 
@@ -27,6 +28,7 @@ from ai_runtime.storage.data_home import (
     resolve_elfie_home,
 )
 from app.bootstrap.accounts import build_accounts_service
+from app.bootstrap.cli_configuration import build_cli_configuration
 from app.bootstrap.lifecycle import create_lifecycle_facade
 from app.bootstrap.operations import build_operations_facade
 from app.interfaces.cli.doctor_commands import run_doctor
@@ -192,7 +194,19 @@ def dispatch_command(
 
 def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> None:
     if args.command == "config":
-        run_config_tui(login_provider, getattr(args, "config_path", None))
+        configuration = build_cli_configuration(str(get_db_path()))
+        run_config_tui(
+            configuration.providers,
+            configuration.settings,
+            configuration.principal,
+            partial(
+                login_provider,
+                configuration.providers,
+                configuration.principal,
+            ),
+            configuration.runtime_menus,
+            getattr(args, "config_path", None),
+        )
     elif args.command == "serve":
         options = _service_options_from_args(args)
         if args.force:

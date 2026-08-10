@@ -1,29 +1,44 @@
 from __future__ import annotations
 
-from typing import Callable, Optional
+from typing import Callable, Optional, Protocol
 
-from ai_runtime.lab.cli import RuntimeLab
 from ai_runtime.lab.menu import MenuItem, TerminalMenu
-from app.features.configuration.user_config import read_user_config
+from app.features.accounts import AccountPrincipal
+from app.features.configuration import ProvidersService, SettingsService
 from app.interfaces.cli.tui.common import clear_screen, print_banner, print_tui_panel
 from app.interfaces.cli.tui.config_views import reset_config, show_config
+from app.interfaces.cli.tui.provider_menu import config_providers
 
 ProviderLogin = Callable[[str], None]
 
 
+class RuntimeConfigMenus(Protocol):
+    def tool_menu(self) -> None: ...
+
+    def food_menu(self) -> None: ...
+
+
 def run_config_tui(
+    providers: ProvidersService,
+    settings: SettingsService,
+    principal: AccountPrincipal,
     provider_login: ProviderLogin,
+    runtime_menus: RuntimeConfigMenus,
     initial_path: Optional[str] = None,
 ) -> None:
-    """Run the single Config menu with arrow-key navigation in a TTY."""
-    runtime_lab = RuntimeLab()
+    """Run the single Config menu with explicit Feature and menu injection."""
     menu = TerminalMenu(input_fn=input, output_fn=print)
     if initial_path:
-        _dispatch_initial_path(initial_path, runtime_lab, provider_login)
+        _dispatch_initial_path(
+            initial_path,
+            providers,
+            principal,
+            provider_login,
+            runtime_menus,
+        )
     while True:
         clear_screen()
         print_banner()
-        config = read_user_config()
         print_tui_panel(
             "Config Center / Runtime Config",
             "AI runtime core config; other settings in Web console",
@@ -44,29 +59,33 @@ def run_config_tui(
             print("\nGoodbye!")
             return
         if choice == "1":
-            runtime_lab.provider_menu()
+            config_providers(providers, principal, provider_login)
         elif choice == "2":
-            runtime_lab.tool_menu()
+            runtime_menus.tool_menu()
         elif choice == "3":
-            runtime_lab.food_menu()
+            runtime_menus.food_menu()
         elif choice == "4":
-            show_config(config)
+            show_config(providers, settings, principal)
         elif choice == "5":
-            reset_config()
+            reset_config(settings, principal)
 
 
 def _dispatch_initial_path(
     initial_path: str,
-    runtime_lab: RuntimeLab,
+    providers: ProvidersService,
+    principal: AccountPrincipal,
     provider_login: ProviderLogin,
+    runtime_menus: RuntimeConfigMenus,
 ) -> None:
-    """Open an explicitly requested second-level path once before the menu."""
     path = initial_path.strip().lower()
     if path in {"provider", "providers"}:
-        runtime_lab.provider_menu()
+        config_providers(providers, principal, provider_login)
     elif path in {"agent", "tools"}:
-        runtime_lab.tool_menu()
+        runtime_menus.tool_menu()
     elif path in {"food", "foods"}:
-        runtime_lab.food_menu()
+        runtime_menus.food_menu()
     elif path == "login":
         provider_login("ollama")
+
+
+__all__ = ("ProviderLogin", "RuntimeConfigMenus", "run_config_tui")

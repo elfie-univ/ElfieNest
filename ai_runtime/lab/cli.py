@@ -54,8 +54,8 @@ from ai_runtime.validation.providers import (
     discover_provider_models,
 )
 from ai_runtime.validation.tools import DirectToolValidationRunner
-from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
-from app.infrastructure.persistence.store import init_db
+from infrastructure.persistence import init_db
+from infrastructure.persistence.food_catalog import SQLiteFoodPackageRepository
 
 
 class RuntimeLab:

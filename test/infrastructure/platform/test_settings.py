@@ -90,3 +90,27 @@ def test_security_write_is_a_complete_typed_section(
         "session_ttl_days": 2,
         "rate_limit": {"max_attempts": 5, "window_seconds": 300},
     }
+
+
+def test_reset_settings_preserves_unowned_fields(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    path = _runtime_path(tmp_path)
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "system": {"engine": {"tick_interval_sec": 9.0}},
+                "runtime_policy": {"unowned": {"enabled": True}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    RuntimeSettingsAdapter().reset_settings()
+
+    saved = yaml.safe_load(path.read_text(encoding="utf-8"))
+    assert saved["system"]["engine"]["tick_interval_sec"] == 1.5
+    assert saved["runtime_policy"]["unowned"]["enabled"] is True

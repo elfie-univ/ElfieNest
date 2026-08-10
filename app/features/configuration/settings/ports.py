@@ -32,5 +32,8 @@ class SettingsStorePort(Protocol):
     def save_security_settings(self, settings: StoredSecuritySettings) -> None:
         ...
 
+    def reset_settings(self) -> None:
+        ...
+
 
 __all__ = ("SettingsStorePort",)

@@ -118,6 +118,11 @@ class DeleteProviderConnectionCommand:
 
 
 @dataclass(frozen=True)
+class RemoveLocalProviderConnectionCommand:
+    connection_id: str
+
+
+@dataclass(frozen=True)
 class ChangeProviderConnectionLifecycleCommand:
     connection_id: str
     action: LifecycleAction
@@ -207,6 +212,8 @@ class ProviderProductResult:
     usage_scope: str
     discovery_strategy: DiscoveryStrategy
     api_mode: ApiMode
+    api_base: str
+    auth_type: AuthType
 
 
 @dataclass(frozen=True)

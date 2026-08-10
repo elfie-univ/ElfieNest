@@ -13,8 +13,10 @@ from .models import (
     GetRuntimeSettingsQuery,
     GetSecuritySettingsQuery,
     LoginRateLimit,
+    ResetSettingsCommand,
     RuntimeSettingsResult,
     SecuritySettingsResult,
+    SettingsResetResult,
     UpdateElfieSettingsCommand,
     UpdateRuntimeSettingsCommand,
     UpdateSecuritySettingsCommand,
@@ -135,6 +137,22 @@ class SettingsService:
         self._validate_security_settings(updated)
         self._store.save_security_settings(updated)
         return self._security_result(updated)
+
+    def reset_settings(
+        self,
+        principal: AccountPrincipal,
+        command: ResetSettingsCommand,
+    ) -> SettingsResetResult:
+        _ = command
+        self._require_manager(principal)
+        self._store.reset_settings()
+        return SettingsResetResult(
+            elfies=self._elfie_result(self._store.load_elfie_settings()),
+            runtime=RuntimeSettingsResult(
+                tick_interval_sec=self._store.load_runtime_settings().tick_interval_sec
+            ),
+            security=self._security_result(self._store.load_security_settings()),
+        )
 
     @staticmethod
     def _require_manager(principal: AccountPrincipal) -> None:
