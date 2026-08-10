@@ -177,7 +177,7 @@ def test_reports_and_food_facts_use_only_contract_paths() -> None:
 
 
 def test_elfie_main_food_uses_the_final_elfie_row_without_legacy_policy() -> None:
-    schema_source = _source("app/infrastructure/persistence/final_schema.py")
+    schema_source = _source("infrastructure/persistence/final_schema.py")
     assert "main_food_id TEXT" in schema_source
     assert "elfie_food_preferences" not in schema_source
 

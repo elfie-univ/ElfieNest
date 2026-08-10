@@ -131,6 +131,9 @@ def test_lifecycle_supervisor_uses_command_data_home(
     captured: dict[str, Path] = {}
 
     class Lifecycle:
+        def prepare_optional_component(self) -> None:
+            return
+
         def runtime_supervisor(self, **kwargs: Any) -> _HealthSupervisor:
             captured["elfie_home"] = kwargs["elfie_home"]
             return _HealthSupervisor()
@@ -153,6 +156,9 @@ def test_lifecycle_supervisor_publishes_selected_home_to_child(
     child_environments: list[dict[str, str]] = []
 
     class Lifecycle:
+        def prepare_optional_component(self) -> None:
+            return
+
         def runtime_supervisor(self, **kwargs: Any) -> _HealthSupervisor:
             child_environments.append(dict(kwargs["child_environment"]))
             return _HealthSupervisor()

@@ -350,8 +350,9 @@ def main() -> None:
                     "/api/v1/elfies",
                     headers={"X-CSRF-Token": alice_csrf},
                 )
-                if status == 200 and isinstance(data, list) and len(data) >= 1:
-                    names = [e["name"] for e in data]
+                items = data.get("items") if isinstance(data, dict) else None
+                if status == 200 and isinstance(items, list) and items:
+                    names = [e["profile"]["name"] for e in items]
                     if "Snow" in names:
                         print("    ✅ Snow appears in Alice's Elfie list")
                         results[1] = True
