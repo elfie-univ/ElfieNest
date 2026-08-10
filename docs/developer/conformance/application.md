@@ -155,16 +155,16 @@ Status: closed
 Domain: elfies
 Gap IDs: APP-001, APP-003, APP-004, APP-005, APP-006, APP-009, APP-011
 Current authoritative facts: Elfie identity and adoption relationships in nest.db; authoritative profile.yaml per Elfie; cognition SQLite per Elfie
-Routes and production callers: member Elfie list/profile, conversation list and administrator monitoring aggregate; target resources are /api/v1/elfies and /api/v1/admin/elfies
+Routes and production callers: /api/v1/elfies, /api/v1/admin/elfies and the existing member/administrator Elfie surfaces; administrator status is composed from separate Food, Nest and Embodiment resources
 Target public facade and models: authorized Elfies query facade; strict relationship, permission, Profile, cognition, member and administrator results
 Ports and adapters: ElfiesQueryPort implemented by the root Infrastructure read-only SQLite/workspace projection adapter and injected by Bootstrap
 Consistency class: read-only queries; missing or damaged Profile/cognition projects to empty or unavailable and never creates or repairs state
 Principal and authorization: Interface authenticates an account principal; the Elfies facade enforces member ownership and authorizes global administrator projections
 Timeout / retry / idempotency: local read-only SQLite/YAML; short cognition-database busy timeout; no retry; queries are idempotent
-Legacy deletion list: app/features/elfie_profile; old Interface cognition reader; Elfies-owned assembly in mixed member/admin Routes; old DTOs, frontend clients and fixtures
+Legacy deletion list: deleted app/features/elfie_profile, mixed member/admin Routes, duplicate Interface repositories, old DTOs, frontend clients and fixtures
 Focused tests and end-to-end gate: Feature, Adapter and strict member/admin Route tests; existing member Profile/conversation and admin-monitor regression; frontend Elfie surfaces; App/System/Storage architecture gates
-Machine baseline entries removed: old cognition Feature-to-Infrastructure imports; member Route direct dependencies on the old cognition projection and reader
-Status: in progress
+Machine baseline entries removed: every old Elfies Route construction/concrete/internal import, loose/missing response model and unversioned administrator resource
+Status: closed
 ```
 
 ### Configuration: model Provider administration

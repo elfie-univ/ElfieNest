@@ -9,19 +9,14 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-from ai_runtime.storage.data_layout import final_root_layout
 from app.bootstrap import create_app
-from infrastructure.persistence.store import init_db
 from elfie.body import BodyId, BodySensorEvent, UtteranceFinal
-from elfie.brain.memory.knowledge_store import KnowledgeStore
-from elfie.brain.memory.node_types import MemoryNode
 from elfie.message_types import (
     ActorId,
     ActorRef,
     EventId,
 )
-from infrastructure.persistence.bodies import SQLiteBodiesAdapter
-from infrastructure.persistence.embodiment import SQLiteEmbodimentLeaseAdapter
+from infrastructure.persistence.store import init_db
 
 from ._helpers import (
     adopt_test_elfie,
@@ -68,85 +63,24 @@ def _complete_setup(client: TestClient) -> None:
     complete_test_setup(client.app.state.db_path)
 
 
-def test_v1_profile_detail_exposes_private_projection_only_to_the_owner(
+def test_elfie_resources_are_registered_without_legacy_owner_route(
     client: TestClient,
 ) -> None:
     csrf_token = _login_owner(client)
     elfie_id = _adopt_elfie(client, csrf_token)
 
-    response = client.get(f"/api/v1/elfies/{elfie_id}/profile")
+    member = client.get("/api/v1/elfies")
+    profile = client.get(f"/api/v1/elfies/{elfie_id}/profile")
+    admin = client.get("/api/v1/admin/elfies")
+    legacy = client.get("/api/owner/elfies")
 
-    assert response.status_code == 200
-    profile = response.json()
-    assert profile["elfie_id"] == elfie_id
-    assert profile["name"] == "小白"
-    public_keys = {
-        "elfie_id",
-        "name",
-        "species_id",
-        "gender",
-        "birth_date",
-        "summary",
-        "online_status",
-        "portrait_url",
-        "appearance",
-        "big_five",
-        "personality_tags",
-        "nest",
-        "embodiment",
-    }
-    assert set(profile) == public_keys | {"private_cognition", "care_settings"}
-    assert profile["private_cognition"]["status"] == "empty"
-    assert set(profile["care_settings"]) == {"food"}
-    assert set(profile["care_settings"]["food"]) == {
-        "selected_id",
-        "selected_label",
-        "options",
-        "unavailable",
-    }
-    listing = client.get("/api/v1/elfies")
-    assert listing.status_code == 200
-    assert set(listing.json()[0]) == public_keys
-    rendered = str(profile)
-    assert "config_dir" not in rendered
-    assert "profile.yaml" not in rendered
-    assert "memory" not in rendered
-
-
-def test_v1_owner_profile_reads_real_cognition_but_list_stays_public(
-    client: TestClient,
-) -> None:
-    csrf_token = _login_owner(client)
-    elfie_id = _adopt_elfie(client, csrf_token)
-    data_home = Path(client.app.state.db_path).parent
-    cognition_path = final_root_layout(data_home).elfie(elfie_id).knowledge_database
-    cognition_path.parent.mkdir(parents=True, exist_ok=True)
-    with KnowledgeStore(cognition_path) as store:
-        store.add_node(
-            MemoryNode(
-                id="event_adoption",
-                type="episodic",
-                content="被主人领养，搬进了新的家。",
-                metadata={
-                    "timestamp": "2026-06-30T08:00:00Z",
-                    "major_event": True,
-                    "importance": 0.95,
-                    "title": "被领养",
-                },
-            )
-        )
-
-    detail = client.get(f"/api/v1/elfies/{elfie_id}/profile")
-    listing = client.get("/api/v1/elfies")
-
-    assert detail.status_code == 200
-    assert detail.json()["private_cognition"]["status"] == "ready"
-    assert (
-        detail.json()["private_cognition"]["important_experiences"]["entries"][0]["id"]
-        == "event_adoption"
-    )
-    assert "private_cognition" not in listing.json()[0]
-    assert "care_settings" not in listing.json()[0]
+    assert member.status_code == 200
+    assert member.json()["items"][0]["profile"]["elfie_id"] == elfie_id
+    assert profile.status_code == 200
+    assert profile.json()["profile"]["elfie_id"] == elfie_id
+    assert admin.status_code == 200
+    assert admin.json()["items"][0]["profile"]["elfie_id"] == elfie_id
+    assert legacy.status_code == 404
 
 
 def test_v1_routes_require_a_session(client: TestClient) -> None:
@@ -210,24 +144,6 @@ def test_admin_can_persist_a_safe_default_landing_page(client: TestClient) -> No
     assert response.status_code == 200
     assert response.json() == {"default_landing_page": "chat"}
     assert root.headers["location"] == "/chat"
-
-
-def test_v1_profile_reads_the_persisted_embodiment_state(client: TestClient) -> None:
-    csrf_token = _login_owner(client)
-    elfie_id = _adopt_elfie(client, csrf_token)
-    body = SQLiteBodiesAdapter(client.app.state.db_path).enroll(
-        owner_user_id=1,
-        elfie_id=elfie_id,
-        display_name="模拟身体",
-        body_type="simulated",
-    )
-    SQLiteEmbodimentLeaseAdapter(client.app.state.db_path).begin_hosting(
-        elfie_id, body.body_id, lease_seconds=30
-    )
-
-    profile = client.get(f"/api/v1/elfies/{elfie_id}/profile")
-
-    assert profile.json()["embodiment"] == {"state": "switching_to_hosted"}
 
 
 def test_owner_can_enroll_rotate_and_revoke_a_hashed_body_credential(

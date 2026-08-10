@@ -3,7 +3,7 @@ import { useEffect, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { z } from "zod"
 
-import { ownerElfies, ownerRead, ownerRooms, ownerWrite } from "../api/client"
+import { adminElfies, ownerRead, ownerRooms, ownerWrite } from "../api/client"
 import type { ToolKey } from "../api/owner-tools"
 import { describeApiError, resolveLocalizedError, type LocalizedErrorState } from "../i18n/errors"
 import { currentLocale } from "../i18n/format"
@@ -51,7 +51,7 @@ export function SystemSettingsPanel({ csrfToken }: { readonly csrfToken: string 
         ownerRead("/api/v1/admin/settings/elfies"),
         ownerRead("/api/v1/admin/settings/security"),
         ownerRooms(),
-        ownerElfies(),
+        adminElfies(),
       ])
       const room = rooms[0]
       setEngine(EngineSchema.parse(loadedEngine))

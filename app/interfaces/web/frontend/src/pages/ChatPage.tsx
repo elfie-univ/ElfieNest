@@ -12,7 +12,9 @@ import {
 import { ApiError } from "../api/http"
 import {
   elfies,
+  elfieFoodPolicy,
   profile,
+  type ElfieFoodPolicy,
   type ElfieProfileDetail,
 } from "../api/client"
 import { AdoptionJourneyDialog } from "../components/adoption/AdoptionJourneyDialog"
@@ -78,6 +80,7 @@ export function ChatPage() {
   const [showMobileMe, setShowMobileMe] = useState(false)
   const [history, setHistory] = useState<readonly ChatMessage[]>([])
   const [selectedProfile, setSelectedProfile] = useState<ElfieProfileDetail | null>(null)
+  const [selectedFoodPolicy, setSelectedFoodPolicy] = useState<ElfieFoodPolicy | null>(null)
   const [failure, setFailure] = useState<ChatFailure | null>(null)
   const [draft, setDraft] = useState("")
   const [showAdoption, setShowAdoption] = useState(false)
@@ -162,9 +165,13 @@ export function ChatPage() {
 
   useEffect(() => {
     setSelectedProfile(null)
+    setSelectedFoodPolicy(null)
     if (selectedId === null || viewState.view !== "profile") return
-    void profile(selectedId)
-      .then(setSelectedProfile)
+    void Promise.all([profile(selectedId), elfieFoodPolicy(selectedId)])
+      .then(([loadedProfile, foodPolicy]) => {
+        setSelectedProfile(loadedProfile)
+        setSelectedFoodPolicy(foodPolicy)
+      })
       .catch((reason: unknown) => {
         setFailure({ detail: reason instanceof ApiError ? reason.message : null, operation: "chat.load" })
       })
@@ -226,18 +233,25 @@ export function ChatPage() {
     go({ view: "conversation", elfie: selectedId })
   }
   const adoptionCompleted = async (elfieId: string): Promise<void> => {
-    const [ownedElfies, rows, loadedProfile] = await Promise.all([
+    const [ownedElfies, rows, loadedProfile, foodPolicy] = await Promise.all([
       elfies(),
       conversations(),
       profile(elfieId),
+      elfieFoodPolicy(elfieId),
     ])
     setData(createOwnedChatData(ownedElfies, rows, user.account_id))
     setSelectedProfile(loadedProfile)
+    setSelectedFoodPolicy(foodPolicy)
     go({ view: "profile", elfie: elfieId })
   }
   const saveSelectedFood = async (): Promise<void> => {
     if (selectedId === null) return
-    setSelectedProfile(await profile(selectedId))
+    const [loadedProfile, foodPolicy] = await Promise.all([
+      profile(selectedId),
+      elfieFoodPolicy(selectedId),
+    ])
+    setSelectedProfile(loadedProfile)
+    setSelectedFoodPolicy(foodPolicy)
   }
   const submit = async (): Promise<void> => {
     if (selectedId === null || !draft.trim()) return
@@ -319,7 +333,12 @@ export function ChatPage() {
               onBack={() => go({ view: "elfies" })}
               onChat={() => { if (selectedId !== null) go({ view: "conversation", elfie: selectedId }) }}
               onFoodSaved={saveSelectedFood}
-              projection={presentElfieProfile(selectedProfile ?? selected ?? null, user.account_id, selectedId === null ? null : data?.adopterAccountIds[selectedId] ?? null)}
+              projection={presentElfieProfile(
+                selectedProfile ?? selected ?? null,
+                user.account_id,
+                selectedId === null ? null : data?.adopterAccountIds[selectedId] ?? null,
+                selectedFoodPolicy,
+              )}
             />
           </section>
         )}

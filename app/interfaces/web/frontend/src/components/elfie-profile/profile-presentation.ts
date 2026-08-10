@@ -1,4 +1,5 @@
 import type { ElfieProfile, ElfieProfileDetail } from "../../api/client"
+import type { ElfieFoodPolicy } from "../../api/elfies/food-policy"
 import {
   ElfieIdSchema,
   parseGodotAppearance,
@@ -16,31 +17,33 @@ export function presentElfieProfile(
   profile: ElfieProfile | ElfieProfileDetail | null,
   viewerAccountId: string,
   adopterAccountId: string | null = null,
+  foodPolicy: ElfieFoodPolicy | null = null,
 ): ElfieProfileProjection | null {
   if (profile === null) return null
-  return presentApiProfile(profile, viewerAccountId, adopterAccountId)
+  return presentApiProfile(profile, viewerAccountId, adopterAccountId, foodPolicy)
 }
 
 function presentApiProfile(
   profile: ElfieProfile | ElfieProfileDetail,
   viewerAccountId: string,
   adopterAccountId: string | null,
+  foodPolicy: ElfieFoodPolicy | null,
 ): AdopterProfileProjection | VisitorProfileProjection | null {
   const elfieId = ElfieIdSchema.safeParse(profile.elfie_id)
   if (!elfieId.success) return null
 
   const publicProfile: PublicProfile = {
     appearance: {
-      bodyPlan: scalar(profile.appearance["body_plan"]) ?? profile.species_id,
-      palette: scalar(profile.appearance["palette"]) ?? "未记录",
-      signature: scalar(profile.appearance["signature"]) ?? "未记录",
+      bodyPlan: profile.appearance?.species_id ?? profile.species_id,
+      palette: scalar(profile.appearance?.material_parameters["palette_id"]) ?? "未记录",
+      signature: scalar(profile.appearance?.material_parameters["pattern_id"]) ?? "未记录",
     },
     bigFive: {
-      agreeableness: trait(profile.big_five["agreeableness"]),
-      conscientiousness: trait(profile.big_five["conscientiousness"]),
-      extraversion: trait(profile.big_five["extraversion"]),
-      neuroticism: trait(profile.big_five["neuroticism"]),
-      openness: trait(profile.big_five["openness"]),
+      agreeableness: trait(profile.big_five?.agreeableness),
+      conscientiousness: trait(profile.big_five?.conscientiousness),
+      extraversion: trait(profile.big_five?.extraversion),
+      neuroticism: trait(profile.big_five?.neuroticism),
+      openness: trait(profile.big_five?.openness),
     },
     biography: profile.summary?.trim() ?? "",
     elfieId: elfieId.data,
@@ -52,13 +55,13 @@ function presentApiProfile(
   }
 
   if (adopterAccountId !== null && viewerAccountId === adopterAccountId) {
-    if (!isProfileDetail(profile)) return null
+    if (!isProfileDetail(profile) || foodPolicy === null) return null
     return {
       adoption: {
-        adoptedAt: "未登记",
+        adoptedAt: profile.adopted_at,
         ageLabel: ageLabel(profile.birth_date),
       },
-      careSettings: mapCareSettings(profile.care_settings),
+      careSettings: mapCareSettings(foodPolicy),
       kind: "adopter",
       ownerDisplayName: viewerAccountId,
       privateCognition: mapPrivateCognition(profile.private_cognition),
@@ -74,7 +77,7 @@ function presentApiProfile(
 }
 
 function isProfileDetail(profile: ElfieProfile | ElfieProfileDetail): profile is ElfieProfileDetail {
-  return "private_cognition" in profile && "care_settings" in profile
+  return "private_cognition" in profile
 }
 
 function mapPrivateCognition(source: ElfieProfileDetail["private_cognition"]): PrivateCognition {
@@ -133,13 +136,15 @@ function mapPrivateCognition(source: ElfieProfileDetail["private_cognition"]): P
   }
 }
 
-function mapCareSettings(source: ElfieProfileDetail["care_settings"]): CareSettings {
+function mapCareSettings(source: ElfieFoodPolicy): CareSettings {
+  const selectedId = source.effective_main_food_id || source.main_food_id
+  const selectedLabel = source.main_food_options.find((item) => item.food_id === selectedId)?.display_name ?? ""
   return {
     food: {
-      options: source.food.options,
-      selectedId: source.food.selected_id,
-      selectedLabel: source.food.selected_label,
-      unavailable: source.food.unavailable,
+      options: source.main_food_options.map((item) => ({ id: item.food_id, label: item.display_name })),
+      selectedId,
+      selectedLabel,
+      unavailable: source.main_food_unavailable,
     },
   }
 }
@@ -153,8 +158,8 @@ function ageLabel(birthDate: string | null): string {
   return months < 12 ? `${months} 个月` : `${Math.floor(months / 12)} 岁`
 }
 
-function trait(value: number | undefined): number {
-  if (value === undefined) return 0
+function trait(value: number | null | undefined): number {
+  if (value === undefined || value === null) return 0
   return Math.min(1, Math.max(0, value))
 }
 

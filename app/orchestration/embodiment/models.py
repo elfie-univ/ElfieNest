@@ -9,6 +9,11 @@ from nest.embodiment import EmbodimentState
 
 
 @dataclass(frozen=True)
+class ListEmbodimentSessionsQuery:
+    pass
+
+
+@dataclass(frozen=True)
 class EmbodimentSession:
     elfie_id: str
     state: EmbodimentState
@@ -43,4 +48,5 @@ __all__ = (
     "Hosted",
     "HostingFailed",
     "HostingResult",
+    "ListEmbodimentSessionsQuery",
 )

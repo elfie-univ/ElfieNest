@@ -7,7 +7,10 @@ import time
 from typing import ContextManager
 
 from app.orchestration.embodiment.models import EmbodimentSession
-from app.orchestration.embodiment.ports import EmbodimentLeaseConflict
+from app.orchestration.embodiment.ports import (
+    EmbodimentLeaseConflict,
+    EmbodimentLeasePortError,
+)
 from nest.embodiment import EmbodimentState
 
 from .sqlite_connection import app_sqlite_connection
@@ -27,6 +30,22 @@ def get_embodiment_session(db_path: str, elfie_id: str) -> EmbodimentSession:
             (elfie_id,),
         ).fetchone()
     return _row_to_session(elfie_id, row)
+
+
+def list_embodiment_sessions(db_path: str) -> tuple[EmbodimentSession, ...]:
+    """List every registered Elfie's current session without creating rows."""
+    try:
+        with get_db(db_path) as connection:
+            rows = connection.execute(
+                """SELECT e.elfie_id, s.state, s.body_id, s.lease_expires_at,
+                          s.lease_version
+                   FROM elfies AS e
+                   LEFT JOIN embodiment_sessions AS s ON s.elfie_id=e.elfie_id
+                   ORDER BY e.elfie_id"""
+            ).fetchall()
+    except sqlite3.DatabaseError as error:
+        raise EmbodimentLeasePortError("unable to list Embodiment sessions") from error
+    return tuple(_row_to_session(str(row["elfie_id"]), row) for row in rows)
 
 
 def begin_hosting(
@@ -249,7 +268,7 @@ def _read_session(connection: sqlite3.Connection, elfie_id: str) -> EmbodimentSe
 
 
 def _row_to_session(elfie_id: str, row: sqlite3.Row | None) -> EmbodimentSession:
-    if row is None:
+    if row is None or row["state"] is None:
         return EmbodimentSession(elfie_id, EmbodimentState.AT_NEST, None, None, 0)
     expires_at = row["lease_expires_at"]
     return EmbodimentSession(
@@ -269,6 +288,9 @@ class SQLiteEmbodimentLeaseAdapter:
 
     def get(self, elfie_id: str) -> EmbodimentSession:
         return get_embodiment_session(self._db_path, elfie_id)
+
+    def list_sessions(self) -> tuple[EmbodimentSession, ...]:
+        return list_embodiment_sessions(self._db_path)
 
     def begin_hosting(
         self, elfie_id: str, body_id: str, *, lease_seconds: float

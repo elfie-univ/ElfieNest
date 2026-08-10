@@ -2,18 +2,25 @@
 
 from __future__ import annotations
 
+from app.features.accounts import AccountPrincipal, is_manager
 from elfie import Elfie
 from elfie.body import BodyPort
 from nest.embodiment import EmbodimentState
 
+from .errors import EmbodimentForbidden, EmbodimentUnavailable
 from .models import (
     EmbodimentConflict,
     EmbodimentSession,
     Hosted,
     HostingFailed,
     HostingResult,
+    ListEmbodimentSessionsQuery,
 )
-from .ports import EmbodimentLeaseConflict, EmbodimentLeasePort
+from .ports import (
+    EmbodimentLeaseConflict,
+    EmbodimentLeasePort,
+    EmbodimentLeasePortError,
+)
 
 
 class EmbodimentSessionService:
@@ -24,6 +31,20 @@ class EmbodimentSessionService:
 
     def get_session(self, elfie_id: str) -> EmbodimentSession:
         return self._leases.get(elfie_id)
+
+    def list_sessions(
+        self,
+        principal: AccountPrincipal,
+        query: ListEmbodimentSessionsQuery,
+    ) -> tuple[EmbodimentSession, ...]:
+        """Return the existing durable session projection to managers only."""
+        del query
+        if not is_manager(principal.role):
+            raise EmbodimentForbidden("Embodiment sessions require a manager")
+        try:
+            return self._leases.list_sessions()
+        except EmbodimentLeasePortError as error:
+            raise EmbodimentUnavailable("Embodiment sessions unavailable") from error
 
     def host(
         self, elfie_id: str, elfie: Elfie, body: BodyPort, *, lease_seconds: float

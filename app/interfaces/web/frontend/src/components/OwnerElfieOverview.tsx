@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import {
-  ownerElfies,
+  adminElfies,
+  elfieFoodPolicy,
+  embodimentSessions,
+  ownerRooms,
   ownerUsers,
-  type OwnerElfie,
-  type OwnerElfieFilters,
   type OwnerUser,
 } from "../api/client"
 import { compareAccountListOrder } from "../api/roles"
@@ -16,6 +17,7 @@ import { Notice } from "./Notice"
 import { RefreshButton } from "./RefreshButton"
 import { SelectField } from "./SelectField"
 import { useToast } from "./ui/toast"
+import { composeManagedElfies, type ManagedElfie } from "./managed-elfie"
 
 const ALL_USERS = "all-users"
 const ALL_SPECIES = "all-species"
@@ -41,31 +43,23 @@ type OwnerElfieOverviewProps = {
   readonly onCountChange: (count: number) => void
 }
 
-function toApiFilters(selection: FilterSelection): OwnerElfieFilters {
-  return {
-    ...(selection.ownerUserId === null ? {} : { ownerUserId: selection.ownerUserId }),
-    ...(selection.speciesId === ALL_SPECIES ? {} : { speciesId: selection.speciesId }),
-    ...(selection.foodKey === ALL_FOODS ? {} : { foodKey: selection.foodKey }),
-    ...(selection.embodimentState === ALL_STATES
-      ? {}
-      : { embodimentState: selection.embodimentState }),
-  }
+function compareElfieId(left: ManagedElfie, right: ManagedElfie): number {
+  return Number.parseInt(left.profile.elfie_id, 10) - Number.parseInt(right.profile.elfie_id, 10)
 }
 
-function hasFilters(filters: OwnerElfieFilters): boolean {
-  return Object.values(filters).some((value) => value !== undefined)
-}
-
-function compareElfieId(left: OwnerElfie, right: OwnerElfie): number {
-  return Number.parseInt(left.elfie_id, 10) - Number.parseInt(right.elfie_id, 10)
+function matchesSelection(elfie: ManagedElfie, selection: FilterSelection): boolean {
+  return (selection.ownerUserId === null || elfie.owner.user_id === selection.ownerUserId)
+    && (selection.speciesId === ALL_SPECIES || elfie.profile.species_id === selection.speciesId)
+    && (selection.foodKey === ALL_FOODS || elfie.foodPolicy.effective_main_food_id === selection.foodKey)
+    && (selection.embodimentState === ALL_STATES || elfie.embodiment.state === selection.embodimentState)
 }
 
 export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverviewProps) {
   const { i18n, t } = useTranslation("manage")
   const locale = currentLocale(i18n)
   const [users, setUsers] = useState<readonly OwnerUser[] | null>(null)
-  const [allElfies, setAllElfies] = useState<readonly OwnerElfie[] | null>(null)
-  const [elfies, setElfies] = useState<readonly OwnerElfie[]>([])
+  const [allElfies, setAllElfies] = useState<readonly ManagedElfie[] | null>(null)
+  const [elfies, setElfies] = useState<readonly ManagedElfie[]>([])
   const [selection, setSelection] = useState<FilterSelection>(INITIAL_SELECTION)
   const [error, setError] = useState<LocalizedErrorState>(null)
   const { show } = useToast()
@@ -80,14 +74,25 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
     setError(null)
     onCountChange(0)
     try {
-      const filters = toApiFilters(nextSelection)
-      const allPromise = ownerElfies({})
-      const filteredPromise = hasFilters(filters) ? ownerElfies(filters) : allPromise
-      const [loadedUsers, loadedAll, loadedElfies] = await Promise.all([
+      const [loadedUsers, identities, sessions, rooms] = await Promise.all([
         ownerUsers(),
-        allPromise,
-        filteredPromise,
+        adminElfies(),
+        embodimentSessions(),
+        ownerRooms(),
       ])
+      const policies = await Promise.all(
+        identities.map(async (elfie) => [
+          elfie.profile.elfie_id,
+          await elfieFoodPolicy(elfie.profile.elfie_id),
+        ] as const),
+      )
+      const loadedAll = composeManagedElfies(
+        identities,
+        new Map(policies),
+        sessions,
+        rooms,
+      )
+      const loadedElfies = loadedAll.filter((elfie) => matchesSelection(elfie, nextSelection))
       if (sequence !== loadSequence.current) return
       setUsers(loadedUsers)
       setAllElfies(loadedAll)
@@ -107,10 +112,19 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
 
   const reloadElfies = async (): Promise<void> => {
     try {
-      const filters = toApiFilters(selection)
-      const allPromise = ownerElfies({})
-      const filteredPromise = hasFilters(filters) ? ownerElfies(filters) : allPromise
-      const [loadedAll, loadedElfies] = await Promise.all([allPromise, filteredPromise])
+      const [identities, sessions, rooms] = await Promise.all([
+        adminElfies(),
+        embodimentSessions(),
+        ownerRooms(),
+      ])
+      const policies = await Promise.all(
+        identities.map(async (elfie) => [
+          elfie.profile.elfie_id,
+          await elfieFoodPolicy(elfie.profile.elfie_id),
+        ] as const),
+      )
+      const loadedAll = composeManagedElfies(identities, new Map(policies), sessions, rooms)
+      const loadedElfies = loadedAll.filter((elfie) => matchesSelection(elfie, selection))
       setAllElfies(loadedAll)
       setElfies(loadedElfies)
       onCountChange(loadedAll.length)
@@ -134,8 +148,8 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
   const loadedElfies = allElfies ?? []
   const loadedUsers = users ?? []
   const species = [...new Set(loadedElfies.map((elfie) => elfie.profile.species_id))].sort((left, right) => compareLocalizedText(left, right, locale))
-  const foods = [...new Set(loadedElfies.map((elfie) => elfie.food_policy.effective_main_food_id))].sort((left, right) => compareLocalizedText(left, right, locale))
-  const states = [...new Set(loadedElfies.map((elfie) => elfie.profile.embodiment.state))].sort((left, right) => compareLocalizedText(left, right, locale))
+  const foods = [...new Set(loadedElfies.map((elfie) => elfie.foodPolicy.effective_main_food_id))].sort((left, right) => compareLocalizedText(left, right, locale))
+  const states = [...new Set(loadedElfies.map((elfie) => elfie.embodiment.state))].sort((left, right) => compareLocalizedText(left, right, locale))
   const orderedUsers = [...loadedUsers].sort(compareAccountListOrder)
   const orderedElfies = [...elfies].sort(compareElfieId)
   const loading = users === null || allElfies === null
@@ -203,7 +217,7 @@ export function OwnerElfieOverview({ csrfToken, onCountChange }: OwnerElfieOverv
       {!loading && error === null ? orderedElfies.map((elfie) => <ElfieIdentityCard
           csrfToken={csrfToken}
           elfie={elfie}
-          key={elfie.elfie_id}
+          key={elfie.profile.elfie_id}
           onError={setError}
           onSaved={async () => {
             show({ kind: "success", message: t("elfies.notices.foodSaved", { name: elfie.profile.name }) })

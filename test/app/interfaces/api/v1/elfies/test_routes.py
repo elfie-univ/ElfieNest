@@ -7,11 +7,11 @@ from fastapi.testclient import TestClient
 
 from app.features.accounts import AccountPrincipal, AccountRole
 from app.features.elfies import ElfiesService
-from infrastructure.persistence.store import get_db, init_db
 from app.interfaces.api.v1.admin.elfies.routes import router as admin_router
 from app.interfaces.api.v1.auth import require_user
 from app.interfaces.api.v1.elfies.routes import router as member_router
 from infrastructure.persistence.elfies import SQLiteElfiesProjectionAdapter
+from infrastructure.persistence.store import get_db, init_db
 
 
 def _principal(
@@ -66,6 +66,12 @@ def test_member_resources_return_owned_envelope_and_profile(
         "00000001"
     ]
     assert listing.json()["items"][0]["relationship"] == "owned"
+    assert not {
+        "food_policy",
+        "nest",
+        "embodiment",
+        "communication",
+    }.intersection(listing.json()["items"][0]["profile"])
     assert detail.status_code == 200
     assert detail.json()["private_cognition"]["status"] == "empty"
     assert set(detail.json()) == {

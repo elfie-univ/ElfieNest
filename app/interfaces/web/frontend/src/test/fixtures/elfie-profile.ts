@@ -51,7 +51,7 @@ export const SIGNED_IN_ADMIN = defineViewer({
 export const HAPPY_EXPERIENCE = defineElfieExperience({
   adopter: {
     accountId: happySource.owner.account_id,
-    displayName: happySource.owner.display_name ?? happySource.owner.account_id,
+    displayName: happySource.owner.display_name,
   },
   adoption: { adoptedAt: "2026-06-30", ageLabel: "1 个月" },
   publicProfile: {
@@ -158,7 +158,7 @@ export const HAPPY_EXPERIENCE = defineElfieExperience({
 export const KETTLE_EXPERIENCE = defineElfieExperience({
   adopter: {
     accountId: kettleSource.owner.account_id,
-    displayName: kettleSource.owner.display_name ?? kettleSource.owner.account_id,
+    displayName: kettleSource.owner.display_name,
   },
   adoption: { adoptedAt: "2026-07-01", ageLabel: "未登记" },
   publicProfile: {

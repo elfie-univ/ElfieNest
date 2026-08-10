@@ -1,22 +1,21 @@
 import { describe, expect, it } from "vitest"
 
 import type { ElfieProfileDetail } from "../../api/client"
+import type { ElfieFoodPolicy } from "../../api/elfies/food-policy"
 import { presentElfieProfile } from "./profile-presentation"
 
 const REAL_API_PROFILE = {
-  appearance: {},
-  big_five: {},
+  appearance: null,
+  big_five: null,
   birth_date: null,
   elfie_id: "elfie_default",
-  embodiment: { state: "at_nest" },
   gender: null,
   name: "Mochi",
-  nest: { bed_name: null, posture: "resting", room_name: null },
-  online_status: "online",
+  adopted_at: "2026-08-01",
+  profile_status: "empty" as const,
   personality_tags: [],
   portrait_url: "",
   species_id: "fox",
-  status: { code: "awake", label: "在线", tone: "active" },
   summary: "喜欢守在门边等熟悉的脚步声。",
   private_cognition: {
     status: "ready" as const,
@@ -38,15 +37,19 @@ const REAL_API_PROFILE = {
     },
     knowledge_beliefs: { nodes: [], edges: [] },
   },
-  care_settings: {
-    food: { selected_id: "", selected_label: "", options: [], unavailable: false },
-  },
 } satisfies ElfieProfileDetail
+
+const FOOD_POLICY = {
+  main_food_id: "",
+  effective_main_food_id: "",
+  main_food_options: [],
+  main_food_unavailable: false,
+} satisfies ElfieFoodPolicy
 
 describe("presentElfieProfile", () => {
   it("projects a real API profile as adopter only when the known adopter matches", () => {
     // Given: a real API Elfie whose ChatData adopter is the signed-in account.
-    const projection = presentElfieProfile(REAL_API_PROFILE, "account-a", "account-a")
+    const projection = presentElfieProfile(REAL_API_PROFILE, "account-a", "account-a", FOOD_POLICY)
 
     // When: the presentation boundary resolves ownership.
     if (projection === null || projection.kind !== "adopter") {

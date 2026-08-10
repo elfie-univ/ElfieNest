@@ -4,11 +4,11 @@ from dataclasses import replace
 from pathlib import Path
 
 from ai_runtime.storage.data_layout import final_root_layout
-from infrastructure.persistence.store import get_db, init_db
 from elfie.brain.memory.knowledge_store import KnowledgeStore
 from elfie.brain.memory.node_types import MemoryNode
 from elfie.profile import ElfieProfileRepository, create_visual_profile
 from infrastructure.persistence.elfies import SQLiteElfiesProjectionAdapter
+from infrastructure.persistence.store import get_db, init_db
 
 
 def _database(tmp_path: Path) -> str:
@@ -73,6 +73,9 @@ def test_profile_reader_consumes_the_public_profile_authority(tmp_path: Path) ->
     assert result.status == "ready"
     assert result.openness == 0.9
     assert result.neuroticism == 0.2
+    assert result.appearance is not None
+    assert result.appearance.species_id == "fox"
+    assert result.appearance.profile_version == 1
 
 
 def test_cognition_reader_is_read_only_and_returns_typed_records(

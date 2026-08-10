@@ -392,8 +392,9 @@ def main() -> None:
             "/api/v1/elfies",
             headers={"X-CSRF-Token": alice_csrf},
         )
-        if status == 200 and isinstance(data, list):
-            count = len(data)
+        items = data.get("items") if isinstance(data, dict) else None
+        if status == 200 and isinstance(items, list):
+            count = len(items)
             print(f"    ✅ Alice has {count} Elfies")
             if count == 3:
                 results[3] = True
@@ -410,16 +411,17 @@ def main() -> None:
         ok, owner_csrf2 = owner.login("owner", owner_password)
         if ok:
             status, data, raw = owner.get(
-                "/api/owner/elfies",
+                "/api/v1/admin/elfies",
                 headers={"X-CSRF-Token": owner_csrf2},
             )
-            if status == 200 and isinstance(data, list):
-                names = [e["name"] for e in data]
-                print(f"    ✅ Owner sees {len(data)} Elfies: {names}")
-                if len(data) >= 3:
+            items = data.get("items") if isinstance(data, dict) else None
+            if status == 200 and isinstance(items, list):
+                names = [e["profile"]["name"] for e in items]
+                print(f"    ✅ Owner sees {len(items)} Elfies: {names}")
+                if len(items) >= 3:
                     results[4] = True
                 else:
-                    print(f"    ⚠️ Owner sees only {len(data)}; expected at least 3")
+                    print(f"    ⚠️ Owner sees only {len(items)}; expected at least 3")
             else:
                 print(f"    ❌ Owner failed to query Elfies: {status} {raw[:200]}")
         else:

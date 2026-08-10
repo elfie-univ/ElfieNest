@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { ownerElfies, ownerRead, ownerRooms, ownerWrite } from "../api/client"
+import { adminElfies, ownerRead, ownerRooms, ownerWrite } from "../api/client"
 import { ApiError } from "../api/http"
 import { createI18n } from "../i18n/config"
 import type { SupportedLocale } from "../i18n/locale"
@@ -15,7 +15,7 @@ vi.mock("../api/client", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/client")>()
   return {
     ...original,
-    ownerElfies: vi.fn(),
+    adminElfies: vi.fn(),
     ownerRead: vi.fn(),
     ownerRooms: vi.fn(),
     ownerWrite: vi.fn(),
@@ -61,7 +61,7 @@ describe("SystemSettingsPanel", () => {
       throw new Error(`Unexpected owner read: ${path}`)
     })
     vi.mocked(ownerRooms).mockResolvedValue([{ id: "local-nest", name: "精灵巢", desired_bed_count: 4, beds: [] }])
-    vi.mocked(ownerElfies).mockResolvedValue([{} as never, {} as never])
+    vi.mocked(adminElfies).mockResolvedValue([{} as never, {} as never])
     vi.mocked(ownerWrite).mockResolvedValue({})
     vi.mocked(useToolsPermissions).mockReturnValue({
       cancelTool: vi.fn(),

@@ -2,15 +2,16 @@ import { render, screen } from "@testing-library/react"
 import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { ApiError, ownerRead } from "../api/client"
+import { ApiError, ownerRead } from "../api/http"
 import { createI18n } from "../i18n/config"
 import type { SupportedLocale } from "../i18n/locale"
 import { ManageMonitorPanel } from "./ManageMonitorPanel"
 import { ToastProvider } from "./ui/toast"
 
-vi.mock("../api/client", async (loadOriginal) => {
-  const original = await loadOriginal<typeof import("../api/client")>()
-  return { ...original, ownerRead: vi.fn() }
+vi.mock("../api/http", async (loadOriginal) => {
+  const original = await loadOriginal<typeof import("../api/http")>()
+  const read = vi.fn()
+  return { ...original, ownerRead: read, requestJson: read }
 })
 
 type RuntimeEventFixture = {
@@ -38,7 +39,7 @@ describe("runtime panel behavior", () => {
 
   it("shows a concise healthy status when no issue is present", async () => {
     vi.mocked(ownerRead).mockImplementation(async (path) => {
-      if (path === "/api/v1/admin/nest/rooms") return { items: [{ beds: [{ occupant_id: "elfie-1" }, { occupant_id: "elfie-2" }] }] }
+      if (path === "/api/v1/admin/nest/rooms") return { items: [{ beds: [{ occupant_id: "00000001" }, { occupant_id: "00000002" }] }] }
       return monitorPayload(path)
     })
 
@@ -50,7 +51,7 @@ describe("runtime panel behavior", () => {
   it("names the unavailable system service in the health card", async () => {
     vi.mocked(ownerRead).mockImplementation(async (path) => {
       if (path === "/api/health") return { status: "ok", engine_ready: true, godot_web_ready: true, godot_runtime_ready: false }
-      if (path === "/api/v1/admin/nest/rooms") return { items: [{ beds: [{ occupant_id: "elfie-1" }, { occupant_id: "elfie-2" }] }] }
+      if (path === "/api/v1/admin/nest/rooms") return { items: [{ beds: [{ occupant_id: "00000001" }, { occupant_id: "00000002" }] }] }
       return monitorPayload(path)
     })
 
@@ -121,13 +122,15 @@ function monitorPayload(path: string, lastEvent: RuntimeEventFixture | null = nu
       }
     case "/api/v1/admin/users":
       return { items: [{ presence: "online" }, { presence: "offline" }] }
-    case "/api/owner/elfies":
-      return [
-        { elfie_id: "elfie-1", profile: { online_status: "online" } },
-        { elfie_id: "elfie-2", profile: { online_status: "offline" } },
-      ]
+    case "/api/v1/admin/elfies":
+      return { items: [adminElfie("00000001"), adminElfie("00000002")] }
+    case "/api/v1/admin/runtime/embodiment-sessions":
+      return { items: [
+        { elfie_id: "00000001", state: "hosted", body_id: "body-1" },
+        { elfie_id: "00000002", state: "offline", body_id: null },
+      ] }
     case "/api/v1/admin/nest/rooms":
-      return { items: [{ beds: [{ occupant_id: "elfie-1" }, { occupant_id: null }] }] }
+      return { items: [{ beds: [{ occupant_id: "00000001" }, { occupant_id: null }] }] }
     case "/api/v1/admin/model-providers/connections":
       return { items: [{
         catalog_id: "ollama",
@@ -141,5 +144,18 @@ function monitorPayload(path: string, lastEvent: RuntimeEventFixture | null = nu
       return { state: "healthy", recommended_model: "qwen2.5:0.5b", installed_model_count: 1 }
     default:
       return { endpoint: "https://raw.example/v1", protocol_field: "raw_value" }
+  }
+}
+
+function adminElfie(elfieId: string): unknown {
+  return {
+    owner: { user_id: 1, account_id: "owner", display_name: "Owner" },
+    permissions: { can_view_profile: true, can_view_cognition: false },
+    profile: {
+      elfie_id: elfieId, name: elfieId, species_id: "fox", gender: null,
+      birth_date: null, summary: null, adopted_at: "2026-08-01",
+      profile_status: "empty", big_five: null, personality_tags: [],
+      portrait_url: "", appearance: null,
+    },
   }
 }

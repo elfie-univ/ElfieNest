@@ -278,6 +278,7 @@ def create_http_application(
     # -------------------------------------------------------------------
     # Setup Wizard 路由（首启向导 — 在 owner 路由之前注册）
     # -------------------------------------------------------------------
+    from .v1.admin.elfies import router as admin_elfies_router  # noqa: PLC0415
     from .v1.admin.food_packages import (
         router as food_packages_router,  # noqa: PLC0415
     )
@@ -286,12 +287,16 @@ def create_http_application(
     )
     from .v1.admin.nest import router as nest_management_router  # noqa: PLC0415
     from .v1.admin.runtime import router as runtime_router  # noqa: PLC0415
+    from .v1.admin.runtime.embodiment_sessions import (
+        router as embodiment_sessions_router,  # noqa: PLC0415
+    )
     from .v1.admin.settings import router as settings_router  # noqa: PLC0415
     from .v1.admin.settings.capabilities import (
         router as capabilities_router,  # noqa: PLC0415
     )
     from .v1.admin.users import router as admin_users_router  # noqa: PLC0415
     from .v1.auth.routes import router as auth_router  # noqa: PLC0415
+    from .v1.elfies import router as elfies_router  # noqa: PLC0415
     from .v1.elfies.bodies import router as bodies_router  # noqa: PLC0415
     from .v1.elfies.food_policy import (
         router as elfie_food_policy_router,  # noqa: PLC0415
@@ -315,23 +320,16 @@ def create_http_application(
     app.include_router(bodies_router)
     app.include_router(capabilities_router)
     app.include_router(runtime_router)
+    app.include_router(embodiment_sessions_router)
     app.include_router(me_router)
     app.include_router(adoption_router)
     app.include_router(conversations_router)
     app.include_router(observer_router)
     app.include_router(realtime_chat_router)
     app.include_router(body_realtime_router)
+    app.include_router(elfies_router)
+    app.include_router(admin_elfies_router)
     app.include_router(admin_users_router)
     app.include_router(setup_router)
     app.include_router(page_router)
-    from .v1.client_routes import router as v1_client_router  # noqa: PLC0415
-
-    app.include_router(v1_client_router)
-
-    # -------------------------------------------------------------------
-    # Owner REST API 路由
-    # -------------------------------------------------------------------
-    from .owner_elfie_routes import router as owner_elfie_router  # noqa: PLC0415
-
-    app.include_router(owner_elfie_router)
     return app

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import Literal, Mapping, Protocol
 
 from .models import CognitionStatus
 
@@ -27,6 +27,20 @@ class ElfieDirectoryRecord:
 
 
 @dataclass(frozen=True)
+class ElfieAppearanceRecord:
+    species_id: str
+    profile_version: int
+    height_scale: float
+    build_scale: float
+    height_label: str
+    build_label: str
+    bone_scales: Mapping[str, float]
+    blend_shapes: Mapping[str, float]
+    material_parameters: Mapping[str, str | float]
+    species_traits: Mapping[str, float]
+
+
+@dataclass(frozen=True)
 class ElfieProfileRecord:
     status: Literal["ready", "empty", "unavailable"]
     openness: float | None = None
@@ -34,6 +48,7 @@ class ElfieProfileRecord:
     extraversion: float | None = None
     agreeableness: float | None = None
     neuroticism: float | None = None
+    appearance: ElfieAppearanceRecord | None = None
 
 
 @dataclass(frozen=True)
@@ -113,6 +128,7 @@ __all__ = (
     "CognitionSnapshotRecord",
     "CognitionTopicRecord",
     "ElfieDirectoryRecord",
+    "ElfieAppearanceRecord",
     "ElfieProfileRecord",
     "ElfiesPortError",
     "ElfiesQueryPort",

@@ -1,6 +1,8 @@
 import { z } from "zod"
 
-import { ApiError, ownerRead } from "./client"
+import { adminElfies } from "./admin/elfies"
+import { embodimentSessions } from "./admin/embodiment-sessions"
+import { ApiError, ownerRead } from "./http"
 
 const HealthSchema = z.object({
   status: z.string(),
@@ -29,8 +31,8 @@ const ElfieSummarySchema = z.object({
   elfie_id: z.string(),
   profile: z.object({
     online_status: z.enum(["online", "offline", "unknown"]),
-  }).passthrough(),
-}).passthrough()
+  }).strict(),
+}).strict()
 
 const RoomSummarySchema = z.object({
   beds: z.array(z.object({ occupant_id: z.string().nullable() }).passthrough()),
@@ -106,7 +108,13 @@ export async function loadMonitorSnapshot(): Promise<MonitorSnapshot> {
     readSchema("/api/health", HealthSchema),
     readSchema("/api/v1/admin/runtime/status", RuntimeStatusSchema),
     readSchema("/api/v1/admin/users", UserListSchema).then(({ items }) => items),
-    readSchema("/api/owner/elfies", z.array(ElfieSummarySchema)),
+    Promise.all([adminElfies(), embodimentSessions()]).then(([elfies, sessions]) => {
+      const stateByElfie = new Map(sessions.map((session) => [session.elfie_id, session.state]))
+      return elfies.map((elfie) => ({
+        elfie_id: elfie.profile.elfie_id,
+        profile: { online_status: onlineStatus(stateByElfie.get(elfie.profile.elfie_id)) },
+      }))
+    }).then((items) => z.array(ElfieSummarySchema).parse(items)),
     readSchema("/api/v1/admin/nest/rooms", RoomListSchema),
     readSchema("/api/v1/admin/model-providers/connections", ProviderListSchema),
     readSchema("/api/v1/admin/model-providers/ollama", OllamaStatusSchema),
@@ -132,4 +140,10 @@ export async function loadMonitorSnapshot(): Promise<MonitorSnapshot> {
     failedSources,
     authRequired,
   }
+}
+
+function onlineStatus(state: string | undefined): "online" | "offline" | "unknown" {
+  if (state === "hosted") return "online"
+  if (state === "offline") return "offline"
+  return "unknown"
 }

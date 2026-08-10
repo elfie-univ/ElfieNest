@@ -9,12 +9,18 @@ from elfie.body.contracts import BodyCommand, BodySensorEvent, CommandReceipt
 from .models import EmbodimentSession
 
 
-class EmbodimentLeaseConflict(RuntimeError):
+class EmbodimentLeasePortError(RuntimeError):
+    """The durable Embodiment boundary could not complete an operation."""
+
+
+class EmbodimentLeaseConflict(EmbodimentLeasePortError):
     """A durable embodiment transition used stale or conflicting state."""
 
 
 class EmbodimentLeasePort(Protocol):
     def get(self, elfie_id: str) -> EmbodimentSession: ...
+
+    def list_sessions(self) -> tuple[EmbodimentSession, ...]: ...
 
     def begin_hosting(
         self, elfie_id: str, body_id: str, *, lease_seconds: float
@@ -58,5 +64,6 @@ class BodyDeviceGatewayPort(Protocol):
 __all__ = (
     "BodyDeviceGatewayPort",
     "EmbodimentLeaseConflict",
+    "EmbodimentLeasePortError",
     "EmbodimentLeasePort",
 )
