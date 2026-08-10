@@ -64,6 +64,14 @@ class AccountQuotaPolicyError(RuntimeError):
 
 
 class AccountManagementPort(Protocol):
+    def create_first_owner(
+        self,
+        *,
+        account_id: str,
+        display_name: str | None,
+        password_hash: str,
+    ) -> OwnerAccountRecord: ...
+
     def find_profile(self, user_id: int) -> AccountProfileRecord | None: ...
 
     def update_profile(

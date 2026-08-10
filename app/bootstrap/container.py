@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from ai_runtime.storage.data_home import data_home_from_db_path, get_config_path
 from ai_runtime.storage.data_layout import final_root_layout
@@ -18,10 +19,12 @@ from app.features.configuration.food import FoodService
 from app.features.elfies import ElfiesService
 from app.features.nest_management import NestManagementService
 from app.features.operations import OperationsFacade
+from app.features.setup import SetupService
 from app.orchestration.message_delivery import MessageDeliveryFacade
 from app.orchestration.nest_session import NestSession
 from app.orchestration.observer import ObserverFacade
 from app.orchestration.resident_admission import ResidentAdmissionService
+from app.orchestration.setup_installation import SetupInstallationService
 from infrastructure.communication import OwnerMessageSession, SameOriginMessagePublisher
 from infrastructure.models import ProviderModelsAdapter
 from infrastructure.persistence import (
@@ -44,6 +47,7 @@ from .communication import build_communication_services
 from .food import build_food_service
 from .observer import build_observer_facade
 from .operations import build_operations_facade
+from .setup import build_setup_services
 
 
 @dataclass(frozen=True)
@@ -62,6 +66,8 @@ class ApplicationContainer:
     observer: ObserverFacade
     adoption: AdoptionService
     resident_admission: ResidentAdmissionService
+    setup: SetupService
+    setup_installation: SetupInstallationService
 
 
 def build_application_container(
@@ -71,12 +77,14 @@ def build_application_container(
     nest_session: NestSession | None = None,
 ) -> ApplicationContainer:
     config_path = get_config_path()
+    provider_connection_path: Path | None = None
     provider_models = ProviderModelsAdapter()
     data_home = None
     if db_path != ":memory:":
         data_home = data_home_from_db_path(db_path)
         layout = final_root_layout(data_home)
         config_path = layout.runtime_config
+        provider_connection_path = layout.providers_config
         provider_models = ProviderModelsAdapter(
             layout.providers_config,
             layout.auth_env,
@@ -98,10 +106,17 @@ def build_application_container(
         settings=settings_adapter,
         nest_session=nest_session,
     )
+    nest_adapter = SQLiteNestManagementAdapter(db_path)
+    setup = build_setup_services(
+        db_path,
+        accounts=accounts,
+        nest=nest_adapter,
+        provider_connection_path=provider_connection_path,
+    )
     return ApplicationContainer(
         accounts=accounts,
         settings=SettingsService(settings_adapter),
-        nest_management=NestManagementService(SQLiteNestManagementAdapter(db_path)),
+        nest_management=NestManagementService(nest_adapter),
         elfies=elfies,
         providers=ProvidersService(
             catalog=provider_models,
@@ -128,6 +143,8 @@ def build_application_container(
         ),
         adoption=adoption.adoption,
         resident_admission=adoption.resident_admission,
+        setup=setup.setup,
+        setup_installation=setup.installation,
     )
 
 

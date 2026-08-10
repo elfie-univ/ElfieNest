@@ -13,7 +13,7 @@ from fastapi.responses import (
 )
 
 from app.features.accounts import AccountPrincipal
-from app.features.setup.service import needs_setup
+from app.features.setup import GetSetupStatusQuery, SetupService
 from app.interfaces.api.service_access import LOOPBACK_HOSTS, ServiceMode
 from app.interfaces.api.v1.auth import get_current_user, require_manager
 from app.interfaces.web.build_discovery import (
@@ -91,6 +91,13 @@ def _serve_generated_page(request: Request) -> Response:
     )
 
 
+def _needs_setup(request: Request) -> bool:
+    service = getattr(request.app.state, "setup", None)
+    if not isinstance(service, SetupService):
+        raise HTTPException(status_code=503, detail="Setup service unavailable")
+    return service.get_status(GetSetupStatusQuery()).need_setup
+
+
 @router.get("/assets/{asset_path:path}")
 async def generated_asset(asset_path: str, request: Request) -> Response:
     """Serve manifest-listed static bundle assets; APIs enforce all data permissions."""
@@ -121,7 +128,7 @@ async def generated_asset(asset_path: str, request: Request) -> Response:
 @router.get("/")
 async def root_page(request: Request) -> Response:
     """Send setup installs to setup and authenticated users to their landing page."""
-    if needs_setup(request.app.state.db_path):
+    if _needs_setup(request):
         return RedirectResponse("/setup", status_code=303)
     user = _current_page_user(request)
     if user is None:
@@ -132,7 +139,7 @@ async def root_page(request: Request) -> Response:
 @router.get("/setup")
 async def setup_page(request: Request) -> Response:
     """Serve the first-run React wizard only while no account exists."""
-    if not needs_setup(request.app.state.db_path):
+    if not _needs_setup(request):
         user = _current_page_user(request)
         return (
             RedirectResponse(default_landing_path(user), status_code=303)
@@ -145,7 +152,7 @@ async def setup_page(request: Request) -> Response:
 @router.get("/login")
 async def login_page(request: Request) -> Response:
     """Serve the login-capable console, never reflecting an unsafe next target."""
-    if needs_setup(request.app.state.db_path):
+    if _needs_setup(request):
         return RedirectResponse("/setup", status_code=303)
     user = _current_page_user(request)
     if user is not None:
@@ -156,7 +163,7 @@ async def login_page(request: Request) -> Response:
 @router.get("/chat")
 async def chat_page(request: Request) -> Response:
     """Serve chat only to a valid session."""
-    if needs_setup(request.app.state.db_path):
+    if _needs_setup(request):
         return RedirectResponse("/setup", status_code=303)
     if _current_page_user(request) is None:
         return _login_redirect("/chat")
@@ -166,7 +173,7 @@ async def chat_page(request: Request) -> Response:
 @router.get("/manage")
 async def manage_page(request: Request) -> Response:
     """Enforce the manager-only management landing route on the server."""
-    if needs_setup(request.app.state.db_path):
+    if _needs_setup(request):
         return RedirectResponse("/setup", status_code=303)
     user = _current_page_user(request)
     if user is None:
@@ -179,7 +186,7 @@ async def manage_page(request: Request) -> Response:
 @router.get("/monitor")
 async def monitor_page(request: Request) -> Response:
     """Enforce the manager-only monitor landing route on the server."""
-    if needs_setup(request.app.state.db_path):
+    if _needs_setup(request):
         return RedirectResponse("/setup", status_code=303)
     user = _current_page_user(request)
     if user is None:

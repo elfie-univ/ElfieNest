@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from ai_runtime.storage.provider_connections import ProviderConnectionStore
 from app.bootstrap import create_app
-from app.infrastructure.ollama_platform import OllamaBinding, OllamaProbe
+from infrastructure.models.ollama_platform import OllamaBinding, OllamaProbe
 from app.infrastructure.persistence.store import init_db
 
 from ._helpers import create_test_owner

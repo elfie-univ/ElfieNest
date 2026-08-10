@@ -6,7 +6,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.infrastructure.ollama_platform import OllamaState
+from infrastructure.models.ollama_platform import OllamaState
 
 
 class OllamaOwnerTaskResponse(BaseModel):

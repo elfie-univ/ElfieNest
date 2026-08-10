@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from app.infrastructure.ollama_platform import (
+from infrastructure.models.ollama_platform import (
     OFFICIAL_INSTALL_URLS,
     OllamaBinding,
     OllamaPlatformAdapter,
@@ -101,7 +101,9 @@ def test_start_bound_installation_launches_without_waiting_for_serve_process(
     launched: list[tuple[tuple[str, ...], dict[str, object]]] = []
     adapter = OllamaPlatformAdapter(
         platform_name="linux",
-        process_launcher=lambda command, **kwargs: launched.append((tuple(command), kwargs)),
+        process_launcher=lambda command, **kwargs: launched.append(
+            (tuple(command), kwargs)
+        ),
     )
 
     adapter.start_bound_installation(

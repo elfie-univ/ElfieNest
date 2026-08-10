@@ -244,6 +244,24 @@ Principal 与授权：Interface 认证账户 Principal；Capabilities 授权管�
 状态：closed
 ```
 
+### Setup 与 Setup Installation
+
+```text
+业务域：setup / setup_installation
+缺口 ID：APP-001、APP-002、APP-003、APP-004、APP-005、APP-006、APP-007、APP-008、APP-009、APP-011、APP-012
+当前权威事实：唯一 local_installations Setup 草稿与安装游标；Accounts 的 Owner/Session；Provider 连接与模型；Food 包；Nest 设置；公开 Ollama 安装绑定
+路由与生产调用方：/api/v1/setup 的状态、模型目录、草稿、安装与 Owner-only Ollama 检测；浏览器 Setup 向导；页面入口重定向；应用启动恢复
+目标公共门面与模型：SetupService 负责只读状态与选择校验；SetupInstallationService 只编排现有五个可恢复安装阶段
+Port 与 Adapter：Setup 自有状态、Owner 状态、模型目录、Nest 选择、Ollama 检测/安装、Accounts、Provider、Food、Nest 与 Runner Port；具体 Adapter 统一由 Bootstrap 装配
+一致性类别：GET 与启动恢复不创建 Setup 行；首次草稿写入才创建；首个 Owner 在 Accounts 的一个 immediate 事务中创建；每个安装阶段推进现有持久游标
+Principal 与授权：本机 Setup 凭据可编辑未锁定草稿并确认安装；已认证 Owner 可检测 Ollama 和恢复安装；其他 Principal 被拒绝
+超时、重试与幂等：保留现有进程内单 Worker 与可恢复阶段游标；重启把遗留 running 任务标为 failed；重复创建首个 Owner 返回唯一现有 Owner
+旧实现删除清单：未版本化 /api/auth/setup 资源；旧 Setup Route/DTO、Feature 线程/安装 helper、App 持久化 Repository；App-owned Ollama 平台文件。仍位于 setup 下的独立 Owner Ollama 管理链属于 Providers 迁移门，不属于首启 Setup。
+聚焦测试与端到端门：Feature、工作流、Accounts/Setup/Nest/Ollama Adapter、严格 Route、真实无 Ollama 安装路径、浏览器 Setup Client、App/System/Storage 架构门
+已删除的机器基线条目：全部旧 Setup Feature db-path/具体/task 调用；旧 Route 构造、内部/具体 import；松散/缺失模型与所有 /api/auth/setup 资源
+状态：in progress（首启 Setup 已迁移；独立 Owner Ollama 管理链仍需移出 Setup 目录）
+```
+
 ### Adoption 与 Resident Admission
 
 ```text

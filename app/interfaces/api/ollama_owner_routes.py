@@ -10,14 +10,18 @@ from ai_runtime.storage.data_home import data_home_from_db_path
 from ai_runtime.storage.data_layout import final_root_layout
 from ai_runtime.storage.provider_connections import ProviderConnectionStore
 from app.features.accounts import AccountPrincipal
-from app.features.setup.ollama import OllamaSetupService
 from app.features.setup.ollama_owner import OllamaOwnerService
 from app.features.setup.ollama_owner_jobs import OllamaOwnerJobManager, OllamaTask
-from app.infrastructure.ollama_platform import (
+from app.interfaces.api.v1.auth import require_manager
+from infrastructure.models.ollama_platform import (
     OllamaPlatformAdapter,
     OllamaState,
 )
-from app.interfaces.api.v1.auth import require_manager
+from infrastructure.models.setup_ollama import SetupOllamaAdapter
+from infrastructure.models.setup_ollama_technology import (
+    PublicOllamaSetupTechnologyAdapter,
+)
+from infrastructure.models.setup_provider import SetupProviderAdapter
 
 from .ollama_owner_models import (
     OllamaInstallRequest,
@@ -165,10 +169,15 @@ def _visible_state(probe_state: OllamaState, task: OllamaTask | None) -> OllamaS
 
 
 def _install_official(db_path: str) -> None:
-    OllamaSetupService(
-        adapter=OllamaPlatformAdapter(),
-        provider_connection_store=_provider_store(db_path),
-    ).ensure_for_install(report_action=lambda _action: None)
+    provider = SetupProviderAdapter(
+        final_root_layout(data_home_from_db_path(db_path)).providers_config
+    )
+    SetupOllamaAdapter(
+        technology=PublicOllamaSetupTechnologyAdapter(),
+        load_binding=provider.load_ollama_binding,
+        save_binding=provider.save_ollama_binding,
+        save_model=provider.save_ollama_model,
+    ).ensure_installation(lambda _action: None)
 
 
 def _owner_service(db_path: str) -> OllamaOwnerService:

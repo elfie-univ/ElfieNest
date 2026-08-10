@@ -54,22 +54,13 @@ def _header_lower(d: dict, key: str) -> str:
     return ""
 
 
-def _cookie_val(headers: dict) -> str:
-    """Extract session_token from response headers."""
-    raw = _header_lower(headers, "set-cookie")
-    if raw:
-        m = re.search(r"session_token=([^;]+)", raw)
-        if m:
-            return m.group(1)
-    return ""
-
-
 class E2ESession:
     """HTTP session with cookie persistence."""
 
     def __init__(self, base_url: str):
         self.base_url = base_url.rstrip("/")
         self._session_token = ""
+        self._setup_token = ""
 
     def _request(
         self,
@@ -80,24 +71,25 @@ class E2ESession:
     ) -> tuple[int, dict, str, dict]:
         url = f"{self.base_url}{path}"
         hdrs = dict(headers or {})
+        cookies = []
         if self._session_token:
-            hdrs["Cookie"] = f"session_token={self._session_token}"
+            cookies.append(f"session_token={self._session_token}")
+        if self._setup_token:
+            cookies.append(f"setup_token={self._setup_token}")
+        if cookies:
+            hdrs["Cookie"] = "; ".join(cookies)
 
         req = urllib.request.Request(url, data=data, headers=hdrs, method=method)
         try:
             with urllib.request.urlopen(req, timeout=10.0) as resp:
                 body = resp.read().decode("utf-8")
                 rh = dict(resp.headers.items())
-                cv = _cookie_val(rh)
-                if cv:
-                    self._session_token = cv
+                self._capture_cookie_values(resp.headers.get_all("Set-Cookie") or [])
                 return resp.status, (json.loads(body) if body else {}), body, rh
         except urllib.error.HTTPError as e:
             body = e.read().decode("utf-8")
             rh = dict(e.headers.items())
-            cv = _cookie_val(rh)
-            if cv:
-                self._session_token = cv
+            self._capture_cookie_values(e.headers.get_all("Set-Cookie") or [])
             try:
                 return e.code, (json.loads(body) if body else {}), body, rh
             except json.JSONDecodeError:
@@ -116,6 +108,26 @@ class E2ESession:
         hdrs = dict(headers or {})
         hdrs.setdefault("Content-Type", "application/json")
         return self._request("POST", path, data=encoded, headers=hdrs)
+
+    def put_json(
+        self, path: str, body: dict, headers: dict = None
+    ) -> tuple[int, dict, str, dict]:
+        encoded = json.dumps(body).encode("utf-8")
+        hdrs = dict(headers or {})
+        hdrs.setdefault("Content-Type", "application/json")
+        return self._request("PUT", path, data=encoded, headers=hdrs)
+
+    def _capture_cookie_values(self, values: list[str]) -> None:
+        for raw in values:
+            for name in ("session_token", "setup_token"):
+                match = re.search(rf"{name}=([^;]*)", raw)
+                if match is None:
+                    continue
+                value = match.group(1)
+                if name == "session_token":
+                    self._session_token = value
+                else:
+                    self._setup_token = value
 
     def login(self, account_id: str, password: str) -> tuple[bool, str]:
         """Log in and return (success, csrf_token)."""
@@ -206,14 +218,41 @@ def main() -> None:
         # Step 0: First-run setup; create Owner if no user exists.
         # ==================================================================
         print("  [Step 0/5] Checking first-run setup state")
-        status, data, raw = owner.get("/api/auth/setup-status")
+        status, data, raw = owner.get("/api/v1/setup/status")
         if status == 200 and data.get("need_setup"):
             print("    ⚡ No users exist; running first-run setup...")
-            status, data, raw, _ = owner.post_json(
-                "/api/auth/setup",
-                {"account_id": "owner", "password": owner_password},
+            setup_headers = {"X-CSRF-Token": str(data.get("csrf_token", ""))}
+            draft_responses = (
+                owner.put_json(
+                    "/api/v1/setup/draft/owner",
+                    {
+                        "account_id": "owner",
+                        "display_name": "Owner",
+                        "password": owner_password,
+                        "confirm_password": owner_password,
+                    },
+                    headers=setup_headers,
+                ),
+                owner.put_json(
+                    "/api/v1/setup/draft/offline",
+                    {"use_local_ollama": False, "model_id": None},
+                    headers=setup_headers,
+                ),
+                owner.put_json(
+                    "/api/v1/setup/draft/nest",
+                    {"bed_count": 4},
+                    headers=setup_headers,
+                ),
             )
-            aok = status == 201
+            status, data, raw, _ = owner.post_json(
+                "/api/v1/setup/installation",
+                {"confirmed": True},
+                headers=setup_headers,
+            )
+            aok = all(item[0] == 200 for item in draft_responses) and status in {
+                200,
+                202,
+            }
             print(
                 f"    {'✅' if aok else '❌'} First-run setup {'succeeded' if aok else f'failed: {status} {raw[:200]}'}"
             )

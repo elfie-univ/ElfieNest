@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from typing import Final
 
 from app.features.nest_management import (
     NestBedRecord,
@@ -15,6 +16,8 @@ from app.features.nest_management import (
 from nest import NestConfig
 
 from .sqlite_connection import app_sqlite_connection
+
+DEFAULT_TICK_INTERVAL_SECONDS: Final = 1.0
 
 
 class SQLiteNestManagementAdapter:
@@ -50,6 +53,34 @@ class SQLiteNestManagementAdapter:
             raise NestPortConflict("bed_count conflicts with assignments") from error
         except sqlite3.Error as error:
             raise NestPortError("unable to update Nest configuration") from error
+
+    def initialize_bed_count(self, bed_count: int) -> NestSnapshotRecord:
+        """Create Setup's one authoritative Nest row, then apply its chosen size."""
+        configured = NestConfig(bed_count=bed_count)
+        try:
+            with app_sqlite_connection(self._db_path) as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                connection.execute(
+                    """INSERT OR IGNORE INTO nest_settings
+                       (nest_id,bed_count,tick_interval_sec) VALUES (?,?,?)""",
+                    (
+                        configured.nest_id,
+                        configured.bed_count,
+                        DEFAULT_TICK_INTERVAL_SECONDS,
+                    ),
+                )
+                connection.execute(
+                    """UPDATE nest_settings SET bed_count=?,updated_at=CURRENT_TIMESTAMP
+                       WHERE nest_id=?""",
+                    (configured.bed_count, configured.nest_id),
+                )
+                snapshot = self._load_snapshot(connection)
+                connection.commit()
+                return snapshot
+        except sqlite3.IntegrityError as error:
+            raise NestPortConflict("bed_count conflicts with assignments") from error
+        except sqlite3.Error as error:
+            raise NestPortError("unable to initialize Nest configuration") from error
 
     def assign_bed(self, elfie_id: str, bed_number: int | None) -> None:
         try:
@@ -142,4 +173,4 @@ class SQLiteNestManagementAdapter:
         )
 
 
-__all__ = ("SQLiteNestManagementAdapter",)
+__all__ = ("DEFAULT_TICK_INTERVAL_SECONDS", "SQLiteNestManagementAdapter")

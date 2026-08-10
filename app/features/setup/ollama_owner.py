@@ -13,7 +13,7 @@ from ai_runtime.storage.provider_connections import (
 from app.features.setup.hardware import get_available_memory_gb
 from app.features.setup.model_catalog import SetupModelOption, setup_model_options
 from app.features.setup.ollama_owner_jobs import OllamaTask
-from app.infrastructure.ollama_platform import (
+from infrastructure.models.ollama_platform import (
     DEFAULT_OLLAMA_ENDPOINT,
     OllamaBinding,
     OllamaPlatformAdapter,
@@ -22,7 +22,7 @@ from app.infrastructure.ollama_platform import (
     is_safe_local_endpoint,
     wait_for_healthy,
 )
-from app.infrastructure.ollama_platform_commands import official_launch_target
+from infrastructure.models.ollama_platform_commands import official_launch_target
 
 _OLLAMA_CATALOG_ID: Final[str] = "ollama"
 
@@ -84,13 +84,17 @@ class OllamaOwnerService:
         binding = recorded or self._default_binding()
         probe = self._adapter.probe(binding)
         if probe.state == "healthy":
-            return self._save_binding(replace(binding, version=probe.version or binding.version))
+            return self._save_binding(
+                replace(binding, version=probe.version or binding.version)
+            )
         if probe.state == "stopped":
             self._adapter.start_bound_installation(binding)
             started = wait_for_healthy(self._adapter, binding)
             if started.state != "healthy":
                 raise RuntimeError("Ollama 启动后仍未健康")
-            return self._save_binding(replace(binding, version=started.version or binding.version))
+            return self._save_binding(
+                replace(binding, version=started.version or binding.version)
+            )
         if probe.state in {"absent", "deleted"}:
             raise RuntimeError("Ollama 安装不存在，请先安装")
         raise RuntimeError("已记录的 Ollama 安装需要修复")
@@ -189,15 +193,17 @@ class OllamaOwnerService:
                 installation=installation,
             )
         else:
-            self._store.replace(replace(
-                connection,
-                api_base=binding.api_base,
-                api_mode="ollama",
-                auth_type="none",
-                installation=installation,
-                enabled=True,
-                archived=False,
-            ))
+            self._store.replace(
+                replace(
+                    connection,
+                    api_base=binding.api_base,
+                    api_mode="ollama",
+                    auth_type="none",
+                    installation=installation,
+                    enabled=True,
+                    archived=False,
+                )
+            )
         return OllamaProbe("healthy", binding.api_base, version=binding.version or None)
 
     def _save_models(self, binding: OllamaBinding, model_ids: tuple[str, ...]) -> None:
@@ -211,17 +217,32 @@ class OllamaOwnerService:
         models = tuple(
             replace(old_models[model_id], source="official", available=True)
             if model_id in old_models
-            else ProviderModelRecord(endpoint_model_id=model_id, display_name=model_id, source="official")
+            else ProviderModelRecord(
+                endpoint_model_id=model_id, display_name=model_id, source="official"
+            )
             for model_id in model_ids
         )
-        self._store.replace(replace(connection, models=models, enabled=True, archived=False))
+        self._store.replace(
+            replace(connection, models=models, enabled=True, archived=False)
+        )
 
     def _stored_model_names(self) -> tuple[str, ...]:
         connection = self._ollama_connection()
-        return tuple(model.endpoint_model_id for model in connection.models) if connection else ()
+        return (
+            tuple(model.endpoint_model_id for model in connection.models)
+            if connection
+            else ()
+        )
 
     def _ollama_connection(self) -> ProviderConnection | None:
-        return next((connection for connection in self._store.load().connections.values() if connection.catalog_id == _OLLAMA_CATALOG_ID), None)
+        return next(
+            (
+                connection
+                for connection in self._store.load().connections.values()
+                if connection.catalog_id == _OLLAMA_CATALOG_ID
+            ),
+            None,
+        )
 
 
 def _model_options(

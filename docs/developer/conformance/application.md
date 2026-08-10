@@ -293,6 +293,24 @@ Machine baseline entries removed: old capability Feature-internal import, loose/
 Status: closed
 ```
 
+### Setup and Setup Installation
+
+```text
+Domain: setup / setup_installation
+Gap IDs: APP-001, APP-002, APP-003, APP-004, APP-005, APP-006, APP-007, APP-008, APP-009, APP-011, APP-012
+Current authoritative facts: the one local_installations Setup draft and installation cursor; Accounts Owner/session facts; Provider connection/model facts; Food packages; Nest settings; the public Ollama installation binding
+Routes and production callers: /api/v1/setup status, model catalog, draft resources, installation and Owner-only Ollama inspection; browser Setup wizard; page-entry setup redirects; application startup recovery
+Target public facade and models: SetupService for read-only status and validated choices; SetupInstallationService for the existing five resumable phases only
+Ports and adapters: Setup-owned state, Owner status, model catalog, Nest choice, Ollama inspection/install, Accounts, Provider, Food, Nest and runner Ports; concrete adapters are assembled by Bootstrap
+Consistency class: GET and startup recovery do not create the Setup row; the first draft write creates it; first Owner creation is one immediate Accounts transaction; each installation phase advances the existing durable cursor
+Principal and authorization: local Setup credentials may edit an unlocked draft and confirm installation; an authenticated Owner may inspect Ollama and resume installation; other principals are rejected
+Timeout / retry / idempotency: the existing process-local single worker and resumable phase cursor remain; restart marks an orphaned running task failed; repeated first-Owner creation returns the one existing Owner
+Legacy deletion list: unversioned /api/auth/setup resources; old Setup Route/DTO, Feature thread/install helpers and App persistence repositories; App-owned Ollama platform files. The separate Owner Ollama management chain still located under setup is a Providers migration gate, not part of first-install Setup.
+Focused tests and end-to-end gate: Feature, workflow, Accounts/Setup/Nest/Ollama adapters, strict Route, real no-Ollama installation path, browser Setup client and App/System/Storage architecture gates
+Machine baseline entries removed: all old Setup Feature db-path/concrete/task calls; old Route construction/internal/concrete imports; loose/missing models and every /api/auth/setup resource
+Status: in progress (first-install Setup is migrated; the separately owned Owner Ollama management chain still has to leave the Setup directory)
+```
+
 ### Adoption and Resident Admission
 
 ```text

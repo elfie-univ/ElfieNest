@@ -173,6 +173,49 @@ class SQLiteAccountsAdapter:
             SessionRepository(connection).revoke(raw_token, revoked_at)
             connection.commit()
 
+    def create_first_owner(
+        self,
+        *,
+        account_id: str,
+        display_name: str | None,
+        password_hash: str,
+    ) -> OwnerAccountRecord:
+        try:
+            with app_sqlite_connection(self._db_path) as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                existing = connection.execute(
+                    """SELECT id,account_id,display_name,created_at,updated_at
+                       FROM users WHERE role='owner' ORDER BY id LIMIT 1"""
+                ).fetchone()
+                if existing is not None:
+                    connection.commit()
+                    return _owner_record(existing)
+                if connection.execute("SELECT 1 FROM users LIMIT 1").fetchone():
+                    raise AccountPersistenceConflict("accounts already exist")
+                cursor = connection.execute(
+                    """INSERT INTO users
+                       (account_id,display_name,password_hash,role,avatar_color)
+                       VALUES (?,?,?,'owner',0)""",
+                    (account_id, display_name, password_hash),
+                )
+                if cursor.lastrowid is None:
+                    raise AccountPersistenceError("owner insert returned no user id")
+                row = connection.execute(
+                    """SELECT id,account_id,display_name,created_at,updated_at
+                       FROM users WHERE id=?""",
+                    (int(cursor.lastrowid),),
+                ).fetchone()
+                if row is None:
+                    raise AccountPersistenceError("owner disappeared after insert")
+                connection.commit()
+                return _owner_record(row)
+        except AccountPersistenceError:
+            raise
+        except sqlite3.IntegrityError as error:
+            raise AccountPersistenceConflict(str(error)) from error
+        except sqlite3.DatabaseError as error:
+            raise AccountPersistenceError(str(error)) from error
+
     def find_profile(self, user_id: int) -> AccountProfileRecord | None:
         try:
             with app_sqlite_connection(self._db_path) as connection:

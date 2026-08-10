@@ -25,7 +25,7 @@ ANONYMOUS_PATHS: Final[frozenset[str]] = frozenset(
     {
         "/login",
         "/api/v1/auth/login",
-        "/api/auth/setup-status",
+        "/api/v1/setup/status",
         "/api/health",
     }
 )

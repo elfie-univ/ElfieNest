@@ -26,6 +26,18 @@ class LoginCommand:
 
 
 @dataclass(frozen=True)
+class HasOwnerQuery:
+    pass
+
+
+@dataclass(frozen=True)
+class CreateFirstOwnerCommand:
+    account_id: str
+    display_name: Optional[str]
+    password_hash: str
+
+
+@dataclass(frozen=True)
 class AuthenticatedSession:
     principal: AccountPrincipal
     display_name: str | None
@@ -219,11 +231,13 @@ __all__ = (
     "AvatarResult",
     "ChangePasswordCommand",
     "CreateManagedAccountCommand",
+    "CreateFirstOwnerCommand",
     "DeleteManagedAccountCommand",
     "Gender",
     "GetAvatarQuery",
     "GetCurrentAccountQuery",
     "GetManagedAvatarQuery",
+    "HasOwnerQuery",
     "GetOwnerAccountQuery",
     "LandingPage",
     "ListManagedAccountsQuery",

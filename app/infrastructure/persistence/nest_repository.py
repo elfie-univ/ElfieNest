@@ -7,9 +7,10 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Final, TypedDict
 
+from infrastructure.persistence.nest_management import DEFAULT_TICK_INTERVAL_SECONDS
+
 DEFAULT_NEST_ID: Final = "local-nest"
 DEFAULT_DESIRED_BED_COUNT: Final = 4
-DEFAULT_TICK_INTERVAL_SECONDS: Final = 1.0
 MIN_DESIRED_BED_COUNT: Final = 4
 MAX_DESIRED_BED_COUNT: Final = 32
 _BED_SUFFIX: Final = re.compile(r"(?:^|/)bed-(\d+)$")

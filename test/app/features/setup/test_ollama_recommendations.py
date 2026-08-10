@@ -8,7 +8,7 @@ import pytest
 from ai_runtime.providers.catalog import load_provider_catalog
 from ai_runtime.storage.provider_connections import ProviderConnectionStore
 from app.features.setup.ollama_owner import OllamaOwnerService
-from app.infrastructure.ollama_platform import (
+from infrastructure.models.ollama_platform import (
     DEFAULT_OLLAMA_ENDPOINT,
     OllamaBinding,
     OllamaPlatformAdapter,

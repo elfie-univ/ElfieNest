@@ -5,9 +5,9 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from app.interfaces.api.setup_models import SetupOwnerDraftRequest
 from app.interfaces.api.v1.admin.users.models import CreateManagedUserRequest
 from app.interfaces.api.v1.me.models import PasswordChangeRequest
+from app.interfaces.api.v1.setup.models import SetupOwnerDraftRequest
 
 
 @pytest.mark.parametrize(

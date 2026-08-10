@@ -3,6 +3,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
+
+from app.features.accounts import AccountPersistenceConflict
 from app.infrastructure.persistence.store import get_db, hash_password, init_db
 from infrastructure.persistence import (
     SessionRepository,
@@ -80,3 +83,42 @@ def test_sqlite_accounts_adapter_round_trips_strict_principal(tmp_path: Path) ->
 
     adapter.revoke_session(token, now)
     assert adapter.find_session(token, now) is None
+
+
+def test_first_owner_creation_is_atomic_and_idempotent(tmp_path: Path) -> None:
+    db_path = init_db(str(tmp_path / "nest.db"))
+    adapter = SQLiteAccountsAdapter(db_path)
+
+    created = adapter.create_first_owner(
+        account_id="owner",
+        display_name="Owner",
+        password_hash=hash_password("secret123"),
+    )
+    repeated = adapter.create_first_owner(
+        account_id="ignored",
+        display_name=None,
+        password_hash=hash_password("different123"),
+    )
+
+    assert repeated == created
+    with get_db(db_path) as connection:
+        assert connection.execute("SELECT count(*) FROM users").fetchone()[0] == 1
+
+
+def test_first_owner_creation_rejects_a_non_owner_account_population(
+    tmp_path: Path,
+) -> None:
+    db_path = init_db(str(tmp_path / "nest.db"))
+    with get_db(db_path) as connection:
+        connection.execute(
+            "INSERT INTO users (account_id,password_hash,role) VALUES (?,?,'user')",
+            ("member", hash_password("secret123")),
+        )
+        connection.commit()
+
+    with pytest.raises(AccountPersistenceConflict):
+        SQLiteAccountsAdapter(db_path).create_first_owner(
+            account_id="owner",
+            display_name=None,
+            password_hash=hash_password("secret123"),
+        )

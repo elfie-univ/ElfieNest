@@ -17,13 +17,15 @@ from app.features.adoption import (
     AcceptedAdoptionReservation,
     AdoptionReservationRecord,
 )
-from app.infrastructure.persistence.nest_repository import SQLiteNestRepository
-from app.infrastructure.persistence.setup_install_repository import (
-    SetupInstallRepository,
-)
 from app.infrastructure.persistence.store import get_db, hash_password
 from elfie import ElfieFactory
-from infrastructure.persistence import FinalElfieWorkspaceAdapter, SQLiteAdoptionAdapter
+from infrastructure.persistence import (
+    FinalElfieWorkspaceAdapter,
+    SQLiteAdoptionAdapter,
+    SQLiteNestManagementAdapter,
+)
+from infrastructure.persistence.setup import SQLiteSetupAdapter
+from infrastructure.persistence.setup_nest import SetupNestAdapter
 from infrastructure.platform import ElfieFactoryAdapter
 
 
@@ -118,12 +120,10 @@ def adopt_test_elfie(
 
 def complete_test_setup(db_path: str, *, bed_count: int = 8) -> None:
     """Complete Setup through the canonical installation phases."""
-    repository = SetupInstallRepository(db_path)
+    repository = SQLiteSetupAdapter(db_path)
     repository.save_offline_draft(use_local_ollama=False, model_id=None)
     repository.save_nest_draft(bed_count=bed_count)
     repository.begin_or_resume()
     for phase in range(2, 6):
         repository.complete_phase(phase=phase)
-    with get_db(db_path) as connection:
-        SQLiteNestRepository(connection).set_desired_bed_count(bed_count)
-        connection.commit()
+    SetupNestAdapter(SQLiteNestManagementAdapter(db_path)).set_bed_count(bed_count)

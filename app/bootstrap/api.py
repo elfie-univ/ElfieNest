@@ -49,6 +49,8 @@ def create_app(
         observer=container.observer,
         adoption=container.adoption,
         resident_admission=container.resident_admission,
+        setup=container.setup,
+        setup_installation=container.setup_installation,
         engine=engine,
         db_path=selected_db_path,
         ws_port=ws_port,

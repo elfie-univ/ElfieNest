@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Callable, ContextManager, Final, Literal, Protocol, Tuple
 from urllib.parse import urlsplit
 
-from app.infrastructure.ollama_platform_commands import (
+from infrastructure.models.ollama_platform_commands import (
     PlatformName,
     current_platform,
     launch_command,

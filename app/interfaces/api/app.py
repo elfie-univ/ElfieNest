@@ -33,10 +33,7 @@ from app.features.configuration import (
 from app.features.elfies import ElfiesService
 from app.features.nest_management import NestManagementService
 from app.features.operations import OperationsFacade
-from app.features.setup.installer import (
-    SetupInstallJobManager,
-    recover_interrupted_setup_install,
-)
+from app.features.setup import SetupService
 from app.infrastructure.devices import DeviceGateway
 from app.infrastructure.persistence.store import (
     init_db,
@@ -50,6 +47,7 @@ from app.interfaces.web.build_discovery import (
 from app.orchestration.message_delivery import MessageDeliveryFacade
 from app.orchestration.observer import ObserverFacade
 from app.orchestration.resident_admission import ResidentAdmissionService
+from app.orchestration.setup_installation import SetupInstallationService
 from infrastructure.communication import SameOriginMessagePublisher
 from nest.godot_gateway.bundle import (
     GODOT_WEB_DIR,
@@ -119,6 +117,8 @@ def create_http_application(
     observer: ObserverFacade,
     adoption: AdoptionService,
     resident_admission: ResidentAdmissionService,
+    setup: SetupService,
+    setup_installation: SetupInstallationService,
     engine: Any = None,
     db_path: Optional[str] = None,
     ws_port: int = 8766,
@@ -145,7 +145,7 @@ def create_http_application(
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         init_db(db_path)
-        recover_interrupted_setup_install(db_path)
+        setup_installation.recover()
         seed_initial_owner_if_env_set(db_path)
         # 创建鉴权 WS 网关（独立端口，不与 Godot 8765 冲突）
         ws_manager = AuthenticatedWSManager(
@@ -182,10 +182,11 @@ def create_http_application(
     app.state.observer = observer
     app.state.adoption = adoption
     app.state.resident_admission = resident_admission
+    app.state.setup = setup
+    app.state.setup_installation = setup_installation
     app.state.db_path = db_path
     app.state.engine = engine
     app.state.device_gateway = DeviceGateway()
-    app.state.setup_install_jobs = SetupInstallJobManager()
     app.state.ws_port = ws_port
     configured_web_build_dir = os.environ.get("ELFIENEST_WEB_BUILD_DIR")
     build_dir = web_build_dir or (
@@ -244,9 +245,9 @@ def create_http_application(
             csrf_exempt = path == "/api/v1/auth/login"
             if not csrf_exempt:
                 try:
-                    if path.startswith("/api/auth/setup/draft/"):
+                    if path.startswith("/api/v1/setup/draft/"):
                         verify_csrf_for_setup(request)
-                    elif path == "/api/auth/setup/install" and request.cookies.get(
+                    elif path == "/api/v1/setup/installation" and request.cookies.get(
                         "setup_token"
                     ):
                         verify_csrf_for_setup(request)
@@ -297,7 +298,6 @@ def create_http_application(
     # -------------------------------------------------------------------
     # Setup Wizard 路由（首启向导 — 在 owner 路由之前注册）
     # -------------------------------------------------------------------
-    from .setup_routes import router as setup_router  # noqa: PLC0415
     from .v1.admin.food_packages import (
         router as food_packages_router,  # noqa: PLC0415
     )
@@ -324,6 +324,7 @@ def create_http_application(
     from .v1.realtime_chat_routes import (
         router as realtime_chat_router,  # noqa: PLC0415
     )
+    from .v1.setup import router as setup_router  # noqa: PLC0415
 
     app.include_router(auth_router)
     app.include_router(settings_router)

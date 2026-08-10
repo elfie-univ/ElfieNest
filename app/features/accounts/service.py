@@ -32,12 +32,14 @@ from .models import (
     AuthenticatedSession,
     AvatarResult,
     ChangePasswordCommand,
+    CreateFirstOwnerCommand,
     CreateManagedAccountCommand,
     DeleteManagedAccountCommand,
     GetAvatarQuery,
     GetCurrentAccountQuery,
     GetManagedAvatarQuery,
     GetOwnerAccountQuery,
+    HasOwnerQuery,
     ListManagedAccountsQuery,
     LoginCommand,
     ManagedAccountResult,
@@ -54,7 +56,12 @@ from .models import (
 )
 from .password_policy import PasswordPolicyError, validate_password_strength
 from .passwords import hash_password, verify_password
-from .port_models import AccountProfileRecord, AccountProfileWrite, ManagedAccountRecord
+from .port_models import (
+    AccountProfileRecord,
+    AccountProfileWrite,
+    ManagedAccountRecord,
+    OwnerAccountRecord,
+)
 from .ports import (
     AccountAvatarPort,
     AccountManagementPort,
@@ -190,6 +197,32 @@ class AccountsService:
 
     def invalidate_security_cache(self) -> None:
         self._rate_limiters.clear()
+
+    def has_owner(self, query: HasOwnerQuery) -> bool:
+        _ = query
+        try:
+            return self._require_management().find_owner_account() is not None
+        except AccountPersistenceError as error:
+            raise AccountsUnavailable("Owner 状态暂时不可用") from error
+
+    def create_first_owner(
+        self, command: CreateFirstOwnerCommand
+    ) -> OwnerAccountResult:
+        account_id = command.account_id.strip()
+        self._validate_identity(account_id, command.display_name)
+        if not command.password_hash:
+            raise AccountValidationFailed("Owner 密码摘要不能为空")
+        try:
+            record = self._require_management().create_first_owner(
+                account_id=account_id,
+                display_name=self._normalize_display_name(command.display_name),
+                password_hash=command.password_hash,
+            )
+        except AccountPersistenceConflict as error:
+            raise AccountConflict("系统已有用户，无法执行首启设置") from error
+        except AccountPersistenceError as error:
+            raise AccountsUnavailable("Owner 账号暂时无法创建") from error
+        return self._owner_result(record)
 
     def get_current_account(
         self,
@@ -584,6 +617,16 @@ class AccountsService:
             elfie_quota_override=override,
             effective_elfie_limit=default_limit if override is None else override,
             has_avatar=record.avatar_path is not None,
+        )
+
+    @staticmethod
+    def _owner_result(record: OwnerAccountRecord) -> OwnerAccountResult:
+        return OwnerAccountResult(
+            user_id=record.user_id,
+            account_id=record.account_id,
+            display_name=record.display_name,
+            created_at=record.created_at,
+            updated_at=record.updated_at,
         )
 
     @staticmethod
