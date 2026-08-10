@@ -1,0 +1,1 @@
+"""Versioned administrator resource APIs."""
