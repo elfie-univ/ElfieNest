@@ -11,7 +11,11 @@ import tempfile
 from pathlib import Path
 from typing import Final, Mapping, Optional, Sequence, Tuple
 
-from app.orchestration.lifecycle.ports import ProcessInspectorPort, ProcessSnapshot
+from app.orchestration.lifecycle.ports import (
+    LocalProcessEntry,
+    ProcessInspectorPort,
+    ProcessSnapshot,
+)
 
 PID_FILENAME: Final = "elfienest.pid"
 DEFAULT_SERVICE_PORTS: Final[Tuple[int, ...]] = (8000, 8765, 8766)
@@ -342,8 +346,59 @@ class LocalServiceProcessAdapter:
     def port_occupant_pid(self, port: int) -> Optional[int]:
         return get_port_occupant_pid(port)
 
+    def current_pid(self) -> int:
+        return os.getpid()
+
+    def list_processes(self) -> Tuple[LocalProcessEntry, ...]:
+        completed = subprocess.run(
+            ["ps", "aux"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=5.0,
+        )
+        entries: list[LocalProcessEntry] = []
+        for line in completed.stdout.splitlines()[1:]:
+            parts = line.split(None, 10)
+            if len(parts) < 11:
+                continue
+            try:
+                pid = int(parts[1])
+                parent_pid = int(parts[2])
+            except ValueError:
+                continue
+            command = tuple(parts[10].split())
+            try:
+                cwd = self._inspector.cwd(pid) if self._inspector.exists(pid) else None
+            except (OSError, subprocess.SubprocessError):
+                cwd = None
+            entries.append(
+                LocalProcessEntry(
+                    pid=pid,
+                    parent_pid=parent_pid,
+                    command=command,
+                    cwd=cwd,
+                )
+            )
+        return tuple(entries)
+
+    def read_receipt(self, elfie_home: Path) -> Optional[str]:
+        try:
+            return (elfie_home / PID_FILENAME).read_text(encoding="utf-8").strip()
+        except FileNotFoundError:
+            return None
+
+    def receipt_exists(self, elfie_home: Path) -> bool:
+        return (elfie_home / PID_FILENAME).is_file()
+
     def register_receipt(self, elfie_home: Path, pid: int) -> Path:
         return register_service_process(elfie_home, pid)
 
     def remove_receipt(self, elfie_home: Path, pid: int) -> None:
         remove_service_process(elfie_home, pid)
+
+    def clear_receipt(self, elfie_home: Path) -> None:
+        (elfie_home / PID_FILENAME).unlink(missing_ok=True)
+
+    def register_current(self, elfie_home: Path) -> Path:
+        return register_current_service(elfie_home)

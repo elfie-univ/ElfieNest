@@ -90,6 +90,12 @@ class LocalDesktopHostAdapter:
             return
         cast(subprocess.Popen[bytes], process).terminate()
 
+    def wait(self, process: DesktopProcess, *, timeout_seconds: float) -> None:
+        try:
+            cast(subprocess.Popen[bytes], process).wait(timeout=timeout_seconds)
+        except subprocess.TimeoutExpired as error:
+            raise TimeoutError from error
+
     def terminate_pid(self, pid: int) -> None:
         os.kill(pid, signal.SIGTERM)
 

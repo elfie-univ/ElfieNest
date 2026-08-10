@@ -9,11 +9,9 @@ import sys
 import tempfile
 import threading
 import time
-import urllib.error
-import urllib.request
 import webbrowser
 from pathlib import Path
-from typing import Callable, Final, Optional, Sequence
+from typing import Final, Optional, Sequence
 
 from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.providers.ollama import OllamaManager, OllamaNotReadyError
@@ -27,33 +25,21 @@ from app.features.administration.system_service import (
     service_port_statuses,
 )
 from app.interfaces.web.frontend_build import FrontendBuildError, ensure_frontend_build
-from app.orchestration.lifecycle import desktop as desktop_lifecycle
-from app.orchestration.lifecycle.authority import (
-    AuthorityLifecycleConfig,
-    authority_lifecycle,
-)
-from app.orchestration.lifecycle.helpers import existing_service_command, read_pid
-from app.orchestration.lifecycle.process import (
+from app.orchestration.lifecycle import (
     DEFAULT_HTTP_PORT,
-    PID_FILENAME,
-    DefaultProcessInspector,
-    ProcessInspector,
-    http_port_from_command,
-    service_ports_from_command,
-    validate_service_ports,
-)
-from app.orchestration.lifecycle.runtime_health import (
+    AuthorityHostConfig,
     ComponentHealth,
+    LaunchFailedError,
+    LifecycleFacade,
     RuntimeComponent,
     RuntimeHealth,
     RuntimeHealthState,
-)
-from app.orchestration.lifecycle.runtime_supervisor import RuntimeSupervisor
-from app.orchestration.lifecycle.service import start_service, stop_service
-from app.orchestration.lifecycle.types import (
-    LaunchFailedError,
+    RuntimeLifecycle,
     ServiceLifecycleResult,
     ServicePortsActiveError,
+    http_port_from_command,
+    service_ports_from_command,
+    validate_service_ports,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -65,11 +51,12 @@ SELECTED_DATA_HOME_RECEIPT: Final = "selected-data-home"
 
 
 def _supervisor_for(
+    lifecycle: LifecycleFacade,
     command: Sequence[str],
     http_port: int,
     *,
     use_remembered_home: bool = False,
-) -> RuntimeSupervisor:
+) -> RuntimeLifecycle:
     """Build the one Runtime Supervisor used by source and installed CLI commands."""
     launch_command = tuple(command)
     selected_home = _data_home_for_command(
@@ -78,53 +65,38 @@ def _supervisor_for(
     )
     _, godot_ws_port, _ = service_ports_from_command(launch_command)
     generation_nonce = secrets.token_urlsafe(32)
-    start_authority, stop_authority = authority_lifecycle(
-        AuthorityLifecycleConfig(
+    return lifecycle.runtime_supervisor(
+        elfie_home=selected_home,
+        project_root=PROJECT_ROOT,
+        launch_command=launch_command,
+        authority_config=AuthorityHostConfig(
             project_root=PROJECT_ROOT,
             http_port=http_port,
             ws_port=godot_ws_port,
             nonce=generation_nonce,
-        )
-    )
-
-    def start_core(healthy: Callable[[], bool]) -> ServiceLifecycleResult:
-        return start_service(
-            selected_home,
-            PROJECT_ROOT,
-            command=launch_command,
-            health_checker=healthy,
-            timeout_seconds=BACKGROUND_START_TIMEOUT_SECONDS,
-            child_environment={
-                "ELFIE_HOME": str(selected_home),
-                "ELFIENEST_GODOT_NONCE": generation_nonce,
-            },
-        )
-
-    return RuntimeSupervisor(
-        elfie_home=selected_home,
-        project_root=PROJECT_ROOT,
-        health_probe=lambda: _full_runtime_health(http_port),
-        start_core=start_core,
-        stop_core=lambda: stop_service(selected_home, PROJECT_ROOT),
+        ),
+        health_probe=lambda: _full_runtime_health(lifecycle, http_port),
         prepare_optional_component=_start_configured_public_ollama,
-        owns_pid_record=lambda: (selected_home / PID_FILENAME).is_file(),
-        start_authority=start_authority,
-        stop_authority=stop_authority,
         authority_timeout_seconds=AUTHORITY_START_TIMEOUT_SECONDS,
+        core_timeout_seconds=BACKGROUND_START_TIMEOUT_SECONDS,
+        child_environment={
+            "ELFIE_HOME": str(selected_home),
+            "ELFIENEST_GODOT_NONCE": generation_nonce,
+        },
     )
 
 
-def _full_runtime_health(port: int) -> RuntimeHealth:
+def _full_runtime_health(lifecycle: LifecycleFacade, port: int) -> RuntimeHealth:
     """Probe every Runtime component; an HTTP 200 alone is never ready."""
     failed = RuntimeHealthState.FAILED
     core = failed
     gateway = failed
     authority = failed
     try:
-        with urllib.request.urlopen(
-            f"http://127.0.0.1:{port}/api/health", timeout=2.0
-        ) as response:
-            payload = json.loads(response.read().decode("utf-8"))
+        response = lifecycle.http_get(
+            f"http://127.0.0.1:{port}/api/health", timeout_seconds=2.0
+        )
+        payload = json.loads(response.body.decode("utf-8"))
         if response.status == 200 and isinstance(payload, dict):
             engine_ready = payload.get("engine_ready") is True
             core = RuntimeHealthState.READY if engine_ready else failed
@@ -134,7 +106,7 @@ def _full_runtime_health(port: int) -> RuntimeHealth:
                 if payload.get("godot_runtime_ready") is True
                 else failed
             )
-    except (OSError, TimeoutError, ValueError, urllib.error.URLError):
+    except (OSError, TimeoutError, ValueError):
         pass
     ollama = (
         RuntimeHealthState.READY
@@ -325,7 +297,7 @@ def _prepare_frontend_for_launch() -> None:
     ensure_frontend_build(runtime_mode=runtime_mode)
 
 
-def _runtime_is_stably_running(supervisor: RuntimeSupervisor) -> bool:
+def _runtime_is_stably_running(supervisor: RuntimeLifecycle) -> bool:
     """Treat a leased ready/degraded generation as an idempotent running service."""
     health = supervisor.status()
     return health.owner_lease is not None and health.state in {
@@ -335,6 +307,7 @@ def _runtime_is_stably_running(supervisor: RuntimeSupervisor) -> bool:
 
 
 def start_background_service(
+    lifecycle: LifecycleFacade,
     command: Optional[Sequence[str]] = None,
     *,
     owner_id: str = "cli",
@@ -353,9 +326,9 @@ def start_background_service(
         result = ServiceLifecycleResult(
             status="failed", error=LaunchFailedError(f"Invalid service port: {error}")
         )
-        _print_start_result(result)
+        _print_start_result(lifecycle, result)
         return result
-    supervisor = _supervisor_for(launch_command, http_port)
+    supervisor = _supervisor_for(lifecycle, launch_command, http_port)
     try:
         if not _runtime_is_stably_running(supervisor):
             _prepare_frontend_for_launch()
@@ -366,7 +339,7 @@ def start_background_service(
             command=launch_command,
             error=LaunchFailedError(f"Frontend build failed: {error}"),
         )
-        _print_start_result(result)
+        _print_start_result(lifecycle, result)
         return result
     result = supervisor.start(owner_id=owner_id)
     if result.status in {"started", "already_running"}:
@@ -380,13 +353,16 @@ def start_background_service(
                 error=LaunchFailedError(f"Cannot record selected data home: {error}"),
             )
     progress.stop(success=result.status in {"started", "already_running"})
-    _print_start_result(result)
+    _print_start_result(lifecycle, result)
     return result
 
 
-def stop_background_service(owner_id: str = "cli") -> ServiceLifecycleResult:
+def stop_background_service(
+    lifecycle: LifecycleFacade, owner_id: str = "cli"
+) -> ServiceLifecycleResult:
     """Stop only the current project's verified service process."""
     supervisor = _supervisor_for(
+        lifecycle,
         default_service_command(),
         DEFAULT_HTTP_PORT,
         use_remembered_home=True,
@@ -412,12 +388,13 @@ def stop_background_service(owner_id: str = "cli") -> ServiceLifecycleResult:
     return result
 
 
-def restart_background_service() -> ServiceLifecycleResult:
+def restart_background_service(lifecycle: LifecycleFacade) -> ServiceLifecycleResult:
     """Stop the current process and start it again with its existing arguments."""
     progress = ProgressIndicator("Restarting service")
     progress.start()
 
     stop_supervisor = _supervisor_for(
+        lifecycle,
         default_service_command(),
         DEFAULT_HTTP_PORT,
         use_remembered_home=True,
@@ -443,7 +420,7 @@ def restart_background_service() -> ServiceLifecycleResult:
             print()
             from app.interfaces.cli.doctor_commands import diagnose_ports
 
-            occupied = diagnose_ports()
+            occupied = diagnose_ports(lifecycle=lifecycle)
             if occupied:
                 print("  ⚠️  Port occupation detected:")
                 print()
@@ -477,7 +454,7 @@ def restart_background_service() -> ServiceLifecycleResult:
         print(f"  ❌ Service restart failed: {result.error}")
         return result
     launch_command = tuple(argument for argument in command if argument != "--force")
-    result = _supervisor_for(launch_command, http_port).start(owner_id="cli")
+    result = _supervisor_for(lifecycle, launch_command, http_port).start(owner_id="cli")
     succeeded = result.status in {"started", "already_running"}
     progress.stop(
         success=succeeded,
@@ -491,7 +468,7 @@ def restart_background_service() -> ServiceLifecycleResult:
             print()
             from app.interfaces.cli.doctor_commands import diagnose_ports
 
-            occupied = diagnose_ports()
+            occupied = diagnose_ports(lifecycle=lifecycle)
             if occupied:
                 print("  ⚠️  Port occupation detected:")
                 print()
@@ -516,17 +493,19 @@ def restart_background_service() -> ServiceLifecycleResult:
     return result
 
 
-def show_service_status(*, json_output: bool = False) -> None:
+def show_service_status(
+    lifecycle: LifecycleFacade, *, json_output: bool = False
+) -> None:
     """Print lifecycle state without duplicating usage/session statistics."""
-    inspector = DefaultProcessInspector()
     elfie_home = _data_home_for_command(
         default_service_command(),
         use_remembered_home=True,
     )
-    running = existing_service_command(elfie_home, PROJECT_ROOT, inspector)
+    running = lifecycle.existing_service_command(elfie_home, PROJECT_ROOT)
     status_command = running[1] if running is not None else default_service_command()
     status_port = http_port_from_command(status_command)
     health = _supervisor_for(
+        lifecycle,
         status_command,
         status_port,
         use_remembered_home=running is None,
@@ -565,7 +544,7 @@ def show_service_status(*, json_output: bool = False) -> None:
     print()
     if running is None:
         port_statuses = default_port_statuses()
-        external = _external_recorded_service(elfie_home, inspector)
+        external = _external_recorded_service(lifecycle, elfie_home)
         if external is not None:
             pid, cwd, _ = external
             print(f"  ⚠️  Registered PID {pid} from another ElfieNest checkout: {cwd}")
@@ -603,15 +582,13 @@ def show_service_status(*, json_output: bool = False) -> None:
     print()
 
 
-def open_web_console() -> ServiceLifecycleResult:
+def open_web_console(lifecycle: LifecycleFacade) -> ServiceLifecycleResult:
     """Ensure a healthy service and open the Web management console."""
-    running = existing_service_command(
-        get_elfie_home(), PROJECT_ROOT, DefaultProcessInspector()
-    )
+    running = lifecycle.existing_service_command(get_elfie_home(), PROJECT_ROOT)
     if running is not None:
         _, running_command = running
         port = http_port_from_command(running_command)
-        if not _web_is_healthy(port):
+        if not _web_is_healthy(lifecycle, port):
             result = ServiceLifecycleResult(
                 status="failed",
                 error=LaunchFailedError(
@@ -621,7 +598,7 @@ def open_web_console() -> ServiceLifecycleResult:
             print(f"  ❌ Cannot open Web console: {result.error}")
             return result
     else:
-        if _web_is_healthy(8000):
+        if _web_is_healthy(lifecycle, 8000):
             webbrowser.open(WEB_URL)
             print(f"  🌐 Opened running Web console: {WEB_URL}")
             print(
@@ -638,13 +615,13 @@ def open_web_console() -> ServiceLifecycleResult:
             )
             print(f"  ❌ Cannot open Web console: {result.error}")
             return result
-        result = start_background_service()
+        result = start_background_service(lifecycle)
         if result.status not in {"started", "already_running"}:
             return result
         port = http_port_from_command(
             result.command or default_service_command(("--lan",))
         )
-        if not _web_is_healthy(port):
+        if not _web_is_healthy(lifecycle, port):
             result = ServiceLifecycleResult(
                 status="failed",
                 error=LaunchFailedError(
@@ -659,10 +636,12 @@ def open_web_console() -> ServiceLifecycleResult:
     return ServiceLifecycleResult(status="already_running")
 
 
-def start_desktop_application() -> ServiceLifecycleResult:
+def start_desktop_application(lifecycle: LifecycleFacade) -> ServiceLifecycleResult:
     """Explicitly start the packaged Electron Desktop supervisor."""
-    result = desktop_lifecycle.start_desktop_application(
-        get_elfie_home(), PROJECT_ROOT, health_checker=_web_is_healthy
+    result = lifecycle.start_desktop(
+        get_elfie_home(),
+        PROJECT_ROOT,
+        health_checker=lambda: _web_is_healthy(lifecycle),
     )
     if result.status in {"started", "already_running"}:
         print(f"  ✅ Desktop started (PID {result.pid})")
@@ -671,32 +650,29 @@ def start_desktop_application() -> ServiceLifecycleResult:
     return result
 
 
-def _web_is_healthy(port: int = 8000) -> bool:
+def _web_is_healthy(lifecycle: LifecycleFacade, port: int = 8000) -> bool:
     health_url = f"http://127.0.0.1:{port}/api/health"
     try:
-        with urllib.request.urlopen(health_url, timeout=2.0) as response:
-            return response.status == 200
-    except (OSError, TimeoutError, urllib.error.URLError):
+        return lifecycle.http_get(health_url, timeout_seconds=2.0).status == 200
+    except (OSError, TimeoutError):
         return False
 
 
 def _external_recorded_service(
+    lifecycle: LifecycleFacade,
     elfie_home: Path,
-    inspector: ProcessInspector,
 ) -> tuple[int, Path, tuple[str, ...]] | None:
     """Return a live recorded service that belongs to another checkout."""
-    pid_path = elfie_home / PID_FILENAME
-    if not pid_path.exists():
-        return None
     try:
-        pid_result = read_pid(pid_path)
+        pid_result = lifecycle.recorded_pid(elfie_home)
     except OSError:
         return None
-    if not isinstance(pid_result, int) or not inspector.exists(pid_result):
+    if not isinstance(pid_result, int) or not lifecycle.process_exists(pid_result):
         return None
     try:
-        cwd = inspector.cwd(pid_result).resolve()
-        command = inspector.command(pid_result)
+        snapshot = lifecycle.inspect_process(pid_result)
+        cwd = snapshot.cwd.resolve()
+        command = snapshot.command
     except (OSError, RuntimeError, ValueError):
         return None
     if cwd == PROJECT_ROOT.resolve():
@@ -713,7 +689,9 @@ def _validated_http_port(command: Sequence[str]) -> int:
     return ports[0]
 
 
-def _print_start_result(result: ServiceLifecycleResult) -> None:
+def _print_start_result(
+    lifecycle: LifecycleFacade, result: ServiceLifecycleResult
+) -> None:
     if result.status == "started":
         print(f"  ✅ Service started (PID {result.pid})")
     elif result.status == "already_running":
@@ -726,7 +704,7 @@ def _print_start_result(result: ServiceLifecycleResult) -> None:
             print()
             from app.interfaces.cli.doctor_commands import diagnose_ports
 
-            occupied = diagnose_ports()
+            occupied = diagnose_ports(lifecycle=lifecycle)
             if occupied:
                 print("  ⚠️  Port occupation detected:")
                 print()

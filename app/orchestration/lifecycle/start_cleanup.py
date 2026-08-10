@@ -2,16 +2,11 @@
 
 from __future__ import annotations
 
-import signal
-import subprocess
 from pathlib import Path
 from typing import Callable
 
-from app.orchestration.lifecycle.process import (
-    ProcessInspector,
-    command_runs_service,
-    remove_service_process,
-)
+from app.orchestration.lifecycle.commands import command_runs_service
+from app.orchestration.lifecycle.ports import ServiceProcessPort
 from app.orchestration.lifecycle.types import (
     CleanupFailedError,
     ServiceLifecycleError,
@@ -23,8 +18,7 @@ def cleanup_failed_start(
     pid: int,
     pid_path: Path,
     original_error: ServiceLifecycleError,
-    inspector: ProcessInspector,
-    signaler: Callable[[int, int], None],
+    process_port: ServiceProcessPort,
     expected_cwd: Path,
     expected_script: Path,
     timeout_seconds: float,
@@ -33,15 +27,16 @@ def cleanup_failed_start(
     sleeper: Callable[[float], None],
 ) -> ServiceLifecycleResult:
     """Stop a process that failed health startup, removing only receipts still owned by that PID."""
-    if not inspector.exists(pid):
-        remove_service_process(pid_path.parent, pid)
+    if not process_port.exists(pid):
+        process_port.remove_receipt(pid_path.parent, pid)
         return ServiceLifecycleResult(status="failed", pid=pid, error=original_error)
     try:
-        actual_cwd = inspector.cwd(pid).resolve()
-        actual_command = inspector.command(pid)
-    except (OSError, subprocess.SubprocessError, ValueError) as error:
-        if not inspector.exists(pid):
-            remove_service_process(pid_path.parent, pid)
+        snapshot = process_port.inspect(pid)
+        actual_cwd = snapshot.cwd.resolve()
+        actual_command = snapshot.command
+    except (OSError, RuntimeError, ValueError) as error:
+        if not process_port.exists(pid):
+            process_port.remove_receipt(pid_path.parent, pid)
             return ServiceLifecycleResult(
                 status="failed", pid=pid, error=original_error
             )
@@ -59,16 +54,16 @@ def cleanup_failed_start(
             ),
         )
     try:
-        signaler(pid, signal.SIGTERM)
+        process_port.terminate(pid)
     except ProcessLookupError:
-        remove_service_process(pid_path.parent, pid)
+        process_port.remove_receipt(pid_path.parent, pid)
         return ServiceLifecycleResult(status="failed", pid=pid, error=original_error)
     except OSError as error:
         return ServiceLifecycleResult(
             status="failed", pid=pid, error=CleanupFailedError(pid, str(error))
         )
     deadline = monotonic() + timeout_seconds
-    while inspector.exists(pid):
+    while process_port.exists(pid):
         if monotonic() >= deadline:
             return ServiceLifecycleResult(
                 status="failed",
@@ -76,5 +71,5 @@ def cleanup_failed_start(
                 error=CleanupFailedError(pid, "Process did not exit after SIGTERM"),
             )
         sleeper(poll_interval_seconds)
-    remove_service_process(pid_path.parent, pid)
+    process_port.remove_receipt(pid_path.parent, pid)
     return ServiceLifecycleResult(status="failed", pid=pid, error=original_error)

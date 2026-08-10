@@ -1,53 +1,18 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from pathlib import Path
-from typing import List, Sequence, Tuple
+from typing import Callable, Mapping, Optional, Sequence
 
-
-class FailingInspector:
-    def exists(self, pid: int) -> bool:
-        raise AssertionError(f"无 PID 文件时不应检查进程 {pid}")
-
-    def cwd(self, pid: int) -> Path:
-        raise AssertionError(f"无 PID 文件时不应读取进程目录 {pid}")
-
-    def command(self, pid: int) -> Tuple[str, ...]:
-        raise AssertionError(f"无 PID 文件时不应读取进程命令 {pid}")
-
-
-class FakeInspector:
-    """可变 fake 用于模拟一个进程在轮询期间的存活状态。"""
-
-    def __init__(
-        self,
-        *,
-        cwd: Path,
-        command: Sequence[str],
-        existence: Sequence[bool],
-    ) -> None:
-        self._cwd = cwd
-        self._command = tuple(command)
-        self._existence = list(existence)
-        self._last_existence = self._existence[-1]
-
-    def exists(self, pid: int) -> bool:
-        del pid
-        if self._existence:
-            self._last_existence = self._existence.pop(0)
-        return self._last_existence
-
-    def cwd(self, pid: int) -> Path:
-        del pid
-        return self._cwd
-
-    def command(self, pid: int) -> Tuple[str, ...]:
-        del pid
-        return self._command
+from app.orchestration.lifecycle.ports import (
+    LifecycleLease,
+    LocalProcessEntry,
+    ProcessSnapshot,
+)
+from app.orchestration.lifecycle.types import RecoveryInProgressError
 
 
 class FakeClock:
-    """由 sleeper 推进的确定性时钟。"""
-
     def __init__(self) -> None:
         self.now = 0.0
 
@@ -58,24 +23,132 @@ class FakeClock:
         self.now += duration
 
 
-class RecordingLauncher:
-    """记录启动参数并返回固定 PID。"""
+class FakeLease:
+    def __init__(self) -> None:
+        self.released = False
 
-    def __init__(self, pid: int) -> None:
-        self.pid = pid
-        self.calls: List[Tuple[Tuple[str, ...], Path]] = []
+    def release(self) -> None:
+        self.released = True
 
-    def __call__(self, command: Sequence[str], cwd: Path) -> int:
-        self.calls.append((tuple(command), cwd))
-        return self.pid
+
+class FakeRecoveryLock:
+    def __init__(self, *, blocked: bool = False) -> None:
+        self.blocked = blocked
+        self.lease = FakeLease()
+
+    def acquire_start_lease(
+        self, elfie_home: Path, *, blocking: bool = False
+    ) -> LifecycleLease:
+        if self.blocked:
+            raise RecoveryInProgressError(elfie_home / "runtime" / "locks" / "lock")
+        return self.lease
+
+    def recovery_is_active(self, elfie_home: Path) -> bool:
+        return self.blocked
+
+    @contextmanager
+    def owner_recovery(self, elfie_home: Path):
+        yield
+
+
+class FakeProcessPort:
+    def __init__(
+        self,
+        *,
+        cwd: Path,
+        command: Sequence[str] = ("python", "scripts/serve.py"),
+        existence: Sequence[bool] = (True,),
+        launched_pid: int = 5101,
+        ports_active: bool = False,
+        terminate_hook: Optional[Callable[[int, bool], None]] = None,
+    ) -> None:
+        self.cwd = cwd
+        self.command = tuple(command)
+        self.existence = list(existence)
+        self.last_existence = self.existence[-1]
+        self.launched_pid = launched_pid
+        self.ports_active = ports_active
+        self.terminate_hook = terminate_hook
+        self.launches: list[tuple[tuple[str, ...], Path, Mapping[str, str]]] = []
+        self.terminations: list[tuple[int, bool]] = []
+        self.registration_error: Optional[OSError] = None
+        self.read_error: Optional[OSError] = None
+
+    def exists(self, pid: int) -> bool:
+        if self.existence:
+            self.last_existence = self.existence.pop(0)
+        return self.last_existence
+
+    def inspect(self, pid: int) -> ProcessSnapshot:
+        return ProcessSnapshot(pid=pid, cwd=self.cwd, command=self.command)
+
+    def launch(
+        self,
+        command: Sequence[str],
+        cwd: Path,
+        *,
+        environment: Optional[Mapping[str, str]] = None,
+    ) -> int:
+        self.launches.append((tuple(command), cwd, dict(environment or {})))
+        return self.launched_pid
+
+    def terminate(self, pid: int, *, force: bool = False) -> None:
+        self.terminations.append((pid, force))
+        if self.terminate_hook is not None:
+            self.terminate_hook(pid, force)
+
+    def ports_in_use(self, ports: Sequence[int]) -> bool:
+        return self.ports_active
+
+    def port_occupant_pid(self, port: int) -> Optional[int]:
+        return self.launched_pid if self.ports_active else None
+
+    def current_pid(self) -> int:
+        return 1
+
+    def list_processes(self) -> tuple[LocalProcessEntry, ...]:
+        return ()
+
+    def read_receipt(self, elfie_home: Path) -> Optional[str]:
+        if self.read_error is not None:
+            raise self.read_error
+        try:
+            return (elfie_home / "elfienest.pid").read_text(encoding="utf-8").strip()
+        except FileNotFoundError:
+            return None
+
+    def receipt_exists(self, elfie_home: Path) -> bool:
+        return (elfie_home / "elfienest.pid").is_file()
+
+    def register_receipt(self, elfie_home: Path, pid: int) -> Path:
+        if self.registration_error is not None:
+            raise self.registration_error
+        elfie_home.mkdir(parents=True, exist_ok=True)
+        path = elfie_home / "elfienest.pid"
+        path.write_text(str(pid), encoding="utf-8")
+        return path
+
+    def remove_receipt(self, elfie_home: Path, pid: int) -> None:
+        path = elfie_home / "elfienest.pid"
+        try:
+            if path.read_text(encoding="utf-8").strip() == str(pid):
+                path.unlink()
+        except FileNotFoundError:
+            return
+
+    def clear_receipt(self, elfie_home: Path) -> None:
+        (elfie_home / "elfienest.pid").unlink(missing_ok=True)
+
+    def register_current(self, elfie_home: Path) -> Path:
+        return self.register_receipt(elfie_home, 1)
 
 
 def write_pid(elfie_home: Path, pid: int) -> Path:
-    elfie_home.mkdir(parents=True)
-    pid_path = elfie_home / "elfienest.pid"
-    pid_path.write_text(str(pid), encoding="utf-8")
-    return pid_path
+    elfie_home.mkdir(parents=True, exist_ok=True)
+    path = elfie_home / "elfienest.pid"
+    path.write_text(str(pid), encoding="utf-8")
+    return path
 
 
-def serve_command(project_root: Path) -> Tuple[str, ...]:
+def serve_command(project_root: Path) -> tuple[str, ...]:
     return ("python", str((project_root / "scripts" / "serve.py").resolve()))

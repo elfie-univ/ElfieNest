@@ -22,6 +22,7 @@ if (
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ai_runtime.storage.data_home import DataHomeSelectionError, resolve_elfie_home
+from app.bootstrap.lifecycle import create_lifecycle_facade
 from app.interfaces.cli.doctor_commands import run_doctor
 from app.interfaces.cli.foreground_runtime import run_foreground_service
 from app.interfaces.cli.lifecycle_commands import (
@@ -44,7 +45,7 @@ from app.interfaces.cli.runtime_commands import dispatch_db, show_version
 from app.interfaces.cli.tui.common import print_banner
 from app.interfaces.cli.tui.config_app import run_config_tui
 from app.interfaces.cli.uninstall_commands import run_uninstall_menu
-from app.orchestration.lifecycle.types import ServiceLifecycleResult
+from app.orchestration.lifecycle import LifecycleFacade, ServiceLifecycleResult
 
 if getattr(sys, "frozen", False):
     try:
@@ -165,12 +166,15 @@ def main() -> None:
     )
 
     args = parser.parse_args()
-    dispatch_command(args)
+    dispatch_command(args, create_lifecycle_facade())
 
 
-def dispatch_command(args: argparse.Namespace) -> None:
+def dispatch_command(
+    args: argparse.Namespace, lifecycle: LifecycleFacade | None = None
+) -> None:
+    lifecycle_client = lifecycle or create_lifecycle_facade()
     try:
-        _dispatch_command(args)
+        _dispatch_command(args, lifecycle_client)
     except DataHomeSelectionError as error:
         sys.stderr.write(f"elfienest: {error}\n")
         raise SystemExit(2) from error
@@ -180,20 +184,20 @@ def dispatch_command(args: argparse.Namespace) -> None:
         raise SystemExit(130) from error
 
 
-def _dispatch_command(args: argparse.Namespace) -> None:
+def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> None:
     if args.command == "config":
         run_config_tui(login_provider, getattr(args, "config_path", None))
     elif args.command == "serve":
         options = _service_options_from_args(args)
         if args.force:
             options += ("--force",)
-        _exit_on_lifecycle_failure(run_foreground_service(options))
+        _exit_on_lifecycle_failure(run_foreground_service(lifecycle, options))
     elif args.command == "status":
-        show_service_status(json_output=getattr(args, "json", False))
+        show_service_status(lifecycle, json_output=getattr(args, "json", False))
     elif args.command == "web":
-        _exit_on_lifecycle_failure(open_web_console())
+        _exit_on_lifecycle_failure(open_web_console(lifecycle))
     elif args.command == "desktop":
-        _exit_on_lifecycle_failure(start_desktop_application())
+        _exit_on_lifecycle_failure(start_desktop_application(lifecycle))
     elif args.command == "mobile":
         raise SystemExit(show_mobile_access())
     elif args.command == "start":
@@ -201,6 +205,7 @@ def _dispatch_command(args: argparse.Namespace) -> None:
         owner_id = getattr(args, "owner_id", None)
         _exit_on_lifecycle_failure(
             start_background_service(
+                lifecycle,
                 command,
                 **({"owner_id": owner_id} if owner_id is not None else {}),
             )
@@ -208,22 +213,24 @@ def _dispatch_command(args: argparse.Namespace) -> None:
     elif args.command == "stop":
         owner_id = getattr(args, "owner_id", None)
         result = (
-            stop_background_service(owner_id=owner_id)
+            stop_background_service(lifecycle, owner_id=owner_id)
             if owner_id is not None
-            else stop_background_service()
+            else stop_background_service(lifecycle)
         )
         _exit_on_lifecycle_failure(result)
     elif args.command == "restart":
-        _exit_on_lifecycle_failure(restart_background_service())
+        _exit_on_lifecycle_failure(restart_background_service(lifecycle))
     elif args.command == "owner":
-        raise SystemExit(run_owner_menu())
+        raise SystemExit(run_owner_menu(lifecycle))
     elif args.command == "doctor":
         fix_ports = getattr(args, "fix_ports", False)
         force = getattr(args, "force", False)
         if fix_ports:
             from app.interfaces.cli.doctor_commands import run_doctor_with_port_fix
 
-            raise SystemExit(run_doctor_with_port_fix(fix_ports=True, force=force))
+            raise SystemExit(
+                run_doctor_with_port_fix(lifecycle, fix_ports=True, force=force)
+            )
         else:
             raise SystemExit(run_doctor())
     elif args.command == "uninstall":
@@ -240,7 +247,9 @@ def _dispatch_command(args: argparse.Namespace) -> None:
         print_banner()
         print("  Starting service...")
         print()
-        _exit_on_lifecycle_failure(run_foreground_service(tuple(sys.argv[1:])))
+        _exit_on_lifecycle_failure(
+            run_foreground_service(lifecycle, tuple(sys.argv[1:]))
+        )
 
 
 def _service_options_from_args(args: argparse.Namespace) -> tuple[str, ...]:

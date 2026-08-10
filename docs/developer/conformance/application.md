@@ -167,6 +167,24 @@ Machine baseline entries removed: old Provider Route construction, loose models,
 Status: in progress
 ```
 
+### Orchestration: Runtime lifecycle
+
+```text
+Domain: orchestration/lifecycle
+Gap IDs: APP-002, APP-003, APP-004, APP-007, APP-008, APP-009
+Current authoritative facts: the existing Core, Gateway and Godot-authority process commands, PID receipts, recovery lease and Runtime health contract
+Routes and production callers: elfienest serve/start/stop/restart/status/web/desktop/doctor commands; source serve entry point; Owner recovery flow
+Target public facade and models: LifecycleFacade with typed service, desktop and supervised Runtime commands/results
+Ports and adapters: lifecycle-owned process, recovery lease, desktop host, HTTP probe, Runtime record and authority-host Ports; root platform/Godot adapters; dedicated Bootstrap factory
+Consistency class: process and desktop receipts remain atomically written local files; one recovery lease serializes start/recovery; external process waits occur outside product persistence transactions
+Principal and authorization: local CLI and source entry points create and inject the facade; the lifecycle workflow validates process ownership before termination
+Timeout / retry / idempotency: existing bounded readiness and stop timeouts are preserved; no new retry; start/stop/recovery retain their existing idempotent results
+Legacy deletion list: concrete process, recovery-lock and Godot-authority host implementations under App Orchestration; CLI imports of lifecycle internals; CLI and serve construction of concrete mechanisms
+Focused tests and end-to-end gate: lifecycle workflows and root adapters; CLI and serve entry points; process ownership, recovery, interrupt and Runtime supervision; App/System architecture gates; final real service startup
+Machine baseline entries removed: every Interface import of private lifecycle implementation modules
+Status: in progress
+```
+
 ## Current-to-target migration map
 
 The normative owners are defined only by the Application contract. This table

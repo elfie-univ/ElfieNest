@@ -57,6 +57,7 @@ from ai_runtime.storage.data_home import (
     select_elfie_home,
 )
 from app.bootstrap import create_app
+from app.bootstrap.lifecycle import create_lifecycle_facade
 from app.features.adoption.generator import ElfieGenerator
 from app.features.configuration.food_access import resolve_elfie_main_food_selection
 from app.infrastructure.persistence.account_repository import AccountRepository
@@ -77,18 +78,13 @@ from app.interfaces.web.frontend_build import (
     ensure_frontend_build,
 )
 from app.orchestration.engine import ElfieNestEngine
-from app.orchestration.lifecycle.process import (
+from app.orchestration.lifecycle import (
     DEFAULT_GODOT_WS_PORT,
     DEFAULT_MANAGEMENT_WS_PORT,
-    DefaultProcessInspector,
-    command_runs_service,
-    register_current_service,
-    validate_service_ports,
-)
-from app.orchestration.lifecycle.recovery_lock import (
     MANAGED_START_ENV,
     RecoveryInProgressError,
-    acquire_service_start_lease,
+    command_runs_service,
+    validate_service_ports,
 )
 from elfie.brain.decision_types import CancelPolicy, DecisionPlan, MessageIntent
 from elfie.brain.model_context_compiler import CompiledModelContext
@@ -330,6 +326,7 @@ def seed_single_elfie(db_path: str) -> bool:
 
 
 def main():
+    lifecycle = create_lifecycle_facade()
     parser = argparse.ArgumentParser(description="ElfieNest backend service")
     parser.add_argument(
         "--fallback",
@@ -408,7 +405,7 @@ def main():
 
     managed_start = os.environ.pop(MANAGED_START_ENV, "") == "1"
     try:
-        start_lease = acquire_service_start_lease(
+        start_lease = lifecycle.acquire_start_lease(
             get_elfie_home(), blocking=managed_start
         )
     except (OSError, RecoveryInProgressError):
@@ -437,45 +434,34 @@ def main():
             "  💡 Run after modifying Godot assets or before release: ./elfienest.sh build-godot-web"
         )
 
-    # Check whether service ports are occupied.
-    import socket
-
     def is_port_in_use(port):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            return s.connect_ex(("127.0.0.1", port)) == 0
+        return lifecycle.ports_in_use((port,))
 
     def kill_process_on_port(port):
         """Terminate only the current project's registered service process."""
-        inspector = DefaultProcessInspector()
         expected_root = Path(__file__).resolve().parent.parent
         expected_script = Path(__file__).resolve()
         try:
-            result = subprocess.run(
-                ["lsof", "-ti", f":{port}"],
-                capture_output=True,
-                text=True,
-            )
-            pids = result.stdout.strip().split("\n")
+            occupant = lifecycle.port_occupant_pid(port)
+            pids = (occupant,) if occupant is not None else ()
             killed = []
             for pid in pids:
-                if pid:
-                    try:
-                        numeric_pid = int(pid)
-                        process_cwd = inspector.cwd(numeric_pid).resolve()
-                        process_command = inspector.command(numeric_pid)
-                    except (OSError, ValueError, subprocess.SubprocessError):
-                        continue
-                    if process_cwd != expected_root or not command_runs_service(
-                        process_command, process_cwd, expected_script
-                    ):
-                        continue
-                    try:
-                        subprocess.run(["kill", "-9", pid], check=True)
-                        killed.append(pid)
-                    except (OSError, subprocess.SubprocessError):
-                        pass
+                try:
+                    snapshot = lifecycle.inspect_process(pid)
+                    process_cwd = snapshot.cwd.resolve()
+                except (OSError, ValueError, RuntimeError):
+                    continue
+                if process_cwd != expected_root or not command_runs_service(
+                    snapshot.command, process_cwd, expected_script
+                ):
+                    continue
+                try:
+                    lifecycle.terminate_process(pid, force=True)
+                    killed.append(str(pid))
+                except OSError:
+                    pass
             return killed
-        except (OSError, subprocess.SubprocessError):
+        except OSError:
             return []
 
     ports_to_check = [
@@ -534,7 +520,7 @@ def main():
             sys.exit(1)
 
     try:
-        register_current_service(get_elfie_home())
+        lifecycle.register_current_service(get_elfie_home())
         _remember_lifecycle_data_home(get_elfie_home())
     except OSError as error:
         start_lease.release()

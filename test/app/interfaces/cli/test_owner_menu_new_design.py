@@ -3,8 +3,11 @@ from __future__ import annotations
 import builtins
 
 from ai_runtime.lab.menu import TerminalMenu
+from app.bootstrap.lifecycle import create_lifecycle_facade
 from app.features.administration.owner_service import OwnerAccount
 from app.interfaces.cli import owner_commands
+
+LIFECYCLE = create_lifecycle_facade()
 
 
 def test_owner_menu_has_three_items_and_shares_actions(monkeypatch, capsys) -> None:
@@ -20,11 +23,11 @@ def test_owner_menu_has_three_items_and_shares_actions(monkeypatch, capsys) -> N
     monkeypatch.setattr(
         owner_commands,
         "recover_owner_interactive",
-        lambda **_kwargs: calls.append("recover") or 0,
+        lambda *_args, **_kwargs: calls.append("recover") or 0,
     )
 
     # When
-    result = owner_commands.run_owner_menu()
+    result = owner_commands.run_owner_menu(LIFECYCLE)
 
     # Then
     output = capsys.readouterr().out
@@ -86,7 +89,9 @@ def test_owner_recovery_can_be_cancelled_before_input(monkeypatch, capsys) -> No
     )
 
     # When
-    result = owner_commands.recover_owner_interactive("/tmp/missing.db", menu=menu)
+    result = owner_commands.recover_owner_interactive(
+        LIFECYCLE, "/tmp/missing.db", menu=menu
+    )
 
     # Then
     output = capsys.readouterr().out

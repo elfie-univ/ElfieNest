@@ -18,8 +18,9 @@ from app.infrastructure.persistence.store import (
 from test.app.interfaces.cli.entrypoint_test_support import PROJECT_ROOT
 
 _CHILD_CODE: Final = """
+from app.bootstrap.lifecycle import create_lifecycle_facade
 from app.interfaces.cli.owner_commands import recover_owner_interactive
-raise SystemExit(recover_owner_interactive())
+raise SystemExit(recover_owner_interactive(create_lifecycle_facade()))
 """
 
 

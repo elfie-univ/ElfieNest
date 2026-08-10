@@ -3,11 +3,16 @@ from __future__ import annotations
 import stat
 from argparse import Namespace
 from pathlib import Path
+from typing import Any, cast
 
+from app.bootstrap.lifecycle import create_lifecycle_facade
 from app.interfaces.cli import lifecycle_commands
+from app.orchestration.lifecycle.facade import LifecycleFacade
 from app.orchestration.lifecycle.runtime_health import RuntimeHealth, RuntimeHealthState
 from app.orchestration.lifecycle.types import ServiceLifecycleResult
 from scripts import elfienest
+
+LIFECYCLE = create_lifecycle_facade()
 
 
 class _StartedSupervisor:
@@ -84,7 +89,7 @@ def test_started_service_remembers_selected_home_for_later_commands(
     monkeypatch.delenv("ELFIE_HOME", raising=False)
     command = ("python", "scripts/serve.py", "--data-home", str(selected_home))
 
-    result = lifecycle_commands.start_background_service(command)
+    result = lifecycle_commands.start_background_service(LIFECYCLE, command)
     remembered = lifecycle_commands._data_home_for_command(
         ("python", "scripts/serve.py"),
         use_remembered_home=True,
@@ -125,19 +130,16 @@ def test_lifecycle_supervisor_uses_command_data_home(
     selected_home = tmp_path / "selected"
     captured: dict[str, Path] = {}
 
-    class Supervisor:
-        def __init__(self, **kwargs) -> None:
+    class Lifecycle:
+        def runtime_supervisor(self, **kwargs: Any) -> _HealthSupervisor:
             captured["elfie_home"] = kwargs["elfie_home"]
+            return _HealthSupervisor()
 
-    monkeypatch.setattr(lifecycle_commands, "RuntimeSupervisor", Supervisor)
-    monkeypatch.setattr(
-        lifecycle_commands,
-        "authority_lifecycle",
-        lambda _config: (lambda: None, lambda _process: None),
-    )
     command = ("python", "scripts/serve.py", "--data-home", str(selected_home))
 
-    lifecycle_commands._supervisor_for(command, 8000)
+    lifecycle_commands._supervisor_for(
+        cast(LifecycleFacade, Lifecycle()), command, 8000
+    )
 
     assert captured["elfie_home"] == selected_home.resolve()
 
@@ -150,24 +152,16 @@ def test_lifecycle_supervisor_publishes_selected_home_to_child(
     selected_home = tmp_path / "selected"
     child_environments: list[dict[str, str]] = []
 
-    def start_service(*_args, **kwargs) -> ServiceLifecycleResult:
-        child_environments.append(dict(kwargs["child_environment"]))
-        return ServiceLifecycleResult(status="started", pid=42)
+    class Lifecycle:
+        def runtime_supervisor(self, **kwargs: Any) -> _HealthSupervisor:
+            child_environments.append(dict(kwargs["child_environment"]))
+            return _HealthSupervisor()
 
-    class Supervisor:
-        def __init__(self, **kwargs) -> None:
-            kwargs["start_core"](lambda: True)
-
-    monkeypatch.setattr(lifecycle_commands, "start_service", start_service)
-    monkeypatch.setattr(lifecycle_commands, "RuntimeSupervisor", Supervisor)
-    monkeypatch.setattr(
-        lifecycle_commands,
-        "authority_lifecycle",
-        lambda _config: (lambda: None, lambda _process: None),
-    )
     command = ("python", "scripts/serve.py", "--data-home", str(selected_home))
 
-    lifecycle_commands._supervisor_for(command, 8000)
+    lifecycle_commands._supervisor_for(
+        cast(LifecycleFacade, Lifecycle()), command, 8000
+    )
 
     assert child_environments[0]["ELFIE_HOME"] == str(selected_home.resolve())
 
@@ -182,7 +176,7 @@ def test_stop_uses_remembered_lifecycle_home(monkeypatch) -> None:
 
     monkeypatch.setattr(lifecycle_commands, "_supervisor_for", supervisor)
 
-    lifecycle_commands.stop_background_service()
+    lifecycle_commands.stop_background_service(LIFECYCLE)
 
     assert remembered_flags == [True]
 
@@ -200,7 +194,7 @@ def test_restart_stops_remembered_home_and_reuses_recorded_command(monkeypatch) 
 
     monkeypatch.setattr(lifecycle_commands, "_supervisor_for", supervisor)
 
-    result = lifecycle_commands.restart_background_service()
+    result = lifecycle_commands.restart_background_service(LIFECYCLE)
 
     assert result.status == "started"
     assert calls == [True, False]
@@ -214,11 +208,7 @@ def test_status_reads_remembered_lifecycle_home(monkeypatch, tmp_path: Path) -> 
         "_data_home_for_command",
         lambda *_args, **_kwargs: tmp_path / "selected",
     )
-    monkeypatch.setattr(
-        lifecycle_commands,
-        "existing_service_command",
-        lambda *_args: None,
-    )
+    monkeypatch.setattr(LIFECYCLE, "existing_service_command", lambda *_args: None)
     monkeypatch.setattr(lifecycle_commands, "default_port_statuses", lambda: ())
 
     def supervisor(*_args, **kwargs) -> _HealthSupervisor:
@@ -227,6 +217,6 @@ def test_status_reads_remembered_lifecycle_home(monkeypatch, tmp_path: Path) -> 
 
     monkeypatch.setattr(lifecycle_commands, "_supervisor_for", supervisor)
 
-    lifecycle_commands.show_service_status()
+    lifecycle_commands.show_service_status(LIFECYCLE)
 
     assert remembered_flags == [True]

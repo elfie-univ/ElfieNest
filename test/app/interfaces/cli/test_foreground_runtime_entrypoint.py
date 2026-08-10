@@ -5,6 +5,7 @@ from argparse import Namespace
 
 import pytest
 
+from app.bootstrap.lifecycle import create_lifecycle_facade
 from app.interfaces.cli import foreground_runtime, lifecycle_commands
 from app.orchestration.lifecycle.runtime_health import RuntimeHealth
 from app.orchestration.lifecycle.types import (
@@ -42,7 +43,7 @@ def test_packaged_core_uses_supervisor_without_exec(
     monkeypatch.setattr(
         lifecycle_commands,
         "_supervisor_for",
-        lambda command, port: (
+        lambda _lifecycle, command, port: (
             factory_calls.append((tuple(command), port)) or supervisor
         ),
     )
@@ -51,7 +52,9 @@ def test_packaged_core_uses_supervisor_without_exec(
     )
 
     # When
-    result = foreground_runtime.run_foreground_service(("--port", "8123"))
+    result = foreground_runtime.run_foreground_service(
+        create_lifecycle_facade(), ("--port", "8123")
+    )
 
     # Then
     assert result.status == "already_running"
@@ -66,7 +69,10 @@ def test_serve_start_failure_maps_to_exit_one(
         status="failed", error=LaunchFailedError("startup failed")
     )
     monkeypatch.setattr(
-        elfienest, "run_foreground_service", lambda _options: failure, raising=False
+        elfienest,
+        "run_foreground_service",
+        lambda _lifecycle, _options: failure,
+        raising=False,
     )
     monkeypatch.setattr(
         elfienest.os,
@@ -85,5 +91,5 @@ def test_serve_start_failure_maps_to_exit_one(
 
     # When / Then
     with pytest.raises(SystemExit) as error:
-        elfienest._dispatch_command(args)
+        elfienest._dispatch_command(args, create_lifecycle_facade())
     assert error.value.code == 1

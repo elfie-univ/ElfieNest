@@ -4,7 +4,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import ContextManager, Mapping, Optional, Protocol, Sequence, Tuple
+from typing import (
+    Callable,
+    ContextManager,
+    Mapping,
+    Optional,
+    Protocol,
+    Sequence,
+    Tuple,
+)
 
 from app.orchestration.lifecycle.runtime_health import RuntimeHealth
 
@@ -16,6 +24,16 @@ class ProcessSnapshot:
     pid: int
     cwd: Path
     command: Tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class LocalProcessEntry:
+    """Technical process-table facts used by local diagnostics."""
+
+    pid: int
+    parent_pid: int
+    command: Tuple[str, ...]
+    cwd: Optional[Path]
 
 
 @dataclass(frozen=True)
@@ -34,6 +52,13 @@ class AuthorityHostConfig:
     http_port: int
     ws_port: int
     nonce: str
+
+
+@dataclass(frozen=True)
+class RecordedAuthorityProcess:
+    """Authority identity recovered from one durable Runtime receipt."""
+
+    pid: int
 
 
 class AuthorityProcess(Protocol):
@@ -84,11 +109,29 @@ class ServiceProcessPort(Protocol):
     def port_occupant_pid(self, port: int) -> Optional[int]:
         """Return the first local process occupying a listening port."""
 
+    def current_pid(self) -> int:
+        """Return the calling process identity."""
+
+    def list_processes(self) -> Tuple[LocalProcessEntry, ...]:
+        """Return the bounded local process-table projection."""
+
+    def read_receipt(self, elfie_home: Path) -> Optional[str]:
+        """Read the raw Core PID receipt, or None when absent."""
+
+    def receipt_exists(self, elfie_home: Path) -> bool:
+        """Return whether a Core PID receipt exists."""
+
     def register_receipt(self, elfie_home: Path, pid: int) -> Path:
         """Atomically persist the owned Core PID receipt."""
 
     def remove_receipt(self, elfie_home: Path, pid: int) -> None:
         """Remove the receipt only when it still belongs to the supplied PID."""
+
+    def clear_receipt(self, elfie_home: Path) -> None:
+        """Remove a receipt already classified as stale by an App workflow."""
+
+    def register_current(self, elfie_home: Path) -> Path:
+        """Register the calling process and schedule normal-exit cleanup."""
 
 
 class LifecycleLease(Protocol):
@@ -144,6 +187,9 @@ class DesktopHostPort(Protocol):
     def terminate(self, process: DesktopProcess, *, force: bool = False) -> None:
         """Terminate a newly launched Desktop process handle."""
 
+    def wait(self, process: DesktopProcess, *, timeout_seconds: float) -> None:
+        """Wait for a newly launched Desktop process to exit."""
+
     def terminate_pid(self, pid: int) -> None:
         """Terminate a recovered Desktop PID."""
 
@@ -176,3 +222,7 @@ class AuthorityHostPort(Protocol):
 
     def stop(self, process: AuthorityProcess) -> None:
         """Stop a live or receipt-recovered authority host safely."""
+
+
+AuthorityHostFactory = Callable[[AuthorityHostConfig], AuthorityHostPort]
+RuntimeRecordFactory = Callable[[Path], RuntimeRecordPort]

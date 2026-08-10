@@ -224,21 +224,7 @@ LEGACY_APP_LAYER_VIOLATIONS: Dict[str, FrozenSet[str]] = {
             "app/interfaces/cli/route_commands.py -> app.infrastructure.persistence.elfie_repository",
         }
     ),
-    "interface_orchestration_internal_imports": frozenset(
-        {
-            "app/interfaces/cli/doctor_commands.py -> app.orchestration.lifecycle.process",
-            "app/interfaces/cli/foreground_runtime.py -> app.orchestration.lifecycle.runtime_health",
-            "app/interfaces/cli/foreground_runtime.py -> app.orchestration.lifecycle.types",
-            "app/interfaces/cli/lifecycle_commands.py -> app.orchestration.lifecycle.authority",
-            "app/interfaces/cli/lifecycle_commands.py -> app.orchestration.lifecycle.helpers",
-            "app/interfaces/cli/lifecycle_commands.py -> app.orchestration.lifecycle.process",
-            "app/interfaces/cli/lifecycle_commands.py -> app.orchestration.lifecycle.runtime_health",
-            "app/interfaces/cli/lifecycle_commands.py -> app.orchestration.lifecycle.runtime_supervisor",
-            "app/interfaces/cli/lifecycle_commands.py -> app.orchestration.lifecycle.service",
-            "app/interfaces/cli/lifecycle_commands.py -> app.orchestration.lifecycle.types",
-            "app/interfaces/cli/owner_commands.py -> app.orchestration.lifecycle.recovery_lock",
-        }
-    ),
+    "interface_orchestration_internal_imports": frozenset(),
     "json_routes_loose_annotations": frozenset(
         {
             "app/interfaces/api/account_auth_routes.py::change_password::POST /me/password::return:loose",

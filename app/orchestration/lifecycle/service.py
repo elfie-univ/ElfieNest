@@ -1,34 +1,22 @@
 """Safe lifecycle management for the local ElfieNest service."""
 
-import os
-import signal
-import subprocess
 import sys
 import time
 from pathlib import Path
 from typing import Callable, Mapping, Optional, Sequence
 
-from app.orchestration.lifecycle.helpers import (
-    default_launcher,
-    existing_service_command,
-    read_pid,
-)
-from app.orchestration.lifecycle.process import (
+from app.orchestration.lifecycle.commands import (
     DEFAULT_SERVICE_PORTS,
-    PID_FILENAME,
-    DefaultProcessInspector,
-    ProcessInspector,
-    any_service_port_in_use,
+    MANAGED_START_ENV,
     command_runs_service,
-    register_service_process,
-    remove_service_process,
     restart_command_from_process,
     service_ports_from_command,
 )
-from app.orchestration.lifecycle.recovery_lock import (
-    RecoveryInProgressError,
-    acquire_service_start_lease,
+from app.orchestration.lifecycle.helpers import (
+    existing_service_command,
+    recorded_pid,
 )
+from app.orchestration.lifecycle.ports import RecoveryLockPort, ServiceProcessPort
 from app.orchestration.lifecycle.start_cleanup import cleanup_failed_start
 from app.orchestration.lifecycle.types import (
     HealthCheckFailedError,
@@ -36,32 +24,28 @@ from app.orchestration.lifecycle.types import (
     LaunchFailedError,
     ProcessIdentityMismatchError,
     ProcessInspectionError,
+    RecoveryInProgressError,
     ServiceLifecycleResult,
     ServicePortsActiveError,
     SignalProcessError,
     StopTimeoutError,
 )
 
-_default_launcher = default_launcher
-_read_pid = read_pid
-
 
 def stop_service(
     elfie_home: Path,
     project_root: Path,
     *,
-    inspector: Optional[ProcessInspector] = None,
-    signaler: Callable[[int, int], None] = os.kill,
+    process_port: ServiceProcessPort,
     timeout_seconds: float = 10.0,
     poll_interval_seconds: float = 0.1,
     monotonic: Callable[[], float] = time.monotonic,
     sleeper: Callable[[float], None] = time.sleep,
-    service_ports_in_use: Callable[[Sequence[int]], bool] = any_service_port_in_use,
 ) -> ServiceLifecycleResult:
     """Stop the service only when the PID identity exactly matches this project."""
-    pid_path = elfie_home / PID_FILENAME
-    if not pid_path.exists():
-        if service_ports_in_use(DEFAULT_SERVICE_PORTS):
+    pid_path = elfie_home / "elfienest.pid"
+    if not process_port.receipt_exists(elfie_home):
+        if process_port.ports_in_use(DEFAULT_SERVICE_PORTS):
             return ServiceLifecycleResult(
                 status="failed",
                 error=ServicePortsActiveError("Missing verifiable PID receipt"),
@@ -69,31 +53,37 @@ def stop_service(
         return ServiceLifecycleResult(status="already_stopped")
 
     try:
-        pid_result = _read_pid(pid_path)
+        pid_result = recorded_pid(elfie_home, process_port)
     except OSError as error:
         return ServiceLifecycleResult(
             status="failed", error=InvalidPidFileError(pid_path, str(error))
         )
     if isinstance(pid_result, InvalidPidFileError):
         return ServiceLifecycleResult(status="failed", error=pid_result)
+    if pid_result is None:
+        if process_port.ports_in_use(DEFAULT_SERVICE_PORTS):
+            return ServiceLifecycleResult(
+                status="failed",
+                error=ServicePortsActiveError("Missing verifiable PID receipt"),
+            )
+        return ServiceLifecycleResult(status="already_stopped")
     pid = pid_result
-    process_inspector = inspector or DefaultProcessInspector()
-
     try:
-        if not process_inspector.exists(pid):
-            if service_ports_in_use(DEFAULT_SERVICE_PORTS):
+        if not process_port.exists(pid):
+            if process_port.ports_in_use(DEFAULT_SERVICE_PORTS):
                 return ServiceLifecycleResult(
                     status="failed",
                     pid=pid,
                     error=ServicePortsActiveError("PID is no longer valid"),
                 )
-            remove_service_process(elfie_home, pid)
+            process_port.remove_receipt(elfie_home, pid)
             return ServiceLifecycleResult(status="already_stopped", pid=pid)
-        actual_cwd = process_inspector.cwd(pid).resolve()
-        actual_command = process_inspector.command(pid)
+        snapshot = process_port.inspect(pid)
+        actual_cwd = snapshot.cwd.resolve()
+        actual_command = snapshot.command
     except ProcessInspectionError as error:
         return ServiceLifecycleResult(status="failed", pid=pid, error=error)
-    except (OSError, subprocess.SubprocessError, ValueError) as error:
+    except (OSError, RuntimeError, ValueError) as error:
         inspection_error = ProcessInspectionError(pid, str(error))
         return ServiceLifecycleResult(status="failed", pid=pid, error=inspection_error)
 
@@ -108,12 +98,13 @@ def stop_service(
         return ServiceLifecycleResult(status="failed", pid=pid, error=mismatch)
 
     try:
-        if not process_inspector.exists(pid):
-            remove_service_process(elfie_home, pid)
+        if not process_port.exists(pid):
+            process_port.remove_receipt(elfie_home, pid)
             return ServiceLifecycleResult(status="already_stopped", pid=pid)
-        confirmed_cwd = process_inspector.cwd(pid).resolve()
-        confirmed_command = process_inspector.command(pid)
-    except (OSError, subprocess.SubprocessError, ValueError) as error:
+        confirmed = process_port.inspect(pid)
+        confirmed_cwd = confirmed.cwd.resolve()
+        confirmed_command = confirmed.command
+    except (OSError, RuntimeError, ValueError) as error:
         inspection_error = ProcessInspectionError(pid, str(error))
         return ServiceLifecycleResult(status="failed", pid=pid, error=inspection_error)
     if confirmed_cwd != actual_cwd or confirmed_command != actual_command:
@@ -123,13 +114,13 @@ def stop_service(
         return ServiceLifecycleResult(status="failed", pid=pid, error=mismatch)
 
     try:
-        signaler(pid, signal.SIGTERM)
+        process_port.terminate(pid)
     except OSError as error:
         signal_error = SignalProcessError(pid, str(error))
         return ServiceLifecycleResult(status="failed", pid=pid, error=signal_error)
 
     deadline = monotonic() + timeout_seconds
-    while process_inspector.exists(pid):
+    while process_port.exists(pid):
         if monotonic() >= deadline:
             timeout_error = StopTimeoutError(pid, timeout_seconds)
             return ServiceLifecycleResult(status="failed", pid=pid, error=timeout_error)
@@ -144,7 +135,7 @@ def stop_service(
                 pid, f"Invalid service port arguments: {error}"
             ),
         )
-    if service_ports_in_use(target_ports):
+    if process_port.ports_in_use(target_ports):
         return ServiceLifecycleResult(
             status="failed",
             pid=pid,
@@ -152,7 +143,7 @@ def stop_service(
                 "Service ports are still occupied after the target process exited"
             ),
         )
-    remove_service_process(elfie_home, pid)
+    process_port.remove_receipt(elfie_home, pid)
     return ServiceLifecycleResult(
         status="stopped",
         pid=pid,
@@ -164,16 +155,14 @@ def start_service(
     elfie_home: Path,
     project_root: Path,
     *,
+    process_port: ServiceProcessPort,
+    recovery_lock: RecoveryLockPort,
     health_checker: Callable[[], bool],
     command: Optional[Sequence[str]] = None,
-    launcher: Optional[Callable[[Sequence[str], Path], int]] = None,
-    inspector: Optional[ProcessInspector] = None,
-    signaler: Callable[[int, int], None] = os.kill,
     timeout_seconds: float = 10.0,
     poll_interval_seconds: float = 0.1,
     monotonic: Callable[[], float] = time.monotonic,
     sleeper: Callable[[float], None] = time.sleep,
-    service_ports_in_use: Optional[Callable[[Sequence[int]], bool]] = None,
     child_environment: Optional[Mapping[str, str]] = None,
 ) -> ServiceLifecycleResult:
     """Start the service; terminate it and remove the PID file when health fails."""
@@ -187,16 +176,8 @@ def start_service(
             "--fallback",
         )
     )
-    process_launcher = launcher or (
-        lambda requested_command, cwd: default_launcher(
-            requested_command,
-            cwd,
-            child_environment=child_environment,
-        )
-    )
-    process_inspector = inspector or DefaultProcessInspector()
     try:
-        startup_lease = acquire_service_start_lease(elfie_home)
+        startup_lease = recovery_lock.acquire_start_lease(elfie_home)
     except (OSError, RecoveryInProgressError) as error:
         return ServiceLifecycleResult(
             status="failed",
@@ -204,9 +185,7 @@ def start_service(
         )
     lease_released = False
     try:
-        existing = existing_service_command(
-            elfie_home, resolved_root, process_inspector
-        )
+        existing = existing_service_command(elfie_home, resolved_root, process_port)
         if existing is not None:
             existing_pid, existing_command = existing
             requested_ports = service_ports_from_command(launch_command)
@@ -234,37 +213,42 @@ def start_service(
                 status="already_running", pid=existing_pid, command=existing_command
             )
 
-        port_checker = (
-            any_service_port_in_use if launcher is None else service_ports_in_use
-        )
-        if port_checker is not None:
-            requested_ports = service_ports_from_command(launch_command)
-            if port_checker(requested_ports):
-                return ServiceLifecycleResult(
-                    status="failed",
-                    error=ServicePortsActiveError(
-                        "Target ports are already occupied by another process"
-                    ),
-                )
+        requested_ports = service_ports_from_command(launch_command)
+        if process_port.ports_in_use(requested_ports):
+            return ServiceLifecycleResult(
+                status="failed",
+                error=ServicePortsActiveError(
+                    "Target ports are already occupied by another process"
+                ),
+            )
 
-        pid = process_launcher(launch_command, resolved_root)
+        environment = {
+            MANAGED_START_ENV: "1",
+            "ELFIENEST_SUPERVISED": "1",
+        }
+        if child_environment is not None:
+            environment.update(child_environment)
+        pid = process_port.launch(
+            launch_command,
+            resolved_root,
+            environment=environment,
+        )
         if pid <= 0:
             return ServiceLifecycleResult(
                 status="failed",
                 error=LaunchFailedError(f"Launcher returned invalid PID {pid}"),
             )
 
-        pid_path = elfie_home / PID_FILENAME
+        pid_path = elfie_home / "elfienest.pid"
         try:
-            register_service_process(elfie_home, pid)
+            process_port.register_receipt(elfie_home, pid)
         except OSError as error:
             launch_error = LaunchFailedError(f"Unable to register PID {pid}: {error}")
             return cleanup_failed_start(
                 pid=pid,
                 pid_path=pid_path,
                 original_error=launch_error,
-                inspector=process_inspector,
-                signaler=signaler,
+                process_port=process_port,
                 expected_cwd=resolved_root,
                 expected_script=(resolved_root / "scripts" / "serve.py").resolve(),
                 timeout_seconds=timeout_seconds,
@@ -277,8 +261,8 @@ def start_service(
         lease_released = True
         deadline = monotonic() + timeout_seconds
         while True:
-            if not process_inspector.exists(pid):
-                remove_service_process(elfie_home, pid)
+            if not process_port.exists(pid):
+                process_port.remove_receipt(elfie_home, pid)
                 return ServiceLifecycleResult(
                     status="failed",
                     pid=pid,
@@ -294,8 +278,7 @@ def start_service(
                     pid=pid,
                     pid_path=pid_path,
                     original_error=HealthCheckFailedError(pid, timeout_seconds),
-                    inspector=process_inspector,
-                    signaler=signaler,
+                    process_port=process_port,
                     expected_cwd=resolved_root,
                     expected_script=(resolved_root / "scripts" / "serve.py").resolve(),
                     timeout_seconds=timeout_seconds,
@@ -312,8 +295,7 @@ def start_service(
                     pid=pid,
                     pid_path=pid_path,
                     original_error=HealthCheckFailedError(pid, timeout_seconds),
-                    inspector=process_inspector,
-                    signaler=signaler,
+                    process_port=process_port,
                     expected_cwd=resolved_root,
                     expected_script=(resolved_root / "scripts" / "serve.py").resolve(),
                     timeout_seconds=timeout_seconds,

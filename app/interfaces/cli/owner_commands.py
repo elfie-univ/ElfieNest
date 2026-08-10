@@ -23,10 +23,7 @@ from app.features.administration.owner_service import (
     recover_owner_account,
 )
 from app.interfaces.cli.tui.common import input_password, input_text
-from app.orchestration.lifecycle.recovery_lock import (
-    RecoveryInProgressError,
-    owner_recovery_lock,
-)
+from app.orchestration.lifecycle import LifecycleFacade, RecoveryInProgressError
 
 
 def show_owner_account(db_path: Optional[str] = None) -> int:
@@ -59,6 +56,7 @@ def show_owner_account_page(
 
 
 def recover_owner_interactive(
+    lifecycle: LifecycleFacade,
     db_path: Optional[str] = None,
     *,
     menu: TerminalMenu | None = None,
@@ -135,7 +133,7 @@ def recover_owner_interactive(
         )
         return 1
     try:
-        with owner_recovery_lock(Path(path).resolve().parent):
+        with lifecycle.owner_recovery(Path(path).resolve().parent):
             account = recover_owner_account(path, account_id, first)
     except (OwnerServiceError, OSError, RecoveryInProgressError) as error:
         print(f"  ❌ Owner recovery failed: {error}")
@@ -145,7 +143,7 @@ def recover_owner_interactive(
     return 0
 
 
-def run_owner_menu() -> int:
+def run_owner_menu(lifecycle: LifecycleFacade) -> int:
     menu = TerminalMenu(input_fn=input, output_fn=print)
     last_exit_code = 0
     while True:
@@ -166,4 +164,4 @@ def run_owner_menu() -> int:
         if choice == "1":
             last_exit_code = show_owner_account_page(menu)
         elif choice == "2":
-            last_exit_code = recover_owner_interactive(menu=menu)
+            last_exit_code = recover_owner_interactive(lifecycle, menu=menu)

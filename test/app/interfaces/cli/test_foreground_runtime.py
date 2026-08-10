@@ -8,6 +8,7 @@ from typing import Optional, Union
 
 import pytest
 
+from app.bootstrap.lifecycle import create_lifecycle_facade
 from app.interfaces.cli import foreground_runtime, lifecycle_commands
 from app.orchestration.lifecycle.runtime_health import (
     RuntimeHealth,
@@ -17,6 +18,8 @@ from app.orchestration.lifecycle.types import (
     LaunchFailedError,
     ServiceLifecycleResult,
 )
+
+LIFECYCLE = create_lifecycle_facade()
 
 
 class FakeSupervisor:
@@ -73,7 +76,9 @@ def _wire_supervisor(
         return command
 
     def build_supervisor(
-        selected_command: tuple[str, ...], selected_port: int
+        _lifecycle: object,
+        selected_command: tuple[str, ...],
+        selected_port: int,
     ) -> FakeSupervisor:
         factory_calls.append((selected_command, selected_port))
         return supervisor
@@ -100,7 +105,7 @@ def test_foreground_start_reuses_command_validation_and_supervisor(
     )
 
     # When
-    result = foreground_runtime.run_foreground_service(("--port", "8123"))
+    result = foreground_runtime.run_foreground_service(LIFECYCLE, ("--port", "8123"))
 
     # Then
     assert result.status == "already_running"
@@ -123,7 +128,7 @@ def test_start_failure_returns_without_waiting_or_stopping(
 
     # When
     result = foreground_runtime.run_foreground_service(
-        (), wait_once=lambda event: waits.append(event.is_set()) or True
+        LIFECYCLE, (), wait_once=lambda event: waits.append(event.is_set()) or True
     )
 
     # Then
@@ -141,7 +146,7 @@ def test_already_running_is_not_owned_or_stopped(
 
     # When
     result = foreground_runtime.run_foreground_service(
-        (), wait_once=lambda _event: pytest.fail("must not wait")
+        LIFECYCLE, (), wait_once=lambda _event: pytest.fail("must not wait")
     )
 
     # Then
@@ -164,7 +169,7 @@ def test_keyboard_interrupt_stops_owned_generation_once_then_propagates(
 
     # When / Then
     with pytest.raises(KeyboardInterrupt):
-        foreground_runtime.run_foreground_service((), wait_once=interrupt)
+        foreground_runtime.run_foreground_service(LIFECYCLE, (), wait_once=interrupt)
     assert supervisor.calls == ["start", "status", "stop"]
 
 
@@ -195,7 +200,9 @@ def test_shutdown_request_stops_once_and_returns_stop_result(
         return event.is_set()
 
     # When
-    result = foreground_runtime.run_foreground_service((), wait_once=request_shutdown)
+    result = foreground_runtime.run_foreground_service(
+        LIFECYCLE, (), wait_once=request_shutdown
+    )
 
     # Then
     assert result is stop_result
@@ -220,7 +227,7 @@ def test_terminal_health_stops_once_then_returns_typed_failure(
 
     # When
     result = foreground_runtime.run_foreground_service(
-        (), wait_once=lambda _event: pytest.fail("must fail before waiting")
+        LIFECYCLE, (), wait_once=lambda _event: pytest.fail("must fail before waiting")
     )
 
     # Then
@@ -243,7 +250,7 @@ def test_ready_and_degraded_health_keep_waiting_until_shutdown(
 
     # When
     result = foreground_runtime.run_foreground_service(
-        (), wait_once=lambda _event: next(wait_results)
+        LIFECYCLE, (), wait_once=lambda _event: next(wait_results)
     )
 
     # Then
