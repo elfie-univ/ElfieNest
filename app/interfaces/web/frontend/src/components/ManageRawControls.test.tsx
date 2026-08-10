@@ -15,13 +15,13 @@ import {
   ownerFoods,
   type FoodCatalog,
   type FoodPackage,
-} from "../api/owner-foods"
+} from "../api/admin/food-packages"
 import { ManageSidebar } from "./ManageSidebar"
 import { OwnerFoodPanel } from "./OwnerFoodPanel"
 import { ToastProvider } from "./ui/toast"
 
-vi.mock("../api/owner-foods", async (loadOriginal) => {
-  const original = await loadOriginal<typeof import("../api/owner-foods")>()
+vi.mock("../api/admin/food-packages", async (loadOriginal) => {
+  const original = await loadOriginal<typeof import("../api/admin/food-packages")>()
   return {
     ...original,
     ownerFoods: vi.fn(),

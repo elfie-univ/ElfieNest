@@ -1,10 +1,9 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 
-import type { OwnerElfie } from "../api/client"
+import { updateElfieFoodPolicy, type OwnerElfie } from "../api/client"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { ownerWrite } from "../api/client"
 import { currentLocale, segmentWords } from "../i18n/format"
 import { describeApiError, type LocalizedErrorState } from "../i18n/errors"
 import type { SupportedLocale } from "../i18n/locale"
@@ -36,14 +35,7 @@ export function ElfieIdentityCard({ csrfToken, elfie, onError, onSaved }: ElfieI
   const save = async (): Promise<void> => {
     setSaving(true)
     try {
-      await ownerWrite(
-        `/api/user/elfies/${encodeURIComponent(elfie.elfie_id)}/food-policy/`,
-        "PUT",
-        csrfToken,
-        {
-          main_food_id: defaultFood,
-        },
-      )
+      await updateElfieFoodPolicy(elfie.elfie_id, defaultFood, csrfToken)
       setEditing(false)
       await onSaved()
     } catch (reason: unknown) {

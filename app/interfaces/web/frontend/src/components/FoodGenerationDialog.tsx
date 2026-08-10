@@ -11,7 +11,7 @@ import {
   previewNewFood,
   type FoodPackage,
   type FoodPreview,
-} from "../api/owner-foods"
+} from "../api/admin/food-packages"
 import type { ProviderConnection } from "../api/owner-providers"
 import type { OwnerUser } from "../api/owner-users"
 import { describeApiError, resolveLocalizedError, type LocalizedErrorState } from "../i18n/errors"

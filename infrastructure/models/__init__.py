@@ -1,5 +1,6 @@
-"""Provider discovery, validation and model-platform Adapters."""
+"""Provider discovery, validation and Food model-evidence Adapters."""
 
+from .food_technology import RuntimeFoodTechnologyAdapter
 from .provider_administration import ProviderModelsAdapter
 
-__all__ = ("ProviderModelsAdapter",)
+__all__ = ("ProviderModelsAdapter", "RuntimeFoodTechnologyAdapter")

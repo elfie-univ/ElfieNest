@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 
-import type { FoodPackage } from "../api/owner-foods"
+import type { FoodPackage } from "../api/admin/food-packages"
 
 export type FoodScopeOption = {
   readonly value: string
