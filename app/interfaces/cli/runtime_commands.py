@@ -6,20 +6,23 @@ from importlib import metadata
 from pathlib import Path
 
 from app.features.administration.system_service import (
-    DatabaseUnavailableError,
-    backup_database,
-    collect_usage_stats,
     default_port_statuses,
-    list_active_sessions,
-    list_table_counts,
-    reset_database,
+)
+from app.features.operations import (
+    BackupDatabasesCommand,
+    GetUsageStatsQuery,
+    ListActiveSessionsQuery,
+    ListTableCountsQuery,
+    OperationsError,
+    OperationsFacade,
+    ResetDatabasesCommand,
 )
 from app.interfaces.cli.packaged_runtime import packaged_application_version
 
 PACKAGE_NAME = "elfienest"
 
 
-def show_status() -> None:
+def show_status(operations: OperationsFacade) -> None:
     print("  📊 Service Status")
     print("  " + "=" * 45)
     print()
@@ -32,22 +35,22 @@ def show_status() -> None:
 
     print()
     try:
-        stats = collect_usage_stats()
+        stats = operations.get_usage_stats(GetUsageStatsQuery())
         print(f"  📦 Database: {stats.user_count} users, {stats.elfie_count} elfies")
-    except DatabaseUnavailableError:
+    except OperationsError:
         print("  ❌ Database not initialized")
 
     print()
 
 
-def show_stats() -> None:
+def show_stats(operations: OperationsFacade) -> None:
     print("  📈 Usage Statistics")
     print("  " + "=" * 45)
     print()
 
     try:
-        stats = collect_usage_stats()
-    except DatabaseUnavailableError as e:
+        stats = operations.get_usage_stats(GetUsageStatsQuery())
+    except OperationsError as e:
         print(f"  ❌ Cannot read statistics: {e}")
         print()
         return
@@ -69,14 +72,14 @@ def show_stats() -> None:
     print()
 
 
-def show_sessions() -> None:
+def show_sessions(operations: OperationsFacade) -> None:
     print("  👥 Session Management")
     print("  " + "=" * 45)
     print()
 
     try:
-        sessions = list_active_sessions()
-    except DatabaseUnavailableError as e:
+        sessions = operations.list_active_sessions(ListActiveSessionsQuery()).items
+    except OperationsError as e:
         print(f"  ❌ Cannot read sessions: {e}")
         print()
         return
@@ -123,52 +126,52 @@ def show_logs() -> None:
     print()
 
 
-def dispatch_db(subcmd: str | None) -> None:
+def dispatch_db(operations: OperationsFacade, subcmd: str | None) -> None:
     print("  🗄️  Database Tools")
     print("  " + "=" * 45)
     print()
 
     if subcmd == "backup":
-        backup_db()
+        backup_db(operations)
     elif subcmd == "reset":
-        reset_db()
+        reset_db(operations)
     else:
-        show_db()
+        show_db(operations)
 
     print()
 
 
-def backup_db() -> None:
+def backup_db(operations: OperationsFacade) -> None:
     try:
-        backup_path = backup_database()
-    except DatabaseUnavailableError as e:
+        result = operations.backup_databases(BackupDatabasesCommand())
+    except OperationsError as e:
         print(f"  ❌ Backup failed: {e}")
         return
-    print(f"  ✅ Databases backed up to: {backup_path}")
+    print(f"  ✅ Databases backed up to: {result.backup_path}")
 
 
-def reset_db() -> None:
+def reset_db(operations: OperationsFacade) -> None:
     print("  ⚠️  This will reset Nest, chat, and memory databases. Continue?")
     choice = input("Type 'yes' to confirm: ").strip()
     if choice.lower() != "yes":
         return
     try:
-        reset_database()
-    except DatabaseUnavailableError as e:
+        operations.reset_databases(ResetDatabasesCommand())
+    except OperationsError as e:
         print(f"  ❌ Delete failed: {e}")
         return
     print("  ✅ Databases deleted; restart service to create fresh databases")
 
 
-def show_db() -> None:
+def show_db(operations: OperationsFacade) -> None:
     print("  Available commands:")
     print("    elfienest db backup  - Backup all databases")
     print("    elfienest db reset   - Reset all databases")
     print()
 
     try:
-        table_counts = list_table_counts()
-    except DatabaseUnavailableError as e:
+        table_counts = operations.list_table_counts(ListTableCountsQuery()).items
+    except OperationsError as e:
         print(f"  ❌ Cannot read database: {e}")
         return
 
