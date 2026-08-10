@@ -3,7 +3,7 @@
 所有函数在调用时重新读取所选数据根的 ``configs/runtime.yaml``（不缓存），
 确保配置更改即时生效。
 
-与 ``system_routes.py`` 使用相同的配置文件路径和默认值，
+与全局 Settings Adapter 使用相同的配置文件路径和默认值，
 通过 ``_RUNTIME_CONFIG_PATH`` 使之在测试中可 mock。
 
 Usage::

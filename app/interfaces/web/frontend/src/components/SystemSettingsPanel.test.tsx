@@ -55,8 +55,8 @@ const tools = {
 describe("SystemSettingsPanel", () => {
   beforeEach(() => {
     vi.mocked(ownerRead).mockImplementation(async (path) => {
-      if (path.endsWith("/engine")) return engine
-      if (path.endsWith("/adoption")) return adoption
+      if (path.endsWith("/runtime")) return engine
+      if (path.endsWith("/elfies")) return adoption
       if (path.endsWith("/security")) return security
       throw new Error(`Unexpected owner read: ${path}`)
     })
@@ -131,8 +131,8 @@ describe("SystemSettingsPanel", () => {
     await user.click(screen.getByRole("button", { name: "保存默认额度" }))
 
     await waitFor(() => expect(vi.mocked(ownerWrite)).toHaveBeenCalledWith(
-      "/api/owner/system/adoption",
-      "PUT",
+      "/api/v1/admin/settings/elfies",
+      "PATCH",
       "csrf",
       { ...adoption, max_elfies_per_user: 4 },
     ))

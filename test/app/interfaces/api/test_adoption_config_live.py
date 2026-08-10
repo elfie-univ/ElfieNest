@@ -1,4 +1,4 @@
-"""动态领养配置集成测试 — 通过 system API 修改 → 验证 adoption 行为。
+"""动态领养配置集成测试 — 通过 Settings API 修改并验证 adoption 行为。
 
 测试场景：
 1. PUT system.adoption.max_elfies_per_user=1 → 领养第二只被拒绝
@@ -15,6 +15,8 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from ai_runtime.storage.data_home import data_home_from_db_path
+from ai_runtime.storage.data_layout import final_root_layout
 from app.bootstrap import create_app
 from app.features.adoption.service import (
     AdoptionCapacityError,
@@ -35,11 +37,9 @@ def db_path(tmp_path: Path) -> str:
 
 
 @pytest.fixture
-def runtime_config_path(tmp_path: Path) -> Path:
-    """临时正式 config.yaml 路径，同时 mock system_routes 和 adoption_config。"""
-    p = tmp_path / "elfie-home" / "config.yaml"
-    p.parent.mkdir(parents=True, exist_ok=True)
-    return p
+def runtime_config_path(db_path: str) -> Path:
+    """Use the same isolated product-root config selected by Bootstrap."""
+    return final_root_layout(data_home_from_db_path(db_path)).runtime_config
 
 
 @pytest.fixture
@@ -51,10 +51,6 @@ def app(db_path: str, runtime_config_path: Path):
     with (
         patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
         patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-        patch(
-            "app.interfaces.api.system_routes.get_config_path",
-            return_value=runtime_config_path,
-        ),
         patch(
             "app.features.adoption.config._RUNTIME_CONFIG_PATH",
             runtime_config_path,
@@ -125,8 +121,8 @@ class TestMaxElfiesPerUser:
         owner_tokens = _login_owner(client)
 
         # 设置 max_elfies_per_user = 1
-        resp = client.put(
-            "/api/owner/system/adoption",
+        resp = client.patch(
+            "/api/v1/admin/settings/elfies",
             json={"max_elfies_per_user": 1},
             headers=_headers(owner_tokens["csrf_token"]),
         )
@@ -162,8 +158,8 @@ class TestPersonalityPresetsFilter:
         owner_tokens = _login_owner(client)
 
         # 禁用 "安静温顺"
-        resp = client.put(
-            "/api/owner/system/adoption",
+        resp = client.patch(
+            "/api/v1/admin/settings/elfies",
             json={"personality_presets_enabled": {"安静温顺": False}},
             headers=_headers(owner_tokens["csrf_token"]),
         )
@@ -190,8 +186,8 @@ class TestPersonalityPresetsFilter:
         """禁用 "安静温顺" → 尝试领养该预设被拒绝。"""
         owner_tokens = _login_owner(client)
 
-        resp = client.put(
-            "/api/owner/system/adoption",
+        resp = client.patch(
+            "/api/v1/admin/settings/elfies",
             json={"personality_presets_enabled": {"安静温顺": False}},
             headers=_headers(owner_tokens["csrf_token"]),
         )
@@ -221,8 +217,8 @@ class TestSpeciesIdsFilter:
         owner_tokens = _login_owner(client)
 
         # 仅允许 dog
-        resp = client.put(
-            "/api/owner/system/adoption",
+        resp = client.patch(
+            "/api/v1/admin/settings/elfies",
             json={"allowed_species_ids": ["dog"]},
             headers=_headers(owner_tokens["csrf_token"]),
         )
@@ -243,8 +239,8 @@ class TestSpeciesIdsFilter:
         """仅允许 dog → adoption-info 只包含 dog。"""
         owner_tokens = _login_owner(client)
 
-        resp = client.put(
-            "/api/owner/system/adoption",
+        resp = client.patch(
+            "/api/v1/admin/settings/elfies",
             json={"allowed_species_ids": ["dog"]},
             headers=_headers(owner_tokens["csrf_token"]),
         )
@@ -273,8 +269,8 @@ class TestAllPresetsDisabledFallback:
         owner_tokens = _login_owner(client)
 
         # 全部禁用
-        resp = client.put(
-            "/api/owner/system/adoption",
+        resp = client.patch(
+            "/api/v1/admin/settings/elfies",
             json={
                 "personality_presets_enabled": {
                     "活泼好动": False,

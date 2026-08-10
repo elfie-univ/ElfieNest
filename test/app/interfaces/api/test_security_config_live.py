@@ -20,16 +20,11 @@ from test.app.interfaces.api._helpers import create_test_owner
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     db_path = str(tmp_path / "nest.db")
-    runtime_config_path = tmp_path / "configs" / "runtime.yaml"
     init_db(db_path)
     create_test_owner(db_path)
     with (
         patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
         patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-        patch(
-            "app.interfaces.api.system_routes.get_config_path",
-            return_value=runtime_config_path,
-        ),
     ):
         application = create_app(engine=None, db_path=db_path, ws_port=9876)
         with TestClient(application, base_url="http://127.0.0.1:8000") as test_client:
@@ -51,8 +46,8 @@ def _owner_headers(client: TestClient) -> dict[str, str]:
 
 def test_session_ttl_setting_applies_to_new_login(client: TestClient) -> None:
     headers = _owner_headers(client)
-    response = client.put(
-        "/api/owner/system/security",
+    response = client.patch(
+        "/api/v1/admin/settings/security",
         json={"session_ttl_days": 1},
         headers=headers,
     )
@@ -74,8 +69,8 @@ def test_login_rate_limit_setting_applies_without_rebuilding_app(
     client: TestClient,
 ) -> None:
     headers = _owner_headers(client)
-    response = client.put(
-        "/api/owner/system/security",
+    response = client.patch(
+        "/api/v1/admin/settings/security",
         json={"rate_limit": {"max_attempts": 2, "window_seconds": 300}},
         headers=headers,
     )
@@ -100,8 +95,8 @@ def test_login_rate_limit_setting_applies_without_rebuilding_app(
 def test_invalid_security_settings_remain_rejected(
     client: TestClient, payload: dict
 ) -> None:
-    response = client.put(
-        "/api/owner/system/security",
+    response = client.patch(
+        "/api/v1/admin/settings/security",
         json=payload,
         headers=_owner_headers(client),
     )

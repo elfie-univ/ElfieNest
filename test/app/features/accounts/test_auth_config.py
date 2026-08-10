@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from app.features.configuration.runtime_store import write_runtime_config
-from infrastructure.platform import RuntimeSecurityPolicyAdapter
+from infrastructure.platform import RuntimeSecurityPolicyAdapter, RuntimeSettingsAdapter
 
 
 def test_runtime_security_policy_reads_selected_product_root(tmp_path: Path) -> None:
@@ -20,7 +20,7 @@ def test_runtime_security_policy_reads_selected_product_root(tmp_path: Path) -> 
         },
     )
 
-    policy = RuntimeSecurityPolicyAdapter(config_path).load()
+    policy = RuntimeSecurityPolicyAdapter(RuntimeSettingsAdapter(config_path)).load()
 
     assert policy.session_ttl_seconds == 5 * 86_400
     assert policy.max_login_attempts == 2

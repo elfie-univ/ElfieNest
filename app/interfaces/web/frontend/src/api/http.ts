@@ -75,7 +75,7 @@ export async function ownerRead(path: string): Promise<unknown> {
 
 export async function ownerWrite(
   path: string,
-  method: "POST" | "PUT" | "DELETE",
+  method: "POST" | "PUT" | "PATCH" | "DELETE",
   csrfToken: string,
   body?: unknown,
 ): Promise<unknown> {

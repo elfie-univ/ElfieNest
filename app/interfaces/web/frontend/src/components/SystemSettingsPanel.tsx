@@ -47,9 +47,9 @@ export function SystemSettingsPanel({ csrfToken }: { readonly csrfToken: string 
   const load = async (): Promise<void> => {
     try {
       const [loadedEngine, loadedAdoption, loadedSecurity, rooms, elfies] = await Promise.all([
-        ownerRead("/api/owner/system/engine"),
-        ownerRead("/api/owner/system/adoption"),
-        ownerRead("/api/owner/system/security"),
+        ownerRead("/api/v1/admin/settings/runtime"),
+        ownerRead("/api/v1/admin/settings/elfies"),
+        ownerRead("/api/v1/admin/settings/security"),
         ownerRooms(),
         ownerElfies(),
       ])
@@ -71,7 +71,7 @@ export function SystemSettingsPanel({ csrfToken }: { readonly csrfToken: string 
     if (adoption === null) return
     setSaving("quota")
     try {
-      await ownerWrite("/api/owner/system/adoption", "PUT", csrfToken, adoption)
+      await ownerWrite("/api/v1/admin/settings/elfies", "PATCH", csrfToken, adoption)
       show({ kind: "success", message: t("systemSettings.notices.quotaSaved") })
       setError(null)
       await load()
@@ -88,8 +88,8 @@ export function SystemSettingsPanel({ csrfToken }: { readonly csrfToken: string 
     setSaving("advanced")
     try {
       await Promise.all([
-        ownerWrite("/api/owner/system/engine", "PUT", csrfToken, engine),
-        ownerWrite("/api/owner/system/security", "PUT", csrfToken, security),
+        ownerWrite("/api/v1/admin/settings/runtime", "PATCH", csrfToken, engine),
+        ownerWrite("/api/v1/admin/settings/security", "PATCH", csrfToken, security),
       ])
       show({ kind: "success", message: t("systemSettings.notices.advancedSaved") })
       setError(null)

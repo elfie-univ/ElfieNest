@@ -22,6 +22,7 @@ from fastapi.staticfiles import StaticFiles
 
 from ai_runtime.storage.data_home import get_db_path as _get_db_path
 from app.features.accounts import AccountPrincipal, AccountsService
+from app.features.configuration import SettingsService
 from app.features.setup.installer import (
     SetupInstallJobManager,
     recover_interrupted_setup_install,
@@ -94,6 +95,7 @@ def verify_csrf_for_setup(request: Request) -> None:
 
 def create_http_application(
     accounts: AccountsService,
+    settings: SettingsService,
     engine: Any = None,
     db_path: Optional[str] = None,
     ws_port: int = 8766,
@@ -154,6 +156,7 @@ def create_http_application(
 
     # 将 db_path 与 engine 存入 app.state 供依赖注入使用
     app.state.accounts = accounts
+    app.state.settings = settings
     app.state.db_path = db_path
     app.state.food_repository = SQLiteFoodPackageRepository(db_path)
     app.state.engine = engine
@@ -213,7 +216,7 @@ def create_http_application(
     # -------------------------------------------------------------------
     @app.middleware("http")
     async def csrf_middleware(request: Request, call_next):
-        if request.method in ("POST", "PUT", "DELETE"):
+        if request.method in ("POST", "PUT", "PATCH", "DELETE"):
             path = request.url.path
             csrf_exempt = path == "/api/v1/auth/login"
             if not csrf_exempt:
@@ -274,8 +277,10 @@ def create_http_application(
     from .account_auth_routes import router as account_auth_router  # noqa: PLC0415
     from .setup_routes import router as setup_router  # noqa: PLC0415
     from .v1.auth.routes import router as auth_router  # noqa: PLC0415
+    from .v1.admin.settings import router as settings_router  # noqa: PLC0415
 
     app.include_router(auth_router)
+    app.include_router(settings_router)
     app.include_router(account_auth_router)
     app.include_router(setup_router)
     app.include_router(page_router)
@@ -285,13 +290,6 @@ def create_http_application(
 
     app.include_router(v1_client_router)
     app.include_router(v1_device_router)
-
-    # -------------------------------------------------------------------
-    # System Settings 路由
-    # -------------------------------------------------------------------
-    from .system_routes import router as system_router  # noqa: PLC0415
-
-    app.include_router(system_router)
 
     # -------------------------------------------------------------------
     # Owner REST API 路由

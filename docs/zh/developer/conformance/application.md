@@ -82,6 +82,24 @@ Principal 与授权：Interface 解析凭据/Cookie，并把 Feature 结果构�
 状态：closed
 ```
 
+### Configuration：全局设置
+
+```text
+领域：configuration/settings
+缺口 ID：APP-001、APP-003、APP-004、APP-005、APP-006、APP-007、APP-009、APP-011、APP-012
+当前权威事实：runtime.yaml 的 system.adoption、system.engine 与 system.security；默认值仍唯一来自 DEFAULT_SYSTEM_SETTINGS
+路由与生产调用方：/api/v1/admin/settings/{elfies,runtime,security}；管理端设置面板；Adoption 与 Accounts 的实时配置读取
+目标公共门面与模型：三个现有资源各自使用强类型 Query、Patch Command 与 Result 的 Settings 门面
+Port 与 Adapter：SettingsStorePort 由根 Infrastructure Runtime 设置 Adapter 实现，并由 Bootstrap 单次注入
+一致性类别：本地同步类型化文件读取；每次 Patch 原子替换一个自有 section，同时保留无关 Runtime 字段
+Principal 与授权：Interface 认证严格账户 Principal；Settings 授权管理员；安全设置变更使 Accounts 限流缓存失效
+超时、重试与幂等：本地文件访问；不重试；重复提交相同 Patch 具备幂等性
+旧实现删除清单：app/interfaces/api/system_routes.py；通用 /api/owner/system/{section}；旧前端调用与 Route 夹具
+聚焦测试与端到端门：Settings Service、Adapter、DTO；Adoption/Security 实时集成行为；前端设置面板；聚焦 App 架构扫描
+已删除的机器基线条目：旧 Settings 内部 import；松散/缺失 Route 模型；GET 与 PUT /api/owner/system/{section}
+状态：closed
+```
+
 ## 当前到目标的迁移映射
 
 规范性所有者只由应用架构契约定义。本表记录当前实现应进入哪里，以及迁移期位置何时

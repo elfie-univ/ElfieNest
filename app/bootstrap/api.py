@@ -25,6 +25,7 @@ def create_app(
     container = build_application_container(selected_db_path)
     return create_http_application(
         accounts=container.accounts,
+        settings=container.settings,
         engine=engine,
         db_path=selected_db_path,
         ws_port=ws_port,

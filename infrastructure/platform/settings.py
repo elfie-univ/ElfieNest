@@ -3,11 +3,19 @@
 from __future__ import annotations
 
 import copy
+import shutil
+from pathlib import Path
 from typing import Any, Mapping, NoReturn, Sequence
 
 from ai_runtime.config import DEFAULT_SYSTEM_SETTINGS
-from ai_runtime.storage.config_store import ConfigStoreError
+from ai_runtime.storage.config_store import (
+    ConfigStoreError,
+    read_yaml_mapping,
+    write_yaml_mapping,
+)
+from ai_runtime.storage.data_home import get_config_path
 from ai_runtime.storage.runtime_settings import (
+    CONFIG_DOCUMENT_VERSION,
     read_runtime_settings,
     write_runtime_settings,
 )
@@ -23,6 +31,9 @@ from app.features.configuration import (
 
 class RuntimeSettingsAdapter:
     """Preserve unrelated Runtime fields while owning typed ``system`` sections."""
+
+    def __init__(self, config_path: Path | None = None) -> None:
+        self._config_path = config_path or get_config_path()
 
     def load_elfie_settings(self) -> StoredElfieSettings:
         section = self._section("adoption")
@@ -151,16 +162,33 @@ class RuntimeSettingsAdapter:
         system = copy.deepcopy(dict(raw_system))
         system[name] = copy.deepcopy(dict(section))
         document["system"] = system
+        self._write_document(document)
+
+    def _read_document(self) -> dict[str, Any]:
         try:
-            write_runtime_settings(document)
+            if self._config_path == get_config_path():
+                return read_runtime_settings()
+            document = copy.deepcopy(read_yaml_mapping(self._config_path))
+            document.pop("version", None)
+            return document
         except ConfigStoreError as error:
             raise SettingsStorageError(str(error)) from error
 
-    @staticmethod
-    def _read_document() -> dict[str, Any]:
+    def _write_document(self, document: Mapping[str, Any]) -> None:
         try:
-            return read_runtime_settings()
-        except ConfigStoreError as error:
+            if self._config_path == get_config_path():
+                write_runtime_settings(document)
+                return
+            if self._config_path.exists():
+                shutil.copy2(
+                    str(self._config_path),
+                    str(self._config_path.with_suffix(f"{self._config_path.suffix}.bak")),
+                )
+            write_yaml_mapping(
+                self._config_path,
+                {"version": CONFIG_DOCUMENT_VERSION, **copy.deepcopy(dict(document))},
+            )
+        except (ConfigStoreError, OSError) as error:
             raise SettingsStorageError(str(error)) from error
 
     @classmethod

@@ -95,6 +95,24 @@ Machine baseline entries removed: accounts/auth Feature isolation and internal-i
 Status: closed
 ```
 
+### Configuration: global settings
+
+```text
+Domain: configuration/settings
+Gap IDs: APP-001, APP-003, APP-004, APP-005, APP-006, APP-007, APP-009, APP-011, APP-012
+Current authoritative facts: runtime.yaml system.adoption, system.engine and system.security; defaults remain DEFAULT_SYSTEM_SETTINGS
+Routes and production callers: /api/v1/admin/settings/{elfies,runtime,security}; management Settings panel; Adoption and Accounts live configuration readers
+Target public facade and models: typed Settings facade with explicit queries, patch commands and results for the three existing resources
+Ports and adapters: SettingsStorePort implemented by the root Infrastructure Runtime settings adapter and injected once by Bootstrap
+Consistency class: synchronous typed-file read; each patch atomically replaces one owned section while preserving unrelated Runtime fields
+Principal and authorization: Interface authenticates a strict account principal; Settings authorizes managers; security changes invalidate the Accounts limiter cache
+Timeout / retry / idempotency: local file access; no retry; repeating the same patch is idempotent
+Legacy deletion list: app/interfaces/api/system_routes.py; generic /api/owner/system/{section}; old frontend caller and Route fixtures
+Focused tests and end-to-end gate: Settings service, Adapter and DTO tests; integrated Adoption/Security live behavior; frontend Settings panel; focused App architecture scan
+Machine baseline entries removed: old Settings internal import; loose/missing Route models; GET and PUT /api/owner/system/{section}
+Status: closed
+```
+
 ## Current-to-target migration map
 
 The normative owners are defined only by the Application contract. This table
