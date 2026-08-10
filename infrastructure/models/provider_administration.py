@@ -688,7 +688,7 @@ class ProviderModelsAdapter:
                     model_key=str(item.get("model_key") or ""),
                     display_name=str(item.get("display_name") or ""),
                     capabilities=tuple(
-                        str(value) for value in cls._sequence(item.get("capabilities"))
+                        str(value) for value in cls._values(item.get("capabilities"))
                     ),
                     connections=tuple(
                         cls._matrix_cell(cell)
@@ -727,6 +727,12 @@ class ProviderModelsAdapter:
         if not isinstance(value, (list, tuple)):
             raise ProviderPortError("Invalid Provider projection list")
         return tuple(cls._mapping(item) for item in value)
+
+    @staticmethod
+    def _values(value: object) -> tuple[object, ...]:
+        if not isinstance(value, (list, tuple)):
+            raise ProviderPortError("Invalid Provider projection values")
+        return tuple(value)
 
     @staticmethod
     def _optional_string(value: object) -> str | None:

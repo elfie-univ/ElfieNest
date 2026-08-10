@@ -50,9 +50,13 @@ def test_legacy_provider_and_model_owner_routes_are_removed() -> None:
 
     app_source = _source("app/interfaces/api/app.py")
     assert "model_owner_routes" not in app_source
-    provider_source = _source("app/interfaces/api/provider_routes.py")
-    assert "provider_connection_routes" in provider_source
-    assert "provider_connection_model_routes" in provider_source
+    versioned_source = _source(
+        "app/interfaces/api/v1/admin/model_providers/routes.py"
+    )
+    assert 'prefix="/api/v1/admin/model-providers"' in versioned_source
+    assert '"/model-matrix"' in versioned_source
+    assert '"/model-benchmarks"' in versioned_source
+    assert '"/model-validations"' in versioned_source
 
     assert not (AI_RUNTIME / "storage" / "runtime_config_bundle.py").exists()
     product_sources = [
@@ -122,7 +126,7 @@ def test_provider_catalogs_do_not_encode_runtime_model_selection_groups() -> Non
     catalog_sources = (
         "ai_runtime/providers/catalog.py",
         "ai_runtime/providers/remote_catalog.py",
-        "app/interfaces/api/provider_connection_routes.py",
+        "infrastructure/models/provider_administration.py",
     )
     forbidden_groups = ("cheap", "deep", "multimodal")
     for source_path in catalog_sources:

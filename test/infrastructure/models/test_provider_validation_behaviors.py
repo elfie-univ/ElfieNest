@@ -14,17 +14,17 @@ from ai_runtime.storage.provider_connections import (
 )
 from ai_runtime.storage.secrets import set_connection_secret
 from ai_runtime.storage.validation_reports import read_latest_model_validation
-from app.interfaces.api.provider_connection_model_routes import (
-    validate_all_connection_models,
+from app.features.configuration import (
+    StoredProviderConnection,
+    StoredProviderModel,
 )
-from app.interfaces.api.provider_connection_routes import (
-    _runtime_projection,
-    _verify_connection,
-)
+from infrastructure.models import ProviderModelsAdapter
 from infrastructure.models.provider_validation_policy import (
     choose_validation_mode,
     connection_validation_fingerprint,
 )
+from infrastructure.models.provider_validation_runtime import runtime_projection
+from infrastructure.models.provider_validation_service import validate_connection
 
 
 def _full_report(connection, checked_at: str) -> dict[str, object]:
@@ -176,7 +176,7 @@ def test_runtime_projection_uses_connection_id_for_builtin_connection() -> None:
         models=(ProviderModelRecord(endpoint_model_id="GLM-5"),),
     )
 
-    runtime_id, _config = _runtime_projection(connection)
+    runtime_id, _config = runtime_projection(connection)
 
     assert runtime_id == connection.connection_id
 
@@ -213,7 +213,12 @@ def test_single_validation_checks_configured_models_without_provider_models_prob
         "infrastructure.models.provider_validation_checks.run_connection_model_check",
         side_effect=model_check,
     ):
-        payload = asyncio.run(_verify_connection(connection))
+        payload = asyncio.run(
+            validate_connection(
+                connection,
+                runtime_projection=runtime_projection,
+            )
+        )
 
     assert calls == ["model-a", "model-b"]
     assert payload["status"] == "passed"
@@ -248,9 +253,19 @@ def test_single_validation_reuses_recent_full_result_without_new_model_requests(
         "infrastructure.models.provider_validation_checks.run_connection_model_check",
         side_effect=model_check,
     ) as check:
-        first = asyncio.run(_verify_connection(connection))
+        first = asyncio.run(
+            validate_connection(
+                connection,
+                runtime_projection=runtime_projection,
+            )
+        )
         check.reset_mock()
-        second = asyncio.run(_verify_connection(connection))
+        second = asyncio.run(
+            validate_connection(
+                connection,
+                runtime_projection=runtime_projection,
+            )
+        )
 
     assert first["validation_mode"] == "full"
     assert second["validation_mode"] == "cached"
@@ -269,7 +284,7 @@ def test_runtime_projection_keeps_jdcloud_profile_test_model() -> None:
         ),
     )
 
-    runtime_id, config = _runtime_projection(connection)
+    runtime_id, config = runtime_projection(connection)
 
     assert runtime_id == connection.connection_id
     assert config.providers[runtime_id]["test_model"] == "GLM-5"
@@ -406,10 +421,33 @@ def test_validate_all_writes_each_enabled_model_and_skips_hidden(
         side_effect=model_check,
     ):
         payload = asyncio.run(
-            validate_all_connection_models(_ConnectedRequest(), owner={})
+            ProviderModelsAdapter().validate_all(
+                (
+                    StoredProviderConnection(
+                        connection_id=connection.connection_id,
+                        catalog_id=connection.catalog_id,
+                        alias=connection.alias,
+                        api_base=connection.api_base,
+                        api_mode="chat_completions",
+                        auth_type="bearer",
+                        credential_ref=connection.credential_ref,
+                        models=tuple(
+                            StoredProviderModel(
+                                model.endpoint_model_id,
+                                model.display_name,
+                                source=model.source,
+                                hidden=model.hidden,
+                                retired=model.retired,
+                            )
+                            for model in connection.models
+                        ),
+                    ),
+                ),
+                _ConnectedRequest().is_disconnected,
+            )
         )
 
-    subjects = [item["subject"] for item in payload["results"]]
+    subjects = [item.subject for item in payload.results]
     assert "model:custom_openai_0001/passed-model" in subjects
     assert "model:custom_openai_0001/failed-model" in subjects
     assert "model:custom_openai_0001/hidden-model" not in subjects

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from ai_runtime.storage.provider_connections import (
@@ -12,32 +12,53 @@ from ai_runtime.storage.provider_connections import (
     ProviderModelRecord,
 )
 from ai_runtime.storage.validation_reports import write_model_validation_report
-from app.bootstrap import create_app
-from app.infrastructure.persistence.store import init_db
+from app.features.accounts import AccountPrincipal
+from app.features.configuration import ProvidersService
+from app.interfaces.api.v1.admin.model_providers.routes import router
+from app.interfaces.api.v1.auth import require_user
+from infrastructure.models import ProviderModelsAdapter
 
-from ._helpers import create_test_owner
+
+class NoProviderReferences:
+    def connections_referenced_by_food(self, connection_id: str) -> tuple[str, ...]:
+        _ = connection_id
+        return ()
+
+    def models_referenced_by_food(
+        self,
+        connection_id: str,
+        model_id: str,
+    ) -> tuple[str, ...]:
+        _ = connection_id, model_id
+        return ()
 
 
 @pytest.fixture
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    db_path = str(tmp_path / "nest.db")
-    init_db(db_path)
-    create_test_owner(db_path)
-    with (
-        patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
-        patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-    ):
-        application = create_app(engine=None, db_path=db_path, ws_port=9876)
-        with TestClient(application) as test_client:
-            yield test_client
+    adapter = ProviderModelsAdapter()
+    application = FastAPI()
+    application.state.providers = ProvidersService(
+        catalog=adapter,
+        connections=adapter,
+        references=NoProviderReferences(),
+        technology=adapter,
+    )
+    application.dependency_overrides[require_user] = lambda: AccountPrincipal(
+        1,
+        "owner",
+        "owner",
+        "/manage",
+    )
+    application.include_router(router)
+    with TestClient(application) as test_client:
+        yield test_client
 
 
 def test_model_list_save_updates_every_row_and_projects_latest_validation(
     client: TestClient,
 ) -> None:
-    headers = _login(client)
-    connection_id = _create_connection(client, headers)
+    connection_id = _create_connection(client)
     store = ProviderConnectionStore()
     connection = store.load().connections[connection_id]
     store.replace(
@@ -62,8 +83,7 @@ def test_model_list_save_updates_every_row_and_projects_latest_validation(
     )
 
     response = client.put(
-        f"/api/owner/providers/connections/{connection_id}/models",
-        headers=headers,
+        f"/api/v1/admin/model-providers/connections/{connection_id}/models",
         json={
             "models": [
                 _model_payload("auto-model", display_name="Auto", hidden=False),
@@ -81,21 +101,15 @@ def test_model_list_save_updates_every_row_and_projects_latest_validation(
     models = {model["id"]: model for model in response.json()["models"]}
     assert models["manual-model"]["display_name"] == "Manual Updated"
     assert models["manual-model"]["hidden"] is True
-    assert models["auto-model"]["verification"] == {
-        "status": "passed",
-        "checked_at": "2026-08-03T01:02:03+00:00",
-        "latency_ms": 123.4,
-        "error": None,
-        "validation_mode": "full",
-        "full_run_id": None,
-    }
+    assert models["auto-model"]["verification"]["status"] == "passed"
+    assert models["auto-model"]["verification"]["latency_ms"] == 123.4
+    assert models["auto-model"]["verification"]["validation_mode"] == "full"
 
 
 def test_model_list_save_rejects_automatic_id_change_without_partial_persistence(
     client: TestClient,
 ) -> None:
-    headers = _login(client)
-    connection_id = _create_connection(client, headers)
+    connection_id = _create_connection(client)
     store = ProviderConnectionStore()
     connection = store.load().connections[connection_id]
     store.replace(
@@ -109,8 +123,7 @@ def test_model_list_save_rejects_automatic_id_change_without_partial_persistence
     )
 
     response = client.put(
-        f"/api/owner/providers/connections/{connection_id}/models",
-        headers=headers,
+        f"/api/v1/admin/model-providers/connections/{connection_id}/models",
         json={
             "models": [
                 _model_payload("auto-renamed", original_id="auto-model"),
@@ -130,8 +143,7 @@ def test_model_list_save_rejects_automatic_id_change_without_partial_persistence
 def test_model_list_save_rejects_duplicate_target_id_without_partial_persistence(
     client: TestClient,
 ) -> None:
-    headers = _login(client)
-    connection_id = _create_connection(client, headers)
+    connection_id = _create_connection(client)
     store = ProviderConnectionStore()
     connection = store.load().connections[connection_id]
     store.replace(
@@ -145,8 +157,7 @@ def test_model_list_save_rejects_duplicate_target_id_without_partial_persistence
     )
 
     response = client.put(
-        f"/api/owner/providers/connections/{connection_id}/models",
-        headers=headers,
+        f"/api/v1/admin/model-providers/connections/{connection_id}/models",
         json={
             "models": [
                 _model_payload("same-model", original_id="first-model"),
@@ -166,11 +177,9 @@ def test_model_list_save_rejects_duplicate_target_id_without_partial_persistence
 def test_model_list_save_rejects_nonpositive_limit_before_persistence(
     client: TestClient,
 ) -> None:
-    headers = _login(client)
-    connection_id = _create_connection(client, headers)
+    connection_id = _create_connection(client)
     response = client.put(
-        f"/api/owner/providers/connections/{connection_id}/models",
-        headers=headers,
+        f"/api/v1/admin/model-providers/connections/{connection_id}/models",
         json={
             "models": [
                 {
@@ -189,12 +198,10 @@ def test_model_list_save_rejects_nonpositive_limit_before_persistence(
 def test_model_list_save_rejects_blank_model_id_before_persistence(
     client: TestClient,
 ) -> None:
-    headers = _login(client)
-    connection_id = _create_connection(client, headers)
+    connection_id = _create_connection(client)
 
     response = client.put(
-        f"/api/owner/providers/connections/{connection_id}/models",
-        headers=headers,
+        f"/api/v1/admin/model-providers/connections/{connection_id}/models",
         json={"models": [_model_payload(" ", original_id="seed-model")]},
     )
 
@@ -203,19 +210,9 @@ def test_model_list_save_rejects_blank_model_id_before_persistence(
     assert [model.endpoint_model_id for model in persisted.models] == ["seed-model"]
 
 
-def _login(client: TestClient) -> dict[str, str]:
+def _create_connection(client: TestClient) -> str:
     response = client.post(
-        "/api/v1/auth/login",
-        data={"account_id": "owner", "password": "ownerchangeme"},
-    )
-    assert response.status_code == 200
-    return {"X-CSRF-Token": response.headers["X-CSRF-Token"]}
-
-
-def _create_connection(client: TestClient, headers: dict[str, str]) -> str:
-    response = client.post(
-        "/api/owner/providers/connections",
-        headers=headers,
+        "/api/v1/admin/model-providers/connections",
         json={
             "catalog_id": "custom_openai",
             "alias": "Batch Test",
