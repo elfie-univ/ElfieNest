@@ -13,7 +13,7 @@ const api = vi.hoisted(() => ({
   commitAdoption: vi.fn(),
 }))
 
-vi.mock("../../api/client", () => api)
+vi.mock("../../api/me/adoption", () => api)
 
 function candidate(index: number) {
   return {
