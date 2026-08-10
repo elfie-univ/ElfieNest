@@ -2,7 +2,7 @@ from pathlib import Path
 
 from ai_runtime.food.models import FoodPackage, ModelAssignment
 from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
-from app.infrastructure.persistence.store import init_db
+from infrastructure.persistence.store import init_db
 
 
 def seed_mock_food(runtime_dir: Path) -> None:

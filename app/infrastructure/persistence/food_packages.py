@@ -9,7 +9,7 @@ from pathlib import Path
 
 from ai_runtime.food.models import FoodPackage, ModelAssignment
 from ai_runtime.food.store import FoodCatalog, FoodCatalogRepository
-from app.infrastructure.persistence.store import get_db
+from infrastructure.persistence.store import get_db
 
 
 class FoodPackageRepositoryError(RuntimeError):

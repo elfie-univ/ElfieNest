@@ -2,11 +2,11 @@
 
 from pathlib import Path
 
-from app.infrastructure.persistence.final_schema import create_final_nest_database
+from infrastructure.persistence.final_schema import create_final_nest_database
 from app.infrastructure.persistence.runtime_query_repository import (
     RuntimeQueryRepository,
 )
-from app.infrastructure.persistence.store import get_db
+from infrastructure.persistence.store import get_db
 
 
 def test_runtime_queries_use_final_users_and_elfies(tmp_path: Path) -> None:

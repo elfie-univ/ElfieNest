@@ -10,7 +10,7 @@ from app.features.adoption import (
     AdoptionPortCapacityReached,
     AdoptionReservationRecord,
 )
-from app.infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.store import get_db, init_db
 from infrastructure.persistence import SQLiteAdoptionAdapter
 
 

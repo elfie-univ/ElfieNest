@@ -1,4 +1,4 @@
-"""Fresh-root activation tests for the final storage contract."""
+"""Root Infrastructure activation tests for the final storage contract."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from app.infrastructure.persistence.store import LegacyDataRootError, init_db
+from infrastructure.persistence.store import LegacyDataRootError, init_db
 
 _FINAL_ROOT_TABLES = {
     "device_audit_events",

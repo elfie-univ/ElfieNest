@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from app.infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.store import get_db, init_db
 from app.orchestration.embodiment.ports import EmbodimentLeaseConflict
 from infrastructure.persistence.bodies import SQLiteBodiesAdapter
 from infrastructure.persistence.embodiment import (

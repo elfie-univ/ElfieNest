@@ -8,9 +8,9 @@ from typing import Any, Optional
 from fastapi import FastAPI
 
 from ai_runtime.storage.data_home import get_db_path
-from app.infrastructure.persistence.store import init_db
 from app.interfaces.api.app import create_http_application
 from infrastructure.persistence import SQLiteNestStateAdapter
+from infrastructure.persistence.store import init_db
 
 from .container import build_application_container
 

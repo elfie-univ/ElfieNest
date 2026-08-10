@@ -9,7 +9,7 @@ from typing import Any, Dict
 from ai_runtime.food.store import FoodCatalog, FoodCatalogRepository
 from ai_runtime.providers.ollama import OllamaManager
 from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
-from app.infrastructure.persistence.store import init_db
+from infrastructure.persistence.store import init_db
 
 
 def runtime_food_catalog_store(config_store: Any) -> FoodCatalogRepository:

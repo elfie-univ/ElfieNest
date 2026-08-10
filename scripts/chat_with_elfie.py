@@ -24,8 +24,8 @@ from ai_runtime.storage.data_home import get_db_path
 from app.bootstrap.lifecycle import create_lifecycle_facade
 from app.bootstrap.nest_session import build_nest_session_services
 from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
-from app.infrastructure.persistence.store import init_db
 from elfie import ElfieFactory
+from infrastructure.persistence.store import init_db
 
 
 def main():

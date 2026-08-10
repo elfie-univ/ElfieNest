@@ -1,5 +1,5 @@
 from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
-from app.infrastructure.persistence.store import init_db
+from infrastructure.persistence.store import init_db
 
 
 def test_runtime_lab_store_uses_contract_catalog(tmp_path):

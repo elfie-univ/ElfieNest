@@ -4,7 +4,7 @@ from _pytest.capture import CaptureFixture
 
 from app.infrastructure.persistence.account_repository import AccountRepository
 from app.infrastructure.persistence.elfie_repository import ElfieRepository
-from app.infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.store import get_db, init_db
 from app.interfaces.cli import provider_commands, route_commands
 
 

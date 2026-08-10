@@ -12,7 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.bootstrap import create_app
-from app.infrastructure.persistence.store import get_db, init_db, verify_password
+from infrastructure.persistence.store import get_db, init_db, verify_password
 
 from ._helpers import create_test_owner, create_test_user
 
@@ -343,7 +343,7 @@ class TestUserCRUD:
         alice_id = resp.json()["user_id"]
 
         # 手动插入精灵
-        from app.infrastructure.persistence.store import get_db
+        from infrastructure.persistence.store import get_db
 
         with get_db(db_path) as conn:
             conn.execute(

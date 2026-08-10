@@ -11,8 +11,8 @@ from app.features.bodies.ports import (
 )
 from app.features.nest_management import NestPortBedNotFound
 from app.infrastructure.persistence.elfie_repository import ElfieRepository
-from app.infrastructure.persistence.final_schema import create_final_nest_database
-from app.infrastructure.persistence.store import get_db
+from infrastructure.persistence.final_schema import create_final_nest_database
+from infrastructure.persistence.store import get_db
 from app.orchestration.embodiment.ports import EmbodimentLeaseConflict
 from infrastructure.persistence import (
     SQLiteFoodAdapter,

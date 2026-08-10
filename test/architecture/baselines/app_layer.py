@@ -42,7 +42,6 @@ LEGACY_APP_LAYER_VIOLATIONS: Dict[str, FrozenSet[str]] = {
     ),
     "interface_forbidden_layer_imports": frozenset(
         {
-            "app/interfaces/api/app.py -> app.infrastructure.persistence.store",
             "app/interfaces/api/owner_elfie_routes.py -> app.infrastructure.persistence.interface_query_repository",
             "app/interfaces/api/v1/client_routes.py -> app.infrastructure.persistence.runtime_query_repository",
             "app/interfaces/cli/route_commands.py -> app.infrastructure.persistence.elfie_repository",

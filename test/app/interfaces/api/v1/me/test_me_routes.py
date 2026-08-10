@@ -10,7 +10,7 @@ from app.features.accounts import (
     AccountsService,
     hash_password,
 )
-from app.infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.store import get_db, init_db
 from app.interfaces.api.v1.auth import require_user
 from app.interfaces.api.v1.me import router
 from infrastructure.persistence import SQLiteAccountsAdapter

@@ -65,11 +65,6 @@ from app.features.adoption import AcceptedAdoptionReservation
 from app.infrastructure.persistence.account_repository import AccountRepository
 from app.infrastructure.persistence.elfie_repository import ElfieRepository
 from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
-from app.infrastructure.persistence.store import (
-    get_db,
-    init_db,
-    seed_initial_owner_if_env_set,
-)
 from app.interfaces.api.service_access import ServiceMode
 from app.interfaces.cli.lifecycle_commands import _remember_lifecycle_data_home
 from app.interfaces.web.frontend_build import (
@@ -88,6 +83,11 @@ from elfie.brain.decision_types import CancelPolicy, DecisionPlan, MessageIntent
 from elfie.brain.model_context_compiler import CompiledModelContext
 from elfie.message_types import EventId, IntentId, PlanId, TurnId
 from infrastructure.persistence import FinalElfieWorkspaceAdapter
+from infrastructure.persistence.store import (
+    get_db,
+    init_db,
+    seed_initial_owner_if_env_set,
+)
 from nest.godot_gateway.bundle import inspect_godot_web_bundle
 
 

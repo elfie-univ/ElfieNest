@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.store import get_db, init_db
 from infrastructure.persistence import (
     SQLiteNestManagementAdapter,
     SQLiteNestStateAdapter,

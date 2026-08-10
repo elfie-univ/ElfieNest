@@ -8,8 +8,8 @@ import pytest
 
 from app.features.bodies.ports import BodiesPortConflict
 from app.infrastructure.persistence.elfie_repository import ElfieRepository
-from app.infrastructure.persistence.final_schema import create_final_nest_database
-from app.infrastructure.persistence.store import get_db
+from infrastructure.persistence.final_schema import create_final_nest_database
+from infrastructure.persistence.store import get_db
 from infrastructure.persistence.bodies import SQLiteBodiesAdapter
 from infrastructure.persistence.embodiment import (
     begin_hosting,

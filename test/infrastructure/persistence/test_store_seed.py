@@ -1,11 +1,11 @@
-"""Focused tests for environment Owner seed behavior."""
+"""Root persistence tests for environment Owner seed behavior."""
 
 from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
 
-from app.infrastructure.persistence.store import (
+from infrastructure.persistence.store import (
     init_db,
     seed_initial_owner_if_env_set,
 )

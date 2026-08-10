@@ -12,7 +12,7 @@ from app.infrastructure.persistence.food_packages import (
     FoodPackageRepositoryError,
     SQLiteFoodPackageRepository,
 )
-from app.infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.store import get_db, init_db
 
 
 def _insert_users(db_path: str, user_ids: tuple[int, ...]) -> None:

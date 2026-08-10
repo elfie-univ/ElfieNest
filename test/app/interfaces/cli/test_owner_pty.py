@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 from typing import Final, Tuple
 
-from app.infrastructure.persistence.store import (
+from infrastructure.persistence.store import (
     get_db,
     hash_password,
     init_db,

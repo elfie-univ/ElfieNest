@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.features.accounts import AccountPrincipal, AccountRole
 from app.features.elfies import ElfiesService
-from app.infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.store import get_db, init_db
 from app.interfaces.api.v1.admin.elfies.routes import router as admin_router
 from app.interfaces.api.v1.auth import require_user
 from app.interfaces.api.v1.elfies.routes import router as member_router

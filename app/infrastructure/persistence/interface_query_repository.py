@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass
 
-from app.infrastructure.persistence.store import get_db
+from infrastructure.persistence.store import get_db
 
 
 @dataclass(frozen=True)

@@ -13,14 +13,10 @@ from ai_runtime.storage.data_home import get_db_path as _get_db_path
 from ai_runtime.storage.data_layout import ensure_final_root_layout
 from app.features.accounts import hash_password
 from app.features.accounts import verify_password as verify_password
-from app.infrastructure.persistence.final_schema import (
-    create_final_nest_database,
-)
-from infrastructure.persistence.sqlite_connection import (
-    app_sqlite_connection,
-)
+from infrastructure.persistence.final_schema import create_final_nest_database
+from infrastructure.persistence.sqlite_connection import app_sqlite_connection
 
-logger = logging.getLogger("app.infrastructure.persistence.store")
+logger = logging.getLogger("infrastructure.persistence.store")
 
 _FINAL_TABLES: Final[frozenset[str]] = frozenset(
     {

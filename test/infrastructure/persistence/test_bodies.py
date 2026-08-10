@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from app.features.bodies.ports import BodiesPortCredentialRejected
-from app.infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.store import get_db, init_db
 from infrastructure.persistence.bodies import SQLiteBodiesAdapter
 
 

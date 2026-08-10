@@ -1,4 +1,4 @@
-"""Focused contract tests for the final ``users`` table."""
+"""Root persistence contract tests for the final ``users`` table."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from typing import Final
 
 import pytest
 
-from app.infrastructure.persistence.final_schema import create_final_nest_database
-from app.infrastructure.persistence.store import LegacyDataRootError, init_db
+from infrastructure.persistence.final_schema import create_final_nest_database
+from infrastructure.persistence.store import LegacyDataRootError, init_db
 from infrastructure.persistence.sqlite_connection import app_sqlite_connection
 
 EXPECTED_USER_COLUMNS: Final = (

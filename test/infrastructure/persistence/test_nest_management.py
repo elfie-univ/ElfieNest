@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from app.features.nest_management import NestPortConflict
-from app.infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.store import get_db, init_db
 from infrastructure.persistence.nest_management import SQLiteNestManagementAdapter
 from nest import NestConfig
 

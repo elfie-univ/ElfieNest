@@ -13,7 +13,7 @@ import anyio
 import pytest
 
 from app.bootstrap import build_application_container
-from app.infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.store import get_db, init_db
 from app.interfaces.api.ws_gateway import AuthenticatedWSManager as _WSManager
 from elfie.communication import InboundDisposition, InboundDispositionStatus
 from elfie.message_types import EventId

@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.features.accounts import AccountPrincipal, AccountsService, hash_password
-from app.infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.store import get_db, init_db
 from app.interfaces.api.v1.admin.users import router
 from app.interfaces.api.v1.auth import require_user
 from infrastructure.persistence import SQLiteAccountsAdapter

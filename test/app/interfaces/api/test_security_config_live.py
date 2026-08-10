@@ -11,7 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.bootstrap import create_app
-from app.infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.store import get_db, init_db
 from infrastructure.persistence import hash_session_token
 from test.app.interfaces.api._helpers import create_test_owner
 

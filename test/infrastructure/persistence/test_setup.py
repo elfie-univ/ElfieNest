@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from app.infrastructure.persistence.store import init_db
+from infrastructure.persistence.store import init_db
 from infrastructure.persistence.setup import SQLiteSetupAdapter
 
 

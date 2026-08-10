@@ -4,7 +4,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from ai_runtime.storage.data_layout import final_root_layout
-from app.infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.store import get_db, init_db
 from elfie.brain.memory.knowledge_store import KnowledgeStore
 from elfie.brain.memory.node_types import MemoryNode
 from elfie.profile import ElfieProfileRepository, create_visual_profile

@@ -11,7 +11,7 @@ from app.features.setup import (
     StoredOllamaObservation,
     StoredSetupInstallation,
 )
-from app.infrastructure.persistence.store import init_db
+from infrastructure.persistence.store import init_db
 from app.interfaces.api.v1.setup.dependencies import setup_principal
 from app.interfaces.api.v1.setup.routes import router
 from app.orchestration.setup_installation import (

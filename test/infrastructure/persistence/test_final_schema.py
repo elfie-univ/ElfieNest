@@ -1,4 +1,4 @@
-"""Contract tests for the inactive final ``nest.db`` builder."""
+"""Contract tests for the final ``nest.db`` builder."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from typing import Final
 
 import pytest
 
-from app.infrastructure.persistence.final_schema import (
+from infrastructure.persistence.final_schema import (
     FinalNestDatabasePathError,
     create_final_nest_database,
 )

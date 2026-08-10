@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 
 from app.bootstrap import create_app
 from app.features.accounts import AvatarTooLarge
-from app.infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.store import get_db, init_db
 from app.interfaces.api.request_limits import AvatarUploadBodyLimitMiddleware
 from app.interfaces.api.v1.auth import generate_csrf_token
 from app.interfaces.api.v1.me.routes import _read_avatar_limited

@@ -26,7 +26,7 @@ from ai_runtime.storage.report_repository import ReportRepository
 from ai_runtime.storage.runtime_settings import write_runtime_settings
 from ai_runtime.storage.secrets import set_connection_secret
 from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
-from app.infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.store import get_db, init_db
 
 
 def _evidence(model: str, capabilities: set[str], *, local: bool = False):

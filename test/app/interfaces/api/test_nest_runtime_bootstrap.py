@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 from app.bootstrap import create_app
-from app.infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.store import get_db, init_db
 from app.orchestration.nest_session import ElfieNestEngine
 from elfie import Elfie
 from infrastructure.persistence import SQLiteNestStateAdapter

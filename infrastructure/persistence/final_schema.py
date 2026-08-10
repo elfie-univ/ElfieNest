@@ -1,4 +1,4 @@
-"""Builder for the final root ``nest.db`` contract."""
+"""Root Infrastructure builder for the final ``nest.db`` contract."""
 
 from __future__ import annotations
 

@@ -31,10 +31,6 @@ from app.features.elfies import ElfiesService
 from app.features.nest_management import NestManagementService
 from app.features.operations import OperationsFacade
 from app.features.setup import SetupService
-from app.infrastructure.persistence.store import (
-    init_db,
-    seed_initial_owner_if_env_set,
-)
 from app.interfaces.web.build_discovery import (
     WebBuildManifestMalformedError,
     WebBuildManifestMissingError,
@@ -46,6 +42,10 @@ from app.orchestration.observer import ObserverFacade
 from app.orchestration.resident_admission import ResidentAdmissionService
 from app.orchestration.setup_installation import SetupInstallationService
 from infrastructure.communication import SameOriginMessagePublisher
+from infrastructure.persistence.store import (
+    init_db,
+    seed_initial_owner_if_env_set,
+)
 from nest.godot_gateway.bundle import GODOT_WEB_DIR, godot_web_bundle_present
 
 from .health_models import HealthResponse

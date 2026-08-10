@@ -4,7 +4,7 @@ import yaml
 
 from ai_runtime.food.models import FoodPackage, ModelAssignment
 from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
-from app.infrastructure.persistence.store import init_db
+from infrastructure.persistence.store import init_db
 from devtools.elfie_lab.runtime_adapters import (
     create_runtime,
     default_runtime_config_dir,

@@ -9,7 +9,7 @@ from app.features.configuration.food import (
     FoodPortInvalid,
     StoredFoodPackage,
 )
-from app.infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.store import get_db, init_db
 from infrastructure.persistence.food import (
     SQLiteFoodAdapter,
     list_food_model_references,

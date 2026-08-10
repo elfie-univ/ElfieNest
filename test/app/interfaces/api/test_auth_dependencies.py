@@ -4,7 +4,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.bootstrap import build_application_container
-from app.infrastructure.persistence.store import init_db
+from infrastructure.persistence.store import init_db
 from app.interfaces.api.v1.admin.nest import routes as nest_routes
 from app.interfaces.api.v1.auth import get_current_user, require_user
 from app.interfaces.api.v1.elfies.food_policy import routes as food_policy_routes

@@ -6,7 +6,7 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from app.infrastructure.persistence.store import get_db
+from infrastructure.persistence.store import get_db
 
 
 @dataclass(frozen=True)

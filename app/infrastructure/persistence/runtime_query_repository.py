@@ -6,7 +6,7 @@ import sqlite3
 from dataclasses import dataclass
 
 from app.infrastructure.persistence.elfie_repository import ElfieRecord, ElfieRepository
-from app.infrastructure.persistence.store import get_db
+from infrastructure.persistence.store import get_db
 
 
 @dataclass(frozen=True)  # CPython 3.9 uses explicit __slots__ below.

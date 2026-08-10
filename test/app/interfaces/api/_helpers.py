@@ -17,7 +17,7 @@ from app.features.adoption import (
     AcceptedAdoptionReservation,
     AdoptionReservationRecord,
 )
-from app.infrastructure.persistence.store import get_db, hash_password
+from infrastructure.persistence.store import get_db, hash_password
 from elfie import ElfieFactory
 from infrastructure.persistence import (
     FinalElfieWorkspaceAdapter,

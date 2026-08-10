@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.bootstrap import create_app
-from app.infrastructure.persistence.store import init_db
+from infrastructure.persistence.store import init_db
 
 from ._helpers import create_test_owner
 

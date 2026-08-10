@@ -10,7 +10,7 @@ from app.infrastructure.persistence.account_repository import (
     AccountRepository,
     AccountValidationError,
 )
-from app.infrastructure.persistence.final_schema import create_final_nest_database
+from infrastructure.persistence.final_schema import create_final_nest_database
 from infrastructure.persistence.sqlite_connection import app_sqlite_connection
 
 

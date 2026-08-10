@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from ai_runtime.storage.data_home import get_config_path
 from app.bootstrap import create_app
 from app.features.configuration.runtime_store import write_system_section
-from app.infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.store import get_db, init_db
 from app.interfaces.cli.doctor_commands import repair_local_runtime_state
 from elfie import ElfieFactory
 from elfie.brain.memory.knowledge_schema import KNOWLEDGE_TABLES

@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.bootstrap import create_app
-from app.infrastructure.persistence.store import get_db, hash_password
+from infrastructure.persistence.store import get_db, hash_password
 
 from ._helpers import complete_test_setup
 

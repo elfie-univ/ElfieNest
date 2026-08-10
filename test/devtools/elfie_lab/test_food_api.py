@@ -7,7 +7,7 @@ from ai_runtime.food.models import (
 )
 from ai_runtime.gateway.request import RuntimeResult
 from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
-from app.infrastructure.persistence.store import init_db
+from infrastructure.persistence.store import init_db
 from devtools.elfie_lab.app import create_app
 from devtools.runtime_lab import RuntimeLabConfigStore
 

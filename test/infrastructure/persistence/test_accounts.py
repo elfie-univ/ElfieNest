@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from app.features.accounts import AccountPersistenceConflict
-from app.infrastructure.persistence.store import get_db, hash_password, init_db
+from infrastructure.persistence.store import get_db, hash_password, init_db
 from infrastructure.persistence import (
     SessionRepository,
     SQLiteAccountsAdapter,

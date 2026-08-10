@@ -1,1 +1,1 @@
-from .store import *  # noqa: F403
+"""Legacy App persistence adapters pending their owning vertical slices."""

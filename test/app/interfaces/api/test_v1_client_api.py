@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from ai_runtime.storage.data_layout import final_root_layout
 from app.bootstrap import create_app
-from app.infrastructure.persistence.store import init_db
+from infrastructure.persistence.store import init_db
 from elfie.body import BodyId, BodySensorEvent, UtteranceFinal
 from elfie.brain.memory.knowledge_store import KnowledgeStore
 from elfie.brain.memory.node_types import MemoryNode

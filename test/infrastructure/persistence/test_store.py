@@ -1,4 +1,4 @@
-"""测试 store.py — init_db / seed_initial_owner_if_env_set / get_db / count_elfies_by_owner
+"""测试根持久化 store — init_db / seed_initial_owner_if_env_set / get_db / count_elfies_by_owner
 
 使用 tmp_path 隔离每个测试的 DB 文件。
 """
@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from app.infrastructure.persistence.store import (
+from infrastructure.persistence.store import (
     count_elfies_by_owner,
     get_db,
     init_db,
