@@ -8,9 +8,11 @@ from ai_runtime.storage.data_home import data_home_from_db_path, get_config_path
 from ai_runtime.storage.data_layout import final_root_layout
 from app.features.accounts import AccountsService
 from app.features.configuration import SettingsService
+from app.features.elfies import ElfiesService
 from app.features.nest_management import NestManagementService
 from infrastructure.persistence import (
     SQLiteAccountsAdapter,
+    SQLiteElfiesProjectionAdapter,
     SQLiteNestManagementAdapter,
 )
 from infrastructure.platform import RuntimeSecurityPolicyAdapter, RuntimeSettingsAdapter
@@ -21,6 +23,7 @@ class ApplicationContainer:
     accounts: AccountsService
     settings: SettingsService
     nest_management: NestManagementService
+    elfies: ElfiesService
 
 
 def build_application_container(db_path: str) -> ApplicationContainer:
@@ -36,6 +39,7 @@ def build_application_container(db_path: str) -> ApplicationContainer:
         ),
         settings=SettingsService(settings_adapter),
         nest_management=NestManagementService(SQLiteNestManagementAdapter(db_path)),
+        elfies=ElfiesService(SQLiteElfiesProjectionAdapter(db_path)),
     )
 
 

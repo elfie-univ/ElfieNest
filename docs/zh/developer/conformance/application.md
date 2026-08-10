@@ -118,6 +118,24 @@ Principal 与授权：Interface 认证严格账户 Principal；Settings 授权�
 状态：closed
 ```
 
+### Elfies：授权目录与档案投影
+
+```text
+领域：elfies
+缺口 ID：APP-001、APP-003、APP-004、APP-005、APP-006、APP-009、APP-011
+当前权威事实：nest.db 的 Elfie 身份与领养关系；每只 Elfie 的权威 profile.yaml；每只 Elfie 的 cognition SQLite
+路由与生产调用方：成员 Elfie 列表/档案、对话列表与管理员监控聚合；目标资源为 /api/v1/elfies 与 /api/v1/admin/elfies
+目标公共门面与模型：授权 Elfies 查询门面；严格关系、权限、Profile、认知、成员与管理员 Result
+Port 与 Adapter：ElfiesQueryPort 由根 Infrastructure 的只读 SQLite/Workspace 投影 Adapter 实现，并由 Bootstrap 注入
+一致性类别：只读查询；缺失或损坏的 Profile/认知分别投影为 empty 或 unavailable，不创建或修复状态
+Principal 与授权：Interface 认证账户 Principal；Elfies 门面约束成员所有权并授权管理员全局投影
+超时、重试与幂等：本地只读 SQLite/YAML；认知库短 busy timeout；不重试；查询幂等
+旧实现删除清单：app/features/elfie_profile；旧 Interface cognition reader；混合成员/管理员 Route 中的 Elfies 自有拼装；旧 DTO、前端 Client 和夹具
+聚焦测试与端到端门：Feature、Adapter、严格成员/管理员 Route；现有成员 Profile/对话和管理员监控回归；前端 Elfie 页面；App/System/Storage 架构门
+已删除的机器基线条目：旧 cognition Feature 到 Infrastructure import；成员 Route 对旧 cognition 投影和 reader 的直接依赖
+状态：in progress
+```
+
 ## 当前到目标的迁移映射
 
 规范性所有者只由应用架构契约定义。本表记录当前实现应进入哪里，以及迁移期位置何时

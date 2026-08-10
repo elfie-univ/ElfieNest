@@ -27,6 +27,7 @@ def create_app(
         accounts=container.accounts,
         settings=container.settings,
         nest_management=container.nest_management,
+        elfies=container.elfies,
         engine=engine,
         db_path=selected_db_path,
         ws_port=ws_port,

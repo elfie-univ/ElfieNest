@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ai_runtime.storage.data_home import data_home_from_db_path
 from ai_runtime.storage.data_layout import final_root_layout
+from app.features.accounts import AccountPrincipal
 from app.features.configuration.food_access import elfie_food_policy_projection
 from app.features.elfie_profile.public_projection import build_public_profile
+from app.features.elfies import (
+    AdminElfieResult,
+    ElfiesUnavailable,
+    ListAdminElfiesQuery,
+)
 from app.infrastructure.persistence.embodiment_sessions import get_embodiment_session
 from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
 from app.infrastructure.persistence.interface_query_repository import (
@@ -29,18 +36,27 @@ async def list_owner_elfie_monitoring(
     food_key: Optional[str] = None,
     embodiment_state: Optional[str] = None,
     status: Optional[str] = None,
-    owner: Dict[str, Any] = Depends(require_manager),  # noqa: B008
+    owner: AccountPrincipal = Depends(require_manager),  # noqa: B008
 ) -> List[Dict[str, Any]]:
     """List safe operational summaries without private configuration or chats."""
-    _ = owner
+    owner_id = _optional_owner_id(owner_user_id)
+    species = _optional_text(species_id)
+    try:
+        projections = request.app.state.elfies.list_admin(
+            owner,
+            ListAdminElfiesQuery(owner_user_id=owner_id, species_id=species),
+        )
+    except ElfiesUnavailable as error:
+        raise HTTPException(status_code=503, detail="精灵目录暂不可用") from error
     rows = _load_registered_elfies(
         request.app.state.db_path,
-        _optional_owner_id(owner_user_id),
-        _optional_text(species_id),
+        owner_id,
+        species,
     )
     return _filter_monitoring_rows(
         request.app.state.db_path,
         rows,
+        {item.profile.elfie_id: item for item in projections},
         food_key=_optional_text(food_key),
         embodiment_state=_optional_text(embodiment_state) or _optional_text(status),
     )
@@ -77,6 +93,7 @@ def _load_registered_elfies(
 def _filter_monitoring_rows(
     db_path: str,
     rows: List[InterfaceElfieRecord],
+    elfies: Dict[str, AdminElfieResult],
     *,
     food_key: Optional[str],
     embodiment_state: Optional[str],
@@ -84,6 +101,9 @@ def _filter_monitoring_rows(
     projections = []
     catalog = SQLiteFoodPackageRepository(db_path).load()
     for row in rows:
+        elfie = elfies.get(row.elfie_id)
+        if elfie is None:
+            continue
         state = get_embodiment_session(db_path, row.elfie_id).state.value
         policy = elfie_food_policy_projection(
             db_path,
@@ -95,38 +115,44 @@ def _filter_monitoring_rows(
             continue
         if embodiment_state is not None and embodiment_state != state:
             continue
-        projections.append(_monitoring_projection(db_path, row, state, policy))
+        projections.append(_monitoring_projection(db_path, row, elfie, state, policy))
     return projections
 
 
 def _monitoring_projection(
     db_path: str,
     row: InterfaceElfieRecord,
+    elfie: AdminElfieResult,
     state: str,
     policy: Dict[str, Any],
 ) -> Dict[str, Any]:
     data_home = data_home_from_db_path(db_path)
+    source = elfie.profile
     profile = build_public_profile(
-        elfie_id=row.elfie_id,
-        name=row.name,
-        species_id=row.species,
-        personality_style=row.summary or "",
-        config_dir=str(final_root_layout(data_home).elfie(row.elfie_id).profile.parent),
+        elfie_id=source.elfie_id,
+        name=source.name,
+        species_id=source.species_id,
+        personality_style=source.summary or "",
+        config_dir=str(
+            final_root_layout(data_home).elfie(source.elfie_id).profile.parent
+        ),
         room_id=None,
         room_name=None,
         bed_id=row.bed_number,
         bed_name=None if row.bed_number is None else f"Bed {row.bed_number}",
         embodiment_state=state,
     )
-    profile["gender"] = row.gender
-    profile["birth_date"] = row.birth_date
-    profile["summary"] = row.summary
+    profile["gender"] = source.gender
+    profile["birth_date"] = source.birth_date
+    profile["summary"] = source.summary
+    profile["big_five"] = {} if source.big_five is None else asdict(source.big_five)
+    profile["personality_tags"] = list(source.personality_tags)
     return {
-        "elfie_id": row.elfie_id,
+        "elfie_id": source.elfie_id,
         "owner": {
-            "user_id": row.owner_user_id,
-            "account_id": row.owner_account_id,
-            "display_name": row.owner_display_name,
+            "user_id": elfie.owner.user_id,
+            "account_id": elfie.owner.account_id,
+            "display_name": elfie.owner.display_name,
         },
         "profile": profile,
         "food_policy": {
@@ -135,5 +161,5 @@ def _monitoring_projection(
             "main_food_options": policy["main_food_options"],
             "main_food_unavailable": policy["main_food_unavailable"],
         },
-        "created_at": row.adopted_at,
+        "created_at": source.adopted_at,
     }
