@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -10,8 +11,6 @@ from fastapi.testclient import TestClient
 
 from ai_runtime.storage.data_home import get_config_path
 from app.bootstrap import create_app
-from app.features.configuration.runtime_store import write_system_section
-from infrastructure.persistence.store import get_db, init_db
 from app.interfaces.cli.doctor_commands import repair_local_runtime_state
 from elfie import ElfieFactory
 from elfie.brain.memory.knowledge_schema import KNOWLEDGE_TABLES
@@ -25,6 +24,8 @@ from infrastructure.persistence.elfie_chat_history import (
     record_elfie_chat_message,
 )
 from infrastructure.persistence.embodiment import SQLiteEmbodimentLeaseAdapter
+from infrastructure.persistence.store import get_db, init_db
+from infrastructure.platform import RuntimeSettingsAdapter
 from test.app.interfaces.api._helpers import (
     adopt_test_elfie,
     complete_test_setup,
@@ -178,7 +179,10 @@ def test_full_product_chain_uses_one_explicit_final_root(
             elfie = ElfieFactory().restore(workspace, elfie_id=elfie_id)
             elfie.memory.record_episode("完整链路记忆", "happy", 80.0)
             elfie.memory.close()
-            write_system_section(get_config_path(), "security", {"session_ttl_days": 5})
+            settings = RuntimeSettingsAdapter(get_config_path())
+            settings.save_security_settings(
+                replace(settings.load_security_settings(), session_ttl_days=5)
+            )
             repair_local_runtime_state()
 
             assert bed.status_code == 200
