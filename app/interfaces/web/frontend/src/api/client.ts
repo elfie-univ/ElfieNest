@@ -15,13 +15,6 @@ export * from "./owner-users"
 export * from "./roles"
 export * from "./session"
 
-export const ChatMessageSchema = z.object({
-  id: z.number().int(),
-  elfie_id: ElfieIdValueSchema,
-  sender: z.union([z.literal("user"), z.literal("elfie"), z.literal("system")]),
-  text: z.string(),
-  created_at: z.string(),
-})
 const SetupStatusSchema = z.object({
   need_setup: z.boolean(),
   complete: z.boolean(),
@@ -61,13 +54,6 @@ const SetupModelOptionSchema = z.object({
   label: z.string(),
   approx_download_mb: z.number().int().positive(),
   recommended: z.boolean(),
-})
-const ConversationSchema = z.object({
-  elfie_id: ElfieIdValueSchema,
-  name: z.string(),
-  portrait_url: z.string(),
-  last_message_preview: z.string(),
-  last_message_at: z.string().nullable(),
 })
 const AdoptionInfoSchema = z.object({
   personality_styles: z.array(z.string()),
@@ -113,8 +99,6 @@ const AdoptionRepliesSchema = z.object({
   replies: z.array(AdoptionReplySchema).min(1),
 })
 
-export type ChatMessage = z.infer<typeof ChatMessageSchema>
-export type Conversation = z.infer<typeof ConversationSchema>
 export type AdoptionInfo = z.infer<typeof AdoptionInfoSchema>
 export type AdoptionCandidate = z.infer<typeof AdoptionCandidateSchema>
 export type AdoptionCandidateSet = z.infer<typeof AdoptionCandidateSetSchema>
@@ -183,39 +167,14 @@ export async function setupInstall(csrfToken: string): Promise<SetupStatus> {
   }))
 }
 
-export async function conversations(): Promise<readonly Conversation[]> {
-  return z.array(ConversationSchema).parse(await requestJson("/api/v1/conversations"))
-}
-
 export async function elfies(): Promise<readonly z.infer<typeof ProfileSchema>[]> {
   return z.array(ProfileSchema).parse(await requestJson("/api/v1/elfies"))
-}
-
-export async function messages(elfieId: string): Promise<readonly ChatMessage[]> {
-  return z.array(ChatMessageSchema).parse(
-    await requestJson(`/api/v1/conversations/${encodeURIComponent(elfieId)}/messages`),
-  )
 }
 
 export async function profile(elfieId: string): Promise<z.infer<typeof ProfileDetailSchema>> {
   return ProfileDetailSchema.parse(
     await requestJson(`/api/v1/elfies/${encodeURIComponent(elfieId)}/profile`),
   )
-}
-
-export async function sendMessage(
-  elfieId: string,
-  text: string,
-  csrfToken: string,
-): Promise<ChatMessage> {
-  return ChatMessageSchema.parse(await requestJson(
-    `/api/v1/conversations/${encodeURIComponent(elfieId)}/messages`,
-    {
-      method: "POST",
-      headers: csrfHeaders(csrfToken, true),
-      body: JSON.stringify({ text }),
-    },
-  ))
 }
 
 export async function adoptionInfo(): Promise<AdoptionInfo> {

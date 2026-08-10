@@ -1,4 +1,5 @@
-import type { ChatMessage, Conversation, ElfieProfile } from "../../api/client"
+import type { ElfieProfile } from "../../api/client"
+import type { ChatMessage, Conversation } from "../../api/communication"
 import type { ElfieListItem } from "./elfie-list-model"
 
 const ACTION_MARKUP_DETECTOR = /\[ACTION\][\s\S]*?\[\/ACTION\]/i
