@@ -19,12 +19,12 @@ from app.infrastructure.persistence.embodiment_sessions import (
     start_return,
 )
 from app.infrastructure.persistence.final_schema import create_final_nest_database
-from app.infrastructure.persistence.food_assignments import set_elfie_main_food_id
 from app.infrastructure.persistence.nest_repository import SQLiteNestRepository
 from app.infrastructure.persistence.nest_state_repository import (
     SQLiteNestStateRepository,
 )
 from app.infrastructure.persistence.store import get_db
+from infrastructure.persistence import SQLiteFoodAdapter
 from nest.embodiment import EmbodimentState
 from nest.state.models import PersistentResidentState, ResidentPresence, WorldCatalog
 
@@ -87,7 +87,7 @@ def test_elfie_repository_persists_owner_profile_main_food_and_nullable_bed(
     repository.update_profile(
         "00000001", gender="female", birth_date="2026-07-30", summary="爱探索"
     )
-    set_elfie_main_food_id(db_path, "00000001", "local-main")
+    SQLiteFoodAdapter(db_path).set_main_food("00000001", "local-main")
 
     # Then: the final row is owner-scoped, complete, and no legacy table appeared.
     record = repository.get_for_owner("00000001", owner_user_id=1)

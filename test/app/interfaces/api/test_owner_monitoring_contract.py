@@ -32,8 +32,10 @@ def client(tmp_path_factory: pytest.TempPathFactory) -> TestClient:
     with (
         patch.dict(os.environ, {"ELFIE_HOME": str(tmp_path / "elfienest-home")}),
         patch(
-            "app.features.configuration.food_access.project_food_health",
-            lambda package, evidence: SimpleNamespace(status="healthy"),
+            "infrastructure.models.food_technology.project_food_health",
+            lambda package, evidence: SimpleNamespace(
+                status="healthy", locality="local", latest_evidence_at=None
+            ),
         ),
         patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
         patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
@@ -91,7 +93,7 @@ def monitoring_world(client: TestClient) -> dict:
         client.app.state.db_path, int(alice["user_id"]), name="月光", species_id="fox"
     )
     policy = client.put(
-        f"/api/user/elfies/{alice_dog}/food-policy/",
+        f"/api/v1/elfies/{alice_dog}/food-policy",
         json={"main_food_id": FOOD_COMMON_ID},
         headers=_headers(str(alice["csrf_token"])),
     )
@@ -274,7 +276,7 @@ def test_food_policy_is_structured_for_the_owner(
 
     # When: Alice reads the policy.
     response = client.get(
-        f"/api/user/elfies/{elfie_id}/food-policy/",
+        f"/api/v1/elfies/{elfie_id}/food-policy",
         headers=_headers(str(alice["csrf_token"])),
     )
 
@@ -297,7 +299,7 @@ def test_food_policy_hides_another_users_elfie(
 
     # When: Bob reads Alice's structured food policy.
     response = client.get(
-        f"/api/user/elfies/{elfie_id}/food-policy/",
+        f"/api/v1/elfies/{elfie_id}/food-policy",
         headers=_headers(str(bob["csrf_token"])),
     )
 

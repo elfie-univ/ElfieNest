@@ -7,7 +7,12 @@ from dataclasses import dataclass
 from ai_runtime.storage.data_home import data_home_from_db_path, get_config_path
 from ai_runtime.storage.data_layout import final_root_layout
 from app.features.accounts import AccountsService
-from app.features.configuration import ProvidersService, SettingsService
+from app.features.configuration import (
+    CapabilitiesService,
+    ProvidersService,
+    SettingsService,
+)
+from app.features.configuration.food import FoodService
 from app.features.elfies import ElfiesService
 from app.features.nest_management import NestManagementService
 from infrastructure.models import ProviderModelsAdapter
@@ -19,8 +24,14 @@ from infrastructure.persistence.provider_references import (
     SQLiteProviderReferenceAdapter,
 )
 from infrastructure.platform import RuntimeSettingsAdapter
+from infrastructure.tools import (
+    DirectCapabilityValidationAdapter,
+    RuntimeCapabilitiesAdapter,
+    ToolCapabilitySecretAdapter,
+)
 
 from .accounts import build_accounts_service
+from .food import build_food_service
 
 
 @dataclass(frozen=True)
@@ -30,13 +41,17 @@ class ApplicationContainer:
     nest_management: NestManagementService
     elfies: ElfiesService
     providers: ProvidersService
+    food: FoodService
+    capabilities: CapabilitiesService
 
 
 def build_application_container(db_path: str) -> ApplicationContainer:
     config_path = get_config_path()
     provider_models = ProviderModelsAdapter()
+    data_home = None
     if db_path != ":memory:":
-        layout = final_root_layout(data_home_from_db_path(db_path))
+        data_home = data_home_from_db_path(db_path)
+        layout = final_root_layout(data_home)
         config_path = layout.runtime_config
         provider_models = ProviderModelsAdapter(
             layout.providers_config,
@@ -57,6 +72,14 @@ def build_application_container(db_path: str) -> ApplicationContainer:
             connections=provider_models,
             references=SQLiteProviderReferenceAdapter(db_path),
             technology=provider_models,
+        ),
+        food=build_food_service(db_path),
+        capabilities=CapabilitiesService(
+            RuntimeCapabilitiesAdapter(config_path),
+            ToolCapabilitySecretAdapter(
+                None if data_home is None else final_root_layout(data_home).auth_env
+            ),
+            DirectCapabilityValidationAdapter(),
         ),
     )
 

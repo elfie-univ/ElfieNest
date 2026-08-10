@@ -57,9 +57,9 @@ from ai_runtime.storage.data_home import (
     select_elfie_home,
 )
 from app.bootstrap import create_app
+from app.bootstrap.food import build_food_service
 from app.bootstrap.lifecycle import create_lifecycle_facade
 from app.features.adoption.generator import ElfieGenerator
-from app.features.configuration.food_access import resolve_elfie_main_food_selection
 from app.infrastructure.persistence.account_repository import AccountRepository
 from app.infrastructure.persistence.elfie_repository import ElfieRepository
 from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
@@ -533,6 +533,7 @@ def main():
     init_db(db_path)
     seed_initial_owner_if_env_set(db_path)
     food_repository = SQLiteFoodPackageRepository(db_path)
+    food_service = build_food_service(db_path)
 
     # 2. Optionally seed the initial Owner Elfie (enabled by default).
     if not args.no_seed_elfie:
@@ -553,6 +554,7 @@ def main():
         tick_interval_sec = engine_config.get("tick_interval_sec", 1.5)
 
         runtime_agent: Optional[Any] = None
+        main_food_loader: Optional[Callable[[str], Any]] = None
         if args.fallback:
             runtime_agent = FallbackAgent()
             print("  ⚡ Using built-in dialogue engine (--fallback mode)")
@@ -563,10 +565,11 @@ def main():
                     final_main_food_loader,
                 )
 
+                main_food_loader = final_main_food_loader(food_service)
                 raw_agent = RuntimeAgent(
                     config,
                     live_reload=True,
-                    main_food_loader=final_main_food_loader(db_path, food_repository),
+                    main_food_loader=main_food_loader,
                     food_catalog_repository=food_repository,
                 )
                 runtime_agent = raw_agent
@@ -608,13 +611,7 @@ def main():
             nest_repository=SQLiteNestStateRepository(db_path),
             food_key_resolver=(
                 lambda elfie_id: (
-                    resolve_elfie_main_food_selection(
-                        db_path,
-                        elfie_id,
-                        food_repository.load(),
-                    )
-                    if hasattr(runtime_agent, "food_catalog_repository")
-                    else None
+                    main_food_loader(elfie_id) if main_food_loader is not None else None
                 )
             ),
         )

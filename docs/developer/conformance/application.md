@@ -203,6 +203,42 @@ Machine baseline entries removed: every Interface import of private lifecycle im
 Status: in progress
 ```
 
+### Configuration: Food administration
+
+```text
+Domain: configuration/food
+Gap IDs: APP-001, APP-002, APP-003, APP-004, APP-005, APP-006, APP-007, APP-009, APP-011, APP-012
+Current authoritative facts: Food packages and Elfie Main-food assignments in nest.db; model evidence and health/planning algorithms in the existing AI Runtime implementation
+Routes and production callers: /api/v1/admin/food-packages and /api/v1/elfies/{elfie_id}/food-policy; management Food surfaces, Elfie profile/monitor projections and Runtime Main-food selection
+Target public facade and models: Food administration facade with strict package, lifecycle, preview, assignment and resolution commands, queries and results
+Ports and adapters: one root SQLite adapter implements catalog/assignment Ports; a root Models adapter delegates evidence, health and planning to their sole existing implementation; Bootstrap injects the facade
+Consistency class: each catalog or assignment mutation owns one SQLite transaction; evidence and health are read-only technical projections
+Principal and authorization: Interface authenticates an account principal; Food authorizes managers for administration and enforces Elfie ownership for member policy access; Runtime uses the non-user resolution query
+Timeout / retry / idempotency: existing bounded model-evidence and planning behavior is preserved; no new retry; repeated policy/lifecycle updates retain existing idempotency
+Legacy deletion list: old Food Feature helper, assignment persistence helper, unversioned owner/member Food Routes and API support; old App Food repository after Setup and Runtime catalog consumers migrate
+Focused tests and end-to-end gate: Feature, SQLite/technology adapters and strict Routes; mixed Elfie projections and Runtime selection; frontend Food clients; App/System/Storage/AI Runtime architecture gates
+Machine baseline entries removed: old Food Feature concrete import/db-path calls; Interface construction/concrete/internal imports; loose/missing models and unversioned Food resources
+Status: in progress
+```
+
+### Configuration: global capabilities
+
+```text
+Domain: configuration/capabilities
+Gap IDs: APP-001, APP-003, APP-004, APP-005, APP-006, APP-007, APP-009, APP-011, APP-012
+Current authoritative facts: the logical runtime_policy.tools projection in the composite Runtime settings store; credential references in the dedicated Secret store; existing DirectToolValidationRunner results
+Routes and production callers: /api/v1/admin/settings/capabilities and the management Tools client
+Target public facade and models: Capabilities facade with strict list, patch and verification commands, queries and results for the existing web-search and local-file capabilities only
+Ports and adapters: Runtime configuration, Secret and validation Ports implemented by root Infrastructure Tools adapters and injected by Bootstrap
+Consistency class: capability patches use the existing atomic typed-file writer; Secret writes stay in the Secret store; GET is read-only
+Principal and authorization: Interface authenticates an account principal; Capabilities authorizes managers and never returns Secret values
+Timeout / retry / idempotency: existing direct validation bounds are preserved; no retry; repeating the same patch is idempotent
+Legacy deletion list: tool_owner_routes.py, /api/owner/runtime/tools resources and old frontend paths/fixtures
+Focused tests and end-to-end gate: Feature and three root adapters; strict Route including read-only GET and Secret handling; frontend client; App/System architecture gates
+Machine baseline entries removed: old capability Feature-internal import, loose/missing Route models and unversioned tool resources
+Status: closed
+```
+
 ## Current-to-target migration map
 
 The normative owners are defined only by the Application contract. This table

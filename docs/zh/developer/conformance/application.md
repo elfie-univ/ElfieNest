@@ -154,6 +154,42 @@ Principal 与授权：Interface 认证账户 Principal；Providers 门面授权�
 状态：in progress
 ```
 
+### Configuration：Food 管理
+
+```text
+领域：configuration/food
+缺口 ID：APP-001、APP-002、APP-003、APP-004、APP-005、APP-006、APP-007、APP-009、APP-011、APP-012
+当前权威事实：nest.db 的 Food 包与 Elfie 主粮分配；现有 AI Runtime 实现中的模型证据、健康与规划算法
+路由与生产调用方：/api/v1/admin/food-packages 与 /api/v1/elfies/{elfie_id}/food-policy；管理端 Food 页面、Elfie 档案/监控投影与 Runtime 主粮选择
+目标公共门面与模型：包含严格包管理、生命周期、预览、分配和解析 Command、Query、Result 的 Food 管理门面
+Port 与 Adapter：一个根 SQLite Adapter 实现目录/分配 Port；根 Models Adapter 委托唯一现有证据、健康和规划实现；Bootstrap 注入门面
+一致性类别：每个目录或分配修改拥有一个 SQLite 事务；证据与健康是只读技术投影
+Principal 与授权：Interface 认证账户 Principal；Food 对管理操作授权管理员，对成员策略访问校验 Elfie 所有权；Runtime 使用非用户解析 Query
+超时、重试与幂等：保留现有有界模型证据与规划行为；不新增重试；重复策略/生命周期更新保留现有幂等性
+旧实现删除清单：旧 Food Feature helper、分配持久化 helper、未版本化 Owner/成员 Food Route 与 API support；Setup 和 Runtime 目录调用方迁移后删除旧 App Food Repository
+聚焦测试与端到端门：Feature、SQLite/技术 Adapter、严格 Route；混合 Elfie 投影与 Runtime 选择；前端 Food Client；App/System/Storage/AI Runtime 架构门
+已删除的机器基线条目：旧 Food Feature 具体 import/db_path 调用；Interface 构造、具体/内部 import；松散/缺失模型与未版本化 Food 资源
+状态：in progress
+```
+
+### Configuration：全局能力
+
+```text
+领域：configuration/capabilities
+缺口 ID：APP-001、APP-003、APP-004、APP-005、APP-006、APP-007、APP-009、APP-011、APP-012
+当前权威事实：复合 Runtime 设置 Store 中的逻辑 runtime_policy.tools 投影；专用 Secret Store 中的凭据引用；现有 DirectToolValidationRunner 结果
+路由与生产调用方：/api/v1/admin/settings/capabilities 与管理端 Tools Client
+目标公共门面与模型：只针对现有 web-search、local-file 能力，提供严格 list、patch、verification Command、Query、Result 的 Capabilities 门面
+Port 与 Adapter：Runtime 配置、Secret、验证 Port 由根 Infrastructure Tools Adapter 实现并由 Bootstrap 注入
+一致性类别：能力 Patch 复用现有原子类型化文件写入；Secret 写入仍在 Secret Store；GET 只读
+Principal 与授权：Interface 认证账户 Principal；Capabilities 授权管理员且永不返回 Secret 值
+超时、重试与幂等：保留现有直接验证边界；不重试；重复相同 Patch 具备幂等性
+旧实现删除清单：tool_owner_routes.py、/api/owner/runtime/tools 资源和旧前端路径/夹具
+聚焦测试与端到端门：Feature 和三个根 Adapter；包含只读 GET 与 Secret 处理的严格 Route；前端 Client；App/System 架构门
+已删除的机器基线条目：旧能力 Feature 内部 import、松散/缺失 Route 模型和未版本化 tool 资源
+状态：closed
+```
+
 ## 当前到目标的迁移映射
 
 规范性所有者只由应用架构契约定义。本表记录当前实现应进入哪里，以及迁移期位置何时

@@ -129,9 +129,9 @@ def test_show_route_prints_main_food_without_models(
         summary=None,
         max_elfies=3,
     )
-    from app.infrastructure.persistence.food_assignments import set_elfie_main_food_id
+    from infrastructure.persistence import SQLiteFoodAdapter
 
-    set_elfie_main_food_id(database_path, "00000001", "premium")
+    SQLiteFoodAdapter(database_path).set_main_food("00000001", "premium")
 
     route_commands.show_route("00000001")
 

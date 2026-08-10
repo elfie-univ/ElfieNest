@@ -12,7 +12,7 @@ from starlette.websockets import WebSocketDisconnect
 from ai_runtime.storage.data_home import data_home_from_db_path
 from ai_runtime.storage.data_layout import final_root_layout
 from app.features.accounts import AccountPrincipal
-from app.features.configuration.food_access import elfie_food_policy_projection
+from app.features.configuration import food
 from app.features.elfie_profile.public_projection import build_public_profile
 from app.features.elfies import (
     ElfieNotFound,
@@ -24,7 +24,6 @@ from app.infrastructure.persistence.elfie_chat_history import (
     list_elfie_chat_history,
 )
 from app.infrastructure.persistence.embodiment_sessions import get_embodiment_session
-from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
 from app.infrastructure.persistence.runtime_query_repository import (
     RuntimeQueryRepository,
 )
@@ -234,7 +233,6 @@ def _private_profile_detail(
     profile: Dict[str, Any],
 ) -> Dict[str, Any]:
     """Add owner-only cognition and read-only care facts to one public profile."""
-    db_path = request.app.state.db_path
     elfie_id = str(profile["elfie_id"])
     try:
         detail = request.app.state.elfies.get_profile(
@@ -245,17 +243,20 @@ def _private_profile_detail(
         raise HTTPException(status_code=404, detail="精灵不存在") from error
     except ElfiesUnavailable as error:
         raise HTTPException(status_code=503, detail="精灵档案暂不可用") from error
-    policy = elfie_food_policy_projection(
-        db_path,
-        elfie_id,
-        user.user_id,
-        SQLiteFoodPackageRepository(db_path).load(),
-    )
+    try:
+        policy = request.app.state.food.get_elfie_policy(
+            user,
+            food.GetMainFoodPolicyQuery(elfie_id=elfie_id),
+        )
+    except food.FoodNotFound as error:
+        raise HTTPException(status_code=404, detail="精灵不存在") from error
+    except food.FoodUnavailable as error:
+        raise HTTPException(status_code=503, detail="食粮策略暂不可用") from error
     options = [
-        {"id": str(item["food_id"]), "label": str(item["display_name"])}
-        for item in policy["main_food_options"]
+        {"id": item.food_id, "label": item.display_name}
+        for item in policy.main_food_options
     ]
-    selected_id = str(policy["effective_main_food_id"] or policy["main_food_id"] or "")
+    selected_id = policy.effective_main_food_id or policy.main_food_id
     selected_label = next(
         (item["label"] for item in options if item["id"] == selected_id),
         "",
@@ -268,7 +269,7 @@ def _private_profile_detail(
                 "selected_id": selected_id,
                 "selected_label": selected_label,
                 "options": options,
-                "unavailable": bool(policy["main_food_unavailable"]),
+                "unavailable": policy.main_food_unavailable,
             }
         },
     }

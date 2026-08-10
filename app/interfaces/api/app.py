@@ -22,7 +22,12 @@ from fastapi.staticfiles import StaticFiles
 
 from ai_runtime.storage.data_home import get_db_path as _get_db_path
 from app.features.accounts import AccountPrincipal, AccountsService
-from app.features.configuration import ProvidersService, SettingsService
+from app.features.configuration import (
+    CapabilitiesService,
+    FoodService,
+    ProvidersService,
+    SettingsService,
+)
 from app.features.elfies import ElfiesService
 from app.features.nest_management import NestManagementService
 from app.features.setup.installer import (
@@ -30,7 +35,6 @@ from app.features.setup.installer import (
     recover_interrupted_setup_install,
 )
 from app.infrastructure.devices import DeviceGateway
-from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
 from app.infrastructure.persistence.store import (
     init_db,
     seed_initial_owner_if_env_set,
@@ -100,6 +104,8 @@ def create_http_application(
     nest_management: NestManagementService,
     elfies: ElfiesService,
     providers: ProvidersService,
+    food: FoodService,
+    capabilities: CapabilitiesService,
     engine: Any = None,
     db_path: Optional[str] = None,
     ws_port: int = 8766,
@@ -164,8 +170,9 @@ def create_http_application(
     app.state.nest_management = nest_management
     app.state.elfies = elfies
     app.state.providers = providers
+    app.state.food = food
+    app.state.capabilities = capabilities
     app.state.db_path = db_path
-    app.state.food_repository = SQLiteFoodPackageRepository(db_path)
     app.state.engine = engine
     app.state.device_gateway = DeviceGateway()
     app.state.v1_chat_hub = SameOriginChatHub(db_path)
@@ -282,19 +289,31 @@ def create_http_application(
     # Setup Wizard 路由（首启向导 — 在 owner 路由之前注册）
     # -------------------------------------------------------------------
     from .setup_routes import router as setup_router  # noqa: PLC0415
+    from .v1.admin.food_packages import (
+        router as food_packages_router,  # noqa: PLC0415
+    )
     from .v1.admin.model_providers import (
         router as model_providers_router,  # noqa: PLC0415
     )
     from .v1.admin.nest import router as nest_management_router  # noqa: PLC0415
     from .v1.admin.settings import router as settings_router  # noqa: PLC0415
+    from .v1.admin.settings.capabilities import (
+        router as capabilities_router,  # noqa: PLC0415
+    )
     from .v1.admin.users import router as admin_users_router  # noqa: PLC0415
     from .v1.auth.routes import router as auth_router  # noqa: PLC0415
+    from .v1.elfies.food_policy import (
+        router as elfie_food_policy_router,  # noqa: PLC0415
+    )
     from .v1.me import router as me_router  # noqa: PLC0415
 
     app.include_router(auth_router)
     app.include_router(settings_router)
     app.include_router(nest_management_router)
     app.include_router(model_providers_router)
+    app.include_router(food_packages_router)
+    app.include_router(elfie_food_policy_router)
+    app.include_router(capabilities_router)
     app.include_router(me_router)
     app.include_router(admin_users_router)
     app.include_router(setup_router)
@@ -325,15 +344,6 @@ def create_http_application(
     from .provider_routes import router as provider_router  # noqa: PLC0415
 
     app.include_router(provider_router)
-    from .elfie_food_routes import router as elfie_food_router  # noqa: PLC0415
-
-    app.include_router(elfie_food_router)
-    from .food_owner_routes import router as food_owner_router  # noqa: PLC0415
-
-    app.include_router(food_owner_router)
-    from .tool_owner_routes import router as tool_owner_router  # noqa: PLC0415
-
-    app.include_router(tool_owner_router)
     from .runtime_routes import router as runtime_router  # noqa: PLC0415
 
     app.include_router(runtime_router)
