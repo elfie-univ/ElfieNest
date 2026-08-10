@@ -114,7 +114,7 @@ function monitorPayload(path: string, lastEvent: RuntimeEventFixture | null = nu
   switch (path) {
     case "/api/health":
       return { status: "ok", engine_ready: true, godot_web_ready: true, godot_runtime_ready: true }
-    case "/api/owner/runtime/status":
+    case "/api/v1/admin/runtime/status":
       return {
         status: "ok",
         observer: { event_count: lastEvent === null ? 0 : 1, last_event: lastEvent },

@@ -31,6 +31,7 @@ def create_app(
         providers=container.providers,
         food=container.food,
         capabilities=container.capabilities,
+        operations=container.operations,
         engine=engine,
         db_path=selected_db_path,
         ws_port=ws_port,

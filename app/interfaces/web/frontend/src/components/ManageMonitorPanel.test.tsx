@@ -124,7 +124,7 @@ function monitorPayload(path: string, fixture: MonitorFixture): unknown {
   switch (path) {
     case "/api/health":
       return { status: fixture.healthStatus, engine_ready: true, godot_web_ready: true, godot_runtime_ready: true }
-    case "/api/owner/runtime/status":
+    case "/api/v1/admin/runtime/status":
       return {
         status: fixture.runtimeStatus,
         observer: { event_count: 1, last_event: null },

@@ -203,6 +203,24 @@ Machine baseline entries removed: every Interface import of private lifecycle im
 Status: in progress
 ```
 
+### Operations: maintenance and Runtime status
+
+```text
+Domain: operations
+Gap IDs: APP-001, APP-002, APP-003, APP-004, APP-005, APP-006, APP-007, APP-009, APP-011
+Current authoritative facts: usage/session/table projections and database maintenance over the selected final data root; the existing in-process RuntimeObserver snapshot
+Routes and production callers: /api/v1/admin/runtime/status; monitor client; local database status, statistics, session, backup and reset CLI flows
+Target public facade and models: OperationsFacade with strict projection, maintenance and read-only Runtime status queries, commands and results
+Ports and adapters: one root SQLite Operations adapter implements projection and maintenance Ports; a root Models adapter projects the existing Runtime observer; Bootstrap injects the facade into HTTP and CLI entry points
+Consistency class: projections are read-only; backup uses the existing SQLite-safe copy flow; reset retains the existing guarded final-root deletion behavior
+Principal and authorization: the HTTP Interface authenticates an account principal and Operations authorizes managers; local maintenance remains a CLI-only operation with its existing reset confirmation
+Timeout / retry / idempotency: local synchronous storage and in-process snapshot reads; no retry; backup creates a timestamped copy and reset preserves existing repeat behavior
+Legacy deletion list: administration Operations functions/models; old database-maintenance and system repositories; unversioned Runtime status Route; direct CLI/TUI system-service usage
+Focused tests and end-to-end gate: Feature, SQLite and observer adapters, strict Route, CLI/TUI and monitor client; App/System/Storage/Runtime observer architecture gates
+Machine baseline entries removed: administration concrete imports and db-path use-cases; config TUI internal import; old Runtime Route loose/missing model and unversioned resource
+Status: closed
+```
+
 ### Configuration: Food administration
 
 ```text

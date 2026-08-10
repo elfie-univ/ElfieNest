@@ -148,7 +148,7 @@ class SQLiteOperationsAdapter:
 
     @staticmethod
     def _validate_reset_target(database_path: Path) -> Path:
-        data_home = data_home_from_db_path(database_path)
+        data_home: Path = data_home_from_db_path(database_path)
         project_root = Path(__file__).resolve().parents[2]
         forbidden = {
             Path("/"),
@@ -170,7 +170,7 @@ class SQLiteOperationsAdapter:
         database_path: Path,
         timestamp: datetime,
     ) -> Path:
-        data_home = data_home_from_db_path(database_path)
+        data_home: Path = data_home_from_db_path(database_path)
         backup_root = data_home.with_name(
             f"{data_home.name}.database-backup.{timestamp.strftime('%Y%m%d_%H%M%S_%f')}"
         )
@@ -191,7 +191,7 @@ class SQLiteOperationsAdapter:
 
     @staticmethod
     def _final_database_paths(database_path: Path) -> Tuple[Path, ...]:
-        data_home = data_home_from_db_path(database_path)
+        data_home: Path = data_home_from_db_path(database_path)
         layout = final_root_layout(data_home)
         paths = [layout.nest_database]
         elfies_root = data_home / "elfies"

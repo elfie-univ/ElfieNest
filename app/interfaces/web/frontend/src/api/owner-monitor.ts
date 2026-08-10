@@ -104,7 +104,7 @@ function sourceRequiresAuth(result: PromiseSettledResult<unknown>): boolean {
 export async function loadMonitorSnapshot(): Promise<MonitorSnapshot> {
   const results = await Promise.allSettled([
     readSchema("/api/health", HealthSchema),
-    readSchema("/api/owner/runtime/status", RuntimeStatusSchema),
+    readSchema("/api/v1/admin/runtime/status", RuntimeStatusSchema),
     readSchema("/api/v1/admin/users", UserListSchema).then(({ items }) => items),
     readSchema("/api/owner/elfies", z.array(ElfieSummarySchema)),
     readSchema("/api/v1/admin/nest/rooms", RoomListSchema),

@@ -30,6 +30,7 @@ from app.features.configuration import (
 )
 from app.features.elfies import ElfiesService
 from app.features.nest_management import NestManagementService
+from app.features.operations import OperationsFacade
 from app.features.setup.installer import (
     SetupInstallJobManager,
     recover_interrupted_setup_install,
@@ -106,6 +107,7 @@ def create_http_application(
     providers: ProvidersService,
     food: FoodService,
     capabilities: CapabilitiesService,
+    operations: OperationsFacade,
     engine: Any = None,
     db_path: Optional[str] = None,
     ws_port: int = 8766,
@@ -172,6 +174,7 @@ def create_http_application(
     app.state.providers = providers
     app.state.food = food
     app.state.capabilities = capabilities
+    app.state.operations = operations
     app.state.db_path = db_path
     app.state.engine = engine
     app.state.device_gateway = DeviceGateway()
@@ -296,6 +299,7 @@ def create_http_application(
         router as model_providers_router,  # noqa: PLC0415
     )
     from .v1.admin.nest import router as nest_management_router  # noqa: PLC0415
+    from .v1.admin.runtime import router as runtime_router  # noqa: PLC0415
     from .v1.admin.settings import router as settings_router  # noqa: PLC0415
     from .v1.admin.settings.capabilities import (
         router as capabilities_router,  # noqa: PLC0415
@@ -314,6 +318,7 @@ def create_http_application(
     app.include_router(food_packages_router)
     app.include_router(elfie_food_policy_router)
     app.include_router(capabilities_router)
+    app.include_router(runtime_router)
     app.include_router(me_router)
     app.include_router(admin_users_router)
     app.include_router(setup_router)
@@ -344,8 +349,4 @@ def create_http_application(
     from .provider_routes import router as provider_router  # noqa: PLC0415
 
     app.include_router(provider_router)
-    from .runtime_routes import router as runtime_router  # noqa: PLC0415
-
-    app.include_router(runtime_router)
-
     return app

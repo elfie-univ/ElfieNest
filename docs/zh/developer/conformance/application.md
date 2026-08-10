@@ -154,6 +154,24 @@ Principal 与授权：Interface 认证账户 Principal；Providers 门面授权�
 状态：in progress
 ```
 
+### Operations：维护与 Runtime 状态
+
+```text
+领域：operations
+缺口 ID：APP-001、APP-002、APP-003、APP-004、APP-005、APP-006、APP-007、APP-009、APP-011
+当前权威事实：选定最终数据根上的用量、Session、表计数投影和数据库维护；现有进程内 RuntimeObserver 快照
+路由与生产调用方：/api/v1/admin/runtime/status；监控 Client；本地数据库状态、统计、Session、备份和重置 CLI 流程
+目标公共门面与模型：带严格投影、维护与只读 Runtime 状态 Query、Command、Result 的 OperationsFacade
+Port 与 Adapter：一个根 SQLite Operations Adapter 实现投影与维护 Port；根 Models Adapter 投影现有 Runtime observer；Bootstrap 向 HTTP 与 CLI 入口注入门面
+一致性类别：投影只读；备份复用现有 SQLite 安全复制流程；重置保留现有最终数据根安全校验
+Principal 与授权：HTTP Interface 认证账户 Principal，Operations 授权管理员；本地维护仍是 CLI 专属操作并保留现有重置确认
+超时、重试与幂等：本地同步存储和进程内快照读取；不重试；备份创建带时间戳副本，重置保留现有重复执行行为
+旧实现删除清单：administration 中的 Operations 函数/模型；旧 database-maintenance 与 system Repository；未版本化 Runtime 状态 Route；CLI/TUI 对 system-service 的直接调用
+聚焦测试与端到端门：Feature、SQLite 与 observer Adapter、严格 Route、CLI/TUI 和 monitor Client；App/System/Storage/Runtime observer 架构门
+已删除的机器基线条目：administration 具体 import 与 db-path 用例；config TUI 内部 import；旧 Runtime Route 松散/缺失模型和未版本化资源
+状态：closed
+```
+
 ### Configuration：Food 管理
 
 ```text

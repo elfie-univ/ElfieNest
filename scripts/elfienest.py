@@ -28,6 +28,7 @@ from ai_runtime.storage.data_home import (
 )
 from app.bootstrap.accounts import build_accounts_service
 from app.bootstrap.lifecycle import create_lifecycle_facade
+from app.bootstrap.operations import build_operations_facade
 from app.interfaces.cli.doctor_commands import run_doctor
 from app.interfaces.cli.foreground_runtime import run_foreground_service
 from app.interfaces.cli.lifecycle_commands import (
@@ -254,7 +255,10 @@ def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> N
 
         run_setup_wizard()
     elif args.command == "db":
-        dispatch_db(getattr(args, "db_command", None))
+        dispatch_db(
+            build_operations_facade(str(get_db_path())),
+            getattr(args, "db_command", None),
+        )
     else:
         print_banner()
         print("  Starting service...")

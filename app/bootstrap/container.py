@@ -15,6 +15,7 @@ from app.features.configuration import (
 from app.features.configuration.food import FoodService
 from app.features.elfies import ElfiesService
 from app.features.nest_management import NestManagementService
+from app.features.operations import OperationsFacade
 from infrastructure.models import ProviderModelsAdapter
 from infrastructure.persistence import (
     SQLiteElfiesProjectionAdapter,
@@ -32,6 +33,7 @@ from infrastructure.tools import (
 
 from .accounts import build_accounts_service
 from .food import build_food_service
+from .operations import build_operations_facade
 
 
 @dataclass(frozen=True)
@@ -43,6 +45,7 @@ class ApplicationContainer:
     providers: ProvidersService
     food: FoodService
     capabilities: CapabilitiesService
+    operations: OperationsFacade
 
 
 def build_application_container(db_path: str) -> ApplicationContainer:
@@ -81,6 +84,7 @@ def build_application_container(db_path: str) -> ApplicationContainer:
             ),
             DirectCapabilityValidationAdapter(),
         ),
+        operations=build_operations_facade(db_path),
     )
 
 
