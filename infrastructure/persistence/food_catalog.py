@@ -1,4 +1,4 @@
-"""SQLite persistence for the single ``food_packages`` fact source."""
+"""AI Runtime catalog adapter for the single ``food_packages`` fact source."""
 
 from __future__ import annotations
 
@@ -120,7 +120,9 @@ class SQLiteFoodPackageRepository(FoodCatalogRepository):
             ).fetchone()
             if reference is not None:
                 raise FoodPackageRepositoryError("粮食仍被精灵引用")
-            connection.execute("DELETE FROM food_packages WHERE food_key=?", (food_key,))
+            connection.execute(
+                "DELETE FROM food_packages WHERE food_key=?", (food_key,)
+            )
             connection.commit()
 
     @staticmethod

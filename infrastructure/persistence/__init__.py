@@ -8,6 +8,7 @@ from .elfies import SQLiteElfiesProjectionAdapter
 from .embodiment import SQLiteEmbodimentLeaseAdapter
 from .final_schema import create_final_nest_database
 from .food import SQLiteFoodAdapter
+from .food_catalog import SQLiteFoodPackageRepository
 from .nest_management import SQLiteNestManagementAdapter
 from .nest_state import SQLiteNestStateAdapter
 from .operations import SQLiteOperationsAdapter
@@ -22,6 +23,7 @@ __all__ = (
     "SQLiteElfiesProjectionAdapter",
     "SQLiteEmbodimentLeaseAdapter",
     "SQLiteFoodAdapter",
+    "SQLiteFoodPackageRepository",
     "SQLiteNestManagementAdapter",
     "SQLiteNestStateAdapter",
     "SQLiteOperationsAdapter",

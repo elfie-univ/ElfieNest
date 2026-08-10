@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from ai_runtime.food.models import FoodPackage, ModelAssignment
-from app.infrastructure.persistence.food_packages import (
+from infrastructure.persistence.food_catalog import (
     FoodPackageRepositoryError,
     SQLiteFoodPackageRepository,
 )
@@ -111,9 +111,7 @@ def test_repository_rejects_unknown_selected_user(tmp_path: Path) -> None:
 
     # When/Then: users mode must reference existing users.
     with pytest.raises(FoodPackageRepositoryError, match="用户不存在"):
-        repository.create(
-            _package(visibility_mode="users", visible_user_ids=(404,))
-        )
+        repository.create(_package(visibility_mode="users", visible_user_ids=(404,)))
 
 
 def test_system_seed_is_idempotent_and_does_not_overwrite_configured_fields(
@@ -160,14 +158,32 @@ def test_direct_sql_enforces_food_package_invariants(tmp_path: Path) -> None:
             ("duplicate-common", "Bad", "global", "[]", None, 0, 0, "common"),
             ("archived-system", "Bad", "global", "[]", None, 0, 1, "emergency"),
         )
-        for key, label, mode, user_ids, primary, enabled, archived, system_role in invalid_rows:
+        for (
+            key,
+            label,
+            mode,
+            user_ids,
+            primary,
+            enabled,
+            archived,
+            system_role,
+        ) in invalid_rows:
             with pytest.raises(sqlite3.IntegrityError):
                 connection.execute(
                     """INSERT INTO food_packages
                        (food_key,display_name,system_role,primary_model_ref,
                         visibility_mode,visible_user_ids_json,enabled,archived)
                        VALUES(?,?,?,?,?,?,?,?)""",
-                    (key, label, system_role, primary, mode, user_ids, enabled, archived),
+                    (
+                        key,
+                        label,
+                        system_role,
+                        primary,
+                        mode,
+                        user_ids,
+                        enabled,
+                        archived,
+                    ),
                 )
 
 

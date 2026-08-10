@@ -17,7 +17,7 @@ from ai_runtime.food.models import (
     system_food_packages,
 )
 from app.bootstrap import create_app
-from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
+from infrastructure.persistence.food_catalog import SQLiteFoodPackageRepository
 from infrastructure.persistence.store import init_db
 from infrastructure.persistence.bodies import SQLiteBodiesAdapter
 from infrastructure.persistence.embodiment import SQLiteEmbodimentLeaseAdapter

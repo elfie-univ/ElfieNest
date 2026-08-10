@@ -1,4 +1,4 @@
-from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
+from infrastructure.persistence.food_catalog import SQLiteFoodPackageRepository
 from infrastructure.persistence.store import init_db
 
 

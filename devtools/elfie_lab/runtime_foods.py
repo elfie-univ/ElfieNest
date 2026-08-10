@@ -8,7 +8,7 @@ from typing import Any, Dict
 
 from ai_runtime.food.store import FoodCatalog, FoodCatalogRepository
 from ai_runtime.providers.ollama import OllamaManager
-from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
+from infrastructure.persistence.food_catalog import SQLiteFoodPackageRepository
 from infrastructure.persistence.store import init_db
 
 
