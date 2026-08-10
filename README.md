@@ -115,7 +115,7 @@ is not live yet.
 - [Getting Started](docs/getting-started/index.md): build and run a Nest from
   source;
 - [Developer Docs](docs/developer/index.md): architecture, workflow and tooling;
-- [Current architecture](docs/developer/architecture.md): module boundaries and
+- [Current architecture](docs/developer/architecture/index.md): module boundaries and
   information flow;
 - [Commands & dev tools](docs/developer/tooling.md): CLI, workbenches, Godot and
   build entry points.
@@ -166,7 +166,7 @@ Test paths, Desktop and Godot build commands are maintained separately by the
 
 The full dependency direction, process boundaries, `ELFIE_HOME` data boundary,
 and the `build/` / `dist/` artifact rules live in the
-[developer architecture doc](docs/developer/architecture.md).
+[developer architecture doc](docs/developer/architecture/index.md).
 
 ## License
 

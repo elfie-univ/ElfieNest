@@ -1,0 +1,350 @@
+"""Machine gates for the repository architecture-governance system."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Optional, Set
+
+import scripts.architecture.check_governance_change as governance_change
+from scripts.architecture.app_layer_scan import RULE_LEDGER_IDS as APP_RULE_IDS
+from scripts.architecture.check_governance_change import (
+    classify_paths,
+    validate_baseline_changes,
+    validate_contract_changes,
+    validate_decision_mirrors,
+    validate_governance_rule_changes,
+)
+from scripts.architecture.contract_registry import CONTRACT_REGISTRY
+from scripts.architecture.system_layer_scan import RULE_LEDGER_IDS as SYSTEM_RULE_IDS
+from test.architecture.baselines.app_layer import LEGACY_APP_LAYER_VIOLATIONS
+from test.architecture.baselines.system_layer import LEGACY_SYSTEM_LAYER_VIOLATIONS
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _registered_paths(attribute: str) -> Set[str]:
+    paths: Set[str] = set()
+    for registration in CONTRACT_REGISTRY:
+        paths.update(getattr(registration, attribute))
+    return paths
+
+
+def test_contract_registry_has_unique_ids_and_existing_artifacts() -> None:
+    ids = [registration.contract_id for registration in CONTRACT_REGISTRY]
+    assert len(ids) == len(set(ids))
+
+    for registration in CONTRACT_REGISTRY:
+        required_paths = {
+            registration.english_path,
+            registration.chinese_path,
+            *registration.decision_paths,
+            *registration.agent_paths,
+            *registration.scanner_paths,
+            *registration.test_paths,
+            *registration.conformance_paths,
+        }
+        if registration.baseline_path is not None:
+            required_paths.add(registration.baseline_path)
+        missing = {
+            path for path in required_paths if not (PROJECT_ROOT / path).is_file()
+        }
+        assert missing == set(), f"{registration.contract_id}: {sorted(missing)}"
+
+
+def test_registered_contract_versions_match_bilingual_mirrors() -> None:
+    for registration in CONTRACT_REGISTRY:
+        english = (PROJECT_ROOT / registration.english_path).read_text(encoding="utf-8")
+        chinese = (PROJECT_ROOT / registration.chinese_path).read_text(encoding="utf-8")
+        assert f"**Contract version:** {registration.version}" in english
+        assert f"**契约版本：** {registration.version}" in chinese
+
+
+def test_every_architecture_test_is_owned_by_a_registered_contract() -> None:
+    actual = {
+        path.relative_to(PROJECT_ROOT).as_posix()
+        for path in (PROJECT_ROOT / "test" / "architecture").glob("test_*.py")
+    }
+    assert actual == _registered_paths("test_paths")
+
+
+def test_scanner_rules_reference_registered_conformance_ids() -> None:
+    app_conformance = "\n".join(
+        (PROJECT_ROOT / path).read_text(encoding="utf-8")
+        for path in (
+            "docs/developer/conformance/application.md",
+            "docs/zh/developer/conformance/application.md",
+        )
+    )
+    system_conformance = "\n".join(
+        (PROJECT_ROOT / path).read_text(encoding="utf-8")
+        for path in (
+            "docs/developer/conformance/system.md",
+            "docs/zh/developer/conformance/system.md",
+        )
+    )
+    assert all(gap_id in app_conformance for gap_id in APP_RULE_IDS.values())
+    assert all(gap_id in system_conformance for gap_id in SYSTEM_RULE_IDS.values())
+
+
+def test_contract_change_requires_mirror_version_bump_and_bilingual_adr(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    english_contract = "docs/developer/contracts/example.md"
+    chinese_contract = "docs/zh/developer/contracts/example.md"
+    english_decision = "docs/developer/decisions/0001-example.md"
+    chinese_decision = "docs/zh/developer/decisions/0001-example.md"
+    for path, source in (
+        (english_contract, "**Contract version:** 2.0\n"),
+        (chinese_contract, "**契约版本：** 2.0\n"),
+        (english_decision, "decision\n"),
+        (chinese_decision, "决策\n"),
+    ):
+        target = tmp_path / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(source, encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+
+    def base_source(_base_sha: str, path: str) -> str:
+        if path == english_contract:
+            return "**Contract version:** 1.0\n"
+        if path == chinese_contract:
+            return "**契约版本：** 1.0\n"
+        raise AssertionError(path)
+
+    monkeypatch.setattr(governance_change, "_base_source", base_source)
+    changed = {
+        english_contract,
+        chinese_contract,
+        english_decision,
+        chinese_decision,
+    }
+    assert validate_contract_changes("base", changed) == []
+    assert validate_decision_mirrors(changed) == []
+
+    missing_mirrors = {english_contract, english_decision}
+    failures = [
+        *validate_contract_changes("base", missing_mirrors),
+        *validate_decision_mirrors(missing_mirrors),
+    ]
+    assert any("contract mirror not changed" in failure for failure in failures)
+    assert any("ADR mirror not changed" in failure for failure in failures)
+
+    (tmp_path / english_contract).write_text(
+        "**Contract version:** 1.0\n", encoding="utf-8"
+    )
+    (tmp_path / chinese_contract).write_text("**契约版本：** 1.0\n", encoding="utf-8")
+    failures = validate_contract_changes("base", changed)
+    assert (
+        len(
+            [
+                failure
+                for failure in failures
+                if "contract version not bumped" in failure
+            ]
+        )
+        == 2
+    )
+
+
+def test_frozen_macro_contract_requires_a_new_standalone_bilingual_adr(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    english_contract = "docs/developer/contracts/system.md"
+    chinese_contract = "docs/zh/developer/contracts/system.md"
+    old_english_adr = "docs/developer/decisions/0002-system-ports-adapters.md"
+    old_chinese_adr = "docs/zh/developer/decisions/0002-system-ports-adapters.md"
+    new_english_adr = "docs/developer/decisions/0004-macro-change.md"
+    new_chinese_adr = "docs/zh/developer/decisions/0004-macro-change.md"
+    for path, source in (
+        (english_contract, "**Contract version:** 2.0\n"),
+        (chinese_contract, "**契约版本：** 2.0\n"),
+        (old_english_adr, "updated old decision\n"),
+        (old_chinese_adr, "更新旧决策\n"),
+        (new_english_adr, "new decision\n"),
+        (new_chinese_adr, "新决策\n"),
+    ):
+        target = tmp_path / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(source, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    def base_source(_base_sha: str, path: str) -> Optional[str]:
+        if path == english_contract:
+            return "**Contract version:** 1.0\n"
+        if path == chinese_contract:
+            return "**契约版本：** 1.0\n"
+        if path in {old_english_adr, old_chinese_adr}:
+            return "old decision\n"
+        if path in {new_english_adr, new_chinese_adr}:
+            return None
+        raise AssertionError(path)
+
+    monkeypatch.setattr(governance_change, "_base_source", base_source)
+    old_adr_change = {
+        english_contract,
+        chinese_contract,
+        old_english_adr,
+        old_chinese_adr,
+    }
+    failures = validate_contract_changes("base", old_adr_change)
+    assert any("without a new standalone bilingual ADR" in item for item in failures)
+
+    new_adr_change = {
+        english_contract,
+        chinese_contract,
+        new_english_adr,
+        new_chinese_adr,
+    }
+    assert validate_contract_changes("base", new_adr_change) == []
+
+
+def test_quality_gate_definitions_are_governance_but_baseline_can_shrink() -> None:
+    governance, production = classify_paths(
+        {
+            ".pre-commit-config.yaml",
+            ".quality-baseline.json",
+            "scripts/check_quality_baseline.py",
+            "app/features/setup/service.py",
+        }
+    )
+    assert governance == {
+        ".pre-commit-config.yaml",
+        "scripts/check_quality_baseline.py",
+    }
+    assert production == {"app/features/setup/service.py"}
+
+
+def test_architecture_baseline_may_only_shrink_from_the_base_commit(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    baseline_path = "test/architecture/baselines/app_layer.py"
+    contract_path = "docs/developer/contracts/repository-governance.md"
+    base_source = 'LEGACY_APP_LAYER_VIOLATIONS = {"rule": frozenset({"old", "keep"})}\n'
+    candidate = tmp_path / baseline_path
+    candidate.parent.mkdir(parents=True)
+    candidate.write_text(
+        'LEGACY_APP_LAYER_VIOLATIONS = {"rule": frozenset({"keep"})}\n',
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    def base_file(_base_sha: str, path: str) -> str:
+        if path == contract_path:
+            return "contract"
+        if path == baseline_path:
+            return base_source
+        raise AssertionError(path)
+
+    monkeypatch.setattr(governance_change, "_base_source", base_file)
+    assert validate_baseline_changes("base", {baseline_path}, governance=set()) == []
+
+    candidate.write_text(
+        'LEGACY_APP_LAYER_VIOLATIONS = {"rule": frozenset({"new"})}\n',
+        encoding="utf-8",
+    )
+    failures = validate_baseline_changes("base", {baseline_path}, governance=set())
+    assert any("entries added or rewritten" in failure for failure in failures)
+
+    candidate.write_text(
+        'LEGACY_APP_LAYER_VIOLATIONS = {"rule": frozenset({"keep"})}\n',
+        encoding="utf-8",
+    )
+    failures = validate_baseline_changes(
+        "base", {baseline_path, "AGENTS.md"}, governance={"AGENTS.md"}
+    )
+    assert "governance changes may not edit legacy architecture baselines" in failures
+
+
+def test_new_baseline_is_allowed_only_for_the_initial_governance_bootstrap(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    baseline_path = "test/architecture/baselines/system_layer.py"
+    candidate = tmp_path / baseline_path
+    candidate.parent.mkdir(parents=True)
+    candidate.write_text("LEGACY_SYSTEM_LAYER_VIOLATIONS = {}\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    def established_base(_base_sha: str, path: str) -> Optional[str]:
+        if path == "docs/developer/contracts/repository-governance.md":
+            return "contract"
+        return None
+
+    monkeypatch.setattr(governance_change, "_base_source", established_base)
+    failures = validate_baseline_changes("base", {baseline_path}, governance=set())
+    assert failures == [f"new architecture baseline is forbidden: {baseline_path}"]
+
+    monkeypatch.setattr(
+        governance_change, "_base_source", lambda _base_sha, _path: None
+    )
+    assert validate_baseline_changes("base", {baseline_path}, governance=set()) == []
+
+
+def test_baseline_package_marker_is_governance_not_a_legacy_baseline() -> None:
+    marker = "test/architecture/baselines/__init__.py"
+
+    assert governance_change.is_governance_file(marker)
+    assert validate_baseline_changes("base", {marker}, governance={marker}) == []
+
+
+def test_executable_governance_rule_change_requires_bilingual_adr_update() -> None:
+    failures = validate_governance_rule_changes(
+        {"scripts/architecture/system_layer_scan.py"}
+    )
+    assert any("without a bilingual ADR update" in failure for failure in failures)
+
+    assert (
+        validate_governance_rule_changes(
+            {
+                "scripts/architecture/system_layer_scan.py",
+                "docs/developer/decisions/0004-rule-change.md",
+                "docs/zh/developer/decisions/0004-rule-change.md",
+            }
+        )
+        == []
+    )
+
+
+def _conformance_status(relative_path: str, gap_id: str) -> str:
+    source = (PROJECT_ROOT / relative_path).read_text(encoding="utf-8")
+    for line in source.splitlines():
+        cells = [cell.strip() for cell in line.split("|")]
+        if len(cells) > 3 and cells[1] == gap_id:
+            return cells[3].lower()
+    raise AssertionError(f"missing conformance row: {relative_path}:{gap_id}")
+
+
+def test_conformance_row_cannot_close_while_its_baseline_has_entries() -> None:
+    contract_sets = (
+        (
+            LEGACY_APP_LAYER_VIOLATIONS,
+            APP_RULE_IDS,
+            "docs/developer/conformance/application.md",
+            "docs/zh/developer/conformance/application.md",
+        ),
+        (
+            LEGACY_SYSTEM_LAYER_VIOLATIONS,
+            SYSTEM_RULE_IDS,
+            "docs/developer/conformance/system.md",
+            "docs/zh/developer/conformance/system.md",
+        ),
+    )
+    for baseline, rule_ids, english_path, chinese_path in contract_sets:
+        for rule, entries in baseline.items():
+            if not entries:
+                continue
+            gap_id = rule_ids[rule]
+            assert _conformance_status(english_path, gap_id) != "closed"
+            assert _conformance_status(chinese_path, gap_id) != "closed"
+
+
+def test_architecture_ratchet_uses_immutable_base_on_pr_and_push() -> None:
+    workflow = (PROJECT_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    architecture_job = workflow.split("  environment-smoke:", maxsplit=1)[0]
+    assert "github.event.pull_request.base.sha" in architecture_job
+    assert "github.event.before" in architecture_job
+    assert "if: github.event_name == 'pull_request'" not in architecture_job

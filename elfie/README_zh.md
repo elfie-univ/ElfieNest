@@ -72,11 +72,12 @@ ExecutionReceipt ----------------------------------> PerceptualWorkspace
 ```text
 app/orchestration ──> elfie
 elfie.elfie ──> profile + brain + nervous_system + body + communication + skills
-brain/output ──> 抽象 CorticalRuntimePort 与执行端口
+brain/output ──> 抽象 Food、模型、工具与执行端口
 ```
 
-`elfie/` 不反向导入 `app/`、`nest/` 或 `ai_runtime/`。模型调用通过
-`CorticalRuntimePort` 注入，具体 Runtime 适配在应用编排层完成。
+`elfie/` 不反向导入 `app/`、`nest/` 或 `ai_runtime/`。模型与 Food 访问使用 Elfie
+自有 Port，由 Bootstrap 直接注入具体 Infrastructure Adapter；普通模型/工具调用不经过
+App Orchestration。
 
 ## 运行与调试
 

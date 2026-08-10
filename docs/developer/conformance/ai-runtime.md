@@ -1,10 +1,10 @@
 # AI Runtime conformance
 
-> This is a temporary implementation gap register for the normative
-> [AI Runtime design contract](./architecture-ai-runtime). It records current
-> non-conformance; it does not define product behavior. An item may be removed
-> only after its acceptance checks pass. The contract remains the only design
-> authority.
+> This is a temporary implementation gap register for the current
+> `ai_runtime/` migration package and the
+> [model, Food and tool behavior contract](../contracts/ai-runtime). It records
+> current non-conformance; target ownership is defined only by the
+> [system architecture contract](../contracts/system).
 
 ## Status rules
 
@@ -26,7 +26,7 @@
 | AR-006 | P1 | open | Main-food and emergency resolution falls through legacy default/allowed-food behavior and has no explicit `no_available_food` result. | Resolution follows assigned primary, then global emergency, then a typed unavailable result. It never silently selects an arbitrary first or legacy food. |
 | AR-007 | P1 | closed | Food visibility and the Elfie editor use one Main-food selection backed by the package visibility field. | Emergency and Common are visible to every user; only custom packages have user grants; the Elfie page has one Main-food field whose options are all visible, enabled, healthy packages except Emergency. |
 | AR-008 | P1 | closed | The package catalog and visibility state are now a single `nest.db.food_packages` fact source; legacy per-Elfie `food_policy.yaml` reads and fixed-food routes are removed. | The database-backed package catalog plus Nest DB assignments are the only facts. Missing legacy files produce no fallback reads or writes. |
-| AR-009 | P1 | open | Brain memory calls still request `coarse` and `focus`; structured cortex generation always uses the primary role. | Brain requests semantic roles such as `primary` or `reasoning`; orchestration resolves the Elfie's package; structured generation can use the selected role. |
+| AR-009 | P1 | open | Brain memory calls still request `coarse` and `focus`; structured cortex generation always uses the primary role. | Brain requests semantic roles such as `primary` or `reasoning`; the injected `FoodPort` returns the Elfie's effective package directly; structured generation can use the selected role without an App Orchestration proxy. |
 | AR-010 | P1 | open | Tool allow-lists reach the Runtime request but the actual structured cortex path does not run the tool loop. | An end-to-end test proves an Elfie request can invoke an allowed safe tool, receive a bounded result and continue generation. |
 | AR-011 | P1 | open | Tool results and local file reads are not bounded before model reinjection. | Per-tool byte/item limits and a final result envelope trim output, preserve truncation metadata and prevent unbounded context growth. |
 | AR-012 | P1 | open | Model refresh replaces manual records and model deletion is not guarded by food references. | Discovery merges by endpoint model ID, preserves manual records, marks disappeared discovered records unavailable, and refuses destructive removal while referenced. |
@@ -39,10 +39,11 @@
 | AR-019 | P1 | open | The cross-connection model matrix does not use report runs or provide a Validate-all workflow. | Bounded Validate-all writes one complete run; single validation appends one subject observation; current, as-of and run-specific matrix queries preserve measurement times. |
 | AR-020 | P1 | closed | The food UI and planner implement permanent row ordering, connection-scoped generation, fresh-validation eligibility, the five-role table and dynamic package health. | Browser and API tests prove Emergency/Common ordering, scoped local-first generation, diff/manual/save flow, Primary/Reasoning/Vision/Tool/Fallback assignments and evidence-derived health, without food-level model capability fields. |
 
-## Implementation audit: 2026-07-30
+## Current implementation map
 
-The version-1.0 contract is frozen. The current code differs in five connected
-areas:
+The version-1.3 behavior contract preserves current accepted semantics while
+the system contract decomposes the package. The current code differs in five
+connected areas:
 
 | Area | Current implementation | Contract difference | Gap IDs |
 | --- | --- | --- | --- |
@@ -52,27 +53,18 @@ areas:
 | Access and Elfie routing | Food visibility is a flat `global`/`users` field in the package row; legacy package YAML reads are gone. Brain role-routing work remains tracked separately. | The Elfie page has one Main-food field from the user's eligible set; Runtime resolves package role, internal fallback, Emergency, then `no_available_food`. | AR-006, AR-007, AR-008, AR-009 |
 | Tools and acceptance | Ordinary food execution has a tool loop, but structured cortex generation bypasses it. File/search results are unbounded; code and skill mutation are advertised despite deferred safety. No clean-home contract test exists. | Safe tools must run in the real cortex path with Elfie-workspace isolation and bounded results; deferred tools stay disabled; all 13 acceptance steps must pass. | AR-010, AR-011, AR-017, AR-018 |
 
-The focused backend audit collected 72 tests: 70 passed and 2 failed. The full
-frontend run passed 215 tests, but those tests assert the current legacy
-interaction model and therefore do not demonstrate contract conformance.
+## Migration groups
 
-Phase-one checkpoint: configuration isolation, SQLite report projections,
-report paths, Runtime receipts and the product-level legacy policy write ban
-are complete. Ruff and 192 relevant tests pass. AR-002, AR-008, AR-013 and
-AR-014 remain in progress until later phases remove legacy read paths, legacy
-routes and export reads and join Provider inventory into evidence projection.
-
-## Final execution plan
-
-Phases are dependency-ordered. A later phase does not begin until the previous
-gate passes; compatibility code that recreates a removed fact source fails the
-gate.
+These groups express dependency order, not permission to land a partially
+working phase. Every merged migration slice must keep the product runnable and
+must satisfy its focused gate before the next slice depends on it.
 
 Implementation follows "establish the new fact source, switch every caller,
-then remove the old implementation." A legacy read path retained across phases
-must be read-only, must create no new data, and must remain listed in this
-ledger. It is removed as soon as its replacement passes acceptance and cannot
-become a permanent compatibility layer.
+then remove the old implementation." New and old code may coexist while one
+unmerged slice switches callers, but one fact has only one active writer. A
+legacy reader retained across merged slices requires an explicit gap row and
+deletion gate, creates no new data, and is removed as soon as its replacement
+passes acceptance. It cannot become a permanent compatibility layer.
 
 ### Phase 1: single-source storage and report database
 
@@ -197,20 +189,8 @@ Gate:
 
 - all 13 contract steps pass without legacy files or fallback readers;
 - the conformance register contains no open item;
-- current code and both language mirrors agree with contract version 1.1;
-- the frozen contract SHA-256 values remain
-  `da93036aeef2448cc2632e09d77af59bec31dd109dec9008a0f2e6d08209ac69` and
-  `9a5511cedfbed80abf291362b61033c25788fa4d52371e28dc7dd25b118e0fab`.
+- current code and both language mirrors agree with behavior contract 1.3;
+- ownership and migration steps do not recreate a target `ai_runtime/` or
+  `infrastructure/ai_runtime/` module.
 
 Closes: AR-018 and every remaining open row.
-
-## Existing test failures
-
-The focused audit on 2026-07-29 collected 72 tests. Seventy passed and two
-failed:
-
-- food generation did not emit the required missing-vision-capability warning;
-- food generation provenance no longer matched its asserted contract.
-
-Passing isolated route and storage tests do not close any item above. Each item
-requires its stated cross-boundary acceptance check.

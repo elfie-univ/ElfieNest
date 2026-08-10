@@ -16,6 +16,10 @@
 | `release.py` | 发布构建 | 组装 staging 资源并调用 electron-builder |
 | `check_quality_baseline.py` | 质量门 | 比较 Ruff、Ruff format、MyPy 当前诊断与受控历史基线 |
 | `check_node_toolchain.sh` | 质量门 | 校验根目录 Node.js/pnpm 锚点与所有独立 Node 项目的清单 |
+| `architecture/app_layer_scan.py` | 架构门禁 | 对 App 层精确旧债做棘轮约束，基线删除后切换为 deny-all |
+| `architecture/system_layer_scan.py` | 架构门禁 | 对 Elfie/Nest 系统边界精确旧债做棘轮约束，基线删除后切换为 deny-all |
+| `architecture/check_governance_change.py` | 架构门禁 | 分离治理与生产变更，并要求契约中英文同步、升级版本且配套 ADR |
+| `architecture/contract_registry.py` | 架构注册表 | 关联契约、中英文镜像、ADR、Agent 规约、Scanner、测试、台账与基线 |
 | `elfienest_install_helpers.sh` | Shell 库 | 供 `install.sh` 校验用户级安装目录和 PATH，不能独立执行 |
 | `__init__.py` | 包标记 | 允许架构测试导入脚本中的可测试函数，不是命令入口 |
 

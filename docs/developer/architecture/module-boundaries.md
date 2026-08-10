@@ -1,5 +1,10 @@
 # Module boundaries
 
+> This page describes the currently operating boundaries. Normative target
+> rules live in the [System](../contracts/system) and
+> [Application](../contracts/application) contracts; known deviations are
+> tracked in the [conformance registers](../conformance/).
+
 ## Root module responsibilities
 
 | Module | Responsible for | Not responsible for |
@@ -26,7 +31,7 @@ collision, coordinates or rendering.
 
 An Observer is a product-facing, authenticated semantic projection. It may read
 only its authorized room or owned Elfie scope and send only the closed
-high-level intents documented in [Runtime & data](./architecture-runtime). It
+high-level intents documented in [Runtime & data](./runtime). It
 is not a second authority or a pass-through for Godot protocol frames.
 
 ## Dependency direction
@@ -35,11 +40,16 @@ is not a second authority or a pass-through for Godot protocol frames.
 app/bootstrap → app/orchestration → elfie / nest / ai_runtime
 app/orchestration/lifecycle → godot_runtime → exported Godot authority
 app/interfaces/desktop → public lifecycle CLI and authenticated Observer surface
-app/interfaces → app/features → app/infrastructure
+app/interfaces → app/features
+app/infrastructure → Feature / Orchestration Ports
+app/bootstrap → interfaces + features + orchestration + infrastructure
 ```
 
 Lower-level modules do not reverse-depend on `app.interfaces`. Interfaces,
-features and infrastructure may use only the public Observer/Gateway read
+Features and Infrastructure may use only the public Observer/Gateway read
 surfaces; they cannot construct an authority host or send raw Runtime frames.
+Features never import concrete Infrastructure; runtime calls reach adapters
+only through injected consumer-owned Ports. The normative details are in the
+[Application architecture contract](../contracts/application).
 Any cross-boundary change must update the architecture tests and corresponding
 English and Simplified-Chinese documentation in lockstep.

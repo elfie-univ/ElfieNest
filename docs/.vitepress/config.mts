@@ -56,11 +56,26 @@ export default defineConfig({
             {
               text: "Architecture",
               items: [
-                { text: "Current architecture", link: "/developer/architecture" },
-                { text: "Module boundaries", link: "/developer/architecture-boundaries" },
-                { text: "Cognitive information flow", link: "/developer/architecture-cognitive-flow" },
-                { text: "AI Runtime contract", link: "/developer/architecture-ai-runtime" },
-                { text: "Runtime & data", link: "/developer/architecture-runtime" }
+                { text: "Current architecture", link: "/developer/architecture/" },
+                { text: "Module boundaries", link: "/developer/architecture/module-boundaries" },
+                { text: "Cognitive information flow", link: "/developer/architecture/cognitive-flow" },
+                { text: "Runtime & data", link: "/developer/architecture/runtime" }
+              ]
+            },
+            {
+              text: "Contracts & governance",
+              items: [
+                { text: "Architecture contracts", link: "/developer/contracts/" },
+                { text: "Repository governance", link: "/developer/contracts/repository-governance" },
+                { text: "System architecture contract", link: "/developer/contracts/system" },
+                { text: "Application contract", link: "/developer/contracts/application" },
+                { text: "Model, Food and tool behavior", link: "/developer/contracts/ai-runtime" },
+                { text: "System architecture conformance", link: "/developer/conformance/system" },
+                { text: "Application conformance", link: "/developer/conformance/application" },
+                { text: "AI Runtime migration conformance", link: "/developer/conformance/ai-runtime" },
+                { text: "Architecture decisions", link: "/developer/decisions/" },
+                { text: "App Ports & Adapters decision", link: "/developer/decisions/0001-lightweight-ports-adapters" },
+                { text: "System Ports & Adapters decision", link: "/developer/decisions/0002-system-ports-adapters" }
               ]
             },
             {
@@ -152,11 +167,26 @@ export default defineConfig({
             {
               text: "架构",
               items: [
-                { text: "当前架构", link: "/zh/developer/architecture" },
-                { text: "模块边界", link: "/zh/developer/architecture-boundaries" },
-                { text: "认知信息流", link: "/zh/developer/architecture-cognitive-flow" },
-                { text: "AI Runtime 契约", link: "/zh/developer/architecture-ai-runtime" },
-                { text: "运行时与数据", link: "/zh/developer/architecture-runtime" }
+                { text: "当前架构", link: "/zh/developer/architecture/" },
+                { text: "模块边界", link: "/zh/developer/architecture/module-boundaries" },
+                { text: "认知信息流", link: "/zh/developer/architecture/cognitive-flow" },
+                { text: "运行时与数据", link: "/zh/developer/architecture/runtime" }
+              ]
+            },
+            {
+              text: "契约与治理",
+              items: [
+                { text: "架构契约", link: "/zh/developer/contracts/" },
+                { text: "仓库架构治理", link: "/zh/developer/contracts/repository-governance" },
+                { text: "系统架构契约", link: "/zh/developer/contracts/system" },
+                { text: "应用架构契约", link: "/zh/developer/contracts/application" },
+                { text: "模型、Food 与工具行为", link: "/zh/developer/contracts/ai-runtime" },
+                { text: "系统架构一致性", link: "/zh/developer/conformance/system" },
+                { text: "应用架构一致性", link: "/zh/developer/conformance/application" },
+                { text: "AI Runtime 迁移一致性", link: "/zh/developer/conformance/ai-runtime" },
+                { text: "架构决策", link: "/zh/developer/decisions/" },
+                { text: "App Ports/Adapters 决策", link: "/zh/developer/decisions/0001-lightweight-ports-adapters" },
+                { text: "系统 Ports/Adapters 决策", link: "/zh/developer/decisions/0002-system-ports-adapters" }
               ]
             },
             {

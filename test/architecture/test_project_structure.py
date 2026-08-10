@@ -3,23 +3,24 @@ from pathlib import Path
 
 import yaml
 
-from scripts.check_quality_baseline import MYPY_SOURCE_ROOTS
+from scripts.check_quality_baseline import (
+    MYPY_SOURCE_ROOT_CANDIDATES,
+    MYPY_SOURCE_ROOTS,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 REQUIRED_ROOT_DIRECTORIES = frozenset(
-    {"ai_runtime", "app", "devtools", "docs", "elfie", "godot_project", "nest"}
-    | {"scripts", "test"}
+    {"app", "devtools", "docs", "elfie", "godot_project", "nest"} | {"scripts", "test"}
 )
 FORBIDDEN_SOURCE_DIRECTORIES = frozenset({"desktop", "elfienest", "godot", "runtime"})
 FORBIDDEN_ELFIE_DIRECTORIES = frozenset({"state"})
 REQUIRED_APP_DIRECTORIES = frozenset(
-    {"bootstrap", "features", "infrastructure", "interfaces", "orchestration"}
+    {"bootstrap", "features", "interfaces", "orchestration"}
 )
 REQUIRED_APP_INTERFACE_DIRECTORIES = frozenset({"api", "cli", "desktop", "web"})
 REQUIRED_NEST_ENTRIES = frozenset(
-    {"__init__.py", "engine", "events.py", "godot_gateway", "interaction"}
-    | {"nest.py", "state"}
+    {"__init__.py", "engine", "events.py", "interaction"} | {"nest.py", "state"}
 )
 REQUIRED_DESKTOP_SOURCE_DIRECTORIES = frozenset({"resources", "windows"})
 REQUIRED_DESKTOP_SOURCE_FILES = frozenset(
@@ -30,11 +31,14 @@ CURRENT_PYTHON_SOURCE_ROOTS = (
     "app",
     "elfie",
     "nest",
+    "infrastructure",
     "devtools",
     "scripts",
 )
 EXPECTED_QUALITY_COMMAND = "uv run --no-sync python scripts/check_quality_baseline.py"
-NEST_FORBIDDEN_IMPORT_ROOTS = frozenset({"ai_runtime", "app", "elfie", "godot_project"})
+NEST_FORBIDDEN_IMPORT_ROOTS = frozenset(
+    {"ai_runtime", "app", "elfie", "godot_project", "godot_runtime", "infrastructure"}
+)
 NEST_SPATIAL_LAYOUT_NAMES = frozenset(
     {
         "DEFAULT_BED_COLUMNS",
@@ -75,7 +79,7 @@ def _names_in_python_source(source: str) -> set[str]:
     return names
 
 
-def test_target_root_directories_exist() -> None:
+def test_stable_repository_directories_exist() -> None:
     # Given
     existing = {path.name for path in PROJECT_ROOT.iterdir() if path.is_dir()}
 
@@ -159,6 +163,7 @@ def test_python_sources_do_not_import_legacy_packages() -> None:
         PROJECT_ROOT / "app",
         PROJECT_ROOT / "devtools",
         PROJECT_ROOT / "elfie",
+        PROJECT_ROOT / "infrastructure",
         PROJECT_ROOT / "nest",
         PROJECT_ROOT / "scripts",
         PROJECT_ROOT / "test",
@@ -339,7 +344,10 @@ def test_precommit_uses_locked_project_tools_and_gitleaks() -> None:
     )
 
     # Then
-    assert MYPY_SOURCE_ROOTS == CURRENT_PYTHON_SOURCE_ROOTS
+    assert MYPY_SOURCE_ROOT_CANDIDATES == CURRENT_PYTHON_SOURCE_ROOTS
+    assert MYPY_SOURCE_ROOTS == tuple(
+        root for root in CURRENT_PYTHON_SOURCE_ROOTS if (PROJECT_ROOT / root).is_dir()
+    )
     assert set(local_hooks) == {"quality-baseline"}
     assert local_hooks["quality-baseline"]["entry"] == EXPECTED_QUALITY_COMMAND
     assert all(

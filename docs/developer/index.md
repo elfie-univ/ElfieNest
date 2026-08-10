@@ -6,14 +6,28 @@ source of truth.
 
 ## Understand the system first
 
-- [Current architecture](./architecture): the system panorama, the core call
+- [Current architecture](./architecture/): the system panorama, the core call
   chain and the process boundaries.
-- [Module boundaries](./architecture-boundaries): what each root module is and
+- [Architecture contracts](./contracts/): the long-lived normative rules.
+- [Repository architecture governance](./contracts/repository-governance): how
+  contracts, ADRs, local Agent rules, scanners, baselines and CI form one
+  enforceable quality loop.
+- [System architecture contract](./contracts/system): the target four-module
+  structure, system Ports/Adapters and migration direction.
+- [System architecture conformance](./conformance/system): the temporary root
+  module and technical-boundary migration register.
+- [Application architecture contract](./contracts/application): the
+  normative ownership, dependency, Port/Adapter and composition rules for new
+  and migrated `app/` code.
+- [Application conformance](./conformance/application): the temporary register
+  and exact-removal gates for current App architecture debt.
+- [Module boundaries](./architecture/module-boundaries): what each root module is and
   is not responsible for.
-- [Cognitive information flow](./architecture-cognitive-flow): the typed flow
+- [Cognitive information flow](./architecture/cognitive-flow): the typed flow
   from perception input to execution receipt.
-- [Runtime & data](./architecture-runtime): how configuration, data, services
+- [Runtime & data](./architecture/runtime): how configuration, data, services
   and build artifacts are isolated.
+- [Architecture decisions](./decisions/): accepted reasoning for durable changes.
 
 ## Then start modifying
 

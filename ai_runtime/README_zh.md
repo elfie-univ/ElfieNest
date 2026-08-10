@@ -43,15 +43,16 @@ ai_runtime/
 └── lab/         # Runtime 本地交互实验室
 ```
 
-共享工具实现属于本模块；个人 Skill 定义和学习状态属于对应精灵工作区，不属于
-Runtime。
+共享工具实现当前位于本目录。目标架构会拆解这个迁移包；个人 Skill 定义和学习状态
+仍属于对应精灵工作区。
 
-## 设计权威
+## 行为与迁移权威
 
 Provider、模型、粮食、工具、持久化和验收的规范性定义统一位于
-[AI Runtime 设计契约](../docs/zh/developer/architecture-ai-runtime.md)。本 README
-只提供模块地图，不重新定义这些行为。当前实现偏差单独记录在
-[AI Runtime 实现一致性台账](../docs/zh/developer/ai-runtime-conformance.md)。
+[模型、Food 与工具行为契约](../docs/zh/developer/contracts/ai-runtime.md)。目标所有权
+由[系统架构契约](../docs/zh/developer/contracts/system.md)定义；目标架构不存在
+`ai_runtime/` 模块。本 README 只描述当前迁移包。当前实现偏差单独记录在
+[AI Runtime 实现一致性台账](../docs/zh/developer/conformance/ai-runtime.md)。
 
 ## 公开入口
 
@@ -65,7 +66,7 @@ Provider、模型、粮食、工具、持久化和验收的规范性定义统一
 `StructuredRuntimeRequest`。调用者提交运行时请求，应用层负责把结果转换成
 Elfie 认知端口所需的类型。
 
-## 依赖方向
+## 当前依赖方向
 
 ```text
 app/orchestration ──> ai_runtime.gateway

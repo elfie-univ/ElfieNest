@@ -11,7 +11,8 @@ DESKTOP_BOUNDARY_PATHS = (
 )
 DESKTOP_SOURCE_SUFFIXES = frozenset({".js", ".jsx", ".py", ".ts", ".tsx"})
 GATEWAY_IMPORT_PATTERN = re.compile(
-    r"(?:from\s+|import\s*\()[\"'](nest\.godot_gateway(?:\.[^\"']*)?)[\"']"
+    r"(?:from\s+|import\s*\()[\"']((?:nest\.godot_gateway|"
+    r"infrastructure\.godot)(?:\.[^\"']*)?)[\"']"
 )
 
 
@@ -46,6 +47,8 @@ def _gateway_internal_imports(path: Path) -> set[str]:
             for module in _imported_modules(path)
             if module == "nest.godot_gateway"
             or module.startswith("nest.godot_gateway.")
+            or module == "infrastructure.godot"
+            or module.startswith("infrastructure.godot.")
         }
     return {
         match.group(1)
@@ -53,26 +56,17 @@ def _gateway_internal_imports(path: Path) -> set[str]:
     }
 
 
-def test_gateway_rename_and_runtime_host_boundary_exist() -> None:
-    # Given: protocol and host responsibilities have separate top-level seams.
-    required_paths = {
-        "nest/godot_gateway",
-        "godot_runtime",
-    }
-
-    # When: the source tree is inspected after the one-time migration.
-    missing_paths = {
-        path for path in required_paths if not (PROJECT_ROOT / path).is_dir()
-    }
-
-    # Then: no compatibility package preserves the old Python import path.
-    assert missing_paths == set()
+def test_removed_gateway_alias_is_not_restored() -> None:
+    # Current migration paths may disappear; the obsolete alias may not return.
     assert not (PROJECT_ROOT / "nest/godot").exists()
 
 
 def test_runtime_host_does_not_import_nest_business_objects() -> None:
     # Given: the Runtime host selects/launches artifacts rather than Nest business state.
-    runtime_root = PROJECT_ROOT / "godot_runtime"
+    runtime_roots = (
+        PROJECT_ROOT / "godot_runtime",
+        PROJECT_ROOT / "infrastructure/godot",
+    )
 
     # When: every Runtime host module is checked for absolute Nest imports.
     offenders = {
@@ -81,6 +75,8 @@ def test_runtime_host_does_not_import_nest_business_objects() -> None:
             for module in _imported_modules(path)
             if module == "nest" or module.startswith("nest.")
         )
+        for runtime_root in runtime_roots
+        if runtime_root.is_dir()
         for path in runtime_root.rglob("*.py")
         if any(
             module == "nest" or module.startswith("nest.")

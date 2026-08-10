@@ -18,6 +18,10 @@ environment.
 | `release.py` | Release build | Assembles staging resources and invokes electron-builder |
 | `check_quality_baseline.py` | Quality gate | Compares current Ruff, Ruff format and MyPy diagnostics against the controlled historical baseline |
 | `check_node_toolchain.sh` | Quality gate | Verifies the root Node.js/pnpm anchor and all independent Node project manifests |
+| `architecture/app_layer_scan.py` | Architecture gate | Ratchets exact legacy App-layer violations and switches to deny-all after baseline removal |
+| `architecture/system_layer_scan.py` | Architecture gate | Ratchets exact Elfie/Nest system-boundary violations and switches to deny-all after baseline removal |
+| `architecture/check_governance_change.py` | Architecture gate | Separates governance from production changes and requires mirrored, versioned contract changes with an ADR |
+| `architecture/contract_registry.py` | Architecture registry | Links each contract to its mirrors, ADRs, Agent rules, scanners, tests, conformance register and baseline |
 | `elfienest_install_helpers.sh` | Shell library | Used by `install.sh` to validate the user-level install directory and PATH; not standalone-executable |
 | `__init__.py` | Package marker | Lets architecture tests import testable functions from scripts; not a command entry point |
 

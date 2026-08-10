@@ -3,6 +3,10 @@
 这份文档描述 ElfieNest 当前代码中的模块边界与运行链路。它不是历史路线图，也
 不会把尚未实现的设计写进当前架构。
 
+> 这是说明性的当前状态地图，不是规范目标。最终所有权和依赖规则只在
+> [架构契约](../contracts/)中定义；当前状态与目标之间的临时差距只记录在
+> [一致性台账](../conformance/)中。
+
 ## 系统地图
 
 <img src="/assets/elfienest-system-architecture.svg" alt="ElfieNest 的大框嵌套系统架构图：黑色箭头表示跨模块数据或协议流；红色箭头表示具体入口与内部控制流。" />
@@ -11,9 +15,10 @@
 具体的内部入口与控制路径。特别是，`ElfieFactory` 负责创建或恢复 `Elfie` 实例；
 运行期操作随后通过返回的 `elfie.py` facade 进行。
 
-`app/orchestration` 直接组合 `elfie`、`nest` 与 `ai_runtime`。它并不位于
-`app/features` 或 `app/infrastructure` 的下游；后两者组成另一条产品用例路径：
-`app/interfaces → app/features → app/infrastructure`。
+`app/orchestration` 直接组合 `elfie`、`nest` 与 `ai_runtime`，并不位于
+`app/features` 或 `app/infrastructure` 的下游。在产品用例平面，Interface 调用具体
+Feature 用例，Feature 声明自己需要的 Port，Infrastructure 实现 Port，Bootstrap 是
+唯一组合根。当前历史偏差记录在 [App 一致性台账](../conformance/application)。
 
 核心源码按职责分为：
 
@@ -23,8 +28,8 @@
 | `nest/` | 活动空间状态、环境时钟、互动和 Godot 协议边界 | [Nest README](https://github.com/elfie-univ/ElfieNest/blob/main/nest/README.md) |
 | `ai_runtime/` | 模型、Provider、策略、粮食、工具与安全运行时 | [AI Runtime README](https://github.com/elfie-univ/ElfieNest/blob/main/ai_runtime/README.md) |
 | `app/` | 产品用例、接口、基础设施和跨模块编排 | [App README](https://github.com/elfie-univ/ElfieNest/blob/main/app/README.md) |
-| `app/orchestration/lifecycle/` | Runtime 生命周期、完整健康、owner lease 与权威控制 | [运行时与数据](./architecture-runtime) |
-| `godot_runtime/` | 权威宿主选择、已导出 Runtime 启动和产物元数据 | [运行时与数据](./architecture-runtime) |
+| `app/orchestration/lifecycle/` | Runtime 生命周期、完整健康、owner lease 与权威控制 | [运行时与数据](./runtime) |
+| `godot_runtime/` | 权威宿主选择、已导出 Runtime 启动和产物元数据 | [运行时与数据](./runtime) |
 | `app/interfaces/desktop/` | Electron Observer 窗口与公开 lifecycle client | [Desktop README](https://github.com/elfie-univ/ElfieNest/blob/main/app/interfaces/desktop/README.md) |
 | `godot_project/` | 独立 Godot 源工程：房间、几何、坐标、碰撞、角色和渲染源码 | [Godot README](https://github.com/elfie-univ/ElfieNest/blob/main/godot_project/README.md) |
 | `devtools/` | 与普通用户产品隔离的模块实验台 | [Devtools README](https://github.com/elfie-univ/ElfieNest/blob/main/devtools/README.md) |

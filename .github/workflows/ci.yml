@@ -13,6 +13,111 @@ env:
   UV_VERSION: "0.9.26"
 
 jobs:
+  architecture-governance:
+    name: Architecture Governance
+    runs-on: ubuntu-latest
+    env:
+      BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+
+      - name: Install pinned environment
+        run: |
+          uv python install 3.9.25
+          uv sync --locked --extra dev
+
+      - name: Check candidate scanner against candidate baseline
+        run: |
+          if test -f test/architecture/baselines/app_layer.py; then
+            uv run --no-sync python scripts/architecture/app_layer_scan.py \
+              --project-root . \
+              --baseline test/architecture/baselines/app_layer.py \
+              --mode exact
+          else
+            uv run --no-sync python scripts/architecture/app_layer_scan.py \
+              --project-root . \
+              --mode deny-all
+          fi
+
+      - name: Check candidate system scanner against candidate baseline
+        run: |
+          if test -f test/architecture/baselines/system_layer.py; then
+            uv run --no-sync python scripts/architecture/system_layer_scan.py \
+              --project-root . \
+              --baseline test/architecture/baselines/system_layer.py \
+              --mode exact
+          else
+            uv run --no-sync python scripts/architecture/system_layer_scan.py \
+              --project-root . \
+              --mode deny-all
+          fi
+
+      - name: Reject governance and production source in one change
+        run: |
+          if git cat-file -e "$BASE_SHA:scripts/architecture/check_governance_change.py"; then
+            classifier="$RUNNER_TEMP/base-check-governance-change.py"
+            git show "$BASE_SHA:scripts/architecture/check_governance_change.py" > "$classifier"
+          else
+            classifier="scripts/architecture/check_governance_change.py"
+          fi
+          uv run --no-sync python "$classifier" --base-sha "$BASE_SHA"
+
+      - name: Apply immutable base-branch architecture ratchet
+        run: |
+          if git cat-file -e "$BASE_SHA:scripts/architecture/app_layer_scan.py"; then
+            ratchet_dir="$RUNNER_TEMP/architecture-ratchet"
+            mkdir -p "$ratchet_dir"
+            git show "$BASE_SHA:scripts/architecture/app_layer_scan.py" > "$ratchet_dir/app_layer_scan.py"
+            if git cat-file -e "$BASE_SHA:test/architecture/baselines/app_layer.py"; then
+              git show "$BASE_SHA:test/architecture/baselines/app_layer.py" > "$ratchet_dir/app_layer.py"
+              uv run --no-sync python "$ratchet_dir/app_layer_scan.py" \
+                --project-root "$GITHUB_WORKSPACE" \
+                --baseline "$ratchet_dir/app_layer.py" \
+                --mode subset
+            else
+              uv run --no-sync python "$ratchet_dir/app_layer_scan.py" \
+                --project-root "$GITHUB_WORKSPACE" \
+                --mode deny-all
+            fi
+          elif git cat-file -e "$BASE_SHA:docs/developer/contracts/repository-governance.md"; then
+            echo "Base branch has the governance contract but no App scanner." >&2
+            exit 1
+          else
+            echo "Bootstrap governance change: no base-branch scanner exists yet."
+          fi
+
+      - name: Apply immutable base-branch system architecture ratchet
+        run: |
+          if git cat-file -e "$BASE_SHA:scripts/architecture/system_layer_scan.py"; then
+            ratchet_dir="$RUNNER_TEMP/system-architecture-ratchet"
+            mkdir -p "$ratchet_dir"
+            git show "$BASE_SHA:scripts/architecture/system_layer_scan.py" > "$ratchet_dir/system_layer_scan.py"
+            if git cat-file -e "$BASE_SHA:test/architecture/baselines/system_layer.py"; then
+              git show "$BASE_SHA:test/architecture/baselines/system_layer.py" > "$ratchet_dir/system_layer.py"
+              uv run --no-sync python "$ratchet_dir/system_layer_scan.py" \
+                --project-root "$GITHUB_WORKSPACE" \
+                --baseline "$ratchet_dir/system_layer.py" \
+                --mode subset
+            else
+              uv run --no-sync python "$ratchet_dir/system_layer_scan.py" \
+                --project-root "$GITHUB_WORKSPACE" \
+                --mode deny-all
+            fi
+          elif git cat-file -e "$BASE_SHA:docs/developer/contracts/system.md"; then
+            echo "Base branch has the system contract but no system scanner." >&2
+            exit 1
+          else
+            echo "Bootstrap system governance change: no base-branch scanner exists yet."
+          fi
+
   environment-smoke:
     name: Environment Smoke (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

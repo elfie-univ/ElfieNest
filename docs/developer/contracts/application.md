@@ -1,0 +1,283 @@
+# Application architecture contract
+
+**Contract version:** 1.4
+**Adopted:** 2026-08-10
+**Scope:** `app/` and App-owned adapters migrating to root `infrastructure/`
+
+> **Normative target.** This document is the long-term architecture authority
+> for new and migrated code under `app/`. It defines ownership, dependency
+> direction and boundary semantics; it does not claim that every legacy path
+> already conforms. Current deviations are listed in
+> [Application conformance](../conformance/application). The English and Chinese
+> files are language mirrors and change together.
+
+The authority order is:
+
+1. this versioned contract defines the architecture;
+2. `app/AGENTS.md` summarizes the contract for implementation work;
+3. child `AGENTS.md` files may refine local rules but may not reverse this contract;
+4. architecture tests enforce machine-checkable parts;
+5. the conformance register records temporary gaps and never grants a new exception.
+
+A deliberate change to ownership or dependency direction requires an explicit
+contract-version change before implementation. Ordinary migration work updates
+code, tests and the conformance register without rewriting the target.
+
+## Goals and deliberate non-goals
+
+The application layer uses a lightweight Ports-and-Adapters structure so that
+product rules do not depend on FastAPI, SQLite, files, devices or model-platform
+implementations. The intent is clear ownership, replaceable technical edges,
+testable use-cases and one composition point—not architectural ceremony.
+
+This contract does **not** introduce microservices, a general event bus, full
+CQRS, Event Sourcing, distributed transactions, a generic repository, an
+auto-discovered dependency-injection framework or a Port for every helper
+function. Those mechanisms require a separate demonstrated need and approval.
+
+The [system architecture contract](system) controls physical top-level
+placement. Existing adapters under `app/infrastructure/` are registered
+migration debt; new ownership must target root `infrastructure/`, and the old
+path may only shrink.
+
+## Four App areas and their Infrastructure adapters
+
+| Area | Owns | Must not own |
+| --- | --- | --- |
+| `app/interfaces/` | HTTP, WebSocket, CLI, Web and Desktop protocol entry; credential parsing; request/response mapping; protocol error mapping | Product rules, SQL, data-root resolution, concrete repositories, Runtime authority |
+| `app/features/` | Product use-cases, authorization, commands, queries, results, business errors and the Ports required by those use-cases | FastAPI, SQLite, concrete adapters, process/thread ownership, cross-authority Runtime flows |
+| `app/orchestration/` | Workflows crossing two or more authorities, non-atomic external side effects, and Runtime lifecycle coordination | Ordinary CRUD, protocol DTOs, concrete persistence/device adapters |
+| `infrastructure/` (target; currently `app/infrastructure/`) | Port implementations for persistence, files, network, model platforms, devices and operating-system facilities | Product authorization, page behavior, use-case sequencing |
+| `app/bootstrap/` | The composition root: construction, injection, object lifetime, startup and shutdown wiring | Business branches, SQL, protocol mapping, a second configuration source |
+
+The four App-owned areas are Interfaces, Features, Orchestration and Bootstrap.
+Root Infrastructure is the separate Adapter layer used by them; it is shown in
+the table because the App dependency contract must define that edge explicitly.
+
+There are two application planes. `features/` handles product use-cases that can
+be reasoned about inside one business authority. `orchestration/` coordinates a
+flow when it crosses authorities such as `elfie/`, `nest/`, Godot, a device or a
+managed process. A flow is not orchestration merely because it has several
+function calls. Reading Food or invoking a model/tool through one Elfie's
+injected Ports is explicitly not an App orchestration flow.
+
+## Allowed dependency direction
+
+```text
+interfaces    -> Feature public use-cases / Orchestration public facades
+features      -> owned models and Ports + approved domain public APIs
+orchestration -> application Ports + elfie / nest public APIs
+infrastructure-> implements Feature / Orchestration Ports + technical libraries
+bootstrap     -> all areas, for wiring only
+```
+
+The detailed matrix is:
+
+| From | May depend on | Forbidden direction |
+| --- | --- | --- |
+| Interface | public Feature and Orchestration APIs; protocol libraries | Infrastructure implementation, Bootstrap, another Interface's private implementation |
+| Feature | its own models and Ports; another Feature's public facade; approved public domain APIs | Interface, Bootstrap, concrete Infrastructure, another Feature's internals |
+| Orchestration | public Feature contracts, orchestration-owned Ports, public `elfie`/`nest` APIs | Interface, Bootstrap, concrete Infrastructure |
+| Infrastructure | Feature/Orchestration contracts it implements; technical libraries | Interface, Bootstrap, product rules or private Feature internals |
+| Bootstrap | all construction targets | Any product decision beyond wiring and lifecycle |
+
+No App layer may form an import cycle. A Feature exposes its stable use-cases and
+boundary models through its package facade; another Feature or Interface does
+not import its internal service, helper or repository module. Bootstrap may
+import concrete construction targets but cannot become a callable service
+locator used by product code.
+
+## Feature shape and Port ownership
+
+A migrated Feature normally contains:
+
+```text
+app/features/<domain>/
+├── __init__.py      # stable public facade
+├── models.py        # commands, queries, results and value objects
+├── ports.py         # Protocols needed by this domain
+├── errors.py        # stable business errors
+└── service.py       # use-case implementation
+```
+
+This is a responsibility map, not a requirement to create empty files. Small
+domains may combine files while preserving the same boundaries.
+
+The consumer owns a Port. A Feature defines the persistence, clock, task,
+external-service or device capability it needs; Infrastructure implements it;
+Bootstrap injects that implementation. Create a Port only for an external fact,
+replaceable technical capability or side-effect boundary. Pure calculations and
+private helpers stay ordinary typed functions.
+
+An adapter must not broaden the Port into a second business API. Repository
+records are adapter-internal. A Repository may express fact storage and queries,
+but it may not decide whether an administrator is allowed to adopt an Elfie or
+which page should display a field.
+
+### External bodies and devices
+
+The external-body concept, commands and perception contracts belong to
+`elfie/body`. Product enrollment, list, revoke, grants and Elfie/body
+association belong to an App Feature. Credential material, LAN transport,
+device sessions and technical health belong to secret and
+`infrastructure/devices` Adapters (currently `app/infrastructure/devices`);
+App stores references rather than credential material. Hosting, return-home,
+offline and body-switching flows belong to Orchestration when they coordinate
+the real Elfie, Nest and device. Persistence implements the owning Feature or
+Orchestration Port, and Bootstrap wires the graph. Device transport is not
+itself the product workflow or an authorization authority.
+
+## Models at every boundary
+
+Each boundary has an explicit model with one owner:
+
+- Interface DTO: validated HTTP/WS/CLI input and output;
+- Feature command/query/result: product intent and projection;
+- Principal/RequestContext: authenticated identity and request metadata;
+- Port model: the minimal data required across a technical boundary;
+- persistence record: database representation, private to its adapter;
+- domain public model: a type exported by `elfie` or `nest`.
+
+FastAPI Request objects, SQLite connections/rows, ORM records and unvalidated
+dictionaries do not cross these boundaries. Public boundaries do not add
+`Any`, `Dict[str, Any]`, role-dependent shapes or unchecked casts. Pydantic is
+used where external data or configuration must be validated; internal models
+may use dataclasses, Protocols, Enums and value objects. Code models—not a
+second handwritten JSON Schema—are the contract source.
+
+New and migrated domains use strict MyPy checking. Existing global type debt is
+reduced domain by domain; it is not an excuse to add loose types to a migrated
+boundary.
+
+## Identity, authorization and errors
+
+The Interface authenticates credentials and constructs a strict Principal. The
+Feature authorizes the requested use-case and resource relationship. UI hiding,
+route naming and a client-supplied user or Elfie ID are never authorization.
+
+`user`, `setup`, `admin`, `observer` and `device` principals are separate,
+minimal-capability types. Device and Observer credentials never reuse Owner or
+Runtime-authority credentials. A RequestContext may additionally carry a
+correlation ID, locale and safe client metadata; it does not become an arbitrary
+request bag.
+
+Features and Orchestration return typed results or raise stable business
+errors such as validation, not-found, conflict, forbidden, unavailable and
+retryable-external-failure. Interfaces map them to protocol status and the
+versioned error envelope. Infrastructure exceptions are translated at the
+adapter/use-case boundary and are not exposed directly to callers.
+
+## Commands, queries and consistency
+
+ElfieNest uses lightweight command/query separation, not full CQRS:
+
+- commands change authoritative facts and use a command service plus write Port;
+- queries read authoritative facts or an explicitly derived projection and use
+  a query service plus query Port;
+- a read operation does not silently repair, migrate or create product state.
+
+Three consistency classes are explicit:
+
+1. **Database transaction.** One use-case owns a Unit of Work. Repositories do
+   not hide commits that break a multi-step invariant. SQL remains inside the
+   approved persistence boundary.
+2. **Typed file update.** One writer owns a validated document, writes a
+   temporary file and atomically replaces the target. There is no dual write or
+   fallback fact source.
+3. **External workflow.** Network, model, Godot and device operations use
+   durable workflow state where required, an idempotency key, timeout, receipt
+   and explicit compensation/recovery. They are not presented as a database
+   transaction.
+
+A database transaction must not wait for a network, model, Godot or device
+response. Persist intent, finish the transaction, perform the external action,
+then persist its receipt or failure according to the workflow contract.
+
+## Lifetimes, asynchronous work and reliability
+
+Bootstrap owns production-container object lifetimes and generic cleanup:
+
+| Lifetime | Typical objects |
+| --- | --- |
+| Process/container | application container, gateways, stateless services, schedulers |
+| Request/use-case | Principal, RequestContext, Unit of Work, write/query adapters |
+| Connection | WebSocket session and connection-scoped buffers |
+| Job/task | cancellation token, progress, receipt and durable task state |
+
+Features do not start threads, processes, infinite loops or unowned
+`asyncio.create_task` jobs. A Scheduler/Runner Port owns background work and its
+shutdown behavior. Runtime process start, stop and restart decisions and
+workflows remain exclusively in `app/orchestration/lifecycle`; Bootstrap only
+constructs and invokes that public boundary. Tests may construct fakes without
+becoming a second production composition root.
+
+Ports state whether they are synchronous or asynchronous. Async Interfaces do
+not perform long blocking work on the event loop. Cross-boundary calls have
+explicit timeouts. Retries are limited to classified retryable and idempotent
+operations, use bounded backoff, and preserve one correlation/idempotency ID.
+Long work returns a stable `task_id` with status-query, failure, cancellation,
+timeout and process-restart semantics.
+
+## Configuration, secrets, cache and observability
+
+Every configuration document has one typed owner, one precedence order and one
+writer. A Feature requests configuration through a Port; it does not resolve
+`ELFIE_HOME` or read YAML/SQLite directly. Secrets travel only as secret
+references or through a dedicated Secret Port and never enter normal DTOs,
+logs, reports or caches.
+
+A cache declares its authoritative source, key scope, invalidation trigger,
+maximum lifetime and rebuild path. A cache cannot become a second fact source.
+
+Requests, jobs and external workflows carry correlation IDs through Port calls
+and safe structured logs. Logs identify the use-case and outcome without
+recording passwords, tokens, API keys, complete device credentials or private
+content. Health reports technical readiness; business backlog belongs in event
+or product projections.
+
+## Composition and API mapping
+
+The composition root creates concrete adapters, builds Feature services and
+Orchestration facades, and injects those objects into HTTP/WS/CLI/Desktop entry
+points. Routes and dependency functions do not instantiate repositories,
+registries or stores. Setup and Admin may expose different projections of one
+capability, but they reuse the same Feature and Adapter rather than duplicating
+facts or algorithms.
+
+The API-specific resource, versioning and DTO rules are refined in
+`app/interfaces/api/AGENTS.md`. The App contract remains authoritative for
+dependency direction and ownership.
+
+## Machine enforcement and migration
+
+`scripts/architecture/app_layer_scan.py` scans the dependency graph, Feature
+isolation, composition boundary, route model requirements and selected public
+typing rules. `test/architecture/test_app_layer_boundaries.py` protects that
+scanner and the surrounding contract. Its exact legacy baseline is temporary
+and linked to gap IDs in the conformance register. The baseline must match
+current debt exactly: removing debt requires shrinking it in the same change;
+adding or restoring an entry fails.
+
+The repository-level change process, contract/ledger lifecycle and base-branch
+ratchet are defined by the
+[repository architecture governance contract](./repository-governance). This
+contract defines the App target; it cannot approve its own machine exceptions.
+
+Migration is completed one business domain at a time. A domain is done only
+when all of the following are true:
+
+1. routes, callers, services, adapters and fact sources are inventoried;
+2. one public Feature facade and strict command/query/result models exist;
+3. required Ports are owned by the consumer;
+4. Infrastructure adapters implement the Ports and Bootstrap injects them;
+5. no forbidden layer or cross-Feature internal import remains;
+6. authorization and Principal behavior have focused tests;
+7. transaction/file/external-workflow semantics have focused tests;
+8. errors, timeouts, retries and idempotency are tested where applicable;
+9. all production callers use the new path;
+10. old routes, DTOs, adapters, compatibility branches and fixtures are removed;
+11. the exact architecture baseline and conformance rows are reduced;
+12. at least one real end-to-end use-case proves the final chain.
+
+An item can be marked closed only with code and test evidence. A registered gap
+does not permit new code to repeat it.

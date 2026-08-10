@@ -12,6 +12,24 @@ The test directory mirrors the source. The root `test/` does not hold test
 files directly; the architecture tests guard directory boundaries, legacy
 package names, reverse dependencies and engineering-config contracts.
 
+## Architecture-governance checks
+
+```bash
+uv run --no-sync python scripts/architecture/app_layer_scan.py \
+  --project-root . --baseline test/architecture/baselines/app_layer.py --mode exact
+uv run --no-sync python scripts/architecture/system_layer_scan.py \
+  --project-root . --baseline test/architecture/baselines/system_layer.py --mode exact
+uv run --no-sync pytest test/architecture/
+```
+
+The baselines list exact pre-existing violations; they are not allowances for
+new code. A migration removes matching entries as it deletes the old call
+chain. When a baseline reaches zero it is deleted and the same scanner runs
+with `--mode deny-all`. CI also runs the scanner and baseline from the pull
+request base commit against candidate production code, so a change cannot
+weaken the rule that judges itself. See the
+[repository architecture governance contract](./contracts/repository-governance).
+
 ## Quality gate
 
 ```bash

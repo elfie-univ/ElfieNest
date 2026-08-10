@@ -1,0 +1,338 @@
+# System architecture contract
+
+**Contract version:** 1.3
+**Adopted:** 2026-08-10
+**Scope:** repository-wide target architecture
+**Macro architecture baseline:** v1 (frozen)
+
+> **Normative target.** This contract defines the final module ownership,
+> dependency direction and system-level Ports/Adapters for ElfieNest. It is the
+> authority for migrations of root modules. It does not claim that the current
+> tree already conforms; exact deviations are recorded in
+> [System conformance](../conformance/system).
+
+The system contract governs root placement and cross-module boundaries. The
+Application contract governs behavior inside `app/`. The older AI Runtime
+contract remains only a behavior inventory for the current migration package;
+it does not define a target module and cannot reverse this contract. Where an
+older child contract names a legacy owner or path, this contract controls the
+target while the conformance register records the transition.
+
+## Target system shape
+
+ElfieNest converges on four top-level Python production ownership modules:
+
+```text
+app/                 product entry, use-cases, orchestration and composition
+elfie/               one complete Elfie domain core
+nest/                the Nest world-semantics domain core
+infrastructure/      external-system, persistence and platform adapters
+```
+
+One running ElfieNest system always has exactly one Nest.
+
+`elfie/` and `nest/` are the central domain layer. `app/` is above them and
+turns user or operator intent into product use-cases. `infrastructure/` is below
+them and implements model access, tool execution, Godot integration,
+persistence, devices, external communication, filesystem, network, process and
+operating-system capabilities required through typed Ports.
+
+`godot_project/` remains a separate Godot source project and runtime authority.
+It is not a fifth Python ownership module and is never moved under
+`infrastructure/`. Python-side hosting, protocol and Adapter code belongs to
+Infrastructure; Godot assets, physics, navigation, collision and rendering stay
+in `godot_project/`.
+
+The target Infrastructure is organized by capability, not as an unowned
+miscellaneous directory:
+
+```text
+infrastructure/
+├── models/           Provider discovery, validation and model-call adapters
+├── tools/            search, workspace-file and sandbox execution adapters
+├── godot/            Gateway, authority host, artifacts and protocol adapters
+├── persistence/      database and durable-file adapters
+├── devices/          external-body and device transports
+├── communication/    external channel adapters
+└── platform/         filesystem, clock, process and operating-system adapters
+```
+
+Infrastructure Adapters may be internally complex: they may own protocol state,
+connection pools, retries, timeouts, process control, sandboxing and technical
+validation. They do not own Elfie cognition, Nest rules, product authorization
+or administrator workflows.
+
+Infrastructure capability packages do not import or construct another
+capability's concrete Adapter. When one capability needs another, it depends on
+a narrow Port or shared technical model and Bootstrap supplies the concrete
+implementations.
+
+Current `ai_runtime/`, `godot_runtime/`, `nest/godot_gateway/` and
+`app/infrastructure/`, plus concrete technical code inside `elfie/` or `nest/`,
+are migration-state locations. `ai_runtime/` is decomposed by responsibility;
+it is not moved intact and no target `infrastructure/ai_runtime/` is created.
+These paths shrink only through separately approved migration slices.
+
+## System dependency direction
+
+```text
+App Interfaces/Use-cases/Orchestration
+          |                         |
+          | inbound facade          | App-owned outbound Ports
+          v                         v
+   Elfie Core + Nest Core -----> Infrastructure Adapters
+          |                         |
+          | core-owned Ports        v
+          +-----------------> databases, models, Godot,
+                               devices, channels and OS
+```
+
+The left path is a product or cross-authority call into an Elfie/Nest facade.
+The right path is an App Feature or Orchestration capability such as account
+persistence, a clock, a secret store or a managed external workflow. App does
+not route those capabilities through Elfie or Nest merely to preserve a
+layered drawing.
+
+Source-code dependencies follow dependency inversion:
+
+```text
+app              -> public Elfie/Nest facades and boundary models
+infrastructure   -> App/Elfie/Nest Ports it implements
+app/bootstrap    -> all concrete construction targets, for wiring only
+elfie            -X-> app, nest or concrete infrastructure
+nest             -X-> app, elfie or concrete infrastructure
+```
+
+Runtime calls may travel from a core through an injected Port to an Adapter.
+That does not authorize the core to import, construct, configure or inspect the
+concrete Adapter.
+
+`elfie/` and `nest/` never import one another. `app/orchestration/` owns only
+workflows that compose real Elfie instances with Nest state or cross two or
+more authorities. An ordinary Food lookup, model call, file read or tool
+execution through one Elfie's injected Ports is not Orchestration.
+
+## Inbound facades and explicit Ports
+
+A stable, typed public facade can itself be an inbound Port. `Elfie`,
+`ElfieFactory` and `Nest` do not require duplicate `ElfieInboundPort` or
+`NestInboundPort` Protocols merely for naming symmetry.
+
+An explicit inbound Protocol is introduced only when at least one real need
+exists: multiple implementations, independent versioning, a process boundary,
+caller isolation that a facade cannot provide, or reusable test doubles at the
+boundary. Importance alone is not a reason to duplicate a facade.
+
+Inbound and outbound Ports are not pairs. A core owns as many of each as its
+actual offered use-cases and required external capabilities demand.
+
+## System-level outbound Ports
+
+System-level Ports express semantic capabilities and never expose a technical
+product name, transport frame, database row, path or SDK object.
+
+### Elfie
+
+Elfie keeps its profile, cognition, emotion, memory semantics, skills,
+communication semantics, body contracts and lifecycle. Its system-level
+required capabilities include:
+
+- reading its effective model bundle through a narrow `FoodPort`;
+- model generation through a narrow `ModelPort`;
+- executing approved tools through a narrow `ToolPort`;
+- replaceable body execution and perception through `BodyPort` and a narrow
+  actor-body transport contract;
+- external communication channels through typed channel contracts;
+- semantic storage contracts for private profile and memory facts.
+
+Infrastructure persistence implements `FoodPort`; Infrastructure model
+Adapters implement `ModelPort`; Infrastructure tool Adapters implement
+`ToolPort`. Bootstrap injects those implementations directly into Elfie. Elfie
+does not import App or Infrastructure and does not execute SQL itself. Memory
+algorithms, semantic model-role choice, Skill declarations and allow-lists,
+body commands and perception models remain in Elfie.
+
+### Nest
+
+Nest keeps residents, homes, world semantics, environment time, interaction
+propagation and rules such as speech audience and tactile consequences. Its
+required capabilities include:
+
+- semantic Nest persistence through a Nest-owned repository Port;
+- world-authority configuration, synchronization and event intake through a
+  narrow world contract.
+
+Concrete SQLite, WebSocket, JSON transport, Godot bundle, environment and
+process implementations belong to Infrastructure. Nest semantic models and
+rules remain in Nest.
+
+### App
+
+App Features may define their own outbound Ports for product persistence,
+files, clocks, schedulers, secrets, platform probes and external workflows.
+Infrastructure implements those Ports. App's internal Ports/Adapters structure
+is a nested instance of this system architecture and is governed by the
+[Application contract](./application).
+
+## Authoritative facts and writers
+
+Architecture ownership is not only directory placement. Every durable or
+runtime fact has one semantic authority, one write path and explicit readers:
+
+| Fact or decision | Semantic authority | Concrete write/execution owner | Allowed readers or coordinators |
+| --- | --- | --- | --- |
+| Accounts, sessions, roles and member preferences | App account Features | Infrastructure persistence through App-owned Ports | Authenticated App use-cases and authorized projections |
+| Adoption, ownership and per-member quota decisions | App adoption Features | Infrastructure persistence through App-owned Ports | Admin/member use-cases; Nest capacity is an input, not a duplicate owner |
+| Social relationships, conversation membership and user-visible message history | App communication Features | Infrastructure persistence through App-owned Ports | Authorized App use-cases; Elfie owns communication and memory semantics, not product conversation ownership |
+| One Elfie's profile, cognition and memory semantics | `elfie/` | Infrastructure persistence through Elfie-owned Ports | The owning Elfie and explicitly authorized App projections |
+| Nest residents, beds, environment time and interaction consequences | `nest/` | Infrastructure persistence through Nest-owned Ports | App Orchestration and authorized Observer projections |
+| Food package administration and global tool enablement | App configuration Features | Infrastructure persistence through App-owned Ports | Elfie receives only its effective typed projection through Elfie-owned Ports |
+| Provider-connection administration and credential references | App configuration Features | Infrastructure persistence and secret Adapters through App-owned Ports | Authorized App management use-cases; Infrastructure receives only scoped technical inputs |
+| Endpoint-model observations, technical validation and model calls | Infrastructure model capability | `infrastructure/models/` plus persistence/report Adapters | App management projections and Elfie `ModelPort` calls |
+| Tool choice for one cognition step | `elfie/` Skills and cognition policy | `infrastructure/tools/` executes an approved bounded request | Elfie consumes the typed result; App configures global availability |
+| House geometry, coordinates, collision, navigation and rendered physical events | `godot_project/` authority | Godot authority through `infrastructure/godot/` protocol Adapters | Nest receives world facts; an actor body receives its own receipts |
+| Device enrollment, grants and Elfie/body association | App device Features | Infrastructure persistence through App-owned Ports | Authorized App use-cases and Orchestration |
+| Device credential material | Infrastructure secret capability | Secret storage and `infrastructure/devices/` Adapters | App retains references only; the granted device Adapter receives scoped access |
+| Device transport sessions and technical health | Infrastructure device capability | `infrastructure/devices/` | App health projections and the owning Elfie body contract within granted scope |
+| Body commands and perception semantics | `elfie/body` | The injected body/device Adapter executes transport | The owning Elfie; Orchestration only for cross-authority workflows |
+| Process lifecycle and technical readiness | `app/orchestration/lifecycle` | Lifecycle runners and technical probes constructed by Bootstrap | Owner/Observer health projections; business backlog is separate |
+
+Infrastructure can physically store several facts in one database, but storage
+co-location does not merge their semantic owners. No second module may infer a
+new authoritative fact by copying, caching or projecting the same record.
+
+## Model, Food and tool ownership
+
+There is no target AI Runtime module. The current `ai_runtime/` package mixes
+responsibilities that are separated as follows:
+
+| Responsibility | Target owner |
+| --- | --- |
+| Provider discovery, model lists, technical probes, request translation, streaming, retries and model calls | `infrastructure/models/` |
+| Food administration, automatic package generation, model-management reports and global tool settings | App Features |
+| Reading one Elfie's effective Food, selecting a semantic model role, deciding tool use and consuming results | `elfie/` through its Ports |
+| Physical storage of Food/configuration and other durable facts | `infrastructure/persistence/` implementing the semantic owner's Ports; storage is not a second authority |
+| Search, bounded workspace files, code sandbox and device-backed tool execution | `infrastructure/tools/` |
+
+A normal inference path is direct:
+
+```text
+Elfie -> FoodPort -> Infrastructure persistence Adapter -> database
+Elfie -> ModelPort -> Infrastructure model Adapter       -> Provider
+Elfie -> ToolPort  -> Infrastructure tool Adapter        -> external capability
+```
+
+App manages configuration through Feature use-cases, but it is not a runtime
+hop between Elfie and these Adapters. Orchestration enters only when a workflow
+actually crosses Elfie, Nest, Godot, a device or another authority.
+
+App configuration Features write Food visibility, grants, assignments and
+package selection. The persistence Adapter resolves the effective projection
+for the requested Elfie scope from those stored facts; it does not make a new
+authorization decision. Elfie selects the semantic role and invokes
+`ModelPort` separately.
+
+## Godot authority channels
+
+The Godot authority is reached through one shared, versioned and authenticated
+Gateway connection, not one raw connection per Elfie. The semantic boundary is
+split into two channels:
+
+1. **Actor body channel.** An Elfie emits semantic body intents through its
+   body/actor Port. The Godot Adapter returns accepted, started, terminal,
+   blocked, cancelled or timed-out receipts to the originating body.
+2. **World channel.** Godot world facts enter the Nest boundary. Nest applies
+   room rules and interaction propagation; Orchestration delivers resulting
+   typed perceptions to the affected Elfies.
+
+Actor commands need not be mechanically relayed through Nest, while global
+world facts must not bypass Nest authority. Both Ports may be implemented by
+one shared Godot Gateway Adapter.
+
+Godot protocol transport, authority-host selection, artifacts and process
+launch belong to `infrastructure/godot/`. Godot source assets and physical
+authority remain in root `godot_project/`. Nest and Elfie never import
+Godot-specific transport or process implementations.
+
+## Bootstrap and Orchestration
+
+`app/bootstrap/` is the only production composition root. It creates concrete
+Adapters, constructs cores and services, injects Ports, owns container object
+lifetimes and registers cleanup. Runtime component start, stop and restart
+decisions and workflows belong exclusively to `app/orchestration/lifecycle`;
+Bootstrap only constructs and invokes that public lifecycle boundary. Tests and
+isolated development tools may construct fakes or sandbox containers without
+becoming a second production composition root. Bootstrap contains no product
+branch, world rule, protocol mapping or persistence logic.
+
+`app/orchestration/` executes runtime workflows that cross authorities. It may
+coordinate Elfie, Nest and injected capability contracts, but it does not
+construct concrete Infrastructure, act as a Service Locator, or proxy ordinary
+Food/model/tool calls. Bootstrap wires; Orchestration conducts.
+
+## Persistence, tools and static resources
+
+Domain cores own semantic storage Ports and domain models. Infrastructure owns
+connections, SQL, schemas, transactions, paths, serialization, atomic writes
+and technical records. No database row, connection, raw dictionary or user
+path crosses a domain boundary.
+
+Elfie Skills describe what a particular Elfie may request and remain in Elfie.
+App Features own administrator-facing global enablement and configuration.
+Search, file, code or device execution implementations belong to
+`infrastructure/tools/` and remain subject to tool safety and bounded-result
+contracts.
+
+Immutable resources shipped as part of a domain, such as default personality,
+species or emotion mappings, may remain with that domain. User data, mutable
+configuration, Runtime state and generated files use Infrastructure adapters.
+
+## Boundary models and errors
+
+Every public facade and Port uses named, strict models owned by the boundary's
+consumer or provider. HTTP DTOs, domain models, Port models, protocol frames and
+persistence records are distinct. Mapping occurs in Adapters or
+Orchestration, never through unvalidated `Any` or unconstrained dictionaries.
+
+Infrastructure failures are translated into stable domain/application errors
+before they reach a facade. Timeouts, cancellation, retry, idempotency and
+receipt semantics are explicit for every external operation.
+
+## Testing and change containment
+
+Elfie and Nest unit tests use in-memory or fake Port implementations and do not
+require SQLite, files, networks, devices or Godot. Infrastructure adapters have
+focused integration tests. Bootstrap has wiring tests, and one real end-to-end
+path proves each migrated cross-system capability.
+
+An internal implementation change that preserves its facade and Ports remains
+inside the owning module. Replacing a technology changes its Adapter. A system
+Port change necessarily migrates the facade/consumer, Adapter and affected
+callers together; architecture isolation reduces accidental cross-module
+changes but does not hide a deliberate contract change.
+
+## Migration and enforcement
+
+Migration is incremental and governance-only changes remain separate from
+production migrations. For each slice:
+
+1. identify the current fact owner and complete call chain;
+2. define or confirm the facade, Port and strict models;
+3. implement the Infrastructure Adapter and Bootstrap wiring;
+4. move every production caller;
+5. delete the old technical implementation and compatibility path for that
+   migrated capability and complete call chain;
+6. reduce the exact conformance baseline and close the ledger item.
+
+New code must follow this contract immediately. Existing deviations may remain
+only when listed in the System conformance register and machine baseline. The
+baseline may decrease but never expand during a product or migration change.
+When every entry reaches zero, the legacy baseline and conformance page are
+deleted and the permanent scanner runs in deny-all mode.
+
+## Deliberate non-goals
+
+This contract does not require a Protocol for every facade or helper, one
+Adapter per Port, one Port per method, a global generic repository, a Service
+Locator, automatic dependency injection, microservices, full CQRS, Event
+Sourcing or distributed transactions.

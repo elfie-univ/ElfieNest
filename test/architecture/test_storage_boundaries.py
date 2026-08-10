@@ -15,6 +15,7 @@ ACTIVE_CHAT_ROUTE_FILES = (
     "app/interfaces/api/ws_gateway.py",
 )
 APPLICATION_SQL_ROOTS = (
+    "app/bootstrap",
     "app/features",
     "app/interfaces",
     "app/orchestration",
@@ -28,6 +29,16 @@ SQL_LITERAL_PATTERN = re.compile(
     r"BEGIN\s+(?:DEFERRED|IMMEDIATE|EXCLUSIVE))\b",
     re.IGNORECASE,
 )
+
+
+def _migration_path(*relative_paths: str) -> Path:
+    """Prefer the target path while accepting one registered current location."""
+
+    for relative_path in relative_paths:
+        candidate = PROJECT_ROOT / relative_path
+        if candidate.is_file():
+            return candidate
+    return PROJECT_ROOT / relative_paths[0]
 
 
 def test_developer_tools_only_reference_production_home_for_an_explicit_guard() -> None:
@@ -48,7 +59,10 @@ def test_developer_tools_only_reference_production_home_for_an_explicit_guard() 
 def test_legacy_nest_chat_storage_has_no_runtime_path() -> None:
     offenders = []
     for relative_path in ACTIVE_CHAT_ROUTE_FILES:
-        source = (PROJECT_ROOT / relative_path).read_text(encoding="utf-8")
+        path = PROJECT_ROOT / relative_path
+        if not path.is_file():
+            continue
+        source = path.read_text(encoding="utf-8")
         if (
             "chat_messages" in source
             or "app.infrastructure.persistence.chat_history" in source
@@ -65,11 +79,15 @@ def test_legacy_nest_chat_storage_has_no_runtime_path() -> None:
     assert not (PROJECT_ROOT / "app/infrastructure/persistence/schema.py").exists()
     assert not (PROJECT_ROOT / "app/infrastructure/persistence/nest_schema.py").exists()
     graph_storage = PROJECT_ROOT / "elfie/brain/memory/graph_storage.py"
-    assert "graph_memory.db" not in graph_storage.read_text(encoding="utf-8")
+    if graph_storage.is_file():
+        assert "graph_memory.db" not in graph_storage.read_text(encoding="utf-8")
 
 
 def test_data_home_declares_production_developer_and_elfie_workspace_roots() -> None:
-    source_path = PROJECT_ROOT / "ai_runtime" / "storage" / "data_home.py"
+    source_path = _migration_path(
+        "infrastructure/persistence/data_home.py",
+        "ai_runtime/storage/data_home.py",
+    )
     functions = {
         node.name
         for node in ast.walk(ast.parse(source_path.read_text(encoding="utf-8")))

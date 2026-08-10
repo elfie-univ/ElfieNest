@@ -1,5 +1,9 @@
 # 模块边界
 
+> 本文描述当前可运行边界。规范性目标只由[系统契约](../contracts/system)和
+> [应用契约](../contracts/application)定义；已知偏差记录在
+> [一致性台账](../conformance/)中。
+
 ## 根模块职责
 
 | 模块 | 负责 | 不负责 |
@@ -23,7 +27,7 @@
 不会重建导航、碰撞、坐标或渲染。
 
 Observer 是面向产品、已认证的语义投影。它只能读取被授权的房间或归属自己的 Elfie
-范围，并且只能发送[运行时与数据](./architecture-runtime)中记录的封闭高层 intent。
+范围，并且只能发送[运行时与数据](./runtime)中记录的封闭高层 intent。
 它不是第二个权威，也不是 Godot 协议帧的转发通道。
 
 ## 依赖方向
@@ -32,9 +36,13 @@ Observer 是面向产品、已认证的语义投影。它只能读取被授权�
 app/bootstrap → app/orchestration → elfie / nest / ai_runtime
 app/orchestration/lifecycle → godot_runtime → 已导出 Godot 权威
 app/interfaces/desktop → 公开 lifecycle CLI 与已认证 Observer 表面
-app/interfaces → app/features → app/infrastructure
+app/interfaces → app/features
+app/infrastructure → Feature / Orchestration Port
+app/bootstrap → interfaces + features + orchestration + infrastructure
 ```
 
-底层模块不反向依赖 `app.interfaces`。interfaces、features 和 infrastructure 只能使用
+底层模块不反向依赖 `app.interfaces`。Interface、Feature 和 Infrastructure 只能使用
 公开的 Observer/Gateway 读取表面，不能构造权威宿主或发送原始 Runtime 帧。任何跨边界
-变更都必须同步更新架构测试及英文和简体中文文档。
+变更都必须同步更新架构测试及英文和简体中文文档。Feature 不导入具体
+Infrastructure；运行时调用只能通过注入的、由消费方定义的 Port 到达 Adapter。规范性
+细节见[应用架构契约](../contracts/application)。

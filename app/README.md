@@ -6,7 +6,7 @@
 
 `app/` is the product application layer of ElfieNest: it owns user use-cases and
 inbound interfaces, composes infrastructure, and performs application-level
-orchestration whenever a flow has to cross `elfie/`, `nest/` and `ai_runtime/`.
+orchestration only when a flow crosses `elfie/`, `nest/` or another authority.
 
 ## Responsibilities and non-responsibilities
 
@@ -16,8 +16,7 @@ Responsible for:
 - Inbound interfaces: HTTP, Web and CLI;
 - Product infrastructure adapters: databases, file systems and device
   capabilities;
-- Cross-module flows between real Elfies, the Nest, the AI Runtime and the
-  Godot channel;
+- Cross-authority flows between real Elfies, the Nest, Godot and devices;
 - Application-level lifecycle orchestration of desktop service processes.
 
 Not responsible for:
@@ -39,7 +38,7 @@ app/
 ├── features/        # Product use-cases: accounts, adoption, configuration, setup, ...
 ├── infrastructure/  # Adapters: persistence, filesystem, devices, ...
 ├── interfaces/      # Inbound interfaces: api, cli, web
-└── orchestration/   # Cross-cutting flows across Elfie, Nest, AI Runtime and platforms
+└── orchestration/   # Cross-authority flows across Elfie, Nest, Godot and platforms
 ```
 
 ## Public entry points
@@ -60,18 +59,30 @@ app/
 IDs and in-nest state; no other module may build its own composition of Elfies
 and activity spaces.
 
-## Dependency direction
+## Architecture contract
+
+The versioned target for new and migrated application code is the
+[Application architecture contract](../docs/developer/contracts/application.md).
+Known legacy deviations and their removal gates are tracked in
+[Application conformance](../docs/developer/conformance/application.md). The
+register does not authorize new violations.
+
+The target dependency direction is:
 
 ```text
-interfaces    ──> features / orchestration
-features      ──> infrastructure + each domain's public API
-orchestration ──> elfie + nest + ai_runtime
+interfaces    ──> public feature use-cases / orchestration facades
+features      ──> owned models and ports + approved domain public APIs
+orchestration ──> application ports + elfie / nest public APIs
+infrastructure──> implements feature/orchestration ports + technical libraries
 bootstrap     ──> all of the above (wiring only)
 ```
 
-Product flows that cross `elfie/`, `nest/` and `ai_runtime/` belong in
-`app/orchestration/`. Lower layers must not import `app.interfaces` in reverse
-to call product features.
+Product flows that cross Elfie, Nest or another authority belong in
+`app/orchestration/`; an Elfie's ordinary Food read, model call or tool execution
+does not. Concrete adapters are created in `bootstrap/` and injected through
+Ports; lower layers must not import `app.interfaces` in reverse. Some legacy
+paths still violate this target and must shrink through domain-by-domain
+migration rather than be copied into new code.
 
 ## Run & debug
 

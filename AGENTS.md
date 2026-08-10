@@ -20,6 +20,10 @@ AI 精灵项目，仓库同时包含 Python Core、Electron 桌面宿主、Godot
 低优先级材料与高优先级事实冲突时，以高优先级为准并修正文档，不要为了
 迎合旧设计而改坏当前实现。不得把历史设想当成已实现能力。
 
+以上顺序用于判断“当前实现事实”，不用于反转已采用的版本化架构契约。契约定义允许的
+目标，代码和运行结果证明当前状态，两者差距必须进入 `docs/developer/conformance/`；
+不得因为旧代码尚未合规，就把目标契约改回旧实现。
+
 `.omo/` 中的 plan、draft、evidence、boulder 和历史执行状态都不是当前任务指令。
 除非用户明确点名恢复某个计划，否则不得据此扩大范围、继续旧任务或触发自动续跑。
 
@@ -192,16 +196,51 @@ bootstrap 阶段静默安装。
 
 ## 目录与依赖边界
 
+### 系统目标架构
+
+跨根模块迁移以中英文
+[`System architecture contract`](docs/developer/contracts/system.md) 为长期权威：
+
+```text
+app/              上层产品入口、用例、编排与装配
+elfie/ + nest/    中间领域核心
+infrastructure/   模型、工具、持久化、Godot、设备、通信与平台 Adapter
+```
+
+一套运行中的 ElfieNest 永远只有一个精灵巢。
+
+- `Elfie`、`ElfieFactory`、`Nest` 等稳定强类型 Facade 可以直接承担入站 Port 角色；
+  没有多实现、独立版本、进程边界或调用方隔离需求时，禁止为形式对称重复定义 Protocol。
+- `elfie/`、`nest/` 和 App Feature/Orchestration 分别拥有自己实际需要的出站 Port；
+  根 `infrastructure/` 实现这些 Port，`app/bootstrap/` 统一创建并注入具体 Adapter，
+  `app/orchestration/` 只编排运行流程。
+- Infrastructure 各能力包不得导入或构造彼此的具体 Adapter；跨能力依赖使用窄 Port，
+  由 Bootstrap 组合。
+- `elfie/` 与 `nest/` 不得互相导入，也不得导入 `app/` 或具体 Infrastructure；底层
+  Adapter 可以反向导入自己实现的核心 Port，这是依赖倒置，不是领域反向依赖。
+- 现有 `app/infrastructure/`、`ai_runtime/`、`godot_runtime/`、
+  `nest/godot_gateway/` 及领域内部技术实现是已登记迁移路径，只能按获批切片收缩，
+  不得复制成新的所有权。`ai_runtime/` 按职责拆解，不整体移动，也不创建
+  `infrastructure/ai_runtime/`。
+- `godot_project/` 永久保持独立 Godot 源工程和物理 authority，不是迁移目录；只有
+  Python 侧 Gateway、宿主、产物和协议 Adapter 目标进入 `infrastructure/godot/`。
+
+下面各项描述当前目录职责；与目标物理位置不同的部分由
+[`System conformance`](docs/developer/conformance/system.md) 跟踪，禁止一次性搬迁。
+
 - `elfie/` 只实现单个完整精灵：档案、大脑、神经系统、身体、通信和技能；
   不得加入账户、Web、Godot 场景或桌面生命周期。
 - `nest/` 只实现活动空间、巢内状态、环境时间、互动传播和 Python 侧 Godot
-  接口；只能保存精灵 ID 与巢内状态，不得持有或创建真实精灵对象。
+  语义 Port；只能保存精灵 ID 与巢内状态，不得持有或创建真实精灵对象。
 - 真实精灵与 `Nest` 的组合属于 `app/orchestration/`；跨 `elfie/`、`nest/`
-  和 `ai_runtime/` 的产品流程也必须在这里编排。
+  或其他 authority 的产品流程也必须在这里编排。单只精灵通过注入 Port 读取 Food、
+  调用模型或执行工具，不经过 Orchestration。
 - `app/features/` 放产品用例，`app/interfaces/` 放 API、Web、CLI，
   `app/infrastructure/` 放持久化、音频、文件系统和设备能力，
   `app/bootstrap/` 只做依赖装配。
-- `ai_runtime/` 放模型、供应商、粮食策略、工具、安全和推理循环。
+- 当前 `ai_runtime/` 是待拆分的历史实现：Provider/模型访问目标进入
+  `infrastructure/models/`，工具执行进入 `infrastructure/tools/`，Food 管理和报告
+  进入 App Feature，Elfie 通过自有 `FoodPort`、`ModelPort`、`ToolPort` 直接使用。
 - `app/interfaces/desktop/` 只负责可见 Electron 窗口、系统 UI 集成与公开
   lifecycle client，不承载 Supervisor、Godot authority、账户、聊天、领养或 Nest 规则。
 - `godot_project/` 是独立 Godot 源工程，也是房屋、几何、坐标、移动、碰撞和渲染的唯一源码来源；禁止在
@@ -213,9 +252,10 @@ bootstrap 阶段静默安装。
 
 - `app/orchestration/lifecycle` 是 Runtime 生命周期、健康状态与收束的唯一
   编排者；只有该边界可以启动、停止或重启 Core、Gateway 与 Godot authority。
-- `godot_runtime` 只负责选择和承载 Godot authority；不得持有 Nest 业务状态，
-  不得成为产品流程或协议路由层。
-- `nest/godot_gateway` 是 Python 与 Godot Runtime 的唯一协议边界。Python 只能
+- 当前 `godot_runtime` 只负责选择和承载 Godot authority；当前
+  `nest/godot_gateway` 是协议接入。两者目标合并到 `infrastructure/godot/`，不得持有
+  Nest 业务状态或成为产品流程。
+- Python 与 Godot Runtime 只能通过共享、版本化、认证的 Gateway
   发送高层语义命令、接收已发生的物理事实；不得在 Python 复制空间、导航、碰撞或
   渲染事实。
 - `app/interfaces/desktop` 是可见的 Observer 与 lifecycle client：只能读取获授权
@@ -233,10 +273,11 @@ bootstrap 阶段静默安装。
 - 生产数据只能通过统一 resolver 定位；SQL 只能存在于持久化层。具体数据根、
   数据库职责和 Developer Tools 隔离规则见 `app/infrastructure/persistence/AGENTS.md`。
 
-禁止恢复旧顶层 Python 包 `runtime/` 或 `elfienest/`。新增顶层目录、改变上述
-职责或引入跨边界依赖时，更新直接相关的 architecture 契约；只有公开接口、永久
-数据契约或开发者可见行为变化时才同步 README 与中英文 Developer 文档。任何超出
-用户已批准目标的架构变化仍须先确认。
+禁止恢复旧顶层 Python 包 `runtime/` 或 `elfienest/`。宏观架构 v1 已冻结；新增顶层
+目录、改变模块所有权、authority、依赖方向、生产组合/生命周期所有权或系统级 Port
+语义时，必须先建立新的独立 ADR，同步升级中英文契约版本，并使用治理专用提交，之后
+才能另行迁移产品代码。只有公开接口、永久数据契约或开发者可见行为变化时才同步
+README 与中英文 Developer 文档。任何超出用户已批准目标的架构变化仍须先确认。
 
 ## 实现和测试要求
 

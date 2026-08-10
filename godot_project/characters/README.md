@@ -11,7 +11,7 @@ complete Elfie identity. An Elfie's species, appearance, personality,
 capabilities, memory and runtime state belong to `elfie/`; the current
 responsibility boundary is documented in the
 [Elfie module guide](../../elfie/README.md) and the
-[Developer architecture doc](../../docs/developer/architecture.md).
+[Developer architecture doc](../../docs/developer/architecture/index.md).
 
 ## Current structure
 

@@ -4,6 +4,11 @@ This document describes the module boundaries and runtime pipeline in the
 current ElfieNest code. It is not a historical roadmap, and it does not write
 unimplemented designs into the current architecture.
 
+> This is a descriptive current-state map, not a normative target. Final
+> ownership and dependency rules live in the [architecture contracts](../contracts/);
+> temporary differences between this map and those targets live only in the
+> [conformance registers](../conformance/).
+
 ## System map
 
 <img src="/assets/elfienest-system-architecture.svg" alt="Nested ElfieNest system architecture. Black arrows show cross-module data and protocol flow; red arrows show concrete entrypoint and internal control flow." />
@@ -14,9 +19,11 @@ control path. In particular, `ElfieFactory` creates or restores an `Elfie`
 instance; runtime operations then use the returned `elfie.py` facade.
 
 `app/orchestration` directly composes `elfie`, `nest` and `ai_runtime`. It is
-not downstream of `app/features` or `app/infrastructure`: those two form the
-separate product-use-case path `app/interfaces → app/features →
-app/infrastructure`.
+not downstream of `app/features` or `app/infrastructure`. In the product
+use-case plane, Interfaces call concrete Feature use-cases; Features declare
+the Ports they need, Infrastructure implements those Ports, and Bootstrap is
+the only composition root. Current historical deviations are tracked in the
+[App conformance register](../conformance/application).
 
 The core source is split by responsibility:
 
@@ -26,8 +33,8 @@ The core source is split by responsibility:
 | `nest/` | Activity-space state, environment clock, interaction and the Godot protocol boundary | [Nest README](https://github.com/elfie-univ/ElfieNest/blob/main/nest/README.md) |
 | `ai_runtime/` | Models, providers, policy, food, tools and the safety runtime | [AI Runtime README](https://github.com/elfie-univ/ElfieNest/blob/main/ai_runtime/README.md) |
 | `app/` | Product use-cases, interfaces, infrastructure and cross-module orchestration | [App README](https://github.com/elfie-univ/ElfieNest/blob/main/app/README.md) |
-| `app/orchestration/lifecycle/` | Runtime lifecycle, full health, owner leases and authority control | [Runtime & data](./architecture-runtime) |
-| `godot_runtime/` | Authority-host selection, exported Runtime launch and artifact metadata | [Runtime & data](./architecture-runtime) |
+| `app/orchestration/lifecycle/` | Runtime lifecycle, full health, owner leases and authority control | [Runtime & data](./runtime) |
+| `godot_runtime/` | Authority-host selection, exported Runtime launch and artifact metadata | [Runtime & data](./runtime) |
 | `app/interfaces/desktop/` | Electron Observer windows and public lifecycle client | [Desktop README](https://github.com/elfie-univ/ElfieNest/blob/main/app/interfaces/desktop/README.md) |
 | `godot_project/` | Standalone Godot source project: rooms, geometry, coordinates, collision, characters and rendering | [Godot README](https://github.com/elfie-univ/ElfieNest/blob/main/godot_project/README.md) |
 | `devtools/` | Module workbenches isolated from the end-user product | [Devtools README](https://github.com/elfie-univ/ElfieNest/blob/main/devtools/README.md) |

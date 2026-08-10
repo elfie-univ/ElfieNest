@@ -5,7 +5,7 @@
 ## 模块定位
 
 `app/` 是 ElfieNest 的产品应用层：承接用户用例和入站接口，组合基础设施，
-并在需要跨越 `elfie/`、`nest/` 与 `ai_runtime/` 时负责应用级编排。
+只在流程跨越 `elfie/`、`nest/` 或其他 authority 时负责应用级编排。
 
 ## 负责与不负责
 
@@ -14,7 +14,7 @@
 - 账户、领养、配置、初始化等产品用例；
 - HTTP、Web、CLI 等入站接口；
 - 数据库、文件系统和设备能力等产品基础设施适配；
-- 真实精灵、Nest、AI Runtime 与 Godot 通道之间的跨模块流程；
+- 真实精灵、Nest、Godot 与设备之间的跨 authority 流程；
 - 桌面服务进程的应用级生命周期编排。
 
 不负责：
@@ -33,7 +33,7 @@ app/
 ├── features/        # accounts、adoption、configuration、setup 等产品用例
 ├── infrastructure/  # persistence、filesystem、devices 等适配器
 ├── interfaces/      # api、cli、web 入站接口
-└── orchestration/   # 跨 Elfie、Nest、AI Runtime 和平台的流程编排
+└── orchestration/   # 跨 Elfie、Nest、Godot 和平台的流程编排
 ```
 
 ## 公开入口
@@ -49,17 +49,27 @@ app/
 `NestSession` 持有真实精灵对象，Nest 只接收精灵 ID 和巢内状态；其他模块不得另建
 一套精灵与活动空间的组合关系。
 
-## 依赖方向
+## 架构契约
+
+新增和已迁移应用代码的版本化目标见
+[应用架构契约](../docs/zh/developer/contracts/application.md)。当前历史偏差和删除
+门槛记录在[应用架构一致性台账](../docs/zh/developer/conformance/application.md)；台账
+不能授权新增违规。
+
+目标依赖方向为：
 
 ```text
-interfaces ──> features / orchestration
-features   ──> infrastructure + 各领域公开 API
-orchestration ──> elfie + nest + ai_runtime
-bootstrap  ──> 以上模块（仅装配）
+interfaces    ──> Feature 公开用例 / Orchestration 公开门面
+features      ──> 自有模型和 Port + 获准的领域公开 API
+orchestration ──> App Port + elfie / nest 公开 API
+infrastructure──> 实现 Feature/Orchestration Port + 技术库
+bootstrap     ──> 以上模块（仅装配）
 ```
 
-跨 `elfie/`、`nest/` 和 `ai_runtime/` 的产品流程进入 `app/orchestration/`。
-下层模块不得为了调用产品功能而反向导入 `app.interfaces`。
+跨 Elfie、Nest 或其他 authority 的产品流程进入 `app/orchestration/`；单只精灵普通的
+Food 读取、模型调用和工具执行不进入。具体 Adapter 由 `bootstrap/` 创建并通过 Port
+注入；下层模块不得为了调用产品功能而反向导入 `app.interfaces`。当前仍有部分历史
+调用违反目标，只能按业务域逐步缩减，不得复制到新代码。
 
 ## 运行与调试
 

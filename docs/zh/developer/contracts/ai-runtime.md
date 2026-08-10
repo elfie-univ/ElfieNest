@@ -1,34 +1,41 @@
-# AI Runtime 设计契约
+# 模型、Food 与工具行为契约
 
-**契约版本：** 1.1
-**冻结日期：** 2026-07-31
+**契约版本：** 1.4
+**修订日期：** 2026-08-10
 
-> **规范性权威。** 本文档是 ElfieNest AI Runtime 的唯一设计权威。代码、API、
-> 页面、持久化和测试都必须遵守本文档。其他文档只能摘要或链接本文档，不能重新
-> 定义 Provider、模型、粮食或工具行为。当前偏差记录在
-> [AI Runtime 实现一致性台账](./ai-runtime-conformance)。
+> **拆解期间的行为权威。** 本文保留当前 `ai_runtime/` 下已经接受的 Provider、模型、
+> Food 与工具行为，但不定义目标 AI Runtime 模块。目标所有权、依赖和物理位置由
+> [系统架构契约](system)统一控制。当前偏差记录在
+> [AI Runtime 实现一致性台账](../conformance/ai-runtime)。
 > 英文和中文文件是同一份逻辑契约的语言镜像，任何修改都必须同步完成。
 
 实现阶段可以修改代码、测试和一致性台账，但不能顺手修改本文档。确需改变行为时，
 必须先显式修订契约版本，再开始实现。
 
+当前顶层 `ai_runtime/` 是已登记迁移包，按职责拆解而不是整体移动。Provider/模型
+访问进入 `infrastructure/models/`，工具执行进入 `infrastructure/tools/`，持久化进入
+Infrastructure Adapter，管理员 Food 配置、生成和报告进入 App Feature，Elfie 通过
+自有注入 Port 直接使用 Food、模型和工具能力。
+
 ## 目标与边界
 
-AI Runtime 为精灵提供模型推理和安全原生工具，但不持有精灵、用户账号、Nest、
+本文描述的能力为精灵提供模型访问和安全原生工具，但不持有精灵、用户账号、Nest、
 Godot 或应用生命周期。
 
 | 边界 | 负责内容 |
 | --- | --- |
-| `ai_runtime/` | Provider 产品和连接、endpoint 模型、粮食定义与解析、模型执行、工具、权限、验证和派生报告 |
+| `infrastructure/models/` | Provider 目录/发现、连接协议、Endpoint 模型观测、技术验证和模型调用 Adapter |
+| `infrastructure/tools/` | 搜索、受限工作区文件、沙箱及其他工具执行 Adapter |
 | `elfie/` | 单只精灵的大脑、记忆、情绪和 Skills；只请求语义模型角色和允许工具，不选择 Provider |
-| `app/features/` | Owner 用例、用户粮食授权和页面投影 |
-| `app/infrastructure/` | Nest 数据库和文件系统适配 |
-| `app/orchestration/` | 解析精灵当前生效粮食，并组合精灵请求与 AI Runtime |
+| `app/features/` | Provider 连接管理和凭据引用、Food 管理/生成、模型管理报告、验证调度策略、全局工具配置和页面投影 |
+| `infrastructure/persistence/`（目标；当前为 `app/infrastructure/`） | Nest 数据库和文件系统适配 |
+| Elfie 自有 Port | 直接读取 Food、调用模型和执行已批准工具；Infrastructure 实现，Bootstrap 注入 |
 | `app/interfaces/` | Owner API 和可见页面，不持有独立 Runtime 事实 |
-| `app/orchestration/lifecycle/` | 定期验证调度和 Runtime 进程生命周期 |
+| App 自有 Scheduler/Runner Port | 执行由模型管理 Feature 定义策略的定时验证任务 |
+| `app/orchestration/lifecycle/` | 只负责 Runtime 进程启动、停止、重启和技术就绪状态 |
 
-仓库不创建顶层 `runtime/` Python 包。Godot、语音、视频和未来感知 Runtime 可以
-由应用层继续组合，但不会改变 `ai_runtime/` 的权威边界。
+目标架构不存在顶层 `ai_runtime/` 或通用 `runtime/` Python 包。Godot、语音、视频和
+未来感知 Runtime 可以由应用层继续组合，但不能重新创建这两个包。
 
 ## 两个能力平面
 
@@ -271,22 +278,27 @@ flowchart LR
   RP --> EV["模型证据投影"]
   EV --> FP["粮食规划与编辑"]
   FP --> FC["粮食目录"]
-  DB["Nest DB 授权与精灵主粮 ID"] --> OR["应用编排"]
-  FC --> OR
-  OR --> GW["AI Runtime Gateway"]
+  FC --> DB["Food Record 与精灵主粮 ID"]
+  EL["Elfie 认知"] --> FPOR["Elfie FoodPort"]
+  FPOR --> FA["Infrastructure 持久化 Adapter"]
+  FA --> DB
+  EL --> MPOR["Elfie ModelPort"]
+  MPOR --> GW["Infrastructure 模型 Adapter"]
   GW --> PA["Provider Adapter"]
   PA --> RP
 ```
 
 每次生成严格执行：
 
-1. 编排层读取精灵保存的主粮 ID；
-2. 检查用户授权以及粮食的启用、归档和健康状态；
-3. 请求 `primary`、`reasoning`、`vision` 或 `tool` 语义角色；
+1. Elfie 通过注入的 `FoodPort` 读取当前有效 Food 投影；
+2. 持久化 Adapter 根据 App 写入的可见性、授权、分配和套餐选择事实解析请求中的
+   Elfie 作用域，不重新作出授权决策；
+3. Elfie 选择 `primary`、`reasoning`、`vision` 或 `tool` 语义角色；
 4. 可选角色缺失时回到同一粮食的 `primary`；
-5. 执行所选角色，然后尝试同一粮食中唯一配置的 fallback 模型，不能跨到未列出的订阅；
-6. 只有主粮全部候选失败后，Runtime 才尝试一次全局保底粮；
-7. 保底缺失或也失败时返回类型化的 `no_available_food`；
+5. Elfie 通过 `ModelPort` 调用所选角色，然后尝试同一粮食中唯一配置的 fallback
+   模型，不能跨到未列出的订阅；
+6. 只有主粮全部候选失败后，Elfie 的解析器才尝试一次全局保底粮；
+7. 保底缺失或也失败时，返回类型化的 `no_available_food`；
 8. 每次尝试和回退原因都脱敏记录。
 
 Brain 只请求语义角色，不能导入粮食、Provider、凭据或 Nest DB 模型。结构化生成与
@@ -303,8 +315,8 @@ Brain 只请求语义角色，不能导入粮食、Provider、凭据或 Nest DB 
 - **健康：** 读取时根据启用状态、最近验证和模型可用性计算的投影。
 
 验证与运行报告统一使用独立的 `reports/ai-runtime.sqlite`，不写入 `nest.db`，也不为
-每条结果生成一个 YAML 文件。`nest.db` 继续只负责账号、归属和 Nest 产品事实；报告
-数据的追加频率、保留策略和查询方式都不同。
+每条结果生成一个 YAML 文件。`nest.db` 是多个消费方自有事实的物理持久化存储，不是
+这些事实的语义 authority；报告数据的追加频率、保留策略和查询方式都不同。
 
 报告数据库采用追加写入，并由唯一 Report Repository 持有。至少记录：
 
@@ -323,13 +335,15 @@ Brain 只请求语义角色，不能导入粮食、Provider、凭据或 Nest DB 
 YAML/JSON 到 `reports/exports/`，但程序绝不能把导出文件读回事实源。
 
 数据库使用 WAL、短事务和基于稳定对象 ID 的索引，Schema 迁移必须显式执行。定期
-验证、订阅过期提醒和调度只能由应用生命周期所有者实现。
+验证和订阅过期提醒属于模型管理 Feature 策略，通过 App 自有 Scheduler/Runner Port
+执行，不属于 Runtime 进程生命周期决策。
 
 一期保存显式触发的单次验证。二期可以在同一数据库中增加两层证据：
 
 - **运行证据：** 从真实 Runtime 调用中脱敏统计成功/失败次数、首字与总延迟、token
   总量以及配额/认证失败，按滚动时间窗口聚合，不保存提示词或回复正文；
-- **定时健康证据：** 由生命周期所有者每小时或每天刷新已配置连接，并重建滚动摘要。
+- **定时健康证据：** Scheduler/Runner 根据模型管理 Feature 策略，每小时或每天刷新
+  已配置连接，并重建滚动摘要。
 
 运行证据可以比较同一模型在不同订阅中的延迟和可靠性，但不能根据互不相同的私人聊天
 推断模型质量。质量对比属于后续受控基准测试，所有候选必须使用相同提示、评分方法和
@@ -361,11 +375,12 @@ flowchart LR
 
 一期只有一个全局工具配置页面，不提供按精灵开关。实际可用工具是“全局启用工具、
 精灵内部 Skill 请求、已实现的安全工具注册表、逐次调用的安全权限决策”四者交集。Skills 位于
-`elfies/<elfie_id>/skills/`，共享工具实现位于 `ai_runtime/tools/`，工具绝不写入
-粮食配置。
+`elfies/<elfie_id>/skills/`，共享工具实现当前位于迁移路径 `ai_runtime/tools/`，目标
+执行 Adapter 位于 `infrastructure/tools/`；工具绝不写入 Food 配置。
 
-应用编排层随每次请求传入当前精灵工作区根目录。只读文件工具只能访问该工作区和明确
-获准的共享资源根，不能读取其他精灵工作区、凭据、报告或 Runtime 状态。
+注入的 Tool Adapter 随每次请求接收当前精灵获授权的工作区根目录。只读文件工具只能
+访问该工作区和明确获准的共享资源根，不能读取其他精灵工作区、凭据、报告或 Runtime
+状态。
 
 每个工具都必须定义超时、条目和字节限制。普通与结构化生成共用的工具循环还会强制一份
 总字节和调用次数预算。执行器用统一有界结果信封包装输出，记录 `truncated`、原始大小和保留大小。密钥、允许根目录外路径和不安全命令能力不能进入
@@ -481,7 +496,8 @@ tools:
 5. 使用本地优先范围生成保底粮，使用指定连接范围生成常用粮，预览 diff、手工调整
    角色/模型绑定并保存；
 6. 新增一份自定义粮食，授权给一个用户，并为一只精灵选择；
-7. 通过真实编排链路执行主模型、推理模型、回退模型和一次安全工具调用；
+7. 通过真实 Elfie Port 链路执行主模型、推理模型、回退模型和一次安全工具调用，且不
+   经过 App Orchestration 代理；
 8. 停用主连接后观察到保底粮回退；
 9. 再停用保底粮后得到 `no_available_food`；
 10. 从 SQLite 查询当前、历史时点和完整 run 报告，覆盖 Provider、模型、模型对比、

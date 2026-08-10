@@ -7,7 +7,7 @@
 外貌只是完整个体档案的一部分。物种、运动形态、人格、背景、偏好、能力、
 记忆和运行状态由 `elfie/` 负责；当前模块与系统边界见
 [Elfie 模块说明](../../elfie/README.md)和
-[Developer 架构文档](../../docs/developer/architecture.md)。
+[Developer 架构文档](../../docs/developer/architecture/index.md)。
 
 本文是外貌系统的设计契约，不替代角色从图片到 GLB 的制作流程。基础模型、
 骨架和尾巴制作见 [角色创建与集成手册](CHARACTER_CREATION_GUIDE.md)。在

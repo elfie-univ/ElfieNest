@@ -8,7 +8,7 @@
 角色资源只负责物种外观和具身表现，不是完整精灵身份。精灵的物种、外貌、
 人格、能力、记忆和运行状态属于 `elfie/`；当前职责边界见
 [Elfie 模块说明](../../elfie/README_zh.md)和
-[Developer 架构文档](../../docs/zh/developer/architecture.md)。
+[Developer 架构文档](../../docs/zh/developer/architecture/index.md)。
 
 ## 当前结构
 

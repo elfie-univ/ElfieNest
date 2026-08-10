@@ -49,16 +49,19 @@ ai_runtime/
 └── lab/         # Local interactive runtime lab
 ```
 
-Shared tool implementations belong here. Personal skill definitions and learned
-skill state belong to the corresponding Elfie workspace, not to the Runtime.
+Shared tool implementations currently live here. The target architecture
+decomposes this migration package; personal skill definitions and learned skill
+state still belong to the corresponding Elfie workspace.
 
-## Design authority
+## Behavior and migration authority
 
 The normative Provider, model, food, tool, persistence and acceptance contract
-is [AI Runtime design contract](../docs/developer/architecture-ai-runtime.md).
-This README is only a module map and does not redefine that behavior. Current
-implementation deviations are tracked separately in
-[AI Runtime conformance](../docs/developer/ai-runtime-conformance.md).
+is the [model, Food and tool behavior contract](../docs/developer/contracts/ai-runtime.md).
+Target ownership is defined by the
+[system architecture contract](../docs/developer/contracts/system.md); there is
+no target `ai_runtime/` module. This README maps only the current package.
+Implementation deviations are tracked separately in
+[AI Runtime conformance](../docs/developer/conformance/ai-runtime.md).
 
 ## Public entry points
 
@@ -75,7 +78,7 @@ Structured generation uses `RuntimeAgent.generate_structured()` together with
 layer is responsible for converting the result into the types expected by the
 Elfie cognitive ports.
 
-## Dependency direction
+## Current dependency direction
 
 ```text
 app/orchestration ──> ai_runtime.gateway

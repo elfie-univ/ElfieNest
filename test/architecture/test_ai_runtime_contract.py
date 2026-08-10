@@ -1,8 +1,7 @@
-"""Machine gates for the frozen AI Runtime design contract."""
+"""Machine gates for the temporary model, Food and tool behavior contract."""
 
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -14,18 +13,29 @@ def _source(relative_path: str) -> str:
     return (PROJECT_ROOT / relative_path).read_text(encoding="utf-8")
 
 
-def test_frozen_ai_runtime_contract_hashes_are_unchanged() -> None:
-    expected = {
-        "docs/developer/architecture-ai-runtime.md": (
-            "43dd5b087171f4b07932548b6da9c9f43b8caf73317a820594c8fd1427fb0037"
-        ),
-        "docs/zh/developer/architecture-ai-runtime.md": (
-            "191c97c0e46d201f871d3f393cea0f59724606c9d6db769109f9ab352094696d"
-        ),
-    }
-    for relative_path, digest in expected.items():
-        payload = (PROJECT_ROOT / relative_path).read_bytes()
-        assert hashlib.sha256(payload).hexdigest() == digest
+def test_model_food_tool_contract_defers_target_ownership_to_system() -> None:
+    english = _source("docs/developer/contracts/ai-runtime.md")
+    chinese = _source("docs/zh/developer/contracts/ai-runtime.md")
+
+    assert "**Contract version:** 1.4" in english
+    assert "**契约版本：** 1.4" in chinese
+    assert "does not define a target AI Runtime module" in english
+    assert "不定义目标 AI Runtime 模块" in chinese
+    assert "infrastructure/ai_runtime" not in english
+    assert "infrastructure/ai_runtime" not in chinese
+
+
+def test_food_model_contract_keeps_independent_ports_and_semantic_authority() -> None:
+    english = _source("docs/developer/contracts/ai-runtime.md")
+    chinese = _source("docs/zh/developer/contracts/ai-runtime.md")
+
+    assert 'EL["Elfie cognition"] --> FPOR["Elfie FoodPort"]' in english
+    assert 'EL --> MPOR["Elfie ModelPort"]' in english
+    assert "FPOR --> GW" not in english
+    assert "nest.db` remains the authority" not in english
+    assert "不重新作出授权决策" in chinese
+    assert "物理持久化存储" in chinese
+    assert "语义 authority" in chinese
 
 
 def test_legacy_provider_and_model_owner_routes_are_removed() -> None:

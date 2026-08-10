@@ -1,13 +1,14 @@
-# AI Runtime design contract
+# Model, Food and tool behavior contract
 
-**Contract version:** 1.1
-**Frozen on:** 2026-07-31
+**Contract version:** 1.4
+**Revised:** 2026-08-10
 
-> **Normative authority.** This document is the single design authority for the
-> ElfieNest AI Runtime. Code, APIs, UI, persistence and tests must conform to it.
-> Other documents may summarize or link to this contract but must not redefine
-> Provider, model, food or tool behavior. Current deviations are recorded in
-> [AI Runtime conformance](./ai-runtime-conformance).
+> **Behavior authority during decomposition.** This document preserves the
+> accepted Provider, model, Food and tool behavior currently implemented under
+> `ai_runtime/`. It does not define a target AI Runtime module. Target ownership,
+> dependencies and physical placement are controlled by the
+> [system architecture contract](system). Current deviations are recorded in
+> [AI Runtime conformance](../conformance/ai-runtime).
 > The English and Chinese files are synchronized language mirrors of one
 > logical contract and must change together.
 
@@ -15,24 +16,34 @@ Implementation work may update code, tests and the conformance register without
 changing this contract. A behavior change requires an explicit contract-version
 revision before implementation.
 
+The current `ai_runtime/` root is a registered migration package and is
+decomposed rather than moved intact. Provider/model access targets
+`infrastructure/models/`; tool execution targets `infrastructure/tools/`;
+persistence targets Infrastructure adapters; administrator Food configuration,
+generation and reports target App Features; Elfie consumes Food, model and tool
+capabilities directly through its own injected Ports.
+
 ## Purpose and boundaries
 
-The AI Runtime gives an Elfie model inference and safe native tools without
-owning the Elfie, user accounts, the Nest, Godot or application lifecycle.
+The capabilities described here give an Elfie model access and safe native
+tools without owning the Elfie, user accounts, the Nest, Godot or application
+lifecycle.
 
 | Boundary | Owns |
 | --- | --- |
-| `ai_runtime/` | Provider products and connections, endpoint models, food definitions and resolution, model execution, tools, permissions, validation and derived reports |
+| `infrastructure/models/` | Provider catalog/discovery, connection protocol, endpoint-model observation, technical validation and model-call adapters |
+| `infrastructure/tools/` | Search, bounded workspace-file, sandbox and other tool-execution adapters |
 | `elfie/` | One Elfie's brain, memory, emotion and skills; it requests semantic model roles and allowed tools but does not select Providers |
-| `app/features/` | Owner use cases, user-to-food access and UI projections |
-| `app/infrastructure/` | Nest DB and filesystem adapters |
-| `app/orchestration/` | Resolving an Elfie's effective food and composing Elfie requests with the AI Runtime |
+| `app/features/` | Provider-connection administration and credential references, Food administration/generation, model-management reports, validation scheduling policy, global tool configuration and UI projections |
+| `infrastructure/persistence/` (target; currently `app/infrastructure/`) | Nest DB and filesystem adapters |
+| Elfie-owned Ports | Direct Food reads, model calls and approved tool execution; Infrastructure implements and Bootstrap injects them |
 | `app/interfaces/` | Owner APIs and visible UI; no independent Runtime facts |
-| `app/orchestration/lifecycle/` | Periodic validation scheduling and Runtime process lifecycle |
+| App-owned Scheduler/Runner Port | Executes scheduled validation jobs whose policy belongs to the model-management Feature |
+| `app/orchestration/lifecycle/` | Runtime process start, stop, restart and technical readiness only |
 
-There is no top-level `runtime/` Python package. Godot, speech, video and future
-perception runtimes may be composed by the application later; they do not
-change the authority of `ai_runtime/`.
+There is no target top-level `ai_runtime/` or generic `runtime/` Python package.
+Godot, speech, video and future perception runtimes may be composed by the
+application later without recreating either package.
 
 ## Two capability planes
 
@@ -332,24 +343,29 @@ flowchart LR
   RP --> EV["Model evidence projection"]
   EV --> FP["Food planner and editor"]
   FP --> FC["Food package catalog"]
-  DB["Nest DB access and Elfie primary ID"] --> OR["Application orchestration"]
-  FC --> OR
-  OR --> GW["AI Runtime gateway"]
+  FC --> DB["Food records and Elfie primary ID"]
+  EL["Elfie cognition"] --> FPOR["Elfie FoodPort"]
+  FPOR --> FA["Infrastructure persistence adapter"]
+  FA --> DB
+  EL --> MPOR["Elfie ModelPort"]
+  MPOR --> GW["Infrastructure model adapter"]
   GW --> PA["Provider adapter"]
   PA --> RP
 ```
 
 For every generation:
 
-1. orchestration reads the Elfie's stored primary food ID;
-2. it checks user access and the package's enabled, archived and health state;
-3. it asks for a semantic role: `primary`, `reasoning`, `vision` or `tool`;
+1. Elfie reads its effective Food projection through the injected `FoodPort`;
+2. the persistence Adapter resolves the requested Elfie scope from App-written
+   visibility, grant, assignment and package-selection facts; it does not make
+   a new authorization decision;
+3. Elfie selects a semantic role: `primary`, `reasoning`, `vision` or `tool`;
 4. a missing optional role falls back to that package's `primary`;
-5. execution tries the selected role and then that package's one configured
+5. Elfie invokes `ModelPort` for the selected role and then that package's one configured
    fallback model without crossing to an unlisted subscription;
-6. only after the primary package is exhausted does Runtime try the global
+6. only after the primary package is exhausted does Elfie's resolver try the global
    emergency package once;
-7. if emergency is missing or exhausted, Runtime returns typed
+7. if emergency is missing or exhausted, it returns typed
    `no_available_food`;
 8. every attempt and fallback reason is recorded without secrets.
 
@@ -370,9 +386,9 @@ Configuration, discovery and validation are distinct facts:
 
 Validation and operational reports use the dedicated
 `reports/ai-runtime.sqlite` database, not `nest.db` and not one YAML file per
-result. `nest.db` remains the authority for accounts, ownership and Nest product
-state; report data has a different append rate, retention policy and query
-shape.
+result. `nest.db` is a physical persistence store for several consumer-owned
+facts; it is not their semantic authority. Report data has a different append
+rate, retention policy and query shape.
 
 The report database is append-oriented and owned by one report repository. At
 minimum it records:
@@ -399,8 +415,9 @@ phase-one capabilities. Human-readable YAML or JSON may be exported on demand
 under `reports/exports/`, but exports are never read back as facts.
 
 The database uses WAL mode, short transactions and indexed stable subject IDs.
-Schema migration is explicit. Periodic validation, stale-subscription reminders
-and scheduling belong only to the application lifecycle owner.
+Schema migration is explicit. Periodic validation and stale-subscription
+reminders are model-management Feature policies executed through an App-owned
+Scheduler/Runner Port. They are not Runtime process-lifecycle decisions.
 
 Phase one stores explicit point-in-time validation. Phase two may add two further
 evidence layers in the same database:
@@ -409,8 +426,9 @@ evidence layers in the same database:
   total latency, token totals and quota/auth failures observed from real Runtime
   calls, aggregated over rolling windows without storing prompt or response
   text;
-- **scheduled health evidence:** an hourly or daily lifecycle-owned job that
-  refreshes configured connections and rebuilds rolling summaries.
+- **scheduled health evidence:** an hourly or daily Scheduler/Runner job that
+  refreshes configured connections and rebuilds rolling summaries under the
+  model-management Feature's policy.
 
 Operational evidence may compare latency and reliability for equivalent models
 across subscriptions. It must not infer model quality from unrelated private
@@ -446,13 +464,14 @@ There is one global tool configuration surface in phase one and no per-Elfie
 switch UI. The effective tool set is the intersection of globally enabled
 tools, the Elfie's internal skill request, the implemented safe-tool registry
 and a per-invocation safety permission decision. Skills live
-under `elfies/<elfie_id>/skills/`; shared tool implementations live in
-`ai_runtime/tools/`. Tools never live in food configuration.
+under `elfies/<elfie_id>/skills/`; shared tool implementations currently live
+in migration path `ai_runtime/tools/` and target `infrastructure/tools/`. Tools
+never live in Food configuration.
 
-Application orchestration supplies the current Elfie's workspace root with each
-request. Read-only file access is confined to that workspace plus explicitly
-approved shared asset roots; it cannot read another Elfie's workspace,
-credentials, reports or Runtime state.
+The injected Tool Adapter receives the current Elfie's authorized workspace
+root with each request. Read-only file access is confined to that workspace
+plus explicitly approved shared asset roots; it cannot read another Elfie's
+workspace, credentials, reports or Runtime state.
 
 Every tool defines timeout, item and byte limits. The shared normal/structured
 tool loop also enforces one total byte and call budget. The executor wraps output
@@ -596,7 +615,7 @@ A clean temporary `ELFIE_HOME` must prove:
    and save;
 6. add one custom package, grant it to one user and select it for one Elfie;
 7. run primary, reasoning, fallback and one safe tool request through the real
-   orchestration path;
+   Elfie Port path without an App Orchestration proxy;
 8. disable the primary connection and observe Emergency fallback;
 9. disable Emergency and receive `no_available_food`;
 10. query current, historical as-of and complete-run reports from SQLite,

@@ -5,10 +5,20 @@ Developer 文档按“先理解、再修改、最后交付”的顺序组织。�
 
 ## 先理解系统
 
-- [当前架构](./architecture)：系统全景、核心调用链和进程边界。
-- [模块边界](./architecture-boundaries)：每个根模块负责什么、不负责什么。
-- [认知信息流](./architecture-cognitive-flow)：从感知输入到执行回执的类型化流程。
-- [运行时与数据](./architecture-runtime)：配置、数据、服务和构建产物如何隔离。
+- [当前架构](./architecture/)：系统全景、核心调用链和进程边界。
+- [架构契约](./contracts/)：长期保留的规范性规则。
+- [仓库架构治理](./contracts/repository-governance)：契约、ADR、本地 Agent 规约、
+  Scanner、基线和 CI 如何组成一套可执行的质量闭环。
+- [系统架构契约](./contracts/system)：四大目标模块、系统级 Ports/Adapters 和迁移方向。
+- [系统架构一致性台账](./conformance/system)：根模块和技术边界的临时迁移台账。
+- [应用架构契约](./contracts/application)：`app/` 新增和已迁移代码的所有权、
+  依赖方向、Port/Adapter 和组合根规范。
+- [应用架构一致性台账](./conformance/application)：当前 App 架构债务的临时台账和
+  精确删除门。
+- [模块边界](./architecture/module-boundaries)：每个根模块负责什么、不负责什么。
+- [认知信息流](./architecture/cognitive-flow)：从感知输入到执行回执的类型化流程。
+- [运行时与数据](./architecture/runtime)：配置、数据、服务和构建产物如何隔离。
+- [架构决策](./decisions/)：长期架构变更的已接受原因。
 
 ## 再开始修改
 

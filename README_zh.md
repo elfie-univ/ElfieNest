@@ -101,7 +101,7 @@ elfienest version
 - [世界观与故事](docs/zh/story/index.md)：写给第一次认识 ElfieNest 的读者；
 - [开始使用](docs/zh/getting-started/index.md)：从源码建立并运行一座 Nest；
 - [开发者文档](docs/zh/developer/index.md)：架构、开发流程与工具；
-- [当前架构](docs/zh/developer/architecture.md)：模块边界和信息流；
+- [当前架构](docs/zh/developer/architecture/index.md)：模块边界和信息流；
 - [命令与开发工具](docs/zh/developer/tooling.md)：CLI、实验台、Godot 与构建入口。
 
 文档站使用 VitePress。站点源码只包含准备公开的最终文档；历史设计、过程证据和
@@ -146,7 +146,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 | [`docs/`](docs/zh/index.md) | VitePress 公开文档站源码 |
 
 完整依赖方向、进程边界、`ELFIE_HOME` 数据边界，以及 `build/`、`dist/` 产物
-规则统一放在[开发者架构文档](docs/zh/developer/architecture.md)中。
+规则统一放在[开发者架构文档](docs/zh/developer/architecture/index.md)中。
 
 ## 许可证
 

@@ -82,12 +82,13 @@ demand — do not maintain Schema files or export scripts in the repo.
 ```text
 app/orchestration ──> elfie
 elfie.elfie ──> profile + brain + nervous_system + body + communication + skills
-brain/output ──> abstract CorticalRuntimePort and execution ports
+brain/output ──> abstract Food, model, tool and execution ports
 ```
 
 `elfie/` does not import `app/`, `nest/` or `ai_runtime/` in reverse. Model
-calls are injected through `CorticalRuntimePort`; concrete Runtime adaptation
-happens in the application orchestration layer.
+and Food access use Elfie-owned Ports; Bootstrap injects concrete Infrastructure
+Adapters directly. Ordinary model/tool calls do not pass through App
+Orchestration.
 
 ## Run & debug
 

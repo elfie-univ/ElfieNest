@@ -36,6 +36,8 @@ def _runtime_imports(path: Path) -> set[str]:
         or module.startswith("godot_runtime.")
         or module == "nest.godot_gateway"
         or module.startswith("nest.godot_gateway.")
+        or module == "infrastructure.godot"
+        or module.startswith("infrastructure.godot.")
     }
 
 

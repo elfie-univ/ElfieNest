@@ -94,7 +94,7 @@ iframe 的快照。
 和具身租约。聊天与记忆不使用根数据库。
 
 Provider、模型、粮食、工具、凭据、报告和 Runtime 收据的所有权只由
-[AI Runtime 设计契约](./architecture-ai-runtime) 定义。完整生产目录树以及
+[AI Runtime 设计契约](../contracts/ai-runtime) 定义。完整生产目录树以及
 “每项持久化事实只能有一个类型化写入者”的规则也只在该契约中维护，本页不再复制这些
 Schema。
 
