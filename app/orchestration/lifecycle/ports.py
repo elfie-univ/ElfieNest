@@ -45,6 +45,15 @@ class HttpProbeResult:
 
 
 @dataclass(frozen=True)
+class ServicePortStatus:
+    """One user-visible loopback service-port observation."""
+
+    port: int
+    name: str
+    running: bool
+
+
+@dataclass(frozen=True)
 class AuthorityHostConfig:
     """Lifecycle-owned connection and generation inputs for the Godot host."""
 

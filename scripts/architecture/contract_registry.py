@@ -94,7 +94,6 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "app/bootstrap/AGENTS.md",
             "app/features/AGENTS.md",
             "app/features/accounts/AGENTS.md",
-            "app/features/administration/AGENTS.md",
             "app/features/configuration/AGENTS.md",
             "app/features/setup/AGENTS.md",
             "app/infrastructure/AGENTS.md",

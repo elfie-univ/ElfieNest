@@ -20,6 +20,7 @@ from app.orchestration.lifecycle.ports import (
     RecoveryLockPort,
     RuntimeChannelPort,
     RuntimeRecordFactory,
+    ServicePortStatus,
     ServiceProcessPort,
 )
 from app.orchestration.lifecycle.runtime_health import RuntimeHealth
@@ -177,6 +178,28 @@ class LifecycleFacade:
 
     def ports_in_use(self, ports: Sequence[int]) -> bool:
         return self._process_port.ports_in_use(ports)
+
+    def default_port_statuses(self) -> tuple[ServicePortStatus, ...]:
+        return self.service_port_statuses(8000, 8766)
+
+    def service_port_statuses(
+        self,
+        http_port: int,
+        websocket_port: int,
+        godot_ws_port: int = 8765,
+    ) -> tuple[ServicePortStatus, ...]:
+        return tuple(
+            ServicePortStatus(
+                port=port,
+                name=name,
+                running=self._process_port.ports_in_use((port,)),
+            )
+            for port, name in (
+                (http_port, "HTTP"),
+                (websocket_port, "WebSocket (admin)"),
+                (godot_ws_port, "WebSocket (Godot)"),
+            )
+        )
 
     def port_occupant_pid(self, port: int) -> Optional[int]:
         return self._process_port.port_occupant_pid(port)

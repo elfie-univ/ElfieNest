@@ -206,7 +206,6 @@ def test_architecture_governance_layout_and_local_rules_exist() -> None:
         "app/AGENTS.md",
         "app/features/AGENTS.md",
         "app/features/accounts/AGENTS.md",
-        "app/features/administration/AGENTS.md",
         "app/features/configuration/AGENTS.md",
         "app/orchestration/AGENTS.md",
         "app/bootstrap/AGENTS.md",

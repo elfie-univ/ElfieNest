@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.bootstrap.lifecycle import create_lifecycle_facade
-from app.features.administration.system_service import PortStatus
 from app.interfaces.cli import lifecycle_commands
+from app.orchestration.lifecycle import ServicePortStatus
 from app.orchestration.lifecycle.ports import ProcessSnapshot
 
 LIFECYCLE = create_lifecycle_facade()
@@ -36,9 +36,9 @@ def test_status_marks_default_ports_as_external_when_pid_belongs_elsewhere(
         ),
     )
     monkeypatch.setattr(
-        lifecycle_commands,
+        LIFECYCLE,
         "default_port_statuses",
-        lambda: [PortStatus(port=8000, name="HTTP", running=True)],
+        lambda: [ServicePortStatus(port=8000, name="HTTP", running=True)],
     )
 
     # When: the user asks for status from the current worktree.
@@ -93,9 +93,9 @@ def test_web_reports_external_port_owner_when_default_health_fails(
         lambda _lifecycle, port=8000: False,
     )
     monkeypatch.setattr(
-        lifecycle_commands,
+        LIFECYCLE,
         "default_port_statuses",
-        lambda: [PortStatus(port=8000, name="HTTP", running=True)],
+        lambda: [ServicePortStatus(port=8000, name="HTTP", running=True)],
     )
     monkeypatch.setattr(lifecycle_commands.webbrowser, "open", opened.append)
     monkeypatch.setattr(

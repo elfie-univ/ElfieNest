@@ -5,9 +5,6 @@ import sys
 from importlib import metadata
 from pathlib import Path
 
-from app.features.administration.system_service import (
-    default_port_statuses,
-)
 from app.features.operations import (
     BackupDatabasesCommand,
     GetUsageStatsQuery,
@@ -18,16 +15,17 @@ from app.features.operations import (
     ResetDatabasesCommand,
 )
 from app.interfaces.cli.packaged_runtime import packaged_application_version
+from app.orchestration.lifecycle import LifecycleFacade
 
 PACKAGE_NAME = "elfienest"
 
 
-def show_status(operations: OperationsFacade) -> None:
+def show_status(operations: OperationsFacade, lifecycle: LifecycleFacade) -> None:
     print("  📊 Service Status")
     print("  " + "=" * 45)
     print()
 
-    for port_status in default_port_statuses():
+    for port_status in lifecycle.default_port_statuses():
         if port_status.running:
             print(f"  ✅ {port_status.name}: running (port {port_status.port})")
         else:

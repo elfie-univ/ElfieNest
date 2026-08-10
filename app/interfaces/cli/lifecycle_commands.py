@@ -20,10 +20,6 @@ from ai_runtime.storage.data_home import (
     get_elfie_home,
     resolve_elfie_home,
 )
-from app.features.administration.system_service import (
-    default_port_statuses,
-    service_port_statuses,
-)
 from app.interfaces.web.frontend_build import FrontendBuildError, ensure_frontend_build
 from app.orchestration.lifecycle import (
     DEFAULT_HTTP_PORT,
@@ -543,7 +539,7 @@ def show_service_status(
     print("  " + "=" * 45)
     print()
     if running is None:
-        port_statuses = default_port_statuses()
+        port_statuses = lifecycle.default_port_statuses()
         external = _external_recorded_service(lifecycle, elfie_home)
         if external is not None:
             pid, cwd, _ = external
@@ -556,7 +552,7 @@ def show_service_status(
     else:
         _, command = running
         ports = service_ports_from_command(command)
-        port_statuses = service_port_statuses(ports[0], ports[2], ports[1])
+        port_statuses = lifecycle.service_port_statuses(ports[0], ports[2], ports[1])
     for port_status in port_statuses:
         is_current_project = running is not None
         state = (
@@ -605,7 +601,9 @@ def open_web_console(lifecycle: LifecycleFacade) -> ServiceLifecycleResult:
                 "  ⚠️  Service not verified by current project PID receipt; start/restart won't take over."
             )
             return ServiceLifecycleResult(status="already_running")
-        if any(port_status.running for port_status in default_port_statuses()):
+        if any(
+            port_status.running for port_status in lifecycle.default_port_statuses()
+        ):
             result = ServiceLifecycleResult(
                 status="failed",
                 error=LaunchFailedError(

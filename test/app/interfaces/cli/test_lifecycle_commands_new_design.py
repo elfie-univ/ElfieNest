@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 
 from app.bootstrap.lifecycle import create_lifecycle_facade
-from app.features.administration.system_service import PortStatus
 from app.interfaces.cli import lifecycle_commands
+from app.orchestration.lifecycle import ServicePortStatus
 from app.orchestration.lifecycle.runtime_health import (
     OwnerLease,
     RuntimeHealth,
@@ -551,7 +551,7 @@ def test_status_does_not_report_desktop_lifecycle(monkeypatch, capsys) -> None:
         lambda *_args: pytest.fail("status must inspect Core only"),
     )
     monkeypatch.setattr(LIFECYCLE, "existing_service_command", lambda *args: None)
-    monkeypatch.setattr(lifecycle_commands, "default_port_statuses", lambda: ())
+    monkeypatch.setattr(LIFECYCLE, "default_port_statuses", lambda: ())
     monkeypatch.setattr(
         lifecycle_commands,
         "_supervisor_for",
@@ -633,13 +633,20 @@ def test_status_reports_the_tracked_service_ports(monkeypatch, capsys) -> None:
         ),
     )
 
-    def fake_check_port(port: int, name: str):
-        checked.append((port, name))
-        return PortStatus(port, name, True)
+    def fake_statuses(http_port: int, websocket_port: int, godot_ws_port: int):
+        checked.extend(
+            (
+                (http_port, "HTTP"),
+                (websocket_port, "WebSocket (admin)"),
+                (godot_ws_port, "WebSocket (Godot)"),
+            )
+        )
+        return tuple(
+            ServicePortStatus(port=port, name=name, running=True)
+            for port, name in checked
+        )
 
-    monkeypatch.setattr(
-        "app.features.administration.system_service.check_port", fake_check_port
-    )
+    monkeypatch.setattr(LIFECYCLE, "service_port_statuses", fake_statuses)
     monkeypatch.setattr(
         lifecycle_commands,
         "_supervisor_for",

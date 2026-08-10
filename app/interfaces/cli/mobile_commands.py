@@ -7,6 +7,7 @@ import socket
 import subprocess
 
 from app.interfaces.cli.tui.common import clear_screen, print_banner
+from app.orchestration.lifecycle import LifecycleFacade
 
 try:
     import qrcode
@@ -17,7 +18,7 @@ except ImportError:
     QRCODE_AVAILABLE = False
 
 
-def show_mobile_access() -> int:
+def show_mobile_access(lifecycle: LifecycleFacade) -> int:
     clear_screen()
     print_banner()
 
@@ -25,9 +26,7 @@ def show_mobile_access() -> int:
     print("  " + "=" * 45)
     print()
 
-    from app.features.administration.system_service import default_port_statuses
-
-    port_statuses = default_port_statuses()
+    port_statuses = lifecycle.default_port_statuses()
 
     http_port = None
     for status in port_statuses:
@@ -136,7 +135,7 @@ def _get_local_ip() -> str | None:
 
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             sock.connect(("8.8.8.8", 80))
-            local_ip = sock.getsockname()[0]
+            local_ip = str(sock.getsockname()[0])
             return local_ip
     except (OSError, subprocess.SubprocessError):
         return None

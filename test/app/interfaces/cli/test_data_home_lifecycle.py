@@ -209,7 +209,7 @@ def test_status_reads_remembered_lifecycle_home(monkeypatch, tmp_path: Path) -> 
         lambda *_args, **_kwargs: tmp_path / "selected",
     )
     monkeypatch.setattr(LIFECYCLE, "existing_service_command", lambda *_args: None)
-    monkeypatch.setattr(lifecycle_commands, "default_port_statuses", lambda: ())
+    monkeypatch.setattr(LIFECYCLE, "default_port_statuses", lambda: ())
 
     def supervisor(*_args, **kwargs) -> _HealthSupervisor:
         remembered_flags.append(kwargs["use_remembered_home"])

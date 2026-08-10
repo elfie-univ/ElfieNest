@@ -10,10 +10,7 @@ from __future__ import annotations
 from typing import Dict, FrozenSet
 
 LEGACY_APP_LAYER_VIOLATIONS: Dict[str, FrozenSet[str]] = {
-    "cross_feature_internal_imports": frozenset(
-        {
-        }
-    ),
+    "cross_feature_internal_imports": frozenset({}),
     "feature_forbidden_layer_imports": frozenset(),
     "feature_framework_imports": frozenset({}),
     "feature_public_db_path": frozenset(),
@@ -34,13 +31,10 @@ LEGACY_APP_LAYER_VIOLATIONS: Dict[str, FrozenSet[str]] = {
             "app/interfaces/api/ollama_owner_routes.py -> app.features.setup.ollama_owner_jobs",
             "app/interfaces/api/owner_elfie_routes.py -> app.features.elfie_profile.public_projection",
             "app/interfaces/api/v1/client_routes.py -> app.features.elfie_profile.public_projection",
-            "app/interfaces/cli/lifecycle_commands.py -> app.features.administration.system_service",
-            "app/interfaces/cli/mobile_commands.py -> app.features.administration.system_service",
             "app/interfaces/cli/model_commands.py -> app.features.configuration.provider_service",
             "app/interfaces/cli/model_commands.py -> app.features.configuration.user_config",
             "app/interfaces/cli/provider_commands.py -> app.features.configuration.provider_service",
             "app/interfaces/cli/provider_commands.py -> app.features.configuration.user_config",
-            "app/interfaces/cli/runtime_commands.py -> app.features.administration.system_service",
             "app/interfaces/cli/tui/config_app.py -> app.features.configuration.user_config",
             "app/interfaces/cli/tui/config_editors.py -> app.features.configuration.user_config",
             "app/interfaces/cli/tui/config_views.py -> app.features.configuration.provider_service",

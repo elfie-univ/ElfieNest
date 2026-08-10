@@ -12,7 +12,7 @@ from app.orchestration.lifecycle.commands import (
     validate_service_ports,
 )
 from app.orchestration.lifecycle.facade import LifecycleFacade, RuntimeLifecycle
-from app.orchestration.lifecycle.ports import AuthorityHostConfig
+from app.orchestration.lifecycle.ports import AuthorityHostConfig, ServicePortStatus
 from app.orchestration.lifecycle.runtime_health import (
     ComponentHealth,
     RuntimeComponent,
@@ -42,6 +42,7 @@ __all__ = [
     "RuntimeHealthState",
     "RuntimeLifecycle",
     "ServiceLifecycleResult",
+    "ServicePortStatus",
     "ServicePortsActiveError",
     "command_runs_service",
     "http_port_from_command",
