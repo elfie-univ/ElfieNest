@@ -9,31 +9,39 @@ from typing import Optional
 
 from ai_runtime.lab.menu import MenuItem, TerminalMenu
 from ai_runtime.storage.data_home import get_db_path
-from app.features.accounts.password_policy import (
+from app.features.accounts import (
+    MAX_PASSWORD_LENGTH,
+    MIN_PASSWORD_LENGTH,
+    AccountsError,
+    AccountsService,
+    GetOwnerAccountQuery,
     PasswordPolicyError,
+    RecoverOwnerAccountCommand,
     validate_password_strength,
-)
-from app.features.administration.owner_service import (
-    MAX_OWNER_ACCOUNT_ID_LENGTH,
-    MAX_OWNER_PASSWORD_LENGTH,
-    MIN_OWNER_ACCOUNT_ID_LENGTH,
-    MIN_OWNER_PASSWORD_LENGTH,
-    OwnerServiceError,
-    get_owner_account,
-    recover_owner_account,
 )
 from app.interfaces.cli.tui.common import input_password, input_text
 from app.orchestration.lifecycle.recovery_lock import (
     RecoveryInProgressError,
     owner_recovery_lock,
 )
+from infrastructure.persistence import SQLiteAccountsAdapter
+
+MIN_OWNER_ACCOUNT_ID_LENGTH = 3
+MAX_OWNER_ACCOUNT_ID_LENGTH = 32
+MIN_OWNER_PASSWORD_LENGTH = MIN_PASSWORD_LENGTH
+MAX_OWNER_PASSWORD_LENGTH = MAX_PASSWORD_LENGTH
+
+
+def _accounts_service(db_path: str) -> AccountsService:
+    adapter = SQLiteAccountsAdapter(db_path)
+    return AccountsService(management=adapter)
 
 
 def show_owner_account(db_path: Optional[str] = None) -> int:
     path = db_path or str(get_db_path())
     try:
-        account = get_owner_account(path)
-    except OwnerServiceError as error:
+        account = _accounts_service(path).get_owner_account(GetOwnerAccountQuery())
+    except AccountsError as error:
         print(f"  ❌ Cannot read Owner account: {error}")
         return 1
     print("  👤 Owner Account Information")
@@ -136,8 +144,13 @@ def recover_owner_interactive(
         return 1
     try:
         with owner_recovery_lock(Path(path).resolve().parent):
-            account = recover_owner_account(path, account_id, first)
-    except (OwnerServiceError, OSError, RecoveryInProgressError) as error:
+            account = _accounts_service(path).recover_owner_account(
+                RecoverOwnerAccountCommand(
+                    account_id=account_id,
+                    new_password=first,
+                )
+            )
+    except (AccountsError, OSError, RecoveryInProgressError) as error:
         print(f"  ❌ Owner recovery failed: {error}")
         return 1
     print(f"  ✅ Owner account recovered: {account.account_id}")

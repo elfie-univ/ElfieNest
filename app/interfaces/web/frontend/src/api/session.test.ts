@@ -52,8 +52,18 @@ describe("currentUser", () => {
   it("accepts the canonical Admin role without treating it as an Owner", async () => {
     vi.mocked(requestJson).mockResolvedValue({
       account_id: "admin01",
+      avatar_color: 0,
+      avatar_kind: "initials",
+      avatar_url: null,
+      birth_date: null,
+      created_at: "2026-08-01T00:00:00Z",
+      csrf_token: "csrf-token",
+      default_landing_page: "manage",
       display_name: "Admin",
+      elfie_count: 0,
+      gender: "male",
       role: "admin",
+      theme_key: "warm-paper",
       user_id: 2,
     })
 
@@ -74,6 +84,17 @@ describe("currentUser", () => {
 })
 
 describe("canonical account requests", () => {
+  const profileResponse = {
+    account_id: "owner-renamed",
+    avatar_color: 0,
+    avatar_kind: "initials",
+    avatar_url: null,
+    birth_date: null,
+    display_name: "Owner Renamed",
+    gender: "male",
+    user_id: 1,
+  } as const
+
   it("sends account_id in the login form body", async () => {
     // Given: the server accepts a canonical login and chooses chat.
     vi.mocked(requestJson).mockResolvedValue({ landing_path: "/chat" })
@@ -93,20 +114,24 @@ describe("canonical account requests", () => {
 
   it("sends display_name for profile updates", async () => {
     // Given: the profile endpoint accepts an empty response body.
-    vi.mocked(requestJson).mockResolvedValue({})
+    vi.mocked(requestJson).mockResolvedValue(profileResponse)
 
     // When: the display name is changed.
     await updateProfile({ display_name: "Owner Renamed" }, "csrf-token")
 
     // Then: the request contains no nickname alias.
-    expect(requestJson).toHaveBeenCalledWith("/api/auth/me/profile", expect.objectContaining({
+    expect(requestJson).toHaveBeenCalledWith("/api/v1/me/profile", expect.objectContaining({
       body: JSON.stringify({ display_name: "Owner Renamed" }),
-      method: "PUT",
+      method: "PATCH",
     }))
   })
 
   it("sends the editable identity projection for profile updates", async () => {
-    vi.mocked(requestJson).mockResolvedValue({})
+    vi.mocked(requestJson).mockResolvedValue({
+      ...profileResponse,
+      birth_date: "1990-02-03",
+      gender: "female",
+    })
 
     await updateProfile({
       account_id: "owner-renamed",
@@ -115,14 +140,14 @@ describe("canonical account requests", () => {
       gender: "female",
     }, "csrf-token")
 
-    expect(requestJson).toHaveBeenCalledWith("/api/auth/me/profile", expect.objectContaining({
+    expect(requestJson).toHaveBeenCalledWith("/api/v1/me/profile", expect.objectContaining({
       body: JSON.stringify({
         account_id: "owner-renamed",
         birth_date: "1990-02-03",
         display_name: "Owner Renamed",
         gender: "female",
       }),
-      method: "PUT",
+      method: "PATCH",
     }))
   })
 
