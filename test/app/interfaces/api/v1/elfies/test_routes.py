@@ -66,6 +66,12 @@ def test_member_resources_return_owned_envelope_and_profile(
         "00000001"
     ]
     assert listing.json()["items"][0]["relationship"] == "owned"
+    assert not {
+        "food_policy",
+        "nest",
+        "embodiment",
+        "communication",
+    }.intersection(listing.json()["items"][0]["profile"])
     assert detail.status_code == 200
     assert detail.json()["private_cognition"]["status"] == "empty"
     assert set(detail.json()) == {

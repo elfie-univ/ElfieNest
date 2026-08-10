@@ -9,6 +9,7 @@ from .errors import ElfieNotFound, ElfiesForbidden, ElfiesUnavailable
 from .models import (
     AdminElfieResult,
     BigFiveResult,
+    ElfieAppearanceResult,
     ElfieOwnerResult,
     ElfiePermissionsResult,
     ElfieProfileDetailResult,
@@ -125,6 +126,23 @@ class ElfiesService:
             profile_status=source.status,
             big_five=big_five,
             personality_tags=_personality_tags(record.summary, big_five),
+            portrait_url="",
+            appearance=(
+                None
+                if source.appearance is None
+                else ElfieAppearanceResult(
+                    species_id=source.appearance.species_id,
+                    profile_version=source.appearance.profile_version,
+                    height_scale=source.appearance.height_scale,
+                    build_scale=source.appearance.build_scale,
+                    height_label=source.appearance.height_label,
+                    build_label=source.appearance.build_label,
+                    bone_scales=source.appearance.bone_scales,
+                    blend_shapes=source.appearance.blend_shapes,
+                    material_parameters=source.appearance.material_parameters,
+                    species_traits=source.appearance.species_traits,
+                )
+            ),
         )
 
 

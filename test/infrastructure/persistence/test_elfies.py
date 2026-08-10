@@ -73,6 +73,9 @@ def test_profile_reader_consumes_the_public_profile_authority(tmp_path: Path) ->
     assert result.status == "ready"
     assert result.openness == 0.9
     assert result.neuroticism == 0.2
+    assert result.appearance is not None
+    assert result.appearance.species_id == "fox"
+    assert result.appearance.profile_version == 1
 
 
 def test_cognition_reader_is_read_only_and_returns_typed_records(

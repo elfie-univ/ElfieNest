@@ -1,4 +1,4 @@
-import type { OwnerElfie, OwnerUser } from "../../api/client"
+import type { OwnerUser } from "../../api/client"
 
 export const MOCK_USERS: readonly OwnerUser[] = [
   {
@@ -35,7 +35,7 @@ export const MOCK_USERS: readonly OwnerUser[] = [
   },
 ]
 
-export const MOCK_ELFIES: readonly OwnerElfie[] = [
+export const MOCK_ELFIES = [
   {
     elfie_id: "12345678",
     owner: { user_id: 1, account_id: "admin123", display_name: "管理员" },
@@ -80,4 +80,4 @@ export const MOCK_ELFIES: readonly OwnerElfie[] = [
     food_policy: { main_food_id: "food_common", effective_main_food_id: "food_common", main_food_options: [{ food_id: "food_common", display_name: "常用粮" }], main_food_unavailable: false },
     created_at: "2026-07-01 09:18:00",
   },
-]
+] as const

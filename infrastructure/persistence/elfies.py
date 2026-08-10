@@ -18,11 +18,12 @@ from app.features.elfies import (
     CognitionEventRecord,
     CognitionSnapshotRecord,
     CognitionTopicRecord,
+    ElfieAppearanceRecord,
     ElfieDirectoryRecord,
     ElfieProfileRecord,
     ElfiesPortError,
 )
-from elfie.profile import ElfieProfileRepository
+from elfie.profile import AppearanceResolver, ElfieProfileRepository, ResolvedAppearance
 
 from .sqlite_connection import app_sqlite_connection
 
@@ -95,9 +96,13 @@ class SQLiteElfiesProjectionAdapter:
             return ElfieProfileRecord(status="empty")
         try:
             profile = repository.load()
+            resolved = AppearanceResolver().resolve(profile)
             raw_big_five = profile.personality.get("big_five")
             if not isinstance(raw_big_five, dict):
-                return ElfieProfileRecord(status="ready")
+                return ElfieProfileRecord(
+                    status="ready",
+                    appearance=_appearance_record(resolved),
+                )
             values = {
                 key: _optional_number(raw_big_five.get(key)) for key in _BIG_FIVE_KEYS
             }
@@ -110,6 +115,7 @@ class SQLiteElfiesProjectionAdapter:
             extraversion=values["extraversion"],
             agreeableness=values["agreeableness"],
             neuroticism=values["neuroticism"],
+            appearance=_appearance_record(resolved),
         )
 
     def load_cognition(self, elfie_id: str) -> CognitionSnapshotRecord:
@@ -128,6 +134,35 @@ SELECT elfies.elfie_id, elfies.name, elfies.owner_user_id,
        elfies.adopted_at, elfies.summary
 FROM elfies JOIN users ON users.id=elfies.owner_user_id
 """
+
+
+def _appearance_record(resolved: ResolvedAppearance) -> ElfieAppearanceRecord:
+    payload = resolved.to_payload()
+    material_parameters = {
+        str(key): float(value) if isinstance(value, (int, float)) else str(value)
+        for key, value in sorted(payload["material_parameters"].items())
+    }
+    return ElfieAppearanceRecord(
+        species_id=str(payload["species_id"]),
+        profile_version=int(payload["profile_version"]),
+        height_scale=float(payload["height_scale"]),
+        build_scale=float(payload["build_scale"]),
+        height_label=str(payload["height_label"]),
+        build_label=str(payload["build_label"]),
+        bone_scales={
+            str(key): float(value)
+            for key, value in sorted(payload["bone_scales"].items())
+        },
+        blend_shapes={
+            str(key): float(value)
+            for key, value in sorted(payload["blend_shapes"].items())
+        },
+        material_parameters=material_parameters,
+        species_traits={
+            str(key): float(value)
+            for key, value in sorted(payload["species_traits"].items())
+        },
+    )
 
 
 def _directory_record(row: sqlite3.Row) -> ElfieDirectoryRecord:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Mapping
 
 ElfieRelationship = Literal["owned"]
 CognitionStatus = Literal["ready", "empty", "unavailable"]
@@ -36,6 +36,20 @@ class BigFiveResult:
 
 
 @dataclass(frozen=True)
+class ElfieAppearanceResult:
+    species_id: str
+    profile_version: int
+    height_scale: float
+    build_scale: float
+    height_label: str
+    build_label: str
+    bone_scales: Mapping[str, float]
+    blend_shapes: Mapping[str, float]
+    material_parameters: Mapping[str, str | float]
+    species_traits: Mapping[str, float]
+
+
+@dataclass(frozen=True)
 class ElfieProfileResult:
     elfie_id: str
     name: str
@@ -47,6 +61,8 @@ class ElfieProfileResult:
     profile_status: Literal["ready", "empty", "unavailable"]
     big_five: BigFiveResult | None
     personality_tags: tuple[str, ...]
+    portrait_url: str
+    appearance: ElfieAppearanceResult | None
 
 
 @dataclass(frozen=True)
@@ -168,6 +184,7 @@ __all__ = (
     "BigFiveResult",
     "CognitionStatus",
     "ElfieCognitionResult",
+    "ElfieAppearanceResult",
     "ElfieOwnerResult",
     "ElfiePermissionsResult",
     "ElfieProfileDetailResult",

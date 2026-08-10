@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from app.infrastructure.persistence.store import get_db, init_db
+from app.orchestration.embodiment.models import EmbodimentSession
 from app.orchestration.embodiment.ports import EmbodimentLeaseConflict
 from infrastructure.persistence.bodies import SQLiteBodiesAdapter
 from infrastructure.persistence.embodiment import (
@@ -16,6 +17,7 @@ from infrastructure.persistence.embodiment import (
     complete_return,
     expire_stale_lease,
     get_embodiment_session,
+    list_embodiment_sessions,
     recover_offline_session,
     renew_hosting_heartbeat,
     start_return,
@@ -40,6 +42,26 @@ def test_embodiment_session_persists_one_hosted_lease_at_a_time(tmp_path: Path) 
     assert at_nest.state is EmbodimentState.AT_NEST
     assert at_nest.body_id is None
     assert get_embodiment_session(db_path, "00000001").state is EmbodimentState.AT_NEST
+
+
+def test_list_sessions_projects_missing_rows_as_at_nest_without_writing(
+    tmp_path: Path,
+) -> None:
+    db_path = _final_elfie_database(tmp_path)
+
+    sessions = list_embodiment_sessions(db_path)
+
+    assert sessions == (
+        EmbodimentSession(
+            elfie_id="00000001",
+            state=EmbodimentState.AT_NEST,
+            body_id=None,
+            lease_expires_at=None,
+            lease_version=0,
+        ),
+    )
+    with get_db(db_path) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM embodiment_sessions").fetchone()[0] == 0
 
 
 def test_aborting_a_failed_hosting_releases_the_lease_and_returns_to_nest(

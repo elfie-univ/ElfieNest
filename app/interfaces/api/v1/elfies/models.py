@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Dict, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, StrictFloat, StrictInt, StrictStr
 
 
 class _StrictModel(BaseModel):
@@ -19,6 +19,19 @@ class BigFiveResponse(_StrictModel):
     neuroticism: Optional[float]
 
 
+class ElfieAppearanceResponse(_StrictModel):
+    species_id: StrictStr
+    profile_version: StrictInt
+    height_scale: StrictFloat
+    build_scale: StrictFloat
+    height_label: StrictStr
+    build_label: StrictStr
+    bone_scales: Dict[StrictStr, StrictFloat]
+    blend_shapes: Dict[StrictStr, StrictFloat]
+    material_parameters: Dict[StrictStr, Union[StrictStr, StrictFloat]]
+    species_traits: Dict[StrictStr, StrictFloat]
+
+
 class ElfieProfileResponse(_StrictModel):
     elfie_id: str
     name: str
@@ -30,6 +43,8 @@ class ElfieProfileResponse(_StrictModel):
     profile_status: Literal["ready", "empty", "unavailable"]
     big_five: Optional[BigFiveResponse]
     personality_tags: tuple[str, ...]
+    portrait_url: str
+    appearance: Optional[ElfieAppearanceResponse]
 
 
 class ElfiePermissionsResponse(_StrictModel):
@@ -138,6 +153,7 @@ class ElfiesErrorResponse(_StrictModel):
 
 __all__ = (
     "ElfiePermissionsResponse",
+    "ElfieAppearanceResponse",
     "ElfieProfileDetailResponse",
     "ElfieProfileResponse",
     "ElfiesErrorDetails",

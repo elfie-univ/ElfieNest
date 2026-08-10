@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
-import { ownerAssignBed, ownerElfies, ownerRooms, ownerUpdateBedCount, type NestRoom, type OwnerElfie } from "../api/client"
+import { adminElfies, ownerAssignBed, ownerRooms, ownerUpdateBedCount, type AdminElfie, type NestRoom } from "../api/client"
 import { describeApiError, resolveLocalizedError, type LocalizedErrorState } from "../i18n/errors"
 import { currentLocale } from "../i18n/format"
 import { BedDistribution } from "./BedDistribution"
@@ -20,7 +20,7 @@ export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
   const { i18n, t } = useTranslation("manage")
   const locale = currentLocale(i18n)
   const [rooms, setRooms] = useState<readonly NestRoom[] | null>(null)
-  const [elfies, setElfies] = useState<readonly OwnerElfie[] | null>(null)
+  const [elfies, setElfies] = useState<readonly AdminElfie[] | null>(null)
   const [bedCount, setBedCount] = useState(0)
   const [showObserver, setShowObserver] = useState(false)
   const [confirmBeds, setConfirmBeds] = useState(false)
@@ -36,7 +36,7 @@ export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
     setBedCount(0)
     setError(null)
     try {
-      const [nextRooms, nextElfies] = await Promise.all([ownerRooms(), ownerElfies()])
+      const [nextRooms, nextElfies] = await Promise.all([ownerRooms(), adminElfies()])
       if (sequence !== loadSequence.current) return
       setRooms(nextRooms)
       setElfies(nextElfies)

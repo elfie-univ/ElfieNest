@@ -8,9 +8,9 @@ import { ToastProvider } from "./ui/toast"
 
 const api = vi.hoisted(() => ({ ownerRead: vi.fn() }))
 
-vi.mock("../api/client", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../api/client")>()
-  return { ...actual, ownerRead: api.ownerRead }
+vi.mock("../api/http", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/http")>()
+  return { ...actual, ownerRead: api.ownerRead, requestJson: api.ownerRead }
 })
 
 type MonitorFixture = {
@@ -131,13 +131,15 @@ function monitorPayload(path: string, fixture: MonitorFixture): unknown {
       }
     case "/api/v1/admin/users":
       return { items: [{ presence: "online" }, { presence: "online" }] }
-    case "/api/owner/elfies":
-      return [
-        { elfie_id: "elfie-1", profile: { online_status: "online" } },
-        { elfie_id: "elfie-2", profile: { online_status: "offline" } },
-      ]
+    case "/api/v1/admin/elfies":
+      return { items: [adminElfie("00000001"), adminElfie("00000002")] }
+    case "/api/v1/admin/runtime/embodiment-sessions":
+      return { items: [
+        { elfie_id: "00000001", state: "hosted", body_id: "body-1" },
+        { elfie_id: "00000002", state: "offline", body_id: null },
+      ] }
     case "/api/v1/admin/nest/rooms":
-      return { items: [{ beds: fixture.unassignedElfie ? [{ occupant_id: "elfie-1" }] : [{ occupant_id: "elfie-1" }, { occupant_id: "elfie-2" }] }] }
+      return { items: [{ beds: fixture.unassignedElfie ? [{ occupant_id: "00000001" }] : [{ occupant_id: "00000001" }, { occupant_id: "00000002" }] }] }
     case "/api/v1/admin/model-providers/connections":
       return { items: [{
         catalog_id: "ollama",
@@ -151,6 +153,19 @@ function monitorPayload(path: string, fixture: MonitorFixture): unknown {
       return { state: "healthy", recommended_model: "qwen2.5:0.5b", installed_model_count: 1 }
     default:
       return { endpoint: "https://raw.example/v1" }
+  }
+}
+
+function adminElfie(elfieId: string): unknown {
+  return {
+    owner: { user_id: 1, account_id: "owner", display_name: "Owner" },
+    permissions: { can_view_profile: true, can_view_cognition: false },
+    profile: {
+      elfie_id: elfieId, name: elfieId, species_id: "fox", gender: null,
+      birth_date: null, summary: null, adopted_at: "2026-08-01",
+      profile_status: "empty", big_five: null, personality_tags: [],
+      portrait_url: "", appearance: null,
+    },
   }
 }
 
