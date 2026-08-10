@@ -1,4 +1,4 @@
-"""Deterministic account and conversation setup for final Elfie chat storage."""
+"""Root persistence setup for final Elfie chat conversations."""
 
 from __future__ import annotations
 

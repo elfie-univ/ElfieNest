@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -10,27 +9,19 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from ai_runtime.storage.data_home import get_elfie_conversations_dir
 from ai_runtime.storage.data_layout import final_root_layout
 from app.bootstrap import create_app
 from app.infrastructure.devices import DeviceRegistry
-from app.infrastructure.persistence.elfie_chat_history import (
-    ElfieChatMessageInput,
-    ElfieChatSender,
-    record_elfie_chat_message,
-)
 from app.infrastructure.persistence.embodiment_sessions import begin_hosting
 from app.infrastructure.persistence.store import init_db
 from elfie import Elfie
 from elfie.body import BodyId, BodySensorEvent, SpeechCommand, UtteranceFinal
 from elfie.brain.memory.knowledge_store import KnowledgeStore
 from elfie.brain.memory.node_types import MemoryNode
-from elfie.communication.contracts import InboundDisposition, InboundDispositionStatus
 from elfie.message_types import (
     ActorId,
     ActorRef,
     CommandId,
-    ErrorInfo,
     EventId,
     IntentId,
     TurnId,
@@ -194,169 +185,6 @@ def test_v1_owner_profile_reads_real_cognition_but_list_stays_public(
     assert "care_settings" not in listing.json()[0]
 
 
-def test_v1_conversations_and_messages_are_owner_scoped(client: TestClient) -> None:
-    csrf_token = _login_owner(client)
-    elfie_id = _adopt_elfie(client, csrf_token)
-    user_id = int(client.get("/api/v1/me").json()["user_id"])
-    record_elfie_chat_message(
-        elfie_id,
-        ElfieChatMessageInput(
-            message_id="v1-history-1",
-            conversation_id=f"owner:{user_id}",
-            user_id=user_id,
-            sender=ElfieChatSender.USER,
-            text="今天好吗？",
-            channel="web",
-            created_at="2026-07-24T08:00:00.000Z",
-        ),
-    )
-
-    conversations = client.get("/api/v1/conversations")
-    messages = client.get(f"/api/v1/conversations/{elfie_id}/messages")
-
-    assert conversations.status_code == 200
-    assert conversations.json()[0]["elfie_id"] == elfie_id
-    assert conversations.json()[0]["last_message_preview"] == "今天好吗？"
-    assert messages.status_code == 200
-    assert messages.json()[0]["text"] == "今天好吗？"
-    assert "meta" not in messages.json()[0]
-
-
-def test_v1_writes_only_to_the_owned_elfie_workspace(client: TestClient) -> None:
-    csrf_token = _login_owner(client)
-    elfie_id = _adopt_elfie(client, csrf_token)
-
-    response = client.post(
-        f"/api/v1/conversations/{elfie_id}/messages",
-        json={"text": "只应存在于精灵工作区"},
-        headers={"X-CSRF-Token": csrf_token},
-    )
-
-    assert response.status_code == 200
-    history_path = get_elfie_conversations_dir(elfie_id) / "history.sqlite"
-    assert history_path.exists()
-    with sqlite3.connect(client.app.state.db_path) as connection:
-        legacy_table = connection.execute(
-            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'chat_messages'"
-        ).fetchone()
-    assert legacy_table is None
-
-
-def test_v1_can_send_an_owned_message_without_exposing_legacy_meta(
-    client: TestClient,
-) -> None:
-    csrf_token = _login_owner(client)
-    elfie_id = _adopt_elfie(client, csrf_token)
-
-    response = client.post(
-        f"/api/v1/conversations/{elfie_id}/messages",
-        json={"text": "你好，小白"},
-        headers={"X-CSRF-Token": csrf_token},
-    )
-    messages = client.get(f"/api/v1/conversations/{elfie_id}/messages")
-
-    assert response.status_code == 200
-    assert response.json()["text"] == "你好，小白"
-    assert "meta" not in response.json()
-    assert [message["text"] for message in messages.json()] == ["你好，小白"]
-
-
-def test_v1_chat_does_not_ack_or_persist_when_runtime_does_not_admit_message(
-    client: TestClient,
-) -> None:
-    csrf_token = _login_owner(client)
-    elfie_id = _adopt_elfie(client, csrf_token)
-    session_token = client.cookies.get("session_token")
-    assert session_token
-
-    unavailable_engine = MagicMock()
-    unavailable_engine.session.send_user_message.return_value = None
-    client.app.state.engine = unavailable_engine
-
-    response = client.post(
-        f"/api/v1/conversations/{elfie_id}/messages",
-        json={"text": "精灵听得到吗？"},
-        headers={"X-CSRF-Token": csrf_token},
-    )
-
-    assert response.status_code == 503
-    assert response.json()["detail"] == "elfie_runtime_unavailable"
-
-    with client.websocket_connect(
-        "/api/v1/ws/chat", headers={"Cookie": f"session_token={session_token}"}
-    ) as websocket:
-        assert websocket.receive_json()["event"] == "ready"
-        websocket.send_json(
-            {"event": "user_message", "elfie_id": elfie_id, "text": "再试一次"}
-        )
-        assert websocket.receive_json() == {
-            "event": "error",
-            "detail": "elfie_runtime_unavailable",
-        }
-
-    messages = client.get(f"/api/v1/conversations/{elfie_id}/messages")
-    assert messages.json() == []
-
-
-def test_v1_chat_does_not_ack_or_persist_duplicate_message(
-    client: TestClient,
-) -> None:
-    csrf_token = _login_owner(client)
-    elfie_id = _adopt_elfie(client, csrf_token)
-    runtime = MagicMock()
-    runtime.session.send_user_message.return_value = InboundDisposition(
-        message_id=EventId("duplicate-message"),
-        channel_id="godot-owner",
-        status=InboundDispositionStatus.DUPLICATE,
-    )
-    client.app.state.engine = runtime
-
-    response = client.post(
-        f"/api/v1/conversations/{elfie_id}/messages",
-        json={"text": "重复消息"},
-        headers={"X-CSRF-Token": csrf_token},
-    )
-
-    assert response.status_code == 409
-    assert response.json()["detail"] == "duplicate_message"
-    assert client.get(f"/api/v1/conversations/{elfie_id}/messages").json() == []
-
-
-@pytest.mark.parametrize(
-    ("retryable", "expected_status"),
-    [(True, 503), (False, 409)],
-)
-def test_v1_chat_maps_rejected_message_to_retryable_status(
-    client: TestClient,
-    retryable: bool,
-    expected_status: int,
-) -> None:
-    csrf_token = _login_owner(client)
-    elfie_id = _adopt_elfie(client, csrf_token)
-    runtime = MagicMock()
-    runtime.session.send_user_message.return_value = InboundDisposition(
-        message_id=EventId("rejected-message"),
-        channel_id="godot-owner",
-        status=InboundDispositionStatus.REJECTED,
-        error=ErrorInfo(
-            code="transport_timeout",
-            message="运行时超时",
-            retryable=retryable,
-        ),
-    )
-    client.app.state.engine = runtime
-
-    response = client.post(
-        f"/api/v1/conversations/{elfie_id}/messages",
-        json={"text": "重试消息"},
-        headers={"X-CSRF-Token": csrf_token},
-    )
-
-    assert response.status_code == expected_status
-    assert response.json()["detail"] == "transport_timeout"
-    assert client.get(f"/api/v1/conversations/{elfie_id}/messages").json() == []
-
-
 def test_adoption_returns_service_unavailable_when_runtime_registration_fails(
     client: TestClient,
 ) -> None:
@@ -403,7 +231,7 @@ def test_v1_profile_and_messages_hide_another_users_elfie(client: TestClient) ->
     assert login.status_code == 200
 
     profile = client.get(f"/api/v1/elfies/{elfie_id}/profile")
-    messages = client.get(f"/api/v1/conversations/{elfie_id}/messages")
+    messages = client.get(f"/api/v1/me/conversations/{elfie_id}/messages")
 
     assert profile.status_code == 404
     assert messages.status_code == 404
@@ -542,24 +370,6 @@ def test_device_websocket_routes_typed_sensor_events_and_command_polls(
     assert command_batch["commands"] == [command.model_dump(mode="json")]
 
 
-def test_v1_chat_websocket_requires_the_same_session_as_rest(
-    client: TestClient,
-) -> None:
-    _login_owner(client)
-    session_token = client.cookies.get("session_token")
-    assert session_token
-
-    with client.websocket_connect(
-        "/api/v1/ws/chat", headers={"Cookie": f"session_token={session_token}"}
-    ) as websocket:
-        ready = websocket.receive_json()
-
-    assert ready == {
-        "event": "ready",
-        "principal": {"role": "owner", "account_id": "owner"},
-    }
-
-
 def test_v1_session_projection_includes_the_owner_landing_preference(
     client: TestClient,
 ) -> None:
@@ -571,84 +381,6 @@ def test_v1_session_projection_includes_the_owner_landing_preference(
     assert response.json()["default_landing_page"] == "manage"
 
 
-def test_v1_chat_websocket_persists_and_acknowledges_an_owned_message(
-    client: TestClient,
-) -> None:
-    csrf_token = _login_owner(client)
-    elfie_id = _adopt_elfie(client, csrf_token)
-    session_token = client.cookies.get("session_token")
-    assert session_token
-
-    with client.websocket_connect(
-        "/api/v1/ws/chat", headers={"Cookie": f"session_token={session_token}"}
-    ) as websocket:
-        assert websocket.receive_json()["event"] == "ready"
-        websocket.send_json(
-            {"event": "user_message", "elfie_id": elfie_id, "text": "你好，小白"}
-        )
-        acknowledgement = websocket.receive_json()
-
-    assert acknowledgement["event"] == "message"
-    assert acknowledgement["message"]["elfie_id"] == elfie_id
-    assert acknowledgement["message"]["text"] == "你好，小白"
-
-
-def test_v1_chat_websocket_receives_a_persisted_elfie_reply(client: TestClient) -> None:
-    csrf_token = _login_owner(client)
-    elfie_id = _adopt_elfie(client, csrf_token)
-    user_id = int(client.get("/api/v1/me").json()["user_id"])
-    session_token = client.cookies.get("session_token")
-    assert session_token
-
-    with client.websocket_connect(
-        "/api/v1/ws/chat", headers={"Cookie": f"session_token={session_token}"}
-    ) as websocket:
-        assert websocket.receive_json()["event"] == "ready"
-        record_elfie_chat_message(
-            elfie_id,
-            ElfieChatMessageInput(
-                message_id="v1-reply-1",
-                conversation_id=f"owner:{user_id}",
-                user_id=user_id,
-                sender=ElfieChatSender.ELFIE,
-                text="我在这里。",
-                channel="web",
-            ),
-        )
-        client.app.state.v1_chat_hub.publish_elfie_reply(elfie_id)
-        event = websocket.receive_json()
-
-    assert event["event"] == "message"
-    assert event["message"]["sender"] == "elfie"
-    assert event["message"]["text"] == "我在这里。"
-
-
-def test_legacy_runtime_reply_is_bridged_to_the_same_origin_chat_socket(
-    client: TestClient,
-) -> None:
-    csrf_token = _login_owner(client)
-    elfie_id = _adopt_elfie(client, csrf_token)
-    session_token = client.cookies.get("session_token")
-    assert session_token
-
-    with client.websocket_connect(
-        "/api/v1/ws/chat", headers={"Cookie": f"session_token={session_token}"}
-    ) as websocket:
-        assert websocket.receive_json()["event"] == "ready"
-        client.app.state.ws_manager.broadcast_to_owners(
-            elfie_id,
-            {
-                "action": "owner_message",
-                "payload": {"parts": [{"type": "text", "text": "我听见你了。"}]},
-            },
-        )
-        event = websocket.receive_json()
-
-    assert event["event"] == "message"
-    assert event["message"]["sender"] == "elfie"
-    assert event["message"]["text"] == "我听见你了。"
-
-
 def test_v1_openapi_route_snapshot(client: TestClient) -> None:
     paths = client.app.openapi()["paths"]
 
@@ -657,6 +389,6 @@ def test_v1_openapi_route_snapshot(client: TestClient) -> None:
         "/api/v1/me/default-landing-page",
         "/api/v1/elfies",
         "/api/v1/elfies/{elfie_id}/profile",
-        "/api/v1/conversations",
-        "/api/v1/conversations/{elfie_id}/messages",
+        "/api/v1/me/conversations",
+        "/api/v1/me/conversations/{elfie_id}/messages",
     } <= set(paths)

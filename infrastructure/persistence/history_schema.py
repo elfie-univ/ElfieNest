@@ -7,10 +7,10 @@ import stat
 from pathlib import Path
 from typing import Final, Iterable
 
-from app.infrastructure.persistence.history_account_schema_sql import (
+from infrastructure.persistence.history_account_schema_sql import (
     ACCOUNT_CONVERSATION_STATEMENTS,
 )
-from app.infrastructure.persistence.history_message_schema_sql import (
+from infrastructure.persistence.history_message_schema_sql import (
     MESSAGE_STATEMENTS,
 )
 from infrastructure.persistence.sqlite_connection import (

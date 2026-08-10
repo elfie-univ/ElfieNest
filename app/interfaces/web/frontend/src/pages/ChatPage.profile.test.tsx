@@ -39,8 +39,14 @@ vi.mock("../stores/heartbeat", () => ({
 
 vi.mock("../api/client", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../api/client")>()
-  return { ...original, ...chatApi }
+  return { ...original, elfies: chatApi.elfies, profile: chatApi.profile }
 })
+
+vi.mock("../api/communication", () => ({
+  conversations: chatApi.conversations,
+  messages: chatApi.messages,
+  sendMessage: chatApi.sendMessage,
+}))
 
 vi.mock("../api/chat-socket", () => ({
   ChatSocket: class {

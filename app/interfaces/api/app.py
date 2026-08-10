@@ -22,6 +22,7 @@ from fastapi.staticfiles import StaticFiles
 
 from ai_runtime.storage.data_home import get_db_path as _get_db_path
 from app.features.accounts import AccountPrincipal, AccountsService
+from app.features.communication import CommunicationFacade
 from app.features.configuration import (
     CapabilitiesService,
     FoodService,
@@ -45,6 +46,8 @@ from app.interfaces.web.build_discovery import (
     WebBuildManifestMissingError,
     discover_web_build,
 )
+from app.orchestration.message_delivery import MessageDeliveryFacade
+from infrastructure.communication import SameOriginMessagePublisher
 from nest.godot_gateway.bundle import (
     GODOT_WEB_DIR,
     godot_web_bundle_present,
@@ -55,7 +58,6 @@ from .page_routes import router as page_router
 from .request_limits import AvatarUploadBodyLimitMiddleware
 from .service_access import ServiceAccessPolicy, configure_service_access
 from .v1.auth import get_current_user, verify_csrf_token
-from .v1.realtime import SameOriginChatHub
 from .ws_gateway import AuthenticatedWSManager
 
 logger = logging.getLogger("app.interfaces.api.app")
@@ -108,6 +110,9 @@ def create_http_application(
     food: FoodService,
     capabilities: CapabilitiesService,
     operations: OperationsFacade,
+    communication: CommunicationFacade,
+    message_delivery: MessageDeliveryFacade,
+    communication_realtime: SameOriginMessagePublisher,
     engine: Any = None,
     db_path: Optional[str] = None,
     ws_port: int = 8766,
@@ -146,14 +151,12 @@ def create_http_application(
         # 创建鉴权 WS 网关（独立端口，不与 Godot 8765 冲突）
         ws_manager = AuthenticatedWSManager(
             accounts=accounts,
+            message_delivery=message_delivery,
             port=ws_port,
             http_port=http_port,
-            db_path=db_path,
         )
-        ws_manager.product_chat_hub = app.state.v1_chat_hub
         if engine is not None:
             engine.ws_manager = ws_manager
-            ws_manager.nest_session = engine.session
             engine.session.owner_broadcaster = ws_manager
         ws_manager.start()
         app.state.ws_manager = ws_manager
@@ -175,10 +178,12 @@ def create_http_application(
     app.state.food = food
     app.state.capabilities = capabilities
     app.state.operations = operations
+    app.state.communication = communication
+    app.state.message_delivery = message_delivery
+    app.state.communication_realtime = communication_realtime
     app.state.db_path = db_path
     app.state.engine = engine
     app.state.device_gateway = DeviceGateway()
-    app.state.v1_chat_hub = SameOriginChatHub(db_path)
     app.state.setup_install_jobs = SetupInstallJobManager()
     app.state.ws_port = ws_port
     configured_web_build_dir = os.environ.get("ELFIENEST_WEB_BUILD_DIR")
@@ -310,6 +315,12 @@ def create_http_application(
         router as elfie_food_policy_router,  # noqa: PLC0415
     )
     from .v1.me import router as me_router  # noqa: PLC0415
+    from .v1.me.conversations import (
+        router as conversations_router,  # noqa: PLC0415
+    )
+    from .v1.realtime_chat_routes import (
+        router as realtime_chat_router,  # noqa: PLC0415
+    )
 
     app.include_router(auth_router)
     app.include_router(settings_router)
@@ -320,6 +331,8 @@ def create_http_application(
     app.include_router(capabilities_router)
     app.include_router(runtime_router)
     app.include_router(me_router)
+    app.include_router(conversations_router)
+    app.include_router(realtime_chat_router)
     app.include_router(admin_users_router)
     app.include_router(setup_router)
     app.include_router(page_router)

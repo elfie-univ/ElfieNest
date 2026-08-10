@@ -14,10 +14,10 @@ from typing import Any, Dict, Set
 import websockets
 import websockets.asyncio.server
 
-from ai_runtime.storage.data_home import get_db_path as _get_db_path
 from app.features.accounts import AccountsService
 from app.interfaces.api.ws_gateway_messaging import WebSocketMessagingMixin
 from app.interfaces.api.ws_gateway_session import WebSocketSessionMixin
+from app.orchestration.message_delivery import MessageDeliveryFacade
 
 logger = logging.getLogger("app.interfaces.api.ws_gateway")
 
@@ -48,16 +48,16 @@ class AuthenticatedWSManager(WebSocketSessionMixin, WebSocketMessagingMixin):
     def __init__(
         self,
         accounts: AccountsService,
+        message_delivery: MessageDeliveryFacade,
         host: str = "127.0.0.1",
         port: int = 8766,
         http_port: int = 8000,
-        db_path: str = None,
     ) -> None:
         self.host = host
         self.port = port
         self.http_port = http_port
-        self.db_path = db_path if db_path is not None else str(_get_db_path())
         self.accounts = accounts
+        self.message_delivery = message_delivery
 
         # user_id -> Set[websocket] 映射
         self.connections: Dict[int, Set[Any]] = {}
@@ -71,11 +71,6 @@ class AuthenticatedWSManager(WebSocketSessionMixin, WebSocketMessagingMixin):
         self._running = False
         self._startup_event = threading.Event()
         self._startup_error: Exception | None = None
-
-        # 可选注入：NestSession 引用，用于处理 user_message 事件
-        self.nest_session: Any = None
-        # 新产品页的同源 WebSocket 桥；旧独立端口仍保持兼容。
-        self.product_chat_hub: Any = None
 
     # -------------------------------------------------------------------
     # 生命周期
@@ -154,7 +149,7 @@ class AuthenticatedWSManager(WebSocketSessionMixin, WebSocketMessagingMixin):
             return
         asyncio.set_event_loop(loop)
 
-        async def _start_server():
+        async def _start_server() -> Any:
             return await websockets.serve(self._handle_client, self.host, self.port)
 
         try:

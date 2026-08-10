@@ -9,10 +9,9 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEVELOPER_PRODUCTION_GUARD_FILES = frozenset({"devtools/elfie_lab/app.py"})
 ACTIVE_CHAT_ROUTE_FILES = (
-    "app/interfaces/api/chat_persistence.py",
-    "app/interfaces/api/v1/client_routes.py",
-    "app/interfaces/api/v1/realtime.py",
-    "app/interfaces/api/ws_gateway.py",
+    "app/interfaces/api/v1/me/conversations/routes.py",
+    "app/interfaces/api/v1/realtime_chat_routes.py",
+    "app/interfaces/api/ws_gateway_messaging.py",
 )
 APPLICATION_SQL_ROOTS = (
     "app/bootstrap",

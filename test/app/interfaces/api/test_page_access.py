@@ -105,7 +105,7 @@ def test_anonymous_clients_receive_public_shell_assets_but_no_product_data(
     # Given: a generated single-page application bundle.
     # When: an anonymous client asks for its static asset and protected data.
     shell_asset = client.get("/assets/app.js")
-    conversations = client.get("/api/v1/conversations")
+    conversations = client.get("/api/v1/me/conversations")
 
     # Then: JavaScript is public but data remains session-protected.
     assert shell_asset.status_code == 200

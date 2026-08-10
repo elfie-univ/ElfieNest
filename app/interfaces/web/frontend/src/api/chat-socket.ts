@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { ChatMessageSchema } from "./client"
+import { ChatMessageSchema } from "./communication"
 import { AccountRoleSchema } from "./roles"
 
 const ReadyEventSchema = z.object({ event: z.literal("ready"), principal: z.object({ role: AccountRoleSchema, account_id: z.string() }) })

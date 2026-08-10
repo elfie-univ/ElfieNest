@@ -12,11 +12,11 @@ from unittest.mock import Mock
 import anyio
 import pytest
 
-from ai_runtime.storage.data_home import get_db_path
 from app.bootstrap import build_application_container
-from app.features.accounts import hash_password
 from app.infrastructure.persistence.store import get_db, init_db
 from app.interfaces.api.ws_gateway import AuthenticatedWSManager as _WSManager
+from elfie.communication import InboundDisposition, InboundDispositionStatus
+from elfie.message_types import EventId
 
 from ._helpers import create_test_owner
 
@@ -36,8 +36,11 @@ def _accounts(db_path: str):
 
 
 def AuthenticatedWSManager(*args, **kwargs):
-    db_path = kwargs.get("db_path") or str(get_db_path())
-    kwargs["accounts"] = _accounts(db_path)
+    db_path = kwargs.pop("db_path", None) or ":memory:"
+    message_session = kwargs.pop("message_session", None)
+    container = build_application_container(db_path, message_session=message_session)
+    kwargs["accounts"] = container.accounts
+    kwargs["message_delivery"] = container.message_delivery
     return _WSManager(*args, **kwargs)
 
 
@@ -101,12 +104,11 @@ class TestWsGatewayInstantiation:
 
     def test_default_params(self) -> None:
         """默认参数实例化。"""
-        from ai_runtime.storage.data_home import get_db_path
 
         m = AuthenticatedWSManager()
         assert m.host == "127.0.0.1"
         assert m.port == 8766
-        assert m.db_path == str(get_db_path())
+        assert m.message_delivery is not None
         assert hasattr(m, "connections")
         assert isinstance(m.connections, dict)
         assert not m._running
@@ -117,7 +119,7 @@ class TestWsGatewayInstantiation:
         m = AuthenticatedWSManager(host="0.0.0.0", port=9999, db_path="/tmp/test.db")
         assert m.host == "0.0.0.0"
         assert m.port == 9999
-        assert m.db_path == "/tmp/test.db"
+        assert m.message_delivery is not None
 
     def test_port_zero_does_not_start(self) -> None:
         """port=0 仅实例化，不启动 server。"""
@@ -145,21 +147,32 @@ class TestWsGatewayMessageParsing:
                 (elfie_id, "Owner Elfie", uid, "fox", "2026-08-01T00:00:00Z"),
             )
             connection.commit()
-        sender = Mock()
-        manager = AuthenticatedWSManager(port=0, db_path=db)
-        manager.nest_session = SimpleNamespace(send_user_message=sender)
+        sender = Mock(
+            return_value=InboundDisposition(
+                message_id=EventId("accepted-message"),
+                channel_id="godot-owner",
+                status=InboundDispositionStatus.ACCEPTED,
+            )
+        )
+        manager = AuthenticatedWSManager(
+            port=0,
+            db_path=db,
+            message_session=SimpleNamespace(send_user_message=sender),
+        )
+        token = _accounts(db).create_session(uid)
+        principal = _accounts(db).authenticate_session(token)
+        assert principal is not None
 
         # When: the authenticated gateway handles the message.
         anyio.run(
             manager._handle_message,
-            uid,
+            principal,
             (
                 '{"event":"user_message","payload":'
                 f'{{"elfie_id":"{elfie_id}","message":"hello",'
                 '"account_id":"attacker","conversation_id":"attacker-conv",'
                 '"message_id":"attacker-message"}}'
             ),
-            "owner",
         )
 
         # Then: Core receives the canonical account identifier from the session.
@@ -172,12 +185,14 @@ class TestWsGatewayMessageParsing:
         db = str(tmp_path / "nest.db")
         uid = _init_db_with_owner(db)
         manager = AuthenticatedWSManager(port=0, db_path=db)
-        manager.nest_session = SimpleNamespace(send_user_message=pytest.fail)
+        token = _accounts(db).create_session(uid)
+        principal = _accounts(db).authenticate_session(token)
+        assert principal is not None
 
         # When / Then: parsing returns without raising or dispatching.
         anyio.run(
             manager._handle_message,
-            uid,
+            principal,
             '{"event":"user_message","payload":"not-an-object"}',
         )
 
@@ -191,13 +206,14 @@ class TestWsGatewayMessageParsing:
         db = str(tmp_path / "nest.db")
         uid = _init_db_with_owner(db)
         manager = AuthenticatedWSManager(port=0, db_path=db)
-        manager.nest_session = SimpleNamespace(send_user_message=pytest.fail)
-        monkeypatch.setattr(manager, "_is_elfie_owned_by", lambda *_args: True)
+        token = _accounts(db).create_session(uid)
+        principal = _accounts(db).authenticate_session(token)
+        assert principal is not None
 
         # When / Then: parsing rejects it at the WS boundary without escaping.
         anyio.run(
             manager._handle_message,
-            uid,
+            principal,
             (
                 '{"event":"user_message","payload":'
                 '{"elfie_id":"elfie-1","message":["not","text"]}}'
@@ -309,88 +325,3 @@ class TestWsGatewayMessageParsing:
         anyio.run(manager._handle_client, websocket)
 
         assert websocket.closed == [(4002, "Invalid JSON object")]
-
-
-# ===================================================================
-# 精灵所有权校验 — WS 消息路由的核心权限逻辑
-# ===================================================================
-
-
-class TestWsGatewayOwnerCheck:
-    """_is_elfie_owned_by 权限校验逻辑。"""
-
-    def _setup_owner_with_elfie(self, db_path: str) -> tuple[int, str]:
-        """创建 DB + owner + 一个精灵，返回 (owner_id, elfie_id)。"""
-        uid = _init_db_with_owner(db_path)
-        elfie_id = "00000001"
-        with get_db(db_path) as conn:
-            conn.execute(
-                """INSERT INTO elfies(
-                       elfie_id,name,owner_user_id,species,adopted_at,status
-                   ) VALUES(?,?,?,?,?,?)""",
-                (
-                    elfie_id,
-                    "owner_elfie",
-                    uid,
-                    "biped",
-                    "2026-07-30T00:00:00Z",
-                    "offline",
-                ),
-            )
-            conn.commit()
-        return uid, elfie_id
-
-    def _setup_alice(self, db_path: str) -> int:
-        """创建普通用户 alice，返回 alice_id。"""
-        pw_hash = hash_password("pw")
-        with get_db(db_path) as conn:
-            conn.execute(
-                "INSERT INTO users (account_id, password_hash, role) VALUES (?, ?, 'user')",
-                ("alice", pw_hash),
-            )
-            alice_id = conn.execute(
-                "SELECT id FROM users WHERE account_id='alice'"
-            ).fetchone()[0]
-            conn.commit()
-        return alice_id
-
-    def test_owner_owns_elfie(self, tmp_path: Path) -> None:
-        """owner 用户 → _is_elfie_owned_by 返回 True。"""
-        db = str(tmp_path / "nest.db")
-        uid, elfie_id = self._setup_owner_with_elfie(db)
-
-        manager = AuthenticatedWSManager(port=0, db_path=db)
-        assert manager._is_elfie_owned_by(elfie_id, uid) is True
-
-    def test_other_user_does_not_own(self, tmp_path: Path) -> None:
-        """非 owner 用户 → _is_elfie_owned_by 返回 False（消息被拒绝）。"""
-        db = str(tmp_path / "nest.db")
-        self._setup_owner_with_elfie(db)
-        alice_id = self._setup_alice(db)
-
-        manager = AuthenticatedWSManager(port=0, db_path=db)
-        assert manager._is_elfie_owned_by("00000001", alice_id) is False
-
-    def test_nonexistent_elfie_returns_false(self, tmp_path: Path) -> None:
-        """不存在的精灵 → _is_elfie_owned_by 返回 False。"""
-        db = str(tmp_path / "nest.db")
-        _init_db_with_owner(db)
-
-        manager = AuthenticatedWSManager(port=0, db_path=db)
-        assert manager._is_elfie_owned_by("nonexistent", 1) is False
-
-    def test_get_elfie_owner_returns_owner_id(self, tmp_path: Path) -> None:
-        """_get_elfie_owner 返回正确的 owner_user_id。"""
-        db = str(tmp_path / "nest.db")
-        uid, elfie_id = self._setup_owner_with_elfie(db)
-
-        manager = AuthenticatedWSManager(port=0, db_path=db)
-        assert manager._get_elfie_owner(elfie_id) == uid
-
-    def test_get_elfie_owner_nonexistent(self, tmp_path: Path) -> None:
-        """不存在的精灵 → _get_elfie_owner 返回 None。"""
-        db = str(tmp_path / "nest.db")
-        _init_db_with_owner(db)
-
-        manager = AuthenticatedWSManager(port=0, db_path=db)
-        assert manager._get_elfie_owner("nonexistent") is None

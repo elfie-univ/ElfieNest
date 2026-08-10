@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ai_runtime.storage.data_home import get_elfie_conversations_dir
-from app.infrastructure.persistence.elfie_chat_history import (
+from infrastructure.persistence.elfie_chat_history import (
     ElfieChatMessageInput,
     ElfieChatSender,
     list_elfie_chat_history,

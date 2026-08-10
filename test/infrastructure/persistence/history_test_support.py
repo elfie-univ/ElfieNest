@@ -1,4 +1,4 @@
-"""Shared direct-SQL fixtures for final history schema tests."""
+"""Shared root-persistence fixtures for final history schema tests."""
 
 from __future__ import annotations
 

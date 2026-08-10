@@ -1,4 +1,4 @@
-"""Account, conversation, and participant DDL for final chat history."""
+"""Root persistence DDL for final history accounts and conversations."""
 
 from __future__ import annotations
 

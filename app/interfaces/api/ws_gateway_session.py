@@ -151,7 +151,7 @@ class WebSocketSessionMixin:
                     await websocket.close(4004, "Session revoked")
                     break
                 try:
-                    await self._handle_message(user_id, message, user.account_id)
+                    await self._handle_message(user, message)
                 except Exception:
                     logger.exception("WS 消息处理异常")
         except websockets.exceptions.ConnectionClosed:

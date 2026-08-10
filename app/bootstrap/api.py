@@ -22,7 +22,10 @@ def create_app(
     web_build_dir: Optional[Path] = None,
 ) -> FastAPI:
     selected_db_path = db_path or str(get_db_path())
-    container = build_application_container(selected_db_path)
+    container = build_application_container(
+        selected_db_path,
+        message_session=None if engine is None else engine.session,
+    )
     return create_http_application(
         accounts=container.accounts,
         settings=container.settings,
@@ -32,6 +35,9 @@ def create_app(
         food=container.food,
         capabilities=container.capabilities,
         operations=container.operations,
+        communication=container.communication,
+        message_delivery=container.message_delivery,
+        communication_realtime=container.communication_realtime,
         engine=engine,
         db_path=selected_db_path,
         ws_port=ws_port,

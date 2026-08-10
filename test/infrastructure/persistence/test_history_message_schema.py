@@ -5,8 +5,8 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from app.infrastructure.persistence.history_schema import create_history_schema
-from test.app.infrastructure.persistence.history_test_support import (
+from infrastructure.persistence.history_schema import create_history_schema
+from test.infrastructure.persistence.history_test_support import (
     assert_integrity_error,
     insert_conversation_fixture,
     insert_participants,

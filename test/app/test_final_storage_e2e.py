@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -16,17 +16,19 @@ from app.features.adoption.service import (
 )
 from app.features.configuration.runtime_store import write_system_section
 from app.infrastructure.devices import DeviceRegistry
-from app.infrastructure.persistence.elfie_chat_history import (
-    ElfieChatMessageInput,
-    ElfieChatSender,
-    list_elfie_chat_history,
-    record_elfie_chat_message,
-)
 from app.infrastructure.persistence.embodiment_sessions import begin_hosting
 from app.infrastructure.persistence.store import get_db, init_db
 from app.interfaces.cli.doctor_commands import repair_local_runtime_state
 from elfie import ElfieFactory
 from elfie.brain.memory.knowledge_schema import KNOWLEDGE_TABLES
+from elfie.communication import InboundDisposition, InboundDispositionStatus
+from elfie.message_types import EventId
+from infrastructure.persistence.elfie_chat_history import (
+    ElfieChatMessageInput,
+    ElfieChatSender,
+    list_elfie_chat_history,
+    record_elfie_chat_message,
+)
 from test.app.interfaces.api._helpers import complete_test_setup, create_test_owner
 
 _NEST_TABLES = {
@@ -129,7 +131,14 @@ def test_full_product_chain_uses_one_explicit_final_root(
         patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
         patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
     ):
-        application = create_app(engine=None, db_path=str(db_path), ws_port=9876)
+        engine = MagicMock()
+        engine.session.has_repository = True
+        engine.session.send_user_message.return_value = InboundDisposition(
+            message_id=EventId("accepted-message"),
+            channel_id="godot-owner",
+            status=InboundDispositionStatus.ACCEPTED,
+        )
+        application = create_app(engine=engine, db_path=str(db_path), ws_port=9876)
         with TestClient(application, base_url="http://127.0.0.1:8000") as client:
             login = client.post(
                 "/api/v1/auth/login",
@@ -161,7 +170,7 @@ def test_full_product_chain_uses_one_explicit_final_root(
             )
             begin_hosting(str(db_path), elfie_id, body.body_id, lease_seconds=30)
             http_message = client.post(
-                f"/api/v1/conversations/{elfie_id}/messages",
+                f"/api/v1/me/conversations/{elfie_id}/messages",
                 json={"text": "HTTP 消息"},
                 headers={"X-CSRF-Token": csrf_token},
             )
@@ -184,7 +193,7 @@ def test_full_product_chain_uses_one_explicit_final_root(
 
             assert adopted.elfie_id == elfie_id
             assert bed.status_code == 200
-            assert http_message.status_code == 200
+            assert http_message.status_code == 201
             assert ws_message["event"] == "message"
 
         # Then: a restarted app reads the same final stores without fallback.
@@ -195,8 +204,8 @@ def test_full_product_chain_uses_one_explicit_final_root(
                 data={"account_id": "owner", "password": "ownerchangeme"},
             )
             assert login.status_code == 200
-            messages = client.get(f"/api/v1/conversations/{elfie_id}/messages")
-            assert [row["text"] for row in messages.json()] == [
+            messages = client.get(f"/api/v1/me/conversations/{elfie_id}/messages")
+            assert [row["text"] for row in messages.json()["items"]] == [
                 "HTTP 消息",
                 "WS 消息",
             ]

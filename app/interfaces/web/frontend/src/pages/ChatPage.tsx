@@ -3,14 +3,16 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { ChatSocket } from "../api/chat-socket"
-import { ApiError } from "../api/http"
 import {
   conversations,
-  elfies,
   messages,
-  profile,
   sendMessage,
   type ChatMessage,
+} from "../api/communication"
+import { ApiError } from "../api/http"
+import {
+  elfies,
+  profile,
   type ElfieProfileDetail,
 } from "../api/client"
 import { AdoptionJourneyDialog } from "../components/adoption/AdoptionJourneyDialog"

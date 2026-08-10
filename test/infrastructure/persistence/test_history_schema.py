@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from app.infrastructure.persistence.history_schema import (
+from infrastructure.persistence.history_schema import (
     HISTORY_FILENAME,
     InvalidHistoryPathError,
     create_history_schema,

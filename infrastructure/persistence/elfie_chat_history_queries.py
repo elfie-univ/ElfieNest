@@ -1,4 +1,4 @@
-"""Read queries for the final per-Elfie chat history database."""
+"""Root persistence queries for the final per-Elfie chat history database."""
 
 from __future__ import annotations
 

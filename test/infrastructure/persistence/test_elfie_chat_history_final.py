@@ -9,14 +9,14 @@ from pathlib import Path
 
 import pytest
 
-from app.infrastructure.persistence.elfie_chat_history import (
+from infrastructure.persistence.elfie_chat_history import (
     ElfieChatHistoryRange,
     ElfieChatMessageInput,
     ElfieChatSender,
     list_elfie_chat_history,
     record_elfie_chat_message,
 )
-from test.app.infrastructure.persistence.test_history_schema import EXPECTED_TABLES
+from test.infrastructure.persistence.test_history_schema import EXPECTED_TABLES
 
 EXPECTED_MESSAGE_COLUMNS = [
     "message_id",

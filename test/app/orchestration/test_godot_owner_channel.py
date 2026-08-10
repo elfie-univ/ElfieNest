@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from pydantic import JsonValue
 
-from app.orchestration.godot_owner_channel import GodotOwnerChannel
+from app.orchestration.message_delivery import GodotOwnerChannel
 from elfie.communication import (
     CommunicationEnvelope,
     DeliveryStatus,

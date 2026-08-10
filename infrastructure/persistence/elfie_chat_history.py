@@ -12,14 +12,14 @@ from pathlib import Path
 from typing import Final, Iterator
 
 from ai_runtime.storage.data_home import get_elfie_conversations_dir
-from app.infrastructure.persistence.elfie_chat_history_queries import (
+from infrastructure.persistence.elfie_chat_history_queries import (
     select_history_rows,
     select_source_message,
 )
-from app.infrastructure.persistence.elfie_chat_history_support import (
+from infrastructure.persistence.elfie_chat_history_support import (
     ensure_chat_conversation,
 )
-from app.infrastructure.persistence.history_schema import (
+from infrastructure.persistence.history_schema import (
     HISTORY_FILENAME,
     create_history_schema,
 )

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from ai_runtime.storage.data_home import data_home_from_db_path, get_config_path
 from ai_runtime.storage.data_layout import final_root_layout
 from app.features.accounts import AccountsService
+from app.features.communication import CommunicationFacade
 from app.features.configuration import (
     CapabilitiesService,
     ProvidersService,
@@ -16,6 +17,8 @@ from app.features.configuration.food import FoodService
 from app.features.elfies import ElfiesService
 from app.features.nest_management import NestManagementService
 from app.features.operations import OperationsFacade
+from app.orchestration.message_delivery import MessageDeliveryFacade
+from infrastructure.communication import OwnerMessageSession, SameOriginMessagePublisher
 from infrastructure.models import ProviderModelsAdapter
 from infrastructure.persistence import (
     SQLiteElfiesProjectionAdapter,
@@ -32,6 +35,7 @@ from infrastructure.tools import (
 )
 
 from .accounts import build_accounts_service
+from .communication import build_communication_services
 from .food import build_food_service
 from .operations import build_operations_facade
 
@@ -46,9 +50,16 @@ class ApplicationContainer:
     food: FoodService
     capabilities: CapabilitiesService
     operations: OperationsFacade
+    communication: CommunicationFacade
+    message_delivery: MessageDeliveryFacade
+    communication_realtime: SameOriginMessagePublisher
 
 
-def build_application_container(db_path: str) -> ApplicationContainer:
+def build_application_container(
+    db_path: str,
+    *,
+    message_session: OwnerMessageSession | None = None,
+) -> ApplicationContainer:
     config_path = get_config_path()
     provider_models = ProviderModelsAdapter()
     data_home = None
@@ -65,11 +76,17 @@ def build_application_container(db_path: str) -> ApplicationContainer:
         local_provider = provider_models.get_product("ollama")
         if local_provider is not None:
             provider_models.ensure_local_connection(local_provider)
+    elfies = ElfiesService(SQLiteElfiesProjectionAdapter(db_path))
+    communication = build_communication_services(
+        db_path,
+        elfies=elfies,
+        session=message_session,
+    )
     return ApplicationContainer(
         accounts=build_accounts_service(db_path, settings=settings_adapter),
         settings=SettingsService(settings_adapter),
         nest_management=NestManagementService(SQLiteNestManagementAdapter(db_path)),
-        elfies=ElfiesService(SQLiteElfiesProjectionAdapter(db_path)),
+        elfies=elfies,
         providers=ProvidersService(
             catalog=provider_models,
             connections=provider_models,
@@ -85,6 +102,9 @@ def build_application_container(db_path: str) -> ApplicationContainer:
             DirectCapabilityValidationAdapter(),
         ),
         operations=build_operations_facade(db_path),
+        communication=communication.communication,
+        message_delivery=communication.message_delivery,
+        communication_realtime=communication.realtime,
     )
 
 

@@ -1,4 +1,4 @@
-"""Message, attachment, and offset DDL for final chat history."""
+"""Root persistence DDL for final history messages and offsets."""
 
 from __future__ import annotations
 

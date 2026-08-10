@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useTranslation } from "react-i18next"
 
-import type { Conversation } from "../../api/client"
+import type { Conversation } from "../../api/communication"
 import type { ChatPane } from "../../pages/use-chat-view"
 import { Avatar } from "../Avatar"
 import { Icon } from "../Icon"
