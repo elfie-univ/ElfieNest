@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+NEST_SESSION_GODOT_ADAPTER_ROOT = PROJECT_ROOT / "infrastructure/godot/nest_session"
 DESKTOP_BOUNDARY_PATHS = (
     PROJECT_ROOT / "desktop",
     PROJECT_ROOT / "app/interfaces/desktop",
@@ -63,6 +64,8 @@ def test_removed_gateway_alias_is_not_restored() -> None:
 
 def test_runtime_host_does_not_import_nest_business_objects() -> None:
     # Given: the Runtime host selects/launches artifacts rather than Nest business state.
+    # The migrated Nest Session Adapter may wrap the registered legacy technical
+    # protocol until ``nest.godot_gateway`` itself moves to root Infrastructure.
     runtime_roots = (
         PROJECT_ROOT / "godot_runtime",
         PROJECT_ROOT / "infrastructure/godot",
@@ -70,22 +73,31 @@ def test_runtime_host_does_not_import_nest_business_objects() -> None:
 
     # When: every Runtime host module is checked for absolute Nest imports.
     offenders = {
-        path.relative_to(PROJECT_ROOT).as_posix(): sorted(
-            module
-            for module in _imported_modules(path)
-            if module == "nest" or module.startswith("nest.")
-        )
+        path.relative_to(PROJECT_ROOT).as_posix(): sorted(_forbidden_nest_imports(path))
         for runtime_root in runtime_roots
         if runtime_root.is_dir()
         for path in runtime_root.rglob("*.py")
-        if any(
-            module == "nest" or module.startswith("nest.")
-            for module in _imported_modules(path)
-        )
+        if _forbidden_nest_imports(path)
     }
 
     # Then: no Nest business object crosses into the host boundary.
     assert offenders == {}
+
+
+def _forbidden_nest_imports(path: Path) -> set[str]:
+    imports = {
+        module
+        for module in _imported_modules(path)
+        if module == "nest" or module.startswith("nest.")
+    }
+    if path.is_relative_to(NEST_SESSION_GODOT_ADAPTER_ROOT):
+        return {
+            module
+            for module in imports
+            if module != "nest.godot_gateway"
+            and not module.startswith("nest.godot_gateway.")
+        }
+    return imports
 
 
 def test_desktop_interface_does_not_import_gateway_internals() -> None:

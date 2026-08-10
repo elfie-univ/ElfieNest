@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from app.orchestration.engine import ElfieNestEngine
+from app.orchestration.nest_session import ElfieNestEngine
 from elfie import Elfie
+from test.app.orchestration.nest_session.fakes import FakeWorldRuntime
 
 
 @pytest.fixture
 def engine() -> ElfieNestEngine:
-    with patch("app.orchestration.engine.GodotAPIServer"):
-        return ElfieNestEngine(ws_port=18765)
+    return ElfieNestEngine(FakeWorldRuntime())
 
 
 def _mock_elfie() -> MagicMock:
