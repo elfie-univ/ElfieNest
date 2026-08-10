@@ -9,9 +9,11 @@ from collections.abc import Callable
 from typing import List
 from unittest.mock import MagicMock
 
-from app.orchestration.engine import ElfieNestEngine
+from app.orchestration.nest_session import ElfieNestEngine
 from elfie import Elfie
 from elfie.profile import ElfieProfile, create_visual_profile
+from infrastructure.godot.nest_session import GodotNestSessionAdapter
+from infrastructure.godot.nest_session.mapper import map_runtime_event
 from nest.godot_gateway.api import GodotAPIServer
 from nest.godot_gateway.messages import CommandName, EventName, RuntimeEventFrame
 
@@ -39,17 +41,21 @@ def _elfie(elfie_id: str, species: str, seed: int) -> Elfie:
     return elfie
 
 
-def _pump(engine: ElfieNestEngine) -> List[RuntimeEventFrame]:
+def _pump(
+    engine: ElfieNestEngine,
+    server: GodotAPIServer,
+) -> List[RuntimeEventFrame]:
     engine.session.poll_runtime_connection()
-    events = list(engine.api_server.drain_runtime_events())
+    events = list(server.drain_runtime_events())
     for event in events:
-        engine.session.consume_runtime_event(event)
+        engine.session.consume_runtime_event(map_runtime_event(event))
     engine.session.flush_runtime_state()
     return events
 
 
 def _wait_for(
     engine: ElfieNestEngine,
+    server: GodotAPIServer,
     predicate: Callable[[List[RuntimeEventFrame]], bool],
     *,
     timeout: float,
@@ -57,7 +63,7 @@ def _wait_for(
     observed: List[RuntimeEventFrame] = []
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        observed.extend(_pump(engine))
+        observed.extend(_pump(engine, server))
         if predicate(observed):
             return observed
         time.sleep(0.02)
@@ -87,7 +93,7 @@ def run(port: int, nonce: str, *, verify_reconnect: bool) -> dict[str, object]:
         handshake_nonce=nonce,
         allowed_origins={""},
     )
-    engine = ElfieNestEngine(api_server=server)
+    engine = ElfieNestEngine(GodotNestSessionAdapter(gateway=server))
     engine.session.register_elfie("fox-1", _elfie("fox-1", "fox", 101))
     engine.session.register_elfie("dog-1", _elfie("dog-1", "dog", 202))
     server.start()
@@ -104,6 +110,7 @@ def run(port: int, nonce: str, *, verify_reconnect: bool) -> dict[str, object]:
     try:
         startup = _wait_for(
             engine,
+            server,
             _has_two_actor_snapshot,
             timeout=45.0,
         )
@@ -123,7 +130,7 @@ def run(port: int, nonce: str, *, verify_reconnect: bool) -> dict[str, object]:
             world_revision=revision,
             correlation_id=speech_id,
         )
-        speech = _wait_for(engine, _terminal(speech_id), timeout=10.0)
+        speech = _wait_for(engine, server, _terminal(speech_id), timeout=10.0)
         audience = next(
             event for event in speech if event.name is EventName.SPEECH_AUDIENCE
         )
@@ -143,7 +150,7 @@ def run(port: int, nonce: str, *, verify_reconnect: bool) -> dict[str, object]:
             world_revision=revision,
             correlation_id=move_id,
         )
-        movement = _wait_for(engine, _terminal(move_id), timeout=25.0)
+        movement = _wait_for(engine, server, _terminal(move_id), timeout=25.0)
         move_terminal = next(
             event
             for event in movement
@@ -181,6 +188,7 @@ def run(port: int, nonce: str, *, verify_reconnect: bool) -> dict[str, object]:
         )
         _wait_for(
             engine,
+            server,
             lambda events: any(
                 event.name is EventName.INTENT_STARTED
                 and event.payload.get("command_id") == cancel_id
@@ -194,7 +202,7 @@ def run(port: int, nonce: str, *, verify_reconnect: bool) -> dict[str, object]:
             world_revision=revision,
             correlation_id=cancel_id,
         )
-        cancelled = _wait_for(engine, _terminal(cancel_id), timeout=5.0)
+        cancelled = _wait_for(engine, server, _terminal(cancel_id), timeout=5.0)
         cancel_terminal = next(
             event
             for event in cancelled
@@ -236,7 +244,7 @@ def run(port: int, nonce: str, *, verify_reconnect: bool) -> dict[str, object]:
                     and _has_two_actor_snapshot(events)
                 )
 
-            _wait_for(engine, reconnected, timeout=90.0)
+            _wait_for(engine, server, reconnected, timeout=90.0)
             active = server.runtime_connection
             if active is None:
                 raise RuntimeError("runtime disconnected after reconnect check")

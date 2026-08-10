@@ -201,6 +201,16 @@ class HttpProbePort(Protocol):
         """Return a bounded raw response for App-owned health mapping."""
 
 
+class RuntimeChannelPort(Protocol):
+    """In-process Runtime channel mechanics owned by lifecycle orchestration."""
+
+    def start(self) -> None:
+        """Start accepting authenticated Runtime protocol connections."""
+
+    def stop(self) -> None:
+        """Stop the channel and release its listening resources."""
+
+
 class RuntimeRecordPort(Protocol):
     """Durable owner-generation record required by RuntimeSupervisor."""
 

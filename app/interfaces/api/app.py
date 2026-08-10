@@ -141,13 +141,6 @@ def create_http_application(
         init_db(db_path)
         recover_interrupted_setup_install(db_path)
         seed_initial_owner_if_env_set(db_path)
-        if engine is not None and not engine.session.has_repository:
-            from app.infrastructure.persistence.nest_state_repository import (  # noqa: PLC0415
-                SQLiteNestStateRepository,
-            )
-
-            engine.session.attach_repository(SQLiteNestStateRepository(db_path))
-
         # 创建鉴权 WS 网关（独立端口，不与 Godot 8765 冲突）
         ws_manager = AuthenticatedWSManager(
             accounts=accounts,
@@ -156,7 +149,6 @@ def create_http_application(
             http_port=http_port,
         )
         if engine is not None:
-            engine.ws_manager = ws_manager
             engine.session.owner_broadcaster = ws_manager
         ws_manager.start()
         app.state.ws_manager = ws_manager
@@ -270,7 +262,7 @@ def create_http_application(
             "engine_ready": engine is not None,
             "godot_web_ready": godot_web_bundle_present(),
             "godot_runtime_ready": bool(
-                engine is not None and engine.api_server.runtime_ready
+                engine is not None and engine.world_runtime.runtime_ready
             ),
         }
 

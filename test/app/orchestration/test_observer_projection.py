@@ -4,49 +4,20 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from app.orchestration.engine import ElfieNestEngine
-from app.orchestration.runtime_sync import ActorDescriptor
+from app.orchestration.nest_session import ActorDescriptor, ElfieNestEngine
 from elfie import Elfie
-from nest.godot_gateway.messages import CommandName, RuntimeEventFrame
 from nest.state.models import (
     PersistentResidentState,
     ResidentPresence,
     RuntimeResidentMirror,
 )
 from nest.state.repository import NestPersistenceSnapshot
-
-
-class _RuntimeGateway:
-    """Small no-connection gateway sufficient for a NestSession fixture."""
-
-    runtime_connection = None
-
-    def mark_runtime_ready(
-        self,
-        _connection: object,
-        *,
-        world_revision: int,
-    ) -> None:
-        _ = world_revision
-
-    def send_runtime_command(
-        self,
-        _name: CommandName,
-        _payload: dict[str, object],
-        *,
-        world_revision: int,
-        correlation_id: str | None = None,
-    ) -> str | None:
-        _ = world_revision, correlation_id
-        return None
-
-    def drain_runtime_events(self) -> tuple[RuntimeEventFrame, ...]:
-        return ()
+from test.app.orchestration.nest_session.fakes import FakeWorldRuntime
 
 
 def test_observer_projection_contains_nest_semantics_without_geometry() -> None:
     # Given: one registered Elfie has received a Runtime semantic mirror.
-    engine = ElfieNestEngine(api_server=_RuntimeGateway())
+    engine = ElfieNestEngine(FakeWorldRuntime())
     engine.session.register_elfie("fox-1", MagicMock(spec=Elfie))
     engine.nest.apply_runtime_mirrors(
         (
@@ -77,13 +48,13 @@ def test_observer_projection_contains_nest_semantics_without_geometry() -> None:
 
 def test_observer_projection_includes_view_only_actor_semantics() -> None:
     # Given: one resident has a real actor descriptor and semantic home anchor.
-    engine = ElfieNestEngine(api_server=_RuntimeGateway())
+    engine = ElfieNestEngine(FakeWorldRuntime())
     engine.session.register_elfie("fox-1", MagicMock(spec=Elfie))
 
     # When: the Observer projection is assembled from existing profile/Nest facts.
     with (
         patch(
-            "app.orchestration.nest_session.actor_catalog",
+            "app.orchestration.nest_session.session.actor_catalog",
             return_value=(ActorDescriptor("fox-1", "fox", {"height_scale": 1.0}),),
         ),
         patch.object(engine.nest, "home_anchor_id", return_value="dorm-01/bed-01"),
@@ -123,13 +94,13 @@ def test_observer_projection_uses_persisted_home_when_runtime_is_not_connected()
         )
     }
     engine = ElfieNestEngine(
-        api_server=_RuntimeGateway(),
+        FakeWorldRuntime(),
         nest_repository=repository,
     )
     engine.session.register_elfie("fox-1", MagicMock(spec=Elfie))
 
     with patch(
-        "app.orchestration.nest_session.actor_catalog",
+        "app.orchestration.nest_session.session.actor_catalog",
         return_value=(ActorDescriptor("fox-1", "fox", {}),),
     ):
         projected = engine.session.observer_semantic_entities()

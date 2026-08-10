@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from app.orchestration.nest_session import NestSession
 from elfie.body import BodyId, BodySensorEvent, TactileImpact, UtteranceFinal
 from elfie.message_types import ActorId, ActorRef, EventId
 from nest import Nest
+
+if TYPE_CHECKING:
+    from app.orchestration.nest_session.session import NestSession
 
 
 def collect_world_sensory_events(

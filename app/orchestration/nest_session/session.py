@@ -4,26 +4,30 @@ from __future__ import annotations
 
 import logging
 from threading import RLock
-from typing import Callable, Dict, Literal
+from typing import Dict, Literal
 
-from app.orchestration.godot_owner_channel import (
+from app.orchestration.message_delivery import (
     GodotOwnerChannel,
     OwnerMessageBroadcaster,
+    deliver_owner_message,
 )
-from app.orchestration.nest_residents import (
+from app.orchestration.nest_session.errors import NestSessionLifecycleError
+from app.orchestration.nest_session.models import ActorDescriptor, WorldEvent
+from app.orchestration.nest_session.ports import (
+    CorticalRuntimeFactory,
+    WorldRuntimePort,
+)
+from app.orchestration.nest_session.residents import (
     actor_catalog,
     persist_resident,
     restore_snapshot,
 )
-from app.orchestration.nest_runtime_events import NestRuntimeEventRouter
-from app.orchestration.owner_message_delivery import deliver_owner_message
-from app.orchestration.runtime_gateway import RuntimeGateway
-from app.orchestration.runtime_sync import ActorDescriptor, NestRuntimeSynchronizer
+from app.orchestration.nest_session.runtime_events import NestRuntimeEventRouter
+from app.orchestration.nest_session.runtime_sync import NestRuntimeSynchronizer
 from elfie import Elfie
 from elfie.brain.runtime_port import CorticalRuntimePort
 from elfie.communication.contracts import InboundDisposition
 from nest import Nest
-from nest.godot_gateway.messages import RuntimeEventFrame
 from nest.godot_gateway.observer import ObserverSemanticEntity
 from nest.interaction.hub import TactileInput
 from nest.state.models import PersistentResidentState
@@ -41,28 +45,22 @@ SessionLifecycleState = Literal[
 ]
 
 
-class NestSessionLifecycleError(RuntimeError):
-    """A NestSession operation conflicts with its active lifecycle state."""
-
-
 class NestSession:
     """持有真实精灵实例，并把巢内事件交给对应精灵处理。"""
 
     def __init__(
         self,
         nest: Nest,
-        api_server: RuntimeGateway,
+        world_runtime: WorldRuntimePort,
         repository: NestRepository | None = None,
     ) -> None:
         self.nest = nest
-        self.api_server = api_server
+        self.world_runtime = world_runtime
         self.elfies: Dict[str, Elfie] = {}
         self._lifecycle_lock = RLock()
         self._lifecycle_state: SessionLifecycleState = "new"
         self._cortical_runtime: CorticalRuntimePort | None = None
-        self._cortical_runtime_factory: Callable[[str], CorticalRuntimePort] | None = (
-            None
-        )
+        self._cortical_runtime_factory: CorticalRuntimeFactory | None = None
         self.owner_broadcaster: OwnerMessageBroadcaster | None = None
         self._runtime_token: tuple[str, int] | None = None
         self._repository = repository
@@ -70,7 +68,7 @@ class NestSession:
             repository.load_snapshot()
             if repository is not None
             else NestPersistenceSnapshot(
-                desired_bed_count=4,
+                desired_bed_count=nest.state.config.bed_count,
                 elapsed_seconds=0.0,
                 catalog=None,
                 residents=(),
@@ -80,14 +78,14 @@ class NestSession:
         self._persisted_home_assignments = self._read_persisted_home_assignments()
         self._runtime_sync = NestRuntimeSynchronizer(
             nest=nest,
-            gateway=api_server,
+            world_runtime=world_runtime,
             actor_catalog_provider=self._actor_catalog_snapshot,
             desired_bed_count=snapshot.desired_bed_count,
             repository=repository,
         )
         self._runtime_events = NestRuntimeEventRouter(
             nest=nest,
-            gateway=api_server,
+            world_runtime=world_runtime,
             elfies=self.elfies,
             synchronizer=self._runtime_sync,
             broadcaster_provider=lambda: self.owner_broadcaster,
@@ -245,7 +243,7 @@ class NestSession:
             restore_snapshot(self.nest, snapshot)
             self._runtime_sync = NestRuntimeSynchronizer(
                 nest=self.nest,
-                gateway=self.api_server,
+                world_runtime=self.world_runtime,
                 actor_catalog_provider=self._actor_catalog_snapshot,
                 desired_bed_count=snapshot.desired_bed_count,
                 repository=repository,
@@ -261,7 +259,7 @@ class NestSession:
     def poll_runtime_connection(self) -> None:
         """Detect a new authoritative Runtime and send desired world config."""
         with self._lifecycle_lock:
-            connection = self.api_server.runtime_connection
+            connection = self.world_runtime.runtime_connection
             token = (
                 (connection.runtime_id, connection.generation)
                 if connection is not None
@@ -274,7 +272,7 @@ class NestSession:
                 self._runtime_token = token
             self._runtime_sync.poll_connection()
 
-    def consume_runtime_event(self, event: RuntimeEventFrame) -> None:
+    def consume_runtime_event(self, event: WorldEvent) -> None:
         """Apply one drained and generation-validated Runtime event."""
         with self._lifecycle_lock:
             self._runtime_events.consume(event)
@@ -289,7 +287,9 @@ class NestSession:
         with self._lifecycle_lock:
             self._persisted_home_assignments = self._read_persisted_home_assignments()
         catalog = self.nest.state.world_catalog
-        room_id = catalog.nest_id if catalog is not None else "local-nest"
+        room_id = (
+            catalog.nest_id if catalog is not None else self.nest.state.config.nest_id
+        )
         descriptors = {
             descriptor.actor_id: descriptor for descriptor in actor_catalog(self.elfies)
         }
@@ -306,7 +306,9 @@ class NestSession:
                     mirror.active_command_id if mirror is not None else None
                 ),
                 species_id=descriptor.species if descriptor is not None else None,
-                appearance=descriptor.appearance if descriptor is not None else {},
+                appearance=(
+                    dict(descriptor.appearance) if descriptor is not None else {}
+                ),
                 home_anchor_id=self._observer_home_anchor_id(elfie_id),
             )
         return entities
@@ -314,11 +316,8 @@ class NestSession:
     def _read_persisted_home_assignments(self) -> Dict[str, PersistentResidentState]:
         if self._repository is None:
             return {}
-        loader = getattr(self._repository, "load_home_assignments", None)
-        if not callable(loader):
-            return {}
         try:
-            assignments = loader()
+            assignments = self._repository.load_home_assignments()
         except NestPersistenceError as error:
             logger.warning("读取精灵 home assignment 失败: %s", error)
             return getattr(self, "_persisted_home_assignments", {})
@@ -352,7 +351,7 @@ class NestSession:
 
     def configure_cognition_factory(
         self,
-        factory: Callable[[str], CorticalRuntimePort],
+        factory: CorticalRuntimeFactory,
     ) -> None:
         """Inject an independently configured Runtime boundary per Elfie."""
         with self._lifecycle_lock:

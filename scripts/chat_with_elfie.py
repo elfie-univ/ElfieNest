@@ -21,9 +21,10 @@ logger = logging.getLogger("chat")
 
 from ai_runtime import LLMRuntimeConfig, RuntimeAgent
 from ai_runtime.storage.data_home import get_db_path
+from app.bootstrap.lifecycle import create_lifecycle_facade
+from app.bootstrap.nest_session import build_nest_session_services
 from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
 from app.infrastructure.persistence.store import init_db
-from app.orchestration.engine import ElfieNestEngine
 from elfie import ElfieFactory
 
 
@@ -32,6 +33,7 @@ def main():
     # avoiding SQLite cross-thread errors.
     engine_holder: dict = {}
     engine_ready = threading.Event()
+    lifecycle = create_lifecycle_facade()
 
     def engine_worker():
         # 1. Assemble services, mirroring the main.py flow in one thread.
@@ -43,17 +45,28 @@ def main():
             config,
             food_catalog_repository=food_repository,
         )
-        engine = ElfieNestEngine()
+        nest_session = build_nest_session_services(
+            db_path,
+            runtime=runtime_agent,
+            godot_ws_port=8765,
+            http_port=8000,
+            tick_interval_sec=1.5,
+        )
+        lifecycle.start_runtime_channel(nest_session.world_runtime)
+        engine = nest_session.engine
         elfie = ElfieFactory().create(
             elfie_id="Aifei",
-            godot_api=engine.api_server,
+            godot_api=nest_session.world_runtime,
         )
         engine.session.register_elfie("Aifei", elfie)
         engine_holder["engine"] = engine
+        engine_holder["world_runtime"] = nest_session.world_runtime
         engine_ready.set()
         # 2. Start the blocking engine loop.
         engine.start_loop(
-            runtime_agent=runtime_agent, ticks_to_run=100000, interval_sec=3.0
+            runtime_factory=nest_session.runtime_factory,
+            ticks_to_run=100000,
+            interval_sec=3.0,
         )
 
     engine_thread = threading.Thread(target=engine_worker, daemon=True)
@@ -91,7 +104,7 @@ def main():
         print("⏳ Aifei is thinking...")
 
     # 4. Cleanup.
-    engine.api_server.stop()
+    lifecycle.stop_runtime_channel(engine_holder["world_runtime"])
 
 
 if __name__ == "__main__":

@@ -237,7 +237,7 @@ def _register_with_engine(
         elfie = ElfieFactory().restore(
             config_dir,
             elfie_id=elfie_id,
-            godot_api=getattr(engine, "api_server", None),
+            godot_api=getattr(engine, "world_runtime", None),
         )
         engine.session.register_elfie(elfie_id, elfie)
         logger.info(

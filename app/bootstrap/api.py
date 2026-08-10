@@ -8,6 +8,10 @@ from typing import Any, Optional
 from fastapi import FastAPI
 
 from ai_runtime.storage.data_home import get_db_path
+from app.infrastructure.persistence.nest_state_repository import (
+    SQLiteNestStateRepository,
+)
+from app.infrastructure.persistence.store import init_db
 from app.interfaces.api.app import create_http_application
 
 from .container import build_application_container
@@ -22,6 +26,10 @@ def create_app(
     web_build_dir: Optional[Path] = None,
 ) -> FastAPI:
     selected_db_path = db_path or str(get_db_path())
+    if selected_db_path != ":memory:":
+        init_db(selected_db_path)
+    if engine is not None and not engine.session.has_repository:
+        engine.session.attach_repository(SQLiteNestStateRepository(selected_db_path))
     container = build_application_container(
         selected_db_path,
         message_session=None if engine is None else engine.session,

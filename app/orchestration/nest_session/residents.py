@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from app.orchestration.runtime_sync import ActorDescriptor
+from app.orchestration.nest_session.models import ActorDescriptor
 from elfie import Elfie
 from elfie.profile import AppearanceResolver, ElfieProfile
 from nest import Nest

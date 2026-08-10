@@ -203,6 +203,42 @@ Machine baseline entries removed: every Interface import of private lifecycle im
 Status: in progress
 ```
 
+### Communication and message delivery
+
+```text
+Domain: communication / message_delivery
+Gap IDs: APP-001, APP-003, APP-004, APP-005, APP-006, APP-007, APP-009, APP-011
+Current authoritative facts: one per-Elfie conversations/history.sqlite store; Elfies ownership projection; existing typed Elfie admission receipts
+Routes and production callers: /api/v1/me/conversations, /api/v1/ws/chat, the authenticated legacy socket transport and the browser Chat surface
+Target public facade and models: CommunicationFacade for authorized history and MessageDeliveryFacade for live user/reply delivery
+Ports and adapters: root SQLite history, Elfie delivery and same-origin realtime adapters assembled by Bootstrap
+Consistency class: authorize and admit before one user-history append; persist one Elfie reply before broadcasting the same record
+Principal and authorization: Interfaces authenticate an AccountPrincipal; Communication verifies visible ownership through the public Elfies facade
+Timeout / retry / idempotency: existing synchronous admission behavior; no new retry; duplicate admission never appends history
+Legacy deletion list: app/features/chat, Interface chat persistence helper, duplicate v1 client chat Routes and the old same-origin realtime helper
+Focused tests and end-to-end gate: Feature/workflow/adapters, strict HTTP and WebSocket resources, legacy socket bridge, browser chat, final-storage journey and App/System/Storage gates
+Machine baseline entries removed: deleted chat Interface construction/concrete imports, loose conversation Routes and replaced persistence paths
+Status: closed
+```
+
+### Orchestration: live Nest Session
+
+```text
+Domain: orchestration/nest_session
+Gap IDs: APP-002, APP-003, APP-004, APP-007, APP-009
+Current authoritative facts: the public Nest state/repository contract, real Elfie instances and authenticated Godot protocol-v2 world facts
+Routes and production callers: source serve/chat/verifier entry points, HTTP health, adoption admission, Observer projection and Nest Lab
+Target public facade and models: one NestSession/ElfieNestEngine workflow with App-owned semantic world Port Models
+Ports and adapters: root GodotNestSessionAdapter; Bootstrap constructs Engine, repository and cognition factory; Lifecycle starts and stops the in-process channel
+Consistency class: Nest repository mutations retain their existing transaction semantics; Runtime mirrors remain transient and Godot remains physical authority
+Principal and authorization: this internal workflow receives already-authorized product commands and never authenticates HTTP callers
+Timeout / retry / idempotency: existing tick and Runtime generation behavior; no new retry; one Engine loop and one Runtime generation are enforced
+Legacy deletion list: flat Engine/Session/runtime-sync/event/scene modules and duplicate owner-message helpers are deleted; remaining Observer projection and legacy Nest persistence placement close in their own slices
+Focused tests and end-to-end gate: Nest Session and Godot Adapter, Gateway/Nest state, serve entry points, Observer semantic projection, Nest Lab and architecture gates
+Machine baseline entries removed: Interface construction/import of the Nest state Adapter; no new App baseline debt
+Status: in progress
+```
+
 ### Operations: maintenance and Runtime status
 
 ```text

@@ -191,7 +191,7 @@ def test_adoption_returns_service_unavailable_when_runtime_registration_fails(
     csrf_token = _login_owner(client)
     candidate_set_id, candidate_id = _accepted_candidate(client, csrf_token)
     runtime = MagicMock()
-    runtime.api_server = None
+    runtime.world_runtime = None
     runtime.session.register_elfie.side_effect = RuntimeError("runtime unavailable")
     client.app.state.engine = runtime
 

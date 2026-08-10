@@ -59,13 +59,11 @@ from ai_runtime.storage.data_home import (
 from app.bootstrap import create_app
 from app.bootstrap.food import build_food_service
 from app.bootstrap.lifecycle import create_lifecycle_facade
+from app.bootstrap.nest_session import build_nest_session_services
 from app.features.adoption.generator import ElfieGenerator
 from app.infrastructure.persistence.account_repository import AccountRepository
 from app.infrastructure.persistence.elfie_repository import ElfieRepository
 from app.infrastructure.persistence.food_packages import SQLiteFoodPackageRepository
-from app.infrastructure.persistence.nest_state_repository import (
-    SQLiteNestStateRepository,
-)
 from app.infrastructure.persistence.store import (
     get_db,
     init_db,
@@ -77,7 +75,6 @@ from app.interfaces.web.frontend_build import (
     FrontendBuildError,
     ensure_frontend_build,
 )
-from app.orchestration.engine import ElfieNestEngine
 from app.orchestration.lifecycle import (
     DEFAULT_GODOT_WS_PORT,
     DEFAULT_MANAGEMENT_WS_PORT,
@@ -604,21 +601,21 @@ def main():
                 "     Setup guide: .venv/bin/python ai_runtime/setup/runtime_setup.py"
             )
 
-        engine = ElfieNestEngine(
-            ws_port=args.godot_ws_port,
-            godot_origin_port=args.port,
+        nest_session = build_nest_session_services(
+            db_path,
+            runtime=runtime_agent,
+            godot_ws_port=args.godot_ws_port,
+            http_port=args.port,
             tick_interval_sec=tick_interval_sec,
-            nest_repository=SQLiteNestStateRepository(db_path),
-            food_key_resolver=(
-                lambda elfie_id: (
-                    main_food_loader(elfie_id) if main_food_loader is not None else None
-                )
-            ),
+            main_food_loader=main_food_loader,
         )
+        lifecycle.start_runtime_channel(nest_session.world_runtime)
+        engine = nest_session.engine
         engine_holder["engine"] = engine
+        engine_holder["world_runtime"] = nest_session.world_runtime
         engine_ready.set()
         engine.start_loop(
-            runtime_agent=runtime_agent,
+            runtime_factory=nest_session.runtime_factory,
             ticks_to_run=100000,
         )
 
@@ -632,8 +629,6 @@ def main():
     engine = engine_holder["engine"]
     time.sleep(2.0)  # Wait for service readiness.
     print("  ℹ️ Godot Web Runtime is hosted by ElfieNest Desktop hidden window")
-
-    engine.session.attach_repository(SQLiteNestStateRepository(db_path))
 
     # 4. Dynamically load all Elfies from the database.
     loaded_elfies: list[dict] = []
@@ -650,7 +645,7 @@ def main():
             try:
                 elfie = elfie_factory.restore(
                     config_dir,
-                    godot_api=engine.api_server,
+                    godot_api=engine.world_runtime,
                     elfie_id=elfie_id,
                 )
                 engine.session.register_elfie(elfie_id, elfie)
@@ -701,7 +696,7 @@ def main():
     except KeyboardInterrupt:
         print("\nShutting down service...")
     finally:
-        engine.api_server.stop()
+        lifecycle.stop_runtime_channel(engine_holder["world_runtime"])
         print("Service stopped.")
 
 

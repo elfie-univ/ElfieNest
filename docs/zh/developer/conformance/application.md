@@ -154,6 +154,42 @@ Principal 与授权：Interface 认证账户 Principal；Providers 门面授权�
 状态：in progress
 ```
 
+### Communication 与消息投递
+
+```text
+业务域：communication / message_delivery
+缺口 ID：APP-001、APP-003、APP-004、APP-005、APP-006、APP-007、APP-009、APP-011
+当前权威事实：每只 Elfie 唯一的 conversations/history.sqlite；Elfies 所有权投影；现有强类型 Elfie 接纳回执
+路由与生产调用方：/api/v1/me/conversations、/api/v1/ws/chat、已认证的历史 socket 传输和浏览器 Chat 界面
+目标公共门面与模型：CommunicationFacade 负责授权历史，MessageDeliveryFacade 负责实时用户/精灵消息投递
+Port 与 Adapter：根 Infrastructure 的 SQLite 历史、Elfie 投递和同源实时 Adapter，由 Bootstrap 装配
+一致性类别：先授权并接纳，再唯一追加用户历史；精灵回复先唯一持久化，再广播同一记录
+Principal 与授权：Interface 认证 AccountPrincipal；Communication 通过公共 Elfies 门面校验可见所有权
+超时、重试与幂等：保留现有同步接纳行为；不新增重试；duplicate 接纳永不追加历史
+旧实现删除清单：app/features/chat、Interface 聊天持久化 helper、重复 v1 client 聊天 Route 与旧同源 realtime helper
+聚焦测试与端到端门：Feature/工作流/Adapter、严格 HTTP 与 WebSocket 资源、历史 socket 桥、浏览器聊天、最终存储链路和 App/System/Storage 门
+已删除的机器基线条目：已删除的聊天 Interface 构造/具体 import、宽松 conversation Route 与被替换的持久化路径
+状态：closed
+```
+
+### Orchestration：实时 Nest Session
+
+```text
+业务域：orchestration/nest_session
+缺口 ID：APP-002、APP-003、APP-004、APP-007、APP-009
+当前权威事实：公共 Nest 状态/Repository 契约、真实 Elfie 实例和已认证 Godot protocol-v2 世界事实
+路由与生产调用方：源码 serve/chat/验证入口、HTTP 健康、领养接纳、Observer 投影和 Nest Lab
+目标公共门面与模型：唯一 NestSession/ElfieNestEngine 工作流与 App-owned 语义世界 Port Model
+Port 与 Adapter：根 GodotNestSessionAdapter；Bootstrap 构造 Engine、Repository 和认知 Runtime factory；Lifecycle 启停进程内 channel
+一致性类别：Nest Repository 修改保留现有事务语义；Runtime mirror 仍为短期态，Godot 仍是物理权威
+Principal 与授权：内部工作流只接收已授权的产品命令，不认证 HTTP 调用者
+超时、重试与幂等：保留现有 tick 和 Runtime generation 行为；不新增重试；限制一个 Engine loop 和一个 Runtime generation
+旧实现删除清单：已删除平铺 Engine/Session/runtime-sync/event/scene 模块与重复 owner-message helper；剩余 Observer 投影和旧 Nest persistence 位置由各自切片闭合
+聚焦测试与端到端门：Nest Session 与 Godot Adapter、Gateway/Nest state、serve 入口、Observer 语义投影、Nest Lab 和架构门
+已删除的机器基线条目：Interface 构造/import Nest state Adapter 的条目；未新增 App 基线债务
+状态：in progress
+```
+
 ### Operations：维护与 Runtime 状态
 
 ```text

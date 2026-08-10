@@ -67,7 +67,6 @@ LEGACY_APP_LAYER_VIOLATIONS: Dict[str, FrozenSet[str]] = {
     "infrastructure_forbidden_layer_imports": frozenset(),
     "interface_adapter_construction": frozenset(
         {
-            "app/interfaces/api/app.py::lifespan::SQLiteNestStateRepository",
             "app/interfaces/api/observer_routes.py::_owns_elfie::InterfaceQueryRepository",
             "app/interfaces/api/observer_routes.py::_registry::ObserverSessionRegistry",
             "app/interfaces/api/ollama_owner_routes.py::_provider_store::ProviderConnectionStore",
@@ -120,7 +119,6 @@ LEGACY_APP_LAYER_VIOLATIONS: Dict[str, FrozenSet[str]] = {
     "interface_forbidden_layer_imports": frozenset(
         {
             "app/interfaces/api/app.py -> app.infrastructure.devices",
-            "app/interfaces/api/app.py -> app.infrastructure.persistence.nest_state_repository",
             "app/interfaces/api/app.py -> app.infrastructure.persistence.store",
             "app/interfaces/api/observer_routes.py -> app.infrastructure.persistence.interface_query_repository",
             "app/interfaces/api/ollama_owner_models.py -> app.infrastructure.ollama_platform",

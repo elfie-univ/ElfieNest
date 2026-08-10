@@ -18,6 +18,7 @@ from app.orchestration.lifecycle.ports import (
     LocalProcessEntry,
     ProcessSnapshot,
     RecoveryLockPort,
+    RuntimeChannelPort,
     RuntimeRecordFactory,
     ServiceProcessPort,
 )
@@ -156,6 +157,14 @@ class LifecycleFacade:
 
     def http_get(self, url: str, *, timeout_seconds: float) -> HttpProbeResult:
         return self._http_probe.get(url, timeout_seconds=timeout_seconds)
+
+    def start_runtime_channel(self, channel: RuntimeChannelPort) -> None:
+        """Start the in-process Runtime channel through the lifecycle owner."""
+        channel.start()
+
+    def stop_runtime_channel(self, channel: RuntimeChannelPort) -> None:
+        """Stop the in-process Runtime channel through the lifecycle owner."""
+        channel.stop()
 
     def process_exists(self, pid: int) -> bool:
         return self._process_port.exists(pid)
