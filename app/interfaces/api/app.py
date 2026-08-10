@@ -47,6 +47,7 @@ from app.interfaces.web.build_discovery import (
     discover_web_build,
 )
 from app.orchestration.message_delivery import MessageDeliveryFacade
+from app.orchestration.observer import ObserverFacade
 from infrastructure.communication import SameOriginMessagePublisher
 from nest.godot_gateway.bundle import (
     GODOT_WEB_DIR,
@@ -113,6 +114,7 @@ def create_http_application(
     communication: CommunicationFacade,
     message_delivery: MessageDeliveryFacade,
     communication_realtime: SameOriginMessagePublisher,
+    observer: ObserverFacade,
     engine: Any = None,
     db_path: Optional[str] = None,
     ws_port: int = 8766,
@@ -173,6 +175,7 @@ def create_http_application(
     app.state.communication = communication
     app.state.message_delivery = message_delivery
     app.state.communication_realtime = communication_realtime
+    app.state.observer = observer
     app.state.db_path = db_path
     app.state.engine = engine
     app.state.device_gateway = DeviceGateway()
@@ -310,6 +313,7 @@ def create_http_application(
     from .v1.me.conversations import (
         router as conversations_router,  # noqa: PLC0415
     )
+    from .v1.observer import router as observer_router  # noqa: PLC0415
     from .v1.realtime_chat_routes import (
         router as realtime_chat_router,  # noqa: PLC0415
     )
@@ -324,6 +328,7 @@ def create_http_application(
     app.include_router(runtime_router)
     app.include_router(me_router)
     app.include_router(conversations_router)
+    app.include_router(observer_router)
     app.include_router(realtime_chat_router)
     app.include_router(admin_users_router)
     app.include_router(setup_router)
@@ -343,10 +348,6 @@ def create_http_application(
     from .user_routes import router as user_router  # noqa: PLC0415
 
     app.include_router(user_router)
-
-    from .observer_routes import router as observer_router  # noqa: PLC0415
-
-    app.include_router(observer_router)
 
     # -------------------------------------------------------------------
     # LLM Config 路由 (Provider/Model/Route 管理)

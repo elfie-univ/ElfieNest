@@ -14,6 +14,7 @@ from app.features.accounts import (
     LoginCommand,
     LoginRateLimited,
 )
+from app.orchestration.observer import ObserverFacade, session_token_fingerprint
 
 from ...page_routes import post_login_landing_path
 from .dependencies import accounts_service, get_current_user
@@ -35,7 +36,11 @@ def _error(status_code: int, code: str, message: str) -> JSONResponse:
 @router.post(
     "/login",
     response_model=LoginResponse,
-    responses={401: {"model": ErrorResponse}, 422: {"model": ErrorResponse}, 429: {"model": ErrorResponse}},
+    responses={
+        401: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        429: {"model": ErrorResponse},
+    },
 )
 async def login(
     request: Request,
@@ -100,11 +105,9 @@ async def logout(
     _ = principal
     token = request.cookies.get("session_token", "")
     if token:
-        from ...observer_routes import session_token_fingerprint  # noqa: PLC0415
-
-        observer_sessions = getattr(request.app.state, "observer_sessions", None)
-        if observer_sessions is not None:
-            observer_sessions.revoke_session(session_token_fingerprint(token))
+        observer = getattr(request.app.state, "observer", None)
+        if isinstance(observer, ObserverFacade):
+            observer.revoke_session(session_token_fingerprint(token))
         service.logout(token)
     response = JSONResponse(content={"detail": "已登出"})
     response.delete_cookie(key="session_token")

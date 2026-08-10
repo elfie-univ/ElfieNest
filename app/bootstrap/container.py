@@ -18,6 +18,8 @@ from app.features.elfies import ElfiesService
 from app.features.nest_management import NestManagementService
 from app.features.operations import OperationsFacade
 from app.orchestration.message_delivery import MessageDeliveryFacade
+from app.orchestration.nest_session import NestSession
+from app.orchestration.observer import ObserverFacade
 from infrastructure.communication import OwnerMessageSession, SameOriginMessagePublisher
 from infrastructure.models import ProviderModelsAdapter
 from infrastructure.persistence import (
@@ -37,6 +39,7 @@ from infrastructure.tools import (
 from .accounts import build_accounts_service
 from .communication import build_communication_services
 from .food import build_food_service
+from .observer import build_observer_facade
 from .operations import build_operations_facade
 
 
@@ -53,12 +56,14 @@ class ApplicationContainer:
     communication: CommunicationFacade
     message_delivery: MessageDeliveryFacade
     communication_realtime: SameOriginMessagePublisher
+    observer: ObserverFacade
 
 
 def build_application_container(
     db_path: str,
     *,
     message_session: OwnerMessageSession | None = None,
+    observer_session: NestSession | None = None,
 ) -> ApplicationContainer:
     config_path = get_config_path()
     provider_models = ProviderModelsAdapter()
@@ -77,13 +82,14 @@ def build_application_container(
         if local_provider is not None:
             provider_models.ensure_local_connection(local_provider)
     elfies = ElfiesService(SQLiteElfiesProjectionAdapter(db_path))
+    accounts = build_accounts_service(db_path, settings=settings_adapter)
     communication = build_communication_services(
         db_path,
         elfies=elfies,
         session=message_session,
     )
     return ApplicationContainer(
-        accounts=build_accounts_service(db_path, settings=settings_adapter),
+        accounts=accounts,
         settings=SettingsService(settings_adapter),
         nest_management=NestManagementService(SQLiteNestManagementAdapter(db_path)),
         elfies=elfies,
@@ -105,6 +111,11 @@ def build_application_container(
         communication=communication.communication,
         message_delivery=communication.message_delivery,
         communication_realtime=communication.realtime,
+        observer=build_observer_facade(
+            accounts=accounts,
+            elfies=elfies,
+            nest_session=observer_session,
+        ),
     )
 
 

@@ -65,7 +65,7 @@ export async function openObserverSession(
   subscription: ObserverSubscription,
   csrfToken: string,
 ): Promise<string> {
-  const payload = await requestJson("/api/observer/sessions", {
+  const payload = await requestJson("/api/v1/observer/sessions", {
     method: "POST",
     headers: csrfHeaders(csrfToken, true),
     body: JSON.stringify({ protocol: 3, role: "observer", subscription }),
@@ -80,7 +80,7 @@ export async function nextObserverFrame(
   const query = cursor === null
     ? ""
     : `?acknowledged_generation=${cursor.generation}&acknowledged_sequence=${cursor.sequence}`
-  const payload = await requestJson(`/api/observer/frames${query}`, { headers: capabilityHeaders(capability) })
+  const payload = await requestJson(`/api/v1/observer/frames${query}`, { headers: capabilityHeaders(capability) })
   return payload === null ? null : ObserverFrameSchema.parse(payload)
 }
 

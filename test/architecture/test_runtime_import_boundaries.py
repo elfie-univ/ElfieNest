@@ -15,7 +15,6 @@ PUBLIC_GATEWAY_IMPORTS = frozenset(
     {
         "nest.godot_gateway.bundle",
         "nest.godot_gateway.observer",
-        "nest.godot_gateway.observer_sessions",
     }
 )
 

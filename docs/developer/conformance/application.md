@@ -293,6 +293,24 @@ Machine baseline entries removed: old capability Feature-internal import, loose/
 Status: closed
 ```
 
+### Orchestration: Observer
+
+```text
+Domain: orchestration/observer
+Gap IDs: APP-001, APP-003, APP-004, APP-005, APP-006, APP-007, APP-009, APP-011
+Current authoritative facts: authenticated Accounts sessions, authorized Elfies visibility and the existing Nest Session semantic world projection
+Routes and production callers: /api/v1/observer sessions, interest, frames and high-level intents; browser Observer surface; logout capability revocation
+Target public facade and models: ObserverFacade with strict principal, capability, subscription, frame and high-level intent commands, queries and results
+Ports and adapters: consumer-owned world, clock and capability Ports; root Godot/platform adapters; Bootstrap injects Accounts, Elfies and the existing Nest Session projection
+Consistency class: capability and projection queues are process-local and short-lived; world reads never create state; no physical or Runtime fact is copied
+Principal and authorization: capabilities bind to the authenticated session fingerprint; managers see authorized room projections and members see only visible Elfies; logout revokes every capability for that login
+Timeout / retry / idempotency: capability expiry follows the existing Accounts session TTL; existing bounded projection and intent limits remain; no retry; repeated revocation is idempotent
+Legacy deletion list: unversioned Observer Route; route-owned registry and SQLite authorization query; Nest Gateway Observer session registry; old frontend paths
+Focused tests and end-to-end gate: Facade capability/projection/authorization; strict Route and logout; Godot/platform adapters; browser client; App/System/Gateway/Runtime architecture gates
+Machine baseline entries removed: old Observer Route construction, concrete persistence import, loose/missing Route models and every /api/observer resource
+Status: closed
+```
+
 ## Current-to-target migration map
 
 The normative owners are defined only by the Application contract. This table

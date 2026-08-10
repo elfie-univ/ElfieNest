@@ -1,16 +1,31 @@
 import { describe, expect, it, vi } from "vitest"
 
 import { requestJson } from "./http"
-import { nextObserverFrame, warmObserverAssets } from "./observer"
+import { nextObserverFrame, openObserverSession, warmObserverAssets } from "./observer"
 
 const { kyGet } = vi.hoisted(() => ({ kyGet: vi.fn() }))
 
 vi.mock("ky", () => ({ default: { get: kyGet } }))
 
 vi.mock("./http", () => ({
-  csrfHeaders: vi.fn(),
+  csrfHeaders: vi.fn().mockReturnValue({ "X-CSRF-Token": "csrf" }),
   requestJson: vi.fn(),
 }))
+
+describe("openObserverSession", () => {
+  it("uses the sole versioned Observer resource", async () => {
+    vi.mocked(requestJson).mockResolvedValue({ capability: "observer-capability" })
+
+    await expect(
+      openObserverSession({ kind: "room", room_id: "local-nest" }, "csrf"),
+    ).resolves.toBe("observer-capability")
+
+    expect(requestJson).toHaveBeenCalledWith(
+      "/api/v1/observer/sessions",
+      expect.objectContaining({ method: "POST" }),
+    )
+  })
+})
 
 describe("nextObserverFrame", () => {
   it("accepts the Python room snapshot shape with a null inactive Elfie field", async () => {
@@ -28,6 +43,10 @@ describe("nextObserverFrame", () => {
       kind: "snapshot",
       scope: { kind: "room", room_id: "local-nest", elfie_id: null },
     })
+    expect(requestJson).toHaveBeenCalledWith(
+      "/api/v1/observer/frames",
+      expect.any(Object),
+    )
   })
 
   it("accepts the Python Elfie snapshot shape with a null inactive room field", async () => {

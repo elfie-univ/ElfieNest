@@ -244,6 +244,24 @@ Principal 与授权：Interface 认证账户 Principal；Capabilities 授权管�
 状态：closed
 ```
 
+### Orchestration：Observer
+
+```text
+业务域：orchestration/observer
+缺口 ID：APP-001、APP-003、APP-004、APP-005、APP-006、APP-007、APP-009、APP-011
+当前权威事实：Accounts 已认证 Session、Elfies 授权可见关系，以及现有 Nest Session 语义世界投影
+路由与生产调用方：/api/v1/observer 的 Session、Interest、Frame 与高层 Intent；浏览器 Observer 界面；退出登录时撤销 capability
+目标公共门面与模型：ObserverFacade，以及严格 Principal、Capability、Subscription、Frame、高层 Intent Command、Query、Result
+Port 与 Adapter：消费方拥有的 World、Clock、Capability Port；根 Godot/Platform Adapter；Bootstrap 注入 Accounts、Elfies 和现有 Nest Session 投影
+一致性类别：Capability 与投影队列只在进程内短期存在；世界读取不创建状态；不复制物理或 Runtime 事实
+Principal 与授权：Capability 绑定已认证 Session 指纹；管理员只看授权房间投影，成员只看可见 Elfie；退出时撤销该登录的全部 Capability
+超时、重试与幂等：Capability 过期沿用 Accounts Session TTL；保留现有有界投影与 Intent 限制；不重试；重复撤销幂等
+旧实现删除清单：未版本化 Observer Route；Route 内 Registry 与 SQLite 授权查询；Nest Gateway Observer Session Registry；旧前端路径
+聚焦测试与端到端门：Facade Capability/投影/授权；严格 Route 与退出；Godot/Platform Adapter；浏览器 Client；App/System/Gateway/Runtime 架构门
+已删除的机器基线条目：旧 Observer Route 构造、具体 Persistence import、松散/缺失 Route 模型和全部 /api/observer 资源
+状态：closed
+```
+
 ## 当前到目标的迁移映射
 
 规范性所有者只由应用架构契约定义。本表记录当前实现应进入哪里，以及迁移期位置何时
