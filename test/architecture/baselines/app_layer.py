@@ -17,17 +17,9 @@ LEGACY_APP_LAYER_VIOLATIONS: Dict[str, FrozenSet[str]] = {
     "feature_unowned_task_calls": frozenset(),
     "infrastructure_feature_internal_imports": frozenset({}),
     "infrastructure_forbidden_layer_imports": frozenset(),
-    "interface_adapter_construction": frozenset(
-        {
-            "app/interfaces/cli/route_commands.py::show_route::ElfieRepository",
-        }
-    ),
+    "interface_adapter_construction": frozenset(),
     "interface_feature_internal_imports": frozenset(),
-    "interface_forbidden_layer_imports": frozenset(
-        {
-            "app/interfaces/cli/route_commands.py -> app.infrastructure.persistence.elfie_repository",
-        }
-    ),
+    "interface_forbidden_layer_imports": frozenset(),
     "interface_orchestration_internal_imports": frozenset(),
     "json_routes_loose_annotations": frozenset(),
     "json_routes_missing_response_model": frozenset(),

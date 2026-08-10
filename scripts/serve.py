@@ -61,8 +61,10 @@ from app.bootstrap import create_app
 from app.bootstrap.food import build_food_service
 from app.bootstrap.lifecycle import create_lifecycle_facade
 from app.bootstrap.nest_session import build_nest_session_services
-from app.features.adoption import AcceptedAdoptionReservation
-from app.infrastructure.persistence.elfie_repository import ElfieRepository
+from app.features.adoption import (
+    AcceptedAdoptionReservation,
+    AdoptionReservationRecord,
+)
 from app.interfaces.api.service_access import ServiceMode
 from app.interfaces.cli.lifecycle_commands import _remember_lifecycle_data_home
 from app.interfaces.web.frontend_build import (
@@ -80,7 +82,11 @@ from app.orchestration.lifecycle import (
 from elfie.brain.decision_types import CancelPolicy, DecisionPlan, MessageIntent
 from elfie.brain.model_context_compiler import CompiledModelContext
 from elfie.message_types import EventId, IntentId, PlanId, TurnId
-from infrastructure.persistence import FinalElfieWorkspaceAdapter
+from infrastructure.persistence import (
+    FinalElfieWorkspaceAdapter,
+    SQLiteAdoptionAdapter,
+    SQLiteElfiesProjectionAdapter,
+)
 from infrastructure.persistence.account_repository import AccountRepository
 from infrastructure.persistence.food_catalog import SQLiteFoodPackageRepository
 from infrastructure.persistence.store import (
@@ -289,8 +295,8 @@ def seed_single_elfie(db_path: str) -> bool:
     Returns:
         True when a new Elfie was seeded, False when existing Elfies require no action.
     """
-    repository = ElfieRepository(db_path)
-    if repository.count_all() > 0:
+    elfies = SQLiteElfiesProjectionAdapter(db_path)
+    if elfies.list_directory():
         return False
     with get_db(db_path) as connection:
         owner = AccountRepository(connection).find_owner()
@@ -298,13 +304,19 @@ def seed_single_elfie(db_path: str) -> bool:
         return False
 
     elfie_id = "00000001"
-    repository.reserve_adoption(
-        elfie_id=elfie_id,
-        owner_user_id=owner.user_id,
-        name="Aifei",
-        species="fox",
-        summary=None,
-        max_elfies=1,
+    birth_date = datetime.now(timezone.utc).date().isoformat()
+    adoption = SQLiteAdoptionAdapter(db_path)
+    adoption.reserve(
+        AdoptionReservationRecord(
+            elfie_id=elfie_id,
+            owner_user_id=owner.user_id,
+            name="Aifei",
+            species_id="fox",
+            gender="female",
+            birth_date=birth_date,
+            summary="好奇探索",
+        ),
+        default_limit=1,
     )
     try:
         FinalElfieWorkspaceAdapter(data_home_from_db_path(db_path)).materialize(
@@ -320,11 +332,11 @@ def seed_single_elfie(db_path: str) -> bool:
                 face="any",
                 signature="any",
                 gender="female",
-                birth_date=datetime.now(timezone.utc).date().isoformat(),
+                birth_date=birth_date,
             )
         )
     except Exception:
-        repository.delete(elfie_id)
+        adoption.release(elfie_id)
         raise
 
     return True
@@ -645,7 +657,7 @@ def main():
 
         elfie_factory = ElfieFactory()
 
-        rows = ElfieRepository(db_path).list_all()
+        rows = SQLiteElfiesProjectionAdapter(db_path).list_directory()
         for row in rows:
             elfie_id = row.elfie_id
             config_dir = str(get_elfie_config_dir(elfie_id))

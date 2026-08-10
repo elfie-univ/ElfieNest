@@ -6,15 +6,15 @@ from pathlib import Path
 
 import pytest
 
+from app.features.adoption import AdoptionReservationRecord
 from app.features.bodies.ports import (
     BodiesPortCredentialRejected,
 )
 from app.features.nest_management import NestPortBedNotFound
-from app.infrastructure.persistence.elfie_repository import ElfieRepository
-from infrastructure.persistence.final_schema import create_final_nest_database
-from infrastructure.persistence.store import get_db
 from app.orchestration.embodiment.ports import EmbodimentLeaseConflict
 from infrastructure.persistence import (
+    SQLiteAdoptionAdapter,
+    SQLiteElfiesProjectionAdapter,
     SQLiteFoodAdapter,
     SQLiteNestManagementAdapter,
     SQLiteNestStateAdapter,
@@ -27,6 +27,8 @@ from infrastructure.persistence.embodiment import (
     get_embodiment_session,
     start_return,
 )
+from infrastructure.persistence.final_schema import create_final_nest_database
+from infrastructure.persistence.store import get_db
 from nest.embodiment import EmbodimentState
 from nest.state.models import PersistentResidentState, ResidentPresence, WorldCatalog
 from test.app.interfaces.api._helpers import adopt_test_elfie
@@ -71,37 +73,51 @@ def _assert_only_final_tables(db_path: str) -> None:
     assert tables == FINAL_TABLES
 
 
-def test_elfie_repository_persists_owner_profile_main_food_and_nullable_bed(
+def _reserve_elfie(
+    db_path: str,
+    *,
+    elfie_id: str = "00000001",
+    summary: str = "好奇探索",
+) -> None:
+    SQLiteAdoptionAdapter(db_path).reserve(
+        AdoptionReservationRecord(
+            elfie_id=elfie_id,
+            owner_user_id=1,
+            name="小狐",
+            species_id="fox",
+            gender="female",
+            birth_date="2026-07-30",
+            summary=summary,
+        ),
+        default_limit=2,
+    )
+
+
+def test_final_adapters_persist_owner_profile_main_food_and_nullable_bed(
     tmp_path: Path,
 ) -> None:
     # Given: an exact final root database and its Owner.
     db_path = _final_database(tmp_path)
-    repository = ElfieRepository(db_path)
-
-    # When: one final Elfie is adopted and its profile/main-food fields are updated.
-    repository.reserve_adoption(
-        elfie_id="00000001",
-        owner_user_id=1,
-        name="小狐",
-        species="fox",
-        summary="好奇探索",
-        max_elfies=2,
-    )
-    repository.update_profile(
-        "00000001", gender="female", birth_date="2026-07-30", summary="爱探索"
-    )
+    # When: one final Elfie is adopted and its main-food field is updated.
+    _reserve_elfie(db_path, summary="爱探索")
     SQLiteFoodAdapter(db_path).set_main_food("00000001", "local-main")
 
     # Then: the final row is owner-scoped, complete, and no legacy table appeared.
-    record = repository.get_for_owner("00000001", owner_user_id=1)
+    projection = SQLiteElfiesProjectionAdapter(db_path)
+    record = projection.get_directory("00000001")
     assert record is not None
     assert record.elfie_id == "00000001"
     assert record.owner_user_id == 1
     assert record.gender == "female"
     assert record.summary == "爱探索"
-    assert record.main_food_id == "local-main"
-    assert record.bed_number is None
-    assert repository.list_for_owner(1) == [record]
+    assignment = SQLiteFoodAdapter(db_path).get_assignment("00000001")
+    assert assignment is not None
+    assert assignment.main_food_id == "local-main"
+    assert all(
+        bed.occupant_id != "00000001"
+        for bed in SQLiteNestManagementAdapter(db_path).load_snapshot().beds
+    )
+    assert projection.list_directory(owner_user_id=1) == (record,)
     _assert_only_final_tables(db_path)
 
 
@@ -117,7 +133,7 @@ def test_adoption_service_creates_an_eight_digit_final_elfie_without_sql(
     # Then: ownership/profile are final, ID is exactly eight digits, and no SQL leaked.
     assert len(elfie_id) == 8
     assert elfie_id.isdigit()
-    record = ElfieRepository(db_path).get_for_owner(elfie_id, owner_user_id=1)
+    record = SQLiteElfiesProjectionAdapter(db_path).get_directory(elfie_id)
     assert record is not None
     assert record.summary == "好奇探索"
     source = Path("app/features/adoption/facade.py").read_text(encoding="utf-8")
@@ -131,14 +147,7 @@ def test_nest_repositories_store_only_settings_presence_and_bed_number(
 ) -> None:
     # Given: a final Elfie and a Runtime catalog containing geometry-owned labels.
     db_path = _final_database(tmp_path)
-    ElfieRepository(db_path).reserve_adoption(
-        elfie_id="00000001",
-        owner_user_id=1,
-        name="小狐",
-        species="fox",
-        summary=None,
-        max_elfies=2,
-    )
+    _reserve_elfie(db_path)
     catalog = WorldCatalog(nest_id="local-nest", revision=7, zones=())
     state_repository = SQLiteNestStateAdapter(db_path)
 
@@ -157,8 +166,8 @@ def test_nest_repositories_store_only_settings_presence_and_bed_number(
     assert restored.residents == (
         PersistentResidentState(elfie_id="00000001", presence=ResidentPresence.AWAY),
     )
-    assert ElfieRepository(db_path).get("00000001").bed_number == 4
     bed = nest_repository.load_snapshot().beds[3]
+    assert bed.occupant_id == "00000001"
     assert bed.occupant_owner_user_id == 1
     assert bed.occupant_owner_account_id == "owner"
     assert bed.occupant_owner_display_name == "Owner Name"
@@ -172,14 +181,7 @@ def test_body_secret_revoke_audit_and_versioned_lease_reject_stale_writes(
 ) -> None:
     # Given: a final Elfie and one explicitly owned external body.
     db_path = _final_database(tmp_path)
-    ElfieRepository(db_path).reserve_adoption(
-        elfie_id="00000001",
-        owner_user_id=1,
-        name="小狐",
-        species="fox",
-        summary=None,
-        max_elfies=2,
-    )
+    _reserve_elfie(db_path)
     registry = SQLiteBodiesAdapter(db_path)
     credential = registry.enroll(
         owner_user_id=1,

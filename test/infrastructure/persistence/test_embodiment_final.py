@@ -6,10 +6,9 @@ from pathlib import Path
 
 import pytest
 
+from app.features.adoption import AdoptionReservationRecord
 from app.features.bodies.ports import BodiesPortConflict
-from app.infrastructure.persistence.elfie_repository import ElfieRepository
-from infrastructure.persistence.final_schema import create_final_nest_database
-from infrastructure.persistence.store import get_db
+from infrastructure.persistence import SQLiteAdoptionAdapter
 from infrastructure.persistence.bodies import SQLiteBodiesAdapter
 from infrastructure.persistence.embodiment import (
     begin_hosting,
@@ -17,6 +16,23 @@ from infrastructure.persistence.embodiment import (
     complete_return,
     start_return,
 )
+from infrastructure.persistence.final_schema import create_final_nest_database
+from infrastructure.persistence.store import get_db
+
+
+def _reserve_elfie(db_path: str) -> None:
+    SQLiteAdoptionAdapter(db_path).reserve(
+        AdoptionReservationRecord(
+            elfie_id="00000001",
+            owner_user_id=1,
+            name="小狐",
+            species_id="fox",
+            gender="female",
+            birth_date="2026-07-30",
+            summary="好奇探索",
+        ),
+        default_limit=2,
+    )
 
 
 def test_returned_elfie_can_host_again_with_next_lease_version(tmp_path: Path) -> None:
@@ -28,14 +44,7 @@ def test_returned_elfie_can_host_again_with_next_lease_version(tmp_path: Path) -
                VALUES (1, 'owner', 'owner', 'hash')"""
         )
         connection.commit()
-    ElfieRepository(db_path).reserve_adoption(
-        elfie_id="00000001",
-        owner_user_id=1,
-        name="小狐",
-        species="fox",
-        summary=None,
-        max_elfies=2,
-    )
+    _reserve_elfie(db_path)
     registry = SQLiteBodiesAdapter(db_path)
     first_body = registry.enroll(
         owner_user_id=1,
@@ -87,14 +96,7 @@ def test_active_body_cannot_be_revoked(tmp_path: Path) -> None:
                VALUES (1, 'owner', 'owner', 'hash')"""
         )
         connection.commit()
-    ElfieRepository(db_path).reserve_adoption(
-        elfie_id="00000001",
-        owner_user_id=1,
-        name="小狐",
-        species="fox",
-        summary=None,
-        max_elfies=2,
-    )
+    _reserve_elfie(db_path)
     registry = SQLiteBodiesAdapter(db_path)
     body = registry.enroll(
         owner_user_id=1,

@@ -2,10 +2,7 @@ from __future__ import annotations
 
 from _pytest.capture import CaptureFixture
 
-from app.infrastructure.persistence.elfie_repository import ElfieRepository
-from app.interfaces.cli import provider_commands, route_commands
-from infrastructure.persistence import get_db, init_db
-from infrastructure.persistence.account_repository import AccountRepository
+from app.interfaces.cli import provider_commands
 from test.app.interfaces.cli.configuration_test_support import (
     FakeProvidersService,
     manager_principal,
@@ -108,39 +105,3 @@ def test_remove_ollama_uses_explicit_local_removal(capsys) -> None:
 
     assert providers.connections == []
     assert "configuration removed" in capsys.readouterr().out
-
-
-def test_show_route_prints_main_food_without_models(
-    tmp_path,
-    monkeypatch,
-    capsys: CaptureFixture[str],
-) -> None:
-    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
-    database_path = init_db()
-    with get_db(database_path) as connection:
-        owner_id = AccountRepository(connection).create_owner(
-            account_id="owner",
-            password_hash="test-hash",
-            display_name="Owner",
-            avatar_color=0,
-        )
-        connection.commit()
-    elfies = ElfieRepository(database_path)
-    elfies.reserve_adoption(
-        elfie_id="00000001",
-        owner_user_id=owner_id,
-        name="Elfie",
-        species="fox",
-        summary=None,
-        max_elfies=3,
-    )
-    from infrastructure.persistence import SQLiteFoodAdapter
-
-    SQLiteFoodAdapter(database_path).set_main_food("00000001", "premium")
-
-    route_commands.show_route("00000001")
-
-    output = capsys.readouterr().out
-    assert "00000001 Main Food" in output
-    assert "Main food: premium" in output
-    assert "Models are managed by Runtime food packages" in output
