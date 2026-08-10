@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 import pytest
 
-from app.infrastructure.persistence.nest_repository import SQLiteNestRepository
-from app.infrastructure.persistence.nest_state_repository import (
-    SQLiteNestStateRepository,
-)
 from app.infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence import (
+    SQLiteNestManagementAdapter,
+    SQLiteNestStateAdapter,
+)
 from nest.state.models import PersistentResidentState, ResidentPresence, WorldCatalog
 
 
@@ -29,7 +31,7 @@ def _seed_elfie(db_path: str) -> None:
 def test_repository_persists_only_runtime_revision_and_presence(tmp_path) -> None:
     db_path = init_db(str(tmp_path / "nest.db"))
     _seed_elfie(db_path)
-    repository = SQLiteNestStateRepository(db_path)
+    repository = SQLiteNestStateAdapter(db_path)
 
     repository.save_catalog(WorldCatalog(nest_id="local-nest", revision=3, zones=()))
     repository.save_resident(
@@ -54,6 +56,19 @@ def test_repository_persists_only_runtime_revision_and_presence(tmp_path) -> Non
     )
 
 
+def test_query_uses_public_defaults_without_writing_configuration(tmp_path) -> None:
+    db_path = init_db(str(tmp_path / "nest.db"))
+
+    snapshot = SQLiteNestStateAdapter(db_path).load_snapshot()
+
+    assert snapshot.desired_bed_count == 4
+    assert snapshot.elapsed_seconds == 0.0
+    with get_db(db_path) as connection:
+        assert (
+            connection.execute("SELECT COUNT(*) FROM nest_settings").fetchone()[0] == 0
+        )
+
+
 def test_remove_resident_keeps_elfie_and_clears_bed(tmp_path) -> None:
     db_path = init_db(str(tmp_path / "nest.db"))
     _seed_elfie(db_path)
@@ -63,7 +78,7 @@ def test_remove_resident_keeps_elfie_and_clears_bed(tmp_path) -> None:
         )
         connection.commit()
 
-    SQLiteNestStateRepository(db_path).remove_resident("00000001")
+    SQLiteNestStateAdapter(db_path).remove_resident("00000001")
 
     with get_db(db_path) as connection:
         row = connection.execute(
@@ -81,18 +96,15 @@ def test_repository_exposes_persisted_bed_as_semantic_home_anchor(
 ) -> None:
     db_path = init_db(str(tmp_path / "nest.db"))
     _seed_elfie(db_path)
-    with get_db(db_path) as connection:
-        if bed_number > 4:
+    if bed_number > 4:
+        with get_db(db_path) as connection:
             connection.execute(
                 "UPDATE nest_settings SET bed_count=8 WHERE nest_id='local-nest'"
             )
-        SQLiteNestRepository(connection).assign_bed(
-            elfie_id="00000001",
-            bed_number=bed_number,
-        )
-        connection.commit()
+            connection.commit()
+    SQLiteNestManagementAdapter(db_path).assign_bed("00000001", bed_number)
 
-    assignments = SQLiteNestStateRepository(db_path).load_home_assignments()
+    assignments = SQLiteNestStateAdapter(db_path).load_home_assignments()
 
     assert assignments == {
         "00000001": PersistentResidentState(

@@ -5,12 +5,10 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 from app.bootstrap import create_app
-from app.infrastructure.persistence.nest_state_repository import (
-    SQLiteNestStateRepository,
-)
 from app.infrastructure.persistence.store import get_db, init_db
 from app.orchestration.nest_session import ElfieNestEngine
 from elfie import Elfie
+from infrastructure.persistence import SQLiteNestStateAdapter
 from test.app.orchestration.nest_session.fakes import FakeWorldRuntime
 
 
@@ -37,7 +35,7 @@ def test_application_lifespan_accepts_engine_with_registered_elfies(tmp_path) ->
         connection.commit()
     engine = ElfieNestEngine(
         FakeWorldRuntime(),
-        nest_repository=SQLiteNestStateRepository(db_path),
+        nest_repository=SQLiteNestStateAdapter(db_path),
     )
     engine.session.register_elfie("00000001", MagicMock(spec=Elfie))
     application = create_app(engine=engine, db_path=db_path, ws_port=19876)

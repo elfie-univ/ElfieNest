@@ -8,6 +8,7 @@ from .elfies import SQLiteElfiesProjectionAdapter
 from .embodiment import SQLiteEmbodimentLeaseAdapter
 from .food import SQLiteFoodAdapter
 from .nest_management import SQLiteNestManagementAdapter
+from .nest_state import SQLiteNestStateAdapter
 from .operations import SQLiteOperationsAdapter
 
 __all__ = (
@@ -19,6 +20,7 @@ __all__ = (
     "SQLiteEmbodimentLeaseAdapter",
     "SQLiteFoodAdapter",
     "SQLiteNestManagementAdapter",
+    "SQLiteNestStateAdapter",
     "SQLiteOperationsAdapter",
     "SessionRepository",
     "hash_session_token",

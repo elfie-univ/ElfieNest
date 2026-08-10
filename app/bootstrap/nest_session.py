@@ -7,15 +7,13 @@ from typing import Callable, Optional, Union
 
 from ai_runtime.food.resolver import MainFoodSelection
 from ai_runtime.storage.data_home import get_elfie_workspace_dir
-from app.infrastructure.persistence.nest_state_repository import (
-    SQLiteNestStateRepository,
-)
 from app.orchestration.nest_session import CorticalRuntimeFactory, ElfieNestEngine
 from infrastructure.godot.nest_session import GodotNestSessionAdapter
 from infrastructure.models.runtime_adapter import (
     SerializedRuntimeAdapter,
     StructuredRuntime,
 )
+from infrastructure.persistence import SQLiteNestStateAdapter
 
 MainFoodLoader = Callable[[str], Optional[Union[str, MainFoodSelection]]]
 
@@ -57,7 +55,7 @@ def build_nest_session_services(
         engine=ElfieNestEngine(
             world_runtime,
             tick_interval_sec=tick_interval_sec,
-            nest_repository=SQLiteNestStateRepository(db_path),
+            nest_repository=SQLiteNestStateAdapter(db_path),
         ),
         world_runtime=world_runtime,
         runtime_factory=runtime_factory,

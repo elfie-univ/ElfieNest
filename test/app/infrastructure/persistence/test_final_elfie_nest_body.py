@@ -9,15 +9,16 @@ import pytest
 from app.features.bodies.ports import (
     BodiesPortCredentialRejected,
 )
+from app.features.nest_management import NestPortBedNotFound
 from app.infrastructure.persistence.elfie_repository import ElfieRepository
 from app.infrastructure.persistence.final_schema import create_final_nest_database
-from app.infrastructure.persistence.nest_repository import SQLiteNestRepository
-from app.infrastructure.persistence.nest_state_repository import (
-    SQLiteNestStateRepository,
-)
 from app.infrastructure.persistence.store import get_db
 from app.orchestration.embodiment.ports import EmbodimentLeaseConflict
-from infrastructure.persistence import SQLiteFoodAdapter
+from infrastructure.persistence import (
+    SQLiteFoodAdapter,
+    SQLiteNestManagementAdapter,
+    SQLiteNestStateAdapter,
+)
 from infrastructure.persistence.bodies import SQLiteBodiesAdapter
 from infrastructure.persistence.embodiment import (
     begin_hosting,
@@ -139,36 +140,30 @@ def test_nest_repositories_store_only_settings_presence_and_bed_number(
         max_elfies=2,
     )
     catalog = WorldCatalog(nest_id="local-nest", revision=7, zones=())
-    state_repository = SQLiteNestStateRepository(db_path)
+    state_repository = SQLiteNestStateAdapter(db_path)
 
     # When: Runtime revision/resident presence and a nullable bed are persisted.
     state_repository.save_catalog(catalog)
     state_repository.save_resident(
         PersistentResidentState(elfie_id="00000001", presence=ResidentPresence.AWAY)
     )
-    with get_db(db_path) as connection:
-        nest_repository = SQLiteNestRepository(connection)
-        nest_repository.assign_bed(elfie_id="00000001", bed_number=4)
-        connection.commit()
+    nest_repository = SQLiteNestManagementAdapter(db_path)
+    nest_repository.assign_bed("00000001", 4)
 
     # Then: reopening restores semantic state without storing a Godot catalog.
-    restored = SQLiteNestStateRepository(db_path).load_snapshot()
+    restored = SQLiteNestStateAdapter(db_path).load_snapshot()
     assert restored.catalog is None
     assert restored.desired_bed_count == 4
     assert restored.residents == (
         PersistentResidentState(elfie_id="00000001", presence=ResidentPresence.AWAY),
     )
     assert ElfieRepository(db_path).get("00000001").bed_number == 4
-    with get_db(db_path) as connection:
-        bed = SQLiteNestRepository(connection).load_view().beds[3]
-    assert bed["occupant_owner_user_id"] == 1
-    assert bed["occupant_owner_account_id"] == "owner"
-    assert bed["occupant_owner_display_name"] == "Owner Name"
-    with pytest.raises(ValueError):
-        with get_db(db_path) as connection:
-            SQLiteNestRepository(connection).assign_bed(
-                elfie_id="00000001", bed_number=5
-            )
+    bed = nest_repository.load_snapshot().beds[3]
+    assert bed.occupant_owner_user_id == 1
+    assert bed.occupant_owner_account_id == "owner"
+    assert bed.occupant_owner_display_name == "Owner Name"
+    with pytest.raises(NestPortBedNotFound, match="bed not found"):
+        nest_repository.assign_bed("00000001", 5)
     _assert_only_final_tables(db_path)
 
 
