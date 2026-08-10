@@ -9,15 +9,16 @@ from ai_runtime.config import DEFAULT_SYSTEM_SETTINGS, LLMRuntimeConfig
 from ai_runtime.models.catalog import verify_provider
 from ai_runtime.providers.profiles import get_profile
 from ai_runtime.storage.data_home import get_config_path
-from app.features.administration.system_service import (
-    DatabaseUnavailableError,
-    collect_usage_stats,
-)
 from app.features.configuration.provider_service import list_configured_provider_rows
 from app.features.configuration.user_config import (
     UserConfig,
     read_user_config,
     write_user_config,
+)
+from app.features.operations import (
+    GetUsageStatsQuery,
+    OperationsError,
+    OperationsFacade,
 )
 from app.interfaces.cli.tui.common import clear_screen, print_banner
 
@@ -71,7 +72,7 @@ def show_config(config: UserConfig) -> None:
     _pause()
 
 
-def test_config(config: UserConfig) -> None:
+def test_config(config: UserConfig, operations: OperationsFacade) -> None:
     clear_screen()
     print_banner()
     print("  🧪 Testing Configuration")
@@ -91,9 +92,9 @@ def test_config(config: UserConfig) -> None:
 
     print("\n  [2/3] Testing database...")
     try:
-        stats = collect_usage_stats()
+        stats = operations.get_usage_stats(GetUsageStatsQuery())
         print(f"  ✅ Database OK ({stats.user_count} users)")
-    except (DatabaseUnavailableError, OSError) as e:
+    except (OperationsError, OSError) as e:
         print(f"  ❌ Database error: {e}")
 
     print("\n  [3/3] Testing config file...")
