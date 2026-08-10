@@ -639,8 +639,8 @@ class ProvidersService:
     ) -> ProviderConnectionResult:
         try:
             product = self._product(connection.catalog_id)
-            current_verification = verification or self._technology.summarize_connection(
-                connection
+            current_verification = (
+                verification or self._technology.summarize_connection(connection)
             )
             return ProviderConnectionResult(
                 connection_id=connection.connection_id,
@@ -649,9 +649,7 @@ class ProvidersService:
                 api_base=connection.api_base,
                 api_mode=connection.api_mode,
                 auth_type=connection.auth_type,
-                has_api_key=self._connections.has_credential(
-                    connection.credential_ref
-                ),
+                has_api_key=self._connections.has_credential(connection.credential_ref),
                 enabled=connection.enabled,
                 archived=connection.archived,
                 usage_scope=product.usage_scope,
@@ -680,7 +678,9 @@ class ProvidersService:
                 model.model_id,
             )
         except ProviderPortError as error:
-            raise ProvidersUnavailable("Provider model projection unavailable") from error
+            raise ProvidersUnavailable(
+                "Provider model projection unavailable"
+            ) from error
         return ProviderModelResult(
             model_id=model.model_id,
             display_name=model.display_name,
@@ -732,7 +732,9 @@ class ProvidersService:
                 ),
             )
         except ProviderPortError as error:
-            raise ProvidersUnavailable("Provider model projection unavailable") from error
+            raise ProvidersUnavailable(
+                "Provider model projection unavailable"
+            ) from error
 
     @staticmethod
     def _product_result(product: StoredProviderProduct) -> ProviderProductResult:

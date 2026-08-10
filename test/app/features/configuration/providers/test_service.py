@@ -147,7 +147,9 @@ class FakeTechnology:
         self,
         connection: StoredProviderConnection,
     ) -> StoredModelRefresh:
-        return StoredModelRefresh("updated", "2026-08-10T00:00:00+00:00", None, connection.models)
+        return StoredModelRefresh(
+            "updated", "2026-08-10T00:00:00+00:00", None, connection.models
+        )
 
     def model_matrix(self, *args, **kwargs) -> StoredModelMatrix:
         raise ProviderPortError("unused")

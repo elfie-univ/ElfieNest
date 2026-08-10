@@ -378,9 +378,7 @@ def test_benchmark_and_validate_all_project_named_results(
             }
         ),
     ):
-        validation = client.post(
-            "/api/v1/admin/model-providers/model-validations"
-        )
+        validation = client.post("/api/v1/admin/model-providers/model-validations")
 
     assert validation.status_code == 200
     assert validation.json()["status"] == "complete"

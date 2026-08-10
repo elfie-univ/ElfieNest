@@ -50,9 +50,7 @@ def test_legacy_provider_and_model_owner_routes_are_removed() -> None:
 
     app_source = _source("app/interfaces/api/app.py")
     assert "model_owner_routes" not in app_source
-    versioned_source = _source(
-        "app/interfaces/api/v1/admin/model_providers/routes.py"
-    )
+    versioned_source = _source("app/interfaces/api/v1/admin/model_providers/routes.py")
     assert 'prefix="/api/v1/admin/model-providers"' in versioned_source
     assert '"/model-matrix"' in versioned_source
     assert '"/model-benchmarks"' in versioned_source
