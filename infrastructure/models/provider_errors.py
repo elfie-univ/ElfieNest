@@ -1,4 +1,4 @@
-"""Provider error sanitization shared by connection APIs."""
+"""Secret-safe normalization for Provider technology failures."""
 
 from __future__ import annotations
 

@@ -13,11 +13,14 @@ from ai_runtime.storage.report_repository import ReportRepository
 from ai_runtime.storage.secrets import connection_secret_name, resolve_secret
 from ai_runtime.storage.validation_reports import write_model_validation_report
 from app.interfaces.api.v1.auth import require_manager
+from infrastructure.models.provider_errors import sanitize_error
+from infrastructure.models.provider_model_benchmark import (
+    bounded_benchmark,
+    validate_combinations,
+)
+from infrastructure.models.provider_model_matrix import build_model_matrix
 
 from .provider_connection_routes import _verify_connection_in_run
-from .provider_errors import sanitize_error
-from .provider_model_benchmark import bounded_benchmark, validate_combinations
-from .provider_model_matrix import build_model_matrix
 from .provider_schemas import (
     ConnectionBenchmarkRequest,
 )
@@ -80,12 +83,17 @@ async def benchmark_connection_models(
 ) -> dict[str, Any]:
     _ = owner
     connections = ProviderConnectionStore().load().connections
-    validate_combinations(body.combinations, connections)
+    try:
+        validate_combinations(body.combinations, connections)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
     if await request.is_disconnected():
         raise HTTPException(status_code=499, detail="客户端已断开")
     semaphore = asyncio.Semaphore(_BENCHMARK_CONCURRENCY)
     tasks = [
-        asyncio.create_task(bounded_benchmark(item, semaphore))
+        asyncio.create_task(
+            bounded_benchmark(item, connections[item.connection_id], semaphore)
+        )
         for item in body.combinations
     ]
     try:

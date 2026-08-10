@@ -3,55 +3,52 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict
+from typing import Any, Protocol
 
-from fastapi import HTTPException
+from ai_runtime.storage.provider_connections import ProviderConnection
 
-from ai_runtime.storage.provider_connections import (
-    ProviderConnection,
-    ProviderConnectionStore,
-)
-
-from .provider_schemas import ConnectionBenchmarkCombination
 from .provider_validation_checks import run_connection_model_check
 from .provider_validation_runtime import runtime_projection
 
 _BENCHMARK_TIMEOUT_SECONDS = 20.0
 
 
+class BenchmarkCombination(Protocol):
+    @property
+    def connection_id(self) -> str: ...
+
+    @property
+    def model_id(self) -> str: ...
+
+
 def validate_combinations(
-    combinations: list[ConnectionBenchmarkCombination],
-    connections: Dict[str, ProviderConnection],
+    combinations: list[BenchmarkCombination],
+    connections: dict[str, ProviderConnection],
 ) -> None:
     for combination in combinations:
         connection = connections.get(combination.connection_id)
         if connection is None or not connection.enabled or connection.archived:
-            raise HTTPException(
-                status_code=422,
-                detail=f"{combination.connection_id} 尚未完成配置",
-            )
+            raise ValueError(f"{combination.connection_id} 尚未完成配置")
         if not any(
             model.endpoint_model_id == combination.model_id
             and not model.hidden
             and not model.retired
             for model in connection.models
         ):
-            raise HTTPException(
-                status_code=422,
-                detail=(
-                    f"{combination.connection_id} 未声明模型 {combination.model_id}"
-                ),
+            raise ValueError(
+                f"{combination.connection_id} 未声明模型 {combination.model_id}"
             )
 
 
 async def bounded_benchmark(
-    combination: ConnectionBenchmarkCombination,
+    combination: BenchmarkCombination,
+    connection: ProviderConnection,
     semaphore: asyncio.Semaphore,
 ) -> dict[str, Any]:
     async with semaphore:
         try:
             return await asyncio.wait_for(
-                run_connection_model_benchmark(combination),
+                run_connection_model_benchmark(combination, connection),
                 timeout=_BENCHMARK_TIMEOUT_SECONDS,
             )
         except asyncio.TimeoutError:
@@ -71,19 +68,16 @@ async def bounded_benchmark(
 
 
 async def run_connection_model_benchmark(
-    combination: ConnectionBenchmarkCombination,
+    combination: BenchmarkCombination,
+    connection: ProviderConnection,
 ) -> dict[str, Any]:
-    return await asyncio.to_thread(_benchmark_sync, combination)
+    return await asyncio.to_thread(_benchmark_sync, combination, connection)
 
 
 def _benchmark_sync(
-    combination: ConnectionBenchmarkCombination,
+    combination: BenchmarkCombination,
+    connection: ProviderConnection,
 ) -> dict[str, Any]:
-    connection = (
-        ProviderConnectionStore().load().connections.get(combination.connection_id)
-    )
-    if connection is None:
-        raise ValueError(f"连接不存在: {combination.connection_id}")
     return run_connection_model_check(
         connection,
         combination.model_id,

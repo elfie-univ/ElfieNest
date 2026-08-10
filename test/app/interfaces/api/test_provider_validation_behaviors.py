@@ -21,7 +21,7 @@ from app.interfaces.api.provider_connection_routes import (
     _runtime_projection,
     _verify_connection,
 )
-from app.interfaces.api.provider_validation_policy import (
+from infrastructure.models.provider_validation_policy import (
     choose_validation_mode,
     connection_validation_fingerprint,
 )
@@ -210,7 +210,7 @@ def test_single_validation_checks_configured_models_without_provider_models_prob
         }
 
     with patch(
-        "app.interfaces.api.provider_validation_checks.run_connection_model_check",
+        "infrastructure.models.provider_validation_checks.run_connection_model_check",
         side_effect=model_check,
     ):
         payload = asyncio.run(_verify_connection(connection))
@@ -245,7 +245,7 @@ def test_single_validation_reuses_recent_full_result_without_new_model_requests(
         }
 
     with patch(
-        "app.interfaces.api.provider_validation_checks.run_connection_model_check",
+        "infrastructure.models.provider_validation_checks.run_connection_model_check",
         side_effect=model_check,
     ) as check:
         first = asyncio.run(_verify_connection(connection))
@@ -402,7 +402,7 @@ def test_validate_all_writes_each_enabled_model_and_skips_hidden(
         }
 
     with patch(
-        "app.interfaces.api.provider_validation_checks.run_connection_model_check",
+        "infrastructure.models.provider_validation_checks.run_connection_model_check",
         side_effect=model_check,
     ):
         payload = asyncio.run(
