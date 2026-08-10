@@ -16,11 +16,11 @@ from app.orchestration.message_delivery import (
     SubmitUserMessageCommand,
 )
 
-from .me.conversations.models import MessageResponse
-from .realtime_chat_models import (
+from .models import (
     ChatErrorEvent,
     ChatMessageEvent,
     ChatMessageRequest,
+    ChatMessageResponse,
     ChatPrincipalResponse,
     ChatReadyEvent,
 )
@@ -99,7 +99,7 @@ async def chat_websocket(websocket: WebSocket) -> None:
                 continue
             await websocket.send_json(
                 ChatMessageEvent(
-                    message=MessageResponse(
+                    message=ChatMessageResponse(
                         id=result.message.id,
                         elfie_id=result.message.elfie_id,
                         sender=result.message.sender,

@@ -15,7 +15,7 @@ from app.features.communication import (
 from app.features.elfies import ElfiesService
 from app.interfaces.api.v1.auth import require_user
 from app.interfaces.api.v1.me.conversations import router as conversations_router
-from app.interfaces.api.v1.realtime_chat_routes import router as realtime_router
+from app.interfaces.api.v1.realtime.chat import router as realtime_router
 from app.orchestration.message_delivery import (
     DeliverElfieReplyCommand,
     DeliveryAdmission,

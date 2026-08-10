@@ -303,9 +303,7 @@ def create_http_application(
     )
     from .v1.observer import router as observer_router  # noqa: PLC0415
     from .v1.realtime.bodies import router as body_realtime_router  # noqa: PLC0415
-    from .v1.realtime_chat_routes import (
-        router as realtime_chat_router,  # noqa: PLC0415
-    )
+    from .v1.realtime.chat import router as realtime_chat_router  # noqa: PLC0415
     from .v1.setup import router as setup_router  # noqa: PLC0415
 
     app.include_router(auth_router)
