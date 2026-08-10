@@ -173,7 +173,9 @@ class TestAdoptionJourney:
             "answers": ["quiet", "research", "plan", "discuss", "steady"],
         }
 
-        candidates = client.post("/api/user/adoption/candidates", json=intent, headers=headers)
+        candidates = client.post(
+            "/api/user/adoption/candidates", json=intent, headers=headers
+        )
         assert candidates.status_code == 200, candidates.text
         candidate_set = candidates.json()
         assert len(candidate_set["candidates"]) == 5
@@ -192,7 +194,10 @@ class TestAdoptionJourney:
 
         replies = client.post(
             "/api/user/adoption/replies",
-            json={"candidate_set_id": candidate_set["candidate_set_id"], "candidate_ids": [item["candidate_id"] for item in selected]},
+            json={
+                "candidate_set_id": candidate_set["candidate_set_id"],
+                "candidate_ids": [item["candidate_id"] for item in selected],
+            },
             headers=headers,
         )
         assert replies.status_code == 200, replies.text

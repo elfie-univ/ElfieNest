@@ -186,7 +186,10 @@ def test_v1_owner_profile_reads_real_cognition_but_list_stays_public(
 
     assert detail.status_code == 200
     assert detail.json()["private_cognition"]["status"] == "ready"
-    assert detail.json()["private_cognition"]["important_experiences"]["entries"][0]["id"] == "event_adoption"
+    assert (
+        detail.json()["private_cognition"]["important_experiences"]["entries"][0]["id"]
+        == "event_adoption"
+    )
     assert "private_cognition" not in listing.json()[0]
     assert "care_settings" not in listing.json()[0]
 

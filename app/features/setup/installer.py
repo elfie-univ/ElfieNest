@@ -75,6 +75,7 @@ def recover_interrupted_setup_install(db_path: str) -> None:
 
 def build_setup_install_worker(db_path: str) -> SetupInstallWorker:
     """Build the product worker; phase actions are supplied by the Setup domain."""
+
     def unavailable() -> None:
         from app.features.setup.install_actions import run_setup_installation
 

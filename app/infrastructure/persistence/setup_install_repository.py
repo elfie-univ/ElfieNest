@@ -238,6 +238,7 @@ class SetupInstallRepository:
             setup_completed_at=None if row[7] is None else str(row[7]),
         )
 
+
 def _validate_phase(phase: int) -> None:
     if phase not in range(2, 6):
         raise ValueError("Setup 安装阶段必须为 2 到 5")

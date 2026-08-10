@@ -120,9 +120,7 @@ def _create_user_and_login(
 class TestMaxElfiesPerUser:
     """PUT system.adoption.max_elfies_per_user=1 → 领养第二只 → 409。"""
 
-    def test_adopt_second_is_rejected(
-        self, client: TestClient, db_path: str
-    ) -> None:
+    def test_adopt_second_is_rejected(self, client: TestClient, db_path: str) -> None:
         """max_elfies_per_user=1 时，第二只领养被拒绝。"""
         owner_tokens = _login_owner(client)
 

@@ -41,8 +41,9 @@ def _draft(client: TestClient, csrf: str) -> None:
 
 
 def _application(tmp_path: Path):
-    with patch("app.interfaces.api.app.AuthenticatedWSManager.start"), patch(
-        "app.interfaces.api.app.AuthenticatedWSManager.stop"
+    with (
+        patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
+        patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
     ):
         return create_app(
             engine=None,
@@ -70,9 +71,11 @@ def test_install_confirm_creates_owner_locks_draft_and_runs_one_worker(
         return worker
 
     application.state.setup_install_worker_factory = worker_factory
-    with patch("app.interfaces.api.app.AuthenticatedWSManager.start"), patch(
-        "app.interfaces.api.app.AuthenticatedWSManager.stop"
-    ), TestClient(application, base_url="http://127.0.0.1:8000") as client:
+    with (
+        patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
+        patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
+        TestClient(application, base_url="http://127.0.0.1:8000") as client,
+    ):
         status = client.get("/api/auth/setup-status")
         csrf = status.headers["X-CSRF-Token"]
         _draft(client, csrf)
@@ -97,7 +100,10 @@ def test_install_confirm_creates_owner_locks_draft_and_runs_one_worker(
 
     assert repeated.status_code == 200, repeated.text
     assert repeated.json()["complete"] is True
-    assert SetupInstallRepository(str(tmp_path / "nest.db")).get_draft().locked_at is not None
+    assert (
+        SetupInstallRepository(str(tmp_path / "nest.db")).get_draft().locked_at
+        is not None
+    )
 
 
 def test_failed_install_can_retry_without_unlocking_or_duplicate_owner(
@@ -126,9 +132,11 @@ def test_failed_install_can_retry_without_unlocking_or_duplicate_owner(
 
     application.state.setup_install_worker_factory = worker_factory
     db_path = str(tmp_path / "nest.db")
-    with patch("app.interfaces.api.app.AuthenticatedWSManager.start"), patch(
-        "app.interfaces.api.app.AuthenticatedWSManager.stop"
-    ), TestClient(application, base_url="http://127.0.0.1:8000") as client:
+    with (
+        patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
+        patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
+        TestClient(application, base_url="http://127.0.0.1:8000") as client,
+    ):
         status = client.get("/api/auth/setup-status")
         _draft(client, status.headers["X-CSRF-Token"])
         confirmed = client.post(
@@ -164,9 +172,11 @@ def test_install_confirm_uses_setup_csrf_with_stale_session_cookie(
         return worker
 
     application.state.setup_install_worker_factory = worker_factory
-    with patch("app.interfaces.api.app.AuthenticatedWSManager.start"), patch(
-        "app.interfaces.api.app.AuthenticatedWSManager.stop"
-    ), TestClient(application, base_url="http://127.0.0.1:8000") as client:
+    with (
+        patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
+        patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
+        TestClient(application, base_url="http://127.0.0.1:8000") as client,
+    ):
         status = client.get("/api/auth/setup-status")
         csrf = status.headers["X-CSRF-Token"]
         _draft(client, csrf)

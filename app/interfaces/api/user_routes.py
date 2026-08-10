@@ -27,6 +27,7 @@ from app.features.adoption.service import (
 
 router = APIRouter(prefix="/api/user", tags=["user"])
 
+
 @router.get("/adoption-info")
 async def adoption_info(
     request: Request,
@@ -147,5 +148,9 @@ async def commit_adoption(
         ) from None
     return JSONResponse(
         status_code=201,
-        content={"elfie_id": result.elfie_id, "name": result.name, "species_id": result.species_id},
+        content={
+            "elfie_id": result.elfie_id,
+            "name": result.name,
+            "species_id": result.species_id,
+        },
     )

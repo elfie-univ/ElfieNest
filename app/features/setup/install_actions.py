@@ -64,9 +64,7 @@ def run_setup_installation(
         installs.complete_phase(phase=3)
         phase = 4
     if draft.use_local_ollama and phase <= 4:
-        model_reference = model_reference or _configured_model_reference(
-            draft.model_id
-        )
+        model_reference = model_reference or _configured_model_reference(draft.model_id)
         if model_reference is None:
             raise RuntimeError("Setup 模型连接记录缺失")
         _phase_report(installs, 4)("food.emergency")

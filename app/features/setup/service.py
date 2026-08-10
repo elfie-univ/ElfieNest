@@ -59,9 +59,7 @@ def has_owner(db_path: str) -> bool:
         return AccountRepository(connection).find_owner() is not None
 
 
-def create_first_owner_from_hash(
-    db_path: str, draft: SetupDraftRecord
-) -> OwnerAccount:
+def create_first_owner_from_hash(db_path: str, draft: SetupDraftRecord) -> OwnerAccount:
     """Create or recover the Owner from a locked draft without plaintext secrets."""
     if draft.owner_account_id is None or draft.password_hash is None:
         raise SetupAlreadyCompleteError("Setup Owner 草稿不完整")

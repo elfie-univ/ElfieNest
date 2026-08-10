@@ -69,9 +69,7 @@ async def get_setup_status(request: Request) -> SetupStatus:
     status = _setup_status(request)
     if status.need_setup and not _has_owner(request):
         token = request.cookies.get("setup_token") or secrets.token_hex(32)
-        status = status.model_copy(
-            update={"csrf_token": generate_csrf_token(token)}
-        )
+        status = status.model_copy(update={"csrf_token": generate_csrf_token(token)})
         response = JSONResponse(content=status.model_dump(mode="json"))
         response.set_cookie(
             key="setup_token",
@@ -225,12 +223,6 @@ async def get_setup_ollama_detection(
     )
 
 
-
-
-
-
-
-
 @router.get("/setup/model-recommendation")
 async def get_setup_model_recommendation(
     owner: dict = RequireOwner,
@@ -262,15 +254,6 @@ async def get_setup_model_recommendation(
     )
 
 
-
-
-
-
-
-
-
-
-
 def _setup_status(request: Request) -> SetupStatus:
     repository = SetupInstallRepository(request.app.state.db_path)
     install = repository.get()
@@ -280,14 +263,18 @@ def _setup_status(request: Request) -> SetupStatus:
     offline_configured = draft.offline_configured
     nest_configured = draft.nest_configured
     complete = install.status == "completed"
-    current_step = 4 if draft.locked_at is not None else (
-        1
-        if not owner_configured
-        else 2
-        if not offline_configured
-        else 3
-        if not nest_configured
-        else 4
+    current_step = (
+        4
+        if draft.locked_at is not None
+        else (
+            1
+            if not owner_configured
+            else 2
+            if not offline_configured
+            else 3
+            if not nest_configured
+            else 4
+        )
     )
     step_names = (
         "创建 Owner 账号",
@@ -307,7 +294,11 @@ def _setup_status(request: Request) -> SetupStatus:
                 if number == current_step
                 else "pending"
             ),
-            retry_action=("retry_install" if number == 4 and install.task_status == "failed" else None),
+            retry_action=(
+                "retry_install"
+                if number == 4 and install.task_status == "failed"
+                else None
+            ),
         )
         for number, configured in enumerate(step_configured, start=1)
     ]
@@ -322,7 +313,9 @@ def _setup_status(request: Request) -> SetupStatus:
     install_status = SetupInstallStatus(
         phase=phase_names[active_phase],
         action_key=install.install_action or "idle",
-        state=install.task_status if install.task_status in {"idle", "running", "failed", "completed"} else "idle",
+        state=install.task_status
+        if install.task_status in {"idle", "running", "failed", "completed"}
+        else "idle",
         progress=install.task_progress,
         error_key="setup.install.failed" if install.task_status == "failed" else None,
     )
@@ -383,7 +376,10 @@ def _require_setup_draft_access(request: Request) -> None:
         raise HTTPException(status_code=403, detail="缺少 Setup token")
     if _has_owner(request):
         raise HTTPException(status_code=409, detail="系统已有 Owner，Setup 草稿已关闭")
-    if SetupInstallRepository(request.app.state.db_path).get_draft().locked_at is not None:
+    if (
+        SetupInstallRepository(request.app.state.db_path).get_draft().locked_at
+        is not None
+    ):
         raise HTTPException(status_code=409, detail="Setup 配置已锁定")
 
 

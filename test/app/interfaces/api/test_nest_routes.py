@@ -135,6 +135,7 @@ def test_bed_count_updates_desired_state_not_python_bed_geometry(
         f"bed-{number:02d}" for number in range(1, 7)
     ]
 
+
 @pytest.mark.parametrize("bed_count", [1, 3, 33, 64])
 def test_bed_count_rejects_values_outside_production_range(
     client: TestClient,

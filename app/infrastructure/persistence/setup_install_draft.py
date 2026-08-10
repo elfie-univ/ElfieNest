@@ -46,7 +46,9 @@ class SetupDraftRecord:
 
     @property
     def complete(self) -> bool:
-        return self.owner_configured and self.offline_configured and self.nest_configured
+        return (
+            self.owner_configured and self.offline_configured and self.nest_configured
+        )
 
 
 class SetupInstallDraftStore:
@@ -164,7 +166,9 @@ class SetupInstallDraftStore:
             (json.dumps(draft, ensure_ascii=False),),
         )
 
-    def record_for_transaction(self, connection: sqlite3.Connection) -> SetupDraftRecord:
+    def record_for_transaction(
+        self, connection: sqlite3.Connection
+    ) -> SetupDraftRecord:
         draft = self.load_for_transaction(connection)
         return SetupDraftRecord(
             owner_account_id=_optional_text(draft.get("owner_account_id")),

@@ -264,6 +264,7 @@ def test_user_elfie_detail_hides_raw_configuration(
     assert "config_dir" not in detail.json()
     assert "configs" not in detail.json()
 
+
 def test_food_policy_is_structured_for_the_owner(
     client: TestClient, monitoring_world: dict
 ) -> None:

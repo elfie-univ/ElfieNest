@@ -37,7 +37,9 @@ def test_owner_is_created_from_saved_hash_idempotently(tmp_path: Path) -> None:
         assert connection.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 1
 
 
-def test_install_job_manager_runs_once_and_reports_global_progress(tmp_path: Path) -> None:
+def test_install_job_manager_runs_once_and_reports_global_progress(
+    tmp_path: Path,
+) -> None:
     db_path = str(create_final_nest_database(tmp_path / "nest.db"))
     _complete_draft(db_path)
     draft = SetupInstallRepository(db_path).get_draft()

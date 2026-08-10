@@ -45,6 +45,8 @@ def config_engine(config: UserConfig) -> None:
                 1.5,
                 minimum=0.01,
             )
+
+
 def config_security(config: UserConfig) -> None:
     menu = TerminalMenu(input_fn=input, output_fn=print)
     while True:
