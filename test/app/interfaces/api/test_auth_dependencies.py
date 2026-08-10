@@ -5,8 +5,9 @@ from fastapi import HTTPException
 
 from app.bootstrap import build_application_container
 from app.infrastructure.persistence.store import init_db
-from app.interfaces.api import elfie_food_routes, nest_routes, user_routes
-from app.interfaces.api.v1.auth import get_current_user, require_manager
+from app.interfaces.api import elfie_food_routes, user_routes
+from app.interfaces.api.v1.admin.nest import routes as nest_routes
+from app.interfaces.api.v1.auth import get_current_user, require_user
 from test.app.interfaces.api._helpers import create_test_owner
 
 
@@ -19,7 +20,7 @@ class _Request:
 def test_all_http_routes_share_interface_auth_dependency_functions() -> None:
     assert user_routes.get_current_user is get_current_user
     assert elfie_food_routes.get_current_user is get_current_user
-    assert nest_routes.require_manager is require_manager
+    assert nest_routes.require_user is require_user
 
 
 def test_session_verification_uses_injected_application_container(tmp_path) -> None:

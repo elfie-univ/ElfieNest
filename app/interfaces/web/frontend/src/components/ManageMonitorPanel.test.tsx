@@ -89,7 +89,7 @@ describe("ManageMonitorPanel persistent runtime status", () => {
 
     expect(await screen.findByText("Services healthy")).toBeInTheDocument()
     api.ownerRead.mockImplementation(async (path: string) => {
-      if (path === "/api/owner/nest/rooms") throw new Error("rooms unavailable")
+      if (path === "/api/v1/admin/nest/rooms") throw new Error("rooms unavailable")
       return monitorPayload(path, healthyFixture)
     })
     fireEvent.click(screen.getByRole("button", { name: "Refresh status" }))
@@ -136,8 +136,8 @@ function monitorPayload(path: string, fixture: MonitorFixture): unknown {
         { elfie_id: "elfie-1", profile: { online_status: "online" } },
         { elfie_id: "elfie-2", profile: { online_status: "offline" } },
       ]
-    case "/api/owner/nest/rooms":
-      return [{ beds: fixture.unassignedElfie ? [{ occupant_id: "elfie-1" }] : [{ occupant_id: "elfie-1" }, { occupant_id: "elfie-2" }] }]
+    case "/api/v1/admin/nest/rooms":
+      return { items: [{ beds: fixture.unassignedElfie ? [{ occupant_id: "elfie-1" }] : [{ occupant_id: "elfie-1" }, { occupant_id: "elfie-2" }] }] }
     case "/api/owner/providers/connections":
       return [{
         catalog_id: "ollama",

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.features.accounts import AccountPrincipal, is_manager
-from nest import NestConfig
+from nest import NestConfig, NestConfigError
 
 from .errors import (
     NestBedConflict,
@@ -52,7 +52,7 @@ class NestManagementService:
         self._require_manager(principal)
         try:
             validated = NestConfig(bed_count=command.bed_count)
-        except Exception as error:
+        except NestConfigError as error:
             raise NestConfigurationInvalid(str(error)) from error
         try:
             snapshot = self._persistence.update_bed_count(validated.bed_count)

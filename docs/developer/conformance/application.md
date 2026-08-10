@@ -95,6 +95,24 @@ Machine baseline entries removed: accounts/auth Feature isolation and internal-i
 Status: closed
 ```
 
+### Nest Management
+
+```text
+Domain: nest_management
+Gap IDs: APP-001, APP-002, APP-003, APP-004, APP-005, APP-006, APP-007, APP-009, APP-011
+Current authoritative facts: the one Nest identity and capacity constraints from the public NestConfig; nest.db nest_settings and nullable Elfie bed numbers
+Routes and production callers: /api/v1/admin/nest rooms, bed-count and Elfie-bed resources; owner Nest client, monitor projection and storage end-to-end journey
+Target public facade and models: authorized Nest Management facade with typed capacity and assignment commands/results
+Ports and adapters: NestManagementPort implemented by the root Infrastructure SQLite adapter and injected by Bootstrap
+Consistency class: each capacity or assignment command owns one immediate SQLite transaction; reads never create state
+Principal and authorization: Interface authenticates an account principal; Nest Management authorizes managers
+Timeout / retry / idempotency: local SQLite access; no retry; setting the same capacity or assignment is idempotent
+Legacy deletion list: app/features/nest_registration; app/interfaces/api/nest_routes.py; old /api/owner/nest resources and direct Interface repository construction
+Focused tests and end-to-end gate: Feature, Adapter and strict Route tests; owner Nest/monitor frontend tests; final-storage product journey; App/System/Storage architecture gates
+Machine baseline entries removed: old Nest Interface construction/imports; loose/missing Route models; old GET/PUT /api/owner/nest resources
+Status: closed
+```
+
 ### Configuration: global settings
 
 ```text

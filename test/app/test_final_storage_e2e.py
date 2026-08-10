@@ -150,7 +150,7 @@ def test_full_product_chain_uses_one_explicit_final_root(
             )
             elfie_id = adopted.elfie_id
             bed = client.put(
-                f"/api/owner/nest/elfies/{elfie_id}/bed",
+                f"/api/v1/admin/nest/elfies/{elfie_id}/bed",
                 json={"home_anchor_id": "bed-01"},
                 headers={"X-CSRF-Token": csrf_token},
             )

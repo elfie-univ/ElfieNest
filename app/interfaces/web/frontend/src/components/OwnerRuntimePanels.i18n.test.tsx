@@ -38,7 +38,7 @@ describe("runtime panel behavior", () => {
 
   it("shows a concise healthy status when no issue is present", async () => {
     vi.mocked(ownerRead).mockImplementation(async (path) => {
-      if (path === "/api/owner/nest/rooms") return [{ beds: [{ occupant_id: "elfie-1" }, { occupant_id: "elfie-2" }] }]
+      if (path === "/api/v1/admin/nest/rooms") return { items: [{ beds: [{ occupant_id: "elfie-1" }, { occupant_id: "elfie-2" }] }] }
       return monitorPayload(path)
     })
 
@@ -50,7 +50,7 @@ describe("runtime panel behavior", () => {
   it("names the unavailable system service in the health card", async () => {
     vi.mocked(ownerRead).mockImplementation(async (path) => {
       if (path === "/api/health") return { status: "ok", engine_ready: true, godot_web_ready: true, godot_runtime_ready: false }
-      if (path === "/api/owner/nest/rooms") return [{ beds: [{ occupant_id: "elfie-1" }, { occupant_id: "elfie-2" }] }]
+      if (path === "/api/v1/admin/nest/rooms") return { items: [{ beds: [{ occupant_id: "elfie-1" }, { occupant_id: "elfie-2" }] }] }
       return monitorPayload(path)
     })
 
@@ -76,7 +76,7 @@ describe("runtime panel behavior", () => {
 
   it("keeps the available cards visible when one read-only source fails", async () => {
     vi.mocked(ownerRead).mockImplementation(async (path) => {
-      if (path === "/api/owner/nest/rooms") throw new Error("rooms unavailable")
+      if (path === "/api/v1/admin/nest/rooms") throw new Error("rooms unavailable")
       return monitorPayload(path)
     })
 
@@ -126,8 +126,8 @@ function monitorPayload(path: string, lastEvent: RuntimeEventFixture | null = nu
         { elfie_id: "elfie-1", profile: { online_status: "online" } },
         { elfie_id: "elfie-2", profile: { online_status: "offline" } },
       ]
-    case "/api/owner/nest/rooms":
-      return [{ beds: [{ occupant_id: "elfie-1" }, { occupant_id: null }] }]
+    case "/api/v1/admin/nest/rooms":
+      return { items: [{ beds: [{ occupant_id: "elfie-1" }, { occupant_id: null }] }] }
     case "/api/owner/providers/connections":
       return [{
         catalog_id: "ollama",

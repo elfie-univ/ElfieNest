@@ -8,7 +8,11 @@ from ai_runtime.storage.data_home import data_home_from_db_path, get_config_path
 from ai_runtime.storage.data_layout import final_root_layout
 from app.features.accounts import AccountsService
 from app.features.configuration import SettingsService
-from infrastructure.persistence import SQLiteAccountsAdapter
+from app.features.nest_management import NestManagementService
+from infrastructure.persistence import (
+    SQLiteAccountsAdapter,
+    SQLiteNestManagementAdapter,
+)
 from infrastructure.platform import RuntimeSecurityPolicyAdapter, RuntimeSettingsAdapter
 
 
@@ -16,6 +20,7 @@ from infrastructure.platform import RuntimeSecurityPolicyAdapter, RuntimeSetting
 class ApplicationContainer:
     accounts: AccountsService
     settings: SettingsService
+    nest_management: NestManagementService
 
 
 def build_application_container(db_path: str) -> ApplicationContainer:
@@ -30,6 +35,7 @@ def build_application_container(db_path: str) -> ApplicationContainer:
             security_policy=RuntimeSecurityPolicyAdapter(settings_adapter),
         ),
         settings=SettingsService(settings_adapter),
+        nest_management=NestManagementService(SQLiteNestManagementAdapter(db_path)),
     )
 
 

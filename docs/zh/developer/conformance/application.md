@@ -82,6 +82,24 @@ Principal 与授权：Interface 解析凭据/Cookie，并把 Feature 结果构�
 状态：closed
 ```
 
+### Nest Management
+
+```text
+领域：nest_management
+缺口 ID：APP-001、APP-002、APP-003、APP-004、APP-005、APP-006、APP-007、APP-009、APP-011
+当前权威事实：公开 NestConfig 的唯一 Nest 身份与容量约束；nest.db 的 nest_settings 和可空 Elfie 床位号
+路由与生产调用方：/api/v1/admin/nest 的房间、床位数和 Elfie 床位资源；Owner Nest client、监控投影与存储端到端链路
+目标公共门面与模型：带强类型容量/分配 Command 和 Result 的授权 Nest Management 门面
+Port 与 Adapter：NestManagementPort 由根 Infrastructure SQLite Adapter 实现，并由 Bootstrap 注入
+一致性类别：每个容量或分配命令拥有一个 immediate SQLite 事务；读取不创建状态
+Principal 与授权：Interface 认证账户 Principal；Nest Management 授权管理员
+超时、重试与幂等：本地 SQLite；不重试；重复设置相同容量或分配具备幂等性
+旧实现删除清单：app/features/nest_registration；app/interfaces/api/nest_routes.py；旧 /api/owner/nest 资源及 Interface 直接 Repository 构造
+聚焦测试与端到端门：Feature、Adapter、严格 Route；Owner Nest/监控前端；最终存储产品链路；App/System/Storage 架构门
+已删除的机器基线条目：旧 Nest Interface 构造/import；松散/缺失 Route 模型；旧 GET/PUT /api/owner/nest 资源
+状态：closed
+```
+
 ### Configuration：全局设置
 
 ```text

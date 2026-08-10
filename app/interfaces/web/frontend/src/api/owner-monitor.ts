@@ -35,6 +35,7 @@ const ElfieSummarySchema = z.object({
 const RoomSummarySchema = z.object({
   beds: z.array(z.object({ occupant_id: z.string().nullable() }).passthrough()),
 }).passthrough()
+const RoomListSchema = z.object({ items: z.array(RoomSummarySchema) }).transform(({ items }) => items)
 
 const ProviderSummarySchema = z.object({
   catalog_id: z.string(),
@@ -100,7 +101,7 @@ export async function loadMonitorSnapshot(): Promise<MonitorSnapshot> {
     readSchema("/api/owner/runtime/status", RuntimeStatusSchema),
     readSchema("/api/owner/users", z.array(UserSummarySchema)),
     readSchema("/api/owner/elfies", z.array(ElfieSummarySchema)),
-    readSchema("/api/owner/nest/rooms", z.array(RoomSummarySchema)),
+    readSchema("/api/v1/admin/nest/rooms", RoomListSchema),
     readSchema("/api/owner/providers/connections", z.array(ProviderSummarySchema)),
     readSchema("/api/owner/providers/ollama", OllamaStatusSchema),
   ] as const)

@@ -11,6 +11,7 @@
 from typing import Any, Optional
 
 from app.features.adoption.service import AdoptionRequest, adopt_elfie_for_user
+from app.infrastructure.persistence.nest_repository import SQLiteNestRepository
 from app.infrastructure.persistence.setup_install_repository import (
     SetupInstallRepository,
 )
@@ -92,3 +93,6 @@ def complete_test_setup(db_path: str, *, bed_count: int = 8) -> None:
     repository.begin_or_resume()
     for phase in range(2, 6):
         repository.complete_phase(phase=phase)
+    with get_db(db_path) as connection:
+        SQLiteNestRepository(connection).set_desired_bed_count(bed_count)
+        connection.commit()
