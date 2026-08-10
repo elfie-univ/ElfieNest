@@ -12,6 +12,26 @@ class ServiceLifecycleError(Exception):
 
 
 @dataclass(frozen=True)
+class RecoveryInProgressError(ServiceLifecycleError):
+    """A startup or recovery operation could not acquire the lifecycle lease."""
+
+    path: Path
+
+    def __str__(self) -> str:
+        return f"Owner recovery is already in progress: {self.path}"
+
+
+@dataclass(frozen=True)
+class AuthorityHostError(ServiceLifecycleError):
+    """The configured Godot authority host could not be started or stopped safely."""
+
+    detail: str
+
+    def __str__(self) -> str:
+        return f"Godot authority host failed: {self.detail}"
+
+
+@dataclass(frozen=True)
 class InvalidPidFileError(ServiceLifecycleError):
     path: Path
     content: str
