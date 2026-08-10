@@ -1,0 +1,178 @@
+"""Outbound ports and strict port models owned by Runtime lifecycle orchestration."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import ContextManager, Mapping, Optional, Protocol, Sequence, Tuple
+
+from app.orchestration.lifecycle.runtime_health import RuntimeHealth
+
+
+@dataclass(frozen=True)
+class ProcessSnapshot:
+    """Stable identity facts observed for one local process."""
+
+    pid: int
+    cwd: Path
+    command: Tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class HttpProbeResult:
+    """Minimal HTTP response used by Runtime readiness mapping."""
+
+    status: int
+    body: bytes
+
+
+@dataclass(frozen=True)
+class AuthorityHostConfig:
+    """Lifecycle-owned connection and generation inputs for the Godot host."""
+
+    project_root: Path
+    http_port: int
+    ws_port: int
+    nonce: str
+
+
+class AuthorityProcess(Protocol):
+    """Minimal owned authority-process identity stored in Runtime receipts."""
+
+    @property
+    def pid(self) -> int:
+        """Return the exact process or process-group leader identity."""
+
+
+class ProcessInspectorPort(Protocol):
+    """Read local process identity without exposing an OS process object."""
+
+    def exists(self, pid: int) -> bool:
+        """Return whether the PID still exists."""
+
+    def cwd(self, pid: int) -> Path:
+        """Return the process working directory."""
+
+    def command(self, pid: int) -> Tuple[str, ...]:
+        """Return the process command and arguments."""
+
+
+class ServiceProcessPort(Protocol):
+    """Local process, port and PID-receipt mechanics consumed by lifecycle flows."""
+
+    def exists(self, pid: int) -> bool:
+        """Return whether a process identity is live."""
+
+    def inspect(self, pid: int) -> ProcessSnapshot:
+        """Read the process working directory and command."""
+
+    def launch(
+        self,
+        command: Sequence[str],
+        cwd: Path,
+        *,
+        environment: Optional[Mapping[str, str]] = None,
+    ) -> int:
+        """Launch a detached service process and return its PID."""
+
+    def terminate(self, pid: int, *, force: bool = False) -> None:
+        """Signal one process to terminate."""
+
+    def ports_in_use(self, ports: Sequence[int]) -> bool:
+        """Return whether any requested loopback port is accepting connections."""
+
+    def port_occupant_pid(self, port: int) -> Optional[int]:
+        """Return the first local process occupying a listening port."""
+
+    def register_receipt(self, elfie_home: Path, pid: int) -> Path:
+        """Atomically persist the owned Core PID receipt."""
+
+    def remove_receipt(self, elfie_home: Path, pid: int) -> None:
+        """Remove the receipt only when it still belongs to the supplied PID."""
+
+
+class LifecycleLease(Protocol):
+    """Exclusive startup lease held until the Core PID is registered."""
+
+    def release(self) -> None:
+        """Release the lease exactly once."""
+
+
+class RecoveryLockPort(Protocol):
+    """Cross-process exclusion between Owner recovery and Core startup."""
+
+    def acquire_start_lease(
+        self, elfie_home: Path, *, blocking: bool = False
+    ) -> LifecycleLease:
+        """Acquire the service-start lease."""
+
+    def recovery_is_active(self, elfie_home: Path) -> bool:
+        """Return whether Owner recovery currently blocks startup."""
+
+    def owner_recovery(self, elfie_home: Path) -> ContextManager[None]:
+        """Hold the exclusive Owner recovery lock for one workflow."""
+
+
+class DesktopProcess(AuthorityProcess, Protocol):
+    """Opaque Desktop host process handle used only for lifecycle control."""
+
+    def poll(self) -> Optional[int]:
+        """Return the exit code or None while the process is running."""
+
+
+class DesktopHostPort(Protocol):
+    """Packaged Desktop discovery and process mechanics."""
+
+    def find_executable(self, project_root: Path) -> Optional[Path]:
+        """Resolve the configured or packaged Desktop executable."""
+
+    def launch(self, command: Sequence[str], cwd: Path) -> DesktopProcess:
+        """Launch the Desktop host detached from the calling terminal."""
+
+    def process_id(self, elfie_home: Path) -> Optional[int]:
+        """Return the live PID from the Desktop receipt, clearing stale receipts."""
+
+    def write_receipt(self, elfie_home: Path, pid: int) -> None:
+        """Persist the Desktop PID receipt."""
+
+    def remove_receipt(self, elfie_home: Path) -> None:
+        """Remove the Desktop PID receipt."""
+
+    def exists(self, pid: int) -> bool:
+        """Return whether a Desktop PID remains live."""
+
+    def terminate(self, process: DesktopProcess, *, force: bool = False) -> None:
+        """Terminate a newly launched Desktop process handle."""
+
+    def terminate_pid(self, pid: int) -> None:
+        """Terminate a recovered Desktop PID."""
+
+
+class HttpProbePort(Protocol):
+    """Bounded HTTP GET capability for Runtime readiness probes."""
+
+    def get(self, url: str, *, timeout_seconds: float) -> HttpProbeResult:
+        """Return a bounded raw response for App-owned health mapping."""
+
+
+class RuntimeRecordPort(Protocol):
+    """Durable owner-generation record required by RuntimeSupervisor."""
+
+    def read(self) -> RuntimeHealth:
+        """Read a validated record or a stable empty/failed state."""
+
+    def write(self, health: RuntimeHealth) -> None:
+        """Atomically persist a complete Runtime record."""
+
+    def remove(self) -> None:
+        """Remove the durable record after a completed stop."""
+
+
+class AuthorityHostPort(Protocol):
+    """Godot authority-host process mechanics used by RuntimeSupervisor."""
+
+    def start(self) -> Optional[AuthorityProcess]:
+        """Start the configured exported authority host."""
+
+    def stop(self, process: AuthorityProcess) -> None:
+        """Stop a live or receipt-recovered authority host safely."""
