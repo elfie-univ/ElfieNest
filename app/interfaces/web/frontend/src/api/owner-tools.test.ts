@@ -45,13 +45,10 @@ describe("owner tools API boundary", () => {
     vi.clearAllMocks()
   })
 
-  it("parses the two safe tools and strips a secret accidentally returned by a stale server", async () => {
-    // Given: the server returns the public tool projection plus a legacy secret field.
+  it("parses the two strict capability resources", async () => {
+    // Given: the server returns the two public capability resources.
     vi.mocked(ownerRead).mockResolvedValue({
-      tools: {
-        web_search: { ...webSearch, api_key: "must-not-cross-the-boundary" },
-        local_file: localFile,
-      },
+      tools: { web_search: webSearch, local_file: localFile },
     })
 
     // When: the owner reads the tool configuration.
@@ -60,8 +57,18 @@ describe("owner tools API boundary", () => {
     // Then: only the public, typed projection reaches the UI.
     expect(result.web_search).toEqual(webSearch)
     expect(result.local_file).toEqual(localFile)
-    expect("api_key" in result.web_search).toBe(false)
-    expect(ownerRead).toHaveBeenCalledWith("/api/owner/runtime/tools/")
+    expect(ownerRead).toHaveBeenCalledWith("/api/v1/admin/settings/capabilities")
+  })
+
+  it("rejects a response that leaks a capability secret", async () => {
+    vi.mocked(ownerRead).mockResolvedValue({
+      tools: {
+        web_search: { ...webSearch, api_key: "must-not-cross-the-boundary" },
+        local_file: localFile,
+      },
+    })
+
+    await expect(ownerRuntimeTools()).rejects.toThrow()
   })
 
   it("sends only the explicit web search fields and parses the saved config", async () => {
@@ -79,8 +86,8 @@ describe("owner tools API boundary", () => {
 
     // Then: only the route's supported fields are sent.
     expect(ownerWrite).toHaveBeenCalledWith(
-      "/api/owner/runtime/tools/web_search",
-      "PUT",
+      "/api/v1/admin/settings/capabilities/web-search",
+      "PATCH",
       "csrf-token",
       {
         enabled: false,
@@ -102,8 +109,8 @@ describe("owner tools API boundary", () => {
 
     // Then: no root, write, delete, or execution field can cross the boundary.
     expect(ownerWrite).toHaveBeenCalledWith(
-      "/api/owner/runtime/tools/local_file",
-      "PUT",
+      "/api/v1/admin/settings/capabilities/local-file",
+      "PATCH",
       "csrf-token",
       { enabled: true, max_read_bytes: 32768 },
     )
@@ -122,7 +129,7 @@ describe("owner tools API boundary", () => {
         duration_ms: 2.5,
         provider: null,
         model: null,
-        details: {},
+        details: { error_type: null },
       }],
     })
 
@@ -132,7 +139,7 @@ describe("owner tools API boundary", () => {
     // Then: the result remains typed and the existing endpoint is used.
     expect(result.passed).toBe(true)
     expect(ownerWrite).toHaveBeenCalledWith(
-      "/api/owner/runtime/tools/local_file/verify",
+      "/api/v1/admin/settings/capabilities/local-file/verify",
       "POST",
       "csrf-token",
     )

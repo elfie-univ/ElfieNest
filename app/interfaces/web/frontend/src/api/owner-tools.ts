@@ -20,7 +20,7 @@ const WebSearchToolConfigSchema = z.object({
   max_tool_calls: z.number().int().positive(),
   max_total_result_bytes: z.number().int().positive(),
   has_api_key: z.boolean(),
-})
+}).strict()
 
 const LocalFileToolConfigSchema = z.object({
   enabled: z.boolean(),
@@ -32,13 +32,13 @@ const LocalFileToolConfigSchema = z.object({
   max_tool_calls: z.number().int().positive(),
   max_total_result_bytes: z.number().int().positive(),
   has_api_key: z.boolean(),
-})
+}).strict()
 
 const ToolConfigMapSchema = z.object({
   web_search: WebSearchToolConfigSchema,
   local_file: LocalFileToolConfigSchema,
-})
-const ToolListResponseSchema = z.object({ tools: ToolConfigMapSchema })
+}).strict()
+const ToolListResponseSchema = z.object({ tools: ToolConfigMapSchema }).strict()
 
 const ValidationCheckSchema = z.object({
   check_id: z.string(),
@@ -47,14 +47,19 @@ const ValidationCheckSchema = z.object({
   duration_ms: z.number().nullable(),
   provider: z.string().nullable(),
   model: z.string().nullable(),
-  details: z.record(z.string(), z.unknown()),
-})
+  details: z.object({ error_type: z.string().nullable() }).strict(),
+}).strict()
 const ValidationSuiteSchema = z.object({
   name: z.string(),
   passed: z.boolean(),
-  summary: z.record(z.string(), z.number().int().nonnegative()),
+  summary: z.object({
+    passed: z.number().int().nonnegative(),
+    failed: z.number().int().nonnegative(),
+    warning: z.number().int().nonnegative(),
+    skipped: z.number().int().nonnegative(),
+  }).strict(),
   results: z.array(ValidationCheckSchema),
-})
+}).strict()
 
 export type WebSearchToolConfig = Readonly<z.infer<typeof WebSearchToolConfigSchema>>
 export type LocalFileToolConfig = Readonly<z.infer<typeof LocalFileToolConfigSchema>>
@@ -81,7 +86,9 @@ function assertNever(value: never): never {
 }
 
 export async function ownerRuntimeTools(): Promise<ToolConfigMap> {
-  return ToolListResponseSchema.parse(await ownerRead("/api/owner/runtime/tools/")).tools
+  return ToolListResponseSchema.parse(
+    await ownerRead("/api/v1/admin/settings/capabilities"),
+  ).tools
 }
 
 export function updateOwnerTool(
@@ -100,26 +107,24 @@ export async function updateOwnerTool(
   csrfToken: string,
 ): Promise<ToolConfig> {
   const response = await ownerWrite(
-    `/api/owner/runtime/tools/${toolKey}`,
-    "PUT",
+    `/api/v1/admin/settings/capabilities/${toolKey === "web_search" ? "web-search" : "local-file"}`,
+    "PATCH",
     csrfToken,
     update,
   )
 
   switch (toolKey) {
     case "web_search": {
-      const parsed = z.object({
+      return z.object({
         tool_key: z.literal("web_search"),
         config: WebSearchToolConfigSchema,
-      }).parse(response)
-      return parsed.config
+      }).strict().parse(response).config
     }
     case "local_file": {
-      const parsed = z.object({
+      return z.object({
         tool_key: z.literal("local_file"),
         config: LocalFileToolConfigSchema,
-      }).parse(response)
-      return parsed.config
+      }).strict().parse(response).config
     }
     default:
       return assertNever(toolKey)
@@ -131,7 +136,7 @@ export async function verifyOwnerTool(
   csrfToken: string,
 ): Promise<ValidationSuite> {
   return ValidationSuiteSchema.parse(await ownerWrite(
-    `/api/owner/runtime/tools/${toolKey}/verify`,
+    `/api/v1/admin/settings/capabilities/${toolKey === "web_search" ? "web-search" : "local-file"}/verify`,
     "POST",
     csrfToken,
   ))
