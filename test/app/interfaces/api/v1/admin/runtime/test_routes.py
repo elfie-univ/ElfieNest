@@ -20,8 +20,9 @@ from app.features.operations import (
     StoredTableCount,
     StoredUsageStats,
 )
+from app.interfaces.api.service_access import ServiceAccessPolicy
 from app.interfaces.api.v1.admin.runtime import router
-from app.interfaces.api.v1.auth import require_user
+from app.interfaces.api.v1.auth import require_manager, require_user
 from infrastructure.models import RuntimeObserverProjectionAdapter
 
 
@@ -145,7 +146,28 @@ def test_missing_operations_composition_uses_the_standard_error_envelope() -> No
     }
 
 
-def test_runtime_resource_defines_only_the_existing_status_query() -> None:
+def test_mobile_access_projects_the_existing_lan_bind_policy() -> None:
+    app = FastAPI()
+    app.state.service_access_policy = ServiceAccessPolicy.create(
+        "lan",
+        8000,
+        lan_addresses=("192.168.1.8",),
+    )
+    app.dependency_overrides[require_manager] = lambda: _principal("owner")
+    app.include_router(router)
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/admin/runtime/mobile-access")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "available": True,
+        "urls": ["http://192.168.1.8:8000/"],
+    }
+
+
+def test_runtime_resource_defines_only_existing_read_only_queries() -> None:
     assert {(route.path, next(iter(route.methods))) for route in router.routes} == {
-        ("/api/v1/admin/runtime/status", "GET")
+        ("/api/v1/admin/runtime/status", "GET"),
+        ("/api/v1/admin/runtime/mobile-access", "GET"),
     }

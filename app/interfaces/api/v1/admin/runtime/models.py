@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Literal, Optional, Union
+from typing import Dict, Literal, Optional, Tuple, Union
 
 from pydantic import (
     BaseModel,
@@ -47,6 +47,13 @@ class RuntimeStatusResponse(BaseModel):
     observer: RuntimeObserverResponse
 
 
+class MobileAccessResponse(BaseModel):
+    model_config = _STRICT
+
+    available: StrictBool
+    urls: Tuple[StrictStr, ...]
+
+
 class RuntimeErrorDetails(BaseModel):
     model_config = _STRICT
 
@@ -66,6 +73,7 @@ class RuntimeErrorResponse(BaseModel):
 
 
 __all__ = (
+    "MobileAccessResponse",
     "RuntimeErrorDetails",
     "RuntimeErrorItem",
     "RuntimeErrorResponse",

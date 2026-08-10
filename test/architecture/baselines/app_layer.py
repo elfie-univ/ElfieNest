@@ -51,23 +51,14 @@ LEGACY_APP_LAYER_VIOLATIONS: Dict[str, FrozenSet[str]] = {
     "interface_orchestration_internal_imports": frozenset(),
     "json_routes_loose_annotations": frozenset(
         {
-            "app/interfaces/api/app.py::godot_web_status::GET /api/godot-web/status::return:missing",
-            "app/interfaces/api/app.py::health::GET /api/health::return:missing",
-            "app/interfaces/api/app.py::ws_config::GET /api/ws-config::return:loose",
             "app/interfaces/api/owner_elfie_routes.py::list_owner_elfie_monitoring::GET /elfies::return:loose",
-            "app/interfaces/api/page_routes.py::owner_mobile_access::GET /api/owner/mobile-access::parameter:manager",
-            "app/interfaces/api/page_routes.py::owner_mobile_access::GET /api/owner/mobile-access::return:loose",
             "app/interfaces/api/v1/client_routes.py::list_public_elfies::GET /elfies::return:loose",
             "app/interfaces/api/v1/client_routes.py::public_elfie_profile::GET /elfies/{elfie_id}/profile::return:loose",
         }
     ),
     "json_routes_missing_response_model": frozenset(
         {
-            "app/interfaces/api/app.py::godot_web_status::GET /api/godot-web/status",
-            "app/interfaces/api/app.py::health::GET /api/health",
-            "app/interfaces/api/app.py::ws_config::GET /api/ws-config",
             "app/interfaces/api/owner_elfie_routes.py::list_owner_elfie_monitoring::GET /elfies",
-            "app/interfaces/api/page_routes.py::owner_mobile_access::GET /api/owner/mobile-access",
             "app/interfaces/api/v1/client_routes.py::list_public_elfies::GET /elfies",
             "app/interfaces/api/v1/client_routes.py::public_elfie_profile::GET /elfies/{elfie_id}/profile",
         }
@@ -75,10 +66,7 @@ LEGACY_APP_LAYER_VIOLATIONS: Dict[str, FrozenSet[str]] = {
     "orchestration_forbidden_layer_imports": frozenset(),
     "unversioned_product_routes": frozenset(
         {
-            "GET /api/godot-web/status",
             "GET /api/owner/elfies",
-            "GET /api/owner/mobile-access",
-            "GET /api/ws-config",
         }
     ),
 }

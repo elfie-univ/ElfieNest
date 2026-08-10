@@ -312,6 +312,19 @@ Principal 与授权：浏览器管理使用 AccountPrincipal 和持久化 Elfie 
 状态：closed
 ```
 
+```text
+业务域：Interface 基础资源
+缺口 ID：APP-005、APP-006、APP-011
+当前权威事实：现有 Core/Godot readiness 信号提供进程就绪状态；当前 ServiceAccessPolicy 提供可达 LAN 根地址
+路由与生产调用方：严格 /api/health 进程探针；/api/v1/admin/runtime/mobile-access 与现有管理员对话框
+一致性类别：两项投影均只读；health 保持轻量，移动访问 URL 只从当前 bind policy 派生
+Principal 与授权：health 是契约明确的匿名探针；mobile access 要求已认证管理员
+旧实现删除清单：无人调用的 /api/ws-config 与 /api/godot-web/status；未版本化 /api/owner/mobile-access 及其前端调用
+聚焦测试与端到端门：严格 health/mobile DTO、认证、LAN 投影、旧资源 404、前端 Client 与 App/System 架构门
+已删除机器基线：四个旧 handler 的松散/缺失响应模型，以及三个已退役的未版本化产品资源
+状态：closed
+```
+
 ## 当前到目标的迁移映射
 
 规范性所有者只由应用架构契约定义。本表记录当前实现应进入哪里，以及迁移期位置何时

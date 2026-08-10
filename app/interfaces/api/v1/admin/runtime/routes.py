@@ -16,9 +16,11 @@ from app.features.operations import (
     OperationsUnavailable,
     RuntimeEventResult,
 )
-from app.interfaces.api.v1.auth import require_user
+from app.interfaces.api.service_access import ServiceAccessPolicy
+from app.interfaces.api.v1.auth import require_manager, require_user
 
 from .models import (
+    MobileAccessResponse,
     RuntimeErrorDetails,
     RuntimeErrorItem,
     RuntimeErrorResponse,
@@ -29,6 +31,7 @@ from .models import (
 
 router = APIRouter(prefix="/api/v1/admin/runtime", tags=["admin-runtime"])
 CurrentPrincipal = Depends(require_user)
+ManagerPrincipal = Depends(require_manager)
 
 
 def operations_facade(request: Request) -> OperationsFacade:
@@ -67,6 +70,31 @@ def get_runtime_status(
             last_event=last_event,
         ),
     )
+
+
+@router.get(
+    "/mobile-access",
+    response_model=MobileAccessResponse,
+    responses={503: {"model": RuntimeErrorResponse}},
+)
+def get_mobile_access(
+    request: Request,
+    principal: AccountPrincipal = ManagerPrincipal,
+) -> Union[MobileAccessResponse, JSONResponse]:
+    """Return reachable LAN roots from the active Core bind policy."""
+    _ = principal
+    policy = getattr(request.app.state, "service_access_policy", None)
+    if not isinstance(policy, ServiceAccessPolicy):
+        body = RuntimeErrorResponse(
+            error=RuntimeErrorItem(
+                code="mobile_access_unavailable",
+                message="移动访问地址暂不可用",
+                details=RuntimeErrorDetails(),
+            )
+        )
+        return JSONResponse(status_code=503, content=body.model_dump(mode="json"))
+    urls = policy.mobile_access_urls
+    return MobileAccessResponse(available=bool(urls), urls=urls)
 
 
 def runtime_error_response(error: OperationsError) -> JSONResponse:

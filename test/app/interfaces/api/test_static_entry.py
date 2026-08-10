@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -45,31 +44,10 @@ def test_product_static_console_routes_are_retired(client: TestClient) -> None:
     assert response.status_code == 404
 
 
-def test_godot_web_status_reports_missing_bundle(client: TestClient) -> None:
-    missing_bundle = SimpleNamespace(
-        ready=False,
-        entry_url="/runtime/godot/elfienest.html",
-        missing=(".html", ".js", ".wasm", ".pck", "build-manifest.json"),
-        manifest={},
-        integrity_errors=(),
-    )
-    with (
-        patch(
-            "app.interfaces.api.app.inspect_godot_web_bundle",
-            return_value=missing_bundle,
-        ),
-        patch(
-            "app.interfaces.api.app.godot_web_bundle_present",
-            return_value=False,
-        ),
-    ):
-        status = client.get("/api/godot-web/status")
-        health = client.get("/api/health")
+def test_legacy_godot_web_status_resource_is_retired(client: TestClient) -> None:
+    response = client.get("/api/godot-web/status")
 
-    assert status.status_code == 200
-    assert status.json()["ready"] is False
-    assert ".wasm" in status.json()["missing"]
-    assert health.json()["godot_web_ready"] is False
+    assert response.status_code == 404
 
 
 def test_health_does_not_run_full_godot_bundle_integrity_check(
@@ -77,11 +55,16 @@ def test_health_does_not_run_full_godot_bundle_integrity_check(
 ) -> None:
     # Given: full Godot bundle verification is too expensive for a readiness probe.
     with patch(
-        "app.interfaces.api.app.inspect_godot_web_bundle",
-        side_effect=AssertionError("health must not hash the Godot bundle"),
+        "app.interfaces.api.app.godot_web_bundle_present",
+        return_value=False,
     ):
-        # When: the lifecycle supervisor polls the public health endpoint.
         response = client.get("/api/health")
 
-    # Then: health remains a cheap probe and leaves integrity checks to the status route.
+    # Then: health remains a cheap readiness probe with one strict response shape.
     assert response.status_code == 200
+    assert response.json() == {
+        "status": "ok",
+        "engine_ready": False,
+        "godot_web_ready": False,
+        "godot_runtime_ready": False,
+    }

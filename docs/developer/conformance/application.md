@@ -361,6 +361,19 @@ Machine baseline entries removed: embodiment Feature/Orchestration concrete pers
 Status: closed
 ```
 
+```text
+Domain: Interface foundation resources
+Gap IDs: APP-005, APP-006, APP-011
+Current authoritative facts: process readiness from the existing Core/Godot readiness signals; reachable LAN roots from the active ServiceAccessPolicy
+Routes and production callers: strict /api/health process probe; /api/v1/admin/runtime/mobile-access and the existing manager dialog
+Consistency class: both projections are read-only; health remains lightweight and mobile URLs are derived from the active bind policy
+Principal and authorization: health is the documented unauthenticated probe; mobile access requires an authenticated manager
+Legacy deletion list: unused /api/ws-config and /api/godot-web/status; unversioned /api/owner/mobile-access and its frontend caller
+Focused tests and end-to-end gate: strict health/mobile DTOs, authentication, LAN projection, retired-resource 404s, frontend client and App/System architecture gates
+Machine baseline entries removed: loose/missing response models for the four legacy handlers and all three retired unversioned product resources
+Status: closed
+```
+
 ## Current-to-target migration map
 
 The normative owners are defined only by the Application contract. This table
