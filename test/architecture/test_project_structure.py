@@ -117,6 +117,11 @@ def test_root_infrastructure_is_a_first_class_python_source() -> None:
     assert (
         'source = ["ai_runtime", "app", "elfie", "infrastructure", "nest"]' in pyproject
     )
+    assert (
+        '"infrastructure.models.providers" = '
+        '["provider-catalog.yaml", "model-catalog.yaml"]' in pyproject
+    )
+    assert '"ai_runtime.providers" =' not in pyproject
 
 
 def test_legacy_source_directories_are_removed() -> None:

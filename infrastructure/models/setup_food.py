@@ -7,9 +7,12 @@ from datetime import datetime, timezone
 
 from ai_runtime.food.evidence import record_model_evidence
 from ai_runtime.food.planner import ModelEvidence
-from ai_runtime.models.capabilities import canonical_display_name, known_capabilities
 from app.features.configuration.food import FoodPortError
 from app.orchestration.setup_installation import SetupInstallationPortError
+from infrastructure.models.capabilities import (
+    canonical_display_name,
+    known_capabilities,
+)
 from infrastructure.persistence.food import SQLiteFoodAdapter
 
 from .food_technology import RuntimeFoodTechnologyAdapter

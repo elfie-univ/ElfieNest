@@ -11,7 +11,8 @@ from app.features.accounts import AccountPrincipal
 from app.features.configuration import ProvidersService
 from app.interfaces.api.v1.admin.model_providers.routes import router
 from app.interfaces.api.v1.auth import require_user
-from infrastructure.models import ProviderModelsAdapter, PublicOllamaProviderAdapter
+from infrastructure.models.provider_administration import ProviderModelsAdapter
+from infrastructure.models.provider_ollama import PublicOllamaProviderAdapter
 from infrastructure.persistence.provider_connections import (
     ProviderConnectionStore,
     ProviderModelRecord,

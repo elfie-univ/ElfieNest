@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.features.configuration.food import FoodService
-from infrastructure.models import RuntimeFoodTechnologyAdapter
+from infrastructure.models.food_technology import RuntimeFoodTechnologyAdapter
 from infrastructure.persistence.food import SQLiteFoodAdapter
 
 

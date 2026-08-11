@@ -20,17 +20,6 @@ from ai_runtime.lab.provider_storage import (
     delete_provider_connection,
     save_provider_connection,
 )
-from ai_runtime.models.capabilities import (
-    canonical_display_name,
-    known_capabilities,
-)
-from ai_runtime.models.catalog import BUILTIN_MODEL_CATALOG
-from ai_runtime.providers.model_hints import (
-    ProviderModelSpec,
-    configured_model_specs,
-    suggested_model_names,
-)
-from ai_runtime.providers.profiles import BUILTIN_PROFILES
 from ai_runtime.tools.config import TOOL_KEYS, load_tool_configs
 from ai_runtime.validation.agent import ModelAgentValidationRunner
 from ai_runtime.validation.foods import FoodValidationRunner
@@ -45,6 +34,17 @@ from ai_runtime.validation.providers import (
     ProviderValidationRunner,
     discover_provider_models,
 )
+from infrastructure.models.capabilities import (
+    canonical_display_name,
+    known_capabilities,
+)
+from infrastructure.models.catalog import BUILTIN_MODEL_CATALOG
+from infrastructure.models.providers.model_hints import (
+    ProviderModelSpec,
+    configured_model_specs,
+    suggested_model_names,
+)
+from infrastructure.models.providers.profiles import BUILTIN_PROFILES
 from infrastructure.persistence.config_store import write_yaml_mapping
 from infrastructure.persistence.data_home import (
     get_config_path,
@@ -1545,7 +1545,7 @@ class RuntimeLab:
         Returns True if provider was deleted (caller should return to parent menu),
         False if deletion was cancelled or failed.
         """
-        from ai_runtime.providers.profiles import BUILTIN_PROFILES
+        from infrastructure.models.providers.profiles import BUILTIN_PROFILES
 
         if provider_id in BUILTIN_PROFILES:
             self.output(f"Cannot delete builtin provider: {provider_id}")

@@ -6,8 +6,11 @@ from datetime import datetime, timezone
 from typing import Any, Mapping, Optional, Sequence
 
 from ai_runtime.food.planner import EVIDENCE_MAX_AGE, ModelEvidence
-from ai_runtime.models.capabilities import canonical_display_name, known_capabilities
-from ai_runtime.providers.profiles import get_product
+from infrastructure.models.capabilities import (
+    canonical_display_name,
+    known_capabilities,
+)
+from infrastructure.models.providers.profiles import get_product
 from infrastructure.persistence.provider_connections import (
     ProviderConnection,
     ProviderConnectionStore,

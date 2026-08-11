@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.orchestration.setup_installation import SetupOllamaBinding
-from infrastructure.models import ProviderModelsAdapter
+from infrastructure.models.provider_administration import ProviderModelsAdapter
 from infrastructure.models.setup_provider import SetupProviderAdapter
 
 

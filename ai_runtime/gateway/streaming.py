@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from typing import Any, Callable, cast
 
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.providers.dispatch import detect_api_mode_for_url
-from ai_runtime.providers.streaming import (
+from infrastructure.models.providers.dispatch import detect_api_mode_for_url
+from infrastructure.models.providers.streaming import (
     STREAM_DISPATCH,
     stream_openai_compatible_api,
 )

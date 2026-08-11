@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
-from ai_runtime.models.capabilities import canonical_display_name
-from ai_runtime.providers.profiles import PROVIDER_CATALOG
+from infrastructure.models.capabilities import canonical_display_name
+from infrastructure.models.providers.profiles import PROVIDER_CATALOG
 
 _PLACEHOLDER_MODELS = {"custom-model"}
 
@@ -72,7 +72,7 @@ def _split_models(value: str) -> list[str]:
     return [item.strip() for item in value.replace("，", ",").split(",")]
 
 
-def _unique(values) -> list[str]:
+def _unique(values: Iterable[str]) -> list[str]:
     return list(dict.fromkeys(value for value in values if value))
 
 
@@ -80,7 +80,7 @@ def _spec(model_id: str) -> ProviderModelSpec:
     return ProviderModelSpec(model_id, model_id)
 
 
-def _unique_specs(values) -> list[ProviderModelSpec]:
+def _unique_specs(values: Iterable[ProviderModelSpec]) -> list[ProviderModelSpec]:
     unique: dict[str, ProviderModelSpec] = {}
     for item in values:
         if item.model_id:

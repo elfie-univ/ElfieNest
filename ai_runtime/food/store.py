@@ -14,7 +14,10 @@ from ai_runtime.food.models import (
     FoodPackage,
     system_food_packages,
 )
-from ai_runtime.models.model_reference import ModelReferenceError, parse_model_reference
+from infrastructure.models.model_reference import (
+    ModelReferenceError,
+    parse_model_reference,
+)
 from infrastructure.persistence.provider_connections import ProviderConnectionStore
 
 FOOD_CATALOG_VERSION = 1

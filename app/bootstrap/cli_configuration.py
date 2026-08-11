@@ -6,11 +6,9 @@ from dataclasses import dataclass
 
 from app.features.accounts import AccountPrincipal
 from app.features.configuration import ProvidersService, SettingsService
-from infrastructure.models import (
-    CliModelCatalogAdapter,
-    ProviderModelsAdapter,
-    PublicOllamaProviderAdapter,
-)
+from infrastructure.models.cli_catalog import CliModelCatalogAdapter
+from infrastructure.models.provider_administration import ProviderModelsAdapter
+from infrastructure.models.provider_ollama import PublicOllamaProviderAdapter
 from infrastructure.persistence.data_home import data_home_from_db_path, get_config_path
 from infrastructure.persistence.data_layout import final_root_layout
 from infrastructure.persistence.provider_references import (

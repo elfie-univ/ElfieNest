@@ -1,25 +1,5 @@
-"""Provider discovery, validation and Food model-evidence Adapters."""
+"""Model and Provider infrastructure capability package.
 
-from .cli_catalog import CliModelCatalogAdapter
-from .food_technology import RuntimeFoodTechnologyAdapter
-from .lifecycle_ollama import OllamaLifecycleAdapter
-from .provider_administration import ProviderModelsAdapter
-from .provider_ollama import PublicOllamaProviderAdapter
-from .runtime_adapter import (
-    RuntimeRequestAbandonedError,
-    SerializedRuntimeAdapter,
-    StructuredRuntime,
-)
-from .runtime_observer import RuntimeObserverProjectionAdapter
-
-__all__ = (
-    "ProviderModelsAdapter",
-    "CliModelCatalogAdapter",
-    "OllamaLifecycleAdapter",
-    "PublicOllamaProviderAdapter",
-    "RuntimeFoodTechnologyAdapter",
-    "RuntimeObserverProjectionAdapter",
-    "RuntimeRequestAbandonedError",
-    "SerializedRuntimeAdapter",
-    "StructuredRuntime",
-)
+Concrete Adapters are imported from their owning modules so importing a model
+catalog or transport leaf never initializes unrelated Runtime integrations.
+"""

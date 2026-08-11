@@ -6,14 +6,14 @@ import urllib.error
 import urllib.request
 from typing import Any, cast
 
-from ai_runtime.providers.http import (
+from infrastructure.models.providers.http import (
     ProviderHttpResponse,
     open_provider_request,
     read_provider_response,
 )
-from ai_runtime.providers.ollama import OllamaNotReadyError
+from infrastructure.models.providers.ollama import OllamaNotReadyError
 
-logger = logging.getLogger("ai_runtime.providers.dispatch")
+logger = logging.getLogger("infrastructure.models.providers.dispatch")
 
 _MAX_ERROR_RESPONSE_BYTES = 64 * 1024
 _ERROR_RESPONSE_DEADLINE_SECONDS = 5.0

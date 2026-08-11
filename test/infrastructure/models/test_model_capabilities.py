@@ -1,4 +1,4 @@
-from ai_runtime.models.capabilities import (
+from infrastructure.models.capabilities import (
     canonical_display_name,
     known_capabilities,
     resolve_model_capability_profile,

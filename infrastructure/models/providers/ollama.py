@@ -5,9 +5,9 @@ import subprocess
 import sys
 import time
 import urllib.request
-from typing import List, Mapping, Optional
+from typing import Any, List, Mapping, Optional
 
-logger = logging.getLogger("ai_runtime.providers.ollama")
+logger = logging.getLogger("infrastructure.models.providers.ollama")
 
 
 class OllamaNotReadyError(Exception):
@@ -19,7 +19,7 @@ class OllamaNotReadyError(Exception):
 class OllamaManager:
     """运行时轻量级 Ollama 进程自愈与状态管理器"""
 
-    def __init__(self, config):
+    def __init__(self, config: Any) -> None:
         self.config = config
 
     def check_health(self) -> bool:
@@ -29,7 +29,7 @@ class OllamaManager:
             req = urllib.request.Request(url, method="GET")
             # 缩短超时时间以实现毫秒级快速无感检测
             with urllib.request.urlopen(req, timeout=1.0) as response:
-                return response.status == 200
+                return bool(response.status == 200)
         except Exception:
             return False
 

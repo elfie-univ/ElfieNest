@@ -4,7 +4,7 @@ from app.features.configuration.providers import (
     StoredLocalProviderBinding,
     StoredLocalProviderProbe,
 )
-from infrastructure.models import OllamaLifecycleAdapter
+from infrastructure.models.lifecycle_ollama import OllamaLifecycleAdapter
 
 
 def test_lifecycle_ollama_only_starts_an_unhealthy_existing_binding() -> None:

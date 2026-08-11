@@ -14,8 +14,8 @@ import sys
 import time
 import urllib.request
 
-from ai_runtime.models.local_profiles import select_local_profile
-from ai_runtime.providers.profiles import BUILTIN_PROFILES
+from infrastructure.models.local_profiles import select_local_profile
+from infrastructure.models.providers.profiles import BUILTIN_PROFILES
 
 DEFAULT_LOCAL_PROFILE = select_local_profile(8)
 MODELS_TO_PULL = [DEFAULT_LOCAL_PROFILE.text_model, DEFAULT_LOCAL_PROFILE.vision_model]

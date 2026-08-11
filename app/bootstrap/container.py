@@ -26,7 +26,8 @@ from app.orchestration.resident_admission import ResidentAdmissionService
 from app.orchestration.setup_installation import SetupInstallationService
 from infrastructure.communication import OwnerMessageSession, SameOriginMessagePublisher
 from infrastructure.devices import DeviceGateway
-from infrastructure.models import ProviderModelsAdapter, PublicOllamaProviderAdapter
+from infrastructure.models.provider_administration import ProviderModelsAdapter
+from infrastructure.models.provider_ollama import PublicOllamaProviderAdapter
 from infrastructure.persistence.bodies import SQLiteBodiesAdapter
 from infrastructure.persistence.data_home import data_home_from_db_path, get_config_path
 from infrastructure.persistence.data_layout import final_root_layout

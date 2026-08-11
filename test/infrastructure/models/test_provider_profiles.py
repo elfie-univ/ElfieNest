@@ -1,5 +1,5 @@
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.providers.profiles import (
+from infrastructure.models.providers.profiles import (
     BUILTIN_PROFILES,
     get_default_api_mode,
     get_profile,
@@ -195,7 +195,9 @@ def test_verify_custom_openai_falls_back_to_chat_completion_when_models_endpoint
             )
         return FakeResponse()
 
-    monkeypatch.setattr("ai_runtime.models.catalog.open_provider_request", fake_urlopen)
+    monkeypatch.setattr(
+        "infrastructure.models.catalog.open_provider_request", fake_urlopen
+    )
 
     class Config:
         providers = {
@@ -207,7 +209,7 @@ def test_verify_custom_openai_falls_back_to_chat_completion_when_models_endpoint
             }
         }
 
-    from ai_runtime.models.catalog import verify_provider
+    from infrastructure.models.catalog import verify_provider
 
     result = verify_provider("custom_openai", Config())
 
@@ -231,7 +233,9 @@ def test_verify_custom_openai_returns_actionable_error_when_models_and_chat_fail
             fp=None,
         )
 
-    monkeypatch.setattr("ai_runtime.models.catalog.open_provider_request", fake_urlopen)
+    monkeypatch.setattr(
+        "infrastructure.models.catalog.open_provider_request", fake_urlopen
+    )
 
     class Config:
         providers = {
@@ -243,7 +247,7 @@ def test_verify_custom_openai_returns_actionable_error_when_models_and_chat_fail
             }
         }
 
-    from ai_runtime.models.catalog import verify_provider
+    from infrastructure.models.catalog import verify_provider
 
     result = verify_provider("custom_openai", Config())
 

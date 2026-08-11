@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from app.orchestration.lifecycle import LifecycleFacade
 from infrastructure.godot.lifecycle.authority import GodotAuthorityHostAdapter
-from infrastructure.models import OllamaLifecycleAdapter, PublicOllamaProviderAdapter
+from infrastructure.models.lifecycle_ollama import OllamaLifecycleAdapter
+from infrastructure.models.provider_ollama import PublicOllamaProviderAdapter
 from infrastructure.platform.lifecycle.desktop import LocalDesktopHostAdapter
 from infrastructure.platform.lifecycle.http_probe import UrllibHttpProbeAdapter
 from infrastructure.platform.lifecycle.process import LocalServiceProcessAdapter

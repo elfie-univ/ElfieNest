@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal, Mapping
 
-from ai_runtime.providers.profiles import get_product
+from infrastructure.models.providers.profiles import get_product
 from infrastructure.persistence.provider_connections import (
     ProviderConnection,
     ProviderModelRecord,

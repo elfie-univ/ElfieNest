@@ -3,9 +3,9 @@ import logging
 from collections.abc import Iterator
 from typing import Any
 
-from ai_runtime.providers.ollama import OllamaNotReadyError
+from infrastructure.models.providers.ollama import OllamaNotReadyError
 
-logger = logging.getLogger("ai_runtime.providers.streaming")
+logger = logging.getLogger("infrastructure.models.providers.streaming")
 
 
 def stream_ollama_api(

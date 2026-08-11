@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from infrastructure.models import CliModelCatalogAdapter
+from infrastructure.models.cli_catalog import CliModelCatalogAdapter
 
 
 class Response:

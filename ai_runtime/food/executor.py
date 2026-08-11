@@ -10,11 +10,14 @@ from ai_runtime.food.models import FoodPackage, ModelAssignment
 from ai_runtime.gateway.loop import RuntimeToolLoop, ToolLoopContext
 from ai_runtime.gateway.multimodal import assemble_multimodal_payload
 from ai_runtime.gateway.skills_prompt import inject_skills_system_prompt
-from ai_runtime.models.model_reference import ModelReferenceError, parse_model_reference
 from ai_runtime.tools.config import (
     effective_tool_keys,
     enabled_tool_keys,
     load_tool_configs,
+)
+from infrastructure.models.model_reference import (
+    ModelReferenceError,
+    parse_model_reference,
 )
 
 

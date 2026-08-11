@@ -122,14 +122,16 @@ def test_product_runtime_has_one_food_resolver_and_no_direct_model_route() -> No
 
 def test_provider_catalogs_do_not_encode_runtime_model_selection_groups() -> None:
     catalog_sources = (
-        "ai_runtime/providers/catalog.py",
-        "ai_runtime/providers/remote_catalog.py",
+        "infrastructure/models/providers/catalog.py",
+        "infrastructure/models/providers/remote_catalog.py",
         "infrastructure/models/provider_administration.py",
     )
     forbidden_groups = ("cheap", "deep", "multimodal")
     for source_path in catalog_sources:
         source = _source(source_path)
         assert all(group not in source for group in forbidden_groups)
+    assert not (AI_RUNTIME / "models").exists()
+    assert not (AI_RUNTIME / "providers").exists()
 
 
 def test_phase_one_tool_advertising_is_limited_to_safe_tools() -> None:

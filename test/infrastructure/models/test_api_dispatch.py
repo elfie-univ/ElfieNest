@@ -12,19 +12,19 @@ import pytest
 
 from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.gateway.agent import RuntimeAgent
-from ai_runtime.providers.dispatch import (
+from infrastructure.models.providers.dispatch import (
     API_DISPATCH as _API_DISPATCH,
 )
-from ai_runtime.providers.dispatch import (
+from infrastructure.models.providers.dispatch import (
     call_anthropic_api as _call_anthropic_api,
 )
-from ai_runtime.providers.dispatch import (
+from infrastructure.models.providers.dispatch import (
     call_ollama_api as _call_ollama_api,
 )
-from ai_runtime.providers.dispatch import (
+from infrastructure.models.providers.dispatch import (
     call_openai_compatible_api as _call_openai_compatible_api,
 )
-from ai_runtime.providers.dispatch import (
+from infrastructure.models.providers.dispatch import (
     detect_api_mode_for_url as _detect_api_mode_for_url,
 )
 
@@ -90,7 +90,7 @@ class TestCallAnthropicApi:
         mock_response.__exit__ = Mock(return_value=False)
 
         with patch(
-            "ai_runtime.providers.dispatch.open_provider_request",
+            "infrastructure.models.providers.dispatch.open_provider_request",
             return_value=mock_response,
         ):
             with patch("urllib.request.Request") as mock_request:
@@ -128,7 +128,7 @@ class TestCallAnthropicApi:
         ]
 
         with patch(
-            "ai_runtime.providers.dispatch.open_provider_request",
+            "infrastructure.models.providers.dispatch.open_provider_request",
             return_value=mock_response,
         ):
             with patch("urllib.request.Request") as mock_request:
@@ -164,7 +164,7 @@ class TestCallAnthropicApi:
         mock_response.__exit__ = Mock(return_value=False)
 
         with patch(
-            "ai_runtime.providers.dispatch.open_provider_request",
+            "infrastructure.models.providers.dispatch.open_provider_request",
             return_value=mock_response,
         ):
             result, usage = _call_anthropic_api(
@@ -191,7 +191,7 @@ class TestCallAnthropicApi:
         mock_error.read = Mock(return_value=b'{"error": "Invalid API key"}')
 
         with patch(
-            "ai_runtime.providers.dispatch.open_provider_request",
+            "infrastructure.models.providers.dispatch.open_provider_request",
             side_effect=mock_error,
         ):
             with pytest.raises(RuntimeError) as exc_info:
@@ -216,7 +216,7 @@ class TestCallAnthropicApi:
         )
 
         with patch(
-            "ai_runtime.providers.dispatch.open_provider_request",
+            "infrastructure.models.providers.dispatch.open_provider_request",
             side_effect=mock_error,
         ):
             with pytest.raises(RuntimeError) as exc_info:
@@ -246,7 +246,7 @@ class TestCallOllamaApi:
         mock_response.__exit__ = Mock(return_value=False)
 
         with patch(
-            "ai_runtime.providers.dispatch.open_provider_request",
+            "infrastructure.models.providers.dispatch.open_provider_request",
             return_value=mock_response,
         ):
             with patch("urllib.request.Request") as mock_request:
@@ -283,7 +283,7 @@ class TestCallOpenaiCompatibleApi:
         mock_response.__exit__ = Mock(return_value=False)
 
         with patch(
-            "ai_runtime.providers.dispatch.open_provider_request",
+            "infrastructure.models.providers.dispatch.open_provider_request",
             return_value=mock_response,
         ):
             with patch("urllib.request.Request") as mock_request:
@@ -319,7 +319,7 @@ class TestCallOpenaiCompatibleApi:
         mock_response.__exit__ = Mock(return_value=False)
 
         with patch(
-            "ai_runtime.providers.dispatch.open_provider_request",
+            "infrastructure.models.providers.dispatch.open_provider_request",
             return_value=mock_response,
         ):
             result, usage = _call_openai_compatible_api(
@@ -359,7 +359,7 @@ class TestCallOpenaiCompatibleApi:
         mock_response.__exit__ = Mock(return_value=False)
 
         with patch(
-            "ai_runtime.providers.dispatch.open_provider_request",
+            "infrastructure.models.providers.dispatch.open_provider_request",
             return_value=mock_response,
         ):
             result, usage = _call_openai_compatible_api(
@@ -400,7 +400,7 @@ class TestCallOpenaiCompatibleApi:
         )
 
         with patch(
-            "ai_runtime.providers.dispatch.open_provider_request",
+            "infrastructure.models.providers.dispatch.open_provider_request",
             side_effect=mock_error,
         ):
             with pytest.raises(RuntimeError) as exc_info:
@@ -445,7 +445,7 @@ class TestApiDispatch:
         mock_response.__exit__ = Mock(return_value=False)
 
         with patch(
-            "ai_runtime.providers.dispatch.open_provider_request",
+            "infrastructure.models.providers.dispatch.open_provider_request",
             return_value=mock_response,
         ):
             result = agent._call_llm_api(
@@ -477,7 +477,7 @@ class TestApiDispatch:
         mock_response.__exit__ = Mock(return_value=False)
 
         with patch(
-            "ai_runtime.providers.dispatch.open_provider_request",
+            "infrastructure.models.providers.dispatch.open_provider_request",
             return_value=mock_response,
         ):
             result = agent._call_llm_api(
@@ -509,7 +509,7 @@ class TestApiDispatch:
         mock_response.__exit__ = Mock(return_value=False)
 
         with patch(
-            "ai_runtime.providers.dispatch.open_provider_request",
+            "infrastructure.models.providers.dispatch.open_provider_request",
             return_value=mock_response,
         ):
             result = agent._call_llm_api(
@@ -540,7 +540,7 @@ class TestApiDispatch:
         mock_response.__exit__ = Mock(return_value=False)
 
         with patch(
-            "ai_runtime.providers.dispatch.open_provider_request",
+            "infrastructure.models.providers.dispatch.open_provider_request",
             return_value=mock_response,
         ):
             result = agent._call_llm_api(
@@ -571,7 +571,7 @@ class TestApiDispatch:
         mock_response.__exit__ = Mock(return_value=False)
 
         with patch(
-            "ai_runtime.providers.dispatch.open_provider_request",
+            "infrastructure.models.providers.dispatch.open_provider_request",
             return_value=mock_response,
         ):
             result = agent._call_llm_api(

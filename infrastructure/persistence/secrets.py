@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 from typing import Mapping
 
-from ai_runtime.providers.profiles import get_profile
+from infrastructure.models.providers.profiles import get_profile
 from infrastructure.persistence.data_home import ensure_elfie_home, get_env_path
 
 _ENV_NAME_PATTERN = re.compile(r"[^A-Z0-9_]+")

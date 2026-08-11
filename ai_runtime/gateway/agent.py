@@ -26,7 +26,6 @@ from ai_runtime.gateway.request import (
     StructuredRuntimeRequest,
     StructuredRuntimeResult,
 )
-from ai_runtime.models.model_reference import parse_model_reference
 from ai_runtime.safety.permissions import PermissionManager
 from ai_runtime.tools.config import effective_tool_keys, load_tool_configs
 from ai_runtime.usage.observer import (
@@ -35,6 +34,7 @@ from ai_runtime.usage.observer import (
     RuntimeEventStatus,
     get_runtime_observer,
 )
+from infrastructure.models.model_reference import parse_model_reference
 from infrastructure.persistence.data_home import get_runtime_config_paths
 from infrastructure.tools.local_files import LocalFileAccessPlugin
 from infrastructure.tools.search import WebSearchPlugin

@@ -1,7 +1,7 @@
 import json
 from unittest.mock import MagicMock, patch
 
-from ai_runtime.providers.dispatch import call_ollama_api
+from infrastructure.models.providers.dispatch import call_ollama_api
 
 
 def test_food_provider_options_are_sent_without_overriding_core_fields():
@@ -12,7 +12,7 @@ def test_food_provider_options_are_sent_without_overriding_core_fields():
     context.__exit__.return_value = False
 
     with patch(
-        "ai_runtime.providers.dispatch.open_provider_request",
+        "infrastructure.models.providers.dispatch.open_provider_request",
         return_value=context,
     ) as urlopen:
         call_ollama_api(

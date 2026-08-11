@@ -10,7 +10,7 @@ from ai_runtime.usage.observer import (
     RuntimeObserver,
     ToolCallObservation,
 )
-from infrastructure.models import RuntimeObserverProjectionAdapter
+from infrastructure.models.runtime_observer import RuntimeObserverProjectionAdapter
 
 
 def test_adapter_projects_without_mutating_the_runtime_observer(
@@ -42,7 +42,7 @@ def test_adapter_projects_without_mutating_the_runtime_observer(
     assert snapshot.last_event is not None
     assert snapshot.last_event.event_type == "fallback"
     assert snapshot.last_event.subject == "local_fast"
-    assert {item.key: item.value for item in snapshot.last_event.metadata}["reason"] == (
-        "remote unavailable"
-    )
+    assert {item.key: item.value for item in snapshot.last_event.metadata}[
+        "reason"
+    ] == ("remote unavailable")
     assert len(observer.snapshot()) == 2

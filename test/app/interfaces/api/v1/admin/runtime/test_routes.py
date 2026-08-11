@@ -23,7 +23,7 @@ from app.features.operations import (
 from app.interfaces.api.service_access import ServiceAccessPolicy
 from app.interfaces.api.v1.admin.runtime import router
 from app.interfaces.api.v1.auth import require_manager, require_user
-from infrastructure.models import RuntimeObserverProjectionAdapter
+from infrastructure.models.runtime_observer import RuntimeObserverProjectionAdapter
 
 
 class UnusedDatabaseAdapter:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.features.operations import OperationsFacade
-from infrastructure.models import RuntimeObserverProjectionAdapter
+from infrastructure.models.runtime_observer import RuntimeObserverProjectionAdapter
 from infrastructure.persistence.operations import SQLiteOperationsAdapter
 
 

@@ -1,12 +1,12 @@
 def test_layered_runtime_imports_are_available():
     from ai_runtime.gateway.agent import RuntimeAgent
-    from ai_runtime.models.catalog import ModelCatalog
-    from ai_runtime.providers.ollama import OllamaManager
-    from ai_runtime.providers.profiles import get_profile
     from ai_runtime.safety.permissions import PermissionManager
     from ai_runtime.tools.executor import ToolExecutor
     from ai_runtime.usage.observer import RuntimeObserver
     from ai_runtime.usage.token_tracker import TokenTracker
+    from infrastructure.models.catalog import ModelCatalog
+    from infrastructure.models.providers.ollama import OllamaManager
+    from infrastructure.models.providers.profiles import get_profile
     from infrastructure.persistence.data_home import get_elfie_home
 
     assert RuntimeAgent is not None

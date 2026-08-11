@@ -1,4 +1,4 @@
-from ai_runtime.providers.model_hints import (
+from infrastructure.models.providers.model_hints import (
     ProviderModelSpec,
     configured_model_names,
     configured_model_specs,

@@ -13,17 +13,17 @@ from ai_runtime.food.evidence import query_model_evidence, record_model_evidence
 from ai_runtime.food.health import project_food_health
 from ai_runtime.food.planner import ModelEvidence
 from ai_runtime.food.store import FoodCatalog, FoodCatalogRepository
-from ai_runtime.models.capabilities import (
-    canonical_display_name,
-    known_capabilities,
-)
-from ai_runtime.models.catalog import BUILTIN_MODEL_CATALOG
-from ai_runtime.providers.profiles import BUILTIN_PROFILES
 from ai_runtime.validation.models import CheckResult, CheckStatus, ValidationSuite
 from ai_runtime.validation.providers import (
     ProviderValidationRunner,
     discover_provider_models,
 )
+from infrastructure.models.capabilities import (
+    canonical_display_name,
+    known_capabilities,
+)
+from infrastructure.models.catalog import BUILTIN_MODEL_CATALOG
+from infrastructure.models.providers.profiles import BUILTIN_PROFILES
 from infrastructure.persistence.data_home import get_model_validation_dir
 from infrastructure.persistence.report_repository import ReportRepository
 

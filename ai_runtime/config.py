@@ -6,6 +6,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict
 
+from infrastructure.models.providers.profiles import (
+    BUILTIN_PROFILES,
+    get_default_api_mode,
+    get_product,
+)
 from infrastructure.persistence.config_store import ConfigStoreError, read_yaml_mapping
 from infrastructure.persistence.data_home import get_env_path, get_provider_config_path
 from infrastructure.persistence.provider_connections import ProviderConnectionStore
@@ -16,8 +21,6 @@ from infrastructure.persistence.secrets import (
     read_secrets,
     resolve_secret,
 )
-
-from .providers.profiles import BUILTIN_PROFILES, get_default_api_mode, get_product
 
 
 def _load_env_file_values(env_path: Path | None = None) -> Dict[str, str]:

@@ -8,7 +8,7 @@ from app.features.accounts import AccountsService
 from app.features.configuration import ProviderLocalStatePort
 from app.features.setup import SetupService
 from app.orchestration.setup_installation import SetupInstallationService
-from infrastructure.models import RuntimeFoodTechnologyAdapter
+from infrastructure.models.food_technology import RuntimeFoodTechnologyAdapter
 from infrastructure.models.setup_catalog import ProviderSetupCatalogAdapter
 from infrastructure.models.setup_food import SetupFoodAdapter
 from infrastructure.models.setup_ollama import SetupOllamaAdapter

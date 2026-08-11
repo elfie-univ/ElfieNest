@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Dict
 
-from ai_runtime.providers.catalog import (
+from infrastructure.models.providers.catalog import (
     ProviderProfile,
     load_provider_catalog,
 )

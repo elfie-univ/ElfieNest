@@ -6,7 +6,7 @@ import re
 from typing import Any, Dict, Optional
 
 from ai_runtime.food.evidence import query_model_evidence
-from ai_runtime.models.capabilities import known_capabilities
+from infrastructure.models.capabilities import known_capabilities
 from infrastructure.persistence.provider_connections import (
     ProviderConnection,
     ProviderModelRecord,
