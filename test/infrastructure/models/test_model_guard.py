@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from ai_runtime.gateway.model_guard import UnsupportedModalError, ensure_model_ready
+from infrastructure.models.model_guard import UnsupportedModalError, ensure_model_ready
 
 
 @dataclass

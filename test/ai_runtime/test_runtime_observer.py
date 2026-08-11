@@ -5,7 +5,6 @@ from pathlib import Path
 import pytest
 
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.gateway.llm_api import API_DISPATCH, call_llm_api
 from ai_runtime.tools.executor import ToolExecutionContext, ToolExecutor
 from ai_runtime.usage.observer import (
     FallbackObservation,
@@ -18,6 +17,7 @@ from ai_runtime.usage.observer import (
     ToolCallObservation,
     get_runtime_observer,
 )
+from infrastructure.models.llm_api import API_DISPATCH, call_llm_api
 
 
 @pytest.fixture(autouse=True)
