@@ -1,11 +1,11 @@
 """Shared real-storage builders for memory projection tests."""
 
-from elfie.brain.memory.graph_storage import GraphStorage
 from elfie.brain.memory.node_types import MemoryNode
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 
 def add_node(
-    storage: GraphStorage,
+    storage: SQLiteMemoryStoreAdapter,
     node_id: str,
     node_type: str,
     content: str,

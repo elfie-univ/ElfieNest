@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import cast
 from uuid import uuid4
 
 from app.features.adoption import (
@@ -15,6 +17,8 @@ from app.features.configuration.settings import SettingsStorePort
 from app.orchestration.nest_session import NestSession
 from app.orchestration.resident_admission import ResidentAdmissionService
 from elfie import ElfieFactory
+from elfie.body.port import BodyPort
+from infrastructure.godot import GodotGateway, GodotTransport, NativeBody
 from infrastructure.persistence.account_repository import AccountRepository
 from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
 from infrastructure.persistence.elfie_workspace.adoption_profiles import (
@@ -23,7 +27,9 @@ from infrastructure.persistence.elfie_workspace.adoption_profiles import (
 from infrastructure.persistence.elfie_workspace.elfies import (
     SQLiteElfiesProjectionAdapter,
 )
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.nest_db.store import get_db
+from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 from infrastructure.platform import (
     ElfieFactoryAdapter,
     SettingsAdoptionPolicyAdapter,
@@ -89,6 +95,14 @@ def build_adoption_services(
     settings: SettingsStorePort,
     nest_session: NestSession | None,
 ) -> AdoptionServices:
+    def body_factory(elfie_id: str, _workspace: str) -> BodyPort | None:
+        if nest_session is None:
+            return None
+        return NativeBody(
+            body_id=elfie_id,
+            transport=GodotTransport(cast(GodotGateway, nest_session.world_runtime)),
+        )
+
     adoption = AdoptionService(
         SettingsAdoptionPolicyAdapter(settings),
         SQLiteAdoptionAdapter(db_path),
@@ -100,7 +114,11 @@ def build_adoption_services(
             FinalElfieWorkspaceAdapter.from_database_path(db_path),
             ElfieFactoryAdapter(
                 ElfieFactory(),
-                None if nest_session is None else nest_session.world_runtime,
+                body_factory,
+                lambda workspace: YamlProfileStoreAdapter(Path(workspace) / "profile"),
+                lambda workspace: SQLiteMemoryStoreAdapter(
+                    Path(workspace) / "memory" / "knowledge.sqlite"
+                ),
             ),
             nest_session,
         ),

@@ -80,3 +80,23 @@ def test_runtime_import_scanner_flags_raw_protocol_control(tmp_path: Path) -> No
 
     # Then: the import is recognized as non-public Runtime control.
     assert imports - PUBLIC_GATEWAY_IMPORTS == {"infrastructure.godot.gateway.messages"}
+
+
+def test_runtime_model_path_uses_the_injected_tool_port() -> None:
+    runtime_source = (
+        PROJECT_ROOT / "infrastructure" / "models" / "runtime_agent.py"
+    ).read_text(encoding="utf-8")
+    validation_source = (
+        PROJECT_ROOT
+        / "infrastructure"
+        / "models"
+        / "validation"
+        / "agent_validation.py"
+    ).read_text(encoding="utf-8")
+
+    for source in (runtime_source, validation_source):
+        assert "RuntimeToolLoop" not in source
+        assert "LocalFileAccessPlugin" not in source
+    assert not hasattr(
+        __import__("infrastructure.tools", fromlist=["*"]), "RuntimeToolLoop"
+    )

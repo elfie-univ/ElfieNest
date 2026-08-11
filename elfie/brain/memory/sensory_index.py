@@ -7,7 +7,7 @@ SensoryIndexer 负责将感官关键词存入节点语义元数据，
 import logging
 from typing import Dict, List, Tuple
 
-from .memory_store import MemoryStore
+from .memory_store import MemoryStorePort
 
 logger = logging.getLogger("elfie.brain.memory.sensory_index")
 
@@ -18,7 +18,7 @@ class SensoryIndexer:
     # 感官类型定义
     SENSE_TYPES = ["olfactory", "visual", "auditory", "tactile"]
 
-    def __init__(self, storage: MemoryStore):
+    def __init__(self, storage: MemoryStorePort):
         self.storage = storage
 
     def index_sensory(self, node_id: str, sensory: dict) -> None:

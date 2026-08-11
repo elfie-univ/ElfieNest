@@ -138,7 +138,7 @@ class BlockingRuntime:
 def test_worker_serializes_submissions_and_has_explicit_lifecycle() -> None:
     # Given: one started worker and a blocking first generation.
     runtime = BlockingRuntime()
-    worker = CorticalWorker(runtime=runtime, decoder=DecisionPlanDecoder())
+    worker = CorticalWorker(model_port=runtime, decoder=DecisionPlanDecoder())
     worker.start()
     worker.start()
 
@@ -164,7 +164,7 @@ def test_worker_serializes_submissions_and_has_explicit_lifecycle() -> None:
 def test_worker_bounds_isolated_hung_provider_calls() -> None:
     # Given: two provider calls have each occupied an isolation slot.
     runtime = BlockingRuntime()
-    worker = CorticalWorker(runtime=runtime, decoder=DecisionPlanDecoder())
+    worker = CorticalWorker(model_port=runtime, decoder=DecisionPlanDecoder())
     worker.start()
     first = worker.submit(_task("turn-1"))
     assert runtime.first_started.wait(1)
@@ -192,7 +192,7 @@ def test_worker_rejects_submissions_when_queue_is_full() -> None:
     # Given: one active generation and one queued task fill the queue.
     runtime = BlockingRuntime()
     worker = CorticalWorker(
-        runtime=runtime,
+        model_port=runtime,
         decoder=DecisionPlanDecoder(),
         max_queued_tasks=1,
     )
@@ -239,7 +239,7 @@ class RepairRuntime:
 def test_worker_runs_at_most_one_repair_inside_worker_thread() -> None:
     # Given: a runtime whose first result is malformed and second is valid.
     runtime = RepairRuntime()
-    worker = CorticalWorker(runtime=runtime, decoder=DecisionPlanDecoder())
+    worker = CorticalWorker(model_port=runtime, decoder=DecisionPlanDecoder())
     worker.start()
 
     # When: one cortical task runs.

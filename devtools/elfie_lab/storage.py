@@ -9,11 +9,12 @@ from typing import Any, Callable, Dict, List, Optional, cast
 
 from devtools.elfie_lab.schemas import ElfieSpec, derive_life_stage, new_id
 from elfie.profile import (
-    ElfieProfileRepository,
     create_visual_profile,
     derive_personality,
+    load_packaged_profile_defaults,
 )
 from infrastructure.persistence.layout.data_home import get_elfie_developer_home
+from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 
 class ElfieLabStorage:
@@ -82,7 +83,7 @@ class ElfieLabStorage:
     ) -> Callable[[], None]:
         """持久化人工校准的人格五维，并保留派生来源。"""
         spec = self.get_elfie(elfie_id)
-        repository = ElfieProfileRepository(self.elfie_dir(elfie_id) / "profile")
+        repository = YamlProfileStoreAdapter(self.elfie_dir(elfie_id) / "profile")
         profile = repository.load()
         derivation = derive_personality(
             elfie_id,
@@ -112,7 +113,7 @@ class ElfieLabStorage:
         if not path.exists():
             raise KeyError(f"测试精灵不存在: {elfie_id}")
         spec = ElfieSpec.from_dict(self._read_json(path))
-        repository = ElfieProfileRepository(self.elfie_dir(elfie_id) / "profile")
+        repository = YamlProfileStoreAdapter(self.elfie_dir(elfie_id) / "profile")
         if repository.exists():
             profile = repository.load()
             if profile.identity.species_id != spec.species_id:
@@ -171,8 +172,7 @@ class ElfieLabStorage:
             species_id=spec.species_id,
             seed=seed,
         )
-        defaults_dir = Path(__file__).parents[2] / "elfie" / "profile" / "defaults"
-        defaults = ElfieProfileRepository(defaults_dir).load_default_sections()
+        defaults = load_packaged_profile_defaults()
         profile = replace(profile, **cast(Dict[str, Any], defaults))
         derivation = derive_personality(
             spec.elfie_id,
@@ -191,7 +191,7 @@ class ElfieLabStorage:
             },
         }
         profile = replace(profile, personality=personality)
-        ElfieProfileRepository(self.elfie_dir(spec.elfie_id) / "profile").save(profile)
+        YamlProfileStoreAdapter(self.elfie_dir(spec.elfie_id) / "profile").save(profile)
 
     def session_path(self, elfie_id: str, session_id: str) -> Path:
         self._validate_id(elfie_id)

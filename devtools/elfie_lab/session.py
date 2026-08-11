@@ -24,6 +24,9 @@ from devtools.elfie_lab.turn_projection import project_decision
 from devtools.elfie_lab.turn_summary import model_call_summary, stimulus_modalities
 from elfie import ElfieFactory
 from elfie.body import HeadlessBody
+from elfie.factory import ElfieAssembly
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
+from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 
 class SessionClosedError(RuntimeError):
@@ -57,10 +60,16 @@ class ElfieLabSession:
         )
         self.body = HeadlessBody(body_id=f"{spec.elfie_id}:headless")
         self.body.connect()
+        workspace = storage.elfie_dir(spec.elfie_id)
+        profile_store = YamlProfileStoreAdapter(workspace / "profile")
         self.elfie = ElfieFactory().restore(
-            storage.elfie_dir(spec.elfie_id),
-            memory_db_path=str(storage.memory_path(spec.elfie_id)),
-            body=self.body,
+            ElfieAssembly(
+                profile=profile_store.load(),
+                memory_store=SQLiteMemoryStoreAdapter(
+                    storage.memory_path(spec.elfie_id)
+                ),
+                body=self.body,
+            ),
         )
         self._sync_adapter = DeprecatedSyncCognitionAdapter(self.elfie)
         self._lock = threading.Lock()
@@ -188,10 +197,16 @@ class ElfieLabSession:
             self.body.disconnect()
             self.body = HeadlessBody(body_id=f"{self.spec.elfie_id}:headless")
             self.body.connect()
+            workspace = self.storage.elfie_dir(self.spec.elfie_id)
+            profile_store = YamlProfileStoreAdapter(workspace / "profile")
             self.elfie = ElfieFactory().restore(
-                self.storage.elfie_dir(self.spec.elfie_id),
-                memory_db_path=str(self.storage.memory_path(self.spec.elfie_id)),
-                body=self.body,
+                ElfieAssembly(
+                    profile=profile_store.load(),
+                    memory_store=SQLiteMemoryStoreAdapter(
+                        self.storage.memory_path(self.spec.elfie_id)
+                    ),
+                    body=self.body,
+                ),
             )
             self._sync_adapter = DeprecatedSyncCognitionAdapter(self.elfie)
             self._closed = False

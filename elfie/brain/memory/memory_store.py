@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Mapping, Protocol
 
-from .node_types import Edge, MemoryNode
+from .node_types import Edge, JsonValue, MemoryMetadata, MemoryNode
 
 
-class MemoryStore(Protocol):
-    """Operations required by encoding, retrieval, and consolidation."""
+class MemoryStorePort(Protocol):
+    """Semantic storage operations required by Brain memory algorithms."""
 
     def add_node(self, node: MemoryNode) -> str: ...
 
@@ -19,7 +19,7 @@ class MemoryStore(Protocol):
         node_id: str,
         *,
         content: str | None = None,
-        metadata: dict | None = None,
+        metadata: Mapping[str, JsonValue] | MemoryMetadata | None = None,
         edges: list[Edge] | None = None,
     ) -> bool: ...
 
@@ -55,4 +55,4 @@ class MemoryStore(Protocol):
     def close(self) -> None: ...
 
 
-__all__ = ["MemoryStore"]
+__all__ = ["MemoryStorePort"]

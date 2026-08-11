@@ -24,7 +24,6 @@ class RuntimeRequest:
     messages: tuple[dict[str, Any], ...] = ()
     metadata: tuple[tuple[str, Any], ...] = ()
     elfie_id: str | None = None
-    elfie_config_dir: str | None = None
     food_key: str | None = None
     semantic_role: str = "primary"
     scene: str = "chat"
@@ -91,7 +90,7 @@ class StructuredRuntimeRequest(_FrozenRuntimeModel):
     model_key: Optional[_NonBlankText] = None
     food_key: Optional[_NonBlankText] = None
     food_unavailable: bool = False
-    elfie_workspace: Optional[_NonBlankText] = None
+    scope_id: Optional[_NonBlankText] = None
     temperature: Annotated[float, Field(strict=True, ge=0.0, le=2.0)] = 0.2
     max_tokens: Annotated[int, Field(strict=True, ge=1)] = 512
 

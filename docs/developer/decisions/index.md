@@ -8,3 +8,4 @@ The current contract always states the enforceable rule.
 - [ADR-0002: System-level nested Ports and Adapters](./0002-system-ports-adapters)
 - [ADR-0003: Contract-driven architecture ratchet](./0003-architecture-governance-ratchet)
 - [ADR-0004: App business domains and vertical migration slices](./0004-app-domain-slices)
+- [ADR-0005: Elfie internal Ports and Adapters](./0005-elfie-internal-ports-adapters)

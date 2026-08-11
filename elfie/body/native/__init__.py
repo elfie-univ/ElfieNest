@@ -7,9 +7,7 @@ from elfie.body.native.anatomy import (
     SomaticAnatomy,
     VoiceProfile,
 )
-from elfie.body.native.body import NativeBody
 from elfie.body.native.gait import GaitEngine
-from elfie.body.native.godot_transport import GodotGateway, GodotTransport
 
 __all__ = [
     "SomaticAnatomy",
@@ -18,7 +16,4 @@ __all__ = [
     "BipedAnatomy",
     "QuadrupedAnatomy",
     "GaitEngine",
-    "GodotGateway",
-    "GodotTransport",
-    "NativeBody",
 ]

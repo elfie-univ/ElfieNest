@@ -9,12 +9,11 @@ from elfie.body import (
     BodyId,
     BodySensorEvent,
     CommandStatus,
-    ExternalBody,
     SpeechCommand,
     UtteranceFinal,
 )
 from elfie.message_types import ActorId, ActorRef, CommandId, EventId, IntentId, TurnId
-from infrastructure.devices import DeviceGateway, DeviceGatewayTransport
+from infrastructure.devices import DeviceGateway, DeviceGatewayTransport, ExternalBody
 
 NOW = datetime(2026, 7, 24, 8, 0, tzinfo=timezone.utc)
 

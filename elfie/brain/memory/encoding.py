@@ -15,9 +15,9 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from .memory_store import MemoryStore
+from .memory_store import MemoryStorePort
 from .node_types import EdgeTypes, MemoryNode, NodeTypes
-from .runtime_food import ask_memory_model
+from .runtime_food import MemoryModelPort, ask_memory_model
 from .sensory_buffer import SensoryBuffer
 from .sensory_index import SensoryIndexer
 
@@ -43,17 +43,15 @@ class MemoryEncoder:
 
     def __init__(
         self,
-        storage: MemoryStore,
+        storage: MemoryStorePort,
         sensory_buffer: SensoryBuffer,
         sensory_indexer: SensoryIndexer = None,
         elfie_id: str | None = None,
-        config_dir: str | None = None,
     ):
         self.storage = storage
         self.sensory_buffer = sensory_buffer
         self.sensory_indexer = sensory_indexer
         self.elfie_id = elfie_id
-        self.config_dir = config_dir
 
     def encode(
         self,
@@ -62,7 +60,7 @@ class MemoryEncoder:
         intensity: float,
         stimulus: str = None,
         sensory: dict = None,
-        runtime_agent=None,
+        runtime_agent: MemoryModelPort | None = None,
     ) -> str:
         """编码流程：
         1. 写入SensoryBuffer（事件先进缓冲）
@@ -262,7 +260,11 @@ class MemoryEncoder:
         matching.sort(key=lambda n: n.created_at or "", reverse=True)
         return matching[0].id if matching else None
 
-    def extract_entities(self, content: str, runtime_agent=None) -> List[str]:
+    def extract_entities(
+        self,
+        content: str,
+        runtime_agent: MemoryModelPort | None = None,
+    ) -> List[str]:
         """提取实体名称（规则优先+LLM兜底）
 
         1. 先用内置词典匹配内容中的关键词
@@ -302,7 +304,6 @@ class MemoryEncoder:
                     runtime_agent,
                     prompt,
                     elfie_id=self.elfie_id,
-                    config_dir=self.config_dir,
                     semantic_role="primary",
                     complexity=1,
                 )

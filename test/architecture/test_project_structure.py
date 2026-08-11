@@ -71,7 +71,11 @@ def _imported_roots(path: Path) -> set[str]:
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             imported_roots.update(alias.name.split(".", 1)[0] for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+        elif (
+            isinstance(node, ast.ImportFrom)
+            and node.level == 0
+            and node.module is not None
+        ):
             imported_roots.add(node.module.split(".", 1)[0])
     return imported_roots
 

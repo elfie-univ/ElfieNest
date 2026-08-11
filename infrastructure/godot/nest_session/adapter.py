@@ -7,7 +7,7 @@ from app.orchestration.nest_session import (
     RuntimeConnection,
     WorldEvent,
 )
-from elfie.body.native.godot_transport import RuntimeIntentPayload
+from infrastructure.godot.body_transport import RuntimeIntentPayload
 from infrastructure.godot.gateway.api import GodotAPIServer
 from infrastructure.godot.gateway.messages import CommandName
 from infrastructure.godot.nest_session.mapper import map_runtime_event

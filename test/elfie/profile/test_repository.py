@@ -1,7 +1,8 @@
 import stat
 from pathlib import Path
 
-from elfie.profile import ElfieProfileRepository, create_visual_profile
+from elfie.profile import create_visual_profile, load_packaged_profile_defaults
+from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 
 def test_profile_yaml_round_trip(tmp_path: Path) -> None:
@@ -11,8 +12,9 @@ def test_profile_yaml_round_trip(tmp_path: Path) -> None:
         species_id="fox",
         seed=456,
     )
-    repository = ElfieProfileRepository(tmp_path)
-    path = repository.save(profile)
+    repository = YamlProfileStoreAdapter(tmp_path)
+    repository.save(profile)
+    path = repository.path
 
     assert path == tmp_path / "profile.yaml"
     assert repository.exists()
@@ -32,7 +34,9 @@ def test_profile_save_repairs_owner_only_permissions(tmp_path: Path) -> None:
     )
 
     # When: the canonical profile is saved.
-    path = ElfieProfileRepository(profile_dir).save(profile)
+    repository = YamlProfileStoreAdapter(profile_dir)
+    repository.save(profile)
+    path = repository.path
 
     # Then: both the directory and file are owner-only.
     assert stat.S_IMODE(profile_dir.stat().st_mode) == 0o700
@@ -42,14 +46,9 @@ def test_profile_save_repairs_owner_only_permissions(tmp_path: Path) -> None:
 def test_default_profile_sections_are_loaded_without_a_profile_file(
     tmp_path: Path,
 ) -> None:
-    # Given: bundled default sections without a canonical profile.yaml.
-    (tmp_path / "personality.yaml").write_text(
-        "big_five:\n  openness: 0.8\n", encoding="utf-8"
-    )
-
-    # When: the profile repository reads the default sections.
-    sections = ElfieProfileRepository(tmp_path).load_default_sections()
+    # When: the profile domain reads its immutable bundled defaults.
+    sections = load_packaged_profile_defaults()
 
     # Then: the section is available without requiring a user profile file.
-    assert sections["personality"] == {"big_five": {"openness": 0.8}}
-    assert sections["capabilities"] == {}
+    assert "big_five" in sections["personality"]
+    assert "actuators" in sections["capabilities"]

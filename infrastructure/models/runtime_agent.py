@@ -15,6 +15,8 @@ from elfie.brain.food_port import (
     is_food_executable,
     resolve_main_food,
 )
+from elfie.brain.tool_port import ToolKey, ToolPort, ToolRequest, ToolResult
+from elfie.message_types import ErrorInfo
 from infrastructure.models.food_execution import (
     FoodExecutionError,
     FoodExecutionResult,
@@ -40,11 +42,26 @@ from infrastructure.models.runtime_observations import (
 )
 from infrastructure.models.runtime_ports import (
     RuntimeAgentPorts,
-    RuntimeFileAccessPort,
 )
 
 logger = logging.getLogger("infrastructure.models.runtime_agent")
 MainFoodLoader = Callable[[str], MainFoodSelection]
+
+
+class _UnavailableToolPort:
+    """Semantic no-op used when an isolated Runtime has no tool scope."""
+
+    def available_tool_keys(self) -> tuple[ToolKey, ...]:
+        return ()
+
+    def execute(self, request: ToolRequest) -> ToolResult:
+        message = "该工具在当前 Runtime 作用域未注入。"
+        return ToolResult(
+            tool_key=request.tool_key,
+            ok=False,
+            content=message,
+            error=ErrorInfo(code="tool_unavailable", message=message),
+        )
 
 
 class RuntimeAgent:
@@ -58,25 +75,21 @@ class RuntimeAgent:
         live_reload: bool = False,
         main_food_loader: MainFoodLoader | None = None,
         food_catalog_repository: FoodPort | None = None,
+        tool_port: ToolPort | None = None,
     ):
         self.config = config or LLMRuntimeConfig()
         self._ports = ports
         self._live_reload = live_reload
         self._main_food_loader = main_food_loader
         self.food_catalog_repository = food_catalog_repository
+        self.tool_port: ToolPort = (
+            tool_port if tool_port is not None else _UnavailableToolPort()
+        )
         self._config_mtimes_ns = self._config_mtimes()
         self._mount_runtime_dependencies()
 
     def _mount_runtime_dependencies(self) -> None:
         self._observer = self._ports.observer
-        self.permission_manager = self._ports.permission_factory(
-            self.config, self._observer
-        )
-
-        self.search_plugin = self._ports.search_factory(self.config.runtime_policy)
-        tool_configs = self._ports.tool_config_loader(self.config.runtime_policy)
-        self._local_file_config = tool_configs["local_file"]
-        self.file_access_plugin = None
 
     def _config_mtimes(self) -> tuple[int | None, ...]:
         mtimes: list[int | None] = []
@@ -123,7 +136,6 @@ class RuntimeAgent:
         prompt: str,
         food_key: str | None,
         elfie_id: str | None = None,
-        elfie_config_dir: str | None = None,
         scene: str = "chat",
         energy: float = 100.0,
         task_complexity: int = 1,
@@ -137,7 +149,6 @@ class RuntimeAgent:
             prompt=prompt,
             food_key=food_key,
             elfie_id=elfie_id,
-            elfie_config_dir=elfie_config_dir,
             scene=scene,
             energy=energy,
             task_complexity=task_complexity,
@@ -153,7 +164,6 @@ class RuntimeAgent:
         prompt: str,
         food_key: str | None,
         elfie_id: str | None = None,
-        elfie_config_dir: str | None = None,
         scene: str = "chat",
         energy: float = 100.0,
         task_complexity: int = 1,
@@ -164,17 +174,18 @@ class RuntimeAgent:
     ) -> RuntimeResult:
         """返回完整执行结果，调用者仍只提交粮食语义和任务上下文。"""
         self._reload_config_if_changed()
-        tools = self._ports.effective_tool_keys(
+        configured_tools = self._ports.effective_tool_keys(
             self.config.runtime_policy,
             tuple(allowed_skills or ()),
         )
+        available_tools = set(self.tool_port.available_tool_keys())
+        tools = tuple(tool for tool in configured_tools if tool in available_tools)
         request = RuntimeRequest(
             prompt=prompt,
             energy=energy,
             task_complexity=task_complexity,
             allowed_tools=tools,
             elfie_id=elfie_id,
-            elfie_config_dir=elfie_config_dir,
             food_key=food_key,
             semantic_role=semantic_role,
             scene=scene,
@@ -257,11 +268,6 @@ class RuntimeAgent:
                 ),
                 temperature=request.temperature,
                 max_tokens=request.max_tokens,
-                file_access_plugin=(
-                    self._local_file_access(request.elfie_workspace)
-                    if request.elfie_workspace
-                    else None
-                ),
             )
             try:
                 execution = executor.execute(
@@ -269,6 +275,7 @@ class RuntimeAgent:
                     messages,
                     semantic_role="primary",
                     allowed_tools=tuple(request.allowed_tools),
+                    scope_id=request.scope_id,
                 )
             except Exception as exc:
                 failures.append(f"{attempt_food}: {exc}")
@@ -346,14 +353,7 @@ class RuntimeAgent:
         )
         executor = FoodExecutor(
             config=self.config,
-            search_plugin=self.search_plugin,
-            permission_manager=self.permission_manager,
-            observation_port=self._observer,
-            file_access_plugin=(
-                self._local_file_access(request.elfie_config_dir)
-                if request.elfie_config_dir
-                else None
-            ),
+            tool_port=self.tool_port,
             model_caller=self._call_food_llm_api,
         )
         fallback_used = False
@@ -365,6 +365,7 @@ class RuntimeAgent:
                 messages,
                 request,
                 tuple(request.allowed_tools),
+                scope_id=request.elfie_id,
             )
         except FoodExecutionError as exc:
             failed_attempts = exc.attempts
@@ -384,6 +385,7 @@ class RuntimeAgent:
                 messages,
                 request,
                 tuple(request.allowed_tools),
+                scope_id=request.elfie_id,
             )
             selected_food = FOOD_EMERGENCY_ID
             fallback_used = True
@@ -469,6 +471,7 @@ class RuntimeAgent:
         messages: list[dict[str, Any]],
         request: RuntimeRequest,
         allowed_tools: tuple[str, ...],
+        scope_id: str | None,
     ) -> FoodExecutionResult:
         return executor.execute(
             package,
@@ -478,6 +481,7 @@ class RuntimeAgent:
             semantic_role=(request.semantic_role),
             images=request.images,
             audio=request.audio,
+            scope_id=scope_id,
         )
 
     @staticmethod
@@ -522,7 +526,6 @@ class RuntimeAgent:
         provider_options: Dict[str, Any] | None = None,
         temperature: float = 0.7,
         max_tokens: int = 1500,
-        file_access_plugin: Any | None = None,
     ) -> FoodExecutor:
         def caller(
             provider: str,
@@ -543,18 +546,8 @@ class RuntimeAgent:
 
         return FoodExecutor(
             config=self.config,
-            search_plugin=self.search_plugin,
-            permission_manager=self.permission_manager,
-            file_access_plugin=file_access_plugin,
-            observation_port=self._observer,
+            tool_port=self.tool_port,
             model_caller=caller,
-        )
-
-    def _local_file_access(self, root: str) -> RuntimeFileAccessPort:
-        return self._ports.file_access_factory(
-            root,
-            int(self._local_file_config.get("max_read_bytes") or 65536),
-            int(self._local_file_config.get("max_items") or 200),
         )
 
     def _load_food_catalog(self) -> FoodCatalog:

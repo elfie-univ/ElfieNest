@@ -27,17 +27,36 @@ from elfie.brain.memory import (
     SensoryIndexer,
     SpreadingActivation,
 )
-from elfie.brain.memory.knowledge_store import KnowledgeStore
+from elfie.profile import load_packaged_profile_defaults
+from test.elfie.brain.memory.fake_store import FakeMemoryStore
+
+_PERSONALITY_DATA = load_packaged_profile_defaults()["personality"]
+
+
+def _new_memory_system() -> MemorySystem:
+    return MemorySystem(
+        storage=FakeMemoryStore.in_memory(),
+        personality_data=_PERSONALITY_DATA,
+    )
 
 
 class TestMemorySystem:
     """MemorySystem 门面类测试"""
 
+    def test_memory_system_accepts_a_brain_owned_storage_port(self):
+        store = FakeMemoryStore.in_memory()
+        ms = MemorySystem(storage=store, personality_data=_PERSONALITY_DATA)
+
+        assert ms.storage is store
+        ms.close()
+        assert store.count_nodes() >= 4
+        store.close()
+
     def test_memory_system_init(self):
         """初始化所有组件"""
-        ms = MemorySystem(db_path=":memory:", personality_path=None)
+        ms = _new_memory_system()
         assert ms.storage is not None
-        assert isinstance(ms.storage, KnowledgeStore)
+        assert isinstance(ms.storage, FakeMemoryStore)
         assert ms.sensory_buffer is not None
         assert isinstance(ms.sensory_buffer, SensoryBuffer)
         assert ms.core_cognition is not None
@@ -61,7 +80,7 @@ class TestMemorySystem:
 
     def test_record_episode_high_intensity(self):
         """记录高强度事件 -> 创建episodic节点"""
-        ms = MemorySystem(db_path=":memory:", personality_path=None)
+        ms = _new_memory_system()
         node_id = ms.record_episode(
             content="今天主人喂我吃了美味的鸡肉",
             emotion="happy",
@@ -72,7 +91,7 @@ class TestMemorySystem:
 
     def test_record_episode_low_intensity(self):
         """记录低强度事件 -> 仅写入缓冲，不创建节点"""
-        ms = MemorySystem(db_path=":memory:", personality_path=None)
+        ms = _new_memory_system()
         node_id = ms.record_episode(
             content="今天天气很好",
             emotion="calm",
@@ -82,7 +101,7 @@ class TestMemorySystem:
 
     def test_record_episode_with_stimulus(self):
         """记录有刺激源的事件 -> 即使低强度也创建节点"""
-        ms = MemorySystem(db_path=":memory:", personality_path=None)
+        ms = _new_memory_system()
         node_id = ms.record_episode(
             content="听到主人的脚步声",
             emotion="happy",
@@ -93,7 +112,7 @@ class TestMemorySystem:
 
     def test_retrieve_memories(self):
         """检索记忆：记录事件后应能检索到"""
-        ms = MemorySystem(db_path=":memory:", personality_path=None)
+        ms = _new_memory_system()
         ms.record_episode(
             content="今天去花园散步了，看到很多花",
             emotion="happy",
@@ -112,13 +131,13 @@ class TestMemorySystem:
 
     def test_retrieve_memories_empty(self):
         """检索空库应返回空列表"""
-        ms = MemorySystem(db_path=":memory:", personality_path=None)
+        ms = _new_memory_system()
         results = ms.retrieve_relevant_memories("任何内容", top_k=5)
         assert results == []
 
     def test_retrieve_memories_with_emotion(self):
         """检索时传入情绪参数"""
-        ms = MemorySystem(db_path=":memory:", personality_path=None)
+        ms = _new_memory_system()
         ms.record_episode(content="摔了一跤，好痛", emotion="sadness", intensity=80.0)
         ms.record_episode(content="主人表扬了我", emotion="happy", intensity=90.0)
 
@@ -129,10 +148,10 @@ class TestMemorySystem:
 
     def test_run_consolidation(self):
         """运行巩固流程（无LLM降级模式）"""
-        ms = MemorySystem(db_path=":memory:", personality_path=None)
+        ms = _new_memory_system()
 
         class MockRuntime:
-            def ask(self, p, energy, task_complexity):
+            def ask_with_food(self, prompt, **kwargs):
                 return "与主人在一起很开心\n食物让艾菲感到满足"
 
         ms.record_episode(content="主人喂我吃饭", emotion="happy", intensity=70.0)
@@ -147,14 +166,14 @@ class TestMemorySystem:
 
     def test_run_consolidation_empty(self):
         """无未巩固节点时巩固应跳过"""
-        ms = MemorySystem(db_path=":memory:", personality_path=None)
+        ms = _new_memory_system()
         result = ms.run_consolidation()
         assert isinstance(result, dict)
         assert result["consolidated_count"] == 0
 
     def test_get_core_cognition(self):
         """获取核心认知"""
-        ms = MemorySystem(db_path=":memory:", personality_path=None)
+        ms = _new_memory_system()
         core_text = ms.get_core_cognition()
         assert isinstance(core_text, dict)
         assert "identity" in core_text
@@ -164,7 +183,7 @@ class TestMemorySystem:
 
     def test_get_context(self):
         """获取5区域上下文文本"""
-        ms = MemorySystem(db_path=":memory:", personality_path=None)
+        ms = _new_memory_system()
         ms.record_episode(content="主人喂我吃了鸡肉", emotion="happy", intensity=80.0)
         ms.record_episode(content="今天去了公园", emotion="happy", intensity=60.0)
 
@@ -181,7 +200,7 @@ class TestMemorySystem:
 
     def test_backward_compatible_record_episode(self):
         """兼容旧API关键字参数名"""
-        ms = MemorySystem(db_path=":memory:", personality_path=None)
+        ms = _new_memory_system()
         node_id = ms.record_episode(
             event_description="测试旧API参数名",
             emotion_tag="happy",
@@ -191,7 +210,7 @@ class TestMemorySystem:
 
     def test_backward_compatible_retrieve(self):
         """兼容旧API调用方式（ThalamusContextBuilder使用方式）"""
-        ms = MemorySystem(db_path=":memory:", personality_path=None)
+        ms = _new_memory_system()
         ms.record_episode(content="和主人一起玩耍", emotion="happy", intensity=90.0)
 
         retrieved = ms.retrieve_relevant_memories("玩耍", current_emotion="happy")

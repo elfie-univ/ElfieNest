@@ -34,14 +34,14 @@
 | AR-014 | P1 | in progress | Reports are split across YAML files and legacy paths instead of the dedicated report database; runtime receipt paths also differ from the contract. | All observations append to `reports/ai-runtime.sqlite`; current/as-of/run queries pass; exports are write-only; architecture tests reject legacy fact paths and root-level receipts. |
 | AR-015 | P2 | open | Provider UI differs from the agreed configured-card actions and unified add flow; bundled brand assets are missing or served from the wrong URL. | Cards expose Models, Validate, Edit and More. More owns lifecycle actions. One searchable chooser includes featured, categorized and custom products. Local assets load successfully. |
 | AR-016 | P2 | open | Provider and model catalogs are incomplete and stale, and discovery does not implement the official, ElfieNest remote, bundled local, then manual source chain. | Catalog entries identify real products and authentication modes; discovery follows the four-level precedence, preserves manual records and requires validation before food eligibility. |
-| AR-017 | P2 | open | Tool configuration advertises unavailable code and shared skill-evolution capabilities as enabled. | Phase-one defaults expose only implemented safe tools. Deferred tools are disabled and cannot be advertised to a model. Personal skills remain under the Elfie workspace. |
+| AR-017 | P2 | open | Tool configuration advertises unavailable code and shared skill-evolution capabilities as enabled. | Phase-one defaults expose only implemented safe tools. Deferred tools and Skill mutation are disabled and cannot be advertised to a model; mutable or durable personal Skill state has no active fact source. |
 | AR-018 | P1 | in progress | A clean temporary `ELFIE_HOME` passes the focused semantic and architecture acceptance checks, and browser interaction covers Provider and food flows. The whole-repository Python gate is still failing, and screenshot-capable desktop/mobile visual review has not been completed. | A clean temporary `ELFIE_HOME` passes all 13 contract steps, including discovery precedence, comparison snapshots, lifecycle guards and `no_available_food`; Provider, matrix, food and Elfie browser acceptance has durable visual evidence; and the full quality gate passes. |
 | AR-019 | P1 | open | The cross-connection model matrix does not use report runs or provide a Validate-all workflow. | Bounded Validate-all writes one complete run; single validation appends one subject observation; current, as-of and run-specific matrix queries preserve measurement times. |
 | AR-020 | P1 | closed | The food UI and planner implement permanent row ordering, connection-scoped generation, fresh-validation eligibility, the five-role table and dynamic package health. | Browser and API tests prove Emergency/Common ordering, scoped local-first generation, diff/manual/save flow, Primary/Reasoning/Vision/Tool/Fallback assignments and evidence-derived health, without food-level model capability fields. |
 
 ## Current implementation map
 
-The version-1.3 behavior contract preserves current accepted semantics while
+The version-1.5 behavior contract preserves current accepted semantics while
 the system contract decomposes the package. The current code differs in five
 connected areas:
 
@@ -50,7 +50,7 @@ connected areas:
 | Persistence and reports | `providers.yaml` has incompatible version-1 and version-2 writers. Provider/model results are YAML `latest` plus `history`; model evidence is another YAML file and older root report paths still exist. | Each configuration file needs one typed owner. Reports must append to `reports/ai-runtime.sqlite` and expose current, as-of and run projections. | AR-001, AR-002, AR-008, AR-013, AR-014 |
 | Provider and model inventory | Connection IDs and multiple accounts exist, but source values remain `discovered/manual/provider_catalog`; refresh can replace manual models; official/remote/bundled/manual precedence and a run-based all-model report do not exist. | One four-level discovery chain, non-destructive merge, validated food eligibility and a complete/partial cross-connection matrix are required. | AR-003, AR-012, AR-015, AR-016, AR-019 |
 | Food domain and Owner UI | `nest.db.food_packages` contains permanent system rows and custom packages with five simple role-to-model assignments, enabled/archive state, guarded deletion and evidence-derived health. | Permanent Emergency/Common rows plus custom packages, simple role-to-model assignments, fresh-evidence filtering, scoped generation and evidence-derived health are implemented. | AR-004, AR-005, AR-020 |
-| Access and Elfie routing | Food visibility is a flat `global`/`users` field in the package row; legacy package YAML reads are gone. Brain role-routing work remains tracked separately. | The Elfie page has one Main-food field from the user's eligible set; Runtime resolves package role, internal fallback, Emergency, then `no_available_food`. | AR-006, AR-007, AR-008, AR-009 |
+| Access and Elfie routing | Food visibility is a flat `global`/`users` field in the package row; legacy package YAML reads are gone. Brain role-routing work remains tracked separately. | The Elfie page has one Main-food field from the user's eligible set; the Elfie resolver uses the package role, one optional fallback, Emergency, then `no_available_food`. | AR-006, AR-007, AR-008, AR-009 |
 | Tools and acceptance | Ordinary food execution has a tool loop, but structured cortex generation bypasses it. File/search results are unbounded; code and skill mutation are advertised despite deferred safety. No clean-home contract test exists. | Safe tools must run in the real cortex path with Elfie-workspace isolation and bounded results; deferred tools stay disabled; all 13 acceptance steps must pass. | AR-010, AR-011, AR-017, AR-018 |
 
 ## Migration groups
@@ -123,8 +123,8 @@ Closes or advances: AR-003, AR-012, AR-015, AR-016, AR-019.
 Scope:
 
 - replace fixed food kinds and `ExecutionProfile` with stable packages whose
-  only role data is Primary, Reasoning, Vision, Tool and ordered Fallback model
-  references;
+  only role data is Primary, Reasoning, Vision, Tool and exactly one optional
+  Fallback model reference;
 - initialize permanent Emergency first and Common second; add enabled state,
   custom archive/restore and guarded deletion;
 - derive locality and package health from Provider inventory plus SQLite
@@ -157,7 +157,7 @@ Scope:
   reads are removed;
 - replace `coarse/focus` calls with semantic Primary/Reasoning/Vision/Tool role
   requests;
-- resolve selected package, optional role-to-Primary, ordered package Fallback,
+- resolve selected package, optional role-to-Primary, one optional package Fallback,
   global Emergency and typed `no_available_food`;
 - run safe search and read-only files in both ordinary and structured cortex
   paths, bound to the Elfie workspace with timeout/item/byte clipping;
@@ -189,7 +189,7 @@ Gate:
 
 - all 13 contract steps pass without legacy files or fallback readers;
 - the conformance register contains no open item;
-- current code and both language mirrors agree with behavior contract 1.3;
+- current code and both language mirrors agree with behavior contract 1.5;
 - ownership and migration steps do not recreate a target `ai_runtime/` or
   `infrastructure/ai_runtime/` module.
 

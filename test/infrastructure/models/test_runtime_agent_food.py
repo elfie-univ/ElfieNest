@@ -66,6 +66,14 @@ class _InMemoryFoodPort:
         )
 
 
+class _WebSearchToolPort:
+    def available_tool_keys(self) -> tuple[str, ...]:
+        return ("web_search",)
+
+    def execute(self, request):
+        raise AssertionError(f"tool should not execute in this prompt test: {request}")
+
+
 def _configure_models() -> None:
     ProviderConnectionStore().replace(
         ProviderConnection(
@@ -109,6 +117,7 @@ def _agent(
         ports=runtime_agent_ports(),
         main_food_loader=lambda _elfie_id: selection,
         food_catalog_repository=_InMemoryFoodPort(_catalog()),
+        tool_port=_WebSearchToolPort(),
     )
     monkeypatch.setattr(agent, "_package_usable", lambda package: True)
     return agent

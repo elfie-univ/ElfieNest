@@ -23,15 +23,12 @@ from app.orchestration.nest_session.models import (
     WorldSnapshot,
     WorldZone,
 )
-from app.orchestration.nest_session.ports import (
-    CorticalRuntimeFactory,
-    WorldRuntimePort,
-)
+from app.orchestration.nest_session.ports import ModelPortFactory, WorldRuntimePort
 from app.orchestration.nest_session.session import NestSession
 
 __all__ = (
     "ActorDescriptor",
-    "CorticalRuntimeFactory",
+    "ModelPortFactory",
     "ElfieNestEngine",
     "IntentProgress",
     "IntentTerminal",

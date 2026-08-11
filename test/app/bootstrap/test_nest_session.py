@@ -1,15 +1,16 @@
 """Nest Session composition owns persisted Elfie construction."""
 
+from pathlib import Path
 from types import SimpleNamespace
 
 from app.bootstrap.system_wiring import nest_session as nest_session_bootstrap
 
 
 class _FakeFactory:
-    def restore(self, path: str, *, godot_api: object, elfie_id: str) -> object:
-        if elfie_id == "broken":
+    def restore(self, assembly: object) -> object:
+        if assembly.body.body_id == "broken":
             raise ValueError("invalid profile")
-        return (path, godot_api, elfie_id)
+        return (assembly, assembly.body, assembly.profile.identity.elfie_id)
 
 
 class _FakeSession:
@@ -38,6 +39,26 @@ def test_restore_registered_elfies_isolates_one_invalid_profile(monkeypatch) -> 
         "get_elfie_config_dir",
         lambda elfie_id: f"/profiles/{elfie_id}",
     )
+
+    def profile_store(path):
+        elfie_id = Path(path).parent.name
+        return SimpleNamespace(
+            load=lambda: SimpleNamespace(
+                identity=SimpleNamespace(elfie_id=elfie_id),
+                validate=lambda: None,
+                personality={},
+                species_id="fox",
+            )
+        )
+
+    monkeypatch.setattr(
+        nest_session_bootstrap, "YamlProfileStoreAdapter", profile_store
+    )
+    monkeypatch.setattr(
+        nest_session_bootstrap,
+        "SQLiteMemoryStoreAdapter",
+        lambda _path: object(),
+    )
     session = _FakeSession()
 
     result = nest_session_bootstrap.restore_registered_elfies(
@@ -53,6 +74,9 @@ def test_restore_registered_elfies_isolates_one_invalid_profile(monkeypatch) -> 
             "invalid profile",
         ),
     )
-    assert session.registered == [
-        ("ready", ("/profiles/ready", session.world_runtime, "ready"))
-    ]
+    assert len(session.registered) == 1
+    registered_id, restored = session.registered[0]
+    assert registered_id == "ready"
+    assert restored[0].profile.identity.elfie_id == "ready"
+    assert restored[1].body_id == "ready"
+    assert restored[2] == "ready"

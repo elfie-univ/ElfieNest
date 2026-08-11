@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Optional, Union
+from pathlib import Path
+from typing import Callable, Optional, Union, cast
 
 from app.orchestration.nest_session import (
-    CorticalRuntimeFactory,
     ElfieNestEngine,
+    ModelPortFactory,
     NestSession,
 )
 from elfie import ElfieFactory
 from elfie.brain.food_port import MainFoodSelection
+from elfie.factory import ElfieAssembly
+from elfie.initialization import assemble_profile
+from infrastructure.godot import GodotGateway, GodotTransport, NativeBody
 from infrastructure.godot.nest_session import GodotNestSessionAdapter
 from infrastructure.models.runtime_adapter import (
     SerializedRuntimeAdapter,
@@ -20,11 +24,10 @@ from infrastructure.models.runtime_adapter import (
 from infrastructure.persistence.elfie_workspace.elfies import (
     SQLiteElfiesProjectionAdapter,
 )
-from infrastructure.persistence.layout.data_home import (
-    get_elfie_config_dir,
-    get_elfie_workspace_dir,
-)
+from infrastructure.persistence.layout.data_home import get_elfie_config_dir
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.nest_db.nest_state import SQLiteNestStateAdapter
+from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 MainFoodLoader = Callable[[str], Optional[Union[str, MainFoodSelection]]]
 
@@ -35,7 +38,7 @@ class NestSessionServices:
 
     engine: ElfieNestEngine
     world_runtime: GodotNestSessionAdapter
-    runtime_factory: CorticalRuntimeFactory
+    model_port_factory: ModelPortFactory
 
 
 @dataclass(frozen=True)
@@ -72,13 +75,13 @@ def build_nest_session_services(
         http_port=http_port,
     )
 
-    def runtime_factory(elfie_id: str) -> SerializedRuntimeAdapter:
+    def model_port_factory(elfie_id: str) -> SerializedRuntimeAdapter:
         return SerializedRuntimeAdapter(
             runtime,
+            scope_id=elfie_id,
             food_key_resolver=lambda: (
                 main_food_loader(elfie_id) if main_food_loader is not None else None
             ),
-            elfie_workspace_resolver=lambda: str(get_elfie_workspace_dir(elfie_id)),
         )
 
     return NestSessionServices(
@@ -88,7 +91,7 @@ def build_nest_session_services(
             nest_repository=SQLiteNestStateAdapter(db_path),
         ),
         world_runtime=world_runtime,
-        runtime_factory=runtime_factory,
+        model_port_factory=model_port_factory,
     )
 
 
@@ -102,10 +105,23 @@ def restore_registered_elfies(
     failures: list[ElfieRestoreFailure] = []
     for row in SQLiteElfiesProjectionAdapter(db_path).list_directory():
         try:
+            config_dir = Path(get_elfie_config_dir(row.elfie_id))
+            profile_store = YamlProfileStoreAdapter(config_dir / "profile")
+            profile = profile_store.load()
+            memory_store = SQLiteMemoryStoreAdapter(
+                config_dir / "memory" / "knowledge.sqlite"
+            )
             elfie = factory.restore(
-                str(get_elfie_config_dir(row.elfie_id)),
-                godot_api=session.world_runtime,
-                elfie_id=row.elfie_id,
+                ElfieAssembly(
+                    profile=profile,
+                    memory_store=memory_store,
+                    body=NativeBody(
+                        body_id=row.elfie_id,
+                        transport=GodotTransport(
+                            cast(GodotGateway, session.world_runtime)
+                        ),
+                    ),
+                ),
             )
             session.register_elfie(row.elfie_id, elfie)
             restored.append(RestoredElfie(row.elfie_id, row.name))
@@ -122,9 +138,16 @@ def restore_registered_elfies(
 
 def register_transient_elfie(session: NestSession, elfie_id: str) -> None:
     """Create and register the existing interactive-script Elfie."""
+    profile = assemble_profile(elfie_id=elfie_id, supplied=None)
     elfie = ElfieFactory().create(
-        elfie_id=elfie_id,
-        godot_api=session.world_runtime,
+        ElfieAssembly(
+            profile=profile,
+            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+            body=NativeBody(
+                body_id=elfie_id,
+                transport=GodotTransport(cast(GodotGateway, session.world_runtime)),
+            ),
+        ),
     )
     session.register_elfie(elfie_id, elfie)
 

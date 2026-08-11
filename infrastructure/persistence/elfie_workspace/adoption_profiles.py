@@ -12,7 +12,6 @@ from app.orchestration.resident_admission import ResidentAdmissionPortError
 from elfie.profile import (
     PERSONALITY_PRESETS,
     AppearanceResolver,
-    ElfieProfileRepository,
     create_visual_profile,
 )
 from infrastructure.persistence.layout.data_home import data_home_from_db_path
@@ -20,6 +19,7 @@ from infrastructure.persistence.layout.data_layout import (
     ensure_final_elfie_layout,
     final_root_layout,
 )
+from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 _VERBAL_TICKS = ("哒", "喵", "呢", "啦", "呀")
 _MUTTER_TEMPLATES: dict[str, tuple[str, ...]] = {
@@ -108,7 +108,7 @@ class FinalElfieWorkspaceAdapter:
                 capabilities=_capabilities(),
                 system_limits=_system_limits(reservation.height, reservation.build),
             )
-            ElfieProfileRepository(layout.profile.parent).save(profile)
+            YamlProfileStoreAdapter(layout.profile.parent).save(profile)
             return str(layout.workspace)
         except (OSError, TypeError, ValueError) as error:
             self._release_quietly(reservation.elfie_id)

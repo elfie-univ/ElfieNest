@@ -71,12 +71,12 @@ class SerializedRuntimeAdapter:
         self,
         runtime: StructuredRuntime,
         *,
+        scope_id: str | None = None,
         food_key_resolver: Callable[[], str | MainFoodSelection | None] | None = None,
-        elfie_workspace_resolver: Callable[[], str | None] | None = None,
     ) -> None:
         self._runtime = runtime
+        self._scope_id = scope_id
         self._food_key_resolver = food_key_resolver or (lambda: None)
-        self._elfie_workspace_resolver = elfie_workspace_resolver or (lambda: None)
         self._state_lock = Lock()
         self._current_lease = Lock()
         self._request_leases: Dict[TurnId, LockType] = {}
@@ -128,7 +128,7 @@ class SerializedRuntimeAdapter:
             model_key=capabilities.model_key,
             food_key=selection.food_id,
             food_unavailable=selection.unavailable,
-            elfie_workspace=self._elfie_workspace_resolver(),
+            scope_id=self._scope_id,
             temperature=request.temperature,
             max_tokens=min(request.max_tokens, capabilities.max_output_tokens),
         )

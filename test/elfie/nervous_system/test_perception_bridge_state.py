@@ -13,6 +13,8 @@ from elfie.body.contracts import (
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
 from elfie.message_types import EventId, TurnId
 from elfie.nervous_system import NervousSystem
+from elfie.profile import create_visual_profile
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from test.elfie.nervous_system.perception_bridge_fixtures import (
     ELFIE_ID,
     NOW,
@@ -66,7 +68,15 @@ def test_humidity_and_illuminance_changes_publish_without_temperature_change() -
 
 def test_elfie_body_switch_updates_the_reflex_execution_target() -> None:
     # Given: an Elfie binds one body and then switches to another.
-    elfie = Elfie(memory_db_path=":memory:")
+    elfie = Elfie(
+        character_profile=create_visual_profile(
+            elfie_id="elfie-body-switch",
+            display_name="换身精灵",
+            species_id="fox",
+            seed=2,
+        ),
+        memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+    )
     old_body = HeadlessBody(body_id="old-body")
     current_body = HeadlessBody(body_id="current-body")
     elfie.register_body(old_body, make_current=True)

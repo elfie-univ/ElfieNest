@@ -1,17 +1,16 @@
+import elfie.communication as communication_api
 from elfie.communication import (
     CommunicationEnvelope,
     CommunicationHub,
     DeliveryReceipt,
-    TelegramConnector,
-    WeChatConnector,
     channel,
     router,
 )
 
 
-def test_communication_is_the_canonical_social_channel_api() -> None:
-    assert WeChatConnector.__module__ == "elfie.communication.channels.wechat"
-    assert TelegramConnector.__module__ == "elfie.communication.channels.telegram"
+def test_communication_domain_exports_only_semantic_channel_api() -> None:
+    assert not hasattr(communication_api, "WeChatConnector")
+    assert not hasattr(communication_api, "TelegramConnector")
     assert CommunicationHub.__module__ == "elfie.communication.hub"
 
 

@@ -7,6 +7,7 @@ from elfie.brain.emotion.emotion_system import EmotionSystem
 from elfie.brain.emotion.emotional_state import AmygdalaEmotionalState
 from elfie.brain.energy.energy import HypothalamusEnergy
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
+from elfie.brain.tool_port import ToolPort, ToolRequest, ToolResult
 
 __all__ = [
     "BrainContext",
@@ -18,4 +19,7 @@ __all__ = [
     "AmygdalaEmotionalState",
     "EmotionSystem",
     "EmotionDecayCalculator",
+    "ToolPort",
+    "ToolRequest",
+    "ToolResult",
 ]

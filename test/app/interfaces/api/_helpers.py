@@ -10,6 +10,7 @@
 
 import secrets
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 from app.features.adoption import (
@@ -17,15 +18,18 @@ from app.features.adoption import (
     AdoptionReservationRecord,
 )
 from elfie import ElfieFactory
+from infrastructure.godot import GodotTransport, NativeBody
 from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
 from infrastructure.persistence.elfie_workspace.adoption_profiles import (
     FinalElfieWorkspaceAdapter,
 )
 from infrastructure.persistence.layout.data_home import data_home_from_db_path
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.nest_db.nest_management import (
     SQLiteNestManagementAdapter,
 )
 from infrastructure.persistence.nest_db.store import get_db, hash_password
+from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 from infrastructure.persistence.setup import SQLiteSetupAdapter
 from infrastructure.persistence.setup_nest import SetupNestAdapter
 from infrastructure.platform import ElfieFactoryAdapter
@@ -114,7 +118,18 @@ def adopt_test_elfie(
     if engine is not None:
         elfie = ElfieFactoryAdapter(
             ElfieFactory(),
-            getattr(engine, "world_runtime", None),
+            lambda elfie_id, _workspace: (
+                None
+                if getattr(engine, "world_runtime", None) is None
+                else NativeBody(
+                    body_id=elfie_id,
+                    transport=GodotTransport(engine.world_runtime),
+                )
+            ),
+            lambda path: YamlProfileStoreAdapter(Path(path) / "profile"),
+            lambda path: SQLiteMemoryStoreAdapter(
+                Path(path) / "memory" / "knowledge.sqlite"
+            ),
         ).restore(elfie_id, workspace)
         engine.session.register_elfie(elfie_id, elfie)
     return elfie_id

@@ -11,10 +11,7 @@ from elfie.brain.decision_decoder import (
     DecisionDecodeSeed,
     DecisionPlanDecoder,
 )
-from elfie.brain.runtime_port import (
-    CorticalRuntimePort,
-    ModelGenerationRequest,
-)
+from elfie.brain.runtime_port import ModelGenerationRequest, ModelPort
 
 
 @dataclass(frozen=True)
@@ -123,12 +120,12 @@ class CorticalWorker:
     def __init__(
         self,
         *,
-        runtime: CorticalRuntimePort,
+        model_port: ModelPort,
         decoder: DecisionPlanDecoder,
         max_active_calls: int = 2,
         max_queued_tasks: int = 16,
     ) -> None:
-        self._runtime = runtime
+        self._model_port = model_port
         self._decoder = decoder
         self._max_active_calls = max_active_calls
         self._max_queued_tasks = max_queued_tasks
@@ -186,7 +183,7 @@ class CorticalWorker:
             else:
                 self._cancel_queued_locked(future)
         if request is not None:
-            self._runtime.abandon(request)
+            self._model_port.abandon(request)
         if thread is not None:
             thread.start()
 
@@ -205,7 +202,7 @@ class CorticalWorker:
                 if active is not None:
                     request = active.task.request
         if request is not None:
-            self._runtime.abandon(request)
+            self._model_port.abandon(request)
 
     def join(self) -> None:
         """Return after logical shutdown without waiting for isolated calls."""
@@ -267,8 +264,8 @@ class CorticalWorker:
             thread.start()
 
     def _run(self, task: CorticalTaskView) -> CorticalTurnResult:
-        capabilities = self._runtime.capabilities()
-        generation = self._runtime.generate(task.request)
+        capabilities = self._model_port.capabilities()
+        generation = self._model_port.generate(task.request)
 
         def repair(raw_text: str, errors: tuple[str, ...]) -> str:
             repair_prompt = (
@@ -276,7 +273,7 @@ class CorticalWorker:
                 f"Errors: {'; '.join(errors)}\nRaw output:\n{raw_text}"
             )
             request = task.request.model_copy(update={"user_prompt": repair_prompt})
-            return self._runtime.generate(request).text
+            return self._model_port.generate(request).text
 
         decode = self._decoder.decode(
             seed=task.seed,

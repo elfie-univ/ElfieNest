@@ -10,14 +10,13 @@ class FoodRuntime:
         return "memory-result"
 
 
-def test_memory_work_uses_food_interface_without_model_details(tmp_path):
+def test_memory_work_uses_food_interface_without_model_details():
     runtime = FoodRuntime()
 
     result = ask_memory_model(
         runtime,
         "整理记忆",
         elfie_id="elfie-1",
-        config_dir=str(tmp_path),
         semantic_role="reasoning",
         complexity=2,
     )
@@ -25,5 +24,6 @@ def test_memory_work_uses_food_interface_without_model_details(tmp_path):
     assert result == "memory-result"
     assert runtime.kwargs["food_key"] is None
     assert runtime.kwargs["semantic_role"] == "reasoning"
-    assert runtime.kwargs["elfie_config_dir"] == str(tmp_path)
+    assert runtime.kwargs["scene"] == "memory"
+    assert "elfie_config_dir" not in runtime.kwargs
     assert "model" not in runtime.kwargs

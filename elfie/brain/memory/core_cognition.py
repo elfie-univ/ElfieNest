@@ -6,18 +6,13 @@
 
 from __future__ import annotations
 
-import json
 import logging
-import os
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Dict, Optional
 
-import yaml
-
-from elfie.brain.memory.knowledge_store import KnowledgeStore
-from elfie.brain.memory.memory_store import MemoryStore
+from elfie.brain.memory.memory_store import MemoryStorePort
 from elfie.brain.memory.node_types import MemoryNode
+from elfie.brain.memory.runtime_food import MemoryModelPort
 
 logger = logging.getLogger("elfie.brain.memory.core_cognition")
 
@@ -187,85 +182,37 @@ class CoreCognition:
     # 全量重写周期：每N次巩固触发一次模板重写
     FULL_REWRITE_INTERVAL = 7
 
-    _DEFAULT_PERSONALITY_PATH: Optional[str] = None
-
-    @classmethod
-    def _get_default_personality_path(cls) -> str:
-        """返回项目默认的 personality.yaml 绝对路径"""
-        if cls._DEFAULT_PERSONALITY_PATH is None:
-            cls._DEFAULT_PERSONALITY_PATH = str(
-                Path(__file__).resolve().parents[2]
-                / "profile"
-                / "defaults"
-                / "personality.yaml"
-            )
-        return cls._DEFAULT_PERSONALITY_PATH
-
     def __init__(
         self,
-        db_path: str = ":memory:",
-        personality_path: Optional[str] = None,
+        storage: MemoryStorePort,
+        *,
         personality_data: Optional[Dict[str, Any]] = None,
-        storage: MemoryStore | None = None,
     ):
-        """从SQLite加载核心认知，如不存在则从personality.yaml初始化。
-
-        Args:
-            db_path: SQLite 数据库路径（默认 ":memory:" 用于测试）
-            personality_path: personality.yaml 路径（默认自动查找项目路径）
-        """
-        self.db_path = db_path
+        """从注入的语义存储加载核心认知，必要时使用已解析档案数据初始化。"""
         self._personality_data = (
             dict(personality_data) if isinstance(personality_data, dict) else None
         )
-        self.personality_path = personality_path or (
-            None
-            if self._personality_data is not None
-            else self._get_default_personality_path()
-        )
-        self._owns_storage = storage is None
-        self.storage = storage or KnowledgeStore(db_path)
+        self._owns_storage = False
+        self.storage = storage
         self._core_text: Dict[str, str] = {}
         self._update_count: int = 0
         self._current_personality: Optional[Dict[str, float]] = None
         self._load_from_db()
 
-    @staticmethod
-    def _read_personality_file(path: str) -> Dict[str, Any]:
-        """同时兼容旧 personality.yaml 和新版 profile.yaml。"""
-        with open(path, encoding="utf-8") as handle:
-            raw = yaml.safe_load(handle) or {}
-        if not isinstance(raw, dict):
-            raise ValueError(f"性格配置根节点必须是映射: {path}")
-        nested = raw.get("personality")
-        if isinstance(nested, dict):
-            return dict(nested)
-        return dict(raw)
-
     # ------------------------------------------------------------------
     # 初始化
     # ------------------------------------------------------------------
 
-    def initialize_from_personality(self, yaml_path: Optional[str] = None) -> None:
-        """读取personality.yaml，用模板生成4段核心认知，存入SQLite。
-
-        Args:
-            yaml_path: 可选的自定义yaml路径，默认使用 self.personality_path
-
-        Note:
-            初始化后 self.personality_path 会被更新为实际使用的路径，
-            确保后续全量重写（_rewrite_all）能找到正确的yaml文件。
-        """
-        path = yaml_path or self.personality_path
-        if path is not None and os.path.exists(path):
-            # 记录实际使用的路径，供后续 _rewrite_all 使用。
-            self.personality_path = path
-            data = self._read_personality_file(path)
-            self._personality_data = data
-        elif self._personality_data is not None:
-            data = dict(self._personality_data)
-        else:
-            raise FileNotFoundError(f"找不到精灵性格配置: {path}")
+    def initialize_from_personality(
+        self,
+        personality_data: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """使用已解析的 Profile personality 数据生成4段核心认知。"""
+        if isinstance(personality_data, dict):
+            self._personality_data = dict(personality_data)
+        if self._personality_data is None:
+            raise ValueError("缺少已解析的 personality 数据")
+        data = dict(self._personality_data)
 
         big_five = data.get("big_five", {})
         metadata = data.get("metadata", {})
@@ -321,7 +268,9 @@ class CoreCognition:
     # ------------------------------------------------------------------
 
     def update(
-        self, consolidation_results: Optional[dict] = None, runtime_agent=None
+        self,
+        consolidation_results: Optional[dict] = None,
+        runtime_agent: MemoryModelPort | None = None,
     ) -> None:
         """巩固时更新核心认知。
 
@@ -377,18 +326,10 @@ class CoreCognition:
 
     def _rewrite_all(self) -> None:
         """从当前个体档案重新生成所有核心认知。"""
-        if self.personality_path and os.path.exists(self.personality_path):
-            try:
-                data = self._read_personality_file(self.personality_path)
-                self._personality_data = data
-            except (OSError, yaml.YAMLError, ValueError) as exc:
-                logger.error("🧠 [核心认知] 读取个体档案失败: %s", exc)
-                return
-        elif self._personality_data is not None:
-            data = dict(self._personality_data)
-        else:
+        if self._personality_data is None:
             logger.warning("🧠 [核心认知] 无法全量重写：没有可用的性格档案")
             return
+        data = dict(self._personality_data)
 
         big_five = data.get("big_five", {})
         metadata = data.get("metadata", {})
@@ -487,7 +428,7 @@ class CoreCognition:
     # 全量重写（含备份与回滚）
     # ------------------------------------------------------------------
 
-    def _full_rewrite(self, runtime_agent=None) -> None:
+    def _full_rewrite(self, runtime_agent: MemoryModelPort | None = None) -> None:
         """全量重写核心认知，先保存旧版本以支持回滚。"""
         backup = self._backup_core()
 
@@ -542,35 +483,6 @@ class CoreCognition:
             self.storage.update_node(node_id, content=self._core_text[core_key])
 
     # ------------------------------------------------------------------
-    # 文件缓存
-    # ------------------------------------------------------------------
-
-    def save_to_file(self, filepath: Optional[str] = None) -> str:
-        """同步到 core_cognition.json 缓存文件。
-
-        Args:
-            filepath: 输出路径，默认保存到项目根目录 .elfie_core_cognition.json
-
-        Returns:
-            实际保存的文件路径
-        """
-        if filepath is None:
-            project_root = Path(__file__).resolve().parent.parent.parent.parent
-            filepath = str(project_root / ".elfie_core_cognition.json")
-
-        data = {
-            "core_text": self._core_text,
-            "update_count": self._update_count,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
-
-        with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-
-        logger.info("💾 [核心认知] 缓存已保存: %s", filepath)
-        return filepath
-
-    # ------------------------------------------------------------------
     # 内部：从数据库加载
     # ------------------------------------------------------------------
 
@@ -578,7 +490,7 @@ class CoreCognition:
         """从SQLite加载core节点内容。
 
         查询 type='core' 的节点，按id排序后填充 _core_text。
-        如果没有core节点且personality_path存在，自动初始化。
+        如果没有core节点且已注入 personality 数据，自动初始化。
         """
         nodes = self.storage.get_nodes_by_type("core", limit=100)
 
@@ -589,13 +501,10 @@ class CoreCognition:
                     self._core_text[core_key] = node.content
             self._update_count = 0
             logger.info("🧠 [核心认知] 从数据库加载%d条核心认知", len(nodes))
-        elif self._personality_data is not None or (
-            self.personality_path and os.path.exists(self.personality_path)
-        ):
+        elif self._personality_data is not None:
             logger.info("🧠 [核心认知] 数据库为空，从个体性格档案自动初始化")
             self.initialize_from_personality()
 
     def close(self) -> None:
-        """关闭底层数据库连接"""
-        if self._owns_storage:
-            self.storage.close()
+        """保留注入存储的生命周期，由 Bootstrap 统一负责。"""
+        return None

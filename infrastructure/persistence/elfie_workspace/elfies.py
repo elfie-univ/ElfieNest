@@ -21,10 +21,11 @@ from app.features.elfies import (
     ElfieProfileRecord,
     ElfiesPortError,
 )
-from elfie.profile import AppearanceResolver, ElfieProfileRepository, ResolvedAppearance
+from elfie.profile import AppearanceResolver, ResolvedAppearance
 from infrastructure.persistence.layout.data_home import data_home_from_db_path
 from infrastructure.persistence.layout.data_layout import final_root_layout
 from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
+from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 _REQUIRED_COGNITION_TABLES: Final[frozenset[str]] = frozenset(
     {"entities", "people", "known_elfies", "concepts", "events", "entity_edges"}
@@ -85,7 +86,7 @@ class SQLiteElfiesProjectionAdapter:
     def load_profile(self, elfie_id: str) -> ElfieProfileRecord:
         try:
             layout = final_root_layout(data_home_from_db_path(self._db_path))
-            repository = ElfieProfileRepository(layout.elfie(elfie_id).profile.parent)
+            repository = YamlProfileStoreAdapter(layout.elfie(elfie_id).profile.parent)
         except ValueError as error:
             raise ElfiesPortError("invalid Elfie identity") from error
         if not repository.exists():

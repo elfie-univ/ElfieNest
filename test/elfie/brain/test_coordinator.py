@@ -25,10 +25,10 @@ from elfie.brain.perception_types import (
 )
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
 from elfie.brain.runtime_port import (
-    CorticalRuntimePort,
     ModelGenerationCapabilities,
     ModelGenerationRequest,
     ModelGenerationResult,
+    ModelPort,
     StructuredOutputMode,
 )
 from elfie.brain.turn_outcome import TerminalStatus
@@ -204,7 +204,7 @@ class BlockingPlanRuntime:
 
 def _coordinator(
     workspace: PerceptualWorkspace,
-    runtime: CorticalRuntimePort,
+    runtime: ModelPort,
     sink: RecordingPlanSink,
     *,
     next_autonomous_at: float | None = None,
@@ -212,7 +212,7 @@ def _coordinator(
     initial = NOW.timestamp()
     emotion = EmotionSystem(clock=lambda: initial)
     energy = HypothalamusEnergy(clock=lambda: initial)
-    worker = CorticalWorker(runtime=runtime, decoder=DecisionPlanDecoder())
+    worker = CorticalWorker(model_port=runtime, decoder=DecisionPlanDecoder())
     coordinator = BrainCoordinator(
         elfie_id=ELFIE_ID,
         workspace=workspace,

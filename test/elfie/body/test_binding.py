@@ -2,6 +2,8 @@ import pytest
 
 from elfie import Elfie
 from elfie.body import BodyBinding, BodyRegistry, BodySwitchError, HeadlessBody
+from elfie.profile import create_visual_profile
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 
 class FailingBody(HeadlessBody):
@@ -56,7 +58,13 @@ def test_binding_restores_previous_body_when_new_connection_fails() -> None:
 def test_elfie_keeps_legacy_body_property_and_supports_formal_switching() -> None:
     first = HeadlessBody(body_id="first")
     first.connect()
-    elfie = Elfie(memory_db_path=":memory:", body=first)
+    elfie = Elfie(
+        character_profile=create_visual_profile(
+            elfie_id="elfie-binding", display_name="绑定精灵", species_id="fox", seed=3
+        ),
+        memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+        body=first,
+    )
     second = HeadlessBody(body_id="second")
 
     assert elfie.current_body is first

@@ -18,15 +18,15 @@ import pytest
 
 from elfie.brain.memory.consolidation import MemoryConsolidator
 from elfie.brain.memory.context_assembly import ContextAssembler
-from elfie.brain.memory.graph_storage import GraphStorage
 from elfie.brain.memory.node_types import Edge, EdgeTypes, MemoryNode, NodeTypes
+from test.elfie.brain.memory.fake_store import FakeMemoryStore
 
 # ---------------------------------------------------------------------------
 # 辅助函数
 # ---------------------------------------------------------------------------
 
 
-def _setup_basic_data(storage: GraphStorage):
+def _setup_basic_data(storage: FakeMemoryStore):
     """设置基础测试数据：实体 + 未巩固的episodic（带involves边）"""
     # 实体
     ent_1 = MemoryNode(id="ent_1", type="entity", content="主人")
@@ -86,8 +86,8 @@ class TestMemoryConsolidator:
 
     @pytest.fixture
     def storage(self):
-        """创建内存SQLite存储"""
-        gs = GraphStorage(db_path=":memory:")
+        """创建语义 MemoryStorePort Fake。"""
+        gs = FakeMemoryStore.in_memory()
         yield gs
 
     @pytest.fixture
@@ -454,7 +454,7 @@ class TestMemoryConsolidator:
         # 模拟一个会抛异常的runtime_agent
         class FailingAgent:
             @staticmethod
-            def ask(prompt, **kwargs):
+            def ask_with_food(prompt, **kwargs):
                 raise RuntimeError("LLM故障")
 
             def __call__(self, *args, **kwargs):
@@ -556,8 +556,8 @@ class TestPatternDiscovery:
 
     @pytest.fixture
     def storage(self):
-        """创建内存SQLite存储"""
-        gs = GraphStorage(db_path=":memory:")
+        """创建语义 MemoryStorePort Fake。"""
+        gs = FakeMemoryStore.in_memory()
         yield gs
 
     @pytest.fixture
@@ -589,7 +589,7 @@ class TestPatternDiscovery:
 
         class PatternAgent:
             @staticmethod
-            def ask(prompt, **kwargs):
+            def ask_with_food(prompt, **kwargs):
                 return "- 固定时间预示着好事发生\n- 主人的行为有规律可循"
 
         knowledge_ids = self._add_knowledge_nodes(

@@ -44,7 +44,7 @@ app/
 - `app.orchestration.embodiment`：以持久化 lease 编排真实身体绑定、托管与归巢；
   `nest/embodiment` 仅保存状态，不保存真实精灵或设备连接。
 - `infrastructure.devices.DeviceGatewayTransport`：将已认证的局域网设备接入
-  `elfie.body.external.ExternalTransport` 契约；设备事件、动作轮询和回执不进入 Nest。
+  `infrastructure.devices.ExternalTransport` 契约；设备事件、动作轮询和回执不进入 Nest。
 
 `NestSession` 持有真实精灵对象，Nest 只接收精灵 ID 和巢内状态；其他模块不得另建
 一套精灵与活动空间的组合关系。

@@ -61,7 +61,7 @@ def main():
         engine_ready.set()
         # 2. Start the blocking engine loop.
         engine.start_loop(
-            runtime_factory=nest_session.runtime_factory,
+            model_port_factory=nest_session.model_port_factory,
             ticks_to_run=100000,
             interval_sec=3.0,
         )

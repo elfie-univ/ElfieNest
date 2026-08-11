@@ -19,6 +19,11 @@ from infrastructure.models.food_technology import (
 )
 from infrastructure.models.runtime_agent import RuntimeAgent
 from infrastructure.models.runtime_config import LLMRuntimeConfig
+from infrastructure.models.runtime_contracts import (
+    StructuredGenerationMode,
+    StructuredRuntimeRequest,
+)
+from infrastructure.models.runtime_observations import get_runtime_observer
 from infrastructure.persistence.configuration.runtime_settings import (
     write_runtime_settings,
 )
@@ -33,6 +38,7 @@ from infrastructure.persistence.provider_connections import (
     ProviderModelRecord,
 )
 from infrastructure.persistence.reports.report_repository import ReportRepository
+from infrastructure.tools import ToolPortAdapter
 from test.support.runtime_agent import runtime_agent_ports
 
 
@@ -187,18 +193,33 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
             }
         }
     )
+    runtime_config = LLMRuntimeConfig()
+    tool_port = ToolPortAdapter.from_runtime_config(
+        runtime_config,
+        observation_port=get_runtime_observer(),
+        workspace_resolver=lambda scope_id: (
+            workspace if scope_id == "00000001" else None
+        ),
+    )
     agent = RuntimeAgent(
-        LLMRuntimeConfig(),
+        runtime_config,
         ports=runtime_agent_ports(),
         live_reload=True,
         food_catalog_repository=food_repository,
+        tool_port=tool_port,
     )
     calls: list[str] = []
+    structured_probe = {"pending": False}
 
     def fake_model_call(provider, model, messages, *_args, **_kwargs):
         calls.append(model)
         if model == "reason":
             raise RuntimeError("reasoning unavailable")
+        if model == "main" and structured_probe["pending"]:
+            if "【本地文件内容】" not in messages[-1]["content"]:
+                return "[READ_FILE]note.txt[/READ_FILE]"
+            structured_probe["pending"] = False
+            return "ok:structured"
         if model == "tool" and "【本地文件" not in messages[-1]["content"]:
             return "[READ_FILE]note.txt[/READ_FILE]"
         return f"ok:{model}"
@@ -218,9 +239,9 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
     tool = agent.run_with_food(
         prompt="read the note",
         food_key=FOOD_COMMON_ID,
+        elfie_id="00000001",
         semantic_role="tool",
         allowed_skills=["local_file"],
-        elfie_config_dir=str(workspace),
     )
     assert primary.actual_model == refs["main"]
     assert reasoning.actual_model == refs["backup"]
@@ -228,6 +249,21 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
     assert fallback.actual_model == refs["backup"]
     assert tool.text == "ok:tool"
     assert calls.count("tool") >= 2
+
+    structured_probe["pending"] = True
+    structured = agent.generate_structured(
+        StructuredRuntimeRequest(
+            prompt="structured read",
+            messages=(),
+            response_schema_name="answer",
+            response_schema={"type": "object"},
+            selected_mode=StructuredGenerationMode.JSON_TEXT,
+            allowed_tools=("local_file",),
+            food_key=FOOD_COMMON_ID,
+            scope_id="00000001",
+        )
+    )
+    assert structured.text == "ok:structured"
 
     provider_bytes = get_provider_config_path().read_bytes()
     food_snapshot = food_repository.list_packages()

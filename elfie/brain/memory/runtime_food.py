@@ -1,35 +1,45 @@
-"""记忆子系统调用 Runtime 的粮食语义边界。"""
+"""Memory algorithms consume one narrow, Food-aware model Port."""
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Protocol
+
+
+class MemoryModelPort(Protocol):
+    """Narrow semantic text-generation capability used by memory algorithms."""
+
+    def ask_with_food(
+        self,
+        prompt: str,
+        *,
+        food_key: str | None,
+        elfie_id: str | None,
+        scene: str,
+        semantic_role: str,
+        energy: float,
+        task_complexity: int,
+        allowed_skills: list[str] | None,
+    ) -> str: ...
 
 
 def ask_memory_model(
-    runtime_agent: Any,
+    runtime_agent: MemoryModelPort,
     prompt: str,
     *,
     elfie_id: str | None,
-    config_dir: str | None,
     semantic_role: str,
     complexity: int,
 ) -> str:
-    ask_with_food = getattr(runtime_agent, "ask_with_food", None)
-    if callable(ask_with_food):
-        return ask_with_food(
-            prompt=prompt,
-            food_key=None,
-            semantic_role=semantic_role,
-            elfie_id=elfie_id,
-            elfie_config_dir=config_dir,
-            scene="memory",
-            energy=50.0,
-            task_complexity=complexity,
-            allowed_skills=[],
-        )
-    # 测试 Mock 和旧第三方 Runtime 的兼容边界。
-    return runtime_agent.ask(
-        prompt,
+    return runtime_agent.ask_with_food(
+        prompt=prompt,
+        food_key=None,
+        elfie_id=elfie_id,
+        scene="memory",
+        semantic_role=semantic_role,
         energy=50.0,
         task_complexity=complexity,
+        allowed_skills=[],
     )
+
+
+__all__ = ("MemoryModelPort", "ask_memory_model")

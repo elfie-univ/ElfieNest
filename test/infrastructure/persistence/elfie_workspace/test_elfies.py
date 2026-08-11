@@ -3,14 +3,15 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
-from elfie.brain.memory.knowledge_store import KnowledgeStore
 from elfie.brain.memory.node_types import MemoryNode
-from elfie.profile import ElfieProfileRepository, create_visual_profile
+from elfie.profile import create_visual_profile
 from infrastructure.persistence.elfie_workspace.elfies import (
     SQLiteElfiesProjectionAdapter,
 )
 from infrastructure.persistence.layout.data_layout import final_root_layout
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.nest_db.store import get_db, init_db
+from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 
 def _database(tmp_path: Path) -> str:
@@ -67,7 +68,7 @@ def test_profile_reader_consumes_the_public_profile_authority(tmp_path: Path) ->
             }
         },
     )
-    ElfieProfileRepository(layout.profile.parent).save(profile)
+    YamlProfileStoreAdapter(layout.profile.parent).save(profile)
     adapter = SQLiteElfiesProjectionAdapter(db_path)
 
     result = adapter.load_profile("00000001")
@@ -86,7 +87,7 @@ def test_cognition_reader_is_read_only_and_returns_typed_records(
     db_path = _database(tmp_path)
     path = final_root_layout(tmp_path).elfie("00000001").knowledge_database
     path.parent.mkdir(parents=True)
-    with KnowledgeStore(path) as store:
+    with SQLiteMemoryStoreAdapter(path) as store:
         store.add_node(
             MemoryNode(
                 id="event-adoption",
