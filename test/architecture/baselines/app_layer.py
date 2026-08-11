@@ -21,8 +21,12 @@ LEGACY_APP_LAYER_VIOLATIONS: Dict[str, FrozenSet[str]] = {
     "interface_feature_internal_imports": frozenset(),
     "interface_forbidden_layer_imports": frozenset(),
     "interface_orchestration_internal_imports": frozenset(),
+    "interface_runtime_lifecycle_calls": frozenset(),
     "json_routes_loose_annotations": frozenset(),
     "json_routes_missing_response_model": frozenset(),
+    "nonstandard_error_responses": frozenset(),
+    "orchestration_private_boundary_imports": frozenset(),
     "orchestration_forbidden_layer_imports": frozenset(),
     "unversioned_product_routes": frozenset(),
+    "websocket_loose_payloads": frozenset(),
 }

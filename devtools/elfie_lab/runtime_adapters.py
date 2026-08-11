@@ -18,7 +18,7 @@ from elfie.brain.runtime_port import (
     ModelGenerationResult,
     StructuredOutputMode,
 )
-from infrastructure.persistence.data_home import get_elfie_developer_home
+from infrastructure.persistence.layout.data_home import get_elfie_developer_home
 
 _SECRET_PATTERNS = (
     re.compile(r"sk-[A-Za-z0-9_-]{12,}"),

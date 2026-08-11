@@ -5,12 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Mapping, Optional, Tuple
 
-from infrastructure.persistence.config_store import (
+from infrastructure.persistence.configuration.config_store import (
     ConfigStoreError,
     read_yaml_mapping,
     write_yaml_mapping,
 )
-from infrastructure.persistence.data_home import (
+from infrastructure.persistence.layout.data_home import (
     ensure_elfie_home,
     get_provider_config_path,
 )

@@ -12,7 +12,11 @@ from app.orchestration.message_delivery import (
     deliver_owner_message,
 )
 from app.orchestration.nest_session.errors import NestSessionLifecycleError
-from app.orchestration.nest_session.models import ActorDescriptor, WorldEvent
+from app.orchestration.nest_session.models import (
+    ActorDescriptor,
+    ObserverSemanticEntity,
+    WorldEvent,
+)
 from app.orchestration.nest_session.ports import (
     CorticalRuntimeFactory,
     WorldRuntimePort,
@@ -28,7 +32,6 @@ from elfie import Elfie
 from elfie.brain.runtime_port import CorticalRuntimePort
 from elfie.communication.contracts import InboundDisposition
 from nest import Nest
-from nest.godot_gateway.observer import ObserverSemanticEntity
 from nest.interaction.hub import TactileInput
 from nest.state.models import PersistentResidentState
 from nest.state.repository import (

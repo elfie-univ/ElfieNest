@@ -17,7 +17,7 @@ from app.features.accounts import AvatarTooLarge
 from app.interfaces.api.request_limits import AvatarUploadBodyLimitMiddleware
 from app.interfaces.api.v1.auth import generate_csrf_token
 from app.interfaces.api.v1.me.routes import _read_avatar_limited
-from infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.nest_db.store import get_db, init_db
 
 from ._helpers import create_test_owner, create_test_user
 
@@ -37,12 +37,7 @@ def app(db_path: str):
     init_db(db_path)
     create_test_owner(db_path)
 
-    with (
-        patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
-        patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-    ):
-        application = create_app(engine=None, db_path=db_path, ws_port=9876)
-        yield application
+    yield create_app(engine=None, db_path=db_path)
 
 
 @pytest.fixture

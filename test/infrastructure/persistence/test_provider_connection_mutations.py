@@ -4,13 +4,16 @@ from dataclasses import replace
 
 import pytest
 
+from infrastructure.persistence.configuration.secrets import (
+    read_secrets,
+    set_connection_secret,
+)
 from infrastructure.persistence.provider_connection_mutations import (
     delete_connection_with_secret,
     finalize_created_connection,
     replace_connection_with_secret,
 )
 from infrastructure.persistence.provider_connections import ProviderConnectionStore
-from infrastructure.persistence.secrets import read_secrets, set_connection_secret
 
 
 def test_failed_create_finalization_removes_connection_and_secret(

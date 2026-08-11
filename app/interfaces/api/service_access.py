@@ -6,12 +6,13 @@ import ipaddress
 import socket
 from dataclasses import dataclass
 from enum import Enum
-from typing import Final, Optional, Sequence, Tuple
+from typing import Final, Optional, Protocol, Sequence, Tuple, runtime_checkable
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import JSONResponse
 from starlette.middleware.base import RequestResponseEndpoint
+
+from app.interfaces.api.errors import api_error_response
 
 
 class ServiceMode(str, Enum):
@@ -22,14 +23,14 @@ class ServiceMode(str, Enum):
 
 
 LOOPBACK_HOSTS: Final[Tuple[str, ...]] = ("127.0.0.1", "localhost", "::1")
-ANONYMOUS_PATHS: Final[frozenset[str]] = frozenset(
-    {
-        "/login",
-        "/api/v1/auth/login",
-        "/api/v1/setup/status",
-        "/api/health",
-    }
-)
+
+
+@runtime_checkable
+class MobileAccessProjection(Protocol):
+    """Read-only LAN URL projection consumed by the Runtime HTTP resource."""
+
+    @property
+    def mobile_access_urls(self) -> Tuple[str, ...]: ...
 
 
 def private_ipv4_addresses() -> Tuple[str, ...]:
@@ -125,7 +126,7 @@ def _authority_parts(authority: str) -> Tuple[str, Optional[int]]:
 def configure_service_access(app: FastAPI, policy: ServiceAccessPolicy) -> None:
     """Install host/origin guards and expose the policy to routers and CORS."""
     app.state.service_access_policy = policy
-    app.state.anonymous_paths = ANONYMOUS_PATHS
+    app.state.mobile_access = policy
 
     @app.middleware("http")
     async def enforce_host_and_origin(
@@ -136,10 +137,8 @@ def configure_service_access(app: FastAPI, policy: ServiceAccessPolicy) -> None:
             return await call_next(request)
         host = request.headers.get("host", "")
         if not policy.allows_host(host):
-            return JSONResponse(status_code=400, content={"detail": "不受信任的 Host"})
+            return api_error_response(400, "untrusted_host", "不受信任的 Host")
         origin = request.headers.get("origin")
         if origin and not policy.allows_origin(origin):
-            return JSONResponse(
-                status_code=403, content={"detail": "不受信任的 Origin"}
-            )
+            return api_error_response(403, "untrusted_origin", "不受信任的 Origin")
         return await call_next(request)

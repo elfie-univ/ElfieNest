@@ -5,11 +5,14 @@ from argparse import Namespace
 from pathlib import Path
 from typing import Any, cast
 
-from app.bootstrap.lifecycle import create_lifecycle_facade
+from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.interfaces.cli import lifecycle_commands
 from app.orchestration.lifecycle.facade import LifecycleFacade
 from app.orchestration.lifecycle.runtime_health import RuntimeHealth, RuntimeHealthState
 from app.orchestration.lifecycle.types import ServiceLifecycleResult
+from infrastructure.persistence.layout.lifecycle_data_home import (
+    LifecycleDataHomeAdapter,
+)
 from scripts import elfienest
 
 LIFECYCLE = create_lifecycle_facade()
@@ -52,7 +55,6 @@ def test_start_options_forward_resolved_data_home(monkeypatch, tmp_path: Path) -
     monkeypatch.chdir(tmp_path)
     arguments = Namespace(
         port=None,
-        ws_port=None,
         godot_ws_port=None,
         fallback=False,
         no_seed_elfie=False,
@@ -91,6 +93,7 @@ def test_started_service_remembers_selected_home_for_later_commands(
 
     result = lifecycle_commands.start_background_service(LIFECYCLE, command)
     remembered = lifecycle_commands._data_home_for_command(
+        LIFECYCLE,
         ("python", "scripts/serve.py"),
         use_remembered_home=True,
     )
@@ -107,17 +110,22 @@ def test_lifecycle_receipt_repairs_owner_only_control_directories(
     receipt_home = tmp_path / ".elfienest.local"
     runtime_dir = receipt_home / "runtime"
     runtime_dir.mkdir(parents=True, mode=0o755)
+    adapter = LifecycleDataHomeAdapter()
     monkeypatch.setattr(
-        lifecycle_commands,
-        "_lifecycle_receipt_home",
-        lambda: receipt_home,
+        adapter,
+        "_receipt_path",
+        lambda *_args: runtime_dir / "selected-data-home",
     )
 
     # When: the selected data-home receipt is recorded.
-    lifecycle_commands._remember_lifecycle_data_home(tmp_path / "selected")
+    adapter.remember(
+        tmp_path / "selected",
+        project_root=tmp_path,
+        runtime_mode="development",
+    )
 
     # Then: the control root, runtime directory, and receipt are owner-only.
-    receipt = runtime_dir / lifecycle_commands.SELECTED_DATA_HOME_RECEIPT
+    receipt = runtime_dir / "selected-data-home"
     assert stat.S_IMODE(receipt_home.stat().st_mode) == 0o700
     assert stat.S_IMODE(runtime_dir.stat().st_mode) == 0o700
     assert stat.S_IMODE(receipt.stat().st_mode) == 0o600
@@ -131,6 +139,9 @@ def test_lifecycle_supervisor_uses_command_data_home(
     captured: dict[str, Path] = {}
 
     class Lifecycle:
+        def select_data_home(self, explicit_home, **_kwargs):
+            return Path(str(explicit_home)).resolve()
+
         def prepare_optional_component(self) -> None:
             return
 
@@ -156,6 +167,9 @@ def test_lifecycle_supervisor_publishes_selected_home_to_child(
     child_environments: list[dict[str, str]] = []
 
     class Lifecycle:
+        def select_data_home(self, explicit_home, **_kwargs):
+            return Path(str(explicit_home)).resolve()
+
         def prepare_optional_component(self) -> None:
             return
 

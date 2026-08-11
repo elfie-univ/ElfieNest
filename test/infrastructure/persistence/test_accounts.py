@@ -11,7 +11,7 @@ from infrastructure.persistence.accounts import (
     SQLiteAccountsAdapter,
     hash_session_token,
 )
-from infrastructure.persistence.store import get_db, hash_password, init_db
+from infrastructure.persistence.nest_db.store import get_db, hash_password, init_db
 from test.app.interfaces.api._helpers import create_test_owner
 
 

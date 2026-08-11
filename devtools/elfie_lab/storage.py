@@ -13,7 +13,7 @@ from elfie.profile import (
     create_visual_profile,
     derive_personality,
 )
-from infrastructure.persistence.data_home import get_elfie_developer_home
+from infrastructure.persistence.layout.data_home import get_elfie_developer_home
 
 
 class ElfieLabStorage:

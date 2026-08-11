@@ -3,6 +3,17 @@ from pathlib import Path
 from app.interfaces.cli import uninstall_commands
 
 
+class _Uninstall:
+    def __init__(self, home: Path) -> None:
+        self.home = home
+
+    def delete_local_config(self) -> bool:
+        import shutil
+
+        shutil.rmtree(self.home / "configs")
+        return True
+
+
 def test_delete_config_removes_credentials_but_keeps_product_data(
     monkeypatch,
     tmp_path: Path,
@@ -33,7 +44,7 @@ def test_delete_config_removes_credentials_but_keeps_product_data(
     db_path.write_text("database-placeholder", encoding="utf-8")
     monkeypatch.setattr("builtins.input", lambda _prompt: "yes")
 
-    exit_code = uninstall_commands._delete_config(tmp_path)
+    exit_code = uninstall_commands._delete_config(_Uninstall(tmp_path), tmp_path)  # type: ignore[arg-type]
 
     assert exit_code == 0
     assert not configs_dir.exists()

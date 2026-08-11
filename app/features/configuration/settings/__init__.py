@@ -27,7 +27,7 @@ from .port_models import (
     StoredRuntimeSettings,
     StoredSecuritySettings,
 )
-from .ports import SettingsStorePort
+from .ports import SecuritySettingsChangedPort, SettingsStorePort
 from .service import SettingsService
 
 __all__ = (
@@ -45,6 +45,7 @@ __all__ = (
     "SettingsService",
     "SettingsStorageError",
     "SettingsStorePort",
+    "SecuritySettingsChangedPort",
     "SettingsValidationError",
     "SpeciesId",
     "StoredElfieSettings",

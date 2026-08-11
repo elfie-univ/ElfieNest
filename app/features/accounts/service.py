@@ -49,6 +49,8 @@ from .models import (
     RecordAccountHeartbeatCommand,
     RecoverOwnerAccountCommand,
     ResetManagedAccountPasswordCommand,
+    SeedInitialOwnerCommand,
+    SeedInitialOwnerResult,
     TemporaryPasswordResult,
     UpdateAccountProfileCommand,
     UpdateLandingPageCommand,
@@ -74,6 +76,7 @@ from .ports import (
     AccountQuotaPolicyError,
     AccountQuotaPolicyPort,
     AccountSessionPort,
+    InitialOwnerSeedPort,
     SecurityPolicyPort,
 )
 from .roles import can_manage_role, is_manager, parse_account_role
@@ -128,6 +131,7 @@ class AccountsService:
         management: Optional[AccountManagementPort] = None,
         avatars: Optional[AccountAvatarPort] = None,
         quota_policy: Optional[AccountQuotaPolicyPort] = None,
+        initial_owner_seed: Optional[InitialOwnerSeedPort] = None,
         now: Callable[[], datetime] | None = None,
     ) -> None:
         self._sessions = sessions
@@ -135,6 +139,7 @@ class AccountsService:
         self._management = management
         self._avatars = avatars
         self._quota_policy = quota_policy
+        self._initial_owner_seed = initial_owner_seed
         self._now = now or (lambda: datetime.now(timezone.utc))
         self._rate_limiters: dict[tuple[int, int], RateLimiter] = {}
 
@@ -206,6 +211,19 @@ class AccountsService:
             return self._require_management().find_owner_account() is not None
         except AccountPersistenceError as error:
             raise AccountsUnavailable("Owner 状态暂时不可用") from error
+
+    def seed_initial_owner(
+        self, command: SeedInitialOwnerCommand
+    ) -> SeedInitialOwnerResult:
+        _ = command
+        if self._initial_owner_seed is None:
+            raise AccountsUnavailable("Owner 初始化暂时不可用")
+        try:
+            return SeedInitialOwnerResult(
+                created=self._initial_owner_seed.seed_initial_owner()
+            )
+        except AccountPersistenceError as error:
+            raise AccountsUnavailable("Owner 初始化暂时不可用") from error
 
     def create_first_owner(
         self, command: CreateFirstOwnerCommand

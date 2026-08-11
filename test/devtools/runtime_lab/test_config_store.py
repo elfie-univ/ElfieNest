@@ -10,7 +10,7 @@ from devtools.elfie_lab.runtime_adapters import (
 from devtools.runtime_lab import RuntimeLabConfigStore
 from devtools.runtime_lab.config_store import PROVIDER_DEFAULTS
 from infrastructure.persistence.food import SQLiteFoodAdapter
-from infrastructure.persistence.store import init_db
+from infrastructure.persistence.nest_db.store import init_db
 
 
 def _write_foods(root):

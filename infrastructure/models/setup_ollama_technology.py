@@ -9,14 +9,13 @@ from app.orchestration.setup_installation import (
     SetupOllamaBinding,
     SetupOllamaProbe,
 )
-
-from .ollama_platform import (
+from infrastructure.models.ollama.ollama_platform import (
     DownloadedInstaller,
     OllamaBinding,
     OllamaPlatformAdapter,
     wait_for_healthy,
 )
-from .ollama_platform_commands import official_launch_target
+from infrastructure.models.ollama.ollama_platform_commands import official_launch_target
 
 
 class PublicOllamaSetupTechnologyAdapter:

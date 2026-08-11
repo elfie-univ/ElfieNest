@@ -18,9 +18,8 @@ from app.features.accounts import (
     validate_password_strength,
 )
 from app.interfaces.cli.tui.common import input_password, input_text
+from app.interfaces.cli.tui.menu import MenuItem, TerminalMenuPort
 from app.orchestration.lifecycle import LifecycleFacade, RecoveryInProgressError
-from infrastructure.persistence.data_home import get_db_path
-from infrastructure.platform.terminal_menu import MenuItem, TerminalMenu
 
 MIN_OWNER_ACCOUNT_ID_LENGTH = 3
 MAX_OWNER_ACCOUNT_ID_LENGTH = 32
@@ -47,7 +46,7 @@ def show_owner_account(service: AccountsService) -> int:
 
 
 def show_owner_account_page(
-    menu: TerminalMenu,
+    menu: TerminalMenuPort,
     service: AccountsService,
 ) -> int:
     menu.action_header("Owner Account Information", "ElfieNest / Owner / View Account")
@@ -61,11 +60,10 @@ def recover_owner_interactive(
     service: AccountsService,
     db_path: Optional[str] = None,
     *,
-    menu: TerminalMenu | None = None,
+    menu: TerminalMenuPort | None = None,
 ) -> int:
-    owner_menu = menu or TerminalMenu(input_fn=input, output_fn=print)
     if menu is not None:
-        owner_menu.action_header(
+        menu.action_header(
             "Recover Owner Account", "ElfieNest / Owner / Recover Account"
         )
         print(
@@ -73,7 +71,7 @@ def recover_owner_interactive(
         )
         print("  Press Esc, ← or choose Back to cancel.")
         print()
-        if not owner_menu.confirm(
+        if not menu.confirm(
             "Start recovery?",
             accept_label="Start Recovery",
             reject_label="Back",
@@ -81,7 +79,10 @@ def recover_owner_interactive(
             print("  Cancelled, no changes made")
             return 1
 
-    path = db_path or str(get_db_path())
+    if db_path is None:
+        print("  ❌ Cannot recover Owner: database path was not injected")
+        return 1
+    path = db_path
     if not Path(path).expanduser().is_file():
         print(
             f"  ❌ Cannot recover Owner: database not found ({Path(path).expanduser()})"
@@ -90,7 +91,7 @@ def recover_owner_interactive(
     if menu is None:
         account_id = input_text("  New Owner login account")
     else:
-        account_id = owner_menu.read_text("  New Owner login account (Esc to cancel): ")
+        account_id = menu.read_text("  New Owner login account (Esc to cancel): ")
     if not account_id:
         print("  ❌ Cancelled, no changes made")
         return 1
@@ -101,11 +102,11 @@ def recover_owner_interactive(
                 first = input_password("  New Owner password")
                 second = input_password("  Re-enter new Owner password")
             else:
-                first = owner_menu.read_text(
+                first = menu.read_text(
                     "  New Owner password (Esc to cancel): ",
                     masked=True,
                 )
-                second = owner_menu.read_text(
+                second = menu.read_text(
                     "  Re-enter new Owner password (Esc to cancel): ",
                     masked=True,
                 )
@@ -153,9 +154,9 @@ def recover_owner_interactive(
 def run_owner_menu(
     lifecycle: LifecycleFacade,
     service: AccountsService,
+    menu: TerminalMenuPort,
     db_path: Optional[str] = None,
 ) -> int:
-    menu = TerminalMenu(input_fn=input, output_fn=print)
     last_exit_code = 0
     while True:
         try:

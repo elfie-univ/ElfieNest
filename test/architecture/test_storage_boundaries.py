@@ -11,11 +11,13 @@ DEVELOPER_PRODUCTION_GUARD_FILES = frozenset({"devtools/elfie_lab/app.py"})
 ACTIVE_CHAT_ROUTE_FILES = (
     "app/interfaces/api/v1/me/conversations/routes.py",
     "app/interfaces/api/v1/realtime/chat/routes.py",
-    "app/interfaces/api/ws_gateway_messaging.py",
 )
 LEGACY_CHAT_INTERFACE_FILES = (
     "app/interfaces/api/v1/realtime_chat_models.py",
     "app/interfaces/api/v1/realtime_chat_routes.py",
+    "app/interfaces/api/ws_gateway.py",
+    "app/interfaces/api/ws_gateway_messaging.py",
+    "app/interfaces/api/ws_gateway_session.py",
 )
 APPLICATION_SQL_ROOTS = (
     "app/bootstrap",
@@ -81,7 +83,7 @@ def test_legacy_nest_chat_storage_has_no_runtime_path() -> None:
 
 
 def test_data_home_declares_production_developer_and_elfie_workspace_roots() -> None:
-    source_path = PROJECT_ROOT / "infrastructure/persistence/data_home.py"
+    source_path = PROJECT_ROOT / "infrastructure/persistence/layout/data_home.py"
     functions = {
         node.name
         for node in ast.walk(ast.parse(source_path.read_text(encoding="utf-8")))

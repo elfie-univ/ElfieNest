@@ -257,7 +257,7 @@ def test_bootstrap_creates_data_home_through_root_infrastructure() -> None:
         encoding="utf-8"
     )
 
-    assert "from infrastructure.persistence.data_home import ensure_elfie_home" in (
+    assert "from app.bootstrap.system_wiring.entrypoints import ensure_elfie_home" in (
         bootstrap_source
     )
     assert "ai_runtime.storage.data_home" not in bootstrap_source

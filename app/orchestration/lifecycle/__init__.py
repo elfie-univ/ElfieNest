@@ -3,7 +3,6 @@
 from app.orchestration.lifecycle.commands import (
     DEFAULT_GODOT_WS_PORT,
     DEFAULT_HTTP_PORT,
-    DEFAULT_MANAGEMENT_WS_PORT,
     DEFAULT_SERVICE_PORTS,
     MANAGED_START_ENV,
     command_runs_service,
@@ -12,7 +11,13 @@ from app.orchestration.lifecycle.commands import (
     validate_service_ports,
 )
 from app.orchestration.lifecycle.facade import LifecycleFacade, RuntimeLifecycle
-from app.orchestration.lifecycle.ports import AuthorityHostConfig, ServicePortStatus
+from app.orchestration.lifecycle.ports import (
+    AuthorityHostConfig,
+    DoctorRepairResult,
+    DoctorValidationResult,
+    ServicePortStatus,
+    UninstallState,
+)
 from app.orchestration.lifecycle.runtime_health import (
     ComponentHealth,
     RuntimeComponent,
@@ -31,8 +36,9 @@ __all__ = [
     "ComponentHealth",
     "DEFAULT_GODOT_WS_PORT",
     "DEFAULT_HTTP_PORT",
-    "DEFAULT_MANAGEMENT_WS_PORT",
     "DEFAULT_SERVICE_PORTS",
+    "DoctorRepairResult",
+    "DoctorValidationResult",
     "LaunchFailedError",
     "LifecycleFacade",
     "MANAGED_START_ENV",
@@ -44,6 +50,7 @@ __all__ = [
     "ServiceLifecycleResult",
     "ServicePortStatus",
     "ServicePortsActiveError",
+    "UninstallState",
     "command_runs_service",
     "http_port_from_command",
     "service_ports_from_command",

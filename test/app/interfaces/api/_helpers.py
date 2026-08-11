@@ -18,12 +18,16 @@ from app.features.adoption import (
 )
 from elfie import ElfieFactory
 from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
-from infrastructure.persistence.adoption_profiles import FinalElfieWorkspaceAdapter
-from infrastructure.persistence.data_home import data_home_from_db_path
-from infrastructure.persistence.nest_management import SQLiteNestManagementAdapter
+from infrastructure.persistence.elfie_workspace.adoption_profiles import (
+    FinalElfieWorkspaceAdapter,
+)
+from infrastructure.persistence.layout.data_home import data_home_from_db_path
+from infrastructure.persistence.nest_db.nest_management import (
+    SQLiteNestManagementAdapter,
+)
+from infrastructure.persistence.nest_db.store import get_db, hash_password
 from infrastructure.persistence.setup import SQLiteSetupAdapter
 from infrastructure.persistence.setup_nest import SetupNestAdapter
-from infrastructure.persistence.store import get_db, hash_password
 from infrastructure.platform import ElfieFactoryAdapter
 
 

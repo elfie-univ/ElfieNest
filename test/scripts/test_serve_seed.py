@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.bootstrap import adoption as adoption_bootstrap
-from infrastructure.persistence.store import get_db, init_db
+from app.bootstrap.app_wiring import adoption as adoption_bootstrap
+from infrastructure.persistence.nest_db.store import get_db, init_db
 
 
 class _CapturingWorkspace:

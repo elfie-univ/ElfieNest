@@ -12,8 +12,8 @@ from app.features.configuration.capabilities import (
     ValidationStatus,
 )
 from infrastructure.models.runtime_config import LLMRuntimeConfig
-from infrastructure.models.validation_models import CheckResult
-from infrastructure.tools.direct_validation import DirectToolValidationRunner
+from infrastructure.models.validation.validation_models import CheckResult
+from infrastructure.tools.validation.direct_validation import DirectToolValidationRunner
 
 
 class ValidationRunner(Protocol):

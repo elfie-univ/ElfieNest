@@ -1,7 +1,7 @@
 """Application composition root."""
 
-from .accounts import build_accounts_service
 from .api import create_app
+from .app_wiring import build_accounts_service
 from .container import ApplicationContainer, build_application_container
 
 __all__ = (

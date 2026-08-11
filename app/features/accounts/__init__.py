@@ -49,6 +49,8 @@ from .models import (
     RecoverOwnerAccountCommand,
     ResetManagedAccountPasswordCommand,
     SecurityPolicy,
+    SeedInitialOwnerCommand,
+    SeedInitialOwnerResult,
     TemporaryPasswordResult,
     ThemeKey,
     UpdateAccountProfileCommand,
@@ -83,6 +85,7 @@ from .ports import (
     AccountQuotaPolicyError,
     AccountQuotaPolicyPort,
     AccountSessionPort,
+    InitialOwnerSeedPort,
     SecurityPolicyPort,
 )
 from .roles import (
@@ -118,6 +121,7 @@ __all__ = (
     "AccountRole",
     "AccountRoleError",
     "AccountSessionPort",
+    "InitialOwnerSeedPort",
     "AccountsService",
     "AccountsError",
     "AccountsUnavailable",
@@ -168,6 +172,8 @@ __all__ = (
     "RecordAccountHeartbeatCommand",
     "ResetManagedAccountPasswordCommand",
     "SecurityPolicy",
+    "SeedInitialOwnerCommand",
+    "SeedInitialOwnerResult",
     "SecurityPolicyPort",
     "StoredAvatar",
     "TemporaryPasswordResult",

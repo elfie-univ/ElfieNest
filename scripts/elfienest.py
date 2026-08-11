@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import subprocess
 import sys
 from functools import partial
 from pathlib import Path
@@ -22,10 +23,16 @@ if (
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.bootstrap.accounts import build_accounts_service
-from app.bootstrap.cli_configuration import build_cli_configuration
-from app.bootstrap.lifecycle import create_lifecycle_facade
-from app.bootstrap.operations import build_operations_facade
+from app.bootstrap.app_wiring.accounts import build_accounts_service
+from app.bootstrap.app_wiring.cli_configuration import build_cli_configuration
+from app.bootstrap.app_wiring.cli_ui import build_terminal_menu
+from app.bootstrap.app_wiring.operations import build_operations_facade
+from app.bootstrap.system_wiring.entrypoints import (
+    DataHomeSelectionError,
+    get_db_path,
+    resolve_elfie_home,
+)
+from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.interfaces.cli.doctor_commands import run_doctor
 from app.interfaces.cli.foreground_runtime import run_foreground_service
 from app.interfaces.cli.lifecycle_commands import (
@@ -49,11 +56,6 @@ from app.interfaces.cli.tui.common import print_banner
 from app.interfaces.cli.tui.config_app import run_config_tui
 from app.interfaces.cli.uninstall_commands import run_uninstall_menu
 from app.orchestration.lifecycle import LifecycleFacade, ServiceLifecycleResult
-from infrastructure.persistence.data_home import (
-    DataHomeSelectionError,
-    get_db_path,
-    resolve_elfie_home,
-)
 
 if getattr(sys, "frozen", False):
     try:
@@ -85,6 +87,22 @@ class SecretSafeArgumentParser(argparse.ArgumentParser):
         super().error(message)
 
 
+class RuntimeLabMenusProcess:
+    """Launch the isolated developer Runtime Lab without importing it in CLI code."""
+
+    def _run(self, section: str) -> None:
+        subprocess.run(
+            [sys.executable, "-m", "devtools.runtime_lab", "--section", section],
+            check=True,
+        )
+
+    def tool_menu(self) -> None:
+        self._run("tools")
+
+    def food_menu(self) -> None:
+        self._run("food")
+
+
 def main() -> None:
     parser = SecretSafeArgumentParser(
         prog="elfienest",
@@ -114,14 +132,12 @@ def main() -> None:
     serve_parser.add_argument("--fallback", action="store_true")
     serve_parser.add_argument("--force", action="store_true")
     serve_parser.add_argument("--port", type=int, default=None)
-    serve_parser.add_argument("--ws-port", type=int, default=None)
     serve_parser.add_argument("--godot-ws-port", type=int, default=None)
     serve_parser.add_argument("--no-seed-elfie", action="store_true")
     serve_parser.add_argument("--data-home", default=None)
 
     start_parser = subparsers.add_parser("start", help="Start background service")
     start_parser.add_argument("--port", type=int, default=None)
-    start_parser.add_argument("--ws-port", type=int, default=None)
     start_parser.add_argument("--godot-ws-port", type=int, default=None)
     start_parser.add_argument("--fallback", action="store_true")
     start_parser.add_argument("--no-seed-elfie", action="store_true")
@@ -194,7 +210,10 @@ def dispatch_command(
 
 def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> None:
     if args.command == "config":
-        configuration = build_cli_configuration(str(get_db_path()))
+        configuration = build_cli_configuration(
+            str(get_db_path()),
+            runtime_menus=RuntimeLabMenusProcess(),
+        )
         run_config_tui(
             configuration.providers,
             configuration.settings,
@@ -205,6 +224,7 @@ def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> N
                 configuration.principal,
             ),
             configuration.runtime_menus,
+            build_terminal_menu(),
             getattr(args, "config_path", None),
         )
     elif args.command == "serve":
@@ -246,6 +266,7 @@ def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> N
             run_owner_menu(
                 lifecycle,
                 build_accounts_service(owner_db_path),
+                build_terminal_menu(),
                 owner_db_path,
             )
         )
@@ -259,9 +280,9 @@ def _dispatch_command(args: argparse.Namespace, lifecycle: LifecycleFacade) -> N
                 run_doctor_with_port_fix(lifecycle, fix_ports=True, force=force)
             )
         else:
-            raise SystemExit(run_doctor())
+            raise SystemExit(run_doctor(lifecycle))
     elif args.command == "uninstall":
-        raise SystemExit(run_uninstall_menu())
+        raise SystemExit(run_uninstall_menu(lifecycle, build_terminal_menu()))
     elif args.command == "version":
         show_version()
     elif args.command == "setup":
@@ -287,8 +308,6 @@ def _service_options_from_args(args: argparse.Namespace) -> tuple[str, ...]:
     options: list[str] = []
     if args.port is not None:
         options.extend(("--port", str(args.port)))
-    if args.ws_port is not None:
-        options.extend(("--ws-port", str(args.ws_port)))
     if args.godot_ws_port is not None:
         options.extend(("--godot-ws-port", str(args.godot_ws_port)))
     if args.fallback:

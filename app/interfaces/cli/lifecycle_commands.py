@@ -6,12 +6,11 @@ import json
 import os
 import secrets
 import sys
-import tempfile
 import threading
 import time
 import webbrowser
 from pathlib import Path
-from typing import Final, Optional, Sequence
+from typing import Optional, Sequence
 
 from app.interfaces.web.frontend_build import FrontendBuildError, ensure_frontend_build
 from app.orchestration.lifecycle import (
@@ -30,18 +29,12 @@ from app.orchestration.lifecycle import (
     service_ports_from_command,
     validate_service_ports,
 )
-from infrastructure.persistence.data_home import (
-    DataHomeSelectionError,
-    get_elfie_home,
-    resolve_elfie_home,
-)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 WEB_URL = "http://127.0.0.1:8000/"
 WEB_HEALTH_URL = "http://127.0.0.1:8000/api/health"
 BACKGROUND_START_TIMEOUT_SECONDS = 60.0
 AUTHORITY_START_TIMEOUT_SECONDS = 120.0
-SELECTED_DATA_HOME_RECEIPT: Final = "selected-data-home"
 
 
 def _supervisor_for(
@@ -54,10 +47,11 @@ def _supervisor_for(
     """Build the one Runtime Supervisor used by source and installed CLI commands."""
     launch_command = tuple(command)
     selected_home = _data_home_for_command(
+        lifecycle,
         launch_command,
         use_remembered_home=use_remembered_home,
     )
-    _, godot_ws_port, _ = service_ports_from_command(launch_command)
+    _, godot_ws_port = service_ports_from_command(launch_command)
     generation_nonce = secrets.token_urlsafe(32)
     return lifecycle.runtime_supervisor(
         elfie_home=selected_home,
@@ -174,28 +168,18 @@ def default_service_command(extra_args: Sequence[str] = ()) -> tuple[str, ...]:
 
 
 def _data_home_for_command(
+    lifecycle: LifecycleFacade,
     command: Sequence[str],
     *,
     use_remembered_home: bool = False,
 ) -> Path:
     """从服务命令与已记录生命周期选择中解析数据根。"""
     explicit_home = _option_value(command, "--data-home")
-    if explicit_home is not None:
-        return resolve_elfie_home(
-            explicit_home,
-            invoking_cwd=PROJECT_ROOT,
-            runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
-            source_root=PROJECT_ROOT,
-        )
-    if use_remembered_home:
-        remembered_home = _remembered_lifecycle_data_home()
-        if remembered_home is not None:
-            return remembered_home
-    return resolve_elfie_home(
-        None,
-        invoking_cwd=PROJECT_ROOT,
+    return lifecycle.select_data_home(
+        explicit_home,
+        project_root=PROJECT_ROOT,
         runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
-        source_root=PROJECT_ROOT,
+        use_remembered=use_remembered_home,
     )
 
 
@@ -204,7 +188,7 @@ def _option_value(command: Sequence[str], option: str) -> Optional[str]:
         if argument == option:
             value_index = index + 1
             if value_index >= len(command):
-                raise DataHomeSelectionError(f"{option} requires a value")
+                raise ValueError(f"{option} requires a value")
             return command[value_index]
         prefix = f"{option}="
         if argument.startswith(prefix):
@@ -212,63 +196,14 @@ def _option_value(command: Sequence[str], option: str) -> Optional[str]:
     return None
 
 
-def _remember_lifecycle_data_home(selected_home: Path) -> None:
-    """原子记录当前 checkout 最近一次成功选择的数据根。"""
-    receipt_home = _lifecycle_receipt_home()
-    receipt_path = receipt_home / "runtime" / SELECTED_DATA_HOME_RECEIPT
-    receipt_home.mkdir(mode=0o700, parents=True, exist_ok=True)
-    receipt_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    if os.name != "nt":
-        os.chmod(receipt_home, 0o700)
-        os.chmod(receipt_path.parent, 0o700)
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{SELECTED_DATA_HOME_RECEIPT}.",
-        dir=str(receipt_path.parent),
-    )
-    temporary_path = Path(temporary_name)
-    try:
-        os.fchmod(descriptor, 0o600)
-        with os.fdopen(descriptor, "w", encoding="utf-8") as receipt:
-            receipt.write(str(selected_home.resolve(strict=False)))
-            receipt.write("\n")
-        temporary_path.replace(receipt_path)
-    except OSError:
-        temporary_path.unlink(missing_ok=True)
-        raise
-
-
-def _remembered_lifecycle_data_home() -> Optional[Path]:
-    """读取当前 checkout 最近一次有效的数据根选择。"""
-    try:
-        selected_home = (
-            _lifecycle_data_home_receipt_path().read_text(encoding="utf-8").strip()
-        )
-    except OSError:
-        return None
-    if not selected_home:
-        return None
-    try:
-        return resolve_elfie_home(
-            selected_home,
-            invoking_cwd=PROJECT_ROOT,
-            runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
-            source_root=PROJECT_ROOT,
-        )
-    except DataHomeSelectionError:
-        return None
-
-
-def _lifecycle_data_home_receipt_path() -> Path:
-    return _lifecycle_receipt_home() / "runtime" / SELECTED_DATA_HOME_RECEIPT
-
-
-def _lifecycle_receipt_home() -> Path:
-    return resolve_elfie_home(
-        None,
-        invoking_cwd=PROJECT_ROOT,
+def _remember_lifecycle_data_home(
+    lifecycle: LifecycleFacade, selected_home: Path
+) -> None:
+    """Ask the lifecycle boundary to persist the current checkout selection."""
+    lifecycle.remember_data_home(
+        selected_home,
+        project_root=PROJECT_ROOT,
         runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
-        source_root=PROJECT_ROOT,
-        env={},
     )
 
 
@@ -327,7 +262,10 @@ def start_background_service(
     result = supervisor.start(owner_id=owner_id)
     if result.status in {"started", "already_running"}:
         try:
-            _remember_lifecycle_data_home(_data_home_for_command(launch_command))
+            _remember_lifecycle_data_home(
+                lifecycle,
+                _data_home_for_command(lifecycle, launch_command),
+            )
         except OSError as error:
             result = ServiceLifecycleResult(
                 status="failed",
@@ -481,6 +419,7 @@ def show_service_status(
 ) -> None:
     """Print lifecycle state without duplicating usage/session statistics."""
     elfie_home = _data_home_for_command(
+        lifecycle,
         default_service_command(),
         use_remembered_home=True,
     )
@@ -539,7 +478,7 @@ def show_service_status(
     else:
         _, command = running
         ports = service_ports_from_command(command)
-        port_statuses = lifecycle.service_port_statuses(ports[0], ports[2], ports[1])
+        port_statuses = lifecycle.service_port_statuses(ports[0], ports[1])
     for port_status in port_statuses:
         is_current_project = running is not None
         state = (
@@ -567,7 +506,12 @@ def show_service_status(
 
 def open_web_console(lifecycle: LifecycleFacade) -> ServiceLifecycleResult:
     """Ensure a healthy service and open the Web management console."""
-    running = lifecycle.existing_service_command(get_elfie_home(), PROJECT_ROOT)
+    default_home = lifecycle.select_data_home(
+        None,
+        project_root=PROJECT_ROOT,
+        runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
+    )
+    running = lifecycle.existing_service_command(default_home, PROJECT_ROOT)
     if running is not None:
         _, running_command = running
         port = http_port_from_command(running_command)
@@ -624,7 +568,11 @@ def open_web_console(lifecycle: LifecycleFacade) -> ServiceLifecycleResult:
 def start_desktop_application(lifecycle: LifecycleFacade) -> ServiceLifecycleResult:
     """Explicitly start the packaged Electron Desktop supervisor."""
     result = lifecycle.start_desktop(
-        get_elfie_home(),
+        lifecycle.select_data_home(
+            None,
+            project_root=PROJECT_ROOT,
+            runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
+        ),
         PROJECT_ROOT,
         health_checker=lambda: _web_is_healthy(lifecycle),
     )
@@ -666,9 +614,9 @@ def _external_recorded_service(
 
 
 def _validated_http_port(command: Sequence[str]) -> int:
-    """Parse and validate HTTP/WS ports before spawning a service process."""
+    """Parse and validate HTTP/Godot ports before spawning a service process."""
     ports = service_ports_from_command(command)
-    error = validate_service_ports(ports[0], ports[2], ports[1])
+    error = validate_service_ports(ports[0], ports[1])
     if error:
         raise ValueError(error)
     return ports[0]

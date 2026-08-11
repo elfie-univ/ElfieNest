@@ -19,10 +19,9 @@ from app.features.operations import (
     StoredTableCount,
     StoredUsageStats,
 )
-from infrastructure.persistence.data_home import data_home_from_db_path
-from infrastructure.persistence.data_layout import final_root_layout
-
-from .sqlite_connection import app_sqlite_connection
+from infrastructure.persistence.layout.data_home import data_home_from_db_path
+from infrastructure.persistence.layout.data_layout import final_root_layout
+from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
 
 _ELFIE_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[0-9]{8}$")
 

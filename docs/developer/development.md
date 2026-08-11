@@ -101,7 +101,7 @@ The three workbenches are all isolated from the end-user product:
 
 The default ports are only local development values. Do not wire the
 workbenches into end-user navigation, and do not let them use default
-production data. The real App uses `8000` / `8765` / `8766`, Elfie Lab uses
+production data. The real App uses `8000` / `8765`, Elfie Lab uses
 `9001`, Nest Lab uses `9002` / `9003`. Launching the same default Lab safely
 restarts the old instance in the current workspace; explicit ports are for
 parallel experiments and do not terminate existing instances. For the detailed

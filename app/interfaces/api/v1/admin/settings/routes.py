@@ -23,7 +23,7 @@ from app.features.configuration import (
     UpdateRuntimeSettingsCommand,
     UpdateSecuritySettingsCommand,
 )
-from app.interfaces.api.v1.auth import accounts_service, require_manager
+from app.interfaces.api.v1.auth import require_manager
 
 from .models import (
     ElfieSettingsPatch,
@@ -184,7 +184,6 @@ def get_security_settings(
 )
 def update_security_settings(
     body: SecuritySettingsPatch,
-    request: Request,
     principal: CurrentManager,
     service: SettingsDependency,
 ) -> Union[SecuritySettingsResponse, JSONResponse]:
@@ -205,7 +204,6 @@ def update_security_settings(
     )
     if isinstance(result, JSONResponse):
         return result
-    accounts_service(request).invalidate_security_cache()
     return _security_response(result)
 
 

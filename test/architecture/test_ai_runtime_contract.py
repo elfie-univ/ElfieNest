@@ -79,10 +79,10 @@ def test_legacy_provider_and_model_owner_routes_are_removed() -> None:
 def test_model_consumers_share_the_sqlite_evidence_projection() -> None:
     consumers = {
         "infrastructure/models/runtime_agent.py",
-        "infrastructure/platform/runtime_lab.py",
+        "devtools/runtime_lab/lab.py",
         "infrastructure/models/runtime_overview.py",
         "infrastructure/models/food_technology.py",
-        "infrastructure/models/provider_model_matrix.py",
+        "infrastructure/models/validation/provider_model_matrix.py",
     }
     assert all("query_model_evidence" in _source(path) for path in consumers)
     evidence_source = _source("infrastructure/models/food_technology.py")
@@ -132,14 +132,14 @@ def test_provider_catalogs_do_not_encode_runtime_model_selection_groups() -> Non
 
 
 def test_phase_one_tool_advertising_is_limited_to_safe_tools() -> None:
-    prompt_source = _source("infrastructure/tools/skills_prompt.py")
-    streaming_source = _source("infrastructure/models/streaming.py")
+    prompt_source = _source("infrastructure/tools/execution/skills_prompt.py")
+    streaming_source = _source("infrastructure/models/inference/streaming.py")
     for forbidden in ("[CODE]", "[SKILL_CREATE]", "[SKILL_MODIFY]"):
         assert forbidden not in prompt_source
         assert forbidden not in streaming_source
     assert "[SEARCH]" in prompt_source
     assert "[READ_FILE]" in prompt_source
-    config_source = _source("infrastructure/tools/config.py")
+    config_source = _source("infrastructure/tools/execution/config.py")
     assert '"web_search"' in config_source
     assert '"local_file"' in config_source
     for legacy_gateway_leaf in (
@@ -160,7 +160,7 @@ def test_phase_one_tool_advertising_is_limited_to_safe_tools() -> None:
 
 
 def test_reports_and_food_facts_use_only_contract_paths() -> None:
-    data_home_source = _source("infrastructure/persistence/data_home.py")
+    data_home_source = _source("infrastructure/persistence/layout/data_home.py")
     assert "ai-runtime.sqlite" in data_home_source
     assert "runtime_events.jsonl" not in _source(
         "infrastructure/models/runtime_observations.py"
@@ -185,7 +185,7 @@ def test_reports_and_food_facts_use_only_contract_paths() -> None:
 
 
 def test_elfie_main_food_uses_the_final_elfie_row_without_legacy_policy() -> None:
-    schema_source = _source("infrastructure/persistence/final_schema.py")
+    schema_source = _source("infrastructure/persistence/nest_db/final_schema.py")
     assert "main_food_id TEXT" in schema_source
     assert "elfie_food_preferences" not in schema_source
 

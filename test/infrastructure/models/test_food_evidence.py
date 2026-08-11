@@ -10,7 +10,7 @@ from infrastructure.persistence.provider_connections import (
     ProviderConnectionStore,
     ProviderModelRecord,
 )
-from infrastructure.persistence.report_repository import ReportRepository
+from infrastructure.persistence.reports.report_repository import ReportRepository
 
 
 def _configure_inventory(store: ProviderConnectionStore) -> None:

@@ -45,9 +45,8 @@ async def chat_websocket(websocket: WebSocket) -> None:
         await websocket.close(code=1008)
         return
     token = websocket.cookies.get("session_token")
-    principal = (
-        websocket.app.state.accounts.authenticate_session(token) if token else None
-    )
+    accounts = websocket.app.state.accounts
+    principal = accounts.authenticate_session(token) if token else None
     delivery = getattr(websocket.app.state, "message_delivery", None)
     connections = getattr(websocket.app.state, "communication_realtime", None)
     if (
@@ -70,6 +69,10 @@ async def chat_websocket(websocket: WebSocket) -> None:
     try:
         while True:
             payload = await websocket.receive_json()
+            current = accounts.authenticate_session(token) if token else None
+            if current is None or current.user_id != principal.user_id:
+                await websocket.close(code=4004, reason="Session revoked")
+                return
             if not isinstance(payload, dict) or payload.get("event") != "user_message":
                 await _send_error(websocket, "不支持的聊天事件")
                 continue

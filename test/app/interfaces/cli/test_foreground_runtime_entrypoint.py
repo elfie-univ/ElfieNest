@@ -5,7 +5,7 @@ from argparse import Namespace
 
 import pytest
 
-from app.bootstrap.lifecycle import create_lifecycle_facade
+from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.interfaces.cli import foreground_runtime, lifecycle_commands
 from app.orchestration.lifecycle.runtime_health import RuntimeHealth
 from app.orchestration.lifecycle.types import (
@@ -83,7 +83,6 @@ def test_serve_start_failure_maps_to_exit_one(
         command="serve",
         force=False,
         port=None,
-        ws_port=None,
         godot_ws_port=None,
         fallback=False,
         no_seed_elfie=False,

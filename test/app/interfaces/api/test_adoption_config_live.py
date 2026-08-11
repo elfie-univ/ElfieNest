@@ -3,29 +3,28 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.bootstrap import create_app
-from infrastructure.persistence.store import init_db
+from infrastructure.persistence.nest_db.store import init_db
 
 from ._helpers import adopt_test_elfie, create_test_owner
 
 
 @pytest.fixture
-def client(tmp_path: Path) -> TestClient:
-    db_path = str(tmp_path / "nest.db")
+def db_path(tmp_path: Path) -> str:
+    return str(tmp_path / "nest.db")
+
+
+@pytest.fixture
+def client(db_path: str) -> TestClient:
     init_db(db_path)
     create_test_owner(db_path)
-    with (
-        patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
-        patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-    ):
-        application = create_app(engine=None, db_path=db_path, ws_port=9876)
-        with TestClient(application) as test_client:
-            yield test_client
+    application = create_app(engine=None, db_path=db_path)
+    with TestClient(application) as test_client:
+        yield test_client
 
 
 def _headers(csrf_token: str) -> dict[str, str]:
@@ -80,7 +79,7 @@ def test_adoption_options_reflect_settings_filters(client: TestClient) -> None:
     assert "安静温顺" not in response.json()["personality_styles"]
 
 
-def test_adoption_options_use_live_quota(client: TestClient) -> None:
+def test_adoption_options_use_live_quota(client: TestClient, db_path: str) -> None:
     owner_csrf = _login_owner(client)
     updated = client.patch(
         "/api/v1/admin/settings/elfies",
@@ -89,7 +88,7 @@ def test_adoption_options_use_live_quota(client: TestClient) -> None:
     )
     assert updated.status_code == 200
     user_id, user_csrf = _create_user_and_login(client)
-    adopt_test_elfie(client.app.state.db_path, user_id)
+    adopt_test_elfie(db_path, user_id)
 
     response = client.get(
         "/api/v1/me/adoption",

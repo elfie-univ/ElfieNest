@@ -23,6 +23,7 @@ from .models import (
     GetAdoptionOptionsQuery,
     ReplyToCandidatesCommand,
     ReserveAcceptedAdoptionCommand,
+    SpeciesId,
 )
 from .port_models import (
     AdoptionPolicyRecord,
@@ -66,4 +67,5 @@ __all__ = (
     "GetAdoptionOptionsQuery",
     "ReplyToCandidatesCommand",
     "ReserveAcceptedAdoptionCommand",
+    "SpeciesId",
 )

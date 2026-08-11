@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from app.bootstrap.lifecycle import create_lifecycle_facade
+from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.interfaces.cli import lifecycle_commands
 from app.orchestration.lifecycle import ServicePortStatus
 from app.orchestration.lifecycle.runtime_health import (
@@ -22,12 +22,14 @@ LIFECYCLE = create_lifecycle_facade()
 @pytest.fixture(autouse=True)
 def isolate_lifecycle_home(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
-        lifecycle_commands, "get_elfie_home", lambda: tmp_path / "elfie-home"
+        LIFECYCLE,
+        "select_data_home",
+        lambda *_args, **_kwargs: tmp_path / "elfie-home",
     )
     monkeypatch.setattr(
-        lifecycle_commands,
-        "_lifecycle_receipt_home",
-        lambda: tmp_path / "lifecycle-home",
+        LIFECYCLE,
+        "remember_data_home",
+        lambda *_args, **_kwargs: None,
     )
     monkeypatch.setattr(
         lifecycle_commands,
@@ -308,8 +310,6 @@ def test_start_forwards_custom_service_ports(monkeypatch) -> None:
             (
                 "--port",
                 "8100",
-                "--ws-port",
-                "8866",
                 "--godot-ws-port",
                 "8768",
             )
@@ -317,11 +317,9 @@ def test_start_forwards_custom_service_ports(monkeypatch) -> None:
     )
 
     # Then
-    assert commands[0][-6:] == (
+    assert commands[0][-4:] == (
         "--port",
         "8100",
-        "--ws-port",
-        "8866",
         "--godot-ws-port",
         "8768",
     )
@@ -588,7 +586,6 @@ def test_product_start_options_enable_lan_by_default_and_allow_loopback() -> Non
     # Given
     default_start = Namespace(
         port=None,
-        ws_port=None,
         godot_ws_port=None,
         fallback=False,
         no_seed_elfie=False,
@@ -596,7 +593,6 @@ def test_product_start_options_enable_lan_by_default_and_allow_loopback() -> Non
     )
     loopback_start = Namespace(
         port=None,
-        ws_port=None,
         godot_ws_port=None,
         fallback=False,
         no_seed_elfie=False,
@@ -625,19 +621,16 @@ def test_status_reports_the_tracked_service_ports(monkeypatch, capsys) -> None:
                 "scripts/serve.py",
                 "--port",
                 "8100",
-                "--ws-port",
-                "8866",
                 "--godot-ws-port",
                 "8768",
             ),
         ),
     )
 
-    def fake_statuses(http_port: int, websocket_port: int, godot_ws_port: int):
+    def fake_statuses(http_port: int, godot_ws_port: int):
         checked.extend(
             (
                 (http_port, "HTTP"),
-                (websocket_port, "WebSocket (admin)"),
                 (godot_ws_port, "WebSocket (Godot)"),
             )
         )
@@ -659,7 +652,6 @@ def test_status_reports_the_tracked_service_ports(monkeypatch, capsys) -> None:
     # Then
     output = capsys.readouterr().out
     assert (8100, "HTTP") in checked
-    assert (8866, "WebSocket (admin)") in checked
     assert (8768, "WebSocket (Godot)") in checked
     assert "port 8100" in output
-    assert "port 8866" in output
+    assert "port 8768" in output

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -11,11 +10,7 @@ from app.bootstrap.api import create_app
 
 def test_real_setup_chain_creates_owner_session_and_nest_once(tmp_path: Path) -> None:
     application = create_app(db_path=str(tmp_path / "nest.db"))
-    with (
-        patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
-        patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-        TestClient(application) as client,
-    ):
+    with TestClient(application) as client:
         status = client.get("/api/v1/setup/status")
         csrf = status.headers["X-CSRF-Token"]
         headers = {"X-CSRF-Token": csrf}

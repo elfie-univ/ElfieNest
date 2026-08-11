@@ -17,8 +17,7 @@ from app.orchestration.setup_installation import (
     SetupInstallationConflict,
     SetupInstallationPortError,
 )
-
-from .sqlite_connection import app_sqlite_connection
+from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
 
 
 class SQLiteSetupAdapter:

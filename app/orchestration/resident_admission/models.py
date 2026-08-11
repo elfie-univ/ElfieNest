@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from app.features.adoption.models import SpeciesId
+from app.features.adoption import SpeciesId
 
 
 @dataclass(frozen=True)

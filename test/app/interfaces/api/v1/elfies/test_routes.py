@@ -10,8 +10,10 @@ from app.features.elfies import ElfiesService
 from app.interfaces.api.v1.admin.elfies.routes import router as admin_router
 from app.interfaces.api.v1.auth import require_user
 from app.interfaces.api.v1.elfies.routes import router as member_router
-from infrastructure.persistence.elfies import SQLiteElfiesProjectionAdapter
-from infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.elfie_workspace.elfies import (
+    SQLiteElfiesProjectionAdapter,
+)
+from infrastructure.persistence.nest_db.store import get_db, init_db
 
 
 def _principal(

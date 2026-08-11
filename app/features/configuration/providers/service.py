@@ -21,8 +21,10 @@ from .models import (
     BenchmarkProviderModelsCommand,
     ChangeProviderConnectionLifecycleCommand,
     CreateProviderConnectionCommand,
+    DefaultLocalProviderConnectionResult,
     DeleteProviderConnectionCommand,
     DeleteProviderModelCommand,
+    EnsureDefaultLocalProviderConnectionCommand,
     GetProviderModelMatrixQuery,
     InspectLocalProviderQuery,
     InstallLocalProviderCommand,
@@ -100,6 +102,23 @@ class ProvidersService:
         self._local_state = local_state
         self._local_technology = local_technology
         self._local_jobs = LocalProviderJobManager()
+
+    def ensure_default_local_connection(
+        self,
+        command: EnsureDefaultLocalProviderConnectionCommand,
+    ) -> DefaultLocalProviderConnectionResult:
+        """Ensure the catalog-defined local Provider connection once at startup."""
+        _ = command
+        try:
+            product = self._catalog.get_product("ollama")
+            if product is None:
+                return DefaultLocalProviderConnectionResult("ollama", False)
+            self._connections.ensure_local_connection(product)
+            return DefaultLocalProviderConnectionResult(product.catalog_id, True)
+        except ProviderPortError as error:
+            raise ProvidersUnavailable(
+                "Default local Provider connection unavailable"
+            ) from error
 
     def inspect_local_provider(
         self,

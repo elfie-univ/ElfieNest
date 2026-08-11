@@ -43,6 +43,10 @@ class SecurityPolicyPort(Protocol):
     def load(self) -> SecurityPolicy: ...
 
 
+class InitialOwnerSeedPort(Protocol):
+    def seed_initial_owner(self) -> bool: ...
+
+
 class AccountPersistenceError(RuntimeError):
     """Stable technical failure exposed by the persistence boundary."""
 
@@ -145,5 +149,6 @@ __all__ = (
     "AccountQuotaPolicyPort",
     "AccountQuotaPolicyError",
     "AccountSessionPort",
+    "InitialOwnerSeedPort",
     "SecurityPolicyPort",
 )

@@ -5,7 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.features.configuration.capabilities import CapabilitiesPortError
-from infrastructure.persistence.secrets import resolve_secret, set_tool_secret
+from infrastructure.persistence.configuration.secrets import (
+    resolve_secret,
+    set_tool_secret,
+)
 
 
 class ToolCapabilitySecretAdapter:

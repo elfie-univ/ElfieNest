@@ -15,7 +15,7 @@ from app.features.configuration import (
     UpdateSecuritySettingsCommand,
 )
 from app.interfaces.cli.tui.common import clear_screen, print_banner
-from infrastructure.platform.terminal_menu import MenuItem, TerminalMenu
+from app.interfaces.cli.tui.menu import MenuItem, TerminalMenuPort
 
 
 def config_llm(config: object | None = None) -> None:
@@ -35,8 +35,8 @@ def config_llm(config: object | None = None) -> None:
 def config_engine(
     settings: SettingsService,
     principal: AccountPrincipal,
+    menu: TerminalMenuPort,
 ) -> None:
-    menu = TerminalMenu(input_fn=input, output_fn=print)
     while True:
         current = settings.get_runtime_settings(principal, GetRuntimeSettingsQuery())
         choice = menu.choose(
@@ -64,8 +64,8 @@ def config_engine(
 def config_security(
     settings: SettingsService,
     principal: AccountPrincipal,
+    menu: TerminalMenuPort,
 ) -> None:
-    menu = TerminalMenu(input_fn=input, output_fn=print)
     while True:
         current = settings.get_security_settings(principal, GetSecuritySettingsQuery())
         choice = menu.choose(
@@ -136,8 +136,8 @@ def config_security(
 def config_adoption(
     settings: SettingsService,
     principal: AccountPrincipal,
+    menu: TerminalMenuPort,
 ) -> None:
-    menu = TerminalMenu(input_fn=input, output_fn=print)
     while True:
         current = settings.get_elfie_settings(principal, GetElfieSettingsQuery())
         allowed: list[SpeciesId] = list(current.allowed_species_ids)
@@ -186,7 +186,7 @@ def config_adoption(
 _PERSONALITY_PRESETS = ("Energetic", "Calm", "Curious", "Timid", "Tsundere", "Random")
 
 
-def _toggle_species_menu(menu: TerminalMenu, allowed: list[SpeciesId]) -> bool:
+def _toggle_species_menu(menu: TerminalMenuPort, allowed: list[SpeciesId]) -> bool:
     labels: dict[SpeciesId, str] = {"dog": "Dog", "fox": "Fox"}
     changed = False
     while True:
@@ -217,7 +217,7 @@ def _toggle_species_menu(menu: TerminalMenu, allowed: list[SpeciesId]) -> bool:
 
 
 def _toggle_personality_menu(
-    menu: TerminalMenu,
+    menu: TerminalMenuPort,
     enabled: MutableMapping[str, bool],
 ) -> bool:
     changed = False
@@ -248,7 +248,7 @@ def _toggle_personality_menu(
 
 
 def _read_float(
-    menu: TerminalMenu,
+    menu: TerminalMenuPort,
     prompt: str,
     current: float,
     *,
@@ -271,7 +271,7 @@ def _read_float(
 
 
 def _read_int(
-    menu: TerminalMenu,
+    menu: TerminalMenuPort,
     prompt: str,
     current: int,
     *,

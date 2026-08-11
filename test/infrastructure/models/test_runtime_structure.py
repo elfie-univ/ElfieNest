@@ -1,13 +1,13 @@
 def test_target_runtime_imports_are_available():
     from infrastructure.models.catalog import ModelCatalog
+    from infrastructure.models.inference.token_usage import TokenTracker
     from infrastructure.models.providers.ollama import OllamaManager
     from infrastructure.models.providers.profiles import get_profile
     from infrastructure.models.runtime_agent import RuntimeAgent
     from infrastructure.models.runtime_observations import RuntimeObserver
-    from infrastructure.models.token_usage import TokenTracker
-    from infrastructure.persistence.data_home import get_elfie_home
-    from infrastructure.tools.executor import ToolExecutor
-    from infrastructure.tools.permissions import PermissionManager
+    from infrastructure.persistence.layout.data_home import get_elfie_home
+    from infrastructure.tools.execution.executor import ToolExecutor
+    from infrastructure.tools.execution.permissions import PermissionManager
 
     assert RuntimeAgent is not None
     assert ModelCatalog is not None

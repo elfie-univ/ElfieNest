@@ -10,8 +10,8 @@ from infrastructure.persistence.account_repository import (
     AccountRepository,
     AccountValidationError,
 )
-from infrastructure.persistence.final_schema import create_final_nest_database
-from infrastructure.persistence.sqlite_connection import app_sqlite_connection
+from infrastructure.persistence.nest_db.final_schema import create_final_nest_database
+from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
 
 
 def test_final_account_projection_preserves_profile_fields(tmp_path: Path) -> None:

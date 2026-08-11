@@ -24,6 +24,7 @@ from app.features.accounts import (
     OwnerAccountRecord,
     RecordAccountHeartbeatCommand,
     RecoverOwnerAccountCommand,
+    SeedInitialOwnerCommand,
     StoredAvatar,
     UpdateAccountProfileCommand,
     UpdateManagedAccountQuotaCommand,
@@ -227,6 +228,23 @@ def test_profile_and_password_use_cases_stay_inside_accounts_facade() -> None:
     assert updated.gender == "female"
     assert management.password_change is not None
     assert management.password_change[2] == "current-token"
+
+
+def test_initial_owner_seed_is_an_explicit_accounts_use_case() -> None:
+    class InitialOwnerSeedStub:
+        calls = 0
+
+        def seed_initial_owner(self) -> bool:
+            self.calls += 1
+            return True
+
+    seed = InitialOwnerSeedStub()
+    service = AccountsService(initial_owner_seed=seed)
+
+    result = service.seed_initial_owner(SeedInitialOwnerCommand())
+
+    assert result.created is True
+    assert seed.calls == 1
 
 
 def test_heartbeat_records_current_principal_with_injected_utc_clock() -> None:

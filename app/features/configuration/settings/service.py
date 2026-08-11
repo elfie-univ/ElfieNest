@@ -28,15 +28,20 @@ from .port_models import (
     StoredRuntimeSettings,
     StoredSecuritySettings,
 )
-from .ports import SettingsStorePort
+from .ports import SecuritySettingsChangedPort, SettingsStorePort
 
 MAX_ELFIES_PER_MACHINE: Final = 32
 ALLOWED_SPECIES_IDS: Final[frozenset[SpeciesId]] = frozenset({"dog", "fox"})
 
 
 class SettingsService:
-    def __init__(self, store: SettingsStorePort) -> None:
+    def __init__(
+        self,
+        store: SettingsStorePort,
+        security_settings_changed: SecuritySettingsChangedPort | None = None,
+    ) -> None:
         self._store = store
+        self._security_settings_changed = security_settings_changed
 
     def get_elfie_settings(
         self,
@@ -136,6 +141,8 @@ class SettingsService:
         )
         self._validate_security_settings(updated)
         self._store.save_security_settings(updated)
+        if self._security_settings_changed is not None:
+            self._security_settings_changed.invalidate_security_cache()
         return self._security_result(updated)
 
     def reset_settings(

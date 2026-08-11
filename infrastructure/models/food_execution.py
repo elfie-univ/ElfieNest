@@ -9,20 +9,20 @@ from elfie.brain.food_port import (
     FoodAssignment,
     FoodPackage,
 )
+from infrastructure.models.inference.multimodal import assemble_multimodal_payload
 from infrastructure.models.model_reference import (
     ModelReferenceError,
     parse_model_reference,
 )
-from infrastructure.models.multimodal import assemble_multimodal_payload
 from infrastructure.models.runtime_config import LLMRuntimeConfig
-from infrastructure.tools.config import (
+from infrastructure.tools.execution.config import (
     effective_tool_keys,
     enabled_tool_keys,
     load_tool_configs,
 )
-from infrastructure.tools.loop import RuntimeToolLoop, ToolLoopContext
-from infrastructure.tools.observation import ToolObservationPort
-from infrastructure.tools.skills_prompt import inject_skills_system_prompt
+from infrastructure.tools.execution.loop import RuntimeToolLoop, ToolLoopContext
+from infrastructure.tools.execution.observation import ToolObservationPort
+from infrastructure.tools.execution.skills_prompt import inject_skills_system_prompt
 
 
 @dataclass(frozen=True)

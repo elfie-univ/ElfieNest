@@ -107,10 +107,10 @@ def test_app_boundary_scanner_catches_relative_import_fixture(tmp_path: Path) ->
     feature.mkdir(parents=True)
     source = feature / "service.py"
     source.write_text(
-        "from ...infrastructure.persistence.store import get_db\n",
+        "from ...infrastructure.persistence.nest_db.store import get_db\n",
         encoding="utf-8",
     )
-    assert "app.infrastructure.persistence.store" in _imported_modules(source)
+    assert "app.infrastructure.persistence.nest_db.store" in _imported_modules(source)
 
 
 def test_route_scanner_distinguishes_json_and_response_fixtures(

@@ -13,10 +13,10 @@ from infrastructure.persistence.food import (
     SQLiteFoodAdapter,
     list_food_model_references,
 )
+from infrastructure.persistence.nest_db.store import get_db, init_db
 from infrastructure.persistence.provider_references import (
     SQLiteProviderReferenceAdapter,
 )
-from infrastructure.persistence.store import get_db, init_db
 
 
 def _seed_user_and_elfie(db_path: str) -> None:

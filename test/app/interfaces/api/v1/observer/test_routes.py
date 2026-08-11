@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -17,7 +17,7 @@ from app.orchestration.observer import (
     ObserverFacade,
     ObserverWorldIntent,
 )
-from infrastructure.persistence.store import init_db
+from infrastructure.persistence.nest_db.store import init_db
 from test.app.interfaces.api._helpers import create_test_owner
 
 
@@ -164,44 +164,40 @@ def test_production_router_requires_csrf_and_logout_revokes_capability(
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
     create_test_owner(db_path)
-    with (
-        patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
-        patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-    ):
-        application = create_app(engine=None, db_path=db_path, ws_port=19876)
-        with TestClient(application) as client:
-            login = client.post(
-                "/api/v1/auth/login",
-                data={"account_id": "owner", "password": "ownerchangeme"},
-            )
-            csrf = login.headers["X-CSRF-Token"]
-            payload = {
-                "protocol": 3,
-                "role": "observer",
-                "subscription": {"kind": "room", "room_id": "local-nest"},
-            }
-            missing_csrf = client.post("/api/v1/observer/sessions", json=payload)
-            opened = client.post(
-                "/api/v1/observer/sessions",
-                json=payload,
-                headers={"X-CSRF-Token": csrf},
-            )
-            capability = opened.json()["capability"]
-            logout = client.post(
-                "/api/v1/auth/logout",
-                headers={"X-CSRF-Token": csrf},
-            )
-            second_login = client.post(
-                "/api/v1/auth/login",
-                data={"account_id": "owner", "password": "ownerchangeme"},
-            )
-            replay = client.get(
-                "/api/v1/observer/frames",
-                headers={
-                    "X-ElfieNest-Observer-Capability": capability,
-                    "X-CSRF-Token": second_login.headers["X-CSRF-Token"],
-                },
-            )
+    application = create_app(engine=None, db_path=db_path)
+    with TestClient(application) as client:
+        login = client.post(
+            "/api/v1/auth/login",
+            data={"account_id": "owner", "password": "ownerchangeme"},
+        )
+        csrf = login.headers["X-CSRF-Token"]
+        payload = {
+            "protocol": 3,
+            "role": "observer",
+            "subscription": {"kind": "room", "room_id": "local-nest"},
+        }
+        missing_csrf = client.post("/api/v1/observer/sessions", json=payload)
+        opened = client.post(
+            "/api/v1/observer/sessions",
+            json=payload,
+            headers={"X-CSRF-Token": csrf},
+        )
+        capability = opened.json()["capability"]
+        logout = client.post(
+            "/api/v1/auth/logout",
+            headers={"X-CSRF-Token": csrf},
+        )
+        second_login = client.post(
+            "/api/v1/auth/login",
+            data={"account_id": "owner", "password": "ownerchangeme"},
+        )
+        replay = client.get(
+            "/api/v1/observer/frames",
+            headers={
+                "X-ElfieNest-Observer-Capability": capability,
+                "X-CSRF-Token": second_login.headers["X-CSRF-Token"],
+            },
+        )
 
     assert missing_csrf.status_code == 403
     assert opened.status_code == 201

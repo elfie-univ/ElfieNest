@@ -20,19 +20,19 @@ from infrastructure.models.food_technology import (
     record_model_evidence,
     stored_food_package,
 )
-from infrastructure.models.provider_validation import (
+from infrastructure.models.providers.profiles import BUILTIN_PROFILES
+from infrastructure.models.runtime_config import LLMRuntimeConfig
+from infrastructure.models.validation.provider_validation import (
     ProviderValidationRunner,
     discover_provider_models,
 )
-from infrastructure.models.providers.profiles import BUILTIN_PROFILES
-from infrastructure.models.runtime_config import LLMRuntimeConfig
-from infrastructure.models.validation_models import (
+from infrastructure.models.validation.validation_models import (
     CheckResult,
     CheckStatus,
     ValidationSuite,
 )
-from infrastructure.persistence.data_home import get_model_validation_dir
-from infrastructure.persistence.report_repository import ReportRepository
+from infrastructure.persistence.layout.data_home import get_model_validation_dir
+from infrastructure.persistence.reports.report_repository import ReportRepository
 
 
 def configured_provider_ids(config: LLMRuntimeConfig) -> list[str]:

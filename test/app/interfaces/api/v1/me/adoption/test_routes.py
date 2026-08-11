@@ -16,8 +16,10 @@ from app.interfaces.api.v1.me.adoption.routes import router
 from app.orchestration.resident_admission import ResidentAdmissionService
 from elfie import ElfieFactory
 from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
-from infrastructure.persistence.adoption_profiles import FinalElfieWorkspaceAdapter
-from infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.elfie_workspace.adoption_profiles import (
+    FinalElfieWorkspaceAdapter,
+)
+from infrastructure.persistence.nest_db.store import get_db, init_db
 from infrastructure.platform import ElfieFactoryAdapter
 
 

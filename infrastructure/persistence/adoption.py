@@ -12,8 +12,7 @@ from app.features.adoption import (
     AdoptionQuotaRecord,
     AdoptionReservationRecord,
 )
-
-from .sqlite_connection import app_sqlite_connection
+from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
 
 
 class SQLiteAdoptionAdapter:

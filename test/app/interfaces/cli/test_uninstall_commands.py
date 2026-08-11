@@ -3,6 +3,17 @@ from pathlib import Path
 from app.interfaces.cli import uninstall_commands
 
 
+class _Uninstall:
+    def __init__(self, home: Path) -> None:
+        self.home = home
+
+    def delete_local_config(self) -> bool:
+        import shutil
+
+        shutil.rmtree(self.home / "configs")
+        return True
+
+
 def test_delete_config_removes_only_final_config_files(
     monkeypatch,
     tmp_path: Path,
@@ -19,7 +30,7 @@ def test_delete_config_removes_only_final_config_files(
     monkeypatch.setattr("builtins.input", lambda _prompt: "yes")
 
     # When: the config-only uninstall action runs.
-    result = uninstall_commands._delete_config(tmp_path)
+    result = uninstall_commands._delete_config(_Uninstall(tmp_path), tmp_path)  # type: ignore[arg-type]
 
     # Then: final configs are removed while databases remain untouched.
     assert result == 0

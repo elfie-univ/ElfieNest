@@ -28,6 +28,7 @@ from .ports import (
     ObserverWorldPort,
 )
 from .service import ObserverFacade, session_token_fingerprint
+from .session_logout import SessionLogoutWorkflow
 
 __all__ = (
     "NextObserverFrameQuery",
@@ -51,6 +52,7 @@ __all__ = (
     "ObserverWorldPort",
     "OpenObserverSessionCommand",
     "OpenObserverSessionResult",
+    "SessionLogoutWorkflow",
     "SubmitObserverIntentCommand",
     "UpdateObserverInterestCommand",
     "session_token_fingerprint",

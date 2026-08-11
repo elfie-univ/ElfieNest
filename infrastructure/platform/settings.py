@@ -16,17 +16,17 @@ from app.features.configuration import (
     StoredSecuritySettings,
 )
 from infrastructure.models.runtime_config import DEFAULT_SYSTEM_SETTINGS
-from infrastructure.persistence.config_store import (
+from infrastructure.persistence.configuration.config_store import (
     ConfigStoreError,
     read_yaml_mapping,
     write_yaml_mapping,
 )
-from infrastructure.persistence.data_home import get_config_path
-from infrastructure.persistence.runtime_settings import (
+from infrastructure.persistence.configuration.runtime_settings import (
     CONFIG_DOCUMENT_VERSION,
     read_runtime_settings,
     write_runtime_settings,
 )
+from infrastructure.persistence.layout.data_home import get_config_path
 
 
 class RuntimeSettingsAdapter:

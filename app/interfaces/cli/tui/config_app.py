@@ -6,8 +6,8 @@ from app.features.accounts import AccountPrincipal
 from app.features.configuration import ProvidersService, SettingsService
 from app.interfaces.cli.tui.common import clear_screen, print_banner, print_tui_panel
 from app.interfaces.cli.tui.config_views import reset_config, show_config
+from app.interfaces.cli.tui.menu import MenuItem, TerminalMenuPort
 from app.interfaces.cli.tui.provider_menu import config_providers
-from infrastructure.platform.terminal_menu import MenuItem, TerminalMenu
 
 ProviderLogin = Callable[[str], None]
 
@@ -24,10 +24,10 @@ def run_config_tui(
     principal: AccountPrincipal,
     provider_login: ProviderLogin,
     runtime_menus: RuntimeConfigMenus,
+    menu: TerminalMenuPort,
     initial_path: Optional[str] = None,
 ) -> None:
     """Run the single Config menu with explicit Feature and menu injection."""
-    menu = TerminalMenu(input_fn=input, output_fn=print)
     if initial_path:
         _dispatch_initial_path(
             initial_path,
@@ -35,6 +35,7 @@ def run_config_tui(
             principal,
             provider_login,
             runtime_menus,
+            menu,
         )
     while True:
         clear_screen()
@@ -59,7 +60,7 @@ def run_config_tui(
             print("\nGoodbye!")
             return
         if choice == "1":
-            config_providers(providers, principal, provider_login)
+            config_providers(providers, principal, provider_login, menu)
         elif choice == "2":
             runtime_menus.tool_menu()
         elif choice == "3":
@@ -76,10 +77,11 @@ def _dispatch_initial_path(
     principal: AccountPrincipal,
     provider_login: ProviderLogin,
     runtime_menus: RuntimeConfigMenus,
+    menu: TerminalMenuPort,
 ) -> None:
     path = initial_path.strip().lower()
     if path in {"provider", "providers"}:
-        config_providers(providers, principal, provider_login)
+        config_providers(providers, principal, provider_login, menu)
     elif path in {"agent", "tools"}:
         runtime_menus.tool_menu()
     elif path in {"food", "foods"}:

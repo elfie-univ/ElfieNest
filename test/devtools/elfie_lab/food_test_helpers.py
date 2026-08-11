@@ -2,7 +2,7 @@ from pathlib import Path
 
 from app.features.configuration.food import StoredFoodPackage
 from infrastructure.persistence.food import SQLiteFoodAdapter
-from infrastructure.persistence.store import init_db
+from infrastructure.persistence.nest_db.store import init_db
 
 
 def seed_mock_food(runtime_dir: Path) -> None:

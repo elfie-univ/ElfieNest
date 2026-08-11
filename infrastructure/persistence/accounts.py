@@ -30,13 +30,12 @@ from app.features.accounts import (
     ThemeKey,
     parse_account_role,
 )
-from infrastructure.persistence.data_home import data_home_from_db_path
-from infrastructure.persistence.data_layout import (
+from infrastructure.persistence.layout.data_home import data_home_from_db_path
+from infrastructure.persistence.layout.data_layout import (
     ensure_final_user_layout,
     final_root_layout,
 )
-
-from .sqlite_connection import app_sqlite_connection
+from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
 
 
 class SessionPrincipal(NamedTuple):
@@ -131,6 +130,16 @@ class SessionRepository:
 class SQLiteAccountsAdapter:
     def __init__(self, db_path: str) -> None:
         self._db_path = db_path
+
+    def seed_initial_owner(self) -> bool:
+        from infrastructure.persistence.nest_db.store import (  # noqa: PLC0415
+            seed_initial_owner_if_env_set,
+        )
+
+        try:
+            return seed_initial_owner_if_env_set(self._db_path)
+        except (OSError, sqlite3.DatabaseError, ValueError) as error:
+            raise AccountPersistenceError from error
 
     def find_credentials(self, account_id: str) -> AccountCredentials | None:
         with app_sqlite_connection(self._db_path) as connection:

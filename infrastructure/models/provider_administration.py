@@ -40,10 +40,6 @@ from app.features.configuration import (
 from app.features.configuration.providers import (
     ValidationStatus as ProviderValidationStatus,
 )
-from infrastructure.models.provider_validation import (
-    DiscoveredModel,
-    discover_provider_models,
-)
 from infrastructure.models.providers.discovery import (
     bundled_catalog_models,
     merge_refreshed_models,
@@ -55,6 +51,24 @@ from infrastructure.models.providers.remote_catalog import (
     RemoteCatalogUnavailable,
     fetch_remote_models,
 )
+from infrastructure.models.validation.provider_model_benchmark import (
+    bounded_benchmark,
+    validate_combinations,
+)
+from infrastructure.models.validation.provider_model_matrix import build_model_matrix
+from infrastructure.models.validation.provider_validation import (
+    DiscoveredModel,
+    discover_provider_models,
+)
+from infrastructure.models.validation.provider_validation_runtime import (
+    connection_api_key,
+    runtime_projection,
+)
+from infrastructure.models.validation.provider_validation_service import (
+    summarize_connection_validation,
+    validate_connection,
+)
+from infrastructure.persistence.configuration.secrets import resolve_secret
 from infrastructure.persistence.provider_connection_mutations import (
     delete_connection_with_secret,
     finalize_created_connection,
@@ -66,21 +80,13 @@ from infrastructure.persistence.provider_connections import (
     ProviderConnectionStoreError,
     ProviderModelRecord,
 )
-from infrastructure.persistence.report_repository import ReportRepository
-from infrastructure.persistence.secrets import resolve_secret
-from infrastructure.persistence.validation_reports import (
+from infrastructure.persistence.reports.report_repository import ReportRepository
+from infrastructure.persistence.reports.validation_reports import (
     read_latest_model_validation,
     write_model_validation_report,
 )
 
 from .provider_errors import sanitize_error
-from .provider_model_benchmark import bounded_benchmark, validate_combinations
-from .provider_model_matrix import build_model_matrix
-from .provider_validation_runtime import connection_api_key, runtime_projection
-from .provider_validation_service import (
-    summarize_connection_validation,
-    validate_connection,
-)
 
 _DISCOVERY_TIMEOUT_SECONDS = 7.0
 _DISCOVERY_SLOTS = threading.BoundedSemaphore(3)

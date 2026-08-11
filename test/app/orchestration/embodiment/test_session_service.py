@@ -12,9 +12,11 @@ from app.orchestration.embodiment import (
 )
 from elfie import Elfie
 from elfie.body import HeadlessBody
-from infrastructure.persistence.bodies import SQLiteBodiesAdapter
-from infrastructure.persistence.embodiment import SQLiteEmbodimentLeaseAdapter
-from infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.elfie_workspace.bodies import SQLiteBodiesAdapter
+from infrastructure.persistence.elfie_workspace.embodiment import (
+    SQLiteEmbodimentLeaseAdapter,
+)
+from infrastructure.persistence.nest_db.store import get_db, init_db
 from nest.embodiment import EmbodimentState
 
 

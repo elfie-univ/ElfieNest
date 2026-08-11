@@ -148,7 +148,7 @@ def test_missing_operations_composition_uses_the_standard_error_envelope() -> No
 
 def test_mobile_access_projects_the_existing_lan_bind_policy() -> None:
     app = FastAPI()
-    app.state.service_access_policy = ServiceAccessPolicy.create(
+    app.state.mobile_access = ServiceAccessPolicy.create(
         "lan",
         8000,
         lan_addresses=("192.168.1.8",),

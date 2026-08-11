@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -16,7 +15,7 @@ from elfie.message_types import (
     ActorRef,
     EventId,
 )
-from infrastructure.persistence.store import init_db
+from infrastructure.persistence.nest_db.store import init_db
 
 from ._helpers import (
     adopt_test_elfie,
@@ -27,18 +26,18 @@ from ._helpers import (
 
 
 @pytest.fixture
-def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
-    db_path = str(tmp_path / "nest.db")
+def db_path(tmp_path: Path) -> str:
+    return str(tmp_path / "nest.db")
+
+
+@pytest.fixture
+def client(tmp_path: Path, db_path: str, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     init_db(db_path)
     create_test_owner(db_path)
-    with (
-        patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
-        patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-    ):
-        application = create_app(engine=None, db_path=db_path, ws_port=9876)
-        with TestClient(application, base_url="http://127.0.0.1:8000") as test_client:
-            yield test_client
+    application = create_app(engine=None, db_path=db_path)
+    with TestClient(application, base_url="http://127.0.0.1:8000") as test_client:
+        yield test_client
 
 
 def _login_owner(client: TestClient) -> str:
@@ -49,25 +48,26 @@ def _login_owner(client: TestClient) -> str:
     return response.headers["X-CSRF-Token"]
 
 
-def _adopt_elfie(client: TestClient, csrf_token: str) -> str:
+def _adopt_elfie(client: TestClient, db_path: str, csrf_token: str) -> str:
     _ = csrf_token
     current_user = client.get("/api/v1/me")
     assert current_user.status_code == 200
     return adopt_test_elfie(
-        client.app.state.db_path,
+        db_path,
         int(current_user.json()["user_id"]),
     )
 
 
-def _complete_setup(client: TestClient) -> None:
-    complete_test_setup(client.app.state.db_path)
+def _complete_setup(db_path: str) -> None:
+    complete_test_setup(db_path)
 
 
 def test_elfie_resources_are_registered_without_legacy_owner_route(
     client: TestClient,
+    db_path: str,
 ) -> None:
     csrf_token = _login_owner(client)
-    elfie_id = _adopt_elfie(client, csrf_token)
+    elfie_id = _adopt_elfie(client, db_path, csrf_token)
 
     member = client.get("/api/v1/elfies")
     profile = client.get(f"/api/v1/elfies/{elfie_id}/profile")
@@ -88,9 +88,11 @@ def test_v1_routes_require_a_session(client: TestClient) -> None:
     assert client.get("/api/v1/elfies").status_code == 401
 
 
-def test_v1_profile_and_messages_hide_another_users_elfie(client: TestClient) -> None:
+def test_v1_profile_and_messages_hide_another_users_elfie(
+    client: TestClient, db_path: str
+) -> None:
     owner_csrf = _login_owner(client)
-    elfie_id = _adopt_elfie(client, owner_csrf)
+    elfie_id = _adopt_elfie(client, db_path, owner_csrf)
     create_user = client.post(
         "/api/v1/admin/users",
         json={"account_id": "alice", "password": "pass123", "role": "user"},
@@ -110,9 +112,11 @@ def test_v1_profile_and_messages_hide_another_users_elfie(client: TestClient) ->
     assert messages.status_code == 404
 
 
-def test_owner_can_persist_a_safe_default_landing_page(client: TestClient) -> None:
+def test_owner_can_persist_a_safe_default_landing_page(
+    client: TestClient, db_path: str
+) -> None:
     csrf_token = _login_owner(client)
-    _complete_setup(client)
+    _complete_setup(db_path)
 
     response = client.put(
         "/api/v1/me/default-landing-page",
@@ -126,9 +130,11 @@ def test_owner_can_persist_a_safe_default_landing_page(client: TestClient) -> No
     assert root.headers["location"] == "/chat"
 
 
-def test_admin_can_persist_a_safe_default_landing_page(client: TestClient) -> None:
-    create_test_user(client.app.state.db_path, "admin", "admin-password", "admin")
-    _complete_setup(client)
+def test_admin_can_persist_a_safe_default_landing_page(
+    client: TestClient, db_path: str
+) -> None:
+    create_test_user(db_path, "admin", "admin-password", "admin")
+    _complete_setup(db_path)
     login = client.post(
         "/api/v1/auth/login", data={"account_id": "admin", "password": "admin-password"}
     )
@@ -148,9 +154,10 @@ def test_admin_can_persist_a_safe_default_landing_page(client: TestClient) -> No
 
 def test_owner_can_enroll_rotate_and_revoke_a_hashed_body_credential(
     client: TestClient,
+    db_path: str,
 ) -> None:
     csrf_token = _login_owner(client)
-    elfie_id = _adopt_elfie(client, csrf_token)
+    elfie_id = _adopt_elfie(client, db_path, csrf_token)
     enrolled = client.post(
         f"/api/v1/elfies/{elfie_id}/bodies",
         json={"display_name": "客厅玩具", "body_type": "toy"},
@@ -178,9 +185,10 @@ def test_owner_can_enroll_rotate_and_revoke_a_hashed_body_credential(
 
 def test_body_websocket_routes_versioned_sensor_events_and_command_polls(
     client: TestClient,
+    db_path: str,
 ) -> None:
     csrf_token = _login_owner(client)
-    elfie_id = _adopt_elfie(client, csrf_token)
+    elfie_id = _adopt_elfie(client, db_path, csrf_token)
     enrolled = client.post(
         f"/api/v1/elfies/{elfie_id}/bodies",
         json={"display_name": "客厅玩具", "body_type": "toy"},

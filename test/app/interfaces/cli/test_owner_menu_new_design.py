@@ -3,7 +3,7 @@ from __future__ import annotations
 import builtins
 from dataclasses import dataclass
 
-from app.bootstrap.lifecycle import create_lifecycle_facade
+from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.features.accounts import GetOwnerAccountQuery, OwnerAccountResult
 from app.interfaces.cli import owner_commands
 from infrastructure.platform.terminal_menu import TerminalMenu
@@ -48,6 +48,7 @@ def test_owner_menu_has_three_items_and_shares_actions(monkeypatch, capsys) -> N
                 updated_at="2026-07-16T04:05:06Z",
             )
         ),
+        TerminalMenu(input_fn=input, output_fn=print, interactive=False),
     )
 
     # Then

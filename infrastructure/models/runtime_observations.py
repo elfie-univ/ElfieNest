@@ -6,11 +6,13 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Union
 
-from infrastructure.persistence.report_repository import ReportRepository
-from infrastructure.tools.observation import (
+from infrastructure.persistence.reports.report_repository import ReportRepository
+from infrastructure.tools.execution.observation import (
     PermissionDecisionObservation as ToolPermissionDecisionObservation,
 )
-from infrastructure.tools.observation import ToolCallObservation as ToolCallRecord
+from infrastructure.tools.execution.observation import (
+    ToolCallObservation as ToolCallRecord,
+)
 
 logger = logging.getLogger("infrastructure.models.runtime_observations")
 

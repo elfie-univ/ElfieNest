@@ -3,8 +3,10 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from app.features.accounts import AccountPrincipal
 from app.features.communication import (
@@ -69,7 +71,16 @@ def _application() -> tuple[FastAPI, MemoryHistory]:
     elfies.get_profile.return_value = SimpleNamespace(profile=profile)
     history = MemoryHistory()
     communication = CommunicationFacade(history, elfies)
-    realtime = SameOriginMessagePublisher()
+    accounts = SimpleNamespace(active=True)
+    accounts.authenticate_session = lambda _token: (
+        principal if accounts.active else None
+    )
+    realtime = SameOriginMessagePublisher(
+        lambda token, user_id: (
+            (current := accounts.authenticate_session(token)) is not None
+            and current.user_id == user_id
+        )
+    )
     delivery = MessageDeliveryFacade(communication, AcceptedDelivery(), realtime)
     application = FastAPI()
     application.include_router(conversations_router)
@@ -78,9 +89,7 @@ def _application() -> tuple[FastAPI, MemoryHistory]:
     application.state.communication = communication
     application.state.message_delivery = delivery
     application.state.communication_realtime = realtime
-    application.state.accounts = SimpleNamespace(
-        authenticate_session=lambda _token: principal
-    )
+    application.state.accounts = accounts
     application.state.service_access_policy = SimpleNamespace(
         mode=SimpleNamespace(value="loopback"),
         allows_origin=lambda _origin: True,
@@ -128,3 +137,21 @@ def test_websocket_ack_and_persisted_reply_keep_the_existing_event_shapes() -> N
     assert reply["event"] == "message"
     assert reply["message"]["sender"] == "elfie"
     assert [item.text for item in history.messages] == ["你好", "我很好"]
+
+
+def test_revoked_session_is_closed_before_an_elfie_reply_is_published() -> None:
+    application, _history = _application()
+    with TestClient(application) as client:
+        with client.websocket_connect(
+            "/api/v1/ws/chat",
+            headers={"Cookie": "session_token=test-session"},
+        ) as websocket:
+            assert websocket.receive_json()["event"] == "ready"
+            application.state.accounts.active = False
+            application.state.message_delivery.deliver_elfie_reply(
+                DeliverElfieReplyCommand(elfie_id="00000001", text="不会发送")
+            )
+            with pytest.raises(WebSocketDisconnect) as closed:
+                websocket.receive_json()
+
+    assert closed.value.code == 4004

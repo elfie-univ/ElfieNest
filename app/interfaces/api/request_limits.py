@@ -6,9 +6,9 @@ import asyncio
 from typing import Final
 
 from starlette.requests import Request
-from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from app.interfaces.api.errors import api_error_response, http_error_code
 from app.interfaces.api.v1.auth import verify_csrf_token
 
 _AVATAR_UPLOAD_PATH: Final[str] = "/api/v1/me/avatar"
@@ -109,8 +109,9 @@ class AvatarUploadBodyLimitMiddleware:
         status_code: int,
         detail: str,
     ) -> None:
-        response = JSONResponse(
-            status_code=status_code,
-            content={"detail": detail},
+        response = api_error_response(
+            status_code,
+            http_error_code(status_code),
+            detail,
         )
         await response(scope, receive, send)

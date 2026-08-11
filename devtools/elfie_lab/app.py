@@ -34,7 +34,7 @@ from devtools.elfie_lab.storage import ElfieLabStorage
 from devtools.elfie_lab.system_routes import build_system_router
 from devtools.runtime_lab import RuntimeLabConfigStore
 from devtools.web_host import frontend_shell
-from infrastructure.persistence.data_home import (
+from infrastructure.persistence.layout.data_home import (
     get_elfie_developer_home,
     get_elfie_home,
 )

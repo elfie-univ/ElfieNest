@@ -11,7 +11,7 @@ from app.features.adoption import (
     AdoptionReservationRecord,
 )
 from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
-from infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.nest_db.store import get_db, init_db
 
 
 def _reservation(elfie_id: str, owner_user_id: int) -> AdoptionReservationRecord:

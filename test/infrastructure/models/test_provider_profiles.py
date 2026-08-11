@@ -4,14 +4,14 @@ from infrastructure.models.providers.profiles import (
     get_profile,
 )
 from infrastructure.models.runtime_config import LLMRuntimeConfig
-from infrastructure.persistence.provider_connections import (
-    ProviderConnectionStore,
-    ProviderModelRecord,
-)
-from infrastructure.persistence.secrets import (
+from infrastructure.persistence.configuration.secrets import (
     set_connection_secret,
     set_provider_secret,
     write_secrets,
+)
+from infrastructure.persistence.provider_connections import (
+    ProviderConnectionStore,
+    ProviderModelRecord,
 )
 
 

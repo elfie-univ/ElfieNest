@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from infrastructure.persistence.store import LegacyDataRootError, init_db
+from infrastructure.persistence.nest_db.store import LegacyDataRootError, init_db
 
 _FINAL_ROOT_TABLES = {
     "device_audit_events",

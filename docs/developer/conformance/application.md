@@ -7,54 +7,52 @@
 
 ## Current status
 
-The target App folders and the currently implemented deny-all rules are in
-place, and the exact App baseline is empty. A manual audit found contract gaps
-that are outside the present scanner's coverage, so App migration remains **in
-progress**. A zero deny-all result means only that the implemented rules found
-no violation; it is not proof that the whole Application contract is closed.
+The target App folders are in place, the exact App baseline is empty, and the
+manual gaps APP-G01 through APP-G08 are closed. The strengthened scanner now
+covers root Infrastructure imports, workflow-private imports, Interface-owned
+runtime lifecycle, loose WebSocket payloads and non-standard error responses.
+Application migration is **closed**; repository-level System debt remains
+tracked separately.
 
 | ID | Severity | Status | Current result |
 | --- | --- | --- | --- |
-| APP-001 | P0 | open | Most Interfaces use injected public boundaries, but the API factory and legacy WebSocket gateway still import or construct concrete technical implementations. |
+| APP-001 | P0 | closed | Interfaces use injected public boundaries; the API factory contains no concrete technical construction and the legacy WebSocket gateway is removed. |
 | APP-002 | P0 | closed | Features and Orchestration use consumer-owned Ports and have no forbidden framework or Infrastructure dependency. |
-| APP-003 | P0 | open | Bootstrap performs most assembly, but the API factory and several CLI commands still resolve paths, initialize stores or construct technical services. |
-| APP-004 | P1 | open | Two workflow models still import a Feature-private model or a Gateway-internal model, and several Routes coordinate more than one application boundary. |
-| APP-005 | P1 | open | HTTP middleware/dependencies still emit FastAPI `detail` errors, and public WebSocket frames still contain loose dictionaries. |
-| APP-006 | P1 | open | Authentication is typed, but logout and security-setting side effects are still coordinated in Routes. |
+| APP-003 | P0 | closed | Bootstrap is the concrete composition owner; API and CLI consume injected public boundaries or narrow Ports. |
+| APP-004 | P1 | closed | Orchestration consumes public Feature boundaries or consumer-owned Port Models, and Routes no longer coordinate the registered multi-boundary cases. |
+| APP-005 | P1 | closed | HTTP errors use the standard envelope and public WebSocket frames use strict named DTOs. |
+| APP-006 | P1 | closed | Authentication, logout revocation and security-setting invalidation are expressed through typed single-entry workflows/use cases. |
 | APP-007 | P1 | closed | Database, file and external-workflow consistency is expressed by typed Ports and focused atomicity/recovery tests. |
-| APP-008 | P1 | open | The legacy WebSocket Interface still owns a thread, event loop, server start and server stop. |
+| APP-008 | P1 | closed | Interfaces own no runtime thread, event loop or server lifecycle; the retired 8766 transport is absent. |
 | APP-009 | P1 | closed | Every App Python package and public caller passes the strict App MyPy gate. |
 | APP-010 | P1 | closed | Bodies and Embodiment have one product fact model, one lease workflow and root device adapters. |
 | APP-011 | P1 | closed | Product APIs and real callers use versioned resource directories; retired routes and aliases are absent. |
-| APP-012 | P1 | open | Provider initialization and Accounts cache invalidation still occur outside one explicit product use case. |
+| APP-012 | P1 | closed | Provider initialization, initial Owner seeding and Accounts cache invalidation are explicit Feature use cases. |
 
-## Open cleanup register
+## Closed cleanup register
 
 The identifiers below are conformance tracking labels, not new contract rules.
 Cleanup must preserve the behavior already migrated from `main`; it must not add
 capabilities, aliases, fallback routes, dual writes or a second fact source.
 
-| Gap | Contract rows | Current evidence | Completion gate |
+| Gap | Contract rows | Closure evidence | Permanent gate |
 | --- | --- | --- | --- |
-| APP-G01 Legacy WebSocket lifecycle | APP-001, APP-003, APP-008 | `app/interfaces/api/ws_gateway*` owns the 8766 server thread/event loop and `app/interfaces/api/app.py` starts and stops it. | Preserve accepted user-message delivery, reply persistence and fan-out through the canonical same-origin transport; then remove the legacy server and all production callers without an alias or second transport. |
-| APP-G02 API factory composition | APP-001, APP-003 | `app/interfaces/api/app.py` resolves the data path, initializes/seeds persistence, constructs communication infrastructure and inspects the Godot Web bundle. `app/bootstrap/api.py` also initializes the database. | Bootstrap owns one assembly/initialization path; the API factory only wires FastAPI, middleware, Routes and injected public boundaries. Remove unused concrete objects from `app.state`. |
-| APP-G03 HTTP/WS boundary strictness | APP-005 | Global exception/CSRF, request-limit, service-access and dependency paths return `detail` errors. `app/interfaces/api/v1/realtime/bodies` and legacy gateway messages expose loose payload dictionaries. | Authentication, CSRF, validation, body-size, unavailable-service and unknown-error paths use the standard `{error:{code,message,details}}` envelope. Every public WebSocket frame has a strict named/discriminated DTO. |
-| APP-G04 Route-owned orchestration | APP-004, APP-006, APP-012 | Logout calls Accounts and Observer; security settings update Settings and invalidate Accounts cache; mobile-access Route reads `ServiceAccessPolicy` directly. | Each inbound use case calls one public Facade/workflow or one injected owned Port while preserving revocation, immediate cache effect and mobile URL projection. |
-| APP-G05 CLI concrete dependencies | APP-003 | Owner, lifecycle, doctor and uninstall commands import data-home helpers or construct `RuntimeLab` directly. | Bootstrap injects path, diagnostic and uninstall capabilities through public boundaries or narrow Ports; current commands, options, output and exit behavior remain unchanged. |
-| APP-G06 Private model imports | APP-004 | Resident Admission imports `app.features.adoption.models.SpeciesId`; Nest Session imports `nest.godot_gateway.observer.ObserverSemanticEntity`. | Use an owning public export or a consumer-owned Port Model, preserving the current semantic fields without copying Godot geometry or runtime facts. |
-| APP-G07 Bootstrap product actions | APP-003, APP-012 | Container and CLI composition call `ensure_local_connection`, and database initialization has more than one owner. | Bootstrap only constructs and connects dependencies. Product-state creation is an explicit Feature/Setup use case, and database initialization has one owner. |
-| APP-G08 Gate coverage | APP-001, APP-004, APP-005, APP-008 | The scanner recognizes only `app.infrastructure` as Infrastructure, does not cover workflow-private imports or Interface lifecycle ownership, checks HTTP annotations but not WebSocket DTOs, and does not enforce the error envelope. | Strengthen focused rules together with the corresponding fixes; deny-all remains zero with no new baseline exception, and a regression test proves each retired pattern cannot return. |
+| APP-G01 Legacy WebSocket lifecycle | APP-001, APP-003, APP-008 | The 8766 server and all `ws_gateway*` modules/callers are removed; same-origin chat preserves accepted delivery, persistence and fan-out. | Storage boundary tests reject restoration of the retired modules. |
+| APP-G02 API factory composition | APP-001, APP-003 | Bootstrap owns lifespan, storage/setup recovery, service access and Web/Godot asset discovery; the API factory only wires the injected application. | The construction and forbidden-import scanner stays at zero. |
+| APP-G03 HTTP/WS boundary strictness | APP-005 | HTTP failures use `{error:{code,message,details}}`; Body and Chat WebSocket frames have strict DTOs. | Error-envelope and loose-WebSocket scanners stay at zero. |
+| APP-G04 Route-owned orchestration | APP-004, APP-006, APP-012 | Logout, security invalidation and mobile access each enter through one workflow/use case or injected projection Port. | Interface construction/private-boundary rules stay at zero. |
+| APP-G05 CLI concrete dependencies | APP-003 | Data-home, Doctor, Uninstall and terminal presentation mechanics are injected by Bootstrap; CLI has no root Infrastructure import. | Interface forbidden-import scanning includes CLI and root Infrastructure. |
+| APP-G06 Private model imports | APP-004 | Adoption uses the public `SpeciesId`; Nest Session owns its Observer semantic Port Model. | Workflow-private and Gateway-private imports are rejected. |
+| APP-G07 Bootstrap product actions | APP-003, APP-012 | Default Provider connection and initial Owner creation are explicit Feature commands; schema initialization has one owner. | Bootstrap construction rules and focused Feature tests prevent direct adapter product actions. |
+| APP-G08 Gate coverage | APP-001, APP-004, APP-005, APP-008 | The scanner covers every registered gap and the exact baseline remains empty. | Deny-all and exact-baseline tests must both pass without exceptions. |
 
-## Required cleanup order
+## Completed cleanup order
 
-1. APP-G01 and APP-G02 must close atomically because both touch API startup and
-   lifecycle ownership.
-2. APP-G05 and APP-G06 are independent of that startup cut and may be cleaned in
-   parallel in isolated worktrees.
-3. APP-G03, APP-G04 and APP-G07 follow the composition cut so their single owner
-   is unambiguous.
-4. APP-G08 is added with the fixes it detects, then a final deny-all and focused
-   behavior regression pass closes the reopened contract rows.
+1. APP-G01 and APP-G02 closed atomically around API startup and lifecycle.
+2. APP-G05 and APP-G06 removed concrete CLI and private-model dependencies.
+3. APP-G03, APP-G04 and APP-G07 closed strict boundaries and single-owner use
+   cases after composition was stable.
+4. APP-G08 made those retired patterns permanent zero-baseline rules.
 
 ## Machine gates
 
@@ -68,8 +66,8 @@ capabilities, aliases, fallback routes, dual writes or a second fact source.
 - Domain tests mirror the final source directories and cover authorization,
   transaction/recovery behavior, adapters and versioned HTTP/WS contracts.
 
-These are the active gates, not a waiver for APP-G01 through APP-G08. Until
-APP-G08 closes, manual evidence in this register is part of the acceptance gate.
+These active gates keep APP-G01 through APP-G08 closed. Manual descriptions in
+this register do not waive a machine-gate failure.
 
 The repository-level System scanner may still report separately registered
 non-App migration debt. It cannot be added to this App baseline.
@@ -153,8 +151,6 @@ created by `app/bootstrap/Container` assembly.
 | `app/infrastructure` product implementations | matching root `infrastructure/` capability packages |
 | unversioned or page-grouped product routes | resource-owned `app/interfaces/api/v1/` directories |
 
-The target directory migration is present, but Application conformance remains
-open until APP-G01 through APP-G08 are cleared. Closing them changes structure
-and ownership only; it must not remove existing behavior or add product
-capability, compatibility aliases, fallback routes, dual writes or a second fact
-source.
+Application conformance is closed. Future changes must keep APP-G01 through
+APP-G08 at zero and must not restore product capability aliases, fallback
+routes, dual writes or a second fact source.

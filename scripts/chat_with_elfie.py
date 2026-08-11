@@ -19,14 +19,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger("chat")
 
-from app.bootstrap.lifecycle import create_lifecycle_facade
-from app.bootstrap.nest_session import (
+from app.bootstrap.app_wiring.storage import ensure_application_storage
+from app.bootstrap.runtime import build_runtime_services
+from app.bootstrap.system_wiring.entrypoints import get_db_path
+from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
+from app.bootstrap.system_wiring.nest_session import (
     build_nest_session_services,
     register_transient_elfie,
 )
-from app.bootstrap.runtime import build_runtime_services
-from app.bootstrap.storage import ensure_application_storage
-from infrastructure.persistence.data_home import get_db_path
 
 
 def main():

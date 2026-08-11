@@ -17,16 +17,14 @@ def test_service_port_statuses_use_injected_process_port() -> None:
         authority_host_factory=Mock(),
     )
 
-    statuses = lifecycle.service_port_statuses(8100, 8866, 8768)
+    statuses = lifecycle.service_port_statuses(8100, 8768)
 
     assert [(item.port, item.name, item.running) for item in statuses] == [
         (8100, "HTTP", True),
-        (8866, "WebSocket (admin)", False),
         (8768, "WebSocket (Godot)", True),
     ]
     assert process.ports_in_use.call_args_list == [
         call((8100,)),
-        call((8866,)),
         call((8768,)),
     ]
 

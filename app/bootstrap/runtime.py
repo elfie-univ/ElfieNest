@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from app.bootstrap.food import build_food_service
+from app.bootstrap.app_wiring.food import build_food_service
 from app.bootstrap.runtime_food import final_main_food_loader
 from elfie.brain.food_port import MainFoodSelection
 from infrastructure.models.fallback_runtime import FallbackRuntimeAdapter

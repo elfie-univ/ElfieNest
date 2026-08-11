@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from app.orchestration.nest_session import ObserverSemanticEntity
 from app.orchestration.observer import ObserverWorldIntent
 from infrastructure.godot.observer_world import GodotObserverWorldAdapter
-from nest.godot_gateway.observer import ObserverSemanticEntity
 
 
 def test_adapter_translates_semantics_without_geometry_and_delivers_intent() -> None:

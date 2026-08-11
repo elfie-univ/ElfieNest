@@ -9,8 +9,10 @@ from app.features.accounts import AccountPrincipal, AccountRole
 from app.interfaces.api.v1.admin.runtime.embodiment_sessions.routes import router
 from app.interfaces.api.v1.auth import require_user
 from app.orchestration.embodiment import EmbodimentSessionService
-from infrastructure.persistence.embodiment import SQLiteEmbodimentLeaseAdapter
-from infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.elfie_workspace.embodiment import (
+    SQLiteEmbodimentLeaseAdapter,
+)
+from infrastructure.persistence.nest_db.store import get_db, init_db
 
 
 def _principal(role: AccountRole) -> AccountPrincipal:

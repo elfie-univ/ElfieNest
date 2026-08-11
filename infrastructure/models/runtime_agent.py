@@ -21,9 +21,9 @@ from infrastructure.models.food_execution import (
     FoodExecutor,
 )
 from infrastructure.models.food_technology import query_model_evidence
-from infrastructure.models.llm_api import call_llm_api
+from infrastructure.models.inference.llm_api import call_llm_api
+from infrastructure.models.inference.multimodal import assemble_multimodal_payload
 from infrastructure.models.model_reference import parse_model_reference
-from infrastructure.models.multimodal import assemble_multimodal_payload
 from infrastructure.models.runtime_config import LLMRuntimeConfig
 from infrastructure.models.runtime_contracts import (
     RuntimeRequest,
@@ -39,11 +39,11 @@ from infrastructure.models.runtime_observations import (
     RuntimeEventStatus,
     get_runtime_observer,
 )
-from infrastructure.persistence.data_home import get_runtime_config_paths
-from infrastructure.tools.config import effective_tool_keys, load_tool_configs
-from infrastructure.tools.local_files import LocalFileAccessPlugin
-from infrastructure.tools.permissions import PermissionManager
-from infrastructure.tools.search import WebSearchPlugin
+from infrastructure.persistence.layout.data_home import get_runtime_config_paths
+from infrastructure.tools.execution.config import effective_tool_keys, load_tool_configs
+from infrastructure.tools.execution.permissions import PermissionManager
+from infrastructure.tools.local_file.local_files import LocalFileAccessPlugin
+from infrastructure.tools.web_search.search import WebSearchPlugin
 
 logger = logging.getLogger("infrastructure.models.runtime_agent")
 MainFoodLoader = Callable[[str], MainFoodSelection]

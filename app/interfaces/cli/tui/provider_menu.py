@@ -14,7 +14,7 @@ from app.features.configuration import (
 )
 from app.interfaces.cli.provider_commands import remove_provider
 from app.interfaces.cli.provider_projection import connections, products
-from infrastructure.platform.terminal_menu import MenuItem, TerminalMenu
+from app.interfaces.cli.tui.menu import MenuItem, TerminalMenuPort
 
 ProviderLogin = Callable[[str], None]
 
@@ -23,9 +23,9 @@ def config_providers(
     providers: ProvidersService,
     principal: AccountPrincipal,
     provider_login: ProviderLogin,
+    menu: TerminalMenuPort,
 ) -> None:
     """Preserve the existing Provider Config flow over the public Facade."""
-    menu = TerminalMenu(input_fn=input, output_fn=print)
     while True:
         configured = tuple(
             item for item in connections(providers, principal) if not item.archived
@@ -63,6 +63,7 @@ def config_providers(
                 principal,
                 connection_by_key[choice],
                 provider_login,
+                menu,
             )
 
 
@@ -71,8 +72,8 @@ def _provider_detail_menu(
     principal: AccountPrincipal,
     connection: ProviderConnectionResult,
     provider_login: ProviderLogin,
+    menu: TerminalMenuPort,
 ) -> None:
-    menu = TerminalMenu(input_fn=input, output_fn=print)
     while True:
         current = next(
             (

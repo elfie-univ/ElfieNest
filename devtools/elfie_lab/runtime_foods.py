@@ -9,7 +9,7 @@ from typing import Any, Dict
 from elfie.brain.food_port import FoodCatalog, FoodPort
 from infrastructure.models.providers.ollama import OllamaManager
 from infrastructure.persistence.food import SQLiteFoodAdapter
-from infrastructure.persistence.store import init_db
+from infrastructure.persistence.nest_db.store import init_db
 
 
 def runtime_food_catalog_store(config_store: Any) -> FoodPort:

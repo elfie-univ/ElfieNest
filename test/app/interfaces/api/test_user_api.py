@@ -6,13 +6,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.bootstrap import create_app
-from infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.nest_db.store import get_db, init_db
 
 from ._helpers import adopt_test_elfie, create_test_owner
 
@@ -33,12 +32,7 @@ def app(db_path: str, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("ELFIE_HOME", str(Path(db_path).parent))
     create_test_owner(db_path)
 
-    with (
-        patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
-        patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-    ):
-        application = create_app(engine=None, db_path=db_path, ws_port=9876)
-        yield application
+    yield create_app(engine=None, db_path=db_path)
 
 
 @pytest.fixture

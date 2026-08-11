@@ -159,7 +159,7 @@ def wait_for_server(url: str, timeout: float = 15.0) -> bool:
 
 
 def main() -> None:
-    port, ws_port, godot_ws_port = find_distinct_free_ports(3)
+    port, godot_ws_port = find_distinct_free_ports(2)
     base_url = f"http://127.0.0.1:{port}"
     data_home = tempfile.mkdtemp(prefix="elfienest-e2e-")
     owner_password = os.environ.get(
@@ -170,7 +170,6 @@ def main() -> None:
     print("  ElfieNest management dashboard E2E verification")
     print("=" * 60)
     print(f"  HTTP port: {port}")
-    print(f"  Management WS port: {ws_port}")
     print(f"  Godot WS port: {godot_ws_port}")
     print()
 
@@ -182,8 +181,6 @@ def main() -> None:
             "--fallback",
             "--port",
             str(port),
-            "--ws-port",
-            str(ws_port),
             "--godot-ws-port",
             str(godot_ws_port),
         ],

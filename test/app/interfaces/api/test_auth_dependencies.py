@@ -8,7 +8,7 @@ from app.interfaces.api.v1.admin.nest import routes as nest_routes
 from app.interfaces.api.v1.auth import get_current_user, require_user
 from app.interfaces.api.v1.elfies.food_policy import routes as food_policy_routes
 from app.interfaces.api.v1.me.adoption import routes as adoption_routes
-from infrastructure.persistence.store import init_db
+from infrastructure.persistence.nest_db.store import init_db
 from test.app.interfaces.api._helpers import create_test_owner
 
 

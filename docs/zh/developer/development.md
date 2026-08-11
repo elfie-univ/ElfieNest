@@ -82,7 +82,7 @@ pre-commit 与 CI 还会运行 Gitleaks。不要用 `--no-verify` 绕过密钥�
 - Runtime Lab 检查 Provider、模型配置和连接，不监听端口。
 
 默认端口只是本地开发值。不要把实验台接入普通用户导航，也不要让它们使用默认
-生产数据。正式 App 使用 `8000` / `8765` / `8766`，Elfie Lab 使用 `9001`，Nest Lab
+生产数据。正式 App 使用 `8000` / `8765`，Elfie Lab 使用 `9001`，Nest Lab
 使用 `9002` / `9003`。默认启动同一 Lab 会安全重启当前工作区的旧实例；显式端口用于并行
 实验，不会终止既有实例。详细边界见
 [Devtools README](https://github.com/elfie-univ/ElfieNest/blob/main/devtools/README.md)。

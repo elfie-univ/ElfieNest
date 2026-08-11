@@ -7,16 +7,16 @@ from scripts.serve import remaining_occupied_ports
 
 def test_force_cleanup_reports_ports_still_occupied() -> None:
     # Given
-    occupied = ((8000, "HTTP"), (8766, "WebSocket"), (8765, "Godot WebSocket"))
+    occupied = ((8000, "HTTP"), (8765, "Godot WebSocket"))
 
     # When
     remaining = remaining_occupied_ports(
         occupied,
-        lambda port: port in {8766, 8765},
+        lambda port: port == 8765,
     )
 
     # Then
-    assert remaining == [(8766, "WebSocket"), (8765, "Godot WebSocket")]
+    assert remaining == [(8765, "Godot WebSocket")]
 
 
 def test_python_core_does_not_start_godot_processes() -> None:
@@ -37,7 +37,7 @@ def test_serve_main_does_not_rebind_nest_repository_inside_worker() -> None:
     )
 
     # When / Then
-    assert "from app.bootstrap.nest_session import (" in source
+    assert "from app.bootstrap.system_wiring.nest_session import (" in source
     assert "build_nest_session_services," in source
     assert "SQLiteNestStateRepository" not in source
     assert "engine.session.attach_repository" not in source

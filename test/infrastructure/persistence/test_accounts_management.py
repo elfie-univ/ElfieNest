@@ -12,7 +12,7 @@ from app.features.accounts import (
     verify_password,
 )
 from infrastructure.persistence.accounts import SQLiteAccountsAdapter
-from infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.nest_db.store import get_db, init_db
 
 
 def _seed_accounts(db_path: str) -> tuple[int, int]:

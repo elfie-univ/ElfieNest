@@ -13,16 +13,24 @@ from infrastructure.models.providers.profiles import (
     get_default_api_mode,
     get_product,
 )
-from infrastructure.persistence.config_store import ConfigStoreError, read_yaml_mapping
-from infrastructure.persistence.data_home import get_env_path, get_provider_config_path
-from infrastructure.persistence.provider_connections import ProviderConnectionStore
-from infrastructure.persistence.runtime_settings import read_runtime_settings
-from infrastructure.persistence.secrets import (
+from infrastructure.persistence.configuration.config_store import (
+    ConfigStoreError,
+    read_yaml_mapping,
+)
+from infrastructure.persistence.configuration.runtime_settings import (
+    read_runtime_settings,
+)
+from infrastructure.persistence.configuration.secrets import (
     connection_secret_name,
     provider_secret_name,
     read_secrets,
     resolve_secret,
 )
+from infrastructure.persistence.layout.data_home import (
+    get_env_path,
+    get_provider_config_path,
+)
+from infrastructure.persistence.provider_connections import ProviderConnectionStore
 
 
 def _load_env_file_values(env_path: Path | None = None) -> Dict[str, str]:

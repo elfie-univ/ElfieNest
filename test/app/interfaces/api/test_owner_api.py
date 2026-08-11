@@ -6,13 +6,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.bootstrap import create_app
-from infrastructure.persistence.store import get_db, init_db, verify_password
+from infrastructure.persistence.nest_db.store import get_db, init_db, verify_password
 
 from ._helpers import create_test_owner, create_test_user
 
@@ -33,12 +32,7 @@ def app(db_path: str):
     init_db(db_path)
     create_test_owner(db_path)
 
-    with (
-        patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
-        patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
-    ):
-        application = create_app(engine=None, db_path=db_path, ws_port=9876)
-        yield application
+    yield create_app(engine=None, db_path=db_path)
 
 
 @pytest.fixture
@@ -343,7 +337,7 @@ class TestUserCRUD:
         alice_id = resp.json()["user_id"]
 
         # 手动插入精灵
-        from infrastructure.persistence.store import get_db
+        from infrastructure.persistence.nest_db.store import get_db
 
         with get_db(db_path) as conn:
             conn.execute(

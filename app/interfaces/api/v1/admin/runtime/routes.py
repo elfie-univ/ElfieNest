@@ -16,7 +16,7 @@ from app.features.operations import (
     OperationsUnavailable,
     RuntimeEventResult,
 )
-from app.interfaces.api.service_access import ServiceAccessPolicy
+from app.interfaces.api.service_access import MobileAccessProjection
 from app.interfaces.api.v1.auth import require_manager, require_user
 
 from .models import (
@@ -83,8 +83,8 @@ def get_mobile_access(
 ) -> Union[MobileAccessResponse, JSONResponse]:
     """Return reachable LAN roots from the active Core bind policy."""
     _ = principal
-    policy = getattr(request.app.state, "service_access_policy", None)
-    if not isinstance(policy, ServiceAccessPolicy):
+    projection = getattr(request.app.state, "mobile_access", None)
+    if not isinstance(projection, MobileAccessProjection):
         body = RuntimeErrorResponse(
             error=RuntimeErrorItem(
                 code="mobile_access_unavailable",
@@ -93,7 +93,7 @@ def get_mobile_access(
             )
         )
         return JSONResponse(status_code=503, content=body.model_dump(mode="json"))
-    urls = policy.mobile_access_urls
+    urls = projection.mobile_access_urls
     return MobileAccessResponse(available=bool(urls), urls=urls)
 
 

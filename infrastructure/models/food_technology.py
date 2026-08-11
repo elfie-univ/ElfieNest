@@ -37,8 +37,8 @@ from infrastructure.persistence.provider_connections import (
     ProviderConnectionStoreError,
     ProviderModelRecord,
 )
-from infrastructure.persistence.report_records import ValidationObservation
-from infrastructure.persistence.report_repository import ReportRepository
+from infrastructure.persistence.reports.report_records import ValidationObservation
+from infrastructure.persistence.reports.report_repository import ReportRepository
 
 FOOD_CATALOG_VERSION = 1
 FOOD_EMERGENCY_ID = "food_emergency"

@@ -8,7 +8,7 @@ from typing import Optional, Union
 
 import pytest
 
-from app.bootstrap.lifecycle import create_lifecycle_facade
+from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.interfaces.cli import foreground_runtime, lifecycle_commands
 from app.orchestration.lifecycle.runtime_health import (
     RuntimeHealth,

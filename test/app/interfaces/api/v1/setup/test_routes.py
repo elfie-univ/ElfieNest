@@ -18,8 +18,8 @@ from app.orchestration.setup_installation import (
     SetupInstallationService,
 )
 from infrastructure.models.setup_catalog import ProviderSetupCatalogAdapter
+from infrastructure.persistence.nest_db.store import init_db
 from infrastructure.persistence.setup import SQLiteSetupAdapter
-from infrastructure.persistence.store import init_db
 
 
 class ReadOnlySetupTechnology:

@@ -5,6 +5,7 @@ import builtins
 import pytest
 from _pytest.capture import CaptureFixture
 
+from app.bootstrap.app_wiring.cli_ui import build_terminal_menu
 from app.features.configuration import (
     GetElfieSettingsQuery,
     GetRuntimeSettingsQuery,
@@ -43,6 +44,7 @@ def _run_config_tui(runtime_menus: FakeRuntimeMenus) -> None:
         manager_principal(),
         lambda _provider_id: None,
         runtime_menus,
+        build_terminal_menu(),
     )
 
 
@@ -152,7 +154,7 @@ def test_security_editor_writes_typed_security_settings(
     principal = manager_principal()
     _patch_input(monkeypatch, ["1", "14", "2", "8", "3", "600", "0"])
 
-    config_editors.config_security(settings, principal)
+    config_editors.config_security(settings, principal, build_terminal_menu())
 
     security = settings.get_security_settings(principal, GetSecuritySettingsQuery())
     assert security.session_ttl_days == 14
@@ -167,7 +169,7 @@ def test_adoption_editor_uses_typed_settings_facade(
     principal = manager_principal()
     _patch_input(monkeypatch, ["1", "5", "0"])
 
-    config_editors.config_adoption(settings, principal)
+    config_editors.config_adoption(settings, principal, build_terminal_menu())
 
     adoption = settings.get_elfie_settings(principal, GetElfieSettingsQuery())
     assert adoption.max_elfies_per_user == 5
@@ -203,6 +205,7 @@ def test_config_providers_dispatches_provider_login(
         FakeProvidersService(),
         manager_principal(),
         selected_provider_ids.append,
+        build_terminal_menu(),
     )
 
     assert selected_provider_ids == ["openai"]
@@ -218,6 +221,7 @@ def test_config_providers_reads_model_overview_through_facade(
         FakeProvidersService(),
         manager_principal(),
         lambda _provider_id: None,
+        build_terminal_menu(),
     )
 
     assert "No configured models" in capsys.readouterr().out
@@ -234,6 +238,7 @@ def test_config_providers_keeps_custom_openai_choice_last(
         providers,
         manager_principal(),
         selected_provider_ids.append,
+        build_terminal_menu(),
     )
 
     assert selected_provider_ids == ["custom_openai"]
@@ -251,6 +256,7 @@ def test_config_providers_displays_custom_provider_name(
         providers,
         manager_principal(),
         lambda _provider_id: None,
+        build_terminal_menu(),
     )
 
     output = capsys.readouterr().out
@@ -271,6 +277,7 @@ def test_config_providers_tests_custom_provider_with_custom_name(
         providers,
         manager_principal(),
         lambda _provider_id: None,
+        build_terminal_menu(),
     )
 
     assert "❌ My Proxy: HTTP 400" in capsys.readouterr().out
@@ -287,6 +294,7 @@ def test_config_providers_deletes_connection_through_facade(
         providers,
         manager_principal(),
         lambda _provider_id: None,
+        build_terminal_menu(),
     )
 
     assert providers.connections == []

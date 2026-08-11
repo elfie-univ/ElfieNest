@@ -6,13 +6,13 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Callable, Optional
 
-from infrastructure.persistence.provider_connection_records import ProviderConnection
-from infrastructure.persistence.provider_connections import ProviderConnectionStore
-from infrastructure.persistence.secrets import (
+from infrastructure.persistence.configuration.secrets import (
     connection_secret_name,
     read_secrets,
     set_connection_secret,
 )
+from infrastructure.persistence.provider_connection_records import ProviderConnection
+from infrastructure.persistence.provider_connections import ProviderConnectionStore
 
 SecretWriter = Callable[[str, str, Optional[Path]], str]
 

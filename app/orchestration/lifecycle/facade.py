@@ -12,8 +12,12 @@ from app.orchestration.lifecycle.ports import (
     AuthorityHostConfig,
     AuthorityHostFactory,
     DesktopHostPort,
+    DoctorPort,
+    DoctorRepairResult,
+    DoctorValidationResult,
     HttpProbePort,
     HttpProbeResult,
+    LifecycleDataHomePort,
     LifecycleLease,
     LocalProcessEntry,
     OptionalRuntimeComponentPort,
@@ -23,6 +27,8 @@ from app.orchestration.lifecycle.ports import (
     RuntimeRecordFactory,
     ServicePortStatus,
     ServiceProcessPort,
+    UninstallPort,
+    UninstallState,
 )
 from app.orchestration.lifecycle.runtime_health import RuntimeHealth
 from app.orchestration.lifecycle.runtime_supervisor import (
@@ -62,6 +68,9 @@ class LifecycleFacade:
         runtime_record_factory: RuntimeRecordFactory,
         authority_host_factory: AuthorityHostFactory,
         optional_component: Optional[OptionalRuntimeComponentPort] = None,
+        data_home: Optional[LifecycleDataHomePort] = None,
+        doctor: Optional[DoctorPort] = None,
+        uninstall: Optional[UninstallPort] = None,
     ) -> None:
         self._process_port = process_port
         self._recovery_lock = recovery_lock
@@ -70,6 +79,66 @@ class LifecycleFacade:
         self._runtime_record_factory = runtime_record_factory
         self._authority_host_factory = authority_host_factory
         self._optional_component = optional_component
+        self._data_home = data_home
+        self._doctor = doctor
+        self._uninstall = uninstall
+
+    def repair_local_state(self) -> DoctorRepairResult:
+        if self._doctor is None:
+            raise RuntimeError("Doctor adapter is unavailable")
+        return self._doctor.repair_local_state()
+
+    def run_offline_validation(self) -> DoctorValidationResult:
+        if self._doctor is None:
+            raise RuntimeError("Doctor adapter is unavailable")
+        return self._doctor.run_offline_validation()
+
+    def uninstall_state(self) -> UninstallState:
+        if self._uninstall is None:
+            raise RuntimeError("Uninstall adapter is unavailable")
+        return self._uninstall.state()
+
+    def delete_local_config(self) -> bool:
+        if self._uninstall is None:
+            raise RuntimeError("Uninstall adapter is unavailable")
+        return self._uninstall.delete_config()
+
+    def delete_all_local_data(self) -> None:
+        if self._uninstall is None:
+            raise RuntimeError("Uninstall adapter is unavailable")
+        self._uninstall.delete_all()
+
+    def select_data_home(
+        self,
+        explicit_home: Optional[str],
+        *,
+        project_root: Path,
+        runtime_mode: str,
+        use_remembered: bool = False,
+    ) -> Path:
+        if self._data_home is None:
+            raise RuntimeError("Lifecycle data-home adapter is unavailable")
+        return self._data_home.select(
+            explicit_home,
+            project_root=project_root,
+            runtime_mode=runtime_mode,
+            use_remembered=use_remembered,
+        )
+
+    def remember_data_home(
+        self,
+        selected_home: Path,
+        *,
+        project_root: Path,
+        runtime_mode: str,
+    ) -> None:
+        if self._data_home is None:
+            raise RuntimeError("Lifecycle data-home adapter is unavailable")
+        self._data_home.remember(
+            selected_home,
+            project_root=project_root,
+            runtime_mode=runtime_mode,
+        )
 
     def optional_component_ready(self) -> bool:
         """Project optional Runtime readiness without exposing its technology."""
@@ -196,12 +265,11 @@ class LifecycleFacade:
         return self._process_port.ports_in_use(ports)
 
     def default_port_statuses(self) -> tuple[ServicePortStatus, ...]:
-        return self.service_port_statuses(8000, 8766)
+        return self.service_port_statuses(8000)
 
     def service_port_statuses(
         self,
         http_port: int,
-        websocket_port: int,
         godot_ws_port: int = 8765,
     ) -> tuple[ServicePortStatus, ...]:
         return tuple(
@@ -212,7 +280,6 @@ class LifecycleFacade:
             )
             for port, name in (
                 (http_port, "HTTP"),
-                (websocket_port, "WebSocket (admin)"),
                 (godot_ws_port, "WebSocket (Godot)"),
             )
         )

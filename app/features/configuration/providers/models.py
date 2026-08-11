@@ -70,6 +70,17 @@ class InspectLocalProviderQuery:
 
 
 @dataclass(frozen=True)
+class EnsureDefaultLocalProviderConnectionCommand:
+    pass
+
+
+@dataclass(frozen=True)
+class DefaultLocalProviderConnectionResult:
+    catalog_id: str
+    ensured: bool
+
+
+@dataclass(frozen=True)
 class InstallLocalProviderCommand:
     confirmed: bool
 

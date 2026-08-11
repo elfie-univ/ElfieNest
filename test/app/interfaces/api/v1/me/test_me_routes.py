@@ -14,7 +14,7 @@ from app.features.accounts import (
 from app.interfaces.api.v1.auth import require_user
 from app.interfaces.api.v1.me import router
 from infrastructure.persistence.accounts import SQLiteAccountsAdapter
-from infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.nest_db.store import get_db, init_db
 
 
 class QuotaPolicy:

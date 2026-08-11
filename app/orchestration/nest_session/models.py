@@ -5,11 +5,26 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum, unique
-from typing import Literal, Union
+from typing import Literal, Optional, Union
 
-from pydantic import JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 Appearance = Mapping[str, JsonValue]
+
+
+class ObserverSemanticEntity(BaseModel):
+    """Geometry-free Nest facts exposed to the Observer adapter."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    room_id: str = Field(default="local-nest", min_length=1)
+    zone_id: Optional[str] = None
+    posture: str = Field(default="standing", min_length=1)
+    active: bool = True
+    active_command_id: Optional[str] = None
+    species_id: Optional[str] = None
+    appearance: dict[str, JsonValue] = Field(default_factory=dict)
+    home_anchor_id: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -171,6 +186,7 @@ __all__ = (
     "Appearance",
     "IntentProgress",
     "IntentTerminal",
+    "ObserverSemanticEntity",
     "RuntimeActor",
     "RuntimeConnection",
     "RuntimeFailure",

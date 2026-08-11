@@ -38,6 +38,16 @@ class CreateFirstOwnerCommand:
 
 
 @dataclass(frozen=True)
+class SeedInitialOwnerCommand:
+    pass
+
+
+@dataclass(frozen=True)
+class SeedInitialOwnerResult:
+    created: bool
+
+
+@dataclass(frozen=True)
 class AuthenticatedSession:
     principal: AccountPrincipal
     display_name: str | None
@@ -263,6 +273,8 @@ __all__ = (
     "RecordAccountHeartbeatCommand",
     "ResetManagedAccountPasswordCommand",
     "SecurityPolicy",
+    "SeedInitialOwnerCommand",
+    "SeedInitialOwnerResult",
     "TemporaryPasswordResult",
     "ThemeKey",
     "UpdateAccountProfileCommand",

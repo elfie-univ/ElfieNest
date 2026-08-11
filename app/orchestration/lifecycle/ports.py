@@ -45,6 +45,24 @@ class HttpProbeResult:
 
 
 @dataclass(frozen=True)
+class DoctorRepairResult:
+    repaired: Tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class DoctorValidationResult:
+    passed: bool
+
+
+@dataclass(frozen=True)
+class UninstallState:
+    data_home: Path
+    home_exists: bool
+    config_exists: bool
+    env_exists: bool
+
+
+@dataclass(frozen=True)
 class ServicePortStatus:
     """One user-visible loopback service-port observation."""
 
@@ -163,6 +181,41 @@ class RecoveryLockPort(Protocol):
 
     def owner_recovery(self, elfie_home: Path) -> ContextManager[None]:
         """Hold the exclusive Owner recovery lock for one workflow."""
+
+
+class LifecycleDataHomePort(Protocol):
+    """Resolve and remember the selected production data root."""
+
+    def select(
+        self,
+        explicit_home: Optional[str],
+        *,
+        project_root: Path,
+        runtime_mode: str,
+        use_remembered: bool,
+    ) -> Path: ...
+
+    def remember(
+        self,
+        selected_home: Path,
+        *,
+        project_root: Path,
+        runtime_mode: str,
+    ) -> None: ...
+
+
+class DoctorPort(Protocol):
+    def repair_local_state(self) -> DoctorRepairResult: ...
+
+    def run_offline_validation(self) -> DoctorValidationResult: ...
+
+
+class UninstallPort(Protocol):
+    def state(self) -> UninstallState: ...
+
+    def delete_config(self) -> bool: ...
+
+    def delete_all(self) -> None: ...
 
 
 class DesktopProcess(AuthorityProcess, Protocol):

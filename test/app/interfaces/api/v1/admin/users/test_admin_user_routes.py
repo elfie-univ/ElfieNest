@@ -9,7 +9,7 @@ from app.features.accounts import AccountPrincipal, AccountsService, hash_passwo
 from app.interfaces.api.v1.admin.users import router
 from app.interfaces.api.v1.auth import require_user
 from infrastructure.persistence.accounts import SQLiteAccountsAdapter
-from infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.nest_db.store import get_db, init_db
 
 
 class QuotaPolicy:

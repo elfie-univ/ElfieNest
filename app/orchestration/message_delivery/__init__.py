@@ -11,7 +11,7 @@ from .models import (
     SubmittedMessageResult,
     SubmitUserMessageCommand,
 )
-from .owner_channel import GodotOwnerChannel
+from .owner_channel import GodotOwnerChannel, MessageDeliveryOwnerBroadcaster
 from .owner_envelope import deliver_owner_message
 from .port_models import (
     DeliveryAdmission,
@@ -38,6 +38,7 @@ __all__ = (
     "GodotOwnerChannel",
     "MessageDeliveryError",
     "MessageDeliveryFacade",
+    "MessageDeliveryOwnerBroadcaster",
     "MessageDeliveryPortError",
     "MessageDeliveryUnavailable",
     "MessageRejected",

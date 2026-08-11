@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Any, Literal, Union
+from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
-from elfie.body.contracts import BodySensorEvent, CommandReceipt
+from elfie.body.contracts import BodyCommand, BodySensorEvent, CommandReceipt
 
 
 class StrictFrame(BaseModel):
@@ -50,27 +50,84 @@ BodyProtocolFrame = Annotated[
 BODY_FRAME_ADAPTER: TypeAdapter[BodyProtocolFrame] = TypeAdapter(BodyProtocolFrame)
 
 
-class BodyServerFrame(StrictFrame):
+class BodyServerFrameBase(StrictFrame):
     protocol_version: Literal["1"] = "1"
     event_id: str
     occurred_at: datetime
-    event: Literal[
-        "ready",
-        "heartbeat",
-        "sensor_event",
-        "receipt",
-        "commands",
-        "error",
-    ]
-    payload: dict[str, Any]
+
+
+class BodyIdentityPayload(StrictFrame):
+    body_id: str
+
+
+class BodyDeliveryPayload(StrictFrame):
+    delivered: bool
+
+
+class BodyCommandsPayload(StrictFrame):
+    commands: list[BodyCommand]
+
+
+class BodyErrorPayload(StrictFrame):
+    code: Literal["invalid_body_frame", "body_identity_mismatch"]
+
+
+class BodyReadyServerFrame(BodyServerFrameBase):
+    event: Literal["ready"] = "ready"
+    payload: BodyIdentityPayload
+
+
+class BodyHeartbeatServerFrame(BodyServerFrameBase):
+    event: Literal["heartbeat"] = "heartbeat"
+    payload: BodyIdentityPayload
+
+
+class BodySensorServerFrame(BodyServerFrameBase):
+    event: Literal["sensor_event"] = "sensor_event"
+    payload: BodyDeliveryPayload
+
+
+class BodyReceiptServerFrame(BodyServerFrameBase):
+    event: Literal["receipt"] = "receipt"
+    payload: BodyDeliveryPayload
+
+
+class BodyCommandsServerFrame(BodyServerFrameBase):
+    event: Literal["commands"] = "commands"
+    payload: BodyCommandsPayload
+
+
+class BodyErrorServerFrame(BodyServerFrameBase):
+    event: Literal["error"] = "error"
+    payload: BodyErrorPayload
+
+
+BodyServerFrame = Union[
+    BodyReadyServerFrame,
+    BodyHeartbeatServerFrame,
+    BodySensorServerFrame,
+    BodyReceiptServerFrame,
+    BodyCommandsServerFrame,
+    BodyErrorServerFrame,
+]
 
 
 __all__ = (
     "BODY_FRAME_ADAPTER",
     "BodyCommandPollFrame",
+    "BodyCommandsPayload",
+    "BodyCommandsServerFrame",
+    "BodyDeliveryPayload",
+    "BodyErrorPayload",
+    "BodyErrorServerFrame",
     "BodyHeartbeatFrame",
+    "BodyHeartbeatServerFrame",
+    "BodyIdentityPayload",
     "BodyProtocolFrame",
     "BodyReceiptFrame",
+    "BodyReceiptServerFrame",
+    "BodyReadyServerFrame",
     "BodySensorFrame",
+    "BodySensorServerFrame",
     "BodyServerFrame",
 )

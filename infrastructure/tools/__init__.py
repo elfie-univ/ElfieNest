@@ -3,22 +3,22 @@
 from .capability_configuration import RuntimeCapabilitiesAdapter
 from .capability_secrets import ToolCapabilitySecretAdapter
 from .capability_validation import DirectCapabilityValidationAdapter
-from .config import (
+from .execution.config import (
     SAFE_TOOL_KEYS,
     TOOL_KEYS,
     effective_tool_keys,
     enabled_tool_keys,
     load_tool_configs,
 )
-from .executor import ToolExecutionContext, ToolExecutor, ToolResult
-from .loop import RuntimeToolLoop, ToolLoopContext
-from .observation import (
+from .execution.executor import ToolExecutionContext, ToolExecutor, ToolResult
+from .execution.loop import RuntimeToolLoop, ToolLoopContext
+from .execution.observation import (
     PermissionDecisionObservation,
     ToolCallObservation,
     ToolObservationPort,
 )
-from .permissions import PermissionDeniedError, PermissionManager
-from .skills_prompt import inject_skills_system_prompt
+from .execution.permissions import PermissionDeniedError, PermissionManager
+from .execution.skills_prompt import inject_skills_system_prompt
 
 __all__ = (
     "DirectCapabilityValidationAdapter",

@@ -11,7 +11,7 @@ Startup flow:
 Command-line arguments:
     --fallback      Use built-in dialogue engine (no Ollama connection)
     --port          HTTP port (default 8000)
-    --ws-port       Auth WebSocket port (default 8766)
+    --godot-ws-port Godot WebSocket port (default 8765)
     --no-seed-elfie Do not auto-seed initial Elfie
     --force         Force restart (kill processes occupying ports)
 
@@ -40,14 +40,23 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 logging.basicConfig(level=logging.WARNING, format="%(message)s")
 
 from app.bootstrap import create_app
-from app.bootstrap.adoption import seed_single_elfie
-from app.bootstrap.lifecycle import create_lifecycle_facade
-from app.bootstrap.nest_session import (
+from app.bootstrap.app_wiring.accounts import build_accounts_service
+from app.bootstrap.app_wiring.adoption import seed_single_elfie
+from app.bootstrap.app_wiring.storage import ensure_application_storage
+from app.bootstrap.runtime import build_runtime_services
+from app.bootstrap.system_wiring.entrypoints import (
+    DataHomeSelectionError,
+    get_db_path,
+    get_elfie_home,
+    inspect_godot_web_bundle,
+    select_elfie_home,
+)
+from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
+from app.bootstrap.system_wiring.nest_session import (
     build_nest_session_services,
     restore_registered_elfies,
 )
-from app.bootstrap.runtime import build_runtime_services
-from app.bootstrap.storage import initialize_service_storage
+from app.features.accounts import SeedInitialOwnerCommand
 from app.interfaces.api.service_access import ServiceMode
 from app.interfaces.cli.lifecycle_commands import _remember_lifecycle_data_home
 from app.interfaces.web.frontend_build import (
@@ -56,18 +65,10 @@ from app.interfaces.web.frontend_build import (
 )
 from app.orchestration.lifecycle import (
     DEFAULT_GODOT_WS_PORT,
-    DEFAULT_MANAGEMENT_WS_PORT,
     MANAGED_START_ENV,
     RecoveryInProgressError,
     command_runs_service,
     validate_service_ports,
-)
-from infrastructure.godot.gateway.bundle import inspect_godot_web_bundle
-from infrastructure.persistence.data_home import (
-    DataHomeSelectionError,
-    get_db_path,
-    get_elfie_home,
-    select_elfie_home,
 )
 
 
@@ -131,12 +132,6 @@ def main():
         help="HTTP port (default 8000)",
     )
     parser.add_argument(
-        "--ws-port",
-        type=int,
-        default=DEFAULT_MANAGEMENT_WS_PORT,
-        help="Auth WebSocket port (default 8766)",
-    )
-    parser.add_argument(
         "--godot-ws-port",
         type=int,
         default=DEFAULT_GODOT_WS_PORT,
@@ -182,7 +177,6 @@ def main():
 
     port_error = validate_service_ports(
         args.port,
-        args.ws_port,
         args.godot_ws_port,
     )
     if port_error:
@@ -257,7 +251,6 @@ def main():
 
     ports_to_check = [
         (args.port, "HTTP"),
-        (args.ws_port, "WebSocket"),
         (args.godot_ws_port, "Godot WebSocket"),
     ]
 
@@ -305,14 +298,14 @@ def main():
             print("        elfienest --force")
             print("     2. Manually close and retry")
             print("     3. Use different ports:")
-            print("        ./elfienest.sh --port 8001 --ws-port 8866")
+            print("        ./elfienest.sh --port 8001 --godot-ws-port 8866")
             print("=" * 56 + "\n")
             start_lease.release()
             sys.exit(1)
 
     try:
         lifecycle.register_current_service(get_elfie_home())
-        _remember_lifecycle_data_home(get_elfie_home())
+        _remember_lifecycle_data_home(lifecycle, get_elfie_home())
     except OSError as error:
         start_lease.release()
         print(f"  ❌ Cannot register service process: {error}")
@@ -320,8 +313,9 @@ def main():
     start_lease.release()
     db_path = str(get_db_path())
 
-    # 1. Initialize the final database and seed Owner from environment.
-    initialize_service_storage(db_path)
+    # 1. Initialize the final database and invoke the explicit Owner seed use-case.
+    ensure_application_storage(db_path)
+    build_accounts_service(db_path).seed_initial_owner(SeedInitialOwnerCommand())
 
     # 2. Optionally seed the initial Owner Elfie (enabled by default).
     if not args.no_seed_elfie:
@@ -429,7 +423,6 @@ def main():
     print("  🦊 ElfieNest Embodied AI Creature Service")
     print("=" * 56)
     print(f"  🌐 HTTP:    http://127.0.0.1:{args.port}")
-    print(f"  🔌 WebSocket (admin): ws://127.0.0.1:{args.ws_port}")
     print(f"  🔌 WebSocket(Godot): ws://127.0.0.1:{args.godot_ws_port}")
     if loaded_elfies:
         names_str = ", ".join(e["name"] for e in loaded_elfies)
@@ -446,7 +439,6 @@ def main():
     app = create_app(
         engine=engine,
         db_path=db_path,
-        ws_port=args.ws_port,
         http_port=args.port,
         service_mode=ServiceMode.LAN.value if args.lan else ServiceMode.LOOPBACK.value,
     )

@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 
-from app.bootstrap import nest_session as nest_session_bootstrap
+from app.bootstrap.system_wiring import nest_session as nest_session_bootstrap
 
 
 class _FakeFactory:

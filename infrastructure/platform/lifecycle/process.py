@@ -18,10 +18,9 @@ from app.orchestration.lifecycle.ports import (
 )
 
 PID_FILENAME: Final = "elfienest.pid"
-DEFAULT_SERVICE_PORTS: Final[Tuple[int, ...]] = (8000, 8765, 8766)
+DEFAULT_SERVICE_PORTS: Final[Tuple[int, ...]] = (8000, 8765)
 DEFAULT_HTTP_PORT: Final = 8000
 DEFAULT_GODOT_WS_PORT: Final = 8765
-DEFAULT_MANAGEMENT_WS_PORT: Final = 8766
 INTERNAL_SERVICE_PORTS: Final[Tuple[int, ...]] = (8765,)
 
 
@@ -129,32 +128,26 @@ def http_port_from_command(command: Sequence[str]) -> int:
 
 
 def service_ports_from_command(command: Sequence[str]) -> Tuple[int, ...]:
-    """Return the HTTP, WebSocket, and fixed internal ports used by a service command."""
-    websocket_port = DEFAULT_MANAGEMENT_WS_PORT
+    """Return the HTTP and Godot WebSocket ports used by a service command."""
     godot_ws_port = DEFAULT_GODOT_WS_PORT
     for index, argument in enumerate(command):
-        if argument.startswith("--ws-port="):
-            websocket_port = int(argument.split("=", maxsplit=1)[1])
-        elif argument == "--ws-port" and index + 1 < len(command):
-            websocket_port = int(command[index + 1])
-        elif argument.startswith("--godot-ws-port="):
+        if argument.startswith("--godot-ws-port="):
             godot_ws_port = int(argument.split("=", maxsplit=1)[1])
         elif argument == "--godot-ws-port" and index + 1 < len(command):
             godot_ws_port = int(command[index + 1])
-    return (http_port_from_command(command), godot_ws_port, websocket_port)
+    return (http_port_from_command(command), godot_ws_port)
 
 
 def validate_service_ports(
     http_port: int,
-    websocket_port: int,
     godot_ws_port: int = DEFAULT_GODOT_WS_PORT,
 ) -> str | None:
     """Validate externally configurable and fixed service ports."""
-    ports = (http_port, websocket_port, godot_ws_port)
+    ports = (http_port, godot_ws_port)
     if any(port < 1 or port > 65535 for port in ports):
         return "Ports must be in the 1-65535 range"
     if len(set(ports)) != len(ports):
-        return "HTTP, management WebSocket, and Godot WebSocket ports must be distinct"
+        return "HTTP and Godot WebSocket ports must be distinct"
     return None
 
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.bootstrap.lifecycle import create_lifecycle_facade
+from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.interfaces.cli import lifecycle_commands
 from app.orchestration.lifecycle import ServicePortStatus
 from app.orchestration.lifecycle.ports import ProcessSnapshot
@@ -22,7 +22,11 @@ def test_status_marks_default_ports_as_external_when_pid_belongs_elsewhere(
     (elfie_home / PID_FILENAME).write_text("15727", encoding="utf-8")
     external_root = tmp_path / "other-checkout"
     external_root.mkdir()
-    monkeypatch.setattr(lifecycle_commands, "get_elfie_home", lambda: elfie_home)
+    monkeypatch.setattr(
+        LIFECYCLE,
+        "select_data_home",
+        lambda *_args, **_kwargs: elfie_home,
+    )
     monkeypatch.setattr(LIFECYCLE, "existing_service_command", lambda *args: None)
     monkeypatch.setattr(LIFECYCLE, "recorded_pid", lambda *_args: 15727)
     monkeypatch.setattr(LIFECYCLE, "process_exists", lambda pid: pid == 15727)

@@ -29,4 +29,10 @@ class SettingsStorePort(Protocol):
     def reset_settings(self) -> None: ...
 
 
-__all__ = ("SettingsStorePort",)
+class SecuritySettingsChangedPort(Protocol):
+    """Invalidate cached authentication policy after its source changes."""
+
+    def invalidate_security_cache(self) -> None: ...
+
+
+__all__ = ("SecuritySettingsChangedPort", "SettingsStorePort")

@@ -2,8 +2,9 @@
 
 from app.features.nest_management import NestPortError
 from app.orchestration.setup_installation import SetupInstallationPortError
-
-from .nest_management import SQLiteNestManagementAdapter
+from infrastructure.persistence.nest_db.nest_management import (
+    SQLiteNestManagementAdapter,
+)
 
 
 class SetupNestAdapter:

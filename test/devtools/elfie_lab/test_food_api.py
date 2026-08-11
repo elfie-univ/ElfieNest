@@ -5,7 +5,7 @@ from elfie.brain.food_port import FOOD_COMMON_ID, FOOD_EMERGENCY_ID
 from infrastructure.models.runtime_agent import RuntimeAgent
 from infrastructure.models.runtime_contracts import RuntimeResult
 from infrastructure.persistence.food import SQLiteFoodAdapter
-from infrastructure.persistence.store import init_db
+from infrastructure.persistence.nest_db.store import init_db
 
 
 def elfie_payload(name):

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.interfaces.cli import doctor_commands
+from app.orchestration.lifecycle import DoctorRepairResult, DoctorValidationResult
 
 
 def test_doctor_repair_creates_home_dirs_without_implicit_foods(
@@ -11,7 +13,7 @@ def test_doctor_repair_creates_home_dirs_without_implicit_foods(
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
 
     # When
-    report = doctor_commands.repair_local_runtime_state()
+    report = doctor_commands.repair_local_runtime_state(create_lifecycle_facade())
 
     # Then
     assert (tmp_path / "reports" / "runtime-validations").is_dir()
@@ -27,24 +29,18 @@ def test_doctor_runs_repair_before_offline_validation(
 ) -> None:
     # Given
     calls: list[str] = []
-    monkeypatch.setattr(
-        doctor_commands,
-        "repair_local_runtime_state",
-        lambda: calls.append("repair") or doctor_commands.DoctorRepairReport(()),
-    )
 
-    class FakeReport:
-        passed = True
+    class FakeLifecycle:
+        def repair_local_state(self) -> DoctorRepairResult:
+            calls.append("repair")
+            return DoctorRepairResult()
 
-    class FakeRuntimeLab:
-        def run_offline_validation(self):
+        def run_offline_validation(self) -> DoctorValidationResult:
             calls.append("validate")
-            return FakeReport()
-
-    monkeypatch.setattr(doctor_commands, "RuntimeLab", FakeRuntimeLab)
+            return DoctorValidationResult(passed=True)
 
     # When
-    exit_code = doctor_commands.run_doctor()
+    exit_code = doctor_commands.run_doctor(FakeLifecycle())  # type: ignore[arg-type]
 
     # Then
     output = capsys.readouterr().out

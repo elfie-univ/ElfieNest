@@ -2,37 +2,26 @@
 
 from __future__ import annotations
 
+import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Set, Tuple
 
-from app.orchestration.lifecycle import DEFAULT_SERVICE_PORTS, LifecycleFacade
-from infrastructure.persistence.data_home import (
-    ensure_elfie_home,
-    get_elfie_home,
-    get_logs_dir,
-    get_model_validation_dir,
-    get_runtime_locks_dir,
-    get_runtime_validation_dir,
+from app.orchestration.lifecycle import (
+    DEFAULT_SERVICE_PORTS,
+    DoctorRepairResult,
+    LifecycleFacade,
 )
-from infrastructure.platform.runtime_lab import RuntimeLab
 
 
-@dataclass(frozen=True)
-class DoctorRepairReport:
-    """Summary of local auto-repair actions."""
-
-    repaired: tuple[str, ...] = ()
-
-
-def run_doctor() -> int:
+def run_doctor(lifecycle: LifecycleFacade) -> int:
     """Run safe local repairs first, then offline runtime and config checks."""
     print("  🩺 Doctor diagnostics and auto-repair")
     print("  " + "=" * 45)
     print()
     try:
-        repairs = repair_local_runtime_state()
+        repairs = repair_local_runtime_state(lifecycle)
         if repairs.repaired:
             print("  🔧 Auto-repaired:")
             for item in repairs.repaired:
@@ -41,7 +30,7 @@ def run_doctor() -> int:
         else:
             print("  ✅ Local structure needs no repair")
             print()
-        report = RuntimeLab().run_offline_validation()
+        report = lifecycle.run_offline_validation()
     except (OSError, RuntimeError, ValueError) as error:
         print(f"  ❌ Doctor failed: {error}")
         return 1
@@ -53,26 +42,9 @@ def run_doctor() -> int:
     return 0 if report.passed else 1
 
 
-def repair_local_runtime_state() -> DoctorRepairReport:
+def repair_local_runtime_state(lifecycle: LifecycleFacade) -> DoctorRepairResult:
     """Repair local state that needs no network, keys, or user data deletion."""
-    repaired: list[str] = []
-    expected_dirs = (
-        get_elfie_home(),
-        get_elfie_home() / "assets",
-        get_elfie_home() / "assets" / "users",
-        get_elfie_home() / "configs",
-        get_elfie_home() / "elfies",
-        get_logs_dir(),
-        get_model_validation_dir(),
-        get_runtime_validation_dir(),
-        get_runtime_locks_dir(),
-    )
-    missing_dirs = [path for path in expected_dirs if not path.exists()]
-    ensure_elfie_home()
-    if missing_dirs:
-        repaired.append("Created missing ~/.elfienest data directories")
-
-    return DoctorRepairReport(tuple(repaired))
+    return lifecycle.repair_local_state()
 
 
 @dataclass(frozen=True)
@@ -218,7 +190,11 @@ def kill_processes_safely(
 def cleanup_pid_files(lifecycle: LifecycleFacade) -> Tuple[str, ...]:
     """Clean up stale PID files."""
     cleaned: list[str] = []
-    elfie_home = get_elfie_home()
+    elfie_home = lifecycle.select_data_home(
+        None,
+        project_root=Path(__file__).resolve().parents[3],
+        runtime_mode=os.environ.get("ELFIENEST_RUNTIME_MODE", "development"),
+    )
     pid_path = elfie_home / "elfienest.pid"
 
     if lifecycle.receipt_exists(elfie_home):
@@ -428,7 +404,7 @@ def run_doctor_with_port_fix(
 
     # Original doctor repairs
     try:
-        repairs = repair_local_runtime_state()
+        repairs = repair_local_runtime_state(lifecycle)
         if repairs.repaired:
             print("  🔧 Auto-repaired:")
             for item in repairs.repaired:
@@ -438,7 +414,7 @@ def run_doctor_with_port_fix(
             print("  ✅ Local structure needs no repair")
             print()
 
-        report = RuntimeLab().run_offline_validation()
+        report = lifecycle.run_offline_validation()
     except (OSError, RuntimeError, ValueError) as error:
         print(f"  ❌ Doctor failed: {error}")
         return 1

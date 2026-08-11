@@ -10,7 +10,7 @@ import yaml
 
 from infrastructure.models.providers.profiles import BUILTIN_PROFILES
 from infrastructure.models.runtime_config import LLMRuntimeConfig
-from infrastructure.persistence.data_home import get_elfie_developer_home
+from infrastructure.persistence.layout.data_home import get_elfie_developer_home
 
 SECRET_ENV_KEYS = {
     provider_id: profile.api_key_env_var

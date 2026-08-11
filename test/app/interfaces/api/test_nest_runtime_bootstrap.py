@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import inspect
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 
@@ -9,8 +9,8 @@ from app.bootstrap import create_app
 from app.interfaces.api import app as api_app
 from app.orchestration.nest_session import ElfieNestEngine
 from elfie import Elfie
-from infrastructure.persistence.nest_state import SQLiteNestStateAdapter
-from infrastructure.persistence.store import get_db, init_db
+from infrastructure.persistence.nest_db.nest_state import SQLiteNestStateAdapter
+from infrastructure.persistence.nest_db.store import get_db, init_db
 from test.app.orchestration.nest_session.fakes import FakeWorldRuntime
 
 
@@ -40,24 +40,14 @@ def test_application_lifespan_accepts_engine_with_registered_elfies(tmp_path) ->
         nest_repository=SQLiteNestStateAdapter(db_path),
     )
     engine.session.register_elfie("00000001", MagicMock(spec=Elfie))
-    application = create_app(engine=engine, db_path=db_path, ws_port=19876)
+    application = create_app(engine=engine, db_path=db_path)
 
     # When: the HTTP application's lifespan starts after the Elfie is loaded.
-    with (
-        patch(
-            "app.orchestration.lifecycle.LifecycleFacade.start_runtime_channel"
-        ) as start_channel,
-        patch(
-            "app.orchestration.lifecycle.LifecycleFacade.stop_runtime_channel"
-        ) as stop_channel,
-        TestClient(application) as client,
-    ):
+    with TestClient(application) as client:
         response = client.get("/api/health")
 
     # Then: startup succeeds instead of attempting to attach a second repository.
     assert response.status_code == 200
-    start_channel.assert_called_once_with(application.state.ws_manager)
-    stop_channel.assert_called_once_with(application.state.ws_manager)
 
 
 def test_interface_application_factory_has_no_concrete_startup_composition() -> None:

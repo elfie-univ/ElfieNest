@@ -11,6 +11,7 @@ from app.features.configuration import (
     ChangeProviderConnectionLifecycleCommand,
     CreateProviderConnectionCommand,
     DeleteProviderConnectionCommand,
+    EnsureDefaultLocalProviderConnectionCommand,
     ListProviderConnectionsQuery,
     ProviderModelInput,
     ProviderPortError,
@@ -253,6 +254,19 @@ def test_create_uses_catalog_defaults_and_exposes_only_credential_presence() -> 
     assert result.has_api_key is True
     assert "test-secret" not in repr(result)
     assert port.items[result.connection_id].credential_ref.startswith("ELFIE_PROVIDER_")
+
+
+def test_default_local_connection_is_an_explicit_provider_use_case() -> None:
+    service, port, _ = _service()
+    port.product = replace(port.product, catalog_id="ollama", name="Ollama")
+
+    result = service.ensure_default_local_connection(
+        EnsureDefaultLocalProviderConnectionCommand()
+    )
+
+    assert result.catalog_id == "ollama"
+    assert result.ensured is True
+    assert port.ensure_local_calls == 1
 
 
 def test_member_cannot_read_provider_administration() -> None:

@@ -14,7 +14,7 @@ from app.features.accounts import (
     LoginCommand,
     LoginRateLimited,
 )
-from app.orchestration.observer import ObserverFacade, session_token_fingerprint
+from app.orchestration.observer import SessionLogoutWorkflow
 
 from ...page_routes import post_login_landing_path
 from .dependencies import accounts_service, get_current_user
@@ -100,15 +100,13 @@ async def login(
 async def logout(
     request: Request,
     principal: AccountPrincipal = CurrentPrincipal,
-    service: AccountsService = AccountsDependency,
 ) -> JSONResponse:
     _ = principal
     token = request.cookies.get("session_token", "")
     if token:
-        observer = getattr(request.app.state, "observer", None)
-        if isinstance(observer, ObserverFacade):
-            observer.revoke_session(session_token_fingerprint(token))
-        service.logout(token)
+        workflow = request.app.state.session_logout
+        assert isinstance(workflow, SessionLogoutWorkflow)
+        workflow.logout(token)
     response = JSONResponse(content={"detail": "已登出"})
     response.delete_cookie(key="session_token")
     return response
