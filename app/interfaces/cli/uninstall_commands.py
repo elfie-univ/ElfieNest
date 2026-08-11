@@ -5,9 +5,9 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from ai_runtime.lab.menu import MenuItem, TerminalMenu
 from app.interfaces.cli.tui.common import clear_screen, print_banner, print_tui_panel
 from infrastructure.persistence.data_home import get_elfie_home
+from infrastructure.platform.terminal_menu import MenuItem, TerminalMenu
 
 
 def run_uninstall_menu() -> int:

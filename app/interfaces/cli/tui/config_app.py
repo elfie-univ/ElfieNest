@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import Callable, Optional, Protocol
 
-from ai_runtime.lab.menu import MenuItem, TerminalMenu
 from app.features.accounts import AccountPrincipal
 from app.features.configuration import ProvidersService, SettingsService
 from app.interfaces.cli.tui.common import clear_screen, print_banner, print_tui_panel
 from app.interfaces.cli.tui.config_views import reset_config, show_config
 from app.interfaces.cli.tui.provider_menu import config_providers
+from infrastructure.platform.terminal_menu import MenuItem, TerminalMenu
 
 ProviderLogin = Callable[[str], None]
 

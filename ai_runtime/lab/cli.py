@@ -15,7 +15,6 @@ from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.food.evidence import query_model_evidence, record_model_evidence
 from ai_runtime.food.planner import FoodPlanner, ModelEvidence
 from ai_runtime.food.store import FoodCatalog, FoodCatalogRepository
-from ai_runtime.lab.menu import MenuItem, TerminalMenu
 from ai_runtime.lab.provider_storage import (
     delete_provider_connection,
     save_provider_connection,
@@ -62,6 +61,7 @@ from infrastructure.persistence.secrets import (
     set_tool_secret,
 )
 from infrastructure.persistence.store import init_db
+from infrastructure.platform.terminal_menu import MenuItem, TerminalMenu
 from infrastructure.tools.direct_validation import DirectToolValidationRunner
 
 

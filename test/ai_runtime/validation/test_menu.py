@@ -1,4 +1,4 @@
-from ai_runtime.lab.menu import MenuItem, TerminalMenu
+from infrastructure.platform.terminal_menu import MenuItem, TerminalMenu
 
 
 def make_menu(keys, *, clipboard=""):

@@ -3,10 +3,10 @@ from __future__ import annotations
 import builtins
 from dataclasses import dataclass
 
-from ai_runtime.lab.menu import TerminalMenu
 from app.bootstrap.lifecycle import create_lifecycle_facade
 from app.features.accounts import GetOwnerAccountQuery, OwnerAccountResult
 from app.interfaces.cli import owner_commands
+from infrastructure.platform.terminal_menu import TerminalMenu
 
 LIFECYCLE = create_lifecycle_facade()
 
