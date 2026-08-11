@@ -1,5 +1,9 @@
 # 认知信息流
 
+> 本页说明当前可执行链路。所有权、Facade，以及目标 Food/模型/工具、Body、通信和
+> 持久化 Port 以 [Elfie 内部架构契约](../contracts/elfie)为规范；当前偏差见
+> [Elfie 一致性台账](../conformance/elfie)。
+
 Elfie 的输入和输出不是一段统一的聊天字符串，而是按身体、通信和内部执行分别路由
 的类型化事件。
 

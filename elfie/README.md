@@ -8,6 +8,13 @@
 brain, memory and homeostasis, a nervous system, a swappable body, digital
 communication and the skills usable during cognition.
 
+This page describes the current package. The normative migration target is the
+[Elfie internal architecture contract](../docs/developer/contracts/elfie.md);
+known implementation debt is tracked in
+[Elfie conformance](../docs/developer/conformance/elfie.md). In particular,
+technical body/channel/persistence implementations move to Infrastructure and
+Skills move under Brain without changing the macro system contract.
+
 ## Responsibilities and non-responsibilities
 
 Responsible for:
@@ -17,7 +24,9 @@ Responsible for:
 - The perceptual-frame → context → cortical decision → output routing →
   execution-receipt loop;
 - Emotion, energy, long-term memory and the Elfie's own clock;
-- Headless, Native and External bodies and their nervous-system boundaries;
+- Body identity, capabilities, typed commands/events, registry, binding and
+  nervous-system semantics; the current Headless, Native and External
+  implementations are migration paths rather than final technical ownership;
 - The Elfie's own digital message channel and its skill allowlist.
 
 Not responsible for:
@@ -43,10 +52,10 @@ elfie/
 ├── nervous_system/      # perception normalization, filtering, reflexes and physical output
 ├── body/                # Headless, Native, External swappable bodies
 ├── communication/       # digital message channel bypassing the NervousSystem
-└── skills/              # tool allowlist that may be passed to the Runtime
+└── skills/              # current skill location; target owner is brain/skills
 ```
 
-## Public entry points
+## Entry points
 
 - `elfie.Elfie` — facade and async lifecycle of a complete Elfie;
 - `elfie.ElfieFactory` — create an Elfie or restore it from a config directory;
@@ -56,6 +65,11 @@ elfie/
 - `elfie.brain.DecisionPlan` — the typed decision produced by the cortex;
 - `elfie.brain.output_router.OutputRouter` — routes a decision to body,
   communication or internal effectors.
+
+Only `elfie.Elfie` and `elfie.ElfieFactory` are stable production aggregate
+entry points. The deeper imports above describe current internal module APIs
+used by implementation and focused tests; App production code must not compose
+an Elfie by coordinating those mutable internals directly.
 
 The core loop is:
 

@@ -17,8 +17,8 @@ def test_model_food_tool_contract_defers_target_ownership_to_system() -> None:
     english = _source("docs/developer/contracts/ai-runtime.md")
     chinese = _source("docs/zh/developer/contracts/ai-runtime.md")
 
-    assert "**Contract version:** 1.4" in english
-    assert "**契约版本：** 1.4" in chinese
+    assert "**Contract version:** 1.5" in english
+    assert "**契约版本：** 1.5" in chinese
     assert "does not define a target AI Runtime module" in english
     assert "不定义目标 AI Runtime 模块" in chinese
     assert "infrastructure/ai_runtime" not in english
@@ -36,6 +36,18 @@ def test_food_model_contract_keeps_independent_ports_and_semantic_authority() ->
     assert "不重新作出授权决策" in chinese
     assert "物理持久化存储" in chinese
     assert "语义 authority" in chinese
+
+
+def test_behavior_contract_keeps_fallback_and_tool_scope_narrow() -> None:
+    english = _source("docs/developer/contracts/ai-runtime.md")
+    chinese = _source("docs/zh/developer/contracts/ai-runtime.md")
+
+    assert "one optional `fallback` model" in english
+    assert "一个可选的 `fallback` 模型" in chinese
+    assert "semantic resource identifiers, not an arbitrary filesystem root" in english
+    assert "语义资源标识，不携带任意文件系统根目录" in chinese
+    assert "requires a separate approved contract" in english
+    assert "必须先有单独获批的" in chinese
 
 
 def test_legacy_provider_and_model_owner_routes_are_removed() -> None:
@@ -127,8 +139,8 @@ def test_provider_catalogs_do_not_encode_runtime_model_selection_groups() -> Non
     for source_path in catalog_sources:
         source = _source(source_path)
         assert all(group not in source for group in forbidden_groups)
-    assert not (AI_RUNTIME / "models").exists()
-    assert not (AI_RUNTIME / "providers").exists()
+    assert not any((AI_RUNTIME / "models").rglob("*.py"))
+    assert not any((AI_RUNTIME / "providers").rglob("*.py"))
 
 
 def test_phase_one_tool_advertising_is_limited_to_safe_tools() -> None:

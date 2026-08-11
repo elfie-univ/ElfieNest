@@ -1,7 +1,7 @@
 # Model, Food and tool behavior contract
 
-**Contract version:** 1.4
-**Revised:** 2026-08-10
+**Contract version:** 1.5
+**Revised:** 2026-08-11
 
 > **Behavior authority during decomposition.** This document preserves the
 > accepted Provider, model, Food and tool behavior formerly implemented under
@@ -444,7 +444,7 @@ flowchart LR
   IR["Implemented safe-tool registry"] --> IX
   AL --> IX
   PM["Safety permissions"] --> IX
-  IX --> TL["Runtime tool loop"]
+  IX --> TL["ToolPort safety loop"]
   TL --> EX["Tool executor"]
   EX --> BD["Bounded result envelope"]
   BD --> TL
@@ -463,14 +463,19 @@ implemented. Disabled tools are not advertised to a model.
 There is one global tool configuration surface in phase one and no per-Elfie
 switch UI. The effective tool set is the intersection of globally enabled
 tools, the Elfie's internal skill request, the implemented safe-tool registry
-and a per-invocation safety permission decision. Skills live
-under `elfies/<elfie_id>/skills/`; shared tool implementations live in
-`infrastructure/tools/`. Tools never live in Food configuration.
+and a per-invocation safety permission decision. Skill source ownership targets
+`elfie/brain/skills/`; bundled declarations and in-memory policy require no
+writable store. Mutable Skill installation or durable per-Elfie Skill state is
+disabled and requires a separate approved contract before it gains any fact
+source. Shared tool implementations live in `infrastructure/tools/`. Tools never
+live in Food configuration.
 
-The injected Tool Adapter receives the current Elfie's authorized workspace
-root with each request. Read-only file access is confined to that workspace
-plus explicitly approved shared asset roots; it cannot read another Elfie's
-workspace, credentials, reports or Runtime state.
+Bootstrap constructs or derives a Tool Adapter view already scoped to the
+current Elfie's authorized workspace capability. A `ToolPort` request carries
+semantic resource identifiers, not an arbitrary filesystem root. The Adapter
+resolves those identifiers inside the injected scope. Read-only file access is
+confined to that workspace plus explicitly approved shared asset roots; it
+cannot read another Elfie's workspace, credentials, reports or Runtime state.
 
 Every tool defines timeout, item and byte limits. The shared normal/structured
 tool loop also enforces one total byte and call budget. The executor wraps output
@@ -512,7 +517,7 @@ ${ELFIE_HOME:-~/.elfienest}/
 │   │   ├── daily/
 │   │   ├── people/
 │   │   └── concepts/
-│   └── skills/
+│   └── skills/                       # reserved; not a phase-one fact source
 ├── runtime/
 │   ├── runtime.json
 │   └── locks/
