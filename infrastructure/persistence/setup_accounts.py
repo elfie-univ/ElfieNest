@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import cast
-
 from app.features.accounts import (
     AccountConflict,
     AccountsService,
@@ -26,7 +24,7 @@ class SetupAccountsAdapter:
 
     def has_owner(self) -> bool:
         try:
-            return cast(bool, self._accounts.has_owner(HasOwnerQuery()))
+            return self._accounts.has_owner(HasOwnerQuery())
         except AccountsUnavailable as error:
             raise SetupPortError("unable to read Owner status") from error
 

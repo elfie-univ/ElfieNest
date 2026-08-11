@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 from dataclasses import replace
-from typing import Tuple, cast
 
 from app.features.configuration import (
     ProviderPortError,
@@ -76,10 +75,7 @@ class PublicOllamaProviderAdapter:
 
     def list_models(self, binding: StoredLocalProviderBinding) -> tuple[str, ...]:
         try:
-            return cast(
-                Tuple[str, ...],
-                self._platform.list_models(_platform_binding(binding)),
-            )
+            return self._platform.list_models(_platform_binding(binding))
         except (OSError, RuntimeError, ValueError) as error:
             raise ProviderPortError("Unable to list local Provider models") from error
 

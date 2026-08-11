@@ -6,14 +6,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from ai_runtime.config import LLMRuntimeConfig
+from ai_runtime.food.resolver import MainFoodSelection
 from ai_runtime.gateway.agent import RuntimeAgent
 from app.bootstrap.food import build_food_service
 from app.bootstrap.runtime_food import final_main_food_loader
 from infrastructure.models.fallback_runtime import FallbackRuntimeAdapter
 from infrastructure.models.runtime_adapter import StructuredRuntime
 from infrastructure.persistence.food_catalog import SQLiteFoodPackageRepository
-
-from .nest_session import MainFoodLoader
 
 
 @dataclass(frozen=True)
@@ -22,7 +21,7 @@ class RuntimeServices:
 
     runtime: StructuredRuntime
     tick_interval_sec: float
-    main_food_loader: MainFoodLoader | None = None
+    main_food_loader: Callable[[str], MainFoodSelection] | None = None
     warmup: Callable[[], None] | None = None
 
 
@@ -43,7 +42,7 @@ def build_runtime_services(
             tick_interval_sec=tick_interval_sec,
         )
 
-    main_food_loader: MainFoodLoader | None = None
+    main_food_loader: Callable[[str], MainFoodSelection] | None = None
     if resolve_main_food:
         main_food_loader = final_main_food_loader(build_food_service(db_path))
     runtime = RuntimeAgent(

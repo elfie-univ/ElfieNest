@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional, cast
-
 from app.features.configuration import (
     ProviderLocalStatePort,
     ProviderPortError,
@@ -56,7 +54,7 @@ class SetupProviderAdapter:
 
     def save_ollama_model(self, model_id: str) -> str:
         try:
-            return cast(str, self._state.save_local_model(model_id))
+            return self._state.save_local_model(model_id)
         except ProviderPortError as error:
             raise SetupInstallationPortError(
                 "unable to persist Ollama model"
@@ -64,7 +62,7 @@ class SetupProviderAdapter:
 
     def configured_model_reference(self, model_id: str) -> str | None:
         try:
-            return cast(Optional[str], self._state.local_model_reference(model_id))
+            return self._state.local_model_reference(model_id)
         except ProviderPortError as error:
             raise SetupInstallationPortError("unable to read Ollama model") from error
 

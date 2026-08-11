@@ -45,7 +45,7 @@ class PublicOllamaSetupTechnologyAdapter:
         return SetupOllamaProbe(item.state, item.endpoint, item.version)
 
     def list_models(self, binding: SetupOllamaBinding) -> tuple[str, ...]:
-        return cast(tuple[str, ...], self._platform.list_models(_binding(binding)))
+        return self._platform.list_models(_binding(binding))
 
     def download_official_installer(self) -> SetupDownloadedInstaller:
         item = self._platform.download_official_installer()

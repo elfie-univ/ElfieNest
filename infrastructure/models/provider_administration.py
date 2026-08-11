@@ -36,7 +36,9 @@ from app.features.configuration import (
     StoredValidationRun,
     StoredVerification,
     ValidationMode,
-    ValidationStatus,
+)
+from app.features.configuration.providers import (
+    ValidationStatus as ProviderValidationStatus,
 )
 from infrastructure.models.provider_validation import (
     DiscoveredModel,
@@ -888,9 +890,9 @@ class ProviderModelsAdapter:
         return float(value)
 
     @staticmethod
-    def _validation_status(value: object) -> ValidationStatus:
+    def _validation_status(value: object) -> ProviderValidationStatus:
         return cast(
-            ValidationStatus,
+            ProviderValidationStatus,
             value if value in {"never", "passed", "failed"} else "never",
         )
 
