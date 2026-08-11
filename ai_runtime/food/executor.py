@@ -8,7 +8,6 @@ from typing import Any, Callable
 from ai_runtime.config import LLMRuntimeConfig
 from ai_runtime.food.models import FoodPackage, ModelAssignment
 from ai_runtime.gateway.loop import RuntimeToolLoop, ToolLoopContext
-from ai_runtime.gateway.multimodal import assemble_multimodal_payload
 from ai_runtime.gateway.skills_prompt import inject_skills_system_prompt
 from ai_runtime.tools.config import (
     effective_tool_keys,
@@ -19,6 +18,7 @@ from infrastructure.models.model_reference import (
     ModelReferenceError,
     parse_model_reference,
 )
+from infrastructure.models.multimodal import assemble_multimodal_payload
 
 
 @dataclass(frozen=True)

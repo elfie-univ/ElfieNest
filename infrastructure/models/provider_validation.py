@@ -11,8 +11,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.gateway.llm_api import call_llm_api
 from infrastructure.models.catalog import verify_provider
+from infrastructure.models.llm_api import call_llm_api
 from infrastructure.models.providers.dispatch import detect_api_mode_for_url
 from infrastructure.models.providers.http import (
     open_provider_request,

@@ -9,10 +9,10 @@ from pathlib import Path
 from typing import Any
 
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.gateway.llm_api import call_llm_api
 from ai_runtime.gateway.loop import RuntimeToolLoop, ToolLoopContext
 from ai_runtime.gateway.skills_prompt import inject_skills_system_prompt
 from ai_runtime.safety.permissions import PermissionManager
+from infrastructure.models.llm_api import call_llm_api
 from infrastructure.models.validation_models import (
     CheckResult,
     CheckStatus,

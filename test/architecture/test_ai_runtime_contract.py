@@ -133,7 +133,7 @@ def test_provider_catalogs_do_not_encode_runtime_model_selection_groups() -> Non
 
 def test_phase_one_tool_advertising_is_limited_to_safe_tools() -> None:
     prompt_source = _source("ai_runtime/gateway/skills_prompt.py")
-    streaming_source = _source("ai_runtime/gateway/streaming.py")
+    streaming_source = _source("infrastructure/models/streaming.py")
     for forbidden in ("[CODE]", "[SKILL_CREATE]", "[SKILL_MODIFY]"):
         assert forbidden not in prompt_source
         assert forbidden not in streaming_source
@@ -142,6 +142,13 @@ def test_phase_one_tool_advertising_is_limited_to_safe_tools() -> None:
     config_source = _source("ai_runtime/tools/config.py")
     assert '"web_search"' in config_source
     assert '"local_file"' in config_source
+    for legacy_gateway_leaf in (
+        "llm_api.py",
+        "model_guard.py",
+        "multimodal.py",
+        "streaming.py",
+    ):
+        assert not (AI_RUNTIME / "gateway" / legacy_gateway_leaf).exists()
     assert '"code_sandbox"' not in config_source
     for source_path in (
         "ai_runtime/gateway/agent.py",
