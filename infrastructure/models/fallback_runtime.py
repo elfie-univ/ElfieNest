@@ -10,14 +10,14 @@ from uuid import uuid4
 
 from pydantic import ValidationError
 
-from ai_runtime.gateway.request import (
+from elfie.brain.decision_types import CancelPolicy, DecisionPlan, MessageIntent
+from elfie.brain.model_context_compiler import CompiledModelContext
+from elfie.message_types import EventId, IntentId, PlanId, TurnId
+from infrastructure.models.runtime_contracts import (
     StructuredRuntimeCapabilities,
     StructuredRuntimeRequest,
     StructuredRuntimeResult,
 )
-from elfie.brain.decision_types import CancelPolicy, DecisionPlan, MessageIntent
-from elfie.brain.model_context_compiler import CompiledModelContext
-from elfie.message_types import EventId, IntentId, PlanId, TurnId
 
 
 class FallbackRuntimeAdapter:

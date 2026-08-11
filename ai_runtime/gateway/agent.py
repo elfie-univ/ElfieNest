@@ -16,14 +16,6 @@ from ai_runtime.food.health import project_food_health
 from ai_runtime.food.models import FOOD_COMMON_ID, FOOD_EMERGENCY_ID, FoodPackage
 from ai_runtime.food.resolver import MainFoodSelection, resolve_main_food
 from ai_runtime.food.store import FoodCatalog, FoodCatalogRepository
-from ai_runtime.gateway.request import (
-    RuntimeRequest,
-    RuntimeResult,
-    StructuredGenerationMode,
-    StructuredRuntimeCapabilities,
-    StructuredRuntimeRequest,
-    StructuredRuntimeResult,
-)
 from ai_runtime.safety.permissions import PermissionManager
 from ai_runtime.tools.config import effective_tool_keys, load_tool_configs
 from ai_runtime.usage.observer import (
@@ -35,6 +27,14 @@ from ai_runtime.usage.observer import (
 from infrastructure.models.llm_api import call_llm_api
 from infrastructure.models.model_reference import parse_model_reference
 from infrastructure.models.multimodal import assemble_multimodal_payload
+from infrastructure.models.runtime_contracts import (
+    RuntimeRequest,
+    RuntimeResult,
+    StructuredGenerationMode,
+    StructuredRuntimeCapabilities,
+    StructuredRuntimeRequest,
+    StructuredRuntimeResult,
+)
 from infrastructure.persistence.data_home import get_runtime_config_paths
 from infrastructure.tools.local_files import LocalFileAccessPlugin
 from infrastructure.tools.search import WebSearchPlugin

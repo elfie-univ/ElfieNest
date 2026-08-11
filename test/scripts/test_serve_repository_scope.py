@@ -6,12 +6,12 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from ai_runtime.gateway.request import (
+from elfie.brain.decision_types import DecisionPlan, MessageIntent
+from infrastructure.models.fallback_runtime import FallbackRuntimeAdapter
+from infrastructure.models.runtime_contracts import (
     StructuredGenerationMode,
     StructuredRuntimeRequest,
 )
-from elfie.brain.decision_types import DecisionPlan, MessageIntent
-from infrastructure.models.fallback_runtime import FallbackRuntimeAdapter
 from scripts import serve
 
 

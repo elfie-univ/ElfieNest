@@ -8,7 +8,7 @@ from ai_runtime.food.models import FOOD_EMERGENCY_ID, FoodPackage, ModelAssignme
 from ai_runtime.food.resolver import MainFoodSelection
 from ai_runtime.food.store import FoodCatalog
 from ai_runtime.gateway.agent import RuntimeAgent
-from ai_runtime.gateway.request import (
+from infrastructure.models.runtime_contracts import (
     RuntimeRequest,
     StructuredGenerationMode,
     StructuredRuntimeRequest,

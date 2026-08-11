@@ -1,4 +1,4 @@
-from ai_runtime.gateway.request import RuntimeRequest
+from infrastructure.models.runtime_contracts import RuntimeRequest
 
 
 def test_default_tools_exclude_deferred_mutating_tools():

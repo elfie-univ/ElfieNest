@@ -1,4 +1,4 @@
-from ai_runtime.gateway.request import (
+from infrastructure.models.runtime_contracts import (
     StructuredGenerationMode,
     StructuredRuntimeRequest,
 )
