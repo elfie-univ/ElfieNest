@@ -70,9 +70,8 @@ implementations.
 The former `ai_runtime/`, `godot_runtime/` and `app/infrastructure/` roots have
 been retired. Their technical responsibilities now live in the existing target
 Infrastructure capability packages; no target `infrastructure/ai_runtime/` was
-created. `nest/godot_gateway/observer.py` and concrete technical code inside
-`elfie/` or `nest/` remain migration-state locations that shrink only through
-separately approved migration slices.
+created. Concrete technical code that remains inside `elfie/` or `nest/` is
+migration-state and shrinks only through separately approved migration slices.
 
 ## System dependency direction
 

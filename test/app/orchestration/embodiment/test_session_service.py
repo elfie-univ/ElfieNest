@@ -7,6 +7,7 @@ from pathlib import Path
 from app.orchestration.embodiment import (
     EmbodimentConflict,
     EmbodimentSessionService,
+    EmbodimentState,
     Hosted,
     HostingFailed,
 )
@@ -19,7 +20,6 @@ from infrastructure.persistence.elfie_workspace.embodiment import (
 )
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.nest_db.store import get_db, init_db
-from nest.embodiment import EmbodimentState
 
 
 class FailingBody(HeadlessBody):

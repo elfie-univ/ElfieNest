@@ -8,9 +8,9 @@ from app.orchestration.nest_session import (
     WorldEvent,
 )
 from infrastructure.godot.body_transport import RuntimeIntentPayload
-from infrastructure.godot.gateway.api import GodotAPIServer
 from infrastructure.godot.gateway.messages import CommandName
 from infrastructure.godot.nest_session.mapper import map_runtime_event
+from infrastructure.godot.nest_session.ports import GatewayRuntimePort
 
 
 class GodotNestSessionAdapter:
@@ -19,16 +19,9 @@ class GodotNestSessionAdapter:
     def __init__(
         self,
         *,
-        host: str = "127.0.0.1",
-        port: int = 8765,
-        http_port: int = 8000,
-        gateway: GodotAPIServer | None = None,
+        gateway: GatewayRuntimePort,
     ) -> None:
-        self._gateway = gateway or GodotAPIServer(
-            host=host,
-            port=port,
-            http_port=http_port,
-        )
+        self._gateway = gateway
 
     def start(self) -> None:
         self._gateway.start()

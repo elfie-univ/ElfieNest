@@ -21,10 +21,8 @@ REQUIRED_RUNTIME_HEALTH_TYPES = frozenset(
 REQUIRED_HOST_TYPES = frozenset(
     {"RuntimeDisplayMode", "RuntimeHostKind", "RuntimeHostDescriptor"}
 )
-OBSERVER_DESCRIPTOR_FIELDS = frozenset(
-    {"session_id", "scope", "generation", "sequence", "allowed_intents"}
-)
-OBSERVER_SCOPE_FIELDS = frozenset({"family_id", "room_id", "elfie_id"})
+OBSERVER_API_MODELS_PATH = PROJECT_ROOT / "app/interfaces/api/v1/observer/models.py"
+NEST_SEMANTIC_MODEL_PATH = PROJECT_ROOT / "app/orchestration/nest_session/models.py"
 EXPECTED_RUNTIME_HEALTH_STATES = frozenset(
     {"starting", "ready", "degraded", "stopping", "stopped", "failed"}
 )
@@ -36,7 +34,6 @@ EXPECTED_HOST_KINDS = frozenset(
     {"web_authority", "electron_authority", "linux_dedicated"}
 )
 REQUIRED_HOST_SELECTORS = frozenset({"select_authority_host"})
-EXPECTED_OBSERVER_INTENTS = frozenset({"request_resync", "focus_room", "focus_elfie"})
 EXPECTED_GODOT_OBSERVER_ACTIONS = frozenset(
     {
         "overview",
@@ -64,21 +61,7 @@ EXPECTED_OBSERVER_PRESENTATION_FIELDS = frozenset(
 )
 
 
-def _migration_path(*relative_paths: str) -> Path:
-    """Prefer the target path while accepting one registered current location."""
-
-    for relative_path in relative_paths:
-        candidate = PROJECT_ROOT / relative_path
-        if candidate.is_file():
-            return candidate
-    return PROJECT_ROOT / relative_paths[0]
-
-
 HOST_CONTRACT_PATH = PROJECT_ROOT / "infrastructure/godot/lifecycle/host_contract.py"
-OBSERVER_DESCRIPTOR_PATH = _migration_path(
-    "infrastructure/godot/observer.py",
-    "nest/godot_gateway/observer.py",
-)
 FORBIDDEN_GODOT_OBSERVER_BOUNDARY_FIELDS = frozenset(
     {
         "x",
@@ -382,31 +365,25 @@ def test_native_targets_are_the_closed_four_target_input_enum() -> None:
         )
 
 
-def test_observer_descriptor_has_only_scoped_read_capability_and_high_level_intents() -> (
-    None
-):
-    # Given: an Observer descriptor is a closed typed subscription identity.
-    # When: every descriptor and nested scope field is allowlisted structurally.
-    # Then: aliases cannot smuggle in credentials, capabilities or world transforms.
-    assert OBSERVER_DESCRIPTOR_PATH.is_file()
-    annotations = _class_field_annotations(
-        OBSERVER_DESCRIPTOR_PATH, "ObserverDescriptor"
+def test_observer_api_models_have_scoped_access_and_high_level_intents() -> None:
+    # Given: the versioned Observer API owns capability/session wire models.
+    # Then: requests are closed to the observer role and bounded interactions.
+    assert OBSERVER_API_MODELS_PATH.is_file()
+    session_fields = _class_field_annotations(
+        OBSERVER_API_MODELS_PATH, "OpenObserverSessionRequest"
     )
-    scope_annotations = _class_field_annotations(
-        OBSERVER_DESCRIPTOR_PATH, "ObserverScope"
+    subscription_fields = _class_field_annotations(
+        OBSERVER_API_MODELS_PATH, "ObserverSubscriptionResponse"
     )
-    assert set(annotations) == OBSERVER_DESCRIPTOR_FIELDS
-    assert set(scope_annotations) == OBSERVER_SCOPE_FIELDS
-    assert annotations["session_id"] == "str"
-    assert annotations["scope"] == "ObserverScope"
-    assert annotations["generation"] == "int"
-    assert annotations["sequence"] == "int"
-    assert "ObserverIntent" in annotations["allowed_intents"]
-    assert set(scope_annotations.values()) <= {"str", "str | None"}
-    assert {"str", "Enum"} <= _class_bases(OBSERVER_DESCRIPTOR_PATH, "ObserverIntent")
-    assert _enum_values(OBSERVER_DESCRIPTOR_PATH, "ObserverIntent") == (
-        EXPECTED_OBSERVER_INTENTS
+    intent_fields = _class_field_annotations(
+        OBSERVER_API_MODELS_PATH, "ObserverIntentRequest"
     )
+    assert set(session_fields) == {"protocol", "role", "subscription"}
+    assert session_fields["protocol"] == "Literal[3]"
+    assert session_fields["role"] == "Literal['observer']"
+    assert set(subscription_fields) == {"kind", "room_id", "elfie_id"}
+    assert set(intent_fields) == {"kind", "actor_id", "interaction"}
+    assert intent_fields["kind"] == "Literal['request_interaction']"
 
 
 def test_godot_observer_catalog_is_semantic_versioned_and_not_authority() -> None:
@@ -527,7 +504,7 @@ def test_product_observer_accepts_only_semantic_actor_snapshots() -> None:
         GODOT_MAIN_PATH, "_set_local_observer_presentation_paused"
     )
     observer_fields = _class_field_annotations(
-        OBSERVER_DESCRIPTOR_PATH, "ObserverSemanticEntity"
+        NEST_SEMANTIC_MODEL_PATH, "ObserverSemanticEntity"
     )
     semantic_parser_body = _gdscript_function_body(
         GODOT_MAIN_PATH, "_parse_observer_semantic_snapshot"

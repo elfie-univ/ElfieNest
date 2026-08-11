@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from app.orchestration.embodiment import EmbodimentState
 from app.orchestration.embodiment.models import EmbodimentSession
 from app.orchestration.embodiment.ports import EmbodimentLeaseConflict
 from infrastructure.persistence.elfie_workspace.bodies import SQLiteBodiesAdapter
@@ -22,7 +23,6 @@ from infrastructure.persistence.elfie_workspace.embodiment import (
     start_return,
 )
 from infrastructure.persistence.nest_db.store import get_db, init_db
-from nest.embodiment import EmbodimentState
 
 
 def test_embodiment_session_persists_one_hosted_lease_at_a_time(tmp_path: Path) -> None:

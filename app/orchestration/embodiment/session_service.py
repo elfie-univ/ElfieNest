@@ -5,7 +5,6 @@ from __future__ import annotations
 from app.features.accounts import AccountPrincipal, is_manager
 from elfie import Elfie
 from elfie.body import BodyPort
-from nest.embodiment import EmbodimentState
 
 from .errors import EmbodimentForbidden, EmbodimentUnavailable
 from .models import (
@@ -21,6 +20,7 @@ from .ports import (
     EmbodimentLeasePort,
     EmbodimentLeasePortError,
 )
+from .state_machine import EmbodimentState
 
 
 class EmbodimentSessionService:

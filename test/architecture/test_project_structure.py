@@ -33,6 +33,7 @@ REQUIRED_APP_INTERFACE_DIRECTORIES = frozenset({"api", "cli", "desktop", "web"})
 REQUIRED_NEST_ENTRIES = frozenset(
     {"__init__.py", "engine", "events.py", "interaction"} | {"nest.py", "state"}
 )
+FORBIDDEN_NEST_DIRECTORIES = frozenset({"embodiment", "godot_gateway"})
 REQUIRED_DESKTOP_SOURCE_DIRECTORIES = frozenset({"resources", "windows"})
 REQUIRED_DESKTOP_SOURCE_FILES = frozenset(
     {"desktop_role_lifecycle.ts", "lifecycle_client.ts", "main.ts", "role_dispatch.ts"}
@@ -164,6 +165,7 @@ def test_app_and_nest_have_the_confirmed_secondary_structure() -> None:
     assert missing_app_entries == frozenset()
     assert missing_interface_entries == frozenset()
     assert missing_nest_entries == frozenset()
+    assert not FORBIDDEN_NEST_DIRECTORIES.intersection(nest_entries)
 
 
 def test_desktop_source_has_the_confirmed_secondary_structure() -> None:

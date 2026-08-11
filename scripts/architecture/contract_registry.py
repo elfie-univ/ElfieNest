@@ -57,7 +57,6 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
         agent_paths=(
             "elfie/AGENTS.md",
             "nest/AGENTS.md",
-            "nest/godot_gateway/AGENTS.md",
             "infrastructure/AGENTS.md",
             "infrastructure/persistence/AGENTS.md",
             "infrastructure/godot/AGENTS.md",

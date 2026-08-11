@@ -11,6 +11,7 @@ from .models import (
     ListEmbodimentSessionsQuery,
 )
 from .session_service import EmbodimentSessionService
+from .state_machine import EmbodimentState, EmbodimentTransitionError
 
 __all__ = (
     "BodyDeviceChannel",
@@ -20,6 +21,8 @@ __all__ = (
     "EmbodimentForbidden",
     "EmbodimentSession",
     "EmbodimentSessionService",
+    "EmbodimentState",
+    "EmbodimentTransitionError",
     "EmbodimentUnavailable",
     "Hosted",
     "HostingFailed",

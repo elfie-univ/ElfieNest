@@ -74,7 +74,6 @@ def test_system_contract_ledger_decision_and_agents_exist_in_both_languages() ->
     required_agents = {
         "elfie/AGENTS.md",
         "nest/AGENTS.md",
-        "nest/godot_gateway/AGENTS.md",
         "infrastructure/AGENTS.md",
         "infrastructure/persistence/AGENTS.md",
         "infrastructure/godot/AGENTS.md",

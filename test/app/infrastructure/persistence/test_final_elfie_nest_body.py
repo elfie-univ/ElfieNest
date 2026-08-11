@@ -11,6 +11,7 @@ from app.features.bodies.ports import (
     BodiesPortCredentialRejected,
 )
 from app.features.nest_management import NestPortBedNotFound
+from app.orchestration.embodiment import EmbodimentState
 from app.orchestration.embodiment.ports import EmbodimentLeaseConflict
 from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
 from infrastructure.persistence.elfie_workspace.bodies import SQLiteBodiesAdapter
@@ -31,7 +32,6 @@ from infrastructure.persistence.nest_db.nest_management import (
 )
 from infrastructure.persistence.nest_db.nest_state import SQLiteNestStateAdapter
 from infrastructure.persistence.nest_db.store import get_db
-from nest.embodiment import EmbodimentState
 from nest.state.models import PersistentResidentState, ResidentPresence, WorldCatalog
 from test.app.interfaces.api._helpers import adopt_test_elfie
 

@@ -14,7 +14,6 @@ NON_ORCHESTRATION_APP_ROOTS = (
 PUBLIC_GATEWAY_IMPORTS = frozenset(
     {
         "infrastructure.godot.gateway.bundle",
-        "nest.godot_gateway.observer",
     }
 )
 

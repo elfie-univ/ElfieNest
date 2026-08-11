@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Union
 
-from nest.embodiment import EmbodimentState
+from .state_machine import EmbodimentState
 
 
 @dataclass(frozen=True)

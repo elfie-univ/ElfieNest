@@ -6,8 +6,8 @@
 
 `nest/` implements the Python domain model of an Elfie's activity space: it
 maintains resident IDs, in-nest semantic state, the environment clock and
-interaction propagation, and provides the protocol adapter needed to talk to
-the Godot Runtime.
+interaction propagation. Godot transport and protocol adapters live outside
+the domain in `infrastructure/godot/`.
 
 ## Responsibilities and non-responsibilities
 
@@ -17,10 +17,8 @@ Responsible for:
   activity state;
 - Environment time advancement, speech propagation, collision and tactile and
   other in-nest interactions;
-- Godot Gateway semantic protocol, one authoritative Runtime session, command/
-  event queues and rate limiting;
-- The scene semantic catalog, the Runtime's temporary mirror, and integrity
-  checks on the exported Web Runtime.
+- The scene semantic catalog and the Runtime's temporary semantic mirror;
+- World rules applied after typed facts arrive through the NestSession boundary.
 
 Not responsible for:
 
@@ -45,7 +43,6 @@ nest/
 ├── state/          # config, residents, homes, world catalog and Runtime mirror
 ├── engine/         # environment clock advancement
 ├── interaction/    # speech, user messages, collision and tactile propagation
-├── godot_gateway/  # registered Observer semantic projection residual
 └── events.py       # Nest domain event value objects
 ```
 
@@ -54,8 +51,8 @@ nest/
 - `nest.Nest` — composes state, environment clock and interaction propagation;
 - `nest.NestConfig` — configuration such as Nest capacity;
 - `nest.NestState` — runtime container holding only in-nest state;
-- `infrastructure.godot.gateway.GodotAPIServer` — the WebSocket boundary between Python and the
-  Godot Runtime.
+- `app.orchestration.nest_session` — composes the Nest, real Elfies and typed world channel;
+- `infrastructure.godot.gateway` — owns the concrete WebSocket protocol implementation.
 
 Real Elfie registration is performed by `app.orchestration.NestSession`; do not
 push real objects into `NestState`.
@@ -65,8 +62,8 @@ push real objects into `NestState`.
 ```text
 app/orchestration ──> nest
 nest.nest ──> state + engine + interaction
-infrastructure.godot.gateway ──> Nest / Godot protocol boundary
-infrastructure.godot.lifecycle/artifacts ──> host selection, launch and artifact metadata
+app/orchestration/nest_session ──> typed Nest world boundary
+infrastructure/godot ──> protocol, host and artifact adapters
 godot_project/ ──> single source of truth for scenes and geometry
 ```
 
@@ -76,11 +73,11 @@ invokes it.
 
 ## Runtime authority and Observer lifecycle
 
-After connecting, the Godot authority must first send `AuthorityHello` with a
-random nonce, a `runtime_id` and `protocol: 3`. Only one Runtime holds authority
-at a time; a newer connection gets an incremented `generation`, and events from
-older generations never enter the Nest. Runtime lifecycle selects the exported
-host; `nest/` never launches Godot or owns a host process.
+After connecting, the Godot authority completes the authenticated Gateway
+handshake owned by `infrastructure/godot/gateway`. Only one Runtime holds
+authority at a time; a newer connection gets an incremented `generation`, and
+events from older generations never enter the Nest. Runtime lifecycle selects
+the exported host; `nest/` never launches Godot or owns a host process.
 
 Startup sync converges in a fixed order:
 
@@ -134,8 +131,8 @@ to be running. For the dev environment and the unified quality gate see
   propagation;
 - `test/infrastructure/godot/gateway/`: authority handshake, message validation
   and authoritative session;
-- `test/nest/godot_gateway/`: the registered Observer semantic residual until
-  APP-G06 is closed;
+- `test/app/orchestration/observer/`: capability-scoped Observer projection and
+  generation/sequence behavior;
 - `test/infrastructure/godot/`: host selection, launcher, artifact metadata and
   protocol transport;
 - `test/e2e/test_nest_runtime_v2.py`: world and full character catalog

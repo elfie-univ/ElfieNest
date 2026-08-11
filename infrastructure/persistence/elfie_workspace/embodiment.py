@@ -4,20 +4,20 @@ from __future__ import annotations
 
 import sqlite3
 import time
-from typing import ContextManager
+from typing import ContextManager, cast
 
+from app.orchestration.embodiment import EmbodimentState
 from app.orchestration.embodiment.models import EmbodimentSession
 from app.orchestration.embodiment.ports import (
     EmbodimentLeaseConflict,
     EmbodimentLeasePortError,
 )
 from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
-from nest.embodiment import EmbodimentState
 
 
 def get_db(db_path: str) -> ContextManager[sqlite3.Connection]:
     """Keep the moved transaction implementation on the root SQLite boundary."""
-    return app_sqlite_connection(db_path)
+    return cast(ContextManager[sqlite3.Connection], app_sqlite_connection(db_path))
 
 
 def get_embodiment_session(db_path: str, elfie_id: str) -> EmbodimentSession:

@@ -16,6 +16,7 @@ from elfie.brain.food_port import MainFoodSelection
 from elfie.factory import ElfieAssembly
 from elfie.initialization import assemble_profile
 from infrastructure.godot import GodotGateway, GodotTransport, NativeBody
+from infrastructure.godot.gateway.api import GodotAPIServer
 from infrastructure.godot.nest_session import GodotNestSessionAdapter
 from infrastructure.models.runtime_adapter import (
     SerializedRuntimeAdapter,
@@ -70,9 +71,13 @@ def build_nest_session_services(
     main_food_loader: MainFoodLoader | None = None,
 ) -> NestSessionServices:
     """Construct the existing Engine without starting any lifecycle-owned channel."""
-    world_runtime = GodotNestSessionAdapter(
+    gateway = GodotAPIServer(
+        host="127.0.0.1",
         port=godot_ws_port,
         http_port=http_port,
+    )
+    world_runtime = GodotNestSessionAdapter(
+        gateway=gateway,
     )
 
     def model_port_factory(elfie_id: str) -> SerializedRuntimeAdapter:

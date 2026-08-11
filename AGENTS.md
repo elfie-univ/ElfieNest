@@ -219,8 +219,8 @@ infrastructure/   模型、工具、持久化、Godot、设备、通信与平台
 - `elfie/` 与 `nest/` 不得互相导入，也不得导入 `app/` 或具体 Infrastructure；底层
   Adapter 可以反向导入自己实现的核心 Port，这是依赖倒置，不是领域反向依赖。
 - `ai_runtime/` 已按职责拆解并删除；不得恢复该旧根，也不得创建
-  `infrastructure/ai_runtime/`。`nest/godot_gateway/observer.py` 与领域内部技术实现
-  仍是已登记迁移路径，只能按获批切片收缩，不得复制成新的所有权。
+  `infrastructure/ai_runtime/`。`elfie/` 与 `nest/` 内仍存在的领域内部技术实现
+  是已登记迁移路径，只能按获批切片收缩，不得复制成新的所有权。
 - `godot_project/` 永久保持独立 Godot 源工程和物理 authority，不是迁移目录；只有
   Python 侧 Gateway、宿主、产物和协议 Adapter 目标进入 `infrastructure/godot/`。
 

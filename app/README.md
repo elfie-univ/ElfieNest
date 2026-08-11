@@ -49,8 +49,7 @@ app/
 - `app.orchestration.NestSession`: the only place where real `Elfie` instances
   and `Nest` are composed;
 - `app.orchestration.embodiment`: orchestrates real body binding, hosting and
-  homing through persistent leases; `nest/embodiment` only stores state and
-  holds no real Elfie or device connection;
+  homing through persistent leases, including its typed presence state machine;
 - `infrastructure.devices.DeviceGatewayTransport`: brings authenticated
   LAN devices into the `infrastructure.devices.ExternalTransport` contract; device
   events, action polling and receipts never enter the Nest.

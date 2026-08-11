@@ -56,8 +56,8 @@ Infrastructure 各能力包不得导入或构造其他能力包的具体 Adapter
 
 原 `ai_runtime/`、`godot_runtime/` 和 `app/infrastructure/` 根已退役；其技术职责已
 归入现有目标 Infrastructure 能力目录，没有创建 `infrastructure/ai_runtime/`。
-`nest/godot_gateway/observer.py` 以及 `elfie/`、`nest/` 内的具体技术代码仍是迁移期
-路径，只能通过后续单独批准的迁移切片收缩。
+`elfie/`、`nest/` 内仍存在的具体技术代码属于迁移期路径，只能通过后续单独批准的
+迁移切片收缩。
 
 ## 系统依赖方向
 

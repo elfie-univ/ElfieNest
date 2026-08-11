@@ -1,4 +1,4 @@
-"""The sole persisted state vocabulary for an Elfie's Nest embodiment presence."""
+"""The sole persisted state vocabulary for an Elfie's embodiment presence."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ class EmbodimentTransitionError(ValueError):
 
 
 class EmbodimentState(str, Enum):
-    """Stable presence states; body objects and devices remain outside ``nest``."""
+    """Stable presence states; body objects and devices remain outside App."""
 
     AT_NEST = "at_nest"
     SWITCHING_TO_HOSTED = "switching_to_hosted"
