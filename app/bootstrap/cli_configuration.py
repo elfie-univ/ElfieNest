@@ -14,7 +14,8 @@ from infrastructure.persistence.data_layout import final_root_layout
 from infrastructure.persistence.provider_references import (
     SQLiteProviderReferenceAdapter,
 )
-from infrastructure.platform import RuntimeLabMenusAdapter, RuntimeSettingsAdapter
+from infrastructure.platform import RuntimeSettingsAdapter
+from infrastructure.platform.runtime_lab_menus import RuntimeLabMenusAdapter
 
 
 @dataclass(frozen=True)
