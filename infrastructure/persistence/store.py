@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Final, Iterator, Optional
 
+from ai_runtime.storage.data_home import data_home_from_db_path
 from ai_runtime.storage.data_home import get_db_path as _get_db_path
 from ai_runtime.storage.data_layout import ensure_final_root_layout
 from app.features.accounts import hash_password
@@ -61,6 +62,7 @@ def init_db(db_path: Optional[str] = None) -> str:
     """Activate the final-contract database at an explicit fresh root."""
     if db_path is None:
         db_path = str(_get_db_path())
+    data_home_from_db_path(db_path)
     resolved = Path(db_path).expanduser().absolute()
     _reject_legacy_root(resolved)
     ensure_final_root_layout(resolved.parent)

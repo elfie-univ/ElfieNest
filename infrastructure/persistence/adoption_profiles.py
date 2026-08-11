@@ -7,6 +7,7 @@ import shutil
 from dataclasses import replace
 from pathlib import Path
 
+from ai_runtime.storage.data_home import data_home_from_db_path
 from ai_runtime.storage.data_layout import ensure_final_elfie_layout, final_root_layout
 from app.features.adoption import AcceptedAdoptionReservation
 from app.orchestration.resident_admission import ResidentAdmissionPortError
@@ -58,12 +59,34 @@ _GREETINGS: dict[str, tuple[str, ...]] = {
 class FinalElfieWorkspaceAdapter:
     """Materialize one accepted candidate through the Elfie profile authority."""
 
-    def __init__(self, data_home: Path) -> None:
+    def __init__(
+        self,
+        data_home: Path | None = None,
+        *,
+        db_path: str | None = None,
+    ) -> None:
+        if (data_home is None) == (db_path is None):
+            raise ValueError("select exactly one workspace root source")
         self._data_home = data_home
+        self._db_path = db_path
+
+    @classmethod
+    def from_database_path(cls, db_path: str) -> FinalElfieWorkspaceAdapter:
+        """Defer file-root resolution until a workspace operation is requested."""
+        return cls(db_path=db_path)
+
+    def _selected_data_home(self) -> Path:
+        if self._db_path is not None:
+            return data_home_from_db_path(self._db_path)
+        if self._data_home is None:
+            raise RuntimeError("workspace root source is unavailable")
+        return self._data_home
 
     def materialize(self, reservation: AcceptedAdoptionReservation) -> str:
         try:
-            layout = ensure_final_elfie_layout(self._data_home, reservation.elfie_id)
+            layout = ensure_final_elfie_layout(
+                self._selected_data_home(), reservation.elfie_id
+            )
             profile = create_visual_profile(
                 elfie_id=reservation.elfie_id,
                 display_name=reservation.name,
@@ -92,7 +115,9 @@ class FinalElfieWorkspaceAdapter:
 
     def release(self, elfie_id: str) -> None:
         try:
-            workspace = final_root_layout(self._data_home).elfie(elfie_id).workspace
+            workspace = (
+                final_root_layout(self._selected_data_home()).elfie(elfie_id).workspace
+            )
             if workspace.exists():
                 shutil.rmtree(workspace)
         except (OSError, ValueError) as error:
@@ -102,7 +127,9 @@ class FinalElfieWorkspaceAdapter:
 
     def _release_quietly(self, elfie_id: str) -> None:
         try:
-            workspace = final_root_layout(self._data_home).elfie(elfie_id).workspace
+            workspace = (
+                final_root_layout(self._selected_data_home()).elfie(elfie_id).workspace
+            )
             shutil.rmtree(workspace, ignore_errors=True)
         except ValueError:
             return

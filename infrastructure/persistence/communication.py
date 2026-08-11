@@ -25,7 +25,6 @@ class SQLiteConversationHistoryAdapter:
 
     def __init__(self, db_path: str | Path) -> None:
         self._db_path = str(db_path)
-        self._data_home = data_home_from_db_path(self._db_path)
 
     def list_messages(
         self,
@@ -39,9 +38,9 @@ class SQLiteConversationHistoryAdapter:
                 elfie_id,
                 conversation_id=conversation_id,
                 user_id=user_id,
-                data_home=self._data_home,
+                data_home=data_home_from_db_path(self._db_path),
             )
-        except (OSError, RuntimeError, sqlite3.Error) as error:
+        except (OSError, RuntimeError, sqlite3.Error, ValueError) as error:
             raise CommunicationPortError(
                 "Unable to read conversation history"
             ) from error
@@ -70,7 +69,7 @@ class SQLiteConversationHistoryAdapter:
                     user_id=message.user_id,
                     meta=message.meta,
                 ),
-                data_home=self._data_home,
+                data_home=data_home_from_db_path(self._db_path),
             )
         except (OSError, RuntimeError, sqlite3.Error, ValueError) as error:
             raise CommunicationPortError(

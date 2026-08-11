@@ -102,6 +102,12 @@ def test_database_path_resolves_through_the_shared_data_home_policy(tmp_path):
     assert resolved == database.parent.resolve()
 
 
+def test_in_memory_database_is_not_a_product_data_home() -> None:
+    """SQLite 内存标记不能被误解释为当前工作目录的数据根。"""
+    with pytest.raises(data_home.DataHomeSelectionError, match="内存数据库"):
+        data_home_from_db_path(":memory:")
+
+
 def test_data_home_rejects_existing_file(tmp_path):
     """Given 文件路径，When 解析数据根，Then 拒绝把文件当作目录。"""
     target = tmp_path / "not-a-directory"

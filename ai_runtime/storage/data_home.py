@@ -205,6 +205,8 @@ def get_db_path() -> Path:
 
 def data_home_from_db_path(db_path: Union[str, Path]) -> Path:
     """Resolve the selected product root associated with one Nest database."""
+    if str(db_path) == ":memory:":
+        raise DataHomeSelectionError("SQLite 内存数据库不能作为产品数据根")
     return Path(db_path).expanduser().resolve(strict=False).parent
 
 

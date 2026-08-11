@@ -44,8 +44,6 @@ class SQLiteElfiesProjectionAdapter:
 
     def __init__(self, db_path: str) -> None:
         self._db_path = db_path
-        data_home = data_home_from_db_path(db_path)
-        self._layout = final_root_layout(data_home)
 
     def list_directory(
         self,
@@ -87,9 +85,8 @@ class SQLiteElfiesProjectionAdapter:
 
     def load_profile(self, elfie_id: str) -> ElfieProfileRecord:
         try:
-            repository = ElfieProfileRepository(
-                self._layout.elfie(elfie_id).profile.parent
-            )
+            layout = final_root_layout(data_home_from_db_path(self._db_path))
+            repository = ElfieProfileRepository(layout.elfie(elfie_id).profile.parent)
         except ValueError as error:
             raise ElfiesPortError("invalid Elfie identity") from error
         if not repository.exists():
@@ -120,7 +117,8 @@ class SQLiteElfiesProjectionAdapter:
 
     def load_cognition(self, elfie_id: str) -> CognitionSnapshotRecord:
         try:
-            path = self._layout.elfie(elfie_id).knowledge_database
+            layout = final_root_layout(data_home_from_db_path(self._db_path))
+            path = layout.elfie(elfie_id).knowledge_database
         except ValueError as error:
             raise ElfiesPortError("invalid Elfie identity") from error
         return _read_cognition(path)

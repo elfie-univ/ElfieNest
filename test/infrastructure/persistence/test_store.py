@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from ai_runtime.storage.data_home import DataHomeSelectionError
 from infrastructure.persistence.store import (
     count_elfies_by_owner,
     get_db,
@@ -42,6 +43,18 @@ def _index_names(db_path: str) -> set[str]:
 
 
 class TestInitDb:
+    def test_rejects_in_memory_marker_without_creating_layout(
+        self,
+        monkeypatch,
+        tmp_path: Path,
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+
+        with pytest.raises(DataHomeSelectionError, match="内存数据库"):
+            init_db(":memory:")
+
+        assert not any(tmp_path.iterdir())
+
     def test_does_not_change_existing_parent_permissions(self, tmp_path: Path) -> None:
         parent_mode = stat.S_IMODE(tmp_path.stat().st_mode)
 

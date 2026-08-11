@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ai_runtime.storage.data_home import data_home_from_db_path
 from app.features.adoption import AdoptionService
 from app.features.configuration.settings import SettingsStorePort
 from app.orchestration.nest_session import NestSession
@@ -40,7 +39,7 @@ def build_adoption_services(
         adoption=adoption,
         resident_admission=ResidentAdmissionService(
             adoption,
-            FinalElfieWorkspaceAdapter(data_home_from_db_path(db_path)),
+            FinalElfieWorkspaceAdapter.from_database_path(db_path),
             ElfieFactoryAdapter(
                 ElfieFactory(),
                 None if nest_session is None else nest_session.world_runtime,
