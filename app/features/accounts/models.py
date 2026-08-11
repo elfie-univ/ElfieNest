@@ -79,6 +79,16 @@ class GetCurrentAccountQuery:
 
 
 @dataclass(frozen=True)
+class RecordAccountHeartbeatCommand:
+    pass
+
+
+@dataclass(frozen=True)
+class AccountHeartbeatResult:
+    last_seen_at: str
+
+
+@dataclass(frozen=True)
 class AccountProfileResult:
     user_id: int
     account_id: str
@@ -224,6 +234,7 @@ class OwnerAccountResult:
 
 
 __all__ = (
+    "AccountHeartbeatResult",
     "AccountProfileResult",
     "AccountPrincipal",
     "AuthenticatedSession",
@@ -249,6 +260,7 @@ __all__ = (
     "Presence",
     "ProfileField",
     "RecoverOwnerAccountCommand",
+    "RecordAccountHeartbeatCommand",
     "ResetManagedAccountPasswordCommand",
     "SecurityPolicy",
     "TemporaryPasswordResult",

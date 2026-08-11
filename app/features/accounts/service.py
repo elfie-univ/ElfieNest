@@ -27,6 +27,7 @@ from .errors import (
     PasswordReuseRejected,
 )
 from .models import (
+    AccountHeartbeatResult,
     AccountPrincipal,
     AccountProfileResult,
     AuthenticatedSession,
@@ -45,6 +46,7 @@ from .models import (
     ManagedAccountResult,
     ManagedAccountsResult,
     OwnerAccountResult,
+    RecordAccountHeartbeatCommand,
     RecoverOwnerAccountCommand,
     ResetManagedAccountPasswordCommand,
     TemporaryPasswordResult,
@@ -231,6 +233,25 @@ class AccountsService:
     ) -> AccountProfileResult:
         _ = query
         return self._profile_result(self._load_profile(principal.user_id))
+
+    def record_heartbeat(
+        self,
+        principal: AccountPrincipal,
+        command: RecordAccountHeartbeatCommand,
+    ) -> AccountHeartbeatResult:
+        _ = command
+        last_seen_at = (
+            self._now().astimezone(timezone.utc).isoformat(timespec="microseconds")
+        )
+        try:
+            updated = self._require_management().record_heartbeat(
+                principal.user_id, last_seen_at
+            )
+        except AccountPersistenceError as error:
+            raise AccountsUnavailable("在线状态暂时无法更新") from error
+        if not updated:
+            raise AccountNotFound("账户不存在")
+        return AccountHeartbeatResult(last_seen_at=last_seen_at)
 
     def update_profile(
         self,

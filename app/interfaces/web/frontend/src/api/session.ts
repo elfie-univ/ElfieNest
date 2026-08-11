@@ -153,11 +153,11 @@ export async function logout(csrfToken: string): Promise<void> {
   })
 }
 
-export async function heartbeat(csrfToken: string): Promise<number> {
+export async function heartbeat(csrfToken: string): Promise<string> {
   const result = z.object({
     status: z.literal("ok"),
-    last_seen_at: z.number(),
-  }).parse(await requestJson("/api/auth/heartbeat", {
+    last_seen_at: z.string().datetime({ offset: true }),
+  }).strict().parse(await requestJson("/api/v1/me/heartbeat", {
     method: "POST",
     headers: csrfHeaders(csrfToken, true),
   }))

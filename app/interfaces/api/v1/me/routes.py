@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Annotated, Final, Union
 
 from fastapi import APIRouter, Depends, File, Request, UploadFile
@@ -28,6 +29,7 @@ from app.features.accounts import (
     InvalidAvatar,
     PasswordReuseRejected,
     ProfileField,
+    RecordAccountHeartbeatCommand,
     UpdateAccountProfileCommand,
     UpdateLandingPageCommand,
     UpdateThemeCommand,
@@ -40,6 +42,7 @@ from app.interfaces.api.v1.auth import (
 )
 
 from .models import (
+    AccountHeartbeatResponse,
     AccountsErrorDetails,
     AccountsErrorItem,
     AccountsErrorResponse,
@@ -76,6 +79,21 @@ def current_account(
     return _current_response(
         result,
         generate_csrf_token(request.cookies.get("session_token", "")),
+    )
+
+
+@router.post("/heartbeat", response_model=AccountHeartbeatResponse)
+def record_heartbeat(
+    principal: AccountPrincipal = CurrentPrincipal,
+    service: AccountsService = AccountsDependency,
+) -> Union[AccountHeartbeatResponse, JSONResponse]:
+    try:
+        result = service.record_heartbeat(principal, RecordAccountHeartbeatCommand())
+    except AccountsError as error:
+        return accounts_error_response(error)
+    return AccountHeartbeatResponse(
+        status="ok",
+        last_seen_at=datetime.fromisoformat(result.last_seen_at),
     )
 
 

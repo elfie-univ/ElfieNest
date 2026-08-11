@@ -5,7 +5,14 @@ from __future__ import annotations
 from datetime import date
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictStr,
+    field_validator,
+)
 
 from app.features.accounts import validate_password_strength
 
@@ -29,6 +36,13 @@ class CurrentAccountResponse(BaseModel):
     created_at: str
     elfie_count: int
     csrf_token: str
+
+
+class AccountHeartbeatResponse(BaseModel):
+    model_config = _STRICT
+
+    status: Literal["ok"]
+    last_seen_at: AwareDatetime
 
 
 class ProfileUpdateRequest(BaseModel):
@@ -122,6 +136,7 @@ class AccountsErrorResponse(BaseModel):
 
 
 __all__ = (
+    "AccountHeartbeatResponse",
     "AccountsErrorDetails",
     "AccountsErrorItem",
     "AccountsErrorResponse",

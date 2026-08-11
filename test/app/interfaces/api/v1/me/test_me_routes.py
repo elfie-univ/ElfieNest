@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -10,10 +11,10 @@ from app.features.accounts import (
     AccountsService,
     hash_password,
 )
-from infrastructure.persistence.store import get_db, init_db
 from app.interfaces.api.v1.auth import require_user
 from app.interfaces.api.v1.me import router
 from infrastructure.persistence import SQLiteAccountsAdapter
+from infrastructure.persistence.store import get_db, init_db
 
 
 class QuotaPolicy:
@@ -70,6 +71,25 @@ def test_current_profile_theme_and_landing_use_strict_v1_resources(
     assert profile.json()["gender"] == "female"
     assert theme.json() == {"theme_key": "moss-green"}
     assert landing.json() == {"default_landing_page": "chat"}
+
+
+def test_heartbeat_updates_the_authenticated_current_account(tmp_path: Path) -> None:
+    client, user_id = _client(tmp_path)
+
+    response = client.post("/api/v1/me/heartbeat")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+    response_timestamp = datetime.fromisoformat(
+        response.json()["last_seen_at"].replace("Z", "+00:00")
+    )
+    assert response_timestamp.utcoffset() is not None
+    with get_db(str(tmp_path / "nest.db")) as connection:
+        row = connection.execute(
+            "SELECT presence,last_seen_at FROM users WHERE id=?", (user_id,)
+        ).fetchone()
+    assert row["presence"] == "online"
+    assert datetime.fromisoformat(row["last_seen_at"]) == response_timestamp
 
 
 def test_password_and_avatar_errors_use_stable_error_envelopes(tmp_path: Path) -> None:

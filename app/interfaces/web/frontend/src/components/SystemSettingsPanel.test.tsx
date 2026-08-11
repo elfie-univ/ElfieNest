@@ -3,29 +3,39 @@ import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { adminElfies, ownerRead, ownerRooms, ownerWrite } from "../api/client"
+import { adminElfies } from "../api/admin/elfies"
+import {
+  elfieSettings,
+  runtimeSettings,
+  securitySettings,
+  updateElfieSettings,
+  updateRuntimeSettings,
+  updateSecuritySettings,
+  type ElfieSettings,
+} from "../api/admin/settings"
 import { ApiError } from "../api/http"
+import { ownerRooms } from "../api/owner-nest"
 import { createI18n } from "../i18n/config"
 import type { SupportedLocale } from "../i18n/locale"
 import { SystemSettingsPanel } from "./SystemSettingsPanel"
 import { useToolsPermissions } from "./tools/useToolsPermissions"
 import { ToastProvider } from "./ui/toast"
 
-vi.mock("../api/client", async (loadOriginal) => {
-  const original = await loadOriginal<typeof import("../api/client")>()
-  return {
-    ...original,
-    adminElfies: vi.fn(),
-    ownerRead: vi.fn(),
-    ownerRooms: vi.fn(),
-    ownerWrite: vi.fn(),
-  }
-})
+vi.mock("../api/admin/elfies", () => ({ adminElfies: vi.fn() }))
+vi.mock("../api/admin/settings", () => ({
+  elfieSettings: vi.fn(),
+  runtimeSettings: vi.fn(),
+  securitySettings: vi.fn(),
+  updateElfieSettings: vi.fn(),
+  updateRuntimeSettings: vi.fn(),
+  updateSecuritySettings: vi.fn(),
+}))
+vi.mock("../api/owner-nest", () => ({ ownerRooms: vi.fn() }))
 
 vi.mock("./tools/useToolsPermissions", () => ({ useToolsPermissions: vi.fn() }))
 
 const engine = { tick_interval_sec: 1.5 }
-const adoption = { max_elfies_per_user: 3, allowed_species_ids: ["dog", "fox"], personality_presets_enabled: {} }
+const adoption: ElfieSettings = { max_elfies_per_user: 3, allowed_species_ids: ["dog", "fox"], personality_presets_enabled: {} }
 const security = { session_ttl_days: 7, rate_limit: { max_attempts: 5, window_seconds: 60 } }
 const tools = {
   web_search: {
@@ -54,15 +64,14 @@ const tools = {
 
 describe("SystemSettingsPanel", () => {
   beforeEach(() => {
-    vi.mocked(ownerRead).mockImplementation(async (path) => {
-      if (path.endsWith("/runtime")) return engine
-      if (path.endsWith("/elfies")) return adoption
-      if (path.endsWith("/security")) return security
-      throw new Error(`Unexpected owner read: ${path}`)
-    })
+    vi.mocked(runtimeSettings).mockResolvedValue(engine)
+    vi.mocked(elfieSettings).mockResolvedValue(adoption)
+    vi.mocked(securitySettings).mockResolvedValue(security)
     vi.mocked(ownerRooms).mockResolvedValue([{ id: "local-nest", name: "精灵巢", desired_bed_count: 4, beds: [] }])
     vi.mocked(adminElfies).mockResolvedValue([{} as never, {} as never])
-    vi.mocked(ownerWrite).mockResolvedValue({})
+    vi.mocked(updateElfieSettings).mockImplementation(async (value) => value)
+    vi.mocked(updateRuntimeSettings).mockImplementation(async (value) => value)
+    vi.mocked(updateSecuritySettings).mockImplementation(async (value) => value)
     vi.mocked(useToolsPermissions).mockReturnValue({
       cancelTool: vi.fn(),
       changeLocalFile: vi.fn(),
@@ -130,17 +139,15 @@ describe("SystemSettingsPanel", () => {
     await user.click(await screen.findByRole("button", { name: "增加每位成员默认最多领养" }))
     await user.click(screen.getByRole("button", { name: "保存默认额度" }))
 
-    await waitFor(() => expect(vi.mocked(ownerWrite)).toHaveBeenCalledWith(
-      "/api/v1/admin/settings/elfies",
-      "PATCH",
-      "csrf",
+    await waitFor(() => expect(vi.mocked(updateElfieSettings)).toHaveBeenCalledWith(
       { ...adoption, max_elfies_per_user: 4 },
+      "csrf",
     ))
   })
 
   it("keeps localized save failures inside the system settings page", async () => {
     const user = userEvent.setup()
-    vi.mocked(ownerWrite).mockRejectedValueOnce(new ApiError(400, "后端拒绝了系统设置"))
+    vi.mocked(updateElfieSettings).mockRejectedValueOnce(new ApiError(400, "后端拒绝了系统设置"))
     renderSettingsPanel("en-US")
 
     await screen.findByRole("heading", { name: "Elfie quota" })

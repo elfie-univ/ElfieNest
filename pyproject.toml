@@ -102,11 +102,13 @@ ignore_errors = true
 
 [tool.pytest.ini_options]
 testpaths = ["test"]
+pythonpath = ["."]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = [
     "-v",
+    "--import-mode=importlib",
     "--strict-markers",
     "--tb=short",
 ]

@@ -226,6 +226,19 @@ class SQLiteAccountsAdapter:
             raise AccountPersistenceError(str(error)) from error
         return None if row is None else _profile_record(row)
 
+    def record_heartbeat(self, user_id: int, last_seen_at: str) -> bool:
+        try:
+            with app_sqlite_connection(self._db_path) as connection:
+                cursor = connection.execute(
+                    """UPDATE users SET presence='online',last_seen_at=?,
+                       updated_at=CURRENT_TIMESTAMP WHERE id=?""",
+                    (last_seen_at, user_id),
+                )
+                connection.commit()
+        except sqlite3.DatabaseError as error:
+            raise AccountPersistenceError(str(error)) from error
+        return int(cursor.rowcount) == 1
+
     def update_profile(
         self, user_id: int, profile: AccountProfileWrite
     ) -> AccountProfileRecord | None:

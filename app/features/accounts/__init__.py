@@ -20,6 +20,7 @@ from .errors import (
     PasswordReuseRejected,
 )
 from .models import (
+    AccountHeartbeatResult,
     AccountPrincipal,
     AccountProfileResult,
     AuthenticatedSession,
@@ -44,6 +45,7 @@ from .models import (
     OwnerAccountResult,
     Presence,
     ProfileField,
+    RecordAccountHeartbeatCommand,
     RecoverOwnerAccountCommand,
     ResetManagedAccountPasswordCommand,
     SecurityPolicy,
@@ -96,6 +98,7 @@ from .roles import (
 from .service import AccountsService, RateLimiter
 
 __all__ = (
+    "AccountHeartbeatResult",
     "AccountCredentials",
     "AccountAvatarPort",
     "AccountConflict",
@@ -162,6 +165,7 @@ __all__ = (
     "ProfileField",
     "RateLimiter",
     "RecoverOwnerAccountCommand",
+    "RecordAccountHeartbeatCommand",
     "ResetManagedAccountPasswordCommand",
     "SecurityPolicy",
     "SecurityPolicyPort",

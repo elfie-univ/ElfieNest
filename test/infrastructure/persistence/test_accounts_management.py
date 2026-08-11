@@ -11,8 +11,8 @@ from app.features.accounts import (
     hash_password,
     verify_password,
 )
-from infrastructure.persistence.store import get_db, init_db
 from infrastructure.persistence import SQLiteAccountsAdapter
+from infrastructure.persistence.store import get_db, init_db
 
 
 def _seed_accounts(db_path: str) -> tuple[int, int]:
@@ -61,6 +61,21 @@ def test_profile_member_and_quota_operations_use_one_sqlite_adapter(
         next(user for user in users if user.user_id == member_id).elfie_quota_override
         == 6
     )
+
+
+def test_heartbeat_updates_presence_and_timestamp_atomically(tmp_path: Path) -> None:
+    db_path = init_db(str(tmp_path / "nest.db"))
+    owner_id, _ = _seed_accounts(db_path)
+    adapter = SQLiteAccountsAdapter(db_path)
+    timestamp = "2026-08-11T08:00:00.000000+00:00"
+
+    assert adapter.record_heartbeat(owner_id, timestamp) is True
+
+    with get_db(db_path) as connection:
+        row = connection.execute(
+            "SELECT presence,last_seen_at FROM users WHERE id=?", (owner_id,)
+        ).fetchone()
+    assert tuple(row) == ("online", timestamp)
 
 
 def test_password_change_and_owner_recovery_revoke_the_expected_sessions(

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { requestJson } from "./http"
-import { currentUser, login, logout, safeLoginNextPath, updateProfile } from "./session"
+import { currentUser, heartbeat, login, logout, safeLoginNextPath, updateProfile } from "./session"
 
 vi.mock("./http", () => ({
   csrfHeaders: vi.fn((_csrfToken: string, json = false) => json
@@ -161,6 +161,21 @@ describe("canonical account requests", () => {
     // Then: the request targets the canonical endpoint and carries the CSRF token.
     expect(requestJson).toHaveBeenCalledWith("/api/v1/auth/logout", {
       headers: { "X-CSRF-Token": "csrf-token" },
+      method: "POST",
+    })
+  })
+
+  it("records presence only through the current-account resource", async () => {
+    vi.mocked(requestJson).mockResolvedValue({
+      status: "ok",
+      last_seen_at: "2026-08-11T08:00:00+00:00",
+    })
+
+    await expect(heartbeat("csrf-token")).resolves.toBe(
+      "2026-08-11T08:00:00+00:00",
+    )
+    expect(requestJson).toHaveBeenCalledWith("/api/v1/me/heartbeat", {
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": "csrf-token" },
       method: "POST",
     })
   })

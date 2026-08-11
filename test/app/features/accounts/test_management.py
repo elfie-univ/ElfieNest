@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import datetime, timezone
 
 import pytest
 
@@ -21,6 +22,7 @@ from app.features.accounts import (
     ManagedAccountRecord,
     ManagedAccountRecords,
     OwnerAccountRecord,
+    RecordAccountHeartbeatCommand,
     RecoverOwnerAccountCommand,
     StoredAvatar,
     UpdateAccountProfileCommand,
@@ -90,9 +92,14 @@ class ManagementStub:
             updated_at="2026-08-01T00:00:00+00:00",
         )
         self.password_change: tuple[int, str, str] | None = None
+        self.last_heartbeat: tuple[int, str] | None = None
 
     def find_profile(self, user_id: int) -> AccountProfileRecord | None:
         return self.profile if user_id == self.profile.user_id else None
+
+    def record_heartbeat(self, user_id: int, last_seen_at: str) -> bool:
+        self.last_heartbeat = (user_id, last_seen_at)
+        return user_id in self.users
 
     def update_profile(
         self, user_id: int, profile: AccountProfileWrite
@@ -220,6 +227,17 @@ def test_profile_and_password_use_cases_stay_inside_accounts_facade() -> None:
     assert updated.gender == "female"
     assert management.password_change is not None
     assert management.password_change[2] == "current-token"
+
+
+def test_heartbeat_records_current_principal_with_injected_utc_clock() -> None:
+    management = ManagementStub()
+    now = datetime(2026, 8, 11, 8, 0, tzinfo=timezone.utc)
+    service = AccountsService(management=management, now=lambda: now)
+
+    result = service.record_heartbeat(OWNER, RecordAccountHeartbeatCommand())
+
+    assert result.last_seen_at == "2026-08-11T08:00:00.000000+00:00"
+    assert management.last_heartbeat == (1, result.last_seen_at)
 
 
 def test_profile_conflict_and_wrong_password_are_stable_business_errors() -> None:
