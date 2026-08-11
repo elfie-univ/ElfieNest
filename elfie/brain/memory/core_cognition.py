@@ -12,6 +12,7 @@ from typing import Any, Dict, Optional
 
 from elfie.brain.memory.memory_store import MemoryStorePort
 from elfie.brain.memory.node_types import MemoryNode
+from elfie.brain.memory.runtime_food import MemoryModelPort
 
 logger = logging.getLogger("elfie.brain.memory.core_cognition")
 
@@ -267,7 +268,9 @@ class CoreCognition:
     # ------------------------------------------------------------------
 
     def update(
-        self, consolidation_results: Optional[dict] = None, runtime_agent=None
+        self,
+        consolidation_results: Optional[dict] = None,
+        runtime_agent: MemoryModelPort | None = None,
     ) -> None:
         """巩固时更新核心认知。
 
@@ -425,7 +428,7 @@ class CoreCognition:
     # 全量重写（含备份与回滚）
     # ------------------------------------------------------------------
 
-    def _full_rewrite(self, runtime_agent=None) -> None:
+    def _full_rewrite(self, runtime_agent: MemoryModelPort | None = None) -> None:
         """全量重写核心认知，先保存旧版本以支持回滚。"""
         backup = self._backup_core()
 

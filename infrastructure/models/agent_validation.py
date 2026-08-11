@@ -5,7 +5,9 @@ from __future__ import annotations
 import tempfile
 import time
 from collections.abc import Callable, Sequence
+from copy import deepcopy
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from infrastructure.models.llm_api import call_llm_api
@@ -16,9 +18,9 @@ from infrastructure.models.validation_models import (
     CheckStatus,
     ValidationSuite,
 )
-from infrastructure.tools.local_files import LocalFileAccessPlugin
-from infrastructure.tools.loop import RuntimeToolLoop, ToolLoopContext
+from infrastructure.tools.loop import PortToolLoop
 from infrastructure.tools.permissions import PermissionManager
+from infrastructure.tools.port_adapter import ToolPortAdapter
 from infrastructure.tools.search import WebSearchPlugin
 from infrastructure.tools.skills_prompt import inject_skills_system_prompt
 
@@ -73,15 +75,25 @@ class ModelAgentValidationRunner:
                     "ELFIE_LOCAL_FILE_OK", encoding="utf-8"
                 )
                 observer = get_runtime_observer()
-                permission = PermissionManager(self.config, observer)
-                context = ToolLoopContext(
-                    allowed_skills=(tool_name,),
+                policy = deepcopy(getattr(self.config, "runtime_policy", {}))
+                tools = policy.setdefault("tools", {})
+                tools.setdefault(tool_name, {})["enabled"] = True
+                validation_config = SimpleNamespace(runtime_policy=policy)
+                tool_port = ToolPortAdapter(
+                    config=validation_config,
                     search_plugin=self.search_plugin,
-                    permission_manager=permission,
+                    permission_manager=PermissionManager(validation_config, observer),
                     observation_port=observer,
-                    file_access_plugin=LocalFileAccessPlugin(files_root),
+                    workspace_resolver=lambda scope_id: (
+                        files_root if scope_id == "validation" else None
+                    ),
+                    allowed_tool_keys=(tool_name,),
                 )
-                loop = RuntimeToolLoop(context)
+                loop = PortToolLoop(
+                    tool_port,
+                    allowed_tool_keys=(tool_name,),
+                    scope_id="validation",
+                )
                 messages: list[dict[str, Any]] = [
                     {"role": "user", "content": _tool_probe_prompt(tool_name)}
                 ]

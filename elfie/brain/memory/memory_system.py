@@ -31,6 +31,7 @@ from .encoding import MemoryEncoder
 from .memory_store import MemoryStorePort
 from .node_types import RetrievalQuery
 from .retrieval import MemoryRetriever
+from .runtime_food import MemoryModelPort
 from .sensory_buffer import SensoryBuffer
 from .sensory_index import SensoryIndexer
 from .spreading_activation import SpreadingActivation
@@ -95,7 +96,7 @@ class MemorySystem:
         intensity: float = 0.0,
         stimulus: Optional[str] = None,
         sensory: Optional[dict] = None,
-        runtime_agent=None,
+        runtime_agent: MemoryModelPort | None = None,
         # 兼容旧API关键字参数名
         event_description: Optional[str] = None,
         emotion_tag: Optional[str] = None,
@@ -153,7 +154,9 @@ class MemorySystem:
         nodes = self.retriever.retrieve(retrieval_query, top_k)
         return [node.content for node in nodes]
 
-    def run_consolidation(self, runtime_agent=None) -> Dict[str, Any]:
+    def run_consolidation(
+        self, runtime_agent: MemoryModelPort | None = None
+    ) -> Dict[str, Any]:
         """运行巩固流程
 
         Args:

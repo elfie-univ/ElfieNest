@@ -6,9 +6,9 @@ import json
 import math
 import sqlite3
 from datetime import datetime, timezone
-from typing import Any, Final, cast
+from typing import Any, Final, Mapping, cast
 
-from elfie.brain.memory.node_types import Edge, MemoryNode
+from elfie.brain.memory.node_types import Edge, JsonValue, MemoryNode
 
 _TYPE_MAP: Final[dict[str, str]] = {
     "core": "concept",
@@ -30,7 +30,7 @@ def _json_safe(value):
     """Encode malformed numeric metadata without violating SQLite JSON checks."""
     if isinstance(value, float) and not math.isfinite(value):
         return str(value)
-    if isinstance(value, dict):
+    if isinstance(value, Mapping):
         return {key: _json_safe(item) for key, item in value.items()}
     if isinstance(value, list):
         return [_json_safe(item) for item in value]
@@ -106,7 +106,7 @@ class KnowledgeNodeStoreMixin:
         node_id: str,
         *,
         content: str | None = None,
-        metadata: dict | None = None,
+        metadata: Mapping[str, JsonValue] | None = None,
         edges: list[Edge] | None = None,
     ) -> bool:
         node = self.get_node(node_id)

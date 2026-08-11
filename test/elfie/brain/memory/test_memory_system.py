@@ -28,14 +28,14 @@ from elfie.brain.memory import (
     SpreadingActivation,
 )
 from elfie.profile import load_packaged_profile_defaults
-from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
+from test.elfie.brain.memory.fake_store import FakeMemoryStore
 
 _PERSONALITY_DATA = load_packaged_profile_defaults()["personality"]
 
 
 def _new_memory_system() -> MemorySystem:
     return MemorySystem(
-        storage=SQLiteMemoryStoreAdapter.in_memory(),
+        storage=FakeMemoryStore.in_memory(),
         personality_data=_PERSONALITY_DATA,
     )
 
@@ -44,7 +44,7 @@ class TestMemorySystem:
     """MemorySystem 门面类测试"""
 
     def test_memory_system_accepts_a_brain_owned_storage_port(self):
-        store = SQLiteMemoryStoreAdapter.in_memory()
+        store = FakeMemoryStore.in_memory()
         ms = MemorySystem(storage=store, personality_data=_PERSONALITY_DATA)
 
         assert ms.storage is store
@@ -56,7 +56,7 @@ class TestMemorySystem:
         """初始化所有组件"""
         ms = _new_memory_system()
         assert ms.storage is not None
-        assert isinstance(ms.storage, SQLiteMemoryStoreAdapter)
+        assert isinstance(ms.storage, FakeMemoryStore)
         assert ms.sensory_buffer is not None
         assert isinstance(ms.sensory_buffer, SensoryBuffer)
         assert ms.core_cognition is not None
@@ -151,7 +151,7 @@ class TestMemorySystem:
         ms = _new_memory_system()
 
         class MockRuntime:
-            def ask(self, p, energy, task_complexity):
+            def ask_with_food(self, prompt, **kwargs):
                 return "与主人在一起很开心\n食物让艾菲感到满足"
 
         ms.record_episode(content="主人喂我吃饭", emotion="happy", intensity=70.0)

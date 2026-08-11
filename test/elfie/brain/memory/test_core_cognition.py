@@ -4,16 +4,13 @@
 - 从 personality.yaml 初始化4段核心认知
 - get_core_text 格式验证
 - 总 Token 数量约束
-- SQLite 持久化加载
 - 增量更新与周期全量重写
 - 注入的语义存储生命周期
 """
 
-from pathlib import Path
-
 from elfie.brain.memory.core_cognition import CoreCognition
 from elfie.profile import load_packaged_profile_defaults
-from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
+from test.elfie.brain.memory.fake_store import FakeMemoryStore
 
 # ---------------------------------------------------------------------------
 # 测试辅助
@@ -22,12 +19,10 @@ from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 _PERSONALITY_DATA = load_packaged_profile_defaults()["personality"]
 
 
-def _make_cc(db_path: str = ":memory:") -> CoreCognition:
-    """创建一个已初始化的 CoreCognition 测试实例。"""
-    if db_path != ":memory:":
-        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+def _make_cc() -> CoreCognition:
+    """创建一个不依赖技术持久化的 CoreCognition 测试实例。"""
     return CoreCognition(
-        storage=SQLiteMemoryStoreAdapter(db_path),
+        storage=FakeMemoryStore.in_memory(),
         personality_data=_PERSONALITY_DATA,
     )
 
@@ -43,7 +38,7 @@ class TestCoreCognition:
     def test_initialize_from_personality(self):
         """从yaml初始化，4段核心认知全部生成"""
         cc = CoreCognition(
-            storage=SQLiteMemoryStoreAdapter.in_memory(),
+            storage=FakeMemoryStore.in_memory(),
             personality_data=None,
         )
         # 初始状态：无核心认知
@@ -99,26 +94,11 @@ class TestCoreCognition:
         char_counts = {k: len(v) for k, v in core_text.items()}
         print(f"  [字符统计] {char_counts} | 总计: {total_chars}")
 
-    def test_load_from_db(self, tmp_path: Path):
-        """从SQLite加载已存在的核心认知"""
-        db_path = str((tmp_path / "knowledge.sqlite").resolve())
-        # 第一个实例：初始化数据并写入SQLite
-        cc1 = _make_cc(db_path=db_path)
-        expected_text = dict(cc1._core_text)
-        assert len(expected_text) == 4
-        cc1.storage.close()
-
-        # 第二个实例：从同一文件加载，不自动初始化
-        cc2 = CoreCognition(
-            storage=SQLiteMemoryStoreAdapter(db_path),
-            personality_data=None,
-        )
-        # _load_from_db 应找到已存在的 core 节点
-        loaded = cc2.get_core_text()
-        assert loaded == expected_text, (
-            f"加载的内容与期望不符\n期望: {expected_text}\n实际: {loaded}"
-        )
-        cc2.storage.close()
+    def test_storage_lifecycle_is_owned_by_the_injected_port(self):
+        """Brain only writes semantic nodes; Bootstrap owns persistence reopen."""
+        cc = _make_cc()
+        assert cc.storage.count_nodes("core") == 4
+        cc.storage.close()
 
     def test_update_incremental(self):
         """增量更新核心认知（metadata）"""

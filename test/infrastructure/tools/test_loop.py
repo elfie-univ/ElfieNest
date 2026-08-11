@@ -1,158 +1,129 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pytest
 
-from infrastructure.tools.loop import RuntimeToolLoop, ToolLoopContext
-from infrastructure.tools.observation import (
-    PermissionDecisionObservation,
-    ToolCallObservation,
-)
-
-
-class FakeObservationPort:
-    def record_tool_observation(self, observation: ToolCallObservation) -> None:
-        pass
-
-    def record_permission_observation(
-        self, observation: PermissionDecisionObservation
-    ) -> None:
-        pass
+from elfie.brain.tool_port import ToolKey, ToolRequest, ToolResult
+from elfie.message_types import ErrorInfo
+from infrastructure.tools.loop import PortToolLoop
 
 
 @dataclass
-class FakeSearchPlugin:
-    query: str = ""
+class FakeToolPort:
+    requests: list[ToolRequest] = field(default_factory=list)
 
-    def search(self, query: str) -> str:
-        self.query = query
-        return "Search result"
+    def available_tool_keys(self) -> tuple[ToolKey, ...]:
+        return ("web_search", "local_file")
 
-
-@dataclass
-class FakeSandboxPlugin:
-    code: str = ""
-
-    def execute(self, code: str) -> dict[str, str | int]:
-        self.code = code
-        return {"stdout": "4", "stderr": "", "exit_code": 0}
-
-
-@dataclass
-class FakePermissionManager:
-    action: str = ""
-
-    def verify_action(
-        self, action: str, file_path: str, token: str | None = None
-    ) -> None:
-        self.action = action
-
-
-@dataclass
-class FakeSkillsPlugin:
-    skill_name: str = ""
-
-    def write_skill(
-        self, filename: str, code: str, owner_token: str | None = None
-    ) -> str:
-        self.skill_name = filename
-        return "Skill written"
-
-    def run_skill(self, filename: str, args: str = "") -> dict[str, str | int]:
-        self.skill_name = filename
-        return {"exit_code": 0, "stdout": "Skill output", "stderr": ""}
-
-    def list_skills(self) -> str:
-        return "Skill list"
+    def execute(self, request: ToolRequest) -> ToolResult:
+        self.requests.append(request)
+        if request.tool_key == "web_search":
+            return ToolResult(
+                tool_key=request.tool_key,
+                ok=True,
+                content="Search result",
+            )
+        if request.operation == "read":
+            return ToolResult(
+                tool_key=request.tool_key,
+                ok=True,
+                content="private content",
+            )
+        return ToolResult(
+            tool_key=request.tool_key,
+            ok=False,
+            content="denied",
+            error=ErrorInfo(code="denied", message="denied"),
+        )
 
 
-def test_runtime_tool_loop_runs_search_then_returns_final_response():
-    search_plugin = FakeSearchPlugin()
+def test_port_tool_loop_runs_search_then_returns_final_response():
+    tool_port = FakeToolPort()
     messages = [{"role": "user", "content": "What is ElfieNest?"}]
-    context = ToolLoopContext(
-        allowed_skills=("web_search",),
-        search_plugin=search_plugin,
-        permission_manager=FakePermissionManager(),
-        observation_port=FakeObservationPort(),
+    loop = PortToolLoop(
+        tool_port,
+        allowed_tool_keys=("web_search",),
+        scope_id="elfie-1",
     )
-    loop = RuntimeToolLoop(context)
     responses = iter(["[SEARCH]ElfieNest[/SEARCH]", "Final answer"])
 
-    result = loop.run(
-        messages=messages,
-        max_loops=2,
-        call_llm=lambda messages: next(responses),
-    )
+    result = loop.run(messages, 2, lambda _messages: next(responses))
 
     assert result == "Final answer"
-    assert search_plugin.query == "ElfieNest"
-    assert messages[-2] == {
-        "role": "assistant",
-        "content": "[SEARCH]ElfieNest[/SEARCH]",
-    }
-    assert messages[-1]["role"] == "user"
-    assert messages[-1]["content"].startswith("【联网搜索反馈】")
-
-
-def test_runtime_tool_loop_does_not_echo_local_workspace_paths_to_the_model():
-    class FileAccess:
-        def read_text(self, relative_path: str) -> str:
-            assert relative_path == "private/notes.txt"
-            return "private content"
-
-        def list_files(self, relative_path: str = ".") -> list[str]:
-            return []
-
-    messages = [{"role": "user", "content": "read"}]
-    loop = RuntimeToolLoop(
-        ToolLoopContext(
-            allowed_skills=("local_file",),
-            search_plugin=FakeSearchPlugin(),
-            permission_manager=FakePermissionManager(),
-            observation_port=FakeObservationPort(),
-            file_access_plugin=FileAccess(),
+    assert tool_port.requests == [
+        ToolRequest(
+            scope_id="elfie-1",
+            tool_key="web_search",
+            operation="search",
+            query="ElfieNest",
         )
+    ]
+    assert messages[-1]["content"] == "Search result"
+
+
+def test_port_tool_loop_scopes_local_file_requests_to_the_semantic_port():
+    tool_port = FakeToolPort()
+    messages = [{"role": "user", "content": "read"}]
+    loop = PortToolLoop(
+        tool_port,
+        allowed_tool_keys=("local_file",),
+        scope_id="elfie-1",
     )
     responses = iter(["[READ_FILE]private/notes.txt[/READ_FILE]", "final"])
 
     assert loop.run(messages, 2, lambda _messages: next(responses)) == "final"
-    assert "private/notes.txt" not in messages[-1]["content"]
+    assert tool_port.requests[0].resource_id == "private/notes.txt"
+    assert messages[-1]["content"] == "private content"
 
 
-def test_runtime_tool_loop_does_not_run_unavailable_code_sandbox():
-    sandbox_plugin = FakeSandboxPlugin()
-    permission_manager = FakePermissionManager()
-    context = ToolLoopContext(
-        allowed_skills=("code_sandbox",),
-        search_plugin=FakeSearchPlugin(),
-        permission_manager=permission_manager,
-        observation_port=FakeObservationPort(),
+def test_port_tool_loop_does_not_execute_unapproved_markers():
+    tool_port = FakeToolPort()
+    loop = PortToolLoop(
+        tool_port,
+        allowed_tool_keys=("web_search",),
+        scope_id="elfie-1",
     )
-    loop = RuntimeToolLoop(context)
+
     result = loop.run(
         messages=[{"role": "user", "content": "2+2?"}],
         max_loops=2,
-        call_llm=lambda messages: "[CODE]print(2 + 2)[/CODE]",
+        call_llm=lambda _messages: "[CODE]print(2 + 2)[/CODE]",
     )
 
     assert result == "[CODE]print(2 + 2)[/CODE]"
-    assert sandbox_plugin.code == ""
-    assert permission_manager.action == ""
+    assert tool_port.requests == []
 
 
-def test_runtime_tool_loop_times_out_when_model_keeps_requesting_tools():
-    context = ToolLoopContext(
-        allowed_skills=("web_search",),
-        search_plugin=FakeSearchPlugin(),
-        permission_manager=FakePermissionManager(),
-        observation_port=FakeObservationPort(),
+def test_port_tool_loop_does_not_execute_unscoped_local_file_marker():
+    tool_port = FakeToolPort()
+    loop = PortToolLoop(
+        tool_port,
+        allowed_tool_keys=("local_file",),
+        scope_id=None,
     )
-    loop = RuntimeToolLoop(context)
+
+    result = loop.run(
+        messages=[{"role": "user", "content": "read"}],
+        max_loops=2,
+        call_llm=lambda _messages: "[READ_FILE]private/notes.txt[/READ_FILE]",
+    )
+
+    assert result == "[READ_FILE]private/notes.txt[/READ_FILE]"
+    assert tool_port.requests == []
+
+
+def test_port_tool_loop_times_out_when_model_keeps_requesting_tools():
+    tool_port = FakeToolPort()
+    loop = PortToolLoop(
+        tool_port,
+        allowed_tool_keys=("web_search",),
+        scope_id="elfie-1",
+    )
 
     with pytest.raises(TimeoutError):
         loop.run(
             messages=[{"role": "user", "content": "Search"}],
             max_loops=1,
-            call_llm=lambda messages: "[SEARCH]again[/SEARCH]",
+            call_llm=lambda _messages: "[SEARCH]again[/SEARCH]",
         )

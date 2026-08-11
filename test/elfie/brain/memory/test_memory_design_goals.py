@@ -24,7 +24,7 @@ from elfie.brain.memory.node_types import (
     RetrievalQuery,
 )
 from elfie.brain.memory.spreading_activation import SpreadingActivation
-from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
+from test.elfie.brain.memory.fake_store import FakeMemoryStore
 
 # ==============================================================================
 # 辅助函数
@@ -81,7 +81,7 @@ class TestSpreadingActivationDesignGoals:
 
     @pytest.fixture
     def storage(self):
-        gs = SQLiteMemoryStoreAdapter.in_memory()
+        gs = FakeMemoryStore.in_memory()
         yield gs
 
     @pytest.fixture
@@ -497,7 +497,7 @@ class TestConsolidationSafetyDesignGoals:
 
     @pytest.fixture
     def storage(self):
-        gs = SQLiteMemoryStoreAdapter.in_memory()
+        gs = FakeMemoryStore.in_memory()
         yield gs
 
     @pytest.fixture
@@ -603,7 +603,7 @@ class TestConsolidationPatternDesignGoals:
 
     @pytest.fixture
     def storage(self):
-        gs = SQLiteMemoryStoreAdapter.in_memory()
+        gs = FakeMemoryStore.in_memory()
         yield gs
 
     @pytest.fixture
@@ -840,7 +840,7 @@ class TestConsolidationEntityDesignGoals:
 
     @pytest.fixture
     def storage(self):
-        gs = SQLiteMemoryStoreAdapter.in_memory()
+        gs = FakeMemoryStore.in_memory()
         yield gs
 
     @pytest.fixture

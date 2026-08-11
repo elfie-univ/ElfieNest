@@ -6,9 +6,12 @@
 import json
 from datetime import datetime
 
+import pytest
+
 from elfie.brain.memory.node_types import (
     Edge,
     EdgeTypes,
+    MemoryMetadata,
     MemoryNode,
     NodeTypes,
     RetrievalQuery,
@@ -144,6 +147,14 @@ class TestMemoryNode:
         loaded = json.loads(dumped)
         assert loaded["score"] == 42
         assert loaded["tags"] == ["a", "b"]
+
+    def test_metadata_rejects_non_json_values_on_construction_and_update(self):
+        with pytest.raises(TypeError):
+            MemoryMetadata({"bad": object()})
+
+        metadata = MemoryMetadata()
+        with pytest.raises(TypeError):
+            metadata.update({"bad": object()})
 
     def test_memory_node_is_dataclass(self):
         """验证 MemoryNode 是 dataclass"""

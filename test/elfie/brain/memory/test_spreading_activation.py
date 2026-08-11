@@ -4,13 +4,13 @@ import pytest
 
 from elfie.brain.memory.node_types import EdgeTypes, MemoryNode
 from elfie.brain.memory.spreading_activation import SpreadingActivation
-from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
+from test.elfie.brain.memory.fake_store import FakeMemoryStore
 
 
 @pytest.fixture
 def storage():
-    """提供内存数据库的 GraphStorage 实例"""
-    gs = SQLiteMemoryStoreAdapter.in_memory()
+    """提供语义 MemoryStorePort Fake。"""
+    gs = FakeMemoryStore.in_memory()
     yield gs
     gs.close()
 

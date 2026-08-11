@@ -12,7 +12,10 @@ from infrastructure.models.fallback_runtime import FallbackRuntimeAdapter
 from infrastructure.models.runtime_adapter import StructuredRuntime
 from infrastructure.models.runtime_agent import RuntimeAgent
 from infrastructure.models.runtime_config import LLMRuntimeConfig
+from infrastructure.models.runtime_observations import get_runtime_observer
+from infrastructure.persistence.data_home import get_elfie_workspace_dir
 from infrastructure.persistence.food import SQLiteFoodAdapter
+from infrastructure.tools import ToolPortAdapter
 
 
 @dataclass(frozen=True)
@@ -45,11 +48,21 @@ def build_runtime_services(
     main_food_loader: Callable[[str], MainFoodSelection] | None = None
     if resolve_main_food:
         main_food_loader = final_main_food_loader(build_food_service(db_path))
+    tool_port = ToolPortAdapter.from_runtime_config(
+        config,
+        observation_port=get_runtime_observer(),
+        workspace_resolver=(
+            lambda elfie_id: (
+                get_elfie_workspace_dir(elfie_id) if elfie_id is not None else None
+            )
+        ),
+    )
     runtime = RuntimeAgent(
         config,
         live_reload=live_reload,
         main_food_loader=main_food_loader,
         food_catalog_repository=SQLiteFoodAdapter(db_path),
+        tool_port=tool_port,
     )
 
     def warmup() -> None:

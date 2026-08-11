@@ -9,6 +9,7 @@ from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.memory.node_types import (
     Edge,
     EdgeTypes,
+    MemoryMetadata,
     MemoryNode,
     NodeTypes,
     RetrievalQuery,
@@ -23,6 +24,7 @@ __all__ = [
     "MemorySystem",
     "MemoryStorePort",
     "MemoryNode",
+    "MemoryMetadata",
     "Edge",
     "RetrievalQuery",
     "NodeTypes",

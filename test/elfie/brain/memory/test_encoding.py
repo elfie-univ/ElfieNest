@@ -19,7 +19,7 @@ from elfie.brain.memory.node_types import (
     NodeTypes,
 )
 from elfie.brain.memory.sensory_buffer import SensoryBuffer
-from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
+from test.elfie.brain.memory.fake_store import FakeMemoryStore
 
 
 class TestMemoryEncoder:
@@ -27,8 +27,8 @@ class TestMemoryEncoder:
 
     @pytest.fixture
     def storage(self):
-        """使用 :memory: 模式的 SQLite 存储"""
-        gs = SQLiteMemoryStoreAdapter.in_memory()
+        """使用语义 MemoryStorePort Fake。"""
+        gs = FakeMemoryStore.in_memory()
         yield gs
         gs.close()
 

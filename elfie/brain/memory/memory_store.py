@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Mapping, Protocol
 
-from .node_types import Edge, MemoryNode
+from .node_types import Edge, JsonValue, MemoryMetadata, MemoryNode
 
 
 class MemoryStorePort(Protocol):
@@ -19,7 +19,7 @@ class MemoryStorePort(Protocol):
         node_id: str,
         *,
         content: str | None = None,
-        metadata: dict | None = None,
+        metadata: Mapping[str, JsonValue] | MemoryMetadata | None = None,
         edges: list[Edge] | None = None,
     ) -> bool: ...
 

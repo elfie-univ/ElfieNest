@@ -23,7 +23,6 @@ from infrastructure.models.runtime_adapter import (
 )
 from infrastructure.persistence.data_home import (
     get_elfie_config_dir,
-    get_elfie_workspace_dir,
 )
 from infrastructure.persistence.elfies import SQLiteElfiesProjectionAdapter
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
@@ -79,10 +78,10 @@ def build_nest_session_services(
     def model_port_factory(elfie_id: str) -> SerializedRuntimeAdapter:
         return SerializedRuntimeAdapter(
             runtime,
+            scope_id=elfie_id,
             food_key_resolver=lambda: (
                 main_food_loader(elfie_id) if main_food_loader is not None else None
             ),
-            elfie_workspace_resolver=lambda: str(get_elfie_workspace_dir(elfie_id)),
         )
 
     return NestSessionServices(
@@ -139,7 +138,7 @@ def restore_registered_elfies(
 
 def register_transient_elfie(session: NestSession, elfie_id: str) -> None:
     """Create and register the existing interactive-script Elfie."""
-    profile = assemble_profile(config_dir=None, elfie_id=elfie_id, supplied=None)
+    profile = assemble_profile(elfie_id=elfie_id, supplied=None)
     elfie = ElfieFactory().create(
         ElfieAssembly(
             profile=profile,

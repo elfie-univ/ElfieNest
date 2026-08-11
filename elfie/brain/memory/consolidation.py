@@ -26,7 +26,7 @@ from typing import Any, Dict, List
 
 from elfie.brain.memory.memory_store import MemoryStorePort
 from elfie.brain.memory.node_types import EdgeTypes, MemoryNode, NodeTypes
-from elfie.brain.memory.runtime_food import ask_memory_model
+from elfie.brain.memory.runtime_food import MemoryModelPort, ask_memory_model
 from elfie.brain.memory.tokenizer import tokenize
 
 logger = logging.getLogger("elfie.brain.memory.consolidation")
@@ -50,7 +50,9 @@ class MemoryConsolidator:
         self._max_llm_calls = 4
         self.elfie_id = elfie_id
 
-    def run_consolidation(self, runtime_agent=None) -> Dict[str, Any]:
+    def run_consolidation(
+        self, runtime_agent: MemoryModelPort | None = None
+    ) -> Dict[str, Any]:
         """执行巩固流程（8.5步骤，含pattern发现）
 
         Steps:
@@ -244,7 +246,7 @@ class MemoryConsolidator:
         self,
         group: List[MemoryNode],
         entity_name: str,
-        runtime_agent=None,
+        runtime_agent: MemoryModelPort | None = None,
     ) -> List[Dict[str, Any]]:
         """步骤3：LLM知识提炼（降级为规则提取如果LLM不可用）
 
@@ -256,7 +258,6 @@ class MemoryConsolidator:
         """
         if (
             runtime_agent is not None
-            and hasattr(runtime_agent, "ask")
             and self._llm_calls_this_cycle < self._max_llm_calls
         ):
             try:
@@ -472,7 +473,7 @@ class MemoryConsolidator:
     def _extract_causal_edges(
         self,
         group: List[MemoryNode],
-        runtime_agent=None,
+        runtime_agent: MemoryModelPort | None = None,
     ) -> int:
         """步骤6：提取因果边和entity间关系边（LLM）
 
@@ -488,7 +489,6 @@ class MemoryConsolidator:
         if (
             len(group) >= 2
             and runtime_agent is not None
-            and hasattr(runtime_agent, "ask")
             and self._llm_calls_this_cycle < self._max_llm_calls
         ):
             try:
@@ -638,7 +638,9 @@ class MemoryConsolidator:
     )
 
     def _discover_patterns(
-        self, knowledge_ids: List[str], runtime_agent=None
+        self,
+        knowledge_ids: List[str],
+        runtime_agent: MemoryModelPort | None = None,
     ) -> List[str]:
         """步骤7.5：从knowledge节点中发现pattern（更高层次的规律抽象）
 
@@ -675,7 +677,6 @@ class MemoryConsolidator:
         # 优先用LLM发现共同模式
         if (
             runtime_agent is not None
-            and hasattr(runtime_agent, "ask")
             and self._llm_calls_this_cycle < self._max_llm_calls
         ):
             try:

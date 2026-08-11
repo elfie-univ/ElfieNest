@@ -11,13 +11,14 @@ from .config import (
     load_tool_configs,
 )
 from .executor import ToolExecutionContext, ToolExecutor, ToolResult
-from .loop import RuntimeToolLoop, ToolLoopContext
+from .loop import PortToolLoop
 from .observation import (
     PermissionDecisionObservation,
     ToolCallObservation,
     ToolObservationPort,
 )
 from .permissions import PermissionDeniedError, PermissionManager
+from .port_adapter import DisabledToolPort, ToolPortAdapter
 from .skills_prompt import inject_skills_system_prompt
 
 __all__ = (
@@ -26,14 +27,15 @@ __all__ = (
     "PermissionDeniedError",
     "PermissionManager",
     "RuntimeCapabilitiesAdapter",
-    "RuntimeToolLoop",
+    "PortToolLoop",
+    "DisabledToolPort",
+    "ToolPortAdapter",
     "SAFE_TOOL_KEYS",
     "TOOL_KEYS",
     "ToolCallObservation",
     "ToolCapabilitySecretAdapter",
     "ToolExecutionContext",
     "ToolExecutor",
-    "ToolLoopContext",
     "ToolObservationPort",
     "ToolResult",
     "effective_tool_keys",

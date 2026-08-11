@@ -96,7 +96,6 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "elfie/communication/AGENTS.md",
             "elfie/nervous_system/AGENTS.md",
             "elfie/profile/AGENTS.md",
-            "elfie/skills/AGENTS.md",
         ),
         scanner_paths=("scripts/architecture/system_layer_scan.py",),
         test_paths=("test/architecture/test_elfie_cognitive_contracts.py",),

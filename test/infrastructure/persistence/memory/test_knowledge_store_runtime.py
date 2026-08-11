@@ -19,10 +19,7 @@ def _user_tables(db_path: Path) -> set[str]:
 
 
 def test_factory_workspace_uses_only_final_knowledge_database(tmp_path: Path) -> None:
-    # Given
     workspace = tmp_path / "elfie-workspace"
-
-    # When
     profile = _profile(workspace)
     elfie = ElfieFactory().create(
         ElfieAssembly(
@@ -33,7 +30,6 @@ def test_factory_workspace_uses_only_final_knowledge_database(tmp_path: Path) ->
         )
     )
 
-    # Then
     db_path = workspace / "memory" / "knowledge.sqlite"
     assert db_path.is_file()
     assert _user_tables(db_path) == set(KNOWLEDGE_TABLES)
@@ -44,7 +40,6 @@ def test_factory_workspace_uses_only_final_knowledge_database(tmp_path: Path) ->
 def test_record_reopen_retrieve_and_consolidate_uses_final_store(
     tmp_path: Path,
 ) -> None:
-    # Given
     workspace = tmp_path / "elfie-workspace"
     profile = _profile(workspace)
     first = ElfieFactory().create(
@@ -62,7 +57,6 @@ def test_record_reopen_retrieve_and_consolidate_uses_final_store(
     )
     first.memory.storage.close()
 
-    # When
     reopened = ElfieFactory().restore(
         ElfieAssembly(
             profile=YamlProfileStoreAdapter(workspace / "profile").load(),
@@ -74,7 +68,6 @@ def test_record_reopen_retrieve_and_consolidate_uses_final_store(
     memories = reopened.memory.retrieve_relevant_memories("金色的花")
     result = reopened.memory.run_consolidation()
 
-    # Then
     assert "今天在花园看到了金色的花" in memories
     assert result["consolidated_count"] == 1
     assert not list(workspace.rglob("graph_memory.db"))
@@ -82,7 +75,6 @@ def test_record_reopen_retrieve_and_consolidate_uses_final_store(
 
 
 def test_product_memory_modules_do_not_reference_legacy_graph_store() -> None:
-    # Given
     memory_dir = Path(__file__).parents[4] / "elfie" / "brain" / "memory"
     product_modules = (
         "memory_system.py",
@@ -94,14 +86,11 @@ def test_product_memory_modules_do_not_reference_legacy_graph_store() -> None:
         "sensory_index.py",
         "context_assembly.py",
     )
-
-    # When
     sources = {
         name: (memory_dir / name).read_text(encoding="utf-8")
         for name in product_modules
     }
 
-    # Then
     for name, source in sources.items():
         assert "GraphStorage" not in source, name
         assert "graph_memory.db" not in source, name
@@ -116,11 +105,7 @@ def _profile(workspace: Path):
     if profile is None:
         from elfie.initialization import assemble_profile
 
-        profile = assemble_profile(
-            config_dir=None,
-            elfie_id="elfie-runtime",
-            supplied=None,
-        )
+        profile = assemble_profile(elfie_id="elfie-runtime", supplied=None)
         profile_store.save(profile)
     (workspace / "memory").mkdir(parents=True, exist_ok=True)
     return profile

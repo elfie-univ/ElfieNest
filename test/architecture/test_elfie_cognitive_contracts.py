@@ -11,7 +11,14 @@ import elfie.body as body_api
 import elfie.communication as communication_api
 from elfie.body import BodyCommand, BodyPort, BodySensorEvent, CommandReceipt
 from elfie.body.contracts import BodyCommand as ContractBodyCommand
-from elfie.brain import BrainContext, DecisionPlan, PerceptualWorkspace
+from elfie.brain import (
+    BrainContext,
+    DecisionPlan,
+    PerceptualWorkspace,
+    ToolPort,
+    ToolRequest,
+    ToolResult,
+)
 from elfie.communication import (
     CommunicationChannel,
     CommunicationEnvelope,
@@ -85,6 +92,16 @@ def test_body_and_communication_ports_are_consumer_owned_protocols() -> None:
     assert BodyPort.__module__ == "elfie.body.port"
     assert getattr(CommunicationChannel, "_is_protocol", False)
     assert CommunicationChannel.__module__ == "elfie.communication.channel"
+
+
+def test_brain_tool_port_is_consumer_owned_and_the_legacy_skill_package_is_gone() -> (
+    None
+):
+    assert getattr(ToolPort, "_is_protocol", False)
+    assert ToolPort.__module__ == "elfie.brain.tool_port"
+    assert ToolRequest.__module__ == "elfie.brain.tool_port"
+    assert ToolResult.__module__ == "elfie.brain.tool_port"
+    assert not (ELFIE_ROOT / "skills").exists()
 
 
 def test_canonical_cross_module_contracts_are_public() -> None:

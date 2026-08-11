@@ -7,7 +7,7 @@ import pytest
 
 from elfie.brain.memory.node_types import MemoryNode
 from elfie.brain.memory.sensory_index import SensoryIndexer
-from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
+from test.elfie.brain.memory.fake_store import FakeMemoryStore
 
 
 class TestSensoryIndexer:
@@ -15,8 +15,8 @@ class TestSensoryIndexer:
 
     @pytest.fixture
     def storage(self):
-        """创建内存 SQLite GraphStorage 实例"""
-        gs = SQLiteMemoryStoreAdapter.in_memory()
+        """创建语义 MemoryStorePort Fake。"""
+        gs = FakeMemoryStore.in_memory()
         yield gs
 
     @pytest.fixture

@@ -131,15 +131,15 @@ def test_adapter_preserves_main_food_unavailability_and_workspace():
     runtime = FakeStructuredRuntime(_schema_capabilities())
     adapter = SerializedRuntimeAdapter(
         runtime,
+        scope_id="elfie-1",
         food_key_resolver=lambda: MainFoodSelection("food_primary", unavailable=True),
-        elfie_workspace_resolver=lambda: "/tmp/elfie-workspace",
     )
 
     adapter.generate(_request())
 
     assert runtime.requests[0].food_key == "food_primary"
     assert runtime.requests[0].food_unavailable is True
-    assert runtime.requests[0].elfie_workspace == "/tmp/elfie-workspace"
+    assert runtime.requests[0].scope_id == "elfie-1"
 
 
 def test_adapter_uses_json_text_for_plain_runtime():

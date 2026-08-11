@@ -9,7 +9,6 @@ from elfie.body import BipedAnatomy, QuadrupedAnatomy
 from elfie.body.native.anatomy.base import SomaticAnatomy
 from elfie.profile import (
     ElfieProfile,
-    ProfileStorePort,
     create_visual_profile,
     load_packaged_profile_defaults,
 )
@@ -17,19 +16,13 @@ from elfie.profile import (
 
 def assemble_profile(
     *,
-    config_dir: str | None,
     elfie_id: str | None,
     supplied: ElfieProfile | None,
-    profile_store: ProfileStorePort | None = None,
 ) -> ElfieProfile:
     """Resolve one stable Profile and merge only explicit configuration sources."""
     if supplied is not None:
         supplied.validate()
         return supplied
-    if profile_store is not None and profile_store.exists():
-        return profile_store.load()
-    if config_dir is not None:
-        raise FileNotFoundError("精灵最终档案不存在")
     sections = load_packaged_profile_defaults()
     personality = sections["personality"]
     metadata = personality.get("metadata", {})

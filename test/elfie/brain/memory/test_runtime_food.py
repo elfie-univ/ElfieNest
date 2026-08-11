@@ -24,5 +24,6 @@ def test_memory_work_uses_food_interface_without_model_details():
     assert result == "memory-result"
     assert runtime.kwargs["food_key"] is None
     assert runtime.kwargs["semantic_role"] == "reasoning"
+    assert runtime.kwargs["scene"] == "memory"
     assert "elfie_config_dir" not in runtime.kwargs
     assert "model" not in runtime.kwargs

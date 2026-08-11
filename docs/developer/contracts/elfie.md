@@ -127,7 +127,9 @@ Adapter may share a container-scoped connection pool, Provider client or Godot
 Gateway behind several scoped Port views; shared technical lifetime never
 exposes cross-Elfie queries and never transfers cleanup ownership into Elfie.
 `ToolPort` therefore receives semantic resource identifiers rather than an
-arbitrary filesystem path, and its scoped Adapter resolves the authorized root.
+arbitrary filesystem path; a local-file request must carry the owning Elfie
+scope and its scoped Adapter resolves the authorized root. Web-search requests
+may omit the scope because they do not address Elfie-local resources.
 `FoodPort` does not expose a general cross-Elfie query API. Boundary models use
 domain language and never leak SDK objects, SQL rows, unvalidated dictionaries
 or protocol frames.

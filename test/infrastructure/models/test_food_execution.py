@@ -1,12 +1,7 @@
 from elfie.brain.food_port import FoodAssignment, FoodPackage
 from infrastructure.models.food_execution import FoodExecutor
 from infrastructure.models.runtime_config import LLMRuntimeConfig
-from infrastructure.models.runtime_observations import RuntimeObserver
-
-
-class _Permission:
-    def verify_action(self, *args, **kwargs):
-        return None
+from infrastructure.tools import DisabledToolPort
 
 
 def test_executor_uses_role_then_one_fallback(monkeypatch, tmp_path):
@@ -26,10 +21,7 @@ def test_executor_uses_role_then_one_fallback(monkeypatch, tmp_path):
     }
     executor = FoodExecutor(
         config=config,
-        search_plugin=None,
-        permission_manager=_Permission(),
-        observation_port=RuntimeObserver(),
-        file_access_plugin=None,
+        tool_port=DisabledToolPort(),
         model_caller=caller,
     )
     result = executor.execute(

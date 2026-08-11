@@ -106,7 +106,8 @@ Port 定义在使用它的语义所有者旁边。可以用一个精简的 `elfi
 每个注入 Port 只暴露一只已授权 Elfie 的作用域。具体 Adapter 可以在多个限定作用域的
 Port View 背后共享容器级连接池、Provider Client 或 Godot Gateway；共享技术生命周期
 不得暴露跨 Elfie 查询，也不得把清理所有权转给 Elfie。因此 `ToolPort` 接收语义资源
-标识而非任意文件系统路径，由其限定作用域的 Adapter 解析已授权 Root；`FoodPort` 不
+标识而非任意文件系统路径；本地文件请求必须携带所属 Elfie 作用域，由限定作用域的
+Adapter 解析已授权 Root；不访问 Elfie 本地资源的联网搜索请求可以省略作用域。`FoodPort` 不
 提供跨 Elfie 通用查询 API。边界模型只使用领域语言，不泄漏 SDK 对象、SQL Row、未
 校验字典或协议帧。
 

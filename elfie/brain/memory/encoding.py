@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .memory_store import MemoryStorePort
 from .node_types import EdgeTypes, MemoryNode, NodeTypes
-from .runtime_food import ask_memory_model
+from .runtime_food import MemoryModelPort, ask_memory_model
 from .sensory_buffer import SensoryBuffer
 from .sensory_index import SensoryIndexer
 
@@ -60,7 +60,7 @@ class MemoryEncoder:
         intensity: float,
         stimulus: str = None,
         sensory: dict = None,
-        runtime_agent=None,
+        runtime_agent: MemoryModelPort | None = None,
     ) -> str:
         """编码流程：
         1. 写入SensoryBuffer（事件先进缓冲）
@@ -260,7 +260,11 @@ class MemoryEncoder:
         matching.sort(key=lambda n: n.created_at or "", reverse=True)
         return matching[0].id if matching else None
 
-    def extract_entities(self, content: str, runtime_agent=None) -> List[str]:
+    def extract_entities(
+        self,
+        content: str,
+        runtime_agent: MemoryModelPort | None = None,
+    ) -> List[str]:
         """提取实体名称（规则优先+LLM兜底）
 
         1. 先用内置词典匹配内容中的关键词
