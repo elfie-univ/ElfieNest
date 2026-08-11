@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from app.bootstrap import adoption as adoption_bootstrap
 from infrastructure.persistence.store import get_db, init_db
-from scripts import serve
 
 
 class _CapturingWorkspace:
@@ -25,13 +25,13 @@ def test_default_seed_uses_a_workspace_safe_id(monkeypatch, tmp_path: Path) -> N
     workspace = _CapturingWorkspace()
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path / "elfienest"))
     monkeypatch.setattr(
-        serve,
-        "FinalElfieWorkspaceAdapter",
+        adoption_bootstrap.FinalElfieWorkspaceAdapter,
+        "from_database_path",
         lambda _data_home: workspace,
     )
 
     # When: the service creates its default elfie.
-    assert serve.seed_single_elfie(db_path) is True
+    assert adoption_bootstrap.seed_single_elfie(db_path) is True
 
     # Then: the stable directory ID is separate from the visible display name.
     with get_db(db_path) as connection:

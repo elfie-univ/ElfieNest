@@ -50,13 +50,10 @@ from ai_runtime.gateway.request import (
     StructuredRuntimeResult,
 )
 from app.bootstrap import create_app
+from app.bootstrap.adoption import seed_single_elfie
 from app.bootstrap.food import build_food_service
 from app.bootstrap.lifecycle import create_lifecycle_facade
 from app.bootstrap.nest_session import build_nest_session_services
-from app.features.adoption import (
-    AcceptedAdoptionReservation,
-    AdoptionReservationRecord,
-)
 from app.interfaces.api.service_access import ServiceMode
 from app.interfaces.cli.lifecycle_commands import _remember_lifecycle_data_home
 from app.interfaces.web.frontend_build import (
@@ -75,12 +72,8 @@ from elfie.brain.decision_types import CancelPolicy, DecisionPlan, MessageIntent
 from elfie.brain.model_context_compiler import CompiledModelContext
 from elfie.message_types import EventId, IntentId, PlanId, TurnId
 from infrastructure.godot.gateway.bundle import inspect_godot_web_bundle
-from infrastructure.persistence.account_repository import AccountRepository
-from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
-from infrastructure.persistence.adoption_profiles import FinalElfieWorkspaceAdapter
 from infrastructure.persistence.data_home import (
     DataHomeSelectionError,
-    data_home_from_db_path,
     get_db_path,
     get_elfie_config_dir,
     get_elfie_home,
@@ -89,7 +82,6 @@ from infrastructure.persistence.data_home import (
 from infrastructure.persistence.elfies import SQLiteElfiesProjectionAdapter
 from infrastructure.persistence.food_catalog import SQLiteFoodPackageRepository
 from infrastructure.persistence.store import (
-    get_db,
     init_db,
     seed_initial_owner_if_env_set,
 )
@@ -285,59 +277,6 @@ def prepare_frontend_web_runtime(runtime_mode: str) -> None:
     """Ensure the source Web client is current before a development launch."""
     if runtime_mode == "development":
         ensure_frontend_build(runtime_mode=runtime_mode)
-
-
-def seed_single_elfie(db_path: str) -> bool:
-    """Seed one final default Elfie named "Aifei" for an otherwise empty Nest.
-
-    Returns:
-        True when a new Elfie was seeded, False when existing Elfies require no action.
-    """
-    elfies = SQLiteElfiesProjectionAdapter(db_path)
-    if elfies.list_directory():
-        return False
-    with get_db(db_path) as connection:
-        owner = AccountRepository(connection).find_owner()
-    if owner is None:
-        return False
-
-    elfie_id = "00000001"
-    birth_date = datetime.now(timezone.utc).date().isoformat()
-    adoption = SQLiteAdoptionAdapter(db_path)
-    adoption.reserve(
-        AdoptionReservationRecord(
-            elfie_id=elfie_id,
-            owner_user_id=owner.user_id,
-            name="Aifei",
-            species_id="fox",
-            gender="female",
-            birth_date=birth_date,
-            summary="好奇探索",
-        ),
-        default_limit=1,
-    )
-    try:
-        FinalElfieWorkspaceAdapter(data_home_from_db_path(db_path)).materialize(
-            AcceptedAdoptionReservation(
-                elfie_id=elfie_id,
-                owner_user_id=owner.user_id,
-                name="Aifei",
-                species_id="fox",
-                personality_style="好奇探索",
-                height="tall",
-                build="plump",
-                appearance_seed=uuid4().int & ((1 << 63) - 1),
-                face="any",
-                signature="any",
-                gender="female",
-                birth_date=birth_date,
-            )
-        )
-    except Exception:
-        adoption.release(elfie_id)
-        raise
-
-    return True
 
 
 def main():
