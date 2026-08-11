@@ -5,6 +5,7 @@ from pathlib import Path
 
 from elfie import ElfieFactory
 from elfie.brain.memory.knowledge_schema import KNOWLEDGE_TABLES
+from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 
 def _user_tables(db_path: Path) -> set[str]:
@@ -20,7 +21,11 @@ def test_factory_workspace_uses_only_final_knowledge_database(tmp_path: Path) ->
     workspace = tmp_path / "elfie-workspace"
 
     # When
-    elfie = ElfieFactory().create(config_dir=workspace, elfie_id="elfie-runtime")
+    elfie = ElfieFactory().create(
+        config_dir=workspace,
+        elfie_id="elfie-runtime",
+        profile_store=YamlProfileStoreAdapter(workspace / "profile"),
+    )
 
     # Then
     db_path = workspace / "memory" / "knowledge.sqlite"
@@ -35,7 +40,11 @@ def test_record_reopen_retrieve_and_consolidate_uses_final_store(
 ) -> None:
     # Given
     workspace = tmp_path / "elfie-workspace"
-    first = ElfieFactory().create(config_dir=workspace, elfie_id="elfie-runtime")
+    first = ElfieFactory().create(
+        config_dir=workspace,
+        elfie_id="elfie-runtime",
+        profile_store=YamlProfileStoreAdapter(workspace / "profile"),
+    )
     first.memory.record_episode(
         content="今天在花园看到了金色的花",
         emotion="happy",
@@ -44,7 +53,11 @@ def test_record_reopen_retrieve_and_consolidate_uses_final_store(
     first.memory.close()
 
     # When
-    reopened = ElfieFactory().create(config_dir=workspace, elfie_id="elfie-runtime")
+    reopened = ElfieFactory().create(
+        config_dir=workspace,
+        elfie_id="elfie-runtime",
+        profile_store=YamlProfileStoreAdapter(workspace / "profile"),
+    )
     memories = reopened.memory.retrieve_relevant_memories("金色的花")
     result = reopened.memory.run_consolidation()
 

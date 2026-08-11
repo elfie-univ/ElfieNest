@@ -7,10 +7,11 @@ import pytest
 from elfie import Elfie, ElfieFactory
 from elfie.body import BodyMode, HeadlessBody, QuadrupedAnatomy
 from elfie.profile import (
-    ElfieProfileRepository,
+    ElfieProfile,
     EmbodimentProfile,
     create_visual_profile,
 )
+from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 
 def test_factory_defaults_workspace_memory_to_knowledge_sqlite(tmp_path: Path) -> None:
@@ -18,7 +19,11 @@ def test_factory_defaults_workspace_memory_to_knowledge_sqlite(tmp_path: Path) -
     workspace = tmp_path / "workspace"
 
     # When
-    elfie = ElfieFactory().create(config_dir=workspace, elfie_id="elfie-final-store")
+    elfie = ElfieFactory().create(
+        config_dir=workspace,
+        elfie_id="elfie-final-store",
+        profile_store=YamlProfileStoreAdapter(workspace / "profile"),
+    )
 
     # Then
     db_path = workspace / "memory" / "knowledge.sqlite"
@@ -42,7 +47,7 @@ def make_profile(config_dir: Path, elfie_id: str = "elfie-profile"):
         species_id="fox",
         seed=42,
     )
-    ElfieProfileRepository(config_dir / "profile").save(profile)
+    YamlProfileStoreAdapter(config_dir / "profile").save(profile)
     return profile
 
 
@@ -58,6 +63,38 @@ class FakeGodotGateway:
     ) -> bool:
         self.sent.append({"payload": payload, "correlation_id": correlation_id})
         return True
+
+
+class InMemoryProfileStore:
+    def __init__(self, profile: ElfieProfile) -> None:
+        self.profile = profile
+
+    def exists(self) -> bool:
+        return True
+
+    def load(self) -> ElfieProfile:
+        return self.profile
+
+    def save(self, profile: ElfieProfile) -> None:
+        self.profile = profile
+
+
+def test_factory_consumes_profile_store_port_without_path_knowledge() -> None:
+    profile = create_visual_profile(
+        elfie_id="elfie-port",
+        display_name="端口精灵",
+        species_id="fox",
+        seed=17,
+    )
+
+    elfie = ElfieFactory().create(
+        config_dir="profile-store-port-test",
+        elfie_id="elfie-port",
+        memory_db_path=":memory:",
+        profile_store=InMemoryProfileStore(profile),
+    )
+
+    assert elfie.profile == profile
 
     def cancel_body_command(self, *, command_id: str, actor_id: str) -> bool:
         self.sent.append({"command_id": command_id, "actor_id": actor_id})
@@ -99,6 +136,7 @@ def test_factory_restores_persisted_profile_and_identity(tmp_path: Path) -> None
         tmp_path,
         elfie_id="elfie-profile",
         memory_db_path=":memory:",
+        profile_store=YamlProfileStoreAdapter(tmp_path / "profile"),
     )
 
     assert elfie.profile is profile or elfie.profile.to_dict() == profile.to_dict()
@@ -117,6 +155,7 @@ def test_restore_preserves_profile_and_explicit_body_binding(tmp_path: Path) -> 
         bodies=[explicit],
         current_body_id="explicit",
         memory_db_path=":memory:",
+        profile_store=YamlProfileStoreAdapter(tmp_path / "profile"),
     )
 
     # Then
@@ -137,9 +176,13 @@ def test_factory_uses_profile_embodiment_when_legacy_anatomy_is_absent(
             capability_profile_id="fox_quadruped_v1",
         ),
     )
-    ElfieProfileRepository(tmp_path / "profile").save(profile)
+    YamlProfileStoreAdapter(tmp_path / "profile").save(profile)
 
-    elfie = ElfieFactory().restore(tmp_path, memory_db_path=":memory:")
+    elfie = ElfieFactory().restore(
+        tmp_path,
+        memory_db_path=":memory:",
+        profile_store=YamlProfileStoreAdapter(tmp_path / "profile"),
+    )
 
     assert elfie.anatomy_type == "quadruped"
     assert isinstance(elfie.anatomy, QuadrupedAnatomy)
@@ -153,6 +196,7 @@ def test_factory_rejects_identity_that_conflicts_with_profile(tmp_path: Path) ->
             tmp_path,
             elfie_id="different-id",
             memory_db_path=":memory:",
+            profile_store=YamlProfileStoreAdapter(tmp_path / "profile"),
         )
 
 

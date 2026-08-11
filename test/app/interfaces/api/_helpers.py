@@ -10,6 +10,7 @@
 
 import secrets
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 from app.features.adoption import (
@@ -21,6 +22,7 @@ from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
 from infrastructure.persistence.adoption_profiles import FinalElfieWorkspaceAdapter
 from infrastructure.persistence.data_home import data_home_from_db_path
 from infrastructure.persistence.nest_management import SQLiteNestManagementAdapter
+from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 from infrastructure.persistence.setup import SQLiteSetupAdapter
 from infrastructure.persistence.setup_nest import SetupNestAdapter
 from infrastructure.persistence.store import get_db, hash_password
@@ -111,6 +113,7 @@ def adopt_test_elfie(
         elfie = ElfieFactoryAdapter(
             ElfieFactory(),
             getattr(engine, "world_runtime", None),
+            lambda path: YamlProfileStoreAdapter(Path(path) / "profile"),
         ).restore(elfie_id, workspace)
         engine.session.register_elfie(elfie_id, elfie)
     return elfie_id

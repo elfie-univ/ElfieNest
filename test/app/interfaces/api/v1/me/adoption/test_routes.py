@@ -17,6 +17,7 @@ from app.orchestration.resident_admission import ResidentAdmissionService
 from elfie import ElfieFactory
 from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
 from infrastructure.persistence.adoption_profiles import FinalElfieWorkspaceAdapter
+from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 from infrastructure.persistence.store import get_db, init_db
 from infrastructure.platform import ElfieFactoryAdapter
 
@@ -41,7 +42,11 @@ def _client(tmp_path: Path) -> tuple[TestClient, str]:
     admission = ResidentAdmissionService(
         adoption,
         FinalElfieWorkspaceAdapter(tmp_path),
-        ElfieFactoryAdapter(ElfieFactory(), None),
+        ElfieFactoryAdapter(
+            ElfieFactory(),
+            None,
+            lambda workspace: YamlProfileStoreAdapter(Path(workspace) / "profile"),
+        ),
         None,
     )
     app = FastAPI()

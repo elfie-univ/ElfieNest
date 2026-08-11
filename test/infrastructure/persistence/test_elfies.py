@@ -5,9 +5,10 @@ from pathlib import Path
 
 from elfie.brain.memory.knowledge_store import KnowledgeStore
 from elfie.brain.memory.node_types import MemoryNode
-from elfie.profile import ElfieProfileRepository, create_visual_profile
+from elfie.profile import create_visual_profile
 from infrastructure.persistence.data_layout import final_root_layout
 from infrastructure.persistence.elfies import SQLiteElfiesProjectionAdapter
+from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 from infrastructure.persistence.store import get_db, init_db
 
 
@@ -65,7 +66,7 @@ def test_profile_reader_consumes_the_public_profile_authority(tmp_path: Path) ->
             }
         },
     )
-    ElfieProfileRepository(layout.profile.parent).save(profile)
+    YamlProfileStoreAdapter(layout.profile.parent).save(profile)
     adapter = SQLiteElfiesProjectionAdapter(db_path)
 
     result = adapter.load_profile("00000001")

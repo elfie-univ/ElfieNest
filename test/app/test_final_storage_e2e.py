@@ -24,6 +24,7 @@ from infrastructure.persistence.elfie_chat_history import (
     record_elfie_chat_message,
 )
 from infrastructure.persistence.embodiment import SQLiteEmbodimentLeaseAdapter
+from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 from infrastructure.persistence.store import get_db, init_db
 from infrastructure.platform import RuntimeSettingsAdapter
 from test.app.interfaces.api._helpers import (
@@ -85,12 +86,20 @@ def test_fresh_root_survives_adoption_chat_memory_and_restart(tmp_path: Path) ->
         ),
         data_home=data_home,
     )
-    elfie = ElfieFactory().restore(workspace, elfie_id=elfie_id)
+    elfie = ElfieFactory().restore(
+        workspace,
+        elfie_id=elfie_id,
+        profile_store=YamlProfileStoreAdapter(Path(workspace) / "profile"),
+    )
     elfie.memory.record_episode("今天看到了金色的花", "happy", 80.0)
     elfie.memory.close()
 
     init_db(str(db_path))
-    reopened = ElfieFactory().restore(workspace, elfie_id=elfie_id)
+    reopened = ElfieFactory().restore(
+        workspace,
+        elfie_id=elfie_id,
+        profile_store=YamlProfileStoreAdapter(Path(workspace) / "profile"),
+    )
     assert "今天看到了金色的花" in reopened.memory.retrieve_relevant_memories(
         "金色的花"
     )
@@ -176,7 +185,11 @@ def test_full_product_chain_uses_one_explicit_final_root(
                 )
                 ws_message = websocket.receive_json()
             workspace = data_home / "elfies" / elfie_id
-            elfie = ElfieFactory().restore(workspace, elfie_id=elfie_id)
+            elfie = ElfieFactory().restore(
+                workspace,
+                elfie_id=elfie_id,
+                profile_store=YamlProfileStoreAdapter(Path(workspace) / "profile"),
+            )
             elfie.memory.record_episode("完整链路记忆", "happy", 80.0)
             elfie.memory.close()
             settings = RuntimeSettingsAdapter(get_config_path())
@@ -202,7 +215,11 @@ def test_full_product_chain_uses_one_explicit_final_root(
                 "HTTP 消息",
                 "WS 消息",
             ]
-        reopened = ElfieFactory().restore(workspace, elfie_id=elfie_id)
+        reopened = ElfieFactory().restore(
+            workspace,
+            elfie_id=elfie_id,
+            profile_store=YamlProfileStoreAdapter(Path(workspace) / "profile"),
+        )
         assert "完整链路记忆" in reopened.memory.retrieve_relevant_memories("完整链路")
         reopened.memory.close()
         assert _tables(db_path) == _NEST_TABLES

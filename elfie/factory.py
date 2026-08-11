@@ -11,7 +11,7 @@ from elfie.brain.runtime_port import ModelPort
 from elfie.brain.skills import SkillManager
 from elfie.communication import CommunicationHub
 from elfie.elfie import Elfie
-from elfie.profile import ElfieProfile, ElfieProfileRepository
+from elfie.profile import ElfieProfile, ProfileStorePort
 
 ConfigPath = Union[str, Path]
 
@@ -34,12 +34,14 @@ class ElfieFactory:
         communication: Optional[CommunicationHub] = None,
         skills: Optional[SkillManager] = None,
         model_port: Optional[ModelPort] = None,
+        profile_store: Optional[ProfileStorePort] = None,
     ) -> Elfie:
         normalized_config_dir = str(config_dir) if config_dir is not None else None
         profile = self._resolve_profile(
             normalized_config_dir,
             character_profile,
             elfie_id,
+            profile_store,
         )
         resolved_elfie_id = self._resolve_elfie_id(elfie_id, profile)
         auto_native_body = body is None and godot_api is not None
@@ -59,6 +61,7 @@ class ElfieFactory:
             communication=communication,
             skills=skills,
             model_port=model_port,
+            profile_store=profile_store,
         )
         for available_body in bodies:
             if elfie.body_registry.get(available_body.body_id) is available_body:
@@ -84,16 +87,13 @@ class ElfieFactory:
         communication: Optional[CommunicationHub] = None,
         skills: Optional[SkillManager] = None,
         model_port: Optional[ModelPort] = None,
+        profile_store: Optional[ProfileStorePort] = None,
     ) -> Elfie:
         """Restore one Elfie from its final workspace."""
-        path = Path(config_dir).expanduser()
-        if not path.is_dir():
-            raise FileNotFoundError(f"精灵配置目录不存在: {path}")
-        profile_repository = ElfieProfileRepository(path / "profile")
-        if not profile_repository.exists():
-            raise FileNotFoundError(f"精灵最终档案不存在: {profile_repository.path}")
+        if profile_store is None or not profile_store.exists():
+            raise FileNotFoundError("精灵最终档案不存在")
         elfie = self.create(
-            config_dir=path,
+            config_dir=config_dir,
             anatomy_type=anatomy_type,
             godot_api=godot_api,
             elfie_id=elfie_id,
@@ -104,6 +104,7 @@ class ElfieFactory:
             communication=communication,
             skills=skills,
             model_port=model_port,
+            profile_store=profile_store,
         )
         return elfie
 
@@ -112,19 +113,21 @@ class ElfieFactory:
         config_dir: Optional[str],
         supplied: Optional[ElfieProfile],
         elfie_id: Optional[str],
+        profile_store: Optional[ProfileStorePort],
     ) -> Optional[ElfieProfile]:
         if supplied is not None:
             supplied.validate()
             return supplied
         if config_dir is None:
             return None
-        repository = ElfieProfileRepository(Path(config_dir) / "profile")
-        if repository.exists():
-            return repository.load()
+        if profile_store is not None and profile_store.exists():
+            return profile_store.load()
+        if profile_store is None:
+            raise ValueError("config_dir 创建 Elfie 时必须注入 profile_store")
         from elfie.initialization import assemble_profile  # noqa: PLC0415
 
         profile = assemble_profile(config_dir=None, elfie_id=elfie_id, supplied=None)
-        repository.save(profile)
+        profile_store.save(profile)
         return profile
 
     @staticmethod

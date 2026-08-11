@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable, Optional, Union
 
 from app.orchestration.nest_session import (
@@ -23,6 +24,7 @@ from infrastructure.persistence.data_home import (
 )
 from infrastructure.persistence.elfies import SQLiteElfiesProjectionAdapter
 from infrastructure.persistence.nest_state import SQLiteNestStateAdapter
+from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 MainFoodLoader = Callable[[str], Optional[Union[str, MainFoodSelection]]]
 
@@ -100,10 +102,12 @@ def restore_registered_elfies(
     failures: list[ElfieRestoreFailure] = []
     for row in SQLiteElfiesProjectionAdapter(db_path).list_directory():
         try:
+            config_dir = Path(get_elfie_config_dir(row.elfie_id))
             elfie = factory.restore(
-                str(get_elfie_config_dir(row.elfie_id)),
+                str(config_dir),
                 godot_api=session.world_runtime,
                 elfie_id=row.elfie_id,
+                profile_store=YamlProfileStoreAdapter(config_dir / "profile"),
             )
             session.register_elfie(row.elfie_id, elfie)
             restored.append(RestoredElfie(row.elfie_id, row.name))

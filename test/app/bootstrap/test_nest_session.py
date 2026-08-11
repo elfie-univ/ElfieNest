@@ -6,7 +6,14 @@ from app.bootstrap import nest_session as nest_session_bootstrap
 
 
 class _FakeFactory:
-    def restore(self, path: str, *, godot_api: object, elfie_id: str) -> object:
+    def restore(
+        self,
+        path: str,
+        *,
+        godot_api: object,
+        elfie_id: str,
+        profile_store: object,
+    ) -> object:
         if elfie_id == "broken":
             raise ValueError("invalid profile")
         return (path, godot_api, elfie_id)

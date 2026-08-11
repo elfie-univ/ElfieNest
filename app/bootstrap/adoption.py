@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from uuid import uuid4
 
 from app.features.adoption import (
@@ -19,6 +20,7 @@ from infrastructure.persistence.account_repository import AccountRepository
 from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
 from infrastructure.persistence.adoption_profiles import FinalElfieWorkspaceAdapter
 from infrastructure.persistence.elfies import SQLiteElfiesProjectionAdapter
+from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 from infrastructure.persistence.store import get_db
 from infrastructure.platform import (
     ElfieFactoryAdapter,
@@ -97,6 +99,7 @@ def build_adoption_services(
             ElfieFactoryAdapter(
                 ElfieFactory(),
                 None if nest_session is None else nest_session.world_runtime,
+                lambda workspace: YamlProfileStoreAdapter(Path(workspace) / "profile"),
             ),
             nest_session,
         ),

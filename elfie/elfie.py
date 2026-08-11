@@ -30,7 +30,7 @@ from elfie.initialization import assemble_anatomy, assemble_profile
 from elfie.lifecycle_errors import ElfieLifecycleError, InvalidClockDeltaError
 from elfie.message_types import ElfieId, TurnId
 from elfie.nervous_system import NervousSystem
-from elfie.profile import ElfieProfile
+from elfie.profile import ElfieProfile, ProfileStorePort
 
 
 class Elfie:
@@ -47,12 +47,14 @@ class Elfie:
         communication: CommunicationHub | None = None,
         skills: SkillManager | None = None,
         model_port: ModelPort | None = None,
+        profile_store: ProfileStorePort | None = None,
     ) -> None:
         self._config_dir = config_dir
         self.character_profile = assemble_profile(
             config_dir=config_dir,
             elfie_id=elfie_id,
             supplied=character_profile,
+            profile_store=profile_store,
         )
         self.species_id = self.character_profile.identity.species_id
         self._elapsed_time = 0.0
@@ -64,7 +66,6 @@ class Elfie:
         self.amygdala = EmotionSystem(clock=lambda: self._elapsed_time)
         self.memory = MemorySystem(
             db_path=memory_db_path or self._default_memory_path(config_dir),
-            personality_path=self._personality_path(config_dir),
             elfie_id=elfie_id,
             config_dir=config_dir,
             personality_data=self.character_profile.personality or None,
@@ -275,10 +276,3 @@ class Elfie:
             if config_dir
             else ":memory:"
         )
-
-    @staticmethod
-    def _personality_path(config_dir: str | None) -> str | None:
-        candidate = (
-            Path(config_dir) / "profile" / "profile.yaml" if config_dir else None
-        )
-        return str(candidate) if candidate is not None and candidate.is_file() else None
