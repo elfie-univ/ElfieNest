@@ -16,7 +16,7 @@ from elfie.communication.contracts import (
     TextPart,
 )
 
-logger = logging.getLogger("elfie.communication.channels.telegram")
+logger = logging.getLogger("infrastructure.communication.channels.telegram")
 
 
 class TelegramConnector:

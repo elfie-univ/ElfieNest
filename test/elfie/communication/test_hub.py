@@ -62,6 +62,40 @@ def test_hub_routes_outbound_message_and_records_receipt() -> None:
     assert hub.outbox.get(receipt.message_id).receipt is receipt
 
 
+def test_hub_routes_multiple_channels_by_stable_channel_id() -> None:
+    hub = CommunicationHub("elfie-1")
+    wechat = FakeChannel(channel_id="wechat")
+    telegram = FakeChannel(channel_id="telegram")
+    hub.register_channel(wechat, connect=True)
+    hub.register_channel(telegram, connect=True)
+
+    wechat_receipt = hub.send_envelope(
+        _envelope(
+            MessageDirection.OUTBOUND,
+            "elfie-1",
+            "owner-wechat",
+            "微信消息",
+            channel_id="wechat",
+            event_id="message-wechat",
+        )
+    )
+    telegram_receipt = hub.send_envelope(
+        _envelope(
+            MessageDirection.OUTBOUND,
+            "elfie-1",
+            "owner-telegram",
+            "Telegram 消息",
+            channel_id="telegram",
+            event_id="message-telegram",
+        )
+    )
+
+    assert wechat_receipt.status is DeliveryStatus.SENT
+    assert telegram_receipt.status is DeliveryStatus.SENT
+    assert [item.channel_id for item in wechat.sent] == ["wechat"]
+    assert [item.channel_id for item in telegram.sent] == ["telegram"]
+
+
 def test_outbox_retains_only_bounded_recent_history() -> None:
     outbox = CommunicationOutbox(history_capacity=1)
     first = _envelope(MessageDirection.OUTBOUND, "elfie-1", "owner-1", "一")
@@ -206,6 +240,7 @@ def _envelope(
     content: str,
     *,
     event_id: str | None = None,
+    channel_id: str = "test",
 ) -> CommunicationEnvelope:
     sender = ActorRef(
         actor_id=sender_id,
@@ -223,7 +258,7 @@ def _envelope(
             trace_id=f"trace-{sender_id}-{recipient_id}",
         ),
         account_id="account-test",
-        channel_id="test",
+        channel_id=channel_id,
         conversation_id=recipient_id,
         sender=sender,
         recipients=(

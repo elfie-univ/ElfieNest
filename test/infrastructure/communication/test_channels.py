@@ -4,13 +4,15 @@ from elfie.communication import (
     CommunicationEnvelope,
     DeliveryStatus,
     MessageDirection,
+    TextPart,
+)
+from elfie.message_types import ActorRef, MessageMeta
+from infrastructure.communication import (
     TelegramChannel,
     TelegramConnector,
-    TextPart,
     WeChatChannel,
     WeChatConnector,
 )
-from elfie.message_types import ActorRef, MessageMeta
 
 NOW = datetime(2026, 7, 22, 0, 0, tzinfo=timezone.utc)
 
