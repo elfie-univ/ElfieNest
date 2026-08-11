@@ -6,7 +6,7 @@ import pytest
 
 from elfie import Elfie, ElfieFactory
 from elfie.body import BodyMode, HeadlessBody, QuadrupedAnatomy
-from elfie.brain.memory import KnowledgeStore
+from elfie.brain.memory.knowledge_store import KnowledgeStore
 from elfie.factory import ElfieAssembly
 from elfie.profile import (
     ElfieProfile,
