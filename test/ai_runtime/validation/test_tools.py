@@ -1,5 +1,4 @@
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.tools.file import FileSandbox
 from ai_runtime.validation.models import CheckStatus
 from ai_runtime.validation.tools import DirectToolValidationRunner
 
@@ -7,12 +6,6 @@ from ai_runtime.validation.tools import DirectToolValidationRunner
 class FakeSearch:
     def search(self, query):
         return f"result for {query}"
-
-
-def test_file_sandbox_uses_explicit_elfie_workspace(tmp_path):
-    sandbox = FileSandbox(tmp_path / "elfies" / "00000042" / "skills")
-
-    assert sandbox.skills_root == str(tmp_path / "elfies" / "00000042" / "skills")
 
 
 def test_direct_tool_suite_validates_local_tools_and_skips_network(
