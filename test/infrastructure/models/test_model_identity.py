@@ -1,4 +1,4 @@
-from ai_runtime.providers.model_identity import match_model_identity
+from infrastructure.models.providers.model_identity import match_model_identity
 
 
 def test_model_identity_uses_curated_aliases_without_guessing_unknown_models():

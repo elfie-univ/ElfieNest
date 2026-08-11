@@ -10,7 +10,7 @@ from ai_runtime.usage.observer import (
     RuntimeObserver,
     ToolCallObservation,
 )
-from infrastructure.models import RuntimeObserverProjectionAdapter
+from infrastructure.models.runtime_observer import RuntimeObserverProjectionAdapter
 
 
 def test_adapter_projects_without_mutating_the_runtime_observer(

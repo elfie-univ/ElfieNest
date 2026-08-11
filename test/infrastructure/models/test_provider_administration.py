@@ -10,7 +10,7 @@ from app.features.configuration import (
     StoredProviderConnection,
     StoredProviderModel,
 )
-from infrastructure.models import ProviderModelsAdapter
+from infrastructure.models.provider_administration import ProviderModelsAdapter
 
 
 def test_provider_adapter_keeps_secret_out_of_connection_fact(tmp_path) -> None:

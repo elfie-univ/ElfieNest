@@ -3,12 +3,12 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from ai_runtime.models.local_profiles import (
+from ai_runtime.setup.runtime_setup import MODELS_TO_PULL
+from infrastructure.models.local_profiles import (
     recommend_local_profile,
     select_local_profile,
 )
-from ai_runtime.providers.ollama import OllamaManager, OllamaNotReadyError
-from ai_runtime.setup.runtime_setup import MODELS_TO_PULL
+from infrastructure.models.providers.ollama import OllamaManager, OllamaNotReadyError
 
 
 def test_select_local_profile_by_memory_size():
@@ -62,7 +62,7 @@ def test_supervised_runtime_never_starts_ollama_process(monkeypatch):
 
     with (
         patch.object(manager, "check_health", return_value=False),
-        patch("ai_runtime.providers.ollama.subprocess.Popen") as popen,
+        patch("infrastructure.models.providers.ollama.subprocess.Popen") as popen,
     ):
         with pytest.raises(OllamaNotReadyError, match="supervisor"):
             manager.ensure_service_started()
@@ -94,7 +94,7 @@ def test_ollama_manager_starts_only_the_recorded_public_binding():
 
     with (
         patch.object(manager, "check_health", side_effect=[False, True]),
-        patch("ai_runtime.providers.ollama.subprocess.Popen") as popen,
+        patch("infrastructure.models.providers.ollama.subprocess.Popen") as popen,
     ):
         assert manager.ensure_service_started() is True
 
@@ -107,7 +107,7 @@ def test_ollama_manager_refuses_to_scan_path_when_no_binding_is_recorded():
 
     with (
         patch.object(manager, "check_health", return_value=False),
-        patch("ai_runtime.providers.ollama.subprocess.Popen") as popen,
+        patch("infrastructure.models.providers.ollama.subprocess.Popen") as popen,
     ):
         with pytest.raises(OllamaNotReadyError, match="固定绑定"):
             manager.ensure_service_started()

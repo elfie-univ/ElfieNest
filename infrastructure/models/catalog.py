@@ -17,8 +17,8 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from ai_runtime.providers.http import open_provider_request
-from ai_runtime.providers.profiles import get_profile
+from infrastructure.models.providers.http import open_provider_request
+from infrastructure.models.providers.profiles import get_profile
 
 
 @dataclass
@@ -458,7 +458,7 @@ def _verify_custom_openai_provider(
 ) -> Dict[str, Any]:
     import time
 
-    from ai_runtime.providers.model_hints import configured_model_names
+    from infrastructure.models.providers.model_hints import configured_model_names
 
     headers = {"Content-Type": "application/json"}
     if api_key:

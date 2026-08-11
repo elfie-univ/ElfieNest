@@ -16,7 +16,7 @@ from typing import Any, Dict, Literal, Mapping
 from ai_runtime.storage.config_store import ConfigStoreError, read_yaml_mapping
 from infrastructure.persistence.data_home import get_provider_catalog_path
 
-logger = logging.getLogger("ai_runtime.providers.catalog")
+logger = logging.getLogger("infrastructure.models.providers.catalog")
 
 PROVIDER_CATALOG_VERSION = 2
 BUNDLED_PROVIDER_CATALOG_PATH = Path(__file__).with_name("provider-catalog.yaml")

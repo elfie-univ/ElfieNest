@@ -9,17 +9,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal, Mapping, Optional, cast
 
-from ai_runtime.providers.discovery import (
-    bundled_catalog_models,
-    merge_refreshed_models,
-    remote_catalog_models,
-)
-from ai_runtime.providers.model_identity import match_model_identity
-from ai_runtime.providers.profiles import PROVIDER_CATALOG, get_product
-from ai_runtime.providers.remote_catalog import (
-    RemoteCatalogUnavailable,
-    fetch_remote_models,
-)
 from ai_runtime.storage.provider_connection_mutations import (
     delete_connection_with_secret,
     finalize_created_connection,
@@ -66,6 +55,17 @@ from app.features.configuration import (
     StoredVerification,
     ValidationMode,
     ValidationStatus,
+)
+from infrastructure.models.providers.discovery import (
+    bundled_catalog_models,
+    merge_refreshed_models,
+    remote_catalog_models,
+)
+from infrastructure.models.providers.model_identity import match_model_identity
+from infrastructure.models.providers.profiles import PROVIDER_CATALOG, get_product
+from infrastructure.models.providers.remote_catalog import (
+    RemoteCatalogUnavailable,
+    fetch_remote_models,
 )
 
 from .provider_errors import sanitize_error

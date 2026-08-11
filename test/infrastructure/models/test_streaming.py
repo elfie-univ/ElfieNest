@@ -5,17 +5,17 @@ from unittest.mock import patch
 
 import pytest
 
-from ai_runtime.providers.ollama import OllamaNotReadyError
-from ai_runtime.providers.streaming import (
+from infrastructure.models.providers.ollama import OllamaNotReadyError
+from infrastructure.models.providers.streaming import (
     STREAM_DISPATCH as _STREAM_DISPATCH,
 )
-from ai_runtime.providers.streaming import (
+from infrastructure.models.providers.streaming import (
     stream_anthropic_api as _stream_anthropic_api,
 )
-from ai_runtime.providers.streaming import (
+from infrastructure.models.providers.streaming import (
     stream_ollama_api as _stream_ollama_api,
 )
-from ai_runtime.providers.streaming import (
+from infrastructure.models.providers.streaming import (
     stream_openai_compatible_api as _stream_openai_compatible_api,
 )
 

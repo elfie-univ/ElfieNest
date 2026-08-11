@@ -1,7 +1,7 @@
 """Provider-catalog projection used by first-run Setup model selection."""
 
-from ai_runtime.providers.profiles import PROVIDER_CATALOG
 from app.features.setup import StoredSetupModelOption
+from infrastructure.models.providers.profiles import PROVIDER_CATALOG
 
 _APPROX_DOWNLOAD_MB = {
     "qwen2.5:0.5b": 398,

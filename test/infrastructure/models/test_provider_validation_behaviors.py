@@ -18,7 +18,7 @@ from app.features.configuration import (
     StoredProviderConnection,
     StoredProviderModel,
 )
-from infrastructure.models import ProviderModelsAdapter
+from infrastructure.models.provider_administration import ProviderModelsAdapter
 from infrastructure.models.provider_validation_policy import (
     choose_validation_mode,
     connection_validation_fingerprint,
@@ -293,7 +293,7 @@ def test_runtime_projection_keeps_jdcloud_profile_test_model() -> None:
 def test_jdcloud_health_check_falls_back_to_configured_model(
     monkeypatch,
 ) -> None:
-    from ai_runtime.models.catalog import verify_provider
+    from infrastructure.models.catalog import verify_provider
 
     first_error = urllib.error.HTTPError(
         "https://jd.example/models",
@@ -315,7 +315,7 @@ def test_jdcloud_health_check_falls_back_to_configured_model(
         return chat_response
 
     monkeypatch.setattr(
-        "ai_runtime.models.catalog.open_provider_request",
+        "infrastructure.models.catalog.open_provider_request",
         open_request,
     )
 
@@ -342,7 +342,7 @@ def test_jdcloud_health_check_falls_back_to_configured_model(
 def test_jdcloud_health_check_reports_unsupported_model(
     monkeypatch,
 ) -> None:
-    from ai_runtime.models.catalog import verify_provider
+    from infrastructure.models.catalog import verify_provider
 
     list_error = urllib.error.HTTPError(
         "https://jd.example/v1/models",
@@ -364,7 +364,7 @@ def test_jdcloud_health_check_reports_unsupported_model(
         return chat_response
 
     monkeypatch.setattr(
-        "ai_runtime.models.catalog.open_provider_request",
+        "infrastructure.models.catalog.open_provider_request",
         open_request,
     )
 

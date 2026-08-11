@@ -4,11 +4,11 @@ from pathlib import Path
 
 import yaml
 
-from ai_runtime.providers.catalog import (
+from infrastructure.models.providers.catalog import (
     BUNDLED_PROVIDER_CATALOG_PATH,
     load_provider_catalog,
 )
-from ai_runtime.providers.profiles import BUILTIN_PROFILES
+from infrastructure.models.providers.profiles import BUILTIN_PROFILES
 
 
 def _provider(

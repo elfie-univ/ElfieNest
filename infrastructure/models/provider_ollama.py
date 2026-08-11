@@ -6,13 +6,13 @@ import os
 from dataclasses import replace
 from typing import Tuple, cast
 
-from ai_runtime.providers.profiles import PROVIDER_CATALOG
 from app.features.configuration import (
     ProviderPortError,
     StoredLocalProviderBinding,
     StoredLocalProviderCandidate,
     StoredLocalProviderProbe,
 )
+from infrastructure.models.providers.profiles import PROVIDER_CATALOG
 
 from .ollama_platform import (
     DEFAULT_OLLAMA_ENDPOINT,

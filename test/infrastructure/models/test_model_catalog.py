@@ -1,10 +1,10 @@
-"""tests for ai_runtime.models.catalog module"""
+"""tests for infrastructure.models.catalog module"""
 
 import urllib.error
 from unittest.mock import MagicMock, patch
 
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.models.catalog import (
+from infrastructure.models.catalog import (
     BUILTIN_MODEL_CATALOG,
     ModelCatalog,
     verify_provider,
@@ -205,7 +205,7 @@ class TestVerifyProvider:
         mock_response.__exit__ = MagicMock(return_value=False)
 
         with patch(
-            "ai_runtime.models.catalog.open_provider_request",
+            "infrastructure.models.catalog.open_provider_request",
             return_value=mock_response,
         ):
             result = verify_provider("ollama", config)
@@ -232,7 +232,7 @@ class TestVerifyProvider:
             return mock_response
 
         with patch(
-            "ai_runtime.models.catalog.open_provider_request",
+            "infrastructure.models.catalog.open_provider_request",
             side_effect=capture_request,
         ):
             result = verify_provider("openai", config)
@@ -264,7 +264,7 @@ class TestVerifyProvider:
             return mock_response
 
         with patch(
-            "ai_runtime.models.catalog.open_provider_request",
+            "infrastructure.models.catalog.open_provider_request",
             side_effect=capture_request,
         ):
             result = verify_provider("anthropic", config)
@@ -282,7 +282,7 @@ class TestVerifyProvider:
             raise TimeoutError("Connection timed out")
 
         with patch(
-            "ai_runtime.models.catalog.open_provider_request",
+            "infrastructure.models.catalog.open_provider_request",
             side_effect=raise_timeout,
         ):
             result = verify_provider("openai", config)
@@ -299,7 +299,7 @@ class TestVerifyProvider:
             raise urllib.error.URLError("Connection refused")
 
         with patch(
-            "ai_runtime.models.catalog.open_provider_request",
+            "infrastructure.models.catalog.open_provider_request",
             side_effect=raise_url_error,
         ):
             result = verify_provider("openai", config)
@@ -318,7 +318,7 @@ class TestVerifyProvider:
             )
 
         with patch(
-            "ai_runtime.models.catalog.open_provider_request",
+            "infrastructure.models.catalog.open_provider_request",
             side_effect=raise_http_error,
         ):
             result = verify_provider("openai", config)
@@ -348,7 +348,7 @@ class TestVerifyProvider:
         expected = {"status": "active", "latency_ms": 12.0, "error": None}
 
         with patch(
-            "ai_runtime.models.catalog._verify_custom_openai_provider",
+            "infrastructure.models.catalog._verify_custom_openai_provider",
             return_value=expected,
         ) as verify_custom:
             result = verify_provider("custom_gateway", config)

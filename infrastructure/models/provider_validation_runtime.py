@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from ai_runtime.config import LLMRuntimeConfig
-from ai_runtime.providers.profiles import get_product
 from ai_runtime.storage.provider_connections import ProviderConnection
 from ai_runtime.storage.secrets import connection_secret_name, resolve_secret
+from infrastructure.models.providers.profiles import get_product
 
 from .provider_validation_policy import (
     active_validation_models,

@@ -3,7 +3,10 @@ from urllib.request import Request
 
 import pytest
 
-from ai_runtime.providers.http import RejectProviderRedirects, read_provider_response
+from infrastructure.models.providers.http import (
+    RejectProviderRedirects,
+    read_provider_response,
+)
 
 
 def test_provider_http_rejects_redirects_before_copying_credentials() -> None:

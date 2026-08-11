@@ -5,9 +5,9 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Callable, Iterable
 
-from ai_runtime.providers.model_identity import match_model_identity
-from ai_runtime.providers.remote_catalog import fetch_remote_models
 from ai_runtime.storage.provider_connections import ModelSource, ProviderModelRecord
+from infrastructure.models.providers.model_identity import match_model_identity
+from infrastructure.models.providers.remote_catalog import fetch_remote_models
 
 
 def bundled_catalog_models(model_ids: Iterable[str]) -> tuple[ProviderModelRecord, ...]:

@@ -7,7 +7,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 
-from ai_runtime.models.catalog import BUILTIN_MODEL_CATALOG
+from infrastructure.models.catalog import BUILTIN_MODEL_CATALOG
 
 _COST_LABELS = {0: "免费", 1: "极低", 2: "低", 3: "中", 4: "高"}
 
