@@ -14,7 +14,7 @@ from elfie.body.port import BodyPort
 from elfie.brain.decision_types import DecisionPlan
 from elfie.brain.emotion.emotion_system import EmotionSystem
 from elfie.brain.energy.energy import HypothalamusEnergy
-from elfie.brain.memory import MemorySystem
+from elfie.brain.memory import MemoryStorePort, MemorySystem
 from elfie.brain.output_types import ExecutionReceipt
 from elfie.brain.perception_types import IngestReceipt
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
@@ -41,6 +41,7 @@ class Elfie:
         config_dir: str | None = None,
         elfie_id: str | None = None,
         memory_db_path: str | None = None,
+        memory_store: MemoryStorePort | None = None,
         character_profile: ElfieProfile | None = None,
         body: BodyPort | None = None,
         communication: CommunicationHub | None = None,
@@ -68,6 +69,7 @@ class Elfie:
             elfie_id=elfie_id,
             config_dir=config_dir,
             personality_data=self.character_profile.personality or None,
+            storage=memory_store,
         )
         workspace_id = ElfieId(self.character_profile.identity.elfie_id)
         self.perceptual_workspace = PerceptualWorkspace(workspace_id)

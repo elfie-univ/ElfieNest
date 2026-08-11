@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional, Union
 
 from elfie.body.port import BodyPort
+from elfie.brain.memory import MemoryStorePort
 from elfie.brain.runtime_port import ModelPort
 from elfie.brain.skills import SkillManager
 from elfie.communication import CommunicationHub
@@ -13,6 +15,20 @@ from elfie.elfie import Elfie
 from elfie.profile import ElfieProfile, ProfileStorePort
 
 ConfigPath = Union[str, Path]
+
+
+@dataclass(frozen=True)
+class ElfieAssembly:
+    """Immutable, already-scoped dependencies for one complete Elfie."""
+
+    profile: ElfieProfile
+    memory_store: MemoryStorePort
+    body: BodyPort | None = None
+    bodies: tuple[BodyPort, ...] = ()
+    current_body_id: str | None = None
+    communication: CommunicationHub | None = None
+    skills: SkillManager | None = None
+    model_port: ModelPort | None = None
 
 
 class ElfieFactory:
@@ -24,6 +40,7 @@ class ElfieFactory:
         config_dir: Optional[ConfigPath] = None,
         elfie_id: Optional[str] = None,
         memory_db_path: Optional[str] = None,
+        memory_store: Optional[MemoryStorePort] = None,
         character_profile: Optional[ElfieProfile] = None,
         body: Optional[BodyPort] = None,
         bodies: Iterable[BodyPort] = (),
@@ -41,6 +58,28 @@ class ElfieFactory:
             profile_store,
         )
         resolved_elfie_id = self._resolve_elfie_id(elfie_id, profile)
+
+        if memory_store is not None:
+            if profile is None:
+                from elfie.initialization import assemble_profile  # noqa: PLC0415
+
+                profile = assemble_profile(
+                    config_dir=None,
+                    elfie_id=resolved_elfie_id,
+                    supplied=None,
+                )
+            return self.assemble(
+                ElfieAssembly(
+                    profile=profile,
+                    memory_store=memory_store,
+                    body=body,
+                    bodies=tuple(bodies),
+                    current_body_id=current_body_id,
+                    communication=communication,
+                    skills=skills,
+                    model_port=model_port,
+                )
+            )
 
         elfie = Elfie(
             config_dir=normalized_config_dir,
@@ -69,6 +108,7 @@ class ElfieFactory:
         *,
         elfie_id: Optional[str] = None,
         memory_db_path: Optional[str] = None,
+        memory_store: Optional[MemoryStorePort] = None,
         body: Optional[BodyPort] = None,
         bodies: Iterable[BodyPort] = (),
         current_body_id: Optional[str] = None,
@@ -91,7 +131,30 @@ class ElfieFactory:
             skills=skills,
             model_port=model_port,
             profile_store=profile_store,
+            memory_store=memory_store,
         )
+        return elfie
+
+    def assemble(self, assembly: ElfieAssembly) -> Elfie:
+        """Build one complete, not-yet-started Elfie from typed dependencies."""
+        assembly.profile.validate()
+        elfie = Elfie(
+            elfie_id=assembly.profile.identity.elfie_id,
+            character_profile=assembly.profile,
+            memory_store=assembly.memory_store,
+            body=assembly.body,
+            communication=assembly.communication,
+            skills=assembly.skills,
+            model_port=assembly.model_port,
+        )
+        for available_body in assembly.bodies:
+            if elfie.body_registry.get(available_body.body_id) is available_body:
+                continue
+            elfie.register_body(available_body)
+        if assembly.body is not None and assembly.current_body_id is None:
+            elfie.bind_body(assembly.body.body_id)
+        if assembly.current_body_id is not None:
+            elfie.bind_body(assembly.current_body_id)
         return elfie
 
     @staticmethod

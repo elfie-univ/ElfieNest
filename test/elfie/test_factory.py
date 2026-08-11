@@ -6,6 +6,8 @@ import pytest
 
 from elfie import Elfie, ElfieFactory
 from elfie.body import BodyMode, HeadlessBody, QuadrupedAnatomy
+from elfie.brain.memory import KnowledgeStore
+from elfie.factory import ElfieAssembly
 from elfie.profile import (
     ElfieProfile,
     EmbodimentProfile,
@@ -65,6 +67,10 @@ class FakeGodotGateway:
         self.sent.append({"payload": payload, "correlation_id": correlation_id})
         return True
 
+    def cancel_body_command(self, *, command_id: str, actor_id: str) -> bool:
+        self.sent.append({"command_id": command_id, "actor_id": actor_id})
+        return True
+
 
 class InMemoryProfileStore:
     def __init__(self, profile: ElfieProfile) -> None:
@@ -97,9 +103,22 @@ def test_factory_consumes_profile_store_port_without_path_knowledge() -> None:
 
     assert elfie.profile == profile
 
-    def cancel_body_command(self, *, command_id: str, actor_id: str) -> bool:
-        self.sent.append({"command_id": command_id, "actor_id": actor_id})
-        return True
+
+def test_factory_assembles_from_an_immutable_typed_dependency_record() -> None:
+    profile = create_visual_profile(
+        elfie_id="elfie-assembly",
+        display_name="装配精灵",
+        species_id="fox",
+        seed=23,
+    )
+    store = KnowledgeStore.in_memory()
+
+    elfie = ElfieFactory().assemble(ElfieAssembly(profile=profile, memory_store=store))
+
+    assert elfie.profile == profile
+    assert elfie.memory.storage is store
+    elfie.memory.close()
+    store.close()
 
 
 def test_factory_creates_canonical_elfie_without_copying_legacy_algorithms() -> None:
