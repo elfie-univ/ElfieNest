@@ -18,7 +18,7 @@ from elfie.brain.memory import MemorySystem
 from elfie.brain.output_types import ExecutionReceipt
 from elfie.brain.perception_types import IngestReceipt
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
-from elfie.brain.runtime_port import CorticalRuntimePort
+from elfie.brain.runtime_port import ModelPort
 from elfie.brain.skills import SkillManager
 from elfie.brain.turn_outcome import TurnOutcome
 from elfie.cognitive_runtime import ElfieCognitiveRuntime
@@ -46,7 +46,7 @@ class Elfie:
         body: BodyPort | None = None,
         communication: CommunicationHub | None = None,
         skills: SkillManager | None = None,
-        cortical_runtime: CorticalRuntimePort | None = None,
+        model_port: ModelPort | None = None,
     ) -> None:
         self._config_dir = config_dir
         self.character_profile = assemble_profile(
@@ -88,8 +88,8 @@ class Elfie:
         self.communication.bind_identity(str(workspace_id))
         self.skills = skills or SkillManager()
         self._cognitive_runtime: ElfieCognitiveRuntime | None = None
-        if cortical_runtime is not None:
-            self.configure_cognition(cortical_runtime)
+        if model_port is not None:
+            self.configure_cognition(model_port)
 
     @property
     def profile(self) -> ElfieProfile:
@@ -178,7 +178,7 @@ class Elfie:
             replace=replace,
         )
 
-    def configure_cognition(self, cortical_runtime: CorticalRuntimePort) -> None:
+    def configure_cognition(self, model_port: ModelPort) -> None:
         if self._cognitive_runtime is not None:
             raise ElfieLifecycleError("Elfie cognition is already configured")
         self.communication.bind_perception_adapter(
@@ -194,7 +194,7 @@ class Elfie:
             communication=self.communication,
             current_body=lambda: self.current_body,
             clock=lambda: self.cognitive_datetime,
-            cortical_runtime=cortical_runtime,
+            model_port=model_port,
             skills=self.skills,
         )
 

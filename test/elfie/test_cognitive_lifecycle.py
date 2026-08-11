@@ -186,7 +186,7 @@ def test_cognitive_lifecycle_runs_two_turns_without_blocking_clock() -> None:
         memory_db_path=":memory:",
         body=body,
         communication=hub,
-        cortical_runtime=runtime,
+        model_port=runtime,
     )
     elfie.start()
     elfie.receive_communication_envelope(_owner_message(elfie.cognitive_datetime))
@@ -231,7 +231,7 @@ def test_stop_closes_communication_input_boundary() -> None:
         memory_db_path=":memory:",
         body=body,
         communication=hub,
-        cortical_runtime=TwoTurnRuntime(),
+        model_port=TwoTurnRuntime(),
     )
     elfie.start()
     elfie.stop()

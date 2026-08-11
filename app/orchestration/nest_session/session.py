@@ -13,10 +13,7 @@ from app.orchestration.message_delivery import (
 )
 from app.orchestration.nest_session.errors import NestSessionLifecycleError
 from app.orchestration.nest_session.models import ActorDescriptor, WorldEvent
-from app.orchestration.nest_session.ports import (
-    CorticalRuntimeFactory,
-    WorldRuntimePort,
-)
+from app.orchestration.nest_session.ports import ModelPortFactory, WorldRuntimePort
 from app.orchestration.nest_session.residents import (
     actor_catalog,
     persist_resident,
@@ -25,7 +22,7 @@ from app.orchestration.nest_session.residents import (
 from app.orchestration.nest_session.runtime_events import NestRuntimeEventRouter
 from app.orchestration.nest_session.runtime_sync import NestRuntimeSynchronizer
 from elfie import Elfie
-from elfie.brain.runtime_port import CorticalRuntimePort
+from elfie.brain.runtime_port import ModelPort
 from elfie.communication.contracts import InboundDisposition
 from nest import Nest
 from nest.godot_gateway.observer import ObserverSemanticEntity
@@ -59,8 +56,8 @@ class NestSession:
         self.elfies: Dict[str, Elfie] = {}
         self._lifecycle_lock = RLock()
         self._lifecycle_state: SessionLifecycleState = "new"
-        self._cortical_runtime: CorticalRuntimePort | None = None
-        self._cortical_runtime_factory: CorticalRuntimeFactory | None = None
+        self._model_port: ModelPort | None = None
+        self._model_port_factory: ModelPortFactory | None = None
         self.owner_broadcaster: OwnerMessageBroadcaster | None = None
         self._runtime_token: tuple[str, int] | None = None
         self._repository = repository
@@ -118,17 +115,17 @@ class NestSession:
                     replace=True,
                 )
                 if not elfie.cognition_configured:
-                    runtime = (
-                        self._cortical_runtime_factory(elfie_id)
-                        if self._cortical_runtime_factory is not None
-                        else self._cortical_runtime
+                    model_port = (
+                        self._model_port_factory(elfie_id)
+                        if self._model_port_factory is not None
+                        else self._model_port
                     )
-                    if runtime is None and self._lifecycle_state == "running":
+                    if model_port is None and self._lifecycle_state == "running":
                         raise NestSessionLifecycleError(
                             "运行中的 NestSession 没有可用的认知 Runtime"
                         )
-                    if runtime is not None:
-                        elfie.configure_cognition(runtime)
+                    if model_port is not None:
+                        elfie.configure_cognition(model_port)
                 if self._lifecycle_state == "running":
                     elfie.start()
                     if not elfie.is_running:
@@ -340,23 +337,23 @@ class NestSession:
             if state is not None and state.active and state.posture != "away":
                 elfie.advance_clock(seconds)
 
-    def configure_cognition(self, runtime: CorticalRuntimePort) -> None:
-        """Inject the serialized Runtime boundary into every registered Elfie."""
+    def configure_cognition(self, model_port: ModelPort) -> None:
+        """Inject the configured model boundary into every registered Elfie."""
         with self._lifecycle_lock:
-            self._cortical_runtime = runtime
-            self._cortical_runtime_factory = lambda _elfie_id: runtime
+            self._model_port = model_port
+            self._model_port_factory = lambda _elfie_id: model_port
             for _elfie_id, elfie in self.elfie_items_snapshot():
                 if not elfie.cognition_configured:
-                    elfie.configure_cognition(runtime)
+                    elfie.configure_cognition(model_port)
 
     def configure_cognition_factory(
         self,
-        factory: CorticalRuntimeFactory,
+        factory: ModelPortFactory,
     ) -> None:
         """Inject an independently configured Runtime boundary per Elfie."""
         with self._lifecycle_lock:
-            self._cortical_runtime = None
-            self._cortical_runtime_factory = factory
+            self._model_port = None
+            self._model_port_factory = factory
             for elfie_id, elfie in self.elfie_items_snapshot():
                 if not elfie.cognition_configured:
                     elfie.configure_cognition(factory(elfie_id))

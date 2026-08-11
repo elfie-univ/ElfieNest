@@ -27,7 +27,7 @@ def test_body_source_identity_reaches_cortical_context() -> None:
         memory_db_path=":memory:",
         body=body,
         communication=hub,
-        cortical_runtime=runtime,
+        model_port=runtime,
     )
     elfie.start()
     now = elfie.cognitive_datetime
@@ -66,7 +66,7 @@ def test_non_owner_social_input_is_not_written_as_owner_memory() -> None:
         memory_db_path=":memory:",
         body=body,
         communication=hub,
-        cortical_runtime=runtime,
+        model_port=runtime,
     )
     peer = ActorRef(actor_id="peer-1", source_kind="elfie")
     now = elfie.cognitive_datetime

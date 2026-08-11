@@ -1,4 +1,4 @@
-"""Provider-neutral cortical runtime boundary owned by Brain."""
+"""Provider-neutral model boundary owned by Brain."""
 
 from __future__ import annotations
 
@@ -91,8 +91,8 @@ class ModelGenerationResult(FrozenContractModel):
         return self.prompt_tokens + self.completion_tokens
 
 
-class CorticalRuntimePort(Protocol):
-    """Runtime capability required by the cortical worker."""
+class ModelPort(Protocol):
+    """Provider-neutral model capability required by Brain."""
 
     def capabilities(self) -> ModelGenerationCapabilities:
         """Return capabilities for the model that will handle the request."""
@@ -108,7 +108,7 @@ class CorticalRuntimePort(Protocol):
 
 
 __all__ = (
-    "CorticalRuntimePort",
+    "ModelPort",
     "JsonSchemaDocument",
     "ModelGenerationCapabilities",
     "ModelGenerationRequest",

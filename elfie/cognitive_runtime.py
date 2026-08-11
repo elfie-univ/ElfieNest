@@ -17,7 +17,7 @@ from elfie.brain.memory import MemorySystem
 from elfie.brain.output_router import OutputRouter
 from elfie.brain.output_types import ExecutionReceipt, IntentExecutionResult
 from elfie.brain.perceptual_workspace import PerceptualWorkspace
-from elfie.brain.runtime_port import CorticalRuntimePort
+from elfie.brain.runtime_port import ModelPort
 from elfie.brain.skills import SkillManager
 from elfie.brain.turn_outcome import TurnOutcome
 from elfie.cognitive_context import ElfieContextSource
@@ -55,7 +55,7 @@ class ElfieCognitiveRuntime:
         communication: CommunicationHub,
         current_body: Callable[[], Optional[BodyPort]],
         clock: Callable[[], UTCDateTime],
-        cortical_runtime: CorticalRuntimePort,
+        model_port: ModelPort,
         skills: SkillManager,
     ) -> None:
         self._clock = clock
@@ -87,7 +87,7 @@ class ElfieCognitiveRuntime:
             clock=clock,
         )
         worker = CorticalWorker(
-            runtime=cortical_runtime,
+            model_port=model_port,
             decoder=DecisionPlanDecoder(),
         )
         self.coordinator = BrainCoordinator(

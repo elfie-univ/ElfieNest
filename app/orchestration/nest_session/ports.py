@@ -9,13 +9,13 @@ from app.orchestration.nest_session.models import (
     RuntimeConnection,
     WorldEvent,
 )
-from elfie.brain.runtime_port import CorticalRuntimePort
+from elfie.brain.runtime_port import ModelPort
 
 
-class CorticalRuntimeFactory(Protocol):
+class ModelPortFactory(Protocol):
     """Create the already-configured cognition boundary for one real Elfie."""
 
-    def __call__(self, elfie_id: str) -> CorticalRuntimePort: ...
+    def __call__(self, elfie_id: str) -> ModelPort: ...
 
 
 class WorldRuntimePort(Protocol):
@@ -52,4 +52,4 @@ class WorldRuntimePort(Protocol):
     ) -> None: ...
 
 
-__all__ = ("CorticalRuntimeFactory", "WorldRuntimePort")
+__all__ = ("ModelPortFactory", "WorldRuntimePort")

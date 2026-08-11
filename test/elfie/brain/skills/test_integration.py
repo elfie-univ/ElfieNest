@@ -26,7 +26,7 @@ def test_elfie_passes_authorized_tool_keys_to_cortical_request() -> None:
         body=body,
         communication=hub,
         skills=manager,
-        cortical_runtime=runtime,
+        model_port=runtime,
     )
 
     elfie.start()

@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from typing import Callable, Optional, Union
 
 from app.orchestration.nest_session import (
-    CorticalRuntimeFactory,
     ElfieNestEngine,
+    ModelPortFactory,
     NestSession,
 )
 from elfie import ElfieFactory
@@ -33,7 +33,7 @@ class NestSessionServices:
 
     engine: ElfieNestEngine
     world_runtime: GodotNestSessionAdapter
-    runtime_factory: CorticalRuntimeFactory
+    model_port_factory: ModelPortFactory
 
 
 @dataclass(frozen=True)
@@ -70,7 +70,7 @@ def build_nest_session_services(
         http_port=http_port,
     )
 
-    def runtime_factory(elfie_id: str) -> SerializedRuntimeAdapter:
+    def model_port_factory(elfie_id: str) -> SerializedRuntimeAdapter:
         return SerializedRuntimeAdapter(
             runtime,
             food_key_resolver=lambda: (
@@ -86,7 +86,7 @@ def build_nest_session_services(
             nest_repository=SQLiteNestStateAdapter(db_path),
         ),
         world_runtime=world_runtime,
-        runtime_factory=runtime_factory,
+        model_port_factory=model_port_factory,
     )
 
 

@@ -5,10 +5,7 @@ import time
 from datetime import datetime, timezone
 from typing import Optional
 
-from app.orchestration.nest_session.ports import (
-    CorticalRuntimeFactory,
-    WorldRuntimePort,
-)
+from app.orchestration.nest_session.ports import ModelPortFactory, WorldRuntimePort
 from app.orchestration.nest_session.session import NestSession
 from app.orchestration.nest_session.world_perception import (
     collect_world_sensory_events,
@@ -80,7 +77,7 @@ class ElfieNestEngine:
 
     def start_loop(
         self,
-        runtime_factory: CorticalRuntimeFactory,
+        model_port_factory: ModelPortFactory,
         ticks_to_run: int = 3,
         interval_sec: Optional[float] = None,
     ) -> None:
@@ -90,7 +87,7 @@ class ElfieNestEngine:
         将支持长效通信与 3D 群聊联动；若无连接，则优雅回退至本地终端仿真。
 
         Args:
-            runtime_factory: Injected cognition runtime factory for each Elfie.
+            model_port_factory: Injected model Port factory for each Elfie.
             ticks_to_run: 运行周期数
             interval_sec: 间隔秒数，None 则使用 self.tick_interval_sec
         """
@@ -101,7 +98,7 @@ class ElfieNestEngine:
         self._loop_started = True
         # Runtime process/channel lifecycle is owned by orchestration/lifecycle.
         # This loop starts only the resident Elfies it coordinates.
-        self.session.configure_cognition_factory(runtime_factory)
+        self.session.configure_cognition_factory(model_port_factory)
         self.session.start_elfies()
 
         logger.info(

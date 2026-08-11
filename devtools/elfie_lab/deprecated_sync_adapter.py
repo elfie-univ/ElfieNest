@@ -23,10 +23,10 @@ from elfie.body import (
 from elfie.brain.decision_types import DecisionPlan
 from elfie.brain.output_types import ExecutionReceipt
 from elfie.brain.runtime_port import (
-    CorticalRuntimePort,
     ModelGenerationCapabilities,
     ModelGenerationRequest,
     ModelGenerationResult,
+    ModelPort,
 )
 from elfie.brain.turn_outcome import TurnOutcome
 from elfie.message_types import ActorId, ActorRef, EventId, MediaRef
@@ -40,10 +40,10 @@ class SelectedLabRuntime:
     """Stable runtime port whose per-turn delegate is selected by the Lab."""
 
     def __init__(self) -> None:
-        self._selected: CorticalRuntimePort | None = None
+        self._selected: ModelPort | None = None
         self._lock = Lock()
 
-    def select(self, runtime: CorticalRuntimePort) -> None:
+    def select(self, runtime: ModelPort) -> None:
         with self._lock:
             self._selected = runtime
 
@@ -56,7 +56,7 @@ class SelectedLabRuntime:
     def abandon(self, request: ModelGenerationRequest) -> None:
         self._current().abandon(request)
 
-    def _current(self) -> CorticalRuntimePort:
+    def _current(self) -> ModelPort:
         with self._lock:
             selected = self._selected
         if selected is None:
@@ -77,7 +77,7 @@ class DeprecatedSyncCognitionAdapter:
         self,
         stimulus: StimulusBundle,
         event_id: str,
-        runtime: CorticalRuntimePort,
+        runtime: ModelPort,
     ) -> tuple[TurnOutcome, DecisionPlan | None, tuple[ExecutionReceipt, ...]]:
         self._runtime.select(runtime)
         previous_count = len(self._elfie.turn_outcomes())

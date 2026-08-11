@@ -7,7 +7,7 @@ from typing import Any, Iterable, Optional, Union, cast
 
 from elfie.body.native import GodotGateway, GodotTransport, NativeBody
 from elfie.body.port import BodyPort
-from elfie.brain.runtime_port import CorticalRuntimePort
+from elfie.brain.runtime_port import ModelPort
 from elfie.brain.skills import SkillManager
 from elfie.communication import CommunicationHub
 from elfie.elfie import Elfie
@@ -33,7 +33,7 @@ class ElfieFactory:
         current_body_id: Optional[str] = None,
         communication: Optional[CommunicationHub] = None,
         skills: Optional[SkillManager] = None,
-        cortical_runtime: Optional[CorticalRuntimePort] = None,
+        model_port: Optional[ModelPort] = None,
     ) -> Elfie:
         normalized_config_dir = str(config_dir) if config_dir is not None else None
         profile = self._resolve_profile(
@@ -58,7 +58,7 @@ class ElfieFactory:
             body=body,
             communication=communication,
             skills=skills,
-            cortical_runtime=cortical_runtime,
+            model_port=model_port,
         )
         for available_body in bodies:
             if elfie.body_registry.get(available_body.body_id) is available_body:
@@ -83,7 +83,7 @@ class ElfieFactory:
         current_body_id: Optional[str] = None,
         communication: Optional[CommunicationHub] = None,
         skills: Optional[SkillManager] = None,
-        cortical_runtime: Optional[CorticalRuntimePort] = None,
+        model_port: Optional[ModelPort] = None,
     ) -> Elfie:
         """Restore one Elfie from its final workspace."""
         path = Path(config_dir).expanduser()
@@ -103,7 +103,7 @@ class ElfieFactory:
             current_body_id=current_body_id,
             communication=communication,
             skills=skills,
-            cortical_runtime=cortical_runtime,
+            model_port=model_port,
         )
         return elfie
 

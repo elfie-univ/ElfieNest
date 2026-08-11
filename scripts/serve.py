@@ -393,7 +393,7 @@ def main():
         engine_holder["world_runtime"] = nest_session.world_runtime
         engine_ready.set()
         engine.start_loop(
-            runtime_factory=nest_session.runtime_factory,
+            model_port_factory=nest_session.model_port_factory,
             ticks_to_run=100000,
         )
 

@@ -25,7 +25,7 @@ def test_owner_message_runs_through_output_and_receipt_feedback() -> None:
         memory_db_path=":memory:",
         body=body,
         communication=hub,
-        cortical_runtime=runtime,
+        model_port=runtime,
     )
     elfie.start()
     elfie.receive_communication_envelope(_owner_message(elfie.cognitive_datetime))
@@ -52,7 +52,7 @@ def test_external_message_replay_is_deduplicated_at_communication_edge() -> None
         memory_db_path=":memory:",
         body=body,
         communication=hub,
-        cortical_runtime=runtime,
+        model_port=runtime,
     )
     elfie.start()
     envelope = _owner_message(elfie.cognitive_datetime)
@@ -79,7 +79,7 @@ def test_two_elfies_start_and_stop_without_shared_cognitive_state() -> None:
             memory_db_path=":memory:",
             body=body,
             communication=hub,
-            cortical_runtime=TwoTurnRuntime(),
+            model_port=TwoTurnRuntime(),
         )
         elfie.start()
         elfies.append(elfie)
