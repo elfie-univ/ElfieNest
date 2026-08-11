@@ -10,13 +10,13 @@ class _FakeFactory:
         self,
         path: str,
         *,
-        godot_api: object,
+        body: object,
         elfie_id: str,
         profile_store: object,
     ) -> object:
         if elfie_id == "broken":
             raise ValueError("invalid profile")
-        return (path, godot_api, elfie_id)
+        return (path, body, elfie_id)
 
 
 class _FakeSession:
@@ -60,6 +60,9 @@ def test_restore_registered_elfies_isolates_one_invalid_profile(monkeypatch) -> 
             "invalid profile",
         ),
     )
-    assert session.registered == [
-        ("ready", ("/profiles/ready", session.world_runtime, "ready"))
-    ]
+    assert len(session.registered) == 1
+    registered_id, restored = session.registered[0]
+    assert registered_id == "ready"
+    assert restored[0] == "/profiles/ready"
+    assert restored[1].body_id == "ready"
+    assert restored[2] == "ready"

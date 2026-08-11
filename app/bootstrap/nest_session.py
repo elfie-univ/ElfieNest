@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Union, cast
 
 from app.orchestration.nest_session import (
     ElfieNestEngine,
@@ -12,6 +12,7 @@ from app.orchestration.nest_session import (
     NestSession,
 )
 from elfie import ElfieFactory
+from elfie.body.native import GodotGateway, GodotTransport, NativeBody
 from elfie.brain.food_port import MainFoodSelection
 from infrastructure.godot.nest_session import GodotNestSessionAdapter
 from infrastructure.models.runtime_adapter import (
@@ -105,8 +106,11 @@ def restore_registered_elfies(
             config_dir = Path(get_elfie_config_dir(row.elfie_id))
             elfie = factory.restore(
                 str(config_dir),
-                godot_api=session.world_runtime,
                 elfie_id=row.elfie_id,
+                body=NativeBody(
+                    body_id=row.elfie_id,
+                    transport=GodotTransport(cast(GodotGateway, session.world_runtime)),
+                ),
                 profile_store=YamlProfileStoreAdapter(config_dir / "profile"),
             )
             session.register_elfie(row.elfie_id, elfie)
@@ -126,7 +130,10 @@ def register_transient_elfie(session: NestSession, elfie_id: str) -> None:
     """Create and register the existing interactive-script Elfie."""
     elfie = ElfieFactory().create(
         elfie_id=elfie_id,
-        godot_api=session.world_runtime,
+        body=NativeBody(
+            body_id=elfie_id,
+            transport=GodotTransport(cast(GodotGateway, session.world_runtime)),
+        ),
     )
     session.register_elfie(elfie_id, elfie)
 

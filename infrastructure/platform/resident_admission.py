@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Optional
 
 from app.orchestration.resident_admission import ResidentAdmissionPortError
 from elfie import Elfie, ElfieFactory
+from elfie.body.port import BodyPort
 from elfie.profile import ProfileStorePort
 
+BodyFactory = Callable[[str, str], Optional[BodyPort]]
 ProfileStoreFactory = Callable[[str], ProfileStorePort]
 
 
@@ -15,11 +18,11 @@ class ElfieFactoryAdapter:
     def __init__(
         self,
         factory: ElfieFactory,
-        godot_api: object | None,
+        body_factory: BodyFactory,
         profile_store_factory: ProfileStoreFactory,
     ) -> None:
         self._factory = factory
-        self._godot_api = godot_api
+        self._body_factory = body_factory
         self._profile_store_factory = profile_store_factory
 
     def restore(self, elfie_id: str, workspace: str) -> Elfie:
@@ -27,7 +30,7 @@ class ElfieFactoryAdapter:
             return self._factory.restore(
                 workspace,
                 elfie_id=elfie_id,
-                godot_api=self._godot_api,
+                body=self._body_factory(elfie_id, workspace),
                 profile_store=self._profile_store_factory(workspace),
             )
         except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as error:
@@ -36,4 +39,4 @@ class ElfieFactoryAdapter:
             ) from error
 
 
-__all__ = ("ElfieFactoryAdapter", "ProfileStoreFactory")
+__all__ = ("BodyFactory", "ElfieFactoryAdapter", "ProfileStoreFactory")

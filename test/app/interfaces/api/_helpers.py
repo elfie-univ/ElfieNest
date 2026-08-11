@@ -18,6 +18,7 @@ from app.features.adoption import (
     AdoptionReservationRecord,
 )
 from elfie import ElfieFactory
+from elfie.body.native import GodotTransport, NativeBody
 from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
 from infrastructure.persistence.adoption_profiles import FinalElfieWorkspaceAdapter
 from infrastructure.persistence.data_home import data_home_from_db_path
@@ -112,7 +113,14 @@ def adopt_test_elfie(
     if engine is not None:
         elfie = ElfieFactoryAdapter(
             ElfieFactory(),
-            getattr(engine, "world_runtime", None),
+            lambda elfie_id, _workspace: (
+                None
+                if getattr(engine, "world_runtime", None) is None
+                else NativeBody(
+                    body_id=elfie_id,
+                    transport=GodotTransport(engine.world_runtime),
+                )
+            ),
             lambda path: YamlProfileStoreAdapter(Path(path) / "profile"),
         ).restore(elfie_id, workspace)
         engine.session.register_elfie(elfie_id, elfie)

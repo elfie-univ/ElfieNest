@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Iterable, Optional, Union, cast
+from typing import Iterable, Optional, Union
 
-from elfie.body.native import GodotGateway, GodotTransport, NativeBody
 from elfie.body.port import BodyPort
 from elfie.brain.runtime_port import ModelPort
 from elfie.brain.skills import SkillManager
@@ -24,7 +23,6 @@ class ElfieFactory:
         *,
         config_dir: Optional[ConfigPath] = None,
         anatomy_type: Optional[str] = None,
-        godot_api: Any = None,
         elfie_id: Optional[str] = None,
         memory_db_path: Optional[str] = None,
         character_profile: Optional[ElfieProfile] = None,
@@ -44,12 +42,6 @@ class ElfieFactory:
             profile_store,
         )
         resolved_elfie_id = self._resolve_elfie_id(elfie_id, profile)
-        auto_native_body = body is None and godot_api is not None
-        if auto_native_body:
-            body = NativeBody(
-                body_id=resolved_elfie_id or "elfie_default",
-                transport=GodotTransport(cast(GodotGateway, godot_api)),
-            )
 
         elfie = Elfie(
             config_dir=normalized_config_dir,
@@ -67,7 +59,7 @@ class ElfieFactory:
             if elfie.body_registry.get(available_body.body_id) is available_body:
                 continue
             elfie.register_body(available_body)
-        if auto_native_body and body is not None:
+        if body is not None and current_body_id is None:
             elfie.bind_body(body.body_id)
         if current_body_id is not None:
             elfie.bind_body(current_body_id)
@@ -78,7 +70,6 @@ class ElfieFactory:
         config_dir: ConfigPath,
         *,
         anatomy_type: Optional[str] = None,
-        godot_api: Any = None,
         elfie_id: Optional[str] = None,
         memory_db_path: Optional[str] = None,
         body: Optional[BodyPort] = None,
@@ -95,7 +86,6 @@ class ElfieFactory:
         elfie = self.create(
             config_dir=config_dir,
             anatomy_type=anatomy_type,
-            godot_api=godot_api,
             elfie_id=elfie_id,
             memory_db_path=memory_db_path,
             body=body,

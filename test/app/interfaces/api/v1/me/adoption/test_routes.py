@@ -44,7 +44,7 @@ def _client(tmp_path: Path) -> tuple[TestClient, str]:
         FinalElfieWorkspaceAdapter(tmp_path),
         ElfieFactoryAdapter(
             ElfieFactory(),
-            None,
+            lambda _elfie_id, _workspace: None,
             lambda workspace: YamlProfileStoreAdapter(Path(workspace) / "profile"),
         ),
         None,

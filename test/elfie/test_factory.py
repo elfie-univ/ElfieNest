@@ -6,6 +6,7 @@ import pytest
 
 from elfie import Elfie, ElfieFactory
 from elfie.body import BodyMode, HeadlessBody, QuadrupedAnatomy
+from elfie.body.native import GodotTransport, NativeBody
 from elfie.profile import (
     ElfieProfile,
     EmbodimentProfile,
@@ -112,15 +113,16 @@ def test_factory_creates_canonical_elfie_without_copying_legacy_algorithms() -> 
     assert not hasattr(elfie, "brain")
 
 
-def test_factory_builds_and_connects_native_body_when_godot_gateway_is_supplied() -> (
-    None
-):
+def test_factory_accepts_an_already_assembled_native_body() -> None:
     gateway = FakeGodotGateway()
 
     elfie = ElfieFactory().create(
         elfie_id="elfie-native",
         memory_db_path=":memory:",
-        godot_api=gateway,
+        body=NativeBody(
+            body_id="elfie-native",
+            transport=GodotTransport(gateway),
+        ),
     )
 
     assert elfie.current_body is not None
