@@ -11,7 +11,16 @@ from scripts.check_quality_baseline import (
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 REQUIRED_ROOT_DIRECTORIES = frozenset(
-    {"app", "devtools", "docs", "elfie", "godot_project", "nest"} | {"scripts", "test"}
+    {
+        "app",
+        "devtools",
+        "docs",
+        "elfie",
+        "godot_project",
+        "infrastructure",
+        "nest",
+    }
+    | {"scripts", "test"}
 )
 FORBIDDEN_SOURCE_DIRECTORIES = frozenset({"desktop", "elfienest", "godot", "runtime"})
 FORBIDDEN_ELFIE_DIRECTORIES = frozenset({"state"})
@@ -88,6 +97,24 @@ def test_stable_repository_directories_exist() -> None:
 
     # Then
     assert missing == frozenset()
+
+
+def test_root_infrastructure_is_a_first_class_python_source() -> None:
+    # Given: root Infrastructure is a production package, not checkout-only code.
+    pyproject = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+    # When/Then: release discovery, import sorting and coverage all classify it.
+    assert (
+        'include = ["ai_runtime*", "app*", "elfie*", "infrastructure*", "nest*"]'
+        in pyproject
+    )
+    assert (
+        'known-first-party = ["ai_runtime", "app", "elfie", "infrastructure", "nest"]'
+        in pyproject
+    )
+    assert (
+        'source = ["ai_runtime", "app", "elfie", "infrastructure", "nest"]' in pyproject
+    )
 
 
 def test_legacy_source_directories_are_removed() -> None:

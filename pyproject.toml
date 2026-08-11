@@ -42,7 +42,7 @@ build-constraint-dependencies = ["setuptools==80.9.0"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["ai_runtime*", "app*", "elfie*", "nest*"]
+include = ["ai_runtime*", "app*", "elfie*", "infrastructure*", "nest*"]
 
 [tool.setuptools.package-data]
 "ai_runtime.providers" = ["provider-catalog.yaml"]
@@ -74,7 +74,7 @@ ignore = [
 "scripts/*" = ["E402"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["ai_runtime", "app", "elfie", "nest"]
+known-first-party = ["ai_runtime", "app", "elfie", "infrastructure", "nest"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -119,7 +119,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["ai_runtime", "app", "elfie", "nest"]
+source = ["ai_runtime", "app", "elfie", "infrastructure", "nest"]
 omit = [
     "*/test/*",
     "*/tests/*",
