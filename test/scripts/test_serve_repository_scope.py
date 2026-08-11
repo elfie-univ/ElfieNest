@@ -11,6 +11,7 @@ from ai_runtime.gateway.request import (
     StructuredRuntimeRequest,
 )
 from elfie.brain.decision_types import DecisionPlan, MessageIntent
+from infrastructure.models.fallback_runtime import FallbackRuntimeAdapter
 from scripts import serve
 
 
@@ -80,7 +81,7 @@ def test_engine_worker_uses_module_repository_without_uninitialized_closure() ->
 
 def test_fallback_agent_satisfies_the_structured_runtime_contract() -> None:
     # Given: the service must remain able to run cognition without a model provider.
-    fallback = serve.FallbackAgent()
+    fallback = FallbackRuntimeAdapter()
     request = StructuredRuntimeRequest(
         prompt="hello",
         messages=(),
@@ -106,7 +107,7 @@ def test_fallback_agent_satisfies_the_structured_runtime_contract() -> None:
 
 def test_fallback_agent_emits_owner_message_plan_for_social_context() -> None:
     # Given: a trusted compiled context containing one Owner chat event.
-    fallback = serve.FallbackAgent()
+    fallback = FallbackRuntimeAdapter()
     request = StructuredRuntimeRequest(
         prompt=_compiled_owner_prompt(),
         messages=(),
@@ -132,7 +133,7 @@ def test_fallback_agent_emits_owner_message_plan_for_social_context() -> None:
 
 def test_fallback_does_not_route_uncompiled_root_json() -> None:
     # Given: an untrusted caller-shaped JSON object that resembles an event.
-    fallback = serve.FallbackAgent()
+    fallback = FallbackRuntimeAdapter()
     request = StructuredRuntimeRequest(
         prompt=json.dumps(
             {
