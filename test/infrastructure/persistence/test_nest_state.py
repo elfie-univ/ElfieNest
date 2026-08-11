@@ -2,11 +2,9 @@ from __future__ import annotations
 
 import pytest
 
+from infrastructure.persistence.nest_management import SQLiteNestManagementAdapter
+from infrastructure.persistence.nest_state import SQLiteNestStateAdapter
 from infrastructure.persistence.store import get_db, init_db
-from infrastructure.persistence import (
-    SQLiteNestManagementAdapter,
-    SQLiteNestStateAdapter,
-)
 from nest.state.models import PersistentResidentState, ResidentPresence, WorldCatalog
 
 

@@ -76,7 +76,7 @@ def test_system_contract_ledger_decision_and_agents_exist_in_both_languages() ->
         "nest/AGENTS.md",
         "nest/godot_gateway/AGENTS.md",
         "ai_runtime/AGENTS.md",
-        "godot_runtime/AGENTS.md",
+        "infrastructure/godot/AGENTS.md",
         "godot_project/AGENTS.md",
     }
 

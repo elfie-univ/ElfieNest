@@ -12,8 +12,8 @@ from infrastructure.models.runtime_adapter import (
     SerializedRuntimeAdapter,
     StructuredRuntime,
 )
-from infrastructure.persistence import SQLiteNestStateAdapter
 from infrastructure.persistence.data_home import get_elfie_workspace_dir
+from infrastructure.persistence.nest_state import SQLiteNestStateAdapter
 
 MainFoodLoader = Callable[[str], Optional[Union[str, MainFoodSelection]]]
 

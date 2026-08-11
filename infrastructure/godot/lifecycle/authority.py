@@ -8,7 +8,6 @@ import subprocess
 import time
 from pathlib import Path
 from subprocess import Popen
-from typing import Optional, cast
 
 from app.orchestration.lifecycle.ports import (
     AuthorityHostConfig,
@@ -16,8 +15,8 @@ from app.orchestration.lifecycle.ports import (
     ProcessInspectorPort,
 )
 from app.orchestration.lifecycle.types import AuthorityHostError
-from godot_runtime.host_contract import RuntimeHostKind
-from godot_runtime.launcher import (
+from infrastructure.godot.lifecycle.host_contract import RuntimeHostKind
+from infrastructure.godot.lifecycle.launcher import (
     AUTHORITY_ROLE_ARGUMENT,
     AuthorityLaunchError,
     AuthorityLaunchRequest,
@@ -49,7 +48,7 @@ class GodotAuthorityHostAdapter:
 
     def start(self) -> Popen[bytes] | None:
         try:
-            return cast(Optional[Popen[bytes]], start_godot_runtime(self._request))
+            return start_godot_runtime(self._request)
         except AuthorityLaunchError as error:
             raise AuthorityHostError(str(error)) from error
 

@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from godot_runtime.host_contract import RuntimeHostDescriptor, RuntimeHostKind
+from infrastructure.godot.lifecycle.host_contract import (
+    RuntimeHostDescriptor,
+    RuntimeHostKind,
+)
 
 
 @dataclass(frozen=True)

@@ -35,7 +35,7 @@ The core source is split by responsibility:
 | `ai_runtime/` | Models, providers, policy, food, tools and the safety runtime | [AI Runtime README](https://github.com/elfie-univ/ElfieNest/blob/main/ai_runtime/README.md) |
 | `app/` | Product use-cases, interfaces, infrastructure and cross-module orchestration | [App README](https://github.com/elfie-univ/ElfieNest/blob/main/app/README.md) |
 | `app/orchestration/lifecycle/` | Runtime lifecycle, full health, owner leases and authority control | [Runtime & data](./runtime) |
-| `godot_runtime/` | Authority-host selection, exported Runtime launch and artifact metadata | [Runtime & data](./runtime) |
+| `infrastructure/godot/lifecycle/` and `artifacts/` | Authority-host selection, exported Runtime launch and artifact metadata | [Runtime & data](./runtime) |
 | `app/interfaces/desktop/` | Electron Observer windows and public lifecycle client | [Desktop README](https://github.com/elfie-univ/ElfieNest/blob/main/app/interfaces/desktop/README.md) |
 | `godot_project/` | Standalone Godot source project: rooms, geometry, coordinates, collision, characters and rendering | [Godot README](https://github.com/elfie-univ/ElfieNest/blob/main/godot_project/README.md) |
 | `devtools/` | Module workbenches isolated from the end-user product | [Devtools README](https://github.com/elfie-univ/ElfieNest/blob/main/devtools/README.md) |

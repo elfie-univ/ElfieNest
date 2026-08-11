@@ -7,7 +7,6 @@ from fastapi.testclient import TestClient
 
 from app.features.accounts import AccountPrincipal
 from app.features.adoption import AdoptionPolicyRecord, AdoptionService
-from infrastructure.persistence.store import get_db, init_db
 from app.interfaces.api.v1.auth import require_user
 from app.interfaces.api.v1.me.adoption.dependencies import (
     adoption_service,
@@ -16,7 +15,9 @@ from app.interfaces.api.v1.me.adoption.dependencies import (
 from app.interfaces.api.v1.me.adoption.routes import router
 from app.orchestration.resident_admission import ResidentAdmissionService
 from elfie import ElfieFactory
-from infrastructure.persistence import FinalElfieWorkspaceAdapter, SQLiteAdoptionAdapter
+from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
+from infrastructure.persistence.adoption_profiles import FinalElfieWorkspaceAdapter
+from infrastructure.persistence.store import get_db, init_db
 from infrastructure.platform import ElfieFactoryAdapter
 
 

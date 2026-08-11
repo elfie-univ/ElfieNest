@@ -74,10 +74,7 @@ def _migration_path(*relative_paths: str) -> Path:
     return PROJECT_ROOT / relative_paths[0]
 
 
-HOST_CONTRACT_PATH = _migration_path(
-    "infrastructure/godot/host_contract.py",
-    "godot_runtime/host_contract.py",
-)
+HOST_CONTRACT_PATH = PROJECT_ROOT / "infrastructure/godot/lifecycle/host_contract.py"
 OBSERVER_DESCRIPTOR_PATH = _migration_path(
     "infrastructure/godot/observer.py",
     "nest/godot_gateway/observer.py",

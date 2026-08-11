@@ -53,12 +53,12 @@ from ai_runtime.validation.providers import (
     discover_provider_models,
 )
 from ai_runtime.validation.tools import DirectToolValidationRunner
-from infrastructure.persistence import init_db
 from infrastructure.persistence.data_home import (
     get_config_path,
     get_elfie_developer_home,
 )
 from infrastructure.persistence.food_catalog import SQLiteFoodPackageRepository
+from infrastructure.persistence.store import init_db
 
 
 class RuntimeLab:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from app.features.operations import OperationsFacade
 from infrastructure.models import RuntimeObserverProjectionAdapter
-from infrastructure.persistence import SQLiteOperationsAdapter
+from infrastructure.persistence.operations import SQLiteOperationsAdapter
 
 
 def build_operations_facade(db_path: str) -> OperationsFacade:

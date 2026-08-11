@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from infrastructure.persistence import data_home
+import infrastructure.persistence.data_home as data_home
 from infrastructure.persistence.data_home import (
     data_home_from_db_path,
     ensure_elfie_home,

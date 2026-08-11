@@ -11,7 +11,7 @@ from app.features.accounts import (
     hash_password,
     verify_password,
 )
-from infrastructure.persistence import SQLiteAccountsAdapter
+from infrastructure.persistence.accounts import SQLiteAccountsAdapter
 from infrastructure.persistence.store import get_db, init_db
 
 

@@ -6,7 +6,7 @@ import json
 from pathlib import Path, PurePosixPath
 from typing import Mapping, Tuple
 
-from godot_runtime.artifact_manifest import (
+from infrastructure.godot.artifacts.artifact_manifest import (
     RuntimeArtifactComponent,
     RuntimeArtifactContractError,
     RuntimeArtifactFile,

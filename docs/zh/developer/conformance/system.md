@@ -7,7 +7,7 @@
 
 | ID | 严重级别 | 状态 | 当前偏差 | 关闭门槛 |
 | --- | --- | --- | --- | --- |
-| SYS-001 | P0 | in progress | 根 `infrastructure/` 已有七个目标能力目录，并已拥有 Data Home 与原始 Godot Gateway，但部分 Adapter 仍委托 `ai_runtime/`、`godot_runtime/` 或 Core 内的技术实现。 | 技术实现分别进入 `models`、`tools`、`persistence`、`godot`、`devices`、`communication` 或 `platform`；旧技术根和兼容 import 删除，根 `godot_project/` 保持不动。 |
+| SYS-001 | P0 | in progress | 根 `infrastructure/` 已有七个目标能力目录，并已拥有 Data Home、Godot Gateway、authority 宿主与产物校验。剩余所有权债集中在 `ai_runtime/`、已登记的 Observer 语义残留及 Core 内技术实现。 | 技术实现分别进入 `models`、`tools`、`persistence`、`godot`、`devices`、`communication` 或 `platform`；旧技术根和兼容 import 删除，根 `godot_project/` 保持不动。 |
 | SYS-002 | P0 | open | Elfie Memory/Profile 会构造 SQLite、YAML 和路径实现，Factory/Runtime 仍知道具体存储或 Godot 传输细节；这是已登记的 Elfie 内部债，不属于当前顶层归位批次。 | Elfie 只保留语义模型、算法、Facade 和 Port；Infrastructure 实现存储/身体/渠道 Adapter；Bootstrap 注入；聚焦 Elfie 测试使用 Fake 且无技术 I/O。 |
 | SYS-003 | P0 | in progress | 原始 WebSocket、JSON、Bundle、协议与 Session 已归位 `infrastructure/godot/gateway/`，Nest 已无 WebSocket import；`nest/godot_gateway/observer.py` 仍是被 Nest Session 私有消费的已登记混合语义投影。 | APP-G06 用所有者公开导出或消费方 Port Model 替换最后一个 Observer 私有模型 import，随后删除残留 Nest 目录；世界语义、状态、事件和协议行为不得改变。 |
 | SYS-004 | P0 | in progress | 强类型 `app/bootstrap/` Container 已构造大量根 Adapter，但 API、CLI 和脚本入口仍会解析或构造部分具体技术依赖，Lifecycle 所有权尚未完全单一。 | Bootstrap 构造全部跨系统具体 Adapter并注入系统 Port；只有 Lifecycle 能启动和停止 Runtime、Gateway 与 Godot authority；产品/Runtime 代码不再有 Service Locator 或具体 Adapter 构造。 |

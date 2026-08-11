@@ -10,8 +10,8 @@ from app.features.adoption import (
     AdoptionPortCapacityReached,
     AdoptionReservationRecord,
 )
+from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
 from infrastructure.persistence.store import get_db, init_db
-from infrastructure.persistence import SQLiteAdoptionAdapter
 
 
 def _reservation(elfie_id: str, owner_user_id: int) -> AdoptionReservationRecord:

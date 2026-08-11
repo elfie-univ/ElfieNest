@@ -5,9 +5,9 @@ from __future__ import annotations
 import hashlib
 import stat
 from pathlib import Path
-from typing import List, Set, Tuple
+from typing import AbstractSet, List, Tuple
 
-from godot_runtime.artifact_manifest import (
+from infrastructure.godot.artifacts.artifact_manifest import (
     RuntimeArtifactComponent,
     RuntimeArtifactManifest,
     RuntimeComponentKind,
@@ -45,12 +45,12 @@ def _manifest_shape_errors(manifest: RuntimeArtifactManifest) -> List[str]:
         expected_mode = expected_component_mode(component.kind)
         if component.mode is not expected_mode:
             errors.append(f"{component.kind.value}: mode must be {expected_mode.value}")
-        expected = expected_component_applicability(component.kind)
-        if component.applicable_targets != expected:
+        expected_applicability = expected_component_applicability(component.kind)
+        if component.applicable_targets != expected_applicability:
             errors.append(
                 "{}: applicability must be {}".format(
                     component.kind.value,
-                    ",".join(sorted(target.value for target in expected)),
+                    ",".join(sorted(target.value for target in expected_applicability)),
                 )
             )
         errors.extend(_component_contract_errors(component))
@@ -59,8 +59,8 @@ def _manifest_shape_errors(manifest: RuntimeArtifactManifest) -> List[str]:
             observed = manifest.required_components_for(target)
         except ValueError:
             continue
-        expected = expected_required_components(target)
-        errors.extend(_target_requirement_errors(target, observed, expected))
+        expected_components = expected_required_components(target)
+        errors.extend(_target_requirement_errors(target, observed, expected_components))
     return errors
 
 
@@ -86,8 +86,8 @@ def _component_contract_errors(component: RuntimeArtifactComponent) -> List[str]
 
 def _target_requirement_errors(
     target: RuntimeTarget,
-    observed: Set[RuntimeComponentKind],
-    expected: Set[RuntimeComponentKind],
+    observed: AbstractSet[RuntimeComponentKind],
+    expected: AbstractSet[RuntimeComponentKind],
 ) -> List[str]:
     errors: List[str] = []
     for component in sorted(expected - observed, key=lambda item: item.value):

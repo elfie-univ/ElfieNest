@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.features.accounts import AccountsService
-from infrastructure.persistence import SQLiteAccountsAdapter
+from infrastructure.persistence.accounts import SQLiteAccountsAdapter
 from infrastructure.persistence.data_home import data_home_from_db_path, get_config_path
 from infrastructure.persistence.data_layout import final_root_layout
 from infrastructure.platform import (

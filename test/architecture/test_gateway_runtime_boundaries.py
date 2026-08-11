@@ -63,10 +63,7 @@ def test_removed_gateway_alias_is_not_restored() -> None:
 
 def test_runtime_host_does_not_import_nest_business_objects() -> None:
     # Given: the Runtime host selects/launches artifacts rather than Nest business state.
-    runtime_roots = (
-        PROJECT_ROOT / "godot_runtime",
-        PROJECT_ROOT / "infrastructure/godot",
-    )
+    runtime_roots = (PROJECT_ROOT / "infrastructure/godot",)
 
     # When: every Runtime host module is checked for absolute Nest imports.
     offenders = {

@@ -24,8 +24,8 @@
         "filter": ["**/*"]
       },
       {
-        "from": "../../../godot_runtime/electron",
-        "to": "godot_runtime/electron",
+        "from": "../../../infrastructure/godot/lifecycle/electron",
+        "to": "infrastructure/godot/lifecycle/electron",
         "filter": ["**/*"]
       },
       "package.json"

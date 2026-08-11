@@ -224,14 +224,18 @@ def build_runtime_artifact_manifest(
     component_root: Path, desktop_version: str
 ) -> RuntimeArtifactManifest:
     """Build the packaging handoff from already-exported runtime components."""
-    from godot_runtime.artifact_manifest_builder import build_runtime_artifact_manifest
+    from infrastructure.godot.artifacts.artifact_manifest_builder import (
+        build_runtime_artifact_manifest,
+    )
 
     return build_runtime_artifact_manifest(component_root, desktop_version)
 
 
 def load_runtime_artifact_manifest(output: Path) -> RuntimeArtifactManifest:
     """Parse one untrusted JSON handoff into its typed runtime contract."""
-    from godot_runtime.artifact_manifest_parser import load_runtime_artifact_manifest
+    from infrastructure.godot.artifacts.artifact_manifest_parser import (
+        load_runtime_artifact_manifest,
+    )
 
     return load_runtime_artifact_manifest(output)
 
@@ -240,6 +244,8 @@ def validate_runtime_artifact_manifest(
     manifest: RuntimeArtifactManifest, component_root: Path
 ) -> Tuple[str, ...]:
     """Validate a handoff without coupling this model to filesystem checks."""
-    from godot_runtime.artifact_validator import validate_runtime_artifact_manifest
+    from infrastructure.godot.artifacts.artifact_validator import (
+        validate_runtime_artifact_manifest,
+    )
 
     return validate_runtime_artifact_manifest(manifest, component_root)

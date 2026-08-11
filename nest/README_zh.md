@@ -55,7 +55,7 @@ nest/
 app/orchestration ──> nest
 nest.nest ──> state + engine + interaction
 infrastructure.godot.gateway ──> Nest/Godot 协议边界
-godot_runtime ──> 宿主选择、启动与产物元数据
+infrastructure.godot.lifecycle/artifacts ──> 宿主选择、启动与产物元数据
 godot_project/ ──> 场景与几何的唯一事实源
 ```
 
@@ -109,7 +109,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 - `test/nest/test_nest.py`：状态、环境时钟和互动传播；
 - `test/infrastructure/godot/gateway/`：权威握手、消息校验与权威会话；
 - `test/nest/godot_gateway/`：APP-G06 关闭前已登记的 Observer 语义残留；
-- `test/godot_runtime/`：宿主选择、启动与产物元数据；
+- `test/infrastructure/godot/`：宿主选择、启动、产物元数据与协议传输；
 - `test/e2e/test_nest_runtime_v2.py`：重连后的世界与完整角色目录收敛；
 - `test/architecture/test_project_structure.py`：Nest 目录结构与旧包禁令；
 - `test/app/orchestration/`：真实精灵和 Nest 的组合行为。

@@ -66,7 +66,7 @@ push real objects into `NestState`.
 app/orchestration ──> nest
 nest.nest ──> state + engine + interaction
 infrastructure.godot.gateway ──> Nest / Godot protocol boundary
-godot_runtime ──> host selection, launch and artifact metadata
+infrastructure.godot.lifecycle/artifacts ──> host selection, launch and artifact metadata
 godot_project/ ──> single source of truth for scenes and geometry
 ```
 
@@ -136,7 +136,8 @@ to be running. For the dev environment and the unified quality gate see
   and authoritative session;
 - `test/nest/godot_gateway/`: the registered Observer semantic residual until
   APP-G06 is closed;
-- `test/godot_runtime/`: host selection, launcher and artifact metadata;
+- `test/infrastructure/godot/`: host selection, launcher, artifact metadata and
+  protocol transport;
 - `test/e2e/test_nest_runtime_v2.py`: world and full character catalog
   convergence after reconnection;
 - `test/architecture/test_project_structure.py`: Nest directory structure and

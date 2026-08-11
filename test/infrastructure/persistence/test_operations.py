@@ -12,8 +12,8 @@ from app.features.operations import (
     OperationsPortUnsafeTarget,
     StoredSpeciesCount,
 )
+from infrastructure.persistence.operations import SQLiteOperationsAdapter
 from infrastructure.persistence.store import get_db, init_db
-from infrastructure.persistence import SQLiteOperationsAdapter
 from test.app.interfaces.api._helpers import create_test_owner
 
 

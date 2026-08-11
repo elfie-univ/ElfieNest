@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from godot_runtime import (
+from infrastructure.godot.artifacts import artifact_metadata
+from infrastructure.godot.lifecycle import (
     RuntimeDisplayMode,
     RuntimeHostKind,
-    artifact_metadata,
     select_authority_host,
 )
 

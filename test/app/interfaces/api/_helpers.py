@@ -17,12 +17,10 @@ from app.features.adoption import (
     AdoptionReservationRecord,
 )
 from elfie import ElfieFactory
-from infrastructure.persistence import (
-    FinalElfieWorkspaceAdapter,
-    SQLiteAdoptionAdapter,
-    SQLiteNestManagementAdapter,
-)
+from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
+from infrastructure.persistence.adoption_profiles import FinalElfieWorkspaceAdapter
 from infrastructure.persistence.data_home import data_home_from_db_path
+from infrastructure.persistence.nest_management import SQLiteNestManagementAdapter
 from infrastructure.persistence.setup import SQLiteSetupAdapter
 from infrastructure.persistence.setup_nest import SetupNestAdapter
 from infrastructure.persistence.store import get_db, hash_password

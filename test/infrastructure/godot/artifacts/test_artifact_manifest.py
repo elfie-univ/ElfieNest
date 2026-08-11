@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from godot_runtime.artifact_manifest import (
+from infrastructure.godot.artifacts.artifact_manifest import (
     RuntimeArtifactContractError,
     RuntimeArtifactFile,
     RuntimeArtifactMode,
@@ -260,7 +260,7 @@ def test_runtime_contract_rejects_invalid_serialized_payload(tmp_path: Path) -> 
 
 def test_runtime_contract_fixture_is_the_only_unignored_build_component() -> None:
     # Given: the repository build-output ignore rules.
-    ignore_file = Path(__file__).resolve().parents[2] / ".gitignore"
+    ignore_file = Path(__file__).resolve().parents[4] / ".gitignore"
 
     # When: the runtime contract exception is inspected.
     rules = ignore_file.read_text(encoding="utf-8")

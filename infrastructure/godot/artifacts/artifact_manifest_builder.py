@@ -8,7 +8,7 @@ import stat
 from pathlib import Path
 from typing import Mapping, Tuple
 
-from godot_runtime.artifact_manifest import (
+from infrastructure.godot.artifacts.artifact_manifest import (
     RuntimeArtifactComponent,
     RuntimeArtifactContractError,
     RuntimeArtifactFile,

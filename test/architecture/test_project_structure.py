@@ -22,7 +22,9 @@ REQUIRED_ROOT_DIRECTORIES = frozenset(
     }
     | {"scripts", "test"}
 )
-FORBIDDEN_SOURCE_DIRECTORIES = frozenset({"desktop", "elfienest", "godot", "runtime"})
+FORBIDDEN_SOURCE_DIRECTORIES = frozenset(
+    {"desktop", "elfienest", "godot", "godot_runtime", "runtime"}
+)
 FORBIDDEN_ELFIE_DIRECTORIES = frozenset({"state"})
 REQUIRED_APP_DIRECTORIES = frozenset(
     {"bootstrap", "features", "interfaces", "orchestration"}

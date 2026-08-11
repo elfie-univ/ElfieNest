@@ -13,7 +13,8 @@ endpoint 作为第四组件被探测：其不可用会使 Runtime 处于 `degrad
 `godot_authority`、`ollama`）和生命周期状态。Supervisor 将当前收据写入
 `<所选数据根>/runtime.json`。
 
-权威宿主由 `godot_runtime/` 选择，不携带 Nest 状态、场景数据或协议凭据：
+权威宿主由 `infrastructure/godot/lifecycle/` 选择，不携带 Nest 状态、场景数据或协议
+凭据；已导出产物元数据与校验位于 `infrastructure/godot/artifacts/`：
 
 | 宿主类型 | 显示模式 | 用途 |
 | --- | --- | --- |

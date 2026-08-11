@@ -9,10 +9,8 @@ from app.features.configuration.settings import SettingsStorePort
 from app.orchestration.nest_session import NestSession
 from app.orchestration.resident_admission import ResidentAdmissionService
 from elfie import ElfieFactory
-from infrastructure.persistence import (
-    FinalElfieWorkspaceAdapter,
-    SQLiteAdoptionAdapter,
-)
+from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
+from infrastructure.persistence.adoption_profiles import FinalElfieWorkspaceAdapter
 from infrastructure.platform import (
     ElfieFactoryAdapter,
     SettingsAdoptionPolicyAdapter,

@@ -8,7 +8,7 @@ import pytest
 
 from app.features.adoption import AdoptionReservationRecord
 from app.features.bodies.ports import BodiesPortConflict
-from infrastructure.persistence import SQLiteAdoptionAdapter
+from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
 from infrastructure.persistence.bodies import SQLiteBodiesAdapter
 from infrastructure.persistence.embodiment import (
     begin_hosting,

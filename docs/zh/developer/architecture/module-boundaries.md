@@ -12,7 +12,7 @@
 | `nest/` | 巢内语义状态、环境时间和互动传播 | 创建或持有 `ElfieIndividual`、房屋几何或权威宿主 |
 | `infrastructure/godot/gateway/` | Python 侧已认证 Godot 传输、协议帧、Session 与 Bundle 检查 | Nest 世界语义、产品授权或进程生命周期 |
 | `app/orchestration/lifecycle/` | Runtime 生命周期、完整健康、owner lease 与权威启停 | 产品 UI、账户规则和原始场景事实 |
-| `godot_runtime/` | 权威宿主选择、产物元数据和已导出 Runtime 启动 | Nest 业务状态、场景编辑或产品路由 |
+| `infrastructure/godot/lifecycle/` 与 `artifacts/` | 权威宿主选择、产物元数据、校验和已导出 Runtime 启动 | Nest 业务状态、场景编辑或产品路由 |
 | `app/interfaces/desktop/` | Electron Observer 窗口、平台集成和公开 lifecycle client | Supervisor、Gateway 内部实现、权威凭据和产品规则 |
 | `app/` | 产品用例、接口、基础设施和跨模块编排 | 取代领域模块的内部状态 |
 | `ai_runtime/` | Provider、模型、策略、工具、安全和推理 | 账户与 Nest 业务规则 |
@@ -35,7 +35,7 @@ Observer 是面向产品、已认证的语义投影。它只能读取被授权�
 ```text
 app/bootstrap → app/orchestration → elfie / nest / ai_runtime
 app/orchestration → infrastructure/godot/gateway → 已导出 Godot 权威
-app/orchestration/lifecycle → godot_runtime → 已导出 Godot 权威
+app/orchestration/lifecycle → infrastructure/godot/lifecycle → 已导出 Godot 权威
 app/interfaces/desktop → 公开 lifecycle CLI 与已认证 Observer 表面
 app/interfaces → app/features
 app/infrastructure → Feature / Orchestration Port

@@ -59,7 +59,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "nest/AGENTS.md",
             "nest/godot_gateway/AGENTS.md",
             "ai_runtime/AGENTS.md",
-            "godot_runtime/AGENTS.md",
+            "infrastructure/godot/AGENTS.md",
             "godot_project/AGENTS.md",
         ),
         scanner_paths=("scripts/architecture/system_layer_scan.py",),

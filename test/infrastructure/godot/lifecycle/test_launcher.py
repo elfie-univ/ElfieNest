@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from godot_runtime import launcher
+from infrastructure.godot.lifecycle import launcher
 
 
 def _source_electron(project_root: Path) -> tuple[Path, Path]:

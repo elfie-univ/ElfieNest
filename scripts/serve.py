@@ -75,12 +75,9 @@ from elfie.brain.decision_types import CancelPolicy, DecisionPlan, MessageIntent
 from elfie.brain.model_context_compiler import CompiledModelContext
 from elfie.message_types import EventId, IntentId, PlanId, TurnId
 from infrastructure.godot.gateway.bundle import inspect_godot_web_bundle
-from infrastructure.persistence import (
-    FinalElfieWorkspaceAdapter,
-    SQLiteAdoptionAdapter,
-    SQLiteElfiesProjectionAdapter,
-)
 from infrastructure.persistence.account_repository import AccountRepository
+from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
+from infrastructure.persistence.adoption_profiles import FinalElfieWorkspaceAdapter
 from infrastructure.persistence.data_home import (
     DataHomeSelectionError,
     data_home_from_db_path,
@@ -89,6 +86,7 @@ from infrastructure.persistence.data_home import (
     get_elfie_home,
     select_elfie_home,
 )
+from infrastructure.persistence.elfies import SQLiteElfiesProjectionAdapter
 from infrastructure.persistence.food_catalog import SQLiteFoodPackageRepository
 from infrastructure.persistence.store import (
     get_db,

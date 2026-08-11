@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from app.features.configuration.food import FoodService
 from infrastructure.models import RuntimeFoodTechnologyAdapter
-from infrastructure.persistence import SQLiteFoodAdapter
+from infrastructure.persistence.food import SQLiteFoodAdapter
 
 
 def build_food_service(db_path: str) -> FoodService:

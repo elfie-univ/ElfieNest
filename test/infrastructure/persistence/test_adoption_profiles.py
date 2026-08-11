@@ -2,7 +2,7 @@ from pathlib import Path
 
 from app.features.adoption import AcceptedAdoptionReservation
 from elfie import ElfieFactory
-from infrastructure.persistence import FinalElfieWorkspaceAdapter
+from infrastructure.persistence.adoption_profiles import FinalElfieWorkspaceAdapter
 
 
 def test_workspace_adapter_materializes_the_final_elfie_profile(tmp_path: Path) -> None:

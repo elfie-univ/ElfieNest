@@ -12,14 +12,9 @@ from app.features.bodies.ports import (
 )
 from app.features.nest_management import NestPortBedNotFound
 from app.orchestration.embodiment.ports import EmbodimentLeaseConflict
-from infrastructure.persistence import (
-    SQLiteAdoptionAdapter,
-    SQLiteElfiesProjectionAdapter,
-    SQLiteFoodAdapter,
-    SQLiteNestManagementAdapter,
-    SQLiteNestStateAdapter,
-)
+from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
 from infrastructure.persistence.bodies import SQLiteBodiesAdapter
+from infrastructure.persistence.elfies import SQLiteElfiesProjectionAdapter
 from infrastructure.persistence.embodiment import (
     begin_hosting,
     complete_hosting,
@@ -28,6 +23,9 @@ from infrastructure.persistence.embodiment import (
     start_return,
 )
 from infrastructure.persistence.final_schema import create_final_nest_database
+from infrastructure.persistence.food import SQLiteFoodAdapter
+from infrastructure.persistence.nest_management import SQLiteNestManagementAdapter
+from infrastructure.persistence.nest_state import SQLiteNestStateAdapter
 from infrastructure.persistence.store import get_db
 from nest.embodiment import EmbodimentState
 from nest.state.models import PersistentResidentState, ResidentPresence, WorldCatalog

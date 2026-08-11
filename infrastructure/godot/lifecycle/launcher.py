@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Final, Mapping, Optional, Protocol
 from urllib.parse import urlencode
 
-from godot_runtime.host_contract import (
+from infrastructure.godot.lifecycle.host_contract import (
     RuntimeHostKind,
     RuntimeHostSelectionContext,
     select_platform_authority_host,

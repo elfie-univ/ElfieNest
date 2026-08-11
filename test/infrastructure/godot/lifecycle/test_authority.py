@@ -6,8 +6,11 @@ import pytest
 
 from app.orchestration.lifecycle.ports import AuthorityHostConfig
 from app.orchestration.lifecycle.types import AuthorityHostError
-from godot_runtime.launcher import AuthorityLaunchError, AuthorityLaunchFailureKind
 from infrastructure.godot.lifecycle import authority
+from infrastructure.godot.lifecycle.launcher import (
+    AuthorityLaunchError,
+    AuthorityLaunchFailureKind,
+)
 
 
 def test_authority_adapter_translates_launch_error(monkeypatch, tmp_path: Path) -> None:
