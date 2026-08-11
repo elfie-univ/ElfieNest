@@ -24,7 +24,6 @@ from infrastructure.godot.lifecycle.launcher import (
     start_godot_runtime,
     stop_godot_runtime,
 )
-from infrastructure.platform.lifecycle.process import DefaultProcessInspector
 
 
 class GodotAuthorityHostAdapter:
@@ -34,7 +33,7 @@ class GodotAuthorityHostAdapter:
         self,
         config: AuthorityHostConfig,
         *,
-        inspector: ProcessInspectorPort | None = None,
+        inspector: ProcessInspectorPort,
         stop_timeout_seconds: float = 5.0,
     ) -> None:
         self._request = AuthorityLaunchRequest(
@@ -43,7 +42,7 @@ class GodotAuthorityHostAdapter:
             ws_port=config.ws_port,
             nonce=config.nonce,
         )
-        self._inspector = inspector or DefaultProcessInspector()
+        self._inspector = inspector
         self._stop_timeout_seconds = stop_timeout_seconds
 
     def start(self) -> Popen[bytes] | None:
