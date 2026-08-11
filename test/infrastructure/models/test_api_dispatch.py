@@ -27,6 +27,7 @@ from infrastructure.models.providers.dispatch import (
 )
 from infrastructure.models.runtime_agent import RuntimeAgent
 from infrastructure.models.runtime_config import LLMRuntimeConfig
+from test.support.runtime_agent import runtime_agent_ports
 
 
 class TestDetectApiMode:
@@ -435,7 +436,7 @@ class TestApiDispatch:
             "api_mode": "ollama",
         }
 
-        agent = RuntimeAgent(config)
+        agent = RuntimeAgent(config, ports=runtime_agent_ports())
 
         mock_response = Mock()
         mock_response.read.return_value = json.dumps(
@@ -467,7 +468,7 @@ class TestApiDispatch:
             "api_mode": "anthropic_messages",
         }
 
-        agent = RuntimeAgent(config)
+        agent = RuntimeAgent(config, ports=runtime_agent_ports())
 
         mock_response = Mock()
         mock_response.read.return_value = json.dumps(
@@ -499,7 +500,7 @@ class TestApiDispatch:
             "api_mode": "chat_completions",
         }
 
-        agent = RuntimeAgent(config)
+        agent = RuntimeAgent(config, ports=runtime_agent_ports())
 
         mock_response = Mock()
         mock_response.read.return_value = json.dumps(
@@ -530,7 +531,7 @@ class TestApiDispatch:
             "api_key": "sk-ant-test",
         }
 
-        agent = RuntimeAgent(config)
+        agent = RuntimeAgent(config, ports=runtime_agent_ports())
 
         mock_response = Mock()
         mock_response.read.return_value = json.dumps(
@@ -561,7 +562,7 @@ class TestApiDispatch:
             "api_key": "test-key",
         }
 
-        agent = RuntimeAgent(config)
+        agent = RuntimeAgent(config, ports=runtime_agent_ports())
 
         mock_response = Mock()
         mock_response.read.return_value = json.dumps(

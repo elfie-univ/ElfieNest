@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -157,6 +158,43 @@ def test_phase_one_tool_advertising_is_limited_to_safe_tools() -> None:
         source = _source(source_path)
         assert "CodeSandboxPlugin" not in source
         assert "SkillsSelfEvolutionPlugin" not in source
+
+
+def test_runtime_coordinator_uses_bootstrap_ports_for_technical_capabilities() -> None:
+    """Keep RuntimeAgent behavior in Models while wiring Tools at Bootstrap."""
+    runtime_path = PROJECT_ROOT / "infrastructure/models/runtime_agent.py"
+    tree = ast.parse(runtime_path.read_text(encoding="utf-8"))
+    runtime_class = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.ClassDef) and node.name == "RuntimeAgent"
+    )
+    constructor = next(
+        node
+        for node in runtime_class.body
+        if isinstance(node, ast.FunctionDef) and node.name == "__init__"
+    )
+    assert any(argument.arg == "ports" for argument in constructor.args.kwonlyargs)
+
+    concrete_imports = {
+        node.module
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+        and node.module is not None
+        and (
+            node.module == "infrastructure.persistence"
+            or node.module.startswith("infrastructure.persistence.")
+            or node.module == "infrastructure.tools"
+            or node.module.startswith("infrastructure.tools.")
+        )
+    }
+    assert concrete_imports == set()
+
+    wiring_source = _source("app/bootstrap/system_wiring/runtime.py")
+    assert "build_runtime_agent_ports" in wiring_source
+    assert "PermissionManager" in wiring_source
+    assert "LocalFileAccessPlugin" in wiring_source
+    assert "WebSearchPlugin" in wiring_source
 
 
 def test_reports_and_food_facts_use_only_contract_paths() -> None:

@@ -33,6 +33,7 @@ from infrastructure.persistence.provider_connections import (
     ProviderModelRecord,
 )
 from infrastructure.persistence.reports.report_repository import ReportRepository
+from test.support.runtime_agent import runtime_agent_ports
 
 
 def _evidence(model: str, capabilities: set[str], *, local: bool = False):
@@ -188,6 +189,7 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
     )
     agent = RuntimeAgent(
         LLMRuntimeConfig(),
+        ports=runtime_agent_ports(),
         live_reload=True,
         food_catalog_repository=food_repository,
     )

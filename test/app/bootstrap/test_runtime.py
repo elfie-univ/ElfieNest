@@ -81,11 +81,16 @@ def test_model_runtime_receives_existing_food_and_warmup_dependencies(
     )
 
     assert isinstance(services.runtime, _FakeRuntime)
-    assert services.runtime.kwargs == {
-        "live_reload": True,
-        "main_food_loader": (loader, ("food-service", "/tmp/nest.db")),
-        "food_catalog_repository": (repository, "/tmp/nest.db"),
-    }
+    assert services.runtime.kwargs["ports"] is not None
+    assert services.runtime.kwargs["live_reload"] is True
+    assert services.runtime.kwargs["main_food_loader"] == (
+        loader,
+        ("food-service", "/tmp/nest.db"),
+    )
+    assert services.runtime.kwargs["food_catalog_repository"] == (
+        repository,
+        "/tmp/nest.db",
+    )
     assert services.tick_interval_sec == 1.5
     assert services.warmup is not None
     services.warmup()

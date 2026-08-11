@@ -22,6 +22,7 @@ from infrastructure.persistence.provider_connections import (
     ProviderConnectionStore,
     ProviderModelRecord,
 )
+from test.support.runtime_agent import runtime_agent_ports
 
 
 class _InMemoryFoodPort:
@@ -105,6 +106,7 @@ def _agent(
     _configure_models()
     agent = RuntimeAgent(
         LLMRuntimeConfig(),
+        ports=runtime_agent_ports(),
         main_food_loader=lambda _elfie_id: selection,
         food_catalog_repository=_InMemoryFoodPort(_catalog()),
     )
@@ -220,6 +222,7 @@ def test_runtime_returns_typed_error_for_an_unconfigured_clean_catalog(
     _configure_models()
     agent = RuntimeAgent(
         LLMRuntimeConfig(),
+        ports=runtime_agent_ports(),
         food_catalog_repository=_InMemoryFoodPort(FoodCatalog()),
     )
 

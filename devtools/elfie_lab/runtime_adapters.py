@@ -18,7 +18,14 @@ from elfie.brain.runtime_port import (
     ModelGenerationResult,
     StructuredOutputMode,
 )
+from infrastructure.models.runtime_agent import RuntimeAgent
+from infrastructure.models.runtime_observations import get_runtime_observer
+from infrastructure.models.runtime_ports import RuntimeAgentPorts
 from infrastructure.persistence.layout.data_home import get_elfie_developer_home
+from infrastructure.tools.execution.config import effective_tool_keys, load_tool_configs
+from infrastructure.tools.execution.permissions import PermissionManager
+from infrastructure.tools.local_file.local_files import LocalFileAccessPlugin
+from infrastructure.tools.web_search.search import WebSearchPlugin
 
 _SECRET_PATTERNS = (
     re.compile(r"sk-[A-Za-z0-9_-]{12,}"),
@@ -212,7 +219,6 @@ def create_runtime(food_key: str, config_dir: str | None = None) -> TracingRunti
         return TracingRuntimeAgent(MockRuntimeAgent(), "mock")
 
     from devtools.runtime_lab import RuntimeLabConfigStore
-    from infrastructure.models.runtime_agent import RuntimeAgent
 
     store = RuntimeLabConfigStore(config_dir or default_runtime_config_dir())
     config = store.load_runtime_config()
@@ -224,10 +230,39 @@ def create_runtime(food_key: str, config_dir: str | None = None) -> TracingRunti
 
     agent = RuntimeAgent(
         config,
+        ports=_runtime_agent_ports(store),
         food_catalog_repository=food_store,
     )
     food_agent = FoodRuntimeAgent(agent, normalized, package)
     return TracingRuntimeAgent(food_agent, normalized)
+
+
+def _runtime_agent_ports(store: Any) -> RuntimeAgentPorts:
+    observer = get_runtime_observer()
+
+    def build_permission_manager(
+        config: Any, observation_port: Any
+    ) -> PermissionManager:
+        return PermissionManager(config, observation_port)
+
+    def build_file_access(
+        root: str, max_read_bytes: int, max_items: int
+    ) -> LocalFileAccessPlugin:
+        return LocalFileAccessPlugin(
+            root,
+            max_read_bytes=max_read_bytes,
+            max_items=max_items,
+        )
+
+    return RuntimeAgentPorts(
+        observer=observer,
+        config_paths=lambda: (store.config_path, store.env_path),
+        search_factory=WebSearchPlugin.from_runtime_policy,
+        permission_factory=build_permission_manager,
+        tool_config_loader=load_tool_configs,
+        effective_tool_keys=effective_tool_keys,
+        file_access_factory=build_file_access,
+    )
 
 
 def default_runtime_config_dir() -> str:

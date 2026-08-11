@@ -20,9 +20,11 @@ from .nest_session import (
     register_transient_elfie,
     restore_registered_elfies,
 )
+from .runtime import build_runtime_agent_ports
 
 __all__ = (
     "build_nest_session_services",
+    "build_runtime_agent_ports",
     "create_lifecycle_facade",
     "DataHomeSelectionError",
     "get_db_path",

@@ -37,13 +37,11 @@ from infrastructure.models.runtime_observations import (
     FallbackObservation,
     FoodDecisionObservation,
     RuntimeEventStatus,
-    get_runtime_observer,
 )
-from infrastructure.persistence.layout.data_home import get_runtime_config_paths
-from infrastructure.tools.execution.config import effective_tool_keys, load_tool_configs
-from infrastructure.tools.execution.permissions import PermissionManager
-from infrastructure.tools.local_file.local_files import LocalFileAccessPlugin
-from infrastructure.tools.web_search.search import WebSearchPlugin
+from infrastructure.models.runtime_ports import (
+    RuntimeAgentPorts,
+    RuntimeFileAccessPort,
+)
 
 logger = logging.getLogger("infrastructure.models.runtime_agent")
 MainFoodLoader = Callable[[str], MainFoodSelection]
@@ -56,11 +54,13 @@ class RuntimeAgent:
         self,
         config: LLMRuntimeConfig = None,
         *,
+        ports: RuntimeAgentPorts,
         live_reload: bool = False,
         main_food_loader: MainFoodLoader | None = None,
         food_catalog_repository: FoodPort | None = None,
     ):
         self.config = config or LLMRuntimeConfig()
+        self._ports = ports
         self._live_reload = live_reload
         self._main_food_loader = main_food_loader
         self.food_catalog_repository = food_catalog_repository
@@ -68,20 +68,19 @@ class RuntimeAgent:
         self._mount_runtime_dependencies()
 
     def _mount_runtime_dependencies(self) -> None:
-        self._observer = get_runtime_observer()
-        self.permission_manager = PermissionManager(self.config, self._observer)
-
-        self.search_plugin = WebSearchPlugin.from_runtime_policy(
-            self.config.runtime_policy
+        self._observer = self._ports.observer
+        self.permission_manager = self._ports.permission_factory(
+            self.config, self._observer
         )
-        tool_configs = load_tool_configs(self.config.runtime_policy)
+
+        self.search_plugin = self._ports.search_factory(self.config.runtime_policy)
+        tool_configs = self._ports.tool_config_loader(self.config.runtime_policy)
         self._local_file_config = tool_configs["local_file"]
         self.file_access_plugin = None
 
-    @staticmethod
-    def _config_mtimes() -> tuple[int | None, ...]:
+    def _config_mtimes(self) -> tuple[int | None, ...]:
         mtimes: list[int | None] = []
-        for path in get_runtime_config_paths():
+        for path in self._ports.config_paths():
             try:
                 mtimes.append(path.stat().st_mtime_ns)
             except OSError:
@@ -165,7 +164,7 @@ class RuntimeAgent:
     ) -> RuntimeResult:
         """返回完整执行结果，调用者仍只提交粮食语义和任务上下文。"""
         self._reload_config_if_changed()
-        tools = effective_tool_keys(
+        tools = self._ports.effective_tool_keys(
             self.config.runtime_policy,
             tuple(allowed_skills or ()),
         )
@@ -398,7 +397,7 @@ class RuntimeAgent:
             selection_reason = "requested_food_unavailable"
         else:
             selection_reason = "requested_food_available"
-        observer = get_runtime_observer()
+        observer = self._observer
         if fallback_used or (
             selected_food == FOOD_EMERGENCY_ID and requested_food != FOOD_EMERGENCY_ID
         ):
@@ -551,11 +550,11 @@ class RuntimeAgent:
             model_caller=caller,
         )
 
-    def _local_file_access(self, root: str) -> LocalFileAccessPlugin:
-        return LocalFileAccessPlugin(
+    def _local_file_access(self, root: str) -> RuntimeFileAccessPort:
+        return self._ports.file_access_factory(
             root,
-            max_read_bytes=int(self._local_file_config.get("max_read_bytes") or 65536),
-            max_items=int(self._local_file_config.get("max_items") or 200),
+            int(self._local_file_config.get("max_read_bytes") or 65536),
+            int(self._local_file_config.get("max_items") or 200),
         )
 
     def _load_food_catalog(self) -> FoodCatalog:

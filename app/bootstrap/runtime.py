@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from app.bootstrap.app_wiring.food import build_food_service
 from app.bootstrap.runtime_food import final_main_food_loader
+from app.bootstrap.system_wiring.runtime import build_runtime_agent_ports
 from elfie.brain.food_port import MainFoodSelection
 from infrastructure.models.fallback_runtime import FallbackRuntimeAdapter
 from infrastructure.models.runtime_adapter import StructuredRuntime
@@ -47,6 +48,7 @@ def build_runtime_services(
         main_food_loader = final_main_food_loader(build_food_service(db_path))
     runtime = RuntimeAgent(
         config,
+        ports=build_runtime_agent_ports(),
         live_reload=live_reload,
         main_food_loader=main_food_loader,
         food_catalog_repository=SQLiteFoodAdapter(db_path),

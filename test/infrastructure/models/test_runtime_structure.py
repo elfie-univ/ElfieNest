@@ -1,3 +1,6 @@
+from test.support.runtime_agent import runtime_agent_ports
+
+
 def test_target_runtime_imports_are_available():
     from infrastructure.models.catalog import ModelCatalog
     from infrastructure.models.inference.token_usage import TokenTracker
@@ -11,7 +14,7 @@ def test_target_runtime_imports_are_available():
 
     assert RuntimeAgent is not None
     assert ModelCatalog is not None
-    assert not hasattr(RuntimeAgent(), "router")
+    assert not hasattr(RuntimeAgent(ports=runtime_agent_ports()), "router")
     assert OllamaManager is not None
     assert get_profile("ollama") is not None
     assert PermissionManager is not None
