@@ -252,6 +252,17 @@ def test_bootstrap_pnpm_preparation_uses_repository_pinned_version() -> None:
     assert "pnpm@latest" not in bootstrap_source + runtime_source
 
 
+def test_bootstrap_creates_data_home_through_root_infrastructure() -> None:
+    bootstrap_source = (PROJECT_ROOT / "scripts/bootstrap.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert "from infrastructure.persistence.data_home import ensure_elfie_home" in (
+        bootstrap_source
+    )
+    assert "ai_runtime.storage.data_home" not in bootstrap_source
+
+
 def test_bootstrap_accepts_only_dev_and_build_tiers(tmp_path: Path) -> None:
     # Given: a bootstrap checkout that formerly accepted a production tier.
     project_root = tmp_path / "project"
