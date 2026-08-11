@@ -14,7 +14,8 @@ from elfie.body.port import BodyPort
 from elfie.brain.decision_types import DecisionPlan
 from elfie.brain.emotion.emotion_system import EmotionSystem
 from elfie.brain.energy.energy import HypothalamusEnergy
-from elfie.brain.memory import MemoryStorePort, MemorySystem
+from elfie.brain.memory.memory_store import MemoryStorePort
+from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.output_types import ExecutionReceipt
 from elfie.brain.perception_types import IngestReceipt
 from elfie.brain.perceptual_workspace import PerceptualWorkspace

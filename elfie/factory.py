@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Iterable, Optional, Union
 
 from elfie.body.port import BodyPort
-from elfie.brain.memory import MemoryStorePort
+from elfie.brain.memory.memory_store import MemoryStorePort
 from elfie.brain.runtime_port import ModelPort
 from elfie.brain.skills import SkillManager
 from elfie.communication import CommunicationHub
