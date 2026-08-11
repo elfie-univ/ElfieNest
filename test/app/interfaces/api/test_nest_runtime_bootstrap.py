@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import inspect
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
 from app.bootstrap import create_app
+from app.interfaces.api import app as api_app
 from app.orchestration.nest_session import ElfieNestEngine
 from elfie import Elfie
 from infrastructure.persistence.nest_state import SQLiteNestStateAdapter
@@ -42,11 +44,27 @@ def test_application_lifespan_accepts_engine_with_registered_elfies(tmp_path) ->
 
     # When: the HTTP application's lifespan starts after the Elfie is loaded.
     with (
-        patch("app.interfaces.api.app.AuthenticatedWSManager.start"),
-        patch("app.interfaces.api.app.AuthenticatedWSManager.stop"),
+        patch(
+            "app.orchestration.lifecycle.LifecycleFacade.start_runtime_channel"
+        ) as start_channel,
+        patch(
+            "app.orchestration.lifecycle.LifecycleFacade.stop_runtime_channel"
+        ) as stop_channel,
         TestClient(application) as client,
     ):
         response = client.get("/api/health")
 
     # Then: startup succeeds instead of attempting to attach a second repository.
     assert response.status_code == 200
+    start_channel.assert_called_once_with(application.state.ws_manager)
+    stop_channel.assert_called_once_with(application.state.ws_manager)
+
+
+def test_interface_application_factory_has_no_concrete_startup_composition() -> None:
+    source = inspect.getsource(api_app.create_http_application)
+
+    assert "init_db(" not in source
+    assert "seed_initial_owner_if_env_set(" not in source
+    assert "AuthenticatedWSManager(" not in source
+    assert "ws_manager.start(" not in source
+    assert "ws_manager.stop(" not in source

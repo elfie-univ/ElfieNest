@@ -9,9 +9,9 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator, Optional  # noqa: E402
+from typing import Any, AsyncIterator, Callable, Optional, Protocol  # noqa: E402
 
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -41,13 +41,7 @@ from app.orchestration.message_delivery import MessageDeliveryFacade
 from app.orchestration.observer import ObserverFacade
 from app.orchestration.resident_admission import ResidentAdmissionService
 from app.orchestration.setup_installation import SetupInstallationService
-from infrastructure.communication import SameOriginMessagePublisher
 from infrastructure.godot.gateway.bundle import GODOT_WEB_DIR, godot_web_bundle_present
-from infrastructure.persistence.data_home import get_db_path as _get_db_path
-from infrastructure.persistence.store import (
-    init_db,
-    seed_initial_owner_if_env_set,
-)
 
 from .health_models import HealthResponse
 from .page_routes import router as page_router
@@ -57,6 +51,14 @@ from .v1.auth import verify_csrf_token
 from .ws_gateway import AuthenticatedWSManager
 
 logger = logging.getLogger("app.interfaces.api.app")
+
+
+class CommunicationRealtimePort(Protocol):
+    """Same-origin connection surface consumed by the chat Interface."""
+
+    async def connect(self, user_id: int, websocket: WebSocket) -> None: ...
+
+    async def disconnect(self, user_id: int, websocket: WebSocket) -> None: ...
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +110,7 @@ def create_http_application(
     operations: OperationsFacade,
     communication: CommunicationFacade,
     message_delivery: MessageDeliveryFacade,
-    communication_realtime: SameOriginMessagePublisher,
+    communication_realtime: CommunicationRealtimePort,
     observer: ObserverFacade,
     adoption: AdoptionService,
     resident_admission: ResidentAdmissionService,
@@ -117,9 +119,11 @@ def create_http_application(
     bodies: BodiesService,
     embodiment: EmbodimentSessionService,
     body_device_channel: BodyDeviceChannel,
+    ws_manager: AuthenticatedWSManager,
+    start_application: Callable[[], None],
+    stop_application: Callable[[], None],
+    db_path: str,
     engine: Any = None,
-    db_path: Optional[str] = None,
-    ws_port: int = 8766,
     http_port: int = 8000,
     service_mode: str = "loopback",
     web_build_dir: Optional[Path] = None,
@@ -131,37 +135,23 @@ def create_http_application(
             health endpoint reports ``engine_ready: true`` and routes that need
             engine access (adoption, config, etc.) become functional.
         db_path: Path to the SQLite database file.
-        ws_port: Port for the authenticated WebSocket gateway (default 8766).
         http_port: Port serving the browser console (default 8000).
 
     Returns:
         A fully configured :class:`FastAPI` instance.
     """
-    if db_path is None:
-        db_path = str(_get_db_path())
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        init_db(db_path)
-        setup_installation.recover()
-        seed_initial_owner_if_env_set(db_path)
-        # 创建鉴权 WS 网关（独立端口，不与 Godot 8765 冲突）
-        ws_manager = AuthenticatedWSManager(
-            accounts=accounts,
-            message_delivery=message_delivery,
-            port=ws_port,
-            http_port=http_port,
-        )
-        if engine is not None:
-            engine.session.owner_broadcaster = ws_manager
-        ws_manager.start()
+        start_application()
         app.state.ws_manager = ws_manager
 
         logger.info("App startup complete (db=%s, ws=%d)", db_path, ws_manager.port)
-        yield
-
-        ws_manager.stop()
-        logger.info("App shutdown complete")
+        try:
+            yield
+        finally:
+            stop_application()
+            logger.info("App shutdown complete")
 
     app = FastAPI(title="ElfieNest Management Dashboard", lifespan=lifespan)
 
@@ -187,7 +177,7 @@ def create_http_application(
     app.state.body_device_channel = body_device_channel
     app.state.db_path = db_path
     app.state.engine = engine
-    app.state.ws_port = ws_port
+    app.state.ws_port = ws_manager.port
     configured_web_build_dir = os.environ.get("ELFIENEST_WEB_BUILD_DIR")
     build_dir = web_build_dir or (
         Path(configured_web_build_dir)
