@@ -7,13 +7,13 @@
 
 | ID | 严重级别 | 状态 | 当前偏差 | 关闭门槛 |
 | --- | --- | --- | --- | --- |
-| SYS-001 | P0 | in progress | 根 `infrastructure/` 已拥有七个目标能力目录及其局部治理、Data Home、持久化、模型/Provider 技术、工具、Godot Gateway、authority 宿主和产物校验；原 `app/infrastructure/` 与 `godot_runtime/` 根已消失。剩余所有权债集中在已登记的混合 `ai_runtime` 与 Observer/Core 残留。 | 只继续等价迁移纯技术叶子；必须重构 Elfie/Nest 才能移动的混合协调器保留为后续专项；不得恢复旧根或兼容 import。 |
+| SYS-001 | P0 | in progress | 根 `infrastructure/` 已拥有七个目标能力目录及其局部治理、Data Home、持久化、模型/Provider 技术、工具技术、终端宿主、Godot Gateway、authority 宿主和产物校验；原 `app/infrastructure/` 与 `godot_runtime/` 根已消失。剩余所有权债仅限已登记的混合 `ai_runtime` 协调器与 Observer/Core 残留。 | 混合协调器保留给后续 Elfie/Nest 专项；不得恢复旧根或兼容 import。 |
 | SYS-002 | P0 | open | Elfie Memory/Profile 会构造 SQLite、YAML 和路径实现，Factory/Runtime 仍知道具体存储或 Godot 传输细节；这是已登记的 Elfie 内部债，不属于当前顶层归位批次。 | Elfie 只保留语义模型、算法、Facade 和 Port；Infrastructure 实现存储/身体/渠道 Adapter；Bootstrap 注入；聚焦 Elfie 测试使用 Fake 且无技术 I/O。 |
 | SYS-003 | P0 | in progress | 原始 WebSocket、JSON、Bundle、协议与 Session 已归位 `infrastructure/godot/gateway/`，Nest 已无 WebSocket import；`nest/godot_gateway/observer.py` 仍是被 Nest Session 私有消费的已登记混合语义投影。 | APP-G06 用所有者公开导出或消费方 Port Model 替换最后一个 Observer 私有模型 import，随后删除残留 Nest 目录；世界语义、状态、事件和协议行为不得改变。 |
-| SYS-004 | P0 | in progress | 服务与交互脚本已从 `app/bootstrap/` 获取 Runtime、存储、Nest Session 和 Elfie 恢复装配，Runtime/Godot 通道经 Lifecycle 启停；但 API lifespan 仍自行构造并启动鉴权管理 WebSocket Gateway，生产装配与生命周期尚未完全单一。 | Bootstrap 构造最后这个具体 Gateway，并注入委托 Lifecycle 控制通道的启动/停止回调；Interface 只保留协议映射。 |
+| SYS-004 | P0 | closed | 生产服务与交互脚本从 `app/bootstrap/` 获取 Runtime、存储、Nest Session 和 Elfie 恢复装配；Bootstrap 构造鉴权管理 WebSocket Gateway 并注入 API 启停回调；Runtime、管理 Gateway 与 Godot 通道只经 Lifecycle 启停。Interface 只保留协议映射。 | 永久架构测试持续禁止 Interface 构造具体实现，并断言 API lifespan 把通道控制委托给 Lifecycle。 |
 | SYS-005 | P1 | open | 系统 Facade 和出站 Port 已部分存在，但没有一份稳定强类型边界清单；部分路径仍使用 `Any`、具体路径或协议细节。 | Elfie/Nest Facade，以及 Food、模型、工具、身体、世界、通信和持久化 Port 全部使用强类型模型；重复或技术命名的边界 API 删除。 |
 | SYS-006 | P1 | open | 现有永久规则只覆盖部分目标：系统精确 Scanner 主要检查 Elfie/Nest 技术 import，尚未完整棘轮 Bootstrap 装配、Infrastructure 跨能力组合和打包所有权。 | Core 测试使用 Fake/内存 Port，Adapter 测试分离，Bootstrap 有装配测试，迁移路径有端到端证据，并且系统精确基线清零。 |
-| SYS-007 | P0 | in progress | Provider、Food 与工具管理边界已有目标 Adapter，但 `ai_runtime/` 仍混有模型/工具技术、持久化和推理协调，部分根 Infrastructure Adapter 仍委托它。 | 纯技术实现及全部调用方迁到目标能力目录；任何必须重构 Elfie 认知或工具行为才能移动的混合协调器继续登记为后续 Elfie 内部专项，不得改名塞进 Infrastructure。 |
+| SYS-007 | P0 | in progress | Provider/模型客户端、Runtime 请求/结果契约、直接搜索/文件工具、验证 Runner 与终端宿主已进入目标 Infrastructure 能力目录。剩余 `ai_runtime/` 包混合了推理、Food 执行、工具循环策略、用量观察、验证或实验台协调，部分目标 Adapter 仍委托这些混合所有者。 | 任何必须重构 Elfie 认知、Food 执行或工具行为才能移动的混合协调器继续登记为后续 Elfie 内部专项，不得改名塞进 Infrastructure。 |
 
 ## 当前执行边界
 
@@ -30,8 +30,8 @@ Elfie 与 Nest 内部算法、状态机、子模块交互和用户可见行为�
 
 当前系统精确 Scanner 与 `system_layer.py` 基线只覆盖 `SYS-002`、`SYS-003`：Elfie 和
 Nest 的禁止跨根依赖与直接技术依赖。其他架构测试保护现有 Runtime、Observer、存储、
-Godot 和工程结构安全规则，但不能据此关闭其余目标条目。`SYS-001`、`SYS-004`、
-`SYS-005`、`SYS-006`、`SYS-007` 仍然需要完整迁移调用链、聚焦行为证据和维护者审查，
+Godot 和工程结构安全规则，但不能据此关闭其余目标条目。`SYS-001`、`SYS-005`、
+`SYS-006`、`SYS-007` 仍然需要完整迁移调用链、聚焦行为证据和维护者审查，
 不能只因为 Scanner 通过就标记关闭。
 
 ## 迁移顺序
