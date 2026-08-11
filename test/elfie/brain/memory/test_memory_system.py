@@ -33,6 +33,15 @@ from elfie.brain.memory.knowledge_store import KnowledgeStore
 class TestMemorySystem:
     """MemorySystem 门面类测试"""
 
+    def test_memory_system_accepts_a_brain_owned_storage_port(self):
+        store = KnowledgeStore.in_memory()
+        ms = MemorySystem(storage=store, personality_path=None)
+
+        assert ms.storage is store
+        ms.close()
+        assert store.count_nodes() >= 4
+        store.close()
+
     def test_memory_system_init(self):
         """初始化所有组件"""
         ms = MemorySystem(db_path=":memory:", personality_path=None)

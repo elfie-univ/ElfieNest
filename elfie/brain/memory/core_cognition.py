@@ -16,7 +16,7 @@ from typing import Any, Dict, Optional
 import yaml
 
 from elfie.brain.memory.knowledge_store import KnowledgeStore
-from elfie.brain.memory.memory_store import MemoryStore
+from elfie.brain.memory.memory_store import MemoryStorePort
 from elfie.brain.memory.node_types import MemoryNode
 
 logger = logging.getLogger("elfie.brain.memory.core_cognition")
@@ -206,7 +206,7 @@ class CoreCognition:
         db_path: str = ":memory:",
         personality_path: Optional[str] = None,
         personality_data: Optional[Dict[str, Any]] = None,
-        storage: MemoryStore | None = None,
+        storage: MemoryStorePort | None = None,
     ):
         """从SQLite加载核心认知，如不存在则从personality.yaml初始化。
 

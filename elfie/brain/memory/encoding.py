@@ -15,7 +15,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from .memory_store import MemoryStore
+from .memory_store import MemoryStorePort
 from .node_types import EdgeTypes, MemoryNode, NodeTypes
 from .runtime_food import ask_memory_model
 from .sensory_buffer import SensoryBuffer
@@ -43,7 +43,7 @@ class MemoryEncoder:
 
     def __init__(
         self,
-        storage: MemoryStore,
+        storage: MemoryStorePort,
         sensory_buffer: SensoryBuffer,
         sensory_indexer: SensoryIndexer = None,
         elfie_id: str | None = None,

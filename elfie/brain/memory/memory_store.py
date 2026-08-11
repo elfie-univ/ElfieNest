@@ -7,8 +7,8 @@ from typing import Protocol
 from .node_types import Edge, MemoryNode
 
 
-class MemoryStore(Protocol):
-    """Operations required by encoding, retrieval, and consolidation."""
+class MemoryStorePort(Protocol):
+    """Semantic storage operations required by Brain memory algorithms."""
 
     def add_node(self, node: MemoryNode) -> str: ...
 
@@ -55,4 +55,4 @@ class MemoryStore(Protocol):
     def close(self) -> None: ...
 
 
-__all__ = ["MemoryStore"]
+__all__ = ["MemoryStorePort"]

@@ -30,6 +30,7 @@ from .ebbinghaus_decay import EbbinghausDecay
 from .emotion_weighting import EmotionWeighting
 from .encoding import MemoryEncoder
 from .knowledge_store import KnowledgeStore
+from .memory_store import MemoryStorePort
 from .node_types import RetrievalQuery
 from .retrieval import MemoryRetriever
 from .sensory_buffer import SensoryBuffer
@@ -49,6 +50,7 @@ class MemorySystem:
         elfie_id: str | None = None,
         config_dir: str | None = None,
         personality_data: Optional[dict] = None,
+        storage: MemoryStorePort | None = None,
     ):
         """初始化所有组件
 
@@ -57,16 +59,23 @@ class MemorySystem:
             personality_path: personality.yaml路径（默认自动查找）
         """
         resolved_db_path = db_path
-        if resolved_db_path is None:
+        if storage is None and resolved_db_path is None:
             resolved_db_path = (
                 str(Path(config_dir) / "memory" / "knowledge.sqlite")
                 if config_dir is not None
                 else ":memory:"
             )
-        self.storage = KnowledgeStore(resolved_db_path)
+        if storage is None:
+            self.storage: MemoryStorePort = KnowledgeStore(
+                resolved_db_path or ":memory:"
+            )
+            self._owns_storage = True
+        else:
+            self.storage = storage
+            self._owns_storage = False
         self.sensory_buffer = SensoryBuffer()
         self.core_cognition = CoreCognition(
-            resolved_db_path,
+            resolved_db_path or ":memory:",
             personality_path,
             personality_data=personality_data,
             storage=self.storage,
@@ -256,4 +265,5 @@ class MemorySystem:
 
     def close(self) -> None:
         """Close the final knowledge database owned by this facade."""
-        self.storage.close()
+        if self._owns_storage:
+            self.storage.close()
