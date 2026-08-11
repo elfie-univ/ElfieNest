@@ -3,7 +3,6 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from ai_runtime.setup.runtime_setup import MODELS_TO_PULL
 from infrastructure.models.local_profiles import (
     recommend_local_profile,
     select_local_profile,
@@ -21,12 +20,6 @@ def test_select_local_profile_by_memory_size():
 def test_local_model_recommendation_requires_at_least_four_gb():
     assert recommend_local_profile(3) is None
     assert recommend_local_profile(4).text_model == "qwen2.5:0.5b"
-
-
-def test_setup_models_to_pull_use_local_fallback_profile():
-    profile = select_local_profile(8)
-
-    assert MODELS_TO_PULL == [profile.text_model, profile.vision_model]
 
 
 def test_ollama_manager_lists_installed_models():

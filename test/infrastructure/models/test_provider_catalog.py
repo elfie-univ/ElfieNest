@@ -180,12 +180,3 @@ def test_provider_catalog_rejects_grouped_bundled_models(tmp_path) -> None:
 
     assert catalog.source == BUNDLED_PROVIDER_CATALOG_PATH
     assert "new_gateway" not in catalog.profiles
-
-
-def test_setup_provider_metadata_is_derived_from_catalog() -> None:
-    from ai_runtime.setup.runtime_setup import PROVIDER_METADATA
-
-    for provider_id, metadata in PROVIDER_METADATA.items():
-        profile = BUILTIN_PROFILES[provider_id]
-        assert metadata["api_base"] == profile.api_base
-        assert metadata["test_model"] == profile.test_model

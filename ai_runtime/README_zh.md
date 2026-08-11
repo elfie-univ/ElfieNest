@@ -75,8 +75,7 @@ ai_runtime.gateway ──> models + providers + policy + food + tools + safety
 ```
 
 Runtime 核心不依赖 `elfie/` 或 `nest/`，也不应知道真实精灵和活动空间对象。
-当前 `ai_runtime/setup/runtime_setup.py` 会调用应用配置存储完成安装期写入；这是
-现存的 setup 集成边界，不应扩展到 Gateway、Provider 或工具核心。
+首次安装属于 App Setup 边界；AI Runtime 不再拥有另一套安装器。
 
 ## 运行与调试
 

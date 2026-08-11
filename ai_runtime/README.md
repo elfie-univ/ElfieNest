@@ -87,10 +87,8 @@ ai_runtime.gateway ──> models + providers + policy + food + tools + safety
 ```
 
 The Runtime core does not depend on `elfie/` or `nest/`, and must not know about
-real Elfies or activity-space objects. The current
-`ai_runtime/setup/runtime_setup.py` calls the application configuration store
-for install-time writes; this is an existing setup integration boundary and must
-not be extended into the Gateway, Provider or tool cores.
+real Elfies or activity-space objects. First-time installation belongs to the
+application Setup boundary; AI Runtime does not own a separate installer.
 
 ## Run & debug
 

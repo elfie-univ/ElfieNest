@@ -100,11 +100,8 @@ def test_product_runtime_has_one_food_resolver_and_no_direct_model_route() -> No
     assert "def generate_structured(" in source
     assert not (AI_RUNTIME / "models" / "registry.py").exists()
 
-    setup_source = _source("ai_runtime/setup/runtime_setup.py")
-    assert "write_runtime_config" not in setup_source
-    assert "cheap_model" not in setup_source
-    assert "deep_model" not in setup_source
-    assert "multimodal_model" not in setup_source
+    assert not (AI_RUNTIME / "setup").exists()
+    assert not (AI_RUNTIME / "policy").exists()
 
     config_source = _source("ai_runtime/config.py")
     for legacy_field in (

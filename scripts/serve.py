@@ -555,7 +555,7 @@ def main():
             )
             print(
                 "  💡 For real AI responses, ensure Ollama is installed locally:\n"
-                "     Setup guide: .venv/bin/python ai_runtime/setup/runtime_setup.py"
+                "     Setup guide: ./elfienest.sh setup"
             )
 
         nest_session = build_nest_session_services(
